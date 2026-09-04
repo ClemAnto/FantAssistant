@@ -396,6 +396,67 @@ coordinate che il browser dichiara *nel momento in cui si clicca* - e la cura è
 uguali di fila, poi si clicca. Trovata contando i click che ARRIVANO, che è la sola misura che l'avrebbe
 mostrata.
 
+## 13. LE TRE PASTIGLIE su ogni riga (4 settembre 2026)
+
+Richiesta dell'operatore: «per ogni calciatore mi devi mostrare 1) fantapunti medi a partita sopra il 6
+2) partite giocate attese 3) partite attese con voto >= 6 ... formattato in 3 pill tipo `[+1.5] [24:20]
+[75']`», più «il terzo pill sono i minuti medi a partita». Quattro numeri in tre riquadri: il secondo ne
+porta due, perché il secondo è un sottoinsieme del primo.
+
+**Nessuno dei quattro è nuovo, e nessuno ordina niente.** Tre vengono dal foglio (`engine_fm_pred` /
+`est_fm`, `engine_pv_pred` / `est_pv`, `desc_minutes_next`) e il quarto è la COSTANZA che la tabella di
+consultazione già misura (`player-ratings.steadyOf`, la quota di partite chiuse con almeno la
+sufficienza). L'aritmetica sta in `core/strategy.readingsOf` e non nel template, come tutto il resto di
+questa pagina; il 6 è `plancia.EDGE_BASE`, letto da dove sta — è la stessa colonna che la plancia
+mostra, e un secondo `6` scritto qui sarebbe la stessa colonna con due basi il giorno che una cambia.
+
+**La seconda pastiglia mescola due nature, e lo DICE.** `24` è una previsione del motore, `:20` è quella
+previsione moltiplicata per una MISURA delle sue stagioni: «quante ne chiuderebbe bene se tenesse il
+passo che ha tenuto finora». Il chip dei minuti del 18/08/2026 fu curato dichiarando quale delle due cose
+fosse; qui la terza strada non c'è — nessuno ha misurato una PREVISIONE della quota di sufficienze, e
+inventarne una sarebbe una regola senza gate — quindi restano due numeri accanto e il tooltip dice quale
+è quale. Dove la quota è quasi tutta l'ancora del ruolo (`weight` sotto `MOSTLY_ANCHOR` = 0,5) la metà
+sbiadisce, che è il `~` applicato a mezzo numero.
+
+**I minuti mancano su 244 righe di 602** del foglio Serie A (645 di 999 su euro li hanno): la colonna la
+scrive lo stesso passo che disegna gli undici, quindi manca dove manca il disegno — è esattamente la
+popolazione di `desc_titolarita` (602 righe su 602 d'accordo). Lì la pastiglia porta un trattino e non
+uno zero.
+
+**IL COSTO È LA LARGHEZZA, ed è misurato invece che sperato.** Tre riquadri in linea chiedono ~104px.
+Su classic le liste sono larghe 386px e tutto sta in riga: **250 righe su 250 in linea, 0 nomi tagliati,
+il più stretto 94px**. Su mantra i blocchi sono dodici e la lista scende a ~254px: la prima versione
+mangiava il nome per intero e buttava il gain fuori dal blocco. La cura è una CONTAINER QUERY sulla
+lista (`@container`, soglia 23rem) e non una media query sulla finestra — quanto è larga una lista
+dipende da quanti blocchi ci sono, non da quanto è larga la finestra, quindi una soglia sullo schermo
+risponderebbe alla domanda sbagliata. Sotto le 23rem le pastiglie vanno a capo, dopo il gain
+(`order-last`), che resta in riga perché è il numero che ORDINA: se andasse a capo lui si spezzerebbe la
+colonna del colore, che è quella che si scorre. Prezzo dichiarato: su mantra la riga passa da 24 a 38px,
+cioè da ~11 a ~8 nomi visibili per blocco.
+
+**E il riquadro è un INCAVO, non una tinta.** `bg-control` era la scelta ovvia ed è stata misurata a
+schermo: su questo tema `control` (#1c1c26) e `surface` (#14141c) distano otto punti per canale, e su una
+riga dispari (`bg-control/25`) la pastiglia spariva — un riquadro che non si vede è un riquadro che non
+c'è. Quindi fondo `page` e bordo `border`. Nessun colore: il colore di una riga è del GAIN, e una seconda
+scala accanto a quella vera farebbe chiedere «quale dei due verdi conta?».
+
+**Verificato nel browser** (`scripts/e2e-strategy.mjs`, tre passi nuovi). Il confronto non è con lo
+schermo ma col FOGLIO, letto in Node dal file `.json.gz` che l'arnese sta servendo: confrontare la
+pastiglia con un numero ricavato dalla pastiglia è l'asserzione circolare del 04/09. 250 righe, ogni
+numero d'accordo col file, più due invarianti falsificabili (le partite buone non possono essere più di
+quelle giocate, le giocate non più delle giornate del calendario). Il tooltip si verifica APRENDOLO con
+un puntatore vero — con `[nzTooltipTitle]` nel DOM non c'è nessun attributo da leggere — e il passo
+mantra misura la riga stretta a parte, perché **un passo che guarda solo la vista larga direbbe «nessun
+problema» dopo aver guardato metà pagina**.
+
+Quel passo mantra ha anche misurato il costo di una modifica di qualcun altro, ed è il caso in cui vale
+la pena rimisurare invece di citare: nella prima versione leggeva **16 nomi tagliati**, tutti con le
+pastiglie già a capo — cioè non attribuibili a loro, e l'attribuzione era misurata e non dedotta. Nella
+corsa di chiusura sono **zero**, e il nome più stretto passa da 18 a 81px, perché la sessione parallela
+ha tolto i badge dei ruoli dalla riga (`ui-roles`) mentre lavorava alle bande dello slot. Su classic la
+stessa cosa porta il nome più stretto da 94 a 116px. *Il costo di un layout è una fotografia che scade:
+si rimisura, non si cita.*
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

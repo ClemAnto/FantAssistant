@@ -110,9 +110,9 @@
       <span
         class="rounded-md bg-control px-2 py-0.5 font-medium text-fg"
         nz-tooltip
-        [nzTooltipTitle]="gainHint[settings().auction]"
+        [nzTooltipTitle]="gainHint()"
       >
-        GAIN = {{ gainLabel[settings().auction] }}
+        GAIN = {{ gainLabel() }}
       </span>
       <span
         class="text-muted"
@@ -231,6 +231,11 @@
                 block.pool +
                 (block.unranked ? ', di cui ' + block.unranked + ' senza un numero del foglio (non sono in classifica: vuoto non è zero)' : '') +
                 '.' +
+                ' Lo sfondo li raggruppa ogni ' +
+                summary().teams +
+                ': una banda è uno SLOT, cioè quanti ne compra la stanza a testa - i primi ' +
+                summary().teams +
+                ' sono i «primi» di questo ruolo, uno per rosa.' +
                 (block.pinned
                   ? ' I primi ' +
                     block.pinned +
@@ -261,8 +266,14 @@
                  segnaposto, lo scorrimento al bordo e il drag nativo spento sono suoi. `cdkDropListData`
                  le passa i nomi COME SONO A SCHERMO, così l'indice che dichiara al rilascio è un indice
                  su questa lista e non su un'altra. -->
+            <!-- LA LISTA È IL CONTENITORE che decide la forma della riga (`@container`), e non una
+                 soglia sulla FINESTRA: quanto è larga una lista dipende da quanti blocchi ci sono -
+                 quattro a classic, dodici a mantra - quindi la stessa finestra dà 386px o 254px. Una
+                 media query risponderebbe alla domanda sbagliata. Misurato: sotto le 23rem le tre
+                 pastiglie mangiano il nome per intero (a mantra il nome spariva e il gain finiva fuori
+                 dal blocco), quindi lì vanno a capo invece di spingere. -->
             <ol
-              class="min-h-0 flex-1 overflow-y-auto"
+              class="@container min-h-0 flex-1 overflow-y-auto"
               [class.pb-11]="last"
               cdkDropList
               [cdkDropListData]="block.men"
@@ -282,20 +293,29 @@
                      per niente. `cdkDragData` porta l'identita' del nome - il rilascio
                      dichiara un indice, e chi si e' mosso lo dice questo - e `data-id` resta perche'
                      l'arnese e2e verifica il gesto leggendo la lista disegnata. -->
+                <!-- LO SFONDO RAGGRUPPA OGNI `n` NOMI, con `n` = i partecipanti (operatore,
+                     04/09/2026), e non una riga sì e una no: le bande alternate disegnano lo SLOT,
+                     che è il rango dentro il ruolo diviso il numero di rose - la legge di
+                     conservazione su cui poggia ogni numero del banco d'asta (in una lega da dieci
+                     ci sono dieci «primi difensori» perché ognuno ne schiera uno). Sostituisce la
+                     zebra invece di aggiungersi: due alternanze sulla stessa proprietà darebbero
+                     quattro tinte e il confine della banda - la sola cosa che si deve leggere - si
+                     perderebbe fra le altre tre. -->
+                <!-- IL BORDO SINISTRO È DEL NOME, non del contenitore: a dodici blocchi una lista è
+                     larga ~254px e ogni pixel speso in margine è un pixel tolto al nome, che è la sola
+                     cosa che si cerca scorrendo. Quindi il rientro è minimo e a lista stretta sparisce
+                     del tutto (richiesta dell'operatore, 04/09/2026); a destra resta, perché lì ci
+                     finiscono il gain e le pastiglie e un numero attaccato al bordo si legge peggio. -->
                 <li
-                  class="flex cursor-grab items-center gap-1 px-1.5 py-0.5 text-xs odd:bg-control/25
-                         [&.cdk-drag-placeholder]:bg-primary/25"
+                  class="flex cursor-grab flex-wrap items-center gap-x-1 gap-y-0.5 py-0.5 pl-1 pr-1.5
+                         text-xs @max-[23rem]:pl-0 [&.cdk-drag-placeholder]:bg-primary/25"
+                  [class]="bandTone(i)"
                   [attr.data-id]="row.man.fcId"
+                  [attr.data-band]="bandOf(i)"
                   [attr.data-behind]="row.fromBehind ? '1' : null"
                   cdkDrag
                   [cdkDragData]="row.man.fcId"
                   [cdkDragPreviewClass]="previewClass"
-                  [title]="
-                    row.man.name +
-                    ' · ' +
-                    row.man.club +
-                    (row.fromBehind ? ' · lo metteresti da ' + row.deepest : '')
-                  "
                 >
                   <span
                     class="w-5 shrink-0 text-right text-[10px] tabular-nums"
@@ -308,8 +328,34 @@
                     [clubId]="row.man.clubId"
                     [crests]="store.crests()"
                   />
-                  <ui-roles [roles]="row.shown" size="xs" />
-                  <span class="min-w-0 flex-1 truncate text-fg">{{ row.man.name }}</span>
+                  <!-- NIENTE BADGE DEL RUOLO (operatore, 04/09/2026): il blocco È il ruolo, quindi a
+                       classic ripeteva l'intestazione riga per riga. Su mantra diceva qualcosa in più -
+                       in quali ALTRI blocchi l'uomo compare - e quella metà non è stata buttata: sta nel
+                       tooltip della riga quando i codici sono più d'uno, che è dove la riga già parla.
+
+                       UN TOOLTIP SOLO PER RIGA, e sta QUI (operatore, 04/09/2026: «limita i tooltip nei
+                       calciatori al minimo essenziale»). Prima ce n'erano quattro su una riga alta 17px -
+                       il `title` nativo, la freccia, la fila delle pastiglie e il tilde - cioè quattro
+                       pannelli che si aprono mentre si cerca un nome; e tre di quei quattro dicevano la
+                       stessa frase su OGNI riga, perché erano una LEGENDA e non un fatto su quell'uomo.
+                       La legenda è salita nell'intestazione del blocco, che è un hover solo per lista;
+                       qui resta il solo per-uomo: il nome intero (la colonna lo taglia), il club, i suoi
+                       codici e i due marchi. Il bersaglio è il nome perché è l'elemento più largo, ed è
+                       anche quello che si sta leggendo quando serve saperne di più. -->
+                  <span
+                    class="min-w-0 flex-1 truncate text-fg"
+                    nz-tooltip
+                    [nzTooltipMouseEnterDelay]="0.4"
+                    [nzTooltipTitle]="
+                      row.man.name +
+                      ' · ' +
+                      row.man.club +
+                      (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
+                      (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
+                      (row.estimated ? ' · numero stimato' : '')
+                    "
+                    >{{ row.man.name }}</span
+                  >
                   <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
                   <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
                        Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
@@ -328,6 +374,122 @@
                       >&darr;{{ row.deepest }}</span
                     >
                   }
+                  <!-- LE TRE PASTIGLIE (operatore, 04/09/2026): quanto rende una sua partita sopra il
+                       sei, quante ne gioca - e di quelle quante le chiude bene - e quanto ci resta
+                       dentro. Tre riquadri della stessa forma, incolonnati lungo la lista: una fila di
+                       riquadri uguali si scorre a colpo d'occhio, mentre larghezze diverse fanno
+                       leggere la forma invece del numero (è la ragione di `ui-gain`, applicata qui).
+
+                       UN TOOLTIP SOLO PER TUTT'E TRE, e non tre: la riga è alta 17px, e tre bersagli di
+                       hover attaccati l'uno all'altro su una lista che si scorre sono tre pannelli che
+                       si aprono mentre si cerca un nome. La frase spiega i tre numeri insieme, che è
+                       anche l'unico modo di dire la cosa che conta - quali sono previsioni e quale è
+                       una misura.
+
+                       NIENTE COLORE: il colore di questa riga è del GAIN, che è il numero che ordina.
+                       Dipingere anche queste sarebbe una seconda scala accanto a quella vera, e la
+                       prima domanda al tavolo diventerebbe «quale dei due verdi conta?». Quindi il
+                       DOVE VANNO quando il blocco è stretto: su una riga LORO, sotto il nome e dopo il
+                       gain (`order-last`), che è la ragione per cui la riga è `flex-wrap`. Il gain resta
+                       in cima perché è il numero che ORDINA la lista, e le tre pastiglie lo spiegano: se
+                       andasse a capo lui, la colonna del colore - quella che si scorre - si spezzerebbe.
+
+                       Il riquadro è un INCAVO - il fondo della pagina con il suo bordo - e non una tinta:
+                       `bg-control` era stato provato e MISURATO a schermo, ma su questo tema `control`
+                       (#1c1c26) e `surface` (#14141c) distano otto punti per canale e su una riga
+                       dispari (`bg-control/25`) la pastiglia spariva del tutto - un riquadro che non si
+                       vede è un riquadro che non c'è. -->
+                  <span
+                    class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums
+                           @max-[23rem]:order-last @max-[23rem]:w-full @max-[23rem]:justify-end"
+                    nz-tooltip
+                    [nzTooltipTitle]="
+                      (row.readings.edge == null
+                        ? 'Il foglio non prezza una sua partita.'
+                        : 'Una sua partita rende ' +
+                          (row.readings.edge > 0 ? '+' : '') +
+                          (row.readings.edge | number: '1.2-2') +
+                          ' sopra il 6, che è la media di riferimento di un voto: fantamedia attesa ' +
+                          ((row.readings.edge + 6) | number: '1.2-2') +
+                          '. È per PARTITA GIOCATA, e quante ne gioca lo dice il riquadro accanto.') +
+                      (row.readings.played == null
+                        ? ''
+                        : ' · Il motore lo aspetta con un voto in ' +
+                          (row.readings.played | number: '1.1-1') +
+                          ' giornate su ' +
+                          (sheet()?.matchdays_target ?? '?') +
+                          (row.readings.passed == null
+                            ? ''
+                            : ', di cui ' +
+                              (row.readings.passed | number: '1.1-1') +
+                              ' chiuse con almeno 6. Attenzione a cosa sono i due numeri: le presenze' +
+                              ' sono una PREVISIONE del motore, la quota di sufficienze è una MISURA' +
+                              ' delle sue stagioni (' +
+                              row.man.steadyNote +
+                              '), quindi il secondo è «quante ne chiuderebbe bene se tenesse il passo' +
+                              ' che ha tenuto finora»' +
+                              (row.readings.passedIsHis
+                                ? '.'
+                                : ' - e qui è SPANNOMETRICO: di suo misurato non ce n’è abbastanza, quindi quella quota è quasi tutta l’ancora del suo ruolo al suo club.'))) +
+                      (row.readings.minutes == null
+                        ? ' · I minuti non li so: il foglio li dichiara solo per chi ha un undici disegnato, e vuoto è ignoto (non zero).'
+                        : ' · Quando gioca resta in campo ' +
+                          (row.readings.minutes | number: '1.0-0') +
+                          ' minuti - previsione per la stagione che viene, non la media di quella scorsa.')
+                    "
+                  >
+                    <span
+                      class="inline-flex min-w-8 justify-center rounded border px-1"
+                      [class]="
+                        row.readings.edge == null
+                          ? 'border-transparent text-muted'
+                          : 'border-border bg-page text-fg'
+                      "
+                      >{{
+                        row.readings.edge == null
+                          ? '—'
+                          : (row.readings.edge > 0 ? '+' : '') + (row.readings.edge | number: '1.1-1')
+                      }}</span
+                    >
+                    <span
+                      class="inline-flex min-w-10 justify-center rounded border px-1"
+                      [class]="
+                        row.readings.played == null
+                          ? 'border-transparent text-muted'
+                          : 'border-border bg-page text-fg'
+                      "
+                    >
+                      @if (row.readings.played == null) {
+                        <span>&mdash;</span>
+                      } @else {
+                        <!-- OGNI META' NEL SUO `span`, e non un'interpolazione nuda: fra due FIGLI di un
+                             flex il testo di spaziatura non fa un elemento, mentre un numero scritto a
+                             mano lo fa - e si legge «22 :11» invece di «22:11». Misurato a schermo. -->
+                        <span>{{ row.readings.played | number: '1.0-0' }}</span>
+                        @if (row.readings.passed != null) {
+                          <!-- LA META' SBIADITA vuol dire una cosa sola: quella quota non e' sua, e'
+                               l'ancora del suo ruolo. Un numero spannometrico che si legge come misurato
+                               e' la cosa peggiore che una lista possa fare (è la ragione del `~`). -->
+                          <span [class.opacity-50]="!row.readings.passedIsHis"
+                            >:{{ row.readings.passed | number: '1.0-0' }}</span
+                          >
+                        }
+                      }
+                    </span>
+                    <span
+                      class="inline-flex min-w-7 justify-center rounded border px-1"
+                      [class]="
+                        row.readings.minutes == null
+                          ? 'border-transparent text-muted'
+                          : 'border-border bg-page text-fg'
+                      "
+                      >{{
+                        row.readings.minutes == null
+                          ? '—'
+                          : (row.readings.minutes | number: '1.0-0') + '′'
+                      }}</span
+                    >
+                  </span>
                   <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
                        motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
                        come una misura è la cosa peggiore che una lista possa fare. -->

@@ -1,5 +1,12 @@
 import { MantraModules, demandFromShapes, slotShares } from './auction-value';
 import { orderedBy } from './manual-order';
+// IL SEI e la soglia della SUFFICIENZA sono due domande diverse sullo stesso numero, e ognuna vive dove
+// e' stata decisa: `EDGE_BASE` e' la media di riferimento di un voto (quanto un uomo RENDE sopra di
+// essa), `PASS_MARK` e' la soglia che il regolamento paga (`steadyOf` conta le partite chiuse almeno
+// li'). Lette da dove stanno, mai ritrascritte: due copie di un 6 finirebbero per non essere d'accordo
+// il giorno in cui una delle due domande cambia risposta.
+import { EDGE_BASE } from './plancia';
+import { MOSTLY_ANCHOR } from './player-ratings';
 import { ClassicRole } from './players-store';
 
 /**
@@ -141,6 +148,75 @@ export interface StrategyBidder {
   /** ...e il VALORE, l'altra metà dello stesso conto: `fm × pv`, senza sottrarre niente. */
   value: number | null;
   valueIsEstimate: boolean;
+  /*
+   * LE QUATTRO LETTURE DELLE PASTIGLIE, e nessuna di loro ordina niente (vedi `ManReadings`).
+   *
+   * Stanno qui e non nella vista perché la pagina non possiede aritmetica: quello che il template fa è
+   * scriverle. Sono i due numeri del motore già letti dal foglio (`fm`, `pv`), un terzo che il foglio
+   * dichiara solo per una riga su due (`minutes`) e una MISURA che viene dalle sue stagioni
+   * (`steady*`) - quattro cose di tre nature diverse, che è esattamente la ragione per cui
+   * `readingsOf` le tiene separate invece di schiacciarle in una cifra.
+   */
+  /** La fantamedia che il motore si aspetta di lui, PER PARTITA GIOCATA (`engine_fm_pred`/`est_fm`). */
+  fm: number | null;
+  /** Le partite in cui si aspetta un VOTO, sul calendario del foglio (`engine_pv_pred`/`est_pv`). */
+  pv: number | null;
+  /**
+   * I minuti che si aspetta quando gioca (`desc_minutes_next`), che è una PREVISIONE e non la media
+   * della stagione scorsa (`engine/minutes.py`, +7,6% su due finestre retrodatate).
+   *
+   * Vuoto su 244 righe di 602 del foglio Serie A - la colonna la scrive lo stesso passo che disegna gli
+   * undici, quindi manca dove manca il disegno - e allora la pastiglia non si stampa: «vuoto = ignoto».
+   */
+  minutes: number | null;
+  /** La quota di partite che chiude con almeno la sufficienza, MISURATA sui voti che ha preso davvero. */
+  steady: number | null;
+  /** ...e quanta parte di quella quota è sua: 0 = solo l'ancora del suo ruolo al suo club. */
+  steadyWeight: number;
+  /** La frase che quella quota scrive di sé: il campione, la finestra, la mediana del suo ruolo. */
+  steadyNote: string;
+}
+
+/**
+ * LE TRE PASTIGLIE di una riga (richiesta dell'operatore, 04/09/2026): quanto rende una sua partita,
+ * quante ne gioca - e di quelle quante le chiude bene - e quanto ci resta dentro.
+ *
+ * NON ORDINANO NIENTE, ed è una decisione: la lista è ordinata dal GAIN, e la stessa disciplina che la
+ * plancia applica alla sua colonna vale qui - «due numeri, due domande, mai una cifra sola». Quello che
+ * queste tre fanno è SPIEGARE il gain, non contraddirlo: `edge` dice quanto vale una sua partita,
+ * `played` quante ne gioca, e il gain è (quasi) il loro prodotto meno il rimpiazzo.
+ *
+ * LA SECONDA PASTIGLIA MESCOLA DUE NATURE, e va detto qui invece di scoprirlo al tavolo. `played` è una
+ * PREVISIONE del motore, la quota di sufficienze è una MISURA delle sue stagioni: il loro prodotto è
+ * quindi «quante partite chiuderebbe bene SE tenesse il passo che ha tenuto finora». Questo progetto ha
+ * già pagato una volta un numero che mescolava una misura e una previsione senza dirlo (il chip dei
+ * minuti, 18/08/2026), e la cura fu dichiarare quale delle due cose fosse. Qui non c'è la terza strada
+ * che là c'era - nessuno ha misurato una PREVISIONE della quota di sufficienze, e inventarne una
+ * sarebbe una regola senza gate - quindi le due metà restano due numeri accanto (`24:20`) e il tooltip
+ * dice quale è quale.
+ */
+export interface ManReadings {
+  /** `fantamedia attesa − 6`, per PARTITA GIOCATA. Null quando il foglio non lo prezza affatto. */
+  edge: number | null;
+  /** Le partite con un voto che il motore si aspetta, sul calendario di questo foglio. */
+  played: number | null;
+  /** ...e quante di quelle chiuse con almeno la sufficienza: `played × costanza`. */
+  passed: number | null;
+  /** Se quella quota è SUA o l'ancora del suo ruolo: sotto `MOSTLY_ANCHOR` è spannometrica. */
+  passedIsHis: boolean;
+  /** I minuti attesi quando gioca. Vuoto dove il foglio non li dichiara, mai zero. */
+  minutes: number | null;
+}
+
+/** Le tre pastiglie di un uomo. Pura: legge la riga e non tocca né il foglio né lo store. */
+export function readingsOf(man: StrategyBidder): ManReadings {
+  return {
+    edge: man.fm == null ? null : man.fm - EDGE_BASE,
+    played: man.pv,
+    passed: man.pv == null || man.steady == null ? null : man.pv * man.steady,
+    passedIsHis: man.steadyWeight >= MOSTLY_ANCHOR,
+    minutes: man.minutes,
+  };
 }
 
 /**
@@ -316,6 +392,14 @@ export interface RankedMan {
    * l'errore «expression has changed after it was checked».
    */
   shown: string[];
+  /**
+   * LE TRE PASTIGLIE, calcolate una volta per riga e non dentro un binding.
+   *
+   * Stessa ragione di `shown` qui sopra, e per un oggetto è più severa che per un array: un letterale
+   * scritto in un template è un oggetto NUOVO a ogni giro di change detection, quindi ogni `@if` che
+   * lo legge lo rivede cambiato. Qui l'oggetto vive quanto la riga.
+   */
+  readings: ManReadings;
 }
 
 /** Un blocco: un ruolo, quanti nomi la stanza ne comprerà, e i migliori che ci stanno. */
@@ -423,6 +507,7 @@ export function blocksOf(input: {
         gain,
         estimated: gainIsEstimate(man, setup.auction),
         shown: mantra ? man.mantraCodes : [man.role],
+        readings: readingsOf(man),
         deepest: deep,
         // Vuoto = ignoto anche qui: di un uomo di cui non si sa il posto più arretrato non si dice che
         // «arriva da dietro», che sarebbe una frase sul suo mestiere presa dal nulla.

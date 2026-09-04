@@ -4800,26 +4800,65 @@ ricavato dalla pastiglia è l'asserzione circolare pagata la mattina stessa in `
 possono essere più di quelle giocate, le giocate non più delle giornate del calendario). Il tooltip si
 verifica APRENDOLO con un puntatore vero — con `[nzTooltipTitle]` nel DOM non c'è nessun attributo da
 leggere — e la vista MANTRA ha un passo suo, perché **un passo che guarda solo la vista larga direbbe
-«nessun problema» dopo aver guardato metà pagina**. I 16 nomi tagliati su mantra sono attribuiti alla
-lista stretta e non alle pastiglie, e l'attribuzione è misurata: su tutte e 16 le pastiglie sono già a
-capo, quindi non tolgono un pixel alla riga del nome.
+«nessun problema» dopo aver guardato metà pagina**.
+
+E quel passo ha misurato il costo di una modifica di qualcun altro: leggeva **16 nomi tagliati** su
+mantra (tutti con le pastiglie già a capo, quindi non attribuibili a loro — l'attribuzione è misurata e
+non dedotta), e nella corsa di chiusura ne legge **zero**, col nome più stretto da 18 a 81px, perché la
+sessione parallela ha tolto i badge dei ruoli dalla riga mentre lavorava alle bande dello slot. Su
+classic il nome più stretto va da 94 a 116px. *Il costo di un layout è una fotografia che scade.*
 
 `ng build` senza avvisi, **651 test app su 39 file** (6 nuovi su `readingsOf`). `engine_*`, i fogli e le
 revisioni **fermi**: niente qui tocca `evaluate`, `presence` o `snapshot`.
 
-### Due sessioni sullo stesso albero, per la terza volta in quattro giorni
+**L'albero COMBINATO, misurato prima di committare la metà di qualcun altro** (04/09, sera): app **651
+test su 39 file**, toolkit **664 passati e 1 saltato**, e **nove banchi e2e** in fila — slots · lens ·
+injury · award · keepers · strategy · sealed-bid · options · table. Otto verdi e **uno rosso**, che
+resta rosso perché il difetto è vero e dichiarato: `e2e-plancia-award` legge «l'avanzamento non è
+tornato a zero: C 2/80» dopo un azzeramento, ed è il difetto PREESISTENTE che l'altra sessione ha già
+attribuito muovendo una cosa sola (stessa corsa a HEAD senza le sue modifiche: identica) e scritto nel
+suo §39.6 — `progress` conta `done = total − left`, e `left` non può arrivare a `teams` in un blocco a
+cui `MIN_PLAY_SHARE` ha tolto una riga, quindi due esclusi si leggono come due posti già assegnati.
+Ereditato ad alta voce e non curato dentro una richiesta che non lo contiene.
 
-L'altra metà di questo commit non è mia ed è **la plancia**: i due tagli (slot mercato / slot
-personali), la lente su una rosa, e una code review — tutto documentato da lei in
-[assistente-asta-v1.md](assistente-asta-v1.md) §39, §40, §41, coi suoi due banchi nuovi
-(`e2e-plancia-slots.mjs`, `e2e-plancia-lens.mjs`). I file condivisi sono due e l'autorship è misurata
-col `git diff | grep` del vocabolario di ciascuna feature: `core/plancia.ts` è suo salvo **tre righe di
-commento** mie (il secondo lettore di `EDGE_BASE`), `core/plancia.spec.ts` è interamente suo.
+### Due sessioni sullo stesso albero, per la terza volta in quattro giorni — e stavolta si sono separate da sole
 
-Committo tutto perché «chiudi» lo chiede e perché l'albero combinato è **misurato e non creduto** (i
-numeri qui sopra e nel messaggio del commit), con i due doveri che la regola impone: il commit **dice
-che porta due sessioni** e quale metà è di chi, e i debiti dichiarati dentro l'altra metà si ereditano
-ad alta voce (§39.6: un difetto PREESISTENTE trovato dal suo banco e non toccato).
+Quando ho cominciato a chiudere, l'albero portava **due metà**: la mia (la Strategia) e **la plancia**
+della sessione parallela — i due tagli (slot mercato / slot personali), la lente su una rosa, una code
+review. Ho misurato l'albero COMBINATO prima di decidere cosa fare, che è quello che la regola impone;
+mentre misuravo, **lei ha committato la sua metà da sé** (`f9e456c`, con i suoi §39-§41 in
+[assistente-asta-v1.md](assistente-asta-v1.md) e i suoi due banchi nuovi). Quindi questo commit porta
+**solo la mia**, e la regola non ha dovuto mordere.
+
+Due cose vanno agli atti perché la storia sia leggibile da chi non ha scritto né l'una né l'altra.
+`f9e456c` **porta dentro tre righe di commento mie** in `core/plancia.ts` (il secondo lettore di
+`EDGE_BASE`), esattamente come `21e7d2e` aveva portato dentro codice dell'altra metà stamattina: è il
+prezzo di un albero condiviso, e si dice invece di lasciarlo trovare. E l'autorship, quando serve, si
+MISURA in un comando — un `git diff | grep` per il vocabolario di ciascuna feature, file per file:
+`plancia.ts` era suo salvo quelle tre righe, `plancia.spec.ts` interamente suo, `strategy.*` interamente
+mio.
+
+Il debito dichiarato dentro la sua metà si eredita comunque ad alta voce, perché adesso è nell'albero
+committato: §39.6, il difetto PREESISTENTE che tiene rosso `e2e-plancia-award`.
+
+**E poi la fotografia è scaduta una seconda volta, dentro i MIEI file.** Un minuto e mezzo prima del
+commit, `views/strategy/strategy.ts` e `strategy.html` portavano una feature che non è mia e che
+nessuno mi aveva detto: le **BANDE DELLO SLOT** (`bandSize`/`bandOf`/`bandTone`, la zebra sostituita da
+un'alternanza ogni `teams` righe, e i badge dei ruoli tolti dalla riga). È la sessione parallela che ha
+cominciato a lavorare sulla stessa vista appena ha chiuso la sua — e non solo nella vista: **18 righe
+aggiunte del banco `e2e-strategy.mjs` nominano la banda**, contate e non dedotte, perché una frase su
+chi ha scritto cosa si verifica con un `grep` prima di finire in un messaggio di commit (dove infatti
+era finita sbagliata una volta, e corretta subito). **La porto dentro questo commit**, e
+la ragione non è comodità: le sue righe e le mie stanno **dentro lo stesso hunk** (l'attributo `class`
+dello stesso `<li>`), quindi uno `git add -p` avrebbe committato un template che chiama `bandTone` senza
+il metodo che lo definisce, cioè un albero rosso — e «non committare la metà di un altro» esiste per non
+lasciare rosso l'albero, non per obbedire alla lettera. Misurata prima, come impone la regola: `ng build`
+pulito, 651 test, banco della Strategia verde. Chi ha scritto le bande le documenti; qui c'è solo il
+fatto che ci sono e perché sono in questo commit. (Restano fuori le cose che si possono separare davvero,
+quindi si separano: i suoi due file non tracciati — `scripts/measure-squad-health.mjs` e
+`docs/model/salute-rosa-stelline-v1.md` — e la coppia `ui/gain-chip/*`, dove sta aggiungendo le cifre
+decimali del chip. Verificato che sia una separazione e non un taglio: **niente di quello che committo
+nomina `digits` o `format`**, quindi il chip committato resta quello di prima e compila.)
 
 ### Aperto
 

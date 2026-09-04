@@ -8,6 +8,7 @@ import {
   demandOf,
   gainOf,
   mantraBlocks,
+  readingsOf,
   roleDepth,
 } from './strategy';
 
@@ -62,6 +63,12 @@ const man = (over: Partial<StrategyBidder> = {}): StrategyBidder => ({
   surplusIsEstimate: false,
   value: null,
   valueIsEstimate: false,
+  fm: null,
+  pv: null,
+  minutes: null,
+  steady: null,
+  steadyWeight: 0,
+  steadyNote: '',
   ...over,
 });
 
@@ -327,5 +334,59 @@ describe("l'ordine personale dentro un blocco", () => {
   it('senza un ordine suo nessun blocco ne dichiara uno', () => {
     const blocks = blocksOf({ pool, setup, rules: null });
     expect(blocks.every((one) => one.pinned === 0)).toBe(true);
+  });
+});
+
+describe('le tre pastiglie di una riga', () => {
+  it('quanto rende una sua partita e la fantamedia attesa MENO il sei, non un punteggio a giornata', () => {
+    // Il 6 e' la media di riferimento di un voto (`EDGE_BASE`), e la lettura e' PER PARTITA GIOCATA:
+    // quante ne gioca lo dice il numero accanto, e schiacciare i due fatti in una cifra e' esattamente
+    // quello che l'operatore aveva fatto ritirare sulla plancia il 03/09/2026.
+    expect(readingsOf(man({ fm: 7.5 })).edge).toBeCloseTo(1.5, 6);
+    expect(readingsOf(man({ fm: 5.7 })).edge).toBeCloseTo(-0.3, 6);
+  });
+
+  it('...e senza una fantamedia non dice zero: uno zero si leggerebbe «rende esattamente il sei»', () => {
+    expect(readingsOf(man({ fm: null })).edge).toBeNull();
+  });
+
+  it('le partite buone sono le presenze attese per la quota di sufficienze MISURATA', () => {
+    const one = readingsOf(man({ pv: 30, steady: 0.7, steadyWeight: 1 }));
+    expect(one.played).toBe(30);
+    expect(one.passed).toBeCloseTo(21, 6);
+    expect(one.passedIsHis).toBe(true);
+  });
+
+  it('una quota che viene quasi tutta dall ancora del ruolo si DICHIARA spannometrica', () => {
+    // `MOSTLY_ANCHOR` = 0,5: sotto quella soglia il numero e' del suo ruolo al suo club, non suo. Una
+    // stima che si legge come una misura e' la cosa peggiore che una lista possa fare.
+    expect(readingsOf(man({ pv: 30, steady: 0.6, steadyWeight: 0 })).passedIsHis).toBe(false);
+    expect(readingsOf(man({ pv: 30, steady: 0.6, steadyWeight: 0.5 })).passedIsHis).toBe(true);
+  });
+
+  it('senza presenze o senza costanza il secondo numero manca invece di valere zero', () => {
+    expect(readingsOf(man({ pv: null, steady: 0.7 })).passed).toBeNull();
+    expect(readingsOf(man({ pv: 30, steady: null })).passed).toBeNull();
+    // ...ma le presenze restano: e' l'altra meta' della stessa pastiglia e la sa il foglio.
+    expect(readingsOf(man({ pv: 30, steady: null })).played).toBe(30);
+  });
+
+  it('i minuti sono quelli del foglio e non si inventano: 244 righe di 602 non li portano', () => {
+    expect(readingsOf(man({ minutes: 75 })).minutes).toBe(75);
+    expect(readingsOf(man({ minutes: null })).minutes).toBeNull();
+  });
+
+  it('ogni riga in classifica se le porta dietro, o la pastiglia sarebbe un oggetto nuovo a ogni giro', () => {
+    const block = blocksOf({
+      pool: [man({ fcId: 501, surplus: 10, fm: 6.4, pv: 28, minutes: 66, steady: 0.75, steadyWeight: 1 })],
+      setup: CLASSIC,
+      rules: null,
+    }).find((one) => one.role === 'D')!;
+    const row = block.men[0];
+    expect(row.readings.edge).toBeCloseTo(0.4, 6);
+    expect(row.readings.passed).toBeCloseTo(21, 6);
+    expect(row.readings.minutes).toBe(66);
+    // Lo stesso oggetto a ogni lettura della riga: e' quello che un template puo' confrontare.
+    expect(row.readings).toBe(block.men[0].readings);
   });
 });

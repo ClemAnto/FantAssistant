@@ -1,4 +1,5 @@
 import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
+import { DecimalPipe } from '@angular/common';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -12,6 +13,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
 import { GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { withRowAt } from '../../core/manual-order';
+import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
   AuctionKind,
@@ -31,7 +33,6 @@ import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
-import { RoleSet } from '../../ui/role-set/role-set';
 
 /**
  * IL REGOLAMENTO NON È PIÙ DI QUESTA PAGINA: sta in `core/global-options.ts` e vale per ogni vista.
@@ -76,6 +77,25 @@ const GAIN_LABEL: Record<AuctionKind, string> = {
   draft: 'VALORE',
 };
 
+/**
+ * PERCHÉ IL NUMERO È A GIORNATA, e non un totale di stagione (operatore, 04/09/2026).
+ *
+ * È la sua regola del 03/09 - «i risultati si riportano in punti A GIORNATA, mai in totali di stagione:
+ * per me è più facile capire di che grandezze parliamo» - applicata alla colonna che ordina queste
+ * liste. Un totale nasconde l'ordine di grandezza, e la giornata è anche l'unità in cui la differenza
+ * CONTA, perché una giornata vale ~70 punti e la scala dei gol parte da 66.
+ *
+ * IL DIVISORE È DEL FOGLIO (`matchdays_target`, 38 su Serie A e 31 su EuroLeghe) e non una costante:
+ * `engine_pv_pred` vive sul calendario della PIATTAFORMA, e dividere il surplus di un foglio per le
+ * giornate di un altro è una quota di niente. Dove il foglio non lo dichiara il numero resta il totale
+ * di stagione e l'etichetta lo DICE, invece di stampare un totale sotto un'unità che non è la sua.
+ */
+const PER_MATCH_HINT =
+  ' Il numero è A GIORNATA: il totale di stagione diviso le giornate del calendario su cui il motore lo'
+  + ' esprime (il foglio le dichiara), perché un totale nasconde l\'ordine di grandezza. L\'ordine delle'
+  + ' liste non cambia - dividere tutti per lo stesso numero non riordina niente - e nemmeno le fasce del'
+  + ' colore, che sono percentili.';
+
 const GAIN_HINT: Record<AuctionKind, string> = {
   rilanci:
     "In un'asta a rilanci la risorsa scarsa è il credito, cioè esattamente quello che il surplus sottrae: i fantapunti che dà IN PIÙ del giocatore che schiereresti al suo posto. È la colonna del motore (engine_surplus), letta dal foglio e mai ricalcolata qui.",
@@ -101,6 +121,7 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     CdkDrag,
     CdkDropList,
     ClubCrest,
+    DecimalPipe,
     FormsModule,
     GainChip,
     NzAlertModule,
@@ -111,7 +132,6 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     NzTooltipModule,
     PlayerFlags,
     RoleBadge,
-    RoleSet,
     RouterLink,
   ],
   templateUrl: './strategy.html',
@@ -120,11 +140,45 @@ const GAIN_HINT: Record<AuctionKind, string> = {
 export class Strategy {
   protected readonly store = inject(ValuationStore);
   private readonly bundle = inject(Bundle);
+  /**
+   * LE LETTURE MISURATE, per la sola metà che il foglio non porta: la COSTANZA.
+   *
+   * Letta da chi la calcola già e mai ricalcolata qui: `steadyOf` è una definizione sola con tre
+   * lettori (la colonna, il campetto, le buste), e una quarta copia darebbe a un uomo due percentuali
+   * di sufficienze. Non costa niente in più a questa pagina - `ValuationStore` chiede le letture da sé
+   * appena il listone è in casa - e finché non arrivano la pastiglia porta le sole presenze.
+   */
+  private readonly ratings = inject(PlayerRatingsStore);
   /** Il regolamento della lega e le squadre escluse: dichiarati una volta, validi in ogni vista. */
   private readonly options = inject(GlobalOptions);
   protected readonly appVersion = APP_VERSION;
-  protected readonly gainLabel = GAIN_LABEL;
-  protected readonly gainHint = GAIN_HINT;
+
+  /** Il calendario su cui il foglio esprime le sue previsioni: il divisore di ogni numero a giornata. */
+  protected readonly matchdays = computed(() => this.sheet()?.matchdays_target ?? null);
+
+  /**
+   * Il gain A GIORNATA, che è quello che le liste mostrano (vedi `PER_MATCH_HINT`).
+   *
+   * UNA definizione sola, letta dalla riga E dalla scala del colore: le fasce sono percentili, quindi
+   * dividere solo le righe le lascerebbe tarate su un'altra unità e ogni uomo leggerebbe `scarso`.
+   */
+  protected perMatch(gain: number | null): number | null {
+    const rounds = this.matchdays();
+    return gain == null || !rounds ? gain : gain / rounds;
+  }
+
+  protected readonly gainLabel = computed(
+    () => GAIN_LABEL[this.settings().auction] + (this.matchdays() ? ' a giornata' : ' a stagione'),
+  );
+
+  protected readonly gainHint = computed(
+    () =>
+      GAIN_HINT[this.settings().auction] +
+      (this.matchdays()
+        ? PER_MATCH_HINT.replace('il foglio le dichiara', `${this.matchdays()} su questo foglio`)
+        : ' Il foglio non dichiara il suo calendario, quindi questo è il TOTALE di stagione: senza le'
+          + ' giornate su cui il motore lo esprime, un numero a giornata sarebbe una quota di niente.'),
+  );
 
   /**
    * IL REGOLAMENTO, letto dalle opzioni globali, più la sola preferenza che è di questa pagina.
@@ -302,9 +356,15 @@ export class Strategy {
   protected readonly pool = computed<StrategyBidder[]>(() => {
     const engine = this.engine();
     if (!engine) return [];
-    const listone = this.store.rosters().get(this.settings().platform) ?? [];
+    const platform = this.settings().platform;
+    const listone = this.store.rosters().get(platform) ?? [];
+    // Letto perché le righe si RIFACCIANO quando le letture atterrano: arrivano dopo il resto del
+    // bundle, e senza questa dipendenza la pastiglia delle sufficienze resterebbe muta per sempre su
+    // una pagina già disegnata. Stessa riga, stessa ragione, di `ValuationStore.valuations`.
+    const rated = this.ratings.ready();
     return listone.map((player) => {
       const one = engine.get(player.fcId);
+      const steady = rated ? this.ratings.for(platform, player.fcId)?.steady : null;
       return {
         fcId: player.fcId,
         name: player.name,
@@ -317,6 +377,13 @@ export class Strategy {
         value: valueFromEngine(one),
         // Il valore è un PRODOTTO: sta in piedi sul ripiego dichiarato se una delle due metà lo è.
         valueIsEstimate: (one?.fmIsEstimate ?? false) || (one?.pvIsEstimate ?? false),
+        // Le quattro letture delle pastiglie: tre dal foglio, la quarta dalle sue stagioni.
+        fm: one?.fm ?? null,
+        pv: one?.pv ?? null,
+        minutes: one?.minutesNext ?? null,
+        steady: steady?.share ?? null,
+        steadyWeight: steady?.weight ?? 0,
+        steadyNote: steady?.note ?? '',
       };
     });
   });
@@ -329,7 +396,7 @@ export class Strategy {
    * un verde vale la stessa cosa in tutt'e dodici le colonne.
    */
   protected readonly scale = computed<GainScale>(() =>
-    scaleOf(this.pool().map((man) => gainOf(man, this.setup().auction))),
+    scaleOf(this.pool().map((man) => this.perMatch(gainOf(man, this.setup().auction)))),
   );
 
   protected readonly blocks = computed<RoleBlock[]>(() =>
@@ -389,6 +456,37 @@ export class Strategy {
   });
 
   protected readonly game = computed<StrategyGame>(() => this.settings().game);
+
+  // ---------------------------------------------------------------- le bande dello slot
+
+  /**
+   * QUANTI NOMI FA UNA BANDA: i partecipanti, e non un numero scelto per come sta a schermo.
+   *
+   * Una banda di `teams` nomi È uno SLOT - il rango dentro il ruolo diviso il numero di rose - che in
+   * questo progetto è una legge di conservazione e non una convenzione grafica: in una lega da dieci ci
+   * sono dieci «primi difensori» perché ognuno ne schiera uno, ed è la popolazione su cui il banco
+   * d'asta ha misurato ogni tetto d'offerta (`simulatore-asta-rilanci-v1.md` §19.3). A classic la
+   * domanda del blocco è `slot × partecipanti`, quindi le bande cadono esatte; a mantra la domanda
+   * viene dalle forme e l'ultima banda può essere corta - che è un fatto sulla lista, non un difetto.
+   */
+  protected readonly bandSize = computed(() => Math.max(1, Math.round(this.settings().teams)));
+
+  /** In quale banda cade la riga `at` (0-based): il numero che il DOM dichiara, così è verificabile. */
+  protected bandOf(at: number): number {
+    return Math.floor(at / this.bandSize());
+  }
+
+  /**
+   * Il fondo di una riga: le bande si alternano, la prima tinta.
+   *
+   * La tinta è quella della zebra che sostituisce (`bg-control/25`, misurata a schermo su questo tema),
+   * e la zebra se ne va invece di restare: due alternanze sulla stessa proprietà darebbero quattro
+   * tinte, e il confine della banda - la sola cosa che questo colore deve dire - si perderebbe fra le
+   * altre tre. Il segnaposto del trascinamento vince comunque, perché la sua regola porta due classi.
+   */
+  protected bandTone(at: number): string {
+    return this.bandOf(at) % 2 === 0 ? 'bg-control/25' : '';
+  }
 
   /**
    * Le classi che CDK mette sull'ANTEPRIMA - l'opacità 0,3 chiesta dall'operatore (27/08/2026).

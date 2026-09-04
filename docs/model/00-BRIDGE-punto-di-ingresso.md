@@ -1,5 +1,48 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 4 settembre 2026 — DUE TAGLI DELLA PLANCIA, E TRE INCHIOSTRI CORRETTI DA CHI GUARDA
+**Aggiornato: 4 settembre 2026 (sera tarda) — TRE PASTIGLIE SULLA STRATEGIA, E NESSUNO DEI QUATTRO
+NUMERI E' NUOVO. Richiesta dell'operatore in due messaggi: per ogni calciatore «1) fantapunti medi a
+partita sopra il 6 2) partite giocate attese 3) partite attese con voto >= 6 ... formattato in 3 pill
+tipo `[+1.5] [24:20] [75']`», piu' «il terzo pill sono i minuti medi a partita» - quattro numeri in tre
+riquadri, perche' il secondo ne porta due e il secondo e' un SOTTOINSIEME del primo. (a) TRE VENGONO DAL
+FOGLIO (`engine_fm_pred`/`est_fm`, `engine_pv_pred`/`est_pv`, `desc_minutes_next`) e il quarto e' la
+COSTANZA che la tabella misura gia' (`player-ratings.steadyOf`); il **6** e' `plancia.EDGE_BASE`
+importato da dove sta - una definizione e due lettori - e l'aritmetica sta in `core/strategy.readingsOf`,
+non nel template. Non ordinano niente: la lista resta sul GAIN e le tre pastiglie lo SPIEGANO.
+(b) LA SECONDA MESCOLA UNA PREVISIONE E UNA MISURA e lo DICE: `24` e' il motore, `:20` e' quel 24 per la
+quota di sufficienze delle sue stagioni. Il chip dei minuti del 18/08 fu curato dichiarando quale delle
+due cose fosse; qui la terza strada non esiste - nessuno ha misurato una PREVISIONE di quella quota, e
+inventarne una sarebbe una regola senza gate - quindi due numeri accanto, il tooltip dice quale e'
+quale, e dove la quota e' quasi tutta l'ancora del ruolo la meta' SBIADISCE. (c) IL COSTO E' LA
+LARGHEZZA E LA SOGLIA VA SUL CONTENITORE: tre riquadri chiedono ~104px, su classic le liste sono 386px e
+sta tutto in riga (**250 righe su 250, 0 nomi tagliati**), su mantra i blocchi sono dodici, la lista
+scende a 254px e la prima versione **mangiava il nome per intero e buttava il gain fuori dal blocco**.
+La stessa finestra da' 386 o 254 secondo quanti blocchi ci sono, quindi una media query risponderebbe
+alla domanda sbagliata: `@container` sulla lista, soglia 23rem, e sotto quella le pastiglie vanno a capo
+DOPO il gain, che resta in riga perche' e' il numero che ordina (se andasse a capo lui si spezzerebbe la
+colonna del colore). Prezzo detto: riga 24 -> 38px, ~8 nomi per blocco invece di ~11. (d) `bg-control`
+BOCCIATO DALLO SCHERMO: su questo tema dista otto punti per canale da `surface` e su una riga dispari la
+pastiglia spariva - un riquadro che non si vede e' un riquadro che non c'e', quindi e' un INCAVO e senza
+colore, perche' il colore di una riga e' del GAIN. (e) I MINUTI MANCANO SU 244 RIGHE DI 602 (la colonna
+la scrive il passo che disegna gli undici): trattino, mai zero. (f) IL BANCO CONFRONTA COL FOGLIO e non
+con lo schermo - il `.json.gz` letto in Node, con i due ripieghi riscritti fuori dall'app - piu' due
+invarianti falsificabili (le buone non superano le giocate, le giocate non superano le giornate); il
+tooltip si verifica APRENDOLO con un puntatore vero; e la vista mantra ha un passo suo, perche' un passo
+che guarda solo la vista larga direbbe «nessun problema» dopo aver guardato meta' pagina. (g) DUE
+SESSIONI, E LA FOTOGRAFIA DELL'ALBERO SCADE DUE VOLTE: mentre misuravo, la sessione parallela ha
+committato la sua meta' da se' (`f9e456c`, che porta dentro tre righe di commento mie in `plancia.ts`);
+poi, un minuto e mezzo prima del commit, ha cominciato una feature nuova **dentro la mia vista** (le
+bande dello slot, e i badge dei ruoli tolti dalla riga). La porto dentro, e la ragione e' meccanica:
+le sue righe e le mie stanno **nello stesso hunk**, quindi separarle avrebbe committato un template che
+chiama un metodo che non c'e' - *«non committare la meta' di un altro» esiste per non lasciare rosso
+l'albero, non per obbedire alla lettera*. Regalo misurato di quel giro: senza i badge dei ruoli i nomi
+tagliati su mantra passano da 16 a ZERO. Albero combinato misurato prima di committare: **app 651 test
+su 39 file, toolkit 664 passati e 1 saltato, nove banchi e2e** - otto verdi e uno ROSSO,
+`e2e-plancia-award` sul difetto preesistente gia' attribuito (§39.6). `engine_*`, i fogli e le
+revisioni **fermi**. Dettaglio:
+[pagina-strategia-v1.md](pagina-strategia-v1.md) §13 e la chiusura in
+[stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).**
+
+**Precedente: 4 settembre 2026 (sera) — DUE TAGLI DELLA PLANCIA, E TRE INCHIOSTRI CORRETTI DA CHI GUARDA
 LO SCHERMO. La sessione nasce da «un tasto per cambiare visualizzazione da slot MERCATO a slot
 PERSONALI, ripopolando gli slot per offerta massima» e vale per COME sono arrivate le correzioni: cinque
 sue, quattro su cose spedite lo stesso giorno, e ognuna ha trovato un difetto che nessun banco vedeva.
@@ -42,7 +85,7 @@ una colonna di slot che la griglia personale perde se le esclusioni accorciano i
 Dettaglio: [assistente-asta-v1.md](assistente-asta-v1.md) §39-§41 e la chiusura in
 [stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).**
 
-**Precedente: 4 settembre 2026 — «FACILE» E' UNA FRASE SUL CALCIO, E LUI L'HA CORRETTA TRE VOLTE.
+**Prima ancora: 4 settembre 2026 — «FACILE» E' UNA FRASE SUL CALCIO, E LUI L'HA CORRETTA TRE VOLTE.
 La sessione e' nata da «le partite facili sono troppo poche» con tre esempi, ed e' finita con la CARD
 di un calciatore. (a) LA SOGLIA: `EASY_MARGIN` 200 -> 100 -> **75**, in due passaggi perche' ha
 giudicato due volte - prima tre partite (due delle quali erano GIA' facili, quindi la sua lista

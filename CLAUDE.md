@@ -3629,6 +3629,78 @@ togliendo di nuovo la registrazione: 73 icone a schermo, **0 vuote**, occhio dis
 che dipende da cosa un'altra libreria patcha per se' e' fragile), il verbale porta il numero e non la
 storia. *Una review e' un'ipotesi con un argomento, non una misura: la meta' verificabile si verifica.*
 
+## Un CONTENITORE decide la forma di una riga, non la FINESTRA — e un riquadro che non si vede non c'e'
+**04/09/2026 (sera), `views/strategy/` + `core/strategy.readingsOf`. Dettaglio:
+`pagina-strategia-v1.md` §13.** Richiesta dell'operatore: tre pastiglie su ogni riga della Strategia —
+quanto rende una sua partita sopra il 6, quante ne gioca (e di quelle quante le chiude bene), quanti
+minuti resta in campo. **Nessuno dei quattro numeri e' nuovo**: tre sono colonne del foglio
+(`engine_fm_pred`/`est_fm`, `engine_pv_pred`/`est_pv`, `desc_minutes_next`) e il quarto e' la COSTANZA
+che la tabella misura gia' (`player-ratings.steadyOf`); il 6 e' `plancia.EDGE_BASE` importato da dove
+sta, cioe' una definizione e due lettori. L'aritmetica sta in `core/`, non nel template, e non ordina
+niente: la lista resta sul GAIN e le tre pastiglie lo SPIEGANO.
+
+**La seconda pastiglia mescola una PREVISIONE e una MISURA, e lo dice invece di nasconderlo.** `24` e'
+il motore, `:20` e' quel 24 per la quota di sufficienze delle sue stagioni — «quante ne chiuderebbe
+bene se tenesse il passo che ha tenuto finora». Il chip dei minuti del 18/08 fu curato dichiarando
+quale delle due cose fosse; qui la terza strada non esiste — nessuno ha misurato una PREVISIONE di
+quella quota, e inventarne una sarebbe una regola senza gate — quindi restano due numeri accanto, il
+tooltip dice quale e' quale, e dove la quota e' quasi tutta l'ancora del ruolo (`MOSTLY_ANCHOR`) la
+meta' SBIADISCE. *Quando non si puo' separare due nature, si dichiara la giuntura invece di scegliere
+la piu' comoda.*
+
+**E LA SOGLIA DI LAYOUT VA SUL CONTENITORE, perche' la domanda e' «quanto e' larga questa lista» e non
+«quanto e' larga la finestra».** Tre riquadri in linea chiedono ~104px: su classic le liste sono 386px e
+tutto sta in riga (250 righe su 250, **0 nomi tagliati**), su mantra i blocchi sono dodici, la lista
+scende a 254px e la prima versione **mangiava il nome per intero e buttava il gain fuori dal blocco** —
+la famiglia dei «276px di colonne non strette, ASSENTI». La stessa finestra da' 386 o 254 secondo quanti
+blocchi ci sono, quindi una media query risponderebbe alla domanda sbagliata: `@container` sulla lista,
+soglia 23rem, e sotto quella le pastiglie vanno a capo DOPO il gain (`order-last`) — il gain resta in
+riga perche' e' il numero che ORDINA, e se andasse a capo lui si spezzerebbe la colonna del colore, che
+e' quella che si scorre. Prezzo detto: riga da 24 a 38px, ~8 nomi per blocco invece di ~11.
+
+**`bg-control` era la scelta ovvia ed e' stata bocciata dallo schermo**: su questo tema `control`
+(#1c1c26) e `surface` (#14141c) distano otto punti per canale, e su una riga dispari (`bg-control/25`)
+la pastiglia spariva. Un riquadro che non si vede e' un riquadro che non c'e', quindi e' un INCAVO
+(`bg-page` piu' bordo) e senza colore — il colore di una riga e' del GAIN, e una seconda scala accanto
+a quella vera farebbe chiedere «quale dei due verdi conta?».
+
+Tre abitudini per l'arnese, e sono le stesse di sempre viste da un lato nuovo (`e2e-strategy.mjs`).
+**Il confronto e' col FOGLIO e non con lo schermo**: il `.json.gz` si legge in Node, con gli stessi due
+ripieghi dell'app riscritti apposta fuori dall'app — confrontare la pastiglia con un numero ricavato
+dalla pastiglia e' l'asserzione circolare pagata quella mattina stessa. Piu' due invarianti
+falsificabili che non hanno bisogno di nessuna fonte: le partite buone non possono essere piu' di
+quelle giocate, le giocate non piu' delle giornate del calendario. **Un tooltip si verifica aprendolo**
+con un puntatore vero (`[nzTooltipTitle]` non lascia nessun attributo). E **la vista stretta ha un
+passo suo**, perche' un passo che guarda solo la vista larga direbbe «nessun problema» dopo aver
+guardato meta' pagina — con l'attribuzione misurata invece che dedotta: i 16 nomi tagliati su mantra
+hanno tutti le pastiglie gia' a capo, quindi non tolgono un pixel alla riga del nome.
+
+**Terza istanza in quattro giorni di DUE SESSIONI SU UN ALBERO, e la lezione nuova e' sul TEMPO.** Le
+due meta' — la Strategia (questa) e la PLANCIA (`assistente-asta-v1.md` §39-§41) — non si toccavano
+quasi, e mentre misuravo l'albero combinato per decidere cosa committare **l'altra sessione ha
+committato la sua da se'** (`f9e456c`). Quindi lo stato dell'albero e' una FOTOGRAFIA che scade: si
+rilegge `git status` prima di scrivere il messaggio, o il commit dichiara una composizione che non ha
+piu'. Due cose restano vere comunque: il suo commit **porta dentro tre righe di commento mie** in
+`plancia.ts` (come `21e7d2e` aveva portato codice dell'altra meta' la mattina), e va detto invece di
+lasciarlo trovare; e **il debito dichiarato dentro l'altra meta' si eredita ad alta voce** —
+`e2e-plancia-award` resta ROSSO su un difetto preesistente che lei ha gia' attribuito muovendo una cosa
+sola e scritto (§39.6, `progress` sottrae invece di contare i padroni).
+
+**E la fotografia e' scaduta una seconda volta, dentro i miei file**: un minuto e mezzo prima del
+commit la stessa sessione aveva cominciato una feature nuova nella MIA vista (le bande dello slot, e i
+badge dei ruoli tolti dalla riga). L'ho committata con la mia, e la ragione e' meccanica e non di
+cortesia: **le sue righe e le mie stanno dentro lo stesso hunk** - l'attributo `class` dello stesso
+`<li>` - quindi uno `git add -p` avrebbe committato un template che chiama `bandTone` senza il metodo
+che lo definisce. *«Non committare la meta' di un altro» esiste per non lasciare rosso l'albero, non
+per obbedire alla lettera: quando separare produce il rosso che la regola vuole evitare, si porta tutto
+e si dice di chi e' cosa* - misurando prima (build pulito, 651 test, banco verde), e lasciando fuori
+quello che si puo' separare DAVVERO: i suoi due file non tracciati e la coppia `ui/gain-chip/*`, dopo
+aver verificato che niente di committato nomini `digits` o `format`. *Separabile vuol dire «l'albero
+committato compila senza», e si controlla con un grep, non con un'intuizione sui confini dei file.* Il regalo di quel giro: togliendo
+i badge dei ruoli il nome piu' stretto passa da 94 a 116px su classic e da 18 a 81 su mantra, e i 16
+nomi tagliati diventano ZERO - *il costo di un layout e' una fotografia che scade, quindi si rimisura
+invece di citarlo.*
+
 ## Sette parametri sono QUATTRO, e la scala viene dall'archivio mentre il peso viene dal banco
 **04/09/2026, dalla richiesta dell'operatore di esprimere i requisiti di una rosa vincente in «4/5
 parametri con delle stelline calcolabili a partire dai calciatori acquistati in un determinato

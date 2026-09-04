@@ -19,6 +19,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIST = join(ROOT, 'dist', 'fantassistant', 'browser');
@@ -32,6 +33,16 @@ const BROWSERS = [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
 ];
+/**
+ * LA LEGA CHE IL BANCO DICHIARA: dieci partecipanti, rose 3/8/8/6 - i valori di partenza dell'app, che
+ * la corsa ripristina cancellando le impostazioni salvate prima di misurare qualunque cosa.
+ *
+ * Sta QUI e non si legge dalla pagina, perché è il riferimento contro cui la pagina viene giudicata: le
+ * lunghezze attese dei blocchi (slot × partecipanti) e la larghezza di una BANDA di sfondo vengono da
+ * questi due numeri, e ricavarle da quello che lo schermo dice sarebbe l'asserzione circolare.
+ */
+const TEAMS = 10;
+const SLOTS = { P: 3, D: 8, C: 8, A: 6 };
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
@@ -258,7 +269,9 @@ function readBlocks() {
       scrollHeight: list?.scrollHeight ?? 0,
       clientHeight: list?.clientHeight ?? 0,
       rows: rows.length,
-      // Cosa porta ogni riga: lo stemma, i ruoli, il nome e il gain. Contati, non guardati.
+      // Cosa porta ogni riga: lo stemma, il nome e il gain. Contati, non guardati - e i BADGE DEI
+      // RUOLI si contano ancora perché quello che si asserisce ora è la loro ASSENZA (il blocco è già
+      // il ruolo): un'assenza si misura, o «non l'ho guardato» si legge come «non c'è».
       parts: rows.map((row) => ({
         crest: row.querySelectorAll('ui-crest img, ui-crest span').length,
         roles: row.querySelectorAll('ui-roles span').length,
@@ -266,12 +279,60 @@ function readBlocks() {
         gain: (row.querySelector('ui-gain')?.innerText ?? '').trim(),
         // «lo metteresti più arretrato»: in questo blocco è un ripiego, non un acquisto per questo posto.
         behind: row.dataset.behind === '1',
+        // LA BANDA che la riga dichiara e il fondo che la disegna. Il colore si legge COMPUTATO e si
+        // confronta fra righe della stessa pagina, mai con un letterale: i token sono `color-mix` e il
+        // tema ha due versi, quindi l'unica affermazione verificabile è «questa riga è come quella».
+        band: Number(row.dataset.band),
+        background: getComputedStyle(row).backgroundColor,
+        padLeft: Math.round(parseFloat(getComputedStyle(row).paddingLeft)),
+        // La frase della riga: è dove sono finiti i codici mantra da quando il badge non c'è più.
+        title: row.getAttribute('title') ?? '',
       })),
       // La riga di confine è l'unico `li` senza un gain: contarla per l'attributo prenderebbe anche i
       // nativi, che non ne hanno nessuno (`null` non scrive l'attributo).
       dividers: list
         ? [...list.querySelectorAll('li')].filter((one) => !one.querySelector('ui-gain')).length
         : 0,
+    };
+  });
+}
+
+/**
+ * LE TRE PASTIGLIE di ogni riga, con l'identita' dell'uomo e i RETTANGOLI che occupano.
+ *
+ * L'identita' serve perche' l'unica verifica che valga qualcosa e' quella contro il FOGLIO: confrontare
+ * la pastiglia con un numero ricavato dalla pastiglia stessa e' l'asserzione circolare che questo
+ * progetto ha gia' pagato (`e2e-plancia-injury.mjs`, 04/09/2026). E i rettangoli servono perche' tre
+ * riquadri aggiunti a una riga stretta si pagano sul NOME: «276px di colonne non erano strette, erano
+ * ASSENTI» e' la stessa famiglia, quindi il costo si misura invece di sperarlo.
+ */
+function readPills() {
+  const rows = [...document.querySelectorAll('app-strategy ol li[data-id]')];
+  return rows.map((row) => {
+    const name = row.querySelector('span.flex-1');
+    const strip = [...row.children].find((one) => one.querySelectorAll(':scope > span').length === 3
+      && one.className.includes('tabular-nums'));
+    const pills = strip ? [...strip.querySelectorAll(':scope > span')] : [];
+    const rect = row.getBoundingClientRect();
+    return {
+      id: Number(row.dataset.id),
+      name: (name?.innerText ?? '').trim(),
+      // Il nome e' TAGLIATO quando il testo e' piu' largo della cella: e' il prezzo delle pastiglie, e
+      // si legge dal browser invece che dal numero di caratteri.
+      nameWidth: name ? Math.round(name.getBoundingClientRect().width) : 0,
+      nameClipped: name ? name.scrollWidth > name.clientWidth + 1 : false,
+      pills: pills.map((one) => (one.innerText ?? '').trim()),
+      height: Math.round(rect.height),
+      // SU CHE RIGA STANNO: su un blocco stretto vanno a capo (`@max-[23rem]:order-last`), e allora
+      // NON tolgono un pixel al nome - quindi un nome corto lì è un fatto della lista stretta e non
+      // loro. Un passo che misura due incognite insieme attribuisce il difetto a quella sbagliata.
+      stripOwnLine: !!(strip && name
+        && strip.getBoundingClientRect().top >= name.getBoundingClientRect().bottom - 2),
+      // Dentro la riga, o e' un riquadro che c'e' nel DOM e non sullo schermo.
+      outside: pills.filter((one) => {
+        const box = one.getBoundingClientRect();
+        return box.right > rect.right + 1 || box.left < rect.left - 1 || box.width === 0;
+      }).length,
     };
   });
 }
@@ -446,6 +507,66 @@ function cdkPieces() {
   };
 }
 
+/**
+ * IL FOGLIO SERIE A CLASSIC letto dal FILE, che e' la fonte indipendente da quello che la pagina disegna.
+ *
+ * Gli stessi due ripieghi che legge l'app (`valuation-store.readSheet`): `engine_*` dove c'e', `est_*`
+ * dove il motore non prezza. Non e' una terza definizione - e' la stessa regola riscritta apposta fuori
+ * dall'app, che e' quello che rende il confronto una prova invece di un'eco.
+ */
+async function sheetNumbers() {
+  const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
+  const entry = (manifest.engine_sheets ?? []).find(
+    (one) => one.platform === 'default' && one.game === 'classic',
+  );
+  if (!entry) throw new Error('il bundle non porta il foglio Serie A classic: il passo non ha niente da misurare');
+  const raw = await readFile(join(DIST, 'data', entry.path));
+  const table = JSON.parse(
+    entry.path.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8'),
+  );
+  const at = (name) => table.columns.indexOf(name);
+  const [id, fm, estFm, pv, estPv, minutes] = [
+    'fc_id', 'engine_fm_pred', 'est_fm', 'engine_pv_pred', 'est_pv', 'desc_minutes_next',
+  ].map(at);
+  const out = new Map();
+  for (const row of table.rows) {
+    out.set(Number(row[id]), {
+      fm: row[fm] ?? row[estFm] ?? null,
+      pv: row[pv] ?? row[estPv] ?? null,
+      minutes: minutes < 0 ? null : (row[minutes] ?? null),
+    });
+  }
+  out.matchdays = entry.matchdays_target ?? null;
+  return out;
+}
+
+/**
+ * Il testo del tooltip APERTO, e non un attributo.
+ *
+ * Con `[nzTooltipTitle]` il titolo e' un binding di PROPRIETA': nel DOM non c'e' niente da leggere, e
+ * un arnese che cerca un attributo accusa la pastiglia di non dire quello che dice a chiunque ci passi
+ * sopra (`e2e-plancia-injury.mjs`, 04/09/2026). Un tooltip si verifica aprendolo.
+ */
+function readTooltip() {
+  const inner = document.querySelector('.ant-tooltip:not(.ant-tooltip-hidden) .ant-tooltip-inner');
+  return inner ? (inner.innerText ?? '').replace(/\s+/g, ' ').trim() : null;
+}
+
+/** Dove sta la fila delle pastiglie della prima riga: il punto su cui portare un puntatore vero. */
+function stripPoint() {
+  const row = document.querySelector('app-strategy ol li[data-id]');
+  const strip = row
+    ? [...row.children].find((one) => one.querySelectorAll(':scope > span').length === 3
+      && one.className.includes('tabular-nums'))
+    : null;
+  if (!strip) return null;
+  const box = strip.getBoundingClientRect();
+  const x = box.left + box.width / 2;
+  const y = box.top + box.height / 2;
+  const under = document.elementFromPoint(x, y);
+  return { x, y, inside: strip.contains(under) || under === strip };
+}
+
 function modalOpen() {
   const modal = document.querySelector('nz-modal-container');
   if (!modal) return null;
@@ -549,26 +670,179 @@ async function main() {
       console.log(`· screenshot classic: ${where}`);
     }
 
-    // 2. LA RIGA: stemma, ruoli, nome, gain. Quattro cose contate su ogni riga disegnata.
-    const missing = { crest: 0, roles: 0, name: 0, gain: 0 };
+    // 2. LA RIGA: stemma, nome, gain - e NESSUN badge del ruolo, che è il blocco stesso (04/09/2026).
+    //    L'assenza si conta, o «non l'ho guardata» e «non c'è» si leggono uguale.
+    const missing = { crest: 0, name: 0, gain: 0 };
+    let badges = 0;
     const dashes = [];
     for (const block of blocks) {
       for (const part of block.parts) {
         if (!part.crest) missing.crest += 1;
-        if (!part.roles) missing.roles += 1;
+        if (part.roles) badges += 1;
         if (!part.name) missing.name += 1;
         if (!part.gain) missing.gain += 1;
         if (part.gain === '—') dashes.push(`${block.role} · ${part.name}`);
       }
     }
     note('la riga', {
-      said: `${rowsSeen} righe esaminate · prima riga: ${JSON.stringify(blocks[0]?.parts[0] ?? null)}`,
+      said: `${rowsSeen} righe esaminate · ${badges} badge del ruolo · prima riga: `
+        + `${JSON.stringify(blocks[0]?.parts[0] ?? null)}`,
       problems: [
         ...(missing.crest ? [`${missing.crest} righe senza stemma`] : []),
-        ...(missing.roles ? [`${missing.roles} righe senza ruolo`] : []),
+        ...(badges ? [`${badges} righe portano ancora il badge del ruolo`] : []),
         ...(missing.name ? [`${missing.name} righe senza nome`] : []),
         ...(missing.gain ? [`${missing.gain} righe senza gain`] : []),
         ...(dashes.length ? [`${dashes.length} righe col gain vuoto in classifica (${dashes[0]})`] : []),
+      ],
+    });
+
+    // 2a. LE BANDE DELLO SLOT: il fondo cambia ogni `partecipanti` nomi, e non una riga sì e una no.
+    //
+    //     Due affermazioni, e sono diverse: la prima è ARITMETICA (la banda che la riga dichiara è
+    //     l'indice diviso i partecipanti), la seconda è QUELLO CHE SI VEDE (dentro una banda il fondo
+    //     è lo stesso, e cambia al confine). Il colore si confronta fra righe della stessa pagina e
+    //     mai con un letterale - i token sono `color-mix` e il tema ha due versi - quindi quello che
+    //     si asserisce è un'uguaglianza e una DIFFERENZA, che è la sola cosa verificabile.
+    const bandProblems = [];
+    let boundaries = 0;
+    for (const block of blocks) {
+      if (!block.parts.length) continue;
+      const wrongIndex = block.parts.findIndex((part, at) => part.band !== Math.floor(at / TEAMS));
+      if (wrongIndex >= 0) {
+        bandProblems.push(
+          `${block.role}: la riga ${wrongIndex + 1} dichiara la banda ${block.parts[wrongIndex].band}`
+            + ` invece di ${Math.floor(wrongIndex / TEAMS)}`,
+        );
+      }
+      for (let at = 1; at < block.parts.length; at += 1) {
+        const same = block.parts[at].background === block.parts[at - 1].background;
+        const border = block.parts[at].band !== block.parts[at - 1].band;
+        if (border) boundaries += 1;
+        if (border && same) {
+          bandProblems.push(`${block.role}: il fondo non cambia fra la riga ${at} e la ${at + 1}`);
+        }
+        if (!border && !same) {
+          bandProblems.push(`${block.role}: il fondo cambia DENTRO una banda, alla riga ${at + 1}`);
+        }
+      }
+    }
+    const bar = await evaluate(session, () => {
+      const said = document.querySelector('app-strategy .bg-surface')?.innerText ?? '';
+      return said.replace(/\s+/g, ' ').trim().slice(0, 80);
+    });
+    note('le bande dello slot', {
+      said: `${TEAMS} partecipanti dichiarati · ${boundaries} confini fra bande · barra «${bar}» · `
+        + `prime tinte: ${JSON.stringify(blocks[0]?.parts.slice(0, 2).map((one) => one.background) ?? [])}`,
+      problems: [
+        ...bandProblems.slice(0, 4),
+        ...(boundaries ? [] : ['nessun confine di banda: la lista non è raggruppata affatto']),
+        ...(bar.includes(`${TEAMS} partecipanti`)
+          ? [] : [`la barra non dichiara ${TEAMS} partecipanti: le bande sarebbero misurate su un'altra lega`]),
+      ],
+    });
+
+    // 2b. IL RIENTRO A SINISTRA: il nome parte quasi dal bordo, perché ogni pixel di margine è un pixel
+    //     tolto al nome (richiesta dell'operatore, 04/09/2026). Misurato COMPUTATO, non guardato.
+    const pads = [...new Set(blocks.flatMap((one) => one.parts.map((part) => part.padLeft)))];
+    note('il rientro della riga', {
+      said: `padding-left: ${pads.join(' · ')}px su ${rowsSeen} righe`,
+      problems: [
+        ...(pads.every((one) => one <= 4) ? [] : [`una riga rientra di ${Math.max(...pads)}px a sinistra`]),
+      ],
+    });
+
+    // 2c. LE TRE PASTIGLIE, contro il FOGLIO e non contro se stesse.
+    //
+    //     Il foglio si legge QUI, in Node, dal file che il server dell'arnese sta servendo: e' la sola
+    //     fonte indipendente da quello che la pagina disegna. Confrontare la pastiglia con un numero
+    //     ricavato dalla pastiglia e' l'asserzione circolare che passa qualunque cosa.
+    const sheet = await sheetNumbers();
+    const pills = (await evaluate(session, readPills)) ?? [];
+    const wrongPills = [];
+    let checked = 0;
+    let clipped = 0;
+    let outside = 0;
+    let noMinutes = 0;
+    let widest = Infinity;
+    for (const row of pills) {
+      if (row.pills.length !== 3) {
+        wrongPills.push(`${row.name} porta ${row.pills.length} pastiglie invece di 3`);
+        continue;
+      }
+      outside += row.outside;
+      if (row.nameClipped) clipped += 1;
+      widest = Math.min(widest, row.nameWidth);
+      const said = sheet.get(row.id);
+      if (!said) {
+        wrongPills.push(`${row.name} (${row.id}) non e' nel foglio: la pagina disegna un uomo che il file non prezza`);
+        continue;
+      }
+      checked += 1;
+      // 1) QUANTO RENDE SOPRA IL SEI: la fantamedia del foglio meno 6, a un decimale.
+      const edge = said.fm == null ? null : said.fm - 6;
+      const shownEdge = row.pills[0] === '—' ? null : Number(row.pills[0].replace(',', '.'));
+      if (edge == null ? shownEdge != null : Math.abs(shownEdge - edge) > 0.06) {
+        wrongPills.push(`${row.name}: la prima pastiglia dice ${row.pills[0]} e il foglio ${edge?.toFixed(2)}`);
+      }
+      // 2) LE PRESENZE ATTESE, e le buone che non possono essere piu' delle giocate.
+      const [playedText, passedText] = row.pills[1].split(':');
+      const played = playedText === '—' ? null : Number(playedText);
+      if (said.pv == null ? played != null : Math.abs(played - said.pv) > 0.51) {
+        wrongPills.push(`${row.name}: le presenze dicono ${playedText} e il foglio ${said.pv?.toFixed(2)}`);
+      }
+      if (passedText != null && played != null && Number(passedText) > played) {
+        wrongPills.push(`${row.name}: ${passedText} partite buone su ${played} giocate - un sottoinsieme piu' grande dell'insieme`);
+      }
+      if (played != null && sheet.matchdays && played > sheet.matchdays + 0.5) {
+        wrongPills.push(`${row.name}: ${played} presenze su un calendario di ${sheet.matchdays} giornate`);
+      }
+      // 3) I MINUTI, e dove il foglio non li porta la pastiglia deve tacere invece di dire zero.
+      const minutes = row.pills[2] === '—' ? null : Number(row.pills[2].replace('′', ''));
+      if (said.minutes == null) {
+        noMinutes += 1;
+        if (minutes != null) wrongPills.push(`${row.name}: minuti ${row.pills[2]} e il foglio non ne dichiara`);
+      } else if (minutes == null || Math.abs(minutes - said.minutes) > 0.51) {
+        wrongPills.push(`${row.name}: i minuti dicono ${row.pills[2]} e il foglio ${said.minutes}`);
+      }
+    }
+    note('le tre pastiglie', {
+      said: `${checked} righe confrontate col foglio (${sheet.size} uomini prezzati, calendario `
+        + `${sheet.matchdays} giornate) · esempio ${JSON.stringify(pills[0]?.pills ?? null)} per `
+        + `«${pills[0]?.name}» · in riga ${pills.filter((one) => !one.stripOwnLine).length}/${pills.length}`
+        + ` · nomi tagliati ${clipped}/${pills.length}, il piu' stretto ${widest}px `
+        + `· ${noMinutes} righe senza minuti sul foglio`,
+      problems: [
+        ...(checked ? [] : ['nessuna riga confrontata: il passo non ha misurato niente']),
+        ...(outside ? [`${outside} pastiglie fuori dalla loro riga: ci sono nel DOM e non sullo schermo`] : []),
+        ...wrongPills.slice(0, 5),
+        ...(wrongPills.length > 5 ? [`...e altre ${wrongPills.length - 5} righe che non tornano`] : []),
+      ],
+    });
+
+    // 2d. LA FRASE DELLE PASTIGLIE, aperta con un puntatore vero: e' li' che si dice quale dei numeri
+    //     e' una PREVISIONE e quale una MISURA, cioe' la sola cosa che tre cifre nude non possono dire.
+    const strip = await evaluate(session, stripPoint);
+    let tip = null;
+    if (strip) {
+      await session.send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x: Math.round(strip.x), y: Math.round(strip.y), button: 'none',
+      });
+      for (let attempt = 0; attempt < 20 && !tip; attempt += 1) {
+        await wait(150);
+        tip = await evaluate(session, readTooltip);
+      }
+      // Via dal riquadro, o il pannello resta aperto sopra la riga che il passo dopo misura.
+      await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5, button: 'none' });
+      await wait(300);
+    }
+    note('la frase delle pastiglie', {
+      said: tip ? `«${tip.slice(0, 220)}…»` : 'nessun tooltip aperto',
+      problems: [
+        ...(strip?.inside ? [] : ['sotto il centro della fila non ci sta la fila: il puntatore arriva altrove']),
+        ...(tip ? [] : ['la fila delle pastiglie non apre nessun tooltip']),
+        ...(tip && tip.includes('PREVISIONE') && tip.includes('MISURA')
+          ? [] : ['la frase non dice quale numero sia una previsione e quale una misura']),
+        ...(tip && tip.includes('sopra il 6') ? [] : ['la frase non dice contro cosa sia misurato il primo numero']),
       ],
     });
 
@@ -586,7 +860,9 @@ async function main() {
     });
 
     // 3. LE LUNGHEZZE: il contatore dice n/domanda, e la domanda è quella della stanza dichiarata.
-    const expected = { P: 30, D: 80, C: 80, A: 60 };
+    const expected = Object.fromEntries(
+      Object.entries(SLOTS).map(([role, slots]) => [role, slots * TEAMS]),
+    );
     const counters = blocks.map((one) => `${one.role} ${one.counter}`).join(' · ');
     const wrong = blocks.filter((one) => {
       const said = Number((one.counter.split('/')[1] ?? '').trim());
@@ -844,9 +1120,25 @@ async function main() {
     // I badge del ruolo sono disegnati in maiuscolo dalla CSS, quindi il confronto è sul CODICE e non
     // su come lo si legge: un arnese che confronta la resa invece del dato inventa un difetto.
     const roles = after.map((one) => one.role.toLowerCase()).join(',');
+    // CHI HA PIÙ DI UN CODICE si sa senza leggere il tooltip: un uomo compare in un blocco per ogni
+    // codice che porta, quindi due blocchi sono due codici. È il riferimento indipendente che serve per
+    // giudicare la frase della riga, invece di confrontarla con se stessa.
+    const seen = new Map();
+    for (const block of after) {
+      for (const part of block.parts) seen.set(part.name, (seen.get(part.name) ?? 0) + 1);
+    }
+    const polyvalent = { rows: 0, titled: 0 };
+    for (const block of after) {
+      for (const part of block.parts) {
+        if ((seen.get(part.name) ?? 0) < 2) continue;
+        polyvalent.rows += 1;
+        if (/ · [A-Za-z]+\/[A-Za-z]+/.test(part.title)) polyvalent.titled += 1;
+      }
+    }
     note('mantra', {
       said: `${after.length} blocchi (${roles}) · ${after.reduce((sum, one) => sum + one.rows, 0)} nomi · `
-        + `contatori ${after.map((one) => one.counter).join('/')}`,
+        + `contatori ${after.map((one) => one.counter).join('/')} · ${polyvalent.titled}/${polyvalent.rows} `
+        + 'righe con più codici li dicono nel tooltip',
       problems: [
         ...(toMantra ? [toMantra] : []),
         ...(after.length === 12 ? [] : [`${after.length} blocchi invece dei dodici ruoli mantra`]),
@@ -854,8 +1146,43 @@ async function main() {
           ? [] : [`il vocabolario mantra non è quello del regolamento: ${roles}`]),
         ...(afterPage.scrollHeight - afterPage.innerHeight > 1
           ? [`con dodici blocchi la pagina scorre di ${afterPage.scrollHeight - afterPage.innerHeight}px`] : []),
-        ...(after.some((one) => one.parts.some((part) => !part.roles))
-          ? ['qualche riga mantra non porta i suoi codici'] : []),
+        // I CODICI non si disegnano più (il blocco è il ruolo), e su mantra la metà che diceva qualcosa
+        // in più - in quali ALTRI blocchi l'uomo compare - è finita nel tooltip della riga: si verifica
+        // che sia LÌ, o sarebbe stata buttata invece che spostata.
+        ...(after.some((one) => one.parts.some((part) => part.roles))
+          ? ['qualche riga mantra porta ancora il badge dei codici'] : []),
+        ...(polyvalent.rows
+          ? (polyvalent.titled === polyvalent.rows
+            ? [] : [`${polyvalent.rows - polyvalent.titled} righe con più codici non li dicono nel tooltip`])
+          : ['nessuna riga con più di un codice: il tooltip dei codici non è stato misurato']),
+      ],
+    });
+
+    // 7a. LA RIGA STRETTA: dodici blocchi in una finestra fanno liste da ~254px, e le tre pastiglie
+    //     inline lì non ci stanno - il nome sparisce e il gain esce dal blocco. Misurato invece che
+    //     creduto: un passo che guarda solo la vista larga direbbe «nessun problema» dopo aver
+    //     guardato l'altra metà della pagina.
+    const narrow = (await evaluate(session, readPills)) ?? [];
+    const wrapped = narrow.filter((one) => one.stripOwnLine).length;
+    // Un nome schiacciato conta come difetto SOLO dove le pastiglie sono ancora sulla sua riga: dove
+    // sono andate a capo, quello che stringe il nome sono i codici, i marchi e il gain, cioe' la lista
+    // stretta di prima. Attribuire a loro anche quelli sarebbe accusarle di un difetto altrui.
+    const namesGone = narrow.filter((one) => !one.stripOwnLine && one.nameWidth < 40).length;
+    const clippedInline = narrow.filter((one) => !one.stripOwnLine && one.nameClipped).length;
+    const stripsOut = narrow.reduce((sum, one) => sum + one.outside, 0);
+    const withoutPills = narrow.filter((one) => one.pills.length !== 3).length;
+    note('la riga stretta (mantra)', {
+      said: `${narrow.length} righe · ${wrapped} con le pastiglie a capo · riga alta `
+        + `${narrow[0]?.height}px · nome piu' stretto ${Math.min(...narrow.map((one) => one.nameWidth))}px`
+        + ` · tagliati ${narrow.filter((one) => one.nameClipped).length} (di cui ${clippedInline} con le `
+        + `pastiglie ancora in riga) · esempio «${narrow[0]?.name}» ${JSON.stringify(narrow[0]?.pills ?? null)}`,
+      problems: [
+        ...(narrow.length ? [] : ['nessuna riga letta: il passo non ha misurato niente']),
+        ...(wrapped === narrow.length
+          ? [] : [`${narrow.length - wrapped} righe tengono le pastiglie in riga su un blocco stretto`]),
+        ...(namesGone ? [`${namesGone} righe col nome ridotto a meno di 40px: le pastiglie se lo mangiano`] : []),
+        ...(stripsOut ? [`${stripsOut} pastiglie fuori dalla loro riga`] : []),
+        ...(withoutPills ? [`${withoutPills} righe senza le tre pastiglie`] : []),
       ],
     });
 
