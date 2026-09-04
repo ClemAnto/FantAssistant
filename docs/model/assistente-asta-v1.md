@@ -2997,3 +2997,78 @@ Misurato in un browser vero, con un puntatore vero: 250 righe, **62 icone su 55 
 e' coperto (`elementFromPoint`); il menu' apre **23 voci** (21 marchi + le due vie); «nessuno» porta le
 icone a **0**, «tutti» le riporta a 62, spegnere «Si infortuna spesso» le porta a **25**, e dopo un
 RICARICAMENTO restano 25. Zero errori in console. Suite: 603 test app, 650 toolkit.
+
+## 37. LE ROSE SI SCRIVONO A MANO: azzerarle, e assegnare il lotto col doppio click (4 settembre 2026)
+
+Tre richieste dell'operatore nella stessa serata — «aggiungi un tasto per resettare le rose», «quando
+faccio doppio click sulla card di una squadra, assegna il calciatore estratto a quella squadra», «togli
+il title dai calciatori in plancia, da' fastidio» — e le prime due sono **una cosa sola**: sono quello
+che rende la plancia usabile alla SUA asta. Là l'urna la gira il software di qualcun altro e questo
+pannello non è collegato (la connessione è un bottone, §33), quindi il tavolo inventato non è una demo
+da guardare: è il **foglio su cui si segna l'asta vera**. E un foglio che parte con un terzo dell'asta
+già giocata da un fixture (`DEMO_PROGRESS` 0,35) non serve a niente finché non lo si può azzerare.
+
+**QUELLO CHE SI AZZERA SONO LE ROSE, NON IL REGOLAMENTO.** `AuctionFeed.emptySquads` toglie i pick e
+lascia in piedi sedie, budget, posti e le dieci etichette: sono le impostazioni della lega, e
+riscriverle sarebbe un'altra funzione con un altro nome. Dietro una conferma, perché a metà asta quel
+tasto butta via tutto quello che l'operatore ha segnato fin lì, e la conferma DICE cosa tocca e cosa no.
+Nessun tooltip sul tasto: tooltip e popconfirm sullo stesso bottone sono due overlay e il primo copre i
+tasti del secondo — la misura del 20/08 sugli imbuti della tabella, applicata prima di pagarla di nuovo.
+
+**IL PREZZO NON HA UN VALORE DI CORTESIA, ed è la sola regola nuova di questa serata.** Zero vuol dire
+«nessuno ha ancora offerto», non «un credito»: i crediti di ogni rosa sono la quantità su cui poggiano
+tutti i tetti di questa pagina (la banda, le mani alzate, l'alternativa), quindi assegnare a un prezzo
+che nessuno ha scritto sarebbe **inventare un acquisto** e falsare ogni numero sotto. Si rifiuta, e si
+dice perché. Gli altri due rifiuti sono del regolamento e non miei — un reparto già completo, una borsa
+che non arriva — perché un doppio click è un gesto grosso e un acquisto impossibile lasciato passare
+darebbe a una rosa ventisei posti o crediti negativi, cioè un tavolo che non esiste.
+
+**E un rifiuto muto è indistinguibile da un gesto rotto**, quindi ognuno dei tre scrive la sua ragione
+nell'avviso della pagina, che da oggi si chiude (`nzCloseable`): quel canale portava solo guasti di
+costruzione, adesso porta anche un no a un gesto, e un no non deve restare a schermo per sempre.
+Simmetricamente, l'assegnazione riuscita **svuota il lotto** — l'uomo non è più nell'urna, e lasciarlo
+«in asta» farebbe dire due cose diverse alla stessa riga, perché lo stato del lotto viene letto prima di
+quello del proprietario.
+
+**Il confine con l'asta vera è lo stesso di sempre, e vale per tutt'e due i gesti**: si scrive solo sul
+tavolo inventato. I pick di una sessione vera sono del banditore, la prima riga in arrivo cancellerebbe
+quello che scrivessimo noi, e nel frattempo il pannello mostrerebbe una rosa che al tavolo non esiste.
+La guardia sta nel FEED (una definizione, non una condizione ripetuta in due viste) e l'interfaccia si
+limita a non promettere quello che non può fare: il cursore e il tooltip cambiano solo dove il gesto
+funziona, mentre il gesto arriva comunque allo store, che è l'unico a saper dire perché no.
+
+**IL `title` NATIVO SE N'È ANDATO, e con lui le due funzioni che lo scrivevano.** Su 250 righe alte
+diciassette pixel il tooltip del browser spuntava sotto il puntatore — cioè esattamente dove si sta
+leggendo — e copriva le righe vicine mentre si scorre un reparto. Quello che diceva non è perso e non è
+stato riscritto altrove: il prezzo e la banda stanno sulla **card** che il click apre da sé (§36 della
+sessione parallela), e l'alternativa è l'**evidenziazione all'hover**, gli stessi due uomini mostrati
+dove vivono. Due canali per una frase sono come una riga finisce per dirne due versioni.
+
+**MISURATO IN UN BROWSER VERO, perché un doppio click è un gesto**: `scripts/e2e-plancia-award.mjs`,
+puntatore CDP con `clickCount` 1 e 2 alle coordinate che il browser dichiara. Dopo l'azzeramento: 10
+rose su 10 a **1000 cr** e **3·8·8·6**, avanzamento **P 0/30 · D 0/80 · C 0/80 · A 0/60**, **0** righe
+con la barra di un proprietario; **0** attributi `title` su **250** righe; doppio click a prezzo zero →
+nessun acquisto e l'avviso che dice perché; prezzo 45 scritto nella riga del lotto → doppio click → la
+rosa paga **45**, ha **un** posto in meno nel ruolo del lotto, il lotto è vuoto e la riga dell'uomo porta
+la barra del suo colore. Zero errori in console, e il banco dei portieri resta verde. Suite: **621 test
+app** (39 file).
+
+**Due lezioni dall'arnese, tutt'e due già scritte in questo repository e incontrate di nuovo.** Le
+coordinate del campo del prezzo erano lette PRIMA del rifiuto, e il rifiuto aggiunge un avviso che
+sposta la riga del lotto più in basso: il banco cliccava dove il campo ERA e accusava la pagina di non
+prendere il prezzo — un difetto inventato dallo strumento. E la cura non è solo rileggerle: è che
+«scrivo il prezzo» e «il doppio click assegna» sono **due passi separati**, o un passo che misura due
+incognite attribuisce il guasto a quella sbagliata (20/08, il varco in coda della tabella).
+
+**E un difetto trovato nei test di casa, che vale oltre questa feature: un fixture condiviso che un
+altro test MUTA non è un fixture.** `applyStreamEvent(mirror, 'put', '/', STATE)` restituisce l'oggetto
+stesso, e i `put` successivi scrivevano un terzo pick dentro lo `STATE` dichiarato in cima al file: ogni
+test eseguito dopo vedeva un tavolo diverso da quello che il file dichiara. Se ne sono accorti i due
+test nuovi (leggevano 3 pick su un fixture che ne dichiara 2). Curato dai due lati — quel test lavora su
+una copia, e i test nuovi scrivono i propri pick invece di ereditarli.
+
+**Due sessioni sullo stesso albero, ancora**, e stavolta l'altra ha committato anche questa metà
+(21e7d2e, il cui messaggio descrive solo la sua): il codice di `awardByHand`, `resetSquads` e del doppio
+click è dentro quel commit senza esservi nominato. Va detto qui, perché è esattamente il motivo per cui
+la regola esiste — una storia che non dice cosa porta non si può bisezionare. L'albero combinato è
+comunque verde e misurato: 621 test e i due banchi e2e della plancia.

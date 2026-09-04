@@ -3356,6 +3356,47 @@ e il resto DETTO con un `+N`; `core/flag-prefs.ts` tiene la scelta in `localStor
 **tiene la lista degli SPENTI**, cosi' un marchio nuovo nasce acceso invece di essere spento in silenzio
 da una preferenza salvata mesi prima. Un test lega il menu' al vocabolario dei `PlayerFlag`.
 
+## Le rose si scrivono A MANO, e un PREZZO ZERO non e' un credito
+**04/09/2026, tre richieste dell'operatore sulla plancia in fila, e le prime due sono una cosa sola:
+`app/src/app/core/plancia-store.ts` (`award`, `resetSquads`) + `auction-feed.ts` (`awardByHand`,
+`emptySquads`). Dettaglio: `assistente-asta-v1.md` §37.** La sua asta la gira il software di qualcun
+altro e questa pagina non e' collegata (la connessione e' un bottone, §33), quindi il tavolo inventato
+non e' una demo da guardare: e' **il foglio su cui si segna l'asta vera**. Un foglio che parte con un
+terzo dell'asta giocata da un fixture non serve a niente finche' non lo si puo' azzerare, ne' si puo'
+tenere aggiornato finche' non si puo' dire chi ha preso il lotto — un tasto e un doppio click sulla card
+di una rosa.
+
+**IL PREZZO NON HA UN VALORE DI CORTESIA.** Zero vuol dire «nessuno ha ancora offerto», non «un
+credito»: i crediti di ogni rosa sono la quantita' su cui poggia ogni tetto della pagina (la banda, le
+mani alzate, l'alternativa), quindi assegnare a un prezzo che nessuno ha scritto e' **inventare un
+acquisto** e falsare tutti i numeri sotto. Si rifiuta. Gli altri due rifiuti sono del REGOLAMENTO e non
+nostri (reparto completo, borsa che non arriva), perche' un doppio click e' un gesto grosso e un
+acquisto impossibile lasciato passare darebbe a una rosa ventisei posti o crediti negativi.
+
+Quattro cose che restano oltre il caso.
+- **Un rifiuto muto e' indistinguibile da un gesto rotto**: ognuno dei tre scrive la sua ragione
+  nell'avviso della pagina, che percio' ora si chiude — un canale che portava guasti di costruzione e
+  adesso porta anche un no a un gesto non puo' restare a schermo per sempre. E l'interfaccia non
+  promette quello che non puo' fare (cursore e tooltip cambiano solo dove il gesto funziona) mentre il
+  gesto arriva comunque allo store, che e' l'unico a sapere perche' no.
+- **Si scrive solo sul tavolo NOSTRO, e la guardia sta nel feed**: i pick di una sessione vera sono del
+  banditore, la prima riga in arrivo cancellerebbe quello che scrivessimo noi, e nel frattempo il
+  pannello mostrerebbe una rosa che al tavolo non esiste. Una definizione, non una condizione ripetuta
+  in due viste.
+- **UN FIXTURE CONDIVISO CHE UN ALTRO TEST MUTA NON E' UN FIXTURE.** `applyStreamEvent(mirror, 'put',
+  '/', STATE)` restituisce l'oggetto STESSO, e i `put` successivi scrivevano un terzo pick dentro lo
+  `STATE` dichiarato in cima al file: ogni test dopo quello vedeva un tavolo diverso da quello che il
+  file dichiara. Trovato dai due test nuovi, che leggevano 3 pick su un fixture che ne dichiara 2, e
+  curato dai due lati (quel test lavora su una copia, i test nuovi scrivono i propri pick).
+- **E un `title` nativo su 250 righe alte diciassette pixel spunta dove si sta leggendo** («da'
+  fastidio»): togliendolo se ne sono andate anche le due funzioni che lo scrivevano, perche' quello che
+  diceva vive altrove — prezzo e banda sulla card che il click apre, l'alternativa nell'evidenziazione
+  all'hover. Due canali per una frase sono come una riga finisce per dirne due versioni. Misurato come
+  un'assenza si misura: `scripts/e2e-plancia-award.mjs` legge **0 `title` su 250 righe**, e lo stesso
+  banco pilota i due gesti con un puntatore vero (`clickCount` 1 e 2) perche' un doppio click e' un
+  GESTO — con la cura che «scrivo il prezzo» e «il doppio click assegna» sono due PASSI separati, o un
+  passo che misura due incognite attribuisce il guasto a quella sbagliata.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

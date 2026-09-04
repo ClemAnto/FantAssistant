@@ -4406,3 +4406,109 @@ davvero liberi.
 E una cosa che questa sessione ha reso comoda e nessuno ha ancora usato: **`--stale-days` esiste per
 tutti gli archivi di `injuries`, non solo per riprendere**. `--stale-days 7` è la cadenza dichiarata di
 quell'archivio, quindi la corsa settimanale che il preset `--daily` lascia fuori ha già la sua forma.
+
+## CHIUSURA della sessione 04/09/2026 — LE ROSE SI SCRIVONO A MANO, e il prezzo non ha un valore di cortesia
+
+Tre richieste dell'operatore in fila sulla plancia, e le prime due sono una cosa sola: «aggiungi un
+tasto per resettare le rose», «quando faccio doppio click sulla card di una squadra, assegna il
+calciatore estratto a quella squadra», «togli il title dai calciatori in plancia, da' fastidio».
+Dettaglio pieno: [assistente-asta-v1.md](assistente-asta-v1.md) §37.
+
+### Perché le due prime richieste sono la stessa
+
+La sua asta la gira il software di qualcun altro e questo pannello non è collegato (§33: la connessione
+è un bottone). Quindi il tavolo inventato non è una demo da guardare, è **il foglio su cui si segna
+l'asta vera** — e un foglio che parte con un terzo dell'asta già giocata da un fixture
+(`DEMO_PROGRESS` 0,35) non serve a niente finché non lo si può azzerare, né si può tenere aggiornato
+finché non si può dire chi ha preso il lotto. `AuctionFeed.emptySquads` e `AuctionFeed.awardByHand` sono
+le due scritture, `PlanciaStore.resetSquads` e `PlanciaStore.award` le due decisioni.
+
+**Quello che si azzera sono le ROSE e non il regolamento**: via i pick, restano sedie, budget, posti e
+le dieci etichette. Dietro conferma, perché a metà asta quel tasto butta via tutto quello che
+l'operatore ha segnato, e la conferma dice cosa tocca e cosa no. Nessun tooltip sul tasto: tooltip e
+popconfirm sullo stesso bottone sono due overlay e il primo copre i tasti del secondo (misura del
+20/08 sugli imbuti della tabella, applicata prima di ripagarla).
+
+### La regola nuova: IL PREZZO NON HA UN VALORE DI CORTESIA
+
+Zero vuol dire «nessuno ha ancora offerto», non «un credito». I crediti di ogni rosa sono la quantità su
+cui poggiano tutti i tetti di questa pagina — la banda, le mani alzate, l'alternativa — quindi assegnare
+a un prezzo che nessuno ha scritto sarebbe **inventare un acquisto** e falsare ogni numero sotto. Si
+rifiuta. Gli altri due rifiuti sono del regolamento e non miei (reparto completo, borsa che non arriva),
+perché un doppio click è un gesto grosso e un acquisto impossibile lasciato passare darebbe a una rosa
+ventisei posti o crediti negativi.
+
+E **un rifiuto muto è indistinguibile da un gesto rotto**: ognuno dei tre scrive la sua ragione
+nell'avviso della pagina, che da oggi si chiude — quel canale portava solo guasti di costruzione e
+adesso porta anche un no a un gesto. L'assegnazione riuscita **svuota il lotto**, perché lo stato del
+lotto viene letto prima di quello del proprietario e una riga direbbe due cose sullo stesso uomo.
+
+Il confine con l'asta vera è quello di sempre e vale per tutt'e due i gesti: si scrive solo sul tavolo
+nostro. I pick di una sessione vera sono del banditore, la prima riga in arrivo cancellerebbe quello che
+scrivessimo noi, e la guardia sta nel FEED — una definizione, non una condizione ripetuta in due viste.
+L'interfaccia si limita a non promettere quello che non può fare (cursore e tooltip cambiano solo dove
+il gesto funziona), mentre il gesto arriva comunque allo store, che è l'unico a saper dire perché no.
+
+### Il `title` nativo, e dove vive quello che diceva
+
+Su 250 righe alte diciassette pixel il tooltip del browser spuntava sotto il puntatore, cioè dove si
+sta leggendo, e copriva le righe vicine mentre si scorre un reparto. Sono andate anche le due funzioni
+che lo scrivevano: prezzo e banda stanno sulla card che il click apre da sé, l'alternativa è
+l'evidenziazione all'hover — gli stessi due uomini mostrati dove vivono. Due canali per una frase sono
+come una riga finisce per dirne due versioni.
+
+### Verifiche
+
+Un doppio click è un GESTO, quindi si misura in un browser vero: **`scripts/e2e-plancia-award.mjs`**
+(nuovo, zero dipendenze come gli altri), puntatore CDP con `clickCount` 1 e 2 alle coordinate che il
+browser dichiara. Dopo l'azzeramento: **10 rose su 10 a 1000 cr e 3·8·8·6**, avanzamento **P 0/30 ·
+D 0/80 · C 0/80 · A 0/60**, **0** righe con la barra di un proprietario; **0 `title` su 250 righe**;
+doppio click a prezzo zero → nessun acquisto e l'avviso che dice perché; prezzo 45 → la rosa paga
+**45**, **un** posto in meno nel ruolo del lotto, lotto vuoto, barra del colore sulla riga. Console
+pulita. **624 test app su 39 file** (4 sono i miei), `ng build` senza avvisi, banco dei portieri verde.
+`engine_*`, i fogli e le revisioni **fermi**: nessuna di queste modifiche tocca `evaluate`, `presence`
+o `snapshot`.
+
+**Un difetto trovato nei test di casa e che vale oltre la feature: un fixture condiviso che un altro
+test MUTA non è un fixture.** `applyStreamEvent(mirror, 'put', '/', STATE)` restituisce l'oggetto
+stesso, e i `put` successivi scrivevano un terzo pick dentro lo `STATE` dichiarato in cima al file:
+ogni test eseguito dopo vedeva un tavolo diverso da quello che il file dichiara. Se ne sono accorti i
+due test nuovi (leggevano 3 pick su un fixture che ne dichiara 2). Curato dai due lati — quel test
+lavora su una copia, e i test nuovi scrivono i propri pick invece di ereditarli.
+
+**E due lezioni sull'arnese, tutt'e due già scritte in questo repository.** Le coordinate del campo del
+prezzo erano lette PRIMA del rifiuto, e il rifiuto aggiunge un avviso che sposta la riga del lotto più
+in basso: il banco cliccava dove il campo ERA e accusava la pagina di non prendere il prezzo, cioè un
+difetto inventato dallo strumento. La cura non è solo rileggerle: «scrivo il prezzo» e «il doppio click
+assegna» sono **due passi separati**, o un passo che misura due incognite attribuisce il guasto a
+quella sbagliata.
+
+### Due sessioni sullo stesso albero, e stavolta l'altra è ancora aperta
+
+Il commit `21e7d2e` (l'altra sessione: la card di un calciatore, lo sconto sul club che ho già) **porta
+dentro anche il codice di questa metà** — `awardByHand`, `resetSquads`, il doppio click, il `title`
+togliuto — senza nominarlo nel messaggio: la storia va letta sapendolo, ed è esattamente il motivo per
+cui la regola esiste. Restano fuori da quel commit e vanno qui: il mio spec (`auction-feed.spec.ts`,
+la cura del fixture) e il banco nuovo.
+
+**Quello che NON committo, e perché**: alle 06:33 la sessione parallela è ancora al lavoro
+(`plancia-store.ts`, `plancia.ts`, `plancia.html`, `slot-matrix.ts`, `injury-window.*`, il suo
+`scripts/e2e-plancia-injury.mjs`, la sua nota in `letture-app-v1.md` e il suo §36). Non sono miei da
+committare mentre si muovono, e il loro stato è per costruzione un'istantanea di un lavoro in corso: a
+**06:32** la suite leggeva 2 test rossi e il suo banco 2 problemi (la card dice 11 giornate attese dove
+il foglio più il calendario ne vogliono 14,2 su Konè I., e la nota non dice quante giornate perde), a
+**06:33** la stessa suite leggeva **624 verdi**. Numeri del genere non sono un verdetto su niente:
+chi riprende quel filo li rimisuri prima di crederci.
+
+### Aperto
+
+1. **«Annulla l'ultimo acquisto»** sulla plancia: oggi un doppio click sbagliato si corregge solo
+   azzerando tutto, e a un tavolo vero questo è la differenza fra un errore e mezz'ora persa. Un pick
+   in meno in coda è una riga (`AuctionFeed`), il gesto è da decidere con l'operatore.
+2. **Il prezzo pagato lo scrive lui a mano.** È giusto — è il solo fatto che non abbiamo — ma vuol dire
+   che a un'asta lunga la barra dei crediti è affidabile quanto la sua disciplina nel digitare. Se
+   diventasse un problema, la strada NON è indovinare il prezzo: è un tasto «pagato la mia max offerta»
+   accanto al campo, che almeno è un numero che la pagina conosce.
+3. Restano i punti aperti delle chiusure precedenti, non toccati da questa sessione: un `export`
+   (il pacchetto è del 01/09), lo `snapshot` per allineare `desc_easy_matches` al campo nuovo, gli
+   `anchor` come acquisizione e la pagina della sua lega da leggere con un browser pilotato.

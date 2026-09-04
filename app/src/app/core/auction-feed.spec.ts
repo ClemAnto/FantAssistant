@@ -173,7 +173,9 @@ describe('platformOf', () => {
   it('refuses to place a custom list it cannot read', () => {
     expect(platformOf({ playerListType: 'custom' }, [])).toBeNull();
     // One championship and it is not Serie A: neither of our two platforms is that list.
-    expect(platformOf({ playerListType: 'custom' }, [foreign('Arsenal', 'Premier League')])).toBeNull();
+    expect(
+      platformOf({ playerListType: 'custom' }, [foreign('Arsenal', 'Premier League')]),
+    ).toBeNull();
   });
 
   it('keeps the raw list type available, custom included', () => {
@@ -239,17 +241,33 @@ describe('porteOf', () => {
 
 describe('portaStandIns', () => {
   const keeper = (id: number, name: string, club: string, fvm: number): AuctionPlayer => ({
-    id, name, club, roles: ['por'], zoneClassic: 'gk', zoneMantra: 'gk', championship: 'Serie A', fvm,
+    id,
+    name,
+    club,
+    roles: ['por'],
+    zoneClassic: 'gk',
+    zoneMantra: 'gk',
+    championship: 'Serie A',
+    fvm,
   });
   const porte = porteOf(
-    [keeper(101, 'Svilar', 'Roma', 65), keeper(102, 'Gollini', 'Roma', 3),
-     keeper(201, 'Paleari', 'Torino', 1), keeper(202, 'Mascardi', 'Torino', 1)],
+    [
+      keeper(101, 'Svilar', 'Roma', 65),
+      keeper(102, 'Gollini', 'Roma', 3),
+      keeper(201, 'Paleari', 'Torino', 1),
+      keeper(202, 'Mascardi', 'Torino', 1),
+    ],
     [],
     false,
   ).porte;
 
   it('keeps ONE row per goal: the best keeper of the club by worth, and drops the others', () => {
-    const worth = new Map([[101, 23.9], [102, 1.2], [201, 4.0], [202, 6.5]]);
+    const worth = new Map([
+      [101, 23.9],
+      [102, 1.2],
+      [201, 4.0],
+      [202, 6.5],
+    ]);
     const { standIn, drop } = portaStandIns(porte, (id) => worth.get(id) ?? null);
     expect([...standIn.keys()].sort()).toEqual([101, 202]);
     expect([...drop].sort()).toEqual([102, 201]);
@@ -307,7 +325,9 @@ describe('applyStreamEvent', () => {
 
   it('rebuilds the state a real session sends: full put, then the pick that follows', () => {
     let mirror: RawState = {};
-    mirror = applyStreamEvent(mirror, 'put', '/', STATE);
+    // Su una COPIA: `put` alla radice restituisce l'oggetto che gli si passa, e i tre `put` che
+    // seguono scriverebbero dentro il fixture di tutto il file.
+    mirror = applyStreamEvent(mirror, 'put', '/', structuredClone(STATE));
     applyStreamEvent(mirror, 'put', '/picks/2', {
       index: 2,
       teamId: 2,
@@ -339,7 +359,16 @@ describe('AuctionFeed: awardByHand / emptySquads', () => {
     const feed = TestBed.inject(AuctionFeed);
     feed.startDemo({
       players: [...PLAYERS.values()],
-      state: structuredClone(STATE),
+      // I DUE PICK SCRITTI QUI e non ereditati: quello che questi test misurano e' quanti proprietari
+      // ha un uomo, quindi il tavolo di partenza dev'essere quello dichiarato e non quello che un
+      // altro test ha lasciato in giro.
+      state: {
+        ...structuredClone(STATE),
+        picks: [
+          { index: 0, teamId: 0, playerId: 5585, cost: 365 },
+          { index: 1, teamId: 1, playerId: 6052, cost: 271 },
+        ],
+      },
       mineId: 0,
     });
     return feed;
