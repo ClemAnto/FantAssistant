@@ -457,6 +457,77 @@ ha tolto i badge dei ruoli dalla riga (`ui-roles`) mentre lavorava alle bande de
 stessa cosa porta il nome più stretto da 94 a 116px. *Il costo di un layout è una fotografia che scade:
 si rimisura, non si cita.*
 
+## 14. LA RIGA, DENSIFICATA: bande dello slot, un tooltip solo, il gain a giornata (4 settembre 2026)
+
+Cinque richieste dell'operatore in fila sulla stessa riga di lista, e vale la pena leggerle insieme
+perche' tirano tutte dalla stessa parte: **quello che si cerca scorrendo un blocco e' un NOME, e tutto
+il resto e' spazio tolto a lui.**
+
+**1. LO SFONDO RAGGRUPPA OGNI `n` NOMI, con `n` = i partecipanti** («raggruppa ogni n calciatori con uno
+sfondo leggermente piu' chiaro dove n e' il numero di partecipanti alla lega»). Non e' una decorazione:
+una banda di `teams` nomi **e' uno SLOT**, cioe' il rango dentro il ruolo diviso il numero di rose, che
+in questo progetto e' una legge di conservazione e non una convenzione — in una lega da dieci ci sono
+dieci «primi difensori» perche' ognuno ne schiera uno, ed e' la popolazione su cui il banco d'asta ha
+misurato ogni tetto d'offerta (`simulatore-asta-rilanci-v1.md` §19.3). A classic la domanda di un blocco
+e' `slot x partecipanti`, quindi le bande cadono esatte (30 = 3 bande, 80 = 8); a mantra la domanda viene
+dalle forme e l'ultima banda puo' essere corta, che e' un fatto sulla lista e non un difetto.
+**Sostituisce la zebra invece di aggiungersi**: due alternanze sulla stessa proprieta' darebbero quattro
+tinte, e il confine della banda — la sola cosa che quel colore deve dire — si perderebbe fra le altre
+tre. Misurato a schermo: **21 confini su 250 righe** (2+7+7+5), il fondo cambia SOLO al confine e mai
+dentro una banda, e la riga dichiara la sua banda in `data-band` cosi' l'aritmetica e il colore si
+verificano separatamente.
+
+**2. VIA IL BADGE DEL RUOLO** («visto che gia' sono raggruppati per ruolo»). A classic ripeteva
+l'intestazione del blocco riga per riga; a mantra pero' diceva qualcosa in piu' — in quali ALTRI blocchi
+l'uomo compare — e **quella meta' non e' stata buttata, e' finita nel tooltip della riga** quando i
+codici sono piu' d'uno. Prezzo e guadagno misurati: il nome piu' stretto passa da 94 a **120px** su
+classic e legge **85px** su mantra, zero nomi tagliati su 250 e su 255.
+
+**3. IL RIENTRO A SINISTRA** («un po' di padding a sinistra che potrebbe essere tolto soprattutto nelle
+risoluzioni con larghezza piu' bassa»): 6px -> **4px**, e ZERO sotto le 23rem di lista, cioe' la stessa
+soglia di container query che gia' decide dove vanno le pastiglie. A destra resta, perche' li' finiscono
+il gain e le pastiglie e un numero attaccato al bordo si legge peggio.
+
+**4. IL GAIN E' A GIORNATA** («al posto del surplus mostra il surplus medio a partita»), che e' la sua
+regola del 03/09 — «i risultati si riportano in punti A GIORNATA, mai in totali di stagione» — applicata
+alla colonna che ORDINA queste liste. Tre cose non ovvie:
+- **il divisore e' del FOGLIO** (`matchdays_target`: 38 su Serie A, 31 su euro) e non una costante, perche'
+  `engine_pv_pred` vive sul calendario della piattaforma e dividere il surplus di un foglio per le
+  giornate di un altro sarebbe una quota di niente;
+- **una definizione sola** (`perMatch`), letta dalla riga E dalla scala del colore: le fasce sono
+  percentili, quindi dividere solo le righe le lascerebbe tarate sui totali di stagione e **ogni uomo
+  leggerebbe `scarso`**. L'ordine non cambia — dividere tutti per lo stesso numero non riordina niente —
+  e nemmeno le fasce, che sono ranghi;
+- **due cifre invece di una**, perche' la scala e' un'altra: i gain ora stanno fra 0 e ~1,7 (P 0,96 -> 0,20 ·
+  A 1,71 -> 0,31) e con una cifra sola meta' listone leggerebbe «0,1». Dove un foglio non dichiarasse il suo
+  calendario resta il TOTALE e l'etichetta della barra lo dice («GAIN = SURPLUS a stagione»), invece di
+  stampare un totale sotto un'unita' che non e' la sua.
+
+**5. UN TOOLTIP SOLO PER RIGA** («limita i tooltip nei calciatori al minimo essenziale») **e il riquadro
+verde piu' piccolo**. Erano QUATTRO su una riga alta 17px — il `title` nativo, la freccia, la fila delle
+pastiglie e il tilde — e **tre dei quattro dicevano la stessa frase su ogni riga: erano una LEGENDA e non
+un fatto su quell'uomo**. La legenda e' salita nell'intestazione del blocco, che e' un hover solo per
+lista; sulla riga resta il per-uomo (nome intero, club, codici, i due marchi), sul NOME perche' e'
+l'elemento piu' largo ed e' quello che si sta leggendo quando serve saperne di piu'. Misurato: **al piu'
+1 tooltip suo per riga e 0 `title` nativi**, con la lunghezza della frase sotto i 200 caratteri come
+asserzione (la vecchia frase delle pastiglie era un paragrafo di ~700). Restano fuori dal conto, e sono
+dichiarati invece che nascosti, i marchi di `ui-flags` (fino a 3, esistono solo dove c'e' un marchio da
+spiegare) e il `title` dello stemma, che porta il nome del club — cioe' la sola cosa che un'immagine da
+16px non dice. Il riquadro del gain ha una taglia `sm` (h-4, testo 10px): **il componente e' uno solo** e
+la sua regola del 25/08 non si tocca — forma, colore e fasce restano identici in ogni pagina — cambia la
+DENSITA', e il default e' quello di prima, quindi le buste chiuse non si muovono di un pixel.
+
+**E il banco ha trovato un difetto suo, che vale piu' delle cinque modifiche.** Chiedendo la frase di
+Kalulu leggeva quella di **Neres**: il passo precedente chiude una finestra modale con un click, e quando
+la modale sparisce il puntatore resta fermo sulla riga che sta sotto quel punto, che apre il SUO tooltip
+da sola; il polling successivo trovava un pannello gia' aperto prima che il nostro (0,4s di ritardo)
+nascesse. *Un tooltip letto senza essersi assicurati che il precedente sia chiuso e' il tooltip di
+un'altra riga, e non lo dice.* Cura: `hoverTip` — vai via, ASPETTA che non ce ne sia nessuno aperto, poi
+bussa — piu' l'asserzione che la frase cominci col nome che avevamo chiesto. Ed e' anche il caso in cui
+**«nessun problema» era stampato accanto alla prova del contrario**: il difetto stava nella riga `said`
+del passo, non fra i suoi `problems`, che e' la ragione per cui questo banco stampa sempre quello che ha
+letto e non solo il verdetto.
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

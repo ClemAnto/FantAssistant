@@ -965,10 +965,29 @@ def test_a_season_not_yet_played_is_priced_on_last_seasons_calendar(prepared):
     out, predictions, source, notes = snapshot.engine_predictions(
         conn, window, "euro", "classic", None, prepared=data, fits={})
     assert out.matchdays_target == MATCHDAYS, "the target calendar falls back to the input season's"
-    assert any("no matchdays yet" in note for note in notes), notes
+    assert any("no full calendar" in note for note in notes), notes
     assert source == "R0-core"                    # no fits given, so the honest fallback says so
     priced = [p for p in predictions if p.pv_pred is not None]
     assert priced and all(p.pv_pred > 0 for p in priced), "a zero calendar prices everyone at zero"
+
+
+def test_a_season_already_under_way_is_priced_on_what_REMAINS(prepared):
+    """...e se due giornate sono gia' state giocate, il bersaglio e' 36 e non 38 (04/09/2026).
+
+    Lo stesso ramo, dall'altro lato: `matchday_count` conta le giornate GIA' IN ARCHIVIO, quindi su una
+    stagione in corso `matchdays_target` (= quelle - le viste) e' zero e il ripiego diceva «non e' ancora
+    cominciata» di una stagione alla terza giornata. Il foglio del 03/09/2026 prezzava 38 giornate quando
+    ne restavano 36: ogni presenza attesa e ogni surplus gonfi del 5,6%.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    _cfg, conn, window, data = prepared
+    data.matchdays_target = 0
+    data.matchdays_seen = 2
+    out, _predictions, _source, notes = snapshot.engine_predictions(
+        conn, window, "euro", "classic", None, prepared=data, fits={})
+    assert out.matchdays_target == MATCHDAYS - 2, "il bersaglio e' quello che RESTA"
+    assert any("2 already played" in note for note in notes), notes
 
 
 def test_a_new_signing_is_not_an_unknown_man():

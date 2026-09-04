@@ -9,8 +9,8 @@
   <span class="text-muted">&mdash;</span>
 } @else {
   <span
-    class="inline-flex h-5 min-w-10 items-center justify-center rounded-md px-1 text-xs font-medium tabular-nums"
-    [class]="tone()"
-    >{{ gain() | number: '1.1-1' }}</span
+    class="inline-flex items-center justify-center rounded-md px-1 font-medium tabular-nums"
+    [class]="box() + ' ' + tone()"
+    >{{ gain() | number: format() }}</span
   >
 }

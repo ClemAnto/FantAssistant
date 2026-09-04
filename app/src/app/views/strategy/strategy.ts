@@ -11,6 +11,7 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
+import { ExpectedPlay } from '../../core/expected-play';
 import { GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { withRowAt } from '../../core/manual-order';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
@@ -69,6 +70,11 @@ function readPriority(): Record<string, number[]> {
   } catch {
     return {};
   }
+}
+
+/** Un numero che moltiplica le presenze, riscalato: null resta null, «vuoto = ignoto». */
+function scaled(value: number | null, factor: number): number | null {
+  return value == null ? null : value * factor;
 }
 
 /** Come si chiama a schermo ognuna delle due valute, e cosa dice quel numero. */
@@ -151,6 +157,8 @@ export class Strategy {
   private readonly ratings = inject(PlayerRatingsStore);
   /** Il regolamento della lega e le squadre escluse: dichiarati una volta, validi in ogni vista. */
   private readonly options = inject(GlobalOptions);
+  /** Il conto delle giornate che giochera' davvero: lo stesso della plancia, non una copia. */
+  private readonly play = inject(ExpectedPlay);
   protected readonly appVersion = APP_VERSION;
 
   /** Il calendario su cui il foglio esprime le sue previsioni: il divisore di ogni numero a giornata. */
@@ -362,9 +370,27 @@ export class Strategy {
     // bundle, e senza questa dipendenza la pastiglia delle sufficienze resterebbe muta per sempre su
     // una pagina già disegnata. Stessa riga, stessa ragione, di `ValuationStore.valuations`.
     const rated = this.ratings.ready();
-    return listone.map((player) => {
+    const matchdays = this.matchdays();
+    // SOLO CHI IL LISTONE QUOTA (operatore, 04/09/2026: «Cheddira del Napoli e' ridicolo che stia nei
+    // primi 60 attaccanti, non giochera' mai»). Il difetto non era la sua valutazione: e' che non e'
+    // quotato affatto - zero righe in `listone_quotes` per il 2026-27, su nessuna delle due piattaforme
+    // - ed era in lista perche' il FOGLIO si costruisce sulle rose vere e l'app aggiunge chi il listone
+    // non ha (70 righe su 602). Un uomo che non si puo' comprare non sta in una lista di nomi da
+    // comprare: e' la sua regola del 03/09 gia' viva sulla plancia, portata qui.
+    return listone.filter((player) => player.quoted).map((player) => {
       const one = engine.get(player.fcId);
       const steady = rated ? this.ratings.for(platform, player.fcId)?.steady : null;
+      // QUANTE NE GIOCHERA' DAVVERO, col conto unico dell'app (`core/expected-play.ts`, 04/09/2026):
+      // il metro della plancia dove il motore ripiega su una costante, meno le giornate che uno stop
+      // aperto gli toglie di sicuro, meno l'assicurazione dell'operatore. Il FATTORE che ne esce
+      // riprezza il surplus e il valore perche' tutt'e due moltiplicano le presenze - non e' un
+      // secondo motore, e' il numero del foglio con meno giornate sotto.
+      const outlook = this.play.outlook(
+        { id: player.fcId, club: player.club },
+        { pv: one?.pv ?? null, pvIsEstimate: one?.pvIsEstimate ?? false,
+          playShare: one?.titolaritaPlay ?? null },
+        matchdays,
+      );
       return {
         fcId: player.fcId,
         name: player.name,
@@ -372,14 +398,15 @@ export class Strategy {
         clubId: player.clubId,
         role: player.role,
         mantraCodes: player.mantraCodes,
-        surplus: one?.surplus ?? null,
+        surplus: one?.surplus == null ? null : one.surplus * outlook.factor,
         surplusIsEstimate: one?.surplusIsEstimate ?? false,
-        value: valueFromEngine(one),
+        value: scaled(valueFromEngine(one), outlook.factor),
+        outlook,
         // Il valore è un PRODOTTO: sta in piedi sul ripiego dichiarato se una delle due metà lo è.
         valueIsEstimate: (one?.fmIsEstimate ?? false) || (one?.pvIsEstimate ?? false),
         // Le quattro letture delle pastiglie: tre dal foglio, la quarta dalle sue stagioni.
         fm: one?.fm ?? null,
-        pv: one?.pv ?? null,
+        pv: outlook.expected,
         minutes: one?.minutesNext ?? null,
         steady: steady?.share ?? null,
         steadyWeight: steady?.weight ?? 0,

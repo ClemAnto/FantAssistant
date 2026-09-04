@@ -41,6 +41,8 @@ const BROWSERS = [
  * lunghezze attese dei blocchi (slot × partecipanti) e la larghezza di una BANDA di sfondo vengono da
  * questi due numeri, e ricavarle da quello che lo schermo dice sarebbe l'asserzione circolare.
  */
+/** «· Dc/B»: i codici mantra come la frase della riga li scrive, quando sono piu' di uno. */
+const CODES = / · [A-Za-z]+\/[A-Za-z]+/;
 const TEAMS = 10;
 const SLOTS = { P: 3, D: 8, C: 8, A: 6 };
 
@@ -514,6 +516,22 @@ function cdkPieces() {
  * dove il motore non prezza. Non e' una terza definizione - e' la stessa regola riscritta apposta fuori
  * dall'app, che e' quello che rende il confronto una prova invece di un'eco.
  */
+/** Chi ha uno spell APERTO oggi, dalla tabella del bundle: un fatto con due date, non una formula. */
+async function openInjuries() {
+  const raw = await readFile(join(DIST, 'data', 'injuries.json.gz'));
+  const table = JSON.parse(gunzipSync(raw).toString('utf8'));
+  const at = (name) => table.columns.indexOf(name);
+  const [id, from, to] = ['fc_id', 'start_date', 'end_date'].map(at);
+  const today = new Date().toISOString().slice(0, 10);
+  const out = new Set();
+  for (const row of table.rows) {
+    const start = row[from];
+    const end = row[to];
+    if (start && start <= today && (!end || end >= today)) out.add(Number(row[id]));
+  }
+  return out;
+}
+
 async function sheetNumbers() {
   const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
   const entry = (manifest.engine_sheets ?? []).find(
@@ -525,14 +543,25 @@ async function sheetNumbers() {
     entry.path.endsWith('.gz') ? gunzipSync(raw).toString('utf8') : raw.toString('utf8'),
   );
   const at = (name) => table.columns.indexOf(name);
-  const [id, fm, estFm, pv, estPv, minutes] = [
+  const open = await openInjuries();
+  const [id, fm, estFm, pv, estPv, minutes, play] = [
     'fc_id', 'engine_fm_pred', 'est_fm', 'engine_pv_pred', 'est_pv', 'desc_minutes_next',
+    'desc_titolarita_play',
   ].map(at);
   const out = new Map();
   for (const row of table.rows) {
     out.set(Number(row[id]), {
       fm: row[fm] ?? row[estFm] ?? null,
       pv: row[pv] ?? row[estPv] ?? null,
+      // IL MOTORE lo prezza, oppure il foglio ripiega: dove ripiega la pagina puo' leggere la BOARD
+      // (`expected-play.ts`), quindi il tetto da asserire e' un altro. Senza questa distinzione il
+      // passo accusa di «aggiungere giornate» proprio i nomi per cui quel ramo esiste.
+      core: row[pv] != null,
+      // ...e se OGGI e' fermo: allora la pagina gli toglie anche le giornate che salta di sicuro, che
+      // sono un fatto e non hanno il tetto dell'assicurazione. E' una lettura della tabella degli
+      // infortuni (date, non formule), quindi non e' una seconda copia dell'aritmetica della pagina.
+      hurt: open.has(Number(row[id])),
+      play: play < 0 ? null : (row[play] ?? null),
       minutes: minutes < 0 ? null : (row[minutes] ?? null),
     });
   }
@@ -553,18 +582,96 @@ function readTooltip() {
 }
 
 /** Dove sta la fila delle pastiglie della prima riga: il punto su cui portare un puntatore vero. */
-function stripPoint() {
+/**
+ * IL NOME della prima riga: il centro del suo rettangolo, e chi c'e' davvero sotto quel punto.
+ *
+ * E' il solo bersaglio di hover rimasto su una riga (operatore, 04/09/2026), quindi e' li' che si va a
+ * bussare - e si chiede al browser CHI risponde a quelle coordinate, perche' «il tooltip c'e'» e' un
+ * fatto sul DOM e non sullo schermo.
+ */
+function namePoint() {
   const row = document.querySelector('app-strategy ol li[data-id]');
-  const strip = row
-    ? [...row.children].find((one) => one.querySelectorAll(':scope > span').length === 3
-      && one.className.includes('tabular-nums'))
-    : null;
-  if (!strip) return null;
-  const box = strip.getBoundingClientRect();
+  const name = row?.querySelector('span.flex-1');
+  if (!name) return null;
+  const box = name.getBoundingClientRect();
   const x = box.left + box.width / 2;
   const y = box.top + box.height / 2;
   const under = document.elementFromPoint(x, y);
-  return { x, y, inside: strip.contains(under) || under === strip };
+  return {
+    x, y,
+    inside: name.contains(under) || under === name,
+    text: (name.innerText ?? '').trim(),
+  };
+}
+
+/**
+ * QUANTI BERSAGLI DI HOVER porta una riga, e di chi sono.
+ *
+ * «Limita i tooltip al minimo essenziale» e' una richiesta che si misura contando: il selettore
+ * `nz-tooltip` resta come attributo nel DOM, quindi quanti pannelli una riga puo' aprire si legge senza
+ * passarci sopra col puntatore.
+ *
+ * SI CONTA QUELLO CHE QUESTA LISTA SCRIVE, e i marchi di `ui-flags` si contano a parte: sono di un
+ * componente condiviso, esistono solo dove c'e' un marchio da spiegare e un'icona senza la sua frase e'
+ * un'icona che nessuno sa leggere. Contarli insieme misurerebbe due decisioni diverse in un numero solo.
+ */
+function readRowTips() {
+  const rows = [...document.querySelectorAll('app-strategy ol li[data-id]')];
+  let most = 0;
+  let flags = 0;
+  let titles = 0;
+  let crests = 0;
+  for (const row of rows) {
+    const all = [...row.querySelectorAll('[nz-tooltip]')];
+    const inFlags = all.filter((one) => one.closest('ui-flags')).length;
+    const own = all.length - inFlags + (row.hasAttribute('nz-tooltip') ? 1 : 0);
+    if (own > most) most = own;
+    if (inFlags > flags) flags = inFlags;
+    // Il `title` della RIGA, che e' quello che questa lista scriveva; quello dello stemma e' di
+    // `ui-crest` e porta il nome del club, cioe' l'unica cosa che un'immagine da 16px non dice.
+    if (row.hasAttribute('title')) titles += 1;
+    if (row.querySelector('ui-crest [title]')) crests += 1;
+  }
+  return { rows: rows.length, most, flags, titles, crests };
+}
+
+/** Il centro del nome di UNA riga scelta (per `fc_id`), per bussare dove il tooltip di quel nome sta. */
+function namePointOf(id) {
+  const row = document.querySelector(`app-strategy ol li[data-id="${id}"]`);
+  const name = row?.querySelector('span.flex-1');
+  if (!name) return null;
+  const box = name.getBoundingClientRect();
+  return { x: box.left + box.width / 2, y: box.top + box.height / 2, text: (name.innerText ?? '').trim() };
+}
+
+/**
+ * APRE IL TOOLTIP DI UN PUNTO, dopo essersi assicurato che non ce ne sia gia' uno aperto.
+ *
+ * Trovato dal banco stesso il 04/09/2026: il passo mantra chiedeva la frase di Kalulu e leggeva quella
+ * di NERES. Il passo prima chiude una finestra modale con un click a (1025,757), e quando la modale
+ * sparisce il puntatore resta fermo su qualunque riga stia sotto quel punto - che apre il SUO tooltip da
+ * sola. Il polling successivo trovava un pannello aperto al primo giro, prima che il nostro (0,4s di
+ * ritardo) fosse nato: un tooltip letto senza essersi assicurati che il precedente sia chiuso e' il
+ * tooltip di un'altra riga, e non lo dice.
+ */
+async function hoverTip(session, point) {
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5, button: 'none' });
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    if (!(await evaluate(session, readTooltip))) break;
+    await wait(150);
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved', x: Math.round(point.x), y: Math.round(point.y), button: 'none',
+  });
+  let tip = null;
+  for (let attempt = 0; attempt < 30 && !tip; attempt += 1) {
+    await wait(150);
+    tip = await evaluate(session, readTooltip);
+  }
+  // Via dal bersaglio, o il pannello resta aperto sopra quello che il passo dopo misura.
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5, button: 'none' });
+  await wait(300);
+  return tip;
 }
 
 function modalOpen() {
@@ -784,11 +891,19 @@ async function main() {
       if (edge == null ? shownEdge != null : Math.abs(shownEdge - edge) > 0.06) {
         wrongPills.push(`${row.name}: la prima pastiglia dice ${row.pills[0]} e il foglio ${edge?.toFixed(2)}`);
       }
-      // 2) LE PRESENZE ATTESE, e le buone che non possono essere piu' delle giocate.
+      // 2) LE PRESENZE ATTESE, che dal 04/09/2026 sono ASSICURATE (`core/expected-play.ts`): il foglio
+      //    resta il riferimento, ma quello che si asserisce e' la DIREZIONE e il TETTO, non l'uguaglianza
+      //    - la formula toglie giornate e non ne aggiunge mai, e non ne toglie piu' del tetto dichiarato.
+      //    Ricalcolare qui l'assicurazione sarebbe l'asserzione circolare: si confronterebbe la pagina
+      //    con una seconda copia della sua stessa aritmetica.
       const [playedText, passedText] = row.pills[1].split(':');
       const played = playedText === '—' ? null : Number(playedText);
-      if (said.pv == null ? played != null : Math.abs(played - said.pv) > 0.51) {
-        wrongPills.push(`${row.name}: le presenze dicono ${playedText} e il foglio ${said.pv?.toFixed(2)}`);
+      const ceiling = said.core ? said.pv : Math.max(said.pv ?? 0, (said.play ?? 0) * sheet.matchdays);
+      if (said.pv == null ? played != null : played > ceiling + 0.51) {
+        wrongPills.push(`${row.name}: le presenze dicono ${playedText} e il tetto e' ${ceiling?.toFixed(2)}: l'assicurazione non aggiunge giornate`);
+      } else if (said.core && said.pv != null && played != null && !said.hurt
+                 && said.pv - played > sheet.matchdays * 0.36 + 0.51) {
+        wrongPills.push(`${row.name}: tolte ${(said.pv - played).toFixed(1)} giornate su ${said.pv.toFixed(1)}, oltre il tetto dichiarato`);
       }
       if (passedText != null && played != null && Number(passedText) > played) {
         wrongPills.push(`${row.name}: ${passedText} partite buone su ${played} giocate - un sottoinsieme piu' grande dell'insieme`);
@@ -819,30 +934,27 @@ async function main() {
       ],
     });
 
-    // 2d. LA FRASE DELLE PASTIGLIE, aperta con un puntatore vero: e' li' che si dice quale dei numeri
-    //     e' una PREVISIONE e quale una MISURA, cioe' la sola cosa che tre cifre nude non possono dire.
-    const strip = await evaluate(session, stripPoint);
-    let tip = null;
-    if (strip) {
-      await session.send('Input.dispatchMouseEvent', {
-        type: 'mouseMoved', x: Math.round(strip.x), y: Math.round(strip.y), button: 'none',
-      });
-      for (let attempt = 0; attempt < 20 && !tip; attempt += 1) {
-        await wait(150);
-        tip = await evaluate(session, readTooltip);
-      }
-      // Via dal riquadro, o il pannello resta aperto sopra la riga che il passo dopo misura.
-      await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 5, button: 'none' });
-      await wait(300);
-    }
-    note('la frase delle pastiglie', {
-      said: tip ? `«${tip.slice(0, 220)}…»` : 'nessun tooltip aperto',
+    // 2d. LA FRASE DELLA RIGA, aperta con un puntatore vero sul NOME - il solo bersaglio di hover
+    //     rimasto (operatore, 04/09/2026: «limita i tooltip nei calciatori al minimo essenziale»).
+    //     Due cose si verificano insieme e sono diverse: che il pannello si APRA, e che dica quello
+    //     che e' di QUELL'UOMO (il nome intero, che la colonna taglia, e il club) invece della legenda
+    //     che ora sta nell'intestazione del blocco. La lunghezza e' la misura del «minimo»: la vecchia
+    //     frase delle pastiglie era un paragrafo di ~700 caratteri su ogni riga.
+    const tips = await evaluate(session, readRowTips);
+    const target = await evaluate(session, namePoint);
+    const tip = target ? await hoverTip(session, target) : null;
+    note('la frase della riga', {
+      said: `${tips.rows} righe, al piu' ${tips.most} tooltip suoi e ${tips.titles} title nativi per `
+        + `riga (piu' ${tips.flags} marchi di ui-flags e ${tips.crests} stemmi con il nome del club) · `
+        + `«${tip ?? 'nessun tooltip aperto'}»`,
       problems: [
-        ...(strip?.inside ? [] : ['sotto il centro della fila non ci sta la fila: il puntatore arriva altrove']),
-        ...(tip ? [] : ['la fila delle pastiglie non apre nessun tooltip']),
-        ...(tip && tip.includes('PREVISIONE') && tip.includes('MISURA')
-          ? [] : ['la frase non dice quale numero sia una previsione e quale una misura']),
-        ...(tip && tip.includes('sopra il 6') ? [] : ['la frase non dice contro cosa sia misurato il primo numero']),
+        ...(target?.inside ? [] : ["sotto il centro del nome non c'e' il nome: il puntatore arriva altrove"]),
+        ...(tip ? [] : ["il nome non apre nessun tooltip: il nome tagliato non si puo' leggere"]),
+        ...(tips.most > 1 ? [`una riga porta ${tips.most} tooltip: doveva restarne uno`] : []),
+        ...(tips.titles ? [`${tips.titles} righe portano ancora un title nativo`] : []),
+        ...(tip && target && tip.includes(target.text.replace(/…$/, '').trim().slice(0, 8))
+          ? [] : ['la frase non porta il nome di quella riga']),
+        ...(tip && tip.length <= 200 ? [] : [`la frase e' lunga ${tip?.length ?? 0} caratteri: non e' il minimo essenziale`]),
       ],
     });
 
@@ -884,7 +996,10 @@ async function main() {
         .map((part) => Number(part.gain.replace(',', '.')))
         .filter((one) => Number.isFinite(one));
       for (let at = 1; at < values.length; at += 1) {
-        if (values[at] > values[at - 1] + 0.05) {
+        // La tolleranza e' quella dell'ARROTONDAMENTO stampato (due cifre da quando il gain e' a
+        // giornata), non un margine scelto: piu' larga di cosi' nasconderebbe un'inversione vera,
+        // perche' su questa scala i gain stanno fra 0 e ~1,3.
+        if (values[at] > values[at - 1] + 0.011) {
           unsorted.push(`${block.role}: ${values[at - 1]} poi ${values[at]} alla riga ${at + 1}`);
           break;
         }
@@ -1120,25 +1235,27 @@ async function main() {
     // I badge del ruolo sono disegnati in maiuscolo dalla CSS, quindi il confronto è sul CODICE e non
     // su come lo si legge: un arnese che confronta la resa invece del dato inventa un difetto.
     const roles = after.map((one) => one.role.toLowerCase()).join(',');
-    // CHI HA PIÙ DI UN CODICE si sa senza leggere il tooltip: un uomo compare in un blocco per ogni
-    // codice che porta, quindi due blocchi sono due codici. È il riferimento indipendente che serve per
+    // CHI HA PIU' DI UN CODICE si sa senza leggere il tooltip: un uomo compare in un blocco per ogni
+    // codice che porta, quindi due blocchi sono due codici. E' il riferimento indipendente che serve per
     // giudicare la frase della riga, invece di confrontarla con se stessa.
+    //
+    // E LA FRASE SI VERIFICA APRENDOLA (lezione delle buste chiuse, 25/08/2026): da quando il badge non
+    // c'e' piu', i codici viaggiano in un `[nzTooltipTitle]`, che e' un binding di PROPRIETA' - nel DOM
+    // non c'e' nessun attributo da leggere, quindi un passo che cercasse una stringa nell'HTML direbbe
+    // «non ci sono» di una frase che c'e'.
     const seen = new Map();
     for (const block of after) {
       for (const part of block.parts) seen.set(part.name, (seen.get(part.name) ?? 0) + 1);
     }
-    const polyvalent = { rows: 0, titled: 0 };
-    for (const block of after) {
-      for (const part of block.parts) {
-        if ((seen.get(part.name) ?? 0) < 2) continue;
-        polyvalent.rows += 1;
-        if (/ · [A-Za-z]+\/[A-Za-z]+/.test(part.title)) polyvalent.titled += 1;
-      }
-    }
+    const manyCoded = [...seen.entries()].filter(([, count]) => count > 1).map(([name]) => name);
+    const rowsOf = (await evaluate(session, readPills)) ?? [];
+    const probe = rowsOf.find((one) => manyCoded.includes(one.name));
+    const codedRow = probe ? await evaluate(session, namePointOf, probe.id) : null;
+    const codesTip = codedRow ? await hoverTip(session, codedRow) : null;
     note('mantra', {
       said: `${after.length} blocchi (${roles}) · ${after.reduce((sum, one) => sum + one.rows, 0)} nomi · `
-        + `contatori ${after.map((one) => one.counter).join('/')} · ${polyvalent.titled}/${polyvalent.rows} `
-        + 'righe con più codici li dicono nel tooltip',
+        + `contatori ${after.map((one) => one.counter).join('/')} · ${manyCoded.length} uomini in piu' `
+        + `blocchi · la frase di «${probe?.name ?? '?'}»: «${codesTip ?? 'nessun tooltip'}»`,
       problems: [
         ...(toMantra ? [toMantra] : []),
         ...(after.length === 12 ? [] : [`${after.length} blocchi invece dei dodici ruoli mantra`]),
@@ -1151,10 +1268,12 @@ async function main() {
         // che sia LÌ, o sarebbe stata buttata invece che spostata.
         ...(after.some((one) => one.parts.some((part) => part.roles))
           ? ['qualche riga mantra porta ancora il badge dei codici'] : []),
-        ...(polyvalent.rows
-          ? (polyvalent.titled === polyvalent.rows
-            ? [] : [`${polyvalent.rows - polyvalent.titled} righe con più codici non li dicono nel tooltip`])
-          : ['nessuna riga con più di un codice: il tooltip dei codici non è stato misurato']),
+        ...(probe ? [] : ["nessun uomo in due blocchi: il tooltip dei codici non e' stato misurato"]),
+        ...(probe && !codesTip ? ['il nome di un polivalente non apre nessun tooltip'] : []),
+        ...(codesTip && !codesTip.startsWith(`${probe?.name} `)
+          ? [`ho chiesto la frase di ${probe?.name} e ho letto «${codesTip}»: e' di un altra riga`] : []),
+        ...(codesTip && codesTip.startsWith(`${probe?.name} `) && !CODES.test(codesTip)
+          ? [`la frase di ${probe?.name} non porta i suoi codici: «${codesTip}»`] : []),
       ],
     });
 
@@ -1197,7 +1316,10 @@ async function main() {
         .map((part) => Number(part.gain.replace(',', '.')))
         .filter((one) => Number.isFinite(one));
       for (let at = 1; at < values.length; at += 1) {
-        if (values[at] > values[at - 1] + 0.05) {
+        // La tolleranza e' quella dell'ARROTONDAMENTO stampato (due cifre da quando il gain e' a
+        // giornata), non un margine scelto: piu' larga di cosi' nasconderebbe un'inversione vera,
+        // perche' su questa scala i gain stanno fra 0 e ~1,3.
+        if (values[at] > values[at - 1] + 0.011) {
           climbs.push(`${block.role}: ${values[at - 1]} poi ${values[at]}`);
           break;
         }

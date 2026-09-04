@@ -1,5 +1,21 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 4 settembre 2026 (sera tarda) — TRE PASTIGLIE SULLA STRATEGIA, E NESSUNO DEI QUATTRO
+**Aggiornato: 5 settembre 2026 — DUE PARTITE NON SONO UNA STAGIONE, E L'ASSICURAZIONE STA NELL'APP.
+Da cinque osservazioni dell'operatore su nomi concreti, e l'audit che ne e' nato e' il risultato: **313
+righe su 358** avevano il gradino di titolarita' in disaccordo col proprio Pa (le `bandiera` promettono
+>90% delle partite e la loro mediana leggeva 0,58, i `riserva` 0,50). Causa: TRE quantita' sulla stessa
+domanda su TRE campioni diversi - il gradino leggeva le DUE giornate giocate, il claim lo standing
+regredito, il Pa la stagione scorsa - perche' `measured_season` commutava contando 10 giornate di CINQUE
+campionati contro una soglia di 5 pensata per uno. Cura: `presence.blend_seasons`, una miscela con ogni
+finestra al PROPRIO denominatore, e il peso NON scelto li' (10 giornate di prior = la K che il gate ha
+adottato per R20 su `default`). Giudice esterno `press --against press`: **uomini 137 -> 153 su 220**
+contro un null di 104, moduli 10 -> 8 MATCH, prezzo detto. Piu' il CALENDARIO di una stagione in corso
+(36 giornate e non 38: ogni Pa era gonfio del 5,6%) e, nell'app, `core/expected-play.ts` - una formula
+sola per plancia e strategia: il metro della PLANCIA dove il motore ripiega sull'ancora, la finestra
+dell'infortunio aperto (un fatto) e l'ASSICURAZIONE dell'operatore (un rischio, misurato: la stagione
+brutta costa 1,63 volte quella media). `SHEET_REVISION` 41, `--verify` 22/22, 671 test toolkit + 663 app,
+otto banchi e2e. Dettaglio: `stato-progetto-continuita-v5.md`, spec «Novita' v9.72», `letture-app-v1.md`
+§23.
+· precedente: 4 settembre 2026 (sera tarda) — TRE PASTIGLIE SULLA STRATEGIA, E NESSUNO DEI QUATTRO
 NUMERI E' NUOVO. Richiesta dell'operatore in due messaggi: per ogni calciatore «1) fantapunti medi a
 partita sopra il 6 2) partite giocate attese 3) partite attese con voto >= 6 ... formattato in 3 pill
 tipo `[+1.5] [24:20] [75']`», piu' «il terzo pill sono i minuti medi a partita» - quattro numeri in tre

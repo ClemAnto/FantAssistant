@@ -48,7 +48,29 @@ const BAND_TONE: Record<GainBand, string> = {
 export class GainChip {
   readonly gain = input.required<number | null>();
   readonly scale = input.required<GainScale>();
+  /**
+   * Quante cifre dopo la virgola, perché la SCALA del numero non è la stessa in ogni pagina.
+   *
+   * Un gain di stagione va da 0 a ~50 e una cifra basta; lo stesso gain A GIORNATA sta fra 0 e ~1,3, e
+   * con una cifra sola metà listone leggerebbe «0,1». Il default è quello che le pagine avevano prima,
+   * quindi nessun chiamante cambia lettura per una colonna aggiunta altrove.
+   */
+  readonly digits = input(1);
+  /**
+   * QUANTO E' GRANDE il riquadro, e le due taglie sono una scelta di DENSITA' e non di stile.
+   *
+   * `md` e' quella delle pagine dove il gain e' il numero grosso di una scheda; `sm` e' per una lista
+   * che si scorre (operatore, 04/09/2026: «fallo un po' piu' piccolino»), dove ogni pixel del riquadro
+   * e' un pixel tolto al NOME, che e' quello che si sta cercando. Quello che NON cambia e' il resto -
+   * forma, colore e fasce - perche' la sua regola del 25/08 e' che il gain si mostri sempre allo stesso
+   * modo: un colore non puo' voler dire una cosa in una lista e un'altra in una scheda.
+   */
+  readonly size = input<'sm' | 'md'>('md');
   protected readonly band = computed<GainBand>(() => gainBandOf(this.gain(), this.scale()));
+  protected readonly format = computed(() => `1.${this.digits()}-${this.digits()}`);
+  protected readonly box = computed(() =>
+    this.size() === 'sm' ? 'h-4 min-w-9 text-[10px]' : 'h-5 min-w-10 text-xs',
+  );
 
   protected readonly tone = computed(() => BAND_TONE[this.band()]);
 }

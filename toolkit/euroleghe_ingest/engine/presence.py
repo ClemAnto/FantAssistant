@@ -233,6 +233,27 @@ class Params:
     # ogni altro canale misurato oggi. Il prior di popolazione esce ~0.46-0.51, cioè mezza stagione.
     standing_prior_rounds: float = 10.0
     investment_shape: str = "standing"
+    # QUANTO PESA LA STAGIONE IN CORSO CONTRO QUELLA PRECEDENTE, in giornate di prior (`blend_seasons`).
+    #
+    # «2 partite non devono valere una stagione ma solo 2/38 di stagione ... troppo poco per bastare da
+    # sole, quindi completiamo il quadro con le partite pregresse» (operatore, 04/09/2026). Prima di
+    # questa riga il pannello COMMUTAVA: sopra una soglia leggeva solo la stagione in corso, quindi due
+    # giornate di Serie A decidevano la titolarita' di 358 righe su 602 - Douvikas 2/2 letto `titolare`
+    # a 75', Kean un ingresso da 27' letto `riserva`, e 313 righe su 358 in disaccordo col proprio Pa.
+    #
+    # IL VALORE NON E' SCELTO QUI: 10 giornate e' la stessa K che il gate ha ADOTTATO per R20 su
+    # `default` (`evaluate.R20_ROUNDS`, gate §7-duotricies), cioe' il tasso di cambio MISURATO fra «le
+    # giornate gia' giocate» e il prior, sulla stessa piattaforma e per la stessa domanda - quante
+    # partite giochera'. Su euro il gate ha adottato 6, ed e' per piattaforma anche qui perche' lo sweep
+    # gira per piattaforma. La forma e' quella di `model.blend_with_seen` e di `standing_prior_rounds`:
+    # k osservate contro K di prior, inerte a k = 0 (una pre-stagione non cambia di un decimale).
+    season_prior_rounds: float = 10.0
+    # ...e le AMICHEVOLI, «in maniera molto lieve» (sua richiesta, stessa data). DICHIARATO e non
+    # misurato: un ritiro non e' un campionato - avversari di categoria diversa, minuti spartiti per
+    # farli giocare tutti - e la forma piu' vicina che questo progetto ha gia' misurato (PRESEASON_WEIGHT
+    # sui MODULI) e' stata rifiutata con l'ottimo sul bordo. Vale una giornata di evidenza: con due
+    # giornate giocate e dieci di prior pesa l'8%. Sweep-abile come ogni altro parametro di questo file.
+    friendly_rounds: float = 1.0
     # WHICH absences come off the denominator of the start rate:
     #   "measured" - the rounds he actually missed inside the measured season. A fact about the sample.
     #   "forecast" - the three-season weighted estimate, which is what the panel used until v9.11. It is
@@ -455,6 +476,75 @@ def level_gap_lift(inputs: Inputs, params: Params = DEFAULTS) -> float:
     if not params.level_gap_weight or inputs.level_gap_z is None:
         return 0.0
     return params.level_gap_weight * inputs.level_gap_z
+
+
+@dataclass(frozen=True)
+class SeasonWindow:
+    """Il calcio misurato di una finestra: quanto ha giocato, e su quante giornate di quel calendario.
+
+    Una finestra e' un pezzo di calcio con il SUO denominatore. Tenerli insieme e' l'unica difesa contro
+    l'errore che questo progetto paga da sempre - numeratore e denominatore contati su competizioni
+    diverse - e qui l'aveva gia' pagato: su un foglio in-season il pannello divideva le 2 presenze di
+    Douvikas per le 2 giornate giocate e l'unico ingresso di Kean per le 38 di una stagione intera
+    (`gui.SnapshotView.season_calendar` usa il calendario d'ORIGINE per chi ha giocato solo altrove),
+    cioe' due unita' nella stessa colonna.
+    """
+
+    appearances: float = 0.0
+    starts: float = 0.0
+    minutes: float = 0.0
+    #: I minuti spezzati in due: qui e altrove. `at_club_weight` legge questa divisione, quindi va
+    #: mescolata insieme al resto o la scala dell'una non e' la scala dell'altra.
+    minutes_here: float = 0.0
+    minutes_elsewhere: float = 0.0
+    #: Le giornate di campionato di cui quei numeri sono una quota. 0 = finestra assente.
+    rounds: float = 0.0
+
+
+def blend_seasons(now: SeasonWindow, prev: SeasonWindow,
+                  friendly: SeasonWindow | None = None,
+                  params: Params = DEFAULTS) -> SeasonWindow:
+    """Le finestre pesate in UNA sola, con il suo denominatore: la stagione in corso, quella scorsa e il ritiro.
+
+    LA FORMA E' QUELLA DI R20 e della shrinkage per taglia del campione, che e' la stessa cosa scritta
+    due volte in questo repository: `k` giornate osservate contro `K` di prior, cioe'
+
+        quota = (k x osservata + K x prior) / (k + K)
+
+    scritta qui sui NUMERATORI invece che sulle quote, perche' chi chiama ha bisogno anche dei minuti e
+    della divisione qui/altrove. A `now.rounds` = 0 restituisce la stagione precedente INTATTA, che e'
+    cio' che rende la miscela inerte su ogni foglio di pre-stagione - e quindi su ogni finestra su cui il
+    gate ha pubblicato un numero.
+
+    PERCHE' UNA MISCELA E NON UN INTERRUTTORE. Fino al 04/09/2026 `snapshot.measured_season` COMMUTAVA:
+    superate cinque giornate (contate su cinque campionati insieme, quindi sempre) tutte le colonne
+    descrittive passavano alla stagione in corso, e due giornate di Serie A diventavano una stagione.
+    Misurato sul foglio del 03/09: 358 righe su 602 avevano una «stagione misurata» il cui massimo era 2
+    partite, e 313 di quelle 358 erano in disaccordo con il proprio Pa - le `bandiera` promettono il 90%
+    delle partite e la loro mediana leggeva 0,58, i `riserva` 0,50. Un campione di due partite non e' una
+    stagione, ed e' esattamente quello che la miscela dice con un numero.
+
+    La stagione precedente entra RISCALATA a `season_prior_rounds` giornate: quello che conta di lei non
+    e' quanto era lunga ma quanto vale come prior, altrimenti un campionato da 34 giornate peserebbe meno
+    di uno da 38 per una ragione che non riguarda il calciatore.
+    """
+    windows: list[tuple[SeasonWindow, float]] = []
+    if now.rounds > 0:
+        windows.append((now, 1.0))
+    if prev.rounds > 0 and params.season_prior_rounds > 0:
+        windows.append((prev, params.season_prior_rounds / prev.rounds))
+    if friendly and friendly.rounds > 0 and params.friendly_rounds > 0:
+        windows.append((friendly, params.friendly_rounds / friendly.rounds))
+    if not windows:
+        return SeasonWindow()
+    return SeasonWindow(
+        appearances=sum(one.appearances * weight for one, weight in windows),
+        starts=sum(one.starts * weight for one, weight in windows),
+        minutes=sum(one.minutes * weight for one, weight in windows),
+        minutes_here=sum(one.minutes_here * weight for one, weight in windows),
+        minutes_elsewhere=sum(one.minutes_elsewhere * weight for one, weight in windows),
+        rounds=sum(one.rounds * weight for one, weight in windows),
+    )
 
 
 def at_club_weight(inputs: Inputs, params: Params = DEFAULTS) -> float:

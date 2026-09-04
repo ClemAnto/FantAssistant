@@ -91,6 +91,16 @@ export interface PlayerRow {
   mantraCodes: string[];
   club: string;
   league: string | null;
+  /**
+   * SE IL LISTONE DI QUESTA PIATTAFORMA LO QUOTA, che non e' la stessa cosa che essere sul foglio.
+   *
+   * Il foglio si costruisce sulle ROSE VERE, quindi porta anche chi il listone non ha: 70 righe su 602
+   * il 03/09/2026 (Cheddira, Banda, Pierini...). Sono uomini che non si possono comprare - nessun prezzo
+   * esiste per loro - e una lista di nomi da comprare non li deve contenere. Restano nel perimetro
+   * perche' la tabella di consultazione li mostra e il campetto li disegna: e' una domanda diversa, e
+   * il taglio lo fa chi chiede «chi compro» (operatore, 03/09/2026, la regola gia' viva sulla plancia).
+   */
+  quoted: boolean;
 }
 
 export interface PlayerLine extends PlayerRow {
@@ -819,6 +829,9 @@ export function buildRosters(
       mantraCodes: codes,
       club: clubNames.get(row[rClub] as number) ?? '',
       league: (row[rLeague] as string) ?? null,
+      // ...deciso sotto, quando si sa su quale listone e' finito: `rosters` e' una riga sola per uomo
+      // e le due piattaforme sono due giochi.
+      quoted: false,
     });
   }
 
@@ -834,7 +847,7 @@ export function buildRosters(
     if (row[qSeason] !== targetSeason) continue;
     const player = byId.get(row[qId] as number);
     const list = out.get(row[qPlatform] as Platform);
-    if (player && list) list.push(player);
+    if (player && list) list.push({ ...player, quoted: true });
   }
   /* IL FOGLIO COMPLETA E CORREGGE: chi non c'è entra, e chi ha cambiato club prende quello che la fonte
    * gli dà. Non è un secondo listone - il prezzo e il ruolo restano quelli del listone dove ci sono - è la
@@ -864,6 +877,7 @@ export function buildRosters(
         mantraCodes: codes,
         club: row.club,
         league: row.league,
+        quoted: false,
       });
     }
   }

@@ -50,6 +50,13 @@ export interface EngineNumbers {
    * misurato è il difetto che ha fatto nascere la guardia).
    */
   titolarita: string | null;
+  /**
+   * La QUOTA dietro quella parola: le partite disponibili in cui il pannello lo aspetta col voto.
+   *
+   * Serve a `expected-play.ts` come SECONDA fonte del Pa dove il motore non prezza il suo calcio -
+   * li' la stima scende sulla costante di ruolo e la board ne sa di piu' (operatore, 04/09/2026).
+   */
+  titolaritaPlay: number | null;
   /** I minuti che si aspetta per partita GIOCATA: una previsione, non la media dell'anno scorso. */
   minutesNext: number | null;
 }

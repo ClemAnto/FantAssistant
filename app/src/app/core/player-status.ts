@@ -704,6 +704,16 @@ export class PlayerStatus {
     return out;
   });
 
+  /**
+   * La sua storia di stop, come sta nel bundle: la legge chi la deve PESARE (`expected-play.ts`).
+   *
+   * Un accessore e non una seconda copia della tabella: le spell le carica questo servizio, e un
+   * secondo lettore del bundle darebbe a un uomo due storie.
+   */
+  spellsOf(playerId: number | null | undefined): readonly Spell[] {
+    return playerId == null ? [] : (this.spells().get(playerId) ?? []);
+  }
+
   /** How much of the last three years a man lost, for whoever prices him. Zero when nothing is on file. */
   fragility(playerId: number): Fragility {
     return fragilityOf(this.spells().get(playerId) ?? [], this.today());

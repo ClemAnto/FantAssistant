@@ -3740,6 +3740,64 @@ Tre cose che restano oltre la pastiglia.
   separerebbe niente. E la quota difesa che il tilt adotta (25,4%) sta **oltre il p90** delle rose
   vere (mediana 15,4%): 5★ di spartizione è il decile più alto di un tavolo vero, per costruzione.
 
+## DUE PARTITE NON SONO UNA STAGIONE, e tre numeri per una domanda finiscono per litigare
+**04/09/2026, da cinque correzioni dell'operatore su nomi concreti. Dettaglio: spec «Novita' v9.72» e
+`letture-app-v1.md` §23.** L'audit che ne e' nato e' il risultato: sul foglio del 03/09 **313 righe su
+358 avevano il gradino di titolarita' in disaccordo con le proprie presenze attese** — le `bandiera`
+promettono >90% delle partite e la loro mediana leggeva 0,58, i `riserva` 0,50, cioe' la scala non
+ordinava piu' niente.
+
+**LA CAUSA E' UNA SOLA: TRE QUANTITA' SULLA STESSA DOMANDA, COSTRUITE SU TRE CAMPIONI DIVERSI.**
+`play_share` (che decide il gradino) leggeva le DUE giornate giocate, il `claim` (che decide chi la board
+disegna) lo standing regredito, `engine_pv_pred` la stagione scorsa. Il commutatore
+(`snapshot.measured_season`) contava le giornate su CINQUE campionati insieme — 10 contro una soglia di 5
+il cui commento dice «cinque giornate = un settembre» — mentre di Serie A ce n'erano **due**. *Quando due
+colonne che descrivono lo stesso uomo si contraddicono, la prima cosa da guardare non e' la formula: e'
+se stanno leggendo lo stesso campione.*
+
+**LA CURA E' UNA MISCELA E NON UN INTERRUTTORE**, e il peso non si sceglie: `presence.blend_seasons` usa
+la K che il gate ha gia' ADOTTATO per R20 (10 su `default`, 6 su euro), cioe' il tasso di cambio MISURATO
+fra «le giornate gia' giocate» e il prior per quella stessa domanda. Ogni finestra entra col PROPRIO
+denominatore — che cura da se' l'errore di unita' che il foglio aveva (Douvikas diviso per 2, Kean per
+38, stessa colonna) — e a zero giornate giocate la funzione restituisce la stagione precedente intatta,
+quindi ogni numero pubblicato dal gate resta identico. Giudicata sul giudice esterno (`press --against
+press`): **gli uomini passano da 137 a 153 su 220** contro un null di 104, e il prezzo sui moduli (10 → 8
+MATCH) e' detto invece che nascosto.
+
+**E UN GIUDICE CHE HA LETTO LA RISPOSTA NON ARBITRA.** `--against round --round 2` da' al foglio VECCHIO
+`bandiera` 100,0% e `titolare` 97,3%: non e' una previsione, e' una copia — quella giornata era il suo
+intero campione. Il nuovo la pesa al 15,4% e legge 95,0%. *Prima di leggere un verdetto, chiedersi se il
+candidato ha gia' visto l'esito.*
+
+**IL CALENDARIO DI UNA STAGIONE IN CORSO E' QUELLO CHE RESTA.** `matchday_count` conta le giornate GIA'
+IN ARCHIVIO, quindi su una stagione cominciata `matchdays_target` (= quelle meno le viste) e' zero e il
+ripiego diceva «non e' ancora cominciata» di una stagione alla terza giornata: il foglio prezzava 38
+giornate quando ne restavano 36, e ogni presenza attesa e ogni surplus erano gonfi del **5,6%**.
+
+**L'ASSICURAZIONE STA NELL'APP, ED E' UNA FORMULA SOLA** (`core/expected-play.ts`, sua richiesta: «il di
+piu' va misurato in ottica pessimistica ... cammino distante dal ciglio 1 metro», e «piuttosto che
+cambiare il toolkit meglio implementarla solo nell'app, centralizzata, da usare in ogni pagina»). Tre
+passi separati perche' rispondono a tre domande diverse: la BASE (il foglio, o il metro della PLANCIA
+dove il motore ripiega su una costante di ruolo), la FINESTRA APERTA (un fatto: Yildiz salta 10 delle 36
+che restano), e l'ASSICURAZIONE (un rischio). Misurata su 533 quotati e tre stagioni: per stagione-uomo
+si perdono in media 4,93 giornate, al p75 sette; e chi ha due stagioni di storia ha una media di 8,4 e un
+massimo di **13,7**, cioe' **la stagione brutta costa 1,63 volte quella media**. Si sottrae lo SCARTO fra
+la sua stagione tipica e la sua peggiore e non il totale, perche' il Pa del motore contiene gia' lo
+sconto della stagione media — sottrarlo tutto lo conterebbe due volte. Il FATTORE che ne esce riprezza
+surplus e valore senza che l'app diventi un motore: tutt'e due moltiplicano le presenze.
+
+**E UN NUMERO CHE NON SI PUO' COMPRARE NON STA IN UNA LISTA DI NOMI DA COMPRARE.** «Cheddira e' ridicolo
+che stia nei primi 60 attaccanti»: il difetto non era la sua valutazione, e' che **non e' quotato
+affatto** — zero righe in `listone_quotes` — ed era in lista perche' il foglio si costruisce sulle ROSE
+VERE e l'app aggiunge chi il listone non ha (70 righe su 602). La regola gia' viva sulla plancia,
+portata sulla strategia.
+
+**Un difetto trovato dalla MISURA e non dal codice**: con l'assicurazione due centrocampisti sono scesi
+sotto la soglia della plancia e la barra ha letto «C 2/80» su un tavolo azzerato. `progress` ricavava gli
+assegnati come `capienza − rimasti`, contando come acquisto un uomo che nel blocco non era mai entrato.
+*«Quanti posti restano» e «quanti ne sono stati comprati» sono due domande diverse, e un conteggio si
+conta.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

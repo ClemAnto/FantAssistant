@@ -305,6 +305,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_titolarita",
     "desc_titolarita_play",
     "desc_minutes_next",
+    # ...E LE DUE META' DELLA MISCELA (04/09/2026, `presence.blend_seasons`): quante partite ha giocato
+    # DAVVERO in questa stagione, su quante giornate, e quanto pesa questa stagione dentro i numeri qui
+    # sopra. Viaggiano per la stessa ragione dei tre di prima: un numero mescolato che non dice quanto e'
+    # fresco si legge come una misura di due partite - che e' esattamente il difetto che la miscela cura.
+    "desc_now_matches",
+    "desc_now_rounds",
+    "desc_blend_now",
 )
 
 
@@ -322,7 +329,10 @@ SHEET_COLUMNS: tuple[str, ...] = (
 # esporta niente, cioe' spegnere il bundle per aggiungere una parola.
 SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     "desc_live_club", "desc_live_club_on", "pi_fm", "pi_basis", "pi_matches",
-    "desc_titolarita", "desc_titolarita_play", "desc_minutes_next"})
+    "desc_titolarita", "desc_titolarita_play", "desc_minutes_next",
+    # ...e le tre della miscela, nate il 04/09/2026: i pacchetti del viaggio nel tempo sono stati scritti
+    # prima e non le hanno, e un foglio di PRE-STAGIONE non le ha per costruzione (una finestra sola).
+    "desc_now_matches", "desc_now_rounds", "desc_blend_now"})
 
 
 def _sheet_folders(reports: Path, target: str) -> list[Path]:

@@ -52,6 +52,7 @@ from euroleghe_ingest.engine import categories as categories_engine
 from euroleghe_ingest.engine import cups as engine_cups
 from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features, model, projection
+from euroleghe_ingest.engine import presence
 from euroleghe_ingest.engine import status as status_engine
 from euroleghe_ingest.modules import arrivals, fixtures, positions
 from euroleghe_ingest.sources import MANTRA_BY_CLASSIC
@@ -439,7 +440,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      NOTA DI CONVIVENZA: la 40 e' di un'ALTRA sessione (i «ceduti» del listone, l'asterisco che dice
 #      chi non gioca piu' qui) e la sua voce la scrive lei. Questo file e' stato toccato da due mani
 #      nello stesso pomeriggio: chi committa misura tutt'e due le meta' invece di fidarsi.
-SHEET_REVISION = 40
+SHEET_REVISION = 41
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -3918,6 +3919,29 @@ def starting_record(conn, season: str, before: str | None = None) -> dict[int, d
     return out
 
 
+def rounds_played(conn, season: str, before: str | None) -> dict[str, int]:
+    """Quante giornate ha gia' giocato ogni campionato alla data d'asta: il denominatore della finestra IN CORSO.
+
+    PER COMPETIZIONE e non per club, e non e' una scorciatoia: e' il denominatore della meta' «questa
+    stagione» della miscela (`presence.blend_seasons`), e dentro un campionato tutti i club hanno giocato
+    lo stesso numero di giornate a meno di un rinvio. Contarlo per club vorrebbe dire ripetere il join per
+    NOME che questo progetto ha gia' pagato una volta (Milan, Roma, Napoli persi dal calendario di tutti),
+    e per un denominatore da due giornate quel rischio non compra niente.
+
+    Vuoto quando la stagione bersaglio non e' cominciata: la miscela ha una finestra sola e resta quella
+    di sempre, cioe' ogni foglio di pre-stagione legge esattamente quello che leggeva prima.
+    """
+    if not before:
+        return {}
+    rows = conn.execute(
+        f"""SELECT competition, COUNT(DISTINCT real_md) FROM external_match_stats
+            WHERE season = ? AND source = 'sofascore' AND real_md IS NOT NULL
+              AND match_date IS NOT NULL AND match_date < ?
+              AND competition IN ({_LEAGUE_IN}) GROUP BY competition""",
+        (season, before, *LEAGUE_COMPETITIONS))
+    return {competition: int(count or 0) for competition, count in rows}
+
+
 def previously_at_club(conn, observations, squads: dict[int, str], season: str) -> dict[int, str]:
     """fc_id -> the most recent EARLIER season in which THIS club's listone already had him.
 
@@ -4165,9 +4189,21 @@ def engine_predictions(conn, window: features.Window, platform: str, game: str,
         # by nothing. It used to sit in `snapshot.build`, which is the caller: the Auction panel asking
         # the same question got a whole listone priced at zero appearances. Same shape as every other
         # defect this project has paid for - the fix belongs where the price is decided.
-        data.matchdays_target = data.matchdays_prev
-        notes.append(f"{window.target_season} has no matchdays yet, so expected appearances are "
-                     f"scaled on {window.input_season}'s calendar ({data.matchdays_prev} rounds)")
+        # ...E SU UNA STAGIONE GIA' COMINCIATA IL BERSAGLIO E' QUELLO CHE RESTA (04/09/2026). Il conto
+        # sopra e' `giornate del bersaglio - quelle viste`, e `matchday_count` conta le giornate GIA' IN
+        # ARCHIVIO: su una stagione in corso sono le stesse due, quindi la differenza e' zero e questo
+        # ramo scattava dicendo «non e' ancora cominciata» di una stagione alla terza giornata. Il foglio
+        # del 03/09/2026 prezzava percio' 38 giornate quando ne restavano 36, e ogni `engine_pv_pred` e
+        # ogni surplus erano gonfi del 5,6%. Non e' una regola ed e' un errore di UNITA': le giornate che
+        # restano sono quelle del calendario meno quelle gia' giocate, e il gate non lo vede perche' le
+        # sue finestre in-season hanno la stagione bersaglio COMPLETA in archivio (38 - k, positivo).
+        remaining = max(data.matchdays_prev - data.matchdays_seen, 1)
+        data.matchdays_target = remaining
+        notes.append(
+            f"{window.target_season} has no full calendar in the ratings yet, so expected appearances "
+            f"are scaled on {window.input_season}'s ({data.matchdays_prev} rounds)"
+            + (f" LESS the {data.matchdays_seen} already played: {remaining} remain"
+               if data.matchdays_seen else ""))
     listone = sum(1 for obs in data.observations if obs.price_initial is not None)
     if squad_source == "real" and listone < len(data.observations):
         notes.append(f"{len(data.observations) - listone} of {len(data.observations)} players are in a "
@@ -4332,6 +4368,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # matches he gets a VOTO in, above). Two horizons, because they answer different questions - the
     # season's share is the coach's habit over a year, the recent one is the shape of the side now.
     "desc_season_starts", "desc_season_matches", "desc_start_share",
+    "desc_now_matches", "desc_now_starts", "desc_now_rounds", "desc_blend_now",
     # ...and how much of that season was played at the club he is at NOW: the two halves of it, so that a
     # reader can see that Marin R.'s 21 starts are Villarreal's and not Napoli's. The half made elsewhere
     # is DISCOUNTED where a shirt is handed out, never dropped: `SnapshotView.LOAN_DISCOUNT`.
@@ -4566,6 +4603,45 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         prop = layers["propensity"].get(obs.fc_id, {})
         season_play = layers["starting_record"].get(obs.fc_id, {})
         at_club = layers["at_club"].get(obs.fc_id, {})
+        # LE DUE FINESTRE, MESCOLATE (operatore, 04/09/2026): «2 partite non devono valere una stagione
+        # ma solo 2/38 di stagione ... troppo poco per bastare da sole. Quindi, partendo dal fatto che le
+        # 2 partite della stagione corrente sono MOLTO significative, dobbiamo completare il quadro con
+        # le partite pregresse: in maniera molto lieve con le amichevoli stagionali e con i valori della
+        # stagione scorsa.» L'aritmetica sta in `presence.blend_seasons`, dove un banco la raggiunge e un
+        # test unitario la legge; qui si costruiscono le finestre, che e' l'unico punto in cui esistono
+        # tutt'e due (il DB). Su una pre-stagione `now_rounds` e' vuoto, la miscela ha una finestra sola e
+        # ogni numero pubblicato dal gate resta identico.
+        now_rounds = float((layers.get("now_rounds") or {}).get(obs.league or "", 0) or 0)
+        prev_play = (layers.get("prev_record") or {}).get(obs.fc_id, {})
+        prev_club = (layers.get("prev_at_club") or {}).get(obs.fc_id, {})
+        prev_prop = (layers.get("prev_propensity") or {}).get(obs.fc_id, {})
+        prev_rounds = float((data.rounds or {}).get(obs.league or "", 0) or 0)
+        preseason = layers["preseason"].get(obs.fc_id, (None, None))
+        blended = presence.blend_seasons(
+            now=presence.SeasonWindow(
+                appearances=float(season_play.get("matches") or 0),
+                starts=float(season_play.get("starts") or 0),
+                minutes=float(prop.get("minutes") or 0),
+                minutes_here=float(at_club.get("minutes") or 0),
+                minutes_elsewhere=float(at_club.get("minutes_elsewhere") or 0),
+                rounds=now_rounds),
+            prev=presence.SeasonWindow(
+                appearances=float(prev_play.get("matches") or 0),
+                starts=float(prev_play.get("starts") or 0),
+                minutes=float(prev_prop.get("minutes") or 0),
+                minutes_here=float(prev_club.get("minutes") or 0),
+                minutes_elsewhere=float(prev_club.get("minutes_elsewhere") or 0),
+                rounds=prev_rounds),
+            # IL RITIRO dice SE il ritiro lo usa, non quanto a lungo: i minuti di un'amichevole si
+            # spartiscono per farli giocare tutti, quindi questa finestra entra con i minuti della
+            # media delle altre e non ne sposta il rapporto di un decimale. Vuota dove non c'e' un
+            # ritiro parsato, che e' la meta' dei club.
+            friendly=presence.SeasonWindow(
+                appearances=float(preseason[1] or 0), starts=float(preseason[0] or 0),
+                rounds=float(preseason[1] or 0)) if preseason[1] else None)
+        # Quanto della miscela viene da questa stagione: la riga lo DICE, o un numero mescolato si legge
+        # come una misura di due partite (che e' il difetto che questa miscela cura).
+        blend_now = round(now_rounds / blended.rounds, 3) if blended.rounds else None
         card = layers["discipline"].get(obs.fc_id, {})
         state = layers["contract"].get(obs.fc_id, {})
         role_detail = layers["real_role_detail"].get(obs.fc_id, {})
@@ -4830,17 +4906,25 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # eleven - see PLAYER_COLUMNS. Declared here so the column exists whatever the environment:
             # a schema that changes with the display would be worse than an empty cell.
             "desc_titolarita": None, "desc_titolarita_play": None, "desc_minutes_next": None,
-            "desc_season_starts": season_play.get("starts"),
-            "desc_season_matches": season_play.get("matches"),
+            "desc_season_starts": _round(blended.starts, 1),
+            "desc_season_matches": _round(blended.appearances, 1),
             "desc_start_share": season_play.get("share"),
             # Whose season it was. Empty for a player the per-match layer has no row for: unknown, and
             # an unknown split must not discount him.
             # The calendar his measured season is a share of, when it is not his club's - see the layer.
-            "desc_season_rounds": (layers.get("measured_rounds") or {}).get(obs.fc_id),
+            "desc_season_rounds": (_round(blended.rounds, 1) if now_rounds else
+                                   (layers.get("measured_rounds") or {}).get(obs.fc_id)),
+            # Le due meta' della miscela, cosi' la riga puo' essere letta invece che creduta:
+            # quante ne ha giocate DAVVERO in questa stagione, su quante giornate, e quanto pesa
+            # questa stagione nel numero accanto.
+            "desc_now_matches": season_play.get("matches") if now_rounds else None,
+            "desc_now_starts": season_play.get("starts") if now_rounds else None,
+            "desc_now_rounds": now_rounds or None,
+            "desc_blend_now": blend_now,
             "desc_season_starts_club": at_club.get("starts"),
             "desc_season_starts_elsewhere": at_club.get("starts_elsewhere"),
-            "desc_minutes_club": at_club.get("minutes"),
-            "desc_minutes_elsewhere": at_club.get("minutes_elsewhere"),
+            "desc_minutes_club": _round(blended.minutes_here, 0),
+            "desc_minutes_elsewhere": _round(blended.minutes_elsewhere, 0),
             # The last season THIS club's listone already had him. Empty = it never did, so it has not
             # judged him: what a season measured elsewhere is worth toward the shirt depends on it.
             "desc_at_club_before": layers["was_here"].get(obs.fc_id),
@@ -4871,7 +4955,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_availability_now": layers["availability"].get(obs.fc_id),
             "desc_goals_p90": prop.get("goals_p90"), "desc_assists_p90": prop.get("assists_p90"),
             "desc_xg_p90": prop.get("xg_p90"), "desc_xa_p90": prop.get("xa_p90"),
-            "desc_minutes_full_season": prop.get("minutes"),
+            "desc_minutes_full_season": _round(blended.minutes, 0),
             "desc_penalty_rank": penalty[0] if penalty else None,
             "desc_penalty_confidence": penalty[1] if penalty else None,
             "desc_set_piece_duty": "not available (assists_set_piece is NULL at the source)",
@@ -5544,6 +5628,17 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "availability": availability_now(conn, window.auction_date),
         "propensity": propensity(conn, measured, before),
         "starting_record": starting_record(conn, measured, before),
+        # LA SECONDA FINESTRA, e la ragione per cui c'e' (operatore, 04/09/2026): «2 partite non devono
+        # valere una stagione ma solo 2/38 di stagione ... troppo poco per bastare da sole». Quando la
+        # stagione bersaglio e' cominciata `measured` e' LEI, e queste tre righe portano accanto la
+        # stagione PRECEDENTE intera, che e' esattamente quello che un foglio di pre-stagione legge da
+        # solo. `presence.blend_seasons` le mette insieme; su una pre-stagione sono vuote e la miscela
+        # ha una finestra sola, quindi non cambia un decimale di quello che il gate ha pubblicato.
+        "prev_record": starting_record(conn, window.input_season) if before else {},
+        "prev_propensity": propensity(conn, window.input_season) if before else {},
+        "prev_at_club": (at_current_club(conn, window.input_season, data.observations, squads)
+                         if before else {}),
+        "now_rounds": rounds_played(conn, measured, before),
         # The same season, split by WHOSE it was: what he played at the club he is at now, and what
         # somewhere else. The totals cannot say it - only the per-match layer stores a club.
         "at_club": at_current_club(conn, measured, data.observations, squads, before),

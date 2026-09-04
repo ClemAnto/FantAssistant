@@ -20,6 +20,7 @@ import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
 import { demoPlayers } from './auction-demo';
 import { EngineNumbers, ValuationBasis, valuationOf } from './auction-value';
 import { Bundle, EngineSheetEntry } from './bundle';
+import { ExpectedPlay } from './expected-play';
 import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
 import { GlobalOptions } from './global-options';
@@ -145,6 +146,8 @@ export class PlanciaStore {
    * due risposte, e la prima volta che qualcuno se ne accorge è a un tavolo.
    */
   private readonly status = inject(PlayerStatus);
+  /** Il conto delle giornate che giochera' davvero: uno solo, per ogni pagina. */
+  private readonly play = inject(ExpectedPlay);
   private readonly options = inject(GlobalOptions);
 
   readonly loading = signal(false);
@@ -214,8 +217,17 @@ export class PlanciaStore {
         seasonOver: injury?.seasonOver,
         source: injury?.source,
       });
-      const share = window?.share ?? 1;
-      const pv = valuation.pv == null ? null : valuation.pv * share;
+      // ...E IL «DI PIU'» SOPRA IL FATTO (operatore, 04/09/2026): la finestra dice quello che perde di
+      // sicuro, l'assicurazione quello che puo' perdere. Il conto e' UNO per tutta l'app
+      // (`expected-play.ts`) e non piu' una moltiplicazione scritta qui: due copie di questa
+      // sottrazione darebbero allo stesso uomo due presenze attese sulla plancia e sulla strategia.
+      const outlook = this.play.outlook(
+        { id: player.id, club: player.club },
+        { pv: valuation.pv, pvIsEstimate: valuation.basis === 'estimated',
+          playShare: numbers.get(player.id)?.titolaritaPlay ?? null },
+        this.sheet()?.matchdays_target ?? null,
+      );
+      const pv = outlook.expected;
       const points = valuation.fm != null && pv != null ? valuation.fm * pv : null;
       out.push({
         id: player.id,
@@ -884,11 +896,17 @@ export class PlanciaStore {
     ROLES.map((role) => {
       const blocks = this.map().byRole.get(role) ?? [];
       const total = blocks.length * this.teamsCount();
-      const left = blocks.reduce(
-        (sum, block) => sum + (this.blockById().get(block.id)?.left ?? 0),
-        0,
-      );
-      return { role, done: total - left, total };
+      // GLI ASSEGNATI SI CONTANO, non si ricavano dai posti vuoti (04/09/2026): `capienza - rimasti`
+      // conta come «gia' assegnato» anche un uomo che nel blocco non e' MAI entrato - chi la plancia
+      // lascia fuori perche' gioca troppo poco (`MIN_PLAY_SHARE`). Con l'assicurazione due centrocampisti
+      // hanno cominciato a cadere sotto quella soglia e la barra leggeva «C 2/80» su un tavolo azzerato,
+      // cioe' due acquisti che nessuno aveva fatto. Quanti restano fuori lo dice gia' il tooltip del
+      // blocco, che e' il posto dove quella frase e' vera.
+      const done = blocks.reduce((sum, block) => {
+        const rows = this.blockById().get(block.id)?.rows ?? [];
+        return sum + rows.filter((man) => man.state === 'mio' || man.state === 'altro').length;
+      }, 0);
+      return { role, done, total };
     }),
   );
 

@@ -36,6 +36,10 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
     // di un nome, e stanno qui e non in una seconda lettura perché due lettori dello stesso foglio
     // finiscono per dare a un uomo due risposte.
     titolarita: at('desc_titolarita'),
+    // ...e la QUOTA che c'e' dietro quella parola: la meta' delle partite disponibili in cui il
+    // pannello lo aspetta col voto. La legge `expected-play.ts` dove il motore ripiega su una
+    // costante di ruolo - li' la board ne sa di piu' (il metro della plancia, 04/09/2026).
+    titolaritaPlay: at('desc_titolarita_play'),
     minutesNext: at('desc_minutes_next'),
   };
 
@@ -61,6 +65,7 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
       // `row[-1]` è `undefined`: si normalizza a null qui, dove la colonna viene letta, o ogni
       // lettore a valle finirebbe per inventarsi il proprio ripiego.
       titolarita: (row[columns.titolarita] as string | null) ?? null,
+      titolaritaPlay: (row[columns.titolaritaPlay] as number | null) ?? null,
       minutesNext: (row[columns.minutesNext] as number | null) ?? null,
     });
   }

@@ -495,6 +495,55 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.72 (4 settembre 2026, sera — DUE PARTITE NON SONO UNA STAGIONE, e il calendario che restava)
+
+Nate da cinque correzioni dell'operatore su nomi concreti («Douvikas 28 Pa e 75' con l'arrivo di Kean mi
+sembrano troppo alti» · «Kolo Muani risulta una bandiera, perché Pa = 20 solo?»), e da un audit che ha
+trovato il difetto sotto tutte e cinque: **sul foglio del 03/09, 313 righe su 358 avevano un gradino di
+titolarità in disaccordo con le proprie presenze attese**. Le `bandiera` promettono >90% delle partite e
+la loro mediana leggeva `Pa/38` = **0,58**; i `riserva` **0,50**, cioè la scala non ordinava più niente.
+
+**LA CAUSA: TRE NUMERI PER UNA DOMANDA, SU TRE CAMPIONI DIVERSI.** `play_share` (che decide il gradino)
+leggeva le **2 giornate** di questa stagione, il `claim` (che decide chi la board disegna) lo standing
+regredito, e `engine_pv_pred` la stagione scorsa. Il commutatore è `snapshot.measured_season`: conta le
+giornate del layer per-partita e sopra `TO_DATE_MIN_ROUNDS` = 5 passa tutto a «questa stagione a oggi» —
+ma le conta su **cinque campionati insieme** (serie_a 2 · la_liga 3 · ligue_1 2 · premier 2 · bundes 1 =
+10 ≥ 5), mentre il suo stesso commento dice «cinque giornate = un settembre». Per un uomo di Serie A il
+campione era di **due partite**: Douvikas 2/2 → `titolare` a 75', Kean un ingresso da 27' → `riserva` con
+`play_share` 0,021. Stessa famiglia di «una quota di stagione è una quota del CAMPIONATO».
+
+**LA CURA È UNA MISCELA E NON UN INTERRUTTORE** (`presence.blend_seasons`, richiesta dell'operatore: «2
+partite non devono valere una stagione ma solo 2/38 ... troppo poco per bastare da sole, quindi
+completiamo il quadro con le partite pregresse: in maniera molto lieve con le amichevoli e con i valori
+della stagione scorsa»). Le finestre entrano ognuna col **proprio denominatore** — che cura da sé
+l'errore di unità che il foglio aveva (Douvikas diviso per 2, Kean per 38, stessa colonna) — e la
+stagione precedente è riscalata a `season_prior_rounds` giornate di prior. **Il peso non è scelto qui**:
+10 è la K che il gate ha ADOTTATO per R20 su `default` (`evaluate.R20_ROUNDS`), cioè il tasso di cambio
+misurato fra «le giornate già giocate» e il prior per la stessa domanda; su euro il gate ha adottato 6.
+Il ritiro pesa `friendly_rounds` = 1 giornata ed entra senza minuti (un'amichevole dice SE il ritiro lo
+usa, non quanto a lungo). A `now.rounds` = 0 la funzione restituisce la stagione precedente intatta:
+**ogni finestra pubblicata dal gate è di pre-stagione, quindi non si muove un decimale**.
+
+**E IL CALENDARIO: 38 GIORNATE QUANDO NE RESTAVANO 36.** `features.prepare` calcola
+`matchdays_target = matchday_count(target) − viste`, e `matchday_count` conta le giornate **già in
+archivio**: su una stagione in corso sono le stesse due, la differenza è zero, e il ripiego di
+`engine_predictions` diceva «la stagione non è ancora cominciata» rimettendo 38. Ogni `engine_pv_pred` e
+ogni surplus erano gonfi del **5,6%**. Non è una regola, è un errore di unità; il gate non lo vede perché
+le sue finestre in-season hanno la stagione bersaglio completa in archivio (38 − k, positivo).
+
+**Verdetto sul giudice esterno** (`press --against press`, la stampa del giorno, che nessuno dei due fogli
+ha letto): gli **uomini passano da 137 a 153 su 220** (il null «lo stesso undici dell'anno scorso» è 104),
+i moduli da 10 MATCH / 1 ALT / 9 DIFF a 8 / 2 / 10. Si adotta sui NOMI, che è la metà che decide chi
+compri, e il prezzo sui moduli è detto invece che nascosto. Il giudice `--against round --round 2` non può
+arbitrare: il foglio vecchio quella giornata l'aveva LETTA al 100% e infatti legge `bandiera` 100,0% -
+non è una previsione, è una copia; quello nuovo la pesa al 15,4% e legge 95,0%.
+
+Effetto sulla scala, mediana di `Pa/giornate` per gradino (Serie A, prima → dopo): bandiera 0,58 →
+**0,78** · titolare 0,71 → 0,73 · ballottaggio 0,61 → 0,64 · panchina — → 0,52 · riserva 0,50 → **0,34**.
+Adesso la scala ordina. `SHEET_REVISION` 41; tre colonne nuove dicono le due metà della miscela
+(`desc_now_matches`, `desc_now_rounds`, `desc_blend_now`), perché un numero mescolato che non dichiara
+quanto è fresco si legge come una misura di due partite.
+
 ## Novità v9.71 (4 settembre 2026 — la DATA DI RIENTRO dalla prosa degli indisponibili)
 
 Dalla domanda dell'operatore sul caso McTominay: «questa informazione l'ho recuperata leggendo articoli

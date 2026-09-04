@@ -1965,3 +1965,79 @@ offerta di quella quota. Il vincolo resta identico per chi una data non ce l'ha,
 mai sulla stessa riga. Anche la deduplica dei due marchi («la stampa lo da' indisponibile» accanto a
 «infortunio lungo in corso») e' di quel giorno. Misure, tabella dei casi veri e i limiti dichiarati:
 `assistente-asta-v1.md` §36.
+
+## 23. L'ASSICURAZIONE: una formula sola per tutta l'app (4 settembre 2026)
+
+Richiesta dell'operatore, e la sua immagine è la specifica: «se cammino sul ciglio di un burrone sono
+quasi sicuro che non cadrò ... ma io voglio evitare anche questo evento raro e cammino distante dal
+ciglio 1 metro. Piuttosto che cambiare il toolkit meglio prevedere un "di più" come **assicurazione
+implementata solo nell'app**, che comunque deve essere una **formula centralizzata** da usare in ogni
+pagina e sezione». `core/expected-play.ts`, letta dalla plancia e dalla strategia.
+
+**TRE PASSI, TRE DOMANDE DIVERSE, e la separazione è metà del valore.**
+
+1. **La BASE.** Il Pa del foglio — ma dove il motore non prezza il suo calcio (`est_basis` ≠ `core`) la
+   stima scende sulla costante di ruolo, e lì la board ne sa di più: è **il metro della PLANCIA** («Kolo
+   M. e Woltemade sono valutati in maniera molto più realistica sulla PLANCIA ... adottiamo il metro
+   della PLANCIA allora»), scritto come `desc_titolarita_play × giornate che restano`. Kolo Muani il
+   03/09 leggeva `est_pv` 19,6 su 38 mentre la Juventus lo disegnava titolare con 81 minuti.
+2. **La FINESTRA APERTA**, che è un fatto: le giornate del suo club prima del rientro dichiarato
+   (`injury-window.ts`). Yildiz ne salta **10 delle 36** che restano.
+3. **L'ASSICURAZIONE**, che è il «di più». Misurata sul bundle del 04/09/2026, 533 quotati di Serie A
+   senza asterisco su tre stagioni: per stagione-uomo si perdono in **mediana 1** giornata, in **media
+   4,93**, al **p75 7**, al p90 15, al p95 22; e sui 330 uomini con almeno due stagioni di storia la
+   media delle loro medie è **8,4** contro una media dei loro **massimi di 13,7**. **La stagione brutta
+   costa 1,63 volte quella media**, e quel rapporto è il metro dal ciglio: chi ha storia si assicura il
+   proprio scarto (peggiore − media), chi non ne ha abbastanza il p75 del listone meno la media = **2,1
+   giornate**.
+
+**SI SOTTRAE LO SCARTO E NON IL TOTALE**, perché il Pa del motore contiene già lo sconto della stagione
+MEDIA: togliere tutte le giornate perse conterebbe due volte quelle che il motore ha già scontato. E c'è
+un tetto dichiarato (`INSURANCE_CAP_SHARE` 0,35 del calendario), per la stessa ragione di
+`presence.availability_floor`: una storia brutta è uno sconto, non una sentenza.
+
+**IL FATTORE RIPREZZA IL SURPLUS senza che l'app diventi un motore.** Surplus e valore moltiplicano
+entrambi le presenze, quindi scalarli per `expected/base` è la stessa sottrazione detta in fantapunti -
+è il numero del foglio con meno giornate sotto, non una seconda previsione. Questo è ciò che soddisfa
+«gli infortuni devono pesare di più sul surplus» senza toccare una colonna gated.
+
+**E CHI IL LISTONE NON QUOTA ESCE DALLE LISTE** («Cheddira del Napoli è ridicolo che stia nei primi 60
+attaccanti»). Il difetto non era la sua valutazione: **non è quotato affatto** - zero righe in
+`listone_quotes` 2026-27 su nessuna delle due piattaforme - ed era in lista perché il foglio si
+costruisce sulle ROSE VERE e `buildRosters` aggiunge chi il listone non ha (**70 righe su 602**). La
+regola del 03/09 già viva sulla plancia, portata sulla strategia: `PlayerRow.quoted`.
+
+**E DUE CORREZIONI DELL'OPERATORE IL GIORNO DOPO, tutt'e due su nomi** — la prova che una formula si
+giudica sui casi e non sulla sua descrizione.
+
+- **«Come mai Malen ha solo 14 Pa?»** L'assicurazione gli leggeva un'**operazione al ginocchio del
+  2019-20** (242 giorni = 35,7 giornate), che gli faceva scattare il TETTO sette anni dopo: 26,7 attese
+  → 14,1. `seasonLosses` guardava la CARRIERA, mentre tutto il resto del progetto che legge gli
+  infortuni usa una finestra recente (`fragilityOf` tre anni, `injury_weights` (1,0 · 0,6 · 0,35) su tre
+  stagioni). *La carriera contiene un uomo diverso.* Con la finestra: 4,4 · 1,5 · 0 → 2,4 giornate.
+- **«Perché DIAO solo 11 Pa?»** Qui il numero è **vero e resta**: nel 2025-26 ha perso 20,4 giornate in
+  tre stop (piede, bicipite femorale due volte) e 9,1 l'anno prima, quindi la sua stagione peggiore sta
+  10,6 giornate sopra la sua tipica. Ma la domanda ha trovato un secondo difetto della finestra: la
+  **stagione IN CORSO** entrava con il suo zero, e una stagione lunga due giornate non è un'annata sana —
+  regalava a chiunque un anno perfetto, abbassando la media e gonfiando lo scarto **proprio su chi sta
+  male da sempre** (Kean 6,1 giornate di assicurazione contro 2,1, perché le sue tre stagioni vere sono
+  14,3 · 10,3 · 14,8: stare male è la sua normalità, e il motore l'ha già scontata). Ora la finestra sono
+  le tre stagioni **COMPLETE**: quello che succede adesso non è un rischio da assicurare, è un fatto, e
+  lo toglie già la finestra dello stop aperto — contarlo qui sarebbe sottrarlo due volte.
+
+**E un errore di unità nel FATTORE, trovato da una sua domanda** («perché in strategia Kolo Muani è #27 e
+sulla plancia #4?»): il fattore che riprezza il surplus divideva per `base`, che per un uomo con la stima
+è il **metro della plancia** (25,9), mentre il suo `est_surplus` è costruito sulle **18,6 presenze del
+foglio** — quindi gli faceva SCENDERE il surplus dopo avergli ALZATO le presenze (19,7 → 16,0 invece di
+22,3). Corretto: si divide per la `pv` del foglio, e lui passa da #27 a #16. *Il denominatore di un
+fattore è la quantità su cui il numero che stai scalando è costruito, non quella che hai in mano.*
+Quello che resta del divario è una scelta e non un difetto: la plancia ordina per **max offerta** (la
+scala di mercato: FVM 165 = sesto attaccante, quindi primo slot) e la strategia per **surplus**, dove la
+sua fantamedia è quasi tutta l'ancora del ruolo (6,85 contro 7,11 di Hojlund e 7,92 di Malen). I primi
+tre nomi coincidono; divergono quelli che il mercato paga più di quanto il motore li valuti.
+
+**Un difetto scoperto dalla misura, non dal codice**: con l'assicurazione due centrocampisti sono scesi
+sotto `MIN_PLAY_SHARE` e la barra della plancia ha letto «C 2/80» su un tavolo AZZERATO. `progress`
+ricavava gli assegnati come `capienza − rimasti`, quindi contava come acquisto un uomo che nel blocco non
+era mai entrato. Adesso li **conta**: `capienza − rimasti` e «quanti ne sono stati comprati» sono due
+domande diverse, e solo la seconda è quella che la barra fa.

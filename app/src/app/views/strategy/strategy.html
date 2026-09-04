@@ -231,6 +231,16 @@
                 block.pool +
                 (block.unranked ? ', di cui ' + block.unranked + ' senza un numero del foglio (non sono in classifica: vuoto non è zero)' : '') +
                 '.' +
+                ' LE TRE PASTIGLIE di ogni riga: quanto rende una sua partita sopra il 6, in quante' +
+                ' giornate su ' +
+                (sheet()?.matchdays_target ?? '?') +
+                ' il motore lo aspetta col voto - PREVISIONE, con l\'assicurazione già dentro: sono già' +
+                ' sottratte le giornate che un infortunio aperto gli toglie di sicuro e lo scarto fra la' +
+                ' sua stagione tipica e la sua peggiore - e di quelle quante ne chiude con almeno' +
+                ' 6 (MISURA delle sue stagioni; sbiadita = di suo misurato non ne ha abbastanza,' +
+                ' quindi quella quota resta ancorata al suo ruolo), e quanti minuti resta in campo' +
+                ' quando gioca. Una freccia vuol dire che lo metteresti più arretrato, una tilde che' +
+                ' il numero è il ripiego dichiarato e non una previsione del motore.' +
                 ' Lo sfondo li raggruppa ogni ' +
                 summary().teams +
                 ': una banda è uno SLOT, cioè quanti ne compra la stanza a testa - i primi ' +
@@ -363,16 +373,7 @@
                        zig-zag, che è esattamente quello che l'occhio scorre. Il colore è quello dei dati
                        e non un allarme: non è una brutta notizia, è un'altra domanda. -->
                   @if (row.fromBehind) {
-                    <span
-                      class="shrink-0 text-[10px] text-muted"
-                      nz-tooltip
-                      [nzTooltipTitle]="
-                        'Lo metteresti da ' +
-                        row.deepest +
-                        ', che è il suo posto più arretrato: qui è un ripiego, e questa posizione la lasceresti a chi non arriva a coprire quella.'
-                      "
-                      >&darr;{{ row.deepest }}</span
-                    >
+                    <span class="shrink-0 text-[10px] text-muted">&darr;{{ row.deepest }}</span>
                   }
                   <!-- LE TRE PASTIGLIE (operatore, 04/09/2026): quanto rende una sua partita sopra il
                        sei, quante ne gioca - e di quelle quante le chiude bene - e quanto ci resta
@@ -380,11 +381,12 @@
                        riquadri uguali si scorre a colpo d'occhio, mentre larghezze diverse fanno
                        leggere la forma invece del numero (è la ragione di `ui-gain`, applicata qui).
 
-                       UN TOOLTIP SOLO PER TUTT'E TRE, e non tre: la riga è alta 17px, e tre bersagli di
-                       hover attaccati l'uno all'altro su una lista che si scorre sono tre pannelli che
-                       si aprono mentre si cerca un nome. La frase spiega i tre numeri insieme, che è
-                       anche l'unico modo di dire la cosa che conta - quali sono previsioni e quale è
-                       una misura.
+                       E NESSUN TOOLTIP QUI (operatore, 04/09/2026): la frase che spiegava i tre numeri
+                       era la STESSA su ogni riga - una legenda, non un fatto su quell'uomo - e stava su
+                       tre bersagli attaccati in una lista alta 17px che si scorre. È salita
+                       nell'intestazione del blocco, dove si legge una volta per lista invece di
+                       aprirsi cento volte; quello che era per-uomo (il nome intero, i codici, i due
+                       marchi) sta nell'unico tooltip rimasto, sul nome.
 
                        NIENTE COLORE: il colore di questa riga è del GAIN, che è il numero che ordina.
                        Dipingere anche queste sarebbe una seconda scala accanto a quella vera, e la
@@ -397,46 +399,12 @@
                        Il riquadro è un INCAVO - il fondo della pagina con il suo bordo - e non una tinta:
                        `bg-control` era stato provato e MISURATO a schermo, ma su questo tema `control`
                        (#1c1c26) e `surface` (#14141c) distano otto punti per canale e su una riga
-                       dispari (`bg-control/25`) la pastiglia spariva del tutto - un riquadro che non si
-                       vede è un riquadro che non c'è. -->
+                       TINTA (`bg-control/25`, la zebra di allora e oggi la banda dello slot) la
+                       pastiglia spariva del tutto - un riquadro che non si vede è un riquadro che non
+                       c'è. -->
                   <span
                     class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums
                            @max-[23rem]:order-last @max-[23rem]:w-full @max-[23rem]:justify-end"
-                    nz-tooltip
-                    [nzTooltipTitle]="
-                      (row.readings.edge == null
-                        ? 'Il foglio non prezza una sua partita.'
-                        : 'Una sua partita rende ' +
-                          (row.readings.edge > 0 ? '+' : '') +
-                          (row.readings.edge | number: '1.2-2') +
-                          ' sopra il 6, che è la media di riferimento di un voto: fantamedia attesa ' +
-                          ((row.readings.edge + 6) | number: '1.2-2') +
-                          '. È per PARTITA GIOCATA, e quante ne gioca lo dice il riquadro accanto.') +
-                      (row.readings.played == null
-                        ? ''
-                        : ' · Il motore lo aspetta con un voto in ' +
-                          (row.readings.played | number: '1.1-1') +
-                          ' giornate su ' +
-                          (sheet()?.matchdays_target ?? '?') +
-                          (row.readings.passed == null
-                            ? ''
-                            : ', di cui ' +
-                              (row.readings.passed | number: '1.1-1') +
-                              ' chiuse con almeno 6. Attenzione a cosa sono i due numeri: le presenze' +
-                              ' sono una PREVISIONE del motore, la quota di sufficienze è una MISURA' +
-                              ' delle sue stagioni (' +
-                              row.man.steadyNote +
-                              '), quindi il secondo è «quante ne chiuderebbe bene se tenesse il passo' +
-                              ' che ha tenuto finora»' +
-                              (row.readings.passedIsHis
-                                ? '.'
-                                : ' - e qui è SPANNOMETRICO: di suo misurato non ce n’è abbastanza, quindi quella quota è quasi tutta l’ancora del suo ruolo al suo club.'))) +
-                      (row.readings.minutes == null
-                        ? ' · I minuti non li so: il foglio li dichiara solo per chi ha un undici disegnato, e vuoto è ignoto (non zero).'
-                        : ' · Quando gioca resta in campo ' +
-                          (row.readings.minutes | number: '1.0-0') +
-                          ' minuti - previsione per la stagione che viene, non la media di quella scorsa.')
-                    "
                   >
                     <span
                       class="inline-flex min-w-8 justify-center rounded border px-1"
@@ -494,14 +462,15 @@
                        motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
                        come una misura è la cosa peggiore che una lista possa fare. -->
                   @if (row.estimated) {
-                    <span
-                      class="shrink-0 text-[10px] text-muted"
-                      nz-tooltip
-                      nzTooltipTitle="Il motore non lo prezza: questo è il ripiego dichiarato (est_*), penale di confidenza già dentro."
-                      >~</span
-                    >
+                    <span class="shrink-0 text-[10px] text-muted">~</span>
                   }
-                  <ui-gain [gain]="row.gain" [scale]="scale()" />
+                  <!-- IL GAIN A GIORNATA (operatore, 04/09/2026), che è la sua regola del 03/09 sui
+                       punti per giornata applicata alla colonna che ordina. `perMatch` è una
+                       definizione sola, letta anche dalla scala del colore: dividere solo la riga
+                       lascerebbe le fasce tarate sui totali di stagione e ogni uomo leggerebbe
+                       `scarso`. Due cifre perché il numero ora sta fra 0 e ~1,3 e con una sola metà
+                       listone leggerebbe «0,1». -->
+                  <ui-gain [gain]="perMatch(row.gain)" [scale]="scale()" [digits]="2" size="sm" />
                 </li>
               }
             </ol>

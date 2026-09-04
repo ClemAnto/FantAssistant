@@ -731,3 +731,25 @@ di dieci minuti o più. Chi non ha una stagione misurata non ha previsione e la 
   pre-registrato per giugno 2027).
 - Le probabili estive degli editor sono della stagione finita finché la nuova non parte (v9.32): i
   lettori filtrano sulla stagione, quindi in agosto `desc_starter_prob` è vuota per costruzione.
+
+## LA MISCELA DELLE DUE FINESTRE (5 settembre 2026)
+
+Il claim e la board di una stagione GIA' COMINCIATA non leggono piu' soltanto le giornate giocate.
+`snapshot.measured_season` commutava - sopra cinque giornate contate su CINQUE campionati insieme, quindi
+sempre - e per un uomo di Serie A il campione erano **due partite**: Douvikas 2/2 letto `titolare` a 75',
+Kean un ingresso da 27' letto `riserva` con `play_share` 0,021, e 313 righe su 358 in disaccordo col
+proprio Pa.
+
+Adesso `presence.blend_seasons` mette insieme le finestre, ognuna col PROPRIO denominatore (che cura da
+se' l'errore di unita': Douvikas era diviso per 2 e Kean per 38, nella stessa colonna), con la stagione
+precedente riscalata a `season_prior_rounds` = 10 giornate di prior - la K che il gate ha ADOTTATO per
+R20 su `default`, 6 su euro - e il ritiro a una giornata, senza minuti.
+
+**Giudicata dai giudici di questo documento**, che e' la ragione per cui esistono: `press --against
+press` legge **153 uomini su 220** contro i 137 di prima (null: 104), e i moduli scendono da 10 a 8
+MATCH. Si adotta sui NOMI e il prezzo sui moduli e' detto. `--against round --round 2` NON puo'
+arbitrare qui e va scritto: dava al foglio vecchio `bandiera` 100,0%, perche' quella giornata ERA il suo
+intero campione - un giudice che ha letto la risposta non e' un giudice.
+
+Mediana di `Pa/giornate` per gradino, prima -> dopo: bandiera 0,58 -> **0,78** · titolare 0,71 -> 0,73 ·
+ballottaggio 0,61 -> 0,64 · panchina — -> 0,52 · riserva 0,50 -> **0,34**.

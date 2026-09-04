@@ -528,9 +528,14 @@ async function main() {
         // IL NUMERO A SCHERMO E- IL CONTO DEL BUNDLE, ed e- l-unica asserzione che prova la feature:
         // le presenze piene del foglio moltiplicate per le giornate giocabili sulle rimaste. Si
         // confronta a meno di mezza unita- perche- la card arrotonda.
-        ...(card && atteso != null && Math.abs(card.attese - atteso) > 0.51
-          ? [`la card dice ${card.attese} e il foglio piu- il calendario ne vogliono ` +
-             `${atteso.toFixed(1)} (${pv} presenze piene x ${counted.playable}/${counted.remaining})`]
+        // DAL 04/09/2026 IL NUMERO E- ANCHE ASSICURATO (`core/expected-play.ts`), quindi il conto del
+        // bundle e- un TETTO e non un-uguaglianza: la finestra dice quello che perde di sicuro,
+        // l-assicurazione toglie ancora - e mai aggiunge. Ricalcolare qui anche quella meta- sarebbe
+        // confrontare la pagina con una seconda copia della sua stessa aritmetica.
+        ...(card && atteso != null && card.attese > atteso + 0.51
+          ? [`la card dice ${card.attese} e il tetto del foglio piu- il calendario e- ` +
+             `${atteso.toFixed(1)} (${pv} presenze piene x ${counted.playable}/${counted.remaining}): ` +
+             `l-assicurazione non aggiunge giornate`]
           : []),
         ...(atteso == null ? ['il foglio non prezza le sue presenze: il conto non e- verificabile'] : []),
         ...(card ? [] : ['il click non ha aperto la card: non c-e- niente da leggere']),
