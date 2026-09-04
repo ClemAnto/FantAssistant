@@ -3629,6 +3629,45 @@ togliendo di nuovo la registrazione: 73 icone a schermo, **0 vuote**, occhio dis
 che dipende da cosa un'altra libreria patcha per se' e' fragile), il verbale porta il numero e non la
 storia. *Una review e' un'ipotesi con un argomento, non una misura: la meta' verificabile si verifica.*
 
+## Sette parametri sono QUATTRO, e la scala viene dall'archivio mentre il peso viene dal banco
+**04/09/2026, dalla richiesta dell'operatore di esprimere i requisiti di una rosa vincente in «4/5
+parametri con delle stelline calcolabili a partire dai calciatori acquistati in un determinato
+istante», con una lista d'esempio di SETTE voci. Dettaglio, tagli e aperti:
+[docs/model/salute-rosa-stelline-v1.md](docs/model/salute-rosa-stelline-v1.md); l'arnese è
+`app/scripts/measure-squad-health.mjs`, sola lettura.**
+
+**Prima di disegnare sette stelline si MISURA quante ne esistono**, perché due letture dello stesso
+numero finiscono per dare a una rosa due verdetti — il difetto dei campetti e dei due lettori di
+`engine_fm_pred`, visto da un lato nuovo. Sulle **1.176 rose vere** di `docs/real-data/` (le 131 aste
+con la sua rosa 3/8/8/6, join sul foglio al **98,4%**): **Presenze ~ Bonus r = +0,963** (dentro uno
+slot la fantamedia è piatta, quindi «bonus» è «presenze» in un'altra unità → una stellina),
+**Difesa ~ Attacco −0,649** (un asse con due versi → una stellina), Copertura ~ Presenze −0,624
+(due domande diverse → due stelline), e Spartizione e Diversificazione indipendenti da tutto
+(r ≤ 0,12). Sette voci, **quattro assi di stato** più uno di comportamento (a che prezzo compra).
+
+**UNA STELLINA È UN QUINTILE DELLE ROSE VERE**, cioè 3★ è la rosa mediana di un'asta vera: è il null
+della pastiglia, e senza di lui «4 stelle» direbbe «bene» in astratto. Ma **l'archivio tara la SCALA
+e non può pesare le stelline** — quelle aste comprano per una stagione non giocata, quindi sono un
+giudice dell'AMBIENTE come diceva già `simulatore-asta-rilanci-v1.md` §15 — e i pesi vengono dal
+banco, in punti a giornata: copertura **−4,73 fp per buco** (+1,3 fp/gg da 2★ a 5★), prezzi pagati
++1,3, presenze +0,7, spartizione +0,55, diversificazione 0 punti e −4,4% di dispersione. Il totale è
+la somma pesata **in fp/gg** e non la media delle stelline, che mescolerebbe pesi da 0 a 1,3.
+
+Tre cose che restano oltre la pastiglia.
+- **Una stellina che non si può muovere se non muovendone un'altra non è una stellina.** La
+  «costanza» chiesta è un EFFETTO della copertura (un uomo vale +1,5 fp a stagione di R-Factor, e il
+  modificatore correla −0,821 coi buchi), quindi esce come stellina e resta come NUMERO derivato
+  accanto al mod. difesa atteso.
+- **Un posto ancora da comprare non è un buco**: a metà asta si segna la rosa PROIETTATA (i posti
+  liberi riempiti col miglior uomo che il budget residuo consente alla banda dello slot), con quanti
+  uomini sono già suoi scritto accanto — «vuoto = ignoto» applicato a una rosa incompleta, e un
+  vincolo che agisce in silenzio è indistinguibile da un ordinamento rotto.
+- **Un aggregato può saturare in un reparto e separare in un altro**: i buchi delle rose vere sono
+  P **0,000** a ogni percentile · D 0,071 · C 0,065 · **A 0,229** di mediana, quindi la copertura è
+  UNA stellina col dettaglio per reparto nel tooltip e non quattro — su tre reparti su quattro non
+  separerebbe niente. E la quota difesa che il tilt adotta (25,4%) sta **oltre il p90** delle rose
+  vere (mediana 15,4%): 5★ di spartizione è il decile più alto di un tavolo vero, per costruzione.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

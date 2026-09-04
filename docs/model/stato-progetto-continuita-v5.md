@@ -4830,3 +4830,54 @@ ad alta voce (§39.6: un difetto PREESISTENTE trovato dal suo banco e non toccat
    stagioni chiuse) è un item vero e piccolo: la popolazione c'è già.
 3. Restano i punti aperti delle chiusure precedenti, non toccati: un `export` (il pacchetto è del
    01/09), lo `snapshot` per allineare `desc_easy_matches`, gli `anchor` come acquisizione.
+
+## CHIUSURA della sessione 04/09/2026 (notte) — CINQUE STELLINE, e sette parametri che erano quattro
+
+**Sessione di sola MISURA e DISEGNO: non ha toccato una riga di codice dell'app.** Due domande
+dell'operatore, una dopo l'altra: «secondo gli studi che abbiamo fatto, una rosa vincente quali
+requisiti deve avere?» e poi «vorrei esprimere questi principi in 4/5 parametri con delle stelline
+calcolabili a partire dai calciatori acquistati in un determinato istante», con una lista d'esempio
+di sette voci e un «poi vedi tu».
+
+**La sintesi dei requisiti** è stata data citando i documenti e non la memoria (buchi zero prima di
+tutto, presenze su tutti i 25 posti, nessun top d'attacco, i soldi spalmati sulle prime quattro
+fasce della difesa, il portiere che gioca ma non si strapaga, subito le prime due fasce e la coda in
+saldo, la diversificazione sui club), con gli ancoraggi in punti a giornata e i tre canali respinti
+col loro numero.
+
+**Il disegno delle stelline è in un documento nuovo**,
+[salute-rosa-stelline-v1.md](salute-rosa-stelline-v1.md), e il risultato che conta è che i sette
+parametri chiesti sono **quattro**: misurata la ridondanza sulle 1.176 rose vere di
+`docs/real-data/` (join sul foglio Serie A al 98,4%), Presenze e Bonus leggono lo stesso numero
+(r **+0,963**) e Difesa e Attacco sono un asse con due versi (**−0,649**), mentre Copertura,
+Spartizione e Diversificazione sono indipendenti (r ≤ 0,12 fra loro). Le cinque stelline che ne
+escono — Copertura · Presenze · Spartizione · Prezzi pagati · Diversificazione — hanno i tagli
+QUINTILE delle rose vere (3★ = la rosa mediana di un'asta vera) e i pesi dal banco, in fp/gg. La
+«costanza» esce come stellina e rientra come numero derivato, perché è un effetto della copertura
+(r −0,821 coi buchi) e sul banco è inerte.
+
+**In repository ci sono due file nuovi e nient'altro**: `docs/model/salute-rosa-stelline-v1.md` e
+`app/scripts/measure-squad-health.mjs` (sola lettura, riproduce ogni numero del documento in due
+secondi, `--all` o `--his`). Una sezione nuova di `CLAUDE.md` porta le tre regole durevoli.
+
+**Nota di albero condiviso**, che è la regola del 17/08 e del 01/09 applicata di nuovo: mentre
+questa sessione misurava, **un'altra sessione stava lavorando sullo stesso albero** e ha lasciato non
+committato tutto il lavoro app (plancia, slot personali, lente su una rosa, strategia, e i loro
+verbali in `assistente-asta-v1.md`, `pagina-strategia-v1.md`, `00-BRIDGE`, più le loro 96 righe di
+`CLAUDE.md`). **Non è stato committato niente di loro**: il commit di questa chiusura porta i due
+file nuovi e le sole righe aggiunte da me a `CLAUDE.md` e a questo file, messe in indice
+chirurgicamente (HEAD + la mia aggiunta) invece di `git add` sul file intero. Il loro gate non è
+stato eseguito e non è stato dichiarato verde.
+
+**Aperti, in ordine di leva** (il dettaglio nel §7 del documento nuovo):
+1. **Scrivere il codice**: `core/squad-health.ts` con `expectedHoles`/`keeperCovered` ESTRATTI da
+   `sealed-bid.ts` (una definizione, due lettori — come `engine-sheet.ts`), la pastiglia in
+   `views/plancia/` e il banco e2e che verifica i tagli contro l'archivio.
+2. **La quinta stellina ha i tagli dichiarati e non misurati** (0,80 · 0,95 · 1,10 · 1,30 di
+   pagato/banda): vanno sostituiti coi quintili dello stesso rapporto sulle rose vere, che l'arnese
+   può calcolare appena la banda per (ruolo, slot) è raggiungibile da uno script.
+3. **La proiezione dei posti vuoti non è misurata come previsione**: si può fare sulle cinque aste
+   vere di cui si conosce l'ordine.
+4. **Le stelline non sono state misurate come CONSIGLIO** — che descrivano una rosa è un'altra
+   affermazione che guardarle faccia comprare meglio; lo strumento per misurarlo esiste
+   (`bench.auction.advice`, che giudica senza il tavolo).
