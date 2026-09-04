@@ -70,6 +70,22 @@
       </span>
     }
 
+    <!-- ...E CHI NON C'E' AFFATTO. Un blocco con nove righe invece di dieci, senza una parola, si
+         legge come un tabellone rotto: il conto sta qui e i nomi nel tooltip, perche' la domanda che
+         segue e' sempre «chi?». -->
+    @if (store.excluded(); as gone) {
+      @if (gone.length) {
+        <span
+          class="flex items-center gap-1 rounded-md bg-control px-2 py-0.5 font-medium text-muted"
+          nz-tooltip
+          [nzTooltipTitle]="store.excludedNote()"
+        >
+          <nz-icon nzType="stop" />
+          {{ gone.length }} fuori lista
+        </span>
+      }
+    }
+
     @if (store.sheet(); as sheet) {
       <span
         class="text-muted"

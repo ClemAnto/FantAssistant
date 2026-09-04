@@ -24,6 +24,7 @@ import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
 import { GlobalOptions } from './global-options';
 import { OutWindow, outWindow } from './injury-window';
+import { itDate } from './tooltip';
 import {
   CalendarBook,
   CalendarFile,
@@ -39,6 +40,7 @@ import {
   Alternative,
   EDGE_BASE,
   LotAdvice,
+  OfferBand,
   PlanciaMan,
   PlanciaMap,
   Role,
@@ -47,6 +49,7 @@ import {
   adviseLot,
   alternativeFor,
   buildMap,
+  MIN_PLAY_SHARE,
   offerBand,
 } from './plancia';
 import { STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
@@ -70,8 +73,12 @@ export interface BoardMan extends PlanciaMan {
    * Tenuta invece di ricalcolata perché la card di un calciatore vuole i due estremi: due chiamate a
    * `offerBand` con due insiemi di parametri sono come un uomo finisce con due prezzi, e questa è la
    * stessa funzione che disegna la riga. `null` dove il foglio non lo prezza o dove è già di qualcuno.
+   *
+   * E' l'`OfferBand` INTERA e non i due estremi: la banda porta anche PERCHE' e' quella - lo slot su
+   * cui il tetto e' stato letto, e se a deciderlo e' stato il tetto dichiarato di una scommessa - e
+   * ritagliarla qui obbligherebbe la card a ricalcolare quella ragione, cioe' a darne una seconda.
    */
-  band: { low: number; high: number } | null;
+  band: OfferBand | null;
   ownerId: number | null;
   ownerLabel: string | null;
   ownerColour: string | null;
@@ -182,11 +189,14 @@ export class PlanciaStore {
       // stagione intera; chi rientra a novembre non la gioca, quindi le presenze attese e i punti che
       // ne discendono sono ridotti QUI - una volta sola, dove la riga nasce, cosi' l'ordine dentro lo
       // slot, la banda e i due numeri sullo schermo leggono tutti la stessa valutazione.
+      const injury = this.status.openInjury(player.id);
       const window = outWindow({
         calendar: book?.forClub(player.club) ?? null,
         club: player.club,
         today,
-        until: this.status.openInjury(player.id)?.until ?? null,
+        until: injury?.until ?? null,
+        seasonOver: injury?.seasonOver,
+        source: injury?.source,
       });
       const share = window?.share ?? 1;
       const pv = valuation.pv == null ? null : valuation.pv * share;
@@ -204,6 +214,7 @@ export class PlanciaStore {
         // valutazioni. Le presenze viaggiano accanto (`pv`), non dentro.
         edge: valuation.fm != null ? valuation.fm - EDGE_BASE : null,
         basis: valuation.basis as ValuationBasis,
+        confidence: valuation.confidence,
         out: window,
         // ...e il VINCOLO resta solo per chi una durata non ce l'ha. I due non convivono: dove il
         // numero c'e' fa lo stesso lavoro meglio, e tenere anche il gradino lo punirebbe due volte.
@@ -281,6 +292,8 @@ export class PlanciaStore {
             points: man.points,
             medianPoints,
             available: man.out?.share,
+            hurt: !!man.out || !!man.outNow,
+            confidence: man.confidence,
             // Quanti ne ho gia' del suo club: l'offerta scende, il suo valore no (sua istruzione
             // del 04/09/2026). Sta in TUTT'E DUE i posti che chiamano `offerBand` - qui e sul lotto -
             // o la riga direbbe una cifra e la card un'altra.
@@ -357,6 +370,8 @@ export class PlanciaStore {
       medianPoints,
       exhaustedBelow,
       available: man.out?.share,
+      hurt: !!man.out || !!man.outNow,
+      confidence: man.confidence,
       sameClub: this.mineByClub().get(man.club) ?? 0,
     });
 
@@ -726,6 +741,34 @@ export class PlanciaStore {
         .blocks.flatMap((block) => block.men)
         .filter((man) => man.outNow).length,
   );
+
+  /**
+   * CHI LA PLANCIA NON DISEGNA perche' rientra troppo tardi, con i nomi.
+   *
+   * Il conto sta in barra e i nomi nel suo tooltip: un tabellone che toglie delle righe senza dirlo si
+   * legge come un tabellone rotto, e la lista serve perche' la domanda che segue e' sempre «chi?».
+   */
+  readonly excluded = computed(() => this.map().blocks.flatMap((block) => block.excluded));
+
+  /** La frase del tooltip: la regola, la soglia, e i nomi. La compone lo store, non il template. */
+  readonly excludedNote = computed(() => {
+    const gone = this.excluded();
+    const names = gone
+      .map((man) => {
+        const when = man.out?.seasonOver
+          ? 'stagione finita'
+          : man.out?.declared
+            ? itDate(man.out.declared)
+            : '?';
+        return `${man.name} (${when})`;
+      })
+      .join(' · ');
+    return (
+      `Non li disegno: rientrano troppo tardi perche' valgano un posto in rosa - giocherebbero meno ` +
+      `del ${Math.round(MIN_PLAY_SHARE * 100)}% delle giornate che restano, margine di prudenza ` +
+      `incluso. Restano nel rango dello slot, quindi la numerazione non si muove. ${names}`
+    );
+  });
 
   /** The tail: a count and no names, because a board that hides it talks you into waiting. */
   readonly tail = computed(() => {

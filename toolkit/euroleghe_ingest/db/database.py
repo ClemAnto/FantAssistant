@@ -168,6 +168,14 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # been in the schema since day one, so it needs no migration - this one does, and without it every
     # query naming it fails with "no such column".
     ("players", "capped_on", "TEXT"),
+    # LA PROSA DEGLI INDISPONIBILI E LA DATA CHE NE ESCE (04/09/2026). Vedi il commento nello schema:
+    # la riga la parsavamo gia' e la buttavamo, quindi l'unica data di rientro veniva da un archivio
+    # settimanale mentre questa pagina si rilegge ogni giorno. NON backfillabile oltre la cache: e' uno
+    # snapshot come i probabili, e una lettura non presa e' perduta - i file in `data/cache/` sono la
+    # serie storica, e `rebuild` li rigioca.
+    ("availability", "note", "TEXT"),
+    ("availability", "expected_return", "TEXT"),
+    ("availability", "return_basis", "TEXT"),
     # IL CEDUTO del listone (03/09/2026, vedi schema.sql): il foglio `Ceduti` e' la risposta della
     # piattaforma a «gioca ancora in questo campionato», e senza questa colonna il parser la fondeva
     # con `Tutti`. NULL = «letto prima che la colonna esistesse», che non e' «comprabile»: chi legge

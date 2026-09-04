@@ -1955,3 +1955,13 @@ giorno, la prima a ogni export.
 schermo senza allarmi si legge come «non c'è nessuno fuori». Quando è tutto di oggi la pastiglia è
 NEUTRA, perché «va bene» non è una notizia. Verificata con un puntatore vero su tre pagine: presente,
 dentro la finestra, e `elementFromPoint` al suo centro risponde con sé stessa.
+
+**AGGIORNAMENTO 04/09/2026 — dove una DATA DI RIENTRO esiste, il vincolo lascia il posto a un numero.**
+Questa sezione dice «quando non si sa per quanto, si vincola invece di riprezzare», e la condizione di
+quella frase e' la parte che conta: dal 04/09 la plancia legge `injuries.end_date` — la data di rientro
+STIMATA che Transfermarkt pubblica per uno spell aperto, gia' nel bundle e fino a ieri stampata solo nel
+tooltip — conta le giornate del club che cadono prima di quella data, e riduce presenze attese e massima
+offerta di quella quota. Il vincolo resta identico per chi una data non ce l'ha, e i due non convivono
+mai sulla stessa riga. Anche la deduplica dei due marchi («la stampa lo da' indisponibile» accanto a
+«infortunio lungo in corso») e' di quel giorno. Misure, tabella dei casi veri e i limiti dichiarati:
+`assistente-asta-v1.md` §36.

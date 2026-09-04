@@ -707,6 +707,28 @@ CREATE TABLE IF NOT EXISTS availability (
     valid_from TEXT NOT NULL,
     status     TEXT,                             -- available | injured | suspended | doubt
     source     TEXT,
+    -- LA RIGA DI PROSA che la pagina scrive accanto al nome, verbatim, e la data che ne esce.
+    --
+    -- La pagina *indisponibili* dice quasi sempre quando l'uomo e' atteso: «Rientro in campo da inizio
+    -- ottobre», «tornare arruolabile da meta' novembre». Fino al 04/09/2026 la prosa era parsata e poi
+    -- BUTTATA (qui restava solo lo `status`), quindi l'unica data di rientro che questo progetto avesse
+    -- era quella di Transfermarkt - un archivio SETTIMANALE, fuori da `update --daily` - mentre questa
+    -- pagina si rilegge ogni giorno. La regola che ne esce e' la stessa dei campetti e di
+    -- `availability` stessa: quando un fatto arriva insieme a uno che leggiamo gia', il costo di
+    -- tenerlo e' zero e quello di buttarlo si scopre mesi dopo.
+    --
+    -- `note` e' la prosa INTERA e non solo la frase che ha prodotto la data: il resto porta la
+    -- diagnosi e le sfumature («ipotizziamo», «da valutare») che una data non sa dire, e sono quelle
+    -- che l'operatore legge nel tooltip prima di offrire.
+    note            TEXT,
+    -- La data attesa, ISO. NULL non e' «torna subito»: e' «la riga non lo dice», che sulla pagina del
+    -- 03/09/2026 e' il caso di 22 uomini su 45. Vedi `fc_site.parse_return` per cosa NON si parsa.
+    expected_return TEXT,
+    -- QUALE FORMA lo ha detto: `month_part` (una parte di mese: «inizio ottobre»), `season_over`
+    -- («stagione finita», che e' un fatto senza una data e viaggia comunque). Sta sulla riga perche'
+    -- una data e un'assenza-senza-data sono due affermazioni diverse e il lettore deve poterle
+    -- distinguere senza indovinare dal NULL.
+    return_basis    TEXT,
     PRIMARY KEY (fc_id, valid_from)
 );
 

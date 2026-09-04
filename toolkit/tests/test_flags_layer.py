@@ -115,7 +115,7 @@ def test_availability_and_booking_risk_land_in_the_right_tables(tmp_path):
                      "VALUES (?, '2025-26', 1, 'serie_a')", [(1,), (2,), (3,)])
     conn.commit()
 
-    stored, unresolved = fc_site.upsert_availability(
+    stored, unresolved, _dated = fc_site.upsert_availability(
         conn, fc_site.parse_unavailable(_INDISPONIBILI), "2025-26", "2026-07-26")
     assert (stored, unresolved) == (3, [])
     assert dict(conn.execute("SELECT fc_id, status FROM availability")) == {1: "injured", 2: "suspended"}

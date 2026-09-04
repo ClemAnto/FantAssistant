@@ -11,13 +11,20 @@ import {
   injuryMark,
   isOpen,
   spellDays,
+  Unavailable,
   unavailableMark,
   pressSaysTheSame,
 } from './player-status';
 
 const TODAY = '2026-08-11';
 
+/** Una lettura degli indisponibili come la costruisce `buildUnavailable`, coi campi che non servono. */
+function reading(status: string, on: string, extra: Partial<Unavailable> = {}): Unavailable {
+  return { status, on, expectedReturn: null, note: null, basis: null, ...extra };
+}
+
 const spell = (from: string, to: string | null, days: number | null = null): Spell => ({
+  observedOn: null,
   from,
   to,
   days,
@@ -196,7 +203,7 @@ describe('chi la stampa dà per indisponibile', () => {
         [9, '2026-09-03', 'injured', 'fc_site'],
       ]),
     );
-    expect(seen.get(7)).toEqual({ status: 'suspended', on: '2026-09-03' });
+    expect(seen.get(7)).toEqual(reading('suspended', '2026-09-03'));
     expect(seen.get(9)?.status).toBe('injured');
   });
 
@@ -214,22 +221,22 @@ describe('chi la stampa dà per indisponibile', () => {
   it('una lettura vecchia si SPEGNE invece di mentire', () => {
     // «Non abbiamo guardato» non è «è rientrato»: è la stessa regola per cui `injuries` ha preso
     // `observed_on` il 03/09/2026.
-    const fresh = unavailableMark({ status: 'injured', on: '2026-08-11' }, TODAY);
+    const fresh = unavailableMark(reading('injured', '2026-08-11'), TODAY);
     expect(fresh?.flag).toBe('unavailable_press');
-    const stale = unavailableMark({ status: 'injured', on: '2026-08-01' }, TODAY);
+    const stale = unavailableMark(reading('injured', '2026-08-01'), TODAY);
     expect(stale).toBeNull();
     // Il confine è dichiarato, non dedotto dal caso di prova.
-    const edge = unavailableMark({ status: 'injured', on: '2026-08-11' }, '2026-08-14');
+    const edge = unavailableMark(reading('injured', '2026-08-11'), '2026-08-14');
     expect(UNAVAILABLE_FRESH_DAYS).toBe(3);
     expect(edge).not.toBeNull();
   });
 
   it('dice CHE COSA la stampa ha detto, e che non è una diagnosi', () => {
-    expect(unavailableMark({ status: 'suspended', on: TODAY }, TODAY)?.note).toContain(
+    expect(unavailableMark(reading('suspended', TODAY), TODAY)?.note).toContain(
       'Squalificato',
     );
-    expect(unavailableMark({ status: 'doubt', on: TODAY }, TODAY)?.note).toContain('In dubbio');
-    const note = unavailableMark({ status: 'injured', on: TODAY }, TODAY)!.note;
+    expect(unavailableMark(reading('doubt', TODAY), TODAY)?.note).toContain('In dubbio');
+    const note = unavailableMark(reading('injured', TODAY), TODAY)!.note;
     expect(note).toContain('oggi');
     expect(note).toContain('non dice per quanto');
   });
@@ -240,19 +247,19 @@ describe('quando le due fonti dicono la stessa notizia', () => {
   const back = { flag: 'back_from_long' as const, note: 'rientrato' };
 
   it('la stampa non si disegna accanto a un infortunio ACCERTATO', () => {
-    expect(pressSaysTheSame({ status: 'injured', on: '2026-09-03' }, injury)).toBe(true);
+    expect(pressSaysTheSame(reading('injured', '2026-09-03'), injury)).toBe(true);
   });
 
   it('una squalifica o un dubbio NON sono la stessa notizia e restano', () => {
-    expect(pressSaysTheSame({ status: 'suspended', on: '2026-09-03' }, injury)).toBe(false);
-    expect(pressSaysTheSame({ status: 'doubt', on: '2026-09-03' }, injury)).toBe(false);
+    expect(pressSaysTheSame(reading('suspended', '2026-09-03'), injury)).toBe(false);
+    expect(pressSaysTheSame(reading('doubt', '2026-09-03'), injury)).toBe(false);
   });
 
   it('se il canale ufficiale non disegna niente la stampa resta: e il caso per cui esiste', () => {
     // Uno spell aperto piu corto di LONG_INJURY_DAYS non produce marchio: senza la stampa la riga
     // resterebbe muta su un uomo che sabato non gioca.
-    expect(pressSaysTheSame({ status: 'injured', on: '2026-09-03' }, null)).toBe(false);
+    expect(pressSaysTheSame(reading('injured', '2026-09-03'), null)).toBe(false);
     // ...e un RIENTRO recente non e uno stato di oggi: la stampa lo batte e resta.
-    expect(pressSaysTheSame({ status: 'injured', on: '2026-09-03' }, back)).toBe(false);
+    expect(pressSaysTheSame(reading('injured', '2026-09-03'), back)).toBe(false);
   });
 });

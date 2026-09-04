@@ -73,6 +73,8 @@ export interface PlanciaMan {
    */
   edge: number | null;
   basis: ValuationBasis;
+  /** Quanto e' solido il numero: 1 per una misura, `est_confidence` per una stima. Entra nel TETTO. */
+  confidence: number;
   /**
    * OGGI NON GIOCA E NON SAPPIAMO PER QUANTO: la stampa lo dà fuori, o un infortunio ufficiale è
    * ancora aperto, e nessuna delle due fonti dice fino a quando.
@@ -125,6 +127,19 @@ export interface SlotBlock {
    * out of ten (§25). Two different orders on one block, and mixing them is the defect.
    */
   men: PlanciaMan[];
+  /**
+   * ...e chi di questo slot e' stato LASCIATO FUORI perche' rientra troppo tardi (`MIN_PLAY_SHARE`).
+   *
+   * Restano nel RANGO e non nella lista: il numero di slot e' un fatto sul mercato - un rango diviso
+   * il numero di squadre - e la stanza quei nomi li compra ancora, quindi toglierli dalla graduatoria
+   * sposterebbe tutti di un posto e la mia plancia parlerebbe di slot diversi da quelli su cui la
+   * scala e' misurata. Quello che si toglie e' la RIGA, non il posto.
+   *
+   * Contati e NOMINATI, perche' un blocco con nove righe invece di dieci e senza una parola si legge
+   * come un tabellone rotto: «un vincolo che agisce in silenzio e' indistinguibile da un ordinamento
+   * rotto» (03/09/2026), e qui il vincolo cancella una riga invece di spostarla in fondo.
+   */
+  excluded: PlanciaMan[];
   /** What the room pays for this slot, from the men themselves: the median FVM. */
   medianFvm: number;
 }
@@ -176,11 +191,18 @@ export function buildMap(
     for (let index = 0; index < count; index += 1) {
       const chunk = ranked.slice(index * teams, (index + 1) * teams);
       if (!chunk.length) break;
+      // CHI RIENTRA TROPPO TARDI ESCE DALLA LISTA E RESTA NEL RANGO (vedi `SlotBlock.excluded`). La
+      // mediana del PREZZO si calcola comunque su tutti e dieci, perche' risponde a «quanto paga la
+      // stanza per questo slot» e la stanza lo compra ancora; quella dei PUNTI la calcola chi legge,
+      // sui soli disegnati, perche' risponde a «quanto vale il medio di quelli che posso comprare».
+      // Due mediane, due domande.
+      const excluded = chunk.filter((man) => (man.out?.share ?? 1) < MIN_PLAY_SHARE);
       const block: SlotBlock = {
         role,
         index: index + 1,
         id: `${role}${index + 1}`,
-        men: orderInside(chunk),
+        men: orderInside(chunk.filter((man) => !excluded.includes(man))),
+        excluded,
         medianFvm: median(chunk.map((man) => man.fvm)),
       };
       for (const man of chunk) slotOf.set(man.id, block);
@@ -247,6 +269,73 @@ export const LADDER: Record<Role, number[]> = {
   A: [0.234, 0.083, 0.042, 0.009, 0.005, 0.001],
 };
 
+/**
+ * SOTTO QUESTA QUOTA DI CALENDARIO UN UOMO NON ENTRA IN PLANCIA, per quanto sia bravo.
+ *
+ * DICHIARATA dall'operatore (04/09/2026): «nella nostra plancia non dobbiamo inserire calciatori che
+ * tornano a gennaio». La sua frase e' un MESE, e un mese non e' confrontabile fra una stagione e
+ * l'altra ne' fra un'asta di agosto e una di novembre - «una soglia assoluta non si confronta fra
+ * budget diversi», applicata al calendario invece che alla borsa. Quindi la regola vive nell'unita'
+ * invariante, la quota di giornate rimaste che l'uomo giocherebbe, e la sua frase e' quello che quella
+ * quota PRODUCE oggi.
+ *
+ * 0,60 e non un altro valore per una ragione che si puo' misurare: sui 27 quotati di Serie A con una
+ * data di rientro al 04/09/2026, la soglia 0,60 lascia fuori ESATTAMENTE i due che rientrano nell'anno
+ * nuovo (Kone' I. 03/01, Thuram K. 01/01) e tiene dentro il primo di dicembre (Yildiz 25/11) a
+ * qualunque margine di prudenza fra 0 e 40%. La soglia 0,65 invece cambia risposta col margine - a
+ * 0,25 si porta via anche Yildiz - quindi e' il punto fragile e questo e' il punto stabile. *Fra due
+ * soglie che dicono la stessa cosa oggi, si sceglie quella che non dipende da un'altra costante.*
+ */
+export const MIN_PLAY_SHARE = 0.6;
+
+/**
+ * SOTTO QUESTA QUOTA UN ACQUISTO E' UNA SCOMMESSA, e una scommessa ha un tetto suo.
+ *
+ * DICHIARATO dall'operatore su Yildiz (04/09/2026): «spendere un massimo di 65 crediti mi sembra
+ * tanto ... troppi dubbi, troppo rischio ... io direi che fino a 20 o 30 crediti si possono impegnare
+ * per una scommessa del genere, non di piu'». `BET_CAP_LOW`/`HIGH` sono le sue due cifre, tenute come
+ * QUOTE del budget perche' un tetto in crediti non si confronta fra budget diversi (§27.2, verificato
+ * a 500 - 1000 - 2000).
+ *
+ * 0,70 e' il centro di un VUOTO nell'archivio piu' che una scelta: sui 27 quotati di Serie A con una
+ * data di rientro al 04/09/2026 non c'e' nessuno fra 0,64 (Yildiz, meta' dicembre col margine) e 0,75
+ * (Buongiorno, Pessina, Ekhator, meta' novembre), quindi qualunque soglia in mezzo separa gli stessi
+ * uomini e questa non dipende dal margine di prudenza.
+ *
+ * QUELLO CHE QUESTO TETTO NON E': il prezzo del rodaggio. «Prima che torni in forma ci vorra' qualche
+ * partita» e' vero ed e' misurato - alla prima presenza dopo uno stop lungo gioca **20,2 minuti in
+ * meno** (t -29,4 su 2043 rientri), prende il voto nell'**80,8% delle giornate contro il 90,8%**
+ * (t -6,6) e il suo bonus a presenza cala di 0,09 (t -4,6) - ma sommato vale **circa 1,8 fantapunti
+ * su ~140**, l'1,3%, cinque centesimi di punto a giornata. Il rodaggio esiste e NON e' quello che
+ * porta un uomo da 65 crediti a 30: quello e' un'avversione al rischio, ed e' sua da dichiarare.
+ * Tenerli separati e' il punto - un termine misurato che vale l'1% non deve prendersi il merito di
+ * una decisione che ne vale il 60%. Numeri e decomposizione: `assistente-asta-v1.md` §36.
+ */
+export const BET_SHARE = 0.7;
+
+/** Le due cifre dell'operatore, come quota del budget: 20 e 30 crediti su 1000. */
+export const BET_CAP_LOW = 0.02;
+export const BET_CAP_HIGH = 0.03;
+
+/**
+ * CHI E' INFORTUNATO OGGI NON SI PAGA COME IL PRIMO DEL SUO SLOT: si paga come quello sotto.
+ *
+ * L'operatore, 04/09/2026: «troviamo un modo per penalizzare McTominay e Orsolini, con il loro
+ * infortunio non possono essere da primo slot». La quota di calendario da sola non li tocca - perdono
+ * tre giornate su 36, cioe' l'8% - perche' risponde a un'altra domanda: **quante giornate perde** e'
+ * un conto, **quanto e' solida la data** e' un rischio, e i due non si sommano dentro una cifra sola.
+ *
+ * La forma e' una DEMOZIONE DI UN GRADINO sulla scala, non un numero nuovo: il tetto che si applica e'
+ * quello dello slot successivo. E' la sua frase detta nella valuta che la scala parla gia', ed e'
+ * l'unica forma disponibile che non introduca una costante che nessuno ha misurato. Costa quanto vale
+ * il gradino, che e' molto in cima (C1 0,107 -> C2 0,048) e quasi niente in fondo, dove il prezzo e'
+ * gia' piatto - il che e' anche il comportamento giusto: un rischio del genere si paga sui top.
+ *
+ * NON tocca l'ORDINE dentro lo slot, che resta il valore atteso: quello e' misurato (§25) e un
+ * gradino binario lo rovinerebbe. Tocca solo quanto sono disposto a pagarlo.
+ */
+export const HURT_SLOT_STEP = 1;
+
 /** Above this share of the budget one is wrong in any slot (-0.3 to -1.2 points a matchday, §27.6). */
 export const CEILING_ALWAYS_WRONG = 0.2;
 
@@ -277,6 +366,10 @@ export interface OfferBand {
   capped: boolean;
   /** True when the band sits over the «wrong in any slot» line - which the screen must show. */
   overCeiling: boolean;
+  /** Lo slot su cui il tetto e' stato letto: diverso dal suo quando l'infortunio lo ha demoto. */
+  pricedAt: number;
+  /** True quando a decidere la banda e' stato il tetto DICHIARATO della scommessa. */
+  bet: boolean;
 }
 
 /**
@@ -337,11 +430,44 @@ export function offerBand(input: {
   exhaustedBelow?: number;
   /** `out.share`: la frazione delle giornate rimaste in cui ci sarà. Uno quando non manca. */
   available?: number;
+  /**
+   * OGGI NON GIOCA, con o senza una data di rientro: e' questo che fa scattare la demozione.
+   *
+   * Separato da `available` di proposito. Chi non ha una data e' l'uomo di cui sappiamo MENO, e
+   * legarla alla quota gli avrebbe lasciato il tetto pieno del primo slot proprio per non aver detto
+   * quando torna - il premio all'ignoranza, che e' il difetto opposto a quello che si stava curando.
+   */
+  hurt?: boolean;
+  /**
+   * QUANTO E' SOLIDO il numero su cui sto offrendo: 1 per una misura, meno per una stima.
+   *
+   * Nasce dalla domanda dell'operatore (04/09/2026): «per il primo slot io vorrei premiare calciatori
+   * che ti danno comunque continuita' ... come mai ci sono Mora o Pulisic che hanno < 20 partite
+   * previste?». I due casi sono diversi e solo uno e' una frase sul calciatore: **Pulisic 19,1 e' una
+   * MISURA** (`basis: core`, confidenza 1 - lui salta davvero le partite), mentre **Mora 12,6 e' una
+   * COSTANTE** (`basis: anchor`, confidenza 0,50, e la sua nota dice «nothing measured anywhere»),
+   * cioe' «vuoto = ignoto» che prende la forma di un numero basso. Molina N. legge la sua ultima
+   * stagione misurata di CINQUE anni fa (0,55) e Kolo Muani di due (0,85).
+   *
+   * `est_confidence` viaggia sul foglio da sempre e ogni altro lettore la applica (`worthOf`,
+   * `gainOf`: «la penalita' moltiplica il numero perche' l'indeterminatezza e' un fatto sul NUMERO»).
+   * La plancia era l'unica a ignorarla, quindi offriva su una costante con la stessa autorita' di una
+   * misura - due letture dello stesso foglio che danno a un uomo due valutazioni.
+   *
+   * ENTRA NEL TETTO E NON NELL'ORDINE, ed e' una decisione. L'ordine dentro lo slot e' il valore
+   * atteso, e i due numeri della riga - quanto rende una sua partita, quante ne gioca - devono
+   * SPIEGARLO (sua regola, 03/09/2026): metterci dentro una confidenza li farebbe contraddire.
+   * L'incertezza limita quanto sono disposto a ESPORMI, che e' la stessa forma del tetto della
+   * scommessa qui sopra.
+   */
+  confidence?: number;
   /** Quanti uomini del SUO club reale ho già in rosa: l'offerta scende, il suo valore no. */
   sameClub?: number;
 }): OfferBand | null {
   const ladder = LADDER[input.role];
-  const share = ladder[Math.min(input.slotIndex, ladder.length) - 1];
+  // LA DEMOZIONE PRIMA DI TUTTO: chi ha un infortunio aperto legge il gradino di sotto.
+  const pricedAt = input.hurt ? input.slotIndex + HURT_SLOT_STEP : input.slotIndex;
+  const share = ladder[Math.min(pricedAt, ladder.length) - 1];
   if (share == null || !(input.budget > 0)) return null;
 
   // The man's own weight inside his slot, held to +/-35%: the band is a fact about the SLOT and this
@@ -363,17 +489,29 @@ export function offerBand(input: {
     input.budget *
     own *
     depthFactor(input.exhaustedBelow ?? 0) *
-    (1 - sameClubDiscount(input.sameClub ?? 0));
-  const low = Math.round(centre * 0.9);
-  const high = Math.round(centre * 1.1);
+    (1 - sameClubDiscount(input.sameClub ?? 0)) *
+    clamp(input.confidence ?? 1, 0, 1);
+  let low = Math.round(centre * 0.9);
+  let high = Math.round(centre * 1.1);
   const room = Math.max(0, Math.round(input.room));
+
+  // IL TETTO DELLA SCOMMESSA, e sta DOPO tutto il resto perche' non e' una correzione al valore: e' un
+  // limite a quanto l'operatore e' disposto a perdere su un uomo che potrebbe non tornare quando
+  // dicono. Abbassa e non alza mai - chi vale gia' meno resta dov'e'.
+  const bet = (input.available ?? 1) < BET_SHARE && high > BET_CAP_HIGH * input.budget;
+  if (bet) {
+    low = Math.min(low, Math.round(BET_CAP_LOW * input.budget));
+    high = Math.round(BET_CAP_HIGH * input.budget);
+  }
 
   return {
     low: Math.min(low, room),
     high: Math.min(high, room),
-    share: centre / input.budget,
+    share: (bet ? high : centre) / input.budget,
     capped: high > room,
-    overCeiling: centre / input.budget > CEILING_ALWAYS_WRONG,
+    overCeiling: !bet && centre / input.budget > CEILING_ALWAYS_WRONG,
+    pricedAt,
+    bet,
   };
 }
 
@@ -460,7 +598,7 @@ export function adviseLot(input: {
    * compra la stagione e non sabato, e la banda che sta giudicando è già ridotta. Quello che cambia è
    * che la ragione lo DICE: una banda più bassa senza il perché si legge come un ordinamento rotto.
    */
-  out?: { until: string; lost: number; playable: number } | null;
+  out?: { until: string | null; lost: number; playable: number; seasonOver: boolean } | null;
 }): LotAdvice {
   const { band, tablePrice, slotIndex, hands, teams } = input;
   const expectedPrice = Math.max(
@@ -471,11 +609,19 @@ export function adviseLot(input: {
   const shared = { band, hands, expectedPrice, waiting };
   // La finestra sta IN TESTA alla ragione, non in coda: è la cosa che cambia il numero, e una ragione
   // che comincia dal prezzo fa leggere il prezzo prima del perché.
-  const window = input.out
-    ? `Fuori fino al ${itDate(input.out.until)}: gioca ${input.out.playable} giornate su ` +
-      `${input.out.playable + input.out.lost}. `
-    : '';
-  const said = (reason: string) => window + reason;
+  const window = !input.out
+    ? ''
+    : input.out.seasonOver || !input.out.until
+      ? `STAGIONE FINITA per lui: non gioca nessuna delle ${input.out.lost} giornate che restano. `
+      : `Fuori fino al ${itDate(input.out.until)}: gioca ${input.out.playable} giornate su ` +
+        `${input.out.playable + input.out.lost}. `;
+  // ...e come si e' arrivati alla cifra, quando non e' il suo gradino a deciderla.
+  const priced =
+    band && band.pricedAt !== slotIndex
+      ? `Prezzato come uno slot ${band.pricedAt}: infortunato oggi, non lo pago da primo. `
+      : '';
+  const wager = band?.bet ? `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'. ` : '';
+  const said = (reason: string) => window + priced + wager + reason;
 
   // PRIMA DI OGNI ALTRA COSA: se oggi non gioca, il verdetto è quello e non un prezzo. Sta davanti al
   // caso «non prezzato» perché è più forte - lì non sappiamo quanto vale, qui sappiamo che non gioca -

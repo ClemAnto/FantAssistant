@@ -166,6 +166,15 @@ export interface Spell {
   days: number | null;
   kind: string | null;
   detail: string | null;
+  /**
+   * IL GIORNO IN CUI ABBIAMO LETTO la pagina che lo dice, non quello in cui l'infortunio e' cominciato.
+   *
+   * Serve perche' dal 04/09/2026 la data di rientro ha DUE fonti - questa e la prosa degli
+   * indisponibili - e quale delle due vale si decide su quale delle due e' stata letta piu' tardi. Un
+   * canale piu' fresco lo si sa solo confrontando le date, non ricordandosi quale gira piu' spesso.
+   * `null` su un pacchetto piu' vecchio della colonna, e allora e' l'altra fonte a decidere.
+   */
+  observedOn: string | null;
 }
 
 const DAY_MS = 86_400_000;
@@ -314,6 +323,7 @@ export function buildSpells(table: BundleTable, cutoff?: string): Map<number, Sp
   // An older bundle may not carry them, and that is «unknown»: the dates still answer.
   const days = optionalIndex(table, 'days_out');
   const detail = optionalIndex(table, 'detail');
+  const observed = optionalIndex(table, 'observed_on');
   const out = new Map<number, Spell[]>();
   for (const row of table.rows) {
     const start = row[from] as string | null;
@@ -334,15 +344,49 @@ export function buildSpells(table: BundleTable, cutoff?: string): Map<number, Sp
       days: open || days < 0 ? null : ((row[days] as number | null) ?? null),
       kind: (row[kind] as string | null) ?? null,
       detail: detail < 0 ? null : ((row[detail] as string | null) ?? null),
+      observedOn: observed < 0 ? null : ((row[observed] as string | null) ?? null),
     });
   }
   return out;
 }
 
 /** Lo stato che la stampa dichiara oggi, con il giorno in cui lo ha detto. */
+/**
+ * L'INFORTUNIO DI ADESSO in numeri, con la fonte della data.
+ *
+ * `until` e' `null` in due casi che non vanno confusi: nessuna delle due fonti dice quando (e allora
+ * la plancia lo tiene come VINCOLO, in fondo al suo slot) oppure `seasonOver`, che e' l'opposto -
+ * sappiamo benissimo che non torna. Il campo che li distingue e' il secondo, e la ragione per cui
+ * esiste e' che un NULL da solo li leggerebbe come lo stesso stato.
+ */
+export interface OpenInjury {
+  days: number;
+  until: string | null;
+  remaining: number | null;
+  /** La stagione e' finita per lui: nessuna data, e nessun prezzo. */
+  seasonOver: boolean;
+  /** Chi lo ha detto: `press` (la prosa quotidiana) o `file` (l'archivio Transfermarkt). */
+  source: 'press' | 'file' | null;
+  /** La riga di prosa, o in mancanza la diagnosi dell'archivio: quello che una data non dice. */
+  note: string | null;
+}
+
 export interface Unavailable {
   status: string;
   on: string;
+  /**
+   * LA DATA DI RIENTRO CHE LA PROSA DICE, dal 04/09/2026 (`fc_site.parse_return` nel toolkit).
+   *
+   * E' la risposta alla domanda dell'operatore «come possiamo rendere automatica questa operazione?»:
+   * gli articoli che leggeva a mano sono la riga che questa pagina scrive accanto a ogni nome, e la
+   * scarichiamo ogni giorno. `null` e' «la riga non lo dice», che sulla lettura del 03/09/2026 e' il
+   * caso di 22 uomini su 45 - non «torna subito».
+   */
+  expectedReturn: string | null;
+  /** La prosa intera: porta la diagnosi e le sfumature che una data non sa dire. */
+  note: string | null;
+  /** `month_part` (una parte di mese) · `season_over` (stagione finita, un fatto senza una data). */
+  basis: string | null;
 }
 
 /**
@@ -360,6 +404,12 @@ export interface Unavailable {
 export function buildUnavailable(table: BundleTable, cutoff?: string): Map<number, Unavailable> {
   const [id, from] = columnIndex(table, 'fc_id', 'valid_from');
   const status = optionalIndex(table, 'status');
+  // Tre colonne che un pacchetto piu' vecchio non porta, e allora restano `null`: la data di rientro
+  // dalla prosa non esisteva prima del 04/09/2026, e un pacchetto senza di lei non e' un pacchetto in
+  // cui nessuno rientra.
+  const expected = optionalIndex(table, 'expected_return');
+  const note = optionalIndex(table, 'note');
+  const basis = optionalIndex(table, 'return_basis');
   const out = new Map<number, Unavailable>();
   for (const row of table.rows) {
     const on = String(row[from] ?? '');
@@ -368,7 +418,13 @@ export function buildUnavailable(table: BundleTable, cutoff?: string): Map<numbe
     if (!key) continue;
     const previous = out.get(key);
     if (previous && previous.on >= on) continue;
-    out.set(key, { status: status < 0 ? 'injured' : String(row[status] ?? 'injured'), on });
+    out.set(key, {
+      status: status < 0 ? 'injured' : String(row[status] ?? 'injured'),
+      on,
+      expectedReturn: expected < 0 ? null : ((row[expected] as string | null) ?? null),
+      note: note < 0 ? null : ((row[note] as string | null) ?? null),
+      basis: basis < 0 ? null : ((row[basis] as string | null) ?? null),
+    });
   }
   return out;
 }
@@ -688,20 +744,48 @@ export class PlayerStatus {
    * stanno i fatti - `remaining` e' null quando nessuna data di rientro e' scritta, che non e' zero -
    * e QUALE dei due numeri conti lo decide chi chiede, perche' dipende dalla domanda.
    */
-  openInjury(
-    playerId: number | null | undefined,
-  ): { days: number; until: string | null; remaining: number | null } | null {
+  openInjury(playerId: number | null | undefined): OpenInjury | null {
     if (playerId == null) return null;
     const today = this.today();
+    const press = this.pressUnavailable(playerId);
+    // LA STAGIONE FINITA VINCE SU TUTTO, e non e' una data: e' la frase piu' decisiva che una fonte
+    // possa dire, e chi la porta non si compra a nessun prezzo. Sta davanti perche' una data di
+    // rientro piu' ottimistica accanto a lei sarebbe una contraddizione risolta dal caso.
+    const seasonOver = press?.basis === 'season_over';
+    let open: Spell | null = null;
     for (const spell of this.spells().get(playerId) ?? []) {
-      if (!isOpen(spell, today)) continue;
-      return {
-        days: spellDays(spell, today),
-        until: spell.to,
-        remaining: spell.to ? Math.max(0, daysBetween(today, spell.to)) : null,
-      };
+      if (isOpen(spell, today)) {
+        open = spell;
+        break;
+      }
     }
-    return null;
+    if (!open && !press) return null;
+
+    // QUALE DELLE DUE DATE VALE: quella LETTA PIU' TARDI, e dove una manca vale l'altra.
+    //
+    // Due fonti per un fatto solo, e non e' un canale nuovo: `injuries` (Transfermarkt) e la prosa
+    // degli indisponibili dicono la stessa cosa, e sulle 15 volte che la dicono entrambe la differenza
+    // mediana e' UN giorno. Quindi non si scelgono per qualita' ma per FRESCHEZZA - e la freschezza si
+    // confronta sulle date dell'osservazione, non ricordandosi quale canale gira piu' spesso: uno e'
+    // un archivio settimanale e l'altro una pagina quotidiana, ma dopo un `rebuild` sono lo stesso
+    // giorno. E una lettura senza data non scavalca una che ce l'ha (20/08/2026, `load_reference`).
+    const fromPress = press?.expectedReturn ?? null;
+    const fromFile = open?.to ?? null;
+    const pressIsFresher = !!press && (!open?.observedOn || press.on >= open.observedOn);
+    const until = seasonOver
+      ? null
+      : ((pressIsFresher ? fromPress : fromFile) ?? fromPress ?? fromFile);
+    const source = until == null ? null : until === fromPress && (pressIsFresher || !fromFile)
+      ? 'press'
+      : 'file';
+    return {
+      days: open ? spellDays(open, today) : (press ? daysBetween(press.on, today) : 0),
+      until,
+      remaining: until ? Math.max(0, daysBetween(today, until)) : null,
+      seasonOver,
+      source,
+      note: press?.note ?? open?.detail ?? null,
+    };
   }
 
   marksFor(playerId: number | null | undefined): PlayerMark[] {

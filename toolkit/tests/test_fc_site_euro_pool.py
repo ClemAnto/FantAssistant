@@ -49,7 +49,7 @@ def _db(tmp_path):
 def test_un_infortunato_di_premier_si_aggancia_sulla_pagina_euro(tmp_path):
     conn = _db(tmp_path)
     records = [{"name": "Bruno Guimaraes", "team": "Arsenal", "status": "injured"}]
-    stored, unresolved = fc_site.upsert_availability(conn, records, SEASON, "2026-08-26", "euro")
+    stored, unresolved, _dated = fc_site.upsert_availability(conn, records, SEASON, "2026-08-26", "euro")
     assert (stored, unresolved) == (1, []), "il pool euro contiene i quotati di QUEL listone"
     assert conn.execute("SELECT fc_id, status FROM availability").fetchone()[0] == 2
 
@@ -62,9 +62,9 @@ def test_e_la_pagina_di_serie_A_non_si_allarga(tmp_path):
     """
     conn = _db(tmp_path)
     records = [{"name": "Bruno Guimaraes", "team": "Arsenal", "status": "injured"}]
-    stored, unresolved = fc_site.upsert_availability(conn, records, SEASON, "2026-08-26")
+    stored, unresolved, _dated = fc_site.upsert_availability(conn, records, SEASON, "2026-08-26")
     assert (stored, unresolved) == (0, ["Bruno Guimaraes (Arsenal)"])
     # ...e l'italiano si aggancia comunque, sulla sua pagina
-    stored, unresolved = fc_site.upsert_availability(
+    stored, unresolved, _dated = fc_site.upsert_availability(
         conn, [{"name": "Lautaro", "team": "Inter", "status": "injured"}], SEASON, "2026-08-26")
     assert (stored, unresolved) == (1, [])

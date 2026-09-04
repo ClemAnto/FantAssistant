@@ -3397,6 +3397,142 @@ Quattro cose che restano oltre il caso.
   GESTO — con la cura che «scrivo il prezzo» e «il doppio click assegna» sono due PASSI separati, o un
   passo che misura due incognite attribuisce il guasto a quella sbagliata.
 
+## Una data di rientro e' un NUMERO, e il rischio che sia sbagliata e' una DICHIARAZIONE
+**04/09/2026, dal caso McTominay. Dettaglio: `assistente-asta-v1.md` §36-§38, spec «Novita' v9.71».**
+Il 03/09 la regola era «quando non si sa per quanto, si vincola invece di riprezzare», e la condizione
+di quella frase era la parte che contava: **dove una data di rientro esiste, il numero fa lo stesso
+lavoro meglio, perche' dice DI QUANTO.** La plancia conta le giornate del SUO club che cadono prima del
+rientro (`core/injury-window.ts`), col denominatore che parte da OGGI — le giornate gia' giocate le
+hanno perse tutti, contarle sconterebbe l'infortunato per una cosa che non e' sua.
+
+**IL DATO C'ERA, DUE VOLTE, ed e' la quinta istanza della famiglia** dopo i campetti, `availability` e
+l'asterisco. Transfermarkt pubblica la data di rientro STIMATA finche' lo spell e' aperto:
+`injuries.end_date` la porta da sempre, il bundle la esporta, e l'app la STAMPAVA nel tooltip senza che
+una cifra la leggesse. E gli articoli di giornale che l'operatore leggeva a mano sono la riga di prosa
+che la pagina *indisponibili* scrive accanto a ogni nome — quella che scarichiamo ogni giorno su cinque
+campionati e che `upsert_availability` buttava tenendo solo lo `status`.
+
+**E LA QUOTA E' LINEARE PERCHE' IL RODAGGIO NON ESISTE — ma solo nella quantita' che conta.** Tre
+domande diverse, tre misure, e la prima risposta era sulla quantita' sbagliata: **SE** gioca non cambia
+(0,400 contro 0,402 sui 2872 rientri da spell di 45+ giorni, appaiato −0,002 ± 0,006), **QUANTO** gioca
+cambia moltissimo (−20,2' alla prima presenza, t −29,4; −8,7' sulle prime cinque), e la quota di
+giornate in cui **prende il VOTO** scende (0,808 contro 0,908 alla prima, t −6,6). Sommato in fantapunti
+vale **~1,8 su ~140, l'1,3%**, cinque centesimi a giornata, perche' il fantavoto e' dominato dal VOTO —
+che si prende giocando, non giocando molto. Quindi **misurato e NON implementato**: una costante che
+sposta un uomo dell'1,3% mentre un tetto dichiarato lo sposta del 60% serve solo a far sembrare il tetto
+piu' preciso di quanto sia.
+
+**QUATTRO COSE SONO DICHIARATE E TENUTE SEPARATE DALLE MISURE**, ognuna con la sua ragione:
+- **`RETURN_SLIP` = 0,25** (proporzionale all'assenza che resta): la DIREZIONE e' misurata — sui 35.792
+  spell chiusi la durata residua CRESCE con quella trascorsa (da 7 giorni ne restano 14 di mediana, da
+  30 ne restano 23, da 60 ne restano 38, da 120 ne restano **62**), quindi gli sforamenti sono la norma.
+  L'ENTITA' no, **e la ragione e' nostra**: la riga di `injuries` e' sostituita a ogni lettura, quindi in
+  archivio resta l'esito e mai la previsione. Diventa misurabile il giorno in cui la si data.
+- **`MIN_PLAY_SHARE` = 0,60**: chi torna a gennaio non entra in plancia. La sua frase e' un MESE, che non
+  si confronta fra stagioni ne' fra un'asta di agosto e una di novembre, quindi la regola vive nella
+  quota — e **0,60 e' il punto che non dipende dall'altra costante**: lascia fuori i due di gennaio e
+  tiene il primo di dicembre per ogni margine fra 0 e 40%, mentre 0,65 cambia risposta col margine.
+  *Fra due soglie che dicono la stessa cosa oggi, si sceglie quella che non dipende da un'altra.*
+- **`BET_SHARE` = 0,70 con un tetto di 20-30 crediti su 1000**: sotto quella quota l'acquisto e' una
+  scommessa. Le due cifre sono sue, tenute come QUOTE del budget; 0,70 e' il centro di un VUOTO
+  nell'archivio (fra 0,64 e 0,75 non c'e' nessuno), quindi anche questa non dipende dal margine.
+- **`HURT_SLOT_STEP` = 1**: chi e' infortunato OGGI si paga come lo slot SOTTO. La forma e' una demozione
+  sulla scala e non un numero nuovo — la sua frase («con quell'infortunio non possono essere da primo
+  slot») detta nella valuta che la scala parla gia'. **Scatta con o senza una data**: legarla alla quota
+  avrebbe lasciato il tetto pieno a chi non dice quando torna, cioe' un premio all'ignoranza.
+
+Due regole di forma che valgono oltre il caso. **Il VINCOLO e il PREZZO non convivono su una riga** (chi
+ha una finestra non e' anche `outNow`, e non e' nemmeno barrato: un uomo cancellato e uno riprezzato sono
+due cose diverse e devono vedersi diverse), o lo stesso fatto punirebbe l'uomo due volte. E **una QUOTA
+DI CALENDARIO non e' un'opinione**: la clamp di `offerBand` limita quanto la nostra opinione muove una
+banda misurata sullo slot, quindi il suo pavimento scende fino alla quota e non oltre — un tetto
+misurato su uomini presenti tutta la stagione non si applica a chi non c'e'.
+
+## La CONFIDENZA di una stima entra nel TETTO, e la plancia era l'unica a ignorarla
+**04/09/2026, dalla domanda dell'operatore «per il primo slot vorrei premiare calciatori che ti danno
+continuita' ... come mai ci sono Mora o Pulisic che hanno < 20 partite previste?».** Due cause diverse e
+**una sola e' una frase sul calciatore**: Pulisic 19,1 e' una MISURA (`basis: core`, confidenza 1 — lui
+le partite le salta davvero), mentre Mora 12,6 e' una COSTANTE (`basis: anchor`, confidenza 0,50, e la
+sua nota dice «nothing measured anywhere»), cioe' «vuoto = ignoto» che prende la forma di un numero
+basso. Molina N. legge la sua ultima stagione misurata di CINQUE anni fa, Kolo Muani di due.
+`est_confidence` viaggia sul foglio da sempre e ogni altro lettore la applica (`worthOf`, `gainOf`: «la
+penalita' moltiplica il numero perche' l'indeterminatezza e' un fatto sul NUMERO»); la plancia no, quindi
+offriva su una costante con la stessa autorita' di una misura — due letture dello stesso foglio che danno
+a un uomo due valutazioni. Ora Mora passa da 70 a 35 crediti e Pulisic non si muove.
+**Nel TETTO e non nell'ORDINE, ed e' una decisione**: l'ordine dentro lo slot e' il valore atteso e i due
+numeri della riga devono SPIEGARLO (sua regola del 03/09), quindi una confidenza li farebbe contraddire;
+l'incertezza limita quanto si e' disposti a ESPORSI. E la risposta alla domanda «come mai sono nel primo
+slot» e' che **ce li mette il MERCATO**: lo slot e' il rango per FVM, e la continuita' e' gia' premiata
+DENTRO il blocco (Paz N. 30,9 presenze primo con tetto 131, Pulisic 19,1 penultimo con 79).
+
+## Una PROSA e' una fonte, e si legge stretta o inventa una data
+**04/09/2026, `fc_site.parse_return`.** La pagina *indisponibili* dice quasi sempre quando l'uomo e'
+atteso, e la regola che discrimina e' un VERBO DI RIENTRO che governa un «da/dal/dalla» che governa
+un'ancora di mese. Non e' decorazione: sulla stessa pagina del 03/09/2026 tre frasi portano un'ancora di
+mese e nessuna e' un rientro — «ai box **da inizio settembre**» (l'inizio dell'assenza), «operato **a
+fine giugno**» (l'operazione), «**a meta' settembre** verra' sottoposto a esami» (un controllo) — e un
+lettore piu' largo avrebbe letto la prima come l'OPPOSTO di quello che la pagina dice. Un test per
+trappola, e due di quelle righe portano anche la frase VERA piu' avanti, quindi il passo verifica che il
+parser scelga quella. **Le DURATE sono rifiutate** («stop di almeno due mesi»): si contano
+dall'infortunio, che la prosa data solo a volte, quindi sarebbero ancorate a un giorno che non sappiamo.
+**«Stagione finita» viaggia SENZA data** (`return_basis = 'season_over'`, che nell'app diventa quota 0):
+e' la frase piu' decisiva che la pagina possa portare e non nomina nessun mese, quindi il FATTO si tiene
+e la data resta vuota invece di essere inventata come un'ultima giornata che nessuno ha letto.
+Le convenzioni sono DICHIARATE (`MONTH_PART_DAY`: inizio 5 · meta' 15 · fine 25 · prima meta' 8 · seconda
+meta' 23, i punti MEDI dei terzi e delle meta' di un mese) e **il pessimismo sta da un'altra parte**:
+`RETURN_SLIP` vive nell'app, e metterne un secondo qui conterebbe la stessa paura due volte. L'ANNO lo
+decide il giorno della LETTURA, perche' la frase nomina un mese e mai un anno.
+
+Cinque cose che restano, e tre sono errori di misura miei.
+- **UN NUMERO CHE SEMBRA TROPPO BELLO E' IL PRIMO DA RIMISURARE.** Avevo pubblicato «42 voci su 45
+  contengono l'indicazione del rientro»: veniva da una regex larga che accettava qualunque parola
+  temporale, e in quelle righe un mese sta quasi sempre sull'INFORTUNIO. Con la regola stretta sono
+  **23 su 45** (e 14 su 94 su euro). La meta', non il 93%, e il verbale porta la correzione accanto al
+  numero sbagliato invece di sostituirlo in silenzio.
+- **DUE FONTI PER UN FATTO SOLO SI SCELGONO PER FRESCHEZZA, non per qualita'**, e la freschezza si
+  confronta sulle DATE DELL'OSSERVAZIONE — non ricordandosi quale canale gira piu' spesso: uno e' un
+  archivio settimanale e l'altro una pagina quotidiana, ma dopo un `rebuild` sono lo stesso giorno. Per
+  questo `injuries.observed_on` doveva arrivare fino all'app (`Spell.observedOn`). Che non sia una
+  questione di qualita' e' MISURATO: sui 15 uomini datati da entrambe la differenza mediana e' **+1
+  giorno** e 10 su 15 stanno dentro una settimana. Quello che la prosa aggiunge sono **8 uomini su 23
+  che Transfermarkt non data affatto**, e la freschezza. E una lettura senza data non scavalca una che
+  ce l'ha (la regola del 20/08 su `load_reference`, dal lato del lettore).
+- **LA «A» ACCENTATA SI SCRIVE IN DUE MODI, e per una regex sono stringhe diverse.** Trovato scrivendo
+  il test: la pagina vera usa la forma precomposta, il caso scritto a mano era venuto decomposto, e lo
+  stesso parser leggeva «meta' novembre» su una e niente sull'altra. Cura: `unicodedata.normalize("NFC")`
+  prima di guardare, e il test tiene le due forme accanto. *Una fonte che cambiasse forma spegnerebbe il
+  canale in silenzio* — stessa famiglia del tag rinominato che il 01/09 ha azzerato gli infortunati.
+- **UNA COLONNA NUOVA VUOLE LA CACHE RIGIOCATA, E NON TUTTA**: `reingest_from_cache(pages=...)`, la forma
+  che `positions` aveva gia'. Rileggere i probabili per riempire una colonna di `availability` sarebbe
+  migliaia di righe riscritte per niente. Backfill offline: 27 snapshot dal 19/08 al 03/09, 186 date e
+  11 righe «stagione finita», zero richieste. E **la corsa STAMPA quante date ha trovato** — un canale
+  nuovo che finisce a zero in silenzio e' esattamente il difetto del 01/09.
+- **UNA NOTA CHE DICE «LA FONTE» QUANDO LE FONTI SONO DUE NON DICE NIENTE**: la card scrive «La stampa di
+  oggi dice» oppure «L'archivio infortuni dice», e `OutWindow.source` porta quel fatto invece di farlo
+  dedurre. L'ha trovato il banco accusando la card di attribuire alla fonte una data sbagliata — la data
+  era giusta ed era dell'ALTRA fonte, e il difetto era che la frase non lo diceva.
+
+## E un banco che verifica una pagina sbaglia negli stessi cinque modi
+**04/09/2026, `app/scripts/e2e-plancia-injury.mjs`.** Cinque difetti dell'ARNESE, e ognuno diceva «la
+pagina e' rotta» su una pagina che non lo era. Valgono piu' della feature perche' sono il modo in cui si
+sbaglia a misurare, e tre sono regole di casa incontrate da capo.
+- **UN'ASSERZIONE CIRCOLARE PASSA QUALUNQUE COSA**: la prima ricavava le presenze piene DIVIDENDO il
+  numero della card per la quota, cioe' confrontava la card con se stessa. Le presenze piene devono
+  venire dal FOGLIO — «un audit che stampa il numero atteso accanto a quello dello schermo senza
+  confrontarli», commesso di nuovo.
+- **UN JOIN CERCATO NEL POSTO SBAGLIATO ACCUSA LA PAGINA DEL PROPRIO DIFETTO**: il club veniva cercato
+  dentro il testo della riga, che porta un nome e due numeri, quindi rispondeva sempre «il calendario non
+  conosce il suo club». Si legge dal bundle (`fc_id` → `fc_club_id` → nome canonico), che e' il join che
+  il toolkit ha gia' risolto.
+- **IL COLORE E' UNA PROPRIETA' DEL TEMA, IL TESTO E' QUELLO CHE SI LEGGE**: la nota si cercava con
+  `.text-danger` e leggeva vuoto su una card che la nota ce l'ha eccome.
+- **UN TOOLTIP SI VERIFICA APRENDOLO**: con `[nzTooltipTitle]` il titolo e' un binding di PROPRIETA' e
+  nel DOM non c'e' nessun attributo da leggere.
+- **DUE POPOLAZIONI NON SONO DUE RISPOSTE**: gli esclusi del BUNDLE (18) contro quelli della pastiglia
+  (2) — il bundle porta gli infortuni di cinque campionati e la plancia disegna un listone solo. La forma
+  che regge e' l'asserzione dal lato dello schermo, «nessuna riga disegnata e' di un uomo sotto la
+  soglia», che non ha bisogno di rifare a mano la divisione in slot.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

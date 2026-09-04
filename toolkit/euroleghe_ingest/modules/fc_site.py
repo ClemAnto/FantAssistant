@@ -27,6 +27,7 @@ from __future__ import annotations
 import datetime as dt
 import os
 import re
+import unicodedata
 
 import requests
 from bs4 import BeautifulSoup
@@ -79,6 +80,97 @@ LIST_STATUS: dict[str, str] = {
     "squalificati": "suspended",
     "diffidati": "booking_risk",
 }
+
+# ---------- the return date, from the page's own PROSE ----------
+# The *indisponibili* page writes one line about every absent man, and that line usually says when he
+# is expected back: «Rientro in campo da inizio ottobre», «tornare arruolabile da meta' novembre».
+# Until 04/09/2026 the line was parsed and THROWN AWAY (`upsert_availability` kept only the status), so
+# the only return date this project had was Transfermarkt's - a WEEKLY archive, outside `update
+# --daily`, while this page is read every day. That is the operator's own question of the same day
+# («questa informazione l'ho recuperata leggendo articoli di giornale, come possiamo rendere questa
+# operazione automatica?»): the articles are these lines.
+#
+# THE PARSE IS DELIBERATELY NARROW, because a wrong date is worse than no date: it feeds a valuation.
+# The structure that discriminates is a RETURN VERB governing a «da/dal/dalla» that governs a month
+# anchor - and it is not decoration, it is what tells the three traps apart, all three present in the
+# same page on 03/09/2026:
+#   * «il difensore ai box DA INIZIO SETTEMBRE per una lesione...»   -> the START of the absence
+#   * «operato A FINE GIUGNO per una lesione...»                     -> the day of the operation
+#   * «A META' SETTEMBRE verra' sottoposto a un controllo»            -> the day of a medical
+# All three carry a month anchor and none of them is a return; a looser reader would have filed the
+# first as «he is back in early September», which is the OPPOSITE of what the page says.
+#
+# Measured on the cache before being wired: 23 of the 45 injured men on the Serie A page of 03/09/2026
+# get a date, 14 of 94 on the euro one, and every single one is right by eye. Cross-validated against
+# Transfermarkt, which knows nothing about this page: on the 15 men both sources date, the median
+# difference is +1 day and 10 of 15 are inside a week - two independent sources with no reason to
+# agree, agreeing. And 8 of the 23 have NO Transfermarkt date at all, which is what this channel buys.
+#
+# WHAT IS NOT PARSED, and it is a refusal rather than an omission: the DURATIONS («stop di almeno due
+# mesi», «stop di circa 25 giorni»). They are counted from the injury, and the injury's date is in the
+# prose only sometimes - so a duration would have to be anchored on a day we may not know, which is
+# how a wrong date gets invented. «Vuoto = ignoto»: the men who only carry a duration keep no date.
+MONTHS: dict[str, int] = {
+    "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4, "maggio": 5, "giugno": 6,
+    "luglio": 7, "agosto": 8, "settembre": 9, "ottobre": 10, "novembre": 11, "dicembre": 12,
+}
+
+# WHICH DAY a part of a month means. CONVENTIONS, declared here because they are the whole precision of
+# the reading: a month split in three (1-10, 11-20, 21-end) and in halves, each read at its MIDPOINT.
+# The midpoint and not the first day, because «inizio ottobre» is a band and the neutral reading of a
+# band is its centre - the PRUDENCE margin that makes it pessimistic lives in the app and is declared
+# there, so putting a second pessimism here would count the same fear twice.
+MONTH_PART_DAY: dict[str, int] = {
+    "inizio": 5, "principio": 5, "meta": 15, "fine": 25, "prima meta": 8, "seconda meta": 23,
+}
+
+_RETURN_VERB = r"(?:rientr\w*|recuper\w*|torn\w*|arruolabil\w*|disponibil\w*|rivedr\w*|convocabil\w*)"
+_FROM = r"(?:da|dal|dalla|dall'|dallo)"
+# UN CONFINE DI PAROLA PRIMA DEL «da» non e' decorazione: senza, il «da» dentro «seconDA» fa
+# scattare la frase, e «recuperabile dalla SECONDA meta' di settembre» diventerebbe una data
+# letta da mezza parola.
+_PART = r"(?:(?:prima|seconda)\s+met[aà]|inizio|principio|met[aà]|fine)"
+_RETURN_PHRASE = re.compile(
+    _RETURN_VERB + r"[^.;]{0,60}?\b" + _FROM + r"\s*(?:l'|la\s+|il\s+)?(" + _PART
+    + r")\s*(?:di\s+|d'|del\s+)?(" + "|".join(MONTHS) + r")\b",
+    re.IGNORECASE,
+)
+_SEASON_OVER = re.compile(r"stagione\s+(?:finita|conclusa|terminata)", re.IGNORECASE)
+
+
+def parse_return(note: str | None, read_on: str) -> tuple[str | None, str | None]:
+    """The prose -> (expected return as ISO, which form said it) - or (None, None).
+
+    `read_on` is the day the PAGE was read and it is not decoration: the phrase names a month and never
+    a year, so «gennaio» read in September is next January and «settembre» read in September is this
+    one. Same rule as everywhere else here - the reading's own date decides what it is about.
+
+    `('', 'season_over')` is the one basis with no date: «stagione finita» is the most decision-relevant
+    sentence the page can carry and it names no month, so the FACT travels and the date stays empty
+    rather than being invented as a last round nobody has looked up.
+    """
+    if not note:
+        return None, None
+    # NORMALIZZATA IN NFC prima di guardarla, e non e' pedanteria: la «a» accentata si scrive in due
+    # modi (un carattere, oppure «a» piu' un accento combinante) e per una regex sono stringhe DIVERSE.
+    # Trovato scrivendo il test: la pagina vera usa la forma precomposta e il caso scritto a mano quella
+    # decomposta, e lo stesso parser leggeva «meta' novembre» su una e niente sull'altra. Una fonte che
+    # cambiasse forma spegnerebbe il canale in silenzio - stessa famiglia del tag rinominato.
+    note = unicodedata.normalize("NFC", note)
+    if _SEASON_OVER.search(note):
+        return None, "season_over"
+    found = _RETURN_PHRASE.search(note)
+    if not found:
+        return None, None
+    part = re.sub(r"\s+", " ", found.group(1).strip().lower()).replace("à", "a")
+    day = MONTH_PART_DAY.get(part)
+    month = MONTHS[found.group(2).lower()]
+    if not day:
+        return None, None
+    on = dt.date.fromisoformat(read_on)
+    year = on.year if month >= on.month else on.year + 1
+    return dt.date(year, month, day).isoformat(), "month_part"
+
 
 # Revealed hierarchy: how fast an older penalty stops counting, and how much a miss costs.
 # PROVISIONAL VALUES. They set how much the hierarchy trusts recency, which is a modelling choice,
@@ -304,14 +396,19 @@ def _season_pools(conn, season: str, platform: str = "default"):
 
 
 def upsert_availability(conn, records: list[dict], season: str, date: str,
-                        platform: str = "default") -> tuple[int, list[str]]:
-    """injured/suspended -> availability · booking_risk -> flags. Returns (stored, unresolved).
+                        platform: str = "default") -> tuple[int, list[str], int]:
+    """injured/suspended -> availability · booking_risk -> flags.
+
+    Returns (stored, unresolved, dated) - and `dated` is in the signature so the RUN can print it: un
+    canale nuovo che finisce a zero in silenzio e' esattamente come la lista degli infortunati che il
+    01/09/2026 e' andata a zero per un tag rinominato, e nessuno se ne e' accorto per due giorni.
 
     `platform` is the PAGE's, not a preference: an entry of the euro list is looked for among the men
     that listone quotes (see `_season_pools`).
     """
     by_club, league_pool = _season_pools(conn, season, platform)
     stored = 0
+    dated = 0
     unresolved: list[str] = []
     for rec in records:
         fc_id = None
@@ -328,11 +425,17 @@ def upsert_availability(conn, records: list[dict], season: str, date: str,
                 "INSERT OR REPLACE INTO flags(fc_id, season, flag, value, source) "
                 "VALUES (?, ?, 'booking_risk', ?, 'fc_site')", (fc_id, season, date))
         else:
+            # LA PROSA VIAGGIA CON LO STATO, e la data che ne esce accanto. `date` e' il giorno in cui la
+            # PAGINA e' stata letta, che e' anche l'anno di riferimento del mese che la frase nomina.
+            expected, basis = parse_return(rec.get("note"), date)
             conn.execute(
-                "INSERT OR REPLACE INTO availability(fc_id, valid_from, status, source) "
-                "VALUES (?, ?, ?, 'fc_site')", (fc_id, date, rec["status"]))
+                "INSERT OR REPLACE INTO availability"
+                "(fc_id, valid_from, status, source, note, expected_return, return_basis) "
+                "VALUES (?, ?, ?, 'fc_site', ?, ?, ?)",
+                (fc_id, date, rec["status"], rec.get("note"), expected, basis))
+            dated += 1 if basis else 0
         stored += 1
-    return stored, unresolved
+    return stored, unresolved, dated
 
 
 # ---------- revealed penalty hierarchy (offline) ----------
@@ -487,13 +590,14 @@ def ingest_snapshot(ctx: Context, page: str, html: str, date: str, season: str) 
                   f"unknown season and no sheet will read them - empty is unknown, never current.")
     elif page.startswith("indisponibili"):
         records = parse_unavailable(html)
-        stored, unresolved = upsert_availability(
+        stored, unresolved, dated = upsert_availability(
             conn, records, season, date, "euro" if page.endswith("_euro") else "default")
         kinds: dict[str, int] = {}
         for rec in records:
             kinds[rec["status"]] = kinds.get(rec["status"], 0) + 1
         detail = " ".join(f"{key}={value}" for key, value in sorted(kinds.items()))
-        print(f"[fc_site] {page} {date}: {stored}/{len(records)} resolved [{detail}]")
+        print(f"[fc_site] {page} {date}: {stored}/{len(records)} resolved [{detail}] "
+              f"- {dated} con una data di rientro dalla prosa")
         # THE SAME GUARD THE PROBABILI BRANCH ALREADY CARRIES, and this branch needed it: on 01/09/2026
         # the injured header changed tag, the parser read 1 of the 41 men the page names, and the line
         # above printed «1/1 resolved [suspended=1]» - a success. Every `.item-name` node is one record
@@ -539,14 +643,21 @@ def run(ctx: Context, *, pages=None, **kwargs) -> None:
     derive_revealed_hierarchy(ctx)
 
 
-def reingest_from_cache(ctx: Context) -> None:
-    """Replay every dated snapshot in order, so a rebuild reconstructs the whole state history."""
+def reingest_from_cache(ctx: Context, pages=None) -> None:
+    """Replay every dated snapshot in order, so a rebuild reconstructs the whole state history.
+
+    `pages` narrows the replay to some of them, like `positions.reingest_from_cache(seasons=...)`, and
+    it exists for the case that produced it: a COLUMN added to a table this module writes needs the
+    old snapshots re-read to be filled, and re-reading the probabili to fill a column of
+    `availability` is a few thousand rows rewritten for nothing. `rebuild` still calls it with no
+    argument, which is the whole history and stays the canonical path.
+    """
     conn = ctx.require_conn()
     season = _latest_season(conn)
     snapshots = []
     for path in ctx.config.cache_dir.glob("fc_site_*.html"):
         match = _SNAPSHOT.search(path.name)
-        if match:
+        if match and (pages is None or match.group(1) in pages):
             snapshots.append((match.group(2), match.group(1), path))   # (date, page, path)
     for date, page, path in sorted(snapshots):
         if season is None:

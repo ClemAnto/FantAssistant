@@ -289,7 +289,7 @@ describe('starsOf', () => {
 });
 
 describe('injuredShare', () => {
-  const spell = (from: string, to: string | null): Spell => ({ from, to, days: null, kind: null, detail: null });
+  const spell = (from: string, to: string | null): Spell => ({ from, to, days: null, kind: null, detail: null, observedOn: null });
 
   it('counts only the days inside the last year', () => {
     // A spell that ended before the window opened is not what he is carrying now.
@@ -313,7 +313,7 @@ describe('injuredShare', () => {
 
 describe('injuredShare, overlapping spells', () => {
   const spell = (from: string, to: string | null): Spell =>
-    ({ from, to, days: null, kind: null, detail: null });
+    ({ from, to, days: null, kind: null, detail: null, observedOn: null });
 
   it('counts a day out ONCE when two spells overlap', () => {
     // The source records one row per diagnosis, so a man hurt twice at once has two rows over the same

@@ -4,7 +4,10 @@ import {
   CEILING_ALWAYS_WRONG,
   DEPTH_HANDS,
   DEPTH_TIER,
+  BET_CAP_HIGH,
+  BET_CAP_LOW,
   LADDER,
+  MIN_PLAY_SHARE,
   PlanciaMan,
   Role,
   ROLES,
@@ -36,6 +39,7 @@ function man(
     // `fantamedia − 6`, per PARTITA giocata: le presenze stanno accanto (`pv`) e non dentro
     edge: points == null ? null : points / 30 - EDGE_BASE,
     basis: 'measured',
+    confidence: 1,
     outNow,
   };
 }
@@ -386,39 +390,41 @@ describe('chi oggi non gioca', () => {
 });
 
 describe('chi ha una data di rientro', () => {
-  const window = { until: '2026-11-25', lost: 10, playable: 26, remaining: 36, share: 26 / 36 };
+  const window = {
+    until: '2026-11-25',
+    declared: '2026-11-15',
+    seasonOver: false,
+    source: 'file' as const,
+    slipDays: 10,
+    lost: 10,
+    playable: 26,
+    remaining: 36,
+    share: 26 / 36,
+  };
 
   it('la quota di calendario scende SOTTO il pavimento della clamp, che vale per le opinioni', () => {
     // Un uomo esattamente sulla mediana del suo slot, con e senza la finestra. `points` porta gia' la
     // riduzione: senza la quota la clamp lo bloccherebbe a 0,65 e l'offerta direbbe «paga il 65%» a
     // chi gioca il 58% delle giornate che restano.
+    //
+    // SU UNO SLOT BASSO di proposito: in cima morderebbe il tetto DICHIARATO della scommessa e il
+    // passo si troverebbe a misurare due regole insieme, attribuendo il difetto a quella sbagliata.
     const median = 200;
     const share = 0.58;
-    const full = offerBand({
-      role: 'A',
-      slotIndex: 1,
-      budget: 1000,
-      room: 1000,
-      points: median,
-      medianPoints: median,
-    })!;
-    const clamped = offerBand({
-      role: 'A',
-      slotIndex: 1,
-      budget: 1000,
-      room: 1000,
-      points: median * share,
-      medianPoints: median,
-    })!;
-    const priced = offerBand({
-      role: 'A',
-      slotIndex: 1,
-      budget: 1000,
-      room: 1000,
-      points: median * share,
-      medianPoints: median,
-      available: share,
-    })!;
+    const at = (points: number, available?: number) =>
+      offerBand({
+        role: 'C',
+        slotIndex: 4,
+        budget: 1000,
+        room: 1000,
+        points,
+        medianPoints: median,
+        available,
+      })!;
+    const full = at(median);
+    const clamped = at(median * share);
+    const priced = at(median * share, share);
+    expect(clamped.bet).toBe(false);
     expect(clamped.share).toBeCloseTo(full.share * 0.65, 6);
     expect(priced.share).toBeCloseTo(full.share * share, 6);
     expect(priced.high).toBeLessThan(clamped.high);
@@ -450,7 +456,15 @@ describe('chi ha una data di rientro', () => {
     const advice = adviseLot({
       role: 'A',
       slotIndex: 1,
-      band: { low: 60, high: 70, share: 0.07, capped: false, overCeiling: false },
+      band: {
+        low: 60,
+        high: 70,
+        share: 0.07,
+        capped: false,
+        overCeiling: false,
+        pricedAt: 2,
+        bet: false,
+      },
       medianFvm: 60,
       tablePrice: 50,
       hands: 3,
@@ -502,5 +516,103 @@ describe('lo sconto per un club che ho già', () => {
       medianPoints: 50,
     };
     expect(offerBand({ ...shape, sameClub: 0 })).toEqual(offerBand(shape));
+  });
+});
+
+describe('chi rientra troppo tardi non entra in plancia', () => {
+  const late = (id: number, fvm: number, share: number): PlanciaMan => ({
+    ...man(id, 'D', fvm, fvm),
+    out: {
+      until: '2027-01-20',
+      declared: '2027-01-03',
+      seasonOver: false,
+      source: 'press' as const,
+      slipDays: 17,
+      lost: 15,
+      playable: 21,
+      remaining: 36,
+      share,
+    },
+  });
+
+  /** Undici difensori: il terzo per FVM rientra a gennaio, gli altri stanno bene. */
+  const eleven = () => [
+    man(1, 'D', 100, 100),
+    man(2, 'D', 90, 90),
+    late(3, 80, 0.58),
+    ...[4, 5, 6, 7, 8, 9, 10, 11].map((id) => man(id, 'D', 80 - id, 80 - id)),
+  ];
+
+  it('la sua riga non si disegna, e il blocco lo dice invece di tacere', () => {
+    const block = buildMap(eleven(), 10, { P: 3, D: 8, C: 8, A: 6 }).byRole.get('D')![0];
+    expect(block.men.map((one) => one.id)).not.toContain(3);
+    expect(block.excluded.map((one) => one.id)).toEqual([3]);
+  });
+
+  it('RESTA NEL RANGO: nessuno sale di slot al suo posto', () => {
+    // Undici uomini: dieci in D1 e l-undicesimo in D2, e ci RESTA. Se l-escluso liberasse il suo
+    // posto, la mia plancia parlerebbe di slot diversi da quelli su cui la scala e- misurata.
+    const map = buildMap(eleven(), 10, { P: 3, D: 8, C: 8, A: 6 });
+    expect(map.byRole.get('D')![0].men.length).toBe(9);
+    expect(map.byRole.get('D')![1].men.map((one) => one.id)).toEqual([11]);
+  });
+
+  it('la mediana del PREZZO lo conta comunque: la stanza lo compra ancora', () => {
+    const withHim = buildMap(eleven(), 10, { P: 3, D: 8, C: 8, A: 6 }).byRole.get('D')![0];
+    const healthy = eleven().map((one) => (one.id === 3 ? man(3, 'D', 80, 80) : one));
+    const without = buildMap(healthy, 10, { P: 3, D: 8, C: 8, A: 6 }).byRole.get('D')![0];
+    expect(withHim.medianFvm).toBe(without.medianFvm);
+  });
+
+  it('la soglia e- una QUOTA e chi la supera resta, riprezzato', () => {
+    const men = eleven().map((one) => (one.id === 3 ? late(3, 80, MIN_PLAY_SHARE + 0.01) : one));
+    const block = buildMap(men, 10, { P: 3, D: 8, C: 8, A: 6 }).byRole.get('D')![0];
+    expect(block.men.map((one) => one.id)).toContain(3);
+    expect(block.excluded).toEqual([]);
+  });
+});
+
+describe('il tetto di chi non gioca oggi', () => {
+  const band = (extra: Partial<Parameters<typeof offerBand>[0]>) =>
+    offerBand({
+      role: 'C',
+      slotIndex: 1,
+      budget: 1000,
+      room: 1000,
+      points: 200,
+      medianPoints: 200,
+      ...extra,
+    })!;
+
+  it('chi e infortunato oggi si paga come lo slot SOTTO, con o senza una data', () => {
+    const healthy = band({});
+    const dated = band({ hurt: true, available: 0.92 });
+    const undated = band({ hurt: true });
+    expect(healthy.pricedAt).toBe(1);
+    expect(dated.pricedAt).toBe(2);
+    // Chi non dice quando torna e quello di cui sappiamo MENO: non puo avere il tetto pieno.
+    expect(undated.pricedAt).toBe(2);
+    expect(dated.high).toBeLessThan(healthy.high);
+  });
+
+  it('sotto la soglia della scommessa comanda il tetto DICHIARATO, e sono le sue due cifre', () => {
+    const wager = band({ hurt: true, available: 0.64 });
+    expect(wager.bet).toBe(true);
+    expect(wager.low).toBe(BET_CAP_LOW * 1000);
+    expect(wager.high).toBe(BET_CAP_HIGH * 1000);
+  });
+
+  it('...ma non ALZA mai: chi vale gia meno di 30 crediti resta dov e', () => {
+    const cheap = band({ role: 'C', slotIndex: 6, hurt: true, available: 0.64 });
+    expect(cheap.bet).toBe(false);
+    expect(cheap.high).toBeLessThan(BET_CAP_HIGH * 1000);
+  });
+
+  it('una STIMA non si paga come una misura: la confidenza entra nel tetto', () => {
+    const measured = band({});
+    const guessed = band({ confidence: 0.5 });
+    expect(guessed.high).toBeCloseTo(measured.high / 2, 0);
+    // ...e non tocca l ORDINE, che resta il valore atteso: `points` non passa da qui.
+    expect(guessed.pricedAt).toBe(measured.pricedAt);
   });
 });

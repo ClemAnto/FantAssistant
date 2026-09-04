@@ -137,9 +137,16 @@ export class SlotMatrix {
     if (block.left === 0) {
       return `${block.id} esaurito: nessuno più nell'urna — è ciò che alza la max offerta di chi sta sopra.`;
     }
+    // CHI NON DISEGNO LO DICO QUI, sul blocco che ha una riga in meno: nove righe su dieci senza una
+    // parola si leggono come un tabellone rotto, e il posto resta occupato nel rango.
+    const gone = block.excluded.length
+      ? ` · ${block.excluded.length} fuori lista (${block.excluded
+          .map((man) => man.name)
+          .join(', ')}): rientrano troppo tardi`
+      : '';
     return (
       `${block.left} ancora nell'urna su ${block.id} · mediana pagata ` +
-      `${Math.round(block.medianFvm)} cr${block.mine ? ' · uno è tuo' : ''}`
+      `${Math.round(block.medianFvm)} cr${block.mine ? ' · uno è tuo' : ''}${gone}`
     );
   }
 

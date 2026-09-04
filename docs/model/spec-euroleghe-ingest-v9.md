@@ -495,6 +495,51 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.71 (4 settembre 2026 — la DATA DI RIENTRO dalla prosa degli indisponibili)
+
+Dalla domanda dell'operatore sul caso McTominay: «questa informazione l'ho recuperata leggendo articoli
+di giornale, come possiamo rendere questa operazione automatica?». Gli articoli sono la riga che la
+pagina *indisponibili* scrive accanto a ogni nome, e la scarichiamo **ogni giorno** su tutti e cinque i
+campionati. Dettaglio, misure e correzioni: `docs/model/assistente-asta-v1.md` §38.
+
+1. **`fc_site.parse_return(note, read_on) -> (data ISO | None, base | None)`**, puro e offline. La
+   regola e' STRETTA di proposito, perche' una data sbagliata alimenta una valutazione: serve un VERBO DI
+   RIENTRO che governa un «da/dal/dalla» che governa un'ancora di mese. Sulla stessa pagina del
+   03/09/2026 tre frasi portano un'ancora di mese e nessuna e' un rientro — l'inizio dell'assenza («ai
+   box **da inizio settembre**»), il giorno dell'operazione («operato **a fine giugno**»), il giorno di un
+   controllo («**a meta' settembre** verra' sottoposto a esami») — e un lettore piu' largo avrebbe letto
+   la prima come l'OPPOSTO di quello che la pagina dice. Un test per trappola.
+2. **Convenzioni dichiarate** (`MONTH_PART_DAY`): inizio 5 · meta' 15 · fine 25 · prima meta' 8 · seconda
+   meta' 23, cioe' i punti MEDI dei terzi e delle meta' di un mese. Il punto medio e non il primo giorno
+   perche' «inizio ottobre» e' una banda; il pessimismo vive nell'app (`RETURN_SLIP`) e metterne un
+   secondo qui conterebbe la stessa paura due volte. L'ANNO lo decide il giorno della lettura.
+3. **Le DURATE sono rifiutate** («stop di almeno due mesi»): si contano dall'infortunio, che la prosa data
+   solo a volte, quindi sarebbero ancorate a un giorno che non sappiamo. **«Stagione finita» viaggia senza
+   data** (`return_basis = 'season_over'`): e' la frase piu' decisiva che la pagina possa portare e non
+   nomina nessun mese, quindi il FATTO si tiene e la data resta vuota.
+4. **Tre colonne su `availability`** (piu' migrazione): `note` (la prosa verbatim), `expected_return`,
+   `return_basis`. La tabella era gia' un fatto DATATO per giorno, che e' esattamente l'unita' anche della
+   prosa: nessuna tabella nuova. **Non backfillabile oltre la cache**, come i probabili.
+5. **`reingest_from_cache(ctx, pages=...)`** — la forma che `positions` aveva gia': una colonna nuova
+   vuole la cache rigiocata, e rileggere i probabili per riempire una colonna di `availability` sarebbe
+   migliaia di righe riscritte per niente. Backfill offline: 27 snapshot dal 19/08 al 03/09, **186 date e
+   11 righe «stagione finita»**, zero richieste.
+6. **La corsa STAMPA quante date ha trovato** (`upsert_availability` ne restituisce il conto, terzo
+   elemento della tupla): un canale nuovo che finisce a zero in silenzio e' il difetto che il 01/09/2026
+   ha azzerato la lista degli infortunati per due giorni.
+7. **`unicodedata.normalize("NFC")` prima di guardare la riga.** La «a» accentata si scrive in due modi e
+   per una regex sono stringhe diverse: la pagina vera usa la forma precomposta, e lo stesso parser
+   leggeva «meta' novembre» su una e niente sull'altra. Una fonte che cambiasse forma spegnerebbe il
+   canale in silenzio.
+8. **Copertura misurata prima di collegare tutto**: 23 dei 45 infortunati della pagina Serie A del
+   03/09/2026, 14 su 94 di quella euro — e questo **corregge il «42 su 45» pubblicato in §36.1**, che
+   veniva da una regex larga. Cross-validazione contro Transfermarkt, che questa pagina non la legge: sui
+   15 uomini datati da entrambe la differenza mediana e' **+1 giorno** e 10 su 15 stanno dentro una
+   settimana; **8 dei 23 non hanno nessuna data su Transfermarkt**, ed e' quello che il canale compra.
+9. **L'export non e' cambiato**: `write_sqlite`/`write_json` intersecano le colonne della destinazione con
+   quelle della sorgente, quindi le tre nuove viaggiano appena lo schema le dichiara. Verificato sul
+   bundle rigenerato (`availability`: 1068 righe, 186 con una data, 11 «stagione finita»).
+
 ## Novità v9.70 (3 settembre 2026, sera tardi — L'ASTERISCO: il listone dice chi non gioca più qui)
 
 Dalla segnalazione dell'operatore sulla plancia («come è possibile che c'è Lukaku? Non è più un

@@ -58,6 +58,9 @@
           {{ note }}
         </p>
       }
+      @if (capNote(); as why) {
+        <p class="rounded border border-border px-1.5 py-1 text-[11px] text-muted">{{ why }}</p>
+      }
       @if (outOfSquad()) {
         <p class="rounded border border-border px-1.5 py-1 text-[11px] text-muted">
           Fuori rosa: è una tua nota dichiarata, non un infortunio.

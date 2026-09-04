@@ -131,6 +131,26 @@ export class ManCard {
     () => this.status.declared().get(this.man().id)?.kind === 'out_of_squad',
   );
 
+  /**
+   * PERCHE' IL TETTO E' QUELLO, quando non e' il suo gradino a deciderlo.
+   *
+   * Una max offerta piu' bassa senza una parola si legge come un errore, ed e' la stessa regola per
+   * cui la finestra dell'infortunio sta scritta sopra: «un vincolo che agisce in silenzio e'
+   * indistinguibile da un ordinamento rotto». Sul lotto la ragione la scrive `adviseLot`; qui la card
+   * si apre anche su chi non e' in asta, quindi la ragione se la deve dire da sola.
+   */
+  protected readonly capNote = computed(() => {
+    const band = this.man().band;
+    if (!band) return null;
+    if (band.bet) {
+      return `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'.`;
+    }
+    if (band.pricedAt !== Number(this.slotLabel())) {
+      return `Prezzato come uno slot ${band.pricedAt}: infortunato oggi, non lo pago da primo.`;
+    }
+    return null;
+  });
+
   protected readonly base = EDGE_BASE;
 
   /** `A1`, `P3`: lo slot come lo legge la plancia, dal blocco in cui l'uomo sta. */
