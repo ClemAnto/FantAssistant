@@ -673,6 +673,26 @@ export class PlayerStatus {
     return out;
   });
 
+  /**
+   * INFORTUNATO DI LUNGA DATA: uno spell ancora APERTO che dura da `LONG_INJURY_DAYS` o piu'.
+   *
+   * Una QUARTA domanda con la sua soglia, e la soglia e' quella che c'e' gia' perche' la domanda e' la
+   * stessa: `injuryMark` decide da sempre se disegnare l'icona «infortunio lungo in corso», e
+   * l'operatore ha chiesto (04/09/2026) che lo STILE BARRATO della plancia dica quel fatto - «lo stile
+   * barrato utilizziamolo per gli infortunati di lunga data». Un'icona e un inchiostro per una frase
+   * sola, quindi un lettore solo: due definizioni di «e' fuori da tanto» darebbero a un uomo due
+   * risposte, e la prima volta che qualcuno se ne accorge e' a un tavolo.
+   *
+   * NON e' `unavailableNow`, che risponde a «gioca sabato?» e comprende chi salta UNA gara: l'operatore
+   * ha ritirato quell'inchiostro proprio per questo - «non e' molto rilevante ai fini del mercato, e'
+   * solo una gara saltata». E non e' `back_from_long`, che e' un RIENTRO e non un'assenza.
+   */
+  longInjury(playerId: number | null | undefined): PlayerMark | null {
+    if (playerId == null) return null;
+    const mark = this.injuryMarks().get(playerId);
+    return mark?.flag === 'long_injury' ? mark : null;
+  }
+
   /** ...and who breaks down OFTEN, which is a different fact from being hurt today. */
   private readonly fragileMarks = computed(() => {
     const today = this.today();
@@ -775,11 +795,14 @@ export class PlayerStatus {
     const until = seasonOver
       ? null
       : ((pressIsFresher ? fromPress : fromFile) ?? fromPress ?? fromFile);
-    const source = until == null ? null : until === fromPress && (pressIsFresher || !fromFile)
-      ? 'press'
-      : 'file';
+    const source =
+      until == null
+        ? null
+        : until === fromPress && (pressIsFresher || !fromFile)
+          ? 'press'
+          : 'file';
     return {
-      days: open ? spellDays(open, today) : (press ? daysBetween(press.on, today) : 0),
+      days: open ? spellDays(open, today) : press ? daysBetween(press.on, today) : 0,
       until,
       remaining: until ? Math.max(0, daysBetween(today, until)) : null,
       seasonOver,

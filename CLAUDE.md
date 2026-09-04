@@ -3533,6 +3533,102 @@ sbaglia a misurare, e tre sono regole di casa incontrate da capo.
   che regge e' l'asserzione dal lato dello schermo, «nessuna riga disegnata e' di un uomo sotto la
   soglia», che non ha bisogno di rifare a mano la divisione in slot.
 
+## Una COLONNA con due significati non puo' essere anche la chiave dell'ordinamento
+**04/09/2026, `app/src/app/core/plancia.ts` (`regroupByOffer`, `SlotView`) e `views/plancia/`. Dettaglio:
+`assistente-asta-v1.md` §39-§41.** La plancia ha due TAGLI: slot **MERCATO** (un rango per FVM diviso il
+numero di rose, che e' la popolazione su cui ogni numero del banco d'asta e' misurato) e slot
+**PERSONALI**, gli stessi 250 uomini ritagliati per la MIA max offerta. Il tasto li NOMINA, e la sessione
+vale per come sono arrivate le correzioni: **cinque dell'operatore, quattro su cose spedite lo stesso
+giorno**, e ognuna ha trovato un difetto che nessun banco vedeva.
+
+**IL TETTO NON SI RICALCOLA SULLA GRIGLIA NUOVA.** La scala delle offerte e' una quota del budget per
+(ruolo, slot) misurata con lo slot definito come rango PER PREZZO (§19.3 del simulatore), quindi
+rileggerla su un rango costruito sulla nostra offerta sarebbe **un parametro applicato fuori dalla
+popolazione su cui e' stato misurato** e, in piu', una **circolarita'** - l'offerta decide lo slot che
+decide l'offerta. Il taglio personale e' un RIORDINO dei tetti che il mercato ha gia' prodotto: ogni uomo
+si tiene la banda che la misura gli ha dato, e la card continua a nominare lo slot su cui e' stata letta.
+
+**E LA COLONNA DELL'ORDINE DEVE DIRE UNA COSA SOLA** (sua domanda: «come mai Hojlund sta prima di
+Martinez?»). La colonna della plancia porta due significati **dichiarati** - max offerta finche' e'
+nell'urna, prezzo PAGATO quando e' di qualcuno - e sulla griglia personale l'ordine usava il tetto: la
+discesa si rompeva **solo sulle righe di chi e' gia' di qualcuno**, con Martinez che mostrava i 403
+pagati da un rivale ed era ordinato su una banda di 322. Cura nel NUMERO e non nell'ordine (sul taglio
+personale la cifra e' sempre il mio tetto), perche' ordinare per il prezzo pagato renderebbe monotona la
+colonna e insensata la graduatoria. *Due significati convivono solo dove non sono anche la chiave.* Lo
+stesso argomento ha portato via «i miei in cima al blocco» da quella griglia: un prefisso su una colonna
+ordinata rimette la contraddizione che si sta togliendo.
+
+**UN INCHIOSTRO SI SCEGLIE SULLA TAGLIA DEL FATTO, e la richiesta di eliminare qualcosa va letta come
+un sintomo.** «Togli Bernabe e Casadei dagli slot personali» → fatto (il predicato non era inventato:
+erano esattamente le righe che la plancia BARRAVA) → **ritirato da lui**: «non e' molto rilevante ai fini
+del mercato, e' solo una gara saltata, mostrarlo addirittura barrato mi ha tratto in inganno». La causa
+stava a monte della lista: un fatto da UNA giornata su 36 era disegnato come una **cancellazione**,
+quindi chiedere di togliere quei nomi era la conseguenza ragionevole di quello che lo schermo diceva.
+*Quando l'operatore chiede di eliminare qualcosa, chiedersi se sia la cosa a essere sbagliata o il modo
+in cui la si mostra.* Il barrato dice adesso «infortunato di lunga data» - uno spell aperto da 45+
+giorni, cioe' `LONG_INJURY_DAYS`, la soglia che decide GIA' l'icona, quindi un lettore solo
+(`PlayerStatus.longInjury`) e non una soglia nuova - e passa da 12 righe a 2. Chi salta la prossima non
+tinge e non sposta piu' niente: il fatto lo porta l'ICONA, e il gradino «in fondo al suo slot» del
+03/09 e' andato via CON l'inchiostro, perche' senza il barrato sarebbe stato un riordino MUTO.
+
+**Tre regole di forma nate qui, tutte sull'INTERFACCIA e non sul calcio.** Il colore di uno stato
+CALCOLATO e quello di uno stato SCELTO non si mescolano: la lente su una rosa (un click su una card: i
+suoi acquisti in chiaro, tutto il resto al 30%) sta davanti a tutto sulla card e ha la sua pastiglia in
+barra con la crocetta, perche' **smorzare 250 righe senza una parola in cima si legge come un guasto**.
+`opacity` **si MOLTIPLICA lungo l'albero**, quindi un contenitore sbiadito annulla l'evidenziazione dei
+suoi figli - e un banco che legge l'opacita' della RIGA non lo vede. E un'utility in piu' sulla stessa
+proprieta' si decide sull'ordine del CSS generato: dove serve una variante si scrive una MAPPA
+(`LIT_TONE` accanto a `ROW_TONE`), non una classe aggiunta.
+
+**Un guard che ferma META' di un gesto lo rende META' rotto.** Sulla stessa card convivono un click (la
+lente) e un doppio click (assegna il lotto), e un doppio click emette prima un `click`: il filtro su
+`MouseEvent.detail` fermava il secondo click e **non il primo**, che ha `detail` 1 come tutti. La forma
+che regge fa ASPETTARE l'accensione e la fa annullare dal doppio click - il ritardo sta sul gesto raro e
+non su quello frequente, che e' l'opposto di quello che il primo commento sosteneva.
+
+**E il tema si guarda dove antd dipinge da se'.** Il «bordo sinistro blu» di un radio group erano due
+blu che i nostri override non toccavano: il divisore `::before` (1px x 22px su un bottone alto 24) e
+l'alone del FUOCO, **invisibile in ogni screenshot dello stato iniziale** perche' esiste solo dopo un
+click. Un tema che ridipinge sfondo, bordo e testo e lascia lo PSEUDO all'autore della libreria sbaglia
+in un posto solo, e in quel posto si vede.
+
+## Un banco non puo' fallire sull'ECCEZIONE che porta dentro l'asserzione
+**04/09/2026, e l'ha trovato l'operatore su otto passi verdi**: «quando seleziono una squadra e poi ne
+seleziono un'altra, i calciatori della squadra precedente restano accesi». Era una mia eccezione allo
+smorzamento («i miei restano leggibili sotto la lente di un rivale») - e la prima rosa che uno guarda e'
+la propria, quindi il caso che la rompe e' il primo che si incontra. **Il banco era cieco per
+costruzione**: nei filtri «nient'altro resta in chiaro» c'era scritto
+`row.owner !== mineColour && row.name !== lotName`, cioe' le stesse due eccezioni della pagina.
+*Un'asserzione che porta dentro di se' l'eccezione che dovrebbe provare non puo' fallire su quella
+eccezione*, e nessun numero di passi verdi lo dice - e' l'asserzione circolare vista da un angolo
+peggiore, perche' la circolarita' e' fra il banco e una decisione di design. Cura: tutt'e due le
+eccezioni togliute dalla pagina E dai filtri, e **il passo segue la SUA sequenza e non una comoda**
+(prima la mia rosa, poi un rivale).
+
+Quattro abitudini di misura che vengono dalla stessa giornata.
+- **Normalizzare lo stato per rendere possibile una misura puo' nascondere il difetto che vive solo
+  nello stato vero.** Il banco degli slot premeva «azzera le rose» prima di leggere - per una ragione
+  buona, la colonna del mercato mescola due cifre - e quel reset eliminava **le sole righe su cui la
+  discesa era rotta**. Ora si misura due volte: sul tavolo come arriva, giocato, e dopo il reset.
+- **Il colore si confronta fra righe della STESSA pagina, mai con un letterale**: i token sono
+  `color-mix` e il tema ha due versi, quindi la sola affermazione verificabile e' «questa riga ha lo
+  stesso colore di quella» - col NULL che pretende che le due referenze siano diverse.
+- **Una classe che una direttiva mette comunque non e' la prova che qualcosa si veda.** Cercare
+  `.anticon-eye` legge «c'e'» anche su una casella vuota; l'asserzione utile e' nella forma GENERALE,
+  «nessuna icona della pagina e' vuota», con `waitFor` perche' la risoluzione e' asincrona.
+- **Una sonda che serve un ciclo di attesa deve poter dire «non ancora».** `e2e-options` moriva 2 volte
+  su 6 su `document.body.innerText`: fra la navigazione e il primo frame il documento non ha un body,
+  quindi la sonda LANCIAVA invece di rispondere, e un ciclo che polla non aspetta niente se chi
+  interroga puo' morire.
+
+**E una review si verifica come qualunque altra cosa.** Quella richiesta sulla plancia ha dato 14
+rilievi e 12 correzioni, e **uno era sbagliato nella sua conseguenza**: «`nzType="eye"` non registrato
+⇒ la lente non disegna mai il suo occhio, 404 su `assets/`». La prima meta' e' vera, la seconda no -
+togliendo di nuovo la registrazione: 73 icone a schermo, **0 vuote**, occhio disegnato, perche'
+`ng-zorro-antd/icon` ha una lista di default che include `EyeOutline`. La correzione resta adottata (un'app
+che dipende da cosa un'altra libreria patcha per se' e' fragile), il verbale porta il numero e non la
+storia. *Una review e' un'ipotesi con un argomento, non una misura: la meta' verificabile si verifica.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

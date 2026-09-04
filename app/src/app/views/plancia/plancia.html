@@ -40,6 +40,24 @@
       >
     </span>
 
+    <!-- I DUE TAGLI DELLA PLANCIA (sua richiesta, 04/09/2026). Non è un ordinamento della tabella:
+         sono due insiemi diversi dentro lo stesso blocco, quindi il bottone li NOMINA e resta a
+         schermo - un `D1` che porta dieci uomini o altri dieci a seconda di uno stato invisibile si
+         legge come un tabellone rotto. Quello che non si muove è tutto ciò che è misurato: la banda,
+         il verdetto del lotto, l'alternativa e lo slot che la card nomina restano letti sulla griglia
+         del mercato, che è la popolazione su cui la scala è stata misurata. -->
+    <nz-radio-group
+      nzSize="small"
+      [ngModel]="store.slotView()"
+      (ngModelChange)="store.slotView.set($event)"
+    >
+      @for (choice of slotViews; track choice.value) {
+        <label nz-radio-button [nzValue]="choice.value" nz-tooltip [nzTooltipTitle]="choice.hint">{{
+          choice.label
+        }}</label>
+      }
+    </nz-radio-group>
+
     <!-- L'AVANZAMENTO: a estrazione libera non c'è una fase, c'è quanto è già uscito per ruolo. -->
     <span class="flex items-center gap-1">
       @for (step of store.progress(); track step.role) {
@@ -57,34 +75,51 @@
       }
     </span>
 
-    <!-- IL VINCOLO SI DICHIARA: un ordinamento che sposta dei nomi senza dirlo e' indistinguibile da un
-         ordinamento rotto, ed e' anche la sola cosa che l'operatore ha chiesto di vedere «nettamente». -->
-    @if (store.outNowCount(); as out) {
+    <!-- LA LENTE SI DICHIARA IN BARRA, e non solo sulla card che l'ha accesa: smorza duecentocinquanta
+         righe, quindi uno schermo mezzo spento senza una parola in cima si legge come un guasto. E la
+         VIA D'USCITA sta qui accanto alla ragione - la stessa forma dell'ordine personale della pagina
+         Strategia, dove la crocetta esiste solo quando c'è qualcosa da annullare.
+
+         DUE NUMERI perché sono due cose: quante righe la plancia sta evidenziando e quanti uomini ha
+         comprato in tutto. Differiscono quando ha preso qualcuno dalla CODA, che non è disegnata, e
+         dirne uno solo farebbe leggere l'altro come un difetto. -->
+    @if (store.activeTeam(); as lens) {
       <span
-        class="flex items-center gap-1 rounded-md bg-danger/20 px-2 py-0.5 font-medium text-danger"
+        class="flex items-center gap-1 rounded-md bg-primary/20 px-2 py-0.5 font-medium text-primary"
         nz-tooltip
-        nzTooltipTitle="Uomini che oggi non giocano: la stampa li da' fuori o hanno un infortunio ufficiale aperto. Sono in fondo al loro slot e barrati - restano comprabili, ma non te li propone nessuno per primo."
+        [nzTooltipTitle]="lensNote()"
       >
-        <nz-icon nzType="alert" />
-        {{ out }} oggi fuori
+        <nz-icon nzType="eye" />
+        {{ lens.label }}
+        <!-- I DUE NUMERI ATTACCATI, e è il banco che ha letto «2 /8»: un capo a capo dentro il
+             template diventa uno spazio nel testo reso, e due cifre separate da uno spazio si leggono
+             come due numeri invece che come una frazione. La stringa si compone quindi in un solo
+             interpolamento. -->
+        @if (store.activeCount(); as count) {
+          <span class="tabular-nums">{{ lensCount(count) }}</span>
+        }
+        <button
+          type="button"
+          class="ml-0.5 leading-none opacity-70 hover:opacity-100"
+          (click)="store.activeTeamId.set(null)"
+          aria-label="spegni la lente"
+        >
+          <nz-icon nzType="close" />
+        </button>
       </span>
     }
 
-    <!-- ...E CHI NON C'E' AFFATTO. Un blocco con nove righe invece di dieci, senza una parola, si
-         legge come un tabellone rotto: il conto sta qui e i nomi nel tooltip, perche' la domanda che
-         segue e' sempre «chi?». -->
-    @if (store.excluded(); as gone) {
-      @if (gone.length) {
-        <span
-          class="flex items-center gap-1 rounded-md bg-control px-2 py-0.5 font-medium text-muted"
-          nz-tooltip
-          [nzTooltipTitle]="store.excludedNote()"
-        >
-          <nz-icon nzType="stop" />
-          {{ gone.length }} fuori lista
-        </span>
-      }
-    }
+    <!-- LE DUE PASTIGLIE «N saltano la prossima» E «N fuori lista» NON CI SONO PIÙ (sua istruzione,
+         04/09/2026: «queste due etichette non servono»), e nessuna delle due lascia un buco:
+
+         la prima esisteva per DICHIARARE un vincolo - «li ho fatti scendere in fondo al loro slot e
+         li ho barrati» - e quel vincolo è stato ritirato lo stesso giorno (§39.2), quindi era una barra
+         che annunciava un ordinamento che non c'è più;
+
+         la seconda dichiara un vincolo che C'È (chi rientra troppo tardi non si disegna, e un blocco
+         con otto righe invece di dieci senza una parola si legge come un tabellone rotto) e la sua
+         frase resta dove la domanda si fa: nel tooltip del blocco CORTO, che porta il conto, i nomi
+         e la soglia. *Un vincolo si dichiara dove si vede, non necessariamente in cima allo schermo.* -->
 
     @if (store.sheet(); as sheet) {
       <span
@@ -179,8 +214,10 @@
   <div class="flex min-h-0 flex-1 gap-2">
     <plancia-slot-matrix
       class="min-h-0 min-w-0 flex-1"
-      [blocks]="store.blocks()"
-      [lotBlockId]="store.lot()?.block?.id ?? null"
+      [blocks]="store.viewBlocks()"
+      [view]="store.slotView()"
+      [activeTeam]="store.lensId()"
+      [lotBlockId]="store.viewLotBlockId()"
       [tail]="store.tail()"
       [pairs]="store.pairs()"
       [myCredits]="room()"
@@ -193,6 +230,7 @@
       [teams]="store.teams()"
       [role]="store.lot()?.block?.role ?? null"
       [assignable]="canAssign()"
+      (activate)="store.toggleTeam($event)"
       (assign)="onAssign($event)"
     />
   </div>

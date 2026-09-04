@@ -20,18 +20,30 @@
             class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-surface"
             [class]="blockTone(block)"
           >
-            <!-- Intestazione: lo slot, quanti restano, e la mediana pagata. -->
+            <!-- Intestazione: lo slot, quanti restano nell'urna, e la mediana della coordinata su cui
+                 il blocco e' tagliato - il prezzo della stanza sul mercato, la mia max offerta sulla
+                 griglia personale. Mai le due insieme: nove pixel portano tre cifre e non quattro. -->
             <div
               class="flex shrink-0 items-baseline gap-1 border-b border-border bg-control px-1.5 py-0.5"
               nz-tooltip
               [nzTooltipTitle]="blockTip(block)"
             >
-              <span class="text-[9px] font-bold tracking-wide text-muted">{{ block.id }}</span>
+              <!-- L'ETICHETTA DICE DI CHI E' IL TAGLIO: sulla griglia personale `D1` sono i miei dieci
+                   e non i dieci del mercato, quindi il nome del blocco e' nel primario invece che nel
+                   muto. Un colore e non una parola perche' l'intestazione e' alta nove pixel, e il
+                   tooltip porta la frase intera. -->
+              <span
+                class="text-[9px] font-bold tracking-wide"
+                [class.text-muted]="view() === 'market'"
+                [class.text-primary]="view() === 'mine'"
+                >{{ block.id }}</span
+              >
               <span class="ml-auto text-[11px] font-bold tabular-nums text-fg">{{
                 block.left
               }}</span>
+              @let median = headline(block);
               <span class="text-[9px] tabular-nums text-muted">{{
-                block.medianFvm | number: '1.0-0'
+                median == null ? '·' : (median | number: '1.0-0')
               }}</span>
             </div>
 
@@ -64,6 +76,7 @@
                   type="button"
                   class="flex min-h-0 flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none"
                   [class]="rowTone(man)"
+                  [class.opacity-30]="dimmed(man)"
                   [disabled]="inert(man)"
                   (click)="press(man)"
                   (mouseenter)="hover(man)"
@@ -93,8 +106,9 @@
                   <span class="shrink-0 tabular-nums opacity-40">{{
                     man.pv == null ? '' : '(' + (man.pv | number: '1.0-0') + ')'
                   }}</span>
+                  @let figure = shown(man);
                   <span class="shrink-0 tabular-nums">{{
-                    man.price != null ? (man.price | number: '1.0-0') : '—'
+                    figure != null ? (figure | number: '1.0-0') : '—'
                   }}</span>
                 </button>
               }
@@ -125,17 +139,47 @@
             class="flex flex-col justify-center gap-1 rounded border border-border bg-surface px-3 py-1"
             [style.grid-column]="'span ' + (spare('P') - 2)"
           >
-            <div class="flex items-center gap-1.5 text-[10px] text-muted">
-              <span class="h-2 w-2 rounded-full border border-muted"></span>
-              nell'urna: <b class="text-fg">max offerta</b>
-            </div>
-            <div class="flex items-center gap-1.5 text-[10px] text-muted">
-              <span class="h-2 w-2 rounded-full bg-muted"></span>
-              di un altro: <b class="text-fg">prezzo pagato</b>
-            </div>
+            <!-- COSA DICE LA COLONNA, e sono due frasi diverse per i due tagli: sul mercato porta due
+                 significati (e li dichiara qui), sulla griglia personale uno solo, perche' la' e'
+                 anche la chiave dell'ordinamento. -->
+            @if (view() === 'market') {
+              <div class="flex items-center gap-1.5 text-[10px] text-muted">
+                <span class="h-2 w-2 rounded-full border border-muted"></span>
+                nell'urna: <b class="text-fg">max offerta</b>
+              </div>
+              <div class="flex items-center gap-1.5 text-[10px] text-muted">
+                <span class="h-2 w-2 rounded-full bg-muted"></span>
+                di un altro: <b class="text-fg">prezzo pagato</b>
+              </div>
+            } @else {
+              <div class="flex items-center gap-1.5 text-[10px] text-muted">
+                <span class="h-2 w-2 rounded-full border border-muted"></span>
+                sempre la tua <b class="text-fg">max offerta</b>, ed è l'ordine dei blocchi
+              </div>
+              <div class="flex items-center gap-1.5 text-[10px] text-muted">
+                <span class="h-2 w-2 rounded-full bg-muted"></span>
+                di un altro: quanto è stato pagato lo dicono gli slot mercato
+              </div>
+            }
             <div class="flex items-center gap-1.5 text-[10px] text-muted">
               <span class="h-2 w-2 rounded-full bg-primary"></span>
               mio
+            </div>
+            <!-- I DUE INCHIOSTRI ROSSI, che mancavano: la legenda dichiara cosa vuol dire ogni colore
+                 di questa tabella e questi due non c'erano, quindi la domanda «perché McKennie e
+                 Cambiaso sono cancellati?» (operatore, 04/09/2026) non aveva una risposta a schermo -
+                 e la risposta giusta è stata cambiare il fatto che il barrato dice. La ragione del
+                 SINGOLO sta sull'icona della sua riga e nella sua card; qui sta cosa vuol dire
+                 l'inchiostro. Chi salta solo la prossima giornata non è in questa legenda perché non
+                 ha un inchiostro: ha un'icona. -->
+            <div class="flex items-center gap-1.5 text-[10px] text-muted">
+              <span class="text-danger line-through decoration-danger/60">nome</span>
+              infortunato da 45 giorni o più
+            </div>
+            <div class="flex items-center gap-1.5 text-[10px] text-muted">
+              <span class="text-danger/75">nome</span>
+              torna a una data (e non è fuori da 45 giorni): le giornate che perde sono già nei suoi
+              numeri
             </div>
             <p class="text-[10px] leading-tight text-muted">
               Passa sopra un nome per la coppia che compreresti al suo posto.

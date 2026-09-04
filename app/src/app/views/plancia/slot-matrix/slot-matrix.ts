@@ -3,8 +3,7 @@ import { Component, computed, input, output, signal } from '@angular/core';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { PlayerFlags } from '../../../ui/player-flags/player-flags';
-import { outWindowNote } from '../../../core/injury-window';
-import { Alternative, ROLES, Role } from '../../../core/plancia';
+import { Alternative, MIN_PLAY_SHARE, ROLES, Role, SlotView } from '../../../core/plancia';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
 
 const ROLE_TONE: Record<Role, string> = {
@@ -24,6 +23,26 @@ const ROW_TONE: Record<BoardMan['state'], string> = {
   mio: 'bg-control/70 text-fg',
   altro: 'text-muted/60',
   urna: 'text-fg hover:bg-control',
+};
+
+/**
+ * ...E COME SI LEGGE QUANDO LA LENTE E' ACCESA SU DI LUI: inchiostro pieno.
+ *
+ * Sua istruzione (04/09/2026): «l'ink dei nomi accesi per la squadra selezionata deve essere bianco
+ * altrimenti non risalta». La ragione è che gli uomini di una rosa accesa sono, per lo stato, «di un
+ * altro» - e quello stato è disegnato SMORZATO di proposito, perché chi è già stato comprato non è
+ * più una decisione. Con la lente lo diventa di nuovo: sono esattamente le righe che si sta guardando,
+ * e smorzare il resto al 30% non basta se quello che resta era già grigio.
+ *
+ * L'unico stato che cambia è `altro`, e non per economia: gli altri tre leggono già `text-fg`. Ed è una
+ * MAPPA e non una classe aggiunta a quella dello stato, perché due utility sulla stessa proprietà si
+ * decidono sull'ordine del CSS generato e non su quale delle due è legata (il difetto del 27/08/2026).
+ *
+ * `text-fg` e non un bianco letterale: il tema ha due versi, e in quello chiaro il «bianco» è nero.
+ */
+const LIT_TONE: Record<BoardMan['state'], string> = {
+  ...ROW_TONE,
+  altro: 'text-fg hover:bg-control',
 };
 
 /** The widest line has eight blocks, so eight is the grid every line is cut on. */
@@ -55,7 +74,25 @@ const COLUMNS = 8;
 })
 export class SlotMatrix {
   readonly blocks = input.required<BoardBlock[]>();
+  /**
+   * QUALE DEI DUE TAGLI si sta guardando: serve all'intestazione, non alle righe.
+   *
+   * Un blocco chiamato `D1` che porta due insiemi diversi di dieci uomini a seconda di uno stato che la
+   * griglia non dichiara e' indistinguibile da un tabellone rotto, quindi la cifra dell'intestazione e
+   * la frase del suo tooltip cambiano col taglio: sul mercato il blocco E' una fascia di prezzo e la
+   * mediana pagata lo descrive, sulla griglia personale non lo e' piu' e quello che lo descrive e' la
+   * mediana della MIA max offerta - la coordinata su cui e' tagliato.
+   */
+  readonly view = input<SlotView>('market');
   readonly lotBlockId = input<string | null>(null);
+  /**
+   * LA ROSA ACCESA, e qui serve solo a smorzare le altre righe (sua richiesta, 04/09/2026).
+   *
+   * `null` è lo stato normale: nessuna lente, nessuna riga smorzata. Non è un filtro - le righe
+   * restano tutte al loro posto, perché togliere delle righe cambierebbe i blocchi e i blocchi sono
+   * la struttura del mercato.
+   */
+  readonly activeTeam = input<number | null>(null);
   readonly tail = input(0);
   /** The pair from the slot below, by man: what you would buy instead of him, at the same currency. */
   readonly pairs = input<Map<number, Alternative | null>>(new Map());
@@ -127,39 +164,123 @@ export class SlotMatrix {
 
   protected blockTone(block: BoardBlock): string {
     const lot = block.id === this.lotBlockId();
+    // ...E UN BLOCCO ESAURITO NON SI SMORZA MENTRE LA LENTE CI ACCENDE DENTRO QUALCUNO: l'opacita' di
+    // un contenitore si MOLTIPLICA con quella delle righe, quindi le righe accese - che stanno quasi
+    // sempre in blocchi finiti, essendo state comprate - leggerebbero al 50% proprio dove devono
+    // risaltare («l'ink dei nomi accesi deve risaltare», 04/09/2026). Il segnale «esaurito» resta su
+    // ogni altro blocco, e nessuna misura di riga se ne accorgerebbe: `getComputedStyle` di un bottone
+    // legge la SUA opacita' e non quella dell'antenato.
+    const faded = block.left === 0 && !this.hasLit(block);
     return [
       lot ? 'border-primary ring-1 ring-primary/40' : 'border-border',
-      block.left === 0 ? 'opacity-50' : '',
+      faded ? 'opacity-50' : '',
     ].join(' ');
   }
 
+  /** Vero se la lente accende una riga DENTRO questo blocco: una definizione, due letture con `lit`. */
+  private hasLit(block: BoardBlock): boolean {
+    const at = this.activeTeam();
+    return at != null && block.rows.some((row) => row.ownerId === at);
+  }
+
+  /**
+   * La cifra dell'intestazione: la coordinata su cui il blocco e' TAGLIATO, e mai l'altra.
+   *
+   * Sul mercato e' la mediana del prezzo, che e' anche quello che rende quei dieci uomini equivalenti
+   * per la stanza; sulla griglia personale il blocco non e' piu' una fascia di prezzo, quindi quella
+   * mediana sarebbe un numero vero che non descrive il blocco che sta sopra.
+   */
+  protected headline(block: BoardBlock): number | null {
+    return this.view() === 'mine' ? block.medianOffer : block.medianFvm;
+  }
+
   protected blockTip(block: BoardBlock): string {
+    const mine = this.view() === 'mine';
     if (block.left === 0) {
-      return `${block.id} esaurito: nessuno più nell'urna — è ciò che alza la max offerta di chi sta sopra.`;
+      // ...E LO SLOT ESAURITO ALZA UN TETTO SOLO SULLA GRIGLIA DEL MERCATO: `depthFactor` legge i
+      // blocchi di mercato, che sono la popolazione su cui quel +52% e' misurato (§27.5). Sulla mia
+      // griglia il blocco vuoto e' una notizia - i dieci che pagavo cosi' sono andati - e ripetere
+      // qui la frase del mercato sarebbe attribuire a un taglio un effetto misurato sull'altro.
+      return mine
+        ? `Il tuo ${block.id} è finito: i ${block.men.length} che pagavi a questa cifra sono tutti di qualcuno.`
+        : `${block.id} esaurito: nessuno più nell'urna — è ciò che alza la max offerta di chi sta sopra.`;
     }
     // CHI NON DISEGNO LO DICO QUI, sul blocco che ha una riga in meno: nove righe su dieci senza una
     // parola si leggono come un tabellone rotto, e il posto resta occupato nel rango.
+    //
+    // E DA OGGI QUESTA E' LA SOLA VOCE CHE LO DICE: la pastiglia «N fuori lista» in barra e' stata
+    // togliuta su sua istruzione (04/09/2026), quindi la frase si porta dietro anche la SOGLIA, che
+    // era nel tooltip di quella. Il posto e' migliore di prima - la domanda «perche' questo blocco ha
+    // otto righe» si fa guardando il blocco - ma solo se qui c'e' tutto quello che serve a risponderla.
     const gone = block.excluded.length
-      ? ` · ${block.excluded.length} fuori lista (${block.excluded
-          .map((man) => man.name)
-          .join(', ')}): rientrano troppo tardi`
+      ? ` · ${block.excluded.length} fuori lista: rientrano troppo tardi perche' valgano un posto in ` +
+        `rosa, giocherebbero meno del ${Math.round(MIN_PLAY_SHARE * 100)}% delle giornate che restano ` +
+        `(margine di prudenza incluso) — ${block.excluded.map((man) => man.name).join(', ')}`
       : '';
-    return (
-      `${block.left} ancora nell'urna su ${block.id} · mediana pagata ` +
-      `${Math.round(block.medianFvm)} cr${block.mine ? ' · uno è tuo' : ''}${gone}`
-    );
+    const median = Math.round(this.headline(block) ?? 0);
+    // DUE FRASI PERCHE' SONO DUE OGGETTI: `D3` del mercato sono i terzi dieci difensori per prezzo,
+    // `D3` mio sono i terzi dieci per quanto li pago. Il tooltip lo dice invece di lasciarlo dedurre
+    // dal bottone in barra, che a quattro ore di asta nessuno guarda piu'.
+    const what = mine
+      ? `il tuo ${block.id}: i ${block.men.length} per cui offrirei di più dopo i precedenti · ` +
+        `mia max offerta mediana ${median} cr`
+      : `${block.id} del mercato: i ${block.men.length} più cari del ruolo dopo i precedenti · ` +
+        `mediana pagata ${median} cr`;
+    return `${block.left} ancora nell'urna · ${what}${block.mine ? ' · uno è tuo' : ''}${gone}`;
   }
 
+  /**
+   * SMORZATO PERCHÉ NON È DELLA ROSA ACCESA: 30% come lui ha chiesto, e su TUTTO il resto.
+   *
+   * NESSUNA ECCEZIONE, e le due che c'erano sono state togliute da un difetto che lui ha visto e io
+   * avevo scritto: «quando seleziono una squadra e poi ne seleziono un'altra, i calciatori della
+   * squadra precedente restano accesi» (04/09/2026). Erano «il LOTTO in asta» e «i MIEI», aggiunte
+   * mie con due argomenti che restano veri - la riga per cui la pagina esiste, e il fatto che «cosa ha
+   * preso lui» si chieda insieme a «e io cosa ho» - e che non valgono il prezzo: dal di fuori una
+   * riga accesa che non è della rosa accesa è indistinguibile da una lente che non si è pulita, e la
+   * prima rosa che uno guarda è la propria.
+   *
+   * *Il valore di un'eccezione si paga in confusione, e la confusione la vede solo chi guarda lo
+   * schermo senza aver scritto il codice.* La regola letterale non ha questo problema.
+   */
+  protected dimmed(man: BoardMan): boolean {
+    const at = this.activeTeam();
+    return at != null && man.ownerId !== at;
+  }
+
+  /** ...e il suo complemento: la riga che la lente sta ACCENDENDO. Una definizione, due letture. */
+  private lit(man: BoardMan): boolean {
+    const at = this.activeTeam();
+    return at != null && man.ownerId === at;
+  }
+
+  /**
+   * L'INCHIOSTRO DELLA RIGA, e i due rossi dicono due fatti di taglia diversa.
+   *
+   * IL BARRATO E' L'INFORTUNATO DI LUNGA DATA (operatore, 04/09/2026: «lo stile barrato utilizziamolo
+   * per gli infortunati di lunga data») - uno spell aperto da 45 giorni o più, cioè una stagione
+   * compromessa e non una giornata. Prima era addosso a «chi oggi non gioca» e lui l'ha ritirato di
+   * lì dicendo perché: «non è molto rilevante ai fini del mercato, è solo una gara saltata, mostrarlo
+   * addirittura barrato mi ha tratto in inganno». *Un inchiostro si sceglie sulla taglia del fatto,
+   * non sulla sua freschezza* - e quello che lo aveva tratto in inganno era esattamente uno scarto di
+   * taglia, un fatto da una giornata disegnato come una cancellazione.
+   *
+   * IL ROSSO SENZA TAGLIO è chi ha una DATA di rientro: è comprabile, e quanto vale lo dice già il
+   * numero accanto, perché `points` e `pv` portano le giornate che perde. Un uomo cancellato e uno
+   * riprezzato sono due cose diverse e devono vedersi diverse.
+   *
+   * E «oggi non gioca» non tinge più niente: il fatto lo porta l'ICONA della riga, che ha la sua
+   * ragione nel tooltip. Un fatto piccolo non prende un canale grande.
+   *
+   * E SOTTO LA LENTE l'inchiostro dello stato diventa quello pieno (`LIT_TONE`), ma I DUE ROSSI
+   * VINCONO COMUNQUE: l'ink pieno serve alle righe che non risaltavano, e una riga rossa e barrata
+   * risalta già - ridipingerla di bianco perché è accesa costerebbe l'unico canale che dice «la sua
+   * stagione è compromessa». È il senso della richiesta e non un'eccezione a essa.
+   */
   protected rowTone(man: BoardMan): string {
-    // CHI OGGI NON GIOCA si vede prima di leggere il nome: barrato e in rosso, sopra ogni altro stato.
-    // È l'unico posto in cui questa tabella usa il rosso, ed è l'uso che la regola dei colori consente -
-    // stai per offrire su un uomo che sabato non c'è.
-    if (man.outNow) return 'text-danger line-through decoration-danger/60 hover:bg-control';
-    // Chi ha una data di rientro NON e' barrato: e' comprabile, e quanto vale lo dice gia' il
-    // numero accanto. Il rosso resta perche' la notizia c'e', il taglio no perche' la riga non e'
-    // chiusa - un uomo cancellato e uno riprezzato sono due cose diverse e devono vedersi diverse.
+    if (man.longOut) return 'text-danger line-through decoration-danger/60 hover:bg-control';
     if (man.out) return 'text-danger/75 hover:bg-control';
-    return ROW_TONE[man.state];
+    return this.lit(man) ? LIT_TONE[man.state] : ROW_TONE[man.state];
   }
 
   /**
@@ -193,6 +314,27 @@ export class SlotMatrix {
 
   protected hover(man: BoardMan | null): void {
     this.hovered.set(man?.id ?? null);
+  }
+
+  /**
+   * LA CIFRA A DESTRA, e sulla griglia personale ne ha UN significato solo.
+   *
+   * Sul mercato la colonna dice due cose e lo dichiara (max offerta finche' e' nell'urna, prezzo
+   * PAGATO quando e' di qualcuno): due significati tenuti di proposito, perche' quello che la stanza ha
+   * davvero pagato per uno slot e' la sola lettura viva del mercato che questa pagina abbia.
+   *
+   * Sulla griglia personale no, e l'ha trovato l'operatore guardando lo schermo (04/09/2026): «come mai
+   * negli slot personali Hojlund sta prima di Martinez? L'ordine non dovrebbe essere per max-offerta?».
+   * Si': quel taglio E' la colonna ordinata, quindi ogni riga che mostra un numero diverso dalla chiave
+   * dell'ordine si legge come un ordinamento rotto - Martinez L. mostrava 403 (quello che un rivale ha
+   * pagato) e stava sotto un 333, che dalla parte di chi guarda e' semplicemente sbagliato. Qui la
+   * cifra e' SEMPRE il mio tetto, anche per un uomo che non posso piu' comprare, e chi lo ha se lo
+   * legge dalla barra del proprietario o dalla griglia del mercato.
+   *
+   * *Una colonna puo' portare due significati solo dove non e' anche la chiave dell'ordinamento.*
+   */
+  protected shown(man: BoardMan): number | null {
+    return this.view() === 'mine' ? (man.band?.high ?? null) : man.price;
   }
 
   /**

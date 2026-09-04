@@ -3489,3 +3489,505 @@ editoriale e non un numero, il che e' un'altra cosa dal punto di vista di chi lo
 preferisce non pubblicarla, la cura e' una riga**: togliere `note` dalle colonne esportate e lasciare
 viaggiare solo `expected_return` e `return_basis` - il prezzo e' il tooltip, che perde la diagnosi e le
 sfumature («ipotizziamo», «da valutare») che una data non sa dire.
+
+## 39. DUE TAGLI DELLA PLANCIA: slot MERCATO e slot PERSONALI (4 settembre 2026)
+
+Sua richiesta: «vorrei un tasto che mi permetta di cambiare visualizzazione da slot MERCATO a slot
+PERSONALI. a) slot MERCATO è la visualizzazione corrente. b) quando seleziono slot PERSONALI invece mi
+devi ripopolare gli slot ordinando i calciatori per offerta massima».
+
+Fatto: `core/plancia.regroupByOffer` + `PlanciaStore.slotView` / `viewBlocks` / `viewLotBlockId`, il
+tasto in barra (`nz-radio-group`, i due nomi sono i suoi), e l'intestazione del blocco che dichiara di
+chi è il taglio. Banco: `scripts/e2e-plancia-slots.mjs`, sette passi, verde.
+
+### 39.1 Il TETTO non si ricalcola sulla griglia nuova, ed è una decisione
+
+La scala delle offerte è una quota del budget per (ruolo, **slot**) misurata con lo slot definito come
+un rango **PER PREZZO** (§19.3 del simulatore). Rileggerla su un rango costruito sulla nostra offerta
+sarebbe due difetti in uno: **un parametro applicato fuori dalla popolazione su cui è stato misurato**,
+e una **circolarità** — l'offerta decide lo slot che decide l'offerta. Quindi il taglio personale è un
+RIORDINO dei tetti che il mercato ha già prodotto: ogni uomo si tiene la banda che la misura gli ha
+dato, e la card continua a nominare lo slot su cui quella banda è stata letta.
+
+Conseguenza da leggere così e non altrimenti: sulla griglia personale un uomo può stare in `D1` con un
+tetto letto sul gradino di `D3`. È voluto. Quello che la griglia personale risponde è «di tutti i
+difensori, quali sono i dieci che pagherei di più», che a estrazione libera è la domanda che decide se
+il nome appena uscito è uno dei miei; non risponde «quanto lo pago», che è la banda e non si muove.
+
+### 39.2 UN'ESCLUSIONE CHIESTA E RITIRATA IN UN'ORA, e la causa era l'INCHIOSTRO
+
+La sequenza vale più della regola, perché è il modo in cui si è trovato il difetto vero.
+
+1. «Negli slot personali devi anche toglirmi calciatori come Bernabe e Casadei». Misurato prima di
+   scegliere il predicato: quei due, e i **dodici** che il tavolo dichiarato porta, sono esattamente le
+   righe che la plancia **barrava** — `outNow`, ciòè «oggi non gioca e nessuna delle due fonti dice fino
+   a quando» (Bernabè e Casadei dalla pagina *indisponibili* riletta il 03/09, Cambiaso e Gabbia da uno
+   spell aperto **senza** `end_date`). Implementato con quel predicato: nessuna costante nuova.
+2. Guardando il risultato l'ha **ritirata**: «"chi oggi non gioca" non è molto rilevante ai fini del
+   mercato, è solo una gara saltata, mostrarlo addirittura barrato mi ha tratto in inganno».
+
+**La causa stava a monte della lista: stava nell'inchiostro.** Un fatto che vale UNA giornata su 36 era
+disegnato come una **cancellazione**, quindi chiedere di togliere quei nomi era la conseguenza
+ragionevole di quello che lo schermo diceva. *Quando l'operatore chiede di eliminare qualcosa, vale la
+pena chiedersi se sia la cosa a essere sbagliata o il modo in cui la si mostra* — e qui la risposta era
+la seconda, quindi la cura giusta non era la sua richiesta letterale ma quello che la aveva provocata.
+
+Cosa resta, e sono tre cose che si tengono in piedi insieme:
+
+- **`outNow` non sposta e non tinge più niente**, su nessuna delle due griglie. Il fatto lo porta
+  l'ICONA della riga (che ha la sua ragione nel tooltip) e la card. Anche il gradino «in fondo al suo
+  slot» del 03/09 è andato via **con** l'inchiostro e non separatamente: senza il barrato quel gradino
+  sarebbe stato un riordino MUTO, che è il difetto che questa pagina non fa per principio.
+- **Il tetto d'offerta invece scende ancora di un gradino** (`HURT_SLOT_STEP`), perché chi non dice
+  quando torna non può avere il tetto pieno del suo slot — e lì la penalità produce un **numero**, che
+  la riga mostra, invece di un decreto che nessuno può leggere. È la distinzione del §36 applicata a se
+  stessa: si vincola solo dove non si ha un numero.
+- **La pastiglia in barra resta un CONTEGGIO** («12 saltano la prossima», in tono neutro e non nel rosso,
+  che ora è l'inchiostro del barrato), e il suo tooltip dichiara di non aver spostato niente: *una barra
+  che promette un ordinamento che non c'è più è peggio di una barra che non c'è.*
+
+### 39.2-bis IL BARRATO È L'INFORTUNATO DI LUNGA DATA
+
+Sua istruzione, subito dopo: «lo stile barrato utilizziamolo per gli infortunati di lunga data». Un
+inchiostro si sceglie sulla **taglia del fatto** e non sulla sua freschezza — e quello che lo aveva
+tratto in inganno era esattamente uno scarto di taglia.
+
+La soglia è quella che c'è già (`player-status.LONG_INJURY_DAYS` = 45), e non è un prestito da
+un'altra domanda: è la stessa domanda. `injuryMark` decide da sempre se disegnare l'icona «infortunio
+lungo in corso», quindi **un'icona e un inchiostro per una frase sola, e un lettore solo**
+(`PlayerStatus.longInjury`) — due definizioni di «è fuori da tanto» darebbero a un uomo due risposte, e
+la prima volta che qualcuno se ne accorge è a un tavolo.
+
+Misurato sul tavolo dichiarato: le righe barrate passano da **12 a 2** — Buongiorno e Yildiz, gli unici
+due con uno spell aperto da 45 giorni o più, e sono anche gli unici due la cui stagione è davvero
+compromessa (Yildiz: rientro 25/11, 17 presenze attese su 38). Il barrato **non riordina e non riprezza**
+niente da sé: quei due hanno una data, quindi `points` e `pv` portano già le giornate perse e scendono
+per conto loro.
+
+E i due rossi ora dicono due cose diverse e la legenda le dichiara entrambe: **barrato** = infortunato da
+45 giorni o più; **rosso senza taglio** = torna a una data, le giornate che perde sono già nei suoi
+numeri. Chi salta solo la prossima non è in legenda perché non ha un inchiostro: ha un'icona.
+
+**E un'asserzione del banco è stata GIRATA invece che cancellata.** `e2e-plancia-injury` pretendeva che un
+uomo riprezzato **non** fosse barrato — giusto quando il barrato era un vincolo, perché allora lo stesso
+fatto lo puniva due volte. Ora il barrato è un'etichetta di taglia, e quell'uomo (fuori da mesi, con una
+data) è esattamente chi deve portarla: il difetto è il contrario, e il banco asserisce quello. *Quando
+un inchiostro cambia significato, le asserzioni scritte sul significato vecchio non si cancellano: si
+rileggono, e alcune si invertono.*
+
+### 39.3 L'intestazione porta la mediana della coordinata su cui ha TAGLIATO
+
+Tre cifre in nove pixel, quindi una sola delle due mediane: sul mercato il prezzo (che è anche ciò che
+rende quei dieci uomini equivalenti per la stanza), sulla griglia personale la **mia max offerta**. La
+mediana del prezzo resterebbe un numero vero che non descrive il blocco che sta sopra. E l'etichetta del
+blocco è nel primario invece che nel muto, col tooltip che porta la frase intera («il tuo D1: i 10 per
+cui offrirei di più dopo i precedenti»): **un blocco chiamato `D1` che porta due insiemi diversi a
+seconda di uno stato invisibile si legge come un tabellone rotto**, ed è il difetto che questa pagina si
+è già scritta due volte.
+
+### 39.4 Cosa il taglio NON fa, detto invece di lasciato dedurre
+
+- **Non promuove la coda.** Ritaglia gli uomini che la mappa già porta: chi sta sotto i 25 slot non ha
+  una banda affatto, e prezzarlo qui vorrebbe dire leggergli un gradino della scala che per lui non
+  esiste.
+- **Non riordina niente di misurato.** Verdetto del lotto, alternativa, banda, evidenziazione all'hover
+  e slot sulla card leggono `blocks()`, che resta la griglia del mercato. `viewLotBlockId` esiste solo
+  perché l'evidenziazione deve trovare il lotto sulla griglia che si sta guardando.
+- **Non ordina sulla colonna a schermo** ma sul tetto misurato: la colonna porta due significati (max
+  offerta finché è nell'urna, prezzo pagato dopo) e una graduatoria su una colonna che ne mescola due
+  darebbe due letture in una. Chi il foglio non prezza ha confidenza zero, quindi tetto zero, quindi
+  affonda — «vuoto = ignoto» che prende la forma di un rango invece di un numero.
+- **La forma dei blocchi non è la stessa, e la differenza è giusta.** Sul mercato chi rientra troppo
+  tardi (`MIN_PLAY_SHARE`) lascia il suo POSTO vuoto, perché lì lo slot è un rango della stanza e far
+  salire tutti di uno parlerebbe di slot diversi da quelli su cui la scala è misurata; sulla griglia
+  personale quell'uomo non ha un tetto, quindi non ha un rango MIO da tenere, e le righe che mancano si
+  vedono in fondo al ruolo invece di lasciare un buco in mezzo. Misurato: 248 righe in tutt'e due, e
+  l'unico blocco corto passa da dentro il ruolo a `C8`.
+
+### 39.5 Il banco, e il null che lo rende non vuoto
+
+`e2e-plancia-slots.mjs` misura l'ARITMETICA sullo schermo: scendendo un reparto la max offerta non può
+risalire, né dentro un blocco né fra due. La prima cosa che stampa è il **null**: sulla plancia del
+mercato quella discesa è rotta in **49 punti**, sulla personale in **0** — senza quel primo numero il
+passo passerebbe anche se il tasto non facesse niente. Poi: i **barrati sono gli stessi uomini** nei due
+tagli (2 e 2, Buongiorno e Yildiz), e si confrontano i NOMI e non il conteggio, perché due insiemi della
+stessa taglia possono essere due insiemi diversi; gli **stessi 248 nomi** nei due tagli, che è la prova
+della restituzione del §39.2; la mediana dichiarata contro quella delle righe che il blocco disegna (D1
+dichiara 107, le sue righe danno 107); e il ritorno al mercato **riga per riga identico**.
+
+Una nota sull'arnese che vale in generale: il passo della discesa aveva un'**esenzione** per le righe
+barrate, giusta finché il barrato era un vincolo che spostava una riga. Con il vincolo ritirato
+l'esenzione è stata **togliuta** e non lasciata lì per sicurezza: *un'esenzione sopravvissuta alla regola
+che la giustificava nasconde un difetto vero proprio sulle righe che più contano.*
+
+Tre lezioni sull'arnese, e due sono errori commessi scrivendolo.
+- **Un tooltip di ng-zorro resta nel DOM dopo che il puntatore è andato via**, quindi il primo
+  `.ant-tooltip-inner` era il pannello del TASTO premuto due passi prima: il banco leggeva il suggerimento
+  del bottone e lo attribuiva al blocco. Cura: solo gli overlay non `ant-tooltip-hidden`, con un
+  rettangolo vero, e il puntatore portato altrove prima di andare sull'intestazione.
+- **Il passo pretendeva una forma di blocchi identica** e leggeva un difetto che non c'è (§39.4). Un
+  banco che asserisce il contrario di quello che la feature promette è un banco che va corretto, non una
+  feature da piegare.
+- **Il vincolo è parte della promessa**: una discesa rotta conta solo dove la pagina non ha BARRATO la
+  riga, perché quella è la regola che funziona.
+
+### 39.6 Un difetto PREESISTENTE trovato dall'altro banco, e non toccato
+
+`e2e-plancia-award.mjs` legge «l'avanzamento non è tornato a zero: **C 2/80**» dopo un azzeramento.
+Attribuito muovendo una cosa sola — stessa corsa a HEAD senza queste modifiche: **identico**, quindi non
+è di questo cambio. La causa è che `progress` conta `done = total − left` e `left` non può raggiungere
+`teams` in un blocco a cui `MIN_PLAY_SHARE` ha togliuto una riga: i due esclusi si leggono come due
+posti già assegnati. La cura sarebbe contare le righe con un padrone invece di sottrarre, ed è una
+decisione su cosa quel contatore deve dire — quindi è scritta qui e non infilata dentro una richiesta
+che non la contiene.
+
+### 39.7 «Perché McKennie e Cambiaso sono cancellati?» — e la risposta ha cambiato l'inchiostro
+
+Sua domanda, e la prima risposta è stata guardare **cosa la pagina non diceva**: la plancia aveva
+**quattro inchiostri e una legenda per tre**. La legenda dichiara il pallino vuoto (nell'urna: max
+offerta), quello pieno (di un altro: prezzo pagato) e il primario (mio); i due ROSSI non c'erano affatto.
+La ragione del singolo era raggiungibile — l'icona sulla riga ha il suo tooltip, e la card che il click
+apre porta la frase intera della fonte — ma **cosa vuol dire l'inchiostro** non stava scritto in nessun
+posto, e le righe non hanno un tooltip per sua istruzione del 03/09 («da' fastidio»).
+
+La legenda ora porta tutt'e due i rossi (§39.2-bis). Ma la risposta più utile alla sua domanda non è
+stata scrivere la legenda: è stata **cambiare il fatto che il barrato dice**, perché la domanda stessa
+era la prova che l'inchiostro era troppo grosso per il fatto. *Una legenda spiega un inchiostro; non lo
+giustifica.*
+
+### 39.8 Il «bordo sinistro blu» del toggle erano DUE blu di antd, e li ha trovati la misura
+
+Sua segnalazione. Il tema override-a `.ant-radio-button-wrapper` su sfondo, bordo e testo dal 09/08/2026
+— e antd dipinge altre due cose che quei tre selettori non toccano, misurate sul controllo vero:
+
+| cosa | prima | dopo |
+|---|---|---|
+| il DIVISORE fra i due bottoni, `::before` 1px × 22px a `left: -1px` | `rgb(22, 89, 150)` | `var(--color-primary)` (o `--color-border` quando nessuno dei due vicini è selezionato) |
+| l'alone del FUOCO, `box-shadow` | `rgba(23, 125, 220, 0.12) 0 0 0 3px` | il primario al 20% |
+
+Due cose che restano oltre il caso. **Un tema che ridipinge sfondo, bordo e testo e lascia lo PSEUDO
+all'autore della libreria sbaglia in un posto solo, e in quel posto si vede** — il seme è alto 22px su
+un controllo alto 24, quindi è la cosa più visibile del bottone dopo il testo. E **il secondo blu non
+compare in nessuno screenshot dello stato iniziale**: è l'alone del fuoco, che esiste solo dopo un
+click, quindi si trova soltanto pilotando il controllo e leggendo `boxShadow` — misurato con un
+puntatore vero, come ogni altra cosa di questa pagina. L'alone non è stato spento ma ricolorato: dice a
+chi naviga da tastiera dov'è.
+
+Verificato dopo: `audit-contrast` **60 coppie, 0 sotto soglia** (il cambio non tocca i colori che quella
+misura del 09/08 aveva scelto), e i banchi `e2e-strategy`, `e2e-plancia-keepers`, `e2e-plancia-injury`
+verdi — il selettore è globale, quindi le altre pagine col radio group vanno guardate anche loro.
+
+### 39.9 UNA COLONNA PUÒ PORTARE DUE SIGNIFICATI SOLO DOVE NON È ANCHE LA CHIAVE DELL'ORDINE
+
+Sua domanda, guardando lo schermo: «come mai negli slot personali Hojlund sta prima di Martinez?
+L'ordine non dovrebbe essere per max-offerta?». Sì, e la fotografia del blocco A1 gli dà ragione:
+
+```
+Hojlund      333   urna
+Martinez L.  403   DI QUALCUNO   <- 403 sotto un 333
+Malen        298   urna
+...
+Kean         126   DI QUALCUNO
+Kolo Muani   169   urna          <- 169 sotto un 126
+Woltemade    175   DI QUALCUNO
+```
+
+La discesa si rompeva **esattamente e solo sulle righe di chi è già di qualcuno**, cinque su dieci in
+quel blocco. Causa: la colonna della plancia porta **due** significati - max offerta finché è nell'urna,
+**prezzo pagato** quando è di qualcuno - e sono due di proposito, perché quello che la stanza ha davvero
+pagato per uno slot è la sola lettura viva del mercato che questa pagina abbia (§33). Ma l'ordine usava
+il MIO tetto misurato, quindi Martinez L. mostrava i 403 che un rivale ha pagato e veniva ordinato su
+una banda di 322.
+
+**La cura è nel numero e non nell'ordine**, e la ragione è quale delle due cose la griglia promette: il
+taglio personale *è* la colonna ordinata, quindi lì la cifra è SEMPRE il mio tetto, anche per un uomo che
+non posso più comprare, e chi lo ha se lo legge dalla barra del proprietario o dalla griglia del mercato
+(la legenda lo dice, ed è diversa nei due tagli). Ordinare invece per il prezzo pagato avrebbe reso la
+colonna monotona e la GRADUATORIA priva di senso: «un uomo comprato a 403» non è «l'uomo che pagherei
+403». Dopo: 333 · 322 · 298 · 293 · 262 · 253 · 225 · 169 · 124 · 109, e Hojlund sta davanti a
+Martinez L. per 11 crediti di tetto.
+
+**E lo stesso argomento ha portato via «i miei in cima al blocco» da questa griglia** (la sua richiesta
+del 03/09, che resta intatta sulla plancia del mercato): un prefisso appuntato in cima rimette
+esattamente la contraddizione che si stava togliendo - una riga sopra un'altra con un numero più basso.
+Sul mercato il prefisso convive con l'ordine perché lì l'ordine è il valore atteso e il prefisso è
+un'aggiunta dichiarata sopra di esso; sulla griglia personale la promessa è la colonna. *Due tagli, due
+promesse, e una regola sta dove la promessa la regge.* I miei restano visibili dallo sfondo grigio, che
+è il canale che avevano già.
+
+### 39.10 NORMALIZZARE LO STATO PER POTER MISURARE PUÒ NASCONDERE IL DIFETTO CHE VIVE SOLO NELLO STATO VERO
+
+È la lezione più utile di questo giro, ed è sull'arnese. Il banco premeva «azzera le rose» **prima** di
+ogni lettura, per una ragione buona e scritta: la colonna del mercato mescola due cifre e una
+graduatoria costruita su una colonna mescolata non misura niente. Solo che quel reset rimette ogni nome
+nell'urna, cioè **elimina le sole righe su cui il difetto esisteva**. Il passo leggeva «0 punti rotti» e
+lo schermo dell'operatore ne aveva 39.
+
+Ora la discesa si misura **due volte**: sul tavolo come arriva, giocato (41 righe di qualcuno), e di
+nuovo dopo l'azzeramento. Il primo passo porta il suo null - «quante righe sono di qualcuno», perché
+«zero punti rotti» su una plancia senza padroni non prova niente - e **è stato provato rimettendo il
+difetto**: con la colonna vecchia legge 39 punti rotti e li nomina, con quella nuova 0. La regola
+generale: *quando un passo normalizza lo stato per rendere possibile una misura, chiedersi quali righe
+quella normalizzazione fa sparire, e misurare anche prima.*
+
+## 40. LA LENTE SU UNA ROSA: un click, e la plancia mostra cosa ha comprato (4 settembre 2026)
+
+Sua richiesta: «quando faccio click su un box di una squadra -> "attiva quella squadra" ed evidenzia
+sulla plancia tutti i calciatori comprati da quella squadra mettendo opacità 30% a tutti gli altri
+calciatori». Fatto: `PlanciaStore.activeTeamId` / `toggleTeam` / `activeCount`, `BoardTeam.active`,
+`SlotMatrix.dimmed`, e il banco `scripts/e2e-plancia-lens.mjs` (sei passi).
+
+### 40.1 È UNA LENTE E NON UN FILTRO
+
+Le righe restano tutte al loro posto e si smorzano: togliere quelle degli altri cambierebbe i blocchi, e
+i blocchi sono la struttura del mercato - un rango diviso il numero di rose. Quindi la plancia non si
+muove di una riga, cambia solo cosa si legge. Una sola rosa alla volta, perché la domanda è «cosa ha
+preso QUESTO qui»: due rose accese insieme rispondono a una domanda che nessuno ha fatto.
+
+**Nessuna eccezione allo smorzamento** - ce n'erano due, erano mie, e sono durate un'ora: vedi §40.8.
+
+**E la lente si DICHIARA in barra, con la via d'uscita accanto alla ragione**: smorza duecentocinquanta
+righe, quindi uno schermo mezzo spento senza una parola in cima si legge come un guasto. La pastiglia
+porta la sigla della rosa e **DUE numeri** - quante righe la plancia sta evidenziando e quanti uomini ha
+comprato in tutto - perché differiscono quando ha preso qualcuno dalla CODA, che non è disegnata, e
+dirne uno solo farebbe leggere l'altro come un difetto (misurato sul tavolo dichiarato: 2 su 8 per la
+mia rosa, cioè sei acquisti a un credito). La forma è quella dell'ordine personale della pagina
+Strategia: la crocetta esiste solo quando c'è qualcosa da annullare.
+
+### 40.2 IL GUARD SU `MouseEvent.detail` FERMAVA METÀ DEL GESTO, e l'ha bocciato il banco
+
+Sulla stessa card c'era già un DOPPIO click che assegna il lotto (§37), e un doppio click emette prima
+un `click`. La prima versione filtrava `MouseEvent.detail` - 1 per un click, 2 per il secondo di un
+doppio - e sembrava la soluzione esatta, perché la distinzione è nell'evento e non serve nessun timer.
+**Non lo era: il PRIMO click di un doppio ha `detail` 1 come qualunque altro**, quindi un doppio click
+su una card con la lente accesa la spegneva prima di assegnare. Misurato dal banco, che per questo ha il
+passo: lente sulla card 2 prima del gesto, **nessuna** dopo.
+
+Cura: l'accensione **aspetta** 250 ms e il doppio click la annulla. Il ritardo sta sul gesto RARO
+(guardo cosa ha comprato una rosa) e non su quello frequente (le assegno il lotto), che resta
+istantaneo - il contrario di quello che il commento della prima versione sosteneva, perché pesava la
+latenza sul gesto sbagliato. *Un guard che ferma metà di un gesto lo rende metà rotto, e la metà che
+passa è quella che fa danno.*
+
+### 40.3 Il banco: un JOIN e non un conteggio, e due incognite mai in un passo solo
+
+Tre cose che questo banco fa e che valgono oltre la lente.
+
+**Il join per COLORE invece del conteggio.** Una riga è «sua» quando il colore della barra del
+proprietario è uguale al colore che la card dipinge sulla propria sigla - la stessa stringa letterale
+nei due posti - quindi «tutti i calciatori che ha comprato sono in chiaro» si verifica uomo per uomo
+invece che contando fino a tre. Contare avrebbe passato anche una lente accesa sulla rosa sbagliata.
+
+**L'opacità si legge da `getComputedStyle`, mai dalle classi**: una utility è una dichiarazione, il
+valore calcolato è quello che lo schermo fa. E il passo asserisce che qualche riga sia **esattamente** a
+0,30, non solo che sia smorzata: «meno di 1» passerebbe anche con un'opacità che nessuno ha chiesto.
+
+**Quale card è la mia lo dice la PAGINA, non il fixture**: il banco passa sulle dieci card e legge il
+tooltip finché una dice «La tua rosa». Serve perché i miei restano leggibili sotto la lente di un
+rivale, quindi senza saperlo l'aritmetica non chiude - e prenderlo dal fixture legherebbe il banco a
+una demo che cambia.
+
+E il passo del doppio click misura **due** incognite con **due** asserzioni: che la lente non si muova, e
+che il doppio click ARRIVI comunque - la prova è il rifiuto a prezzo zero, che la pagina scrive. Un
+ritardo che annullasse troppo si leggerebbe come «la lente è ferma» ed è invece un'assegnazione persa,
+che è il difetto peggiore dei due.
+
+### 40.4 NIENTE TOOLTIP SULLE CARD, e la frase resta dove non si disegna
+
+Sua istruzione, subito dopo: «togli il tooltip dalle card delle squadre». Stessa ragione delle righe
+della plancia il giorno prima («da' fastidio»): dieci card in colonna sono dieci pannelli che si aprono
+passando sopra, e si aprono proprio dove si sta guardando.
+
+Quello che il tooltip diceva è in gran parte già sulla card (crediti, posti, chi rilancia, chi è
+acceso). Quello che non ci sta - il nome per esteso quando è troncato, e i due gesti - resta
+nell'`aria-label`, che non si disegna: **togliere un canale visivo non è una ragione per togliere il
+fatto a chi non lo vede**, e questa card è un controllo con due gesti e nessun testo che li annunci. Non
+un `title` nativo, che sarebbe lo stesso pannello con un altro nome.
+
+E l'`aria-label` ha ripagato subito da un lato inatteso: il banco cercava «quale card è la mia»
+passando su tutte e dieci e leggendo il tooltip, e ora la legge dall'attributo - una lettura sola,
+stabile, e senza dieci hover.
+
+### 40.5 L'assenza si MISURA, da due lati
+
+Il passo che la verifica non si accontenta di guardare il DOM: conta gli attributi di tooltip sulle
+dieci card (**0 su 10**) *e* passa su ognuna con un puntatore vero contando quanti pannelli si aprono
+davvero (**0**). Il primo da solo non basterebbe - un `title` nativo, o una direttiva su un figlio,
+aprirebbero comunque qualcosa sullo schermo - ed è la stessa disciplina di «0 `title` su 250 righe» del
+04/09. Terza asserzione, sull'altro lato dello stesso cambio: **ogni card ha un nome accessibile**, o
+togliere il tooltip sarebbe stato togliere il fatto.
+
+### 40.6 Due etichette in barra togliute, e solo una lascia un buco
+
+«Queste due etichette non servono» (04/09/2026): «N saltano la prossima» e «N fuori lista».
+
+La prima esisteva per DICHIARARE un vincolo - «li ho fatti scendere in fondo al loro slot e li ho
+barrati» - e quel vincolo era stato ritirato lo stesso giorno (§39.2): era **una barra che annunciava un
+ordinamento che non c'è più**, quindi non lascia niente.
+
+La seconda dichiara un vincolo che C'È: chi rientra troppo tardi non si disegna, e un blocco con nove
+righe invece di dieci senza una parola si legge come un tabellone rotto. La sua frase è stata spostata
+nel tooltip del **blocco corto**, che ora porta conto, nomi *e soglia* - la soglia era solo nella
+pastiglia. Il posto è migliore di prima: la domanda «perché questo blocco ha nove righe» si fa guardando
+il blocco. *Un vincolo si dichiara dove si vede, non necessariamente in cima allo schermo.*
+
+E il codice è andato via col markup (`outNowCount`, `outNowNote`, `excluded`, `excludedNote`): un
+calcolo che nessuna vista legge è un contratto che mente a chi lo trova, la stessa regola dell'output
+che nessuno emette.
+
+### 40.7 TRE VERSIONI PER UN CONTEGGIO, e le due sbagliate insegnano di più
+
+Il banco degli infortuni leggeva quel conteggio dalla pastiglia, quindi andava riscritto. Le prime due
+forme erano sbagliate e in due modi diversi, entrambi già scritti in questo repository:
+
+1. **il buco del blocco più corto** - leggeva **1** dove gli esclusi erano 2, perché sulla griglia del
+   MERCATO ogni escluso resta nel suo slot (il posto non si sposta, si svuota), quindi due esclusi sono
+   due blocchi da nove e non uno da otto. *Un massimo non è un conteggio*, terza istanza.
+2. **la somma sui blocchi corti, esentando l'ultimo di ogni ruolo** - l'esenzione c'era per una ragione
+   vera (l'ultimo blocco può essere corto perché il listone non contiene un multiplo di dieci uomini in
+   quel ruolo) e nascondeva il secondo escluso, che stava proprio lì. *Un'esenzione che non sa
+   distinguere due cause ne perde una.*
+
+La forma che regge non deduce niente dalle altezze: apre il tooltip di ogni blocco corto e **somma il
+numero che il blocco DICE**. Legge la pagina invece di rifare il suo conto - che è anche il solo modo di
+accorgersi se la pagina lo sbaglia. Risultato: **2 fuori lista sui blocchi C6+C8**, contro i 2 che il
+foglio porta sotto soglia.
+
+### 40.8 UN'ASSERZIONE CHE PORTA DENTRO DI SÉ L'ECCEZIONE NON PUÒ FALLIRE SU QUELL'ECCEZIONE
+
+Sua segnalazione: «quando seleziono una squadra e poi ne seleziono un'altra, i calciatori della squadra
+precedente restano "accesi"». Il banco leggeva **otto passi verdi**, incluso uno che si chiamava
+«cliccando un'altra card la lente si SPOSTA» e contava **0 residui**.
+
+Riprodotto in un browser, e il caso è preciso:
+
+```
+CASO 1: prima la MIA rosa, poi un rivale
+  dopo la mia        La mia rosa   sue 2 - accese 2   (Corvi, Camarda)
+  dopo il rivale     La mia rosa   sue 2 - accese 2   <- restano
+                     Bar Centrale  sue 3 - accese 3
+CASO 2: due rivali di fila
+  dopo il 1o         Tridente      sue 7 - accese 7
+  dopo il 2o         Tridente      sue 7 - accese 0   <- puliti
+```
+
+La causa è **una delle due eccezioni che avevo aggiunto io** e dichiarato come mie: «i MIEI restano
+leggibili sotto la lente di un rivale». La prima rosa che uno guarda è la propria, quindi il caso che
+lui incontra per primo è esattamente quello che l'eccezione rompe - e **dal di fuori una riga accesa che
+non è della rosa accesa è indistinguibile da una lente che non si è pulita.**
+
+**E il banco era cieco per costruzione**: nei suoi filtri «nient'altro resta in chiaro» aveva scritto
+`row.owner !== mineColour && row.name !== lotName`, cioè le stesse due eccezioni della pagina. *Un'asserzione
+che porta dentro di sé l'eccezione che dovrebbe provare non può fallire su quell'eccezione*, e nessun
+numero di passi verdi lo dice. È la stessa famiglia dell'«asserzione circolare» del 04/09 (le presenze
+piene ricavate dalla card che si stava verificando) vista da un angolo peggiore, perché qui la
+circolarità era fra il banco e una decisione di design.
+
+Cura: **tutt'e due le eccezioni togliute**, dalla pagina e dai filtri. I due argomenti restano veri - la
+riga del lotto è quella per cui la pagina esiste, e «cosa ha preso lui» si chiede insieme a «e io cosa
+ho» - e non valgono il prezzo. *Il valore di un'eccezione si paga in confusione, e la confusione la vede
+solo chi guarda lo schermo senza aver scritto il codice.* Il lotto resta comunque riconoscibile: la sua
+riga ha lo sfondo verde e il suo nome è in cima alla pagina.
+
+Il passo che mancava esiste ora e segue la SUA sequenza, non una comoda: **prima la mia, poi un rivale**,
+zero residui. Provato rimettendo il difetto: con le eccezioni dentro, tre passi su nove diventano rossi e
+nominano Butez, Corvi e Camarda; senza, nove verdi.
+
+### 40.9 SMORZARE IL RESTO NON BASTA SE QUELLO CHE RESTA ERA GIÀ GRIGIO
+
+Sua istruzione: «l'ink dei nomi accesi per la squadra selezionata deve essere bianco altrimenti non
+risalta». Ed è vero per una ragione strutturale che la richiesta iniziale non poteva prevedere: gli
+uomini di una rosa accesa sono, **per lo stato della riga**, «di un altro» - e quello stato è disegnato
+`text-muted/60` di proposito, perché chi è già stato comprato non è più una decisione. Con la lente lo
+ridiventa, e allora l'opacità al 30% sul resto lavorava contro un inchiostro che partiva già spento.
+
+Cura: `LIT_TONE`, che è `ROW_TONE` con il solo stato `altro` portato a `text-fg`. Tre dettagli che
+valgono oltre il caso:
+
+- **una MAPPA e non una classe aggiunta** a quella dello stato: due utility sulla stessa proprietà si
+  decidono sull'ordine del CSS generato e non su quale delle due è legata (il difetto del 27/08/2026);
+- **`text-fg` e non un bianco letterale**: il tema ha due versi, e in quello chiaro il «bianco» è nero;
+- **i due rossi vincono comunque**, e non è un'eccezione alla sua richiesta ma il suo senso: l'ink pieno
+  serve alle righe che non risaltavano, e una riga rossa e barrata risalta già - ridipingerla costerebbe
+  l'unico canale che dice «la sua stagione è compromessa».
+
+**E il colore si misura confrontando righe della STESSA pagina**, mai contro un letterale: i token sono
+`color-mix` e il tema ha due versi, quindi la sola affermazione verificabile è «questa riga ha lo stesso
+colore di quella». Il passo prende il pieno da una riga ancora nell'urna e il grigio da una riga di un
+ALTRO padrone, **e pretende che i due siano diversi** - se coincidessero non proverebbe niente. Misurato:
+pieno `rgb(242, 242, 247)`, grigio `oklab(0.7015 ... / 0.6)`, **3 righe accese su 3** col pieno; e con il
+difetto rimesso a mano, 0 su 3 con i tre nomi stampati. È la stessa lezione del 03/09 sul canale rosso
+letto a mano, che leggeva 0 su una cella dipinta: *l'unità di un colore è parte della misura del colore.*
+
+## 41. CODE REVIEW DELLA PLANCIA (4 settembre 2026)
+
+Su sua richiesta, a effort alto: 14 findings, **12 corretti**, uno rimandato per una decisione di
+prodotto, uno rifiutato - e **uno era sbagliato nella sua conseguenza**, che è la ragione per cui una
+review si verifica come qualunque altra cosa (la stessa disciplina del §13 del simulatore, dove un
+finding su otto non compilava).
+
+### 41.1 I quattro che valgono oltre il caso
+
+- **Una lente che punta a una rosa che non esiste piu' smorza 250 righe senza pastiglia e senza via
+  d'uscita.** `activeTeamId` sopravviveva al cambio di tavolo: `activeTeam()` diventa `null` (quindi
+  niente pastiglia e niente crocetta) mentre `dimmed()` resta vero per ogni riga. Cura: `lensId`, un
+  computed che ritorna `null` quando l'id non è fra le rose del tavolo, letto da tutt'e tre i posti che
+  ne avevano bisogno - e `startDemo`/`connect` spengono la lente, perché un tavolo nuovo è gente nuova.
+  *La stessa abitudine che `AuctionFeed.followed` documenta già di sé: «risponde null se l'id non c'è
+  piu'».*
+- **`opacity` si MOLTIPLICA lungo l'albero.** `blockTone` mette `opacity-50` sul blocco esaurito, e un
+  blocco esaurito è il posto normale dove vivono gli uomini già comprati: le righe che la lente
+  accendeva leggevano al 50% proprio dove la lente serve. Invisibile al banco, che legge l'opacità
+  della RIGA (1) e non quella effettiva. Cura: un blocco non si sbiadisce se la lente sta accendendo
+  qualcosa dentro di lui.
+- **250 ms sono meno della soglia di doppio click del sistema, e il secondo click non annullava.** Con
+  ~300 ms fra i due click (dentro i 500 di default di Windows, che il commento stesso citava) il timer
+  scattava, la lente si girava, e poi arrivava l'assegnazione: esattamente il difetto che la riscrittura
+  diceva di aver curato. Cura: `press` annulla il timer anche sul secondo click.
+- **`aria-label` su un `div` non lo legge nessuno.** Togliendo il tooltip, l'unica documentazione a
+  schermo del doppio click era finita su un elemento con ruolo implicito `generic` e non focalizzabile.
+  Cura: `role="button"`, `tabindex="0"` e `keydown.enter` - il nome accessibile ora è esposto e la card
+  si raggiunge senza mouse. *Mettere una frase in un attributo non è renderla raggiungibile.*
+
+Gli altri otto corretti: gli esclusi della griglia personale tornano sull'ultimo blocco del ruolo (dove
+il buco cade davvero) restituendo conto, nomi e soglia a `blockTip`; `medianOffer` calcolata con lo
+stesso `middleOf` null-aware dei due lati, invece di una `median` su un sentinella `-1`; la nota della
+lente non attribuisce piu' alla coda tutto lo scarto fra disegnati e comprati (un escluso è comprato e
+non disegnato); la seconda voce rossa della legenda dice «e non è fuori da 45 giorni», perché `rowTone`
+dà la precedenza al barrato; `@let` per `headline` e `shown`, che erano chiamate due volte a
+interpolazione (500 chiamate per ciclo di CD su 250 righe); un import morto; e un JSDoc orfano che si
+attaccava a `tail`.
+
+### 41.2 IL FINDING SBAGLIATO, e la misura che lo dice
+
+Il primo finding diceva che `nzType="eye"` non è in `NZ_ICONS`, quindi «la lente non disegna mai il suo
+occhio»: la direttiva mette la classe comunque, tenta un fetch da `assets/`, prende 404 e lascia una
+casella vuota. La **prima metà è vera** (l'allowlist non lo portava) e **la conseguenza no**: togliendo
+di nuovo la registrazione e rimisurando, **73 icone a schermo, 0 vuote, occhio disegnato**. La ragione è
+che `ng-zorro-antd/icon` ha una sua lista di default che include `EyeOutline`, quindi l'icona si
+risolveva senza di noi.
+
+La correzione resta adottata - un'app che dipende da cosa un'altra libreria patcha per sé è fragile, e
+il commento del file dice che un TestBed su un'icona non registrata si appende - ma il verbale porta il
+numero e non la storia. *Una review è un'ipotesi con un argomento, non una misura: la metà verificabile
+si verifica.*
+
+### 41.3 E il banco ha guadagnato il passo che non aveva
+
+Il difetto sopra, vero o no, ha nominato un buco reale: **una classe che una direttiva mette comunque
+non è la prova che qualcosa si veda**, e ogni passo che cercava `.anticon-eye` leggeva «c'è» anche su
+una casella vuota. Il passo nuovo è nella forma GENERALE e non in quella particolare - non «l'occhio
+c'è» ma **«nessuna icona della pagina è vuota»**, perché una registrazione dimenticata è sempre lo
+stesso difetto e questa pagina disegna una dozzina di tipi - con `waitFor` invece di un'attesa fissa,
+perché la risoluzione di un'icona è asincrona e si POLLA. Legge **73 icone, 0 vuote**, e il suo null è
+il conteggio stesso (sotto le dieci icone il passo si dichiara inutile).
+
+### 41.4 E una sonda che serve un ciclo di attesa deve poter dire «non ancora»
+
+Fuori dalla plancia, trovato correndo tutti i banchi: `e2e-options` moriva **2 volte su 6** con
+`Cannot read properties of null (reading 'innerText')`. Non era l'app: `countLine` legge
+`document.body.innerText` dentro un ciclo che polla finché una riga appare, e fra la navigazione e il
+primo frame **il documento non ha ancora un body** - quindi la sonda LANCIAVA invece di rispondere «non
+ancora», e `evaluate` trasformava quel lancio in un errore che uccideva la corsa. Cura: `document.body?`.
+Cinque corse su cinque verdi dopo. *Un ciclo di attesa non aspetta niente se la sonda che interroga può
+morire.*

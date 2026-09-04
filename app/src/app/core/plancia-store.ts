@@ -24,7 +24,6 @@ import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
 import { GlobalOptions } from './global-options';
 import { OutWindow, outWindow } from './injury-window';
-import { itDate } from './tooltip';
 import {
   CalendarBook,
   CalendarFile,
@@ -49,8 +48,9 @@ import {
   adviseLot,
   alternativeFor,
   buildMap,
-  MIN_PLAY_SHARE,
   offerBand,
+  regroupByOffer,
+  SlotView,
 } from './plancia';
 import { STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
 
@@ -90,6 +90,15 @@ export interface BoardBlock extends SlotBlock {
   left: number;
   /** True when one of them is mine, which is the only thing a compact block has to say about me. */
   mine: boolean;
+  /**
+   * La mediana delle MIE max offerte sui suoi uomini: la cifra che l'intestazione mostra sulla griglia
+   * personale, dove `medianFvm` non e' piu' una proprieta' del blocco.
+   *
+   * Sta su tutt'e due le griglie perche' e' vera su tutt'e due - sul mercato dice «quanto pago il medio
+   * di questo slot» - e perche' due letture della stessa mediana in due posti sono come un blocco
+   * finisce per dichiarare due cifre. `null` dove nessuno dei suoi uomini ha un tetto.
+   */
+  medianOffer: number | null;
 }
 
 /** A participant as the strip draws him: credits, four numbers, and whether he is in on THIS lot. */
@@ -105,6 +114,13 @@ export interface BoardTeam {
   rival: boolean;
   /** He cannot reach the band at all: an absence, not a danger. */
   out: boolean;
+  /**
+   * LA ROSA ATTIVA: quella di cui la plancia sta mostrando gli acquisti (sua richiesta, 04/09/2026).
+   *
+   * Una sola alla volta, perche' la domanda e' «cosa ha preso QUESTO qui»: due rose accese insieme
+   * rispondono a una domanda che nessuno ha fatto e spengono il confronto che serve.
+   */
+  active: boolean;
 }
 
 export interface Lot {
@@ -216,9 +232,14 @@ export class PlanciaStore {
         basis: valuation.basis as ValuationBasis,
         confidence: valuation.confidence,
         out: window,
-        // ...e il VINCOLO resta solo per chi una durata non ce l'ha. I due non convivono: dove il
-        // numero c'e' fa lo stesso lavoro meglio, e tenere anche il gradino lo punirebbe due volte.
+        // ...e chi oggi non gioca lo si SEGNA e non lo si penalizza (04/09/2026): resta il campo,
+        // perche' la card e l'icona lo dicono e il tetto lo demota di un gradino, ma non muove piu'
+        // nessuna riga. I due non convivono: dove una data c'e', il numero fa lo stesso lavoro meglio.
         outNow: !window && !!this.status.unavailableNow(player.id),
+        // L'INFORTUNATO DI LUNGA DATA, che e' l'inchiostro BARRATO da oggi: uno spell aperto da 45
+        // giorni o piu'. Letto dal servizio che decide anche l'icona - un'icona e un inchiostro per
+        // una frase sola, quindi un lettore solo.
+        longOut: !!this.status.longInjury(player.id),
         // La nota dichiarata, come informazione sulla riga: solo `out_of_squad`, perche' `dispute` e
         // `wants_out` sono stati di una RELAZIONE e chi ci sta dentro si schiera e si compra ancora.
         outOfSquad: this.status.declared().get(player.id)?.kind === 'out_of_squad',
@@ -310,16 +331,90 @@ export class PlanciaStore {
         };
       });
 
-      // I MIEI IN CIMA AL BLOCCO (sua richiesta, 03/09/2026), e sotto di loro l'ordine MISURATO
-      // resta intatto: `sort` in JS e' stabile, quindi questo e' un PREFISSO e non un riordino - la
-      // stessa forma dell'ordine personale dei blocchi della pagina strategia. Il resto del blocco
-      // continua a leggersi per valore atteso, che e' l'ordine che §23.2 ha adottato.
-      rows.sort(
-        (left_, right_) => (right_.state === 'mio' ? 1 : 0) - (left_.state === 'mio' ? 1 : 0),
-      );
-
-      return { ...block, rows, left, mine: hasMine };
+      return {
+        ...block,
+        rows: mineFirst(rows),
+        left,
+        mine: hasMine,
+        medianOffer: middleOf(rows.map((row) => row.band?.high ?? null)),
+      };
     });
+  });
+
+  /**
+   * QUALE GRIGLIA DISEGNA LA PLANCIA: quella del MERCATO o la MIA.
+   *
+   * Sua richiesta del 04/09/2026. Non e' un filtro e non e' un ordinamento della tabella: sono due
+   * tagli dello stesso listone, e il bottone li NOMINA perche' un blocco chiamato `D1` che contiene
+   * due insiemi diversi di dieci uomini a seconda di uno stato invisibile e' esattamente il difetto
+   * che questa pagina si e' scritta due volte. Quello che NON cambia col taglio e' tutto cio' che e'
+   * misurato - la banda, il verdetto del lotto, l'alternativa, lo slot che la card nomina - perche'
+   * quelli leggono `blocks()`, che resta la griglia del mercato: vedi `regroupByOffer`.
+   */
+  readonly slotView = signal<SlotView>('market');
+
+  /** La plancia come la si guarda: `blocks()` sul mercato, la stessa gente ritagliata sul mio tetto. */
+  readonly viewBlocks = computed<BoardBlock[]>(() => {
+    const market = this.blocks();
+    if (this.slotView() === 'market') return market;
+    // Gli uomini che la mappa PORTA, non il listone: chi sta nella coda non ha una banda affatto, e
+    // promuoverlo qui vorrebbe dire prezzarlo su un gradino della scala che non esiste per lui.
+    const rows = market.flatMap((block) => block.rows);
+    // CHI NON SI DISEGNA VA DICHIARATO ANCHE QUI, and the right place is the role's LAST block: the
+    // personal grid is cut on the same men MINUS the excluded, so the whole shortfall lands at the end
+    // of the role - that is the block drawn with eight rows instead of ten. Leaving `excluded` empty
+    // left it short without a word, and the bar pastille that used to name them is gone (04/09/2026).
+    const goneByRole = new Map<Role, PlanciaMan[]>();
+    for (const block of market) {
+      if (!block.excluded.length) continue;
+      goneByRole.set(block.role, [...(goneByRole.get(block.role) ?? []), ...block.excluded]);
+    }
+    const groups = regroupByOffer(
+      rows,
+      // Il tetto MISURATO e non la cifra della colonna: `price` porta il prezzo PAGATO per chi ha gia'
+      // un padrone, e ordinare su una colonna con due significati darebbe una graduatoria che ne mescola
+      // due. Chi non ha un tetto (il foglio non lo prezza, quindi confidenza zero) finisce in fondo.
+      (man) => man.band?.high ?? -1,
+      this.teamsCount(),
+      this.slots(),
+    );
+    const lastOfRole = new Map<Role, string>();
+    for (const group of groups) lastOfRole.set(group.role, group.id);
+    return groups.map((group) => ({
+      role: group.role,
+      index: group.index,
+      id: group.id,
+      men: group.men,
+      // Chi rientra troppo tardi e' fuori dalla lista in tutt'e due i tagli: qui non c'e' un blocco a
+      // cui appartenga - senza una riga non ha un tetto su cui essere ordinato - quindi la dichiarazione
+      // sta sul blocco CORTO, che e' l'ultimo del ruolo, ed e' il tooltip a portare conto, nomi e soglia.
+      excluded: lastOfRole.get(group.role) === group.id ? (goneByRole.get(group.role) ?? []) : [],
+      medianFvm: group.medianFvm,
+      // Dalla stessa `middleOf` della griglia del mercato: un uomo senza tetto non e' un tetto di zero,
+      // quindi non entra nel campione - e `medianOffer` promette `null` dove nessuno ne ha uno.
+      medianOffer: middleOf(group.men.map((man) => man.band?.high ?? null)),
+      // NIENTE PREFISSO DEI MIEI QUI, e non e' una dimenticanza: su questa griglia la colonna E'
+      // l'ordine (04/09/2026, sua domanda su Hojlund e Martinez), quindi appuntare dei nomi in cima
+      // rimetterebbe esattamente la contraddizione che stiamo togliendo - una riga sopra un'altra con
+      // un numero piu' basso. «I miei in cima» (03/09) resta sulla plancia del mercato, dove l'ordine
+      // e' il valore atteso e il prefisso e' un'aggiunta dichiarata sopra di esso; qui i miei si vedono
+      // dallo sfondo grigio, che e' il canale che avevano gia'.
+      rows: group.men,
+      left: group.men.filter((man) => man.state === 'urna' || man.state === 'asta').length,
+      mine: group.men.some((man) => man.state === 'mio'),
+    }));
+  });
+
+  /**
+   * Il blocco da evidenziare sulla griglia che si sta guardando.
+   *
+   * `lot.block` e' e resta quello del MERCATO - e' lo slot su cui il verdetto e' misurato - quindi
+   * cercarlo per id sulla griglia personale evidenzierebbe un blocco che non contiene il lotto.
+   */
+  readonly viewLotBlockId = computed<string | null>(() => {
+    const id = this.lotId();
+    if (id == null) return null;
+    return this.viewBlocks().find((block) => block.rows.some((row) => row.id === id))?.id ?? null;
   });
 
   private readonly blockById = computed(
@@ -693,8 +788,75 @@ export class PlanciaStore {
     return this.numbers().get(id) ?? null;
   }
 
+  /**
+   * QUALE ROSA E' ACCESA, e non e' un filtro: le righe restano tutte, le altre si smorzano.
+   *
+   * Sua richiesta del 04/09/2026: «quando faccio click su un box di una squadra -> attiva quella
+   * squadra ed evidenzia sulla plancia tutti i calciatori comprati da quella squadra mettendo opacita'
+   * 30% a tutti gli altri». E' una lente e non una selezione - togliere le altre righe cambierebbe i
+   * blocchi, e i blocchi sono la struttura del mercato: qui non si muove niente, si smorza.
+   *
+   * `null` e' «nessuna», che e' lo stato normale della pagina.
+   */
+  readonly activeTeamId = signal<number | null>(null);
+
+  /**
+   * Il click ACCENDE, e sulla stessa rosa SPEGNE - una via d'uscita che sta dove sta il gesto.
+   *
+   * Il secondo click di un DOPPIO click non arriva qui (`MouseEvent.detail`, filtrato nella card):
+   * senza quel filtro l'assegnazione col doppio click accenderebbe e spegnerebbe la rosa in mezzo al
+   * gesto, cioe' duecentocinquanta righe che sfarfallano mentre si compra un calciatore.
+   */
+  toggleTeam(teamId: number): void {
+    this.activeTeamId.update((at) => (at === teamId ? null : teamId));
+  }
+
+  /** Una lente su una rosa che non ha piu' niente non e' una lente: si spegne con l'azzeramento. */
+  private clearLens(): void {
+    this.activeTeamId.set(null);
+  }
+
+  /**
+   * THE LENS THAT ACTUALLY EXISTS: the chosen id, guarded against a table that changed under it.
+   *
+   * The board can be handed a WHOLE NEW table - «Cambia asta» connects to a live session, the fixture
+   * is re-rolled - and the ids come from that new table. An id nobody has any more dims all 250 rows
+   * while the bar draws no badge and therefore no way out, which is the half-off screen this lens
+   * exists not to produce. Same shape as `AuctionFeed.followed`, which answers null when the id is
+   * gone; a new table reusing the id would be a DIFFERENT squad, so `startDemo`/`connect` clear it too.
+   *
+   * Every reader goes through here - the strip, the count and the board - or one of them would light a
+   * squad the other two cannot see.
+   */
+  readonly lensId = computed<number | null>(() => {
+    const at = this.activeTeamId();
+    if (at == null) return null;
+    return this.feed.teams().some((team) => team.id === at) ? at : null;
+  });
+
+  /** La rosa accesa come la strip la disegna, o `null`: un lettore solo per la barra e per le card. */
+  readonly activeTeam = computed(() => this.teams().find((team) => team.active) ?? null);
+
+  /**
+   * Quante righe la plancia le sta evidenziando, e quante ne ha in tutto.
+   *
+   * Due numeri perche' sono due cose: la CODA non e' disegnata (§la plancia porta 25 slot da `teams`
+   * uomini e sotto c'e' un conteggio), quindi una rosa che ha comprato un uomo dalla coda ha piu'
+   * acquisti di quanti se ne accendano. Dirne uno solo farebbe leggere l'altro come un difetto.
+   */
+  readonly activeCount = computed(() => {
+    const at = this.lensId();
+    if (at == null) return null;
+    const drawn = this.blocks()
+      .flatMap((block) => block.rows)
+      .filter((row) => row.ownerId === at).length;
+    const bought = this.feed.picks().filter((pick) => pick.teamId === at).length;
+    return { drawn, bought };
+  });
+
   readonly teams = computed<BoardTeam[]>(() => {
     const mine = this.mineId();
+    const active = this.lensId();
     const lot = this.lot();
     const role = lot?.block.role ?? null;
     const floor = lot?.advice.band?.low ?? 1;
@@ -712,6 +874,7 @@ export class PlanciaStore {
         me: team.id === mine,
         rival: team.id !== mine && wantsRole && canPay,
         out: team.id !== mine && !canPay,
+        active: team.id === active,
       };
     });
   });
@@ -729,46 +892,22 @@ export class PlanciaStore {
     }),
   );
 
-  /**
-   * Quanti uomini della mappa oggi non giocano: il conto che la pagina DICE.
+  /*
+   * QUANTO NON SI DISEGNA PIU' IN BARRA, e vale la pena dire cosa c'era.
    *
-   * Un vincolo che agisce in silenzio è indistinguibile da un ordinamento rotto, quindi la plancia
-   * dichiara quanti nomi ha fatto scendere invece di limitarsi a farli scendere.
-   */
-  readonly outNowCount = computed(
-    () =>
-      this.map()
-        .blocks.flatMap((block) => block.men)
-        .filter((man) => man.outNow).length,
-  );
-
-  /**
-   * CHI LA PLANCIA NON DISEGNA perche' rientra troppo tardi, con i nomi.
+   * Un blocco di prosa e non un JSDoc: qui sotto non c'e' niente da documentare, e un doc-comment senza
+   * una dichiarazione dopo di lui si attacca a quella successiva - `tail`, che non ne parla.
    *
-   * Il conto sta in barra e i nomi nel suo tooltip: un tabellone che toglie delle righe senza dirlo si
-   * legge come un tabellone rotto, e la lista serve perche' la domanda che segue e' sempre «chi?».
+   * Qui vivevano `outNowCount` / `outNowNote` («N saltano la prossima») e `excluded` / `excludedNote`
+   * («N fuori lista»), due pastiglie che l'operatore ha fatto togliere il 04/09/2026: «queste due
+   * etichette non servono». Togliere il CODICE e non solo il markup e' la stessa regola di un output
+   * che nessuno emette - un calcolo che nessuna vista legge e' un contratto che mente a chi lo trova.
+   *
+   * Dove sono finite le due frasi: la prima da nessuna parte, perche' dichiarava un vincolo che era
+   * stato ritirato poche ore prima (chi oggi non gioca non scende e non si barra piu'); la seconda nel
+   * tooltip del BLOCCO corto, che porta conto, nomi e soglia - `SlotBlock.excluded` non e' toccato, e'
+   * la barra che non lo legge piu'.
    */
-  readonly excluded = computed(() => this.map().blocks.flatMap((block) => block.excluded));
-
-  /** La frase del tooltip: la regola, la soglia, e i nomi. La compone lo store, non il template. */
-  readonly excludedNote = computed(() => {
-    const gone = this.excluded();
-    const names = gone
-      .map((man) => {
-        const when = man.out?.seasonOver
-          ? 'stagione finita'
-          : man.out?.declared
-            ? itDate(man.out.declared)
-            : '?';
-        return `${man.name} (${when})`;
-      })
-      .join(' · ');
-    return (
-      `Non li disegno: rientrano troppo tardi perche' valgano un posto in rosa - giocherebbero meno ` +
-      `del ${Math.round(MIN_PLAY_SHARE * 100)}% delle giornate che restano, margine di prudenza ` +
-      `incluso. Restano nel rango dello slot, quindi la numerazione non si muove. ${names}`
-    );
-  });
 
   /** The tail: a count and no names, because a board that hides it talks you into waiting. */
   readonly tail = computed(() => {
@@ -795,6 +934,9 @@ export class PlanciaStore {
       const auction = buildRandomAuction({ players, ...STANDARD_LEAGUE });
       this.feed.startDemo(auction);
       this.lotSource.set('demo');
+      // A NEW TABLE IS A NEW SET OF SQUADS: the lens cannot survive it, because an id that happens to
+      // exist on the new table names a DIFFERENT squad. `lensId` already refuses one that is gone.
+      this.clearLens();
       this.setLot(auction.lotId);
       // The drawn name can be one of the TAIL's, which has no block and therefore no advice: the board
       // must still open on a decision, so it falls back to the first man still in the urn - in map
@@ -824,6 +966,8 @@ export class PlanciaStore {
       const ok = await this.feed.connect(code);
       if (ok) {
         this.lotSource.set('manual');
+        // Same reason as `startDemo`: the live table brings its own squads and its own ids.
+        this.clearLens();
         this.setLot(null);
       } else {
         this.error.set(this.feed.error());
@@ -944,6 +1088,9 @@ export class PlanciaStore {
     }
     this.error.set(null);
     this.setLot(null);
+    // ...e la lente si spegne con le rose: una lente su una rosa vuota smorzerebbe 250 righe per
+    // evidenziarne zero, cioe' uno schermo spento senza una ragione leggibile.
+    this.clearLens();
     return true;
   }
 
@@ -1045,6 +1192,21 @@ export class PlanciaStore {
     }
     return out;
   }
+}
+
+/**
+ * I MIEI IN CIMA AL BLOCCO (sua richiesta, 03/09/2026), e sotto di loro l'ordine misurato INTATTO.
+ *
+ * `sort` in JS e' stabile, quindi questo e' un PREFISSO e non un riordino - la stessa forma dell'ordine
+ * personale dei blocchi della pagina strategia. Vale sulla plancia del MERCATO, dove l'ordine del
+ * blocco e' il valore atteso (§23.2) e il prefisso e' un'aggiunta dichiarata sopra di esso; NON sulla
+ * griglia personale, dove la colonna e' l'ordine e appuntare dei nomi in cima si leggerebbe come un
+ * ordinamento rotto. Due tagli, due promesse, e la regola sta dove la promessa la regge.
+ */
+function mineFirst(rows: BoardMan[]): BoardMan[] {
+  return [...rows].sort(
+    (left, right) => (right.state === 'mio' ? 1 : 0) - (left.state === 'mio' ? 1 : 0),
+  );
 }
 
 /** The median of the numbers that exist. A null is not a zero, so it is not in the sample. */

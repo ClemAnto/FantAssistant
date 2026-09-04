@@ -196,6 +196,28 @@
     color: var(--color-fg);
   }
 
+  /* IL DIVISORE FRA DUE BOTTONI E' UNO `::before`, e i tre override qui sopra non lo toccavano: antd
+     lo dipinge col PROPRIO blu quando il bottone e' selezionato, misurato 04/09/2026 sul toggle della
+     plancia - `rgb(22, 89, 150)`, 1px x 22px a `left: -1px`, cioe' esattamente il «bordo sinistro
+     blu» che l'operatore ha segnalato. Un tema che ridipinge sfondo, bordo e testo e lascia il seme
+     all'autore della libreria e' un tema che sbaglia in un posto solo, e in quel posto si vede. */
+  .ant-radio-button-wrapper:not(:first-child)::before {
+    background-color: var(--color-border);
+  }
+
+  .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)::before,
+  .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled)
+    + .ant-radio-button-wrapper::before {
+    background-color: var(--color-primary);
+  }
+
+  /* ...e il secondo blu della stessa misura: l'alone del FUOCO, `rgba(23, 125, 220, 0.12) 0 0 0 3px`,
+     che compare solo dopo un click e quindi non si vede in nessuno screenshot dello stato iniziale.
+     Tenuto come alone e non spento: dice a chi naviga da tastiera dov'e', ma nel nostro primario. */
+  .ant-radio-button-wrapper:focus-within {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  }
+
   .ant-checkbox-wrapper-disabled span,
   .ant-checkbox-disabled + span {
     color: var(--color-muted);

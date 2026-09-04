@@ -1,5 +1,48 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 4 settembre 2026 — «FACILE» E' UNA FRASE SUL CALCIO, E LUI L'HA CORRETTA TRE VOLTE.
+**Aggiornato: 4 settembre 2026 — DUE TAGLI DELLA PLANCIA, E TRE INCHIOSTRI CORRETTI DA CHI GUARDA
+LO SCHERMO. La sessione nasce da «un tasto per cambiare visualizzazione da slot MERCATO a slot
+PERSONALI, ripopolando gli slot per offerta massima» e vale per COME sono arrivate le correzioni: cinque
+sue, quattro su cose spedite lo stesso giorno, e ognuna ha trovato un difetto che nessun banco vedeva.
+(a) IL TETTO NON SI RICALCOLA sulla griglia nuova: la scala e' una quota del budget per (ruolo, slot)
+misurata con lo slot definito come rango PER PREZZO, quindi rileggerla su un rango costruito sulla nostra
+offerta sarebbe un parametro fuori dalla sua popolazione E una circolarita' - il taglio personale e' un
+riordino dei tetti che il mercato ha gia' prodotto, e la card continua a nominare lo slot su cui il tetto
+e' stato letto. (b) «TOGLI BERNABE E CASADEI DAGLI SLOT PERSONALI», fatto, e poi RITIRATO DA LUI: «non e'
+molto rilevante ai fini del mercato, e' solo una gara saltata, mostrarlo addirittura barrato mi ha tratto
+in inganno». La causa stava a monte della lista, nell'INCHIOSTRO - un fatto da una giornata su 36
+disegnato come una cancellazione - quindi chiedere di togliere quei nomi era la conseguenza ragionevole
+di quello che lo schermo diceva: *quando l'operatore chiede di eliminare qualcosa, vale la pena
+chiedersi se sia la cosa a essere sbagliata o il modo in cui la si mostra.* Il barrato ora dice
+«infortunato di lunga data» (uno spell aperto da 45+ giorni, la soglia che decide gia' l'icona) e passa
+da 12 righe a 2. (c) «PERCHE' HOJLUND STA PRIMA DI MARTINEZ?» - la discesa si rompeva SOLO sulle righe di
+chi e' gia' di qualcuno, perche' la colonna porta due significati (max offerta nell'urna, prezzo PAGATO
+dopo) e l'ordine usava il tetto: Martinez mostrava i 403 che un rivale ha pagato ed era ordinato su 322.
+**Una colonna puo' portare due significati solo dove non e' anche la chiave dell'ordinamento**, quindi la
+cura sta nel numero e non nell'ordine - e lo stesso argomento ha portato via «i miei in cima al blocco»
+da quella griglia. (d) «I CALCIATORI DELLA SQUADRA PRECEDENTE RESTANO ACCESI»: era una MIA eccezione («i
+miei restano leggibili sotto la lente di un rivale»), e la prima rosa che uno guarda e' la propria - **e
+il banco era cieco per costruzione**, perche' nei filtri «nient'altro resta in chiaro» avevo scritto le
+stesse due eccezioni della pagina: *un'asserzione che porta dentro di se' l'eccezione che dovrebbe
+provare non puo' fallire su quell'eccezione*, e nessun numero di passi verdi lo dice. (e) «L'INK DEI NOMI
+ACCESI DEVE ESSERE BIANCO», vero per una ragione strutturale: gli uomini di una rosa accesa sono «di un
+altro» per lo stato, e quello stato e' grigio di proposito, quindi smorzare il resto al 30% lavorava
+contro un inchiostro gia' spento. (f) IL «BORDO SINISTRO BLU» DEL TOGGLE erano DUE blu di antd che i
+nostri override non toccavano - il divisore `::before` (1px x 22px su un bottone alto 24) e l'alone del
+FUOCO, il secondo invisibile in ogni screenshot dello stato iniziale perche' esiste solo dopo un click.
+(g) LA LENTE SU UNA ROSA (un click su una card: i suoi acquisti in chiaro, tutto il resto al 30%), dove
+il rischio vero era la coesistenza col doppio click che assegna il lotto - e il guard su
+`MouseEvent.detail` fermava il secondo click ma non il PRIMO, che ha `detail` 1 come tutti. (h) LA REVIEW
+a effort alto: 14 rilievi, 12 corretti, fra cui che **`opacity` si MOLTIPLICA lungo l'albero** (le righe
+accese leggevano al 50% dentro i blocchi esauriti, che sono il posto normale degli uomini comprati) - e
+UNO SBAGLIATO nella sua conseguenza, misurato invece di creduto: togliendo la registrazione dell'icona,
+73 icone a schermo e 0 vuote, perche' ng-zorro ne ha una lista di default. *Una review e' un'ipotesi con
+un argomento, non una misura.* 651 test app, nove banchi e2e verdi, `engine_*` e i fogli fermi; due
+difetti aperti dichiarati (l'avanzamento `C 2/80`, preesistente e attribuito muovendo una cosa sola, e
+una colonna di slot che la griglia personale perde se le esclusioni accorciano il pool di un ruolo).
+Dettaglio: [assistente-asta-v1.md](assistente-asta-v1.md) §39-§41 e la chiusura in
+[stato-progetto-continuita-v5.md](stato-progetto-continuita-v5.md).**
+
+**Precedente: 4 settembre 2026 — «FACILE» E' UNA FRASE SUL CALCIO, E LUI L'HA CORRETTA TRE VOLTE.
 La sessione e' nata da «le partite facili sono troppo poche» con tre esempi, ed e' finita con la CARD
 di un calciatore. (a) LA SOGLIA: `EASY_MARGIN` 200 -> 100 -> **75**, in due passaggi perche' ha
 giudicato due volte - prima tre partite (due delle quali erano GIA' facili, quindi la sua lista

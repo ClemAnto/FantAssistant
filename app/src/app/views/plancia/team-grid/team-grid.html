@@ -1,22 +1,40 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
 
+     DUE GESTI SULLA STESSA CARD e nessuno dei due si mangia l'altro: un CLICK accende la lente su
+     quella rosa (i suoi acquisti in chiaro sulla plancia, tutto il resto al 30%), un DOPPIO CLICK le
+     assegna il lotto. Convivono perché l'accensione ASPETTA un quarto di secondo e il doppio click la
+     annulla - vedi `press`, e la versione che filtrava solo `MouseEvent.detail` è stata bocciata dal
+     banco. Il cursore è sempre `pointer` perché il click funziona sempre.
+
+     NESSUN TOOLTIP SULLE CARD (sua istruzione, 04/09/2026), come già sulle righe della plancia il
+     giorno prima: dieci card in colonna sono dieci pannelli che si aprono passando sopra, e si aprono
+     proprio dove si sta guardando. Quello che diceva è già sulla card - crediti, posti, chi rilancia -
+     e quello che non ci sta (il nome per esteso, i due gesti) resta nell'`aria-label`, che non si
+     disegna: *togliere un canale visivo non è una ragione per togliere il fatto a chi non lo vede.*
+
      QUATTRO NUMERINI P·D·C·A e nessuna etichetta: si accende solo il ruolo del lotto, e solo sulle rose
-     che possono ancora prenderlo. Il pallino vale «mano ancora alzata», la crocetta «fuori gioco».
-     Il nome per esteso sta nel tooltip: a questa larghezza una sigla si riconosce e una frase no. -->
+     che possono ancora prenderlo. Il pallino vale «mano ancora alzata», la crocetta «fuori gioco»,
+     l'occhio «stai guardando lui». -->
 <div class="grid h-full min-h-0 grid-cols-2 content-start gap-1.5 overflow-y-auto">
   @for (team of teams(); track team.id) {
-    <!-- IL DOPPIO CLICK ASSEGNA IL LOTTO A QUESTA ROSA (operatore, 04/09/2026).
-         `select-none` perché un doppio click su del testo lo SELEZIONA, e una card che resta
+    <!-- `select-none` perché un doppio click su del testo lo SELEZIONA, e una card che resta
          evidenziata dopo il gesto si legge come se fosse rimasta «attiva» - la stessa cura che il
-         trascinamento delle colonne ha già pagato (20/08). Il cursore cambia solo dove il gesto fa
-         davvero qualcosa; dove non lo fa, è lo store a dire perché. -->
+         trascinamento delle colonne ha già pagato (20/08), e da oggi «attiva» è uno stato vero di
+         questa card, quindi confonderlo con una selezione del browser sarebbe peggio di prima. -->
+    <!-- `role="button"` E `tabindex` NON SONO DECORAZIONE: senza un ruolo questo `div` e' `generic`,
+         e su un ruolo generico l'`aria-label` NON viene esposto - quindi la frase che sostituisce il
+         tooltip non arrivava a nessuno, ed e' l'unico posto dove il doppio click e' dichiarato. Con il
+         ruolo la card e' anche raggiungibile da tastiera, e li' il gesto disponibile e' il singolo
+         (Invio accende la lente): un doppio click non si batte a tastiera. -->
     <div
-      class="flex flex-col gap-1 rounded-lg border px-1.5 py-1 select-none"
+      class="flex cursor-pointer flex-col gap-1 rounded-lg border px-1.5 py-1 select-none"
       [class]="cardTone(team)"
-      [class.cursor-pointer]="assignable()"
-      (dblclick)="assign.emit(team.id)"
-      nz-tooltip
-      [nzTooltipTitle]="tip(team)"
+      role="button"
+      tabindex="0"
+      (click)="press(team, $event)"
+      (dblclick)="double(team)"
+      (keydown.enter)="activate.emit(team.id)"
+      [attr.aria-label]="describe(team)"
     >
       <div class="flex items-center gap-1">
         <span
@@ -25,7 +43,12 @@
           >{{ sigla(team) }}</span
         >
         <span class="min-w-0 flex-1 truncate text-[10px] text-muted">{{ team.label }}</span>
-        @if (team.rival) {
+        <!-- LA LENTE ACCESA PRENDE IL POSTO DEL PALLINO, e non gli sta accanto: il pallino dice «può
+             ancora rilanciare», un fatto sul lotto, e questo dice «stai guardando lui», uno stato che
+             hai scelto. A questa larghezza due segni si leggono come uno. -->
+        @if (team.active) {
+          <nz-icon class="shrink-0 text-[10px] text-primary" nzType="eye" />
+        } @else if (team.rival) {
           <span class="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"></span>
         } @else if (team.out) {
           <nz-icon class="shrink-0 text-[10px] text-muted" nzType="stop" />

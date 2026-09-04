@@ -67,9 +67,11 @@ export interface PlanciaMan {
    * ora SPIEGANO invece di contraddire: Hojlund +1,1 (33) sopra Martinez +1,6 (30) si legge.
    *
    * Il SEI e' la media di riferimento di un voto - una convenzione del gioco, non una misura nostra -
-   * e vive in `EDGE_BASE`, qui, che e' l'unico posto dove questa colonna e' definita. `null` quando
-   * il foglio non lo prezza («vuoto = ignoto, mai zero»: uno zero qui si leggerebbe come «rende
-   * esattamente il sei»).
+   * e vive in `EDGE_BASE`, qui, che e' l'unica DEFINIZIONE di questa colonna - e da oggi ha due
+   * lettori, perche' le pastiglie della Strategia mostrano lo stesso numero (`strategy.readingsOf`).
+   * Un secondo `6` scritto la' sarebbe la stessa colonna con due basi il giorno che una cambia.
+   * `null` quando il foglio non lo prezza («vuoto = ignoto, mai zero»: uno zero qui si leggerebbe
+   * come «rende esattamente il sei»).
    */
   edge: number | null;
   basis: ValuationBasis;
@@ -79,15 +81,34 @@ export interface PlanciaMan {
    * OGGI NON GIOCA E NON SAPPIAMO PER QUANTO: la stampa lo dà fuori, o un infortunio ufficiale è
    * ancora aperto, e nessuna delle due fonti dice fino a quando.
    *
-   * Non è una valutazione e non entra in nessun numero - senza una durata riprezzarlo sarebbe
-   * inventare. È un VINCOLO: lo fa scendere in fondo al suo slot e cambia il verdetto del lotto,
-   * sempre dicendolo. Popolato dallo store, che è l'unico a conoscere lo stato.
+   * È INFORMAZIONE E NON UN VINCOLO, per decisione dell'operatore del 04/09/2026, che ritira la sua
+   * stessa regola del 03/09: «non è molto rilevante ai fini del mercato, è solo una gara saltata,
+   * mostrarlo addirittura barrato mi ha tratto in inganno». Quindi non fa scendere più nessuno e non
+   * tinge più nessuna riga: il fatto lo porta l'ICONA della riga, che ha la sua ragione nel tooltip, e
+   * la card lo scrive per esteso. *Un inchiostro che grida un fatto piccolo è peggio di nessun
+   * inchiostro, perché fa leggere come cancellato un uomo che salta una partita.*
+   *
+   * Quello che NON è cambiato è il tetto: `offerBand` lo demota di un gradino (`HURT_SLOT_STEP`),
+   * perché chi non dice quando torna non può avere il tetto pieno del suo slot - lì la penalità
+   * produce un NUMERO, che la riga mostra, invece di un decreto che nessuno può leggere.
    *
    * DOVE UNA DATA DI RIENTRO C'È, questo campo è FALSO e al suo posto c'è `out`: il vincolo esisteva
    * perché mancava un numero, e dove il numero c'è fa lo stesso lavoro meglio, perché dice di quanto.
    * I due non convivono mai su una riga, o l'uomo verrebbe penalizzato due volte per un fatto solo.
    */
   outNow?: boolean;
+  /**
+   * INFORTUNATO DI LUNGA DATA: uno spell ancora aperto che dura da 45 giorni o più.
+   *
+   * È l'inchiostro BARRATO della plancia, su richiesta dell'operatore (04/09/2026): «lo stile barrato
+   * utilizziamolo per gli infortunati di lunga data». Questo sì è un fatto di mercato - la sua stagione
+   * è compromessa, non una giornata - e il barrato lo dice sulla riga senza cercare un'icona.
+   *
+   * NON riordina e non riprezza niente da sé: chi ha una data porta già le giornate perse dentro
+   * `points` e `pv`, quindi scende per conto suo. La soglia è quella che decide l'icona
+   * (`player-status.LONG_INJURY_DAYS`) e non una nostra: un'icona e un inchiostro per una frase sola.
+   */
+  longOut?: boolean;
   /**
    * ...E QUANDO INVECE LA DURATA SI SA: quante giornate perde, e quindi quanta stagione compri.
    *
@@ -226,19 +247,14 @@ export function buildMap(
  * something and the fantamedia it carries comes back into the order (§27).
  */
 function orderInside(men: PlanciaMan[]): PlanciaMan[] {
+  // NESSUN GRADINO PER CHI OGGI NON GIOCA (04/09/2026, e ritira la regola del 03/09 dello stesso
+  // operatore): «e' solo una gara saltata», quindi far scendere un nome per quello è una penalità
+  // di un ordine di grandezza più grande del fatto - e senza il barrato, che era l'inchiostro con cui
+  // il vincolo si dichiarava, sarebbe anche un riordino MUTO, che questa pagina non fa per principio.
+  // Chi manca davvero scende da sé: `points` porta le giornate che perde, e di quanto scende è una
+  // misura invece di un decreto.
   return [...men].sort(
-    // CHI OGGI NON GIOCA E NON HA UNA DATA DI RIENTRO VA IN FONDO, prima di ogni altra cosa. Vincolo
-    // e non peso: la sua posizione dentro lo slot resta quella di prima fra i suoi pari, cambia solo
-    // che non è il primo nome che l'occhio incontra alla quarta ora. Un uomo dato fuori dalla stampa
-    // e proposto in cima è esattamente il caso che l'operatore non vuole vedere (03/09/2026).
-    //
-    // Chi la data ce l'ha NON scende qui: scende da sé, perché `points` porta già le giornate che
-    // perde, e di quanto scende è una misura invece di un gradino (04/09/2026).
-    (a, b) =>
-      Number(a.outNow ?? false) - Number(b.outNow ?? false) ||
-      (b.points ?? -1) - (a.points ?? -1) ||
-      b.fvm - a.fvm ||
-      a.id - b.id,
+    (a, b) => (b.points ?? -1) - (a.points ?? -1) || b.fvm - a.fvm || a.id - b.id,
   );
 }
 
@@ -247,6 +263,93 @@ function median(values: number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = sorted.length >> 1;
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+/**
+ * WHICH GRID THE BOARD DRAWS. Two readings of the same 250 men, and the toggle names them.
+ *
+ * `market` is the measurement: a slot is a rank by FVM divided by the number of squads, which is a
+ * conservation law (ten first defenders, because every roster fields one) and the population every
+ * number of the auction bench is measured on - the ladder, the thinning discount, the timing band.
+ *
+ * `mine` is the operator's own request (04/09/2026): «un tasto che mi permetta di cambiare
+ * visualizzazione da slot MERCATO a slot PERSONALI ... ripopolare gli slot ordinando i calciatori per
+ * offerta massima». It answers the question the market grid cannot - «di tutti i difensori, quali
+ * sono i dieci che pagherei di piu'» - which at a free extraction is what decides whether the name
+ * that just came up is one of mine at all.
+ */
+export type SlotView = 'market' | 'mine';
+
+/** A block of the personal grid: the same shape the market one has, cut on another coordinate. */
+export interface OfferGroup<T extends PlanciaMan> {
+  role: Role;
+  index: number;
+  id: string;
+  men: T[];
+  /** The median of MY ceilings in the block: the coordinate it is cut on, so it is what its header says. */
+  medianOffer: number;
+  /** ...and what the room asks for the same ten men, which is no longer a property of the block. */
+  medianFvm: number;
+}
+
+/**
+ * The same men, cut on MY OWN CEILING instead of the room's price.
+ *
+ * THE CEILING IS NOT RE-DERIVED ON THE NEW GRID, and that is a decision rather than a shortcut. The
+ * ladder is a share of the budget per (role, slot) measured with the slot defined as a rank BY PRICE
+ * (§19.3), so re-reading it on a rank by our own offer would apply a measured scale outside the
+ * population it was measured on - and it would be circular on top of that, the offer deciding the slot
+ * that decides the offer. So this is a RE-ARRANGEMENT of the market's own ceilings: every man keeps
+ * the band the measurement gave him, and the card keeps naming the slot it was read on.
+ *
+ * NESSUNO E' ESCLUSO DA QUI, e la storia vale la riga di codice che non c'e'. Per un'ora questa
+ * funzione ha tolto dalla griglia personale chi «oggi non gioca», su richiesta dell'operatore
+ * («negli slot personali devi anche toglirmi calciatori come Bernabe e Casadei») - e lui l'ha
+ * RITIRATA guardando il risultato: «non e' molto rilevante ai fini del mercato, e' solo una gara
+ * saltata». La causa stava a monte e stava nell'INCHIOSTRO, non nella lista: la riga era BARRATA,
+ * cioe' un fatto da una giornata era disegnato come una cancellazione, e chiedere di togliere quei
+ * nomi era la conseguenza ragionevole di quello che lo schermo diceva. *Quando l'operatore chiede di
+ * eliminare qualcosa, vale la pena chiedersi se sia la cosa a essere sbagliata o il modo in cui la si
+ * mostra.* Il barrato ora dice «infortunato di lunga data» (`PlanciaMan.longOut`) e quei nomi sono
+ * tornati.
+ *
+ * Quello che il taglio non fa e' promuovere chi la mappa non porta: la coda non ha una banda affatto
+ * (la scala ha esattamente un gradino per slot), quindi cio' che si ritaglia e' la popolazione che la
+ * griglia del mercato ha gia' prezzato.
+ */
+export function regroupByOffer<T extends PlanciaMan>(
+  men: Iterable<T>,
+  offerOf: (man: T) => number,
+  teams: number,
+  slots: Record<Role, number>,
+): OfferGroup<T>[] {
+  const pool = new Map<Role, T[]>();
+  for (const role of ROLES) pool.set(role, []);
+  for (const man of men) pool.get(man.role)?.push(man);
+
+  const out: OfferGroup<T>[] = [];
+  for (const role of ROLES) {
+    // Dearest to me first, ties broken by the room's price and then by id: two runs over one board
+    // must give one grid, the same determinism `buildMap` owes the market one.
+    const ranked = [...(pool.get(role) ?? [])].sort(
+      (a, b) => offerOf(b) - offerOf(a) || b.fvm - a.fvm || a.id - b.id,
+    );
+    const count = Math.max(0, slots[role] ?? 0);
+
+    for (let index = 0; index < count; index += 1) {
+      const chunk = ranked.slice(index * teams, (index + 1) * teams);
+      if (!chunk.length) break;
+      out.push({
+        role,
+        index: index + 1,
+        id: `${role}${index + 1}`,
+        men: chunk,
+        medianOffer: median(chunk.map(offerOf)),
+        medianFvm: median(chunk.map((man) => man.fvm)),
+      });
+    }
+  }
+  return out;
 }
 
 /**
@@ -620,7 +723,9 @@ export function adviseLot(input: {
     band && band.pricedAt !== slotIndex
       ? `Prezzato come uno slot ${band.pricedAt}: infortunato oggi, non lo pago da primo. `
       : '';
-  const wager = band?.bet ? `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'. ` : '';
+  const wager = band?.bet
+    ? `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'. `
+    : '';
   const said = (reason: string) => window + priced + wager + reason;
 
   // PRIMA DI OGNI ALTRA COSA: se oggi non gioca, il verdetto è quello e non un prezzo. Sta davanti al
@@ -683,7 +788,9 @@ export function adviseLot(input: {
 
   return {
     verdict: 'prendi',
-    reason: said(`Dentro la banda e sotto la mediana dello slot (${Math.round(input.medianFvm)} cr).`),
+    reason: said(
+      `Dentro la banda e sotto la mediana dello slot (${Math.round(input.medianFvm)} cr).`,
+    ),
     ...shared,
   };
 }

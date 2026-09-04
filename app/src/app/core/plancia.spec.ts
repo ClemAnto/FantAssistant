@@ -15,6 +15,7 @@ import {
   alternativeFor,
   buildMap,
   depthFactor,
+  regroupByOffer,
   discountFor,
   offerBand,
   worthWaiting,
@@ -315,33 +316,35 @@ describe('il verdetto', () => {
 });
 
 describe('chi oggi non gioca', () => {
-  it('finisce in FONDO al suo slot, e non ne esce', () => {
-    // Il migliore dello slot è fuori: resta nello slot - toglierlo nasconderebbe un fatto - ma nessuno
-    // lo incontra per primo.
+  it('NON viene spostato di una riga: e informazione e non un vincolo', () => {
+    // Il migliore dello slot salta la prossima. Resta primo, perche una gara saltata non e un fatto
+    // di mercato (operatore, 04/09/2026) - e senza il barrato, che era l inchiostro con cui il
+    // vincolo si dichiarava, farlo scendere sarebbe un riordino MUTO.
     const men = [man(1, 'C', 100, 900, true), man(2, 'C', 90, 500), man(3, 'C', 80, 100)];
     const block = buildMap(men, 3, { P: 0, D: 0, C: 1, A: 0 }).byRole.get('C')![0];
-    expect(block.men.map((entry) => entry.id)).toEqual([2, 3, 1]);
+    expect(block.men.map((entry) => entry.id)).toEqual([1, 2, 3]);
     expect(block.men).toHaveLength(3);
   });
 
-  it('è un VINCOLO e non un peso: fra i disponibili l’ordine non cambia di una riga', () => {
-    const free = buildMap([man(2, 'C', 90, 500), man(3, 'C', 80, 100)], 2, {
+  it('...e l ordine e lo STESSO che avrebbe se non fosse fuori: il campo non entra nel confronto', () => {
+    const key = (rows: PlanciaMan[]) =>
+      buildMap(rows, 3, { P: 0, D: 0, C: 1, A: 0 })
+        .byRole.get('C')![0]
+        .men.map((entry) => entry.id);
+    const healthy = [man(1, 'C', 100, 900), man(2, 'C', 90, 500), man(3, 'C', 80, 100)];
+    const hurt = [man(1, 'C', 100, 900, true), man(2, 'C', 90, 500), man(3, 'C', 80, 100)];
+    expect(key(hurt)).toEqual(key(healthy));
+  });
+
+  it('e sulla griglia PERSONALE e elencato come tutti gli altri', () => {
+    const men = [man(1, 'C', 100, 900, true), man(2, 'C', 90, 500), man(3, 'C', 80, 100)];
+    const blocks = regroupByOffer(men, (one) => one.points ?? -1, 3, {
       P: 0,
       D: 0,
       C: 1,
       A: 0,
-    }).byRole.get('C')![0];
-    const withOut = buildMap(
-      [man(1, 'C', 100, 900, true), man(2, 'C', 90, 500), man(3, 'C', 80, 100)],
-      3,
-      {
-        P: 0,
-        D: 0,
-        C: 1,
-        A: 0,
-      },
-    ).byRole.get('C')![0];
-    expect(withOut.men.slice(0, 2).map((e) => e.id)).toEqual(free.men.map((e) => e.id));
+    });
+    expect(blocks[0].men.map((one) => one.id)).toEqual([1, 2, 3]);
   });
 
   it('il verdetto diventa FERMO, prima di ogni prezzo', () => {
@@ -443,7 +446,7 @@ describe('chi ha una data di rientro', () => {
     expect(band.share).toBeCloseTo(LADDER.C[1] * 0.5, 6);
   });
 
-  it('NON scende in fondo allo slot: scende da se\', di quanto dicono le sue giornate', () => {
+  it("NON scende in fondo allo slot: scende da se', di quanto dicono le sue giornate", () => {
     // Due uomini dello stesso slot, il secondo migliore ma fuori fino a novembre: l'ordine lo decide
     // il valore atteso gia' ridotto, e non un gradino che li separerebbe comunque.
     const healthy = man(1, 'A', 100, 150);
@@ -614,5 +617,103 @@ describe('il tetto di chi non gioca oggi', () => {
     expect(guessed.high).toBeCloseTo(measured.high / 2, 0);
     // ...e non tocca l ORDINE, che resta il valore atteso: `points` non passa da qui.
     expect(guessed.pricedAt).toBe(measured.pricedAt);
+  });
+});
+
+describe('la griglia PERSONALE', () => {
+  const slots: Record<Role, number> = { P: 3, D: 8, C: 8, A: 6 };
+
+  /** Un ruolo in cui la mia offerta e' l'ESATTO CONTRARIO del prezzo: due tagli che non si somigliano. */
+  function upsideDown(teams = 10): { men: PlanciaMan[]; offerOf: (man: PlanciaMan) => number } {
+    const men: PlanciaMan[] = [];
+    const count = slots.D * teams;
+    for (let at = 0; at < count; at += 1) men.push(man(at + 1, 'D', count - at));
+    // fvm 80...1, offerta 1...80: chi la stanza prezza per ultimo e' quello che io pago di piu'.
+    return { men, offerOf: (one) => count + 1 - one.fvm };
+  }
+
+  it('taglia sulla MIA offerta e non sul prezzo: il primo blocco porta i dieci che pago di piu', () => {
+    const { men, offerOf } = upsideDown();
+    const mine = regroupByOffer(men, offerOf, 10, slots);
+    const market = buildMap(men, 10, slots);
+
+    expect(mine[0].id).toBe('D1');
+    expect(mine[0].men.map((one) => one.id)).toEqual([80, 79, 78, 77, 76, 75, 74, 73, 72, 71]);
+    // ...che sono esattamente gli ULTIMI dieci del mercato: due tagli, due insiemi.
+    expect(
+      market.byRole
+        .get('D')?.[7]
+        .men.map((one) => one.id)
+        .sort((a, b) => a - b),
+    ).toEqual([...mine[0].men.map((one) => one.id)].sort((a, b) => a - b));
+  });
+
+  it('e la stessa gente: nessuno promosso da fuori, nessuno perso per strada', () => {
+    const men = listone();
+    const offerOf = (one: PlanciaMan) => (one.points ?? 0) * 2;
+    const market = buildMap(men, 10, slots);
+    const drawn = market.blocks.flatMap((block) => block.men);
+    const mine = regroupByOffer(drawn, offerOf, 10, slots);
+
+    expect(mine).toHaveLength(market.blocks.length);
+    for (const block of mine) expect(block.men).toHaveLength(10);
+    expect(mine.flatMap((block) => block.men.map((one) => one.id)).sort()).toEqual(
+      drawn.map((one) => one.id).sort(),
+    );
+  });
+
+  it('e deterministica: due letture della stessa plancia danno una griglia sola', () => {
+    const { men, offerOf } = upsideDown();
+    const once = regroupByOffer(men, offerOf, 10, slots);
+    const twice = regroupByOffer([...men].reverse(), offerOf, 10, slots);
+    expect(twice.map((block) => block.men.map((one) => one.id))).toEqual(
+      once.map((block) => block.men.map((one) => one.id)),
+    );
+  });
+
+  it('a offerta pari decide il prezzo della stanza, non l ordine di arrivo', () => {
+    const flat: PlanciaMan[] = [man(1, 'P', 5), man(2, 'P', 40), man(3, 'P', 20)];
+    const blocks = regroupByOffer(flat, () => 30, 3, { P: 1, D: 0, C: 0, A: 0 });
+    expect(blocks[0].men.map((one) => one.id)).toEqual([2, 3, 1]);
+  });
+
+  it('elenca anche chi oggi non gioca, e lo mette dove il suo tetto lo mette', () => {
+    const men: PlanciaMan[] = [];
+    for (let at = 0; at < 20; at += 1) men.push(man(at + 1, 'D', 20 - at));
+    // Il nome per cui pagherei di piu' salta la prossima giornata: resta, e resta primo.
+    men[0] = { ...men[0], outNow: true };
+    const blocks = regroupByOffer(men, (one) => one.fvm, 10, { P: 0, D: 2, C: 0, A: 0 });
+
+    // Tolto per un'ora su sua richiesta e RIMESSO da lui stesso: «e' solo una gara saltata», e la
+    // causa vera era il barrato, non la lista.
+    expect(blocks[0].men.map((one) => one.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(blocks.flatMap((one) => one.men)).toHaveLength(20);
+  });
+
+  it('chi ha una DATA di rientro sta dove il suo tetto lo mette, e non in fondo per decreto', () => {
+    const men: PlanciaMan[] = [];
+    for (let at = 0; at < 10; at += 1) men.push(man(at + 1, 'P', 10 - at));
+    men[0] = { ...men[0], points: 4, out: null };
+    const blocks = regroupByOffer(men, (one) => one.points ?? -1, 10, { P: 1, D: 0, C: 0, A: 0 });
+    // Fra il 6 e il 4 di punti attesi: il gradino binario servirebbe solo dove il numero manca.
+    expect(blocks[0].men.map((one) => one.id)).toEqual([2, 3, 4, 5, 6, 1, 7, 8, 9, 10]);
+  });
+
+  it('chi il foglio non prezza affonda invece di ereditare il gradino del suo slot', () => {
+    const men: PlanciaMan[] = [];
+    for (let at = 0; at < 10; at += 1)
+      men.push(man(at + 1, 'P', 30 - at, at === 0 ? null : 30 - at));
+    // Un tetto che non esiste vale meno di qualunque tetto: e la stessa regola di «vuoto = ignoto».
+    const blocks = regroupByOffer(men, (one) => one.points ?? -1, 10, { P: 1, D: 0, C: 0, A: 0 });
+    expect(blocks[0].men.at(-1)?.id).toBe(1);
+  });
+
+  it('porta DUE mediane, e quella dell intestazione e la coordinata su cui ha tagliato', () => {
+    const { men, offerOf } = upsideDown();
+    const first = regroupByOffer(men, offerOf, 10, slots)[0];
+    // La mia offerta mediana del blocco: 71...80, quindi 75,5.
+    expect(first.medianOffer).toBe(75.5);
+    // ...e quello che la stanza chiede per gli stessi dieci, che non e piu una proprieta del blocco.
+    expect(first.medianFvm).toBe(5.5);
   });
 });

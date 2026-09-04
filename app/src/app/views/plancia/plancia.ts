@@ -6,10 +6,11 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
+import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { AuctionFeed } from '../../core/auction-feed';
-import { ROLES } from '../../core/plancia';
+import { ROLES, SlotView } from '../../core/plancia';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { FlagMenu } from '../../ui/flag-menu/flag-menu';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
@@ -48,6 +49,7 @@ import { TeamGrid } from './team-grid/team-grid';
     NzIconModule,
     NzInputNumberModule,
     NzPopconfirmModule,
+    NzRadioModule,
     NzTooltipModule,
     FlagMenu,
     KeeperPairs,
@@ -66,6 +68,25 @@ export class Plancia {
   protected readonly roles = ROLES;
   protected readonly connecting = signal(false);
 
+  /**
+   * I DUE TAGLI, con la loro frase: il bottone dice cosa cambia, non solo che qualcosa cambia.
+   *
+   * Sua richiesta del 04/09/2026. La parola «slot» è quella del gioco (sua indicazione del 03/09,
+   * come `titolarissimo` e `por`), quindi i due nomi sono i suoi e non «fasce» o «blocchi».
+   */
+  protected readonly slotViews: { value: SlotView; label: string; hint: string }[] = [
+    {
+      value: 'market',
+      label: 'slot mercato',
+      hint: 'I dieci uomini che la stanza prezza uguale: uno slot è un rango per FVM diviso il numero di rose, ed è la griglia su cui la scala delle offerte è stata misurata. Dentro il blocco si ordina per valore atteso.',
+    },
+    {
+      value: 'mine',
+      label: 'slot personali',
+      hint: 'Gli stessi uomini, ripartiti per la MIA max offerta: D1 diventa i dieci difensori che pagherei di più. I tetti non si ricalcolano sulla nuova griglia: restano quelli misurati sullo slot di mercato, che la card continua a nominare.',
+    },
+  ];
+
   /** The regulation, always on screen: it is what decides every number under it. */
   protected readonly rules = computed(() => {
     const slots = this.store.slots();
@@ -76,6 +97,38 @@ export class Plancia {
       roster: ROLES.map((role) => slots[role]).join('·'),
     };
   });
+
+  /**
+   * La frase della lente: cosa ha acceso, quanto ne vede la plancia e come si spegne.
+   *
+   * La compone la vista e non lo store perché è una frase sull'INTERFACCIA - «le altre righe sono al
+   * 30%» non è un fatto sull'asta - mentre i due numeri che cita vengono dallo store, che è l'unico
+   * a saperli.
+   */
+  protected readonly lensNote = computed(() => {
+    const lens = this.store.activeTeam();
+    const count = this.store.activeCount();
+    if (!lens || !count) return '';
+    const tail =
+      count.bought === count.drawn
+        ? ''
+        : ` Gli altri ${count.bought - count.drawn} non sono disegnati: sono della coda, o rientrano ` +
+          'troppo tardi per valere un posto in rosa.';
+    return (
+      `Stai guardando ${lens.label}: i suoi ${count.drawn} acquisti sono in chiaro sulla plancia e ` +
+      `tutto il resto è al 30%, senza eccezioni.${tail} ` +
+      'Clicca la crocetta o la sua card per spegnere.'
+    );
+  });
+
+  /**
+   * I due numeri della lente come UNA stringa: quante righe accende e, quando differiscono, quante ne
+   * ha comprate in tutto. In una funzione e non in due interpolamenti perché il template avrebbe messo
+   * uno spazio in mezzo alla frazione - lo ha letto il banco.
+   */
+  protected lensCount(count: { drawn: number; bought: number }): string {
+    return count.bought === count.drawn ? String(count.drawn) : `${count.drawn}/${count.bought}`;
+  }
 
   protected readonly myMissing = computed(
     () => this.store.teams().find((team) => team.me)?.missing ?? [],

@@ -217,17 +217,31 @@ function readRow(name) {
   };
 }
 
-/** La pastiglia in barra: quanti uomini la plancia NON disegna, e chi. */
-function readExcluded() {
-  const chip = [...document.querySelectorAll('span')].find((one) =>
-    /fuori lista/.test(one.innerText ?? ''));
-  if (!chip) return { count: 0, note: null };
-  const rect = chip.getBoundingClientRect();
-  return {
-    count: Number((chip.innerText.match(/(\d+)/) ?? [])[1] ?? 0),
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2,
-  };
+/**
+ * IL BLOCCO CORTO: quanti uomini la plancia NON disegna, e dove chiederglielo.
+ *
+ * La pastiglia «N fuori lista» in barra e- stata togliuta su istruzione dell-operatore (04/09/2026:
+ * «queste due etichette non servono») e la frase e- rimasta dove la domanda si fa: nel tooltip del
+ * blocco che ha una riga in meno. Quindi il conto si legge dall-ARITMETICA del blocco - `teams` meno le
+ * righe disegnate - e la frase aprendo quel tooltip, che e- un binding di PROPRIETA- e non un attributo.
+ *
+ * Si cerca il blocco piu- corto e non un nome: quale slot resti corto dipende da chi e- infortunato
+ * oggi, e una scelta scritta a mano qui invecchierebbe al primo cambio di stagione.
+ */
+function shortBlocks(teams) {
+  return [...document.querySelectorAll('plancia-slot-matrix .grid > div')]
+    .filter((one) => one.querySelector('button'))
+    .map((block) => {
+      const header = block.firstElementChild;
+      const rect = header.getBoundingClientRect();
+      return {
+        id: (header.querySelector('span')?.innerText ?? '?').trim(),
+        rows: block.querySelectorAll('button').length,
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      };
+    })
+    .filter((block) => block.rows < teams);
 }
 
 /**
@@ -445,11 +459,19 @@ async function main() {
         ...(measured.row.reachable
           ? []
           : ['la riga esiste nel DOM ma qualcosa la copre sullo schermo']),
-        // IL VINCOLO NON SI SOMMA AL PREZZO: chi e' riprezzato non e' anche barrato, o lo stesso
-        // fatto lo punirebbe due volte.
+        // IL BARRATO ORA DICE UN'ALTRA COSA, e questa asserzione e' stata girata invece di cancellata
+        // (04/09/2026, sua istruzione: «lo stile barrato utilizziamolo per gli infortunati di lunga
+        // data»). Prima diceva «oggi non gioca» - un vincolo - e allora non poteva stare su un uomo
+        // gia' riprezzato, o lo stesso fatto lo puniva due volte. Ora dice «infortunio aperto da 45
+        // giorni o piu'», che NON sposta e NON riprezza niente: e' un'etichetta di taglia, e questo
+        // uomo - fuori da mesi con un rientro a data - e' esattamente chi deve portarla. Quindi il
+        // difetto ora sarebbe il contrario, e si asserisce quello.
         ...(measured.row.struck
-          ? ['la riga e- BARRATA: il vincolo e il riprezzo si sommano sullo stesso uomo']
-          : []),
+          ? []
+          : [
+              'la riga NON e- barrata: e- un infortunio lungo con una data, cioe- esattamente il ' +
+                'fatto che il barrato dice da oggi',
+            ]),
         // LA DEDUPLICA CHIESTA: due marchi per una notizia sola.
         ...(measured.row.flags.some((one) => /stampa lo d/i.test(one)) &&
         measured.row.flags.some((one) => /nfortunio lungo/i.test(one))
@@ -600,10 +622,25 @@ async function main() {
 
     // 4. CHI LA PLANCIA NON DISEGNA. Il conto sullo schermo contro il conto sul bundle: chi, con la
     //    data prudente, giocherebbe meno della soglia dichiarata. La soglia si legge dalla PAGINA
-    //    (la frase la porta) invece di tenerne una copia qui.
-    const chip = await evaluate(session, readExcluded);
-    if (chip.count) await hover(session, { x: chip.x, y: chip.y });
-    chip.note = chip.count ? await waitFor(session, readTooltip, 8) : null;
+    //    (la frase la porta) invece di tenerne una copia qui - e da oggi la frase sta sul BLOCCO
+    //    corto e non piu- in barra, perche- la pastiglia e- stata togliuta il 04/09/2026.
+    // IL CONTO LO DICE LA PAGINA, sommato sui blocchi corti invece di dedotto dalle loro altezze.
+    // Due versioni sbagliate prima di questa, e la seconda spiega perche-: sulla griglia del MERCATO
+    // ogni escluso resta nel suo slot - il posto non si sposta, si svuota - quindi due esclusi sono due
+    // blocchi da nove e non uno da otto, e leggere il piu- corto ne contava uno (un massimo non e- un
+    // conteggio). Poi l-esenzione per l-ultimo blocco di un ruolo, messa perche- quello puo- essere
+    // corto per la dimensione del listone, ne nascondeva un altro. La forma che regge non deduce
+    // niente: apre il tooltip di ogni blocco corto e somma il numero che il blocco DICE.
+    const shorts = (await evaluate(session, shortBlocks, 10)) ?? [];
+    const chip = { count: 0, id: shorts.map((one) => one.id).join('+') || null, note: null };
+    for (const block of shorts) {
+      await hover(session, { x: 800, y: 980 });
+      await hover(session, { x: block.x, y: block.y });
+      const said = await waitFor(session, readTooltip, 8);
+      const declared = Number((said?.match(/(\d+) fuori lista/) ?? [])[1] ?? 0);
+      chip.count += declared;
+      if (declared && !chip.note) chip.note = said;
+    }
     const floor = Number((chip.note?.match(/meno del (\d+)%/) ?? [])[1] ?? NaN) / 100;
     // NESSUNA RIGA DISEGNATA E- DI UN UOMO SOTTO LA SOGLIA: e- la regola detta dal lato dello
     // SCHERMO, e non ha bisogno di rifare a mano la divisione in slot. La prima versione contava gli
@@ -633,13 +670,13 @@ async function main() {
       if (await evaluate(session, readRow, one.name)) drawn.push(one.name);
     }
     note('chi non e- in plancia', {
-      said: `${chip.count} fuori lista - sotto il ${Math.round(floor * 100)}% ce ne sono `
-        + `${below.length} sul foglio, disegnati ${drawn.length}`,
+      said: `${chip.count} fuori lista sui blocchi ${chip.id ?? '?'} - sotto il `
+        + `${Math.round(floor * 100)}% ce ne sono ${below.length} sul foglio, disegnati ${drawn.length}`,
       below: below.map((one) => one.name),
       tooltip: chip.note?.slice(0, 220) ?? null,
       problems: [
         ...(chip.count ? [] : ['nessuno e- fuori lista: la regola non sta agendo o non c-e- nessuno']),
-        ...(chip.note ? [] : ['la pastiglia non dice PERCHE-, ne- chi']),
+        ...(chip.note ? [] : ['il blocco corto non dice PERCHE-, ne- chi']),
         ...(drawn.length ? [`disegnati anche se sotto la soglia: ${drawn.join(', ')}`] : []),
       ],
     });

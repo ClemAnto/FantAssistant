@@ -157,7 +157,12 @@ function boxOf(selector, text) {
 
 /** Quanti uomini la tabella dice di avere, letto dalla riga del conteggio e non dalle righe caricate. */
 function countLine() {
-  const text = document.body.innerText || '';
+  // `document.body` puo' essere NULL: questa funzione viene chiamata in un ciclo che POLLA finche' una
+  // riga appare, e fra la navigazione e il primo frame il documento non ha ancora un body. Senza il
+  // `?.` la funzione LANCIA invece di rispondere «non ancora», e `evaluate` trasforma quel lancio in
+  // un errore che uccide la corsa: misurato su sei corse, due morivano qui. *Una sonda che serve un
+  // ciclo di attesa deve poter dire «non ancora», o il ciclo non aspetta niente.*
+  const text = document.body?.innerText || '';
   const shown = /(\d[\d.]*)\s+(?:calciatori|uomini|nomi)/i.exec(text);
   return {
     said: shown ? shown[0] : null,
