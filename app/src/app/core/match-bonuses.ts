@@ -13,7 +13,7 @@
  */
 
 import { ScoringConfig, ScoringTerms } from './bundle';
-import { MatchCell } from './players-store';
+import type { MatchCell } from './players-store';
 
 /**
  * CHE COSA E' SUCCESSO, come VOCABOLARIO e non come etichetta.
@@ -125,6 +125,22 @@ export interface MatchSpell {
 
 export const FULL_MATCH = 90;
 
+/**
+ * QUANTO DEVE STARE IN CAMPO PERCHE' LA PARTITA SIA SUA: 75 minuti (operatore, 05/09/2026).
+ *
+ * Serve all'INCHIOSTRO della riga: sotto questa soglia i minuti sono in grigio, cosi' scorrendo le
+ * ultime partite si vede a colpo d'occhio dove ha giocato e dove e' entrato o uscito presto.
+ *
+ * NON E' IL 90 QUI SOPRA, e i due non vanno confusi perche' rispondono a due domande diverse: quello
+ * dice «e' stato sostituito?» (chi parte titolare e non arriva in fondo), questo dice «e' stata una sua
+ * partita?». E non e' nemmeno `status.MOST_OF_THE_MATCH`, che vale 65 ed e' il pavimento del terzo
+ * gradino della scala. TRE numeri per tre affermazioni, e nessuno dei tre e' derivabile dagli altri.
+ *
+ * Il 75 e' `engine/status.py:FULL_MATCH`, cioe' il pavimento che l'operatore aveva gia' dichiarato per
+ * `bandiera` e `titolarissimo`: la stessa frase sul calcio, quindi lo stesso numero e non uno nuovo.
+ */
+export const PLAYED_THE_MATCH = 75;
+
 export function spellOf(cell: MatchCell): MatchSpell {
   const minutes = cell.minutes;
   // Senza i minuti o senza la distinta non si dice niente: una freccia inventata su una riga di
@@ -135,4 +151,76 @@ export function spellOf(cell: MatchCell): MatchSpell {
     on: !cell.started && minutes > 0,
     off: cell.started && minutes > 0 && minutes < FULL_MATCH,
   };
+}
+
+
+/**
+ * IL PASSO DEL VOTO: mezzo punto, e non e' una scelta di presentazione - e' l'alfabeto della fonte.
+ *
+ * MISURATO sul bundle del 05/09/2026: **57.925 voti su 57.925** e **57.925 fantavoti su 57.925** stanno
+ * sulla griglia dei mezzi punti, senza una sola eccezione. Un sintetico che legge `5,88` scrive quindi
+ * una cifra che il fantacalcio non pubblica mai, e la falsa precisione si vede proprio dove serve
+ * confrontarlo con un voto vero.
+ *
+ * Il prezzo e' dichiarato: arrotondare sposta il numero di **0,129 in media** (0,25 al massimo), contro
+ * i **0,37** di errore per partita che la retta di `synth` ha di suo - un terzo del rumore che c'e' gia'.
+ */
+export const VOTE_STEP = 0.5;
+
+export function roundVote(value: number): number {
+  return Math.round(value / VOTE_STEP) * VOTE_STEP;
+}
+
+/**
+ * IL FANTAVOTO DI UNA PARTITA CHE NON LO PUBBLICA: il voto piu' i bonus, sommati con i punteggi del
+ * campionato in cui e' stata giocata (richiesta dell'operatore, 05/09/2026).
+ *
+ * Vale solo dove il voto e' SINTETICO: dove la fonte pubblica un fantavoto, quello e' il fantavoto, e
+ * un secondo conto darebbe a una partita due numeri. Ed e' la stessa `bonusesOf` che disegna i marchi
+ * della riga, quindi la somma e i simboli accanto non possono contraddirsi.
+ *
+ * COSA SI PUO' SOMMARE E COSA NO, misurato e non supposto (bundle del 05/09/2026, 24.393 partite di
+ * Serie A confrontate riga per riga coi voti veri):
+ * - i GOL del layer per-partita concordano al **100%** leggendo NULL come zero, e delle 1.745 partite in
+ *   cui ha segnato davvero **nessuna** legge NULL: la colonna e' completa dove conta;
+ * - gli ASSIST concordano al **99,25%** (133 di troppo, 49 di meno su 24.393);
+ * - i CARTELLINI non ci sono affatto - `yellows` e `reds` sono NULL su tutte le 352.754 righe, nessuno
+ *   li scrive - e nei voti veri un'ammonizione cade nell'**11,2%** delle partite. Quindi questo numero
+ *   e' OTTIMISTA di circa **0,06** in media, ed e' detto invece che nascosto.
+ *
+ * IL PORTIERE SI PUO' SOMMARE, e i suoi GOL SUBITI arrivano dai gol che l'avversario ha segnato in
+ * quella partita (operatore, 05/09/2026: «li prendi pari pari ai gol segnati nella partita
+ * dall'avversario ... la rarita' di un tale evento e' cosi' rara che possiamo tranquillamente
+ * ignorare questi casi», sui portieri usciti prima del gol).
+ *
+ * IL CASO RARO CHE LUI CITA E' DAVVERO RARO; QUELLO CHE NON LO E' E' UN ALTRO, e va detto. Il conto
+ * dei gol dell'avversario si ricostruisce dalle righe di quella partita che abbiamo in casa, e le
+ * righe ci sono solo per i giocatori che sappiamo identificare: sui campionati esteri - cioe' dove
+ * questo numero serve - la ricostruzione e' esatta il **72,5%** delle volte (Premier 82,6%, Ligue 1
+ * 60,6%) e sbaglia quasi sempre PER DIFETTO, **−0,325 gol in media**, perche' il marcatore avversario
+ * spesso non e' nel nostro perimetro. Quindi il fantavoto di un portiere sintetico e' ottimista di
+ * circa un terzo di punto, e lo sara' finche' il punteggio non arriva dalla fonte: `download_round`
+ * lo scarta da sempre pur avendolo nel payload (curato nel toolkit lo stesso giorno), quindi le
+ * giornate scaricate da qui in avanti porteranno il risultato vero e la ricostruzione servira' solo
+ * per l'archivio.
+ *
+ * Sulla Serie A la stessa ricostruzione e' esatta al **95,1%**, che e' la misura di quanto il difetto
+ * sia una questione di PERIMETRO e non di metodo.
+ *
+ * E IL BONUS PORTA INVIOLATA NON SI SOMMA, perche' la fonte non lo somma: sui 1.222 portieri a porta
+ * inviolata, il fantavoto pubblicato e' `voto + bonus` senza nessun premio in **1.218** casi (e i
+ * 2.613 che subiscono tornano 2.586 volte). E' un modificatore di lega e non un termine della riga.
+ */
+export function syntheticFantavoto(cell: MatchCell, config: ScoringConfig | null): number | null {
+  if (cell.vote == null || !cell.voteSynthetic) return null;
+  // IL PORTIERE SI SOMMA SOLO SE SI SANNO I GOL SUBITI, che sono il termine che decide il suo
+  // fantavoto: senza, la somma gli darebbe fantavoto uguale al voto - una promessa che nessuna sua
+  // partita mantiene. La condizione e' sul DATO e non sul ruolo, perche' e' il dato che manca.
+  if (cell.role === 'P' && cell.goalsConceded == null) return null;
+  const rows = bonusesOf(cell, config);
+  // Senza il file dei punteggi un bonus resta un EVENTO e non porta punti: allora non c'e' una somma
+  // da fare, e inventarne una con dei valori di comodo sarebbe peggio di non mostrarla.
+  if (rows.some((one) => one.points == null)) return null;
+  const total = rows.reduce((sum, one) => sum + (one.points ?? 0), 0);
+  return Math.round((cell.vote + total) * 100) / 100;
 }

@@ -5,10 +5,22 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { outWindowNote } from '../../core/injury-window';
-import { CardMan, RECENT_MATCHES, RECENT_SEASONS, cardLeft, cardTop } from '../../core/player-card';
+import { BonusRow } from '../../core/match-bonuses';
+import {
+  CardMan,
+  RECENT_MATCHES,
+  RECENT_SEASONS,
+  SeasonTotals,
+  cardLeft,
+  cardRows,
+  cardTop,
+  seasonTotals,
+} from '../../core/player-card';
 import { PlayerStatus } from '../../core/player-status';
-import { PlayersStore } from '../../core/players-store';
+import { PlayersStore, clubNameKey } from '../../core/players-store';
 import { EDGE_BASE } from '../../core/plancia';
+import { BonusMark } from '../bonus-mark/bonus-mark';
+import { ClubCrest } from '../club-crest/club-crest';
 import { MatchLine } from '../match-line/match-line';
 import { PlayerFlags } from '../player-flags/player-flags';
 
@@ -43,8 +55,10 @@ import { PlayerFlags } from '../player-flags/player-flags';
   selector: 'ui-player-card',
   templateUrl: './player-card.html',
   imports: [
+    BonusMark,
     CdkDrag,
     CdkDragHandle,
+    ClubCrest,
     DecimalPipe,
     NzIconModule,
     NzTooltipModule,
@@ -138,17 +152,80 @@ export class PlayerCard {
    * `MatchQuery` scrive di se' che esiste perche' «una seconda implementazione di le ultime partite
    * sarebbe una seconda risposta a una domanda che questo store risponde gia'».
    */
+  /** Le righe con i loro divisori: la lista che il template disegna, gia' decisa in `core/`. */
+  protected readonly rows = computed(() => cardRows(this.recent(), this.man().club));
+
   protected readonly recent = computed(() =>
     this.players.ready()
       ? this.players.recent(
           this.man().id,
           this.man().platform,
-          // Chiusa: le ultime cinque. Aperta: tutto quello che c'e' di questa stagione e della
-          // precedente - due limiti diversi perche' sono due domande diverse.
-          this.open() ? { seasons: RECENT_SEASONS } : { count: RECENT_MATCHES },
+          // Chiusa: le ultime cinque. Aperta: quante stagioni ne ha chieste - due per cominciare, una
+          // in piu' a ogni «carica». Due limiti diversi perche' sono due domande diverse.
+          this.open() ? { seasons: this.seasonsWanted() } : { count: RECENT_MATCHES },
         )
       : [],
   );
+
+  /**
+   * QUANTE STAGIONI L'ELENCO APERTO STA MOSTRANDO, e il tasto che ne chiede una in piu'.
+   *
+   * Richiesta dell'operatore (05/09/2026): «quando scrollo al termine della stagione scorsa, mostra un
+   * tasto per caricare anche la stagione precedente». Il tasto sta IN FONDO all'elenco e non in cima,
+   * che e' esattamente «quando scrollo al termine»: si incontra arrivando dove la lista finisce, e non
+   * chiede a nessuno di ricordarsi che esiste.
+   *
+   * E NOMINA LA STAGIONE CHE CARICHEREBBE, presa da `PlayersStore.seasonsWith` - lo stesso elenco su
+   * cui `recent` decide dove fermarsi. Chiedere al bundle «qual e' la stagione prima» avrebbe offerto
+   * un tasto che carica ZERO righe per chiunque abbia saltato un anno: qui una stagione esiste solo se
+   * ha prodotto qualcosa. Quando non ce n'e' piu', il tasto non c'e' - non e' disabilitato, che si
+   * legge come «non funziona» invece che come «non c'e' altro».
+   */
+  private readonly seasonsWanted = signal(RECENT_SEASONS);
+
+  protected readonly moreSeason = computed<string | null>(() => {
+    if (!this.open() || !this.players.ready()) return null;
+    const seasons = this.players.seasonsWith(this.man().id, this.man().platform);
+    return seasons[this.seasonsWanted()] ?? null;
+  });
+
+  protected loadMore(): void {
+    this.seasonsWanted.update((many) => many + 1);
+  }
+
+  /**
+   * IL RIEPILOGO DI UNA STAGIONE, sotto il suo divisore (operatore, 05/09/2026).
+   *
+   * Sulle partite che lo STORE ha di quella stagione e non su quelle disegnate: l'elenco puo' essere
+   * troncato, e una media su tre righe che dice «2024-25» sarebbe una statistica su una lista diversa
+   * da quella che descrive - il difetto che questo progetto ha gia' pagato, con i segni invertiti.
+   * Il numero di partite sta in prima colonna proprio per questo: e' il denominatore, e si vede.
+   */
+  /**
+   * Una media del riepilogo come si legge: una cifra dopo la virgola, e il `~` se poggia su un voto
+   * sintetico - lo stesso marchio che porta la riga da cui viene, o due numeri della stessa colonna
+   * direbbero che uno dei due e' misurato.
+   */
+  protected mean(value: number | null, totals: SeasonTotals): string {
+    if (value == null) return '—';
+    return (totals.synthetic ? '~' : '') + value.toFixed(1).replace('.', ',');
+  }
+
+  /** I due marchi del riepilogo, con lo stesso vocabolario di icone di una riga di partita. */
+  protected goalsMark(totals: SeasonTotals): BonusRow {
+    return { kind: 'goal', label: 'Gol', short: 'G', count: totals.goals, points: null, good: true };
+  }
+
+  protected assistsMark(totals: SeasonTotals): BonusRow {
+    return {
+      kind: 'assist', label: 'Assist', short: 'A', count: totals.assists, points: null, good: true,
+    };
+  }
+
+  protected totals(season: string): SeasonTotals | null {
+    if (!this.players.ready()) return null;
+    return seasonTotals(this.players.matchesOf(this.man().id, this.man().platform, season));
+  }
 
   /**
    * IL PANNELLO APERTO (richiesta dell'operatore, 05/09/2026): «l'area delle ultime partite si deve
@@ -177,6 +254,9 @@ export class PlayerCard {
     const opening = !this.open();
     this.pinned.set(opening ? (this.shell()?.nativeElement.offsetHeight ?? null) : null);
     this.open.set(opening);
+    // Chiudendo si torna alle due stagioni: quello che si e' caricato appartiene a QUELLA lettura, e
+    // riaprire la card con dieci stagioni gia' dentro sarebbe una card che decide da se' quanto scorrere.
+    if (!opening) this.seasonsWanted.set(RECENT_SEASONS);
   }
 
   protected readonly loadingMatches = computed(() => !this.players.ready());
@@ -184,21 +264,38 @@ export class PlayerCard {
   protected readonly crests = computed(() => this.players.crests());
   protected readonly scoring = computed(() => this.players.scoring());
 
-  /** L'avversario ha un nome e non un'identita': lo stemma si prova a risolvere, o resta un monogramma. */
-  protected opponentId(name: string | null): number | null {
+  /**
+   * LO STEMMA DI UN CLUB DALLA SUA GRAFIA, e vale per tutt'e due le squadre di una riga.
+   *
+   * PER LA SUA VALE COME PER L'AVVERSARIO, ed e' la correzione del 05/09/2026 («quando un calciatore
+   * giocava per un'altra squadra mostri lo stesso lo stemma della squadra corrente»): prima la riga
+   * riceveva l'id del club di OGGI, quindi le trentadue partite di Kolo Muani col Tottenham
+   * portavano lo stemma della Juventus - e lo stesso capitava dentro la Serie A a chiunque avesse
+   * cambiato squadra, sulle giornate della stagione passata.
+   *
+   * Nessun ripiego sul club di oggi: uno stemma sbagliato dice una cosa FALSA sulla riga, mentre uno
+   * scudo grigio dice quello che e'. Quanto costa, misurato sul bundle del 05/09/2026: il club di una
+   * riga di campionato si risolve al 100% (`match_ratings` scrive la grafia canonica) e quello del
+   * layer per-partita al 61,3% - il provider scrive `Tottenham Hotspur` dove il nostro listone scrive
+   * `Tottenham`, e la lista degli alias vive nel TOOLKIT (`matching.CLUB_ALIASES`), che e' dove va
+   * risolta un'identita'. Rifarla nel browser e' il join che una volta ha perso Milan, Roma e Napoli.
+   */
+  protected crestId(name: string | null): number | null {
     return this.players.clubIdOf(name);
   }
 
   /**
-   * L'identita' del SUO club: la CHIAVE se chi apre la card ce l'ha, il nome solo se non ce l'ha.
+   * QUEL GIORNO GIOCAVA ALTROVE: il confronto e' fra il club della RIGA e quello di oggi.
    *
-   * La Strategia legge il listone e porta l'id; la plancia sta su un listone che di identita' di club
-   * non ne ha una. L'ordine e' quello e non l'inverso, perche' un nome non e' una chiave: si ripiega
-   * sul nome dove non c'e' altro, e per uno STEMMA - mai per un numero.
+   * Sulla CHIAVE normalizzata e non sulla stringa, o `Tottenham Hotspur` e `Tottenham` sarebbero due
+   * club diversi e ogni riga estera si accenderebbe due volte per lo stesso motivo. Un club che non
+   * si sa nominare (una giornata saltata non porta squadra) non e' «altrove»: e' ignoto, e non si
+   * dipinge.
    */
-  protected readonly ownId = computed(
-    () => this.man().clubId ?? this.players.clubIdOf(this.man().club),
-  );
+  protected elsewhere(team: string): boolean {
+    const key = clubNameKey(team);
+    return !!key && key !== clubNameKey(this.man().club);
+  }
 
   /** La fantamedia da mostrare, gia' scelta da chi ha costruito la riga: la card non ne sceglie una sua. */
   protected readonly fm = computed(() => this.man().fm);

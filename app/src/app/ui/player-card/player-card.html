@@ -199,48 +199,134 @@
           <span
             class="cursor-help text-[10px] text-muted"
             nz-tooltip
-            nzTooltipTitle="Ultime giornate del suo club. «~» = voto sintetico."
+            nzTooltipTitle="Tutto il calcio che ha giocato, in ordine di data: campionato, coppe e amichevoli. «~» = voto sintetico calibrato, «*» = rating del provider."
             >?</span
           >
         </div>
-        @if (recent(); as matches) {
+        @if (rows(); as matches) {
           @if (matches.length) {
+            <!-- LO SPAZIO LIBERO VA AI BONUS e non all'incontro (operatore, 05/09/2026:
+                 «lasciamo un po' più di spazio alle icone dei bonus»). Era l'incontro a essere
+                 `1fr`, cioè a prendersi tutto quello che restava, e i bonus `auto`, cioè solo il
+                 contenuto: stringere le colonne dentro l'incontro non regalava un pixel a nessuno,
+                 lasciava aria dentro la sua stessa cella. Misurato prima e dopo. -->
             <div
-              class="grid grid-cols-[1fr_auto_auto_auto_auto] items-center gap-x-1.5 gap-y-0.5"
-              [class]="open() ? 'min-h-0 flex-1 overflow-y-auto pr-1' : ''"
+              class="grid grid-cols-[auto_auto_auto_1fr_auto] items-center gap-x-1.5 gap-y-0.5"
+              [class]="open() ? 'min-h-0 flex-1 overflow-y-auto scrollbar-slim pr-1' : ''"
               data-matches
             >
-              @for (match of matches; track $index; let i = $index) {
+              @for (row of matches; track $index) {
                 <!-- IL DIVISORE FRA DUE STAGIONI (operatore, 05/09/2026): a settembre «le ultime
                      cinque» sono due di quest'anno e tre dell'anno scorso, e senza una riga in mezzo si
                      leggerebbero come una serie sola. Sta sulla griglia e la attraversa tutta
-                     (`col-span-5`), o spezzerebbe l'incolonnamento che è il punto di questa lista. -->
-                @if (i && matches[i - 1].season !== match.season) {
+                     (`col-span-full`), o spezzerebbe l'incolonnamento che è il punto di questa lista.
+
+                     QUALE DELLE DUE COSE dire non è una scelta: chi si trasferisce lo fa quasi sempre
+                     fra due stagioni, quindi i due divisori cadono sulla stessa riga e si stampano
+                     tutt'e due - la stagione sopra, che è il taglio più largo. Li decide `cardRows`. -->
+                @if (row.season; as season) {
                   <span
-                    class="col-span-5 my-0.5 flex items-center gap-1 text-[9px] uppercase
+                    class="col-span-full my-0.5 flex items-center gap-1 text-[9px] uppercase
                            tracking-wide text-muted before:h-px before:flex-1 before:bg-border
                            after:h-px after:flex-1 after:bg-border"
-                    >{{ match.season }}</span
+                    >{{ season }}</span
                   >
+                  <!-- IL RIEPILOGO DELLA STAGIONE, nelle STESSE colonne delle sue partite (operatore,
+                       05/09/2026): minuti medi, voto medio, gol e assist, fantamedia. È un
+                       `grid-cols-subgrid` come una riga di partita, o i quattro numeri starebbero
+                       sotto le colonne sbagliate - «incolonnate correttamente» è una misura, e il
+                       banco la verifica confrontando le x con quelle delle righe.
+
+                       IN PRIMA COLONNA IL DENOMINATORE, perché è la stagione INTERA che riassume e
+                       non le righe qui sopra, che possono essere cinque: senza il conto, tre righe e
+                       una media di diciotto partite si leggerebbero come la stessa cosa. -->
+                  @if (totals(season); as totals) {
+                    <span
+                      class="col-span-full grid grid-cols-subgrid items-center gap-x-1.5 pb-0.5
+                             text-[9px] text-muted"
+                      data-season-totals
+                    >
+                      <span class="truncate">{{ totals.played }} partite</span>
+                      <span class="text-right tabular-nums">{{
+                        totals.minutes === null ? '—' : totals.minutes + "'"
+                      }}</span>
+                      <span class="text-right tabular-nums">{{ mean(totals.mv, totals) }}</span>
+                      <span class="flex items-center gap-1.5">
+                        @if (totals.goals) {
+                          <ui-bonus [bonus]="goalsMark(totals)" [always]="true" />
+                        }
+                        @if (totals.assists) {
+                          <ui-bonus [bonus]="assistsMark(totals)" [always]="true" />
+                        }
+                      </span>
+                      <span class="text-right font-semibold tabular-nums">{{
+                        mean(totals.fm, totals)
+                      }}</span>
+                    </span>
+                  }
+                }
+                <!-- IL CAMBIO DI SQUADRA (operatore, 05/09/2026), con lo stemma: le righe sotto sono di
+                     un altro club, e il nome da solo su una riga alta nove pixel si legge male fra due
+                     filetti. Stessa forma del divisore di stagione perché è la stessa cosa - un taglio
+                     nell'elenco - e non un secondo linguaggio. -->
+                @if (row.club; as club) {
+                  <span
+                    class="col-span-full my-0.5 flex items-center gap-1 text-[9px] text-muted
+                           before:h-px before:flex-1 before:bg-border after:h-px after:flex-1
+                           after:bg-border"
+                    data-club-break
+                  >
+                    <ui-crest
+                      size="sm"
+                      fallback="shield"
+                      [club]="club"
+                      [clubId]="crestId(club)"
+                      [crests]="crests()"
+                    />
+                    {{ club }}
+                  </span>
                 }
                 <ui-match-line
-                  [cell]="match.cell"
-                  [clubId]="ownId()"
-                  [opponentId]="opponentId(match.cell.opponent)"
+                  [cell]="row.match.cell"
+                  [clubId]="crestId(row.match.cell.team)"
+                  [opponentId]="crestId(row.match.cell.opponent)"
+                  [elsewhere]="elsewhere(row.match.cell.team)"
                   [crests]="crests()"
                   [scoring]="scoring()"
                 />
               }
+              <!-- IN FONDO, il tasto per la stagione prima (operatore, 05/09/2026: «quando scrollo al
+                   termine della stagione scorsa, mostra un tasto per caricare anche la stagione
+                   precedente»). Sta DENTRO la griglia e attraversa tutte le colonne, o si porterebbe
+                   via una colonna della riga sopra - gli 84px che la tabella di consultazione ha già
+                   pagato il 20/08. Nomina la stagione che caricherebbe, e quando non ce n'è più
+                   sparisce invece di restare spento. -->
+              @if (moreSeason(); as season) {
+                <button
+                  type="button"
+                  class="col-span-full my-1 rounded border border-border py-1 text-[10px] text-muted
+                         hover:border-primary hover:text-fg"
+                  data-more
+                  (click)="loadMore()"
+                >
+                  Carica stagione {{ season }}
+                </button>
+              }
             </div>
           } @else {
             <!-- Un vuoto va SPIEGATO, o si legge come «non ha mai giocato»: qui la differenza è fra
-                 «sto ancora leggendo» e «di lui questo campionato non ha nessuna giornata» - che per
-                 chi è arrivato dall'estero è la risposta giusta e non un difetto. -->
+                 «sto ancora leggendo» e «di lui non abbiamo nessuna partita».
+
+                 LA SECONDA FRASE È CAMBIATA IL 05/09/2026 e la vecchia va ricordata perché era FALSA:
+                 diceva «le partite che ha giocato altrove non hanno un voto qui», e quelle partite ci
+                 sono - con l'avversario, i minuti e il rating - e un voto ce l'hanno, il sintetico
+                 calibrato che il toolkit scrive da sempre su quei cinque campionati. A non leggerle
+                 era questo elenco. Adesso un vuoto vuol dire davvero che di lui non c'è niente. -->
             <p class="text-[10px] text-muted">
               {{
                 loadingMatches()
                   ? 'Sto leggendo le giornate…'
-                  : 'Nessuna sua giornata in questo campionato: le partite che ha giocato altrove non hanno un voto qui.'
+                  : 'Di lui non risulta nessuna partita: né in questo campionato, né altrove.'
               }}
             </p>
           }

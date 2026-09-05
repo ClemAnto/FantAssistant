@@ -38,7 +38,7 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: color-mix(in srgb, var(--color-muted) 60%, var(--color-page));
+    background-color: var(--scrollbar-thumb-shown, var(--scrollbar-thumb));
     /* Il bordo trasparente più `padding-box` è quello che stacca la maniglia dal bordo: è il modo
        di dare un margine a uno pseudo-elemento che non accetta `margin`. */
     border: var(--scrollbar-inset) solid transparent;
@@ -54,10 +54,57 @@
     background-color: var(--color-primary);
   }
 
+  /* UNA BARRA PIÙ SOTTILE dove si scorre una lista fitta (richiesta dell'operatore, 05/09/2026, per
+     le «ultime partite» della card di un calciatore). Non è una seconda barra: sono gli STESSI due
+     token, ridichiarati sull'elemento che scorre - le custom property si ereditano anche negli
+     pseudo-elementi, quindi `::-webkit-scrollbar` qui sotto legge il valore locale e forma, colore e
+     stacco restano quelli di sopra. Una regola `::-webkit-scrollbar` scritta a parte sarebbe una
+     seconda definizione dello stesso oggetto, e il giorno che il tema cambia se ne aggiorna una sola.
+
+     6px con 1 di stacco = una maniglia di 4, contro i 6 della barra normale: su una riga alta 18px
+     una maniglia di 6 è larga quanto un terzo di una colonna. Firefox ha solo `auto | thin | none`,
+     quindi lì è già `thin` e questa classe non può fare di meglio - detto, non nascosto. */
+  .scrollbar-slim {
+    --scrollbar-size: 6px;
+    --scrollbar-inset: 1px;
+  }
+
+  /* UNA BARRA CHE COMPARE SOLO QUANDO SERVE (richiesta dell'operatore, 05/09/2026, per le liste della
+     pagina Strategia). Quello che si spegne e' il POLLICE e non la LARGHEZZA, ed e' la sola forma che
+     non sposta niente: azzerando `--scrollbar-size` la gronda sparisce e il contenuto della lista
+     rientra di sei pixel a ogni passaggio del mouse, cioe' si cura un fastidio introducendone uno piu'
+     grosso - i nomi si muoverebbero sotto il dito mentre si sta per cliccarne uno.
+
+     UNA SOLA DEFINIZIONE DEL COLORE, che e' la stessa disciplina del blocco qui sopra: il mix vive in
+     `--scrollbar-thumb` (fra i token, con le altre due misure della barra) e questa classe si limita a
+     coprirlo con `--scrollbar-thumb-shown`. Scrivere il `color-mix` una seconda volta qui vorrebbe dire
+     che il giorno in cui il tema cambia se ne aggiorna una sola.
+
+     `:focus-within` accanto a `:hover` perche' a una lista ci si arriva anche da tastiera, e una barra
+     invisibile mentre la si sta scorrendo con le frecce e' una barra rotta. */
+  .scrollbar-quiet {
+    --scrollbar-thumb-shown: transparent;
+  }
+
+  .scrollbar-quiet:hover,
+  .scrollbar-quiet:focus-within {
+    --scrollbar-thumb-shown: var(--scrollbar-thumb);
+  }
+
   @supports not selector(::-webkit-scrollbar) {
     * {
       scrollbar-width: thin;
-      scrollbar-color: color-mix(in srgb, var(--color-muted) 60%, var(--color-page)) transparent;
+      scrollbar-color: var(--scrollbar-thumb) transparent;
+    }
+
+    /* Firefox non ha pseudo-elementi, quindi la stessa affermazione va fatta sulla proprieta' standard. */
+    .scrollbar-quiet {
+      scrollbar-color: transparent transparent;
+    }
+
+    .scrollbar-quiet:hover,
+    .scrollbar-quiet:focus-within {
+      scrollbar-color: var(--scrollbar-thumb) transparent;
     }
   }
 }
@@ -82,6 +129,11 @@
        `--control-height`, quindi qui e non fra i colori - il colore lo mette il tema. */
     --scrollbar-size: 12px;
     --scrollbar-inset: 3px;
+    /* Il colore del pollice: un MIX del testo secondario col fondo della pagina, con la quota misurata
+       nel blocco che lo disegna (WCAG 1.4.11, 3:1 su tutti e due i temi). Sta qui e non li' perche'
+       `.scrollbar-quiet` ha bisogno di rimetterlo dopo averlo spento, e due copie dello stesso mix
+       sarebbero due definizioni di un colore solo. */
+    --scrollbar-thumb: color-mix(in srgb, var(--color-muted) 60%, var(--color-page));
   }
 
   html,

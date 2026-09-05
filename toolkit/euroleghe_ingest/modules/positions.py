@@ -260,6 +260,20 @@ def download_round(session, league: str, season_id: int, rnd: int, perimeter: se
             "id": event.get("id"), "home": home, "away": away,
             "round": (event.get("roundInfo") or {}).get("round") or rnd,
             "startTimestamp": event.get("startTimestamp"),
+            # IL RISULTATO, che il payload porta e questo passo buttava via.
+            #
+            # `parse_round` sa gia' leggerlo (`homeGoals`/`awayGoals` -> `team_goals`/`opponent_goals`)
+            # e lo riceveva solo dal layer EXTRA, che se lo salva da sempre: sulle righe di campionato
+            # la colonna e' quindi vuota nel 98,5% dei casi. Serve per una domanda sola e precisa -
+            # quanti gol ha subito un portiere in una partita che il fantacalcio non vota - e senza,
+            # l'app deve ricostruirla sommando i gol dei giocatori avversari che sa identificare, che
+            # sull'estero e' esatto il 72,5% delle volte e sbaglia PER DIFETTO di 0,325 gol in media.
+            #
+            # I FILE GIA' IN CACHE NON LO PORTANO, perche' la cache tiene l'evento gia' sfoltito e non
+            # il payload grezzo: un `rebuild` offline non lo recupera, e la colonna si riempie giornata
+            # per giornata man mano che i turni vengono riscaricati. Detto invece di lasciarlo scoprire.
+            "homeGoals": ((event.get("homeScore") or {}).get("current")),
+            "awayGoals": ((event.get("awayScore") or {}).get("current")),
         })
         if cancel_event is not None and cancel_event.is_set():
             break
@@ -379,15 +393,47 @@ LEAGUE_SOURCE = "sofascore"
 EXTRA_SOURCE = "sofascore_extra"
 
 
+# The columns this parser OBSERVES: everything an upsert may overwrite with what the payload says.
+# `mv_synth` is deliberately not among them - see `_store_match_rows`.
+_MATCH_COLUMNS = (
+    "competition", "real_md", "match_date", "club", "opponent", "home", "position", "started",
+    "minutes", "rating", "goals", "assists", "xg", "xa", "shots", "shots_on_target",
+    "big_chances_created", "big_chances_missed", "key_passes", "touches", "team_goals",
+    "opponent_goals",
+)
+
+
 def _store_match_rows(conn, rows: list[tuple], source: str = LEAGUE_SOURCE) -> int:
+    """Upsert the observed columns, and DO NOT take `mv_synth` down with them.
+
+    It used to be `INSERT OR REPLACE`, which deletes the row and writes a new one: every column the
+    statement does not list goes back to NULL, and `mv_synth` - written by `synth`, not by any parser
+    - is exactly such a column. So a re-read of a round SILENTLY threw away the calibrated synthetic
+    voto of every row it touched. Measured on the live DB the day it was found: 100% of the rated rows
+    up to 2023-24 carry one, and **0 of 88,121** in the three seasons the bundle exports - i.e. the
+    layer that lets the app show what a man did outside this championship was empty for exactly the
+    seasons anybody looks at. The rule itself was never broken: re-applied, those same rows convert
+    77,317 of 88,121.
+
+    It is «una catena che alimenta una catena va rifatta come catena» met from the other end, and the
+    cure is the smaller one - the second link does not need re-running if the first stops undoing it.
+    A CHANGED rating does invalidate the conversion, so the value survives only while the number it
+    was computed from is the same (`IS`, so two NULLs count as equal); otherwise it goes back to NULL
+    and `synth` recomputes it. Stale is the one thing it must not be allowed to be.
+    """
+    assignments = ", ".join(f"{name} = excluded.{name}" for name in _MATCH_COLUMNS)
     conn.executemany(
-        """
-        INSERT OR REPLACE INTO external_match_stats(
+        f"""
+        INSERT INTO external_match_stats(
             fc_id, season, source, match_id, competition, real_md, match_date, club, opponent,
             home, position, started, minutes, rating, goals, assists, xg, xa,
             shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches,
             team_goals, opponent_goals)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(fc_id, season, source, match_id) DO UPDATE SET
+            {assignments},
+            mv_synth = CASE WHEN external_match_stats.rating IS excluded.rating
+                            THEN external_match_stats.mv_synth END
         """,
         [(row[0], row[1], source, *row[2:]) for row in rows],
     )

@@ -1,32 +1,53 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
 
-     CINQUE CELLE E NESSUNA RIGA: l'ospite ha `display: contents`, quindi le celle finiscono DIRETTAMENTE
-     nella griglia del genitore e le cinque colonne restano incolonnate da una partita all'altra. Con un
-     `<div>` per riga ogni riga avrebbe le proprie larghezze e la lista si leggerebbe a zig-zag - che è
-     esattamente quello che una lista compatta non deve fare.
+     CINQUE CELLE E UNA RIGA CHE SI PUÒ DIPINGERE: l'ospite è un `grid-cols-subgrid` che occupa tutte le
+     colonne, quindi le cinque celle si allineano alle piste della card e restano incolonnate da una
+     partita all'altra. Con un `<div>` per riga e una griglia sua ogni riga avrebbe le proprie larghezze
+     e la lista si leggerebbe a zig-zag - che è esattamente quello che una lista compatta non deve fare.
 
      IL TOOLTIP È UNO SOLO e sta sull'incontro: è la cella più larga ed è quella che si sta leggendo
      quando si vuole saperne di più. Cinque tooltip su una riga alta diciotto pixel sono cinque pannelli
      che si aprono mentre si scorre - la lezione delle tre pastiglie della Strategia. -->
 
-<!-- 1. L'INCONTRO: i due stemmi, i due nomi abbreviati e il risultato, INCOLONNATI (operatore,
-     05/09/2026: «allinea tra di loro gli stemmi e i risultati delle partite»). Le cinque colonne sono
-     a larghezza FISSA, o un nome di due lettere farebbe scivolare lo stemma della riga sotto. In casa
-     a sinistra, sempre, così il risultato si legge come è scritto. -->
+<!-- 1. L'INCONTRO: il marchio della competizione, i due stemmi, i due nomi abbreviati e il risultato,
+     INCOLONNATI (operatore, 05/09/2026: «allinea tra di loro gli stemmi e i risultati delle partite»).
+     Le sei colonne sono a larghezza FISSA, o un nome di due lettere farebbe scivolare lo stemma della
+     riga sotto. In casa a sinistra, sempre, così il risultato si legge come è scritto. -->
 <span
-  class="grid grid-cols-[1.25rem_2rem_2.75rem_2rem_1.25rem] items-center gap-x-0.5"
+  class="grid grid-cols-[0.7rem_1rem_1.5rem_2rem_1.5rem_1rem] items-center gap-x-0.5"
   nz-tooltip
   [nzTooltipMouseEnterDelay]="0.3"
   [nzTooltipTitle]="hint()"
 >
+  <!-- 1a. DI QUALE COMPETIZIONE È, e solo quando NON è il campionato per cui lo stai comprando: una
+       card di Serie A resta pulita e le eccezioni saltano fuori, che è la stessa convenzione della
+       tabella di consultazione. La colonna è RISERVATA sempre, anche vuota: cinque righe incolonnate
+       sono il punto di questo componente, e una colonna che appare e scompare le sfalsa.
+
+       Serve da quando l'elenco attraversa le competizioni (operatore, 05/09/2026): senza, tre partite
+       del Tottenham in mezzo a un elenco della Juve si leggono come un difetto invece che come la
+       stagione che ha davvero giocato. -->
+  <span class="flex justify-center">
+    @if (kindIcon(); as icon) {
+      <nz-icon
+        class="text-[9px]"
+        [class]="cell().kind === 'cup' ? 'text-warning' : 'text-muted'"
+        [nzType]="icon"
+        nzTheme="outline"
+      />
+    }
+  </span>
   @if (!named()) {
-    <!-- NON SI SA CONTRO CHI GIOCAVA, perché non si sa dove stava: resta la giornata, che è quello che
-         si sa. Prima qui c'erano tre «??? – ???» in colonna, che si leggevano come una card rotta. -->
-    <span class="col-span-5 truncate text-[10px] text-muted">{{ when() }}</span>
+    <!-- NON SI SA CONTRO CHI GIOCAVA, perché non si sa dove stava. Ma «non lo so» non è tutto quello
+         che si sa: lo STATO lo è (operatore, 05/09/2026 - «dobbiamo sempre mostrare cosa ha fatto, non
+         mi basta vedere la data della partita»), e per queste righe è quasi sempre un infortunio, che
+         è un fatto su di lui e non un buco. La data e la giornata restano nel tooltip, dove stavano
+         già: qui la parola dice di più di un numero che non si può confrontare con niente. -->
+    <span class="col-span-5 truncate text-[10px] text-muted">{{ reason() }}</span>
   } @else {
   <!-- LO SCUDO GRIGIO al posto del monogramma: qui il nome del club è già scritto accanto, quindi un
        monogramma colorato lo direbbe due volte e per giunta somiglierebbe a uno stemma vero. -->
-  <ui-crest size="sm" fallback="shield" [club]="left()" [clubId]="leftId()" [crests]="crests()" />
+  <ui-crest size="xs" fallback="shield" [club]="left()" [clubId]="leftId()" [crests]="crests()" />
   <span class="truncate text-right text-[10px]" [class.font-semibold]="cell().home !== false">{{
     leftShort()
   }}</span>
@@ -38,7 +59,7 @@
   <span class="truncate text-[10px]" [class.font-semibold]="cell().home === false">{{
     rightShort()
   }}</span>
-  <ui-crest size="sm" fallback="shield" [club]="right()" [clubId]="rightId()" [crests]="crests()" />
+  <ui-crest size="xs" fallback="shield" [club]="right()" [clubId]="rightId()" [crests]="crests()" />
   }
 </span>
 
@@ -54,7 +75,7 @@
     @if (spell().off) {
       <nz-icon class="text-danger" nzType="arrow-down" nzTheme="outline" />
     }
-    <span [class.text-muted]="spell().minutes == null">{{
+    <span [class.text-muted]="shortSpell()">{{
       spell().minutes == null ? "?'" : spell().minutes + "'"
     }}</span>
   } @else {
@@ -82,7 +103,11 @@
 </span>
 
 <!-- 5. IL FANTAVOTO: il numero che conta, quindi in fondo e in grassetto. Vuoto quando non c'è un
-     voto da cui partire, che è un'affermazione e non uno zero. -->
+     voto da cui partire, che è un'affermazione e non uno zero.
+
+     E PORTA LO STESSO `~` DEL VOTO quando è calcolato da noi (voto sintetico + bonus, richiesta
+     dell'operatore del 05/09/2026): un 9,5 senza marchio accanto a un 9,5 pubblicato sarebbe la stessa
+     cifra per due cose diverse - e questo è ottimista, perché i cartellini in quel layer non ci sono. -->
 <span class="text-right text-[10px] font-semibold tabular-nums" [class]="fantavotoInk()">{{
   fantavoto() ?? '—'
 }}</span>

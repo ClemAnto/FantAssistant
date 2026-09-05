@@ -9,7 +9,7 @@
   [nzTooltipMouseEnterDelay]="0.3"
   [nzTooltipTitle]="hint()"
 >
-  @if (bonus().count > 1) {
+  @if (bonus().count > 1 || always()) {
     <span class="text-[9px] font-semibold tabular-nums">{{ bonus().count }}</span>
   }
 

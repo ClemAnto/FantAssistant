@@ -32,6 +32,17 @@ import { BonusRow } from '../../core/match-bonuses';
 export class BonusMark {
   readonly bonus = input.required<BonusRow>();
 
+  /**
+   * STAMPA IL CONTEGGIO ANCHE QUANDO E' UNO.
+   *
+   * Su una PARTITA «1» accanto a un pallone e' rumore - lo dice il template qui accanto - ma su una
+   * STAGIONE e' un fatto: un gol in trenta partite e' esattamente il numero che si sta cercando, e un
+   * pallone nudo si leggerebbe come «ha segnato», non come «uno». Due domande diverse sullo stesso
+   * marchio, quindi un interruttore e non una seconda icona: le icone devono restare le stesse in
+   * ogni pagina (sua condizione del 05/09/2026), ed e' l'unita' di misura che cambia.
+   */
+  readonly always = input(false);
+
   /** L'inchiostro: il VERSO dell'evento, che la riga dichiara e non si deduce dal segno dei punti. */
   protected readonly ink = computed(() => (this.bonus().good ? 'text-success' : 'text-danger'));
 

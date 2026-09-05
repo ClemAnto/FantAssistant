@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Bundle, BundleManifest, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
 import { GlobalOptions } from './global-options';
+import { roundVote, syntheticFantavoto } from './match-bonuses';
 import { PlayerFlag, PlayerStatus } from './player-status';
 
 export type ClassicRole = 'P' | 'D' | 'C' | 'A';
@@ -12,9 +13,23 @@ export const CLASSIC_ROLES: ClassicRole[] = ['P', 'D', 'C', 'A'];
  *  calendars and two different quotations, so the platform is part of every key. */
 export type Platform = 'default' | 'euro';
 
-/** What the column is a match OF. The distinction is not cosmetic: only a league match has a
- *  fantacalcio vote, and only a league match has a scoreline we can derive. */
-export type MatchKind = 'league' | 'cup' | 'friendly';
+/**
+ * What the column is a match OF. The distinction is not cosmetic: only a CHAMPIONSHIP match can carry
+ * a fantacalcio vote, and only the platform's own one has a scoreline we can derive from the ratings.
+ *
+ * `other_league` is a championship too - it is just not the one this platform plays. It used to be
+ * filed under `cup`, and `buildOtherMatches` said so about itself («another country's league is not a
+ * cup»); nothing read it, so the mislabel was free. It stopped being free the day the card started
+ * drawing a man's whole history: the toolkit CALIBRATES a synthetic base voto on exactly those five
+ * championships (`synth.calibrated_competitions`) and on nothing else, so «is this number on the
+ * fantacalcio scale?» is answered here and a trophy beside a Premier League match would be a lie.
+ */
+export type MatchKind = 'league' | 'other_league' | 'cup' | 'friendly';
+
+/** Un campionato, il suo o un altro: le due righe che possono portare un voto di fantacalcio. */
+export function isChampionship(kind: MatchKind): boolean {
+  return kind === 'league' || kind === 'other_league';
+}
 
 /** Why the cell looks the way it does. Measured on Serie A 2025-26 over the 499 quoted men and
  *  38 rounds: played or s.v. 45.9%, bench 14.9%, never in this championship 24.6%, injured
@@ -64,12 +79,15 @@ export interface MatchCell {
   /** Only a league match has one. */
   matchday: number | null;
   date: string | null;
-  /** The fantacalcio vote, or the calibrated synthetic one. League matches only. */
+  /** The fantacalcio vote, or the calibrated synthetic one. CHAMPIONSHIPS only - his own, where
+   *  the vote is published, and any of the other four, where `mv_synth` converts the provider's
+   *  rating onto the same scale. */
   vote: number | null;
   voteSynthetic: boolean;
-  /** The provider's own 1-10 rating. A DIFFERENT SCALE from the fantacalcio vote - it is all
-   *  a cup or a friendly has, because those competitions are not calibrated (`mv_synth` is
-   *  null on every one of them), and the two must never be shown as the same number. */
+  /** The provider's own 1-10 rating. A DIFFERENT SCALE from the fantacalcio vote - it is all a cup
+   *  or a friendly has, because those competitions are NOT calibrated (`mv_synth` is null on every
+   *  one of them, which is the toolkit's own answer and not a list of ours), and the two must never
+   *  be shown as the same number. */
   providerRating: number | null;
   fantavoto: number | null;
   goals: number;
@@ -179,6 +197,18 @@ const COLUMNS = 10;
 /** Adding a cup or a friendly changes the UNIT of a column: no cup match has a matchday. */
 function byMatchdayOf(query: MatchQuery): boolean {
   return !query.withCups && !query.withFriendlies;
+}
+
+/**
+ * QUALE DEI DUE INTERRUTTORI possiede una cella delle «altre competizioni», in una definizione sola.
+ *
+ * Un campionato straniero sta con le COPPE e non con le amichevoli, che e' dove stava prima di avere un
+ * nome suo: l'interruttore si chiama «altre competizioni» e chi lo accende vuole vedere anche quello.
+ * Scritto una volta perche' i due lettori - l'asse delle colonne e le righe sotto - devono per forza
+ * dare la stessa risposta, o una colonna esisterebbe senza le celle che l'hanno prodotta.
+ */
+function shownBy(cell: MatchCell, query: MatchQuery): boolean {
+  return cell.kind === 'friendly' ? query.withFriendlies : query.withCups;
 }
 
 /** The football week runs THURSDAY to WEDNESDAY, and that is measured rather than chosen: on
@@ -431,21 +461,35 @@ export class PlayersStore {
     return this.clubIds().get(clubNameKey(name)) ?? null;
   }
 
-  /** L'indice dei nomi normalizzati, costruito dalle rose che il bundle porta gia' in memoria. */
+  /**
+   * L'indice dei nomi normalizzati, costruito su TUTTA la tabella dei club.
+   *
+   * Prima si costruiva sulle ROSE, cioe' sui soli club che hanno almeno un quotato: **47 chiavi**
+   * contro le 106 della tabella - ed e' la tabella quella su cui la misura qui sopra («sui 106 club
+   * del bundle le chiavi normalizzate sono 106, zero collisioni») era stata fatta. Il commento
+   * descriveva un indice e il codice ne costruiva un altro, che e' «verifica la FUNZIONE, non la
+   * colonna che le somiglia» applicato a se stesso.
+   *
+   * Quanto costava, misurato sul bundle del 05/09/2026: il club di una riga di CAMPIONATO
+   * (`match_ratings.team`) si risolveva **90,1%** delle volte invece del 100% - restavano fuori
+   * Verona, Pisa, Cremonese, Empoli, cioe' i club senza un quotato in questo listone, che sono
+   * esattamente quelli di cui si guarda una stagione passata - e il layer per-partita passava dal
+   * 48,4% al 61,3%. Nessuna riga in piu' nel bundle: la tabella era gia' in casa.
+   */
   private readonly clubIds = computed<Map<string, number>>(() => {
     const out = new Map<string, number>();
-    for (const pool of this.rosters().values()) {
-      for (const player of pool) {
-        if (player.clubId == null) continue;
-        const key = clubNameKey(player.club);
-        if (key) out.set(key, player.clubId);
-      }
+    for (const [id, name] of this.clubNames()) {
+      const key = clubNameKey(name);
+      if (key) out.set(key, id);
     }
     return out;
   });
 
+  /** `fc_club_id` -> il nome canonico, dalla tabella dei club: la sola cosa che serve qui. */
+  private readonly clubNames = signal<Map<number, string>>(new Map());
+
   /**
-   * LE ULTIME `count` PARTITE DI CAMPIONATO di un uomo, la piu' recente per prima.
+   * LE ULTIME `count` PARTITE di un uomo - OGNI competizione - la piu' recente per prima.
    *
    * Un METODO su questo store e non un conto scritto dove serve, per la ragione che `MatchQuery` gia'
    * scrive di se': «una seconda implementazione di "le ultime partite" sarebbe una seconda risposta a
@@ -463,47 +507,67 @@ export class PlayersStore {
    * icona che mi indica se era infortunato | non disponibile | panchina» - e senza le assenze una
    * lista di cinque partite mostrerebbe le ultime cinque in cui ha giocato, che e' un'altra domanda e
    * una molto piu' lusinghiera.
+   *
+   * E DAL 05/09/2026 NON E' PIU' SOLO IL SUO CAMPIONATO (richiesta dell'operatore: «i voti sintetici
+   * devono essere utilizzati anche dall'app per ricostruire lo storico del calciatore anche quando ha
+   * giocato fuori dalla serie A ... dobbiamo sempre mostrare cosa ha fatto, non mi basta vedere la data
+   * della partita»). Il perche' e' una misura sul bundle e non un'opinione: Kolo Muani non ha UNA SOLA
+   * riga di Serie A nel 2025-26, quindi la card diceva «nessuna sua giornata in questo campionato» a
+   * proposito di un uomo che quella stagione ha giocato **32 partite di Premier League** col Tottenham
+   * - e di ognuna il bundle porta gia' l'avversario, il campo, i minuti, il rating e il risultato.
+   * `seasonMatches` fonde le tre sorgenti; qui restano solo le stagioni e il conteggio.
    */
   recent(fcId: number, platform: Platform, want: RecentWant): RecentMatch[] {
     const out: RecentMatch[] = [];
-    let walked = 0;
-    // Le stagioni in ordine, dalla piu' recente: `seasons()` e' ordinato crescente e porta anche quella
-    // bersaglio, che a inizio agosto non ha ancora una riga - e allora si scavalca da se'.
-    for (const season of [...this.seasons()].reverse()) {
-      const played = this.league().get(`${platform}|${season}`)?.get(fcId);
-      const missing = this.absence().get(`${platform}|${season}`)?.get(fcId);
-      const days = [...new Set([...(played?.keys() ?? []), ...(missing?.keys() ?? [])])];
-      if (!days.length) continue;
-      // UNA STAGIONE SI CONTA SE PRODUCE QUALCOSA, e il conto si fa DOPO averla percorsa: una stagione
-      // in cui non ha giocato in questo campionato non e' una stagione «vista», quindi non consuma il
-      // numero di stagioni chieste. Contarla prima faceva leggere all'elenco APERTO meno partite di
-      // quello chiuso - misurato: un portiere del Venezia passava da cinque righe a due, perche' la
-      // sua seconda stagione era di Serie B e bruciava il posto della terza.
-      if (want.seasons != null && walked >= want.seasons) return out;
-      const before = out.length;
-      for (const md of days.sort((a, b) => b - a)) {
-        // I voti battono l'assenza: una giornata sta in tutt'e due le mappe solo se qualcosa non torna,
-        // e la riga che porta il voto e' quella che ne sa di piu'.
-        const cell = played?.get(md) ?? missing?.get(md);
+    const seasons = this.seasonsWith(fcId, platform);
+    for (const season of want.seasons == null ? seasons : seasons.slice(0, want.seasons)) {
+      for (const cell of this.matchesOf(fcId, platform, season)) {
         // La STAGIONE viaggia accanto alla cella e non dentro: `MatchCell` non la porta - la tabella di
         // consultazione ne guarda una alla volta - e chi disegna una lista che le attraversa deve poter
         // dire dove finisce l'una e comincia l'altra senza dedurlo dal numero di giornata.
-        //
-        // ...e UNA GIORNATA DI CUI NON SI SA NIENTE NON E' UNA SUA PARTITA. `not_in_league` e `absent`
-        // vogliono dire che di lui, quel giorno, questo campionato non ha nessuna traccia - ne' una
-        // pagella ne' una distinta - quindi non si sa nemmeno contro chi giocasse, ne' che il suo club
-        // fosse questo. Mostrarle riempiva la card di righe vuote proprio per gli uomini arrivati da
-        // fuori: misurato sul bundle, Kolo Muani non ha una riga di Serie A in tutto il 2025-26 (32
-        // partite di Premier) e Beto non ne ha NESSUNA in due stagioni. `bench` e `injured` restano,
-        // perche' una distinta e uno stop datato sono prove su di lui.
-        if (cell && cell.state !== 'not_in_league' && cell.state !== 'absent') {
-          out.push({ season, cell });
-        }
+        out.push({ season, cell });
         if (want.count != null && out.length >= want.count) return out;
       }
-      if (out.length > before) walked += 1;
     }
     return out;
+  }
+
+  /**
+   * LE STAGIONI IN CUI HA GIOCATO QUALCOSA, la piu' recente per prima.
+   *
+   * UNA STAGIONE SI CONTA SE PRODUCE QUALCOSA, ed e' il motivo per cui questo elenco esiste invece di
+   * `seasons()`: una stagione in cui non ha giocato non e' una stagione «vista», quindi non deve
+   * consumare il numero di stagioni chieste. Contandola, l'elenco APERTO leggeva meno partite di quello
+   * chiuso - misurato: un portiere del Venezia passava da cinque righe a due, perche' la sua seconda
+   * stagione era di Serie B e bruciava il posto della terza.
+   *
+   * Lo leggono in due e devono dare la stessa risposta: `recent`, per sapere dove fermarsi, e la CARD,
+   * per sapere quale stagione offrire col tasto «carica». Un secondo conto di «quali sono le sue
+   * stagioni» finirebbe per offrire un tasto che non carica niente.
+   */
+  seasonsWith(fcId: number, platform: Platform): string[] {
+    // `seasons()` e' ordinato crescente e porta anche quella bersaglio, che a inizio agosto non ha
+    // ancora una riga - e allora si scavalca da se'.
+    return [...this.seasons()]
+      .reverse()
+      .filter((season) => this.matchesOf(fcId, platform, season).length > 0);
+  }
+
+  /**
+   * Tutto il calcio di UNA stagione, gia' in ordine: le tre sorgenti fuse da `seasonMatches`.
+   *
+   * PUBBLICO perche' il riepilogo di stagione della card lo legge da qui e non dalle righe che sta
+   * disegnando: l'elenco puo' essere troncato (chiuso ne mostra cinque), e una media calcolata su
+   * quelle direbbe «stagione» a proposito di tre partite. Lo stesso lettore di `recent`, quindi le due
+   * cose non possono descrivere due popolazioni diverse.
+   */
+  matchesOf(fcId: number, platform: Platform, season: string): MatchCell[] {
+    return seasonMatches(
+      this.league().get(`${platform}|${season}`)?.get(fcId),
+      this.absence().get(`${platform}|${season}`)?.get(fcId),
+      this.other().get(season)?.get(fcId),
+      season,
+    );
   }
 
   /** The last league round this season has ratings for: where «le ultime partite» end. */
@@ -609,7 +673,7 @@ export class PlayersStore {
     for (const player of players) {
       for (const cell of leagueBySeason?.get(player.fcId)?.values() ?? []) note(cell);
       for (const cell of otherBySeason?.get(player.fcId) ?? []) {
-        if (cell.kind === 'cup' ? query.withCups : query.withFriendlies) note(cell);
+        if (shownBy(cell, query)) note(cell);
       }
     }
 
@@ -659,7 +723,7 @@ export class PlayersStore {
       // nth-from-last match - otherwise column 3 means a different date on every row.
       const matches = [...(own?.values() ?? [])];
       for (const cell of otherBySeason?.get(p.fcId) ?? []) {
-        if (cell.kind === 'cup' ? query.withCups : query.withFriendlies) matches.push(cell);
+        if (shownBy(cell, query)) matches.push(cell);
       }
       const byWeek = new Map<string, MatchCell[]>();
       for (const cell of matches) {
@@ -727,6 +791,11 @@ export class PlayersStore {
       const roster = buildRosters(players, clubs, rosters, quotes, manifest.target_season,
                                   await sheetIdentities(this.bundle, manifest));
       this.rosters.set(roster);
+      // La tabella dei club serve intera - e non solo per chi ha un quotato - all'indice degli stemmi.
+      const [clubId, clubName] = columnIndex(clubs, 'fc_club_id', 'canonical_name');
+      this.clubNames.set(
+        new Map(clubs.rows.map((row) => [row[clubId] as number, row[clubName] as string])),
+      );
 
       const leagueOf = new Map<number, string | null>();
       for (const list of roster.values()) for (const p of list) leagueOf.set(p.fcId, p.league);
@@ -734,7 +803,7 @@ export class PlayersStore {
       const provider = buildProviderIndex(external);
       const euroToReal = buildMatchdayMap(map);
       const shapes = buildShapes(lineups);
-      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes);
+      const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes, scoring);
       this.league.set(built);
       this.absence.set(
         buildAbsences(built, roster, provider, euroToReal, buildInjuries(injuries)),
@@ -747,7 +816,9 @@ export class PlayersStore {
         ...new Set([...[...built.keys()].map((key) => key.split('|')[1]), manifest.target_season]),
       ].sort();
       this.seasons.set(seasons);
-      this.other.set(buildOtherMatches(external, new Set(seasons), leagueOf, shapes));
+      const roleOf = new Map<number, ClassicRole>();
+      for (const list of roster.values()) for (const p of list) roleOf.set(p.fcId, p.role);
+      this.other.set(buildOtherMatches(external, new Set(seasons), leagueOf, shapes, scoring, roleOf));
 
       this.selectSeason(seasons.at(-2) ?? seasons.at(-1) ?? '');
       this.status.set('ready');
@@ -779,9 +850,6 @@ export class PlayersStore {
   }
 }
 
-/** Sorting mixed competitions needs one axis, and it is the date. A league match whose
- *  provider row did not match has no date, so it falls back to a position derived from its
- *  matchday - approximate, and better than dropping it to the front of the list. */
 /** Club-form words neither side of a fixture label needs. */
 const ABBREVIATION_SKIP = new Set(['ac', 'as', 'ss', 'ssc', 'fc', 'rc', 'afc', 'us', 'ol', 'rb']);
 
@@ -838,6 +906,45 @@ function day(iso: string): string {
   return iso.split('-').reverse().join('/');
 }
 
+/**
+ * LE TRE SORGENTI DI UNA STAGIONE fuse in un elenco solo, in ordine di data, la piu' recente per prima.
+ *
+ * Una FUNZIONE e non un metodo perche' e' la definizione di «tutto il calcio che ha giocato», e una
+ * definizione dev'essere raggiungibile da un test senza costruire mezzo bundle: `PlayersStore` le passa
+ * le tre mappe e non fa altro.
+ *
+ * L'ORDINE E' LA DATA e non la giornata, perche' mescolando i campionati la giornata non e' piu' un
+ * asse: la 38ª di Premier e la 3ª di Serie A stanno in due calendari diversi. `sortKey` e' la stessa
+ * scala d'ordinamento che la tabella usa gia', col ripiego sulla giornata per le celle senza data.
+ *
+ * I VOTI BATTONO L'ASSENZA: una giornata sta in tutt'e due le mappe solo se qualcosa non torna, e la
+ * riga che porta il voto e' quella che ne sa di piu'.
+ *
+ * ...e UNA GIORNATA DI CUI NON SI SA NIENTE NON E' UNA SUA PARTITA. `not_in_league` e `absent` vogliono
+ * dire che di lui, quel giorno, questo campionato non ha nessuna traccia - ne' una pagella ne' una
+ * distinta - quindi non si sa nemmeno contro chi giocasse, ne' che il suo club fosse questo. Restano
+ * fuori a maggior ragione da quando le altre competizioni entrano: la partita vera che ha giocato quel
+ * giorno arriva dall'altra sorgente, e tenerle tutt'e due stamperebbe due righe per una sera sola.
+ * `bench` e `injured` restano, perche' una distinta e uno stop datato sono prove su di lui.
+ */
+export function seasonMatches(
+  played: Map<number, MatchCell> | undefined,
+  missing: Map<number, MatchCell> | undefined,
+  other: readonly MatchCell[] | undefined,
+  season: string,
+): MatchCell[] {
+  const cells: MatchCell[] = [];
+  for (const md of new Set([...(played?.keys() ?? []), ...(missing?.keys() ?? [])])) {
+    const cell = played?.get(md) ?? missing?.get(md);
+    if (cell && cell.state !== 'not_in_league' && cell.state !== 'absent') cells.push(cell);
+  }
+  cells.push(...(other ?? []));
+  return cells.sort((a, b) => sortKey(b, season) - sortKey(a, season));
+}
+
+/** Sorting mixed competitions needs one axis, and it is the date. A league match whose provider row
+ *  did not match has no date, so it falls back to a position derived from its matchday - approximate,
+ *  and better than dropping it to the front of the list. */
 function sortKey(cell: MatchCell, season: string): number {
   if (cell.date) return Date.parse(cell.date);
   const startYear = Number(season.slice(0, 4));
@@ -1124,6 +1231,7 @@ function buildLeagueMatches(
   leagueOf: Map<number, string | null>,
   euroToReal: Map<string, number>,
   shapes: Map<string, string>,
+  scoring: ScoringConfig | null,
 ) {
   const [
     fcId,
@@ -1203,7 +1311,7 @@ function buildLeagueMatches(
     const score = scores.get(`${plat}|${s}|${md}|${teamName}`);
     const realVote = row[mv] as number | null;
 
-    playerMap.set(md, {
+    const cell: MatchCell = {
       kind: 'league',
       state: realVote == null && extra?.voteSynth == null ? 'no_vote' : 'played',
       injury: null,
@@ -1212,7 +1320,11 @@ function buildLeagueMatches(
       competitionLabel: league ? competitionLabel(league) : 'Campionato',
       matchday: md,
       date: extra?.date ?? null,
-      vote: realVote ?? extra?.voteSynth ?? null,
+      // IL SINTETICO ARROTONDATO AL MEZZO PUNTO: e' l'alfabeto in cui i voti veri sono scritti
+      // (misurato: 57.925 su 57.925), quindi `5,88` accanto a un `6,0` vero e' una precisione che la
+      // fonte non ha mai. `roundVote` sta in `match-bonuses` perche' il fantavoto si somma a QUESTO
+      // numero e non a quello prima dell'arrotondamento: la riga deve tornare.
+      vote: realVote ?? (extra?.voteSynth == null ? null : roundVote(extra.voteSynth)),
       voteSynthetic: realVote == null && extra?.voteSynth != null,
       providerRating: extra?.rating ?? null,
       fantavoto: (row[fantavoto] as number) ?? null,
@@ -1234,7 +1346,12 @@ function buildLeagueMatches(
       goalsFor: score?.for ?? null,
       goalsAgainst: score?.against ?? null,
       shape: extra ? (shapes.get(`${extra.matchId}|${extra.club}`) ?? null) : null,
-    });
+    };
+    // IL FANTAVOTO SI CALCOLA SOLO DOVE LA FONTE NON LO PUBBLICA. Qui succede su una giornata senza
+    // pagella recuperata dal sintetico: i bonus li porta la riga dei VOTI, quindi sono completi -
+    // cartellini e gol subiti compresi - e la somma e' esatta invece che ottimista.
+    cell.fantavoto ??= syntheticFantavoto(cell, scoring);
+    playerMap.set(md, cell);
   }
   return out;
 }
@@ -1247,6 +1364,8 @@ function buildOtherMatches(
   seasons: Set<string>,
   leagueOf: Map<number, string | null>,
   shapes: Map<string, string>,
+  scoring: ScoringConfig | null,
+  roleOf: Map<number, ClassicRole>,
 ): Map<string, Map<number, MatchCell[]>> {
   const [fcId, season, competition, date, club, opponent, home, startedOther, minutes, rating, goals,
     assists, yellows, reds, matchIdOther] = columnIndex(
@@ -1267,6 +1386,36 @@ function buildOtherMatches(
       'reds',
       'match_id',
     );
+  /* IL VOTO SINTETICO CALIBRATO, che e' il solo motivo per cui un campionato straniero puo' portare un
+   * numero sulla scala del fantacalcio. Si legge la colonna e basta: `synth` la scrive dove la retta e'
+   * stata fittata e la lascia NULL dappertutto altrove (`calibrated_competitions`), quindi una coppa
+   * arriva qui gia' vuota e non serve una nostra lista di competizioni ammesse - che sarebbe una
+   * seconda risposta a una domanda che il toolkit risponde gia'. Facoltativa: un bundle esportato
+   * prima che la colonna viaggiasse semplicemente non ce l'ha. */
+  const mvSynth = optionalIndex(external, 'mv_synth');
+  /**
+   * I GOL DI OGNI CLUB IN OGNI PARTITA, per dire quanti ne ha subiti un portiere.
+   *
+   * «Li prendi pari pari ai gol segnati nella partita dall'avversario» (operatore, 05/09/2026), e i
+   * gol per giocatore sono la colonna piu' solida di questo layer - misurata contro i voti veri su
+   * 24.393 partite di Serie A, concorda al 100% leggendo NULL come zero.
+   *
+   * IL LIMITE E' IL PERIMETRO E NON IL METODO, e sta scritto in `syntheticFantavoto`: una riga esiste
+   * solo per chi sappiamo identificare, quindi un marcatore avversario fuori dal listone non viene
+   * contato. Sull'estero la ricostruzione e' esatta il 72,5% delle volte e sbaglia per difetto di
+   * 0,325 gol in media; sulla Serie A il 95,1%. Dove la fonte porta il RISULTATO (`opponent_goals`)
+   * si usa quello, che e' esatto per costruzione - oggi e' su pochissime righe e lo sara' sempre di
+   * piu' man mano che le giornate vengono riscaricate.
+   */
+  const scoredByMatch = new Map<string, Map<string, number>>();
+  for (const row of external.rows) {
+    const key = row[matchIdOther] as string | null;
+    if (!key) continue;
+    let clubs = scoredByMatch.get(key);
+    if (!clubs) scoredByMatch.set(key, (clubs = new Map()));
+    const team = (row[club] as string) ?? '';
+    clubs.set(team, (clubs.get(team) ?? 0) + ((row[goals] as number) ?? 0));
+  }
   // The scoreline the provider published - a cup or a friendly has no ratings row to derive one
   // from. Optional: a bundle exported before 09/08/2026 has no such column, and that is a gap in
   // the data, not a reason to refuse to draw the table.
@@ -1282,27 +1431,42 @@ function buildOtherMatches(
     // His own championship is already covered by the ratings; another country's league is
     // not a cup, but it is football he played and it belongs in "other competitions".
     if (kind === 'league' && slug === leagueOf.get(row[fcId] as number)) continue;
-
+    const synth = mvSynth < 0 ? null : ((row[mvSynth] as number) ?? null);
     let seasonMap = out.get(s);
     if (!seasonMap) out.set(s, (seasonMap = new Map()));
     const id = row[fcId] as number;
     let list = seasonMap.get(id);
     if (!list) seasonMap.set(id, (list = []));
 
-    list.push({
-      kind: kind === 'league' ? 'cup' : kind,
+    /* IL PORTIERE si decide sul ruolo di LISTONE e non sulla posizione che il provider scrive per
+     * quella partita: il listone ce l'ha per tutti mentre `position` manca sull'1,4% delle righe, e
+     * un portiere non gioca da attaccante - il caso contrario e' la rarita' che l'operatore ha detto
+     * di ignorare. `role` e' quello che `bonusesOf` legge per decidere se il malus dei gol subiti si
+     * applica, e qui e' l'unica cosa che quel campo deve dire. */
+    const keeper = roleOf.get(id) === 'P';
+    const declared = opponentGoals < 0 ? null : ((row[opponentGoals] as number) ?? null);
+    const conceded = !keeper
+      ? null
+      : (declared ?? concededBy(scoredByMatch.get(row[matchIdOther] as string), (row[club] as string) ?? ''));
+
+    const cell: MatchCell = {
+      kind: kind === 'league' ? 'other_league' : kind,
       state:
         (row[minutes] as number | null) == null && (row[rating] as number | null) == null
           ? 'no_data'
           : 'played',
       injury: null,
-      role: null,
+      role: keeper ? 'P' : null,
       competition: slug,
       competitionLabel: competitionLabel(slug),
+      // LA GIORNATA RESTA VUOTA anche se la riga porta il suo `real_md`: le colonne della tabella sono
+      // le giornate di QUESTA piattaforma, e stampare «38ª» accanto a una partita di Premier dentro un
+      // elenco di Serie A direbbe un numero del calendario sbagliato. Il campionato lo dice l'etichetta.
       matchday: null,
       date: (row[date] as string) ?? null,
-      vote: null,
-      voteSynthetic: false,
+      // Arrotondato al mezzo punto come nel ramo dei voti: e' lo stesso numero e la stessa ragione.
+      vote: synth == null ? null : roundVote(synth),
+      voteSynthetic: synth != null,
       providerRating: (row[rating] as number) ?? null,
       fantavoto: null,
       goals: (row[goals] as number) ?? 0,
@@ -1312,7 +1476,7 @@ function buildOtherMatches(
       penMissed: 0,
       penSaved: 0,
       ownGoals: 0,
-      goalsConceded: null,
+      goalsConceded: conceded,
       yellows: (row[yellows] as number) ?? 0,
       reds: (row[reds] as number) ?? 0,
       minutes: (row[minutes] as number) ?? null,
@@ -1323,7 +1487,11 @@ function buildOtherMatches(
       goalsFor: teamGoals < 0 ? null : ((row[teamGoals] as number) ?? null),
       goalsAgainst: opponentGoals < 0 ? null : ((row[opponentGoals] as number) ?? null),
       shape: shapes.get(`${row[matchIdOther]}|${row[club]}`) ?? null,
-    });
+    };
+    // IL FANTAVOTO SINTETICO, dove c'e' un voto sintetico da cui partire. Per un portiere si fa solo
+    // se i gol subiti si sono potuti contare: la funzione lo decide sul DATO e non sul ruolo.
+    cell.fantavoto = syntheticFantavoto(cell, scoring);
+    list.push(cell);
   }
   for (const seasonMap of out.values()) {
     for (const list of seasonMap.values()) {
@@ -1331,6 +1499,20 @@ function buildOtherMatches(
     }
   }
   return out;
+}
+
+/**
+ * Quanti gol ha segnato l'AVVERSARIO in quella partita: la somma dei gol di ogni altro club.
+ *
+ * `null` quando di quella partita abbiamo righe di un solo club - allora non si sa, e uno zero sarebbe
+ * una porta inviolata inventata. Un club solo capita spesso fuori dal perimetro: e' la stessa ragione
+ * per cui la ricostruzione sbaglia per difetto, vista dal caso limite.
+ */
+function concededBy(clubs: Map<string, number> | undefined, own: string): number | null {
+  if (!clubs || clubs.size < 2) return null;
+  let goals = 0;
+  for (const [team, scored] of clubs) if (team !== own) goals += scored;
+  return goals;
 }
 
 interface InjurySpell {

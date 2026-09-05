@@ -3873,6 +3873,108 @@ il puntatore, mentre al centro di un'icona c'e' un `<svg>` — che e' SUO. *Un p
 sbagliato accusa il codice del proprio difetto*: si chiede al bottone (`button.contains(under)`), non al
 nome del tag.
 
+## Una colonna DERIVATA che una ri-ingestione cancella, e un dato che il parser buttava via
+**05/09/2026, nato da una richiesta sull'app e finito nel toolkit. Dettaglio: spec «Novità v9.73»,
+`letture-app-v1.md` §25.** «I voti sintetici devono essere utilizzati anche dall'app per ricostruire lo
+storico del calciatore anche quando ha giocato fuori dalla serie A»: il codice per leggerli era da
+scrivere, ma la colonna era **vuota proprio sulle tre stagioni che il bundle esporta**.
+
+**`INSERT OR REPLACE` CANCELLA LA RIGA E NE SCRIVE UNA NUOVA, quindi ogni colonna che l'istruzione non
+elenca torna NULL.** `mv_synth` la scrive `synth` e nessun parser, quindi ogni rilettura di una giornata
+la buttava via: **100% delle righe con rating fino al 2023-24 ne aveva una, 0 su 88.121** dal 2024-25 in
+poi. La regola non era rotta — riapplicata ha convertito 77.317 di quelle 88.121 — era la catena che si
+mangiava se stessa. Cura: `ON CONFLICT ... DO UPDATE SET <colonne osservate>`, con il derivato **ritirato
+solo se cambia l'input da cui è calcolato** (`rating IS excluded.rating`): *un derivato stantio è peggio
+di uno vuoto*, che è «vuoto = ignoto» applicato a una colonna calcolata. E un test che deriva l'elenco
+delle assegnazioni dal TESTO dell'INSERT, perché una colonna aggiunta a uno e non all'altro smetterebbe
+in silenzio di essere aggiornata dalla seconda lettura in poi.
+
+**E QUINTA ISTANZA DI «IL DATO C'ERA»** dopo i campetti, `availability`, l'asterisco e la data di
+rientro: `download_round` costruiva l'evento senza `homeScore`/`awayScore` mentre `parse_round` sa
+leggerli da sempre e li riceveva solo dal layer EXTRA — **`team_goals` vuoto sul 98,5% delle righe di
+campionato**. Serve per una domanda sola: quanti gol ha subito un portiere in una partita che il
+fantacalcio non vota. **I file già in cache non lo recuperano**, perché la cache tiene l'evento già
+sfoltito e non il payload grezzo: la colonna si riempie giornata per giornata, e dirlo è parte della cura.
+
+**LA PREMESSA DELL'OPERATORE ERA GIUSTA E IL SUO CASO RARO ERA UN ALTRO.** «I gol subiti li prendi pari
+pari ai gol segnati dall'avversario ... la rarità di un tale evento è così rara» (il portiere uscito prima
+del gol). Quel caso è raro davvero; quello che non lo è è che **il marcatore avversario spesso non è nel
+nostro perimetro**, quindi ricostruire dai nostri dati è esatto il **95,1%** sulla Serie A e il **72,5%**
+all'estero (Ligue 1 60,6%), con errore medio **−0,325 gol** — cioè il fantavoto di un portiere sintetico è
+ottimista di un terzo di punto. *Quando si accetta un'approssimazione dichiarata, si misura ANCHE il modo
+di sbagliare che nessuno aveva nominato*: la differenza fra il 95% e il 72% è il PERIMETRO e non il metodo.
+
+Quattro misure che restano perché altri le riuseranno: i GOL del layer per-partita concordano al **100%**
+coi voti veri su 24.393 partite (NULL letto come zero, e delle 1.745 in cui ha segnato **nessuna** legge
+NULL); gli ASSIST al **99,25%**; i CARTELLINI non esistono affatto (**0 su 352.754**, nessun modulo li
+scrive) e un'ammonizione cade nell'11,2% delle partite, quindi qualunque somma da questo strato è
+ottimista di ~0,06; e il **bonus porta inviolata NON è nel fantavoto pubblicato** (1.218 su 1.222 portieri
+a porta inviolata leggono `voto + bonus` senza premio) — è un modificatore di lega, non un termine della
+riga.
+
+## Un VOTO SINTETICO vive sull'alfabeto della fonte, e una scala si dichiara sulla riga
+**05/09/2026, `letture-app-v1.md` §25.5.** «Mostra i voti sintetici arrotondati sempre a 0,5»: misurato
+prima di implementarlo, **57.925 voti veri su 57.925** stanno sui mezzi punti, e altrettanti fantavoti.
+Un sintetico che legge `5,88` scrive una cifra che il fantacalcio non pubblica mai, e la falsa precisione
+si vede proprio dove serve confrontarlo con un voto vero. Prezzo dichiarato: **0,129 di spostamento medio**
+contro i **0,37** di errore che la retta di `synth` ha di suo — un terzo del rumore che c'è già.
+L'arrotondamento sta nello STORE e non nella vista, perché il fantavoto si somma a QUEL numero e la riga
+deve tornare.
+
+**E LA DOMANDA «DI CHE SCALA È QUESTO NUMERO» NON SI RISPONDE GUARDANDO IL TIPO DI RIGA.** `voteText`
+decideva su `kind`, quindi su una riga che vale `~5,9` stampava `*6,7`, cioè il rating del provider.
+Erano la stessa domanda finché solo il proprio campionato poteva portare un voto; da quando il layer
+per-partita porta il sintetico anche degli altri quattro sono DUE domande, e leggere la seconda al posto
+della prima è un errore di unità. Da qui anche `MatchKind` con `other_league`: **un campionato straniero
+non è una coppa**, ed è la distinzione che rende legittimo il `~` — `synth` calibra su esattamente quei
+cinque campionati e su nessun altro.
+
+## `display: contents` è una riga che non si può dipingere, e `opacity` si moltiplica
+**05/09/2026.** Una riga di partita era `display: contents` perché è così che le sue celle restano
+incolonnate con quelle delle altre righe; il prezzo è che **non esiste come elemento**, quindi
+«evidenziala» non ha un posto dove andare — e dipingere le cinque celle una per una lascia scoperti i
+`gap`, cioè una riga a strisce che si legge come un guasto. **`grid-cols-subgrid`** dà tutt'e due: un
+elemento che occupa tutte le colonne e celle allineate alle piste del genitore. *E l'incolonnamento si
+MISURA dopo il cambio* (la x di ogni cella riga per riga), perché è esattamente quello che un cambio del
+genere può rompere in silenzio.
+
+**L'attenuazione va sulle CELLE e non sull'ospite**, perché `opacity` si moltiplica lungo l'albero (già
+scritto per la plancia, incontrato qui dal lato opposto): sull'ospite spegnerebbe a metà anche il suo
+sfondo, cioè un'evidenziazione che può cadere sulla stessa riga.
+
+**E LO SPAZIO LIBERO IN UNA GRIGLIA VA DOVE STA `1fr`, NON DOVE SI STRINGE.** «Stringi gli stemmi e
+lascia più spazio ai bonus»: stringere le colonne interne non ha dato un pixel a nessuno, perché la cella
+dell'incontro era `1fr` e i bonus `auto` — l'aria restava dentro la cella che si era stretta. *Un problema
+di spazio si risolve dove le tracce sono dichiarate, non dove il contenuto è largo.*
+
+## Verificare una CARD: sette modi di sbagliare a misurare, cinque commessi
+**05/09/2026, `app/scripts/e2e-player-card.mjs`.** Il banco guida la plancia vera, apre una card e
+confronta ogni numero **col bundle** letto dallo stesso server della pagina. Cinque difetti erano suoi, e
+sono la parte che vale oltre questa card:
+- **`display: contents` inganna chi legge la griglia**: i figli sono i COMPONENTI e non le celle, quindi
+  leggerne cinque alla volta impacchetta cinque partite in una riga sola.
+- **Un indice costruito su meno di quello che lo schermo disegna sbaglia ad ATTRIBUIRE**: una partita di
+  FA Cup finiva sulla partita di Premier fra gli stessi due club, e il banco accusava la pagina di
+  stampare numeri sbagliati mentre stampava quelli giusti di un'altra partita.
+- **Un uomo identificato col PRIMO nome che è sottostringa della riga**: «Sanchez Ro.» prendeva l'id di un
+  altro Sanchez, e il riepilogo «non tornava». Si prende il più LUNGO.
+- **Una griglia di valori pretesa da un numero di un'ALTRA scala** (i mezzi punti dal rating del provider).
+- **Un elemento nuovo letto come uno vecchio**: il riepilogo di stagione contato come divisore avvelenava
+  l'attribuzione di ogni riga sotto.
+Più due regole di lettura: i due club di una riga si leggono SEPARATI e non da una stringa unita (in mezzo
+c'è il risultato), e uno stemma si legge per componente e non per posizione delle `<img>` — un club senza
+stemma non ne disegna nessuna e quello di destra scivola a sinistra.
+
+## Quarta istanza di DUE SESSIONI SU UN ALBERO, e stavolta il loro half non compilava
+**05/09/2026.** Le due metà (la card, e il rifacimento `riser` in `valuation-store`) non si toccavano, ma
+l'albero condiviso **non compilava** per la loro. La procedura scritta il 27/08 ha retto senza modifiche:
+`git worktree add --detach <tmp> HEAD`, copia dei SOLI file miei, `node_modules` e `public/data` in
+giunzione — build pulito, 728 test app, 674 toolkit, dieci banchi e2e verdi. *Committare la propria metà è
+legittimo solo se si è VERIFICATO che compili senza la loro*, e questo è il modo di verificarlo.
+L'autorship si misura in un comando (`git diff | grep` per il vocabolario di ciascuna feature, file per
+file) e qui ha separato tutto tranne tre file che sembravano misti e non lo erano: il conteggio grezzo
+prende anche il contesto, quindi la conferma è un grep sulle sole righe AGGIUNTE.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

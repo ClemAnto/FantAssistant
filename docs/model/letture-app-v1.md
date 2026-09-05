@@ -2173,3 +2173,203 @@ non scorre: accusava di non scorrere una lista che scorre. E chiedeva che sotto 
 `button`, mentre al centro di un'icona c'è un `<svg>` — che è SUO. *Un passo che misura l'elemento
 sbagliato accusa il codice del proprio difetto*, e la forma giusta è chiedere al bottone
 (`button.contains(under)`), non al nome del tag.
+
+
+## 25. TUTTO IL CALCIO CHE HA GIOCATO: la card che smette di guardare un campionato solo (5 settembre 2026)
+
+Sette richieste dell'operatore in fila sulla stessa card, tutte nate da una: «il toolkit genera dei voti
+sintetici dove non ci sono valutazioni normali, vorrei che questi voti siano utilizzati anche dall'app per
+ricostruire lo storico del calciatore anche quando ha giocato fuori dalla serie A. Nelle "ultime partite"
+dobbiamo sempre mostrare cosa ha fatto, non mi basta vedere la data della partita.» Con l'esempio: «mi
+aspetto che per Kolo Muani una cosa del genere con le partite di maggio 2026 dove giocava per il tottenham
+e non per la juve.»
+
+### 25.1 I dati c'erano; a non guardarli era la lista
+
+**Il bundle porta già le 32 partite di Premier League di Kolo Muani col Tottenham**, con avversario, campo,
+minuti, rating e data. `PlayersStore.recent` camminava solo le giornate del campionato della piattaforma,
+quindi la card diceva «nessuna sua giornata in questo campionato» a proposito di un uomo che quella
+stagione l'aveva giocata intera. `seasonMatches` fonde ora **tre sorgenti** — i voti, le assenze (con la
+loro ragione) e le altre competizioni — **in ordine di DATA e non di giornata**, perché mescolando i
+campionati la giornata non è più un asse: la 38ª di Premier e la 3ª di Serie A stanno in due calendari.
+
+**E un campionato straniero non è una coppa.** `buildOtherMatches` lo archiviava come `cup` e lo diceva di
+sé («another country's league is not a cup»); nessuno lo leggeva, quindi il travestimento era gratis. Ha
+smesso di esserlo il giorno in cui la card ha cominciato a disegnare quelle righe: `synth` calibra la retta
+su **esattamente quei cinque campionati** e su nessun altro, quindi «questo numero è sulla scala del
+fantacalcio?» si risponde lì. Da qui `MatchKind = 'league' | 'other_league' | 'cup' | 'friendly'`.
+
+**Il difetto che ne è uscito è nel VOCABOLARIO**: `voteText` e `voteClass` decidevano guardando `kind` e non
+il voto, quindi su una riga che vale `~5,9` (la nostra scala) stampavano `*6,7` (quella del provider). Erano
+la stessa domanda finché solo il suo campionato poteva portare un voto; da quando il layer per-partita porta
+il sintetico anche degli altri quattro sono due, e leggere la seconda al posto della prima è un errore di
+scala. Ora l'ordine è: il voto se c'è, `s.v.` nel suo campionato, il rating marcato `*` altrimenti.
+
+### 25.2 Lo stemma della squadra di QUELLA partita, e un indice largo la metà
+
+«Quando un calciatore giocava per un'altra squadra mostri lo stesso lo stemma della squadra corrente.» Vero,
+e **più largo dell'esempio**: la riga riceveva l'id del club di OGGI, quindi non solo le partite del
+Tottenham portavano lo stemma della Juventus — lo stesso capitava dentro la Serie A a chiunque avesse
+cambiato squadra, su tutte le giornate della stagione passata.
+
+Cercando la cura è saltato fuori che **l'indice degli stemmi era costruito sulle ROSE** (i club con almeno
+un quotato: **47 chiavi**) mentre il commento accanto citava la misura fatta **sui 106 club del bundle**
+(«le chiavi normalizzate sono 106, zero collisioni»). Commento e codice descrivevano due indici diversi:
+«verifica la FUNZIONE, non la colonna che le somiglia», applicato a se stesso. Allargato alla tabella intera:
+
+| | prima (47 chiavi) | dopo (106) |
+|---|---|---|
+| club di una riga di CAMPIONATO (`match_ratings.team`) | 90,1% | **100%** |
+| club del layer per-partita (`external_match_stats.club`) | 48,4% | **61,3%** |
+
+Nessuna riga in più nel bundle: la tabella era già in casa. **Nessun ripiego sul club di oggi**, perché uno
+stemma sbagliato dice una cosa falsa mentre uno scudo grigio dice quello che è. Il 39% che resta è un
+problema di ALIAS (il provider scrive `Tottenham Hotspur`, il listone `Tottenham`; `Hellas Verona` contro
+`Verona`; `FC Barcelona` contro `Barcellona`) e la lista degli alias vive nel toolkit
+(`matching.CLUB_ALIASES`): rifare quel join in un browser è il join che una volta ha perso Milan, Roma e
+Napoli. **Resta aperto**, ed è un lavoro di toolkit — e nemmeno `club_key` basta da solo (63,9%): servirebbe
+l'identità del club dal provider, cioè `club_xref`.
+
+### 25.3 Una riga che si può dipingere: `display: contents` contro `grid-cols-subgrid`
+
+«Evidenziare la riga in maniera molto leggera» quando giocava altrove. L'ospite di `ui-match-line` era
+`display: contents` — nessun box, le cinque celle figlie DIRETTE della griglia della card, che è quello che
+tiene allineate le colonne da una partita all'altra. Il prezzo è che **una riga così non esiste come
+elemento**: non si può evidenziare, e dipingere le cinque celle una per una lascerebbe scoperti i 6px di
+`gap-x`, cioè una riga a strisce, che si legge come un guasto.
+
+`grid-cols-subgrid` risolve entrambe le cose: l'ospite è una casella che occupa tutte le colonne e le sue
+celle continuano ad allinearsi alle piste della card. **Ed è misurato invece che sperato**: il banco legge
+la `x` di ogni cella riga per riga — 5 colonne su 50 righe, **0 disallineate**.
+
+**L'attenuazione delle coppe e delle amichevoli (0,5 di opacità) sta sulle CELLE e non sull'ospite**, perché
+`opacity` si moltiplica lungo l'albero: sull'ospite spegnerebbe a metà anche il suo sfondo, cioè
+l'evidenziazione «altrove» che può cadere sulla stessa riga (una coppa giocata con la squadra di prima è
+tutt'e due le cose). Un campionato STRANIERO resta pieno, e la distinzione è sostanziale: quello è calcio
+che il fantacalcio saprebbe votare — infatti porta il sintetico — mentre una coppa non è una competizione
+calibrata e tutto quello che ha è il rating del provider.
+
+### 25.4 I divisori, e il caso che la richiesta non copriva
+
+«Metti un divisore (simile a quello con l'anno della stagione) per indicare il cambio di squadra.» Fatto in
+`cardRows`, che decide DUE annunci e non uno — chi si trasferisce lo fa quasi sempre fra due stagioni,
+quindi i due divisori cadono sulla stessa riga e si stampano tutt'e due. Due regole ci sono volute: il club
+si confronta sulla **chiave normalizzata** (i voti scrivono `Milan`, il layer per-partita `AC Milan`), e una
+riga **senza squadra non è un cambio di squadra** (un infortunio non porta nessun club, e leggerlo come un
+trasferimento stamperebbe due divisori attorno a ogni giornata saltata).
+
+**Il caso scoperto:** per Beto **tutte** le 46 righe sono dell'Everton mentre il foglio lo dà alla
+Fiorentina, quindi di «cambio» dentro l'elenco non ce n'è nessuno e la card evidenziava quarantasei righe
+senza mai dire di quale squadra fossero. Cura: `cardRows` parte dal club di OGGI invece che da «niente»,
+così la prima riga si annuncia da sé se già non è la sua squadra attuale.
+
+### 25.5 I mezzi punti, e un fantavoto che si può sommare
+
+«Mostra i voti sintetici arrotondati sempre a 0,5 e calcola e mostra il relativo fantavoto sintetico
+aggiungendo i punteggi dei bonus al voto sintetico.» La richiesta ha un numero dietro, misurato prima di
+implementarla: **57.925 voti veri su 57.925** stanno sulla griglia dei mezzi punti, e altrettanti fantavoti.
+Un sintetico che legge `5,88` scrive quindi una cifra che il fantacalcio non pubblica mai. Il prezzo è
+dichiarato: arrotondare sposta il numero di **0,129 in media** (0,25 al massimo) contro i **0,37** di errore
+per partita che la retta di `synth` ha di suo — un terzo del rumore che c'è già. L'arrotondamento sta nello
+STORE e non nella vista, perché il fantavoto si somma a quel numero e la riga deve tornare.
+
+`syntheticFantavoto` vale **solo dove il voto è sintetico** (dove la fonte pubblica un fantavoto, quello è
+il fantavoto) e usa la stessa `bonusesOf` che disegna i marchi, quindi la somma e i simboli accanto non
+possono contraddirsi. Cosa si può sommare, misurato: i gol **100%**, gli assist **99,25%**, i cartellini per
+niente — quindi il numero è **ottimista di ~0,06** e lo dice.
+
+**E il bonus porta inviolata NON si somma, perché la fonte non lo somma**: su 1.222 portieri a porta
+inviolata il fantavoto pubblicato è `voto + bonus` senza premio in **1.218** casi (e i 2.613 che subiscono
+tornano 2.586 volte). È un modificatore di lega, non un termine della riga.
+
+### 25.6 I gol subiti di un portiere: la premessa giusta e il caso raro sbagliato
+
+«Per le partite sintetiche dei portieri, segna i gol subiti (li prendi pari pari ai gol segnati nella
+partita dall'avversario) ... la rarità di un tale evento è così rara che possiamo tranquillamente ignorare
+questi casi», riferito al portiere uscito prima del gol.
+
+**Quel caso è davvero raro; quello che non lo è è un altro.** I gol dell'avversario si contano dalle righe
+di quella partita che abbiamo in casa, e le righe esistono solo per chi sappiamo identificare: fuori dalla
+Serie A il marcatore avversario spesso non è nel perimetro. Numeri in spec «Novità v9.73» — 95,1% di
+ricostruzioni esatte sulla Serie A, **72,5%** all'estero, errore medio **−0,325 gol**, cioè il fantavoto di
+un portiere sintetico è ottimista di circa un terzo di punto.
+
+Implementato come chiesto, con il limite scritto accanto e la causa curata nel toolkit (`download_round`
+scartava il risultato che il payload porta). La condizione nel codice è sul **DATO e non sul ruolo**: un
+portiere di cui non si sono potuti contare i gol subiti non prende nessun fantavoto sintetico, perché
+sommare il resto gli darebbe fantavoto uguale al voto — una promessa che nessuna sua partita mantiene.
+
+### 25.7 Lo spazio ai bonus: stringere non bastava
+
+«Stringi un po' stemmi squadre e risultati e lasciamo un po' più di spazio alle icone dei bonus.» Stretti
+(`ui-crest size="xs"`, 16px, e le colonne interne da 9,75 a 7,7rem) — e non è servito a niente, perché la
+cella dell'incontro era **`1fr`** e i bonus **`auto`**: lo spazio liberato restava dentro l'incontro. Il
+difetto era nella griglia della card, non nelle sue colonne interne. Invertite (`auto auto auto 1fr auto`),
+la colonna dei bonus passa da 12 a **38-42px** e nessun nome viene tagliato.
+
+### 25.8 Il riepilogo di stagione, e la stagione che si carica
+
+«Quando scrollo al termine della stagione scorsa, mostra un tasto per caricare anche la stagione
+precedente» → il tasto sta IN FONDO all'elenco (che è esattamente «quando scrollo al termine») e **nomina la
+stagione che caricherebbe**, presa da `seasonsWith` — lo stesso elenco su cui `recent` decide dove fermarsi.
+Chiedere al bundle «qual è la stagione prima» avrebbe offerto un tasto che carica zero righe per chiunque
+abbia saltato un anno: qui una stagione esiste solo se ha prodotto qualcosa. Quando non ce n'è più il tasto
+sparisce, invece di restare spento.
+
+«Sotto la riga della stagione, aggiungi incolonnate correttamente minuti medi a partita | mv | gol fatti e
+assist fatti | fm a partita» → `seasonTotals`, e le quattro quantità cadono **esattamente sulle quattro
+colonne che una riga di partita ha già**, quindi il riepilogo non è una tabella nuova: è la stessa griglia
+letta per stagione. Tre decisioni:
+
+- **La popolazione è il CAMPIONATO** (suo o di un altro paese), non tutto quello che l'elenco disegna:
+  coppe e amichevoli sono le righe attenuate perché non entrano nel fantavoto e non hanno un voto, e mettere
+  i loro gol accanto a una media di voti che li ignora darebbe quattro numeri che non parlano degli stessi
+  novanta minuti.
+- **Ogni media ha il SUO denominatore**: i minuti si dividono per le partite di cui si conoscono i minuti,
+  il voto per quelle che hanno un voto, il fantavoto per quelle che hanno un fantavoto.
+- **In prima colonna il conto delle partite**, perché il riepilogo descrive la stagione INTERA (letta dallo
+  store) mentre le righe sopra possono essere cinque: senza il denominatore, tre righe e una media di
+  diciotto partite si leggerebbero come la stessa cosa.
+
+Limite dichiarato: il riepilogo sta **solo sotto un divisore**, quindi la stagione in corso non ce l'ha —
+è la lettura letterale della richiesta, e i suoi numeri stanno comunque in cima alla card.
+
+### 25.9 Il banco, e i cinque modi in cui ha sbagliato lui
+
+`app/scripts/e2e-player-card.mjs` guida la plancia vera, apre una card e verifica **contro il bundle**:
+partite di un altro campionato riconosciute, voto e minuti attesi, scala dichiarata (`~` / `*`), stemma del
+club di quella partita, incolonnamento, opacità delle coppe, griglia dei mezzi punti, fantavoto risommato
+dagli eventi, divisori, riepilogo ricalcolato, larghezza della barra, tasto della stagione. L'uomo si
+sceglie DAI DATI (quello con più partite fuori dal suo campionato) e non da una lista scritta a mano.
+
+Cinque difetti erano **suoi**, e sono la parte che vale:
+- **`display: contents` inganna chi legge la griglia**: i figli sono i COMPONENTI e non le celle, quindi
+  leggerne cinque alla volta impacchettava cinque partite in una riga sola.
+- **Un indice costruito su meno di quello che lo schermo disegna sbaglia ad attribuire**: «Tot 1-2 Ast» di
+  FA Cup finiva sulla partita di PREMIER fra gli stessi due club, e il banco accusava la pagina di stampare
+  numeri sbagliati mentre stampava quelli giusti di un'altra partita.
+- **L'uomo identificato col PRIMO nome che è sottostringa della riga**: «Sanchez Ro.» prendeva l'id di un
+  altro Sanchez, e il riepilogo «non tornava». Si prende il più LUNGO.
+- **La griglia dei mezzi punti pretesa anche dal rating del provider**, che sta su un'altra scala.
+- **Il riepilogo letto come un divisore di stagione**, che avvelenava l'attribuzione di ogni riga sotto.
+
+E due che valgono come regola: i due club di una riga si leggono **separati** e non da una stringa unita (in
+mezzo c'è il risultato, quindi `Bou-Eve` non compare mai nel testo), e il file di uno stemma si legge per
+`ui-crest` e non per posizione delle `<img>` — un club senza stemma non ne disegna nessuna, e quello di
+destra scivolerebbe a sinistra.
+
+### 25.10 Lo stato: cosa è verde e cosa resta aperto
+
+Verificato in un WORKTREE su HEAD più i soli file miei (l'albero condiviso non compilava per la metà
+dell'altra sessione, `valuation-store.riser*`): build pulito, **728 test app**, **674 toolkit**, e i dieci
+banchi e2e verdi. Corsa toolkit fatta: `synth` → `export` → `data:pull`.
+
+Aperti, con il loro numero:
+- **Gli alias dei club** per lo stemma del layer per-partita: 61,3% risolto, e la cura è `club_xref` nel
+  toolkit (§25.2).
+- **I cartellini** non esistono in `external_match_stats` (0 su 352.754): il fantavoto sintetico è
+  ottimista di ~0,06 finché non vengono acquisiti.
+- **Il risultato delle partite di campionato** si riempirà giornata per giornata man mano che i turni
+  vengono riscaricati (la cache non lo porta): fino ad allora i gol subiti di un portiere estero sono
+  ricostruiti al 72,5%.
+- **Il riepilogo della stagione in corso** non c'è, per lettura letterale della richiesta.

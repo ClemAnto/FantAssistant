@@ -30,7 +30,7 @@ const CREST_COLOURS = [
 })
 export class ClubCrest {
   readonly club = input.required<string | null>();
-  readonly size = input<'sm' | 'md' | 'lg'>('md');
+  readonly size = input<'xs' | 'sm' | 'md' | 'lg'>('md');
   /** The club's id and the bundle's index: without both, the monogram stands. */
   readonly clubId = input<number | null>(null);
   readonly crests = input<Record<string, string>>({});
@@ -69,6 +69,11 @@ export class ClubCrest {
 
   protected readonly shape = computed(() => {
     switch (this.size()) {
+      // `xs` nasce per la riga di una partita nella card (operatore, 05/09/2026: «stringi un po'
+      // stemmi squadre e risultati e lasciamo un po' piu' di spazio alle icone dei bonus»): quattro
+      // stemmi e un risultato su una riga alta diciotto pixel sono la meta' della sua larghezza.
+      case 'xs':
+        return 'h-4 w-4 text-[8px]';
       case 'sm':
         return 'h-5 w-5 text-[9px]';
       case 'lg':

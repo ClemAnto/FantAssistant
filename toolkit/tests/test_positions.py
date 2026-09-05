@@ -378,6 +378,91 @@ def test_reingest_match_layer_is_idempotent(tmp_path):
         assert ctx.conn.execute("SELECT COUNT(*) FROM external_match_stats").fetchone()[0] == 1
 
 
+def _match_row(rating: float) -> tuple:
+    """One parsed row in the shape `_store_match_rows` takes: (fc_id, season, match_id, ...)."""
+    return (1, "2023-24", "111", "premier_league", 7, "2023-09-30", "Liverpool FC", "Arsenal",
+            1, "F", 1, 90, rating, 0, 0, None, None, None, None, None, None, None, None, None, None)
+
+
+def _synth_after_rewrite(tmp_path, second_rating: float):
+    """Store a round, let `synth` fill mv_synth, store the SAME round again, report what is left.
+
+    The ONLINE path on purpose (`_store_match_rows`), because that is the one that runs unattended:
+    `reingest_match_layer` deletes the layer and rebuilds it, and `rebuild` re-runs `synth` right
+    after (`rebuild.py`), so there the column is re-derived by the chain the way it is meant to be.
+    """
+    ctx = _ctx(tmp_path)
+    ctx.conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Nunez')")
+    positions._store_match_rows(ctx.conn, [_match_row(7.4)])
+    # what `synth` writes, and nothing else does
+    ctx.conn.execute("UPDATE external_match_stats SET mv_synth = 6.33")
+    positions._store_match_rows(ctx.conn, [_match_row(second_rating)])
+    ctx.conn.commit()
+    rows = ctx.conn.execute("SELECT rating, mv_synth FROM external_match_stats").fetchall()
+    assert len(rows) == 1, "a second read of the same match is an UPDATE, never a second row"
+    return tuple(rows[0])
+
+
+def test_reingesting_a_round_does_not_throw_away_the_synthetic_voto(tmp_path):
+    """The defect that emptied `mv_synth` on exactly the seasons the bundle carries.
+
+    `INSERT OR REPLACE` deletes the row and writes a new one, so every column the parser does not
+    observe went back to NULL - and `mv_synth` is written by `synth`, never by a parser. Measured on
+    the live DB: 100% of the rated rows up to 2023-24 had one and 0 of 88,121 in the three exported
+    seasons, while the rule itself still converts 77,317 of those 88,121 when re-applied.
+
+    Put the old statement back and this test names the column it loses.
+    """
+    assert _synth_after_rewrite(tmp_path, 7.4) == (7.4, 6.33)
+
+
+def test_a_changed_rating_retracts_the_synthetic_voto_instead_of_keeping_a_stale_one(tmp_path):
+    """The other half, and the reason this is not simply «never touch mv_synth».
+
+    The conversion is a function OF THE RATING: if the provider revises the rating, the number that
+    was derived from the old one is no longer about this match. So it is retracted - `synth` will
+    recompute it - because a stale derived value is worse than an empty one. «Vuoto = ignoto.»
+    """
+    assert _synth_after_rewrite(tmp_path, 6.1) == (6.1, None)
+
+
+def test_the_upsert_assignments_cover_every_column_the_parser_writes(tmp_path):
+    """A column added to the INSERT and forgotten in the DO UPDATE would stop being refreshed.
+
+    Silently: the first read of a round would store it and no later read would ever correct it, which
+    is the «flag the parser accepts and the dispatcher drops» family one level down. Derived from the
+    statement's own text, so it cannot drift from it.
+    """
+    import inspect
+    source = inspect.getsource(positions._store_match_rows)
+    declared = source[source.index("INSERT INTO external_match_stats("):]
+    declared = declared[declared.index("(") + 1:declared.index(")")]
+    written = [name.strip() for name in declared.split(",")]
+    keys = {"fc_id", "season", "source", "match_id"}
+    assert [name for name in written if name not in keys] == list(positions._MATCH_COLUMNS)
+
+
+def test_a_round_keeps_the_scoreline_the_payload_carries(monkeypatch):
+    """Il risultato c'era nel payload e questo passo lo buttava via.
+
+    `parse_round` sa gia' leggerlo e lo riceveva solo dal layer EXTRA, quindi `team_goals` era vuoto
+    sul 98,5% delle righe di campionato - e serve per contare i gol subiti da un portiere in una
+    partita che il fantacalcio non vota. Rimettendo la vecchia `events.append` questo test nomina le
+    due chiavi che si perdono.
+    """
+    payload = {"events": [{
+        "id": 111, "homeTeam": {"name": "Liverpool FC"}, "awayTeam": {"name": "Arsenal"},
+        "roundInfo": {"round": 7}, "startTimestamp": 1_696_000_000,
+        "status": {"type": "finished"},
+        "homeScore": {"current": 2}, "awayScore": {"current": 1},
+    }]}
+    monkeypatch.setattr(positions, "_get_json", lambda session, url: payload if "round" in url else {})
+    monkeypatch.setattr(positions, "_polite_sleep", lambda *args, **kwargs: None)
+    out = positions.download_round(None, "premier_league", 1, 7, {positions.club_key("Liverpool FC")})
+    assert out["events"][0]["homeGoals"] == 2
+    assert out["events"][0]["awayGoals"] == 1
+
+
 # ---------- heatmap layer (avg_x / avg_y) ----------
 def test_heatmap_centroid_is_weighted_by_touch_count():
     payload = {"points": [{"x": 10, "y": 50, "count": 90}, {"x": 90, "y": 50, "count": 10}]}

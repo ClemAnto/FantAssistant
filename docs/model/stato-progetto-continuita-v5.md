@@ -5013,3 +5013,61 @@ stato eseguito e non è stato dichiarato verde.
 4. **Le stelline non sono state misurate come CONSIGLIO** — che descrivano una rosa è un'altra
    affermazione che guardarle faccia comprare meglio; lo strumento per misurarlo esiste
    (`bench.auction.advice`, che giudica senza il tavolo).
+
+---
+
+## Chiusura 5 settembre 2026 — la card guarda tutto il calcio giocato, e due colonne che il toolkit buttava via
+
+Sette richieste dell'operatore in fila sulla card di un calciatore, tutte nate da una: **usare i voti
+sintetici anche nell'app, per ricostruire lo storico di chi ha giocato fuori dalla Serie A**. Verbale
+completo in [letture-app-v1.md](letture-app-v1.md) §25 e in spec «Novità v9.73».
+
+**Il difetto non era dove sembrava, due volte.** Le 32 partite di Premier di Kolo Muani col Tottenham
+**erano già nel bundle**, con avversario, campo, minuti e rating: a non guardarle era `recent`, che
+camminava un campionato solo. E i voti sintetici erano **vuoti proprio sulle tre stagioni esportate** — 0
+su 88.121 righe con rating, contro il 100% fino al 2023-24 — perché `positions._store_match_rows` usava
+`INSERT OR REPLACE`, che cancella la riga e riporta a NULL ogni colonna che non elenca. La regola non era
+rotta: riapplicata ha convertito 77.317 di quelle 88.121.
+
+**Corsa toolkit fatta su sua decisione**: `synth` (247.539 righe convertite) → `export` → `data:pull`. Il
+bundle porta ora 77.344 sintetici su 88.865 righe col rating.
+
+**Cosa c'è in repository** (solo la mia metà, vedi la nota di albero condiviso più sotto):
+- **App** — `players-store.ts` (le tre sorgenti fuse per data, `other_league`, l'arrotondamento ai mezzi
+  punti, i gol subiti di un portiere, `matchesOf`/`seasonsWith`, l'indice degli stemmi su tutti i 106
+  club), `match-bonuses.ts` (`roundVote`, `syntheticFantavoto`), `player-card.ts` (`cardRows`,
+  `seasonTotals`), `match-line` (`grid-cols-subgrid`, il marchio della competizione, la ragione al posto
+  della sola data, l'attenuazione sulle celle), `player-card` (stemma della riga, evidenziazione, i due
+  divisori, il riepilogo, «Carica stagione»), `vocabulary.ts` (il voto prima del tipo di riga),
+  `club-crest` (`xs`), `bonus-mark` (`always`), `tokens.css` (`.scrollbar-slim`).
+- **Toolkit** — `positions.py`: l'upsert che non cancella `mv_synth` e `download_round` che tiene il
+  risultato; tre test nuovi in `test_positions.py`.
+- **Nuovi** — `app/scripts/e2e-player-card.mjs` (dodici passi, tutti contro il bundle) e
+  `app/src/app/core/players-store.spec.ts`.
+
+**Verificato in un WORKTREE su HEAD più i soli file miei**, perché l'albero condiviso non compilava per la
+metà dell'altra sessione: build pulito, **728 test app**, **674 toolkit**, dieci banchi e2e verdi.
+
+**Nota di albero condiviso**, quarta istanza e la prima in cui la loro metà non compila. Un'altra sessione
+sta rifattorizzando `valuation-store.ts` (i campi `riser*`) e ha lasciato non committato anche
+`auction-advice.ts`, `player-place.{ts,spec.ts}`, `player-status.ts`, `views/strategy/strategy.html`,
+`engine/{estimate,presence}.py`, `gui.py`, `modules/{boards,export,snapshot}.py`,
+`tests/test_{blend_seasons,snapshot,out_window}.py`. **Non è stato committato niente di loro** e il loro
+gate non è stato eseguito né dichiarato verde. L'autorship è stata misurata file per file con un
+`git diff | grep` sul vocabolario delle due feature, confermato sulle sole righe AGGIUNTE.
+
+**Aperti, in ordine di leva:**
+1. **Gli alias dei club per lo stemma** del layer per-partita: 61,3% risolto, e nemmeno `club_key` del
+   toolkit basta (63,9%). La cura è l'IDENTITÀ del club dal provider (`club_xref`) portata nel bundle,
+   non una seconda lista di alias nel browser.
+2. **I cartellini non esistono** in `external_match_stats` (0 righe su 352.754, nessun modulo li scrive):
+   ogni fantavoto sommato da quello strato è ottimista di ~0,06. È un'acquisizione.
+3. **Il risultato delle partite di campionato** si riempirà giornata per giornata man mano che i turni
+   vengono riscaricati — la cache tiene l'evento già sfoltito e un `rebuild` non lo recupera. Fino ad
+   allora i gol subiti di un portiere estero sono ricostruiti al 72,5% (errore medio −0,325 gol).
+4. **Il riepilogo della stagione in corso** non c'è, per lettura letterale della richiesta («sotto la riga
+   della stagione»): è una riga di template se lo vuole anche lì.
+5. **`backtest --verify` non è stato rieseguito** dopo la corsa di `synth`. `mv_synth` non entra in
+   `evaluate`, quindi `engine_*` non si muove, ma la prossima derivazione di `arrivals` leggerà un
+   FM-equivalente diverso da oggi (prima lavorava su un terzo dell'input) — ed è il momento in cui il
+   gate va rifatto.

@@ -495,6 +495,77 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.73 (5 settembre 2026 — DUE COLONNE CHE LA RI-INGESTIONE BUTTAVA VIA)
+
+Nato da una richiesta sull'app («i voti sintetici devono essere utilizzati anche dall'app per ricostruire
+lo storico del calciatore anche quando ha giocato fuori dalla serie A») e finito nel toolkit, perché la
+colonna che l'app doveva leggere era **vuota proprio sulle stagioni che il bundle esporta**.
+
+### 1. `mv_synth` cancellato a ogni rilettura di un turno
+
+`positions._store_match_rows` usava `INSERT OR REPLACE`, che **cancella la riga e ne scrive una nuova**:
+ogni colonna che l'istruzione non elenca torna NULL, e `mv_synth` è scritta da `synth` e da nessun parser.
+Quindi ogni rilettura di una giornata buttava via il voto sintetico calibrato delle righe che toccava.
+
+Misurato sul DB vivo il giorno in cui è stato trovato: **il 100% delle righe con rating fino al 2023-24**
+porta un sintetico e **0 su 88.121** nelle tre stagioni che il bundle esporta (2024-25, 2025-26, 2026-27) —
+cioè lo strato che serve a dire cosa ha fatto un uomo fuori da questo campionato era vuoto esattamente
+dove qualcuno lo guarda. **La regola non era rotta**: riapplicata quel giorno ha convertito 77.317 di
+quelle 88.121 righe, e `calibrated_competitions` restituiva i cinque campionati come sempre.
+
+Cura: `INSERT ... ON CONFLICT(fc_id, season, source, match_id) DO UPDATE SET <colonne osservate>`, con
+`mv_synth` fuori dall'elenco e **ritirata solo se il rating cambia**
+(`CASE WHEN external_match_stats.rating IS excluded.rating THEN ... END`) — la conversione è una funzione
+del rating, quindi un rating nuovo invalida il vecchio derivato, mentre un rating identico non lo tocca.
+*Un derivato stantio è peggio di uno vuoto*, ed è «vuoto = ignoto» applicato a una colonna calcolata.
+
+Tre test: il sintetico sopravvive alla rilettura, si ritira quando il rating cambia, e le assegnazioni
+del `DO UPDATE` coprono ogni colonna che l'INSERT elenca (derivato dal TESTO dell'istruzione, così non
+può scostarsene — una colonna aggiunta all'INSERT e dimenticata nell'UPDATE smetterebbe in silenzio di
+essere aggiornata dalla seconda lettura in poi).
+
+**Corsa fatta lo stesso giorno** su decisione dell'operatore: `synth` (247.539 righe convertite, retta
+invariata: `mv = 1,0642 + 0,7122 × rating`, MAE fuori campione 0,3692 contro 0,4658 della media) →
+`export` → `data:pull`. Il bundle porta ora **77.344 sintetici su 88.865 righe col rating**.
+
+### 2. Il RISULTATO di una partita di campionato, che il payload porta e il passo scartava
+
+`parse_round` sa da sempre leggere `homeGoals`/`awayGoals` → `team_goals`/`opponent_goals`, e li riceveva
+**solo dal layer EXTRA** (`fetch_extra_matches`, che se li salva). `download_round` costruiva l'evento
+senza, pur avendo `homeScore.current`/`awayScore.current` nello stesso payload: **`team_goals` è vuoto
+sul 98,5% delle righe di campionato** (1.617 su 104.594).
+
+Serve per una domanda sola e precisa — quanti gol ha subito un portiere in una partita che il fantacalcio
+non vota, cioè il termine che decide il suo fantavoto sintetico. Senza, l'app deve ricostruirlo sommando i
+gol dei giocatori avversari che sa identificare, che è esatto:
+
+| dove | esatti | sbaglia per difetto | per eccesso |
+|---|---|---|---|
+| Serie A (contro i voti veri, n=1.581) | **95,1%** | 62 | 15 |
+| campionati esteri (contro i voti euro, n=1.698) | **72,5%** | 441 | 26 |
+| — Premier 82,6% · LaLiga 72,1% · Bundesliga 66,1% · Ligue 1 60,6% | | | |
+
+Errore medio all'estero: **−0,325 gol**, cioè il fantavoto di un portiere sintetico è ottimista di circa
+un terzo di punto. *La differenza fra il 95% e il 72% è il PERIMETRO e non il metodo*: una riga esiste solo
+per chi sappiamo identificare, e fuori dalla Serie A il marcatore avversario spesso non è nel listone.
+
+Cura: `download_round` tiene le due chiavi, con un test che le nomina. **I file già in cache non le
+portano** — la cache tiene l'evento già sfoltito e non il payload grezzo, quindi un `rebuild` offline non
+le recupera: la colonna si riempie giornata per giornata man mano che i turni vengono riscaricati. Detto
+qui invece di lasciarlo scoprire.
+
+### 3. Quello che due misure hanno confermato per strada
+
+- **I gol del layer per-partita sono affidabili**: su 24.393 partite di Serie A confrontate riga per riga
+  coi voti veri concordano al **100%** leggendo NULL come zero, e delle 1.745 in cui ha segnato davvero
+  **nessuna** legge NULL. Gli ASSIST concordano al **99,25%** (133 di troppo, 49 di meno).
+- **I cartellini non ci sono affatto**: `yellows` e `reds` sono NULL su tutte le **352.754** righe, nessun
+  modulo li scrive. Nei voti veri un'ammonizione cade nell'**11,2%** delle partite, quindi qualunque
+  fantavoto sommato da questo strato è ottimista di ~0,06. È un'ACQUISIZIONE che manca, non un difetto di
+  lettura, e resta aperta.
+
+---
+
 ## Novità v9.72 (4 settembre 2026, sera — DUE PARTITE NON SONO UNA STAGIONE, e il calendario che restava)
 
 Nate da cinque correzioni dell'operatore su nomi concreti («Douvikas 28 Pa e 75' con l'arrivo di Kean mi

@@ -21,7 +21,7 @@
 import { computed, signal } from '@angular/core';
 
 import { OutWindow } from './injury-window';
-import { Platform } from './players-store';
+import { MatchCell, Platform, RecentMatch, clubNameKey, isChampionship } from './players-store';
 
 /**
  * LA META' D'ASTA di una card: esiste sulla plancia e NON sulla Strategia.
@@ -167,3 +167,115 @@ export const RECENT_MATCHES = 5;
 
 /** ...e quante STAGIONI mostra aperta: questa e la precedente, sempre su sua richiesta. */
 export const RECENT_SEASONS = 2;
+
+
+/**
+ * UNA RIGA DELL'ELENCO con i DIVISORI che le vanno sopra: la stagione, e il cambio di squadra.
+ *
+ * Richiesta dell'operatore (05/09/2026): «metti un divisore (simile a quello con l'anno della stagione)
+ * per indicare il cambio di squadra». Sono due annunci diversi e possono cadere sulla stessa riga - chi
+ * si trasferisce lo fa quasi sempre fra due stagioni - quindi sono due campi e non uno: un divisore solo
+ * costringerebbe a scegliere quale delle due cose dire, e sono tutt'e due vere.
+ *
+ * UNA FUNZIONE PURA e non un conto nel template, per la ragione di sempre: e' una regola su una lista,
+ * e nel template sarebbe raggiungibile solo da un browser.
+ */
+export interface CardRow {
+  match: RecentMatch;
+  /** La stagione da annunciare sopra questa riga, o null. */
+  season: string | null;
+  /** La squadra da annunciare sopra questa riga, o null. */
+  club: string | null;
+}
+
+/**
+ * L'elenco con i suoi divisori, nell'ordine in cui si legge (dalla piu' recente).
+ *
+ * IL CLUB SI CONFRONTA SULLA CHIAVE NORMALIZZATA, o `Tottenham Hotspur` e `Tottenham` sarebbero due
+ * squadre e il divisore comparirebbe fra due partite dello stesso club - le due grafie convivono perche'
+ * le righe arrivano da due fonti (i VOTI scrivono la grafia del listone, il layer per-partita quella
+ * del provider).
+ *
+ * E UNA RIGA SENZA SQUADRA NON E' UN CAMBIO DI SQUADRA: una giornata saltata non porta nessun club, e
+ * leggerla come un trasferimento stamperebbe due divisori attorno a ogni infortunio. Si tiene l'ultimo
+ * club NOMINATO e si va avanti - «vuoto = ignoto», applicato a un divisore.
+ */
+export function cardRows(matches: readonly RecentMatch[], currentClub: string): CardRow[] {
+  const out: CardRow[] = [];
+  let season: string | null = null;
+  // SI PARTE DAL CLUB DI OGGI, e non da «niente»: cosi' la prima riga si annuncia da se' se gia' non
+  // e' la sua squadra attuale. Serve per un caso intero e non per un dettaglio - Beto ha
+  // quarantasei righe e TUTTE dell'Everton, quindi di «cambio» dentro l'elenco non ce n'e' nessuno e
+  // senza questo la card evidenziava quarantasei righe senza mai dire di quale squadra fossero.
+  let club: string | null = clubNameKey(currentClub) || null;
+  for (const match of matches) {
+    const newSeason = season != null && match.season !== season ? match.season : null;
+    const key = clubNameKey(match.cell.team);
+    const newClub = key && club != null && key !== club ? match.cell.team : null;
+    out.push({ match, season: newSeason, club: newClub });
+    season = match.season;
+    if (key) club = key;
+  }
+  return out;
+}
+
+
+/**
+ * COSA HA FATTO IN UNA STAGIONE, nelle stesse quattro colonne delle sue partite.
+ *
+ * Richiesta dell'operatore (05/09/2026): «sotto la riga della stagione, aggiungi incolonnate
+ * correttamente minuti medi a partita | mv | gol fatti e assist fatti | fm a partita». Le quattro
+ * quantita' cadono ESATTAMENTE sulle quattro colonne che una riga di partita ha gia' - minuti, voto,
+ * bonus, fantavoto - quindi il riepilogo non e' una tabella nuova: e' la stessa griglia, letta per
+ * stagione invece che per partita, e nella prima colonna ci va il DENOMINATORE.
+ *
+ * LA POPOLAZIONE E' IL CAMPIONATO, suo o di un altro paese, e non tutto quello che l'elenco disegna.
+ * Coppe e amichevoli restano fuori, e non e' una comodita': sono esattamente le righe che la card
+ * mostra al 50% di opacita' perche' non entrano nel fantavoto, non hanno un voto - una coppa non e' una
+ * competizione calibrata, tutto quello che ha e' il rating del provider, che sta su un'altra scala - e
+ * mettere i loro gol in un totale accanto a una media di voti che li ignora darebbe quattro numeri che
+ * non parlano degli stessi novanta minuti.
+ *
+ * OGNI MEDIA HA IL SUO DENOMINATORE e non si prende quello del vicino: i minuti si dividono per le
+ * partite di cui si conoscono i minuti, il voto per quelle che hanno un voto, il fantavoto per quelle
+ * che hanno un fantavoto. Sono tre numeri diversi - una giornata senza pagella ha i minuti e non il
+ * voto - e usarne uno solo e' la famiglia di difetti che questo progetto paga da sempre. Il conto in
+ * prima colonna e' quello delle partite GIOCATE, che e' la domanda che uno si fa guardando la riga.
+ */
+export interface SeasonTotals {
+  /** Quante partite di campionato ha giocato: il denominatore che si legge. */
+  played: number;
+  /** Minuti medi per partita giocata, e null se di nessuna si sanno i minuti. */
+  minutes: number | null;
+  mv: number | null;
+  fm: number | null;
+  goals: number;
+  assists: number;
+  /** Se le medie poggiano su un voto SINTETICO: allora sono sintetiche anche loro, e portano il `~`. */
+  synthetic: boolean;
+}
+
+export function seasonTotals(cells: readonly MatchCell[]): SeasonTotals | null {
+  const own = cells.filter((one) => isChampionship(one.kind));
+  const played = own.filter((one) => one.state === 'played' || one.state === 'no_vote');
+  if (!played.length) return null;
+
+  const mean = (values: number[]) =>
+    values.length ? values.reduce((sum, one) => sum + one, 0) / values.length : null;
+  const minutes = mean(played.map((one) => one.minutes).filter((one): one is number => one != null));
+  const votes = played.filter((one) => one.vote != null);
+  const fantavoti = played.filter((one) => one.fantavoto != null);
+
+  return {
+    played: played.length,
+    minutes: minutes == null ? null : Math.round(minutes),
+    mv: mean(votes.map((one) => one.vote as number)),
+    fm: mean(fantavoti.map((one) => one.fantavoto as number)),
+    // I RIGORI SEGNATI SONO GOL, e gli assist da fermo sono assist: la riga di una partita li tiene
+    // separati perche' valgono punti diversi, ma «gol fatti» e' una domanda sul calcio e non sul
+    // punteggio - e un rigorista che ne segna dieci non ha fatto zero gol.
+    goals: played.reduce((sum, one) => sum + one.goals + one.penScored, 0),
+    assists: played.reduce((sum, one) => sum + one.assists + one.assistsSetPiece, 0),
+    synthetic: [...votes, ...fantavoti].some((one) => one.voteSynthetic),
+  };
+}

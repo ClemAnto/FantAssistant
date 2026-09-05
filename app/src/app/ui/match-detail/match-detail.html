@@ -150,7 +150,10 @@
   <!-- Vote and fantavoto -->
   @if (played()) {
   <div class="flex flex-wrap items-baseline gap-x-6 gap-y-1 border-t border-border pt-3">
-    @if (cell().kind === 'league') {
+    <!-- IL VOTO DOVE C'E' UN VOTO, e la domanda non e' piu' «e' il suo campionato»: dal 05/09/2026 anche
+         una partita degli altri quattro ne porta uno, il sintetico calibrato (`mv_synth`). Il fantavoto
+         resta ai voti veri, perche' e' la fonte a pubblicarlo e nessuno qui lo somma. -->
+    @if (cell().vote !== null || cell().kind === 'league') {
       <span class="text-sm text-muted">
         Voto
         <span class="ml-1 text-base text-fg">
@@ -160,10 +163,19 @@
           <span class="ml-1 text-xs text-warning">sintetico calibrato</span>
         }
       </span>
-      <span class="text-sm text-muted">
-        Fantavoto
-        <span class="ml-1 text-base text-fg">{{ number(cell().fantavoto) }}</span>
-      </span>
+      @if (cell().fantavoto !== null) {
+        <span class="text-sm text-muted">
+          Fantavoto
+          <span class="ml-1 text-base text-fg">{{ number(cell().fantavoto) }}</span>
+        </span>
+      }
+      @if (cell().providerRating !== null) {
+        <span class="text-sm text-muted">
+          Voto Sofascore
+          <span class="ml-1 text-base text-fg">{{ number(cell().providerRating) }}</span>
+          <span class="ml-1 text-xs">scala diversa</span>
+        </span>
+      }
     } @else {
       <span class="text-sm text-muted">
         Voto Sofascore
@@ -186,7 +198,15 @@
     }
   }
 
-  @if (cell().kind !== 'league') {
+  <!-- LA NOTA SEGUE IL NUMERO CHE LA RIGA MOSTRA, non il tipo di competizione: una partita di un altro
+       campionato porta il sintetico e va spiegata come tale, una coppa non lo porta per costruzione. -->
+  @if (cell().voteSynthetic) {
+    <p class="text-xs text-muted">
+      Il voto non e' pubblicato dal fantacalcio: e' il rating del provider convertito sulla scala del
+      voto con la retta tarata su questi cinque campionati. E' una stima, con circa mezzo voto di
+      errore per partita, ed e' marcata «~» ovunque compaia.
+    </p>
+  } @else if (cell().kind !== 'league' && cell().vote === null) {
     <p class="text-xs text-muted">
       Coppe e amichevoli non sono competizioni calibrate: non esiste un voto di fantacalcio ne'
       un sintetico. Il risultato, quando c'e', arriva dalla scheda della partita del provider e
