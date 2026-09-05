@@ -1,11 +1,12 @@
 import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
-import { DecimalPipe } from '@angular/common';
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { formatNumber } from '@angular/common';
+import { Component, LOCALE_ID, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
@@ -14,24 +15,35 @@ import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
 import { ExpectedPlay } from '../../core/expected-play';
 import { GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { withRowAt } from '../../core/manual-order';
+import { looseMatch } from '../../core/loose-search';
+import { CardMan, CardStack } from '../../core/player-card';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
   AuctionKind,
   BlockView,
+  DEFAULT_READINGS,
+  READINGS,
   RankedMan,
+  ManReadings,
+  ReadingKey,
+  ReadingSpec,
   RoleBlock,
   StrategyBidder,
   StrategyGame,
   StrategySetup,
   blocksOf,
   gainOf,
+  readingIsRough,
+  readingValue,
+  readingsOf,
 } from '../../core/strategy';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
-import { stored } from '../../core/view-state';
+import { stored, storedJson } from '../../core/view-state';
 import { APP_VERSION } from '../../version';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
+import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 
@@ -127,15 +139,16 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     CdkDrag,
     CdkDropList,
     ClubCrest,
-    DecimalPipe,
     FormsModule,
     GainChip,
     NzAlertModule,
     NzButtonModule,
     NzIconModule,
+    NzInputModule,
     NzPopconfirmModule,
     NzRadioModule,
     NzTooltipModule,
+    PlayerCard,
     PlayerFlags,
     RoleBadge,
     RouterLink,
@@ -299,20 +312,200 @@ export class Strategy {
    * vederla bisogna chiudere quello che si sta guardando.
    */
   protected readonly viewOptions: { value: BlockView; label: string; hint: string }[] = [
-    {
-      value: 'all',
-      label: 'Tutti',
-      hint: 'Ogni blocco è la classifica di chi può coprire quel posto, e chi ha un posto più arretrato porta la freccia: un C/T lo metteresti da C, quindi fra i trequartisti è un ripiego e la freccia dice dove lo useresti. Ordina il gain e non il mestiere, perché mettere davanti i soli trequartisti puri porta la somma dei gain di quel blocco da 256 a MENO 9 e fa sparire McTominay, Da Cunha e Rabiot (misurato il 27/08/2026 sul foglio Serie A mantra).',
-    },
-    {
-      value: 'natives',
-      label: 'Solo di mestiere',
-      hint: 'Solo chi NON può giocare più arretrato: le opzioni vere per quel posto, se i tuoi polivalenti li usi dove rendono di più. Il prezzo è detto: sul listone di oggi i BRACCETTI restano zero (ogni braccetto quotato è anche un Dc, un Dd o un Ds), gli esterni scendono a 19 su una domanda di 23 e i trequartisti a 17.',
-    },
+    // I suggerimenti sono CORTI per regola dell'operatore (05/09/2026): poche parole per dire cosa
+    // vuol dire quella scelta. Il perché - e i numeri che l'hanno decisa - stanno in
+    // `pagina-strategia-v1.md` e nei commenti, dove si leggono una volta invece che a ogni hover.
+    { value: 'all', label: 'Tutti', hint: 'Chiunque possa coprire il posto.' },
+    { value: 'natives', label: 'Solo di mestiere', hint: 'Solo chi non può giocare più arretrato.' },
   ];
 
   protected setView(view: BlockView): void {
     this.view.set(view);
+  }
+
+  // ---------------------------------------------------------------- le letture della riga
+
+  /**
+   * QUALI NUMERI SI VEDONO SU UNA RIGA (richiesta dell'operatore, 05/09/2026).
+   *
+   * Sette pastiglie cliccabili al posto della scritta che c'era in barra, e le prime tre accese
+   * all'inizio. E' una preferenza di LETTURA - non cambia chi si puo' comprare ne' in che ordine - e
+   * per questo sta in `localStorage` come il taglio dei blocchi, e non nell'indirizzo.
+   *
+   * `storedJson` e non `storedList` perche' NESSUNA pastiglia accesa e' una scelta legittima, e una
+   * lista vuota sul disco deve restare vuota invece di ripartire dai default: «vuoto = ignoto» vale per
+   * chi non ha mai scelto, non per chi ha scelto di spegnere tutto.
+   */
+  protected readonly readings = storedJson<ReadingKey[]>('strategy.readings', (raw) => {
+    if (!Array.isArray(raw)) return [...DEFAULT_READINGS];
+    const known = new Set(READINGS.map((one) => one.key));
+    return raw.filter((one): one is ReadingKey => typeof one === 'string' && known.has(one as ReadingKey));
+  });
+
+  /** Le pastiglie nell'ordine dichiarato, con acceso/spento: il template non ne decide nessuno. */
+  protected readonly readingPills = computed(() => {
+    const on = new Set(this.readings());
+    return READINGS.map((one) => ({ ...one, on: on.has(one.key) }));
+  });
+
+  /** ...e solo quelle accese, che e' quello che una riga disegna. */
+  protected readonly shownReadings = computed(() => {
+    const on = new Set(this.readings());
+    return READINGS.filter((one) => on.has(one.key));
+  });
+
+  /** Il numero dietro una sigla e se è spannometrico: dal vocabolario, che li possiede. */
+  protected valueOf = readingValue;
+  protected isRough = readingIsRough;
+
+  private readonly locale = inject(LOCALE_ID);
+
+  /**
+   * LA PASTIGLIA COME SI LEGGE: un metodo e non tre chiamate nel template.
+   *
+   * Ogni riga ne disegna fino a sette e le righe sono seicento: scrivere il ternario nel template
+   * vorrebbe dire chiamare `valueOf` tre volte per pastiglia a ogni giro di change detection. Un
+   * trattino e non uno zero dove il numero non c'è, che è la regola di casa sui vuoti.
+   */
+  protected text(spec: ReadingSpec, readings: ManReadings): string {
+    const value = readingValue(spec.key, readings);
+    if (value == null) return '—';
+    const sign = spec.signed && value > 0 ? '+' : '';
+    return sign + formatNumber(value, this.locale, spec.format) + (spec.suffix ?? '');
+  }
+
+  protected toggleReading(key: ReadingKey): void {
+    this.readings.update((on) =>
+      on.includes(key) ? on.filter((one) => one !== key) : [...on, key],
+    );
+  }
+
+  // ---------------------------------------------------------------- la ricerca dentro un blocco
+
+  /**
+   * IL TESTO CERCATO IN OGNI BLOCCO (richiesta dell'operatore, 05/09/2026): la lente in intestazione
+   * apre una casella sotto, e la casella filtra QUELLA lista per nome o per squadra.
+   *
+   * Per BLOCCO e non per pagina: dodici liste a mantra sono dodici domande diverse, e un filtro solo
+   * le taglierebbe tutte per trovare un nome in una. Non si salva in `localStorage` come le altre
+   * preferenze di lettura, perché non è una preferenza: è una domanda che si fa e si chiude - e un
+   * filtro salvato che al ricaricamento nasconde metà lista è la cosa peggiore che questa pagina possa
+   * fare a un'asta.
+   */
+  private readonly queries = signal<Record<string, string>>({});
+  private readonly openSearch = signal<Record<string, boolean>>({});
+
+  protected queryOf(role: string): string {
+    return this.queries()[role] ?? '';
+  }
+
+  protected searchOpen(role: string): boolean {
+    return this.openSearch()[role] ?? false;
+  }
+
+  /**
+   * Apre o chiude la casella, e CHIUDENDO cancella il testo.
+   *
+   * Un filtro attivo dentro un pannello chiuso è invisibile, e una lista corta senza una ragione a
+   * schermo si legge come un blocco rotto - la stessa regola per cui i filtri della tabella portano
+   * la loro etichetta sopra la tabella (20/08/2026).
+   */
+  protected toggleSearch(role: string): void {
+    const open = !this.searchOpen(role);
+    this.openSearch.update((one) => ({ ...one, [role]: open }));
+    if (!open) {
+      this.queries.update((one) => ({ ...one, [role]: '' }));
+      return;
+    }
+    // Il fuoco va nella casella appena esiste: si apre per scrivere, e chiedere un secondo click
+    // sarebbe un gesto in più su una pagina che si usa con una mano sola.
+    queueMicrotask(() => document.getElementById(`cerca-${role}`)?.focus());
+  }
+
+  protected setQuery(role: string, text: string): void {
+    this.queries.update((one) => ({ ...one, [role]: text }));
+  }
+
+  /**
+   * I BLOCCHI COME SI VEDONO: gli stessi di `blocks()`, con le righe che la ricerca lascia passare.
+   *
+   * Il filtro sta QUI e non in `blocksOf` perché non è una regola del gioco: la domanda «quanti uomini
+   * di questo ruolo comprerà la stanza» non cambia perché sto cercando un nome, e il numero accanto a
+   * ogni riga resta il suo posto VERO (`RankedMan.at`, assegnato prima del filtro) - rinumerare da uno
+   * le tre righe trovate direbbe che il quarantesimo difensore è il primo.
+   */
+  protected readonly visible = computed(() =>
+    this.blocks().map((block) => {
+      const query = this.queryOf(block.role);
+      if (!query.trim()) return { ...block, hidden: 0 };
+      const men = block.men.filter((row) => looseMatch(query, row.man.name, row.man.club));
+      return { ...block, men, hidden: block.men.length - men.length };
+    }),
+  );
+
+  // ---------------------------------------------------------------- la card di un calciatore
+
+  /**
+   * LE CARD APERTE su questa pagina, con la loro pila.
+   *
+   * `new CardStack()` e non un servizio: la regola del posto e di chi sta davanti e' UNA sola
+   * (`core/player-card.ts`), ma le card di questa pagina non devono seguirti sulla plancia - sono due
+   * pile della stessa specie.
+   */
+  private readonly cards = new CardStack();
+
+  protected readonly openCards = computed(() => {
+    const byId = new Map(this.pool().map((man) => [man.fcId, man]));
+    const engine = this.engine();
+    const rounds = this.matchdays();
+    const { platform, game } = this.settings();
+    return this.cards.place((id) => {
+      const man = byId.get(id);
+      return man ? cardManOf(man, engine?.get(id) ?? null, rounds, platform, game) : undefined;
+    });
+  });
+
+  protected readonly frontCard = computed(() => this.cards.front());
+
+  protected closeCard(id: number): void {
+    this.cards.closeCard(id);
+  }
+
+  protected raiseCard(id: number): void {
+    this.cards.raiseCard(id);
+  }
+
+  protected closeAllCards(): void {
+    this.cards.openCard(null);
+  }
+
+  /**
+   * IL CLICK APRE LA CARD, IL TRASCINAMENTO RIORDINA (richiesta dell'operatore, 05/09/2026).
+   *
+   * Sulla stessa riga convivono due gesti, e la sola cosa che li distingue e' se CDK ha superato la sua
+   * soglia (`dragStartThreshold`, 5px): sotto quella non e' un trascinamento e nessun `cdkDragStarted`
+   * arriva. CDK pero' non spegne il `click` che il browser manda dopo un rilascio, quindi senza questa
+   * guardia ogni riordino aprirebbe anche la card della riga rilasciata.
+   *
+   * La guardia si spegne su un TIMEOUT e non dentro il click: se un trascinamento finisce e nessun click
+   * segue, un flag che aspetta il click si mangerebbe quello dopo - «un guard che ferma meta' di un
+   * gesto lo rende meta' rotto», la lezione della lente della plancia (04/09/2026).
+   */
+  private dragging = false;
+
+  protected onDragStarted(): void {
+    this.dragging = true;
+  }
+
+  protected onDragEnded(): void {
+    // Il `click` di un rilascio arriva PRIMA di un timeout, quindi la guardia e' ancora alzata per lui
+    // e giu' per il prossimo.
+    setTimeout(() => (this.dragging = false));
+  }
+
+  protected onPick(man: StrategyBidder): void {
+    if (this.dragging) return;
+    this.cards.openCard(man.fcId);
   }
 
   /**
@@ -380,6 +573,7 @@ export class Strategy {
     return listone.filter((player) => player.quoted).map((player) => {
       const one = engine.get(player.fcId);
       const steady = rated ? this.ratings.for(platform, player.fcId)?.steady : null;
+      const played = this.store.playedOf(platform, player.fcId);
       // QUANTE NE GIOCHERA' DAVVERO, col conto unico dell'app (`core/expected-play.ts`, 04/09/2026):
       // il metro della plancia dove il motore ripiega su una costante, meno le giornate che uno stop
       // aperto gli toglie di sicuro, meno l'assicurazione dell'operatore. Il FATTORE che ne esce
@@ -404,13 +598,25 @@ export class Strategy {
         outlook,
         // Il valore è un PRODOTTO: sta in piedi sul ripiego dichiarato se una delle due metà lo è.
         valueIsEstimate: (one?.fmIsEstimate ?? false) || (one?.pvIsEstimate ?? false),
-        // Le quattro letture delle pastiglie: tre dal foglio, la quarta dalle sue stagioni.
+        // Le letture delle pastiglie: dal foglio, meno la costanza (le sue stagioni) e il fantavalore
+        // (il listone). Si leggono TUTTE anche se la riga ne mostra tre: quali si vedono è una
+        // preferenza che cambia a ogni click, e ricostruire il listone a ogni click sarebbe pagare un
+        // giro di 600 righe per accendere una pastiglia.
         fm: one?.fm ?? null,
+        mv: one?.mv ?? null,
         pv: outlook.expected,
         minutes: one?.minutesNext ?? null,
         steady: steady?.share ?? null,
         steadyWeight: steady?.weight ?? 0,
         steadyNote: steady?.note ?? '',
+        // LA SUA STAGIONE IN CORSO, misurata (operatore, 05/09/2026: «MV e FM devono essere quelli
+        // reali della stagione corrente»): letta da chi la possiede già, e vuota per chi non ha
+        // ancora una giornata su file - che non è uno zero.
+        seasonPlayed: played?.pv ?? null,
+        seasonMv: played?.mv ?? null,
+        seasonFm: played?.fm ?? null,
+        // Il PREZZO del suo listone, nella valuta del gioco dichiarato: letto da chi lo possiede già.
+        fvm: this.store.fvmOf(platform, player.fcId, this.settings().game),
       };
     });
   });
@@ -556,6 +762,17 @@ export class Strategy {
    * `<li>` di una lista che scorre, cioè il caso per cui `cdkDropList` esiste. L'arnese e2e misura
    * esattamente quel fotogramma: zero anteprime, zero segnaposti, zero `transform` residui.
    */
+  /**
+   * Il riordino a mano è SOSPESO mentre un blocco è filtrato, e non è una limitazione da nascondere.
+   *
+   * `withRowAt` costruisce il prefisso dai nomi COME SONO A SCHERMO: su una lista filtrata quei nomi
+   * sono tre di ottanta, quindi il rilascio scriverebbe un ordine che parla di una lista che non
+   * esiste. Meglio un gesto spento con il cursore che lo dice, che un ordine sbagliato salvato.
+   */
+  protected canDrag(role: string): boolean {
+    return !this.queryOf(role).trim();
+  }
+
   protected dropped(role: string, event: CdkDragDrop<RankedMan[]>): void {
     const shown = event.container.data.map((row) => row.man.fcId);
     const id = event.item.data as number;
@@ -597,4 +814,51 @@ export class Strategy {
       // Un browser che rifiuta la memoria disegna la pagina: dimentica l'ordine al ricaricamento.
     }
   }
+}
+
+/**
+ * UN UOMO DELLA STRATEGIA COME LA CARD LO VUOLE.
+ *
+ * Traduce e non ricalcola, esattamente come il gemello della plancia: `pv` e' gia' quello ridotto dal
+ * conto delle giornate, `fm` e' gia' quella che la riga usa, e la finestra dello stop viene da
+ * `outlook` e non da una seconda lettura.
+ *
+ * IL «DOVE» E' IL VOCABOLARIO DEL GIOCO e non il blocco in cui e' stato cliccato: su mantra un uomo sta
+ * in tutti i blocchi che i suoi codici nominano, quindi «Dc/Ds» e' un fatto su di lui mentre «il blocco
+ * Ds» sarebbe un fatto sul click. La plancia scrive `A1` per la stessa ragione opposta: la' un uomo sta
+ * in uno slot solo.
+ */
+function cardManOf(
+  man: StrategyBidder,
+  engine: EngineExpectation | null,
+  rounds: number | null,
+  platform: 'default' | 'euro',
+  game: StrategyGame,
+): CardMan {
+  return {
+    id: man.fcId,
+    name: man.name,
+    club: man.club,
+    clubId: man.clubId,
+    where: game === 'mantra' && man.mantraCodes.length ? man.mantraCodes.join('/') : man.role,
+    platform,
+    // Le stesse letture della riga, dalla stessa funzione: cosi' la card non puo' dire un numero e la
+    // riga un altro sullo stesso uomo.
+    edge: readingsOf(man).edge,
+    pv: man.pv,
+    rounds,
+    fm: man.fm,
+    estimated: engine?.fmIsEstimate ?? false,
+    estNote: engine?.note ?? null,
+    titolarita: engine?.titolarita ?? null,
+    minutesNext: engine?.minutesNext ?? null,
+    seasonMatches: engine?.seasonMatches ?? null,
+    minutesFullSeason: engine?.minutesFullSeason ?? null,
+    unpricedReason: null,
+    fvm: man.fvm,
+    out: man.outlook.window,
+    // NESSUN TAVOLO: questa pagina e' quello che si prepara PRIMA di sedersi, quindi non c'e' una max
+    // offerta ne' un padrone, e inventarli mostrerebbe i numeri di un'asta che non esiste.
+    market: null,
+  };
 }

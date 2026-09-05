@@ -34,6 +34,16 @@ export class ClubCrest {
   /** The club's id and the bundle's index: without both, the monogram stands. */
   readonly clubId = input<number | null>(null);
   readonly crests = input<Record<string, string>>({});
+  /**
+   * COSA SI DISEGNA QUANDO LO STEMMA NON C'E': un MONOGRAMMA o uno SCUDO grigio.
+   *
+   * Il monogramma resta il default e porta un'informazione - QUALE club - che uno scudo non ha; lo
+   * scudo lo chiede chi il nome del club ce l'ha gia' scritto accanto (operatore, 05/09/2026: «se manca
+   * lo stemma fai semplicemente un cerchio grigio con l'icona di uno scudo delle stesse dimensioni degli
+   * altri»). La' un monogramma colorato dice due volte la stessa cosa e per giunta somiglia a uno
+   * stemma vero, mentre un cerchio grigio dice quello che e': non abbiamo il suo stemma.
+   */
+  readonly fallback = input<'monogram' | 'shield'>('monogram');
 
   protected readonly badge = computed(() => {
     const id = this.clubId();

@@ -1,4 +1,5 @@
 import { MantraModules, demandFromShapes, slotShares } from './auction-value';
+import { PlayOutlook } from './expected-play';
 import { orderedBy } from './manual-order';
 // IL SEI e la soglia della SUFFICIENZA sono due domande diverse sullo stesso numero, e ognuna vive dove
 // e' stata decisa: `EDGE_BASE` e' la media di riferimento di un voto (quanto un uomo RENDE sopra di
@@ -148,6 +149,15 @@ export interface StrategyBidder {
   /** ...e il VALORE, l'altra metà dello stesso conto: `fm × pv`, senza sottrarre niente. */
   value: number | null;
   valueIsEstimate: boolean;
+  /**
+   * IL CONTO DELLE GIORNATE che gioca davvero (`core/expected-play.ts`), con ogni pezzo separato.
+   *
+   * Era già calcolato e già usato - `pv`, `surplus` e `value` qui sopra sono tutti riscalati dal suo
+   * `factor` - e non era DICHIARATO: la riga lo portava e il tipo non lo diceva. Dichiararlo serve
+   * anche alla card, che deve poter spiegare PERCHÉ le presenze sono ridotte, e la finestra dello stop
+   * aperto è dentro qui - non in una seconda chiamata accanto.
+   */
+  outlook: PlayOutlook;
   /*
    * LE QUATTRO LETTURE DELLE PASTIGLIE, e nessuna di loro ordina niente (vedi `ManReadings`).
    *
@@ -159,6 +169,14 @@ export interface StrategyBidder {
    */
   /** La fantamedia che il motore si aspetta di lui, PER PARTITA GIOCATA (`engine_fm_pred`/`est_fm`). */
   fm: number | null;
+  /**
+   * ...e la META' DI QUEL NUMERO CHE E' IL VOTO (`est_mv`): la fantamedia meno i bonus.
+   *
+   * Le due sono una COPPIA DERIVATA e il foglio ne predice una - la MV - lasciando cadere l'altra
+   * (spec «Novita' v9.59»): il tasso di bonus e' `fm - mv`, quindi «bonus a partita medio» e' una
+   * sottrazione fra due colonne del foglio e non una quinta previsione.
+   */
+  mv: number | null;
   /** Le partite in cui si aspetta un VOTO, sul calendario del foglio (`engine_pv_pred`/`est_pv`). */
   pv: number | null;
   /**
@@ -175,6 +193,27 @@ export interface StrategyBidder {
   steadyWeight: number;
   /** La frase che quella quota scrive di sé: il campione, la finestra, la mediana del suo ruolo. */
   steadyNote: string;
+  /**
+   * LA SUA STAGIONE IN CORSO, MISURATA: quante ne ha giocate e con che media (`season_stats`).
+   *
+   * Su richiesta dell'operatore (05/09/2026) sono queste - e non le previste - le pastiglie `MV` e
+   * `FM`: al tavolo la domanda e' «come sta andando», e una previsione risponde a un'altra. Restano
+   * accanto a quelle previste senza mescolarsi: `bonus` e' il tasso ATTESO (`fm` meno `mv` qui sopra),
+   * queste sono quello che ha gia' fatto, e il vocabolario delle pastiglie dice quale e' quale.
+   *
+   * Vuote per chi non ha ancora giocato, che non e' uno zero.
+   */
+  seasonPlayed: number | null;
+  seasonMv: number | null;
+  seasonFm: number | null;
+  /**
+   * IL FANTAVALORE DI MERCATO del suo listone, nella valuta del gioco dichiarato.
+   *
+   * E' un PREZZO, non una nostra opinione, e questa pagina lo MOSTRA senza farlo entrare in niente («la
+   * quotazione la usiamo quando non abbiamo altre risorse oggettive»). Vuoto = quel listone non lo
+   * quota, che non e' zero.
+   */
+  fvm: number | null;
 }
 
 /**
@@ -196,6 +235,17 @@ export interface StrategyBidder {
  * dice quale è quale.
  */
 export interface ManReadings {
+  /**
+   * IL BONUS A PARTITA MEDIO: `fantamedia attesa − media voto attesa`, cioe' quanto dei suoi punti NON
+   * viene dal voto.
+   *
+   * E' la definizione che l'operatore ha dettato il 18/08/2026 per la colonna «Bonus» («i bonus da
+   * soli, `FMa − MVa`, così la formula dell'Overall si legge sulla riga») e da oggi e' anche il nome
+   * della pastiglia. NON e' `fm − 6`, che e' un'altra domanda - quanto rende una sua partita rispetto
+   * alla sufficienza - e vive sulla plancia con quel nome (`EDGE_BASE`): due quantita', due nomi, mai
+   * una cifra sola.
+   */
+  bonus: number | null;
   /** `fantamedia attesa − 6`, per PARTITA GIOCATA. Null quando il foglio non lo prezza affatto. */
   edge: number | null;
   /** Le partite con un voto che il motore si aspetta, sul calendario di questo foglio. */
@@ -206,16 +256,170 @@ export interface ManReadings {
   passedIsHis: boolean;
   /** I minuti attesi quando gioca. Vuoto dove il foglio non li dichiara, mai zero. */
   minutes: number | null;
+  /** La media voto REALE di questa stagione: quello che ha gia' preso, non quello che ci si aspetta. */
+  mv: number | null;
+  /** ...e la fantamedia REALE, cioe' quella piu' i bonus che ha gia' portato. */
+  fm: number | null;
+  /** Su quante giornate quelle due medie sono fatte: a settembre puo' essere UNA, e va detto. */
+  seasonPlayed: number | null;
+  /** Il fantavalore del listone: un PREZZO, e l'unico numero di questa riga che non e' nostro. */
+  fvm: number | null;
+}
+
+/**
+ * LE SETTE LETTURE CHE UNA RIGA PUO' MOSTRARE, e quali sono accese all'inizio.
+ *
+ * Richiesta dell'operatore (05/09/2026): al posto della scritta in barra, una fila di pastiglie
+ * cliccabili che accendono e spengono ognuno di questi numeri sulla riga. L'ELENCO sta qui e non nella
+ * vista perche' l'ordine e i nomi sono un fatto sul vocabolario di questa pagina - e perche' un test lo
+ * raggiunge senza un browser.
+ *
+ * NESSUNA DI LORO ORDINA NIENTE, ed e' la stessa decisione di sempre: la lista e' ordinata dal GAIN, e
+ * quello che queste fanno e' SPIEGARLO. Accendere una colonna non cambia una graduatoria.
+ *
+ * E I SUGGERIMENTI SONO CORTI, poche parole per dire cosa vuol dire quella sigla: e' la regola
+ * dell'operatore del 05/09/2026 («i tooltip devono essere SEMPRE brevi e sintetici ... quando voglio
+ * spiegazioni piu' dettagliate te lo indico io»). Il PERCHE' di un numero sta nei commenti del codice e
+ * nei documenti, che e' dove si legge una volta invece che cento.
+ */
+export type ReadingKey = 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'fvm';
+
+export interface ReadingSpec {
+  key: ReadingKey;
+  /** La sigla sulla pastiglia, che e' quella che l'operatore ha dettato. */
+  short: string;
+  label: string;
+  hint: string;
+  /** Le cifre con cui si stampa, in vocabolario `DecimalPipe`: un voto ne vuole due, una presenza zero. */
+  format: string;
+  /** Se il segno si stampa anche quando e' positivo: vale per le differenze e per nient'altro. */
+  signed?: boolean;
+  /** Cosa segue il numero, quando l'unita' non e' ovvia. */
+  suffix?: string;
+  /** Quanto e' larga la sua pastiglia: le pastiglie sono INCOLONNATE, quindi la larghezza e' fissa e
+   *  non dipende dal numero - una fila di riquadri uguali si scorre a colpo d'occhio. */
+  width: string;
+}
+
+export const READINGS: ReadingSpec[] = [
+  {
+    key: 'bonus',
+    short: 'Bpm',
+    label: 'Bonus a partita medio',
+    hint: 'Fantamedia attesa meno media voto attesa, per partita.',
+    format: '1.1-1',
+    signed: true,
+    width: 'min-w-9',
+  },
+  {
+    key: 'played',
+    short: 'Pa',
+    label: 'Partite attese',
+    hint: 'Giornate in cui il motore lo aspetta col voto.',
+    format: '1.0-0',
+    width: 'min-w-7',
+  },
+  {
+    key: 'passed',
+    short: 'Pas',
+    label: 'Partite attese sufficienti',
+    hint: 'Di quelle, quante le chiude almeno in 6.',
+    format: '1.0-0',
+    width: 'min-w-7',
+  },
+  {
+    key: 'minutes',
+    short: 'mp',
+    label: 'Minuti medi a partita',
+    hint: 'Minuti attesi quando gioca.',
+    format: '1.0-0',
+    suffix: '′',
+    width: 'min-w-8',
+  },
+  {
+    key: 'mv',
+    short: 'MV',
+    label: 'Media voto',
+    hint: 'Media voto REALE di questa stagione.',
+    format: '1.2-2',
+    width: 'min-w-10',
+  },
+  {
+    key: 'fm',
+    short: 'FM',
+    label: 'Fantamedia',
+    hint: 'Fantamedia REALE di questa stagione.',
+    format: '1.2-2',
+    width: 'min-w-10',
+  },
+  {
+    key: 'fvm',
+    short: 'FVM',
+    label: 'Fantavalore di mercato',
+    hint: 'Il prezzo del listone, nella valuta del gioco.',
+    format: '1.0-0',
+    width: 'min-w-9',
+  },
+];
+
+/** Quelle accese quando nessuno ha ancora scelto: le prime tre (operatore, 05/09/2026). */
+export const DEFAULT_READINGS: ReadingKey[] = ['bonus', 'played', 'passed'];
+
+/**
+ * IL NUMERO DI UNA PASTIGLIA, dalla lettura che la riga ha gia' fatto.
+ *
+ * Una funzione e non sette rami nel template: quale numero sta dietro una sigla e' vocabolario di questa
+ * pagina, e un test lo raggiunge senza un browser. Null resta null - «vuoto = ignoto, mai zero» - e la
+ * pastiglia allora stampa un trattino invece di uno zero che nessuno ha misurato.
+ */
+export function readingValue(key: ReadingKey, readings: ManReadings): number | null {
+  switch (key) {
+    case 'bonus':
+      return readings.bonus;
+    case 'played':
+      return readings.played;
+    case 'passed':
+      return readings.passed;
+    case 'minutes':
+      return readings.minutes;
+    case 'mv':
+      return readings.mv;
+    case 'fm':
+      return readings.fm;
+    case 'fvm':
+      return readings.fvm;
+  }
+}
+
+/**
+ * SE QUEL NUMERO E' SPANNOMETRICO, cioe' se va SBIADITO.
+ *
+ * Vale per una sola delle sette: le partite sufficienti sono una previsione moltiplicata per una quota
+ * MISURATA sulle sue stagioni, e dove quella quota e' quasi tutta l'ancora del ruolo non e' sua. Un
+ * numero spannometrico che si legge come misurato e' la cosa peggiore che una lista possa fare - e' la
+ * ragione del `~` sulle stime, applicata qui.
+ */
+export function readingIsRough(key: ReadingKey, readings: ManReadings): boolean {
+  return key === 'passed' && !readings.passedIsHis;
 }
 
 /** Le tre pastiglie di un uomo. Pura: legge la riga e non tocca né il foglio né lo store. */
 export function readingsOf(man: StrategyBidder): ManReadings {
   return {
+    // Vuoto e non zero se una delle due metà manca: una sottrazione con un termine ignoto è ignota.
+    bonus: man.fm == null || man.mv == null ? null : man.fm - man.mv,
     edge: man.fm == null ? null : man.fm - EDGE_BASE,
     played: man.pv,
     passed: man.pv == null || man.steady == null ? null : man.pv * man.steady,
     passedIsHis: man.steadyWeight >= MOSTLY_ANCHOR,
     minutes: man.minutes,
+    // LE DUE REALI e non le previste (operatore, 05/09/2026): «MV e FM devono essere quelli reali
+    // della stagione corrente». Il `bonus` qui sopra resta il tasso ATTESO, che e' un'altra domanda -
+    // due nature, due nomi, e il vocabolario delle pastiglie lo dice.
+    mv: man.seasonMv,
+    fm: man.seasonFm,
+    seasonPlayed: man.seasonPlayed,
+    fvm: man.fvm,
   };
 }
 
@@ -400,6 +604,15 @@ export interface RankedMan {
    * lo legge lo rivede cambiato. Qui l'oggetto vive quanto la riga.
    */
   readings: ManReadings;
+  /**
+   * IL SUO POSTO NELLA LISTA, 0-based, assegnato PRIMA di qualunque filtro.
+   *
+   * Serve perche' la ricerca per nome nasconde delle righe (05/09/2026) e il numero accanto al nome
+   * deve restare il posto VERO: rinumerare da uno le tre righe trovate direbbe che il quarantesimo
+   * difensore e' il primo. Vale anche per la banda dello slot, che e' quel numero diviso i
+   * partecipanti - una banda ricalcolata su una lista filtrata disegnerebbe slot che non esistono.
+   */
+  at: number;
 }
 
 /** Un blocco: un ruolo, quanti nomi la stanza ne comprerà, e i migliori che ci stanno. */
@@ -505,6 +718,8 @@ export function blocksOf(input: {
       ranked.push({
         man,
         gain,
+        // Assegnato dopo il taglio, quando la lista e' quella vera: qui e' solo un segnaposto.
+        at: 0,
         estimated: gainIsEstimate(man, setup.auction),
         shown: mantra ? man.mantraCodes : [man.role],
         readings: readingsOf(man),
@@ -521,7 +736,7 @@ export function blocksOf(input: {
     const size = demand.get(role) ?? 0;
     const filtered = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;
     const chosen = orderedBy(filtered, (one) => one.man.fcId, priority?.get(role) ?? []);
-    const men = chosen.men.slice(0, size);
+    const men = chosen.men.slice(0, size).map((one, at) => ({ ...one, at }));
     return {
       role,
       label: blockLabel(role, setup.game),

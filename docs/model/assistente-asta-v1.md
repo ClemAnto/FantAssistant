@@ -3991,3 +3991,40 @@ primo frame **il documento non ha ancora un body** - quindi la sonda LANCIAVA in
 ancora», e `evaluate` trasformava quel lancio in un errore che uccideva la corsa. Cura: `document.body?`.
 Cinque corse su cinque verdi dopo. *Un ciclo di attesa non aspetta niente se la sonda che interroga può
 morire.*
+
+## 42. LA CARD DI UN CALCIATORE ESCE DALLA PLANCIA (5 settembre 2026)
+
+L'operatore ha chiesto la stessa card sulla Strategia («se draggo un calciatore ordino, se invece clicco
+solo si apre la card con il dettaglio del calciatore — la stessa della plancia»), quindi
+`views/plancia/man-card/` è diventata **`ui/player-card/`**, con `core/player-card.ts` a portare il
+modello (`CardMan`) e la pila (`CardStack`).
+
+**Per la plancia non cambia una riga a schermo**, e cambia una cosa nel codice: la card non legge più lo
+store: riceve un `CardMan` che `plancia-store.cardManOf` costruisce dalla riga del blocco. È la stessa
+disciplina di sempre — ogni numero è già stato deciso dalla riga (`men`, `buildMap`, `offerBand`), e la
+card ne è il terzo lettore dopo il blocco e il lotto.
+
+Tre cose che la separazione ha reso esplicite.
+
+- **La META' D'ASTA è un `CardMarket` opzionale.** Max offerta, prezzo pagato, padrone, «è il lotto in
+  asta» e «abbinamenti» sono fatti su un TAVOLO, e la Strategia è quello che si prepara PRIMA di
+  sedersi: lì è `null`, e i due bottoni li PROIETTA la pagina (`[card-actions]`) perché sono gesti suoi.
+  Mostrare una banda inventata accanto a una lista che non riguarda nessun tavolo sarebbe la stessa
+  famiglia della demo che prezzava il listone euro con la scala di Serie A (§33).
+- **La piattaforma sta nel modello.** `cardManOf` scrive `platform: 'default'` con la sua ragione: la
+  plancia prezza sempre il listone classic di Serie A (`loadSheet`), e da oggi quel campo decide anche
+  DI QUALI PARTITE la card parla — passarne una sbagliata mostrerebbe le giornate di un altro gioco
+  sotto lo stesso nome.
+- **Una pila per pagina, una regola sola.** `new CardStack()` due volte: le card della plancia non
+  devono seguirti sulla Strategia, ma dove nasce una card e chi sta davanti è una definizione sola, o
+  due pagine disporrebbero le stesse card in due modi. Il posto libero più basso, l'ordine di apertura
+  separato dall'ultima toccata: tutto quello che il §39 aveva misurato, spostato senza toccarlo (test
+  in `core/player-card.spec.ts`).
+
+**E la card ha una parte nuova che vale su tutt'e due le pagine**: le ULTIME PARTITE (cinque colonne, il
+chevron che le apre tutte). Dettaglio, misure e le righe che deliberatamente non si disegnano:
+`letture-app-v1.md` §24.
+
+Verificato coi banchi che già c'erano, dopo aver puntato i loro selettori sul nuovo nome
+(`plancia-man-card` → `ui-player-card`): `e2e-plancia-injury`, `e2e-plancia-keepers`,
+`e2e-plancia-slots`, `e2e-plancia-award`, `e2e-plancia-lens` tutti verdi.

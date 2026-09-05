@@ -1,0 +1,88 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     CINQUE CELLE E NESSUNA RIGA: l'ospite ha `display: contents`, quindi le celle finiscono DIRETTAMENTE
+     nella griglia del genitore e le cinque colonne restano incolonnate da una partita all'altra. Con un
+     `<div>` per riga ogni riga avrebbe le proprie larghezze e la lista si leggerebbe a zig-zag - che è
+     esattamente quello che una lista compatta non deve fare.
+
+     IL TOOLTIP È UNO SOLO e sta sull'incontro: è la cella più larga ed è quella che si sta leggendo
+     quando si vuole saperne di più. Cinque tooltip su una riga alta diciotto pixel sono cinque pannelli
+     che si aprono mentre si scorre - la lezione delle tre pastiglie della Strategia. -->
+
+<!-- 1. L'INCONTRO: i due stemmi, i due nomi abbreviati e il risultato, INCOLONNATI (operatore,
+     05/09/2026: «allinea tra di loro gli stemmi e i risultati delle partite»). Le cinque colonne sono
+     a larghezza FISSA, o un nome di due lettere farebbe scivolare lo stemma della riga sotto. In casa
+     a sinistra, sempre, così il risultato si legge come è scritto. -->
+<span
+  class="grid grid-cols-[1.25rem_2rem_2.75rem_2rem_1.25rem] items-center gap-x-0.5"
+  nz-tooltip
+  [nzTooltipMouseEnterDelay]="0.3"
+  [nzTooltipTitle]="hint()"
+>
+  @if (!named()) {
+    <!-- NON SI SA CONTRO CHI GIOCAVA, perché non si sa dove stava: resta la giornata, che è quello che
+         si sa. Prima qui c'erano tre «??? – ???» in colonna, che si leggevano come una card rotta. -->
+    <span class="col-span-5 truncate text-[10px] text-muted">{{ when() }}</span>
+  } @else {
+  <!-- LO SCUDO GRIGIO al posto del monogramma: qui il nome del club è già scritto accanto, quindi un
+       monogramma colorato lo direbbe due volte e per giunta somiglierebbe a uno stemma vero. -->
+  <ui-crest size="sm" fallback="shield" [club]="left()" [clubId]="leftId()" [crests]="crests()" />
+  <span class="truncate text-right text-[10px]" [class.font-semibold]="cell().home !== false">{{
+    leftShort()
+  }}</span>
+  <!-- IL RISULTATO IN MEZZO, e un trattino quando non c'è: la colonna esiste comunque, o i due nomi
+       scivolerebbero uno addosso all'altro e la lista perderebbe il suo asse. -->
+  <span class="text-center text-[10px] tabular-nums" [class.text-muted]="!score()">{{
+    score() ?? '–'
+  }}</span>
+  <span class="truncate text-[10px]" [class.font-semibold]="cell().home === false">{{
+    rightShort()
+  }}</span>
+  <ui-crest size="sm" fallback="shield" [club]="right()" [clubId]="rightId()" [crests]="crests()" />
+  }
+</span>
+
+<!-- 2. COM'È ANDATA LA SUA: i minuti con le due frecce, o l'icona della ragione per cui non c'era.
+     Le frecce sono due segni e non un'etichetta, e la rossa si accende solo per chi era in distinta:
+     i minuti sono i suoi e non l'ora del campo, quindi di un subentrato non si sa se sia poi uscito.
+     Il colore dice il VERSO e non un giudizio. -->
+<span class="flex items-center justify-end gap-px text-[10px] tabular-nums">
+  @if (onPitch()) {
+    @if (spell().on) {
+      <nz-icon class="text-success" nzType="arrow-up" nzTheme="outline" />
+    }
+    @if (spell().off) {
+      <nz-icon class="text-danger" nzType="arrow-down" nzTheme="outline" />
+    }
+    <span [class.text-muted]="spell().minutes == null">{{
+      spell().minutes == null ? "?'" : spell().minutes + "'"
+    }}</span>
+  } @else {
+    <nz-icon
+      [class]="cell().state === 'injured' ? 'text-warning' : 'text-muted'"
+      [nzType]="stateIcon()"
+      nzTheme="outline"
+      nz-tooltip
+      [nzTooltipMouseEnterDelay]="0.3"
+      [nzTooltipTitle]="stateLabel()"
+    />
+  }
+</span>
+
+<!-- 3. IL VOTO: quello del fantacalcio, `~` se è il sintetico calibrato, `*` se è il rating del
+     provider - che è un'altra scala e per questo resta senza colore. -->
+<span class="text-right text-[10px] tabular-nums" [class]="voteInk()">{{ vote() }}</span>
+
+<!-- 4. I BONUS, con i marchi che l'operatore ha dettato (05/09/2026) - e sono gli stessi in ogni
+     pagina, perché il componente è uno solo (`ui/bonus-mark`). -->
+<span class="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5">
+  @for (bonus of bonuses(); track bonus.label) {
+    <ui-bonus [bonus]="bonus" />
+  }
+</span>
+
+<!-- 5. IL FANTAVOTO: il numero che conta, quindi in fondo e in grassetto. Vuoto quando non c'è un
+     voto da cui partire, che è un'affermazione e non uno zero. -->
+<span class="text-right text-[10px] font-semibold tabular-nums" [class]="fantavotoInk()">{{
+  fantavoto() ?? '—'
+}}</span>

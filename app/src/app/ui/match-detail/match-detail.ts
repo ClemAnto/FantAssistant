@@ -1,22 +1,19 @@
 import { Component, computed, input } from '@angular/core';
 
-import { ScoringConfig, ScoringTerms } from '../../core/bundle';
+import { ScoringConfig } from '../../core/bundle';
+import { BonusRow, bonusesOf } from '../../core/match-bonuses';
 import { MatchCell, PlayerRow } from '../../core/players-store';
+import { BonusMark } from '../bonus-mark/bonus-mark';
 import { ClubCrest } from '../club-crest/club-crest';
 import { STATE_LABEL } from '../matches-table/vocabulary';
 import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
 
-export interface BonusRow {
-  label: string;
-  count: number;
-  /** Null when no scoring config was available: the event is still a fact, its value is not. */
-  points: number | null;
-}
+export type { BonusRow } from '../../core/match-bonuses';
 
 @Component({
   selector: 'ui-match-detail',
-  imports: [ClubCrest, RoleBadge, RoleSet],
+  imports: [BonusMark, ClubCrest, RoleBadge, RoleSet],
   templateUrl: './match-detail.html',
 })
 export class MatchDetail {
@@ -51,38 +48,13 @@ export class MatchDetail {
   /** The roster row already carries the codes: splitting the label again would be a second parsing. */
   protected readonly mantraCodes = computed(() => this.player().mantraCodes);
 
-  /** The terms of the CHAMPIONSHIP the match was played in, falling back to the default. The
-   *  file exists exactly because a league may score differently. */
-  private readonly terms = computed<ScoringTerms | null>(() => {
-    const config = this.scoring();
-    if (!config) return null;
-    return { ...config.default, ...(config.leagues[this.cell().competition] ?? {}) };
-  });
-
-  protected readonly bonuses = computed<BonusRow[]>(() => {
-    const cell = this.cell();
-    const t = this.terms();
-    const rows: BonusRow[] = [];
-    const add = (label: string, count: number, value: number | undefined, sign: 1 | -1) => {
-      if (!count) return;
-      rows.push({ label, count, points: t && value != null ? sign * count * value : null });
-    };
-
-    add('Gol', cell.goals, t?.goal_bonus, 1);
-    add('Rigori segnati', cell.penScored, t?.penalty_scored_bonus, 1);
-    add('Assist', cell.assists, t?.assist_bonus, 1);
-    add('Assist da fermo', cell.assistsSetPiece, t?.assist_set_piece_bonus, 1);
-    add('Rigori sbagliati', cell.penMissed, t?.penalty_missed_malus, -1);
-    add('Autogol', cell.ownGoals, t?.own_goal_malus, -1);
-    add('Ammonizioni', cell.yellows, t?.yellow_card_malus, -1);
-    add('Espulsioni', cell.reds, t?.red_card_malus, -1);
-
-    if (cell.role === 'P') {
-      add('Rigori parati', cell.penSaved, t?.penalty_saved_bonus_gk, 1);
-      add('Gol subiti', cell.goalsConceded ?? 0, t?.goal_conceded_malus_gk, -1);
-    }
-    return rows;
-  });
+  /**
+   * Gli eventi di questa partita che valgono qualcosa, dal lettore unico (`core/match-bonuses.ts`).
+   *
+   * Il conto se ne e' andato di qui il 05/09/2026, quando la riga compatta della card di un calciatore
+   * ha chiesto la stessa lista: due conti sugli stessi eventi darebbero a una partita due fantavoti.
+   */
+  protected readonly bonuses = computed<BonusRow[]>(() => bonusesOf(this.cell(), this.scoring()));
 
   protected readonly totalBonus = computed(() =>
     this.bonuses().reduce((sum, row) => sum + (row.points ?? 0), 0),

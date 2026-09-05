@@ -31,8 +31,7 @@
             ' · revisione ' +
             (entry.sheet_revision ?? 0) +
             ' · generato il ' +
-            (entry.generated_at ?? entry.auction_date ?? '?').slice(0, 10) +
-            '. I numeri di ogni giocatore sono del motore, letti dal foglio e mai ricalcolati qui.'
+            (entry.generated_at ?? entry.auction_date ?? '?').slice(0, 10)
           "
         >
           {{ entry.league }} · rev. {{ entry.sheet_revision ?? 0 }} ·
@@ -68,7 +67,7 @@
       {{ summary().teams }} partecipanti · rose {{ summary().roster }} ·
       <span
         nz-tooltip
-        nzTooltipTitle="I crediti di partenza: su questa pagina non entrano in nessun numero - le liste sono un ordinamento, non un piano di spesa - e sono qui perché il regolamento è uno."
+        nzTooltipTitle="Crediti di partenza. Qui non entrano in nessun numero."
         >{{ summary().budget }} crediti</span
       >
       · {{ summary().auction }}
@@ -88,7 +87,7 @@
       <span
         class="flex items-center gap-1 rounded-md bg-control px-2 py-0.5 text-fg"
         nz-tooltip
-        nzTooltipTitle="In questi blocchi i primi nomi sono nel tuo ordine e sotto continua il gain. Trascina una riga per cambiarlo; la crocetta sul blocco torna al gain."
+        nzTooltipTitle="Blocchi con un tuo ordine in cima."
       >
         <nz-icon nzType="unordered-list" />
         {{ arranged() }} nel tuo ordine
@@ -106,26 +105,41 @@
         </button>
       </span>
     }
-    <span class="ml-auto flex items-center gap-2">
+    <!-- LE SETTE LETTURE, cliccabili (operatore, 05/09/2026): al posto della scritta che c'era qui,
+         una pastiglia per numero e un click per accenderlo o spegnerlo sulle righe. Le prime tre sono
+         accese all'inizio.
+
+         NESSUNA DI LORO ORDINA NIENTE, ed è la stessa decisione di sempre: la lista è ordinata dal
+         GAIN e queste lo SPIEGANO. Accendere una colonna non muove un nome.
+
+         `nz-button` e non uno `<span>` cliccabile: un bottone con delle utility sopra sembra uguale e
+         perde il fuoco, il disabilitato e l'accessibilità (app/CLAUDE.md). -->
+    <span class="ml-auto flex flex-wrap items-center justify-end gap-1">
+      @for (pill of readingPills(); track pill.key) {
+        <button
+          nz-button
+          nzSize="small"
+          [nzType]="pill.on ? 'primary' : 'default'"
+          nz-tooltip
+          [nzTooltipTitle]="pill.label + ' — ' + pill.hint"
+          [attr.aria-pressed]="pill.on"
+          [attr.data-reading]="pill.key"
+          (click)="toggleReading(pill.key)"
+        >
+          {{ pill.short }}
+        </button>
+      }
+      <!-- I DUE FATTI CHE LA SCRITTA DICEVA restano a un hover: quale valuta ordina la lista e quanti
+           uomini non hanno un numero. Una cifra che non c'è va DETTA - è la regola di casa sui vuoti -
+           ma non merita una riga di testo in barra. -->
       <span
-        class="rounded-md bg-control px-2 py-0.5 font-medium text-fg"
-        nz-tooltip
-        [nzTooltipTitle]="gainHint()"
-      >
-        GAIN = {{ gainLabel() }}
-      </span>
-      <span
-        class="text-muted"
+        class="cursor-help px-1 text-muted"
         nz-tooltip
         [nzTooltipTitle]="
-          'Le fasce del colore sono percentili del listone intero (' +
-          scale().sample +
-          ' uomini prezzati), tagliate una volta: il miglior decimo è ottimo, il miglior terzo buono, fino al quarantesimo percentile medio. ' +
-          counted().unranked +
-          ' uomini non sono in nessuna classifica perché il foglio non li prezza: un numero che non c\'è non si ordina.'
+          'Ordina il ' + gainLabel() + ' · ' + counted().unranked + ' senza numero'
         "
       >
-        {{ counted().shown }} nomi su {{ counted().demand }} · {{ counted().unranked }} senza numero
+        <nz-icon nzType="question-circle" />
       </span>
     </span>
   </div>
@@ -190,7 +204,7 @@
       [style.grid-template-columns]="'repeat(' + columns() + ', minmax(0, 1fr))'"
       [style.grid-auto-rows]="'minmax(0, 1fr)'"
     >
-      @for (block of blocks(); track block.role; let last = $last) {
+      @for (block of visible(); track block.role; let last = $last) {
         <section
           class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface"
         >
@@ -199,6 +213,23 @@
           >
             <ui-role [role]="block.role" size="sm" />
             <span class="min-w-0 truncate text-xs font-medium text-fg">{{ block.label }}</span>
+            <!-- LA LENTE (operatore, 05/09/2026): apre una casella sotto l'intestazione che filtra
+                 QUESTA lista per nome o per squadra. Resta accesa mentre la casella e' aperta, cosi'
+                 una lista corta non si legge mai come un blocco rotto. -->
+            <button
+              nz-button
+              nzType="text"
+              nzSize="small"
+              class="ml-auto shrink-0"
+              [class.text-primary]="searchOpen(block.role)"
+              nz-tooltip
+              nzTooltipTitle="Cerca in questa lista"
+              [attr.aria-pressed]="searchOpen(block.role)"
+              [attr.data-search]="block.role"
+              (click)="toggleSearch(block.role)"
+            >
+              <nz-icon nzType="search" />
+            </button>
             <!-- LA CROCETTA COMPARE SOLO DOVE C'E' UN ORDINE SUO: un comando che non ha niente da
                  annullare e' un comando che fa dubitare di aver toccato qualcosa. -->
             @if (block.pinned) {
@@ -206,13 +237,10 @@
                 nz-button
                 nzType="text"
                 nzSize="small"
-                class="ml-auto shrink-0"
+                class="shrink-0"
                 nz-tooltip
-                [nzTooltipTitle]="
-                  'I primi ' +
-                  block.pinned +
-                  ' nomi sono nel tuo ordine. Torna al gain per questo blocco.'
-                "
+                nzTooltipTitle="Torna al gain"
+                [attr.data-clear]="block.role"
                 (click)="clearOrder(block.role)"
               >
                 <nz-icon nzType="close" />
@@ -220,51 +248,39 @@
             }
             <span
               class="shrink-0 text-[10px] tabular-nums text-muted"
-              [class.ml-auto]="!block.pinned"
               nz-tooltip
               [nzTooltipTitle]="
-                'La stanza comprerà circa ' +
+                'In lista ' +
+                block.men.length +
+                ' su ' +
                 block.demand +
-                ' uomini di questo ruolo (' +
-                summary().teams +
-                ' partecipanti), quindi la lista è lunga così: anche se ogni rivale riempie il reparto prima di te, un\'alternativa resta. Il listone ne porta ' +
-                block.pool +
-                (block.unranked ? ', di cui ' + block.unranked + ' senza un numero del foglio (non sono in classifica: vuoto non è zero)' : '') +
-                '.' +
-                ' LE TRE PASTIGLIE di ogni riga: quanto rende una sua partita sopra il 6, in quante' +
-                ' giornate su ' +
-                (sheet()?.matchdays_target ?? '?') +
-                ' il motore lo aspetta col voto - PREVISIONE, con l\'assicurazione già dentro: sono già' +
-                ' sottratte le giornate che un infortunio aperto gli toglie di sicuro e lo scarto fra la' +
-                ' sua stagione tipica e la sua peggiore - e di quelle quante ne chiude con almeno' +
-                ' 6 (MISURA delle sue stagioni; sbiadita = di suo misurato non ne ha abbastanza,' +
-                ' quindi quella quota resta ancorata al suo ruolo), e quanti minuti resta in campo' +
-                ' quando gioca. Una freccia vuol dire che lo metteresti più arretrato, una tilde che' +
-                ' il numero è il ripiego dichiarato e non una previsione del motore.' +
-                ' Lo sfondo li raggruppa ogni ' +
-                summary().teams +
-                ': una banda è uno SLOT, cioè quanti ne compra la stanza a testa - i primi ' +
-                summary().teams +
-                ' sono i «primi» di questo ruolo, uno per rosa.' +
-                (block.pinned
-                  ? ' I primi ' +
-                    block.pinned +
-                    ' sono nel TUO ordine (trascinati a mano), sotto continua il gain.'
-                  : '') +
-                (game() === 'mantra'
-                  ? ' Di questo posto per mestiere - cioè che non possono giocare più arretrati - in lista ce ne sono ' +
-                    block.natives +
-                    ' su ' +
-                    block.men.length +
-                    ', e in tutto il listone ' +
-                    block.nativePool +
-                    '.'
-                  : '')
+                ' che ne comprerà la stanza' +
+                (block.hidden ? ' · ' + block.hidden + ' nascosti dalla ricerca' : '') +
+                (block.unranked ? ' · ' + block.unranked + ' senza numero' : '')
               "
             >
               {{ block.men.length }}/{{ block.demand }}
             </span>
           </header>
+
+          <!-- LA CASELLA DI RICERCA, sotto l'intestazione e solo dove la lente e' accesa.
+               La ricerca e' quella di `core/loose-search.ts`: dentro e non in testa, senza maiuscole e
+               senza accenti, e con le lettere che al tavolo si sentono uguali (k e c, j e y e i, le
+               doppie) ridotte a una forma sola. Si scrive come suona e il nome si trova. -->
+          @if (searchOpen(block.role)) {
+            <div class="shrink-0 border-b border-border px-2 py-1">
+              <input
+                nz-input
+                nzSize="small"
+                type="search"
+                [id]="'cerca-' + block.role"
+                placeholder="nome o squadra"
+                [ngModel]="queryOf(block.role)"
+                (ngModelChange)="setQuery(block.role, $event)"
+                (keydown.escape)="toggleSearch(block.role)"
+              />
+            </div>
+          }
 
           @if (block.men.length) {
             <!-- L'ULTIMA LISTA SI SCOSTA DAL BOX DEL VIAGGIO NEL TEMPO, che è `fixed` in basso a destra
@@ -289,7 +305,7 @@
               [cdkDropListData]="block.men"
               (cdkDropListDropped)="dropped(block.role, $event)"
             >
-              @for (row of block.men; track row.man.fcId; let i = $index) {
+              @for (row of block.men; track row.man.fcId) {
                 <!-- IL VESTITO DELL'ANTEPRIMA LO METTE CDK (`cdkDragPreviewClass`), e non una variante
                      sulla riga: misurato il 27/08/2026, `[&.cdk-drag-preview]:bg-*` NON dipinge
                      sull'anteprima - la regola è nel CSS, la classe è sull'elemento, il token risolve, e
@@ -319,18 +335,22 @@
                 <li
                   class="flex cursor-grab flex-wrap items-center gap-x-1 gap-y-0.5 py-0.5 pl-1 pr-1.5
                          text-xs @max-[23rem]:pl-0 [&.cdk-drag-placeholder]:bg-primary/25"
-                  [class]="bandTone(i)"
+                  [class]="bandTone(row.at)"
                   [attr.data-id]="row.man.fcId"
-                  [attr.data-band]="bandOf(i)"
+                  [attr.data-band]="bandOf(row.at)"
                   [attr.data-behind]="row.fromBehind ? '1' : null"
                   cdkDrag
+                  [cdkDragDisabled]="!canDrag(block.role)"
                   [cdkDragData]="row.man.fcId"
                   [cdkDragPreviewClass]="previewClass"
+                  (cdkDragStarted)="onDragStarted()"
+                  (cdkDragEnded)="onDragEnded()"
+                  (click)="onPick(row.man)"
                 >
                   <span
                     class="w-5 shrink-0 text-right text-[10px] tabular-nums"
-                    [class]="i < block.pinned ? 'font-semibold text-fg' : 'text-muted'"
-                    >{{ i + 1 }}</span
+                    [class]="row.at < block.pinned ? 'font-semibold text-fg' : 'text-muted'"
+                    >{{ row.at + 1 }}</span
                   >
                   <ui-crest
                     size="sm"
@@ -362,7 +382,8 @@
                       row.man.club +
                       (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
                       (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
-                      (row.estimated ? ' · numero stimato' : '')
+                      (row.estimated ? ' · numero stimato' : '') +
+                      (row.readings.seasonPlayed ? ' · MV/FM su ' + row.readings.seasonPlayed + 'ª' : '')
                     "
                     >{{ row.man.name }}</span
                   >
@@ -375,89 +396,56 @@
                   @if (row.fromBehind) {
                     <span class="shrink-0 text-[10px] text-muted">&darr;{{ row.deepest }}</span>
                   }
-                  <!-- LE TRE PASTIGLIE (operatore, 04/09/2026): quanto rende una sua partita sopra il
-                       sei, quante ne gioca - e di quelle quante le chiude bene - e quanto ci resta
-                       dentro. Tre riquadri della stessa forma, incolonnati lungo la lista: una fila di
-                       riquadri uguali si scorre a colpo d'occhio, mentre larghezze diverse fanno
-                       leggere la forma invece del numero (è la ragione di `ui-gain`, applicata qui).
+                  <!-- LE PASTIGLIE, e da oggi sono SETTE e si scelgono (operatore, 05/09/2026): la
+                       barra le accende e le spegne, la riga disegna quelle accese nell'ordine
+                       dichiarato. Le prime tre partono accese.
 
-                       E NESSUN TOOLTIP QUI (operatore, 04/09/2026): la frase che spiegava i tre numeri
-                       era la STESSA su ogni riga - una legenda, non un fatto su quell'uomo - e stava su
-                       tre bersagli attaccati in una lista alta 17px che si scorre. È salita
-                       nell'intestazione del blocco, dove si legge una volta per lista invece di
-                       aprirsi cento volte; quello che era per-uomo (il nome intero, i codici, i due
-                       marchi) sta nell'unico tooltip rimasto, sul nome.
+                       Tre riquadri della stessa forma, incolonnati lungo la lista: una fila di riquadri
+                       uguali si scorre a colpo d'occhio, mentre larghezze diverse fanno leggere la forma
+                       invece del numero (è la ragione di `ui-gain`, applicata qui) - per questo la
+                       larghezza sta nella DICHIARAZIONE della lettura e non nel numero che ci finisce.
+
+                       E NESSUN TOOLTIP QUI (operatore, 04/09/2026): la frase che spiega un numero è la
+                       STESSA su ogni riga - una legenda, non un fatto su quell'uomo - e sta sulla
+                       pastiglia della barra, dove si legge una volta per pagina invece di aprirsi cento
+                       volte in una lista alta diciassette pixel.
 
                        NIENTE COLORE: il colore di questa riga è del GAIN, che è il numero che ordina.
                        Dipingere anche queste sarebbe una seconda scala accanto a quella vera, e la
                        prima domanda al tavolo diventerebbe «quale dei due verdi conta?». Quindi il
                        DOVE VANNO quando il blocco è stretto: su una riga LORO, sotto il nome e dopo il
                        gain (`order-last`), che è la ragione per cui la riga è `flex-wrap`. Il gain resta
-                       in cima perché è il numero che ORDINA la lista, e le tre pastiglie lo spiegano: se
+                       in cima perché è il numero che ORDINA la lista, e le pastiglie lo spiegano: se
                        andasse a capo lui, la colonna del colore - quella che si scorre - si spezzerebbe.
 
                        Il riquadro è un INCAVO - il fondo della pagina con il suo bordo - e non una tinta:
                        `bg-control` era stato provato e MISURATO a schermo, ma su questo tema `control`
                        (#1c1c26) e `surface` (#14141c) distano otto punti per canale e su una riga
-                       TINTA (`bg-control/25`, la zebra di allora e oggi la banda dello slot) la
-                       pastiglia spariva del tutto - un riquadro che non si vede è un riquadro che non
-                       c'è. -->
-                  <span
-                    class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums
-                           @max-[23rem]:order-last @max-[23rem]:w-full @max-[23rem]:justify-end"
-                  >
+                       TINTA (`bg-control/25`, la banda dello slot) la pastiglia spariva del tutto - un
+                       riquadro che non si vede è un riquadro che non c'è. -->
+                  @if (shownReadings().length) {
                     <span
-                      class="inline-flex min-w-8 justify-center rounded border px-1"
-                      [class]="
-                        row.readings.edge == null
-                          ? 'border-transparent text-muted'
-                          : 'border-border bg-page text-fg'
-                      "
-                      >{{
-                        row.readings.edge == null
-                          ? '—'
-                          : (row.readings.edge > 0 ? '+' : '') + (row.readings.edge | number: '1.1-1')
-                      }}</span
+                      class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums
+                             @max-[23rem]:order-last @max-[23rem]:w-full @max-[23rem]:justify-end"
+                      data-readings
                     >
-                    <span
-                      class="inline-flex min-w-10 justify-center rounded border px-1"
-                      [class]="
-                        row.readings.played == null
-                          ? 'border-transparent text-muted'
-                          : 'border-border bg-page text-fg'
-                      "
-                    >
-                      @if (row.readings.played == null) {
-                        <span>&mdash;</span>
-                      } @else {
-                        <!-- OGNI META' NEL SUO `span`, e non un'interpolazione nuda: fra due FIGLI di un
-                             flex il testo di spaziatura non fa un elemento, mentre un numero scritto a
-                             mano lo fa - e si legge «22 :11» invece di «22:11». Misurato a schermo. -->
-                        <span>{{ row.readings.played | number: '1.0-0' }}</span>
-                        @if (row.readings.passed != null) {
-                          <!-- LA META' SBIADITA vuol dire una cosa sola: quella quota non e' sua, e'
-                               l'ancora del suo ruolo. Un numero spannometrico che si legge come misurato
-                               e' la cosa peggiore che una lista possa fare (è la ragione del `~`). -->
-                          <span [class.opacity-50]="!row.readings.passedIsHis"
-                            >:{{ row.readings.passed | number: '1.0-0' }}</span
-                          >
-                        }
+                      @for (reading of shownReadings(); track reading.key) {
+                        <span
+                          class="inline-flex justify-center rounded border px-1"
+                          [class]="
+                            (valueOf(reading.key, row.readings) == null
+                              ? 'border-transparent text-muted'
+                              : 'border-border bg-page text-fg') +
+                            ' ' +
+                            reading.width
+                          "
+                          [class.opacity-50]="isRough(reading.key, row.readings)"
+                          [attr.data-reading]="reading.key"
+                          >{{ text(reading, row.readings) }}</span
+                        >
                       }
                     </span>
-                    <span
-                      class="inline-flex min-w-7 justify-center rounded border px-1"
-                      [class]="
-                        row.readings.minutes == null
-                          ? 'border-transparent text-muted'
-                          : 'border-border bg-page text-fg'
-                      "
-                      >{{
-                        row.readings.minutes == null
-                          ? '—'
-                          : (row.readings.minutes | number: '1.0-0') + '′'
-                      }}</span
-                    >
-                  </span>
+                  }
                   <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
                        motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
                        come una misura è la cosa peggiore che una lista possa fare. -->
@@ -476,7 +464,10 @@
             </ol>
           } @else {
             <p class="flex flex-1 items-center justify-center px-2 text-center text-[11px] text-muted">
-              @if (settings().view === 'natives' && !block.nativePool && block.pool) {
+              @if (block.hidden) {
+                Nessuno dei {{ block.hidden }} nomi di questa lista si chiama così, o gioca in una
+                squadra che si chiama così.
+              } @else if (settings().view === 'natives' && !block.nativePool && block.pool) {
                 Nessuno dei {{ block.pool }} uomini che coprono questo posto ci sta di mestiere: hanno
                 tutti un ruolo più arretrato. Passa a «Tutti» per vederli.
               } @else if (block.pool) {
@@ -494,3 +485,30 @@
   <!-- IL REGOLAMENTO NON SI DICHIARA PIÙ QUI: la finestra è una sola e sta nelle opzioni globali,
        perché quello che dichiara vale per ogni vista. Il bottone in intestazione la apre. -->
 </div>
+
+<!-- LE CARD stanno FUORI dal contenitore della pagina, in `fixed`: dentro erediterebbero il suo
+     `overflow` e si taglierebbero al primo trascinamento. Sono PIÙ DI UNA - una per uomo cliccato -
+     perché servono a CONFRONTARE, ed è la stessa card della plancia (`ui/player-card`): due card
+     sarebbero due letture degli stessi `engine_*`, cioè due valutazioni per un uomo.
+
+     NESSUN BOTTONE proiettato: qui non c'è un'asta in corso, quindi non c'è un lotto da nominare. -->
+@for (open of openCards(); track open.man.id) {
+  <ui-player-card
+    [man]="open.man"
+    [at]="open.slot"
+    [front]="frontCard() === open.man.id"
+    (closed)="closeCard($event)"
+    (raised)="raiseCard($event)"
+  />
+}
+@if (openCards().length > 1) {
+  <!-- La via d'uscita, invece di un TETTO al numero di card: una soglia su quante se ne possono aprire
+       è una soglia che nessuno ha misurato. -->
+  <button
+    type="button"
+    class="fixed bottom-3 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted shadow-lg hover:text-fg"
+    (click)="closeAllCards()"
+  >
+    chiudi le {{ openCards().length }} card
+  </button>
+}

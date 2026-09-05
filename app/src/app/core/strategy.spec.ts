@@ -1,5 +1,7 @@
 import { MantraModules } from './auction-value';
 import {
+  DEFAULT_READINGS,
+  READINGS,
   StrategyBidder,
   StrategySetup,
   blockLabel,
@@ -8,6 +10,8 @@ import {
   demandOf,
   gainOf,
   mantraBlocks,
+  readingIsRough,
+  readingValue,
   readingsOf,
   roleDepth,
 } from './strategy';
@@ -64,11 +68,21 @@ const man = (over: Partial<StrategyBidder> = {}): StrategyBidder => ({
   value: null,
   valueIsEstimate: false,
   fm: null,
+  mv: null,
   pv: null,
   minutes: null,
   steady: null,
   steadyWeight: 0,
   steadyNote: '',
+  seasonPlayed: null,
+  seasonMv: null,
+  seasonFm: null,
+  fvm: null,
+  // Il conto delle giornate a riposo: questi test parlano di liste e di domanda, non di infortuni.
+  outlook: {
+    matchdays: null, base: null, basis: 'core', out: 0, window: null, insurance: 0,
+    expected: null, factor: 1,
+  },
   ...over,
 });
 
@@ -388,5 +402,70 @@ describe('le tre pastiglie di una riga', () => {
     expect(row.readings.minutes).toBe(66);
     // Lo stesso oggetto a ogni lettura della riga: e' quello che un template puo' confrontare.
     expect(row.readings).toBe(block.men[0].readings);
+  });
+});
+
+describe('le sette letture di una riga', () => {
+  it("IL BPM È `FM − MV` e non «sopra il 6»: sono due domande, e questo è il nome che l'operatore ha dato alla prima", () => {
+    // La definizione è la sua, dettata il 18/08/2026 per la colonna «Bonus»: i bonus da soli, FMa − MVa.
+    expect(readingsOf(man({ fm: 7.5, mv: 6.2 })).bonus).toBeCloseTo(1.3, 6);
+    // ...mentre `edge` resta l'altra domanda, quella della plancia, e vive accanto senza mescolarsi.
+    expect(readingsOf(man({ fm: 7.5, mv: 6.2 })).edge).toBeCloseTo(1.5, 6);
+  });
+
+  it('una sottrazione con un termine ignoto è IGNOTA, non zero', () => {
+    expect(readingsOf(man({ fm: 7.5, mv: null })).bonus).toBeNull();
+    expect(readingsOf(man({ fm: null, mv: 6.2 })).bonus).toBeNull();
+  });
+
+  it('ogni sigla pesca il proprio numero, e nessuna ne inventa uno', () => {
+    const readings = readingsOf(
+      man({
+        fm: 7, mv: 6, pv: 30, steady: 0.5, steadyWeight: 1, minutes: 78, fvm: 210,
+        seasonPlayed: 2, seasonMv: 6.25, seasonFm: 8.5,
+      }),
+    );
+    expect(readingValue('bonus', readings)).toBeCloseTo(1, 6);
+    expect(readingValue('played', readings)).toBe(30);
+    expect(readingValue('passed', readings)).toBe(15);
+    expect(readingValue('minutes', readings)).toBe(78);
+    expect(readingValue('fvm', readings)).toBe(210);
+  });
+
+  it('MV E FM SONO QUELLE REALI DI QUESTA STAGIONE, non le previste (operatore, 05/09/2026)', () => {
+    // Le previste restano dentro il `bonus`, che è il tasso ATTESO: due nature, due nomi.
+    const readings = readingsOf(man({ fm: 7, mv: 6, seasonMv: 6.25, seasonFm: 8.5, seasonPlayed: 2 }));
+    expect(readingValue('mv', readings)).toBe(6.25);
+    expect(readingValue('fm', readings)).toBe(8.5);
+    expect(readingValue('bonus', readings)).toBeCloseTo(1, 6);
+    expect(readings.seasonPlayed).toBe(2);
+  });
+
+  it('chi non ha ancora giocato non ha una media: vuoto, e non uno zero', () => {
+    const readings = readingsOf(man({ fm: 7, mv: 6 }));
+    expect(readingValue('mv', readings)).toBeNull();
+    expect(readingValue('fm', readings)).toBeNull();
+  });
+
+  it('SOLO le partite sufficienti possono essere spannometriche, perché solo loro portano una quota misurata', () => {
+    const his = readingsOf(man({ pv: 30, steady: 0.5, steadyWeight: 1 }));
+    const anchor = readingsOf(man({ pv: 30, steady: 0.5, steadyWeight: 0 }));
+    expect(readingIsRough('passed', his)).toBe(false);
+    expect(readingIsRough('passed', anchor)).toBe(true);
+    for (const key of ['bonus', 'played', 'minutes', 'mv', 'fm', 'fvm'] as const) {
+      expect(readingIsRough(key, anchor)).toBe(false);
+    }
+  });
+
+  it("le accese all'inizio sono LE PRIME TRE dell'elenco dichiarato, non tre a caso", () => {
+    expect(DEFAULT_READINGS).toEqual(READINGS.slice(0, 3).map((one) => one.key));
+  });
+
+  it('ogni lettura dichiara come si stampa e quanto è larga, o le pastiglie non sarebbero incolonnate', () => {
+    for (const spec of READINGS) {
+      expect(spec.format).toMatch(/^1\.\d-\d$/);
+      expect(spec.width).toMatch(/^min-w-/);
+      expect(spec.short.length).toBeLessThanOrEqual(3);
+    }
   });
 });

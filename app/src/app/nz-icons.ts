@@ -2,6 +2,8 @@ import { IconDefinition } from '@ant-design/icons-angular';
 import {
   AimOutline,
   AlertOutline,
+  ArrowDownOutline,
+  ArrowUpOutline,
   CalendarOutline,
   CheckCircleOutline,
   ClockCircleOutline,
@@ -44,6 +46,8 @@ import {
   TeamOutline,
   ThunderboltOutline,
   TrophyOutline,
+  UpOutline,
+  DownOutline,
   UnorderedListOutline,
   WifiOutline,
 } from '@ant-design/icons-angular/icons';
@@ -54,6 +58,8 @@ import {
 export const NZ_ICONS: IconDefinition[] = [
   AimOutline,
   AlertOutline,
+  ArrowDownOutline,
+  ArrowUpOutline,
   CalendarOutline,
   CheckCircleOutline,
   ClockCircleOutline,
@@ -96,6 +102,8 @@ export const NZ_ICONS: IconDefinition[] = [
   TeamOutline,
   ThunderboltOutline,
   TrophyOutline,
+  UpOutline,
+  DownOutline,
   UnorderedListOutline,
   WifiOutline,
 ];

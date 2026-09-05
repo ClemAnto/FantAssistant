@@ -258,7 +258,7 @@ function readTooltip() {
 
 /** La card aperta: le partite attese, la max offerta e la nota rossa in cima. */
 function readCard() {
-  const card = document.querySelector('plancia-man-card');
+  const card = document.querySelector('ui-player-card');
   if (!card) return null;
   const text = (card.innerText ?? '').replace(/\s+/g, ' ').trim();
   const attese = text.match(/partite attese\s+([\d.,]+)\s*su\s*(\d+)/i);
@@ -598,7 +598,7 @@ async function main() {
         // una modale antd, e- un pannello trascinabile con la sua crocetta), e provarci e- stato
         // esattamente il modo di scoprirlo.
         const shut = await evaluate(session, () => {
-          const button = document.querySelector('plancia-man-card [aria-label="chiudi"]');
+          const button = document.querySelector('ui-player-card [aria-label="chiudi"]');
           if (!button) return null;
           const rect = button.getBoundingClientRect();
           return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };

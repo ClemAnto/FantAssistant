@@ -3798,6 +3798,81 @@ assegnati come `capienza − rimasti`, contando come acquisto un uomo che nel bl
 *«Quanti posti restano» e «quanti ne sono stati comprati» sono due domande diverse, e un conteggio si
 conta.*
 
+## Una CARD sola per due pagine, e le righe che non si disegnano
+**05/09/2026, cinque richieste dell'operatore in una sessione. Dettaglio: `pagina-strategia-v1.md` §15,
+`letture-app-v1.md` §24, `assistente-asta-v1.md` §42.** «Se draggo un calciatore ordino, se invece clicco
+solo si apre la card con il dettaglio del calciatore (LA STESSA della plancia)» — e la card e' dovuta
+uscire da `views/plancia/` per andare in `ui/player-card/`, perche' due card sarebbero due letture degli
+stessi `engine_*`.
+
+**QUELLO CHE NON SI POTEVA RIUSARE E' COME I NUMERI ARRIVANO: la plancia prezza sempre
+`default|classic`, la Strategia il foglio della combinazione DICHIARATA** (euro|mantra compreso). Una
+card che andasse a prendersi i numeri da se' direbbe di un uomo il surplus di un altro gioco. Quindi
+riceve un `CardMan` gia' letto da chi la apre, e la META' D'ASTA (max offerta, prezzo pagato, padrone, i
+due bottoni) e' un campo OPZIONALE: sulla Strategia non c'e' un tavolo, e disegnarne uno inventato
+accanto a una lista che non lo riguarda sarebbe la demo che prezzava il listone euro con la scala di
+Serie A. Quello che invece la card si prende da se' sono i fatti che NON dipendono dal foglio: i marchi,
+la nota dichiarata e le ultime partite.
+
+**DUE GESTI SULLA STESSA RIGA SI DISTINGUONO CON UNA SOGLIA, E LA GUARDIA SI SPEGNE SU UN TIMEOUT.** Sotto
+i 5px di CDK nessun `cdkDragStarted` arriva e un click e' un click; ma CDK non spegne il `click` che il
+browser manda dopo un RILASCIO, quindi senza guardia ogni riordino aprirebbe anche una card. E la guardia
+si abbassa dopo, non dentro il click: se un trascinamento finisce e nessun click segue, un flag che
+aspetta il click si mangia quello dopo — «un guard che ferma meta' di un gesto lo rende meta' rotto»
+(04/09), incontrato dall'altro lato.
+
+**UNA GIORNATA DI CUI NON SI SA NIENTE NON E' UNA SUA PARTITA**, ed e' la risposta a tre domande
+dell'operatore su nomi diversi («perche' Lucca o Neres non mostrano lo scorso anno?», «perche' Kolo Muani
+o Beto non hanno storico?»). Misurato: righe di Serie A nei voti per il 2025-26 — Hojlund 33 e Santos 14
+fino alla 38ª, Lucca 16 (ultima la 19ª), Neres 16 (la 18ª), **Kolo Muani zero**, **Beto zero su due
+stagioni** (38 + 37 di Premier). Le giornate mancanti finivano in lista come assenze senza un incontro,
+cioe' tre `??? – ???` in colonna. La cura e' una regola sullo STATO e non una soglia: `not_in_league` e
+`absent` vogliono dire che di lui quel giorno questo campionato non ha nessuna traccia — quindi non si sa
+nemmeno contro chi giocasse il suo club, ne' che il suo club fosse quello — e non si disegnano; `bench` e
+`injured` restano, perche' **una distinta e uno stop datato sono prove su di lui**. Dove non resta niente
+la card lo DICE invece di sembrare guasta.
+
+**UN JOIN PER NOME SI FA SOLO PER UNO STEMMA, E SI MISURA PRIMA.** Dell'avversario di una partita questo
+progetto tiene il nome del provider e niente che lo identifichi. La chiave normalizzata riusa la lista di
+parole vuote che `nameWords` ha gia' (`SSC Napoli` → `napoli`) e sui 106 club del bundle da' **106 chiavi,
+zero collisioni**; risolve il **95,2%** delle righe di Serie A e il **10,9%** di Bundesliga, dove il
+provider scrive `1. FC Koln` e il listone `Colonia`. Chi non si risolve resta col monogramma, che e'
+quello che aveva prima: **un fatto che decide un numero non passerebbe mai di li'.**
+
+**E DUE COSE CHE MANCAVANO DAVVERO, tutt'e due «il dato c'era e non lo leggeva nessuno».**
+`match_ratings.started` e `minutes` sono NULL su tutte le **62.594** righe del bundle, quindi la distinta
+viene dal livello per-partita; e `seasons()` aggiungeva la stagione bersaglio FUORI dal `Set`, quindi da
+settembre in poi compariva DUE VOLTE e chi camminava quella lista leggeva le stesse partite due volte.
+
+Quattro regole di forma nate qui, e tre sono di casa incontrate da un lato nuovo.
+- **I TOOLTIP SONO CORTI, sempre** (sua regola: «poche parole per indicare il significato di quella sigla
+  o quell'icona ... quando voglio spiegazioni piu' dettagliate te lo indico io»). Il caso peggiore era un
+  paragrafo di ~700 caratteri sul contatore di un blocco — una LEGENDA su un bersaglio che si incontra
+  scorrendo. *La ragione di una scelta non e' documentazione da mettere a schermo: va nel codice accanto
+  alla riga che la applica, e in `docs/model/`.*
+- **UN'ICONA HA LO STESSO SIGNIFICATO IN OGNI PAGINA**, che e' la sua condizione esplicita: quindi un
+  componente solo (`ui/bonus-mark`) letto dalla riga compatta E dal pannello grande, e il marchio si
+  sceglie su un `kind` DICHIARATO e mai sull'etichetta — due pagine che leggessero il testo dipingerebbero
+  due cose diverse il giorno in cui una frase cambia parola. Stessa cosa per le fasce del voto
+  (`vocabulary.voteInk`, verde sopra il sei su sua richiesta): una definizione, tre lettori, e il prezzo
+  detto — anche le celle della tabella Calciatori cambiano tinta.
+- **UNA RICERCA «INTELLIGENTE» E' UNA CHIAVE APPLICATA AI DUE LATI, non un punteggio.** `looseKey`
+  (accenti via, `ck`/`ch` → `c` PRIMA di `k` → `c`, `j`/`y` → `i`, la `h` muta via, doppie singole) tiene
+  `includes` deterministico e senza soglie da tarare: `Hojlund` si trova scrivendo `oilund`. Quello che
+  NON fa e' altrettanto deciso — niente metafone, niente troncamenti: **in una lista di duecentocinquanta
+  nomi un falso positivo costa piu' di un nome da riscrivere.**
+- **UN FILTRO NON DEVE RINUMERARE NIENTE, e mentre e' attivo il riordino a mano si SOSPENDE**: il numero
+  accanto al nome e' il posto vero (assegnato prima del filtro), o tre righe trovate direbbero che il
+  quarantesimo difensore e' il primo; e il prefisso dell'ordine personale si costruisce «dai nomi come
+  sono a schermo», che su una lista filtrata scriverebbe un ordine di una lista che non esiste.
+
+**E due difetti dell'ARNESE, che valgono quanto quelli del codice.** Il passo del chevron cercava il
+contenitore delle partite come «il primo div che contiene una partita» e prendeva il riquadro INTORNO
+all'elenco, che non scorre: accusava di non scorrere una lista che scorre. E pretendeva un `button` sotto
+il puntatore, mentre al centro di un'icona c'e' un `<svg>` — che e' SUO. *Un passo che misura l'elemento
+sbagliato accusa il codice del proprio difetto*: si chiede al bottone (`button.contains(under)`), non al
+nome del tag.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

@@ -13,7 +13,7 @@ import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
 import { lazyRows } from '../../core/lazy-rows';
-import { KIND_ICON, KIND_LABEL, STATE_ICON, STATE_LABEL } from './vocabulary';
+import { KIND_ICON, KIND_LABEL, STATE_ICON, STATE_LABEL, voteClass, voteText } from './vocabulary';
 
 /** dd/mm/yyyy, because a date in a tooltip is read by a person and not by a parser. */
 const it = (iso: string): string => iso.split('-').reverse().join('/');
@@ -130,32 +130,10 @@ export class MatchesTable {
     return cell.state === 'injured' ? 'text-warning' : 'text-muted';
   }
 
-  /** The number in the cell, and it is NOT the same quantity in every cell:
-   *  a league match carries the fantacalcio vote (or the calibrated synthetic one, marked
-   *  `~`), while a cup or a friendly can only carry the provider's own 1-10 rating, marked
-   *  `*` because it is a different scale. A dot means he has a row and nothing measurable. */
-  protected voteText(cell: MatchCell): string {
-    if (cell.kind === 'league') {
-      if (cell.vote == null) return 's.v.';
-      return (cell.voteSynthetic ? '~' : '') + cell.vote.toFixed(1).replace('.', ',');
-    }
-    if (cell.providerRating == null) return '·';
-    return '*' + cell.providerRating.toFixed(1).replace('.', ',');
-  }
-
-  protected voteClass(cell: MatchCell): string {
-    // The bands are calibrated on the fantacalcio vote. A provider rating is another scale,
-    // so colouring it the same way would be a claim nobody measured: it stays neutral.
-    if (cell.kind !== 'league') return 'text-muted';
-    // Back to the original bands (the operator changed his mind on 09/08/2026), with one
-    // addition: 5 and below is marked in red. That is an explicit negative verdict, which is
-    // the one use the colour rule allows.
-    if (cell.vote == null) return 'text-muted italic';
-    if (cell.vote >= 7) return 'text-primary font-semibold';
-    if (cell.vote >= 6) return 'text-fg';
-    if (cell.vote > 5) return 'text-muted';
-    return 'text-danger font-semibold';
-  }
+  /** Il numero della cella e il suo inchiostro: dal VOCABOLARIO, che li possiede da quando la card
+   *  di un calciatore disegna le stesse partite in riga compatta. Il template chiama questi. */
+  protected voteText = voteText;
+  protected voteClass = voteClass;
 
   /**
    * The hover: the match, what he did in it, and nothing else.

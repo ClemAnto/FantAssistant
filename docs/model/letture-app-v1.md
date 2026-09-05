@@ -2041,3 +2041,135 @@ sotto `MIN_PLAY_SHARE` e la barra della plancia ha letto «C 2/80» su un tavolo
 ricavava gli assegnati come `capienza − rimasti`, quindi contava come acquisto un uomo che nel blocco non
 era mai entrato. Adesso li **conta**: `capienza − rimasti` e «quanti ne sono stati comprati» sono due
 domande diverse, e solo la seconda è quella che la barra fa.
+
+## 24. LE ULTIME PARTITE NELLA CARD: cinque colonne, e le righe che NON si disegnano (5 settembre 2026)
+
+Richiesta dell'operatore, per la card di un calciatore: «le ultime 5 partite della sua squadra. Per ogni
+partita: 1) incontro (stemmi delle due squadre con nomi abbreviati e risultato) 2) un'icona che mi indica
+se era infortunato | non disponibile | panchina per tutta la partita | minuti giocati (freccetta verde se
+è subentrato, rossa se è uscito) 3) voto fantacalcio (o voto sintetico) 4) lista di bonus 5) fantavoto
+finale. Compatto ma leggibile.»
+
+**Non è stato costruito niente di nuovo, ed è il punto.** Le celle sono quelle che `PlayersStore` già
+costruisce per la tabella di consultazione (`MatchCell`), che di sé scrive: «`MatchQuery` esiste perché
+una seconda implementazione di "le ultime partite" sarebbe una seconda risposta a una domanda che questo
+store risponde già». Il metodo nuovo è `recent(fcId, platform, want)`, che ATTRAVERSA LE STAGIONI —
+`matchTable` risponde su una stagione sola, e alla seconda giornata «le ultime cinque» sono due di
+quest'anno e tre dell'anno scorso.
+
+### 24.1 L'unica cosa che mancava davvero: la distinta
+
+`match_ratings.started` e `minutes` sono **NULL su tutte le 62.594 righe** del bundle (l'Excel dei voti
+non porta né i minuti né la distinta), quindi le due frecce vengono dal livello per-partita
+(`external_match_stats.started`), che è la sola fonte che le abbia. `MatchCell.started` è la colonna
+nuova, letta dove le altre.
+
+**E una delle due frecce non è osservabile per tutti.** I minuti sono i SUOI e non l'ora del campo: un
+titolare uscito al 63' legge 63, ma un subentrato entrato al 63' legge 27 — e quel 27 non dice affatto
+che sia uscito, dice che è entrato tardi. Senza il MINUTO D'INGRESSO, che il per-partita non porta, «un
+subentrato è poi uscito?» non ha risposta e la freccia rossa resta spenta. La prima versione la accendeva
+(`minutes < 90` per tutti) ed è stata **smentita da un test scritto male apposta**: `on` e `off`
+contemporaneamente su un uomo entrato al 60'.
+
+### 24.2 LE RIGHE CHE NON SI DISEGNANO, e le sue tre domande
+
+L'operatore ha portato tre casi, e sono lo stesso caso: «perché Santos o Hojlund mostrano le partite
+dello scorso anno mentre Lucca o Neres no?», «perché Kolo Muani o Beto non vedo lo storico?».
+
+Misurato sul bundle, righe di Serie A nei voti:
+
+| | 2025-26 | 
+|---|---|
+| Hojlund | 33, fino alla 38ª |
+| Santos A. | 14, fino alla 38ª |
+| Lucca | 16, **ultima la 19ª** (poi 6 di Premier) |
+| Neres | 16, **ultima la 18ª** |
+| Kolo Muani | **zero** (32 di Premier) |
+| Beto | **zero su due stagioni** (38 + 37 di Premier) |
+
+La card cammina le giornate del CAMPIONATO del foglio, e per quei nomi le giornate mancanti finivano in
+lista come assenze senza un incontro: tre `??? – ???` in colonna, che si leggono come una card rotta.
+
+**La cura è una regola sullo STATO, non una soglia.** `not_in_league` e `absent` vogliono dire che di lui,
+quel giorno, questo campionato non ha nessuna traccia — né una pagella né una distinta — quindi non si sa
+nemmeno contro chi giocasse il suo club, né che il suo club fosse quello. Non sono sue partite e non si
+disegnano. `bench` e `injured` restano: **una distinta e uno stop datato sono prove su di lui**, e sono
+esattamente quello che l'operatore ha chiesto di vedere. Dove non resta niente la card lo DICE («nessuna
+sua giornata in questo campionato: le partite giocate altrove non hanno un voto qui») invece di sembrare
+guasta.
+
+Resta il caso di chi ha una giornata `injured` senza incontro: lì la riga stampa la GIORNATA e la data
+(«33ª · 19/04/2025») al posto dei due nomi. «Vuoto = ignoto», applicato a un tabellino.
+
+**Un difetto trovato per strada, e valeva due righe su cinque.** `seasons()` aggiungeva la stagione
+bersaglio FUORI dal `Set` costruito sulle chiavi: se qualcuno ha già giocato una giornata — cioè sempre,
+da settembre in poi — quella stagione compariva DUE VOLTE, e chi cammina la lista leggeva le stesse
+partite due volte. Sulla card si vedeva a occhio (`Cag 0-1 Int` ripetuta); nel selettore della stagione
+della tabella era un doppione silenzioso.
+
+### 24.3 Lo stemma dell'avversario: un join per NOME, e solo per uno stemma
+
+Di un avversario questo progetto tiene il nome del provider e niente che lo identifichi, quindi finora
+ogni avversario si disegnava col monogramma. Il nome si normalizza dai due lati con la stessa lista di
+parole vuote che `nameWords` usa già per abbreviare (`AC Milan` → `milan`, `SSC Napoli` → `napoli`):
+**è l'alias di casa, non una lista nuova**.
+
+Misurato prima di tenerlo, perché un join per nome è il difetto che questo repository paga da sempre: sui
+106 club del bundle le chiavi normalizzate sono **106** (zero collisioni), e sulle ultime due stagioni
+risolve il **95,2%** delle righe di Serie A (22 avversari su 23) e molto meno altrove — Premier 59,5%,
+Liga 34,9%, Ligue 1 21,7%, **Bundesliga 10,9%**, dove il provider scrive `1. FC Köln` e il listone
+`Colonia`. Per questo la risposta è `null` e non un ripiego: chi non si risolve resta col MONOGRAMMA, che
+è esattamente quello che aveva prima. **Un fatto che decide un numero non passerebbe mai di lì.**
+
+E il monogramma su questa riga è stato sostituito da uno SCUDO grigio su richiesta dell'operatore: lì il
+nome del club è già scritto accanto, quindi un monogramma colorato lo dice due volte e per giunta
+somiglia a uno stemma vero. È un input di `ui-crest` (`fallback="shield"`) e non un cambio globale: dove
+il monogramma è l'unica cosa che nomina il club — il campetto, le tabelle — resta.
+
+### 24.4 I MARCHI DEI BONUS: uno solo, per tutte le pagine
+
+Il vocabolario l'ha dettato l'operatore: pallone per il gol (verde fatto, rosso autogol), scarpetta per
+l'assist, bersaglio per il rigore (verde segnato, rosso sbagliato), rettangolino giallo per
+l'ammonizione e rosso per l'espulsione, una x in un cerchietto per il gol subito, un check per il rigore
+parato. E la condizione: «assicurati che le icone abbiano lo stesso significato in ogni pagina della
+piattaforma».
+
+Quindi `ui/bonus-mark` è **un componente**, letto dalla riga compatta E dal pannello grande
+(`ui/match-detail`), e sceglie il marchio su un `kind` dichiarato (`core/match-bonuses.BonusKind`) e mai
+sull'etichetta: due pagine che leggessero il testo finirebbero per dipingere due cose diverse il giorno
+in cui una delle due frasi cambia parola. Il conto dei bonus se n'è andato dal pannello a
+`core/match-bonuses.bonusesOf` per la stessa ragione — due conti sugli stessi eventi darebbero a una
+partita due fantavoti.
+
+Il pallone e la scarpetta sono SVG scritti in casa: il set di antd non li ha, e un'emoji come icona
+questo progetto non la usa.
+
+### 24.5 Il verde sopra il sei, e il chevron sulla linea
+
+«Nelle ultime partite mostrami i fantavoti > 6 in verde», poi «anche i voti». Il sei non è una soglia
+scelta: è la sufficienza del gioco (`PASS_MARK`), la stessa da cui la plancia conta. I sette restano più
+marcati, così la colonna distingue ancora «bene» da «benissimo».
+
+**Una definizione, tre lettori** (`vocabulary.voteInk`): la cella della tabella di consultazione, il voto
+della riga e il fantavoto della riga. Due fasce diverse sullo stesso voto sono come lo stesso uomo
+finisce con due pagelle — e il prezzo è dichiarato: **anche le celle della tabella Calciatori ora sono
+verdi sopra il 6** invece che `primary` sopra il 7.
+
+Il chevron apre l'elenco «fino all'header», carica **due stagioni** e lascia la card **delle stesse
+dimensioni** con una barra di scorrimento. Quindi non è una card che cresce: è lo spazio di sopra che
+viene prestato all'elenco (i due numeri grandi, il prezzo e le statistiche si chiudono). «Stesse
+dimensioni» è una misura e si misura: l'altezza si legge dal rettangolo che il browser dichiara **nel
+momento del click** e si pianta lì — un'altezza fissa scelta a mano sarebbe troppa per un portiere senza
+note e troppo poca per un infortunato con due avvisi in cima. Verificato: **288×420 → 288×420**, partite
+5 → 40, `scrollHeight > clientHeight`.
+
+Il bottone sta **al centro della linea**, a cavallo del bordo e fuori dal flusso: è la maniglia di quel
+confine, e il fondo della card sotto interrompe la riga dietro di lui — il taglio è quello che lo fa
+leggere come una maniglia e non come un'icona appoggiata lì.
+
+**E due difetti dell'ARNESE, che valgono quanto quelli del codice.** Il passo cercava il contenitore
+delle partite come «il primo div che contiene una partita» e prendeva il riquadro INTORNO all'elenco, che
+non scorre: accusava di non scorrere una lista che scorre. E chiedeva che sotto il chevron ci fosse un
+`button`, mentre al centro di un'icona c'è un `<svg>` — che è SUO. *Un passo che misura l'elemento
+sbagliato accusa il codice del proprio difetto*, e la forma giusta è chiedere al bottone
+(`button.contains(under)`), non al nome del tag.

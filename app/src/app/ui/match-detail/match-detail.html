@@ -104,7 +104,15 @@
         <tbody>
           @for (row of bonuses(); track row.label) {
             <tr class="border-b border-border/60">
-              <td class="py-1 text-muted">{{ row.label }}</td>
+              <!-- LO STESSO MARCHIO DELLA RIGA COMPATTA (operatore, 05/09/2026: «assicurati che le
+                   icone abbiano lo stesso significato in ogni pagina»): un componente solo, quindi due
+                   pagine non possono dipingere due cose diverse sullo stesso evento. -->
+              <td class="py-1 text-muted">
+                <span class="inline-flex items-center gap-1.5">
+                  <ui-bonus [bonus]="row" />
+                  {{ row.label }}
+                </span>
+              </td>
               <td class="py-1 text-right text-fg">{{ row.count }}</td>
               <td
                 class="w-16 py-1 text-right"

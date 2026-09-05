@@ -185,6 +185,15 @@ export interface PlayOutlook {
   basis: 'core' | 'sheet' | 'board';
   /** Giornate certe perse per lo stop aperto. */
   out: number;
+  /**
+   * ...e la FINESTRA da cui quel numero viene, cosi' chi disegna non deve ricostruirla.
+   *
+   * La plancia la calcolava per conto suo accanto a questa chiamata - due invocazioni della stessa
+   * funzione pura sugli stessi ingressi, cioe' due strade per un fatto solo - e la Strategia non ce
+   * l'aveva affatto, quindi la sua card non poteva dire PERCHE' le presenze fossero ridotte. Esce da
+   * qui perche' e' qui che viene letta.
+   */
+  window: OutWindow | null;
   /** ...e quelle tolte per assicurazione. */
   insurance: number;
   /** Quello che resta: mai sotto zero. */
@@ -219,7 +228,10 @@ export function expectedPlay(input: PlayInput): PlayOutlook {
     basis = 'board';
   }
   if (base == null) {
-    return { matchdays, base: null, basis, out: 0, insurance: 0, expected: null, factor: 1 };
+    return {
+      matchdays, base: null, basis, out: 0, insurance: 0, expected: null, factor: 1,
+      window: input.out,
+    };
   }
   const out = Math.min(input.out?.lost ?? 0, base);
   const cap = matchdays ? matchdays * INSURANCE_CAP_SHARE : base * INSURANCE_CAP_SHARE;
@@ -230,6 +242,7 @@ export function expectedPlay(input: PlayInput): PlayOutlook {
     base,
     basis,
     out,
+    window: input.out,
     insurance,
     expected,
     // ...e il fattore contro la `pv` DEL FOGLIO, che e' quella su cui il suo surplus e' costruito.

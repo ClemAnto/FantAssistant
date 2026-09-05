@@ -528,6 +528,115 @@ bussa — piu' l'asserzione che la frase cominci col nome che avevamo chiesto. E
 del passo, non fra i suoi `problems`, che e' la ragione per cui questo banco stampa sempre quello che ha
 letto e non solo il verdetto.
 
+## 15. LE PASTIGLIE SI SCELGONO, LA RIGA SI APRE, LA LISTA SI CERCA (5 settembre 2026)
+
+Cinque richieste dell'operatore in una sessione, tutte sulla stessa pagina, e la prima cambia il gesto:
+«se draggo un calciatore ordino, se invece clicco solo si apre la card con il dettaglio del calciatore
+(la stessa della plancia)».
+
+### 15.1 Un click e un trascinamento sulla stessa riga
+
+Sono due gesti sullo stesso elemento e li distingue una cosa sola: la soglia di CDK
+(`dragStartThreshold`, 5px). Sotto quella nessun `cdkDragStarted` arriva e il click è un click. CDK però
+**non spegne** il `click` che il browser manda dopo un rilascio, quindi senza una guardia ogni riordino
+aprirebbe anche la card della riga rilasciata.
+
+La guardia si alza su `cdkDragStarted` e si abbassa su un TIMEOUT, non dentro il click: se un
+trascinamento finisce e nessun click segue, un flag che aspetta il click si mangerebbe quello dopo — «un
+guard che ferma metà di un gesto lo rende metà rotto», la lezione della lente della plancia (04/09).
+Misurato dal banco, che prova **tutt'e due i gesti separatamente**: un click apre una card e una sola,
+un trascinamento riordina e lascia **zero** card aperte.
+
+### 15.2 La card è LA STESSA della plancia, e per questo è dovuta uscire di lì
+
+`views/plancia/man-card/` → **`ui/player-card/`**, con `core/player-card.ts` a portare il modello
+(`CardMan`) e la pila (`CardStack`, dove nasce una card e chi sta davanti). Due card sarebbero due
+letture degli stessi `engine_*`, cioè due valutazioni per un uomo — il difetto che questo repository ha
+già pagato.
+
+Quello che NON si poteva riusare è il modo in cui i numeri arrivano: **la plancia prezza sempre
+`default|classic`, la Strategia il foglio della combinazione dichiarata** (euro|mantra compreso). Una
+card che andasse a prendersi i numeri da sé direbbe di un uomo il surplus di un altro gioco. Quindi la
+card RICEVE un `CardMan` già letto da chi la apre, e ogni pagina lo costruisce dal proprio foglio.
+
+Due conseguenze dichiarate. La **metà d'asta** (max offerta, prezzo pagato, padrone, «è il lotto in
+asta», «abbinamenti») esiste solo dove esiste un TAVOLO: sulla Strategia è `market: null` e i bottoni li
+PROIETTA la pagina, perché sono gesti suoi. E lo `stack` è uno per pagina (`new CardStack()` due volte):
+le card della plancia non devono seguirti sulla Strategia, ma la regola del POSTO è una sola, o due
+pagine disporrebbero le stesse card in due modi.
+
+### 15.3 Sette pastiglie al posto della scritta
+
+«Elimina questa scritta [`GAIN = SURPLUS a giornata · 250 nomi su 250 · 60 senza numero`], al suo posto
+metti questa serie di pill selezionabili: Bpm · Pa · Pas · mp · MV · FM · FVM. Le prime tre sono già
+attive di default.»
+
+L'elenco sta in `core/strategy.READINGS` — nomi, ordine, formato e larghezza — perché è vocabolario di
+questa pagina e un test lo raggiunge senza un browser. La scelta vive in `localStorage`
+(`strategy.readings`) come le altre preferenze di LETTURA, e `storedJson` e non `storedList`: **nessuna
+pastiglia accesa è una scelta legittima**, quindi una lista vuota sul disco deve restare vuota invece di
+ripartire dai default.
+
+Due decisioni di vocabolario, e vanno dette perché muovono dei numeri.
+
+- **`Bpm` è `FM − MV`, non `FM − 6`.** «Bonus a partita medio» è il nome che l'operatore ha dato alla
+  colonna «Bonus» il 18/08/2026 («i bonus da soli, FMa − MVa, così la formula dell'Overall si legge sulla
+  riga»), e `est_mv` è sul foglio per **602 righe su 602** (996 su 996 su euro), quindi la sottrazione si
+  può fare per tutti. Il «sopra il 6» resta l'altra domanda e vive sulla plancia con quel nome
+  (`EDGE_BASE`): due quantità, due nomi, mai una cifra sola. Su Malen sono 1,41 contro 1,92.
+- **`MV` e `FM` sono le REALI di questa stagione**, su sua istruzione esplicita («devono essere quelli
+  reali della stagione corrente»), lette da `season_stats` della stagione BERSAGLIO — che il bundle
+  porta (370 righe su `default`, 574 su `euro`). Sono una MISURA accanto a quattro previsioni, e a
+  settembre sono fatte su una o due giornate: il tooltip del nome lo dice («MV/FM su 2ª»), e chi non ha
+  ancora giocato non ha una media — vuoto, non zero.
+
+Le pastiglie non ordinano niente: la lista resta sul GAIN e loro lo SPIEGANO. I due fatti che la scritta
+portava — quale valuta ordina, quanti uomini il foglio non prezza — stanno in un `?` in coda alla fila:
+sono fatti e vanno detti, ma non meritano una riga di testo in barra.
+
+### 15.4 La lente: cercare un nome come lo si sente
+
+«Un'icona lente di ingrandimento nell'header di ogni lista; se ci clicco compare come subheader una
+searchbox per filtrare i calciatori di quella lista per nome o per squadra ... case insensitive, i match
+anche all'interno e non solo all'inizio, deve essere intelligente (lettere accentate, i al posto della j
+o delle y, c al posto delle k o k invece che ck o ch).»
+
+`core/loose-search.ts`, e il trucco è **una chiave sola applicata ai due lati**: non è una distanza fra
+stringhe, non è un punteggio, non ha soglie da tarare. Le regole, e l'ordine conta: accenti via
+(NFD + segni combinanti) e legamenti sciolti (`ß`→`ss`, `ø`→`o`); `ck` e `ch` → `c` PRIMA che `k` → `c`,
+o `ck` finirebbe `cc`; `j`/`y` → `i`, `w` → `v`, `x` → `s`; la `h` rimasta sparisce (in italiano non si
+sente, ed è quella che fa scrivere «Ojlund»); le doppie diventano singole; il resto diventa spazio.
+`Hojlund` → `oilund`, `Kean` → `cean`, `Lukaku` → `lucacu`, `Zaccagni` → `zacagni`.
+
+Quello che NON fa: non toglie le vocali, non accorcia, non fa metafone. Ogni regola in più aumenta i
+falsi positivi, e **in una lista di duecentocinquanta nomi un falso positivo costa più di un nome da
+riscrivere**.
+
+Tre cose che il filtro NON deve rompere, e sono le tre che il banco misura. Il **numero accanto al nome
+resta il posto vero** (`RankedMan.at`, assegnato prima del filtro): rinumerare da uno le tre righe
+trovate direbbe che il quarantesimo difensore è il primo — e per la stessa ragione la banda dello slot
+si legge da lì. Il **trascinamento è sospeso** mentre un blocco è filtrato, perché `withRowAt` costruisce
+il prefisso dai nomi COME SONO A SCHERMO e su una lista filtrata scriverebbe un ordine che parla di una
+lista che non esiste. E **chiudere la lente cancella il testo**: un filtro attivo dentro un pannello
+chiuso è invisibile, che è il difetto che i filtri della tabella hanno già pagato (20/08).
+
+Misurato dal banco su una storpiatura che DICHIARA lui («ygnan» da «Maignan»): 20 righe → 1, il posto
+resta 1, nessuna riga trascinabile, e richiudendo tornano 20.
+
+### 15.5 I tooltip sono CORTI, e questa è una regola
+
+«Ricordati che i tooltip devono essere SEMPRE brevi e sintetici: poche parole per indicare il significato
+di quella sigla o quell'icona ... quando voglio spiegazioni più dettagliate, te lo indico io.»
+
+Tagliati tutti quelli di questa pagina. Il caso peggiore era il contatore di un blocco: un paragrafo di
+~700 caratteri che spiegava la domanda della stanza, le tre pastiglie, l'assicurazione, le bande e
+l'ordine personale — cioè una LEGENDA su un bersaglio che si incontra scorrendo. Adesso dice «In lista 80
+su 80 che ne comprerà la stanza · 12 senza numero», e il PERCHÉ sta qui e nei commenti, dove si legge una
+volta invece che cento.
+
+*Il corollario per chi scrive: la ragione di una scelta non è documentazione da mettere a schermo. Va nel
+codice accanto alla riga che la applica, e in questi file.*
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

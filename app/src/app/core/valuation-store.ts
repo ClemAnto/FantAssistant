@@ -272,6 +272,16 @@ export interface EngineExpectation {
   titolaritaPlay: number | null;
   minutesNext: number | null;
   /**
+   * LA STAGIONE SCORSA COM'E' ANDATA DAVVERO: le partite giocate e i minuti, dal foglio
+   * (`desc_season_matches`, `desc_minutes_full_season`).
+   *
+   * Sono una MISURA e non una previsione, ed e' per questo che stanno accanto e non dentro le altre: la
+   * card di un calciatore le stampa su una riga che dice di quando sono. Lette qui perche' il lettore
+   * delle colonne del motore e' uno solo - due letture dello stesso foglio danno a un uomo due risposte.
+   */
+  seasonMatches: number | null;
+  minutesFullSeason: number | null;
+  /**
    * LE SEI PAROLE DENTRO IL RUOLO (`desc_category`): oro, argento, bronzo, cristallo, scommessa, scarto.
    *
    * Letta e mai ricalcolata, come la titolarità qui sopra: i due assi che la decidono sono una PREVISIONE
@@ -481,6 +491,25 @@ export class ValuationStore {
   );
 
   /** `platform|fc_id` -> the measured season. Keyed by platform because the calendars differ. */
+  /**
+   * QUELLO CHE HA GIA' FATTO IN QUESTA STAGIONE: presenze, media voto e fantamedia REALI.
+   *
+   * Un'altra domanda da `measured`, che tiene la stagione di INPUT - quella finita, su cui il motore ha
+   * costruito le sue previsioni. Questa e' la stagione bersaglio e a settembre e' lunga due giornate:
+   * e' un fatto piccolo e vero, e va tenuto separato da una previsione invece che mescolato.
+   *
+   * Vuoto per chi non ha ancora giocato, che non e' uno zero: `season_stats` ha una riga solo per chi
+   * un voto ce l'ha.
+   */
+  private readonly played = signal<Map<string, { pv: number | null; mv: number | null; fm: number | null }>>(
+    new Map(),
+  );
+
+  /** La sua stagione IN CORSO, misurata. Null per chi non ha ancora una giornata su file. */
+  playedOf(platform: Platform, fcId: number): { pv: number | null; mv: number | null; fm: number | null } | null {
+    return this.played().get(`${platform}|${fcId}`) ?? null;
+  }
+
   private readonly measured = signal<Map<string, { pv: number | null; mv: number | null; fm: number | null }>>(
     new Map(),
   );
@@ -603,6 +632,22 @@ export class ValuationStore {
    * among the worst would be a claim nobody measured. The POOL is the caller's: this answers about the
    * men it is given and never re-selects them, so the figures always describe the list on screen.
    */
+  /**
+   * IL FANTAVALORE DI UN UOMO sul suo listone, nella valuta del GIOCO chiesto.
+   *
+   * Pubblico da quando la Strategia lo mostra come pastiglia e la card di un calciatore lo stampa
+   * (05/09/2026): il prezzo era gia' letto qui per la tabella e una seconda lettura di
+   * `listone_quotes` sarebbe un secondo prezzo per lo stesso uomo. Il GIOCO lo passa chi chiede,
+   * perche' la Strategia legge un foglio dichiarato e non quello di default della piattaforma - «un
+   * fantavalore mantra sotto un'intestazione classic sarebbe il prezzo di un altro gioco».
+   *
+   * Vuoto = quel listone non lo quota, che non e' zero.
+   */
+  fvmOf(platform: Platform, fcId: number, game: 'classic' | 'mantra'): number | null {
+    const worth = this.values().get(`${platform}|${fcId}`);
+    return (game === 'mantra' ? worth?.mantra : worth?.classic) ?? null;
+  }
+
   valuations(platform: Platform, players: readonly PlayerRow[]): SquadMan[] {
     const measured = this.measured();
     const values = this.values();
@@ -803,15 +848,19 @@ export class ValuationStore {
         'fm',
       );
       const stats = new Map<string, { pv: number | null; mv: number | null; fm: number | null }>();
+      // ...e la stagione IN CORSO, che e' una domanda diversa: quella che ha giocato finora.
+      const so_far = new Map<string, { pv: number | null; mv: number | null; fm: number | null }>();
       for (const row of seasons.rows) {
-        if (row[sSeason] !== input) continue;
-        stats.set(`${row[sPlatform]}|${row[sId]}`, {
+        const where = row[sSeason] === input ? stats : row[sSeason] === target ? so_far : null;
+        if (!where) continue;
+        where.set(`${row[sPlatform]}|${row[sId]}`, {
           pv: (row[sPv] as number) ?? null,
           mv: (row[sMv] as number) ?? null,
           fm: (row[sFm] as number) ?? null,
         });
       }
       this.measured.set(stats);
+      this.played.set(so_far);
 
       this.roles.set(await this.realRoles());
       // I fogli del PACCHETTO se c'è, quelli di oggi altrimenti - stesso formato, perché li scrive la
@@ -1022,6 +1071,9 @@ export class ValuationStore {
         // La titolarità in una parola, revisione 35+, e i due numeri che la compongono.
         titolarita: at('desc_titolarita'), titolaritaPlay: at('desc_titolarita_play'),
         minutesNext: at('desc_minutes_next'),
+        // La stagione scorsa MISURATA: partite e minuti, per la card di un calciatore.
+        seasonMatches: at('desc_season_matches'),
+        minutesFullSeason: at('desc_minutes_full_season'),
         // Le sei parole dentro il ruolo, revisione 38+, coi due numeri che le decidono.
         category: at('desc_category'), categoryBonus: at('desc_category_bonus'),
         categoryBars: at('desc_category_bars'),
@@ -1077,6 +1129,10 @@ export class ValuationStore {
             ? null : ((row[columns.titolaritaPlay] as number | null) ?? null),
           minutesNext: columns.minutesNext < 0
             ? null : ((row[columns.minutesNext] as number | null) ?? null),
+          seasonMatches: columns.seasonMatches < 0
+            ? null : ((row[columns.seasonMatches] as number | null) ?? null),
+          minutesFullSeason: columns.minutesFullSeason < 0
+            ? null : ((row[columns.minutesFullSeason] as number | null) ?? null),
           category: columns.category < 0 ? null : ((row[columns.category] as string) ?? null),
           categoryBonus: columns.categoryBonus < 0
             ? null : ((row[columns.categoryBonus] as number | null) ?? null),

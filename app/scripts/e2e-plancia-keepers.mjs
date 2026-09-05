@@ -496,7 +496,7 @@ function readCard(at = 0) {
   // PIÙ DI UNA: le card aperte sono un elenco (sua richiesta del 04/09, per confrontare), quindi il
   // probe le CONTA e legge quella chiesta - un `querySelector` che ne prende la prima e tace sulle
   // altre direbbe «una card» sia con una che con sei.
-  const cards = [...document.querySelectorAll('plancia-man-card .fixed')];
+  const cards = [...document.querySelectorAll('ui-player-card .fixed')];
   const card = cards[at];
   if (!card) return null;
   const rect = card.getBoundingClientRect();

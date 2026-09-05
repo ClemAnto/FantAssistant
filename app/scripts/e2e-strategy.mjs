@@ -312,13 +312,22 @@ function readPills() {
   const rows = [...document.querySelectorAll('app-strategy ol li[data-id]')];
   return rows.map((row) => {
     const name = row.querySelector('span.flex-1');
-    const strip = [...row.children].find((one) => one.querySelectorAll(':scope > span').length === 3
-      && one.className.includes('tabular-nums'));
+    // LA FILA SI TROVA PER IL SUO MARCHIO e non contandone i figli: da quando le letture si scelgono
+    // (05/09/2026) quanti riquadri ci siano è una PREFERENZA, quindi un arnese che cerca «quello con
+    // tre span» misura il default e non la pagina.
+    const strip = row.querySelector('[data-readings]');
     const pills = strip ? [...strip.querySelectorAll(':scope > span')] : [];
     const rect = row.getBoundingClientRect();
     return {
       id: Number(row.dataset.id),
       name: (name?.innerText ?? '').trim(),
+      // Ogni riquadro col NOME della lettura che porta: confrontarli per posizione vorrebbe dire
+      // sapere l'ordine, e l'ordine è quello che l'operatore può cambiare.
+      say: Object.fromEntries(
+        pills.map((one) => [one.dataset.reading ?? '?', (one.innerText ?? '').trim()]),
+      ),
+      faded: pills.filter((one) => Number(getComputedStyle(one).opacity) < 0.9)
+        .map((one) => one.dataset.reading ?? '?'),
       // Il nome e' TAGLIATO quando il testo e' piu' largo della cella: e' il prezzo delle pastiglie, e
       // si legge dal browser invece che dal numero di caratteri.
       nameWidth: name ? Math.round(name.getBoundingClientRect().width) : 0,
@@ -335,6 +344,64 @@ function readPills() {
         const box = one.getBoundingClientRect();
         return box.right > rect.right + 1 || box.left < rect.left - 1 || box.width === 0;
       }).length,
+    };
+  });
+}
+
+/**
+ * LE SETTE PASTIGLIE DELLA BARRA: quale numero accendono e se sono accese.
+ *
+ * Si leggono per `data-reading` e non per posizione, e l'ACCESO si legge da `aria-pressed` invece che
+ * dalla classe di antd: la classe e' un fatto sulla libreria, lo stato e' un fatto sul bottone.
+ */
+function readToggles() {
+  return [...document.querySelectorAll('app-strategy button[data-reading]')].map((one) => {
+    const box = one.getBoundingClientRect();
+    return {
+      key: one.dataset.reading,
+      text: (one.innerText ?? '').trim(),
+      on: one.getAttribute('aria-pressed') === 'true',
+      point: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+      // Chi risponde a quel punto: «il bottone c'e'» e' un fatto sul DOM, non sullo schermo.
+      under: (document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        ?.tagName ?? '').toLowerCase(),
+    };
+  });
+}
+
+/**
+ * LE CARD APERTE e cosa portano: l'intestazione, i due numeri grandi e le righe delle ultime partite.
+ *
+ * Le righe si contano per CELLE e non per elementi: `ui-match-line` ha `display: contents`, quindi il
+ * suo elemento non esiste sullo schermo - contare i componenti direbbe «cinque righe» anche se la
+ * griglia le avesse schiacciate a zero.
+ */
+function readCards() {
+  return [...document.querySelectorAll('ui-player-card > div')].map((card) => {
+    const box = card.getBoundingClientRect();
+    const lines = [...card.querySelectorAll('ui-match-line')].map((line) => {
+      const cells = [...line.children].map((cell) => ({
+        text: (cell.innerText ?? '').replace(/\s+/g, ' ').trim(),
+        width: Math.round(cell.getBoundingClientRect().width),
+      }));
+      return {
+        cells: cells.length,
+        text: cells.map((one) => one.text),
+        // Ogni cella dentro la card, o e' un riquadro che c'e' nel DOM e non sullo schermo.
+        outside: cells.filter((one) => one.width === 0).length,
+        crests: line.querySelectorAll('ui-crest').length,
+      };
+    });
+    return {
+      name: (card.querySelector('.text-sm')?.innerText ?? '').trim(),
+      // La riga sotto il nome (club · dove): il fratello del titolo, invece di un selettore su una
+      // classe con le parentesi quadre - che in una stringa JS va scritta con due escape e in CSS con uno.
+      where: (card.querySelector('.text-sm')?.nextElementSibling?.innerText ?? '').trim(),
+      box: { top: Math.round(box.top), left: Math.round(box.left), width: Math.round(box.width) },
+      // La META' D'ASTA non deve esistere qui: la Strategia e' quello che si prepara prima di sedersi.
+      market: /max offerta|pagato/.test(card.innerText),
+      lines,
+      note: (card.querySelector('.border-t')?.innerText ?? '').replace(/\s+/g, ' ').trim(),
     };
   });
 }
@@ -544,14 +611,16 @@ async function sheetNumbers() {
   );
   const at = (name) => table.columns.indexOf(name);
   const open = await openInjuries();
-  const [id, fm, estFm, pv, estPv, minutes, play] = [
-    'fc_id', 'engine_fm_pred', 'est_fm', 'engine_pv_pred', 'est_pv', 'desc_minutes_next',
+  const [id, fm, estFm, mv, pv, estPv, minutes, play] = [
+    'fc_id', 'engine_fm_pred', 'est_fm', 'est_mv', 'engine_pv_pred', 'est_pv', 'desc_minutes_next',
     'desc_titolarita_play',
   ].map(at);
   const out = new Map();
   for (const row of table.rows) {
     out.set(Number(row[id]), {
       fm: row[fm] ?? row[estFm] ?? null,
+      // La media voto ATTESA, che e' la meta' che il Bpm sottrae (`est_mv`, revisione 18+).
+      mv: mv < 0 ? null : (row[mv] ?? null),
       pv: row[pv] ?? row[estPv] ?? null,
       // IL MOTORE lo prezza, oppure il foglio ripiega: dove ripiega la pagina puo' leggere la BOARD
       // (`expected-play.ts`), quindi il tetto da asserire e' un altro. Senza questa distinzione il
@@ -858,11 +927,15 @@ async function main() {
       ],
     });
 
-    // 2c. LE TRE PASTIGLIE, contro il FOGLIO e non contro se stesse.
+    // 2c. LE PASTIGLIE, contro il FOGLIO e non contro se stesse.
     //
     //     Il foglio si legge QUI, in Node, dal file che il server dell'arnese sta servendo: e' la sola
     //     fonte indipendente da quello che la pagina disegna. Confrontare la pastiglia con un numero
     //     ricavato dalla pastiglia e' l'asserzione circolare che passa qualunque cosa.
+    //
+    //     DAL 05/09/2026 LE LETTURE SI SCELGONO (sette pastiglie in barra, le prime tre accese), quindi
+    //     ogni riquadro si legge per il suo NOME e non per la sua posizione, e il passo asserisce
+    //     esattamente le tre che devono essere accese all'apertura.
     const sheet = await sheetNumbers();
     const pills = (await evaluate(session, readPills)) ?? [];
     const wrongPills = [];
@@ -871,9 +944,11 @@ async function main() {
     let outside = 0;
     let noMinutes = 0;
     let widest = Infinity;
+    const DEFAULT_ON = ['bonus', 'played', 'passed'];
     for (const row of pills) {
-      if (row.pills.length !== 3) {
-        wrongPills.push(`${row.name} porta ${row.pills.length} pastiglie invece di 3`);
+      const shown = Object.keys(row.say);
+      if (shown.join(',') !== DEFAULT_ON.join(',')) {
+        wrongPills.push(`${row.name} porta ${JSON.stringify(shown)} invece delle tre accese all'apertura`);
         continue;
       }
       outside += row.outside;
@@ -885,47 +960,40 @@ async function main() {
         continue;
       }
       checked += 1;
-      // 1) QUANTO RENDE SOPRA IL SEI: la fantamedia del foglio meno 6, a un decimale.
-      const edge = said.fm == null ? null : said.fm - 6;
-      const shownEdge = row.pills[0] === '—' ? null : Number(row.pills[0].replace(',', '.'));
-      if (edge == null ? shownEdge != null : Math.abs(shownEdge - edge) > 0.06) {
-        wrongPills.push(`${row.name}: la prima pastiglia dice ${row.pills[0]} e il foglio ${edge?.toFixed(2)}`);
+      const number = (text) => (text == null || text === '—' ? null : Number(String(text).replace(',', '.').replace('′', '')));
+      // 1) IL BONUS A PARTITA MEDIO: fantamedia meno media voto, tutt'e due ATTESE e tutt'e due del
+      //    foglio. E' la definizione della colonna «Bonus» (FMa - MVa), non il «sopra il 6».
+      const bonus = said.fm == null || said.mv == null ? null : said.fm - said.mv;
+      const shownBonus = number(row.say.bonus);
+      if (bonus == null ? shownBonus != null : Math.abs(shownBonus - bonus) > 0.06) {
+        wrongPills.push(`${row.name}: Bpm dice ${row.say.bonus} e il foglio ${bonus?.toFixed(2)}`);
       }
       // 2) LE PRESENZE ATTESE, che dal 04/09/2026 sono ASSICURATE (`core/expected-play.ts`): il foglio
       //    resta il riferimento, ma quello che si asserisce e' la DIREZIONE e il TETTO, non l'uguaglianza
       //    - la formula toglie giornate e non ne aggiunge mai, e non ne toglie piu' del tetto dichiarato.
       //    Ricalcolare qui l'assicurazione sarebbe l'asserzione circolare: si confronterebbe la pagina
       //    con una seconda copia della sua stessa aritmetica.
-      const [playedText, passedText] = row.pills[1].split(':');
-      const played = playedText === '—' ? null : Number(playedText);
+      const played = number(row.say.played);
+      const passed = number(row.say.passed);
       const ceiling = said.core ? said.pv : Math.max(said.pv ?? 0, (said.play ?? 0) * sheet.matchdays);
       if (said.pv == null ? played != null : played > ceiling + 0.51) {
-        wrongPills.push(`${row.name}: le presenze dicono ${playedText} e il tetto e' ${ceiling?.toFixed(2)}: l'assicurazione non aggiunge giornate`);
+        wrongPills.push(`${row.name}: le presenze dicono ${row.say.played} e il tetto e' ${ceiling?.toFixed(2)}: l'assicurazione non aggiunge giornate`);
       } else if (said.core && said.pv != null && played != null && !said.hurt
                  && said.pv - played > sheet.matchdays * 0.36 + 0.51) {
         wrongPills.push(`${row.name}: tolte ${(said.pv - played).toFixed(1)} giornate su ${said.pv.toFixed(1)}, oltre il tetto dichiarato`);
       }
-      if (passedText != null && played != null && Number(passedText) > played) {
-        wrongPills.push(`${row.name}: ${passedText} partite buone su ${played} giocate - un sottoinsieme piu' grande dell'insieme`);
+      if (passed != null && played != null && passed > played) {
+        wrongPills.push(`${row.name}: ${passed} partite buone su ${played} giocate - un sottoinsieme piu' grande dell'insieme`);
       }
       if (played != null && sheet.matchdays && played > sheet.matchdays + 0.5) {
         wrongPills.push(`${row.name}: ${played} presenze su un calendario di ${sheet.matchdays} giornate`);
       }
-      // 3) I MINUTI, e dove il foglio non li porta la pastiglia deve tacere invece di dire zero.
-      const minutes = row.pills[2] === '—' ? null : Number(row.pills[2].replace('′', ''));
-      if (said.minutes == null) {
-        noMinutes += 1;
-        if (minutes != null) wrongPills.push(`${row.name}: minuti ${row.pills[2]} e il foglio non ne dichiara`);
-      } else if (minutes == null || Math.abs(minutes - said.minutes) > 0.51) {
-        wrongPills.push(`${row.name}: i minuti dicono ${row.pills[2]} e il foglio ${said.minutes}`);
-      }
     }
-    note('le tre pastiglie', {
+    note('le pastiglie accese', {
       said: `${checked} righe confrontate col foglio (${sheet.size} uomini prezzati, calendario `
-        + `${sheet.matchdays} giornate) · esempio ${JSON.stringify(pills[0]?.pills ?? null)} per `
+        + `${sheet.matchdays} giornate) · esempio ${JSON.stringify(pills[0]?.say ?? null)} per `
         + `«${pills[0]?.name}» · in riga ${pills.filter((one) => !one.stripOwnLine).length}/${pills.length}`
-        + ` · nomi tagliati ${clipped}/${pills.length}, il piu' stretto ${widest}px `
-        + `· ${noMinutes} righe senza minuti sul foglio`,
+        + ` · nomi tagliati ${clipped}/${pills.length}, il piu' stretto ${widest}px`,
       problems: [
         ...(checked ? [] : ['nessuna riga confrontata: il passo non ha misurato niente']),
         ...(outside ? [`${outside} pastiglie fuori dalla loro riga: ci sono nel DOM e non sullo schermo`] : []),
@@ -1012,11 +1080,27 @@ async function main() {
       problems: unsorted,
     });
 
-    // 5. LA BARRA: dice il regolamento e quale valuta ordina, senza aprire niente.
+    // 5. LA BARRA: dice il regolamento senza aprire niente, e la VALUTA sta a un hover.
+    //
+    //    Dal 05/09/2026 la scritta «GAIN = SURPLUS a giornata» non c'e' piu': al suo posto ci sono le
+    //    sette pastiglie delle letture, e i due fatti che quella scritta portava - quale valuta ordina
+    //    e quanti uomini non hanno un numero - stanno nel `?` in coda alla fila. Sono FATTI e vanno
+    //    detti, quindi il passo li cerca dove sono adesso invece di lasciarli cadere: si apre il
+    //    pannello con un puntatore vero, perche' `[nzTooltipTitle]` non lascia niente nel DOM.
+    const helpPoint = await evaluate(session, () => {
+      const mark = document.querySelector('app-strategy .cursor-help');
+      if (!mark) return null;
+      const box = mark.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    });
+    const currency = helpPoint ? await hoverTip(session, helpPoint) : null;
     note('la barra', {
-      said: page.summary,
+      said: `${page.summary} · il «?» dice: «${(currency ?? 'niente').slice(0, 120)}»`,
       problems: [
-        ...(page.summary.includes('SURPLUS') ? [] : ['la barra non dice quale valuta ordina le liste']),
+        ...(helpPoint ? [] : ['nessun «?» in coda alle pastiglie: i due fatti sono spariti']),
+        ...(currency?.includes('SURPLUS') ? [] : ['il «?» non dice quale valuta ordina le liste']),
+        ...(currency?.includes('senza numero')
+          ? [] : ['il «?» non dice quanti uomini il foglio non prezza']),
         ...(page.summary.includes('partecipanti') ? [] : ['la barra non dice quanti partecipanti']),
       ],
     });
@@ -1069,7 +1153,10 @@ async function main() {
     // ...e la crocetta del blocco torna al gain.
     const cross = await evaluate(session, () => {
       const section = document.querySelector('app-strategy section');
-      const button = section?.querySelector('header button');
+      // IL BOTTONE SI CERCA PER IL SUO MARCHIO e non per posizione: dal 05/09/2026 l'intestazione ne
+      // porta due (la lente della ricerca e la crocetta dell'ordine), e «il primo bottone» premerebbe
+      // quello sbagliato - che e' esattamente come questo passo e' fallito la prima volta.
+      const button = section?.querySelector('header button[data-clear]');
       if (!button) return null;
       const box = button.getBoundingClientRect();
       const x = box.left + box.width / 2;
@@ -1289,12 +1376,12 @@ async function main() {
     const namesGone = narrow.filter((one) => !one.stripOwnLine && one.nameWidth < 40).length;
     const clippedInline = narrow.filter((one) => !one.stripOwnLine && one.nameClipped).length;
     const stripsOut = narrow.reduce((sum, one) => sum + one.outside, 0);
-    const withoutPills = narrow.filter((one) => one.pills.length !== 3).length;
+    const withoutPills = narrow.filter((one) => Object.keys(one.say).length !== 3).length;
     note('la riga stretta (mantra)', {
       said: `${narrow.length} righe · ${wrapped} con le pastiglie a capo · riga alta `
         + `${narrow[0]?.height}px · nome piu' stretto ${Math.min(...narrow.map((one) => one.nameWidth))}px`
         + ` · tagliati ${narrow.filter((one) => one.nameClipped).length} (di cui ${clippedInline} con le `
-        + `pastiglie ancora in riga) · esempio «${narrow[0]?.name}» ${JSON.stringify(narrow[0]?.pills ?? null)}`,
+        + `pastiglie ancora in riga) · esempio «${narrow[0]?.name}» ${JSON.stringify(narrow[0]?.say ?? null)}`,
       problems: [
         ...(narrow.length ? [] : ['nessuna riga letta: il passo non ha misurato niente']),
         ...(wrapped === narrow.length
@@ -1382,6 +1469,315 @@ async function main() {
     // dell'arnese: un'impostazione che sopravvive a un passo è un passo che ne cambia un altro.
     const backBox = await evaluate(session, boxOf, 'label.ant-radio-button-wrapper', 'Tutti');
     if (backBox) await click(session, backBox);
+
+    // 7c. LE PASTIGLIE DELLA BARRA: sette, tre accese, e un click deve cambiare la RIGA.
+    //
+    //     Quello che si asserisce non e' che il bottone cambi colore - quello e' un fatto su antd - ma
+    //     che la riga segua: una pastiglia che si accende senza cambiare niente sotto e' un bottone che
+    //     mente. E si preme con un PUNTATORE VERO alle coordinate che il browser dichiara, perche'
+    //     `element.click()` passa sopra la CSS e proverebbe un bersaglio che nessun dito raggiunge.
+    const toggles = (await evaluate(session, readToggles)) ?? [];
+    const beforeToggle = (await evaluate(session, readPills)) ?? [];
+    /**
+     * Preme una pastiglia leggendone le coordinate ADESSO, e poi porta il puntatore via.
+     *
+     * Le coordinate si rileggono a ogni giro perche' la barra si ridisegna, e il puntatore si sposta
+     * perche' UN TOOLTIP LUNGO COPRE IL CONTROLLO ACCANTO - la lezione delle buste chiuse (25/08/2026),
+     * pagata di nuovo qui: la prima versione leggeva i sette bottoni una volta sola e il secondo click
+     * finiva sul pannello aperto dal primo, quindi «spegnere Bpm» non spegneva niente.
+     */
+    const pressReading = async (key) => {
+      const now = (await evaluate(session, readToggles)) ?? [];
+      const pill = now.find((one) => one.key === key);
+      if (!pill) return `nessuna pastiglia «${key}» in barra`;
+      if (pill.under !== 'button' && pill.under !== 'span') {
+        return `sotto la pastiglia «${key}» c'e' ${pill.under}: e' coperta`;
+      }
+      await click(session, pill.point);
+      // Via dal bottone: il tooltip si chiude e non copre quello che si preme dopo.
+      await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 4, y: 500, button: 'none' });
+      await wait(250);
+      return null;
+    };
+    const pressed = [];
+    for (const key of ['fvm']) pressed.push(await pressReading(key));
+    const withFvm = (await evaluate(session, readPills)) ?? [];
+    for (const key of ['bonus']) pressed.push(await pressReading(key));
+    const withoutBpm = (await evaluate(session, readPills)) ?? [];
+    // ...e si rimette come si e' trovata, o i passi che seguono misurerebbero una scelta dell'arnese.
+    for (const key of ['fvm', 'bonus']) pressed.push(await pressReading(key));
+    const restoredPills = (await evaluate(session, readPills)) ?? [];
+    const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
+    note('le sette letture della barra', {
+      said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
+        + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
+        + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
+        + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
+      problems: [
+        ...pressed.filter(Boolean),
+        ...(toggles.length === 7 ? [] : [`${toggles.length} pastiglie invece delle sette dichiarate`]),
+        ...(toggles.filter((one) => one.on).length === 3
+          ? [] : [`${toggles.filter((one) => one.on).length} accese all'apertura invece di tre`]),
+        ...(toggles.every((one) => one.under === 'button' || one.under === 'span')
+          ? [] : ['qualche pastiglia non risponde alle proprie coordinate: nel DOM e non sullo schermo']),
+        ...(keysOf(withFvm).includes('fvm')
+          ? [] : ['accendere FVM non ha aggiunto niente alla riga: il bottone si accende e non fa niente']),
+        ...(keysOf(withoutBpm).includes('bonus')
+          ? ['spegnere Bpm ha lasciato il numero sulla riga'] : []),
+        ...(keysOf(restoredPills).join(',') === keysOf(beforeToggle).join(',')
+          ? [] : ['la riga non e tornata come si e trovata: i passi seguenti misurerebbero altro']),
+      ],
+    });
+
+    // 7d. IL CLICK APRE LA CARD, IL TRASCINAMENTO NO (operatore, 05/09/2026).
+    //
+    //     I due gesti vivono sulla stessa riga, quindi il passo li prova TUTT'E DUE e separatamente:
+    //     «un passo che misura due incognite insieme attribuisce il difetto a quella sbagliata». Del
+    //     trascinamento si asserisce quello che NON deve succedere - nessuna card - che e' un'assenza
+    //     e quindi va misurata invece di sperata.
+    const firstRow = await evaluate(session, () => {
+      const row = document.querySelector('app-strategy ol li[data-id]');
+      if (!row) return null;
+      const box = row.getBoundingClientRect();
+      const name = row.querySelector('span.flex-1');
+      return {
+        id: Number(row.dataset.id),
+        name: (name?.innerText ?? '').trim(),
+        point: { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+      };
+    });
+    if (firstRow) await click(session, firstRow.point);
+    // La card legge un ALTRO store (le ultime partite): si aspetta che le righe arrivino invece di
+    // fotografare il primo fotogramma, o il passo direbbe «nessuna partita» di una card che le ha.
+    let cards = [];
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      cards = (await evaluate(session, readCards)) ?? [];
+      if (cards[0]?.lines?.length) break;
+      await wait(500);
+    }
+    const card = cards[0] ?? null;
+    const badLines = (card?.lines ?? []).filter((one) => one.cells !== 5 || one.outside);
+    note('il click apre la card', {
+      said: `${cards.length} card · «${card?.name ?? '?'}» (${card?.where ?? '?'}) con `
+        + `${card?.lines?.length ?? 0} partite · prima riga ${JSON.stringify(card?.lines?.[0]?.text ?? null)}`,
+      problems: [
+        ...(firstRow ? [] : ['nessuna riga da cliccare: il passo non ha misurato niente']),
+        ...(cards.length === 1 ? [] : [`${cards.length} card aperte da un click solo`]),
+        ...(card && card.name === firstRow?.name
+          ? [] : [`ho cliccato «${firstRow?.name}» e la card dice «${card?.name}»`]),
+        // LA META D'ASTA NON ESISTE QUI: questa pagina si prepara prima di sedersi, e una max offerta
+        // sarebbe il numero di un tavolo inventato accanto a una lista che non lo riguarda.
+        ...(card?.market ? ['la card della Strategia mostra una max offerta: non ce nessun tavolo'] : []),
+        ...(card?.lines?.length ? [] : [`la card non porta nessuna partita: «${card?.note ?? ''}»`]),
+        ...(card && card.lines.length > 5 ? [`${card.lines.length} partite invece delle cinque chieste`] : []),
+        ...badLines.slice(0, 3).map((one) =>
+          `una riga porta ${one.cells} celle (${one.outside} larghe zero) invece delle cinque colonne`),
+      ],
+    });
+
+    if (flag('--shot')) {
+      const shot = await session.send('Page.captureScreenshot', { format: 'png' });
+      const where = join(ROOT, 'dist', 'e2e-strategy-card.png');
+      await writeFile(where, Buffer.from(shot.data, 'base64'));
+      console.log(`· screenshot card: ${where}`);
+    }
+
+    // ...e IL CHEVRON: l'elenco si estende fino all'intestazione, carica due stagioni e SCORRE, e la
+    //     card resta delle stesse dimensioni (operatore, 05/09/2026). «Stesse dimensioni» e' una
+    //     misura, quindi si misura: il rettangolo prima e dopo, non l'intenzione.
+    const shellBefore = await evaluate(session, () => {
+      const card = document.querySelector('ui-player-card > div');
+      if (!card) return null;
+      const box = card.getBoundingClientRect();
+      return { w: Math.round(box.width), h: Math.round(box.height) };
+    });
+    const chevron = await evaluate(session, () => {
+      const button = document.querySelector('ui-player-card [data-expand]');
+      if (!button) return null;
+      const box = button.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const under = document.elementFromPoint(x, y);
+      return { x, y, inside: !!under && button.contains(under) };
+    });
+    if (chevron) await click(session, chevron);
+    await wait(400);
+    const opened = await evaluate(session, () => {
+      const card = document.querySelector('ui-player-card > div');
+      // Il contenitore delle partite si cerca per il suo MARCHIO: «il primo div che contiene una
+      // partita» prendeva il riquadro INTORNO all'elenco, che non scorre - e il passo accusava di non
+      // scorrere una lista che scorre. Un passo che misura l'elemento sbagliato accusa il codice del
+      // proprio difetto.
+      const list = card?.querySelector('[data-matches]');
+      const box = card?.getBoundingClientRect();
+      return {
+        w: Math.round(box?.width ?? 0),
+        h: Math.round(box?.height ?? 0),
+        lines: card?.querySelectorAll('ui-match-line').length ?? 0,
+        // SCORRE: il contenuto e' piu' alto della finestra che lo mostra, che e' l'unica prova che una
+        // barra di scorrimento serva davvero.
+        scrolls: list ? list.scrollHeight > list.clientHeight + 1 : false,
+        // ...e quello che sta sopra si e' chiuso per fargli posto.
+        numbers: !!card?.innerText.includes('partite attese'),
+      };
+    });
+    note("il chevron apre l'elenco", {
+      said: `card ${shellBefore?.w}x${shellBefore?.h} -> ${opened.w}x${opened.h} · partite `
+        + `${card?.lines?.length ?? 0} -> ${opened.lines} · scorre ${opened.scrolls} · i due numeri `
+        + `grandi ${opened.numbers ? 'ancora a schermo' : 'chiusi'}`,
+      problems: [
+        ...(chevron ? [] : ['nessun chevron sulla riga delle ultime partite']),
+        ...(chevron && !chevron.inside ? ['il chevron non risponde alle proprie coordinate'] : []),
+        ...(opened.lines > (card?.lines?.length ?? 0)
+          ? [] : [`aperto porta ${opened.lines} partite: non ha caricato niente in piu'`]),
+        ...(shellBefore && opened.h === shellBefore.h && opened.w === shellBefore.w
+          ? [] : [`la card cambia dimensioni: ${shellBefore?.w}x${shellBefore?.h} -> ${opened.w}x${opened.h}`]),
+        ...(opened.scrolls ? [] : ["l'elenco aperto non scorre: o non è cresciuto, o esce dalla card"]),
+        ...(opened.numbers ? ['i due numeri grandi sono ancora a schermo: lo spazio non è stato prestato'] : []),
+      ],
+    });
+    if (flag('--shot')) {
+      const shot = await session.send('Page.captureScreenshot', { format: 'png' });
+      const where = join(ROOT, 'dist', 'e2e-strategy-card-open.png');
+      await writeFile(where, Buffer.from(shot.data, 'base64'));
+      console.log(`· screenshot card aperta: ${where}`);
+    }
+    if (chevron) await click(session, chevron);
+    await wait(300);
+
+    // ...e ora il trascinamento, che deve riordinare e NON aprire niente.
+    await evaluate(session, () => {
+      for (const one of document.querySelectorAll('ui-player-card button')) {
+        if (one.getAttribute('aria-label') === 'chiudi') one.click();
+      }
+      return true;
+    });
+    await wait(200);
+    const fourth = await evaluate(session, rowGeometry, 0, 3);
+    const top = await evaluate(session, rowGeometry, 0, 0);
+    const move = fourth && top ? { from: fourth, to: { x: top.x, y: top.top - 4 } } : null;
+    if (move) await dragTo(session, move.from, move.to);
+    await wait(400);
+    const cardsAfterDrag = (await evaluate(session, readCards)) ?? [];
+    const orderNow = (await evaluate(session, readPills)) ?? [];
+    note('il trascinamento riordina e non apre niente', {
+      said: `${cardsAfterDrag.length} card dopo il trascinamento · «${fourth?.name}» dal 4° posto in `
+        + `cima, e in cima ora c'e' «${orderNow[0]?.name}»`,
+      problems: [
+        ...(move ? [] : ['non sono riuscito a misurare il varco: il passo non ha trascinato niente']),
+        ...(cardsAfterDrag.length ? [`${cardsAfterDrag.length} card aperte da un trascinamento: il click non e filtrato`] : []),
+        ...(orderNow[0] && fourth && orderNow[0].name === fourth.name
+          ? [] : [`ho portato in cima «${fourth?.name}» e in cima c'e' «${orderNow[0]?.name}»`]),
+      ],
+    });
+    // Rimesso: l'ordine personale e le letture sono preferenze SALVATE, e lasciarle addosso cambierebbe
+    // i passi che seguono - e la prossima corsa.
+    await evaluate(session, () => {
+      try {
+        localStorage.removeItem('fantassistant.strategy.priority');
+        localStorage.removeItem('fantassistant.strategy.readings');
+      } catch {
+        /* niente memoria: non c'era niente da rimettere */
+      }
+      return true;
+    });
+
+    // 7e. LA RICERCA DENTRO UN BLOCCO (operatore, 05/09/2026): la lente apre una casella, la casella
+    //     filtra QUESTA lista per nome o per squadra, e la ricerca è «intelligente».
+    //
+    //     L'EQUIVALENZA SI PROVA SCRIVENDO MALE APPOSTA, e la storpiatura la dichiara il banco (k→c,
+    //     y→i, doppie singole): non è una copia della funzione dell'app - quella la provano i test
+    //     unitari - è la promessa fatta all'operatore, verificata dal lato dello schermo.
+    const lens = await evaluate(session, () => {
+      const button = document.querySelector('app-strategy section header button[data-search]');
+      if (!button) return null;
+      const box = button.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const under = document.elementFromPoint(x, y);
+      // «CHI RISPONDE A QUEL PUNTO» si chiede al bottone e non al nome del tag: al centro di
+      // un'icona c'e' un `<svg>`, che e' SUO - un passo che pretendesse un `button` accuserebbe di
+      // essere irraggiungibile un bersaglio che il puntatore raggiunge benissimo.
+      return { x, y, under: (under?.tagName ?? '').toLowerCase(), inside: !!under && button.contains(under) };
+    });
+    const listBefore = await evaluate(session, () => {
+      const rows = [...document.querySelectorAll('app-strategy section:first-of-type ol li[data-id]')];
+      return rows.map((one) => ({
+        id: Number(one.dataset.id),
+        name: (one.querySelector('span.flex-1')?.innerText ?? '').trim(),
+        at: (one.querySelector('span.w-5')?.innerText ?? '').trim(),
+      }));
+    });
+    if (lens) await click(session, lens);
+    await wait(200);
+    // Un nome della lista, storpiato come lo scriverebbe chi lo ha solo sentito: la seconda metà del
+    // cognome, senza maiuscole, con le k al posto delle c e le y al posto delle i.
+    const hunted = listBefore.find((one) => one.name.length >= 6) ?? listBefore[0];
+    const typed = (hunted?.name ?? '')
+      .slice(2, 7)
+      .toLowerCase()
+      .replace(/c/g, 'k')
+      .replace(/i/g, 'y');
+    await evaluate(session, (text) => {
+      const box = document.querySelector('app-strategy section input');
+      if (!box) return false;
+      box.focus();
+      return true;
+    }, typed);
+    await session.send('Input.insertText', { text: typed });
+    await wait(300);
+    const sifted = await evaluate(session, () => {
+      const section = document.querySelector('app-strategy section');
+      const rows = [...(section?.querySelectorAll('ol li[data-id]') ?? [])];
+      return {
+        box: !!section?.querySelector('input'),
+        counter: (section?.querySelector('header span:last-of-type')?.innerText ?? '').trim(),
+        rows: rows.map((one) => ({
+          id: Number(one.dataset.id),
+          name: (one.querySelector('span.flex-1')?.innerText ?? '').trim(),
+          at: (one.querySelector('span.w-5')?.innerText ?? '').trim(),
+          // Il trascinamento è sospeso mentre si filtra: CDK lo dichiara sulla riga.
+          draggable: !one.classList.contains('cdk-drag-disabled'),
+        })),
+        empty: (section?.querySelector('p')?.innerText ?? '').trim(),
+      };
+    });
+    // ...e si richiude, che deve anche CANCELLARE il testo: un filtro dentro un pannello chiuso è
+    // invisibile, ed è il difetto che i filtri della tabella hanno già pagato.
+    if (lens) await click(session, lens);
+    await wait(250);
+    const sealed = await evaluate(session, () => {
+      const section = document.querySelector('app-strategy section');
+      return {
+        box: !!section?.querySelector('input'),
+        rows: (section?.querySelectorAll('ol li[data-id]') ?? []).length,
+      };
+    });
+    const kept = sifted.rows.find((one) => one.id === hunted?.id);
+    note('la ricerca dentro un blocco', {
+      said: `lente a (${Math.round(lens?.x ?? 0)},${Math.round(lens?.y ?? 0)}) su ${lens?.under} · `
+        + `cercato «${typed}» (da «${hunted?.name}») · ${listBefore.length} → ${sifted.rows.length} righe`
+        + ` · «${hunted?.name}» al posto ${kept?.at ?? '?'} (prima ${hunted?.at}) · contatore `
+        + `«${sifted.counter}» · richiusa: ${!sealed.box}, ${sealed.rows} righe`,
+      problems: [
+        ...(lens ? [] : ['nessuna lente in intestazione: la ricerca non c’è']),
+        ...(lens && !lens.inside
+          ? [`sotto la lente c’è ${lens.under}, che non è suo: è coperta`] : []),
+        ...(sifted.box ? [] : ['la lente non ha aperto nessuna casella']),
+        ...(kept ? [] : [`ho scritto «${typed}» e «${hunted?.name}» è sparito: la ricerca non tiene le storpiature`]),
+        ...(sifted.rows.length < listBefore.length
+          ? [] : [`${sifted.rows.length} righe su ${listBefore.length}: la casella non filtra niente`]),
+        // IL POSTO RESTA QUELLO VERO: rinumerare da uno le righe trovate direbbe che il quarantesimo
+        // difensore è il primo.
+        ...(kept && kept.at === hunted?.at
+          ? [] : [`«${hunted?.name}» era al posto ${hunted?.at} e filtrato legge ${kept?.at}`]),
+        ...(sifted.rows.some((one) => one.draggable)
+          ? ['si può ancora trascinare una riga di una lista filtrata: l’ordine finirebbe sbagliato'] : []),
+        ...(sealed.box ? ['la lente non ha richiuso la casella'] : []),
+        ...(sealed.rows === listBefore.length
+          ? [] : [`richiudendo restano ${sealed.rows} righe invece di ${listBefore.length}: il filtro non è stato cancellato`]),
+      ],
+    });
 
     // 8. IL LISTONE: il foglio è scelto da (listone, gioco), e la combinazione che il bundle non porta
     //    deve DIRLO invece di riempirsi col foglio dell'altro gioco.

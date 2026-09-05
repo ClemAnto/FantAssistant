@@ -46,6 +46,10 @@ table the bundle does not carry gets it added to `export.CONTRACT` in the toolki
 - **Plans before coding**: alternatives, costs and risks laid out first, without rushing to write code.
 - **Beginner on the backend** - explain the concept in elementary terms, with the *why* of the choice.
 - **Concise replies**: the point first, no walls of text.
+- **Tooltips are ALWAYS short** (his rule, 05/09/2026): a few words saying what that abbreviation or icon
+  MEANS, and nothing else. «When I want a longer explanation, I will ask for it.» The reason behind a
+  number belongs in the code beside the line that applies it and in `docs/model/` - a legend attached to
+  a target you meet while scrolling is a panel that opens for nothing.
 - Values **visual verification** (headless screenshots) whenever UI or styles are touched - and the
   screenshot alone is not the verification, see «Verifying» below.
 
@@ -149,6 +153,16 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
 - **Colour carries meaning**: red is for danger, errors, destructive actions and negative amounts. Data,
   deviations and informational labels go neutral - a screen that paints every number red reads as an
   alarm. Amber for non-serious warnings.
+- **An icon means the SAME THING on every page** (his condition, 05/09/2026), so a repeated mark is a
+  COMPONENT and never a `@switch` copied into a second template: `ui/bonus-mark` draws a goal, an assist,
+  a card or a saved penalty for the compact match line AND for the big match panel. And the mark is
+  chosen on a declared `kind`, never on the label - two pages reading the text would paint two different
+  things the day one of the two phrases changes a word. Same rule for the bands of a colour scale
+  (`vocabulary.voteInk`): one definition, several readers, and when it moves the price is stated because
+  every reader repaints.
+- **Where antd has no icon, draw an inline SVG** - never an emoji (there is no football and no boot in
+  the set). Everything else is an `<nz-icon>` registered in `nz-icons.ts`, and an unregistered name is
+  fetched dynamically, 404s and hangs a TestBed.
 - Remember the browser's **autofill** (`:-webkit-autofill`): repaint it with
   `-webkit-box-shadow: 0 0 0 1000px <bg> inset` or a dark theme breaks on the login form.
 

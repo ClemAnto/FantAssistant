@@ -242,8 +242,37 @@
      `overflow` e si taglierebbero al primo trascinamento. Sono PIÙ DI UNA per sua richiesta (04/09:
      «così si possono confrontare»), una per uomo aperto, sfalsate e trascinabili. -->
 @for (open of store.cardMen(); track open.man.id) {
-  <!-- Il POSTO viene dallo store e non da `$index`: chiudere una card non deve spostare le altre. -->
-  <plancia-man-card [man]="open.man" [at]="open.slot" />
+  <!-- Il POSTO viene dallo store e non da `$index`: chiudere una card non deve spostare le altre.
+       I DUE GESTI SONO DELLA PLANCIA e per questo li proietta la pagina: nominare il lotto, e per un
+       portiere gli abbinamenti. La card e' comune alla Strategia, che un'asta in corso non ce l'ha. -->
+  <ui-player-card
+    [man]="open.man"
+    [at]="open.slot"
+    [front]="store.frontCard() === open.man.id"
+    (closed)="store.closeCard($event)"
+    (raised)="store.raiseCard($event)"
+  >
+    <ng-container card-actions>
+      @if (open.man.market?.inUrn) {
+        <button
+          type="button"
+          class="flex-1 rounded bg-primary px-2 py-1 text-[11px] font-semibold text-on-primary"
+          (click)="nameLot(open.man.id)"
+        >
+          è il lotto in asta
+        </button>
+      }
+      @if (open.man.market?.keeper) {
+        <button
+          type="button"
+          class="flex-1 rounded border border-border px-2 py-1 text-[11px] text-fg hover:bg-control"
+          (click)="store.openPairs(open.man.id)"
+        >
+          <nz-icon nzType="link" nzTheme="outline" /> abbinamenti
+        </button>
+      }
+    </ng-container>
+  </ui-player-card>
 }
 @if (store.cardMen().length > 1) {
   <!-- La via d'uscita, invece di un TETTO al numero di card: lui non ne ha chiesto un limite, e una

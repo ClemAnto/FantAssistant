@@ -33,6 +33,24 @@ export type CellState =
   | 'not_in_league'
   | 'absent';
 
+/**
+ * QUANTO INDIETRO ANDARE: un numero di partite, un numero di STAGIONI, o tutt'e due.
+ *
+ * Due limiti e non uno perche' sono due domande diverse, e la card le fa tutt'e due: chiusa mostra «le
+ * ultime cinque» (un conteggio), aperta «questa stagione e la precedente» (un confine di stagione).
+ * Chi non ne passa nessuno chiede tutto quello che c'e', ed e' una scelta esplicita.
+ */
+export interface RecentWant {
+  count?: number;
+  seasons?: number;
+}
+
+/** Una partita di una lista che ATTRAVERSA LE STAGIONI: la cella, e di che stagione e'. */
+export interface RecentMatch {
+  season: string;
+  cell: MatchCell;
+}
+
 export interface MatchCell {
   kind: MatchKind;
   state: CellState;
@@ -65,6 +83,16 @@ export interface MatchCell {
   yellows: number;
   reds: number;
   minutes: number | null;
+  /**
+   * SE ERA IN DISTINTA DAL PRINCIPIO, che con i minuti fa la frase intera: chi e' SUBENTRATO e chi e'
+   * USCITO. `minutes` da solo non la sa dire - 45' e' un uomo entrato all'intervallo tanto quanto uno
+   * uscito all'intervallo - e le due cose sono la freccia verde e la freccia rossa.
+   *
+   * Viene dal livello per-partita e non dai voti: `match_ratings.started` e' NULL su tutte le 62.594
+   * righe del bundle (l'Excel dei voti non porta ne' i minuti ne' la distinta), quindi dove il provider
+   * non ha una riga resta vuoto - «vuoto = ignoto», e nessuna freccia si disegna.
+   */
+  started: boolean | null;
   team: string;
   opponent: string | null;
   home: boolean | null;
@@ -233,6 +261,8 @@ export class PlayersStore {
   private readonly options = inject(GlobalOptions);
 
   readonly status = signal<Status>('idle');
+  /** Le tabelle sono in casa: chi disegna aspetta questo invece di leggere mappe ancora vuote. */
+  readonly ready = computed(() => this.status() === 'ready');
   readonly error = signal<string | null>(null);
   readonly generatedAt = signal<string | null>(null);
   readonly demo = signal(false);
@@ -380,6 +410,100 @@ export class PlayersStore {
       columns: this.namedColumns(query, players, slots),
       lines: this.rowsOf(query, players, slots),
     };
+  }
+
+  /**
+   * L'IDENTITA' DI UN CLUB dal nome che una fonte usa per chiamarlo - e solo per uno STEMMA.
+   *
+   * Di un avversario questo progetto tiene il nome del provider e niente che lo identifichi, quindi
+   * finora ogni avversario si disegnava col monogramma. Il nome si normalizza dai DUE lati con la
+   * stessa lista di parole vuote che `nameWords` usa gia' per abbreviare (`AC Milan` -> `milan`,
+   * `SSC Napoli` -> `napoli`), che e' l'alias di casa e non una lista nuova.
+   *
+   * MISURATO PRIMA DI TENERLO, perche' un join per NOME e' il difetto che questo repository paga da
+   * sempre: sui 106 club del bundle le chiavi normalizzate sono 106, cioe' ZERO collisioni; sulle
+   * ultime due stagioni risolve il 95,2% delle righe di Serie A (22 avversari su 23) e molto meno
+   * altrove (Bundesliga 10,9%, dove il provider scrive `1. FC Koln` e il listone `Colonia`). Per
+   * questo la risposta e' `null` e non un ripiego: chi non si risolve resta col MONOGRAMMA, che e'
+   * esattamente quello che aveva prima. Un fatto che decide un numero non passerebbe mai di qui.
+   */
+  clubIdOf(name: string | null): number | null {
+    return this.clubIds().get(clubNameKey(name)) ?? null;
+  }
+
+  /** L'indice dei nomi normalizzati, costruito dalle rose che il bundle porta gia' in memoria. */
+  private readonly clubIds = computed<Map<string, number>>(() => {
+    const out = new Map<string, number>();
+    for (const pool of this.rosters().values()) {
+      for (const player of pool) {
+        if (player.clubId == null) continue;
+        const key = clubNameKey(player.club);
+        if (key) out.set(key, player.clubId);
+      }
+    }
+    return out;
+  });
+
+  /**
+   * LE ULTIME `count` PARTITE DI CAMPIONATO di un uomo, la piu' recente per prima.
+   *
+   * Un METODO su questo store e non un conto scritto dove serve, per la ragione che `MatchQuery` gia'
+   * scrive di se': «una seconda implementazione di "le ultime partite" sarebbe una seconda risposta a
+   * una domanda che questo store risponde gia'». La card di un calciatore e' il terzo lettore dopo la
+   * tabella e le rose, e le sue righe devono essere le stesse celle - stato, voto, bonus e fantavoto -
+   * o lo stesso uomo finirebbe con due storie.
+   *
+   * ATTRAVERSA LE STAGIONI, ed e' il motivo per cui non passa da `matchTable`: quella risponde su UNA
+   * stagione, e alla seconda giornata di campionato «le ultime cinque» sono due di quest'anno e tre
+   * dell'anno scorso. Le stagioni si camminano dalla piu' recente all'indietro e ci si ferma appena si
+   * hanno le partite chieste.
+   *
+   * OGNI GIORNATA HA UNA RIGA, giocata o no: se non e' nei voti la cella viene dalle ASSENZE e porta la
+   * sua ragione (panchina, infortunio, non in questo campionato). E' il punto della richiesta - «una
+   * icona che mi indica se era infortunato | non disponibile | panchina» - e senza le assenze una
+   * lista di cinque partite mostrerebbe le ultime cinque in cui ha giocato, che e' un'altra domanda e
+   * una molto piu' lusinghiera.
+   */
+  recent(fcId: number, platform: Platform, want: RecentWant): RecentMatch[] {
+    const out: RecentMatch[] = [];
+    let walked = 0;
+    // Le stagioni in ordine, dalla piu' recente: `seasons()` e' ordinato crescente e porta anche quella
+    // bersaglio, che a inizio agosto non ha ancora una riga - e allora si scavalca da se'.
+    for (const season of [...this.seasons()].reverse()) {
+      const played = this.league().get(`${platform}|${season}`)?.get(fcId);
+      const missing = this.absence().get(`${platform}|${season}`)?.get(fcId);
+      const days = [...new Set([...(played?.keys() ?? []), ...(missing?.keys() ?? [])])];
+      if (!days.length) continue;
+      // UNA STAGIONE SI CONTA SE PRODUCE QUALCOSA, e il conto si fa DOPO averla percorsa: una stagione
+      // in cui non ha giocato in questo campionato non e' una stagione «vista», quindi non consuma il
+      // numero di stagioni chieste. Contarla prima faceva leggere all'elenco APERTO meno partite di
+      // quello chiuso - misurato: un portiere del Venezia passava da cinque righe a due, perche' la
+      // sua seconda stagione era di Serie B e bruciava il posto della terza.
+      if (want.seasons != null && walked >= want.seasons) return out;
+      const before = out.length;
+      for (const md of days.sort((a, b) => b - a)) {
+        // I voti battono l'assenza: una giornata sta in tutt'e due le mappe solo se qualcosa non torna,
+        // e la riga che porta il voto e' quella che ne sa di piu'.
+        const cell = played?.get(md) ?? missing?.get(md);
+        // La STAGIONE viaggia accanto alla cella e non dentro: `MatchCell` non la porta - la tabella di
+        // consultazione ne guarda una alla volta - e chi disegna una lista che le attraversa deve poter
+        // dire dove finisce l'una e comincia l'altra senza dedurlo dal numero di giornata.
+        //
+        // ...e UNA GIORNATA DI CUI NON SI SA NIENTE NON E' UNA SUA PARTITA. `not_in_league` e `absent`
+        // vogliono dire che di lui, quel giorno, questo campionato non ha nessuna traccia - ne' una
+        // pagella ne' una distinta - quindi non si sa nemmeno contro chi giocasse, ne' che il suo club
+        // fosse questo. Mostrarle riempiva la card di righe vuote proprio per gli uomini arrivati da
+        // fuori: misurato sul bundle, Kolo Muani non ha una riga di Serie A in tutto il 2025-26 (32
+        // partite di Premier) e Beto non ne ha NESSUNA in due stagioni. `bench` e `injured` restano,
+        // perche' una distinta e uno stop datato sono prove su di lui.
+        if (cell && cell.state !== 'not_in_league' && cell.state !== 'absent') {
+          out.push({ season, cell });
+        }
+        if (want.count != null && out.length >= want.count) return out;
+      }
+      if (out.length > before) walked += 1;
+    }
+    return out;
   }
 
   /** The last league round this season has ratings for: where «le ultime partite» end. */
@@ -616,9 +740,11 @@ export class PlayersStore {
         buildAbsences(built, roster, provider, euroToReal, buildInjuries(injuries)),
       );
 
+      // LA STAGIONE BERSAGLIO STA GIA' DENTRO se qualcuno ha giocato una giornata, quindi il `Set` la
+      // deve contenere: aggiungerla FUORI la elencava due volte, e chi cammina questa lista leggeva le
+      // stesse partite due volte (la card di un calciatore mostrava «le ultime cinque» con due doppioni).
       const seasons = [
-        ...new Set([...built.keys()].map((key) => key.split('|')[1])),
-        manifest.target_season,
+        ...new Set([...[...built.keys()].map((key) => key.split('|')[1]), manifest.target_season]),
       ].sort();
       this.seasons.set(seasons);
       this.other.set(buildOtherMatches(external, new Set(seasons), leagueOf, shapes));
@@ -662,6 +788,16 @@ const ABBREVIATION_SKIP = new Set(['ac', 'as', 'ss', 'ssc', 'fc', 'rc', 'afc', '
 /** The words of a club's name that actually name it: `AC Milan` -> `['Milan']`. */
 export function nameWords(name: string | null): string[] {
   return (name ?? '').split(/\s+/).filter((word) => word && !ABBREVIATION_SKIP.has(word.toLowerCase()));
+}
+
+/** Lo stesso nome come CHIAVE, senza le parole che non nominano nessuno: `SSC Napoli` e `Napoli`
+ *  sono lo stesso club, e questa e' la sola cosa che li fa incontrare. Usata solo per gli STEMMI
+ *  (`PlayersStore.clubIdOf`), mai per un numero. */
+export function clubNameKey(name: string | null): string {
+  return nameWords(name ?? '')
+    .map((word) => plain(word))
+    .filter(Boolean)
+    .join(' ');
 }
 
 /** `Napoli` -> `Nap`, `Borussia Dortmund` -> `Bor`, `AC Milan` -> `Mil`. Three letters is what
@@ -900,6 +1036,8 @@ interface ProviderMatch {
   club: string | null;
   opponent: string | null;
   home: boolean | null;
+  /** Se era in distinta dal principio: e' il solo modo di sapere se e' SUBENTRATO. */
+  started: boolean | null;
   minutes: number | null;
   voteSynth: number | null;
   rating: number | null;
@@ -913,8 +1051,8 @@ function buildProviderIndex(external: BundleTable): {
   present: Set<string>;
   roundDates: Map<string, string>;
 } {
-  const [fcId, season, competition, realMd, date, club, opponent, home, minutes, rating, mvSynth,
-    matchId] = columnIndex(
+  const [fcId, season, competition, realMd, date, club, opponent, home, started, minutes, rating,
+    mvSynth, matchId] = columnIndex(
       external,
       'fc_id',
       'season',
@@ -924,6 +1062,7 @@ function buildProviderIndex(external: BundleTable): {
       'club',
       'opponent',
       'home',
+      'started',
       'minutes',
       'rating',
       'mv_synth',
@@ -951,6 +1090,7 @@ function buildProviderIndex(external: BundleTable): {
       club: (row[club] as string) ?? null,
       opponent: (row[opponent] as string) ?? null,
       home: row[home] == null ? null : row[home] === 1,
+      started: row[started] == null ? null : row[started] === 1,
       minutes: (row[minutes] as number) ?? null,
       voteSynth: (row[mvSynth] as number) ?? null,
       rating: (row[rating] as number) ?? null,
@@ -1087,6 +1227,7 @@ function buildLeagueMatches(
       yellows: (row[yellows] as number) ?? 0,
       reds: (row[reds] as number) ?? 0,
       minutes: extra?.minutes ?? null,
+      started: extra?.started ?? null,
       team: teamName,
       opponent: extra?.opponent ?? null,
       home: extra?.home ?? null,
@@ -1107,8 +1248,8 @@ function buildOtherMatches(
   leagueOf: Map<number, string | null>,
   shapes: Map<string, string>,
 ): Map<string, Map<number, MatchCell[]>> {
-  const [fcId, season, competition, date, club, opponent, home, minutes, rating, goals, assists,
-    yellows, reds, matchIdOther] = columnIndex(
+  const [fcId, season, competition, date, club, opponent, home, startedOther, minutes, rating, goals,
+    assists, yellows, reds, matchIdOther] = columnIndex(
       external,
       'fc_id',
       'season',
@@ -1117,6 +1258,7 @@ function buildOtherMatches(
       'club',
       'opponent',
       'home',
+      'started',
       'minutes',
       'rating',
       'goals',
@@ -1174,6 +1316,7 @@ function buildOtherMatches(
       yellows: (row[yellows] as number) ?? 0,
       reds: (row[reds] as number) ?? 0,
       minutes: (row[minutes] as number) ?? null,
+      started: row[startedOther] == null ? null : row[startedOther] === 1,
       team: (row[club] as string) ?? '',
       opponent: (row[opponent] as string) ?? null,
       home: row[home] == null ? null : row[home] === 1,
@@ -1338,6 +1481,9 @@ function buildAbsences(
           // because reaching one would mean joining the provider's club name to the ratings'
           // spelling, and a name join is the defect this project keeps paying for.
           minutes: bench ? 0 : null,
+          // Chi non ha una riga nei voti non e' partito titolare, e dove non c'e' nemmeno la panchina
+          // non si sa niente: la distinzione e' la stessa dei minuti qui sopra.
+          started: bench ? false : null,
           team: bench?.club ?? '',
           opponent: bench?.opponent ?? null,
           home: bench?.home ?? null,

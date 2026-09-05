@@ -24,7 +24,7 @@ import { ExpectedPlay } from './expected-play';
 import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
 import { GlobalOptions } from './global-options';
-import { OutWindow, outWindow } from './injury-window';
+import { CardMan, CardStack } from './player-card';
 import {
   CalendarBook,
   CalendarFile,
@@ -198,7 +198,6 @@ export class PlanciaStore {
   private readonly men = computed<PlanciaMan[]>(() => {
     const numbers = this.numbers();
     const book = this.calendar();
-    const today = this.status.today();
     const out: PlanciaMan[] = [];
     for (const player of this.listone()) {
       const role = roleOf(player);
@@ -208,15 +207,6 @@ export class PlanciaStore {
       // stagione intera; chi rientra a novembre non la gioca, quindi le presenze attese e i punti che
       // ne discendono sono ridotti QUI - una volta sola, dove la riga nasce, cosi' l'ordine dentro lo
       // slot, la banda e i due numeri sullo schermo leggono tutti la stessa valutazione.
-      const injury = this.status.openInjury(player.id);
-      const window = outWindow({
-        calendar: book?.forClub(player.club) ?? null,
-        club: player.club,
-        today,
-        until: injury?.until ?? null,
-        seasonOver: injury?.seasonOver,
-        source: injury?.source,
-      });
       // ...E IL «DI PIU'» SOPRA IL FATTO (operatore, 04/09/2026): la finestra dice quello che perde di
       // sicuro, l'assicurazione quello che puo' perdere. Il conto e' UNO per tutta l'app
       // (`expected-play.ts`) e non piu' una moltiplicazione scritta qui: due copie di questa
@@ -228,6 +218,9 @@ export class PlanciaStore {
         this.sheet()?.matchdays_target ?? null,
       );
       const pv = outlook.expected;
+      // La finestra viene da `outlook` e non da una seconda chiamata a `outWindow` accanto: due strade
+      // per lo stesso fatto sono come una riga finisce per dirne due versioni.
+      const window = outlook.window;
       const points = valuation.fm != null && pv != null ? valuation.fm * pv : null;
       out.push({
         id: player.id,
@@ -727,72 +720,43 @@ export class PlanciaStore {
    *
    * Sua richiesta del 04/09/2026 («deve essere possibile aprire più card contemporaneamente così si
    * possono confrontare»), e cambia la struttura e non il numero: un `id | null` che diventa un tetto
-   * di due sarebbe una soglia inventata da me. Sono ID e non uomini, per la ragione di sempre: la riga
-   * si ricostruisce a ogni aggiudicazione, e una card che tenesse la COPIA continuerebbe a mostrare il
-   * prezzo di dieci minuti prima - «una lista mostrata i cui numeri descrivono un'altra lista».
+   * di due sarebbe una soglia inventata da me.
    *
-   * IL POSTO È UN NUMERO ASSEGNATO ALLA NASCITA E NON L'INDICE NELL'ELENCO, e la differenza è una sua
-   * richiesta: «quando chiudo una card le altre non si devono spostare». Con la posizione letta
-   * dall'indice, chiudere la prima faceva scalare tutte le altre - e una card che si sposta da sé
-   * mentre la guardi è la cosa che rompe un confronto. Ogni card prende il POSTO LIBERO più basso e lo
-   * tiene finché è aperta: chiudere non muove nessuno, e la prossima riempie il buco invece di
-   * nascere sopra qualcuno.
+   * La REGOLA del posto e di chi sta davanti se n'è andata in `core/player-card.ts` il 05/09/2026,
+   * quando l'operatore ha chiesto la stessa card sulla Strategia: due pagine, due pile - le card della
+   * plancia non devono seguirti altrove - ma UNA sola definizione di dove nasce una card, o due pagine
+   * disporrebbero le stesse card in due modi.
    */
-  private readonly cards = signal<{ id: number; slot: number }[]>([]);
+  private readonly cards = new CardStack();
 
-  readonly cardMen = computed<{ man: BoardMan; slot: number }[]>(() => {
-    const wanted = this.cards();
-    if (!wanted.length) return [];
-    const byId = new Map<number, BoardMan>();
+  readonly cardMen = computed<{ man: CardMan; slot: number }[]>(() => {
+    const byId = new Map<number, { man: BoardMan; block: BoardBlock }>();
     for (const block of this.blocks()) {
-      for (const row of block.rows) byId.set(row.id, row);
+      for (const row of block.rows) byId.set(row.id, { man: row, block });
     }
+    const numbers = this.numbers();
+    const rounds = this.sheet()?.matchdays_target ?? null;
     // Chi non è più in mappa esce da sé: la coda si compra a un credito e non ha una riga, quindi non
     // ha una card - e una card che sopravvive alla propria riga mostrerebbe numeri di un altro giro.
-    return wanted
-      .map((one) => ({ man: byId.get(one.id), slot: one.slot }))
-      .filter((one): one is { man: BoardMan; slot: number } => !!one.man);
+    return this.cards.place((id) => {
+      const found = byId.get(id);
+      return found ? cardManOf(found.man, found.block, numbers.get(id) ?? null, rounds) : undefined;
+    });
   });
 
-  /**
-   * CHI STA DAVANTI, che è una cosa DIVERSA dall'ordine di apertura.
-   *
-   * Sua richiesta del 04/09/2026: «quando trascino una card deve spostarsi sopra le altre». La prima
-   * versione aveva un solo elenco e ci leggeva tutte e due le cose - la posizione in cui la card nasce
-   * e la sua `z` - e portare una card davanti riordinando quell'elenco avrebbe fatto SALTARE tutte le
-   * altre di posto, perché il posto è calcolato dall'indice. Due domande, due stati: l'elenco tiene
-   * l'ordine di APERTURA e non si riordina mai, questo tiene l'ultima TOCCATA.
-   */
-  private readonly frontCardId = signal<number | null>(null);
-
-  readonly frontCard = computed(() => this.frontCardId());
+  readonly frontCard = computed(() => this.cards.front());
 
   openCard(id: number | null): void {
-    if (id == null) {
-      this.cards.set([]);
-      this.frontCardId.set(null);
-      return;
-    }
-    this.cards.update((open) => {
-      // Ri-cliccare un uomo già aperto non fa un doppione e non gli cambia posto: lo porta davanti.
-      if (open.some((one) => one.id === id)) return open;
-      // IL POSTO LIBERO PIÙ BASSO: così chiudere non sposta nessuno e aprire riempie il buco.
-      const taken = new Set(open.map((one) => one.slot));
-      let slot = 0;
-      while (taken.has(slot)) slot += 1;
-      return [...open, { id, slot }];
-    });
-    this.frontCardId.set(id);
+    this.cards.openCard(id);
   }
 
   /** Toccata: davanti alle altre. Un click o un trascinamento, che per questo sono la stessa cosa. */
   raiseCard(id: number): void {
-    this.frontCardId.set(id);
+    this.cards.raiseCard(id);
   }
 
   closeCard(id: number): void {
-    this.cards.update((open) => open.filter((one) => one.id !== id));
-    if (this.frontCardId() === id) this.frontCardId.set(null);
+    this.cards.closeCard(id);
   }
 
   /** I numeri del motore di un uomo, dal lettore unico: la card non ne apre un secondo. */
@@ -1233,4 +1197,81 @@ function middleOf(values: (number | null)[]): number | null {
   if (!known.length) return null;
   const middle = known.length >> 1;
   return known.length % 2 ? known[middle] : (known[middle - 1] + known[middle]) / 2;
+}
+
+/**
+ * UNA RIGA DELLA PLANCIA COME LA CARD LA VUOLE.
+ *
+ * Traduce e non ricalcola: ogni numero e' gia' stato deciso dalla riga (`men`, `buildMap`, `offerBand`),
+ * e la card ne e' il terzo lettore dopo il blocco e il lotto. Due strade per una cifra sono come un uomo
+ * finisce con due valutazioni.
+ *
+ * IL PIATTAFORMA E' `default` PERCHE' LA PLANCIA PREZZA SEMPRE IL LISTONE CLASSIC DI SERIE A
+ * (`loadSheet`, che sceglie `default|classic` per primo e lo NOMINA in intestazione): le partite che la
+ * card mostra sono quelle di quel calendario, e passare la piattaforma sbagliata mostrerebbe le giornate
+ * di un altro gioco sotto lo stesso nome.
+ */
+function cardManOf(
+  man: BoardMan,
+  block: BoardBlock,
+  numbers: EngineNumbers | null,
+  rounds: number | null,
+): CardMan {
+  const inUrn = man.state === 'urna' || man.state === 'asta';
+  const band = man.band;
+  return {
+    id: man.id,
+    name: man.name,
+    club: man.club,
+    // Il listone d'asta non porta l'identita' di un club: la card la risolve dal nome, e solo per lo
+    // stemma. Un fatto che decide un numero non passerebbe mai di li'.
+    clubId: null,
+    where: `${man.role}${block.index}`,
+    platform: 'default',
+    edge: man.edge,
+    pv: man.pv,
+    rounds,
+    // La fantamedia che la RIGA sta usando: `basis` lo ha gia' deciso a monte (`valuationOf`), o la card
+    // direbbe un numero e la riga un altro.
+    fm: man.basis === 'estimated' ? (numbers?.estFm ?? null) : (numbers?.fm ?? null),
+    estimated: man.basis === 'estimated',
+    estNote: numbers?.estNote ?? null,
+    titolarita: numbers?.titolarita ?? null,
+    minutesNext: numbers?.minutesNext ?? null,
+    seasonMatches: numbers?.seasonMatches ?? null,
+    minutesFullSeason: numbers?.minutesFullSeason ?? null,
+    unpricedReason: numbers?.unpricedReason ?? null,
+    fvm: man.fvm,
+    out: man.out ?? null,
+    market: {
+      // DUE SIGNIFICATI SU UNA CIFRA SOLA, e la riga dice quale dei due e': la max offerta finche' e'
+      // nell'urna, il prezzo PAGATO quando e' di qualcuno.
+      label: inUrn ? 'max offerta' : 'pagato',
+      band: inUrn && band ? { low: band.low, high: band.high } : null,
+      price: man.price,
+      ownerLabel: man.ownerLabel,
+      ownerColour: man.ownerColour,
+      capNote: capNoteOf(man, block),
+      inUrn: man.state === 'urna',
+      keeper: man.role === 'P',
+    },
+  };
+}
+
+/**
+ * PERCHE' IL TETTO E' QUELLO, quando non e' il suo slot a deciderlo.
+ *
+ * Una max offerta piu' bassa senza una parola si legge come un errore, ed e' la stessa regola per cui la
+ * finestra dell'infortunio sta scritta sopra: «un vincolo che agisce in silenzio e' indistinguibile da un
+ * ordinamento rotto». Sul lotto la ragione la scrive `adviseLot`; la card si apre anche su chi non e' in
+ * asta, quindi la ragione se la deve dire da sola.
+ */
+function capNoteOf(man: BoardMan, block: BoardBlock): string | null {
+  const band = man.band;
+  if (!band) return null;
+  if (band.bet) return `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'.`;
+  if (band.pricedAt !== block.index) {
+    return `Prezzato come uno slot ${band.pricedAt}: infortunato oggi, non lo pago da primo.`;
+  }
+  return null;
 }

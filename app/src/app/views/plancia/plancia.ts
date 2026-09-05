@@ -13,11 +13,11 @@ import { AuctionFeed } from '../../core/auction-feed';
 import { ROLES, SlotView } from '../../core/plancia';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { FlagMenu } from '../../ui/flag-menu/flag-menu';
+import { PlayerCard } from '../../ui/player-card/player-card';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { APP_VERSION } from '../../version';
 import { KeeperPairs } from './keeper-pairs/keeper-pairs';
 import { LotCard } from './lot-card/lot-card';
-import { ManCard } from './man-card/man-card';
 import { SlotMatrix } from './slot-matrix/slot-matrix';
 import { TeamGrid } from './team-grid/team-grid';
 
@@ -55,7 +55,7 @@ import { TeamGrid } from './team-grid/team-grid';
     KeeperPairs,
     LiveConnect,
     LotCard,
-    ManCard,
+    PlayerCard,
     SlotMatrix,
     TeamGrid,
   ],
@@ -177,5 +177,17 @@ export class Plancia {
    */
   protected onAssign(teamId: number): void {
     this.store.award(teamId);
+  }
+
+  /**
+   * NOMINARE IL LOTTO dalla card, e chiuderla: e' un gesto SOLO della plancia.
+   *
+   * Sta nella pagina e non nella card perche' la card e' comune alla Strategia, dove un'asta in corso
+   * non c'e' - un bottone «è il lotto in asta» su una pagina che si prepara prima di sedersi sarebbe
+   * un'azione senza un tavolo su cui agire.
+   */
+  protected nameLot(id: number): void {
+    this.store.setLot(id);
+    this.store.closeCard(id);
   }
 }
