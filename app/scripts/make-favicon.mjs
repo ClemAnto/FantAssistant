@@ -44,8 +44,8 @@ const value = (name, fallback) => {
  *
  * Perché un pallone e non un monogramma o un grafico. L'icona deve leggersi a SEDICI pixel, dove una
  * lettera è tre tratti e una linea di tendenza è fango; un pallone invece si riconosce dalla sagoma - un
- * cerchio con il pentagono al centro e le cuciture che vanno al bordo - ed è esattamente il mestiere di
- * questa app. Il carattere lo dà il colore, che è quello del tema e di nessun altro.
+ * cerchio con il pentagono scuro al centro e un anello di cuciture intorno - ed è esattamente il mestiere
+ * di questa app. Il carattere lo dà il colore, che è quello del tema e di nessun altro.
  *
  * A TUTTO CAMPO E SU FONDO TRASPARENTE, non dentro una piastrella: la piastrella si mangerebbe un terzo
  * del lato proprio alla dimensione in cui serve tutto, e il magenta del marchio si stacca sia da una
@@ -57,21 +57,29 @@ const DESIGN = {
   /** Il pallone: centro e raggio. Il 3% che resta è il margine che gli impedisce di toccare il bordo. */
   ball: { cx: 0.5, cy: 0.5, r: 0.47 },
   /** Il pentagono centrale, punta in ALTO: è quello che rende la sagoma un pallone e non un cerchio. */
-  pentagon: { r: 0.215, turn: -90 },
+  pentagon: { r: 0.23, turn: -90 },
   /**
-   * Le cinque cuciture, da ogni vertice del pentagono verso il bordo - e SI FERMANO PRIMA.
+   * Le cinque cuciture, e sono ARCHI TANGENZIALI: corrono parallele ai LATI del pentagono, non uscendo
+   * dai suoi vertici. `turn` è quello del pentagono più 36°, cioè i punti medi dei lati.
    *
-   * La prima versione le portava fino al bordo (tagliate dal pallone stesso) e il disegno non era un
-   * pallone: cinque cuciture larghe che arrivano al bordo TAGLIANO il cerchio in cinque petali, e a 128
-   * pixel si legge come un fiore. Guardato invece che dedotto, e corretto lasciando un anello di tinta
-   * tutto intorno: la sagoma circolare è la prima cosa che si riconosce, e se si rompe non resta niente.
+   * TRE VERSIONI PRIMA DI QUESTA, e le prime due erano radiali. La prima le portava fino al bordo
+   * (tagliate dal pallone stesso): cinque cuciture larghe che arrivano al bordo TAGLIANO il cerchio in
+   * cinque petali, e a 128 pixel si legge come un fiore. La seconda le accorciava lasciando un anello di
+   * tinta - la cura giusta per il fiore - e il commento qui diceva che a sedici pixel una cucitura
+   * «sbiadisce, resta il pentagono in mezzo al cerchio».
    *
-   * E la seconda versione leggeva come una STELLA, per il motivo opposto: cuciture larghe attaccate ai
-   * vertici del pentagono si fondono con lui in un'unica sagoma a cinque punte. Una cucitura è una LINEA,
-   * quindi è sottile, e a sedici pixel sbiadisce - resta il pentagono in mezzo al cerchio, che è
-   * esattamente quello che fa un'icona di pallone a quella misura.
+   * NON SBIADISCE, E IL DISEGNO ERA UNA STELLA. Misurato il 05/09/2026 rasterizzando a 16 e GUARDANDO
+   * l'immagine invece di rileggere il ragionamento: l'antialiasing allarga una cucitura da 0,77 px a due
+   * pixel grigi, che si saldano al vertice da cui parte, e cinque punte attaccate a un pentagono sono una
+   * stella a cinque punte - la stessa figura che la seconda versione era nata per togliere. Il difetto è
+   * SOPRAVVISSUTO alla propria correzione per tre settimane, perché nessuno ha riguardato a 16.
+   *
+   * La cura non è un'altra misura della stessa forma: è togliere alla forma la POSSIBILITÀ di fare una
+   * stella. Un arco tangenziale non ha un capo che punta in fuori e non tocca il pentagono a nessuna
+   * risoluzione, quindi qualunque cosa faccia l'antialiasing il centro resta un pentagono e il resto un
+   * anello. È anche la cucitura che ha un pallone vero: le esagonali corrono lungo i lati del pentagono.
    */
-  seam: { reach: 0.425, width: 0.048 },
+  seam: { r: 0.385, turn: -90 + 36, span: 44, width: 0.038 },
 };
 
 /** I cinque vertici del pentagono, in frazioni del lato. */
@@ -83,16 +91,39 @@ function pentagonPoints() {
   });
 }
 
-/** ...e dove finisce la cucitura che parte da ognuno: fuori dal pallone, per essere tagliata da lui. */
-function seamEnds() {
-  const { pentagon, seam, ball } = DESIGN;
-  return [0, 1, 2, 3, 4].map((k) => {
-    const angle = ((pentagon.turn + k * 72) * Math.PI) / 180;
-    return [
-      [ball.cx + pentagon.r * Math.cos(angle), ball.cy + pentagon.r * Math.sin(angle)],
-      [ball.cx + seam.reach * Math.cos(angle), ball.cy + seam.reach * Math.sin(angle)],
-    ];
-  });
+/** Gli estremi dei cinque archi, in frazioni del lato: (inizio, fine) di ognuno. */
+function seamArcs() {
+  const { seam, ball } = DESIGN;
+  const at = (deg) => {
+    const a = (deg * Math.PI) / 180;
+    return [ball.cx + seam.r * Math.cos(a), ball.cy + seam.r * Math.sin(a)];
+  };
+  return [0, 1, 2, 3, 4].map((k) => [at(seam.turn + k * 72 - seam.span / 2),
+                                     at(seam.turn + k * 72 + seam.span / 2)]);
+}
+
+/**
+ * ...e gli stessi archi spezzati in segmenti, che è quello che il rasterizzatore sa misurare.
+ *
+ * UNA definizione e due letture, come il vettore e i pixel: `seamArcs` dà i capi, questa dà la corda
+ * spezzata che ci passa in mezzo. Dodici pezzi per 44° è una freccia di 0,0003 del lato, cioè un decimo
+ * di pixel a 64 - sotto il campionamento del rasterizzatore, quindi la spezzata e l'arco del vettore non
+ * possono divergere di un pixel visibile.
+ */
+function seamSegments(pieces = 12) {
+  const { seam, ball } = DESIGN;
+  const at = (deg) => {
+    const a = (deg * Math.PI) / 180;
+    return [ball.cx + seam.r * Math.cos(a), ball.cy + seam.r * Math.sin(a)];
+  };
+  const out = [];
+  for (let k = 0; k < 5; k += 1) {
+    const from = seam.turn + k * 72 - seam.span / 2;
+    for (let i = 0; i < pieces; i += 1) {
+      out.push([at(from + (seam.span * i) / pieces), at(from + (seam.span * (i + 1)) / pieces)]);
+    }
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ il vettore
@@ -102,8 +133,11 @@ function svg(colors) {
   const at = (v) => Number((v * S).toFixed(2));
   const { ball, seam } = DESIGN;
   const points = pentagonPoints().map(([x, y]) => `${at(x)},${at(y)}`).join(' ');
-  const lines = seamEnds()
-    .map(([[x1, y1], [x2, y2]]) => `      <line x1="${at(x1)}" y1="${at(y1)}" x2="${at(x2)}" y2="${at(y2)}" />`)
+  // `A r r 0 0 1`: raggio uguale sui due assi, nessuna rotazione, arco CORTO (span < 180°) e verso
+  // orario, che con la y verso il basso è quello degli angoli crescenti del rasterizzatore.
+  const lines = seamArcs()
+    .map(([[x1, y1], [x2, y2]]) => `      <path d="M ${at(x1)} ${at(y1)} A ${at(DESIGN.seam.r)}`
+      + ` ${at(DESIGN.seam.r)} 0 0 1 ${at(x2)} ${at(y2)}" />`)
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!-- GENERATO da app/scripts/make-favicon.mjs: non modificare a mano, si riscrive.
@@ -116,7 +150,7 @@ function svg(colors) {
   </defs>
   <circle cx="${at(ball.cx)}" cy="${at(ball.cy)}" r="${at(ball.r)}" fill="${colors.fill}" />
   <g clip-path="url(#ball)" fill="${colors.ink}">
-    <g stroke="${colors.ink}" stroke-width="${at(seam.width)}" stroke-linecap="round">
+    <g fill="none" stroke="${colors.ink}" stroke-width="${at(seam.width)}" stroke-linecap="round">
 ${lines}
     </g>
     <polygon points="${points}" />
@@ -171,7 +205,7 @@ function onSeam(x, y, seams) {
  */
 function raster(size, colors) {
   const points = pentagonPoints();
-  const seams = seamEnds();
+  const seams = seamSegments();
   const fill = colors.fillRgb;
   const ink = colors.inkRgb;
   const grid = 4;
@@ -309,11 +343,16 @@ if (!flag('--check')) {
 /**
  * QUELLO CHE SI PUÒ MISURARE DI UN'ICONA, invece di guardarla e dire che va bene.
  *
- * Tre cose, e la terza è la sola che dice qualcosa sul DISEGNO: che il file si rilegge come dichiara
- * (una directory che punta al posto sbagliato dà un'icona vuota, non un errore), il contrasto fra le due
- * tinte, e quanti pixel del pentagono e delle cuciture sopravvivono a SEDICI pixel - se sono pochi
- * l'icona è una palla di colore e la sagoma non c'è. Guardarla resta necessario: `--shot` la disegna
- * ingrandita in una pagina, che è dove si vede se il disegno funziona.
+ * Quattro cose, e solo l'ultima parla della FORMA. Che il file si rilegge come dichiara (una directory
+ * che punta al posto sbagliato dà un'icona vuota, non un errore); il contrasto fra le due tinte; quanti
+ * pixel del pentagono e delle cuciture sopravvivono a SEDICI pixel - se sono pochi l'icona è una palla di
+ * colore e la sagoma non c'è; e in quante MACCHIE separate cadono, che è l'unica di queste misure capace
+ * di distinguere un pallone da una stella (`inkBlobs`, e il 05/09/2026 le altre tre non ci sono riuscite).
+ *
+ * GUARDARLA RESTA NECESSARIO, e la storia di questo file è la ragione: due disegni sbagliati su tre sono
+ * stati trovati aprendo l'immagine, non leggendo un numero. `--shot` la disegna ingrandita in una pagina,
+ * con i 16 pixel VERI incollati dentro - un `<img width=16>` su un ICO lascia scegliere al browser quale
+ * immagine decodificare, quindi non è detto che mostri quella che finisce nella scheda.
  */
 const read = { count: bytes.readUInt16LE(4), sizes: [], pngs: 0 };
 for (let at = 0; at < read.count; at += 1) {
@@ -331,19 +370,71 @@ for (let at = 0; at < read.count; at += 1) {
 const smallest = raster(16, colors);
 let inkPixels = 0;
 let fillPixels = 0;
+const isInk = new Array(16 * 16).fill(false);
 for (let at = 0; at < smallest.length; at += 4) {
   if (smallest[at + 3] < 128) continue;
   // Più vicino all'inchiostro che alla tinta: è la domanda «questo pixel disegna la sagoma?».
   const toInk = colors.inkRgb.reduce((sum, c, i) => sum + (smallest[at + i] - c) ** 2, 0);
   const toFill = colors.fillRgb.reduce((sum, c, i) => sum + (smallest[at + i] - c) ** 2, 0);
-  if (toInk < toFill) inkPixels += 1;
-  else fillPixels += 1;
+  if (toInk < toFill) {
+    inkPixels += 1;
+    isInk[at / 4] = true;
+  } else fillPixels += 1;
 }
+
+/**
+ * QUANTE MACCHIE SEPARATE fa la sagoma a 16px - ed è l'unica misura qui che sa distinguere un pallone
+ * da una stella.
+ *
+ * Il 05/09/2026 il disegno era una stella e questo blocco diceva «nessun problema», perché contava
+ * l'AREA: 142 pixel di tinta e 38 di sagoma. Sostituita la geometria con gli archi tangenziali, l'area
+ * legge **gli stessi 142 e 38** - il pentagono più grande compensa esattamente le cuciture più corte -
+ * mentre la figura è tutt'altra. Un'area non ha una forma, quindi due disegni opposti le stanno dentro
+ * uguali, ed è la stessa lezione che questo repository ha già pagato altrove: *righe identiche non sono
+ * un risultato, e un conteggio non è una misura del disegno.*
+ *
+ * Quello che separa i due casi è la CONNESSIONE: in una stella le cuciture toccano il pentagono e la
+ * sagoma è UNA macchia sola; in un pallone il centro è una macchia e le cuciture stanno per conto loro.
+ * Connessione a 8, perché due pixel che si toccano d'angolo a 16px si leggono attaccati.
+ *
+ * Non è un gusto messo in una soglia: è l'affermazione che il disegno dichiara di essere. Se qualcuno
+ * riporta le cuciture ai vertici, questa riga lo dice invece di lasciarlo scoprire fra tre settimane.
+ */
+function inkBlobs() {
+  const seen = new Array(16 * 16).fill(false);
+  let blobs = 0;
+  for (let start = 0; start < 256; start += 1) {
+    if (!isInk[start] || seen[start]) continue;
+    blobs += 1;
+    const queue = [start];
+    seen[start] = true;
+    while (queue.length) {
+      const at = queue.pop();
+      const x = at % 16;
+      const y = (at / 16) | 0;
+      for (let dy = -1; dy <= 1; dy += 1) {
+        for (let dx = -1; dx <= 1; dx += 1) {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx > 15 || ny > 15) continue;
+          const next = ny * 16 + nx;
+          if (!isInk[next] || seen[next]) continue;
+          seen[next] = true;
+          queue.push(next);
+        }
+      }
+    }
+  }
+  return blobs;
+}
+
+const blobs = inkBlobs();
 
 console.log(`favicon ${flag('--check') ? '(solo controllo)' : 'scritto'}: ${colors.fill} su ${colors.ink}, tema ${theme}`);
 console.log(`· ico ${bytes.length} byte · ${read.count} immagini ${read.sizes.join('/')} · ${read.pngs} rilette come PNG della misura dichiarata`);
 console.log(`· contrasto sagoma/tinta ${ratio(colors.ink, colors.fill).toFixed(2)}:1`);
 console.log(`· a 16px: ${fillPixels} pixel di tinta e ${inkPixels} di sagoma su ${fillPixels + inkPixels} opachi`);
+console.log(`· a 16px la sagoma fa ${blobs} macchie separate: il centro e le cuciture, staccate`);
 
 const problems = [];
 if (read.pngs !== SIZES.length) problems.push(`${SIZES.length - read.pngs} immagini non si rileggono: la directory dell'ico punta male`);
@@ -351,6 +442,8 @@ if (ratio(colors.ink, colors.fill) < 3) problems.push('la sagoma non si stacca d
 // La soglia è quello che serve perché la sagoma esista: il pentagono da solo, a 16px, sono ~12 pixel.
 if (inkPixels < 20) problems.push(`solo ${inkPixels} pixel di sagoma a 16px: l'icona è una palla di colore`);
 if (fillPixels < 80) problems.push(`solo ${fillPixels} pixel di tinta a 16px: il pallone non riempie l'icona`);
+// UNA macchia sola vuol dire cuciture saldate al centro, cioè una stella: vedi `inkBlobs`.
+if (blobs < 2) problems.push('a 16px la sagoma è UNA macchia sola: le cuciture toccano il centro e il disegno è una stella, non un pallone');
 for (const problem of problems) console.log(`  ⚠ ${problem}`);
 console.log(problems.length ? `\n${problems.length} PROBLEMI` : '\nnessun problema');
 process.exitCode = problems.length ? 1 : 0;

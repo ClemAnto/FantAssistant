@@ -2537,3 +2537,106 @@ canonica, mai per la stringa che una fonte usa per chiamarla»); con `club_index
   `spec-euroleghe-ingest-v9.md` è aperto da loro.
 - **Aperto**: il marchio non compare finché non girano `snapshot` + `export` — il DB è dell'altra
   sessione.
+
+## 27. IL MALUS SUI MINUTI: il meccanismo è vero, il canale è già letto (5 settembre 2026)
+
+**Da dove è nata**: un'osservazione dell'operatore sulla pagina Strategia — «secondo i dati attuali i
+minuti previsti a partita da alcuni calciatori che sono nei primi posti nella classifica degli attaccanti
+sono molto bassi (vedi Thuram (39), Krstovic (36), Castro (38)) ... Non sarebbe il caso di valutare un
+"malus" per questi casi sul GAIN? La mia idea è che il GAIN viene calcolato sulla fantamedia e sulle
+partite attese calcolate sulla scorsa stagione ma i minuti attesi ci fanno dare uno sguardo a quello che
+sarà il futuro quindi con pochi minuti anche i bonus diminuiranno.»
+
+Due risposte, e vanno tenute separate perché una è un difetto e l'altra è una misura.
+
+### 27.1 Quei tre numeri erano un DIFETTO, non un fatto sul calcio
+
+Prima di prezzare un fatto si verifica che sia un fatto: Thuram nel 2025-26 ha giocato **29 partite, 24
+da titolare, 1913 minuti**, cioè 66' a presenza. La colonna leggeva 39. Causa, cura e misura fuori
+campione (+31,9% a k = 2, 6 stagioni su 6): spec «Novità v9.74». Tre attaccanti di punta tutti sui 36-39
+minuti sono la firma di una causa NOSTRA — la stessa lettura che vale per uno zero uniforme.
+
+### 27.2 Il malus, misurato a difetto corretto
+
+Il **meccanismo dell'operatore esiste ed è un fatto sugli attaccanti**: sul cambio realizzato dei minuti
+per presenza fra due stagioni, la correlazione col cambio del tasso di bonus è
+
+| ruolo | r(Δminuti, Δbonus) |
+|---|---|
+| **A** | **+0,424** |
+| C | +0,177 |
+| D | +0,113 |
+| P | −0,063 |
+
+Quello che non regge è il passo dopo, ed è la regola di casa «una differenza fra due gruppi non è un
+canale finché non hai verificato che il modello non la stia già leggendo»: **la fantamedia è misurata su
+quei minuti lì**, quindi li contiene. Su 2.563 coppie stagione-su-stagione di Serie A (≥10 voti per
+stagione, `season_stats` per le fantamedie e `external_stats` per i minuti), correlazione fra i minuti per
+presenza a t−1 e la fantamedia a t, grezza e poi a parità di fantamedia a t−1:
+
+| ruolo | n | grezza | **parziale** | sui BONUS |
+|---|---|---|---|---|
+| A | 513 | +0,322 | **+0,082** | +0,094 |
+| C | 953 | +0,100 | −0,002 | −0,019 |
+| D | 933 | +0,034 | −0,014 | −0,042 |
+| P | 164 | −0,092 | −0,078 | −0,062 |
+
+Il +0,322 degli attaccanti collassa a +0,082 appena si controlla la sua fantamedia; per gli altri tre
+ruoli è **zero**. La pendenza, in unità che decidono una scelta: `FM(t) = 3,195 + 0,485 · FM(t−1) +
+0,00371 · min/pres`, cioè **+1 sd di minuti (17') = +0,064 di fantamedia = +1,6 fantapunti su 25
+presenze = +0,04 a giornata** — contro un buco che ne costa 4,7. Sotto ogni pavimento che questo progetto
+usa, e sopra un canale che la fantamedia contiene già: un malus lì conterebbe due volte lo stesso fatto.
+
+### 27.3 E c'è una circolarità che lo chiude
+
+`desc_minutes_next` **non è uno sguardo indipendente sul futuro**, che è la premessa della proposta: è per
+il 70% la quota da titolare misurata e per il 30% un modello il cui denominatore è `engine_pv_pred`
+(`minutes.start_rate_next`). Entrerebbe nel GAIN un numero che il GAIN contiene già — e la metà
+«indipendente» che resta è la quota da titolare, cioè esattamente la colonna che si è appena scoperta
+rotta.
+
+**Il soffitto, per sapere cosa riaprirebbe la questione**: il cambio REALIZZATO dei minuti (che nessuno
+conosce in agosto) correla +0,394 col cambio di fantamedia in attacco. Quindi non manca un termine, manca
+una previsione dei minuti abbastanza buona da valere quel +0,42 — e la MAE di quella previsione è 13,0'
+su una sd di 17'. È la stessa frase che `engine/minutes.py` scrive di sé: *la forma è giusta, quello che
+nessuno ha è una buona previsione di chi comincia la partita.*
+
+## 28. LA FAVICON ERA UNA STELLA, e tre controlli su tre dicevano «nessun problema» (5 settembre 2026)
+
+**Da dove è nata**: «crea una favicon adeguata». Ne esisteva già una, ben costruita — `scripts/
+make-favicon.mjs`, una geometria sola per SVG e ICO, i colori dal tema, zero dipendenze, un `--check` — e
+il difetto stava esattamente dove nessuno guardava.
+
+**A 16 pixel non era un pallone: era una stella a cinque punte.** Le cuciture erano RADIALI e partivano
+dai vertici del pentagono; l'antialiasing allarga una cucitura da 0,77 px a due pixel grigi che si saldano
+al vertice, e cinque punte attaccate a un pentagono sono una stella. Il commento del file **dichiarava di
+aver già corretto proprio quella figura** («a sedici pixel sbiadisce, resta il pentagono in mezzo al
+cerchio»): non sbiadisce, e il difetto è sopravvissuto alla propria correzione per tre settimane perché
+la correzione è stata ragionata e non riguardata alla misura che conta.
+
+**IL CONTROLLO NON POTEVA VEDERLO, ED È LA PARTE UTILE.** `--check` misurava tre cose — il file si
+rilegge, il contrasto è 5,56:1, e a 16px ci sono 142 pixel di tinta e 38 di sagoma — e rispondeva «nessun
+problema». Dopo aver cambiato la geometria l'area legge **gli stessi 142 e 38**, perché il pentagono più
+grande compensa esattamente le cuciture più corte, mentre la figura è tutt'altra. *Un'area non ha una
+forma, quindi due disegni opposti le stanno dentro uguali*, ed è «righe identiche non sono un risultato»
+incontrato da un lato nuovo: qui le righe identiche erano vere e non dicevano niente.
+
+**L'invariante che li separa è la CONNESSIONE**, e ora è asserita (`inkBlobs`): in una stella le cuciture
+toccano il pentagono e la sagoma è UNA macchia; in un pallone il centro è una macchia e le cuciture stanno
+per conto loro. Connessione a 8, perché a 16px due pixel che si toccano d'angolo si leggono attaccati. Il
+disegno nuovo legge **7 macchie**. Non è un gusto messo in una soglia: è l'affermazione che il disegno fa
+di sé, quindi chi riporta le cuciture ai vertici lo scopre subito.
+
+**La cura non è un'altra taratura della stessa forma**: è togliere alla forma la possibilità di fare una
+stella. Le cuciture sono **archi TANGENZIALI** sui punti medi dei lati del pentagono — un arco non ha un
+capo che punta in fuori e non tocca il centro a nessuna risoluzione — che è anche la cucitura di un
+pallone vero. Sette varianti rasterizzate e GUARDATE a 16px prima di sceglierne una (radiali corte,
+radiali staccate, solo pentagono, tacche sul bordo, tre grane di archi): le radiali restano stellate a
+ogni accorciamento, il solo pentagono è il più leggibile a 16 e non è un pallone a 64, gli archi tengono
+tutt'e due le misure.
+
+**Verificato in tre modi diversi perché sono tre cose diverse**: i pixel dell'ICO estratti dal file e
+guardati a 16/32/64; il conteggio delle macchie; e il VETTORE aperto in un Chrome vero a 16/32/64/128 —
+che è quello che i browser moderni disegnano davvero, e che fino a quel momento nessuna misura aveva
+toccato. Un `fill` dimenticato su un `<path>` con un arco riempie la corda: il raster non se ne sarebbe
+accorto, perché il raster non legge l'SVG.

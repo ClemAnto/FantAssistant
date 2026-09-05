@@ -4160,6 +4160,61 @@ Quattro abitudini, e due sono errori di misura miei della stessa giornata.
 file, «no tests», due istanze del pacchetto). In un worktree di verifica si fa `npm ci --prefer-offline`,
 che costa **21 secondi** — mentre `public/data` per giunzione va benissimo, perché sono dati e non moduli.
 
+## Tre colonne che sono una frazione e il suo valore vengono dalla STESSA finestra
+**05/09/2026, da un'osservazione dell'operatore su tre attaccanti in cima alla lista della Strategia: «i
+minuti previsti a partita sono molto bassi (Thuram 39, Krstovic 36, Castro 38) ... non sarebbe il caso di
+un malus sul GAIN?». Dettaglio: spec «Novità v9.74» e `letture-app-v1.md` §27.** Prima di prezzare un
+fatto si verifica che sia un fatto, e non lo era: Thuram aveva giocato 29 partite, 24 da titolare, 1913
+minuti. Tre attaccanti di punta tutti sui 36-39 minuti sono la firma di una causa NOSTRA, come lo è uno
+zero uniforme.
+
+**La miscela del 04/09 aveva spostato DUE colonne su tre.** `desc_season_starts` e `desc_season_matches`
+erano passate a `blend_seasons`, `desc_start_share` era rimasta su `season_play` — la sola stagione in
+corso, due giornate — e `minutes.per_appearance` prende i minuti dalla prima coppia e la quota dalla
+terza: **due campioni in un conto solo**, cioè l'errore di unità che la miscela era nata per curare. 267
+righe su 602 in disaccordo col proprio `starts/matches`, 100 a 0,000 esatto, e nei DUE VERSI (chi le sue
+due partite le aveva cominciate da titolare leggeva 1,000). Non solo un numero sulla card: i pavimenti
+della scala della titolarità sono in MINUTI, quindi **94 righe attraversavano un gradino**.
+
+**IL GIUDICE ABITUALE NON POTEVA VEDERLO, e sceglierlo lo stesso avrebbe prodotto due numeri identici da
+leggere come una conferma.** `press --against press` giudica la board, e la board non legge quella colonna
+(`eleven` usa `desc_season_starts` come spareggio). *Prima di scegliere un giudice, chiedersi cosa il
+cambio può muovere* — la regola «prima di costruire un canale, chiedersi cosa il suo output può cambiare»
+applicata alla propria verifica invece che a un candidato. Il giudice giusto era la quota stessa, fuori
+campione: alla giornata k prevedere `starts/appearances` sulle giornate che RESTANO — MAE 0,2749 → 0,1873
+a k = 2 (**+31,9%**), 6 stagioni su 6, 5 campionati su 5, positivo a ogni k e a ogni K. Inerte su una
+pre-stagione, quindi nessuna finestra pubblicata dal gate si muove.
+
+**E il malus chiesto è misurato e NON adottato.** Il meccanismo dell'operatore è vero ed è un fatto sugli
+attaccanti (r = +0,424 fra cambio dei minuti e cambio del tasso bonus, contro +0,177 C · +0,113 D · −0,063
+P), ma la fantamedia lo legge già: la correlazione grezza +0,322 degli attaccanti diventa **+0,082** a
+parità di fantamedia precedente, e zero per gli altri tre ruoli — **+0,04 a giornata**, contro un buco che
+ne costa 4,7. Più una circolarità che chiude la questione: `desc_minutes_next` non è uno sguardo
+indipendente sul futuro, è per il 30% un modello il cui denominatore è `engine_pv_pred`. *Un canale che la
+colonna che vorresti correggere contiene già non è un canale: è lo stesso fatto contato due volte.*
+
+## Un CONTEGGIO non è una misura del disegno, e due disegni opposti ci stanno dentro uguali
+**05/09/2026, da «crea una favicon adeguata». Dettaglio: `letture-app-v1.md` §28.** A 16 pixel l'icona non
+era un pallone, era una **stella a cinque punte**: cuciture radiali dai vertici del pentagono, e
+l'antialiasing allarga un tratto da 0,77 px in due pixel grigi che si saldano al vertice. Il commento del
+file dichiarava di aver già corretto quella figura — «a sedici pixel sbiadisce» — e **non sbiadisce**: il
+difetto è sopravvissuto alla propria correzione per tre settimane perché la cura è stata ragionata e mai
+riguardata alla misura che conta.
+
+**Il controllo automatico diceva «nessun problema», e continua a dirlo con lo stesso numero.** Misurava
+l'AREA (142 pixel di tinta, 38 di sagoma a 16px); sostituita la geometria, l'area legge **gli stessi 142 e
+38** perché il pentagono più grande compensa le cuciture più corte. *Un'area non ha una forma.* È «righe
+identiche non sono un risultato» da un lato nuovo: qui erano vere, e non dicevano niente. L'invariante che
+separa i due casi è la CONNESSIONE — in una stella le cuciture toccano il centro e la sagoma è UNA
+macchia, in un pallone sono staccate — ed è ora asserita. **Quando un controllo può riportare solo un
+totale, chiedersi quale disegno sbagliato darebbe lo stesso totale, e asserire la differenza.**
+
+Due corollari pagati la stessa ora: la cura giusta non era un'altra taratura della stessa forma ma
+**togliere alla forma la possibilità di sbagliare** (archi tangenziali, che non hanno un capo che punta in
+fuori); e **un asset generato si verifica nel mezzo che lo consuma** — l'SVG, che è quello che i browser
+disegnano, è stato aperto in un Chrome vero solo dopo la riscrittura, e un `fill` dimenticato su un arco
+riempie la corda senza che nessun test del rasterizzatore possa vederlo.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

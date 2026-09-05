@@ -202,6 +202,23 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   column be dropped past the LAST one» answered «that gap does not exist» while it was dragging a column
   that sat OFF SCREEN. Split it: the gap arithmetic is measured on a table that fits the window, and «are
   the off-screen columns reachable» is its own step.
+- **A COUNT IS NOT A MEASURE OF A DRAWING, and an identical count can be a true number that says
+  nothing.** The favicon's own audit measured area — «142 tint and 38 ink pixels at 16px» — and answered
+  «no problems» about an icon that read as a five-pointed STAR; after the geometry was replaced the area
+  read **the same 142 and 38** while the figure was entirely different. An area has no shape, so two
+  opposite drawings fit inside it identically. What separates them is an invariant of the FORM (here: how
+  many separate blobs the ink falls into at 16px, `inkBlobs`) — and the rule generalises: when an audit
+  can only report a total, ask what drawing would produce the same total and add the assertion that tells
+  the two apart.
+- **Look at the raster at the size the thing actually lives at.** That star survived its OWN correction
+  for three weeks because the fix was reasoned in a comment («at sixteen pixels a seam fades») and never
+  re-rendered at sixteen. Antialiasing does not fade a 0.77px stroke, it widens it into two grey pixels
+  that weld to whatever they start from.
+- **A generated asset is verified in the medium that consumes it.** The favicon has two outputs from one
+  geometry, and only the raster was ever checked; the SVG — which is what modern browsers actually draw —
+  was opened in a real Chrome only after the rewrite. A forgotten `fill="none"` on a `<path>` with an arc
+  fills the chord, and no amount of rasteriser testing can see it, because the rasteriser does not read
+  the SVG.
 - Before delivering a change: **the production build must pass** (`ng build`) AND **`ng test`**, and for
   anything visible, the page opened in a real browser.
 - **A green `ng build` says nothing about the tests, and on 20/08/2026 it hid a suite that would not even
