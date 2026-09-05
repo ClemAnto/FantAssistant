@@ -1681,7 +1681,7 @@ export const RATING_DETAIL: Record<RatingKey, string> = {
     + 'posto 0-99 su tutto il listone. '
     + 'DUE DIFFERENZE COL «VALORE» DEL PANNELLO ASTA, dichiarate invece che scoperte al tavolo (17/08/2026): '
     + 'quella colonna moltiplica per la CONFIDENZA della stima e questa no — sul listone di Serie A metà '
-    + 'delle righe sono stimate con confidenza mediana 0,50, quindi Doekhi è 167° qui e 390° là — e questa '
+    + 'delle righe sono stimate con confidenza mediana 0.50, quindi Doekhi è 167° qui e 390° là — e questa '
     + 'aggiunge ai portieri la porta inviolata che la tua lega paga, mentre là il conto resta nel punteggio '
     + 'della fonte, che non la applica. Sono due domande («quanto vale» contro «quanto conviene comprarlo '
     + 'a questo tavolo») e nessuna delle due è sbagliata: quello che sarebbe sbagliato è non saperlo.',

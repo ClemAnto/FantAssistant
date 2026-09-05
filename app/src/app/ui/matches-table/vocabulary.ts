@@ -70,13 +70,13 @@ export function voteText(cell: MatchCell): string {
   // seconda al posto della prima stampava `*6,7` (la scala del provider) su una riga che ha `~5,9`
   // (la nostra).
   if (cell.vote != null) {
-    return (cell.voteSynthetic ? '~' : '') + cell.vote.toFixed(1).replace('.', ',');
+    return (cell.voteSynthetic ? '~' : '') + cell.vote.toFixed(1);
   }
   // Nel SUO campionato «nessun voto» e' un fatto pubblicato - s.v. - e non un buco da riempire col
   // rating: sono due scale, e il rating resta nel dettaglio.
   if (cell.kind === 'league') return 's.v.';
   if (cell.providerRating == null) return '·';
-  return '*' + cell.providerRating.toFixed(1).replace('.', ',');
+  return '*' + cell.providerRating.toFixed(1);
 }
 
 /**

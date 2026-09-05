@@ -173,7 +173,7 @@ export class MatchesTable {
     if (events.length) parts.push(events.join(', '));
 
     if (cell.kind === 'league' && cell.fantavoto != null) {
-      parts.push(`fantavoto ${cell.fantavoto.toFixed(1).replace('.', ',')}`);
+      parts.push(`fantavoto ${cell.fantavoto.toFixed(1)}`);
     }
     if (cell.alsoInWeek) parts.push(`+${cell.alsoInWeek} nella stessa settimana`);
 

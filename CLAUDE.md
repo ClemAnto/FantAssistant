@@ -4215,6 +4215,23 @@ fuori); e **un asset generato si verifica nel mezzo che lo consuma** — l'SVG, 
 disegnano, è stato aperto in un Chrome vero solo dopo la riscrittura, e un `fill` dimenticato su un arco
 riempie la corda senza che nessun test del rasterizzatore possa vederlo.
 
+## Il divisore dei decimali di questa app e' il PUNTO
+**Operatore, 05/09/2026: «il divisore dei decimali deve essere sempre il punto "."».** Deciso dopo che il
+banco della Strategia aveva trovato la contraddizione confrontando due schermate: la lista scriveva `0.45`
+(`formatNumber` sul locale di default) e la card `0,45` (dieci `.replace('.', ',')` sparsi fra `core/` e
+`ui/`). Le PAROLE dell'interfaccia restano italiane - quella convenzione non cambia - la cifra no.
+
+Tolto ovunque si formatti un numero da mostrare: i voti e i fantavoti delle righe di partita, il
+riepilogo della card, gli attesi, le etichette dei filtri, la scala del mercato («4.5 M»), i buchi delle
+buste, e le percentuali dentro le frasi misurate degli screen (`player-place`, `player-screens`). Chi
+LEGGE quello che l'operatore scrive resta tollerante (`player-filter` accetta ancora `6,5` digitato a
+mano): una regola sull'output non e' una regola sull'input.
+
+**E la guardia sta a SCHERMO e non nel codice**, perche' una regola sul separatore si rompe la prossima
+volta che qualcuno scrive `.replace('.', ',')` e allora deve fallire dove si vede: due banchi (card e
+Strategia) contano le celle che portano una virgola fra due cifre con al piu' due decimali dietro —
+`1,000` sarebbe un separatore di MIGLIAIA e non e' questa regola.
+
 ## Due fonti per un fatto solo non convivono su uno schermo, e l'accordo si misura ALLA PRECISIONE CHE SI STAMPA
 **05/09/2026, dalle richieste dell'operatore su xG e xA. Dettaglio: `letture-app-v1.md` §29,
 `pagina-strategia-v1.md` §16, `metrica-asta-surplus-v1.md` §28.** Gli attesi servivano in due posti — il

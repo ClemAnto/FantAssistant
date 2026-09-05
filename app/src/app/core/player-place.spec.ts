@@ -20,15 +20,15 @@ describe('starterSignsMark, finestra corta', () => {
     // da 1,49x che cita il 76,8% della finestra piena prometterebbe una precisione che non ha.
     const early = starterSignsMark({ minutes: 78, starts: 2, window: 2, keeper: false, early: true, rising: false, preseason: false })!;
     expect(early.flag).toBe('starter_signs');
-    expect(early.note).toContain('76,5%');
-    expect(early.note).toContain('1,49x');
+    expect(early.note).toContain('76.5%');
+    expect(early.note).toContain('1.49x');
     expect(early.note).toContain('guardalo');
-    expect(early.note).not.toContain('76,8%');
+    expect(early.note).not.toContain('76.8%');
 
     // ...e la finestra piena non prende in prestito i numeri di quella corta.
     const full = starterSignsMark({ minutes: 78, starts: 4, window: 5, keeper: false, early: false, rising: false, preseason: false })!;
-    expect(full.note).toContain('76,8%');
-    expect(full.note).not.toContain('76,5%');
+    expect(full.note).toContain('76.8%');
+    expect(full.note).not.toContain('76.5%');
   });
 
   it('dice la TERZA lettura con i numeri della terza, e viene prima delle altre due', () => {
@@ -38,10 +38,10 @@ describe('starterSignsMark, finestra corta', () => {
     const rising = starterSignsMark({
       minutes: 41.5, starts: 1, window: 2, keeper: false, early: true, rising: true, preseason: false,
     })!;
-    expect(rising.note).toContain('1,78x');
+    expect(rising.note).toContain('1.78x');
     expect(rising.note).toContain("COMINCIATO l'ultima giornata");
     expect(rising.note).toContain('raddoppiato');
-    expect(rising.note).not.toContain('76,5%');
+    expect(rising.note).not.toContain('76.5%');
   });
 
   it('parla PRIMA della prima giornata, e le amichevoli informano senza decidere', () => {
@@ -52,10 +52,10 @@ describe('starterSignsMark, finestra corta', () => {
       minutes: 70, starts: 2, window: 3, keeper: false,
       early: false, rising: false, preseason: true, friendlyStarts: 3, friendlyMatches: 6,
     })!;
-    expect(pre.note).toContain('1,64x');
+    expect(pre.note).toContain('1.64x');
     expect(pre.note).toContain('3 amichevoli su 6');
     expect(pre.note).toContain('non una prova');
-    expect(pre.note).not.toContain('1,78x');
+    expect(pre.note).not.toContain('1.78x');
 
     // ...e senza amichevoli in archivio la frase non le nomina invece di scrivere «0 su 0».
     const bare = starterSignsMark({
@@ -125,7 +125,7 @@ describe('rotationMark', () => {
     expect(mark.note).toContain('1 partita da titolare');
     expect(mark.note).toContain('non è il titolare e non ha minutaggio');
     // a screen is a reason to look and never a certainty: the note says how often it is right
-    expect(mark.note).toContain('90,4%');
+    expect(mark.note).toContain('90.4%');
     expect(mark.note).toContain('Uno su dieci diventa titolare davvero');
   });
 
@@ -155,14 +155,14 @@ describe('starterSignsMark', () => {
     const outfield = starterSignsMark({ minutes: 73, starts: 5, window: 5, keeper: false, early: false, rising: false, preseason: false })!;
     expect(outfield.flag).toBe('starter_signs');
     expect(outfield.note).toContain('Quotato da riserva');
-    expect(outfield.note).toContain('76,8%');
+    expect(outfield.note).toContain('76.8%');
     // the honest half: this claim is weaker than the rotation one
     expect(outfield.note).toContain('più debole');
 
     // For a keeper the same reading means «he is the number one» - and it is the strongest cell of
     // the screen (81.9% against a 22.3% base), because the reserve band of keepers is real reserves.
     const keeper = starterSignsMark({ minutes: 90, starts: 4, window: 4, keeper: true, early: false, rising: false, preseason: false })!;
-    expect(keeper.note).toContain('81,9%');
+    expect(keeper.note).toContain('81.9%');
     expect(keeper.note).toContain('è il numero uno');
     expect(keeper.note).not.toContain('più debole');
   });

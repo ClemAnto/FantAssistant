@@ -665,10 +665,11 @@ l'aggregato di stagione dello stesso provider costava 310 KB invece di 2,1 MB e 
 xG diversi al 19,7% degli uomini** fra la pastiglia e la card aperta accanto. Numeri e diagnosi:
 `letture-app-v1.md` §29.4.
 
-Un fatto che resta aperto e non è di questa richiesta: **la Strategia stampa i decimali col PUNTO
-(`0.45`) mentre la card usa la VIRGOLA (`0,45`)**. Due separatori nella stessa app in italiano; lo ha
-trovato il banco confrontando le due schermate, e la cura (il `LOCALE_ID` a `it`) tocca ogni numero
-della pagina, quindi è una decisione dell'operatore e non una svista da sistemare di nascosto.
+**E il banco ha trovato una contraddizione più larga di questa pagina**, confrontando le due
+schermate: la Strategia stampava i decimali col PUNTO (`0.45`) e la card con la VIRGOLA (`0,45`).
+Portata all'operatore invece che sistemata di nascosto — la cura tocca ogni numero dell'app — e la sua
+regola è **il punto, sempre**: le parole restano italiane, la cifra no. Dettaglio e guardia in
+`CLAUDE.md`, «Il divisore dei decimali di questa app è il PUNTO».
 
 ---
 

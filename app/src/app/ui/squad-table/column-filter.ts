@@ -133,9 +133,13 @@ function boundsOf(filter: ColumnFilter): string {
   return '';
 }
 
-/** La virgola, perché la tabella scrive 6,50 e un'etichetta che scrive 6.5 parla di un'altra colonna. */
+/**
+ * IL PUNTO, perché il divisore dei decimali di questa app è il punto (operatore, 05/09/2026: «il
+ * divisore dei decimali deve essere sempre il punto»). L'etichetta deve scrivere la stessa cifra della
+ * colonna che filtra, o parla di un'altra colonna.
+ */
 function decimal(value: number): string {
-  return String(value).replace('.', ',');
+  return String(value);
 }
 
 /**

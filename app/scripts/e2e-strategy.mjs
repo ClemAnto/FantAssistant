@@ -1094,7 +1094,7 @@ async function main() {
       ],
     });
 
-    // 2c-bis. GLI ATTESI, accesi con un CLICK VERO e confrontati con `external_stats` del bundle.
+    // 2c-bis. GLI ATTESI, accesi con un CLICK VERO e confrontati col layer per-partita del bundle.
     //
     //     Due cose in un passo solo e sono la stessa: che la pastiglia si accenda (una preferenza che
     //     vive in `localStorage`, quindi il DOM e' l'unico posto da cui si sa che ha morso) e che il
@@ -1184,9 +1184,10 @@ async function main() {
                 + `la card ${counts[0]}+${counts[1]} su ${summary.played} partite`,
               );
             }
-            // SI CONFRONTANO I NUMERI, non le stringhe: la card scrive `0,10` e la lista `0.10` -
-            // due separatori decimali nella stessa app, che e' un fatto vero e va detto all'operatore,
-            // non una differenza di valore da far fallire qui.
+            // SI CONFRONTANO I NUMERI e non le stringhe: e' il confronto giusto comunque, ed e' come
+            // il difetto e' stato trovato - fino al 05/09/2026 la card scriveva `0,10` e la lista
+            // `0.10`, due separatori nella stessa app. Ora il punto e' la regola (sotto c'e' il passo
+            // che la misura a schermo), e questa resta una tolleranza dell'arnese.
             const onCard = (summary.expected.match(/\d+[.,]\d+/g) ?? []).join(' ').replace(/,/g, '.');
             const onPill = `${witness.say.xg} ${witness.say.xa}`.replace(/,/g, '.');
             if (onCard !== onPill) {
@@ -1217,6 +1218,19 @@ async function main() {
         if (said) switched.push(said);
       }
     }
+    // ...E IL DIVISORE DEI DECIMALI E' IL PUNTO (operatore, 05/09/2026), misurato sul TESTO che la
+    // riga disegna: una regola sul separatore si rompe alla prossima `.replace('.', ',')`, quindi
+    // deve fallire dove si vede. `1,000` sarebbe un separatore di MIGLIAIA e non e' questa regola.
+    const commaPills = ((await evaluate(session, readPills)) ?? [])
+      .flatMap((row) => Object.entries(row.say).map(([key, text]) => `${key} ${text}`))
+      .filter((one) => /\d,\d{1,2}(?!\d)/.test(one));
+    note('i decimali col punto', {
+      said: `${commaPills.length} pastiglie con la virgola decimale`,
+      problems: commaPills.length
+        ? [`la riga scrive ancora la virgola: ${commaPills.slice(0, 3).join(' · ')}`]
+        : [],
+    });
+
     note('gol, assist e attesi: dal bundle e uguali alla card', {
       said: `${withExpected} righe con xG/xA nel pacchetto su ${producedByBundle.size} uomini con una `
         + `riga · card confrontata: ${crossChecked ?? 'nessuna (nessun uomo con gol E assist)'}`,

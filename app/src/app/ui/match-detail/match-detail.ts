@@ -74,12 +74,12 @@ export class MatchDetail {
 
   protected number(value: number | null | undefined, decimals = 1): string {
     if (value == null) return '-';
-    const text = value.toFixed(decimals).replace('.', ',');
+    const text = value.toFixed(decimals);
     return value > 0 && decimals === 1 ? text : text;
   }
 
   protected signed(value: number): string {
-    return (value > 0 ? '+' : '') + value.toFixed(1).replace('.', ',');
+    return (value > 0 ? '+' : '') + value.toFixed(1);
   }
 
   protected readonly stateLabel = computed(() => STATE_LABEL[this.cell().state]);

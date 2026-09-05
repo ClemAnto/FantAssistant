@@ -212,7 +212,7 @@ export class PlayerCard {
    */
   protected mean(value: number | null, totals: SeasonTotals): string {
     if (value == null) return '—';
-    return (totals.synthetic ? '~' : '') + value.toFixed(1).replace('.', ',');
+    return (totals.synthetic ? '~' : '') + value.toFixed(1);
   }
 
   /**
@@ -223,7 +223,7 @@ export class PlayerCard {
    * atteso arriva dal provider come lo pubblica, non da una retta calibrata sui voti.
    */
   protected expected(value: number | null): string {
-    return value == null ? '—' : value.toFixed(2).replace('.', ',');
+    return value == null ? '—' : value.toFixed(2);
   }
 
   /**
@@ -232,7 +232,8 @@ export class PlayerCard {
    * Gli attesi vengono dal layer per-partita e i voti dai voti: una giornata puo' avere il voto e non
    * la riga del provider. Dirlo e' il punto - una media senza il suo denominatore e' la famiglia di
    * difetti che questo progetto paga da sempre - e il posto giusto e' il tooltip, perche' la riga porta
-   * gia' due numeri e la card e' larga 288px.
+   * gia' due numeri e la card e' larga `CARD_WIDTH`, che e' una costante e non un numero da citare qui
+   * (citato, il commento e' rimasto a 288 il giorno in cui la card e' passata a 320).
    */
   protected expectedHint(totals: SeasonTotals): string {
     const on = (many: number) => `${many} partit${many === 1 ? 'a' : 'e'} di ${totals.played}`;

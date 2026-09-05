@@ -661,10 +661,13 @@ async function main() {
         continue;
       }
       const source = found[0];
+      // IL PUNTO, che dal 05/09/2026 e' il divisore dei decimali dell'app (operatore). L'arnese
+      // riscrive la regola invece di importarla, e c'e' un passo APPOSTA che misura il formato a
+      // schermo: cosi' un cambio di separatore fa fallire quel passo e non trentacinque righe qui.
       const want = source.synth != null
-        ? `~${roundVote(source.synth).toFixed(1).replace('.', ',')}`
+        ? `~${roundVote(source.synth).toFixed(1)}`
         : source.rating != null
-          ? `*${source.rating.toFixed(1).replace('.', ',')}`
+          ? `*${source.rating.toFixed(1)}`
           : '·';
       // NIENTE MINUTI E NIENTE RATING = la riga non lo mette in campo affatto: al posto dei minuti
       // disegna l'icona dello stato, quindi la cella non ha testo. Aspettarsi «?'» li' era una mia
@@ -965,7 +968,11 @@ async function main() {
     const wrongExpected = [];
     for (const one of shown.expected) {
       const want = wantExpected(one.season ?? newest);
-      const said = [...one.values.matchAll(/(\d+,\d+)/g)].map((m) => Number(m[1].replace(',', '.')));
+      // I NUMERI e non le stringhe: il separatore e' il punto dal 05/09/2026, ma un arnese che legge
+      // solo la forma di oggi non sa dire se il difetto e' nel valore o nel formato - e c'e' un passo
+      // apposta per il formato.
+      const said = [...one.values.matchAll(/(\d+[.,]\d+)/g)]
+        .map((m) => Number(m[1].replace(',', '.')));
       const near = (screen, bundle) =>
         bundle == null ? screen === undefined : screen != null && Math.abs(screen - bundle) < 0.006;
       if (!near(said[0], want.xg) || !near(said[1], want.xa)) wrongExpected.push({ ...one, want });
@@ -988,6 +995,22 @@ async function main() {
       problems: shown.fit.cut > 0
         ? [`${shown.fit.cutRows} righe perdono fino a ${shown.fit.cut}px oltre il bordo`]
         : [],
+    });
+
+    // 5m. IL DIVISORE DEI DECIMALI E' IL PUNTO (operatore, 05/09/2026: «deve essere sempre il punto»).
+    //     Si misura sul TESTO che la card disegna e non sul codice: una regola sul separatore si rompe
+    //     la prossima volta che qualcuno scrive `.replace('.', ',')`, e allora il posto in cui deve
+    //     fallire e' lo schermo. Una virgola fra due cifre, con al piu' due decimali dopo, e' un
+    //     separatore decimale; `1,000` sarebbe un separatore di MIGLIAIA e non e' questa regola.
+    const commas = [
+      ...shown.rows.flatMap((one) => [one.minutes, one.vote, one.fantavoto, one.bonuses]),
+      ...shown.summaries.flatMap((one) => [one.played, one.minutes, one.mv, one.fm, ...one.marks]),
+      ...shown.expected.map((one) => one.values),
+    ].filter((text) => /\d,\d{1,2}(?!\d)/.test(text ?? ''));
+    note('i decimali col punto', {
+      said: `${commas.length} celle con la virgola decimale su ${shown.rows.length} righe e `
+        + `${shown.summaries.length} riepiloghi`,
+      problems: commas.length ? [`la card scrive ancora la virgola: ${commas.slice(0, 3).join(' · ')}`] : [],
     });
 
     note('il riepilogo di stagione', {

@@ -218,7 +218,7 @@ export class MatchLine {
     if (cell.fantavoto == null) return null;
     // Lo stesso `~` del voto: e' calcolato da noi (voto sintetico + bonus) e non pubblicato dalla
     // fonte. Un marchio sul voto e nessuno sul fantavoto direbbe che uno dei due e' misurato.
-    return (cell.voteSynthetic ? '~' : '') + cell.fantavoto.toFixed(1).replace('.', ',');
+    return (cell.voteSynthetic ? '~' : '') + cell.fantavoto.toFixed(1);
   });
 
   /**

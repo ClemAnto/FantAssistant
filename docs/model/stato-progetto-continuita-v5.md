@@ -5271,9 +5271,12 @@ della card misura ora il TAGLIO delle celle oltre il bordo (`fit.cut`).
 
 ## Aperti di questa sessione
 
-1. **Due separatori decimali nella stessa app in italiano**: la Strategia stampa `0.45`, la card `0,45`.
-   Lo ha trovato il banco confrontando le due schermate. La cura è il `LOCALE_ID` a `it`, che tocca ogni
-   numero della pagina: è una decisione dell'operatore, non una svista da sistemare di nascosto.
+1. ~~Due separatori decimali nella stessa app~~ — **CHIUSO la sera stessa dall'operatore: «il divisore
+   dei decimali deve essere sempre il punto "."».** Tolte le dieci `.replace('.', ',')` fra `core/` e
+   `ui/`, il `toLocaleString('it-IT')` dei buchi, e le percentuali dentro le frasi misurate degli screen;
+   i LETTORI restano tolleranti (chi digita `6,5` in un filtro è capito). La guardia è a schermo — due
+   banchi contano le celle con una virgola fra due cifre — perché una regola sul separatore si rompe alla
+   prossima `.replace()` e deve fallire dove si vede.
 2. **`backtest --verify` resta dovuto** dalla v9.72 (eredità della sessione precedente): niente di questa
    sessione tocca `evaluate`, quindi il 22/22 dovrebbe reggere, ma va rieseguito da chi possiede il DB.
 3. La misura sulle finestre di xG **non è una regola**: nessun gate la possiede. Chi volesse farne un

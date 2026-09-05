@@ -3240,7 +3240,8 @@ export function adviceFor(input: {
       fielded,
       rules,
     );
-    const holesWord = holes.toLocaleString('it-IT', { maximumFractionDigits: 1 });
+    // Il punto e non la virgola: e' il divisore dei decimali di questa app (operatore, 05/09/2026).
+    const holesWord = holes.toLocaleString('en-US', { maximumFractionDigits: 1 });
     const rank = line?.rank ?? 0;
 
     // What is still out there, in the two shapes the advice can point at: quality, and men who play.

@@ -170,10 +170,10 @@ export function screensFor(players: readonly ScreenInput[]): Map<number, ScreenH
 const EVIDENCE: Record<ScreenFlag, string> = {
   promise:
     'difensore nella meta bassa del suo ruolo che produce: 50% di questi ha chiuso nel quarto alto del '
-    + 'ruolo, contro il 28,9% di base (1,89x) su 4 stagioni e 2 piattaforme',
+    + 'ruolo, contro il 28.9% di base (1.89x) su 4 stagioni e 2 piattaforme',
   flop_risk:
-    'attaccante nel quarto alto del suo ruolo che non genera: 21,9% di questi ha reso sotto la mediana, '
-    + 'contro il 9,1% di base (2,41x) su 4 stagioni e 2 piattaforme',
+    'attaccante nel quarto alto del suo ruolo che non genera: 21.9% di questi ha reso sotto la mediana, '
+    + 'contro il 9.1% di base (2.41x) su 4 stagioni e 2 piattaforme',
 };
 
 /**

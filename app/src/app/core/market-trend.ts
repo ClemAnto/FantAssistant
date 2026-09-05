@@ -147,7 +147,7 @@ export function trendOf(
 export function euros(value: number): string {
   if (value >= 1_000_000) {
     const millions = value / 1_000_000;
-    return `${millions.toFixed(millions < 10 ? 1 : 0).replace('.', ',')} M`;
+    return `${millions.toFixed(millions < 10 ? 1 : 0)} M`;
   }
   return `${Math.round(value / 1000)} mila`;
 }

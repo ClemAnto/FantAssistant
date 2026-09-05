@@ -95,9 +95,11 @@ describe('yearBefore', () => {
 });
 
 describe('euros', () => {
-  it('scrive la scala della fonte in italiano', () => {
+  it('scrive la scala in italiano e i decimali col PUNTO', () => {
+    // Il divisore dei decimali di questa app è il punto (operatore, 05/09/2026): le parole restano
+    // italiane, la cifra no - due separatori nella stessa app erano la cosa da togliere.
     expect(euros(45_000_000)).toBe('45 M');
-    expect(euros(4_500_000)).toBe('4,5 M');
+    expect(euros(4_500_000)).toBe('4.5 M');
     expect(euros(800_000)).toBe('800 mila');
   });
 });

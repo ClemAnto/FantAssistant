@@ -192,7 +192,7 @@ export function rotationMark(watch: RotationWatch | null | undefined): PlayerMar
       note:
         `Quotato fra i primi del suo ruolo, ma ${played} — segnali di incertezza, su una finestra ` +
         `CORTA. Misurato: a due o tre giornate questa lettura è giusta circa l'81% delle volte contro ` +
-        `una base del 58% (1,40x), dove alla quarta è giusta al 96%. Vuol dire «guardalo», non «non è ` +
+        `una base del 58% (1.40x), dove alla quarta è giusta al 96%. Vuol dire «guardalo», non «non è ` +
         `il titolare»: dopo due giornate del 2025-26 avrebbe segnalato anche Donnarumma, che ha poi ` +
         `chiuso a 85 minuti di media.`,
     };
@@ -201,8 +201,8 @@ export function rotationMark(watch: RotationWatch | null | undefined): PlayerMar
     flag: 'rotation_risk',
     note:
       `Quotato fra i primi del suo ruolo, ma ${played} — non è il titolare e non ha minutaggio. ` +
-      `Misurato su 4 stagioni: il 90,4% di chi si legge così chiude il resto della stagione sotto i 60 ` +
-      `minuti a partita, contro il 59,5% di chi non lo fa (1,52x). Uno su dieci diventa titolare ` +
+      `Misurato su 4 stagioni: il 90.4% di chi si legge così chiude il resto della stagione sotto i 60 ` +
+      `minuti a partita, contro il 59.5% di chi non lo fa (1.52x). Uno su dieci diventa titolare ` +
       `davvero.`,
   };
 }
@@ -247,9 +247,9 @@ export function starterSignsMark(signs: StarterSigns | null | undefined): Player
       note:
         `Non si e' ancora giocata una giornata. Quotato basso nel suo ruolo, ha COMINCIATO ` +
         `${signs.starts ?? 0} delle ultime ${rounds} giornate della stagione scorsa e il suo valore ` +
-        `di mercato e' almeno raddoppiato in 24 mesi. Misurato su 6 stagioni: il 48,8% di questi parte ` +
-        `titolare in almeno meta' della stagione che si sta comprando, contro il 29,8% della sua ` +
-        `fascia (1,64x), su 41 uomini a stagione e 6 stagioni su 6. E' la piu' DEBOLE delle quattro ` +
+        `di mercato e' almeno raddoppiato in 24 mesi. Misurato su 6 stagioni: il 48.8% di questi parte ` +
+        `titolare in almeno meta' della stagione che si sta comprando, contro il 29.8% della sua ` +
+        `fascia (1.64x), su 41 uomini a stagione e 6 stagioni su 6. E' la piu' DEBOLE delle quattro ` +
         `letture e la piu' precoce: si consolida o cade appena si gioca.${friendly}`,
     };
   }
@@ -263,8 +263,8 @@ export function starterSignsMark(signs: StarterSigns | null | undefined): Player
       note:
         `Quotato basso nel suo ruolo, ma ha COMINCIATO l'ultima giornata del suo club e il suo valore ` +
         `di mercato e' almeno raddoppiato in 24 mesi. Misurato su 5 stagioni del listone Serie A, come ` +
-        `RESIDUO di chi la lettura piena non prende gia': il 59,3% di questi parte titolare in almeno ` +
-        `meta' delle partite che restano, contro il 33,4% della sua fascia (1,78x), su 11 uomini a ` +
+        `RESIDUO di chi la lettura piena non prende gia': il 59.3% di questi parte titolare in almeno ` +
+        `meta' delle partite che restano, contro il 33.4% della sua fascia (1.78x), su 11 uomini a ` +
         `stagione. E' il caso che la regola piena lascia indietro - chi la maglia l'ha presa da poco.`,
     };
   }
@@ -279,18 +279,18 @@ export function starterSignsMark(signs: StarterSigns | null | undefined): Player
       note:
         `Quotato da riserva nel suo ruolo, ma le ${rounds} giornate giocate finora le ha cominciate ` +
         `${signs.starts ?? 0} da titolare, con una media di ${signs.minutes.toFixed(0)} minuti — su ` +
-        `una finestra CORTA. Misurato su 4 stagioni del listone Serie A: dopo DUE giornate il 76,5% ` +
+        `una finestra CORTA. Misurato su 4 stagioni del listone Serie A: dopo DUE giornate il 76.5% ` +
         `di chi si legge così parte titolare in almeno metà delle partite che restano, contro il ` +
-        `51,3% della sua fascia (1,49x), dove alla quarta è 1,63x. Vuol dire «guardalo», non «è il ` +
+        `51.3% della sua fascia (1.49x), dove alla quarta è 1.63x. Vuol dire «guardalo», non «è il ` +
         `titolare».`,
     };
   }
   const evidence = signs.keeper
-    ? "Misurato su 4 stagioni: per un PORTIERE è la lettura più forte di questo screen — l'81,9% di "
-      + 'chi si legge così parte titolare in almeno metà delle partite che restano, contro il 22,3% '
-      + 'della fascia riserve (3,68x). Vuol dire «è il numero uno», non «sta crescendo».'
-    : 'Misurato su 4 stagioni: il 76,8% di chi si legge così parte titolare in almeno metà delle '
-      + 'partite che restano, contro il 42,3% della sua fascia (1,82x). È una pretesa più debole '
+    ? "Misurato su 4 stagioni: per un PORTIERE è la lettura più forte di questo screen — l'81.9% di "
+      + 'chi si legge così parte titolare in almeno metà delle partite che restano, contro il 22.3% '
+      + 'della fascia riserve (3.68x). Vuol dire «è il numero uno», non «sta crescendo».'
+    : 'Misurato su 4 stagioni: il 76.8% di chi si legge così parte titolare in almeno metà delle '
+      + 'partite che restano, contro il 42.3% della sua fascia (1.82x). È una pretesa più debole '
       + "dell'altro marchio: perdere il posto è più prevedibile che conquistarlo.";
   return {
     flag: 'starter_signs',

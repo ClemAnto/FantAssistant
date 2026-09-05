@@ -127,11 +127,11 @@ describe('voteText', () => {
   it("mostra il SINTETICO di un campionato straniero, non il rating del provider", () => {
     // Il difetto che questa riga cura: leggere `kind` invece del voto stampava `*6,7` (scala
     // Sofascore) su una riga che ha `~5,9` (scala fantacalcio).
-    expect(voteText(tottenham('2026-05-24', 6.7, 5.88))).toBe('~5,9');
+    expect(voteText(tottenham('2026-05-24', 6.7, 5.88))).toBe('~5.9');
   });
 
   it('senza sintetico ripiega sul rating, marcato perche\' e\' un\'altra scala', () => {
-    expect(voteText(tottenham('2026-05-24', 6.7, null))).toBe('*6,7');
+    expect(voteText(tottenham('2026-05-24', 6.7, null))).toBe('*6.7');
   });
 
   it("nel SUO campionato «nessun voto» resta s.v. anche se il provider lo ha votato", () => {

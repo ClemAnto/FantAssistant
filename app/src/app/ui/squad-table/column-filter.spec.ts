@@ -111,7 +111,7 @@ describe('un filtro acceso si riconosce', () => {
 
 describe('il filtro in una frase', () => {
   it('dice l\'intervallo con la virgola, come la tabella', () => {
-    expect(describeFilter('range', { min: 6.5 })).toBe('≥ 6,5');
+    expect(describeFilter('range', { min: 6.5 })).toBe('≥ 6.5');
     expect(describeFilter('range', { max: 7 })).toBe('≤ 7');
     expect(describeFilter('range', { min: 6, max: 7 })).toBe('6–7');
     expect(describeFilter('range', { blanks: 'only' })).toBe('solo ignoti');

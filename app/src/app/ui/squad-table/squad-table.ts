@@ -376,7 +376,7 @@ export class SquadTable {
   protected readonly tonesDetail =
     'Verde = fra i migliori del SUO RUOLO nel listone, ambra = sotto la metà, rosso = in fondo, e il '
     + 'centro resta neutro perché la media non è una notizia. È il ruolo e non il listone intero perché '
-    + '6,20 di fantamedia è un ottimo portiere e un mediocre attaccante: un colore trasversale direbbe '
+    + '6.20 di fantamedia è un ottimo portiere e un mediocre attaccante: un colore trasversale direbbe '
     + 'che ruolo gioca, non quanto è buono. Il pool sono i quotati di questo listone — non le righe che '
     + 'vedi — così il colore di un uomo non cambia passando dalla rosa di un club alla lista intera. Il '
     + 'tooltip di ogni cella dice il posto e su quanti. La scala è la stessa delle stelline: sono '
