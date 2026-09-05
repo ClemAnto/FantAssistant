@@ -864,6 +864,42 @@ def verify_bundle(path: Path, seasons: list[str], target: str,
 
 
 # ---------- orchestration ----------
+def destination(cfg, out: str | None, target: str) -> Path:
+    """Where the bundle goes - and the one place it may NOT go: inside the repository.
+
+    `--out` takes any directory and nothing checked it, so a mistyped path put the bundle wherever the
+    shell happened to be. It HAPPENED: a `bundle.sqlite` sat in the repo root from 20/08/2026, and the
+    spec recorded the hole («un export che puo' scrivere ovunque») without closing it - the `*.sqlite`
+    ignore that followed is the NET, not the cure. That file was zero bytes and nothing leaked; the next
+    one would not have to be.
+
+    Why the rule is «inside the repo, outside data/» and not «only under data/»: the repository is
+    PUBLIC and this bundle carries paid fantacalcio.it content, so what must be impossible is landing in
+    a tracked working tree. Anywhere else - a USB stick, a temp folder, a sibling directory - is a
+    legitimate destination and stays allowed, because refusing those would just make people move the
+    file by hand afterwards, which is worse.
+
+    `data_dir` and not a literal `data/`: the operator can move it with `EUROLEGHE_DATA_DIR` (which is
+    what a second session on one machine does), and a guard that ignored that would refuse the only
+    place it is trying to protect.
+    """
+    if not out:
+        return cfg.data_dir / "export" / target
+    folder = Path(out).expanduser().resolve()
+    repo, data = Path(cfg.repo_root).resolve(), Path(cfg.data_dir).resolve()
+    def inside(child: Path, parent: Path) -> bool:
+        return child == parent or parent in child.parents
+
+    if inside(folder, repo) and not inside(folder, data):
+        raise RuntimeError(
+            f"refusing to export into the repository: {folder}\n"
+            f"The bundle carries paid content and this repo is public. Write it under "
+            f"{data} (gitignored) and let `npm run data:pull` copy it into the app, or outside "
+            f"the repository altogether."
+        )
+    return folder
+
+
 def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         formats: tuple[str, ...] | str = ("sqlite", "json"), history: int = DEFAULT_HISTORY,
         compress: bool = True, verify: bool = True, **kwargs) -> dict:
@@ -884,7 +920,7 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
     heavy = seasons[-max(1, history):]
     platforms = tuple(platform for (platform,) in conn.execute(
         "SELECT DISTINCT platform FROM season_stats ORDER BY platform"))
-    folder = Path(out) if out else ctx.config.data_dir / "export" / target
+    folder = destination(ctx.config, out, target)
     folder.mkdir(parents=True, exist_ok=True)
     print(f"[export] target {target} · {len(seasons)} seasons of history · heavy tables on "
           f"{', '.join(heavy)} · platforms {', '.join(platforms)} -> {folder}")

@@ -13,6 +13,8 @@ import gzip
 import json
 import sqlite3
 
+import pytest
+
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
@@ -372,3 +374,43 @@ def test_not_declaring_a_revision_is_not_being_up_to_date(tmp_path):
                                    "leagues": [{"manifest": {"sheet_revision": 29}}]}) == 34
     assert timepack.pack_revision({"leagues": [{"boards": None}]}) is None
     assert timepack.pack_revision({}) is None
+
+
+def test_the_bundle_refuses_to_be_written_inside_the_repository(tmp_path):
+    """`--out` accepted any directory, and one of them was the repo root.
+
+    A `bundle.sqlite` really did sit there from 20/08/2026 (zero bytes, so nothing leaked) and the hole
+    was written down rather than closed: the `*.sqlite` ignore that followed is the net, not the cure.
+    What must be impossible is landing in a TRACKED working tree, because this repo is public and the
+    bundle carries paid content - so the rule is «inside the repo and outside data/», and everywhere
+    else stays allowed.
+    """
+    repo = tmp_path / "repo"
+    data = repo / "data"
+    data.mkdir(parents=True)
+    cfg = Config(repo_root=repo, data_dir=data, db_path=data / "euro.db")
+
+    # the default is untouched by the guard
+    assert export.destination(cfg, None, "2026-27") == data / "export" / "2026-27"
+
+    # the repository root, and any tracked folder inside it, are refused BY NAME
+    for bad in (repo, repo / "app", repo / "docs" / "model"):
+        with pytest.raises(RuntimeError, match="refusing to export into the repository"):
+            export.destination(cfg, str(bad), "2026-27")
+
+    # ...while data/ is exactly what it is protecting, and outside the repo is somebody's own business
+    assert export.destination(cfg, str(data / "altrove"), "2026-27") == (data / "altrove").resolve()
+    outside = tmp_path / "chiavetta"
+    assert export.destination(cfg, str(outside), "2026-27") == outside.resolve()
+
+
+def test_a_moved_data_dir_is_still_the_place_the_guard_protects(tmp_path):
+    """`EUROLEGHE_DATA_DIR` is what a second session on one machine sets, and it can point INSIDE the
+    repo - a guard hard-coded on a literal `data/` would then refuse the only folder it exists for."""
+    repo = tmp_path / "repo"
+    moved = repo / "data-sessione-due"
+    moved.mkdir(parents=True)
+    cfg = Config(repo_root=repo, data_dir=moved, db_path=moved / "euro.db")
+    assert export.destination(cfg, str(moved / "export"), "2026-27") == (moved / "export").resolve()
+    with pytest.raises(RuntimeError):
+        export.destination(cfg, str(repo / "data"), "2026-27")

@@ -1291,8 +1291,14 @@ misura da inventare.
   girato una volta e vive nella cronologia di una chat: la prossima colonna aggiunta a una tabella con
   due scrittori ricomincia da capo. La forma giusta è quella che `positions` ha già per sé — un test che
   legge il TESTO dell'istruzione — generalizzata alle 36 tabelle, con una **allowlist dichiarata** per i
-  dodici siti legittimi, così una riga nuova nella lista è una decisione che qualcuno prende invece di un
-  silenzio. È deliberatamente crudo, come il test sul dispatcher: prende esattamente il difetto che ha già
+  **sei** siti legittimi, così una riga nuova nella lista è una decisione che qualcuno prende invece di
+  un silenzio. **E il parser va scritto meglio del mio**: la prima passata leggeva 14 siti perché
+  spezzava le istruzioni scritte su più literal Python adiacenti (`"...coach,"` + `" module, ..."`),
+  cioè sei falsi positivi — un test costruito su quel parser fallirebbe su codice sano, che è il modo
+  più veloce per farlo disattivare. I sei legittimi, verificati uno per uno: `positions` (due siti, che
+  fanno UPDATE-poi-INSERT), `arrivals` (la tabella è svuotata a inizio corsa e `enrich` riempie i tier
+  nella stessa chiamata), e i tre `player_xref`/`club_xref`, le cui `valid_from`/`valid_to` sono in
+  `validate.ALLOWED_EMPTY` e valgono 0 su 7.714 e 0 su 156 righe. È deliberatamente crudo, come il test sul dispatcher: prende esattamente il difetto che ha già
   fatto danni due volte in due giorni.
 * **Lo strato `sofascore_recent` va ri-derivato una volta, e il `mv_synth` con lui.** Sulla base viva 44
   righe su 1.731 hanno un voto sintetico, e non si sa quanto di quel buco sia la regola di
@@ -1306,3 +1312,10 @@ misura da inventare.
 * **Gli orfani della cache di `recent_form` sono 0 su 1.731 oggi**, cioè ogni riga arricchita ha una
   voce su disco in cui riscriverla. Il contatore è stampato apposta: se un giorno legge un numero
   diverso da zero, quella parte dello strato è tornata a esistere solo nel DB e un rebuild la perderebbe.
+
+* ~~Come `export` sia arrivato a scrivere `bundle.sqlite` nella radice~~ — **CHIUSO il 06/09/2026**, e
+  non trovando il colpevole: `export.destination` rifiuta una destinazione dentro il repository e fuori
+  da `data/`, con due prove che la coprono (compresa una `EUROLEGHE_DATA_DIR` spostata dentro il repo,
+  dove una guardia scritta su un `data/` letterale rifiuterebbe l'unica cartella che protegge). I due
+  file da zero byte sono stati rimossi. Resta vero che *non sappiamo* chi digitò cosa, e adesso non
+  serve più saperlo.

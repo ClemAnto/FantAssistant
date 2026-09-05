@@ -4331,7 +4331,13 @@ ORDINE FRA MODULI, e un test per modulo non li puo' vedere. Dettaglio: `stato-pr
 - **`INSERT OR REPLACE` cancella la riga e ne scrive una nuova, quindi ogni colonna che l'istruzione non
   nomina torna NULL.** E' la cura del 05/09 (`positions._store_match_rows`) ritrovata un modulo piu' in
   la', e non l'ha trovata una rilettura: l'ha trovata un audit MECCANICO - le colonne dello schema meno
-  quelle nominate, per ognuno dei 14 `INSERT OR REPLACE` del toolkit. Due erano veri. `recent_form.store`
+  quelle nominate, per ognuno degli `INSERT OR REPLACE` del toolkit. **Otto siti, due veri** - e il
+  «quattordici» pubblicato col commit e' un numero MIO da ritirare: la prima passata spezzava le
+  istruzioni SQL scritte su piu' literal Python adiacenti (`"...coach,"` + `" module, ..."`) e leggeva
+  come mancanti sei colonne che erano li'. Rimisurata con un parser che le incolla, i colpevoli sono gli
+  stessi due e gli innocenti sono sei invece di dodici: *prima di pubblicare un conteggio, chiedersi se
+  non sia il numero del proprio arnese* - la stessa regola del massimo che era la soglia di uno script,
+  incontrata su uno strumento scritto un'ora prima. `recent_form.store`
   si portava via `mv_synth` e, peggio, i quattro BONUS che quel modulo paga **una richiesta a partita**
   da un secondo endpoint; `stats` si portava via `clean_sheets`, che scrive `derive_clean_sheets` dal
   layer per partita - **509 stagioni di portieri euro** azzerate da un `stats` lanciato da solo, e
@@ -4356,6 +4362,18 @@ ORDINE FRA MODULI, e un test per modulo non li puo' vedere. Dettaglio: `stato-pr
   accanto al commit, perche' il docstring promette che un'interruzione conserva quello che ha gia' preso
   - e una cache aggiornata solo sul percorso felice lascia da ricomprare proprio le richieste del
   giocatore interrotto.
+- **E UN'IGNORE E' LA RETE, NON LA CURA: `export` ora rifiuta di scrivere dentro il repository.**
+  La domanda aperta dal 25/08/2026 («cosa resta da trovare e' come `export` sia arrivato a scrivere
+  fuori dalla propria cartella») non si chiude trovando chi ha digitato cosa: si chiude rendendolo
+  impossibile. `--out` accettava qualunque directory e nessuno la guardava; adesso una destinazione
+  DENTRO il repo e FUORI da `data/` e' un errore che nomina la ragione (il repo e' pubblico, il
+  pacchetto porta contenuto a pagamento), mentre una chiavetta o una cartella temporanea restano
+  legittime - vietare anche quelle farebbe solo spostare il file a mano dopo, che e' peggio. Su
+  `data_dir` e non su un `data/` letterale, perche' `EUROLEGHE_DATA_DIR` e' proprio quello che sposta
+  una seconda sessione, e una guardia che lo ignorasse rifiuterebbe l'unica cartella che protegge. I due
+  file da zero byte (`bundle.sqlite` nella radice, `data/euroleghe.sqlite`) sono stati tolti: erano
+  vuoti, quindi non e' mai uscito niente, ma il secondo era anche un DECOY accanto al database vero.
+
 - **E un `some` dentro un `computed` e' una DIPENDENZA, non una lettura.** Nella Strategia `pool` - le
   seicento righe, con l'esito atteso, la costanza e il fantavalore di ognuna - leggeva l'ELENCO delle
   pastiglie accese per decidere se servisse il calcio giocato, quindi si rifaceva a ogni click su una
