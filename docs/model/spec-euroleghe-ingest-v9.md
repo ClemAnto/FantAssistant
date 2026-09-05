@@ -495,6 +495,261 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.75 (5 settembre 2026 — LA MISCELA RIMISURATA, IL PRIOR DI CHI NON SI È MAI VISTO, e un FILE letto prima di essere scritto)
+
+Nata da cinque nomi che l'operatore ha portato guardando le prime due giornate («nel Como Diao e Baturina
+sono pedine imprescindibili», «nella Roma Malen è un titolarissimo», «nel Monza Varela sembra avere il
+posto quasi fisso»), e chiusa su un difetto che non era in nessuna di quelle righe.
+
+**QUESTA VOCE È UNA DELLE DUE METÀ DI QUEL GIORNO.** L'altra è la v9.74 (`desc_start_share` rimasta in una
+finestra di due giornate), scritta da un'altra sessione sugli STESSI file. Le due si sono riconciliate da
+sé — la loro voce cita la K più corta adottata qui e ricalcola il proprio difetto di conseguenza — ma il
+prezzo va detto: **nessuna delle due può più isolare il proprio effetto sul giudice stampa**, perché ogni
+foglio confrontabile porta tutte e due.
+
+### 1. `season_prior_rounds` da 10 a 5: una costante appartiene alla DOMANDA su cui è misurata
+
+Le 10 giornate erano **prese in prestito** da R20 (`evaluate.R20_ROUNDS`), che è la K misurata per
+l'ACCURATEZZA di `engine_pv_pred` su finestre a sei e dieci giornate giocate. Qui la quantità è
+`appearance_share` e il momento è **k = 2**. Rimisurata fuori campione su quella domanda — alla giornata
+k, prevedere la quota di presenze nelle giornate che RESTANO, nessuna delle quali entra nel predittore —
+su 6.719 uomo-stagione con due stagioni nello stesso campionato a un club solo, cinque campionati,
+2020-21 → 2025-26:
+
+| K | 0 | 2 | 3 | 4 | **5** | 6 | 8 | 10 | 15 | 20 | solo prior |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| MAE | 0,2876 | 0,1998 | 0,1935 | 0,1912 | **0,1908** | 0,1912 | 0,1925 | 0,1942 | 0,1974 | 0,1997 | 0,2095 |
+
+Ottimo **interno** a 5, piatto fra 4 e 6, stabile per stagione (6·6·6·6·4·4), e le 10 costano +1,8%.
+**L'ottimo è lo STESSO a k = 2, 4 e 6**, che è la proprietà che deve avere un prior — una quantità fissa
+di prova e non una che cresce col campione. E 6 è la K che il gate aveva già adottato per R20 su euro:
+due strade indipendenti sullo stesso numero.
+
+**La proposta dell'operatore era una PERCENTUALE FISSA (50/50) ed è respinta dalla misura, non
+dall'opinione**: a k = 2 vale K = 2 e costa +4,7%; e una quota fissa fa CRESCERE il prior col procedere
+della stagione (a febbraio il 50% di 20 giornate sono 20 giornate di prior), che è il contrario di quello
+che un prior è. Il suo MECCANISMO («le partite del passato hanno un contesto diverso, quindi meno
+veritiere») è invece **vero e non sposta il cambio**: separando chi è rimasto al suo club da chi ha
+cambiato, l'ottimo è 5 contro 4 — un punto, dentro il rumore — perché il cambio di contesto peggiora
+TUTTE E DUE le metà (solo-prior 0,196 → 0,262, solo le due partite 0,272 → 0,350). Niente K per
+popolazione: una seconda manopola per un effetto che non separa.
+
+### 2. Il DENOMINATORE del prior segue il suo NUMERATORE
+
+La regola del 20/08 (`features.measured_season_rounds`) rientrata dalla porta della miscela: `prev_rounds`
+era il calendario del CAMPIONATO, quindi a un uomo arrivato a gennaio contava anche le giornate che aveva
+giocato altrove. Malen ha giocato **18 delle ultime 18** della Roma e leggeva `(18 × 10/38 + 2 + 1) / 13 =
+0,562`; con la sua finestra vera, 19 giornate, legge **0,918**. 18 righe sul foglio Serie A, fra cui Boga
+(finestra 25, leggeva 38), Lucca e Raspadori. La chiamata **non è datata**, perché la stagione precedente
+è finita ed è il ramo che INTERSECA i campionati del numeratore (`external_stats`) — la stessa sorgente di
+`prev_record`, per costruzione e non per coincidenza.
+
+### 3. Un'ASSENZA non è uno ZERO MISURATO — e la cura ovvia è peggio del difetto
+
+`snapshot.prior_window`. Il prior di chi la stagione scorsa in Serie A non l'ha giocata affatto entrava
+con **zero presenze su dieci giornate**: non un ripiego prudente, un TETTO. Qualunque cosa facesse, la sua
+quota non poteva superare `k/(k+K)` — **0,167** con due giornate. 113 righe su 602, e fra loro **tredici**
+uomini che avevano cominciato da titolare tutte e due le prime giornate e leggevano `riserva` (Varela G.
+173', Mangas · Lulli · Cinquegrano · Abankwah · Fitz-Jim 180', Touré E. 170').
+
+**Togliere la finestra è il difetto opposto e più grosso**: quei 113 poggerebbero su due partite e
+leggerebbero **1,000** — Rrahmani Al. `bandiera` con 19 minuti giocati, i terzi portieri da 0,077 a 0,334.
+Quindi il prior è la MEDIANA della sua popolazione, che è un numero già misurato e già in uso due colonne
+più in là (`est.PRESENCE_SHARE_BY_ROLE["unmeasured"]`: P 0,098 · D 0,308 · C 0,332 · A 0,282).
+
+**E una FINESTRA ne porta TRE, non una.** `presence.SeasonWindow` porta presenze, partite da titolare e
+MINUTI, e `standing` legge i minuti: un prior con le sole presenze avrebbe curato una colonna e rotto
+quella accanto. Le altre due sono misurate lo stesso giorno sulla stessa popolazione ed espresse come
+RAPPORTI alla presenza, così si compongono con qualunque costante sia in vigore invece di sostituirla
+(`est.UNMEASURED_START_RATE`, `UNMEASURED_MINUTES_PER_APPEARANCE`) — delle partite in cui compare, quante
+ne comincia e quanti minuti resta:
+
+| ruolo | n | quota da titolare | minuti a presenza |
+|---|---|---|---|
+| P | 128 | 1,000 | 90,0 |
+| D | 580 | 0,750 | 66,8 |
+| C | 649 | 0,536 | 49,4 |
+| A | 452 | 0,400 | 40,0 |
+
+L'arnese **riproduce le costanti già in vigore** prima di misurare qualcosa di nuovo (presenze D 0,316
+contro le 0,308 adottate, C 0,316 contro 0,332), che è l'unico modo di sapere che sta guardando la stessa
+popolazione — e la ragione per cui qui si AGGIUNGONO due numeri invece di sostituirne uno. Il portiere
+legge 1,000 e 90' e non è un artefatto: di portieri se ne schiera UNO, quindi o gioca la partita intera o
+non c'è.
+
+**Uno zero MISURATO resta**: chi una riga ce l'ha con `matches` a zero era in un campionato che leggiamo e
+non è stato scelto, e vale più di qualunque costante di popolazione. La distinzione sopravvive perché il
+layer restituisce `None` contro `{}`, non perché qualcuno la ricostruisca.
+
+### 4. I MINUTI DEL RITIRO: un commento che prometteva il contrario di quello che il codice faceva
+
+Il punto di chiamata diceva già che il ritiro «entra con i minuti della media delle altre e non ne sposta
+il rapporto di un decimale»; il chiamante passava una finestra **senza minuti**, quindi il ritiro
+aggiungeva a tutti una giornata da ZERO minuti. Misurato su un titolare da 85' con dieci giornate di
+prior: la quota di minuti che `standing` legge scendeva di **0,060 a K=10 e di 0,100 a K=5**, cioè il
+difetto **peggiorava** con la K adottata lo stesso giorno. Imputati al tasso delle altre finestre e
+spartiti nella loro stessa proporzione fra qui e altrove, così `at_club_weight` non si muove: correggere i
+minuti non deve introdurre di straforo una seconda affermazione. Terza istanza in questo repository di
+«una finestra vuota non è una finestra a zero», e la prima trovata **leggendo un commento** invece di una
+colonna.
+
+### 5. UN FILE LETTO PRIMA DI ESSERE SCRITTO dà due valori a una colonna — ed è il difetto più grosso
+
+`minutes_next` legge `manifest.matchdays.platform_target` per l'unica metà del suo `P` che viene dal
+MODELLO, e `snapshot` scrive il manifest **dopo** la passata dei campetti. Quindi:
+
+* cartella **NUOVA** → il manifest non c'è → `platform_matchdays()` risponde **0** → la colonna esce
+  calcolata sulla sola misura;
+* cartella **RIUSATA** → la passata legge **il manifest della corsa precedente**, in silenzio.
+
+Malen: **74,0 col manifest, 78,0 senza**, e **241 righe su 602** in mezzo — abbastanza da riordinare i tre
+gradini alti, che hanno i pavimenti a 75' e 65' (`titolare` letto **2** invece di **33**). Il docstring di
+`platform_matchdays` prevedeva lo zero («zero for a sheet written before the manifest carried it») e
+nessuno aveva notato che capita anche al PRIMO giro di ogni cartella nuova, cioè **ogni giorno** — e a
+**ogni pacchetto del viaggio nel tempo**, che scrive una cartella per data. I fogli giornalieri
+dell'operatore erano invece corretti per un accidente: quella cartella si riusa.
+
+Cura: il numero si **passa** invece di rileggerlo (`write_boards(..., matchdays=...)`), con un test che lo
+pretende nella firma **e** al punto di chiamata — un parametro che il chiamante non passa è il difetto del
+flag che il dispatcher scarta, già pagato due volte qui.
+
+**COME MI SONO SBAGLIATO, e vale più del difetto.** Per un'ora l'ho attribuito all'ordine d'iterazione
+delle stringhe, sulla base di un esperimento che sembrava decisivo: due corse a `PYTHONHASHSEED=0`
+concordavano su tutte le righe. Concordavano per la ragione sbagliata — **entrambe scrivevano in cartelle
+nuove**, quindi entrambe leggevano zero. *Un esperimento che tiene ferma una variabile che non sapevi di
+avere non ha tenuto ferma niente*; quello che ha smascherato la causa è stato rigirare nella STESSA
+cartella, cioè muovere la variabile che non sapevo di avere.
+
+### 6. LA REGOLA DICHIARATA SULL'UNDICI TIPO: non tutti gli infortuni si ignorano
+
+Dichiarazione dell'operatore, e cambia la DEFINIZIONE che il pannello portava dall'08/08/2026 («la squadra
+che schiera quando sono tutti disponibili», il caso De Bruyne): «se un calciatore non può giocare 6 mesi,
+non può rientrare nella formazione tipo; se non può giocare 3 mesi può rientrare ma con tanti dubbi e la
+sua percentuale deve diminuire nettamente».
+
+La quantità è la **quota delle giornate del suo club che restano in cui è disponibile**
+(`snapshot.out_window` sul calendario di `fixtures`, denominatore da OGGI perché le giornate già giocate
+le hanno perse tutti). Il `claim` la moltiplica; sotto `SnapshotView.BOARD_OUT_SHARE` = **0,50** esce di
+netto. La soglia separa i suoi due casi (tre mesi ≈ 0,64-0,72 · sei mesi ≈ 0,33-0,44) e **oggi è inerte**:
+0 righe su 32 stanno sotto, quindi quello che lavora è la moltiplicazione. Il MARGINE di prudenza non sta
+qui: `RETURN_SLIP` vive nell'app, e metterne un secondo conterebbe la stessa paura due volte.
+
+**Il gradino resta condizionale**, per sua decisione esplicita («ok per quando sta bene»): `desc_titolarita`
+è definito sulla quota delle partite in cui è DISPONIBILE, quindi non prende lo sconto. Yildiz passa da
+`titolare` a `ballottaggio` solo perché la board non lo disegna più, che è la scala stessa a dirlo.
+
+Effetto: 5 board su 20 cambiano un uomo, tutte con una finestra aperta datata — **Juventus** (Yildiz →
+Cambiaso), Monza (Pessina), Napoli (Buongiorno), Sassuolo (Konè I.), Venezia (Sverko). Yildiz 0,563 ×
+0,722 = **0,406** e Thuram 0,524 × 0,611 = **0,320** finiscono sotto Douglas Luiz (0,542) e Kolo Muani
+(0,519): escono **per graduatoria e non per taglio**, che è la metà «con tanti dubbi» della sua frase.
+
+### Effetti, e cosa NON si muove
+
+`SHEET_REVISION` 44 (il bump per queste correzioni era il 42; le due voci dell'altra sessione lo hanno
+portato a 44, quindi i fogli a 44 le portano tutte). `engine_*` non si muove di un decimale: `presence.py` e `estimate.py` non sono
+importati da `evaluate`, quindi `backtest --verify` resta 22/22 — **ed è dovuto e non ancora fatto**, per
+la stessa ragione della v9.72. La miscela è **inerte a `now.rounds` = 0**, quindi ogni finestra pubblicata
+dal gate resta identica.
+
+**Il giudice stampa non conferma e non smentisce**: sulla stessa data, solo il codice cambiato, i moduli
+passano da 8 a **9** MATCH e gli uomini da 153 a **152** su 220, con un null di 104. Le correzioni stanno
+in piedi sull'aritmetica — ognuna cura un difetto che ha una risposta giusta — e non su di lui. È come era
+finita la correzione del denominatore il 20/08.
+
+Le tre colonne nuove (`desc_out_until`, `desc_out_rounds`, `desc_out_share`) sono in `SHEET_COLUMNS` **e**
+in `SHEET_COLUMNS_OPTIONAL`: pretenderle scarterebbe ogni pacchetto del viaggio nel tempo già scritto,
+cioè spegnerebbe una funzione per aggiungere una colonna. Terza volta che questo commento si scrive lì.
+
+## Novità v9.74 (5 settembre 2026 — LA QUOTA DA TITOLARE ERA RIMASTA IN UNA FINESTRA DI DUE GIORNATE)
+
+Nata da un'osservazione dell'operatore sulla pagina Strategia: «i minuti previsti a partita da alcuni
+calciatori che sono nei primi posti nella classifica degli attaccanti sono molto bassi (vedi Thuram (39),
+Krstovic (36), Castro (38))», con la proposta di **un malus sul GAIN** per quei casi. Due risposte, e
+sono separate: quei tre numeri erano un DIFETTO, e il malus è misurato e non adottato.
+
+### 1. Tre colonne sono una frazione e il suo valore, e due si erano spostate senza la terza
+
+`d64ae0e` («due partite non sono una stagione») ha portato `desc_season_starts` e `desc_season_matches`
+sulla miscela `presence.blend_seasons` e ha lasciato `desc_start_share` su `season_play`, cioè sulla
+**sola stagione in corso**. Al 04/09 quella finestra era di DUE giornate, quindi la riga di Thuram
+dichiarava 6,3 partite da titolare su 8,6 **e una quota di 0,000**, perché nelle prime due era entrato
+dalla panchina.
+
+Il consumatore è `minutes.per_appearance`, che prende i minuti e le presenze dalla miscela e la quota
+come `P_prev`: **due campioni in un conto solo**, cioè l'errore di unità che la miscela era nata per
+curare. `P_prev` = 0 manda il livello sulla costante del subentrato (20,7' per un attaccante), e la
+verifica chiamando la funzione vera riproduce il foglio alla cifra: **39,1'** con la quota di due
+giornate, **60,2'** con quella della miscela.
+
+Misurato sul foglio Serie A del 04/09 (602 righe): **267 in disaccordo** con il proprio
+`starts / matches`, **100 a 0,000 esatto**. Il difetto va nei DUE VERSI — chi le sue due partite le aveva
+cominciate da titolare leggeva 1,000 (Martinez L. 67' → 62' una volta corretto). E non è solo un numero
+sulla card: i pavimenti della scala della titolarità sono in MINUTI (`status.FULL_MATCH` 75',
+`MOST_OF_THE_MATCH` 65'), quindi **94 righe attraversano un gradino**. Thuram leggeva `panchina` con una
+quota di gioco di 0,717.
+
+Cura: la quota viene dalla miscela come i suoi due vicini. La metà in corso non si perde — resta
+dichiarata da sé in `desc_now_starts` / `desc_now_matches`, che continuano a leggere `season_play`.
+
+### 2. Il giudice giusto non era la stampa, ed è per questo che è stato cambiato
+
+`press --against press` **non può vedere questo cambio**: giudica la board, e la board non legge questa
+colonna (`eleven` usa `desc_season_starts` come spareggio, non la quota). Chiedere quel verdetto avrebbe
+prodotto due numeri identici da leggere come una conferma. *Prima di scegliere un giudice, chiedersi cosa
+il cambio può muovere* — la regola di casa applicata alla propria verifica invece che a un canale nuovo.
+
+Il giudice è la quota stessa, fuori campione: alla giornata k, prevedere `starts / appearances` sulle
+giornate che **restano** (nessuna delle quali entra in nessun predittore), min 3 presenze come il
+protocollo di `engine/minutes.py`. Cinque campionati, 2020-21 → 2025-26, 6.475 uomo-stagione a k = 2:
+
+| k | MAE finestra in corso | MAE miscela (K=10) | guadagno |
+|---|---|---|---|
+| 2 | 0,2749 | 0,1873 | **+31,9%** |
+| 3 | 0,2615 | 0,1861 | +28,8% |
+| 5 | 0,2345 | 0,1830 | +22,0% |
+| 8 | 0,2096 | 0,1766 | +15,8% |
+
+**6 stagioni su 6** (+28,7% … +35,4%) e **5 campionati su 5** (+28,4% … +36,3%), e positivo anche a
+K = 5 (+30,9% a k = 2), cioè non dipende dalla K che l'altra sessione stava rimisurando nello stesso
+pomeriggio. L'errore mediano si dimezza (0,200 → 0,0985) e gli sbagli grossi crollano: righe sbagliate di
+più di 0,5 dal **18,2% al 4,3%**, di più di 0,7 dal 9,6% all'**1,0%**. Detto per intero perché è la parte
+onesta: le righe STRETTAMENTE migliorate sono circa la metà — una finestra di due partite indovina in
+pieno quando l'uomo è davvero 0 o 1 — e il guadagno sta nella grandezza dell'errore, non nel conteggio.
+
+**Inerte su una pre-stagione**, quindi su ogni finestra su cui il gate ha pubblicato un numero: lì
+`now_rounds` è il calendario intero della stagione misurata, `prev_record` è vuoto e la miscela ha una
+finestra sola, che vale esattamente `season_play`. `SHEET_REVISION` 44; `engine_*` non si muove
+(`evaluate` non importa `presence` e non vede una colonna `desc_*`).
+
+### 3. Il malus sul GAIN: il meccanismo è vero, il canale è già letto
+
+La sua ipotesi — «con pochi minuti anche i bonus diminuiranno» — è misurata e **il meccanismo esiste, ed è
+un fatto sugli ATTACCANTI**: sul cambio realizzato dei minuti fra due stagioni, `r` col cambio del tasso
+bonus è **+0,424** in attacco contro +0,177 C, +0,113 D, −0,063 P.
+
+Quello che non regge è il passo dopo, ed è «una differenza fra due gruppi non è un canale finché non hai
+verificato che il modello non la stia già leggendo»: **la fantamedia è misurata su quei minuti lì**.
+Su 2.563 coppie stagione-su-stagione (Serie A, ≥10 voti), correlazione fra i minuti per presenza a t−1 e
+la fantamedia a t, grezza e poi a parità di fantamedia a t−1:
+
+| ruolo | grezza | **parziale** | sui BONUS |
+|---|---|---|---|
+| A | +0,322 | **+0,082** | +0,094 |
+| C | +0,100 | −0,002 | −0,019 |
+| D | +0,034 | −0,014 | −0,042 |
+| P | −0,092 | −0,078 | −0,062 |
+
+Il +0,322 degli attaccanti collassa a +0,082 appena si controlla la sua fantamedia; per gli altri tre
+ruoli è zero. In unità che decidono: **+1 sd di minuti (17') = +0,064 di fantamedia = +1,6 fantapunti su
+25 presenze, cioè +0,04 a giornata** — contro un buco che ne costa 4,7. Sotto ogni pavimento che questo
+progetto usa, e sopra un canale che la fantamedia contiene già: un malus lì conterebbe due volte lo
+stesso fatto.
+
+E c'è una **circolarità** che lo chiude: `desc_minutes_next` non è uno sguardo indipendente sul futuro —
+è per il 70% la quota da titolare misurata e per il 30% un modello il cui denominatore **è
+`engine_pv_pred`** (`minutes.start_rate_next`). Entrerebbe nel GAIN un numero che il GAIN contiene già.
+Misurato e non implementato, con i numeri accanto.
+
 ## Novità v9.73 (5 settembre 2026 — DUE COLONNE CHE LA RI-INGESTIONE BUTTAVA VIA)
 
 Nato da una richiesta sull'app («i voti sintetici devono essere utilizzati anche dall'app per ricostruire

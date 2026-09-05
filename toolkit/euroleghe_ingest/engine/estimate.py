@@ -115,6 +115,35 @@ PRESENCE_SHARE_BY_ROLE: dict[str, dict[str, dict[str, float]]] = {
     },
 }
 
+# ...E LE ALTRE DUE QUANTITA' DELLO STESSO UOMO, misurate il 05/09/2026 perche' una FINESTRA ne porta tre.
+# `presence.SeasonWindow` non porta una quota: porta presenze, partite da titolare e MINUTI, e `standing`
+# legge i minuti (`standing_weights` = (0, 1)). Un prior sintetico che desse solo le presenze farebbe
+# leggere «due partite di minuti su otto giornate» proprio agli uomini per cui e' stato scritto - una
+# colonna curata e un'altra rotta, che e' il difetto che questo file gia' porta a verbale due volte.
+#
+# ESPRESSE COME RAPPORTI ALLA PRESENZA e non come quote di stagione, cosi' si COMPONGONO con qualunque
+# costante di presenza sia in vigore invece di sostituirla: delle partite in cui compare, quante ne
+# comincia e quanti minuti resta in campo. Mediana per uomo su chi ne ha almeno tre; stessa popolazione
+# delle quote qui sopra (nessuna riga di aggregato in un campionato coperto a t-1, una a t, un club solo,
+# 20+ giornate di calendario; cinque campionati, 2020-21 -> 2025-26).
+#
+#   ruolo      n      quota da titolare      minuti a presenza
+#   P        128            1.000                  90.0
+#   D        580            0.750                  66.8
+#   C        649            0.536                  49.4
+#   A        452            0.400                  40.0
+#
+# L'ARNESE RIPRODUCE LE COSTANTI GIA' IN VIGORE prima di misurare qualcosa di nuovo, che e' l'unico modo
+# di sapere che sta guardando la stessa popolazione: quote di presenza D 0.316 contro le 0.308 adottate,
+# C 0.316 contro 0.332, A 0.329 contro 0.282 (la sua e' la mediana su cinque campionati, quella adottata
+# su `default`). Per questo qui si aggiungono DUE numeri e non se ne sostituisce uno.
+#
+# Il portiere legge 1.000 e 90' e non e' un artefatto della mediana: di portieri se ne schiera UNO, quindi
+# o gioca la partita intera o non c'e' - la stessa asimmetria per cui la copertura di due portieri si
+# SOMMA invece di convolversi.
+UNMEASURED_START_RATE: dict[str, float] = {"P": 1.000, "D": 0.750, "C": 0.536, "A": 0.400}
+UNMEASURED_MINUTES_PER_APPEARANCE: dict[str, float] = {"P": 90.0, "D": 66.8, "C": 49.4, "A": 40.0}
+
 # ...and the man who HAS a measured season, only not on THIS platform - the new signing from abroad.
 # Pricing him at the share above says «nobody has ever seen him play», which is false and expensive:
 # measured over the men with no season here at t-1 and league minutes abroad at t-1 who then played here

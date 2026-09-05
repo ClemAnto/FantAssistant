@@ -5109,6 +5109,82 @@ undici non scavalca una che ne ha — «vuoto = ignoto, mai zero» applicato al 
 la riga di report regge un None. Uno zero uniforme è la cosa che questo progetto ha imparato a non
 credere, e stavolta spegneva l'unico giudice che esista prima che si giochi una partita.
 
+## 7-trequadragies. UNA COSTANTE PRESA IN PRESTITO DA UN'ALTRA DOMANDA: `season_prior_rounds` rimisurata (5 settembre 2026)
+
+`presence.season_prior_rounds` è il tasso di cambio fra «le giornate già giocate» e la stagione
+precedente dentro `presence.blend_seasons` (adottata il 04/09/2026 su richiesta dell'operatore: «2 partite
+non devono valere una stagione»). Il valore era **10** e non era stato misurato **qui**: era la K che il
+gate ha adottato per **R20** su `default` (§7-duotricies).
+
+**Sono due domande diverse.** R20 tara quel numero per l'ACCURATEZZA di `engine_pv_pred` su finestre a sei
+e dieci giornate giocate; `blend_seasons` alimenta `appearance_share`, `standing` e il gradino della
+titolarità, e il momento in cui morde è **k = 2** — settembre. «Una costante appartiene alla domanda su cui
+è stata misurata, non solo alla popolazione» è la lezione del vantaggio campo del 03/09, incontrata sul
+parametro che l'aveva ereditata.
+
+### Il disegno, scritto prima della corsa
+
+Alla giornata *k*, prevedere la quota di presenze nelle giornate che **restano**:
+
+    pred = (presenze_k + K × quota_scorsa) / (k + K)
+
+Fuori campione per costruzione: nessuna delle giornate del bersaglio entra nel predittore. Popolazione:
+uomo con una stagione precedente e una corrente **nello stesso campionato**, in entrambe a un club solo,
+almeno 20 giornate di calendario in ciascuna — chi cambia a gennaio è l'altro difetto (§7-unquadragies) e
+non si mescola con questo. Cinque campionati, 2020-21 → 2025-26, **n = 6.719**. Criterio: MAE, per
+stagione e in aggregato, con due bracci degeneri come riferimento (K = 0, solo-prior). Un ottimo sul BORDO
+non si adotta.
+
+### Verdetto: K = 5, ottimo INTERNO
+
+| K | 0 | 2 | 3 | 4 | **5** | 6 | 8 | 10 | 15 | 20 | solo prior |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| MAE (k=2) | 0,2876 | 0,1998 | 0,1935 | 0,1912 | **0,1908** | 0,1912 | 0,1925 | 0,1942 | 0,1974 | 0,1997 | 0,2095 |
+
+Piatto fra 4 e 6, quindi **la direzione è il risultato e i decimali no**. Le 10 in vigore costano
+**+1,8%** di errore. Stabile per stagione: 6·6·6·6·4·4.
+
+**Tre conferme che lo rendono adottabile.**
+1. **L'ottimo è lo STESSO a k = 2, 4 e 6** (sempre 6 sulla griglia grossa, 5 su quella fine). È la
+   proprietà che deve avere un prior — una quantità fissa di prova, non una che cresce col campione — e
+   qui è verificata invece di assunta.
+2. **6 è la K che il gate aveva già adottato per R20 su euro.** Due strade indipendenti, nessuna ragione
+   di concordare, e concordano.
+3. Le due degenerazioni sono lontane: solo le due partite 0,2876, solo il prior 0,2095.
+
+### La PERCENTUALE FISSA proposta dall'operatore è respinta dalla misura
+
+«Adottiamo una media bilanciata: 50% il prior, 50% la stagione in corso.» A k = 2 quello **è** K = 2, e
+costa **+4,7%**. Ma la ragione per cui non si adotta non è il numero: **una quota fissa fa CRESCERE il
+prior col procedere della stagione** — a febbraio il 50% di 20 giornate giocate sono 20 giornate di
+prior — che è il contrario di quello che un prior è. La forma `k/(k+K)` dice quello che lui voleva dire
+(«bilanciamo le due») tenendo il punto di equilibrio dove deve stare e lasciandolo scivolare da sé.
+
+### Il suo MECCANISMO è vero e non sposta il cambio
+
+«Le partite del passato hanno un contesto diverso, quindi meno veritiere.» Testato separando chi è rimasto
+al suo club da chi ha cambiato:
+
+| | n | ottimo K | solo-prior | solo le 2 gare |
+|---|---|---|---|---|
+| rimasto | 5.340 | **5** | 0,1958 | 0,2716 |
+| cambiato club | 1.379 | **4** | 0,2622 | 0,3497 |
+
+La direzione è la sua, e vale **un punto di K** — dentro il rumore. La ragione è che il cambio di contesto
+peggiora **tutte e due le metà**, non solo il passato, quindi il RAPPORTO fra loro quasi non si muove.
+Niente K per popolazione: una seconda manopola per un effetto che non separa.
+
+### Cosa NON si muove, e cosa resta dovuto
+
+`presence.py` non è importato da `evaluate`, quindi **`engine_*` non cambia di un decimale** e `backtest
+--verify` resta 22/22 — dovuto e non ancora rieseguito. La miscela è **inerte a `now.rounds` = 0**, cioè
+su ogni finestra di PRE-STAGIONE, che sono tutte quelle su cui il gate ha pubblicato un numero: nessun
+verdetto storico si muove, e un test lo asserisce invece di prometterlo.
+
+Il giudice disponibile sul DELIVERABLE è la stampa (`press --against press`): sulla stessa data, solo il
+codice cambiato, i moduli passano da 8 a **9** MATCH e gli uomini da 153 a **152** su 220 contro un null
+di 104 — **non conferma e non smentisce**. La correzione sta in piedi sull'aritmetica.
+
 ## 7-duoquadragies. I MINUTI ESTERI HANNO UNA SECONDA FONTE, e vale solo dove la retta è fittata (25 agosto 2026)
 
 **Nata da una domanda dell'operatore su un nome:** «Varela del Monza si è dimostrato essere un ottimo

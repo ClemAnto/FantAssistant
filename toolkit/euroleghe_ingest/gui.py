@@ -5431,7 +5431,31 @@ class SnapshotView(ttk.Frame):
         # last season rather than a claim on this one.
         if row.get("desc_left_for"):
             return 0.0
-        return self.presence(row, "recent") if horizon == "recent" else self.standing(row)
+        if horizon == "recent":
+            # Per la prossima partita non cambia niente: la' l'infortunato e' escluso di netto
+            # (`eleven`), quindi scontarlo sarebbe contare la stessa assenza due volte.
+            return self.presence(row, "recent")
+        # ...E UNA FINESTRA APERTA LUNGA SCONTA LA PERCENTUALE, che e' la regola dichiarata
+        # dall'operatore il 05/09/2026 (vedi `BOARD_OUT_SHARE`): non tutti gli infortuni si ignorano, e
+        # dove la fonte dice QUANDO torna il numero fa il lavoro meglio del vincolo perche' dice DI
+        # QUANTO. Moltiplicativo e non un gradino: «la sua percentuale deve diminuire nettamente».
+        #
+        # E' l'unico sconto che questo numero prende, e non e' quello della disponibilita': `presence`
+        # moltiplica per `availability`, che e' la FRAGILITA' STORICA - quanto un uomo come lui si fa
+        # male in una stagione - e per l'undici tipo resta giusto ignorarla. Questa e' un'altra cosa: un
+        # fatto DATATO su questa stagione, e a un allenatore che sceglie oggi le due dicono cose diverse.
+        return self.standing(row) * self.out_share(row)
+
+    def out_share(self, row: dict) -> float:
+        """Quanta parte delle giornate che restano e' disponibile: 1.0 se non c'e' una finestra aperta.
+
+        UNO QUANDO NON SI SA, ed e' il verso giusto della regola di casa: qui l'ignoto non e' zero, e
+        senza una data di rientro non esiste una quota da sottrarre. Per quel caso la risposta resta il
+        VINCOLO del 03/09/2026 - chi non dice quando torna scende in fondo alle graduatorie che decidono
+        nell'immediato - e riprezzarlo qui sarebbe inventare una durata che nessuno ha scritto.
+        """
+        share = _number(row.get("desc_out_share"), None)
+        return 1.0 if share is None else max(0.0, min(share, 1.0))
 
     def minutes_next(self, row: dict) -> float | None:
         """The minutes he is expected to play IN A MATCH HE PLAYS, next season (`engine.minutes`).
@@ -5535,13 +5559,21 @@ class SnapshotView(ttk.Frame):
 
         It used to say «the only criterion for who plays», and that is `claim` - this is read by `eleven`
         for its SECOND element alone, as the tie-break between two equal claims. The `season` share itself
-        (`desc_start_share`) is consumed nowhere in the code, and its denominator is his own APPEARANCES
-        rather than the club's league rounds, which is against this project's own rule and inflates it by
-        +0.216 on average (51 of 516 Serie A rows read 1.000 - Sportiello starts his single appearance).
-        Measured on 07/08/2026 (gate §7-unvicies) while falsifying a rule built on the sentence that used to
-        be here: substituting the right denominator changes the drawn eleven of **0 clubs out of 55**.
-        Correcting it - or dropping the column - moves a value the sheet CARRIES, so it wants a
-        `SHEET_REVISION`, and it is a decision rather than a fix to slip in.
+        (`desc_start_share`) reaches no decision INSIDE the panel, and its denominator is his own
+        APPEARANCES rather than the club's league rounds, which is against this project's own rule for a
+        share of a SEASON and inflates it by +0.216 on average (51 of 516 Serie A rows read 1.000 -
+        Sportiello starts his single appearance). Measured on 07/08/2026 (gate §7-unvicies) while
+        falsifying a rule built on the sentence that used to be here: substituting the right denominator
+        changes the drawn eleven of **0 clubs out of 55**.
+
+        ...AND «CONSUMED NOWHERE IN THE CODE», WHICH IS WHAT THIS PARAGRAPH SAID UNTIL 05/09/2026, STOPPED
+        BEING TRUE ON 19/08. `minutes_next` reads it as `P_prev` - and for THAT question the appearances
+        denominator is the right one, because the quantity being split is an appearance, so the paragraph
+        above is about a different question and not a defect waiting on a decision. What it does mean is
+        that the column now DECIDES something: through the ladder's minutes floors (`status.FULL_MATCH`,
+        `MOST_OF_THE_MATCH`) it decides `desc_titolarita`. A column nobody reads and a column that decides
+        a word on the card are not the same object, and a stale «nobody reads it» is how one gets left out
+        of a change that moved its two neighbours (see `snapshot.build_rows`, 05/09/2026).
         """
         if horizon == "recent":
             measured = _number(row.get("desc_form_measured"))
@@ -5647,6 +5679,12 @@ class SnapshotView(ttk.Frame):
         eligible = sorted(
             (row for row in squad
              if not row.get("desc_left_for")
+             # ...e un'assenza LUNGA lo toglie anche dall'undici tipo (operatore, 05/09/2026): «se un
+             # calciatore non puo' giocare 6 mesi, non puo' rientrare nella formazione tipo». Sotto
+             # `BOARD_OUT_SHARE` esce di netto; sopra resta e paga lo sconto dentro `claim`, che e' la
+             # meta' «con tanti dubbi» della sua stessa frase. Chi non ha una data di rientro legge 1.0
+             # e non e' toccato: senza una durata non c'e' una quota, e li' vale il vincolo.
+             and (mode == "next" or self.out_share(row) >= self.BOARD_OUT_SHARE)
              and (mode != "next"    # a man who is out cannot play the next match; the tipo eleven can
                   or (not row.get("desc_injury_open")
                       and row.get("desc_availability_now") not in ("injured", "suspended")))),
@@ -6135,6 +6173,28 @@ class SnapshotView(ttk.Frame):
     # of 38, i.e. the smallest difference between two men that is not noise. A display parameter, like the
     # rest of the board's - nothing gated reads it.
     CLAIM_MARGIN: ClassVar[float] = 0.05
+    # QUANTA STAGIONE DEVE RESTARGLI PERCHE' L'UNDICI TIPO LO DISEGNI ANCORA (operatore, 05/09/2026):
+    # «nelle formazioni tipo non vanno ignorati tutti gli infortuni, solo quelli di poco conto: se ad
+    # esempio un calciatore non puo' giocare 6 mesi, non puo' rientrare nella formazione tipo ... se un
+    # calciatore non puo' giocare 3 mesi puo' rientrare nella formazione tipo ma con tanti dubbi e la sua
+    # percentuale deve diminuire nettamente.»
+    #
+    # E' una DICHIARAZIONE e non una misura, e cambia la DEFINIZIONE dell'undici tipo che questo file
+    # portava dall'08/08/2026 («la squadra che schiera quando sono tutti disponibili», il caso De
+    # Bruyne): quella definizione era coerente e chiedeva di disegnare un uomo fuori fino a dicembre. La
+    # definizione e' sua, quindi nessun gate la possiede - ma il DISEGNO ha un giudice esterno (`press
+    # --against press`) e la si misura la' come qualunque altra cosa.
+    #
+    # 0,50 delle giornate che gli restano e' il valore che separa i SUOI due casi, che e' l'unica cosa
+    # che una soglia dichiarata deve fare: tre mesi sono ~0,64-0,72 di stagione residua (dentro, con la
+    # percentuale tagliata di un terzo), sei mesi ~0,33-0,44 (fuori). Non e' scelta guardando un
+    # conteggio - sarebbe «allargare un criterio perche' una regola ci e' caduta» - ed e' revocabile qui,
+    # in una riga.
+    #
+    # IL MARGINE DI PRUDENZA NON STA QUI. `RETURN_SLIP` vive nell'app, dove l'operatore l'ha messo, e
+    # metterne un secondo in questa riga conterebbe la stessa paura due volte: qui si legge la data che
+    # la fonte ha davvero scritto.
+    BOARD_OUT_SHARE: ClassVar[float] = 0.50
 
     def _settle(self, out: list, eligible: list[dict],
                 home: dict[int, str] | None = None) -> list:

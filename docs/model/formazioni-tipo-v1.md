@@ -753,3 +753,69 @@ intero campione - un giudice che ha letto la risposta non e' un giudice.
 
 Mediana di `Pa/giornate` per gradino, prima -> dopo: bandiera 0,58 -> **0,78** · titolare 0,71 -> 0,73 ·
 ballottaggio 0,61 -> 0,64 · panchina — -> 0,52 · riserva 0,50 -> **0,34**.
+
+## 8. IL RIENTRO DA UN'ASSENZA LUNGA: si riprende il posto? (5 settembre 2026)
+
+Misura chiesta dall'operatore («altri contendenti di quel ruolo potrebbero ben figurare e prendersi il
+posto») e fatta prima di scrivere una riga di codice, perché era la metà della sua ipotesi che questo
+progetto non modellava affatto. La metà che modellava già — il RODAGGIO — era stata misurata il 04/09 e
+vale ~1,3% di fantapunti: piccola.
+
+**Criterio scritto PRIMA della corsa.** Uno spell di `injuries` chiuso e datato che costa almeno 4
+giornate di campionato del suo club, di un uomo che nelle 6 giornate prima era titolare in almeno 4. Si
+cammina sulle DATE del club, mai sulle giornate. **856 casi**, 2019-20 → 2025-26, cinque campionati. Il
+null sono i compagni della **sua stessa linea rimasti sani**, sulle stesse giornate: un club cambia
+allenatore e modulo, quindi il suo prima/dopo da solo non è attribuibile a niente.
+
+### Si riprende il posto? (quota da titolare, appaiata coi compagni sani)
+
+| assenza | n | prima | al rientro (6 g.) | **appaiato** | poi (g. 7-18) | **appaiato** |
+|---|---|---|---|---|---|---|
+| 4-7 g. (~1 mese) | 660 | 0,841 | 0,521 | **−0,116 ± 0,017** | 0,539 | −0,064 ± 0,018 |
+| 8-13 g. (~2-3 mesi) | 158 | 0,834 | 0,460 | **−0,134 ± 0,034** | 0,508 | −0,052 ± 0,042 |
+| 14-25 g. (~4-6 mesi) | 38 | 0,838 | 0,325 | **−0,256 ± 0,081** | 0,343 | **−0,143 ± 0,070** |
+
+### Lo stesso, in MINUTI — la valuta su cui poggia lo `standing` (pesi (0,1), sweep 29/07)
+
+| assenza | prima | al rientro | **appaiato** | poi | **appaiato** | resta |
+|---|---|---|---|---|---|---|
+| ~1 mese | 71,1' | 47,1' | **−5,2' ± 1,5** | 47,4' | −1,3' ± 1,6 | 0,93 |
+| ~2-3 mesi | 70,1' | 42,6' | **−5,6' ± 2,8** | 45,7' | −0,3' ± 3,5 | 0,92 |
+| ~4-6 mesi | 69,9' | 29,4' | **−19,2' ± 6,6** | 30,3' | **−12,4' ± 5,6** | **0,72** |
+
+### I contendenti
+
+Quota da titolare dei compagni della sua linea che **non** erano titolari prima: raddoppiano durante
+l'assenza (0,21 → 0,41) e ne **tengono metà** dopo il rientro — **+0,133 · +0,122 · +0,133** sulle tre
+bande, cioè **piatto**. Quello che cambia con la durata non è quanto guadagnano loro: è quanto lui non
+recupera.
+
+### IL REGIME CAMBIA FRA I TRE E I QUATTRO MESI, in tutte e due le valute
+
+Sotto i tre mesi la perdita è **transitoria**: dopo sei giornate è già rientrata nel rumore (−0,052 ±
+0,042 e −0,3' ± 3,5, nessuna delle due distinguibile da zero). Sopra i quattro mesi **un terzo non
+torna**: −0,143 di quota e −12,4 minuti che restano, cioè torna al **0,72** di quello che era.
+
+**Le due soglie che l'operatore aveva dichiarato guardando il calcio — «tre mesi rientra con tanti dubbi»,
+«sei mesi non rientra» — cadono esattamente dove il regime cambia.** Vale come le altre due volte in cui è
+successo in questo progetto (`EASY_MARGIN` ↔ il 40% di porta inviolata, `DEPTH_TIER` ↔ la banda
+dell'archivio): è evidenza, e NON è una ragione per tarare la soglia su questi numeri.
+
+Quindi la regola prende una forma diversa nelle due bande, e nessuna delle due è quella che sembrava
+ovvia prima della misura:
+
+* **fino a 3 mesi** il costo sono le **giornate saltate**, più una coda di ~6 giornate. Non è una
+  demozione: sei giornate dopo è di nuovo lui, e «con tanti dubbi» ha un prezzo che SCADE.
+* **da 4 mesi in su** il posto l'ha perso davvero, ed è l'argomento misurato per l'esclusione dall'undici
+  tipo che l'operatore ha dichiarato lo stesso giorno.
+
+### Cosa questa misura NON può dire, e va detto perché è la parte utile
+
+* **n = 38** nella banda lunga (18 per la coda). La direzione è netta (t 2,2-2,9), **la soglia non si tara
+  qui**.
+* Solo spell **chiusi** e con almeno 6 giornate giocate dopo: chi non è mai tornato non è nella
+  popolazione. È la lettura **ottimistica**.
+* La linea è **G/D/M/F**, l'unica posizione storica per partita che il layer ha: un terzino e un centrale
+  sono entrambi «D», quindi i contendenti sono sovrastimati e l'effetto è diluito **verso lo zero**.
+* Misura il **rientro**, non l'assenza: si moltiplica per le giornate che gioca, non la sostituisce.
+

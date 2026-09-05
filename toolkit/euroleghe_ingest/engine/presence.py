@@ -241,13 +241,35 @@ class Params:
     # giornate di Serie A decidevano la titolarita' di 358 righe su 602 - Douvikas 2/2 letto `titolare`
     # a 75', Kean un ingresso da 27' letto `riserva`, e 313 righe su 358 in disaccordo col proprio Pa.
     #
-    # IL VALORE NON E' SCELTO QUI: 10 giornate e' la stessa K che il gate ha ADOTTATO per R20 su
-    # `default` (`evaluate.R20_ROUNDS`, gate §7-duotricies), cioe' il tasso di cambio MISURATO fra «le
-    # giornate gia' giocate» e il prior, sulla stessa piattaforma e per la stessa domanda - quante
-    # partite giochera'. Su euro il gate ha adottato 6, ed e' per piattaforma anche qui perche' lo sweep
-    # gira per piattaforma. La forma e' quella di `model.blend_with_seen` e di `standing_prior_rounds`:
-    # k osservate contro K di prior, inerte a k = 0 (una pre-stagione non cambia di un decimale).
-    season_prior_rounds: float = 10.0
+    # IL VALORE NON E' SCELTO QUI, ED E' STATO RIMISURATO IL 05/09/2026 SU QUESTA STESSA DOMANDA.
+    # Le 10 giornate erano PRESE IN PRESTITO da R20 (`evaluate.R20_ROUNDS`, gate §7-duotricies), che e' la
+    # K misurata per l'ACCURATEZZA di `engine_pv_pred` su finestre a k = 6 e 10 giornate giocate; qui la
+    # quantita' e' `appearance_share` e il momento e' k = 2. «Una costante appartiene alla domanda su cui
+    # e' stata misurata, non solo alla popolazione» - stessa famiglia del vantaggio campo del 03/09.
+    #
+    # Misurata fuori campione sulla quantita' che questo file pubblica: alla giornata k, prevedere la
+    # quota di presenze nelle giornate che RESTANO (nessuna delle quali entra nel predittore), su 6.719
+    # uomo-stagione con una stagione precedente e una corrente nello stesso campionato a un club solo,
+    # cinque campionati, 2020-21 -> 2025-26. MAE a k = 2:
+    #
+    #   K        0      2      3      4      5      6      8     10     15     20   solo prior
+    #   MAE  0.2876 0.1998 0.1935 0.1912 0.1908 0.1912 0.1925 0.1942 0.1974 0.1997     0.2095
+    #
+    # Ottimo INTERNO a 5, piatto fra 4 e 6; le 10 in vigore costano +1.8% di errore. Tre conferme che lo
+    # rendono adottabile: l'ottimo e' lo STESSO a k = 2, 4 e 6 - che e' la proprieta' che deve avere un
+    # prior, una quantita' fissa di prova e non una che cresce col campione, ed e' l'argomento misurato
+    # contro la percentuale fissa che l'operatore aveva proposto (un 50/50, cioe' K = k, costa +4.7%);
+    # e' stabile per stagione (6·6·6·6·4·4); e 6 e' la K che il gate aveva gia' adottato per R20 su euro,
+    # cioe' due strade indipendenti sullo stesso numero.
+    #
+    # IL SUO MECCANISMO E' VERO E NON SPOSTA IL CAMBIO («le partite del passato hanno un contesto diverso
+    # e quindi meno veritiere», 05/09/2026): separando chi e' rimasto al suo club da chi ha cambiato,
+    # l'ottimo e' 5 contro 4 - un punto, dentro il rumore - perche' il cambio di contesto peggiora TUTTE
+    # E DUE le meta' (solo-prior 0.196 -> 0.262, solo le due partite 0.272 -> 0.350) e quindi il rapporto
+    # fra loro quasi non si muove. Niente K per popolazione: una seconda manopola per un effetto che non
+    # separa. La forma resta quella di `model.blend_with_seen` e di `standing_prior_rounds`: k osservate
+    # contro K di prior, inerte a k = 0 (una pre-stagione non cambia di un decimale).
+    season_prior_rounds: float = 5.0
     # ...e le AMICHEVOLI, «in maniera molto lieve» (sua richiesta, stessa data). DICHIARATO e non
     # misurato: un ritiro non e' un campionato - avversari di categoria diversa, minuti spartiti per
     # farli giocare tutti - e la forma piu' vicina che questo progetto ha gia' misurato (PRESEASON_WEIGHT
@@ -533,7 +555,29 @@ def blend_seasons(now: SeasonWindow, prev: SeasonWindow,
         windows.append((now, 1.0))
     if prev.rounds > 0 and params.season_prior_rounds > 0:
         windows.append((prev, params.season_prior_rounds / prev.rounds))
+    # I MINUTI DEL RITIRO SONO IMPUTATI, e fino al 05/09/2026 questa riga diceva il contrario di quello
+    # che faceva. Il commento al punto di chiamata prometteva gia' che il ritiro «entra con i minuti della
+    # media delle altre e non ne sposta il rapporto di un decimale»; il chiamante passava una finestra
+    # SENZA minuti, quindi il ritiro aggiungeva una giornata da ZERO minuti a tutti. Misurato su un
+    # titolare da 85' con dieci giornate di prior: la quota di minuti che `standing` legge scende di
+    # **0.060 a K=10 e di 0.100 a K=5**, cioe' il difetto peggiora proprio con la K adottata oggi. Terza
+    # istanza in questo repository di «una finestra vuota non e' una finestra a zero», e la prima trovata
+    # leggendo un commento invece di una colonna.
+    #
+    # Imputati al TASSO delle altre finestre e spartiti nella loro stessa proporzione fra qui e altrove:
+    # e' la lettura letterale di «i minuti della media delle altre», e lasciando `at_club_weight` fermo
+    # non introduce di straforo una seconda affermazione (che il ritiro sia una prova su questo club) in
+    # una correzione che riguarda i minuti.
     if friendly and friendly.rounds > 0 and params.friendly_rounds > 0:
+        if not friendly.minutes and windows:
+            over = sum(one.rounds * weight for one, weight in windows)
+            played = sum(one.minutes * weight for one, weight in windows)
+            here = sum(one.minutes_here * weight for one, weight in windows)
+            rate = played / over if over else 0.0
+            share = here / played if played else 1.0
+            friendly = replace(friendly, minutes=rate * friendly.rounds,
+                               minutes_here=rate * friendly.rounds * share,
+                               minutes_elsewhere=rate * friendly.rounds * (1.0 - share))
         windows.append((friendly, params.friendly_rounds / friendly.rounds))
     if not windows:
         return SeasonWindow()

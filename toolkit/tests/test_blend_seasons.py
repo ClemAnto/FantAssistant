@@ -52,9 +52,9 @@ def test_two_matches_do_not_make_a_season():
     leggeva 1,000 (Douvikas `titolare` a 75') e chi ne ha giocata una da riserva leggeva quasi zero.
     """
     blended = presence.blend_seasons(DOUVIKAS_NOW, DOUVIKAS_PREV)
-    assert blended.rounds == 12.0                                  # 2 giocate + 10 di prior
+    assert blended.rounds == 2.0 + presence.DEFAULTS.season_prior_rounds
     assert 0.94 < _share(blended) < 0.97                           # era 1,000 su due partite
-    weight = 2.0 / 12.0
+    weight = 2.0 / blended.rounds
     assert abs(_share(blended) - (weight * 1.0 + (1 - weight) * (36 / 38))) < 1e-9
 
 
@@ -82,6 +82,12 @@ def test_the_friendlies_weigh_lightly_and_say_nothing_about_minutes():
     without = presence.blend_seasons(DOUVIKAS_NOW, DOUVIKAS_PREV)
     assert with_camp.rounds == without.rounds + presence.DEFAULTS.friendly_rounds
     assert 0 < _share(with_camp) - _share(without) < 0.01
+    # ...E NON SPOSTA I MINUTI DI UN DECIMALE, che e' quello che il commento al punto di chiamata
+    # prometteva mentre il codice aggiungeva una giornata da ZERO minuti a tutti: misurato su un titolare
+    # da 85', la quota di minuti che `standing` legge scendeva di 0.060 a K=10 e di 0.100 a K=5, cioe' il
+    # difetto peggiorava con la K adottata il 05/09. I minuti del ritiro sono ora imputati al tasso delle
+    # altre finestre, ed e' questa uguaglianza a dirlo.
+    assert (abs(with_camp.minutes / with_camp.rounds - without.minutes / without.rounds) < 1e-9)
     # e a peso zero il ritiro non esiste affatto, che e' come si spegne un canale senza toglierlo
     off = replace(presence.DEFAULTS, friendly_rounds=0.0)
     assert presence.blend_seasons(DOUVIKAS_NOW, DOUVIKAS_PREV, friendly, off) == without
@@ -98,9 +104,53 @@ def test_the_prior_is_rescaled_so_a_shorter_championship_is_not_a_weaker_one():
             == _share(presence.blend_seasons(now, short_season)))
 
 
-def test_the_weight_is_the_gates_own_exchange_rate():
-    """`season_prior_rounds` e' la K che il gate ha adottato per R20 su `default`, non un numero scelto qui."""
+def test_the_weight_is_measured_here_and_is_not_r20s():
+    """K = 5, misurata su QUESTA domanda - e deliberatamente diversa da quella di R20.
+
+    Fino al 05/09/2026 questo test asseriva l'opposto: che `season_prior_rounds` FOSSE la K adottata dal
+    gate per R20 su `default`. Era un prestito, e la misura lo ha smentito. R20 tara il tasso di cambio
+    per l'ACCURATEZZA di `engine_pv_pred` su finestre a sei e dieci giornate giocate; qui la quantita' e'
+    `appearance_share` e il momento e' k = 2, e su quella domanda l'ottimo fuori campione e' 5 (interno,
+    piatto fra 4 e 6, stabile per stagione, e le 10 costano +1.8% di errore) - «una costante appartiene
+    alla domanda su cui e' stata misurata».
+
+    L'asserzione e' scritta al ROVESCIO apposta: che i due numeri siano DIVERSI. Se un domani qualcuno li
+    riallinea per simmetria, questo test cade e lo obbliga a rileggere la misura invece di ereditarla.
+    """
     from euroleghe_ingest.engine import evaluate
 
-    assert presence.DEFAULTS.season_prior_rounds == evaluate.R20_ROUNDS["R20K10"]
+    assert presence.DEFAULTS.season_prior_rounds == 5.0
+    assert presence.DEFAULTS.season_prior_rounds != evaluate.R20_ROUNDS["R20K10"]
     assert "R20K10" in evaluate.ADOPTED["default"]
+
+
+def test_a_man_nobody_has_seen_here_gets_his_populations_prior_and_not_a_zero():
+    """`snapshot.prior_window`: un'assenza non e' uno zero misurato, e nemmeno una finestra assente.
+
+    Le due facce del difetto del 04/09/2026, tenute insieme come nel test qui sopra. Con un prior a ZERO
+    presenze su dieci giornate, chi la stagione scorsa qui non l'ha giocata aveva un TETTO di k/(k+K) -
+    0,167 con due giornate - e tredici uomini che avevano cominciato da titolare tutte e due le prime
+    giornate leggevano `riserva`. Togliendo la finestra invece leggerebbero 1,000 su due partite, che e'
+    il difetto opposto e piu' grosso (Rrahmani Al. `bandiera` con 19 minuti giocati).
+
+    E LA FINESTRA NE PORTA TRE, non una: `standing` legge i MINUTI, quindi un prior che desse le sole
+    presenze farebbe leggere «due partite di minuti su otto giornate» proprio a questi uomini.
+    """
+    from euroleghe_ingest.engine import estimate as est
+    from euroleghe_ingest.modules import snapshot
+
+    now = presence.SeasonWindow(appearances=2, starts=2, minutes=173, minutes_here=173, rounds=2)
+    prior = snapshot.prior_window(None, {}, {}, 38.0, "A", "default")
+    assert prior.rounds == presence.DEFAULTS.season_prior_rounds
+    assert prior.appearances == est.default_presences(prior.rounds, "default", "unmeasured", "A")
+    # i tre numeri sono coerenti fra loro: minuti a presenza, non minuti a giornata
+    assert abs(prior.minutes / prior.appearances - est.UNMEASURED_MINUTES_PER_APPEARANCE["A"]) < 1e-9
+    blended = presence.blend_seasons(now, prior)
+    assert 0.45 < _share(blended) < 0.75          # ne' 0,167 ne' 1,000
+    assert blended.minutes > now.minutes          # e `standing` non legge due partite su sette giornate
+
+    # UNO ZERO MISURATO NON E' UN'ASSENZA: chi una riga ce l'ha, con zero partite, la tiene. Era in un
+    # campionato che leggiamo e non e' stato scelto, che vale piu' di qualunque costante di popolazione.
+    measured_zero = snapshot.prior_window({"matches": 0, "starts": 0}, {}, {}, 38.0, "A", "default")
+    assert measured_zero.appearances == 0.0
+    assert measured_zero.rounds == 38.0

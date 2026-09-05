@@ -3975,6 +3975,191 @@ L'autorship si misura in un comando (`git diff | grep` per il vocabolario di cia
 file) e qui ha separato tutto tranne tre file che sembravano misti e non lo erano: il conteggio grezzo
 prende anche il contesto, quindi la conferma è un grep sulle sole righe AGGIUNTE.
 
+## Un FILE letto prima di essere scritto dà DUE valori a una colonna, e l'esperimento che lo assolveva teneva ferma la variabile sbagliata
+**05/09/2026, il difetto più grosso della giornata e il mio errore più istruttivo. Dettaglio: spec «Novità
+v9.75» §5.** `minutes_next` legge `manifest.matchdays.platform_target` per l'unica metà del suo `P` che
+viene dal MODELLO, e `snapshot` scrive il manifest **dopo** la passata dei campetti. Su una cartella NUOVA
+quel numero è **zero** e la colonna esce calcolata sulla sola misura; su una cartella RIUSATA la passata
+legge il manifest della corsa **precedente**, in silenzio. Malen 74,0 col manifest e **78,0** senza, 241
+righe su 602 in mezzo — abbastanza da riordinare i tre gradini alti della scala, che hanno i pavimenti a
+75' e 65' (`titolare` letto **2** invece di 33). Il docstring prevedeva lo zero «per un foglio scritto
+prima che il manifest lo portasse» e nessuno aveva notato che capita al PRIMO giro di ogni cartella nuova,
+cioè **ogni giorno**, e a **ogni pacchetto del viaggio nel tempo**. Cura: il numero si **passa**
+(`write_boards(..., matchdays=...)`), con un test che lo pretende nella firma E al punto di chiamata.
+
+**E LA LEZIONE SUL METODO VALE PIÙ DEL DIFETTO.** Per un'ora l'ho attribuito all'ordine d'iterazione
+delle stringhe, su un esperimento che sembrava decisivo: due corse a `PYTHONHASHSEED=0` concordavano su
+tutte le righe, due senza divergevano su 241. Concordavano per la ragione sbagliata — **entrambe
+scrivevano in cartelle nuove**, quindi entrambe leggevano zero. *Un esperimento che tiene ferma una
+variabile che non sapevi di avere non ha tenuto ferma niente*, e la conferma che sembra più pulita è
+esattamente quella da sospettare. Quello che ha trovato la causa è stato **rigirare nella STESSA
+cartella**, cioè muovere la variabile invisibile invece di quella che credevo di studiare. Due corollari
+già scritti altrove e incontrati qui da capo: un `grep` che filtra solo le righe di SUCCESSO fa leggere
+il silenzio come «tutto bene» (una delle tre corse era caduta e l'ho saputo dieci minuti dopo aver citato
+quella regola); e prima di attribuire un difetto, si diffano TUTTE le colonne — qui furono 2 su 199, ed è
+quel 2 su 199 a localizzarlo.
+
+## Un'ASSENZA non è uno ZERO MISURATO, e la cura ovvia è peggio del difetto
+**05/09/2026, dai cinque nomi che l'operatore ha portato guardando le prime due giornate. Dettaglio:
+spec «Novità v9.75» §1-§3, gate §7-trequadragies.**
+
+**Il prior di chi qui non ha mai giocato era «zero presenze su dieci giornate»**: non un ripiego prudente,
+un TETTO — qualunque cosa facesse, la sua quota non poteva superare `k/(k+K)`, cioè **0,167** con due
+giornate. 113 righe su 602, e tredici uomini che avevano cominciato da titolare TUTTE E DUE le prime
+partite leggevano `riserva`. **Ma togliere la finestra è il difetto opposto e più grosso**: quei 113
+poggerebbero su due partite e leggerebbero **1,000** (Rrahmani `bandiera` con 19 minuti giocati, i terzi
+portieri da 0,077 a 0,334). Quindi il prior è la **mediana della sua popolazione**, che era già misurata e
+già in uso due colonne più in là. *Quando le due letture estreme di un vuoto sono entrambe sbagliate, la
+risposta è quello che fa la sua popolazione — e se nessuno l'ha misurato, si misura.*
+
+**E UNA FINESTRA NE PORTA TRE, non una.** `SeasonWindow` porta presenze, partite da titolare e MINUTI, e
+`standing` legge i minuti: un prior con le sole presenze avrebbe curato una colonna e rotto quella
+accanto. Le due quantità nuove sono misurate sulla stessa popolazione ed espresse come **rapporti alla
+presenza**, così si COMPONGONO con qualunque costante sia in vigore invece di sostituirla — e l'arnese
+riproduce le costanti già adottate prima di misurare qualcosa di nuovo, che è l'unico modo di sapere che
+sta guardando la stessa popolazione.
+
+**UNA COSTANTE APPARTIENE ALLA DOMANDA SU CUI È MISURATA, non solo alla popolazione.**
+`season_prior_rounds` era **presa in prestito** da R20 — misurata per l'accuratezza di `engine_pv_pred` a
+sei e dieci giornate giocate — mentre qui la quantità è `appearance_share` e il momento è k = 2.
+Rimisurata su quella domanda: **K = 5**, ottimo interno, piatto fra 4 e 6, e le 10 costano +1,8%.
+L'ottimo è lo STESSO a k = 2, 4 e 6, che è la proprietà che un prior deve avere; e 6 è la K che il gate
+aveva già adottato per R20 su euro — due strade indipendenti sullo stesso numero. **La proposta
+dell'operatore di una PERCENTUALE FISSA (50/50) è respinta dalla misura** (+4,7%) e per una ragione
+strutturale: una quota fissa fa CRESCERE il prior col procedere della stagione, che è il contrario di
+quello che un prior è. Il suo meccanismo («il passato ha un contesto diverso») è invece **vero e non
+sposta il cambio**: il cambio di club peggiora tutte e due le metà, quindi il loro rapporto quasi non si
+muove — e una manopola per popolazione che vale un punto di K non si adotta.
+
+**E IL DENOMINATORE DEL PRIOR SEGUE IL SUO NUMERATORE**: la regola del 20/08 rientrata dalla porta della
+miscela. Malen ha giocato 18 delle ultime 18 della Roma e leggeva 0,562, perché il denominatore era il
+calendario del CAMPIONATO e gli contava anche le giornate giocate in Premier; con la sua finestra vera
+legge **0,918**. *Una regola curata in un punto va cercata in ogni punto che ricostruisce la stessa
+quantità.*
+
+**Quarta istanza di «una finestra vuota non è una finestra a zero», e la prima trovata leggendo un
+COMMENTO**: il ritiro entrava con `minutes=0`, mentre il commento al punto di chiamata prometteva già che
+«entra con i minuti della media delle altre e non ne sposta il rapporto di un decimale». Lo spostava di
+0,060 a K=10 e di **0,100 a K=5**, cioè il difetto peggiorava con la costante adottata la stessa ora.
+
+## Nell'undici tipo non si ignorano TUTTI gli infortuni, e il rientro è misurato
+**05/09/2026, dichiarazione dell'operatore + 856 casi. Dettaglio: `formazioni-tipo-v1.md` §8, spec
+«Novità v9.75» §6.** «Se un calciatore non può giocare 6 mesi non può rientrare nella formazione tipo; se
+non può giocare 3 mesi può rientrare ma con tanti dubbi e la sua percentuale deve diminuire nettamente.»
+Cambia la DEFINIZIONE che il pannello portava dall'08/08 («la squadra che schiera quando sono tutti
+disponibili», il caso De Bruyne): quella definizione era coerente e chiedeva di disegnare un uomo fuori
+fino a dicembre. È sua, quindi nessun gate la possiede — ma il DISEGNO ha un giudice esterno e la si
+misura là.
+
+La quantità è la **quota delle giornate del suo club che restano in cui è disponibile**, col denominatore
+che parte da OGGI perché le giornate già giocate le hanno perse tutti; il `claim` la moltiplica, e sotto
+`BOARD_OUT_SHARE` = 0,50 esce di netto. **La soglia è oggi INERTE** (0 righe su 32 sotto): quello che
+lavora è la moltiplicazione, e Yildiz e Thuram escono dall'undici della Juventus **per graduatoria e non
+per taglio**. Il margine di prudenza NON sta qui — `RETURN_SLIP` vive nell'app, e metterne un secondo
+conterebbe la stessa paura due volte. **Il gradino resta condizionale** per sua decisione esplicita: la
+scala è definita sulla quota delle partite in cui è DISPONIBILE, quindi non prende lo sconto, e Yildiz
+scende a `ballottaggio` solo perché la board non lo disegna più.
+
+**E LA SUA IPOTESI SUI CONTENDENTI È MISURATA, con il regime che cambia dove lui aveva messo le soglie.**
+856 spell chiusi, appaiati coi compagni della sua linea rimasti sani: al rientro un mese costa −0,116 di
+quota da titolare, due-tre mesi −0,134, **quattro-sei mesi −0,256**; e nelle giornate 7-18 la prima e la
+seconda banda sono già rientrate nel rumore mentre la terza tiene **−0,143** (in minuti: −5,2' · −5,6' ·
+**−19,2'**, e dopo −1,3' · −0,3' · **−12,4'**). I contendenti raddoppiano durante l'assenza e ne tengono
+metà, **piatto su tutte e tre le bande**: quello che cambia con la durata non è quanto guadagnano loro, è
+quanto lui non recupera. Le sue due soglie cadono esattamente sul cambio di regime — terza volta che
+succede in questo progetto, e come le altre due **è evidenza e non una ragione per tarare la soglia su
+quei numeri** (n = 38 nella banda lunga). Il RODAGGIO, che era l'altra metà della sua ipotesi, era già
+misurato il 04/09 e vale ~1,3%: piccolo. La parte che valeva era quella che non modellavamo.
+
+## Il dato c'era, in una tabella che nessuno leggeva per quella domanda
+**05/09/2026, quinta istanza. Dall'operatore: «non riusciamo in nessun modo a recuperare le partite di
+Varela in Primeira Liga?»** Sì: `tm_appearances` (acquisita il 17/08, 2,08M righe su 3.535 giocatori) ne
+porta **32 partite giocate, 1522', 6 gol, 3 assist**. Cosa quella tabella porta e cosa no va detto: minuti,
+gol, assist, competizione e posizione per partita **sì**; **se è partito titolare no** — `state` è
+`played` / `in squad` / `not in squad`, cioè la partecipazione e non la distinta, e il surrogato sono i
+minuti a presenza (Varela 47,6': un uomo di rotazione). E una trappola trovata **misurando invece che
+dichiarando**: quella tabella ha 1.086 codici di competizione e dentro c'è il calcio GIOVANILE (`IJ1` =
+Primavera 1, anno di nascita mediano **2006**), quindi 38 partite di Penev e 14 gol di Gabellini non sono
+una stagione da senior. L'età mediana di chi ci gioca separa senior e giovanili senza che nessuno debba
+decidere.
+
+**E LA SUA REGOLA ASIMMETRICA È GIUSTA PER UNA RAGIONE PRECISA.** «Un attaccante che fa pochi gol in
+Primeira Liga ne farà ancora di meno in Serie A → inutile porre attenzione; uno che segna tantissimo
+potrebbe essere un talento in erba → giusto acquisire altri dati.» Non è un coefficiente, è **dove
+spendere attenzione** — e questo è ciò che la misura del 25/08 lasciava aperto: là era stato respinto
+usare le presenze di un campionato non coperto come *predittore* (−6,9%, «la retta non ha un termine di
+livello»), e un FLAG quel termine non ne ha bisogno perché il livello lo giudica l'operatore leggendo il
+nome del campionato. **Stessa quantità, due domande, due verdetti opposti.** Col metro della Serie A
+2025-26 (g+a per 90 di chi ha ≥900': A 0,43 / 0,59 / 0,76 · C 0,25 / 0,36 / 0,44) e 55 uomini con una
+stagione senior di lega, quello che segnala è **Bobcek** (20 gol e 6 assist in Ekstraklasa, 0,95 per 90,
+oltre il p90 di un attaccante di Serie A, e la scheda dice `riserva`); e **Varela cade nel ramo basso
+della sua stessa regola** (0,53 fra mediana e p75, in un campionato più debole), cioè «usa l'ancora di
+ruolo» — che è ciò che il foglio fa già. Il limite dichiarato: `tm_appearances` copre i giocatori che
+abbiamo chiesto, quindi **dentro un campionato minore non esiste una popolazione** contro cui fare un
+percentile (provato: sopravvivevano 6 uomini su 113), e il metro deve essere la Serie A.
+
+## Una POPOLAZIONE la dichiara l'operatore, un CRITERIO no — e un bordo dichiarato non è un bordo misurato
+**05/09/2026, da tre domande su Palestra e da un'istruzione. Dettaglio:
+[docs/model/letture-app-v1.md](docs/model/letture-app-v1.md) §26.** «Se lo scopo è individuare calciatori
+come Palestra allora dobbiamo tarare i limiti in modo che Palestra sarebbe rientrato l'anno scorso.»
+Sembra la cosa che questo progetto vieta — «un criterio non si allarga perché una regola ci è caduta» —
+e non lo è: **quella regola riguarda l'ADOZIONE di una regola, questa è la POPOLAZIONE bersaglio**, che
+è una dichiarazione dell'operatore come `board_rulings.json`. Quello che la ridichiarazione impone non è
+di allentare: è di **rimisurare tutto sulla popolazione nuova** e di dire il prezzo (qui 1,64× con lui
+contro 1,86× senza).
+
+**E il bordo che si è mosso era un parametro che nessuno aveva mai misurato.** Il pavimento della fascia
+dello screen `starter_signs` (30° percentile, «sotto è un riempitivo le cui quattro buone partite sono
+una coppa») era DICHIARATO nel commento e mai passato al setaccio. Al setaccio **costa precisione zero e
+compra lift** — 30 → 1,93× · 20 → 2,02× · **0 → 2,26×**, monotono, +7 uomini a stagione — perché sotto
+il 30° diventare titolare è più RARO, quindi la stessa precisione sta contro una base più bassa.
+*Una frase plausibile scritta accanto a una costante non è la sua misura*, ed è la stessa famiglia di
+«mai adottare un parametro sul bordo della sua griglia», incontrata dal lato di un bordo che nessuno
+aveva guardato.
+
+**METÀ DI UN LIFT PUÒ ESSERE «GIOCA», E VA DETTO QUALE METÀ.** «Quotato ≤5 e titolare in tutt'e due le
+prime giornate» legge **19,3% contro 3,5% (5,46×)** su 636 uomini e 6 stagioni su 6; dentro la
+popolazione di uno screen che pretende GIÀ 90 minuti in quelle due giornate, lo stesso segnale vale
+**1,16×**. Nessuno dei due numeri è sbagliato: sono due domande, e il 5,46× è utile solo perché
+«chi sta giocando» è invisibile su seicento righe — non perché sia un'opinione migliore sui calciatori.
+
+**LA CONTROPROVA CHE TIENE ONESTO UN FILTRO A DUE TERMINI È MISURARE OGNI TERMINE DA SOLO.** «Ha
+cominciato l'ultima giornata» + «il valore di mercato è raddoppiato in 24 mesi» vale 1,78×; il valore di
+mercato **da solo** vale **1,22×**. Senza quel numero il filtro sembrerebbe un canale nuovo e sarebbe
+lo stesso fatto contato due volte.
+
+**PRIMA DI COSTRUIRE UNO SCREEN SU UNA FONTE, SI MISURA LA SUA COPERTURA ALL'INDIETRO.** L'operatore ha
+chiesto di contare le amichevoli pre-stagionali «anche se hanno meno validità»: `club-friendly-games`
+copre 20 club di Serie A su 20 **solo per il 2026-27** e **2 e 4** nelle due stagioni precedenti, perché
+quel livello è stato acquisito quest'estate. Quindi nessuno screen che le legga è verificabile su una
+stagione passata, e un marchio senza verdetto dietro è la cosa che qui non si spedisce: viaggiano nella
+FRASE, dove informano senza decidere, e la misura è **pre-registrata per l'estate 2027**.
+
+**UN MARCHIO CHE SI DISEGNA IN UNA VISTA SOLA È INDISTINGUIBILE DA UN MARCHIO CHE NON ESISTE** (terza
+istanza, dopo i campetti e `availability`). `starter_signs` era misurato dal 14/08 e lo registrava il
+PANNELLO D'ASTA invece di `ValuationStore`, quindi in plancia e in Strategia non era mai comparso. E il
+suo compagno era muto per un'altra ragione ancora: `RISER_FROM` = 4 lo faceva tacere sulle prime tre
+giornate — zero righe su 602, **per costruzione**, che è il posto peggiore in cui un buco possa
+nascondersi, ed era esattamente la finestra in cui si compra.
+
+Quattro abitudini, e due sono errori di misura miei della stessa giornata.
+- **Un rango di ruolo calcolato DENTRO la fascia non è un rango di ruolo**: la prima curva leggeva una
+  base del 25,4% dove è il 3,5%, perché «i primi 30 del ruolo» erano calcolati sui soli quotati a ≤5.
+  Un lift diluito da una popolazione sbagliata sembra un risultato modesto, non un difetto.
+- **Un conteggio di copertura per NOME di club non è una copertura**: leggeva 2 club di 20 con
+  amichevoli in archivio; con `club_index` sono 20 su 20. Quinta istanza della stessa regola.
+- **Si verifica CHIAMANDO la funzione sulla finestra vera**: `starter_signs` con la data del 15/08/2025
+  accende 56 uomini su 663 e Palestra è dentro, e quella lista realizza **39,3% contro 26,2% (1,50×)**.
+  Nessuna tabella di celle sostituisce una corsa sulla stagione che l'operatore ricorda.
+- **E una riproduzione non è la misura che riproduce**: la mia lettura dello screen esistente dà 86,2%
+  dove il file ne pubblica 79,1%, perché loro misurano su cinque campionati e io sul listone Serie A. Si
+  rivendica la FORMA dentro una sola riproduzione (2 giornate tengono il 91% del lift che ne hanno
+  quattro), mai il livello.
+
+**E una nota di attrezzo, pagata due volte**: un `node_modules` attaccato per GIUNZIONE rompe vitest (43
+file, «no tests», due istanze del pacchetto). In un worktree di verifica si fa `npm ci --prefer-offline`,
+che costa **21 secondi** — mentre `public/data` per giunzione va benissimo, perché sono dati e non moduli.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

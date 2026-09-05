@@ -674,6 +674,93 @@ def test_the_mirror_screen_names_a_reserve_who_is_playing_like_a_starter(tmp_pat
         "a man sold as a starter cannot be «a reserve who is playing»"
 
 
+def test_the_riser_speaks_earlier_and_says_less(tmp_path):
+    """The mark was MUTE for the first three rounds, which is exactly when a squad is bought.
+
+    `RISER_FROM` = 4 left rounds 1-3 without any mark at all - the window of an initial auction and of
+    the first repair market - while the rotation family had closed the same hole with its own `early`
+    long ago. Measured with the screen's OWN rule and outcome on the Serie A listone: after two rounds
+    76.5% against a 51.3% base (1.49x), against 1.63x after four, positive on 4 seasons of 4.
+
+    NOTHING IS RELAXED to say it earlier: same band, same minutes, same share - at two rounds that
+    share means he started BOTH. What changes is the sentence, and the test asserts the sentence
+    because a weaker claim carrying the stronger claim's numbers would be the defect.
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    _place_seed(conn, {round_number: 90 for round_number in range(1, 21)})
+    conn.commit()
+
+    class Obs:
+        def __init__(self, fc_id, price_initial, role="A"):
+            self.fc_id, self.price_initial = fc_id, price_initial
+            self.name, self.club_target, self.role_classic = f"p{fc_id}", "Inter", role
+
+    observations = [Obs(1, 11.0)] + [Obs(100 + i, float(i)) for i in range(21)]
+    prices = snapshot.role_percentiles(observations)
+    belongs = snapshot.player_clubs(conn, snapshot.club_index(conn))
+
+    def flagged(before):
+        return snapshot.starter_signs(conn, "2024-25", observations, belongs, prices, before=before)
+
+    assert 1 not in flagged("2025-09-02"), "one round is not a reading of anything"
+    early = flagged("2025-09-03")[1]
+    assert early["early"] is True and early["window"] == 2 and early["starts"] == 2
+    assert "76.5%" in early["note"] and "look at him" in early["note"]
+    assert "76.8%" not in early["note"], "the weak window must not quote the strong window's number"
+    full = flagged("2025-09-06")[1]
+    assert full["early"] is False and "76.8%" in full["note"]
+
+
+def test_the_riser_reaches_the_man_who_has_just_taken_a_shirt(tmp_path):
+    """Palestra's own shape, which the two other regimes cannot reach - and the operator's instruction.
+
+    «Se lo scopo e' individuare calciatori come Palestra allora dobbiamo tarare i limiti in modo che
+    Palestra sarebbe rientrato l'anno scorso» (05/09/2026). What he redeclared is the POPULATION, so
+    the screen is re-measured on it: this cell is a RESIDUAL of 11 men a season at 1.78x, against the
+    full reading's 2.26x, and it exists because the mean over a window is exactly the statistic that
+    hides a man who has only just started playing - 41.5' over two rounds, for a man who then started
+    every round of the season.
+
+    THE MARKET-VALUE CONDITION IS WHAT MAKES IT AN ICON instead of wallpaper (32 marks a season down
+    to 11, lift 1.49x up to 1.78x), so the test asserts BOTH halves: without the curve nothing fires,
+    and a man the curve has never seen is unknown rather than «not growing».
+    """
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # non convocato alla prima, titolare per 83' alla seconda: la forma esatta di Palestra 2025-26
+    _place_seed(conn, {1: None, 2: 83, 3: 35, **{n: 90 for n in range(4, 21)}})
+    conn.commit()
+
+    class Obs:
+        def __init__(self, fc_id, price_initial, role="A"):
+            self.fc_id, self.price_initial = fc_id, price_initial
+            self.name, self.club_target, self.role_classic = f"p{fc_id}", "Inter", role
+
+    observations = [Obs(1, 3.0)] + [Obs(100 + i, float(i + 5)) for i in range(21)]
+    prices = snapshot.role_percentiles(observations)
+    belongs = snapshot.player_clubs(conn, snapshot.club_index(conn))
+
+    def flagged():
+        return snapshot.starter_signs(conn, "2024-25", observations, belongs, prices,
+                                      before="2025-09-03")
+
+    # SENZA la curva non scatta niente: il rapporto vuole due punti, e chi non li ha e' ignoto.
+    assert 1 not in flagged(), "senza valore di mercato il terzo regime non ha nulla da leggere"
+
+    for when, value in (("2023-06-01", 1_000_000.0), ("2025-06-01", 5_000_000.0)):
+        conn.execute("INSERT INTO market_value_history(fc_id, observed_on, source, value) "
+                     "VALUES (1, ?, 'transfermarkt', ?)", (when, value))
+    conn.commit()
+    rising = flagged()[1]
+    assert rising["rising"] is True and rising["early"] is False
+    assert "1.78x" in rising["note"] and "SLOW RISER" in rising["note"]
+    # ...e la frase e' quella della SUA lettura: cita l'ultima giornata, non la media della finestra
+    assert "STARTED his club's last round" in rising["note"]
+
+
 def test_the_vote_cascade_is_declared_and_a_keeper_is_not_guessed():
     """Real fantavoto, then the calibrated synthetic voto, then nothing. Never a zero.
 

@@ -312,6 +312,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_now_matches",
     "desc_now_rounds",
     "desc_blend_now",
+    # ...E LA FINESTRA D'INFORTUNIO APERTA (05/09/2026): quando la fonte lo da' per rientrante, quante
+    # giornate del SUO club cadono prima, e la quota di quelle che restano in cui e' disponibile. La terza
+    # e' quella che sconta il `claim` dell'undici tipo, quindi viaggia per la stessa ragione delle tre
+    # della titolarita': una percentuale tagliata che non dice PERCHE' non si puo' contestare.
+    "desc_out_until",
+    "desc_out_rounds",
+    "desc_out_share",
 )
 
 
@@ -332,7 +339,13 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     "desc_titolarita", "desc_titolarita_play", "desc_minutes_next",
     # ...e le tre della miscela, nate il 04/09/2026: i pacchetti del viaggio nel tempo sono stati scritti
     # prima e non le hanno, e un foglio di PRE-STAGIONE non le ha per costruzione (una finestra sola).
-    "desc_now_matches", "desc_now_rounds", "desc_blend_now"})
+    "desc_now_matches", "desc_now_rounds", "desc_blend_now",
+    # ...e le tre della finestra d'infortunio, nate il 05/09/2026: i pacchetti del viaggio nel tempo sono
+    # stati scritti prima e non le hanno, e un foglio le porta VUOTE per chi non ha uno stop aperto con
+    # una data - che e' la maggior parte del listone. Pretenderle scarterebbe ogni pacchetto esistente,
+    # cioe' spegnerebbe il viaggio nel tempo per aggiungere una colonna: e' la terza volta che questo
+    # commento si scrive, ed e' la ragione per cui la lista opzionale esiste.
+    "desc_out_until", "desc_out_rounds", "desc_out_share"})
 
 
 def _sheet_folders(reports: Path, target: str) -> list[Path]:

@@ -440,7 +440,26 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      NOTA DI CONVIVENZA: la 40 e' di un'ALTRA sessione (i «ceduti» del listone, l'asterisco che dice
 #      chi non gioca piu' qui) e la sua voce la scrive lei. Questo file e' stato toccato da due mani
 #      nello stesso pomeriggio: chi committa misura tutt'e due le meta' invece di fidarsi.
-SHEET_REVISION = 41
+#   44 (05/09/2026) - LA QUOTA DA TITOLARE TORNA NELLA FINESTRA DEI SUOI DUE VICINI. Nata da
+#      un'osservazione dell'operatore su tre attaccanti in cima alla lista - «i minuti previsti a partita
+#      sono molto bassi (Thuram 39, Krstovic 36, Castro 38)» - e quei tre numeri erano un difetto e non
+#      un fatto sul calcio: Thuram ha giocato 29 partite, 24 da titolare, 1913 minuti. `d64ae0e` aveva
+#      spostato `desc_season_starts` e `desc_season_matches` sulla miscela e lasciato `desc_start_share`
+#      su `season_play`, cioe' sulla sola stagione in corso - due giornate, entrati dalla panchina, quota
+#      0,000 - e `minutes_next` legge quella quota come `P_prev` mentre legge i minuti dalla miscela.
+#      Due campioni in un conto solo, che e' il difetto per cui la miscela era stata scritta.
+#      Misurato sul foglio del 04/09: 267 righe su 602 in disaccordo col proprio `starts/matches`, 100 a
+#      0,000 esatto, Thuram 39' -> 60', e 94 righe attraversano un pavimento della scala NEI DUE VERSI
+#      (Martinez L. 67' -> 62', perche' le sue due partite le aveva cominciate da titolare). Si muovono
+#      `desc_start_share`, `desc_minutes_next` e `desc_titolarita`; `engine_*` no - `evaluate` non
+#      importa `presence` e non vede una colonna `desc_*`. INERTE su una pre-stagione (li' la miscela ha
+#      una finestra sola e vale esattamente `season_play`), quindi nessuna finestra pubblicata dal gate
+#      si muove, e un test lo asserisce invece di prometterlo.
+#      NOTA DI CONVIVENZA, seconda: la 41-42-43 sono dell'ALTRA sessione (la K della miscela rimisurata
+#      da 10 a 5, i minuti del ritiro imputati) e le loro voci le scrive lei. I numeri di questa voce
+#      sono misurati sul foglio del 04/09, cioe' a K = 10: la loro K piu' corta pesa di piu' la stagione
+#      in corso, quindi con le due meta' insieme il difetto qui curato era PIU' grande, non meno.
+SHEET_REVISION = 44
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1802,16 +1821,117 @@ ROTATION_LEFT = 8
 # started 3 of the first 5 and averaged 49 minutes, under both thresholds, and he went on to start 67%
 # of the rest. The screen is deliberately strict - four starts of five - and a slow riser is what it
 # gives up in exchange for the 79%.
-RISER_POOL = (30.0, 85.0)     # percentile band inside his role: «a reserve, but not a filler»
+# THE FLOOR CAME OFF ON 05/09/2026, and the sweep says it was not a concession but an improvement.
+# The band's low edge was declared («below the 30th he is a filler whose four good matches are a cup
+# run») and never swept. Swept - the screen's own rule and outcome, five seasons of the Serie A
+# listone, read after five rounds - it costs no precision and BUYS lift, because under the 30th
+# becoming a starter is RARER, so the same precision stands against a lower base:
+#
+#     floor  30 -> 392 flagged   73.0% precision   base 37.9%   1.93x
+#     floor  20 -> 409           73.1%                  36.2%   2.02x
+#     floor   0 -> 428           72.2%                  31.9%   2.26x
+#
+# Monotone across the whole sweep, so it is a trend and not a cell, and it floods nothing: +7 men a
+# season, because a filler rarely satisfies 80% of starts at 65 minutes. The ceiling stays where it
+# was and still does its work - above the 85th he was SOLD as a starter, and «he is playing» is not
+# news about him.
+RISER_POOL = (0.0, 85.0)      # percentile band inside his role: everybody the market did not sell as a starter
 RISER_WINDOW = 5              # rounds of his club, the most recent ones
 RISER_MINUTES = 65.0          # mean minutes a match from which the reading fires
 RISER_START_SHARE = 0.8       # ...and this share of the window started
-RISER_FROM = 4                # nothing is said before this many rounds: a rise needs to be seen
+RISER_FROM = 4                # the FULL reading: below this the claim is weaker, and it says so
 RISER_OUTCOME = 0.5           # what it claims: he starts at least half of what is left
+# ...and the EARLY reading, which exists because the mark was MUTE exactly where it is bought
+# (05/09/2026). `RISER_FROM` = 4 left rounds 1-3 without any mark at all, i.e. the whole window in
+# which an initial auction and the first repair market happen - the same hole the rotation family
+# already closed with its own `early`, met from the opposite side.
+#
+# MEASURED with the screen's OWN rule and its OWN outcome (the band, 65 minutes, 80% of the window
+# started, «he starts at least half of what is left»), on the Serie A listone over four seasons:
+#
+#     after 2 rounds   400 flagged   76.5% precision   base 51.3%   1.49x   (80/81/69/77%)
+#     after 3          335           83.0%                  52.2%   1.59x   (87/86/78/81%)
+#     after 4          269           86.2%                  52.8%   1.63x   (88/90/81/87%)
+#
+# So two rounds keep 91% of the lift four rounds have, positive on 4 seasons of 4. THOSE NUMBERS ARE
+# NOT THE ONES PUBLISHED ABOVE and must not be read against them: the block above was measured on the
+# five leagues and reads 79.1% at four rounds where this reproduction reads 86.2%. One population, one
+# comparison - what is claimed here is the SHAPE inside a single reproduction, never the level.
+#
+# NOTHING IS RELAXED for the early regime: same band, same minutes, same share - at two rounds the
+# share means he started BOTH. What changes is the sentence, because two rounds are two rounds.
+RISER_EARLY_FROM = 2
+
+# ...and the THIRD regime, for the man who has JUST taken a shirt - the operator's instruction of
+# 05/09/2026, «se lo scopo e' individuare calciatori come Palestra allora dobbiamo tarare i limiti in
+# modo che Palestra sarebbe rientrato l'anno scorso». It is not a criterion widened because a rule
+# failed it: what he redeclared is the POPULATION the mark is for, and a screen is then re-measured on
+# it, never assumed.
+#
+# WHY THE TWO REGIMES ABOVE CANNOT REACH HIM, counted rather than argued: Palestra 2025-26 was not in
+# the squad on round 1, started round 2 (83'), was a substitute on round 3 (35') and started every
+# round from the fourth. So the mean over the window is 41.5' at two rounds and 59.6' at five, under
+# the 65 floor both times, and the full rule only reaches him on round SIX. He is the SLOW RISER the
+# screen's own comment already declared as its known miss (Douvikas), met a second time.
+#
+# WHAT FIRES ON HIM AND WHAT IT COSTS, measured as a RESIDUAL - only the men the full rule does not
+# already take - on five seasons, floor 0:
+#
+#     started the last round with 60'+                 32 a season   49.7%   base 33.4%   1.49x
+#     ...and his market value has DOUBLED in 24 months  11 a season   59.3%              1.78x
+#
+# The market-value condition is what makes it an icon instead of wallpaper: it cuts the extra marks
+# from 32 to 11 a season and takes the lift from 1.49x to 1.78x, near the 2.26x of the full rule. It
+# is not a filter fished for here - it had been measured the same day, independently, at 1.85x inside
+# the cell «one start of two» - and two readings that had no reason to agree, agree.
+#
+# STABILITY, stated rather than buried: per season this cell reads 1.96 / 1.97 / 1.75 / **0.87** /
+# 2.22 at two rounds (4 of 5) and 2.08 / 1.88 / 1.98 / 2.02 / 1.15 at three (5 of 5), on 6-19 men a
+# season - so the one negative season is 3 hits of 10 and well inside the noise of a sample that size.
+#
+# THE MARK BLINKS, and that was chosen: this reading is about the LAST round, so a man benched the
+# following week loses it and takes it back when he starts again - which is what the sentence says.
+# The variant that does not blink («one of the last two») catches him at every window and dilutes the
+# reading to 1.42-1.54x, i.e. it pays a fifth of the lift to avoid an icon that tells the truth.
+# ...and the FOURTH regime, BEFORE a ball of the new season is kicked - the operator's request of
+# 05/09/2026, «vorrei che gia' entro la prima giornata possiamo evidenziare qualche probabile promessa
+# per poi consolidare il parere man mano che passano le giornate (o ripensarci se i numeri non sono
+# dalla sua parte)». The three above all read the season being PLAYED, so in August they are all mute.
+#
+# WHAT IS READ IS HOW HE FINISHED THE SEASON BEFORE, which is available in August and measurable on six
+# of them. Population: quoted under the 85th percentile of his role with football on file last season;
+# outcome: he starts at least half of the new season.
+#
+#     started 4 of his club's last 5 rounds      103 a season   54.0%   base 29.8%   1.81x   6/6
+#     started 2 of the last 3                    149            47.1%                1.58x   6/6
+#     started 2 of the last 3 AND revalued        41            48.8%                1.64x   6/6
+#     (counter-check) revalued and nothing else   80            36.5%                1.22x
+#
+# THE COUNTER-CHECK IS THE PART THAT MATTERS: the market value ALONE is worth 1.22x, so what carries
+# this cell is «how he finished» and not the revaluation - which is the same shape as the third regime
+# and the reason the pair is not double counting one fact.
+#
+# THE OPERATOR'S OWN INSTRUCTION CHOSE THE ROW, and the price is stated: the strict cell (4 of 5 plus
+# the revaluation) reads 1.86x on 30 men a season and does NOT reach Palestra, who started 2 of
+# Atalanta's last 3 rounds of 2024-25. 1.64x with him, 1.86x without.
+#
+# THE PRE-SEASON FRIENDLIES ARE **NOT** A TRIGGER, and it is a coverage fact rather than a judgement
+# about them: `club-friendly-games` covers 20 Serie A clubs of 20 for 2026-27 and **2 and 4** for the
+# two seasons before, because the layer was acquired this summer. So no back-test of a friendly-based
+# screen exists on any season, and a mark with no verdict behind it would be the one thing this
+# project does not ship. They TRAVEL IN THE NOTE instead (`desc_preseason_starts` /
+# `desc_preseason_matches`, already on the sheet), where they inform without gating - and the
+# measurement is pre-registered for the summer of 2027, when a second covered season exists.
+RISER_PRESEASON_WINDOW = 3    # the last rounds of the season before, read in August
+RISER_PRESEASON_STARTS = 2    # ...of which he must have started this many
+RISER_RISING_MINUTES = 60.0   # minutes in that last match, from which «he started it» means something
+RISER_REVALUED = 2.0          # how many times his market value must have grown...
+RISER_REVALUE_MONTHS = 24     # ...over this many months, the same window the cell was measured on
 
 
 def starter_signs(conn, season: str, observations, belongs: dict[int, dict[str, set[str]]],
-                  prices: dict[int, float], before: str | None = None) -> dict[int, dict]:
+                  prices: dict[int, float], before: str | None = None,
+                  as_of: str | None = None, target: str | None = None) -> dict[int, dict]:
     """Who was given as a reserve and is playing like a starter. The inverse of `rotation_watch`.
 
     Same window, same pool discipline, opposite direction - and a WEAKER claim, which the note says:
@@ -1842,6 +1962,26 @@ def starter_signs(conn, season: str, observations, belongs: dict[int, dict[str, 
             if key:
                 span = spans.setdefault(fc_id, {}).setdefault(key, [date, date])
                 span[0], span[1] = min(span[0], date), max(span[1], date)
+    # CHI IL MERCATO STA RIVALUTANDO, letto sulla curva e non sulla fotografia di stagione: il rapporto
+    # vuole DUE punti, e `market_values` ne ha uno solo per stagione. Un uomo senza curva non e' un uomo
+    # che non e' cresciuto - e' un uomo che non abbiamo guardato - quindi non entra nell'insieme e il
+    # terzo regime non scatta su di lui, che e' «vuoto = ignoto» applicato a un rapporto.
+    day = as_of or before or dt.date.today().isoformat()
+    then = f"{int(day[:4]) - RISER_REVALUE_MONTHS // 12}{day[4:]}"
+    revalued: set[int] = set()
+    for fc_id, now_value, old_value in conn.execute(
+            """SELECT n.fc_id, n.value, o.value FROM
+                 (SELECT fc_id, value FROM market_value_history m WHERE observed_on <= ?
+                    AND observed_on = (SELECT MAX(x.observed_on) FROM market_value_history x
+                                       WHERE x.fc_id = m.fc_id AND x.observed_on <= ?)) n
+               JOIN
+                 (SELECT fc_id, value FROM market_value_history m WHERE observed_on <= ?
+                    AND observed_on = (SELECT MAX(x.observed_on) FROM market_value_history x
+                                       WHERE x.fc_id = m.fc_id AND x.observed_on <= ?)) o
+                 ON o.fc_id = n.fc_id""", (day, day, then, then)):
+        if now_value and old_value and now_value >= RISER_REVALUED * old_value:
+            revalued.add(int(fc_id))
+
     started_in = {(fc_id, str(match_id)) for fc_id, match_id in conn.execute(
         f"""SELECT fc_id, match_id FROM external_match_stats
             WHERE season = ? AND source = 'sofascore' AND started = 1
@@ -1854,18 +1994,54 @@ def starter_signs(conn, season: str, observations, belongs: dict[int, dict[str, 
         if pct is None or not (low <= pct < high):
             continue
         window = his_season(obs.fc_id, season, fixtures, belongs, spans)
-        if len(window) < RISER_FROM:
+        if len(window) < RISER_EARLY_FROM:
             continue
+        early = len(window) < RISER_FROM
+        # AGOSTO: la stagione letta non e' quella che si compra, quindi non c'e' nessun «resto della
+        # stagione» dentro di essa e la guardia sotto la scarterebbe sempre. Qui la finestra e' la CODA
+        # di quella scorsa, ed e' una domanda diversa - «come ha finito» - con la sua misura.
+        preseason = before is None and target is not None and target != season
         his = {key for key, seasons in (belongs.get(obs.fc_id) or {}).items() if season in seasons}
         rounds = max((length.get(club, 0) for club in his), default=0)
-        if rounds - (window[-1][2] or len(window)) < ROTATION_LEFT:
+        if not preseason and rounds - (window[-1][2] or len(window)) < ROTATION_LEFT:
+            continue
+        if preseason:
+            tail = window[-RISER_PRESEASON_WINDOW:]
+            started = sum(1 for _d, match_id, _md in tail if (obs.fc_id, match_id) in started_in)
+            if started < RISER_PRESEASON_STARTS or obs.fc_id not in revalued:
+                continue
+            out[obs.fc_id] = {
+                "minutes": round(sum(float(minutes_of.get(obs.fc_id, {}).get(mid, 0))
+                                     for _d, mid, _md in tail) / len(tail), 1),
+                "starts": started, "window": len(tail),
+                "keeper": (obs.role_classic or "").upper() == "P",
+                "early": False, "rising": False, "preseason": True,
+                "from": tail[0][0], "to": tail[-1][0],
+                "note": (f"Nothing of the new season has been played yet. He was quoted in the "
+                         f"{pct:.0f}th percentile of his role, he STARTED {started} of his club's last "
+                         f"{len(tail)} rounds of {season}, and his market value has at least doubled in "
+                         f"{RISER_REVALUE_MONTHS} months. MEASURED on six seasons: 48.8% of these went "
+                         f"on to start at least half of the season being bought, against 29.8% of the "
+                         f"band that did not (1.64x), on 41 men a season, positive on 6 seasons of 6. "
+                         f"It is the WEAKEST of the four readings and the earliest."),
+            }
             continue
         recent = window[-RISER_WINDOW:]
         minutes = [float(minutes_of.get(obs.fc_id, {}).get(match_id, 0))
                    for _d, match_id, _md in recent]
         starts = sum(1 for _d, match_id, _md in recent if (obs.fc_id, match_id) in started_in)
         mean = sum(minutes) / len(minutes)
-        if mean < RISER_MINUTES or starts < RISER_START_SHARE * len(recent):
+        full = mean >= RISER_MINUTES and starts >= RISER_START_SHARE * len(recent)
+        # IL TERZO REGIME NON E' UN RIPIEGO PIU' PERMISSIVO DELLO STESSO CONTO: e' una domanda diversa -
+        # non «gioca da titolare» ma «ha appena preso una maglia, e il mercato se n'e' accorto» - quindi
+        # guarda l'ULTIMA giornata e non la media della finestra, che e' proprio la statistica che
+        # nasconde chi ha cominciato a giocare da poco.
+        last_match = recent[-1][1]
+        rising = (not full
+                  and (obs.fc_id, last_match) in started_in
+                  and float(minutes_of.get(obs.fc_id, {}).get(last_match, 0)) >= RISER_RISING_MINUTES
+                  and obs.fc_id in revalued)
+        if not full and not rising:
             continue
         # A KEEPER's percentile is not the same sentence as an outfield player's, and the split was
         # measured: the reserve band of the goalkeepers is made of real reserves (base 22.3%, against
@@ -1873,27 +2049,50 @@ def starter_signs(conn, season: str, observations, belongs: dict[int, dict[str, 
         # screen produces - 81.9% precision, 3.68x - and what it says about him is «he is the number
         # one», not «he is rising». Outfield: 76.8% and 1.82x.
         keeper = (obs.role_classic or "").upper() == "P"
-        evidence = (f"MEASURED on four seasons: for a GOALKEEPER this is the strongest reading the "
-                    f"screen produces - 81.9% of those who read like this started at least half of "
-                    f"the rest of the season, against 22.3% of the reserve band (3.68x). For a keeper "
-                    f"it means «he is the number one», not «he is rising»."
-                    if keeper else
-                    f"MEASURED on four seasons: 76.8% of the outfield men who read like this went on "
-                    f"to START at least half of the rest of the season, against 42.3% of the band "
-                    f"that did not (1.82x). It is a WEAKER claim than the rotation mark - losing a "
-                    f"place is more predictable than winning one - and a slow riser is what the "
-                    f"strictness gives up: Douvikas 2025-26 does not fire and started 67% of his "
-                    f"rest.")
+        # The EARLY sentence is its own, and it is deliberately the weaker one: on this window the
+        # reading means «look at him», not «he is the starter». It carries its own numbers rather than
+        # the four-round ones, or the note would promise a precision this window has not got.
+        if rising:
+            evidence = (f"MEASURED on five seasons of the Serie A listone as a RESIDUAL - only the men "
+                        f"the full reading does not already take: 59.3% of these went on to START at "
+                        f"least half of the rest of the season, against 33.4% of the band that did not "
+                        f"(1.78x), on 11 men a season. It is the SLOW RISER the full rule gives up: "
+                        f"Palestra 2025-26 reads 41.5' of mean over two rounds and the full rule only "
+                        f"reaches him on round six.")
+        elif early:
+            evidence = (f"MEASURED on four seasons of the Serie A listone: after TWO rounds 76.5% of "
+                        f"those who read like this went on to START at least half of the rest of the "
+                        f"season, against 51.3% of the band that did not (1.49x) - against 1.63x at "
+                        f"four rounds. On a window this short it means «look at him», not «he is the "
+                        f"starter».")
+        else:
+            evidence = (f"MEASURED on four seasons: for a GOALKEEPER this is the strongest reading the "
+                        f"screen produces - 81.9% of those who read like this started at least half "
+                        f"of the rest of the season, against 22.3% of the reserve band (3.68x). For a "
+                        f"keeper it means «he is the number one», not «he is rising»."
+                        if keeper else
+                        f"MEASURED on four seasons: 76.8% of the outfield men who read like this went "
+                        f"on to START at least half of the rest of the season, against 42.3% of the "
+                        f"band that did not (1.82x). It is a WEAKER claim than the rotation mark - "
+                        f"losing a place is more predictable than winning one - and a slow riser is "
+                        f"what the strictness gives up: Douvikas 2025-26 does not fire and started "
+                        f"67% of his rest.")
         out[obs.fc_id] = {
             "minutes": round(mean, 1),
             "starts": starts,
             "window": len(recent),
             "keeper": keeper,
+            "early": early and not rising,
+            "rising": rising,
+            "preseason": False,
             "from": recent[0][0],
             "to": recent[-1][0],
-            "note": (f"He was quoted in the {pct:.0f}th percentile of his role - a reserve, not a "
-                     f"filler - and over his club's last {len(recent)} rounds he has started {starts} "
-                     f"of them, averaging {mean:.0f} minutes. {evidence}"),
+            "note": ((f"He was quoted in the {pct:.0f}th percentile of his role and STARTED his "
+                      f"club's last round for {minutes[-1]:.0f} minutes, with a market value that has "
+                      f"at least doubled in {RISER_REVALUE_MONTHS} months. {evidence}") if rising else
+                     (f"He was quoted in the {pct:.0f}th percentile of his role - a reserve, not a "
+                      f"filler - and over his club's last {len(recent)} rounds he has started {starts} "
+                      f"of them, averaging {mean:.0f} minutes. {evidence}")),
         }
     return out
 
@@ -2378,6 +2577,53 @@ def fielded_next(conn, auction_date: str, observations, squads: dict[int, str]
     return out, clubs
 
 
+def remaining_rounds(conn, season: str, after: str) -> dict[str, list[str]]:
+    """club_key -> le date delle sue giornate di campionato ANCORA DA GIOCARE dopo `after`.
+
+    Dalla tabella `fixtures`, che e' il calendario pubblicato: quella dei cinque campionati piu' i
+    serbatoi porta lo stesso vocabolario di `LEAGUE_COMPETITIONS`, quindi si filtra su quello e le coppe
+    restano fuori - «una quota di stagione e' una quota del CAMPIONATO».
+
+    L'UNITA' E' LA PARTITA E NON LA GIORNATA, come ogni altra camminata di calendario in questo
+    repository: si contano le DATE del suo club, cosi' un recupero non vale un turno e un turno spezzato
+    non vale due. Le chiavi sono quelle di `matching.club_identity` (`home_key`/`away_key`), cioe' il
+    join che una volta ha perso Milan, Roma e Napoli dal calendario di tutti quando era fatto sul nome.
+    """
+    resolve = club_index(conn)
+    out: dict[str, list[str]] = {}
+    for date, home, away in conn.execute(
+            f"""SELECT date, home_key, away_key FROM fixtures
+                WHERE season = ? AND date > ? AND league IN ({_LEAGUE_IN})
+                  AND date IS NOT NULL AND home_key IS NOT NULL AND away_key IS NOT NULL""",
+            (season, after, *LEAGUE_COMPETITIONS)):
+        for key in (home, away):
+            # La riga esce sul NOME CANONICO, che e' come la conosce l'osservazione: risolvere qui una
+            # volta per club e non a ogni riga del foglio e' lo stesso motivo per cui `club_index`
+            # esiste - un join sul nome grezzo e' quello che una volta ha perso Milan, Roma e Napoli.
+            _same, name = resolve(key)
+            out.setdefault(name or key, []).append(date)
+    for dates in out.values():
+        dates.sort()
+    return out
+
+
+def out_window(until: str | None, dates: list[str] | None) -> tuple[int, float] | None:
+    """(giornate saltate, quota di quelle che restano in cui e' disponibile) - o None se non si sa.
+
+    UNA SOLA ARITMETICA, e il denominatore parte da OGGI: le giornate gia' giocate le hanno perse tutti,
+    quindi contarle sconterebbe l'infortunato per una cosa che non e' sua. E' la stessa forma che l'app
+    usa per la plancia (`core/injury-window.ts`), qui perche' la BOARD si disegna nel toolkit.
+
+    `None` quando la fonte non dice quando torna o quando del suo club non abbiamo il calendario: senza
+    una data non c'e' una quota, e inventarne una su una media di campionato sarebbe un numero che nessuno
+    ha misurato. Il VINCOLO del 03/09 resta la risposta per quel caso, non un prezzo.
+    """
+    if not until or not dates:
+        return None
+    missed = sum(1 for date in dates if date < until)
+    return missed, max(0.0, 1.0 - missed / len(dates))
+
+
 def injury_history(conn, auction_date: str, seasons: list[str],
                    measured: str | None = None) -> dict[int, dict]:
     """Absences per player: matches missed, weighted by recency, plus whatever is open right now.
@@ -2428,6 +2674,11 @@ def injury_history(conn, auction_date: str, seasons: list[str],
             entry["missed_measured"] += missed or 0
         if (end is None or end >= auction_date) and entry["open"] is None:
             entry["open"] = f"{kind} since {start}"
+            # ...E QUANDO E' ATTESO, che e' la sola cosa che dice DI QUANTO invece di dire soltanto
+            # «dopo». La fonte pubblica la data stimata finche' lo spell e' aperto e viaggiava fino
+            # all'app senza che nessun numero la leggesse; da qui la legge anche la BOARD. `None` dove
+            # la fonte non la scrive: nessuno sconto, «vuoto = ignoto».
+            entry["open_until"] = end
         # DA QUANTI GIORNI E' RIENTRATO: la fine dello stop CHIUSO piu' recente che gli sia costato
         # almeno una giornata. La condizione sulle giornate serve a non chiamare «rientro» un'influenza
         # di tre giorni fra due soste - e le righe arrivano gia' dalla piu' recente, quindi la prima che
@@ -3880,6 +4131,57 @@ def measured_sides(conn, season: str, notes: list[str]) -> dict[int, float]:
             for fc_id, avg_y, _roles in rows}
 
 
+def prior_window(record: dict | None, propensity: dict, at_club: dict, rounds: float,
+                 role: str | None, platform: str,
+                 params: presence.Params = presence.DEFAULTS) -> presence.SeasonWindow:
+    """La finestra della stagione PRECEDENTE, e cosa vale per un uomo che qui non ha mai giocato.
+
+    UN'ASSENZA NON E' UNO ZERO MISURATO, e questa funzione esiste perche' per un giorno lo e' stata. La
+    miscela del 04/09/2026 costruiva il prior con `appearances` prese da un dizionario con `.get(fc_id,
+    {})` e `rounds` presi dal CALENDARIO DEL CAMPIONATO: per chi la stagione scorsa in Serie A non l'ha
+    giocata affatto, quel prior affermava «zero presenze su dieci giornate». Non era un ripiego prudente,
+    era un tetto: qualunque cosa facesse, la sua quota non poteva superare k/(k+K) - con due giornate
+    giocate, **0.167**. Misurato sul foglio del 04/09: 113 righe su 602, e fra loro TREDICI uomini che
+    avevano cominciato da titolare tutte e due le prime giornate e leggevano `riserva` (Varela G. 173',
+    Mangas e Lulli e Cinquegrano e Abankwah e Fitz-Jim 180', Toure E. 170').
+
+    E LA CURA OVVIA E' PEGGIO DEL DIFETTO, il che e' la ragione per cui il prior e' sintetico invece di
+    assente: togliendo la finestra quei 113 poggiano su due partite e leggono **1.000** - Rrahmani Al.
+    `bandiera` con 19 minuti giocati, e i terzi portieri da 0.077 a 0.334. E' «due partite sono una
+    stagione» dall'altro lato, cioe' esattamente il difetto che `blend_seasons` era nata per curare.
+
+    QUINDI IL PRIOR DI CHI NON SI E' MAI VISTO E' QUELLO CHE FA LA SUA POPOLAZIONE, che e' un numero
+    MISURATO e non una scelta: `est.PRESENCE_SHARE_BY_ROLE["unmeasured"]` (P 0.098 · D 0.308 · C 0.332 ·
+    A 0.282 su `default`, n 178/298/296/211), lo stesso che la cascata delle stime gli applica gia' due
+    colonne piu' in la'. Una finestra pero' ne vuole TRE, e `standing` legge i minuti, quindi le altre due
+    arrivano dai rapporti misurati sulla stessa popolazione (`est.UNMEASURED_START_RATE` e
+    `UNMEASURED_MINUTES_PER_APPEARANCE`): delle partite in cui compare, quante ne comincia e quanto resta.
+
+    DUE COSE CHE QUESTA FUNZIONE NON FA, e sono la meta' del suo lavoro. Non tocca l'uomo che una riga ce
+    l'ha con `matches` a zero: quello e' uno zero MISURATO - era in un campionato che leggiamo e non e'
+    stato scelto - e vale piu' di qualunque costante di popolazione. E non inventa un club: i minuti
+    sintetici non entrano ne' in `minutes_here` ne' in `minutes_elsewhere`, cosi' `at_club_weight` resta
+    la «divisione ignota» che questo progetto ha gia' deciso di non addebitare a nessuno.
+    """
+    if record is not None:
+        return presence.SeasonWindow(
+            appearances=float(record.get("matches") or 0),
+            starts=float(record.get("starts") or 0),
+            minutes=float(propensity.get("minutes") or 0),
+            minutes_here=float(at_club.get("minutes") or 0),
+            minutes_elsewhere=float(at_club.get("minutes_elsewhere") or 0),
+            rounds=rounds)
+    prior_rounds = float(params.season_prior_rounds or 0)
+    appearances = est.default_presences(prior_rounds, platform, "unmeasured", role)
+    if not prior_rounds or not appearances:
+        return presence.SeasonWindow()
+    return presence.SeasonWindow(
+        appearances=appearances,
+        starts=appearances * est.UNMEASURED_START_RATE.get(role or "", 0.0),
+        minutes=appearances * est.UNMEASURED_MINUTES_PER_APPEARANCE.get(role or "", 0.0),
+        rounds=prior_rounds)
+
+
 def starting_record(conn, season: str, before: str | None = None) -> dict[int, dict]:
     """How often he STARTED over the full real season: (starts, matches, share).
 
@@ -4399,6 +4701,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_injury_rounds_weighted", "desc_injury_rounds_by_season", "desc_injury_rounds_measured",
     "desc_injury_rounds_seasons", "desc_injury_days_since_return",
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
+    "desc_out_until", "desc_out_rounds", "desc_out_share",
     "desc_availability_now",
     "desc_goals_p90", "desc_assists_p90", "desc_xg_p90", "desc_xa_p90", "desc_minutes_full_season",
     "desc_penalty_rank", "desc_penalty_confidence", "desc_set_piece_duty",
@@ -4598,6 +4901,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         rotation = layers["rotation"].get(obs.fc_id, {})
         riser = layers["riser"].get(obs.fc_id, {})
         injury = layers["injuries"].get(obs.fc_id, {})
+        # LA FINESTRA APERTA, in giornate del suo club (`out_window`): (quante ne salta, quanta stagione
+        # gli resta). None dove la fonte non data il rientro o del club non c'e' calendario.
+        out_of_action = out_window(injury.get("open_until"),
+                                   (layers.get("remaining") or {}).get(obs.club_target or ""))
         starter = layers["starters"].get(obs.fc_id, {})
         duel = layers["duels"].get(obs.fc_id, {})
         prop = layers["propensity"].get(obs.fc_id, {})
@@ -4612,10 +4919,19 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         # tutt'e due (il DB). Su una pre-stagione `now_rounds` e' vuoto, la miscela ha una finestra sola e
         # ogni numero pubblicato dal gate resta identico.
         now_rounds = float((layers.get("now_rounds") or {}).get(obs.league or "", 0) or 0)
-        prev_play = (layers.get("prev_record") or {}).get(obs.fc_id, {})
+        prev_play = (layers.get("prev_record") or {}).get(obs.fc_id)
         prev_club = (layers.get("prev_at_club") or {}).get(obs.fc_id, {})
         prev_prop = (layers.get("prev_propensity") or {}).get(obs.fc_id, {})
-        prev_rounds = float((data.rounds or {}).get(obs.league or "", 0) or 0)
+        # IL DENOMINATORE DEL PRIOR SEGUE IL SUO NUMERATORE, che e' la regola del 20/08/2026 rientrata
+        # dalla porta della miscela il 04/09: il calendario del CAMPIONATO conta a un uomo arrivato a
+        # gennaio anche le giornate che ha giocato altrove. Malen ha giocato 18 delle ultime 18 della Roma
+        # e leggeva 0.562 (18 x 10/38 + 2 + 1 su 13); con la sua finestra vera, 19 giornate, legge 0.91.
+        # 18 righe sul foglio Serie A del 04/09, fra cui Boga (finestra 25, leggeva 38), Lucca e Raspadori.
+        # La chiamata NON e' datata perche' la stagione precedente e' finita, ed e' il ramo che INTERSECA
+        # con i campionati del numeratore (`external_stats`) - cioe' la stessa sorgente di `prev_record`,
+        # per costruzione e non per coincidenza.
+        prev_rounds = float((layers.get("prev_measured_rounds") or {}).get(obs.fc_id)
+                            or (data.rounds or {}).get(obs.league or "", 0) or 0)
         preseason = layers["preseason"].get(obs.fc_id, (None, None))
         blended = presence.blend_seasons(
             now=presence.SeasonWindow(
@@ -4625,13 +4941,8 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
                 minutes_here=float(at_club.get("minutes") or 0),
                 minutes_elsewhere=float(at_club.get("minutes_elsewhere") or 0),
                 rounds=now_rounds),
-            prev=presence.SeasonWindow(
-                appearances=float(prev_play.get("matches") or 0),
-                starts=float(prev_play.get("starts") or 0),
-                minutes=float(prev_prop.get("minutes") or 0),
-                minutes_here=float(prev_club.get("minutes") or 0),
-                minutes_elsewhere=float(prev_club.get("minutes_elsewhere") or 0),
-                rounds=prev_rounds),
+            prev=prior_window(prev_play, prev_prop, prev_club, prev_rounds,
+                              obs.role_classic, platform),
             # IL RITIRO dice SE il ritiro lo usa, non quanto a lungo: i minuti di un'amichevole si
             # spartiscono per farli giocare tutti, quindi questa finestra entra con i minuti della
             # media delle altre e non ne sposta il rapporto di un decimale. Vuota dove non c'e' un
@@ -4849,7 +5160,13 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_rotation_to": rotation.get("to"),
             "desc_rotation_window": rotation.get("window"),
             "desc_rotation_note": rotation.get("note"),
-            "desc_riser_watch": "yes" if riser else None,
+            # `early` | `yes`, the same two words the rotation column carries, so a reader that
+            # knows one knows the other - and an older bundle's bare «yes» keeps meaning the strong one.
+            # `rising` | `early` | `yes`: tre parole per tre letture, e un bundle piu' vecchio porta un
+            # «yes» nudo, che vuol dire la lettura PIENA - degradarlo sarebbe l'errore opposto.
+            "desc_riser_watch": ((("preseason" if riser.get("preseason") else
+                                   "rising" if riser.get("rising") else
+                                   "early" if riser.get("early") else "yes")) if riser else None),
             "desc_riser_minutes": riser.get("minutes"),
             "desc_riser_starts": riser.get("starts"),
             "desc_riser_window": riser.get("window"),
@@ -4908,7 +5225,27 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_titolarita": None, "desc_titolarita_play": None, "desc_minutes_next": None,
             "desc_season_starts": _round(blended.starts, 1),
             "desc_season_matches": _round(blended.appearances, 1),
-            "desc_start_share": season_play.get("share"),
+            # LE TRE COLONNE SONO UNA FRAZIONE E IL SUO VALORE, quindi vengono dalla STESSA finestra.
+            # Fino al 05/09/2026 questa riga leggeva `season_play`, cioe' la sola stagione IN CORSO,
+            # mentre le due sopra erano gia' passate alla miscela: sul foglio del 04/09 Thuram dichiarava
+            # 6,3 partite da titolare su 8,6 e una quota di 0,000, perche' nelle prime due giornate era
+            # entrato dalla panchina. 267 righe su 602 in disaccordo col proprio `starts/matches`, 100 a
+            # 0,000 esatto - ed e' il difetto che la miscela era nata per curare, lasciato nel terzo
+            # compagno perche' `d64ae0e` ne aveva spostati due su tre.
+            #
+            # CHI LA LEGGE. Dal 19/08/2026 non e' piu' vero che «e' consumata da nessuno» (il commento di
+            # `SnapshotView.starting_record` lo diceva ed era invecchiato): `minutes_next` la usa come
+            # `P_prev`, e siccome i pavimenti della scala sono in MINUTI (`status.FULL_MATCH` 75',
+            # `MOST_OF_THE_MATCH` 65') decide anche `desc_titolarita`. Misurato sul foglio del 04/09:
+            # Thuram 39' -> 60', 94 righe attraversano un pavimento - e nei DUE versi, perche' chi ha
+            # cominciato da titolare le sue due partite leggeva 1,000 (Martinez L. 67' -> 62').
+            #
+            # INERTE SU UNA PRE-STAGIONE, quindi su ogni finestra su cui il gate ha pubblicato un numero:
+            # li' `now_rounds` e' il calendario intero della stagione misurata, `prev_record` e' vuoto e
+            # la miscela ha una finestra sola, che e' esattamente `season_play`. La meta' in corso resta
+            # leggibile da se' nelle due colonne `desc_now_*` qui sotto: non si perde niente.
+            "desc_start_share": (round(blended.starts / blended.appearances, 3)
+                                 if blended.appearances else None),
             # Whose season it was. Empty for a player the per-match layer has no row for: unknown, and
             # an unknown split must not discount him.
             # The calendar his measured season is a share of, when it is not his club's - see the layer.
@@ -4951,6 +5288,13 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_injury_spells": injury.get("spells"),
             "desc_injury_worst_kind": injury.get("worst_kind"),
             "desc_injury_open": injury.get("open"),
+            # LA FINESTRA APERTA, in giornate del SUO club e in quota di quelle che restano. Tre colonne
+            # e non una perche' rispondono a tre domande - quando torna, quante ne perde, quanta stagione
+            # gli resta - e la terza e' quella che la board legge. Vuote dove la fonte non data il
+            # rientro: «vuoto = ignoto», e li' vale il vincolo e non un prezzo.
+            "desc_out_until": injury.get("open_until"),
+            "desc_out_rounds": out_of_action[0] if out_of_action else None,
+            "desc_out_share": round(out_of_action[1], 3) if out_of_action else None,
             "desc_injury_source": injury.get("source", "no Transfermarkt id: unknown, not zero"),
             "desc_availability_now": layers["availability"].get(obs.fc_id),
             "desc_goals_p90": prop.get("goals_p90"), "desc_assists_p90": prop.get("assists_p90"),
@@ -5621,11 +5965,15 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # ...and its MIRROR: given as a reserve, playing like a starter. Same window, opposite
         # direction, and a weaker claim - which its own note says.
         "riser": starter_signs(conn, measured, data.observations, belongs,
-                               role_percentiles(data.observations), before),
+                               role_percentiles(data.observations), before,
+                               as_of=window.auction_date, target=window.target_season),
         "squads": squads, "squad_sources": squad_sources,
         "injuries": injury_history(conn, window.auction_date, seasons, measured),
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
+        # LE GIORNATE CHE RESTANO, per club: il denominatore della finestra d'infortunio aperta. Vuoto
+        # su una stagione non ancora calendarizzata, e allora nessuna riga porta una quota.
+        "remaining": remaining_rounds(conn, window.target_season, window.auction_date),
         "propensity": propensity(conn, measured, before),
         "starting_record": starting_record(conn, measured, before),
         # LA SECONDA FINESTRA, e la ragione per cui c'e' (operatore, 04/09/2026): «2 partite non devono
@@ -5635,6 +5983,14 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # solo. `presence.blend_seasons` le mette insieme; su una pre-stagione sono vuote e la miscela
         # ha una finestra sola, quindi non cambia un decimale di quello che il gate ha pubblicato.
         "prev_record": starting_record(conn, window.input_season) if before else {},
+        # ...e IL DENOMINATORE di quel numeratore, per chi ha giocato due campionati in quella stagione.
+        # Non datata: la stagione precedente e' finita, quindi si legge l'aggregato - che e' anche il ramo
+        # in cui `measured_season_rounds` interseca i campionati del NUMERATORE, cioe' le righe di
+        # `external_stats` che `prev_record` somma. Sul ramo datato quell'intersezione non c'e' e la
+        # coppia si sfascia: Boga ha 15 presenze di Serie A nell'aggregato e una finestra di Ligue 1 nel
+        # livello per partita, quindi il denominatore contava un campionato che il numeratore non ha.
+        "prev_measured_rounds": (features.measured_season_rounds(
+            conn, window.input_season, LEAGUE_COMPETITIONS) if before else {}),
         "prev_propensity": propensity(conn, window.input_season) if before else {},
         "prev_at_club": (at_current_club(conn, window.input_season, data.observations, squads)
                          if before else {}),
@@ -6012,7 +6368,16 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
     try:
         from euroleghe_ingest.modules.boards import write_boards
 
-        board_summary = write_boards(ctx.config, folder)
+        # IL CALENDARIO DELLA PIATTAFORMA SI PASSA, non si rilegge da un file che ancora non c'e'.
+        # `minutes_next` legge `manifest.matchdays.platform_target` per l'unica meta' del suo `P` che
+        # viene dal MODELLO, e il manifest si scrive DOPO questa riga: su una cartella NUOVA quel numero
+        # e' zero, quindi la colonna esce calcolata sulla sola misura, e su una cartella RIUSATA la
+        # passata legge in silenzio il manifest della corsa PRECEDENTE. Due valori per una colonna,
+        # decisi da se la cartella esisteva - misurato il 05/09/2026 su Malen: 74.0 col manifest, 78.0
+        # senza, e 241 righe su 602 in mezzo, abbastanza da riordinare i tre gradini alti della scala
+        # (che hanno un pavimento a 75' e uno a 65').
+        board_summary = write_boards(ctx.config, folder,
+                                     matchdays=float(data.matchdays_target or 0) or None)
     except Exception as exc:                              # noqa: BLE001 - a display is not a sheet's problem
         print(f"[snapshot] note: boards.json not written ({exc!r}). The sheet is complete; the app's pitch"
               f" falls back to what the bundle carries. `python -m euroleghe_ingest snapshot` on a machine"

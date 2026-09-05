@@ -203,6 +203,7 @@ def _statuses(view: Any, drawn: dict[str, set[int]]) -> dict[int, dict]:
 def extract_boards(config, sheet: Path, mode: str = "typical", *,
                    apply_rulings: bool = False,
                    with_rivals: bool = False,
+                   matchdays: float | None = None,
                    statuses: dict[int, dict] | None = None) -> dict[str, dict]:
     """What the panel would draw for every club of `sheet`, by calling the REAL functions.
 
@@ -223,6 +224,15 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
     try:
         view = SnapshotView(root, config)
         view.load_sheet(Path(sheet), apply_rulings=apply_rulings)
+        # IL CALENDARIO DELLA PIATTAFORMA, DETTO invece che riletto. `snapshot` chiama questa funzione
+        # PRIMA di scrivere il manifest, quindi su una cartella nuova `view.manifest` non ha `matchdays`
+        # e `platform_matchdays()` risponde zero: `minutes_next` perde allora la meta' del suo `P` che
+        # viene dal modello, e la colonna esce diversa da quella che lo stesso foglio ricalcola. Su una
+        # cartella riusata e' peggio, perche' legge il manifest della corsa precedente senza dirlo. Il
+        # chiamante quel numero lo SA; qui si iniettA solo dove manca, cosi' i due giudici - che passano
+        # un foglio gia' scritto e completo - continuano a leggere il suo.
+        if matchdays and not (view.manifest.get("matchdays") or {}).get("platform_target"):
+            view.manifest.setdefault("matchdays", {})["platform_target"] = matchdays
         boards: dict[str, dict] = {}
         drawn_ids: dict[str, set[int]] = {}
         for club in sorted(view.clubs):
@@ -311,7 +321,8 @@ def disagreements(board: dict) -> list[str]:
     return out
 
 
-def write_boards(config, folder: Path, mode: str = "typical") -> dict:
+def write_boards(config, folder: Path, mode: str = "typical",
+                 matchdays: float | None = None) -> dict:
     """Write `boards.json` beside the sheet it describes, and say what it contains.
 
     Beside the sheet ON PURPOSE: a board that could come from a different sheet than the one exported is a
@@ -319,6 +330,7 @@ def write_boards(config, folder: Path, mode: str = "typical") -> dict:
     """
     statuses: dict[int, dict] = {}
     boards = extract_boards(config, folder, mode=mode, apply_rulings=True, with_rivals=True,
+                            matchdays=matchdays,
                             statuses=statuses)
     payload = {
         "sheet": Path(folder).name,
