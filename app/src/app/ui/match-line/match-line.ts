@@ -136,10 +136,17 @@ export class MatchLine {
    * pagella no, e lo stop datato dice perche' - quindi la parola dello stato e' l'informazione, mentre
    * la data e la giornata restano nel tooltip dove erano gia'. `STATE_LABEL` e non una frase nostra: il
    * vocabolario e' uno, e la tabella di consultazione dice le stesse parole sulla stessa cella.
+   *
+   * L'INFORTUNIO E' L'ECCEZIONE (operatore, 05/09/2026: «nelle ultime partite togli l'etichetta
+   * infortunato»), e non e' un fatto tolto dalla riga: la cella accanto porta gia' la scatola dei
+   * medicinali in giallo, col suo tooltip che dice la parola. Sono lo stesso annuncio due volte, e su
+   * un elenco che di righe cosi' ne ha molte di fila e' la parola a occupare l'unica colonna larga.
    */
-  protected readonly reason = computed(() =>
-    this.onPitch() ? this.when() : `${STATE_LABEL[this.cell().state]} · ${this.when()}`,
-  );
+  protected readonly reason = computed(() => {
+    const state = this.cell().state;
+    if (this.onPitch() || state === 'injured') return this.when();
+    return `${STATE_LABEL[state]} · ${this.when()}`;
+  });
 
   /**
    * IL MARCHIO DELLA COMPETIZIONE, e vuoto per il campionato per cui lo stai comprando.

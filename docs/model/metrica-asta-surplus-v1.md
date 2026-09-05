@@ -1791,3 +1791,63 @@ Tre risultati che riguardano questo documento e vanno cercati là con i loro num
   numeri del 01/09 — 1,6 e 9% — sono stati rimisurati il 02/09 dopo una review). Le due
   misure guardano la stessa domanda da due lati e concordano nella direzione; **nessuna delle due vede il
   beneficio dell'altra**, e sta scritto.
+
+---
+
+## 28. QUALE FINESTRA DI xG PREVEDE IL RESTO DELLA STAGIONE (5 settembre 2026)
+
+Domanda dell'operatore: **«come previsione futura contano di più gli xG e xA medi a partita della
+stagione corrente (2 partite), della stagione scorsa o delle ultime 10 partite?»**. Misurata invece
+che risposta a intuito, e la risposta è netta.
+
+**Il disegno.** Cinque campionati (`external_match_stats`), stagioni bersaglio 2023-24 → 2025-26 —
+prima del 2022-23 la fonte non pubblica affatto gli attesi, e in quelle stagioni ci sono righe con un
+GOL e nessun xG, quindi il vuoto lì è un ignoto e non uno zero. Taglio alla **2ª giornata**, bersaglio
+`xG+xA a partita giocata` sulle giornate che RESTANO, 2.592 coppie (uomo, stagione),
+leave-one-season-out, il RUOLO dentro ogni braccio, e il null = la media di ruolo. Portieri fuori.
+
+| predittore | MAE fuori campione | vs null |
+|---|---|---|
+| stagione corrente (2 partite) | 0,0787 | +13,5% |
+| **stagione scorsa (intera)** | **0,0655** | **+28,0%** |
+| ultime 10 partite | 0,0679 | +25,4% |
+| scorsa + corrente | 0,0633 | **+30,4%** |
+
+Stabile: 26-28% per la scorsa su tutt'e tre le stagioni, e positiva su tutt'e tre i ruoli (F +23,8%,
+C +35,4%, D +19,3% col null di ruolo dentro ogni braccio).
+
+**IL PRIMO BRACCIO ERA STATO MISURATO CONTRO UN NULL PIÙ RICCO DI LUI.** La prima tabella dava alle
+due partite +0,6% e alla scorsa +25,7%, con il null che era la media DI RUOLO e i candidati senza
+nessun termine di ruolo: il braccio doveva riprodurre col suo unico numero anche il gradino fra un
+difensore e un attaccante, e lo faceva male. Con il ruolo dentro ogni braccio le due partite valgono
++13,5%. *Il null e i candidati devono leggere la stessa tabella*, che è §20 di questo stesso documento
+applicato al proprio esperimento.
+
+**LE ULTIME DIECI PERDONO PERCHÉ SONO CORTE, non perché sono «vecchie».** Allungando la finestra il
+guadagno cresce in modo monotono: 3 partite +16,9% · 5 +21,9% · 10 +25,4% · 15 +27,8% · 20 +28,1% ·
+30 +29,5% · **40 +29,8%**. Dieci partite sono una versione rumorosa della stessa cosa, e in queste
+misure **non c'è nessun premio alla recenza**.
+
+**QUANTO PESANO DAVVERO LE DUE PARTITE.** Nel modello insieme i coefficienti sono `scorsa 0,567` e
+`corrente 0,150` (standardizzati 0,566 e 0,223): il 21% della pendenza totale su 2 partite contro 27,
+cioè **una partita di oggi vale ~3,5 partite dell'anno scorso**, e la correlazione parziale
+«corrente | scorsa» è **+0,302**. Aggiungono qualcosa di vero e vanno schiacciate: chi legge il doppio
+del suo ruolo in due partite si prevede a +30% di quello scarto, non a +100%.
+
+**IL SORPASSO ARRIVA ALLA 9ª-10ª GIORNATA**: a k=8 corrente +23,7% contro scorsa +24,6%; a k=10 è
++26,1% contro +24,1%; a k=19 +29,3% contro +20,8%. Prima di allora la stagione in corso è un
+supplemento e non la base — e la MISCELA è la migliore a ogni k provato (da +30,4% a k=2 a +32,6% a
+k=14), che è la stessa forma della miscela adottata il 04/09 per le presenze (`presence.blend_seasons`).
+
+**E IL RISULTATO PIÙ UTILE NON È QUELLO CHIESTO: per prevedere i GOL+ASSIST veri del resto di
+stagione, l'xG+xA dell'anno scorso (+18,6%) batte i GOL+ASSIST veri dell'anno scorso (+15,5%)**, e
+aggiungere i secondi ai primi vale +0,3 punti. Sul bersaglio-xG lo stesso confronto è +28,0% contro
++21,3%. È la ragione per cui le due pastiglie nuove della Strategia vanno lette in coppia con le due
+misurate: la differenza fra quello che ha prodotto e quello che ha segnato è un'informazione, non un
+errore.
+
+**Non è una regola adottata**: nessun `engine_*` si muove, nessun gate la possiede. È una misura, e
+serve a leggere le colonne che l'app disegna — chi volesse farne un canale previsionale deve passare
+dal gate come qualunque altro.
+
+Arnese: `scratchpad/xgxa_v2.py` (rigenerabile in due minuti, sola lettura sul DB).

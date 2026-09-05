@@ -2640,3 +2640,106 @@ guardati a 16/32/64; il conteggio delle macchie; e il VETTORE aperto in un Chrom
 che è quello che i browser moderni disegnano davvero, e che fino a quel momento nessuna misura aveva
 toccato. Un `fill` dimenticato su un `<path>` con un arco riempie la corda: il raster non se ne sarebbe
 accorto, perché il raster non legge l'SVG.
+
+---
+
+## 29. LA CARD IMPARA GLI ATTESI, e due fonti per un fatto solo non convivono (5 settembre 2026)
+
+Cinque richieste dell'operatore in una sessione, tutte sulla CARD del calciatore — quella che la
+plancia e la Strategia aprono con un click (`ui/player-card`, una sola per le due pagine).
+
+### 29.1 xG e xA nel riepilogo, e il riepilogo anche per la stagione in corso
+
+«Aggiungiamo insieme a MV e FM ... xG e xA calcolati sulla stagione corrente (sempre medi a partita)»,
+e poi «in ultime partite, sotto la scritta ULTIME PARTITE, come per le altre stagioni, aggiungi le
+medie per ogni colonna».
+
+**IL DATO C'ERA, ed è la sesta istanza** dopo i campetti, `availability`, l'asterisco, la data di
+rientro e le partite di Varela: `external_match_stats` porta `xg` e `xa` da sempre, il bundle le
+esporta, e nessuna riga dell'app le leggeva. Nessuna modifica al toolkit.
+
+**QUANDO UN xG ASSENTE È UNO ZERO E QUANDO È UN IGNOTO** (`players-store.expectedScope`): la fonte ha
+cambiato forma nel tempo e non lo dichiara. Fino al 2021-22 non emette affatto gli attesi — e infatti
+in quelle stagioni ci sono righe con un GOL e nessun xG — dal 2022-23 li emette e OMETTE la chiave
+quando il valore è zero. Un lettore che credesse all'encoding leggerebbe metà tabella come «non ha mai
+tirato»; uno che leggesse tutto come ignoto butterebbe via il 53% delle righe buone. Quindi
+l'ammissibilità è una proprietà del **(stagione, competizione)** e si legge dai dati stessi: se lì
+dentro la fonte ha pubblicato almeno un atteso, lì una cella vuota è uno ZERO. Stessa forma di
+`synth.calibrated_competitions`. Separa esattamente quello che deve: i cinque campionati dal 2024-25 in
+poi dentro, coppe e amichevoli fuori (**0 attesi su 2.500 righe, con 134 gol a smentire lo zero**).
+Due insiemi e non uno, perché le coperture sono diverse: xA sul **98,3%** delle righe giocate dei cinque
+campionati, xG sul **46,6%**. Prezzo della convenzione, misurato e non stimato: **0 righe con un gol e
+nessun xG, 2 su 78.626 con un assist e nessun xA**.
+
+**IL RIEPILOGO VA SU OGNI STAGIONE, compresa quella in cima che non ha divisore.** `CardRow` ha ora due
+campi e non uno (`season` = la stagione da ANNUNCIARE, `totals` = quella da RIASSUMERE): sulla prima
+riga il divisore non c'è — la stagione in corso la annuncia l'intestazione — e leggerlo dal divisore
+toglieva il riepilogo proprio alla stagione che si sta comprando.
+
+**GLI ATTESI SU UNA RIGA TUTTA LORO e non in due colonne nuove**, e la ragione è una misura: le cinque
+piste di quella griglia sono già larghe quanto la card (la sola con dell'aria è la prima, ~85px) e due
+numeri non ci stanno senza troncarsi. *Una colonna che si taglia è una colonna ASSENTE.* Ognuna col suo
+denominatore (`xgOn`/`xaOn`, che non sono `played`), detti nel tooltip.
+
+### 29.2 La card si allarga di 32px, e la misura dice quanti ne servivano
+
+«Allarga un po' la card del dettaglio altrimenti alcuni valori risultano tagliati». Misurato prima:
+la griglia delle partite **chiede 274px** e a 288 di card gliene arrivavano **264** — dieci pixel, che
+è esattamente la mezza cifra che il fantavoto perdeva sul bordo destro. `CARD_WIDTH` = **320**, una
+costante con due lettori (la card la disegna, `cardLeft` ne ricava il passo di affiancamento) più un
+test che lega i due: due numeri scritti a mano si scoprono diversi quando due card cominciano a
+coprirsi. Dopo: griglia 296px, **0 righe tagliate**, e la colonna dei bonus passa **da 42 a 64px** —
+cioè l'aria in più è andata dove lui l'aveva chiesta il giorno prima.
+
+### 29.3 Le righe in alto, e via l'etichetta «Infortunato»
+
+`content-start` sulla griglia: con `flex-1` e poche partite le righe si distribuivano sull'altezza
+disponibile. E la parola «Infortunato» è uscita dalla colonna larga perché la cella accanto porta già
+la scatola dei medicinali in giallo col suo tooltip: **sono lo stesso annuncio due volte**, e su un
+elenco che di righe così ne ha molte di fila è la parola a occupare l'unica colonna larga.
+
+### 29.4 DUE FONTI PER UN FATTO SOLO: 19,7% degli uomini con due xG
+
+È la parte che vale oltre la sessione. Le pastiglie della Strategia (§16 di
+`pagina-strategia-v1.md`) volevano lo stesso numero, e c'erano due strade:
+
+- l'**aggregato di stagione** del provider (`external_stats`: 310 KB, una riga per uomo/stagione/
+  competizione, già nel contratto di export);
+- la **somma delle sue partite** (`external_match_stats`: 2,1 MB, ed è quello che la CARD somma).
+
+Misurate l'una contro l'altra prima di scegliere: stesso conteggio di partite su **1.096 righe su
+1.096** del 2026-27 e scarto medio 0,003 sul totale — ma **a due decimali il 19,7% degli uomini
+leggerebbe due cifre diverse**, fino a **0,21**. Stesso provider (`sofascore`), stessa competizione,
+stesso numero di partite: la pagina di STAGIONE e quella della PARTITA servono due xG diversi (Kean
+2026-27: 0,17 contro 0,119 su una partita sola).
+
+Quindi l'aggregato è stato **tolto dal pacchetto e dal codice**, e la pastiglia chiama la **stessa
+funzione** che scrive il riepilogo della card (`seasonTotals`). *Una media più economica che non
+coincide con quella che già stampi non è un'ottimizzazione: è un secondo parere sullo stesso uomo, e
+i due pareri stanno sullo stesso schermo.* Il prezzo lo paga solo chi accende le pastiglie: sono spente
+all'apertura e lo store del calcio giocato si chiede al primo click.
+
+### 29.5 Il banco, e i suoi cinque modi di sbagliare
+
+- **Un elemento nuovo letto come uno vecchio**: la riga degli attesi non ha nessuno dei marchi che il
+  lettore conosceva, quindi finiva nel ramo «divisore di stagione» e ogni partita sotto risultava della
+  stagione «attesi a partita xG 0,19 · xA 0,00». È lo stesso difetto che il riepilogo aveva già
+  causato il 05/09 mattina, ricomparso con l'elemento successivo.
+- **Il riepilogo in cima non veniva verificato**, perché il banco lo attribuiva al divisore che non
+  c'è: la stagione si prende dalla più recente che ha partite.
+- **Un tooltip lungo copre il controllo accanto** (lezione delle buste chiuse, 25/08): il secondo
+  click sulle pastiglie finiva sul pannello aperto dal primo, e il passo lasciava ACCESA xG facendo
+  fallire due passi più in là che misuravano tutt'altro. `pressReading` è ora una definizione sola per
+  i due chiamanti e **verifica che il click abbia morso** — un click che non cambia niente è
+  indistinguibile da un bottone che non c'è.
+- **`scrollIntoView` porta con sé ogni antenato scorrevole**: usato per portare il testimone sotto gli
+  occhi, ha fatto scorrere il DOCUMENTO di 14.750px e quattro passi hanno letto «la pastiglia è
+  coperta». *La cura di un difetto dell'arnese non deve produrne uno più grosso*: si tocca il solo `ol`.
+- **Un banco serve `dist/`, quindi una corsa dopo un build fallito misura il build.** Per venti minuti
+  la Strategia ha letto «la pagina scorre di 14.750px, liste che scorrono 0» — cioè il layout
+  collassato — su un `dist/` a metà. Ricostruito, 907px e 3 liste che scorrono, senza toccare una riga
+  di codice.
+
+La prova che vale davvero è quella nuova: **la pastiglia e la card dello stesso uomo, sullo stesso
+schermo, devono dire lo stesso numero**, e il passo lo verifica aprendo la card del primo uomo con gol
+E assist (così i due marchi del riepilogo sono tutt'e due disegnati e il conteggio non è ambiguo).

@@ -7,6 +7,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { outWindowNote } from '../../core/injury-window';
 import { BonusRow } from '../../core/match-bonuses';
 import {
+  CARD_WIDTH,
   CardMan,
   RECENT_MATCHES,
   RECENT_SEASONS,
@@ -110,6 +111,9 @@ export class PlayerCard {
     this.raised.emit(this.man().id);
   }
 
+  /** La larghezza sta in `core/` accanto al passo che la usa: due numeri si scoprono diversi tardi. */
+  protected readonly width = CARD_WIDTH;
+
   protected readonly left = computed(() => cardLeft(this.at()));
   protected readonly top = computed(() => cardTop(this.at()));
 
@@ -209,6 +213,33 @@ export class PlayerCard {
   protected mean(value: number | null, totals: SeasonTotals): string {
     if (value == null) return '—';
     return (totals.synthetic ? '~' : '') + value.toFixed(1).replace('.', ',');
+  }
+
+  /**
+   * UN ATTESO COME SI LEGGE: due cifre dopo la virgola, e nessun `~`.
+   *
+   * DUE E NON UNA come le medie qui sopra, perche' e' un'altra grandezza: un xG a partita sta fra 0,00
+   * e 0,80 e a una cifra sola meta' del listone leggerebbe «0,1». E niente marchio del sintetico: un
+   * atteso arriva dal provider come lo pubblica, non da una retta calibrata sui voti.
+   */
+  protected expected(value: number | null): string {
+    return value == null ? '—' : value.toFixed(2).replace('.', ',');
+  }
+
+  /**
+   * SU QUANTE PARTITE POGGIANO, che sono due numeri diversi e nessuno dei due e' `played`.
+   *
+   * Gli attesi vengono dal layer per-partita e i voti dai voti: una giornata puo' avere il voto e non
+   * la riga del provider. Dirlo e' il punto - una media senza il suo denominatore e' la famiglia di
+   * difetti che questo progetto paga da sempre - e il posto giusto e' il tooltip, perche' la riga porta
+   * gia' due numeri e la card e' larga 288px.
+   */
+  protected expectedHint(totals: SeasonTotals): string {
+    const on = (many: number) => `${many} partit${many === 1 ? 'a' : 'e'} di ${totals.played}`;
+    return (
+      `Gol e assist ATTESI per partita giocata, dal fornitore dei dati per partita. ` +
+      `xG su ${on(totals.xgOn)}, xA su ${on(totals.xaOn)}. Solo partite di campionato.`
+    );
   }
 
   /** I due marchi del riepilogo, con lo stesso vocabolario di icone di una riga di partita. */

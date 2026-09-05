@@ -47,6 +47,8 @@ const cell = (over: Partial<MatchCell> = {}): MatchCell => ({
   penSaved: 0,
   ownGoals: 0,
   goalsConceded: null,
+  xg: null,
+  xa: null,
   yellows: 0,
   reds: 0,
   minutes: 90,

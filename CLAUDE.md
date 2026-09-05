@@ -4215,6 +4215,50 @@ fuori); e **un asset generato si verifica nel mezzo che lo consuma** — l'SVG, 
 disegnano, è stato aperto in un Chrome vero solo dopo la riscrittura, e un `fill` dimenticato su un arco
 riempie la corda senza che nessun test del rasterizzatore possa vederlo.
 
+## Due fonti per un fatto solo non convivono su uno schermo, e l'accordo si misura ALLA PRECISIONE CHE SI STAMPA
+**05/09/2026, dalle richieste dell'operatore su xG e xA. Dettaglio: `letture-app-v1.md` §29,
+`pagina-strategia-v1.md` §16, `metrica-asta-surplus-v1.md` §28.** Gli attesi servivano in due posti — il
+riepilogo di stagione della CARD e due pastiglie nuove della STRATEGIA — e c'erano due strade: l'aggregato
+di stagione del provider (`external_stats`, 310 KB) o la somma delle sue partite (`external_match_stats`,
+2,1 MB, che è quello che la card somma già). Sembravano la stessa cosa: stesso conteggio di partite su
+**1.096 righe su 1.096** e scarto medio 0,003 sul totale di stagione. **A due decimali il 19,7% degli
+uomini leggeva due cifre diverse, fino a 0,21** — stesso provider, stessa competizione, stesso numero di
+partite: la pagina di STAGIONE e quella della PARTITA servono due xG diversi. L'aggregato è uscito dal
+pacchetto e dal codice, e la pastiglia chiama la stessa funzione della card. *Una media più economica che
+non coincide con quella che già stampi non è un'ottimizzazione: è un secondo parere sullo stesso uomo, e i
+due pareri stanno sullo stesso schermo.* Il prezzo (2,1 MB) lo paga solo chi accende le pastiglie: sono
+spente all'apertura e lo store si chiede al primo click.
+
+**E la lezione sull'ESPERIMENTO è della stessa famiglia: il null e i candidati devono leggere la stessa
+tabella.** La prima misura di «quale finestra di xG prevede il resto della stagione» dava alle due
+giornate correnti **+0,6%** contro il **+25,7%** della stagione scorsa, con un null che era la media DI
+RUOLO e candidati senza nessun termine di ruolo: il braccio doveva riprodurre col suo unico numero anche
+il gradino fra un difensore e un attaccante. Col ruolo dentro ogni braccio sono **+13,5%** contro
++28,0%, e la miscela +30,4%. La risposta alla domanda non cambia — vince la stagione scorsa, e le ultime
+dieci perdono perché sono CORTE (il guadagno cresce in modo monotono fino a 40 partite: nessun premio
+alla recenza) — ma il numero pubblicato sì.
+
+**Sesta istanza di «il dato c'era»** dopo i campetti, `availability`, l'asterisco, la data di rientro e le
+partite di Varela: `xg` e `xa` sono in `external_match_stats` da sempre e viaggiano nel bundle; mancava un
+lettore. **E la convenzione sui vuoti si deriva dai dati** (`players-store.expectedScope`): dentro un
+(stagione, competizione) in cui la fonte ha pubblicato almeno un atteso, una cella vuota è uno ZERO — fuori
+è un ignoto. Fino al 2021-22 la fonte non li emette affatto, e infatti lì ci sono righe con un GOL e nessun
+xG. Prezzo misurato: 0 righe con un gol e nessun xG, 2 su 78.626 con un assist e nessun xA.
+
+Tre abitudini d'arnese pagate nella stessa sessione, e valgono per ogni banco.
+- **Un banco serve `dist/`, quindi una corsa dopo un build fallito misura il BUILD.** Per venti minuti la
+  Strategia ha letto «la pagina scorre di 14.750px, liste che scorrono 0» — un layout collassato — su un
+  `dist/` a metà; ricostruito, 907px e 3 liste, senza toccare una riga. *Prima di inseguire un difetto di
+  layout, ricostruisci.*
+- **`scrollIntoView` porta con sé ogni antenato scorrevole.** Usato per portare una riga sotto gli occhi,
+  ha fatto scorrere il documento e quattro passi dopo hanno letto «la pastiglia è coperta». La cura di un
+  difetto dell'arnese non deve produrne uno più grosso: si tocca il solo contenitore che deve scorrere.
+- **Un tooltip lungo copre il controllo accanto** (buste chiuse, 25/08) — ricomparso sulle pastiglie: il
+  secondo click finiva sul pannello aperto dal primo, e il passo lasciava ACCESA una lettura facendo
+  fallire due passi più in là che misuravano tutt'altro. La forma che regge preme, sposta il puntatore e
+  poi **verifica che il click abbia morso**: un click che non cambia niente è indistinguibile da un
+  bottone che non c'è.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

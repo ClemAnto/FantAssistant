@@ -147,15 +147,31 @@ export class CardStack {
 }
 
 /**
+ * QUANTO E' LARGA UNA CARD, e il passo con cui si affiancano viene da qui.
+ *
+ * 320 e non 288 (operatore, 05/09/2026: «allarga un po' la card del dettaglio altrimenti alcuni valori
+ * risultano tagliati»), e la MISURA dice quanto serviva: la griglia delle partite ne chiede 274 e a 288
+ * di card gliene arrivavano 264 - dieci pixel, che e' esattamente la mezza cifra che il fantavoto
+ * perdeva sul bordo destro. Un valore tagliato dal bordo non e' stretto, e' ASSENTE. A 320 la griglia
+ * ne riceve 294: i 274 che chiede piu' venti, che vanno alla colonna dei bonus - quella che lui aveva
+ * chiesto di allargare il 05/09.
+ *
+ * UNA COSTANTE E DUE LETTORI: la larghezza la disegna la card, il passo lo calcola `cardLeft`. Scritti
+ * a mano in due posti si scoprirebbero diversi quando due card cominciano a coprirsi.
+ */
+export const CARD_WIDTH = 320;
+
+/**
  * DOVE NASCE UNA CARD: AFFIANCATE, non a cascata.
  *
  * Le card servono a CONFRONTARE (sua richiesta), e due card sfalsate di 28px si coprono per il 90%.
- * Quindi quattro per riga a 300px di passo (288 di card piu' 12 di aria), poi si scende di 44px e si
- * ricomincia. Dal bordo SINISTRO e non dal centro, cosi' la posizione non dipende dalla larghezza della
- * finestra; il posto vero glielo da' poi lui trascinandola.
+ * Quindi quattro per riga con 12px di aria, poi si scende di 44px e si ricomincia - quattro entrano in
+ * 1340px, dentro la finestra su cui i banchi misurano (1600). Dal bordo SINISTRO e non dal centro,
+ * cosi' la posizione non dipende dalla larghezza della finestra; il posto vero glielo da' poi lui
+ * trascinandola.
  */
 export function cardLeft(slot: number): number {
-  return 16 + (slot % 4) * 300;
+  return 16 + (slot % 4) * (CARD_WIDTH + 12);
 }
 
 export function cardTop(slot: number): number {
@@ -186,6 +202,16 @@ export interface CardRow {
   season: string | null;
   /** La squadra da annunciare sopra questa riga, o null. */
   club: string | null;
+  /**
+   * LA STAGIONE DA RIASSUMERE sopra questa riga, che NON e' sempre quella da annunciare.
+   *
+   * Sulla PRIMA riga il divisore non c'e' - la stagione in corso e' annunciata dall'intestazione
+   * «ultime partite» - e il riepilogo invece ci va (operatore, 05/09/2026: «sotto la scritta ULTIME
+   * PARTITE, come per le altre stagioni, aggiungi le medie per ogni colonna»). Due campi e non uno,
+   * perche' sono due annunci diversi: leggere il riepilogo dal divisore lo toglieva proprio alla
+   * stagione che si sta comprando.
+   */
+  totals: string | null;
 }
 
 /**
@@ -212,7 +238,10 @@ export function cardRows(matches: readonly RecentMatch[], currentClub: string): 
     const newSeason = season != null && match.season !== season ? match.season : null;
     const key = clubNameKey(match.cell.team);
     const newClub = key && club != null && key !== club ? match.cell.team : null;
-    out.push({ match, season: newSeason, club: newClub });
+    // Il riepilogo va sopra la prima riga di OGNI stagione, compresa quella in cima: li' il divisore
+    // non c'e' perche' lo fa l'intestazione, ma le medie servono - anzi sono quelle che si guardano.
+    const totals = season == null ? match.season : newSeason;
+    out.push({ match, season: newSeason, club: newClub, totals });
     season = match.season;
     if (key) club = key;
   }
@@ -251,6 +280,22 @@ export interface SeasonTotals {
   fm: number | null;
   goals: number;
   assists: number;
+  /**
+   * GLI ATTESI, medi per partita GIOCATA (operatore, 05/09/2026: «insieme a MV e FM ... xG e xA
+   * calcolati sulla stagione corrente, sempre medi a partita»).
+   *
+   * OGNUNO COL SUO DENOMINATORE, che qui non e' un dettaglio: gli attesi vengono dal layer per-partita
+   * e i voti dai voti, quindi una giornata puo' avere il voto e non gli attesi (nessuna riga del
+   * provider) e viceversa. `xgOn`/`xaOn` dicono su quante partite poggia ognuna delle due medie - e
+   * sono due numeri diversi, perche' la fonte pubblica gli xA sul 98,3% delle righe giocate dei cinque
+   * campionati e gli xG sul 46,6% (dove il resto sono ZERI veri: vedi `expectedScope`).
+   *
+   * NIENTE `~`: un attesa non e' un voto sintetico. Viene dal provider come ci arriva, non da una retta.
+   */
+  xg: number | null;
+  xa: number | null;
+  xgOn: number;
+  xaOn: number;
   /** Se le medie poggiano su un voto SINTETICO: allora sono sintetiche anche loro, e portano il `~`. */
   synthetic: boolean;
 }
@@ -265,12 +310,18 @@ export function seasonTotals(cells: readonly MatchCell[]): SeasonTotals | null {
   const minutes = mean(played.map((one) => one.minutes).filter((one): one is number => one != null));
   const votes = played.filter((one) => one.vote != null);
   const fantavoti = played.filter((one) => one.fantavoto != null);
+  const withXg = played.filter((one) => one.xg != null);
+  const withXa = played.filter((one) => one.xa != null);
 
   return {
     played: played.length,
     minutes: minutes == null ? null : Math.round(minutes),
     mv: mean(votes.map((one) => one.vote as number)),
     fm: mean(fantavoti.map((one) => one.fantavoto as number)),
+    xg: mean(withXg.map((one) => one.xg as number)),
+    xa: mean(withXa.map((one) => one.xa as number)),
+    xgOn: withXg.length,
+    xaOn: withXa.length,
     // I RIGORI SEGNATI SONO GOL, e gli assist da fermo sono assist: la riga di una partita li tiene
     // separati perche' valgono punti diversi, ma «gol fatti» e' una domanda sul calcio e non sul
     // punteggio - e un rigorista che ne segna dieci non ha fatto zero gol.

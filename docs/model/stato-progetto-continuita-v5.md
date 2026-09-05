@@ -5223,3 +5223,58 @@ l'operatore, decidendo quale sessione atterra per prima.**
    finestre che validarono la scala il 20/08 girarono su una `desc_minutes_next` che il difetto del
    manifest sporcava (cartella nuova per ogni pacchetto). La validazione va rifatta, e questa volta i
    numeri saranno stabili.
+
+---
+
+# Chiusura 5 settembre 2026 (sera) — gli ATTESI arrivano sulla card e sulla Strategia, e una fonte in più è stata scartata
+
+Sessione tutta di APP: sette richieste dell'operatore, nessuna riga del motore toccata, `engine_*` fermo
+a zero decimali. Il documento pieno è `letture-app-v1.md` §29 (card), `pagina-strategia-v1.md` §16
+(pastiglie), `metrica-asta-surplus-v1.md` §28 (la misura sulle finestre di xG).
+
+## La domanda con cui è cominciata
+
+«Come previsione futura contano di più gli xG e xA medi a partita della stagione corrente (2 partite),
+della stagione scorsa o delle ultime 10?» — misurata su cinque campionati e tre stagioni bersaglio,
+leave-one-season-out, col ruolo dentro ogni braccio: **stagione scorsa +28,0%** contro il null di ruolo,
+ultime 10 **+25,4%**, due giornate correnti **+13,5%**, e la MISCELA **+30,4%**. Le ultime dieci perdono
+perché sono corte (il guadagno cresce fino a 40 partite: **nessun premio alla recenza**), il sorpasso
+della stagione in corso arriva alla **9ª-10ª giornata**, e una partita di oggi vale ~3,5 partite
+dell'anno scorso. Risultato in più: per prevedere i GOL+ASSIST veri, l'**xG+xA** dell'anno scorso
+(+18,6%) batte i **gol+assist** dell'anno scorso (+15,5%).
+
+## Cosa è entrato (app, `SHEET_REVISION` invariata: nessuna colonna del foglio si muove)
+
+- **`MatchCell.xg` / `.xa`** e `expectedScope`, la regola derivata dai dati su dove un vuoto è uno zero.
+- **Il riepilogo di stagione della card** porta `attesi a partita xG · xA` e ora si disegna anche per la
+  **stagione in corso** (`CardRow.totals`, separato da `CardRow.season`).
+- **La card è larga 320px** (`CARD_WIDTH`, una costante con due lettori): la griglia chiedeva 274px e ne
+  riceveva 264, e i dieci mancanti erano la mezza cifra che il fantavoto perdeva sul bordo.
+- **Righe in alto** (`content-start`) e via l'etichetta «Infortunato», che la cella accanto già dice.
+- **Quattro pastiglie nuove sulla Strategia**: `G` e `A` (per partita, sua correzione) accanto a `xG` e
+  `xA`, tutte e quattro nella stessa unità. Undici in tutto; le quattro costano un caricamento e sono
+  spente all'apertura (`SEASON_READINGS`).
+
+## Cosa è stato scartato dopo averlo scritto e misurato
+
+`external_stats` (l'aggregato di stagione del provider) era **già cablato** — bundle, `pull-bundle`,
+`ValuationStore`, test — e costava 310 KB invece di 2,1 MB. È uscito perché **a due decimali il 19,7%
+degli uomini leggeva un xG diverso fra la pastiglia e la card**, fino a 0,21: stesso provider, stesse
+partite, due endpoint. Ora le due schermate passano dalla stessa `seasonTotals`, e un passo del banco
+apre la card del primo uomo con gol E assist e verifica che i due numeri coincidano.
+
+## Verde
+
+736 test unitari (44 file), dieci banchi e2e, build pulito. Il banco della Strategia ha un passo nuovo
+(«gol, assist e attesi: dal bundle e uguali alla card») che confronta 219 righe col pacchetto, e quello
+della card misura ora il TAGLIO delle celle oltre il bordo (`fit.cut`).
+
+## Aperti di questa sessione
+
+1. **Due separatori decimali nella stessa app in italiano**: la Strategia stampa `0.45`, la card `0,45`.
+   Lo ha trovato il banco confrontando le due schermate. La cura è il `LOCALE_ID` a `it`, che tocca ogni
+   numero della pagina: è una decisione dell'operatore, non una svista da sistemare di nascosto.
+2. **`backtest --verify` resta dovuto** dalla v9.72 (eredità della sessione precedente): niente di questa
+   sessione tocca `evaluate`, quindi il 22/22 dovrebbe reggere, ma va rieseguito da chi possiede il DB.
+3. La misura sulle finestre di xG **non è una regola**: nessun gate la possiede. Chi volesse farne un
+   canale previsionale passa dal gate come qualunque altro.

@@ -100,6 +100,16 @@ export interface MatchCell {
   goalsConceded: number | null;
   yellows: number;
   reds: number;
+  /**
+   * xG E xA DI QUESTA PARTITA, dal layer per-partita e non dai voti: il fantacalcio non li pubblica.
+   *
+   * NULL E' IGNOTO E NON UNO ZERO, e quale delle due cose sia lo dice `expectedScope` leggendo i dati:
+   * dentro un (stagione, competizione) in cui la fonte pubblica gli attesi, una cella vuota e' uno zero
+   * (misurato sul bundle: 41.859 righe vuote su 78.626, di cui 41.852 con ZERO tiri e nessuna con un
+   * gol); fuori, la fonte non li ha mai emessi e leggerli come zero direbbe che nessuno ha mai tirato.
+   */
+  xg: number | null;
+  xa: number | null;
   minutes: number | null;
   /**
    * SE ERA IN DISTINTA DAL PRINCIPIO, che con i minuti fa la frase intera: chi e' SUBENTRATO e chi e'
@@ -800,7 +810,10 @@ export class PlayersStore {
       const leagueOf = new Map<number, string | null>();
       for (const list of roster.values()) for (const p of list) leagueOf.set(p.fcId, p.league);
 
-      const provider = buildProviderIndex(external);
+      // UNA DEFINIZIONE SOLA di dove gli attesi esistono, passata ai due lettori del layer per-partita:
+      // due copie darebbero a una partita due xG, uno misurato e uno inventato.
+      const expected = expectedScope(external);
+      const provider = buildProviderIndex(external, expected);
       const euroToReal = buildMatchdayMap(map);
       const shapes = buildShapes(lineups);
       const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes, scoring);
@@ -818,7 +831,9 @@ export class PlayersStore {
       this.seasons.set(seasons);
       const roleOf = new Map<number, ClassicRole>();
       for (const list of roster.values()) for (const p of list) roleOf.set(p.fcId, p.role);
-      this.other.set(buildOtherMatches(external, new Set(seasons), leagueOf, shapes, scoring, roleOf));
+      this.other.set(
+        buildOtherMatches(external, expected, new Set(seasons), leagueOf, shapes, scoring, roleOf),
+      );
 
       this.selectSeason(seasons.at(-2) ?? seasons.at(-1) ?? '');
       this.status.set('ready');
@@ -1148,12 +1163,64 @@ interface ProviderMatch {
   minutes: number | null;
   voteSynth: number | null;
   rating: number | null;
+  /** Gli attesi di quella giornata, gia' risolti fra «zero» e «ignoto» (vedi `expectedScope`). */
+  xg: number | null;
+  xa: number | null;
   date: string | null;
+}
+
+/**
+ * DOVE UN xG ASSENTE E' UNO ZERO E DOVE E' UN IGNOTO: derivato dai DATI, mai da una lista di nomi.
+ *
+ * La fonte ha cambiato forma nel tempo e non lo dichiara da nessuna parte: fino al 2021-22 non emette
+ * affatto gli attesi (e infatti in quelle stagioni ci sono righe con un GOL e nessun xG), dal 2022-23
+ * li emette e omette la chiave quando il valore e' zero. Un lettore che credesse all'encoding
+ * leggerebbe mezza tabella come «non ha mai tirato», e uno che leggesse tutto come ignoto butterebbe
+ * via il 53% delle righe buone.
+ *
+ * Quindi l'ammissibilita' e' una proprieta' del (stagione, competizione) e si legge dal bundle stesso:
+ * se li' dentro la fonte ha pubblicato almeno un attesa, allora li' una cella vuota e' uno ZERO. E'
+ * la stessa forma di `synth.calibrated_competitions` nel toolkit - dove un numero si puo' applicare e'
+ * una proprieta' della popolazione su cui e' stato osservato - e sui dati del 05/09/2026 separa
+ * esattamente quello che deve: i cinque campionati dal 2024-25 in poi dentro, coppe e amichevoli
+ * fuori (0 attesi su 2.500 righe, con 134 gol a smentire lo zero).
+ *
+ * DUE INSIEMI E NON UNO, perche' le due colonne hanno coperture diverse: xa e' pubblicato sul 98,3%
+ * delle righe giocate dei cinque campionati e xg sul 46,6%. Il prezzo della convenzione e' misurato e
+ * non stimato: 0 righe con un gol e nessun xg, 2 righe su 78.626 con un assist e nessun xa.
+ */
+export interface ExpectedScope {
+  xg: ReadonlySet<string>;
+  xa: ReadonlySet<string>;
+}
+
+function expectedScope(external: BundleTable): ExpectedScope {
+  const xg = new Set<string>();
+  const xa = new Set<string>();
+  const season = optionalIndex(external, 'season');
+  const competition = optionalIndex(external, 'competition');
+  const xgAt = optionalIndex(external, 'xg');
+  const xaAt = optionalIndex(external, 'xa');
+  // Un bundle senza quelle colonne (la demo) non ha attesi da nessuna parte: insiemi vuoti, e ogni
+  // riga legge «ignoto». E' «vuoto = ignoto» applicato alla forma del pacchetto e non a una cella.
+  if (season < 0 || competition < 0) return { xg, xa };
+  for (const row of external.rows) {
+    const key = `${row[season]}|${row[competition]}`;
+    if (xgAt >= 0 && row[xgAt] != null) xg.add(key);
+    if (xaAt >= 0 && row[xaAt] != null) xa.add(key);
+  }
+  return { xg, xa };
+}
+
+/** Il valore di una riga dentro il suo blocco: zero dove la fonte pubblica, ignoto dove non pubblica. */
+function expectedOf(known: ReadonlySet<string>, key: string, value: unknown): number | null {
+  if (!known.has(key)) return null;
+  return (value as number | null) ?? 0;
 }
 
 /** Keyed on (fc_id, season, competition, real_md): the competition belongs in the key because
  *  a player can have a league round and a cup tie under the same number. */
-function buildProviderIndex(external: BundleTable): {
+function buildProviderIndex(external: BundleTable, scope: ExpectedScope): {
   index: Map<string, ProviderMatch>;
   present: Set<string>;
   roundDates: Map<string, string>;
@@ -1175,6 +1242,9 @@ function buildProviderIndex(external: BundleTable): {
       'mv_synth',
       'match_id',
     );
+  // Facoltative: un pacchetto costruito senza il layer degli attesi non ne ha, e la card lo dira'.
+  const xgAt = optionalIndex(external, 'xg');
+  const xaAt = optionalIndex(external, 'xa');
   const index = new Map<string, ProviderMatch>();
   /** He appears in this championship this season - on the pitch or on the bench. Without it a
    *  man who never left the bench would read as "never in this league". */
@@ -1201,6 +1271,8 @@ function buildProviderIndex(external: BundleTable): {
       minutes: (row[minutes] as number) ?? null,
       voteSynth: (row[mvSynth] as number) ?? null,
       rating: (row[rating] as number) ?? null,
+      xg: xgAt < 0 ? null : expectedOf(scope.xg, `${row[season]}|${row[competition]}`, row[xgAt]),
+      xa: xaAt < 0 ? null : expectedOf(scope.xa, `${row[season]}|${row[competition]}`, row[xaAt]),
       date: matchDate,
     });
   }
@@ -1338,6 +1410,10 @@ function buildLeagueMatches(
       goalsConceded: (row[conceded] as number) ?? null,
       yellows: (row[yellows] as number) ?? 0,
       reds: (row[reds] as number) ?? 0,
+      // GLI ATTESI VENGONO DAL PROVIDER e non dai voti, come i minuti e la distinta: dove non c'e' una
+      // riga sua per quella giornata restano vuoti, che e' quello che sono.
+      xg: extra?.xg ?? null,
+      xa: extra?.xa ?? null,
       minutes: extra?.minutes ?? null,
       started: extra?.started ?? null,
       team: teamName,
@@ -1361,6 +1437,7 @@ function buildLeagueMatches(
  *  `mv_synth` is null on every one of them - all they have is the provider's own rating. */
 function buildOtherMatches(
   external: BundleTable,
+  scope: ExpectedScope,
   seasons: Set<string>,
   leagueOf: Map<number, string | null>,
   shapes: Map<string, string>,
@@ -1421,6 +1498,8 @@ function buildOtherMatches(
   // the data, not a reason to refuse to draw the table.
   const teamGoals = optionalIndex(external, 'team_goals');
   const opponentGoals = optionalIndex(external, 'opponent_goals');
+  const xgAt = optionalIndex(external, 'xg');
+  const xaAt = optionalIndex(external, 'xa');
 
   const out = new Map<string, Map<number, MatchCell[]>>();
   for (const row of external.rows) {
@@ -1479,6 +1558,8 @@ function buildOtherMatches(
       goalsConceded: conceded,
       yellows: (row[yellows] as number) ?? 0,
       reds: (row[reds] as number) ?? 0,
+      xg: xgAt < 0 ? null : expectedOf(scope.xg, `${s}|${slug}`, row[xgAt]),
+      xa: xaAt < 0 ? null : expectedOf(scope.xa, `${s}|${slug}`, row[xaAt]),
       minutes: (row[minutes] as number) ?? null,
       started: row[startedOther] == null ? null : row[startedOther] === 1,
       team: (row[club] as string) ?? '',
@@ -1659,6 +1740,9 @@ function buildAbsences(
           goalsConceded: null,
           yellows: 0,
           reds: 0,
+          // Una giornata che non ha giocato non ha attesi: non e' uno zero, e' una partita che non c'e'.
+          xg: null,
+          xa: null,
           // A bench row knows he was there and against whom; it does NOT get a scoreline,
           // because reaching one would mean joining the provider's club name to the ratings'
           // spelling, and a name join is the defect this project keeps paying for.

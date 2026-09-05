@@ -201,13 +201,25 @@ function readMatches() {
   let seasonSeen = null;
   const clubBreaks = [];
   const summaries = [];
+  const expected = [];
   for (const child of grid.children) {
     if (child.tagName.toLowerCase() !== 'ui-match-line') {
       // TRE FIGLI CHE NON SONO PARTITE: il divisore di stagione, quello del cambio di squadra e il
       // riepilogo. Si distinguono dai loro MARCHI e non dal testo - la prima versione leggeva il
       // riepilogo come se fosse una stagione, e ogni riga sotto finiva attribuita a «18 partite ...».
       if (child.hasAttribute('data-club-break')) clubBreaks.push((child.innerText ?? '').trim());
-      else if (child.hasAttribute('data-season-totals')) {
+      // GLI ATTESI sono una riga del riepilogo e NON un divisore: senza questo ramo il suo testo
+      // finiva in `seasonSeen` e ogni partita sotto risultava della stagione «attesi a partita xG
+      // ...» - un elemento nuovo letto come uno vecchio, che e' il difetto che questo banco ha gia'
+      // pagato col riepilogo scambiato per un divisore.
+      else if (child.hasAttribute('data-season-expected')) {
+        const cells = [...child.children];
+        expected.push({
+          season: seasonSeen,
+          label: (cells[0]?.innerText ?? '').trim(),
+          values: (cells[1]?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+        });
+      } else if (child.hasAttribute('data-season-totals')) {
         const cells = [...child.children];
         summaries.push({
           season: seasonSeen,
@@ -266,10 +278,31 @@ function readMatches() {
       ).length,
     });
   }
+  // QUANTO CHIEDE LA GRIGLIA CONTRO QUANTO LE SI DA' (operatore, 05/09/2026: «allarga un po' la card
+  // del dettaglio altrimenti alcuni valori risultano tagliati»). Una colonna tagliata dal bordo della
+  // card non e' STRETTA, e' ASSENTE - la stessa famiglia dei «276px di colonne non strette, assenti» -
+  // e nessun conteggio di celle la vede: quello che la vede e' la x del bordo DESTRO dell'ultima cella
+  // contro il bordo destro della griglia.
+  const shell = document.querySelector('ui-player-card > div');
+  const edge = grid.getBoundingClientRect().right;
+  const spill = (child) =>
+    Math.max(0, Math.round(child.getBoundingClientRect().right - edge));
+  const cut = [...grid.children]
+    .map((child) => spill([...child.children].at(-1) ?? child))
+    .filter((over) => over > 0);
   return {
     rows,
     clubBreaks,
     summaries,
+    expected,
+    fit: {
+      card: Math.round(shell?.getBoundingClientRect().width ?? 0),
+      given: grid.clientWidth,
+      needed: grid.scrollWidth,
+      /** Quanti pixel manca la piu' larga delle righe: 0 = nessuna cella tocca il bordo. */
+      cut: cut.length ? Math.max(...cut) : 0,
+      cutRows: cut.length,
+    },
     // LA BARRA: quanto spazio si prende davvero, non una classe che c'e' e potrebbe non dipingere.
     scrollbar: grid.offsetWidth - grid.clientWidth,
     scrolls: grid.scrollHeight > grid.clientHeight + 1,
@@ -586,6 +619,8 @@ async function main() {
         synth: row[col(external, 'mv_synth')],
         goals: row[col(external, 'goals')],
         assists: row[col(external, 'assists')],
+        xg: row[col(external, 'xg')],
+        xa: row[col(external, 'xa')],
         matchId: row[col(external, 'match_id')],
         opponentGoals: row[col(external, 'opponent_goals')],
       }));
@@ -887,8 +922,10 @@ async function main() {
     };
     const wrongTotals = [];
     for (const one of shown.summaries) {
-      // La stagione del riepilogo e' quella del divisore che ha appena sopra.
-      const want = wantTotals(one.season);
+      // La stagione del riepilogo e' quella del divisore che ha appena sopra - e il PRIMO un divisore
+      // non ce l'ha, perche' la stagione in corso la annuncia l'intestazione (05/09/2026). Saltarlo
+      // avrebbe lasciato senza verifica proprio il riepilogo che l'operatore ha chiesto.
+      const want = wantTotals(one.season ?? newest);
       if (!want) continue;
       const said = Number((one.played.match(/\d+/) ?? [0])[0]);
       const mins = Number((one.minutes.match(/\d+/) ?? [NaN])[0]);
@@ -903,6 +940,56 @@ async function main() {
     const misaligned = shown.summaries.filter(
       (one) => one.xs.join('|') !== shown.rows[0].xs.join('|'),
     );
+    // 5k. GLI ATTESI DEL RIEPILOGO, ricalcolati QUI dal bundle e mai dallo schermo.
+    //     L'ammissibilita' si ri-deriva come fa l'app - un (stagione, competizione) in cui la fonte
+    //     ha pubblicato almeno un attesa - invece di importarla: se un giorno la regola cambiasse in
+    //     un solo posto, il banco deve accorgersene, non seguirla.
+    const scope = { xg: new Set(), xa: new Set() };
+    for (const row of external.rows) {
+      const key = `${row[col(external, 'season')]}|${row[col(external, 'competition')]}`;
+      if (row[col(external, 'xg')] != null) scope.xg.add(key);
+      if (row[col(external, 'xa')] != null) scope.xa.add(key);
+    }
+    const wantExpected = (season) => {
+      const own = all.filter(
+        (one) => one.season === season && LEAGUES.has(one.competition)
+          && (one.minutes != null || one.rating != null),
+      );
+      const mean = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : null);
+      const values = (which) =>
+        own
+          .filter((one) => scope[which].has(`${one.season}|${one.competition}`))
+          .map((one) => one[which] ?? 0);
+      return { xg: mean(values('xg')), xa: mean(values('xa')) };
+    };
+    const wrongExpected = [];
+    for (const one of shown.expected) {
+      const want = wantExpected(one.season ?? newest);
+      const said = [...one.values.matchAll(/(\d+,\d+)/g)].map((m) => Number(m[1].replace(',', '.')));
+      const near = (screen, bundle) =>
+        bundle == null ? screen === undefined : screen != null && Math.abs(screen - bundle) < 0.006;
+      if (!near(said[0], want.xg) || !near(said[1], want.xa)) wrongExpected.push({ ...one, want });
+    }
+    note('gli attesi del riepilogo', {
+      said: shown.expected.length
+        ? shown.expected.map((one) => `${one.season ?? newest}: ${one.values}`).join(' | ')
+        : 'nessuna riga di attesi (la fonte non li pubblica per queste stagioni)',
+      problems: wrongExpected.length
+        ? [`${wrongExpected.length} riepiloghi con attesi diversi dal bundle`]
+        : [],
+      sample: wrongExpected.slice(0, 2),
+    });
+
+    // 5l. LA CARD CI STA: nessuna cella oltre il bordo destro della griglia. Un valore tagliato dal
+    //     bordo non e' stretto, e' ASSENTE - e nessun conteggio di righe o di celle lo vede.
+    note('i valori ci stanno nella card', {
+      said: `card ${shown.fit.card}px · griglia ${shown.fit.given}px, ne chiede ${shown.fit.needed} `
+        + `· ${shown.fit.cutRows} righe tagliate (max ${shown.fit.cut}px)`,
+      problems: shown.fit.cut > 0
+        ? [`${shown.fit.cutRows} righe perdono fino a ${shown.fit.cut}px oltre il bordo`]
+        : [],
+    });
+
     note('il riepilogo di stagione', {
       said: shown.summaries.length
         ? shown.summaries
@@ -950,6 +1037,14 @@ async function main() {
     });
 
     if (flag('--shot')) {
+      // IN CIMA PRIMA DI FOTOGRAFARE: l'elenco e' rimasto dove il tasto «carica» lo aveva lasciato, e
+      // una foto scattata a meta' lista non mostra la testa della card - che e' dove sta il riepilogo
+      // della stagione in corso, cioe' proprio quello che si vuole guardare.
+      await evaluate(session, () => {
+        const grid = document.querySelector('ui-player-card [data-matches]');
+        if (grid) grid.scrollTop = 0;
+        return true;
+      });
       const shot = await session.send('Page.captureScreenshot', { format: 'png' });
       await writeFile(join(ROOT, 'player-card.png'), Buffer.from(shot.data, 'base64'));
       console.log('  screenshot -> player-card.png');

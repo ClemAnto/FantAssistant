@@ -392,7 +392,19 @@ function readCards() {
         crests: line.querySelectorAll('ui-crest').length,
       };
     });
+    // IL RIEPILOGO DELLA STAGIONE IN CIMA: e' quello che le pastiglie della lista devono ripetere, e
+    // il confronto fra i due e' la sola prova che la definizione sia una sola.
+    const totals = card.querySelector('[data-season-totals]');
+    const marks = totals ? [...totals.children][3] : null;
+    const expected = card.querySelector('[data-season-expected]');
     return {
+      summary: totals
+        ? {
+          played: Number(((totals.children[0]?.innerText ?? '').match(/\d+/) ?? [0])[0]),
+          marks: (marks?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+          expected: (expected?.children[1]?.innerText ?? '').replace(/\s+/g, ' ').trim(),
+        }
+        : null,
       name: (card.querySelector('.text-sm')?.innerText ?? '').trim(),
       // La riga sotto il nome (club · dove): il fratello del titolo, invece di un selettore su una
       // classe con le parentesi quadre - che in una stringa JS va scritta con due escape e in CSS con uno.
@@ -595,6 +607,86 @@ async function openInjuries() {
     const start = row[from];
     const end = row[to];
     if (start && start <= today && (!end || end >= today)) out.add(Number(row[id]));
+  }
+  return out;
+}
+
+/**
+ * Preme una pastiglia delle letture leggendone le coordinate ADESSO, e poi porta il puntatore via.
+ *
+ * Le coordinate si rileggono a ogni giro perche' la barra si ridisegna, e il puntatore si sposta perche'
+ * UN TOOLTIP LUNGO COPRE IL CONTROLLO ACCANTO - la lezione delle buste chiuse (25/08/2026), pagata due
+ * volte qui: la prima versione leggeva i bottoni una volta sola e il secondo click finiva sul pannello
+ * aperto dal primo, quindi «spegnere Bpm» non spegneva niente; e il 05/09/2026 lo stesso difetto ha
+ * lasciato ACCESA la pastiglia xG dopo il passo che la doveva rimettere com'era, facendo fallire due
+ * passi piu' in la' che misuravano tutt'altro. Una definizione sola, quindi, e due chiamanti.
+ */
+async function pressReading(session, key) {
+  const now = (await evaluate(session, readToggles)) ?? [];
+  const pill = now.find((one) => one.key === key);
+  if (!pill) return `nessuna pastiglia «${key}» in barra`;
+  if (pill.under !== 'button' && pill.under !== 'span') {
+    return `sotto la pastiglia «${key}» c'e' ${pill.under}: e' coperta`;
+  }
+  const before = pill.on;
+  await click(session, pill.point);
+  // Via dal bottone: il tooltip si chiude e non copre quello che si preme dopo.
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 4, y: 500, button: 'none' });
+  await wait(250);
+  // E SI VERIFICA CHE ABBIA MORSO: un click che non cambia niente e' indistinguibile da un bottone
+  // che non c'e', e il passo dopo ne accusa un altro.
+  const after = ((await evaluate(session, readToggles)) ?? []).find((one) => one.key === key);
+  if (after && after.on === before) return `la pastiglia «${key}» non ha cambiato stato`;
+  return null;
+}
+
+/** I campionati che il bundle chiama «campionato»: `players-store.LEAGUE_COMPETITIONS`, riscritti. */
+const LEAGUES = new Set([
+  'serie_a', 'premier_league', 'la_liga', 'bundesliga', 'ligue_1', 'serie_b',
+]);
+
+/**
+ * GLI ATTESI DEL BUNDLE, ri-derivati QUI e non importati dall'app.
+ *
+ * Dal LAYER PER-PARTITA, che e' quello che la pagina somma: l'aggregato di stagione dello STESSO
+ * provider (`external_stats`) e' stato misurato e scartato il 05/09/2026 - a due decimali il 19,7%
+ * degli uomini leggeva due cifre diverse fra la pastiglia e la card, fino a 0,21 di scarto, e le due
+ * cose stanno sullo schermo insieme.
+ *
+ * La regola dei vuoti si riscrive apposta invece di importarla: dentro un (stagione, competizione) in
+ * cui la fonte ha pubblicato almeno un attesa una cella vuota e' uno ZERO, fuori e' un ignoto. Se un
+ * giorno cambiasse in un solo posto, questo banco deve accorgersene e non seguirla.
+ */
+async function expectedFromBundle() {
+  const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
+  const raw = await readFile(join(DIST, 'data', 'external_match_stats.json.gz'));
+  const table = JSON.parse(gunzipSync(raw).toString('utf8'));
+  const at = (name) => table.columns.indexOf(name);
+  const [id, season, competition, minutes, xg, xa] =
+    ['fc_id', 'season', 'competition', 'minutes', 'xg', 'xa'].map(at);
+  const scope = { xg: new Set(), xa: new Set() };
+  for (const row of table.rows) {
+    const key = `${row[season]}|${row[competition]}`;
+    if (row[xg] != null) scope.xg.add(key);
+    if (row[xa] != null) scope.xa.add(key);
+  }
+  const out = new Map();
+  for (const row of table.rows) {
+    if (row[season] !== manifest.target_season) continue;
+    if (!LEAGUES.has(row[competition]) || !row[minutes]) continue;
+    const key = `${row[season]}|${row[competition]}`;
+    const sum = out.get(Number(row[id])) ?? { xg: 0, xa: 0, onXg: 0, onXa: 0, matches: 0 };
+    if (scope.xg.has(key)) { sum.xg += row[xg] ?? 0; sum.onXg += 1; }
+    if (scope.xa.has(key)) { sum.xa += row[xa] ?? 0; sum.onXa += 1; }
+    sum.matches += 1;
+    out.set(Number(row[id]), sum);
+  }
+  for (const [key, sum] of out) {
+    out.set(key, {
+      xg: sum.onXg ? sum.xg / sum.onXg : null,
+      xa: sum.onXa ? sum.xa / sum.onXa : null,
+      matches: sum.matches,
+    });
   }
   return out;
 }
@@ -999,6 +1091,139 @@ async function main() {
         ...(outside ? [`${outside} pastiglie fuori dalla loro riga: ci sono nel DOM e non sullo schermo`] : []),
         ...wrongPills.slice(0, 5),
         ...(wrongPills.length > 5 ? [`...e altre ${wrongPills.length - 5} righe che non tornano`] : []),
+      ],
+    });
+
+    // 2c-bis. GLI ATTESI, accesi con un CLICK VERO e confrontati con `external_stats` del bundle.
+    //
+    //     Due cose in un passo solo e sono la stessa: che la pastiglia si accenda (una preferenza che
+    //     vive in `localStorage`, quindi il DOM e' l'unico posto da cui si sa che ha morso) e che il
+    //     numero sia quello del pacchetto. Il confronto e' col FILE - un xG ricavato dalla pastiglia
+    //     sarebbe l'asserzione circolare che passa qualunque cosa.
+    const producedByBundle = await expectedFromBundle();
+    const wrongExpected = [];
+    let withExpected = 0;
+    let crossChecked = null;
+    const SEASON_PILLS = ['goals', 'assists', 'xg', 'xa'];
+    const switched = [];
+    for (const key of SEASON_PILLS) switched.push(await pressReading(session, key));
+    switched.splice(0, switched.length, ...switched.filter(Boolean));
+    if (!switched.length) {
+      for (const row of (await evaluate(session, readPills)) ?? []) {
+        const want = producedByBundle.get(row.id);
+        const number = (text) => (text == null || text === '—' ? null : Number(String(text).replace(',', '.')));
+        const said = { xg: number(row.say.xg), xa: number(row.say.xa) };
+        if (said.xg === undefined || !('xg' in row.say)) {
+          wrongExpected.push(`${row.name}: la pastiglia xG non si e' accesa`);
+          continue;
+        }
+        // Chi non ha una riga non ha una media: un trattino, mai uno zero.
+        const near = (screen, file) =>
+          file == null ? screen == null : screen != null && Math.abs(screen - file) < 0.006;
+        if (!near(said.xg, want?.xg ?? null) || !near(said.xa, want?.xa ?? null)) {
+          wrongExpected.push(
+            `${row.name}: xG/xA dicono ${row.say.xg}/${row.say.xa} e il bundle `
+            + `${want ? `${want.xg?.toFixed(2)}/${want.xa?.toFixed(2)} su ${want.matches} partite` : 'niente'}`,
+          );
+        }
+        if (want) withExpected += 1;
+      }
+      // ...E LA CARD DEVE DIRE LO STESSO, che e' la proprieta' per cui la fonte e' stata cambiata:
+      // pastiglia e riepilogo passano dalla STESSA funzione (`seasonTotals`), quindi due numeri diversi
+      // sullo stesso uomo sullo stesso schermo sono la prova che la definizione e' tornata a essere due.
+      // L'uomo si sceglie dai DATI - il primo con gol E assist, cosi' i due marchi del riepilogo sono
+      // tutt'e due disegnati e il conteggio non e' ambiguo - e mai da una lista scritta a mano.
+      const pilled = (await evaluate(session, readPills)) ?? [];
+      const num = (text) => (text == null || text === '—' ? null : Number(String(text).replace(',', '.')));
+      const witness = pilled.find((row) => num(row.say.goals) > 0 && num(row.say.assists) > 0);
+      if (witness) {
+        // PRIMA LO SI PORTA SOTTO GLI OCCHI: i blocchi scorrono, e il testimone e' il primo uomo con
+        // gol E assist - che sta dove capita. Cliccare le coordinate di una riga fuori dalla lista
+        // visibile non apre niente e fa accusare la pagina di un difetto che e' dell'arnese: e' la
+        // lezione dei varchi fuori dal viewport (20/08/2026), incontrata da un altro lato.
+        const where = await evaluate(session, (id) => {
+          const row = document.querySelector(`app-strategy ol li[data-id="${id}"]`);
+          if (!row) return null;
+          // SI SCORRE LA LISTA, NON LA PAGINA: `scrollIntoView` porta con se' ogni antenato
+          // scorrevole, e su questa pagina ha fatto scorrere il documento di 14.750px - la barra delle
+          // pastiglie e' finita fuori schermo e quattro passi dopo hanno letto «e' coperta». La cura
+          // di un difetto dell'arnese non deve produrne uno piu' grosso: qui si tocca il solo `ol`.
+          const list = row.closest('ol');
+          if (list) {
+            const top = row.getBoundingClientRect().top - list.getBoundingClientRect().top;
+            list.scrollTop += top - list.clientHeight / 2;
+          }
+          const box = row.getBoundingClientRect();
+          return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        }, witness.id);
+        if (where) {
+          await click(session, where);
+          let card = null;
+          let seen = 0;
+          for (let attempt = 0; attempt < 40; attempt += 1) {
+            const open = (await evaluate(session, readCards)) ?? [];
+            seen = open.length;
+            card = open[0] ?? null;
+            if (card?.summary?.played) break;
+            await wait(500);
+          }
+          const summary = card?.summary ?? null;
+          const counts = (summary?.marks ?? '').match(/\d+/g)?.map(Number) ?? [];
+          if (!summary || counts.length !== 2) {
+            wrongExpected.push(
+              `la card di ${witness.name} non porta un riepilogo leggibile: ${JSON.stringify(summary)}`
+              + ` (card aperte ${seen}, nome «${card?.name ?? '-'}», righe ${card?.lines?.length ?? 0};`
+              + ` la riga dice G ${witness.say.goals} / A ${witness.say.assists})`,
+            );
+          } else {
+            const same = (chip, mine) => Math.abs(chip - mine) < 0.006;
+            if (!same(num(witness.say.goals), counts[0] / summary.played)
+                || !same(num(witness.say.assists), counts[1] / summary.played)) {
+              wrongExpected.push(
+                `${witness.name}: la pastiglia dice G ${witness.say.goals} / A ${witness.say.assists} e `
+                + `la card ${counts[0]}+${counts[1]} su ${summary.played} partite`,
+              );
+            }
+            // SI CONFRONTANO I NUMERI, non le stringhe: la card scrive `0,10` e la lista `0.10` -
+            // due separatori decimali nella stessa app, che e' un fatto vero e va detto all'operatore,
+            // non una differenza di valore da far fallire qui.
+            const onCard = (summary.expected.match(/\d+[.,]\d+/g) ?? []).join(' ').replace(/,/g, '.');
+            const onPill = `${witness.say.xg} ${witness.say.xa}`.replace(/,/g, '.');
+            if (onCard !== onPill) {
+              wrongExpected.push(`${witness.name}: xG/xA «${onPill}» sulla riga e «${onCard}» sulla card`);
+            }
+          }
+          crossChecked = witness.name;
+          // La card si chiude: i passi dopo ne aprono una loro e ne contano UNA.
+          const shut = await evaluate(session, () => {
+            const button = document.querySelector('ui-player-card button[aria-label="chiudi"]');
+            if (!button) return null;
+            const box = button.getBoundingClientRect();
+            return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+          });
+          if (shut) await click(session, shut);
+        }
+      }
+      if (flag('--shot')) {
+        const shot = await session.send('Page.captureScreenshot', { format: 'png' });
+        const where = join(ROOT, 'dist', 'e2e-strategy-expected.png');
+        await writeFile(where, Buffer.from(shot.data, 'base64'));
+        console.log(`· screenshot con xG e xA accesi: ${where}`);
+      }
+      // ...e si rispengono: le pastiglie accese sono una preferenza SALVATA, e lasciarle accese
+      // cambierebbe l'altezza delle righe che i passi dopo misurano.
+      for (const key of SEASON_PILLS) {
+        const said = await pressReading(session, key);
+        if (said) switched.push(said);
+      }
+    }
+    note('gol, assist e attesi: dal bundle e uguali alla card', {
+      said: `${withExpected} righe con xG/xA nel pacchetto su ${producedByBundle.size} uomini con una `
+        + `riga · card confrontata: ${crossChecked ?? 'nessuna (nessun uomo con gol E assist)'}`,
+      problems: [
+        ...switched,
+        ...wrongExpected.slice(0, 5),
+        ...(wrongExpected.length > 5 ? [`...e altre ${wrongExpected.length - 5} righe che non tornano`] : []),
       ],
     });
 
@@ -1478,44 +1703,27 @@ async function main() {
     //     `element.click()` passa sopra la CSS e proverebbe un bersaglio che nessun dito raggiunge.
     const toggles = (await evaluate(session, readToggles)) ?? [];
     const beforeToggle = (await evaluate(session, readPills)) ?? [];
-    /**
-     * Preme una pastiglia leggendone le coordinate ADESSO, e poi porta il puntatore via.
-     *
-     * Le coordinate si rileggono a ogni giro perche' la barra si ridisegna, e il puntatore si sposta
-     * perche' UN TOOLTIP LUNGO COPRE IL CONTROLLO ACCANTO - la lezione delle buste chiuse (25/08/2026),
-     * pagata di nuovo qui: la prima versione leggeva i sette bottoni una volta sola e il secondo click
-     * finiva sul pannello aperto dal primo, quindi «spegnere Bpm» non spegneva niente.
-     */
-    const pressReading = async (key) => {
-      const now = (await evaluate(session, readToggles)) ?? [];
-      const pill = now.find((one) => one.key === key);
-      if (!pill) return `nessuna pastiglia «${key}» in barra`;
-      if (pill.under !== 'button' && pill.under !== 'span') {
-        return `sotto la pastiglia «${key}» c'e' ${pill.under}: e' coperta`;
-      }
-      await click(session, pill.point);
-      // Via dal bottone: il tooltip si chiude e non copre quello che si preme dopo.
-      await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 4, y: 500, button: 'none' });
-      await wait(250);
-      return null;
-    };
     const pressed = [];
-    for (const key of ['fvm']) pressed.push(await pressReading(key));
+    for (const key of ['fvm']) pressed.push(await pressReading(session, key));
     const withFvm = (await evaluate(session, readPills)) ?? [];
-    for (const key of ['bonus']) pressed.push(await pressReading(key));
+    for (const key of ['bonus']) pressed.push(await pressReading(session, key));
     const withoutBpm = (await evaluate(session, readPills)) ?? [];
     // ...e si rimette come si e' trovata, o i passi che seguono misurerebbero una scelta dell'arnese.
-    for (const key of ['fvm', 'bonus']) pressed.push(await pressReading(key));
+    for (const key of ['fvm', 'bonus']) pressed.push(await pressReading(session, key));
     const restoredPills = (await evaluate(session, readPills)) ?? [];
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le sette letture della barra', {
+    note('le undici letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
         + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
       problems: [
         ...pressed.filter(Boolean),
-        ...(toggles.length === 7 ? [] : [`${toggles.length} pastiglie invece delle sette dichiarate`]),
+        // UNDICI dal 05/09/2026 (gol, assist, xG e xA accanto a MV e FM). Il numero e' scritto qui
+        // perche' e' il VOCABOLARIO della pagina e non una misura: se cresce, cresce per una richiesta,
+        // e allora si aggiorna insieme a `READINGS` invece di leggere dallo schermo quello che lo
+        // schermo dice.
+        ...(toggles.length === 11 ? [] : [`${toggles.length} pastiglie invece delle undici dichiarate`]),
         ...(toggles.filter((one) => one.on).length === 3
           ? [] : [`${toggles.filter((one) => one.on).length} accese all'apertura invece di tre`]),
         ...(toggles.every((one) => one.under === 'button' || one.under === 'span')

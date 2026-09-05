@@ -637,6 +637,41 @@ volta invece che cento.
 *Il corollario per chi scrive: la ragione di una scelta non è documentazione da mettere a schermo. Va nel
 codice accanto alla riga che la applica, e in questi file.*
 
+## 16. QUATTRO PASTIGLIE NUOVE: quello che ha fatto, e quello che ha prodotto (5 settembre 2026)
+
+«Aggiungi qui xG e xA», sulla fila delle letture dove stanno già MV e FM; e poco dopo «aggiungi anche
+un pill Gol e uno Assist», con la correzione che le rende utili: **«GOL → Gol per partita, ASSIST →
+Assist per partita»**. Undici pastiglie in tutto (`READINGS`), le prime tre accese all'apertura.
+
+**LE QUATTRO STANNO NELLA STESSA UNITÀ, ed è la sua correzione a metterle lì.** `G 0,50` accanto a
+`xG 0,45` è una frase — segna quanto produce — mentre `G 1` accanto a `xG 0,45` sono due cifre che non
+si confrontano: un conteggio e una media, cioè la famiglia di errori più cara di questo progetto.
+Rigori e assist da fermo dentro, come nel riepilogo della card e per la stessa ragione: «quanti gol ha
+fatto» è una domanda sul calcio e non sul punteggio.
+
+**OGNUNA COL SUO DENOMINATORE**, che non è quello del vicino: un gol si sa di ogni giornata giocata, un
+xG solo di quelle in cui la fonte ha una riga sua. Due medie vicine con due denominatori è giusto, e il
+tooltip di ognuna dice qual è.
+
+**IL PREZZO LO PAGA CHI LE ACCENDE.** xG, xA, gol e assist non stanno in nessun aggregato che questa
+pagina legge da sé (`season_stats` non li ha): li porta `PlayersStore`, che è 2,1 MB di layer
+per-partita. Sono spente all'apertura, lo store si chiede al primo click, e l'elenco di quali letture
+lo vogliono sta in `SEASON_READINGS` accanto a `READINGS` — una condizione ripetuta in due punti della
+vista è una condizione che uno dei due dimentica, e allora una pastiglia si accende su una casella
+vuota.
+
+**E VENGONO DALLA STESSA FUNZIONE DELLA CARD** (`seasonTotals`), per una misura e non per eleganza:
+l'aggregato di stagione dello stesso provider costava 310 KB invece di 2,1 MB e **faceva leggere due
+xG diversi al 19,7% degli uomini** fra la pastiglia e la card aperta accanto. Numeri e diagnosi:
+`letture-app-v1.md` §29.4.
+
+Un fatto che resta aperto e non è di questa richiesta: **la Strategia stampa i decimali col PUNTO
+(`0.45`) mentre la card usa la VIRGOLA (`0,45`)**. Due separatori nella stessa app in italiano; lo ha
+trovato il banco confrontando le due schermate, e la cura (il `LOCALE_ID` a `it`) tocca ogni numero
+della pagina, quindi è una decisione dell'operatore e non una svista da sistemare di nascosto.
+
+---
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

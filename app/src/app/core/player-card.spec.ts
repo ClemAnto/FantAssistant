@@ -1,4 +1,4 @@
-import { CardStack, cardLeft, cardTop } from './player-card';
+import { CARD_WIDTH, CardStack, cardLeft, cardTop } from './player-card';
 
 describe('CardStack', () => {
   it('la prima card prende il posto zero e sta davanti', () => {
@@ -73,9 +73,17 @@ describe('CardStack', () => {
 
 describe('dove nasce una card', () => {
   it('quattro per riga e poi si scende: affiancate, non a cascata', () => {
-    expect([0, 1, 2, 3].map(cardLeft)).toEqual([16, 316, 616, 916]);
+    expect([0, 1, 2, 3].map(cardLeft)).toEqual([16, 348, 680, 1012]);
     expect([0, 1, 2, 3].map(cardTop)).toEqual([96, 96, 96, 96]);
     expect(cardLeft(4)).toBe(16);
     expect(cardTop(4)).toBe(140);
+  });
+
+  it('il passo viene dalla larghezza della card e non da un numero scritto a mano', () => {
+    // Due numeri per una cosa sola si scoprono diversi quando due card cominciano a coprirsi, che è
+    // tardi: il passo è la larghezza più l'aria, e questo lo asserisce invece di sperarci.
+    expect(cardLeft(1) - cardLeft(0)).toBe(CARD_WIDTH + 12);
+    // Quattro card devono entrare nella finestra su cui i banchi misurano (1600px).
+    expect(cardLeft(3) + CARD_WIDTH).toBeLessThan(1600);
   });
 });

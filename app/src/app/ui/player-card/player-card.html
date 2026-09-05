@@ -19,9 +19,10 @@
   <div
     #shell
     cdkDrag
-    class="fixed flex w-72 flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
+    class="fixed flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
     [class.ring-1]="front()"
     [class.ring-primary]="front()"
+    [style.width.px]="width"
     [style.top.px]="top()"
     [style.left.px]="left()"
     [style.z-index]="front() ? 200 : 50 + at()"
@@ -211,7 +212,8 @@
                  contenuto: stringere le colonne dentro l'incontro non regalava un pixel a nessuno,
                  lasciava aria dentro la sua stessa cella. Misurato prima e dopo. -->
             <div
-              class="grid grid-cols-[auto_auto_auto_1fr_auto] items-center gap-x-1.5 gap-y-0.5"
+              class="grid grid-cols-[auto_auto_auto_1fr_auto] content-start items-center gap-x-1.5
+                     gap-y-0.5"
               [class]="open() ? 'min-h-0 flex-1 overflow-y-auto scrollbar-slim pr-1' : ''"
               data-matches
             >
@@ -231,15 +233,22 @@
                            after:h-px after:flex-1 after:bg-border"
                     >{{ season }}</span
                   >
-                  <!-- IL RIEPILOGO DELLA STAGIONE, nelle STESSE colonne delle sue partite (operatore,
-                       05/09/2026): minuti medi, voto medio, gol e assist, fantamedia. È un
-                       `grid-cols-subgrid` come una riga di partita, o i quattro numeri starebbero
-                       sotto le colonne sbagliate - «incolonnate correttamente» è una misura, e il
-                       banco la verifica confrontando le x con quelle delle righe.
+                }
+                <!-- IL RIEPILOGO DELLA STAGIONE, nelle STESSE colonne delle sue partite (operatore,
+                     05/09/2026): minuti medi, voto medio, gol e assist, fantamedia. È un
+                     `grid-cols-subgrid` come una riga di partita, o i quattro numeri starebbero
+                     sotto le colonne sbagliate - «incolonnate correttamente» è una misura, e il
+                     banco la verifica confrontando le x con quelle delle righe.
 
-                       IN PRIMA COLONNA IL DENOMINATORE, perché è la stagione INTERA che riassume e
-                       non le righe qui sopra, che possono essere cinque: senza il conto, tre righe e
-                       una media di diciotto partite si leggerebbero come la stessa cosa. -->
+                     IN PRIMA COLONNA IL DENOMINATORE, perché è la stagione INTERA che riassume e
+                     non le righe qui sopra, che possono essere cinque: senza il conto, tre righe e
+                     una media di diciotto partite si leggerebbero come la stessa cosa.
+
+                     STA FUORI DAL DIVISORE e su `row.totals`, perché la stagione IN CORSO un divisore
+                     non ce l'ha - la annuncia l'intestazione - e il riepilogo lo vuole lo stesso
+                     (operatore, 05/09/2026: «sotto la scritta ULTIME PARTITE, come per le altre
+                     stagioni, aggiungi le medie per ogni colonna»). -->
+                @if (row.totals; as season) {
                   @if (totals(season); as totals) {
                     <span
                       class="col-span-full grid grid-cols-subgrid items-center gap-x-1.5 pb-0.5
@@ -263,6 +272,28 @@
                         mean(totals.fm, totals)
                       }}</span>
                     </span>
+                    <!-- GLI ATTESI, su una riga tutta sua e non in due colonne nuove: le cinque piste
+                         di questa griglia sono già larghe quanto la card (la sola con dell'aria è la
+                         prima, ~85px, e due numeri non ci stanno senza troncarsi). Una colonna che si
+                         taglia è una colonna ASSENTE, e questo progetto l'ha già pagata: meglio una
+                         riga che non pretende di essere incolonnata.
+
+                         SI DISEGNA SOLO SE C'È: fino al 2023-24 la fonte non pubblicava gli attesi, e
+                         stampare «0,00» su una stagione che nessuno ha misurato direbbe che non ha
+                         mai tirato. Il tooltip porta i due denominatori, che sono diversi fra loro. -->
+                    @if (totals.xg !== null || totals.xa !== null) {
+                      <span
+                        class="col-span-full flex items-baseline justify-between pb-0.5 text-[9px] text-muted"
+                        data-season-expected
+                        nz-tooltip
+                        [nzTooltipTitle]="expectedHint(totals)"
+                      >
+                        <span class="cursor-help">attesi a partita</span>
+                        <span class="tabular-nums"
+                          >xG {{ expected(totals.xg) }} · xA {{ expected(totals.xa) }}</span
+                        >
+                      </span>
+                    }
                   }
                 }
                 <!-- IL CAMBIO DI SQUADRA (operatore, 05/09/2026), con lo stemma: le righe sotto sono di

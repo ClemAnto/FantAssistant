@@ -31,6 +31,8 @@ const cell = (over: Partial<MatchCell> = {}): MatchCell => ({
   penSaved: 0,
   ownGoals: 0,
   goalsConceded: null,
+  xg: null,
+  xa: null,
   yellows: 0,
   reds: 0,
   minutes: 90,
@@ -181,7 +183,28 @@ describe('cardRows', () => {
 
   it("la prima riga non annuncia niente: la squadra di adesso e' nell'intestazione", () => {
     const rows = cardRows([at('2026-27', 'Juventus', '2026-08-29')], 'Juventus');
-    expect(rows[0]).toEqual({ match: expect.anything(), season: null, club: null });
+    expect(rows[0]).toEqual({
+      match: expect.anything(),
+      season: null,
+      club: null,
+      totals: '2026-27',
+    });
+  });
+
+  it('il riepilogo va su OGNI stagione, compresa quella in cima che non ha divisore', () => {
+    // Operatore, 05/09/2026: «sotto la scritta ULTIME PARTITE, come per le altre stagioni, aggiungi le
+    // medie per ogni colonna». Il divisore e il riepilogo sono due annunci diversi, e la stagione in
+    // corso ha il secondo senza il primo: leggerlo dal divisore lo toglieva alla stagione che si compra.
+    const rows = cardRows(
+      [
+        at('2026-27', 'Juventus', '2026-08-29'),
+        at('2026-27', 'Juventus', '2026-08-23'),
+        at('2025-26', 'Juventus', '2026-05-24'),
+      ],
+      'Juventus',
+    );
+    expect(rows.map((one) => one.season)).toEqual([null, null, '2025-26']);
+    expect(rows.map((one) => one.totals)).toEqual(['2026-27', null, '2025-26']);
   });
 
   it('due grafie dello stesso club non sono un trasferimento', () => {

@@ -77,6 +77,10 @@ const man = (over: Partial<StrategyBidder> = {}): StrategyBidder => ({
   seasonPlayed: null,
   seasonMv: null,
   seasonFm: null,
+  seasonXg: null,
+  seasonXa: null,
+  seasonGoals: null,
+  seasonAssists: null,
   fvm: null,
   // Il conto delle giornate a riposo: questi test parlano di liste e di domanda, non di infortuni.
   outlook: {
@@ -430,6 +434,31 @@ describe('le sette letture di una riga', () => {
     expect(readingValue('passed', readings)).toBe(15);
     expect(readingValue('minutes', readings)).toBe(78);
     expect(readingValue('fvm', readings)).toBe(210);
+  });
+
+  it('i gol e gli assist sono PER PARTITA come i loro attesi, e uno zero non e un vuoto', () => {
+    // Le due misurate accanto alle due attese, nella stessa unita' (sua correzione del 05/09/2026):
+    // `G 0,50` accanto a `xG 0,45` e' una frase, `G 1` accanto a `xG 0,45` sono due cifre che non si
+    // confrontano. Zero e' un fatto - ha giocato e non ha segnato - e va distinto dal vuoto.
+    const scored = readingsOf(man({ seasonGoals: 0, seasonAssists: 0.5 }));
+    expect(readingValue('goals', scored)).toBe(0);
+    expect(readingValue('assists', scored)).toBe(0.5);
+    const unknown = readingsOf(man({ fm: 7 }));
+    expect(readingValue('goals', unknown)).toBeNull();
+    expect(readingValue('assists', unknown)).toBeNull();
+  });
+
+  it('xG e xA sono gli ATTESI di questa stagione, e vuoti non sono zeri', () => {
+    // Operatore, 05/09/2026: «aggiungi qui xG e xA», sulla fila dove stanno gia' MV e FM - quindi la
+    // stessa natura, cioe' quello che ha prodotto finora e non quello che ci si aspetta.
+    const his = readingsOf(man({ seasonXg: 0.41, seasonXa: 0.08 }));
+    expect(readingValue('xg', his)).toBe(0.41);
+    expect(readingValue('xa', his)).toBe(0.08);
+    // La fonte non pubblica gli attesi per tutte le stagioni: li' la pastiglia non ha un numero, e un
+    // trattino dice «non lo so» mentre uno zero direbbe «non ha mai tirato».
+    const nobody = readingsOf(man({ fm: 7, mv: 6 }));
+    expect(readingValue('xg', nobody)).toBeNull();
+    expect(readingValue('xa', nobody)).toBeNull();
   });
 
   it('MV E FM SONO QUELLE REALI DI QUESTA STAGIONE, non le previste (operatore, 05/09/2026)', () => {

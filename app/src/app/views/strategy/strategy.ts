@@ -16,14 +16,16 @@ import { ExpectedPlay } from '../../core/expected-play';
 import { GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { withRowAt } from '../../core/manual-order';
 import { looseMatch } from '../../core/loose-search';
-import { CardMan, CardStack } from '../../core/player-card';
+import { CardMan, CardStack, seasonTotals } from '../../core/player-card';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
+import { PlayersStore } from '../../core/players-store';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
   AuctionKind,
   BlockView,
   DEFAULT_READINGS,
   READINGS,
+  SEASON_READINGS,
   RankedMan,
   ManReadings,
   ReadingKey,
@@ -172,6 +174,24 @@ export class Strategy {
   private readonly options = inject(GlobalOptions);
   /** Il conto delle giornate che giochera' davvero: lo stesso della plancia, non una copia. */
   private readonly play = inject(ExpectedPlay);
+
+  /**
+   * IL CALCIO GIOCATO, per le due pastiglie degli ATTESI - e si carica solo se qualcuno le accende.
+   *
+   * xG e xA non stanno in nessun aggregato che questa pagina gia' legge: `season_stats` non li ha. Le
+   * DUE strade misurate il 05/09/2026: l'aggregato di stagione del provider (`external_stats`, 310 KB)
+   * e la somma delle sue partite (`external_match_stats`, 2,1 MB, che e' quello che la CARD somma nel
+   * riepilogo). Non danno lo stesso numero - il provider serve un xG diverso dalla pagina di stagione e
+   * da quella della partita, e a due decimali **il 19,7% degli uomini leggerebbe due cifre diverse**,
+   * fino a 0,21 di scarto - quindi l'aggregato e' stato scartato: una pastiglia e una card aperte sullo
+   * stesso schermo che dicono due xG dello stesso uomo sono il difetto che questo repository paga da
+   * sempre.
+   *
+   * IL PREZZO E' PAGATO SOLO DA CHI LE ACCENDE. Le due pastiglie sono spente all'apertura, e lo store
+   * si chiede al primo click (`load()` tiene la sua promessa, quindi aprire una card dopo non costa
+   * niente). Finche' non atterra le due caselle portano un trattino, che e' quello che sono.
+   */
+  private readonly players = inject(PlayersStore);
   protected readonly appVersion = APP_VERSION;
 
   /** Il calendario su cui il foglio esprime le sue previsioni: il divisore di ogni numero a giornata. */
@@ -328,7 +348,7 @@ export class Strategy {
   /**
    * QUALI NUMERI SI VEDONO SU UNA RIGA (richiesta dell'operatore, 05/09/2026).
    *
-   * Sette pastiglie cliccabili al posto della scritta che c'era in barra, e le prime tre accese
+   * Nove pastiglie cliccabili al posto della scritta che c'era in barra, e le prime tre accese
    * all'inizio. E' una preferenza di LETTURA - non cambia chi si puo' comprare ne' in che ordine - e
    * per questo sta in `localStorage` come il taglio dei blocchi, e non nell'indirizzo.
    *
@@ -354,6 +374,19 @@ export class Strategy {
     return READINGS.filter((one) => on.has(one.key));
   });
 
+  /**
+   * SE QUALCUNO HA CHIESTO GLI ATTESI, e allora si va a prendere il calcio giocato.
+   *
+   * L'effetto sta qui e non nel costruttore perche' la scelta cambia a ogni click, e la preferenza e'
+   * SALVATA: chi le aveva accese ieri le trova accese oggi, e la richiesta parte all'apertura. Una
+   * seconda chiamata non costa niente - `load()` tiene la sua promessa - quindi non serve ricordarsi
+   * se e' gia' stata fatta.
+   */
+  private readonly wantsExpected = effect(() => {
+    const on = new Set(this.readings());
+    if (SEASON_READINGS.some((key) => on.has(key))) void this.players.load();
+  });
+
   /** Il numero dietro una sigla e se è spannometrico: dal vocabolario, che li possiede. */
   protected valueOf = readingValue;
   protected isRough = readingIsRough;
@@ -363,7 +396,7 @@ export class Strategy {
   /**
    * LA PASTIGLIA COME SI LEGGE: un metodo e non tre chiamate nel template.
    *
-   * Ogni riga ne disegna fino a sette e le righe sono seicento: scrivere il ternario nel template
+   * Ogni riga ne disegna fino a nove e le righe sono seicento: scrivere il ternario nel template
    * vorrebbe dire chiamare `valueOf` tre volte per pastiglia a ogni giro di change detection. Un
    * trattino e non uno zero dove il numero non c'è, che è la regola di casa sui vuoti.
    */
@@ -564,6 +597,14 @@ export class Strategy {
     // una pagina già disegnata. Stessa riga, stessa ragione, di `ValuationStore.valuations`.
     const rated = this.ratings.ready();
     const matchdays = this.matchdays();
+    // LA STAGIONE DEGLI ATTESI, o `null` se non c'e' niente da leggere: le pastiglie sono spente, o lo
+    // store non e' ancora atterrato. Letto QUI perche' le righe si rifanno quando atterra - la stessa
+    // dipendenza, e la stessa ragione, della costanza qui sopra.
+    const on = new Set(this.readings());
+    const expectedOn =
+      SEASON_READINGS.some((key) => on.has(key)) && this.players.ready()
+        ? this.store.targetSeason()
+        : null;
     // SOLO CHI IL LISTONE QUOTA (operatore, 04/09/2026: «Cheddira del Napoli e' ridicolo che stia nei
     // primi 60 attaccanti, non giochera' mai»). Il difetto non era la sua valutazione: e' che non e'
     // quotato affatto - zero righe in `listone_quotes` per il 2026-27, su nessuna delle due piattaforme
@@ -574,6 +615,12 @@ export class Strategy {
       const one = engine.get(player.fcId);
       const steady = rated ? this.ratings.for(platform, player.fcId)?.steady : null;
       const played = this.store.playedOf(platform, player.fcId);
+      // GLI ATTESI, con la STESSA funzione che scrive il riepilogo della card (`seasonTotals`): due
+      // aritmetiche sugli stessi voti darebbero a un uomo due xG, e le due cose stanno sullo schermo
+      // insieme. Vuoto finche' lo store non e' in casa, che e' quello che e'.
+      const played_ = expectedOn
+        ? seasonTotals(this.players.matchesOf(player.fcId, platform, expectedOn))
+        : null;
       // QUANTE NE GIOCHERA' DAVVERO, col conto unico dell'app (`core/expected-play.ts`, 04/09/2026):
       // il metro della plancia dove il motore ripiega su una costante, meno le giornate che uno stop
       // aperto gli toglie di sicuro, meno l'assicurazione dell'operatore. Il FATTORE che ne esce
@@ -615,6 +662,17 @@ export class Strategy {
         seasonPlayed: played?.pv ?? null,
         seasonMv: played?.mv ?? null,
         seasonFm: played?.fm ?? null,
+        // ...e i suoi ATTESI, che non hanno piattaforma: la stessa partita produce lo stesso xG su
+        // tutt'e due i listoni, quindi la chiave e' il solo `fc_id` e chi ha giocato in due campionati
+        // li porta sommati.
+        seasonXg: played_?.xg ?? null,
+        seasonXa: played_?.xa ?? null,
+        // I gol e gli assist VERI escono dalla stessa lettura - una seconda somma degli stessi voti
+        // darebbe a un uomo due conteggi - e si dividono QUI, dove il denominatore e' in mano: sono
+        // per PARTITA GIOCATA (sua correzione del 05/09/2026), cosi' le quattro pastiglie stanno nella
+        // stessa unita' e `G` si puo' leggere accanto a `xG`.
+        seasonGoals: played_?.played ? played_.goals / played_.played : null,
+        seasonAssists: played_?.played ? played_.assists / played_.played : null,
         // Il PREZZO del suo listone, nella valuta del gioco dichiarato: letto da chi lo possiede già.
         fvm: this.store.fvmOf(platform, player.fcId, this.settings().game),
       };

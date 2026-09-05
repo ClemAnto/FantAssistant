@@ -207,6 +207,41 @@ export interface StrategyBidder {
   seasonMv: number | null;
   seasonFm: number | null;
   /**
+   * ...E GLI ATTESI DELLA STESSA STAGIONE, per PARTITA GIOCATA (operatore, 05/09/2026: «aggiungi qui
+   * xG e xA», sulla fila delle pastiglie dove stanno gia' MV e FM).
+   *
+   * Sono la coppia REALE come le due accanto - quello che ha prodotto finora, non quello che ci si
+   * aspetta - e non hanno piattaforma: una fantamedia e' un fatto su un CALENDARIO, un xG e' un fatto
+   * su una PARTITA, e la stessa partita produce lo stesso xG su tutt'e due i listoni.
+   *
+   * Vuoti dove la fonte non pubblica gli attesi, che non e' uno zero: uno zero direbbe che non ha mai
+   * tirato.
+   */
+  seasonXg: number | null;
+  seasonXa: number | null;
+  /**
+   * ...E I GOL E GLI ASSIST VERI della stessa stagione, PER PARTITA GIOCATA (operatore, 05/09/2026:
+   * «GOL -> Gol per partita, ASSIST -> Assist per partita»).
+   *
+   * La sua correzione mette le quattro pastiglie nella STESSA UNITA', ed e' il solo motivo per cui gli
+   * attesi servono a qualcosa: `G 0,50` accanto a `xG 0,45` e' una frase («segna quanto produce»),
+   * mentre `G 1` accanto a `xG 0,45` sono due cifre che non si possono confrontare - un conteggio e una
+   * media, cioe' la famiglia di errori piu' cara di questo progetto.
+   *
+   * I RIGORI SEGNATI SONO GOL e gli assist da fermo sono assist, come nel riepilogo della card e per la
+   * stessa ragione: «quanti gol ha fatto» e' una domanda sul calcio e non sul punteggio, e un rigorista
+   * che ne segna dieci non ne ha fatti zero.
+   *
+   * IL DENOMINATORE E' LE PARTITE GIOCATE, che non e' quello degli attesi: un xG lo si sa solo delle
+   * giornate in cui la fonte ha una riga sua, un gol di tutte. Due medie vicine con due denominatori
+   * e' giusto - ognuna col suo - e il tooltip di ognuna dice qual e'.
+   *
+   * Zero e' un fatto (ha giocato e non ha segnato), vuoto e' un altro (non ha giocato, o le pastiglie
+   * sono spente e il calcio giocato non e' in casa).
+   */
+  seasonGoals: number | null;
+  seasonAssists: number | null;
+  /**
    * IL FANTAVALORE DI MERCATO del suo listone, nella valuta del gioco dichiarato.
    *
    * E' un PREZZO, non una nostra opinione, e questa pagina lo MOSTRA senza farlo entrare in niente («la
@@ -260,6 +295,14 @@ export interface ManReadings {
   mv: number | null;
   /** ...e la fantamedia REALE, cioe' quella piu' i bonus che ha gia' portato. */
   fm: number | null;
+  /** I gol VERI di questa stagione PER PARTITA GIOCATA, rigori compresi. */
+  goals: number | null;
+  /** ...e gli assist veri, sulla stessa base, quelli da fermo compresi. */
+  assists: number | null;
+  /** I gol ATTESI a partita di questa stagione: quello che ha prodotto, non quello che ha segnato. */
+  xg: number | null;
+  /** ...e gli assist attesi, sulla stessa stagione e con lo stesso denominatore. */
+  xa: number | null;
   /** Su quante giornate quelle due medie sono fatte: a settembre puo' essere UNA, e va detto. */
   seasonPlayed: number | null;
   /** Il fantavalore del listone: un PREZZO, e l'unico numero di questa riga che non e' nostro. */
@@ -267,7 +310,7 @@ export interface ManReadings {
 }
 
 /**
- * LE SETTE LETTURE CHE UNA RIGA PUO' MOSTRARE, e quali sono accese all'inizio.
+ * LE UNDICI LETTURE CHE UNA RIGA PUO' MOSTRARE, e quali sono accese all'inizio.
  *
  * Richiesta dell'operatore (05/09/2026): al posto della scritta in barra, una fila di pastiglie
  * cliccabili che accendono e spengono ognuno di questi numeri sulla riga. L'ELENCO sta qui e non nella
@@ -282,7 +325,9 @@ export interface ManReadings {
  * spiegazioni piu' dettagliate te lo indico io»). Il PERCHE' di un numero sta nei commenti del codice e
  * nei documenti, che e' dove si legge una volta invece che cento.
  */
-export type ReadingKey = 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'fvm';
+export type ReadingKey =
+  | 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'goals' | 'assists' | 'xg' | 'xa'
+  | 'fvm';
 
 export interface ReadingSpec {
   key: ReadingKey;
@@ -353,6 +398,38 @@ export const READINGS: ReadingSpec[] = [
     width: 'min-w-10',
   },
   {
+    key: 'goals',
+    short: 'G',
+    label: 'Gol per partita',
+    hint: 'Gol per partita giocata, questa stagione. Rigori compresi.',
+    format: '1.2-2',
+    width: 'min-w-10',
+  },
+  {
+    key: 'assists',
+    short: 'A',
+    label: 'Assist per partita',
+    hint: 'Assist per partita giocata, questa stagione. Quelli da fermo compresi.',
+    format: '1.2-2',
+    width: 'min-w-10',
+  },
+  {
+    key: 'xg',
+    short: 'xG',
+    label: 'Gol attesi a partita',
+    hint: 'Gol ATTESI per partita, questa stagione.',
+    format: '1.2-2',
+    width: 'min-w-10',
+  },
+  {
+    key: 'xa',
+    short: 'xA',
+    label: 'Assist attesi a partita',
+    hint: 'Assist ATTESI per partita, questa stagione.',
+    format: '1.2-2',
+    width: 'min-w-10',
+  },
+  {
     key: 'fvm',
     short: 'FVM',
     label: 'Fantavalore di mercato',
@@ -364,6 +441,17 @@ export const READINGS: ReadingSpec[] = [
 
 /** Quelle accese quando nessuno ha ancora scelto: le prime tre (operatore, 05/09/2026). */
 export const DEFAULT_READINGS: ReadingKey[] = ['bonus', 'played', 'passed'];
+
+/**
+ * LE LETTURE CHE VOGLIONO IL CALCIO GIOCATO, cioe' quelle che costano un caricamento.
+ *
+ * Gol, assist, xG e xA non stanno in nessun aggregato che la pagina della Strategia legge da se': li
+ * porta `PlayersStore`, che e' 2,1 MB di layer per-partita. Sono spente all'apertura e lo store si
+ * chiede al primo click, quindi il prezzo lo paga chi le accende - e l'elenco sta QUI, accanto a
+ * `READINGS`, perche' e' un fatto sul vocabolario e non una condizione da ripetere in due punti della
+ * vista (una delle due si dimentica, e allora una pastiglia si accende su una casella vuota).
+ */
+export const SEASON_READINGS: ReadingKey[] = ['goals', 'assists', 'xg', 'xa'];
 
 /**
  * IL NUMERO DI UNA PASTIGLIA, dalla lettura che la riga ha gia' fatto.
@@ -386,6 +474,14 @@ export function readingValue(key: ReadingKey, readings: ManReadings): number | n
       return readings.mv;
     case 'fm':
       return readings.fm;
+    case 'goals':
+      return readings.goals;
+    case 'assists':
+      return readings.assists;
+    case 'xg':
+      return readings.xg;
+    case 'xa':
+      return readings.xa;
     case 'fvm':
       return readings.fvm;
   }
@@ -418,6 +514,16 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     // due nature, due nomi, e il vocabolario delle pastiglie lo dice.
     mv: man.seasonMv,
     fm: man.seasonFm,
+    // I GOL E GLI ASSIST VERI, per partita giocata: la coppia misurata di cui gli attesi qui sotto
+    // sono la controparte, nella stessa unita' - che e' quello che rende le quattro confrontabili.
+    goals: man.seasonGoals,
+    assists: man.seasonAssists,
+    // GLI ATTESI DELLA STESSA STAGIONE, gia' per partita giocata: il loro denominatore e' le partite
+    // di CAMPIONATO che ha davvero giocato, che non e' `seasonPlayed` (quello e' il calendario di
+    // questo listone), e nemmeno quello dei gol qui sopra: un gol si sa di ogni giornata giocata, un
+    // xG solo di quelle in cui la fonte ha una riga sua. Ognuna col suo, e il tooltip lo dice.
+    xg: man.seasonXg,
+    xa: man.seasonXa,
     seasonPlayed: man.seasonPlayed,
     fvm: man.fvm,
   };
