@@ -5263,11 +5263,33 @@ degli uomini leggeva un xG diverso fra la pastiglia e la card**, fino a 0,21: st
 partite, due endpoint. Ora le due schermate passano dalla stessa `seasonTotals`, e un passo del banco
 apre la card del primo uomo con gol E assist e verifica che i due numeri coincidano.
 
-## Verde
+## Verde, e i due commit
 
-736 test unitari (44 file), dieci banchi e2e, build pulito. Il banco della Strategia ha un passo nuovo
+**`8e2634c`** — la card, le pastiglie, i banchi, i tre documenti: 736 test unitari (44 file), dieci
+banchi e2e, build pulito.
+
+**`60c2149`** — la regola del PUNTO come divisore dei decimali, decisa dall'operatore dopo che il banco
+gli ha portato la contraddizione: 739 test, dieci banchi. Tolte dieci `.replace('.', ',')` fra `core/`
+e `ui/` più un `toLocaleString('it-IT')`, e le percentuali dentro le frasi misurate degli screen. I
+LETTORI restano tolleranti (chi digita `6,5` in un filtro è capito) e la guardia è a schermo, non nel
+codice: `node:fs` non esiste nel vitest dell'app, quindi un grep sul sorgente non è possibile e il
+posto in cui la regola deve fallire è comunque lo schermo. Il banco della Strategia ha un passo nuovo
 («gol, assist e attesi: dal bundle e uguali alla card») che confronta 219 righe col pacchetto, e quello
 della card misura ora il TAGLIO delle celle oltre il bordo (`fit.cut`).
+
+## Due sessioni sullo stesso albero, QUINTA istanza — e questa volta le due metà si sono lette a vicenda
+
+Mentre questa sessione lavorava su card e Strategia, l'altra ha (a) curato `INSERT OR REPLACE` nel
+toolkit, (b) **rifattorizzato la metà appena committata da questa**: `SEASON_READINGS` estratto in una
+funzione perché letto dentro `pool` faceva ricostruire seicento righe a ogni click su QUALUNQUE
+pastiglia — cioè l'esatto contrario di quello che il commento due righe sotto dichiarava — e (c) aperto
+una pagina nuova (`views/why/`, `surplus-why.ts`, `e2e-why.mjs`).
+
+Quello che si aggiunge alla regola: **la seconda sessione ha corretto un difetto della prima leggendone
+il commento**, il che è esattamente quello per cui i commenti di questo repository sono scritti così. E
+la procedura ha retto senza cambiare: ogni commit nomina la sua metà, nessuno ha committato l'altra, e
+la verifica è girata sull'albero COMBINATO — 754 test e build pulito con la loro pagina nuova dentro,
+cioè le due metà si fondono.
 
 ## Aperti di questa sessione
 
