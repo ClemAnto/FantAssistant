@@ -273,6 +273,9 @@ def build_parser() -> argparse.ArgumentParser:
                                 "per match, no identity resolving, no match list re-download")
             p.add_argument("--limit", type=int,
                            help="only the N most expensive players (for a pilot run)")
+            p.add_argument("--from-cache", dest="from_cache", action="store_true",
+                           help="OFFLINE: re-apply the player fetches already downloaded, zero "
+                                "requests - the same replay `rebuild` runs")
         if name == "synth":
             p.add_argument("--validate", action="store_true",
                            help="only re-measure the synthetic layer against the Serie A real votes "
@@ -474,9 +477,12 @@ def main(argv: list[str] | None = None) -> int:
                     load("market").run(ctx, limit=args.limit, refresh=args.refresh,
                                        all_seasons=args.all_seasons)
             elif args.command == "recent_form":
-                load("recent_form").run(ctx, seasons=args.season, wanted=args.matches,
-                                        bonuses=args.bonuses, limit=args.limit,
-                                        bonuses_only=args.bonuses_only)
+                if args.from_cache:
+                    load("recent_form").reingest_from_cache(ctx)
+                else:
+                    load("recent_form").run(ctx, seasons=args.season, wanted=args.matches,
+                                            bonuses=args.bonuses, limit=args.limit,
+                                            bonuses_only=args.bonuses_only)
             elif args.command == "synth":
                 load("synth").run(ctx, validate=args.validate)
             elif args.command == "export":

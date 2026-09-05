@@ -52,6 +52,9 @@ def test_every_option_the_parser_accepts_REACHES_the_module():
         "injuries": ("layer", "limit", "refresh", "season", "stale_days"),
         "performance": ("limit", "refresh", "season"),
         "market": ("limit", "refresh", "all_seasons"),
+        # `recent_form` ne dichiara sei e `--from-cache` e' quella che decide se si paga la rete o si
+        # rilegge il disco: scartarla sarebbe una corsa di ore al posto di una replica offline.
+        "recent_form": ("season", "matches", "bonuses", "bonuses_only", "limit", "from_cache"),
         "press": ("sheet", "against", "fetch_duels", "source", "observed_on"),
         "zeros": ("platform", "game"),
         # `update` ne dichiara otto e ognuna cambia COSA GIRA: --plan, --offline e --daily decidono se e cosa,

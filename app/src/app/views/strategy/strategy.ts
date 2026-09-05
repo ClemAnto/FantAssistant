@@ -25,7 +25,7 @@ import {
   BlockView,
   DEFAULT_READINGS,
   READINGS,
-  SEASON_READINGS,
+  wantsSeasonReadings,
   RankedMan,
   ManReadings,
   ReadingKey,
@@ -348,7 +348,7 @@ export class Strategy {
   /**
    * QUALI NUMERI SI VEDONO SU UNA RIGA (richiesta dell'operatore, 05/09/2026).
    *
-   * Nove pastiglie cliccabili al posto della scritta che c'era in barra, e le prime tre accese
+   * Undici pastiglie cliccabili al posto della scritta che c'era in barra, e le prime tre accese
    * all'inizio. E' una preferenza di LETTURA - non cambia chi si puo' comprare ne' in che ordine - e
    * per questo sta in `localStorage` come il taglio dei blocchi, e non nell'indirizzo.
    *
@@ -383,8 +383,24 @@ export class Strategy {
    * se e' gia' stata fatta.
    */
   private readonly wantsExpected = effect(() => {
-    const on = new Set(this.readings());
-    if (SEASON_READINGS.some((key) => on.has(key))) void this.players.load();
+    if (wantsSeasonReadings(this.readings())) void this.players.load();
+  });
+
+  /**
+   * LA STAGIONE SU CUI LEGGERE GLI ATTESI, o `null` quando non c'e' niente da leggere.
+   *
+   * Un computed a se' e non tre righe dentro `pool`, e la ragione e' la stessa che tiene `pool` fuori
+   * dal template: un computed si invalida sul VALORE che produce, quindi da qui passa «una stagione, o
+   * niente» invece dell'elenco delle pastiglie accese. Scritto dentro `pool`, accendere una qualunque
+   * delle undici ricostruiva le seicento righe - con l'esito atteso, la costanza e il fantavalore di
+   * ognuna - per una preferenza di LETTURA che non cambia ne' chi si puo' comprare ne' in che ordine.
+   *
+   * `players.ready()` letto qui e non nella riga: le righe si rifanno quando lo store atterra, ed e'
+   * quello a farle rifare - una volta, non a ogni click.
+   */
+  private readonly expectedSeason = computed<string | null>(() => {
+    if (!wantsSeasonReadings(this.readings())) return null;
+    return this.players.ready() ? this.store.targetSeason() : null;
   });
 
   /** Il numero dietro una sigla e se è spannometrico: dal vocabolario, che li possiede. */
@@ -396,7 +412,7 @@ export class Strategy {
   /**
    * LA PASTIGLIA COME SI LEGGE: un metodo e non tre chiamate nel template.
    *
-   * Ogni riga ne disegna fino a nove e le righe sono seicento: scrivere il ternario nel template
+   * Ogni riga ne disegna fino a undici e le righe sono seicento: scrivere il ternario nel template
    * vorrebbe dire chiamare `valueOf` tre volte per pastiglia a ogni giro di change detection. Un
    * trattino e non uno zero dove il numero non c'è, che è la regola di casa sui vuoti.
    */
@@ -598,13 +614,9 @@ export class Strategy {
     const rated = this.ratings.ready();
     const matchdays = this.matchdays();
     // LA STAGIONE DEGLI ATTESI, o `null` se non c'e' niente da leggere: le pastiglie sono spente, o lo
-    // store non e' ancora atterrato. Letto QUI perche' le righe si rifanno quando atterra - la stessa
-    // dipendenza, e la stessa ragione, della costanza qui sopra.
-    const on = new Set(this.readings());
-    const expectedOn =
-      SEASON_READINGS.some((key) => on.has(key)) && this.players.ready()
-        ? this.store.targetSeason()
-        : null;
+    // store non e' ancora atterrato. Da un computed suo, cosi' questa lista dipende dal RISULTATO e
+    // non dall'elenco delle pastiglie - vedi `expectedSeason`, e il commento sulle letture qui sotto.
+    const expectedOn = this.expectedSeason();
     // SOLO CHI IL LISTONE QUOTA (operatore, 04/09/2026: «Cheddira del Napoli e' ridicolo che stia nei
     // primi 60 attaccanti, non giochera' mai»). Il difetto non era la sua valutazione: e' che non e'
     // quotato affatto - zero righe in `listone_quotes` per il 2026-27, su nessuna delle due piattaforme
@@ -662,9 +674,11 @@ export class Strategy {
         seasonPlayed: played?.pv ?? null,
         seasonMv: played?.mv ?? null,
         seasonFm: played?.fm ?? null,
-        // ...e i suoi ATTESI, che non hanno piattaforma: la stessa partita produce lo stesso xG su
-        // tutt'e due i listoni, quindi la chiave e' il solo `fc_id` e chi ha giocato in due campionati
-        // li porta sommati.
+        // ...e i suoi ATTESI, letti sul CALENDARIO DICHIARATO come ogni altro numero di questa riga:
+        // un xG e' un fatto su una partita, ma «quali partite» lo decide la piattaforma - su euro il
+        // calendario e' un sottoinsieme, quindi leggerne uno solo per tutt'e due darebbe alla riga una
+        // popolazione e alla card che si apre da lei un'altra. Chi ha giocato in piu' campionati li
+        // porta sommati, che e' quello che fa anche il riepilogo della card.
         seasonXg: played_?.xg ?? null,
         seasonXa: played_?.xa ?? null,
         // I gol e gli assist VERI escono dalla stessa lettura - una seconda somma degli stessi voti

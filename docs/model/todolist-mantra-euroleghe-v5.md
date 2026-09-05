@@ -1278,3 +1278,31 @@ di resa attesa. La prima voce è la più grossa di tutta questa coda.
 * **Il D-Factor non è misurato.** Se la lega lo accende, un modulo con un posto ibrido in mezzo (`M/C`,
   `E/W`) permette di schierare SEI uomini di ruolo difensivo e sceglierne i cinque migliori: quel vantaggio
   nessuno lo ha quantificato, e il rulebook dice solo come si conta.
+
+## Aperto dopo la code-review del 06/09/2026 (toolkit, percorso di scrittura)
+
+Chiuso nella sessione: i due `INSERT OR REPLACE` che cancellavano un derivato (`recent_form.store` →
+`mv_synth` + i quattro bonus, `stats` → `clean_sheets`), il `rebuild` che non replicava la cache di
+`recent_form`, e il `backfill_bonuses` che scriveva solo nel DB. Resta questo, e nessuna voce è una
+misura da inventare.
+
+* **L'audit delle colonne non nominate va reso un TEST, non un'occasione.** Lo script che ha trovato i
+  due difetti (le colonne dello schema meno quelle nominate, per ogni `INSERT OR REPLACE` del toolkit) è
+  girato una volta e vive nella cronologia di una chat: la prossima colonna aggiunta a una tabella con
+  due scrittori ricomincia da capo. La forma giusta è quella che `positions` ha già per sé — un test che
+  legge il TESTO dell'istruzione — generalizzata alle 36 tabelle, con una **allowlist dichiarata** per i
+  dodici siti legittimi, così una riga nuova nella lista è una decisione che qualcuno prende invece di un
+  silenzio. È deliberatamente crudo, come il test sul dispatcher: prende esattamente il difetto che ha già
+  fatto danni due volte in due giorni.
+* **Lo strato `sofascore_recent` va ri-derivato una volta, e il `mv_synth` con lui.** Sulla base viva 44
+  righe su 1.731 hanno un voto sintetico, e non si sa quanto di quel buco sia la regola di
+  `calibrated_competitions` (giusto: quei campionati non hanno una retta) e quanto siano ri-salvataggi che
+  se lo sono portato via prima della cura. Si risponde con una corsa: `recent_form --from-cache` e poi
+  `synth`, contando prima e dopo. **Prende il lock di scrittura**, quindi una sessione sola.
+* **`clean_sheets` va ricontato dopo il prossimo `stats` da solo.** Le 509 stagioni euro sono in piedi
+  oggi perché l'ultima corsa è passata da `rebuild`; la cura le protegge da qui in avanti, e la verifica
+  che vale è un `stats` lanciato per conto suo seguito da un conteggio — se resta 509, la regola tiene sul
+  percorso che la rompeva.
+* **Gli orfani della cache di `recent_form` sono 0 su 1.731 oggi**, cioè ogni riga arricchita ha una
+  voce su disco in cui riscriverla. Il contatore è stampato apposta: se un giorno legge un numero
+  diverso da zero, quella parte dello strato è tornata a esistere solo nel DB e un rebuild la perderebbe.

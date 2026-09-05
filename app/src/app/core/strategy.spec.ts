@@ -2,6 +2,7 @@ import { MantraModules } from './auction-value';
 import {
   DEFAULT_READINGS,
   READINGS,
+  SEASON_READINGS,
   StrategyBidder,
   StrategySetup,
   blockLabel,
@@ -14,6 +15,7 @@ import {
   readingValue,
   readingsOf,
   roleDepth,
+  wantsSeasonReadings,
 } from './strategy';
 
 /**
@@ -495,6 +497,32 @@ describe('le sette letture di una riga', () => {
       expect(spec.format).toMatch(/^1\.\d-\d$/);
       expect(spec.width).toMatch(/^min-w-/);
       expect(spec.short.length).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
+
+describe('le letture che costano un caricamento', () => {
+  it("una pastiglia che non c'entra col calcio giocato non ne chiede nemmeno una riga", () => {
+    // La prova che serve non e' sul valore: e' che il RISULTATO non cambia accendendo e spegnendo le
+    // altre sette. `pool` dipende da questa risposta - non dall'elenco - quindi un true/false stabile
+    // e' esattamente cio' che tiene ferme le seicento righe mentre si accende `Bpm`.
+    expect(wantsSeasonReadings(DEFAULT_READINGS)).toBe(false);
+    expect(wantsSeasonReadings(['bonus', 'played', 'passed', 'minutes', 'mv', 'fm', 'fvm'])).toBe(false);
+    expect(wantsSeasonReadings([])).toBe(false);
+  });
+
+  it("basta una delle quattro, e ognuna delle quattro basta", () => {
+    for (const key of SEASON_READINGS) expect(wantsSeasonReadings([key])).toBe(true);
+    expect(wantsSeasonReadings(['fvm', 'xa'])).toBe(true);
+  });
+
+  it('le quattro che costano sono quelle che vengono dal layer per-partita, e nessun altra', () => {
+    // Un elenco che scivolasse (una sigla aggiunta a `READINGS` e dimenticata qui) accenderebbe una
+    // pastiglia su una casella vuota per sempre: nessuno chiederebbe lo store.
+    expect([...SEASON_READINGS].sort()).toEqual(['assists', 'goals', 'xa', 'xg']);
+    for (const key of SEASON_READINGS) {
+      expect(READINGS.some((one) => one.key === key)).toBe(true);
     }
   });
 });

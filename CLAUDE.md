@@ -4321,6 +4321,51 @@ EuroLeghe R18 la muove su 381 righe di 997. Detto altrimenti: su `default` la fa
 volte la incasserà. Non è un difetto ed è esattamente il genere di dinamica che la richiesta chiedeva di
 mettere sotto gli occhi.
 
+## Un DERIVATO non e' di chi scrive la riga, e una replica offline che nessuno chiama e' una cache che non esiste
+**06/09/2026, da «fai una code-review su tutto il progetto e sistema eventuali fix o ottimizzazioni».**
+Quattro difetti, tutti nel percorso di SCRITTURA e nessuno visibile da una suite verde: 689 test del
+toolkit, 736 dell'app e un build pulito mentre tutt'e quattro erano rotti - perche' sono difetti di
+ORDINE FRA MODULI, e un test per modulo non li puo' vedere. Dettaglio: `stato-progetto-continuita-v5.md`
+(6 settembre) e `todolist-mantra-euroleghe-v5.md`.
+
+- **`INSERT OR REPLACE` cancella la riga e ne scrive una nuova, quindi ogni colonna che l'istruzione non
+  nomina torna NULL.** E' la cura del 05/09 (`positions._store_match_rows`) ritrovata un modulo piu' in
+  la', e non l'ha trovata una rilettura: l'ha trovata un audit MECCANICO - le colonne dello schema meno
+  quelle nominate, per ognuno dei 14 `INSERT OR REPLACE` del toolkit. Due erano veri. `recent_form.store`
+  si portava via `mv_synth` e, peggio, i quattro BONUS che quel modulo paga **una richiesta a partita**
+  da un secondo endpoint; `stats` si portava via `clean_sheets`, che scrive `derive_clean_sheets` dal
+  layer per partita - **509 stagioni di portieri euro** azzerate da un `stats` lanciato da solo, e
+  nessuno se ne accorgeva perche' `rebuild` e `update` richiamano la derivazione subito dopo. Gli altri
+  dodici siti sono legittimi e la stessa passata lo dice: *un audit che stampa solo i colpevoli non si
+  distingue da uno che non ha guardato.* **La regola: una colonna DERIVATA non appartiene a chi scrive
+  la riga, quindi un upsert la deve DICHIARARE** - conservarla, e ritirarla quando l'input da cui viene
+  si muove (`mv_synth` sopravvive finche' il `rating` e' lo stesso, perche' un derivato stantio e'
+  peggio di uno vuoto).
+- **UNA REPLICA OFFLINE CHE NESSUNO CHIAMA E' UNA CACHE CHE NON ESISTE.**
+  `recent_form.reingest_from_cache` era scritta, testata, e il suo docstring diceva perche' la cache c'e'
+  - e `rebuild` non la invocava: un rebuild lasciava a ZERO tutte le **1.731 partite** di
+  `sofascore_recent`, cioe' il calcio giocato altrove da chi qui non ha storia, ore di richieste polite
+  che solo una nuova acquisizione poteva riportare. «Il DB e' sempre ricostruibile da zero» e' un
+  invariante, e *un invariante senza un test e' un'intenzione*: ora la riga c'e' e un test la pretende.
+  Con lei un `--from-cache` sul comando, perche' una replica raggiungibile solo da dentro `rebuild` non
+  si puo' ne' verificare ne' usare per rimettere in piedi uno strato solo.
+- **E LA META' DI UN MODULO CHE PAGA VA SCRITTA DOVE STA L'ARCHIVIO, non solo dove sta la domanda.**
+  `backfill_bonuses` scriveva i suoi gol nel DB e mai nella cache, quindi la regola valeva per la fetch e
+  cadeva per l'arricchimento: misurato, **1.086 delle 1.731 partite** portavano nel DB bonus che il disco
+  non aveva, e un rebuild li avrebbe rimessi in vendita uno per uno. La scrittura sta in un `finally`
+  accanto al commit, perche' il docstring promette che un'interruzione conserva quello che ha gia' preso
+  - e una cache aggiornata solo sul percorso felice lascia da ricomprare proprio le richieste del
+  giocatore interrotto.
+- **E un `some` dentro un `computed` e' una DIPENDENZA, non una lettura.** Nella Strategia `pool` - le
+  seicento righe, con l'esito atteso, la costanza e il fantavalore di ognuna - leggeva l'ELENCO delle
+  pastiglie accese per decidere se servisse il calcio giocato, quindi si rifaceva a ogni click su una
+  QUALUNQUE delle undici, mentre il commento due righe piu' sotto dichiarava l'esatto contrario
+  («ricostruire il listone a ogni click sarebbe pagare un giro di 600 righe per accendere una
+  pastiglia»). Un `computed` si invalida sul VALORE che produce: passando da uno suo - «una stagione, o
+  niente» - accendere `Bpm` non tocca piu' niente e accendere `xG` rifa' la lista una volta sola.
+  *Quando un commento dichiara un costo che il codice accanto paga lo stesso, il commento e' la
+  segnalazione.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

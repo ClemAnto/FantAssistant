@@ -394,6 +394,41 @@ def _write_cache(ctx: Context, fc_id: int, matches: list[dict]) -> None:
     _atomic_write_text(path, json.dumps(ordered, ensure_ascii=False))
 
 
+def _patch_cache(ctx: Context, fc_id: int, bonuses: dict[str, dict]) -> tuple[int, int]:
+    """Write BACK into the cached payload what a second endpoint has just told us.
+
+    `_write_cache` says why the cache exists: this module's output must not live in the DB alone, or a
+    `rebuild` - which drops every table and replays the caches - throws away hours of polite requests.
+    `backfill_bonuses` wrote its goals straight to the DB and never here, so the rule held for the fetch
+    and broke for the enrichment: measured on the live cache the day it was found, 1.086 of the 1.731
+    stored matches carried bonuses the disk did not have, i.e. a rebuild would have offered to buy them
+    all over again, one request each.
+
+    Returns (patched, orphans): what was written, and how many enriched matches had no cached entry to
+    write it into - rows stored before this cache existed. Reported rather than hidden, because that
+    part of the layer is still DB-only and nobody can tell from the count alone.
+    """
+    path = _cache_path(ctx, fc_id)
+    if not path.exists():
+        return 0, len(bonuses)
+    try:
+        entries = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return 0, len(bonuses)
+    patched = 0
+    for entry in entries:
+        # The DB keeps `match_id` as TEXT and the payload keeps `event_id` as the provider sent it:
+        # the same match under two types, so the join is on the string of both.
+        got = bonuses.get(str(entry.get("event_id")))
+        if got is None:
+            continue
+        entry.update(got)
+        patched += 1
+    if patched:
+        _atomic_write_text(path, json.dumps(entries, ensure_ascii=False))
+    return patched, len(bonuses) - patched
+
+
 def reingest_from_cache(ctx: Context) -> None:
     """Re-apply every cached player fetch offline (the rebuild path)."""
     conn = ctx.require_conn()
@@ -416,18 +451,49 @@ def reingest_from_cache(ctx: Context) -> None:
         print(f"[recent_form] reingested {rows} matches for {players} players from cache")
 
 
+# What the MATCH LIST carries, and therefore the only columns a second read of it may overwrite.
+# The four BONUS columns are deliberately not here (see `store`), and neither is `mv_synth`.
+_LIST_COLUMNS = ("competition", "real_md", "match_date", "club", "opponent", "home", "minutes",
+                 "rating")
+_BONUS_COLUMNS = ("goals", "assists", "xg", "xa")
+
+
 def store(conn, fc_id: int, matches: list[dict]) -> int:
+    """Upsert the match list, and DO NOT take with it what a DIFFERENT endpoint said.
+
+    It used to be `INSERT OR REPLACE`, which deletes the row and writes a new one, so every column
+    the statement does not list went back to NULL. Two families of column are written elsewhere and
+    were being lost:
+
+      * `mv_synth`, written by `synth` and by no fetcher - the same defect `positions._store_match_rows`
+        was cured of on 05/09/2026, one module along. It survives a re-read while the number it was
+        derived from is the same (`IS`, so two NULLs count as equal) and is retracted when the rating
+        moves, because a stale derived value is worse than an empty one.
+      * the four BONUSES, which this module pays for ONE REQUEST PER MATCH from a second endpoint
+        (`enrich_with_bonuses` / `backfill_bonuses`). The match list itself never carries them, so a
+        None here means «not asked», never «none scored» - hence COALESCE and not assignment. With
+        plain assignment, re-storing a player's list erased goals that had cost a request apiece, and
+        `stored_without_bonuses` then offered to buy them again.
+    """
     rows = [(fc_id, match["season"], SOURCE, match["event_id"], match["competition"],
              match.get("round"), _iso_date(match["timestamp"]),
              match.get("club"), match.get("opponent"), match.get("home"), match.get("minutes"),
              match.get("rating"), match.get("goals"), match.get("assists"),
              match.get("xg"), match.get("xa"))
             for match in matches]
+    observed = ", ".join(f"{name} = excluded.{name}" for name in _LIST_COLUMNS)
+    bonuses = ", ".join(f"{name} = COALESCE(excluded.{name}, external_match_stats.{name})"
+                        for name in _BONUS_COLUMNS)
     conn.executemany(
-        """INSERT OR REPLACE INTO external_match_stats
+        f"""INSERT INTO external_match_stats
            (fc_id, season, source, match_id, competition, real_md, match_date, club, opponent,
             home, minutes, rating, goals, assists, xg, xa)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", rows)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON CONFLICT(fc_id, season, source, match_id) DO UPDATE SET
+               {observed},
+               {bonuses},
+               mv_synth = CASE WHEN external_match_stats.rating IS excluded.rating
+                               THEN external_match_stats.mv_synth END""", rows)
     return len(rows)
 
 
@@ -500,7 +566,7 @@ def backfill_bonuses(ctx: Context, limit: int | None = None) -> int:
         pending = pending[:limit]
     total = sum(len(ids) for _fc_id, _name, ids in pending)
     print(f"[recent_form] backfill: {len(pending)} players, {total} matches without bonuses")
-    filled = 0
+    filled = cached = uncached = 0
     try:
         for fc_id, name, match_ids in pending:
             if ctx.cancelled():
@@ -509,31 +575,49 @@ def backfill_bonuses(ctx: Context, limit: int | None = None) -> int:
             if not provider_id:
                 continue
             got = 0
-            for match_id in match_ids:
-                if ctx.cancelled():
-                    raise KeyboardInterrupt
-                _polite_sleep(ctx.cancel_event)
-                data = _get_json(session, EVENT_STATS_ENDPOINT.format(eid=match_id,
-                                                                      pid=provider_id))
-                statistics = (data or {}).get("statistics") or {}
-                if not statistics:
-                    continue
-                conn.execute(
-                    """UPDATE external_match_stats
-                       SET goals = ?, assists = ?, xg = COALESCE(?, xg), xa = COALESCE(?, xa)
-                       WHERE fc_id = ? AND source = ? AND match_id = ?""",
-                    (statistics.get("goals") or 0, statistics.get("goalAssist") or 0,
-                     statistics.get("expectedGoals"), statistics.get("expectedAssists"),
-                     fc_id, SOURCE, match_id))
-                got += 1
-            conn.commit()
-            filled += got
+            fetched: dict[str, dict] = {}
+            try:
+                for match_id in match_ids:
+                    if ctx.cancelled():
+                        raise KeyboardInterrupt
+                    _polite_sleep(ctx.cancel_event)
+                    data = _get_json(session, EVENT_STATS_ENDPOINT.format(eid=match_id,
+                                                                         pid=provider_id))
+                    statistics = (data or {}).get("statistics") or {}
+                    if not statistics:
+                        continue
+                    one = {"goals": statistics.get("goals") or 0,
+                           "assists": statistics.get("goalAssist") or 0,
+                           "xg": statistics.get("expectedGoals"),
+                           "xa": statistics.get("expectedAssists")}
+                    conn.execute(
+                        """UPDATE external_match_stats
+                           SET goals = ?, assists = ?, xg = COALESCE(?, xg), xa = COALESCE(?, xa)
+                           WHERE fc_id = ? AND source = ? AND match_id = ?""",
+                        (one["goals"], one["assists"], one["xg"], one["xa"], fc_id, SOURCE, match_id))
+                    # Only what the source actually sent: goals and assists always (a zero is a fact
+                    # about the match), the two attesi only where there are any - which is the same
+                    # COALESCE the UPDATE makes, so the DB and the disk keep one rule between them.
+                    fetched[str(match_id)] = {key: value for key, value in one.items()
+                                              if value is not None}
+                    got += 1
+            finally:
+                # THE DISK IS THE ARCHIVE, and it is written where the DB is written - in a `finally`,
+                # because the docstring promises that a stop keeps everything fetched so far and a
+                # cache patched only on the happy path would leave exactly the interrupted player's
+                # requests to be bought a second time.
+                conn.commit()
+                patched, orphans = _patch_cache(ctx, fc_id, fetched)
+                cached += patched
+                uncached += orphans
+                filled += got
             print(f"[recent_form]   {name[:22]:<22} {got}/{len(match_ids)} matches enriched")
     except KeyboardInterrupt:
         print("[recent_form] interrupted - what is fetched is committed, rerun to continue")
     finally:
         session.close()
-    print(f"[recent_form] backfill done: {filled} matches enriched")
+    print(f"[recent_form] backfill done: {filled} matches enriched · {cached} written back to the "
+          f"cache" + (f" · {uncached} with no cached payload (DB only)" if uncached else ""))
     return filled
 
 

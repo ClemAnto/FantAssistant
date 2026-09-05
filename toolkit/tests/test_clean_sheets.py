@@ -95,3 +95,34 @@ def test_le_piattaforme_sono_due_calendari_e_non_si_sommano(tmp_path):
     derive_clean_sheets(ctx)
     assert _clean(conn, 5, "default") == 2
     assert _clean(conn, 5, "euro") == 1
+
+
+def test_un_nuovo_aggregato_non_cancella_le_porte_inviolate(tmp_path):
+    """Il DERIVATO sopravvive a una rilettura della sorgente che non lo porta.
+
+    `INSERT OR REPLACE` cancella la riga e ne scrive un'altra: ogni colonna che l'istruzione non
+    nomina torna NULL, e `clean_sheets` la scrive `derive_clean_sheets` dal layer per partita, mai una
+    sorgente di aggregati. Cosi' un `stats` lanciato da solo - l'import del listone - svuotava le porte
+    inviolate di ogni portiere euro (509 stagioni sulla base viva), e non se ne accorgeva nessuno
+    perche' `rebuild` e `update` richiamano la derivazione subito dopo.
+
+    Non e' un derivato del numero riscritto, quindi non lo invalida: si conserva, e i dodici valori
+    OSSERVATI si aggiornano come devono.
+    """
+    from euroleghe_ingest.modules.stats import _UPSERT
+
+    ctx = _ctx(tmp_path)
+    conn = ctx.require_conn()
+    _season(conn, 1)
+    for matchday, conceded in ((1, 0), (2, 1), (3, 0)):
+        _match(conn, 1, matchday, conceded)
+    derive_clean_sheets(ctx)
+    assert _clean(conn, 1) == 2
+
+    # la stessa riga riletta da una sorgente di aggregati, con un Pv diverso
+    conn.execute(_UPSERT, (1, "2025-26", "default", 20, 6.5, 7.0, 3, 1, 0, 0, 0, 0, 0, 4, 0))
+    conn.commit()
+    assert _clean(conn, 1) == 2, "una rilettura del listone ha appena buttato via il derivato"
+    assert conn.execute(
+        "SELECT pv, mv, goals FROM season_stats WHERE fc_id = 1"
+    ).fetchone()[:] == (20, 6.5, 3), "e i valori osservati devono invece aggiornarsi"

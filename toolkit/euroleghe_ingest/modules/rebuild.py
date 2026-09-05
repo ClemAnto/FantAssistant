@@ -74,6 +74,13 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("injuries").reingest_from_cache(ctx)            # tm ids, dated absences, contract snapshot
     load("market").reingest_from_cache(ctx)              # la curva del valore (dopo: usa i tm id)
     load("elo").reingest_from_cache(ctx)                 # club strength at the auction dates
+    # IL CALCIO GIOCATO ALTROVE da chi qui non ha storia. Modulo NETWORK, quindi la sua `run` la
+    # rebuild la salta - e per tre settimane nessuno ha chiamato la sua replica offline, che pure
+    # esisteva e il cui docstring dice perche' la cache c'e': senza questa riga un `rebuild` lasciava
+    # a ZERO l'intero strato `sofascore_recent` (1.731 partite sulla base viva), cioe' ore di
+    # richieste polite che solo una nuova acquisizione poteva riportare. Prima di `synth`, che e' chi
+    # converte i suoi rating in un voto sulla scala del fantacalcio.
+    load("recent_form").reingest_from_cache(ctx)         # le partite recenti dei quotati senza storia
     load("synth").run(ctx)                               # calibrated synthetic base voto (needs the map)
     load("arrivals").run(ctx)   # roster diff needs the backfilled clubs
     ctx.conn.commit()

@@ -153,6 +153,7 @@ def test_resume_does_not_lock_in_a_player_whose_bonuses_were_skipped(tmp_path):
     assert isinstance(conn, sqlite3.Connection)
 
 import csv
+import json
 import time
 
 from euroleghe_ingest.config import Config
@@ -397,3 +398,118 @@ def test_the_initial_bug_no_longer_swallows_the_shortlist(monkeypatch):
     # the club still decides when it can
     assert recent_form.resolve(None, {"name": "James J.", "club": "Rennes"}) == (
         3, "tier1_club_confirmed")
+
+
+# ---------- quello che una seconda lettura NON deve portarsi via ----------
+
+def _cached(cfg, fc_id: int) -> list[dict]:
+    return json.loads((cfg.cache_dir / f"sofascore_recent_{fc_id}.json").read_text(encoding="utf-8"))
+
+
+def _one_match(**over) -> dict:
+    match = {"season": "2024-25", "event_id": "111", "competition": "eredivisie", "round": 7,
+             "timestamp": 1_696_000_000, "club": "Ajax", "opponent": "PSV", "home": 1,
+             "minutes": 90, "rating": 7.4, "goals": None, "assists": None, "xg": None, "xa": None}
+    match.update(over)
+    return match
+
+
+def _stored(tmp_path, second: dict):
+    """Store a match list, let the OTHER two writers fill their columns, store the list again."""
+    cfg, conn = _db(tmp_path)
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Varela')")
+    recent_form.store(conn, 1, [_one_match()])
+    # cio' che scrive `synth` (mai un fetcher) e cio' che costa una richiesta a partita
+    conn.execute("UPDATE external_match_stats SET mv_synth = 6.33, goals = 2, assists = 1, xg = 0.44")
+    recent_form.store(conn, 1, [second])
+    conn.commit()
+    rows = conn.execute("SELECT rating, mv_synth, goals, assists, xg FROM external_match_stats").fetchall()
+    assert len(rows) == 1, "una seconda lettura della stessa partita e' un UPDATE, mai una riga in piu'"
+    return tuple(rows[0])
+
+
+def test_restoring_a_match_list_keeps_what_the_other_two_writers_said(tmp_path):
+    """`INSERT OR REPLACE` cancella la riga: ogni colonna non elencata tornava NULL.
+
+    Due famiglie ci cadevano dentro. `mv_synth`, che scrive `synth` - lo stesso difetto curato in
+    `positions._store_match_rows` il 05/09/2026, un modulo piu' in la'. E i quattro BONUS, che questo
+    modulo paga UNA RICHIESTA A PARTITA da un endpoint diverso: la lista delle partite non li porta
+    mai, quindi un None li' vuol dire «non chiesto» e non «non ne ha fatti». Rimettere lo statement
+    vecchio fa fallire questo test nominando le colonne che perde.
+    """
+    assert _stored(tmp_path, _one_match()) == (7.4, 6.33, 2, 1, 0.44)
+
+
+def test_a_changed_rating_retracts_the_synthetic_voto_but_not_the_bonuses(tmp_path):
+    """L'altra meta', e la ragione per cui non e' «non toccare mai quelle colonne».
+
+    La conversione e' una funzione DEL RATING: se il fornitore lo rivede, il numero derivato dal
+    vecchio non parla piu' di questa partita e si ritira - `synth` lo ricalcola. I gol invece non
+    vengono da li' e restano: sono un fatto sulla partita, non un derivato del rating.
+    """
+    assert _stored(tmp_path, _one_match(rating=6.1)) == (6.1, None, 2, 1, 0.44)
+
+
+def test_a_bonus_the_list_carries_wins_over_the_one_already_stored(tmp_path):
+    """COALESCE e non «non toccare»: quando la lista PORTA un valore, quello e' l'ultimo osservato."""
+    assert _stored(tmp_path, _one_match(goals=3, xg=0.9))[2:] == (3, 1, 0.9)
+
+
+def test_the_backfill_writes_what_it_buys_back_into_the_cache(tmp_path, monkeypatch):
+    """La cache e' l'archivio, e `backfill_bonuses` scriveva solo nel DB.
+
+    `_write_cache` dice perche' la cache esiste: senza, ore di richieste polite stanno a un `rebuild`
+    di distanza dall'essere irrecuperabili. La regola valeva per la fetch e non per l'arricchimento -
+    misurato sulla cache viva il giorno in cui e' stato trovato, 1.086 delle 1.731 partite in archivio
+    avevano nel DB dei bonus che il disco non aveva, cioe' un rebuild le avrebbe fatte ricomprare tutte.
+    """
+    cfg, conn = _db(tmp_path)
+    cfg.cache_dir.mkdir(parents=True, exist_ok=True)
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Varela')")
+    ctx = Context(config=cfg, conn=conn)
+    recent_form.store(conn, 1, [_one_match()])
+    recent_form._write_cache(ctx, 1, [_one_match()])
+    conn.commit()
+
+    monkeypatch.setattr(recent_form, "_client", lambda *_a, **_k: _NoSession())
+    monkeypatch.setattr(recent_form, "_polite_sleep", lambda *_a, **_k: None)
+    monkeypatch.setattr(recent_form, "_provider_id", lambda *_a, **_k: 30)
+    monkeypatch.setattr(recent_form, "_get_json",
+                        lambda *_a, **_k: {"statistics": {"goals": 2, "goalAssist": 1,
+                                                          "expectedGoals": 0.44}})
+    assert recent_form.backfill_bonuses(ctx) == 1
+
+    assert tuple(conn.execute("SELECT goals, assists, xg FROM external_match_stats").fetchone())         == (2, 1, 0.44)
+    entry = _cached(cfg, 1)[0]
+    assert (entry["goals"], entry["assists"], entry["xg"]) == (2, 1, 0.44)
+    # e la prova che serve a qualcosa: il replay della cache ricostruisce la riga com'era
+    conn.execute("DELETE FROM external_match_stats")
+    conn.commit()
+    recent_form.reingest_from_cache(ctx)
+    assert tuple(conn.execute("SELECT goals, assists, xg FROM external_match_stats").fetchone())         == (2, 1, 0.44)
+
+
+class _NoSession:
+    """La rete non serve: ogni chiamata e' monkeypatchata, questo tiene solo `close()`."""
+
+    def close(self) -> None:
+        pass
+
+
+def test_the_rebuild_replays_the_recent_form_cache(tmp_path):
+    """La funzione c'era e non la chiamava nessuno.
+
+    `recent_form` e' NETWORK, quindi `rebuild` salta la sua `run` - e per tre settimane nessuno ha
+    chiamato la replica offline: un rebuild lasciava a ZERO l'intero strato `sofascore_recent` (1.731
+    partite sulla base viva) mentre la cache sul disco le aveva tutte. Si legge il SORGENTE della
+    rebuild perche' e' l'ordine a essere la cosa da fissare: prima di `synth`, che converte i rating.
+    """
+    import inspect
+
+    from euroleghe_ingest.modules import rebuild
+
+    source = inspect.getsource(rebuild.run)
+    assert 'load("recent_form").reingest_from_cache(ctx)' in source, \
+        "la rebuild non replica la cache di recent_form: lo strato si perde a ogni ricostruzione"
+    assert source.index('load("recent_form").reingest_from_cache') < source.index('load("synth").run'), \
+        "va replicata PRIMA di synth, che e' chi converte i suoi rating in un voto"

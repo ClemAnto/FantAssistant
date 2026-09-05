@@ -18,6 +18,26 @@ RAW_INPUTS: list[str] = []  # reuses the roster-list inputs
 NETWORK = False
 
 
+# The columns a season aggregate OBSERVES: everything an upsert may overwrite with what the source
+# says. `clean_sheets` is deliberately not among them - see `_UPSERT`.
+_OBSERVED = ("pv", "mv", "fm", "goals", "assists", "yellows", "reds", "own_goals",
+             "pen_scored", "pen_missed", "goals_conceded", "pen_saved")
+
+# UN AGGIORNAMENTO E NON UNA RIGA NUOVA, per la ragione che `positions._store_match_rows` scrive per
+# esteso: `INSERT OR REPLACE` cancella la riga e ne scrive un'altra, quindi ogni colonna che
+# l'istruzione non nomina torna NULL - e `clean_sheets` la scrive `derive_clean_sheets` dal layer per
+# partita, mai una sorgente di aggregati. Un `stats` lanciato da solo (l'import del listone) svuotava
+# cosi' le porte inviolate di ogni portiere euro, 509 stagioni sulla base viva, e nessuno se ne
+# accorgeva perche' `rebuild` e `update` richiamano la derivazione subito dopo. E' un DERIVATO da un
+# ALTRO strato, quindi non lo invalida un nuovo aggregato: si conserva e basta.
+_UPSERT = (
+    "INSERT INTO season_stats(fc_id, season, platform, " + ", ".join(_OBSERVED) + ") "
+    "VALUES (" + ", ".join(["?"] * (3 + len(_OBSERVED))) + ") "
+    "ON CONFLICT(fc_id, season, platform) DO UPDATE SET "
+    + ", ".join(f"{name} = excluded.{name}" for name in _OBSERVED)
+)
+
+
 def run(ctx: Context, **kwargs) -> None:
     conn = ctx.require_conn()
     for rec in iter_records(ctx.config):
@@ -27,14 +47,9 @@ def run(ctx: Context, **kwargs) -> None:
             (rec.fc_id, rec.name),
         )
         conn.execute(
-            """
-            INSERT OR REPLACE INTO season_stats(
-                fc_id, season, platform, pv, mv, fm, goals, assists, yellows, reds, own_goals,
-                pen_scored, pen_missed, goals_conceded, pen_saved)
-            VALUES (?, ?, 'euro', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            _UPSERT,
             (
-                rec.fc_id, rec.season, rec.pv, rec.mv, rec.fm, rec.goals, rec.assists,
+                rec.fc_id, rec.season, "euro", rec.pv, rec.mv, rec.fm, rec.goals, rec.assists,
                 rec.yellows, rec.reds, rec.own_goals, rec.pen_scored, rec.pen_missed,
                 rec.goals_conceded, rec.pen_saved,
             ),
@@ -73,12 +88,7 @@ def derive_from_ratings(ctx: Context) -> None:
     for row in rows:
         fc_id, season, platform, pv, mv, fm, g, a, y, red, og, ps, pm, gc, psv = row
         conn.execute(
-            """
-            INSERT OR REPLACE INTO season_stats(
-                fc_id, season, platform, pv, mv, fm, goals, assists, yellows, reds, own_goals,
-                pen_scored, pen_missed, goals_conceded, pen_saved)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            _UPSERT,
             (fc_id, season, platform, pv, r2(mv), r2(fm), g, a, y, red, og, ps, pm, gc, psv),
         )
     print(f"[stats] derived {len(rows)} season_stats rows from ratings (per platform)")

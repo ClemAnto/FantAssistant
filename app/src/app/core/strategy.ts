@@ -454,6 +454,24 @@ export const DEFAULT_READINGS: ReadingKey[] = ['bonus', 'played', 'passed'];
 export const SEASON_READINGS: ReadingKey[] = ['goals', 'assists', 'xg', 'xa'];
 
 /**
+ * SE QUALCUNA DI QUELLE E' ACCESA, e quindi se il calcio giocato serve.
+ *
+ * Una funzione e non un `some` scritto due volte nella vista, e la ragione e' MISURABILE e non
+ * estetica: il secondo lettore e' dentro `pool`, cioe' dentro il computed che ricostruisce SEICENTO
+ * righe (l'esito atteso di ognuno, la costanza, il fantavalore). Letta li' com'era, la lista si
+ * rifaceva a ogni click su QUALUNQUE pastiglia - anche su una che non c'entra col calcio giocato -
+ * mentre il commento due righe piu' sotto dichiara l'esatto contrario («ricostruire il listone a ogni
+ * click sarebbe pagare un giro di 600 righe per accendere una pastiglia»).
+ *
+ * Passando da qui, `pool` dipende dal RISULTATO (una stagione, o niente) e non dall'elenco: accendere
+ * `Bpm` non lo tocca, e accendere `xG` lo rifa' una volta sola, che e' quando serve davvero.
+ */
+export function wantsSeasonReadings(keys: readonly ReadingKey[]): boolean {
+  const on = new Set(keys);
+  return SEASON_READINGS.some((key) => on.has(key));
+}
+
+/**
  * IL NUMERO DI UNA PASTIGLIA, dalla lettura che la riga ha gia' fatto.
  *
  * Una funzione e non sette rami nel template: quale numero sta dietro una sigla e' vocabolario di questa
