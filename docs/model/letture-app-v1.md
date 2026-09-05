@@ -2373,3 +2373,167 @@ Aperti, con il loro numero:
   vengono riscaricati (la cache non lo porta): fino ad allora i gol subiti di un portiere estero sono
   ricostruiti al 72,5%.
 - **Il riepilogo della stagione in corso** non c'è, per lettura letterale della richiesta.
+
+## 26. UNA PROMESSA SI RICONOSCE DALLA MAGLIA, NON DAL PREZZO: quattro letture su un'icona (5 settembre 2026)
+
+Nata da tre domande dell'operatore in fila — «l'anno scorso Palestra era già considerato un top?», poi
+«riesci a trovare qualche metrica che lo distingueva cercando anche nelle stagioni precedenti?», poi
+«non riusciamo a pronosticare quali calciatori con basso FVM possono avere un exploit come Palestra?» —
+e finita in un marchio che **esisteva già** e aveva due buchi.
+
+### 26.1 Il caso: nessuno lo considerava un top, e nemmeno noi
+
+Qt.I **3** sul listone Serie A 2025-26 = **145° difensore su 232**; Qt.A rivista a 16 e FVM finale 75, che
+è il **2° difensore del campionato** dietro Dimarco. Esito: 37 presenze su 38, FM 6,43, **238 fantapunti,
+4° difensore**. Il foglio retrodatato al 05/09/2025 (`SHEET_REVISION` 37) dice che il motore non lo
+prezzava affatto — `engine_unpriced_reason` «only 7 votes of 15» — e il ripiego dava `est_pv` **16,5 su
+38** (135° su 231) col gradino **`riserva`** e `desc_expected_minutes` 300 per tutta la stagione.
+
+Quanto è raro: nella fascia ≤3 crediti (88 difensori) la mediana di stagione è **33,8 fp** e lui è il
+primo degli 88, cioè **+5,4 punti a giornata** sopra il compagno di fascia tipico. Ma non è un unicum —
+nei primi 19 ci sono Tiago Gabriel (Qt.I 1), Terracciano F. (2), Canestrelli (3), Veiga D. (1) — e lo
+Spearman fra Qt.I e fantapunti sui difensori è **+0,492**: il prezzo di agosto spiega meno di un quarto
+dell'ordine finale.
+
+**Due avvertenze sulla riga retrodatata**, perché sono contaminazioni dichiarate: `fvm_reporting_only` 75
+è l'ultima lettura (post-stagione), e `desc_transfer_fee` 57M è l'Atalanta→**Chelsea del luglio 2026** —
+i fogli retrodatati derivano trasferimenti e arrivi *oggi*, quindi conoscono un mercato che allora non
+era chiuso.
+
+### 26.2 I segnali pre-asta esistono e sono TROPPO DEBOLI per averlo segnalato
+
+Screen su **6 stagioni**, difensori di Serie A con Qt.I ≤5 e <15 voti l'anno prima = **636 uomini**, 26
+esplosi (primi 30 del ruolo) e 97 titolari (≥25 presenze). Quintile alto contro base:
+
+| segnale disponibile prima dell'asta | copertura | lift «esplode» | lift «titolare» |
+|---|---|---|---|
+| rating Sofascore nel campione sottile | 39% | 1,67× | 1,13× |
+| valore di mercato assoluto | 82% | 1,44× | 1,33× |
+| valore di mercato ×N in 24 mesi | 67% | 1,39× | 1,24× |
+| xA nel campione sottile | 18% | 1,27× | 1,51× |
+| posizione media misurata `avg_x` | **8%** | 2,67× | 1,23× |
+| **essere giovane** | 65% | **0,25×** | 0,54× |
+
+Il 2,67× dell'`avg_x` è **2 casi su 9**: copertura 8%, nessuna potenza, non è un risultato. E l'età va
+nella direzione opposta all'intuizione, che è la stessa cosa che il gate aveva già misurato rifiutando
+quel canale. Palestra dentro la sua fascia era 4°/65 per moltiplicatore di valore (×17,5: 200k nel luglio
+2023 → 3,5M nel giugno 2025) e 3°/42 per `avg_x` — ma **lo screen che unisce i due non funziona**:
+«≤21 anni e valore ≥5×» dà 30 uomini in sei stagioni e **1 esploso su 30 contro una base del 4,9%**.
+
+**E la prova esterna concorda**: la stampa lo aveva nominato (FantaMaster 26/08/2025 «scommessa
+low-cost», 3 stelle, 1-5 crediti; Goal.com fra 5 «possibili sorprese»; FantaCalcioPedia «solidità
+dell'investimento 40%»), mai come un top — e nei «7 difensori low cost da prendere» del 03/09/2025 **non
+c'è**, citato solo come «non metterà a rischio la titolarità di Zappa». Quei sette hanno reso 104-184 fp,
+lui 238. Il meccanismo che la stampa aveva in mano era vero e non era su di lui: **«prende il posto di
+Zortea»**, e Zortea al Cagliari 2024-25 è Qt.I 7 → 35 presenze e 231,5 fp, l'anno prima a Frosinone Qt.I 3
+→ Qt.A 16. Era una previsione su un POSTO.
+
+### 26.3 Il segnale forte non è pre-asta: sono le giornate già giocate
+
+Stessa popolazione, allargata a tutti i ruoli (2.124 quotati con Qt.I ≤5 su 6 stagioni):
+
+| titolare nelle prime 2 giornate | n | esplode | titolare | mediana |
+|---|---|---|---|---|
+| 0 su 2 | 1668 | 0,7% (0,19×) | 7,5% | — |
+| 1 su 2 | 207 | 7,7% (2,19×) | 33,3% | 108,0 fp |
+| **2 su 2** | 249 | **19,3% (5,46×)** | **53,4% (3,47×)** | **148,5 fp** |
+
+Positivo **6 stagioni su 6**, e **non è l'effetto delle promosse** (promossi 19,8% contro 19,0% di chi era
+già in A) — che era la prima cosa da escludere. La curva è monotona in `k` (1 → 4,13×, 2 → 5,46×, 3 →
+6,65×, 4 → 8,03×, 5 → 8,88×), quindi il marchio si rafforza da sé e non serve una soglia nuova ogni
+settimana. **Metà del lift è «gioca», che è ovvio e invisibile su 600 righe**: dentro la popolazione dello
+screen esistente — che pretende già 90 minuti nelle prime due — il segnale vale 1,16×, e va detto.
+
+### 26.4 Il marchio esisteva, e i suoi due buchi
+
+`starter_signs` «Dato per riserva, gioca da titolare» (14/08/2026, 76,8% contro 42,3%; portiere 81,9%
+contro 22,3%). Non ne è stato aggiunto uno nuovo: `promise` = «Possibile promessa» è già preso da un
+altro screen (xG+xA, 1,89×), che è un fatto diverso.
+
+- **Taceva prima della 4ª giornata** (`RISER_FROM` = 4): zero righe su 602 sul foglio del 05/09, per
+  costruzione — il posto peggiore in cui un buco possa nascondersi, e la finestra in cui si compra.
+- **Si disegnava solo in `/auction`**: lo registrava il pannello d'asta e non `ValuationStore`, quindi in
+  plancia e in Strategia non è mai comparso. Terza istanza della cartella aggiunta all'export e non a
+  `pull-bundle`: il dato c'era, non lo leggeva nessuno.
+
+### 26.5 Quattro letture su un'icona sola, e la cascata è il «consolidare o ripensarci»
+
+L'istruzione dell'operatore che ha deciso la taratura: «se lo scopo è individuare calciatori come Palestra
+allora dobbiamo tarare i limiti in modo che Palestra sarebbe rientrato l'anno scorso». **Non è allargare
+un criterio perché una regola ci è caduta**: quella regola riguarda l'ADOZIONE di una regola, e qui è la
+POPOLAZIONE bersaglio a essere ridichiarata — il che impone di rimisurare, non di allentare.
+
+| `desc_riser_watch` | quando | cosa legge | n/stag | precisione | base | lift |
+|---|---|---|---|---|---|---|
+| `preseason` | agosto | 2 delle ultime 3 giornate scorse **+ valore raddoppiato** | 41 | 48,8% | 29,8% | **1,64×** (6/6) |
+| `rising` | dalla 2ª | ha cominciato l'**ultima** con 60′+ **+ valore raddoppiato** | +11 | 59,3% | 33,4% | **1,78×** |
+| `early` | 2-3 giornate | la regola piena su finestra corta | — | — | — | 1,86-2,09× |
+| `yes` | 4+ giornate | 80% di titolarità, 65′ di media | 86 | 72,2% | 31,9% | **2,26×** |
+
+**Perché Palestra sfuggiva a tutte**, contato invece che dedotto: non convocato alla 1ª, titolare alla 2ª
+(83′), **panchina alla 3ª** (35′), titolare da lì in poi. La media della finestra legge 41,5′ a due
+giornate e 59,6′ a cinque, sotto il pavimento di 65 in tutti e due i casi — la regola piena lo raggiunge
+solo alla **6ª**. È il «lento» che il commento dello screen dichiarava già come suo buco noto (Douvikas),
+incontrato una seconda volta.
+
+**IL PAVIMENTO DELLA FASCIA È STATO TOLTO, E NON ERA UNA CONCESSIONE.** Il bordo basso (30° percentile,
+«sotto è un riempitivo le cui quattro buone partite sono una coppa») era DICHIARATO e mai passato al
+setaccio. Al setaccio costa precisione zero e **compra lift**, perché sotto il 30° diventare titolare è
+più raro e la stessa precisione sta contro una base più bassa: 30 → 392 segnalati, 73,0%, base 37,9%,
+**1,93×** · 20 → 409, 73,1%, 36,2%, 2,02× · **0 → 428, 72,2%, 31,9%, 2,26×**. Monotono su tutto lo sweep,
+quindi è una tendenza e non una cella, e non allaga niente: **+7 uomini a stagione**.
+
+**LA CONTROPROVA CHE TIENE IN PIEDI IL TERMINE DI MERCATO**: da solo il valore raddoppiato vale **1,22×**.
+Il lavoro lo fa «come ha finito» / «ha cominciato l'ultima», e i due non contano lo stesso fatto. Il
+filtro non è pescato lì per lì — era stato misurato lo stesso giorno, indipendentemente, a 1,85× dentro
+la cella «una titolarità su due» — e due letture che non avevano ragione di concordare concordano.
+
+**Il prezzo dell'istruzione è detto**: la cella stretta della pre-stagione (4 delle ultime 5 + rivalutato)
+legge **1,86× su 30 uomini** e NON raggiunge Palestra; quella adottata 1,64× su 41. E la stabilità per
+stagione del `rising` è 4 su 5 a due giornate (una a **0,87×** su 10 uomini) e 5 su 5 a tre, su campioni
+di 6-19: la stagione negativa è 3 successi su 10 e sta dentro il rumore di un campione così.
+
+**IL MARCHIO LAMPEGGIA, ed è una scelta**: `rising` parla dell'ULTIMA giornata, quindi un uomo messo in
+panchina la settimana dopo lo perde e lo riprende quando ricomincia — che è quello che la frase dice. La
+variante che non lampeggia («una delle ultime due») lo prende a ogni finestra e diluisce la lettura a
+1,42-1,54×, cioè paga un quinto del lift per evitare un'icona che dice la verità.
+
+### 26.6 Verificato chiamando la funzione, sull'agosto vero
+
+Non sulla colonna che le somiglia. `starter_signs` con la finestra del **15/08/2025** accende **56 uomini
+su 663 quotati (8,4%)** e Palestra è dentro. Segnati contro la stagione vera: **39,3% ha poi iniziato metà
+campionato contro il 26,2% della fascia — 1,50×**, con in cima Da Cunha 248,5 · Esposito Se. 248,5 ·
+Pellegrino M. 238,5 · **Palestra 238,0** · Castro S. 235 · Adopo 222,5 · Atta 222 · Frendrup 218 ·
+Delprato 216 · Idzes 208,5.
+
+### 26.7 Le AMICHEVOLI: misurata la copertura prima di costruire, e la risposta è «non ancora»
+
+Richiesta dell'operatore: «anche se hanno meno validità, teniamo conto anche delle partite amichevoli
+prestagionali». `club-friendly-games` copre **20 club di Serie A su 20 solo per il 2026-27**; per le due
+stagioni precedenti sono **2 e 4**, perché quel livello è stato acquisito quest'estate. Quindi **nessuno
+screen che le legga è verificabile su una stagione passata**, e un marchio senza verdetto dietro è la cosa
+che qui non si spedisce. Viaggiano nella FRASE (`desc_preseason_starts` / `desc_preseason_matches`, già
+sul foglio): «in pre-campionato ha cominciato 3 amichevoli su 6 in archivio — un'informazione in più, non
+una prova». **La misura è pre-registrata per l'estate 2027**, quando esisterà una seconda stagione
+coperta. Nota tecnica: le righe delle amichevoli portano `started` ma quasi mai i `minutes`, quindi una
+regola sui minuti lì non funzionerebbe.
+
+E un errore di misura mio, corretto: il primo conteggio di copertura univa i club **per nome** e leggeva
+2 su 20 — il difetto che questo repository ha già pagato quattro volte («un'entità si unisce per chiave
+canonica, mai per la stringa che una fonte usa per chiamarla»); con `club_index` sono i numeri qui sopra.
+
+### 26.8 Quello che resta, e i debiti
+
+- **Codice**: `desc_riser_watch` ∈ {`preseason`, `rising`, `early`, `yes`} — quattro parole per quattro
+  letture, e un bundle più vecchio porta un «yes» nudo che vuol dire la lettura PIENA (degradarlo sarebbe
+  l'errore opposto). Un lettore solo (`ValuationStore` invece di `AuctionAdvice`), `PlayerStatus.risers`,
+  e il marchio ora si disegna ovunque `ui-flags` sia disegnato ed è filtrabile in tabella.
+- **Nessuna colonna e nessun numero a schermo**: l'operatore ha chiesto «solo un'icona vicino al
+  calciatore», e la frase sta nel tooltip.
+- **Debito**: la metà toolkit (`RISER_*`, il quarto regime, `SHEET_REVISION`) resta **non committata**
+  perché `snapshot.py` porta anche il lavoro in corso dell'altra sessione — tre hunk su diciotto sono
+  misti, e nel frattempo `SHEET_REVISION` è passata a 45 per mano loro. Va in fondo con il loro commit.
+  La voce di spec («Novità v9.73») è dovuta e non scritta per la stessa ragione:
+  `spec-euroleghe-ingest-v9.md` è aperto da loro.
+- **Aperto**: il marchio non compare finché non girano `snapshot` + `export` — il DB è dell'altra
+  sessione.

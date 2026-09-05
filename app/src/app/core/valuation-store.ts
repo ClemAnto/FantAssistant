@@ -5,6 +5,7 @@ import { BoardsFile, Bundle, EngineSheetEntry, columnIndex, optionalIndex } from
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
 import { ClubOption, GlobalOptions } from './global-options';
 import { cupMark, windowFromNote } from './player-cup';
+import { starterSignsFromSheet, starterSignsMark } from './player-place';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { PlayerMark, PlayerStatus } from './player-status';
@@ -349,6 +350,19 @@ export interface EngineExpectation {
    */
   cup: string | null;
   cupCountry: string | null;
+  /**
+   * CHI E' DATO PER RISERVA E GIOCA DA TITOLARE (`desc_riser_*`), misurato dal toolkit e mai
+   * ricalcolato qui. `riserWatch` porta due parole e non un booleano - `early` la finestra corta,
+   * `yes` quella piena - perche' il foglio scrive parole, e un `Boolean(...)` su una colonna che
+   * sembra un flag e' un errore che questo progetto ha gia' pagato una volta.
+   */
+  riserWatch: string | null;
+  riserMinutes: number | null;
+  riserStarts: number | null;
+  riserWindow: number | null;
+  riserKeeper: boolean;
+  preseasonStarts: number | null;
+  preseasonMatches: number | null;
   cupCapped: boolean;
   cupRounds: number | null;
   pvCup: number | null;
@@ -439,6 +453,35 @@ export class ValuationStore {
         country: engine.cupCountry,
         capped: engine.cupCapped,
       });
+      if (mark) out.set(fcId, mark);
+    }
+    return out;
+  });
+
+  /**
+   * ...e il marchio di chi sta prendendosi la maglia, dalla stessa fonte e con la stessa disciplina.
+   *
+   * Il PRIMO foglio che lo dichiara basta, come per le coppe: la finestra e' quella del CLUB, quindi
+   * i due listoni leggono le stesse partite e la frase non dipende dalla piattaforma. Una lettura
+   * senza `riserWatch` non e' un uomo senza segnali: e' un foglio che non porta la colonna - prima
+   * della revisione 43 nessuno la scriveva sotto le quattro giornate - e allora non si disegna niente
+   * invece di ripiegare su un'altra colonna in silenzio.
+   */
+  private readonly riserMarks = computed<Map<number, PlayerMark>>(() => {
+    const out = new Map<number, PlayerMark>();
+    for (const [key, engine] of this.expected()) {
+      if (!engine.riserWatch) continue;
+      const fcId = Number(key.split('|')[1]);
+      if (out.has(fcId)) continue;
+      // Le due parole del foglio le traduce `player-place`, che possiede il vocabolario del marchio.
+      const mark = starterSignsMark(starterSignsFromSheet(engine.riserWatch, {
+        minutes: engine.riserMinutes,
+        starts: engine.riserStarts,
+        window: engine.riserWindow,
+        keeper: engine.riserKeeper,
+        friendlyStarts: engine.preseasonStarts,
+        friendlyMatches: engine.preseasonMatches,
+      }));
       if (mark) out.set(fcId, mark);
     }
     return out;
@@ -743,6 +786,7 @@ export class ValuationStore {
     // uomo che il foglio non segna (una nazionale non qualificata, un'eccezione dichiarata, un calendario
     // che non copre quella lega) - il difetto «una lista mostrata i cui numeri descrivono un'altra lista».
     effect(() => this.marks.cups.set(this.cupMarks()));
+    effect(() => this.marks.risers.set(this.riserMarks()));
     /*
      * LE QUATTRO LETTURE, e si chiedono da QUI e da nessun altro posto.
      *
@@ -1087,6 +1131,11 @@ export class ValuationStore {
         basis: at('est_basis'), note: at('est_note'),
         // La coppa continentale in mezzo al campionato, revisione 23+: assenti prima, e allora la
         // colonna è muta invece di dire «nessuno parte».
+        riserWatch: at('desc_riser_watch'), riserMinutes: at('desc_riser_minutes'),
+        riserStarts: at('desc_riser_starts'), riserWindow: at('desc_riser_window'),
+        riserKeeper: at('desc_riser_keeper'),
+        // Le amichevoli: reporting dentro la frase della lettura pre-stagione, mai un grilletto.
+        preseasonStarts: at('desc_preseason_starts'), preseasonMatches: at('desc_preseason_matches'),
         cup: at('desc_cup'), cupCountry: at('desc_cup_country'),
         cupCapped: at('desc_cup_capped'), cupRounds: at('desc_cup_rounds'),
         pvCup: at('desc_pv_cup'), valueCup: at('desc_value_cup'),
@@ -1142,6 +1191,19 @@ export class ValuationStore {
             columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
           basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),
           note: columns.note < 0 ? null : ((row[columns.note] as string) ?? null),
+          riserWatch:
+            columns.riserWatch < 0 ? null : ((row[columns.riserWatch] as string) ?? null),
+          riserMinutes: columns.riserMinutes < 0
+            ? null : ((row[columns.riserMinutes] as number | null) ?? null),
+          riserStarts: columns.riserStarts < 0
+            ? null : ((row[columns.riserStarts] as number | null) ?? null),
+          riserWindow: columns.riserWindow < 0
+            ? null : ((row[columns.riserWindow] as number | null) ?? null),
+          riserKeeper: columns.riserKeeper >= 0 && row[columns.riserKeeper] === 'yes',
+          preseasonStarts: columns.preseasonStarts < 0
+            ? null : ((row[columns.preseasonStarts] as number | null) ?? null),
+          preseasonMatches: columns.preseasonMatches < 0
+            ? null : ((row[columns.preseasonMatches] as number | null) ?? null),
           cup: columns.cup < 0 ? null : ((row[columns.cup] as string) ?? null),
           cupCountry:
             columns.cupCountry < 0 ? null : ((row[columns.cupCountry] as string) ?? null),

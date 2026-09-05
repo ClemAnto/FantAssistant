@@ -81,6 +81,47 @@ export interface StarterSigns {
   starts: number | null;
   window: number | null;
   keeper: boolean;
+  /**
+   * ...e la QUARTA, che parla PRIMA che si giochi una giornata: come ha finito la stagione scorsa.
+   *
+   * Le altre tre leggono la stagione che si sta giocando, quindi ad agosto tacciono tutte - e agosto
+   * e' quando si compra. Misurata su sei stagioni: 48,8% contro una base del 29,8% (1,64x) su 41
+   * uomini a stagione, 6 su 6. E' la piu' DEBOLE delle quattro e la piu' precoce, e la cascata la
+   * sostituisce da se' appena ci sono giornate vere - che e' il «consolidare o ripensarci» richiesto.
+   *
+   * LE AMICHEVOLI NON LA FANNO SCATTARE, per una ragione di copertura e non di merito: sono in
+   * archivio per 20 club su 20 solo da questa stagione (2 e 4 nelle due precedenti), quindi nessuno
+   * screen che le legga puo' essere verificato all'indietro. Viaggiano nella FRASE, dove informano
+   * senza decidere.
+   */
+  preseason: boolean;
+  /** Quante amichevoli ha cominciato su quante ne abbiamo in archivio: reporting, mai un grilletto. */
+  friendlyStarts?: number | null;
+  friendlyMatches?: number | null;
+  /**
+   * ...e la TERZA lettura: ha appena preso una maglia, e il mercato se n'e' accorto.
+   *
+   * Nasce dall'istruzione dell'operatore del 05/09/2026 - «se lo scopo e' individuare calciatori come
+   * Palestra allora dobbiamo tarare i limiti in modo che Palestra sarebbe rientrato l'anno scorso» - e
+   * quello che ha ridichiarato e' la POPOLAZIONE, non un criterio allargato perche' una regola ci era
+   * caduta: uno screen si rimisura sulla popolazione nuova, e questo l'ha fatto. Vale 1,78x contro il
+   * 2,26x della lettura piena, su 11 uomini a stagione.
+   *
+   * Guarda l'ULTIMA giornata e non la media della finestra, perche' la media e' proprio la statistica
+   * che nasconde chi ha appena cominciato a giocare: Palestra 2025-26 legge 41,5 minuti di media su
+   * due giornate, e la regola piena lo raggiunge solo alla sesta.
+   */
+  rising: boolean;
+  /**
+   * La finestra CORTA, due o tre giornate, dove il marchio prima taceva del tutto.
+   *
+   * `RISER_FROM` = 4 lasciava senza nessuna segnalazione le giornate 1-3, cioè la finestra in cui si
+   * fa l'asta iniziale e il primo mercato di riparazione: il buco è stato trovato cercando perché la
+   * colonna fosse vuota su tutte e 602 le righe del foglio del 05/09/2026, e la risposta era «per
+   * costruzione», che è il posto peggiore in cui un buco possa nascondersi. La famiglia rotazione
+   * aveva già chiuso lo stesso buco col suo `early`; questo è lo specchio.
+   */
+  early: boolean;
 }
 
 export interface PlaceChange {
@@ -166,10 +207,84 @@ export function rotationMark(watch: RotationWatch | null | undefined): PlayerMar
   };
 }
 
+/**
+ * Le due parole che il foglio scrive in `desc_riser_watch`, lette in un posto solo.
+ *
+ * `early` e' la finestra corta e `yes` quella piena - le stesse due parole della colonna di rotazione,
+ * cosi' chi conosce l'una conosce l'altra. Un bundle scritto prima della revisione 43 porta un «yes»
+ * nudo, e quello vuol dire la lettura PIENA: leggerlo come `early` degraderebbe in silenzio una frase
+ * che era forte, che e' l'errore opposto e piu' insidioso di quello che il regime nuovo cura.
+ */
+export function starterSignsFromSheet(
+  watch: string | null,
+  fields: Omit<StarterSigns, 'early' | 'rising' | 'preseason'>,
+): StarterSigns | null {
+  if (!watch) return null;
+  return {
+    ...fields,
+    early: watch === 'early',
+    rising: watch === 'rising',
+    preseason: watch === 'preseason',
+  };
+}
+
 /** «Dato per riserva, gioca da titolare»: lo specchio, con la sua misura (più debole) addosso. */
 export function starterSignsMark(signs: StarterSigns | null | undefined): PlayerMark | null {
   if (!signs || signs.minutes == null) return null;
   const rounds = signs.window ?? 5;
+  // LA PRE-STAGIONE VIENE PER PRIMA perche' e' l'unica che parla quando le altre non hanno dati: se
+  // il foglio la dichiara, giornate vere non ce ne sono e nessuna delle altre tre puo' essere vera.
+  if (signs.preseason) {
+    const friendly =
+      signs.friendlyMatches
+        ? ` In pre-campionato ha cominciato ${signs.friendlyStarts ?? 0} amichevoli su `
+          + `${signs.friendlyMatches} in archivio — un'informazione in piu', non una prova: le `
+          + `amichevoli sono coperte solo da questa stagione, quindi nessuno screen che le legga e' `
+          + `verificabile all'indietro.`
+        : '';
+    return {
+      flag: 'starter_signs',
+      note:
+        `Non si e' ancora giocata una giornata. Quotato basso nel suo ruolo, ha COMINCIATO ` +
+        `${signs.starts ?? 0} delle ultime ${rounds} giornate della stagione scorsa e il suo valore ` +
+        `di mercato e' almeno raddoppiato in 24 mesi. Misurato su 6 stagioni: il 48,8% di questi parte ` +
+        `titolare in almeno meta' della stagione che si sta comprando, contro il 29,8% della sua ` +
+        `fascia (1,64x), su 41 uomini a stagione e 6 stagioni su 6. E' la piu' DEBOLE delle quattro ` +
+        `letture e la piu' precoce: si consolida o cade appena si gioca.${friendly}`,
+    };
+  }
+  // LA TERZA LETTURA VIENE PRIMA DELLE ALTRE DUE perche' e' un'altra DOMANDA e non una versione piu'
+  // permissiva della stessa: non «gioca da titolare» ma «ha appena preso una maglia, e il mercato se
+  // n'e' accorto». Dice l'ultima giornata invece della media, che e' la statistica che nasconderebbe
+  // esattamente l'uomo per cui questa lettura esiste.
+  if (signs.rising) {
+    return {
+      flag: 'starter_signs',
+      note:
+        `Quotato basso nel suo ruolo, ma ha COMINCIATO l'ultima giornata del suo club e il suo valore ` +
+        `di mercato e' almeno raddoppiato in 24 mesi. Misurato su 5 stagioni del listone Serie A, come ` +
+        `RESIDUO di chi la lettura piena non prende gia': il 59,3% di questi parte titolare in almeno ` +
+        `meta' delle partite che restano, contro il 33,4% della sua fascia (1,78x), su 11 uomini a ` +
+        `stagione. E' il caso che la regola piena lascia indietro - chi la maglia l'ha presa da poco.`,
+    };
+  }
+  // LA FINESTRA CORTA PORTA I NUMERI DELLA FINESTRA CORTA, che è tutta la differenza fra le due frasi:
+  // niente è più permissivo (stessa fascia, stessi minuti, stessa quota - a due giornate vuol dire che
+  // le ha cominciate TUTT'E DUE), ma quello che la lettura vale lì è 1,49x contro 1,63x, quindi dice
+  // «guardalo» e non «è il titolare». Una frase debole che cita la precisione di quella forte è la
+  // stessa famiglia del marchio di rotazione anticipato, che avrebbe segnalato Donnarumma a 0 minuti.
+  if (signs.early) {
+    return {
+      flag: 'starter_signs',
+      note:
+        `Quotato da riserva nel suo ruolo, ma le ${rounds} giornate giocate finora le ha cominciate ` +
+        `${signs.starts ?? 0} da titolare, con una media di ${signs.minutes.toFixed(0)} minuti — su ` +
+        `una finestra CORTA. Misurato su 4 stagioni del listone Serie A: dopo DUE giornate il 76,5% ` +
+        `di chi si legge così parte titolare in almeno metà delle partite che restano, contro il ` +
+        `51,3% della sua fascia (1,49x), dove alla quarta è 1,63x. Vuol dire «guardalo», non «è il ` +
+        `titolare».`,
+    };
+  }
   const evidence = signs.keeper
     ? "Misurato su 4 stagioni: per un PORTIERE è la lettura più forte di questo screen — l'81,9% di "
       + 'chi si legge così parte titolare in almeno metà delle partite che restano, contro il 22,3% '

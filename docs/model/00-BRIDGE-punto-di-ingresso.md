@@ -1,5 +1,31 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 settembre 2026 — DUE PARTITE NON SONO UNA STAGIONE, E L'ASSICURAZIONE STA NELL'APP.
+**Aggiornato: 5 settembre 2026 (sera) — UNA PROMESSA SI RICONOSCE DALLA MAGLIA, NON DAL PREZZO.
+Da tre domande dell'operatore su Palestra («era già considerato un top?» · «c'è una metrica che lo
+distingueva?» · «non riusciamo a pronosticare chi con basso FVM può esplodere?») e da una sua istruzione
+che ha deciso la taratura. (a) NESSUNO lo considerava un top: Qt.I 3 = **145° difensore su 232**, il
+motore non lo prezzava affatto («only 7 votes of 15») e il ripiego dava `est_pv` **16,5 su 38** col
+gradino `riserva`; finisce 4° per fantapunti (238) e 2° per FVM. (b) I SEGNALI PRE-ASTA ESISTONO E SONO
+TROPPO DEBOLI: su 6 stagioni e 636 uomini, valore di mercato 1,44×, rating nel campione sottile 1,67×,
+`avg_x` 2,67× ma su **2 casi di 9**, e l'ESSERE GIOVANE va al contrario (**0,25×**); lo screen che unisce
+valore ed età legge 1 esploso su 30 contro una base del 4,9%. La stampa lo aveva nominato ma sempre come
+«scommessa low-cost da 1-5 crediti», e nei «7 difensori low cost» del 03/09 non c'è. (c) IL SEGNALE FORTE
+NON È PRE-ASTA, SONO LE GIORNATE GIÀ GIOCATE: cheap + titolare in tutt'e due le prime = **19,3% contro
+3,5% (5,46×)**, 6 stagioni su 6, e non è l'effetto delle promosse (19,8% contro 19,0%). (d) IL MARCHIO
+ESISTEVA — `starter_signs`, misurato il 14/08 — e aveva DUE buchi: taceva prima della 4ª giornata (zero
+righe su 602, per costruzione, cioè proprio nella finestra in cui si compra) e si disegnava SOLO in
+`/auction`. Ora sono QUATTRO letture su un'icona sola, `desc_riser_watch` ∈ {`preseason` 1,64× ·
+`rising` 1,78× · `early` 1,86-2,09× · `yes` 2,26×}, e la cascata è il «consolidare o ripensarci»
+richiesto. (e) IL PAVIMENTO DELLA FASCIA È STATO TOLTO E NON ERA UNA CONCESSIONE: allo sweep costa
+precisione zero e COMPRA lift (30 → 1,93× · 0 → **2,26×**, monotono, +7 uomini a stagione), perché sotto
+il 30° percentile diventare titolare è più raro. (f) L'ISTRUZIONE «tarare i limiti perché Palestra
+rientri» NON è allargare un criterio caduto — quella regola riguarda l'adozione di una REGOLA, qui è la
+POPOLAZIONE a essere ridichiarata, e impone di rimisurare: prezzo detto, 1,64× con lui contro 1,86%
+senza. Verificato CHIAMANDO la funzione sull'agosto 2025: **56 marchi su 663**, Palestra dentro, e quella
+lista rende **39,3% contro 26,2% (1,50×)**. (g) LE AMICHEVOLI NON SONO UN GRILLETTO, per copertura e non
+per merito: 20 club su 20 solo per il 2026-27 contro **2 e 4** nelle due stagioni prima, quindi nessuna
+verifica all'indietro è possibile — viaggiano nella FRASE e la misura è pre-registrata per l'estate 2027.
+703 test app + 683 toolkit. Dettaglio: `letture-app-v1.md` §26.
+· precedente: 5 settembre 2026 — DUE PARTITE NON SONO UNA STAGIONE, E L'ASSICURAZIONE STA NELL'APP.
 Da cinque osservazioni dell'operatore su nomi concreti, e l'audit che ne e' nato e' il risultato: **313
 righe su 358** avevano il gradino di titolarita' in disaccordo col proprio Pa (le `bandiera` promettono
 >90% delle partite e la loro mediana leggeva 0,58, i `riserva` 0,50). Causa: TRE quantita' sulla stessa

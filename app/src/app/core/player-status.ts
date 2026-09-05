@@ -137,6 +137,12 @@ export const CONSULTABLE_FLAGS: PlayerFlag[] = [
   // marchio lo registra `ValuationStore`, che ogni lista carica, non il pannello d'asta - quindi il filtro
   // «fammi vedere chi parte a gennaio» trova davvero qualcuno invece di essere una funzione vuota.
   'intl_cup',
+  // ...e da oggi anche «dato per riserva, gioca da titolare», per la STESSA ragione e non per
+  // simmetria: dal 05/09/2026 lo registra `ValuationStore` invece del pannello d'asta, quindi il
+  // filtro trova qualcuno. Gli altri due della sua famiglia - i marchi di rotazione - restano fuori
+  // perché li registra ancora il pannello: offrire un filtro che non trova mai niente è una bugia
+  // con l'aria di una funzione, e la regola vale in tutt'e due i versi.
+  'starter_signs',
   'mystery',
   'fragile',
   'yellows',
@@ -755,6 +761,20 @@ export class PlayerStatus {
   readonly places = signal<Map<number, PlayerMark>>(new Map());
 
   /**
+   * CHI E' DATO PER RISERVA E STA GIOCANDO DA TITOLARE, e sta QUI e non insieme ai due sopra per una
+   * ragione che si vede a schermo: lo registra `ValuationStore`, che OGNI lista carica, invece del
+   * pannello d'asta, che carica solo `/auction`.
+   *
+   * Il marchio esisteva ed era misurato dal 14/08/2026, e in plancia e in Strategia non e' mai
+   * comparso - le due pagine in cui l'operatore legge i nomi oggi. Un marchio che si disegna in una
+   * vista sola e' indistinguibile da un marchio che non esiste, ed e' la stessa famiglia della
+   * cartella aggiunta all'export e non a `pull-bundle`: il dato c'era, non lo leggeva nessuno.
+   *
+   * Un lettore solo, come per le coppe: due letture di `desc_riser_*` darebbero a un uomo due frasi.
+   */
+  readonly risers = signal<Map<number, PlayerMark>>(new Map());
+
+  /**
    * ...e chi una COPPA CONTINENTALE porta via in mezzo al campionato.
    *
    * Registrato da fuori come i precedenti, e dalla stessa fonte: il FOGLIO. Chi va a un torneo è una
@@ -858,6 +878,10 @@ export class PlayerStatus {
     // projection and is outranked by a state of now.
     const place = this.places().get(playerId);
     if (place) marks.push(place);
+    // ...e lo specchio, che non puo' collidere col precedente: un uomo non sta nella fascia riserve e
+    // in quella dei titolari insieme, e i due screen leggono finestre opposte.
+    const riser = this.risers().get(playerId);
+    if (riser) marks.push(riser);
     // The screen goes LAST: an availability fact outranks a projection about form, and the order the
     // marks are pushed in is the order they are drawn.
     const screen = this.screens().get(playerId);
