@@ -5299,7 +5299,149 @@ cioè le due metà si fondono.
    i LETTORI restano tolleranti (chi digita `6,5` in un filtro è capito). La guardia è a schermo — due
    banchi contano le celle con una virgola fra due cifre — perché una regola sul separatore si rompe alla
    prossima `.replace()` e deve fallire dove si vede.
-2. **`backtest --verify` resta dovuto** dalla v9.72 (eredità della sessione precedente): niente di questa
-   sessione tocca `evaluate`, quindi il 22/22 dovrebbe reggere, ma va rieseguito da chi possiede il DB.
+2. ~~**`backtest --verify` resta dovuto** dalla v9.72 (eredità della sessione precedente)~~ — **CHIUSO
+   la notte stessa: 22/22**, girato dalla sessione della pagina `/why` (che tocca `evaluate` aggiungendo
+   `explain_window` e non muove una riga di calcolo). Vedi la chiusura successiva.
 3. La misura sulle finestre di xG **non è una regola**: nessun gate la possiede. Chi volesse farne un
    canale previsionale passa dal gate come qualunque altro.
+
+# Chiusura 5 settembre 2026 (notte) — PERCHÉ QUEL SURPLUS: una pagina che spiega un numero che non calcola
+
+Nata da una frase dell'operatore: «non sono ancora contento del surplus assegnato ad ogni calciatore, ci
+sono delle dinamiche che non mi convincono: preparami una nuova pagina dove inserisci la lista completa
+dei calciatori e per ogni calciatore mi espliciti i fattori che poi portano al valore di surplus/match ...
+devi esplicitare anche come calcoli i fattori». Poi altre quattro richieste in fila, ognuna delle quali ha
+allargato la stessa pagina. Documento pieno: `letture-app-v1.md` §30 (§30.1-§30.11), spec «Novità v9.76».
+
+## La decisione che regge tutto il resto: si LEGGE, non si ricalcola
+
+Rifare il conto nell'app avrebbe prodotto la spiegazione **di un altro numero** — due letture dello stesso
+foglio danno a un uomo due valutazioni — con l'aggravante che nessuno se ne accorgerebbe: una catena
+plausibile che finisce a 58 accanto a una colonna che dice 61,7 si legge come un arrotondamento. Quindi la
+scala che spiega le due colonne del motore la scrive il TOOLKIT, e la scrive **rieseguendo**:
+`evaluate.explain_window` chiama la stessa `predict_window` sui PREFISSI dell'insieme adottato, quindi
+l'ultimo gradino È la colonna `engine_*`, per costruzione. L'alternativa — strumentare i trenta rami di
+`_rule_fm`/`_rule_pv` — era una seconda descrizione dell'aritmetica dentro un file gatato, cioè la cosa
+che può divergere. *Quando serve raccontare come un numero è nato, il racconto più sicuro è farlo
+rinascere.*
+
+## Cosa è entrato (toolkit, `SHEET_REVISION` 44 → 45)
+
+- **`evaluate.explain_window`** + `Step`: per ogni uomo il valore delle due colonne dopo ogni regola
+  adottata. Nessuna riga di calcolo toccata: **`backtest --verify` 22/22** (che chiude anche l'aperto n. 2
+  della chiusura precedente, dovuto dalla v9.72).
+- **Dodici colonne `why_*`**, la SESTA classe di prefisso accanto a `engine_`, `desc_`, `actual_`, `est_`
+  e `pi_`: gli INGREDIENTI che il core legge (`why_fm_prev`, `why_mv_prev`, `why_pv_prev`,
+  `why_share_prev`, `why_matchdays_prev`, `why_fm_beta`, `why_club_change`, `why_minutes_share`,
+  `why_pv_seen`, `why_rounds_seen`) e le due SCALE (`why_fm_steps`, `why_pv_steps`, forma
+  `R0:20.7;R3:24.4;R20K10:26.3`). Reporting integrale, in `SHEET_COLUMNS` e in `SHEET_COLUMNS_OPTIONAL`
+  perché ogni pacchetto del viaggio nel tempo è stato scritto prima.
+- **`engine_role_slot` letto dall'app** (era già esportato): serve alla graduatoria dei pari ruolo, che
+  deve stare sulla stessa pool da cui viene lo zero che la riga sottrae.
+
+## Cosa è entrato (app): `/why`, e quattro giri di richieste
+
+1. **La pagina** (`views/why/`, `core/surplus-why.ts`): lista completa, e per riga FM attesa · ancora ·
+   rimpiazzo · **+/partita** · presenze · surplus · **+/giornata** · presenze e +/giornata **dell'app**
+   (dopo stop aperto e assicurazione) · su cosa sta in piedi. Aprendo una riga: la formula del core coi
+   suoi numeri, gli ingredienti, la scala regola per regola con lo scarto, il conto finale col **controllo
+   che torni**, e il riprezzo dell'app. In cima «Come si calcola», che è la metà della richiesta che dice
+   *come* si calcolano i fattori.
+2. **La rotta è `/why`** e non `/perche` (sua correzione: «"perché" è un termine italiano»). Le stringhe a
+   schermo restano italiane, che è la convenzione di `app/`.
+3. **Cercare, filtrare per squadra, ordinare**: ricerca tollerante su nome e squadra, tendina delle
+   squadre (chiave `fc_club_id`, col conteggio degli uomini), tutte e tredici le colonne ordinabili con la
+   freccia, «N righe · M nascoste» e «Mostra tutti».
+4. **Titolarità e ballottaggio**: la quarta scheda legge la BOARD del toolkit con la stessa `pitchOf` del
+   campetto Squadre — gradino coi due numeri che lo decidono, il posto («lo schiera come Td (4-5-1)» /
+   «si gioca il posto di Td»), il suo ruolo reale, i rivali **coi loro ruoli reali**, e il disaccordo fra
+   board e motore.
+5. **I falsificatori**, dopo la sua domanda «per capire se ci sono errori nei calcoli, serve vedere
+   qualche altro dato?»: la colonna **«Quest'anno»** (giocate/disputate e la fantamedia REALE), il
+   **campione** marcato in rosso dove la FM dell'anno scorso poggia sotto le 15 presenze, e la tabella
+   **«Fra i pari ruolo»** (±3 vicini, stesse colonne, col rango dentro la sua pool).
+
+## Le misure che hanno deciso, e una che va detta
+
+- Passando i tre fogli alle invarianti: **0 righe** con presenze oltre il calendario, **0** con FM fuori
+  banda, **0** prezzate senza ancora, **0** dove `pi_fm` si scosti più di 1,0 da `engine_fm_pred`, e **0
+  su 663** dove la catena non riproduca il surplus del foglio. L'aritmetica regge: quello che mancava non
+  erano altri pezzi della catena, erano FALSIFICATORI.
+- **`season_stats` nel pacchetto è indietro di una giornata**: lo scrive `stats:derive`, che
+  `update --daily` non rifà, e legge 1 giornata dove i voti ne portano 2 (256 righe su 354). La colonna
+  «Quest'anno» somma quindi i VOTI (`seasonTotals`), non l'aggregato. *Conseguenza fuori da questa pagina:
+  le pastiglie MV e FM della Strategia leggono l'aggregato, quindi mostrano una giornata in meno.*
+- **32 righe su Serie A e 122 su euro** hanno la FM dell'anno scorso costruita su meno di cinque presenze:
+  il core le rifiuta (prevede da 15 in su) e ora la pagina lo scrive accanto al numero.
+- **Su Serie A la scala della fantamedia è piatta su ogni riga** (le regole adottate là lavorano tutte
+  sulle presenze); su euro R18 la muove su 381 righe di 997. Non è un difetto ed è esattamente il genere
+  di dinamica che la richiesta chiedeva di rendere visibile.
+- Da NON leggere come anomalia: surplus e «Margine» hanno segno discorde su 393 righe di 600 — due zeri a
+  profondità diverse, non due risposte.
+
+## Dati rigenerati
+
+Tre fogli (`snapshot --league`), `export`, `data:pull`: il pacchetto dell'app è alla revisione **45** con
+le dodici colonne nuove. `backtest --verify` 22/22.
+
+## Verde
+
+696 test toolkit, 754 app (45 file), build pulito, **undici passi** del banco nuovo `e2e-why.mjs` più i
+dieci banchi esistenti. Il banco confronta ogni cifra col FOGLIO letto dallo stesso server, la carta del
+posto con `boards/<lega>.json`, e la colonna «Quest'anno» con le righe di `match_ratings`.
+
+## Difetti dell'ARNESE trovati da una sonda, non da un'intuizione
+
+- Il box del **viaggio nel tempo** è `fixed` in basso a destra: col pannello del metodo aperto la riga
+  delle intestazioni ci finisce sotto e l'ultima colonna non si clicca. L'ha nominato `underAt`, che
+  stampa CHI sta sotto il punto, invece di farmelo indovinare.
+- `nz-select` scorre in modo **virtuale**: un club in fondo all'alfabeto non è nel DOM finché non lo si
+  cerca. *Un'opzione non renderizzata non è un'opzione che non c'è.*
+- **`element.querySelectorAll('a b')` non è ritagliato come sembra**: il selettore si valuta sul DOCUMENTO
+  e poi si tengono i discendenti, quindi la riga del `<thead>` della tabella dei vicini matcha `tbody tr`
+  (il suo antenato è il `<tbody>` della tabella grande). Con `Number('')` che fa **0**, quella riga entrava
+  in graduatoria con surplus zero. Si parte dall'elemento e si chiede `:scope > …`, e una cella vuota non
+  è uno zero.
+- E **due colonne collineari possono nascondere un controllo morto**: `Surplus` e `+/giornata` sono lo
+  stesso ordine, quindi un banco che asserisse solo «dopo il click è ordinata» leggerebbe verde anche se
+  il click non arrivasse. La prova che il gesto arriva è la FRECCIA.
+
+## La QUINTA istanza vista dall'altro lato — e una ATTRIBUZIONE da correggere
+
+La sessione della card ha scritto la sua metà (`8e2634c`, `60c2149`, `7bdcd7e`) e ha attribuito
+all'«altra sessione» tre cose: (a) la cura di `INSERT OR REPLACE` nel toolkit, (b) il refactor di
+`SEASON_READINGS`, (c) la pagina nuova. **Solo la (c) è mia.** Misurato col `git diff | grep` del
+vocabolario di ciascuna metà, file per file: i miei cinque file di toolkit (`engine/evaluate.py`,
+`modules/snapshot.py`, `modules/export.py` e i due test) portano solo `why_`, `explain_window`,
+`_steps_text`, e zero occorrenze di `ON CONFLICT`, `mv_synth`, `stale_days`, `observed_on`; i file di (a)
+e (b) — `cli.py`, `rebuild.py`, `recent_form.py`, `stats.py`, `test_recent_form.py`, `test_clean_sheets.py`,
+`test_smoke.py`, `core/strategy.ts`, `views/strategy/strategy.ts`, `core/strategy.spec.ts` — non portano
+una riga mia e non li ho aperti. Quindi nell'albero c'è una TERZA mano, o una metà loro che il verbale
+ricorda come altrui: la voce sopra resta e questa la corregge, che è la regola di casa su un'ipotesi
+smentita.
+
+**Il prezzo di quella confusione è zero, perché la separazione è pulita**: nessun file è misto, quindi
+questa sessione committa i suoi e nomina gli altri invece di portarli — la regola alla lettera, non il
+ripiego del 04/09 («si porta tutto e si dice di chi è cosa»), che serve solo quando separare produrrebbe
+un albero rosso. Verificato in un worktree su HEAD con dentro i soli file miei.
+
+Una cosa che la loro regola ha morso su di me: `coreFormula` scriveva la formula con la VIRGOLA accanto a
+celle che scrivono il punto, cioè la contraddizione che l'operatore aveva chiuso poche ore prima,
+reintrodotta dalla pagina nuova nel giro di un'ora. La guardia è ora anche sul terzo schermo, e la prova
+che morde è stata **rimettere il difetto**.
+
+## Aperti, in ordine di costo
+
+1. **Dieci file di un'altra mano restano non committati** (sette di toolkit — la cura di `INSERT OR
+   REPLACE` — e tre di app — il refactor di `SEASON_READINGS`): sono verdi sull'albero combinato, 696
+   test toolkit e 754 app girano con tutt'e due le metà dentro, e vanno committati da chi li ha scritti.
+   Chi li porterà si ricordi che la loro attribuzione è già sbagliata una volta in questo documento.
+2. **Le pastiglie MV e FM della Strategia leggono `season_stats`**, che è indietro di una giornata finché
+   non gira `stats:derive`. Due strade: farle passare da `seasonTotals` come la card e questa pagina, o
+   mettere la derivazione nel preset quotidiano. La prima è coerente con «una definizione, più lettori».
+3. **La colonna «Quest'anno» non ha uno SCARTO** (realizzato meno previsto): a due giornate sarebbe rumore
+   — il motore stesso pesa quelle giornate al 17% — ma da novembre in poi è il falsificatore migliore che
+   la pagina possa avere. Si riapre quando le giornate giocate sono dieci.
+4. **`engine_role_rank` non viaggia nel bundle** e la pagina conta il suo rango da sé, sulle 663 righe che
+   disegna invece delle 600 del foglio. Sono due popolazioni e la carta lo dice; se un giorno servisse il
+   rango del toolkit, va esportato e chiamato con un altro nome.

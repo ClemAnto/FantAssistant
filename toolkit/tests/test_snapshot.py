@@ -98,7 +98,15 @@ def test_columns_declare_which_half_is_gated():
     # regredendole verso quell'ancora con un `b` misurato. Differiscono su 129 righe del foglio mantra di
     # Serie A: sotto un prefisso solo sarebbero due risposte con un nome solo.
     projected = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("pi_")]
-    assert engine and desc and actual and estimated and projected
+    # `why_*` e' la SESTA classe, e non e' `desc_*` con un altro nome: `desc_*` descrive il CALCIO che un
+    # uomo ha giocato, questa descrive l'ARITMETICA che ha prodotto le due colonne gated - gli ingredienti
+    # che il core legge e la scala delle regole adottate che li ha portati al numero. Sotto `desc_` un
+    # gradino di regola si leggerebbe come una misura sul calciatore; sotto `engine_` come un numero che
+    # ha passato il gate. Reporting integrale: nessuna previsione la legge.
+    explained = [c for c in snapshot.PLAYER_COLUMNS if c.startswith("why_")]
+    assert engine and desc and actual and estimated and projected and explained
+    assert {"why_fm_steps", "why_pv_steps"} <= set(explained), (
+        "una scala che non si puo' leggere gradino per gradino non spiega niente")
     assert {"pi_fm", "pi_basis", "pi_matches"} <= set(projected), (
         "una proiezione che non dice da quale calcio viene, e su quante partite, non e' contestabile")
     assert {"est_surplus", "est_basis", "est_confidence", "est_note"} <= set(estimated), (
@@ -111,7 +119,7 @@ def test_columns_declare_which_half_is_gated():
     known = {"fc_id", "name", "club", "league", "role_classic", "roles_mantra", "price_initial",
              "price_initial_mantra", "fvm_reporting_only"}
     assert set(snapshot.PLAYER_COLUMNS) == (known | set(engine) | set(desc) | set(actual)
-                                            | set(estimated) | set(projected))
+                                            | set(estimated) | set(projected) | set(explained))
     # the price that may be read is the pre-auction one; the end-of-season value is labelled
     assert "price_initial" in known and "fvm_reporting_only" in known
 

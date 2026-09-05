@@ -1630,6 +1630,47 @@ def predict_window(data: features.WindowData, rules: tuple[str, ...],
             if prediction is not None]
 
 
+# ---------------------------------------------------------------- explaining one number
+
+
+@dataclass(frozen=True)
+class Step:
+    """One rung of the ladder that produced a prediction: the number AFTER that rule was added."""
+
+    key: str
+    fm: float | None
+    pv: float | None
+
+
+def explain_window(data: features.WindowData, rules: tuple[str, ...],
+                   share_coeffs: tuple[float, ...] | None = None,
+                   params: Params | None = None) -> dict[int, tuple[Step, ...]]:
+    """Per player, what each adopted rule did to his two numbers - by RE-RUNNING, never by re-deriving.
+
+    The operator asked to see the factors behind a surplus («mi espliciti i fattori che poi portano al
+    valore»), and there are two ways to answer. One is to instrument the prediction so every branch
+    records what it changed, which means editing thirty sites inside a gated file and owning a second
+    description of the arithmetic. The other is this: call `predict_window` on the PREFIXES of the
+    adopted set - R0, then R0+the first rule, and so on - and read the running numbers off the results.
+    The last prefix IS the adopted set, so the bottom rung equals the shipped prediction by
+    construction, and nothing here can drift away from what the engine says. A test asserts it anyway.
+
+    WHAT A ROW OF THIS TABLE MEANS, stated because it is easy to over-read: the contribution shown for a
+    rule is what it adds ON TOP OF THE ONES BEFORE IT, in the order `ADOPTED` declares. The rules are
+    not independent - `_rule_pv` picks ONE share-replacing branch by priority - so this is a path
+    decomposition and not an attribution of credit. Reading «R3 is worth +1.4 appearances» is right;
+    reading «R3 is worth more than R19 to this player» is not, because swapping their order can move
+    both numbers.
+    """
+    out: dict[int, list[Step]] = {}
+    for depth in range(1, len(rules) + 1):
+        prefix = rules[:depth]
+        for prediction in predict_window(data, prefix, share_coeffs, params):
+            out.setdefault(prediction.obs.fc_id, []).append(
+                Step(prefix[-1], prediction.fm_pred, prediction.pv_pred))
+    return {fc_id: tuple(steps) for fc_id, steps in out.items()}
+
+
 # ---------------------------------------------------------------- metrics
 
 

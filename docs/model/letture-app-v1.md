@@ -2743,3 +2743,284 @@ all'apertura e lo store del calcio giocato si chiede al primo click.
 La prova che vale davvero è quella nuova: **la pastiglia e la card dello stesso uomo, sullo stesso
 schermo, devono dire lo stesso numero**, e il passo lo verifica aprendo la card del primo uomo con gol
 E assist (così i due marchi del riepilogo sono tutt'e due disegnati e il conteggio non è ambiguo).
+
+## 30. PERCHÉ QUEL SURPLUS: una pagina che spiega un numero che non calcola (5 settembre 2026)
+
+Richiesta dell'operatore: «non sono ancora contento del surplus assegnato ad ogni calciatore, ci sono
+delle dinamiche che non mi convincono: preparami una nuova pagina dove inserisci la lista completa dei
+calciatori e per ogni calciatore mi espliciti i fattori che poi portano al valore di surplus/match ...
+devi esplicitare anche come calcoli i fattori (partite attese e fantamedia attesa, ecc)».
+
+La pagina è `/why` (`views/why/`, `core/surplus-why.ts`), il banco è `scripts/e2e-why.mjs`, e le
+dodici colonne che la alimentano sono `why_*` sul foglio (`SHEET_REVISION` 45).
+
+### 30.1 La decisione che decide tutto il resto: si LEGGE, non si ricalcola
+
+Ci sono due modi di rispondere a «spiegami questo numero» e uno solo è utile. Rifare il conto nell'app
+avrebbe prodotto una spiegazione **di un altro numero**: due letture dello stesso foglio finiscono per
+dare a un uomo due valutazioni, ed è il difetto che questo progetto paga da sempre (l'ha già pagato con
+i campetti, con i due lettori di `engine_fm_pred`, con le due definizioni di «è infortunato»).
+
+Quindi la scala che spiega le due colonne del motore la scrive il TOOLKIT, ed è la stessa
+`predict_window` chiamata sui PREFISSI dell'insieme adottato — `evaluate.explain_window`, nato in questa
+sessione. R0, poi R0+la prima regola, e così via: **l'ultimo gradino è la colonna `engine_*` accanto,
+per costruzione**, e un test lo asserisce invece di prometterlo. Nessuna riga di `evaluate` è stata
+toccata: `backtest --verify` legge **22/22** dopo la modifica come prima.
+
+L'alternativa scartata è più istruttiva della scelta: strumentare `_rule_fm` e `_rule_pv` perché ogni
+ramo registri quello che ha cambiato. Sono trenta punti di modifica dentro un file gatato, e soprattutto
+sarebbero stati una **seconda descrizione** dell'aritmetica — cioè la cosa che sarebbe potuta divergere.
+Rieseguire non può divergere.
+
+**Come si legge un gradino, detto sulla pagina.** Il contributo di una regola è quello che aggiunge alle
+PRECEDENTI, nell'ordine che `ADOPTED` dichiara. Le regole non sono indipendenti (`_rule_pv` sceglie UN
+ramo che sostituisce la quota, per priorità), quindi «R3 vale +3,7 presenze per lui» è giusto e «R3 conta
+più di R19» non lo è: scambiarle di posto muove tutt'e due. È una decomposizione di PERCORSO, e la pagina
+lo scrive.
+
+### 30.2 Cosa si vede, e i due numeri che sono la stessa quantità in due unità
+
+Una riga per calciatore, e per ognuna: FM attesa · ancora · rimpiazzo · **+/partita** · presenze ·
+surplus · **+/giornata** · presenze dell'app · +/giornata dell'app · su cosa sta in piedi (motore, stima
+con la sua confidenza, niente).
+
+I due «+» sono la cosa che la pagina esiste per mostrare. `+/partita` è `FM − rimpiazzo`, cioè quanto
+rende una partita che gioca DAVVERO; `+/giornata` è il surplus diviso le giornate che restano, cioè una
+divisione per una costante uguale per tutti — non riordina niente, e serve solo a leggere l'ordine di
+grandezza (la regola di casa «i risultati si riportano in punti A GIORNATA»). Un uomo può avere il primo
+alto e il secondo basso: rende tanto quando c'è, e c'è poco. **Su Malen il 05/09/2026 sono +2,31 e +1,71**,
+e la differenza è tutta nelle 26,7 presenze su 36 giornate.
+
+Aprendo una riga si vedono tre riquadri e sono le tre domande separate:
+
+- **la fantamedia attesa** — la formula del core coi SUOI numeri (`6.83 + 0.50 × (9.00 − 6.83) = 7.92`),
+  gli ingredienti misurati (FM dell'anno scorso, su quante presenze, voto base, ancora, beta) e la scala
+  delle regole. Per un PORTIERE la formula non si stampa: là il core parte dal voto base e sottrae i gol
+  attesi del club, e una formula sbagliata accanto al numero giusto è peggio di nessuna formula;
+- **le presenze attese** — la quota di stagione giocata col suo denominatore (`47% (18/38)`), i minuti sui
+  disponibili, il cambio squadra, le giornate già giocate quest'anno, e la scala;
+- **dal foglio alla lista** — la moltiplicazione finale, e poi il riprezzo dell'APP: meno lo stop aperto,
+  meno l'assicurazione, e il surplus con cui la Strategia e la Plancia ordinano davvero.
+
+### 30.3 Il controllo è parte della spiegazione, e sta in barra
+
+`(FM − rimpiazzo) × Pa × confidenza` deve riprodurre `engine_surplus`. La pagina lo rifà per ogni riga e
+la barra dichiara **quante non tornano** — zero è il numero che ci si aspetta, e vederlo scritto è quello
+che rende leggibile un uno. Dove una riga non torna, la riga lo dice e nomina il numero da credere (quello
+del foglio) invece di stampare una catena plausibile che finisce altrove. È «un audit che stampa il numero
+atteso accanto a quello vero senza confrontarli risponde *nessun problema* dopo aver guardato niente»,
+applicato a uno schermo.
+
+La tolleranza è **0,15** e non zero, per aritmetica e non per prudenza: il foglio arrotonda `fm` a tre
+decimali, `pv` a uno e `surplus` a uno, quindi rifare la moltiplicazione dai numeri arrotondati non può
+dare la stessa cifra. Un decimo e mezzo copre l'arrotondamento su un calendario intero e non copre un
+errore di modello.
+
+### 30.4 Un CONTEGGIO VERO sulla domanda sbagliata (e l'ha trovato il banco)
+
+La barra diceva «600 con la scala delle regole» e le scale sono **386**: contava le righe che hanno le
+COLONNE, e il foglio le porta per tutti e le riempie per chi il motore riesce a prevedere. Nessuno dei due
+numeri è falso; è la domanda a essere un'altra. Trovato perché il banco confronta la barra col FOGLIO e
+non con se stessa — è la stessa famiglia dell'area della favicon (§28): un totale vero che non risponde a
+quello che sembra rispondere.
+
+### 30.5 La popolazione è la più larga, e per una ragione opposta a quella delle altre pagine
+
+Le liste da comprare tagliano chi il listone non quota (la sua regola del 04/09 su Cheddira). Qui la
+domanda è diagnostica sul MOTORE, quindi la lista è l'unione — 663 righe contro le 600 del foglio su Serie
+A — e chi non è quotato porta il suo marchio, con un filtro che lo toglie in un click. Un uomo che il
+motore prezza deve poter essere letto anche se nessuno lo vende.
+
+### 30.6 E la prima cosa che la pagina fa vedere è che su Serie A la FM non si muove
+
+Sul foglio `default` la scala della fantamedia è **piatta su ogni riga**: le regole adottate là (R3, R7,
+R13, R19, R20K10, R23) lavorano tutte sulle presenze, e l'unica sul lato FM — R13 — parla solo di chi il
+core non prezza affatto. Su EuroLeghe no: R18 muove la FM su **381 righe di 997** (Kane 8,758 → 9,215).
+Non è un difetto ed è esattamente il genere di dinamica che la richiesta chiedeva di rendere visibile:
+su Serie A la fantamedia attesa di un uomo È la sua stagione scorsa regredita verso l'ancora, e tutto il
+resto del motore decide quante volte la incasserà.
+
+### 30.7 Il difetto che ho commesso io, mentre l'altra sessione scriveva la regola
+
+`coreFormula` scriveva la formula con la VIRGOLA (`6,83 + 0,50 × ...`) accanto a celle che scrivono il
+punto: cioè esattamente la contraddizione che l'operatore aveva chiuso poche ore prima («il divisore dei
+decimali deve essere sempre il punto»), reintrodotta dalla pagina nuova nel giro di un'ora. La guardia
+che l'ha resa impossibile da rimettere è la loro, portata sul terzo schermo: il banco conta le celle con
+una virgola fra due cifre — e la prova che l'asserzione morde è stata **rimettere il difetto**, non
+guardarla passare.
+
+### 30.8 Cercare, filtrare per squadra, ordinare per ogni colonna (5 settembre 2026)
+
+Richiesta dell'operatore, subito dopo la prima versione: «dammi la possibilità di cercare un calciatore o
+di filtrare per squadra e permettimi di ordinare per i vari valori». Tre controlli, e ognuno ha portato
+una regola.
+
+**LA SQUADRA È UNA CHIAVE, NON UN NOME.** Il filtro tiene `fc_club_id` e non la stringa, come ogni join
+di questo progetto — un nome non è una chiave, e questa è la stessa regola che una volta ha perso Milan,
+Roma e Napoli da un calendario. Le voci della tendina vengono dalle RIGHE DI QUESTA PAGINA e non dal
+catalogo globale: offrire una squadra che su questo listone non quota nessuno sarebbe una scelta che non
+fa niente. Ognuna porta **quanti uomini nasconde**, che è quello che rende consapevole il click, e la
+barra dice quante righe stanno sparendo con la crocetta per tornare indietro — la regola delle etichette
+dei filtri del 20/08, applicata qui.
+
+**LA RICERCA È QUELLA DI CASA** (`looseKey`, 05/09): cerca nel nome E nella squadra, tollera accenti e
+grafie, e non si salva sul disco — un filtro salvato che all'apertura nasconde metà lista è la cosa
+peggiore che questa pagina possa fare. L'ORDINE invece si ricorda, e la differenza è precisa: un ordine
+non nasconde niente, quindi ritrovarlo non può far leggere una lista per un'altra.
+
+**ORDINARE: undici colonne, e la regola che decide è sui VUOTI.** Un click ordina in discesa (per i due
+testi in salita, che è come si cerca un nome), il secondo gira il verso, e la freccia dice dove si sta
+ordinando. Quello che va scritto è il caso limite: **un vuoto va in fondo in tutt'e due i versi**, perché
+un ignoto non è un ultimo posto — senza quella regola, ordinare in salita metterebbe in cima le
+trecentosessantatré righe che il motore non prezza, cioè la lista direbbe l'opposto di quello che è.
+
+**E DUE COLONNE COLLINEARI POSSONO NASCONDERE UN CONTROLLO MORTO.** `Surplus` e `+/giornata` sono lo
+stesso ordine (una è l'altra divisa per una costante), quindi un banco che assertisse solo «dopo il click
+la colonna è ordinata» leggerebbe «tutto a posto» anche se il click non fosse mai arrivato: la lista era
+già così. La prova che il gesto arriva è la FRECCIA, che prima del click su quella colonna non c'è.
+È la famiglia di «righe identiche non sono un risultato», incontrata dal lato di un ordinamento.
+
+**IL DIFETTO CHE HA TROVATO LA SCHERMATA**, e nessun conteggio l'avrebbe visto: la formula del core
+(`5.97 + 0.50 × (5.00 − 5.97) = 5.49`) era disegnata anche per chi il motore **non prezza**, accanto a una
+riga che porta 5.91 — cioè una formula che non produce il numero che le sta accanto (Jimenez A., una
+presenza misurata, ripiego `shrunk` al 53%). Adesso lì c'è la ragione vera: «il motore non lo prezza, vale
+il ripiego dichiarato», con la sua nota. *Una formula sbagliata accanto al numero giusto è peggio che
+nessuna formula* — la stessa frase che teneva la formula lontana dai portieri, applicata alla seconda
+popolazione a cui non appartiene.
+
+Il banco (`e2e-why.mjs`) sale a otto passi: i tre nuovi guidano la tendina con un puntatore VERO,
+confrontano il conteggio dichiarato dalla voce con le righe disegnate, e riscrivono `looseKey` FUORI
+dall'app — serve davvero, perché cercando «Jimen» la pagina disegna anche **Gimenez** e ha ragione (`ii`
+si stringe in `i`, quindi la chiave è `imen`): un banco con un `includes` crudo avrebbe accusato la
+pagina di un difetto che è una feature.
+
+### 30.9 Titolarità e ballottaggio: il posto, i rivali, e i loro ruoli reali (5 settembre 2026)
+
+Richiesta dell'operatore: «dovremmo esplicitare anche la questione titolarità/ballottaggio mostrando
+eventuali rivali di ruolo e relativi ruoli reali». È la metà che mancava: le presenze attese sono un
+numero, ma quello che decide se un uomo gioca è **chi altro vuole la sua maglia**.
+
+**SI LEGGE LA BOARD, NON SE NE CALCOLA UNA.** L'undici tipo di un club vero è una previsione su una
+persona, quindi lo disegna il toolkit (`modules/boards.py`) e l'app lo legge — con la STESSA `pitchOf`
+che disegna il campetto delle Squadre, non con una seconda lettura dello stesso file. Due letture della
+stessa board darebbero a un uomo due ballottaggi, ed è la regola che tiene i campetti dove stanno.
+
+**LA MAPPA SI COSTRUISCE UNA VOLTA PER PAGINA e contiene TUTT'E DUE I LATI di un ballottaggio.** Seicento
+righe per venti club vorrebbe dire ridisegnare ogni undici seicento volte; e la domanda «perché è un
+ballottaggio» si fa da tutt'e due le parti, quindi ogni rivale riceve la stessa riga vista dalla sua —
+stesso posto, stesso titolare, gli altri contendenti meno se stesso.
+
+Cosa dice la carta, per un uomo qualunque:
+
+- **il GRADINO** (`desc_titolarita`) con i due numeri che lo decidono — la quota di partite disponibili in
+  cui prende il voto e i minuti quando gioca — dal vocabolario che già li possiede (`core/titolarita.ts`,
+  `titolaritaNote`): tre schermate che traducessero la stessa parola in tre modi finirebbero per non
+  essere d'accordo su una;
+- **il POSTO**: «lo schiera come Td (4-5-1)», oppure «non lo schiera: si gioca il posto di Td (4-3-1-2)»;
+- **il suo RUOLO REALE** (i codici granulari: `DR`, `MR`, `DC`…), che è la cosa che dice che un
+  ballottaggio è fra due terzini e non fra un'ala e un regista;
+- **CHI GLIELO CONTENDE**, ognuno col suo ruolo reale e la sua quota da titolare;
+- e dove **board e motore non sono d'accordo**, con quale dei due è l'ottimista — la tensione che
+  `presence.py` nomina di sé: «una board che non disegna nessuno dove il motore prevede qualcuno sono due
+  risposte a una domanda».
+
+**TRE VUOTI, TRE FRASI DIVERSE**, che è il punto di tutta la pagina: il foglio senza gradino (lo scrive la
+passata che disegna gli undici, quindi su una macchina senza display la colonna non esiste — vuoto, mai
+«riserva»); il ruolo reale ignoto, e allora i **ballottaggi sono ignoti e non assenti**; e la board che
+non lo nomina affatto, che si scrive per esteso invece di lasciare una carta vuota.
+
+In tabella la colonna **Gradino** porta la sigla di tre lettere e si ordina **sulla scala** e non
+sull'alfabeto (`titolaritaRank`, col segno girato perché «in discesa» voglia dire «i più titolari in
+cima» come su ogni altra colonna): ordinare per la sigla darebbe BAL, BAN, PAN, RIS, TIS, TIT.
+
+**E DUE DIFETTI DELL'ARNESE, tutt'e due trovati da una SONDA e non da un'intuizione.** Il banco leggeva
+«la colonna Presenze app non ordina», e la sonda che stampa **chi sta sotto il punto** (`underAt`) ha
+risposto: il box del *viaggio nel tempo*, che è `fixed` in basso a destra — col pannello del metodo aperto
+la riga delle intestazioni gli finisce sotto. Poi leggeva «la tendina non offre Roma» su una tendina che
+la offre: `nz-select` scorre in modo VIRTUALE, quindi un club in fondo all'alfabeto non è nel DOM finché
+non lo si cerca, ed è quello che fa una mano. *Un'opzione che non è renderizzata non è un'opzione che non
+c'è*, e un banco che non lo sa accusa il controllo del proprio difetto — la stessa famiglia di «il
+bottone è lì è un fatto sul DOM e non sullo schermo».
+
+Il passo nuovo confronta la carta con **`boards/<lega>.json`** e non con la pagina: se la board lo
+schiera, la carta deve nominare il suo posto; se è un ballottaggio, deve nominare chi il posto ce l'ha; se
+la board non lo nomina, deve dirlo. Verificato su tre uomini di tre situazioni diverse (schierato,
+contendente, e chi la board non disegna).
+
+### 30.10 Il falsificatore: quello che sta succedendo davvero, e il campione dietro un numero (5 settembre 2026)
+
+Domanda dell'operatore: «per capire se ci sono errori nei calcoli, c'è bisogno di vedere qualche altro
+dato?». La risposta è misurata prima di essere data: passando i tre fogli alle invarianti che di solito
+rompono un conto — **0 righe** con presenze oltre il calendario, **0** con FM fuori banda, **0** prezzate
+senza ancora, **0** dove `pi_fm` si scosti più di 1.0 da `engine_fm_pred` — l'aritmetica regge, e la
+pagina già esclude l'errore finale (0 righe su 663 dove la catena non riproduce il surplus del foglio).
+
+Quindi **non servono altri pezzi della catena: servono FALSIFICATORI**, cioè dati che possano contraddire
+il numero invece di raccontarlo. Ne sono entrati due.
+
+**1. QUELLO CHE STA SUCCEDENDO DAVVERO.** Colonna «Quest'anno» (`2/2 15.75`: giornate giocate delle
+disputate, e la fantamedia REALE) e, dentro la carta della fantamedia, la frase che mette i due numeri uno
+contro l'altro — «FM 15.75 su 2 giornate giocate, contro 7.92 previsti». È l'unica riga di quella carta
+che può smentire il resto, e per questo sta lì e non in fondo alla pagina.
+
+**E VIENE DAI VOTI, NON DALL'AGGREGATO DI STAGIONE**, che è la scoperta di questo giro: `season_stats`
+lo scrive `stats:derive`, che una corsa quotidiana **non rifà** (è dichiarato: la derivazione è fuori da
+`update --daily` perché rileggerebbe tabelle che la corsa quotidiana non tocca). Sul pacchetto del
+05/09/2026 legge **una** giornata dove `match_ratings` ne porta **due**: 256 righe su 354 in disaccordo,
+Malen 1 contro 2. Un falsificatore vecchio di una giornata è metà di quello che c'è, quindi la colonna
+somma i voti con la STESSA funzione che scrive il riepilogo della card (`seasonTotals`) — due aritmetiche
+sugli stessi voti darebbero a un uomo due stagioni. *Conseguenza che vale oltre questa pagina: le
+pastiglie MV e FM della Strategia leggono l'aggregato, quindi oggi mostrano una giornata in meno.*
+
+**2. IL CAMPIONE DIETRO UN NUMERO, MARCATO.** «FM misurata l'anno scorso 5.00» non vuol dire niente senza
+«su 1 presenza», e la riga adesso lo dice in rosso quando il campione è sotto la soglia con cui il motore
+lavora: **32 righe su Serie A e 122 su euro** hanno una fantamedia dell'anno scorso costruita su meno di
+cinque presenze. Il core le rifiuta correttamente (prevede da 15 in su) e la pagina lo scrive accanto al
+numero, invece di lasciar credere che sia una misura come le altre.
+
+**E una cosa da NON leggere come un'anomalia**, misurata mentre cercavo: surplus e «Margine» hanno segno
+discorde su **393 righe di 600** (816 di 997 su euro). Non è un difetto: sono due domande con due zeri a
+profondità diverse (§21 della metrica), e chiunque ordini per le due colonne insieme lo vedrà.
+
+Il banco cresce di un passo che è la stessa disciplina: conta le righe di `match_ratings` di quell'uomo e
+pretende che la colonna dica lo stesso numero — il falsificatore, verificato contro la sua fonte e non
+contro la pagina.
+
+### 30.11 Fra i pari ruolo: un errore si vede per confronto (5 settembre 2026)
+
+La terza delle tre cose proposte, e la ragione per cui vale: **un numero sbagliato quasi mai si legge in
+assoluto**. «7.92 di fantamedia» non dice niente da solo; «120° fra i 207 difensori di questa lista, con
+i tre sopra e i tre sotto» sì, e se il posto non ha senso il numero che ce lo ha portato è quello da
+guardare.
+
+Sotto le quattro schede compare la finestra dei **vicini** (±3, `PEERS_AROUND`), con le STESSE colonne
+della tabella grande — quest'anno, FM attesa, presenze, surplus, +/giornata — così il confronto è fra
+numeri della stessa specie, e la riga aperta è in grassetto in mezzo. Fa il suo lavoro alla prima
+apertura: Jimenez A. (25.2 presenze, FM 5.91) e Terzic (11.0 presenze, FM 6.14) hanno lo **stesso**
+surplus di 3.3-3.4, che è il baratto fra le due metà reso visibile.
+
+**LA POOL È LO SLOT, non il ruolo di listone** (`engine_role_slot`, esportato per questo): su un foglio
+mantra un'ala e una punta hanno due zeri diversi, quindi metterli in una graduatoria sola confronterebbe
+due sottrazioni fatte da altezze diverse. Sul foglio classic lo slot È il ruolo, quindi non cambia niente
+là — ed è il modo giusto di non doverci pensare.
+
+**E IL RANGO DICE DI CHI È**: «fra i 207 D di QUESTA LISTA», perché è contato sulle 663 righe che la
+pagina disegna (quotati e non) e non sulle 600 del foglio, dove il toolkit ha il suo `engine_role_rank`.
+Due ranghi sotto un nome solo sono il difetto che questo progetto paga da sempre; questo porta il suo.
+
+**Due difetti dell'ARNESE, e il secondo è una trappola del DOM che vale oltre questo banco.**
+
+- **Una tabella dentro un'altra fa misurare l'unione.** `document.querySelectorAll('table tbody tr')`
+  prendeva anche le righe dei vicini: il banco leggeva 671 righe su 663, «7 righe non sono di Fiorentina»
+  e «i vuoti non stanno in fondo» — tre accuse alla pagina per un difetto suo. Ogni lettore ritaglia ora
+  `:scope > tbody > tr` della PRIMA tabella, e lo fa per conto proprio, perché `evaluate` serializza una
+  funzione sola e un aiutante comune nella pagina non esisterebbe.
+- **`element.querySelectorAll('a b')` NON è ritagliato come sembra**: il selettore si valuta sul
+  DOCUMENTO e poi si tengono i discendenti dell'elemento, quindi dentro la tabella dei vicini la riga del
+  `<thead>` matcha `tbody tr` lo stesso — il suo antenato è il `<tbody>` della tabella grande, che sta
+  fuori dal box. Leggeva cinque righe su quattro, con una senza `<td>`; e `Number('')` che fa **0** la
+  faceva entrare in graduatoria con un surplus di zero, da cui «i vicini non sono in ordine». Due lezioni
+  in una riga: si parte dall'elemento e si chiede `:scope > …`, e **una cella vuota non è uno zero**.
+
+Trovate tutt'e due guardando il DOM invece di ragionarci sopra — il probe stampava `firstRowCells: [0, 6,
+6, 6, 6]`, e quello 0 era tutta la diagnosi.

@@ -124,6 +124,32 @@ def test_keeper_goes_through_the_decomposed_module(prepared):
     assert keeper.fm_pred == pytest.approx(expected)
 
 
+def test_the_ladder_ends_on_the_number_the_engine_ships(prepared):
+    """`explain_window` must reproduce `predict_window`, or the sheet explains a number nobody has.
+
+    This is the whole guarantee of the `why_*` columns: they are not a second description of the
+    arithmetic, they are the SAME `predict_window` called on the prefixes of the adopted set. If that
+    ever stops being true - a rule that reads which other rules are active, say - the last rung and the
+    shipped column drift apart, and the operator would be reading an explanation of a different player.
+    """
+    _cfg, _conn, _window, data = prepared
+    rules = ("R0", "R3", "R19")
+    params = evaluate.fit_params(data, ("R0", *evaluate.CANDIDATES))
+    shipped = {p.obs.fc_id: p for p in evaluate.predict_window(data, rules, None, params)}
+    ladder = evaluate.explain_window(data, rules, None, params)
+
+    assert ladder and set(ladder) == set(shipped)
+    for fc_id, steps in ladder.items():
+        # one rung per rule, in the order they are declared: the row can say WHICH rule moved him
+        assert [step.key for step in steps] == list(rules)
+        assert steps[-1].fm == shipped[fc_id].fm_pred
+        assert steps[-1].pv == shipped[fc_id].pv_pred
+    # ...and the first rung is the core alone, which is what makes the ladder readable as a difference
+    core = {p.obs.fc_id: p for p in evaluate.predict_window(data, ("R0",))}
+    for fc_id, steps in ladder.items():
+        assert steps[0].pv == core[fc_id].pv_pred
+
+
 def test_metrics_separate_coverage_of_value_and_appearances(prepared):
     _cfg, _conn, _window, data = prepared
     report = evaluate.evaluate_window(data, ("R0",))

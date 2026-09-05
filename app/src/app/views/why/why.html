@@ -1,0 +1,735 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     LA PAGINA SCORRE, a differenza della Strategia: qui si legge una lista lunga cercando un nome, non si
+     confrontano quattro reparti insieme, e una riga aperta è alta quanto tre schermi di tabella. -->
+<div class="mx-auto flex min-h-full max-w-[1500px] flex-col gap-3 p-4">
+  <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <div class="flex flex-wrap items-baseline gap-3">
+      <h1 class="text-xl font-semibold text-fg">Perché quel surplus</h1>
+      <span
+        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+        title="Versione della webapp - cambia a ogni pubblicazione"
+        >v{{ appVersion }}</span
+      >
+      @if (sheet(); as entry) {
+        <span class="text-xs text-muted">
+          {{ entry.league }} · {{ entry.game === 'mantra' ? 'Mantra' : 'Classic' }} · rev.
+          {{ entry.sheet_revision ?? 0 }} ·
+          {{ (entry.generated_at ?? entry.auction_date ?? '').slice(0, 10) }}
+        </span>
+      }
+    </div>
+    <div class="flex items-baseline gap-1">
+      <button nz-button nzType="primary" nzSize="small" (click)="openSettings()">
+        <nz-icon nzType="setting" />
+        Impostazioni lega
+      </button>
+      <a nz-button nzType="text" nzSize="small" routerLink="/">
+        <nz-icon nzType="team" />
+        Calciatori
+      </a>
+      <a nz-button nzType="text" nzSize="small" routerLink="/strategy">
+        <nz-icon nzType="aim" />
+        Strategia
+      </a>
+    </div>
+  </header>
+
+  <!-- QUANTE RIGHE IL FOGLIO SPIEGA DAVVERO, prima di qualunque numero: una pagina che spiega e non dice
+       su quanti uomini ci riesce fa credere che ci riesca su tutti. `in disaccordo` è il controllo, e lo
+       zero è il numero che ci si aspetta - vederlo scritto è quello che rende leggibile un uno. -->
+  <div
+    class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-xs"
+  >
+    <span class="font-medium text-fg">{{ coverage().total }} calciatori</span>
+    <span class="text-muted">
+      {{ coverage().priced }} con un numero, di cui {{ coverage().estimated }} su ripiego dichiarato ·
+      {{ coverage().explained }} con la scala delle regole
+    </span>
+    @if (coverage().disagreeing) {
+      <span class="rounded-md bg-danger/20 px-2 py-0.5 text-danger">
+        {{ coverage().disagreeing }} righe la cui catena non riproduce il surplus del foglio
+      </span>
+    } @else {
+      <span class="text-muted">catena e foglio d'accordo su tutte le righe</span>
+    }
+    <button nz-button nzType="text" nzSize="small" (click)="toggleMethod()">
+      <nz-icon [nzType]="method() ? 'up' : 'down'" />
+      Come si calcola
+    </button>
+  </div>
+
+  <!-- IL METODO. È la metà della richiesta che dice «esplicita anche COME calcoli i fattori», quindi sta
+       nella pagina e non in un tooltip: i tooltip sono corti per regola, e questa è roba che si legge una
+       volta e non a ogni hover. Chiusa all'apertura. -->
+  @if (method()) {
+    <section class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 text-sm">
+      <div>
+        <h2 class="mb-1 font-semibold text-fg">Il conto, per intero</h2>
+        <p class="text-muted">
+          <span class="text-fg">surplus = (FM attesa − rimpiazzo) × presenze attese</span>, e
+          <span class="text-fg">+/giornata</span> è quel totale diviso le giornate che restano
+          ({{ matchdays() ?? '—' }}). È una divisione per una costante uguale per tutti: non può
+          riordinare niente, serve solo a leggere un ordine di grandezza. Accanto c'è
+          <span class="text-fg">+/partita</span>, che è <span class="text-fg">FM − rimpiazzo</span>:
+          quanto rende una partita che gioca davvero. Un uomo può avere il primo basso e il secondo alto
+          — rende tanto quando c'è, e c'è poco — ed è la dinamica che questa pagina esiste per mostrare.
+        </p>
+      </div>
+      <div>
+        <h2 class="mb-1 font-semibold text-fg">I tre fattori</h2>
+        <ul class="flex list-disc flex-col gap-1 pl-5 text-muted">
+          <li>
+            <span class="text-fg">FM attesa</span> — la fantamedia dell'anno scorso tirata verso l'ancora
+            del suo ruolo: <span class="text-fg">ancora + beta × (sua FM − ancora)</span>. L'ancora è la
+            media del ruolo su questo listone, la beta vale 0,50 su classic e 0,42 su mantra. Sotto
+            quindici presenze il motore non prevede affatto e vale il ripiego dichiarato. Per i portieri
+            è un modello a parte, che parte dal voto base e sottrae i gol che il club si aspetta di
+            subire: per loro la formula qui sopra non si stampa.
+          </li>
+          <li>
+            <span class="text-fg">Presenze attese</span> — una retta sulla QUOTA di stagione: quanto ha
+            giocato l'anno scorso, il suo voto base, e se ha cambiato squadra. La quota che ne esce
+            moltiplica le giornate che restano.
+          </li>
+          <li>
+            <span class="text-fg">Rimpiazzo</span> — la fantamedia di chi giocherebbe al posto suo: il
+            marginale di rosa del suo ruolo, cioè l'ultimo che le squadre della lega si prendono. Cambia
+            col regolamento dichiarato (squadre × posti) e per questo è diverso per ogni ruolo: un
+            portiere e un attaccante non partono dallo stesso zero.
+          </li>
+        </ul>
+      </div>
+      <div>
+        <h2 class="mb-1 font-semibold text-fg">Le regole, e cosa vuol dire la scala</h2>
+        <p class="mb-2 text-muted">
+          Sopra il core stanno le regole ADOTTATE per questa piattaforma, e la scala mostra il numero
+          DOPO ognuna, nell'ordine in cui si applicano. Lo scarto di una regola è quello che aggiunge
+          alle precedenti: si legge «questa vale +1,4 presenze per lui», non «questa conta più di
+          quell'altra», perché scambiarle di posto muove tutt'e due. Una regola che su di lui non dice
+          niente resta a schermo muta: «non lo tocca» è un'informazione.
+        </p>
+        <dl class="flex flex-col gap-1 text-muted">
+          @for (rule of rulesInPlay(); track rule.key) {
+            <div class="flex gap-2">
+              <dt class="w-16 shrink-0 font-mono text-xs text-fg">{{ rule.key }}</dt>
+              <dd>{{ rule.note ?? 'Regola adottata di recente: la sigla è quella del gate.' }}</dd>
+            </div>
+          }
+        </dl>
+      </div>
+      <div>
+        <h2 class="mb-1 font-semibold text-fg">Dove finisce il motore e comincia questa app</h2>
+        <p class="text-muted">
+          Il foglio dà un surplus sulle giornate che restano. Questa app lo riprezza due volte, e nessuna
+          delle due è una previsione nuova: toglie le giornate che uno STOP APERTO gli porta via (una
+          data pubblicata, quindi un fatto) e un'ASSICURAZIONE, che è lo scarto fra la sua stagione tipica
+          e la sua peggiore. Il secondo numero è quello con cui la Strategia e la Plancia ordinano, e per
+          questo qui stanno tutt'e due, con due nomi.
+        </p>
+      </div>
+    </section>
+  }
+
+  <!-- I FILTRI. La ricerca è tollerante agli accenti e alle grafie (`looseKey`) e cerca nel NOME e nella
+       SQUADRA insieme; la tendina delle squadre è la stessa domanda fatta in modo esatto, per chi la
+       squadra la sa già. Nessuno dei due si salva sul disco: un filtro salvato che all'apertura nasconde
+       metà lista è la cosa peggiore che questa pagina possa fare. -->
+  <div class="flex flex-wrap items-center gap-2">
+    <input
+      nz-input
+      nzSize="small"
+      type="search"
+      class="max-w-[16rem]"
+      placeholder="Cerca un nome o una squadra"
+      [ngModel]="query()"
+      (ngModelChange)="setQuery($event)"
+    />
+    <nz-select
+      class="w-52"
+      nzSize="small"
+      nzShowSearch
+      nzAllowClear
+      nzPlaceHolder="Tutte le squadre"
+      [ngModel]="club() || null"
+      (ngModelChange)="club.set($event ?? 0)"
+    >
+      @for (one of clubChoices(); track one.id) {
+        <nz-option [nzValue]="one.id" [nzLabel]="one.name + ' · ' + one.men" />
+      }
+    </nz-select>
+    <nz-radio-group nzSize="small" [ngModel]="role()" (ngModelChange)="role.set($event)">
+      @for (choice of roleChoices; track choice.value) {
+        <label nz-radio-button [nzValue]="choice.value">{{ choice.label }}</label>
+      }
+    </nz-radio-group>
+    <button
+      nz-button
+      nzSize="small"
+      [nzType]="onlyQuoted() === 'si' ? 'primary' : 'default'"
+      (click)="toggleQuoted()"
+      nz-tooltip
+      nzTooltipTitle="Nasconde chi il listone non quota."
+    >
+      Solo quotati
+    </button>
+    <!-- QUANTE RIGHE STANNO SPARENDO, e la via per tornare indietro: una lista corta senza una ragione a
+         schermo si legge come un blocco rotto (la regola delle etichette dei filtri, 20/08/2026). -->
+    <span class="text-xs text-muted">
+      {{ visible().length }} {{ visible().length === 1 ? 'riga' : 'righe' }}
+      @if (hidden()) {
+        · {{ hidden() }} {{ hidden() === 1 ? 'nascosta' : 'nascoste' }}
+      }
+    </span>
+    @if (filtered()) {
+      <button nz-button nzType="text" nzSize="small" (click)="clearFilters()">
+        <nz-icon nzType="close" />
+        Mostra tutti
+      </button>
+    }
+  </div>
+
+  @if (reading()) {
+    <p class="text-sm text-muted">Sto leggendo il foglio…</p>
+  }
+
+  @if (!reading() && !sheet()) {
+    <nz-alert
+      nzType="warning"
+      nzShowIcon
+      nzMessage="Nessun foglio per questa combinazione"
+      nzDescription="Il bundle non porta un foglio per il listone e il gioco dichiarati. Apri le impostazioni della lega e scegline un'altra: questa pagina non riempie una combinazione con quella dell'altro gioco, perché un surplus è un fatto sul gioco per cui lo si compra."
+    />
+  }
+
+  @if (!reading() && sheet() && !coverage().explained) {
+    <nz-alert
+      nzType="info"
+      nzShowIcon
+      nzMessage="Questo foglio non porta la scala delle regole"
+      nzDescription="Le colonne che spiegano i due numeri del motore esistono dalla revisione 45 del foglio. Qui sotto restano i fattori (FM attesa, presenze, rimpiazzo) e il conto finale; la scala regola per regola arriva alla prossima corsa del toolkit."
+    />
+  }
+
+  @if (visible().length) {
+    <div class="overflow-x-auto rounded-lg border border-border">
+      <table class="w-full min-w-[1000px] border-collapse text-sm">
+        <!-- OGNI COLONNA ORDINA, e il bottone è dentro la `<th>`: un nodo che non è una `<th>` dentro la
+             riga di intestazione si mangia una colonna della griglia (gli 84px del 20/08/2026). La
+             freccia dice DOVE si sta ordinando, che è l'unica cosa che uno schermo può dire di un
+             ordinamento. -->
+        <thead class="bg-control text-xs text-muted">
+          <tr>
+            <th class="px-2 py-1.5 text-left font-medium">
+              <button class="hover:text-fg" (click)="toggleSort('name')" nz-tooltip
+                nzTooltipTitle="Clicca per ordinare per nome.">Calciatore{{ sortArrow('name') }}</button>
+              <span class="px-1 text-muted/60">·</span>
+              <button class="hover:text-fg" (click)="toggleSort('club')" nz-tooltip
+                nzTooltipTitle="Clicca per raggruppare per squadra.">squadra{{ sortArrow('club') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-center font-medium">
+              <button class="w-full hover:text-fg" (click)="toggleSort('titolarita')" nz-tooltip
+                nzTooltipTitle="Il gradino della scala: bandiera, titolarissimo, titolare, ballottaggio, panchina, riserva. Clicca per ordinare."
+                >Gradino{{ sortArrow('titolarita') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('now')" nz-tooltip
+                nzTooltipTitle="Quello che ha fatto DAVVERO nelle giornate già giocate: partite e fantamedia. Clicca per ordinare."
+                >Quest'anno{{ sortArrow('now') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('fm')" nz-tooltip
+                nzTooltipTitle="La fantamedia attesa per partita giocata. Clicca per ordinare."
+                >FM att.{{ sortArrow('fm') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('anchor')" nz-tooltip
+                nzTooltipTitle="La media del suo ruolo: il numero verso cui il motore lo tira. Clicca per ordinare."
+                >Ancora{{ sortArrow('anchor') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('replacement')" nz-tooltip
+                nzTooltipTitle="Chi giocherebbe al posto suo, nel suo ruolo. Clicca per ordinare."
+                >Rimpiazzo{{ sortArrow('replacement') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('perPlayed')" nz-tooltip
+                nzTooltipTitle="FM attesa meno rimpiazzo: quanto rende una partita che gioca. Clicca per ordinare."
+                >+/partita{{ sortArrow('perPlayed') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('pv')" nz-tooltip
+                nzTooltipTitle="Le giornate in cui il motore si aspetta un suo voto. Clicca per ordinare."
+                >Presenze{{ sortArrow('pv') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('surplus')" nz-tooltip
+                nzTooltipTitle="Il surplus come lo scrive il foglio. Clicca per ordinare."
+                >Surplus{{ sortArrow('surplus') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('perMatch')" nz-tooltip
+                nzTooltipTitle="Il surplus diviso le giornate che restano. Clicca per ordinare."
+                >+/giornata{{ sortArrow('perMatch') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('appPv')" nz-tooltip
+                nzTooltipTitle="Le presenze dopo stop aperto e assicurazione: quelle con cui ordinano Strategia e Plancia. Clicca per ordinare."
+                >Presenze app{{ sortArrow('appPv') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-right font-medium">
+              <button class="w-full text-right hover:text-fg" (click)="toggleSort('appPerMatch')" nz-tooltip
+                nzTooltipTitle="Il surplus riprezzato su quelle presenze, per giornata. Clicca per ordinare."
+                >+/giornata app{{ sortArrow('appPerMatch') }}</button>
+            </th>
+            <th class="px-2 py-1.5 text-left font-medium">Base</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of visible(); track row.fcId) {
+            <tr
+              class="cursor-pointer border-t border-border hover:bg-control/40"
+              [class.bg-control]="isOpen(row.fcId)"
+              (click)="toggle(row.fcId)"
+            >
+              <td class="px-2 py-1">
+                <span class="flex items-center gap-2">
+                  <nz-icon [nzType]="isOpen(row.fcId) ? 'down' : 'right'" class="text-xs text-muted" />
+                  <ui-crest size="sm" [club]="row.club" [clubId]="row.clubId" [crests]="store.crests()" />
+                  <span class="text-fg">{{ row.name }}</span>
+                  <!-- SU MANTRA IL RUOLO DELLA RIGA NON È QUELLO CONTRO CUI IL SURPLUS È CONTATO: il
+                       rimpiazzo è quello dello SLOT (un `dc` e un `pc` hanno due zeri lontanissimi),
+                       quindi disegnare solo la lettera classic farebbe leggere una sottrazione contro
+                       una popolazione che non è la sua. -->
+                  @if (settings().game === 'mantra' && row.mantraCodes.length) {
+                    <ui-roles [roles]="row.mantraCodes" size="xs" />
+                  } @else {
+                    <ui-role [role]="row.role" size="xs" />
+                  }
+                  <span class="text-xs text-muted">{{ row.club }}</span>
+                  @if (!row.quoted) {
+                    <span
+                      class="rounded-md bg-control px-1.5 text-[11px] text-muted"
+                      nz-tooltip
+                      nzTooltipTitle="Il listone non lo quota: non si può comprare."
+                      >non quotato</span
+                    >
+                  }
+                </span>
+              </td>
+              <td class="px-2 py-1 text-center text-xs" [title]="rungNote(row)">
+                <span [class.text-muted]="!row.titolarita">{{ short(row.titolarita) }}</span>
+              </td>
+              <td class="px-2 py-1 text-right tabular-nums" [title]="nowNote(row)">
+                @if (row.now) {
+                  <span class="text-muted">{{ row.now.played }}/{{ seen() ?? '?' }}</span>
+                  <span class="ml-1">{{ num(row.now.fm, '1.2-2') }}</span>
+                } @else {
+                  <span class="text-muted">—</span>
+                }
+              </td>
+              <td class="px-2 py-1 text-right tabular-nums">{{ num(row.why.fm, '1.2-2') }}</td>
+              <td class="px-2 py-1 text-right tabular-nums text-muted">
+                {{ num(row.why.anchor, '1.2-2') }}
+              </td>
+              <td class="px-2 py-1 text-right tabular-nums text-muted">
+                {{ num(row.why.replacement, '1.2-2') }}
+              </td>
+              <td class="px-2 py-1 text-right tabular-nums">{{ signed(row.why.perPlayed, '1.2-2') }}</td>
+              <td class="px-2 py-1 text-right tabular-nums">{{ num(row.why.pv) }}</td>
+              <td class="px-2 py-1 text-right tabular-nums">{{ num(row.why.sheetSurplus) }}</td>
+              <td class="px-2 py-1 text-right tabular-nums font-medium">
+                {{ signed(row.why.sheetPerMatch, '1.2-2') }}
+              </td>
+              <td class="px-2 py-1 text-right tabular-nums text-muted">
+                {{ num(row.outlook.expected) }}
+              </td>
+              <td class="px-2 py-1 text-right tabular-nums">{{ signed(row.why.appPerMatch, '1.2-2') }}</td>
+              <td class="px-2 py-1 text-left text-xs">
+                @switch (row.why.basis) {
+                  @case ('core') {
+                    <span class="text-muted">motore</span>
+                  }
+                  @case ('estimate') {
+                    <span
+                      class="text-muted"
+                      nz-tooltip
+                      [nzTooltipTitle]="row.why.estNote ?? 'Ripiego dichiarato.'"
+                      >~ {{ row.why.estBasis ?? 'stima' }} · {{ pct(row.why.confidence) }}</span
+                    >
+                  }
+                  @default {
+                    <span class="text-muted">nessuna</span>
+                  }
+                }
+              </td>
+            </tr>
+            @if (isOpen(row.fcId)) {
+              <tr class="border-t border-border bg-page/60">
+                <td colspan="13" class="px-3 py-3">
+                  <div class="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
+                    <!-- 1. LA FANTAMEDIA -->
+                    <section class="rounded-lg border border-border bg-surface p-3 text-sm">
+                      <h3 class="mb-2 font-semibold text-fg">La fantamedia attesa</h3>
+                      @if (row.formula) {
+                        <p class="mb-2 font-mono text-xs text-fg">{{ row.formula }}</p>
+                      } @else if (row.why.basis === 'estimate') {
+                        <!-- Il core non lo prezza: la FM della riga viene dal ripiego, e la ragione sta
+                             QUI e non in fondo alla terza colonna - è la spiegazione di questo numero. -->
+                        <p class="mb-2 text-xs text-muted">
+                          Il motore non lo prezza (gli serve una stagione da almeno 15 voti): vale il
+                          ripiego dichiarato «{{ row.why.estBasis ?? 'stima' }}», al
+                          {{ pct(row.why.confidence) }}.
+                          @if (row.why.estNote) {
+                            <span class="block">{{ row.why.estNote }}</span>
+                          }
+                        </p>
+                      } @else if (row.role === 'P') {
+                        <p class="mb-2 text-xs text-muted">
+                          Portiere: il core parte dal voto base e sottrae i gol attesi del suo club, non
+                          dall'ancora del ruolo.
+                        </p>
+                      }
+                      @if (row.why.why; as why) {
+                        <dl class="mb-2 flex flex-col gap-0.5 text-xs text-muted">
+                          <div class="flex justify-between gap-2">
+                            <dt>FM misurata l'anno scorso</dt>
+                            <dd class="tabular-nums text-fg">{{ num(why.fmPrev, '1.2-2') }}</dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>...su quante presenze</dt>
+                            <dd class="tabular-nums text-fg">
+                              {{ num(why.pvPrev, '1.0-0') }}
+                              @if (thinSample(why)) {
+                                <span class="text-danger"> · il core prevede solo da {{ minVotes }} in su</span>
+                              }
+                            </dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>voto base misurato</dt>
+                            <dd class="tabular-nums text-fg">{{ num(why.mvPrev, '1.2-2') }}</dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>ancora del ruolo · beta</dt>
+                            <dd class="tabular-nums text-fg">
+                              {{ num(row.why.anchor, '1.2-2') }} · {{ num(why.beta, '1.2-2') }}
+                            </dd>
+                          </div>
+                        </dl>
+                      }
+                      <!-- L'ESITO accanto alla previsione: è la sola riga di questa carta che può
+                           SMENTIRE il numero, e per questo sta qui e non in fondo alla pagina. -->
+                      @if (row.now) {
+                        <p class="mb-2 text-xs text-muted">
+                          Quest'anno: <span class="text-fg">FM {{ num(row.now.fm, '1.2-2') }}</span>
+                          su {{ row.now.played }}
+                          {{ row.now.played === 1 ? 'giornata' : 'giornate' }} giocate<span
+                            >, contro {{ num(row.why.fm, '1.2-2') }} previsti</span
+                          >.
+                        </p>
+                      }
+                      @if (row.why.fmRungs.length) {
+                        <ul class="flex flex-col gap-0.5 text-xs">
+                          @for (rung of row.why.fmRungs; track rung.key) {
+                            <li class="flex justify-between gap-2" [class.text-muted]="rung.silent">
+                              <span>{{ rung.label }}</span>
+                              <span class="tabular-nums">{{ rungText(rung, '1.3-3') }}</span>
+                            </li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="text-xs text-muted">
+                          Questo foglio non porta la scala delle regole per la fantamedia.
+                        </p>
+                      }
+                    </section>
+
+                    <!-- 2. LE PRESENZE -->
+                    <section class="rounded-lg border border-border bg-surface p-3 text-sm">
+                      <h3 class="mb-2 font-semibold text-fg">Le presenze attese</h3>
+                      @if (row.why.why; as why) {
+                        <dl class="mb-2 flex flex-col gap-0.5 text-xs text-muted">
+                          <div class="flex justify-between gap-2">
+                            <dt>quota di stagione giocata</dt>
+                            <dd class="tabular-nums text-fg">
+                              {{ pct(why.sharePrev) }}
+                              @if (why.pvPrev != null && why.matchdaysPrev != null) {
+                                <span class="text-muted"
+                                  >({{ num(why.pvPrev, '1.0-0') }}/{{
+                                    num(why.matchdaysPrev, '1.0-0')
+                                  }})</span
+                                >
+                              }
+                            </dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>minuti sui disponibili</dt>
+                            <dd class="tabular-nums text-fg">{{ pct(why.minutesShare) }}</dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>ha cambiato squadra</dt>
+                            <dd class="text-fg">
+                              {{ why.clubChange == null ? '—' : why.clubChange ? 'sì' : 'no' }}
+                            </dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>già giocate quest'anno</dt>
+                            <dd class="tabular-nums text-fg">
+                              @if (why.roundsSeen) {
+                                {{ num(why.pvSeen, '1.0-0') }} su
+                                {{ num(why.roundsSeen, '1.0-0') }}
+                              } @else {
+                                —
+                              }
+                            </dd>
+                          </div>
+                        </dl>
+                      }
+                      @if (row.why.pvRungs.length) {
+                        <ul class="flex flex-col gap-0.5 text-xs">
+                          @for (rung of row.why.pvRungs; track rung.key) {
+                            <li class="flex justify-between gap-2" [class.text-muted]="rung.silent">
+                              <span>{{ rung.label }}</span>
+                              <span class="tabular-nums">{{ rungText(rung, '1.1-1') }}</span>
+                            </li>
+                          }
+                        </ul>
+                      } @else {
+                        <p class="text-xs text-muted">
+                          Questo foglio non porta la scala delle regole per le presenze.
+                        </p>
+                      }
+                    </section>
+
+                    <!-- 3. IL CONTO E IL RIPREZZO -->
+                    <section class="rounded-lg border border-border bg-surface p-3 text-sm">
+                      <h3 class="mb-2 font-semibold text-fg">Dal foglio alla lista</h3>
+                      <p class="mb-2 font-mono text-xs text-fg">
+                        ({{ num(row.why.fm, '1.2-2') }} − {{ num(row.why.replacement, '1.2-2') }}) ×
+                        {{ num(row.why.pv) }}
+                        @if (row.why.basis === 'estimate') {
+                          × {{ num(row.why.confidence, '1.2-2') }}
+                        }
+                        = {{ num(row.why.rebuilt) }}
+                      </p>
+                      @if (!row.why.agrees) {
+                        <p class="mb-2 text-xs text-danger">
+                          Il foglio scrive {{ num(row.why.sheetSurplus) }}: la catena qui sopra non lo
+                          riproduce. Il numero da credere è quello del foglio.
+                        </p>
+                      }
+                      <dl class="flex flex-col gap-0.5 text-xs text-muted">
+                        <div class="flex justify-between gap-2">
+                          <dt>giornate che restano</dt>
+                          <dd class="tabular-nums text-fg">{{ num(row.outlook.matchdays, '1.0-0') }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                          <dt>presenze del foglio</dt>
+                          <dd class="tabular-nums text-fg">{{ num(row.outlook.base) }}</dd>
+                        </div>
+                        @if (row.outlook.basis === 'board') {
+                          <div class="flex justify-between gap-2">
+                            <dt>...prese dall'undici tipo</dt>
+                            <dd class="text-fg">il motore qui ripiega su una costante di ruolo</dd>
+                          </div>
+                        }
+                        <div class="flex justify-between gap-2">
+                          <dt>meno lo stop aperto</dt>
+                          <dd class="tabular-nums text-fg">
+                            {{ row.outlook.out ? signed(-row.outlook.out) : '—' }}
+                          </dd>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                          <dt>meno l'assicurazione</dt>
+                          <dd class="tabular-nums text-fg">
+                            {{ row.outlook.insurance ? signed(-row.outlook.insurance) : '—' }}
+                          </dd>
+                        </div>
+                        <div class="flex justify-between gap-2 border-t border-border pt-0.5">
+                          <dt class="text-fg">presenze con cui ordina l'app</dt>
+                          <dd class="tabular-nums text-fg">{{ num(row.outlook.expected) }}</dd>
+                        </div>
+                        <div class="flex justify-between gap-2">
+                          <dt class="text-fg">surplus riprezzato</dt>
+                          <dd class="tabular-nums text-fg">
+                            {{ num(row.why.appSurplus) }} ({{ signed(row.why.appPerMatch, '1.2-2') }} a
+                            giornata)
+                          </dd>
+                        </div>
+                      </dl>
+                      @if (row.why.basis === 'none') {
+                        <p class="mt-2 text-xs text-muted">
+                          Il foglio non lo prezza e non lo stima: qui non c'è un numero da spiegare, e
+                          metterne uno sarebbe inventarlo.
+                        </p>
+                      }
+                    </section>
+                    <!-- 4. IL POSTO E I RIVALI -->
+                    <section class="rounded-lg border border-border bg-surface p-3 text-sm">
+                      <h3 class="mb-2 font-semibold text-fg">Il posto e i rivali</h3>
+                      @if (row.titolarita) {
+                        <p class="mb-2 text-xs" [title]="rungNote(row)">
+                          <span class="font-medium uppercase text-fg">{{ row.titolarita }}</span>
+                          @if (row.play != null) {
+                            <span class="text-muted"> · voto nel {{ pct(row.play) }} delle partite per cui è disponibile</span>
+                          }
+                          @if (row.minutesNext != null) {
+                            <span class="text-muted"> · {{ num(row.minutesNext, '1.0-0') }}′ quando gioca</span>
+                          }
+                        </p>
+                      } @else {
+                        <p class="mb-2 text-xs text-muted">
+                          Il foglio non porta il gradino per lui: lo scrive la stessa passata che disegna
+                          gli undici, e senza quella la parola non esiste — vuoto, non «riserva».
+                        </p>
+                      }
+
+                      @if (row.place; as place) {
+                        <dl class="mb-2 flex flex-col gap-0.5 text-xs text-muted">
+                          <div class="flex justify-between gap-2">
+                            <dt>l'undici tipo</dt>
+                            <dd class="text-fg">
+                              @if (place.starter) {
+                                lo schiera come {{ placeLabel(place) }}
+                              } @else {
+                                non lo schiera: si gioca il posto di {{ placeLabel(place) }}
+                              }
+                            </dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>il suo ruolo reale</dt>
+                            <dd class="text-fg">{{ place.codes.length ? place.codes.join(' · ') : '—' }}</dd>
+                          </div>
+                          <div class="flex justify-between gap-2">
+                            <dt>quota da titolare</dt>
+                            <dd class="tabular-nums text-fg">{{ pct(place.claim) }}</dd>
+                          </div>
+                        </dl>
+
+                        <!-- CHI SI GIOCA IL POSTO, col RUOLO REALE di ognuno: è quello che dice che un
+                             ballottaggio è fra due terzini e non fra un'ala e un regista. -->
+                        @if (!place.starter && place.holder) {
+                          <p class="mb-1 text-xs text-muted">Il posto è di:</p>
+                          <ul class="mb-2 flex flex-col gap-0.5 text-xs">
+                            <li class="flex justify-between gap-2">
+                              <span class="text-fg">{{ place.holder.name }}</span>
+                              <span class="text-muted">
+                                {{ place.holder.codes.join(' · ') || '—' }} · {{ pct(place.holder.claim) }}
+                              </span>
+                            </li>
+                          </ul>
+                        }
+                        @if (place.rivals.length) {
+                          <p class="mb-1 text-xs text-muted">
+                            {{ place.starter ? 'Glielo contendono:' : 'Se lo giocano anche:' }}
+                          </p>
+                          <ul class="flex flex-col gap-0.5 text-xs">
+                            @for (rival of place.rivals; track rival.name) {
+                              <li class="flex justify-between gap-2">
+                                <span class="text-fg">{{ rival.name }}</span>
+                                <span class="text-muted">
+                                  {{ rival.codes.join(' · ') || '—' }} · {{ pct(rival.claim) }}
+                                </span>
+                              </li>
+                            }
+                          </ul>
+                        } @else if (!place.duelsKnown) {
+                          <!-- «VUOTO = IGNOTO»: senza il suo ruolo reale i ballottaggi non si possono
+                               calcolare, e dire «nessun rivale» sarebbe inventare un fatto. -->
+                          <p class="text-xs text-muted">
+                            Il suo ruolo reale non è noto, quindi i ballottaggi sono ignoti — non assenti.
+                          </p>
+                        } @else if (place.starter) {
+                          <p class="text-xs text-muted">Nessuno gli contende il posto.</p>
+                        }
+
+                        @if (place.disagreement) {
+                          <p class="mt-2 text-xs text-muted">
+                            @if (place.disagreement === 'board') {
+                              L'undici tipo gli dà la maglia, il motore lo aspetta in molte meno giornate:
+                              le presenze qui sopra sono quelle del motore.
+                            } @else {
+                              Il motore lo aspetta in molte più giornate di quante l'undici tipo ne
+                              prometta: la board spesso non aveva nessuno di meglio per quel posto.
+                            }
+                          </p>
+                        }
+                      } @else {
+                        <p class="text-xs text-muted">
+                          L'undici tipo del suo club non lo disegna e non lo mette in nessun ballottaggio:
+                          per la board è fuori dai dodici che si giocano un posto.
+                        </p>
+                      }
+                    </section>
+                  </div>
+                  <!-- FRA I PARI RUOLO, e sta SOTTO le quattro schede e non dentro una: è una tabella, e
+                       una tabella si legge larga. Le colonne sono le stesse di quella grande, così il
+                       confronto è fra numeri della stessa specie - che è tutto il punto. -->
+                  @if (openPeers(); as peers) {
+                    <div class="mt-3 rounded-lg border border-border bg-surface p-3">
+                      <h3 class="mb-2 text-sm font-semibold text-fg">
+                        Fra i pari ruolo
+                        @if (rankOf(row); as at) {
+                          <span class="font-normal text-muted">
+                            · {{ at.rank ? at.rank + '°' : 'senza posto' }} fra i {{ at.total }}
+                            {{ peers.pool }} di questa lista
+                          </span>
+                        }
+                      </h3>
+                      <table class="w-full border-collapse text-xs">
+                        <thead class="text-muted">
+                          <tr>
+                            <th class="py-0.5 text-left font-medium">Calciatore</th>
+                            <th class="py-0.5 text-right font-medium">Quest'anno</th>
+                            <th class="py-0.5 text-right font-medium">FM att.</th>
+                            <th class="py-0.5 text-right font-medium">Presenze</th>
+                            <th class="py-0.5 text-right font-medium">Surplus</th>
+                            <th class="py-0.5 text-right font-medium">+/giornata</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (peer of peers.men; track peer.fcId) {
+                            <tr
+                              class="border-t border-border/60"
+                              [class.text-fg]="peer.fcId === row.fcId"
+                              [class.font-medium]="peer.fcId === row.fcId"
+                            >
+                              <td class="py-0.5 text-left">
+                                <span class="text-muted">{{ rankOf(peer)?.rank ?? '—' }}°</span>
+                                {{ peer.name }}
+                                <span class="text-muted">{{ peer.club }}</span>
+                                @if (peer.titolarita) {
+                                  <span class="text-muted">· {{ short(peer.titolarita) }}</span>
+                                }
+                              </td>
+                              <td class="py-0.5 text-right tabular-nums">
+                                @if (peer.now) {
+                                  <span class="text-muted">{{ peer.now.played }}/{{ seen() ?? '?' }}</span>
+                                  {{ num(peer.now.fm, '1.2-2') }}
+                                } @else {
+                                  <span class="text-muted">—</span>
+                                }
+                              </td>
+                              <td class="py-0.5 text-right tabular-nums">{{ num(peer.why.fm, '1.2-2') }}</td>
+                              <td class="py-0.5 text-right tabular-nums">{{ num(peer.why.pv) }}</td>
+                              <td class="py-0.5 text-right tabular-nums">{{ num(peer.why.sheetSurplus) }}</td>
+                              <td class="py-0.5 text-right tabular-nums">
+                                {{ signed(peer.why.sheetPerMatch, '1.2-2') }}
+                              </td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  }
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  } @else if (!reading() && sheet()) {
+    <p class="text-sm text-muted">Nessuna riga con questi filtri.</p>
+  }
+</div>

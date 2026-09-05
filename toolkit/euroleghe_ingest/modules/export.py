@@ -208,6 +208,24 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "engine_surplus",        # league-level reference, NOT the number a live panel should rank by
     "engine_anchor",
     "engine_unpriced_reason",
+    # PERCHE' QUEI DUE NUMERI SONO QUELLI. Viaggiano per una pagina sola - `/perche` - e per la ragione
+    # che ha fatto viaggiare gli INGREDIENTI invece del surplus congelato: una riga che non puo'
+    # spiegare il proprio numero lo fa credere o rifiutare in blocco, e l'operatore ha chiesto di
+    # poterlo leggere («mi espliciti i fattori che poi portano al valore di surplus/match»). Sono
+    # ingredienti e una SCALA, mai una seconda valutazione: l'ultimo gradino di `why_*_steps` e'
+    # `engine_fm_pred`/`engine_pv_pred` qui sopra, per costruzione.
+    "why_fm_prev",
+    "why_mv_prev",
+    "why_pv_prev",
+    "why_share_prev",
+    "why_matchdays_prev",
+    "why_fm_beta",
+    "why_club_change",
+    "why_minutes_share",
+    "why_pv_seen",
+    "why_rounds_seen",
+    "why_fm_steps",
+    "why_pv_steps",
     "est_fm",                # the fallback for a man the core refuses to price, with its penalty
     "est_mv",                # ...and the base vote behind it: FM minus the bonus per appearance
     "est_pv",
@@ -334,7 +352,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
 # pacchetti gia' scritti, un foglio prodotto su una macchina SENZA DISPLAY non le ha affatto, perche' il
 # gradino legge l'undici disegnato. Pretenderle vorrebbe dire che un export su quella macchina non
 # esporta niente, cioe' spegnere il bundle per aggiungere una parola.
+# ...e le dodici del «perche'», nate il 05/09/2026: ogni pacchetto del viaggio nel tempo e ogni foglio
+# scritto prima della revisione 45 non le ha, e pretenderle li scarterebbe tutti - cioe' spegnerebbe il
+# viaggio nel tempo per aggiungere una spiegazione.
 SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
+    "why_fm_prev", "why_mv_prev", "why_pv_prev", "why_share_prev", "why_matchdays_prev",
+    "why_fm_beta", "why_club_change", "why_minutes_share", "why_pv_seen", "why_rounds_seen",
+    "why_fm_steps", "why_pv_steps",
     "desc_live_club", "desc_live_club_on", "pi_fm", "pi_basis", "pi_matches",
     "desc_titolarita", "desc_titolarita_play", "desc_minutes_next",
     # ...e le tre della miscela, nate il 04/09/2026: i pacchetti del viaggio nel tempo sono stati scritti

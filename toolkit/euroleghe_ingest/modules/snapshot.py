@@ -459,7 +459,13 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      da 10 a 5, i minuti del ritiro imputati) e le loro voci le scrive lei. I numeri di questa voce
 #      sono misurati sul foglio del 04/09, cioe' a K = 10: la loro K piu' corta pesa di piu' la stagione
 #      in corso, quindi con le due meta' insieme il difetto qui curato era PIU' grande, non meno.
-SHEET_REVISION = 44
+#   45 (05/09/2026): le dodici colonne `why_*` - gli ingredienti dei due numeri gated e la SCALA delle
+#      regole adottate che li ha prodotti (`evaluate.explain_window`, cioe' `predict_window` sui prefissi
+#      dell'insieme adottato). Nate dalla richiesta dell'operatore «mi espliciti i fattori che poi
+#      portano al valore di surplus/match». REPORTING integrale: nessuna previsione le legge, il gate non
+#      le vede, e `engine_*` non si muove di un decimale - l'ultimo gradino della scala E' la colonna
+#      accanto, per costruzione, e un test lo asserisce invece di prometterlo.
+SHEET_REVISION = 45
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -4538,7 +4544,13 @@ def engine_predictions(conn, window: features.Window, platform: str, game: str,
     if window.target_season == features.WINDOWS[source].target_season:
         notes.append(f"the target season {window.target_season} is also the season the parameters were "
                      f"fitted on ({source}): this run is a DRY RUN, not an out-of-sample statement")
-    return data, evaluate.predict_window(data, active, None, params), params.source or source, notes
+    predictions = evaluate.predict_window(data, active, None, params)
+    # ...E LA SCALA CHE LI HA PRODOTTI, sulla finestra e non sul ritorno: i due chiamanti di questa
+    # funzione ne vogliono uno solo (il pannello Tk le previsioni, il foglio anche la spiegazione), e
+    # allargare la tupla di ritorno costringerebbe l'altro a leggere un valore che butta via. Costa
+    # cinque passate di pura aritmetica su una `derive` gia' memoizzata sulla finestra.
+    data.cache["engine_explain"] = evaluate.explain_window(data, active, None, params)
+    return data, predictions, params.source or source, notes
 
 
 # ---------------------------------------------------------------- assembly
@@ -4551,6 +4563,16 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # `engine_role_slot` is the role the two columns around it are measured in - the game's own
     # vocabulary, so 'D' on a classic sheet and 'dc'/'dd'/'e'/'b' on a mantra one (see `auction_slot`)
     "engine_role_slot", "engine_replacement_fm", "engine_anchor", "engine_unpriced_reason",
+    # PERCHE' QUEI DUE NUMERI SONO QUELLI, e non un secondo modello che li spiega: gli INGREDIENTI che
+    # il core legge (`why_*_prev`, la beta della coppia gioco-piattaforma) piu' la SCALA delle regole
+    # adottate, che e' `evaluate.explain_window` - cioe' la stessa `predict_window` chiamata sui prefissi
+    # dell'insieme adottato, quindi l'ultimo gradino E' la colonna `engine_*` accanto, per costruzione.
+    # Nata il 05/09/2026 dalla richiesta dell'operatore: «mi espliciti i fattori che poi portano al
+    # valore di surplus/match ... devi esplicitare anche come calcoli i fattori». Reporting integrale:
+    # nessuna riga di queste entra in una previsione e il gate non le vede.
+    "why_fm_prev", "why_mv_prev", "why_pv_prev", "why_share_prev", "why_matchdays_prev",
+    "why_fm_beta", "why_club_change", "why_minutes_share", "why_pv_seen", "why_rounds_seen",
+    "why_fm_steps", "why_pv_steps",
     # ESTIMATED, a third class next to engine_ (gated) and desc_ (measured): every player gets a surplus,
     # penalised for what we do not know about him, with the basis and the penalty on the row (engine/estimate.py)
     # `est_mv` is the base vote behind `est_fm`, derived from it and never guessed apart: FM - MV is the
@@ -4891,6 +4913,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         for index, prediction in enumerate(ranked, start=1):
             ranks[prediction.obs.fc_id] = index
 
+    # LA SCALA DELLE REGOLE, una volta per foglio: `engine_predictions` l'ha lasciata sulla finestra.
+    # Vuota quando il motore ha risposto col solo core (nessuna finestra fittabile) - e allora le due
+    # colonne `why_*_steps` restano vuote invece di dichiarare una scala che nessuno ha percorso.
+    explain = data.cache.get("engine_explain") or {}
     rows: list[dict] = []
     for obs in data.observations:
         if perimeter is not None and (obs.club_target or "") not in perimeter:
@@ -5068,6 +5094,34 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # because his season was played on the other calendar (Kolo Muani 23 euro votes and no Serie A,
             # Stones 3). An empty cell is a statement; this is which statement.
             "engine_unpriced_reason": _unpriced_reason(prediction, obs),
+            # GLI INGREDIENTI delle due colonne gated, cosi' la riga puo' spiegare il proprio numero
+            # invece di subirlo (05/09/2026). Nessuno di questi e' un modello: sono gli INPUT che il
+            # core legge - la sua fantamedia e il suo voto base dell'anno scorso, quante giornate li
+            # hanno prodotti, quante ne aveva il calendario - piu' la beta della coppia gioco/
+            # piattaforma, che e' la costante con cui il core regredisce verso l'ancora.
+            # `why_share_prev` e' derivata e viaggia lo stesso: e' la quota che la retta delle presenze
+            # legge davvero, e ricostruirla nell'app vorrebbe dire scegliere un denominatore.
+            "why_fm_prev": _round(obs.fm_prev, 3),
+            "why_mv_prev": _round(obs.mv_prev, 3),
+            "why_pv_prev": obs.pv_prev,
+            "why_share_prev": (_round(obs.share_prev(data.matchdays_prev), 3)
+                               if data.matchdays_prev and obs.pv_prev is not None else None),
+            "why_matchdays_prev": data.matchdays_prev or None,
+            "why_fm_beta": model.BETA.get(data.game),
+            "why_club_change": "yes" if obs.club_change else "no",
+            # I MINUTI come quota di quelli disponibili nel SUO campionato: l'input di R3, il canale che
+            # separa il titolare dallo spezzonista. Vuoto dove i minuti non ci sono - «vuoto = ignoto».
+            "why_minutes_share": _round(obs.minutes_share_prev(data.rounds_for(obs.league)), 3),
+            # ...e le giornate GIA' GIOCATE della stagione bersaglio, che sono l'ultima cosa che si sa e
+            # l'input di R20. Zero su una pre-stagione, dove la domanda non esiste.
+            "why_pv_seen": obs.pv_seen,
+            "why_rounds_seen": data.matchdays_seen or None,
+            # LA SCALA: `chiave:valore` per ogni regola adottata, in ordine, col valore DOPO di lei.
+            # L'ultimo gradino e' la colonna gated accanto, per costruzione (`evaluate.explain_window`),
+            # e un gradino vuoto vuol dire che quella regola su di lui non ha detto niente - che e'
+            # un'informazione e non un buco, quindi si stampa invece di essere saltata.
+            "why_fm_steps": _steps_text(explain.get(obs.fc_id), "fm", 3),
+            "why_pv_steps": _steps_text(explain.get(obs.fc_id), "pv", 1),
             "est_fm": _round(guess.fm, 3),
             "est_mv": _round(guess.mv, 3),
             "est_pv": _round(guess.pv, 1),
@@ -5414,6 +5468,22 @@ def _expected_minutes(obs, form: dict, pv_pred) -> float | None:
 
 def _round(value, digits=3):
     return None if value is None else round(value, digits)
+
+
+def _steps_text(steps, side: str, digits: int) -> str | None:
+    """`R0:6.312;R19:6.298` - one rung per adopted rule, in order, with the value AFTER it.
+
+    A rung whose value is None (the engine has nothing to say on that side for him) keeps its key and
+    an empty value: «vuoto = ignoto» applied to a ladder, and the reader can tell «this rule did not
+    speak» from «this rule was not run». None for the whole column when no ladder exists at all.
+    """
+    if not steps:
+        return None
+    out = []
+    for step in steps:
+        value = getattr(step, side)
+        out.append(f"{step.key}:" + ("" if value is None else f"{round(value, digits)}"))
+    return ";".join(out)
 
 
 def _value(prediction) -> float | None:

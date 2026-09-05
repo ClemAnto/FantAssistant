@@ -4276,6 +4276,51 @@ Tre abitudini d'arnese pagate nella stessa sessione, e valgono per ogni banco.
   poi **verifica che il click abbia morso**: un click che non cambia niente è indistinguibile da un
   bottone che non c'è.
 
+## Spiegare un numero è LEGGERLO, e il modo di leggerlo è RIESEGUIRE
+**05/09/2026, dalla richiesta dell'operatore «non sono ancora contento del surplus assegnato ad ogni
+calciatore ... preparami una nuova pagina dove ... mi espliciti i fattori che poi portano al valore di
+surplus/match». Dettaglio: `letture-app-v1.md` §30, spec «Novità v9.76».** La pagina è `/why`; quello
+che vale oltre la pagina è come si è deciso di produrre la spiegazione.
+
+**UNA SPIEGAZIONE RICALCOLATA È LA SPIEGAZIONE DI UN ALTRO NUMERO.** Rifare il conto nell'app sarebbe
+stato il difetto che questo progetto paga da sempre visto da un lato nuovo — due letture dello stesso
+foglio danno a un uomo due valutazioni — con l'aggravante che nessuno se ne accorgerebbe: una catena
+plausibile che finisce a 58 accanto a una colonna che dice 61,7 si legge come un arrotondamento. Quindi
+la scala che spiega le due colonne del motore la scrive il TOOLKIT, e la scrive **rieseguendo**:
+`evaluate.explain_window` chiama la stessa `predict_window` sui PREFISSI dell'insieme adottato, quindi
+l'ultimo gradino È la colonna `engine_*` accanto, per costruzione. L'alternativa — strumentare i trenta
+rami di `_rule_fm`/`_rule_pv` perché ognuno registri quello che cambia — era una SECONDA descrizione
+dell'aritmetica dentro un file gatato, cioè la cosa che può divergere. *Quando serve raccontare come un
+numero è nato, il racconto più sicuro è farlo rinascere.* `backtest --verify` 22/22, `engine_*` fermo.
+
+**E UNA DECOMPOSIZIONE DI PERCORSO SI DICHIARA TALE.** Il contributo di una regola è quello che aggiunge
+alle PRECEDENTI, nell'ordine di `ADOPTED`, e le regole non sono indipendenti (`_rule_pv` sceglie un solo
+ramo per priorità): «R3 vale +3,7 presenze per lui» è vero, «R3 conta più di R19» no. Sta scritto sulla
+pagina, perché è la lettura sbagliata che chiunque farebbe.
+
+Tre cose più piccole, e due sono errori di misura fatti qui.
+- **IL CONTROLLO È PARTE DELLA SPIEGAZIONE, e sta in barra.** `(FM − rimpiazzo) × Pa × confidenza` deve
+  riprodurre `engine_surplus`: la pagina lo rifà su ogni riga e DICHIARA quante non tornano, con lo zero
+  scritto perché un uno si veda. La tolleranza è 0,15 e la ragione è aritmetica, non prudenza — il foglio
+  arrotonda a tre, uno e uno decimali, quindi rifare la moltiplicazione dai numeri arrotondati NON può
+  dare la stessa cifra.
+- **UN CONTEGGIO VERO SULLA DOMANDA SBAGLIATA**, terza istanza dopo l'area della favicon: la barra
+  leggeva «600 con la scala delle regole» e le scale sono 386, perché contava chi ha le COLONNE mentre il
+  foglio le porta per tutti e le riempie per chi il motore riesce a prevedere. Nessuno dei due numeri è
+  falso. L'ha trovato il banco perché confronta la barra col FOGLIO e non con se stessa.
+- **E LA POPOLAZIONE PIÙ LARGA, per la ragione opposta a quella delle altre pagine.** Le liste da
+  comprare tagliano chi il listone non quota (sua regola del 04/09); una pagina DIAGNOSTICA sul motore no
+  — un uomo che il motore prezza deve poter essere letto anche se nessuno lo vende — e chi non è quotato
+  porta il marchio, con un filtro che lo toglie in un click. *Il taglio giusto dipende dalla domanda che
+  la lista risponde, non dalla lista.*
+
+**Il primo fatto che la pagina rende visibile è sul MOTORE e non su un calciatore**: su Serie A la scala
+della fantamedia è PIATTA su ogni riga (tutte le regole adottate là lavorano sulle presenze), mentre su
+EuroLeghe R18 la muove su 381 righe di 997. Detto altrimenti: su `default` la fantamedia attesa di un uomo
+è la sua stagione scorsa regredita verso l'ancora del ruolo, e tutto il resto del motore decide quante
+volte la incasserà. Non è un difetto ed è esattamente il genere di dinamica che la richiesta chiedeva di
+mettere sotto gli occhi.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

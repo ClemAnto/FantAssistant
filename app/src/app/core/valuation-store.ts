@@ -9,6 +9,7 @@ import { starterSignsFromSheet, starterSignsMark } from './player-place';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { PlayerMark, PlayerStatus } from './player-status';
+import { WhyColumns } from './surplus-why';
 import { Platform, PlayerRow, buildRosters, sheetIdentities } from './players-store';
 import { TimeTravel } from './time-travel';
 
@@ -306,6 +307,15 @@ export interface EngineExpectation {
    */
   replacementFm: number | null;
   /**
+   * LO SLOT su cui quel rimpiazzo è misurato - il vocabolario del GIOCO (`P`/`D`/`C`/`A` su classic, i
+   * dodici codici su mantra), non il ruolo di listone.
+   *
+   * Viaggia perché una graduatoria «fra i pari ruolo» deve stare sulla STESSA pool da cui viene lo zero
+   * che la riga sottrae: contarla sul ruolo di listone su un foglio mantra confronterebbe un'ala con
+   * ogni attaccante, cioè con uomini che hanno un altro rimpiazzo.
+   */
+  slot: string | null;
+  /**
    * Il SURPLUS del foglio - `engine_surplus`, o `est_surplus` per chi il motore non riesce a valutare.
    *
    * LETTO e mai ricalcolato, come `engine_pv_pred`: è la metrica con cui il pannello d'asta del toolkit
@@ -370,6 +380,17 @@ export interface EngineExpectation {
   surplusCup: number | null;
   surplusFieldedCup: number | null;
   cupNote: string | null;
+  /**
+   * L'ANCORA DEL RUOLO (`engine_anchor`) e i DODICI `why_*` (revisione 45): perche' quei due numeri
+   * sono quelli.
+   *
+   * Letti qui e non da un secondo lettore per la ragione che tiene insieme questo file: due letture
+   * dello stesso foglio finiscono per dare a un uomo due spiegazioni. `why` e' null su ogni foglio
+   * scritto prima della revisione 45 e su ogni pacchetto del viaggio nel tempo - e allora la pagina
+   * del «perche'» lo DICE, invece di disegnare una catena che nessuno ha calcolato.
+   */
+  anchor: number | null;
+  why: WhyColumns | null;
 }
 
 /**
@@ -1108,6 +1129,7 @@ export class ValuationStore {
         pv: at('engine_pv_pred'), estPv: at('est_pv'),
         fm: at('engine_fm_pred'), estFm: at('est_fm'),
         mv: at('est_mv'), replacement: at('engine_replacement_fm'),
+        slot: at('engine_role_slot'),
         // Fπ: il valore di una sua partita secondo il calcio che ha DAVVERO giocato, anche altrove.
         // Assente prima della revisione 31, e allora la colonna resta muta invece di ripiegare su
         // `est_fm` in silenzio: due basi sotto un nome solo è il difetto che questo progetto paga.
@@ -1142,7 +1164,22 @@ export class ValuationStore {
         surplusCup: at('desc_surplus_cup'),
         surplusFieldedCup: at('desc_surplus_fielded_cup'),
         cupNote: at('desc_cup_note'),
+        // L'ancora del ruolo e i dodici del «perche'», revisione 45+: assenti prima, e allora la
+        // pagina che li disegna dice che il foglio non li porta invece di inventare una catena.
+        anchor: at('engine_anchor'),
+        whyFmPrev: at('why_fm_prev'), whyMvPrev: at('why_mv_prev'), whyPvPrev: at('why_pv_prev'),
+        whySharePrev: at('why_share_prev'), whyMatchdaysPrev: at('why_matchdays_prev'),
+        whyBeta: at('why_fm_beta'), whyClubChange: at('why_club_change'),
+        whyMinutesShare: at('why_minutes_share'), whyPvSeen: at('why_pv_seen'),
+        whyRoundsSeen: at('why_rounds_seen'),
+        whyFmSteps: at('why_fm_steps'), whyPvSteps: at('why_pv_steps'),
       };
+      // UNA COLONNA CHE NON C'E' E' `-1`, e `row[-1]` e' `undefined`: normalizzato QUI, dove il foglio
+      // viene letto, o ogni lettore a valle si inventerebbe il proprio ripiego.
+      const number = (row: unknown[], at: number) =>
+        at < 0 ? null : ((row[at] as number | null) ?? null);
+      const text_ = (row: unknown[], at: number) =>
+        at < 0 ? null : ((row[at] as string | null) ?? null);
       const read = (row: unknown[], engineAt: number, estimateAt: number) => {
         const engine = engineAt < 0 ? null : (row[engineAt] as number | null);
         const estimate = estimateAt < 0 ? null : (row[estimateAt] as number | null);
@@ -1189,6 +1226,7 @@ export class ValuationStore {
             columns.categoryBars < 0 ? null : ((row[columns.categoryBars] as string) ?? null),
           replacementFm:
             columns.replacement < 0 ? null : ((row[columns.replacement] as number | null) ?? null),
+          slot: columns.slot < 0 ? null : ((row[columns.slot] as string) ?? null),
           basis: columns.basis < 0 ? null : ((row[columns.basis] as string) ?? null),
           note: columns.note < 0 ? null : ((row[columns.note] as string) ?? null),
           riserWatch:
@@ -1220,6 +1258,30 @@ export class ValuationStore {
           surplusFieldedCup: columns.surplusFieldedCup < 0
             ? null : ((row[columns.surplusFieldedCup] as number | null) ?? null),
           cupNote: columns.cupNote < 0 ? null : ((row[columns.cupNote] as string) ?? null),
+          anchor: number(row, columns.anchor),
+          // Tutto o niente: senza le due SCALE non c'e' una spiegazione da disegnare, e mezza
+          // spiegazione - gli ingredienti senza le regole che li hanno mossi - si legge come «il
+          // motore fa solo questo», che e' falso. Un foglio vecchio dice di non averla.
+          why:
+            columns.whyFmSteps < 0 && columns.whyPvSteps < 0
+              ? null
+              : {
+                  fmPrev: number(row, columns.whyFmPrev),
+                  mvPrev: number(row, columns.whyMvPrev),
+                  pvPrev: number(row, columns.whyPvPrev),
+                  sharePrev: number(row, columns.whySharePrev),
+                  matchdaysPrev: number(row, columns.whyMatchdaysPrev),
+                  beta: number(row, columns.whyBeta),
+                  // «yes»/«no» e non un booleano: il foglio scrive parole, e un `Boolean(...)` su una
+                  // colonna che sembra un flag e' un errore che questo progetto ha gia' pagato.
+                  clubChange:
+                    columns.whyClubChange < 0 ? null : row[columns.whyClubChange] === 'yes',
+                  minutesShare: number(row, columns.whyMinutesShare),
+                  pvSeen: number(row, columns.whyPvSeen),
+                  roundsSeen: number(row, columns.whyRoundsSeen),
+                  fmSteps: text_(row, columns.whyFmSteps),
+                  pvSteps: text_(row, columns.whyPvSteps),
+                },
         });
       }
     } catch {

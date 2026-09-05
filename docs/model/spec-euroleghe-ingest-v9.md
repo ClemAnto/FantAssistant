@@ -495,6 +495,58 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.76 (5 settembre 2026 — PERCHÉ QUEL NUMERO: la scala delle regole sul foglio)
+
+Richiesta dell'operatore: «non sono ancora contento del surplus assegnato ad ogni calciatore ... per ogni
+calciatore mi espliciti i fattori che poi portano al valore di surplus/match». La pagina che risponde vive
+nell'app (`docs/model/letture-app-v1.md` §30); qui c'è quello che il toolkit ha dovuto scrivere perché
+quella pagina potesse LEGGERE invece di ricalcolare.
+
+**`evaluate.explain_window`, e il modo in cui è costruita è il punto.** Per ogni giocatore restituisce il
+valore delle due colonne del motore DOPO ogni regola adottata, e lo fa chiamando `predict_window` sui
+PREFISSI dell'insieme adottato: `("R0",)`, poi `("R0", "R3")`, e così via. Quindi **l'ultimo gradino è
+esattamente `engine_fm_pred` / `engine_pv_pred`**, per costruzione e non per accordo, e un test
+(`test_engine_evaluate.py`) lo asserisce insieme al fatto che il primo gradino è il core da solo.
+
+L'alternativa era strumentare `_rule_fm` e `_rule_pv` perché ogni ramo registrasse quello che cambia:
+trenta punti di modifica dentro un file gatato, e soprattutto una SECONDA descrizione dell'aritmetica —
+cioè la cosa che può divergere. Rieseguire non può divergere. `evaluate` non cambia una riga di calcolo e
+**`backtest --verify` legge 22/22**.
+
+**Dodici colonne nuove sul foglio, prefisso `why_`, `SHEET_REVISION` 45.** Sono la SESTA classe accanto a
+`engine_` (gatate), `desc_` (misurate), `actual_` (dopo l'asta), `est_` (il ripiego) e `pi_` (Fπ), e il
+prefisso è separato per la stessa ragione per cui lo sono le altre: `desc_*` descrive il CALCIO che un
+uomo ha giocato, `why_*` descrive l'ARITMETICA che ha prodotto due colonne. Sotto `desc_` un gradino di
+regola si leggerebbe come una misura sul calciatore, sotto `engine_` come un numero che ha passato il
+gate. Il test dei prefissi (`test_snapshot.py`) pretende che ogni colonna appartenga a una delle sei.
+
+Cosa portano: gli INGREDIENTI che il core legge (`why_fm_prev`, `why_mv_prev`, `why_pv_prev`,
+`why_share_prev`, `why_matchdays_prev`, `why_fm_beta`, `why_club_change`, `why_minutes_share`,
+`why_pv_seen`, `why_rounds_seen`) e le due SCALE (`why_fm_steps`, `why_pv_steps`) nella forma
+`R0:20.7;R3:24.4;R20K10:26.3` — un gradino per regola, in ordine, col valore DOPO di lei. Un gradino con
+il valore VUOTO è una regola che su quell'uomo non ha prodotto un numero, e si stampa lo stesso: «non lo
+tocca» è un'informazione, non un buco.
+
+REPORTING integrale: nessuna previsione le legge, il gate non le vede, `engine_*` non si muove di un
+decimale. Viaggiano nel bundle (`export.SHEET_COLUMNS`) e sono in `SHEET_COLUMNS_OPTIONAL`, perché ogni
+pacchetto del viaggio nel tempo è stato scritto prima — pretenderle li scarterebbe tutti, cioè
+spegnerebbe il viaggio nel tempo per aggiungere una spiegazione.
+
+**Dove la scala è vuota, e perché.** `explain_window` contiene chi `predict_window` restituisce, cioè chi
+il motore riesce a prevedere su almeno un lato: sul foglio Serie A del 05/09/2026 sono **386 righe di
+600**, mentre le altre 214 non hanno né fantamedia né presenze (nessuna stagione su questa piattaforma).
+L'app conta le SCALE e non le colonne, che è la stessa distinzione un piano più in là.
+
+**Un fatto che la scala rende visibile subito**: su `default` la scala della fantamedia è piatta su ogni
+riga, perché tutte le regole adottate là lavorano sulle presenze; su `euro` R18 muove la FM su 381 righe
+di 997. Non è un difetto: su Serie A la fantamedia attesa È la stagione scorsa regredita verso l'ancora,
+e il resto del motore decide quante volte la incassi.
+
+Costo: cinque passate in più di pura aritmetica per foglio, su una `derive` già memoizzata sulla finestra.
+La spiegazione si appoggia alla finestra (`data.cache["engine_explain"]`) e non alla tupla di ritorno di
+`engine_predictions`, perché i due chiamanti ne vogliono cose diverse — il pannello Tk le sole previsioni,
+il foglio anche la scala — e allargare il ritorno costringerebbe l'altro a leggere un valore che butta.
+
 ## Novità v9.75 (5 settembre 2026 — LA MISCELA RIMISURATA, IL PRIOR DI CHI NON SI È MAI VISTO, e un FILE letto prima di essere scritto)
 
 Nata da cinque nomi che l'operatore ha portato guardando le prime due giornate («nel Como Diao e Baturina

@@ -1,5 +1,29 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 settembre 2026 (sera) — UNA PROMESSA SI RICONOSCE DALLA MAGLIA, NON DAL PREZZO.
+**Aggiornato: 5 settembre 2026 (notte) — PERCHÉ QUEL SURPLUS: una pagina che spiega un numero che non
+calcola.** Da «non sono ancora contento del surplus assegnato ad ogni calciatore ... mi espliciti i
+fattori che poi portano al valore di surplus/match», più altre quattro richieste in fila. (a) LA
+DECISIONE CHE REGGE TUTTO: si LEGGE, non si ricalcola — una spiegazione ricalcolata è la spiegazione di
+un ALTRO numero, e nessuno se ne accorgerebbe. La scala la scrive il toolkit **rieseguendo**
+(`evaluate.explain_window` chiama la stessa `predict_window` sui PREFISSI dell'insieme adottato, quindi
+l'ultimo gradino È `engine_*` per costruzione); l'alternativa — strumentare trenta rami dentro un file
+gatato — era una seconda descrizione dell'aritmetica. **`backtest --verify` 22/22**, e chiude l'aperto
+che pendeva dalla v9.72. (b) DODICI COLONNE `why_*`, sesta classe di prefisso, `SHEET_REVISION` **45**:
+gli ingredienti che il core legge e le due SCALE (`R0:20.7;R3:24.4;R20K10:26.3`), reporting integrale.
+(c) LA PAGINA È `/why`: lista completa, e per riga FM attesa · ancora · rimpiazzo · **+/partita** ·
+presenze · surplus · **+/giornata** · i due dell'app (dopo stop aperto e assicurazione); aprendo una riga
+la formula del core coi suoi numeri, la scala regola per regola con lo scarto, il conto finale col
+**controllo che torni** (0 righe su 663 in disaccordo), il posto nell'undici tipo coi RIVALI e i loro
+ruoli reali (letti dalla board, mai ricalcolati), e la graduatoria dei PARI RUOLO. (d) I FALSIFICATORI,
+dalla sua domanda «serve vedere qualche altro dato?»: passate le invarianti, **0** righe con presenze
+oltre il calendario, **0** con FM fuori banda, **0** senza ancora — l'aritmetica regge, quindi non
+servivano altri pezzi della catena ma dati che possano SMENTIRE: la colonna «Quest'anno» (dai VOTI, non
+da `season_stats`, che nel pacchetto è indietro di una giornata su 256 righe di 354), il CAMPIONE marcato
+dove la FM dell'anno scorso poggia sotto le 15 presenze (32 righe su Serie A, 122 su euro), e i vicini di
+ruolo. (e) UN FATTO CHE LA PAGINA RENDE VISIBILE SUBITO: su Serie A la scala della fantamedia è PIATTA su
+ogni riga — le regole adottate là lavorano tutte sulle presenze — mentre su euro R18 la muove su 381
+righe di 997. 754 test app + 696 toolkit, undici passi del banco nuovo `e2e-why.mjs`.
+Dettaglio: `letture-app-v1.md` §30, spec «Novità v9.76».
+· precedente: 5 settembre 2026 (sera) — UNA PROMESSA SI RICONOSCE DALLA MAGLIA, NON DAL PREZZO.
 Da tre domande dell'operatore su Palestra («era già considerato un top?» · «c'è una metrica che lo
 distingueva?» · «non riusciamo a pronosticare chi con basso FVM può esplodere?») e da una sua istruzione
 che ha deciso la taratura. (a) NESSUNO lo considerava un top: Qt.I 3 = **145° difensore su 232**, il

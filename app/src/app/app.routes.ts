@@ -22,6 +22,10 @@ export const routes: Routes = [
     loadComponent: () => import('./views/strategy/strategy').then((m) => m.Strategy),
   },
   {
+    path: 'why',
+    loadComponent: () => import('./views/why/why').then((m) => m.Why),
+  },
+  {
     path: 'sealed-bid',
     loadComponent: () => import('./views/sealed-bid/sealed-bid').then((m) => m.SealedBid),
   },
