@@ -410,12 +410,52 @@ def matchdays_straddling(conn: sqlite3.Connection, platform: str, season: str,
             and first <= date < last}
 
 
+# HOW MANY ROUNDS A CHAMPIONSHIP HAS WHERE OUR OWN LAYER DOES NOT WALK THEM. Declared, read from the
+# published calendars and never fitted - the same class of input as the two rulebooks: the Bundesliga
+# plays 34 and the others 38, which is what this module's own docstring has always asserted about itself.
+#
+# It only ever fires for the seasons the per-match layer does not reach, i.e. everything before 2019-20,
+# and there Ligue 1 still had 20 teams (38); from 2023-24 it plays 34 and that number is MEASURED, from
+# the layer. So the declaration never contradicts a season we walked.
+#
+# The keys are `config.CHAMPIONSHIPS` - the five in scope plus the feeders - repeated here because the
+# engine takes plain mappings and knows nothing about files (`evaluate.declared_cups` says why). A test
+# binds the two lists, so a championship added to the config cannot silently miss its calendar here.
+DECLARED_ROUNDS: dict[str, int] = {
+    "serie_a": 38,
+    "premier_league": 38,
+    "la_liga": 38,
+    "bundesliga": 34,
+    "ligue_1": 38,
+    "serie_b": 38,
+}
+#: A competition nobody declared - a cup, a league outside the six - keeps the old blanket default.
+UNKNOWN_LEAGUE_ROUNDS: int = 38
+
+
 def league_rounds(conn: sqlite3.Connection, season: str) -> dict[str, int]:
-    """Real rounds per league from the provider layer (34 in the Bundesliga, 38 elsewhere)."""
-    return {league: int(rounds) for league, rounds in conn.execute(
+    """Real rounds per championship: MEASURED where we walk the rounds, DECLARED where we do not.
+
+    A CALENDAR IS COUNTED BY THE LAYER THAT WALKS IT, and the source filter is the whole point. Without
+    it the max came from any row that happened to carry a `real_md`, and `sofascore_recent` - a handful of
+    a player's own last matches, in whatever competition he played - is not a calendar: measured
+    06/09/2026 on the live DB, it was the only source of `bundesliga 2016-17` and answered **33** rounds
+    instead of 34. Renaming its provider slugs into our keys (§7-quattuorquadragies) would have made that
+    the rule rather than the exception: `la_liga 2015-16` would have read 29 rounds, `ligue_1 2016-17` and
+    `premier_league 2018-19` **one**, and `derive` divides a man's minutes by this number - a divisor of
+    one sends every 90-minute season to the ceiling. The four cells never appear now, by construction.
+
+    Where the walking layer does not reach, the number is DECLARED instead of missing, because this dict
+    is read as an eligibility set too (`snapshot`: «only the six championships the abroad line is fitted
+    on»), and a hole there switches a row off instead of correcting it.
+    """
+    measured = {league: int(rounds) for league, rounds in conn.execute(
         "SELECT competition, MAX(real_md) FROM external_match_stats "
-        "WHERE season = ? AND competition IS NOT NULL AND real_md IS NOT NULL "
-        "GROUP BY competition", (season,))}
+        "WHERE season = ? AND source = 'sofascore' AND competition IS NOT NULL "
+        "AND real_md IS NOT NULL GROUP BY competition", (season,))}
+    for league, rounds in DECLARED_ROUNDS.items():
+        measured.setdefault(league, rounds)
+    return measured
 
 
 def measured_season_rounds(conn: sqlite3.Connection, season: str,
@@ -1684,8 +1724,9 @@ class WindowData:
     cache: dict = field(default_factory=dict, repr=False)
 
     def rounds_for(self, league: str | None) -> int:
-        """Real rounds of the player's league, with the 38-round default for unknown leagues."""
-        return self.rounds.get(league or "", 38) or 38
+        """Real rounds of the player's league; a league nobody declared keeps the blanket default."""
+        return (self.rounds.get(league or "")
+                or DECLARED_ROUNDS.get(league or "", UNKNOWN_LEAGUE_ROUNDS))
 
 
 def roster_depth(conn: sqlite3.Connection, platform: str, seasons: tuple[str, ...], game: str,

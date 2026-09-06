@@ -3867,7 +3867,10 @@ def test_the_other_platform_rung_is_only_for_the_same_football():
         -- rung under test is the competition filter and nothing else
         CREATE TABLE external_stats (fc_id INTEGER, season TEXT, source TEXT, competition TEXT,
                                      minutes INTEGER);
-        CREATE TABLE external_match_stats (fc_id INTEGER, season TEXT, competition TEXT,
+        -- `source` because the real table has it in its own PRIMARY KEY, and `league_rounds` now asks
+        -- for it: a calendar is counted by the layer that WALKS the rounds, so a fixture without the
+        -- column describes a table this pipeline cannot produce (empty here either way).
+        CREATE TABLE external_match_stats (fc_id INTEGER, season TEXT, source TEXT, competition TEXT,
                                            real_md INTEGER);
         -- ...and the SECOND source for those same minutes, empty here for the same reason: what is under
         -- test is the competition filter, and the fill only ever answers where the aggregate is silent.
