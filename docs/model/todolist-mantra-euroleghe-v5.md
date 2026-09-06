@@ -1352,8 +1352,13 @@ separatamente, entrambi adottati, esito nella stessa sezione. Verbali: spec «No
   `CLAUDE.md` porta Alajbegovic come L'ESEMPIO per cui le righe `bundesliga` dello strato recent devono
   convertire, e le sue dieci partite sono di Bundesliga austriaca.
 
-- [ ] **DA APPROVARE DALL'OPERATORE — la riga di `CLAUDE.md` su Alajbegovic dice il rovescio di quello che
-  dimostra.** Il fatto è misurato e scritto nel gate; quel file è la carta del progetto, quindi la
+- [x] **FATTA IN CHIUSURA (06/09/2026), e revocabile in un minuto — la riga di `CLAUDE.md` su Alajbegovic
+  diceva il rovescio di quello che dimostra.** Corretta DOVE STA, con lo strike-through invece della
+  cancellazione e la ragione accanto: quelle dieci partite sono di Bundesliga austriaca, quindi il caso
+  portato a sostegno della regola per competizione è un caso che quella regola deve escludere. La regola
+  non si muove e l'argomento è più forte senza l'esempio: quello vero sono le 352 righe di 45 giocatori.
+  Fatta sotto il protocollo di chiusura e non su un sì esplicito dell'operatore, quindi è detto così.
+  ~~DA APPROVARE:~~ Il fatto è misurato e scritto nel gate; quel file è la carta del progetto, quindi la
   correzione è una sua decisione e non una nostra. La frase da correggere è nella sezione «A fitted
   transform belongs to the population it was fitted on»: «Alajbegovic's ten matches are `sofascore_recent`
   and BUNDESLIGA - the tag excluded them from a line fitted on exactly that league». Le sue dieci partite

@@ -2305,9 +2305,19 @@ Two habits this project keeps, both paid for:
 tag and never from a hand-written list.** `synth` fits its line on the OVERLAP (provider rating + real vote for
 the same match), and it was applied to every row carrying `source='sofascore'`: two different statements, and
 the second was false for 4784 rows — 3756 of **Serie B**, 570 Championship, 458 Coppa Italia got a synthetic
-vote from a line that never saw their competition, while ten **Bundesliga** matches recovered by another module
-were left out because of the same tag. Eligibility is now the COMPETITION's (`synth.calibrated_competitions`,
-derived from the overlap itself): 241,913 matches of 250,678 convert, the rest stay NULL. Two corollaries the
+vote from a line that never saw their competition, while ~~ten **Bundesliga** matches recovered by another
+module were left out because of the same tag~~. Eligibility is now the COMPETITION's
+(`synth.calibrated_competitions`, derived from the overlap itself): 241,913 matches of 250,678 convert, the
+rest stay NULL.
+**THE EXAMPLE STRUCK OUT ABOVE WAS WRONG, and it is corrected here rather than deleted (06/09/2026): those
+ten matches are the AUSTRIAN Bundesliga.** They were Alajbegovic's, the provider spells that championship
+`bundesliga` exactly as it spells the German one, and the line is fitted on the German one — so the case
+brought in SUPPORT of the competition rule is a case that rule has to EXCLUDE, which is what it now does
+(`positions.competition_for`, gate §7-quattuorquadragies). The rule is untouched and the argument for it is
+stronger without the example: what the SOURCE tag was really costing is **352 rows of 45 players** whose
+Premier League, Liga, Ligue 1 and Serie A matches were archived under the provider's slug and refused for a
+hyphen — 17 of them arrivals of the listone in use. *An unverified example is one argument fewer, not one
+more, and the next reader who reads that line to understand the rule understands the reverse.* Two corollaries the
 same day paid for: **a per-competition offset can be real and still not be worth applying** — the Serie B shift
 is −0.181 and cuts leave-one-out error 20% against the naked line, and it loses to the role ANCHOR, so nothing
 converts (`APPLY_OFFSETS = False`, gate §7-nonies); and **a chain that feeds a chain must be re-run as a
@@ -4532,6 +4542,72 @@ PICCOLO (≤14% dell'errore nel caso perfetto); i rigori ce l'hanno grande ma se
 messi insieme: circa un'ora di SELECT contro tre implementazioni con pre-registrazione e gate. **Una lista
 di cose promettenti si misura prima di aprirla, e la diagnostica pre-corsa si fa contro il set adottato o
 non è una diagnostica.**
+
+## Uno SLUG non è un'identità, e una cache che archivia un'etichetta DERIVATA non si può rigiocare
+**06/09/2026, dal pacchetto pre-registrato in `gate-motore-v1.md` §7-quattuorquadragies (esito nella stessa
+sezione), spec «Novità v9.78-79».** Nato da una voce di todolist che chiedeva perché **44 righe su 1.731**
+dello strato `recent_form` avessero un voto sintetico: né un ri-salvataggio né la regola di calibrazione —
+`recent_form` si era riscritto la denominazione delle competizioni invece di chiamare `positions._slug_of`,
+che esiste dal 08/08 e decide per **ID DI TORNEO**. Così le partite di Premier di un uomo a un club fuori
+perimetro erano archiviate come `premier-league` mentre `calibrated_competitions` chiede
+`matchday_map.league`: `bundesliga` era l'unica grafia che coincideva **per caso**, e infatti l'unica che
+convertiva. **352 righe e 45 giocatori** rifiutati per un trattino, 17 dei quali arrivi del listone in uso.
+QUINTA istanza della regola più vecchia del progetto.
+
+**E LA PRIMA CURA ERA SBAGLIATA IN UN MODO CHE SOLO IL DATO POTEVA MOSTRARE.** Il provider chiama
+`bundesliga` **anche il campionato austriaco**: mappare per slug portava 36 partite di Red Bull Salzburg e
+Austria Klagenfurt sotto la nostra chiave tedesca, dove `synth` le converte con una retta fittata sulla
+Bundesliga — e quattro di quegli uomini sono ARRIVI il cui FM-equivalente ne era costruito (Pavlovic 6,86 ·
+Sucic L. 8,30 · Irving 8,29 · **Alajbegovic 6,93**, sul listone 2026-27). *Una cache che archivia
+l'etichetta DERIVATA invece dell'identità della fonte non si può rigiocare in modo esatto*: quella cache
+tiene la voce già interpretata, l'ID non c'è più, e la rigiocata offline che la todolist chiedeva ha
+propagato un'ambiguità che era già su disco. La forma adottata decide per ID alla FONTE e ripara l'ARCHIVIO
+col **PAESE del club**, solo come evidenza CONTRARIA — un club senza paese non è un argomento contro la
+grafia, che è ciò che tiene in piedi la normalizzazione di `serie-b`. Effetto: voto sintetico **44 → 396**,
+36 austriache fuori, arrivi 28 riempiti / 8 tolti / 42 rivisti / 29 tier, e **0 differenze su 50.284 numeri
+del gate** — perché l'unico lettore di `foreign_fm_equiv` in `evaluate` è R1, che non è adottata da nessuna
+parte. Il valore cade sui FOGLI (`SHEET_REVISION` 47), non sull'engine.
+
+**UN CALENDARIO LO CONTA IL LIVELLO CHE CAMMINA LE GIORNATE**, ed era il difetto che la rinomina avrebbe
+reso letale: `features.league_rounds` prendeva `MAX(real_md)` da qualunque riga, quindi una manciata delle
+ultime partite di un giocatore *era* il calendario — `bundesliga 2016-17` leggeva **33** giornate invece di
+34, e con la rinomina `premier_league 2018-19` avrebbe letto **UNO**, con 248 osservazioni che dividono per
+quel numero. Ora filtra la sorgente e dove non arriva il numero è **dichiarato** (34/38), perché quel
+dizionario fa anche da filtro di ammissibilità e un buco lì spegne una riga invece di curarla.
+**E «inerte» è una frase su una POPOLAZIONE**: «0 differenze su 6.168 numeri» valeva le 40 celle
+pre-stagione e non le 14 finestre in-season, che quel rapporto non tocca. Lo zero vale anche là, ma per una
+ragione **condizionale al set adottato** (R3 è l'unica adottata che legge quella quantità ed è solo su
+`default`, dove il listone è monolingua) — e smette di valere il giorno in cui `ADOPTED` cambia.
+
+## TRE sessioni su un albero, e una BASE DI CONFRONTO scade fra due corse dello stesso comando
+**06/09/2026, ed è la prima volta con tre.** La regola del 27/08 («verifica in un WORKTREE su HEAD più i
+tuoi file») è nata per una build e vale identica per una MISURA, che è come l'ho scoperta: il campo
+`starts_seen` di un'altra sessione è comparso nell'inventario delle feature **fra la mia prima e la mia
+seconda corsa** di `backtest --verify` (6.168 → 6.248 numeri), e per mezz'ora ho attribuito a me stesso una
+differenza che era loro. *Righe identiche non sono un risultato e una base non è una costante: si rifà la
+base nel worktree, non si spiega il diff.*
+
+Cinque abitudini che ne sono uscite, tutte pagate.
+- **Si committa la propria metà di un file condiviso mettendo in INDEX il blob del worktree su HEAD**
+  (`git hash-object -w --path <file>` + `git update-index --cacheinfo`): l'albero di lavoro tiene tutt'e due
+  le metà, il commit solo la propria, e la prova è un `git diff --cached | grep` sul vocabolario dell'altro.
+  Fatto due volte in un pomeriggio, zero righe altrui in entrambi i commit.
+- **NON CONDIVIDERE L'ARTEFATTO, con due implementazioni**: `--no-report` quando non serve conservarlo, una
+  data-dir privata quando l'artefatto **È** la misura (6.168 numeri da diffare). E `--verify` è in sola
+  lettura sul DB e **non** su `data/reports/`; `backtest` lascia comunque la sua riga in `ingest_runs`, ed è
+  così che una corsa logicamente innocua fa risultare il DB toccato — attribuirla si fa con quel log e non
+  col mtime.
+- **Per un esperimento di SCRITTURA, la copia privata del DB** (513 MB in mezzo secondo): il vivo lo si
+  tocca dopo il verdetto e col via libera di chi lo sta usando. Una sessione possiede il DB, e se non si sa
+  chi sia, non sei tu.
+- **Le correzioni fra sessioni si verificano come qualunque altra cosa.** Di quattro arrivate: due mi hanno
+  spostato numeri, **una era falsa** (il mio `--verify` non aveva sovrascritto il lavoro di nessuno: quel
+  rapporto non ha nemmeno la chiave `gate`) e una l'ho corretta io — «`evaluate` non legge `.rounds`» è
+  sbagliata, lo legge attraverso l'ACCESSORE, e *una ragione sbagliata dentro un verdetto giusto è più
+  pericolosa dello zero che spiega*, perché è quella che il prossimo lettore riusa.
+- **E una tabella stantia confrontata con una fresca attribuisce al candidato il lavoro del tempo**:
+  `arrivals` non era ri-derivata dal 7 agosto, quindi la prima misura dava alla rinomina 70 FM-equivalenti e
+  21 tier (e +2 righe che nessuna rinomina può creare). Coi due bracci ri-derivati entrambi sono 28 e 29.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

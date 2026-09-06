@@ -1,6 +1,40 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 6 settembre 2026 (pomeriggio) — LA MAPPA EVENTO → CANALE: il motore VEDE quasi tutto, e
-non lo legge perché il gate l'ha bocciato.** Da «verifica se nel nostro algoritmo per prevedere le
+**Aggiornato: 6 settembre 2026 (sera) — UNO SLUG NON È UN'IDENTITÀ: il voto sintetico rifiutato per un
+trattino, e la prima cura fondeva due campionati.** Dalla richiesta «completa la todolist» e poi
+«spiegami meglio quali decisioni sono da prendere, procediamo 1 alla volta»: quattro decisioni prese una
+per volta, e sulla prima l'operatore ha scelto la strada intera («pre-registra e fai girare il gate»).
+(a) **PRE-REGISTRAZIONE COMMITTATA PRIMA DELLA CORSA** (`aba0975`, gate §7-quattuorquadragies) con le sue
+quattro aspettative, poi due cambi misurati separatamente: **A** — un calendario lo conta il livello che
+cammina le giornate (`league_rounds` leggeva 33 giornate di Bundesliga da righe vaganti, e la rinomina
+avrebbe fatto leggere **UNO** a `premier_league 2018-19`, con 248 osservazioni che ci dividono);
+**B** — `recent_form` si era riscritto la denominazione delle competizioni invece di chiamare
+`positions._slug_of`, che decide per **ID di torneo**: 352 righe di 45 giocatori senza voto sintetico per
+un trattino, 17 arrivi del listone in uso.
+(b) **LA PRIMA CURA ERA SBAGLIATA e solo il dato poteva mostrarlo**: il provider chiama `bundesliga` anche
+l'AUSTRIACA, quindi mappare per slug portava 36 partite di Salzburg e Klagenfurt sotto la nostra chiave
+tedesca — e quattro di quegli uomini sono arrivi il cui FM-equivalente ne era costruito, **Alajbegovic sul
+listone 2026-27**. La forma adottata decide per ID alla fonte e ripara l'archivio col **paese del club**.
+(c) **E LA RIGA DI `CLAUDE.md` CHE GIUSTIFICA LA REGOLA PER COMPETIZIONE CITAVA PROPRIO LUI**: corretta
+dove sta, con lo strike-through invece della cancellazione. *Un esempio non verificato è un argomento in
+meno, non uno in più.*
+(d) **NUMERI**: voto sintetico **44 → 396**, arrivi 28 riempiti / 8 tolti / 42 rivisti / 29 tier, e **0
+differenze su 50.284 numeri del gate** (`--verify` 22/22 su tutt'e due i bracci e sul vivo) — perché
+l'unico lettore di `foreign_fm_equiv` in `evaluate` è R1, non adottata. Il valore cade sui FOGLI:
+`SHEET_REVISION` **47**, tre fogli rifatti coi campetti, bundle e app aggiornati.
+(e) **TRE SESSIONI SU UN ALBERO**, e la lezione nuova è sul TEMPO: una base di confronto scade **fra due
+corse dello stesso comando** (il `starts_seen` di un'altra sessione è comparso in mezzo alla mia misura).
+Si committa la propria metà mettendo in index il blob di un worktree su HEAD; non si condivide
+l'ARTEFATTO; per un esperimento di scrittura si copia il DB. Delle quattro correzioni scambiate, **una era
+falsa e una l'ho corretta io**: una ragione sbagliata dentro un verdetto giusto è più pericolosa dello zero
+che spiega.
+(f) **LE ALTRE TRE DECISIONI**: le preferenze del 15/08 restano SPENTE (ognuna ha una casa migliore: la
+tabella è in `letture-app-v1.md` §7), lo zero REALIZZATO non si aggiunge (±0,35 di fantamedia e cambia
+segno per ruolo: è un fatto sulla LEGA), la data «terza giornata» non entra (la ragione è la convenzione,
+non l'1% di errore).
+Dettaglio: `gate-motore-v1.md` §7-quattuorquadragies, spec «Novità v9.78-79», e la chiusura del 6
+settembre (sera) in `stato-progetto-continuita-v5.md`.
+· precedente: 6 settembre 2026 (pomeriggio) — LA MAPPA EVENTO → CANALE: il motore VEDE quasi tutto, e
+non lo legge perché il gate l'ha bocciato. Da «verifica se nel nostro algoritmo per prevedere le
 presenze attese e la fantamedia abbiamo tenuto conto dei seguenti eventi», ventisei voci in sei blocchi.
 (a) **NUOVA PAGINA `copertura-eventi-motore-v1.md`**: l'indice per EVENTO, che non esisteva — i verdetti
 c'erano tutti, sparsi fra il gate, `metrica-asta-surplus-v1.md` §20, `presence.py` e la nota
