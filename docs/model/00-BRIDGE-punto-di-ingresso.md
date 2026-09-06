@@ -3181,7 +3181,16 @@ rating confrontato fra campionati: ❌, λ −0.45/+0.05). Copertura del motore 
    colonna `assists_set_piece` è NULL su tutte le righe di voti di ogni stagione, la sorgente non ha mai
    splittato gli assist. E `probable_starter`/`availability` esistono solo come snapshot di oggi:
    usabili live per l'asta 26/27, inutili nel gate retrospettivo.
-6. Poi: algoritmo completo asta 26/27.
+6. **Misurati e RESPINTI il 06/09/2026, da NON riproporre** (gate §7-quinquadragies…§7-octoquadragies):
+   *una partenza da titolare come segnale distinto dalla presenza* (R24, +0,35% su default e fuori dalle
+   clausole su euro, dichiarata in `RULES` e fuori da `ADOPTED`); *i posti della linea del club* (nessun
+   meccanismo, segno al contrario); *le squalifiche* (≤14% dell'errore nel caso perfetto, e la forma
+   «giusta» conta due volte perché il baseline contiene già le giornate perse); *i rigori* (effetto
+   grande, +0,661 di fantamedia su chi diventa rigorista, ma al 5 agosto la gerarchia azzecca il 15%
+   contro il 40% del banale). Quello che riaprirebbe l'ultimo è dichiarato: uno strumento che al 5 agosto
+   batta il 40%, cioè chi tira i rigori nelle amichevoli di ritiro — la stessa acquisizione già
+   pre-registrata per l'estate 2027 in `letture-app-v1.md` §26.
+7. Poi: algoritmo completo asta 26/27.
 
 ## Convenzioni operative
 git = casa canonica (Drive solo su richiesta esplicita) · risposte in chat in **italiano**, tutto il repo (codice, commenti, log, nomi file, .md) in **inglese**; i doc KB in `docs/model/` restano in italiano · `fc_id` chiave primaria · credenziali solo in `.env` · **quando l'utente scrive "chiudi"**: consolidare tutti gli .md di `docs/model/` (+ CLAUDE.md se serve) con stato/decisioni/commit/prossimi passi e committare.

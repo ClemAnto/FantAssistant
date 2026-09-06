@@ -5849,6 +5849,45 @@ risultato più utile della pagina**.
    interrogare la tabella: ~6,5 rigori per club-stagione, ma persistenza t→t+1 **+0,291** su 187 coppie.
    Non è un'acquisizione, è un input debole. **Sesta istanza** di «il dato c'era e nessuno lo leggeva» —
    la prima commessa citando un documento.
+   **E la sera è stato misurato fino in fondo (§7-octoquadragies): l'effetto è GRANDE e la MIRA non
+   esiste.** Chi smette di tirarli rende −0,546 di fantamedia contro il previsto, chi comincia **+0,661**,
+   su ~6 uomini a stagione — la forma che il gate premia. Ma al 5 agosto «chi li tirerà» ha due risposte:
+   il taker della stagione scorsa (**40%**) e il rank 1 di `penalty_hierarchy` (**15%**), e il banale è
+   ciò che il modello assume già. Serve uno strumento che batta il 40%, non un parametro.
+
+## R24 — la regola che il pomeriggio ha prodotto, pre-registrata e RESPINTA (sessione `-5f`)
+
+**Commit `b8ecb9e`.** Dalla richiesta dell'operatore «dobbiamo trovare un modo per migliorare quante
+partite giocherà un calciatore», nata da una scomposizione dell'errore che ha corretto una frase detta
+un'ora prima («la coda è fatta di infortuni»): sui due pacchetti pre-stagionali con esito, i
+**sottovalutati** sono il 51-58% dell'errore e solo il 6-8% di loro ha un infortunio lungo dietro, mentre
+gli infortuni ne spiegano il 23-28%. Più della metà è gente che scoppia, quasi tutta da pochi crediti — i
+quotati ≤6 sottovalutati portano da soli il 23-26% di tutto l'errore.
+
+**La regola**: `pv_seen` conta le presenze A VOTO, quindi mette nello stesso numero il titolare e chi
+entra dalla panchina e prende il voto; il segnale visto viene scontato di `w` per la quota di volte in
+cui è subentrato. Quattro punti di griglia dichiarati (i due K già adottati × w 0,25/0,50), l'idioma di
+R18b/R20. **Non legge nessun prezzo**: lo screen che ha suggerito la domanda condiziona su «quotato ≤5»,
+e il Qt.I contiene già l'opinione del suo autore su quanto giocherà.
+
+**Verdetto (§7-quinquadragies): NON PASSA su nessuna piattaforma** — `default` +0,35% (6/14, sotto il
+pavimento), `euro` +0,81% (5/10, non maggioranza, peggiore −2,11% fuori tolleranza). Le quattro chiavi
+restano DICHIARATE e fuori da `ADOPTED`. **Quattro misure e il verdetto mai in bilico**: HEAD `aba0975`,
+HEAD `63022bf` (dopo il cambio a `league_rounds` di `-9c`), col filtro `source='sofascore'` aggiunto a
+`_seen_starts`, e sul DB dopo `5c410fc`. `backtest --verify` **22/22** e `starts_seen` 0/1322 su ogni
+finestra pre-stagione: nessun numero pubblicato si muove, per costruzione.
+
+**Le due cose che restano, e sono più utili del verdetto.** La prima: il surrogato provato fuori dal
+motore dava il **segno opposto** (settembre +0,66% e 6/6, contro −0,13% e 2/7 del gate vero), perché il
+suo baseline non aveva il set adottato — *un baseline più debole fa sembrare un canale nuovo migliore, e
+il verso del bias va dichiarato prima della corsa*. La seconda: la riga del gate legge `PASSES, 13/13,
++19,3%` ed è quasi tutta di **R20**, che R24 contiene — la nota di R15 («la riga di gate di un candidato
+da solo non è il suo valore dentro un set») incontrata dal lato in cui sembra un successo.
+
+**E il filtro che ne è nato ha pagato tre ore dopo**: `_seen_starts` non filtrava su `source`, quindi le
+righe di `sofascore_recent` gonfiavano il denominatore senza poter toccare il numeratore (`started` NULL
+su tutte e 81). Quando `-9c` ha spostato 635 righe fra le competizioni, `source='sofascore'` ha letto
+**332.461 righe identiche prima e dopo**: l'input di R24 fermo *per misura* e non per fortuna.
 
 ## TRE sessioni su un albero, e le sei correzioni sono UNA famiglia
 
@@ -5877,9 +5916,13 @@ Le tre varianti nuove, tutte pagate:
 
 ## Aperti, in ordine di costo
 
-1. **Le squalifiche restano l'unico candidato con un tetto positivo** (≤14% dell'errore sulle presenze) e
-   non ha ancora una pre-registrazione. Chi la scrive parta dal fatto che `match_ratings.status` non
-   scrive mai `suspended`: la quantità va costruita dai cartellini, non letta.
+1. ~~**Le squalifiche restano l'unico candidato con un tetto positivo**~~ — **SUPERATO la sera stessa
+   dalla sessione `-5f` (gate §7-septquadragies): MISURATO E RESPINTO.** Il segnale persiste (+0,387) ed è
+   ortogonale ai minuti (−0,004), ma il termine lineare vale **+0,17%** (6/11, contro un pavimento dello
+   0,5%) e la forma di R21 — sottrarre le giornate attese dal regolamento — vale **−1,58%, 0/11**, perché
+   il baseline è fittato su un esito che le squalifiche le contiene già: le 0,84 giornate sono contate due
+   volte. **Non serve una pre-registrazione**, serve non riaprirlo. (Resta vero che
+   `match_ratings.status` non scrive mai `suspended` e la quantità va costruita dai cartellini.)
 2. **Il modulo/posti della linea è chiuso come FORMA ma non come DOMANDA**: «posti meno pretendenti» è la
    famiglia respinta cinque volte, quindi riaprirla richiede un input nuovo e non una sesta formulazione.
 3. **R9 (peso di recenza sull'ancora) non è mai entrata in `CANDIDATES`** — dichiarata in `RULES` e mai

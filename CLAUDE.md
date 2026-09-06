@@ -4484,6 +4484,55 @@ un'acquisizione** — il dato è in `match_ratings` (~6,5 per club-stagione) e s
 +0,291 su 187 coppie). Quest'ultima è la **sesta istanza** di «il dato c'era e nessuno lo leggeva», ed è la
 prima commessa **citando un documento invece di interrogare la tabella**.
 
+## Un canale si giudica contro il SET ADOTTATO, e tre rifiuti hanno tre forme diverse
+**06/09/2026, dalla richiesta dell'operatore «dobbiamo trovare un modo per migliorare quante partite
+giocherà un calciatore». Dettaglio: gate §7-quinquadragies (R24), §7-sexquadragies, §7-septquadragies,
+§7-octoquadragies.** La diagnosi che l'ha aperta: la fantamedia la sappiamo (MAE **0,289** su una
+dispersione di 0,539), le presenze no (**6,56** giornate su 36) — e regalando al motore le presenze vere
+l'errore di stagione crolla da 39,9 a **6,9** fantapunti, mentre regalandogli la fantamedia resta 37,2.
+Quarta strada indipendente allo stesso posto dopo `Var(ln pv)`, il vantaggio incrementale sulla
+quotazione e i +18,1 di `bench.auction.advice`.
+
+**R24 — «una PARTENZA da titolare non è una presenza» — PRE-REGISTRATA E RESPINTA.** `pv_seen` mette
+nello stesso numero il titolare e chi entra dalla panchina e prende il voto; la distinta non è nei voti e
+arriva dal livello per-partita. La diagnostica pre-corsa era forte (a parità di presenze viste, la quota
+di PARTENZE correla **+0,198** col resto della stagione, **13 finestre su 13**) e il gate l'ha respinta:
+contro R20, `default` **+0,35%** (6/14, sotto il pavimento) ed `euro` **+0,81%** (5/10, non maggioranza,
+peggiore −2,11% fuori tolleranza). Le quattro chiavi restano DICHIARATE e fuori da `ADOPTED`.
+
+**E IL SURROGATO AVEVA DATO IL SEGNO OPPOSTO, che è la lezione che è costata la giornata.** Provata fuori
+dal motore con un prior grezzo al posto del set adottato, la forma leggeva +0,66% a settembre (6/6) e
+negativa a febbraio; il gate vero legge −0,13% a settembre e +0,84% a febbraio. **Il surrogato non
+misurava il valore dello sconto: misurava l'ASSENZA del set adottato** — a settembre «è un subentrante e
+non un titolare» il motore lo sa già da R3 (i minuti) e R19 (il livello), quindi lo sconto ricontava un
+fatto contato. Da cui la regola, e vale per ogni banco fuori dal gate: **un baseline più debole fa
+sembrare un canale nuovo MIGLIORE di quanto sia, quindi il verso del bias si dichiara PRIMA della corsa,
+non dopo.** E il corollario opposto: un segnale **piccolo ma ortogonale** vale più di uno grande e già
+contenuto — è la differenza fra R24 (+0,198 di parziale, ridondante) e le squalifiche (−0,068,
+ortogonale ai minuti a **−0,004**).
+
+**IL BASELINE È FITTATO SU UN ESITO CHE IL FATTO LO CONTIENE GIÀ, quindi si paga solo il DIFFERENZIALE.**
+Le squalifiche l'hanno dimostrato dal lato peggiore: il termine lineare sulla propensione al cartellino
+vale +0,17%, la forma di R21 — sottrarre le giornate attese dal regolamento, che sulla carta è la forma
+giusta — vale **−1,58%, 0 finestre su 11**, perché il modello impara «questo profilo gioca 24 giornate» e
+quel 24 è già al netto delle sue squalifiche: le 0,84 sottratte sono contate due volte. Stessa famiglia
+dell'età («il modello sconta già i trentenni prima di qualunque termine d'età») e di R14. I rigori dicono
+la stessa cosa dal lato buono: i +3 di chi li tirava sono già dentro la sua fantamedia precedente, quindi
+il canale esiste **solo sui cambi di stato** (chi smette −0,546, chi comincia **+0,661**).
+
+**E UN EFFETTO GRANDE CON UNA MIRA PEGGIORE DEL NIENTE È UN CANALE CHE NON ESISTE.** I rigori sono il caso
+puro: mezzo punto di fantamedia su ~6 uomini a stagione, che è la forma che il gate premia — pochi uomini
+spostati di molto — e al 5 agosto la domanda «chi li tirerà» ha due risposte, il taker della stagione
+scorsa (**40%**) e il rank 1 di `penalty_hierarchy` (**15%**). La gerarchia è peggiore del banale, e il
+banale **è ciò che il modello assume già**. Serve uno strumento che batta il 40%, non un parametro.
+
+**Tre rifiuti, tre forme diverse, e vale la pena tenerle distinte** perché si riconoscono in fretta: il
+modulo/posti della linea non ha il MECCANISMO (il segno è al contrario); le squalifiche ce l'hanno troppo
+PICCOLO (≤14% dell'errore nel caso perfetto); i rigori ce l'hanno grande ma senza MIRA. Costo dei tre
+messi insieme: circa un'ora di SELECT contro tre implementazioni con pre-registrazione e gate. **Una lista
+di cose promettenti si misura prima di aprirla, e la diagnostica pre-corsa si fa contro il set adottato o
+non è una diagnostica.**
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
