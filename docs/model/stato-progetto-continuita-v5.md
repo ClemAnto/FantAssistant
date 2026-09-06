@@ -35,8 +35,10 @@ forma del «14 siti» ritirato ieri: erano entrambi numeri di un arnese e non de
 **3. Le due cure del mattino, provate sul percorso che le rompeva.** `recent_form --from-cache`: **1.731
 partite per 177 giocatori** rigiocate, righe 352.754 → 352.754, `mv_synth` **44 → 44**, i quattro bonus
 **1.730 → 1.730** (prima della cura la stessa corsa li avrebbe azzerati). `stats` da solo:
-`clean_sheets` **1.028 stagioni-portiere / 4.898 porte inviolate**, euro **509 / 2.590**, identici.
-Orfani della cache **0 su 1.731**, con 177 file per 177 giocatori: lo strato è interamente ricostruibile.
+`clean_sheets` **1.028 stagioni-portiere / 4.898 porte inviolate**, euro **509 / 2.590**, identici — e
+«identici» è misurato riga per riga contro il bundle del 05/09, **0 differenze su 14.709 stagioni** e
+tutte e tredici le colonne, non dedotto da due contatori. Orfani della cache **0 su 1.731**, con 177 file
+per 177 giocatori: lo strato è interamente ricostruibile.
 
 **4. IL BUCO DEL VOTO SINTETICO ERA UNA GIUNZIONE PER NOME, e si è visto senza correre niente.** La
 domanda era «44 righe su 1.731 hanno un voto sintetico: quanto è la regola di calibrazione e quanto sono

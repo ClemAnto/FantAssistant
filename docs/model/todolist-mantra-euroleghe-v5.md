@@ -1320,7 +1320,9 @@ pomeriggio quello che restava, e ogni voce porta la misura invece della promessa
   calibrazione**: vedi la voce aperta qui sotto.
 * ~~`clean_sheets` va ricontato dopo il prossimo `stats` da solo~~ — **FATTO**: `stats` lanciato per conto
   suo, `clean_sheets` **1.028 stagioni-portiere e 4.898 porte inviolate** (euro **509 / 2.590**),
-  identici a prima. La regola tiene sul percorso che la rompeva.
+  identici a prima. La regola tiene sul percorso che la rompeva. E «identici» è misurato e non dedotto
+  dai due contatori: confrontate riga per riga con il bundle del 05/09, **0 differenze su 14.709
+  stagioni** e tutte e tredici le colonne — il derivato si conserva e gli osservati non si muovono.
 * ~~Gli orfani della cache di `recent_form`~~ — **0 su 1.731**, con **177 file per 177 giocatori**: ogni
   riga arricchita ha una voce su disco. Resta la sorveglianza: un numero diverso da zero vuol dire che
   quella parte dello strato è tornata a esistere solo nel DB.
