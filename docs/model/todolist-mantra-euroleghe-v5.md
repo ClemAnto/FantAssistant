@@ -1391,22 +1391,36 @@ foglio prevede, la tendina delle stagioni e le sei colonne dell'esito su `/why`,
 Restano tre voci, e **nessuna è una misura da inventare**: due hanno già il numero, la terza è una
 decisione dell'operatore.
 
-* **LO ZERO REALIZZATO come colonna del foglio.** Oggi il «Surplus reale» si conta con il rimpiazzo che il
-  foglio PREVEDEVA, e la ragione è che muovendo anche lo zero lo scarto mescolerebbe l'errore sull'uomo
-  con lo spostamento del livello di rimpiazzo — un fatto sulla LEGA. L'altra lettura («quanto ha reso
-  sopra chi giocava davvero al posto suo quell'anno») è legittima e il toolkit sa già darla:
-  `features.replacement_actual` è calcolato in `prepare` quando c'è la lega, e non arriva sul foglio.
-  Costo: una colonna `actual_replacement_fm` più una corsa dei pacchetti (~35 min). Da fare solo se
-  l'operatore vuole la seconda lettura: due zeri sono due domande, quindi due colonne e due nomi, mai una
-  cifra sola.
+* ~~**LO ZERO REALIZZATO come colonna del foglio.**~~ **DECISO IL 06/09/2026 (sera): NON si aggiunge**, e
+  la decisione è informata da una misura che prima non c'era. Lo scarto fra il rimpiazzo PREVISTO e quello
+  REALIZZATO sul 2025-26, per ruolo:
 
-* **LA DATA «DOPO LA TERZA GIORNATA» — misurata e NON aggiunta.** Il numero c'è: sul foglio Serie A del
-  16/09/2025 contro quello del 05/09, la previsione si muove di **0,030** di quota presenze (≈1,1 giornate
-  su 36) e di **zero millesimi** di fantamedia, e l'errore migliora dell'**1,0%** (quota presenze 0,1907 →
-  0,1888; fantamedia 0,317 → 0,312). Contro: una convenzione nuova in `timepack.WINDOWS` — che sarebbe
-  legittima, perché la data la legge il CALENDARIO e non i trasferimenti — più sei corse di `snapshot` a
-  ogni rifacimento dei pacchetti (~9 minuti). Non aggiunta; la decisione è dell'operatore e ora è
-  informata. Il foglio del 16/09 resta in `data/reports/` come prova.
+  | | Serie A classic | | EuroLeghe mantra |
+  |---|---|---|---|
+  | P | previsto 4,095 → realizzato 4,440 (**+0,345**) | `por` | 4,357 → 4,140 (**−0,217**) |
+  | D | 5,642 → 5,840 (+0,198) | `ds` | 5,683 → 5,880 (+0,197) |
+  | C | 5,861 → 5,900 (+0,039) | `m` | 5,880 → 6,170 (+0,290) |
+  | A | 5,633 → 5,330 (**−0,303**) | `pc` | 7,285 → 7,080 (−0,205) |
+
+  Al massimo **±0,35 di fantamedia, e cambia SEGNO per ruolo**: uno spostamento così vale ~9 fantapunti su
+  una stagione, ma li prende OGNI uomo di quel ruolo, perché è un fatto sulla panchina della LEGA e non sul
+  calciatore. Contarlo dentro il «Surplus reale» rietichetterebbe uno spostamento di lega come errore
+  sull'uomo, e `/why` è una pagina sull'errore del MOTORE, dove lo zero previsto è quello giusto.
+  Resta vero che sarebbe una domanda legittima («quanto valeva quel posto alla fine») e che il toolkit sa
+  già rispondere (`features.replacement_actual`): il giorno che diventa una domanda vera, sono una colonna
+  con il suo nome più una corsa dei pacchetti (~35 min), e i numeri per decidere sono questi.
+
+* ~~**LA DATA «DOPO LA TERZA GIORNATA»**~~ — **DECISO IL 06/09/2026 (sera): restano le QUATTRO date.** Il
+  numero c'era: sul foglio Serie A del 16/09/2025 contro quello del 05/09 la previsione si muove di
+  **0,030** di quota presenze (≈1,1 giornate su 36) e di **zero millesimi** di fantamedia, e l'errore
+  migliora dell'**1,0%** (0,1907 → 0,1888 sulle presenze, 0,317 → 0,312 sulla fantamedia). Quindi il
+  pacchetto del 05/09 risponde alla stessa domanda con lo stesso verdetto.
+  **E la ragione del no non è quell'1%: è la CONVENZIONE.** Le quattro date sono una regola sola — il
+  giorno dopo ogni finestra di mercato delle ultime due stagioni — mentre «dopo la terza giornata» è una
+  data contata in GIORNATE: nella stessa lista sarebbero due convenzioni mescolate, e il costo (~9 minuti
+  a ogni rifacimento dei pacchetti) si paga per sempre. Detto per intero, perché la richiesta originale
+  diceva «alla terza giornata» alla lettera: quello che si accetta è una data vicina invece di quella
+  esatta, ed è reversibile in nove minuti. Il foglio del 16/09 resta in `data/reports/` come prova.
 
 * **LA GRANDEZZA SU CUI C'È DA GUADAGNARE È MISURATA, e non è una novità: le PRESENZE.** L'errore sulla
   fantamedia è 0,317 su una scala che va da 5 a 8 (praticamente centrato, +0,032 di scarto); quello sulle
