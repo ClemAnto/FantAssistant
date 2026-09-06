@@ -55,6 +55,24 @@ FEEDER_LEAGUES: tuple[str, ...] = (
 # five?» - the cups and the continental ties arrive with the provider's own slug and are neither.
 CHAMPIONSHIPS: tuple[str, ...] = LEAGUES + FEEDER_LEAGUES
 
+# THE COUNTRY EACH CHAMPIONSHIP IS PLAYED IN, in the three-letter codes `club_levels.country` uses.
+# Declared like the rest of this block, and it exists because A PROVIDER SLUG IS NOT AN IDENTITY:
+# SofaScore calls `bundesliga` both the German championship and the AUSTRIAN one. Measured 06/09/2026,
+# after a cache replay rewrote the competition of every stored row: 36 matches of Red Bull Salzburg and
+# Austria Klagenfurt were sitting under our German key, where `synth` converts a rating with a line
+# fitted on the Bundesliga. What decides is the CLUB, and the country is the only fact that separates
+# the two - so the mapping is guarded by it (`positions.competition_for`).
+# Precise, and measured before being used: exactly 36 rows of 334.630 under our six keys disagree with
+# their club's country, i.e. these two clubs and nothing else.
+LEAGUE_COUNTRY: dict[str, str] = {
+    "serie_a": "ITA",
+    "premier_league": "ENG",
+    "la_liga": "ESP",
+    "bundesliga": "GER",
+    "ligue_1": "FRA",
+    "serie_b": "ITA",
+}
+
 # ...and how TRANSFERMARKT spells those same six, because its per-match layer (`tm_appearances`) is a
 # SECOND source for a fact we already define: how many minutes of a championship a man played. Declared
 # rather than derived, like `club_levels_xref`: a provider's competition code is its own vocabulary, and

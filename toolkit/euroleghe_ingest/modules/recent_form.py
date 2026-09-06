@@ -13,10 +13,12 @@ has SOMETHING measured about them. Not a season, not a fantamedia - a minimum.
 
 Three decisions worth stating, because each is a place to go wrong:
 
-* **`source='sofascore_recent'`, not `'sofascore'`.** These matches are in competitions the synthetic
-  voto was never calibrated on: a 7.0 rating in Serie B is not a 7.0 in Serie A. `synth` fits and
-  applies its line to `source='sofascore'` only, so tagging them apart keeps a Serie B rating from
-  silently becoming a Serie A base voto. Whether and how the engine leans on them is the gate's call.
+* **`source='sofascore_recent'`, not `'sofascore'`.** The tag is PROVENANCE and it is no longer the
+  eligibility gate: `synth.calibrated_competitions` decides that per COMPETITION, derived from the
+  overlap itself, which is a correction in both directions (a Serie B rating never becomes a Serie A
+  base voto, and a Bundesliga one does). What this module owes that rule is the right SPELLING - see
+  `store`: the provider's event list says `premier-league` and every reader asks `premier_league`, and
+  for a hyphen 352 rows of 45 players carried no synthetic voto at all (06/09/2026).
 * **Dated, and the engine filters by the auction date.** The provider's endpoint is anchored to TODAY,
   not to an auction, so for a past window we page backwards until the matches predate that window's
   auction. Storing the date is what lets the same rows serve a live auction and a backtest.
@@ -44,6 +46,9 @@ from euroleghe_ingest.modules.positions import (
     _get_json,
     _iso_date,
     _polite_sleep,
+    _slug_of,
+    club_countries,
+    competition_for,
 )
 
 NAME = "recent_form"
@@ -317,9 +322,15 @@ def recent_matches(session, provider_id: int, before_timestamp: int,
             side = home if home.get("id") == team_id else away
             if side.get("national"):
                 continue
-            tournament = event.get("tournament") or {}
-            unique = tournament.get("uniqueTournament") or {}
-            competition = unique.get("slug") or tournament.get("slug") or tournament.get("name") or ""
+            # THE COMPETITION IS NAMED BY `positions._slug_of` AND NOT HERE, and this module had its
+            # own copy of that logic - which is how the same championship came to have two names. The
+            # difference is not style: `_slug_of` decides by the provider's TOURNAMENT ID and falls back
+            # to the slug only outside our leagues, so `premier-league` arrives as `premier_league`
+            # (352 rows of 45 players were refused the synthetic voto for that hyphen) and the AUSTRIAN
+            # Bundesliga can never be taken for the German one - the two share the slug `bundesliga`
+            # and differ by id. What the cache keeps is therefore already resolved, which is what makes
+            # a replay of it exact instead of ambiguous.
+            competition = _slug_of(event)
             if "friendly" in competition.lower():
                 continue
             kept.append({
@@ -475,7 +486,16 @@ def store(conn, fc_id: int, matches: list[dict]) -> int:
         plain assignment, re-storing a player's list erased goals that had cost a request apiece, and
         `stored_without_bonuses` then offered to buy them again.
     """
-    rows = [(fc_id, match["season"], SOURCE, match["event_id"], match["competition"],
+    # ONE SPELLING PER COMPETITION, AND IT IS OURS WHEREVER WE HAVE A KEY FOR IT - guarded by the CLUB,
+    # because a slug is not an identity (`competition_for` says what that cost). The provider's event
+    # list names the tournament by slug, so a Premier League match came in as `premier-league` while
+    # every reader of this column - the calibration gate above all - asks for `premier_league`. Resolved
+    # HERE because `store` is the single write path of this module: a live fetch and a cache replay both
+    # come through it, so the archive is cured by re-running `--from-cache` and no row keeps two names.
+    # The cache keeps the provider's own spelling, which is what a raw source is for.
+    countries = club_countries(conn)
+    rows = [(fc_id, match["season"], SOURCE, match["event_id"],
+             competition_for(match["competition"], match.get("club"), countries),
              match.get("round"), _iso_date(match["timestamp"]),
              match.get("club"), match.get("opponent"), match.get("home"), match.get("minutes"),
              match.get("rating"), match.get("goals"), match.get("assists"),

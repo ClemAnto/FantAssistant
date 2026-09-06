@@ -25,6 +25,8 @@ import random
 import re
 import time
 
+from collections.abc import Mapping
+
 from euroleghe_ingest import config
 from euroleghe_ingest.config import DEFAULT_SEASONS
 from euroleghe_ingest.context import Context
@@ -107,7 +109,26 @@ assert set(FEEDER_TOURNAMENTS) == set(config.FEEDER_LEAGUES)
 # The provider's own slug for a championship we have a key for -> OUR key. Only for the leagues in
 # `known_leagues()`: a cup or a friendly keeps the provider's slug, because it is not a championship
 # and the sheet has to be able to tell them apart (`snapshot.competition_class`).
-_OUR_SLUG: dict[str, str] = {"serie-b": "serie_b"}
+#
+# THE OTHER FIVE JOINED IT ON 06/09/2026, and they had been missing where it costs: `recent_form` reads
+# the slug off the player's own event list, so a man's Premier League matches at a club outside the euro
+# perimeter were archived as `premier-league` while `synth.calibrated_competitions` asks
+# `matchday_map.league`, which speaks these keys. `bundesliga` is the only spelling that coincides, and
+# it was the only one converting - 44 rows of 44 - while 352 rows of 45 players got no synthetic voto at
+# all for a hyphen. Fifth instance of this project's oldest rule: an entity joins through its KEY, never
+# through the string a source uses to name it (gate §7-quattuorquadragies).
+#
+# VERIFIED ON THE CLUBS before being written, because an ambiguous name match is worse than a missing
+# one: the 11 clubs stored under `premier-league` are all English, the 8 under `laliga` all Spanish, the
+# 9 under `ligue-1` all French, and the 3 under `serie-a` are Juventus, Hellas Verona and Palermo - which
+# played Serie A in 2015-16. No slug carries clubs of two countries.
+_OUR_SLUG: dict[str, str] = {
+    "serie-a": "serie_a",
+    "premier-league": "premier_league",
+    "laliga": "la_liga",
+    "ligue-1": "ligue_1",
+    "serie-b": "serie_b",
+}
 
 
 def tournament_id(league: str) -> int:
@@ -907,18 +928,86 @@ def complete_match_layer(ctx: Context, leagues, seasons) -> dict[str, int]:
     return added
 
 
+def club_countries(conn) -> dict[str, str]:
+    """`club_key` -> its three-letter country, from `club_levels`: the only place we hold one."""
+    return {key: country for key, country in conn.execute(
+        "SELECT club_key, country FROM club_levels WHERE country IS NOT NULL")}
+
+
+def competition_for(slug: str | None, club: str | None, countries: Mapping[str, str]) -> str | None:
+    """OUR key for a provider slug - or a name that keeps two championships APART.
+
+    A SLUG IS NOT AN IDENTITY, and this is the fifth instance of that rule in this project. SofaScore
+    calls `bundesliga` both the German championship and the Austrian one, so on 06/09/2026 a cache
+    replay filed 36 Red Bull Salzburg and Austria Klagenfurt matches under our German key - where
+    `synth` would have converted their ratings with a line fitted on the Bundesliga. What separates the
+    two is the CLUB, whose country we already hold (`club_levels.country`: 100% of the rows this
+    touches, and exactly 36 rows of 334.630 under our six keys disagree with it).
+
+    ONLY POSITIVE CONTRARY EVIDENCE OVERRIDES THE SLUG, which is the same asymmetry the sealed-bid
+    page states about a man's rung: to ACT you need evidence, and to REFUSE you need evidence too. A
+    club with no country on file is not an argument against the spelling, so the slug still decides -
+    and this is not indulgence: on the live archive the country covers 100% of the rows any of this
+    touches, and the four provider spellings are single-country there (ENG 165 · ESP 73 · FRA 95 ·
+    ITA 21 rows).
+
+    The four cases, and the third is the one that pays for this function:
+      * a provider spelling of a championship we have a key for -> OUR key, unless the club is KNOWN
+        to be of another country, and then the slug stays: it is another country's league spelled like
+        one of ours, and it is not ours to claim;
+      * the slug IS one of our keys and the club is KNOWN to be foreign -> `<key>-<country>`, which
+        for Austria reproduces `bundesliga-aut`, the spelling the provider itself gave those rows;
+      * no country on file -> the slug decides, in both directions;
+      * a cup, a friendly or a league we have no key for always keeps its slug: it is provenance, and
+        `snapshot.competition_class` has to be able to tell them apart.
+    """
+    if not slug:
+        return slug
+    ours = _OUR_SLUG.get(slug, slug)
+    home = config.LEAGUE_COUNTRY.get(ours)
+    if home is None:
+        return slug
+    country = countries.get(club_key(club)) if club else None
+    if country is None or country == home:
+        return ours
+    return f"{ours}-{country.lower()}" if slug == ours else slug
+
+
 def normalize_competitions(conn) -> int:
-    """Rewrite a stored competition that is a provider SLUG for a league we have a key for.
+    """Rewrite a stored competition so that one championship has ONE name, and only its own rows.
 
     The cache is replayed offline and files written before `_slug_of` learned our keys are still on
     disk, but rows written from them are already in the tables - and a rename at read time would be a
     second definition. One spelling, in the data.
+
+    It works club by club rather than slug by slug, because the club is what makes the rename SAFE
+    (see `competition_for`): a blanket `UPDATE ... WHERE competition = 'bundesliga'` cannot tell Bayern
+    from Red Bull Salzburg. Only the distinct clubs of the competitions that can move are read, so this
+    stays a handful of queries and not a pass over 350.000 rows.
     """
+    countries = club_countries(conn)
+    candidates = set(_OUR_SLUG) | set(config.LEAGUE_COUNTRY)
     moved = 0
-    for slug, ours in _OUR_SLUG.items():
-        for table in ("external_match_stats", "club_match_lineups"):
-            moved += conn.execute(f"UPDATE OR REPLACE {table} SET competition = ? "
-                                  f"WHERE competition = ?", (ours, slug)).rowcount
+    for table in ("external_match_stats", "club_match_lineups"):
+        for stored in sorted(candidates):
+            targets: dict[str, list[str]] = {}
+            for (club,) in conn.execute(
+                    f"SELECT DISTINCT club FROM {table} WHERE competition = ?", (stored,)):
+                wanted = competition_for(stored, club, countries)
+                if wanted and wanted != stored:
+                    targets.setdefault(wanted, []).append(club)
+            for wanted, clubs in targets.items():
+                marks = ",".join("?" * len(clubs))
+                moved += conn.execute(
+                    f"UPDATE OR REPLACE {table} SET competition = ? "
+                    f"WHERE competition = ? AND club IN ({marks})",
+                    (wanted, stored, *clubs)).rowcount
+            # ...and the rows with no club at all: a slug of ours can still be renamed for them, since
+            # nothing about a country is being claimed - but only where the slug is not already a key.
+            if stored in _OUR_SLUG and _OUR_SLUG[stored] != stored:
+                moved += conn.execute(
+                    f"UPDATE OR REPLACE {table} SET competition = ? "
+                    f"WHERE competition = ? AND club IS NULL", (_OUR_SLUG[stored], stored)).rowcount
     if moved:
         conn.commit()
     return moved
