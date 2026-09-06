@@ -5190,6 +5190,80 @@ Una cosa per volta, o il verdetto non si attribuisce.
    §7-nonies e non qui. In quel caso la rinomina resta (una grafia giusta non è una preferenza) e il voto
    sintetico su quelle righe NO.
 
+### ESEGUITA (6 settembre 2026, sera) — il gate non muove un numero, e la prima cura era sbagliata
+
+**Verdetto: ADOTTATO come ripiego di SORGENTE e non come regola** (commit `63022bf` per A, `5c410fc`
+per B), con il gate nel ruolo che la pre-registrazione gli assegnava: una guardia.
+
+**A — il calendario.** `league_rounds` conta dal livello che cammina le giornate e dichiara il resto.
+Misurato in un worktree su HEAD, muovendo una variabile sola: **0 differenze su 6.168 numeri** del
+rapporto, `--verify` 22/22 prima e dopo. **204 osservazioni** cambiano divisore (86 su Tm5/euro, 118 su
+Tm4/euro: i tedeschi, da 33 o 38 al 34 vero) e **zero su `default`**, dove nessuna osservazione porta
+una lega straniera. E impedisce a B di dare un divisore da **1** a 248 osservazioni di Tm4/euro.
+
+**L'aspettativa n.2 era SBAGLIATA e resta scritta**: dicevo «si muove una cella sola» e se ne muovono
+quattro, perché il ripiego generico da 38 era già sbagliato per la Bundesliga nelle stagioni in cui il
+dizionario non aveva la voce (2017-18 e 2018-19 leggevano 38 invece di 34). Il difetto era più vecchio
+della rinomina che l'ha fatto trovare.
+
+**E l'inerzia vale anche sulle 14 finestre IN-SEASON**, che quel rapporto non tocca — rimisurate dalla
+sessione che stava lavorando su R24 (identiche alla terza cifra su tutt'e due le piattaforme). La
+ragione, che vale più della misura: `derived.minutes_share` ha **un solo consumatore adottato**, R3, che
+è in `ADOPTED['default']` e non in `ADOPTED['euro']` (là c'è R3c, che legge `minutes_share_euro_prev`,
+un'altra quantità); e su `default` il listone è al 100% `serie_a` (641 righe su 641 nel 2018-19). Quindi
+lo zero è strutturale **e condizionale al set adottato**: smette di valere il giorno in cui R3 entra su
+euro, o una candidata nuova legge `minutes_share`. Da correggere anche una frase che era circolata fra
+le sessioni: `evaluate` **legge** `.rounds`, a `evaluate.py:667` dentro `derive()`, attraverso
+l'accessore e non il campo — «verifica la FUNZIONE, non la colonna che le somiglia» applicato a un
+elenco di chiamanti.
+
+**B — la grafia, e la prima forma era sbagliata in un modo che solo il dato poteva mostrare.** Mappare
+per SLUG fonde la Bundesliga **AUSTRIACA** nella tedesca: il provider chiama `bundesliga` tutt'e due, e
+la cache di `recent_form` archivia l'etichetta DERIVATA invece dell'identità della fonte, quindi la
+rigiocata offline di quel giorno (una voce di todolist, non questo esperimento) aveva già portato **36
+partite** di Red Bull Salzburg e Austria Klagenfurt sotto la nostra chiave tedesca. Sulla copia dove
+`synth` era girato, tutte e 36 avevano preso un voto sintetico dalla retta tedesca, e **quattro di
+quegli uomini sono ARRIVI** il cui FM-equivalente ne era costruito: Pavlovic 6,86 · Sucic L. 8,30 ·
+Irving 8,29 · **Alajbegovic 6,93**, l'ultimo sul listone 2026-27, cioè sul foglio in uso.
+
+**E la giustificazione pubblicata della regola per competizione citava il caso che la smentiva**: la
+nota del 16/08 in `CLAUDE.md` porta Alajbegovic come L'ESEMPIO per cui le righe `bundesliga` dello
+strato recent devono convertire («the tag excluded them from a line fitted on exactly that league»). Le
+sue dieci partite sono di Bundesliga **austriaca**. Un esempio non verificato è un argomento in meno,
+non uno in più.
+
+**La forma che spedisce, e la regola è una sola**: un'entità si unisce per la sua CHIAVE, mai per la
+stringa con cui una fonte la chiama. `recent_form` chiama `positions._slug_of`, che esisteva dal 08/08 e
+decide per **ID DI TORNEO** — quel modulo si era riscritto la denominazione, che è come lo stesso
+campionato è arrivato ad avere due nomi. L'archivio, dove l'ID non c'è più, lo ripara
+`positions.competition_for` col **PAESE del club**, e solo come evidenza CONTRARIA: un club senza paese
+non è un argomento contro la grafia, che è ciò che tiene in piedi la normalizzazione di `serie-b` del
+08/08 (e sulle righe che questo tocca il paese copre il **100%**, mentre esattamente **36 righe su
+334.630** sotto le nostre sei chiavi sono in disaccordo con esso).
+
+**I numeri di B**, due bracci sulla stessa copia con lo stesso comando:
+
+| | prima | dopo |
+|---|---|---|
+| voto sintetico nello strato recent | 44 | **396** |
+| righe austriache convertite | 36 | **0** |
+| FM-equivalenti degli arrivi | — | **28 riempiti · 8 tolti · 42 rivisti** |
+| tier degli arrivi | — | **29 spostati** (19 T3→T2 · 4 T2→T3 · 4 T2→T1 · 2 T1→T2) |
+| numeri del gate (`--verify --auction`) | 50.284 | **0 differenze** |
+
+**Perché il gate non si muove, ed è strutturale**: l'unico lettore di `foreign_fm_equiv` in `evaluate` è
+**R1**, che non è adottata su nessuna piattaforma, e il TIER lo leggono `desc_arrival_tier` e il braccio
+dello sweep. Il valore cade sui FOGLI e sull'app, non sull'engine — e l'aspettativa n.1 (il gate qui è
+una guardia, con 20 arrivi-finestra su dieci finestre) è quella che ha retto. L'aspettativa n.3 pure: il
+tier cambia per 29 righe su 78 mosse, non per tutte.
+
+**Un difetto della MISURA, trovato dalla misura stessa**: la prima passata attribuiva a B 70
+FM-equivalenti e 21 tier, ma `arrivals` non veniva ri-derivata dal 7 agosto e quei conteggi contenevano
+la deriva del listone letto da allora (le rose sono cambiate: +2 righe di `arrivals` che nessuna
+rinomina può creare). Rifatta con i due bracci ri-derivati entrambi, l'effetto della sola rinomina è
+28/8/42/29. *Una tabella stantia confrontata con una fresca attribuisce al candidato il lavoro del
+tempo.*
+
 ### Criteri: quelli di questo documento, non uno nuovo
 
 Dieci finestre Serie A e cinque euro, `backtest` con la sua cross-fit, **strict e robusto riportati
