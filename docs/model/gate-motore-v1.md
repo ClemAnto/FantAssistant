@@ -5820,3 +5820,81 @@ R7 era uno stimatore sbagliato · `072542d` tab Auction · `cb23192` il Mantra s
 ⚠️ **La passata del 29/07 (§5-duodecies, [turnover-atteso-v1.md](turnover-atteso-v1.md)) è entrata in
 `b950afe`**, un commit il cui messaggio parla di GUI e snapshot: i doc ci sono, il messaggio non li nomina.
 Chi cerca «quattro credenze misurate» nella storia dei commit non la trova per titolo — cercarla per file.
+
+## 7-noviesquadragies. PRE-REGISTRAZIONE (6 settembre 2026, notte) — R25: LE GIORNATE GIÀ GIOCATE ENTRANO ANCHE NELLA FANTAMEDIA
+
+**Scritta e committata PRIMA della corsa**, come per R24. Dalla domanda dell'operatore: «lo SWING e il
+surplus si basano sulle presenze attese e la fantamedia attesa… ma questi valori si basano solo sulla
+scorsa stagione o anche sulle partite della stagione corrente?» — e, letta la risposta, «non possiamo
+fare che la FANTAMEDIA ATTESA funzioni come le presenze attese?».
+
+**LA RISPOSTA CHE HA APERTO LA DOMANDA, verificata nel codice e non a memoria.** Le presenze SÌ: R20 è
+adottata con un K per piattaforma (`R20K10` su `default`, `R20K6` su `euro`), quindi le giornate già
+giocate entrano in `engine_pv_pred`. La fantamedia NO: le adottate su `default` sono `R3 · R7 · R13 ·
+R19 · R20K10 · R23` e portano **tutte `metric="pv"`**; l'unica `metric="fm"` è R18, che vive solo su
+`euro`. Su Serie A `engine_fm_pred` è la fantamedia dell'anno scorso regredita verso l'ancora del ruolo,
+e delle giornate giocate non sa niente.
+
+### La regola
+
+La stessa forma di R20 sull'altra metrica, applicata DOPO le regole di fantamedia adottate — non le
+sostituisce, ci converge:
+
+    fm = model.blend_with_seen(fm_prior, fm_seen, k, K)
+       = (k × fm_seen + K × fm_prior) / (k + K)
+
+**E UNA DIFFERENZA DA R20 CHE VA DICHIARATA PRIMA, perché è una decisione e non un dettaglio: `k` è il
+numero di PARTITE CHE HA GIOCATO, non le giornate trascorse.** Per le presenze il peso giusto sono le
+giornate di calendario, perché `pv_seen / matchdays_seen` è una quota su quel calendario. Per la
+fantamedia no: la taglia del campione è quante volte ha preso un voto. Un uomo che ha giocato 1 delle
+prime 6 giornate ha una fantamedia costruita su UNA partita, e deve pesare uno. Contarla sei sarebbe
+l'errore di unità che questo progetto paga più spesso.
+
+`fm_seen` e `k` escono dalla STESSA query (`match_ratings`, giornate viste, `status='played'`), quindi la
+media e la sua taglia non possono divergere. Chi non ha giocato nemmeno una volta ha `fm_seen` assente e
+la regola non lo tocca — «vuoto = ignoto», non uno zero: un uomo che non ha ancora giocato non ha una
+fantamedia bassa, non ne ha nessuna.
+
+### Griglia, e come si chiamano
+
+`R25K3 · R25K6 · R25K10 · R25K15 · R25K25 · R25K40`, la stessa griglia di R20 con `K` in PARTITE. Nessun
+altro punto, e nessun allargamento dopo aver visto la curva.
+
+### Criterio, che è quello di sempre
+
+Le 14 finestre in-season (`I19set … I25feb`), due piattaforme, due giochi. Metrica **fm**. Si adotta se:
+**strict** (migliora su ogni finestra che la misura, col pavimento dello 0,5% sulla media) oppure
+**robust** (maggioranza delle finestre, media sopra il pavimento, nessuna finestra sotto il −2%), con i
+due guardiani del DELIVERABLE non peggiorati (i nomi e il valore catturato delle liste d'asta). Se i due
+verdetti divergono, la decisione si prende in chiaro e si scrive. **Un ottimo sul BORDO della griglia
+non si adotta**, come sempre.
+
+### Cosa mi aspetto, scritto prima perché possa essere smentito
+
+**Mi aspetto che paghi a FEBBRAIO e non a SETTEMBRE, e che il K adottato sia grande.** Le due ragioni
+tirano in direzioni opposte e vanno dette tutt'e due:
+
+- **A FAVORE**: la fantamedia della stagione in corso è una misura DIRETTA del livello di adesso — un
+  cambio di club, un cambio di ruolo, i rigori che passano a lui — e R20 ha dimostrato che il dato
+  in-season è informativo. A febbraio un uomo ha ~20 partite su file, che è più di mezza stagione.
+- **CONTRO**: la forma sul VOTO è già stata misurata contro il null giusto (la sequenza rimescolata,
+  Miller-Sanjurjo) e vale **zero** — +0,204 grezzo contro un null di +0,205, eccesso vero −0,0007, che
+  cambia perfino segno con la finestra (§5-duodecies). E `Var(ln pv)` è l'86-90% di `Var(ln` fantapunti`)`,
+  quindi sul lato voto c'è meno spazio per costruzione. A settembre il campione è di 2-6 partite, cioè
+  rumore.
+
+**Quindi la previsione falsificabile è questa**: se la regola passa, il K vincente starà nella metà alta
+della griglia (15-40) e il guadagno verrà quasi tutto dalle finestre `feb`; se il K vincente fosse
+piccolo (3-6) e il guadagno venisse da `set`, la mia lettura del meccanismo sarebbe sbagliata e andrebbe
+riscritta invece che festeggiata.
+
+**E un rifiuto è un esito buono quanto un'adozione**: se non passa, il progetto guadagna la conferma che
+la fantamedia dell'anno scorso regredita è già il meglio che sappiamo fare sul voto — cosa che tre
+misure diverse suggeriscono e nessuna ha ancora provato su questa domanda.
+
+### La proprietà di sicurezza, da verificare dopo la corsa
+
+`blend_with_seen` restituisce il prior INTATTO a `k = 0`, e su una finestra pre-stagione `pv_seen` è
+`None`: la regola è **inerte su ogni finestra su cui il gate ha pubblicato i suoi numeri**. Quindi
+`backtest --verify` deve restare **22/22** e nessun foglio deve muoversi finché la regola non è in
+`ADOPTED`. Se non fosse così, il difetto è nell'input e non nella regola, e va cercato lì.
