@@ -495,6 +495,76 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.78 (6 settembre 2026, pomeriggio — L'AUDIT DIVENTA UN TEST, e il buco del voto sintetico era una GIUNZIONE PER NOME)
+
+Le tre voci di codice aperte dalla code-review della mattina (todolist, «Aperto dopo la code-review del
+06/09/2026»), chiuse con i numeri della base viva.
+
+**1. `tests/test_upsert_columns.py` — l'audit che aveva trovato i due difetti ora gira a ogni corsa.**
+Lo script viveva nella cronologia di una chat: la prossima colonna aggiunta a una tabella con due
+scrittori ricominciava da capo. Adesso sono **43 siti** di `INSERT OR REPLACE` letti su **36 tabelle**,
+con tre classi dichiarate e nessuna scartata in silenzio — 32 che nominano tutto, **8 parziali** con una
+riga di allowlist ciascuna, **3 illeggibili** (le due tabelle temporanee di migrazione e il copiatore del
+bundle, che costruisce nome e colonne a runtime). Un sito nuovo in una qualunque delle tre classi fa
+fallire il test, che è il punto: una riga in più nella lista è una decisione che qualcuno prende.
+
+**Il lettore è una passeggiata sull'AST e non una regex sulle righe**, ed è la metà che rende il test
+usabile: Python unisce i letterali ADIACENTI e questo repository scrive l'SQL così
+(`press_formations`, `availability`). Il primo audit li spezzava e leggeva 14 siti invece di 8, cioè **sei
+falsi positivi** — un test costruito su quel lettore fallirebbe su codice sano, che è il modo più veloce
+per farlo disattivare. Due asserzioni tengono onesto il lettore proprio su quei due statement.
+
+**E la conta pubblicata ieri era di SEI siti legittimi: sono OTTO.** Verificati uno per uno, i due che
+mancavano sono `transfers` → `club_xref` (il QUARTO scrittore di una xref, non il terzo) e `ratings` →
+`match_ratings`, che lascia fuori `assists_set_piece`, `player_of_the_match`, `started` e `minutes` —
+nessuno dei quattro ha uno scrittore nel toolkit, quindi oggi una rilettura di una giornata non perde
+niente, e il giorno in cui il livello per-partita cominciasse a riempire `started` quella riga sarebbe
+sbagliata. È il numero di un conteggio fatto a mano che viene corretto da un conteggio fatto dal codice.
+
+**La `basis` di ogni riga è VERIFICATA e non creduta**, che è ciò che distingue una allowlist da un
+silenzio: `never_written` (cinque righe) è controllata contro **ogni altro INSERT e ogni UPDATE** della
+tabella nel pacchetto, e non solo contro `validate.ALLOWED_EMPTY` — perché `season_stats.clean_sheets`
+era in `ALLOWED_EMPTY` *ed* era derivata da un altro modulo, cioè esattamente la colonna che un REPLACE
+buttava via; `same_call` (due righe: `arrivals` e la coppia ruoli/heatmap di `positions`) è un ORDINE, e
+un ordine che nessuno asserisce è un'intenzione. **Provato rimettendo i difetti**: con il vecchio
+`stats._UPSERT` il test nomina `clean_sheets`, col vecchio `recent_form.store` nomina le tredici colonne
+che perde, e invertendo le due chiamate di `positions` nomina il chiamante.
+
+**2. La replica offline e il `stats` da solo, misurati sulla base VIVA** — le due verifiche che la
+todolist chiedeva, ed è il modo giusto di chiuderle: la cura protegge da qui in avanti e la prova è la
+corsa sul percorso che rompeva. `recent_form --from-cache`: **1.731 partite per 177 giocatori**
+rigiocate, righe 352.754 → 352.754, `mv_synth` **44 → 44**, i quattro bonus **1.730 → 1.730** (prima
+della cura questa stessa corsa li avrebbe azzerati tutti). `stats` lanciato da solo: `clean_sheets`
+**1.028 stagioni-portiere e 4.898 porte inviolate**, euro **509 / 2.590**, identici a prima. E gli orfani
+della cache di `recent_form` sono **0 su 1.731** con 177 file per 177 giocatori: lo strato è interamente
+ricostruibile.
+
+**3. IL BUCO DEL VOTO SINTETICO NON ERA NÉ UN RI-SALVATAGGIO NÉ LA REGOLA DI CALIBRAZIONE: è una
+GIUNZIONE PER NOME.** La domanda era «44 righe su 1.731 hanno un voto sintetico, quanto di quel buco è
+`calibrated_competitions` e quanto sono i REPLACE?». Nessuno dei due, e si vede senza correre niente:
+`synth` ha girato il 05/09 e `recent_form` il 07/08, quindi lo stato è l'uscita della regola; e le 44
+sono **44 su 44** delle righe di Bundesliga, cioè tutto quello che la regola lascia passare. Il motivo è
+che `recent_form` archivia la competizione con lo **slug del provider** (`premier-league`, `laliga`,
+`ligue-1`, `serie-a`) mentre `calibrated_competitions` la confronta con `matchday_map.league`, che parla
+le NOSTRE chiavi: `bundesliga` è l'unica grafia che coincide per caso. Sono **352 righe e 45 giocatori**
+rifiutati per una grafia, di cui **153 righe e 17 uomini nel 2025-26** — e tutti e 17 sono ARRIVI del
+2026-27, cioè esattamente i nomi per cui quello strato esiste. QUINTA istanza della regola più vecchia
+del progetto (dopo `club_key`, `fc_id`, la giunzione per nome degli avversari e `coach_repertoire`):
+un'entità si unisce per la sua CHIAVE, mai per la stringa con cui una fonte la chiama.
+
+**E la cura NON è stata spedita, perché non è reporting.** La grafia unica in tabella
+(`positions.normalize_competitions`, che esiste già per `serie-b`) è la forma giusta e ha due
+conseguenze misurate che la mettono davanti al gate e non davanti a un commit: `arrivals.foreign_fm_equivalent`
+legge `COALESCE(mr.mv, e.mv_synth)` **senza filtro di sorgente**, quindi allargare `mv_synth` cambia
+l'FM-equivalente e con lui il TIER degli arrivi, che è un canale ADOTTATO; e `features.league_rounds` e le
+date di apertura delle giornate non filtrano la sorgente, quindi con la rinomina `la_liga 2015-16`
+leggerebbe **29 giornate** invece di mancare — e `evaluate` divide per quel numero
+(`data.rounds_for`), su una stagione che è la finestra di input di Tm7. Va pre-registrata come candidata
+(la direzione è quella che il progetto ha già scritto: «per far pagare la regola si allarga il MISURATO»),
+con la mappatura verificata sui club prima di scriverla — gli undici club di `premier-league` sono tutti
+inglesi, gli otto di `laliga` spagnoli, i nove di `ligue-1` francesi, e i tre di `serie-a` sono Juventus,
+Hellas Verona e **Palermo**, che nel 2015-16 in Serie A c'era davvero.
+
 ## Novità v9.77 (6 settembre 2026 — L'ESITO sul foglio: cinque colonne per giudicare un pronostico)
 
 Richiesta dell'operatore: «lo scopo del SURPLUS è di dare un indice di valore del calciatore PRONOSTICANDO

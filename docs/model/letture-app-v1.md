@@ -371,6 +371,21 @@ merito.
 
 ## 7. Le preferenze dichiarate, che non sono previsioni
 
+**TOLTE DAL CODICE IL 06/09/2026, e questa sezione resta come record.** Le tre correzioni qui sotto sono
+sue e sono state spedite il 15/08; le hanno spente le sue stesse DEFINIZIONI del 18/08 («Overall =
+giudizio assoluto del rendimento, `Pv × (MVa + bonus attesi)`, senza nessuno zero sottratto») più il «keep
+it a simple mathematical term» con cui ha lasciato l'Overall fermo quando è arrivato Fπ: una formula così
+non ha un posto in cui una preferenza di rischio possa entrare. Da allora le costanti stavano nel file
+senza che nessuno le leggesse — `FRAGILITY_RISK`, `STARTER_SHARE`, `STARTER_CONCAVITY`, `DECLARED_RISK`,
+la `injuredShare` che le serviva e i suoi due aiutanti — e un parametro morto è un parametro che il
+prossimo lettore crede vivo (la metà Elo dei portieri è sopravvissuta in quattro commenti per settimane).
+Sono andate via col codice; le misure restano scritte qui.
+
+Due cose da tenere separate. **Il fatto DICHIARATO non è scomparso dallo schermo**: `player_notes.json`
+disegna la sua icona (`ui-flags`), che è il canale che la carta di quel file gli assegna; quello che non
+esiste più è la PENALITÀ in punti. E **se la rivuole, il posto non è l'Overall che ha definito lui**: è
+Fπ, o una colonna sua con il suo nome — due zeri sono due domande, e questa non fa eccezione.
+
 Tre correzioni all'Overall che l'operatore ha CHIESTO e che non sono seconde previsioni. Sono scritte come
 tali perché il prossimo lettore non le prenda per misure:
 

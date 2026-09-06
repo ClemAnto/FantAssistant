@@ -13,7 +13,7 @@ import {
 import { TimeTravel } from './time-travel';
 import { CareerEvents, habitMarks } from './player-discipline';
 import { MYSTERY_WINDOW, mysteryOf } from './player-mystery';
-import { PlayerMark, PlayerStatus, Spell, buildSpells, declaredFor } from './player-status';
+import { PlayerMark, PlayerStatus, Spell, buildSpells } from './player-status';
 import { Platform, PlayerRow } from './players-store';
 
 /**
@@ -98,7 +98,7 @@ export class PlayerRatingsStore {
     pool: ReadonlyMap<Platform, PlayerRow[]>,
     expected: ReadonlyMap<string, EngineForecast>,
   ): Promise<void> {
-    const [seasonStats, external, ratings, matchdayMap, injuries, scoring, season, notes] =
+    const [seasonStats, external, ratings, matchdayMap, injuries, scoring] =
       await Promise.all([
       this.bundle.table('season_stats'),
       this.bundle.table('external_match_stats'),
@@ -109,18 +109,12 @@ export class PlayerRatingsStore {
       // championship: read from the shared config, never hard-coded. A bundle without it still
       // draws the column, on the game's published defaults, and the note says so.
       this.bundle.scoring().catch(() => null),
-      // The operator's DECLARED notes: the app's Overall reads them (see `DECLARED_RISK`), nothing
-      // under `engine/` does. Parsed by the same `declaredFor` the marks use, so «what a note is» has
-      // one definition and a season's notes are never read as another season's.
-      this.bundle.manifest().then((one) => one.target_season).catch(() => null),
-      this.bundle.playerNotes().catch(() => null),
     ]);
     // IL GIORNO in cui l'app crede di trovarsi, letto UNA volta per tutta la costruzione: pezzi tagliati
     // a due date diverse sarebbero due liste sotto un'intestazione sola.
     const today = this.travel.today();
     const cutoff = this.travel.travelling() ? today : undefined;
     const spells = buildSpells(injuries, cutoff);
-    const declared = declaredFor(notes, season);
     // Le stagioni leggibili come TOTALE quel giorno: quella in corso non ne ha uno (vedi `seasonsClosedBy`).
     const closed = cutoff
       ? seasonsClosedBy(
@@ -154,11 +148,9 @@ export class PlayerRatingsStore {
           pool: players,
           seasons: seasonHistories(seasonStats, platform, closed),
           matches: matchHistories(external, ratings, matchdayMap, leagueOf, inScope, cutoff),
-          spells,
           expectedShare: share,
           today,
           scoring,
-          declared,
           cleanSheetRate,
         }),
       );

@@ -1,7 +1,84 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 6 settembre 2026 (UN PRONOSTICO SI GIUDICA SULLA FINESTRA CHE PREVEDE - da «capire quanto questo pronostico si avvicina alla realta'». Meta' della richiesta era gia' costruita: `timepack` impacchetta il motore di quattro date passate e una e' il 5 settembre 2025, quando la Serie A aveva giocato 2 giornate e il foglio ne prevede 36. Mancava il METRO, e ora sono cinque colonne `actual_*` (`SHEET_REVISION` 46) misurate sulle giornate DOPO la data d'asta - non sul totale di stagione, perche' 38 giocate contro 36 previste e' un fatto sul calendario e non sui calciatori - riletto dalla stessa finestra che il gate usa per il proprio esito. Su `/why` una tendina delle date (lo stesso `TimeTravel` del box, non una copia), sei colonne dell'esito col loro scarto e una barra di calibrazione con due numeri per grandezza. Il verdetto sul foglio Serie A del 05/09/2025: presenze 6,87 giornate di errore su 36, fantamedia 0,317, fantapunti 42,7 - cioe' quello che il motore sbaglia sono le PRESENZE, il che concorda con tre misure indipendenti gia' in casa. Detto per intero: non e' un verdetto (dry run su una stagione che ha tarato i parametri) e l'asterisco del listone toglie 131 righe di cui nessuna ha poi giocato 25 giornate, quindi l'errore e' OTTIMISTICO. La data «dopo la terza giornata» e' stata misurata e NON aggiunta: vale l'1,0% di errore in meno contro una convenzione nuova e nove minuti a ogni refresh. `backtest --verify` 22/22, 697 test toolkit + 764 app, banco `e2e-why` verde, bundle a revisione 46. Prima di questa voce, la stessa giornata: UNA SUITE VERDE NON VEDE UN DIFETTO DI ORDINE FRA MODULI, v5 SOSTITUISCE la v4)**
+**Aggiornato: 6 settembre 2026, pomeriggio (L'AUDIT DIVENTA UN TEST, E UN BUCO ERA UNA GRAFIA - chiuse le voci di codice della code-review del mattino con i numeri della base viva: `tests/test_upsert_columns.py` legge 43 `INSERT OR REPLACE` su 36 tabelle in tre classi dichiarate (32 complete, 8 parziali con una `basis` verificata ciascuna, 3 illeggibili) e il lettore e' un AST perche' Python unisce i letterali adiacenti - il difetto che al primo audit faceva leggere 14 siti; la conta pubblicata ieri era di SEI siti legittimi e sono OTTO (`transfers` -> `club_xref` e `ratings` -> `match_ratings`); `recent_form --from-cache` ha rigiocato 1.731 partite per 177 giocatori senza perdere niente e uno `stats` da solo lascia 1.028 stagioni-portiere e 4.898 porte inviolate, cioe' le due cure del mattino provate sul percorso che rompeva; orfani di cache 0 su 1.731. E il buco del voto sintetico - 44 righe su 1.731 - non era ne' un ri-salvataggio ne' la regola di calibrazione: `recent_form` archivia lo SLUG del provider e la calibrazione parla le nostre chiavi, quindi `bundesliga` e' l'unica grafia che coincide per caso e 352 righe di 45 giocatori sono rifiutate per un `-` al posto di un `_`. Misurato e NON spedito: la cura muove l'FM-equivalente degli arrivi (canale adottato) e farebbe leggere 29 giornate a `la_liga 2015-16`, che `evaluate` usa come divisore, quindi e' un candidato da pre-registrare. Nell'app tolto il macchinario morto dell'Overall, con la lista sbagliata su uno dei cinque nomi (`CLUB_PRIOR` e' VIVO): 181 righe tolte e 20 di nota, 757 test verdi. Prima di questa voce, la stessa giornata: UN PRONOSTICO SI GIUDICA SULLA FINESTRA CHE PREVEDE - da «capire quanto questo pronostico si avvicina alla realta'». Meta' della richiesta era gia' costruita: `timepack` impacchetta il motore di quattro date passate e una e' il 5 settembre 2025, quando la Serie A aveva giocato 2 giornate e il foglio ne prevede 36. Mancava il METRO, e ora sono cinque colonne `actual_*` (`SHEET_REVISION` 46) misurate sulle giornate DOPO la data d'asta - non sul totale di stagione, perche' 38 giocate contro 36 previste e' un fatto sul calendario e non sui calciatori - riletto dalla stessa finestra che il gate usa per il proprio esito. Su `/why` una tendina delle date (lo stesso `TimeTravel` del box, non una copia), sei colonne dell'esito col loro scarto e una barra di calibrazione con due numeri per grandezza. Il verdetto sul foglio Serie A del 05/09/2025: presenze 6,87 giornate di errore su 36, fantamedia 0,317, fantapunti 42,7 - cioe' quello che il motore sbaglia sono le PRESENZE, il che concorda con tre misure indipendenti gia' in casa. Detto per intero: non e' un verdetto (dry run su una stagione che ha tarato i parametri) e l'asterisco del listone toglie 131 righe di cui nessuna ha poi giocato 25 giornate, quindi l'errore e' OTTIMISTICO. La data «dopo la terza giornata» e' stata misurata e NON aggiunta: vale l'1,0% di errore in meno contro una convenzione nuova e nove minuti a ogni refresh. `backtest --verify` 22/22, 697 test toolkit + 764 app, banco `e2e-why` verde, bundle a revisione 46. Prima di questa voce, la stessa giornata: UNA SUITE VERDE NON VEDE UN DIFETTO DI ORDINE FRA MODULI, v5 SOSTITUISCE la v4)**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
+
+## 6 settembre 2026 (pomeriggio) — L'AUDIT DIVENTA UN TEST, E UN BUCO ERA UNA GRAFIA
+
+**Da dove è nata**: «completa la todolist». Le voci di codice aperte dalla code-review del mattino,
+chiuse con le misure della base viva invece che con delle promesse. Verbali: spec «Novità v9.78»,
+[todolist-mantra-euroleghe-v5.md](todolist-mantra-euroleghe-v5.md) (sezione «CHIUSO il 06/09/2026
+(pomeriggio)»), [letture-app-v1.md](letture-app-v1.md) §7.
+
+**1. L'audit è un test** (`toolkit/tests/test_upsert_columns.py`). **43 siti** di `INSERT OR REPLACE` su
+**36 tabelle**, tre classi e nessuna scartata in silenzio: 32 complete, **8 parziali** con una riga di
+allowlist ciascuna, **3 illeggibili** dichiarate (le due tabelle `__new` delle migrazioni, il copiatore
+del bundle che costruisce nome e colonne a runtime). Due metà deliberate. Il lettore è una passeggiata
+sull'**AST**, perché Python unisce i letterali ADIACENTI e questo repo scrive l'SQL così: il primo audit
+li spezzava e leggeva 14 siti invece di 8, cioè sei falsi positivi, e *un test che fallisce su codice
+sano è il modo più veloce per farlo disattivare* — due asserzioni lo tengono onesto su
+`press_formations` e `availability`. E ogni riga porta una `basis` **verificata**: `never_written`
+contro ogni altro INSERT e ogni UPDATE della tabella (non solo contro `validate.ALLOWED_EMPTY`, che da
+solo non basta — `season_stats.clean_sheets` ci stava dentro *ed* era derivata altrove, cioè era proprio
+la colonna che un REPLACE buttava via), `same_call` contro il sorgente dell'ordine che rimette la
+colonna. **Provato rimettendo i difetti**: il vecchio `stats._UPSERT` fa nominare `clean_sheets`, il
+vecchio `recent_form.store` le tredici colonne che perde, e invertire le due chiamate di `positions` fa
+nominare il chiamante.
+
+**2. E la conta di ieri era sbagliata: i siti legittimi sono OTTO, non sei.** Mancavano `transfers` →
+`club_xref` (il QUARTO scrittore di una xref, non il terzo) e `ratings` → `match_ratings`, che lascia
+fuori `assists_set_piece`, `player_of_the_match`, `started` e `minutes` — nessuno dei quattro ha uno
+scrittore nel toolkit oggi, e il giorno in cui il livello per-partita riempisse `started` quella riga
+andrebbe ridecisa. *Un conteggio fatto a mano corretto da un conteggio fatto dal codice*, che è la stessa
+forma del «14 siti» ritirato ieri: erano entrambi numeri di un arnese e non del progetto.
+
+**3. Le due cure del mattino, provate sul percorso che le rompeva.** `recent_form --from-cache`: **1.731
+partite per 177 giocatori** rigiocate, righe 352.754 → 352.754, `mv_synth` **44 → 44**, i quattro bonus
+**1.730 → 1.730** (prima della cura la stessa corsa li avrebbe azzerati). `stats` da solo:
+`clean_sheets` **1.028 stagioni-portiere / 4.898 porte inviolate**, euro **509 / 2.590**, identici.
+Orfani della cache **0 su 1.731**, con 177 file per 177 giocatori: lo strato è interamente ricostruibile.
+
+**4. IL BUCO DEL VOTO SINTETICO ERA UNA GIUNZIONE PER NOME, e si è visto senza correre niente.** La
+domanda era «44 righe su 1.731 hanno un voto sintetico: quanto è la regola di calibrazione e quanto sono
+i REPLACE?». Nessuno dei due: `synth` ha girato il 05/09 e `recent_form` il 07/08, quindi quello è
+l'output della regola, e le 44 sono **44 su 44** delle righe di Bundesliga. `recent_form` archivia la
+competizione con lo **slug del provider** (`premier-league`, `laliga`, `ligue-1`, `serie-a`) mentre
+`calibrated_competitions` la confronta con `matchday_map.league`, che parla le NOSTRE chiavi:
+`bundesliga` è l'unica grafia che coincide per caso. **352 righe e 45 giocatori** rifiutati per un `-` al
+posto di un `_`, di cui **153 righe e 17 uomini nel 2025-26 — e tutti e 17 sono ARRIVI del 2026-27**,
+cioè i nomi per cui quello strato è stato costruito. Quinta istanza della regola più vecchia del
+progetto: un'entità si unisce per la sua CHIAVE, mai per la stringa con cui una fonte la chiama.
+
+**...e NON è stata spedita, perché non è reporting** (todolist, voce nuova). La grafia unica nel dato è la
+forma giusta — `positions.normalize_competitions` esiste già per `serie-b` — e ha due conseguenze
+misurate: `arrivals.foreign_fm_equivalent` legge `COALESCE(mr.mv, e.mv_synth)` **senza filtro di
+sorgente**, quindi allargare `mv_synth` muove l'FM-equivalente e con lui il TIER degli arrivi, che è
+adottato; e `features.league_rounds` non filtra la sorgente, quindi dopo la rinomina `la_liga 2015-16`
+leggerebbe **29 giornate** invece di mancare, e `evaluate` divide per quel numero (`data.rounds_for`) su
+una stagione che è l'input di Tm7. Anche le cure vicine muovono numeri gatati (oggi `bundesliga 2015-16`
+legge 34 e `2016-17` legge **33**: un numero giusto e uno sbagliato, tutt'e due per caso e tutt'e due da
+questo strato). Quindi pre-registrazione e una corsa di gate, non un commit.
+
+**5. Nell'app, il macchinario morto dell'Overall — e la lista era sbagliata su uno dei cinque nomi.**
+**`CLUB_PRIOR` è VIVO** (l'ancora di club dei portieri lo legge), che è la regola di casa incontrata
+sulla propria todolist: *si verifica CHIAMANDO, anche quando è la lista a dirlo*. Tolti gli altri quattro
+(`FRAGILITY_RISK`, `STARTER_SHARE`, `STARTER_CONCAVITY`, `DECLARED_RISK`) e con loro quello che li
+serviva e che nessuno aveva contato: `injuredShare` — esportata e letta solo dal proprio spec, cioè una
+SECONDA definizione di «quanto è stato fermo» accanto a quella viva in `expected-play.seasonLosses` — i
+suoi due aiutanti, la mappa `fragility` che nessuno scriveva, due campi dell'input, quattro import morti
+e 54 righe di test di una funzione che nessuno chiama. Al loro posto **una nota**, come si era già fatto
+per `CONSISTENCY_TILT`. **181 righe tolte e 20 di nota, 757 test verdi, build pulito.**
+
+**E la conseguenza è dell'operatore, quindi va detta e non nascosta in un commit**: le tre correzioni che
+aveva chiesto il 15/08 — il fragile, chi non parte titolare, la nota dichiarata — **non agiscono più in
+nessuna colonna**, e le hanno spente le sue stesse definizioni del 18/08 («Overall = `Pv × (MVa +
+bonus)`, senza nessuno zero») più il «keep it a simple mathematical term» con cui ha lasciato l'Overall
+fermo all'arrivo di Fπ. Il fatto DICHIARATO resta a schermo come icona; quello che non esiste più è la
+penalità in punti. Se la rivuole, il posto non è l'Overall che ha definito lui: è Fπ o una colonna sua,
+con il suo nome — due zeri sono due domande.
+
+**Cosa NON si è mosso**: `engine_*`, i fogli, il bundle, nessuna costante e nessun parametro. 704 test
+toolkit (703 passati e uno saltato: vuole un display) e 757 app.
 
 ## 6 settembre 2026 — UN PRONOSTICO SI GIUDICA SULLA FINESTRA CHE PREVEDE, E META' ERA GIA' COSTRUITA
 

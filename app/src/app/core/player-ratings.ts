@@ -1,6 +1,5 @@
-import { BundleTable, PlayerNote, ScoringConfig, ScoringTerms, columnIndex, optionalIndex } from './bundle';
+import { BundleTable, ScoringConfig, ScoringTerms, columnIndex, optionalIndex } from './bundle';
 import { anchorValue, scale99 } from './projection';
-import { FRAGILITY_YEARS, Fragility, Spell, fragilityOf, isOpen } from './player-status';
 import { Platform, PlayerRow } from './players-store';
 import { short } from './tooltip';
 
@@ -75,74 +74,25 @@ export const TRIM_FROM = 5;
  */
 
 /**
- * How much a man who breaks down often has to give back, per point of injury share above the median.
+ * LE TRE PREFERENZE DELL'OPERATORE NON PESANO PIU' SULL'OVERALL, e questa nota sta al posto dei
+ * parametri che c'erano - `FRAGILITY_RISK` = 1, `STARTER_SHARE` = 0,75 al quadrato (`STARTER_CONCAVITY`)
+ * e `DECLARED_RISK`, piu' la `injuredShare` che li serviva.
  *
- * THIS IS A RISK PREFERENCE AND NOT A SECOND FORECAST, and the difference has to be stated or the next
- * reader will take it for a measurement. The engine ALREADY predicts fewer matches for these men and it
- * predicts them well: Dybala 22.8 of 38 against Yildiz's 29.6, and his last four seasons are 25, 27, 22,
- * 22 - the mean is right. What the mean cannot say is that those 22 are the average of a season at 30
- * and a season at 12, and the operator's rule (15/08/2026) is that such a man does not belong «nell'olimpo
- * degli attaccanti» whatever his average says: «dal punto di vista di presenze ti dà troppe incertezze».
+ * Sono le tre correzioni che aveva CHIESTO il 15/08/2026 - il fragile, chi non parte titolare, la nota
+ * dichiarata - e le ha spente le sue stesse DEFINIZIONI del 18/08: «Overall = giudizio assoluto del
+ * rendimento, `Pv x (MVa + bonus attesi)`, senza nessuno zero sottratto», piu' il «keep it a simple
+ * mathematical term» con cui ha lasciato l'Overall fermo quando e' arrivato Fpi. Una formula del genere
+ * non ha un posto dove una preferenza di rischio possa entrare, quindi il codice e' andato via con lei
+ * invece di restare a zero: e' il precedente di `CONSISTENCY_TILT` qui sopra, e la ragione e' la stessa -
+ * un parametro che nessuno legge e' un parametro che il prossimo lettore crede attivo (e uno dei cinque
+ * nomi che la todolist dava per morti, `CLUB_PRIOR`, era invece VIVO: si verifica chiamandolo).
  *
- * So it is his preference, declared, applied to the SECURED share - the matches you can count on - and
- * measured from the listone's own median rather than from zero, so the ordinary man pays nothing. At 1.0
- * a point of extra injury share costs a point of calendar: Dybala loses 27% of his matches, Berardi 24%,
- * a Di Lorenzo 3% and a Yildiz nothing.
+ * Quello che le misure avevano insegnato non si butta e sta in `letture-app-v1.md` §7 con i suoi numeri.
+ * Il fatto DICHIARATO non e' scomparso dallo schermo: e' un'icona (`ui-flags` per `player_notes.json`),
+ * cioe' esattamente il canale che la carta di quel file gli assegna. Quello che oggi non esiste piu' e'
+ * la PENALITA' in punti, e se la rivuole il posto non e' l'Overall che ha definito lui: e' Fpi, o una
+ * colonna sua, con il suo nome - due zeri sono due domande.
  */
-export const FRAGILITY_RISK = 1;
-
-/**
- * Da quale quota di partite COMINCIATE un uomo ha «il posto da titolare», e sotto la quale il riassunto
- * smette di pagarlo linearmente.
- *
- * Il caso dell'operatore, e la misura che lo ha risolto (15/08/2026). «Esposito F.P. non è titolare, come
- * fa ad avere un overall così alto?» - e poi: «non può stare sopra Simeone o Davis, che hanno dimostrato
- * di essere più affidabili». La prima versione leggeva le PRESENZE previste dal motore, e con quelle i
- * tre sono lo stesso uomo: 24, 25 e 24 partite su 38. Il motore conta le presenze A VOTO, e un subentrato
- * ne prende - quindi chi parte dall'inizio da lì non si vede.
- *
- * Si vede dalle partite da TITOLARE della sua ultima stagione, che è un fatto misurato e non una
- * preferenza: Esposito 15 su 36 presenze, Simeone 27, Davis 27, Yildiz 33. È quello che «hanno
- * dimostrato» vuol dire, ed è il numero che questo vincolo legge.
- *
- * Chi non ha una stagione misurata non paga niente: «vuoto = ignoto», e un arrivo non viene penalizzato
- * per un passato che qui non c'è.
- */
-export const STARTER_SHARE = 0.75;
-
-/**
- * Quanto pesa lo scarto: 1 = una volta, 2 = al quadrato.
- *
- * A 1 la correzione era troppo educata per il caso che l'ha chiesta - un posto di classifica - perché
- * lassù il listone è fitto. Al quadrato: chi ha cominciato il 40% delle giornate tiene il 27% del suo
- * surplus, chi ne ha cominciate il 70% ne tiene il 90%, e un titolare vero non perde niente.
- */
-export const STARTER_CONCAVITY = 2;
-
-/**
- * What a DECLARED note costs a man in this column, per kind.
- *
- * «Lukaku è in rotta con la società, dalla fine dello scorso anno non si sa che fine farà» - and nothing
- * in this project observes a quarrel: `flags.exit_risk` is a contract expiring, a transfer is a move that
- * has happened, a missing squad row is evidence of a departure. So it is DECLARED, in
- * `config/player_notes.json`, by whoever knows it, dated and revocable (root CLAUDE.md, «A judgement the
- * model cannot reach is DECLARED»).
- *
- * WHERE THE LINE IS, because that file's charter drew it and the operator has just moved it: nothing
- * under `engine/` reads a declared note and nothing ever should - a declared fact that moved a FITTED
- * number would make every measurement his own answer, which is what the two board judges refuse. This
- * column is the other kind: reporting, ungated, unjudged, and it is where he asked for the penalty
- * (15/08/2026). The file's own comment now says so.
- *
- * The three kinds are one icon and three sentences, and they are three different risks: a man out of the
- * squad will not play at all, a quarrel may end in a transfer or in a bench, a transfer request is the
- * mildest of the three. What is left of him is what is left of the season you can count on.
- */
-export const DECLARED_RISK: Record<PlayerNote['kind'], number> = {
-  out_of_squad: 0.1,
-  dispute: 0.35,
-  wants_out: 0.6,
-};
 
 /**
  * What every event is worth in a man's own CHAMPIONSHIP: read from the shared config, never hard-coded
@@ -287,11 +237,6 @@ export function medianOf(values: Iterable<number | null>): number | null {
   const middle = Math.floor(known.length / 2);
   return known.length % 2 ? known[middle] : (known[middle - 1] + known[middle]) / 2;
 }
-
-/** How far back the injury share looks. One year: a calendar of a player's own. */
-export const INJURY_WINDOW_DAYS = 365;
-
-const DAY_MS = 86_400_000;
 
 export type RatingKey = 'overall' | 'pi' | 'votes' | 'bonus' | 'presence';
 
@@ -713,11 +658,6 @@ export function starsOf(score: number | null): number | null {
   return STAR_BANDS.find((band) => percentile >= band.from)!.stars;
 }
 
-/** Whole days between two ISO dates. */
-function days(from: string, to: string): number {
-  return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
-}
-
 /**
  * The mean of a player's seasons, weighted by the appearances each rests on - and trimmed of its best
  * and its worst season once there are five, which is the operator's own convention for a mean that
@@ -955,37 +895,6 @@ export function matchHistories(
   return out;
 }
 
-/** The days of the last year a player spent inside an injury spell, as a share of that year. */
-export function injuredShare(spells: readonly Spell[], today: string): number {
-  const from = new Date(Date.parse(today) - INJURY_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
-  // The source records one row per DIAGNOSIS, so a man hurt twice at once - or re-injured before the
-  // first spell was closed - has overlapping rows: summing them read 591 days out of 365 for one player.
-  // Merged first, then counted, so a day out is a day and never two.
-  const windows: [string, string][] = [];
-  for (const spell of spells) {
-    if (!spell.from) continue;
-    const start = spell.from > from ? spell.from : from;
-    const endsAt = spell.to ?? today;
-    // An open spell counts to today and no further: what it will cost from tomorrow is a forecast.
-    const end = isOpen(spell, today) || endsAt > today ? today : endsAt;
-    if (end <= start) continue;
-    windows.push([start, end]);
-  }
-  windows.sort((left, right) => left[0].localeCompare(right[0]));
-  let out = 0;
-  let open: [string, string] | null = null;
-  for (const window of windows) {
-    if (open && window[0] <= open[1]) {
-      if (window[1] > open[1]) open[1] = window[1];
-      continue;
-    }
-    if (open) out += days(open[0], open[1]);
-    open = [window[0], window[1]];
-  }
-  if (open) out += days(open[0], open[1]);
-  return Math.min(1, out / INJURY_WINDOW_DAYS);
-}
-
 const it = (iso: string): string => iso.split('-').reverse().join('/');
 
 /** One reading of one man's own football: the number, how much of it there is, and what it says. */
@@ -1061,7 +970,6 @@ export function ratingsFor(input: {
   pool: readonly PlayerRow[];
   seasons: ReadonlyMap<number, SeasonRow[]>;
   matches: ReadonlyMap<number, MatchHistory>;
-  spells: ReadonlyMap<number, Spell[]>;
   /**
    * The share of the coming calendar the ENGINE expects him to be on the team sheet for -
    * `engine_pv_pred / matchdays_target`, or its declared fallback. It is what «presenze» is about
@@ -1075,11 +983,6 @@ export function ratingsFor(input: {
    */
   scoring?: ScoringConfig | null;
   /**
-   * The operator's DECLARED notes for this season, keyed by `fc_id`. Empty is the normal case, and it
-   * means «nothing declared» - never «nothing to declare».
-   */
-  declared?: ReadonlyMap<number, PlayerNote>;
-  /**
    * La quota di porte inviolate del CLUB, per nome di club (`club-defence.clubCleanSheets`).
    *
    * Serve solo ai portieri, ed entra su tutt'e due i lati del conto - vedi `cleanSheetLift`. Assente su
@@ -1087,7 +990,7 @@ export function ratingsFor(input: {
    */
   cleanSheetRate?: ReadonlyMap<string, number>;
 }): Map<number, PlayerRating> {
-  const { pool, seasons, matches, spells, expectedShare, today } = input;
+  const { pool, seasons, matches, expectedShare, today } = input;
   /**
    * The engine's share of the calendar, KEPT APART from the Presenze reading built on top of it.
    *
@@ -1133,8 +1036,6 @@ export function ratingsFor(input: {
   const own = new Map<number, Record<OwnKey, Sample>>();
   /** ...and how much of a match he plays when he plays, which the presences reading needs per role. */
   const minutesShare = new Map<number, { value: number | null; size: number }>();
-  /** ...and how much of the last three years he spent injured, which is a fact about the NEXT one. */
-  const fragility = new Map<number, Fragility>();
 
   for (const player of pool) {
     const id = player.fcId;

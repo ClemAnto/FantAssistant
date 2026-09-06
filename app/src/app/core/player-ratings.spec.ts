@@ -1,11 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  INJURY_WINDOW_DAYS,
   clubAnchor,
   eventPointsOf,
   eventTerms,
-  injuredShare,
   STAR_WORD,
   medianOf,
   rank99,
@@ -15,7 +13,6 @@ import {
   steadyOf,
   worthOf,
 } from './player-ratings';
-import { Spell } from './player-status';
 
 /** A rank is a fact about a POOL, and these are the properties that must hold whatever the numbers are. */
 describe('rank99', () => {
@@ -285,57 +282,6 @@ describe('starsOf', () => {
 
   it('draws nothing for what was not measured', () => {
     expect(starsOf(null)).toBeNull();
-  });
-});
-
-describe('injuredShare', () => {
-  const spell = (from: string, to: string | null): Spell => ({ from, to, days: null, kind: null, detail: null, observedOn: null });
-
-  it('counts only the days inside the last year', () => {
-    // A spell that ended before the window opened is not what he is carrying now.
-    expect(injuredShare([spell('2024-01-01', '2024-03-01')], '2026-08-14')).toBe(0);
-  });
-
-  it('counts an open spell up to today and no further', () => {
-    const share = injuredShare([spell('2026-07-15', null)], '2026-08-14');
-    expect(share).toBeCloseTo(30 / INJURY_WINDOW_DAYS, 5);
-  });
-
-  it('clips a spell that started before the window at the window', () => {
-    const share = injuredShare([spell('2020-01-01', null)], '2026-08-14');
-    expect(share).toBe(1);
-  });
-
-  it('is zero for a man with no spell at all', () => {
-    expect(injuredShare([], '2026-08-14')).toBe(0);
-  });
-});
-
-describe('injuredShare, overlapping spells', () => {
-  const spell = (from: string, to: string | null): Spell =>
-    ({ from, to, days: null, kind: null, detail: null, observedOn: null });
-
-  it('counts a day out ONCE when two spells overlap', () => {
-    // The source records one row per diagnosis, so a man hurt twice at once has two rows over the same
-    // days: summed, one player of the window read 591 days out of 365.
-    const both = injuredShare([spell('2026-05-01', '2026-07-01'), spell('2026-05-15', '2026-06-15')],
-                              '2026-08-14');
-    const one = injuredShare([spell('2026-05-01', '2026-07-01')], '2026-08-14');
-    expect(both).toBeCloseTo(one, 6);
-  });
-
-  it('joins two spells that touch and keeps two that do not', () => {
-    const joined = injuredShare([spell('2026-05-01', '2026-06-01'), spell('2026-06-01', '2026-07-01')],
-                                '2026-08-14');
-    expect(joined).toBeCloseTo(injuredShare([spell('2026-05-01', '2026-07-01')], '2026-08-14'), 6);
-    const apart = injuredShare([spell('2026-05-01', '2026-05-11'), spell('2026-06-01', '2026-06-11')],
-                               '2026-08-14');
-    expect(apart).toBeCloseTo(20 / INJURY_WINDOW_DAYS, 6);
-  });
-
-  it('never reports more than the window itself', () => {
-    const many = [spell('2020-01-01', null), spell('2026-01-01', null), spell('2026-06-01', null)];
-    expect(injuredShare(many, '2026-08-14')).toBe(1);
   });
 });
 

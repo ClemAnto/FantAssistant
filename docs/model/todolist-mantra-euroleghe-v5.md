@@ -96,12 +96,24 @@ tre chiusure non è più appeso. Cinque voci nuove, e due sono debiti dichiarati
   uomo giocava due anni fa, perciò il profilo si costruisce da `tm_appearances.position_id`; il giorno che
   la heatmap è storica la domanda «chi gli contende la maglia» ha una seconda risposta indipendente, e le
   due si confrontano invece di scegliersi.
-- [ ] **Macchinari morti nell'Overall dell'app**, trovati leggendo e non misurando: `FRAGILITY_RISK`,
-  `STARTER_SHARE`, `STARTER_CONCAVITY`, `DECLARED_RISK`, `CLUB_PRIOR` e tre campi (`spells`, `declared`,
-  `fragility`) che nessuno legge, più **un commento falso** in `player-ratings-store.ts:112` che descrive
-  un'aritmetica che il codice non fa. Costa poco toglierli e vale più del poco: un parametro morto è un
-  parametro che il prossimo lettore crederà vivo — è la stessa classe della metà Elo dei portieri, che è
-  sopravvissuta in quattro commenti per settimane.
+- [x] **Macchinari morti nell'Overall dell'app** — **FATTO il 06/09/2026**, e la lista era sbagliata su
+  uno dei cinque nomi: **`CLUB_PRIOR` è VIVO** (`player-ratings.ts`, l'ancora di club dei portieri lo
+  legge), che è la regola di casa incontrata sulla propria todolist — *si verifica CHIAMANDO, anche
+  quando è la lista a dirlo*. Tolti gli altri quattro (`FRAGILITY_RISK`, `STARTER_SHARE`,
+  `STARTER_CONCAVITY`, `DECLARED_RISK`) e con loro quello che li serviva e che nessuno aveva contato:
+  `injuredShare` (esportata, letta solo dal proprio spec, cioè una SECONDA definizione di «quanto è stato
+  fermo negli ultimi anni» accanto a quella viva in `expected-play.seasonLosses`), i suoi due aiutanti
+  (`INJURY_WINDOW_DAYS`, `days`), la mappa `fragility` che nessuno scriveva, i campi `spells` e
+  `declared` dell'input, quattro import morti (`FRAGILITY_YEARS` era già inutilizzato prima) e i 54
+  righe di test di una funzione che nessuno chiama. Al loro posto **una nota** che dice perché non ci
+  sono più, come già si era fatto per `CONSISTENCY_TILT`. Il commento falso è andato via con la variabile
+  che descriveva. 181 righe tolte e 20 di nota, **757 test verdi e build pulito**.
+  **E la conseguenza va detta perché è sua**: le tre correzioni che aveva chiesto il 15/08 (il fragile,
+  chi non parte titolare, la nota dichiarata) **non agiscono più in nessuna colonna** — le hanno spente
+  le sue stesse definizioni del 18/08 («Overall = `Pv × (MVa + bonus)`, senza nessuno zero») e il «keep
+  it a simple mathematical term» con cui ha lasciato l'Overall fermo quando è arrivato Fπ. Il fatto
+  DICHIARATO resta a schermo come icona; quello che non esiste più è la penalità in punti. Se la rivuole,
+  il posto non è l'Overall che ha definito lui: è Fπ o una colonna sua, con il suo nome.
 - [ ] **Il buco del Como sul foglio euro**: **24 dei 29 quotati** mancano perché `_TARGET_FROM_AUTHORITY`
   filtra sui team presenti in `match_ratings`, e un club appena arrivato nel perimetro euro non ce l'ha.
   È la stessa forma del difetto del PERIMETRO curato il 08/08 («il listone sa di una promozione prima che
@@ -1279,46 +1291,73 @@ di resa attesa. La prima voce è la più grossa di tutta questa coda.
   `E/W`) permette di schierare SEI uomini di ruolo difensivo e sceglierne i cinque migliori: quel vantaggio
   nessuno lo ha quantificato, e il rulebook dice solo come si conta.
 
-## Aperto dopo la code-review del 06/09/2026 (toolkit, percorso di scrittura)
+## CHIUSO il 06/09/2026 (pomeriggio) — la code-review del mattino, con i numeri della base viva
 
-Chiuso nella sessione: i due `INSERT OR REPLACE` che cancellavano un derivato (`recent_form.store` →
+Chiuso il mattino: i due `INSERT OR REPLACE` che cancellavano un derivato (`recent_form.store` →
 `mv_synth` + i quattro bonus, `stats` → `clean_sheets`), il `rebuild` che non replicava la cache di
-`recent_form`, e il `backfill_bonuses` che scriveva solo nel DB. Resta questo, e nessuna voce è una
-misura da inventare.
+`recent_form`, il `backfill_bonuses` che scriveva solo nel DB e la guardia di `export`. Chiuso il
+pomeriggio quello che restava, e ogni voce porta la misura invece della promessa (spec «Novità v9.78»):
 
-* **L'audit delle colonne non nominate va reso un TEST, non un'occasione.** Lo script che ha trovato i
-  due difetti (le colonne dello schema meno quelle nominate, per ogni `INSERT OR REPLACE` del toolkit) è
-  girato una volta e vive nella cronologia di una chat: la prossima colonna aggiunta a una tabella con
-  due scrittori ricomincia da capo. La forma giusta è quella che `positions` ha già per sé — un test che
-  legge il TESTO dell'istruzione — generalizzata alle 36 tabelle, con una **allowlist dichiarata** per i
-  **sei** siti legittimi, così una riga nuova nella lista è una decisione che qualcuno prende invece di
-  un silenzio. **E il parser va scritto meglio del mio**: la prima passata leggeva 14 siti perché
-  spezzava le istruzioni scritte su più literal Python adiacenti (`"...coach,"` + `" module, ..."`),
-  cioè sei falsi positivi — un test costruito su quel parser fallirebbe su codice sano, che è il modo
-  più veloce per farlo disattivare. I sei legittimi, verificati uno per uno: `positions` (due siti, che
-  fanno UPDATE-poi-INSERT), `arrivals` (la tabella è svuotata a inizio corsa e `enrich` riempie i tier
-  nella stessa chiamata), e i tre `player_xref`/`club_xref`, le cui `valid_from`/`valid_to` sono in
-  `validate.ALLOWED_EMPTY` e valgono 0 su 7.714 e 0 su 156 righe. È deliberatamente crudo, come il test sul dispatcher: prende esattamente il difetto che ha già
-  fatto danni due volte in due giorni.
-* **Lo strato `sofascore_recent` va ri-derivato una volta, e il `mv_synth` con lui.** Sulla base viva 44
-  righe su 1.731 hanno un voto sintetico, e non si sa quanto di quel buco sia la regola di
-  `calibrated_competitions` (giusto: quei campionati non hanno una retta) e quanto siano ri-salvataggi che
-  se lo sono portato via prima della cura. Si risponde con una corsa: `recent_form --from-cache` e poi
-  `synth`, contando prima e dopo. **Prende il lock di scrittura**, quindi una sessione sola.
-* **`clean_sheets` va ricontato dopo il prossimo `stats` da solo.** Le 509 stagioni euro sono in piedi
-  oggi perché l'ultima corsa è passata da `rebuild`; la cura le protegge da qui in avanti, e la verifica
-  che vale è un `stats` lanciato per conto suo seguito da un conteggio — se resta 509, la regola tiene sul
-  percorso che la rompeva.
-* **Gli orfani della cache di `recent_form` sono 0 su 1.731 oggi**, cioè ogni riga arricchita ha una
-  voce su disco in cui riscriverla. Il contatore è stampato apposta: se un giorno legge un numero
-  diverso da zero, quella parte dello strato è tornata a esistere solo nel DB e un rebuild la perderebbe.
-
+* ~~L'audit delle colonne non nominate va reso un TEST~~ — **FATTO**: `toolkit/tests/test_upsert_columns.py`,
+  **43 siti** su **36 tabelle**, tre classi e nessuna scartata in silenzio (32 complete · **8 parziali**
+  dichiarate una per una · **3 illeggibili** dichiarate: le due tabelle `__new` delle migrazioni e il
+  copiatore del bundle). Il lettore è una passeggiata sull'**AST**, quindi unisce i letterali adiacenti —
+  il difetto che faceva leggere 14 siti al primo audit — e due asserzioni lo tengono onesto su
+  `press_formations` e `availability`. Ogni riga della allowlist porta una `basis` **verificata**:
+  `never_written` è controllata contro ogni altro INSERT e ogni UPDATE della tabella (non solo contro
+  `validate.ALLOWED_EMPTY`, che da solo non basterebbe — `season_stats.clean_sheets` ci stava dentro *ed*
+  era derivata altrove), `same_call` contro il sorgente che rimette la colonna. Provato rimettendo i due
+  difetti e la terza inversione: il test li nomina tutti e tre.
+* ~~I sei siti legittimi~~ — **erano OTTO**, verificati uno per uno. Mancavano `transfers` → `club_xref`
+  (il QUARTO scrittore di una xref, non il terzo) e `ratings` → `match_ratings`, che lascia fuori
+  `assists_set_piece`, `player_of_the_match`, `started` e `minutes`: nessuno dei quattro ha uno scrittore
+  nel toolkit oggi, e il giorno in cui il livello per-partita riempisse `started` quella riga andrebbe
+  ridecisa. *Un conteggio fatto a mano corretto da un conteggio fatto dal codice.*
+* ~~Lo strato `sofascore_recent` va ri-derivato una volta~~ — **FATTO, e la risposta era un'altra**:
+  `recent_form --from-cache` ha rigiocato **1.731 partite per 177 giocatori** e non ha perso niente
+  (righe 352.754 → 352.754, `mv_synth` **44 → 44**, i quattro bonus **1.730 → 1.730**), che è la cura del
+  mattino provata sul percorso che rompeva. **Il buco delle 44 non è né un ri-salvataggio né la regola di
+  calibrazione**: vedi la voce aperta qui sotto.
+* ~~`clean_sheets` va ricontato dopo il prossimo `stats` da solo~~ — **FATTO**: `stats` lanciato per conto
+  suo, `clean_sheets` **1.028 stagioni-portiere e 4.898 porte inviolate** (euro **509 / 2.590**),
+  identici a prima. La regola tiene sul percorso che la rompeva.
+* ~~Gli orfani della cache di `recent_form`~~ — **0 su 1.731**, con **177 file per 177 giocatori**: ogni
+  riga arricchita ha una voce su disco. Resta la sorveglianza: un numero diverso da zero vuol dire che
+  quella parte dello strato è tornata a esistere solo nel DB.
 * ~~Come `export` sia arrivato a scrivere `bundle.sqlite` nella radice~~ — **CHIUSO il 06/09/2026**, e
   non trovando il colpevole: `export.destination` rifiuta una destinazione dentro il repository e fuori
   da `data/`, con due prove che la coprono (compresa una `EUROLEGHE_DATA_DIR` spostata dentro il repo,
   dove una guardia scritta su un `data/` letterale rifiuterebbe l'unica cartella che protegge). I due
   file da zero byte sono stati rimossi. Resta vero che *non sappiamo* chi digitò cosa, e adesso non
   serve più saperlo.
+
+## Aperto dal 06/09/2026 (pomeriggio) — il voto sintetico rifiutato per una GRAFIA
+
+Misurato e **non spedito**, perché la cura non è reporting: è una candidata da pre-registrare. Dettaglio e
+numeri: spec «Novità v9.78» §3.
+
+- [ ] **`recent_form` archivia la competizione con lo SLUG DEL PROVIDER, e la calibrazione parla le nostre
+  chiavi.** `premier-league` · `laliga` · `ligue-1` · `serie-a` contro `premier_league` · `la_liga` ·
+  `ligue_1` · `serie_a`: `bundesliga` è l'unica grafia che coincide, ed è esattamente il motivo per cui le
+  righe con un voto sintetico sono **44 su 1.731** — cioè **44 su 44** delle righe di Bundesliga. Sono
+  **352 righe e 45 giocatori** rifiutati per una grafia, **153 righe e 17 uomini nel solo 2025-26**, e
+  tutti e 17 sono ARRIVI del 2026-27: i nomi per cui quello strato è stato costruito. La mappatura è già
+  verificata sui club (gli 11 di `premier-league` inglesi, gli 8 di `laliga` spagnoli, i 9 di `ligue-1`
+  francesi; i 3 di `serie-a` sono Juventus, Hellas Verona e **Palermo**, che nel 2015-16 in Serie A
+  c'era), e la forma giusta esiste già per `serie-b`: `positions._OUR_SLUG` +
+  `normalize_competitions`, cioè UNA grafia nel dato e non una rinomina in lettura.
+  **Perché non è un commit ma un candidato al gate**, con le due conseguenze misurate:
+  (a) `arrivals.foreign_fm_equivalent` legge `COALESCE(mr.mv, e.mv_synth)` **senza filtro di sorgente**,
+  quindi allargare `mv_synth` muove l'FM-equivalente e con lui il TIER degli arrivi, che è adottato
+  (`TIER_DRIVER = measured_first`); (b) `features.league_rounds` e le date di apertura delle giornate non
+  filtrano la sorgente, quindi dopo la rinomina `la_liga 2015-16` leggerebbe **29 giornate** invece di
+  mancare, e `evaluate` divide per quel numero (`data.rounds_for`) su una stagione che è l'input di Tm7.
+  Le due cure candidate — appuntare `source='sofascore'` dove si conta un CALENDARIO, o dichiarare le
+  giornate di un campionato — muovono anche loro numeri gatati (oggi `bundesliga 2015-16` legge 34 e
+  `2016-17` legge **33**, cioè un numero giusto e uno sbagliato, tutt'e due per caso e tutt'e due dalle
+  righe di questo strato). Quindi: pre-registrazione, criterio scritto prima, e una corsa di gate.
+  La direzione è quella che il progetto ha già scritto una volta — «per far pagare la regola si allarga il
+  MISURATO, non si torna alla quotazione».
 
 ## Aperto dopo la sessione del 06/09/2026 (l'ESITO sul foglio, e quanto il pronostico si avvicina)
 
