@@ -5430,6 +5430,345 @@ una regola.
   la questione non è un'altra misura di questa forma: è un **termine di livello** dentro la retta, oppure il
   numero di giornate dei campionati esteri come fatto DICHIARATO.
 
+## 7-quinquadragies. PRE-REGISTRAZIONE (6 settembre 2026) — UNA PARTENZA DA TITOLARE NON È UNA PRESENZA
+
+**Scritta PRIMA della corsa del gate.** Nasce da una domanda dell'operatore — «dobbiamo trovare un modo
+per migliorare quante partite giocherà un calciatore» — e da una scomposizione dell'errore che ha
+corretto una frase che gli avevo detto io un'ora prima («la coda è fatta di infortuni»).
+
+### Perché: dove sta davvero l'errore sulle presenze
+
+Sui due pacchetti pre-stagionali col loro esito (5 settembre 2024 e 2025, cioè il momento della sua asta):
+
+| | 2024 | 2025 |
+|---|---|---|
+| **sottovalutati** (gioca più del previsto) | 51% | 58% |
+| …di cui **senza** infortunio lungo dopo | 43% | 52% |
+| **sopravvalutati** (gioca meno) | 49% | 42% |
+| …di cui **con** infortunio lungo dopo | 28% | 23% |
+
+Gli infortuni sono un quarto. Più della metà è gente che scoppia, e sono quasi tutti uomini da pochi
+crediti: i quotati ≤6 sottovalutati portano da soli il **23-26%** di tutto l'errore. In fantapunti la
+metà sottovalutata pesa il 51-54%.
+
+### Il canale, e la ragione per cui NON è il prezzo
+
+`pv_seen` (che R20 legge) conta le presenze **a voto**, quindi mette nello stesso numero il titolare e
+chi entra dalla panchina e gioca abbastanza da prendere il voto. La distinta non è nei voti
+(`match_ratings.started` e `minutes` sono NULL su ogni riga) e arriva dal livello per-partita, dove
+`started` è popolato al **100%** su tutti e cinque i campionati.
+
+Lo screen `starter_signs` che ha suggerito la domanda condiziona su «quotato ≤5», e **quella condizione
+qui è inammissibile**: il Qt.I contiene già l'opinione del suo autore su quanto giocherà, quindi
+prevedere le presenze con lui è circolare — la stessa ragione per cui R12/R12b sono falsificate e per
+cui la nota di R23 distingue il prezzo Transfermarkt dalla quotazione. R24 non legge nessun prezzo.
+
+### Diagnostica pre-corsa (una misura sulla FEATURE, non un verdetto su una regola)
+
+A parità di quota di presenze nelle giornate viste, la quota di PARTENZE aggiunge, sulla quota delle
+giornate che restano:
+
+| | parziale `partenze | presenze` |
+|---|---|
+| media sulle 13 finestre | **+0,198** |
+| finestre positive | **13 / 13** |
+| al taglio di settembre | da +0,17 a +0,34 |
+| al taglio di febbraio | da +0,11 a +0,22 |
+
+### La regola: forma DICHIARATA, griglia e non fit
+
+`R24K<K>w<w>`: il segnale delle giornate viste entra nella miscela di R20 scontato per quanto spesso è
+entrato dalla panchina.
+
+    tasso   = partenze / partite giocate nella finestra vista      (stessa tabella, stessa data)
+    segnale = pv_seen / giornate_viste × (1 − w × (1 − tasso))
+    quota   = blend_with_seen(quota, segnale, giornate_viste, K)
+
+- Un **pieno titolare non si muove** (tasso 1): la regola tocca solo chi subentra.
+- **`K` non è una manopola nuova**: i due valori già ADOTTATI (10 su `default`, 6 su `euro`), quindi si
+  giudica lo sconto sopra ciò che è in vigore e non si riapre K.
+- **`w` è dichiarato per punto di griglia** (0,25 · 0,50), l'idioma di R18b/R18c/R20: «quale w» è un
+  verdetto e non un fit. `w = 0` è R20 stessa, deliberatamente fuori dalla griglia.
+- **Inerte per costruzione** dove non c'è la domanda: su una finestra pre-stagione (nessuna giornata
+  vista) e su chi il livello per-partita non vede giocare — lì la regola TACE e R20 risponde da sé,
+  perché leggere l'assenza come «non ha mai cominciato» sconterebbe del massimo proprio l'uomo di cui
+  non si sa niente.
+
+### Criteri, scritti prima
+
+Gli stessi di sempre e nessuno nuovo: **strict** (migliora su ogni finestra che la misura, pavimento
+0,5% sulla media) e **robust** (maggioranza, media sopra il pavimento, nessuna finestra sotto −2%),
+riportati affiancati; FM e VALUE non peggiorate; le guardie sui nomi d'asta e sul valore catturato.
+Popolazione: le **14 finestre in-season** (`features.INSEASON_WINDOWS`), che si accoppiano fra loro per
+il cross-fit e mai con una pre-stagione. Il confronto che decide è **R24K10w25/w50 contro R20K10** su
+`default` e **R24K6w25/w50 contro R20K6** su `euro`, sulle stesse finestre.
+
+### Contaminazione DICHIARATA, ed è la parte che indebolisce il verdetto
+
+La forma è stata provata **fuori dal motore, su quelle stesse 13 finestre**, con un baseline surrogato
+(prior = quota grezza della stagione scorsa invece del set adottato). Quindi io ho già visto la
+risposta, e la corsa del gate è una **conferma sul baseline vero, non una prova indipendente**. Il
+cross-fit protegge i coefficienti fittati; `w` è dichiarato, quindi lì non protegge niente.
+
+Quello che quel giro ha mostrato, e che va scritto ORA per non poterlo raccontare dopo: al taglio di
+**settembre** lo sconto guadagna (w = 0,25: +0,66% medio, 6 finestre su 6; w = 0,50: +0,87%, 5 su 6),
+al taglio di **febbraio** perde e peggiora monotonamente con w (fino a −12,5% a w = 1). Il meccanismo
+è leggibile — a due giornate viste una presenza da subentrante è prova debole, a venti il conteggio è
+già affidabile e scontarlo butta via informazione — ma **la forma che decade con la taglia del campione
+non è pre-registrata qui**: sarebbe una forma disegnata dopo aver visto la curva, e se la si vorrà
+provare avrà la sua pre-registrazione e la sua corsa.
+
+### VERDETTO (stessa giornata, dopo la corsa): NON PASSA, su nessuna piattaforma
+
+Confronto contro R20 sulle **stesse** finestre — non contro il baseline, per la ragione al paragrafo
+seguente.
+
+| | media | finestre positive | peggiore |
+|---|---|---|---|
+| `default` w = 0,25 | **+0,35%** (sotto il pavimento) | 6/14 | −0,94% |
+| `default` w = 0,50 | −0,05% | 4/14 | −2,81% |
+| `euro` w = 0,25 | +0,81% (sopra il pavimento) | **5/10** (non maggioranza) | **−2,11%** (fuori tolleranza) |
+| `euro` w = 0,50 | +0,84% | 4/10 | −4,77% |
+
+Su `default` cade sul pavimento; su `euro` supera il pavimento e cade sulle **altre due clausole del
+verdetto robusto** — la maggioranza e la tolleranza del −2%. Nessuna delle due viene allentata: sarebbe
+allargare un criterio perché una regola ci è caduta, che è la cosa che questo file vieta due volte.
+`classic` e `mantra` su `default` leggono **identiche alla terza cifra**, il che è anche una verifica non
+programmata: il ramo delle presenze non legge il sistema di ruoli, e infatti i due giochi non si
+distinguono.
+
+**LA RIGA DEL GATE DICE «PASSES» E VA LETTA AL CONTRARIO.** `R24K10w25` legge *PASSES, 13/13 finestre,
++19,3%* — ma quel +19,3% è quasi tutto di **R20**, che da sola vale +19,0% e che R24 CONTIENE. Lo sconto
+marginale è +0,3%. È la nota di R15 già scritta in `evaluate.py` («la riga di gate di un candidato da
+solo non è il suo valore dentro un set») incontrata dal lato in cui la riga sembra un successo, ed è il
+motivo per cui il confronto che decide è R24 contro R20 e non R24 contro B0.
+
+**IL MECCANISMO È VERO E ARRIVA TARDI.** Il +0,198 su 13 finestre di 13 non è smentito: quello che il
+gate dice è che il set adottato lo contiene già. A settembre «è un subentrante e non un titolare» il
+motore lo sa da altre due parti — R3 legge i minuti, R19 il livello — quindi lo sconto ricontava un
+fatto già contato, ed è per questo che il margine è tre decimi e non un punto.
+
+**E LA PROVA SURROGATA AVEVA DATO IL SEGNO OPPOSTO**, che è il risultato metodologico della corsa:
+
+| | settembre | febbraio |
+|---|---|---|
+| prova surrogata (prior = quota grezza) | +0,66% (6/6) | negativa, fino a −12,5% |
+| **gate vero** (baseline = set adottato) | **−0,13%** (2/7) | **+0,84%** (4/7) |
+
+Il surrogato non misurava il valore dello sconto: misurava **l'assenza del set adottato**. *Un
+esperimento che tiene ferma una variabile che non sapevi di avere non ha tenuto fermo niente* — la
+lezione del 5 settembre sulle cartelle nuove, commessa il giorno dopo averla scritta. Chi vorrà provare
+una forma che DECADE con la taglia del campione (che è dove i numeri di febbraio puntano) la
+pre-registri a parte e sappia che la misurerebbe su finestre già guardate: evidenza debole per
+costruzione.
+
+**LO STATO IN CUI QUESTI NUMERI SONO NATI, e le due RIMISURE che l'hanno chiuso.** Misurati il
+06/09/2026 a HEAD `aba0975`; poi `63022bf` ha cambiato `features.league_rounds`, e la sessione che
+l'ha scritto ne aveva misurato l'inerzia sulle 40 celle PRE-STAGIONE — che non coprono queste 14. Il
+sospetto era fondato e MISURABILE: sotto le nostre chiavi il 2018-19 passa da assente a dichiarato, e
+`bundesliga` va da 38 (il ripiego) a 34; il 2018-19 è l'input di I19set/I19feb, e I19feb è proprio la
+finestra su cui `euro` rompe la tolleranza. Rimisurato su HEAD: **identico alla terza cifra su tutte e
+28 le celle**.
+
+E la ragione è meglio del risultato, perché uno zero misurato non è uno zero spiegato — **ma la prima
+ragione che ho scritto era FALSA, e la correzione è la parte istruttiva.** Avevo messo a verbale che
+«`evaluate.py` non legge `.rounds`»: lo legge, a `evaluate.py:667`, dentro `derive()`, come
+`data.rounds_for(obs.league)`. Il mio grep cercava il CAMPO (`.rounds`) e il lettore usa l'ACCESSORE
+(`rounds_for`) — «verifica la FUNZIONE, non la colonna che le somiglia» applicato a un elenco di
+chiamanti, e il docstring di `league_rounds` lo diceva per esteso due righe sopra («`derive` divides a
+man's minutes by this number»). Segnalata da tutt'e due le sessioni parallele nello stesso minuto.
+
+**LA RAGIONE VERA, misurata:** `derived.minutes_share` ha un solo consumatore adottato, **R3**, che è in
+`ADOPTED['default']` e non in `ADOPTED['euro']` (là c'è R3c, che legge `minutes_share_euro_prev`, un
+altro campo). E le celle che il cambio muove sono solo quelle della **Bundesliga** (2018-19 da 38 di
+ripiego a 34 dichiarato). Su `default` il listone è al 100% `serie_a` — 641 righe su 641 nel 2018-19 —
+quindi R3 non vede mai una cella spostata; su `euro` le osservazioni toccate esistono (79 tedeschi nel
+2018-19) ma nessuna regola adottata legge quella quantità. **Lo zero è strutturale e CONDIZIONALE al set
+adottato**: il giorno in cui R3 entra su `euro`, o una candidata nuova legge `minutes_share`, smette di
+valere. Che è l'esatto contrario di quello che la mia prima frase avrebbe fatto credere al prossimo
+lettore — e questo è il motivo per cui una ragione sbagliata è più pericolosa di uno zero senza ragione.
+
+**E LA SECONDA RIMISURA È NATA DA UN DIFETTO DI QUESTA STESSA REGOLA.** Il provider chiama `bundesliga`
+anche il campionato austriaco, e `_seen_starts` filtrava per competizione e data ma **non per `source`**:
+le righe di `sofascore_recent` — un pugno delle ultime partite di un uomo, non un campionato camminato —
+entravano nel conteggio. Misurato prima di curare: 81 righe nei cinque campionati, di cui **1 sola**
+dentro una finestra vista di queste 14 (fc_id 6738, `bundesliga`, 2024-02-03, I23feb, quindi solo su
+`euro`). Effetto minuscolo e forma sbagliata comunque, **nella direzione peggiore**: quelle righe hanno
+`started` NULL su tutte e 81, quindi gonfiavano il DENOMINATORE senza poter mai toccare il numeratore,
+cioè abbassavano la quota di partenze per una ragione che non è calcio. Curato con
+`AND source = 'sofascore'` — la stessa ragione del fix a `league_rounds` — e `euro` rimisurato ancora:
+**identico**.
+
+**QUARTA E ULTIMA MISURA, sul DB DOPO la scrittura** (`5c410fc`: 635 righe di `external_match_stats`
+spostate sulla chiave giusta, 36 austriache fuori dalla nostra `bundesliga`, `mv_synth` 44 → 396,
+`arrivals` con 29 tier spostati e 8 tolti). **Identica all'ultimo decimale su tutt'e due le
+piattaforme.** E le due metà dello zero hanno due ragioni diverse, che vanno tenute separate:
+l'INPUT di R24 è fermo **per costruzione misurata** — `source='sofascore'` nei cinque campionati legge
+332.461 righe prima e dopo, perché tutte e 635 le righe spostate erano `sofascore_recent`, che il
+filitro esclude; il BASELINE è fermo perché l'unico lettore di `foreign_fm_equiv` in `evaluate` è R1,
+che non è in nessun `ADOPTED`. La prima è una prova, la seconda un argomento strutturale confermato
+dalla misura.
+
+Il verdetto vale quindi a HEAD `63022bf`, col filtro, sul DB dopo `5c410fc`, e non è mai stato in
+bilico attraverso quattro misure: è a tre decimi dal pavimento su `default` e manca due clausole su
+`euro`.
+
+**Cosa resta in codice**: le quattro chiavi restano DICHIARATE in `RULES`/`CANDIDATES` e fuori da
+`ADOPTED`, con i loro numeri qui — un candidato respinto si documenta col suo strumento invece di essere
+cancellato. `backtest --verify` **22/22**, `starts_seen` 0/1322 su ogni finestra pre-stagione: nessun
+numero pubblicato si muove.
+
+### E il secondo canale NON è gatabile: misurato prima di costruirlo
+
+La pagina **probabili** batte il motore vicino alla giornata (Brier 0,133 contro 0,175 di `est_pv/38`),
+ed è il candidato più forte che ci sia. Contato: `probable_starter` porta **0 righe su tutte e 14** le
+finestre in-season — l'intera tabella va dal 26/07/2026 al 05/09/2026, perché è un fatto SNAPSHOT che
+non si può retrodatare (`FEATURE_CHECKS` lo dichiarava già come vuoto in ogni finestra passata). Per la
+regola d'oro non può entrare nel motore: nessuna finestra può giudicarlo. Resta disponibile al percorso
+VIVO (app e pannello), che non è gatato — e se ci va, ci va come tale e detto.
+
+## 7-sexquadragies. I POSTI DELLA SUA LINEA: diagnostica pre-corsa, e il segno e' al contrario (6 settembre 2026)
+
+Terzo dei tre buchi che l'operatore ha proposto, e il piu' promettente sulla carta: meccanismo forte
+(se il club passa a tre dietro, una maglia di difensore sparisce), dato in casa, e la quantita' giusta
+mai provata — il rifiuto noto (−0,032, 2/8) e' misurato sul CAMBIO DI MODULO del club, non su quanti
+posti ha la sua linea. **Misurato prima di implementare, e non si implementa.**
+
+La forma modale per (club, stagione) viene da `club_match_lineups` (686 club-stagione con almeno dieci
+distinte complete, e quella tabella non passa dal funnel delle identita'). Popolazione: chi RESTA nello
+stesso club, perche' un trasferimento e' un altro fatto — **1.449 coppie** su `default`.
+
+| | n | r(cambio posti, cambio quota) | +1 posto | −1 posto |
+|---|---|---|---|---|
+| tutti | 1.449 | **−0,045** | | |
+| D | 618 | −0,048 | **−0,0880** | −0,0013 |
+| C | 545 | −0,017 | −0,0406 | −0,0237 |
+| A | 286 | −0,083 | −0,0789 | −0,0364 |
+
+Col null accanto, che e' la meta' che rende leggibile il resto: chi NON cambia posti perde comunque
+**−0,0242** di quota (il ricambio naturale fra due stagioni). Quindi guadagnare un posto nella propria
+linea si accompagna a giocare MENO, non di piu': un difensore il cui club passa da tre a quattro dietro
+perde 0,06 di quota in piu' del null.
+
+**E il meccanismo che spiega il segno rovesciato e' quello che uccide la formulazione**: un club aggiunge
+un posto in una linea perche' ha COMPRATO in quel reparto, quindi la maglia in piu' la riempie l'arrivo e
+l'uomo che c'era trova piu' concorrenza, non meno. La quantita' giusta non e' «quanti posti ha la sua
+linea» ma «posti meno pretendenti» — che e' la famiglia R11 / R11b / R16 / R16b / R17, **respinta cinque
+volte su cinque meccanismi diversi**. Aprirla per la sesta vuole un argomento che non sia quello gia'
+falsificato, e questa diagnostica non lo fornisce.
+
+**LA PRIMA VERSIONE DI QUESTA TABELLA ERA UNITA PER NOME, ed e' la QUINTA istanza della famiglia** dopo
+`club_form`, `coach_repertoire` e le due dell'identita' dei club. `club_match_lineups.club` e' la grafia
+del PROVIDER e `match_ratings.team` quella dell'Excel dei voti: su 35 grafie ne combaciano **26**, e le
+non appaiate sono **Milan, Napoli, Roma** piu' Chievo, Crotone, Palermo, Pescara, Verona, Carpi — di
+nuovo le squadre piu' forti, di nuovo in modo non uniforme. Rifatta con `matching.club_identity` le
+coppie passano da 1.097 a **1.449** (+32%). Cosa e' sopravvissuto e cosa no e' esattamente quello che
+CLAUDE.md predice: l'aggregato regge (−0,040 -> −0,045) e i numeri per cella si muovono (D +1 posto da
+−0,105 a −0,088; C da +0,001 a −0,017, cioe' cambia SEGNO). La conclusione non cambia e adesso poggia su
+un join pulito — ma la prima versione la sosteneva con numeri per ruolo che non erano quelli veri.
+Segnalata da una sessione parallela in audit (`fantassistant-48`) prima che la tabella fosse citata:
+*un allarme verificato che risulta fondato vale la rimisura, e uno che risulta infondato vale comunque
+il minuto che costa.*
+
+Limiti dichiarati: le celle che si muovono restano poche (D 35 in su e 83 in giu'), la forma modale
+schiaccia un club che alterna, e la misura e' su `default`. Percio' e' una DIAGNOSTICA e non un verdetto:
+quello che stabilisce e' che non c'e' motivo di spendere uno slot di gate sulla forma proposta, non che
+il canale sia impossibile.
+
+## 7-septquadragies. LE SQUALIFICHE: diagnostica pre-corsa, due forme, nessuna da spedire (6 settembre 2026)
+
+Secondo dei tre buchi proposti dall'operatore, scelto da lui. **Misurato prima di implementare, e non si
+implementa** — ma per una ragione diversa da quella dei posti della linea, e piu' istruttiva.
+
+**IL DATO C'ERA, nella tabella sbagliata rispetto a dove tutti lo cercavano.** `match_ratings.status` non
+ha mai scritto `suspended` (solo `played` e `no_vote`) e il livello per-partita ha **0 cartellini su
+352.754** — ma `match_ratings.yellows`/`reds` sono pieni: 16.251 gialli e 947 rossi su 6.452
+stagioni-giocatore. Settima istanza di «il dato c'era e nessuno lo leggeva».
+
+**IL SEGNALE ESISTE, PERSISTE ED E' NUOVO**, che sono tre cose diverse e tutte e tre necessarie:
+persistenza del tasso di gialli PER PRESENZA fra t e t+1 **+0,387** (meglio del tasso di rigori per club,
++0,25); ortogonale a cio' che il modello legge — r(tasso, quota di minuti) = **−0,004**, e il parziale
+sulle presenze di t+1 non si muove controllando anche i minuti (−0,066 → **−0,068**). E' l'esatto
+contrario di R24, che aveva un parziale tre volte piu' grande e gia' contenuto nel set adottato. Per
+presenza e non per stagione, o si misura il minutaggio che il modello ha gia'.
+
+**E NON BASTA LO STESSO.** Stima fuori campione, una stagione tenuta fuori per volta, su un baseline
+della FORMA di R3 (quota precedente + quota di minuti + cambio club), che e' molto piu' vicino
+all'adottato di quanto lo fosse il surrogato di R24:
+
+| forma | media | finestre positive | peggiore |
+|---|---|---|---|
+| termine lineare sul tasso | **+0,17%** | 6/11 | −0,43% |
+| **forma di R21** (sottrarre le giornate attese dal regolamento) | **−1,58%** | **0/11** | −3,65% |
+
+**LA FORMA CHE SEMBRAVA GIUSTA E' LA PEGGIORE, e la ragione e' la parte che resta**: il baseline e'
+fittato su un esito che le squalifiche le CONTIENE GIA'. Il modello impara «un uomo con questo profilo
+gioca 24 giornate», e quel 24 e' gia' al netto delle sue squalifiche — le 0,84 giornate che la forma di
+R21 sottrae sono contate due volte. Quindi il canale puo' pagare solo attraverso la propensione
+DIFFERENZIALE (quanto uno e' piu' falloso della media), che e' cio' che il termine lineare cattura, e mai
+attraverso la sottrazione assoluta. Stessa famiglia dell'eta' («il modello sconta gia' i trentenni prima
+di qualunque termine d'eta'») e di R14.
+
+**Il tetto lo diceva gia' l'aritmetica**: 0,97 giornate di squalifica per stagione-giocatore contro un MAE
+di 6,56, cioe' ≤15% *nel caso perfetto*, e di quel 15% se ne prevede la frazione che la persistenza
+concede. Confermato dall'esito misurato: il quartile piu' falloso gioca **23,8** giornate contro le 24,9
+del meno falloso, un divario di 1,1 — che concorda con lo 0,97 dell'aritmetica per due strade
+indipendenti.
+
+**Bias della stima, dichiarato**: il baseline del banco e' piu' DEBOLE dell'adottato vero (mancano R7,
+R13, R19, R20, R23), e un baseline piu' debole fa sembrare un canale nuovo MIGLIORE di quanto sia. Quindi
+il +0,17% e' una stima ottimistica, non conservativa — al contrario del surrogato di R24, il cui bias
+andava nella stessa direzione ma non era stato dichiarato prima della corsa. Nessuna delle due forme
+merita uno slot di gate.
+
+## 7-octoquadragies. I RIGORI: l'effetto e' grande, la mira e' peggiore del niente (6 settembre 2026)
+
+Terzo dei tre buchi proposti dall'operatore, e il piu' promettente dei tre: **un canale sulla FANTAMEDIA**,
+dove su `default` non c'e' nessuna regola adottata (tutte lavorano sulle presenze). **Misurato prima di
+implementare, e non si implementa** — ma stavolta non perche' l'effetto sia piccolo.
+
+**LA PREMESSA VA CORRETTA IN DUE PUNTI.** Non e' un'acquisizione: `match_ratings.pen_scored`/`pen_missed`
+sono popolate (~6,5 rigori per club-stagione a stagione finita). E il pezzo mancante non e' il TASSO PER
+CLUB, che si somma in una query: e' **chi li tira**.
+
+**L'EFFETTO E' GRANDE E SIMMETRICO, e la trappola dei gruppi e' separata.** Il divario grezzo di
+fantamedia fra rigoristi (3+ tiri) e non-rigoristi e' **+1,256**, ma il contributo ARITMETICO dei soli
+rigori e' **+0,293**: il resto e' «i rigoristi sono attaccanti forti». Quello che conta e' l'errore del
+predittore banale (la sua fantamedia di t) sui CAMBI di stato, perche' i rigori di chi li tirava sono gia'
+dentro il suo input:
+
+| gruppo | n | scarto (vero − previsto) |
+|---|---|---|
+| **SMETTE di tirarli** | 30 | **−0,546** |
+| **DIVENTA rigorista** | 27 | **+0,661** |
+| resta rigorista | 64 | −0,112 |
+| non li tira mai | 1.737 | −0,027 |
+
+Mezzo punto di fantamedia contro un MAE di 0,289, su ~6 uomini a stagione. E' la forma che il gate premia
+— pochi uomini spostati di molto.
+
+**E CADE SULLA MIRA.** Al 5 agosto la domanda e' «chi li tirera'», e le due risposte disponibili sono: il
+taker della stagione scorsa (**55/138 = 40%**) e il rank 1 di `penalty_hierarchy` (**21/138 = 15%**).
+La gerarchia e' **peggiore del banale**, e degrada — 0 su 17 e 0 su 14 nelle ultime due finestre. Ma il
+punto e' piu' duro di cosi': **il taker precedente al 40% e' cio' che il modello assume gia'**, perche' la
+sua fantamedia precedente contiene i suoi rigori. Quindi predire col null equivale a non fare niente, e
+per pagare servirebbe uno strumento MIGLIORE del 40% — mentre l'unico che abbiamo sta al 15%.
+
+*Un effetto grande con una mira peggiore del niente e' un canale che non esiste*, ed e' una forma di
+rifiuto diversa dalle altre due di oggi (i posti della linea non avevano il meccanismo, le squalifiche
+l'avevano troppo piccolo).
+
+**E LA PRIMA VERSIONE DI QUESTA MISURA AVEVA IL PONTE ROTTO**, terza volta in un giorno: traducevo
+`fc_club_id` in un nome dei voti con un `setdefault`, cioe' un nome preso a caso fra quelli incontrati.
+Rifatto per chiave canonica (`clubs.canonical_name` → `club_identity` su tutt'e due i lati) i club passano
+da 120 a 138 e i due numeri non si muovono (39% → 40%, 14% → 15%). Sono stati i due ZERI consecutivi a
+farmi guardare lo strumento, come la regola di casa impone; qui gli zeri erano veri e il ponte era rotto
+lo stesso.
+
+Cosa riaprirebbe la questione: uno strumento che al 5 agosto batta il 40%. La gerarchia com'e' oggi non lo
+fa, e il candidato ovvio — le dichiarazioni del ritiro, chi tira i rigori nelle amichevoli — e' la stessa
+acquisizione pre-registrata per l'estate 2027 in `letture-app-v1.md` §26.
+
 ## 8. Casi di regressione (in `model.REGRESSION_CASES`, stampati da `backtest --cases`)
 
 Lewandowski (età/minuti) · Wirtz (cambio lega) · Torres F. (propensione per-90) · Ezzalzouli (nuovo nel

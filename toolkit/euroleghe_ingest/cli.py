@@ -96,9 +96,13 @@ def build_parser() -> argparse.ArgumentParser:
     # Gate harness: read-only on the DB, writes only a report under data/reports/.
     p_backtest = sub.add_parser("backtest", help=load("backtest").DESCRIPTION)
     p_backtest.add_argument("--window", action="append", choices=list(ALL_WINDOWS),
-                            metavar="|".join(WINDOWS),
-                            help="prediction window, oldest to newest (repeatable; default: all). "
-                                 "The published gate numbers are T1 and T2 alone.")
+                            metavar="|".join(WINDOWS) + "|I<AA>set|I<AA>feb",
+                            help="prediction window, oldest to newest (repeatable; default: le sole "
+                                 "PRE-STAGIONE). The published gate numbers are T1 and T2 alone. Le "
+                                 "in-season (I19set ... I25feb, data d'asta dentro la stagione "
+                                 "bersaglio) esistono e si prendono NOMINANDOLE: non entrano in nessuna "
+                                 "corsa di default, cosi' aggiungerle non cambia il significato di un "
+                                 "numero gia' pubblicato.")
     p_backtest.add_argument("--platform", action="append", choices=["euro", "default"],
                             help="euro = EuroLeghe, default = classic Serie A (default: both)")
     p_backtest.add_argument("--game", action="append", choices=["classic", "mantra"],

@@ -271,6 +271,20 @@ class Observation:
     # stagione bersaglio - perché quel giorno era pubblico: lo vede chiunque sieda al tavolo.
     # None (e non 0) su una finestra pre-stagione, dove la domanda non esiste: «vuoto = ignoto».
     pv_seen: int | None = None
+    # ...E QUANTE DI QUELLE PARTITE HA COMINCIATO (R24). `pv_seen` conta le presenze A VOTO, che
+    # mettono nello stesso numero il titolare e chi entra dalla panchina e gioca abbastanza da prendere
+    # il voto - due stati che il resto della stagione tratta in modo diverso. La distinta non e' nei voti
+    # (`match_ratings.started` e `minutes` sono NULL su ogni riga), quindi arriva dal livello per-partita.
+    #
+    # DUE CONTEGGI E NON UN TASSO, e vengono dalla STESSA tabella tagliata alla stessa data: un tasso
+    # nasconde la taglia del campione (a due giornate viste vale 0, 0.5 o 1) e mescolare un numeratore
+    # del provider con un denominatore della piattaforma sarebbe l'errore di unita' che questo progetto
+    # paga piu' spesso. Il rapporto lo fa la regola, che sa anche quando rifiutarsi.
+    #
+    # None - e non 0 - su una finestra pre-stagione e per chi in quelle giornate non e' mai sceso in
+    # campo: «non ha ancora giocato» e «e' entrato dalla panchina» sono due frasi diverse.
+    starts_seen: int | None = None
+    played_seen: int | None = None
     # LA COPPA CONTINENTALE che cade dentro la stagione bersaglio, per lui: la confederazione della sua
     # nazionale, se il provider lo file fra i nazionali, e la QUOTA della stagione del suo campionato che
     # sta dentro le finestre di quella coppa. Tre input legittimi il giorno dell'asta - un calendario
@@ -1535,6 +1549,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     # ...e la giornata A CAVALLO della data, che non appartiene a nessuna delle due metà.
     straddling = matchdays_straddling(conn, platform, window.target_season, window.auction_date)
     seen_totals, rest_totals = _split_target_season(conn, window, platform, seen_rounds, straddling)
+    seen_starts = _seen_starts(conn, window, platform, seen_rounds)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -1588,6 +1603,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             peer_top=peer_top.get(fc_id), value_percentile=value_percentile.get(fc_id),
             starter_prob=starters.get(fc_id), penalty_rank=rank, penalty_confidence=confidence,
             pv_seen=seen_totals.get(fc_id, 0 if seen_rounds else None),
+            starts_seen=seen_starts.get(fc_id, (None, None))[0],
+            played_seen=seen_starts.get(fc_id, (None, None))[1],
             # Su una finestra in-season l'esito è il RESTO della stagione; su una pre-stagione resta il
             # totale, che è quello che i dieci numeri pubblicati misurano.
             **(dict(zip(("pv_act", "mv_act", "fm_act"),
@@ -1634,6 +1651,45 @@ def _split_target_season(conn: sqlite3.Connection, window: Window, platform: str
     return played, rest
 
 
+def _seen_starts(conn: sqlite3.Connection, window: Window, platform: str,
+                 seen: set[int]) -> dict[int, tuple[int, int]]:
+    """Delle partite gia' giocate alla data d'asta, quante ne ha COMINCIATE: fc_id -> (partenze, giocate).
+
+    Serve solo alle finestre IN-SEASON e su una pre-stagione non fa nemmeno la query, come il suo vicino.
+
+    IL TAGLIO E' UNA DATA E NON UN NUMERO DI GIORNATE, e non per eleganza: `pv_seen` conta sul calendario
+    della PIATTAFORMA (su `euro` un turno impacchetta un turno reale diverso in ognuna delle cinque
+    leghe) mentre questa tabella conta sul turno REALE di ogni campionato. Le due numerazioni non si
+    sovrappongono, e giuntarle per numero sarebbe un join per una chiave che non e' la stessa chiave. Il
+    giorno in cui l'ultima giornata vista si e' chiusa e' invece la stessa cosa per tutt'e due, ed e'
+    esattamente cio' che «gia' giocato il giorno dell'asta» vuol dire.
+
+    Le due cifre escono dalla stessa riga della stessa tabella, quindi il loro rapporto e' una quota e
+    non un errore di unita'. E ESCONO DALLA STESSA SORGENTE: `sofascore_recent` sta nella
+    stessa tabella ma e' un pugno delle ultime partite di un uomo, non un campionato camminato - non
+    dice se e' partito titolare (`started` NULL su tutte e 81 le sue righe nei cinque campionati), e la
+    sua competizione e' quella che il provider ha scritto, che chiama `bundesliga` anche il campionato
+    austriaco. Senza il filtro quelle righe gonfierebbero il denominatore senza poter mai toccare il
+    numeratore, cioe' abbasserebbero la quota di partenze per una ragione che non e' calcio. Chi non e' mai sceso in campo non c'e' («vuoto = ignoto»): un uomo con zero
+    partite non ha una quota di partenze, ha un'assenza di prove.
+    """
+    if not seen:
+        return {}
+    dates = matchday_dates(conn, platform, window.target_season)
+    cut = max((dates[md] for md in seen if md in dates), default=None)
+    if cut is None:
+        return {}
+    competitions = PLATFORM_COMPETITIONS.get(platform, PLATFORM_COMPETITIONS["default"])
+    marks = ",".join("?" * len(competitions))
+    return {int(fc_id): (int(starts or 0), int(played))
+            for fc_id, starts, played in conn.execute(
+                f"""SELECT fc_id, SUM(started), COUNT(*) FROM external_match_stats
+                    WHERE season = ? AND source = 'sofascore' AND competition IN ({marks})
+                      AND match_date <= ? AND minutes IS NOT NULL AND minutes > 0
+                    GROUP BY fc_id""",
+                (window.target_season, *competitions, cut))}
+
+
 # ---------------------------------------------------------------- input inventory
 
 # What each pre-registered rule needs, so the report can state its feasibility instead of guessing.
@@ -1657,6 +1713,9 @@ FEATURE_CHECKS: tuple[tuple[str, str], ...] = (
     # pre-registered R7 that would have needed it is therefore untestable until weekly snapshots exist
     ("starter_prob", "probable starter at auction date - unused: 0 rows before any past auction"),
     ("penalty_rank", "penalty hierarchy at auction date - R6/R8"),
+    # R24: popolato al 100% sul livello per-partita di tutti e cinque i campionati, e None su ogni
+    # finestra pre-stagione - dove leggere «presente» sarebbe la risposta sbagliata alla domanda giusta.
+    ("starts_seen", "partenze da titolare nelle giornate gia' giocate - R24, solo finestre in-season"),
 )
 
 

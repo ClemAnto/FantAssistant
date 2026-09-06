@@ -46,6 +46,19 @@ class Rule:
 # One rule = one hypothesis = one parameter family. R1/R1b and R4/R4b started life as single rules
 # and were split after the first gate run: bundling "cover the newcomers" with "discount the movers"
 # (or the fantamedia side of ageing with the appearances side) hides which half is working.
+#: R24 - LO SCONTO DI PANCHINA sul segnale delle giornate viste: chiave -> (K, w).
+#:
+#: `K` NON e' una manopola nuova: sono i due valori GIA' ADOTTATI (10 su `default`, 6 su `euro`), quindi
+#: quello che si giudica qui e' lo sconto sopra cio' che e' in vigore e non una riapertura di K. `w` e'
+#: DICHIARATO per punto di griglia, l'idioma di R18b/R18c/R20: cosi' «quale w» e' un verdetto e non un
+#: fit, e ogni punto si giudica da solo contro lo stesso baseline. `w = 0` e' R20 stessa, deliberatamente
+#: fuori dalla griglia - l'incumbent e' la cosa contro cui si misura.
+R24_BENCH: dict[str, tuple[float, float]] = {
+    "R24K10w25": (10.0, 0.25), "R24K10w50": (10.0, 0.50),
+    "R24K6w25": (6.0, 0.25), "R24K6w50": (6.0, 0.50),
+}
+
+
 RULES: tuple[Rule, ...] = (
     Rule("R0", "baseline: the current validated engine (core + M2e + expected appearances)", True),
     # R0c is not a hypothesis, it is the null model made explicit: the role anchor and the mean share
@@ -152,6 +165,17 @@ RULES: tuple[Rule, ...] = (
                 f"K = {rounds:.0f} giornate", True, metric="pv")
       for key, rounds in (("R20K40", 40.0), ("R20K25", 25.0), ("R20K15", 15.0),
                           ("R20K10", 10.0), ("R20K6", 6.0), ("R20K3", 3.0))),
+    # R24 - UNA PARTENZA DA TITOLARE NON E' UNA PRESENZA (pre-registrata §7-quinquadragies, 06/09/2026).
+    # `pv_seen` conta le presenze A VOTO, quindi mette nello stesso numero il titolare e chi entra dalla
+    # panchina e gioca abbastanza da prendere il voto. La diagnostica pre-corsa dice che la distinzione
+    # porta qualcosa che le presenze non contengono gia': a parita' di quota di presenze nelle giornate
+    # viste, la quota di PARTENZE correla +0,198 col resto della stagione, positiva su 13 finestre di 13.
+    # Il segnale visto viene scontato di `w` per la quota di volte in cui e' entrato dalla panchina: un
+    # pieno titolare non si muove, chi subentra sempre pesa (1 - w).
+    *(Rule(key, f"una PARTENZA non e' una presenza: il segnale delle giornate viste scontato di "
+                f"w = {bench:.2f} per chi entra dalla panchina, con il prior a K = {prior:.0f} giornate",
+           True, metric="pv")
+      for key, (prior, bench) in R24_BENCH.items()),
     # R21 - LA COPPA CONTINENTALE dentro la stagione bersaglio. Senza parametro fittato: il coefficiente
     # è misurato fuori (`engine/cups.py`, DiD su quattro finestre-torneo) e la regola decide solo se
     # applicarlo. Attiva soltanto dove una coppa dichiarata cade nel calendario del bersaglio - tre
@@ -175,6 +199,26 @@ RULES: tuple[Rule, ...] = (
 R20_ROUNDS: dict[str, float] = {"R20K40": 40.0, "R20K25": 25.0, "R20K15": 15.0,
                                 "R20K10": 10.0, "R20K6": 6.0, "R20K3": 3.0}
 
+
+#: L'ordine in cui le due famiglie si contendono l'unico ramo della miscela: la piu' specifica prima.
+_SEEN_BLENDS: tuple[tuple[str, float, float], ...] = (
+    *((key, prior, bench) for key, (prior, bench) in R24_BENCH.items()),
+    *((key, prior, 0.0) for key, prior in R20_ROUNDS.items()),
+)
+
+
+def _start_rate_seen(obs: features.Observation) -> float | None:
+    """Delle partite giocate nelle giornate viste, la quota COMINCIATA da titolare. None = niente prove.
+
+    Il rifiuto e' la meta' che conta: senza una riga nel livello per-partita non c'e' un tasso da leggere
+    e la regola tace, lasciando che R20 risponda da se'. Leggere un'assenza come «non ha mai cominciato»
+    scriverebbe uno zero misurato su un uomo che nessuno ha visto - «vuoto = ignoto, mai zero» - e
+    scontarlo del massimo sarebbe il premio esattamente rovesciato.
+    """
+    if not obs.played_seen or obs.starts_seen is None:
+        return None
+    return min(obs.starts_seen / obs.played_seen, 1.0)
+
 # Rules that get fitted and compared one at a time by `compare`.
 CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b", "R5", "R6", "R7",
                                "R8", "R10", "R11", "R11b", "R12", "R12b", "R13", "R13b",
@@ -185,6 +229,9 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                # gate le trova a guadagno esattamente zero - che è il modo giusto in cui
                                # una regola che risponde a un'altra domanda si comporta qui.
                                "R20K40", "R20K25", "R20K15", "R20K10", "R20K6", "R20K3",
+                               # R24: inerti come le R20 su una pre-stagione, e in piu' inerti su
+                               # chiunque il livello per-partita non veda giocare.
+                               "R24K10w25", "R24K10w50", "R24K6w25", "R24K6w50",
                                # R21: la coppa continentale in mezzo al campionato (17/08/2026). Il suo
                                # coefficiente è misurato altrove e non si fitta qui; quello che il gate
                                # decide è se applicarlo migliora le presenze previste.
@@ -1584,10 +1631,19 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     # fine gennaio quella parte pesa più di tutto il resto. Non SOSTITUISCE la previsione, ci converge:
     # a due giornate viste il termine è piccolo per ogni K sensato, a ventitré è quasi tutto.
     # Su una finestra pre-stagione `matchdays_seen` è 0 e questo blocco non esiste.
-    for key, prior in R20_ROUNDS.items():
+    #
+    # R24 - LA STESSA MISCELA CON IL SEGNALE VISTO SCONTATO DA CHI E' ENTRATO DALLA PANCHINA, quindi sta
+    # nello stesso ciclo e non accanto: sono due letture della stessa domanda, e due rami separati
+    # applicherebbero la miscela due volte. R24 viene PRIMA perche' e' la piu' specifica - in `ALL`, dove
+    # ci sono entrambe, vince lei e il `break` la lascia sola.
+    for key, prior, bench in _SEEN_BLENDS:
         if key in rules and data.matchdays_seen and obs.pv_seen is not None:
-            share = model.blend_with_seen(share, obs.pv_seen / data.matchdays_seen,
-                                          data.matchdays_seen, prior)
+            signal = obs.pv_seen / data.matchdays_seen
+            if bench:
+                rate = _start_rate_seen(obs)
+                if rate is not None:
+                    signal *= 1 - bench * (1 - rate)
+            share = model.blend_with_seen(share, signal, data.matchdays_seen, prior)
             break
     # R21 - LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO, e va DOPO R20 per la stessa ragione per cui R20
     # va dopo tutto il resto: è l'ultima cosa che si sa. Qualunque quota di stagione il modello preveda,
