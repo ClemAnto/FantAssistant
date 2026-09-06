@@ -8,6 +8,7 @@ import {
   MATCHDAY_MEAN,
   MATCHDAY_SD,
   ROLE_STEADY,
+  SEEN_MATCHES,
   STEADY_SHARE,
   swingOf,
 } from './swing';
@@ -120,5 +121,60 @@ describe('swingOf', () => {
     expect(swingOf({ role: 'D', surplus: 0, pv: null, steady: null })).toBe(0);
     // Un surplus NEGATIVO fa segnare meno del suo rimpiazzo, e il segno va conservato.
     expect(swingOf({ role: 'D', surplus: -20, pv: null, steady: null })!).toBeLessThan(0);
+  });
+});
+
+describe('la fantamedia gia tenuta in questa stagione (R25)', () => {
+  const base = { role: 'A' as const, surplus: 40, pv: 30, steady: 0.65, fm: 7.0, confidence: 1 };
+
+  /**
+   * A STAGIONE NON COMINCIATA IL TERMINE NON ESISTE, e non e' una comodita': senza partite giocate non
+   * c'e' una fantamedia da miscelare. E' la stessa proprieta' che rende R25 inerte su ogni finestra
+   * pre-stagione del gate, cioe' su tutti i numeri gia' pubblicati.
+   */
+  it('e inerte a stagione non cominciata, e chi non ha ancora giocato non ne e toccato', () => {
+    const senza = swingOf({ ...base, seasonFm: null, seasonPlayed: null })!;
+    const zero = swingOf({ ...base, seasonFm: 8.5, seasonPlayed: 0 })!;
+    const solo = swingOf(base)!;
+    expect(senza).toBeCloseTo(solo, 9);
+    expect(zero).toBeCloseTo(solo, 9);
+  });
+
+  /**
+   * IL PESO CRESCE COL CAMPIONE, che e' tutto il senso di una miscela: a due partite quasi niente, a
+   * quindici un terzo. I due numeri sono quelli che l'esperimento ha misurato - a settembre il termine
+   * e' quasi inerte, a febbraio decide.
+   */
+  it('pesa col numero di partite giocate: quasi niente a settembre, un terzo a febbraio', () => {
+    const set = swingOf({ ...base, seasonFm: 8.0, seasonPlayed: 2 })!;
+    const feb = swingOf({ ...base, seasonFm: 8.0, seasonPlayed: 15 })!;
+    const solo = swingOf(base)!;
+    expect((set - solo) / (feb - solo)).toBeLessThan(0.2);
+    // ...e il peso e' esattamente n/(n+K), che e' la forma dichiarata e non una curva scelta
+    expect(feb - solo).toBeCloseTo((15 / (15 + SEEN_MATCHES)) * (8.0 - 7.0) * 30 * GOALS_PER_POINT, 9);
+  });
+
+  /** Chi sta rendendo MENO di quanto il foglio dica scende: una miscela tira in tutt'e due i versi. */
+  it('scende per chi sta rendendo meno del previsto, o sarebbe un premio e non una misura', () => {
+    expect(swingOf({ ...base, seasonFm: 5.5, seasonPlayed: 15 })!)
+      .toBeLessThan(swingOf(base)!);
+  });
+
+  /**
+   * SI SOMMA AL SURPLUS INVECE DI RICALCOLARLO, e il test lo fissa: il surplus e' lineare nella
+   * fantamedia, quindi la correzione e' `Δfm × presenze × confidenza` ESATTAMENTE. Ricostruire il
+   * surplus da capo sarebbe una seconda lettura di una colonna che il gate possiede.
+   */
+  it('la correzione e lineare, e una stima la sconta come sconta tutto il resto', () => {
+    const pieno = swingOf({ ...base, seasonFm: 8.0, seasonPlayed: 15, confidence: 1 })!;
+    const meta = swingOf({ ...base, seasonFm: 8.0, seasonPlayed: 15, confidence: 0.5 })!;
+    const solo = swingOf(base)!;
+    expect(meta - solo).toBeCloseTo((pieno - solo) / 2, 9);
+  });
+
+  /** Senza la fantamedia del FOGLIO non c'e' un prior contro cui miscelare: si tace invece di inventare. */
+  it('senza il prior del foglio non miscela niente', () => {
+    expect(swingOf({ ...base, fm: null, seasonFm: 8.0, seasonPlayed: 15 })!)
+      .toBeCloseTo(swingOf({ ...base, fm: null })!, 9);
   });
 });

@@ -150,6 +150,31 @@ export const GOALS_PER_POINT = normalCdf((MATCHDAY_MEAN - LADDER_KINK) / MATCHDA
 export const STEADY_SHARE = 1 / 11;
 
 /**
+ * QUANTE PARTITE DI PRIOR VALE LA FANTAMEDIA GIA' TENUTA IN QUESTA STAGIONE (R25).
+ *
+ * La stessa forma che R20 applica alle presenze - `(k x visto + K x prior) / (k + K)` - portata sulla
+ * fantamedia, e con `k` in PARTITE GIOCATE e non in giornate: la taglia del campione di una media e'
+ * quante volte quella media e' stata misurata.
+ *
+ * IL MOTORE NON LA LEGGE, E LA RAGIONE E' PROCEDURALE E NON UNA MISURA. Sul gate la regola PASSA il
+ * verdetto robusto su Serie A (11 finestre di 12, +5,0% di MAE sulla fantamedia, peggiore -0,6%, liste
+ * d'asta 138 -> 141 nomi), ma l'ottimo cade sul BORDO della griglia a K = 40 - e qui un parametro al
+ * bordo non si adotta mai. La griglia allargata (60, 80, 120) e' pre-registrata e non ancora corsa,
+ * quindi `engine_fm_pred` resta com'e' (`gate-motore-v1.md` §7-noviesquadragies e §7-quinquagies).
+ *
+ * QUI DENTRO INVECE C'E', per decisione dell'operatore («adottiamo solo per lo SWING questo tipo di
+ * fantamedia attesa»), e ha lo stesso statuto del termine di costanza: SWING e' REPORTING, nessun gate
+ * lo possiede, e la colonna del motore non si muove di un decimale.
+ *
+ * MISURATO SUL DELIVERABLE, quattro finestre retrodatate, quattro rose e campionato A/R (72 campionati
+ * per finestra). Con budget 250: vince 3 finestre su 4, e le due di FEBBRAIO le vince largo - 78% e 60%
+ * dei titoli contro il 14% e il 15% dello SWING senza. A SETTEMBRE e' quasi inerte per costruzione (2-3
+ * partite viste, la miscela pesa il 5%) e infatti li' i due bracci leggono quasi uguale. La finestra che
+ * perde la vince la QUOTAZIONE, il che e' il promemoria che quattro finestre restano quattro.
+ */
+export const SEEN_MATCHES = 40;
+
+/**
  * LA COSTANZA DI CHI NON NE HA UNA MISURATA: la mediana del suo ruolo, mai zero.
  *
  * «Vuoto = ignoto»: uno zero direbbe «non prende mai la sufficienza», che e' una frase sul calciatore
@@ -165,8 +190,25 @@ export interface SwingInput {
   surplus: number | null;
   /** Le presenze attese, gia' ridotte da `expected-play`: il denominatore delle sue sufficienze. */
   pv: number | null;
+  /** La fantamedia che il foglio prevede: il PRIOR contro cui si miscela quella gia' tenuta. */
+  fm?: number | null;
   /** La quota di partite chiuse almeno in sufficienza, MISURATA sul voto base. Vuota = ignota. */
   steady: number | null;
+  /**
+   * LA FANTAMEDIA CHE HA GIA' TENUTO IN QUESTA STAGIONE, e su quante partite (R25).
+   *
+   * Vuote a stagione non cominciata e per chi non ha ancora giocato: chi non e' mai sceso in campo non
+   * ha una fantamedia bassa, non ne ha nessuna, e la miscela non lo tocca.
+   */
+  seasonFm?: number | null;
+  seasonPlayed?: number | null;
+  /**
+   * Quanto e' solido il numero del foglio (`est_confidence`), che serve SOLO al termine in-season.
+   *
+   * Il surplus che arriva qui la porta gia' dentro; la correzione della fantamedia no, perche' la
+   * ricostruisce da capo - e applicarla senza sarebbe dare a una stima l'autorita' di una misura.
+   */
+  confidence?: number | null;
 }
 
 /**
@@ -181,5 +223,23 @@ export function swingOf(input: SwingInput): number | null {
   if (surplus == null) return null;
   if (pv == null) return surplus * GOALS_PER_POINT;
   const steady = input.steady ?? ROLE_STEADY[role];
-  return (surplus + steady * pv * STEADY_SHARE) * GOALS_PER_POINT;
+  return (surplus + inSeason(input) + steady * pv * STEADY_SHARE) * GOALS_PER_POINT;
+}
+
+/**
+ * LA CORREZIONE IN-SEASON, in fantapunti: quanto il surplus cambierebbe con la fantamedia miscelata.
+ *
+ * SI SOMMA INVECE DI RICALCOLARE IL SURPLUS, e non e' un'astuzia: il surplus e' LINEARE nella
+ * fantamedia, quindi `surplus(fm miscelata) = surplus(fm) + Δfm × presenze × confidenza` esattamente.
+ * Ricostruirlo da capo vorrebbe dire riscrivere una colonna che il foglio porta e che il gate possiede
+ * - due letture dello stesso numero, che e' il difetto che questo progetto paga da sempre.
+ *
+ * Zero dove manca un pezzo, e sono tutti «vuoto = ignoto»: senza fantamedia di stagione non c'e' niente
+ * da miscelare, e senza `fm` del foglio non c'e' un prior contro cui miscelarla.
+ */
+function inSeason(input: SwingInput): number {
+  const { seasonFm, seasonPlayed, fm, pv } = input;
+  if (seasonFm == null || !seasonPlayed || fm == null || pv == null) return 0;
+  const weight = seasonPlayed / (seasonPlayed + SEEN_MATCHES);
+  return weight * (seasonFm - fm) * pv * (input.confidence ?? 1);
 }

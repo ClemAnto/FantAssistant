@@ -700,6 +700,13 @@ export class Strategy {
           surplus: one?.surplus == null ? null : one.surplus * outlook.factor,
           pv: outlook.expected,
           steady: steady?.share ?? null,
+          // R25 dentro SWING: la fantamedia che ha GIA' tenuto in questa stagione, e su quante
+          // partite. Sono i due numeri che le pastiglie `FM` e le sue giornate mostrano gia', letti
+          // da chi li possiede - non una seconda misura della stessa cosa.
+          fm: one?.fm ?? null,
+          seasonFm: played?.fm ?? null,
+          seasonPlayed: played?.pv ?? null,
+          confidence: one?.confidence ?? null,
         }),
       };
     });

@@ -20,6 +20,7 @@ import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
 import { demoPlayers } from './auction-demo';
 import { EngineNumbers, ValuationBasis, valuationOf } from './auction-value';
 import { Bundle, EngineSheetEntry } from './bundle';
+import { ValuationStore } from './valuation-store';
 import { ExpectedPlay } from './expected-play';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { PlayerStatus } from './player-status';
@@ -158,6 +159,14 @@ export class PlanciaStore {
    * noterebbe e' su due schermi che dicono due numeri diversi dello stesso nome.
    */
   private readonly ratings = inject(PlayerRatingsStore);
+  /**
+   * ...e la stagione GIA' GIOCATA, che e' l'altro termine di SWING (R25): la fantamedia che ha tenuto
+   * finora e su quante partite. Letta da chi la possiede (`ValuationStore.playedOf`), che e' la stessa
+   * lettura che la Strategia mostra: due misure della stessa stagione darebbero a un uomo due medie.
+   *
+   * Se lo store non e' in casa la miscela non si forma e resta il surplus del foglio: «vuoto = ignoto».
+   */
+  private readonly valuations = inject(ValuationStore);
   private readonly options = inject(GlobalOptions);
 
   readonly loading = signal(false);
@@ -235,6 +244,7 @@ export class PlanciaStore {
       // IL SURPLUS DI QUESTA RIGA: quello del foglio, riscalato sulle giornate che restano come lo
       // sono `points` e `pv`. Una sola valutazione per uomo, che e' quella che lo schermo mostra.
       const engine = numbers.get(player.id);
+      const played = this.valuations.playedOf('default', player.id);
       const sheetSurplus = engine?.surplusLeague ?? engine?.estSurplus ?? null;
       const sheetPv = engine?.pv ?? engine?.estPv ?? null;
       const surplus =
@@ -276,9 +286,13 @@ export class PlanciaStore {
           role,
           surplus,
           pv,
+          fm: valuation.fm,
+          confidence: valuation.confidence,
           steady: this.ratings.ready()
             ? (this.ratings.for('default', player.id)?.steady?.share ?? null)
             : null,
+          seasonFm: played?.fm ?? null,
+          seasonPlayed: played?.pv ?? null,
         }),
       });
     }
