@@ -69,6 +69,7 @@ const man = (over: Partial<StrategyBidder> = {}): StrategyBidder => ({
   surplusIsEstimate: false,
   value: null,
   valueIsEstimate: false,
+  swing: null,
   fm: null,
   mv: null,
   pv: null,
@@ -177,6 +178,42 @@ describe('blocksOf', () => {
     expect(defence.men.map((row) => row.man.name)).toEqual(['Meglio', 'Medio']);
     expect(defence.pool).toBe(4);
     expect(defence.unranked).toBe(1);
+  });
+
+  /**
+   * IL SELETTORE ORDINA DAVVERO, E IL TAGLIO LO SEGUE (operatore, 06/09/2026).
+   *
+   * Non e' un effetto collaterale: la domanda taglia DOPO l'ordine, quindi scegliere una chiave cambia
+   * anche chi resta in lista. Il test lo asserisce invece di lasciarlo scoprire a un tavolo.
+   */
+  it('ordina su una lettura qualunque quando gliela si chiede, e il taglio la segue', () => {
+    const pool = [
+      man({ name: 'Ricco', surplus: 30, swing: 1 }),
+      man({ name: 'Spinto', surplus: 10, swing: 9 }),
+      man({ name: 'Medio', surplus: 20, swing: 5 }),
+    ];
+    expect(
+      blocksOf({ pool, setup, rules: null }).find((one) => one.role === 'D')!.men.map((r) => r.man.name),
+    ).toEqual(['Ricco', 'Medio']);
+    expect(
+      blocksOf({ pool, setup, rules: null, sort: 'swing' })
+        .find((one) => one.role === 'D')!
+        .men.map((r) => r.man.name),
+    ).toEqual(['Spinto', 'Medio']);
+  });
+
+  /** Chi quel numero non ce l'ha va in fondo: un ignoto non e' uno zero, nemmeno in un ordinamento. */
+  it('mette in fondo chi non ha la lettura su cui si sta ordinando', () => {
+    const pool = [
+      man({ name: 'Senza', surplus: 30, swing: null }),
+      man({ name: 'Con', surplus: 10, swing: 2 }),
+    ];
+    const defence = blocksOf({ pool, setup, rules: null, sort: 'swing' }).find(
+      (one) => one.role === 'D',
+    )!;
+    expect(defence.men.map((row) => row.man.name)).toEqual(['Con', 'Senza']);
+    // ...e resta in lista col suo gain: ordinarlo per ultimo non e' toglierlo.
+    expect(defence.unranked).toBe(0);
   });
 
   it('nel draft la stessa lista può invertirsi, perché la valuta è un\'altra', () => {
@@ -496,7 +533,24 @@ describe('le sette letture di una riga', () => {
     for (const spec of READINGS) {
       expect(spec.format).toMatch(/^1\.\d-\d$/);
       expect(spec.width).toMatch(/^min-w-/);
-      expect(spec.short.length).toBeLessThanOrEqual(3);
+    }
+  });
+
+  /**
+   * LE SIGLE STANNO IN TRE CARATTERI, CON UNA ECCEZIONE DICHIARATA, e l'asserto e' STRETTO invece che
+   * allargato.
+   *
+   * La regola nasceva perche' la fila delle pastiglie in barra deve restare compatta. Il 06/09/2026
+   * l'operatore ha dichiarato che il termine e' SWING e non si abbrevia, che e' una sua decisione sul
+   * vocabolario e non una misura. Allargare la soglia a cinque per tutti sarebbe «un criterio non si
+   * allarga perche' un caso ci e' caduto»: qui si asserisce che l'eccezione e' UNA SOLA e si chiama
+   * SWING, cosi' una seconda sigla lunga non entra in silenzio.
+   */
+  it('le sigle stanno in tre caratteri, e la sola eccezione e SWING', () => {
+    const long = READINGS.filter((one) => one.short.length > 3);
+    expect(long.map((one) => one.short)).toEqual(['SWING']);
+    for (const spec of READINGS.filter((one) => one.short.length <= 3)) {
+      expect(spec.short.length).toBeGreaterThan(0);
     }
   });
 });

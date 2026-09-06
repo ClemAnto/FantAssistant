@@ -4619,6 +4619,83 @@ Cinque abitudini che ne sono uscite, tutte pagate.
   `arrivals` non era ri-derivata dal 7 agosto, quindi la prima misura dava alla rinomina 70 FM-equivalenti e
   21 tier (e +2 righe che nessuna rinomina può creare). Coi due bracci ri-derivati entrambi sono 28 e 29.
 
+## «Chi è meglio» e «quanto offrire» sono DUE graduatorie, e un termine giusto per una è sbagliato per l'altra
+**06/09/2026, `app/src/app/core/swing.ts`, dettaglio in `letture-app-v1.md` §32.** Dalla domanda
+dell'operatore «esiste un valore che mi dica subito, fra due calciatori, quale mi farà vincere più
+partite?». Ne è nato **SWING** — il nome è suo, e in codice e a schermo è lo stesso — e quattro termini
+misurati: la conversione in gol (adottata), la copertura e la convessità (respinte), la costanza
+(adottata su evidenza dichiaratamente debole).
+
+**LA REGOLA PIÙ GROSSA È IL RIFIUTO DELLA COPERTURA.** La prima versione sommava `surplus + copertura`
+come fa `engine_worth` sul banco d'asta, dove quella somma ha portato il braccio motore da ultimo di
+undici a PRIMO. Su una lista di nomi vale l'opposto: pesata da 0 a 1 su 200 campionati, **peso 0 rende
+63,0 punti e il 78% dei titoli, peso 1 ne rende 35,8**, e il braccio con la copertura compra 0,25 buchi
+in 36 giornate e le giornate sotto i 66 più alte del tavolo — la copertura la compra tutta e non la
+converte in punti. *Sul banco la copertura prezza un'OFFERTA sotto un budget, dove un posto può restare
+davvero vuoto; in una lista il posto vuoto non esiste, la rosa la riempi comunque, e pagare per la
+presenza è pagare per qualcosa che avresti gratis.* La diagnosi ha una firma riconoscibile: la copertura
+era l'**80-97%** del numero, perché `min(quota, deficit)` non morde mai (la quota è ≤ 1 e il deficit dei
+difensori è 4) — cioè **due zeri diversi dentro una somma**, il surplus che sottrae chi giocherebbe al
+posto suo e la copertura che assume che non giochi nessuno.
+
+**E IL BUDGET RIBALTA CHI VINCE, quindi il banco senza budget risponde a un'altra domanda.** In un draft
+LIBERO su dieci stagioni la QUOTAZIONE batte il surplus (21,4 punti e 40% dei titoli contro 20,2 e 32%);
+con un budget di 250 crediti la stessa quotazione crolla **ultima all'1%**. Comprare per prezzo è gratis
+solo quando i soldi non contano. Si compone con quello che il progetto sapeva già: dentro una fascia il
+prezzo non vale niente (−1,0 contro un tiro di dado), fra fasce diverse è informazione vera.
+
+**UN CANALE SI PAGA AL DIFFERENZIALE E NON AL TOTALE, e l'operatore l'ha indovinato dove io l'ho
+sbagliato.** La sua formula per la costanza — `surplus + giornate sufficienti × k`, con **k = 1/11**, «la
+parte di bonus da R-Factor o Mod. Difesa attribuibile a un uomo, un valore ragionevole ma non frutto di
+mille calcoli» — è a un decimo del marginale ESATTO che l'aritmetica del regolamento dà (0,298 di
+fantamedia per unità di costanza, Poisson-binomiale sull'undici tipo). A 0,30 il termine è **DANNOSO**
+(−2,12 fantapunti a giornata); a 1/11 è l'ottimo interno di una griglia monotona. La ragione è la stessa
+delle squalifiche: **il surplus contiene già una parte della costanza** — un uomo costante gioca di più e
+rende di più — quindi il totale è il prezzo di una cosa comprata due volte. *Quando un canale ha un
+marginale calcolabile, quel numero è il TETTO del peso e non il peso.*
+
+**UN'ADOZIONE SU EVIDENZA DEBOLE SI DICHIARA TALE.** Il termine di costanza ha perso su tre banchi e
+vinto su uno: −0,03% (3 finestre su 10) sulle rose appaiate, −0,29 punti (4 stagioni su 10) sul
+campionato senza budget, +1,22 fp a giornata su una stagione sola, e **avanti in 3 impostazioni su 4 con
+un budget di 250 crediti** — cioè nella sola situazione in cui l'operatore gioca. Adottato su quella
+lettura e non su un verdetto, con la clausola di R19 scritta accanto: **se la prossima misura lo trova
+peggiore, esce senza discutere.**
+
+E la SOGLIA che ne esce si usa anche senza la colonna: preferisci il costante se `Δfantamedia < 0,30 ×
+Δcostanza` — dieci punti di costanza pareggiano 0,03 di fantamedia, con un tetto invalicabile di 0,50
+(l'R-Factor vale mezzo punto per uomo). Ma il tasso **non è costante**, perché l'R-Factor è una soglia:
+coi dieci compagni allo 0,50 di costanza un'unità vale 0,086, allo 0,68 (l'undici tipo) 0,298, allo 0,90
+**0,494**. *Più la rosa è già solida, più il prossimo uomo costante vale.*
+
+**LA CONVESSITÀ È IL CONTRO-ESEMPIO UTILE: un meccanismo vero che non arriva mai.** La troncatura a 66
+rende la varianza un bene, e la varianza di un uomo **si legge dal suo tasso di bonus** (r **+0,92** sugli
+attaccanti, +0,93 a centrocampo, +0,66/+0,76 in difesa; il portiere è l'eccezione perché il suo «bonus» è
+il malus dei gol subiti). Il termine sposta **2 uomini su 474 di una posizione** — perché una giornata di
+rosa vale **74,8 ± 7,0** e i 66 si superano nel 90% dei casi. *Tre costanti per ruolo che muovono due
+righe non si spediscono.*
+
+Quattro abitudini di misura, e tutte e quattro sono state pagate in questa sessione.
+- **RIGHE IDENTICHE NON SONO UN RISULTATO** (terza istanza): quattro bracci che leggevano 4,00 punti a
+  giornata e 11 buchi ciascuno erano un JOIN a zero — il foglio restituisce `fc_id` come **float**,
+  quindi `str(2097.0)` non aggancia `"2097"`. *Prima di credere a uno zero si stampa la FORMA di ciò che
+  si sta leggendo*: le chiavi di una riga, i valori distinti di una colonna.
+- **DUECENTO CAMPIONATI POSSONO ESSERE QUATTRO ROSE.** Con criteri deterministici le repliche
+  rimescolavano solo il calendario, quindi l'errore standard era finto e la griglia del peso frastagliata.
+  La potenza vera viene dalle **24 permutazioni dell'ordine di scelta**; con quelle la griglia diventa
+  monotona e l'ottimo interno si vede.
+- **UNO SWEEP CHE NON CONTIENE IL VALORE GIUSTO NON PROVA NIENTE**: il primo rifiuto della costanza aveva
+  spazzato pesi da 5 a 40 quando l'ottimo è 0,09 — da 17 a 130 volte troppo grandi — ed è stato ritirato.
+- **E UN SELETTORE POSIZIONALE DENTRO UN'INTESTAZIONE** si rompe il giorno che qualcuno ci mette un
+  controllo: `header span:nth-of-type(2)` ha cominciato a rispondere «Impostazioni lega» perché il
+  selettore d'ordinamento ha aggiunto uno span, e il banco accusava la pagina del proprio difetto.
+
+**Il selettore d'ordinamento della Strategia** nasce qui (`SortKey`, `blocksOf`): ogni blocco si ordina su
+una qualunque delle dodici letture o sul gain. Ritira a metà la frase «l'ordine è SEMPRE il gain» del
+27/08 — quella vietava un ordine che NESSUNO ha scelto e che la lista non dichiara, e un selettore è
+l'opposto: una scelta esplicita, visibile e reversibile a ogni sguardo. Il taglio alla domanda viene DOPO
+l'ordine, quindi cambiare chiave cambia anche chi resta in lista, e chi quel numero non ce l'ha va in
+fondo e non in mezzo.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

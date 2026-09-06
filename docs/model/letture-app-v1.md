@@ -3254,3 +3254,173 @@ guadagnano da vivere.
 E la tolleranza del confronto è **l'arrotondamento della colonna** e non una banda scelta perché un caso
 ci cadeva: presenze e fantapunti si stampano a zero decimali, quindi mezza unità è quanto una cifra intera
 può distare da 257,5, mentre le due medie restano nella banda stretta di sei millesimi.
+
+---
+
+## 32. SWING: quattro termini provati, tre respinti e uno adottato su evidenza debole (6 settembre 2026)
+
+Nato da una domanda dell'operatore — «dovendo ordinare tutti gli attaccanti in modo che il primo è quello
+che ti farebbe vincere più partite, quale valore useresti? esiste un valore non ancora esistente che
+potrebbe rappresentarlo meglio?» — e finito con il nome che lui ha scelto, **SWING**, in codice e a
+schermo (`app/src/app/core/swing.ts`). La sessione vale per il **metodo** più che per la colonna: quattro
+candidati misurati, tre bocciati coi numeri, e l'unico adottato lo è su un'evidenza che il documento
+dichiara debole invece di truccare.
+
+### 32.1 L'unità: un fantapunto vale 0,159 gol di classifica
+
+La lega non paga fantapunti, paga GOL, e la conversione non è una proporzione: 66 fantapunti sono un gol,
+poi uno ogni 6, e **sotto i 66 non c'è niente**. La pendenza dove una rosa vera vive è `Φ((μ−63)/σ)/6` =
+**0,159**, cioè un fantapunto a giornata sono **6,0 gol di stagione**.
+
+Le due costanti sono MISURATE e non scelte: dieci rose costruite a serpentina sull'FVM, schierate in
+4-3-3 sulle giornate vere, 380 giornate-rosa per stagione. **2024-25: media 74,95 · sd 6,91 · sotto 66
+l'8,2%. 2025-26: 74,71 · 7,10 · 10,5%.** Due stagioni indipendenti che concordano alla prima cifra, e la
+forma chiusa riproduce la simulazione (6,04 e 6,00). *Che la formula analitica ritrovi il numero del banco
+è l'unica prova che le costanti sono quelle giuste, e un test la fissa.*
+
+### 32.2 LA COPERTURA: respinta, e la ragione vale oltre la colonna
+
+La prima versione sommava `surplus + copertura` come fa `engine_worth` sul banco d'asta. L'operatore l'ha
+bocciata guardando lo schermo — «Hainaut > Dimarco non mi sembra attendibile» — e la misura gli ha dato
+ragione due volte.
+
+Prima la diagnosi: **la copertura era l'80-97% del numero.** Con `covered = 0` ogni difensore prende
+`quota × 30 × 4,73`, e siccome i titolari stanno fra 0,85 e 1,0 di calendario quella cifra vale 118-140
+per tutti — una costante travestita da valutazione, con il surplus (cioè la sola cosa che dice se il
+calciatore è bravo) al 3-20% del totale. La radice è **due zeri diversi dentro una somma**: il surplus
+sottrae l'uomo che giocherebbe al posto suo, la copertura assume che al posto suo non giochi nessuno; e il
+tetto `min(quota, deficit)` **non morde mai**, perché la quota è ≤ 1 e il deficit dei difensori è 4.
+
+Poi il verdetto, su un giudice fuori campione: pesata da 0 a 1 su 200 campionati da 36 giornate, **peso 0
+rende 63,0 punti e il 78% dei titoli, peso 0,5 ne rende 55,1, peso 1 ne rende 35,8**. Il braccio con la
+copertura chiude con **0,25 buchi in 36 giornate** e le **giornate sotto i 66 più alte del tavolo**: la
+copertura la compra tutta e non la converte in punti. Le due rose lo dicono a occhio — Moreo, Bonazzoli,
+Borrelli e Pinamonti in attacco contro Kean 7,44, Thuram 7,26 e Vlahovic 7,08.
+
+**LA REGOLA CHE NE ESCE, ed è la più importante della giornata: il surplus e la copertura rispondono a due
+domande diverse — «chi è meglio» e «quanto offrire».** Sul banco d'asta la copertura porta il braccio
+motore da ultimo di undici a primo, ed è giusta: là prezza un'OFFERTA sotto un budget, dove un posto può
+restare davvero vuoto. In una lista di nomi il posto vuoto non esiste — la rosa la riempi comunque — e
+pagare per la presenza è pagare per qualcosa che avresti gratis. *Un termine giusto per un'offerta è
+sbagliato per una graduatoria, e SWING provava a essere tutt'e due.*
+
+La cura intermedia è stata misurata e **non basta**: dare alla copertura lo stesso zero del surplus (la
+riduzione dei BUCHI ATTESI del reparto — convoluzione esatta, la stessa delle buste chiuse — quando entra
+lui invece dell'uomo marginale) la porta dal 95% all'8-53% del numero e rimette Dimarco primo e Hainaut
+22º, ma il braccio resta **60,3 punti contro i 72,1** del solo surplus.
+
+### 32.3 LA CONVESSITÀ: reale, misurata, INERTE
+
+La troncatura a 66 rende la varianza un bene, e **la varianza di un uomo si legge dal suo tasso di
+bonus** — misurato su due stagioni, uomini con almeno 12 partite: attaccanti r **+0,923 / +0,914**,
+centrocampisti +0,934 / +0,885, difensori +0,661 / +0,761. Il portiere è l'eccezione (r −0,339 / −0,008) e
+ha senso: il suo «bonus» è il malus dei gol subiti, un'altra quantità con un altro segno.
+
+E il termine **non arriva mai a riordinare due uomini**: sposta **2 uomini su 474 di una posizione**, e
+appaiato su 400 repliche vale +1,9 fantapunti (t 1,05, vinto 206 volte su 400). La ragione è nelle
+costanti del §32.1: una rosa vera i 66 li supera nel **90%** delle giornate, quindi la troncatura quasi
+non morde. Tre costanti per ruolo che muovono due righe non si spediscono.
+
+### 32.4 LA COSTANZA: l'ipotesi dell'operatore, e il peso che ha battuto la mia aritmetica
+
+La sua frase: «un calciatore che prende 6 · 6,5+1 · 6,5+1 dovrebbe essere meglio di uno che prende
+5,5+0 · 5,5+0 · 7+3 perché è più costante». I due fantavoti fanno **21 e 21** — stessa fantamedia — ma i
+**voti base** sono 6 · 6,5 · 6,5 contro 5,5 · 5,5 · 7: il primo è sempre in sufficienza, il secondo due
+volte su tre no. **L'R-Factor e il modificatore di difesa leggono il voto BASE, la fantamedia no.**
+
+La sua formula: `SWING = surplus + (giornate sufficienti attese × k)` con **k = 1/11**, «la parte di bonus
+da R-Factor o Mod. Difesa attribuibile a un uomo — un valore ragionevole ma non frutto di mille calcoli».
+
+**LA SUA PRUDENZA HA BATTUTO LA MIA ARITMETICA, ed è la lezione da tenere.** Il marginale ESATTO
+dell'R-Factor sull'undici tipo (Poisson-binomiale; 3,32 insufficienti attesi su 11, R-Factor atteso 0,50
+su 2) è **0,298 di fantamedia per unità di costanza**, e misurato a 0,30 il termine è **DANNOSO** (−2,12
+fantapunti a giornata). La ragione è una regola che questo progetto ha già scritto per le squalifiche: **il
+surplus contiene già una parte della costanza** — un uomo costante gioca di più e rende di più — quindi si
+paga solo il DIFFERENZIALE, non il totale. Griglia misurata su 24 configurazioni: 0,05 **+0,11** ·
+**1/11 +0,19** · 0,15 −0,27 · 0,20 −0,68 · 0,30 −2,12 · 1,0 −3,40. **Ottimo interno, e il suo k ci cade
+sopra.**
+
+Va anche registrato che una prima versione dello sweep aveva spazzato pesi da **5 a 40** — da 17 a 130
+volte troppo grandi — e il rifiuto che ne era uscito è stato **ritirato**: uno sweep che non contiene il
+valore giusto non prova niente.
+
+**E il LIMITE, che l'operatore può usare al tavolo anche senza la colonna**: preferisci il costante se
+`Δfantamedia < 0,30 × Δcostanza`. Dieci punti di costanza pareggiano 0,03 di fantamedia, trenta ne
+pareggiano 0,09, e c'è un **tetto invalicabile di 0,50** (l'R-Factor vale mezzo punto per uomo). Il tasso
+però **non è costante**, perché l'R-Factor è una soglia: con i dieci compagni allo 0,50 di costanza
+un'unità vale 0,086, allo 0,68 (l'undici tipo) 0,298, allo 0,90 **0,494**. *Più la rosa è già solida, più
+il prossimo uomo costante vale — fino a sei volte tanto.*
+
+### 32.5 IL VERDETTO, dichiaratamente debole, e la clausola che lo accompagna
+
+Il termine di costanza è stato misurato su **quattro banchi**, e ha perso tre volte e vinto una:
+
+| banco | esito |
+|---|---|
+| 10 stagioni, rose appaiate sulle stesse 25 fasce, nessun budget | **−0,03%, 3 finestre su 10** |
+| 10 stagioni, 4 rose e campionato A/R, nessun budget | **−0,29 punti (t −0,63), 4 stagioni su 10** |
+| 1 stagione (5/9/2025), stesso formato | **+1,22 fantapunti a giornata (t 1,53)** |
+| 4 stagioni **con un budget di 250 crediti** | avanti in **3 impostazioni su 4** (9 confronti su 16) |
+
+**La lettura che ne fa l'adozione: il termine vale qualcosa solo quando i soldi vincolano** — cioè
+esattamente dove l'operatore gioca, e in nessuno dei banchi che lo bocciano. Adottato su questa base e non
+su un verdetto, con la stessa clausola di R19: **se la prossima misura lo trova peggiore, esce senza
+discutere.** Il meccanismo è visibile e piccolo, ed è la ragione per cui il verdetto è incerto invece che
+negativo: il termine fa salire davvero i modificatori (R-Factor da 0,479 a 0,726, mod. difesa da 0,627 a
+0,724 sulla finestra del 2025), ma su una stagione intera parliamo di **meno di un punto**.
+
+Sul foglio vivo riordina **168 difensori su 207** (massimo 13 posizioni), e il caso che ha aperto tutto è
+chiuso: **Dimarco 1º con 5,68 · Hainaut 54º con 1,43.**
+
+### 32.6 IL BUDGET RIBALTA LA QUOTAZIONE, e va scritto perché contraddice un numero di poche ore prima
+
+Nel draft LIBERO su dieci stagioni la quotazione **vince** (21,4 punti e il 40% dei titoli contro i 20,2 e
+il 32% del surplus), il che contraddiceva quanto misurato su una finestra sola. Con un **budget di 250
+crediti** la stessa quotazione crolla **ultima con l'1% dei titoli**.
+
+Non è una contraddizione, è la stessa cosa vista con e senza vincolo: comprare per prezzo è gratis solo
+quando i soldi non contano, e non contano solo in un draft libero. **Alla sua asta i soldi contano**,
+quindi vale la seconda misura. E si compone con quello che il progetto sapeva già: dentro una fascia di
+prezzo la quotazione non vale niente (−1,0 contro un tiro di dado), fra fasce diverse è informazione vera.
+
+Un numero che dà la scala di quanto resta da guadagnare: un braccio che compra per **FVM di fine
+stagione** — cioè un prezzo che ha già visto l'annata, un ORACOLO e non una strategia — vince il **78% dei
+titoli**. Tutto lo spazio fra il nostro 14% e quel 78% è previsione, non aritmetica di colonne.
+
+### 32.7 Quattro difetti dell'arnese, e tre sono regole di casa incontrate da capo
+
+- **RIGHE IDENTICHE NON SONO UN RISULTATO.** Il primo campionato leggeva 4,00 punti a giornata e 11 buchi
+  per tutti e quattro i bracci: il foglio restituisce `fc_id` come **float**, quindi `str(2097.0)` non
+  aggancia mai `"2097"` e il join coi voti aveva **zero righe in comune**. Ogni rosa schierava undici
+  riserve d'ufficio. *Prima di credere a uno zero, si stampa la FORMA di ciò che si sta leggendo.*
+- **DUECENTO CAMPIONATI POSSONO ESSERE QUATTRO ROSE.** Con criteri deterministici le repliche
+  rimescolavano solo il calendario: l'errore standard stampato era finto. La potenza vera viene dalle **24
+  permutazioni dell'ordine di scelta**, che sono rose davvero diverse — e infatti la griglia di `k` passa
+  da frastagliata a monotona.
+- **UN RIFIUTO MUTO** — il risultato di `setTo` assegnato e mai guardato — faceva accusare l'intestazione
+  due passi dopo.
+- **UN SELETTORE POSIZIONALE DENTRO UN'INTESTAZIONE** si rompe il giorno che qualcuno ci mette un
+  controllo: `header span:nth-of-type(2)` ha cominciato a rispondere «Impostazioni lega» perché il
+  selettore d'ordinamento ha aggiunto uno span. L'intestazione si legge per TESTO.
+
+### 32.8 E il selettore d'ordinamento della Strategia, che è nato in questa sessione
+
+Su richiesta dell'operatore ogni blocco si può ordinare su **una qualunque delle dodici letture** o sul
+gain (`SortKey`, `strategy.blocksOf`), con la preferenza che sopravvive alla sessione. Due conseguenze
+dichiarate: il **taglio alla domanda viene DOPO l'ordine**, quindi cambiare chiave cambia anche chi resta
+in lista — è il senso della scelta e non un effetto collaterale; e chi quel numero non ce l'ha va **in
+fondo e non in mezzo**, perché un ignoto non è uno zero.
+
+Questo ritira a metà la frase «l'ordine è SEMPRE il gain» del 27/08: quella nasceva da una MISURA sul
+filtro `natives` (riordinare per mestiere porta la somma dei gain da 256 a −9) e vietava un ordine che
+NESSUNO ha scelto e che la lista non dichiara. Un selettore è l'opposto — una scelta esplicita, visibile e
+reversibile a ogni sguardo.
+
+### 32.9 E il nome, che è stato deciso due volte
+
+Proposto «Spinta» a schermo con `swing` in codice, sull'argomento che «spinta» è una parola NOSTRA e
+quindi va tradotta mentre `titolarissimo`, `bandiera`, `por` e `pc` restano perché sono le parole del
+GIOCO. L'operatore ha deciso **SWING ovunque**, e aveva ragione: il vocabolario che legge al tavolo lo
+dichiara lui — come ha dichiarato «SLOT» invece di «blocco» — e il precedente esisteva già, «Overall»,
+«Lead» e «Bonus» sono inglesi su un'interfaccia italiana da sempre. *Una regola sulla lingua vale per le
+parole che scegliamo noi, e il nome di una colonna che legge lui non è una di quelle.*

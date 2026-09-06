@@ -19,6 +19,8 @@ const numbers = (over: Partial<EngineNumbers> = {}): EngineNumbers => ({
   slot: 'pc',
   replacementFm: 6,
   surplusLeague: null,
+  estSurplus: null,
+  mv: null,
   unpricedReason: null,
   estFm: null,
   estPv: null,

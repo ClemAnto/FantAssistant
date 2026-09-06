@@ -150,6 +150,20 @@ export interface StrategyBidder {
   value: number | null;
   valueIsEstimate: boolean;
   /**
+   * LO SWING: i gol di classifica che fa segnare (`core/swing.ts`).
+   *
+   * È il terzo modo di leggere gli stessi due numeri del motore, e la differenza sta nell'UNITÀ: il
+   * surplus e il valore sono fantapunti, questa sono GOL — e la lega paga gol, con una scala che
+   * tronca a 66 e quindi non è proporzionale ai punti. Sta in piedi sul surplus, quindi eredita la
+   * sua stima: `surplusIsEstimate` vale per tutt'e due.
+   *
+   * OPZIONALE, e non per pigrizia: chi costruisce la riga puo' non avere ancora la COSTANZA, che non
+   * sta sul foglio e la misura `PlayerRatings` sui voti veri. Un lettore che non la passa lascia il
+   * campo assente e la pastiglia non si stampa - «vuoto = ignoto» - invece di ricevere un numero
+   * costruito su una costanza che nessuno ha letto.
+   */
+  swing?: number | null;
+  /**
    * IL CONTO DELLE GIORNATE che gioca davvero (`core/expected-play.ts`), con ogni pezzo separato.
    *
    * Era già calcolato e già usato - `pv`, `surplus` e `value` qui sopra sono tutti riscalati dal suo
@@ -307,6 +321,8 @@ export interface ManReadings {
   seasonPlayed: number | null;
   /** Il fantavalore del listone: un PREZZO, e l'unico numero di questa riga che non e' nostro. */
   fvm: number | null;
+  /** Lo SWING: i gol di classifica che fa segnare, nell'unita' con cui la lega assegna i punti. */
+  swing: number | null;
 }
 
 /**
@@ -327,7 +343,7 @@ export interface ManReadings {
  */
 export type ReadingKey =
   | 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'goals' | 'assists' | 'xg' | 'xa'
-  | 'fvm';
+  | 'fvm' | 'swing';
 
 export interface ReadingSpec {
   key: ReadingKey;
@@ -437,6 +453,17 @@ export const READINGS: ReadingSpec[] = [
     format: '1.0-0',
     width: 'min-w-9',
   },
+  {
+    key: 'swing',
+    // La sigla E' la parola intera: il termine a schermo e' SWING e non si abbrevia (operatore,
+    // 06/09/2026). E' la piu' lunga della fila - le altre stanno in due o tre caratteri - e il prezzo
+    // e' una pastiglia piu' larga, che e' meno caro di un'abbreviazione che nessuno ha dichiarato.
+    short: 'SWING',
+    label: 'SWING',
+    hint: 'I gol di classifica che fa segnare.',
+    format: '1.1-1',
+    width: 'min-w-10',
+  },
 ];
 
 /** Quelle accese quando nessuno ha ancora scelto: le prime tre (operatore, 05/09/2026). */
@@ -502,6 +529,8 @@ export function readingValue(key: ReadingKey, readings: ManReadings): number | n
       return readings.xa;
     case 'fvm':
       return readings.fvm;
+    case 'swing':
+      return readings.swing;
   }
 }
 
@@ -544,6 +573,10 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     xa: man.seasonXa,
     seasonPlayed: man.seasonPlayed,
     fvm: man.fvm,
+    // LETTA E NON RICALCOLATA, come il gain: lo SWING nasce dove nasce la riga, perche' ha bisogno
+    // del calendario del foglio e questa funzione riceve solo l'uomo. Due punti che la calcolano
+    // darebbero allo stesso nome due numeri, ed e' il difetto che questo progetto paga da sempre.
+    swing: man.swing ?? null,
   };
 }
 
@@ -698,6 +731,26 @@ export function deepestRole(codes: readonly string[], rules: MantraModules | nul
  */
 export type BlockView = 'all' | 'natives';
 
+/**
+ * SU COSA SI ORDINA UN BLOCCO — il gain, o una qualunque delle letture (operatore, 06/09/2026).
+ *
+ * Fino a oggi la risposta era una sola e stava scritta come un invariante: «l'ordine è SEMPRE il gain,
+ * in tutt'e due le letture». Quella frase nasceva da una MISURA sul filtro `natives` (riordinare per
+ * mestiere porta la somma dei gain di un blocco da 256 a −9) e non da una regola sull'ordinamento in
+ * sé: quello che era vietato era un ordine che NESSUNO ha scelto e che la lista non dichiara. Un
+ * selettore è l'opposto — è una scelta esplicita, visibile, e reversibile a ogni sguardo, che è la
+ * stessa forma con cui il filtro delle stime convive col suo costo misurato.
+ *
+ * Due conseguenze che il chiamante deve conoscere. Il TAGLIO alla domanda viene dopo, quindi ordinare
+ * per una lettura cambia anche CHI resta in lista - è il senso della scelta, non un effetto
+ * collaterale. E chi non ha quel numero va in fondo e non in mezzo: un ignoto non è uno zero, e
+ * ordinando per xG i primi sono quelli che un xG ce l'hanno.
+ */
+export type SortKey = 'gain' | ReadingKey;
+
+/** Il gain non è una lettura e quindi non è in `READINGS`: la sua etichetta la scrive chi lo mostra. */
+export const DEFAULT_SORT: SortKey = 'gain';
+
 /** Un uomo in classifica: la sua riga, il numero che lo ordina, e su cosa sta in piedi quel numero. */
 export interface RankedMan {
   man: StrategyBidder;
@@ -810,8 +863,11 @@ export function blocksOf(input: {
    * tagliato via proprio dalla lista in cui l'ha messo.
    */
   priority?: ReadonlyMap<string, readonly number[]>;
+  /** Su cosa ordinare: il gain quando nessuno ha scelto. Vedi `SortKey`. */
+  sort?: SortKey;
 }): RoleBlock[] {
   const { pool, setup, rules, priority } = input;
+  const sort = input.sort ?? DEFAULT_SORT;
   const demand = demandOf(setup, rules);
   const mantra = setup.game === 'mantra';
   // Una volta per tutto il foglio e non una per uomo: `deepestRole` rileggerebbe i moduli 600 volte.
@@ -853,10 +909,13 @@ export function blocksOf(input: {
         fromBehind: !!deep && deep.toLowerCase() !== key,
       });
     }
-    // A parità di gain il nome, così due liste dello stesso foglio non si scambiano due righe fra un
-    // disegno e l'altro: un ordine che cambia da solo si legge come un numero che è cambiato. L'ordine
-    // è SEMPRE il gain, in tutt'e due le letture: vedi `BlockView` per la misura che lo ha deciso.
-    ranked.sort((left, right) => right.gain - left.gain || left.man.name.localeCompare(right.man.name));
+    // A parità il nome, così due liste dello stesso foglio non si scambiano due righe fra un disegno
+    // e l'altro: un ordine che cambia da solo si legge come un numero che è cambiato. La CHIAVE la
+    // sceglie chi guarda (`SortKey`) e il gain è il default; chi quel numero non ce l'ha va in fondo,
+    // perché un ignoto non è uno zero.
+    const keyOf = (one: RankedMan): number =>
+      (sort === 'gain' ? one.gain : readingValue(sort, one.readings)) ?? Number.NEGATIVE_INFINITY;
+    ranked.sort((left, right) => keyOf(right) - keyOf(left) || left.man.name.localeCompare(right.man.name));
     const size = demand.get(role) ?? 0;
     const filtered = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;
     const chosen = orderedBy(filtered, (one) => one.man.fcId, priority?.get(role) ?? []);

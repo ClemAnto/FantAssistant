@@ -22,6 +22,10 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
     slot: at('engine_role_slot'),
     replacement: at('engine_replacement_fm'),
     surplus: at('engine_surplus'),
+    // Il surplus e la media voto attesa che SWING legge: il primo col suo ripiego dichiarato, la
+    // seconda perche' `est_fm - est_mv` e' il tasso di bonus. Nessuna delle due si ricalcola.
+    estSurplus: at('est_surplus'),
+    mv: at('est_mv'),
     reason: at('engine_unpriced_reason'),
     estFm: at('est_fm'),
     estPv: at('est_pv'),
@@ -53,6 +57,10 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
       slot: (row[columns.slot] as string | null) ?? null,
       replacementFm: row[columns.replacement] as number | null,
       surplusLeague: row[columns.surplus] as number | null,
+      // `?? null` come le due sotto: una colonna che il foglio non ha legge -1 dall'`indexOf`, e
+      // `row[-1]` e' `undefined` - normalizzata qui, dove la colonna viene letta.
+      estSurplus: (row[columns.estSurplus] as number | null) ?? null,
+      mv: (row[columns.mv] as number | null) ?? null,
       unpricedReason: (row[columns.reason] as string | null) ?? null,
       estFm: row[columns.estFm] as number | null,
       estPv: row[columns.estPv] as number | null,

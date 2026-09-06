@@ -21,6 +21,7 @@ import { demoPlayers } from './auction-demo';
 import { EngineNumbers, ValuationBasis, valuationOf } from './auction-value';
 import { Bundle, EngineSheetEntry } from './bundle';
 import { ExpectedPlay } from './expected-play';
+import { PlayerRatingsStore } from './player-ratings-store';
 import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
 import { GlobalOptions } from './global-options';
@@ -54,6 +55,7 @@ import {
   SlotView,
 } from './plancia';
 import { STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
+import { swingOf } from './swing';
 
 /** The four letters of the board's lines, from the two alphabets the feed splits the outfield into. */
 const ZONE_ROLE: Record<string, Role> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
@@ -148,6 +150,14 @@ export class PlanciaStore {
   private readonly status = inject(PlayerStatus);
   /** Il conto delle giornate che giochera' davvero: uno solo, per ogni pagina. */
   private readonly play = inject(ExpectedPlay);
+  /**
+   * LA COSTANZA, che e' il secondo termine di SWING e non sta sul foglio: la misura `PlayerRatings`
+   * sui voti veri delle sue stagioni, ed e' la stessa lettura che la Strategia mostra col nome `Pas`.
+   *
+   * Due letture della stessa quota darebbero a un uomo due costanze, e la prima volta che si
+   * noterebbe e' su due schermi che dicono due numeri diversi dello stesso nome.
+   */
+  private readonly ratings = inject(PlayerRatingsStore);
   private readonly options = inject(GlobalOptions);
 
   readonly loading = signal(false);
@@ -222,6 +232,13 @@ export class PlanciaStore {
       // per lo stesso fatto sono come una riga finisce per dirne due versioni.
       const window = outlook.window;
       const points = valuation.fm != null && pv != null ? valuation.fm * pv : null;
+      // IL SURPLUS DI QUESTA RIGA: quello del foglio, riscalato sulle giornate che restano come lo
+      // sono `points` e `pv`. Una sola valutazione per uomo, che e' quella che lo schermo mostra.
+      const engine = numbers.get(player.id);
+      const sheetSurplus = engine?.surplusLeague ?? engine?.estSurplus ?? null;
+      const sheetPv = engine?.pv ?? engine?.estPv ?? null;
+      const surplus =
+        sheetSurplus == null || pv == null || !sheetPv ? sheetSurplus : (sheetSurplus * pv) / sheetPv;
       out.push({
         id: player.id,
         name: player.name,
@@ -248,6 +265,21 @@ export class PlanciaStore {
         // La nota dichiarata, come informazione sulla riga: solo `out_of_squad`, perche' `dispute` e
         // `wants_out` sono stati di una RELAZIONE e chi ci sta dentro si schiera e si compra ancora.
         outOfSquad: this.status.declared().get(player.id)?.kind === 'out_of_squad',
+        // LO SWING: il surplus di questa riga in gol di classifica. Il surplus viene dal foglio ed
+        // e' riscalato sulle giornate che restano come `points` e `pv`, cosi' la riga porta UNA
+        // valutazione sola. Il numero e' una conversione e non una graduatoria nuova: ordina come il
+        // surplus, e `core/swing.ts` dice perche' i due termini che lo distinguevano sono stati tolti.
+        // Lo SWING: il surplus piu' la costanza, in gol di classifica. La costanza arriva dallo
+        // store delle misure e vale `null` finche' non e' atterrato - allora `swingOf` prende la
+        // mediana del ruolo, che e' «vuoto = ignoto» e non uno zero.
+        swing: swingOf({
+          role,
+          surplus,
+          pv,
+          steady: this.ratings.ready()
+            ? (this.ratings.for('default', player.id)?.steady?.share ?? null)
+            : null,
+        }),
       });
     }
     return out;

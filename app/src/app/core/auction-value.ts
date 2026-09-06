@@ -31,6 +31,20 @@ export interface EngineNumbers {
   replacementFm: number | null;
   /** The sheet's own surplus, at the league zero. Reference only: never what a live panel ranks by. */
   surplusLeague: number | null;
+  /**
+   * ...e il RIPIEGO DICHIARATO dello stesso numero (`est_surplus`), con la penalita' gia' dentro.
+   *
+   * Letto per SWING (`core/swing.ts`), che ha bisogno del surplus e non puo' ricalcolarlo: rifarlo da
+   * `fm − replacement` darebbe allo stesso uomo due valutazioni, e la seconda non passerebbe da
+   * `est_confidence`. La coppia e' la stessa di `fm`/`estFm` qui sopra e si legge nello stesso ordine.
+   */
+  estSurplus: number | null;
+  /**
+   * LA MEDIA VOTO ATTESA (`est_mv`), che serve per una sottrazione sola: `fm − mv` e' il TASSO DI
+   * BONUS, e il tasso di bonus e' la strada alla varianza di un uomo (`core/swing.ts`, r +0,92 sugli
+   * attaccanti). Non e' una quinta previsione: e' la meta' che il foglio predice, con l'altra che cade.
+   */
+  mv: number | null;
   unpricedReason: string | null;
   /** The declared fallback for a man the core cannot price, with the penalty already inside. */
   estFm: number | null;

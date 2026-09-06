@@ -39,6 +39,9 @@ function man(
     pv: 30,
     // `fantamedia − 6`, per PARTITA giocata: le presenze stanno accanto (`pv`) e non dentro
     edge: points == null ? null : points / 30 - EDGE_BASE,
+    // Lo SWING la riempie lo store, non la mappa: qui e' vuota di default e i test che la vogliono
+    // se la mettono, cosi' ogni asserzione sull'ordine dice da se' su quale numero e' fatta.
+    swing: null,
     basis: 'measured',
     confidence: 1,
     outNow,
@@ -675,6 +678,40 @@ describe('la griglia PERSONALE', () => {
     const flat: PlanciaMan[] = [man(1, 'P', 5), man(2, 'P', 40), man(3, 'P', 20)];
     const blocks = regroupByOffer(flat, () => 30, 3, { P: 1, D: 0, C: 0, A: 0 });
     expect(blocks[0].men.map((one) => one.id)).toEqual([2, 3, 1]);
+  });
+
+  /**
+   * IL TAGLIO E' IL TETTO, L'ORDINE DENTRO E' LO SWING (operatore, 06/09/2026).
+   *
+   * Sono due domande - «quanto pagherei» e «chi mi fa vincere di piu'» - e per questo sono due chiavi.
+   * Il test le separa muovendole in direzioni opposte: l'uomo per cui pagherei meno di tutti e' quello
+   * che fa segnare di piu', e deve finire primo del blocco senza cambiare blocco.
+   */
+  it('taglia i blocchi personali sul tetto e li ORDINA sullo SWING', () => {
+    const men: PlanciaMan[] = [];
+    for (let at = 0; at < 20; at += 1) {
+      men.push({ ...man(at + 1, 'D', 20 - at), swing: at });
+    }
+    const blocks = regroupByOffer(men, (one) => one.fvm, 10, { P: 0, D: 2, C: 0, A: 0 });
+
+    // I due blocchi restano quelli del TETTO: i primi dieci per offerta, poi gli altri dieci.
+    expect(blocks[0].men.map((one) => one.id).sort((a, b) => a - b)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+    ]);
+    // ...e dentro ognuno comanda lo SWING, che qui e' l'opposto dell'offerta.
+    expect(blocks[0].men.map((one) => one.id)).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    expect(blocks[1].men[0].id).toBe(20);
+  });
+
+  /** Un numero che non c'e' non si ordina: va in fondo, e il pareggio lo rompe il tetto come prima. */
+  it('chi non ha uno SWING va in fondo al suo blocco, non in mezzo', () => {
+    const men: PlanciaMan[] = [
+      { ...man(1, 'P', 30), swing: null },
+      { ...man(2, 'P', 20), swing: 1 },
+      { ...man(3, 'P', 10), swing: 5 },
+    ];
+    const blocks = regroupByOffer(men, (one) => one.fvm, 3, { P: 1, D: 0, C: 0, A: 0 });
+    expect(blocks[0].men.map((one) => one.id)).toEqual([3, 2, 1]);
   });
 
   it('elenca anche chi oggi non gioca, e lo mette dove il suo tetto lo mette', () => {

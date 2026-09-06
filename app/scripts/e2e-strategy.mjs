@@ -621,6 +621,82 @@ async function openInjuries() {
  * lasciato ACCESA la pastiglia xG dopo il passo che la doveva rimettere com'era, facendo fallire due
  * passi piu' in la' che misuravano tutt'altro. Una definizione sola, quindi, e due chiamanti.
  */
+/**
+ * SCEGLIE UNA VOCE DEL SELETTORE D'ORDINAMENTO, con un puntatore vero e verificando che abbia MORSO.
+ *
+ * Il pannello di un `nz-select` entra con la sua animazione, quindi le voci SI MUOVONO per ~200ms:
+ * si passa da `clickSteady`, che e' la lezione gia' pagata sul modale delle opzioni («un bersaglio in
+ * movimento non e' cliccabile, e le coordinate sono quelle al momento del CLICK»). E si CHIUDE il
+ * pannello alla fine: un overlay lasciato aperto intercetta i click dei passi seguenti, che poi
+ * accusano la pagina di aprire la card di un altro.
+ */
+async function pickSort(session, label) {
+  const before = await evaluate(session, () => {
+    const select = document.querySelector('app-strategy nz-select[data-sort]');
+    if (!select) return null;
+    const rect = select.getBoundingClientRect();
+    return rect.width
+      ? { point: { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 },
+          text: (select.innerText ?? '').trim() }
+      : null;
+  });
+  if (!before) return { problem: "non c'e' nessun selettore d'ordinamento in barra" };
+  await click(session, before.point);
+  await wait(400);
+  const listed = await evaluate(session, () =>
+    [...document.querySelectorAll('nz-option-item')].map((one) => (one.innerText ?? '').trim()),
+  );
+  // LA VOCE PUO' ESSERE FUORI DALLO SCORRIMENTO DELLA TENDINA, e allora il dito non ci arriva.
+  //
+  // Misurato il 06/09/2026: il pannello e' alto 264px e tiene nove voci; la dodicesima esiste nel DOM
+  // a y=497 mentre il pannello finisce a 357, quindi `elementFromPoint` sul suo centro risponde con una
+  // riga della PAGINA e il click chiude la tendina invece di scegliere. E' la lezione dei varchi fuori
+  // schermo (20/08) su un contenitore piu' piccolo: si porta la voce dentro il pannello e si clicca.
+  //
+  // Si scorre SOLO il contenitore della tendina e non con `scrollIntoView`, che si porta dietro ogni
+  // antenato scorrevole (05/09) e sposterebbe la pagina sotto i passi seguenti.
+  const scrolled = await evaluate(session, (wanted) => {
+    const item = [...document.querySelectorAll('nz-option-item')]
+      .find((one) => (one.innerText ?? '').trim() === wanted);
+    if (!item) return 'la voce non e nel DOM';
+    const holder = item.closest('cdk-virtual-scroll-viewport, .rc-virtual-list-holder, .ant-select-dropdown');
+    if (!holder) return 'nessun contenitore scorrevole';
+    const before = holder.scrollTop;
+    holder.scrollTop = item.offsetTop - holder.clientHeight / 2 + item.offsetHeight / 2;
+    return { before, after: holder.scrollTop, height: holder.clientHeight };
+  }, label);
+  await wait(250);
+  if (!listed?.includes(label)) {
+    await session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', windowsVirtualKeyCode: 27 });
+    return { was: before.text, problem: `la voce «${label}» non e' nel pannello: ci sono ${JSON.stringify(listed ?? [])}` };
+  }
+  const probe = await evaluate(session, boxOf, 'nz-option-item', label);
+  const hit = await clickSteady(session, 'nz-option-item', label);
+  await wait(400);
+  const now = await evaluate(session, () => ({
+    text: (document.querySelector('app-strategy nz-select[data-sort]')?.innerText ?? '').trim(),
+    panels: document.querySelectorAll('nz-option-container').length,
+    // La preferenza sul disco: se il click e' arrivato, questa e' cambiata anche se lo schermo no.
+    saved: localStorage.getItem('fantassistant.strategy.sort'),
+    under: (() => {
+      const item = [...document.querySelectorAll('nz-option-item')][0];
+      if (!item) return 'nessuna voce';
+      const r = item.getBoundingClientRect();
+      return (document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.tagName ?? '?');
+    })(),
+  }));
+  return {
+    was: before.text,
+    problem: !hit
+      ? `la voce «${label}» non si e' fatta cliccare`
+      : now.text !== label
+        ? `il selettore legge «${now.text}» invece di «${label}» (disco ${now.saved}, scorrimento ${JSON.stringify(scrolled)}, voce ${JSON.stringify(probe)})`
+        : now.panels
+          ? "il pannello del selettore e' rimasto aperto: coprirebbe i passi seguenti"
+          : null,
+  };
+}
+
 async function pressReading(session, key) {
   const now = (await evaluate(session, readToggles)) ?? [];
   const pill = now.find((one) => one.key === key);
@@ -1726,18 +1802,18 @@ async function main() {
     for (const key of ['fvm', 'bonus']) pressed.push(await pressReading(session, key));
     const restoredPills = (await evaluate(session, readPills)) ?? [];
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le undici letture della barra', {
+    note('le dodici letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
         + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
       problems: [
         ...pressed.filter(Boolean),
-        // UNDICI dal 05/09/2026 (gol, assist, xG e xA accanto a MV e FM). Il numero e' scritto qui
-        // perche' e' il VOCABOLARIO della pagina e non una misura: se cresce, cresce per una richiesta,
-        // e allora si aggiorna insieme a `READINGS` invece di leggere dallo schermo quello che lo
-        // schermo dice.
-        ...(toggles.length === 11 ? [] : [`${toggles.length} pastiglie invece delle undici dichiarate`]),
+        // DODICI dal 06/09/2026 (lo SWING), undici dal 05/09 (gol, assist, xG e xA accanto a MV e
+        // FM). Il numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non una misura: se
+        // cresce, cresce per una richiesta, e allora si aggiorna insieme a `READINGS` invece di
+        // leggere dallo schermo quello che lo schermo dice.
+        ...(toggles.length === 12 ? [] : [`${toggles.length} pastiglie invece delle dodici dichiarate`]),
         ...(toggles.filter((one) => one.on).length === 3
           ? [] : [`${toggles.filter((one) => one.on).length} accese all'apertura invece di tre`]),
         ...(toggles.every((one) => one.under === 'button' || one.under === 'span')
@@ -1748,6 +1824,92 @@ async function main() {
           ? ['spegnere Bpm ha lasciato il numero sulla riga'] : []),
         ...(keysOf(restoredPills).join(',') === keysOf(beforeToggle).join(',')
           ? [] : ['la riga non e tornata come si e trovata: i passi seguenti misurerebbero altro']),
+      ],
+    });
+
+    // 7c-bis. IL SELETTORE ORDINA DAVVERO (operatore, 06/09/2026).
+    //
+    //     Si misura sullo SCHERMO e in due direzioni, perche' un selettore che si muove e non ordina
+    //     e' indistinguibile da uno che ordina: (a) la lista CAMBIA quando la chiave cambia, (b) i
+    //     numeri della chiave scelta SCENDONO. Il secondo e' l'invariante vero - il primo da solo
+    //     passerebbe anche su un riordino a caso.
+    //
+    //     La pastiglia dello SWING si accende PRIMA, o la sua colonna non e' sullo schermo e il passo
+    //     misurerebbe la propria cecita' invece dell'ordine.
+    const sortBefore = ((await evaluate(session, readPills)) ?? []).map((one) => one.name);
+    const sortLit = await pressReading(session, 'swing');
+    const sortPick = await pickSort(session, 'SWING');
+    const sortedRows = (await evaluate(session, readPills)) ?? [];
+    const sortedNames = sortedRows.map((one) => one.name);
+    const swingValues = sortedRows
+      .map((one) => Number((one.say?.swing ?? '').replace(/[^0-9.-]/g, '')))
+      .filter((one) => Number.isFinite(one));
+    const sortDrops = [];
+    for (let at = 1; at < swingValues.length; at += 1) {
+      // Le righe di `readPills` sono TUTTI i blocchi in fila, quindi la discesa si spezza legittimamente
+      // fra un blocco e l'altro: si conta solo dove il valore RISALE dentro la stessa lista contigua,
+      // che e' esattamente cio' che un blocco e'. Un salto in su di piu' di un blocco intero non
+      // esiste, quindi si segna e si guarda.
+      if (swingValues[at] > swingValues[at - 1] + 0.05) sortDrops.push(at);
+    }
+    // ...e si rimette com'era, o i passi dopo misurerebbero una scelta dell'arnese.
+    const sortBack = await pickSort(session, sortPick.was);
+    if (!sortLit) await pressReading(session, 'swing');
+    const sortRestored = ((await evaluate(session, readPills)) ?? []).map((one) => one.name);
+    note('il selettore ordina le liste, e la colonna scelta scende', {
+      said:
+        `${swingValues.length} righe con uno SWING · risalite ${sortDrops.length}` +
+        ` (una per blocco e' attesa: i blocchi sono in fila)` +
+        ` · la lista cambia in ${sortedNames.filter((one, at) => one !== sortBefore[at]).length} posizioni su ${sortBefore.length}`,
+      problems: [
+        ...(sortLit ? [sortLit] : []),
+        ...(sortPick.problem ? [sortPick.problem] : []),
+        ...(sortBack.problem ? [sortBack.problem] : []),
+        ...(swingValues.length > 20
+          ? []
+          : [`solo ${swingValues.length} righe portano uno SWING: il passo non proverebbe niente`]),
+        // Dodici blocchi al massimo, quindi al piu' undici salti legittimi fra un blocco e l'altro.
+        ...(sortDrops.length <= 11
+          ? []
+          : [`lo SWING risale ${sortDrops.length} volte: la lista non e' ordinata su di lei`]),
+        // L'ASSERZIONE E' STATA ROVESCIATA DUE VOLTE IN UN GIORNO, e la storia sta qui perche' e'
+        // esattamente quello che un banco deve registrare (06/09/2026).
+        //
+        // Al mattino SWING portava copertura e convessita' e l'ordine doveva CAMBIARE. Un giudice
+        // fuori campione ha tolto tutt'e due, SWING e' diventato il surplus riscalato e l'asserzione
+        // e' passata a «non deve muovere una riga». Poi l'operatore ha proposto il termine di
+        // COSTANZA (`STEADY_SHARE`), che e' stato adottato su evidenza dichiaratamente debole: adesso
+        // SWING e' di nuovo un ordine DIVERSO dal surplus, e la lista deve muoversi.
+        //
+        // Il giorno che qualcuno togliesse quel termine, questo passo cadrebbe per primo - che e' il
+        // suo mestiere, perche' una colonna che smette di ordinare e continua a essere offerta come
+        // criterio e' una scelta che non sceglie.
+        ...(sortedNames.join(',') === sortBefore.join(',')
+          ? ['ordinare per SWING non ha mosso una riga: il termine di costanza non arriva alla lista']
+          : []),
+        ...(sortRestored.join(',') === sortBefore.join(',')
+          ? []
+          : ["la lista non e' tornata sull'ordine di prima: i passi seguenti misurerebbero altro"]),
+      ],
+    });
+
+    // 7c-ter. ...E CHE IL SELETTORE ORDINI DAVVERO SI PROVA CON UNA CHIAVE CHE NON E' IL GAIN.
+    //
+    //     Il passo qui sopra non puo' farlo piu': SWING e il gain sono la stessa graduatoria. Il
+    //     fantavalore no - e' il prezzo del listone, cioe' l'opinione di qualcun altro - quindi se
+    //     sceglierlo non muove niente il selettore e' rotto.
+    const fvmBefore = ((await evaluate(session, readPills)) ?? []).map((one) => one.name);
+    const fvmPick = await pickSort(session, 'Fantavalore di mercato');
+    const fvmAfter = ((await evaluate(session, readPills)) ?? []).map((one) => one.name);
+    const fvmBack = await pickSort(session, fvmPick.was);
+    note('il selettore ordina anche su una chiave che col gain non centra', {
+      said: `il fantavalore muove ${fvmAfter.filter((one, at) => one !== fvmBefore[at]).length} posizioni su ${fvmBefore.length}`,
+      problems: [
+        ...(fvmPick.problem ? [fvmPick.problem] : []),
+        ...(fvmBack.problem ? [fvmBack.problem] : []),
+        ...(fvmAfter.join(',') === fvmBefore.join(',')
+          ? ['ordinare per fantavalore non ha mosso una riga: il selettore non ordina']
+          : []),
       ],
     });
 
@@ -2024,11 +2186,18 @@ async function main() {
       if (euro.some((one) => one.rows)) break;
       await wait(500);
     }
+    // L'INTESTAZIONE SI LEGGE PER INTERO, non alla seconda `<span>` (06/09/2026).
+    //
+    // Un selettore POSIZIONALE dentro un'intestazione si rompe il giorno che qualcuno ci mette un
+    // controllo: il selettore d'ordinamento ha aggiunto uno span e `nth-of-type(2)` ha cominciato a
+    // rispondere «Impostazioni lega», cioe' ad accusare la pagina del proprio difetto mentre la
+    // pagina disegnava 12 blocchi e 255 nomi giusti. Quello che il passo vuole sapere e' se
+    // l'intestazione NOMINA il foglio, e quella e' una domanda sul testo.
     const header = await evaluate(session, () =>
-      (document.querySelector('app-strategy header span:nth-of-type(2)')?.innerText ?? '').trim());
+      (document.querySelector('app-strategy header')?.innerText ?? '').trim().replace(/\s+/g, ' '));
     note('il listone euro', {
       said: `${euro.length} blocchi, ${euro.reduce((sum, one) => sum + one.rows, 0)} nomi · `
-        + `intestazione «${header}»`,
+        + `intestazione «${header.slice(0, 60)}»`,
       problems: [
         ...(toEuroMantra ? [toEuroMantra] : []),
         ...(euro.some((one) => one.rows) ? [] : ['nessun nome sul listone EuroLeghe']),

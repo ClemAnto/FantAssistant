@@ -74,6 +74,19 @@ export interface PlanciaMan {
    * come «rende esattamente il sei»).
    */
   edge: number | null;
+  /**
+   * LO SWING: i gol di classifica che fa segnare (`core/swing.ts`), e l'ordine dello SLOT PERSONALE.
+   *
+   * Non ordina lo slot di MERCATO, che resta il valore atteso: li' il taglio e' il rango per prezzo e
+   * i due numeri della riga (+X e le partite) devono SPIEGARE l'ordine, che e' la regola del
+   * 03/09/2026. Sul taglio personale la riga porta invece lo SWING accanto al tetto, quindi la
+   * colonna e l'ordine tornano a dire la stessa cosa - «una colonna con due significati non puo'
+   * essere anche la chiave dell'ordinamento», applicata alla griglia nuova.
+   *
+   * `null` dove il foglio non prezza l'uomo: uno zero direbbe «non fa segnare niente», che e' una
+   * frase sul calciatore e non sulla nostra ignoranza.
+   */
+  swing: number | null;
   basis: ValuationBasis;
   /** Quanto e' solido il numero: 1 per una misura, `est_confidence` per una stima. Entra nel TETTO. */
   confidence: number;
@@ -316,6 +329,11 @@ export interface OfferGroup<T extends PlanciaMan> {
  * Quello che il taglio non fa e' promuovere chi la mappa non porta: la coda non ha una banda affatto
  * (la scala ha esattamente un gradino per slot), quindi cio' che si ritaglia e' la popolazione che la
  * griglia del mercato ha gia' prezzato.
+ *
+ * E DENTRO IL BLOCCO L'ORDINE E' LO SWING (operatore, 06/09/2026), non il tetto: il taglio risponde a
+ * «quanto pagherei», l'ordine a «chi mi fa vincere di piu'», e sono due domande. Quella di prima era
+ * una sola chiave per tutt'e due, e il prezzo si vedeva - la discesa si rompeva sulle righe di chi e'
+ * gia' di qualcuno, perche' li' la cifra e' il prezzo PAGATO mentre l'ordine leggeva la banda.
  */
 export function regroupByOffer<T extends PlanciaMan>(
   men: Iterable<T>,
@@ -343,7 +361,18 @@ export function regroupByOffer<T extends PlanciaMan>(
         role,
         index: index + 1,
         id: `${role}${index + 1}`,
-        men: chunk,
+        // IL TAGLIO E' IL TETTO, L'ORDINE DENTRO E' LO SWING (operatore, 06/09/2026). Sono due
+        // domande e per questo sono due chiavi: il blocco resta «quanto sono disposto a pagare»,
+        // mentre chi sta in cima al blocco e' chi fa segnare di piu'. Chi non ha uno SWING va in
+        // fondo e non in mezzo, perche' un numero che non c'e' non si ordina; il pareggio lo rompe
+        // il tetto e poi l'id, cosi' due disegni della stessa plancia non si scambiano due righe.
+        men: [...chunk].sort(
+          (a, b) =>
+            (b.swing ?? Number.NEGATIVE_INFINITY) - (a.swing ?? Number.NEGATIVE_INFINITY) ||
+            offerOf(b) - offerOf(a) ||
+            b.fvm - a.fvm ||
+            a.id - b.id,
+        ),
         medianOffer: median(chunk.map(offerOf)),
         medianFvm: median(chunk.map((man) => man.fvm)),
       });

@@ -98,10 +98,19 @@
                     [playerId]="man.id"
                     [max]="2"
                   />
+                  <!-- IL NUMERO CHE SPIEGA L'ORDINE, e cambia col taglio perche' l'ordine cambia.
+                       Sul mercato il blocco e' ordinato per valore atteso, quindi qui c'e' quanto
+                       rende sopra il sei; sulla griglia personale l'ordine e' lo SWING (i gol di
+                       classifica che fa segnare), quindi qui c'e' quella. Una colonna che spiega un
+                       ordinamento deve essere quell'ordinamento - la regola del 03/09, applicata al
+                       taglio nuovo. Le partite attese restano accanto in tutt'e due, perche'
+                       spiegano tutt'e due i numeri. -->
                   <span class="shrink-0 tabular-nums opacity-60">{{
-                    man.edge == null
-                      ? '·'
-                      : (man.edge > 0 ? '+' : '') + (man.edge | number: '1.1-1')
+                    view() === 'mine'
+                      ? (man.swing == null ? '·' : (man.swing | number: '1.1-1'))
+                      : man.edge == null
+                        ? '·'
+                        : (man.edge > 0 ? '+' : '') + (man.edge | number: '1.1-1')
                   }}</span>
                   <span class="shrink-0 tabular-nums opacity-40">{{
                     man.pv == null ? '' : '(' + (man.pv | number: '1.0-0') + ')'
@@ -154,7 +163,11 @@
             } @else {
               <div class="flex items-center gap-1.5 text-[10px] text-muted">
                 <span class="h-2 w-2 rounded-full border border-muted"></span>
-                sempre la tua <b class="text-fg">max offerta</b>, ed è l'ordine dei blocchi
+                a destra sempre la tua <b class="text-fg">max offerta</b>, ed è il TAGLIO dei blocchi
+              </div>
+              <div class="flex items-center gap-1.5 text-[10px] text-muted">
+                <span class="h-2 w-2 rounded-full bg-primary/60"></span>
+                a sinistra la <b class="text-fg">SWING</b>, i gol che fa segnare: è l'ORDINE dentro
               </div>
               <div class="flex items-center gap-1.5 text-[10px] text-muted">
                 <span class="h-2 w-2 rounded-full bg-muted"></span>

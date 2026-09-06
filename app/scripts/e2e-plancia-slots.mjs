@@ -280,6 +280,11 @@ function readBoard() {
         return {
           name: (row.innerText ?? '').split('\n')[0].trim(),
           offer: Number((cells.at(-1)?.innerText ?? '').replace(/[^0-9-]/g, '')),
+          // IL NUMERO DI SINISTRA, che e' quello che SPIEGA l'ordine e cambia col taglio: sul mercato
+          // quanto rende sopra il sei, sui personali lo SWING. Letto dalla terza cella DA DESTRA e
+          // non dalla terza da sinistra, perche' in mezzo c'e' `ui-flags`, che disegna un numero
+          // variabile di span. Il punto e' il separatore decimale di quest'app, quindi si parsa cosi'.
+          lead: Number((cells.at(-3)?.innerText ?? '').replace(/[^0-9.-]/g, '')),
           // Il vincolo si legge dall'inchiostro, che e' il canale con cui la pagina lo dichiara.
           struck: getComputedStyle(row).textDecorationLine.includes('line-through'),
           // DI QUALCUNO: la barra del proprietario e' dipinta. E' il canale con cui la riga lo dice,
@@ -345,6 +350,57 @@ function breaks(board, role) {
     if (down.offer > up.offer) {
       out.push(`${down.block} ${down.name} ${down.offer} sopra ${up.block} ${up.name} ${up.offer}`);
     }
+  }
+  return out;
+}
+
+/**
+ * IL TAGLIO dei blocchi personali, che e' la MIA MAX OFFERTA - e da oggi e' un'altra domanda
+ * dall'ORDINE (06/09/2026, quando lo SWING e' diventata l'ordine dentro il blocco).
+ *
+ * Fino a quel giorno le due domande avevano una risposta sola e `breaks` bastava per tutt'e due.
+ * Adesso no, e l'invariante del taglio si scrive FRA i blocchi: il peggiore del blocco k non puo'
+ * offrire meno del migliore del blocco k+1, o i dieci uomini di un blocco non sono i dieci per cui
+ * pagherei di piu'. Dentro il blocco l'offerta puo' fare quello che vuole, ed e' il punto.
+ */
+function cutBreaks(board, role) {
+  const blocks = board.filter((one) => one.id.startsWith(role));
+  const out = [];
+  for (let at = 1; at < blocks.length; at += 1) {
+    const up = blocks[at - 1];
+    const down = blocks[at];
+    if (!up.rows.length || !down.rows.length) continue;
+    const worstAbove = Math.min(...up.rows.map((row) => row.offer));
+    const bestBelow = Math.max(...down.rows.map((row) => row.offer));
+    if (bestBelow > worstAbove) {
+      out.push(`${down.id} offre fino a ${bestBelow} mentre ${up.id} scende a ${worstAbove}`);
+    }
+  }
+  return out;
+}
+
+/**
+ * L'ORDINE DENTRO un blocco, che e' lo SWING: il numero di sinistra deve scendere.
+ *
+ * E' la regola del 03/09 applicata al taglio nuovo - una colonna che spiega un ordinamento DEVE
+ * essere quell'ordinamento - e si misura sullo SCHERMO e non sui nostri dati: se la pagina ordinasse
+ * per una cosa e ne stampasse un'altra, questo passo e' il solo che se ne accorgerebbe.
+ *
+ * Chi non ha uno SWING stampa `·`, che parsa NaN: si salta senza esentare chi viene dopo di lui,
+ * perche' un buco in mezzo alla lista sarebbe un difetto vero e non un'assenza di dato.
+ */
+function orderBreaks(board, role) {
+  const out = [];
+  for (const block of board.filter((one) => one.id.startsWith(role))) {
+    const rows = block.rows.filter((row) => Number.isFinite(row.lead));
+    for (let at = 1; at < rows.length; at += 1) {
+      if (rows[at].lead > rows[at - 1].lead + 1e-9) {
+        out.push(
+          `${block.id} ${rows[at].name} ${rows[at].lead} sopra ${rows[at - 1].name} ${rows[at - 1].lead}`,
+        );
+      }
+    }
+    if (!rows.length && block.rows.length) out.push(`${block.id}: nessuna riga porta uno SWING`);
   }
   return out;
 }
@@ -423,11 +479,13 @@ async function main() {
     if (playedToggle) await click(session, playedToggle);
     await wait(500);
     const played = await waitFor(session, readBoard, 60);
-    const playedBreaks = played ? ROLES.flatMap((role) => breaks(played, role)) : [];
+    const playedBreaks = played
+      ? ROLES.flatMap((role) => [...cutBreaks(played, role), ...orderBreaks(played, role)])
+      : [];
     const playedOwned = (played ?? []).flatMap((block) =>
       block.rows.filter((row) => row.owned).map((row) => `${block.id} ${row.name}`),
     );
-    note("sul tavolo GIOCATO la discesa vale anche sulle righe di chi ha gia' comprato", {
+    note("sul tavolo GIOCATO taglio e ordine valgono anche sulle righe di chi ha gia' comprato", {
       said: `${playedOwned.length} righe sono di qualcuno · ${playedBreaks.length} punti rotti`,
       problems: [
         ...(playedOwned.length
@@ -492,10 +550,15 @@ async function main() {
     await wait(500);
     const mine = await evaluate(session, readBoard);
     const after = await evaluate(session, readToggle);
-    const mineBreaks = mine ? ROLES.flatMap((role) => breaks(mine, role)) : [];
+    const mineCut = mine ? ROLES.flatMap((role) => cutBreaks(mine, role)) : [];
+    const mineOrder = mine ? ROLES.flatMap((role) => orderBreaks(mine, role)) : [];
+    const mineBreaks = [...mineCut, ...mineOrder];
     const firstD = (mine ?? []).find((one) => one.id === 'D1');
-    note('slot personali: la max offerta scende e non risale mai', {
-      said: `${mineBreaks.length} punti rotti · D1 legge «${firstD?.rows.map((row) => row.offer).join(' ') ?? '?'}»`,
+    note('slot personali: il TAGLIO e la max offerta, l ORDINE dentro e lo SWING', {
+      said:
+        `taglio: ${mineCut.length} punti rotti · ordine: ${mineOrder.length}` +
+        ` · D1 offre «${firstD?.rows.map((row) => row.offer).join(' ') ?? '?'}»` +
+        ` e spinge «${firstD?.rows.map((row) => row.lead).join(' ') ?? '?'}»`,
       problems: [
         ...(button ? [] : ["non c'e' nessun tasto «slot personali» in barra"]),
         ...(button && !button.reachable ? ['il tasto «slot personali» ha qualcosa sopra'] : []),
