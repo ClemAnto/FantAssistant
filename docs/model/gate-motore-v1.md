@@ -5226,11 +5226,17 @@ partite** di Red Bull Salzburg e Austria Klagenfurt sotto la nostra chiave tedes
 quegli uomini sono ARRIVI** il cui FM-equivalente ne era costruito: Pavlovic 6,86 · Sucic L. 8,30 ·
 Irving 8,29 · **Alajbegovic 6,93**, l'ultimo sul listone 2026-27, cioè sul foglio in uso.
 
-**E la giustificazione pubblicata della regola per competizione citava il caso che la smentiva**: la
-nota del 16/08 in `CLAUDE.md` porta Alajbegovic come L'ESEMPIO per cui le righe `bundesliga` dello
-strato recent devono convertire («the tag excluded them from a line fitted on exactly that league»). Le
-sue dieci partite sono di Bundesliga **austriaca**. Un esempio non verificato è un argomento in meno,
-non uno in più.
+**E QUI HO PUBBLICATO UN ROVESCIO CHE LA MISURA NON REGGE, ritirato entro l'ora.** Avevo scritto che la
+nota del 16/08 in `CLAUDE.md` — «ten Bundesliga matches ... were left out because of the same tag» —
+citava Alajbegovic, cioè che il caso portato a SOSTEGNO della regola per competizione era un caso che la
+regola deve escludere. Misurato: quattro uomini hanno ESATTAMENTE dieci partite sotto una chiave `bundesliga%` in quello strato — **Koulierakis** (tedesco) più Alajbegovic, Irving e Pavlovic (austriaci) — quindi il conteggio non identifica nessuno, e se quei dieci erano di Koulierakis la frase
+originale era GIUSTA. In più quella frase misura uno stato del DB che non esiste più (lo strato recent
+nei cinque campionati è passato da 81 a 399 righe oggi). Quello che regge è il resto: il provider scrive
+`bundesliga` per tutt'e due i campionati, il tag era la guardia sbagliata, e l'esempio VERO sono le 352
+righe di 45 giocatori. *Un'affermazione più forte della propria prova, dentro il file che insegna a
+misurare, è lo stesso difetto dell'esempio che stava curando — un piano più su.* Trovata perché un'altra
+sessione ha rifatto la query: la sua ritrattazione era andata a una terza che aveva già chiuso, e **una
+correzione che passa per un terzo è una correzione che si può perdere.**
 
 **La forma che spedisce, e la regola è una sola**: un'entità si unisce per la sua CHIAVE, mai per la
 stringa con cui una fonte la chiama. `recent_form` chiama `positions._slug_of`, che esisteva dal 08/08 e

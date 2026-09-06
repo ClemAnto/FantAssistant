@@ -2309,15 +2309,25 @@ vote from a line that never saw their competition, while ~~ten **Bundesliga** ma
 module were left out because of the same tag~~. Eligibility is now the COMPETITION's
 (`synth.calibrated_competitions`, derived from the overlap itself): 241,913 matches of 250,678 convert, the
 rest stay NULL.
-**THE EXAMPLE STRUCK OUT ABOVE WAS WRONG, and it is corrected here rather than deleted (06/09/2026): those
-ten matches are the AUSTRIAN Bundesliga.** They were Alajbegovic's, the provider spells that championship
-`bundesliga` exactly as it spells the German one, and the line is fitted on the German one — so the case
-brought in SUPPORT of the competition rule is a case that rule has to EXCLUDE, which is what it now does
-(`positions.competition_for`, gate §7-quattuorquadragies). The rule is untouched and the argument for it is
-stronger without the example: what the SOURCE tag was really costing is **352 rows of 45 players** whose
-Premier League, Liga, Ligue 1 and Serie A matches were archived under the provider's slug and refused for a
-hyphen — 17 of them arrivals of the listone in use. *An unverified example is one argument fewer, not one
-more, and the next reader who reads that line to understand the rule understands the reverse.* Two corollaries the
+**THE EXAMPLE STRUCK OUT ABOVE IS NOT VERIFIABLE, and this replaces a stronger claim I made and withdrew
+within the hour (06/09/2026).** What can be measured: FOUR men have exactly ten matches under a
+`bundesliga%` key in that layer — **Koulierakis, who is GERMAN**, plus Alajbegovic, Irving and Pavlovic,
+who are Austrian — so *the count identifies nobody*, and if those ten were Koulierakis's the original
+sentence was right. The sentence also measures a state of the DB that no longer exists: that layer went
+from 81 to 399 rows in the five championships on 06/09/2026.
+**What DOES stand, and it is the part that matters**: the provider spells `bundesliga` for the German
+championship AND for the Austrian one (36 rows of Red Bull Salzburg and Austria Klagenfurt were sitting
+under our German key, where the line converts them), so the tag was the wrong gate for a reason nobody had
+named. The rule is untouched, and the argument for it is stronger with a measured example instead of an
+undecidable one: what the SOURCE tag was really costing is **352 rows of 45 players** whose Premier League,
+Liga, Ligue 1 and Serie A matches were archived under the provider's slug and refused for a hyphen — 17 of
+them arrivals of the listone in use.
+**AND THE WITHDRAWAL IS THE LESSON, not the correction.** I had written that those ten matches were
+Alajbegovic's and that the case cited in SUPPORT of the rule was one the rule must exclude — a good
+reversal, and undecidable on the data. A claim stronger than its evidence, published in the file that
+teaches how to measure, is the same defect as the example it was curing, one level up. It was caught
+because another session re-ran the query and its own retraction had gone to a third one that had already
+closed: *a correction that travels through a third party is a correction that can be lost.* Two corollaries the
 same day paid for: **a per-competition offset can be real and still not be worth applying** — the Serie B shift
 is −0.181 and cuts leave-one-out error 20% against the naked line, and it loses to the role ANCHOR, so nothing
 converts (`APPLY_OFFSETS = False`, gate §7-nonies); and **a chain that feeds a chain must be re-run as a

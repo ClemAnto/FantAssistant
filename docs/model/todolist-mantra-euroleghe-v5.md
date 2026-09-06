@@ -1348,15 +1348,21 @@ separatamente, entrambi adottati, esito nella stessa sezione. Verbali: spec «No
   tutt'e due — e con essa 36 partite di Red Bull Salzburg e Austria Klagenfurt, di cui quattro di ARRIVI
   prezzati con la retta tedesca (**Alajbegovic** è sul listone 2026-27). La forma adottata decide per ID
   di torneo alla fonte e ripara l'archivio col PAESE del club.
-* **E la giustificazione pubblicata della regola per competizione cita proprio lui**: la nota del 16/08 in
-  `CLAUDE.md` porta Alajbegovic come L'ESEMPIO per cui le righe `bundesliga` dello strato recent devono
-  convertire, e le sue dieci partite sono di Bundesliga austriaca.
+* **E su quella nota avevo pubblicato un rovescio che la misura non regge, ritirato entro l'ora**: dicevo
+  che l'esempio del 16/08 in `CLAUDE.md` citava Alajbegovic. Misurato, quattro uomini hanno ESATTAMENTE dieci partite sotto una chiave `bundesliga%` in quello strato — **Koulierakis** (tedesco) più Alajbegovic, Irving e Pavlovic (austriaci) — quindi il conteggio non identifica nessuno, e se quei
+  dieci erano del tedesco Koulierakis la frase originale era giusta.
 
-- [x] **FATTA IN CHIUSURA (06/09/2026), e revocabile in un minuto — la riga di `CLAUDE.md` su Alajbegovic
-  diceva il rovescio di quello che dimostra.** Corretta DOVE STA, con lo strike-through invece della
-  cancellazione e la ragione accanto: quelle dieci partite sono di Bundesliga austriaca, quindi il caso
-  portato a sostegno della regola per competizione è un caso che quella regola deve escludere. La regola
-  non si muove e l'argomento è più forte senza l'esempio: quello vero sono le 352 righe di 45 giocatori.
+- [x] **FATTA IN CHIUSURA (06/09/2026) E POI CORRETTA UN'ORA DOPO, ed è la correzione che vale più della
+  voce.** La riga di `CLAUDE.md` che giustifica la regola per competizione è stata riscritta dove sta, con
+  lo strike-through invece della cancellazione. Ma la MIA prima versione diceva «quelle dieci partite sono
+  austriache, erano di Alajbegovic, quindi il caso citato a sostegno è un caso da escludere» — e la misura
+  non la regge: quattro uomini hanno ESATTAMENTE dieci partite sotto una chiave `bundesliga%` in quello strato — **Koulierakis** (tedesco) più Alajbegovic, Irving e Pavlovic (austriaci) — quindi il conteggio non identifica nessuno, e se quei dieci erano del tedesco Koulierakis la frase originale era
+  GIUSTA. In più misurava uno stato del DB che non esiste più (81 → 399 righe oggi). Riscritta con quello
+  che si prova — il provider scrive `bundesliga` per due campionati, e l'esempio misurato sono le 352
+  righe di 45 giocatori — e col ritiro dichiarato accanto. *Un'affermazione più forte della propria prova,
+  nel file che insegna a misurare, è lo stesso difetto dell'esempio che stava curando, un piano più su.*
+  Trovata da un'altra sessione che ha rifatto la query, dopo che la sua ritrattazione era passata per una
+  terza già chiusa: **una correzione che viaggia attraverso un terzo si può perdere.**
   Fatta sotto il protocollo di chiusura e non su un sì esplicito dell'operatore, quindi è detto così.
   ~~DA APPROVARE:~~ Il fatto è misurato e scritto nel gate; quel file è la carta del progetto, quindi la
   correzione è una sua decisione e non una nostra. La frase da correggere è nella sezione «A fitted

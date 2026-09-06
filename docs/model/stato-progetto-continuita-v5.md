@@ -31,11 +31,12 @@ davanti invece che al buio.
 * **La todolist resta con 41 voci aperte**, quasi tutte campagne di gate, acquisizioni bloccate dal 403 di
   Sofascore, o appuntamenti (le rose della Coppa d'Asia a dicembre). Le tre voci di codice della
   code-review del mattino sono chiuse; la voce nuova della grafia è chiusa.
-* **E la correzione a `CLAUDE.md` è stata fatta IN CHIUSURA e non su un suo sì esplicito**, quindi va
-  detta così: l'operatore ha scritto «chiudi», il protocollo di chiusura include quel file, e lasciare un
-  esempio pubblicato che dice il rovescio di quello che dimostra è la cosa che questo progetto non fa. È
-  una riga, con lo strike-through invece della cancellazione: se non la vuole, si torna indietro in un
-  minuto.
+* **La correzione a `CLAUDE.md` è stata fatta IN CHIUSURA e non su un sì esplicito dell'operatore** (lui
+  ha scritto «chiudi», e quel file è nel protocollo), **e la sua PRIMA versione era sbagliata**: diceva
+  che le dieci partite dell'esempio erano di Alajbegovic e che il caso citato a sostegno della regola era
+  un caso da escludere. Misurato, quattro uomini hanno ESATTAMENTE dieci partite sotto una chiave `bundesliga%` in quello strato — **Koulierakis** (tedesco) più Alajbegovic, Irving e Pavlovic (austriaci) — quindi il conteggio non identifica nessuno, e la frase misura anche uno stato del DB che non
+  esiste più. Riscritta con quello che si può provare — il difetto del provider, e le 352 righe come
+  esempio — e col ritiro dichiarato accanto. Resta una riga, e si torna indietro in un minuto.
 * **Una cosa che vale come avvertimento più che come voce**: lo zero del cambio A e del cambio B è
   *condizionale al set adottato* — R3 è l'unica adottata che legge `minutes_share`, R1 l'unico lettore di
   `foreign_fm_equiv` — quindi il giorno in cui `ADOPTED` cambia, quei due «non muove niente» vanno
@@ -66,11 +67,14 @@ adottata decide per **ID di torneo** alla fonte (`positions._slug_of`, che esist
 si era riscritto la denominazione, ed è così che lo stesso campionato è arrivato ad avere due nomi) e
 ripara l'archivio col **PAESE del club**, solo come evidenza CONTRARIA.
 
-**E LA GIUSTIFICAZIONE PUBBLICATA DELLA REGOLA CITA PROPRIO LUI**: la nota del 16/08 in `CLAUDE.md` porta
-Alajbegovic come L'ESEMPIO per cui le righe `bundesliga` dello strato recent devono convertire, e le sue
-dieci partite sono austriache. *Un esempio pubblicato che dice il rovescio di quello che dimostra è
-peggio di nessun esempio*: il fatto è a verbale nel gate e la correzione di quel file è una voce da
-approvare, perché quella carta è dell'operatore.
+**E QUI HO SBAGLIATO IO, con un'affermazione più forte della prova, ritirata entro l'ora.** Avevo scritto
+che la nota del 16/08 in `CLAUDE.md` citava Alajbegovic — cioè che l'esempio portato a SOSTEGNO della
+regola per competizione fosse un caso che la regola deve escludere. Misurato: quattro uomini hanno ESATTAMENTE dieci partite sotto una chiave `bundesliga%` in quello strato — **Koulierakis** (tedesco) più Alajbegovic, Irving e Pavlovic (austriaci) — quindi il conteggio non identifica nessuno, e se
+quei dieci erano del tedesco Koulierakis la frase originale era GIUSTA; in più misura uno stato del DB che
+non esiste più (81 → 399 righe oggi). *Un'affermazione più forte della propria prova, dentro il file che
+insegna a misurare, è lo stesso difetto dell'esempio che stava curando.* L'ha trovata un'altra sessione
+rifacendo la query, e la sua ritrattazione era passata per una terza che aveva già chiuso: **una
+correzione che viaggia attraverso un terzo è una correzione che si può perdere.**
 
 **TRE SESSIONI SULLO STESSO ALBERO, ed è la prima volta.** Trovate a metà misura: `git status` portava
 modifiche non mie a `cli.py`, `evaluate.py`, `features.py` più un test nuovo (R24 di `fantassistant-5f`) e

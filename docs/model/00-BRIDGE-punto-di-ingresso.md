@@ -14,9 +14,12 @@ un trattino, 17 arrivi del listone in uso.
 l'AUSTRIACA, quindi mappare per slug portava 36 partite di Salzburg e Klagenfurt sotto la nostra chiave
 tedesca — e quattro di quegli uomini sono arrivi il cui FM-equivalente ne era costruito, **Alajbegovic sul
 listone 2026-27**. La forma adottata decide per ID alla fonte e ripara l'archivio col **paese del club**.
-(c) **E LA RIGA DI `CLAUDE.md` CHE GIUSTIFICA LA REGOLA PER COMPETIZIONE CITAVA PROPRIO LUI**: corretta
-dove sta, con lo strike-through invece della cancellazione. *Un esempio non verificato è un argomento in
-meno, non uno in più.*
+(c) **E LA RIGA DI `CLAUDE.md` CHE GIUSTIFICA LA REGOLA PER COMPETIZIONE È STATA CORRETTA DUE VOLTE**: la
+prima versione diceva che l'esempio citava Alajbegovic ed era un'affermazione più forte della prova —
+quattro uomini hanno esattamente dieci partite sotto una chiave `bundesliga%`, uno dei quali TEDESCO,
+quindi il conteggio non identifica nessuno. Riscritta con quello che si può provare, ritiro dichiarato
+accanto. *Un'affermazione più forte della propria prova, nel file che insegna a misurare, è lo stesso
+difetto dell'esempio che stava curando.*
 (d) **NUMERI**: voto sintetico **44 → 396**, arrivi 28 riempiti / 8 tolti / 42 rivisti / 29 tier, e **0
 differenze su 50.284 numeri del gate** (`--verify` 22/22 su tutt'e due i bracci e sul vivo) — perché
 l'unico lettore di `foreign_fm_equiv` in `evaluate` è R1, non adottata. Il valore cade sui FOGLI:
