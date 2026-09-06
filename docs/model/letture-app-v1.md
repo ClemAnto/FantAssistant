@@ -386,6 +386,21 @@ disegna la sua icona (`ui-flags`), che è il canale che la carta di quel file gl
 esiste più è la PENALITÀ in punti. E **se la rivuole, il posto non è l'Overall che ha definito lui**: è
 Fπ, o una colonna sua con il suo nome — due zeri sono due domande, e questa non fa eccezione.
 
+**DECISIONE DELL'OPERATORE, 06/09/2026: restano SPENTE.** Presa con questa tabella davanti, e la ragione
+non è che le tre preferenze fossero sbagliate: è che ognuna, nel frattempo, ha trovato una casa migliore
+di quella che aveva. Rimettere una penalità in punti sull'Overall conterebbe la stessa paura due volte,
+che è l'argomento con cui `RETURN_SLIP` vive in un posto solo.
+
+| la preferenza del 15/08 | dove agisce oggi |
+|---|---|
+| il FRAGILE (`FRAGILITY_RISK`) | l'**assicurazione** di `core/expected-play.ts` (04/09, sua richiesta «in ottica pessimistica»): sottrae lo scarto fra la sua stagione tipica e la peggiore, MISURATA su 533 quotati e tre stagioni, e riprezza surplus e valore su plancia e strategia |
+| CHI NON PARTE TITOLARE (`STARTER_SHARE`, `STARTER_CONCAVITY`) | la scala a sei gradini (`desc_titolarita`) e `desc_start_share`, più l'ordine per VALORE ATTESO dentro lo slot della plancia |
+| la NOTA DICHIARATA (`DECLARED_RISK`) | l'icona di `ui-flags` più il VINCOLO: `out_of_squad` lo rifiuta dal piano automatico delle buste e dalla plancia — la forma che ha scelto lui il 03/09, «si vincola invece di riprezzare» |
+
+Quindi la prima riga di questa sezione non è una perdita da recuperare: è una migrazione, e questa tabella
+è dove sta scritta. Il giorno in cui una delle tre servisse di nuovo come NUMERO, il posto è Fπ o una
+colonna con il suo nome, e la prima cosa da misurare è il doppio conteggio con l'assicurazione.
+
 Tre correzioni all'Overall che l'operatore ha CHIESTO e che non sono seconde previsioni. Sono scritte come
 tali perché il prossimo lettore non le prenda per misure:
 
