@@ -5,12 +5,7 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
-import { TimeTravel } from '../../core/time-travel';
-
-const MONTH: Record<string, string> = {
-  '01': 'gennaio', '02': 'febbraio', '03': 'marzo', '04': 'aprile', '05': 'maggio', '06': 'giugno',
-  '07': 'luglio', '08': 'agosto', '09': 'settembre', '10': 'ottobre', '11': 'novembre', '12': 'dicembre',
-};
+import { TimeTravel, packLabel } from '../../core/time-travel';
 
 /**
  * Il box di DEBUG che sposta il giorno in cui l'app crede di trovarsi.
@@ -48,8 +43,7 @@ export class TimeMachine {
   protected readonly options = computed(() =>
     this.travel.packs().map((pack) => ({
       value: pack.date,
-      label: `${MONTH[pack.date.slice(5, 7)]} ${pack.date.slice(0, 4)}`
-        + (pack.window ? ` · dopo il mercato ${pack.window === 'estiva' ? 'estivo' : 'invernale'}` : ''),
+      label: packLabel(pack),
       season: pack.target_season,
     })));
 

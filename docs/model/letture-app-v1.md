@@ -3024,3 +3024,203 @@ Due ranghi sotto un nome solo sono il difetto che questo progetto paga da sempre
 
 Trovate tutt'e due guardando il DOM invece di ragionarci sopra — il probe stampava `firstRowCells: [0, 6,
 6, 6, 6]`, e quello 0 era tutta la diagnosi.
+
+## 31. QUANTO IL PRONOSTICO SI È AVVICINATO: la stessa pagina, un anno indietro (6 settembre 2026)
+
+Richiesta dell'operatore: «lo scopo del SURPLUS è di dare un indice di valore del calciatore PRONOSTICANDO
+come andrà la sua stagione. Quindi uno step fondamentale è capire quanto questo pronostico si avvicina
+alla realtà. Per fare ciò dobbiamo applicare l'algoritmo ai calciatori della scorsa stagione, con i dati
+presi alla terza giornata della scorsa stagione e vedere di quanto si avvicina il suo valore pronosticato
+a quella raggiunta a fine stagione. Dammi la possibilità quindi di switchare la stagione con una
+precedente e di ricalcolare tutto come se fossimo in quella data. Inoltre mostrami i valori reali di fine
+stagione come MV, FM, Presenze e FM*presenze».
+
+### 31.1 Metà della richiesta era già costruita, e la prima cosa da fare era guardare
+
+«Applicare l'algoritmo con i dati presi alla terza giornata della scorsa stagione» è **`timepack`**, che
+esiste dal 16/08/2026: `snapshot --date` per lega — la stessa strada con cui il gate replica le sue dieci
+finestre — impacchettato perché l'app possa caricarlo. Le date sono quattro, e una di loro è
+**2025-09-05**: al 5 settembre 2025 la Serie A aveva giocato **2 giornate** e il foglio ne prevede **36**.
+Cioè la data richiesta esisteva già, e con lei tutto il ricalcolo — surplus, fantapunti, campetti, le
+cinque letture, gli infortuni, i marchi.
+
+Quello che mancava non era il motore di una data passata: era il **METRO**. Nessuna colonna diceva cosa
+quei calciatori hanno poi fatto davvero, quindi la pagina poteva mostrare un pronostico e non poteva
+mostrarne l'esito. Misurare prima di costruire ha risparmiato una pagina intera, per l'ennesima volta.
+
+### 31.2 La decisione che conta: l'esito si misura sulla finestra che il foglio PREVEDE
+
+Le cinque colonne nuove sono del toolkit (`SHEET_REVISION` 46, spec «Novità v9.77»): `actual_rounds`,
+`actual_pv`, `actual_mv`, `actual_fm`, `actual_value`. Sono misurate sulle giornate **dopo la data
+d'asta** e non sul totale di stagione — 36 e non 38 — perché al 5 settembre due giornate erano già state
+giocate quando il motore ha parlato: confrontare 38 giocate con 36 previste direbbe che tutti hanno reso
+più del previsto, e sarebbe un fatto sul calendario e non sui calciatori. È «l'unità di una sottrazione è
+parte della sottrazione», applicata al giudizio.
+
+E la finestra è **la stessa** che `features._split_target_season` usa per l'esito del gate: rilette dalle
+sue due funzioni pubbliche, non ritagliate una seconda volta.
+
+La pagina non ne calcola nessuno. Fa una sottrazione, con **un verso solo, dichiarato una volta**
+(`outcomeOf`): **previsto − reale**, quindi un numero positivo vuol dire che il motore era ottimista. Due
+colonne con due versi sullo stesso schermo si leggono al contrario a turno.
+
+### 31.3 Cosa si vede
+
+In cima alla pagina una tendina con le quattro date (le stesse del box del viaggio nel tempo, **lo stesso
+servizio** e non un secondo stato: sceglierla di qua o di là è la stessa cosa, e il box continua a dire
+che si sta viaggiando anche cambiando pagina). Scelta una data, il bundle carica i fogli di quel giorno e
+compaiono cinque colonne in fondo alla tabella: **Pres. reali · MV reale · FM reale · Fantapunti reali ·
+Surplus reale**, ognuna col suo scarto accanto, tutte ordinabili.
+
+**Il surplus realizzato si conta con lo zero che il foglio PREVEDEVA**, e la scelta è la metà che conta:
+muovendo anche il rimpiazzo, lo scarto col surplus previsto mescolerebbe l'errore su quest'uomo con lo
+spostamento del livello di rimpiazzo — che è un fatto sulla LEGA — e non si potrebbe attribuire a nessuna
+delle due. Si muove una variabile sola. Lo zero realizzato è l'altra domanda, e non si stampa finché il
+foglio non lo porta: inventarlo nell'app sarebbe una seconda risposta a una domanda che il toolkit sa
+già dare (`features.replacement_actual` esiste, e costa una corsa dei pacchetti per arrivare qui).
+
+**E qui uno ZERO è un ESITO**, per l'unica volta in questa pagina: chi non ha giocato ha reso esattamente
+zero sopra il suo rimpiazzo, perché il rimpiazzo ha giocato al posto suo. La fantamedia resta vuota (una
+media su zero partite non esiste) e il surplus no — sono due fatti diversi, e la riga li tiene diversi.
+Il tooltip scrive il conto con i suoi numeri, compreso il caso dello zero.
+
+Su OGGI **non compaiono affatto**, ed è una distinzione fra il foglio e lo schermo: il foglio le porta e
+le lascia vuote (dopo la data d'asta non c'è ancora una giornata in archivio), la pagina non le disegna —
+quattro colonne vuote si leggerebbero come quattro numeri a zero.
+
+Sopra la tabella una barra, **due numeri per grandezza e mai uno**: l'errore medio assoluto dice quanto si
+sbaglia, lo scarto col segno da che parte — e sono indipendenti, quindi un errore senza il suo segno
+lascia credere che il modello sia centrato. La fantamedia ha il suo denominatore, perché chi ha giocato
+due partite ha una media fatta di due partite: entra nel conto delle presenze e resta fuori da quello
+della fantamedia, con **la stessa soglia che il gate applica** (`evaluate.scoring_floor`: 15 su 38 è il
+39% del calendario previsto, quindi su un esito da 36 giornate diventa 14). La barra la stampa.
+
+I numeri della barra sono sulle righe **mostrate**, ed è metà del valore: filtrare per ruolo dà la
+calibrazione di quel ruolo, che è una domanda vera.
+
+### 31.4 Il primo risultato, e cosa dice
+
+Serie A classic, 5 settembre 2025, **36 giornate giudicate**, 556 righe di cui 361 con la valutazione
+del motore e le altre su ripiego dichiarato (la barra lo dice):
+
+| grandezza | errore medio | scarto col segno | solo motore |
+|---|---|---|---|
+| presenze | 6,87 giornate su 36 | −0,24 | 6,56 · −1,00 |
+| fantamedia (su chi ha ≥14 giornate) | 0,317 | +0,032 | 0,302 · +0,012 |
+| fantapunti (FM × presenze) | 42,7 | −6,1 | 41,2 · −8,0 |
+
+**E il conto a schermo non è su 556 righe ma su 542**, che va detto invece di lasciarlo notare: la lista
+della pagina è l'unione del listone e del foglio, quindi contiene uomini che il foglio non prezza (nessun
+esito da confrontare) e non contiene chi il foglio porta e il listone non quota. Le due letture danno lo
+stesso numero al decimale — a schermo `presenze ±6.8 (−0.5) · fantamedia ±0.32 (+0.03 · su 362) ·
+fantapunti ±42 (−7)` — e la barra dichiara la propria popolazione, che è il modo in cui questo progetto
+tiene due conti dallo scivolare in due risposte.
+
+Chi sbaglia, e da che parte: **sottostimati** Palestra (16,5 previste, 36 giocate), Bonazzoli (12,2 →
+34), Audero (11,9 → 32); **sopravvalutati** Angelino (29,4 → 5), Meret (29,3 → 9), Lukaku (21,8 → 2) —
+cioè quasi tutti infortuni o partenze, che sono la coda che nessun modello di agosto può prevedere. Un
+errore medio non dice a chi capita; questi tre più tre sì.
+
+**E la stessa pagina risponde su una finestra dentro la stagione**, che è l'altra metà di quello che i
+pacchetti offrono: al **5 febbraio 2026** restano 15 giornate, l'errore sulle presenze è **3,34** con
+scarto −0,20 e quello sulla fantamedia **0,408**. Il conto della fantamedia là passa per una soglia di
+**6** presenze e non 14, perché è una quota del calendario giudicato e non un numero — la stessa del gate,
+e senza quella regola su una finestra da 15 giornate nessuno supererebbe 15 presenze e la guardia
+smetterebbe di misurare invece di fallire.
+
+**I due errori NON si confrontano fra loro**, ed è la cosa da dire prima che qualcuno lo faccia: in
+proporzione al calendario che resta sono 22% (febbraio) contro 19% (settembre), ma una finestra più corta
+ha per costruzione più varianza relativa — uno stop di tre giornate è il 20% di quindici e l'8% di
+trentasei — e le due popolazioni sono diverse (a febbraio il mercato di gennaio è già passato). Che il
+modello a febbraio legga già le giornate giocate (R20) è vero e non basta a rendere le due cifre
+comparabili.
+
+Il fatto più leggibile è il primo: **quello che il motore sbaglia sono le presenze**, non la fantamedia.
+La fantamedia attesa è praticamente centrata (0,32 di errore su una scala che va da 5 a 8), le presenze no
+— e siccome il surplus è un prodotto, l'errore sui fantapunti è quasi tutto lì. È la stessa cosa che il
+progetto ha già misurato da tre direzioni indipendenti: `Var(ln pv)` è l'86-90% di `Var(ln` fantapunti`)`
+(§15 di `metrica-asta-surplus-v1.md`), il nostro vantaggio incrementale sulla quotazione è largo **un
+numero solo, le presenze** (§18), e dentro una fascia di prezzo chi il motore dà per più presente rende
+**+18,1 fantapunti** contro la scelta del mercato (§25 del simulatore). Qui si vede dal lato dell'errore:
+è la grandezza su cui c'è ancora da guadagnare.
+
+### 31.5 «Alla terza giornata»: misurato, e la data non si aggiunge
+
+La richiesta diceva «con i dati presi alla terza giornata», e il pacchetto più vicino è il **5 settembre
+2025**, quando la Serie A ne aveva giocate **2** (la terza si è chiusa il 15). Aggiungere una data
+dichiarata «dopo la terza giornata» è possibile — la data la legge il CALENDARIO, che a differenza dei
+trasferimenti la porta davvero — e costa una convenzione nuova in `timepack.WINDOWS` più sei corse di
+`snapshot` a ogni rifacimento dei pacchetti (~9 minuti).
+
+**Misurato prima di costruirla**, sul foglio Serie A del **16 settembre 2025** contro quello del 5:
+
+- la previsione si muove **poco**: la quota di presenze cambia in media di **0,030** (≈1,1 giornate su
+  36), e la fantamedia **di zero millesimi** — che non è una sorpresa ed è la conferma di un fatto già
+  noto (su `default` tutte le regole adottate lavorano sulle presenze, R20 compresa);
+- l'errore migliora **dell'1,0%**: la quota di presenze passa da 0,1907 a 0,1888 (6,87 giornate su 36
+  contro 6,61 su 35), la fantamedia da 0,317 a 0,312.
+
+I due errori sono confrontati come QUOTA e non in giornate, perché le finestre sono 36 e 35: contarli in
+giornate sarebbe l'errore di unità che questa sezione è nata per evitare.
+
+**Quindi la data non si aggiunge**: un punto percentuale di errore non paga una convenzione nuova e nove
+minuti per ogni refresh, e la regola di casa è quella che vale anche qui — «prima di cambiare una
+costante, guarda quanta della richiesta è già soddisfatta». Il foglio del 16/09 resta in `data/reports/`
+come prova della misura; il numero sta qui perché la decisione è dell'operatore e ora è informata.
+
+### 31.6 Che cosa questa pagina NON è, e sta scritto sulla pagina
+
+**Non è un verdetto sul motore.** Il gate giudica una regola su dieci finestre, con un criterio scritto
+prima della corsa e su stagioni che non hanno tarato i suoi parametri. Questa è una fotografia di **una
+data su una lega**, e per giunta di una stagione su cui quei parametri sono stati tarati — il foglio
+stesso lo dichiara nelle sue note: «this run is a DRY RUN, not an out-of-sample statement». Serve a
+leggere le righe sotto, non a promuovere o bocciare una regola.
+
+**E le contaminazioni hanno una direzione, che è la parte utile.** Un foglio back-dated conosce cose che
+quel giorno non si sapevano: rose, trasferimenti, ruoli granulari e l'asterisco del listone sono derivati
+oggi. Sul foglio del 5 settembre 2025 l'asterisco toglie **131 righe** — e misurato, **nessuna di loro ha
+poi giocato 25 giornate** (16 su 131 arrivano a 10; Lookman 11, Castellanos 11, Lucca 9, Dzeko 9). Quindi
+la lista è ripulita proprio dei casi peggiori, e **l'errore qui sopra è ottimistico**. La direzione di un
+errore è parte dell'errore, e la pagina lo scrive invece di lasciarlo scoprire.
+
+### 31.7 Due note di forma
+
+**La tendina delle date è un secondo COMANDO, mai un secondo stato.** `TimeTravel` è iniettato, non
+copiato, e l'etichetta di una data («settembre 2025 · dopo il mercato estivo») è una funzione sola
+(`packLabel`) letta dal box e dalla pagina: due etichette per la stessa data sarebbero due nomi per un
+pacchetto solo.
+
+**E il banco ha dovuto imparare a scegliere la tendina giusta.** Da quando la pagina ne ha due,
+`querySelector('nz-select')` prende la PRIMA — cioè le date — e il passo del filtro per squadra avrebbe
+accusato il filtro di non offrire nessun club. Si sceglie per il segnaposto, che è quello che userebbe un
+occhio. Il passo nuovo verifica l'esito **contro il foglio del pacchetto**, letto dallo stesso server da
+cui lo legge la pagina, e asserisce anche l'affermazione che si dimentica: su oggi quelle colonne non
+devono esistere.
+
+**Il passo verifica anche il caso in cui uno zero è un esito**, che è la sola affermazione nuova della
+colonna del surplus realizzato: l'uomo si sceglie dal foglio (il più atteso fra chi ha zero presenze) e la
+sua cella deve leggere **0**, non un trattino. Sul pacchetto del 5 settembre è **Boloca** — 21,5 presenze
+previste, zero giocate — e la riga legge «0 +8», cioè il surplus che il foglio gli dava e che non ha
+prodotto. E il surplus realizzato si RICOSTRUISCE dal foglio (`(FM reale − rimpiazzo) × presenze`) invece
+di leggerlo da una colonna: quel conto lo fa l'app, quindi il metro del banco dev'essere l'aritmetica e
+non la pagina.
+
+**E la prima corsa ha trovato tre difetti, tutti e tre DEL BANCO** — che è il modo in cui questi passi si
+guadagnano da vivere.
+
+- **Una cella che porta DUE numeri non si legge con un parser che toglie il segno.** `parseNumber` fa
+  `replace(/\s/g,'')` e `replace('+','')`, quindi su «12 +1.9» legge **121.9**: due numeri fusi in uno
+  che sembra un numero, e il verbale diceva «121,9 presenze su 36 giornate». *Un valore assurdo si guarda
+  prima di accusare la pagina*, ed è il terzo caso di questa famiglia dopo l'area della favicon e il
+  conteggio delle scale.
+- **La data si sceglie per POSIZIONE, non cercando l'anno nel testo.** L'etichetta porta anche la
+  stagione («settembre 2025 · dopo il mercato estivo · stagione 2025-26»), quindi cercare «2025» prendeva
+  **febbraio 2026** — e il banco confrontava i numeri di quel pacchetto col foglio di settembre. Cinque
+  problemi su cinque venivano da lì. *Un identificatore che compare due volte nella stessa stringa non è
+  un identificatore.*
+- **La barra si legge PRIMA di filtrare.** È costruita sulle righe mostrate per scelta, quindi dopo una
+  ricerca dice «1 riga giudicata»: vero, e non quello che il passo verifica.
+
+E la tolleranza del confronto è **l'arrotondamento della colonna** e non una banda scelta perché un caso
+ci cadeva: presenze e fantapunti si stampano a zero decimali, quindi mezza unità è quanto una cifra intera
+può distare da 257,5, mentre le due medie restano nella banda stretta di sei millesimi.

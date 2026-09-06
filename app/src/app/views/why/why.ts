@@ -21,10 +21,13 @@ import { ClassicRole } from '../../core/players-store';
 import {
   RULE_NOTE,
   WhyColumns,
+  Outcome,
   Rung,
   SurplusWhy,
+  calibrationOf,
   coreFormula,
   explainSurplus,
+  outcomeOf,
 } from '../../core/surplus-why';
 import {
   TITOLARITA_SHORT,
@@ -32,6 +35,7 @@ import {
   titolaritaNote,
   titolaritaRank,
 } from '../../core/titolarita';
+import { TimeTravel, packLabel } from '../../core/time-travel';
 import { EngineExpectation, ValuationStore } from '../../core/valuation-store';
 import { stored } from '../../core/view-state';
 import { APP_VERSION } from '../../version';
@@ -109,6 +113,16 @@ export interface WhyRow {
   /** L'ESITO delle giornate già giocate: il solo numero che può smentire la catena. Null = non ha giocato. */
   now: SeasonTotals | null;
   /**
+   * COM'È ANDATA A FINIRE, sulle giornate che il foglio prevedeva - e non sul totale di stagione.
+   *
+   * Esiste solo su un foglio del passato (il viaggio nel tempo): su quello di oggi la stagione che si
+   * sta prevedendo non è stata giocata, quindi la colonna c'è e il numero no. È l'unica cosa in questa
+   * pagina che può SMENTIRE la catena invece di descriverla - `now` lo fa per le due giornate già
+   * giocate, questa per l'intera stagione - e per questo il verso della sottrazione è dichiarato una
+   * volta sola in `outcomeOf`: previsto − reale, positivo = il motore era ottimista.
+   */
+  outcome: Outcome | null;
+  /**
    * LA POOL su cui il suo rimpiazzo è misurato (`engine_role_slot`), che è anche quella su cui ha senso
    * confrontarlo: su mantra un'ala e una punta hanno due zeri diversi. Ripiega sul ruolo di listone dove
    * il foglio non porta lo slot - su un foglio classic sono la stessa cosa.
@@ -142,6 +156,11 @@ export const SORT_KEYS = [
   'appPv',
   'appPerMatch',
   'now',
+  'realPv',
+  'realMv',
+  'realFm',
+  'realValue',
+  'realSurplus',
 ] as const;
 
 type SortKey = (typeof SORT_KEYS)[number];
@@ -197,6 +216,16 @@ export class Why {
   /** Il layer per-partita: serve solo al falsificatore, e si chiede all'apertura. */
   private readonly players = inject(PlayersStore);
   private readonly locale = inject(LOCALE_ID);
+  /**
+   * IL GIORNO IN CUI L'APP CREDE DI TROVARSI, il SERVIZIO e non una copia sua.
+   *
+   * La pagina offre le stesse date del box in basso a destra perche' e' la pagina in cui servono - qui
+   * si chiede «quanto il pronostico si e' avvicinato», e per rispondere bisogna stare in un giorno in
+   * cui la stagione da prevedere e' poi stata giocata. Un secondo comando sullo stesso stato, mai un
+   * secondo stato: sceglierla di qua o di la' e' la stessa cosa, e il box continua a dire che si sta
+   * viaggiando anche quando si cambia pagina.
+   */
+  protected readonly travel = inject(TimeTravel);
   protected readonly appVersion = APP_VERSION;
   protected readonly ruleNote = RULE_NOTE;
 
@@ -297,6 +326,19 @@ export class Why {
         minutesNext: one?.minutesNext ?? null,
         place: places.get(player.fcId) ?? null,
         now: now.get(player.fcId) ?? null,
+        // L'ESITO, letto dal foglio e mai ricalcolato: la finestra su cui è contato la decide chi ha il
+        // calendario, e rifare quel taglio qui darebbe un esito misurato su una finestra e una
+        // didascalia che ne nomina un'altra.
+        outcome: outcomeOf(
+          one?.actual ?? null,
+          {
+            fm: one?.fm ?? null,
+            pv: one?.pv ?? null,
+            replacement: one?.replacementFm ?? null,
+            surplus: one?.surplus ?? null,
+          },
+          one?.why?.roundsSeen ?? null,
+        ),
         pool: one?.slot ?? player.role ?? null,
         club: player.club,
         clubId: player.clubId,
@@ -320,6 +362,47 @@ export class Why {
       };
     });
   });
+
+  // ---------------------------------------------------------------- com'è andata a finire
+
+  /**
+   * LE DATE su cui si può fare questa verifica, e sono le stesse del box: quelle per cui il TOOLKIT ha
+   * costruito il motore di quel giorno (`timepack`). Non è un calendario libero, e la ragione è la
+   * ragione del pacchetto: senza, si guarderebbe il motore di oggi sotto una data di ieri.
+   */
+  protected readonly dates = computed(() =>
+    this.travel.packs().map((pack) => ({
+      value: pack.date,
+      label: `${packLabel(pack)} · stagione ${pack.target_season}`,
+    })),
+  );
+
+  protected readonly chosenDate = computed(() => (this.travel.travelling() ? this.travel.today() : null));
+
+  protected travelTo(date: string | null): void {
+    this.travel.travelTo(date);
+  }
+
+  /** Se il foglio in mano porta un esito: è il foglio del passato, e solo lì le colonne reali esistono. */
+  protected readonly hasOutcome = computed(() => this.rows().some((row) => row.outcome));
+
+  /**
+   * QUANTO IL PRONOSTICO SI È AVVICINATO, sulle righe MOSTRATE - e il fatto che siano quelle mostrate è
+   * metà del valore: filtrare per ruolo dà la calibrazione di quel ruolo, che è una domanda vera.
+   *
+   * NON è un verdetto sul motore, e la barra lo dice: il gate giudica una regola su dieci finestre
+   * out-of-sample con un criterio scritto prima della corsa; questa è una fotografia di UNA data su UNA
+   * lega, e per giunta su una finestra su cui i parametri erano stati tarati. Serve a leggere le righe
+   * sotto, non a promuovere o bocciare niente.
+   */
+  protected readonly calibration = computed(() =>
+    calibrationOf(this.visible().map((row) => row.outcome)),
+  );
+
+  /** Quante delle righe giudicate hanno un numero di RIPIEGO e non del motore: un MAE le mescola. */
+  protected readonly calibrationEstimated = computed(
+    () => this.visible().filter((row) => row.outcome && row.why.basis === 'estimate').length,
+  );
 
   /** Quante righe il foglio riesce a spiegare per intero: è la prima cosa che questa pagina deve dire. */
   protected readonly coverage = computed(() => {
@@ -414,6 +497,13 @@ export class Why {
     // La fantamedia REALIZZATA finora: si ordina su quella e non sulle partite giocate, perché è la
     // metà che smentisce la colonna «FM att.» - le giornate stanno accanto e le dice il tooltip.
     now: (row) => row.now?.fm ?? null,
+    // L'ESITO. Si ordina sul numero REALE e non sullo scarto: lo scarto ha il suo verso e sta nella
+    // stessa cella, mentre «chi ha reso di più» è la domanda che si fa scorrendo una lista.
+    realPv: (row) => row.outcome?.pv ?? null,
+    realMv: (row) => row.outcome?.mv ?? null,
+    realFm: (row) => row.outcome?.fm ?? null,
+    realValue: (row) => row.outcome?.value ?? null,
+    realSurplus: (row) => row.outcome?.surplus ?? null,
   };
 
   /**
@@ -640,6 +730,13 @@ export class Why {
     this.method.update((one) => !one);
   }
 
+  /** Che cosa l'esito dice e che cosa no. Chiusa all'inizio, come la legenda del metodo. */
+  protected readonly outcomeNote = signal(false);
+
+  protected toggleOutcomeNote(): void {
+    this.outcomeNote.update((one) => !one);
+  }
+
   /** Le regole che il foglio ha davvero percorso, per la legenda: quelle e non un elenco scritto a mano. */
   protected readonly rulesInPlay = computed(() => {
     const keys: string[] = [];
@@ -782,6 +879,41 @@ export class Why {
   /** Il posto in parole: «Dc dell’undici tipo (3-4-3)». Il badge è UNO, non l’elenco dei suoi codici. */
   protected placeLabel(place: BoardPlace): string {
     return [place.badge ?? place.line, place.module ? `(${place.module})` : ''].filter(Boolean).join(' ');
+  }
+
+  /**
+   * PERCHE' UNA FANTAMEDIA REALE E' SPENTA: perche' e' fatta di troppe poche partite per giudicare.
+   *
+   * La frase dice la SOGLIA e le partite che ha: un numero smorzato senza una ragione si legge come un
+   * guasto - «un vincolo che agisce in silenzio e' indistinguibile da un ordinamento rotto».
+   */
+  protected fmOutcomeNote(row: WhyRow): string {
+    const out = row.outcome;
+    if (!out || out.fm == null) return '';
+    if (out.fmScorable) return `Su ${out.pv} giornate di ${out.rounds}.`;
+    return (
+      `Su ${out.pv} giornate di ${out.rounds}: sotto le ${out.fmFloor} che servono per giudicare una ` +
+      `media, quindi resta fuori dal conto qui sopra. È la soglia del gate.`
+    );
+  }
+
+  /**
+   * PERCHE' UN SURPLUS REALE E' ZERO, che e' il caso limite piu' facile da leggere male.
+   *
+   * Non e' un vuoto: chi non ha giocato ha reso esattamente zero sopra il suo rimpiazzo, perche' il
+   * rimpiazzo ha giocato al posto suo. E la frase dice con quale zero e' contato - quello che il foglio
+   * PREVEDEVA - perche' un numero che non dichiara il proprio metro non si puo' contestare.
+   */
+  protected realSurplusNote(row: WhyRow): string {
+    const out = row.outcome;
+    if (!out || out.surplus == null) return '';
+    const zero = row.why.replacement;
+    const metre = zero == null ? '' : ` Contato sul rimpiazzo previsto (${this.num(zero, '1.2-2')}).`;
+    if (out.pv === 0) {
+      return `Non ha giocato nessuna delle ${out.rounds} giornate: sopra il suo rimpiazzo ha reso zero, ` +
+        `ed è un esito e non un vuoto.${metre}`;
+    }
+    return `(${this.num(out.fm, '1.2-2')} − ${this.num(zero, '1.2-2')}) × ${out.pv} giornate.${metre}`;
   }
 
   /** Un numero, o un trattino. Mai uno zero al posto di un vuoto. */

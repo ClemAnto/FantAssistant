@@ -495,6 +495,74 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.77 (6 settembre 2026 — L'ESITO sul foglio: cinque colonne per giudicare un pronostico)
+
+Richiesta dell'operatore: «lo scopo del SURPLUS è di dare un indice di valore del calciatore PRONOSTICANDO
+come andrà la sua stagione. Quindi uno step fondamentale è capire quanto questo pronostico si avvicina
+alla realtà. Per fare ciò dobbiamo applicare l'algoritmo ai calciatori della scorsa stagione, con i dati
+presi alla terza giornata della scorsa stagione e vedere di quanto si avvicina il suo valore pronosticato
+a quella raggiunta a fine stagione». La pagina che lo mostra è `/why` (`letture-app-v1.md` §31); qui c'è
+la metà toolkit.
+
+**METÀ DELLA RICHIESTA ERA GIÀ COSTRUITA, e vale la pena dirlo perché è il modo in cui si risponde a una
+richiesta: prima si guarda cosa c'è.** «Applicare l'algoritmo con i dati presi alla terza giornata della
+scorsa stagione» è esattamente `timepack` (16/08/2026): `snapshot --date` per lega, la stessa strada con
+cui il gate replica le sue finestre, e la data **2025-09-05** è già una delle quattro impacchettate — al
+5 settembre 2025 la Serie A aveva giocato 2 giornate e il foglio ne prevede 36. Quello che mancava non era
+il motore di una data passata: era il **METRO**, cioè cosa quei calciatori hanno poi fatto davvero.
+
+**Cinque colonne, `SHEET_REVISION` 46**: `actual_rounds`, `actual_pv`, `actual_mv`, `actual_fm`,
+`actual_value` (= FM × presenze). Sono la classe `actual_*`, che è quella misurata DOPO la data d'asta e
+che nessuna regola può leggere — la stessa in cui vivono le tre colonne dell'undici schierato la settimana
+dopo.
+
+**LA DECISIONE CHE CONTA È LA FINESTRA, e non è il totale di stagione.** L'esito è misurato sulle giornate
+**dopo la data d'asta**, cioè esattamente quelle che `engine_pv_pred` e `engine_fm_pred` prevedono. Al
+5 settembre due giornate erano già state giocate quando il motore ha parlato: confrontare 38 giornate
+giocate con 36 previste direbbe che tutti hanno reso più del previsto, e sarebbe un fatto sul calendario e
+non sui calciatori. È «l'unità di una sottrazione è parte della sottrazione», applicata al giudizio invece
+che a un canale.
+
+E la finestra è **la stessa** che `features._split_target_season` usa per `pv_act`/`mv_act`/`fm_act`:
+`snapshot.outcome_rounds` la rilegge dalle due funzioni pubbliche che già la definiscono
+(`matchdays_before` e `matchdays_straddling`, giornata a cavallo esclusa da tutt'e due i lati) invece di
+rifare il taglio. Due tagli dello stesso periodo darebbero un esito misurato su una finestra e una
+didascalia che ne nomina un'altra — il difetto per cui `engine_role_slot` sta accanto al surplus.
+
+**`actual_rounds` sta sulla RIGA e non solo nel manifest**, per una ragione che questo repository ha già
+pagato: una riga deve poter spiegare il proprio numero da sola, e un manifest si perde per strada (v9.75
+§5, il `matchdays` letto prima di essere scritto). Il manifest lo dichiara comunque, con
+`expected_rounds` e `complete`: un esito parziale confrontato con una previsione intera direbbe che tutti
+hanno giocato meno del previsto, che è una proprietà dell'archivio.
+
+**VUOTE — e non zero — su un foglio costruito oggi**, che è il caso normale: la stagione bersaglio è
+quella che si sta giocando, l'asta è oggi, quindi dopo la data d'asta non c'è ancora niente in archivio e
+`outcome_rounds` restituisce una lista vuota. `actual_pv` può invece essere uno ZERO VERO (si è fatto
+male, è partito, non ha più giocato) e allora le due medie restano vuote: una media su zero partite non
+esiste, e sono due fatti diversi che la riga tiene diversi.
+
+REPORTING integrale: `engine_*` non si muove di un decimale — **`backtest --verify` legge 22/22 dopo la
+modifica**, misurato e non dedotto — il gate non vede niente di nuovo, nessuna regola e nessuna colonna
+`desc_*` le legge. I quattro pacchetti del viaggio nel tempo sono stati rifatti (`timepack --all
+--refresh`, ~35 minuti) perché erano a revisione 44, e i tre fogli di oggi con loro, così il bundle non
+ha pacchetti più avanti dei propri fogli.
+
+**Il primo numero che il foglio così fatto produce** (Serie A classic, 5 settembre 2025, 36 giornate
+giudicate, 556 righe di cui 361 con la valutazione del motore): sulle presenze l'errore medio è **6,87
+giornate** con uno scarto di **−0,24** (solo sulle righe del motore: 6,56 e **−1,00**, cioè leggermente
+pessimista), sulla fantamedia **0,317** con scarto **+0,032** su chi ha giocato almeno 14 giornate, sui
+fantapunti **42,7** con scarto **−6,1**. Non è un verdetto sul
+motore — è una fotografia di una data su una lega, e per giunta su una stagione che ha tarato quei
+parametri (il foglio stesso lo dichiara: «this run is a DRY RUN, not an out-of-sample statement») — ed è la
+ragione per cui il gate esiste e continua a essere l'unico giudice delle regole.
+
+**Una contaminazione che va detta perché ha una DIREZIONE.** Un foglio back-dated conosce cose che quel
+giorno non si sapevano: rose, trasferimenti e l'asterisco del listone sono derivati oggi. Sul foglio del
+5 settembre 2025 questo toglie **131 righe** (i «Ceduti» del listone 2025-26) — e misurato, **nessuno di
+loro ha poi giocato 25 giornate** (16 su 131 arrivano a 10; Lookman 11, Castellanos 11, Lucca 9). Quindi la
+lista è ripulita proprio dei casi peggiori e l'errore misurato è **ottimistico**. La direzione di un errore
+è parte dell'errore.
+
 ## Novità v9.76 (5 settembre 2026 — PERCHÉ QUEL NUMERO: la scala delle regole sul foglio)
 
 Richiesta dell'operatore: «non sono ancora contento del surplus assegnato ad ogni calciatore ... per ogni

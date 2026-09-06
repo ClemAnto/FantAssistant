@@ -124,6 +124,60 @@ def test_columns_declare_which_half_is_gated():
     assert "price_initial" in known and "fvm_reporting_only" in known
 
 
+def test_the_outcome_window_is_the_one_the_sheet_forecasts(tmp_path):
+    """L'esito si misura sulle giornate DOPO la data d'asta, non sul totale di stagione.
+
+    E' l'errore di unita' che questo repository paga da sempre, visto dal lato del giudizio: al 5
+    settembre due giornate sono gia' state giocate, il foglio prevede le 36 che restano, e un totale di
+    38 confrontato con una previsione di 36 direbbe che ognuno ha giocato piu' del previsto. La finestra
+    e' anche la STESSA che `features._split_target_season` usa per `pv_act`, riletta dalle sue due
+    funzioni pubbliche: due tagli darebbero un esito e una didascalia che ne nomina un altro.
+    """
+    from euroleghe_ingest.engine import features
+
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    _seed(conn)
+    # tre giornate: la 1 finita prima dell'asta, la 2 A CAVALLO, la 3 tutta dopo
+    for real_md, dates in ((1, ("2025-08-24", "2025-08-25")),
+                           (2, ("2025-09-03", "2025-09-07")),
+                           (3, ("2025-09-14", "2025-09-15"))):
+        for index, date in enumerate(dates):
+            conn.execute(
+                "INSERT INTO external_match_stats(fc_id, match_id, season, competition, source, "
+                "real_md, match_date, club) VALUES (?, ?, '2025-26', 'serie_a', 'sofascore', ?, ?, "
+                "'Inter')", (index + 1, f"{real_md}-{index}", real_md, date))
+        conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, platform, team, mv, status) "
+                     "VALUES (1, '2025-26', ?, 'default', 'Inter', 6.5, 'played')", (real_md,))
+    conn.commit()
+
+    window = features.Window("X", "2024-25", "2025-26", "2025-09-05")
+    # la 1 e' vista (finita prima), la 2 e' a cavallo: nessuna delle due e' esito
+    assert snapshot.outcome_rounds(conn, window, "default") == [3]
+
+    # PRE-STAGIONE: non c'e' niente da spezzare, quindi l'esito e' tutta la stagione - e `pv_act` la'
+    # e' proprio il totale di `season_stats`, cioe' la stessa cosa detta dall'altro lato
+    august = features.Window("X", "2024-25", "2025-26", "2025-08-15")
+    assert snapshot.outcome_rounds(conn, august, "default") == [1, 2, 3]
+
+    # OGGI: dopo la data d'asta non c'e' ancora niente in archivio, e una lista vuota e' quello che fa
+    # restare VUOTE le colonne invece di stampare uno zero - «non ha giocato» detto di chi nessuno ha
+    # ancora visto giocare
+    today = features.Window("X", "2024-25", "2025-26", "2025-12-31")
+    assert snapshot.outcome_rounds(conn, today, "default") == []
+
+    # ...e le cinque colonne devono ARRIVARE all'app, o l'esito e' misurato e invisibile: e' il difetto
+    # dei campetti, di `availability` e dell'asterisco, tre volte lo stesso. Sono anche OPZIONALI, perche'
+    # ogni foglio scritto prima della revisione 46 non le ha e pretenderle scarterebbe i pacchetti del
+    # viaggio nel tempo - cioe' spegnerebbe il viaggio nel tempo per aggiungere l'esito.
+    from euroleghe_ingest.modules import export
+
+    for column in ("actual_rounds", "actual_pv", "actual_mv", "actual_fm", "actual_value"):
+        assert column in snapshot.PLAYER_COLUMNS
+        assert column in export.SHEET_COLUMNS, "un esito che l'app non legge non giudica niente"
+        assert column in export.SHEET_COLUMNS_OPTIONAL, "un foglio vecchio non deve essere scartato"
+
+
 def test_duels_need_a_probabili_snapshot_and_never_guess():
     class Obs:
         def __init__(self, fc_id, name, club, role):

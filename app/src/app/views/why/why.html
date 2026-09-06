@@ -20,6 +20,25 @@
       }
     </div>
     <div class="flex items-baseline gap-1">
+      <!-- LA STAGIONE DA GUARDARE, e le date sono quelle per cui il TOOLKIT ha costruito il motore di
+           quel giorno: sceglierne una qui o dal box in basso a destra è la stessa cosa, perché è lo
+           stesso servizio - un secondo stato sarebbe una pagina che crede di stare in un giorno mentre
+           il resto dell'app ne guarda un altro. Sta in cima a QUESTA pagina perché è qui che serve:
+           «quanto ci si è avvicinati» si può chiedere solo di una stagione che è poi stata giocata. -->
+      @if (dates().length) {
+        <nz-select
+          class="w-56"
+          nzSize="small"
+          nzAllowClear
+          nzPlaceHolder="Oggi"
+          [ngModel]="chosenDate()"
+          (ngModelChange)="travelTo($event)"
+        >
+          @for (one of dates(); track one.value) {
+            <nz-option [nzValue]="one.value" [nzLabel]="one.label" />
+          }
+        </nz-select>
+      }
       <button nz-button nzType="primary" nzSize="small" (click)="openSettings()">
         <nz-icon nzType="setting" />
         Impostazioni lega
@@ -58,6 +77,83 @@
       Come si calcola
     </button>
   </div>
+
+  <!-- QUANTO IL PRONOSTICO SI È AVVICINATO. Compare solo su un foglio del passato: su quello di oggi la
+       stagione da prevedere non è stata giocata, e una barra vuota si leggerebbe come «il motore non
+       sbaglia mai». DUE numeri per grandezza, sempre: l'errore medio dice quanto si sbaglia, lo scarto
+       col segno da che parte - e sono indipendenti, quindi un errore senza il suo segno lascia credere
+       che il modello sia centrato. -->
+  @if (hasOutcome()) {
+    <div
+      class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs"
+    >
+      <span class="font-medium text-fg">Com’è andata a finire</span>
+      <span class="text-muted">
+        {{ calibration().judged }} righe giudicate su {{ calibration().rounds }} giornate
+        @if (calibrationEstimated()) {
+          <span>· di cui {{ calibrationEstimated() }} su ripiego</span>
+        }
+      </span>
+      <span nz-tooltip nzTooltipTitle="Errore medio in giornate, e da che parte: positivo = il motore ne aspettava più di quante ne ha giocate.">
+        <span class="text-muted">presenze</span>
+        <span class="ml-1 text-fg">±{{ num(calibration().pvError) }}</span>
+        <span class="ml-1 text-muted">({{ signed(calibration().pvBias) }})</span>
+      </span>
+      <span nz-tooltip [nzTooltipTitle]="'Solo su chi ha giocato almeno ' + calibration().fmFloor + ' giornate: sotto, una media è fatta di troppe poche partite. È la soglia del gate.'">
+        <span class="text-muted">fantamedia</span>
+        <span class="ml-1 text-fg">±{{ num(calibration().fmError, '1.2-2') }}</span>
+        <span class="ml-1 text-muted">
+          ({{ signed(calibration().fmBias, '1.2-2') }} · su {{ calibration().fmJudged }})
+        </span>
+      </span>
+      <span nz-tooltip nzTooltipTitle="FM × presenze: il prodotto dei due, cioè l’unica lettura che li tiene insieme.">
+        <span class="text-muted">fantapunti</span>
+        <span class="ml-1 text-fg">±{{ num(calibration().valueError, '1.0-0') }}</span>
+        <span class="ml-1 text-muted">({{ signed(calibration().valueBias, '1.0-0') }})</span>
+      </span>
+      <button nz-button nzType="text" nzSize="small" (click)="toggleOutcomeNote()">
+        <nz-icon [nzType]="outcomeNote() ? 'up' : 'down'" />
+        Che cosa dice e che cosa no
+      </button>
+    </div>
+  }
+
+  @if (outcomeNote()) {
+    <section class="flex flex-col gap-3 rounded-lg border border-border bg-surface p-4 text-sm">
+      <div>
+        <h2 class="mb-1 font-semibold text-fg">Su quali giornate</h2>
+        <p class="text-muted">
+          Sulle <span class="text-fg">{{ calibration().rounds }} giornate DOPO la data scelta</span>, che
+          sono esattamente quelle che il foglio prevedeva — non sul totale di stagione. Al 5 settembre due
+          giornate erano già state giocate quando il motore ha parlato: confrontare 38 giornate giocate
+          con 36 previste direbbe che tutti hanno reso più del previsto, e sarebbe un fatto sul calendario
+          e non sui calciatori.
+        </p>
+      </div>
+      <div>
+        <h2 class="mb-1 font-semibold text-fg">Che cosa NON è</h2>
+        <p class="text-muted">
+          Non è un verdetto sul motore. Il gate giudica una regola su dieci finestre, con un criterio
+          scritto prima della corsa e su stagioni che non hanno tarato i suoi parametri; questa è una
+          fotografia di <span class="text-fg">una data su una lega</span>, e per giunta di una stagione su
+          cui quei parametri erano stati tarati. Serve a leggere le righe qui sotto — dove il pronostico
+          ha preso e dove ha sbagliato — non a promuovere o bocciare una regola.
+        </p>
+      </div>
+      <div>
+        <h2 class="mb-1 font-semibold text-fg">Due contaminazioni, e vanno nella stessa direzione</h2>
+        <p class="text-muted">
+          Il foglio di una data passata conosce cose che quel giorno non si sapevano: rose, trasferimenti
+          e <span class="text-fg">l’asterisco del listone</span> sono derivati oggi, quindi chi è stato
+          ceduto a gennaio non è nella lista di settembre. Sul foglio di Serie A del 5 settembre 2025 sono
+          131 righe, e nessuna di loro ha poi giocato 25 giornate: la lista è ripulita proprio dei casi
+          peggiori, quindi l’errore qui sopra è <span class="text-fg">ottimistico</span>. Il ruolo
+          granulare è anche lui quello di oggi. Il pacchetto lo dichiara, e il box del viaggio nel tempo
+          lo ripete.
+        </p>
+      </div>
+    </section>
+  }
 
   <!-- IL METODO. È la metà della richiesta che dice «esplicita anche COME calcoli i fattori», quindi sta
        nella pagina e non in un tooltip: i tooltip sono corti per regola, e questa è roba che si legge una
@@ -282,6 +378,38 @@
                 nzTooltipTitle="Il surplus riprezzato su quelle presenze, per giornata. Clicca per ordinare."
                 >+/giornata app{{ sortArrow('appPerMatch') }}</button>
             </th>
+            <!-- L'ESITO, e solo dove esiste: su un foglio di oggi la stagione da prevedere non è stata
+                 giocata, e quattro colonne vuote si leggerebbero come quattro numeri a zero. Stanno in
+                 FONDO e non accanto alle previsioni perché la tabella si legge da sinistra come una
+                 catena - fattori, conto, risultato - e l'esito è quello che la giudica, non un altro
+                 ingrediente. -->
+            @if (hasOutcome()) {
+              <th class="border-l border-border px-2 py-1.5 text-right font-medium">
+                <button class="w-full text-right hover:text-fg" (click)="toggleSort('realPv')" nz-tooltip
+                  nzTooltipTitle="Le giornate in cui ha DAVVERO preso un voto, dopo la data scelta. Clicca per ordinare."
+                  >Pres. reali{{ sortArrow('realPv') }}</button>
+              </th>
+              <th class="px-2 py-1.5 text-right font-medium">
+                <button class="w-full text-right hover:text-fg" (click)="toggleSort('realMv')" nz-tooltip
+                  nzTooltipTitle="La media VOTO che ha davvero fatto. Clicca per ordinare."
+                  >MV reale{{ sortArrow('realMv') }}</button>
+              </th>
+              <th class="px-2 py-1.5 text-right font-medium">
+                <button class="w-full text-right hover:text-fg" (click)="toggleSort('realFm')" nz-tooltip
+                  nzTooltipTitle="La fantamedia che ha davvero fatto, e fra parentesi di quanto il motore l’aveva sbagliata. Clicca per ordinare."
+                  >FM reale{{ sortArrow('realFm') }}</button>
+              </th>
+              <th class="px-2 py-1.5 text-right font-medium">
+                <button class="w-full text-right hover:text-fg" (click)="toggleSort('realValue')" nz-tooltip
+                  nzTooltipTitle="FM × presenze reali: i fantapunti che ha davvero portato. Clicca per ordinare."
+                  >Fantapunti reali{{ sortArrow('realValue') }}</button>
+              </th>
+              <th class="px-2 py-1.5 text-right font-medium">
+                <button class="w-full text-right hover:text-fg" (click)="toggleSort('realSurplus')" nz-tooltip
+                  nzTooltipTitle="Quanto ha reso DAVVERO sopra il suo rimpiazzo, contato con lo stesso rimpiazzo che il foglio prevedeva. Clicca per ordinare."
+                  >Surplus reale{{ sortArrow('realSurplus') }}</button>
+              </th>
+            }
             <th class="px-2 py-1.5 text-left font-medium">Base</th>
           </tr>
         </thead>
@@ -345,6 +473,53 @@
                 {{ num(row.outlook.expected) }}
               </td>
               <td class="px-2 py-1 text-right tabular-nums">{{ signed(row.why.appPerMatch, '1.2-2') }}</td>
+              <!-- OGNI CELLA PORTA IL SUO SCARTO, col verso dichiarato una volta sola: previsto − reale,
+                   quindi un numero positivo vuol dire che il motore era ottimista. Una colonna reale
+                   senza il suo scarto obbliga a fare la sottrazione a mente riga per riga, che è
+                   esattamente il lavoro che questa pagina esiste per togliere. -->
+              @if (hasOutcome()) {
+                <td class="border-l border-border px-2 py-1 text-right tabular-nums">
+                  @if (row.outcome; as out) {
+                    <span class="text-fg">{{ num(out.pv, '1.0-0') }}</span>
+                    <span class="ml-1 text-xs text-muted">{{ signed(out.pvGap) }}</span>
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
+                </td>
+                <td class="px-2 py-1 text-right tabular-nums">{{ num(row.outcome?.mv, '1.2-2') }}</td>
+                <!-- LA FANTAMEDIA REALE E' SPENTA dove e' fatta di troppe poche partite per giudicare, e
+                     il tooltip dice quante e qual e' la soglia: un numero smorzato senza una ragione si
+                     legge come un guasto. -->
+                <td class="px-2 py-1 text-right tabular-nums" [title]="fmOutcomeNote(row)">
+                  @if (row.outcome?.fm != null && row.outcome; as out) {
+                    <span [class.text-muted]="!out.fmScorable">{{ num(out.fm, '1.2-2') }}</span>
+                    <span class="ml-1 text-xs text-muted">{{ signed(out.fmGap, '1.2-2') }}</span>
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
+                </td>
+                <td class="px-2 py-1 text-right tabular-nums">
+                  @if (row.outcome?.value != null && row.outcome; as out) {
+                    <span class="font-medium text-fg">{{ num(out.value, '1.0-0') }}</span>
+                    <span class="ml-1 text-xs text-muted">{{ signed(out.valueGap, '1.0-0') }}</span>
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
+                </td>
+                <!-- IL SURPLUS REALIZZATO, contato con lo stesso rimpiazzo che il foglio prevedeva: se
+                     si muovesse anche lo zero, lo scarto mescolerebbe l'errore su quest'uomo con lo
+                     spostamento del livello di rimpiazzo, che è un fatto sulla lega. E lo ZERO qui è un
+                     esito e non un vuoto: chi non ha giocato ha reso esattamente zero sopra il suo
+                     rimpiazzo, perché il rimpiazzo ha giocato al posto suo. -->
+                <td class="px-2 py-1 text-right tabular-nums" [title]="realSurplusNote(row)">
+                  @if (row.outcome?.surplus != null && row.outcome; as out) {
+                    <span class="font-medium text-fg">{{ num(out.surplus, '1.0-0') }}</span>
+                    <span class="ml-1 text-xs text-muted">{{ signed(out.surplusGap, '1.0-0') }}</span>
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
+                </td>
+              }
               <td class="px-2 py-1 text-left text-xs">
                 @switch (row.why.basis) {
                   @case ('core') {

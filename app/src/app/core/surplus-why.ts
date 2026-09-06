@@ -287,3 +287,174 @@ export function coreFormula(
     `${round(anchor, 2)}) = ${round(core, 2)}`
   );
 }
+
+// ---------------------------------------------------------------- com'e' andata
+
+/**
+ * L'ESITO di una riga accanto a quello che il foglio prevedeva, e lo SCARTO fra i due.
+ *
+ * Nessuno di questi numeri e' una previsione nuova: l'esito lo misura il toolkit (`actual_*`, revisione
+ * 46) sulla stessa finestra che il motore prevede, e qui si fa una sottrazione. Il segno e' sempre
+ * PREVISTO - REALE, cioe' positivo vuol dire che il motore era ottimista: una sola convenzione, scritta
+ * una volta, perche' due colonne con due versi sullo stesso schermo si leggono al contrario a turno.
+ */
+export interface Outcome {
+  /** Su quante giornate l'esito e' misurato: senza, gli altri quattro numeri non si confrontano. */
+  rounds: number;
+  pv: number | null;
+  mv: number | null;
+  fm: number | null;
+  /** FM x presenze: i fantapunti che ha davvero portato in quella finestra. */
+  value: number | null;
+  /**
+   * IL SURPLUS REALIZZATO: `(FM reale - rimpiazzo) x presenze reali`, e il rimpiazzo e' quello che il
+   * foglio PREVEDEVA, non quello che quella stagione ha poi realizzato.
+   *
+   * E' una decisione e non una comodita': cambiando anche lo zero, lo scarto col surplus previsto
+   * mescolerebbe due cose - l'errore su QUEST'UOMO e lo spostamento del livello di rimpiazzo, che e' un
+   * fatto sulla lega - e non si potrebbe attribuire a nessuna delle due. Muovere una variabile sola e'
+   * la sola forma in cui questa colonna dice qualcosa. Lo zero realizzato e' l'altra domanda, e finche'
+   * il foglio non lo porta non si stampa: inventarlo qui sarebbe una seconda risposta.
+   *
+   * ZERO E' UN ESITO, e qui e' l'unico posto dove lo e' davvero: chi non ha giocato ha reso esattamente
+   * zero sopra il suo rimpiazzo, perche' il rimpiazzo ha giocato al posto suo. Non e' un vuoto - e' la
+   * definizione del surplus applicata a un uomo che non c'era.
+   */
+  surplus: number | null;
+  pvGap: number | null;
+  fmGap: number | null;
+  valueGap: number | null;
+  surplusGap: number | null;
+  /** I fantapunti PREVISTI, che sono il termine di paragone di `value` e non stanno da nessun'altra parte. */
+  valuePred: number | null;
+  /** Vero dove la sua fantamedia REALE e' fatta di abbastanza partite per giudicare (vedi `outcomeFloor`). */
+  fmScorable: boolean;
+  /** La soglia che glielo ha deciso: viaggia con la riga perche' il pannello la DICE, e due letture
+   *  della stessa soglia - una per filtrare e una per stamparla - finiscono per non essere d'accordo. */
+  fmFloor: number;
+}
+
+/**
+ * LA SOGLIA sotto la quale una fantamedia reale non giudica niente, ed e' quella del gate.
+ *
+ * `evaluate.scoring_floor`: 15 presenze su 38 e' il 39% del calendario che si sta prevedendo, e su una
+ * finestra dentro la stagione quel calendario e' il RESTO - quindi la soglia e' la stessa QUOTA e non lo
+ * stesso numero, o su un esito da 14 giornate diventerebbe irraggiungibile e la guardia smetterebbe di
+ * misurare invece di fallire. Qui `full` sono le giornate della stagione: quelle giudicate piu' quelle
+ * gia' giocate il giorno dell'asta.
+ *
+ * Non e' una scelta di questa pagina: e' la stessa che decide quali uomini entrano nelle metriche
+ * pubblicate dal gate, e riusarla e' quello che rende i due numeri confrontabili.
+ */
+export const MIN_PV_ACT = 15;
+
+export function outcomeFloor(rounds: number, seen: number | null): number {
+  const full = rounds + (seen ?? 0);
+  if (!seen || !full) return MIN_PV_ACT;
+  return Math.max(3, Math.round((MIN_PV_ACT * rounds) / full));
+}
+
+/** L'esito di una riga, o null dove il foglio non ne porta uno (ogni foglio costruito oggi). */
+export function outcomeOf(
+  actual: { rounds: number | null; pv: number | null; mv: number | null; fm: number | null;
+            value: number | null } | null,
+  predicted: { fm: number | null; pv: number | null; replacement?: number | null;
+               surplus?: number | null },
+  seen: number | null,
+): Outcome | null {
+  if (!actual || actual.rounds == null) return null;
+  const valuePred =
+    predicted.fm == null || predicted.pv == null ? null : predicted.fm * predicted.pv;
+  const gap = (pred: number | null, real: number | null) =>
+    pred == null || real == null ? null : pred - real;
+  // Il surplus realizzato: zero VERO per chi non ha giocato (vedi `Outcome.surplus`), e vuoto solo
+  // dove manca il metro (il rimpiazzo) o l'esito stesso.
+  const zero = predicted.replacement ?? null;
+  const surplus =
+    zero == null || actual.pv == null
+      ? null
+      : actual.pv === 0
+        ? 0
+        : actual.fm == null
+          ? null
+          : (actual.fm - zero) * actual.pv;
+  return {
+    rounds: actual.rounds,
+    pv: actual.pv,
+    mv: actual.mv,
+    fm: actual.fm,
+    value: actual.value,
+    pvGap: gap(predicted.pv, actual.pv),
+    // Lo scarto sulla fantamedia esiste solo dove la fantamedia reale c'e': su zero partite non c'e'
+    // una media, e chiamare quello scarto «il motore ha sbagliato di 6,4» sarebbe misurare un vuoto.
+    fmGap: gap(predicted.fm, actual.fm),
+    valueGap: gap(valuePred, actual.value),
+    surplus,
+    // Contro il surplus del FOGLIO, che e' la colonna che l'operatore legge - non contro una sua
+    // ricostruzione: la pagina spiega un numero che non calcola, e questo vale anche per lo scarto.
+    surplusGap: gap(predicted.surplus ?? null, surplus),
+    valuePred,
+    fmScorable: (actual.pv ?? 0) >= outcomeFloor(actual.rounds, seen),
+    fmFloor: outcomeFloor(actual.rounds, seen),
+  };
+}
+
+/** Quanto il pronostico si e' avvicinato, su una lista: una riga di verbale e non una valutazione. */
+export interface Calibration {
+  /** Righe con un esito misurato, cioe' il denominatore di tutto il resto. */
+  judged: number;
+  rounds: number | null;
+  /** Presenze: scarto medio col segno (positivo = il motore era ottimista) ed errore medio assoluto. */
+  pvBias: number | null;
+  pvError: number | null;
+  /** ...e le stesse due sulla fantamedia, sui soli uomini che l'esito puo' giudicare. */
+  fmBias: number | null;
+  fmError: number | null;
+  fmJudged: number;
+  fmFloor: number | null;
+  /** ...e sui fantapunti, che e' il prodotto dei due e quindi l'unica lettura che li tiene insieme. */
+  valueBias: number | null;
+  valueError: number | null;
+  valueJudged: number;
+}
+
+/**
+ * L'AGGREGATO, e va detto subito che cos'e' e che cosa non e'.
+ *
+ * NON e' un verdetto sul motore: il gate giudica una regola su dieci finestre out-of-sample con un
+ * criterio pre-registrato, questa e' una fotografia di UNA data su UNA lega, e le sue finestre pubblicate
+ * il gate le ha gia' misurate. E' la risposta alla domanda «quanto ci si e' avvicinato QUI», che e'
+ * un'altra cosa e serve a leggere le righe sotto.
+ *
+ * DUE numeri per grandezza e non uno, sempre: l'errore MEDIO ASSOLUTO dice quanto si sbaglia, lo SCARTO
+ * COL SEGNO dice da che parte - e sono indipendenti, perche' un modello puo' sbagliare molto senza
+ * pendere da nessuna parte. Un errore medio senza il suo segno lascia credere che il modello sia centrato.
+ *
+ * La fantamedia ha il suo denominatore (`fmJudged`) perche' non e' quello delle presenze: chi ha giocato
+ * poco ha una media fatta di due partite, e il gate lo esclude con la stessa soglia (`outcomeFloor`).
+ */
+export function calibrationOf(outcomes: (Outcome | null)[]): Calibration {
+  const judged = outcomes.filter((one): one is Outcome => one != null);
+  const mean = (values: number[]) =>
+    values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+  const pv = judged.map((one) => one.pvGap).filter((gap): gap is number => gap != null);
+  const fm = judged
+    .filter((one) => one.fmScorable)
+    .map((one) => one.fmGap)
+    .filter((gap): gap is number => gap != null);
+  const value = judged.map((one) => one.valueGap).filter((gap): gap is number => gap != null);
+  const rounds = judged[0]?.rounds ?? null;
+  return {
+    judged: judged.length,
+    rounds,
+    pvBias: mean(pv),
+    pvError: mean(pv.map(Math.abs)),
+    fmBias: mean(fm),
+    fmError: mean(fm.map(Math.abs)),
+    fmJudged: fm.length,
+    fmFloor: judged[0]?.fmFloor ?? null,
+    valueBias: mean(value),
+    valueError: mean(value.map(Math.abs)),
+    valueJudged: value.length,
+  };
+}

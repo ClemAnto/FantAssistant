@@ -119,3 +119,22 @@ export class TimeTravel {
     return !date || date <= this.today();
   }
 }
+
+/** I mesi per esteso: il vocabolario delle date sta qui perche' due pagine ne scrivono le etichette. */
+const MONTH: Record<string, string> = {
+  '01': 'gennaio', '02': 'febbraio', '03': 'marzo', '04': 'aprile', '05': 'maggio', '06': 'giugno',
+  '07': 'luglio', '08': 'agosto', '09': 'settembre', '10': 'ottobre', '11': 'novembre', '12': 'dicembre',
+};
+
+/**
+ * COME SI CHIAMA UNA DATA a schermo: «settembre 2025 · dopo il mercato estivo».
+ *
+ * Una definizione e due lettori - il box in basso e la pagina del «perche'», che offre le stesse date
+ * perche' e' la pagina in cui servono. Due etichette per la stessa data sarebbero due nomi per un
+ * pacchetto solo, e chi guarda non saprebbe che sono lo stesso.
+ */
+export function packLabel(pack: TimePack): string {
+  const month = `${MONTH[pack.date.slice(5, 7)]} ${pack.date.slice(0, 4)}`;
+  if (!pack.window) return month;
+  return `${month} · dopo il mercato ${pack.window === 'estiva' ? 'estivo' : 'invernale'}`;
+}

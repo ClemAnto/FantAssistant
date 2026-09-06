@@ -188,6 +188,19 @@ async function waitFor(session, fn, tries = 60, ...args) {
  */
 
 /** Un numero italiano come la pagina lo scrive: `−1,23` → -1.23, `—` → null. */
+/**
+ * IL PRIMO numero di una cella, per le celle che ne portano DUE - il valore e il suo scarto.
+ *
+ * `parseNumber` toglie gli spazi e il segno, quindi su «12 +1.9» legge **121.9**: due numeri fusi in uno
+ * che sembra un numero. Trovato dal banco stesso su Dimarco (121,9 presenze su 36 giornate, che nessuno
+ * ha creduto per mezzo secondo) - ed è la ragione per cui un valore assurdo va guardato prima di
+ * accusare la pagina.
+ */
+function firstNumber(text) {
+  const found = String(text ?? '').match(/-?[−]?\d+(?:[.,]\d+)?/);
+  return found ? parseNumber(found[0]) : null;
+}
+
 function parseNumber(text) {
   const clean = (text ?? '').replace(/\s/g, '').replace('−', '-').replace('+', '').replace(',', '.');
   if (!clean || clean === '—' || clean === '-') return null;
@@ -865,8 +878,14 @@ async function main() {
     const clubName = men.find((one) => one.name === target.name)?.club ?? null;
     await toTop(session);
     await restPointer(session);
+    // LA TENDINA GIUSTA e non la prima: da quando la pagina offre anche le DATE del viaggio nel tempo,
+    // `querySelector('nz-select')` prende quella - e il passo aprirebbe il selettore delle stagioni
+    // accusando poi il filtro squadre di non offrire nessun club. Si sceglie per il suo posto dichiarato
+    // (il segnaposto), che è quello che un occhio userebbe.
     const box = await evaluate(session, () => {
-      const select = document.querySelector('nz-select');
+      const select = [...document.querySelectorAll('nz-select')].find((one) =>
+        (one.innerText ?? '').includes('squadre'),
+      );
       if (!select) return null;
       const rect = select.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
@@ -944,6 +963,186 @@ async function main() {
       said: `«${surname}»: ${found.length} righe su ${everything}`,
       problems: searchProblems,
     });
+
+    // 9. IL VIAGGIO NEL TEMPO E L'ESITO, che e' la sola cosa in questa pagina capace di SMENTIRE il
+    //    motore. Due affermazioni, e la prima e' quella che si dimentica: su OGGI le colonne reali NON
+    //    devono esistere, perche' la stagione da prevedere non e' stata giocata - quattro colonne vuote
+    //    si leggerebbero come quattro numeri a zero.
+    const outcomeProblems = [];
+    let outcomeSaid = '';
+    const before = (await evaluate(session, readHeaders)) ?? [];
+    if (before.some((one) => one.startsWith('Pres. reali'))) {
+      outcomeProblems.push("su oggi la pagina disegna gia' le colonne dell'esito, e la stagione non e' giocata");
+    }
+    const packs = manifest.timepacks ?? [];
+    if (!packs.length) {
+      outcomeProblems.push('il bundle non porta nessun pacchetto: il viaggio nel tempo non si puo fare');
+    } else {
+      // La data si sceglie dal MANIFEST - la piu' recente fra quelle di inizio stagione, che e' quella su
+      // cui la domanda ha senso - e mai scritta a mano: un pacchetto in piu' o in meno la sposta.
+      const pack = [...packs].sort((left, right) => right.date.localeCompare(left.date))
+        .find((one) => one.window === 'estiva') ?? packs[packs.length - 1];
+      // La tendina elenca i pacchetti nell'ordine del manifest, quindi la posizione E' la data: cercare
+      // l'anno nel testo prendeva febbraio 2026, la cui etichetta dice «stagione 2025-26».
+      const at = packs.findIndex((one) => one.date === pack.date);
+      await evaluate(session, clearSearch);
+      await toTop(session);
+      await restPointer(session);
+      const dateBox = await evaluate(session, () => {
+        const select = [...document.querySelectorAll('nz-select')].find(
+          (one) => !(one.innerText ?? '').includes('squadre'),
+        );
+        if (!select) return null;
+        const rect = select.getBoundingClientRect();
+        return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      });
+      if (!dateBox) {
+        outcomeProblems.push('la pagina non offre le date del viaggio nel tempo');
+      } else {
+        await click(session, dateBox);
+        await wait(400);
+        const option = await evaluate(session, (index) => {
+          const items = [...document.querySelectorAll('.ant-select-item-option')];
+          const found = items[index];
+          if (!found) return null;
+          found.scrollIntoView({ block: 'center' });
+          const rect = found.getBoundingClientRect();
+          return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
+                   text: (found.innerText ?? '').trim() };
+        }, at);
+        if (!option) {
+          outcomeProblems.push(`la tendina non offre ${pack.date}`);
+        } else {
+          await click(session, option);
+          // Il pacchetto va scaricato e i fogli riletti: si ASPETTA che le colonne compaiano invece di
+          // dormire un numero a caso, o il passo misura la propria fretta.
+          const arrived = await waitFor(
+            session,
+            () => [...document.querySelectorAll('table thead th')].some((one) =>
+              (one.innerText ?? '').startsWith('Pres. reali')),
+            80,
+          );
+          if (!arrived) {
+            outcomeProblems.push("scelta la data, le colonne dell'esito non compaiono");
+          } else {
+            // IL METRO E' IL FOGLIO DEL PACCHETTO, letto dallo stesso server: confrontare la pagina con
+            // un numero ricavato dalla pagina e' l'asserzione circolare pagata il 04/09/2026.
+            const packManifest = await (await fetch(`${base}/${pack.path}`)).json();
+            const league = (packManifest.leagues ?? []).find(
+              (one) => one.platform === 'default' && one.game === 'classic',
+            );
+            const packSheet = league
+              ? await gz(`${base}/timepacks/${pack.date}/${league.sheet}`)
+              : null;
+            if (!packSheet) {
+              outcomeProblems.push(`il pacchetto ${pack.date} non porta il foglio Serie A classic`);
+            } else {
+              const c = (name) => packSheet.columns.indexOf(name);
+              const cols = {
+                name: c('name'), rounds: c('actual_rounds'), pv: c('actual_pv'), mv: c('actual_mv'),
+                fm: c('actual_fm'), value: c('actual_value'),
+                replacement: c('engine_replacement_fm'),
+              };
+              if (cols.rounds < 0) {
+                outcomeProblems.push(
+                  `il pacchetto ${pack.date} e' a revisione ${packManifest.sheet_revision} e non porta ` +
+                  "le colonne dell'esito: `timepack --refresh`",
+                );
+              } else {
+                // ...e la BARRA si legge PRIMA di filtrare: e' costruita sulle righe mostrate per
+                // scelta, quindi dopo una ricerca direbbe «1 riga giudicata» - vero, e non quello che
+                // questo passo verifica. Le giornate su cui l'esito e' contato devono essere quelle del
+                // foglio: se la data scelta fosse un'altra, questo e' il numero che lo dice.
+                const bar2 = await evaluate(session, () => {
+                  const box = [...document.querySelectorAll('div')].find((one) =>
+                    (one.innerText ?? '').startsWith('Com'));
+                  return box ? (box.innerText ?? '').replace(/\s+/g, ' ').trim() : null;
+                });
+                const saidRounds = Number((String(bar2 ?? '').match(/su (\d+) giornate/) ?? [])[1] ?? NaN);
+                if (saidRounds !== packSheet.rows[0][cols.rounds]) {
+                  outcomeProblems.push(
+                    `la barra dice ${saidRounds} giornate e il foglio ne conta `
+                    + `${packSheet.rows[0][cols.rounds]} (opzione scelta: ${option.text})`,
+                  );
+                }
+                // L'uomo su cui misurare esce dal FOGLIO: chi ha portato piu' fantapunti, cioe' la riga
+                // che si trova senza scorrere quando si ordina per l'esito.
+                const withOutcome = packSheet.rows.filter((row) => row[cols.value] != null);
+                const best = withOutcome.sort((l, r) => r[cols.value] - l[cols.value])[0];
+                await evaluate(session, typeSearch, best[cols.name]);
+                await wait(700);
+                const heads = (await evaluate(session, readHeaders)) ?? [];
+                const line = await waitFor(session, readRow, 20, best[cols.name]);
+                // Ogni cella dell'esito porta DUE numeri (il valore e il suo scarto), quindi si legge
+                // il primo: `parseNumber` li fonderebbe in uno che sembra un numero.
+                const read = (label) => {
+                  const index = heads.findIndex((one) => one.startsWith(label));
+                  return index < 0 || !line ? null : firstNumber(line.cells[index]);
+                };
+                // Il surplus realizzato si RICOSTRUISCE dal foglio - `(FM reale - rimpiazzo) x presenze`
+                // - e non si legge da una colonna che il foglio non ha: e' l'app a farlo, quindi il
+                // metro del banco dev'essere il conto e non la pagina.
+                const want = {
+                  'Pres. reali': best[cols.pv],
+                  'MV reale': best[cols.mv],
+                  'FM reale': best[cols.fm],
+                  'Fantapunti reali': best[cols.value],
+                  'Surplus reale':
+                    best[cols.fm] == null || best[cols.replacement] == null
+                      ? null
+                      : (best[cols.fm] - best[cols.replacement]) * best[cols.pv],
+                };
+                outcomeSaid =
+                  `${pack.date} - ${best[cols.name]}: ` +
+                  Object.entries(want).map(([key, one]) => `${key} ${read(key)} contro ${one}`).join(' - ');
+                for (const [label, expected] of Object.entries(want)) {
+                  // La tolleranza e' l'ARROTONDAMENTO DELLA COLONNA e non una banda scelta perche' un
+                  // caso ci cadeva: presenze e fantapunti si stampano a zero decimali, quindi mezza
+                  // unita' e' quanto una cifra intera puo' distare da 257,5 - le due medie hanno due
+                  // decimali e restano nella banda stretta.
+                  const slack =
+                    label.startsWith('Pres.') || label.startsWith('Fantapunti')
+                      || label.startsWith('Surplus')
+                      ? 0.5
+                      : 0.006;
+                  if (!near(read(label), expected, slack)) {
+                    outcomeProblems.push(`${label}: a schermo ${read(label)}, sul foglio ${expected}`);
+                  }
+                }
+                outcomeSaid += ` - barra: ${bar2 ?? '(niente)'}`;
+
+                // CHI NON HA GIOCATO: la sua colonna deve dire ZERO e non un trattino, perche' sopra il
+                // suo rimpiazzo ha reso esattamente niente - il rimpiazzo ha giocato al posto suo. E' la
+                // sola affermazione nuova della colonna, quindi e' quella da verificare; l'uomo si sceglie
+                // dal foglio (il piu' caro fra chi ha zero presenze, cosi' e' un nome riconoscibile).
+                const ghost = packSheet.rows
+                  .filter((row) => row[cols.pv] === 0 && row[cols.replacement] != null)
+                  .sort((l, r) => (r[c('engine_pv_pred')] ?? 0) - (l[c('engine_pv_pred')] ?? 0))[0];
+                if (!ghost) {
+                  outcomeProblems.push('nessuno con zero presenze sul foglio: il caso non e\' verificabile');
+                } else {
+                  await evaluate(session, typeSearch, ghost[cols.name]);
+                  await wait(700);
+                  const heads2 = (await evaluate(session, readHeaders)) ?? [];
+                  const line2 = await waitFor(session, readRow, 20, ghost[cols.name]);
+                  const at2 = heads2.findIndex((one) => one.startsWith('Surplus reale'));
+                  const cell = at2 < 0 || !line2 ? null : line2.cells[at2];
+                  const zero = firstNumber(cell);
+                  outcomeSaid += ` - chi non ha giocato: ${ghost[cols.name]} legge «${cell ?? '(niente)'}»`;
+                  if (zero !== 0) {
+                    outcomeProblems.push(
+                      `${ghost[cols.name]} non ha giocato e il suo surplus reale legge ${cell}: `
+                      + 'zero e\' un esito, non un vuoto',
+                    );
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    note("com'e' andata a finire", { said: outcomeSaid || '(niente)', problems: outcomeProblems });
 
     if (flag('--shot')) {
       const shot = await session.send('Page.captureScreenshot', { format: 'png' });

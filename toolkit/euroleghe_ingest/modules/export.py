@@ -337,6 +337,17 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_out_until",
     "desc_out_rounds",
     "desc_out_share",
+    # L'ESITO (06/09/2026), che e' la sola classe di colonne misurata DOPO la data d'asta e quindi la sola
+    # che puo' SMENTIRE il motore invece di descriverlo. Viaggia per la domanda dell'operatore - «capire
+    # quanto questo pronostico si avvicina alla realta'» - e ha senso su un pacchetto del viaggio nel
+    # tempo, dove la stagione prevista e' poi stata giocata; sul foglio di oggi le colonne ci sono e i
+    # numeri no, che e' quello che deve succedere. `actual_rounds` viaggia con le altre quattro e non solo
+    # nel manifest: senza le giornate su cui e' contato, un esito non e' confrontabile con niente.
+    "actual_rounds",
+    "actual_pv",
+    "actual_mv",
+    "actual_fm",
+    "actual_value",
 )
 
 
@@ -369,7 +380,12 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     # una data - che e' la maggior parte del listone. Pretenderle scarterebbe ogni pacchetto esistente,
     # cioe' spegnerebbe il viaggio nel tempo per aggiungere una colonna: e' la terza volta che questo
     # commento si scrive, ed e' la ragione per cui la lista opzionale esiste.
-    "desc_out_until", "desc_out_rounds", "desc_out_share"})
+    "desc_out_until", "desc_out_rounds", "desc_out_share",
+    # ...e le cinque dell'esito, nate il 06/09/2026: ogni foglio scritto prima della revisione 46 non le
+    # ha, pacchetti compresi. Quarta volta che questo commento si scrive, e la ragione e' sempre la
+    # stessa: pretendere una colonna nuova da un foglio vecchio spegne il viaggio nel tempo per
+    # aggiungerla.
+    "actual_rounds", "actual_pv", "actual_mv", "actual_fm", "actual_value"})
 
 
 def _sheet_folders(reports: Path, target: str) -> list[Path]:

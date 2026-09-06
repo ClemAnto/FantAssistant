@@ -2,8 +2,11 @@ import {
   REBUILD_TOLERANCE,
   WhyColumns,
   WhyInput,
+  calibrationOf,
   coreFormula,
   explainSurplus,
+  outcomeFloor,
+  outcomeOf,
   parseRungs,
 } from './surplus-why';
 
@@ -163,5 +166,118 @@ describe('coreFormula', () => {
     expect(coreFormula({ ...COLUMNS, fmPrev: null }, 6.05, false)).toBeNull();
     expect(coreFormula(COLUMNS, null, false)).toBeNull();
     expect(coreFormula(null, 6.05, false)).toBeNull();
+  });
+});
+
+/**
+ * L'ESITO, che e' la sola cosa in questa pagina capace di SMENTIRE il motore invece di descriverlo.
+ *
+ * Quello che i test difendono e' la disciplina attorno al numero, non il numero: il verso della
+ * sottrazione (una convenzione sola, o due colonne si leggono al contrario a turno), il fatto che una
+ * media su zero partite non esista, e che la soglia che decide chi puo' giudicare una fantamedia sia
+ * quella del gate e non una scelta di schermo.
+ */
+describe('outcomeOf', () => {
+  const actual = { rounds: 36, pv: 33, mv: 6.7, fm: 7.8, value: 257.5 };
+
+  it('il verso della sottrazione e’ PREVISTO − REALE: positivo vuol dire ottimista', () => {
+    const out = outcomeOf(actual, { fm: 6.412, pv: 26.8 }, 2)!;
+    expect(out.pvGap).toBeCloseTo(26.8 - 33, 5);
+    expect(out.pvGap).toBeLessThan(0);            // il motore lo dava per assente sei giornate in piu'
+    expect(out.fmGap).toBeCloseTo(6.412 - 7.8, 5);
+    expect(out.valuePred).toBeCloseTo(6.412 * 26.8, 3);
+    expect(out.valueGap).toBeCloseTo(6.412 * 26.8 - 257.5, 3);
+  });
+
+  it('senza esito sul foglio non c’e’ un esito: e’ ogni foglio costruito oggi', () => {
+    expect(outcomeOf(null, { fm: 6.4, pv: 26 }, 2)).toBeNull();
+    expect(outcomeOf({ ...actual, rounds: null }, { fm: 6.4, pv: 26 }, 2)).toBeNull();
+  });
+
+  it('zero presenze e’ un ESITO, una media su zero partite non esiste', () => {
+    // Si e' fatto male, e' partito, non ha piu' giocato: `pv` 0 e' un fatto e si legge, mentre `fm`
+    // resta vuota e il suo scarto con lei - «vuoto = ignoto» dai due lati contemporaneamente.
+    const out = outcomeOf({ rounds: 36, pv: 0, mv: null, fm: null, value: null },
+                          { fm: 6.4, pv: 20 }, 2)!;
+    expect(out.pvGap).toBe(20);
+    expect(out.fmGap).toBeNull();
+    expect(out.valueGap).toBeNull();
+    expect(out.fmScorable).toBe(false);
+  });
+
+  it('la soglia della fantamedia e’ una QUOTA del calendario giudicato, come nel gate', () => {
+    // `evaluate.scoring_floor`: 15 su 38 e' il 39% delle giornate previste, quindi su un esito piu'
+    // corto la soglia scende con lui. Una soglia assoluta di 15 su un esito da 14 giornate non sarebbe
+    // severa: sarebbe irraggiungibile, e la guardia smetterebbe di misurare invece di fallire.
+    expect(outcomeFloor(36, 2)).toBe(14);
+    expect(outcomeFloor(14, 24)).toBe(6);
+    expect(outcomeFloor(38, null)).toBe(15);       // pre-stagione: il resto della stagione E' la stagione
+    expect(outcomeFloor(2, 36)).toBe(3);           // mai sotto tre partite
+  });
+});
+
+describe('calibrationOf', () => {
+  const row = (pvPred: number, fmPred: number, pv: number, fm: number | null) =>
+    outcomeOf({ rounds: 36, pv, mv: null, fm, value: fm == null ? null : fm * pv },
+              { fm: fmPred, pv: pvPred }, 2);
+
+  it('dice quanto si sbaglia E da che parte, che sono due cose indipendenti', () => {
+    // Due righe che sbagliano di sei giornate in versi opposti: l'errore medio e' sei, lo scarto col
+    // segno e' zero. Un errore senza il suo segno lascerebbe credere che il modello penda; uno scarto
+    // senza l'errore, che sia preciso.
+    const answer = calibrationOf([row(30, 6.5, 24, 6.5), row(24, 6.5, 30, 6.5)]);
+    expect(answer.judged).toBe(2);
+    expect(answer.pvError).toBeCloseTo(6, 5);
+    expect(answer.pvBias).toBeCloseTo(0, 5);
+  });
+
+  it('la fantamedia ha il suo denominatore, e non e’ quello delle presenze', () => {
+    // Chi ha giocato due partite ha una media fatta di due partite: entra nel conto delle presenze -
+    // dove due partite sono l'esito - e resta fuori da quello della fantamedia, con la stessa soglia
+    // che il gate applica. Il pannello STAMPA quel denominatore, o il numero accanto non si interpreta.
+    const answer = calibrationOf([row(30, 6.5, 33, 7.0), row(20, 7.5, 2, 4.0)]);
+    expect(answer.judged).toBe(2);
+    expect(answer.fmJudged).toBe(1);
+    expect(answer.fmFloor).toBe(14);
+    expect(answer.fmError).toBeCloseTo(0.5, 5);
+  });
+
+  it('una lista senza esiti non produce numeri, e non produce zeri', () => {
+    const answer = calibrationOf([null, null]);
+    expect(answer.judged).toBe(0);
+    expect(answer.pvError).toBeNull();
+    expect(answer.pvBias).toBeNull();
+    expect(answer.rounds).toBeNull();
+  });
+});
+
+describe('il surplus realizzato', () => {
+  const actual = { rounds: 36, pv: 30, mv: 6.4, fm: 7.0, value: 210 };
+  const predicted = { fm: 6.5, pv: 26, replacement: 5.8, surplus: 18.2 };
+
+  it('si conta con lo zero che il foglio PREVEDEVA, o lo scarto mescola due cose', () => {
+    // Cambiando anche il rimpiazzo, la differenza col surplus previsto conterrebbe l'errore su
+    // quest'uomo E lo spostamento del livello di rimpiazzo, che è un fatto sulla lega: non si
+    // potrebbe attribuire a nessuna delle due. Si muove una variabile sola.
+    const out = outcomeOf(actual, predicted, 2)!;
+    expect(out.surplus).toBeCloseTo((7.0 - 5.8) * 30, 5);
+    // ...e lo scarto è contro il surplus DEL FOGLIO, non contro una nostra ricostruzione
+    expect(out.surplusGap).toBeCloseTo(18.2 - 36, 5);
+  });
+
+  it('chi non ha giocato ha reso ZERO, ed è un esito e non un vuoto', () => {
+    // È il solo posto di questa pagina dove uno zero è una misura: il rimpiazzo ha giocato al posto
+    // suo, quindi sopra di lui ha aggiunto esattamente niente. La fantamedia resta vuota - una media
+    // su zero partite non esiste - e il surplus no.
+    const out = outcomeOf({ rounds: 36, pv: 0, mv: null, fm: null, value: null }, predicted, 2)!;
+    expect(out.surplus).toBe(0);
+    expect(out.fm).toBeNull();
+    expect(out.surplusGap).toBeCloseTo(18.2, 5);
+  });
+
+  it('senza il metro non si stampa un numero', () => {
+    const out = outcomeOf(actual, { fm: 6.5, pv: 26 }, 2)!;
+    expect(out.surplus).toBeNull();
+    expect(out.surplusGap).toBeNull();
   });
 });

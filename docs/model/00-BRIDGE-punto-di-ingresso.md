@@ -1,5 +1,34 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 5 settembre 2026 (notte) — PERCHÉ QUEL SURPLUS: una pagina che spiega un numero che non
+**Aggiornato: 6 settembre 2026 — QUANTO IL PRONOSTICO SI AVVICINA: la stessa pagina, un anno indietro.**
+Da «lo scopo del SURPLUS è di dare un indice di valore del calciatore PRONOSTICANDO come andrà la sua
+stagione ... capire quanto questo pronostico si avvicina alla realtà ... applicare l'algoritmo con i dati
+presi alla terza giornata della scorsa stagione ... mostrami i valori reali di fine stagione».
+(a) **METÀ DELLA RICHIESTA ERA GIÀ COSTRUITA, e la prima cosa da fare era guardare**: «l'algoritmo alla
+terza giornata della scorsa stagione» è `timepack` (16/08), e **2025-09-05 è una delle quattro date
+impacchettate** — quel giorno la Serie A aveva giocato 2 giornate e il foglio prevede le 36 che restavano.
+Mancava il METRO, non il motore. (b) **CINQUE COLONNE `actual_*`, `SHEET_REVISION` 46**: `actual_rounds`,
+`actual_pv`, `actual_mv`, `actual_fm`, `actual_value`, misurate sulle giornate **DOPO la data d'asta** e
+non sul totale di stagione — 38 giocate contro 36 previste è un fatto sul calendario e non sui calciatori
+— e sulla STESSA finestra che `features._split_target_season` usa per l'esito del gate. Reporting
+integrale: **`backtest --verify` 22/22**. (c) **SU `/why`**: una tendina delle quattro date in cima (lo
+stesso `TimeTravel` del box, iniettato e non copiato), sei colonne dell'esito ognuna col suo scarto
+(previsto − reale, un verso solo dichiarato una volta) e una barra di calibrazione con **due numeri per
+grandezza** — errore medio E scarto col segno, che sono indipendenti. (d) **IL VERDETTO, Serie A al
+05/09/2025, 36 giornate**: presenze **6,87** di errore e −0,24 di scarto, fantamedia **0,317** e +0,032
+(su chi ha giocato almeno 14 giornate, la soglia del gate), fantapunti **42,7** — cioè **quello che il
+motore sbaglia sono le PRESENZE**, e concorda con tre misure indipendenti già in casa (`Var(ln pv)` =
+86-90%, il vantaggio sulla quotazione «largo un numero solo», i +18,1 fantapunti dentro una fascia).
+(e) **DUE COSE DETTE INVECE CHE NASCOSTE**: non è un verdetto sul motore (dry run su una stagione che ha
+tarato quei parametri), e l'asterisco del listone toglie 131 righe di cui **nessuna ha poi giocato 25
+giornate**, quindi l'errore misurato è **OTTIMISTICO** — la direzione di una contaminazione è parte del
+risultato. (f) **UNA RICHIESTA MISURATA E NON IMPLEMENTATA**: la data «dopo la terza giornata» vale
+**l'1,0%** di errore in meno (quota presenze 0,1907 → 0,1888) e la fantamedia non si muove di un
+millesimo, contro una convenzione nuova e nove minuti a ogni refresh dei pacchetti — quindi resta fuori,
+col numero a verbale perché la decisione è dell'operatore. 764 test app + 697 toolkit, banco `e2e-why`
+verde (compreso il caso in cui uno ZERO è un esito: Boloca, 21,5 previste e zero giocate), quattro
+pacchetti e tre fogli rifatti, **bundle a revisione 46**.
+Dettaglio: `letture-app-v1.md` §31, spec «Novità v9.77».
+· precedente: 5 settembre 2026 (notte) — PERCHÉ QUEL SURPLUS: una pagina che spiega un numero che non
 calcola.** Da «non sono ancora contento del surplus assegnato ad ogni calciatore ... mi espliciti i
 fattori che poi portano al valore di surplus/match», più altre quattro richieste in fila. (a) LA
 DECISIONE CHE REGGE TUTTO: si LEGGE, non si ricalcola — una spiegazione ricalcolata è la spiegazione di

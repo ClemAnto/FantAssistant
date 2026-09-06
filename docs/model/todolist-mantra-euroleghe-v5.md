@@ -1319,3 +1319,35 @@ misura da inventare.
   dove una guardia scritta su un `data/` letterale rifiuterebbe l'unica cartella che protegge). I due
   file da zero byte sono stati rimossi. Resta vero che *non sappiamo* chi digitò cosa, e adesso non
   serve più saperlo.
+
+## Aperto dopo la sessione del 06/09/2026 (l'ESITO sul foglio, e quanto il pronostico si avvicina)
+
+Chiuso nella sessione: le cinque colonne `actual_*` (`SHEET_REVISION` 46) misurate sulla finestra che il
+foglio prevede, la tendina delle stagioni e le sei colonne dell'esito su `/why`, la barra di calibrazione.
+`backtest --verify` 22/22, bundle a revisione 46. Verbali: `letture-app-v1.md` §31, spec «Novità v9.77».
+Restano tre voci, e **nessuna è una misura da inventare**: due hanno già il numero, la terza è una
+decisione dell'operatore.
+
+* **LO ZERO REALIZZATO come colonna del foglio.** Oggi il «Surplus reale» si conta con il rimpiazzo che il
+  foglio PREVEDEVA, e la ragione è che muovendo anche lo zero lo scarto mescolerebbe l'errore sull'uomo
+  con lo spostamento del livello di rimpiazzo — un fatto sulla LEGA. L'altra lettura («quanto ha reso
+  sopra chi giocava davvero al posto suo quell'anno») è legittima e il toolkit sa già darla:
+  `features.replacement_actual` è calcolato in `prepare` quando c'è la lega, e non arriva sul foglio.
+  Costo: una colonna `actual_replacement_fm` più una corsa dei pacchetti (~35 min). Da fare solo se
+  l'operatore vuole la seconda lettura: due zeri sono due domande, quindi due colonne e due nomi, mai una
+  cifra sola.
+
+* **LA DATA «DOPO LA TERZA GIORNATA» — misurata e NON aggiunta.** Il numero c'è: sul foglio Serie A del
+  16/09/2025 contro quello del 05/09, la previsione si muove di **0,030** di quota presenze (≈1,1 giornate
+  su 36) e di **zero millesimi** di fantamedia, e l'errore migliora dell'**1,0%** (quota presenze 0,1907 →
+  0,1888; fantamedia 0,317 → 0,312). Contro: una convenzione nuova in `timepack.WINDOWS` — che sarebbe
+  legittima, perché la data la legge il CALENDARIO e non i trasferimenti — più sei corse di `snapshot` a
+  ogni rifacimento dei pacchetti (~9 minuti). Non aggiunta; la decisione è dell'operatore e ora è
+  informata. Il foglio del 16/09 resta in `data/reports/` come prova.
+
+* **LA GRANDEZZA SU CUI C'È DA GUADAGNARE È MISURATA, e non è una novità: le PRESENZE.** L'errore sulla
+  fantamedia è 0,317 su una scala che va da 5 a 8 (praticamente centrato, +0,032 di scarto); quello sulle
+  presenze è 6,87 giornate su 36. Siccome il surplus è un prodotto, l'errore sui fantapunti (42,7) è quasi
+  tutto lì, e la coda è fatta di infortuni e partenze — Angelino 29,4 previste e 5 giocate, Lukaku 21,8 →
+  2 — cioè di ciò che nessun modello di agosto può prevedere. Questo NON è un item da eseguire: è dove
+  guardare quando se ne apre uno.

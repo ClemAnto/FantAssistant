@@ -4384,6 +4384,55 @@ ORDINE FRA MODULI, e un test per modulo non li puo' vedere. Dettaglio: `stato-pr
   *Quando un commento dichiara un costo che il codice accanto paga lo stesso, il commento e' la
   segnalazione.*
 
+## Un PRONOSTICO si giudica sulla finestra che prevede, e meta' della richiesta era gia' costruita
+**06/09/2026, dalla richiesta dell'operatore: «lo scopo del SURPLUS e' di dare un indice di valore del
+calciatore PRONOSTICANDO come andra' la sua stagione ... uno step fondamentale e' capire quanto questo
+pronostico si avvicina alla realta'». Dettaglio: `letture-app-v1.md` §31, spec «Novita' v9.77».**
+
+**«Applicare l'algoritmo con i dati presi alla terza giornata della scorsa stagione» ESISTEVA GIA'**:
+e' `timepack` (16/08/2026), e **2025-09-05 e' una delle quattro date impacchettate** — al 5 settembre
+2025 la Serie A aveva giocato 2 giornate e il foglio ne prevede 36. Quello che mancava non era il motore
+di una data passata, era il **METRO**: nessuna colonna diceva cosa quei calciatori hanno poi fatto
+davvero. *Prima di costruire si guarda cosa c'e'*, e per la settima volta la misura ha risparmiato piu'
+codice di quanto ne abbia aggiunto — qui una pagina intera.
+
+**L'ESITO SI MISURA SULLE GIORNATE CHE IL FOGLIO PREVEDE, mai sul totale di stagione.** `actual_rounds`,
+`actual_pv`, `actual_mv`, `actual_fm`, `actual_value` (`SHEET_REVISION` 46) contano le giornate **dopo la
+data d'asta**: al 5 settembre due erano gia' state giocate quando il motore ha parlato, quindi 38 giocate
+contro 36 previste direbbe che tutti hanno reso piu' del previsto — un fatto sul calendario e non sui
+calciatori. E' «l'unita' di una sottrazione e' parte della sottrazione» applicata al GIUDIZIO. La finestra
+e' anche la STESSA che `features._split_target_season` usa per l'esito del gate, riletta dalle sue due
+funzioni pubbliche invece di ritagliata una seconda volta.
+
+**IL NUMERO, e concorda con tre misure che non avevano ragione di concordare.** Serie A classic, 5
+settembre 2025, 36 giornate giudicate, 556 righe (361 col motore): presenze errore medio **6,87 giornate**
+e scarto −0,24 (solo motore 6,56 e −1,00); fantamedia **0,317** e scarto +0,032 su chi ha giocato almeno
+14 giornate, che e' la soglia del gate; fantapunti 42,7. Cioe' **quello che sbagliamo sono le PRESENZE e
+non la fantamedia** — e la coda e' fatta di infortuni e partenze (Angelino 29,4 previste e 5 giocate,
+Lukaku 21,8 e 2), mentre dall'altra parte c'e' chi il posto se l'e' preso (Palestra 16,5 e 36). La stessa cosa che
+`Var(ln pv)` = 86-90% di `Var(ln` fantapunti`)` dice da un lato, che il vantaggio incrementale sulla
+quotazione «largo un numero solo» dice da un altro, e che i +18,1 fantapunti di `bench.auction.advice`
+dicono dal terzo. Qui si vede dal lato dell'ERRORE: e' la grandezza su cui c'e' ancora da guadagnare.
+
+**E NON E' UN VERDETTO SUL MOTORE, che e' la meta' da dire per prima**: il gate giudica una regola su
+dieci finestre con un criterio scritto prima della corsa; questa e' una fotografia di UNA data su UNA
+lega, e per giunta di una stagione che ha tarato quei parametri — il foglio lo dichiara da se' («this run
+is a DRY RUN, not an out-of-sample statement»). Serve a leggere le righe, non a promuovere niente.
+
+**LA DIREZIONE DI UNA CONTAMINAZIONE E' PARTE DEL RISULTATO.** Un foglio back-dated conosce cose che quel
+giorno non si sapevano (rose, trasferimenti, ruoli granulari, l'asterisco del listone): sul foglio del 5
+settembre 2025 l'asterisco toglie **131 righe**, e misurato **nessuna di loro ha poi giocato 25 giornate**
+(Lookman 11, Castellanos 11, Lucca 9). La lista e' ripulita proprio dei casi peggiori, quindi l'errore
+misurato e' **ottimistico** — e va scritto accanto al numero, non lasciato scoprire. Stessa famiglia di
+«la direzione di un errore e' parte dell'errore» (§17 del simulatore, dove sbagliava a sfavore del
+braccio giudicato).
+
+**Un secondo COMANDO non e' un secondo stato**: la tendina delle date in cima a `/why` inietta
+`TimeTravel`, non ne fa una copia, e l'etichetta di una data e' una funzione sola letta dal box e dalla
+pagina. Due etichette per la stessa data sarebbero due nomi per un pacchetto solo. Il banco ha dovuto
+imparare a scegliere la tendina giusta — con due `nz-select` sulla pagina, `querySelector` prende la
+prima, e il passo del filtro squadre avrebbe accusato il filtro di non offrire nessun club.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

@@ -391,6 +391,34 @@ export interface EngineExpectation {
    */
   anchor: number | null;
   why: WhyColumns | null;
+  /**
+   * COM'E' ANDATA DAVVERO (`actual_*`, revisione 46), o null dove non e' ancora andata in nessun modo.
+   *
+   * E' la sola classe di colonne del foglio misurata DOPO la data d'asta, quindi l'unica che puo'
+   * smentire il motore invece di descriverlo. Letta e mai ricalcolata come tutto il resto - qui la
+   * ragione e' piu' stringente del solito: la finestra su cui l'esito e' contato deve essere la STESSA
+   * che le due colonne del motore prevedono, e quel taglio lo sa fare solo chi ha il calendario.
+   */
+  actual: ActualOutcome | null;
+}
+
+/**
+ * L'ESITO di un uomo sulla finestra che il foglio prevedeva. Nessun numero di qui e' calcolato in app.
+ *
+ * `rounds` NON e' decorazione: sono le giornate su cui l'esito e' misurato, e senza di loro le altre
+ * quattro cifre non si possono confrontare con niente. Su un foglio del 5 settembre sono le 36 che
+ * restavano, non le 38 della stagione - «l'unita' di una sottrazione e' parte della sottrazione».
+ *
+ * `pv` puo' essere uno ZERO VERO - si e' fatto male, e' partito, non ha piu' giocato - e allora `mv`,
+ * `fm` e `value` restano vuoti, perche' una media su zero partite non esiste. Sono due fatti diversi e
+ * il foglio li tiene diversi: «vuoto = ignoto, mai zero» dai due lati contemporaneamente.
+ */
+export interface ActualOutcome {
+  rounds: number | null;
+  pv: number | null;
+  mv: number | null;
+  fm: number | null;
+  value: number | null;
 }
 
 /**
@@ -1173,6 +1201,12 @@ export class ValuationStore {
         whyMinutesShare: at('why_minutes_share'), whyPvSeen: at('why_pv_seen'),
         whyRoundsSeen: at('why_rounds_seen'),
         whyFmSteps: at('why_fm_steps'), whyPvSteps: at('why_pv_steps'),
+        // L'ESITO, revisione 46+: assente prima, e su un foglio di oggi c'e' la colonna e non il
+        // numero - dopo la data d'asta non e' ancora stata giocata una giornata. `actualRounds` e' la
+        // guardia di tutte e quattro: senza le giornate su cui e' contato, un esito non e'
+        // confrontabile con la previsione che gli sta accanto.
+        actualRounds: at('actual_rounds'), actualPv: at('actual_pv'), actualMv: at('actual_mv'),
+        actualFm: at('actual_fm'), actualValue: at('actual_value'),
       };
       // UNA COLONNA CHE NON C'E' E' `-1`, e `row[-1]` e' `undefined`: normalizzato QUI, dove il foglio
       // viene letto, o ogni lettore a valle si inventerebbe il proprio ripiego.
@@ -1281,6 +1315,18 @@ export class ValuationStore {
                   roundsSeen: number(row, columns.whyRoundsSeen),
                   fmSteps: text_(row, columns.whyFmSteps),
                   pvSteps: text_(row, columns.whyPvSteps),
+                },
+          // Un esito senza le sue giornate non e' un esito: la riga che non le porta non ne ha uno,
+          // ed e' il caso normale di ogni foglio costruito oggi.
+          actual:
+            number(row, columns.actualRounds) == null
+              ? null
+              : {
+                  rounds: number(row, columns.actualRounds),
+                  pv: number(row, columns.actualPv),
+                  mv: number(row, columns.actualMv),
+                  fm: number(row, columns.actualFm),
+                  value: number(row, columns.actualValue),
                 },
         });
       }

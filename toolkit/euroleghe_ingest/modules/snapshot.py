@@ -465,7 +465,23 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      portano al valore di surplus/match». REPORTING integrale: nessuna previsione le legge, il gate non
 #      le vede, e `engine_*` non si muove di un decimale - l'ultimo gradino della scala E' la colonna
 #      accanto, per costruzione, e un test lo asserisce invece di prometterlo.
-SHEET_REVISION = 45
+#   46 (06/09/2026): l'ESITO, sulla stessa finestra che il foglio prevede - `actual_rounds`, `actual_pv`,
+#      `actual_mv`, `actual_fm`, `actual_value`. Dalla richiesta dell'operatore: «lo scopo del SURPLUS e'
+#      di dare un indice di valore del calciatore PRONOSTICANDO come andra' la sua stagione, quindi uno
+#      step fondamentale e' capire quanto questo pronostico si avvicina alla realta'». Il pacchetto del
+#      viaggio nel tempo esiste dal 16/08 e il motore di una data passata lo si sapeva gia' costruire; a
+#      mancare era il METRO, cioe' cosa quei calciatori hanno poi fatto davvero.
+#      DUE DECISIONI, e sono la meta' del valore. La finestra e' quella DOPO la data d'asta e non il
+#      totale di stagione: al 05/09/2025 due giornate erano gia' giocate, `matchdays_target` legge 36, e
+#      un totale di 38 confrontato con una previsione di 36 e' l'errore di unita' che questo repository
+#      paga da sempre. E la finestra e' LA STESSA che `features._split_target_season` usa per
+#      `pv_act/mv_act/fm_act`, riletta dalle sue due funzioni pubbliche (`outcome_rounds`) invece che
+#      ritagliata una seconda volta - due tagli darebbero un esito misurato su una finestra e una
+#      didascalia che ne nomina un'altra.
+#      REPORTING integrale: `actual_*` e' la classe che nessuna regola puo' leggere, quindi `engine_*` non
+#      si muove di un decimale e il gate non vede niente di nuovo. VUOTE - e non zero - su un foglio
+#      costruito oggi, dove dopo la data d'asta non c'e' ancora niente in archivio.
+SHEET_REVISION = 46
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2581,6 +2597,35 @@ def fielded_next(conn, auction_date: str, observations, squads: dict[int, str]
             "minutes": row[1] if row else 0 if played else None,
         }
     return out, clubs
+
+
+def outcome_rounds(conn, window: features.Window, platform: str) -> list[int]:
+    """Le giornate della stagione BERSAGLIO, gia' in archivio, su cui il foglio puo' essere GIUDICATO.
+
+    Cioe' esattamente la finestra che `features.load` usa per `pv_act`/`mv_act`/`fm_act`, e per questo
+    le due definizioni non sono due: quelle tre le spezza `_split_target_season` sulle stesse `seen` e
+    sulla stessa giornata a CAVALLO, e questa funzione le RILEGGE dalle stesse due funzioni pubbliche
+    invece di rifare il taglio. Due tagli dello stesso periodo darebbero a un uomo un esito misurato su
+    una finestra e una didascalia che ne nomina un'altra - il difetto per cui questo progetto tiene
+    `engine_role_slot` accanto al surplus.
+
+    Su una PRE-STAGIONE (nessuna giornata vista) non c'e' niente da spezzare: `pv_act` e' il totale della
+    stagione bersaglio, e questa restituisce tutte le giornate che quella stagione ha in archivio - la
+    stessa cosa detta dall'altro lato.
+
+    VUOTA su un foglio costruito OGGI, e non e' un caso limite: e' il caso normale. La stagione bersaglio
+    e' quella che si sta giocando, l'asta e' oggi, quindi dopo la data d'asta non c'e' ancora niente - e
+    una lista vuota e' quello che fa restare vuote le colonne `actual_*` invece di stampare uno zero, che
+    direbbe «non ha giocato» di un uomo che nessuno ha ancora visto giocare.
+    """
+    seen = features.matchdays_before(conn, platform, window.target_season, window.auction_date)
+    straddling = features.matchdays_straddling(
+        conn, platform, window.target_season, window.auction_date) or set()
+    played = {int(round_) for (round_,) in conn.execute(
+        """SELECT DISTINCT matchday FROM match_ratings
+           WHERE season = ? AND platform = ? AND status = 'played' AND matchday IS NOT NULL""",
+        (window.target_season, platform))}
+    return sorted(played - seen - straddling)
 
 
 def remaining_rounds(conn, season: str, after: str) -> dict[str, list[str]]:
@@ -4764,6 +4809,14 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # only: no rule, no prediction and no `desc_*` column may read them, which is why they are not called
     # `desc_`. Empty by construction on a sheet built today (the next match has not been played).
     "actual_next_match", "actual_next_started", "actual_next_minutes",
+    # ...e l'ESITO DELLA STAGIONE sulla finestra che il foglio prevede - le giornate DOPO la data d'asta
+    # (`outcome_rounds`), non il totale di stagione, perche' su un foglio del 5 settembre due giornate
+    # erano gia' state giocate quando il motore ha parlato e includerle confronterebbe 36 giornate
+    # previste con 38 giocate: l'unita' di una sottrazione e' parte della sottrazione. `actual_rounds`
+    # sta sulla RIGA e non solo nel manifest perche' una riga deve poter spiegare il proprio numero da
+    # sola - un manifest si perde per strada, e questo l'ha gia' fatto (v9.75 §5).
+    # Servono a UNA domanda: quanto il pronostico si e' avvicinato. Reporting come le tre sopra.
+    "actual_rounds", "actual_pv", "actual_mv", "actual_fm", "actual_value",
 )
 
 
@@ -4888,6 +4941,9 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     # mantra sheet those are two different populations (a 'w;a' forward competes with wingers, not with
     # every 'A'), and ranking inside the classic role printed a position that was in no list the panel
     # shows. One definition, read by both - see `auction_slot`.
+    # LE GIORNATE SU CUI IL FOGLIO PUO' ESSERE GIUDICATO, una volta per foglio: e' un fatto sul
+    # CALENDARIO e non sull'uomo, quindi ogni riga porta lo stesso numero (`outcome_rounds`).
+    outcome = outcome_rounds(conn, window, platform)
     levels = {obs.fc_id: auction_level(obs, data) for obs in data.observations}
     slots = {fc_id: slot for fc_id, (slot, _level) in levels.items()}
     # ...e lo stesso, contato sui posti che un undici SCHIERA (`features.fielded_places`): il rimpiazzo
@@ -5412,6 +5468,16 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "actual_next_match": fielded.get("match"),
             "actual_next_started": fielded.get("started"),
             "actual_next_minutes": fielded.get("minutes"),
+            # L'ESITO, sulle giornate che restavano quel giorno. Tutto vuoto - e non zero - dove quella
+            # finestra non ha ancora nessuna giornata in archivio: e' il foglio di oggi, dove l'esito
+            # non esiste. `pv` puo' invece essere uno ZERO VERO (si e' fatto male, e' partito, non ha
+            # piu' giocato) e allora le due medie restano vuote, perche' una media su zero partite non
+            # esiste: sono due fatti diversi e la riga li tiene diversi.
+            "actual_rounds": len(outcome) or None,
+            "actual_pv": obs.pv_act if outcome else None,
+            "actual_mv": _round(obs.mv_act, 2) if outcome else None,
+            "actual_fm": _round(obs.fm_act, 2) if outcome else None,
+            "actual_value": _round(obs.value_act, 1) if outcome else None,
         })
     rows.sort(key=lambda row: (row["role_classic"] or "Z", -(row["engine_surplus"] or -1e9)))
     return rows
@@ -6553,6 +6619,25 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                      "prediction and no desc_* column reads them, which is why they are not called "
                      "desc_. Empty on a sheet built today: the next match has not been played.",
             "clubs_with_a_fielded_eleven": len(fielded_clubs),
+            # L'ESITO DELLA STAGIONE, e le due cose che un lettore deve sapere per interpretarlo: su
+            # quante giornate e' misurato, e se quelle giornate sono TUTTE quelle che il foglio
+            # prevedeva. Un esito parziale confrontato con una previsione intera direbbe che ognuno ha
+            # giocato meno di quanto ci si aspettasse, che e' una proprieta' dell'archivio e non del
+            # calciatore. Letto dalle RIGHE - la stessa colonna che l'app legge - e non ricalcolato.
+            "season_outcome": {
+                "rounds": (rows[0].get("actual_rounds") if rows else None),
+                "expected_rounds": data.matchdays_target,
+                "complete": (bool(rows and rows[0].get("actual_rounds")
+                                  and data.matchdays_target
+                                  and rows[0]["actual_rounds"] >= data.matchdays_target)),
+                "rows": sum(1 for row in rows if row.get("actual_pv") is not None),
+                "_note": "actual_pv/mv/fm/value are what really happened in the rounds AFTER the "
+                         "auction date - the very window engine_pv_pred and engine_fm_pred forecast - "
+                         "and NOT the season total: on a sheet dated 5 September two rounds had "
+                         "already been played, so the season total would put 38 rounds against a "
+                         "forecast of 36. Empty on a sheet built today, where that window is still "
+                         "empty. Reporting only, like every other actual_*.",
+            },
         },
         "descriptive": {
             "_note": "Every `desc_*` column is DESCRIPTIVE and NOT gated. It is there for the human "
