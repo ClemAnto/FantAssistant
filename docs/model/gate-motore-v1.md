@@ -5109,6 +5109,95 @@ undici non scavalca una che ne ha — «vuoto = ignoto, mai zero» applicato al 
 la riga di report regge un None. Uno zero uniforme è la cosa che questo progetto ha imparato a non
 credere, e stavolta spegneva l'unico giudice che esista prima che si giochi una partita.
 
+## 7-quattuorquadragies. PRE-REGISTRAZIONE (6 settembre 2026) — una GRAFIA che rifiuta il voto sintetico, e un calendario che non deve venire da un livello che non cammina le giornate
+
+Scritta **prima di lanciare qualunque cosa**. Nasce dalla voce di todolist «lo strato `sofascore_recent`
+va ri-derivato una volta», che chiedeva quanto del buco fosse la regola di calibrazione e quanto fossero i
+`REPLACE`: **nessuno dei due**, ed è una giunzione per nome. Decisione dell'operatore, con questa
+alternativa davanti: la strada regolare per intero — pre-registrazione, gate, e poi ri-derivazione.
+
+### Il difetto, e i numeri che si conoscono senza correre niente
+
+`recent_form` archivia la competizione con lo **slug del provider** (`premier-league`, `laliga`,
+`ligue-1`, `serie-a`) mentre `synth.calibrated_competitions` la confronta con `matchday_map.league`, che
+parla le NOSTRE chiavi. `bundesliga` è l'unica grafia che coincide, e infatti è l'unica che converte:
+**44 righe su 44** di quel campionato hanno il voto sintetico e tutte le altre zero. Non è un
+ri-salvataggio (`synth` ha girato il 05/09, `recent_form` il 07/08: quello è l'output della regola) e non
+è la regola (quei quattro campionati SONO nella sovrapposizione su cui la retta è fitta).
+
+Costo: **352 righe, 45 giocatori**, di cui **153 righe e 17 uomini nel 2025-26** — e tutti e 17 sono
+ARRIVI del 2026-27, cioè la popolazione per cui quello strato è stato costruito (Evanilson e sei uomini
+del Bournemouth, Senesi, Scott, Joao Gomes, Lepaul, Adams A.).
+
+**La mappatura è verificata sui club prima di essere scritta**, perché una giunzione per nome ambigua è
+peggio di una mancante: gli 11 club di `premier-league` sono tutti inglesi, gli 8 di `laliga` spagnoli, i
+9 di `ligue-1` francesi, e i 3 di `serie-a` sono Juventus, Hellas Verona e **Palermo**, che nel 2015-16 in
+Serie A c'era davvero. Nessuno slug porta club di due paesi.
+
+**E applicare la retta a quelle righe è INTERPOLAZIONE, non estrapolazione**: la sovrapposizione su cui è
+fittata copre rating 3,00-10,00 (mediana 6,90, n = 86.322) e le 352 righe stanno dentro per intero
+(4,60-10,00, mediana **6,90**), **0 fuori dall'intervallo**. Questa è la prova che conta, per la ragione
+di §7-duoquadragies: quando un cambio è un «secondo lettore dello stesso fatto» e non un predittore nuovo,
+la legittimità sta nella POPOLAZIONE e non nella tabella dei MAE.
+
+### Quello che la rinomina ESPONE, e perché sono due cambi e non uno
+
+`features.league_rounds` legge `MAX(real_md)` **senza filtro di sorgente**, quindi portare quelle righe
+sotto le nostre chiavi crea celle dove il livello per-partita non arriva. Misurato per finestra, sulla
+stagione di INPUT (38 = il ripiego di `rounds_for` quando la lega non c'è):
+
+| finestra | input | cella che nascerebbe | vero |
+|---|---|---|---|
+| Tm7 | 2015-16 | `la_liga` **29** · `ligue_1` 38 · `serie_a` 38 | 38 |
+| Tm6 | 2016-17 | `la_liga` **36** · `ligue_1` **1** · `premier_league` 38 | 38 |
+| Tm5 | 2017-18 | tutte 38 | 38 |
+| Tm4 | 2018-19 | `premier_league` **1** | 38 |
+| Tm3…T2 | 2019-20…2024-25 | **nessuna**: il livello per-partita le fissa già | — |
+
+Un divisore da **1** manda `minutes_share` al tetto per chiunque abbia giocato 90 minuti, e quella
+quantità la legge R3 (adottata su `default`). La stessa passata ha trovato un difetto **già vivo e dalla
+stessa causa**: `bundesliga 2016-17` legge **33** giornate invece di 34, prodotte da una manciata di
+righe di questo strato.
+
+### I due cambi, separati, in ordine forzato
+
+Una cosa per volta, o il verdetto non si attribuisce.
+
+* **A — DIFETTO, non un candidato.** Un CALENDARIO lo conta il livello che cammina le giornate:
+  `league_rounds` filtra `source='sofascore'`, e dove quel livello non arriva il ripiego è il numero
+  **dichiarato** (Bundesliga 34, gli altri 38) — che è ciò che il docstring di `league_rounds` già
+  afferma di sé. Dopo A la rinomina non può toccare nessun divisore.
+* **B — ALLARGAMENTO DEL MISURATO, non una regola nuova.** `positions._OUR_SLUG` impara i quattro slug,
+  `normalize_competitions` riscrive le righe in archivio (una grafia sola nel dato, come già per
+  `serie-b`), poi `synth` e poi `arrivals`: il voto sintetico arriva a 352 righe, e da lì
+  all'FM-equivalente e al **TIER** degli arrivi, che è un canale ADOTTATO (`TIER_DRIVER = measured_first`).
+
+### Che cosa mi aspetto, scritto prima perché il risultato non possa essere raccontato dopo
+
+1. **IL GATE NON PUÒ PROMUOVERE B, e lo dico adesso invece di scoprirlo dopo.** La popolazione che vede
+   muoversi è di **20 arrivi-finestra su dieci finestre** — Tm5 8, T1 5, T2 3, Tm7 2, Tm6 2, e **cinque
+   finestre a ZERO** — quindi un +0,00% su quelle cinque non è un PASS ma l'assenza di una popolazione,
+   che è la lezione già pagata con `estimates`. Il gate qui è una **GUARDIA** («niente peggiora») e la
+   prova di legittimità è quella sulla popolazione, esattamente come per la seconda fonte dei minuti.
+2. **A muove UNA cella e nessun'altra**: `bundesliga 2016-17` da 33 a 34. Se `--verify` scende sotto 22/22
+   la ragione deve essere quella cella e nient'altro; se si muove altro, il filtro fa più di quello che
+   credo e mi fermo lì.
+3. **Il TIER non cambia per tutti e 20.** Un FM-equivalente che si sposta cambia fascia solo dove
+   attraversa una soglia di percentile: se cambiasse per tutti, la prima cosa da sospettare è la mia
+   simulazione e non il canale.
+4. **Se B PEGGIORA, la lettura NON è «la rinomina è sbagliata».** È che la retta non regge sui club fuori
+   perimetro di quei campionati — una scoperta sulla popolazione di calibrazione, che andrebbe scritta in
+   §7-nonies e non qui. In quel caso la rinomina resta (una grafia giusta non è una preferenza) e il voto
+   sintetico su quelle righe NO.
+
+### Criteri: quelli di questo documento, non uno nuovo
+
+Dieci finestre Serie A e cinque euro, `backtest` con la sua cross-fit, **strict e robusto riportati
+accanto** (pavimento 0,5% sulla media, maggioranza delle finestre, nessuna sotto −2%), e le quattro
+guardie di sempre: FM e VALUE non peggiorano, i nomi e il valore catturato delle liste d'asta non
+peggiorano. Per piattaforma. Nessuna griglia si allarga dopo aver visto una curva, e la popolazione su cui
+B si misura è quella che MUOVE — gli arrivi con righe rinominate — non l'aggregato che la diluirebbe.
+
 ## 7-trequadragies. UNA COSTANTE PRESA IN PRESTITO DA UN'ALTRA DOMANDA: `season_prior_rounds` rimisurata (5 settembre 2026)
 
 `presence.season_prior_rounds` è il tasso di cambio fra «le giornate già giocate» e la stagione
