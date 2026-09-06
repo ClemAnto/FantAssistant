@@ -137,6 +137,10 @@ is a mirror/archive). Before any work read, in order:
 [docs/model/00-BRIDGE-punto-di-ingresso.md](docs/model/00-BRIDGE-punto-di-ingresso.md) ->
 `stato-progetto-continuita-v5.md` -> `todolist-mantra-euroleghe-v5.md` -> **`gate-motore-v1.md`** (the gate
 protocol, every verdict and every falsified hypothesis: read it before proposing any rule) ->
+**`copertura-eventi-motore-v1.md`** (06/09/2026, the index BY EVENT: for each thing a fantacalcio player
+names — a change of shape, a set-piece duty, the Africa Cup, an ageing curve — whether the engine reads
+it, whether the PANEL does, or whether it was measured and refused, with the number. Read it before
+proposing a channel: the answer is usually «measured, and here is what it cost») ->
 **`metrica-asta-surplus-v1.md`** (what the Auction panel ranks by, and why it is not VALUE) ->
 **`assistente-asta-v1.md`** (what the assistant does with it at the table: three questions, three
 numbers, the UI rules that are requirements, and the SLOT BOARD) ->
@@ -4432,6 +4436,53 @@ braccio giudicato).
 pagina. Due etichette per la stessa data sarebbero due nomi per un pacchetto solo. Il banco ha dovuto
 imparare a scegliere la tendina giusta — con due `nz-select` sulla pagina, `querySelector` prende la
 prima, e il passo del filtro squadre avrebbe accusato il filtro di non offrire nessun club.
+
+## Il NOME, la VERSIONE e la GRAFIA sono la stessa famiglia, e TRE sessioni la incontrano tutte in un pomeriggio
+**06/09/2026, dalla domanda dell'operatore «verifica se nell'algoritmo abbiamo tenuto conto di questi
+eventi» (ventisei voci). Dettaglio: `copertura-eventi-motore-v1.md`, §9 e §10.** La risposta è una mappa
+nuova — per ogni evento, se il motore lo legge, se lo legge il PANNELLO, o se è stato misurato e respinto
+col suo numero — e la parte che vale oltre la mappa è come si è sbagliato per arrivarci.
+
+**«Verifica la FUNZIONE, non la colonna che le somiglia» ha tre facce, e in una sessione sono uscite
+tutte e tre.** Fra due sessioni ci sono state sei correzioni, nessuna risolta discutendo:
+- **il NOME** — un grep sul CAMPO (`.rounds`) mentre il lettore usa l'ACCESSORE (`rounds_for`): la
+  conclusione «il motore non legge quel campo» era falsa (`evaluate.py:667`, dentro `derive()`), e il
+  docstring della funzione lo diceva due righe sopra. *La lista dei lettori si prende con un grep che
+  include il motore, e un lettore nominato in un docstring entra in lista prima di ogni ragionamento.*
+- **la VERSIONE** — l'albero di lavoro letto per rispondere a una domanda sul PASSATO: «il fallback
+  dichiarato dava già 34» era vero DOPO il commit che quel fallback lo introduce, e prima il default era
+  38 cablato. *Per «com'era prima» si legge `git show <sha>:<file>`.*
+- **la GRAFIA** — quinta istanza del join per nome, e la più economica da prevenire: fra
+  `club_match_lineups.club` (grafia del provider) e `match_ratings.team` (grafia dei voti) **26 su 35** si
+  appaiano, e le perse sono **Milan, Roma e Napoli** più sei. *Quando due tabelle nominano un club con due
+  colonne dal nome DIVERSO, la prima cosa da cercare è il risolutore e non la corrispondenza*: due nomi
+  diversi fanno sentire che si stanno unendo due cose invece di due grafie della stessa cosa, ed è così
+  che il commento «NOT canonical» nello schema non viene letto. Quello che sopravvive a un join così è
+  esattamente ciò che questo file già prevedeva: l'aggregato regge (r −0,040 → −0,045), le celle per
+  gruppo si muovono e una **cambia segno**.
+
+**E un'INERZIA si dichiara con le condizioni che la reggono.** «Questo commit non muove il gate» era vero
+e la ragione data era falsa: `league_rounds` È nel percorso del gate, e lo zero poggia su due fatti che
+possono cambiare tutt'e due — R3 è l'unica adottata che legge quella quantità ed è solo su `default`, e il
+listone `default` è monolingua (2018-19: 641 righe, tutte `serie_a`). Scritto come «lo zero è
+strutturale», il prossimo si sente autorizzato a toccare quella funzione senza gate.
+
+**TRE sessioni su un albero, e il coordinamento si fa sugli ARTEFATTI.** Due regole nuove, pagate:
+`--verify` è in sola lettura sul DB e **non** su `data/reports/` — scrive `engine_backtest.json` come il
+gate salvo `--no-report` — e `backtest` lascia comunque la sua riga in `ingest_runs`, che è come una corsa
+logicamente innocua fa risultare il DB «toccato». La regola è **non condividere l'ARTEFATTO**, con due
+implementazioni: `--no-report` quando non serve conservarlo, una data-dir privata quando l'artefatto È la
+misura. E l'attribuzione di una corsa si legge nel CONTENUTO dell'artefatto (`generated_at`, la presenza
+della chiave `gate`), mai dal suo mtime né dalle righe di `ingest_runs`.
+
+**Infine la regola sulle liste di «cose promettenti»: si misurano prima di consegnarle.** I tre buchi che
+questa mappa proponeva sono durati mezza giornata — il modulo sui difensori ha il **segno rovesciato**
+(guadagnare un posto nella propria linea si accompagna a giocare 0,06 di quota MENO del null, perché il
+posto in più lo riempie l'ARRIVO: è «posti meno pretendenti», la famiglia R11…R17 respinta cinque volte),
+le squalifiche valgono **≤14%** dell'errore sulle presenze, e i rigori per club **non sono
+un'acquisizione** — il dato è in `match_ratings` (~6,5 per club-stagione) e si prevede male (persistenza
++0,291 su 187 coppie). Quest'ultima è la **sesta istanza** di «il dato c'era e nessuno lo leggeva», ed è la
+prima commessa **citando un documento invece di interrogare la tabella**.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

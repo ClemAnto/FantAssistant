@@ -1392,3 +1392,31 @@ decisione dell'operatore.
   tutto lì, e la coda è fatta di infortuni e partenze — Angelino 29,4 previste e 5 giocate, Lukaku 21,8 →
   2 — cioè di ciò che nessun modello di agosto può prevedere. Questo NON è un item da eseguire: è dove
   guardare quando se ne apre uno.
+
+## Dalla mappa evento → canale (06/09/2026) — tre voci, e due sono CHIUSURE
+
+Nate dalla domanda dell'operatore sui ventisei eventi. Il verbale completo, con i verdetti di tutti e
+ventisei, è `copertura-eventi-motore-v1.md`; qui restano solo le tre che toccano il gate.
+
+* **LE SQUALIFICHE sono l'unico canale nuovo con un tetto positivo, e non ha una pre-registrazione.**
+  Costruibile — `yellows`/`reds` sono popolate (`default`: 18.063 e 1.098 su 5.035 stagioni-giocatore con
+  almeno un cartellino) — e il tetto è **0,65-0,94 giornate per stagione-giocatore** come squalifiche
+  attese (rossi + gialli/5) contro un MAE di **6,56**, cioè **≤14% dell'errore nel caso perfetto**. Chi
+  scrive la pre-registrazione parta da due fatti: `match_ratings.status` non ha MAI scritto `suspended`,
+  quindi la quantità va costruita dai cartellini e non letta; e i cartellini sono già dentro la fantamedia
+  misurata che il core regredisce, quindi il canale riguarda le PRESENZE e mai la fantamedia, o è lo stesso
+  fatto contato due volte (la forma che ha ucciso l'età, R21 e il canale investimento).
+
+* **IL MODULO / I POSTI DELLA LINEA è CHIUSO come forma e non come domanda.** Misurato il 06/09
+  (`gate-motore-v1.md` §7-sexquadragies, join canonico, 1.449 coppie): r **−0,045**, e guadagnare un posto
+  nella propria linea si accompagna a giocare **0,06 di quota MENO** del null (difensori −0,0880 a +1
+  posto). Il segno è rovesciato perché un club aggiunge un posto in un reparto **quando ha comprato lì**,
+  quindi la quantità giusta è «posti meno pretendenti» — che è la famiglia R11/R11b/R16/R16b/R17, respinta
+  cinque volte su cinque meccanismi diversi. **Riaprirla richiede un input nuovo, non una sesta
+  formulazione.**
+
+* **R9 (peso di RECENZA sull'ancora di ruolo) è dichiarata in `RULES` e non è mai entrata in
+  `CANDIDATES`** — quindi il gate non l'ha mai girata. La ragione scritta nel 2026-07 era «con due finestre
+  λ è quasi non identificabile»; oggi le finestre sono dieci su Serie A e cinque su euro, e la ragione è
+  scaduta. È anche l'unico canale che questo progetto abbia per la «severità del redattore»: le ancore sono
+  già per stagione, quello che manca è quanto pesarle. Costo: uno slot di gate, nessuna acquisizione.

@@ -5728,3 +5728,93 @@ che morde è stata **rimettere il difetto**.
 4. **`engine_role_rank` non viaggia nel bundle** e la pagina conta il suo rango da sé, sulle 663 righe che
    disegna invece delle 600 del foglio. Sono due popolazioni e la carta lo dice; se un giorno servisse il
    rango del toolkit, va esportato e chiamato con un altro nome.
+
+# Chiusura 6 settembre 2026 (pomeriggio) — LA MAPPA EVENTO → CANALE, e tre buchi che non sono sopravvissuti al pomeriggio
+
+Da una domanda dell'operatore: «verifica se nel nostro algoritmo per prevedere le presenze attese e la
+fantamedia abbiamo tenuto conto dei seguenti eventi», con ventisei voci in sei blocchi — dal cambio di
+modulo ai pali, dalla Coppa d'Africa alla severità del redattore.
+
+**Sessione in SOLA LETTURA: nessuna riga di codice, nessuna scrittura sul DB, nessun rapporto toccato.**
+Quello che è entrato è documentazione più il coordinamento fra tre sessioni.
+
+## Cosa è entrato
+
+- **`docs/model/copertura-eventi-motore-v1.md` (NUOVO)** — l'indice per EVENTO, che non esisteva. I
+  verdetti c'erano tutti, sparsi fra `gate-motore-v1.md`, `metrica-asta-surplus-v1.md` §20, `presence.py`
+  e la nota set-pieces; quello che mancava era la mappa fra il nome che un fantallenatore usa e il canale
+  che risponde. Cinque classi di risposta (ADOTTATA · PANNELLO · RESPINTA · REPORTING · IMPOSSIBILE),
+  perché la distinzione fra «non ci abbiamo pensato» e «misurato e bocciato con questo numero» è la
+  domanda vera.
+- **`nota-modello-set-pieces-v2.md`** — un aggiornamento datato che CORREGGE il riquadro in cima: il
+  tasso di rigori per club non è un'acquisizione mancante.
+
+## Il risultato, e la metà scomoda
+
+Il motore **vede** quasi tutto ciò che la lista nomina — `Observation` porta età, nuovo allenatore,
+arrivi nello stesso ruolo, rigorista, coppa, fuori-ruolo, persistenza, forza d'attacco del club — e non
+li **legge**, perché il gate li ha bocciati. I campi restano di proposito, così il gate può
+ri-giudicarli quando l'input migliora.
+
+E su Serie A **la scala della fantamedia è piatta**: tutte le adottate là lavorano sulle presenze,
+quindi `engine_fm_pred` è la stagione scorsa regredita verso l'ancora e niente altro. Che è coerente con
+la calibrazione di stamattina (presenze 6,87 di errore su 36 previste, fantamedia 0,317): **quello su
+cui c'è ancora da guadagnare sono le presenze**, e la lista dell'operatore è quasi tutta sulla
+fantamedia.
+
+## I tre buchi proposti sono durati mezza giornata
+
+La prima stesura chiudeva con tre voci «da aprire». Alle 19 non ne restava nessuna che valga uno slot di
+gate, e **il fatto che una lista di cose promettenti non sopravviva a un pomeriggio di misure è il
+risultato più utile della pagina**.
+
+1. **Il modulo sui difensori — misurato, e il segno è al contrario.** Un'altra sessione
+   (`gate-motore-v1.md` §7-sexquadragies) su 1.449 coppie: r −0,045, e un difensore il cui club passa da
+   tre a quattro dietro gioca **0,06 di quota MENO** del null. Il meccanismo che spiega il rovesciamento
+   uccide la formulazione — un club aggiunge un posto in un reparto perché ha COMPRATO lì — e la
+   quantità giusta è «posti meno pretendenti», la famiglia R11…R17, respinta cinque volte.
+2. **Le squalifiche — costruibili, con un tetto.** `yellows`/`reds` sono pieni; come squalifiche attese
+   (rossi + gialli/5) valgono 0,65-0,94 giornate per stagione-giocatore contro un MAE di 6,56, cioè
+   **≤14% dell'errore nel caso perfetto**.
+3. **I rigori per club — il dato c'era, ed è un errore mio.** Avevo citato la nota set-pieces invece di
+   interrogare la tabella: ~6,5 rigori per club-stagione, ma persistenza t→t+1 **+0,291** su 187 coppie.
+   Non è un'acquisizione, è un input debole. **Sesta istanza** di «il dato c'era e nessuno lo leggeva» —
+   la prima commessa citando un documento.
+
+## TRE sessioni su un albero, e le sei correzioni sono UNA famiglia
+
+Tre sessioni contemporanee (`-48` questa, `-9c` la grafia degli slug, `-5f` R24). Questa non ha scritto
+niente, quindi il coordinamento è stato tutto su chi possiede il DB e su chi ha scritto cosa. Le sei
+correzioni scambiate con `-5f` — **due mie su di loro, quattro loro su di me** — sono la stessa famiglia,
+«verifica la FUNZIONE, non la colonna che le somiglia», applicata a tre cose diverse: il **NOME** (un
+grep sul campo `.rounds` mentre il lettore usa l'accessore `rounds_for`), la **VERSIONE** (l'albero di
+lavoro letto per rispondere a una domanda sul passato), la **GRAFIA** (26 join su 35, persi Milan Roma
+Napoli). Più due sull'ATTRIBUZIONE: il mtime di un artefatto letto al posto del suo contenuto, e tre
+righe di `ingest_runs` al posto dell'artefatto. **Nessuna delle sei è stata risolta discutendo.**
+
+Le tre varianti nuove, tutte pagate:
+- **Quando due tabelle nominano un club con due colonne dal nome diverso (`club` e `team`), la prima
+  cosa da cercare è il RISOLUTORE, non la corrispondenza.** Due nomi diversi fanno sentire che si stanno
+  unendo due cose e non due grafie della stessa cosa — è così che il commento «NOT canonical» nello
+  schema non è stato letto.
+- **Per rispondere a «com'era prima» si legge la versione di prima** (`git show <sha>:<file>`). Ho
+  concluso «il fallback dichiarato dava già 34» leggendo il file DOPO il commit che quel fallback lo
+  introduce.
+- **`--verify` è in sola lettura sul DB e NON su `data/reports/`**: scrive `engine_backtest.json` come il
+  gate salvo `--no-report`, e `backtest` lascia la sua riga in `ingest_runs` anche con `--no-report` —
+  che è come una corsa logicamente innocua fa risultare il DB «toccato». La regola che ne esce è «non
+  condividere l'ARTEFATTO», con due implementazioni: `--no-report` quando non serve conservarlo, una
+  data-dir privata quando l'artefatto È la misura.
+
+## Aperti, in ordine di costo
+
+1. **Le squalifiche restano l'unico candidato con un tetto positivo** (≤14% dell'errore sulle presenze) e
+   non ha ancora una pre-registrazione. Chi la scrive parta dal fatto che `match_ratings.status` non
+   scrive mai `suspended`: la quantità va costruita dai cartellini, non letta.
+2. **Il modulo/posti della linea è chiuso come FORMA ma non come DOMANDA**: «posti meno pretendenti» è la
+   famiglia respinta cinque volte, quindi riaprirla richiede un input nuovo e non una sesta formulazione.
+3. **R9 (peso di recenza sull'ancora) non è mai entrata in `CANDIDATES`** — dichiarata in `RULES` e mai
+   girata, con la ragione del 2026-07 («con due finestre λ è quasi non identificabile») che oggi ha dieci
+   finestre e andrebbe rivista.
+4. **`copertura-eventi-motore-v1.md` va rimisurato quando `ADOPTED` cambia**: è una fotografia
+   dell'insieme adottato, e la sua prima riga sarebbe falsa il giorno dopo un'adozione.

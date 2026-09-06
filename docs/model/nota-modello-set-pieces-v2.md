@@ -55,3 +55,36 @@ Rc/R+/R− stagionali (nostri file dal 24/25) + carriera FBref · FK shots/goals
 
 ## Gate
 Adozione SOLO se, fuori campione sulle due finestre, ciascun termine batte il motore che ne è privo — e per i rigoristi anche il vecchio flag binario a bonus fisso (baseline dichiarato).
+
+---
+
+## AGGIORNAMENTO 6 settembre 2026 — il TASSO DI RIGORI PER CLUB non è un'acquisizione: c'è, e si prevede male
+
+Il riquadro in cima dice che «la forma ridotta collassa tutto il prodotto su `confidence` perché mancano
+il **tasso di rigori per club** e la **conversione di carriera**». La seconda metà resta vera; **la prima
+è stata letta come "dato da acquisire" ed è sbagliata** — il dato è in `match_ratings` da sempre.
+
+Misurato sul DB vivo (`platform='default'`, dodici stagioni, 240 club-stagione):
+
+    rigori per club-stagione (pen_scored + pen_missed)      5,97   includendo il 2026-27
+                                                            6,52   escludendo la stagione in corso
+    persistenza t -> t+1                                    r = +0,291   su 187 coppie
+
+Quindi la voce cambia natura: **non manca il numeratore della formula, manca la sua PREVEDIBILITÀ.**
+`expected_club_penalties` esiste come misura del passato e vale poco come previsione del futuro — r
+attorno a +0,25/+0,29 è lo stesso ordine della persistenza che ha ucciso R6 dal lato del giocatore, e
+significa che l'input più «strutturale» della formula è quasi rumore da una stagione all'altra. Chi
+riaprirà questa nota deve partire di lì e non da uno scraper.
+
+Due cose di contorno che il controllo ha prodotto:
+- **le due sessioni che l'hanno misurato in parallelo hanno sbagliato lo stesso numero nello stesso
+  modo** (6,90 e 5,97), perché entrambe includevano il 2026-27, che con due giornate legge 0,00 e tira
+  giù la media. Su una stagione in corso una media per stagione va sempre esclusa o dichiarata.
+- **raggruppare per `match_ratings.team` è la grafia del provider e non una chiave canonica**, cioè la
+  famiglia di join che qui ha già perso Milan, Roma e Napoli. Verificato prima di usarla: **20 club
+  distinti in ogni stagione e 35 in dodici stagioni**, nessuna grafia doppia su Serie A — quindi il
+  raggruppamento è pulito e il numero regge. (Fra `match_ratings` e `club_match_lineups`, invece, lo
+  stesso join per nome perde nove club: `copertura-eventi-motore-v1.md` §9.1.)
+
+`assists_set_piece` resta NULL su **tutte le 264.681 righe** — punizioni e corner restano non
+misurabili, e quella metà della nota non si muove.

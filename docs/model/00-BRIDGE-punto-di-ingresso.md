@@ -1,5 +1,27 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 6 settembre 2026 — QUANTO IL PRONOSTICO SI AVVICINA: la stessa pagina, un anno indietro.**
+**Aggiornato: 6 settembre 2026 (pomeriggio) — LA MAPPA EVENTO → CANALE: il motore VEDE quasi tutto, e
+non lo legge perché il gate l'ha bocciato.** Da «verifica se nel nostro algoritmo per prevedere le
+presenze attese e la fantamedia abbiamo tenuto conto dei seguenti eventi», ventisei voci in sei blocchi.
+(a) **NUOVA PAGINA `copertura-eventi-motore-v1.md`**: l'indice per EVENTO, che non esisteva — i verdetti
+c'erano tutti, sparsi fra il gate, `metrica-asta-surplus-v1.md` §20, `presence.py` e la nota
+set-pieces. Cinque classi di risposta (ADOTTATA · PANNELLO · RESPINTA · REPORTING · IMPOSSIBILE), perché
+la differenza fra «non ci abbiamo pensato» e «misurato e bocciato con questo numero» è la domanda vera.
+(b) **IL RISULTATO**: `Observation` porta età, nuovo allenatore, arrivi nello stesso ruolo, rigorista,
+coppa, fuori-ruolo, persistenza, forza d'attacco del club — e nessuna regola adottata li legge; i campi
+restano di proposito perché il gate possa ri-giudicarli. Su Serie A **la scala della fantamedia è
+piatta**, quindi la lista dell'operatore è quasi tutta su una grandezza che il motore non muove.
+(c) **I TRE BUCHI PROPOSTI SONO DURATI MEZZA GIORNATA**: il modulo sui difensori è stato misurato e ha il
+**segno rovesciato** (1.449 coppie, r −0,045: guadagnare un posto si accompagna a giocare 0,06 di quota
+MENO del null, perché il posto in più lo riempie l'arrivo → è «posti meno pretendenti», la famiglia
+R11…R17 respinta cinque volte); le squalifiche valgono al massimo **≤14%** dell'errore sulle presenze; i
+rigori per club **non sono un'acquisizione** — il dato c'è (~6,5 per club-stagione) e si prevede male
+(persistenza +0,291 su 187 coppie), sesta istanza di «il dato c'era». (d) **SESSIONE IN SOLA LETTURA**:
+nessun codice, nessuna scrittura su DB o rapporti; tre sessioni contemporanee sull'albero, e le sei
+correzioni scambiate sono UNA famiglia — «verifica la funzione, non la colonna che le somiglia»
+applicata al **nome**, alla **versione** e alla **grafia**. Nessuna risolta discutendo.
+Dettaglio: `copertura-eventi-motore-v1.md` (nuovo) e la chiusura del 6 settembre (pomeriggio) in
+`stato-progetto-continuita-v5.md`.
+· precedente: 6 settembre 2026 — QUANTO IL PRONOSTICO SI AVVICINA: la stessa pagina, un anno indietro.
 Da «lo scopo del SURPLUS è di dare un indice di valore del calciatore PRONOSTICANDO come andrà la sua
 stagione ... capire quanto questo pronostico si avvicina alla realtà ... applicare l'algoritmo con i dati
 presi alla terza giornata della scorsa stagione ... mostrami i valori reali di fine stagione».
