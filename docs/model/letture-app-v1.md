@@ -3424,3 +3424,243 @@ GIOCO. L'operatore ha deciso **SWING ovunque**, e aveva ragione: il vocabolario 
 dichiara lui — come ha dichiarato «SLOT» invece di «blocco» — e il precedente esisteva già, «Overall»,
 «Lead» e «Bonus» sono inglesi su un'interfaccia italiana da sempre. *Una regola sulla lingua vale per le
 parole che scegliamo noi, e il nome di una colonna che legge lui non è una di quelle.*
+
+## 33. UNA SOLA INTESTAZIONE, E IL NAV SONO LE ROTTE (6 settembre 2026)
+
+Richiesta dell'operatore: «facciamo in modo da rendere l'header comune a tutte le pagine e inseriamo un
+unico nav che mi permetta di navigare su ogni pagina». Quello che c'era erano **nove intestazioni** che si
+somigliavano — lo stesso `<h1>`, la stessa pastiglia della versione copiata **otto volte** — e ognuna con
+la sua manciata di collegamenti: **sette** dalla pagina Calciatori, uno dalle Buste, **ZERO dal pannello
+d'asta**, che era quindi una pagina da cui non si tornava.
+
+Il difetto era scritto nei template, sei volte, dentro un commento: «The only way into the charts view:
+without it /charts is reachable by URL alone». *Un progetto che scrive il proprio difetto in un commento
+invece di curarlo lo riporta alla prima pagina nuova.*
+
+### 33.1 Il nav non è un elenco parallelo alle rotte: è le rotte
+
+`app.routes.ts` porta un `data.nav` per pagina (nome breve, titolo, icona) e `core/nav.ts` le DERIVA da
+lì; l'ORDINE delle rotte è l'ordine del nav, quindi spostare una rotta sposta la barra e nient'altro. Un
+test (`core/nav.spec.ts`) pretende che **ogni rotta tranne il jolly** dichiari la sua voce, che le icone
+siano REGISTRATE in `nz-icons.ts` (una non registrata non è un errore: va a cercarsi il disegno per rete,
+prende un 404 e lascia la casella vuota) e che i link siano assoluti.
+
+`/hello`, la pagina dei ponteggi, è dichiarata `aside`: sta dopo un separatore e resta raggiungibile —
+nasconderla sarebbe l'esclusione silenziosa che questo file esiste per impedire.
+
+### 33.2 Nove icone e non nove nomi, e il conto è la ragione
+
+Nove nomi per esteso sono **~590px**; nove icone col tooltip **230px** (misurato: 261px con i margini).
+Su una pagina che NON scorre — plancia, Strategia — quei 360px di differenza sono una riga rubata alla
+cosa che si sta guardando, che è lo stesso conto che al pannello Tk è costato 105px di campetto. Il nome
+della pagina non manca comunque: è il `<h1>` accanto, e la voce attiva è accesa.
+
+Costo in altezza, misurato con l'A/B più piccolo possibile — la stessa barra con il nav e senza, nella
+stessa sessione: **Strategia +0px** (sta nella riga che c'era già), **plancia +28px** (69 contro 41), e
+**nessuna delle due ricomincia a scorrere**, che è la promessa del loro layout.
+
+### 33.3 Il titolo viene dalla ROTTA ATTIVATA e non da `Router.url`
+
+Una definizione sola di «su che pagina sono», letta dal titolo E dall'accensione della voce: con
+`routerLinkActive` ce ne sarebbero due, e il path vuoto è il caso in cui due risposte non sono d'accordo.
+
+E la definizione è la rotta attivata perché il componente vive DENTRO la pagina, quindi nasce durante
+l'attivazione, mentre `Router.url` cambia solo alla fine della navigazione (`NavigationEnd`): per un frame
+la barra della pagina nuova scriveva il titolo di quella VECCHIA. **L'ha trovato il banco** (`/clubs` che
+legge «Calciatori»), e la cura è che i segmenti della rotta attivata sono già quelli giusti al primo
+disegno.
+
+### 33.4 Il banco, e i suoi cinque difetti
+
+`scripts/e2e-nav.mjs`: **81 voci su 9 pagine, 0 vuote, 0 coperte**, il giro completo andata e ritorno con
+soli clic su tutte e otto, il tooltip aperto con un hover vero. Quello che ha insegnato è come si sbaglia
+a misurare, e tre lezioni sono di casa incontrate da capo:
+
+- **Aspettare «la prima barra che passa» è misurare il frame precedente**: la barra della pagina vecchia è
+  a schermo subito, quindi il passo leggeva il titolo di prima. Si aspetta la VISTA montata (il tag del
+  componente), che è un segnale INDIPENDENTE dal titolo — aspettare il titolo e poi asserirlo sarebbe
+  l'asserzione circolare del 04/09.
+- **Due fatti che devono essere d'accordo si leggono in UNA lettura**: con due `Runtime.evaluate` la
+  navigazione passa in mezzo, e il passo attribuisce alla pagina un titolo che apparteneva a un'altra. È
+  la variante «nello stesso istante» del passo che misura due incognite.
+- **Un bersaglio che si muove non è un bersaglio**: il nav è allineato a destra, quindi quando la
+  pastiglia del pacchetto arriva le voci SCORRONO — la corsa ha puntato le Buste e ha aperto Strategia.
+  Si aspettano due letture identiche di fila.
+- **Un tooltip rimasto in giro si legge come quello nuovo**: ng-zorro tiene l'overlay nel DOM e lo
+  dissolve, quindi si filtra sul visibile e si parte da uno stato pulito verificato.
+- E un `pushState` su `about:blank` lancia una SecurityError: si aspetta che l'app sia in piedi prima di
+  navigare.
+
+### 33.5 Quello che le pagine ci mettono dentro
+
+Due fessure, perché sono due posti diversi dello schermo: quella PREDEFINITA sta accanto al titolo (le
+pastiglie che dicono quale foglio, che tavolo, che snapshot, e gli interruttori che devono restare a
+schermo) e `[actions]` va a destra, prima del nav — che è l'ultima cosa a destra su OGNI pagina, così il
+bersaglio non si sposta cambiando vista. **Nessuna pagina passa il proprio titolo**: quello lo dichiara la
+rotta, quindi il nome nel nav e il nome in cima non possono dire due cose diverse.
+
+Il pannello d'asta ha l'intestazione SOPRA i tre rami (`@if`), perché è della PAGINA e non del tavolo:
+prima ce l'aveva solo il pannello, quindi mentre l'asta si preparava non c'era modo di andare da nessuna
+parte. Le due strisce che descrivono il tavolo non sono più `<header>` e i loro `<h1>` sono diventati
+`<h2>`: un `<h1>` per pagina.
+
+### 33.6 E una nota d'ambiente: prettier è configurato e l'albero non è formattato
+
+Lanciato su ventisei file ne ha riformattati in massa **1.500 righe**, dentro la metà di un'altra
+sessione. Verificato: le versioni a HEAD di quei file **erano già non formattate**, e così i banchi
+vicini, quindi lanciarlo non è una pulizia — è una riformattazione. Annullato file per file, ricostruendo
+ogni file come «HEAD più il mio blocco» e verificando che `prettier(mio)` fosse **byte-identico** al file
+prettificato di prima: è la prova che la metà dell'altra sessione era intatta.
+
+## 34. LA PAGINA SQUADRE: la card, due tabelle compatte, e una ritrattazione (6 settembre 2026)
+
+Nove richieste dell'operatore in fila su una pagina sola. Ognuna misurata, e la parte che vale è che
+**due delle cose che ho creduto erano difetti dell'arnese** e una l'ho ritirata.
+
+### 34.1 Il campetto: la card al click, il tooltip via
+
+«Togli il tooltip dai calciatori sul campetto e metti al click l'apertura della card dettaglio (uguale a
+quella nella plancia e nella strategia).» È **la stessa** `ui/player-card`: due card sarebbero due letture
+degli stessi `engine_*`. Quello che la pagina deve fare è COSTRUIRE la riga, perché i numeri di un uomo
+sono del foglio che quella pagina legge — qui quello del listone scelto, lo stesso che prezza la tabella
+accanto e che ha disegnato la board.
+
+`ui-club-board` è condiviso col pannello d'asta, quindi il dettaglio è un **interruttore dichiarato**
+(`detail = 'tooltip' | 'card'`) con la ragione scritta ai due punti di chiamata — la stessa forma di
+`extract_boards(apply_rulings=…)` nel toolkit. Il pannello d'asta legge un altro foglio e non sa costruire
+la card: là resta la scheda all'hover. Un uomo senza `fc_id` non è cliccabile e non finge di esserlo
+(«vuoto = ignoto» applicato a un gesto).
+
+### 34.2 Le due tabelle compatte, e la classe è UNA
+
+| | prima | dopo |
+|---|---|---|
+| riga, tabella dei valori | 39px | **19px** |
+| riga, ultime partite | 49px | **19px** |
+| larghezza dei valori | 1554px | **1252px** |
+| pagina, ultime partite | 2325px | **1321px** |
+
+Il PADDING e il CARATTERE stanno in `ng-zorro.css` sotto **una** classe che le due tabelle condividono
+(`.table-dense`): «compatto» è una cosa sola su una pagina, e due regole finirebbero per dare a due
+tabelle affiancate due densità. Le LARGHEZZE stanno nei componenti, perché una larghezza di colonna è un
+fatto che il `colgroup` deve conoscere e non una proprietà che si eredita.
+
+La quota è **0,80** e non un numero scelto: 11px su 14 è 0,79, più il padding risparmiato. Due eccezioni
+dichiarate e misurate (`Surplus` 56, `Margine` 61) perché la loro ETICHETTA è più larga delle cifre che
+portano, e a stringerle si taglia la parola in testa.
+
+### 34.3 Le pastiglie dei ruoli non seguivano la densità, ed erano loro a decidere l'altezza
+
+«Nella tabella compatta [comprimi] di più i pill con i ruoli.» Un badge è un elemento di **dimensione
+fissa**: non si stringe col carattere, quindi in modo compatto restava alto 20px ed era lui il pavimento
+della riga. Passati a `xs` (la taglia del campetto), la riga scende **23 → 19px** e — regalo — la colonna
+Mantra **non ha più bisogno della sua eccezione** di larghezza: 76 → 62px, l'eccezione cancellata.
+*Un'eccezione può essere il prezzo di un elemento che non si stringe, e allora si cura l'elemento.*
+
+### 34.4 Il gol era disegnato come un RIGORE
+
+«Riguardo ai gol e agli assist, utilizza le stesse icone utilizzate nella card di dettaglio dei
+calciatori.» La cella disegnava un **bersaglio** per i gol — che nel vocabolario di `ui/bonus-mark` è il
+rigore — e una `share-alt` per l'assist, dove la card mette una scarpetta: due pagine che dipingevano due
+cose diverse per lo stesso fatto, cioè esattamente quello che quel componente esiste per impedire. Ora il
+marchio viene da lì e il conteggio degli eventi dal lettore unico (`bonusesOf`).
+
+Nasce una **taglia** (`size = 'xs' | 'sm'`), e non è una seconda icona: il disegno e il significato
+restano quelli, cambia quanto è grande — come le pastiglie dei ruoli, che hanno tre taglie e un colore
+solo. Lo stesso insieme di eventi di prima (gol, rigori segnati, assist): cartellini, autogol e i due del
+portiere restano dove sono già leggibili — il tooltip della cella e la card — perché una cella è larga
+48px da compatti.
+
+`pointer-events-none` sulla striscia dei marchi: la cella è già un bottone col suo tooltip, e un marchio
+che aprisse il proprio ne metterebbe due sovrapposti.
+
+### 34.5 I voti: centrati, e ALLINEATI FRA LE COLONNE
+
+Due richieste in fila («e centra verticalmente i voti», poi «nelle varie colonne allinea i voti
+verticalmente tra di loro») e due difetti diversi.
+
+Il primo: la cella impilava il numero sopra una striscia di 12px **riservata anche quando non c'era niente
+da metterci**, quindi il voto stava in cima. Mettendo i marchi ACCANTO al voto (sua richiesta successiva:
+«le icone dei gol e le altre mettile dopo il voto e non sotto, riducile») il numero è centrato da sé.
+
+Il secondo, misurato: con i marchi in riga il gruppo si centra, quindi **una cella con un marchio spostava
+il suo numero di 6px** — la colonna dei voti zigzagava. Cura: **due piste di larghezza fissa** (numero |
+marchi), il numero allineato a destra nella prima. Misurato dopo: 30px in ogni cella, **≤1px** di
+differenza (la larghezza del glifo). *Un numero che si legge in colonna deve stare allo stesso x, e un
+gruppo centrato non ci sta.*
+
+### 34.6 LA RITRATTAZIONE: «ogni nome tagliato di 30px» era l'ombra di antd
+
+Misurando la tabella delle ultime partite ho letto che **ogni riga tagliava il nome di 30px** e l'ho
+scritto. Falso: quei 30px sono il `::after` con cui antd disegna l'ombra della colonna `nzLeft`, che sta
+FUORI dalla cella e gonfia lo `scrollWidth` del `<td>`. La regola del taglio ora è un **Range sul
+contenuto** — misura le caselle e ignora gli pseudo-elementi — e con quella entrambe le tabelle leggono
+**zero tagli**.
+
+*Un difetto si spiega da sé con una storia plausibile, se lo si lascia fare*: la storia era perfetta (una
+colonna stretta, un nome lungo, nessun puntino) e la causa era una decorazione. Con la regola nuova il
+Mantra chiedeva ancora 4px, e quello era vero: 72 → 76, poi 62 quando le pastiglie si sono strette.
+
+### 34.7 Due difetti veri, che c'erano da prima
+
+- **`[attr.nzWidth]` invece di `[nzWidth]`**: la larghezza è un INPUT di `nz-th`, da cui ng-zorro
+  costruisce il `<colgroup>`, e un binding di ATTRIBUTO scrive nel DOM una cosa che nessuno legge. La
+  colonna del Nome riceveva **116px dei 190 dichiarati**; ora 167 su Squadre e **243 su Calciatori**, dove
+  pure non tornava. È la famiglia «verifica la FUNZIONE, non la colonna che le somiglia», sul binding.
+- **Il nome senza `truncate` e senza `min-w-0`**: dentro un flex un elemento non scende sotto il suo
+  contenuto, quindi un nome più largo della colonna sfondava la cella invece di finire in puntini.
+
+E un doppione tolto: `minWidth` sommava a mano `490` (= 190+60+110+130) e `62` per colonna contro i veri
+58/92. Una definizione, due lettori.
+
+### 34.8 Le ultime dieci giornate IN ASSOLUTO, e un confine fra le stagioni
+
+«Mostra le ultime 10 partite in assoluto e non solo della stagione precedente … tra una stagione e l'altra
+metti una colonna divisoria.» `matchTable` risponde su UNA stagione e resta com'è — un asse di colonne è
+una stagione e una finestra — e la nuova `matchTableAcross` le **compone**: la più recente per prima,
+indietro finché le colonne bastano. Oggi: **2 giornate di 2026-27 + confine + 8 di 2025-26**.
+
+Il confine è **una colonna che non è una partita**: undici pixel, nessuna etichetta (un nome di stagione
+non ci sta, la frase è nel titolo) e **nessun trattino nelle sue celle**, perché quello vuol dire
+«giornata non giocata». E l'intestazione della sezione ora nomina **entrambe** le stagioni, invece di
+dirne una mentre ne mostra due.
+
+Le righe si concatenano per POSIZIONE, che è lecito perché `matchTable` conserva l'ordine dei giocatori che
+gli si passa — è scritto nel suo docstring, ed è la stessa proprietà per cui le due tabelle di una vista
+possono essere la stessa lista due volte.
+
+### 34.9 I risultati colorati, e l'esito è del CLUB
+
+«Nei titoli delle colonne, metti in verde i risultati delle partite vincenti e in rosso quelle perdenti.»
+Il punteggio è uscito dalla stringa `detail` e ha un campo suo con il suo ESITO, perché **un colore non si
+può dare a mezza stringa**; l'esito è dal punto di vista del club della tabella (`goalsFor` contro
+`goalsAgainst`) e non di chi gioca in casa.
+
+Il banco lo verifica **ricavando l'esito dal punteggio** invece di crederci — il club della pagina è la
+sigla che compare in ogni intestazione, quindi da «Lec-Ata 0-3» sa che i 3 sono suoi — e legge
+`win rgb(61,220,132) · loss rgb(255,107,107) · draw rgb(157,157,174)`, dieci risultati, nessun esito con
+due inchiostri. *Un colore si giudica per CLASSE e non per valore: i token sono `color-mix`, che Chrome non
+restituisce come `rgb()`.*
+
+### 34.10 L'ordine: la più recente a sinistra
+
+«L'ordine delle colonne deve essere inverso, a sinistra le più recenti e a destra le più vecchie.»
+Cambiato in **un posto solo**, l'asse delle colonne nello store (le giornate, le settimane della vista
+mista, e i blocchi di stagione che ora restano nell'ordine in cui sono raccolti), così le due viste che
+disegnano quella tabella leggono nello stesso verso. È anche il verso che `recentMatches` — le ultime
+partite della CARD — dichiara di sé da sempre: *una tabella e una card che raccontano la stessa storia in
+due direzioni sono due vocabolari per un fatto solo.*
+
+La prova non passa dall'app: i numeri di giornata stanno nei `title` delle colonne, e il banco legge la
+sequenza e pretende che SCENDA — `2>1 | 38>37>36>35>34>33>32>31` su Squadre, `38,37,36,…` su Calciatori.
+
+### 34.11 Le righe pari più chiare, e un effetto collaterale dichiarato
+
+Lo zebrato è **una regola sola per le due tabelle**, col tono preso dal token del controllo al 30% (non un
+colore nuovo) e messa PRIMA di quella del passaggio del mouse: hanno la stessa specificità e in un layer
+decide l'ordine, quindi invertite lo zebrato coprirebbe l'evidenziazione della riga sotto il puntatore.
+Verificato confrontando due righe della **stessa pagina**, mai con un letterale.
+
+E l'effetto collaterale, detto invece di lasciato trovare: nella vista **Calciatori** la stessa tabella
+passa da 49 a **39px di riga**, perché i marchi sono in linea anche lì. È la conseguenza della stessa
+modifica e non una seconda decisione; la densità (14px, padding 8) là non cambia.

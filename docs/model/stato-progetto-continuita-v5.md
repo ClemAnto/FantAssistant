@@ -6015,3 +6015,74 @@ Le tre varianti nuove, tutte pagate:
    finestre e andrebbe rivista.
 4. **`copertura-eventi-motore-v1.md` va rimisurato quando `ADOPTED` cambia**: è una fotografia
    dell'insieme adottato, e la sua prima riga sarebbe falsa il giorno dopo un'adozione.
+
+---
+
+# 6 settembre 2026 (sera) — L'INTESTAZIONE COMUNE, IL NAV, E LA PAGINA SQUADRE RIFATTA (sessione `-c4`)
+
+Una sessione tutta di INTERFACCIA, in una raffica di dieci richieste dell'operatore: prima l'intestazione
+e la navigazione di tutta l'app, poi nove correzioni in fila sulla pagina Squadre. Nessuna riga di
+motore, nessun numero del gate toccato — e quattro dei difetti trovati **c'erano da prima**.
+
+Dettaglio: [letture-app-v1.md](letture-app-v1.md) §33 e §34.
+
+## Cosa è entrato
+
+- **`ui/app-header` + `core/nav.ts`**: una intestazione per tutte e nove le pagine, e un nav **derivato
+  dalle rotte** (`data.nav` su ogni rotta, un test che pretende che ogni rotta tranne il jolly ne
+  dichiari una). Prima erano nove intestazioni, la pastiglia della versione copiata otto volte e sette
+  collegamenti sulla sola pagina Calciatori — **zero dal pannello d'asta**, che era una pagina da cui non
+  si tornava. Sei template scrivevano il difetto in un commento invece di curarlo.
+- **La pagina Squadre**: il campetto apre la CARD al click (la stessa di plancia e Strategia) e il
+  tooltip va via; le due tabelle diventano compatte (**riga 39→19px** i valori, **49→19px** le ultime
+  partite, pagina **2325→1321px**); il nome apre la stessa card; i gol e gli assist prendono i marchi
+  della card; i voti si allineano fra le colonne; le righe pari sono più chiare.
+- **Le ultime dieci giornate IN ASSOLUTO**, attraverso le stagioni (`PlayersStore.matchTableAcross`), con
+  una **colonna divisoria** fra una stagione e l'altra e i **risultati colorati** per esito in
+  intestazione. E l'ordine invertito: **la più recente a sinistra**, cambiato nell'asse delle colonne —
+  un posto solo — così le due viste che disegnano quella tabella leggono nello stesso verso.
+- **Due banchi nuovi**: `scripts/e2e-nav.mjs` (81 voci su 9 pagine, il giro completo con soli clic, il
+  costo in altezza misurato con l'A/B più piccolo possibile) e `scripts/e2e-clubs.mjs` (le due tabelle,
+  la card dai due lati, il confine, i colori, lo zebrato).
+
+## I quattro difetti preesistenti
+
+1. **`[attr.nzWidth]` invece di `[nzWidth]`** sulla colonna del Nome delle ultime partite: la larghezza è
+   un INPUT di `nz-th` e un binding di ATTRIBUTO scrive nel DOM una cosa che nessuno legge — la colonna
+   riceveva **116px dei 190 dichiarati**.
+2. **Il nome senza `truncate`/`min-w-0`**: sfondava la cella invece di finire in puntini.
+3. **Il gol disegnato come un BERSAGLIO**, che nel vocabolario della card è il rigore.
+4. **`minWidth` sommava a mano** `490` (=190+60+110+130) e `62` per colonna contro i veri 58/92.
+
+## La ritrattazione
+
+Ho scritto che la tabella **tagliava ogni nome di 30px**. Falso: quei 30px sono il `::after` con cui antd
+disegna l'ombra della colonna `nzLeft`, che sta FUORI dalla cella e gonfia lo `scrollWidth` del `<td>`. La
+regola del taglio è ora un **Range sul contenuto** (misura le caselle, ignora gli pseudo-elementi) e con
+quella entrambe le tabelle leggono **zero tagli**. *La storia era perfetta — colonna stretta, nome lungo,
+nessun puntino — e la causa era una decorazione.*
+
+## Il coordinamento con l'altra sessione, e una nota d'ambiente
+
+Due sessioni sull'albero: la mia (interfaccia) e quella dello SWING (`core/strategy.*`, `core/swing.*`,
+`core/plancia*`, `e2e-strategy.mjs`, `slot-matrix.html`, il test del toolkit). Si sono toccate su
+`views/strategy/*`, dove io ho spostato solo l'intestazione.
+
+**Prettier è configurato e l'albero non è formattato.** Lanciato su ventisei file ne ha riformattate in
+massa ~1.500 righe, dentro la loro metà. Verificato che le versioni a HEAD di quei file *erano già* non
+formattate — quindi non è una pulizia, è una riformattazione — e annullato file per file, ricostruendo
+ogni file come «HEAD più il mio blocco» e verificando che `prettier(mio)` fosse **byte-identico** al file
+prettificato di prima: è la prova che la loro metà è intatta. *Un formattatore configurato e non applicato
+è una trappola, e la prova che non hai rotto niente è la riproduzione byte a byte.*
+
+## Aperti
+
+1. **La tabella dei valori chiede ancora 1252px in un pannello da 1028** a 1600px: scorre di lato finché
+   non si spengono due o tre colonne (il menù c'è già). Stringere oltre taglia le cifre, e lì mi sono
+   fermato: la scelta di quali colonne tenere è sua.
+2. **Il campetto del pannello d'asta tiene la scheda all'hover** (`detail="tooltip"`, il default), perché
+   quella pagina legge un altro foglio e non sa costruire la card. Dichiarato ai due punti di chiamata;
+   misurato è solo il lato Squadre.
+3. **Lo zebrato e i marchi in linea toccano anche la vista Calciatori** (riga 49→39px là): è la
+   conseguenza della stessa modifica, non una seconda decisione, e se non la vuole si toglie con un
+   interruttore come la densità.

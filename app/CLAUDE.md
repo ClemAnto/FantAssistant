@@ -160,6 +160,12 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   things the day one of the two phrases changes a word. Same rule for the bands of a colour scale
   (`vocabulary.voteInk`): one definition, several readers, and when it moves the price is stated because
   every reader repaints.
+- **Un elemento di dimensione FISSA non segue la densità.** Una tabella compatta si fa col padding e col
+  carattere, sotto UNA classe condivisa da tutte le tabelle («compatto» è una cosa sola su una pagina);
+  ma un badge, uno stemma o un'icona restano alti come prima e diventano il pavimento della riga e della
+  loro colonna. Si dà loro una TAGLIA (`size`), che è un input - e il DISEGNO non si tocca: un'icona
+  significa la stessa cosa ovunque, quindi cambia quanto è grande e mai cosa è. Misurato 06/09/2026: le
+  pastiglie dei ruoli in `xs` portano la riga da 23 a 19px e fanno sparire un'eccezione di larghezza.
 - **Where antd has no icon, draw an inline SVG** - never an emoji (there is no football and no boot in
   the set). Everything else is an `<nz-icon>` registered in `nz-icons.ts`, and an unregistered name is
   fetched dynamically, 404s and hangs a TestBed.
@@ -219,6 +225,17 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   was opened in a real Chrome only after the rewrite. A forgotten `fill="none"` on a `<path>` with an arc
   fills the chord, and no amount of rasteriser testing can see it, because the rasteriser does not read
   the SVG.
+- **Il TAGLIO di una cella si misura sul CONTENUTO, con un Range, e non sullo `scrollWidth` del `<td>`**:
+  una colonna `nzLeft` porta l'ombra di antd (un `::after` di 30px fuori dalla cella) e letta così ogni
+  riga sembra tagliata. Misurato e RITRATTATO il 06/09/2026 — la storia era perfetta e la causa era un
+  ornamento. Un testo con `truncate` misura la sua casella: i puntini non sono un taglio.
+- **Due fatti che devono essere D'ACCORDO si leggono in UNA sola valutazione**: «quale vista è a schermo»
+  e «che titolo scrive la barra» letti con due `evaluate` diversi fanno attribuire a una pagina il titolo
+  di quella prima, perché la navigazione passa in mezzo. E si aspetta un segnale INDIPENDENTE da quello
+  che si sta per asserire (il tag del componente montato), o è l'asserzione circolare.
+- **Prettier è configurato e l'albero NON è formattato** (verificato 06/09/2026 sulle versioni a HEAD):
+  lanciarlo su un file che si sta toccando riformatta in massa il codice di tutti, quindi non si lancia -
+  si scrive a mano nello stile del file (100 colonne, apici singoli).
 - Before delivering a change: **the production build must pass** (`ng build`) AND **`ng test`**, and for
   anything visible, the page opened in a real browser.
 - **A green `ng build` says nothing about the tests, and on 20/08/2026 it hid a suite that would not even

@@ -4696,6 +4696,90 @@ l'opposto: una scelta esplicita, visibile e reversibile a ogni sguardo. Il tagli
 l'ordine, quindi cambiare chiave cambia anche chi resta in lista, e chi quel numero non ce l'ha va in
 fondo e non in mezzo.
 
+## Un NAV si DERIVA dalle rotte, e una pagina che linka solo un'altra pagina non si raggiunge
+**06/09/2026, `app/src/app/core/nav.ts` + `ui/app-header`. Dettaglio: `letture-app-v1.md` §33-§34.**
+Nove viste avevano nove intestazioni che si somigliavano - la pastiglia della versione copiata OTTO volte
+- e ognuna la sua manciata di collegamenti: sette dalla pagina Calciatori, uno dalle Buste, **ZERO dal
+pannello d'asta**. Il difetto era scritto nei template, sei volte, dentro un commento («without it
+/charts is reachable by URL alone»): *un progetto che scrive il proprio difetto in un commento invece di
+curarlo lo riporta alla prima pagina nuova.* Ora ogni rotta dichiara il suo `data.nav` e il nav è
+DERIVATO da lì, con un test che pretende che ogni rotta tranne il jolly ne abbia uno - la stessa forma di
+`export.CONTRACT`, che si deriva da chi la usa invece di essere mantenuta a mano accanto.
+
+- **IL TITOLO DI UNA PAGINA VIENE DALLA ROTTA ATTIVATA E NON DA `Router.url`.** Un'intestazione che vive
+  DENTRO la vista nasce durante l'attivazione, mentre `Router.url` cambia solo alla fine della
+  navigazione: per un frame la barra della pagina nuova scriveva il titolo di quella VECCHIA (misurato:
+  `/clubs` che legge «Calciatori»). E la stessa risposta serve al titolo E all'accensione della voce: con
+  `routerLinkActive` sarebbero due definizioni, e il path vuoto è il caso in cui non sono d'accordo.
+- **NOVE ICONE E NON NOVE NOMI, e il conto è la ragione**: 590px contro 230. Su una pagina che non scorre
+  quella differenza è una riga rubata alla cosa che si sta guardando - lo stesso conto che al pannello Tk
+  è costato 105px di campetto. Il costo si misura con l'A/B più piccolo possibile, **la stessa barra con
+  il nav e senza, nella stessa sessione**: +0px sulla Strategia, +28px sulla plancia, e nessuna delle due
+  ricomincia a scorrere.
+- **UN `<h1>` PER PAGINA**, e quello che descrive il TAVOLO non è l'intestazione della pagina: sul
+  pannello d'asta la barra sta SOPRA i tre rami, perché prima ce l'aveva solo il pannello e mentre l'asta
+  si preparava non si andava da nessuna parte.
+
+## `[attr.X]` su un INPUT di un componente scrive un attributo che nessuno legge
+**06/09/2026, e valeva 74px di colonna.** `[attr.nzWidth]` invece di `[nzWidth]` su una `nz-th`: la
+larghezza è un INPUT, da cui ng-zorro costruisce il `<colgroup>`, e l'attributo nel DOM non lo legge
+nessuno - la colonna del Nome riceveva **116px dei 190 dichiarati** e i nomi finivano tagliati. È «verifica
+la FUNZIONE, non la colonna che le somiglia» applicato a un BINDING, e la variante è che il build resta
+verde e lo schermo quasi giusto. Insieme: dentro un flex un elemento non scende sotto il suo contenuto,
+quindi `truncate` senza `min-w-0` non tronca, sfonda.
+
+## Il TAGLIO di una cella si misura sul CONTENUTO, e una decorazione non è un taglio
+**06/09/2026, e la lezione è la RITRATTAZIONE.** Ho misurato lo `scrollWidth` di un `<td>` e riportato che
+la tabella **tagliava ogni nome di 30px**: quei 30px sono il `::after` con cui antd disegna l'ombra di una
+colonna `nzLeft`, che vive FUORI dalla cella. La regola giusta è un **Range sul contenuto** (misura le
+caselle e ignora gli pseudo-elementi), e con quella entrambe le tabelle leggono zero tagli. *Un difetto si
+spiega da sé con una storia plausibile se lo si lascia fare*: colonna stretta, nome lungo, nessun puntino
+- e la causa era un ornamento. Corollario: un testo con `truncate` misura la sua casella, quindi i puntini
+non sono un taglio - sono una degradazione dichiarata e visibile.
+
+## Un elemento di dimensione FISSA non segue la densità, ed è lui a decidere l'altezza della riga
+**06/09/2026.** Una tabella compatta si fa con due proprietà - il PADDING e il CARATTERE, sotto UNA classe
+che tutte le tabelle condividono, perché «compatto» è una cosa sola su una pagina - ma un badge, uno
+stemma, un'icona non si stringono col carattere: restano alti come prima e diventano il pavimento della
+riga (23px contro i 19 che il testo permetteva) e il pavimento della larghezza della loro colonna. La cura
+è dare loro una TAGLIA, e il regalo è che l'eccezione di larghezza che quella colonna aveva sparisce: *una
+eccezione può essere il prezzo di un elemento che non si stringe, e allora si cura l'elemento.*
+
+## Un'ICONA significa la stessa cosa ovunque: la TAGLIA è un input, il DISEGNO no
+**06/09/2026, e il difetto era vecchio.** La tabella delle ultime partite disegnava un **bersaglio** per i
+gol - che nel vocabolario di `ui/bonus-mark` è il RIGORE - e una `share-alt` per l'assist, dove la card
+mette una scarpetta: due pagine che dipingevano due cose diverse per lo stesso fatto, cioè quello che quel
+componente esiste per impedire (condizione dell'operatore, 05/09). Quando una seconda pagina ha bisogno di
+un marchio più piccolo si aggiunge una TAGLIA (`size`), come le pastiglie dei ruoli che hanno tre misure e
+un colore solo; quello che non si tocca è il disegno e il `kind` su cui si sceglie.
+
+## L'ORDINE delle colonne è parte della risposta, e vive nell'ASSE
+**06/09/2026.** «A sinistra le più recenti» si cambia in un posto solo - l'asse delle colonne dello store -
+e non in ogni vista che lo disegna, o la stessa tabella leggerebbe in due direzioni su due pagine. È anche
+il verso che il lettore delle ultime partite della CARD (`recentMatches`) dichiara di sé da sempre: *una
+tabella e una card che raccontano la stessa storia in due direzioni sono due vocabolari per un fatto solo.*
+E la prova non passa dall'app: i numeri di giornata stanno nei `title` delle colonne, quindi il banco legge
+la sequenza e pretende che scenda.
+
+## Due fatti che devono essere D'ACCORDO si leggono in UNA lettura
+**06/09/2026, difetto di un banco.** «Quale vista è a schermo» e «che titolo scrive la barra» venivano da
+due `Runtime.evaluate` diversi: fra i due la navigazione passa, e il passo attribuisce a una pagina il
+titolo di quella prima. È la variante «nello stesso istante» del passo che misura due incognite insieme.
+Con lei, altre tre regole di casa incontrate da capo in una sera: aspettare «la prima barra che passa» è
+misurare il frame precedente (si aspetta un segnale INDIPENDENTE da quello che si sta per asserire, o è
+l'asserzione circolare); un bersaglio allineato a destra si SPOSTA quando arriva il contenuto a sinistra,
+quindi si aspettano due letture identiche; e un tooltip rimasto in giro si legge come quello nuovo, quindi
+si parte da uno stato pulito verificato.
+
+## Prettier è configurato e l'albero NON è formattato
+**06/09/2026, e la cura è stata annullare una corsa.** `npx prettier --write` su ventisei file ne ha
+riformattate in massa ~1.500 righe, dentro la metà di un'altra sessione. Verificato che le versioni a HEAD
+di quei file **erano già non formattate**, e così i banchi vicini: quindi lanciarlo non è una pulizia, è
+una riformattazione di massa. Annullata file per file ricostruendo ogni file come «HEAD più il mio blocco»,
+e la prova che la metà altrui era intatta è che `prettier(ricostruito)` è **byte-identico** al file
+prettificato di prima. *Un formattatore dichiarato e non applicato è una trappola: prima di lanciarlo si
+controlla se l'albero lo rispetta già.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
