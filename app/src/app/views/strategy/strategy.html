@@ -434,9 +434,9 @@
                         <span
                           class="inline-flex justify-center rounded border px-1"
                           [class]="
-                            (valueOf(reading.key, row.readings) == null
-                              ? 'border-transparent text-muted'
-                              : 'border-border bg-page text-fg') +
+                            (has(reading.key, row.readings)
+                              ? 'border-border bg-page text-fg'
+                              : 'border-transparent text-muted') +
                             ' ' +
                             reading.width
                           "

@@ -6086,3 +6086,76 @@ prettificato di prima: è la prova che la loro metà è intatta. *Un formattator
 3. **Lo zebrato e i marchi in linea toccano anche la vista Calciatori** (riga 49→39px là): è la
    conseguenza della stessa modifica, non una seconda decisione, e se non la vuole si toglie con un
    interruttore come la densità.
+
+
+# 6 settembre 2026 (notte) — LE DUE COPPIE `G:A` SULLA STRATEGIA (sessione `-e7`)
+
+Una richiesta sola dell'operatore, in due messaggi più una precisazione: «nella pagina strategia aggiungi
+anche il pill **(G:A 25/26)** … quando si attiva mostri un pill con **(GOL:ASSIST)** per ogni
+calciatore», «metti anche **(G:A 26/27)**», e poi **«nei gol ci devono essere i gol normali e i rigori
+trasformati»**. Nessuna riga di motore, nessun numero del gate, nessuna revisione di foglio.
+
+Dettaglio: [pagina-strategia-v1.md](pagina-strategia-v1.md) §17.
+
+## Cosa è entrato
+
+- **Due pastiglie nuove** (`gaPrev`, `gaNow`), quattordici in tutto, le prime tre ancora accese
+  all'apertura. Stampano `18:3` — gol e assist **contati**, non per partita.
+- **`GoalsAssists`, `readingPair`, `readingHas`**: una lettura che porta una COPPIA invece di un numero.
+  `readingValue` risponde `null` su una coppia per costruzione, quindi la cella si decide su `readingHas`
+  — leggere il valore e basta avrebbe disegnato vuota la pastiglia di chi ha segnato dodici gol.
+- **`ReadingSpec.season` / `.dated`**, e da lì `SEASON_READINGS`, `PREV_SEASON_READINGS` e
+  `SORTABLE_READINGS` **DERIVATI** invece che riscritti: quattro elenchi tenuti allineati a mano erano il
+  modo in cui la prossima pastiglia si accende su una casella vuota — che è il difetto che il commento
+  del 05/09 dichiarava di voler evitare, un elenco più tardi.
+- **`shortSeason` / `readingShort`**: la sigla nomina la sua stagione (`G:A 25/26`), e l'anno viene dal
+  MANIFEST (`target_season`, `input_season`) — quindi segue il viaggio nel tempo e si rinomina da sé il
+  giorno che il bundle passa al 2027-28.
+
+## Le tre decisioni, e perché non sono arbitrarie
+
+1. **Contati e non per partita, ACCANTO alle medie.** `G 0.50` e `G:A 1:0` sono due domande — «che
+   giocatore è» e «quanto ha portato» — e a settembre, su due giornate, dicono cose diverse a ragione.
+   Non possono contraddirsi perché escono dalla **stessa chiamata a `seasonTotals`**: `gaNow` è il
+   numeratore di `G`. È la regola del 05/09 sugli xG applicata prima di poterla violare.
+2. **I rigori trasformati sono gol** (e gli assist da fermo sono assist), come nel riepilogo della card:
+   Vlasic 25/26 legge **8** invece di 3, Nkunku 7 invece di 2, Orsolini 10 invece di 6.
+3. **Non si ordina per una coppia**, ed è una rinuncia dichiarata: la somma sarebbe un numero plausibile
+   e lascerebbe a schermo due cifre di cui nessuna scende — «una colonna che spiega un ordinamento deve
+   ESSERE quell'ordinamento». Per i gol c'è `G`, che è un numero solo.
+
+Una cosa da sapere prima di toccarle: **una coppia comprende ogni campionato che ha giocato**
+(`isChampionship` conta `league` e `other_league`; coppe e amichevoli fuori). Malen 25/26 legge `18:3` =
+14+2 di Serie A più 4+1 di Premier, ed è l'unica risposta utile a «quanti gol ha fatto l'anno scorso» per
+chi la stagione l'ha giocata in due paesi.
+
+## Il difetto trovato era dell'ARNESE, e vale più della feature
+
+La prima corsa del banco leggeva **54 righe «`0:0` sullo schermo e niente nel bundle»**. Il torto era del
+banco: sommava i soli VOTI (`match_ratings`) mentre la pagina conta anche il campionato estero — Vicario
+in Premier nel 25/26 ha una stagione, non un vuoto. *Un banco che legge una popolazione più stretta di
+quella della pagina accusa la pagina del proprio difetto*, ed è la famiglia di «un passo che misura
+l'elemento sbagliato» vista dal lato della POPOLAZIONE invece che del selettore. Curato leggendo i due
+strati con la stessa regola di esclusione del proprio campionato che `buildOtherMatches` scrive di sé.
+
+## Verifica
+
+`ng build` pulito, **798 test** dell'app (sei nuovi), banco `e2e-strategy` **senza problemi**: le due
+coppie confrontate coi VOTI del pacchetto ri-derivati nell'arnese — mai con la pastiglia accanto, che
+sarebbe l'asserzione circolare — **461 su 500 disegnate, zero scarti**; con nove pastiglie accese **0 nomi
+tagliati, 0 riquadri fuori riga**. I quattro asserti nuovi sul vocabolario sono stati **provati
+rimettendo il difetto** (coppia che risponde con un numero, anno non tagliato): cadono tutti e quattro.
+
+## Il coordinamento con l'altra sessione
+
+Due sessioni su `views/strategy/strategy.ts`: la loro (SWING, `2329d07`) e la mia. Nessuna sovrapposizione
+di righe — misurata con un `git diff | grep` sul vocabolario di ciascuna feature: **0 righe loro** nel mio
+diff, 10 mie. Hanno committato mentre lavoravo, e la fotografia dell'albero è stata rifatta prima di
+scrivere il messaggio invece di essere citata.
+
+## Aperti
+
+Niente di misurabile. Una sola cosa che un domani potrebbe essere chiesta e non è un difetto: **solo le
+`G:A` portano l'anno**, mentre `MV`, `FM`, `G`, `A`, `xG` e `xA` sono anch'esse «questa stagione» e non lo
+dicono. Datarle tutte allargherebbe la fila di sei pastiglie per ripetere sei volte la stessa cosa;
+`ReadingSpec.dated` è già il posto dove si decide, una riga per pastiglia.

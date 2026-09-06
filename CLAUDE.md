@@ -3556,6 +3556,12 @@ sbaglia a misurare, e tre sono regole di casa incontrate da capo.
   (2) — il bundle porta gli infortuni di cinque campionati e la plancia disegna un listone solo. La forma
   che regge e' l'asserzione dal lato dello schermo, «nessuna riga disegnata e' di un uomo sotto la
   soglia», che non ha bisogno di rifare a mano la divisione in slot.
+  **E il verso opposto costa piu' caro** (06/09/2026, le coppie `G:A` della Strategia): quando il banco
+  legge una popolazione piu' STRETTA della pagina, non tace — ACCUSA. Ri-derivando i gol dai soli voti
+  mentre la pagina conta anche il campionato estero, 54 righe leggevano «`0:0` sullo schermo e niente nel
+  bundle», e il torto era dell'arnese. *Prima di credere a uno scarto, chiedersi se le due parti stiano
+  rispondendo alla stessa domanda su LA STESSA popolazione* — la piu' larga delle due e' quasi sempre
+  quella della pagina.
 
 ## Una COLONNA con due significati non puo' essere anche la chiave dell'ordinamento
 **04/09/2026, `app/src/app/core/plancia.ts` (`regroupByOffer`, `SlotView`) e `views/plancia/`. Dettaglio:

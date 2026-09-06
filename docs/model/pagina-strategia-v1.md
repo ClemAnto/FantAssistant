@@ -641,7 +641,8 @@ codice accanto alla riga che la applica, e in questi file.*
 
 «Aggiungi qui xG e xA», sulla fila delle letture dove stanno già MV e FM; e poco dopo «aggiungi anche
 un pill Gol e uno Assist», con la correzione che le rende utili: **«GOL → Gol per partita, ASSIST →
-Assist per partita»**. Undici pastiglie in tutto (`READINGS`), le prime tre accese all'apertura.
+Assist per partita»**. Undici pastiglie in tutto (`READINGS`), le prime tre accese all'apertura —
+quattordici dal 06/09, quando sono arrivate le due coppie `G:A` e lo SWING (§17).
 
 **LE QUATTRO STANNO NELLA STESSA UNITÀ, ed è la sua correzione a metterle lì.** `G 0,50` accanto a
 `xG 0,45` è una frase — segna quanto produce — mentre `G 1` accanto a `xG 0,45` sono due cifre che non
@@ -670,6 +671,62 @@ schermate: la Strategia stampava i decimali col PUNTO (`0.45`) e la card con la 
 Portata all'operatore invece che sistemata di nascosto — la cura tocca ogni numero dell'app — e la sua
 regola è **il punto, sempre**: le parole restano italiane, la cifra no. Dettaglio e guardia in
 `CLAUDE.md`, «Il divisore dei decimali di questa app è il PUNTO».
+
+---
+
+## 17. LE DUE COPPIE `G:A`: la stessa lettura in un'altra unità, e l'anno viene dal pacchetto (6 settembre 2026)
+
+«Aggiungi anche il pill **(G:A 25/26)** … quando si attiva mostri un pill con **(GOL:ASSIST)** per ogni
+calciatore», e poi «metti anche **(G:A 26/27)** dove mostri (GOL:ASSIST) di questa stagione»; con la
+precisazione arrivata subito dopo: **«nei gol ci devono essere i gol normali e i rigori trasformati»**.
+Quattordici pastiglie in tutto (`READINGS`), le prime tre ancora accese all'apertura.
+
+**NON SONO `G` E `A` CON UN ALTRO NOME, e la differenza è la domanda.** Quelle sono MEDIE per partita
+giocata — «che giocatore è» — queste sono CONTEGGI — «quanto ha portato». A settembre, su due giornate,
+chi ha segnato una volta legge `0.50` sull'una e `1:0` sull'altra, e nessuna delle due sostituisce
+l'altra. Convivono senza potersi contraddire perché **escono dalla stessa chiamata a `seasonTotals`**:
+`gaNow` è il NUMERATORE di `G`, non una seconda somma degli stessi voti. È la regola del 05/09 sugli xG
+(«due fonti per un fatto solo non convivono su uno schermo») applicata prima di poterla violare.
+
+**I RIGORI TRASFORMATI SONO GOL** e gli assist da fermo sono assist, come nel riepilogo della card e per
+la stessa ragione: la riga di una partita li tiene separati perché valgono punti diversi, ma «quanti gol
+ha fatto» è una domanda sul calcio e non sul punteggio. Quanto pesa, misurato sul pacchetto: Vlasic
+2025-26 legge **8** invece di 3, Nkunku 7 invece di 2, Orsolini 10 invece di 6.
+
+**UNA COPPIA COMPRENDE OGNI CAMPIONATO CHE HA GIOCATO**, non solo il nostro (`isChampionship` conta
+`league` e `other_league`, coppe e amichevoli fuori): **Malen 2025-26 legge `18:3`**, che è 14+2 di Serie
+A più 4+1 di Premier — ed è l'unica risposta utile a «quanti gol ha fatto l'anno scorso» per un uomo che
+la stagione l'ha giocata in due paesi. Stessa convenzione di `G`, `A` e della card.
+
+**L'ANNO LO DICHIARA IL PACCHETTO, non un'aritmetica.** `targetSeason` e `inputSeason` vengono dal
+manifest (`target_season`, `input_season`) e seguono il viaggio nel tempo, quindi dentro la macchina del
+tempo la coppia «scorsa» è quella che quel giorno era scorsa. Un anno calcolato come «bersaglio meno uno»
+sarebbe giusto oggi e sbagliato là, ed è la famiglia della colonna «Bonus» che portava un nome e un
+numero diversi (18/08/2026). `ReadingSpec.dated` dice che la sigla nomina la sua stagione, `readingShort`
+la compone: `G:A` esiste due volte, e senza l'anno sarebbero due pastiglie con un nome solo.
+
+**E NON SI PUÒ ORDINARE PER UNA COPPIA**, che è una rinuncia dichiarata e non una dimenticanza. Dietro
+`G:A` la somma sarebbe un numero plausibile — i bonus portati — e ordinare per quella lascerebbe a
+schermo due cifre di cui nessuna scende: «una colonna che spiega un ordinamento deve ESSERE
+quell'ordinamento» (operatore, 03/09/2026). Chi vuole ordinare per i gol ha `G`, che è un numero solo.
+`SORTABLE_READINGS` è derivato da `READINGS` e non riscritto, così una pastiglia non può esistere ed
+essere ordinabile per sbaglio (o il contrario).
+
+**IL PREZZO È ZERO**, e questo è l'unico punto in cui questa richiesta era più economica di quanto
+sembrasse: la seconda stagione non è un secondo caricamento, perché `PlayersStore` porta tutte le
+`heavy_seasons` del pacchetto in un colpo. Quello che cambia è un secondo giro sulla mappa che è già in
+casa. `SEASON_READINGS` e `PREV_SEASON_READINGS` sono ora DERIVATI da `ReadingSpec.season`: con due
+elenchi da tenere allineati a mano la prossima pastiglia si accenderebbe su una casella vuota, che è
+esattamente il difetto che il commento del 05/09 dichiarava di voler evitare.
+
+**Verificato dove si verifica.** Il banco accende le sei pastiglie di stagione insieme e confronta le due
+coppie **coi VOTI del pacchetto** — ri-derivati nell'arnese da `match_ratings` PIÙ `external_match_stats`,
+con la stessa regola di esclusione del proprio campionato — invece che con la pastiglia accanto, che
+sarebbe l'asserzione circolare: **461 coppie su 500 disegnate, zero scarti**. La prima passata leggeva 54
+righe «`0:0` sullo schermo e niente nel bundle» e **il torto era dell'arnese**, che guardava metà della
+domanda (i soli voti): un banco che legge una popolazione più stretta di quella della pagina accusa la
+pagina del proprio difetto. Costo di layout misurato con nove pastiglie accese, che è il carico massimo
+che il banco prova: **0 nomi tagliati, 0 riquadri fuori riga**.
 
 ---
 

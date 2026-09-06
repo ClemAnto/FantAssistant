@@ -1,8 +1,11 @@
 import { MantraModules } from './auction-value';
 import {
   DEFAULT_READINGS,
+  PREV_SEASON_READINGS,
   READINGS,
   SEASON_READINGS,
+  SORTABLE_READINGS,
+  ReadingKey,
   StrategyBidder,
   StrategySetup,
   blockLabel,
@@ -11,10 +14,16 @@ import {
   demandOf,
   gainOf,
   mantraBlocks,
+  readingHas,
   readingIsRough,
+  readingPair,
+  readingShort,
   readingValue,
   readingsOf,
   roleDepth,
+  shortSeason,
+  wantsPlayedFootball,
+  wantsPrevSeasonReadings,
   wantsSeasonReadings,
 } from './strategy';
 
@@ -84,6 +93,8 @@ const man = (over: Partial<StrategyBidder> = {}): StrategyBidder => ({
   seasonXa: null,
   seasonGoals: null,
   seasonAssists: null,
+  gaPrev: null,
+  gaNow: null,
   fvm: null,
   // Il conto delle giornate a riposo: questi test parlano di liste e di domanda, non di infortuni.
   outlook: {
@@ -566,17 +577,88 @@ describe('le letture che costano un caricamento', () => {
     expect(wantsSeasonReadings([])).toBe(false);
   });
 
-  it("basta una delle quattro, e ognuna delle quattro basta", () => {
+  it("basta una delle cinque, e ognuna delle cinque basta", () => {
     for (const key of SEASON_READINGS) expect(wantsSeasonReadings([key])).toBe(true);
     expect(wantsSeasonReadings(['fvm', 'xa'])).toBe(true);
   });
 
-  it('le quattro che costano sono quelle che vengono dal layer per-partita, e nessun altra', () => {
+  it('quelle che costano sono quelle che vengono dal layer per-partita, e nessun altra', () => {
     // Un elenco che scivolasse (una sigla aggiunta a `READINGS` e dimenticata qui) accenderebbe una
-    // pastiglia su una casella vuota per sempre: nessuno chiederebbe lo store.
-    expect([...SEASON_READINGS].sort()).toEqual(['assists', 'goals', 'xa', 'xg']);
-    for (const key of SEASON_READINGS) {
+    // pastiglia su una casella vuota per sempre: nessuno chiederebbe lo store. Dal 06/09/2026 non puo'
+    // piu' scivolare - i due elenchi sono DERIVATI da `ReadingSpec.season` - e l'asserto resta perche'
+    // dice QUALI sono, cioe' cattura una `season` messa sulla pastiglia sbagliata.
+    expect([...SEASON_READINGS].sort()).toEqual(['assists', 'gaNow', 'goals', 'xa', 'xg']);
+    expect([...PREV_SEASON_READINGS].sort()).toEqual(['gaPrev']);
+    for (const key of [...SEASON_READINGS, ...PREV_SEASON_READINGS]) {
       expect(READINGS.some((one) => one.key === key)).toBe(true);
     }
+  });
+
+  it('la stagione scorsa e una domanda a parte, e ognuna delle due chiede il calcio giocato', () => {
+    // Le due stagioni sono due letture e un caricamento solo: `wantsPlayedFootball` e' quello che
+    // decide se chiedere lo store, le altre due quale stagione ritagliare. Tenerle separate e' cio'
+    // che impedisce a `G:A 25/26` di ricostruire le seicento righe sulla stagione bersaglio.
+    expect(wantsPrevSeasonReadings(['gaNow'])).toBe(false);
+    expect(wantsSeasonReadings(['gaPrev'])).toBe(false);
+    expect(wantsPrevSeasonReadings(['gaPrev'])).toBe(true);
+    expect(wantsPlayedFootball(['gaPrev'])).toBe(true);
+    expect(wantsPlayedFootball(['gaNow'])).toBe(true);
+    expect(wantsPlayedFootball(DEFAULT_READINGS)).toBe(false);
+  });
+});
+
+/**
+ * LE DUE COPPIE `G:A` (operatore, 06/09/2026), e quello che le distingue dalle medie accanto.
+ *
+ * Sono la stessa lettura in un'altra unita', quindi il test che conta e' quello che lega le due: una
+ * media e un conteggio che si contraddicono sono la famiglia di errori piu' cara di questo progetto.
+ */
+describe('le coppie gol:assist', () => {
+  it('una coppia non ha un numero, quindi non ordina e non si stampa come tale', () => {
+    const one = readingsOf(man({ gaNow: { goals: 12, assists: 5 } }));
+    expect(readingValue('gaNow', one)).toBeNull();
+    expect(readingPair('gaNow', one)).toEqual({ goals: 12, assists: 5 });
+    // ...e la cella NON e' vuota, che e' la ragione per cui `readingHas` esiste: leggere il valore e
+    // basta avrebbe disegnato vuota la pastiglia di chi ha segnato dodici gol.
+    expect(readingHas('gaNow', one)).toBe(true);
+  });
+
+  it('vuoto e vuoto: chi non ha giocato quella stagione non porta uno 0:0', () => {
+    const nobody = readingsOf(man());
+    expect(readingPair('gaPrev', nobody)).toBeNull();
+    expect(readingHas('gaPrev', nobody)).toBe(false);
+    // Zero gol e' un fatto (ha giocato e non ha segnato) e si stampa.
+    expect(readingHas('gaPrev', readingsOf(man({ gaPrev: { goals: 0, assists: 0 } })))).toBe(true);
+  });
+
+  it('nessuna coppia e ordinabile, e tutte le altre lo sono', () => {
+    // L'asserto e' sulle DUE liste insieme: una pastiglia che finisse fuori da entrambe sarebbe una
+    // voce che non ordina niente e che nessuno ha dichiarato tale.
+    expect([...SORTABLE_READINGS].sort())
+      .toEqual(READINGS.filter((one) => !one.pair).map((one) => one.key).sort());
+    for (const key of SORTABLE_READINGS) expect(readingPair(key, readingsOf(man()))).toBeNull();
+    expect(SORTABLE_READINGS).not.toContain('gaPrev');
+    expect(SORTABLE_READINGS).not.toContain('gaNow');
+  });
+
+  it("la sigla NOMINA la sua stagione, e la prende dal pacchetto invece di calcolarla", () => {
+    const seasons = { target: '2026-27', input: '2025-26' };
+    const spec = (key: ReadingKey) => READINGS.find((one) => one.key === key)!;
+    expect(readingShort(spec('gaPrev'), seasons)).toBe('G:A 25/26');
+    expect(readingShort(spec('gaNow'), seasons)).toBe('G:A 26/27');
+    // Le altre non portano l'anno: aggiungerlo a tutte allargherebbe la fila senza dire niente di
+    // nuovo, perche' solo `G:A` esiste due volte.
+    expect(readingShort(spec('goals'), seasons)).toBe('G');
+    expect(readingShort(spec('swing'), seasons)).toBe('SWING');
+    // Un pacchetto che non dichiara ancora le stagioni lascia la sigla nuda, mai un anno inventato.
+    expect(readingShort(spec('gaNow'), { target: '', input: '' })).toBe('G:A');
+  });
+
+  it('una stagione fuori formato torna come e, invece di essere tagliata a caso', () => {
+    expect(shortSeason('2025-26')).toBe('25/26');
+    expect(shortSeason('2026-27')).toBe('26/27');
+    expect(shortSeason('2099-00')).toBe('99/00');
+    expect(shortSeason('boh')).toBe('boh');
+    expect(shortSeason('')).toBe('');
   });
 });

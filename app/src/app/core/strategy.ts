@@ -133,6 +133,22 @@ export function blockLabel(role: string, game: StrategyGame): string {
   return BLOCK_LABEL[role] ?? role;
 }
 
+/**
+ * QUANTI GOL E QUANTI ASSIST, contati: la coppia che le pastiglie `G:A` stampano `12:5`.
+ *
+ * Una coppia e non due numeri sciolti perche' e' UNA lettura - «quanto ha portato» - e tenerli insieme
+ * e' cio' che impedisce a una riga di avere i gol di una stagione e gli assist di un'altra. I due
+ * termini escono sempre dalla stessa somma degli stessi voti.
+ *
+ * I GOL COMPRENDONO I RIGORI TRASFORMATI e gli assist quelli da fermo (operatore, 06/09/2026): la riga
+ * di una partita li tiene separati perche' valgono punti diversi, ma «quanti gol ha fatto» e' una
+ * domanda sul calcio e non sul punteggio.
+ */
+export interface GoalsAssists {
+  goals: number;
+  assists: number;
+}
+
 /** Il minimo che una riga deve portare perché questo modulo possa ragionarci: il foglio la soddisfa. */
 export interface StrategyBidder {
   fcId: number;
@@ -256,6 +272,30 @@ export interface StrategyBidder {
   seasonGoals: number | null;
   seasonAssists: number | null;
   /**
+   * ...E LE DUE COPPIE CONTATE, una per stagione (operatore, 06/09/2026: «un pill `G:A 25/26` e uno
+   * `G:A 26/27` dove mostri (GOL:ASSIST)»).
+   *
+   * SONO LA STESSA LETTURA DI `seasonGoals`/`seasonAssists` IN UN'ALTRA UNITA', e non una seconda
+   * misura: escono dalla stessa chiamata a `seasonTotals`, che le divide per le partite giocate dove
+   * la media serve e le lascia intere qui. Due somme degli stessi voti darebbero a un uomo due
+   * conteggi, ed e' il difetto che questo progetto paga da sempre.
+   *
+   * DUE DOMANDE DIVERSE, ed e' la ragione per cui convivono con le medie: una media dice «che
+   * giocatore e'», un conteggio dice «quanto ha portato», e a settembre - su due giornate - la media
+   * di chi ha segnato una volta e' 0,50 mentre il conteggio e' 1. Nessuna delle due sostituisce
+   * l'altra.
+   *
+   * I RIGORI TRASFORMATI SONO GOL (sua precisazione, stessa richiesta) e gli assist da fermo sono
+   * assist: `seasonTotals` somma `goals + penScored` e `assists + assistsSetPiece`, che e' la stessa
+   * convenzione del riepilogo della card.
+   *
+   * `gaPrev` legge la stagione DICHIARATA come input dal manifest (`input_season`) e `gaNow` quella
+   * bersaglio: due stagioni lette dal pacchetto e mai calcolate da un anno meno uno. Vuote per chi non
+   * ha una giornata su file in quella stagione - che non e' uno zero-zero.
+   */
+  gaPrev: GoalsAssists | null;
+  gaNow: GoalsAssists | null;
+  /**
    * IL FANTAVALORE DI MERCATO del suo listone, nella valuta del gioco dichiarato.
    *
    * E' un PREZZO, non una nostra opinione, e questa pagina lo MOSTRA senza farlo entrare in niente («la
@@ -317,6 +357,15 @@ export interface ManReadings {
   xg: number | null;
   /** ...e gli assist attesi, sulla stessa stagione e con lo stesso denominatore. */
   xa: number | null;
+  /**
+   * I GOL E GLI ASSIST CONTATI, una coppia per stagione: quella scorsa e quella in corso.
+   *
+   * Non sono `goals`/`assists` con un altro nome: quelli sono MEDIE per partita giocata, questi sono
+   * CONTEGGI, e le due domande convivono («che giocatore e'» contro «quanto ha portato»). Escono dalla
+   * stessa lettura, quindi non possono contraddirsi.
+   */
+  gaPrev: GoalsAssists | null;
+  gaNow: GoalsAssists | null;
   /** Su quante giornate quelle due medie sono fatte: a settembre puo' essere UNA, e va detto. */
   seasonPlayed: number | null;
   /** Il fantavalore del listone: un PREZZO, e l'unico numero di questa riga che non e' nostro. */
@@ -343,7 +392,7 @@ export interface ManReadings {
  */
 export type ReadingKey =
   | 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'goals' | 'assists' | 'xg' | 'xa'
-  | 'fvm' | 'swing';
+  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing';
 
 export interface ReadingSpec {
   key: ReadingKey;
@@ -360,6 +409,36 @@ export interface ReadingSpec {
   /** Quanto e' larga la sua pastiglia: le pastiglie sono INCOLONNATE, quindi la larghezza e' fissa e
    *  non dipende dal numero - una fila di riquadri uguali si scorre a colpo d'occhio. */
   width: string;
+  /**
+   * QUALE STAGIONE DI CALCIO GIOCATO le serve, o niente se il numero sta gia' nel foglio.
+   *
+   * E' la sola dichiarazione: `SEASON_READINGS` e `PREV_SEASON_READINGS` si DERIVANO da qui, cosi' una
+   * pastiglia nuova non puo' esistere senza che la pagina sappia cosa caricarle sotto - due elenchi
+   * della stessa cosa sono come una pastiglia finisce per accendersi su una casella vuota per sempre.
+   *
+   * `target` e' la stagione che si sta comprando, `input` quella che il manifest dichiara come input
+   * (`input_season`): due stagioni LETTE dal pacchetto, mai un anno meno uno.
+   */
+  season?: 'target' | 'input';
+  /**
+   * LA PASTIGLIA PORTA UNA COPPIA e non un numero: si stampa `12:5` e non si puo' ordinare.
+   *
+   * L'ordinamento e' escluso apposta, e non per pigrizia. Dietro `G:A` la somma sarebbe un numero
+   * plausibile (i bonus portati), e ordinare per quella lascerebbe a schermo due cifre di cui nessuna
+   * scende: e' esattamente «una colonna che spiega un ordinamento deve ESSERE quell'ordinamento»
+   * (operatore, 03/09/2026), che questa pagina paga gia' in un punto. Chi vuole ordinare per i gol ha
+   * `G`, che e' un numero solo e sale e scende da se'.
+   */
+  pair?: true;
+  /**
+   * LA SIGLA NOMINA LA SUA STAGIONE, perche' `G:A` esiste due volte.
+   *
+   * L'anno NON e' scritto qui: lo compone chi disegna, dalla stagione che il pacchetto dichiara
+   * (`readingShort`). Cablarlo vorrebbe dire che il giorno in cui il bundle passa al 2027-28 la
+   * pastiglia direbbe 26/27 sopra i numeri del 27/28 - un nome che non corrisponde al suo numero, che
+   * e' peggio di una colonna mancante.
+   */
+  dated?: true;
 }
 
 export const READINGS: ReadingSpec[] = [
@@ -418,6 +497,7 @@ export const READINGS: ReadingSpec[] = [
     short: 'G',
     label: 'Gol per partita',
     hint: 'Gol per partita giocata, questa stagione. Rigori compresi.',
+    season: 'target',
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -426,6 +506,7 @@ export const READINGS: ReadingSpec[] = [
     short: 'A',
     label: 'Assist per partita',
     hint: 'Assist per partita giocata, questa stagione. Quelli da fermo compresi.',
+    season: 'target',
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -434,6 +515,7 @@ export const READINGS: ReadingSpec[] = [
     short: 'xG',
     label: 'Gol attesi a partita',
     hint: 'Gol ATTESI per partita, questa stagione.',
+    season: 'target',
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -442,8 +524,36 @@ export const READINGS: ReadingSpec[] = [
     short: 'xA',
     label: 'Assist attesi a partita',
     hint: 'Assist ATTESI per partita, questa stagione.',
+    season: 'target',
     format: '1.2-2',
     width: 'min-w-10',
+  },
+  // LE DUE COPPIE CONTATE (operatore, 06/09/2026). Stanno dopo le quattro medie perche' sono la
+  // stessa lettura in un'altra unita', e portano l'ANNO perche' senza sarebbero due pastiglie con un
+  // nome solo - l'anno lo compone `readingShort` dalla stagione che il pacchetto dichiara.
+  {
+    key: 'gaPrev',
+    short: 'G:A',
+    label: 'Gol e assist',
+    hint: 'Gol e assist CONTATI della stagione scorsa. Rigori e assist da fermo compresi.',
+    // Un conteggio non ha decimali. Il formato resta dichiarato perche' e' chi disegna a usarlo, e una
+    // coppia senza formato sarebbe l'unica riga di questo elenco a non dire come si stampa.
+    format: '1.0-0',
+    season: 'input',
+    pair: true,
+    dated: true,
+    width: 'min-w-12',
+  },
+  {
+    key: 'gaNow',
+    short: 'G:A',
+    label: 'Gol e assist',
+    hint: 'Gol e assist CONTATI di questa stagione. Rigori e assist da fermo compresi.',
+    format: '1.0-0',
+    season: 'target',
+    pair: true,
+    dated: true,
+    width: 'min-w-12',
   },
   {
     key: 'fvm',
@@ -477,8 +587,24 @@ export const DEFAULT_READINGS: ReadingKey[] = ['bonus', 'played', 'passed'];
  * chiede al primo click, quindi il prezzo lo paga chi le accende - e l'elenco sta QUI, accanto a
  * `READINGS`, perche' e' un fatto sul vocabolario e non una condizione da ripetere in due punti della
  * vista (una delle due si dimentica, e allora una pastiglia si accende su una casella vuota).
+ *
+ * DERIVATI e non riscritti a mano dal 06/09/2026, quando le coppie `G:A` hanno portato una SECONDA
+ * stagione: con due elenchi da tenere allineati la prossima pastiglia si accenderebbe su una casella
+ * vuota, che e' proprio il difetto che questo commento dichiarava di evitare. La sorgente unica e'
+ * `ReadingSpec.season`.
+ *
+ * LE DUE STAGIONI COSTANO UN CARICAMENTO SOLO: `PlayersStore` porta tutte le `heavy_seasons` del
+ * pacchetto in un colpo, quindi leggere anche quella scorsa non e' un byte in piu' - e' un secondo
+ * giro sulla mappa che e' gia' in casa.
  */
-export const SEASON_READINGS: ReadingKey[] = ['goals', 'assists', 'xg', 'xa'];
+export const SEASON_READINGS: ReadingKey[] = READINGS
+  .filter((one) => one.season === 'target')
+  .map((one) => one.key);
+
+/** ...e quelle che vogliono la stagione DICHIARATA come input dal manifest, non quella bersaglio. */
+export const PREV_SEASON_READINGS: ReadingKey[] = READINGS
+  .filter((one) => one.season === 'input')
+  .map((one) => one.key);
 
 /**
  * SE QUALCUNA DI QUELLE E' ACCESA, e quindi se il calcio giocato serve.
@@ -496,6 +622,17 @@ export const SEASON_READINGS: ReadingKey[] = ['goals', 'assists', 'xg', 'xa'];
 export function wantsSeasonReadings(keys: readonly ReadingKey[]): boolean {
   const on = new Set(keys);
   return SEASON_READINGS.some((key) => on.has(key));
+}
+
+/** ...e lo stesso per la stagione scorsa: due domande, perche' sono due stagioni da leggere. */
+export function wantsPrevSeasonReadings(keys: readonly ReadingKey[]): boolean {
+  const on = new Set(keys);
+  return PREV_SEASON_READINGS.some((key) => on.has(key));
+}
+
+/** Se una qualunque delle due serve, e quindi se lo store va chiesto. Un caricamento per tutte. */
+export function wantsPlayedFootball(keys: readonly ReadingKey[]): boolean {
+  return wantsSeasonReadings(keys) || wantsPrevSeasonReadings(keys);
 }
 
 /**
@@ -527,11 +664,53 @@ export function readingValue(key: ReadingKey, readings: ManReadings): number | n
       return readings.xg;
     case 'xa':
       return readings.xa;
+    // LE COPPIE NON HANNO UN NUMERO, e restituirne uno sarebbe inventare quale delle due cifre conta:
+    // la somma ordinerebbe una pastiglia che stampa `12:5`, cioe' due cifre di cui nessuna scende.
+    // Chi disegna passa da `readingPair`; chi ordina non le ha in elenco (`ReadingSpec.pair`).
+    case 'gaPrev':
+    case 'gaNow':
+      return null;
     case 'fvm':
       return readings.fvm;
     case 'swing':
       return readings.swing;
   }
+}
+
+/** LA COPPIA DI UNA PASTIGLIA, o `null` sia per chi non ne ha una sia per chi non l'ha giocata. */
+export function readingPair(key: ReadingKey, readings: ManReadings): GoalsAssists | null {
+  if (key === 'gaPrev') return readings.gaPrev;
+  if (key === 'gaNow') return readings.gaNow;
+  return null;
+}
+
+/**
+ * SE LA PASTIGLIA HA QUALCOSA DA STAMPARE, coppie comprese.
+ *
+ * Un lettore solo, perche' «la cella e' vuota» decide sia il testo sia il bordo che la disegna: due
+ * condizioni scritte in due posti sono come un riquadro finisce per essere pieno e sbiadito.
+ */
+export function readingHas(key: ReadingKey, readings: ManReadings): boolean {
+  return readingValue(key, readings) != null || readingPair(key, readings) != null;
+}
+
+/**
+ * LA STAGIONE COME SI SCRIVE SU UNA PASTIGLIA: `2025-26` -> `25/26`.
+ *
+ * Un TAGLIO della stringa che il pacchetto dichiara, mai un anno calcolato: la barra e' stretta e
+ * quattro cifre sono due di troppo, ma quale stagione sia resta un fatto del manifest. Una stringa che
+ * non ha quella forma torna com'e' - un'etichetta strana e' meglio di un'etichetta inventata.
+ */
+export function shortSeason(season: string): string {
+  const parts = /^(\d{2})(\d{2})-(\d{2})$/.exec(season);
+  return parts ? `${parts[2]}/${parts[3]}` : season;
+}
+
+/** La sigla come si legge sulla pastiglia: con l'anno per quelle che ne hanno due (`ReadingSpec.dated`). */
+export function readingShort(spec: ReadingSpec, seasons: { target: string; input: string }): string {
+  if (!spec.dated || !spec.season) return spec.short;
+  const season = spec.season === 'target' ? seasons.target : seasons.input;
+  return season ? `${spec.short} ${shortSeason(season)}` : spec.short;
 }
 
 /**
@@ -571,6 +750,11 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     // xG solo di quelle in cui la fonte ha una riga sua. Ognuna col suo, e il tooltip lo dice.
     xg: man.seasonXg,
     xa: man.seasonXa,
+    // LE DUE COPPIE CONTATE, lette e non ricalcolate: `gaNow` e i due `goals`/`assists` qui sopra
+    // escono dalla STESSA somma - una divisa per le partite giocate, l'altra intera - quindi la
+    // pastiglia `G 0,50` e la pastiglia `G:A 1:0` non possono dire due cose diverse dello stesso uomo.
+    gaPrev: man.gaPrev,
+    gaNow: man.gaNow,
     seasonPlayed: man.seasonPlayed,
     fvm: man.fvm,
     // LETTA E NON RICALCOLATA, come il gain: lo SWING nasce dove nasce la riga, perche' ha bisogno
@@ -750,6 +934,21 @@ export type SortKey = 'gain' | ReadingKey;
 
 /** Il gain non è una lettura e quindi non è in `READINGS`: la sua etichetta la scrive chi lo mostra. */
 export const DEFAULT_SORT: SortKey = 'gain';
+
+/**
+ * LE LETTURE SU CUI SI PUO' ORDINARE: tutte tranne le COPPIE.
+ *
+ * Una coppia stampa `12:5` e non ha un numero (`readingValue` risponde `null`): metterla in elenco
+ * darebbe una voce che non ordina niente, e darle una somma dietro le quinte disegnerebbe due cifre di
+ * cui nessuna scende - «una colonna che spiega un ordinamento deve ESSERE quell'ordinamento». Chi vuole
+ * ordinare per i gol ha `G`, che e' un numero solo.
+ *
+ * Derivato da `READINGS` e non riscritto: due elenchi della stessa cosa sono come una pastiglia finisce
+ * per esistere e non essere ordinabile (o il contrario, che e' peggio).
+ */
+export const SORTABLE_READINGS: ReadingKey[] = READINGS
+  .filter((one) => !one.pair)
+  .map((one) => one.key);
 
 /** Un uomo in classifica: la sua riga, il numero che lo ordina, e su cosa sta in piedi quel numero. */
 export interface RankedMan {

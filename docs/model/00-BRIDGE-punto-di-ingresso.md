@@ -1,5 +1,33 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 6 settembre 2026 (notte) — «CHI È MEGLIO» E «QUANTO OFFRIRE» SONO DUE GRADUATORIE, e un
+**Aggiornato: 6 settembre 2026 (notte tarda) — DUE COPPIE `G:A` SULLA STRATEGIA, E UN BANCO CHE
+GUARDAVA METÀ DELLA DOMANDA.** Richiesta dell'operatore in due messaggi più una precisazione: un pill
+**`G:A 25/26`** e uno **`G:A 26/27`** che mostrino **(GOL:ASSIST)** per ogni calciatore, «coi gol
+normali e i rigori trasformati». Quattordici pastiglie in tutto; nessuna riga di motore, nessuna
+revisione di foglio.
+(a) **NON SONO `G` E `A` CON UN ALTRO NOME**: quelle sono MEDIE per partita, queste CONTEGGI — «che
+giocatore è» contro «quanto ha portato», e a settembre su due giornate dicono `0.50` e `1:0` a ragione.
+Non possono contraddirsi perché escono dalla **stessa chiamata a `seasonTotals`**: `gaNow` è il
+numeratore di `G`. La regola del 05/09 sugli xG applicata PRIMA di poterla violare.
+(b) **L'ANNO LO DICHIARA IL PACCHETTO** (`target_season`/`input_season`) e segue il viaggio nel tempo:
+un anno calcolato come «bersaglio meno uno» sarebbe giusto oggi e sbagliato là — la famiglia della
+colonna «Bonus» che portava un nome e un numero diversi. E `SEASON_READINGS`, `PREV_SEASON_READINGS` e
+`SORTABLE_READINGS` sono ora **DERIVATI** da `ReadingSpec`: quattro elenchi allineati a mano erano il
+modo in cui la prossima pastiglia si accende su una casella vuota.
+(c) **NON SI ORDINA PER UNA COPPIA**, rinuncia dichiarata: la somma sarebbe plausibile e lascerebbe a
+schermo due cifre di cui nessuna scende — «una colonna che spiega un ordinamento deve ESSERE
+quell'ordinamento». Per i gol c'è `G`.
+(d) **IL DIFETTO TROVATO ERA DELL'ARNESE**, e vale più della feature: 54 righe lette «`0:0` sullo
+schermo e niente nel bundle» perché il banco sommava i soli VOTI mentre la pagina conta anche il
+campionato estero (Vicario in Premier ha una stagione, non un vuoto). *Un banco che legge una
+popolazione più stretta di quella della pagina accusa la pagina del proprio difetto.*
+(e) Fatti misurati che restano: i rigori valgono **Vlasic 8 invece di 3**, Nkunku 7 invece di 2; una
+coppia somma i campionati giocati (**Malen 25/26 = `18:3`**, 14+2 Serie A più 4+1 Premier); il prezzo
+del secondo anno è **zero** (le `heavy_seasons` arrivano in un colpo).
+**Verifica**: `ng build` pulito, **798 test** dell'app (sei nuovi, provati rimettendo il difetto), banco
+`e2e-strategy` senza problemi — **461 coppie su 500 confrontate coi VOTI ri-derivati nell'arnese**, zero
+scarti, e con nove pastiglie accese 0 nomi tagliati e 0 riquadri fuori riga. `engine_*`, i fogli e le
+revisioni fermi. Dettaglio: `pagina-strategia-v1.md` §17.
+· precedente: 6 settembre 2026 (notte) — «CHI È MEGLIO» E «QUANTO OFFRIRE» SONO DUE GRADUATORIE, e un
 termine giusto per una è sbagliato per l'altra.** Dalla domanda dell'operatore «esiste un valore che mi
 dica subito, fra due calciatori, quale mi farà vincere più partite?». Ne è nato **SWING** (nome suo, in
 codice e a schermo) e quattro termini misurati, tre respinti.

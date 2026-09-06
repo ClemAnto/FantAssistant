@@ -25,6 +25,9 @@ import {
   BlockView,
   DEFAULT_READINGS,
   READINGS,
+  SORTABLE_READINGS,
+  wantsPlayedFootball,
+  wantsPrevSeasonReadings,
   wantsSeasonReadings,
   RankedMan,
   ManReadings,
@@ -38,7 +41,10 @@ import {
   StrategySetup,
   blocksOf,
   gainOf,
+  readingHas,
   readingIsRough,
+  readingPair,
+  readingShort,
   readingValue,
   readingsOf,
 } from '../../core/strategy';
@@ -351,7 +357,7 @@ export class Strategy {
   /**
    * QUALI NUMERI SI VEDONO SU UNA RIGA (richiesta dell'operatore, 05/09/2026).
    *
-   * Undici pastiglie cliccabili al posto della scritta che c'era in barra, e le prime tre accese
+   * Quattordici pastiglie cliccabili al posto della scritta che c'era in barra, e le prime tre accese
    * all'inizio. E' una preferenza di LETTURA - non cambia chi si puo' comprare ne' in che ordine - e
    * per questo sta in `localStorage` come il taglio dei blocchi, e non nell'indirizzo.
    *
@@ -365,10 +371,26 @@ export class Strategy {
     return raw.filter((one): one is ReadingKey => typeof one === 'string' && known.has(one as ReadingKey));
   });
 
+  /**
+   * LE DUE STAGIONI CHE IL PACCHETTO DICHIARA, come le pastiglie le scrivono.
+   *
+   * Lette dal manifest e mai calcolate: `targetSeason` e' quella che si sta comprando, `inputSeason`
+   * quella su cui il foglio e' costruito, e tutt'e due seguono il viaggio nel tempo. Un'etichetta che
+   * dicesse `25/26` sopra i numeri di un'altra stagione sarebbe un nome che non corrisponde al suo
+   * numero, che questo progetto ha gia' pagato una volta (la colonna «Bonus», 18/08/2026).
+   */
+  private readonly seasonNames = computed(() => ({
+    target: this.store.targetSeason(),
+    input: this.store.inputSeason(),
+  }));
+
   /** Le pastiglie nell'ordine dichiarato, con acceso/spento: il template non ne decide nessuno. */
   protected readonly readingPills = computed(() => {
     const on = new Set(this.readings());
-    return READINGS.map((one) => ({ ...one, on: on.has(one.key) }));
+    const seasons = this.seasonNames();
+    // La sigla si compone QUI e non nel template: `G:A` esiste due volte e quello che le distingue e'
+    // l'anno, che e' un fatto del pacchetto - vedi `readingShort`.
+    return READINGS.map((one) => ({ ...one, on: on.has(one.key), short: readingShort(one, seasons) }));
   });
 
   /** ...e solo quelle accese, che e' quello che una riga disegna. */
@@ -386,7 +408,7 @@ export class Strategy {
    * se e' gia' stata fatta.
    */
   private readonly wantsExpected = effect(() => {
-    if (wantsSeasonReadings(this.readings())) void this.players.load();
+    if (wantsPlayedFootball(this.readings())) void this.players.load();
   });
 
   /**
@@ -406,8 +428,30 @@ export class Strategy {
     return this.players.ready() ? this.store.targetSeason() : null;
   });
 
-  /** Il numero dietro una sigla e se è spannometrico: dal vocabolario, che li possiede. */
-  protected valueOf = readingValue;
+  /**
+   * ...E QUELLA SCORSA, per le coppie `G:A` (operatore, 06/09/2026).
+   *
+   * `inputSeason` e non «la bersaglio meno uno»: e' il manifest a dichiarare quale stagione ha nutrito
+   * questo foglio (`input_season`), e il pacchetto del viaggio nel tempo porta la SUA - quindi una
+   * data passata legge la coppia dell'anno che quel giorno era «l'anno scorso», e non del 2025-26 per
+   * sempre. Un anno calcolato sarebbe giusto oggi e sbagliato dentro la macchina del tempo.
+   *
+   * NON COSTA UN SECONDO CARICAMENTO: `PlayersStore` porta tutte le `heavy_seasons` in un colpo, e
+   * questa e' una di quelle. Un computed suo per la stessa ragione dell'altro: `pool` dipende dal
+   * VALORE (una stagione, o niente) e non dall'elenco delle pastiglie accese.
+   */
+  private readonly prevSeason = computed<string | null>(() => {
+    if (!wantsPrevSeasonReadings(this.readings())) return null;
+    return this.players.ready() ? this.store.inputSeason() : null;
+  });
+
+  /**
+   * Se la cella ha qualcosa da stampare e se quel qualcosa è spannometrico: dal vocabolario.
+   *
+   * `has` e non «il numero è nullo», da quando esistono le coppie: `readingValue` risponde `null` su
+   * una `G:A` per costruzione, quindi la riga avrebbe disegnato vuota la pastiglia di chi ha segnato.
+   */
+  protected has = readingHas;
   protected isRough = readingIsRough;
 
   private readonly locale = inject(LOCALE_ID);
@@ -415,11 +459,19 @@ export class Strategy {
   /**
    * LA PASTIGLIA COME SI LEGGE: un metodo e non tre chiamate nel template.
    *
-   * Ogni riga ne disegna fino a undici e le righe sono seicento: scrivere il ternario nel template
-   * vorrebbe dire chiamare `valueOf` tre volte per pastiglia a ogni giro di change detection. Un
-   * trattino e non uno zero dove il numero non c'è, che è la regola di casa sui vuoti.
+   * Ogni riga ne disegna fino a quattordici e le righe sono seicento: scrivere il ternario nel
+   * template vorrebbe dire chiamare `readingValue` tre volte per pastiglia a ogni giro di change
+   * detection. Un trattino e non uno zero dove il numero non c'è, che è la regola di casa sui vuoti.
    */
   protected text(spec: ReadingSpec, readings: ManReadings): string {
+    // LE COPPIE PER PRIME, perche' per loro `readingValue` risponde `null` per costruzione: leggerlo
+    // e basta stamperebbe un trattino su un uomo che ha segnato dodici gol.
+    if (spec.pair) {
+      const pair = readingPair(spec.key, readings);
+      if (!pair) return '—';
+      const digits = (value: number) => formatNumber(value, this.locale, spec.format);
+      return `${digits(pair.goals)}:${digits(pair.assists)}`;
+    }
     const value = readingValue(spec.key, readings);
     if (value == null) return '—';
     const sign = spec.signed && value > 0 ? '+' : '';
@@ -620,6 +672,9 @@ export class Strategy {
     // store non e' ancora atterrato. Da un computed suo, cosi' questa lista dipende dal RISULTATO e
     // non dall'elenco delle pastiglie - vedi `expectedSeason`, e il commento sulle letture qui sotto.
     const expectedOn = this.expectedSeason();
+    // ...e la stagione SCORSA, per la coppia `G:A` che la nomina. Stesso patto: `null` quando quella
+    // pastiglia e' spenta, cosi' accenderne un'altra non fa un secondo giro sulle seicento righe.
+    const prevOn = this.prevSeason();
     // SOLO CHI IL LISTONE QUOTA (operatore, 04/09/2026: «Cheddira del Napoli e' ridicolo che stia nei
     // primi 60 attaccanti, non giochera' mai»). Il difetto non era la sua valutazione: e' che non e'
     // quotato affatto - zero righe in `listone_quotes` per il 2026-27, su nessuna delle due piattaforme
@@ -635,6 +690,12 @@ export class Strategy {
       // insieme. Vuoto finche' lo store non e' in casa, che e' quello che e'.
       const played_ = expectedOn
         ? seasonTotals(this.players.matchesOf(player.fcId, platform, expectedOn))
+        : null;
+      // ...e la stessa lettura sulla stagione scorsa, per la coppia contata. Stessa funzione e stessa
+      // convenzione (rigori dentro i gol, assist da fermo dentro gli assist): due somme diverse degli
+      // stessi voti darebbero a un uomo due conteggi, e le due coppie stanno sulla stessa riga.
+      const before = prevOn
+        ? seasonTotals(this.players.matchesOf(player.fcId, platform, prevOn))
         : null;
       // QUANTE NE GIOCHERA' DAVVERO, col conto unico dell'app (`core/expected-play.ts`, 04/09/2026):
       // il metro della plancia dove il motore ripiega su una costante, meno le giornate che uno stop
@@ -690,6 +751,13 @@ export class Strategy {
         // stessa unita' e `G` si puo' leggere accanto a `xG`.
         seasonGoals: played_?.played ? played_.goals / played_.played : null,
         seasonAssists: played_?.played ? played_.assists / played_.played : null,
+        // LE DUE COPPIE CONTATE (operatore, 06/09/2026), dalle stesse due letture: `gaNow` e' il
+        // NUMERATORE delle due medie qui sopra, quindi le quattro pastiglie non possono contraddirsi.
+        // Vuoto e non `0:0` per chi in quella stagione non ha una giornata su file: `seasonTotals`
+        // restituisce `null` quando non c'e' nessuna partita giocata, ed e' la differenza fra «non ha
+        // segnato» e «non ha giocato».
+        gaPrev: before ? { goals: before.goals, assists: before.assists } : null,
+        gaNow: played_ ? { goals: played_.goals, assists: played_.assists } : null,
         // Il PREZZO del suo listone, nella valuta del gioco dichiarato: letto da chi lo possiede già.
         fvm: this.store.fvmOf(platform, player.fcId, this.settings().game),
           // LO SWING: lo stesso surplus della riga, nell'unita' con cui la lega assegna i punti.
@@ -743,7 +811,9 @@ export class Strategy {
    */
   protected readonly sort = stored<SortKey>('strategy.sort', DEFAULT_SORT, [
     'gain',
-    ...READINGS.map((one) => one.key),
+    // SENZA LE COPPIE: `G:A` stampa due cifre e non ha un numero dietro, quindi ordinarci sopra
+    // lascerebbe a schermo una colonna che non scende - vedi `SORTABLE_READINGS`.
+    ...SORTABLE_READINGS,
   ]);
 
   /** L'etichetta della chiave in vigore: il gain non e' una lettura e la sua se la scrive da se'. */
@@ -754,14 +824,18 @@ export class Strategy {
   });
 
   /**
-   * LE VOCI DEL SELETTORE: il gain piu' le undici letture, nell'ordine in cui `READINGS` le dichiara.
+   * LE VOCI DEL SELETTORE: il gain piu' le letture ORDINABILI, nell'ordine in cui `READINGS` le
+   * dichiara.
    *
    * Costruite da `READINGS` e non riscritte a mano, cosi' una lettura nuova compare qui da se': due
    * elenchi della stessa cosa sono come una pastiglia finisce per esistere e non essere ordinabile.
+   * Le COPPIE sono l'eccezione dichiarata, e non un dimenticato - vedi `SORTABLE_READINGS`.
    */
   protected readonly sortOptions = computed<NzSelectOptionInterface[]>(() => [
     { label: this.gainLabel(), value: 'gain' },
-    ...READINGS.map((one) => ({ label: one.label, value: one.key })),
+    // SENZA LE COPPIE, per la ragione scritta in `SORTABLE_READINGS`: una voce che non ordina niente
+    // e' peggio di una voce che manca, perche' sceglierla non fa succedere nulla.
+    ...READINGS.filter((one) => !one.pair).map((one) => ({ label: one.label, value: one.key })),
   ]);
 
   protected setSort(key: SortKey): void {

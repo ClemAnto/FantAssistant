@@ -767,6 +767,83 @@ async function expectedFromBundle() {
   return out;
 }
 
+/**
+ * I GOL E GLI ASSIST CONTATI del bundle, per stagione: quello che le due pastiglie `G:A` devono dire.
+ *
+ * DAI VOTI (`match_ratings`) e non da un aggregato, perche' e' da li' che l'app li prende: la pagina
+ * somma le celle che `buildLeagueMatches` costruisce su questa stessa tabella, quindi ri-derivarli qui
+ * e' un secondo conto sugli stessi dati - che e' il solo confronto che valga qualcosa. Un totale
+ * ricavato dalla pastiglia sarebbe l'asserzione circolare.
+ *
+ * I RIGORI TRASFORMATI DENTRO I GOL e gli assist da fermo dentro gli assist (operatore, 06/09/2026):
+ * la convenzione si riscrive qui apposta invece di importarla, cosi' se un giorno cambiasse da una
+ * parte sola il banco se ne accorge invece di seguirla.
+ *
+ * DUE STRATI, perche' «una stagione» comprende il campionato che ha giocato ANCHE se non e' il nostro:
+ * `isChampionship` conta `league` e `other_league`, quindi Vicario in Premier nel 2025-26 ha una
+ * stagione e non un vuoto. Leggere i soli voti dava «0:0 sullo schermo e niente nel bundle» su 54
+ * righe - e il torto era dell'arnese, che guardava meta' della domanda. La riga del suo PROPRIO
+ * campionato si salta sullo strato esterno (e' gia' nei voti), che e' la stessa riga che
+ * `buildOtherMatches` scrive di se'.
+ */
+async function countedFromBundle(platform = 'default') {
+  const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
+  const table = (name) =>
+    readFile(join(DIST, 'data', `${name}.json.gz`)).then((raw) =>
+      JSON.parse(gunzipSync(raw).toString('utf8')));
+  const [ratings, external, rosters] =
+    await Promise.all([table('match_ratings'), table('external_match_stats'), table('rosters')]);
+  const want = { now: manifest.target_season, prev: manifest.input_season };
+  const whenOf = (season) => (season === want.now ? 'now' : season === want.prev ? 'prev' : null);
+  const out = new Map();
+  const add = (fcId, when, goals, assists) => {
+    const sum = out.get(fcId) ?? { now: null, prev: null };
+    const one = sum[when] ?? { goals: 0, assists: 0 };
+    one.goals += goals;
+    one.assists += assists;
+    sum[when] = one;
+    out.set(fcId, sum);
+  };
+
+  const rAt = (name) => ratings.columns.indexOf(name);
+  const [id, season, plat, role, goals, pens, assists, setPiece] = [
+    'fc_id', 'season', 'platform', 'role', 'goals', 'pen_scored', 'assists', 'assists_set_piece',
+  ].map(rAt);
+  for (const row of ratings.rows) {
+    if (row[plat] !== platform || row[role] === 'ALL') continue;
+    const when = whenOf(row[season]);
+    if (when) {
+      add(Number(row[id]), when, (row[goals] ?? 0) + (row[pens] ?? 0),
+        (row[assists] ?? 0) + (row[setPiece] ?? 0));
+    }
+  }
+
+  // IL CAMPIONATO DI CIASCUNO nella stagione BERSAGLIO, che e' quello che decide cosa e' «un altro
+  // campionato»: `rosters` per la stagione target, la stessa riga che `players-store` legge.
+  const sAt = (name) => rosters.columns.indexOf(name);
+  const [sId, sSeason, sLeague] = ['fc_id', 'season', 'league'].map(sAt);
+  const leagueOf = new Map();
+  for (const row of rosters.rows) {
+    if (row[sSeason] === want.now) leagueOf.set(Number(row[sId]), row[sLeague] ?? null);
+  }
+
+  const eAt = (name) => external.columns.indexOf(name);
+  const [eId, eSeason, eCompetition, eMinutes, eRating, eGoals, eAssists] =
+    ['fc_id', 'season', 'competition', 'minutes', 'rating', 'goals', 'assists'].map(eAt);
+  for (const row of external.rows) {
+    const when = whenOf(row[eSeason]);
+    if (!when) continue;
+    const slug = row[eCompetition];
+    if (!LEAGUES.has(slug)) continue; // una coppa e un'amichevole non sono una stagione di campionato
+    const fcId = Number(row[eId]);
+    if (slug === leagueOf.get(fcId)) continue; // il suo campionato: gia' contato dai voti
+    // Senza minuti E senza rating la cella e' `no_data`, che `seasonTotals` non conta.
+    if (row[eMinutes] == null && row[eRating] == null) continue;
+    add(fcId, when, row[eGoals] ?? 0, row[eAssists] ?? 0);
+  }
+  return { counted: out, seasons: want };
+}
+
 async function sheetNumbers() {
   const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
   const entry = (manifest.engine_sheets ?? []).find(
@@ -1180,7 +1257,14 @@ async function main() {
     const wrongExpected = [];
     let withExpected = 0;
     let crossChecked = null;
-    const SEASON_PILLS = ['goals', 'assists', 'xg', 'xa'];
+    // Dichiarato QUI perche' il verbale sta fuori dal blocco: un passo che non ha misurato le coppie
+    // deve dirlo, non tacere - «zero problemi» e «non ho guardato» non devono leggersi uguale.
+    let countedSaid = 'coppie G:A non misurate';
+    // LE DUE COPPIE INSIEME ALLE QUATTRO MEDIE (06/09/2026): sono la stessa lettura in due unita', e
+    // metterle nello stesso passo e' quello che permette di legarle - un conteggio e una media che si
+    // contraddicono sullo stesso uomo sono la prova che la definizione e' tornata a essere due.
+    const SEASON_PILLS = ['goals', 'assists', 'xg', 'xa', 'gaPrev', 'gaNow'];
+    // Sei accese qui piu' le tre dell'apertura: nove, che e' il carico massimo che questo banco prova.
     const switched = [];
     for (const key of SEASON_PILLS) switched.push(await pressReading(session, key));
     switched.splice(0, switched.length, ...switched.filter(Boolean));
@@ -1204,6 +1288,54 @@ async function main() {
         }
         if (want) withExpected += 1;
       }
+      // LE DUE COPPIE CONTATE, contro i VOTI del pacchetto (non contro la pastiglia accanto).
+      const { counted, seasons } = await countedFromBundle();
+      const pair = (text) => {
+        if (text == null || text === '—') return null;
+        const parts = String(text).split(':').map(Number);
+        return parts.length === 2 && parts.every(Number.isFinite)
+          ? { goals: parts[0], assists: parts[1] } : undefined;
+      };
+      let withCounted = 0;
+      for (const row of (await evaluate(session, readPills)) ?? []) {
+        for (const [key, when] of [['gaNow', 'now'], ['gaPrev', 'prev']]) {
+          if (!(key in row.say)) {
+            wrongExpected.push(`${row.name}: la pastiglia ${key} non si e' accesa`);
+            continue;
+          }
+          const said = pair(row.say[key]);
+          if (said === undefined) {
+            wrongExpected.push(`${row.name}: ${key} dice «${row.say[key]}», che non e' una coppia`);
+            continue;
+          }
+          const file = counted.get(row.id)?.[when] ?? null;
+          // Chi non ha una giornata su file non porta uno 0:0, e chi ne ha una lo porta anche a zero:
+          // e' la differenza fra «non ha segnato» e «non ha giocato», e vale in tutt'e due i versi.
+          if (file == null) {
+            if (said != null) wrongExpected.push(`${row.name}: ${key} dice ${row.say[key]} e il bundle niente`);
+            continue;
+          }
+          if (said == null || said.goals !== file.goals || said.assists !== file.assists) {
+            wrongExpected.push(
+              `${row.name}: ${key} (${when === 'now' ? seasons.now : seasons.prev}) dice `
+              + `«${row.say[key]}» e i voti ${file.goals}:${file.assists}`,
+            );
+          } else {
+            withCounted += 1;
+          }
+        }
+      }
+      // IL COSTO DELLE DUE PASTIGLIE IN PIU', misurato invece che sperato: con nove accese la riga e'
+      // la piu' carica che la pagina possa disegnare, e «276px di colonne non erano strette, erano
+      // ASSENTI» e' la famiglia di difetti che si paga proprio qui. Un fatto in verbale e non una
+      // soglia: quante ne accende e' una preferenza sua, non un limite nostro.
+      const loaded = (await evaluate(session, readPills)) ?? [];
+      const clipped = loaded.filter((one) => one.nameClipped).length;
+      const outside = loaded.reduce((sum, one) => sum + one.outside, 0);
+      countedSaid = `coppie G:A ${withCounted} verificate su ${loaded.length * 2} disegnate `
+        + `(${seasons.prev} e ${seasons.now}) · con nove pastiglie accese: nomi tagliati ${clipped}, `
+        + `riquadri fuori riga ${outside}`;
+      if (outside) wrongExpected.push(`${outside} riquadri disegnati fuori dalla propria riga`);
       // ...E LA CARD DEVE DIRE LO STESSO, che e' la proprieta' per cui la fonte e' stata cambiata:
       // pastiglia e riepilogo passano dalla STESSA funzione (`seasonTotals`), quindi due numeri diversi
       // sullo stesso uomo sullo stesso schermo sono la prova che la definizione e' tornata a essere due.
@@ -1309,7 +1441,8 @@ async function main() {
 
     note('gol, assist e attesi: dal bundle e uguali alla card', {
       said: `${withExpected} righe con xG/xA nel pacchetto su ${producedByBundle.size} uomini con una `
-        + `riga · card confrontata: ${crossChecked ?? 'nessuna (nessun uomo con gol E assist)'}`,
+        + `riga · ${countedSaid} · card confrontata: `
+        + `${crossChecked ?? 'nessuna (nessun uomo con gol E assist)'}`,
       problems: [
         ...switched,
         ...wrongExpected.slice(0, 5),
@@ -1802,18 +1935,30 @@ async function main() {
     for (const key of ['fvm', 'bonus']) pressed.push(await pressReading(session, key));
     const restoredPills = (await evaluate(session, readPills)) ?? [];
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le dodici letture della barra', {
+    note('le quattordici letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
         + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
       problems: [
         ...pressed.filter(Boolean),
-        // DODICI dal 06/09/2026 (lo SWING), undici dal 05/09 (gol, assist, xG e xA accanto a MV e
-        // FM). Il numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non una misura: se
-        // cresce, cresce per una richiesta, e allora si aggiorna insieme a `READINGS` invece di
-        // leggere dallo schermo quello che lo schermo dice.
-        ...(toggles.length === 12 ? [] : [`${toggles.length} pastiglie invece delle dodici dichiarate`]),
+        // QUATTORDICI dal 06/09/2026 (le due coppie `G:A`), dodici lo stesso giorno (lo SWING),
+        // undici dal 05/09 (gol, assist, xG e xA accanto a MV e FM). Il numero e' scritto qui perche'
+        // e' il VOCABOLARIO della pagina e non una misura: se cresce, cresce per una richiesta, e
+        // allora si aggiorna insieme a `READINGS` invece di leggere dallo schermo quello che lo
+        // schermo dice.
+        ...(toggles.length === 14 ? [] : [`${toggles.length} pastiglie invece delle quattordici dichiarate`]),
+        // LE DUE `G:A` NOMINANO LA LORO STAGIONE, e sono DUE anni diversi: due pastiglie con lo stesso
+        // testo sarebbero indistinguibili sulla barra, ed e' esattamente il difetto che `dated` cura.
+        ...((() => {
+          const dated = toggles.filter((one) => one.text.startsWith('G:A'));
+          if (dated.length !== 2) return [`${dated.length} pastiglie G:A invece di due`];
+          const said = dated.map((one) => one.text);
+          if (!said.every((one) => /^G:A \d\d\/\d\d$/.test(one))) {
+            return [`le G:A non portano il loro anno: ${JSON.stringify(said)}`];
+          }
+          return said[0] === said[1] ? [`le due G:A dicono lo stesso anno: ${said[0]}`] : [];
+        })()),
         ...(toggles.filter((one) => one.on).length === 3
           ? [] : [`${toggles.filter((one) => one.on).length} accese all'apertura invece di tre`]),
         ...(toggles.every((one) => one.under === 'button' || one.under === 'span')
