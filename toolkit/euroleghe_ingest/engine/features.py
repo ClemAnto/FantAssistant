@@ -271,6 +271,16 @@ class Observation:
     # stagione bersaglio - perché quel giorno era pubblico: lo vede chiunque sieda al tavolo.
     # None (e non 0) su una finestra pre-stagione, dove la domanda non esiste: «vuoto = ignoto».
     pv_seen: int | None = None
+    # ...E CHE FANTAMEDIA HA TENUTO IN QUELLE GIORNATE (R25, §7-noviesquadragies): la media del fantavoto
+    # sulle stesse righe che `pv_seen` conta, quindi la media e la sua TAGLIA escono dalla stessa query e
+    # non possono divergere. La taglia e' `pv_seen`, cioe' le partite che ha GIOCATO - non le giornate
+    # trascorse: un uomo che ha giocato una delle prime sei ha una fantamedia costruita su UNA partita, e
+    # contarla sei sarebbe l'errore di unita' che questo progetto paga piu' spesso.
+    #
+    # None su una finestra pre-stagione E per chi in quelle giornate non e' mai sceso in campo: chi non ha
+    # ancora giocato non ha una fantamedia bassa, non ne ha nessuna.
+    fm_seen: float | None = None
+    mv_seen: float | None = None
     # ...E QUANTE DI QUELLE PARTITE HA COMINCIATO (R24). `pv_seen` conta le presenze A VOTO, che
     # mettono nello stesso numero il titolare e chi entra dalla panchina e gioca abbastanza da prendere
     # il voto - due stati che il resto della stagione tratta in modo diverso. La distinta non e' nei voti
@@ -1602,7 +1612,12 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
                                    - (1 if fc_id in arrived else 0)),
             peer_top=peer_top.get(fc_id), value_percentile=value_percentile.get(fc_id),
             starter_prob=starters.get(fc_id), penalty_rank=rank, penalty_confidence=confidence,
-            pv_seen=seen_totals.get(fc_id, 0 if seen_rounds else None),
+            pv_seen=(seen_totals.get(fc_id, (0, None, None))[0] if seen_rounds else None),
+            # ZERO PARTITE E NESSUNA FANTAMEDIA sono due cose diverse, e la riga le tiene diverse: chi non
+            # ha giocato ha `pv_seen` 0 (una prova su di lui: c'era e non e' stato scelto) e `fm_seen`
+            # None (di lui non e' stato misurato niente). R25 legge la seconda e si rifiuta.
+            fm_seen=seen_totals.get(fc_id, (0, None, None))[2],
+            mv_seen=seen_totals.get(fc_id, (0, None, None))[1],
             starts_seen=seen_starts.get(fc_id, (None, None))[0],
             played_seen=seen_starts.get(fc_id, (None, None))[1],
             # Su una finestra in-season l'esito è il RESTO della stagione; su una pre-stagione resta il
@@ -1634,13 +1649,16 @@ def _split_target_season(conn: sqlite3.Connection, window: Window, platform: str
     excluded = sorted(seen | (straddling or set()))
     marks = ",".join("?" * len(seen))
     marks_out = ",".join("?" * len(excluded))
-    played: dict[int, int] = {}
-    for fc_id, count in conn.execute(
-            f"""SELECT fc_id, COUNT(*) FROM match_ratings
+    # IL LATO VISTO PORTA ANCHE LE DUE MEDIE (R25), e dalla STESSA query del conteggio: `pv_seen` e
+    # `fm_seen` sono il denominatore e il numeratore della stessa domanda, e leggerli da due query
+    # tagliate alla stessa data e' comunque il modo in cui due numeri finiscono per non essere d'accordo.
+    played: dict[int, tuple[int, float | None, float | None]] = {}
+    for fc_id, count, mv, fm in conn.execute(
+            f"""SELECT fc_id, COUNT(*), AVG(mv), AVG(fantavoto) FROM match_ratings
                 WHERE season = ? AND platform = ? AND status = 'played'
                   AND matchday IN ({marks}) GROUP BY fc_id""",
             (window.target_season, platform, *sorted(seen))):
-        played[int(fc_id)] = int(count)
+        played[int(fc_id)] = (int(count), mv, fm)
     rest: dict[int, tuple] = {}
     for fc_id, count, mv, fm in conn.execute(
             f"""SELECT fc_id, COUNT(*), AVG(mv), AVG(fantavoto) FROM match_ratings

@@ -5898,3 +5898,67 @@ misure diverse suggeriscono e nessuna ha ancora provato su questa domanda.
 `None`: la regola è **inerte su ogni finestra su cui il gate ha pubblicato i suoi numeri**. Quindi
 `backtest --verify` deve restare **22/22** e nessun foglio deve muoversi finché la regola non è in
 `ADOPTED`. Se non fosse così, il difetto è nell'input e non nella regola, e va cercato lì.
+
+### 7-noviesquadragies (bis). L'ESITO: la regola FUNZIONA, e l'ottimo è sul BORDO — quindi non si adotta oggi
+
+**Corsa fatta** subito dopo la pre-registrazione (`e7825fb`), 14 finestre in-season, due piattaforme, due
+giochi. La griglia è quella dichiarata e nessun punto è stato aggiunto dopo aver visto la curva.
+
+| K (partite) | default/classic | default/mantra | euro/classic | euro/mantra |
+|---|---|---|---|---|
+| 3 | 11/14 · +7,2% · peggiore **−7,1%** | 11/14 · +7,2% · −7,0% | 6/10 · −4,6% · −45,2% | 6/10 · −4,5% · −45,2% |
+| 6 | 4/12 · −0,7% | 3/12 · −2,1% | 0/3 · −10,8% | 0/3 · −11,7% |
+| 10 | 6/12 · +3,5% | 6/12 · +2,6% | 0/3 · −3,5% | 0/3 · −4,3% |
+| 15 | 9/12 · +5,1% · −6,6% | 8/12 · +4,6% | 0/3 · −0,8% | 0/3 · −1,3% |
+| 25 | 10/12 · **+5,6%** · −2,0% | **HOLDS** 10/12 · +5,2% · −0,8% | 2/3 · +0,5% | 1/3 · +0,0% |
+| **40** | **HOLDS** 11/12 · +5,0% · **−0,6%** | **HOLDS** 11/12 · +4,9% · **+0,3%** | HOLDS 2/3 · +0,7% | 2/3 · +0,4% |
+
+**Su Serie A la regola PASSA il verdetto robusto a K = 40**, su tutt'e due i giochi: 11 finestre di 12
+migliorano, guadagno medio **+5,0%** di MAE sulla fantamedia, peggiore finestra −0,6% (e +0,3% su
+mantra, cioè nessuna finestra contro). Strict no — c'è una finestra a +0,0% — quindi i due verdetti
+divergono, che è esattamente la forma di R19. **E il deliverable non è danneggiato, anzi: le liste
+d'asta si allungano, 138 → 141 nomi (+2,2%).**
+
+**LE DUE PREVISIONI PRE-REGISTRATE SONO CONFERMATE TUTT'E DUE, e vale la pena dirlo perché erano
+falsificabili.** Il K vincente sta nella metà alta della griglia; e il guadagno viene da FEBBRAIO e non
+da settembre — sulle finestre `set` la MAE si muove del −1,5%/−3,3% (una a +0,0%), sulle `feb` del
+**−9,6%/−12,8%**. A settembre il campione è di 2-6 partite e il termine è quasi inerte per costruzione;
+a febbraio sono ~20 e pesa quanto il prior.
+
+**MA L'OTTIMO È SUL BORDO DELLA GRIGLIA, QUINDI NON SI ADOTTA OGGI.** È la regola che questo progetto
+applica da sempre («un parametro non è mai adottato al bordo della sua griglia», e il precedente è il
+canale dell'investimento condizionale, tenuto a zero per la stessa ragione procedurale finché
+`investment_unplayed_value_wide` non ha spostato l'ottimo all'interno). La curva del guadagno MEDIO ha
+un massimo interno a K = 25 (+5,6%) ma quella della PEGGIORE finestra migliora in modo monotono fino al
+bordo, quindi non si sa dove stia il vero ottimo: potrebbe essere a 40, a 60 o a 120.
+
+**Su EURO non passa**, e va detto invece di essere nascosto dentro la media: solo 3 finestre lo misurano
+(euro perde due finestre alla fonte, §7-duotricies), il guadagno è +0,7% su classic e +0,4% su mantra,
+e su mantra il verdetto non tiene. **L'evidenza è per piattaforma**, come per R19 e R20.
+
+**E un costo che sta dentro il guardiano ma è UNIDIREZIONALE, quindi si scrive**: il VALORE catturato
+dalle liste scende su OGNI finestra, da −0,2% a −1,8%. È dentro la tolleranza del 2% e non è rumore —
+ha lo stesso segno dodici volte su dodici. La lettura onesta è che la regola sposta la fantamedia dei
+nomi in cima quel tanto che basta a riordinarli, e il riordino costa un po' di valore catturato mentre
+la MAE migliora del 5%: due metriche, due risposte, e nessuna delle due si nasconde.
+
+### 7-quinquagies. PRE-REGISTRAZIONE (6 settembre 2026, notte) — R25 sulla GRIGLIA ALLARGATA
+
+**Scritta prima della seconda corsa, e per la ragione procedurale e non perché il risultato piaccia.**
+Allargare una griglia dopo aver visto la curva è l'altro modo di fittare, quindi si fa nel modo che il
+protocollo prevede: la si pre-registra, e il verdetto vale solo se l'ottimo cade DENTRO.
+
+**Griglia**: `R25K60 · R25K80 · R25K120`, in aggiunta ai sei punti già corsi. Nessun altro punto.
+
+**Criterio**: identico a §7-noviesquadragies. **Si adotta solo se l'ottimo è INTERNO** — cioè se il
+guadagno smette di crescere prima di K = 120 — e solo su `default`, dove le 12 finestre lo misurano; su
+euro il verdetto resta negativo e non si rimescola con una griglia nuova.
+
+**Cosa mi aspetto**: che l'ottimo cada fra 40 e 80. A K = 40 il termine pesa già poco — a febbraio, con
+~20 partite giocate, la stagione in corso vale 20/(20+40) = un terzo — e più il K cresce più la regola
+converge a non far niente, quindi il guadagno DEVE tornare a zero da qualche parte. Se non tornasse a
+zero nemmeno a 120, vorrebbe dire che quello che paga non è la miscela ma qualcos'altro che non ho
+capito, e andrebbe cercato invece che adottato.
+
+**E se l'ottimo restasse sul bordo anche allora**, la regola resta non adottata e la cosa si scrive:
+meglio un canale misurato e non spedito che un parametro scelto guardando la coda della griglia.

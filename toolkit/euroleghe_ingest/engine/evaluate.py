@@ -161,6 +161,11 @@ RULES: tuple[Rule, ...] = (
     # e ogni punto si giudica da solo contro lo stesso baseline. K è in GIORNATE - quante ne servono
     # perché quello che ha fatto finora pesi quanto la previsione. Inerte su una finestra pre-stagione,
     # per costruzione: senza giornate viste il termine non esiste.
+    *(Rule(key, f"la fantamedia GIÀ TENUTA nelle giornate giocate entra nella fantamedia attesa, con "
+                f"il prior che pesa K = {matches:.0f} PARTITE", True, metric="fm")
+      for key, matches in (("R25K120", 120.0), ("R25K80", 80.0), ("R25K60", 60.0),
+                           ("R25K40", 40.0), ("R25K25", 25.0), ("R25K15", 15.0),
+                           ("R25K10", 10.0), ("R25K6", 6.0), ("R25K3", 3.0))),
     *(Rule(key, f"le giornate GIÀ GIOCATE entrano nelle presenze attese, con il prior che pesa "
                 f"K = {rounds:.0f} giornate", True, metric="pv")
       for key, rounds in (("R20K40", 40.0), ("R20K25", 25.0), ("R20K15", 15.0),
@@ -198,6 +203,21 @@ RULES: tuple[Rule, ...] = (
 #: Quante giornate di PRIOR vale ogni punto della griglia di R20. La chiave è la regola stessa.
 R20_ROUNDS: dict[str, float] = {"R20K40": 40.0, "R20K25": 25.0, "R20K15": 15.0,
                                 "R20K10": 10.0, "R20K6": 6.0, "R20K3": 3.0}
+
+#: E QUANTE PARTITE DI PRIOR VALE OGNI PUNTO DELLA GRIGLIA DI R25, la gemella di R20 sull'altra metrica.
+#: L'unita' e' diversa e la differenza e' dichiarata (§7-noviesquadragies): per le presenze `k` sono le
+#: GIORNATE trascorse, perche' `pv_seen / matchdays_seen` e' una quota su quel calendario; per la
+#: fantamedia sono le PARTITE CHE HA GIOCATO, perche' la taglia del campione di una media e' quante volte
+#: quella media e' stata misurata.
+#:
+#: LA GRIGLIA E' STATA ALLARGATA UNA VOLTA, e la ragione e' procedurale (§7-quinquagies): la prima corsa
+#: ha dato il verdetto ROBUSTO su `default` a K = 40, che e' il BORDO - 11 finestre di 12, +5,0% di MAE
+#: sulla fantamedia, peggiore -0,6%, e le liste d'asta piu' lunghe (138 -> 141 nomi). Un ottimo sul bordo
+#: non si adotta, quindi i tre punti nuovi sono stati PRE-REGISTRATI prima della seconda corsa invece di
+#: essere aggiunti guardando la curva. Su `euro` il verdetto e' negativo e la griglia nuova non lo tocca.
+R25_MATCHES: dict[str, float] = {"R25K120": 120.0, "R25K80": 80.0, "R25K60": 60.0,
+                                 "R25K40": 40.0, "R25K25": 25.0, "R25K15": 15.0,
+                                 "R25K10": 10.0, "R25K6": 6.0, "R25K3": 3.0}
 
 
 #: L'ordine in cui le due famiglie si contendono l'unico ramo della miscela: la piu' specifica prima.
@@ -237,7 +257,9 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                # decide è se applicarlo migliora le presenze previste.
                                "R21",
                                # R22/R23: pre-registrate §7-noviestricies (20/08/2026).
-                               "R22", "R23")
+                               "R22", "R23",
+                               # R25: pre-registrata §7-noviesquadragies (06/09/2026).
+                               *R25_MATCHES)
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -1528,6 +1550,23 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
     # R4 - ageing
     if "R4" in rules and params.age_fm is not None:
         fm_pred += model.age_adjustment(obs.age(data.window), params.age_fm)
+
+    # R25 - LA FANTAMEDIA GIA' TENUTA IN QUESTA STAGIONE, e va per ULTIMA per la stessa ragione per cui
+    # R20 va per ultima sulle presenze: e' l'ultima cosa che si sa. Non SOSTITUISCE la previsione, ci
+    # converge - a due partite giocate il termine e' piccolo per ogni K sensato, a venti e' quasi tutto.
+    #
+    # IL PESO E' IN PARTITE E NON IN GIORNATE (§7-noviesquadragies), e la riga qui sotto e' il posto in
+    # cui quella decisione si vede: `pv_seen` conta le volte in cui ha PRESO UN VOTO, che e' esattamente
+    # la taglia del campione su cui `fm_seen` e' stata misurata. Chi non ha ancora giocato ha `fm_seen`
+    # None e la regola non lo tocca: non ha una fantamedia bassa, non ne ha nessuna.
+    #
+    # Su una finestra pre-stagione `fm_seen` e' None per tutti, quindi questo blocco non esiste - ed e'
+    # la ragione per cui la regola e' inerte su ogni numero che il gate ha gia' pubblicato.
+    for key, matches in R25_MATCHES.items():
+        if (key in rules and fm_pred is not None
+                and obs.fm_seen is not None and obs.pv_seen):
+            fm_pred = model.blend_with_seen(fm_pred, obs.fm_seen, float(obs.pv_seen), matches)
+            break
     return fm_pred
 
 
