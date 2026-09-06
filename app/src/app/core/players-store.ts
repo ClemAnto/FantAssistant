@@ -169,8 +169,29 @@ export interface ColumnSlot {
   key: string;
   /** The matchday, the date, or - with one club on screen - the fixture: `Nap-Mil`. */
   label: string;
-  /** The scoreline, on its own line under the label. Only when a club is selected. */
+  /** What goes under the label beside the score: the shape, or the round when there is no score. */
   detail: string | null;
+  /**
+   * IL RISULTATO, SEPARATO dal resto e col suo ESITO - perche' va colorato (operatore, 06/09/2026:
+   * «nei titoli delle colonne, metti in verde i risultati delle partite vincenti e in rosso quelle
+   * perdenti»), e un colore non si puo' dare a mezza stringa.
+   *
+   * L'esito e' dal punto di vista del CLUB della tabella (`goalsFor` contro `goalsAgainst` della sua
+   * riga), non di chi gioca in casa: la colonna descrive la partita di QUELLA squadra. Vuoto dove non
+   * c'e' un club sullo schermo o dove il punteggio non e' noto - ignoto, non zero a zero.
+   */
+  score: string | null;
+  outcome: 'win' | 'draw' | 'loss' | null;
+  /**
+   * IL CONFINE FRA DUE STAGIONI: una colonna che non e' una partita (operatore, 06/09/2026: «tra una
+   * stagione e l'altra metti una colonna divisoria»).
+   *
+   * Porta la frase del passaggio (`2025-26 → 2026-27`) e non un'etichetta a schermo: e' larga dieci
+   * pixel e un nome di stagione non ci sta, quindi la dice il tooltip. Le sue celle sono vuote per
+   * costruzione - non c'e' nessuna partita in un confine - e chi disegna la tabella salta la cella
+   * invece di stamparci il trattino delle giornate non giocate, che significa un'altra cosa.
+   */
+  divider: string | null;
   /** What kind of match the column is about - known only when one club is on screen, because
    *  without a filter a week holds a league round AND its cup ties AND friendlies at once. */
   kind: MatchKind | null;
@@ -363,7 +384,11 @@ export class PlayersStore {
     const to = query.to;
     const from = Math.max(query.from, to - COLUMNS + 1);
     const days: number[] = [];
-    for (let md = from; md <= to; md++) days.push(md);
+    // LA PIU' RECENTE A SINISTRA (operatore, 06/09/2026: «l'ordine delle colonne deve essere inverso, a
+    // sinistra le più recenti e a destra le più vecchie»). E' anche l'ordine che `recentMatches` - le
+    // ultime partite della CARD - dichiara di se' da sempre: una tabella e una card che leggono la
+    // stessa storia in due direzioni sono due vocabolari per un fatto solo.
+    for (let md = to; md >= from; md--) days.push(md);
     return days;
   }
 
@@ -442,6 +467,9 @@ export class PlayersStore {
           key: String(md),
           label: String(md),
           detail: null,
+          score: null,
+          outcome: null,
+          divider: null,
           kind: null,
           title: `Giornata ${md}`,
         }))
@@ -590,6 +618,84 @@ export class PlayersStore {
   }
 
   /**
+   * L'ULTIMA GIORNATA CHE HA DAVVERO UNA RIGA, o zero: e non `lastMatchdayOf`, che ha un PAVIMENTO di
+   * dieci - giusto per una finestra da mostrare («le ultime dieci» di una stagione appena cominciata
+   * sono comunque dieci colonne), sbagliato per chiedersi quanto calcio c'e' in archivio.
+   */
+  playedMatchdayOf(platform: Platform, season: string): number {
+    let last = 0;
+    for (const byDay of this.league().get(`${platform}|${season}`)?.values() ?? []) {
+      for (const md of byDay.keys()) if (md > last) last = md;
+    }
+    return last;
+  }
+
+  /**
+   * LE ULTIME `COLUMNS` GIORNATE IN ASSOLUTO, attraversando le stagioni (operatore, 06/09/2026:
+   * «mostra le ultime 10 partite in assoluto e non solo della stagione precedente»).
+   *
+   * `matchTable` risponde su UNA stagione e resta com'e': un asse di colonne e' una stagione e una
+   * finestra, e la seconda giornata di campionato ha due colonne e non dieci. Questa le COMPONE - la
+   * piu' recente per prima, indietro finche' le colonne bastano - e fra due blocchi mette un CONFINE,
+   * che e' una colonna che non e' una partita. Le righe si concatenano per POSIZIONE, che e' lecito
+   * perche' `matchTable` conserva l'ordine dei giocatori che gli si passa: e' scritto nel suo
+   * docstring, ed e' anche la ragione per cui le due tabelle di una vista possono essere la stessa
+   * lista due volte.
+   *
+   * Le stagioni si passano dalla PIU' RECENTE: chi chiama sa quali sono (il foglio dichiara la sua
+   * stagione bersaglio e quella misurata) e questo store non le indovina.
+   */
+  matchTableAcross(
+    query: MatchQuery,
+    seasons: readonly string[],
+    players: readonly PlayerRow[],
+  ): MatchTable {
+    const blocks: { season: string; table: MatchTable }[] = [];
+    let need = COLUMNS;
+    for (const season of seasons) {
+      if (need <= 0) break;
+      const last = this.playedMatchdayOf(query.platform, season);
+      if (!last) continue;
+      const table = this.matchTable(
+        { ...query, season, from: Math.max(1, last - need + 1), to: last },
+        players,
+      );
+      if (!table.columns.length) continue;
+      blocks.push({ season, table });
+      need -= table.columns.length;
+    }
+    if (blocks.length < 2) return blocks[0]?.table ?? this.matchTable(query, players);
+
+    // I blocchi restano nell'ordine in cui sono stati raccolti - dalla stagione PIU' RECENTE - perche'
+    // le colonne si leggono da sinistra con la partita piu' recente per prima (operatore, 06/09/2026).
+    const columns: ColumnSlot[] = [];
+    const cells: (MatchCell | null)[][] = players.map(() => []);
+    blocks.forEach((block, at) => {
+      if (at > 0) {
+        // Il confine porta le due stagioni NELL'ORDINE IN CUI SONO DISEGNATE: a sinistra la piu'
+        // recente, quindi la freccia va indietro nel tempo come la lettura della tabella.
+        const before = blocks[at - 1].season;
+        columns.push({
+          key: `border|${before}|${block.season}`,
+          label: '',
+          detail: null,
+          score: null,
+          outcome: null,
+          divider: `${before} → ${block.season}`,
+          kind: null,
+          title: `Confine fra le stagioni ${before} e ${block.season}`,
+        });
+        for (const row of cells) row.push(null);
+      }
+      columns.push(...block.table.columns);
+      block.table.lines.forEach((line, index) => cells[index]?.push(...line.cells));
+    });
+    // L'identita' delle righe viene dal primo blocco: sono gli stessi uomini nello stesso ordine.
+    const lines = blocks[0].table.lines.map((line, index) => ({ ...line, cells: cells[index] ?? [] }));
+    return { columns, lines };
+  }
+
+  /**
    * The columns, in both modes. With a club selected each one also names the fixture it is about -
    * possible only then, because without a filter one week holds many matches.
    */
@@ -649,7 +755,12 @@ export class PlayersStore {
       return {
         ...slot,
         label: fixture.label,
-        detail: [fixture.detail ?? slot.label, chosen.shape].filter(Boolean).join(' · '),
+        // Il RISULTATO viaggia a parte perche' ha un colore suo; sotto resta il modulo, e il numero di
+        // giornata solo dove un punteggio non c'e' - altrimenti la seconda riga direbbe due volte
+        // «quale partita e' questa».
+        score: fixture.detail,
+        outcome: fixture.outcome,
+        detail: [fixture.detail ? null : slot.label, chosen.shape].filter(Boolean).join(' · ') || null,
         kind: chosen.kind,
         title: `${chosen.competitionLabel} · ${fixture.long}${chosen.shape ? ' · modulo ' + chosen.shape : ''} · ${slot.title}`,
       };
@@ -688,8 +799,10 @@ export class PlayersStore {
     }
 
     return [...weeks.entries()]
+      // Le ultime `COLUMNS` settimane, e poi girate: la piu' recente a sinistra come le giornate.
       .sort((a, b) => a[0].localeCompare(b[0]))
       .slice(-COLUMNS)
+      .reverse()
       .map(([key, entry]) => {
         const days = [...entry.matchdays].sort((a, b) => a - b);
         const range =
@@ -698,6 +811,9 @@ export class PlayersStore {
           key,
           label: days.length ? days.join('/') : day(entry.first).slice(0, 5),
           detail: null,
+          score: null,
+          outcome: null,
+          divider: null,
           kind: null,
           title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,
         };
@@ -890,8 +1006,13 @@ export function abbreviate(name: string | null): string {
   return (nameWords(name)[0] ?? name).slice(0, 3);
 }
 
-/** The fixture as it is written: home first. */
-function fixtureLabel(cell: MatchCell): { label: string; detail: string | null; long: string } {
+/** The fixture as it is written: home first, plus how it ended FOR THIS CELL'S CLUB. */
+function fixtureLabel(cell: MatchCell): {
+  label: string;
+  detail: string | null;
+  outcome: 'win' | 'draw' | 'loss' | null;
+  long: string;
+} {
   const away = cell.home === false;
   const left = away ? cell.opponent : cell.team;
   const right = away ? cell.team : cell.opponent;
@@ -899,9 +1020,19 @@ function fixtureLabel(cell: MatchCell): { label: string; detail: string | null; 
   const rightGoals = away ? cell.goalsFor : cell.goalsAgainst;
   const score =
     leftGoals != null && rightGoals != null ? `${leftGoals}-${rightGoals}` : null;
+  // L'esito e' del CLUB della riga e non di chi giocava in casa: `goalsFor` e `goalsAgainst` sono suoi.
+  const outcome =
+    cell.goalsFor == null || cell.goalsAgainst == null
+      ? null
+      : cell.goalsFor > cell.goalsAgainst
+        ? 'win'
+        : cell.goalsFor < cell.goalsAgainst
+          ? 'loss'
+          : 'draw';
   return {
     label: `${abbreviate(left)}-${abbreviate(right)}`,
     detail: score,
+    outcome,
     long: `${left ?? 'Ignota'} - ${right ?? 'Ignota'}${score ? ' ' + score : ''}`,
   };
 }

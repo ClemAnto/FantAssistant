@@ -76,13 +76,19 @@
             @for (one of candidates(man); track $index; let first = $first) {
               <!-- Il titolare in evidenza, i rivali sotto e più tenui: la gerarchia è la notizia, e un
                    uomo già preso è sbiadito perché è dell'undici e non più dell'asta. -->
-              <!-- LA SCHEDA DELL'UOMO, che è il tooltip di questo posto (operatore, 18/08/2026: una frase
-                   monocolore lunga otto voci non si legge). È un `ng-template` DENTRO il ciclo, così si
-                   porta dietro il suo `one` senza che nessuno debba passarglielo, e antd la disegna al
-                   posto della stringa. Le due medie dei minuti stanno qui una sotto l'altra CON LA LORO
-                   ETICHETTA, che è l'unico modo di mostrarle insieme: hanno denominatori diversi - le
-                   partite del club l'una, quelle che ha giocato l'altra - e due medie sotto un nome solo
-                   sarebbero una trappola. -->
+              <!-- LA SCHEDA DELL'UOMO ALL'HOVER, che è il tooltip di questo posto (operatore, 18/08/2026:
+                   una frase monocolore lunga otto voci non si legge). È un `ng-template` DENTRO il ciclo,
+                   così si porta dietro il suo `one` senza che nessuno debba passarglielo, e antd la
+                   disegna al posto della stringa. Le due medie dei minuti stanno qui una sotto l'altra CON
+                   LA LORO ETICHETTA, che è l'unico modo di mostrarle insieme: hanno denominatori diversi -
+                   le partite del club l'una, quelle che ha giocato l'altra - e due medie sotto un nome
+                   solo sarebbero una trappola.
+
+                   DOVE LA PAGINA CHIEDE LA CARD (`detail = 'card'`, la vista Squadre dal 06/09/2026)
+                   QUESTA NON SI APRE: il dettaglio lo dà `ui/player-card` al click, e due schede dello
+                   stesso uomo - una all'hover e una al click - sarebbero due letture degli stessi
+                   `engine_*`. Resta scritta qui, e non cancellata, perché è il dettaglio del pannello
+                   d'asta, che una card non la sa costruire (non conosce il foglio che lo prezza). -->
               <ng-template #card>
                 <div class="flex min-w-52 flex-col gap-2 text-left">
                   <div class="flex flex-wrap items-center gap-1.5">
@@ -150,8 +156,13 @@
                 class="flex w-full min-w-0 flex-col leading-tight"
                 [class.opacity-30]="one.taken"
                 [class.opacity-70]="!one.taken && !first"
+                [class.cursor-pointer]="clickable(one)"
+                [attr.role]="clickable(one) ? 'button' : null"
+                [attr.tabindex]="clickable(one) ? 0 : null"
                 nz-tooltip
-                [nzTooltipTitle]="card"
+                [nzTooltipTitle]="detail() === 'card' ? null : card"
+                (click)="onPick(one)"
+                (keydown.enter)="onPick(one)"
               >
                 <!-- IL NOME SI PRENDE LA PRIMA RIGA, e i ruoli scendono sotto: con i badge davanti, in una
                      colonna stretta il nome veniva troncato a ZERO e restavano i soli quadratini -

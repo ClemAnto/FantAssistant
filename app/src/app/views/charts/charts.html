@@ -1,15 +1,7 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <div class="mx-auto flex min-h-full max-w-[1100px] flex-col gap-4 p-4">
-  <header class="flex flex-wrap items-baseline justify-between gap-2">
-    <div class="flex items-baseline gap-2">
-      <h1 class="text-2xl font-semibold text-fg">Grafici</h1>
-      <span
-        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-        title="Versione della webapp - cambia a ogni pubblicazione"
-        >v{{ appVersion }}</span
-      >
-    </div>
-    <div class="flex items-baseline gap-3">
+  <ui-app-header>
+    <div actions class="flex items-baseline gap-3">
       @if (store.generatedAt(); as generated) {
         <span class="text-xs text-muted">
           Snapshot del {{ generated.slice(0, 10).split('-').reverse().join('/') }}
@@ -18,16 +10,8 @@
           }
         </span>
       }
-      <a nz-button nzType="text" routerLink="/">
-        <nz-icon nzType="calendar" />
-        Calciatori
-      </a>
-      <a nz-button nzType="text" routerLink="/clubs">
-        <nz-icon nzType="team" />
-        Squadre
-      </a>
     </div>
-  </header>
+  </ui-app-header>
 
   @if (store.demo()) {
     <nz-alert

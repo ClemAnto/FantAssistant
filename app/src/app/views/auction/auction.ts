@@ -12,12 +12,12 @@ import { NzSegmentedModule } from 'ng-zorro-antd/segmented';
 import { NzTagModule } from 'ng-zorro-antd/tag';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
-import { APP_VERSION } from '../../version';
 import { AuctionAdvice, RankedPlayer } from '../../core/auction-advice';
 import { AuctionDemo } from '../../core/auction-demo';
 import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
 import { per } from '../../core/auction-value';
 import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { PlayerTrendStrip } from '../../ui/player-trend/player-trend';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
@@ -69,6 +69,7 @@ export type SortKey = keyof typeof SORTS;
 @Component({
   selector: 'app-auction',
   imports: [
+    AppHeader,
     ClubPitch,
     DecimalPipe,
     FantaPitch,
@@ -96,7 +97,6 @@ export class Auction {
   protected readonly feed = inject(AuctionFeed);
   protected readonly advice = inject(AuctionAdvice);
   protected readonly demo = inject(AuctionDemo);
-  protected readonly appVersion = APP_VERSION;
   protected readonly zoneLabel = ZONE_LABEL;
 
   /**

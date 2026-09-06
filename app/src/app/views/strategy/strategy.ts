@@ -2,13 +2,13 @@ import { CdkDrag, CdkDragDrop, CdkDropList } from '@angular/cdk/drag-drop';
 import { formatNumber } from '@angular/common';
 import { Component, LOCALE_ID, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
+import { NzSelectModule, NzSelectOptionInterface } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
@@ -31,6 +31,8 @@ import {
   ReadingKey,
   ReadingSpec,
   RoleBlock,
+  SortKey,
+  DEFAULT_SORT,
   StrategyBidder,
   StrategyGame,
   StrategySetup,
@@ -40,9 +42,10 @@ import {
   readingValue,
   readingsOf,
 } from '../../core/strategy';
+import { swingOf } from '../../core/swing';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
 import { stored, storedJson } from '../../core/view-state';
-import { APP_VERSION } from '../../version';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
 import { PlayerCard } from '../../ui/player-card/player-card';
@@ -138,6 +141,7 @@ const GAIN_HINT: Record<AuctionKind, string> = {
 @Component({
   selector: 'app-strategy',
   imports: [
+    AppHeader,
     CdkDrag,
     CdkDropList,
     ClubCrest,
@@ -149,11 +153,11 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     NzInputModule,
     NzPopconfirmModule,
     NzRadioModule,
+    NzSelectModule,
     NzTooltipModule,
     PlayerCard,
     PlayerFlags,
     RoleBadge,
-    RouterLink,
   ],
   templateUrl: './strategy.html',
   host: { class: 'view-host' },
@@ -192,7 +196,6 @@ export class Strategy {
    * niente). Finche' non atterra le due caselle portano un trattino, che e' quello che sono.
    */
   private readonly players = inject(PlayersStore);
-  protected readonly appVersion = APP_VERSION;
 
   /** Il calendario su cui il foglio esprime le sue previsioni: il divisore di ogni numero a giornata. */
   protected readonly matchdays = computed(() => this.sheet()?.matchdays_target ?? null);
@@ -689,6 +692,15 @@ export class Strategy {
         seasonAssists: played_?.played ? played_.assists / played_.played : null,
         // Il PREZZO del suo listone, nella valuta del gioco dichiarato: letto da chi lo possiede già.
         fvm: this.store.fvmOf(platform, player.fcId, this.settings().game),
+          // LO SWING: lo stesso surplus della riga, nell'unita' con cui la lega assegna i punti.
+        // Una conversione e non una seconda valutazione - vedi `core/swing.ts` per i due termini che
+        // un giudice fuori campione ha tolto il 06/09/2026.
+        swing: swingOf({
+          role: player.role,
+          surplus: one?.surplus == null ? null : one.surplus * outlook.factor,
+          pv: outlook.expected,
+          steady: steady?.share ?? null,
+        }),
       };
     });
   });
@@ -710,8 +722,44 @@ export class Strategy {
       setup: this.setup(),
       rules: this.rulebook(),
       priority: this.priorityHere(),
+      sort: this.sort(),
     }),
   );
+
+  /**
+   * SU COSA SONO ORDINATE LE LISTE (operatore, 06/09/2026), e resta scelto fra una sessione e l'altra.
+   *
+   * `stored` con l'elenco delle chiavi ammesse, che e' anche la guardia: una preferenza salvata mesi fa
+   * con una chiave che non esiste piu' torna al default invece di ordinare per una colonna che nessuno
+   * disegna. Non e' per (listone, gioco) come l'ordine manuale: quello e' una PREFERENZA su dei nomi,
+   * questo e' su come si legge la pagina, e la pagina e' una sola.
+   */
+  protected readonly sort = stored<SortKey>('strategy.sort', DEFAULT_SORT, [
+    'gain',
+    ...READINGS.map((one) => one.key),
+  ]);
+
+  /** L'etichetta della chiave in vigore: il gain non e' una lettura e la sua se la scrive da se'. */
+  protected readonly sortLabel = computed(() => {
+    const key = this.sort();
+    if (key === 'gain') return this.gainLabel();
+    return READINGS.find((one) => one.key === key)?.label ?? key;
+  });
+
+  /**
+   * LE VOCI DEL SELETTORE: il gain piu' le undici letture, nell'ordine in cui `READINGS` le dichiara.
+   *
+   * Costruite da `READINGS` e non riscritte a mano, cosi' una lettura nuova compare qui da se': due
+   * elenchi della stessa cosa sono come una pastiglia finisce per esistere e non essere ordinabile.
+   */
+  protected readonly sortOptions = computed<NzSelectOptionInterface[]>(() => [
+    { label: this.gainLabel(), value: 'gain' },
+    ...READINGS.map((one) => ({ label: one.label, value: one.key })),
+  ]);
+
+  protected setSort(key: SortKey): void {
+    this.sort.set(key);
+  }
 
   /** Quanti nomi la pagina sta mostrando in tutto, e quanti il foglio non prezza affatto. */
   protected readonly counted = computed(() => {

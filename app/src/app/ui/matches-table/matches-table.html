@@ -1,26 +1,48 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<!-- LAYOUT FISSO SOLO DA COMPATTI, e non e' un gusto: `nzWidth` senza `fixed` e' un suggerimento, e il
+     browser lo ridistribuisce sul contenuto - misurato il 06/09/2026, la colonna del NOME riceveva
+     116px dei 190 dichiarati e tagliava OGNI nome di 30px, senza puntini. Da compatti le larghezze sono
+     un budget, quindi la tabella le rispetta; nella vista Calciatori resta il comportamento di prima,
+     perche' non e' quello che l'operatore ha chiesto di cambiare (il taglio la' diventa dei puntini,
+     vedi il nome qui sotto). -->
 <nz-table
   #table
   nzSize="small"
+  [class.table-dense]="dense()"
   [nzData]="lazy.rows()"
   [nzFrontPagination]="false"
   [nzShowPagination]="false"
+  [nzTableLayout]="dense() ? 'fixed' : 'auto'"
   [style.min-width]="minWidth()"
 >
   <thead>
     <tr>
-      <th [attr.nzWidth]="narrow() ? '176px' : '190px'" nzLeft>Nome</th>
+      <!-- `[nzWidth]` e non `[attr.nzWidth]`: la larghezza e' un INPUT di `nz-th` - da cui ng-zorro
+           costruisce il `<colgroup>` - e un binding di ATTRIBUTO scrive nel DOM una cosa che nessuno
+           legge. Era il difetto per cui la colonna del NOME riceveva 116px dei 190 dichiarati e tagliava
+           ogni nome (misurato il 06/09/2026). -->
+      <th [nzWidth]="widths().name + 'px'" nzLeft>Nome</th>
       @if (!narrow()) {
-        <th nzWidth="60px">Ruolo</th>
-        <th nzWidth="110px">Mantra</th>
+        <th [nzWidth]="widths().role + 'px'">Ruolo</th>
+        <th [nzWidth]="widths().mantra + 'px'">Mantra</th>
         @if (showClub()) {
-          <th nzWidth="130px">Squadra</th>
+          <th [nzWidth]="widths().club + 'px'">Squadra</th>
         }
       }
       @for (header of columns(); track $index) {
+        <!-- IL CONFINE FRA DUE STAGIONI e' una colonna che non e' una partita (operatore, 06/09/2026):
+             dieci pixel, nessuna etichetta - il nome di una stagione non ci sta - e la frase nel titolo.
+             Il bordo sta a SINISTRA della cella, cioe' sulla giuntura. -->
+        @if (header.divider) {
+          <th
+            class="border-l border-border p-0"
+            [nzWidth]="widths().divider + 'px'"
+            [title]="header.title"
+          ></th>
+        } @else {
         <th
           class="text-center leading-tight"
-          [attr.nzWidth]="header.detail ? '92px' : '58px'"
+          [nzWidth]="(header.detail || header.score ? widths().detail : widths().cell) + 'px'"
           [title]="header.title"
         >
           <span class="flex items-center justify-center gap-1">
@@ -33,10 +55,29 @@
             }
             {{ header.label }}
           </span>
-          @if (header.detail) {
-            <span class="block text-[10px] font-normal text-muted">{{ header.detail }}</span>
+          <!-- IL RISULTATO COLORATO (operatore, 06/09/2026), e il verso e' del CLUB della tabella: verde
+               vinta, rosso persa, neutro il pari - un pareggio non e' una mezza sconfitta. Il colore sta
+               sul RISULTATO e non sulla riga: accanto c'e' il modulo, che non ha un verso. -->
+          @if (header.score || header.detail) {
+            <span class="block text-[10px] font-normal">
+              @if (header.score) {
+                <span
+                  [class.text-success]="header.outcome === 'win'"
+                  [class.text-danger]="header.outcome === 'loss'"
+                  [class.text-muted]="header.outcome !== 'win' && header.outcome !== 'loss'"
+                  >{{ header.score }}</span
+                >
+              }
+              @if (header.score && header.detail) {
+                <span class="text-muted">&nbsp;·&nbsp;</span>
+              }
+              @if (header.detail) {
+                <span class="text-muted">{{ header.detail }}</span>
+              }
+            </span>
           }
         </th>
+        }
       }
     </tr>
   </thead>
@@ -47,20 +88,25 @@
           @if (narrow()) {
             <span class="flex items-center gap-1.5">
               <ui-crest [club]="line.club" [clubId]="line.clubId" [crests]="crests()" size="sm" />
-              <ui-role [role]="line.role" />
+              <ui-role [role]="line.role" [size]="dense() ? 'xs' : 'sm'" />
               <span class="truncate">{{ line.name }}</span>
               <ui-flags [playerId]="line.fcId" />
             </span>
           } @else {
-            <span class="inline-flex items-center gap-1.5">
-              {{ line.name }}
-              <ui-flags [playerId]="line.fcId" />
+            <!-- `truncate` sul NOME: senza, un nome piu' largo della colonna viene tagliato e non lo
+                 dice - misurato il 06/09/2026 sulla vista Squadre, 30px in meno su ogni riga. I puntini
+                 sono meno della verita' ma non sono una bugia, e la card porta il nome intero. -->
+            <span class="flex min-w-0 items-center gap-1.5">
+              <span class="min-w-0 truncate">{{ line.name }}</span>
+              <ui-flags class="shrink-0" [playerId]="line.fcId" />
             </span>
           }
         </td>
         @if (!narrow()) {
-          <td><ui-role [role]="line.role" /></td>
-          <td><ui-roles [roles]="line.mantraCodes" /></td>
+          <!-- Le pastiglie seguono la densita': sono elementi di dimensione fissa, quindi da compatti
+               sarebbero loro a decidere l'altezza della riga (vedi `squad-table.html`). -->
+          <td><ui-role [role]="line.role" [size]="dense() ? 'xs' : 'sm'" /></td>
+          <td><ui-roles [roles]="line.mantraCodes" [size]="dense() ? 'xs' : 'sm'" /></td>
           @if (showClub()) {
             <td>
               <span class="flex items-center gap-2 text-muted">
@@ -72,10 +118,14 @@
         }
 
         @for (cell of line.cells; track $index) {
+          @if (divider($index)) {
+            <!-- Nessun trattino qui: un confine non e' una giornata non giocata. -->
+            <td class="border-l border-border p-0"></td>
+          } @else {
           <td class="text-center align-middle">
             @if (cell) {
               <span
-                class="inline-flex cursor-pointer flex-col items-center rounded leading-none outline-offset-2 hover:bg-control focus-visible:outline focus-visible:outline-primary"
+                class="inline-grid cursor-pointer grid-cols-[1.4rem_1.4rem] items-center rounded leading-none outline-offset-2 hover:bg-control focus-visible:outline focus-visible:outline-primary"
                 role="button"
                 tabindex="0"
                 nz-tooltip
@@ -88,44 +138,55 @@
                 (keydown.enter)="open(cell, line)"
                 (keydown.space)="open(cell, line)"
               >
+                <!-- DUE PISTE DI LARGHEZZA FISSA, e non una riga che si centra: il numero sta nella
+                     prima e i marchi nella seconda, quindi il voto e' allo STESSO x in ogni cella e la
+                     colonna dei voti si legge come una colonna (operatore, 06/09/2026: «nelle varie
+                     colonne allinea i voti verticalmente tra di loro»). Misurato prima: una cella con un
+                     marchio spostava il suo numero di 6px, cioe' la colonna zigzagava. -->
                 @if (iconOnly(cell)) {
                   <nz-icon
+                    class="justify-self-end"
                     [nzType]="stateIcon[cell.state]"
-                    [class]="stateClass(cell) + ' text-sm'"
+                    [class]="stateClass(cell) + ' text-sm justify-self-end'"
                   />
                 } @else {
-                  <span [class]="voteClass(cell)">{{ voteText(cell) }}</span>
+                  <span class="justify-self-end" [class]="voteClass(cell)">{{ voteText(cell) }}</span>
                 }
-                <span class="mt-0.5 flex h-3 items-center gap-1 text-[10px]">
-                  @if (cell.kind !== 'league') {
-                    <nz-icon
-                      [nzType]="kindIcon[cell.kind]"
-                      [class]="cell.kind === 'cup' ? 'text-warning' : 'text-muted'"
-                      [attr.title]="kindLabel[cell.kind]"
-                    />
-                  }
-                  @if (cell.goals + cell.penScored > 0) {
-                    <span class="flex items-center text-primary">
-                      <nz-icon nzType="aim" />
-                      @if (cell.goals + cell.penScored > 1) {
-                        <span class="ml-px">{{ cell.goals + cell.penScored }}</span>
+                <!-- I MARCHI DEGLI EVENTI, ACCANTO AL VOTO e non sotto (operatore, 06/09/2026: «le
+                     icone dei gol e le altre mettile dopo il voto e non sotto, riducile»), e sono quelli
+                     del componente che li disegna in ogni pagina (`ui/bonus-mark`, taglia `xs`): il gol
+                     è un pallone e non un bersaglio, che nel vocabolario è il rigore.
+
+                     In riga il voto è centrato in verticale da sé, che era la richiesta di due minuti
+                     prima: prima la cella impilava il numero sopra una striscia di 12px riservata anche
+                     quando non c'era niente da metterci.
+
+                     `pointer-events-none`: la cella è già un bottone col suo tooltip, e un marchio che
+                     aprisse il proprio ne metterebbe due sovrapposti - il difetto delle buste. -->
+                  @if (cell.kind !== 'league' || marksOf(cell).length) {
+                    <span
+                      class="pointer-events-none flex items-center justify-self-start gap-0.5 pl-0.5 leading-none"
+                    >
+                      @if (cell.kind !== 'league') {
+                        <nz-icon
+                          class="text-[10px]"
+                          [nzType]="kindIcon[cell.kind]"
+                          [class.text-warning]="cell.kind === 'cup'"
+                          [class.text-muted]="cell.kind !== 'cup'"
+                          [attr.title]="kindLabel[cell.kind]"
+                        />
+                      }
+                      @for (mark of marksOf(cell); track mark.label) {
+                        <ui-bonus [bonus]="mark" size="xs" />
                       }
                     </span>
                   }
-                  @if (cell.assists > 0) {
-                    <span class="flex items-center text-muted">
-                      <nz-icon nzType="share-alt" />
-                      @if (cell.assists > 1) {
-                        <span class="ml-px">{{ cell.assists }}</span>
-                      }
-                    </span>
-                  }
-                </span>
               </span>
             } @else {
               <span class="text-muted" title="Nessuna partita in questa posizione">&ndash;</span>
             }
           </td>
+          }
         }
       </tr>
     }

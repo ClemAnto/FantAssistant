@@ -1,6 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -12,10 +11,10 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { AuctionFeed } from '../../core/auction-feed';
 import { ROLES, SlotView } from '../../core/plancia';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { FlagMenu } from '../../ui/flag-menu/flag-menu';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
-import { APP_VERSION } from '../../version';
 import { KeeperPairs } from './keeper-pairs/keeper-pairs';
 import { LotCard } from './lot-card/lot-card';
 import { SlotMatrix } from './slot-matrix/slot-matrix';
@@ -43,7 +42,6 @@ import { TeamGrid } from './team-grid/team-grid';
   templateUrl: './plancia.html',
   imports: [
     FormsModule,
-    RouterLink,
     NzAlertModule,
     NzButtonModule,
     NzIconModule,
@@ -51,6 +49,7 @@ import { TeamGrid } from './team-grid/team-grid';
     NzPopconfirmModule,
     NzRadioModule,
     NzTooltipModule,
+    AppHeader,
     FlagMenu,
     KeeperPairs,
     LiveConnect,
@@ -64,7 +63,6 @@ export class Plancia {
   protected readonly store = inject(PlanciaStore);
   protected readonly feed = inject(AuctionFeed);
 
-  protected readonly appVersion = APP_VERSION;
   protected readonly roles = ROLES;
   protected readonly connecting = signal(false);
 

@@ -3,14 +3,8 @@
      LA PAGINA SCORRE, a differenza della Strategia: qui si legge una lista lunga cercando un nome, non si
      confrontano quattro reparti insieme, e una riga aperta è alta quanto tre schermi di tabella. -->
 <div class="mx-auto flex min-h-full max-w-[1500px] flex-col gap-3 p-4">
-  <header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+  <ui-app-header>
     <div class="flex flex-wrap items-baseline gap-3">
-      <h1 class="text-xl font-semibold text-fg">Perché quel surplus</h1>
-      <span
-        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-        title="Versione della webapp - cambia a ogni pubblicazione"
-        >v{{ appVersion }}</span
-      >
       @if (sheet(); as entry) {
         <span class="text-xs text-muted">
           {{ entry.league }} · {{ entry.game === 'mantra' ? 'Mantra' : 'Classic' }} · rev.
@@ -19,7 +13,7 @@
         </span>
       }
     </div>
-    <div class="flex items-baseline gap-1">
+    <div actions class="flex items-baseline gap-1">
       <!-- LA STAGIONE DA GUARDARE, e le date sono quelle per cui il TOOLKIT ha costruito il motore di
            quel giorno: sceglierne una qui o dal box in basso a destra è la stessa cosa, perché è lo
            stesso servizio - un secondo stato sarebbe una pagina che crede di stare in un giorno mentre
@@ -43,16 +37,8 @@
         <nz-icon nzType="setting" />
         Impostazioni lega
       </button>
-      <a nz-button nzType="text" nzSize="small" routerLink="/">
-        <nz-icon nzType="team" />
-        Calciatori
-      </a>
-      <a nz-button nzType="text" nzSize="small" routerLink="/strategy">
-        <nz-icon nzType="aim" />
-        Strategia
-      </a>
     </div>
-  </header>
+  </ui-app-header>
 
   <!-- QUANTE RIGHE IL FOGLIO SPIEGA DAVVERO, prima di qualunque numero: una pagina che spiega e non dice
        su quanti uomini ci riesce fa credere che ci riesca su tutti. `in disaccordo` è il controllo, e lo

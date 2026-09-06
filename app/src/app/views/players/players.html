@@ -1,15 +1,7 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <div class="mx-auto flex min-h-full max-w-[1400px] flex-col gap-4 p-4">
-  <header class="flex flex-wrap items-baseline justify-between gap-2">
+  <ui-app-header>
     <div class="flex flex-wrap items-baseline gap-3">
-      <div class="flex items-baseline gap-2">
-        <h1 class="text-2xl font-semibold text-fg">Calciatori</h1>
-        <span
-          class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-          title="Versione della webapp - cambia a ogni pubblicazione"
-          >v{{ appVersion }}</span
-        >
-      </div>
       <!-- Due letture degli stessi uomini, e lo switch sta FUORI dai filtri: un filtro si richiude,
            e una modalita' nascosta dentro un pannello chiuso non si trova. -->
       @if (store.status() === 'ready') {
@@ -25,50 +17,15 @@
         </nz-radio-group>
       }
     </div>
-    <div class="flex items-baseline gap-3">
+    <div actions class="flex items-baseline gap-3">
       @if (store.generatedAt(); as generated) {
         <span class="text-xs text-muted">
           {{ store.demo() ? 'Bundle dimostrativo generato' : 'Bundle del toolkit' }} ·
           {{ generated.slice(0, 10) }}
         </span>
       }
-      <!-- The only way into the squads view: without it /clubs is reachable by URL alone. -->
-      <a nz-button nzType="text" routerLink="/clubs">
-        <nz-icon nzType="team" />
-        Squadre
-      </a>
-      <!-- The only way into the charts view: without it /charts is reachable by URL alone. -->
-      <a nz-button nzType="text" routerLink="/charts">
-        <nz-icon nzType="pie-chart" />
-        Grafici
-      </a>
-      <!-- The only way into the strategy view: without it the page is reachable by URL alone. -->
-      <a nz-button nzType="text" routerLink="/strategy">
-        <nz-icon nzType="aim" />
-        Strategia
-      </a>
-      <!-- The only way into the «why» view: without it the page is reachable by URL alone. -->
-      <a nz-button nzType="text" routerLink="/why">
-        <nz-icon nzType="question-circle" />
-        Perché
-      </a>
-      <!-- The only way into the sealed-bid view: without it the page is reachable by URL alone. -->
-      <a nz-button nzType="text" routerLink="/sealed-bid">
-        <nz-icon nzType="inbox" />
-        Buste chiuse
-      </a>
-      <!-- The only way into the two auction views: without these /auction and /plancia are reachable
-           by URL alone. Both open on an invented table and connect only when asked. -->
-      <a nz-button nzType="text" routerLink="/plancia">
-        <nz-icon nzType="aim" />
-        Plancia
-      </a>
-      <a nz-button nzType="text" routerLink="/auction">
-        <nz-icon nzType="wifi" />
-        Segui un'asta
-      </a>
     </div>
-  </header>
+  </ui-app-header>
 
   @if (store.demo()) {
     <nz-alert

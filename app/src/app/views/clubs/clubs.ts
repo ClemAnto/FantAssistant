@@ -1,6 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -9,13 +8,18 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { ClubsStore } from '../../core/clubs-store';
+import { ExpectedPlay } from '../../core/expected-play';
+import { CardMan, CardStack } from '../../core/player-card';
+import { EDGE_BASE } from '../../core/plancia';
 import { Platform, PlayersStore } from '../../core/players-store';
+import { EngineExpectation, SquadMan, ValuationStore } from '../../core/valuation-store';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubBoard } from '../../ui/club-board/club-board';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { MatchesTable } from '../../ui/matches-table/matches-table';
+import { PlayerCard } from '../../ui/player-card/player-card';
 import { SquadTable } from '../../ui/squad-table/squad-table';
 import { bindQuery } from '../../core/view-state';
-import { APP_VERSION } from '../../version';
 
 /**
  * The two questions this page can answer about the same rosa.
@@ -40,6 +44,7 @@ export type SquadMode = 'values' | 'matches';
   selector: 'app-clubs',
   templateUrl: './clubs.html',
   imports: [
+    AppHeader,
     ClubBoard,
     ClubCrest,
     FormsModule,
@@ -50,7 +55,7 @@ export type SquadMode = 'values' | 'matches';
     NzRadioModule,
     NzSpinModule,
     NzTooltipModule,
-    RouterLink,
+    PlayerCard,
     SquadTable,
   ],
   host: { class: 'view-host' },
@@ -59,7 +64,8 @@ export class Clubs {
   protected readonly store = inject(ClubsStore);
   /** The per-match layer, for the other reading of the same rosa. Loaded only when it is asked for. */
   protected readonly matches = inject(PlayersStore);
-  protected readonly appVersion = APP_VERSION;
+  /** Il foglio, per le colonne che la card mostra e la tabella no: `expectationsFor` è il suo lettore. */
+  private readonly valuation = inject(ValuationStore);
 
   /** Which of the two tables is on screen. The values one is what this page has always been. */
   protected readonly mode = signal<SquadMode>('values');
@@ -72,32 +78,78 @@ export class Clubs {
    * touching this page. The season is the one the values table is about (`input_season`), so the two
    * modes describe the same football; the men are passed in the SAME order, so it is one list twice.
    */
+  /**
+   * LE ULTIME DIECI GIORNATE IN ASSOLUTO di questa rosa, attraversando le stagioni.
+   *
+   * Richiesta dell'operatore (06/09/2026): «mostra le ultime 10 partite in assoluto e non solo della
+   * stagione precedente». Prima la finestra era la stagione MISURATA (`input_season`), che a settembre
+   * vuol dire «l'anno scorso» anche quando il campionato nuovo ha già giocato due giornate - e a un
+   * tavolo la domanda è sempre «come sta adesso».
+   *
+   * Le stagioni si passano dalla più recente e le compone lo store (`matchTableAcross`), che è dove la
+   * definizione di «le ultime partite» già vive: una seconda implementazione qui sarebbe una seconda
+   * risposta alla stessa domanda. La query resta scritta qui e non presa dalla barra dei filtri della
+   * vista Calciatori: quella è lo stato di un'altra schermata, e una tabella che la seguisse cambierebbe
+   * sotto questo club senza che nessuno abbia toccato questa pagina.
+   */
   protected readonly matchTable = computed(() => {
     const club = this.store.club();
-    const platform = this.store.platform();
-    const season = this.store.inputSeason();
-    if (!club || !season || this.matches.status() !== 'ready') {
+    const seasons = [this.store.targetSeason(), this.store.inputSeason()]
+      .filter((one): one is string => !!one);
+    if (!club || !seasons.length || this.matches.status() !== 'ready') {
       return { columns: [], lines: [] };
     }
-    const last = this.matches.lastMatchdayOf(platform, season);
-    return this.matches.matchTable(
+    return this.matches.matchTableAcross(
       {
-        platform,
-        season,
-        from: Math.max(1, last - 9),
-        to: last,
+        platform: this.store.platform(),
+        season: seasons[0],
+        from: 1,
+        to: 1,
         // League only: a rosa's ten rounds are ten rounds. With cups a column becomes a WEEK, which is
         // a different unit and a different question - it belongs where the filters for it live.
         withCups: false,
         withFriendlies: false,
         club,
       },
+      seasons,
       this.store.squad(),
     );
   });
 
+  /** Quali stagioni la tabella sta mostrando davvero, per dirlo in intestazione. */
+  protected readonly matchSeasons = computed(() => {
+    const seen = new Set<string>();
+    for (const column of this.matchTable().columns) {
+      const border = column.divider?.split(' → ') ?? [];
+      for (const one of border) seen.add(one);
+    }
+    if (!seen.size) {
+      const only = this.store.inputSeason();
+      return only ? [only] : [];
+    }
+    return [...seen];
+  });
+
   constructor() {
     void this.store.load();
+
+    /**
+     * Le colonne del motore del foglio in vigore, rilette quando il listone cambia.
+     *
+     * `expectationsFor` tiene la sua cache per PERCORSO, quindi passare dal listone Serie A a EuroLeghe e
+     * tornare non rilegge niente; e la card si apre su un uomo del listone che si sta guardando, quindi il
+     * foglio giusto è quello di questa pagina e non «il primo che c'è».
+     */
+    effect(() => {
+      const sheet = this.store.boardSheet();
+      if (!sheet) {
+        this.engine.set(null);
+        return;
+      }
+      void this.valuation.expectationsFor(sheet).then((columns) => {
+        this.engine.set(columns);
+      });
+    });
 
     /**
      * The selection lives in the URL, and the URL is the only place it lives.
@@ -165,4 +217,115 @@ export class Clubs {
   protected readonly selected = computed(() =>
     this.store.clubs().find((club) => club.name === this.store.club()) ?? null,
   );
+
+  // ------------------------------------------------------------------ la card di un calciatore
+  //
+  // «Togli il tooltip dai calciatori sul campetto e metti al click l'apertura della card dettaglio
+  // (uguale a quella nella plancia e nella strategia)» - operatore, 06/09/2026. È LA STESSA card
+  // (`ui/player-card`): due card sarebbero due letture degli stessi `engine_*`, cioè due valutazioni per
+  // un uomo. Quello che questa pagina deve fare è COSTRUIRE la riga, perché i numeri di un uomo sono del
+  // FOGLIO che questa pagina legge - qui quello del listone scelto, lo stesso che prezza la tabella
+  // accanto e che ha disegnato la board.
+
+  /** La formula unica delle presenze attese: serve la FINESTRA di uno stop aperto, che la card scrive. */
+  private readonly play = inject(ExpectedPlay);
+
+  /**
+   * Le colonne del motore del foglio che questa pagina sta leggendo, per `fc_id`.
+   *
+   * `SquadMan` porta quasi tutto quello che la card mostra, ma non le due MISURE della stagione scorsa
+   * (partite giocate e minuti): quelle vivono su `EngineExpectation`, che è il lettore unico di quelle
+   * colonne. Chiesto per il foglio NOMINATO (`boardSheet`), che è lo stesso da cui vengono i numeri della
+   * tabella - chiedere «il primo della piattaforma» sarebbe un secondo foglio sotto lo stesso nome.
+   */
+  private readonly engine = signal<ReadonlyMap<number, EngineExpectation> | null>(null);
+
+  /**
+   * Le card aperte, col loro posto.
+   *
+   * `new CardStack()` e non un servizio: le card di questa pagina non devono seguirti sulla plancia, ma
+   * la regola del POSTO è una sola - due pagine che disponessero le stesse card in due modi sarebbero due
+   * risposte a una domanda di layout.
+   */
+  private readonly cards = new CardStack();
+
+  protected readonly openCards = computed(() => {
+    const byId = new Map(this.store.squad().map((man) => [man.fcId, man]));
+    const engine = this.engine();
+    const rounds = this.store.boardSheet()?.matchdays_target ?? null;
+    const platform = this.store.platform();
+    return this.cards.place((id) => {
+      const man = byId.get(id);
+      if (!man) return undefined;
+      const numbers = engine?.get(id) ?? null;
+      const outlook = this.play.outlook(
+        { id: man.fcId, club: man.club },
+        { pv: man.expected, pvIsEstimate: man.expectedIsEstimate, playShare: man.titolaritaPlay },
+        rounds,
+      );
+      return cardManOf(man, numbers, outlook.window, rounds, platform);
+    });
+  });
+
+  protected readonly frontCard = computed(() => this.cards.front());
+
+  /** Il click su un nome del campetto: apre la sua card e nient'altro. */
+  protected onPick(id: number): void {
+    this.cards.openCard(id);
+  }
+
+  protected closeCard(id: number): void {
+    this.cards.closeCard(id);
+  }
+
+  protected raiseCard(id: number): void {
+    this.cards.raiseCard(id);
+  }
+
+  protected closeAllCards(): void {
+    this.cards.openCard(null);
+  }
+}
+
+/**
+ * UN UOMO COME LA CARD LO DISEGNA, dalla riga che questa pagina ha già in mano.
+ *
+ * Nessun numero si ricalcola qui: `SquadMan` è quello che la tabella accanto mostra, quindi la card e la
+ * riga non possono dire due cose diverse sullo stesso uomo. Il «dove» è il POSTO che la board gli dà nel
+ * suo undici tipo (`place`, `Dc` o `Td`), che su questa pagina è la domanda - la plancia scrive `A1` e la
+ * Strategia i codici del listone, perché là il posto è un altro fatto.
+ *
+ * NESSUN TAVOLO (`market: null`): la vista Squadre descrive una rosa vera, non compra - non c'è una max
+ * offerta né un padrone, e inventarli mostrerebbe i numeri di un'asta che non esiste.
+ */
+function cardManOf(
+  man: SquadMan,
+  numbers: EngineExpectation | null,
+  out: CardMan['out'],
+  rounds: number | null,
+  platform: Platform,
+): CardMan {
+  return {
+    id: man.fcId,
+    name: man.name,
+    club: man.club,
+    clubId: man.clubId,
+    where: man.place ?? (man.mantra || man.role),
+    platform,
+    // La stessa definizione della plancia e della Strategia: quanto rende una sua partita sopra il sei.
+    edge: man.expectedFm == null ? null : man.expectedFm - EDGE_BASE,
+    pv: man.expected,
+    rounds,
+    fm: man.expectedFm,
+    estimated: man.expectedFmIsEstimate,
+    estNote: man.estimateNote,
+    titolarita: man.titolarita,
+    minutesNext: man.minutesNext,
+    seasonMatches: numbers?.seasonMatches ?? null,
+    minutesFullSeason: numbers?.minutesFullSeason ?? null,
+    unpricedReason: null,
+    fvm: man.fvm,
+    out,
+    market: null,
+  };
 }

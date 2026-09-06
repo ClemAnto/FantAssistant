@@ -60,6 +60,7 @@
 <nz-table
   #squadTable
   nzSize="small"
+  [class.table-dense]="dense()"
   [nzData]="lazy.rows()"
   [nzFrontPagination]="false"
   [nzShowPagination]="false"
@@ -159,17 +160,36 @@
   <tbody>
     @for (man of lazy.rows(); track man.fcId) {
       <tr>
-        <td [title]="roleLabel[man.role]"><ui-role [role]="man.role" /></td>
+        <!-- LE PASTIGLIE SEGUONO LA DENSITA' (operatore, 06/09/2026): un badge e' un elemento di
+             dimensione FISSA, quindi in modo compatto restava alto come prima ed era lui a decidere
+             l'altezza della riga e la larghezza delle sue due colonne. `xs` e' la taglia del campetto,
+             dove un codice si legge accanto a un nome dentro una colonna di un undici. -->
+        <td [title]="roleLabel[man.role]">
+          <ui-role [role]="man.role" [size]="dense() ? 'xs' : 'sm'" />
+        </td>
         <td>
+          <!-- IL NOME APRE LA CARD dove la pagina lo dichiara (`pickable`, operatore 06/09/2026): il
+               cursore e il `role` seguono quella dichiarazione e non sono decorazione - un nome che
+               sembra cliccabile e non fa niente e' peggio di un nome che non lo sembra. Le ICONE stanno
+               fuori dal bersaglio: sono un fatto sull'uomo e non un gesto. -->
           <span class="flex items-center gap-1">
-            <span class="truncate">{{ man.name }}</span>
+            <span
+              class="truncate"
+              [class.cursor-pointer]="pickable()"
+              [class.hover:text-primary]="pickable()"
+              [attr.role]="pickable() ? 'button' : null"
+              [attr.tabindex]="pickable() ? 0 : null"
+              (click)="onPick(man)"
+              (keydown.enter)="onPick(man)"
+              >{{ man.name }}</span
+            >
             <ui-flags [playerId]="man.fcId" />
           </span>
         </td>
         @for (key of visible(); track key) {
           @switch (key) {
             @case ('mantra') {
-              <td><ui-roles [roles]="man.mantraCodes" /></td>
+              <td><ui-roles [roles]="man.mantraCodes" [size]="dense() ? 'xs' : 'sm'" /></td>
             }
             @case ('club') {
               <td>

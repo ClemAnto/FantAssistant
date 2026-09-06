@@ -1,5 +1,13 @@
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
-import { Component, computed, inject, input, signal } from '@angular/core';
+import {
+  booleanAttribute,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
@@ -99,6 +107,15 @@ export interface SquadColumn {
   align?: 'center' | 'right';
   /** Che domanda si fa a questa colonna (`column-filter.ts`). Assente = non si filtra. */
   filter?: FilterKind;
+  /**
+   * La larghezza in modo COMPATTO dove la quota non basta, MISURATA e non scelta.
+   *
+   * Assente per venti colonne su ventidue: la quota (`DENSE_WIDTH`) le copre tutte. Le due eccezioni sono
+   * quelle la cui ETICHETTA è più larga delle cifre che portano, e a stringerle si taglia la parola in
+   * testa invece del numero - un'intestazione tagliata è la stessa famiglia dei «276px di colonne non
+   * strette, ASSENTI». Il valore è quello che il browser dice di volere a 11px (06/09/2026).
+   */
+  dense?: number;
 }
 
 export const SQUAD_COLUMNS: readonly SquadColumn[] = [
@@ -129,7 +146,7 @@ export const SQUAD_COLUMNS: readonly SquadColumn[] = [
   // togliere il 17/08: le soglie dei modificatori sono assolute, e un rank dice quanti uomini stanno
   // sotto di lui invece di dire se supera il 6.
   { key: 'steady', label: 'Costanza', head: 'Cost.', width: 58, align: 'right', filter: 'range' },
-  { key: 'surplus', label: 'Surplus', width: 64, align: 'right', filter: 'range' },
+  { key: 'surplus', label: 'Surplus', width: 64, align: 'right', filter: 'range', dense: 56 },
   // ...e lo stesso conto dall'ALTRO ZERO, affiancato invece che al posto suo: sono due domande («chi
   // conviene comprare» contro «quanto costa una giornata saltata») e nessuna delle due vince, quindi si
   // vedono insieme e si sceglie soltanto per quale ordinare (operatore, 16/08/2026, §21.1 della metrica).
@@ -137,7 +154,7 @@ export const SQUAD_COLUMNS: readonly SquadColumn[] = [
   // alla colonna dell'asta, che conta dal marginale di ROSA - lo stesso zero di «Surplus» qui accanto.
   // Due colonne con un nome solo sarebbero due domande indistinguibili, che è il difetto che questo
   // progetto paga da sempre: questa resta il conto dall'altro zero, il rimpiazzo che ENTRA davvero.
-  { key: 'surplusFielded', label: 'Margine', width: 68, align: 'right', filter: 'range' },
+  { key: 'surplusFielded', label: 'Margine', width: 68, align: 'right', filter: 'range', dense: 61 },
   // LE DUE COLONNE «−C» (Surplus e Margine al netto della coppa) SONO STATE TOLTE, decisione
   // dell'operatore del 17/08/2026 sera, il giorno stesso in cui erano nate. Il FATTO resta dove è
   // misurato - il foglio porta `desc_surplus_cup` / `desc_surplus_fielded_cup`, il globo segna chi parte
@@ -220,8 +237,27 @@ export function orderColumns(saved: readonly string[], offered: readonly string[
   return out;
 }
 
-/** Quello che una riga occupa comunque, sommato dalle colonne stesse invece di ricopiato a mano. */
-const FIXED_WIDTH = FIXED_COLUMNS.reduce((sum, one) => sum + one.width, 0);
+/**
+ * QUANTO SI STRINGONO LE COLONNE nella versione compatta, e perché questo numero.
+ *
+ * Le larghezze di `SQUAD_COLUMNS` sono tarate su un testo di 14px con 8px di padding per lato; il denso
+ * scrive a 11px con 4px, cioè 0,79 del carattere e 8px in meno per colonna. 0,72 è quella quota più il
+ * padding risparmiato, e il PAVIMENTO esiste perché una colonna di due cifre non si stringe sotto la
+ * larghezza del suo imbuto del filtro: sotto i 32px l'intestazione manderebbe la cifra a capo, che è
+ * l'opposto della compattezza (misurato il 06/09/2026: 22 colonne da 1554px a 1128px, dentro i 1028
+ * disponibili solo dopo che l'operatore ne spegne qualcuna, e la riga da 39px a 24px).
+ */
+const DENSE_WIDTH = 0.8;
+const DENSE_MIN_WIDTH_PX = 32;
+
+/**
+ * La larghezza di una colonna in modo COMPATTO: la quota, l'eccezione misurata dove la quota non basta,
+ * e il pavimento. Pura e esportata perché è una regola e non un dettaglio del template - la stessa
+ * ragione per cui `orderColumns` sta qui: un test la raggiunge senza montare la tabella.
+ */
+export function denseWidth(column: SquadColumn): number {
+  return Math.max(DENSE_MIN_WIDTH_PX, column.dense ?? Math.round(column.width * DENSE_WIDTH));
+}
 
 /** Quanti pixel prima che un click diventi un trascinamento: sotto, è un click che ordina. */
 const DRAG_THRESHOLD_PX = 5;
@@ -295,6 +331,32 @@ export class SquadTable {
   /** A list of one club does not need a club column; the listone's own does. */
   readonly showClub = input(false);
   readonly crests = input<Record<string, string>>({});
+  /**
+   * LA VERSIONE COMPATTA, chiesta dall'operatore per la vista SQUADRE (06/09/2026: «rielabora la tabella
+   * dei calciatori in maniera molto più compatta»), e le due leve sono MISURATE e non scelte a occhio.
+   *
+   * Sulla pagina Squadre la tabella sta accanto al campetto, quindi ha 1028px dei 1554 che le sue
+   * ventidue colonne chiedono: una riga alta 39px e otto pixel di padding per cella facevano scorrere la
+   * pagina in tutt'e due gli assi per una rosa di 33 uomini (misurato il 06/09/2026 a 1600x1000). Il
+   * denso stringe il PADDING e la RIGA in `ng-zorro.css` e le LARGHEZZE qui (`DENSE_WIDTH`), che sono le
+   * due cose che decidono quei due numeri.
+   *
+   * Un INTERRUTTORE e non la nuova normalità: la vista Calciatori è una tabella a schermo pieno dove
+   * quello spazio c'è, e restringere anche lei sarebbe una decisione che nessuno ha chiesto.
+   */
+  readonly dense = input(false, { transform: booleanAttribute });
+  /**
+   * SE IL NOME APRE LA CARD DEL CALCIATORE (operatore, 06/09/2026: «quando premo sul nome mostrami la
+   * card dettaglio»), dichiarato dalla pagina come sul campetto.
+   *
+   * La card la COSTRUISCE chi la apre, perché i numeri di un uomo sono del foglio che quella pagina sta
+   * leggendo: una tabella che se la costruisse da sé direbbe di un uomo il surplus di un altro gioco. E
+   * un nome cliccabile su una pagina che non sa aprirla sarebbe un gesto che non fa niente, che è la cosa
+   * peggiore di un gesto che non c'è.
+   */
+  readonly pickable = input(false, { transform: booleanAttribute });
+  /** Chi è stato cliccato, per `fc_id`: la pagina decide cosa farne. */
+  readonly pick = output<number>();
   /**
    * LE RIGHE SI CARICANO SCORRENDO e la paginazione non c'è più (operatore, 17/08/2026).
    *
@@ -451,7 +513,23 @@ export class SquadTable {
   }
 
   protected widthOf(key: string): string {
-    return `${COLUMN_BY_KEY.get(key)?.width ?? 80}px`;
+    const column = COLUMN_BY_KEY.get(key);
+    return `${column ? this.pixels(column) : 80}px`;
+  }
+
+  /**
+   * IL CLICK SUL NOME, che è l'unico gesto della riga: apre la card e nient'altro.
+   *
+   * Niente da distinguere da un trascinamento qui - le RIGHE non si riordinano, si riordinano le colonne
+   * e quel gesto vive sull'intestazione - quindi non serve la guardia della Strategia.
+   */
+  protected onPick(man: SquadMan): void {
+    if (this.pickable()) this.pick.emit(man.fcId);
+  }
+
+  /** La larghezza di una colonna nella densità in vigore: una definizione, letta da qui e da `minWidth`. */
+  private pixels(column: SquadColumn): number {
+    return this.dense() ? denseWidth(column) : column.width;
   }
 
   /**
@@ -1120,9 +1198,10 @@ export class SquadTable {
    * PAGINA, nei due assi, e la barra è una per asse.
    */
   protected readonly minWidth = computed(() => {
+    const fixed = FIXED_COLUMNS.reduce((sum, one) => sum + this.pixels(one), 0);
     const width = this.columns()
       .filter((one) => this.shows(one.key))
-      .reduce((sum, one) => sum + one.width, FIXED_WIDTH);
+      .reduce((sum, one) => sum + this.pixels(one), fixed);
     return `${width}px`;
   });
 

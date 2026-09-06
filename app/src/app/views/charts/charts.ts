@@ -1,6 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -15,9 +14,9 @@ import { CLASSIC_ROLES, ClassicRole, Platform } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { bindQuery } from '../../core/view-state';
 import { piBand, piHistogram } from '../../core/projection';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { Bar, BarChart } from '../../ui/bar-chart/bar-chart';
 import { PieChart, PieSlice } from '../../ui/pie-chart/pie-chart';
-import { APP_VERSION } from '../../version';
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
   P: 'Portieri',
@@ -52,9 +51,9 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
     NzSelectModule,
     NzSpinModule,
     NzTooltipModule,
+    AppHeader,
     BarChart,
     PieChart,
-    RouterLink,
   ],
   host: { class: 'view-host' },
 })
@@ -62,7 +61,6 @@ export class Charts {
   protected readonly store = inject(ValuationStore);
   /** Solo per sapere SE le letture ci sono: i numeri arrivano tutti da `store.valuations`. */
   private readonly ratings = inject(PlayerRatingsStore);
-  protected readonly appVersion = APP_VERSION;
   protected readonly roles = CLASSIC_ROLES;
   protected readonly roleLabel = ROLE_LABEL;
 

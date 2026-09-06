@@ -7,14 +7,8 @@
      parte: `min-h-0` su tutta la catena, altrimenti una griglia in `1fr` si allarga per stare dietro al
      contenuto e la pagina ricomincia a scorrere. -->
 <div class="flex h-[100dvh] flex-col gap-2 overflow-hidden p-3">
-  <header class="flex shrink-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+  <ui-app-header dense>
     <div class="flex flex-wrap items-baseline gap-3">
-      <h1 class="text-xl font-semibold text-fg">Strategia</h1>
-      <span
-        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-        title="Versione della webapp - cambia a ogni pubblicazione"
-        >v{{ appVersion }}</span
-      >
       @if (sheet(); as entry) {
         <span
           class="text-xs text-muted"
@@ -39,21 +33,13 @@
         </span>
       }
     </div>
-    <div class="flex items-baseline gap-1">
+    <div actions class="flex items-baseline gap-1">
       <button nz-button nzType="primary" nzSize="small" (click)="openSettings()">
         <nz-icon nzType="setting" />
         Impostazioni lega
       </button>
-      <a nz-button nzType="text" nzSize="small" routerLink="/">
-        <nz-icon nzType="team" />
-        Calciatori
-      </a>
-      <a nz-button nzType="text" nzSize="small" routerLink="/sealed-bid">
-        <nz-icon nzType="inbox" />
-        Buste chiuse
-      </a>
     </div>
-  </header>
+  </ui-app-header>
 
   <!-- LA BARRA DEL REGOLAMENTO sta sempre a schermo e non dentro la finestra che l'ha scritto: una
        impostazione nascosta dentro un pannello chiuso non si trova, ed è quella che decide ogni numero
@@ -111,12 +97,25 @@
          perché sono la stessa natura - quello che ha fatto in QUESTA stagione, non quello che ci si
          aspetta - e sono le quattro che costano un caricamento (`SEASON_READINGS`).
 
-         NESSUNA DI LORO ORDINA NIENTE, ed è la stessa decisione di sempre: la lista è ordinata dal
-         GAIN e queste lo SPIEGANO. Accendere una colonna non muove un nome.
+         ACCENDERLE NON ORDINA NIENTE: quello lo fa il selettore qui accanto, che è una scelta
+         esplicita e visibile (operatore, 06/09/2026). Una pastiglia accesa SPIEGA la riga, non la muove.
 
          `nz-button` e non uno `<span>` cliccabile: un bottone con delle utility sopra sembra uguale e
          perde il fuoco, il disabilitato e l'accessibilità (app/CLAUDE.md). -->
     <span class="ml-auto flex flex-wrap items-center justify-end gap-1">
+      <!-- SU COSA SI ORDINA. Il taglio alla domanda viene DOPO l'ordine, quindi cambiare chiave cambia
+           anche chi resta in lista: e' il senso della scelta e non un effetto collaterale, ed e' la
+           ragione per cui la chiave sta a schermo invece che dentro un menu' che si chiude. -->
+      <nz-select
+        class="w-44"
+        nzSize="small"
+        data-sort
+        [ngModel]="sort()"
+        [nzOptions]="sortOptions()"
+        (ngModelChange)="setSort($event)"
+        nz-tooltip
+        nzTooltipTitle="Su cosa sono ordinate le liste"
+      ></nz-select>
       @for (pill of readingPills(); track pill.key) {
         <button
           nz-button
@@ -138,7 +137,7 @@
         class="cursor-help px-1 text-muted"
         nz-tooltip
         [nzTooltipTitle]="
-          'Ordina il ' + gainLabel() + ' · ' + counted().unranked + ' senza numero'
+          'Ordina per ' + sortLabel() + ' · ' + counted().unranked + ' senza numero'
         "
       >
         <nz-icon nzType="question-circle" />

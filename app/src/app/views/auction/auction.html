@@ -3,6 +3,7 @@
        e' FACOLTATIVA e sta dietro a un bottone, quindi la pagina apre su un tavolo inventato con i
        settaggi standard e questo ramo e' solo il momento in cui lo sta preparando (o l'errore, se non
        ci riesce). Un pannello che apre su un campo codice mostra il layout della cosa invece della cosa. -->
+  <ui-app-header dense />
   <div class="mx-auto max-w-lg py-12">
     <nz-card nzTitle="Sto preparando il tavolo">
       <p class="mb-4 opacity-70">
@@ -16,20 +17,22 @@
       <button nz-button nzType="text" nzBlock class="mt-3" (click)="connecting.set(true)">
         Collegati a un'asta vera
       </button>
-      <p class="mt-6 text-xs opacity-50">FantAssistant {{ appVersion }}</p>
     </nz-card>
   </div>
 } @else if (!feed.followed()) {
   <!-- 2. which team is mine -->
   <div class="flex flex-col gap-4">
-    <header class="flex flex-wrap items-center gap-3">
+    <ui-app-header dense />
+    <!-- Questa striscia descrive il TAVOLO e non la pagina, quindi non e' un `<header>`: l'intestazione
+         della pagina e' una sola e la mette `ui-app-header`. -->
+    <div class="flex flex-wrap items-center gap-3">
       <div>
-        <h1 class="flex items-center gap-2 text-xl font-semibold">
+        <h2 class="flex items-center gap-2 text-xl font-semibold">
           {{ feed.code() }}
           @if (feed.demo()) {
             <nz-tag nzColor="warning">tavolo inventato</nz-tag>
           }
-        </h1>
+        </h2>
         <p class="text-sm opacity-70">
           {{ marketLabel() }} · {{ statusLabel() }} · {{ feed.teams().length }} squadre
         </p>
@@ -40,7 +43,7 @@
       @if (!feed.demo()) {
         <button nz-button nzType="text" (click)="exit()">Esci</button>
       }
-    </header>
+    </div>
 
     <h2 class="text-lg">Quale squadra è la tua?</h2>
 
@@ -73,15 +76,17 @@
   @let waiting = feed.picksUntilMyTurn();
 
   <div class="flex flex-col gap-4">
-    <header class="flex flex-wrap items-center gap-3">
+    <ui-app-header dense />
+    <!-- Come sopra: chi seguo, che mercato, che stato sono fatti del TAVOLO. -->
+    <div class="flex flex-wrap items-center gap-3">
       <nz-tag [nzColor]="team.colour">&nbsp;</nz-tag>
       <div>
-        <h1 class="flex items-center gap-2 text-xl font-semibold">
+        <h2 class="flex items-center gap-2 text-xl font-semibold">
           {{ team.label }}
           @if (feed.demo()) {
             <nz-tag nzColor="warning">demo</nz-tag>
           }
-        </h1>
+        </h2>
         <p class="text-sm opacity-70">
           {{ feed.code() }} · {{ marketLabel() }} · {{ statusLabel() }}
           @if (feed.stale()) {
@@ -107,7 +112,7 @@
           <button nz-button nzType="text" (click)="exit()">Esci</button>
         }
       </div>
-    </header>
+    </div>
 
     @if (feed.demo()) {
       <!-- Resta a schermo per tutta la demo: che cosa e' finto e che cosa no e' esattamente la cosa

@@ -1,7 +1,6 @@
 import { formatNumber } from '@angular/common';
 import { Component, LOCALE_ID, computed, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -38,7 +37,7 @@ import {
 import { TimeTravel, packLabel } from '../../core/time-travel';
 import { EngineExpectation, ValuationStore } from '../../core/valuation-store';
 import { stored } from '../../core/view-state';
-import { APP_VERSION } from '../../version';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
@@ -194,6 +193,7 @@ type SortKey = (typeof SORT_KEYS)[number];
 @Component({
   selector: 'app-why',
   imports: [
+    AppHeader,
     ClubCrest,
     FormsModule,
     NzAlertModule,
@@ -205,7 +205,6 @@ type SortKey = (typeof SORT_KEYS)[number];
     NzTooltipModule,
     RoleBadge,
     RoleSet,
-    RouterLink,
   ],
   templateUrl: './why.html',
 })
@@ -226,7 +225,6 @@ export class Why {
    * viaggiando anche quando si cambia pagina.
    */
   protected readonly travel = inject(TimeTravel);
-  protected readonly appVersion = APP_VERSION;
   protected readonly ruleNote = RULE_NOTE;
 
   /** Le colonne del motore del foglio dichiarato, per `fc_id`. Null = non ancora lette, o foglio assente. */

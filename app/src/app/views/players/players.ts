@@ -11,15 +11,14 @@ import { NzSliderModule } from 'ng-zorro-antd/slider';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { RouterLink } from '@angular/router';
 
 import { CLASSIC_ROLES, ClassicRole, Platform, PlayersStore } from '../../core/players-store';
 import { CONSULTABLE_FLAGS, FLAG_LABEL, PlayerFlag } from '../../core/player-status';
 import { ValuationStore } from '../../core/valuation-store';
 import { asFlag, bindQuery, storedFlag } from '../../core/view-state';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { MatchesTable } from '../../ui/matches-table/matches-table';
 import { SquadTable } from '../../ui/squad-table/squad-table';
-import { APP_VERSION } from '../../version';
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
   P: 'Portiere',
@@ -42,7 +41,6 @@ export type PlayersMode = 'matches' | 'ratings';
   selector: 'app-players',
   imports: [
     FormsModule,
-    RouterLink,
     NzAlertModule,
     NzButtonModule,
     NzCheckboxModule,
@@ -54,6 +52,7 @@ export type PlayersMode = 'matches' | 'ratings';
     NzSliderModule,
     NzSpinModule,
     NzTooltipModule,
+    AppHeader,
     MatchesTable,
     SquadTable,
   ],
@@ -64,7 +63,6 @@ export class Players {
   protected readonly store = inject(PlayersStore);
   /** The valuation of a man: the same store the squads view reads, so one man reads one way. */
   protected readonly valuation = inject(ValuationStore);
-  protected readonly appVersion = APP_VERSION;
   protected readonly roles = CLASSIC_ROLES;
   protected readonly roleLabel = ROLE_LABEL;
   /** Le icone che queste tabelle sanno produrre, e come si chiamano: una definizione sola. */

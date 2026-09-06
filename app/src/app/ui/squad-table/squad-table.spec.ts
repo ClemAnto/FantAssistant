@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SORTABLE_COLUMNS, SQUAD_COLUMNS, orderColumns } from './squad-table';
+import { FIXED_COLUMNS, SORTABLE_COLUMNS, SQUAD_COLUMNS, denseWidth, orderColumns } from './squad-table';
 import { CATEGORIA_LADDER, CATEGORIA_SHORT } from '../../core/categoria';
 import { TITOLARITA_SHORT } from '../../core/titolarita';
 
@@ -169,5 +169,48 @@ describe('le colonne per cui si ordina', () => {
     // vede: `role` e `name` sono le due fisse e stanno fuori da SQUAD_COLUMNS di proposito.
     const offered = new Set([...SQUAD_COLUMNS.map((one) => one.key), 'role', 'name']);
     for (const key of SORTABLE_COLUMNS) expect(offered).toContain(key);
+  });
+});
+
+/**
+ * LA VERSIONE COMPATTA (operatore, 06/09/2026: «rielabora la tabella dei calciatori in maniera molto
+ * piu' compatta»), e quello che questo file protegge non e' che sia piccola: e' che non TAGLI.
+ *
+ * Una colonna stretta che nasconde una cifra non e' compattezza, e' un numero che mente - la famiglia
+ * dei «276px di colonne non strette, ASSENTI». Le due eccezioni dichiarate (`dense`) esistono per
+ * questo, e sono misurate a schermo: il banco `scripts/e2e-clubs.mjs` rifa' la misura sulla pagina vera
+ * e fallisce su qualunque cella o intestazione tagliata.
+ */
+describe('la tabella compatta', () => {
+  it('stringe ogni colonna, ma nessuna sotto il pavimento', () => {
+    for (const column of [...FIXED_COLUMNS, ...SQUAD_COLUMNS]) {
+      expect(denseWidth(column), column.key).toBeLessThanOrEqual(column.width);
+      expect(denseWidth(column), column.key).toBeGreaterThanOrEqual(32);
+    }
+  });
+
+  it('e stringe DAVVERO, e il numero e quello misurato', () => {
+    // MISURATO il 06/09/2026 a 1600x1000 sulla rosa di 33 uomini: la tabella passa da 1554px a 1252px
+    // (-19%) e la riga da 39px a 23px (-41%). La LARGHEZZA e' la meta' meno importante delle due - il
+    // grosso della compattezza lo fa l'altezza della riga, che vive in `ng-zorro.css` e la misura il
+    // banco - quindi qui si pretende un taglio del 15% e non un quinto, che e' la cifra che i numeri
+    // sostengono: la somma delle colonne scende da 1616 a 1312, cioe' del 18,8%, e le tre eccezioni
+    // dichiarate piu' il pavimento sono la ragione per cui non e' esattamente la quota.
+    const plain = SQUAD_COLUMNS.reduce((sum, one) => sum + one.width, 0);
+    const dense = SQUAD_COLUMNS.reduce((sum, one) => sum + denseWidth(one), 0);
+    expect(dense).toBeLessThan(plain * 0.85);
+  });
+
+  it('le eccezioni dichiarate sono PIU LARGHE della quota, o non sono eccezioni', () => {
+    // Una `dense` sotto la quota sarebbe una manopola che non fa niente, e nessuno la noterebbe:
+    // «una manopola che non muove niente e' peggio di nessuna manopola».
+    // `mantra` era la terza e non lo e' piu': da quando le PASTIGLIE seguono la densita' (operatore,
+    // 06/09/2026) i badge si stringono col resto, e la colonna che li porta sta nella quota come le
+    // altre - l'eccezione era il prezzo di un elemento che non si stringeva.
+    const declared = [...FIXED_COLUMNS, ...SQUAD_COLUMNS].filter((one) => one.dense != null);
+    expect(declared.map((one) => one.key)).toEqual(['surplus', 'surplusFielded']);
+    for (const column of declared) {
+      expect(column.dense, column.key).toBeGreaterThan(Math.round(column.width * 0.8));
+    }
   });
 });

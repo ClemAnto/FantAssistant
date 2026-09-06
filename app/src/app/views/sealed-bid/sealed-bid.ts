@@ -1,7 +1,6 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
@@ -89,7 +88,7 @@ import { PlayerStatus } from '../../core/player-status';
 import { SeasonLine, seasonLines } from '../../core/season-line';
 import { SquadMan, ValuationStore } from '../../core/valuation-store';
 import { shortNames } from '../../core/clubs-store';
-import { APP_VERSION } from '../../version';
+import { AppHeader } from '../../ui/app-header/app-header';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
@@ -184,6 +183,7 @@ function writeJson(key: string, value: unknown): void {
 @Component({
   selector: 'app-sealed-bid',
   imports: [
+    AppHeader,
     DecimalPipe,
     FormsModule,
     GainChip,
@@ -205,7 +205,6 @@ function writeJson(key: string, value: unknown): void {
     NzUploadModule,
     PlayerFlags,
     RoleBadge,
-    RouterLink,
   ],
   templateUrl: './sealed-bid.html',
   host: { class: 'block' },
@@ -217,7 +216,6 @@ export class SealedBid {
   private readonly options = inject(GlobalOptions);
   /** Chi e' fuori oggi, e da quanto: una definizione sola, la stessa che disegna l'icona in riga. */
   private readonly status = inject(PlayerStatus);
-  protected readonly appVersion = APP_VERSION;
   protected readonly roles = ROLES;
   protected readonly tacticLabel = TACTIC_LABEL;
 

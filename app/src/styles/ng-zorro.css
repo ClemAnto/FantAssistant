@@ -177,6 +177,38 @@
     border-bottom-color: color-mix(in srgb, var(--color-border) 60%, transparent);
   }
 
+  /* LE TABELLE COMPATTE della vista SQUADRE (operatore, 06/09/2026: «rielabora la tabella dei calciatori
+     in maniera molto più compatta», e poi «compatta anche la tabella con gli ultimi risultati»). La
+     classe la mettono `ui-squad-table` e `ui-matches-table` quando la pagina chiede `dense`, e QUI ci
+     sono le due proprietà che decidono l'altezza di una riga: il PADDING della cella e il CARATTERE.
+
+     UNA definizione per tutt'e due le tabelle, e non una per componente: «compatto» è una cosa sola su
+     una pagina, e due regole finirebbero per dare a due tabelle affiancate due densità. Le LARGHEZZE
+     stanno invece nei componenti, perché una larghezza di colonna è un fatto che il `colgroup` deve
+     conoscere e non una proprietà che si eredita.
+
+     Misurato il 06/09/2026 a 1600x1000 su una rosa di 33 uomini: la tabella dei valori passa da una riga
+     di 39px a 23px e da 1554 a 1252px di larghezza; quella delle ultime partite da 49px a riga e 2325px
+     di pagina. `nzSize="small"` di antd si ferma a 8px di padding e 14px di testo, che è metà del
+     problema. */
+  .table-dense .ant-table-thead > tr > th,
+  .table-dense .ant-table-tbody > tr > td {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    padding: 0.0625rem 0.25rem;
+  }
+
+  /* LE RIGHE PARI UN POCHINO PIU' CHIARE (operatore, 06/09/2026: «per migliorare la lettura»), su
+     tutt'e due le tabelle: seguire una riga di ventidue colonne o di dieci giornate senza un appoggio
+     e' esattamente dove l'occhio salta di riga.
+     Il tono viene dal token del CONTROLLO al 30%, cioe' lo stesso grigio con cui questa app disegna una
+     superficie appena sopra la carta: non un colore nuovo. Sta PRIMA della regola del passaggio del
+     mouse e non dopo, perche' hanno la stessa specificita' e in un layer decide l'ordine - invertite,
+     lo zebrato coprirebbe l'evidenziazione della riga sotto il puntatore. */
+  .ant-table-tbody > tr:nth-child(even) > td {
+    background-color: color-mix(in srgb, var(--color-control) 30%, transparent);
+  }
+
   .ant-table-tbody > tr:hover > td {
     background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
   }

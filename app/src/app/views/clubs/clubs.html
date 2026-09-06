@@ -2,16 +2,8 @@
 <!-- Wider than the other pages on purpose: this table carries fourteen columns and the alternative is
      scrolling it sideways, which hides exactly the four star columns it exists for. -->
 <div class="mx-auto flex min-h-full max-w-[1700px] flex-col gap-4 p-4">
-  <header class="flex flex-wrap items-baseline justify-between gap-2">
-    <div class="flex items-baseline gap-2">
-      <h1 class="text-2xl font-semibold text-fg">Squadre</h1>
-      <span
-        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-        title="Versione della webapp - cambia a ogni pubblicazione"
-        >v{{ appVersion }}</span
-      >
-    </div>
-    <div class="flex items-baseline gap-3">
+  <ui-app-header>
+    <div actions class="flex items-baseline gap-3">
       @if (store.generatedAt(); as generated) {
         <span class="text-xs text-muted">
           Snapshot del {{ generated.slice(0, 10).split('-').reverse().join('/') }}
@@ -20,21 +12,8 @@
           }
         </span>
       }
-      <a nz-button nzType="text" routerLink="/">
-        <nz-icon nzType="calendar" />
-        Calciatori
-      </a>
-      <!-- The only way into the charts view: without it /charts is reachable by URL alone. -->
-      <a nz-button nzType="text" routerLink="/charts">
-        <nz-icon nzType="pie-chart" />
-        Grafici
-      </a>
-      <a nz-button nzType="text" routerLink="/auction">
-        <nz-icon nzType="wifi" />
-        Segui un'asta
-      </a>
     </div>
-  </header>
+  </ui-app-header>
 
   @if (store.demo()) {
     <nz-alert
@@ -146,11 +125,16 @@
           <!-- UN CAMPETTO SOLO per le due schermate (operatore, 18/08/2026): `ui-club-board` è lo stesso
                componente che disegna il campetto del pannello d'asta, e qui riceve soltanto quello che
                questa vista sa - fuori da un tavolo nessuno è «già preso». -->
+          <!-- IL DETTAGLIO QUI E' LA CARD E NON UN TOOLTIP (operatore, 06/09/2026): questa pagina sa
+               quale foglio prezza i suoi uomini, quindi puo' costruirla - il pannello d'asta legge un
+               altro foglio e si tiene la sua scheda all'hover. -->
           <ui-club-board
             [board]="store.board()"
             [noBoards]="store.noBoards()"
             [overall]="store.overalls()"
             [expectedShares]="store.expectedShares()"
+            detail="card"
+            (pick)="onPick($event)"
           />
           <p class="text-xs text-muted">
             È la <strong>board del toolkit</strong>, non un undici ricalcolato qui: la disegna la classe
@@ -179,7 +163,11 @@
               @if (mode() === 'values') {
                 MV e FM misurate: {{ store.measuredOn() }}
               } @else {
-                ultime 10 giornate di {{ store.measuredOn() }}
+                <!-- QUALI STAGIONI, e non «la stagione misurata»: le ultime dieci giornate sono in
+                     assoluto (operatore, 06/09/2026), quindi a settembre sono di due stagioni e la
+                     riga lo dice - una finestra che ne nomina una sola mentre ne mostra due e' la
+                     stessa famiglia di un numero che non dice contro cosa e' misurato. -->
+                ultime 10 giornate · {{ matchSeasons().join(' e ') }}
               }
             </span>
           </div>
@@ -187,7 +175,16 @@
           <!-- The same tables the CALCIATORI view draws for the whole listone, and deliberately the same
                components: two copies would be two definitions of these columns under one heading. -->
           @if (mode() === 'values') {
-            <ui-squad-table [rows]="store.squad()" [platform]="store.platform()" />
+            <!-- COMPATTA E CLICCABILE (operatore, 06/09/2026): qui la tabella ha 1028px dei 1554 che le
+                 sue colonne chiedono, perché accanto c'è il campetto - e il nome apre la stessa card che
+                 apre il campetto, perché questa pagina sa quale foglio prezza i suoi uomini. -->
+            <ui-squad-table
+              [rows]="store.squad()"
+              [platform]="store.platform()"
+              dense
+              pickable
+              (pick)="onPick($event)"
+            />
           } @else if (matches.status() === 'error') {
             <nz-alert
               nzType="error"
@@ -201,11 +198,14 @@
               Carico i voti e le partite del bundle...
             </div>
           } @else {
+            <!-- COMPATTA come quella dei valori (operatore, 06/09/2026): è la stessa pagina e lo stesso
+                 pannello, quindi due densità affiancate sarebbero due tabelle che non si somigliano. -->
             <ui-matches-table
               [lines]="matchTable().lines"
               [columns]="matchTable().columns"
               [crests]="store.crests()"
               [showClub]="false"
+              dense
             />
           }
         </section>
@@ -213,3 +213,31 @@
     }
   }
 </div>
+
+<!-- LE CARD stanno FUORI dal contenitore della pagina, in `fixed`: dentro erediterebbero il suo
+     `overflow` e si taglierebbero al primo trascinamento. Sono PIÙ DI UNA - una per uomo cliccato -
+     perché servono a CONFRONTARE, ed è la stessa card della plancia e della Strategia
+     (`ui/player-card`): due card sarebbero due letture degli stessi `engine_*`.
+
+     NESSUN BOTTONE proiettato: qui non c'è un'asta in corso, quindi non c'è un lotto da nominare. -->
+@for (open of openCards(); track open.man.id) {
+  <ui-player-card
+    [man]="open.man"
+    [at]="open.slot"
+    [front]="frontCard() === open.man.id"
+    (closed)="closeCard($event)"
+    (raised)="raiseCard($event)"
+  />
+}
+@if (openCards().length > 1) {
+  <!-- La via d'uscita, invece di un TETTO al numero di card: una soglia su quante se ne possono aprire
+       è una soglia che nessuno ha misurato. -->
+  <button
+    type="button"
+    class="fixed bottom-3 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-border
+           bg-surface px-3 py-1 text-xs text-muted shadow-lg hover:text-fg"
+    (click)="closeAllCards()"
+  >
+    chiudi le {{ openCards().length }} card
+  </button>
+}

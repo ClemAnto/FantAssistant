@@ -1,12 +1,14 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { booleanAttribute, Component, computed, inject, input, signal } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, ScoringConfig } from '../../core/bundle';
+import { BonusKind, BonusRow, bonusesOf } from '../../core/match-bonuses';
 import { ColumnSlot, MatchCell, PlayerLine } from '../../core/players-store';
 import { short } from '../../core/tooltip';
+import { BonusMark } from '../bonus-mark/bonus-mark';
 import { ClubCrest } from '../club-crest/club-crest';
 import { MatchDetail } from '../match-detail/match-detail';
 import { PlayerFlags } from '../player-flags/player-flags';
@@ -14,6 +16,22 @@ import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
 import { lazyRows } from '../../core/lazy-rows';
 import { KIND_ICON, KIND_LABEL, STATE_ICON, STATE_LABEL, voteClass, voteText } from './vocabulary';
+
+/**
+ * QUELLO CHE UNA CELLA MARCA: gol, rigori segnati, assist - gli stessi eventi che marcava prima, coi
+ * marchi della CARD (operatore, 06/09/2026: «riguardo ai gol e agli assist, utilizza le stesse icone
+ * utilizzate nella card di dettaglio dei calciatori»).
+ *
+ * Prima la cella disegnava un BERSAGLIO per i gol, che nel vocabolario della card è il RIGORE, e una
+ * `share-alt` per l'assist, che nella card è una scarpetta: due pagine che disegnavano due cose diverse
+ * per lo stesso fatto, cioè esattamente quello che `ui/bonus-mark` esiste per impedire. Ora il marchio
+ * viene da lì e il gol torna a essere un pallone.
+ *
+ * LO STESSO INSIEME DI PRIMA e non tutti i bonus: cartellini, autogol e i due del portiere non erano
+ * marcati e restano dove sono già leggibili - il tooltip della cella e la card - perché una cella è
+ * larga 48px da compatti e tre marchi la riempiono. Quello che cambia è il DISEGNO, non cosa dice.
+ */
+const CELL_MARKS = new Set<BonusKind>(['goal', 'pen-scored', 'assist']);
 
 /** dd/mm/yyyy, because a date in a tooltip is read by a person and not by a parser. */
 const it = (iso: string): string => iso.split('-').reverse().join('/');
@@ -31,6 +49,7 @@ const it = (iso: string): string => iso.split('-').reverse().join('/');
   selector: 'ui-matches-table',
   templateUrl: './matches-table.html',
   imports: [
+    BonusMark,
     ClubCrest,
     MatchDetail,
     NzIconModule,
@@ -51,6 +70,17 @@ export class MatchesTable {
   readonly crests = input<Record<string, string>>({});
   /** A list of one club does not repeat the club on every row. */
   readonly showClub = input(true);
+  /**
+   * LA VERSIONE COMPATTA, chiesta dall'operatore per la vista SQUADRE (06/09/2026, subito dopo l'altra
+   * tabella: «compatta anche la tabella con gli ultimi risultati»).
+   *
+   * Le leve sono le stesse dell'altra e per la stessa ragione misurata: il PADDING e il CARATTERE stanno
+   * in `ng-zorro.css` sotto UNA classe che le due tabelle condividono (`.table-dense`), le LARGHEZZE
+   * qui. Quello che questa tabella ha in piu' e' che una cella e' alta DUE righe - il voto e la striscia
+   * delle iconcine - quindi la riga non scende come la' (49px contro 39px di partenza) e l'altezza si
+   * guadagna sul padding.
+   */
+  readonly dense = input(false, { transform: booleanAttribute });
   /**
    * LE RIGHE ARRIVANO SCORRENDO, senza paginazione (operatore, 17/08/2026): le prime 60 e poi 60 per volta
    * quando lo scorrimento arriva al fondo. La riga sotto la tabella dice quante se ne vedono su quante.
@@ -77,9 +107,46 @@ export class MatchesTable {
    * the column names in view while the list scrolls: ng-zorro's own fixed header (two tables), because
    * a `position: sticky` on the th anchors itself to the scrolling container and leaves with it.
    */
+  /**
+   * LE LARGHEZZE DELLE COLONNE, in un posto solo: il template le BINDA e `minWidth` le somma.
+   *
+   * Prima erano scritte due volte - `nzWidth="190px"` nel template e un `490` in `minWidth` che era la
+   * loro somma ricopiata a mano - quindi la larghezza minima e le colonne potevano finire per non essere
+   * d'accordo (e per le colonne delle partite lo erano gia': 62 contro 58 e 92). Una definizione, due
+   * lettori: e' la stessa cura che `SQUAD_COLUMNS` ha per l'altra tabella.
+   *
+   * I valori compatti sono MISURATI: una cella di partita porta un voto (~20px a 11px di carattere) e
+   * fino a tre iconcine da 10px, quindi 48 e non meno; il nome tiene un cognome intero e va per ultimo,
+   * perche' la sua colonna e' quella che si allunga se resta spazio.
+   */
+  protected readonly widths = computed(() => {
+    const dense = this.dense();
+    return {
+      name: this.narrow() ? 176 : dense ? 150 : 190,
+      role: dense ? 40 : 60,
+      mantra: dense ? 76 : 110,
+      club: dense ? 96 : 130,
+      cell: dense ? 48 : 58,
+      detail: dense ? 66 : 92,
+      // Il CONFINE fra due stagioni: dieci pixel, quanto basta a vedersi come una giuntura e non come
+      // una colonna vuota che qualcuno ha dimenticato di riempire.
+      divider: dense ? 10 : 14,
+    };
+  });
+
   /** La larghezza minima, non uno scroller: scorre la PAGINA nei due assi (vedi `squad-table.minWidth`). */
-  protected readonly minWidth = computed(() =>
-    `${(this.narrow() ? 176 : this.showClub() ? 490 : 360) + this.columns().length * 62}px`);
+  protected readonly minWidth = computed(() => {
+    const width = this.widths();
+    const fixed = this.narrow()
+      ? width.name
+      : width.name + width.role + width.mantra + (this.showClub() ? width.club : 0);
+    const cells = this.columns().reduce(
+      (sum, one) =>
+        sum + (one.divider ? width.divider : one.detail || one.score ? width.detail : width.cell),
+      0,
+    );
+    return `${fixed + cells}px`;
+  });
 
   /** A phone. Two things change: the table gives up the three narrow columns and folds them
    *  into the name, and the tooltip goes away - on a touch screen there is no hover, so it would
@@ -113,6 +180,20 @@ export class MatchesTable {
   protected open(cell: MatchCell, player: PlayerLine): void {
     this.hovered.set(null);
     this.selected.set({ cell, player });
+  }
+
+  /**
+   * I marchi di una cella, dal lettore UNICO dei bonus (`core/match-bonuses.ts`): la stessa funzione che
+   * legge la riga compatta della card e il pannello grande della partita, quindi una partita non può
+   * portare due elenchi di eventi.
+   */
+  protected marksOf(cell: MatchCell): BonusRow[] {
+    return bonusesOf(cell, this.scoring()).filter((one) => CELL_MARKS.has(one.kind));
+  }
+
+  /** Se la colonna in quella posizione e' il CONFINE fra due stagioni e non una partita. */
+  protected divider(index: number): boolean {
+    return !!this.columns()[index]?.divider;
   }
 
   /** True when the cell has no number at all and is drawn as an icon only. */

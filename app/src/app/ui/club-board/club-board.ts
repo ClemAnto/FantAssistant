@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, input, linkedSignal } from '@angular/core';
+import { Component, computed, input, linkedSignal, output } from '@angular/core';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
@@ -70,6 +70,23 @@ export class ClubBoard {
   readonly expectedShares = input<ReadonlyMap<number, number | null>>(NOTHING);
   /** Quello che solo un tavolo sa: chi è già stato preso, cosa chiede, se è in questo listone. */
   readonly table = input<ReadonlyMap<number, OnTable>>(NO_TABLE);
+  /**
+   * COME SI LEGGE IL DETTAGLIO DI UN UOMO, e sono due frasi diverse su due schermate diverse.
+   *
+   * `card`: il click apre la CARD del calciatore, quella di `ui/player-card` - la stessa della plancia e
+   * della Strategia (richiesta dell'operatore per la vista Squadre, 06/09/2026: «togli il tooltip dai
+   * calciatori sul campetto e metti al click l'apertura della card dettaglio»). `tooltip`: la vecchia
+   * carta all'hover, che è quello che il pannello d'asta ha oggi.
+   *
+   * È un INTERRUTTORE DICHIARATO e non un comportamento indovinato: la card la costruisce la PAGINA,
+   * perché i numeri di un uomo dipendono dal foglio che quella pagina sta leggendo, e una schermata che
+   * non la sa costruire non può restare senza nessun dettaglio. Quindi la ragione sta scritta a ognuno
+   * dei due punti di chiamata - la stessa forma di `extract_boards(apply_rulings=…)` nel toolkit, dove
+   * una funzione sola serve due chiamanti con bisogni opposti.
+   */
+  readonly detail = input<'tooltip' | 'card'>('tooltip');
+  /** Chi è stato cliccato, per `fc_id`: la pagina decide cosa farne (aprire la sua card). */
+  readonly pick = output<number>();
 
   protected readonly label = LINE_LABEL;
 
@@ -164,6 +181,22 @@ export class ClubBoard {
   /** Il marchio del disaccordo fra board e motore, che viaggia col nome dovunque sia disegnato. */
   protected disputed(man: PitchMan): string | null {
     return disagreementHint(man);
+  }
+
+  /**
+   * SE IL SUO NOME È UN BERSAGLIO, e ci vogliono tutt'e due le condizioni.
+   *
+   * La card la chiede la pagina (`detail`), e un uomo che la board non riesce a identificare non ne ha
+   * una: senza `fc_id` non ci sono né i suoi numeri né le sue partite - «vuoto = ignoto», applicato a un
+   * gesto. Un nome che sembra cliccabile e non fa niente è peggio di un nome che non lo sembra, quindi il
+   * cursore e il `role` seguono questa risposta e non l'interruttore da solo.
+   */
+  protected clickable(man: PitchMan): boolean {
+    return this.detail() === 'card' && man.fcId != null;
+  }
+
+  protected onPick(man: PitchMan): void {
+    if (this.clickable(man)) this.pick.emit(man.fcId as number);
   }
 
   /**

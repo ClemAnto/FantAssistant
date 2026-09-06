@@ -31,6 +31,25 @@ import { BonusRow } from '../../core/match-bonuses';
 })
 export class BonusMark {
   readonly bonus = input.required<BonusRow>();
+  /**
+   * LA TAGLIA, e NON e' una seconda icona: il disegno e il significato restano quelli (sua condizione
+   * del 05/09/2026, «le icone abbiano lo stesso significato in ogni pagina»), cambia quanto e' grande -
+   * come per le pastiglie dei ruoli, che hanno tre taglie e un colore solo.
+   *
+   * `xs` e' la taglia della TABELLA delle ultime partite, dove il marchio sta ACCANTO al voto dentro una
+   * cella larga 48px (operatore, 06/09/2026: «le icone dei gol e le altre mettile dopo il voto e non
+   * sotto, riducile»); `sm` e' quella della card e del pannello, dove una riga e' larga quanto la card.
+   */
+  readonly size = input<'xs' | 'sm'>('sm');
+
+  /** Il disegno di un pallone e di una scarpetta, e il corpo di un `nz-icon`: una taglia, tre lettori. */
+  protected readonly glyph = computed(() => (this.size() === 'xs' ? 'h-2.5 w-2.5' : 'h-3 w-3'));
+  protected readonly icon = computed(() => (this.size() === 'xs' ? 'text-[10px]' : 'text-[12px]'));
+  /** Il cartellino: un rettangolino, che resta un rettangolino anche piu' piccolo. */
+  protected readonly card = computed(() =>
+    this.size() === 'xs' ? 'h-2 w-1.5' : 'h-2.5 w-1.5');
+  protected readonly countSize = computed(() =>
+    this.size() === 'xs' ? 'text-[8px]' : 'text-[9px]');
 
   /**
    * STAMPA IL CONTEGGIO ANCHE QUANDO E' UNO.

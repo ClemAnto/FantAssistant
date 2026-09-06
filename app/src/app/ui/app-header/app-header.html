@@ -1,0 +1,54 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<header [class]="shell()">
+  <!-- IL TITOLO LO DICHIARA LA ROTTA e non la pagina: il nome nel nav e il nome in cima sono lo stesso
+       dato letto due volte, quindi non possono divergere. Senza una rotta riconosciuta si scrive il nome
+       dell'app - «vuoto = ignoto» applicato a un titolo. -->
+  <h1 [class]="heading()">{{ page()?.title ?? 'FantAssistant' }}</h1>
+  <span
+    class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
+    title="Versione della webapp - cambia a ogni pubblicazione"
+    >v{{ version }}</span
+  >
+
+  <!-- QUELLO CHE LA PAGINA HA DA DIRE, accanto al titolo: quale foglio, quale tavolo, quale snapshot,
+       piu' gli interruttori che devono restare a schermo. E' la fessura PREDEFINITA perche' e' quella
+       che ogni pagina usa. -->
+  <ng-content />
+
+  <span class="ml-auto flex flex-wrap items-center gap-x-2 gap-y-1">
+    <!-- I bottoni della pagina, prima del nav: il nav e' l'ultima cosa a destra su OGNI pagina, quindi
+         il bersaglio non si sposta cambiando vista. -->
+    <ng-content select="[actions]" />
+
+    <nav class="flex items-center gap-0.5" aria-label="Vai a una pagina">
+      @for (one of main; track one.link) {
+        <ng-container *ngTemplateOutlet="item; context: { $implicit: one }" />
+      }
+      @if (asides.length) {
+        <!-- Il separatore: quello che sta dopo e' raggiungibile e non fa parte del giro di lavoro. -->
+        <span class="mx-1 h-4 w-px bg-border"></span>
+        @for (one of asides; track one.link) {
+          <ng-container *ngTemplateOutlet="item; context: { $implicit: one }" />
+        }
+      }
+    </nav>
+  </span>
+</header>
+
+<!-- UNA SOLA VOLTA IL DISEGNO DI UNA VOCE, istanziato due volte: due copie di questo markup sarebbero
+     due modi di accendere la voce attiva, e il giorno in cui uno dei due cambia il nav mente. -->
+<ng-template #item let-one>
+  <a
+    class="flex items-center rounded px-1.5 py-1 leading-none transition-colors hover:text-fg"
+    [class.bg-control]="here(one.link)"
+    [class.text-fg]="here(one.link)"
+    [class.text-muted]="!here(one.link)"
+    [routerLink]="one.link"
+    [attr.aria-current]="here(one.link) ? 'page' : null"
+    [attr.data-nav]="one.link"
+    nz-tooltip
+    [nzTooltipTitle]="one.label"
+  >
+    <nz-icon [nzType]="one.icon" />
+  </a>
+</ng-template>

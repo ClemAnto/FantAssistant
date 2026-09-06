@@ -1,13 +1,7 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <div class="mx-auto flex min-h-full max-w-[1800px] flex-col gap-3 p-4">
-  <header class="flex flex-wrap items-baseline justify-between gap-3">
+  <ui-app-header>
     <div class="flex flex-wrap items-baseline gap-3">
-      <h1 class="text-2xl font-semibold text-fg">Buste chiuse</h1>
-      <span
-        class="rounded-full border border-border px-2 py-0.5 text-xs text-muted"
-        title="Versione della webapp - cambia a ogni pubblicazione"
-        >v{{ appVersion }}</span
-      >
       @if (sheet(); as entry) {
         <span
           class="text-xs text-muted"
@@ -31,13 +25,7 @@
         </span>
       }
     </div>
-    <div class="flex items-baseline gap-2">
-      <a nz-button nzType="text" routerLink="/">
-        <nz-icon nzType="team" />
-        Calciatori
-      </a>
-    </div>
-  </header>
+  </ui-app-header>
 
   @if (store.status() === 'error') {
     <nz-alert

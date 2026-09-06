@@ -10,7 +10,7 @@
   [nzTooltipTitle]="hint()"
 >
   @if (bonus().count > 1 || always()) {
-    <span class="text-[9px] font-semibold tabular-nums">{{ bonus().count }}</span>
+    <span class="font-semibold tabular-nums" [class]="countSize()">{{ bonus().count }}</span>
   }
 
   @switch (bonus().kind) {
@@ -24,7 +24,7 @@
     }
     <!-- LA SCARPETTA: l'assist, di piede o da fermo che sia. -->
     @case ('assist') {
-      <svg viewBox="0 0 24 24" class="h-3 w-3" aria-hidden="true">
+      <svg viewBox="0 0 24 24" [class]="glyph()" aria-hidden="true">
         <path
           d="M3.6 16.2c0-2.2.6-4.3 1.7-6.1.3-.6 1-.8 1.6-.6l1.7.5c.5.2.9.6 1 1.2l.3 1.7 6.7 2.2c1.5.5 2.5 1.9 2.5 3.5v.6c0 .3-.3.6-.6.6H4.2c-.3 0-.6-.3-.6-.6z"
           fill="currentColor"
@@ -33,25 +33,25 @@
     }
     <!-- IL BERSAGLIO: il rigore, verde segnato e rosso sbagliato. -->
     @case ('pen-scored') {
-      <nz-icon class="text-[12px]" nzType="aim" nzTheme="outline" />
+      <nz-icon [class]="icon()" nzType="aim" nzTheme="outline" />
     }
     @case ('pen-missed') {
-      <nz-icon class="text-[12px]" nzType="aim" nzTheme="outline" />
+      <nz-icon [class]="icon()" nzType="aim" nzTheme="outline" />
     }
     <!-- I DUE CARTELLINI: due rettangolini, che è come si vedono in campo. Nessuna icona: la forma È
          il significato, e un giallo che non fosse un rettangolo non sarebbe un cartellino. -->
     @case ('yellow') {
-      <span class="inline-block h-2.5 w-1.5 rounded-[1px] bg-warning" aria-label="ammonizione"></span>
+      <span class="inline-block rounded-[1px] bg-warning" [class]="card()" aria-label="ammonizione"></span>
     }
     @case ('red') {
-      <span class="inline-block h-2.5 w-1.5 rounded-[1px] bg-danger" aria-label="espulsione"></span>
+      <span class="inline-block rounded-[1px] bg-danger" [class]="card()" aria-label="espulsione"></span>
     }
     <!-- I DUE DEL PORTIERE: una x per il gol subito, un check per il rigore parato. -->
     @case ('conceded') {
-      <nz-icon class="text-[12px]" nzType="close-circle" nzTheme="outline" />
+      <nz-icon [class]="icon()" nzType="close-circle" nzTheme="outline" />
     }
     @case ('pen-saved') {
-      <nz-icon class="text-[12px]" nzType="check-circle" nzTheme="outline" />
+      <nz-icon [class]="icon()" nzType="check-circle" nzTheme="outline" />
     }
   }
 </span>
@@ -59,7 +59,7 @@
 <!-- Il pallone, disegnato una volta e usato dai due casi che lo vogliono: due copie dello stesso
      tracciato sono come due pagine finiscono per avere due palloni diversi. -->
 <ng-template #ball>
-  <svg viewBox="0 0 24 24" class="h-3 w-3" aria-hidden="true">
+  <svg viewBox="0 0 24 24" [class]="glyph()" aria-hidden="true">
     <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2" />
     <path d="M12 6.8l4 2.9-1.5 4.7h-5L8 9.7z" fill="currentColor" />
   </svg>
