@@ -1,5 +1,40 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 6 settembre 2026 (sera) — UNO SLUG NON È UN'IDENTITÀ: il voto sintetico rifiutato per un
+**Aggiornato: 6 settembre 2026 (notte) — «CHI È MEGLIO» E «QUANTO OFFRIRE» SONO DUE GRADUATORIE, e un
+termine giusto per una è sbagliato per l'altra.** Dalla domanda dell'operatore «esiste un valore che mi
+dica subito, fra due calciatori, quale mi farà vincere più partite?». Ne è nato **SWING** (nome suo, in
+codice e a schermo) e quattro termini misurati, tre respinti.
+(a) **LA COPERTURA È RESPINTA, e la ragione è la regola più grossa della sessione.** La prima versione
+sommava `surplus + copertura` come `engine_worth` sul banco d'asta, dove quella somma porta il braccio
+motore da ultimo di undici a PRIMO; su una lista di nomi, pesata da 0 a 1 su 200 campionati, **peso 0
+rende 63,0 punti e il 78% dei titoli, peso 1 ne rende 35,8**. *Sul banco prezza un'OFFERTA sotto un
+budget, dove un posto può restare vuoto; in una lista il posto vuoto non esiste e pagare per la presenza
+è pagare per qualcosa che avresti gratis.* Trovata dall'operatore guardando lo schermo («Hainaut >
+Dimarco non mi sembra attendibile»): la copertura era l'**80-97%** del numero, perché `min(quota,
+deficit)` non morde mai — **due zeri diversi dentro una somma**.
+(b) **LA CONVESSITÀ è un meccanismo vero che non arriva mai**: la varianza di un uomo si legge dal suo
+tasso di bonus (r **+0,92** sugli attaccanti), e il termine sposta **2 uomini su 474 di una posizione**,
+perché una giornata di rosa vale **74,8 ± 7,0** e i 66 si superano nel 90% dei casi.
+(c) **LA COSTANZA È ADOTTATA SU EVIDENZA DICHIARATAMENTE DEBOLE**, formula e peso dell'operatore
+(`surplus + giornate sufficienti × 1/11`): ha perso su tre banchi (−0,03% su 3 finestre di 10 · −0,29
+punti su 4 stagioni di 10 · +1,22 fp a giornata su UNA stagione) e vinto sul solo che ha un **BUDGET**,
+3 impostazioni su 4 — la sola situazione in cui si gioca. Clausola di R19 scritta accanto.
+(d) **E LA SUA PRUDENZA HA BATTUTO LA MIA ARITMETICA**: il marginale ESATTO dell'R-Factor è 0,298 e
+misurato a 0,30 il termine è **DANNOSO** (−2,12 fp a giornata), perché il surplus contiene già una parte
+della costanza — si paga il DIFFERENZIALE, non il totale. Il primo sweep che la bocciava aveva spazzato
+pesi da 5 a 40 ed è **ritirato**.
+(e) **IL BUDGET RIBALTA CHI VINCE**: senza, la quotazione batte il surplus su dieci stagioni (40% dei
+titoli contro 32%); con 250 crediti crolla **ultima all'1%**. Comprare per prezzo è gratis solo quando i
+soldi non contano. E un braccio che compra per FVM di fine stagione — un ORACOLO — vince il **78%**: è
+lì la scala di quanto resta da guadagnare, ed è previsione, non aritmetica di colonne.
+(f) **Più il SELETTORE D'ORDINAMENTO della Strategia** e quattro difetti d'arnese, fra cui «righe
+identiche non sono un risultato» (un join a zero da `fc_id` float) e «duecento campionati possono essere
+quattro rose».
+**Commit `c596d69`, che porta SOLO la mia metà**: l'albero è condiviso con un'altra sessione
+(`ui/app-header` e le viste che lo adottano restano fuori), quindi `StrategyBidder.swing` è OPZIONALE
+apposta e la metà Strategia arriverà dentro il loro commit. Misurato: albero condiviso 787 test app e
+726 toolkit; in un worktree su HEAD coi soli file del commit, build pulito, **773 test app** e 11 banchi
+e2e verdi. `engine_*`, i fogli e le revisioni fermi. Dettaglio: `letture-app-v1.md` §32.
+· precedente: 6 settembre 2026 (sera) — UNO SLUG NON È UN'IDENTITÀ: il voto sintetico rifiutato per un
 trattino, e la prima cura fondeva due campionati.** Dalla richiesta «completa la todolist» e poi
 «spiegami meglio quali decisioni sono da prendere, procediamo 1 alla volta»: quattro decisioni prese una
 per volta, e sulla prima l'operatore ha scelto la strada intera («pre-registra e fai girare il gate»).

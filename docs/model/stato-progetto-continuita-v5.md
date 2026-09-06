@@ -3,6 +3,49 @@
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 6 settembre 2026, notte: SWING, e la copertura che e' giusta per un'offerta e non per una graduatoria
+
+**Cosa e' entrato** (commit `c596d69`): `app/src/app/core/swing.ts` — il surplus convertito in GOL DI
+CLASSIFICA (0,159 per fantapunto, misurato) piu' il termine di COSTANZA dell'operatore
+(`giornate sufficienti attese × 1/11`). Piu' il SELETTORE D'ORDINAMENTO della Strategia
+(`SortKey`, `blocksOf`), l'ordine degli slot personali della plancia, e due colonne nuove lette dal
+foglio (`est_surplus`, `est_mv`).
+
+**Cosa e' stato provato e RESPINTO, coi numeri** (dettaglio in `letture-app-v1.md` §32): la COPERTURA
+(peso 0 rende 63,0 punti e il 78% dei titoli, peso 1 ne rende 35,8 — e la regola generale e' che il
+surplus e la copertura rispondono a due domande diverse, «chi e' meglio» e «quanto offrire»); la
+CONVESSITA' (2 uomini su 474 di una posizione); la MEDIA del voto base (40,3% contro un pavimento del
+41,7%).
+
+**L'adozione della costanza e' DICHIARATAMENTE DEBOLE** e va letta come tale: tre banchi contro
+(−0,03% su 3 finestre di 10 · −0,29 punti su 4 stagioni di 10 · +1,22 fp a giornata su UNA stagione) e
+uno a favore, quello **con un budget di 250 crediti**, 3 impostazioni su 4 — la sola situazione in cui
+l'operatore gioca. Clausola di R19: se la prossima misura la trova peggiore, esce senza discutere.
+
+**Due fatti nuovi sul mercato che valgono oltre la colonna.** Senza budget la QUOTAZIONE batte il
+surplus su dieci stagioni (40% dei titoli contro 32%); con 250 crediti crolla ultima all'1% — comprare
+per prezzo e' gratis solo quando i soldi non contano, e questo si compone col fatto gia' noto che
+dentro una fascia il prezzo non vale niente. E un braccio che compra per FVM di fine stagione — un
+oracolo — vince il **78%** dei titoli: e' li' la scala di quanto resta da guadagnare, ed e' previsione.
+
+**Stato misurato**: albero condiviso **787 test app** e **726 toolkit**; in un worktree su HEAD coi soli
+file del commit, `ng build` pulito, **773 test app** e **11 banchi e2e verdi**. `engine_*`, i fogli e le
+revisioni **fermi** — niente di questa sessione tocca il motore.
+
+**Due sessioni su un albero**: il commit porta solo la mia meta'. Restano fuori `ui/app-header` e le
+viste che lo adottano, e `views/strategy/` e' CONDIVISO (il mio selettore + la loro intestazione) —
+per questo `StrategyBidder.swing` e' stato reso OPZIONALE, cosi' il core sta in piedi da solo. **La
+meta' Strategia (la pastiglia SWING e il selettore) arrivera' dentro il commit dell'altra sessione**, e
+va detto invece di lasciarlo scoprire.
+
+**Aperto**: la seconda meta' dell'argomento dell'operatore — «un uomo che ti garantisce il 6 ti aiuta a
+schierarlo sempre» — non e' misurata da nessuno di questi banchi, perche' `bench.matchday` schiera con
+prescienza sulla disponibilita' (sa gia' chi ha preso il voto). Misurarla vorrebbe dire schierare ALLA
+CIECA e incassare la riserva d'ufficio quando si sbaglia: e' una modifica al cuore del banco e tocca
+ogni numero pubblicato su di lui, quindi e' una decisione e non un esperimento.
+
+---
+
 ## CHIUSURA — 6 settembre 2026, sera: dove sta il progetto, e cosa resta
 
 **Stato misurato alla chiusura**, non dedotto: `backtest --verify` **22/22** sul DB vivo dopo tutte le
