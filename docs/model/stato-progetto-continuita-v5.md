@@ -3,6 +3,75 @@
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## 6 settembre 2026 (sera) — LA GRAFIA ESEGUITA COL GATE, E TRE SESSIONI SULLO STESSO ALBERO
+
+**Da dove è nata**: «spiegami meglio quali decisioni sono da prendere, procediamo 1 alla volta», e sulla
+prima l'operatore ha scelto la strada intera: «pre-registra e fai girare il gate». Verbali: gate
+§7-quattuorquadragies (pre-registrazione **e** esito, nello stesso posto), spec «Novità v9.79», todolist.
+
+**COME SI È SVOLTA, perché l'ordine è metà del risultato.** Pre-registrazione scritta e **committata
+prima** della corsa (`aba0975`), con dentro i numeri che si sapevano già e le quattro aspettative. Poi due
+cambi separati e misurati uno per volta: A il difetto del calendario (`63022bf`), B la grafia (`5c410fc`),
+esito (`8a1d119`). `SHEET_REVISION` 46 → 47 e i tre fogli rifatti, perché nessuna colonna cambia e i
+VALORI sì — che è esattamente ciò che quel campo esiste per dichiarare.
+
+**IL RISULTATO IN UNA RIGA**: il gate non muove un numero (0 differenze su 50.284, `--verify` 22/22 su
+tutt'e due i bracci e sul DB vivo), e il valore cade sui FOGLI — **396 voti sintetici invece di 44**, 28
+FM-equivalenti riempiti, 42 rivisti, 29 tier spostati. La ragione dello zero è strutturale: l'unico
+lettore di `foreign_fm_equiv` in `evaluate` è R1, che non è adottata su nessuna piattaforma.
+
+**E LA PRIMA CURA ERA SBAGLIATA, in un modo che solo il dato poteva mostrare.** Il provider chiama
+`bundesliga` anche il campionato **austriaco**: mappare per SLUG portava 36 partite di Red Bull Salzburg e
+Austria Klagenfurt sotto la nostra chiave tedesca, e quattro di quegli uomini sono ARRIVI il cui
+FM-equivalente ne era costruito — **Alajbegovic è sul listone 2026-27**, cioè sul foglio in uso. La forma
+adottata decide per **ID di torneo** alla fonte (`positions._slug_of`, che esisteva dal 08/08: quel modulo
+si era riscritto la denominazione, ed è così che lo stesso campionato è arrivato ad avere due nomi) e
+ripara l'archivio col **PAESE del club**, solo come evidenza CONTRARIA.
+
+**E LA GIUSTIFICAZIONE PUBBLICATA DELLA REGOLA CITA PROPRIO LUI**: la nota del 16/08 in `CLAUDE.md` porta
+Alajbegovic come L'ESEMPIO per cui le righe `bundesliga` dello strato recent devono convertire, e le sue
+dieci partite sono austriache. *Un esempio pubblicato che dice il rovescio di quello che dimostra è
+peggio di nessun esempio*: il fatto è a verbale nel gate e la correzione di quel file è una voce da
+approvare, perché quella carta è dell'operatore.
+
+**TRE SESSIONI SULLO STESSO ALBERO, ed è la prima volta.** Trovate a metà misura: `git status` portava
+modifiche non mie a `cli.py`, `evaluate.py`, `features.py` più un test nuovo (R24 di `fantassistant-5f`) e
+un audit di `fantassistant-48`. Cosa ha tenuto e cosa si è imparato:
+
+* **UNA BASE DI CONFRONTO SCADE FRA DUE CORSE DELLO STESSO COMANDO.** Il loro `starts_seen` è comparso
+  nell'inventario delle feature fra il mio primo e il mio secondo `backtest --verify`: 6.168 → 6.248
+  numeri, e per mezz'ora ho attribuito a me stesso una differenza che era loro. La cura è il worktree su
+  HEAD più i propri file, che è la regola del 27/08 — qui applicata a una MISURA e non a una build.
+* **SI COMMITTA LA PROPRIA METÀ DI UN FILE CONDIVISO METTENDO IN INDEX IL BLOB DEL WORKTREE.** Fatto due
+  volte (`features.py`, e il doc del gate): l'albero di lavoro tiene tutt'e due le metà, l'index solo la
+  mia, verificato ogni volta con un `git diff --cached | grep` sul vocabolario dell'altro — zero righe.
+* **NON CONDIVIDERE L'ARTEFATTO**, con due implementazioni: `--no-report` quando non serve conservarlo,
+  una data-dir privata quando l'artefatto È la misura (6.168 numeri da diffare). E `--verify` è in sola
+  lettura sul DB e **non** su `data/reports/`; `backtest` lascia comunque la sua riga in `ingest_runs`, ed
+  è così che una corsa innocua fa risultare il DB toccato.
+* **PER UN ESPERIMENTO DI SCRITTURA, LA COPIA PRIVATA DEL DB.** 513 MB copiati in mezzo secondo: il DB
+  vivo l'ho toccato solo dopo il verdetto e col via libera di chi lo stava usando.
+* **E LE CORREZIONI FRA SESSIONI SI VERIFICANO COME QUALUNQUE ALTRA COSA.** Ne sono arrivate quattro:
+  due mi hanno spostato numeri (la mia «inerzia» era una frase su una popolazione, e le 36 righe
+  austriache toccavano il loro percorso al contrario di come credevo), una era falsa (il mio `--verify`
+  non ha sovrascritto il lavoro di nessuno: quel rapporto non ha nemmeno la chiave `gate`, e la lezione
+  resta senza l'incidente) e una l'ho corretta io — «`evaluate` non legge `.rounds`» è sbagliata, la legge
+  a `evaluate.py:667` attraverso l'ACCESSORE e non il campo, e una ragione sbagliata dentro un verdetto
+  giusto è più pericolosa dello zero che spiega.
+* **La distinzione che 5f ha aggiunto e che adotto**: l'input fermo è una MISURA (332.461 righe identiche,
+  e regge a qualunque cambio del set adottato), il baseline fermo è un ARGOMENTO STRUTTURALE confermato
+  dalla misura ma non dimostrato da essa — e scade il giorno in cui `ADOPTED` cambia.
+
+**Un difetto della MISURA trovato dalla misura**: la prima passata attribuiva alla rinomina 70
+FM-equivalenti e 21 tier, ma `arrivals` non era ri-derivata dal 7 agosto e quei conteggi portavano la
+deriva del listone letto da allora (+2 righe che nessuna rinomina può creare). Coi due bracci ri-derivati
+entrambi sono 28/8/42/29. *Una tabella stantia confrontata con una fresca attribuisce al candidato il
+lavoro del tempo.*
+
+**E un'aspettativa pre-registrata SBAGLIATA, che resta scritta**: dicevo che A avrebbe mosso una cella e
+ne muove quattro, perché il ripiego generico da 38 era già sbagliato per la Bundesliga nelle stagioni in
+cui il dizionario non aveva la voce. Il difetto era più vecchio della rinomina che l'ha fatto trovare.
+
 ## 6 settembre 2026 (pomeriggio) — L'AUDIT DIVENTA UN TEST, E UN BUCO ERA UNA GRAFIA
 
 **Da dove è nata**: «completa la todolist». Le voci di codice aperte dalla code-review del mattino,

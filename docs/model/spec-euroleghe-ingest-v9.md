@@ -495,6 +495,69 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.79 (6 settembre 2026, sera — UNA GRAFIA rifiutava il voto sintetico, e un'altra confondeva due campionati)
+
+Esecuzione del pacchetto pre-registrato in `gate-motore-v1.md` §7-quattuorquadragies, deciso
+dall'operatore («pre-registra e fai girare il gate»). Due cambi, misurati separatamente, entrambi
+adottati; `SHEET_REVISION` **46 → 47**, `engine_*` fermo.
+
+**A — UN CALENDARIO LO CONTA IL LIVELLO CHE CAMMINA LE GIORNATE.** `features.league_rounds` prendeva
+`MAX(real_md)` da qualunque riga ne portasse uno, e `sofascore_recent` — una manciata delle ultime
+partite di un giocatore — non è un calendario: era la sola fonte di `bundesliga 2016-17` e rispondeva
+**33** giornate invece di 34. Ora filtra `source='sofascore'` e dove quel livello non arriva il numero è
+**dichiarato** (`DECLARED_ROUNDS`: Bundesliga 34, gli altri 38, con un test che lega le chiavi a
+`config.CHAMPIONSHIPS`) — perché quel dizionario fa anche da filtro di ammissibilità in `snapshot` («solo
+i sei campionati su cui la retta è fitta») e un buco lì spegne una riga invece di curarla. Misurato: 0
+differenze su 6.168 numeri del rapporto, `--verify` 22/22, 204 osservazioni con il divisore corretto e
+**248 protette da un divisore da UNO** che la rinomina avrebbe prodotto.
+
+**B — UN'ENTITÀ SI UNISCE PER LA SUA CHIAVE, MAI PER LA STRINGA CON CUI UNA FONTE LA CHIAMA** (quinta
+istanza). `recent_form` si era riscritto la denominazione delle competizioni invece di chiamare
+`positions._slug_of`, che esiste dal 08/08 e decide per **ID DI TORNEO**: così le partite di Premier di un
+uomo a un club fuori dal perimetro euro erano archiviate come `premier-league` mentre
+`synth.calibrated_competitions` chiede `matchday_map.league`, che parla le nostre chiavi. `bundesliga` era
+l'unica grafia che coincideva, e infatti l'unica che convertiva — **44 righe su 44**. Costo: 352 righe e
+45 giocatori senza voto sintetico per un trattino, 17 dei quali arrivi del 2026-27.
+
+**E LA PRIMA CURA ERA SBAGLIATA IN UN MODO CHE SOLO IL DATO POTEVA MOSTRARE.** Il provider chiama
+`bundesliga` anche il campionato **AUSTRIACO**, e la cache di `recent_form` archivia l'etichetta DERIVATA
+invece dell'identità della fonte — quindi la rigiocata offline di quella mattina (una voce di todolist)
+aveva già portato **36 partite** di Red Bull Salzburg e Austria Klagenfurt sotto la nostra chiave tedesca,
+e quattro di quegli uomini sono ARRIVI il cui FM-equivalente ne era costruito (Pavlovic 6,86 · Sucic L.
+8,30 · Irving 8,29 · **Alajbegovic 6,93**, sul listone 2026-27). *Una cache che archivia un'etichetta
+derivata invece dell'identità della sorgente non si può rigiocare in modo esatto.*
+
+**La forma che spedisce, tre pezzi e una regola sola**: `recent_form` chiama `_slug_of` (l'ID decide, e da
+qui in avanti la cache archivia un nome già risolto); `positions.competition_for` ripara l'ARCHIVIO col
+**PAESE del club** (`club_levels.country`), e solo come evidenza CONTRARIA — un club senza paese non è un
+argomento contro la grafia, che è ciò che tiene in piedi la normalizzazione di `serie-b` del 08/08;
+`config.LEAGUE_COUNTRY` dichiara il paese dei sei campionati. `normalize_competitions` lavora club per
+club e non slug per slug, perché un `UPDATE ... WHERE competition='bundesliga'` non sa distinguere il
+Bayern dal Salzburg — e legge solo i club distinti delle competizioni che possono muoversi, quindi resta
+una manciata di query e non una passata su 350.000 righe.
+
+**I numeri, due bracci sulla stessa copia privata del DB con lo stesso comando** (una copia perché era un
+esperimento di SCRITTURA: per una lettura basta `--no-report`):
+
+| | prima | dopo |
+|---|---|---|
+| voto sintetico nello strato recent | 44 | **396** |
+| righe austriache convertite | 36 (sulla copia della prima cura) | **0** |
+| FM-equivalenti degli arrivi | — | **28 riempiti · 8 tolti · 42 rivisti** |
+| tier degli arrivi | — | **29 spostati** |
+| numeri del gate (`--verify --auction`) | 50.284 | **0 differenze**, 22/22 su tutt'e due |
+
+**Perché il gate non si muove, ed è strutturale**: l'unico lettore di `foreign_fm_equiv` in `evaluate` è
+**R1**, che non è adottata su nessuna piattaforma, e il TIER lo leggono `desc_arrival_tier` e il braccio
+dello sweep. Il valore cade sui FOGLI e sull'app — 396 voti sintetici che la card di un giocatore può
+mostrare per il calcio giocato fuori dalla Serie A, che è la richiesta del 05/09 — e non sull'engine.
+
+**Un difetto della MISURA, trovato dalla misura**: la prima passata attribuiva a B 70 FM-equivalenti e 21
+tier, ma `arrivals` non era ri-derivata dal 7 agosto e quei conteggi contenevano la deriva del listone
+letto da allora (+2 righe che nessuna rinomina può creare). Coi due bracci ri-derivati entrambi, l'effetto
+della sola rinomina è 28/8/42/29. *Una tabella stantia confrontata con una fresca attribuisce al candidato
+il lavoro del tempo.*
+
 ## Novità v9.78 (6 settembre 2026, pomeriggio — L'AUDIT DIVENTA UN TEST, e il buco del voto sintetico era una GIUNZIONE PER NOME)
 
 Le tre voci di codice aperte dalla code-review della mattina (todolist, «Aperto dopo la code-review del

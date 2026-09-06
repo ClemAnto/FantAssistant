@@ -1333,13 +1333,35 @@ pomeriggio quello che restava, e ogni voce porta la misura invece della promessa
   file da zero byte sono stati rimossi. Resta vero che *non sappiamo* chi digitò cosa, e adesso non
   serve più saperlo.
 
-## Aperto dal 06/09/2026 (pomeriggio) — il voto sintetico rifiutato per una GRAFIA
+## CHIUSO il 06/09/2026 (sera) — il voto sintetico rifiutato per una GRAFIA, e due campionati confusi
 
-Misurato e **non spedito**, perché la cura non è reporting: è una candidata da pre-registrare. Dettaglio e
-numeri: spec «Novità v9.78» §3.
+**ESEGUITO per intero su decisione dell'operatore** («pre-registra e fai girare il gate»):
+pre-registrazione scritta e committata prima della corsa (gate §7-quattuorquadragies), due cambi misurati
+separatamente, entrambi adottati, esito nella stessa sezione. Verbali: spec «Novità v9.79», commit
+`63022bf` (A), `5c410fc` (B), `8a1d119` (esito). Cosa è uscito, in ordine di quanto conta:
 
-- [ ] **`recent_form` archivia la competizione con lo SLUG DEL PROVIDER, e la calibrazione parla le nostre
-  chiavi.** `premier-league` · `laliga` · `ligue-1` · `serie-a` contro `premier_league` · `la_liga` ·
+* **Il gate non muove un numero**: 0 differenze su 50.284 (`--verify --auction`), 22/22 su tutt'e due i
+  bracci e sul DB vivo dopo l'applicazione — e la ragione è strutturale, non fortuna (R1 è l'unico lettore
+  di `foreign_fm_equiv` in `evaluate` e non è adottata da nessuna parte). Il valore cade sui FOGLI:
+  **396 voti sintetici invece di 44**, 28 FM-equivalenti riempiti, 42 rivisti, 29 tier spostati.
+* **La prima cura fondeva la Bundesliga AUSTRIACA nella tedesca** — il provider chiama `bundesliga`
+  tutt'e due — e con essa 36 partite di Red Bull Salzburg e Austria Klagenfurt, di cui quattro di ARRIVI
+  prezzati con la retta tedesca (**Alajbegovic** è sul listone 2026-27). La forma adottata decide per ID
+  di torneo alla fonte e ripara l'archivio col PAESE del club.
+* **E la giustificazione pubblicata della regola per competizione cita proprio lui**: la nota del 16/08 in
+  `CLAUDE.md` porta Alajbegovic come L'ESEMPIO per cui le righe `bundesliga` dello strato recent devono
+  convertire, e le sue dieci partite sono di Bundesliga austriaca.
+
+- [ ] **DA APPROVARE DALL'OPERATORE — la riga di `CLAUDE.md` su Alajbegovic dice il rovescio di quello che
+  dimostra.** Il fatto è misurato e scritto nel gate; quel file è la carta del progetto, quindi la
+  correzione è una sua decisione e non una nostra. La frase da correggere è nella sezione «A fitted
+  transform belongs to the population it was fitted on»: «Alajbegovic's ten matches are `sofascore_recent`
+  and BUNDESLIGA - the tag excluded them from a line fitted on exactly that league». Le sue dieci partite
+  sono AUSTRIACHE: il caso portato a sostegno della regola è un caso che la regola deve escludere. Serve
+  un esempio nuovo (i 352 righe di Premier/Liga/Ligue 1 lo sono) oppure la frase va rovesciata.
+
+~~- [ ] **`recent_form` archivia la competizione con lo SLUG DEL PROVIDER, e la calibrazione parla le nostre
+  chiavi.**~~ **FATTO.** `premier-league` · `laliga` · `ligue-1` · `serie-a` contro `premier_league` · `la_liga` ·
   `ligue_1` · `serie_a`: `bundesliga` è l'unica grafia che coincide, ed è esattamente il motivo per cui le
   righe con un voto sintetico sono **44 su 1.731** — cioè **44 su 44** delle righe di Bundesliga. Sono
   **352 righe e 45 giocatori** rifiutati per una grafia, **153 righe e 17 uomini nel solo 2025-26**, e

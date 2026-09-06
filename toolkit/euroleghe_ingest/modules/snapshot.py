@@ -481,7 +481,14 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      REPORTING integrale: `actual_*` e' la classe che nessuna regola puo' leggere, quindi `engine_*` non
 #      si muove di un decimale e il gate non vede niente di nuovo. VUOTE - e non zero - su un foglio
 #      costruito oggi, dove dopo la data d'asta non c'e' ancora niente in archivio.
-SHEET_REVISION = 46
+#   47 (06/09/2026, sera) - NESSUNA COLONNA NUOVA, e per questo la revisione va bumpata: i VALORI si
+#      muovono. La grafia degli slug di `recent_form` (gate §7-quattuorquadragies) ha portato il voto
+#      sintetico su 352 righe che lo rifiutavano per un trattino, e con lui l'FM-equivalente e il TIER
+#      degli arrivi - 28 riempiti, 8 TOLTI (i quattro austriaci prezzati con la retta tedesca), 42
+#      rivisti, 29 tier spostati. `engine_*` non si muove di un decimale (0 differenze su 50.284 numeri
+#      del gate, `--verify` 22/22): quello che cambia sono `est_*` e `desc_arrival_tier`, cioe' esattamente
+#      cio' che questo campo esiste per dichiarare - un foglio sotto la revisione corrente va rifatto.
+SHEET_REVISION = 47
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
