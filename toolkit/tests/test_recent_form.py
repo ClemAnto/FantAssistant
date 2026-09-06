@@ -159,6 +159,7 @@ import time
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import init_db
+from euroleghe_ingest.matching import club_key
 from euroleghe_ingest.modules import recent_form
 
 
@@ -513,3 +514,32 @@ def test_the_rebuild_replays_the_recent_form_cache(tmp_path):
         "la rebuild non replica la cache di recent_form: lo strato si perde a ogni ricostruzione"
     assert source.index('load("recent_form").reingest_from_cache') < source.index('load("synth").run'), \
         "va replicata PRIMA di synth, che e' chi converte i suoi rating in un voto"
+
+
+def test_the_write_path_names_the_competition_by_the_CLUB_and_not_by_the_slug(tmp_path):
+    """The exact failure mode of 06/09/2026, and the reason a replay of this cache is now safe.
+
+    SofaScore calls `bundesliga` both the German championship and the AUSTRIAN one, and this cache keeps
+    the DERIVED label rather than the source's identity - so a replay of it, which is a routine offline
+    operation, filed 36 Red Bull Salzburg and Austria Klagenfurt matches under our German key, where
+    `synth` converts a rating with a line fitted on the Bundesliga. Four of those men are ARRIVALS whose
+    foreign FM-equivalent was built on it, Alajbegovic on the 2026-27 listone among them.
+
+    `store` therefore goes through `positions.competition_for`, which decides by the club's country: a
+    replay now REPAIRS instead of breaking (verified on the live archive - 45 German and 36 Austrian rows
+    before and after one), and a Premier League match at a club outside the euro perimeter finally lands
+    on the key the calibration gate asks for.
+    """
+    _cfg, conn = _db(tmp_path)
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(1, "Sucic"), (2, "Evanilson")])
+    conn.executemany("INSERT INTO club_levels(club_key, year, elo, elo_name, country) VALUES (?, 2025, 1500, ?, ?)",
+                     [(club_key("Red Bull Salzburg"), "Salzburg", "AUT"),
+                      (club_key("Bournemouth"), "Bournemouth", "ENG")])
+    recent_form.store(conn, 1, [_one_match(competition="bundesliga", club="Red Bull Salzburg")])
+    recent_form.store(conn, 2, [_one_match(event_id="222", competition="premier-league",
+                                           club="Bournemouth")])
+    conn.commit()
+    stored = dict(conn.execute("SELECT fc_id, competition FROM external_match_stats").fetchall())
+    assert stored[1] == "bundesliga-aut", "the Austrian league must not be filed as the German one"
+    assert stored[2] == "premier_league", "and a Premier match must reach the key `synth` asks for"
