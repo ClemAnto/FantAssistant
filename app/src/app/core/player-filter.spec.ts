@@ -5,7 +5,7 @@ import { SquadMan } from './valuation-store';
 
 const man = (over: Partial<SquadMan> = {}): SquadMan => ({
   fcId: 1, name: 'Esposito F.P.', clubId: 1, role: 'A', mantra: 'Pc', mantraCodes: ['Pc'],
-  club: 'Inter', league: 'serie_a', quoted: true, codes: [], codesOn: null,
+  club: 'Inter', league: 'serie_a', quoted: true, sold: false, codes: [], codesOn: null,
   mv: 6.2, fm: 6.9, pv: 30, expected: 24, expectedIsEstimate: false, expectedFm: 6.8,
   expectedFmIsEstimate: false, expectedMv: 6.1, estimateBasis: null, estimateNote: null,
   fvm: 120, place: null, rating: null,

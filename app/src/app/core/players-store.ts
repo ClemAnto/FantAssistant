@@ -157,6 +157,22 @@ export interface PlayerRow {
    * il taglio lo fa chi chiede «chi compro» (operatore, 03/09/2026, la regola gia' viva sulla plancia).
    */
   quoted: boolean;
+  /**
+   * ...E SE QUESTO LISTONE LO DA' PER CEDUTO, che e' un TERZO fatto e il piu' forte dei tre: l'asterisco
+   * accanto al nome sul sito, cioe' il foglio `Ceduti` del file delle quotazioni (`listone_quotes.sold`,
+   * acquisito il 03/09/2026). E' la piattaforma che dichiara chi non gioca piu' qui - l'autorita' su cosa
+   * si compra, perche' e' cio' da cui si compra - ed e' un fatto PER PIATTAFORMA: sette uomini sono ceduti
+   * in Serie A e comprabili su euro.
+   *
+   * Il dato viaggiava nel pacchetto dal 03/09 (145 righe con `sold=1`) e nessuna riga di codice dell'app
+   * lo leggeva: i fogli del motore quelle righe non le portano piu' affatto, ma questa lista si costruisce
+   * dalle QUOTAZIONI, quindi Lukaku restava al Napoli con il suo prezzo (operatore, 07/09/2026: «perche'
+   * nel Napoli c'e' ancora Lukaku?»). Sesta istanza di «il dato c'era e mancava un lettore».
+   *
+   * Come `quoted`: chi chiede «CHI COMPRO» lo taglia, la consultazione lo MOSTRA con il suo marchio -
+   * la sua storia con quel club e' un fatto, e togliergliela sarebbe l'errore opposto.
+   */
+  sold: boolean;
 }
 
 export interface PlayerLine extends PlayerRow {
@@ -1219,15 +1235,17 @@ export function buildRosters(
       club: clubNames.get(row[rClub] as number) ?? '',
       league: (row[rLeague] as string) ?? null,
       // ...deciso sotto, quando si sa su quale listone e' finito: `rosters` e' una riga sola per uomo
-      // e le due piattaforme sono due giochi.
+      // e le due piattaforme sono due giochi. Vale per tutt'e due: un uomo puo' essere ceduto su un
+      // listone e comprabile sull'altro.
       quoted: false,
+      sold: false,
     });
   }
 
   /* WHO is on a platform is the quotation's business, not the roster's: `rosters` holds one
    * row per player while the two listoni are two different games, so the perimeter comes
    * from `listone_quotes` - the table that exists precisely because of that. */
-  const [qId, qSeason, qPlatform] = columnIndex(quotes, 'fc_id', 'season', 'platform');
+  const [qId, qSeason, qPlatform, qSold] = columnIndex(quotes, 'fc_id', 'season', 'platform', 'sold');
   const out = new Map<Platform, PlayerRow[]>([
     ['default', []],
     ['euro', []],
@@ -1236,7 +1254,7 @@ export function buildRosters(
     if (row[qSeason] !== targetSeason) continue;
     const player = byId.get(row[qId] as number);
     const list = out.get(row[qPlatform] as Platform);
-    if (player && list) list.push({ ...player, quoted: true });
+    if (player && list) list.push({ ...player, quoted: true, sold: row[qSold] === 1 });
   }
   /* IL FOGLIO COMPLETA E CORREGGE: chi non c'è entra, e chi ha cambiato club prende quello che la fonte
    * gli dà. Non è un secondo listone - il prezzo e il ruolo restano quelli del listone dove ci sono - è la
@@ -1267,6 +1285,8 @@ export function buildRosters(
         club: row.club,
         league: row.league,
         quoted: false,
+        // il foglio non porta piu' i ceduti (`snapshot` li toglie), quindi chi entra da qui non lo e'
+        sold: false,
       });
     }
   }

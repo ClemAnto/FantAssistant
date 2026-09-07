@@ -189,8 +189,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="tieni nel foglio chi non e' piu' nella rosa in cui il listone lo elenca. "
                              "Per default ESCE: l'autorita' su chi e' in rosa e' il provider che la legge "
                              "ogni giorno, non il listone (regola dell'operatore del 17/08/2026). Il "
-                             "segnale della rosa live e' preciso all'83,1%% e non al 100%%, quindi la "
-                             "decisione resta revocabile a ogni corsa")
+                             "segnale della rosa live non e' preciso al 100%%: di un'assenza da DUE "
+                             "letture piene il 3,4%% si rimangia (misurato il 07/09/2026 sulle nostre "
+                             "stesse 20 date), quindi la decisione resta revocabile a ogni corsa")
     p_snap.add_argument("--league", metavar="NAME",
                         help="a league you play in, as declared in config/league_config.json: it "
                              "states the platform and the game, so those two are taken from it and "

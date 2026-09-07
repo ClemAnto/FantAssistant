@@ -40,6 +40,7 @@ import io
 import json
 import os
 import sqlite3
+import statistics
 import time
 from collections.abc import Mapping
 from dataclasses import replace
@@ -579,7 +580,32 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      erano la stessa regola, e tenerne una copia farebbe obbedire lo stesso campetto in due modi
 #      diversi. Il TRE va via con lei (era la ragione della stampa) e la nostra inferenza resta a due
 #      nel typical e a uno nel next, come e' sempre stata.
-SHEET_REVISION = 54
+#   55 (07/09/2026, notte) - CHI HA LASCIATO IL CLUB SI AGGIORNA IL GIORNO IN CUI LA FONTE LO DICE, e
+#      i tre difetti che lo impedivano erano tutti nella LETTURA e nessuno nel dato. Richiesta
+#      dell'operatore: «evitiamo assolutamente che calciatori non piu' presenti in una squadra non si
+#      aggiornino tempestivamente, altrimenti tutti i calcoli vengono falsati».
+#      UNO, `_still_buyable` guardava il CLUB dell'ultimo avvistamento e mai la sua DATA: «Napoli,
+#      25/08» resuscitava Cheddira mentre il Napoli era riletto ogni giorno fino al 07/09 senza di lui,
+#      col trasferimento all'Avellino GIA' in archivio. DUE, il cancello di completezza era CIRCOLARE -
+#      chiedeva il 90% degli uomini che il FOGLIO mette in quel club, e i cinque assenti del Napoli
+#      erano esattamente la differenza fra 26 e 31: sei club su venti spenti, tutti e sei quelli con
+#      piu' di due partiti. TRE, il segnale forte era muto per un'altra ragione ancora: `left_his_club`
+#      salta il trasferimento se l'uomo ha anche una riga di ARRIVO in quel club, e le due righe di
+#      Cheddira (Lecce -> Napoli e Napoli -> Avellino) portano entrambe la data del 1o luglio, quindi
+#      la coppia non e' ordinabile - lo stesso limite che aveva imposto di allargare la PK dei
+#      trasferimenti. Percio' la rosa viva e' l'unico segnale che possa vederlo, e percio' la data conta.
+#      Ora: `ABSENT_READS` = 2 letture piene (curva del rumore misurata sulle nostre 20 date, §sopra),
+#      riferimento di taglia sulle ultime cinque letture DELLO STESSO club piu' un pavimento assoluto,
+#      una PRESENZA che vale a qualunque sottigliezza, e la guardia `ever` per chi la fonte non ha mai
+#      visto la'. Effetto sul foglio del 07/09: escono 50 righe su default (1 quotata) e 69 su euro (6),
+#      cioe' quasi tutti uomini che l'app non mostrava gia' piu' nelle liste - il valore non e' il
+#      conteggio di oggi, e' che da oggi la riga se ne va il giorno dopo la seconda lettura.
+#      Tre cure scritte e BOCCIATE dalla misura prima di spedire, e stanno nei commenti perche' nessuno
+#      le riprovi: togliere gli assenti dal denominatore (sempre vera per aritmetica), giudicare
+#      l'appartenenza solo sulle letture piene (toglieva Olivera, Kean, Rowe e Beto, che stanno nel
+#      payload di oggi), e la mediana su TUTTA la storia (dichiara sottile la lettura piu' fresca,
+#      perche' un payload di luglio ha 33 uomini e uno di settembre 26).
+SHEET_REVISION = 55
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -599,6 +625,31 @@ SHEET_REVISION = 54
 # guard buys and recall is what it costs, and the asymmetry decides: a false departure hides a man who is
 # really there, a missed one only leaves the listone's own claim standing.
 SQUAD_COMPLETENESS = 0.90
+
+# ...E QUANTE LETTURE PIENE DEVONO NON TROVARLO. Due, e la curva e' misurata sulle nostre stesse letture
+# (07/09/2026, 20 date su 89 club, 1068 payload): di un'assenza da UNA lettura piena il 4,9% si RIMANGIA -
+# l'uomo ricompare in una lettura successiva - da DUE il 3,4%, da TRE l'1,5%, da quattro o piu' lo 0,8%.
+# Nessuna corroborazione esterna serve per questo numero: e' il segnale che smentisce se stesso.
+# Il prezzo della seconda lettura e' tipicamente UN GIORNO (le letture sono quotidiane; il buco peggiore in
+# questa storia e' una settimana), e la scelta di stare sulla precisione e' quella del 17/08/2026 e non
+# cambia: una partenza falsa nasconde un uomo che c'e', una mancata lascia in piedi la pretesa del listone.
+ABSENT_READS = 2
+
+# Su quante letture si prende il RIFERIMENTO della taglia. Cinque, e la ragione e' un difetto misurato: la
+# mediana su TUTTA la storia mescola il ritiro e la stagione - un payload di luglio porta 33 uomini e uno di
+# settembre 26 - quindi il 90% della mediana storica dichiara SOTTILE la lettura piu' fresca. Misurato il
+# 07/09/2026, spegneva il segnale su Napoli, Como, Atalanta, Fiorentina e Chelsea esattamente nei giorni
+# della pulizia post-deadline, cioe' quando serve.
+SQUAD_TRAIL_READS = 5
+
+# E UNA LETTURA NON E' UNA ROSA SOTTO QUESTA TAGLIA, qualunque cosa dica la sua mediana. Il cancello sopra
+# confronta un club con SE STESSO e per costruzione non vede un publisher CRONICAMENTE magro, che e' il caso
+# per cui `SQUAD_COMPLETENESS` fu scritto (West Ham, 17/08/2026: 18 uomini su 29 identificati, quattordici
+# "partenze" e nessuna corroborata). Misurato il 07/09/2026: dei 47 club nel perimetro dei due fogli la
+# mediana delle ultime dieci letture va da 18,5 a 33 e NESSUNO sta sotto 18; fuori perimetro 35 club su 42
+# stanno sotto (mediana 1-9). Sedici e non diciotto perche' l'Olympique Marsiglia legge 18-20, e un pavimento
+# non deve mordere il club piu' magro che sia legittimo.
+SQUAD_FLOOR = 16
 
 # The stages a build walks, in order, each with the SECONDS it was measured to cost - which is the only
 # reason a percentage may be shown at all. Seconds and not shares, because the two stages that touch the
@@ -3323,33 +3374,79 @@ def departures(conn, window: features.Window, date: str) -> dict[int, dict]:
     return out
 
 
-def live_squads(conn, date: str) -> dict[str, dict]:
-    """{club key: {"on": date, "club": name, "ids": {fc_id, ...}}} - each club's LIVE squad at or before `date`.
+def live_squads(conn, date: str, reads: int = ABSENT_READS) -> dict[str, dict]:
+    """{club key: {"on", "club", "ids", "ever", "thin"}} - la rosa VIVA di ogni club al `date`.
 
-    The reliable, near-real-time source the operator asked for, and it was already in the cache: the provider's
-    `/team/{id}/players` is one request per club, downloaded every day for the granular roles, and it had
-    Gutierrez out of Napoli on 28/07 while the listone and both squad pages still had him days later.
+    La fonte affidabile e quasi in tempo reale che l'operatore aveva chiesto, ed era gia' nella cache: il
+    `/team/{id}/players` del provider e' una richiesta per club, scaricata ogni giorno per i ruoli granulari,
+    e aveva Gutierrez fuori dal Napoli il 28/07 mentre il listone e le due pagine rosa lo tenevano per giorni.
 
-    Its power is ABSENCE, which no other source of ours can express: a squad page lists who is in, a transfer
-    lists an event, and only a full squad read can say "he is not in it". Hence the second half of this layer -
-    and hence the two guards, because absence has two twins that mean the opposite: a man the provider cannot
-    identify (`observed_players`), and a payload too thin to be a squad at all (`complete_squads`).
+    La sua forza e' l'ASSENZA, che nessun'altra nostra fonte sa esprimere: una pagina rosa elenca chi c'e',
+    un trasferimento elenca un evento, e solo una lettura intera puo' dire «non c'e'». Da qui le tre guardie,
+    perche' un'assenza ha tre gemelle che vogliono dire il contrario.
 
-    Keyed on `_club_key` and NOT on the spelling: the sheet says `Newcastle` where the provider says
-    `Newcastle United`, and a raw-string lookup silently answers "no payload" - which reads as "no evidence"
-    and switches the whole signal off for that club without saying so.
+    UNA. Un uomo che il provider non sa nominare (`observed_players`), che sta nel chiamante.
+
+    DUE. Un payload troppo magro per essere una rosa - e il DENOMINATORE di quel giudizio e' cambiato il
+    07/09/2026, perche' il primo era CIRCOLARE: chiedeva che la lettura coprisse il 90% degli uomini che il
+    FOGLIO mette in quel club, cioe' un denominatore gonfiato dai partiti che il segnale deve togliere. Su
+    Napoli: 26 iscritti contro 31 righe, 0,84, cancello mancato - e i cinque che facevano la differenza erano
+    ESATTAMENTE i cinque assenti (Cheddira, Cioffi, Lindstrom, Cajuste, Olivera M., ognuno con il suo
+    trasferimento in archivio). Sei club su venti erano spenti cosi', tutti e sei quelli con piu' di due
+    partiti. La cura ovvia - togliere gli assenti dal denominatore - e' PEGGIO e va scritta perche' nessuno
+    la riprovi: `ids >= 0,9 x (presenti)` e' sempre vera per aritmetica, quindi il cancello diventa un
+    ornamento e torna il difetto West Ham. Il riferimento e' ora la MEDIANA DELLE ULTIME `SQUAD_TRAIL_READS`
+    LETTURE DELLO STESSO CLUB piu' un pavimento assoluto (`SQUAD_FLOOR`), due condizioni che rispondono a due
+    domande diverse: la prima vede una lettura troncata, la seconda un publisher cronicamente magro.
+
+    TRE. Un uomo che la fonte non ha MAI visto in quel club (`ever`): non e' partito, non e' mai arrivato
+    qui - e il caso vivo e' Kim, quotato su euro, mai comparso in un payload del Bayern. La prima versione di
+    questa cura lo toglieva dal foglio, che e' «vuoto = ignoto» rotto dal lato per cui la guardia esiste.
+
+    E LA SOTTIGLIEZZA DISTRUGGE IL SIGNIFICATO DI UN'ASSENZA, MAI QUELLO DI UNA PRESENZA: `ids` e' l'unione
+    delle ultime `reads` letture PIENE **piu' ogni lettura piu' fresca di quella finestra**, sottile o no.
+    Senza quella seconda meta' la regola toglieva Olivera, Kean, Rowe e Beto - uomini che stanno nel payload
+    di OGGI - perche' la loro lettura del giorno era appena sotto il cancello. Misurato, non ragionato.
+
+    `on` e' la data dell'ultima lettura PIENA, cioe' l'ultimo giorno in cui abbiamo guardato e il suo
+    silenzio vale come prova; e' quella che finisce in `desc_left_on`. Chi non ha nemmeno una lettura piena
+    tiene `ids` vuoto - `left_his_club` lo legge come «questa fonte non ha niente da dire», che e' esatto -
+    e `thin` dice di quanto, perche' un segnale spento in silenzio e' indistinguibile da uno che tace.
+
+    Chiavato su `_club_key` e NON sulla grafia: il foglio dice `Newcastle` dove il provider dice `Newcastle
+    United`, e una lookup sulla stringa cruda risponde «nessun payload» - che si legge come «nessuna prova» e
+    spegne l'intero segnale per quel club senza dirlo.
     """
-    out: dict[str, dict] = {}
-    for club, observed in conn.execute(
-            "SELECT club, MAX(valid_from) FROM squad_snapshot WHERE source = 'sofascore' "
-            "AND valid_from <= ? GROUP BY club", (date,)):
+    per_club: dict[str, dict[str, set[int]]] = {}
+    names: dict[str, str] = {}
+    for club, observed, fc_id in conn.execute(
+            "SELECT club, valid_from, fc_id FROM squad_snapshot WHERE source = 'sofascore' "
+            "AND valid_from <= ?", (date,)):
         key = _club_key(club)
-        if key not in out or observed > out[key]["on"]:
-            out[key] = {"on": observed, "club": club, "ids": set()}
-    for entry in out.values():
-        entry["ids"] = {fc_id for (fc_id,) in conn.execute(
-            "SELECT fc_id FROM squad_snapshot WHERE source = 'sofascore' AND club = ? AND valid_from = ?",
-            (entry["club"], entry["on"]))}
+        if not key:
+            continue
+        per_club.setdefault(key, {}).setdefault(observed, set()).add(int(fc_id))
+        names[key] = club
+    out: dict[str, dict] = {}
+    for key, days in per_club.items():
+        dates = sorted(days)
+        reference = statistics.median([len(days[one]) for one in dates[-SQUAD_TRAIL_READS:]])
+        floor = max(SQUAD_COMPLETENESS * reference, SQUAD_FLOOR)
+        full = [one for one in dates if len(days[one]) >= floor]
+        window = full[-reads:]
+        ids: set[int] = set()
+        for one in window:
+            ids |= days[one]
+        if window:
+            for one in dates:
+                if one > window[-1]:
+                    ids |= days[one]      # una PRESENZA non la distrugge la sottigliezza
+        ever: set[int] = set()
+        for one in dates:
+            ever |= days[one]
+        out[key] = {"on": window[-1] if window else dates[-1], "club": names[key], "ids": ids,
+                    "ever": ever,
+                    "thin": None if window else (len(days[dates[-1]]), round(reference, 1))}
     return out
 
 
@@ -3374,34 +3471,6 @@ def live_club_of(conn, date: str) -> dict[int, tuple[str, str]]:
     return out
 
 
-def complete_squads(live: dict[str, dict], observations, known: set[int],
-                    completeness: float = SQUAD_COMPLETENESS) -> dict[str, dict]:
-    """The payloads whose SILENCE is evidence: those covering `completeness` of the squad the sheet shows.
-
-    A payload is the club's FIRST TEAM as the provider publishes it, and how much of it arrives varies by
-    club - so "he is not in it" means one thing at Bologna (24 men against 28 identified, 6 departures and
-    6 of them corroborated by a transfer) and another at West Ham (18 against 29, fourteen "departures" and
-    NOT ONE corroborated). The denominator is the identified squad on this very sheet, because that is the
-    population the absence is being read against; see `SQUAD_COMPLETENESS` for the measured curve.
-
-    Dropped payloads keep their entry with an empty `ids` - `left_his_club` already reads that as "this
-    source has nothing to say", which is exactly true, rather than as "the squad is empty".
-    """
-    rostered: dict[str, int] = {}
-    for obs in observations:
-        if obs.fc_id in known:
-            key = _club_key(obs.club_target)
-            if key:
-                rostered[key] = rostered.get(key, 0) + 1
-    out: dict[str, dict] = {}
-    for key, entry in live.items():
-        size = len(entry["ids"])
-        enough = size >= completeness * rostered.get(key, 0) if rostered.get(key) else False
-        out[key] = dict(entry, ids=entry["ids"] if enough else set(),
-                        thin=None if enough else (size, rostered.get(key, 0)))
-    return out
-
-
 def observed_players(conn) -> set[int]:
     """Whoever the provider can be asked about at all: an fc_id with a sofascore identity.
 
@@ -3414,6 +3483,36 @@ def observed_players(conn) -> set[int]:
         "SELECT fc_id FROM player_xref WHERE source = 'sofascore'")}
 
 
+def still_buyable(row: dict, seen_at: dict, perimeter_keys: set[str] | None) -> bool:
+    """Se la fonte lo vede ancora in un club che questa piattaforma gioca - e SE lo ha visto DOPO.
+
+    LA DATA E' META' DELLA RISPOSTA, e la prima versione guardava solo il club: l'avvistamento in `seen_at`
+    e' l'ULTIMO che la fonte ha, quindi «Napoli, 25/08» resuscitava Cheddira mentre il Napoli era riletto
+    ogni giorno fino al 07/09 senza di lui - col suo trasferimento all'Avellino GIA' in archivio. Cinque
+    righe cosi' sul foglio Serie A del 07/09 (Cheddira, Cioffi, Lindstrom, Cajuste, Olivera M.), tutte
+    corroborate da un trasferimento, piu' 19 su default e 25 su euro fra chi il listone non quota. Un
+    avvistamento piu' VECCHIO della lettura che non lo trova non e' una prova di presenza: e' la stessa
+    lettura, guardata prima.
+
+    La prova vale solo per il club della RIGA: visto in un ALTRO club della piattaforma resta comprabile a
+    qualunque data - e' il caso misurato il 17/08/2026 (Molina alla Roma, Bruno Guimaraes all'Arsenal: 8
+    dei 20 tolti allora), dove la fonte non dice «non c'e' piu'» ma «e' altrove».
+
+    A livello di modulo e non annidata nel costruttore del foglio, perche' e' una REGOLA e un banco deve
+    poterla chiamare: la casa lo ha gia' pagato con i parametri che vivevano dentro una vista Tk.
+    """
+    where = seen_at.get(row["fc_id"])
+    if not where:
+        return True                # la fonte non ha parlato: ignoto, non partito
+    club, observed = where
+    if perimeter_keys is not None and _club_key(club) not in perimeter_keys:
+        return False
+    looked_on = row.get("desc_left_on")
+    if looked_on and observed and observed < looked_on and _club_key(club) == _club_key(row["club"]):
+        return False
+    return True
+
+
 def left_his_club(obs, moves: dict | None, live: dict | None = None,
                   known: set[int] | None = None) -> tuple[str | None, str | None]:
     """(where he is now / how we know, date) if he is no longer in the squad this row shows him at.
@@ -3422,7 +3521,8 @@ def left_his_club(obs, moves: dict | None, live: dict | None = None,
     simply does not contain him. The second exists because a listone is a weekly publication and a squad is a
     daily fact - it caught Gutierrez a week before anything else - and it is read only where absence can mean
     absence: for a man the provider can identify (`observed_players`), out of a payload complete enough to be
-    a squad (`complete_squads`). Otherwise "not in the payload" means "we never matched him", or "the provider
+    a squad (`live_squads`, che quel giudizio lo fa da se'). Otherwise "not in the payload" means "we never
+    matched him", or "the provider
     published eighteen of them".
     """
     here = _club_key(obs.club_target)
@@ -3435,6 +3535,12 @@ def left_his_club(obs, moves: dict | None, live: dict | None = None,
     if live and known is not None and obs.fc_id in known:
         squad = live.get(here)
         if squad and squad["ids"] and obs.fc_id not in squad["ids"]:
+            # ...e la terza guardia: un uomo che la fonte non ha MAI visto in questo club non e' partito,
+            # non e' mai arrivato qui - Kim e' quotato su euro e non compare in nessun payload del Bayern.
+            # `ever` assente (una fixture, un payload vecchio) non applica la guardia: ignoto per ignoto.
+            ever = squad.get("ever")
+            if ever is not None and obs.fc_id not in ever:
+                return None, None
             return "not in the club's live squad", squad["on"]
     return None, None
 
@@ -5143,8 +5249,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     estimation = estimation_layer(conn, window, platform, data.observations, perimeter)
     left = departures(conn, window, window.auction_date)
     provider_known = observed_players(conn)
-    live_squad = complete_squads(live_squads(conn, window.auction_date),
-                                 data.observations, provider_known)
+    # La sottigliezza di un payload la giudica `live_squads` da se', contro le letture DELLO STESSO club:
+    # il denominatore preso dal foglio era circolare (`live_squads` porta la misura), e per questo qui non
+    # passa piu' ne' le osservazioni ne' un secondo cancello.
+    live_squad = live_squads(conn, window.auction_date)
     # What each club's Elo was, keyed CANONICALLY, for EVERY club ClubElo publishes and not only the ~97
     # a listone carries (`club_levels`). It exists for one row of the sheet - `desc_level_elo` for a man
     # with no previous roster - and that man is precisely the one whose club is likely to be outside our
@@ -6575,11 +6683,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         where = seen_at.get(row["fc_id"])
         if where:
             row["desc_live_club"], row["desc_live_club_on"] = where
+    perimeter_keys = {_club_key(one) for one in perimeter} if perimeter is not None else None
+
     def _still_buyable(row) -> bool:
-        where = seen_at.get(row["fc_id"])
-        if not where:
-            return True            # la fonte non ha parlato: ignoto, non partito
-        return perimeter is None or _club_key(where[0]) in {_club_key(one) for one in perimeter}
+        return still_buyable(row, seen_at, perimeter_keys)
+
     departed = [row for row in rows
                 if row.get("desc_left_for") and not _still_buyable(row)]
     stayed = [row for row in rows if row.get("desc_left_for") and _still_buyable(row)]
@@ -6587,16 +6695,22 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         gone = {id(row) for row in departed}
         rows = [row for row in rows if id(row) not in gone]
         notes.append(
-            f"⚑ {len(departed)} players were REMOVED from the sheet: the provider that reads the squads "
-            f"every day has them at a club this platform does not play. The authority on who is in a squad "
-            f"is that provider and not the listone (the operator's rule of 17/08/2026, which REVERSES the "
-            f"previous one: the sheet used to keep them with a mark). What is NOT removed, and it is the "
-            f"half the first version of this rule got wrong: {len(stayed)} men also carry a departure mark "
-            f"and STAY, because the provider still sees them at their listone club (a later payload simply "
-            f"did not list them) or at another club this platform plays - measured on this sheet, removing "
-            f"them would have dropped men who are still buyable. `desc_live_club` says where the provider "
-            f"sees each of them, and the engine's numbers stay those of the listone club, which is what "
-            f"they are computed on. `--keep-departed` keeps everybody. Removed: " + " · ".join(
+            f"⚑ {len(departed)} players were REMOVED from the sheet, for one of TWO reasons and the note "
+            f"says which per row: the provider that reads the squads every day either has them at a club "
+            f"this platform does not play, or does not have them ANYWHERE fresher than the read that "
+            f"misses them - a sighting older than that read is the same read, seen earlier (07/09/2026; "
+            f"before that fix a sighting at the listone club kept the row whatever its date, and Cheddira "
+            f"stayed at Napoli on a 25/08 sighting while Napoli was re-read daily without him). The "
+            f"authority on who is in a squad is that provider and not the listone (the operator's rule of "
+            f"17/08/2026, which REVERSES the previous one: the sheet used to keep them with a mark). What "
+            f"is NOT removed, and it is the half the first version of this rule got wrong: {len(stayed)} "
+            f"men also carry a departure mark and STAY, because the provider still sees them at their "
+            f"listone club in a read no older than that one, or at another club this platform plays - "
+            f"measured on this sheet, removing them would have dropped men who are still buyable. An "
+            f"absence from `ABSENT_READS` full reads reverses 3.4% of the time (measured on our own 20 "
+            f"dates), so this stays revocable at every run. `desc_live_club` says where the provider sees "
+            f"each of them, and the engine's numbers stay those of the listone club, which is what they "
+            f"are computed on. `--keep-departed` keeps everybody. Removed: " + " · ".join(
                 f"{row['name']} -> {row['desc_left_for']}" for row in departed[:6])
             + (f" · and {len(departed) - 6} more" if len(departed) > 6 else ""))
     # ...E IL LISTONE STESSO DICE CHI NON GIOCA PIU' QUI, che e' un TERZO fatto e il piu' forte dei tre

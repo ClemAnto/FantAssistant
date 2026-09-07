@@ -471,7 +471,11 @@ other writer; a test asserts that `store` does not keep a copy. Proven on the re
 session cures the WORKING TREE - separate branches, no `git add -A` sweeping up somebody's half-finished
 work, no two sessions writing the same file blind (it happened: 414 lines of `snapshot.py` from two hands).
 It cures nothing about `data/`, which is gitignored and therefore NOT copied into a worktree: point it at
-the real one with `EUROLEGHE_DATA_DIR` and you are back to one write lock, or copy the 49 MB and the two
+the real one with `EUROLEGHE_DATA_DIR` **e anche `EUROLEGHE_DB_PATH`, e questa riga senza il secondo
+era FALSA** (misurato 07/09/2026: `config.db_path` ha la sua variabile, quindi con la sola DATA_DIR un
+worktree apre un database VUOTO e risponde «no rosters in the DB» - un errore fortunato, perche' una
+variabile che sposta i dati e non il DB puo' far misurare su meta' stato credendo di leggere il vero)
+and you are back to one write lock, or copy the 49 MB and the two
 sessions measure on two different databases, which is worse than a lock. So the rule has a second half that
 is not a git feature: **one session owns the DB** (acquisitions, `snapshot`, `export`) and the other works on
 the app, the docs, or read-only.
@@ -2124,6 +2128,29 @@ the case that asked the question: its 28/07 payload had 46 Napoli players and **
   and who. `desc_left_for` / `desc_left_on` still carry the reason on the rows that remain. The transfers layer needed its primary key widened to make this
   possible at all: `(fc_id, date)` could not hold a loan return and a permanent signing dated the same 1 July,
   so it kept whichever was parsed last and read Hojlund as LEAVING the club that had just bought him.
+- **...E UN CANCELLO IL CUI DENOMINATORE CONTIENE CIÒ CHE DEVE TOGLIERE SI SPEGNE DOVE SERVE**
+  (07/09/2026, dalla richiesta dell'operatore «evitiamo assolutamente che calciatori non più presenti in
+  una squadra non si aggiornino tempestivamente»; dettaglio: spec «Novità v9.86»). Tre difetti, tutti nella
+  LETTURA e nessuno nel dato — di Cheddira l'archivio aveva già il trasferimento all'Avellino e il Napoli
+  era stato riletto ogni giorno senza di lui. `complete_squads` chiedeva il 90% degli uomini che il FOGLIO
+  mette in quel club, cioè un denominatore gonfiato dai partiti: Napoli 26 iscritti contro 31 righe = 0,84,
+  cancello mancato, **e i cinque della differenza erano esattamente i cinque assenti** — sei club su venti
+  spenti così, tutti e sei quelli con più di due partiti. Il riferimento è ora la **mediana delle ultime
+  cinque letture DELLO STESSO club** più un **pavimento assoluto** (`SQUAD_FLOOR` = 16), due condizioni per
+  due domande diverse: una vede una lettura troncata, l'altra il publisher cronicamente magro per cui
+  `SQUAD_COMPLETENESS` era stato scritto. E `still_buyable` guarda la **DATA** dell'avvistamento e non solo
+  il club: un avvistamento più vecchio della lettura che non lo trova è la stessa lettura, guardata prima —
+  ma solo per il club della riga, perché visto ALTROVE nella piattaforma resta comprabile (il caso Molina /
+  Bruno Guimarães del 17/08). `ABSENT_READS` = 2 letture piene, con la curva misurata sulle nostre stesse 20
+  date: un'assenza da una lettura si rimangia il **4,9%** delle volte, da due il **3,4%**, da tre l'1,5%.
+  **Il 83,1% citato qui sopra è la precisione del cancello VECCHIO** e non descrive più la regola in vigore.
+  Tre habits: **la cura ovvia era un'identità aritmetica** (togliere gli assenti dal denominatore rende
+  `ids ≥ 0,9 × presenti` sempre vera, cioè il cancello un ornamento); **la sottigliezza distrugge il
+  significato di un'ASSENZA, mai quello di una PRESENZA** (giudicare l'appartenenza solo sulle letture piene
+  toglieva Olivera, Kean, Rowe e Beto, che stanno nel payload di oggi); e **un'ipotesi sul mondo non batte
+  un conteggio sul dato** — avevo segnalato come implausibile l'uscita di Caicedo dal Chelsea usando
+  conoscenza di una stagione che questo dataset ha già giocato, e dei 133 usciti dai payload dopo la
+  deadline il 6% ha un infortunio aperto e il **79% un trasferimento datato in questa finestra**.
 
 ## Converting a currency is a BUDGET question, not a scaling
 **SpM / dVM, 08/08/2026, on the operator's request** («un valore che trasformi il surplus in un nuovo valore
@@ -4962,6 +4989,64 @@ allenatore non ha schierato, mentre «niente» puo' essere un titolare che arriv
 **Il `core` calibra 0,94 e NON si tocca**: `est_*` su una riga core deve riprodurre `engine_*`, o un uomo
 porta due surplus sullo stesso foglio. Quel 6% e' un fatto sul MOTORE — sovrastima il surplus degli uomini
 che prezza — e appartiene al gate, non alla cascata: scritto, non applicato.
+
+## Una DRITTA e' la terza cosa dichiarata, e la difesa NATIVA e' una selezione e non un prezzo
+**07/09/2026, da cinque nomi che l'operatore ha portato guardando la pagina Formazione. Dettaglio:
+`formazioni-tipo-v1.md` §9, spec «Novita' v9.87».**
+
+**`config/player_rulings.json` e' la TERZA cosa dichiarata di questo progetto**, e ha la forma delle altre
+due (`board_rulings.json` per il modulo di un club, `player_notes.json` per chi e' fuori rosa): unita per
+`fc_id`, datata, revocabile, **invisibile ai due giudici** (`apply_rulings=False`) - una dritta si da'
+spesso GUARDANDO il giudice. Nasce dalla sua richiesta: «servirebbe qualche parte dove ti posso dare delle
+dritte che esulano dalle statistiche... io ho delle conoscenze che i dati non hanno». Tre valori e ognuno
+ha un effetto PRECISO sul disegno (`starter` entra nell'undici e una riparazione non lo scavalca,
+`alternative` compare fra i rivali di una maglia che puo' indossare, `reserve` esce dai candidati), perche'
+**una dichiarazione che non si puo' applicare non si puo' nemmeno smentire**; e' un VINCOLO e mai un peso,
+come le tre regole delle buste chiuse; e una parola fuori vocabolario viene IGNORATA invece di interpretata.
+
+**I RIVALI DI UNA MAGLIA VENGONO DAL POSTO, non dalla linea per cui l'uomo e' stato SCELTO.** Il serbatoio
+si costruiva da `by_role[linea di partenza]` prima delle riparazioni, e chi una riparazione toglieva
+dall'undici restava in `taken`: quindi Neres (claim 0,440) non era nel serbatoio di NESSUNA maglia mentre
+la sua andava a Santos A. (0,405), e la fascia di mezzo del Milan aveva per rivali Moreira (0,386) e
+Terracciano F. (0,304, **un destro sulla sinistra**) invece di Gabbia (0,543) e Tomori (0,498). Ora e'
+«tutti gli eleggibili fuori dall'undici FINALE» col filtro `can_replace`: si e' allargato il POOL alla
+regola che il commento accanto dichiarava da sempre, non la regola. Cambia i rivali di 14 club su 20 e non
+puo' muovere l'undici, che e' verificato e non dedotto (zero differenze sulle 9 colonne `engine_*`).
+
+**E LA REGOLA DELL'OPERATORE SULLA DIFESA E' UNA SELEZIONE, NON UN PREZZO** - «finche' ci sono Dc di buon
+livello e disponibili devono giocare loro nella posizione Dc; se mancassero e nella sua storia avesse
+giocato Dc allora potrebbe posizionarsi li'», e la generale: «adattamenti in posizioni che non gli
+competono devono essere avallati da situazioni realmente viste in campo e non immaginate, senza controprova
+statistica e' solo fantasia» (la controprova esiste: `player_roles` sono i codici OSSERVATI). Tre cose
+restano oltre il caso.
+- **Un punteggio migliore non compra una regola che ne rompe un'altra.** La prima cura era un pedaggio di
+  40 dentro `_slot_price`, dimensionato sul caso vero (la coppia sbagliata costa 10 contro i 16 di quella
+  giusta): metteva Karlstrom a centrocampo e faceva SALIRE il giudice stampa (157/220 contro 156). Rifiutata
+  comunque, perche' faceva cadere tre test guardiani - vietava gli attraversamenti che il modulo RICHIEDE
+  («una fascia di centrocampo scoperta viene coperta dal fronte») e la riga di mezzo del Liverpool restava
+  senza l'ala destra.
+- **Il fixture che cade dice qual e' la distinzione giusta.** Nel Liverpool di quel test NESSUN altro
+  centrale esiste, quindi il mediano che scala e' il secondo comma della sua stessa regola e questo modulo
+  l'aveva gia' misurato. La domanda «esiste un Dc arruolabile?» e' sulla ROSA e non sulla griglia, e un
+  prezzo per posto non la puo' fare: da qui `_native_defence`, dopo il rimodellamento, con l'adattato che
+  torna nella sua linea se la' c'e' un posto piu' debole di lui (Karlstrom 0,672 contro Piotrowski 0,508).
+  Effetto: uomini disegnati in una linea che i loro codici non coprono **9 -> 8, e ZERO in difesa**; giudice
+  **identico** (8 MATCH / 2 ALT / 10 DIFF, 156/220), che per una regola DICHIARATA e' quello che si chiede -
+  che il disegno non peggiori, non che il giudice la approvi.
+- **E un caso su cinque non era un difetto**: Belahyane legge `pv_seen` 1 su 2 e 11 voti su 38 l'anno
+  scorso, quindi il claim 0,355 e' aritmetica - la miscela pesa «adesso» al 25% alla seconda giornata (K=5,
+  adottata a +31,9% fuori campione, e la percentuale fissa 50/50 misurata PEGGIORE). Il prezzo dichiarato e'
+  che un titolare nuovo emerge in 4-5 giornate, ed e' esattamente il buco che le dritte riempiono.
+
+## L'ASTERISCO viaggiava nel pacchetto e nessuno lo leggeva
+**07/09/2026, da «perche' nel Napoli c'e' ancora Lukaku?». Dettaglio: `letture-app-v1.md` §37.** I fogli
+del motore non lo portano e `listone_quotes` dice `sold = 1` su tutt'e due le piattaforme; quello che si
+vedeva veniva dalle liste che l'app costruisce dalle QUOTAZIONI, dove un ceduto conserva prezzo e club fino
+alla prossima lettura del listone. **145 righe con `sold=1` erano nel bundle dal 03/09 e l'unico posto che
+lo nominava era un commento**: sesta istanza di «il dato c'era e mancava un lettore». Curato per
+piattaforma (`PlayerRow.sold`), coi ceduti fuori dalle liste da comprare e fuori dalla rosa di un club -
+mentre la tabella dei Calciatori li MOSTRA, perche' «chi il listone quota» e' un'altra domanda e la sua
+storia con quel club e' un fatto. Resta da fare il MARCHIO su quella riga.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

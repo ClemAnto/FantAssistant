@@ -700,7 +700,13 @@ export class Strategy {
     // - ed era in lista perche' il FOGLIO si costruisce sulle rose vere e l'app aggiunge chi il listone
     // non ha (70 righe su 602). Un uomo che non si puo' comprare non sta in una lista di nomi da
     // comprare: e' la sua regola del 03/09 gia' viva sulla plancia, portata qui.
-    return listone.filter((player) => player.quoted).map((player) => {
+    //
+    // ...E NEMMENO CHI IL LISTONE DA' PER CEDUTO (07/09/2026, «perche' nel Napoli c'e' ancora
+    // Lukaku?»): l'asterisco accanto al nome e' la piattaforma che dichiara che quell'uomo non gioca
+    // piu' qui, ed e' il piu' forte dei tre segnali - i fogli del motore quelle righe non le portano
+    // piu' affatto, ma questa lista si costruisce dalle QUOTAZIONI, dove il ceduto ha ancora prezzo e
+    // club. Un fatto per PIATTAFORMA: sette uomini sono ceduti in Serie A e comprabili su euro.
+    return listone.filter((player) => player.quoted && !player.sold).map((player) => {
       const one = engine.get(player.fcId);
       const steady = rated ? this.ratings.for(platform, player.fcId)?.steady : null;
       const played = this.store.playedOf(platform, player.fcId);

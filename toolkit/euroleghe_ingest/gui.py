@@ -3173,6 +3173,10 @@ class SnapshotView(ttk.Frame):
                 delattr(self, cached)
         self.clubs = {row["club"]: row for row in _read_csv(folder / "clubs.csv")}
         self.manifest = _read_json(folder / "manifest.json")
+        # ...E LE DRITTE DELL'OPERATORE SULLE SINGOLE PERSONE, sotto la stessa condizione e per la stessa
+        # ragione: si danno spesso guardando il giudice, quindi i giudici non le vedono. Caricate QUI e
+        # non lette a ogni riga: sono un file, e un foglio e' una popolazione sola.
+        self._player_rulings = self._load_player_rulings() if apply_rulings else {}
         if apply_rulings:
             self._seed_shape_rulings()
 
@@ -3826,6 +3830,53 @@ class SnapshotView(ttk.Frame):
             return json.loads(self.config.board_rulings_path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
+
+    #: I tre valori che una dritta puo' assumere, e ognuno ha un effetto preciso sul disegno. Un
+    #: quarto valore non si aggiunge senza dire cosa FA: una dichiarazione che non si puo' applicare
+    #: non si puo' nemmeno smentire, ed e' la differenza fra una dritta e un'opinione.
+    PLAYER_RULINGS: ClassVar[tuple[str, ...]] = ("starter", "alternative", "reserve")
+
+    def _load_player_rulings(self) -> dict[int, str]:
+        """`config/player_rulings.json`: {stagione: {fc_id: {standing, decided_on}}} -> {fc_id: standing}.
+
+        Le DRITTE dell'operatore su chi gioca (sua richiesta, 07/09/2026: «io ho delle conoscenze che i
+        dati non hanno»). Stessa forma, stessa precedenza e stessa invisibilita' ai giudici dei board
+        rulings; unite per `fc_id` e non per nome, perche' un nome non e' un'identita'.
+
+        Un valore che non e' fra `PLAYER_RULINGS` viene IGNORATO invece di essere interpretato: un file
+        scritto a mano e' una fonte come le altre, e una parola che nessuno sa applicare non deve
+        cambiare un undici in silenzio.
+        """
+        season = (self.manifest or {}).get("target_season")
+        if not season:
+            return {}
+        try:
+            data = json.loads(self.config.player_rulings_path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError) as exc:
+            print(f"[snapshot] player_rulings.json unreadable, ignored: {exc}")
+            return {}
+        out: dict[int, str] = {}
+        for key, entry in (data.get(season) or {}).items():
+            standing = (entry or {}).get("standing")
+            if standing not in self.PLAYER_RULINGS:
+                continue
+            try:
+                out[int(key)] = standing
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    def ruling_of(self, row: dict) -> str | None:
+        """La dritta dichiarata su quest'uomo, se ce n'e' una e se questo foglio le applica."""
+        rulings = getattr(self, "_player_rulings", None)
+        if not rulings:
+            return None
+        try:
+            return rulings.get(int(float(row.get("fc_id"))))
+        except (TypeError, ValueError):
+            return None
 
     def _save_ruling(self, club: str, shape: str | None) -> None:
         """Persist (or withdraw, shape=None) the operator's typical-board ruling for this sheet's season.
@@ -5676,9 +5727,16 @@ class SnapshotView(ttk.Frame):
         # authority on who is in a squad and it is what you buy from - but a squad is a fact about a DAY and
         # the board draws the day. Safe only because the signal is guarded twice (`snapshot.left_his_club`):
         # ungated, a thin payload would have benched twelve West Ham players who are really there.
+        # LE DRITTE DELL'OPERATORE ENTRANO QUI, come VINCOLO e mai come peso (`_load_player_rulings`).
+        # `reserve` esce dai candidati - e resta comunque disegnabile come alternativa, che e' la
+        # differenza fra «non lo schiera» e «non esiste»; `starter` passa davanti a tutti nella
+        # graduatoria della sua linea, che e' letteralmente quello che la dichiarazione dice. Non gli si
+        # sposta il claim: quel numero e' misurato e deve continuare a leggersi per quello che e' - la
+        # stessa ragione per cui le tre regole delle buste chiuse sono vincoli e non pesi.
         eligible = sorted(
             (row for row in squad
-             if not row.get("desc_left_for")
+             if self.ruling_of(row) != "reserve"
+             and not row.get("desc_left_for")
              # ...e un'assenza LUNGA lo toglie anche dall'undici tipo (operatore, 05/09/2026): «se un
              # calciatore non puo' giocare 6 mesi, non puo' rientrare nella formazione tipo». Sotto
              # `BOARD_OUT_SHARE` esce di netto; sopra resta e paga lo sconto dentro `claim`, che e' la
@@ -5688,7 +5746,8 @@ class SnapshotView(ttk.Frame):
              and (mode != "next"    # a man who is out cannot play the next match; the tipo eleven can
                   or (not row.get("desc_injury_open")
                       and row.get("desc_availability_now") not in ("injured", "suspended")))),
-            key=lambda row: (-self.claim(row, horizon), -self.starting_record(row, horizon)[1]))
+            key=lambda row: (self.ruling_of(row) != "starter",
+                             -self.claim(row, horizon), -self.starting_record(row, horizon)[1]))
         rank = {id(row): index for index, row in enumerate(eligible)}
         out: list[tuple[str, dict, list[dict]]] = []
         taken: set[str] = set()          # one shirt per man, across every line
@@ -5804,6 +5863,11 @@ class SnapshotView(ttk.Frame):
         reshaped = {id(row): lane for lane, row in
                     self._reshape([(lane, row) for lane, row, _bench in out], formation)}
         out = [(reshaped.get(id(row), lane), row, bench) for lane, row, bench in out]
+        # ...e un posto in DIFESA va a chi la difesa la gioca, finche' uno arruolabile ce n'e'
+        # (`_native_defence`, la regola dell'operatore del 07/09/2026). DOPO il rimodellamento, perche'
+        # la domanda e' su dove un uomo e' DISEGNATO e non su dove e' stato scelto - la stessa ragione
+        # per cui i rivali si scelgono qui sotto e non dentro il ciclo delle maglie.
+        out = self._native_defence(out, eligible)
         # A rival is by definition NOT in the eleven - "Hojlund vs De Bruyne" with both starting counts a
         # team-mate's claim as competition for a place he is not competing for. Which men those are is
         # only known once every shirt has been handed out, so the alternatives are chosen HERE and not
@@ -5817,9 +5881,26 @@ class SnapshotView(ttk.Frame):
             # could really take THIS place (see `can_replace`): his own position first, the other flank
             # only when nobody plays his - the order a coach solves it in, and it keeps a switched full
             # back out of a duel that a proper one is already in
-            free = [row for row in bench if row.get("name") not in starters]
+            # IL SERBATOIO E' L'UNDICI FINALE CONTRO TUTTI GLI ELEGGIBILI, e non la panchina della linea
+            # per cui l'uomo era stato SCELTO (07/09/2026, tre casi portati dall'operatore: Neres,
+            # Estupinan, Belahyane). `bench` veniva da `by_role[linea di partenza]`, quindi un uomo
+            # disegnato sul posto di un'ALTRA linea ereditava i rivali di quella di partenza: Bartesaghi
+            # e' un uomo di linea D disegnato sulla fascia di centrocampo del 3-4-3 e i suoi rivali
+            # leggevano Moreira (0,386) e Terracciano F. (0,304, un DESTRO), mentre Estupinan - `DL;ML`,
+            # claim 0,406, la corrispondenza esatta - non era nel serbatoio di NESSUNA maglia. E chi una
+            # riparazione toglie dall'undici restava in `taken`, quindi spariva del tutto: Neres, claim
+            # 0,44, mentre la maglia andava a Santos A. a 0,405.
+            # Il filtro posizionale resta `can_replace`, che e' quello che il commento qui sotto dichiara
+            # da sempre: la cura e' allargare il POOL alla regola che gia' si applicava, non cambiarla.
+            free = [row for row in eligible if row.get("name") not in starters]
             able = ([row for row in free if self.can_replace(starter, row)]
                     or [row for row in free if self.can_replace(starter, row, mirrored=True)])
+            # ...e una dritta dell'operatore su chi deve VEDERSI passa davanti (richiesta del
+            # 07/09/2026, sui casi Estupinan e Belahyane: «dovrebbe comparire sul campetto come
+            # alternativa»). Solo dove il posto e' suo - `can_replace` decide come per tutti - perche'
+            # una dichiarazione su QUANTO gioca non e' una dichiarazione su DOVE, e disegnarlo su una
+            # maglia che non puo' indossare sarebbe inventare due fatti al prezzo di uno.
+            able.sort(key=lambda row: self.ruling_of(row) not in ("alternative", "starter"))
             # An alternative is whoever else can wear THIS shirt. Two men of equal claim in one slot
             # alternate, and the shirt then reads 50% - the sentence an auction needs ("50%, in
             # ballottaggio") instead of two 100%s.
@@ -6226,6 +6307,14 @@ class SnapshotView(ttk.Frame):
                 return out
             here, there, mover, refill = move
             role_here, holder, bench_here = out[here]
+            # UNA RIPARAZIONE NON SCAVALCA UNA DICHIARAZIONE. `holder` e' l'uomo che ESCE dall'undici
+            # (prende il suo posto `mover` e il posto di `mover` lo riempie `refill`), e se e' un titolare
+            # DICHIARATO dall'operatore la coppia non si accetta: la dritta ha la precedenza massima sul
+            # disegno, ed e' precisamente per questo che esiste. Ci si ferma invece di provare la mossa
+            # dopo, perche' `_better_pair` proporrebbe la stessa: una riparazione rifiutata chiude il
+            # giro, e l'undici resta quello che la dichiarazione ha scelto.
+            if self.ruling_of(holder) == "starter":
+                return out
             role_there, _mover, bench_there = out[there]
             # BOTH sides are read before anything is written: the mover takes the shirt he moves INTO, the
             # refill the one he leaves. Written in the wrong order this gave a back four two right backs
@@ -6452,6 +6541,28 @@ class SnapshotView(ttk.Frame):
     # back. Two numbers, one meaning each.
     SIDE_WEIGHT: ClassVar[dict[str, int]] = {"P": 3, "D": 8, "M": 8, "T": 3, "A": 3}
 
+    # QUANTO COSTA ATTRAVERSARE UNA LINEA: piu' di qualunque compromesso DENTRO la propria - che e' la
+    # regola dell'operatore del 07/09/2026, dettata su Karlstrom dell'Udinese: «finche' ci sono Dc di buon
+    # livello e disponibili devono giocare loro nella posizione Dc; se mancassero Dc e nella sua storia
+    # avesse giocato Dc allora potrebbe posizionarsi li'» - «adattamenti in posizioni che non gli
+    # competono devono essere avallati da situazioni realmente viste in campo e non immaginate: senza
+    # controprova statistica e' solo fantasia».
+    #
+    # E' LA STESSA FORMA CHE `_off_the_front` USA GIA' PER L'ATTACCO, generalizzata alle altre linee: un
+    # COSTO e mai un veto, cosi' una squadra senza centrali riempie comunque la sua difesa e la' l'ordine
+    # fra i candidati resta quello della loro storia - che e' esattamente il secondo comma della regola.
+    #
+    # LA TAGLIA E' MISURATA sul caso che l'ha dettata, non scelta: `_assign` disegnava Zanoli (`MR;DR`)
+    # sulla fascia di centrocampo e Karlstrom (`DM;MC`) nel quarto posto della difesa, perche' quella
+    # coppia costa 10 contro i 16 della coppia giusta (Zanoli a destra in difesa, dove il suo `DR` paga
+    # zero, e un centrale di mezzo sulla fascia, che paga il lato: 2 x `SIDE_WEIGHT` = 16). Quindi un
+    # attraversamento deve costare piu' del compromesso di lato piu' largo che esista dentro una linea,
+    # che su D e M e' 2 x 8 x 2 = 32: QUARANTA lo domina e lascia intatto l'ordine fra chi la linea non
+    # la gioca. L'attacco non lo paga qui - ce l'ha gia', piu' severo e misurato (`_off_the_front`,
+    # `lone`) - perche' due opinioni sulla stessa domanda sono il modo in cui questo modulo ha gia' perso
+    # la simmetria una volta.
+    CROSS_LINE: ClassVar[int] = 40
+
     # HOW MUCH THE MEASUREMENT IS WORTH AGAINST THE CODE - the operator's own model, and it is the right
     # one: a code is a position the player CAN hold (the provider lists what he has covered or could cover,
     # and it reads TODAY, not the season the sheet measures), the heatmap is where he ACTUALLY stood. Two
@@ -6580,6 +6691,76 @@ class SnapshotView(ttk.Frame):
         own = self.LANE_DEPTH.get(self.lane_of(row), 0.60)
         return (round(40 * abs(own - depth) + 2 * weight * abs(wanted))
                 + 2 * self._off_the_front(row, lane, lone=lone))
+
+    def plays_the_line(self, row: dict, lane: str) -> bool:
+        """Se quella LINEA lui l'ha davvero giocata, secondo i codici OSSERVATI.
+
+        E' la controprova che la regola dell'operatore chiede (07/09/2026): «adattamenti in posizioni che
+        non gli competono devono essere avallati da situazioni realmente viste in campo e non immaginate,
+        senza controprova statistica e' solo fantasia». `player_roles` e' dove la fonte lo ha visto o
+        coperto, quindi la domanda si risponde con un'APPARTENENZA (`LANE_OF_ROLE`) e non con una
+        distanza sulla griglia - che e' la ragione per cui il prezzo di un posto non poteva rispondere:
+        li' un `DM` a fare il centrale dista una riga esattamente come un terzino che si sposta al
+        centro, e il modulo del Liverpool ha MISURATO che in quel caso il mediano e' la risposta giusta.
+
+        Un uomo senza codici osservati la gioca per definizione: di lui si sa solo la linea del listone, e
+        «vuoto = ignoto» non e' una prova contro di lui.
+        """
+        codes = self.real_roles(row)
+        if not codes:
+            return True
+        return lane in {self.LANE_OF_ROLE.get(code) for code in codes}
+
+    def _native_defence(self, out: list, eligible: list[dict]) -> list:
+        """Un posto in DIFESA va a chi la difesa la gioca, finche' uno arruolabile ce n'e'.
+
+        LA REGOLA E' DELL'OPERATORE, dettata su Karlstrom dell'Udinese (07/09/2026): «finche' ci sono Dc
+        di buon livello e disponibili (non infortunati, non squalificati) devono giocare loro nella
+        posizione Dc; se mancassero Dc e nella sua storia avesse giocato Dc allora potrebbe posizionarsi
+        li'... ma gia' alla 1) cade il discorso: Ebosse e gli altri possono giocare tranquillamente in
+        quella posizione». Il caso: `_assign` disegnava Zanoli (`MR;DR`) sulla fascia di centrocampo e
+        Karlstrom (`DM;MC`, il claim piu' alto del club) nel quarto posto della difesa, con Bertola,
+        Abankwah ed Ebosse - tutti `DC` - fuori dall'undici.
+
+        E' una SELEZIONE e non un prezzo, e il perche' e' misurato: scritta come pedaggio dentro
+        `_slot_price` ha fatto cadere tre test guardiani, perche' quel prezzo non distingue il caso
+        dell'operatore da quello del Liverpool - una difesa in cui NESSUN altro centrale esiste, dove il
+        mediano che scala e' la risposta giusta e questo modulo l'aveva gia' stabilita. La differenza e'
+        esattamente quella che dice la sua regola: se un difensore arruolabile c'e', deve giocare lui;
+        se non c'e', l'adattamento resta. Quindi si guarda la ROSA e non la griglia.
+
+        Chi esce dal posto non esce dall'undici se la sua linea ha un posto piu' debole di lui: Karlstrom
+        va a centrocampo (0,672 contro i 0,508 di Piotrowski, che e' la seconda meta' della sua frase -
+        «deve giocare a centrocampo»), e il difensore vero prende il posto in difesa. Se la sua linea non
+        ha un posto piu' debole, il claim ha gia' detto che non e' un titolare e lascia l'undici.
+        """
+        drawn = {row.get("name") for _lane, row, _bench in out}
+        for index, (lane, row, bench) in enumerate(out):
+            if lane != "D" or self.plays_the_line(row, "D"):
+                continue
+            natives = sorted((other for other in eligible
+                              if other.get("name") not in drawn and self.plays_the_line(other, "D")),
+                             key=lambda other: -self.claim(other))
+            if not natives:
+                continue                      # il comma 2: nessun difensore arruolabile, l'adattamento resta
+            native = natives[0]
+            # ...e lui torna nella sua linea, se la' c'e' un posto che tiene un uomo piu' debole
+            own = self.lane_of(row)
+            weakest = None
+            for other_index, (other_lane, other_row, _other_bench) in enumerate(out):
+                if other_lane != own or other_index == index:
+                    continue
+                if weakest is None or self.claim(other_row) < self.claim(out[weakest][1]):
+                    weakest = other_index
+            out[index] = (lane, native, bench)
+            drawn.discard(row.get("name"))
+            drawn.add(native.get("name"))
+            if weakest is not None and self.claim(row) > self.claim(out[weakest][1]):
+                pushed = out[weakest][1]
+                out[weakest] = (out[weakest][0], row, out[weakest][2])
+                drawn.discard(pushed.get("name"))
+                drawn.add(row.get("name"))
+        return out
 
     def _off_the_front(self, row: dict, lane: str, lone: bool = False) -> int:
         """What a man who plays NO attacking line pays for a place in the front one: a FULL line.

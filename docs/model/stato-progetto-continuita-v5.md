@@ -4,6 +4,64 @@
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 7 settembre 2026 (notte): chi è partito esce in un giorno, e le DRITTE hanno un posto dove stare
+
+Sessione lunga, aperta da una domanda («le partite attese del Napoli») e chiusa da una richiesta che le
+dà il senso: «servirebbe qualche parte dove ti posso dare delle dritte che esulano dalle statistiche».
+Dettaglio: spec «Novità v9.86» e «v9.87», `formazioni-tipo-v1.md` §9, `letture-app-v1.md` §37.
+
+### Cosa è stato fatto
+
+1. **Chi ha lasciato il club esce il giorno dopo la seconda lettura.** Tre difetti, tutti nella LETTURA e
+   nessuno nel dato: `still_buyable` guardava il club dell'ultimo avvistamento e mai la sua DATA; il
+   cancello di completezza era CIRCOLARE (chiedeva il 90% degli uomini che il FOGLIO mette in quel club, e
+   i cinque assenti del Napoli erano esattamente la differenza fra 26 e 31 — sei club su venti spenti,
+   tutti quelli con più di due partiti); e il segnale forte era muto perché arrivo e partenza portano
+   entrambi la data del 1º luglio. Curato con `ABSENT_READS` = 2 (curva del rumore misurata sulle nostre
+   20 date: 4,9% · 3,4% · 1,5% di assenze che si rimangiano), riferimento di taglia sulle ultime cinque
+   letture dello STESSO club più un pavimento assoluto, una PRESENZA che vale a qualunque sottigliezza, e
+   la guardia `ever`. **Effetto misurato a una variabile sola: 11 → 58 partenze viste** sul foglio Serie A.
+2. **`first_seen` sopravvive alla purga di `transfers_history`** — l'unica data vera che quella tabella ha,
+   e si perdeva due volte. 274 uomini su 274 non erano ordinabili; da oggi le date si accumulano.
+3. **I rivali di una maglia vengono dal POSTO** e non dalla linea per cui l'uomo era stato scelto: cura da
+   sé Neres e i rivali sbagliati del Milan, cambia 14 club su 20 e non muove l'undici (verificato).
+4. **Un posto in difesa va a chi la difesa la gioca**, finché uno arruolabile ce n'è — regola
+   dell'operatore, scritta come SELEZIONE dopo che la versione a PREZZO (che pure faceva salire il
+   giudice) ha fatto cadere tre test guardiani.
+5. **`config/player_rulings.json`**, la terza cosa dichiarata del progetto: le sue dritte su chi gioca.
+6. **L'asterisco nell'app**: i ceduti fuori dalle liste da comprare e dalla rosa di un club.
+
+### Le tre lezioni di metodo
+
+- **Un punteggio migliore non compra una regola che ne rompe un'altra** (il pedaggio a 157/220, rifiutato).
+- **La cura ovvia era un'identità aritmetica**: togliere gli assenti dal denominatore rende il cancello
+  sempre vero, cioè un ornamento — e rimette il difetto per cui era stato scritto.
+- **Un'ipotesi sul mondo non batte un conteggio sul dato**: avevo segnalato come implausibile l'uscita di
+  Caicedo dal Chelsea usando conoscenza di una stagione che questo dataset ha già giocato; dei 133 usciti
+  dai payload dopo la deadline il 6% ha un infortunio aperto e il **79% un trasferimento datato**.
+
+### Verifica
+
+756 test del toolkit (1 saltato senza display) e i 6 nuovi sulle dritte; giudice stampa **8 MATCH / 2 ALT
+/ 10 DIFF, 156/220** (identico a prima delle regole del campetto, che è ciò che si chiede a una regola
+dichiarata); `engine_*` fermo su tutte e 9 le colonne, verificato contro HEAD e contro `--keep-departed`;
+fogli ricostruiti, `export` e `pull-bundle` fatti — il pacchetto porta Neres alternativa di entrambe le
+fasce del Napoli e la difesa dell'Udinese senza mediani.
+
+### Aperti
+
+- **La fonte DATATA dei trasferimenti** è la cosa che rende «solido» il canale: l'host è già noto (JSON
+  pulito, nessun muro di consenso), servono una sonda su un club, una misura di copertura e una chiave che
+  regga due movimenti nella stessa finestra.
+- **Le dritte non hanno un pulsante nel pannello** né un marchio nell'app: oggi si scrivono nel file.
+- **Il marchio «ceduto»** sulla riga della tabella Calciatori (serve una voce di `PlayerFlag` e un
+  registrar dove le quotazioni siano raggiungibili).
+- **Pinamonti**: il pareggio a tre millesimi con Noslin non è rotto dal mestiere del posto (lui è l'unico
+  `ST` puro e il motore lo mette secondo dell'attacco della Lazio).
+- **La deriva fra due corse dello stesso codice** (Olivera 21,5 → 20,0 fra le 18:52 e le 19:48) resta da
+  attribuire: non è il codice — HEAD dà gli stessi numeri — ed è il DATO che si è mosso mentre `snapshot`
+  riscaricava le rose.
+
 ## CHIUSURA — 7 settembre 2026 (sera): l'ancora legge l'Elo, e la prudenza si misura
 
 **Stato misurato alla chiusura**, non dedotto: `backtest --verify` **22/22** e nessun fallimento ·

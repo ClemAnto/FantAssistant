@@ -3502,47 +3502,93 @@ def test_absence_from_the_live_squad_is_read_only_for_a_man_the_provider_knows()
         "Bayer 04 Leverkusen", "2026-07-01")
 
 
-def test_a_live_squad_joins_by_club_key_and_only_speaks_when_it_is_complete():
-    """Two guards the same measurement asked for, 05/08/2026, both of them silent failures without a test.
+def test_a_live_squad_joins_by_club_key_and_judges_its_own_thinness():
+    """Il payload parla solo se e' una ROSA, e il denominatore di quel giudizio e' il club stesso.
 
-    THE JOIN. The sheet spells a club one way and the provider another - `Paris Saint Germain` against
-    `Paris Saint-Germain`, `AC Milan` against `Milan`. A raw-string lookup answers "no payload", which reads
-    as "no evidence" and switches the whole signal off for that club without saying so. Third instance of «an
-    entity joins through its CANONICAL KEY, never through the string a source uses to name it», and the
-    cheapest to miss because it works on every other club.
+    LA CHIAVE. Il foglio dice `Newcastle` dove il provider dice `Newcastle United`, e una lookup sulla
+    stringa cruda risponde «nessun payload» - che si legge come «nessuna prova» e spegne il segnale per
+    quel club senza dirlo.
 
-    What `club_key` does NOT fix, and no join can: `Newcastle`/`Newcastle United` and
-    `Eintracht`/`Eintracht Francoforte` are not two spellings, they are two ROWS of `clubs` for one club, with
-    the listone's players on one and the provider's xref on the other. That is a data defect (see the spec's
-    twin-identity note), not a lookup, and those two clubs stay dark until the identities are merged.
+    LA SOTTIGLIEZZA, e qui il denominatore e' cambiato il 07/09/2026 perche' il primo era CIRCOLARE:
+    chiedeva che la lettura coprisse il 90% degli uomini che il FOGLIO mette in quel club, cioe' contava
+    fra i presenti attesi proprio i partiti che il segnale deve togliere. Sul Napoli erano 26 iscritti
+    contro 31 righe (0,84, cancello mancato) e i cinque della differenza erano ESATTAMENTE i cinque
+    assenti. Ora il riferimento e' la mediana delle ultime `SQUAD_TRAIL_READS` letture DELLO STESSO club,
+    piu' il pavimento assoluto `SQUAD_FLOOR` per il publisher cronicamente magro (il caso West Ham, che
+    una mediana su se stesso non puo' vedere).
 
-    THE COMPLETENESS. `/team/{id}/players` is the FIRST TEAM as the provider publishes it, and how much of it
-    arrives varies: West Ham reads 18 men against 29 identified and not one of its fourteen "departures" is
-    corroborated by a transfer, while Bologna at 24 of 28 is 6 for 6. So a payload speaks only above
-    `SQUAD_COMPLETENESS` of the squad the sheet shows - measured curve in the constant's own comment.
+    E UNA PRESENZA NON LA DISTRUGGE LA SOTTIGLIEZZA: una lettura magra piu' FRESCA della finestra vale
+    come prova che c'e'. Senza questa meta' la regola toglieva Olivera, Kean, Rowe e Beto, che stanno nel
+    payload di oggi.
     """
+    import sqlite3
+
     from euroleghe_ingest.modules import snapshot
 
     class Obs:
         def __init__(self, fc_id, club):
             self.fc_id, self.club_target = fc_id, club
 
-    def payload():
-        return {snapshot._club_key("Paris Saint-Germain"):
-                {"on": "2026-08-04", "club": "Paris Saint-Germain", "ids": set(range(1, 10))}}
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE squad_snapshot (fc_id INTEGER, valid_from TEXT, club TEXT, "
+                 "source TEXT, role_hint TEXT)")
 
-    # the provider's spelling on one side, the listone's on the other
-    live = snapshot.complete_squads(payload(), [Obs(n, "Paris Saint Germain") for n in range(1, 11)],
-                                    set(range(1, 11)))
-    assert snapshot.left_his_club(Obs(10, "Paris Saint Germain"), None, live, set(range(1, 11))) == (
-        "not in the club's live squad", "2026-08-04"), "9 of 10 is a squad, and 10 is not in it"
+    def read(day, club, ids):
+        conn.executemany("INSERT INTO squad_snapshot (fc_id, valid_from, club, source) "
+                         "VALUES (?, ?, ?, 'sofascore')", [(n, day, club) for n in ids])
 
-    # ...the same payload against a squad it covers barely two thirds of says NOTHING
-    thin = snapshot.complete_squads(payload(), [Obs(n, "Paris Saint Germain") for n in range(1, 15)],
-                                    set(range(1, 15)))
-    assert snapshot.left_his_club(Obs(14, "Paris Saint Germain"), None, thin, set(range(1, 15))) == (
-        None, None)
-    assert thin[snapshot._club_key("Paris Saint Germain")]["thin"] == (9, 14), "and it says how thin"
+    squad = set(range(1, 27))                       # ventisei uomini, la taglia tipica di questo club
+    for day in ("2026-09-01", "2026-09-02", "2026-09-03"):
+        read(day, "Paris Saint-Germain", squad)
+    # due letture piene che non hanno piu' il 7 ne' l'8 (24 su un riferimento di 26: piene)
+    for day in ("2026-09-04", "2026-09-05"):
+        read(day, "Paris Saint-Germain", squad - {7, 8})
+    # ...e una lettura TRONCATA, piu' fresca, che pero' il 7 lo elenca
+    read("2026-09-06", "Paris Saint-Germain", {1, 2, 3, 7, 9, 10, 11, 12, 13, 14})
+    # un club che pubblica sempre cinque uomini: la sua stessa mediana lo assolverebbe, il pavimento no
+    read("2026-09-06", "Sassuolo", {40, 41, 42, 43, 44})
+
+    live = snapshot.live_squads(conn, "2026-09-07")
+    psg = live[snapshot._club_key("Paris Saint Germain")]      # la grafia del listone, non del provider
+    assert psg["on"] == "2026-09-05", "l'ultima lettura PIENA e' il giorno in cui il silenzio vale"
+    known = squad | {8, 99}
+
+    # l'8 manca da tutt'e due le letture piene e da nessuna piu' fresca: partito
+    assert snapshot.left_his_club(Obs(8, "Paris Saint Germain"), None, live, known) == (
+        "not in the club's live squad", "2026-09-05")
+    # il 7 manca dalle stesse due letture ED E' nella lettura magra di oggi: c'e'
+    assert snapshot.left_his_club(Obs(7, "Paris Saint Germain"), None, live, known) == (None, None)
+    # il 99 la fonte non lo ha MAI visto qui: ignoto, non partito - il caso Kim
+    assert snapshot.left_his_club(Obs(99, "Paris Saint Germain"), None, live, known) == (None, None)
+    # e un payload sotto il pavimento non parla, per nessuno dei suoi
+    sassuolo = live[snapshot._club_key("Sassuolo")]
+    assert sassuolo["ids"] == set() and sassuolo["thin"] == (5, 5.0), "e dice di quanto e' magro"
+    assert snapshot.left_his_club(Obs(45, "Sassuolo"), None, live, {45}) == (None, None)
+
+
+def test_a_sighting_older_than_the_read_that_misses_him_is_not_evidence_he_is_there():
+    """«Evitiamo assolutamente che calciatori non piu' presenti in una squadra non si aggiornino
+    tempestivamente, altrimenti tutti i calcoli vengono falsati» - operatore, 07/09/2026.
+
+    `still_buyable` guardava il CLUB dell'ultimo avvistamento e mai la sua DATA, e l'avvistamento e'
+    l'ULTIMO che la fonte ha: «Napoli, 25/08» teneva Cheddira sul foglio mentre il Napoli era riletto ogni
+    giorno fino al 07/09 senza di lui, col trasferimento all'Avellino gia' in archivio.
+
+    Quello che NON cambia e' il caso misurato il 17/08/2026: visto in un ALTRO club della piattaforma
+    resta comprabile a qualunque data (Molina alla Roma, Bruno Guimaraes all'Arsenal - 8 dei 20 tolti
+    allora), perche' la' la fonte non dice «non c'e' piu'» ma «e' altrove».
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    row = {"fc_id": 1, "club": "Napoli", "desc_left_on": "2026-09-07"}
+    keys = {snapshot._club_key(one) for one in ("Napoli", "Roma")}
+    assert snapshot.still_buyable(row, {1: ("Napoli", "2026-08-25")}, keys) is False, "avvistamento stantio"
+    assert snapshot.still_buyable(row, {1: ("Napoli", "2026-09-07")}, keys) is True, "riletto oggi"
+    assert snapshot.still_buyable(row, {1: ("Roma", "2026-08-25")}, keys) is True, "si e' mosso, non e' sparito"
+    assert snapshot.still_buyable(row, {1: ("Fenerbahce", "2026-09-07")}, keys) is False, "fuori perimetro"
+    assert snapshot.still_buyable(row, {}, keys) is True, "la fonte non ha parlato: ignoto, non partito"
+    # e senza perimetro (il gate prepara le sue finestre senza lega) la data decide da sola
+    assert snapshot.still_buyable(row, {1: ("Napoli", "2026-08-25")}, None) is False
 
 
 def test_the_fm_cell_shows_the_estimate_with_a_tilde_when_the_core_cannot_predict():

@@ -4466,3 +4466,39 @@ il guadagno è **+2** — e il gradino di Berardi migliora comunque in tutt'e du
 - **Una suite lanciata su un albero che si sta modificando non è una suite.** Otto test rossi, di cui due
   che passavano se rieseguiti da soli: pytest importa alla raccolta, e i file cambiavano sotto. La corsa
   si rifà, non si interpreta.
+
+---
+
+# §37 — L'ASTERISCO nell'app, e le partite attese del Napoli (7 settembre 2026)
+
+## 37.1 — «Perché nel Napoli c'è ancora Lukaku?»
+
+I fogli del motore non lo portano — cercato: assente da tutti e tre e dai campetti, e `listone_quotes`
+dice **`sold = 1` su tutt'e due le piattaforme**. Quello che si vedeva veniva dalle liste che l'app
+costruisce dalle QUOTAZIONI, dove un ceduto conserva prezzo e club fino alla prossima lettura del listone.
+
+**Il dato viaggiava nel pacchetto dal 03/09 (145 righe con `sold=1`) e nessuna riga di codice dell'app lo
+leggeva**: l'unico posto che lo nominava era un *commento* in `plancia.ts`. Sesta istanza di «il dato
+c'era e mancava un lettore», dopo i campetti, `availability`, l'asterisco stesso nel toolkit, la data di
+rientro e le partite di Varela.
+
+Curato: `PlayerRow.sold` letto per piattaforma, i **ceduti fuori dalle liste da comprare** (Strategia) e
+**fuori dalla rosa di un club** (Squadre, che risponde a «chi c'è in questa rosa»). La tabella Calciatori
+resta un'altra domanda — «chi il listone quota» — e là la riga si mostra: la sua storia con quel club è un
+fatto, cancellarla sarebbe l'errore opposto. **Resta da fare il MARCHIO** su quella riga: serve una voce
+nel vocabolario di `PlayerFlag` e un registrar in `PlayerStatus`, dove le quotazioni siano raggiungibili.
+
+## 37.2 — Le partite attese di una rosa, e i due modi in cui un numero basso mente
+
+Dalla domanda sulle presenze attese del Napoli, e la risposta utile non era la tabella: era che **un
+numero basso ha due significati**. `engine_pv_pred`/`est_pv` su 36 giornate (le giornate che RESTANO, non
+38) può essere una **misura** — Pulisic 19,1, `basis: core`, salta davvero le partite — o una **costante**
+— Mora 12,6, `basis: anchor`, confidenza 0,50, «nothing measured anywhere», cioè «vuoto = ignoto» che
+prende la forma di un numero. La riga lo dice (`est_basis`, `est_confidence`, `est_note`) e chi legge la
+colonna senza leggere quelle tre confonde le due cose.
+
+E due letture vanno accanto al numero, non dentro: la **finestra d'infortunio aperta** (McTominay,
+Marianucci, Buongiorno: il numero a destra è quello che l'app disegna) e le **cinque righe non quotate da
+nessun listone** (Cheddira, Cioffi, Lindstrom, Cajuste, Olivera M.), che erano anche assenti dalla lettura
+fresca della rosa — due segnali concordi, ed è da lì che è partita la cura del §22 dello spec.
+

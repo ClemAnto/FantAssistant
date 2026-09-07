@@ -819,3 +819,95 @@ ovvia prima della misura:
   sono entrambi «D», quindi i contendenti sono sovrastimati e l'effetto è diluito **verso lo zero**.
 * Misura il **rientro**, non l'assenza: si moltiplica per le giornate che gioca, non la sostituisce.
 
+---
+
+# §9 — Il campetto: i rivali di un POSTO, la difesa NATIVA, e le dritte dell'operatore (7 settembre 2026)
+
+Nati da **cinque nomi** che l'operatore ha portato guardando la pagina Formazione: Neres, Estupinan,
+Pinamonti, Belahyane, Karlstrom. Tre difetti diversi, due curati nel codice e uno che è diventato un
+canale nuovo.
+
+## 9.1 — I rivali venivano dalla linea per cui l'uomo era stato SCELTO, non dal posto che occupa
+
+`benches` si costruiva da `by_role[linea di partenza]` prima delle riparazioni, e chi una riparazione
+toglieva dall'undici restava in `taken`: quindi un uomo disegnato sul posto di un'ALTRA linea ereditava i
+rivali di quella di partenza, e uno scambiato fuori non era nel serbatoio di nessuna maglia.
+
+| caso | prima | dopo |
+|---|---|---|
+| Napoli, fasce d'attacco | Lang 0,372 su entrambe; **Neres 0,440 in nessuna** | Neres su entrambe |
+| Milan, fascia di mezzo (Bartesaghi `DL;ML;DC`) | Moreira 0,386 e **Terracciano F. 0,304, un DESTRO** | Gabbia 0,543 e Tomori 0,498 |
+
+Ora il serbatoio è **tutti gli eleggibili fuori dall'undici finale**, col filtro posizionale `can_replace`
+— che è la regola che il commento accanto dichiarava da sempre: si è allargato il POOL alla regola, non
+la regola. Cambia i rivali di **14 club su 20** e non può muovere l'undici (`able[:2]` alimenta solo la
+lista dei rivali), il che è verificato e non dedotto: zero differenze sulle 9 colonne `engine_*`.
+
+Il limite resta detto: **si disegnano due rivali per maglia**, quindi il terzo per claim non si vede
+(Estupinan 0,406 dietro Gabbia 0,543 e Tomori 0,498). Per quello servono le dritte, §9.3.
+
+## 9.2 — Un posto in DIFESA va a chi la difesa la gioca, finché uno arruolabile ce n'è
+
+Regola dell'operatore, dettata su Karlstrom dell'Udinese: «finché ci sono Dc di buon livello e
+disponibili devono giocare loro nella posizione Dc; se mancassero Dc e nella sua storia avesse giocato Dc
+allora potrebbe posizionarsi lì» — e la generale: «adattamenti in posizioni che non gli competono devono
+essere avallati da situazioni realmente viste in campo e non immaginate: senza controprova statistica è
+solo fantasia». La controprova esiste: `player_roles` sono i codici OSSERVATI.
+
+**Il trace dice che il difetto era in `_assign` e non nella scelta**: la difesa prendeva Solet, Zanoli,
+Vojvoda, Kabasele e il centrocampo Karlstrom + 3; poi l'assegnazione scambiava le due linee di Zanoli e
+Karlstrom, perché quella coppia costa **10** contro i **16** della coppia giusta (Zanoli a destra in
+difesa, dove il suo `DR` paga zero, e un centrale di mezzo sulla fascia, che paga il lato).
+
+**LA PRIMA CURA ERA UN PREZZO E VA SCRITTA PERCHÉ NESSUNO LA RIPROVI.** Un pedaggio di 40 dentro
+`_slot_price` per chi la linea non la gioca: metteva Karlstrom a centrocampo e il giudice stampa
+*migliorava* (157/220 contro 156). **Rifiutata comunque**, perché ha fatto cadere tre test guardiani —
+vietava gli attraversamenti che questo modulo RICHIEDE («una fascia di centrocampo scoperta viene coperta
+dal fronte»), e la riga di mezzo del Liverpool restava senza l'ala destra. *Un punteggio migliore non
+compra una regola che ne rompe un'altra.*
+
+E il fixture del Liverpool ha detto qual era la distinzione giusta: là **nessun altro centrale esiste**,
+quindi il mediano che scala è il comma 2 dell'operatore e questo modulo l'aveva già misurato. La domanda
+non è sulla griglia, è sulla ROSA — quindi è una **selezione** e non un prezzo (`_native_defence`, dopo
+il rimodellamento): il posto va al miglior difensore disponibile, e l'adattato torna nella sua linea se
+là c'è un posto che tiene un uomo più debole (Karlstrom 0,672 contro Piotrowski 0,508), altrimenti il
+claim ha già detto che non è un titolare.
+
+Effetto: Udinese disegna **Vojvoda · Kabasele · Bertola · Solet** con **Karlstrom a centrocampo**. Sui
+venti club, uomini disegnati in una linea che i loro codici non coprono: **9 → 8, e ZERO in difesa** (gli
+otto restanti sono 4 sulla trequarti e 4 a centrocampo — ali e trequartisti a una riga dal loro mestiere,
+fuori dal perimetro della regola). Tre undici su venti cambiano. **Giudice stampa: 8 MATCH / 2 ALT / 10
+DIFF, 156/220 — identico a prima: la regola non costa niente**, ed è dichiarata, quindi il giudice serve
+a dire che il disegno non peggiora, non ad approvarla.
+
+## 9.3 — `config/player_rulings.json`: le dritte che i dati non hanno
+
+Richiesta dell'operatore: «servirebbe qualche parte dove ti posso dare delle "dritte" che esulano dalle
+statistiche... se un certo calciatore è un titolare o una riserva, perché io ho delle conoscenze che i
+dati non hanno». È la **terza** cosa dichiarata del progetto e ha la forma delle altre due
+(`board_rulings.json`, `player_notes.json`): unita per `fc_id`, datata, revocabile, **invisibile ai due
+giudici** (`apply_rulings=False`) — una dritta si dà guardando il giudice.
+
+Tre valori, ognuno con un effetto preciso, perché una dichiarazione che non si può applicare non si può
+nemmeno smentire: **`starter`** entra nell'undici (e una riparazione non lo scavalca più), **`alternative`**
+compare fra i rivali di una maglia che può indossare, **`reserve`** esce dai candidati e resta disegnabile
+come alternativa. È un **vincolo e mai un peso**: spostargli il claim riordinerebbe in silenzio tutto il
+resto e nessuno saprebbe più quale numero è misurato.
+
+Verificato guidando il pannello vero: con le dritte Estupinan, Belahyane e Pinamonti compaiono; con
+`apply_rulings=False` spariscono tutti e tre. Sei test, e una parola che nessuno sa applicare viene
+IGNORATA invece di interpretata.
+
+## 9.4 — E un caso non era un difetto
+
+**Belahyane**: il foglio legge `pv_seen` **1 su 2** giornate e la stagione scorsa **11 voti su 38** (quota
+0,289, minuti 0,179), quindi il claim 0,355 è aritmetica — la miscela pesa «adesso» al 25% alla seconda
+giornata (K = 5, adottata il 05/09 a +31,9% fuori campione, e la percentuale fissa 50/50 fu misurata
+**peggiore**). Il prezzo dichiarato: un titolare nuovo emerge in 4-5 giornate. Per vederlo prima serve una
+dritta, che è esattamente perché il canale del §9.3 esiste.
+
+**Pinamonti** invece è un pareggio non spezzato: il `Pc` va a Gudmundsson A. (`ST;AM`, 0,415) e il secondo
+posto da rivale a Noslin (`RW;ST`, **0,366**) contro il suo **0,363** — tre millesimi, mentre lui è l'unico
+`ST` puro e il motore lo mette secondo dell'attacco della Lazio (`engine_pv_pred` 23,2 contro 21,2 e 19,7).
+Il pareggio non è rotto dal mestiere del posto: resta come voce aperta.
+

@@ -499,7 +499,23 @@ def reingest_from_cache(ctx: Context) -> None:
     # The table is DERIVED from these cached pages and nothing else, so the re-ingest starts clean:
     # that is what purges rows an older resolution rule wrote - the same deal from both clubs' pages
     # under two spellings, or a name-match the canonical id now contradicts - instead of accreting
-    # them forever. `first_seen` survives because it re-derives from the cache files' own mtimes.
+    # them forever.
+    #
+    # ...E LA DATA DELL'OSSERVAZIONE SI RICORDA ATTRAVERSO LA PURGA, perche' altrimenti non esiste
+    # (07/09/2026, dalla richiesta dell'operatore «i trasferimenti devono essere aggiornati in maniera
+    # affidabile»). Il commento che stava qui prometteva che «`first_seen` sopravvive perche' si
+    # ri-deriva dagli mtime dei file di cache», e sono due affermazioni incompatibili: l'mtime e' quello
+    # dell'ULTIMO scaricamento, quindi un `--refresh` porta a oggi la «prima volta che l'abbiamo visto»
+    # di ogni riga di quella pagina, e il DELETE qui sotto fa si' che l'`ON CONFLICT` che tiene il minimo
+    # non veda mai il valore vecchio - cioe' e' codice morto. Misurato prima della cura: le 1239 righe
+    # della finestra 2026 leggevano tutte 2026-09-07, e 274 uomini su 274 con due movimenti in quella
+    # finestra avevano `first_seen` IDENTICO, quindi non ordinabile - che e' esattamente perche' il
+    # segnale forte delle partenze e' cieco su chi arriva e riparte nella stessa estate (Cheddira:
+    # `Lecce -> Napoli` e `Napoli -> Avellino`, entrambe datate 1o luglio).
+    # Terza istanza in tre giorni della stessa famiglia (`mv_synth` il 05/09, i quattro bonus e
+    # `clean_sheets` il 06/09): una colonna DERIVATA che una ri-ingestione distrugge. La purga qui
+    # serve davvero, quindi non si toglie: si ricorda l'osservazione e si rimette al minimo dopo.
+    remembered = remember_observations(conn)
     conn.execute("DELETE FROM transfers_history")
     stored = 0
     unresolved: list[str] = []
@@ -520,12 +536,49 @@ def reingest_from_cache(ctx: Context) -> None:
             continue
         stored += count
         unresolved += misses
+    # ...e l'osservazione ricordata torna al MINIMO fra quella che c'era e quella che l'mtime dice oggi:
+    # una pagina ri-scaricata non puo' far diventare «visto oggi» un movimento che conoscevamo da agosto.
+    # Il ripristino e' un UPDATE e non un ON CONFLICT perche' la purga ha appena tolto la riga vecchia:
+    # e' l'unico punto in cui il valore precedente esiste ancora, cioe' in questa mappa.
+    restored = restore_observations(conn, remembered)
     conn.commit()
 
     flagged = derive_new_coach(conn)
     conn.commit()
     print(f"[transfers] {spells} coach spells · {stored} transfers "
-          f"({len(unresolved)} names unresolved) · {flagged} new_coach flags")
+          f"({len(unresolved)} names unresolved) · {flagged} new_coach flags · "
+          f"{restored} observation dates kept from before the purge")
+
+
+def remember_observations(conn) -> dict[tuple, str]:
+    """{(fc_id, date, from_club, to_club): first_seen} - l'osservazione, PRIMA della purga.
+
+    `run` cancella la tabella e la ricostruisce dai file di cache, e la data di osservazione di ogni riga
+    e' l'MTIME del file: un `--refresh` la porta a oggi, quindi «la prima volta che l'abbiamo visto»
+    diventa «l'ultima volta che abbiamo scaricato». Con la purga in mezzo l'`ON CONFLICT` che tiene il
+    minimo non vede mai il valore vecchio.
+    """
+    return {(fc_id, date, from_club, to_club): first_seen
+            for fc_id, date, from_club, to_club, first_seen in conn.execute(
+                "SELECT fc_id, date, from_club, to_club, first_seen FROM transfers_history "
+                "WHERE first_seen IS NOT NULL")}
+
+
+def restore_observations(conn, remembered: dict[tuple, str]) -> int:
+    """Rimette `first_seen` al MINIMO fra quello che c'era e quello che l'mtime dice oggi.
+
+    Un UPDATE e non un `ON CONFLICT`, perche' la purga ha appena tolto la riga vecchia: questa mappa e'
+    l'unico posto in cui il valore precedente esiste ancora. Una riga che la ri-derivazione non riscrive
+    (una regola di risoluzione cambiata) non si trova e non torna: la purga serve, ed e' quello che deve
+    continuare a fare.
+    """
+    restored = 0
+    for (fc_id, date, from_club, to_club), seen in remembered.items():
+        restored += conn.execute(
+            "UPDATE transfers_history SET first_seen = ? WHERE fc_id = ? AND date = ? "
+            "AND from_club IS ? AND to_club IS ? AND (first_seen IS NULL OR first_seen > ?)",
+            (seen, fc_id, date, from_club, to_club, seen)).rowcount
+    return restored
 
 
 def refresh_current_season(ctx: Context, season: str) -> tuple[str | None, dict]:

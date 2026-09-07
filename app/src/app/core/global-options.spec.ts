@@ -22,7 +22,7 @@ const man = (fcId: number, club: string, clubId: number | null): PlayerRow => ({
   mantra: 'C',
   mantraCodes: ['C'],
   club,
-  league: 'serie_a', quoted: true,
+  league: 'serie_a', quoted: true, sold: false,
 });
 
 function fresh(): GlobalOptions {

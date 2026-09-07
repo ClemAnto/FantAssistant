@@ -495,6 +495,151 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.87 (7 settembre 2026, notte — L'OSSERVAZIONE dei trasferimenti, le DRITTE dichiarate, la difesa NATIVA)
+
+Tre cose nate dalla stessa richiesta dell'operatore («i trasferimenti devono essere aggiornati in maniera
+affidabile») e dai cinque nomi del campetto. Dettaglio del campetto: `formazioni-tipo-v1.md` §9;
+dell'app: `letture-app-v1.md` §37.
+
+**1. `first_seen` sopravvive alla purga di `transfers_history`.** La colonna `date` della tabella è
+SINTETIZZATA (`{anno}-07-01`: 6019 righe su **quattro** date distinte), quindi l'unico modo di ordinare due
+movimenti dello stesso uomo nella stessa finestra è la data dell'OSSERVAZIONE — e quella si perdeva due
+volte: viene dall'**mtime del file di cache**, quindi ogni ri-scaricamento la porta a oggi, e il `DELETE
+FROM transfers_history` che precede la ri-ingestione rendeva **codice morto** l'`ON CONFLICT` che teneva il
+minimo (il commento accanto prometteva l'opposto). Misurato: **1239 righe** della finestra 2026 tutte a
+2026-09-07 e **274 uomini su 274** con due movimenti non ordinabili — cioè Cheddira, arrivato dal Lecce e
+partito per l'Avellino nella stessa estate, le cui due righe sono indistinguibili nel tempo, che è
+*esattamente* perché il segnale forte delle partenze era cieco su di lui. Terza istanza in tre giorni della
+famiglia «una colonna DERIVATA che una ri-ingestione distrugge» (`mv_synth` il 05/09, i quattro bonus e
+`clean_sheets` il 06/09). Curato con `remember_observations` / `restore_observations` attorno alla purga —
+che serve e resta — il minimo che non si alza mai, il conteggio dichiarato nella riga di log, e quattro
+test di cui uno rimette il difetto dentro. **Limite detto: la storia di oggi non si recupera**, gli mtime
+vecchi non ci sono più; le date vere si accumulano dalla prossima corsa.
+
+Cosa manca per chiamarlo solido, ed è un'acquisizione da decidere: una **fonte datata** dei trasferimenti.
+L'host con JSON pulito e senza muro di consenso è già stato trovato (17/08) e un `fee` è già archiviato per
+1688 righe; servono una sonda su un club, una misura di copertura e una chiave che regga due movimenti
+nella stessa finestra (la lezione che allargò la PK per Hojlund).
+
+**2. `config/player_rulings.json` — le dritte dell'operatore su chi gioca.** Terza cosa dichiarata del
+progetto, con la forma delle altre due: `{stagione: {fc_id: {standing, decided_on, note}}}`, tre valori
+(`starter` · `alternative` · `reserve`) ognuno con un effetto preciso sul disegno, un VINCOLO e mai un peso,
+e **invisibile ai due giudici** (`apply_rulings=False`, la stessa condizione dei board rulings). Un valore
+fuori vocabolario viene ignorato invece di interpretato.
+
+**3. La difesa NATIVA, e la prima cura era un prezzo.** Un posto in difesa va a chi la difesa la gioca
+finché uno arruolabile ce n'è (`_native_defence`, dopo il rimodellamento). Scritta come pedaggio dentro
+`_slot_price` metteva Karlstrom a centrocampo e faceva SALIRE il giudice (157/220 contro 156) — ed è stata
+rifiutata comunque, perché faceva cadere tre test guardiani: vietava gli attraversamenti che il modulo
+richiede, e la riga di mezzo del Liverpool restava senza l'ala destra. La distinzione giusta è quella della
+regola dell'operatore — *esiste un Dc arruolabile?* — che è una domanda sulla ROSA e non sulla griglia,
+quindi una selezione. Verdetto: 8 MATCH / 2 ALT / 10 DIFF, **156/220**, identico a prima.
+
+**E i rivali di un posto vengono dal POSTO** e non dalla linea per cui l'uomo era stato scelto: cambia i
+rivali di 14 club su 20, non può muovere l'undici (verificato: zero differenze su tutte e 9 le colonne
+`engine_*`), e cura da sé i due casi che l'operatore aveva portato per primi (Neres, e i rivali sbagliati di
+Bartesaghi).
+
+`SHEET_REVISION` resta 55: le tre cose sopra muovono i CAMPETTI e non le colonne del foglio.
+
+## Novità v9.86 (7 settembre 2026, notte — CHI HA LASCIATO IL CLUB ESCE IL GIORNO DOPO, e i tre difetti erano nella LETTURA)
+
+Richiesta dell'operatore: «evitiamo assolutamente che calciatori non più presenti in una squadra non si
+aggiornino tempestivamente, altrimenti tutti i calcoli vengono falsati». Nata dai cinque uomini che il
+foglio Serie A del 07/09 teneva al Napoli — Cheddira, Cioffi, Lindstrom, Cajuste, Olivera M. — e **il dato
+c'era per tutti e cinque**: `transfers_history` porta Cheddira → US Avellino e Cioffi → Latina, e il payload
+del Napoli è stato riletto ogni giorno fino al 07/09 senza nessuno dei cinque. `SHEET_REVISION` 55,
+`engine_*` fermo (nessun percorso del gate è toccato: qui si decide quali RIGHE porta il foglio, non cosa
+vale un uomo).
+
+**TRE difetti, tutti nella lettura.**
+
+1. **`still_buyable` guardava il CLUB dell'ultimo avvistamento e mai la sua DATA.** L'avvistamento è
+   l'ULTIMO che la fonte ha, quindi «Napoli, 25/08» era letto come prova di presenza contro una lettura del
+   07/09 che non lo trovava — *la stessa lettura, guardata prima*. Ora un avvistamento più vecchio della
+   lettura che non lo trova non vale, **ma solo per il club della riga**: visto in un ALTRO club della
+   piattaforma resta comprabile a qualunque data, che è il caso misurato il 17/08 (Molina alla Roma, Bruno
+   Guimarães all'Arsenal, 8 dei 20 tolti allora). La funzione è stata **estratta a livello di modulo**
+   perché una regola deve essere chiamabile da un banco.
+
+2. **Il cancello di completezza era CIRCOLARE.** `complete_squads` chiedeva che il payload coprisse il 90%
+   degli uomini che il FOGLIO mette in quel club: un denominatore gonfiato proprio dai partiti che il
+   segnale deve togliere. Sul Napoli 26 iscritti contro 31 righe = 0,84, cancello mancato, **e i cinque
+   della differenza erano esattamente i cinque assenti**. Sei club su venti erano spenti così, e sono
+   tutti e sei quelli con più di due partiti — cioè il segnale si spegneva dove serve. Il riferimento è ora
+   la **mediana delle ultime cinque letture DELLO STESSO club** (`SQUAD_TRAIL_READS`) più un **pavimento
+   assoluto** (`SQUAD_FLOOR` = 16): due condizioni per due domande diverse, una vede una lettura troncata e
+   l'altra un publisher cronicamente magro — il caso West Ham, che una mediana su se stesso non può vedere.
+   Misurato: dei 47 club nel perimetro dei due fogli la mediana delle ultime dieci letture va da 18,5 a 33 e
+   nessuno sta sotto 18; fuori perimetro 35 club su 42 stanno sotto (mediana 1-9).
+
+3. **Il segnale FORTE era muto per una terza ragione**, e va scritta perché non è curabile qui:
+   `left_his_club` salta il trasferimento se l'uomo ha anche una riga di ARRIVO in quel club, e le due righe
+   di Cheddira (Lecce → Napoli e Napoli → Avellino) portano **entrambe la data del 1º luglio**, quindi la
+   coppia non è ordinabile. È il limite già a verbale per cui la PK dei trasferimenti fu allargata: chi
+   arriva e riparte nella stessa finestra è invisibile al segnale che nomina la destinazione. Per questo la
+   rosa viva è l'unica fonte che possa vederlo, e per questo la sua data conta.
+
+**QUANTE LETTURE SERVONO: DUE, e la curva è misurata sulle nostre stesse letture** (20 date su 89 club,
+1068 payload) — nessuna corroborazione esterna serve, perché è il segnale che smentisce se stesso: se un
+uomo manca dalla lettura di oggi e ricompare in una successiva, quell'assenza era rumore.
+
+| assente da | casi | è tornato | assenza vera |
+|---|---|---|---|
+| 1 lettura piena | 387 | 4,9% | 95,1% |
+| **2 letture piene** | **378** | **3,4%** | **96,6%** |
+| 3 letture piene | 343 | 1,5% | 98,5% |
+| 4+ | 1218 | 0,8% | 99,2% |
+
+`ABSENT_READS` = 2: il prezzo è tipicamente **un giorno** (le letture sono quotidiane; il buco peggiore in
+questa storia è una settimana) e la scelta di stare sulla precisione è quella del 17/08 e non cambia — una
+partenza falsa nasconde un uomo che c'è, una mancata lascia in piedi la pretesa del listone.
+
+**UNA PRESENZA NON LA DISTRUGGE LA SOTTIGLIEZZA.** `ids` è l'unione delle ultime due letture piene **più
+ogni lettura più fresca**, sottile o no: senza quella metà la regola toglieva Olivera, Kean, Rowe e Beto —
+uomini che stanno nel payload di oggi, la cui lettura del giorno era appena sotto il cancello. E la terza
+guardia (`ever`) protegge chi la fonte non ha MAI visto in quel club: Kim è quotato su euro e non compare in
+nessun payload del Bayern, quindi non è partito, non è mai arrivato lì — «vuoto = ignoto» dal lato per cui
+la guardia esiste.
+
+**EFFETTO MISURATO CON UNA VARIABILE SOLA** (stesso DB, stessa data, stessa lega, un worktree su HEAD
+contro l'albero curato): le rimozioni da rosa viva passano da **11 a 58** sul foglio Serie A — 601 righe
+contro 562 — e sono **60 su euro**. Di quelle nuove **zero sono quotate su default** e 2 su euro
+(Martinelli, corroborato da un trasferimento all'Al-Hilal che il listone non ha ancora marcato, e
+Ndjantou, che ha la sola assenza). Quasi tutti sono uomini che l'app già non mostrava nelle liste da
+comprare (`strategy.ts` filtra i non quotati), quindi **il valore non è il conteggio di oggi: è che da oggi
+la riga se ne va il giorno dopo la seconda lettura** — che è esattamente quello che la richiesta chiedeva.
+
+**E «`engine_*` fermo» È VERIFICATO invece che dedotto**, perché una lettura del codice non è una misura:
+su tutte le **562 righe in comune** e tutte e **9 le colonne `engine_*`**, la corsa su HEAD e quella curata
+sono IDENTICHE, e lo stesso vale fra la corsa che toglie le righe e quella con `--keep-departed`. Quello
+che le rimozioni muovono, ed è per costruzione, va detto: `desc_spm` (280 righe) e `desc_dvm` (267), perché
+il tasso di conversione in crediti è fittato sui `teams × slots` uomini che il mercato compra e quel pool è
+cambiato — «la popolazione è parte della misura» — più `desc_minutes_next` (86) e `desc_titolarita` (12),
+che leggono statistiche di popolazione e la board.
+
+**Un numero che si è mosso e NON è di questa cura, detto perché l'ho sospettata io per primo.** Fra il
+foglio delle 18:52 e quello delle 19:48 Olivera passa da 21,5 a 20,0 e Di Lorenzo da 25,8 a 25,6, mentre
+Hojlund e McTominay non si muovono: **la corsa su HEAD dà gli stessi 20,0 e 25,6**, quindi la deriva è del
+DATO e non del codice. `snapshot` SCRIVE (il passo dei ruoli riscarica le rose: è per questo che tiene il
+lock), e fra le due corse le dodici corse di `timepack` dell'altra sessione hanno ri-derivato le rose una
+dozzina di volte. Il payload del Napoli è identico (26 iscritti prima e dopo), quindi il pezzo che si è
+mosso è altrove nella popolazione osservata e **resta da attribuire**: due corse dello stesso codice sullo
+stesso giorno che danno due numeri sono una domanda aperta, non un dettaglio.
+
+**Tre cure scritte e BOCCIATE dalla misura prima di spedire**, e stanno nei commenti perché nessuno le
+riprovi: togliere gli assenti dal denominatore (**sempre vera per aritmetica** — `ids ≥ 0,9 × presenti` è
+un'identità, quindi il cancello diventa un ornamento e torna il difetto West Ham); giudicare l'appartenenza
+solo sulle letture piene (toglieva quattro uomini presenti oggi); e la mediana su TUTTA la storia, che
+dichiara sottile la lettura più fresca perché un payload di luglio ha 33 uomini e uno di settembre 26.
+
+**E un errore di misura mio, il più istruttivo della sessione.** Ho segnalato come implausibile l'uscita di
+Caicedo e Joao Pedro dal Chelsea usando conoscenza del mondo reale su una stagione che questo dataset ha già
+giocato. La misura ha risposto: dei 133 uomini presenti il 01/09 e assenti il 07/09, **il 6% ha uno spell di
+infortunio aperto e il 79% ha un trasferimento datato in questa finestra** — il crollo dei payload dopo la
+deadline è la pulizia post-mercato, non una lista di indisponibili. *Un'ipotesi sul mondo non batte un
+conteggio sul dato, nemmeno quando il mondo lo si conosce.*
+
 ## Novità v9.85 (7 settembre 2026, sera tardi — i MINUTI del ritiro, e la regola della stampa cancellata)
 
 Due correzioni nate da tre osservazioni dell'operatore sullo schermo. Dettaglio e tabelle:

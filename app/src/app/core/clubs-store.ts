@@ -187,8 +187,16 @@ export class ClubsStore {
     const club = this.club();
     if (!club) return [];
     const platform = this.platform();
+    // ...E CHI IL LISTONE DA' PER CEDUTO NON E' PIU' IN QUELLA ROSA (operatore, 07/09/2026: «perche' nel
+    // Napoli c'e' ancora Lukaku?»). L'asterisco accanto al nome e' la piattaforma che dichiara che quel
+    // calciatore non gioca piu' qui, ed e' il piu' forte dei tre segnali di partenza: i fogli del motore
+    // quelle righe non le portano piu' affatto (`snapshot`, 03/09), ma questa lista si costruisce dalle
+    // QUOTAZIONI, dove il ceduto conserva prezzo e club fino alla prossima lettura del listone.
+    // La domanda di questa vista e' «chi c'e' in questa rosa», quindi lui non c'e'. La tabella dei
+    // Calciatori resta un'altra domanda - «chi il listone quota» - e la' la riga si MOSTRA col suo
+    // marchio, perche' la sua storia con quel club e' un fatto e cancellarla sarebbe l'errore opposto.
     const men = (this.valuation.rosters().get(platform) ?? []).filter(
-      (player) => player.club === club,
+      (player) => player.club === club && !player.sold,
     );
     return this.valuation.valuations(platform, men);
   });

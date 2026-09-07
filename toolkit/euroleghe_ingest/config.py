@@ -166,6 +166,20 @@ class Config:
     # `config/` and no engine path reads it. Optional, like the rulings.
     player_notes_path: Path = field(
         default_factory=lambda: REPO_ROOT / "config" / "player_notes.json")
+    # ...E LE SUE DRITTE SU CHI GIOCA, che sono la stessa cosa un piano piu' in la' (richiesta
+    # dell'operatore, 07/09/2026: «servirebbe qualche parte dove ti posso dare delle dritte che esulano
+    # dalle statistiche... io ho delle conoscenze che i dati non hanno»). Tre valori e ognuno ha un
+    # effetto PRECISO sul campetto, perche' una dichiarazione vaga non si puo' ne' applicare ne' smentire:
+    #   `starter`      -> entra nell'undici tipo, se lo schema ha un posto che i suoi codici coprono
+    #   `alternative`  -> compare fra i rivali di una maglia che puo' indossare (il caso Estupinan)
+    #   `reserve`      -> non entra nell'undici, e resta comunque disegnabile come alternativa
+    # E' un VINCOLO e mai un peso, come le tre regole dichiarate della pagina delle buste: spostargli il
+    # claim riordinerebbe in silenzio tutto il resto, e nessuno saprebbe piu' quale numero e' misurato.
+    # Precedenza massima sul disegno e su nient'altro: nessun percorso gatato lo legge, e i due giudici
+    # (`press`, `outcome`) lo ignorano per la stessa ragione dei board rulings - una dritta si da'
+    # spesso GUARDANDO il giudice, e un giudice non puo' correggere i compiti di chi lo scrive.
+    player_rulings_path: Path = field(
+        default_factory=lambda: REPO_ROOT / "config" / "player_rulings.json")
     # The continental cups played INSIDE a league season (today: the Asian Cup; the Africa Cup when it
     # is a January tournament, which from 2027 it is not) and which countries belong to which
     # confederation. Declared for the same reason the two module files are: it is a published calendar
