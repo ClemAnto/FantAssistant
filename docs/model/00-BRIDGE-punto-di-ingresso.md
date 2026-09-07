@@ -1,5 +1,87 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 7 settembre 2026, sera — L'ANCORA DI CHI NON HA GIOCATO QUI LEGGE L'ELO, E LA PRUDENZA
+**Aggiornato: 7 settembre 2026, sera tardi — LE PARTITE DI QUEST'ANNO ARRIVANO DOVE NON ARRIVAVANO, E
+LA STAMPA NON SCEGLIE PIÙ I RIVALI.** Dalla richiesta dell'operatore «vorrei che le partite della stagione
+corrente influenzino maggiormente le valutazioni dei calciatori» e da **cinque nomi**, poi da altre tre sue
+osservazioni sullo schermo. Il PESO — la cosa che la richiesta nomina — è l'unica causa già misurata e non
+è stata toccata: `season_prior_rounds` = 5 era stata rimisurata il 05/09 su questa stessa quantità (ottimo
+interno, e la percentuale fissa 50/50 che lui aveva proposto costa **+4,7%**). Tutto il resto sono errori
+di **UNITÀ**, e i cinque nomi non avevano una causa sola.
+(a) **`est_pv` NON LEGGEVA LE GIORNATE GIOCATE** (`SHEET_REVISION` 51). Varela, 2 partite su 2 da titolare
+e 2 gol, leggeva **10,2 giornate su 36** con una nota che diceva «nothing measured anywhere»: 139 righe su
+601 stavano su un gradino di ripiego E avevano giocato, con scarto mediano **0,119** dalla quota della
+scala. Misurato fuori campione col null che la cascata usa DAVVERO, popolazione spaccata per gradino —
+`anchor` **+15,4%** (n=2272, 11/11 stagioni) · `shrunk` +10,7% · `abroad` +9,9% su default; +15,1/+16,9/
++20,9% su euro. Sei celle su sei, ogni stagione positiva, ottimo interno, **K=0 negativo**. Zero costanti
+nuove (la K la legge da `presence.DEFAULTS`, e un test lo asserisce). La guardia è «il motore non ha una
+previsione di presenze» e non «non è il core»: `pv_pred` porta già R20, e **111 righe su 325** sarebbero
+state contate due volte — Meret fra loro.
+(b) **LE GIORNATE SALTATE SI SOTTRAEVANO DA UN DENOMINATORE CHE NON ERA IL LORO** (rev 52). Dal caso
+Berardi, e la sua frase era la specifica: 26 giornate a voto su 38 saltandone **DIECI**, quota
+condizionale 26/28 = **0,929** contro lo 0,684 che entrava nel prior. Su una pre-stagione era giusta: la
+miscela del 04/09 aveva **rotto** una condizionalità che funzionava (terza istanza di «il denominatore
+segue il suo NUMERATORE»). `SeasonWindow.missed` la pesa con gli stessi pesi del denominatore, e il prior
+si riscala a K giornate di calcio **CONTENDIBILE** con un tappo a 1,0 — la prima versione, trovata dalla
+MISURA e non dalla rilettura, faceva leggere **1,000 a Pieragnolo** (33 giornate perse su 38).
+(c) **I MINUTI DEL RITIRO AL TASSO PER PRESENZA** (rev 53), da «perché Meret ha minuti attesi 80 e
+contemporaneamente Milinkovic-S. ha 79? È un paradosso!». Il paradosso non c'era — sono minuti QUANDO
+GIOCA — ma il numero era sbagliato: le misure sono **89,1′** e **90,0′**. Il ritiro imputava al tasso per
+GIORNATA, cioè affermava «ha cominciato quattro amichevoli, **39,6 minuti** ciascuna». Sui 22 portieri con
+≥3 presenze: **11 sotto la misura e ZERO sopra** (Pessina 35 contro 88, Motta 58 contro 90).
+(d) **LA REGOLA «CHI LA STAMPA NOMINA VIENE PRIMA» È CANCELLATA** (rev 54, sua decisione). `duels` chiama
+ballottaggio due probabilità COMPARABILI, e 0,05 contro 0,01 lo sono — due portieri che non giocheranno
+nessuno dei due — quindi al Napoli il filtro teneva Contini e lasciava fuori **Meret, che gli stessi
+probabili danno a 1,00**. Tolta nei DUE punti di selezione (`eleven` e `_declared`): era la stessa regola.
+**80 maglie su 220** cambiano lista, 102 nomi aggiunti e 28 togliuti (il Como passa da `[Vigorito]` a
+**`[Butez, Audero]`**); la stampa resta A SCHERMO come fatto dichiarato.
+(e) **E LA SUA SECONDA OBIEZIONE HA RIDIMENSIONATO UN MIO NUMERO.** Il 10/18 sui portieri citato la
+mattina è **UNA cella di quattro**: riallargata a cinque campionati e **294 casi**, «due partite da 90′»
+vale **0,770** del resto di stagione contro un null di **0,129** (sei volte), e la sua verifica passata
+esisteva davvero (`starter_signs`, portieri 81,9% contro 22,3%). Dentro la cella debole il discriminante
+non è l'allenatore nuovo ma **se l'uscente era DISPONIBILE** (infortunato 0,230 · sano e non schierato
+**0,610**), e il caso vivo sta nella cella buona. La conferma migliore non l'avevo cercata: il punto (b)
+dà a Meret **0,638** e la sua cella ne realizza 0,610. Più la terza obiezione, misurata: un ripiego per
+infortunio tiene la maglia fino al rientro — **n=78**, da 0,891 dentro lo stop a **0,276** dopo (in calo
+in 73 casi su 78), il rientrante riprende 0,664 al ≥70% nel 63% — **popolazione viva oggi ZERO**, quindi
+in todolist da PRE-REGISTRARE e non spedita.
+**GIUDICE ESTERNO** (`press --against press`, stessa data, solo il codice cambiato): uomini **151 → 153
+su 220** contro un null di 104. E la cosa più utile l'ha detta PRIMA delle correzioni — sul foglio vecchio
+la stampa metteva Meret e Berardi fra i suoi e non metteva Castro, cioè era d'accordo con l'operatore su
+tre dei cinque nomi. **Prezzo attribuito con un esperimento a una variabile**: la rev 52 leggeva 155, il
+punto (c) porta a 153, e con `friendly_rounds` = 0 si torna a **155** — quindi la correzione dei minuti non
+costa niente e i due uomini li costa il fatto che quella finestra ora **pesa di più**. E +2 dei +4 della
+rev 52 stanno sul Sassuolo, dove le odds leggono 3-5-2 **0,432** contro 4-3-3 **0,427** e i due produttori
+di campetti cadono su lati opposti (19 club su 20 concordano): quella forma è un `board_rulings.json`, non
+una misura.
+**Verifica**: `backtest --verify` **22/22**, **746 test** toolkit, `SHEET_REVISION` **54**, e il DB e il
+bundle sono AGGIORNATI — `update --daily` (7/7: ruoli granulari, Elo, calendario, probabili) più
+`update --offline --from packs`, quindi i tre fogli, i **quattro pacchetti** (erano alla 48) e la copia
+dell'app sono tutti alla 54. `engine_*` fermo: `evaluate` non importa né `presence` né `estimate`, la
+sweep non nomina mai `SeasonWindow`, e tutte le correzioni sono inerti a zero giornate giocate.
+Commit **`eaefb45`** pushato. Nessuna pubblicazione sul web: `deploy-pages.mjs` non è stato lanciato.
+**APERTO, e sono quattro cose dette e non nascoste**: `friendly_rounds` = 1,0 è DICHIARATO dall'operatore
+e dichiarato sotto la vecchia imputazione, quindi da **rimisurare** e non da girare per recuperare due
+uomini su una lettura sola; la forma del Sassuolo è un suo ruling; il canale del ripiego è da
+pre-registrare; e resta un'oddità **latente** — due uomini a 0,05 e 0,01 sono «in ballottaggio» per la
+definizione di `duels`, oggi inerte perché il titolare vero cade sul claim, e la forma giusta esiste già
+in casa (`ownsShirt` delle buste: due pretendenti di cui **uno che la board schiera**).
+**QUATTRO ERRORI DI MISURA MIEI, a verbale perché sono il modo in cui si sbaglia**: `MAX(real_md)` su
+tutte le competizioni non è il calendario di una (ho aperto dicendo che la 3ª giornata era giocata: era
+la_liga); il primo null era troppo debole (+33,8% invece di +15,1%); **una stima non è la funzione** (la
+mia ricostruzione dava 1,000 a Pieragnolo dove la funzione dà 0,500); e una suite lanciata su un albero
+che si sta modificando non è una suite. Più tre regole di metodo nate qui: **una popolazione piccola si
+allarga, non si spacca** (18 → 294 casi); **due popolazioni che escono identiche sono lo strumento che
+dice dove sta il vincolo** (togliere il filtro sul ripiego non allargava niente: il collo di bottiglia era
+l'infortunio); e **quando due neutralità non possono valere insieme si scelgono in chiaro** (il ritiro non
+può essere neutro sui minuti per giornata E per presenza, se la quota di presenze si muove).
+**DUE SESSIONI SU UN ALBERO, e stavolta senza metà da separare**: `1c6da62` è atterrato alle 15:49 mentre
+lavoravo e porta solo tre documenti loro, quindi la modifica a `CLAUDE.md` sta SOPRA la loro — misurato, 0
+righe loro nel mio diff (+39/−12). Il banco rosso che il loro commit nominava onestamente
+(`test_blend_missed_rounds.py`, mio e in corso) ora è verde. **E all'ora di questa chiusura l'altra
+sessione ha lavoro NON committato in albero** (`cli.py`, `snapshot.py`, `CLAUDE.md`, la spec e
+`test_snapshot.py`: il segnale della rosa live, «di un'assenza da due letture piene il 3,4% si
+rimangia»), quindi questa chiusura porta **solo i due documenti di chiusura** e le regole di metodo sono
+finite qui invece che in `CLAUDE.md` — non si opera su un file che due mani stanno scrivendo.
+· **Aggiornato: 7 settembre 2026, sera — L'ANCORA DI CHI NON HA GIOCATO QUI LEGGE L'ELO, E LA PRUDENZA
 SI MISURA.** Dalla richiesta dell'operatore di trasformare la sua esperienza in parametri, su due nomi
 (Ramos G. al Milan, Diao al Como) e un meccanismo suo: «le performance dipendono molto dalla squadra,
 quindi quando non abbiamo dati sul calciatore dalla stagione precedente in serie-a dovremmo orientarci
