@@ -16,9 +16,12 @@
        LA `z` HA DUE LIVELLI e non uno: le card in fila stanno sull'ordine di apertura, e quella
        TOCCATA per ultima passa davanti a tutte. Il bordo la nomina, perché una card davanti senza un
        segno è indistinguibile da una che si è mossa da sola. -->
+  <!-- ...e `data-player` dice CHI è questa card, per il banco: senza un'identità nel DOM un passo può
+       solo confrontare un NOME, e due Sanchez in un listone fanno attribuire i numeri di uno all'altro. -->
   <div
     #shell
     cdkDrag
+    [attr.data-player]="man.id"
     class="fixed flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
     [class.ring-1]="front()"
     [class.ring-primary]="front()"
@@ -35,7 +38,13 @@
       class="flex cursor-move items-center gap-2 rounded-t-lg border-b border-border bg-control/40 px-2 py-1.5"
     >
       <span class="min-w-0 flex-1">
-        <span class="block truncate text-sm font-semibold text-fg">{{ man.name }}</span>
+        <!-- IL PALLINO STA FUORI DAL NOME e non dentro: `truncate` è overflow-hidden, quindi su un nome
+             lungo il marchio sarebbe tagliato via - cioè invisibile esattamente sui nomi più lunghi, che
+             non è una regola che qualcuno vorrebbe. È il nome a cedere (`min-w-0`), mai il marchio. -->
+        <span class="flex min-w-0 items-center">
+          <span class="min-w-0 truncate text-sm font-semibold text-fg">{{ man.name }}</span>
+          <ui-ruling-dot [playerId]="man.id" />
+        </span>
         <span class="block truncate text-[11px] text-muted">{{ man.club }} · {{ man.where }}</span>
       </span>
       <ui-flags [playerId]="man.id" [max]="3" />
@@ -118,6 +127,18 @@
       <!-- LE STATISTICHE ESSENZIALI, e ognuna dice DI QUANDO è: la previsione e la misura non si
            mescolano in una riga. -->
       <dl class="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px]">
+        <!-- LO SWING (operatore, 07/09/2026), e NON è il numero grande qui sopra: quello è quanto rende
+             una partita CHE GIOCA, questo quanto rende una GIORNATA del calendario - dentro c'è quante
+             ne gioca, lo zero del suo ruolo ribasato al sei e la costanza. Due etichette e due righe,
+             perché un uomo con la fantamedia di un titolare e le presenze di un riserva ha il primo
+             alto e il secondo basso, ed è esattamente l'informazione. -->
+        <dt class="text-muted">
+          <span nz-tooltip nzTooltipTitle="punti sopra il {{ swingBase() }} a giornata">SWING</span>
+        </dt>
+        <dd class="text-right tabular-nums font-semibold text-fg">
+          {{ man.swing == null ? '—' : (man.swing > 0 ? '+' : '') + (man.swing | number: '1.2-2') }}
+        </dd>
+
         <dt class="text-muted">FVM</dt>
         <dd class="text-right tabular-nums text-fg">
           {{ man.fvm == null ? '—' : (man.fvm | number: '1.0-0') }}
@@ -136,8 +157,28 @@
           }
         </dd>
 
+        <!-- LA TITOLARITA' SI PUO' DICHIARARE (operatore, 07/09/2026): il click apre le sei parole
+             della scala, e la scelta muove le presenze attese, il surplus, lo SWING e il campetto.
+             La riga dice CHI l'ha detto con l'inchiostro - una parola dichiarata e una misurata non
+             possono leggersi uguali - e il tooltip resta quello del gradino, con l'ultima frase che
+             cambia. -->
         <dt class="text-muted">titolarità</dt>
-        <dd class="text-right text-fg">{{ man.titolarita ?? '—' }}</dd>
+        <dd class="text-right">
+          <button
+            type="button"
+            class="rounded px-1 text-fg hover:bg-control/60"
+            [class.text-primary]="ruling()"
+            nz-tooltip
+            [nzTooltipTitle]="rungNote()"
+            (click)="pick()"
+          >
+            {{ rung() ?? '—' }}
+            @if (ruling()) {
+              <span class="text-[9px] uppercase text-primary">tua</span>
+            }
+            <nz-icon class="text-[9px] text-muted" nzType="down" nzTheme="outline" />
+          </button>
+        </dd>
 
         <dt class="text-muted">minuti attesi</dt>
         <dd class="text-right tabular-nums text-fg">
@@ -161,6 +202,59 @@
           <dd class="text-right text-warning">{{ man.unpricedReason }}</dd>
         }
       </dl>
+
+      <!-- IL SELETTORE DELLE SEI PAROLE, dentro la card e non in un overlay: una card e' `fixed` e si
+           trascina, e un pannello appoggiato sopra le si stacca al primo trascinamento.
+
+           OGNI PAROLA PORTA LE GIORNATE CHE COMPORTA su questo calendario, misurate sulla popolazione
+           del foglio: la scala NON e' ordinata sulla quota - `titolarissimo` e' il gradino residuo fra
+           `bandiera` e `titolare` - quindi il numero e' l'unico modo di scegliere sapendo cosa si sta
+           dichiarando. Un gradino che il foglio non popola non ha un numero, e allora dichiararlo
+           muove il campetto e non i numeri: la riga lo dice con un trattino. -->
+      @if (picking()) {
+        <div class="flex flex-col gap-1 rounded border border-border bg-page/60 p-1">
+          <p class="text-[10px] leading-tight text-muted">
+            La tua indicazione: batte il foglio e riprezza le partite attese, il surplus e lo SWING.
+          </p>
+          @for (choice of choices(); track choice.rung) {
+            <button
+              type="button"
+              class="flex items-baseline gap-1.5 rounded px-1 py-0.5 text-left text-[11px]
+                     hover:bg-control/60"
+              [class.bg-primary]="choice.chosen"
+              [class.text-on-primary]="choice.chosen"
+              (click)="declare(choice.rung)"
+            >
+              <b class="w-8 shrink-0 tabular-nums">{{ choice.short }}</b>
+              <span class="min-w-0 flex-1 truncate">{{ choice.rung }}</span>
+              <!-- I DUE NUMERI DEL GRADINO, che sono i due assi su cui la parola è assegnata: le
+                   giornate e i minuti quando gioca. UN DECIMALE sulle giornate e non è pignoleria - in
+                   cima alla scala i gradini distano frazioni di giornata (34,5 contro 34,2), quindi
+                   l'intero stampa «34 gg» su tutt'e due e nasconde la differenza che l'ordine
+                   dichiara; i minuti sono interi perché lì lo scarto è di nove (80 contro 71). -->
+              <span class="shrink-0 tabular-nums">
+                @if (choice.rounds == null) {
+                  —
+                } @else {
+                  {{ choice.rounds | number: '1.1-1' }}<span class="text-[9px]"> gg</span>
+                }
+                @if (choice.minutes != null) {
+                  <span class="text-muted"> · {{ choice.minutes | number: '1.0-0' }}′</span>
+                }
+              </span>
+            </button>
+          }
+          @if (ruling()) {
+            <button
+              type="button"
+              class="rounded px-1 py-0.5 text-left text-[11px] text-muted hover:bg-control/60"
+              (click)="clearRuling()"
+            >
+              torna al gradino del foglio
+            </button>
+          }
+        </div>
+      }
       }
 
       <!-- LE ULTIME CINQUE PARTITE DELLA SUA SQUADRA (operatore, 05/09/2026).

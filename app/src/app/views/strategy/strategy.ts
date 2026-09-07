@@ -65,6 +65,9 @@ import { GainChip } from '../../ui/gain-chip/gain-chip';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { PlayerRulings } from '../../core/player-rulings';
+import { TITOLARITA_SHORT, isTitolarita } from '../../core/titolarita';
+import { RulingDot } from '../../ui/ruling-dot/ruling-dot';
 
 /**
  * IL REGOLAMENTO NON È PIÙ DI QUESTA PAGINA: sta in `core/global-options.ts` e vale per ogni vista.
@@ -172,6 +175,7 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     PlayerCard,
     PlayerFlags,
     RoleBadge,
+    RulingDot,
   ],
   templateUrl: './strategy.html',
   host: { class: 'view-host' },
@@ -188,6 +192,8 @@ export class Strategy {
    * appena il listone è in casa - e finché non arrivano la pastiglia porta le sole presenze.
    */
   private readonly ratings = inject(PlayerRatingsStore);
+  /** Le dritte dichiarate: la parola della titolarita' che una riga mostra e' la tua, se ce n'e' una. */
+  private readonly rulings = inject(PlayerRulings);
   /** Il regolamento della lega e le squadre escluse: dichiarati una volta, validi in ogni vista. */
   private readonly options = inject(GlobalOptions);
   /** Il conto delle giornate che giochera' davvero: lo stesso della plancia, non una copia. */
@@ -479,6 +485,14 @@ export class Strategy {
    * detection. Un trattino e non uno zero dove il numero non c'è, che è la regola di casa sui vuoti.
    */
   protected text(spec: ReadingSpec, readings: ManReadings): string {
+    // LE PAROLE PER PRIME, e non passano da `DecimalPipe`: un formato numerico su una stringa stampa
+    // `NaN`, che e' il modo in cui una pastiglia nuova finisce a schermo sbagliata invece che vuota.
+    // La sigla e' quella della tabella (`TITOLARITA_SHORT`): due vocabolari per un gradino sarebbero
+    // due legende da imparare.
+    if (spec.word) {
+      const rung = readings.titolarita;
+      return isTitolarita(rung) ? TITOLARITA_SHORT[rung] : '—';
+    }
     // LE COPPIE PER PRIME, perche' per loro `readingValue` risponde `null` per costruzione: leggerlo
     // e basta stamperebbe un trattino su un uomo che ha segnato dodici gol.
     if (spec.pair) {
@@ -728,9 +742,9 @@ export class Strategy {
       // riprezza il surplus e il valore perche' tutt'e due moltiplicano le presenze - non e' un
       // secondo motore, e' il numero del foglio con meno giornate sotto.
       const outlook = this.play.outlook(
-        { id: player.fcId, club: player.club },
+        { id: player.fcId, club: player.club, platform },
         { pv: one?.pv ?? null, pvIsEstimate: one?.pvIsEstimate ?? false,
-          playShare: one?.titolaritaPlay ?? null },
+          playShare: one?.titolaritaPlay ?? null, titolarita: one?.titolarita ?? null },
         matchdays,
       );
       // IL +1 A PORTA INVIOLATA (solo portieri, opzione di lega): P(porta inviolata) del suo club sul
@@ -796,6 +810,10 @@ export class Strategy {
           // LO SWING: lo stesso surplus della riga, nell'unita' con cui la lega assegna i punti.
         // Una conversione e non una seconda valutazione - vedi `core/swing.ts` per i due termini che
         // un giudice fuori campione ha tolto il 06/09/2026.
+        // LA TITOLARITA' IN UNA PAROLA, con la precedenza di sempre: la tua dritta batte il gradino
+        // del foglio. Risolta qui perche' e' qui che si sa chi ha dichiarato cosa - `readingsOf` e'
+        // pura - e cosi' la pastiglia, la card e il campetto dicono la stessa parola.
+        titolarita: this.rulings.rungOf(player.fcId) ?? one?.titolarita ?? null,
         swing: swingOf({
           role: player.role,
           surplus: one?.surplus == null ? null : one.surplus * outlook.factor,
@@ -1088,16 +1106,22 @@ function cardManOf(
     club: man.club,
     clubId: man.clubId,
     where: game === 'mantra' && man.mantraCodes.length ? man.mantraCodes.join('/') : man.role,
+    role: man.role,
     platform,
     // Le stesse letture della riga, dalla stessa funzione: cosi' la card non puo' dire un numero e la
     // riga un altro sullo stesso uomo.
     edge: readingsOf(man).edge,
     pv: man.pv,
     rounds,
+    // ...e lo SWING, che questa lista ha gia' in mano: una delle sue dodici letture. `?? null` perche'
+    // sul bidder e' opzionale - un uomo che il foglio non prezza non ne ha uno, e la card lo legge
+    // come ignoto invece che come zero.
+    swing: man.swing ?? null,
     fm: man.fm,
     estimated: engine?.fmIsEstimate ?? false,
     estNote: engine?.note ?? null,
     titolarita: engine?.titolarita ?? null,
+    titolaritaPlay: engine?.titolaritaPlay ?? null,
     minutesNext: engine?.minutesNext ?? null,
     seasonMatches: engine?.seasonMatches ?? null,
     minutesFullSeason: engine?.minutesFullSeason ?? null,

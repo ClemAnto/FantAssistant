@@ -1,7 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Board } from './bundle';
+import { PlayerRulings } from './player-rulings';
 import { Platform, abbreviate, competitionLabel, nameWords } from './players-store';
+import { Titolarita } from './titolarita';
 import { SquadMan, ValuationStore } from './valuation-store';
 
 /**
@@ -106,6 +108,8 @@ export function shortNames(names: readonly string[]): Map<string, string> {
 @Injectable({ providedIn: 'root' })
 export class ClubsStore {
   private readonly valuation = inject(ValuationStore);
+  /** Le dritte dichiarate: il campetto le applica al disegno, i numeri le hanno gia' dentro. */
+  private readonly rulingsOf = inject(PlayerRulings);
 
   /* The bundle's own state, read from the one store that loads it: two copies of «sto caricando» would
    * eventually disagree, and the view would show a table under a spinner or the other way round. */
@@ -231,6 +235,24 @@ export class ClubsStore {
   readonly overalls = computed<ReadonlyMap<number, number | null>>(() => {
     const out = new Map<number, number | null>();
     for (const man of this.squad()) out.set(man.fcId, man.rating?.overall.score ?? null);
+    return out;
+  });
+
+  /**
+   * LE DRITTE DELL'OPERATORE sugli uomini di QUESTA rosa, per il campetto.
+   *
+   * Ritagliate sulla rosa e non sul listone intero, perche' il campetto se ne serve anche per dire
+   * quante dichiarazioni NON ha potuto disegnare: la stessa mappa su tutto il listone farebbe contare
+   * come «non disegnabili» gli uomini di altri diciannove club.
+   */
+  readonly rulings = computed<ReadonlyMap<number, Titolarita>>(() => {
+    const declared = this.rulingsOf.all();
+    const out = new Map<number, Titolarita>();
+    if (!declared.size) return out;
+    for (const man of this.squad()) {
+      const one = declared.get(man.fcId);
+      if (one) out.set(man.fcId, one.rung);
+    }
     return out;
   });
 

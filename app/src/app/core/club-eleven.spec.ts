@@ -2,6 +2,7 @@ import { Board, BoardMan } from './bundle';
 import {
   BOARD_ENGINE_GAP,
   OnTable,
+  PitchMan,
   disagreementHint,
   disagreementOf,
   lineCounts,
@@ -343,5 +344,108 @@ describe('pitchOf', () => {
     expect(pitchOf({ error: 'boom' } as Board, () => free)).toBeNull();
     expect(pitchOf(board('quattro-tre-tre', { P: [man('Portiere', 0.5)] }), () => free)).toBeNull();
     expect(pitchOf(null, () => free)).toBeNull();
+  });
+});
+
+describe('pitchOf e le dritte dichiarate', () => {
+  /** Una board con un posto e un ballottaggio: il minimo in cui uno scambio ha senso. */
+  const oneDuel = (starterClaim = 0.8, rivalClaim = 0.4): Board => board('4-3-3', {
+    D: [man('Titolare', 0.5, {
+      claim: starterClaim,
+      duels: [man('Rivale', 0.5, { claim: rivalClaim })],
+    })],
+  });
+
+  const drawnNames = (pitch: NonNullable<ReturnType<typeof pitchOf>>): string[] =>
+    pitch.rows.flatMap((row) => row.men.map((one) => one.name));
+
+  /** Il posto della difesa: `rows[0]` e' la PORTA, che su queste board di prova e' vuota. */
+  const defence = (pitch: NonNullable<ReturnType<typeof pitchOf>>): PitchMan =>
+    pitch.rows.find((row) => row.line === 'D')!.men[0];
+
+  it('senza dritte il disegno è quello del toolkit, riga per riga', () => {
+    const plain = pitchOf(oneDuel(), () => free)!;
+    const asked = pitchOf(oneDuel(), () => free, null, () => null)!;
+    expect(drawnNames(asked)).toEqual(drawnNames(plain));
+    expect(defence(asked).duels.map((one) => one.name)).toEqual(['Rivale']);
+  });
+
+  it('un `titolare` DICHIARATO prende la maglia del posto in cui il toolkit lo mette in discussione', () => {
+    const pitch = pitchOf(oneDuel(), () => free, null,
+      (fcId) => (fcId === 'Rivale'.length ? 'titolare' : null))!;
+    const place = pitch.rows.find((row) => row.line === 'D')!.men[0];
+    expect(place.name).toBe('Rivale');
+    expect(place.ruled).toBe('titolare');
+    // ...e chi esce non sparisce: diventa il ballottaggio di quel posto, che e' quello che e'.
+    expect(place.duels.map((one) => one.name)).toEqual(['Titolare']);
+  });
+
+  it('un `panchina` DICHIARATO lascia la maglia al ricambio disegnato', () => {
+    const pitch = pitchOf(oneDuel(), () => free, null,
+      (fcId) => (fcId === 'Titolare'.length ? 'panchina' : null))!;
+    const place = pitch.rows.find((row) => row.line === 'D')!.men[0];
+    expect(place.name).toBe('Rivale');
+    expect(place.duels.map((one) => one.name)).toEqual(['Titolare']);
+    // Le lamentele sulle linee vuote di questa board di prova ci sono e non c'entrano: quello che
+    // conta e' che uno scambio riuscito non si lamenti di un ricambio che manca.
+    expect(pitch.problems.join(' ')).not.toContain('ricambio');
+  });
+
+  it('...e se quel posto non ha nessun ricambio, lo DICE invece di lasciare un undici di dieci', () => {
+    const alone = board('4-3-3', { D: [man('Solo', 0.5)] });
+    const pitch = pitchOf(alone, () => free, null, () => 'riserva')!;
+    expect(pitch.rows.find((row) => row.line === 'D')!.men[0].name).toBe('Solo');
+    expect(pitch.problems.join(' ')).toContain('nessun ricambio');
+  });
+
+  it('`ballottaggio` non muove il disegno: sta bene nell’undici e in panchina', () => {
+    // Il cancello della scala dice che chi la board schiera non scende sotto `ballottaggio` e chi non
+    // schiera non sale sopra: quindi la parola non è un'informazione sul DISEGNO. Sul foglio Serie A
+    // 115 dei 155 ballottaggi sono nell'undici e 40 no.
+    const pitch = pitchOf(oneDuel(), () => free, null, () => 'ballottaggio')!;
+    expect(pitch.rows.find((row) => row.line === 'D')!.men[0].name).toBe('Titolare');
+  });
+
+  it('È IDEMPOTENTE: su una board che la dichiarazione rispetta già non si muove niente', () => {
+    // È la proprietà che rende sicuro avere due lettori della stessa dritta - questo file e il
+    // toolkit: una board costruita DOPO che l'operatore l'ha messa in `config/player_rulings.json`
+    // la rispetta già, e riapplicarla qui non deve riordinare nulla.
+    const already = pitchOf(oneDuel(), () => free, null, () => null)!;
+    const again = pitchOf(oneDuel(), () => free, null,
+      (fcId) => (fcId === 'Titolare'.length ? 'titolare' : null))!;
+    expect(drawnNames(again)).toEqual(drawnNames(already));
+    expect(defence(again).duels.map((one) => one.name)).toEqual(['Rivale']);
+  });
+
+  it('...e chi entra in campo NON resta ballottaggio di un altro posto', () => {
+    // Trovato dal banco in un browser vero e non da una rilettura: il toolkit elenca lo stesso rivale
+    // su piu' posti, quindi dopo lo scambio il campetto disegnava il promosso DUE volte - titolare di
+    // un posto e ballottaggio di un altro. E' l'invariante che `spreadDuels` protegge per il posto di
+    // cui uno e' titolare, detto per l'intero campetto.
+    const twice = board('4-3-3', {
+      D: [
+        man('Primo', 0.2, { fc_id: 1, duels: [man('Vice', 0.2, { fc_id: 9, claim: 0.4 })] }),
+        man('Secondo', 0.8, { fc_id: 2, duels: [man('Vice', 0.8, { fc_id: 9, claim: 0.4 })] }),
+      ],
+    });
+    const pitch = pitchOf(twice, () => free, null, (fcId) => (fcId === 9 ? 'titolare' : null))!;
+    const drawn = pitch.rows.find((row) => row.line === 'D')!.men;
+    expect(drawn.map((one) => one.name)).toEqual(['Vice', 'Secondo']);
+    expect(drawn.flatMap((one) => one.duels.map((rival) => rival.name))).not.toContain('Vice');
+  });
+
+  it('UNA MAGLIA PER UOMO: un dichiarato elencato su due posti entra in uno solo', () => {
+    // Il toolkit elenca lo stesso rivale su più posti (171 voci su 610 sono ripetizioni): promuoverlo
+    // in tutti lo disegnerebbe due volte, che è il difetto che `spreadDuels` esiste per togliere.
+    const twice = board('4-3-3', {
+      D: [
+        man('Primo', 0.2, { fc_id: 1, duels: [man('Vice', 0.2, { fc_id: 9, claim: 0.4 })] }),
+        man('Secondo', 0.8, { fc_id: 2, duels: [man('Vice', 0.8, { fc_id: 9, claim: 0.4 })] }),
+      ],
+    });
+    const pitch = pitchOf(twice, () => free, null, (fcId) => (fcId === 9 ? 'titolare' : null))!;
+    const drawn = drawnNames(pitch);
+    expect(drawn.filter((name) => name === 'Vice').length).toBe(1);
+    expect(drawn.length).toBe(2);
   });
 });

@@ -87,7 +87,9 @@
                     class="h-2.5 w-0.5 shrink-0 rounded-full"
                     [style.background-color]="man.ownerColour ?? 'transparent'"
                   ></span>
-                  <span class="min-w-0 flex-1 truncate">{{ man.name }}</span>
+                  <span class="min-w-0 truncate">{{ man.name }}</span>
+                  <ui-ruling-dot [playerId]="man.id" />
+                  <span class="flex-1"></span>
                   <!-- LE ICONCINE, fra il nome e i numeri (operatore, 03/09/2026). Due al massimo,
                        perche' una riga e' alta 17px e la terza mangerebbe il nome: `ui-flags` taglia in
                        coda, dove i marchi sono gia' in ordine di importanza, e DICE quante ne restano

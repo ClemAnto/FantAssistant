@@ -17,6 +17,14 @@
  *
  * TRE PASSI, e ognuno risponde a una domanda diversa.
  *
+ *  0. LA DRITTA, che viene prima di tutto perche' e' una DICHIARAZIONE e non una previsione (dal
+ *     07/09/2026, `core/player-rulings.ts`): dove l'operatore ha dichiarato un gradino di titolarita',
+ *     la base sono le giornate che quel gradino comporta - «io ho delle conoscenze che i dati non
+ *     hanno». Precedenza massima, come `board_rulings.json` sul modulo di un club, e revocabile con un
+ *     click. E' anche IDEMPOTENTE: dove la dritta ha gia' riscritto il Pa a monte (`ValuationStore`),
+ *     questo passo ricalcola lo stesso numero, perche' fissa una base ASSOLUTA invece di moltiplicare -
+ *     due applicazioni della stessa dichiarazione non si sommano.
+ *
  *  1. LA BASE. Il Pa del foglio - ma dove il motore NON prezza il suo calcio (`est_basis` diverso da
  *     `core`, cioe' un arrivo dall'estero o una stagione troppo corta) la stima scende su una costante
  *     di ruolo, e li' la board ne sa di piu': Kolo Muani il 03/09/2026 leggeva `est_pv` 19,6 su 38
@@ -48,7 +56,9 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Bundle } from './bundle';
 import { OutWindow, outWindow } from './injury-window';
 import { CalendarBook, CalendarFile, calendarBookFrom } from './keeper-pairs';
+import { PlayerRulings } from './player-rulings';
 import { FRAGILITY_YEARS, PlayerStatus, Spell } from './player-status';
+import type { Platform } from './players-store';
 
 /**
  * LO SCARTO fra la stagione peggiore e quella tipica, per chi non ha abbastanza storia: 2,1 giornate.
@@ -169,6 +179,12 @@ export interface PlayInput {
   pvIsEstimate: boolean;
   /** La quota di partite che il pannello gli da' (`desc_titolarita_play`), senza sconto infortuni. */
   playShare: number | null;
+  /**
+   * LA QUOTA CHE LA DRITTA DELL'OPERATORE DICHIARA, o null se non ne ha dichiarata nessuna - e null
+   * anche quando la sua dritta CONFERMA il foglio, perche' allora non c'e' niente da riscrivere
+   * (`player-rulings.ruledShare`).
+   */
+  ruled: number | null;
   /** La finestra dello stop APERTO, quando c'e' una data di rientro (`injury-window.ts`). */
   out: OutWindow | null;
   /** La sua storia di stop, per l'assicurazione. */
@@ -181,8 +197,8 @@ export interface PlayOutlook {
   matchdays: number | null;
   /** Il punto di partenza, dopo l'eventuale metro della plancia. */
   base: number | null;
-  /** Chi ha parlato: il motore, il ripiego del foglio, o la board. */
-  basis: 'core' | 'sheet' | 'board';
+  /** Chi ha parlato: il motore, il ripiego del foglio, la board, o l'OPERATORE con una dritta. */
+  basis: 'core' | 'sheet' | 'board' | 'ruled';
   /** Giornate certe perse per lo stop aperto. */
   out: number;
   /**
@@ -227,6 +243,13 @@ export function expectedPlay(input: PlayInput): PlayOutlook {
     base = input.playShare * matchdays;
     basis = 'board';
   }
+  // ...E LA DRITTA SOPRA TUTT'E DUE, perche' e' una dichiarazione: sostituisce la base invece di
+  // scontarla, quindi applicarla due volte (qui e a monte) da' lo stesso numero. Senza `matchdays` una
+  // quota non e' un numero di giornate, e allora la dichiarazione non prezza - resta la parola.
+  if (input.ruled != null && matchdays) {
+    base = input.ruled * matchdays;
+    basis = 'ruled';
+  }
   if (base == null) {
     return {
       matchdays, base: null, basis, out: 0, insurance: 0, expected: null, factor: 1,
@@ -263,6 +286,8 @@ export function expectedPlay(input: PlayInput): PlayOutlook {
 export class ExpectedPlay {
   private readonly status = inject(PlayerStatus);
   private readonly bundle = inject(Bundle);
+  /** Le dritte dichiarate: la base che scavalca il foglio, e la misura di quanto vale una parola. */
+  private readonly rulings = inject(PlayerRulings);
   private readonly file = signal<CalendarFile | null>(null);
 
   /** Il calendario del bundle, letto una volta sola: `Bundle.calendar()` tiene la sua promessa in cache. */
@@ -302,8 +327,19 @@ export class ExpectedPlay {
    * non si rileggono qui: due lettori dello stesso foglio danno a un uomo due valutazioni.
    */
   outlook(
-    man: { id: number; club: string },
-    sheet: { pv: number | null; pvIsEstimate: boolean; playShare: number | null },
+    /**
+     * `platform` perche' la conversione «una parola -> quante giornate» e' misurata sulla POPOLAZIONE
+     * di un foglio, e i fogli sono due: una quota presa dall'altro listone sarebbe la mediana di un
+     * altro gruppo di uomini.
+     */
+    man: { id: number; club: string; platform: Platform },
+    sheet: {
+      pv: number | null;
+      pvIsEstimate: boolean;
+      playShare: number | null;
+      /** Il gradino che il FOGLIO gli da': serve a capire se una dritta conferma o corregge. */
+      titolarita?: string | null;
+    },
     matchdays: number | null,
   ): PlayOutlook {
     const injury = this.status.openInjury(man.id);
@@ -320,6 +356,13 @@ export class ExpectedPlay {
       pv: sheet.pv,
       pvIsEstimate: sheet.pvIsEstimate,
       playShare: sheet.playShare,
+      // LA DRITTA DELL'OPERATORE, letta qui e non dal chiamante: e' la stessa ragione per cui il conto
+      // vive in un posto solo - quattro pagine che se la andassero a prendere darebbero a un uomo
+      // quattro presenze attese. Null quando non ne ha dichiarata nessuna o quando la sua conferma il
+      // foglio.
+      // ...la QUOTA della dritta: i MINUTI sono l'altro asse della stessa parola e non entrano qui -
+      // le presenze non si moltiplicano per i minuti, e chi li mostra li legge da `EngineExpectation`.
+      ruled: this.rulings.shareFor(man.platform, man.id, sheet.titolarita ?? null)?.play ?? null,
       out: window,
       losses: seasonLosses(this.status.spellsOf(man.id), this.roundDays(), this.status.today()),
     });

@@ -17,13 +17,27 @@ import {
   cardTop,
   seasonTotals,
 } from '../../core/player-card';
+import {
+  BOARD_EFFECT,
+  BOARD_EFFECT_LABEL,
+  PlayerRulings,
+} from '../../core/player-rulings';
 import { PlayerStatus } from '../../core/player-status';
 import { PlayersStore, clubNameKey } from '../../core/players-store';
 import { EDGE_BASE } from '../../core/plancia';
+import { swingBase } from '../../core/swing';
+import {
+  TITOLARITA_LADDER,
+  TITOLARITA_SHORT,
+  Titolarita,
+  isTitolarita,
+  titolaritaNote,
+} from '../../core/titolarita';
 import { BonusMark } from '../bonus-mark/bonus-mark';
 import { ClubCrest } from '../club-crest/club-crest';
 import { MatchLine } from '../match-line/match-line';
 import { PlayerFlags } from '../player-flags/player-flags';
+import { RulingDot } from '../ruling-dot/ruling-dot';
 
 /**
  * LA CARD DI UN CALCIATORE: si apre col click su un nome, si trascina, si chiude.
@@ -61,15 +75,26 @@ import { PlayerFlags } from '../player-flags/player-flags';
     CdkDragHandle,
     ClubCrest,
     DecimalPipe,
+    MatchLine,
     NzIconModule,
     NzTooltipModule,
-    MatchLine,
     PlayerFlags,
+    RulingDot,
   ],
 })
 export class PlayerCard {
   private readonly status = inject(PlayerStatus);
   private readonly players = inject(PlayersStore);
+  /**
+   * LE DRITTE DICHIARATE, lette e SCRITTE da qui: e' la card il posto in cui l'operatore le da'
+   * («cliccando su un calciatore ... cliccare sulla riga titolarita e impostare la mia indicazione»).
+   *
+   * Se le prende da se' come i marchi e la nota dichiarata, per la stessa ragione: una dritta e' un
+   * fatto su una PERSONA e non sul foglio che la pagina sta leggendo, quindi non passa da `CardMan` -
+   * e cosi' la stessa card la mostra uguale in tutte le schermate che la aprono, mentre il gradino del
+   * FOGLIO puo' essere diverso da un listone all'altro.
+   */
+  private readonly rulings = inject(PlayerRulings);
 
   /** L'uomo di QUESTA card, passato dalla pagina: le card aperte sono piu' di una. */
   readonly man = input.required<CardMan>();
@@ -120,6 +145,14 @@ export class PlayerCard {
   protected readonly base = EDGE_BASE;
 
   /**
+   * LO ZERO DELLO SWING di quest'uomo: il sei, o il CINQUE se e' un portiere.
+   *
+   * Letto da `core/swing.ts`, che e' dove la formula lo decide: due posti in cui scegliere quella cifra
+   * sono il modo in cui una card finisce per spiegare un numero con la base di un altro ruolo.
+   */
+  protected readonly swingBase = computed(() => swingBase(this.man().role));
+
+  /**
    * LA FRASE ROSSA IN CIMA, e ce ne sono due perche' sono due situazioni.
    *
    * Dove una data di rientro esiste, la nota e' il CONTO - quante giornate perde, quante ne gioca -
@@ -142,6 +175,79 @@ export class PlayerCard {
   protected readonly outOfSquad = computed(
     () => this.status.declared().get(this.man().id)?.kind === 'out_of_squad',
   );
+
+  // ------------------------------------------------------------ la titolarita', e la tua dritta
+
+  /** Aperto o chiuso il selettore dei sei gradini: chiuso di default, e una riga sola a schermo. */
+  protected readonly picking = signal(false);
+
+  /** La dritta su quest'uomo, o null. */
+  protected readonly ruling = computed(() => this.rulings.of(this.man().id));
+
+  /**
+   * LA PAROLA CHE LA RIGA MOSTRA: la tua dritta se c'e', altrimenti il gradino del foglio.
+   *
+   * La precedenza e' quella di `board_rulings.json` sul modulo di un club - massima e revocabile - e
+   * vale in tutt'e due i sensi: dove il foglio non dice niente («vuoto = ignoto») la dichiarazione da'
+   * una parola, e dove dice qualcos'altro la dichiarazione la sostituisce.
+   */
+  protected readonly rung = computed<Titolarita | null>(() => {
+    const declared = this.ruling()?.rung;
+    if (declared) return declared;
+    const own = this.man().titolarita;
+    return isTitolarita(own) ? own : null;
+  });
+
+  /** La frase del gradino: la stessa di ogni altra schermata, con l'ultima riga che dice chi l'ha detto. */
+  protected readonly rungNote = computed(() => {
+    const man = this.man();
+    // LA QUOTA CHE LA PAROLA MOSTRATA PORTA DAVVERO: quella della dritta se la dritta corregge il
+    // foglio, la SUA se la dritta lo conferma o se non ce n'e' nessuna. Una parola dichiarata accanto
+    // alla percentuale del foglio sarebbe una riga che spiega se stessa col numero di un'altra.
+    const play = this.rulings.shareFor(man.platform, man.id, man.titolarita)?.play
+      ?? man.titolaritaPlay;
+    return titolaritaNote(
+      this.rung(),
+      play,
+      man.minutesNext,
+      this.ruling()?.decidedOn ?? null,
+    ) ?? 'Il foglio non porta il gradino di titolarità: cliccalo per dichiararlo tu.';
+  });
+
+  /** Le sei parole con le giornate che ognuna comporta su QUESTO calendario: il selettore le mostra. */
+  protected readonly choices = computed(() => {
+    const man = this.man();
+    return TITOLARITA_LADDER.map((rung) => ({
+      rung,
+      short: TITOLARITA_SHORT[rung],
+      /**
+       * I DUE NUMERI CHE QUELLA PAROLA COMPORTA - le giornate e i minuti - misurati sulla popolazione
+       * del foglio, perche' sono i due assi su cui il toolkit assegna la parola (operatore,
+       * 08/09/2026). Senza di loro il selettore chiederebbe di scegliere fra sei etichette senza dire
+       * cosa comportano, e in cima alla scala la differenza vive nei decimi di giornata e nei minuti.
+       */
+      ...this.rulings.promiseOf(man.platform, rung, man.rounds),
+      effect: BOARD_EFFECT_LABEL[BOARD_EFFECT[rung]],
+      chosen: this.ruling()?.rung === rung,
+    }));
+  });
+
+  /** Apre o chiude il selettore. */
+  protected pick(): void {
+    this.picking.update((open) => !open);
+  }
+
+  /** Dichiara un gradino, o lo revoca ri-cliccando quello che e' gia' scelto. */
+  protected declare(rung: Titolarita): void {
+    this.rulings.declare(this.man().id, this.ruling()?.rung === rung ? null : rung);
+    this.picking.set(false);
+  }
+
+  /** Torna al gradino del foglio: una dichiarazione deve avere una strada indietro. */
+  protected clearRuling(): void {
+    this.rulings.declare(this.man().id, null);
+    this.picking.set(false);
+  }
 
   // ------------------------------------------------------------ le ultime partite
 

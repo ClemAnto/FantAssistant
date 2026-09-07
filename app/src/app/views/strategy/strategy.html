@@ -387,7 +387,7 @@
                       (row.readings.seasonPlayed ? ' · MV/FM su ' + row.readings.seasonPlayed + 'ª' : '')
                     "
                     >{{ row.man.name }}</span
-                  >
+                  ><ui-ruling-dot [playerId]="row.man.fcId" />
                   <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
                   <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
                        Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA

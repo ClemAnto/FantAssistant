@@ -10,6 +10,12 @@
  * «TITOLARITÀ» QUI VUOL DIRE PRENDERE IL VOTO, non partire dall'inizio (definizione dell'operatore,
  * 20/08/2026): l'asse della scala è la quota di giornate a voto, e `titolare` significa «gioca quasi ogni
  * partita, e per quasi tutta». Chi PARTE titolare è un'altra domanda e si chiama «quota da titolare».
+ *
+ * DAL 07/09/2026 LA PAROLA PUÒ ANCHE ESSERE DICHIARATA dall'operatore, che è l'unica cosa in grado di
+ * scavalcare il gradino del foglio: le sue dritte stanno in `core/player-rulings.ts` con la misura che
+ * dice quante giornate ogni parola comporta. Il vocabolario resta questo e uno solo - la dichiarazione
+ * sceglie fra QUESTE sei parole, quindi una riga dichiarata e una misurata si leggono nella stessa
+ * scala e si possono confrontare.
  */
 
 /** Le sei parole, dalla più forte alla più debole. L'INDICE è la scala. */
@@ -75,6 +81,15 @@ export function titolaritaNote(
   play: number | null,
   /** Minuti che ci si aspetta stia in campo in una partita che gioca (`desc_minutes_next`). */
   minutes: number | null,
+  /**
+   * IL GIORNO IN CUI L'OPERATORE L'HA DICHIARATA, quando questa parola è una sua DRITTA e non del
+   * modello (`core/player-rulings.ts`).
+   *
+   * Cambia l'ultima frase e non il resto: la promessa del gradino è la stessa (è la scala a decidere
+   * cosa promette la parola), quello che cambia è CHI l'ha detto - e una riga che porta una
+   * dichiarazione dicendo «deciso dal toolkit» sarebbe una frase falsa accanto a un numero vero.
+   */
+  declaredOn?: string | null,
 ): string | null {
   if (!isTitolarita(status)) return null;
   const promise: Record<Titolarita, string> = {
@@ -89,8 +104,11 @@ export function titolaritaNote(
   if (play != null) bits.push(`voto nel ${Math.round(play * 100)}% delle partite per cui è disponibile`);
   if (minutes != null) bits.push(`${Math.round(minutes)}' quando gioca`);
   bits.push(
-    'deciso dal toolkit sull’undici tipo disegnato: chi la board non schiera non può essere '
-    + 'titolare, chi schiera non scende sotto ballottaggio',
+    declaredOn
+      ? `dritta tua del ${declaredOn}: hai dichiarato tu questo gradino, e i numeri della riga lo `
+        + 'seguono - il foglio dice un’altra cosa o non dice niente'
+      : 'deciso dal toolkit sull’undici tipo disegnato: chi la board non schiera non può essere '
+        + 'titolare, chi schiera non scende sotto ballottaggio',
   );
   return bits.join(' · ');
 }

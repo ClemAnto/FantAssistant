@@ -16,6 +16,8 @@
  */
 
 import { Board, BoardMan } from './bundle';
+import { BOARD_EFFECT, RulingBoard } from './player-rulings';
+import { Titolarita, isTitolarita } from './titolarita';
 
 /** The lines a pitch draws, from the GOAL down to the attack: the keeper at the top. */
 export type PitchLine = 'A' | 'T' | 'M' | 'D' | 'P';
@@ -110,6 +112,16 @@ export interface PitchMan {
    * comprese. Ignoto se manca una delle due metà, mai zero.
    */
   expectedMinutes: number | null;
+  /**
+   * IL GRADINO CHE L'OPERATORE HA DICHIARATO SU DI LUI, o null: la sua dritta
+   * (`core/player-rulings.ts`, 07/09/2026).
+   *
+   * Sta sulla riga perche' il campetto lo DEVE dire: un uomo entrato nell'undici per una dichiarazione
+   * e uno scelto dal modello sono due cose diverse, e un disegno che le mostra uguali fa credere che il
+   * modello abbia cambiato idea. Le tre parole di `BOARD_EFFECT` dicono cosa quella dichiarazione fa
+   * qui; la parola intera resta la SUA, cosi' la sigla accanto al nome e' la stessa della tabella.
+   */
+  ruled: Titolarita | null;
   /** At most two, in the panel's own order. */
   duels: PitchMan[];
   /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */
@@ -337,10 +349,15 @@ export function shapesOf(board: Board | null): { shape: string; picture: string;
   return out.sort((left, right) => (right.p ?? 0) - (left.p ?? 0));
 }
 
-function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
+/** Chi risponde «che dritta c'e' su quest'uomo»: la pagina la passa, il campetto non la va a prendere. */
+export type RulingLookup = (fcId: number) => Titolarita | null;
+
+function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable, ruling?: RulingLookup): PitchMan {
   const live = resolve(man);
   const expectedShare = live.expectedShare ?? null;
+  const declared = man.fc_id != null && ruling ? ruling(man.fc_id) : null;
   return {
+    ruled: isTitolarita(declared) ? declared : null,
     fcId: man.fc_id ?? null,
     name: man.name ?? '—',
     codes: (man.codes ?? '').split(';').map((code) => code.trim()).filter(Boolean),
@@ -374,7 +391,7 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable): PitchMan {
     price: live.price,
     onTable: live.onTable,
     value99: live.value99,
-    duels: (man.duels ?? []).map((rival) => toMan(rival, resolve)),
+    duels: (man.duels ?? []).map((rival) => toMan(rival, resolve, ruling)),
     duelsKnown: man.duels_known !== false,
   };
 }
@@ -531,6 +548,87 @@ function spreadDuels(rows: PitchRow[]): { floor: number; duplicate: number } {
 }
 
 /**
+ * LE DRITTE DELL'OPERATORE SUL DISEGNO: un posto va al migliore dei SUOI candidati, e una
+ * dichiarazione batte il claim.
+ *
+ * L'app non calcola nessun undici di un club vero - e' la regola che tiene questo file - quindi qui non
+ * si sceglie nessun uomo nuovo: si RIORDINA la graduatoria che il toolkit ha gia' scritto per ogni
+ * posto (il titolare piu' i suoi ballottaggi), che e' l'unico insieme in cui uno scambio non invento
+ * niente. Chi il toolkit non mette in discussione da nessuna parte non entra: la sua dritta muove i
+ * NUMERI (`player-rulings.ts`) e il disegno lo aggiorna la prossima costruzione del foglio, che ha in
+ * mano la rosa intera e l'assegnazione vera.
+ *
+ * LE TRE PAROLE VENGONO DAL CANCELLO CHE LA SCALA HA SU SE STESSA e non da una scelta nostra
+ * (`BOARD_EFFECT`): i primi tre gradini pretendono l'undici, gli ultimi due lo escludono,
+ * `ballottaggio` e' compatibile con tutt'e due e quindi NON muove niente - il dato lo conferma, 115
+ * dei 155 ballottaggi del foglio Serie A sono nell'undici disegnato e 40 no.
+ *
+ * E' IDEMPOTENTE PER COSTRUZIONE, che e' la proprieta' che rende sicuro avere due lettori della stessa
+ * dichiarazione (qui e nel toolkit): l'ordinamento e' STABILE e la chiave e' uguale per tutti quelli
+ * che non portano una dritta, quindi su una board che la dichiarazione rispetta gia' - una board
+ * costruita DOPO che l'operatore l'ha messa in `config/player_rulings.json` - non si muove niente.
+ *
+ * UNA MAGLIA PER UOMO: chi e' stato promosso in un posto non viene promosso anche nei due o tre altri
+ * in cui il toolkit lo elenca (171 voci di ballottaggio su 610 sono ripetizioni), o il campetto lo
+ * disegnerebbe due volte - che e' esattamente il difetto che `spreadDuels` esiste per togliere.
+ */
+function applyRulings(rows: PitchRow[], problems: string[]): void {
+  const effect = (man: PitchMan): RulingBoard | null => (man.ruled ? BOARD_EFFECT[man.ruled] : null);
+  // Chi la dichiarazione ha gia' messo in campo, e chi il modello ci mette da se': in tutt'e due i
+  // casi la sua maglia e' presa e non se ne cerca un'altra.
+  const seated = new Set<number>();
+  for (const row of rows) {
+    for (const man of row.men) if (man.fcId != null && effect(man) === 'starter') seated.add(man.fcId);
+  }
+  for (const row of rows) {
+    row.men = row.men.map((starter) => {
+      const candidates = [starter, ...starter.duels];
+      const rank = (man: PitchMan): number => {
+        const what = effect(man);
+        if (what === 'starter') {
+          // Gia' titolare da un'altra parte: qui vale come chiunque altro, o giocherebbe due partite.
+          return man.fcId != null && seated.has(man.fcId) && man !== starter ? 1 : 0;
+        }
+        return what === 'reserve' ? 2 : 1;
+      };
+      const keys = candidates.map((man) => rank(man));
+      // Niente da dichiarare su questo posto: si esce senza toccare l'ordine del toolkit.
+      if (keys.every((key) => key === 1)) return starter;
+      const order = candidates
+        .map((man, at) => ({ man, at }))
+        .sort((left, right) => keys[left.at] - keys[right.at] || left.at - right.at);
+      const chosen = order[0].man;
+      if (effect(chosen) === 'reserve') {
+        // Un `panchina` o un `riserva` che resta in campo perche' quel posto non ha nessun ricambio
+        // disegnato: si DICE, invece di lasciare una dichiarazione che non ha fatto niente in silenzio.
+        problems.push(
+          `${chosen.name}: la tua dritta lo terrebbe fuori, ma per il suo posto la board non disegna `
+          + 'nessun ricambio',
+        );
+        return starter;
+      }
+      if (chosen.fcId != null) seated.add(chosen.fcId);
+      chosen.duels = order.slice(1).map((one) => one.man);
+      return chosen;
+    });
+  }
+  // UN TITOLARE NON E' UN BALLOTTAGGIO, e dopo uno scambio va detto di nuovo: il toolkit elenca lo
+  // stesso rivale su due o tre posti (171 voci su 610 sono ripetizioni), quindi chi la dichiarazione
+  // ha appena messo in campo resta un suo ballottaggio ALTROVE - e il campetto lo disegna due volte.
+  // Trovato dal banco e non dalla rilettura: l'invariante e' quello che `spreadDuels` protegge per il
+  // posto di cui uno E' titolare, detto per l'intero campetto.
+  const starters = new Set<number>();
+  for (const row of rows) {
+    for (const man of row.men) if (man.fcId != null) starters.add(man.fcId);
+  }
+  for (const row of rows) {
+    for (const man of row.men) {
+      man.duels = man.duels.filter((rival) => rival.fcId == null || !starters.has(rival.fcId));
+    }
+  }
+}
+
+/**
  * The pitch of one board: rows from the module's numbers, men where the panel puts them.
  *
  * A row is drawn even when the board placed FEWER men on it than the module asks for - the gap is the
@@ -545,6 +643,14 @@ export function pitchOf(
    * pannello, che è la risposta del modello e resta il default: un'alternativa si vede perché la si chiede.
    */
   shape?: string | null,
+  /**
+   * CHE DRITTA C'E' su ogni uomo, se la pagina ne conosce (`core/player-rulings.ts`).
+   *
+   * Un parametro e non una lettura di questo file, per la stessa ragione per cui `resolve` e' un
+   * parametro: quale stagione e quale listone si stia guardando lo sa il chiamante. Niente = nessuna
+   * dichiarazione, e il disegno e' quello del toolkit senza una riga di differenza.
+   */
+  ruling?: RulingLookup,
 ): Pitch | null {
   if (!board || board.error) return null;
   const chosen = shape && shape !== (board.board_shape ?? board.picture)
@@ -559,7 +665,7 @@ export function pitchOf(
   let taken = 0;
   for (const line of DRAW_ORDER) {
     const wanted = counts[line] ?? 0;
-    const drawn = (drawnLines[line] ?? []).map((man) => toMan(man, resolve));
+    const drawn = (drawnLines[line] ?? []).map((man) => toMan(man, resolve, ruling));
     if (!wanted && !drawn.length) continue;
     if (wanted !== drawn.length) {
       problems.push(`linea ${line}: il modulo dice ${wanted}, i disegnati sono ${drawn.length}`);
@@ -573,6 +679,10 @@ export function pitchOf(
     rows.push({ line, wanted, men: [...drawn].sort((left, right) => left.x - right.x) });
   }
 
+  // LE DRITTE PRIMA DEI BALLOTTAGGI: chi entra in campo per una dichiarazione esce dai rivali, e chi
+  // esce ci entra - `spreadDuels` distribuisce i rivali sui posti, quindi va fatto DOPO o
+  // ridistribuirebbe una lista che sta per cambiare.
+  if (ruling) applyRulings(rows, problems);
   const hiddenDuels = spreadDuels(rows);
 
   const solved = chosen ? shape ?? null : board.board_shape ?? null;

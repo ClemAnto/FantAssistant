@@ -8,10 +8,14 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { ClubsStore } from '../../core/clubs-store';
-import { ExpectedPlay } from '../../core/expected-play';
+import { ExpectedPlay, PlayOutlook } from '../../core/expected-play';
+import { GlobalOptions } from '../../core/global-options';
+import { cleanSheetBaseline, cleanSheetOutlook } from '../../core/keeper-pairs';
 import { CardMan, CardStack } from '../../core/player-card';
 import { EDGE_BASE } from '../../core/plancia';
 import { Platform, PlayersStore } from '../../core/players-store';
+import { Role } from '../../core/plancia';
+import { swingOf } from '../../core/swing';
 import { EngineExpectation, SquadMan, ValuationStore } from '../../core/valuation-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubBoard } from '../../ui/club-board/club-board';
@@ -229,6 +233,8 @@ export class Clubs {
 
   /** La formula unica delle presenze attese: serve la FINESTRA di uno stop aperto, che la card scrive. */
   private readonly play = inject(ExpectedPlay);
+  /** Le impostazioni di lega: i due modificatori decidono se lo SWING paga la costanza e la porta. */
+  private readonly options = inject(GlobalOptions);
 
   /**
    * Le colonne del motore del foglio che questa pagina sta leggendo, per `fc_id`.
@@ -259,13 +265,55 @@ export class Clubs {
       if (!man) return undefined;
       const numbers = engine?.get(id) ?? null;
       const outlook = this.play.outlook(
-        { id: man.fcId, club: man.club },
-        { pv: man.expected, pvIsEstimate: man.expectedIsEstimate, playShare: man.titolaritaPlay },
+        { id: man.fcId, club: man.club, platform },
+        { pv: man.expected, pvIsEstimate: man.expectedIsEstimate, playShare: man.titolaritaPlay,
+          titolarita: man.titolarita },
         rounds,
       );
-      return cardManOf(man, numbers, outlook.window, rounds, platform);
+      return cardManOf(man, numbers, outlook, rounds, platform, this.swing(man, numbers, outlook));
     });
   });
+
+  /**
+   * LO SWING di un uomo di questa rosa (richiesta dell'operatore, 07/09/2026: «nella card con il
+   * dettaglio del calciatore metti anche lo SWING»).
+   *
+   * TERZO CHIAMANTE della definizione unica (`core/swing.ts`) e non una terza aritmetica: la plancia e
+   * la Strategia lo hanno già sulla riga, questa pagina no - la sua tabella mostra le colonne del
+   * FOGLIO - quindi il conto si fa qui, con gli stessi ingressi degli altri due. Il pezzo che conta è
+   * `pv`: le presenze dell'APP (`outlook.expected`, cioè col «di più» dell'assicurazione dentro) e il
+   * surplus riscalato sullo STESSO fattore, o la card mostrerebbe uno SWING costruito su presenze
+   * diverse da quelle che stampa due righe sopra.
+   */
+  private swing(
+    man: SquadMan,
+    numbers: EngineExpectation | null,
+    outlook: PlayOutlook,
+  ): number | null {
+    const league = this.options.league();
+    // Il +1 a porta inviolata vale solo per i portieri e solo dove la lega lo paga: il differenziale
+    // contro la media del campionato lo fa `swingOf`, che è la definizione che leggono le altre due.
+    const calendar = man.role === 'P' ? (this.play.book()?.forClub(man.club) ?? null) : null;
+    return swingOf({
+      role: man.role as Role,
+      surplus: man.surplus == null ? null : man.surplus * outlook.factor,
+      pv: outlook.expected,
+      replacement: numbers?.replacementFm ?? null,
+      matchdays: outlook.matchdays,
+      fm: man.expectedFm,
+      steady: man.rating?.steady?.share ?? null,
+      seasonFm: man.fm,
+      seasonPlayed: man.pv,
+      confidence: numbers?.confidence ?? null,
+      // Su `default` una riga che il motore prezza porta già la miscela in-season (R25K40, 07/09/2026);
+      // su `euro` R25 non è adottata e la correzione dentro SWING resta il solo canale.
+      fmBlendsSeen: this.store.platform() === 'default' && numbers != null && !numbers.fmIsEstimate,
+      rFactor: league.rFactor,
+      cleanSheetBonus: league.cleanSheet,
+      cleanSheetShare: calendar ? cleanSheetOutlook(calendar, man.club) : null,
+      cleanSheetMean: calendar ? cleanSheetBaseline(calendar) : null,
+    });
+  }
 
   protected readonly frontCard = computed(() => this.cards.front());
 
@@ -301,9 +349,10 @@ export class Clubs {
 function cardManOf(
   man: SquadMan,
   numbers: EngineExpectation | null,
-  out: CardMan['out'],
+  outlook: PlayOutlook,
   rounds: number | null,
   platform: Platform,
+  swing: number | null,
 ): CardMan {
   return {
     id: man.fcId,
@@ -311,21 +360,24 @@ function cardManOf(
     club: man.club,
     clubId: man.clubId,
     where: man.place ?? (man.mantra || man.role),
+    role: man.role as Role,
     platform,
     // La stessa definizione della plancia e della Strategia: quanto rende una sua partita sopra il sei.
     edge: man.expectedFm == null ? null : man.expectedFm - EDGE_BASE,
     pv: man.expected,
     rounds,
+    swing,
     fm: man.expectedFm,
     estimated: man.expectedFmIsEstimate,
     estNote: man.estimateNote,
     titolarita: man.titolarita,
+    titolaritaPlay: man.titolaritaPlay,
     minutesNext: man.minutesNext,
     seasonMatches: numbers?.seasonMatches ?? null,
     minutesFullSeason: numbers?.minutesFullSeason ?? null,
     unpricedReason: null,
     fvm: man.fvm,
-    out,
+    out: outlook.window,
     market: null,
   };
 }

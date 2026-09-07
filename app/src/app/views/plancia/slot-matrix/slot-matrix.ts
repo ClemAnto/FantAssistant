@@ -5,6 +5,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { PlayerFlags } from '../../../ui/player-flags/player-flags';
 import { Alternative, MIN_PLAY_SHARE, ROLES, Role, SlotView } from '../../../core/plancia';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
+import { RulingDot } from '../../../ui/ruling-dot/ruling-dot';
 
 const ROLE_TONE: Record<Role, string> = {
   P: 'bg-role-keeper',
@@ -69,7 +70,10 @@ const COLUMNS = 8;
 @Component({
   selector: 'plancia-slot-matrix',
   templateUrl: './slot-matrix.html',
-  imports: [DecimalPipe, NzTooltipModule, PlayerFlags],
+  imports: [
+    DecimalPipe, NzTooltipModule, PlayerFlags,
+    RulingDot,
+  ],
   host: { class: 'block min-h-0' },
 })
 export class SlotMatrix {

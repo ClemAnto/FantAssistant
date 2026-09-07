@@ -293,11 +293,12 @@ export class Why {
     return listone.map((player) => {
       const one = engine.get(player.fcId);
       const outlook = this.play.outlook(
-        { id: player.fcId, club: player.club },
+        { id: player.fcId, club: player.club, platform },
         {
           pv: one?.pv ?? null,
           pvIsEstimate: one?.pvIsEstimate ?? false,
           playShare: one?.titolaritaPlay ?? null,
+          titolarita: one?.titolarita ?? null,
         },
         matchdays,
       );

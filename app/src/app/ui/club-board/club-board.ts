@@ -14,10 +14,13 @@ import {
   shapesOf,
 } from '../../core/club-eleven';
 import { overallTone } from '../../core/player-ratings';
+import { BOARD_EFFECT, BOARD_EFFECT_LABEL } from '../../core/player-rulings';
+import { TITOLARITA_SHORT, Titolarita } from '../../core/titolarita';
 import { stored } from '../../core/view-state';
 import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
+import { RulingDot } from '../ruling-dot/ruling-dot';
 
 /** What each drawn line is called, in the language of the pitch. */
 const LINE_LABEL: Record<PitchLine, string> = {
@@ -31,6 +34,7 @@ const LINE_LABEL: Record<PitchLine, string> = {
 /** Nothing known: the honest default for a caller that has no sheet and no table in hand. */
 const NOTHING: ReadonlyMap<number, number | null> = new Map();
 const NO_TABLE: ReadonlyMap<number, OnTable> = new Map();
+const NO_RULINGS: ReadonlyMap<number, Titolarita> = new Map();
 
 /**
  * IL CAMPETTO DI UNA SQUADRA VERA - uno, per tutte le schermate che lo mostrano.
@@ -51,7 +55,10 @@ const NO_TABLE: ReadonlyMap<number, OnTable> = new Map();
 @Component({
   selector: 'ui-club-board',
   templateUrl: './club-board.html',
-  imports: [DecimalPipe, NzEmptyModule, NzTooltipModule, PlayerFlags, RoleBadge, RoleSet],
+  imports: [
+    DecimalPipe, NzEmptyModule, NzTooltipModule, PlayerFlags, RoleBadge, RoleSet,
+    RulingDot,
+  ],
   host: { class: 'block' },
 })
 export class ClubBoard {
@@ -85,6 +92,15 @@ export class ClubBoard {
    * una funzione sola serve due chiamanti con bisogni opposti.
    */
   readonly detail = input<'tooltip' | 'card'>('tooltip');
+  /**
+   * LE DRITTE DELL'OPERATORE sugli uomini di QUESTA rosa (`core/player-rulings.ts`).
+   *
+   * Un INPUT come la board e l'Overall: quale stagione e quale listone si stia guardando lo sa la
+   * pagina. La mappa e' quella della ROSA e non del listone intero, ed e' quello che permette di dire
+   * quante dichiarazioni il campetto non e' riuscito a disegnare - un uomo che il toolkit non mette in
+   * discussione da nessuna parte non ha un posto in cui entrare senza inventarlo.
+   */
+  readonly ruled = input<ReadonlyMap<number, Titolarita>>(NO_RULINGS);
   /** Chi è stato cliccato, per `fc_id`: la pagina decide cosa farne (aprire la sua card). */
   readonly pick = output<number>();
 
@@ -130,7 +146,40 @@ export class ClubBoard {
         expectedShare: id == null ? null : (shares.get(id) ?? null),
       };
     };
-    return pitchOf(this.board(), resolve, this.shape());
+    const declared = this.ruled();
+    return pitchOf(
+      this.board(),
+      resolve,
+      this.shape(),
+      declared.size ? (fcId) => declared.get(fcId) ?? null : undefined,
+    );
+  });
+
+  /**
+   * QUANTE DRITTE IL CAMPETTO NON HA POTUTO DISEGNARE, in una frase - o vuota se le ha disegnate tutte.
+   *
+   * Un uomo entra nell'undici solo dai candidati che il toolkit ha scritto per un posto: chi non e' ne'
+   * titolare ne' ballottaggio di nessuna maglia non ha un posto in cui entrare, e metterlo da qualche
+   * parte vorrebbe dire calcolare qui un undici di un club vero. La sua dritta vale comunque sui NUMERI
+   * (presenze attese, surplus, SWING) e il disegno lo aggiorna la prossima costruzione del foglio, che
+   * ha in mano la rosa intera. Un filtro silenzioso e' un filtro che inganna, quindi si dice: e' la
+   * stessa regola dei ballottaggi non disegnati qui sopra.
+   */
+  protected readonly undrawn = computed(() => {
+    const declared = this.ruled();
+    const drawn = this.pitch();
+    if (!declared.size || !drawn) return '';
+    const seen = new Set<number>();
+    for (const row of drawn.rows) {
+      for (const man of row.men) {
+        if (man.fcId != null) seen.add(man.fcId);
+        for (const rival of man.duels) if (rival.fcId != null) seen.add(rival.fcId);
+      }
+    }
+    const missing = [...declared.keys()].filter((fcId) => !seen.has(fcId)).length;
+    if (!missing) return '';
+    return `${missing === 1 ? 'Una dritta' : `${missing} dritte`} non disegnabile qui: la board non `
+      + 'li mette in nessun posto. I numeri li seguono comunque.';
   });
 
   /** Quanti degli undici disegnati sono già stati presi: zero fuori da un tavolo. */
@@ -176,6 +225,16 @@ export class ClubBoard {
    */
   protected tone(overall: number | null): string {
     return overallTone(overall);
+  }
+
+  /** La sigla della dritta accanto al nome: la stessa della tabella, o due vocabolari per una parola. */
+  protected ruledShort(man: PitchMan): string | null {
+    return man.ruled ? TITOLARITA_SHORT[man.ruled] : null;
+  }
+
+  /** Tre parole: chi l'ha detto e cosa fa qui. Il perche' sta nel codice, non in un tooltip. */
+  protected ruledHint(man: PitchMan): string {
+    return man.ruled ? `dritta tua: ${man.ruled} · ${BOARD_EFFECT_LABEL[BOARD_EFFECT[man.ruled]]}` : '';
   }
 
   /** Il marchio del disaccordo fra board e motore, che viaggia col nome dovunque sia disegnato. */

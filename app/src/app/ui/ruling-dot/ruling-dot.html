@@ -1,0 +1,14 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     Il pallino: l'inchiostro è quello del PRIMARIO, cioè lo stesso con cui la card marca la riga della
+     titolarità dichiarata - un colore per un fatto, e non un secondo verde da interpretare. `shrink-0`
+     perché sta accanto a un nome che tronca: in una colonna stretta è il nome a cedere, mai il marchio
+     che dice che quel numero non è del modello. -->
+@if (ruling()) {
+  <span
+    class="ml-0.5 inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-primary align-middle"
+    data-ruling-dot
+    nz-tooltip
+    [nzTooltipTitle]="hint()"
+  ></span>
+}

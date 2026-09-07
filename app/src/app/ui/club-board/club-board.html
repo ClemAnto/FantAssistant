@@ -66,6 +66,7 @@
           <span
             class="flex min-w-0 max-w-[33%] flex-1 flex-col gap-0.5 rounded-md border border-border
                    bg-surface/90 px-1 py-1"
+            data-place
           >
             @if (place(man); as marker) {
               <!-- IL RUOLO DEL POSTO, in grigio (operatore, 18/08/2026): i colori del listone sono dei
@@ -180,6 +181,12 @@
                     >
                     <!-- Le icone viaggiano col NOME dovunque sia disegnato (operatore, 11/08/2026). -->
                     <ui-flags class="shrink-0 text-[10px]" [playerId]="one.fcId" />
+                    <!-- LA TUA PERSONALIZZAZIONE: lo STESSO pallino di ogni altra lista (operatore,
+                         07/09/2026), e non la sigla della scala che questo campetto disegnava per
+                         mezz'ora - un marchio significa la stessa cosa in ogni pagina, quindi il
+                         disegno e' uno e la parola sta nel suo tooltip. Un uomo entrato nell'undici
+                         per una dichiarazione non deve sembrare una scelta del modello. -->
+                    <ui-ruling-dot [playerId]="one.fcId" />
                     @if (disputed(one); as said) {
                       <!-- I due modelli non sono d'accordo su di lui: la board risponde a «chi parte
                            titolare», il motore a «in quante giornate prende voto». Nessuno dei due si
@@ -252,6 +259,9 @@
     }
   </p>
 
+  @if (undrawn(); as said) {
+    <p class="px-1 pt-1 text-[10px] text-muted">{{ said }}</p>
+  }
   @if (hidden(); as said) {
     <p class="mt-1 text-xs text-muted">{{ said }}</p>
   }

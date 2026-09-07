@@ -59,6 +59,7 @@ import {
   SlotView,
 } from './plancia';
 import { STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
+import { PlayerRulings, rungShares } from './player-rulings';
 import { swingOf } from './swing';
 
 /** The four letters of the board's lines, from the two alphabets the feed splits the outfield into. */
@@ -170,6 +171,8 @@ export class PlanciaStore {
    * Se lo store non e' in casa la miscela non si forma e resta il surplus del foglio: «vuoto = ignoto».
    */
   private readonly valuations = inject(ValuationStore);
+  /** Le dritte dichiarate: questa pagina misura per loro quanto vale una parola sul proprio foglio. */
+  private readonly rulings = inject(PlayerRulings);
   private readonly options = inject(GlobalOptions);
 
   readonly loading = signal(false);
@@ -238,9 +241,13 @@ export class PlanciaStore {
       // (`expected-play.ts`) e non piu' una moltiplicazione scritta qui: due copie di questa
       // sottrazione darebbero allo stesso uomo due presenze attese sulla plancia e sulla strategia.
       const outlook = this.play.outlook(
-        { id: player.id, club: player.club },
+        // `default` e non una lettura: questa pagina prezza sempre il foglio `default|classic`, ed e'
+        // scritto a due passi da qui. La piattaforma serve alla dritta dell'operatore, la cui
+        // conversione in giornate e' misurata sulla popolazione di UN foglio.
+        { id: player.id, club: player.club, platform: 'default' },
         { pv: valuation.pv, pvIsEstimate: valuation.basis === 'estimated',
-          playShare: numbers.get(player.id)?.titolaritaPlay ?? null },
+          playShare: numbers.get(player.id)?.titolaritaPlay ?? null,
+          titolarita: numbers.get(player.id)?.titolarita ?? null },
         this.sheet()?.matchdays_target ?? null,
       );
       const pv = outlook.expected;
@@ -1177,7 +1184,12 @@ export class PlanciaStore {
     const table = await this.bundle.table(chosen.path.replace(/\.json(\.gz)?$/, ''));
 
     this.sheet.set(chosen);
-    this.numbers.set(engineNumbersFrom(table));
+    const numbers = engineNumbersFrom(table);
+    this.numbers.set(numbers);
+    // QUANTO VALE UNA PAROLA su questo foglio, consegnato a chi tiene le dritte dell'operatore: questa
+    // pagina legge il foglio da se' e non passa da `ValuationStore`, quindi senza questa riga il
+    // selettore della card stamperebbe un trattino al posto delle giornate di ogni gradino.
+    this.rulings.observe(chosen.platform, rungShares([...numbers.values()]));
     // Il calendario e i portieri titolari: nessuno dei due e' necessario per disegnare la plancia, quindi
     // un bundle che non li porta la apre lo stesso e le modali che li leggono lo dicono.
     void this.loadCalendar();
@@ -1302,16 +1314,21 @@ function cardManOf(
     // stemma. Un fatto che decide un numero non passerebbe mai di li'.
     clubId: null,
     where: `${man.role}${block.index}`,
+    role: man.role,
     platform: 'default',
     edge: man.edge,
     pv: man.pv,
     rounds,
+    // LO SWING della RIGA e non un secondo conto: la plancia ordina dentro lo slot su queste stesse
+    // valutazioni, quindi la card e la riga devono portare la stessa cifra.
+    swing: man.swing,
     // La fantamedia che la RIGA sta usando: `basis` lo ha gia' deciso a monte (`valuationOf`), o la card
     // direbbe un numero e la riga un altro.
     fm: man.basis === 'estimated' ? (numbers?.estFm ?? null) : (numbers?.fm ?? null),
     estimated: man.basis === 'estimated',
     estNote: numbers?.estNote ?? null,
     titolarita: numbers?.titolarita ?? null,
+    titolaritaPlay: numbers?.titolaritaPlay ?? null,
     minutesNext: numbers?.minutesNext ?? null,
     seasonMatches: numbers?.seasonMatches ?? null,
     minutesFullSeason: numbers?.minutesFullSeason ?? null,

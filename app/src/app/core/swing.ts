@@ -126,6 +126,17 @@ export const KEEPER_BASE = 5;
  *
  * 66 fantapunti sono un gol e ogni 6 sopra e' un altro (66 -> 1, 72 -> 2, 78 -> 3); sotto i 66, nulla.
  */
+/**
+ * LO ZERO DELLO SWING per un ruolo, che e' il SEI per tutti tranne il portiere.
+ *
+ * Esportata perche' la legge anche il TOOLTIP della card: una frase che dice «sopra il 6» accanto al
+ * numero di un portiere - dove la base e' 5 - sarebbe una spiegazione falsa di un numero vero, e due
+ * posti in cui scegliere quella cifra sono il modo in cui una schermata finisce per dirne due.
+ */
+export function swingBase(role: Role): number {
+  return role === 'P' ? KEEPER_BASE : EDGE_BASE;
+}
+
 export const LADDER_FLOOR = 66;
 export const LADDER_RUNG = 6;
 
@@ -366,7 +377,7 @@ export function swingOf(input: SwingInput): number | null {
   const steady = input.steady ?? ROLE_STEADY[role];
   // Il «6» del portiere e' un 5 (vedi KEEPER_BASE): sul suo fantavoto il 6 e' la porta inviolata
   // settimanale, e uno zero sopra l'intera scala del ruolo ordina i portieri per NON giocare.
-  const base = role === 'P' ? KEEPER_BASE : EDGE_BASE;
+  const base = swingBase(role);
   const rebase = (replacement - base) * pv;
   return (surplus + rebase + inSeason(input) + steady * pv * share + cleanSheets(input, pv)) / matchdays;
 }

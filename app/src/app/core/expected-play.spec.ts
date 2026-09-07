@@ -29,6 +29,7 @@ function input(over: Partial<PlayInput> = {}): PlayInput {
     pv: 30,
     pvIsEstimate: false,
     playShare: null,
+    ruled: null,
     out: null,
     losses: NO_HISTORY,
     ...over,
@@ -135,5 +136,55 @@ describe('seasonLosses', () => {
   it('senza calendario torna alla convenzione dichiarata invece di dividere per zero', () => {
     expect(roundDaysOf(null, null, 38)).toBe(7.5);
     expect(roundDaysOf('2026-08-22', '2027-05-23', 0)).toBe(7.5);
+  });
+});
+
+describe('expectedPlay e la dritta dichiarata', () => {
+  it('la dritta e’ la BASE e batte il foglio, in tutt’e due i versi', () => {
+    // Mora il 04/09/2026: `est_pv` 12,6 su 36 e' la costante «nessuno lo ha mai visto giocare», non
+    // una frase sul calciatore. Dichiarato `titolare` (quota 0,949 misurata sul foglio) diventa 34,2.
+    const up = expectedPlay(input({ pv: 12.6, pvIsEstimate: true, ruled: 0.949 }));
+    expect(up.basis).toBe('ruled');
+    expect(up.base).toBeCloseTo(0.949 * 36, 5);
+    // ...e un uomo che il motore prevede titolare, dichiarato `panchina`, scende: una dichiarazione
+    // non e' un premio, e' una risposta alla stessa domanda.
+    const down = expectedPlay(input({ pv: 34, ruled: 0.631 }));
+    expect(down.base).toBeCloseTo(0.631 * 36, 5);
+  });
+
+  it('viene prima anche del METRO DELLA PLANCIA, che e’ l’altro modo di scavalcare il foglio', () => {
+    const both = expectedPlay(input({ pv: 12.6, pvIsEstimate: true, playShare: 0.5, ruled: 0.9 }));
+    expect(both.basis).toBe('ruled');
+    expect(both.base).toBeCloseTo(0.9 * 36, 5);
+  });
+
+  it('E’ IDEMPOTENTE: applicata due volte da’ lo stesso numero', () => {
+    // E' la proprieta' che rende sicuro applicarla sia a monte (`ValuationStore`) sia qui: fissa una
+    // base ASSOLUTA invece di moltiplicare, quindi la seconda applicazione ricalcola la prima.
+    const once = expectedPlay(input({ pv: 12.6, pvIsEstimate: true, ruled: 0.9 }));
+    const twice = expectedPlay(input({ pv: once.base, pvIsEstimate: true, ruled: 0.9 }));
+    expect(twice.base).toBeCloseTo(once.base!, 5);
+    expect(twice.expected).toBeCloseTo(once.expected!, 5);
+  });
+
+  it('lo stop APERTO e l’assicurazione si sottraggono comunque: una dritta non cura un infortunio', () => {
+    const out = { lost: 10 } as OutWindow;
+    const ruled = expectedPlay(input({ pv: 12.6, pvIsEstimate: true, ruled: 0.949, out }));
+    expect(ruled.out).toBe(10);
+    expect(ruled.expected).toBeCloseTo(0.949 * 36 - 10 - INSURANCE_DEFAULT_ROUNDS, 5);
+  });
+
+  it('il FATTORE resta contato sulla `pv` DEL FOGLIO, che e’ quella su cui il surplus e’ costruito', () => {
+    // Il surplus del foglio e' `(fm - rimpiazzo) x est_pv`: riscalarlo contro un altro denominatore
+    // sarebbe l'errore di unita' che questo file ha gia' pagato una volta.
+    const ruled = expectedPlay(input({ pv: 12.6, pvIsEstimate: true, ruled: 0.949 }));
+    expect(ruled.factor).toBeCloseTo(ruled.expected! / 12.6, 5);
+    expect(ruled.factor).toBeGreaterThan(2);
+  });
+
+  it('senza giornate una quota non e’ un numero di giornate: il foglio resta il foglio', () => {
+    const nothing = expectedPlay(input({ matchdays: null, pv: 20, ruled: 0.9 }));
+    expect(nothing.basis).toBe('core');
+    expect(nothing.base).toBe(20);
   });
 });

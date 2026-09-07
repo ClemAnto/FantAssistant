@@ -9,6 +9,7 @@ import { orderedBy } from './manual-order';
 import { EDGE_BASE } from './plancia';
 import { MOSTLY_ANCHOR } from './player-ratings';
 import { ClassicRole } from './players-store';
+import { titolaritaRank } from './titolarita';
 
 /**
  * LA STRATEGIA D'ASTA: quanti uomini di ogni ruolo la stanza comprerà, e quali sono i migliori.
@@ -179,6 +180,15 @@ export interface StrategyBidder {
    * costruito su una costanza che nessuno ha letto.
    */
   swing?: number | null;
+  /**
+   * LA TITOLARITA' IN UNA PAROLA, gia' RISOLTA: la dritta dichiarata se c'e', altrimenti il gradino
+   * del foglio (richiesta dell'operatore, 07/09/2026).
+   *
+   * Risolta da chi costruisce la riga e non qui, perche' `readingsOf` e' pura e non deve poter leggere
+   * una dichiarazione: una pastiglia che leggesse `desc_titolarita` da sola direbbe la parola del
+   * modello accanto a una card che mostra la tua, sullo stesso uomo e nella stessa schermata.
+   */
+  titolarita?: string | null;
   /**
    * IL CONTO DELLE GIORNATE che gioca davvero (`core/expected-play.ts`), con ogni pezzo separato.
    *
@@ -372,6 +382,19 @@ export interface ManReadings {
   fvm: number | null;
   /** Lo SWING: i gol di classifica che fa segnare, nell'unita' con cui la lega assegna i punti. */
   swing: number | null;
+  /**
+   * LA TITOLARITA' IN UNA PAROLA (richiesta dell'operatore, 07/09/2026: «nella pagina strategia,
+   * aggiungi anche la possibilita' di vedere la titolarita' dei calciatori»).
+   *
+   * E' l'unica lettura che porta una PAROLA e non un numero, e per questo la sua `ReadingSpec` ha
+   * `word`: le altre si stampano con `DecimalPipe`. Ordina per la SCALA (`titolaritaRank`) e non per la
+   * sigla, che darebbe l'alfabeto - BAL, BAN, PAN... - al posto dei gradini.
+   *
+   * Il valore lo risolve chi costruisce la riga, perche' la DRITTA dichiarata batte il foglio: una
+   * pastiglia che leggesse `desc_titolarita` direbbe la parola del modello accanto a una card che
+   * mostra la tua.
+   */
+  titolarita: string | null;
 }
 
 /**
@@ -392,7 +415,7 @@ export interface ManReadings {
  */
 export type ReadingKey =
   | 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'goals' | 'assists' | 'xg' | 'xa'
-  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing';
+  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing' | 'titolarita';
 
 export interface ReadingSpec {
   key: ReadingKey;
@@ -404,6 +427,14 @@ export interface ReadingSpec {
   format: string;
   /** Se il segno si stampa anche quando e' positivo: vale per le differenze e per nient'altro. */
   signed?: boolean;
+  /**
+   * LA PASTIGLIA PORTA UNA PAROLA e non una cifra (oggi solo la titolarita').
+   *
+   * Dichiarato qui e non dedotto dalla chiave: chi disegna deve sapere di NON passare per
+   * `DecimalPipe` - e un `format` letto su una stringa stampa `NaN`, che e' il modo in cui una colonna
+   * nuova finisce a schermo sbagliata invece che vuota.
+   */
+  word?: true;
   /** Cosa segue il numero, quando l'unita' non e' ovvia. */
   suffix?: string;
   /** Quanto e' larga la sua pastiglia: le pastiglie sono INCOLONNATE, quindi la larghezza e' fissa e
@@ -564,6 +595,20 @@ export const READINGS: ReadingSpec[] = [
     width: 'min-w-9',
   },
   {
+    key: 'titolarita',
+    // TRE CARATTERI come tutte le altre, e non `Tit.` con il punto della colonna della tabella: la
+    // fila delle pastiglie deve restare compatta, e un test asserisce che l'unica sigla piu' lunga di
+    // tre e' SWING - una seconda eccezione non entra in silenzio per un punto.
+    short: 'Tit',
+    label: 'Titolarita',
+    hint: 'Quanto gioca, in una parola: BAN, TIS, TIT, BLT, PAN, RIS.',
+    // Una parola non si formatta: il campo resta perche' la `ReadingSpec` e' una sola, e `word` dice
+    // a chi disegna di non passare da `DecimalPipe`.
+    format: '1.0-0',
+    word: true,
+    width: 'min-w-8',
+  },
+  {
     key: 'swing',
     // La sigla E' la parola intera: il termine a schermo e' SWING e non si abbrevia (operatore,
     // 06/09/2026). E' la piu' lunga della fila - le altre stanno in due o tre caratteri - e il prezzo
@@ -646,6 +691,13 @@ export function wantsPlayedFootball(keys: readonly ReadingKey[]): boolean {
  */
 export function readingValue(key: ReadingKey, readings: ManReadings): number | null {
   switch (key) {
+    // LA TITOLARITA' ORDINA PER LA SCALA, e il segno e' meno perche' la lista scende: `bandiera` e'
+    // il gradino 0 e deve stare in cima. Ordinare per la sigla darebbe BAL, BAN, PAN, RIS, TIS, TIT,
+    // cioe' l'alfabeto al posto dei gradini (`core/titolarita.ts` lo scrive di se').
+    case 'titolarita': {
+      const rank = titolaritaRank(readings.titolarita);
+      return rank == null ? null : -rank;
+    }
     case 'bonus':
       return readings.bonus;
     case 'played':
@@ -759,6 +811,9 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     gaNow: man.gaNow,
     seasonPlayed: man.seasonPlayed,
     fvm: man.fvm,
+    // La parola gia' risolta da chi ha costruito la riga: la dritta dichiarata batte il foglio, e
+    // questa funzione non ha modo di leggere una dichiarazione (e' pura, e non deve averlo).
+    titolarita: man.titolarita ?? null,
     // LETTA E NON RICALCOLATA, come il gain: lo SWING nasce dove nasce la riga, perche' ha bisogno
     // del calendario del foglio e questa funzione riceve solo l'uomo. Due punti che la calcolano
     // darebbero allo stesso nome due numeri, ed e' il difetto che questo progetto paga da sempre.

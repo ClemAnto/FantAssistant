@@ -5,6 +5,8 @@ import { NzSelectModule } from 'ng-zorro-antd/select';
 import { AuctionAdvice } from '../../../core/auction-advice';
 import { AuctionFeed } from '../../../core/auction-feed';
 import { OnTable } from '../../../core/club-eleven';
+import { PlayerRulings } from '../../../core/player-rulings';
+import { Titolarita } from '../../../core/titolarita';
 import { ValuationStore } from '../../../core/valuation-store';
 import { ClubBoard } from '../../../ui/club-board/club-board';
 import { ClubCrest } from '../../../ui/club-crest/club-crest';
@@ -37,6 +39,8 @@ export class ClubPitch {
    * app porterebbe due giudizi sulla stessa persona. `load()` è idempotente.
    */
   private readonly valuation = inject(ValuationStore);
+  /** Le dritte dichiarate sui gradini di titolarita': il campetto le applica al disegno. */
+  private readonly rulings = inject(PlayerRulings);
 
   /** What the operator picked. Null = follow the recommended pick's club, which is where he is looking. */
   private readonly chosen = signal<string | null>(null);
@@ -109,6 +113,26 @@ export class ClubPitch {
     const rows = (this.valuation.rosters().get(platform) ?? []).filter((one) => one.club === club);
     for (const man of this.valuation.valuations(platform, rows)) {
       out.set(man.fcId, man.rating?.overall.score ?? null);
+    }
+    return out;
+  });
+
+  /**
+   * LE DRITTE DELL'OPERATORE sugli uomini di questo club: lo stesso input della vista Squadre.
+   *
+   * Un marchio che si disegna in una vista sola e' indistinguibile da un marchio che non esiste, e il
+   * campetto e' UNO per le due schermate: se una dichiarazione muove l'undici la' deve muoverlo anche
+   * qui, o due pagine mostrerebbero due undici dello stesso club.
+   */
+  protected readonly ruled = computed<ReadonlyMap<number, Titolarita>>(() => {
+    const declared = this.rulings.all();
+    const club = this.club();
+    const out = new Map<number, Titolarita>();
+    if (!declared.size || !club) return out;
+    for (const row of this.advice.listone()) {
+      if (row.player.club !== club) continue;
+      const one = declared.get(row.player.id);
+      if (one) out.set(row.player.id, one.rung);
     }
     return out;
   });

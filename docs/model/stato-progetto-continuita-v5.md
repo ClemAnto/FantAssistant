@@ -6562,3 +6562,100 @@ altre otto modifiche in albero sono di un'altra sessione e non si committa la me
 - **La misura si allarga da sé ogni stagione**: la finestra è di quattro stagioni perché la fonte non
   emette xG prima del 2022-23, e le 90 coppie uomo×club sono il vincolo di potenza (z +1,44). Con
   2026-27 in archivio si rifà in un minuto.
+
+# Chiusura 8 settembre 2026 — le DRITTE si prezzano nell'app, e l'ordine della scala non cede alla misura
+
+Sessione interamente sull'APP: nessun `engine_*`, nessun parametro del toolkit, nessun gate. Quattro
+richieste dell'operatore in fila e due sue correzioni, con il dettaglio in
+[letture-app-v1.md](letture-app-v1.md) §38 e la forma della lezione in [CLAUDE.md](../../CLAUDE.md).
+
+## Le richieste
+
+1. «Cliccando su un calciatore, nella card di dettaglio, fosse possibile cliccare sulla riga
+   "titolarità" e impostare la mia indicazione. Una volta aggiunta una mia indicazione
+   (titolare/riserva/ecc) dovrebbe 1) aggiornarsi in automatico il campetto nella pagina squadre
+   2) aggiornarsi il numero di partite attese 3) aggiornarsi il surplus, lo swing e tutti i valori
+   derivati.»
+2. «Nella card con il dettaglio del calciatore metti anche lo SWING.»
+3. «Quando un calciatore ha una personalizzazione attiva, aggiungi un piccolo pallino dopo il nome.»
+4. «Nella pagina strategia, aggiungi anche la possibilità di vedere la "titolarità" dei calciatori.»
+
+## La risposta
+
+`core/player-rulings.ts` — la **terza cosa dichiarata dell'app**, con la forma delle altre due
+(`board_rulings.json` per il modulo di un club, `player_notes.json` per chi è fuori rosa): unita per
+`fc_id`, datata, revocabile con un click, precedenza massima. Il formato su disco è **lo stesso file del
+toolkit** (si legge anche `standing`), ma vive in `localStorage`: non entra nei fogli, e per farlo va
+ridichiarata in `config/player_rulings.json` — che è la metà che l'altra sessione ha committato in
+`69f9207` lo stesso giorno. **Le due metà sono complementari e non si pestano**: là la dichiarazione è un
+VINCOLO sul disegno e non muove un numero, qui viene PREZZATA, che è l'altra metà della richiesta.
+
+**QUANTO VALE UNA PAROLA È UNA DOMANDA SULLA SUA POPOLAZIONE**, e la parola promette **due cose** perché
+la scala vive su due assi (la quota di partite a voto e un pavimento di MINUTI, `engine/status.py`).
+Misurate sul foglio Serie A (562 righe): quote 0,967 · 0,858 · 0,949 · 0,807 · 0,631 · 0,243 e minuti
+80 · 80 · 71 · 61 · 55 · 52, coi pavimenti visibili nel dato.
+
+**E L'ORDINE DELLA SCALA NON CEDE ALLA MISURA**, che è la correzione dell'operatore («titolarissimo deve
+essere meglio di titolare»): la conversione lo rispetta, si muove SOLO il gradino che lo viola e lo si
+mette in mezzo ai suoi vicini misurati (0,958 fra 0,949 e 0,967), per ASSE, e si ripara un'inversione e
+non un pareggio — sui minuti i due gradini alti valgono entrambi 80 perché condividono il pavimento dei
+75′. Due funzioni e due nomi: `rungMedians` misura, `orderedShares` dichiara, `rungShares` compone.
+
+Dove i numeri si muovono: `ValuationStore.expected` (tabelle, campetto, Overall) e `expectedPlay` passo 0
+(plancia, Strategia, perché, card). **I due non si sommano** perché la dritta fissa una base ASSOLUTA
+invece di moltiplicare — applicata due volte ricalcola lo stesso numero. Si riscala solo quello che
+MOLTIPLICA le presenze; `actual_*` non si tocca, che sarebbe correggere il passato.
+
+Le altre tre: lo SWING sulla card è una riga con la sua etichetta e non il numero grande accanto (quello
+è per partita giocata, questo per giornata), con la base del tooltip da `swingBase(role)` perché per un
+portiere è 5; il pallino è UN componente (`ui/ruling-dot`) letto da cinque liste, e sul campetto ha
+sostituito la sigla che ci avevo messo mezz'ora prima; la titolarità sulla Strategia è la quindicesima
+pastiglia, l'unica che porta una PAROLA, ordina per la scala e non per la sigla, e mostra il gradino
+DICHIARATO.
+
+## Le lezioni di metodo
+
+- **Quando una misura contraddice una dichiarazione dell'operatore su un ORDINE, non cede la
+  dichiarazione: cede la conversione**, e la misura resta leggibile accanto. La prima versione non
+  imponeva monotonia e stampava i numeri «perché la sorpresa si veda»: giusta sulla misura, sbagliata su
+  cosa fare — un gradino più alto che abbassa le presenze è una dichiarazione che punisce chi la fa.
+- **Ogni asse si stampa con la precisione in cui la sua differenza vive**: con l'intero `titolarissimo` e
+  `titolare` leggevano entrambi «34 gg», cioè lo schermo cancellava la distinzione appena aggiunta. Un
+  decimale sulle giornate, i minuti interi (là lo scarto è di nove).
+- **Un'etichetta assegnata su due assi va imposta su due assi**, o la riga si contraddice:
+  «titolarissimo» accanto a «46 minuti attesi».
+- **Tre difetti trovati dal banco in un browser vero, e uno era del banco**: la plancia legge il foglio
+  da sé e non passa da `ValuationStore` (il selettore stampava un trattino su tutte e sei le parole);
+  chi entra in campo restava ballottaggio di un ALTRO posto, quindi disegnato due volte; e «il campetto
+  non gli ha dato la maglia» era falso — il passo cercava il posto salendo di due `parentElement` e
+  finiva sull'intera riga.
+
+## Verifica
+
+`ng build` verde, **852 test** su 49 file, **quattordici banchi e2e** verdi compreso quello nuovo
+(`e2e-player-ruling.mjs`: guida la vista Squadre con un puntatore vero, ricalcola le due mediane dal
+`.json.gz` del motore invece di leggerle dall'app, e verifica i due numeri di ogni parola, la parola sulla
+card, le presenze, i minuti, il surplus, lo SWING, il campetto, il pallino, la pastiglia della Strategia e
+la strada indietro). Misurato su Kristensen T. dichiarato `titolare`: 18 → 34 giornate, 77′ → 71′, surplus
+8,3 → 15,4, SWING 0,07 → 0,17, il campetto gli dà la maglia — e la fantamedia ferma a 6,11, che è il
+controllo negativo.
+
+**DUE SESSIONI SU UN ALBERO** (quinta istanza): l'altra ha committato la sua metà toolkit in `69f9207`
+mentre lavoravo, e mentre chiudo ha in albero `gate-motore-v1.md` §7-quinquinquagies e una riga di
+`copertura-eventi-motore-v1.md`. Autorship misurata con un `git diff | grep` per il vocabolario di
+ciascuna feature: zero righe loro nei miei file e zero mie nei loro. Questo commit porta **solo la mia
+metà** e le loro due voci restano fuori.
+
+## Aperti
+
+- **Far viaggiare `config/player_rulings.json` nel pacchetto** (`export` + `pull-bundle`): oggi una dritta
+  dichiarata nel file del toolkit non si vede nell'app e una dichiarata nell'app non entra nei fogli. È
+  l'unico pezzo aperto e nessuno dei due lati mente — la card dice «dritta tua del <data>» e il campetto
+  porta il pallino.
+- **Una promozione può far scendere un asse**: Kristensen dichiarato `titolare` passa da 77′ a 71′, ed è
+  coerente con la parola (a 77′ con quella quota il toolkit lo chiamerebbe `titolarissimo`). Se si volesse
+  che una promozione non peggiori nessun asse, la cura è tenere il suo numero quando è già dentro la banda
+  del gradino: una riga, e va scritta come una decisione.
+- **Il campetto applica la dritta solo dentro i candidati che il toolkit ha già scritto** per un posto:
+  chi non è né titolare né ballottaggio di nessuna maglia non ha un posto in cui entrare, e la pagina lo
+  DICE. Il disegno completo lo rifà la prossima costruzione del foglio, che ha in mano la rosa intera.

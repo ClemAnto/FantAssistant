@@ -486,6 +486,26 @@ describe('le sette letture di una riga', () => {
     expect(readingValue('fvm', readings)).toBe(210);
   });
 
+  it('LA TITOLARITA ORDINA PER LA SCALA e non per la sigla, che darebbe l’alfabeto', () => {
+    // Richiesta dell'operatore, 07/09/2026. Ordinando per le tre lettere si leggerebbe BAL, BAN, PAN,
+    // RIS, TIS, TIT: il gradino 4 in cima e il 3 in fondo. La chiave e' il rango della scala col segno
+    // meno, perche' la lista scende e `bandiera` e' lo zero.
+    const rank = (rung: string | null) => readingValue('titolarita', readingsOf(man({ titolarita: rung })));
+    expect(rank('bandiera')).toBe(-0);
+    expect(rank('ballottaggio')).toBe(-3);
+    expect(rank('riserva')).toBe(-5);
+    expect(rank('bandiera')!).toBeGreaterThan(rank('riserva')!);
+    // Una parola che la scala non conosce, e il vuoto: ignoti, quindi vanno in fondo e non in mezzo.
+    expect(rank('boh')).toBeNull();
+    expect(rank(null)).toBeNull();
+  });
+
+  it('e’ l’UNICA lettura che porta una parola, dichiarata come tale', () => {
+    // `word` dice a chi disegna di non passare da `DecimalPipe`: un formato numerico su una stringa
+    // stampa `NaN`. Asserito che l'eccezione e' una sola, cosi' una seconda non entra in silenzio.
+    expect(READINGS.filter((one) => one.word).map((one) => one.key)).toEqual(['titolarita']);
+  });
+
   it('i gol e gli assist sono PER PARTITA come i loro attesi, e uno zero non e un vuoto', () => {
     // Le due misurate accanto alle due attese, nella stessa unita' (sua correzione del 05/09/2026):
     // `G 0,50` accanto a `xG 0,45` e' una frase, `G 1` accanto a `xG 0,45` sono due cifre che non si

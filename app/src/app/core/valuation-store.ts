@@ -8,6 +8,15 @@ import { cupMark, windowFromNote } from './player-cup';
 import { starterSignsFromSheet, starterSignsMark } from './player-place';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
 import { PlayerRatingsStore } from './player-ratings-store';
+import {
+  PlayerRuling,
+  PlayerRulings,
+  RungRow,
+  RungShares,
+  RungValues,
+  ruledShare,
+  rungShares,
+} from './player-rulings';
 import { PlayerMark, PlayerStatus } from './player-status';
 import { WhyColumns } from './surplus-why';
 import { Platform, PlayerRow, buildRosters, sheetIdentities } from './players-store';
@@ -433,6 +442,77 @@ export interface ActualOutcome {
  * La confidenza moltiplica anche qui, per la stessa ragione per cui moltiplica il surplus: una colonna
  * sola deve poter ordinare tutta la lista, misurati e stimati insieme.
  */
+/**
+ * UNA RIGA DEL MOTORE CON LA DRITTA DELL'OPERATORE DENTRO: la parola, le presenze, e solo quello che
+ * dalle presenze DISCENDE.
+ *
+ * La parola si sostituisce sempre (l'ha dichiarata lui, ed e' quella che ogni schermata deve mostrare);
+ * i NUMERI si muovono solo se c'e' una quota da imporre - una dritta che conferma il foglio lascia i
+ * suoi numeri misurati esattamente dove sono.
+ *
+ * COSA SI RISCALA, e la regola e' una: quello che MOLTIPLICA le presenze. Il surplus del foglio e'
+ * `(fm - rimpiazzo) x Pa x confidenza`, quindi e' lineare in `Pa` e la stessa proporzione lo porta -
+ * che e' esattamente quello che la plancia e la Strategia fanno gia' col `factor` dell'assicurazione.
+ * `spm` e' lineare nel surplus (un tasso per ruolo), e `dvm = spm - FVM`, quindi si muove dello stesso
+ * scarto dello `spm` senza dover rileggere il prezzo del listone.
+ *
+ * COSA NON SI TOCCA, e ognuna per una ragione diversa: la fantamedia, la media voto e Fπ (dicono quanto
+ * vale UNA sua partita, non quante ne gioca); i due rimpiazzi e l'ancora (sono lo zero del ruolo, non
+ * suo); la categoria e i suoi due numeri (il gradino di una parola dentro il ruolo, che il toolkit
+ * misura sui suoi assi); la stagione MISURATA e i marchi (fatti, non previsioni); i `why_*` (spiegano
+ * la colonna del motore, che e' rimasta quella); e soprattutto `actual_*`, che e' com'e' andata
+ * DAVVERO - riscalare un esito con una dichiarazione vorrebbe dire correggere il passato.
+ *
+ * LA COPPA SI SOTTRAE IN ASSOLUTO e non in proporzione: le giornate che una finestra costa sono un
+ * fatto sulla finestra (misurato, e con un tetto sulla popolazione dei titolari), quindi restano quelle
+ * anche se le presenze cambiano.
+ */
+export function ruledExpectation(
+  one: EngineExpectation,
+  ruling: Pick<PlayerRuling, 'rung'>,
+  /** Quello che la dritta impone, o null: nessuna, o una che conferma il foglio. */
+  values: RungValues | null,
+  /** Le giornate su cui quel foglio prevede: senza di loro una quota non e' un numero di giornate. */
+  rounds: number | null,
+): EngineExpectation {
+  const declared: EngineExpectation = { ...one, titolarita: ruling.rung };
+  if (values == null || !rounds) return declared;
+  const share = values.play;
+  const pv = share * rounds;
+  const scale = one.pv && one.pv > 0 ? pv / one.pv : null;
+  const by = (value: number | null): number | null =>
+    value == null || scale == null ? value : value * scale;
+  const spm = by(one.spm);
+  // Le giornate che la coppa costa restano quelle: si sottraggono dalle presenze nuove, e le due
+  // colonne al netto seguono le presenze AL NETTO - non quelle piene, o sarebbero due proporzioni.
+  const pvCup = one.pvCup == null || one.pv == null
+    ? one.pvCup
+    : Math.max(0, pv - (one.pv - one.pvCup));
+  const cupScale = one.pvCup && one.pvCup > 0 && pvCup != null ? pvCup / one.pvCup : null;
+  const byCup = (value: number | null): number | null =>
+    value == null || cupScale == null ? value : value * cupScale;
+  return {
+    ...declared,
+    pv,
+    // La quota va d'accordo con le presenze, o il «metro della plancia» ricalcolerebbe un altro numero.
+    titolaritaPlay: share,
+    // ...E I MINUTI, che sono l'ALTRO ASSE della stessa parola (operatore, 08/09/2026): dichiarare
+    // `titolarissimo` e lasciare «46 minuti attesi» sulla riga sarebbe una riga che si contraddice.
+    // E' un LIVELLO e non si riscala: si sostituisce, come la quota. Dove quel foglio non porta i
+    // minuti di quel gradino resta il suo numero misurato - «vuoto = ignoto», mai uno zero.
+    minutesNext: values.minutes ?? one.minutesNext,
+    surplus: by(one.surplus),
+    surplusFielded: by(one.surplusFielded),
+    spm,
+    // `dvm = spm - FVM`, e l'FVM non e' cambiato: lo scarto si sposta di quanto si sposta lo `spm`.
+    dvm: one.dvm == null || spm == null || one.spm == null ? one.dvm : one.dvm + (spm - one.spm),
+    pvCup,
+    valueCup: byCup(one.valueCup),
+    surplusCup: byCup(one.surplusCup),
+    surplusFieldedCup: byCup(one.surplusFieldedCup),
+  };
+}
+
 export function valueFromEngine(engine: EngineExpectation | undefined): number | null {
   return valueOf({
     basis: engine?.fmIsEstimate ? 'estimated' : 'measured',
@@ -482,6 +562,8 @@ export class ValuationStore {
   private readonly marks = inject(PlayerStatus);
   /** Le squadre reali escluse dalle opzioni globali: tagliano il perimetro, quindi anche ogni pool. */
   private readonly options = inject(GlobalOptions);
+  /** Le dritte dichiarate sui gradini di titolarità: precedenza massima su quello che il foglio dice. */
+  private readonly rulings = inject(PlayerRulings);
 
   /**
    * Il marchio per giocatore, da qualunque foglio lo dichiari.
@@ -606,8 +688,70 @@ export class ValuationStore {
     new Map(),
   );
   private readonly roles = signal<Map<number, { codes: string[]; on: string | null }>>(new Map());
-  /** `platform|fc_id` -> what the engine expects of him, and whether each half is the estimate. */
-  private readonly expected = signal<Map<string, EngineExpectation>>(new Map());
+  /**
+   * `platform|fc_id` -> what the engine expects of him, COME IL FOGLIO L'HA SCRITTO.
+   *
+   * Privato e mai letto direttamente: quello che tutti leggono e' `expected`, che e' questo piu' le
+   * dritte dichiarate. Due nomi perche' sono due cose - «cosa dice il motore» e «cosa vale questa riga
+   * per me oggi» - e la pagina del PERCHE' ha bisogno del primo per spiegare il secondo.
+   */
+  private readonly sheetExpected = signal<Map<string, EngineExpectation>>(new Map());
+
+  /**
+   * LE QUOTE PER GRADINO, misurate sulle righe di ogni foglio: quanto gioca chi il motore chiama
+   * `titolare`, `panchina`, ...
+   *
+   * Sta qui perche' qui ci sono le righe, e viene consegnata a `PlayerRulings` (l'effetto nel
+   * costruttore) perche' e' la' che si sa cosa l'operatore ha dichiarato. Una popolazione e' parte della
+   * misura, quindi e' per PIATTAFORMA: le mediane dei due listoni non sono le stesse.
+   */
+  private readonly rungShares = computed<ReadonlyMap<Platform, RungShares>>(() => {
+    const rows = new Map<Platform, RungRow[]>();
+    for (const [key, one] of this.sheetExpected()) {
+      const platform = key.split('|')[0] as Platform;
+      const pool = rows.get(platform);
+      // I DUE ASSI su cui la parola e' stata assegnata: la quota e i minuti.
+      const row = {
+        titolarita: one.titolarita,
+        titolaritaPlay: one.titolaritaPlay,
+        minutesNext: one.minutesNext,
+      };
+      pool ? pool.push(row) : rows.set(platform, [row]);
+    }
+    const out = new Map<Platform, RungShares>();
+    for (const [platform, pool] of rows) out.set(platform, rungShares(pool));
+    return out;
+  });
+
+  /**
+   * ...E LE COLONNE DEL MOTORE CON LE DRITTE DELL'OPERATORE DENTRO, che e' quello che ogni lista legge.
+   *
+   * Un punto solo di applicazione per tutta la parte «foglio» dell'app: la tabella dei Calciatori,
+   * quella delle Squadre, il campetto, l'Overall e le quattro letture passano tutti da qui, quindi una
+   * dritta si vede in tutte e non in una - «un marchio che si disegna in una vista sola e'
+   * indistinguibile da un marchio che non esiste». Le pagine che PREZZANO (plancia, Strategia, perche')
+   * leggono il foglio da un'altra strada e applicano la stessa dichiarazione dentro `expectedPlay`, che
+   * fissa la stessa base assoluta: due applicazioni non si sommano.
+   */
+  private readonly expected = computed<ReadonlyMap<string, EngineExpectation>>(() => {
+    const declared = this.rulings.all();
+    if (!declared.size) return this.sheetExpected();
+    const shares = this.rungShares();
+    const rounds = this.expectedRounds();
+    const out = new Map(this.sheetExpected());
+    for (const [key, one] of out) {
+      const [platform, id] = key.split('|');
+      const ruling = declared.get(Number(id));
+      if (!ruling) continue;
+      out.set(key, ruledExpectation(
+        one,
+        ruling,
+        ruledShare(ruling, one.titolarita, shares.get(platform as Platform) ?? new Map()),
+        rounds.get(platform as Platform) ?? null,
+      ));
+    }
+    return out;
+  });
   /** ...and the calendar THOSE numbers were predicted on, per platform: a share needs its own total. */
   private readonly expectedRounds = signal<Map<Platform, number | null>>(new Map());
   /** The boards per platform, and the sheet each one came from - so a card can name it. */
@@ -827,6 +971,14 @@ export class ValuationStore {
         this.pending = this.read();
       }
     });
+
+    // LE QUOTE PER GRADINO le misura questo negozio e le consegna a chi sa cosa e' stato dichiarato,
+    // che e' la stessa forma con cui il pannello d'asta consegna i suoi marchi a `PlayerStatus`: la
+    // popolazione e' qui, la dichiarazione e' la', e una seconda misura da quel lato sarebbe una
+    // seconda risposta su quanto vale una parola.
+    effect(() => {
+      for (const [platform, shares] of this.rungShares()) this.rulings.observe(platform, shares);
+    });
     // I MARCHI DELLA COPPA, registrati appena i fogli sono in casa.
     //
     // Da QUI e non dal pannello d'asta, perché questo è il negozio che ogni lista legge - la tabella di
@@ -974,7 +1126,7 @@ export class ValuationStore {
       this.sheets.set(sheets);
       const boards = await this.boardsByPlatform(sheets);
       this.boards.set(boards);
-      this.expected.set(await this.expectedByPlatform(boards, sheets));
+      this.sheetExpected.set(await this.expectedByPlatform(boards, sheets));
 
       // Le quattro letture le chiede l'effetto del costruttore, che è il solo posto da cui si chiedono:
       // dipendono dal pool e dalle attese del motore, e tutte e due possono cambiare DOPO il

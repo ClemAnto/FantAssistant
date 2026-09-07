@@ -21,6 +21,7 @@
 import { computed, signal } from '@angular/core';
 
 import { OutWindow } from './injury-window';
+import { Role } from './plancia';
 import { MatchCell, Platform, RecentMatch, clubNameKey, isChampionship } from './players-store';
 
 /**
@@ -55,18 +56,48 @@ export interface CardMan {
   clubId: number | null;
   /** Dove lo mette la pagina che apre la card: `A1` sulla plancia, `Dc` sulla Strategia. */
   where: string;
+  /**
+   * IL RUOLO DI LISTONE CLASSIC (`P`/`D`/`C`/`A`), che non e' il `where` sopra: quello e' un POSTO e
+   * cambia da una pagina all'altra, questo e' il mestiere con cui il gioco lo prezza.
+   *
+   * Serve a dire di cosa parla lo SWING: il suo zero e' il sei per tutti tranne il portiere
+   * (`swingBase`), e una card che spiegasse «sopra il 6» accanto al numero di un portiere direbbe una
+   * cosa falsa su un numero giusto.
+   */
+  role: Role;
   /** Quale listone prezza questi numeri: decide anche di quali partite si parla. */
   platform: Platform;
   /** Quanto rende una sua partita sopra il sei, e quante ne gioca sul calendario del foglio. */
   edge: number | null;
   pv: number | null;
   rounds: number | null;
+  /**
+   * LO SWING: punti sopra il sei A GIORNATA (richiesta dell'operatore, 07/09/2026).
+   *
+   * NON e' `edge` con un altro nome, ed e' la ragione per cui la card li tiene su due righe con due
+   * etichette: `edge` e' quanto rende una partita CHE GIOCA, questo e' quanto rende una GIORNATA del
+   * calendario - dentro c'e' quante ne gioca, lo zero del suo ruolo ribasato al sei e la costanza.
+   * Un uomo con la fantamedia di un titolare e le presenze di un riserva ha un `edge` alto e uno
+   * SWING basso, che e' esattamente l'informazione.
+   *
+   * Lo CALCOLA chi apre la card, come ogni altro numero qui: `core/swing.ts` e' la definizione e la
+   * plancia e la Strategia lo hanno gia' sulla riga: ricalcolarlo qui vorrebbe dire tre valutazioni
+   * per un uomo. Null dove la riga non ha abbastanza per farlo - ignoto, mai zero.
+   */
+  swing: number | null;
   /** La fantamedia attesa, gia' scelta fra misurata e stimata da chi costruisce la riga. */
   fm: number | null;
   /** Se quel numero sta in piedi sul ripiego dichiarato: il `~`. */
   estimated: boolean;
   estNote: string | null;
   titolarita: string | null;
+  /**
+   * La quota di partite a voto che ha DECISO quella parola (`desc_titolarita_play`).
+   *
+   * Viaggia con la parola perche' un gradino si ribalta su un decimale, e chi vede solo l'etichetta non
+   * puo' accorgersi che un uomo e' al bordo del suo gradino. Sta nel tooltip, non sulla riga.
+   */
+  titolaritaPlay: number | null;
   minutesNext: number | null;
   seasonMatches: number | null;
   minutesFullSeason: number | null;

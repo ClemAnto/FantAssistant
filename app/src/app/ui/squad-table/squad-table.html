@@ -182,7 +182,7 @@
               (click)="onPick(man)"
               (keydown.enter)="onPick(man)"
               >{{ man.name }}</span
-            >
+            ><ui-ruling-dot [playerId]="man.fcId" />
             <ui-flags [playerId]="man.fcId" />
           </span>
         </td>

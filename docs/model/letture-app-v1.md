@@ -4502,3 +4502,198 @@ Marianucci, Buongiorno: il numero a destra è quello che l'app disegna) e le **c
 nessun listone** (Cheddira, Cioffi, Lindstrom, Cajuste, Olivera M.), che erano anche assenti dalla lettura
 fresca della rosa — due segnali concordi, ed è da lì che è partita la cura del §22 dello spec.
 
+
+## 38. LE DRITTE SULLA TITOLARITÀ: una parola dichiarata, e i numeri che la seguono (7 settembre 2026, notte)
+
+Richiesta dell'operatore: «cliccando su un calciatore, nella card di dettaglio, fosse possibile cliccare
+sulla riga "titolarità" e impostare la mia indicazione. Una volta aggiunta una mia indicazione
+(titolare/riserva/ecc) dovrebbe 1) aggiornarsi in automatico il campetto nella pagina squadre 2)
+aggiornarsi il numero di partite attese 3) aggiornarsi il surplus, lo swing e tutti i valori derivati».
+
+È la **terza cosa dichiarata dell'app** (`core/player-rulings.ts`), con la forma delle altre due —
+`board_rulings.json` per il modulo di un club e `player_notes.json` per chi è fuori rosa: unita per
+`fc_id`, datata, revocabile con un click, e di precedenza massima su quello che il foglio dice della
+stessa domanda. Il formato su disco è **lo stesso file del toolkit** (`{stagione: {fc_id: {rung,
+decided_on}}}`, e si legge anche `standing`), così un JSON copiato da `config/player_rulings.json` si
+legge qui senza tradurlo.
+
+**DUE METÀ IN DUE POSTI, e la differenza è quella già dichiarata altrove.** Il toolkit (stessa giornata,
+altra sessione) applica le sue dritte al **DISEGNO** dell'undici come vincolo e non muove un numero —
+«non gli si sposta il claim: quel numero è misurato e deve continuare a leggersi per quello che è». Qui
+la stessa dichiarazione viene **PREZZATA**, che è l'altra metà della richiesta, e sta nell'app per la
+ragione per cui ci sta l'assicurazione infortuni: non è una previsione nuova sul calcio, è una quantità
+dichiarata che riscala numeri che il foglio ha già calcolato. Nessun gate la possiede.
+
+### 38.1 — Quanto vale una parola: la mediana della sua popolazione, e LA SCALA NON È MONOTONA
+
+Una parola non è un numero, e i numeri li vuole tutta l'app. La conversione non si sceglie: la scala a
+sei parole la decide il toolkit su **due assi** (la quota di partite a voto e un pavimento di MINUTI),
+quindi «quanto gioca un titolare» è una domanda sulla POPOLAZIONE di quel gradino — la stessa risposta
+che il progetto ha dato al prior di chi non ha mai giocato qui. Misurato sui tre fogli del pacchetto del
+07/09/2026 (Serie A classic 562 righe, euro mantra 944, Serie A mantra 562):
+
+| gradino | quota MISURATA | n | quota che PREZZA | giornate su 36 | minuti (mediana) |
+|---|---|---|---|---|---|
+| bandiera | 0,967 | 29 | 0,967 | 34,8 | 80 |
+| titolarissimo | **0,858** | 17 | **0,958** | 34,5 | 80 |
+| titolare | **0,949** | 59 | 0,949 | 34,2 | 71 |
+| ballottaggio | 0,807 | 155 | 0,807 | 29,1 | 61 |
+| panchina | 0,631 | 119 | 0,631 | 22,7 | 55 |
+| riserva | 0,243 | 183 | 0,243 | 8,7 | 52 |
+
+**E LA PAROLA PROMETTE DUE COSE, quindi dichiararla ne imposta due** (sua osservazione dell'8 settembre:
+«per il toolkit l'etichetta viene assegnata non solo per le partite giocate ma anche per i minuti
+giocati... quindi quando si customizza un calciatore devi impostare sia le partite che i minuti
+adeguatamente»). È esatto — `engine/status.py` decide su una quota **e** su un pavimento di minuti — e i
+pavimenti si leggono nel dato: i due gradini alti stanno tutt'e due sopra i 75′ (min misurato 75 e 76),
+`titolare` sta fra 65 e 75, sotto non c'è pavimento. Quindi la misura porta **due mediane per gradino** e
+la dichiarazione le impone entrambe: `titolaritaPlay` + `pv` da una parte, `minutesNext` dall'altra. I
+minuti sono un LIVELLO e si sostituiscono, non si riscalano; e non entrano in nessuna valutazione (le
+presenze non si moltiplicano per i minuti), quindi quello che cambiano è cosa la riga DICE — su cinque
+schermate: la card, il campetto (due punti), il tooltip della colonna `Tit.`, la pastiglia `mp` della
+Strategia, la pagina del perché. Senza di loro una riga si contraddiceva: «titolarissimo» accanto a «46
+minuti attesi».
+
+**Il prezzo, detto**: la dichiarazione è «trattalo come il suo gradino», quindi un asse può anche
+SCENDERE. Kristensen T. dichiarato `titolare` passa da 18 a 34 giornate e da 77′ a 71′ — e i 71 sono
+coerenti con la parola, perché a 77′ con quella quota il toolkit lo chiamerebbe `titolarissimo`. Se un
+giorno si volesse che una promozione non peggiori nessun asse, la cura è una riga (tenere il suo numero
+quando è già dentro la banda del gradino) e va scritta come una decisione, non come una correzione.
+
+**`titolarissimo` sta SOTTO `titolare` sulla quota**, e non è un difetto del dato: è il gradino RESIDUO
+fra gli altri due (>80% delle partite **e** almeno 75 minuti), mentre `titolare` prende chi gioca quasi
+sempre con un pavimento di minuti più basso — è la stessa cosa che il gate scrive di sé
+(«`titolarissimo` è il gradino debole, il residuo fra gli altri due»). Le mediane dei due fogli `default`
+(classic e mantra) sono identiche al millesimo, che è giusto: la scala parla di calcio giocato e non del
+gioco per cui lo compri.
+
+**E QUI LA PRIMA VERSIONE HA SBAGLIATO, corretta dall'operatore l'8 settembre: «titolarissimo deve essere
+meglio di titolare».** Avevo scritto che un ordine fra le due parole «non esiste su un asse solo», quindi
+nessuna monotonia imposta e il selettore stampa i numeri perché la sorpresa si veda. Il ragionamento era
+giusto sulla MISURA e sbagliato sulla cosa da fare: **l'ordine della scala è una DICHIARAZIONE** — l'indice
+di `TITOLARITA_LADDER` *è* la scala, sono le sue sei parole — quindi dichiarare un gradino più alto non può
+abbassare le presenze attese. Sarebbe una dichiarazione che punisce chi la fa, e nessuno la userebbe due
+volte. *Quando la misura contraddice una dichiarazione dell'operatore su un ordine, non è la
+dichiarazione a cedere: è la conversione che deve rispettarla, e la misura resta leggibile accanto.*
+
+La riparazione fa il **minimo**, e agisce **per asse**: si muove SOLO il gradino che contraddice
+l'ordine, e lo si mette in MEZZO ai suoi vicini, che sono misurati — `titolarissimo` diventa **0,958**,
+cioè fra `titolare` (0,949) e `bandiera` (0,967). Così l'ordine viene da lui e il livello dal dato, e non
+entra nessun numero fuori dalla banda che la misura disegna; un violatore in cima si mette al minimo PARI
+a chi gli sta sotto (sopra non c'è un vicino da cui interpolare, e i minuti non hanno un tetto naturale
+come l'1 di una quota), e un gradino che il foglio non popola non è un vicino. Due funzioni e due nomi
+(`rungMedians` misura, `orderedShares` dichiara, `rungShares` è la composizione che prezza), così nessun
+chiamante prezza con la misura grezza per distrazione e la misura resta leggibile per quello che è.
+
+**E SI RIPARA UN'INVERSIONE, NON UN PAREGGIO**: sui MINUTI `bandiera` e `titolarissimo` valgono entrambi
+80, perché condividono il pavimento dei 75′ e si separano sulla quota — un pareggio non contraddice un
+ordine, e inventare uno scarto dove il dato non ne ha vorrebbe dire scrivere una misura. Ogni asse
+distingue quello che distingue.
+
+**Il prezzo va detto**: sull'asse che l'app prezza — le PRESENZE — i due gradini sono davvero quasi
+identici (**34,5 contro 34,2** giornate su 36), e quello che li separa sono i MINUTI, che non entrano in
+nessuna valutazione. La differenza c'è e ha il verso giusto, ma è piccola perché è piccola nel dato. E il
+selettore stampa **un decimale** sulle giornate: con l'intero le due parole leggevano entrambe «34 gg»,
+cioè lo schermo nascondeva esattamente la distinzione che l'ordine dichiara — *un numero arrotondato dove
+la differenza vive nei decimi non è una semplificazione, è la cancellazione della cosa che si è appena
+aggiunta.* I minuti restano interi, perché lì lo scarto è di nove (80 contro 71): ogni asse si stampa con
+la precisione in cui la sua differenza vive.
+
+**UNA CONFERMA NON MUOVE NIENTE.** Se il gradino dichiarato è quello che il foglio dice già, la quota
+resta la SUA e non diventa la mediana del gruppo: altrimenti un `bandiera` letto 0,99 e dichiarato
+`bandiera` scenderebbe a 0,967, cioè una dichiarazione che CONFERMA peggiorerebbe il numero. Un gradino
+che quel foglio non popola non prezza niente e la sua parola resta una parola («vuoto = ignoto»
+applicato a una conversione), e il selettore lo dice con un trattino.
+
+### 38.2 — Cosa fa al DISEGNO: il cancello che la scala ha su se stessa
+
+Le tre parole con cui una dritta agisce sul campetto (`BOARD_EFFECT`, le stesse tre del toolkit) **non
+sono una scelta nostra**: le decide il cancello che la scala ha su se stessa — «chi la board non schiera
+non può essere titolare, chi schiera non scende sotto ballottaggio». Quindi i primi tre gradini
+PRETENDONO l'undici, gli ultimi due lo escludono, e `ballottaggio` è l'unica parola compatibile con
+tutt'e due e non muove il disegno: **115 dei 155 ballottaggi del foglio Serie A sono nell'undici
+disegnato e 40 no**.
+
+L'app non calcola nessun undici di un club vero — è la regola di `core/club-eleven.ts` — quindi non
+sceglie nessun uomo nuovo: **riordina la graduatoria che il toolkit ha già scritto per ogni posto** (il
+titolare più i suoi ballottaggi), che è l'unico insieme in cui uno scambio non inventa niente.
+L'ordinamento è STABILE e la chiave è uguale per tutti quelli che non portano una dritta, quindi è
+**idempotente per costruzione**: su una board costruita DOPO che l'operatore l'ha messa nel file del
+toolkit non si muove niente — ed è la proprietà che rende sicuro avere due lettori della stessa
+dichiarazione. Chi il toolkit non mette in discussione da nessuna parte non entra, e il campetto lo
+DICE in fondo («una dritta non disegnabile qui: la board non li mette in nessun posto») invece di
+lasciare una dichiarazione che non ha fatto niente in silenzio.
+
+### 38.3 — Dove i numeri si muovono, e i due punti di applicazione
+
+| dove | cosa | come |
+|---|---|---|
+| tabelle Calciatori e Squadre, campetto, Overall, le quattro letture | `Pa`, `Tit.`, `Surplus`, SpM, dVM, valore | `ValuationStore.expected`, che è ora `sheetExpected` + le dritte |
+| plancia, Strategia, `/why`, le card | presenze attese, surplus, valore, SWING, banda d'offerta | `expectedPlay`, passo **0** |
+
+I due non si sommano, e la ragione è che la dritta **fissa una base ASSOLUTA invece di moltiplicare**:
+applicata due volte ricalcola lo stesso numero. Si riscala solo quello che MOLTIPLICA le presenze
+(`ruledExpectation` le elenca una per una: surplus, surplus dal fielded, SpM, dVM come scarto dello SpM,
+le colonne di coppa **in assoluto** perché le giornate che una finestra costa sono un fatto sulla
+finestra); non si toccano la fantamedia, la media voto, Fπ, i due rimpiazzi, l'ancora, la categoria, i
+`why_*` e soprattutto **`actual_*`**, che è com'è andata davvero — riscalare un esito con una
+dichiarazione vorrebbe dire correggere il passato.
+
+Misurato in un browser vero su Kristensen T. (Atalanta, `panchina` sul foglio, ballottaggio di Kossounou
+sul campetto), dichiarato `titolare`: partite attese **18 → 34** (card e tabella), Surplus **8,3 →
+15,4**, SWING **0,07 → 0,17**, colonna `Tit.` **PAN → TIT**, il campetto gli dà la maglia del suo posto
+e Kossounou scende fra i ballottaggi. **Controllo negativo**: la fantamedia legge **6,11 → 6,11**.
+
+### 38.4 — Tre difetti trovati dal banco, e uno era del banco
+
+- **La plancia legge il foglio DA SÉ e non passa da `ValuationStore`**, quindi le quote per gradino non
+  le arrivavano: il selettore stampava un trattino su tutte e sei le parole. I lettori del foglio sono
+  DUE e non uno, ed è un fatto sulla struttura dell'app: la misura si CONSEGNA (`PlayerRulings.observe`,
+  che si fonde per piattaforma) invece di essere scritta da un solo negozio — una sostituzione secca
+  farebbe sparire le quote di `euro` appena la plancia consegna le sue.
+- **Chi entra in campo restava ballottaggio di un ALTRO posto**, quindi il campetto lo disegnava due
+  volte: il toolkit elenca lo stesso rivale su più posti (171 voci su 610 sono ripetizioni). L'invariante
+  che `spreadDuels` protegge per il posto di cui uno è titolare va detto per l'intero campetto.
+- **E il terzo era dell'arnese**: «il campetto non gli ha dato la maglia» su un campetto che l'aveva
+  data, perché il banco cercava il posto salendo di due `parentElement` e finiva sull'intera RIGA. Ora
+  legge l'item dal suo hook (`data-place`) — *un passo che misura l'elemento sbagliato accusa il codice
+  del proprio difetto*.
+
+### 38.5 — Il pallino, lo SWING sulla card, e la titolarità sulla Strategia
+
+Tre richieste della stessa sera, e tutt'e tre sono vocabolario:
+
+- **«quando un calciatore ha una personalizzazione attiva, aggiungi un piccolo pallino dopo il nome»**:
+  `ui/ruling-dot`, UN componente letto da cinque liste (card, campetto, tabella, plancia, Strategia) e
+  non un `@switch` copiato in cinque template — un marchio significa la stessa cosa in ogni pagina. Si
+  legge da sé la dichiarazione (`[playerId]`, come `ui-flags`), quindi aggiungerlo a una lista è una riga
+  di template. Sul campetto ha **sostituito** la sigla che avevo messo mezz'ora prima: due marchi per un
+  fatto sono due legende.
+- **«nella card metti anche lo SWING»**: una riga della lista, e NON il numero grande accanto — quello è
+  quanto rende una partita CHE GIOCA, questo quanto rende una GIORNATA del calendario. Due etichette,
+  perché un uomo con la fantamedia di un titolare e le presenze di un riserva ha il primo alto e il
+  secondo basso, ed è esattamente l'informazione. La base del tooltip viene da `swingBase(role)`: per un
+  portiere è **5** e non 6, e una card che dicesse «sopra il 6» accanto al suo numero spiegherebbe un
+  numero vero con la base di un altro ruolo. Il valore lo passa chi apre la card (la plancia e la
+  Strategia lo hanno già sulla riga; la vista Squadre è il terzo chiamante della definizione unica).
+- **«nella pagina strategia, aggiungi anche la possibilità di vedere la titolarità»**: la quindicesima
+  pastiglia. È l'unica che porta una **PAROLA** e non una cifra (`ReadingSpec.word`, dichiarato perché un
+  formato numerico su una stringa stampa `NaN`), ordina per la **SCALA** e non per la sigla — che darebbe
+  BAL, BAN, PAN, RIS, TIS, TIT, cioè l'alfabeto al posto dei gradini — e la parola che mostra è quella
+  DICHIARATA, risolta dove si costruisce la riga: `readingsOf` è pura e non deve poter leggere una
+  dichiarazione, o la pastiglia direbbe la parola del modello accanto a una card che mostra la tua. La
+  sigla sulla pastiglia è `Tit` e non `Tit.` come l'intestazione della tabella: un test asserisce che
+  l'unica sigla più lunga di tre caratteri è SWING, e una seconda eccezione non entra per un punto.
+
+### 38.6 — Il limite, detto invece che nascosto
+
+La dichiarazione vive in **`localStorage`**, cioè nel browser di chi la scrive: non viaggia nel bundle e
+non entra nei fogli. Per farla entrare nel DISEGNO che il toolkit esporta va ridichiarata in
+`config/player_rulings.json`, che è il file dell'altra metà — e quando succede l'applicazione qui diventa
+un no-op sul campetto (§38.2) e continua a valere sui numeri, che è la parte che il toolkit non fa. Far
+viaggiare il file nel pacchetto (`export` + `pull-bundle`) è l'unico pezzo aperto, e finché non c'è
+nessuno dei due lati mente: la card dice «dritta tua del <data>» e il campetto porta il pallino.
+
+Verificato: `ng build` verde, **844 test** su 49 file, e **quattordici banchi e2e** verdi compreso quello
+nuovo (`e2e-player-ruling.mjs`, che guida la vista Squadre con un puntatore vero e confronta le sei
+giornate del selettore col `.json.gz` del motore invece che con lo schermo).

@@ -69,6 +69,7 @@ import { RoleSet } from '../role-set/role-set';
 import { StarRating } from '../star-rating/star-rating';
 import { CATEGORIA_SHORT, categoriaNote, categoriaRank, isCategoria } from '../../core/categoria';
 import { TITOLARITA_SHORT, isTitolarita, titolaritaNote, titolaritaRank } from '../../core/titolarita';
+import { RulingDot } from '../ruling-dot/ruling-dot';
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
   P: 'Portiere',
@@ -299,6 +300,7 @@ const DECIMAL_COLUMNS: readonly string[] = ['expectedFm', 'expectedMv', 'mv', 'f
     ClubCrest,
     DecimalPipe,
     FormsModule,
+    NgTemplateOutlet,
     NzButtonModule,
     NzCheckboxModule,
     NzCollapseModule,
@@ -311,10 +313,10 @@ const DECIMAL_COLUMNS: readonly string[] = ['expectedFm', 'expectedMv', 'mv', 'f
     NzTableModule,
     NzTagModule,
     NzTooltipModule,
-    NgTemplateOutlet,
     PlayerFlags,
     RoleBadge,
     RoleSet,
+    RulingDot,
     StarRating,
   ],
   host: { class: 'block' },

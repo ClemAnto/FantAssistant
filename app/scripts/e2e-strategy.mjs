@@ -1935,19 +1935,20 @@ async function main() {
     for (const key of ['fvm', 'bonus']) pressed.push(await pressReading(session, key));
     const restoredPills = (await evaluate(session, readPills)) ?? [];
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le quattordici letture della barra', {
+    note('le quindici letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
         + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
       problems: [
         ...pressed.filter(Boolean),
-        // QUATTORDICI dal 06/09/2026 (le due coppie `G:A`), dodici lo stesso giorno (lo SWING),
-        // undici dal 05/09 (gol, assist, xG e xA accanto a MV e FM). Il numero e' scritto qui perche'
-        // e' il VOCABOLARIO della pagina e non una misura: se cresce, cresce per una richiesta, e
-        // allora si aggiorna insieme a `READINGS` invece di leggere dallo schermo quello che lo
-        // schermo dice.
-        ...(toggles.length === 14 ? [] : [`${toggles.length} pastiglie invece delle quattordici dichiarate`]),
+        // QUINDICI dal 07/09/2026 (la titolarita', su sua richiesta: «nella pagina strategia, aggiungi
+        // anche la possibilita' di vedere la titolarita' dei calciatori»), quattordici dal 06/09 (le
+        // due coppie `G:A`), dodici lo stesso giorno (lo SWING), undici dal 05/09 (gol, assist, xG e
+        // xA accanto a MV e FM). Il numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non
+        // una misura: se cresce, cresce per una richiesta, e allora si aggiorna insieme a `READINGS`
+        // invece di leggere dallo schermo quello che lo schermo dice.
+        ...(toggles.length === 15 ? [] : [`${toggles.length} pastiglie invece delle quindici dichiarate`]),
         // LE DUE `G:A` NOMINANO LA LORO STAGIONE, e sono DUE anni diversi: due pastiglie con lo stesso
         // testo sarebbero indistinguibili sulla barra, ed e' esattamente il difetto che `dated` cura.
         ...((() => {
