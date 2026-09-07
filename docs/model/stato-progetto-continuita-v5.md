@@ -6160,6 +6160,26 @@ Niente di misurabile. Una sola cosa che un domani potrebbe essere chiesta e non 
 dicono. Datarle tutte allargherebbe la fila di sei pastiglie per ripetere sei volte la stessa cosa;
 `ReadingSpec.dated` è già il posto dove si decide, una riga per pastiglia.
 
+## Poi «committa e pusha tutto», che è la sua call — e cosa ha voluto dire in pratica
+
+Commit `527fe8f` (la mia metà) più **`e1fe9e5`, che è lavoro della sessione SWING** (`k = 2/11` come
+parametro di LEGA, e il ritiro della griglia che difendeva `1/11`). È il caso già a verbale del
+01/09/2026: possedendo entrambe le sessioni, l'operatore decide che l'albero condiviso va dentro com'è —
+e **quello che la sua decisione NON cancella è la misura**. Albero combinato prima di committare:
+`ng build` pulito, **798 test** app, **725 toolkit** + 1 skip, `e2e-strategy` ed `e2e-player-card` verdi.
+Autorship contata in un comando (`git diff | grep` sul vocabolario di ciascuna feature): **33 righe loro,
+0 mie** in quel commit — e il messaggio lo dice in testa, perché una storia che nasconde di chi è una metà
+non si può bisezionare.
+
+Il debito che avevo dichiarato — il loro aggiornamento del 7/9 scritto DENTRO la voce «precedente» del
+6/9, quindi un documento d'ingresso con un fatto nuovo sepolto due paragrafi sotto — **l'hanno chiuso
+loro** con la propria voce di testa (`da70c78`). Era la scelta giusta: riordinare la voce di un'altra
+sessione è peggio che dichiararla, perché quella sessione stava ancora scrivendo.
+
+Spinto su `origin` (branch `motore/reparto-e-tasso-titolarita`). Il repository è **pubblico**: il push
+pubblica `docs/model/` e `CLAUDE.md`, il pacchetto dati no — resta fuori da `master` e `data/export/` è
+gitignored.
+
 ---
 
 # Chiusura 7 settembre 2026 — il null si è seduto al tavolo, e il `k` è sparito
