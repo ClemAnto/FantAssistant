@@ -5962,3 +5962,44 @@ capito, e andrebbe cercato invece che adottato.
 
 **E se l'ottimo restasse sul bordo anche allora**, la regola resta non adottata e la cosa si scrive:
 meglio un canale misurato e non spedito che un parametro scelto guardando la coda della griglia.
+
+### 7-quinquagies (bis). L'ESITO: l'ottimo è INTERNO, e R25K40 è ADOTTATA su `default` (7 settembre 2026)
+
+**Corsa fatta come pre-registrato** — i tre punti nuovi e nessun altro, 14 finestre in-season, piattaforma
+`default` sola (su euro il verdetto resta negativo e la pre-registrazione dice che una griglia nuova non lo
+rimescola). Tutti e nove i punti ricalcolati in UNA corsa, così la tabella è di un solo strumento.
+
+| K (partite) | default/classic | default/mantra |
+|---|---|---|
+| 25 | 10/12 · +5,6% · peggiore **−2,0%** (robust NON regge) | 10/12 · +5,2% · −0,8% (robust) |
+| **40** | **robust 11/12 · +5,0% · −0,6%** | **STRICT 12/12 · +4,9% · +0,3%** |
+| 60 | robust 11/12 · +4,0% · −0,3% | STRICT 12/12 · +4,1% · +0,3% |
+| 80 | robust 11/12 · +3,4% · +0,0% | STRICT 12/12 · +3,4% · +0,3% |
+| 120 | STRICT 12/12 · +2,5% · +0,3% | STRICT 12/12 · +2,6% · +0,3% |
+
+**Il guadagno smette di crescere prima di K = 120** — scende in modo monotono oltre il 40, su tutt'e due i
+giochi — quindi la condizione pre-registrata è soddisfatta: l'ottimo è INTERNO. La previsione era «fra 40 e
+80» e la verità è al bordo basso di quella banda: il massimo della media è a 25-40, e il ruolo della griglia
+allargata era esattamente mostrare la discesa oltre il 40 che la prima corsa non poteva vedere.
+
+**ADOTTATA R25K40 su `default`**, il punto con la media più alta fra quelli che reggono su tutt'e due i
+giochi: su mantra è STRICT (tutte e 12 le finestre migliorano), su classic robusto (11/12, peggiore −0,6%) —
+la forma di R19, verdetti divergenti e decisione scritta. K = 25 rende di più in media (+5,6%) e NON regge su
+classic (peggiore −2,0%, fuori tolleranza). **E il K120 che passa strict su classic non è un K migliore: è il
+termine che converge all'inerzia** — più il prior pesa, meno la regola fa, e «migliora ovunque di poco» è la
+firma di un termine che si sta spegnendo, non di un ottimo. Un punto sul bordo resta non adottabile comunque,
+per la stessa regola che ha fermato il 40 alla prima corsa.
+
+Le due guardie del deliverable: i nomi d'asta SALGONO (138 → 141 su classic a K40, 471 → 479 su mantra), e il
+costo unidirezionale della prima corsa resta e si ridice — il VALORE catturato scende dello 0,2-1,4% su ogni
+finestra, stesso segno, dentro la tolleranza del 2%. Due metriche, due risposte, nessuna nascosta.
+
+**Inerzia verificata dopo l'adozione**: `backtest --verify` **22/22** e 725 test verdi — su una finestra
+pre-stagione `fm_seen` è None per tutti e il ramo non esiste, quindi nessun numero pubblicato si muove.
+`SHEET_REVISION` 48: sui fogli `default` datati a stagione in corso (e sui quattro pacchetti del viaggio nel
+tempo) `engine_fm_pred` e `engine_surplus` ora portano la miscela.
+
+**E la conseguenza sull'app è una guardia, non una feature** (`core/swing.ts`): SWING applicava la stessa
+miscela per decisione dell'operatore quando il motore non la leggeva; ora su una riga che il motore prezza su
+`default` il foglio la porta già, e riapplicarla sarebbe contarla due volte. `SwingInput.fmBlendsSeen` la
+spegne lì e la lascia viva dove il foglio non può portarla — le righe stimate (`est_*`) e i fogli euro.

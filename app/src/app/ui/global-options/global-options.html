@@ -192,6 +192,32 @@
           <label
             class="flex flex-wrap items-center gap-3"
             nz-tooltip
+            nzTooltipTitle="Se la lega paga l'R-Factor: dove non esiste, lo SWING non conta la costanza."
+          >
+            <span class="w-32 shrink-0 text-sm text-muted">R-Factor</span>
+            <nz-switch
+              nzSize="small"
+              [ngModel]="form().rFactor"
+              (ngModelChange)="patch({ rFactor: $event })"
+            />
+          </label>
+
+          <label
+            class="flex flex-wrap items-center gap-3"
+            nz-tooltip
+            nzTooltipTitle="Se la lega paga il +1 al portiere a porta inviolata: entra nello SWING dei portieri, sul loro calendario."
+          >
+            <span class="w-32 shrink-0 text-sm text-muted">Porta inviolata +1</span>
+            <nz-switch
+              nzSize="small"
+              [ngModel]="form().cleanSheet"
+              (ngModelChange)="patch({ cleanSheet: $event })"
+            />
+          </label>
+
+          <label
+            class="flex flex-wrap items-center gap-3"
+            nz-tooltip
             nzTooltipTitle="Quante tornate dura il mercato a buste chiuse: la pagina Buste le usa per sapere quanto manca alla fine."
           >
             <span class="w-32 shrink-0 text-sm text-muted">Tornate (buste)</span>

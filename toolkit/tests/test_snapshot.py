@@ -4311,3 +4311,43 @@ def test_a_championship_we_cover_reads_its_minutes_from_whichever_source_has_the
     assert layer[4].get("abroad") is None, "a cup is not a matchday of any championship"
     assert "PO1" not in config.TM_CHAMPIONSHIPS and set(config.TM_CHAMPIONSHIPS.values()) == \
         set(config.CHAMPIONSHIPS), "the declared map is the six we measure a season over, no more"
+
+
+def test_the_mv_blends_the_seen_base_vote_exactly_where_the_fm_does():
+    """THE PAIR BLENDS TOGETHER OR NOT AT ALL (07/09/2026). With R25K40 adopted on `default` the core
+    fantamedia carries the matches seen; leaving the MV on last season alone would dump the whole
+    in-season news onto the derived rate `fm - mv` (the v9.59 family). The K is READ from the adopted
+    set - one definition, two readers - so on euro (R25 not adopted) the blend is off by itself, and on
+    a pre-season sheet (`mv_seen` None) nothing moves.
+
+    Measured out of sample before shipping (13 in-season windows, default): +4.7% of MAE on the
+    rest-of-season MV at K=40, 13/13 windows, worst +0.55%.
+    """
+    from types import SimpleNamespace
+
+    import pytest
+
+    from euroleghe_ingest.engine import evaluate, features, model
+
+    # the coupling itself: the K comes from the adopted set, and euro has none
+    assert "R25K40" in evaluate.ADOPTED["default"]
+    assert not any(key in evaluate.R25_MATCHES for key in evaluate.ADOPTED["euro"])
+
+    def build(platform: str, mv_seen: float | None, pv_seen: int | None) -> float:
+        obs = SimpleNamespace(fc_id=1, role_classic="C", club_target=None,
+                              mv_prev=6.4, pv_prev=30, mv_seen=mv_seen, pv_seen=pv_seen)
+        prediction = SimpleNamespace(fm_pred=7.0, pv_pred=30.0, anchor=6.6)
+        layer = {"role_bonus": {"C": 0.4}, "players": {}, "club_level": {}}
+        data = SimpleNamespace(matchdays_target=38)
+        window = features.Window("MVX", "2025-26", "2026-27", "2026-09-05")
+        guess = snapshot.estimate_for(obs, prediction, layer, {"C": 6.6}, data, window, platform)
+        assert guess.basis == "core" and guess.mv is not None
+        return guess.mv
+
+    prior_only = build("default", None, None)          # pre-season: no seen votes, the blend is inert
+    blended = build("default", 6.9, 3)                 # three matches seen at 6.9 of base vote
+    assert blended == pytest.approx(model.blend_with_seen(prior_only, 6.9, 3.0, 40.0))
+    assert prior_only < blended < 6.9, "the blend moves TOWARD the seen vote and never past it"
+
+    # euro: R25 is not adopted there, so the same seen votes move nothing - the pair stays whole
+    assert build("euro", 6.9, 3) == pytest.approx(build("euro", None, None))

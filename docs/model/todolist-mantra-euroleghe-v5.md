@@ -1492,14 +1492,19 @@ Dettaglio e numeri: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §
    una funzione del banco e non una da riscrivere — o il prossimo ricade nello stesso tavolo che premia
    chi riempie.
 
-3. **`STEADY_SHARE` è un parametro di LEGA e non ha ancora un'impostazione.** `2/11` sono i due punti
-   massimi dell'R-Factor della sua lega spalmati sugli undici; una lega con modificatori di taglia diversa
-   vuole un altro valore. Serve solo il giorno in cui ce ne fosse una seconda, e allora la TAGLIA dei due
-   modificatori va dichiarata (`LeagueRules` porta il mod. difesa come interruttore e non come scala; la
-   scala dell'R-Factor vive solo in `bench/auction/rules.py`) e la costante diventa una sua funzione.
+3. **`STEADY_SHARE` è un parametro di LEGA — la PRESENZA del modificatore è ora dichiarata, la TAGLIA no**
+   (aggiornato 07/09/2026). Su richiesta dell'operatore («il termine k intervenga solo quando l'r-factor è
+   attivo nella lega giocata») `LeagueSettings.rFactor` è un interruttore accanto al mod. difesa, e dove è
+   spento lo SWING non conta la costanza (`SwingInput.rFactor`). Quello che resta aperto è la TAGLIA:
+   `2/11` sono i due punti massimi dell'R-Factor della SUA lega spalmati sugli undici, e una lega con un
+   R-Factor di scala diversa vuole un altro valore — il giorno in cui ce ne fosse una, la scala va
+   dichiarata (oggi vive solo in `bench/auction/rules.py`) e la costante diventa una sua funzione.
 
-4. **Resta pre-registrata e non corsa: la griglia allargata di R25** (`R25K60 · R25K80 · R25K120`,
-   gate §7-quinquagies). Non è stata toccata da questa sessione.
+4. ~~Resta pre-registrata e non corsa: la griglia allargata di R25~~ **CORSA il 07/09/2026 e R25K40
+   ADOTTATA su `default`** (gate §7-quinquagies bis): l'ottimo è INTERNO — la media scende oltre il 40
+   (+5,0% → +4,0% → +3,4% → +2,5% su classic, idem su mantra dove K40 è STRICT 12/12) — `--verify` 22/22,
+   `SHEET_REVISION` 48, e la guardia anti-doppio-conteggio in `core/swing.ts` (`fmBlendsSeen`). Su euro
+   resta non adottata (3 finestre, verdetto negativo, non rimescolato per pre-registrazione).
 
 5. **Visibilità «quanti restano contro quante mani» per (ruolo, slot) sulla plancia** (07/09,
    consultazione — `assistente-asta-v1.md` §43). Il numero che decide i secondi prezzi è già contato
@@ -1508,3 +1513,18 @@ Dettaglio e numeri: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §
    §43: ritagliare gli slot in corsa quando qualcuno accumula (parametro fuori dalla popolazione su cui
    la scala è misurata + circolarità) e pulire gli infortunati dagli slot (già prezzati su tre livelli:
    `HURT_SLOT_STEP`, finestra di rientro, `MIN_PLAY_SHARE`).
+
+6. **I PROBABILI DI OGGI come colonna di REPORTING accanto allo SWING** (07/09, offerto e non
+   richiesto — `letture-app-v1.md` §32.11). Nel caso Meret/Milinkovic-Savic sono l'unico segnale che
+   distingue i due ADESSO (1,00 contro 0,05), e il foglio non li porta più: `desc_starter_prob` è vuota
+   su questo bundle, perché la pagina serve «adesso» e un foglio la fotografa il giorno che gira.
+   **Cosa NON fare**: farli entrare in una valutazione. La regola della maglia («chi ha giocato le
+   prime due la tiene») è stata misurata e respinta — 10 volte su 18, col controesempio della stessa
+   coppia un anno prima — e un input che la reintroducesse per un'altra porta sarebbe la stessa cosa
+   senza il gate. Come colonna informa; come peso è un canale che una monetina non sostiene.
+
+7. **Il +1 a porta inviolata è dichiarato e il suo VALORE non è misurato** (07/09). L'opzione di lega
+   dice SE la lega lo paga e il termine entra al differenziale sul calendario, che è la forma giusta;
+   quello che nessuno ha misurato è quanto quel differenziale valga davvero in punti a giornata contro
+   l'esito. È misurabile sul banco d'asta (una colonna in più contro surplus/quotazione/caso, con la
+   disciplina di reparto della voce 2) e costa una corsa, non un'acquisizione.

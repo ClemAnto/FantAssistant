@@ -570,8 +570,10 @@ export const READINGS: ReadingSpec[] = [
     // e' una pastiglia piu' larga, che e' meno caro di un'abbreviazione che nessuno ha dichiarato.
     short: 'SWING',
     label: 'SWING',
-    hint: 'I gol di classifica che fa segnare.',
-    format: '1.1-1',
+    hint: 'Punti a giornata sopra il 6 (portieri: sopra il 5).',
+    // Due decimali su sua richiesta (07/09/2026): nella scala a giornata i valori vivono sotto il 2,
+    // e a un decimale mezza lista leggeva uguale.
+    format: '1.2-2',
     width: 'min-w-10',
   },
 ];

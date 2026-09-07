@@ -116,6 +116,19 @@ describe('GlobalOptions', () => {
     expect(league.slots.classic.P).toBe(DEFAULT_LEAGUE.slots.classic.P);
     expect(league.slots.mantra).toEqual(DEFAULT_LEAGUE.slots.mantra);
     expect(league.rounds).toBe(DEFAULT_LEAGUE.rounds);
+    // ...e un interruttore nato DOPO quel salvataggio nasce acceso, non spento da una preferenza
+    // che non lo conosceva: il regolamento di partenza ha l'R-Factor e il +1 a porta inviolata.
+    expect(league.rFactor).toBe(true);
+    expect(league.cleanSheet).toBe(true);
+  });
+
+  it('keeps a declared "no R-Factor" across a refresh, like every other league fact', () => {
+    localStorage.setItem(
+      'fantassistant.options.league',
+      JSON.stringify({ rFactor: false, cleanSheet: false }),
+    );
+    expect(fresh().league().rFactor).toBe(false);
+    expect(fresh().league().cleanSheet).toBe(false);
   });
 
   it('takes over what the two pages had already declared, the Strategia winning the overlap', () => {

@@ -488,7 +488,15 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      rivisti, 29 tier spostati. `engine_*` non si muove di un decimale (0 differenze su 50.284 numeri
 #      del gate, `--verify` 22/22): quello che cambia sono `est_*` e `desc_arrival_tier`, cioe' esattamente
 #      cio' che questo campo esiste per dichiarare - un foglio sotto la revisione corrente va rifatto.
-SHEET_REVISION = 47
+# 48 - R25K40 ADOTTATA su `default` (07/09/2026, gate §7-quinquagies): la fantamedia GIA' TENUTA nelle
+#      giornate giocate entra in `engine_fm_pred` con un prior che pesa 40 PARTITE. Inerte su un foglio
+#      pre-stagione (`--verify` 22/22) e su euro, dove non e' adottata; su un foglio `default` datato a
+#      stagione in corso muove `engine_fm_pred` e `engine_surplus` - oggi (3 giornate viste) di poco,
+#      a febbraio di molto. E LA COPPIA MISCELA INSIEME: anche `est_mv` del ramo core porta le partite
+#      viste (stessa k, stessa K, letta da `evaluate.ADOPTED` - misurata +4,7% a K=40, 13/13 finestre),
+#      o tutta la novita' in-season finirebbe nel tasso bonus derivato `fm - mv`, la famiglia v9.59.
+#      I quattro pacchetti del viaggio nel tempo sono datati in-season e vanno rifatti con i fogli.
+SHEET_REVISION = 48
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -3684,10 +3692,26 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
         # from a fantamedia that has already been regressed toward the anchor. That subtraction is what
         # put Malen at 5.67 of MV against the 6.75 he really averaged; `est.mv_predict` carries the
         # measurement, and `fm - mv` is still the bonus per appearance the row expects of him.
+        mv_pred = est.mv_predict(obs.mv_prev, obs.pv_prev, anchor_mv, prediction.fm_pred,
+                                 role_bonus, platform)
+        # THE PAIR BLENDS TOGETHER OR NOT AT ALL (07/09/2026). With R25 adopted the core fantamedia
+        # already carries the matches seen this season; leaving the MV on last season alone would dump
+        # ALL the in-season news onto the derived rate `fm - mv` - the v9.59 defect family, one half
+        # absorbing what belongs to both. Same form, same k and the SAME K as the adopted rule: one
+        # definition, two readers - `evaluate.ADOPTED` decides here too, so on euro (R25 not adopted)
+        # this stays off by itself and a future re-adoption with another K arrives on its own.
+        # Measured out of sample on the 13 in-season windows that can score it (07/09/2026): blending
+        # the seen base vote improves the rest-of-season MV by +4.7% of MAE at K=40, 13/13 windows,
+        # worst +0.55%. The nominal optimum is K=25 (+5.4%); 40 is kept for the pair's coherence AND
+        # because the measurement's prior was weaker than the shipped one (no club term), which biases
+        # its optimum low - the gain is a ceiling, the true K a floor.
+        seen_k = next((evaluate.R25_MATCHES[key] for key in evaluate.ADOPTED.get(platform, ())
+                       if key in evaluate.R25_MATCHES), None)
+        if (seen_k is not None and mv_pred is not None
+                and obs.mv_seen is not None and obs.pv_seen):
+            mv_pred = model.blend_with_seen(mv_pred, obs.mv_seen, float(obs.pv_seen), seen_k)
         return est.Estimate(
-            prediction.fm_pred, prediction.pv_pred, "core", est.CONFIDENCE["core"], "",
-            mv=est.mv_predict(obs.mv_prev, obs.pv_prev, anchor_mv, prediction.fm_pred,
-                              role_bonus, platform))
+            prediction.fm_pred, prediction.pv_pred, "core", est.CONFIDENCE["core"], "", mv=mv_pred)
     other, older = mine.get("other"), mine.get("older")
     pv_pred = prediction.pv_pred if prediction else None
 

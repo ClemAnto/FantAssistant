@@ -495,6 +495,32 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.80 (7 settembre 2026 — R25K40 ADOTTATA, e la COPPIA fm/mv miscela insieme)
+
+**La griglia allargata di R25 è stata corsa come pre-registrato e la regola è ADOTTATA su `default`**
+(`evaluate.ADOPTED`, gate §7-quinquagies bis): la fantamedia GIÀ TENUTA nelle giornate giocate entra in
+`engine_fm_pred` con un prior che pesa **40 partite**. L'ottimo è INTERNO — la media scende oltre il 40:
++5,0% → +4,0% → +3,4% → +2,5% su classic (robusto 11/12, peggiore −0,6%), e su mantra K40 è **STRICT
+12/12** (+4,9%). K25 rende di più in media (+5,6%) e non regge su classic (peggiore −2,0%); il K120 che
+passa strict è il termine che converge all'inerzia, non un K migliore. Su euro resta NON adottata (3
+finestre, verdetto negativo, non rimescolato per pre-registrazione). Inerzia verificata: `--verify`
+**22/22**, 726 test. `SHEET_REVISION` **47 → 48**.
+
+**E LA COPPIA MISCELA INSIEME O NON MISCELA** (`snapshot.estimate_for`, ramo core). `est_mv` leggeva solo
+la stagione scorsa (`est.mv_predict`), quindi con R25 adottata tutta la novità in-season sarebbe finita
+nel tasso bonus derivato `fm − mv` — la famiglia del difetto v9.59, una metà che assorbe quello che è di
+tutt'e due. Ora la MV del ramo core miscela la media voto GIÀ TENUTA con la stessa `k` (partite giocate)
+e la STESSA `K` della regola adottata, letta da `evaluate.ADOPTED` — una definizione, due lettori: su
+euro resta spenta da sé, e una futura ri-adozione con un altro K arriva da sola. Misurata fuori campione
+prima di spedirla (13 finestre in-season, `default`, prior semplificato DICHIARATO più debole del vero —
+senza il termine club — quindi guadagno = tetto e K vero ≥ misurato): **+4,7% di MAE sulla MV del resto
+di stagione a K=40, 13 finestre su 13, peggiore +0,55%**; ottimo nominale a 25 (+5,4%), tenuto 40 per la
+coerenza della coppia. `Observation.mv_seen` era già cablato dal giorno di R25 e nessuno lo leggeva.
+
+**Sul lato app** (stessa sessione): `SwingInput.fmBlendsSeen` spegne la correzione R25 di SWING sulle
+righe che il motore prezza su `default` — il foglio la porta già, e riapplicarla sarebbe contarla due
+volte — e la lascia viva sulle righe stimate e sui fogli euro. Dettaglio: `letture-app-v1.md` §32.11.
+
 ## Novità v9.79 (6 settembre 2026, sera — UNA GRAFIA rifiutava il voto sintetico, e un'altra confondeva due campionati)
 
 Esecuzione del pacchetto pre-registrato in `gate-motore-v1.md` §7-quattuorquadragies, deciso

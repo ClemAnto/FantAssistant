@@ -4738,6 +4738,69 @@ l'opposto: una scelta esplicita, visibile e reversibile a ogni sguardo. Il tagli
 l'ordine, quindi cambiare chiave cambia anche chi resta in lista, e chi quel numero non ce l'ha va in
 fondo e non in mezzo.
 
+## Una META' di una coppia derivata non riceve una novita' da sola, e il «6» di un portiere e' un 5
+**07/09/2026, gate §7-quinquagies bis, spec «Novita' v9.80», `letture-app-v1.md` §32.11.** Giornata di
+una ADOZIONE nel motore e di quattro correzioni dell'operatore sull'app, e le regole che restano sono
+cinque.
+
+**UN OTTIMO SUL BORDO SI RIAPRE CON UNA GRIGLIA PRE-REGISTRATA, e questa volta ha funzionato.** R25
+passava il verdetto robusto a K = 40 col 40 sul BORDO, e la regola di casa («un parametro al bordo non
+si adotta mai») la teneva fuori per una ragione PROCEDURALE e non per il risultato. Corsa la griglia
+allargata come pre-registrata (60, 80, 120 e nessun altro punto), la media SCENDE oltre il 40 — +5,0%
+→ +4,0% → +3,4% → +2,5% — quindi l'ottimo e' interno e **R25K40 e' adottata su `default`**. Due
+corollari: il punto che si adotta non e' quello con la media piu' alta in assoluto (K25 rende +5,6% e
+non regge su classic) e **«migliora ovunque di poco» e' la firma di un termine che si SPEGNE**, non di
+un ottimo — il K120 passa strict perche' converge all'inerzia.
+
+**E LA CONSEGUENZA VALE PIU' DELL'ADOZIONE: dove una coppia e' `A = B + derivato`, una novita' entra in
+tutt'e due o il derivato la assorbe tutta.** Con R25 la fantamedia del motore porta le giornate
+giocate; `est_mv` leggeva solo la stagione scorsa, quindi tutta la novita' in-season sarebbe finita nel
+tasso bonus `fm − mv` — la stessa famiglia del difetto v9.59, dove la regressione verso l'ancora
+cadeva per intero sul voto base e Malen leggeva 5,67. Misurata prima di spedirla, la miscela della MV
+vale **+4,7% di MAE a K=40, 13 finestre su 13**. La `K` non e' una costante nuova: la legge da
+`evaluate.ADOPTED`, quindi su euro sta spenta da se' e una futura ri-adozione con un altro K arriva
+per conto suo — *una definizione, due lettori*, applicato a un parametro invece che a una funzione.
+Stessa regola dal lato app: `SwingInput.fmBlendsSeen` spegne la correzione R25 dello SWING sulle righe
+che il motore prezza, perche' riapplicarla sarebbe contarla due volte.
+
+**UN RUOLO MISURATO COL METRO DI UN ALTRO ORDINA AL CONTRARIO.** Lo SWING e' passato a **punti sopra il
+6 a giornata** per dichiarazione dell'operatore, e il giorno stesso lui ha trovato che i portieri erano
+ordinati per NON giocare: il loro fantavoto porta il malus dei gol subiti, quindi sul loro mestiere «6»
+vuol dire porta inviolata ogni settimana — la FMa dei titolari veri sta fra **4,91 e 5,24, tutti sotto
+il 6** — e uno zero sopra l'intera scala del ruolo rende il giocare un moltiplicatore di numeri
+negativi (il titolare −0,6, il terzo portiere ≈0). E' il difetto dei «primi portieri tutti a 99»
+(16/08) incontrato dal verso opposto. Lo zero giusto era gia' MISURATO e non andava scelto: il fielded
+del ruolo P legge **5,01/5,03** per due strade indipendenti, quindi `swing.KEEPER_BASE` = 5 mentre per
+D/C/A il 6 sta dentro la banda fielded (5,8-6,9) e resta. *Prima di dichiarare uno zero, guardare se
+sta dentro la scala del ruolo su cui agisce.*
+
+**UN MODIFICATORE DI LEGA NON E' NEL FANTAVOTO, quindi e' un'OPZIONE e non un termine.** Il +1 a porta
+inviolata: misurato, **1.218 portieri su 1.222** a porta inviolata leggono `voto + bonus` senza premio,
+quindi ne' la fantamedia ne' il surplus lo contengono. Dichiarato come interruttore accanto al mod.
+difesa (`LeagueSettings.cleanSheet`, come `rFactor` per il termine di costanza), e il conto e' **al
+DIFFERENZIALE contro la media del campionato e mai al totale** — anche il portiere che giocherebbe al
+posto suo incassa porte inviolate, quindi un calendario medio non compra niente e quello che paga e' il
+CALENDARIO. Terza lettura del canale delle coppie-portieri e non una seconda aritmetica.
+
+**E UNA REGOLA SUL CALCIO SI MISURA ANCHE QUANDO L'OSSERVAZIONE CHE LA SUGGERISCE E' GIUSTA.** La sua
+lettura dello schermo era corretta (Meret 2 partite su 2 e probabili 1,00 contro 0,05, e il foglio dava
+piu' presenze a Milinkovic-Savic); la sua ipotesi come REGOLA — «due partite da 90' contro zero
+dovrebbero bastare» — e' respinta: dove la maglia del portiere cambia mano nelle prime due giornate
+resta a chi l'ha presa **10 volte su 18**, e il controesempio e' **la stessa coppia un anno prima**
+(2025-26 Napoli: Meret le prime due, Milinkovic-Savic poi 27 contro 9). Respinto anche il sospetto
+strutturale che sembrava piu' solido — «un club schiera UN portiere, quindi la' due giornate valgono
+piu'» — perche' la curva del peso ottimale per i portieri ha la **stessa forma** dei ruoli di
+movimento (+58,6% a K=1 contro +26,2% a K=5; movimento +53,0% e +25,1%). Quello che si scrive e' che
+**su quel caso il modello sara' piu' lento dell'occhio per qualche turno**, non una soglia tarata su un
+nome. *Un controesempio dentro la stessa coppia che ha generato l'ipotesi e' l'evidenza piu' economica
+che esista: si cerca la' per primo.*
+
+**E l'errore di misura della giornata e' mio, sullo strumento:** ho citato «`--verify` 22/22» dopo aver
+tagliato l'output con `tail -30`, che mangia esattamente il blocco dei controlli, e ho dovuto
+rilanciare per LEGGERLO. *Un filtro che tronca l'output fa citare un verdetto che non si e' visto* —
+la stessa famiglia del `grep` che tiene solo le righe di successo, e la cura e' identica: si scrive su
+file e si legge il blocco, non la coda.
+
 ## Un NAV si DERIVA dalle rotte, e una pagina che linka solo un'altra pagina non si raggiunge
 **06/09/2026, `app/src/app/core/nav.ts` + `ui/app-header`. Dettaglio: `letture-app-v1.md` §33-§34.**
 Nove viste avevano nove intestazioni che si somigliavano - la pastiglia della versione copiata OTTO volte

@@ -32,9 +32,12 @@ import {
   CalendarFile,
   EASY_ALREADY_SHARE,
   GridCell,
+  LeagueCalendar,
   PairSuggestion,
   aloneCover,
   calendarBookFrom,
+  cleanSheetBaseline,
+  cleanSheetOutlook,
   coverGrid,
   rankPairs,
 } from './keeper-pairs';
@@ -217,6 +220,10 @@ export class PlanciaStore {
   private readonly men = computed<PlanciaMan[]>(() => {
     const numbers = this.numbers();
     const book = this.calendar();
+    // La media di campionato del +1 a porta inviolata, cacheata per lega: e' il metro del sostituto
+    // nel differenziale dello SWING dei portieri, e ricalcolarla per riga sarebbe un giro di
+    // settecento partite per ognuno dei trenta portieri.
+    const csBase = new Map<LeagueCalendar, number | null>();
     const out: PlanciaMan[] = [];
     for (const player of this.listone()) {
       const role = roleOf(player);
@@ -249,6 +256,15 @@ export class PlanciaStore {
       const sheetPv = engine?.pv ?? engine?.estPv ?? null;
       const surplus =
         sheetSurplus == null || pv == null || !sheetPv ? sheetSurplus : (sheetSurplus * pv) / sheetPv;
+      // IL +1 A PORTA INVIOLATA (solo portieri, opzione di lega): P(porta inviolata) del suo club sul
+      // calendario che resta, e la media del campionato come metro del sostituto - il differenziale lo
+      // fa `swingOf`, una definizione e due lettori (la Strategia fa lo stesso conto).
+      const csCalendar = role === 'P' ? (book?.forClub(player.club) ?? null) : null;
+      const csShare = csCalendar ? cleanSheetOutlook(csCalendar, player.club) : null;
+      const csMean = csCalendar
+        ? (csBase.get(csCalendar) ??
+           csBase.set(csCalendar, cleanSheetBaseline(csCalendar)).get(csCalendar)!)
+        : null;
       out.push({
         id: player.id,
         name: player.name,
@@ -286,6 +302,10 @@ export class PlanciaStore {
           role,
           surplus,
           pv,
+          // Lo zero del foglio e il calendario su cui `pv` e surplus vivono: servono alla ribasatura
+          // verso il 6 e al «per giornata» — l'unita' dichiarata dall'operatore (07/09/2026).
+          replacement: engine?.replacementFm ?? null,
+          matchdays: this.sheet()?.matchdays_target ?? null,
           fm: valuation.fm,
           confidence: valuation.confidence,
           steady: this.ratings.ready()
@@ -293,6 +313,15 @@ export class PlanciaStore {
             : null,
           seasonFm: played?.fm ?? null,
           seasonPlayed: played?.pv ?? null,
+          // La plancia prezza sempre il foglio default|classic, e li' una riga MISURATA porta gia'
+          // la miscela in-season (R25K40 adottata il 07/09/2026): la correzione resta alle stimate.
+          fmBlendsSeen: valuation.basis === 'measured',
+          // ...e la costanza si paga solo dove la lega paga l'R-Factor (opzione dichiarata).
+          rFactor: this.options.league().rFactor,
+          // ...e il +1 a porta inviolata solo dove la lega lo paga (opzione dichiarata, 07/09/2026).
+          cleanSheetBonus: this.options.league().cleanSheet,
+          cleanSheetShare: csShare,
+          cleanSheetMean: csMean,
         }),
       });
     }

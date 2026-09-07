@@ -14,6 +14,14 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
 import { ExpectedPlay } from '../../core/expected-play';
 import { GlobalOptions, LeagueSettings } from '../../core/global-options';
+import {
+  CalendarBook,
+  CalendarFile,
+  LeagueCalendar,
+  calendarBookFrom,
+  cleanSheetBaseline,
+  cleanSheetOutlook,
+} from '../../core/keeper-pairs';
 import { withRowAt } from '../../core/manual-order';
 import { looseMatch } from '../../core/loose-search';
 import { CardMan, CardStack, seasonTotals } from '../../core/player-card';
@@ -254,6 +262,10 @@ export class Strategy {
   private readonly rulebook = signal<MantraModulesFile | null>(null);
   private readonly rulebookMissing = signal(false);
 
+  /** Il calendario prezzato del bundle, o null: serve al solo bonus porta inviolata dei portieri. */
+  private readonly calendarFile = signal<CalendarFile | null>(null);
+  private readonly calendar = computed<CalendarBook | null>(() => calendarBookFrom(this.calendarFile()));
+
   /**
    * L'ORDINE PERSONALE per blocco: `listone|gioco|ruolo` -> gli `fc_id` come li ha sistemati lui.
    *
@@ -291,6 +303,9 @@ export class Strategy {
       // dimensionate dalle forme, e la pagina lo dice invece di inventare una lunghezza.
       this.rulebookMissing.set(file == null);
     });
+    // Il calendario prezzato del bundle, per il bonus porta inviolata dello SWING dei portieri. La
+    // fetch è UNA (il servizio la cachea), quindi due pagine che lo leggono non lo scaricano due volte.
+    void this.bundle.calendar().then((file) => this.calendarFile.set(file));
 
     // Il foglio cambia quando cambia (listone, gioco): le colonne si rileggono, e finché non arrivano la
     // pagina dice che sta leggendo - un vuoto silenzioso si legge come «nessuno è valutato».
@@ -668,6 +683,10 @@ export class Strategy {
     // una pagina già disegnata. Stessa riga, stessa ragione, di `ValuationStore.valuations`.
     const rated = this.ratings.ready();
     const matchdays = this.matchdays();
+    // Il calendario prezzato, per il +1 a porta inviolata dei portieri; la media di campionato e'
+    // cacheata per lega, o seicento righe la ricalcolerebbero venti volte.
+    const book = this.calendar();
+    const csBase = new Map<LeagueCalendar, number | null>();
     // LA STAGIONE DEGLI ATTESI, o `null` se non c'e' niente da leggere: le pastiglie sono spente, o lo
     // store non e' ancora atterrato. Da un computed suo, cosi' questa lista dipende dal RISULTATO e
     // non dall'elenco delle pastiglie - vedi `expectedSeason`, e il commento sulle letture qui sotto.
@@ -708,6 +727,14 @@ export class Strategy {
           playShare: one?.titolaritaPlay ?? null },
         matchdays,
       );
+      // IL +1 A PORTA INVIOLATA (solo portieri, opzione di lega): P(porta inviolata) del suo club sul
+      // calendario che resta, e la media del campionato come metro del sostituto - il differenziale lo
+      // fa `swingOf`, una definizione e due lettori (la plancia fa lo stesso conto).
+      const csCalendar = player.role === 'P' ? (book?.forClub(player.club) ?? null) : null;
+      const csShare = csCalendar ? cleanSheetOutlook(csCalendar, player.club) : null;
+      const csMean = csCalendar
+        ? (csBase.get(csCalendar) ?? csBase.set(csCalendar, cleanSheetBaseline(csCalendar)).get(csCalendar)!)
+        : null;
       return {
         fcId: player.fcId,
         name: player.name,
@@ -767,6 +794,10 @@ export class Strategy {
           role: player.role,
           surplus: one?.surplus == null ? null : one.surplus * outlook.factor,
           pv: outlook.expected,
+          // Lo zero del foglio e il calendario dichiarato: la ribasatura verso il 6 e il «per
+          // giornata» dell'unita' dichiarata dall'operatore (07/09/2026).
+          replacement: one?.replacementFm ?? null,
+          matchdays,
           steady: steady?.share ?? null,
           // R25 dentro SWING: la fantamedia che ha GIA' tenuto in questa stagione, e su quante
           // partite. Sono i due numeri che le pastiglie `FM` e le sue giornate mostrano gia', letti
@@ -775,6 +806,15 @@ export class Strategy {
           seasonFm: played?.fm ?? null,
           seasonPlayed: played?.pv ?? null,
           confidence: one?.confidence ?? null,
+          // Su `default` una riga che il motore prezza porta gia' la miscela (R25K40 adottata il
+          // 07/09/2026); su `euro` R25 non e' adottata e la correzione resta il solo canale.
+          fmBlendsSeen: platform === 'default' && one != null && !one.fmIsEstimate,
+          // ...e la costanza si paga solo dove la lega paga l'R-Factor (opzione dichiarata).
+          rFactor: this.settings().rFactor,
+          // ...e il +1 a porta inviolata solo dove la lega lo paga (opzione dichiarata, 07/09/2026).
+          cleanSheetBonus: this.settings().cleanSheet,
+          cleanSheetShare: csShare,
+          cleanSheetMean: csMean,
         }),
       };
     });

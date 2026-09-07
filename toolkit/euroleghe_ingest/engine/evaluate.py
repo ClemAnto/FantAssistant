@@ -441,7 +441,21 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # evidence is.
     # R23 anche qui, con l'evidenza più forte delle due (10 finestre su 10). Vedi la nota su euro sopra
     # per la ragione per cui un prezzo di mercato non è una quotazione fantacalcistica.
-    "default": ("R3", "R7", "R13", "R19", "R20K10", "R23"),
+    # R25K40 adottata il 07/09/2026 sulla GRIGLIA ALLARGATA pre-registrata (§7-quinquagies): la prima
+    # corsa aveva il verdetto robusto a K = 40 col 40 sul BORDO, e qui un parametro al bordo non si
+    # adotta mai; i tre punti nuovi (60, 80, 120) mostrano il guadagno medio che SCENDE oltre il 40
+    # (+5,0% → +4,0% → +3,4% → +2,5% su classic, +4,9% → +4,1% → +3,4% → +2,6% su mantra), quindi
+    # l'ottimo è INTERNO. K = 40 è il punto con la media più alta fra quelli che reggono su tutt'e due
+    # i giochi: su mantra è STRICT (12/12 finestre), su classic robusto (11/12, peggiore -0,6%) - la
+    # forma di R19, verdetti divergenti e decisione in chiaro. K = 25 rende di più in media (+5,6%) e
+    # NON regge su classic (peggiore -2,0%); il K120 che passa strict su classic è il termine che
+    # converge all'inerzia (guadagni piccoli ovunque), non un K migliore. NON su euro: 3 sole finestre,
+    # verdetto negativo, e la pre-registrazione dice che una griglia nuova non lo rimescola.
+    # Il costo unidirezionale resta quello della prima corsa e si dichiara: il VALORE catturato dalle
+    # liste scende dello 0,2-1,4% su ogni finestra (stesso segno, dentro la tolleranza del 2%), mentre
+    # i nomi SALGONO (138 -> 141). INERTE su ogni finestra pre-stagione: senza partite viste il ramo
+    # non esiste, quindi nessun numero pubblicato si muove.
+    "default": ("R3", "R7", "R13", "R19", "R20K10", "R23", "R25K40"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
 # * accuracy rules are judged on the players they MOVE, with a 0.5% floor. That made R4 and R10 much

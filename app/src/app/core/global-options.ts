@@ -50,6 +50,22 @@ export interface LeagueSettings {
    * valutazione: quanto valga il modificatore non è misurato da nessuna parte in questo progetto.
    */
   defenceModifier: boolean;
+  /**
+   * La lega paga l'R-FACTOR? Un input come il modificatore di difesa, con la stessa natura: un
+   * regolamento dichiarato, mai dedotto (operatore, 07/09/2026).
+   *
+   * Decide se lo SWING conta la costanza — il suo `k = 2/11` è indicizzato sulla scala dell'R-Factor
+   * (due punti spalmati sull'undici che li produce), quindi dove il modificatore non esiste il termine
+   * non esiste. Non tocca nessun'altra valutazione.
+   */
+  rFactor: boolean;
+  /**
+   * La lega paga il +1 A PORTA INVIOLATA al portiere? Stessa natura dei due qui sopra: un regolamento
+   * dichiarato (operatore, 07/09/2026). Il bonus NON è nel fantavoto pubblicato (misurato: 1.218
+   * portieri su 1.222 a porta inviolata leggono `voto + bonus` senza premio), quindi dove la lega lo
+   * paga lo SWING dei portieri lo aggiunge — al differenziale sul calendario, `swing.cleanSheets`.
+   */
+  cleanSheet: boolean;
   /** Quante tornate dura il mercato a buste chiuse. */
   rounds: number;
   /**
@@ -77,6 +93,8 @@ export const DEFAULT_LEAGUE: LeagueSettings = {
   teams: 10,
   roleLock: true,
   defenceModifier: true,
+  rFactor: true,
+  cleanSheet: true,
   rounds: 9,
   from: 2,
   to: 38,
@@ -300,6 +318,9 @@ function readLeague(raw: unknown): LeagueSettings {
       typeof stored.defenceModifier === 'boolean'
         ? stored.defenceModifier
         : DEFAULT_LEAGUE.defenceModifier,
+    rFactor: typeof stored.rFactor === 'boolean' ? stored.rFactor : DEFAULT_LEAGUE.rFactor,
+    cleanSheet:
+      typeof stored.cleanSheet === 'boolean' ? stored.cleanSheet : DEFAULT_LEAGUE.cleanSheet,
     rounds: number(stored.rounds, DEFAULT_LEAGUE.rounds),
     from: number(stored.from, DEFAULT_LEAGUE.from),
     to: number(stored.to, DEFAULT_LEAGUE.to),

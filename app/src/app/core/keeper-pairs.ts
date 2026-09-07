@@ -482,6 +482,42 @@ export class CalendarBook {
   }
 }
 
+/**
+ * LA QUOTA DI PORTE INVIOLATE ATTESA di un club sul calendario che resta: la media di `cleanSheet`
+ * sulle sue partite ancora da giocare. Null dove il campionato non ha una probabilita' fittata o il
+ * club non e' nel calendario — «vuoto = ignoto», e chi legge decide cosa farne.
+ *
+ * Serve al bonus porta inviolata dello SWING (`swing.ts`, opzione di lega `cleanSheet`), che la paga
+ * al DIFFERENZIALE contro la media del campionato (`cleanSheetBaseline`): anche il portiere che
+ * giocherebbe al posto suo incassa porte inviolate, quindi il totale conterebbe due volte quello che
+ * la panchina restituisce — la stessa regola delle squalifiche, «si paga il differenziale e mai il
+ * totale».
+ */
+export function cleanSheetOutlook(calendar: LeagueCalendar, clubName: string): number | null {
+  const shares = calendar
+    .window(clubName, 1, calendar.rounds)
+    .map((match) => match.cleanSheet)
+    .filter((share): share is number => share != null);
+  if (!shares.length) return null;
+  return shares.reduce((sum, one) => sum + one, 0) / shares.length;
+}
+
+/**
+ * La stessa quota, mediata su TUTTO il campionato: il metro del portiere «qualunque» che entrerebbe
+ * al posto del titolare. Ogni partita entra due volte (una per lato), che per una media e' corretto:
+ * e' la quota media di porte inviolate per club-partita.
+ */
+export function cleanSheetBaseline(calendar: LeagueCalendar): number | null {
+  const shares: number[] = [];
+  for (const club of calendar.clubNames()) {
+    for (const match of calendar.window(club, 1, calendar.rounds)) {
+      if (match.cleanSheet != null) shares.push(match.cleanSheet);
+    }
+  }
+  if (!shares.length) return null;
+  return shares.reduce((sum, one) => sum + one, 0) / shares.length;
+}
+
 export function calendarBookFrom(file: CalendarFile | null): CalendarBook | null {
   if (!file?.leagues) return null;
   const leagues: LeagueCalendar[] = [];

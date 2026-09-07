@@ -1,5 +1,19 @@
 /**
- * SWING — quanti GOL DI CLASSIFICA fa segnare un uomo: il surplus piu' la sua COSTANZA, in gol.
+ * SWING — quanto un uomo ti fa vincere le fanta-partite: PUNTI SOPRA IL 6 A GIORNATA.
+ *
+ * L'UNITA' E' DELL'OPERATORE (07/09/2026): «per me sarebbe piu' leggibile se lo SWING fosse espresso
+ * come il surplus ovvero punti sopra il 6 per giornata (es: se un calciatore ha una fantamedia di 10
+ * allora il suo swing dovrebbe essere 4)». Quindi lo ZERO e' il SEI — `EDGE_BASE`, lo stesso della
+ * colonna della plancia, una definizione e due lettori — e non il rimpiazzo: e' una DICHIARAZIONE di
+ * scala come «Overall» (che per sua definizione non sottrae nessuno zero), non una misura, e il prezzo
+ * e' detto — SWING non ordina piu' IDENTICO al surplus, perche' lo scarto fra i due zeri e'
+ * `(rimpiazzo − base) × presenze` e il rimpiazzo cambia per ruolo. UNA ECCEZIONE, trovata
+ * dall'operatore lo stesso giorno: per il PORTIERE la base e' un 5 (`KEEPER_BASE`, sotto) — il suo
+ * fantavoto porta il malus dei gol subiti, quindi il 6 sul suo mestiere e' la porta inviolata
+ * settimanale e ordinava i portieri per NON giocare.
+ * Prima era in GOL DI CLASSIFICA sulla stagione; la conversione resta qui sotto come TASSO misurato
+ * (0,159 gol/fantapunto: un punto a giornata di SWING ≈ 6 gol di stagione), per il tooltip e per i
+ * test, non per la colonna.
  *
  * IL NOME E' SWING ANCHE A SCHERMO, per decisione dell'operatore (06/09/2026), e la decisione ha
  * ribaltato quella di un'ora prima: era stata proposta «Spinta» in interfaccia e `swing` in codice,
@@ -9,11 +23,14 @@
  * dichiara lui, come ha dichiarato «SLOT» invece di «blocco» — e il precedente esisteva gia',
  * «Overall», «Lead» e «Bonus» sono inglesi su un'interfaccia italiana da sempre.
  *
- * DUE TERMINI E UNA CONVERSIONE.
+ * DUE TERMINI E UNA RIBASATURA.
  *
  *  1. il SURPLUS, letto dal foglio e mai ricalcolato: e' la colonna che il gate possiede, ed e' la
  *     migliore risposta disponibile alla domanda «quale dei due compro» — misurata contro dieci
  *     alternative su due stagioni fuori campione, sia sul listone intero sia a parita' di prezzo.
+ *     La ribasatura verso il 6 e' aritmetica ESATTA su colonne dello stesso foglio
+ *     (`+ (rimpiazzo − 6) × presenze`), quindi la penalita' di confidenza resta dove il foglio l'ha
+ *     messa — sul surplus — e niente viene ricalcolato.
  *  2. la COSTANZA, che il surplus non puo' vedere: le giornate in cui ci si aspetta che chiuda almeno
  *     in sufficienza (`quota × presenze attese`), pesate `STEADY_SHARE`. La quota e' misurata sul VOTO
  *     BASE e non sul fantavoto, perche' e' il voto base che i due modificatori di questa lega pagano —
@@ -21,8 +38,8 @@
  *     La fantamedia i due uomini li legge uguali: 6 · 6,5+1 · 6,5+1 e 5,5+0 · 5,5+0 · 7+3 fanno
  *     entrambi 21, e solo il primo incassa i modificatori.
  *
- * Il totale e' poi convertito in GOL, perche' la lega non paga fantapunti: 66 fantapunti sono un gol,
- * poi uno ogni 6, e sotto i 66 non c'e' niente.
+ * Il totale e' diviso per le giornate che il foglio prevede, perche' i risultati si riportano in punti
+ * A GIORNATA (regola dell'operatore, 03/09/2026): un totale nasconde l'ordine di grandezza.
  *
  * ==================================================================================================
  * L'EVIDENZA E' DICHIARATAMENTE DEBOLE, e questo e' il posto in cui si legge prima di fidarsi
@@ -81,7 +98,28 @@
  *    (6,33 contro 6,00) mentre le costanze sono 100% e 33%.
  */
 
-import { Role } from './plancia';
+import { EDGE_BASE, Role } from './plancia';
+
+/**
+ * IL «6» DEL PORTIERE E' UN 5, e senza questa eccezione la colonna ordinava i portieri per NON giocare.
+ *
+ * Trovato dall'operatore il 07/09/2026, il giorno stesso della scala nuova: «quelli che giocano
+ * normalmente e' logico che prendano dei malus (gol subiti) e quelli che non giocano non li prendono,
+ * quindi nei primi posti ci sono tutti portieri che non giocano». La causa e' di SCALA: il fantavoto di
+ * un portiere porta il malus dei gol subiti, quindi sul suo mestiere «6» vuol dire porta inviolata ogni
+ * settimana — la FMa dei portieri titolari sta fra 4,91 e 5,24, cioe' TUTTI sotto il 6 — e uno zero
+ * sopra l'intera scala del ruolo rende il giocare un moltiplicatore di numeri negativi. E' il difetto
+ * dei «primi portieri tutti a 99» (16/08) incontrato dal verso opposto: un ruolo misurato col metro di
+ * un altro.
+ *
+ * LO ZERO GIUSTO E' QUELLO CHE ENTRA QUANDO NON GIOCA, e per i portieri e' MISURATO invece che scelto:
+ * lo zero FIELDED del ruolo P legge **5,01 / 5,03** per due strade indipendenti (la simulazione della
+ * stagione e il rango squadre x posti schierati — `letture-app-v1.md` §21, colonna
+ * `desc_replacement_fielded`). Arrotondato a 5 come base DICHIARATA, esattamente come il 6 lo e' per
+ * gli altri tre ruoli — dove il 6 funziona perche' sta dentro la banda fielded misurata (5,8-6,9),
+ * mentre per il portiere ne e' fuori di un punto intero, cioe' di un gol a partita.
+ */
+export const KEEPER_BASE = 5;
 
 /**
  * LA SCALA DEI GOL, dichiarata: e' il regolamento della lega e non una misura nostra.
@@ -135,6 +173,10 @@ function normalCdf(z: number): number {
  * giornata sono 6,0 gol su una stagione da 38, che e' esattamente quello che la simulazione misura
  * (6,04 e 6,00 sulle due stagioni). La forma chiusa riproduce il banco, ed e' l'unica prova che le due
  * costanti qui sopra sono quelle giuste.
+ *
+ * DAL 07/09/2026 LA COLONNA NON MOLTIPLICA PIU' PER QUESTO NUMERO — l'unita' di SWING e' dichiarata
+ * dall'operatore in punti sopra il 6 a giornata — ma il tasso resta il fatto misurato che collega le
+ * due scale (un punto a giornata ≈ 6 gol di stagione), per il tooltip e per i test che lo difendono.
  */
 export const GOALS_PER_POINT = normalCdf((MATCHDAY_MEAN - LADDER_KINK) / MATCHDAY_SD) / LADDER_RUNG;
 
@@ -150,11 +192,13 @@ export const GOALS_PER_POINT = normalCdf((MATCHDAY_MEAN - LADDER_KINK) / MATCHDA
  * spalmati sugli undici uomini che li producono sono `2/11`.
  *
  * QUINDI QUESTO E' UN PARAMETRO DI LEGA, non una costante del gioco, e chi ne gioca una con modificatori
- * di taglia diversa lo deve RIDICHIARARE. Non e' ancora un'impostazione leggibile a schermo perche' la
- * taglia dei due modificatori non e' fra quelle dichiarate (`LeagueRules` porta il mod. difesa come un
- * INTERRUTTORE e non come una scala, e la scala dell'R-Factor vive solo in `bench/auction/rules.py`):
- * il giorno in cui servisse una seconda lega, e' la' che va aggiunta, e questa costante diventa una sua
- * funzione invece di un numero.
+ * di taglia diversa lo deve RIDICHIARARE. Dal 07/09/2026 la PRESENZA del modificatore e' dichiarata a
+ * schermo (`LeagueSettings.rFactor`, sua richiesta: «il termine k intervenga solo quando l'r-factor e'
+ * attivo nella lega giocata»): dove la lega non paga l'R-Factor il termine non esiste — `SwingInput`
+ * porta il fatto e `swingOf` mette la quota a zero. La TAGLIA invece resta non dichiarata (qui e' un
+ * interruttore, e la scala vive solo in `bench/auction/rules.py`): il giorno in cui servisse una lega
+ * con un R-Factor di taglia diversa, e' li' che va aggiunta, e questa costante diventa una sua funzione
+ * invece di un numero.
  *
  * NESSUNA MISURA DISTINGUE UN PESO DA UN ALTRO, ZERO COMPRESO, e i numeri che stavano qui a difesa
  * dell'1/11 sono RITIRATI (07/09/2026) perche' erano presi su un banco rotto in due modi. Primo: con
@@ -202,15 +246,18 @@ export const STEADY_MARGINAL = 0.298;
  * fantamedia, e con `k` in PARTITE GIOCATE e non in giornate: la taglia del campione di una media e'
  * quante volte quella media e' stata misurata.
  *
- * IL MOTORE NON LA LEGGE, E LA RAGIONE E' PROCEDURALE E NON UNA MISURA. Sul gate la regola PASSA il
- * verdetto robusto su Serie A (11 finestre di 12, +5,0% di MAE sulla fantamedia, peggiore -0,6%, liste
- * d'asta 138 -> 141 nomi), ma l'ottimo cade sul BORDO della griglia a K = 40 - e qui un parametro al
- * bordo non si adotta mai. La griglia allargata (60, 80, 120) e' pre-registrata e non ancora corsa,
- * quindi `engine_fm_pred` resta com'e' (`gate-motore-v1.md` §7-noviesquadragies e §7-quinquagies).
+ * DAL 07/09/2026 IL MOTORE LA LEGGE: R25K40 e' ADOTTATA su `default` sulla griglia allargata
+ * pre-registrata (gate §7-quinquagies) - l'ottimo e' INTERNO (la media scende oltre il 40: +5,0% ->
+ * +4,0% -> +3,4% -> +2,5%), robusto su classic (11/12, peggiore -0,6%) e STRICT su mantra (12/12).
+ * Quindi su un foglio `default` la fantamedia del MOTORE porta gia' la miscela, e riapplicarla qui
+ * sarebbe contarla due volte: `SwingInput.fmBlendsSeen` e' la guardia, e i lettori la accendono
+ * sulle righe che il motore prezza. La correzione resta VIVA dove il foglio non puo' portarla - le
+ * righe stimate (`est_*`, la cascata non legge le partite viste) e i fogli `euro`, dove R25 non e'
+ * adottata (3 sole finestre, verdetto negativo).
  *
- * QUI DENTRO INVECE C'E', per decisione dell'operatore («adottiamo solo per lo SWING questo tipo di
- * fantamedia attesa»), e ha lo stesso statuto del termine di costanza: SWING e' REPORTING, nessun gate
- * lo possiede, e la colonna del motore non si muove di un decimale.
+ * Il 40 e' lo stesso K adottato, e non per coincidenza: era gia' il punto del verdetto robusto della
+ * prima corsa, scelto qui dall'operatore («adottiamo solo per lo SWING questo tipo di fantamedia
+ * attesa») quando l'adozione nel motore era ferma per la ragione procedurale del bordo.
  *
  * MISURATO SUL DELIVERABLE, quattro finestre retrodatate, quattro rose e campionato A/R (72 campionati
  * per finestra). Con budget 250: vince 3 finestre su 4, e le due di FEBBRAIO le vince largo - 78% e 60%
@@ -229,13 +276,25 @@ export const SEEN_MATCHES = 40;
  */
 export const ROLE_STEADY: Record<Role, number> = { P: 0.89, D: 0.71, C: 0.67, A: 0.65 };
 
-/** Quello che serve sapere di un uomo per convertirlo in gol. Tutto letto, niente ricalcolato. */
+/** Quello che serve sapere di un uomo per dargli lo SWING. Tutto letto, niente ricalcolato. */
 export interface SwingInput {
   role: Role;
   /** `engine_surplus` (o il ripiego dichiarato `est_surplus`), sulle giornate che restano. */
   surplus: number | null;
   /** Le presenze attese, gia' ridotte da `expected-play`: il denominatore delle sue sufficienze. */
   pv: number | null;
+  /**
+   * `engine_replacement_fm`: lo zero del surplus, che qui serve a SPOSTARLO sul 6 — la ribasatura e'
+   * `(rimpiazzo − 6) × presenze`, aritmetica esatta su colonne dello stesso foglio. Senza di lui la
+   * ribasatura non esiste, e un numero con un altro zero nella stessa colonna e' un errore di unita':
+   * si tace invece di mescolare.
+   */
+  replacement: number | null;
+  /**
+   * Le giornate che il foglio sta prevedendo (`matchdays_target`, quelle che RESTANO): il calendario
+   * su cui vivono `pv` e il surplus, e il divisore che rende SWING un numero a giornata.
+   */
+  matchdays: number | null;
   /** La fantamedia che il foglio prevede: il PRIOR contro cui si miscela quella gia' tenuta. */
   fm?: number | null;
   /** La quota di partite chiuse almeno in sufficienza, MISURATA sul voto base. Vuota = ignota. */
@@ -255,21 +314,72 @@ export interface SwingInput {
    * ricostruisce da capo - e applicarla senza sarebbe dare a una stima l'autorita' di una misura.
    */
   confidence?: number | null;
+  /**
+   * LA FANTAMEDIA DEL FOGLIO PORTA GIA' LA MISCELA IN-SEASON? Vero per una riga che il MOTORE prezza
+   * su un foglio `default`, da quando R25K40 e' adottata (07/09/2026): li' riapplicare la correzione
+   * sarebbe contare due volte le stesse partite. Falso (o assente) per le righe stimate e per i fogli
+   * `euro`, dove la correzione resta il solo canale. Il transitorio e' detto invece che nascosto: con
+   * un bundle piu' vecchio dell'adozione una riga motore perde la correzione per un giro di export -
+   * un errore che OMETTE un termine piccolo, mentre il verso opposto lo conterebbe due volte.
+   */
+  fmBlendsSeen?: boolean;
+  /**
+   * LA LEGA GIOCATA PAGA L'R-FACTOR? Il termine di costanza e' indicizzato sulla SUA scala (2/11 = i
+   * suoi due punti spalmati sull'undici che li produce), quindi dove il modificatore non esiste il
+   * termine non esiste - dichiarato dall'operatore (07/09/2026), non misurato. `false` lo spegne;
+   * assente vale attivo, che e' il regolamento di partenza (`DEFAULT_LEAGUE.rFactor`).
+   */
+  rFactor?: boolean;
+  /**
+   * LA LEGA PAGA IL +1 A PORTA INVIOLATA? (operatore, 07/09/2026: «aggiungiamolo in maniera
+   * condizionata con una opzione nelle opzioni di lega come fatto per l'r-factor»). Il bonus NON e'
+   * nel fantavoto pubblicato — misurato: 1.218 portieri su 1.222 a porta inviolata leggono
+   * `voto + bonus` senza premio (`rosa-3-giornate-v1.md`) — quindi ne' la fantamedia ne' il surplus
+   * lo contengono, e va aggiunto qui. `false` lo spegne; assente vale attivo, come `rFactor`.
+   */
+  cleanSheetBonus?: boolean;
+  /**
+   * P(porta inviolata) media del SUO club sulle partite che restano (`keeper-pairs.cleanSheetOutlook`)
+   * e la stessa media su tutto il campionato (`cleanSheetBaseline`). Il termine paga il DIFFERENZIALE
+   * `(sua − media) × presenze`, mai il totale: anche il portiere che giocherebbe al posto suo incassa
+   * porte inviolate, e il totale conterebbe due volte quello che la panchina restituisce — la regola
+   * delle squalifiche, coerente con lo zero del portiere («quello che entra quando non gioca»).
+   * Vuote = ignoto: senza calendario il termine non esiste.
+   */
+  cleanSheetShare?: number | null;
+  cleanSheetMean?: number | null;
 }
 
 /**
- * SWING, in gol di classifica sulle giornate che restano. `null` dove il foglio non prezza l'uomo.
- *
- * Senza le presenze il termine di costanza non si puo' formare — «quante giornate chiude bene» ha
- * bisogno di quante ne gioca — e allora resta il solo surplus convertito, che e' l'informazione che
- * c'e'. Vale la pena dirlo invece di scrivere uno zero: sono due situazioni diverse.
+ * SWING, in punti sopra il 6 a giornata sulle giornate che restano. `null` dove il foglio non prezza
+ * l'uomo — e anche dove mancano le presenze o il rimpiazzo, perche' senza di loro la ribasatura verso
+ * il 6 non si puo' formare: un numero rimasto sullo zero del rimpiazzo dentro una colonna basata sul 6
+ * sarebbe un errore di unita', la famiglia piu' cara di questo progetto. (Prima della scala nuova il
+ * ramo senza presenze restituiva il solo surplus convertito; nella scala nuova tacere e' piu' onesto
+ * che mescolare due zeri.)
  */
 export function swingOf(input: SwingInput): number | null {
-  const { surplus, pv, role } = input;
-  if (surplus == null) return null;
-  if (pv == null) return surplus * GOALS_PER_POINT;
+  const { surplus, pv, role, replacement, matchdays } = input;
+  if (surplus == null || pv == null || replacement == null || !matchdays) return null;
+  // La lega senza R-Factor non paga la costanza, quindi il termine non esiste (operatore, 07/09/2026).
+  const share = input.rFactor === false ? 0 : STEADY_SHARE;
   const steady = input.steady ?? ROLE_STEADY[role];
-  return (surplus + inSeason(input) + steady * pv * STEADY_SHARE) * GOALS_PER_POINT;
+  // Il «6» del portiere e' un 5 (vedi KEEPER_BASE): sul suo fantavoto il 6 e' la porta inviolata
+  // settimanale, e uno zero sopra l'intera scala del ruolo ordina i portieri per NON giocare.
+  const base = role === 'P' ? KEEPER_BASE : EDGE_BASE;
+  const rebase = (replacement - base) * pv;
+  return (surplus + rebase + inSeason(input) + steady * pv * share + cleanSheets(input, pv)) / matchdays;
+}
+
+/**
+ * IL +1 A PORTA INVIOLATA, al DIFFERENZIALE: `(P(porta inviolata) del suo club − media del campionato)
+ * × presenze`. Solo per il portiere, solo dove la lega lo paga (`cleanSheetBonus`), e zero senza un
+ * calendario da leggere — «vuoto = ignoto», non un premio inventato.
+ */
+function cleanSheets(input: SwingInput, pv: number): number {
+  if (input.role !== 'P' || input.cleanSheetBonus === false) return 0;
+  if (input.cleanSheetShare == null || input.cleanSheetMean == null) return 0;
+  return (input.cleanSheetShare - input.cleanSheetMean) * pv;
 }
 
 /**
@@ -285,6 +395,9 @@ export function swingOf(input: SwingInput): number | null {
  */
 function inSeason(input: SwingInput): number {
   const { seasonFm, seasonPlayed, fm, pv } = input;
+  // Il foglio porta gia' la miscela (R25K40 adottata, riga motore su `default`): rifarla qui sarebbe
+  // pesare due volte le stesse partite viste.
+  if (input.fmBlendsSeen) return 0;
   if (seasonFm == null || !seasonPlayed || fm == null || pv == null) return 0;
   const weight = seasonPlayed / (seasonPlayed + SEEN_MATCHES);
   return weight * (seasonFm - fm) * pv * (input.confidence ?? 1);

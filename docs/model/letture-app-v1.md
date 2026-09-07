@@ -3512,6 +3512,97 @@ Tre abitudini, e due sono regole di casa incontrate da un lato nuovo.
   budget degli avversari. *Le guardie procedurali proteggono dal fitting, non da un banco che sta
   rispondendo a un'altra domanda.*
 
+### 32.11 L'unità è dichiarata: PUNTI SOPRA IL 6 A GIORNATA, l'R-Factor è un'opzione di lega, e il motore ora legge R25 (7 settembre 2026)
+
+Tre cambi in una sessione, tutti su richiesta o per conseguenza di un'adozione, e nessuno tocca una
+valutazione del motore.
+
+**L'UNITÀ È DELL'OPERATORE**: «per me sarebbe più leggibile se lo SWING fosse espresso come il surplus
+ovvero punti sopra il 6 per giornata (es: se un calciatore ha una fantamedia di 10 allora il suo swing
+dovrebbe essere 4)». Quindi lo zero è il SEI — `EDGE_BASE`, lo stesso della colonna della plancia, una
+definizione e due lettori — e il totale è diviso per le giornate che il foglio prevede (la regola del
+03/09: i risultati si riportano a giornata). La ribasatura è aritmetica ESATTA su colonne dello stesso
+foglio (`+ (rimpiazzo − 6) × presenze`), quindi il surplus resta letto e mai ricalcolato e la penalità di
+confidenza resta dove il foglio l'ha messa. Il suo esempio è ora un TEST (fantamedia 10, sempre in campo
+→ ~4,1, col decimale che è il termine di costanza). **Il prezzo è detto**: SWING non ordina più IDENTICO
+al surplus — lo scarto fra i due zeri è `(rimpiazzo − 6) × presenze` e il rimpiazzo cambia per ruolo,
+quindi i portieri (rimpiazzo 4,13) scendono — ed è una DICHIARAZIONE di scala come «Overall», non una
+misura. E dove mancano presenze, rimpiazzo o calendario la colonna TACE invece di ripiegare sul solo
+surplus convertito: un numero rimasto su un altro zero dentro la stessa colonna è un errore di unità.
+La conversione in gol resta nel file come tasso misurato (un punto a giornata ≈ 6 gol di stagione).
+
+**L'R-FACTOR È UN'OPZIONE DI LEGA** («il termine k intervenga solo quando l'r-factor è attivo nella lega
+giocata»): `LeagueSettings.rFactor`, interruttore accanto al modificatore di difesa, acceso di default
+perché il regolamento di partenza ce l'ha — e un interruttore nato dopo un salvataggio vecchio nasce
+acceso, non spento da una preferenza che non lo conosceva. Dove è spento, `swingOf` mette la quota di
+costanza a zero e il resto non si muove (la miscela R25 è un altro canale). La TAGLIA del modificatore
+resta non dichiarata (todolist, voce 3): il k=2/11 è indicizzato sui due punti della sua lega.
+
+**E IL MOTORE ORA LEGGE R25** (adottata su `default`, gate §7-quinquagies bis; la coppia fm/mv miscela
+insieme, spec «Novità v9.80»), quindi la correzione in-season di SWING sulle righe che il motore prezza
+sarebbe un DOPPIO CONTEGGIO: `SwingInput.fmBlendsSeen` la spegne lì e la lascia viva dove il foglio non
+può portarla — le righe stimate (`est_*`, la cascata non legge le partite viste) e i fogli euro, dove R25
+non è adottata. Il transitorio è detto: con un bundle più vecchio dell'adozione una riga motore perde la
+correzione per un giro di export — un errore che OMETTE un termine piccolo, mentre il verso opposto lo
+conterebbe due volte.
+
+**E l'asimmetria segnalata nell'analisi del mattino è stata VERIFICATA e non c'è**: la quota di costanza
+legge il livello per-partita di tutte le stagioni su file, stagione corrente inclusa — ogni giornata
+nuova aggiunge un voto alla quota. Quello che resta diverso da R25 è la FORMA (un voto di questa stagione
+pesa quanto uno del 2023-24, nessun peso dichiarato sulla recenza), che su un termine da decimi di punto
+è una nota e non un buco.
+
+**IL «6» DEL PORTIERE È UN 5, e l'ha trovato l'operatore lo stesso giorno della scala nuova**: «quelli
+che giocano normalmente è logico che prendano dei malus (gol subiti) e quelli che non giocano non li
+prendono, quindi nei primi posti ci sono tutti portieri che non giocano». La causa è di scala e non di
+formula: il fantavoto di un portiere porta il malus dei gol subiti, quindi sul suo mestiere il 6 è la
+porta inviolata settimanale — la FMa dei titolari veri sta fra 4,91 e 5,24, TUTTI sotto il 6 — e uno
+zero sopra l'intera scala del ruolo rende il giocare un moltiplicatore di numeri negativi: il terzo
+portiere (≈0, non gioca) scavalcava il titolare (≈−0,6). È il difetto dei «primi portieri tutti a 99»
+(§9) incontrato dal verso opposto — un ruolo misurato col metro di un altro. Lo zero suo è QUELLO CHE
+ENTRA QUANDO NON GIOCA, ed era già misurato: il fielded dei portieri legge **5,01/5,03** per due strade
+indipendenti (§21), arrotondato a **5** come base dichiarata (`swing.KEEPER_BASE`) — mentre per D/C/A
+il 6 sta dentro la banda fielded (5,8-6,9) e resta. Un test porta il caso E la controprova: con la base
+al 6 il titolare da 5,2 leggeva negativo e sotto il terzo, con il 5 sta sopra e positivo.
+
+**E «MILINKOVIC-SAVIC SOPRA MERET» È UNA LETTURA GIUSTA DEL FOGLIO, misurata e NON corretta** (sua
+segnalazione, 07/09/2026, seguita dalla sua ipotesi: «due partite da 90' contro zero dovrebbe bastare a
+far diventare Meret da panchinaro a titolare»). I fatti dello schermo, letti prima di toccare qualcosa:
+Meret ha giocato le prime due tutte (2×90', `started` 1) e Milinkovic-Savic zero; **i probabili di oggi
+danno Meret a 1,00 e Milinkovic-Savic a 0,05**; il foglio prezza Meret 17,5 presenze attese e
+Milinkovic-Savic **19,7**, cioè il prior della stagione scorsa (27 presenze contro 11) pesa ancora più
+delle due giornate viste. In SWING la distanza è di **0,03 punti a giornata** (0,2 contro 0,1 a
+schermo), che è il grosso della domanda: le due righe dicono «quasi la stessa cosa», non «uno è il
+titolare».
+
+**L'ipotesi è stata misurata come regola e RESPINTA, e il controesempio è la stessa coppia un anno
+prima.** Popolazione: le coppie di portieri di un club in cui dopo k giornate il leader VISTO non è il
+leader del PRIOR (prior ≥ 15 presenze), sette stagioni di Serie A. La maglia resta a chi l'ha presa
+**10 volte su 18 a k=2** — una monetina — 10/15 a k=3, 8/12 a k=4. E nel **2025-26 Napoli** Meret prese
+le prime due e Milinkovic-Savic tornò a giocarne 27 contro 9: esattamente la configurazione di oggi,
+esito opposto. Con Sportiello→Gollini, Perin→Szczesny, Musso→Carnesecchi, Zoet→Provedel, Sava→Okoye
+dalla stessa parte. Verificato anche il sospetto strutturale («un club schiera UN portiere, quindi la
+prova è esclusiva e due giornate lì valgono più»): la curva del guadagno per K sui portieri ha la
+**stessa forma** dei ruoli di movimento (a k=2: +58,6% a K=1 contro +26,2% a K=5, movimento +53,0% e
++25,1%), quindi non esiste un K speciale per il ruolo. Il prior pooled resta, e a convergere ci pensano
+le giornate: al netto, questo è un caso in cui **il modello sarà più lento dell'occhio per qualche
+turno**, e dirlo è meglio che tarare una soglia su un nome. `copertura-eventi-motore-v1.md` §6 porta la
+riga con i numeri, perché il prossimo che avrà l'idea la trovi già misurata.
+
+**E IL +1 A PORTA INVIOLATA È UN'OPZIONE DI LEGA, perché NON è nel fantavoto** (sua richiesta, stessa
+sera: «la fantamedia dei portieri prevede anche il +1 dei cleansheet? Se no aggiungiamolo in maniera
+condizionata»). La risposta di fatto era già misurata (rosa-3-giornate, 03/09): 1.218 portieri su 1.222
+a porta inviolata leggono `voto + bonus` senza premio — il bonus è un modificatore di lega, quindi né la
+fantamedia né il surplus lo contengono. Ora `LeagueSettings.cleanSheet` (acceso di default, accanto
+all'R-Factor) lo fa entrare nello SWING dei portieri, e il conto è **al DIFFERENZIALE e mai al totale**
+(la regola delle squalifiche, coerente con lo zero «quello che entra quando non gioca»): `(P(porta
+inviolata) del suo club − media del campionato) × presenze`, con le probabilità per partita che il
+calendario del bundle porta già (`keeper-pairs.cleanSheetOutlook` / `cleanSheetBaseline` — il canale
+delle coppie-portieri, terzo lettore). Un calendario medio non compra niente, perché il sostituto le
+porte inviolate le incassa uguale; quello che paga è il CALENDARIO, che è esattamente la filosofia delle
+coppie. Dove il campionato non ha una probabilità fittata il termine non esiste — «vuoto = ignoto», non
+un premio inventato.
+
 ## 33. UNA SOLA INTESTAZIONE, E IL NAV SONO LE ROTTE (6 settembre 2026)
 
 Richiesta dell'operatore: «facciamo in modo da rendere l'header comune a tutte le pagine e inseriamo un

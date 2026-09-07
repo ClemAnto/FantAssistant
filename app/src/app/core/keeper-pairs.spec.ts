@@ -4,6 +4,8 @@ import {
   CalendarFile,
   CalendarRow,
   calendarBookFrom,
+  cleanSheetBaseline,
+  cleanSheetOutlook,
   coverGrid,
   leagueCalendarFrom,
   pairCover,
@@ -298,5 +300,33 @@ describe('CalendarBook', () => {
 
   it('non esiste senza calendario, invece di esistere vuoto', () => {
     expect(calendarBookFrom(null)).toBeNull();
+  });
+});
+
+describe('la quota di porte inviolate attesa', () => {
+  /** Il +1 dello SWING la paga al DIFFERENZIALE contro la media del campionato: anche il sostituto
+   *  incassa porte inviolate, quindi il metro e' quello, non lo zero. */
+  it('media le partite che restano del club, e il campionato fa da metro del sostituto', () => {
+    const calendar = leagueCalendarFrom(
+      file([
+        match(1, 'inter', 'lecce', 250, 0.5, 0.2),
+        match(2, 'como', 'inter', -100, 0.25, 0.35),
+        match(3, 'lecce', 'como', 0, 0.3, 0.3),
+      ]),
+      'serie_a',
+    )!;
+    expect(cleanSheetOutlook(calendar, 'Inter')).toBeCloseTo((0.5 + 0.35) / 2, 9);
+    // ...e la media del campionato conta ogni partita due volte, una per lato: e' la quota media di
+    // porte inviolate per CLUB-partita, che e' l'unita' in cui il differenziale sottrae.
+    expect(cleanSheetBaseline(calendar)).toBeCloseTo((0.5 + 0.2 + 0.25 + 0.35 + 0.3 + 0.3) / 6, 9);
+  });
+
+  it('null dove il campionato non ha una probabilita fittata: vuoto = ignoto, mai zero', () => {
+    const calendar = leagueCalendarFrom(file([match(1, 'inter', 'lecce', 250)]), 'serie_a')!;
+    expect(cleanSheetOutlook(calendar, 'Inter')).toBeNull();
+    expect(cleanSheetBaseline(calendar)).toBeNull();
+    // ...e un club che il calendario non conosce non ha una quota, non una quota zero.
+    const fitted = leagueCalendarFrom(file([match(1, 'inter', 'lecce', 250, 0.4, 0.2)]), 'serie_a')!;
+    expect(cleanSheetOutlook(fitted, 'Sconosciuta FC')).toBeNull();
   });
 });
