@@ -4897,6 +4897,45 @@ e la prova che la metà altrui era intatta è che `prettier(ricostruito)` è **b
 prettificato di prima. *Un formattatore dichiarato e non applicato è una trappola: prima di lanciarlo si
 controlla se l'albero lo rispetta già.*
 
+## Lo ZERO di un parametro centrato e' parte del parametro, e una costante DICHIARATA si puo' calibrare
+**07/09/2026, dalle due correzioni dell'operatore su `est_*`. Dettaglio: gate §7-unquinquagies /
+§7-duoquinquagies, `letture-app-v1.md` §35-§36.**
+
+**UN PARAMETRO APPARTIENE ALLA POPOLAZIONE SU CUI E' MISURATO — E ANCHE IL SUO ZERO.** L'ancora di un
+nuovo arrivato legge la forza del suo club come DIFFERENZA dalla media del campionato, e la media veniva
+presa su tutte le osservazioni: `snapshot` costruisce la popolazione sulle ROSE OSSERVATE, che portano
+club esteri e di Serie B, quindi lo zero scendeva da 1690 a ~1647 e ogni nuovo arrivato prendeva +0,07 di
+fantamedia gratis. La pendenza era giusta; sbagliato era il punto da cui si misura la distanza. Due
+abitudini, e la prima e' la sola ragione per cui il difetto e' durato mezz'ora invece di un mese: **il
+primo artefatto scritto dopo un'adozione si confronta col NUMERO CALCOLATO A MANO** e non con «e'
+cambiato nella direzione giusta» — 6,859 era piu' alto di 6,52 come previsto, quindi ogni controllo di
+direzione avrebbe detto che funzionava; e **un test su una media centrata deve contenere una riga FUORI
+popolazione**, o passa qualunque zero.
+
+**UNA COSTANTE DICHIARATA NON E' PER SEMPRE DICHIARATA.** Messo davanti a tre scale di confidenza da
+scegliere, l'operatore ha risposto «possiamo misurare gli esiti su una stagione vecchia e vedere qual e'
+la soluzione che piu' rispecchia la realta'?» — su una costante che aveva dichiarato lui. Si puo', quando
+la quantita' ha un esito osservabile: una penale che MOLTIPLICA il surplus si calibra come RAPPORTO fra
+quello che quella popolazione ha reso e quello che le era stato predetto. Misurato per gradino su dieci
+finestre: `core` 0,94 · `older` 0,93 · `shrunk` 0,77 · `anchor` **0,69** contro lo 0,50 in vigore. La
+regola procedurale: **le opzioni si offrono per le PREFERENZE** (quanto rischio accettare, cosa mostrare,
+quale vocabolario), **non per le quantita' che i dati possono decidere** — e prima di aprire una domanda
+su una taratura ci si chiede se la quantita' abbia un esito. Due corollari: quel che si calibra e' il
+BIAS e non la prudenza (l'avversione al rischio si moltiplicherebbe sopra, ed e' un'altra decisione); e
+dove il deliverable e' PIATTO (qui fra 0,73 e 0,80, e non monotono) si adotta il valore misurato e non il
+picco del banco, che e' la disciplina gia' scritta per il `k` dello SWING.
+
+**E «POCA EVIDENZA» PUO' ESSERE EVIDENZA CONTRARIA, che ribalta l'obiezione con cui la scelta era stata
+presentata.** Alzare l'ancora sopra il pavimento dello `shrunk` sembrava rovesciare una scala ordinata per
+evidenza; calibrato per banda di voti, `shrunk` legge **1-4 voti 0,45** · 5-9 0,92 · 10-14 0,89. Un uomo
+con tre voti merita MENO di uno che non ne ha nessuno, perche' tre voti sono un giocatore che il suo
+allenatore non ha schierato, mentre «niente» puo' essere un titolare che arriva dall'estero. *Prima di
+«ripristinare un ordine» che sembra rotto, misurare se l'ordine e' davvero quello che si crede.*
+
+**Il `core` calibra 0,94 e NON si tocca**: `est_*` su una riga core deve riprodurre `engine_*`, o un uomo
+porta due surplus sullo stesso foglio. Quel 6% e' un fatto sul MOTORE — sovrastima il surplus degli uomini
+che prezza — e appartiene al gate, non alla cascata: scritto, non applicato.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

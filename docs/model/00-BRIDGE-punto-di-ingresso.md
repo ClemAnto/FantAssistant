@@ -1,5 +1,40 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 7 settembre 2026 — IL NULL SI È SEDUTO AL TAVOLO, E IL `k` È SPARITO.** Sessione
+**Aggiornato: 7 settembre 2026, sera — L'ANCORA DI CHI NON HA GIOCATO QUI LEGGE L'ELO, E LA PRUDENZA
+SI MISURA.** Dalla richiesta dell'operatore di trasformare la sua esperienza in parametri, su due nomi
+(Ramos G. al Milan, Diao al Como) e un meccanismo suo: «le performance dipendono molto dalla squadra,
+quindi quando non abbiamo dati sul calciatore dalla stagione precedente in serie-a dovremmo orientarci
+sulla squadra». Nessuna riga di motore: tutto cade sulla cascata di ripiego (`est_*`), `--verify` 22/22.
+(a) **L'ANCORA DEL NUOVO ARRIVATO** (`est.newcomer_anchor`, `default`, D/C/A): l'ancora di ruolo è
+**troppo alta** per chi arriva (A **−0,26**) e l'Elo del club vale **0,17 di fantamedia per 100 punti**.
+Su 713 uomini in dieci finestre, leave-one-window-out: **A +16,8% (8/10) · C +10,4% · D +10,0%** contro
+l'ancora di ruolo, mentre l'ancora di CLUB che spedivamo valeva **+0,7%** sugli attaccanti. Non è la
+famiglia forza-club respinta quattro volte: quelle erano su uomini con una `fm_prev` in cui il club sta
+già dentro. Gate §7-unquinquagies.
+(b) **LE CONFIDENZE SONO CALIBRATE, non scelte**, su una sua domanda che vale come metodo — «possiamo
+misurare gli esiti su una stagione vecchia e vedere qual è la soluzione che più rispecchia la realtà?»,
+su una costante che aveva dichiarato lui. Una penale che MOLTIPLICA il surplus si calibra come rapporto
+fra reso e predetto: `core` **0,94** · `older` 0,93 · `shrunk` 0,77 · `anchor` **0,69**. Adottati
+`anchor` 0,50 → **0,75** e `older` → 0,90; il `core` resta 1,00 perché `est_*` deve riprodurre
+`engine_*` — e quel **6% è un fatto sul MOTORE**, che va al gate (todolist). Gate §7-duoquinquagies.
+(c) **«POCA EVIDENZA» PUÒ ESSERE EVIDENZA CONTRARIA, e ribalta l'obiezione con cui la scelta era stata
+presentata**: `shrunk` calibrato per banda legge **1-4 voti 0,45** · 5-9 0,92 · 10-14 0,89. Tre voti
+meritano MENO di niente — un uomo che il suo allenatore non ha schierato — mentre «niente» può essere un
+titolare che arriva dall'estero. Niente scala da comprimere.
+(d) **LA SUA PROPOSTA SULLA FETTA DI BONUS, misurata e confermata a metà**: «Qt.I e FVM non misurano la
+capacità di fare bonus» è **accolta** (la differenza fra Qt.I sopra e sotto la mediana era quasi tutta
+«96 su 262 non giocano mai»), ma il **prodotto** «fetta × nuova squadra» è respinto (−10,8% A) e la fetta
+**non viaggia con l'uomo** (r **+0,059** al cambio club): è una proprietà del POSTO. Sopravvive il
+contesto come termine additivo sui soli attaccanti che cambiano club (+5,84%, n=84), che è ciò che l'Elo
+già porta. Gate §7-treduoquinquagies.
+(e) **E LO ZERO DI UN PARAMETRO CENTRATO È PARTE DEL PARAMETRO**: trovato sul primo foglio scritto dopo
+l'adozione, e solo perché è stato verificato che Ramos riproducesse il numero calcolato a mano (**6,859
+contro 6,785**) — la media Elo era presa su tutte le osservazioni invece che sui venti club del
+campionato, e ogni nuovo arrivato prendeva +0,07 gratis. *Il primo artefatto dopo un'adozione si
+confronta col numero a mano, non con «è cambiato nella direzione giusta».*
+**Verifica**: `backtest --verify` **22/22**, **728 test** toolkit, `SHEET_REVISION` **50**, tre fogli +
+export + `data:pull` fatti; i quattro pacchetti del viaggio nel tempo restano alla 48 e lo dichiarano.
+Nella stessa giornata, prima: **R25K40 ADOTTATA su `default`** (gate §7-quinquagies bis).
+· **Aggiornato: 7 settembre 2026 — IL NULL SI È SEDUTO AL TAVOLO, E IL `k` È SPARITO.** Sessione
 interamente di misura, dalla richiesta «aumenta il k finché SWING(k) > SWING(k−1) … la prova falla su
 più stagioni». La scala saliva fino a **96/11** con un **ottimo interno** e `t` da 17 — e misurava
 l'incompetenza degli avversari.
