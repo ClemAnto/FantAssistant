@@ -1851,3 +1851,149 @@ serve a leggere le colonne che l'app disegna — chi volesse farne un canale pre
 dal gate come qualunque altro.
 
 Arnese: `scratchpad/xgxa_v2.py` (rigenerabile in due minuti, sola lettura sul DB).
+
+---
+
+## 29. LA CONVERSIONE xG → GOL NON È UNA COSTANTE DEL CALCIATORE, ED È MENO ANCORA DELLA SQUADRA (7 settembre 2026)
+
+Domanda dell'operatore: **«verifica se il valore di conversione dei gol attesi (xG) in gol reali è una
+costante più o meno fissa per gli attaccanti: prendi un campione di attaccanti che negli anni hanno
+cambiato più squadre e confronta la xG→Gol del calciatore con l'xG medio delle squadre in cui hanno
+militato».**
+
+**Popolazione**: `external_match_stats` (sofascore), le **quattro stagioni complete che portano xG**
+(2022-23…2025-26 — prima la fonte non li emette affatto), i cinque campionati, righe con minuti > 0.
+Attaccante = spell (uomo, stagione, campionato, club) con ≥5 partite e ≥60% di esse in posizione `F`
+— la posizione **per partita**, che è storica, e non `player_roles`, che è osservato oggi. Convenzioni
+imposte dal lettore e verificate: `xg` NULL = 0 (ogni riga NULL porta `shots` = 0, 11 eccezioni su
+131.000) e `goals` NULL = 0. **1.475 spell d'attaccante, 7.397 di xG, 7.372 gol.**
+
+### 29.1 La costante c'è, ed è la stessa per tutti: **1,00**
+
+| | xG | gol | conversione |
+|---|---|---|---|
+| attaccanti, tutto | 7.397 | 7.372 | **0,997** |
+| tutti i ruoli | 15.366 | 15.214 | 0,990 |
+| per stagione | | | 0,996 · 1,017 · 0,992 · 0,981 |
+| per campionato | | | serie_a 0,987 · premier 0,952 · liga 1,018 · ligue_1 0,994 · bundesliga 1,057 |
+
+Cioè **l'xG di questa fonte è già calibrato**: per un attaccante i gol attesi *sono* i gol, e non
+esiste nessun moltiplicatore di reparto o di lega da applicare. Il rigore vale **0,793** di xG
+(misurato su 433 partite-rigore di Serie A, mediana 0,783) contro una conversione reale dei rigori di
+**0,775**: leggermente sopravvalutato, quindi il rigorista non è avvantaggiato dal rapporto.
+
+### 29.2 Il NULL non è Poisson, ed è metà del risultato
+
+I gol non sono `Poisson(xG)`: sono una somma di Bernoulli sui **TIRI** (Poisson-binomiale), varianza
+`Σp(1−p)` invece di `Σp`. Col null di Poisson il rapporto risulta **sotto**disperso (chi²/df 0,74) e
+si conclude «nessuna abilità, anzi meno di zero»; col null giusto (p approssimato dentro la partita
+come `xg/shots`) chi²/df sale a 1,03–1,19. *Un null sbagliato non fa solo perdere potenza: qui
+cambiava il segno della conclusione.*
+
+| soglia xG di carriera | n | conv | chi²/df | sd osservata | sd del null | **sd vera** |
+|---|---|---|---|---|---|---|
+| ≥10 | 232 | 1,013 | 1,03 | 0,191 | 0,197 | **0** |
+| ≥15 | 157 | 1,016 | 1,16 | 0,178 | 0,168 | **0,060** |
+| ≥20 | 123 | 1,016 | 1,19 | 0,166 | 0,154 | **0,062** |
+| ≥30 | 74 | 1,026 | 1,13 | 0,141 | 0,137 | **0,034** |
+
+Senza rigori (tolti col conteggio di stagione, validato 227/227 contro i voti veri) il quadro non si
+muove: chi²/df 1,03 · 1,13 · 1,17 · 1,29. **La componente vera è ~0,06 contro un rumore di 0,17**,
+cioè il 90% della varianza fra attaccanti è campionamento. E **8 uomini su 157 escono da |z| > 2
+contro i 7,2 che il caso produce**: la popolazione degli attaccanti è indistinguibile da «convertono
+tutti uguale». L'unico oltre le tre deviazioni è **Kane** (99,4 xG → 128 gol, z +3,17); dall'altra
+parte Calvert-Lewin (41,3 → 26, z −2,91).
+
+### 29.3 Il disegno appaiato: quel poco che c'è è dell'UOMO, e della squadra non è niente
+
+Due confronti simmetrici sugli spell da ≥5 xG, ognuno col suo null binomiale simulato (300 repliche):
+
+| | coppie | r | null | z |
+|---|---|---|---|---|
+| **STESSO uomo, club DIVERSI** | 90 | **+0,142** (pesata +0,173) | −0,013 ± 0,108 | +1,44 |
+| **uomini DIVERSI, STESSO club-stagione** | 362 | **−0,014** (pesata −0,005) | −0,003 ± 0,052 | −0,22 |
+| metà contro metà (partite pari/dispari) | 157 uomini | +0,202 | +0,006 ± 0,082 | +2,40 |
+
+E le due letture che la domanda chiedeva per esteso, col club calcolato **senza di lui** (o sarebbe
+circolare): `r(rapporto suo, conversione del club) = +0,053` · `r(rapporto suo, xG a partita del
+club) = +0,023`, su 550 spell. **Il club non spiega niente della conversione**, e non è un problema
+di potenza: 362 coppie di compagni di squadra leggono zero esatto.
+
+### 29.4 Quello che il club sposta è il VOLUME, non la conversione
+
+Stesso disegno, sulla quantità accanto — l'xG per 90 minuti:
+
+| quantità | stesso uomo, club diversi | uomini diversi, stesso club | contro l'xG del club |
+|---|---|---|---|
+| conversione gol/xG | +0,142 | −0,014 | +0,025 |
+| **volume xG/90** | **+0,387** | **+0,105** | **+0,254** |
+
+*Quando un attaccante cambia squadra la domanda giusta non è «segnerà ancora al suo ritmo» ma «quante
+occasioni gli daranno»*: il volume viaggia con l'uomo tre volte più della conversione ed è l'unica
+delle due che il club muove.
+
+### 29.5 Fuori campione vale ~0,25 di peso e 0,15 gol a stagione: sotto il pavimento
+
+Addestro sulle prime due stagioni, giudico sulle ultime due (n=66): `r` = **+0,169** (pesata +0,257);
+col taglio 3→1 (n=56) `r` = **+0,354**. L'errore medio sui gol futuri come funzione del peso dato al
+rapporto personale ha un **ottimo interno a 0,2–0,3** e crolla a peso 1:
+
+| peso sul rapporto personale | 0,0 (costante di lega) | 0,2 | 0,3 | 0,5 | 1,0 |
+|---|---|---|---|---|---|
+| taglio 2+2 (n=66) | 2,886 | 2,735 | **2,700** | 2,744 | 3,750 |
+| taglio 3+1 (n=56) | 1,875 | **1,752** | 1,760 | 1,835 | 2,128 |
+
+Ma **appaiato uomo per uomo il guadagno non regge**: +0,171 ± 0,125 gol (t +1,37, 35 uomini su 66) e
++0,126 ± 0,073 (t +1,72, 33 su 56). In moneta dell'operatore: un gol vale 3 fantapunti su 36
+giornate, quindi il canale intero vale **0,01 punti a giornata** — contro i 4,7 che costa un buco e i
+0,7 che valgono i consigli del motore dentro uno slot. **Non si adotta**, e la forma sarebbe comunque
+una restringitura a 0,25 (Kane 1,29 → 1,07 previsto, Kean 0,76 → 0,94).
+
+### 29.6 Tre limiti dichiarati
+
+- **Il null equal-p dentro la partita MASSIMIZZA `Σp(1−p)` a parità di xG**, quindi sovrastima il
+  rumore, e la «sd vera» qui sopra è un **pavimento**. Sull'unico sotto-campione dove i rigori si
+  tolgono partita per partita (Serie A, via `match_ratings`) legge più alta — chi²/df 1,35 a soglia 15
+  e 1,66 a soglia 20 — ma su **27 e 17 uomini**, cioè non decide niente (e |z| > 2: 0 su 27).
+- **Il livello di club passa dai NOSTRI giocatori**, quindi dal funnel delle identità: in Serie A
+  copriamo 15,5 uomini per partita-club (praticamente tutto), negli altri quattro campionati 8–9 di
+  ~14. La conversione di club è un rapporto e regge meglio del livello; l'xG per partita del club è
+  sottostimato fuori dalla Serie A ed è usato solo come correlato.
+- **Un club è costante a se stesso a +0,165** su 363 coppie club-stagione, che è in gran parte
+  continuità di rosa e non un fatto sull'allenatore.
+
+### 29.7 La tabella che la domanda chiedeva
+
+Attaccanti con ≥2 club da ≥5 xG nella finestra (68 uomini). «suo» = i suoi gol sui suoi xG in quel
+club, «club» = lo stesso rapporto del club **senza di lui**:
+
+| calciatore | club | xG | gol | suo | club |
+|---|---|---|---|---|---|
+| **Kane** | Bayern | 78,0 | 98 | **1,26** | 1,08 |
+| | Tottenham | 21,4 | 30 | **1,40** | 1,06 |
+| **Mbappé** | Real Madrid | 49,9 | 56 | 1,12 | 0,94 |
+| | PSG | 47,3 | 56 | 1,18 | 1,06 |
+| **Balogun** | Reims | 26,6 | 21 | 0,79 | 1,22 |
+| | Monaco | 24,4 | 20 | 0,82 | 1,14 |
+| **Sørloth** | Villarreal | 12,4 | 23 | **1,86** | 0,92 |
+| | Atlético | 27,2 | 33 | 1,21 | 0,94 |
+| | Real Sociedad | 12,7 | 12 | **0,94** | 0,85 |
+| **Jackson** | Villarreal | 8,0 | 12 | **1,49** | 0,80 |
+| | Chelsea | 31,0 | 24 | **0,77** | 0,99 |
+| **Guirassy** | Stoccarda | 31,9 | 39 | 1,22 | 0,97 |
+| | Dortmund | 40,5 | 38 | 0,94 | 1,15 |
+| **Castellanos** | Girona | 11,0 | 13 | 1,18 | 1,26 |
+| | Lazio | 21,1 | 14 | 0,66 | 1,09 |
+| **Hojlund** | Atalanta · United · Napoli | 9,5 · 12,9 · 10,6 | 9 · 14 · 12 | 0,95 · 1,09 · 1,13 | 1,12 · 0,87 · 1,10 |
+
+Kane e Mbappé sono i due che si portano dietro il numero; Sørloth va da 1,86 a 0,94 e Jackson da 1,49
+a 0,77 **senza che i loro club dicano niente** — ed è per questo che 90 coppie danno +0,14 e non +0,6.
+
+**Non è una regola adottata**: nessun `engine_*` si muove, nessun gate la possiede. Serve a rispondere
+a una domanda d'asta — «questo attaccante segna più di quanto meriti?» — e la risposta misurata è
+**quasi sempre no: ha avuto fortuna, e l'anno prossimo tornerà a 1,00**. Si compone con le tre
+refutazioni della stessa famiglia già in §20.3 («gol meno xG» come predittore: 0,000, 3/8) e con §28,
+dove a prevedere il resto della stagione è l'xG **di volume** e non il suo scarto dai gol.
+
+Arnese: `scratchpad/xg_main.py` + `xg_seriea.py` + `xg_vol.py` (sola lettura sul DB, rigenerabili in
+un minuto).

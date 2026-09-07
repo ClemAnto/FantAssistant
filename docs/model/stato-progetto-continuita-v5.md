@@ -6345,3 +6345,74 @@ esistente, **nessun codice e nessuna misura nuova**. Dettaglio: `assistente-asta
   mani sono aperte — un cambio di display a modello fermo. Offerto, in attesa della sua decisione.
 
 Niente da verificare: l'albero non è stato toccato.
+
+# Chiusura 7 settembre 2026 (terza) — la conversione xG→gol non è del calciatore, e della squadra è zero
+
+Sessione interamente di MISURA, in sola lettura sul DB: **nessuna riga di codice**, nessun parametro,
+nessun `engine_*`. Una domanda dell'operatore, una risposta con il suo null, e un risultato scritto in
+[metrica-asta-surplus-v1.md](metrica-asta-surplus-v1.md) §29.
+
+## La domanda
+
+«Verifica se il valore di conversione dei gol attesi (xG) in gol reali è una costante più o meno fissa
+per gli attaccanti: prendi un campione di attaccanti che negli anni hanno cambiato più squadre e
+confronta la xG→Gol del calciatore con l'xG medio delle squadre in cui hanno militato.»
+
+## La risposta
+
+**Sì, è una costante — ed è la stessa per tutti: 1,00.** Su 1.475 spell d'attaccante (4 stagioni
+complete che portano xG, 2022-23…2025-26, cinque campionati) la conversione è **0,997**, stabile per
+stagione (0,98–1,02) e per campionato (0,95–1,06): l'xG di questa fonte è già calibrato, quindi per un
+attaccante i gol attesi *sono* i gol e non esiste un moltiplicatore personale da applicare.
+
+**Quel poco che resta è dell'UOMO, e della squadra non è niente.** Disegno appaiato simmetrico, ogni
+riga col suo null binomiale simulato su 300 repliche: stesso uomo/club diversi **+0,142** su 90 coppie
+(null −0,013 ± 0,108, z +1,44); uomini diversi/stesso club-stagione **−0,014** su 362 coppie (null
+−0,003 ± 0,052). Le due letture che la domanda chiedeva per esteso, col club calcolato **senza di lui**
+o sarebbe circolare: rapporto suo contro conversione del club **+0,053**, contro xG a partita del club
+**+0,023**. Su 157 attaccanti da ≥15 xG di carriera, **8 escono da |z| > 2 contro i 7,2 che il caso
+produce**: la popolazione è indistinguibile da «convertono tutti uguale», e l'unico oltre le tre
+deviazioni è Kane (99,4 xG → 128 gol, z +3,17).
+
+**Quello che il club sposta è il VOLUME.** Stesso disegno sull'xG per 90 minuti: **+0,387** fra club
+diversi dello stesso uomo, **+0,254** contro l'xG del club — dieci volte la conversione. *Quando un
+attaccante cambia squadra la domanda giusta è «quante occasioni gli daranno», non «segnerà ancora al
+suo ritmo».*
+
+**Fuori campione vale 0,01 punti a giornata, quindi non si adotta.** Addestrando su due stagioni e
+giudicando sulle altre due, l'ottimo del peso da dare al rapporto personale è **interno a 0,2–0,3**
+(errore sui gol futuri 2,886 → 2,700; col rapporto intero 3,750), e il secondo taglio conferma; ma
+appaiato uomo per uomo il guadagno è **+0,171 ± 0,125 gol** (t 1,37) e +0,126 ± 0,073 (t 1,72). Un gol
+è 3 fantapunti su 36 giornate: contro i 4,7 che costa un buco, il canale intero non esiste.
+
+## Le due lezioni di metodo
+
+**IL NULL NON È POISSON, e col null sbagliato la conclusione cambiava SEGNO.** I gol non sono
+`Poisson(xG)`: sono una somma di Bernoulli sui **TIRI**, varianza `Σp(1−p)` e non `Σp`. Con Poisson il
+rapporto risulta **sotto**disperso (chi²/df 0,74) e si conclude «nessuna abilità, anzi meno di zero»;
+col null giusto chi²/df è 1,03–1,19 e la componente vera è ~0,06 contro un rumore di 0,17. È la regola
+di casa «si confronta col null rimescolato, mai con zero» incontrata dove il null non è un rimescolo ma
+un MODELLO — e allora la forma del modello è metà del risultato.
+
+**E LA DIREZIONE DELL'APPROSSIMAZIONE SI DICHIARA.** Il null equal-p dentro la partita massimizza
+`Σp(1−p)` a parità di xG, quindi sovrastima il rumore: la «sd vera» è un **pavimento** e non una stima.
+Sull'unico sotto-campione dove i rigori si tolgono partita per partita (Serie A, via `match_ratings`)
+legge più alta — chi²/df 1,35 a soglia 15 e 1,66 a soglia 20 — ma su 27 e 17 uomini, cioè non decide
+niente. Detto invece che lasciato scoprire.
+
+## Verifica
+
+Niente da verificare: nessun file di codice toccato, nessun test coinvolto, il DB aperto in sola
+lettura (`mode=ro`). Il commit porta **un solo file** — §29 di `metrica-asta-surplus-v1.md` — perché le
+altre otto modifiche in albero sono di un'altra sessione e non si committa la metà di nessuno.
+
+## Aperti
+
+- **Il volume, non la conversione, è dove il canale potrebbe esserci**: xG/90 viaggia con l'uomo
+  (+0,387) *e* dipende dal club (+0,254), cioè è l'unica delle due quantità su cui un cambio di squadra
+  dice qualcosa. Non è stato misurato se predice `engine_fm_pred` meglio di quello che il motore già
+  legge — §28 dice che l'xG di volume prevede il resto della stagione, ma da lì a un canale sul CAMBIO
+  di club c'è un gate intero.
+- **La misura si allarga da sé ogni stagione**: la finestra è di quattro stagioni perché la fonte non
+  emette xG prima del 2022-23, e le 90 coppie uomo×club sono il vincolo di potenza (z +1,44). Con
+  2026-27 in archivio si rifà in un minuto.

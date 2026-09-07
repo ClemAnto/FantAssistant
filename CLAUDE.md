@@ -1890,6 +1890,18 @@ NOT the lagged outcome is safe - the "worse fantavoto after a team win" result w
 holds (null −0.002 vs observed −0.048). Details: `gate-motore-v1.md` §5-duodecies point 4 and
 [turnover-atteso-v1.md](docs/model/turnover-atteso-v1.md) §4.
 
+**And where the null is not a reshuffle but a MODEL, the SHAPE of that model is half the result**
+(07/09/2026, the xG question: `metrica-asta-surplus-v1.md` §29). Goals are not `Poisson(xG)` — they are a
+sum of Bernoulli over SHOTS, variance `Σp(1−p)` and not `Σp` — and with the Poisson null a forward's
+conversion reads UNDERdispersed (chi²/df 0.74), i.e. «no skill, less than none»; with the right null it is
+1.03-1.19 and the true player component is ~0.06 against a noise of 0.17. **A wrong null does not merely
+cost power: here it reversed the sign of the conclusion.** Two habits travel with it: the direction of the
+approximation is DECLARED (equal-p inside a match maximises `Σp(1−p)` at fixed xG, so that 0.06 is a FLOOR
+and not an estimate); and the paired design answers «whose is it?» without any model at all — the same man
+at different clubs reads +0.142 over 90 pairs while different men at the same club-season read **−0.014**
+over 362, so what little exists belongs to the MAN and the club explains nothing. What the club does move
+is the VOLUME of xG (+0.254), which is the quantity to look at when a striker transfers.
+
 Related and already learnt: the exploitable signal in these per-match questions sits on **who plays**, not on
 the voto - `Var(ln pv)` is 90% of `Var(ln` total fantapunti`)`. And a Serie A match RESULT is derivable
 offline from `match_ratings` (`platform='default'`): `goals` is net of penalties AND own goals, so
