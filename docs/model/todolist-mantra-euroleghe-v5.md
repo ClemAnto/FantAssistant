@@ -1500,3 +1500,11 @@ Dettaglio e numeri: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §
 
 4. **Resta pre-registrata e non corsa: la griglia allargata di R25** (`R25K60 · R25K80 · R25K120`,
    gate §7-quinquagies). Non è stata toccata da questa sessione.
+
+5. **Visibilità «quanti restano contro quante mani» per (ruolo, slot) sulla plancia** (07/09,
+   consultazione — `assistente-asta-v1.md` §43). Il numero che decide i secondi prezzi è già contato
+   dentro l'alternativa; mostrarlo per slot sarebbe un cambio di DISPLAY a modello fermo. Offerto
+   all'operatore e non richiesto: si fa solo se lo chiede. **Cosa NON fare**, coi verdetti a verbale in
+   §43: ritagliare gli slot in corsa quando qualcuno accumula (parametro fuori dalla popolazione su cui
+   la scala è misurata + circolarità) e pulire gli infortunati dagli slot (già prezzati su tre livelli:
+   `HURT_SLOT_STEP`, finestra di rientro, `MIN_PLAY_SHARE`).

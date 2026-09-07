@@ -4028,3 +4028,37 @@ chevron che le apre tutte). Dettaglio, misure e le righe che deliberatamente non
 Verificato coi banchi che già c'erano, dopo aver puntato i loro selettori sul nuovo nome
 (`plancia-man-card` → `ui-player-card`): `e2e-plancia-injury`, `e2e-plancia-keepers`,
 `e2e-plancia-slots`, `e2e-plancia-award`, `e2e-plancia-lens` tutti verdi.
+
+## 43. GLI SLOT NON SI RITAGLIANO IN CORSA, E UN INFORTUNATO RESTA NEL SUO SLOT (7 settembre 2026)
+
+Due domande dell'operatore sulla plancia, nessun codice: sessione di consultazione, e i due verdetti
+stanno a verbale perché non vengano ri-discussi. Hanno la stessa forma: **lo slot non è una fotografia
+di chi è ancora appetibile, è il righello su cui ogni tetto è stato misurato** — e un righello non si
+ridisegna mentre si misura.
+
+**«Se un partecipante prende 2+ calciatori dello stesso slot, gli slot si ricalcolano?» NO.** La scala
+delle offerte (quota di budget per ruolo × slot, `simulatore-asta-rilanci-v1.md` §19.3) è stata misurata
+sulle 131 aste vere con lo slot = rango nel listone A INIZIO ASTA. Ritagliarlo in corsa sono i due
+difetti già a verbale il 04/09 per gli slot personali (§39): **un parametro applicato fuori dalla
+popolazione su cui è stato misurato**, più la **circolarità** — le aggiudicazioni ridisegnano gli slot,
+che ridisegnano i tetti, che decidono le aggiudicazioni. E un argomento d'interfaccia: righe che saltano
+di slot a metà asta cambiano il tetto di un uomo MENTRE è in asta, e la colonna che ordina smette di
+ordinare. Quello che la realtà dell'accumulo cambia davvero è già letto dalle **quantità vive**, non
+dalla griglia: i crediti di ogni rosa, le mani alzate per ruolo e l'alternativa CONTATA (il k-esimo
+migliore rimasto, con k = quante rose vogliono ancora quel ruolo). Se un rivale accumula due primi
+difensori, per gli altri il fatto rilevante è «ne resta uno in meno nel serbatoio», ed è come il banco
+lo modella: `max(tier, posseduti almeno bravi come lui)` per chi accumula, urna più corta per gli altri.
+
+**«Un infortunato che nessuno vuole si tiene nello slot o si pulisce?» SI TIENE.** Toglierlo
+nasconderebbe un fatto — il mercato lo prezza comunque lì — e il caso è già trattato su tre livelli
+dichiarati il 04/09 (§36-§38): `HURT_SLOT_STEP` = 1 (chi è fuori oggi si paga come lo slot SOTTO, con o
+senza una data di rientro), la finestra di rientro che abbassa il pavimento della banda fino alla quota
+di giornate che gli restano (`RETURN_SLIP` = 0,25), e `MIN_PLAY_SHARE` = 0,60 (chi rientra a gennaio non
+entra in plancia affatto, e la pastiglia dice quanti ne ha esclusi). La ragione per cui la cura sta
+nell'app e non nel fidarsi dell'FVM: l'FVM è il giudizio più fresco del LISTONE, ma un infortunio di
+ieri è più fresco dell'ultima lettura del listone — il righello è stantio esattamente lì, quindi il
+correttivo deve stare fuori dal righello.
+
+**Aperto, offerto e non richiesto**: visibilità per (ruolo, slot) di quanti uomini restano contro quante
+mani sono ancora aperte — il numero che decide i secondi prezzi, già contato dentro l'alternativa.
+Sarebbe un cambio di DISPLAY a modello fermo. Voce 5 della todolist del 07/09.

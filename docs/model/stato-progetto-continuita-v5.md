@@ -6233,3 +6233,24 @@ Uno solo e non è un difetto, è una decisione dell'operatore: **mediare la tabe
 rotazioni delle caselle** (voce 1 della todolist del 07/09). Costa secondi perché le rose sono già
 calcolate, ma sposta numeri pubblicati — «posto medio 1,70 / 3,82 / 4,40» e i conteggi di titoli. I
 confronti in fantapunti non si muovono di un decimale.
+
+---
+
+# Chiusura 7 settembre 2026 (seconda) — gli slot della plancia non si ritagliano in corsa
+
+Sessione di CONSULTAZIONE: due domande dell'operatore sulla plancia, due verdetti derivati dal verbale
+esistente, **nessun codice e nessuna misura nuova**. Dettaglio: `assistente-asta-v1.md` §43.
+
+- **Gli slot NON si ricalcolano quando un partecipante prende 2+ uomini dello stesso slot.** Lo slot è
+  il righello su cui la scala delle offerte è stata misurata (131 aste vere, slot = rango a inizio asta,
+  `simulatore-asta-rilanci-v1.md` §19.3): ritagliarlo in corsa è un parametro fuori dalla sua
+  popolazione più una circolarità — gli stessi due argomenti del 04/09 sugli slot personali. L'effetto
+  vero dell'accumulo è già letto dalle quantità vive: crediti, mani alzate, alternativa contata.
+- **Un infortunato resta nel suo slot.** Toglierlo nasconde un fatto; il caso è già prezzato su tre
+  livelli dichiarati (`HURT_SLOT_STEP` = 1, la finestra di rientro con `RETURN_SLIP` = 0,25,
+  `MIN_PLAY_SHARE` = 0,60) — e la ragione per cui la cura sta nell'app è che un infortunio di ieri è
+  più fresco dell'ultima lettura del listone.
+- **Aperto (voce 5 della todolist del 07/09)**: mostrare per (ruolo, slot) quanti restano contro quante
+  mani sono aperte — un cambio di display a modello fermo. Offerto, in attesa della sua decisione.
+
+Niente da verificare: l'albero non è stato toccato.
