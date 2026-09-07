@@ -5823,19 +5823,24 @@ class SnapshotView(ttk.Frame):
             # An alternative is whoever else can wear THIS shirt. Two men of equal claim in one slot
             # alternate, and the shirt then reads 50% - the sentence an auction needs ("50%, in
             # ballottaggio") instead of two 100%s.
-            named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
-                     if name.strip() and name.strip() not in starters]
-            # The editors' own named ballottaggio comes first - it is a stated fact - but only as a
-            # FILTER on the men who can really wear this shirt, never as a replacement for them. Given
-            # precedence outright it erased the real alternatives whenever it named nobody who is in THIS
-            # duel: Politano, a 'C' in the listone, was declared in a ballottaggio with Lobotka and
-            # Elmas, neither of whom is in his line, so the intersection came out empty and Neres - who
-            # shares his RW - was reported as no alternative at all.
-            # Up to THREE, because a duel is not always a pair: the editors name three men for one
-            # midfield place often enough, and a shirt contested by three is a different risk from a
-            # shirt contested by one. The drawing fits what it can and counts the rest (`rival_text`).
-            final.append((role, starter,
-                          [row for row in able if row.get("name") in named][:3] or able[:2]))
+            # LA REGOLA «CHI LA STAMPA NOMINA VIENE PRIMA» E' CANCELLATA (operatore, 07/09/2026): i
+            # rivali sono i nostri, cioe' chi puo' davvero indossare QUESTA maglia (`can_replace`),
+            # ordinati per claim. La stampa resta A SCHERMO come fatto dichiarato - il tooltip e il
+            # popup del duello la scrivono accanto alla nostra lettura e dichiarano di non fonderle - ma
+            # non SCEGLIE piu' chi si disegna.
+            #
+            # Il difetto che l'ha fatta cancellare, portato dall'operatore su un nome: `duels` definisce
+            # un ballottaggio come «probabilita' di partire COMPARABILI», e due uomini a 0,05 e 0,01 sono
+            # comparabili - cioe' due portieri che non giocheranno nessuno dei due sono «in ballottaggio»
+            # fra loro. Al Napoli la stampa nominava Contini come rivale di Milinkovic-Savic, il filtro
+            # vinceva, e Meret - che gli stessi probabili danno a **1,00** - non compariva in porta ne'
+            # fra i rivali. Il filtro era stato scritto per non lasciare una maglia senza alternative
+            # (Politano contro Lobotka ed Elmas, fuori dalla sua linea) e quel caso e' coperto
+            # dall'ordinamento nostro, che per costruzione nomina solo chi puo' prendere il posto.
+            #
+            # DUE, come e' sempre stato per la nostra inferenza: il TRE era la ragione della stampa
+            # («gli editori nominano tre uomini per un posto abbastanza spesso») e va via con lei.
+            final.append((role, starter, able[:2]))
         return final
 
     # What the drawing is willing to PAY, in shares of a season, to put a man who really plays a flank on
@@ -7005,8 +7010,6 @@ class SnapshotView(ttk.Frame):
         alternatives: dict[str, list[dict]] = {}
         offered: set[str] = set()
         for starter in chosen:
-            named = [name.strip() for name in (starter.get("desc_duel_names") or "").split(";")
-                     if name.strip() and name.strip() not in names]
             # No lane bucket: `can_replace` is the positional test, and a bucket on top of it stranded
             # every trequartista of a side that declares no trequartista - De Bruyne and Vergara sit in
             # the 'T' lane, and Napoli's declared eleven has ten outfield men in D, M and A.
@@ -7016,10 +7019,14 @@ class SnapshotView(ttk.Frame):
             pool = [row for row in able if row.get("name") not in offered]
             # ...and a shirt that would be left with nobody takes a man who is already challenging
             # another: one alternative twice is a reading, no alternative at all is a wrong one.
-            # A NAMED ballottaggio is a stated fact and all of it is carried (up to three). The
-            # positional fallback stays at one on purpose: it is our inference, and `offered` spends a
-            # man per shirt - being greedy with guesses leaves the last shirts of a line with nobody.
-            rivals = ([row for row in pool if row.get("name") in named][:3] or pool[:1] or able[:1])
+            #
+            # LA REGOLA DELLA STAMPA E' CANCELLATA QUI ANCHE SE IL DIFETTO L'HA MOSTRATA ALTROVE
+            # (operatore, 07/09/2026): era la stessa regola, e tenerne una copia farebbe obbedire lo
+            # stesso campetto in un modo nel modo `typical` e in un altro nel modo `next` - due
+            # definizioni di una domanda sola, che e' il difetto che questo file paga da sempre. Resta a
+            # UNO perche' e' la nostra inferenza e `offered` spende un uomo per maglia: essere avidi con
+            # le supposizioni lascia le ultime maglie di una linea senza nessuno.
+            rivals = (pool[:1] or able[:1])
             offered.update(row.get("name") for row in rivals)
             alternatives[starter.get("name")] = rivals
         # WHERE each of them plays: the shape's own places, by fit (`_assign`), and the lines are final -

@@ -4794,18 +4794,45 @@ DIFFERENZIALE contro la media del campionato e mai al totale** — anche il port
 posto suo incassa porte inviolate, quindi un calendario medio non compra niente e quello che paga e' il
 CALENDARIO. Terza lettura del canale delle coppie-portieri e non una seconda aritmetica.
 
-**E UNA REGOLA SUL CALCIO SI MISURA ANCHE QUANDO L'OSSERVAZIONE CHE LA SUGGERISCE E' GIUSTA.** La sua
-lettura dello schermo era corretta (Meret 2 partite su 2 e probabili 1,00 contro 0,05, e il foglio dava
-piu' presenze a Milinkovic-Savic); la sua ipotesi come REGOLA — «due partite da 90' contro zero
-dovrebbero bastare» — e' respinta: dove la maglia del portiere cambia mano nelle prime due giornate
-resta a chi l'ha presa **10 volte su 18**, e il controesempio e' **la stessa coppia un anno prima**
-(2025-26 Napoli: Meret le prime due, Milinkovic-Savic poi 27 contro 9). Respinto anche il sospetto
-strutturale che sembrava piu' solido — «un club schiera UN portiere, quindi la' due giornate valgono
-piu'» — perche' la curva del peso ottimale per i portieri ha la **stessa forma** dei ruoli di
-movimento (+58,6% a K=1 contro +26,2% a K=5; movimento +53,0% e +25,1%). Quello che si scrive e' che
-**su quel caso il modello sara' piu' lento dell'occhio per qualche turno**, non una soglia tarata su un
-nome. *Un controesempio dentro la stessa coppia che ha generato l'ipotesi e' l'evidenza piu' economica
-che esista: si cerca la' per primo.*
+## Un NUMERO CITATO PER CHIUDERE UNA DISCUSSIONE va ricontrollato sulla popolazione della discussione
+**07/09/2026, e la voce che c'era qui e' stata RIDIMENSIONATA la sera dello stesso giorno su obiezione
+dell'operatore. Dettaglio e tabelle: `letture-app-v1.md` §32.12.** La mattina la sua ipotesi («due
+partite da 90' contro zero dovrebbero bastare» per la maglia del portiere) era stata scritta come
+RESPINTA su un 10/18 «monetina». La sera lui ha obiettato due cose — che il caso e' particolare (nuovo
+anno, cambio allenatore) e che «da verifiche passate avevamo visto che 2 partite da 90' quasi sempre
+significava titolarita' per tutto l'anno» — e **aveva ragione su tutt'e due i piani che contano.**
+
+**LA VERIFICA PASSATA ESISTEVA** (`starter_signs`, 14/08/2026: portieri 81,9% contro una base del
+22,3%), quindi il 10/18 non era «il» numero di quella domanda: era il numero di UN'ALTRA. Riallargata a
+cinque campionati — **294 casi invece di 18**, perche' una popolazione piccola si allarga e non si
+spacca — la sua affermazione generale e' confermata con un margine largo: chi ha giocato le prime due da
+titolare a 85'+ tiene **0,770** delle giornate che restano contro un null di **0,129** (un portiere
+dello stesso club che non le ha giocate), cioe' **sei volte**, e il 71% tiene almeno il 70% del resto
+contro il 5%. Il 10/18 e' l'ultima delle quattro celle: era gia' lui l'uscente **0,818** (n=219) · maglia
+libera 0,732 (45) · **cambio di maglia con l'uscente ancora in rosa 0,476 (30)**.
+
+**E IL SUO MECCANISMO E' CONFERMATO, LA SUA ETICHETTA NO.** Dentro quei 30 il discriminante non e'
+l'allenatore nuovo ma **se l'uscente era disponibile**: infortunato **0,230** (n=10, tiene >=70% una
+volta su dieci) contro **SANO e non schierato 0,610** (n=18, 61%) — che e' letteralmente «l'allenatore
+ha scelto lui». Il cambio di allenatore, dentro i sani, non aggiunge niente (nuovo 0,613 su 5, stesso
+0,666 su 11) e la direzione e' perfino contraria. Il caso vivo cade nella cella buona: Milinkovic-Savic
+non ha **nessuno stop datato** sul 22 e il 30/08 e ha due righe con `started` 0 e minuti NULL, cioe'
+panchina inutilizzata. Quindi il numero giusto e' 0,610 e non una monetina.
+
+**LA CONFERMA MIGLIORE NON L'AVEVO CERCATA: la correzione sugli infortuni (v9.84) da' a Meret una quota
+di 0,638, e la sua cella ne realizza 0,610.** Non serve nessun canale nuovo — un termine «uscente sano
+non schierato» resterebbe un candidato su n=18, da pre-registrare — perche' l'aritmetica corretta cade
+sulla misura da se'.
+Resta vero il sospetto strutturale respinto la mattina («un club schiera UN portiere, quindi la' due
+giornate valgono piu'»): la curva del peso ottimale per i portieri ha la **stessa forma** dei ruoli di
+movimento (+58,6% a K=1 contro +26,2% a K=5; movimento +53,0% e +25,1%), quindi nessun K per ruolo.
+
+Due abitudini, e sono errori miei. **Un controesempio va verificato nel gruppo in cui cade**: quello che
+avevo chiamato «l'evidenza piu' economica che esista» — Meret 2025-26 — ha come titolare uscente **Meret
+stesso** (34 presenze nel 2024-25), quindi non e' un cambio di maglia e non poteva testimoniare su quella
+cella; resta un controesempio alla cella FORTE, dove tenne 9 su 36 contro una media di 0,818, e quella
+cautela sul giocatore e' legittima. E **quando l'operatore dice «da verifiche passate avevamo visto»,
+quella verifica si CERCA a verbale prima di rispondere**: era in casa, con un numero piu' forte del mio.
 
 **E l'errore di misura della giornata e' mio, sullo strumento:** ho citato «`--verify` 22/22» dopo aver
 tagliato l'output con `tail -30`, che mangia esattamente il blocco dei controlli, e ho dovuto

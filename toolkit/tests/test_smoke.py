@@ -1036,8 +1036,11 @@ def test_the_next_matchday_eleven_is_the_editors_own(monkeypatch):
     assert "Meret" in by_name and "Politano" in by_name     # only the men the editors listed
     assert not {"Neres", "Lang"} & set(by_name), "and nobody they did not"
     assert len(by_name) == 11
-    # BOTH named rivals are carried, not just the first: the drawing decides how many fit, not this
-    assert [row["name"] for row in by_name["Politano"]] == ["Neres", "Lang"]
+    # LA STAMPA NON SCEGLIE I RIVALI, cancellata il 07/09/2026 su decisione dell'operatore: questa riga
+    # asseriva che i due nomi DICHIARATI fossero portati tutt'e due. Adesso il rivale e' il nostro, e nel
+    # modo `next` resta a UNO per la ragione che non e' cambiata - `offered` spende un uomo per maglia,
+    # ed essere avidi con le supposizioni lascia le ultime maglie di una linea senza nessuno.
+    assert [row["name"] for row in by_name["Politano"]] == ["Neres"]
 
 
 def test_last_ten_dot_bands_and_fading():

@@ -495,6 +495,111 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.85 (7 settembre 2026, sera tardi — i MINUTI del ritiro, e la regola della stampa cancellata)
+
+Due correzioni nate da tre osservazioni dell'operatore sullo schermo. Dettaglio e tabelle:
+`docs/model/letture-app-v1.md` §32.14-§32.15.
+
+**1. I MINUTI DEL RITIRO SONO IMPUTATI AL TASSO PER PRESENZA e non per giornata** (`SHEET_REVISION` 53).
+Da «perché Meret ha minuti attesi 80 e contemporaneamente Milinkovic-S. ha 79? È un paradosso!». Il
+paradosso non c'era — sono minuti QUANDO GIOCA, e l'etichetta piena della card lo dice, mentre la riga
+compatta porta una cifra nuda — ma il numero era sbagliato: le misure vere sono **89,1′** (980′ su 11
+presenze) e **90,0′** (2430′ su 27), e il foglio scriveva 80 a tutt'e due. La causa in
+`presence.blend_seasons`: la finestra del ritiro imputava i minuti al tasso per GIORNATA e li
+moltiplicava per le proprie giornate, cioè affermava «ha cominciato quattro amichevoli, **39,6 minuti**
+ciascuna» — una finestra che contraddice se stessa, perché le sue presenze sono partenze da titolare.
+Colpisce in proporzione a quanto poco uno gioca (dove presenze = giornate i due tassi coincidono e il
+ritiro è neutro, per un portiere di rotazione il per-giornata è la metà): sui **22 portieri** del foglio
+Serie A con ≥3 presenze, **11 sotto la misura e ZERO sopra**, mediana −2,2′, i peggiori i più saltuari
+(Pessina 35 contro 88, Motta 58 contro 90). Col tasso per presenza la finestra è neutra sui **due**
+rapporti per costruzione, e i tre portieri del Napoli leggono 90,0 · 89,0 · 10,0.
+**Prezzo misurato e attribuito con un esperimento a una variabile**: giudice stampa 155 → 153 uomini, ma
+con `friendly_rounds` = 0 torna a **155** — quindi la correzione dei minuti non costa niente e i due
+uomini li costa il fatto che quella finestra ora **pesa di più sui minuti**, che sono ciò che `standing`
+legge. `friendly_rounds` = 1,0 è **dichiarato** dall'operatore e dichiarato sotto la vecchia
+imputazione: è un candidato da RIMISURARE, non da girare per recuperare due uomini su una lettura sola.
+Un test che pretendeva la neutralità sui minuti per GIORNATA è stato riscritto con la sua ragione,
+perché le due neutralità non possono valere insieme.
+
+**2. LA REGOLA «CHI LA STAMPA NOMINA VIENE PRIMA» È CANCELLATA** (`SHEET_REVISION` 54, decisione
+dell'operatore). I rivali di una maglia sono i NOSTRI — chi può davvero prenderla (`can_replace`),
+ordinato per claim — e la stampa resta a schermo come fatto dichiarato (tooltip e popup del duello, che
+dichiara di non fondere i due fatti) senza più SCEGLIERE chi si disegna. Il difetto che l'ha mostrata:
+`duels` definisce un ballottaggio come «probabilità di partire COMPARABILI», e due uomini a 0,05 e 0,01
+lo sono — cioè due portieri che non giocheranno nessuno dei due — quindi al Napoli il filtro teneva
+Contini e lasciava fuori **Meret**, che gli stessi probabili danno a 1,00. Tolta nei **due** punti di
+selezione (`eleven` per il modo `typical`, `_declared` per il `next`): erano la stessa regola, e tenerne
+una copia farebbe obbedire lo stesso campetto in due modi diversi. Il TRE va via con lei (era la ragione
+della stampa). Il caso per cui il filtro era nato — una maglia lasciata senza alternative — è coperto
+dall'ordinamento nostro, che per costruzione nomina solo chi può prendere il posto.
+Portata: **80 maglie su 220 (36%)** cambiano lista, **102 nomi aggiunti e 28 togliuti** (le liste si
+riempiono: dove la stampa nominava un uomo solo ora ce ne sono due nostri). Como: Sanchez Ro. passa da
+`[Vigorito]` a **`[Butez, Audero]`**, e Butez è il portiere che i probabili danno titolare.
+**E il giudice esterno è INERTE al decimale** (7 MATCH · 153/220, identico alla rev 53), che è la
+verifica che serviva: `press --against press` confronta gli UNDICI e non i rivali, quindi un cambio che
+tocca solo i rivali deve leggere lo stesso numero. Due test riscritti con la loro ragione.
+
+**Gate**: `engine_*` fermo, `evaluate` non importa `presence` e non vede una colonna `desc_*`; la
+correzione dei minuti è inerte dove non c'è un ritiro parsato (metà dei club) e la regola tolta non entra
+in nessuna previsione. 746 test.
+
+## Novità v9.84 (7 settembre 2026, sera — LE PARTITE DI QUEST'ANNO arrivano dove non arrivavano)
+
+Dalla richiesta dell'operatore («vorrei che le partite della stagione corrente influenzino maggiormente le
+valutazioni dei calciatori») e da cinque nomi. Il **peso** — la cosa che la richiesta nomina — è l'unica
+causa già misurata e non cambia: `presence.DEFAULTS.season_prior_rounds` = 5, rimisurata il 05/09/2026 su
+questa stessa quantità con ottimo interno e la percentuale fissa 50/50 misurata **+4,7% peggio**. Le due
+cause vere sono errori di **unità** introdotti dalla miscela del 04/09. Numeri, null per gradino, giudice
+esterno e i quattro errori di misura miei: `docs/model/letture-app-v1.md` §37.
+
+**1. `est_pv` non leggeva le giornate giocate** (`est.presences_with_seen`, `SHEET_REVISION` 51). Varela
+G., 2 partite su 2 da titolare e 2 gol, leggeva 10,2 giornate su 36 con una nota che diceva «nothing
+measured anywhere». 139 righe su 601 stavano su un gradino di ripiego E avevano giocato quest'anno, con
+scarto mediano **0,119** fra la quota della scala e `est_pv/36` e 45 righe oltre 0,20 — sempre nello
+stesso verso, perché una sola delle due leggeva le giornate. Forma già adottata (`model.blend_with_seen`,
+R20) e **K letta da dove vive**, non nuova: il punto di chiamata passa
+`presence.DEFAULTS.season_prior_rounds` e un test lo asserisce. Misurata fuori campione con il null che la
+cascata usa **davvero**, popolazione spaccata per gradino: `anchor` +15,4% (n 2272, 11/11 stagioni),
+`shrunk` +10,7% (10/10), `abroad` +9,9% (9/9) su default; +15,1% / +16,9% / +20,9% su euro. Sei celle su
+sei positive, ottimo interno in tutte, K = 0 **negativo**. Effetto: 214 righe, **75 in su e 137 in giù**.
+**La guardia è «il motore non ha una previsione di presenze»** e non «il gradino non è il core»:
+`_rung_for` restituisce `pv_pred` appena esiste — anche su `shrunk` — e `pv_pred` porta già le giornate
+viste attraverso R20, quindi rimescolarle sarebbe lo stesso fatto contato due volte (111 righe su 325,
+Meret fra loro). Inerte su euro, dove il core prezza le presenze di tutti (R0c): 0 righe.
+
+**2. Le giornate saltate per infortunio si sottraevano da un denominatore che non era il loro**
+(`presence.SeasonWindow.missed`, `injuries.rounds_previous`, `SHEET_REVISION` 52). `contested` sottrae UNA
+cifra dal denominatore e quella cifra erano le assenze della sola stagione **bersaglio**, mentre dal 04/09
+il denominatore è una miscela di due stagioni: le assenze del prior si perdevano. Berardi ha preso il voto
+in **26 giornate su 38 saltandone DIECI** — quota condizionale 26/28 = **0,929** — e il prior entrava a
+26/38 = 0,684 facendolo leggere `panchina`. Su una **pre**-stagione la stessa quota era giusta, perché lì
+numeratore e denominatore stanno su una stagione sola: la miscela aveva **rotto** una condizionalità che
+funzionava, terza istanza di «il denominatore segue il suo NUMERATORE». `blend_seasons` pesa le assenze con
+GLI STESSI pesi del denominatore da cui verranno sottratte, e **il prior si riscala a K giornate di calcio
+CONTENDIBILE e non di calendario**, con un tappo a 1,0: senza quello, chi ha saltato quasi tutta la
+stagione sottrae tutto il proprio denominatore e si cancella, lasciando l'uomo sulle due partite di
+quest'anno (Pieragnolo leggeva **0,300 → 1,000**, difetto trovato dalla misura e non dalla rilettura). Chi
+non ha nessuna giornata contendibile cade sul prior **sintetico** della sua popolazione.
+
+**Effetto sui cinque nomi**, foglio Serie A rigenerato: Meret `panchina` → `ballottaggio` (quota 0,55 →
+0,638, claim 0,435 → 0,475) e **la board lo disegna** al posto di Milinkovic-Savic; Berardi `panchina` →
+`ballottaggio` (0,733 → **0,932**); Varela `est_pv` 10,2 → **17,6** e surplus 5,4 → 9,4 (dal 100º al 67º
+dei 105 attaccanti); Ramos G. `est_pv` 23,6 → 27,1; Castro S. e Malen invariati.
+
+**Giudice esterno** (`press --against press --source press`, stessa data, solo il codice cambiato):
+uomini **151 → 155 su 220** contro un null di 104, moduli invariati. Sul foglio precedente la stampa già
+metteva Meret e Berardi fra i suoi e non metteva Castro, cioè era d'accordo con l'operatore su tre dei
+cinque nomi prima che qualcuno la interrogasse. **Prezzo detto**: dei +4 uomini, +2 stanno sul Sassuolo,
+dove le odds di forma leggono 3-5-2 **0,432 contro 4-3-3 0,427** e i due produttori di campetti cadono su
+lati opposti di quel testa-o-croce (19 club su 20 concordano) — quindi sui campetti che l'app disegna il
+guadagno è **+2**, e quale forma giochi il Sassuolo è un giudizio da `board_rulings.json` e non una misura.
+Il Como perde un portiere nel verso sbagliato.
+
+**Gate**: `engine_*` non si muove di un decimale. `evaluate` non importa né `presence` né `estimate`, la
+sweep non nomina mai `SeasonWindow` (costruisce `Inputs` direttamente) e tutte e due le correzioni sono
+**inerti a zero giornate giocate**, quindi nessuna finestra pubblicata cambia; `backtest --verify` resta
+22/22. Test: `toolkit/tests/test_est_pv_seen.py` (7) e `test_blend_missed_rounds.py` (9).
+
 ## Novità v9.83 (7 settembre 2026, sera — lo ZERO dell'ancora si centra sul PERIMETRO)
 
 Difetto trovato sul primo foglio scritto dopo v9.81, confrontando la riga di Ramos col numero calcolato a

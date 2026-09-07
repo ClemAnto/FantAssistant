@@ -1518,12 +1518,34 @@ Dettaglio e numeri: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §
    richiesto — `letture-app-v1.md` §32.11). Nel caso Meret/Milinkovic-Savic sono l'unico segnale che
    distingue i due ADESSO (1,00 contro 0,05), e il foglio non li porta più: `desc_starter_prob` è vuota
    su questo bundle, perché la pagina serve «adesso» e un foglio la fotografa il giorno che gira.
-   **Cosa NON fare**: farli entrare in una valutazione. La regola della maglia («chi ha giocato le
-   prime due la tiene») è stata misurata e respinta — 10 volte su 18, col controesempio della stessa
-   coppia un anno prima — e un input che la reintroducesse per un'altra porta sarebbe la stessa cosa
-   senza il gate. Come colonna informa; come peso è un canale che una monetina non sostiene.
+   **Cosa NON fare**: farli entrare in una valutazione — ma il motivo è cambiato la sera del 07/09 su
+   obiezione dell'operatore, e va detto per intero (`letture-app-v1.md` §32.12). La regola della maglia
+   («chi ha giocato le prime due la tiene») **non è una monetina**: riallargata a cinque campionati e
+   294 casi vale **0,770 del resto di stagione contro un null di 0,129**, e il 10/18 che questa voce
+   citava è una delle quattro celle — quella in cui il titolare uscente è ancora in rosa. Dentro quella
+   cella separa **la disponibilità dell'uscente** (infortunato 0,230 · sano e non schierato 0,610) e non
+   il cambio di allenatore. Quindi la ragione per non farne un peso non è più «una monetina non lo
+   sostiene»: è che il canale utile vale n=18 e andrebbe **pre-registrato**, e soprattutto che non
+   serve — con le giornate saltate sottratte dal denominatore giusto (spec v9.84) il foglio dà a Meret
+   0,638 contro lo 0,610 che la sua cella realizza. Come colonna i probabili informano; come peso
+   sarebbero un canale adottato senza gate su una cosa che l'aritmetica corretta già azzecca.
 
-7. **Il +1 a porta inviolata è dichiarato e il suo VALORE non è misurato** (07/09). L'opzione di lega
+7. **LA MAGLIA DI UN RIPIEGO SCADE ALLA DATA DEL RIENTRO — misurata, non implementata** (07/09, sera
+   tardi, dall'obiezione dell'operatore; `letture-app-v1.md` §32.13). Su **78 casi** di portiere titolare
+   che si ferma, viene sostituito e rientra: il ripiego passa da **0,891 dentro lo stop a 0,276 dopo il
+   rientro** (appaiato −0,615, in calo in 73 casi su 78) e il rientrante riprende **0,664**, al ≥70% nel
+   **63%** dei casi. La durata non indebolisce (stop lunghi 0,744). Concorda dall'altro lato con gli 856
+   spell del 05/09 (il rientrante torna a 0,72-0,58), che però non poteva dire niente del ripiego.
+   **Perché è una regola sui PORTIERI**: di portieri se ne schiera uno, quindi «una maglia liberata → un
+   ripiego» vale solo lì — con Marusic fuori giocano sei difensori della Lazio e «il» ripiego non esiste.
+   **Popolazione viva oggi: ZERO** (le due coppie di portieri con uno stop aperto hanno infortunati che
+   non erano titolari: Furlanetto 2 presenze da titolare su 35, Israel 9 su 34), quindi non è un difetto
+   e non si spedisce di corsa. Cosa serve per adottarlo: la pre-registrazione, e la consapevolezza che la
+   misura usa la data di fine VERA mentre al tavolo la data è STIMATA (`RETURN_SLIP` = 0,25 esiste per
+   questo). Mezza macchina c'è: `core/injury-window.ts` conta le giornate prima del rientro
+   **dell'infortunato**; manca la lettura speculare, `(R − k) + 0,276 × (N − R)` per il ripiego.
+
+8. **Il +1 a porta inviolata è dichiarato e il suo VALORE non è misurato** (07/09). L'opzione di lega
    dice SE la lega lo paga e il termine entra al differenziale sul calendario, che è la forma giusta;
    quello che nessuno ha misurato è quanto quel differenziale valga davvero in punti a giornata contro
    l'esito. È misurabile sul banco d'asta (una colonna in più contro surplus/quotazione/caso, con la

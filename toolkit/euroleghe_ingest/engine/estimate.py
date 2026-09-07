@@ -484,6 +484,64 @@ def weighted_top(value: float | None, rivals: list[tuple[float, float]],
 CLUB_PRIOR: float = 3.0
 
 
+def presences_with_seen(pv: float | None, calendar: int | None, played_seen: int | None,
+                        rounds_seen: int | None, prior_rounds: float) -> float | None:
+    """La previsione di un rung MESCOLATA con le giornate che ha GIA' giocato quest'anno.
+
+    ADOTTATA il 07/09/2026, e nata da cinque nomi dell'operatore: «vorrei che le partite della stagione
+    corrente influenzino maggiormente le valutazioni», con Varela del Monza che aveva giocato 2 partite
+    su 2 e segnato 2 gol mentre la sua riga leggeva `est_pv` **10.2 su 36** e la nota diceva «nothing
+    measured anywhere». Era falso: `presence.blend_seasons` legge la stagione in corso dal 04/09, questa
+    cascata no - quindi due colonne dello STESSO uomo rispondevano alla stessa domanda su due campioni
+    diversi. Misurato sul foglio Serie A del 07/09: **139 righe su 601** stanno su un rung di ripiego e
+    hanno giocato quest'anno, con uno scarto mediano di **0.119** fra la quota della scala e `est_pv/36`
+    e 45 righe oltre 0.20 - sempre nello stesso verso, perche' una sola delle due leggeva le giornate.
+
+    LA FORMA E' QUELLA GIA' ADOTTATA (`model.blend_with_seen`, R20): `k` giornate osservate contro `K` di
+    prior, dove il prior e' la previsione del rung come QUOTA del calendario che resta. A `k` = 0
+    restituisce il rung intatto, quindi la correzione e' inerte su ogni finestra pre-stagione - cioe' su
+    tutte quelle su cui il gate ha pubblicato un numero.
+
+    E LA `K` NON E' UNA COSTANTE NUOVA: il chiamante passa `presence.DEFAULTS.season_prior_rounds`, la
+    stessa che la scala della titolarita' usa, misurata il 05/09/2026 sulla domanda vicina (ottimo interno
+    a 5, piatta fra 4 e 6). Una definizione e due lettori: con la sua stessa K la contraddizione qui sopra
+    si chiude per COSTRUZIONE invece di rimpicciolirsi, e uno sweep che la muovesse muoverebbe entrambe.
+    Il prezzo e' dichiarato: l'ottimo di QUESTA domanda e' piu' basso (K = 2 su `default`, 1.5 su `euro`),
+    quindi si lascia sul tavolo circa un quarto del guadagno disponibile per non avere due K.
+
+    MISURATA FUORI CAMPIONE, e con il null che la cascata usa DAVVERO. Alla giornata k, prevedere la quota
+    delle giornate che RESTANO in cui prende il voto (nessuna delle quali entra nel predittore), sui soli
+    uomini che il core non prezza (< `MIN_PV_PREV` voti a t-1), popolazione SPACCATA per rung perche' i
+    tre hanno tre null diversi - la prima passata scorava la costante `unmeasured` anche sui `thin`, che
+    ne hanno un'altra (0.42/0.29 contro 0.29/0.19), e «un baseline piu' debole fa sembrare un canale nuovo
+    migliore di quanto sia». MAE a k = 2, guadagno alla K adottata:
+
+        piattaforma  rung                            n     null      K=5      stagioni
+        default      anchor  (niente misurato)      2272   0.2614   +15.4%      11/11
+        default      shrunk  (1-14 voti)             891   0.2435   +10.7%      10/10
+        default      abroad  (minuti all'estero)     442   0.2319    +9.9%       9/9
+        euro         anchor                         1021   0.2545   +15.1%       8/8
+        euro         shrunk                         1036   0.2664   +16.9%       6/6
+        euro         abroad                         1898   0.2854   +20.9%       7/7
+
+    Sei celle su sei positive, ogni stagione positiva, e l'ottimo e' INTERNO in tutte e sei (K fra 1.5 e
+    5) - K = 0, cioe' «leggi solo le due partite», e' NEGATIVO su `default` (-3.7% sull'anchor, -32.3% sui
+    thin): la costante porta informazione e la miscela e' la forma giusta, non un interruttore. Due
+    conferme: l'ottimo e' stabile al muoversi di k (default/anchor 2, 2, 3 a k = 2, 4, 6), che e' la
+    proprieta' che un prior deve avere; e su `default`/`abroad` a k = 2 l'ottimo E' 5, cioe' la costante
+    adottata altrove, trovata da una strada che non aveva ragione di concordare.
+
+    LA CONFIDENZA NON SI MUOVE, ed e' una scelta: `CONFIDENCE` misura di quanto un rung SOVRASTIMA, non
+    quanta prova c'e' dietro, quindi alzarla perche' la riga ora legge calcio vero sarebbe una taratura
+    che nessuno ha misurato. Resta una voce da misurare, non una da indovinare.
+    """
+    if pv is None or not calendar or not rounds_seen or played_seen is None:
+        return pv
+    blended = model.blend_with_seen(pv / calendar, played_seen / rounds_seen,
+                                    float(rounds_seen), prior_rounds)
+    return round(calendar * min(max(blended, 0.0), ABROAD_MAX_SHARE), 1)
+
+
 @dataclass(frozen=True)
 class Estimate:
     """One player's fallback valuation, with the reason it exists attached to it."""

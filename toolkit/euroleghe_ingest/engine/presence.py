@@ -521,6 +521,25 @@ class SeasonWindow:
     minutes_elsewhere: float = 0.0
     #: Le giornate di campionato di cui quei numeri sono una quota. 0 = finestra assente.
     rounds: float = 0.0
+    #: ...E QUANTE DI QUELLE GIORNATE ERA INFORTUNATO, cioe' la correzione del PROPRIO denominatore.
+    #
+    # Viaggia con la finestra per la ragione scritta qui sopra - «una finestra e' un pezzo di calcio con
+    # il SUO denominatore» - e ci e' arrivata il 07/09/2026 perche' per tre giorni non c'e' stata.
+    # `contested` sottrae UN numero (`Inputs.rounds_measured`) da un denominatore che dal 04/09 e' una
+    # MISCELA di due stagioni, e quel numero era le giornate saltate nella sola stagione bersaglio:
+    # quelle del prior si perdevano. Berardi ha preso il voto in 26 giornate su 38 saltandone DIECI per
+    # infortunio - quota condizionale 26/28 = 0.929, che e' la frase dell'operatore su di lui («e' un
+    # titolarissimo che gioca poco per via dei continui infortuni») - e il prior entrava a 26/38 = 0.684,
+    # facendolo leggere `panchina`. Su un foglio di PRE-stagione la stessa quota era giusta, perche' li'
+    # numeratore e denominatore stanno su una stagione sola: la miscela ha rotto una condizionalita' che
+    # funzionava, ed e' la terza volta che questo repository paga «il denominatore segue il suo
+    # NUMERATORE» (20/08 sui due campionati, 05/09 sulla quota da titolare, questa).
+    #
+    # Non e' una previsione e non e' uno sconto di disponibilita': `appearance_share` risponde alla
+    # domanda dell'ALLENATORE («quando e' disponibile, lo usa?»), quindi una giornata dentro uno stop
+    # datato esce dal denominatore invece di contare come una preferenza per un altro. Chi cammina le
+    # giornate e le conta e' `snapshot.rounds_missed`; qui si mescolano soltanto.
+    missed: float = 0.0
 
 
 def blend_seasons(now: SeasonWindow, prev: SeasonWindow,
@@ -553,8 +572,26 @@ def blend_seasons(now: SeasonWindow, prev: SeasonWindow,
     windows: list[tuple[SeasonWindow, float]] = []
     if now.rounds > 0:
         windows.append((now, 1.0))
-    if prev.rounds > 0 and params.season_prior_rounds > 0:
-        windows.append((prev, params.season_prior_rounds / prev.rounds))
+    # IL PRIOR SI RISCALA A `K` GIORNATE DI CALCIO CONTENDIBILE, non di calendario (07/09/2026), perche'
+    # e' quella la sua taglia come PROVA: la quantita' che questa miscela serve e' `appearance_share`,
+    # «delle partite in cui era disponibile, quante ne ha giocate», e una giornata passata in infermeria
+    # non e' una prova su di lui. Con il calendario al denominatore le due meta' non erano nella stessa
+    # unita' e Berardi entrava a 26/38 = 0.684 invece di 26/28 = 0.929.
+    #
+    # E IL TAPPO A 1.0 IMPEDISCE AL PRIOR DI ESSERE GONFIATO oltre il calcio che contiene davvero. Senza
+    # di lui, chi era disponibile per tre giornate ne porterebbe cinque, cioe' due inventate; e nel caso
+    # limite - chi ha saltato l'intera stagione - il prior sottrae tutto il proprio denominatore e si
+    # CANCELLA, lasciando l'uomo sulle due partite di quest'anno. Trovato dalla misura e non dalla
+    # rilettura: sul foglio del 07/09 Pieragnolo (33 giornate perse su 38) leggeva **0.300 -> 1.000** e
+    # Frigan (38 su 38) 0.200 -> 0.700, cioe' `bandiera` su due partite - il difetto esatto per cui
+    # questa funzione e' stata scritta, rientrato dalla porta degli infortuni.
+    #
+    # Chi non ha NESSUNA giornata contendibile non ha un prior misurato affatto, e la decisione non e'
+    # qui: `snapshot.prior_window` gli da' quello sintetico della sua popolazione, come a chi non ha mai
+    # giocato. Qui il prior si limita a non entrare, o sarebbe una finestra vuota che pesa.
+    contended_prev = prev.rounds - prev.missed
+    if prev.rounds > 0 and contended_prev > 0 and params.season_prior_rounds > 0:
+        windows.append((prev, min(params.season_prior_rounds / contended_prev, 1.0)))
     # I MINUTI DEL RITIRO SONO IMPUTATI, e fino al 05/09/2026 questa riga diceva il contrario di quello
     # che faceva. Il commento al punto di chiamata prometteva gia' che il ritiro «entra con i minuti della
     # media delle altre e non ne sposta il rapporto di un decimale»; il chiamante passava una finestra
@@ -570,14 +607,39 @@ def blend_seasons(now: SeasonWindow, prev: SeasonWindow,
     # una correzione che riguarda i minuti.
     if friendly and friendly.rounds > 0 and params.friendly_rounds > 0:
         if not friendly.minutes and windows:
-            over = sum(one.rounds * weight for one, weight in windows)
+            # IL TASSO E' PER PRESENZA E NON PER GIORNATA (07/09/2026, sera tardi), ed e' la seconda volta
+            # che questa riga dice il contrario di cio' che promette. Il commento al punto di chiamata
+            # dice «entra con i minuti della media delle altre e non ne sposta il RAPPORTO di un
+            # decimale»: il rapporto in questione e' minuti/PRESENZA, che e' quello che `minutes.
+            # per_appearance` legge e che per un portiere E' l'intera colonna. Diviso per le GIORNATE, il
+            # ritiro affermava «ha cominciato 4 amichevoli, 39,6 minuti ciascuna» - una finestra che
+            # contraddice se stessa, perche' le sue presenze sono PARTENZE DA TITOLARE.
+            #
+            # Trovato dall'operatore su un paradosso apparente («perche' Meret ha minuti attesi 80 e
+            # contemporaneamente Milinkovic-S. ha 79?»), che non era un paradosso - sono minuti QUANDO
+            # GIOCA, e due portieri non giocano la stessa partita - ma sotto c'era un numero sbagliato:
+            # la misura vera e' Meret **89,1'** e Milinkovic-Savic **90,0'**, il foglio diceva 80 a
+            # tutt'e due. Senza la finestra del ritiro Meret legge 89,5; con lei, 79,8.
+            #
+            # E COLPISCE CHI GIOCA POCO, in proporzione a quanto poco: per un uomo che gioca ogni
+            # giornata per-giornata e per-presenza coincidono e il ritiro e' neutro (come il commento
+            # promette), per un portiere di rotazione il tasso per giornata e' la META' di quello per
+            # presenza. Misurato sui 22 portieri del foglio Serie A con almeno tre presenze: **11 sotto
+            # la misura e ZERO sopra**, mediana -2,2' e i peggiori sono i piu' saltuari (Pessina 35
+            # contro 88 su 4 presenze, Motta 58 contro 90 su 9). Un difetto in un verso solo, e la firma
+            # e' un denominatore che conta piu' del numeratore.
+            #
+            # Con il tasso per presenza la finestra del ritiro e' neutra sui DUE rapporti che contano,
+            # per costruzione e non per taratura: presenze/giornate (le sue presenze sono le sue
+            # giornate) e minuti/presenza (il tasso e' quello delle altre finestre).
+            appearances = sum(one.appearances * weight for one, weight in windows)
             played = sum(one.minutes * weight for one, weight in windows)
             here = sum(one.minutes_here * weight for one, weight in windows)
-            rate = played / over if over else 0.0
+            rate = played / appearances if appearances else 0.0
             share = here / played if played else 1.0
-            friendly = replace(friendly, minutes=rate * friendly.rounds,
-                               minutes_here=rate * friendly.rounds * share,
-                               minutes_elsewhere=rate * friendly.rounds * (1.0 - share))
+            friendly = replace(friendly, minutes=rate * friendly.appearances,
+                               minutes_here=rate * friendly.appearances * share,
+                               minutes_elsewhere=rate * friendly.appearances * (1.0 - share))
         windows.append((friendly, params.friendly_rounds / friendly.rounds))
     if not windows:
         return SeasonWindow()
@@ -588,6 +650,11 @@ def blend_seasons(now: SeasonWindow, prev: SeasonWindow,
         minutes_here=sum(one.minutes_here * weight for one, weight in windows),
         minutes_elsewhere=sum(one.minutes_elsewhere * weight for one, weight in windows),
         rounds=sum(one.rounds * weight for one, weight in windows),
+        # ...e le giornate saltate con GLI STESSI PESI del denominatore da cui verranno sottratte, che e'
+        # tutto il punto: dieci giornate perse in una stagione riscalata a cinque non sono dieci giornate
+        # di questa miscela. Sommarle grezze e' l'errore di unita' al contrario, e con `contested` che
+        # tappa a 1.0 avrebbe fatto leggere 1.000 a chiunque si sia rotto per due mesi.
+        missed=sum(one.missed * weight for one, weight in windows),
     )
 
 

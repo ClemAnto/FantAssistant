@@ -509,7 +509,77 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      `est_surplus` di ogni riga stimata - 3.385 righe su 6.100 nelle dieci finestre - e con lui lo
 #      SWING e ogni graduatoria dell'app che legge il ripiego. `engine_*` fermo: la cascata non e' nel
 #      percorso del gate.
-SHEET_REVISION = 50
+#   51 (07/09/2026, sera) - `est_pv` LEGGE LE GIORNATE GIA' GIOCATE su ogni gradino di ripiego. Dalla
+#      richiesta dell'operatore («vorrei che le partite della stagione corrente influenzino maggiormente
+#      le valutazioni») e da cinque nomi, di cui uno era un difetto: Varela del Monza, 2 partite su 2 da
+#      titolare e 2 gol, leggeva `est_pv` **10,2 su 36** con una nota che diceva «nothing measured
+#      anywhere». `presence.blend_seasons` legge la stagione in corso dal 04/09 e questa cascata no,
+#      quindi due colonne dello STESSO uomo rispondevano alla stessa domanda su due campioni diversi -
+#      139 righe su 601 sul foglio del 07/09, scarto mediano 0,119 fra la quota della scala e `est_pv/36`
+#      e 45 righe oltre 0,20, sempre nello stesso verso. La misura, i tre null per gradino e le sei celle
+#      (tutte positive, ogni stagione positiva, ottimo interno) stanno in `est.presences_with_seen`; la
+#      `K` e' quella della scala (`presence.DEFAULTS.season_prior_rounds`) e non una nuova, con il prezzo
+#      dichiarato - l'ottimo di QUESTA domanda e' piu' basso, quindi si lascia un quarto del guadagno per
+#      non avere due K. Muove `est_pv` e con lui `est_surplus`, la Fpi di chi il core non prezza e ogni
+#      graduatoria dell'app che legge il ripiego. INERTE a zero giornate giocate, quindi nessuna finestra
+#      pubblicata dal gate si muove; `engine_*` fermo, la cascata non e' nel percorso del gate.
+#   52 (07/09/2026, sera) - LE GIORNATE SALTATE PER INFORTUNIO VIAGGIANO CON LA FINESTRA, e la
+#      miscela le sottrae sulla SUA scala. Dal caso Berardi, portato dall'operatore: «mi dici
+#      panchina ma in realta' e' un titolarissimo che gioca poco per via dei continui infortuni».
+#      Aveva ragione e il difetto era di UNITA': `contested` sottrae `desc_injury_rounds_measured`
+#      - le giornate saltate nella sola stagione BERSAGLIO - da un denominatore che dal 04/09 e' una
+#      MISCELA di due stagioni, quindi le assenze del prior si perdevano. Berardi ha preso il voto in
+#      26 giornate su 38 saltandone DIECI: quota condizionale 26/28 = 0,929, mentre il prior entrava
+#      a 26/38 = 0,684 e lo faceva leggere `panchina` (0,733 -> 0,944, cioe' due gradini). La miscela
+#      aveva ROTTO una condizionalita' che su un foglio di pre-stagione funzionava, perche' li'
+#      numeratore e denominatore stanno su una stagione sola - terza istanza di «il denominatore
+#      segue il suo NUMERATORE» (20/08 sui due campionati, 05/09 sulla quota da titolare, questa).
+#      `presence.SeasonWindow.missed` porta il numero e `blend_seasons` lo pesa con GLI STESSI pesi
+#      del denominatore da cui verra' sottratto: sommarlo grezzo sarebbe l'errore al contrario, e con
+#      `contested` che tappa a 1,0 avrebbe fatto leggere 1,000 a chiunque si sia rotto per due mesi.
+#      Il prior SINTETICO non ne porta: la mediana di popolazione contiene gia' gli infortuni di
+#      quella popolazione. INERTE su una pre-stagione, dove la riga resta la cifra grezza esattamente
+#      come `desc_season_rounds` resta `measured_rounds` - nessuna finestra pubblicata dal gate si
+#      muove, e un test lo asserisce invece di prometterlo. Si muovono `desc_titolarita*`, il `claim`
+#      e quindi le BOARD; `engine_*` no, `evaluate` non importa `presence`.
+#   53 (07/09/2026, sera tardi) - I MINUTI DEL RITIRO SONO IMPUTATI AL TASSO PER PRESENZA, non per
+#      GIORNATA. Trovato dall'operatore su un paradosso apparente: «perche' Meret ha minuti attesi 80
+#      e contemporaneamente Milinkovic-S. ha 79? E' un paradosso!». Il paradosso non c'era - sono
+#      minuti QUANDO GIOCA e due portieri non giocano la stessa partita, e l'etichetta piena della
+#      card lo dice - ma sotto c'era un numero sbagliato: la misura vera e' Meret **89,1'** su 11
+#      presenze e Milinkovic-Savic **90,0'** su 27, e il foglio scriveva 80 a tutt'e due.
+#      La causa e' in `presence.blend_seasons`: la finestra del ritiro imputava i minuti al tasso per
+#      GIORNATA e li moltiplicava per le proprie giornate, quindi affermava «ha cominciato quattro
+#      amichevoli, 39,6 minuti ciascuna» - una finestra che contraddice se stessa, perche' le sue
+#      presenze sono partenze da titolare. Senza il ritiro Meret legge 89,5; con lui, 79,8.
+#      COLPISCE IN PROPORZIONE A QUANTO POCO UNO GIOCA: dove presenze = giornate i due tassi
+#      coincidono e il ritiro e' neutro (come il commento prometteva da sempre), per un portiere di
+#      rotazione il tasso per giornata e' la META'. Misurato sui 22 portieri del foglio Serie A con
+#      almeno tre presenze: **11 sotto la misura e ZERO sopra**, mediana -2,2', e i peggiori sono i
+#      piu' saltuari (Pessina 35 contro 88 su 4 presenze, Turati 49 contro 88,8, Motta 58 contro 90).
+#      Un difetto in un verso solo, e la firma e' un denominatore che conta piu' del numeratore.
+#      Col tasso per presenza il ritiro e' neutro sui DUE rapporti che contano, per costruzione: le
+#      presenze su giornate (le sue presenze SONO le sue giornate) e i minuti a presenza. Quello che
+#      il 05/09 aveva curato resta curato - il ritiro non entra piu' con zero minuti - e un test che
+#      pretendeva la neutralita' sui minuti per GIORNATA e' stato riscritto con la sua ragione,
+#      perche' le due neutralita' non possono valere insieme.
+#      Si muovono `desc_minutes_next` (il chip della card), `desc_minutes_full_season` e - perche'
+#      `standing` legge i minuti - il `claim` e quindi le BOARD. `engine_*` no.
+#   54 (07/09/2026, sera tardi) - LA REGOLA «CHI LA STAMPA NOMINA VIENE PRIMA» E' CANCELLATA, per
+#      decisione dell'operatore. I rivali di una maglia sono i NOSTRI - chi puo' davvero prenderla
+#      (`can_replace`), ordinato per claim - e la stampa resta a SCHERMO come fatto dichiarato (il
+#      tooltip e il popup del duello la scrivono accanto alla nostra lettura, e il popup dichiara di
+#      non fonderle) senza piu' SCEGLIERE chi si disegna.
+#      Il difetto che l'ha mostrata: `duels` definisce un ballottaggio come «probabilita' di partire
+#      COMPARABILI», e due uomini a 0,05 e 0,01 sono comparabili - cioe' due portieri che non
+#      giocheranno nessuno dei due sono in ballottaggio fra loro. Al Napoli la stampa nominava
+#      Contini come rivale di Milinkovic-Savic, il filtro vinceva, e Meret - che gli stessi probabili
+#      danno a 1,00 - non compariva ne' in porta ne' fra i rivali.
+#      Tolta nei DUE punti di selezione (`eleven` per il modo typical e `_declared` per il next):
+#      erano la stessa regola, e tenerne una copia farebbe obbedire lo stesso campetto in due modi
+#      diversi. Il TRE va via con lei (era la ragione della stampa) e la nostra inferenza resta a due
+#      nel typical e a uno nel next, come e' sempre stata.
+SHEET_REVISION = 54
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -2704,7 +2774,8 @@ def out_window(until: str | None, dates: list[str] | None) -> tuple[int, float] 
 
 
 def injury_history(conn, auction_date: str, seasons: list[str],
-                   measured: str | None = None) -> dict[int, dict]:
+                   measured: str | None = None,
+                   previous: str | None = None) -> dict[int, dict]:
     """Absences per player: matches missed, weighted by recency, plus whatever is open right now.
 
     `matches_missed` and not days: days become matches only through the calendar, and the source
@@ -2735,7 +2806,8 @@ def injury_history(conn, auction_date: str, seasons: list[str],
     weights = {season: INJURY_WEIGHTS[index] for index, season in
                enumerate(reversed(seasons[-len(INJURY_WEIGHTS):]))}
     rounds = rounds_missed(conn, auction_date,
-                           sorted({*weights, *([measured] if measured else [])}))
+                           sorted({*weights, *([measured] if measured else []),
+                                   *([previous] if previous else [])}))
     out: dict[int, dict] = {}
     for fc_id, start, end, kind, days, missed in conn.execute(
             """SELECT fc_id, start_date, end_date, kind, days_out, matches_missed FROM injuries
@@ -2785,10 +2857,17 @@ def injury_history(conn, auction_date: str, seasons: list[str],
             round(sum(mine[season] * weight for season, weight in counted.items())
                   / sum(counted.values()) * sum(INJURY_WEIGHTS), 2) if counted else None)
         entry["rounds_measured"] = mine.get(measured) if measured in mine else None
+        # ...E LE GIORNATE SALTATE NELLA STAGIONE DEL PRIOR, che dal 04/09/2026 sta nello stesso
+        # denominatore (`presence.blend_seasons`). `rounds_measured` da solo era le assenze della sola
+        # stagione bersaglio, quindi in-season quelle del prior si perdevano e un uomo fermo due mesi
+        # l'anno scorso entrava nella miscela come se avesse scelto di non giocare. `None` - e non 0 -
+        # dove quella stagione non ha un calendario da contare: «vuoto = ignoto».
+        entry["rounds_previous"] = mine.get(previous) if previous in mine else None
         entry["rounds_seasons"] = len(counted)
     for fc_id in known - set(out):
         out[fc_id] = {"spells": 0, "matches_missed": 0, "days_out": 0, "weighted": 0.0,
                       "missed_measured": 0, "rounds_weighted": 0.0, "rounds_measured": 0,
+                      "rounds_previous": 0,
                       "rounds_by_season": ";".join(["0"] * len(weights)),
                       "rounds_seasons": len(weights),
                       "worst_kind": None, "open": None, "last_start": None,
@@ -3683,6 +3762,32 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
     included - the operator's rule is that every player always has a realistic FM and MV.
     """
     guess = _rung_for(obs, prediction, layer, anchors, data, window, platform)
+    # ...E POI LE GIORNATE CHE HA GIA' GIOCATO QUEST'ANNO, su ogni rung che non sia il core (07/09/2026).
+    # Il core le legge da se' - `engine_pv_pred` passa per R20 e la sua fantamedia per R25 - mentre questa
+    # cascata no, quindi `presence.blend_seasons` e `est_pv` rispondevano alla stessa domanda su due
+    # campioni diversi: Varela, 2 partite su 2 e 2 gol, leggeva 10.2 giornate su 36 con una nota che
+    # diceva «nothing measured anywhere». La misura, il null per rung e le sei celle stanno in
+    # `est.presences_with_seen`.
+    #
+    # LA `K` SI LEGGE DA DOVE VIVE GIA' (`presence.DEFAULTS.season_prior_rounds`, misurata il 05/09 sulla
+    # quota di presenze): una definizione e due lettori, cosi' la contraddizione fra le due colonne si
+    # chiude per costruzione e non si rimpicciolisce soltanto. Un test asserisce che questo punto passi
+    # QUELLA costante e non un numero suo.
+    #
+    # E LA GUARDIA E' «IL MOTORE NON HA UNA PREVISIONE DI PRESENZE», non «il gradino non e' il core»:
+    # `_rung_for` restituisce `pv_pred` appena esiste (anche su `shrunk`, dove il core rifiuta la
+    # FANTAMEDIA e le presenze le prevede comunque), e `pv_pred` porta GIA' le giornate viste attraverso
+    # R20. Rimescolarle qui sarebbe lo stesso fatto contato due volte - 111 righe su 325 del foglio del
+    # 07/09, dove `est_pv` e `engine_pv_pred` sono identici alla prima cifra: Meret ne era una.
+    # La guardia coincide con la popolazione su cui la misura e' PULITA, e non per caso: le 214 righe di
+    # ripiego senza `engine_pv_pred` sono tutte e sole quelle senza un voto qui a t-1, cioe' le due celle
+    # (`anchor` e `abroad`) il cui null e' davvero la costante o la retta. La popolazione spedita e' un
+    # SOTTOINSIEME di quella misurata (15 righe hanno zero voti e una previsione comunque, e restano
+    # fuori), che e' il verso sicuro dei due.
+    if guess.estimated and (prediction is None or prediction.pv_pred is None):
+        guess = replace(guess, pv=est.presences_with_seen(
+            guess.pv, data.matchdays_target, obs.pv_seen, data.matchdays_seen,
+            presence.DEFAULTS.season_prior_rounds))
     if guess.mv is None:
         # A rung whose source carried no base vote at all - 166 `core` rows of 998 on the euro sheet, 11
         # of 295 on Serie A. Then the only thing left to read it off is the FANTAMEDIA the row already
@@ -4304,7 +4409,8 @@ def measured_sides(conn, season: str, notes: list[str]) -> dict[int, float]:
 
 def prior_window(record: dict | None, propensity: dict, at_club: dict, rounds: float,
                  role: str | None, platform: str,
-                 params: presence.Params = presence.DEFAULTS) -> presence.SeasonWindow:
+                 params: presence.Params = presence.DEFAULTS,
+                 missed: float | None = None) -> presence.SeasonWindow:
     """La finestra della stagione PRECEDENTE, e cosa vale per un uomo che qui non ha mai giocato.
 
     UN'ASSENZA NON E' UNO ZERO MISURATO, e questa funzione esiste perche' per un giorno lo e' stata. La
@@ -4334,18 +4440,33 @@ def prior_window(record: dict | None, propensity: dict, at_club: dict, rounds: f
     sintetici non entrano ne' in `minutes_here` ne' in `minutes_elsewhere`, cosi' `at_club_weight` resta
     la «divisione ignota» che questo progetto ha gia' deciso di non addebitare a nessuno.
     """
-    if record is not None:
+    # UNA STAGIONE IN CUI NON E' MAI STATO DISPONIBILE NON E' UNA STAGIONE MISURATA (07/09/2026). Il
+    # ramo qui sotto vale per chi ha una riga, e la riga di un uomo fermo da agosto a maggio non dice
+    # niente su «quando c'e', il suo allenatore lo usa?»: le sue giornate contendibili sono zero, quindi
+    # `blend_seasons` non lo farebbe entrare e l'uomo resterebbe sulle due partite di quest'anno - la
+    # cosa che la miscela esiste per impedire. Cade sul prior SINTETICO, come chi non ha mai giocato:
+    # non e' uno zero misurato, e' l'assenza di una misura.
+    contended = float(rounds or 0) - float(missed or 0)
+    if record is not None and contended > 0:
         return presence.SeasonWindow(
             appearances=float(record.get("matches") or 0),
             starts=float(record.get("starts") or 0),
             minutes=float(propensity.get("minutes") or 0),
             minutes_here=float(at_club.get("minutes") or 0),
             minutes_elsewhere=float(at_club.get("minutes_elsewhere") or 0),
-            rounds=rounds)
+            rounds=rounds,
+            # ...E LE GIORNATE CHE HA SALTATO PER INFORTUNIO in quella stagione, che sono la correzione
+            # del denominatore di QUESTA finestra e non di un'altra: senza di loro il prior di Berardi
+            # entrava a 26/38 invece di 26/28. `None` (ignoto) entra come 0, cioe' nessuna correzione -
+            # il verso prudente, perche' sottrarre un'assenza che nessuno ha contato lusingherebbe.
+            missed=float(missed or 0))
     prior_rounds = float(params.season_prior_rounds or 0)
     appearances = est.default_presences(prior_rounds, platform, "unmeasured", role)
     if not prior_rounds or not appearances:
         return presence.SeasonWindow()
+    # Il prior SINTETICO non porta assenze: e' la mediana di una popolazione, quindi le giornate che
+    # quella popolazione salta sono GIA' dentro il numero (0.282 e' la quota realizzata, infortuni
+    # compresi). Sottrarne altre sarebbe contare due volte cio' che la mediana ha gia' pagato.
     return presence.SeasonWindow(
         appearances=appearances,
         starts=appearances * est.UNMEASURED_START_RATE.get(role or "", 0.0),
@@ -5142,9 +5263,14 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
                 minutes=float(prop.get("minutes") or 0),
                 minutes_here=float(at_club.get("minutes") or 0),
                 minutes_elsewhere=float(at_club.get("minutes_elsewhere") or 0),
-                rounds=now_rounds),
+                rounds=now_rounds,
+                # LE GIORNATE SALTATE VIAGGIANO CON LA FINESTRA (07/09/2026): `contested` ne sottrae UNA
+                # cifra dal denominatore, e da quando quel denominatore e' una miscela quella cifra deve
+                # essere miscelata anche lei. Vedi `presence.SeasonWindow.missed` per il caso Berardi.
+                missed=float(injury.get("rounds_measured") or 0)),
             prev=prior_window(prev_play, prev_prop, prev_club, prev_rounds,
-                              obs.role_classic, platform),
+                              obs.role_classic, platform,
+                              missed=injury.get("rounds_previous")),
             # IL RITIRO dice SE il ritiro lo usa, non quanto a lungo: i minuti di un'amichevole si
             # spartiscono per farli giocare tutti, quindi questa finestra entra con i minuti della
             # media delle altre e non ne sposta il rapporto di un decimale. Vuota dove non c'e' un
@@ -5509,7 +5635,15 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_injury_missed_measured": injury.get("missed_measured"),
             "desc_injury_rounds_weighted": injury.get("rounds_weighted"),
             "desc_injury_rounds_by_season": injury.get("rounds_by_season"),
-            "desc_injury_rounds_measured": injury.get("rounds_measured"),
+            # LE GIORNATE SALTATE, SULLA SCALA DEL DENOMINATORE DA CUI VERRANNO SOTTRATTE. In-season
+            # quel denominatore e' `blended.rounds` (`desc_season_rounds` qui sotto), quindi qui va la
+            # cifra MISCELATA con gli stessi pesi, o si sottrae una stagione intera da sette giornate -
+            # e `contested` tappa a 1.0, quindi il risultato sarebbe 1.000 per chiunque si sia rotto.
+            # Su una pre-stagione resta la cifra grezza, esattamente come `desc_season_rounds` resta
+            # `measured_rounds`: li' numeratore e denominatore stanno su una stagione sola e ogni
+            # finestra pubblicata dal gate legge questa riga identica a prima.
+            "desc_injury_rounds_measured": (_round(blended.missed, 2) if now_rounds
+                                            else injury.get("rounds_measured")),
             "desc_injury_rounds_seasons": injury.get("rounds_seasons"),
             # Da quanti giorni e' rientrato dall'ultimo stop che gli e' costato una giornata. Vuoto =
             # non ne ha avuti o non lo sappiamo, mai zero.
@@ -6223,7 +6357,8 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                                role_percentiles(data.observations), before,
                                as_of=window.auction_date, target=window.target_season),
         "squads": squads, "squad_sources": squad_sources,
-        "injuries": injury_history(conn, window.auction_date, seasons, measured),
+        "injuries": injury_history(conn, window.auction_date, seasons, measured,
+                                   previous=window.input_season),
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
         # LE GIORNATE CHE RESTANO, per club: il denominatore della finestra d'infortunio aperta. Vuoto

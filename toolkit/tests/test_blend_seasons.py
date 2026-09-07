@@ -82,12 +82,22 @@ def test_the_friendlies_weigh_lightly_and_say_nothing_about_minutes():
     without = presence.blend_seasons(DOUVIKAS_NOW, DOUVIKAS_PREV)
     assert with_camp.rounds == without.rounds + presence.DEFAULTS.friendly_rounds
     assert 0 < _share(with_camp) - _share(without) < 0.01
-    # ...E NON SPOSTA I MINUTI DI UN DECIMALE, che e' quello che il commento al punto di chiamata
-    # prometteva mentre il codice aggiungeva una giornata da ZERO minuti a tutti: misurato su un titolare
-    # da 85', la quota di minuti che `standing` legge scendeva di 0.060 a K=10 e di 0.100 a K=5, cioe' il
-    # difetto peggiorava con la K adottata il 05/09. I minuti del ritiro sono ora imputati al tasso delle
-    # altre finestre, ed e' questa uguaglianza a dirlo.
-    assert (abs(with_camp.minutes / with_camp.rounds - without.minutes / without.rounds) < 1e-9)
+    # ...E NON SPOSTA I MINUTI A PRESENZA DI UN DECIMALE, che e' quello che il commento al punto di
+    # chiamata promette. Questa riga pretendeva l'uguaglianza sui minuti per GIORNATA, e le due cose non
+    # possono valere insieme: la riga sopra asserisce (giustamente) che la quota di presenze SI muove,
+    # perche' il ritiro dice che le ha giocate tutte. Cambiata il 07/09/2026 dopo l'osservazione
+    # dell'operatore sui portieri del Napoli - col tasso per giornata il ritiro affermava «ha cominciato
+    # quattro amichevoli, 39,6 minuti ciascuna», e Meret leggeva 80' a presenza contro una misura di
+    # 89,1. Per Douvikas, che gioca 36 giornate su 38, i due tassi quasi coincidono e il difetto era
+    # invisibile: la popolazione che lo paga sono i portieri di rotazione.
+    #
+    # Cio' che il 05/09 aveva curato resta curato, ed e' l'altra meta': il ritiro non entra piu' con ZERO
+    # minuti (li' la quota che `standing` legge SCENDEVA di 0.060 a K=10 e di 0.100 a K=5).
+    assert (abs(with_camp.minutes / with_camp.appearances
+                - without.minutes / without.appearances) < 1e-9)
+    # ...e i minuti per GIORNATA salgono, che non e' un difetto ma l'aritmetica della riga sopra: la
+    # quota di presenze del ritiro e' 1.0 per costruzione (le sue presenze SONO le sue giornate).
+    assert with_camp.minutes / with_camp.rounds > without.minutes / without.rounds
     # e a peso zero il ritiro non esiste affatto, che e' come si spegne un canale senza toglierlo
     off = replace(presence.DEFAULTS, friendly_rounds=0.0)
     assert presence.blend_seasons(DOUVIKAS_NOW, DOUVIKAS_PREV, friendly, off) == without
@@ -154,3 +164,47 @@ def test_a_man_nobody_has_seen_here_gets_his_populations_prior_and_not_a_zero():
     measured_zero = snapshot.prior_window({"matches": 0, "starts": 0}, {}, {}, 38.0, "A", "default")
     assert measured_zero.appearances == 0.0
     assert measured_zero.rounds == 38.0
+
+
+def test_the_friendly_window_imputes_minutes_PER_APPEARANCE_and_not_per_round():
+    """Il ritiro non sposta il rapporto MINUTI/PRESENZA, che e' quello che il commento promette.
+
+    Trovato dall'operatore il 07/09/2026 su un paradosso apparente: «perche' Meret ha minuti attesi 80 e
+    contemporaneamente Milinkovic-S. ha 79?». Non era un paradosso - sono minuti QUANDO GIOCA, e due
+    portieri non giocano la stessa partita - ma sotto c'era un numero sbagliato: la misura vera e' 89,1'
+    e 90,0', e il foglio diceva 80 a tutt'e due.
+
+    La causa: il ritiro imputava i minuti al tasso per GIORNATA e li moltiplicava per le sue giornate,
+    quindi affermava «ha cominciato quattro amichevoli, 39,6 minuti ciascuna» - una finestra che
+    contraddice se stessa, perche' le sue presenze sono partenze da titolare. Per un uomo che gioca ogni
+    giornata i due tassi coincidono e il difetto e' invisibile; per un portiere di rotazione il tasso per
+    giornata e' la META'.
+    """
+    now = presence.SeasonWindow(appearances=2, starts=2, minutes=180, minutes_here=180, rounds=2)
+    prev = presence.SeasonWindow(appearances=11, starts=11, minutes=980, minutes_here=980,
+                                 rounds=38, missed=12)
+    friendly = presence.SeasonWindow(appearances=4, starts=4, rounds=4)
+    without = presence.blend_seasons(now, prev)
+    with_camp = presence.blend_seasons(now, prev, friendly)
+    # L'INVARIANTE, e si asserisce come identita' invece che su una cifra: il ritiro e' neutro sul
+    # rapporto minuti/presenza per COSTRUZIONE, non per taratura.
+    assert round(with_camp.minutes / with_camp.appearances, 6) == \
+        round(without.minutes / without.appearances, 6)
+    # ...e quel rapporto e' la misura vera di quell'uomo, non un numero diluito.
+    assert round(with_camp.minutes / with_camp.appearances, 1) == 89.5
+    # Il ritiro invece DEVE spostare la quota di presenze: ha cominciato tutte le amichevoli, ed e'
+    # una prova su quanto spesso gioca.
+    assert with_camp.appearances / with_camp.rounds > without.appearances / without.rounds
+
+
+def test_a_man_who_plays_every_round_is_untouched_by_the_camp():
+    """La neutralita' che il commento prometteva vale ancora dove valeva: per chi gioca sempre.
+
+    E' il controllo che dice che la correzione non ha spostato la popolazione sbagliata: con presenze =
+    giornate i due tassi coincidono, quindi il numero non si muove di un decimale.
+    """
+    now = presence.SeasonWindow(appearances=2, starts=2, minutes=180, minutes_here=180, rounds=2)
+    prev = presence.SeasonWindow(appearances=38, starts=38, minutes=3420, minutes_here=3420, rounds=38)
+    friendly = presence.SeasonWindow(appearances=4, starts=4, rounds=4)
+    blended = presence.blend_seasons(now, prev, friendly)
+    assert round(blended.minutes / blended.appearances, 1) == 90.0

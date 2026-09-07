@@ -1207,9 +1207,14 @@ def test_the_split_between_this_club_and_elsewhere_comes_from_the_per_match_laye
     ctx = _ctx(tmp_path)
     conn = ctx.conn
     _seed(conn)
-    for club in ("Napoli", "Villarreal"):
+    # ID DICHIARATI E NON `hash(nome) % 1000`, che e' come questo test era scritto fino al 07/09/2026:
+    # l'hash di una stringa e' randomizzato per processo, quindi i due club collidevano fra loro o con
+    # l'Inter che `_seed` inserisce a 10 - una volta su qualche centinaio di corse, con un
+    # `UNIQUE constraint failed: clubs.fc_club_id` che non c'entrava niente con cio' che il test misura.
+    # Un test che fallisce a caso e' peggio di nessun test: rende ambiguo ogni rosso della suite.
+    for fc_club_id, club in ((21, "Napoli"), (22, "Villarreal")):
         conn.execute("INSERT INTO clubs(fc_club_id, canonical_name, league) VALUES (?, ?, 'serie_a')",
-                     (hash(club) % 1000, club))
+                     (fc_club_id, club))
     conn.execute("INSERT INTO players(fc_id, canonical_name, birth_year) VALUES (9, 'Marin R.', 1997)")
     for match_id, club, minutes, started in (("v1", "Villarreal", 90, 1), ("v2", "Villarreal", 75, 1),
                                              ("n1", "Napoli", 20, 0)):
@@ -1367,17 +1372,31 @@ def test_an_alternative_is_the_next_man_who_can_take_the_place_never_nobody():
         "collected before the shirts are handed out and filtered after, a starter whose two best "
         "challengers also start was left with no alternative at all")
 
-    # the editors name a man who is not in this duel: it FILTERS the real alternatives, never erases them
+    # LA STAMPA NON SCEGLIE PIU' I RIVALI (operatore, 07/09/2026): questo blocco asseriva il contrario -
+    # «dove nominano un uomo che E' nel duello, lui viene primo: un fatto dichiarato batte una
+    # graduatoria misurata» - e la regola e' stata cancellata. Il difetto che l'ha mostrata: `duels`
+    # chiama ballottaggio due probabilita' COMPARABILI, e due portieri a 0,05 e 0,01 lo sono - cioe' due
+    # uomini che non giocheranno nessuno dei due - quindi al Napoli il filtro teneva Contini e lasciava
+    # fuori Meret, che gli stessi probabili danno a 1,00.
+    # Quello che si asserisce adesso e' che i rivali sono i NOSTRI, ordinati per claim, e che un nome
+    # dichiarato non li altera - ne' in un verso ne' nell'altro.
     rows = others + [mid("Uno", 34, desc_duel_names="Portiere; Att1"), mid("Due", 30), mid("Tre", 26),
                      mid("Quattro", 12)]
     assert [row["name"] for _r, starter, row_list in _view_of(rows).eleven("Test", "4-3-3", "typical")
             for row in row_list if starter["name"] == "Uno"] == ["Quattro"]
-    # and where they name a man who IS, he comes first: a stated fact beats a measured ranking
     rows = others + [mid("Uno", 34, desc_duel_names="Quattro"), mid("Due", 30), mid("Tre", 26),
                      mid("Cinque", 20), mid("Quattro", 12)]
     picked = {starter["name"]: [row["name"] for row in more]
               for _role, starter, more in _view_of(rows).eleven("Test", "4-3-3", "typical")}
-    assert picked["Uno"] == ["Quattro"] and picked["Due"] == ["Cinque", "Quattro"]
+    # i due migliori per claim fra chi puo' prendere quel posto, per TUTTE le maglie della linea: il
+    # nome dichiarato (Quattro) non passa davanti a Cinque, che ne ha di piu'.
+    assert picked["Uno"] == ["Cinque", "Quattro"]
+    assert picked["Due"] == ["Cinque", "Quattro"]
+    # ...e la lista NON dipende da chi la stampa nomina: la stessa rosa senza dichiarazioni la legge uguale.
+    plain = others + [mid("Uno", 34), mid("Due", 30), mid("Tre", 26), mid("Cinque", 20), mid("Quattro", 12)]
+    same = {starter["name"]: [row["name"] for row in more]
+            for _role, starter, more in _view_of(plain).eleven("Test", "4-3-3", "typical")}
+    assert same["Uno"] == picked["Uno"], "un nome dichiarato non sposta piu' nulla"
 
 
 def test_the_declared_eleven_takes_its_alternatives_from_the_whole_squad():
@@ -4420,7 +4439,10 @@ def test_a_newcomer_is_anchored_on_his_clubs_elo_and_a_returning_man_on_his_club
         return SimpleNamespace(**fields)
     layer = {"role_bonus": {"A": 0.74}, "club_level": {("Milan", "A"): (6.30, 4)},
              "players": {}, "elo_mean": elo_mean}
-    data = SimpleNamespace(matchdays_target=36)
+    # `matchdays_seen` = 0: questo test giudica l'ANCORA, e la miscela delle giornate viste
+    # (`est.presences_with_seen`, revisione 51) e' inerte a zero giornate giocate - cosi' il caso resta
+    # quello che era prima che quella correzione esistesse, invece di misurare due cose insieme.
+    data = SimpleNamespace(matchdays_target=36, matchdays_seen=0)
     window = features.Window("NEW", "2025-26", "2026-27", "2026-09-07")
 
     ramos = snapshot.estimate_for(obs_of(1, "Milan", 1817.0), None, layer, {"A": role_anchor}, data,
