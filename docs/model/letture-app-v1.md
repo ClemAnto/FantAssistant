@@ -3331,6 +3331,18 @@ volte su tre no. **L'R-Factor e il modificatore di difesa leggono il voto BASE, 
 La sua formula: `SWING = surplus + (giornate sufficienti attese × k)` con **k = 1/11**, «la parte di bonus
 da R-Factor o Mod. Difesa attribuibile a un uomo — un valore ragionevole ma non frutto di mille calcoli».
 
+> **PORTATO A `2/11` il 07/09/2026, e la correzione è nell'INDICIZZAZIONE e non nel numero**: «il k
+> dovrebbe dipendere da quanti punti è impostato il mod.dif e r-factor». Ha ragione, ed è la regola di
+> casa applicata a una costante nostra — nella sua lega l'R-Factor vale al massimo **2** punti, e due
+> punti spalmati sugli undici uomini che li producono sono `2/11`. Quindi **è un parametro di LEGA e non
+> una costante del gioco**: chi ne gioca una con modificatori di taglia diversa lo deve ridichiarare.
+> Non è ancora un'impostazione a schermo perché la taglia dei due modificatori non è fra quelle
+> dichiarate (`LeagueRules` porta il mod. difesa come un INTERRUTTORE e non come una scala, e la scala
+> dell'R-Factor vive solo in `bench/auction/rules.py`); il giorno in cui servisse una seconda lega, è lì
+> che va aggiunta e la costante diventa una sua funzione. Misurato sul banco curato: **−0,25 (t −0,7),
+> 5 finestre su 10**, cioè dentro la piattezza di §32.10 come ogni altro punto — nessuna misura si
+> oppone e nessuna lo sostiene, che è la stessa condizione su cui stava l'1/11.
+
 **LA SUA PRUDENZA HA BATTUTO LA MIA ARITMETICA, ed è la lezione da tenere.** Il marginale ESATTO
 dell'R-Factor sull'undici tipo (Poisson-binomiale; 3,32 insufficienti attesi su 11, R-Factor atteso 0,50
 su 2) è **0,298 di fantamedia per unità di costanza**, e misurato a 0,30 il termine è **DANNOSO** (−2,12
@@ -3339,6 +3351,11 @@ surplus contiene già una parte della costanza** — un uomo costante gioca di p
 paga solo il DIFFERENZIALE, non il totale. Griglia misurata su 24 configurazioni: 0,05 **+0,11** ·
 **1/11 +0,19** · 0,15 −0,27 · 0,20 −0,68 · 0,30 −2,12 · 1,0 −3,40. **Ottimo interno, e il suo k ci cade
 sopra.**
+
+> **RITIRATA il 07/09/2026 — quella griglia è stata presa su un banco rotto in due modi, e §32.10 racconta
+> come.** Il MECCANISMO qui sopra (si paga il differenziale, non il totale) e il marginale 0,298
+> sopravvivono, perché sono aritmetica e non misure di quel banco. Quello che non sopravvive sono i
+> **numeri**: sul banco curato la griglia è piatta e nessun peso si distingue dagli altri, zero compreso.
 
 Va anche registrato che una prima versione dello sweep aveva spazzato pesi da **5 a 40** — da 17 a 130
 volte troppo grandi — e il rifiuto che ne era uscito è stato **ritirato**: uno sweep che non contiene il
@@ -3424,6 +3441,76 @@ GIOCO. L'operatore ha deciso **SWING ovunque**, e aveva ragione: il vocabolario 
 dichiara lui — come ha dichiarato «SLOT» invece di «blocco» — e il precedente esisteva già, «Overall»,
 «Lead» e «Bonus» sono inglesi su un'interfaccia italiana da sempre. *Una regola sulla lingua vale per le
 parole che scegliamo noi, e il nome di una colonna che legge lui non è una di quelle.*
+
+### 32.10 IL TAVOLO ERA IL DIFETTO, e il numero che lo denunciava era il braccio a CASO (7 settembre 2026)
+
+Richiesta dell'operatore: «aumenta il k finché SWING(k) > SWING(k−1) … sempre insieme al surplus classico
+e a Qi … la prova falla su più stagioni». La scala è stata corsa su dieci stagioni, budget 250, quattro
+bracci, 24 permutazioni d'ordine × 2 calendari = 480 campionati per punto, e la prima lettura sembrava un
+risultato: la curva saliva fino a **96/11** (+5,31 punti, t 17,7, 42% di titoli) e poi ripiegava, cioè un
+ottimo INTERNO — esattamente la condizione che questo progetto pretende prima di adottare.
+
+**Era falsa, e il numero che lo diceva stava nella stessa tabella: il braccio a CASO faceva 15,8 punti,
+più del surplus (12,2) e della quotazione (11,4).** Con 250 crediti i tre bracci greedy compravano senza
+guardare il prezzo, si svenavano sui primi nomi e finivano la rosa con uomini da un credito, mentre chi
+pescava a caso spendeva poco per uomo e la rosa la riempiva. **Quel tavolo premiava chi RIEMPIE, non chi
+sceglie** — e un termine proporzionale alle presenze razionava di nascosto, quindi più `k` vinceva di più.
+Le rose lo dicevano a occhio: a 96/11 il braccio comprava **sei attaccanti per 13 crediti** (Esposito Se.
+7 · Ekhator 1 · Ekuban 2 · Benedyczak 1 · Gabrielloni 1 · Pizarro 1) e riempiva difesa e centrocampo di
+titolari veri. *Una rosa che nessuno comprerebbe non è una strategia: è la stessa cosa già scritta due
+volte, «un aggregato che richiede una rosa non comprabile non è un vantaggio su cui agire» e «una
+strategia che vince solo perché il tavolo butta i suoi soldi non è una strategia».*
+
+**LA CURA È UNA DISCIPLINA UGUALE PER TUTTI, e MISURATA invece che inventata**: la spartizione fra reparti
+di un tavolo vero (`profiles.MARKET`, dalle 131 aste reali — P 9,1% · D 16,3% · C 27,2% · A 47,4%). Ogni
+braccio ha quel budget per reparto e dentro sceglie col PROPRIO criterio, quindi nessuno può bruciare
+tutto in attacco e nessun ordinamento viene toccato. **La validazione della cura è il CASO**, che da primo
+di quattro diventa ultimo (15,8 → 12,7) mentre surplus e quotazione salgono a 15,4 e 14,9.
+
+**E IL NULL HA TROVATO UN SECONDO DIFETTO, che era dell'arnese.** Quattro bracci con lo STESSO criterio
+devono pareggiare, e pareggiavano (14,92 a testa, 25% di titoli); ma nella scala il punto `k = 0` — che è
+il surplus nudo, cioè lo stesso identico criterio del braccio 1 — leggeva **15,8 contro 15,4**. Con un
+null esatto quello scarto non poteva essere rumore, ed era il **CALENDARIO**: `CYCLE` nomina i
+partecipanti per INDICE, quindi scambiando due bracci l'insieme delle partite torna uguale ma
+l'assegnazione partita→GIORNATA no — e una giornata è un punteggio fisso. **0,4 punti regalati alla
+posizione 0, che è sempre quella del braccio giudicato.** Curato facendo passare le etichette delle
+partite per la stessa permutazione dell'ordine di draft; il null torna **+0,000 esatto** (15,879 contro
+15,879, 30,0% di titoli a testa) e la verifica è quella, non un ragionamento sulla simmetria.
+
+**Sul banco curato non esiste un `k` da trovare** (appaiato contro il surplus nudo, dieci stagioni):
+
+| k | SWING | titoli | vs surplus | finestre |
+|---|---|---|---|---|
+| 0 (= surplus) | 15,88 | 30% | +0,00 | 0/10 |
+| 1/11 | 16,08 | 31% | −0,11 (t −0,3) | 3/10 |
+| **2/11 (adottato)** | 16,14 | 36% | **−0,25** (t −0,7) | 5/10 |
+| 3/11 | 16,47 | 38% | +0,55 (t 1,5) | 6/10 |
+| **6/11** | 16,47 | 34% | **+1,07** (t 3,5) | 7/10 |
+| **12/11** | 15,61 | 26% | **−0,55** (t −2,2) | 4/10 |
+| 24/11 | 16,05 | 31% | −0,26 (t −0,8) | 5/10 |
+| 48/11 | 16,56 | 34% | +0,10 (t 0,3) | 6/10 |
+| 96/11 | 16,50 | 35% | +0,03 (t 0,1) | 6/10 |
+| limite (`costanza × presenze`) | 16,95 | 41% | +0,60 (t 1,7) | 5/10 |
+
+**6/11 legge +1,07 con t 3,5 e il suo vicino 12/11 legge −0,55 con t −2,2**: due punti adiacenti, segni
+opposti, tutt'e due «significativi». Non è un effetto, è la firma di una superficie piatta su cui il
+criterio riordina il draft in modo caotico — e il 96/11 che vinceva sul tavolo rotto vale **+0,03**. Il
+peso è **dichiarato** dall'operatore e non misurato (`2/11` dal 07/09, §32.4), e i numeri di §32.4 che lo
+difendevano sono ritirati. Anche il LIMITE — buttare via il surplus e ordinare per `costanza × presenze` — resta sotto
+il pavimento (+0,60, t 1,7, 5 finestre su 10), quindi non è una scorciatoia da prendere.
+
+Tre abitudini, e due sono regole di casa incontrate da un lato nuovo.
+- **UN NULL SI SIEDE AL TAVOLO, non si stima.** Il costo è una corsa e ha trovato due difetti: che il
+  tavolo premiava il caso, e che la posizione 0 valeva 0,4 punti. Nessuna rilettura del codice li avrebbe
+  visti, perché tutt'e due sono proprietà dell'AMBIENTE e non di una funzione.
+- **DUE BRACCI IDENTICI CHE LEGGONO DIVERSO SONO L'ARNESE, sempre**, ed è il gemello della regola già
+  scritta («righe identiche non sono un risultato: sono un guasto dello strumento»). Qui era il contrario
+  — righe DIVERSE da uno strumento identico — e si riconosce allo stesso modo: mettendo lo stesso
+  criterio su due sedie.
+- **UN OTTIMO INTERNO NON BASTA SE L'AMBIENTE È SBAGLIATO.** La curva rotta aveva tutto quello che il
+  protocollo chiede — ottimo interno, `t` enormi, coerenza fra stagioni — e misurava la disciplina di
+  budget degli avversari. *Le guardie procedurali proteggono dal fitting, non da un banco che sta
+  rispondendo a un'altra domanda.*
 
 ## 33. UNA SOLA INTESTAZIONE, E IL NAV SONO LE ROTTE (6 settembre 2026)
 

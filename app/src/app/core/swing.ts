@@ -42,11 +42,17 @@
  *  · QUATTRO stagioni CON UN BUDGET di 250 crediti, che e' la situazione dell'operatore: avanti in
  *    **3 impostazioni su 4** (12 giornate 12,5 contro 11,6 · 36 giornate 36,5 contro 34,3 · per
  *    credito 13,5 contro 13,3) e dietro nella quarta, per un totale di 9 confronti vinti su 16.
+ *    **RILETTO IL 07/09 SU UN BANCO CURATO, e la vittoria non c'e' piu': −0,11 punti (t −0,3),
+ *    3 finestre su 10.** Quel tavolo non sapeva spendere - i bracci avversari si svenavano sui primi
+ *    nomi e riempivano con uomini da un credito, tanto che il braccio a CASO li batteva tutti - quindi
+ *    premiava chi RIEMPIE, e un termine proporzionale alle presenze razionava di nascosto. Con la
+ *    spartizione per reparto di un tavolo vero il CASO va ultimo e la griglia si appiattisce.
  *
- * LA LETTURA CHE NE FA L'ADOZIONE: il termine vale qualcosa **solo quando i soldi vincolano**, cioe'
- * esattamente dove si gioca e in nessuno dei banchi che lo bocciano. Adottato su questa base e non su
- * un verdetto — e' la stessa fragilita' di R19, adottata sul solo verdetto robusto, e vale la stessa
- * clausola: **se la prossima misura lo trova peggiore, esce senza discutere.**
+ * LA LETTURA CHE NE FA L'ADOZIONE, riscritta dopo quella rilettura: **nessun banco lo trova utile e
+ * nessuno lo trova dannoso.** Resta perche' e' la formula dell'operatore e perche' e' piccolo per
+ * costruzione, non perche' una misura lo promuova — e' la stessa fragilita' di R19, adottata sul solo
+ * verdetto robusto, con la stessa clausola: **se la prossima misura lo trova peggiore, esce senza
+ * discutere.**
  *
  * IL MECCANISMO E' VISIBILE E PICCOLO, e questa e' la ragione per cui il verdetto e' incerto invece
  * che negativo: il termine fa salire davvero i modificatori (R-Factor da 0,479 a 0,726 e mod. difesa
@@ -133,21 +139,61 @@ function normalCdf(z: number): number {
 export const GOALS_PER_POINT = normalCdf((MATCHDAY_MEAN - LADDER_KINK) / MATCHDAY_SD) / LADDER_RUNG;
 
 /**
- * QUANTO VALE UNA GIORNATA CHIUSA IN SUFFICIENZA, in fantapunti — **il peso e' dell'operatore**.
+ * QUANTO VALE UNA GIORNATA CHIUSA IN SUFFICIENZA, in fantapunti — **il peso e' dell'operatore, e la
+ * quantita' su cui e' indicizzato e' il REGOLAMENTO**.
  *
- * `1/11`, cioe' «la parte di bonus da R-Factor o Mod. Difesa attribuibile a un uomo», dettato il
- * 06/09/2026 con la richiesta esplicita di «un valore ragionevole ma non frutto di mille calcoli».
+ * `2/11`, dichiarato il 07/09/2026: «il k dovrebbe dipendere da quanti punti e' impostato il mod.dif e
+ * r-factor — mettiamolo a 2/11». Il valore precedente era `1/11`, dettato il giorno prima come «la
+ * parte di bonus da R-Factor o Mod. Difesa attribuibile a un uomo» con la richiesta esplicita di «un
+ * valore ragionevole ma non frutto di mille calcoli»; la correzione non e' un ripensamento sul numero,
+ * e' l'indicizzazione che mancava — nella sua lega l'R-Factor vale al massimo **2** punti, e due punti
+ * spalmati sugli undici uomini che li producono sono `2/11`.
  *
- * LA SUA PRUDENZA HA BATTUTO LA MIA ARITMETICA, e va scritto perche' e' la lezione. Il marginale
- * ESATTO dell'R-Factor sull'undici tipo (Poisson-binomiale, 3,3 insufficienti attesi su 11) e' 0,30
- * di fantamedia per unita' di costanza — dieci volte questo peso — e misurato a 0,30 il termine e'
- * **DANNOSO** (−2,12 fantapunti a giornata). La ragione e' una regola che questo progetto ha gia'
- * scritto per le squalifiche: **il surplus contiene gia' una parte della costanza** — un uomo
- * costante gioca di piu' e rende di piu' — quindi si paga solo il DIFFERENZIALE, non il totale.
- * La griglia misurata (contro il surplus nudo, 24 configurazioni): 0,05 +0,11 · **1/11 +0,19** ·
- * 0,15 −0,27 · 0,20 −0,68 · 0,30 −2,12 · 1,0 −3,40. Ottimo interno, e il suo `k` ci cade sopra.
+ * QUINDI QUESTO E' UN PARAMETRO DI LEGA, non una costante del gioco, e chi ne gioca una con modificatori
+ * di taglia diversa lo deve RIDICHIARARE. Non e' ancora un'impostazione leggibile a schermo perche' la
+ * taglia dei due modificatori non e' fra quelle dichiarate (`LeagueRules` porta il mod. difesa come un
+ * INTERRUTTORE e non come una scala, e la scala dell'R-Factor vive solo in `bench/auction/rules.py`):
+ * il giorno in cui servisse una seconda lega, e' la' che va aggiunta, e questa costante diventa una sua
+ * funzione invece di un numero.
+ *
+ * NESSUNA MISURA DISTINGUE UN PESO DA UN ALTRO, ZERO COMPRESO, e i numeri che stavano qui a difesa
+ * dell'1/11 sono RITIRATI (07/09/2026) perche' erano presi su un banco rotto in due modi. Primo: con
+ * 250 crediti i bracci avversari compravano senza guardare il prezzo, si svenavano sui primi nomi e
+ * finivano la rosa con uomini da un credito — quindi quel tavolo premiava chi RIEMPIE, e un termine
+ * proporzionale alle presenze razionava di nascosto. Il numero che lo denunciava era il braccio a CASO
+ * primo di quattro. Secondo: il calendario del banco nominava i partecipanti per INDICE, quindi due
+ * bracci IDENTICI non pareggiavano — 0,4 punti di regalo alla posizione 0, sempre quella del braccio
+ * giudicato. Con la spartizione per reparto di un tavolo vero (`profiles.MARKET`) e il calendario
+ * simmetrizzato, il null legge +0,000 esatto e la griglia si appiattisce: contro il surplus nudo,
+ * 10 stagioni x 24 configurazioni x 2 calendari, 1/11 **−0,11** (t −0,3) · **2/11 −0,25** (t −0,7,
+ * 5 finestre su 10) · 3/11 +0,55 · 6/11 +1,07 (t 3,5) · 12/11 **−0,55** (t −2,2) · 24/11 −0,26 ·
+ * 48/11 +0,10 · 96/11 +0,03. Due punti adiacenti con segni opposti e tutt'e due «significativi» sono
+ * la firma di una superficie piatta, non di un effetto: **non c'e' un `k` da adottare, e non c'e' un
+ * `k` da temere** — il 2/11 e' stato MISURATO e non interpolato, e sta in quella piattezza come tutti.
+ *
+ * QUINDI IL VALORE E' SUO E RESTA SUO, e il termine e' piccolo per costruzione: sposta pochi decimi di
+ * gol fra due uomini dello stesso slot e non puo' scavalcare un surplus piu' grande di qualche
+ * fantapunto (il test lo fissa). Il TETTO invece non e' suo ed e' aritmetico: il marginale esatto
+ * dell'R-Factor sull'undici tipo (Poisson-binomiale, 3,3 insufficienti attesi su 11) e' **0,298** di
+ * fantamedia per unita' di costanza, e **il surplus contiene gia' una parte della costanza** — un uomo
+ * costante gioca di piu' e rende di piu' — quindi si paga il DIFFERENZIALE e mai il totale, che e' la
+ * stessa regola gia' scritta per le squalifiche. `2/11` = 0,182 e' il 61% di quel tetto; oltre 0,298 il
+ * termine prezzerebbe due volte la stessa cosa, ed e' quello che il test asserisce.
  */
-export const STEADY_SHARE = 1 / 11;
+export const STEADY_SHARE = 2 / 11;
+
+/**
+ * IL TETTO ARITMETICO DEL PESO QUI SOPRA, e non e' una preferenza di nessuno.
+ *
+ * Il marginale ESATTO dell'R-Factor sull'undici tipo: con 3,32 insufficienti attesi su 11 (Poisson-
+ * binomiale sui voti base) e un R-Factor atteso di 0,50 su 2, un'unita' di costanza in piu' vale
+ * **0,298 di fantamedia**. E' un tetto e mai un peso, perche' il surplus contiene gia' una parte della
+ * costanza: pagare il totale sarebbe comprare due volte la stessa cosa. Non e' costante — e' una
+ * SOGLIA, quindi il tasso dipende da quanto e' gia' solido l'undici (0,086 a 0,50 di costanza media,
+ * 0,298 a 0,68, **0,494** a 0,90) — e 0,298 e' il valore sull'undici tipo, cioe' quello che serve a
+ * decidere un acquisto.
+ */
+export const STEADY_MARGINAL = 0.298;
 
 /**
  * QUANTE PARTITE DI PRIOR VALE LA FANTAMEDIA GIA' TENUTA IN QUESTA STAGIONE (R25).

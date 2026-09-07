@@ -9,6 +9,7 @@ import {
   MATCHDAY_SD,
   ROLE_STEADY,
   SEEN_MATCHES,
+  STEADY_MARGINAL,
   STEADY_SHARE,
   swingOf,
 } from './swing';
@@ -52,14 +53,22 @@ describe('la scala dei gol', () => {
 
 describe('il peso della costanza', () => {
   /**
-   * IL PESO E' DELL'OPERATORE ED E' 1/11, e il test lo fissa perche' la griglia misurata ha un ottimo
-   * INTERNO e stretto: 0,05 rende +0,11 · 1/11 +0,19 · 0,15 −0,27 · 0,30 **−2,12**. Chi lo alza di
-   * poco rende il termine dannoso, e il commento del file dice perche' (il surplus contiene gia' una
-   * parte della costanza, quindi si paga il differenziale e non il totale).
+   * IL PESO E' DELL'OPERATORE ED E' `2/11`, cioe' i due punti massimi dell'R-Factor della sua lega
+   * spalmati sugli undici uomini che li producono — «il k dovrebbe dipendere da quanti punti e'
+   * impostato il mod.dif e r-factor» (07/09/2026, e prima era 1/11). Il test fissa il valore perche'
+   * **nessuna misura lo distingue da un altro, zero compreso**: sul banco curato (spartizione per
+   * reparto di un tavolo vero, calendario simmetrizzato, null a +0,000 esatto) la griglia e' piatta e
+   * i vicini cambiano segno — 1/11 −0,11 · **2/11 −0,25** · 6/11 +1,07 · 12/11 −0,55 · 96/11 +0,03.
+   * La griglia che stava scritta qui era presa su un tavolo che non sapeva spendere ed e' RITIRATA
+   * (il docstring di `swing.ts` racconta come).
+   *
+   * QUELLO CHE IL TEST DIFENDE DAVVERO E' IL TETTO, che non e' di nessuno ed e' aritmetico: oltre
+   * `STEADY_MARGINAL` il termine prezzerebbe due volte la stessa cosa, perche' il surplus contiene
+   * gia' una parte della costanza. Un peso e' una dichiarazione, un tetto e' un conto.
    */
-  it('e un undicesimo, e sta lontano dai valori che lo rendono dannoso', () => {
-    expect(STEADY_SHARE).toBeCloseTo(1 / 11, 12);
-    expect(STEADY_SHARE).toBeLessThan(0.15);
+  it('e la taglia dei modificatori della sua lega, e sta sotto il marginale aritmetico', () => {
+    expect(STEADY_SHARE).toBeCloseTo(2 / 11, 12);
+    expect(STEADY_SHARE).toBeLessThan(STEADY_MARGINAL);
   });
 
   /** «Vuoto = ignoto, mai zero»: chi non ha una costanza misurata prende la mediana del suo ruolo. */

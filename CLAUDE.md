@@ -4651,21 +4651,57 @@ solo quando i soldi non contano. Si compone con quello che il progetto sapeva gi
 prezzo non vale niente (−1,0 contro un tiro di dado), fra fasce diverse è informazione vera.
 
 **UN CANALE SI PAGA AL DIFFERENZIALE E NON AL TOTALE, e l'operatore l'ha indovinato dove io l'ho
-sbagliato.** La sua formula per la costanza — `surplus + giornate sufficienti × k`, con **k = 1/11**, «la
-parte di bonus da R-Factor o Mod. Difesa attribuibile a un uomo, un valore ragionevole ma non frutto di
-mille calcoli» — è a un decimo del marginale ESATTO che l'aritmetica del regolamento dà (0,298 di
-fantamedia per unità di costanza, Poisson-binomiale sull'undici tipo). A 0,30 il termine è **DANNOSO**
-(−2,12 fantapunti a giornata); a 1/11 è l'ottimo interno di una griglia monotona. La ragione è la stessa
-delle squalifiche: **il surplus contiene già una parte della costanza** — un uomo costante gioca di più e
-rende di più — quindi il totale è il prezzo di una cosa comprata due volte. *Quando un canale ha un
-marginale calcolabile, quel numero è il TETTO del peso e non il peso.*
+sbagliato.** La sua formula per la costanza — `surplus + giornate sufficienti × k`, con **k = 2/11** dal
+07/09 (prima 1/11), «la parte di bonus da R-Factor o Mod. Difesa attribuibile a un uomo, un valore
+ragionevole ma non frutto di mille calcoli» — sta sotto il marginale ESATTO che l'aritmetica dà (0,298 di
+fantamedia per unità di costanza, Poisson-binomiale sull'undici tipo). La ragione è la stessa delle
+squalifiche: **il surplus contiene già una parte della costanza** — un uomo costante gioca di più e rende
+di più — quindi il totale è il prezzo di una cosa comprata due volte. *Quando un canale ha un marginale
+calcolabile, quel numero è il TETTO del peso e non il peso.* **I NUMERI che difendevano l'1/11 sono
+RITIRATI il 07/09** (§32.10 di `letture-app-v1.md`): erano presi su un banco che premiava chi riempie la
+rosa, e su quello curato la griglia è piatta con vicini di segno opposto (1/11 −0,11 · **2/11 −0,25** ·
+6/11 +1,07 t 3,5 · 12/11 −0,55 t −2,2 · 96/11 +0,03). Il meccanismo sopravvive perché è aritmetica; il
+peso resta il suo.
 
-**UN'ADOZIONE SU EVIDENZA DEBOLE SI DICHIARA TALE.** Il termine di costanza ha perso su tre banchi e
-vinto su uno: −0,03% (3 finestre su 10) sulle rose appaiate, −0,29 punti (4 stagioni su 10) sul
-campionato senza budget, +1,22 fp a giornata su una stagione sola, e **avanti in 3 impostazioni su 4 con
-un budget di 250 crediti** — cioè nella sola situazione in cui l'operatore gioca. Adottato su quella
-lettura e non su un verdetto, con la clausola di R19 scritta accanto: **se la prossima misura lo trova
-peggiore, esce senza discutere.**
+**E UN PESO DICHIARATO HA UNA QUANTITÀ SU CUI È INDICIZZATO, che va trovata e scritta** (07/09/2026, sua
+correzione: «il k dovrebbe dipendere da quanti punti è impostato il mod.dif e r-factor — mettiamolo a
+2/11»). Il numero non era sbagliato, gli mancava il denominatore: nella sua lega l'R-Factor vale al
+massimo **2** punti, e due punti spalmati sugli undici uomini che li producono sono `2/11`. Quindi
+**`STEADY_SHARE` è un parametro di LEGA e non una costante del gioco**, e chi ne gioca una con
+modificatori di taglia diversa lo deve ridichiarare — non è ancora un'impostazione a schermo perché la
+TAGLIA dei due modificatori non è fra quelle dichiarate (`LeagueRules` porta il mod. difesa come un
+interruttore e non come una scala, e la scala dell'R-Factor vive solo in `bench/auction/rules.py`), e il
+codice dice dove andrebbe aggiunta invece di lasciarlo scoprire. Due corollari: **il peso è una
+dichiarazione, il TETTO è un conto** (`STEADY_MARGINAL` = 0,298, il marginale esatto sull'undici tipo:
+oltre quello il termine prezzerebbe due volte una cosa che il surplus già contiene, e il test asserisce
+la disuguaglianza invece di un numero magico); e il punto nuovo è stato **misurato e non interpolato**
+fra i due vicini già corsi, perché su una superficie piatta i vicini non predicono niente.
+
+**UN NULL SI SIEDE AL TAVOLO, e ha trovato due difetti che nessuna rilettura vedeva** (07/09/2026, dalla
+richiesta «aumenta il k finché SWING(k) > SWING(k−1)»). La scala saliva fino a 96/11 con un **ottimo
+interno** e `t` da 17 — tutto quello che il protocollo chiede — e misurava l'incompetenza degli
+avversari: nella stessa tabella il braccio a **CASO** batteva surplus e quotazione, perché con 250 crediti
+i bracci greedy compravano senza guardare il prezzo e finivano la rosa con uomini da un credito. A 96/11
+il braccio giudicato comprava **sei attaccanti per 13 crediti**, che è una rosa che nessuno può giocare.
+Curato dando a tutti la spartizione per reparto di un tavolo VERO (`profiles.MARKET`, dalle 131 aste
+reali), il CASO va ultimo — *la validazione di una cura dell'ambiente è che il null torni a perdere* — e
+il `k` sparisce. Il secondo difetto era dell'arnese e l'ha trovato lo stesso null: `bench` nomina i
+partecipanti per INDICE nel calendario, quindi scambiando due bracci le partite restano le stesse ma
+cambiano GIORNATA, e una giornata è un punteggio fisso: **0,4 punti regalati alla posizione 0**, sempre
+quella del braccio giudicato. Due bracci con lo stesso criterio ora pareggiano a **+0,000 esatto**, ed è
+il gemello di «righe identiche non sono un risultato» — qui erano righe DIVERSE da uno strumento
+identico, e si riconosce allo stesso modo: mettendo lo stesso criterio su due sedie. *Un ottimo interno,
+un `t` grande e la coerenza fra stagioni non proteggono da un banco che sta rispondendo a un'altra
+domanda: le guardie procedurali proteggono dal fitting, non dall'ambiente.*
+
+**UN'ADOZIONE SU EVIDENZA DEBOLE SI DICHIARA TALE, e la si RILEGGE quando il banco migliora.** Il termine
+di costanza aveva perso su tre banchi e vinto su uno (quello col budget, 3 impostazioni su 4), e su quello
+si reggeva l'adozione. Curato il tavolo (07/09) quella vittoria non c'è più: 1/11 legge **−0,11 (t −0,3),
+3 finestre su 10** contro il surplus nudo, cioè **zero**, come tutti gli altri pesi provati. Resta
+adottato perché è la formula dell'operatore, perché è piccolo per costruzione e perché nessuna misura lo
+trova DANNOSO — non perché un banco lo promuova, e la clausola di R19 resta scritta accanto: **se la
+prossima misura lo trova peggiore, esce senza discutere.** *Una lettura debole non si difende: si
+ricontrolla appena lo strumento migliora, e si riscrive quello che diceva.*
 
 E la SOGLIA che ne esce si usa anche senza la colonna: preferisci il costante se `Δfantamedia < 0,30 ×
 Δcostanza` — dieci punti di costanza pareggiano 0,03 di fantamedia, con un tetto invalicabile di 0,50

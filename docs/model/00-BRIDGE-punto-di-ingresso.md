@@ -43,13 +43,25 @@ deficit)` non morde mai — **due zeri diversi dentro una somma**.
 tasso di bonus (r **+0,92** sugli attaccanti), e il termine sposta **2 uomini su 474 di una posizione**,
 perché una giornata di rosa vale **74,8 ± 7,0** e i 66 si superano nel 90% dei casi.
 (c) **LA COSTANZA È ADOTTATA SU EVIDENZA DICHIARATAMENTE DEBOLE**, formula e peso dell'operatore
-(`surplus + giornate sufficienti × 1/11`): ha perso su tre banchi (−0,03% su 3 finestre di 10 · −0,29
+(`surplus + giornate sufficienti × k`, **k = 2/11** dal 07/09 — «dipende da quanti punti è impostato il
+mod.dif e r-factor», cioè i 2 punti massimi dell'R-Factor spalmati sugli undici: un parametro di LEGA e
+non una costante del gioco, col tetto aritmetico `STEADY_MARGINAL` = 0,298 asserito dal test): ha perso su tre banchi (−0,03% su 3 finestre di 10 · −0,29
 punti su 4 stagioni di 10 · +1,22 fp a giornata su UNA stagione) e vinto sul solo che ha un **BUDGET**,
 3 impostazioni su 4 — la sola situazione in cui si gioca. Clausola di R19 scritta accanto.
-(d) **E LA SUA PRUDENZA HA BATTUTO LA MIA ARITMETICA**: il marginale ESATTO dell'R-Factor è 0,298 e
-misurato a 0,30 il termine è **DANNOSO** (−2,12 fp a giornata), perché il surplus contiene già una parte
-della costanza — si paga il DIFFERENZIALE, non il totale. Il primo sweep che la bocciava aveva spazzato
-pesi da 5 a 40 ed è **ritirato**.
+(d) **E LA SUA PRUDENZA HA BATTUTO LA MIA ARITMETICA**: il marginale ESATTO dell'R-Factor è 0,298, e il
+surplus contiene già una parte della costanza — si paga il DIFFERENZIALE, non il totale. Il primo sweep
+che la bocciava aveva spazzato pesi da 5 a 40 ed è **ritirato**; **la griglia che lo sostituiva è ritirata
+anche lei il 07/09** (§32.10).
+(d-bis) **IL TAVOLO ERA IL DIFETTO, E IL NUMERO CHE LO DICEVA ERA IL BRACCIO A CASO** (7/9, §32.10). La
+scala di `k` saliva fino a 96/11 con un ottimo interno e `t` enormi — e nella stessa tabella chi pescava a
+CASO batteva surplus e quotazione: con 250 crediti i bracci greedy si svenavano e riempivano con uomini da
+un credito, quindi quel banco premiava chi RIEMPIE e un termine ∝ presenze razionava di nascosto (a 96/11
+comprava **sei attaccanti per 13 crediti**). Con la spartizione per reparto di un tavolo vero il CASO va
+ultimo, e la griglia si appiattisce: 1/11 −0,11 · 6/11 +1,07 (t 3,5) · **12/11 −0,55 (t −2,2)** · 96/11
++0,03 — vicini di segno opposto, cioè **nessun `k` da adottare**. Il null ha anche trovato che `CYCLE`
+nomina i partecipanti per indice, quindi due bracci IDENTICI non pareggiavano: **0,4 punti alla posizione
+0**, sempre quella del giudicato. Curato, null **+0,000 esatto**. *Un ottimo interno non basta se
+l'ambiente sta rispondendo a un'altra domanda.*
 (e) **IL BUDGET RIBALTA CHI VINCE**: senza, la quotazione batte il surplus su dieci stagioni (40% dei
 titoli contro 32%); con 250 crediti crolla **ultima all'1%**. Comprare per prezzo è gratis solo quando i
 soldi non contano. E un braccio che compra per FVM di fine stagione — un ORACOLO — vince il **78%**: è
