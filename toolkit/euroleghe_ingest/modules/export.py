@@ -323,6 +323,9 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_titolarita",
     "desc_titolarita_play",
     "desc_minutes_next",
+    # ...e se qualcuno gli contende la maglia (08/09/2026): e' il terzo ingresso della parola, quindi
+    # viaggia con gli altri due o la riga non puo' spiegare il proprio gradino.
+    "desc_titolarita_contended",
     # ...E LE DUE META' DELLA MISCELA (04/09/2026, `presence.blend_seasons`): quante partite ha giocato
     # DAVVERO in questa stagione, su quante giornate, e quanto pesa questa stagione dentro i numeri qui
     # sopra. Viaggiano per la stessa ragione dei tre di prima: un numero mescolato che non dice quanto e'
@@ -371,7 +374,7 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     "why_fm_beta", "why_club_change", "why_minutes_share", "why_pv_seen", "why_rounds_seen",
     "why_fm_steps", "why_pv_steps",
     "desc_live_club", "desc_live_club_on", "pi_fm", "pi_basis", "pi_matches",
-    "desc_titolarita", "desc_titolarita_play", "desc_minutes_next",
+    "desc_titolarita", "desc_titolarita_play", "desc_minutes_next", "desc_titolarita_contended",
     # ...e le tre della miscela, nate il 04/09/2026: i pacchetti del viaggio nel tempo sono stati scritti
     # prima e non le hanno, e un foglio di PRE-STAGIONE non le ha per costruzione (una finestra sola).
     "desc_now_matches", "desc_now_rounds", "desc_blend_now",

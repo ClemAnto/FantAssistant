@@ -6303,3 +6303,220 @@ della riga è la cosa che va corretta, non il numero. Una nota che dice il falso
 ⚠️ Una cosa da non citare come adozione: la quota di calendario estero non alza la media e porta le
 finestre da 8/10 a **10/10** eliminando le due COVID. È dispersione, non guadagno, su n=201: registrata e
 non spedita.
+
+## 7-quinquinquagies. IL VICE CHE NON C'È: misurato su quattro ruoli, e i due esempi dell'operatore lo dimensionano verso il basso (8 settembre 2026)
+
+Richiesta dell'operatore, nata da Ramos G. letto `ballottaggio` mentre il campetto lo disegna unica punta
+del Milan: «Ramos giocherà almeno 65' a partita proprio perché non c'è alternativa … la mancanza di
+alternativa deve dare un bonus di minutaggio», e subito dopo «questo meccanismo deve valere per qualsiasi
+ruolo e qualsiasi calciatore che è in una posizione senza rivali in rosa disponibili».
+
+**È la proposta meglio formata che questo banco abbia ricevuto da un'osservazione a schermo**: nomina un
+MECCANISMO (per togliere una punta serve una punta in panchina), una QUANTITÀ già in produzione
+(`minutes.per_appearance`, non il gradino) e due CASI. Misurata su tutte e quattro le forme, su quattro
+ruoli, e **NON ADOTTATA**: il meccanismo è reale e vale un terzo di quello che servirebbe.
+
+### Il meccanismo esiste, e sopravvive al proprio null
+
+Livello per-partita, 332.461 righe di lega e 186.081 partenze da titolare (rossi esclusi), appaiato DENTRO
+(uomo, stagione) con almeno 10 partenze. Il null è la stessa regressione sui panchinari delle ALTRE
+posizioni, che per il meccanismo non può contare: se muovono tutte e due è profondità della rosa e
+contesto, non sostituibilità.
+
+| ruolo | per ogni vice della SUA posizione | null (altre posizioni) | forza del miglior vice (0→1) | null |
+|---|---:|---:|---:|---:|
+| portieri | +0,01' (t +0,1) | +0,01' | −0,04' (t −0,1) | −0,15' |
+| difensori | −0,39' (t −6,8) | −0,09' | −1,10' (t −4,8) | −0,41' |
+| centrocampisti | −0,99' (t −17,3) | −0,42' | −3,66' (t −15,2) | −1,32' |
+| attaccanti | **−1,48' (t −15,2)** | −0,35' | **−3,84' (t −10,7)** | −0,74' |
+
+Il caso estremo, appaiato sullo stesso uomo — nessuna alternativa vera (un vice che comincia meno del 15%
+delle partite) contro un titolare in panchina (≥50%): **attaccanti +3,12' (t +8,4, n=820)**, centrocampisti
++2,56', difensori +0,87', **portieri +0,28' (t +1,1)**. Il portiere è zero PER COSTRUZIONE e non per
+mancanza di potenza: chi gioca in porta gioca novanta minuti, quindi non c'è niente che un vice possa
+togliergli — la stessa ragione per cui `minutes.per_appearance` non lo riscala affatto.
+
+### E fra le stagioni — che è dove il foglio vive — sta sotto il pavimento su ogni ruolo
+
+La domanda del foglio non è quella: è **prevedere ad agosto** la quota da titolare della stagione che
+viene, cioè la `P` di `C + P × (S − C)`. Incumbent = la sua quota a t−1, che è quello che
+`start_rate_next` legge già. Candidato = la forza del miglior compagno che gli contende il posto,
+misurata a t−1 (mai a t: a t è un esito). Popolazione = i quotati del listone (`rosters`), 4.329
+(uomo, stagione) su sei stagioni; il posto è il CODICE MANTRA condiviso, che `rosters.roles` porta
+storico, perché «unica punta» è una frase sul posto e non sul ruolo macro.
+
+| ruolo | n | livello del rivale | **CAMBIO di rivale** | binaria «nessuno sopra 0,50» |
+|---|---:|---:|---:|---:|
+| difensori | 844 | +0,19% (t −2,3) | −0,01% | non si accende |
+| centrocampisti | 1.823 | +0,02% | +0,06% | +0,01% |
+| attaccanti | 1.415 | +0,13% (t −2,8) | **+0,43% (t −3,6)** | +0,29% (t +2,9) |
+
+Il segno è giusto ovunque e il pavimento è **0,5%**: la forma migliore, su un ruolo solo, non ci arriva.
+Quarta istanza di «un effetto dentro la stagione non è un effetto fra le stagioni» (§7-duodecies): il
+meccanismo per-partita è reale a t −15 e la sua proiezione ad agosto vale mezzo punto percentuale.
+
+### Tre cose trovate misurando, e la prima è un difetto della mia stessa misura
+
+- **UNA CONDIZIONE CHE NON SI VERIFICA NON È UN CANALE.** Al ruolo MACRO la frase dell'operatore — «in
+  quel ruolo non c'è nessuna alternativa disponibile» — si accende su **1 riga di 1.576** fra i difensori
+  e 2 su 1.578 fra i centrocampisti: un club porta a listone 8 difensori e 8 centrocampisti, quindi la
+  condizione è vuota per costruzione. Solo al codice mantra si accende abbastanza da poter essere
+  misurata (120-210 attaccanti su 1.415). *Prima di prezzare una condizione, si conta su quante righe
+  esiste.*
+- **IL CROLLO ERA LA POPOLAZIONE E NON IL DIFETTO CHE SOSPETTAVO.** La prima passata dava agli attaccanti
+  **+1,09%** ricavando la rosa da CHI HA POI GIOCATO, e lì c'è una perdita ovvia: un rivale schiacciato
+  fuori dalla stagione sparisce dall'insieme, proprio quando il titolare ha giocato tutto. Rifatta sul
+  listone legge +0,34%. Muovendo UNA variabile — stessa popolazione di 4.329, due definizioni di rosa —
+  si legge **+0,06% contro +0,34%**: la perdita non c'era, e quello che cambia è la popolazione. Il
+  canale paga sui NON quotati (dove «esiste un rivale» decide davvero se giochi) e non sui quotati dei
+  club che questo foglio prezza. *Il sospetto era legittimo e la risposta era l'opposto: si controlla
+  comunque, e si scrive quale delle due era.*
+- **UN CEDUTO NON È UN RIVALE.** Sul listone 2026-27 il Milan porta tre `pc` — Ramos, Camarda e
+  **Gimenez** — e Gimenez ha l'asterisco (`listone_quotes.sold` = 1, adottato il 03/09). Una misura che
+  legge `rosters` senza quel campo conta come alternativa un uomo che non c'è più.
+
+### I due esempi dell'operatore, misurati: ne dimensionano uno e ribaltano l'altro
+
+**Hojlund, che era l'esempio a favore, è un pareggio.** Napoli 2025-26, 32 partenze da titolare: con Lucca
+in distinta 15 partite a **84,4'**, senza Lucca 17 partite a **86,2'** — **+1,8 minuti (se 2,8, t +0,7)**.
+La direzione è la sua, la taglia è esattamente quella che la popolazione predice, e il segnale non si
+distingue dal rumore su una stagione intera del caso più favorevole che avesse.
+
+**E Ramos è il contro-esempio, portato da lui stesso senza saperlo.** Al PSG nel 2025-26 era **l'UNICO
+`pc` del listone** — nessuna alternativa al suo posto, la condizione al suo massimo — e ha giocato **30
+presenze, 13 da titolare, 44,0 minuti a presenza**. «Non c'è alternativa» non ne ha fatto un titolare
+allora, perché l'alternativa a una punta centrale non è sempre un'altra punta centrale: è un'altra forma.
+Applicato a lui **il termine lo farebbe SCENDERE**: passa da 0,000 di rivale (PSG) a 0,333 (Camarda), e
+con il coefficiente −0,071 sono −0,024 di `P`, cioè **−1,4 minuti**.
+
+### Cosa muove davvero quel numero, e quando
+
+I 55' di oggi sono `20,7 + P × 57,8` con **P = 0,59**, che viene dalle sue 13 partenze su 30 al PSG: il
+collo di bottiglia non è quanto resta in campo, è **se parte**. La miscela (`blend_seasons`, K = 5) pesa
+oggi le sue due partite da 90' per il **25%**, e riproduce 55,0' al decimale. Se continua a cominciare le
+partite la barra dei 65' la passa **da solo**: alla **g11** tenendo ferma la metà modello del tasso
+(conservativo), alla **g6** se quella lo segue.
+
+**Verdetto: misurato, non adottato**, su quattro ruoli e quattro forme. Quello che resta all'operatore è
+il canale che questo progetto gli ha già dato per esattamente questo — la DRITTA
+(`config/player_rulings.json` e `core/player-rulings.ts`, 07/09/2026): una dichiarazione datata,
+revocabile, di precedenza massima, che è il posto giusto per una cosa che lui sa e i dati non sanno.
+
+### 7-quinquinquagies (bis). E LA DIFFERENZA NON È IL LIVELLO: l'obiezione dell'operatore era sul DISEGNO (8 settembre 2026)
+
+«Tu hai calcolato quanti minuti toglie un vice ma non va bene … dovresti misurare quanti minuti gioca uno
+che non ha riserve disponibili per la sua posizione.» **Obiezione giusta, e non è una sfumatura**: la
+misura appaiata sopra è una DIFFERENZA — condiziona via tutto ciò che fa di lui quell'uomo, incluso il
+fatto che chi non ha alternative *comincia anche più partite*, che è metà del meccanismo. Ed è anche la
+forma che questo progetto usa per un prior: «quello che fa la sua popolazione»
+(`season_prior_rounds`, `player-rulings.shareFor`).
+
+Il livello, per STAGIONE e sui minuti a PRESENZA (la quantità della scala), alternativa = un compagno che
+condivide un codice mantra e ha giocato ≥10 partite quell'anno:
+
+| ruolo | senza alternativa | con alternativa vera | ≥65' senza / con |
+|---|---:|---:|---:|
+| portieri | 89,7' (n=52) | 88,2' (n=184) | 100% / 99% |
+| difensori | 81,3' (n=21) | 70,7' (n=2.561) | 90% / 70% |
+| centrocampisti | 68,1' (n=38) | 59,5' (n=2.581) | 66% / 43% |
+| attaccanti | 63,2' (n=60) | 53,6' (n=1.512) | 48% / 31% |
+
+**Circa +10 minuti, tre volte quello che dava il disegno appaiato.** Aveva ragione lui sul disegno.
+
+### Ma quasi tutto era già lì l'anno prima, ed è la domanda che decide
+
+`minutes.per_appearance` legge i suoi minuti di t−1. Attaccanti, con la stagione precedente misurata:
+
+| alternativa | n | min/pres a **t** | min/pres a **t−1** |
+|---|---:|---:|---:|
+| nessuna o debole | 47 | **63,4'** | **66,6'** |
+| vera | 997 | 55,6' | 58,9' |
+
+Lo scarto a t è +7,8 e a t−1 era già +7,7: **chi non ha alternative è un uomo che giocava già tanto**, e
+il modello lo legge. Il residuo — a parità di quello che giocava prima — è **+3,81' (se 2,28, t +1,7,
+n=47)**, cioè non distinguibile dal rumore e **numericamente uguale ai +3,12' del disegno appaiato**. Due
+disegni indipendenti, un numero: quello è il canale, e il resto è l'uomo. Stessa diagnosi dell'età («il
+modello sconta già i trentenni») e delle squalifiche (§9.2).
+
+E per D e C la domanda non si può nemmeno porre: la condizione si accende su **0** difensori e **18**
+centrocampisti di 1.733 e 1.726 — un club porta a listone otto uomini per reparto.
+
+### La cella di Ramos, ed è lui stesso il contro-esempio, due volte
+
+Attaccanti la cui stagione precedente sta sotto i 55' a presenza — la sua banda, 44,0':
+
+| | n | t−1 → t | **≥65'** | quota da titolare |
+|---|---:|---:|---:|---:|
+| senza alternativa vera | 13 | 42,1' → **51,3'** | **15%** | 0,551 |
+| con alternativa vera | 388 | 40,0' → 46,3' | **15%** | 0,481 |
+
+**La quota che supera la barra è identica: 15% contro 15%.** E nella lista di quei 13 casi **Gonçalo
+Ramos compare due volte** — 2024-25 (49,0' → 48,6') e 2025-26 (48,6' → **44,0'**), tutte e due al PSG
+dove era l'unico `pc` a listone: senza alternative, due anni di fila, è sceso. In quella cella si muovono
+davvero in due (Nzola 50,7' → 85,6', Vlahovic 49,9' → 79,3'): la coda esiste ed è larga, che è un'altra
+ragione per dichiarare invece di prezzare.
+
+**Il verdetto non cambia — misurato, non adottato — ma ora sta su due disegni invece che su uno**, e la
+frase da non ripetere è la mia: «+3,1' nel caso estremo» era vera e rispondeva a una domanda che
+l'operatore non aveva fatto. *Quando si misura una DIFFERENZA appaiata, il livello va misurato accanto:
+sono due domande e chi legge vuole quasi sempre la seconda.*
+
+### 7-quinquinquagies (ter). LA REGOLA DICHIARATA: un ballottaggio senza contendenti è `titolare` (8 settembre 2026)
+
+Messo davanti alle due misure — il canale vale +3,1' appaiato e +3,8' (t +1,7) come livello netto, contro i
+dieci che servirebbero — l'operatore ha deciso la regola comunque, ed è una sua prerogativa: **la scala a
+sei parole è il suo vocabolario, nessun gate possiede queste soglie, e `desc_titolarita` è REPORTING**
+(`engine_*` non si muove, `backtest --verify` non cambia). La forma è la sua, letterale: «se la titolarità
+è BALLOTTAGGIO ma non c'è nessuno con cui fare il ballottaggio, in automatico diventa titolare».
+
+Terza cosa DICHIARATA che entra nel disegno dopo `board_rulings.json` (il modulo di un club) e
+`player_rulings.json` (la dritta su un uomo) — con la differenza che questa non è una riga in un file, è
+una REGOLA: si applica da sé a chiunque ci cada.
+
+### Chi è un contendente: il vocabolario della scala, non una soglia nostra
+
+`boards.CONTENDER_RUNGS` — un rivale conta se la scala stessa lo chiama `ballottaggio` o meglio. È lo
+stesso trucco di `ownsShirt` sulla pagina delle buste: **si cita il metro invece di inventarne uno**, così
+i due non possono litigare su cosa voglia dire «gioca». Camarda legge `riserva` (0,418 delle partite, 40
+minuti) ed è per questo che Ramos leggeva `ballottaggio` accanto a una sedia vuota.
+
+Quattro confini, tutti pinnati da un test perché sono la parte che una semplificazione futura toglie:
+- **toglie il pavimento dei MINUTI e solo quello**, e non può portare nessuno sopra `titolare` — «gioco e
+  nessuno mi toglie il posto» non fa una bandiera;
+- **non tocca chi la board non disegna**, e non per prudenza: chi non è disegnato non tiene nessun POSTO,
+  quindi la domanda non ha soggetto — l'uomo che il posto ce l'ha È il suo contendente;
+- **ignoto non promuove** (`desc_real_roles` vuoto ⇒ nessun ballottaggio esprimibile ⇒ `None`), e un
+  rivale che non si riesce a giudicare riporta l'intera risposta a ignoto;
+- **si chiedono TUTTI i rivali**, non i due che un campetto disegna: `MAX_DUELS` è un limite di display,
+  e tagliare prima di chiedere promuoverebbe chi ha un terzo pretendente forte.
+
+### Il prezzo, misurato PRIMA e accettato da lui guardandolo
+
+Sul campetto Serie A del 07/09: **76 dei 115 ballottaggi disegnati** diventano `titolare`, e **56 di quei
+76 hanno una quota sotto lo 0,80 che la parola promette** — il più basso è Perri a **0,274**. Su quelle
+righe `titolare` dirà «gioca quasi ogni partita» accanto a un numero che lo nega. *(I 76 sono contati sui
+due ballottaggi che il file disegna; il codice li chiede tutti, quindi il numero vero è ≤ 76 e si legge
+alla prima corsa di `snapshot`.)*
+
+Due alternative sono state misurate e **respinte da lui**, e restano scritte così nessuno riapre la
+questione per distrazione:
+
+| variante | promossi | il più basso | Ramos |
+|---|---:|---:|---|
+| letterale (adottata) | 76 | 0,274 | dentro |
+| pavimento 0,75 | 34 | 0,767 | dentro |
+| pavimento 0,80 (la barra della parola) | 20 | 0,817 | **fuori per 0,022** |
+
+Il pavimento a 0,80 sembra il più pulito e ha un difetto strutturale che lo squalifica per la popolazione
+per cui la regola nasce: la quota di un ARRIVATO è scontata da `ARRIVAL_DISCOUNT`, quindi la sua mediana è
+**0,710 contro 0,909** di chi era già qui e solo il **24%** degli arrivati supera lo 0,80 contro il 75%.
+Un pavimento lì escluderebbe tre arrivati su quattro — cioè quasi tutti gli uomini di cui, ad agosto, non
+si sa ancora niente.
+
+### E la riga deve poter spiegare se stessa
+
+`desc_titolarita_contended` (`yes` / `no` / **vuoto = ignoto**, `SHEET_REVISION` 56) viaggia accanto agli
+altri due ingressi della parola. Una riga che legge `titolare` con 0,274 accanto, senza dire da dove
+viene quel gradino, si legge come un difetto — «un vincolo che agisce in silenzio è indistinguibile da un
+ordinamento rotto». Il campo è una PAROLA e non un booleano, per la ragione che `flags.new_coach` ha
+insegnato a questo repository.

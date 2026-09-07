@@ -31,6 +31,15 @@ information the numbers do not. At the SAME claim band, the men the board drew r
 against 0.328 for the men it did not (0.6-0.7 band; 0.362 against 0.242 at 0.5-0.6), because the fit knows
 what shape the club plays and who else wants the shirt, and a share of a season does not.
 
+...AND SINCE 08/09/2026 THE GATE HAS A SECOND HALF, DECLARED BY THE OPERATOR: a drawn man whom NOBODY
+disputes is `titolare` and not `ballottaggio` - «Ballottaggio con chi???», found on a screen. It waives the
+MINUTES floor and only that, it cannot lift anybody above `titolare`, and it never touches a man the board
+does not draw (there the man who IS drawn is his contender). The price is measured and stated in
+`status_of`: it promotes 76 of 115 drawn ballottaggi on the Serie A board, 56 of them below the 0.80 the
+word promises. The measured channel behind it - «how much is a missing deputy worth» - was refused on its
+own numbers first (+3.1' paired, +3.8' as a level net of his own past), which is why this is a
+DECLARATION and not a term.
+
 MEASURED, on four back-dated pre-season windows (`snapshot --season S --date S-08-15`, the state of an
 August auction, two platforms x two seasons), outcome = what the men of each rung really did in the season
 that followed: the share of his club's matches he was on the pitch for OUT OF THE ONES HE WAS FIT FOR (a
@@ -95,12 +104,39 @@ FULL_MATCH = 75.0
 MOST_OF_THE_MATCH = 65.0
 
 
-def status_of(play_share: float | None, minutes: float | None, in_eleven: bool) -> str | None:
+def status_of(play_share: float | None, minutes: float | None, in_eleven: bool,
+              contended: bool | None = None) -> str | None:
     """One of `LADDER`, or None when nothing is known about how often he plays.
 
     `play_share` is the share of the matches he is FIT FOR that he is expected to get a voto in
     (`presence.appearance_share`), `minutes` the minutes he is expected to play in a match he plays
     (`minutes.per_appearance`), and `in_eleven` whether the club's typical eleven draws him.
+
+    `contended` IS THE OPERATOR'S RULE OF 08/09/2026 and it is DECLARED, not measured: «se la titolarita'
+    e' BALLOTTAGGIO ma non c'e' nessuno con cui fare il ballottaggio, in automatico diventa titolare». It
+    is his ladder and his word - the six rungs are his vocabulary and no gate owns these thresholds - and
+    he took the decision with the price in front of him, which is written in `docs/model/gate-motore-v1.md`
+    §7-quinquinquagies (ter). Three states and never two: True somebody disputes the shirt, False nobody
+    does, **None UNKNOWN** - and unknown does not promote, because a starter whose granular real role is
+    missing has no duel the sheet can express and «vuoto = ignoto, mai zero». It defaults to None so a
+    caller who has not thought about it gets the ladder as it was.
+
+    THE PRICE, MEASURED BEFORE THE RULE WAS WRITTEN AND STATED HERE RATHER THAN HIDDEN: on the Serie A
+    board of 07/09/2026 it promotes **76 of the 115 drawn ballottaggi**, and **56 of those 76 have a
+    play share BELOW the 0.80 that `titolare` promises** - the lowest is 0.274. So on those rows the word
+    says «gioca quasi ogni partita» about a man the number beside it puts at a quarter of them. Two
+    alternatives were measured and REFUSED BY HIM, and they are recorded so nobody re-opens the question
+    by accident: a floor at 0.80 (the word's own bar) promotes 20 and leaves out 76% of the ARRIVALS,
+    whose share is discounted by `ARRIVAL_DISCOUNT` and whose median is 0.710 against 0.909 - i.e. it
+    would exclude exactly the population the rule is for; a floor at 0.75 promotes 34 and is a constant
+    nobody measured.
+
+    And the channel the rule stands in for was measured first and refused on its own numbers
+    (§7-quinquinquagies and bis): «no alternative» is worth **+3.1' paired within the man** and **+3.8'
+    (t +1.7) as a level net of what he already played**, against the ten minutes it would take to move a
+    man across the minutes floor. The rule is therefore a DECLARATION and not a fitted term, which is
+    what this project does with a judgement the model cannot reach - `board_rulings.json` and
+    `player_notes.json` are the other two.
 
     None in, None out: a man whose appearances nobody can forecast is unknown and not a `riserva` - the
     same rule the empty SURPLUS obeys, and it is the caller that owes the distinction. `riserva` reads
@@ -122,6 +158,12 @@ def status_of(play_share: float | None, minutes: float | None, in_eleven: bool) 
                 return LADDER[1]
             if play_share > PLAY_ALMOST_EVERY and minutes >= MOST_OF_THE_MATCH:
                 return LADDER[2]
+        # ...AND IF NOBODY DISPUTES THE SHIRT, `ballottaggio` is a word that names a duel with an empty
+        # chair. The operator's own reading, and the one he found on a screen: «Ballottaggio con chi???».
+        # It waives the MINUTES floor and nothing else - it cannot lift a man above `titolare`, because the
+        # two rungs above ask for more than «he plays and nobody takes his place».
+        if contended is False:
+            return LADDER[2]
         # ...and a man the board fields never falls below `ballottaggio`, whatever the two numbers say.
         # The eleven is a claim about him too, and the one the operator reads first: a row that says
         # «riserva» beside a shirt on the pitch is the panel contradicting itself in two places.
@@ -129,6 +171,10 @@ def status_of(play_share: float | None, minutes: float | None, in_eleven: bool) 
     # He is not in the eleven, so `ballottaggio` is the CEILING and the rungs above it are unreachable by
     # arithmetic alone: «titolare» about a man nobody draws would be the same contradiction the other way
     # round. What is left to decide is how often he comes on.
+    # `contended` is deliberately NOT read here. «Nobody disputes his shirt» is a statement about a PLACE
+    # on the pitch, and a man the board does not draw holds no place: the man who does IS his contender.
+    # Promoting him would also break the other half of the gate the rule leaves standing - «chi la board
+    # non schiera non puo' essere titolare».
     if play_share > PLAY_ALMOST_EVERY:
         return LADDER[3]
     if play_share > PLAY_OFTEN:

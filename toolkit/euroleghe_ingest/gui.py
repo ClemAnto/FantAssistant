@@ -5586,7 +5586,8 @@ class SnapshotView(ttk.Frame):
             return None
         return presence.appearance_share(self.presence_inputs(row), self.PRESENCE)
 
-    def titolarita_status(self, row: dict, in_eleven: bool) -> str | None:
+    def titolarita_status(self, row: dict, in_eleven: bool,
+                          contended: bool | None = None) -> str | None:
         """Which of the six words describes his hold on the shirt (`engine.status`).
 
         Where the panel's numbers stop and the ladder starts, exactly like `presence_inputs` and
@@ -5596,8 +5597,14 @@ class SnapshotView(ttk.Frame):
         `in_eleven` is not read off the row because it is not a fact about the row: it is the drawing's,
         and the drawing is solved per club (`eleven`). The caller that has just built the board passes it -
         which is also what stops this from becoming a second answer to «does he play».
+
+        `contended` is the same shape of argument for the same reason (operator's rule, 08/09/2026): «is
+        anybody disputing this shirt» is a fact about a PLACE and the place is solved per club, so the
+        caller that has just built the board passes it. None - «we do not know» - is the default and does
+        not promote, because a starter whose granular real role is missing has no duel the sheet can
+        express and `boards.MAX_DUELS` says so with `duels_known`.
         """
-        return status_engine.status_of(self.play_share(row), self.minutes_next(row), in_eleven)
+        return status_engine.status_of(self.play_share(row), self.minutes_next(row), in_eleven, contended)
 
     @staticmethod
     def starting_record(row: dict, horizon: str) -> tuple[float, float]:

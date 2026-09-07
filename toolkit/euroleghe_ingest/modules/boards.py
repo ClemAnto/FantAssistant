@@ -71,6 +71,14 @@ ALTERNATIVE_MIN_ODDS = 0.30
 #: sheet can express, and `duels_known` says which of the two it is («vuoto = ignoto, mai zero»).
 MAX_DUELS = 2
 
+#: WHEN A RIVAL IS A RIVAL, for the operator's rule of 08/09/2026 («se non c'e' nessuno con cui fare il
+#: ballottaggio, in automatico diventa titolare» - `engine/status.py`). It is deliberately NOT a threshold
+#: of ours: a contender is a man the LADDER ITSELF already calls `ballottaggio` or better, which is the
+#: same trick `ownsShirt` plays on the sealed-bid page - quote the scale instead of inventing a number, so
+#: the two can never disagree about what «he plays» means. Camarda reads `riserva` (0.418 of the matches,
+#: 40 minutes) and is why Ramos G. reads `ballottaggio` next to an empty chair.
+CONTENDER_RUNGS = frozenset(("bandiera", "titolarissimo", "titolare", "ballottaggio"))
+
 
 def _fc_id(row: dict) -> int | None:
     """The row's `fc_id` as the integer everything joins on. One reader, because three callers need it."""
@@ -80,7 +88,8 @@ def _fc_id(row: dict) -> int | None:
         return None
 
 
-def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False) -> dict:
+def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
+         contended: bool | None = None) -> dict:
     """One drawn man: his identity, where he is drawn, what he is, and how much he plays."""
     out: dict[str, Any] = {}
     for key, column in MAN_COLUMNS.items():
@@ -108,14 +117,47 @@ def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False) 
     # player, not one per place. `in_eleven` is the DRAWN board's, never an alternative shape's: the label
     # is a fact about the man, and it must not change because a button was pressed.
     try:
-        out["status"] = view.titolarita_status(row, in_eleven)
+        out["status"] = view.titolarita_status(row, in_eleven, contended)
     except Exception:                                   # noqa: BLE001 - one man, never the board
         out["status"] = None
+    # ...and WHETHER ANYBODY IS DISPUTING THAT SHIRT, which is the fact behind the word whenever the word
+    # was decided by the operator's rule rather than by the two bars. It travels because a rung that says
+    # `titolare` beside a number under 0.80 has to be able to explain itself: «un vincolo che agisce in
+    # silenzio e' indistinguibile da un ordinamento rotto». None stays None - unknown is not «he has one».
+    out["contended"] = contended
     return out
 
 
+def _contended(view: Any, row: dict, rivals: list | None, ids: set[int]) -> bool | None:
+    """Is anybody disputing this man's shirt? True / False / **None = we cannot know**.
+
+    None when the sheet cannot express his duels at all - no granular real role, the same condition
+    `duels_known` reports - because there «no rivals in the list» means «we did not look», and this
+    project's oldest rule is that the two must never read the same.
+
+    A contender is a man the LADDER already calls `ballottaggio` or better (`CONTENDER_RUNGS`), read at
+    his BASE rung: the operator's promotion is about the place HE holds, so feeding it back in here would
+    be circular - and it cannot change this answer anyway, since the promotion only ever moves a man from
+    `ballottaggio` to `titolare` and both are contenders.
+
+    ALL his rivals and not the two a pitch can show: `MAX_DUELS` is a display bound, and cutting the list
+    before asking would let a third strong claimant promote him.
+    """
+    if not row.get("desc_real_roles"):
+        return None
+    for rival in (rivals or []):
+        try:
+            rung = view.titolarita_status(rival, _fc_id(rival) in ids)
+        except Exception:                               # noqa: BLE001 - one rival, never the board
+            return None                                 # a rival we cannot judge is not a rival we can rule out
+        if rung in CONTENDER_RUNGS:
+            return True
+    return False
+
+
 def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
-           eleven_ids: set[int] | None = None) -> tuple[str, dict, set[int]]:
+           eleven_ids: set[int] | None = None,
+           contended: dict[int, bool | None] | None = None) -> tuple[str, dict, set[int], dict]:
     """The PICTURE, the drawn lines and WHO IS IN THEM, by calling the panel's own functions.
 
     Extracted so that the drawn board and the ALTERNATIVE modules cannot drift: the app switches between
@@ -126,6 +168,11 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
     `eleven_ids` is whose titolarita counts as «in the eleven». It is left None for the DRAWN board, which
     is its own answer, and passed explicitly for the alternatives so that a man the club fields only in a
     shape it probably will not play does not read `titolare` off a button.
+
+    `contended` is passed for exactly the same reason and travels with it: whether anybody disputes a
+    shirt is the DRAWN board's answer, and a button that changes shape must not change what a man IS. It
+    is returned so the sheet-wide ladder (`_statuses`) reads the same map - the column and the card would
+    otherwise be two answers to one question, which is the defect this module exists to prevent.
     """
     eleven = view.eleven(club, shape, mode)
     lanes, _geometry, picture = view.lanes_for(eleven)
@@ -138,6 +185,15 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
     own_ids = {fid for placed in placed_by_line.values() for _x, row, _rivals in placed
                if (fid := _fc_id(row)) is not None}
     ids = own_ids if eleven_ids is None else eleven_ids
+    # ...and so does WHO IS DISPUTING WHAT, before any man is built: a rival's own rung is asked at its
+    # base value, so this pass cannot depend on itself.
+    if contended is None:
+        contended = {}
+        for line in LINES:
+            for _x, row, rivals in placed_by_line[line]:
+                fid = _fc_id(row)
+                if fid is not None:
+                    contended[fid] = _contended(view, row, rivals, ids)
     lines: dict[str, list] = {}
     for line in LINES:
         # The panel's EXACT sequence: `_lane` puts the line in screen order (and decides the side of the
@@ -150,23 +206,26 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
         markers = view._line_codes(placed, line)
         drawn = []
         for index, (x, row, rivals) in enumerate(placed):
-            man = _man(view, row, x, in_eleven=_fc_id(row) in ids)
+            man = _man(view, row, x, in_eleven=_fc_id(row) in ids,
+                       contended=contended.get(_fc_id(row)))
             # The role he wears IN THIS MODULE, which is one code and not his whole list: that is what the
             # pitch shows, and it is the panel's own answer rather than a re-derivation.
             man["badge"] = markers[index] if index < len(markers) else None
             if with_rivals:
                 # The panel's own order, capped: the first two are the ones a pitch can show.
-                man["duels"] = [_man(view, rival, in_eleven=_fc_id(rival) in ids)
+                man["duels"] = [_man(view, rival, in_eleven=_fc_id(rival) in ids,
+                                     contended=contended.get(_fc_id(rival)))
                                 for rival in (rivals or [])[:MAX_DUELS]]
                 # A starter whose granular real role is unknown has no duel the sheet can express: that
                 # is «unknown», never «no rival», and the flag says which.
                 man["duels_known"] = bool(row.get("desc_real_roles"))
             drawn.append(man)
         lines[line] = drawn
-    return picture, lines, own_ids
+    return picture, lines, own_ids, contended
 
 
-def _statuses(view: Any, drawn: dict[str, set[int]]) -> dict[int, dict]:
+def _statuses(view: Any, drawn: dict[str, set[int]],
+              contended: dict[int, bool | None] | None = None) -> dict[int, dict]:
     """Which of the six words describes every man of the sheet, plus the two numbers behind the word.
 
     Sheet-wide and not eleven-wide, because the question is asked of every row an auction can bid on -
@@ -179,6 +238,7 @@ def _statuses(view: Any, drawn: dict[str, set[int]]) -> dict[int, dict]:
     the kind of silent wrongness this project keeps paying for. Empty is unknown, never a rung.
     """
     out: dict[int, dict] = {}
+    contended = contended or {}
     for row in view.players:
         fid = _fc_id(row)
         club = row.get("club") or ""
@@ -188,12 +248,16 @@ def _statuses(view: Any, drawn: dict[str, set[int]]) -> dict[int, dict]:
             play = view.play_share(row)
             predicted = view.minutes_next(row)
             out[fid] = {
-                "status": view.titolarita_status(row, fid in drawn[club]),
+                "status": view.titolarita_status(row, fid in drawn[club], contended.get(fid)),
                 # The two numbers the word is made of, so a row can explain its own label - «a number must
                 # say what it is measured against». `play` is a share of the matches he is FIT for.
                 "play": None if play is None else round(play, 3),
                 "minutes": None if predicted is None else round(predicted, 0),
                 "in_eleven": fid in drawn[club],
+                # Whether anybody disputes his shirt, when the board drew him. It is the third input of
+                # the word since 08/09/2026 and it travels beside the other two for the same reason they
+                # do: a row must be able to explain its own label.
+                "contended": contended.get(fid),
             }
         except Exception:                                   # noqa: BLE001 - one man, never the sheet
             continue
@@ -235,13 +299,18 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
             view.manifest.setdefault("matchdays", {})["platform_target"] = matchdays
         boards: dict[str, dict] = {}
         drawn_ids: dict[str, set[int]] = {}
+        # Whose shirt is disputed, across every club: built once by the DRAWN board and read by the
+        # sheet-wide ladder below, so the column and the card cannot answer differently.
+        contended: dict[int, bool | None] = {}
         for club in sorted(view.clubs):
             info = view.clubs[club]
             try:
                 odds = view.shape_odds(club, info, mode)
                 shape, why = view.board_shape(club, info, mode)
-                picture, lines, eleven_ids = _drawn(view, club, shape, mode, with_rivals)
+                picture, lines, eleven_ids, club_contended = _drawn(view, club, shape, mode,
+                                                                    with_rivals)
                 drawn_ids[club] = eleven_ids
+                contended.update(club_contended)
                 # ...AND THE OTHER MODULES THE CLUB REALLY MIGHT DRAW, so the app can switch between them
                 # instead of showing one answer as if it were the only one. Same functions, same flags: the
                 # alternative is a board like the drawn one, and the only thing that changes is the shape
@@ -252,8 +321,10 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
                     if other == shape or p < ALTERNATIVE_MIN_ODDS:
                         continue
                     try:
-                        other_picture, other_lines, _ = _drawn(view, club, other, mode, with_rivals,
-                                                               eleven_ids=eleven_ids)
+                        other_picture, other_lines, _, _ = _drawn(view, club, other, mode,
+                                                                  with_rivals,
+                                                                  eleven_ids=eleven_ids,
+                                                                  contended=club_contended)
                     except Exception:                       # noqa: BLE001 - one shape, not the club
                         continue
                     if other_picture == picture:
@@ -275,7 +346,7 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
             except Exception as exc:    # noqa: BLE001 - one broken club must not hide the other 19
                 boards[club] = {"error": repr(exc)}
         if statuses is not None:
-            statuses.update(_statuses(view, drawn_ids))
+            statuses.update(_statuses(view, drawn_ids, contended))
         return boards
     finally:
         root.destroy()

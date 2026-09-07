@@ -605,7 +605,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      l'appartenenza solo sulle letture piene (toglieva Olivera, Kean, Rowe e Beto, che stanno nel
 #      payload di oggi), e la mediana su TUTTA la storia (dichiara sottile la lettura piu' fresca,
 #      perche' un payload di luglio ha 33 uomini e uno di settembre 26).
-SHEET_REVISION = 55
+SHEET_REVISION = 56
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -5075,6 +5075,12 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # that one is a SEASON TOTAL (minutes per club match x the appearances the engine predicts), this one
     # is one match's - «how long does he stay on when he plays». Same word, two denominators.
     "desc_titolarita", "desc_titolarita_play", "desc_minutes_next",
+    # ...E IL TERZO INGRESSO DELLA PAROLA dall'08/09/2026: qualcuno gli contende la maglia? `yes` /
+    # `no` / vuoto = non lo sappiamo (nessun ruolo granulare, quindi nessun ballottaggio esprimibile).
+    # Viaggia perche' la regola dichiarata dall'operatore promuove a `titolare` un uomo la cui quota
+    # puo' stare sotto lo 0,80 che quella parola promette: una riga cosi' deve poter spiegare se
+    # stessa, o il numero accanto la smentisce e sembra un difetto.
+    "desc_titolarita_contended",
     # LE SEI PAROLE dentro il RUOLO: quanto vale un uomo per quello che PORTA, dove la scala accanto
     # dice quanto GIOCA. Due assi asimmetrici per costruzione - una previsione e un tratto misurato -
     # e i due numeri che li decidono, perche' una parola senza i suoi numeri e' una parola che nessuno
@@ -6903,6 +6909,10 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             row["desc_titolarita"] = one.get("status")
             row["desc_titolarita_play"] = _round(one.get("play"), 3)
             row["desc_minutes_next"] = _round(one.get("minutes"), 0)
+            # `yes` / `no` / EMPTY, and the empty is not a `no`: a word and not a boolean, for the reason
+            # `flags.new_coach` taught this repository the hard way.
+            contended = one.get("contended")
+            row["desc_titolarita_contended"] = "" if contended is None else ("yes" if contended else "no")
         _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)
         ladder = board_summary.get("ladder") or {}
         print("[snapshot] titolarità: "

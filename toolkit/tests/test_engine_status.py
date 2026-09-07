@@ -113,3 +113,53 @@ def test_the_two_inputs_are_the_ones_the_rest_of_the_engine_already_publishes():
     """
     predicted = minutes.per_appearance("C", 2400.0, 30.0, 0.8, 0.7, 0.8)
     assert status.status_of(0.95, predicted, True) in status.LADDER
+
+
+# --------------------------------------------------------------- la regola dichiarata dall'operatore
+#
+# «Se la titolarita' e' BALLOTTAGGIO ma non c'e' nessuno con cui fare il ballottaggio, in automatico
+# diventa titolare» (08/09/2026). Dichiarata, non misurata: il canale che l'avrebbe prodotta da sola e'
+# stato misurato PRIMA e vale +3,1'/+3,8' contro i dieci che servirebbero (gate §7-quinquinquagies).
+# Questi test pinnano i CONFINI della regola, che sono la parte che una semplificazione futura toglie.
+
+def test_a_shirt_nobody_disputes_is_titolare_and_not_ballottaggio():
+    """La regola: toglie il pavimento dei MINUTI, e solo quello."""
+    # Il caso vero che l'ha aperta: Ramos G., 0.778 di quota e 55' - sotto tutt'e due le barre.
+    assert status.status_of(0.778, 55.0, True, contended=True) == "ballottaggio"
+    assert status.status_of(0.778, 55.0, True, contended=False) == "titolare"
+    # ...e la quota bassa NON la ferma, che e' il prezzo che l'operatore ha accettato guardandolo:
+    # Perri, 0.274, promosso. La parola promette >80% e su quella riga promettera' il falso.
+    assert status.status_of(0.274, 88.0, True, contended=False) == "titolare"
+
+
+def test_unknown_rivals_do_not_promote_anybody():
+    """«Vuoto = ignoto, mai zero»: None non e' «non ha rivali», e il default e' None."""
+    assert status.status_of(0.778, 55.0, True, contended=None) == "ballottaggio"
+    assert status.status_of(0.778, 55.0, True) == "ballottaggio"
+
+
+def test_the_rule_cannot_lift_a_man_above_titolare():
+    """Un tetto, non una scala: «gioco e nessuno mi toglie il posto» non fa una bandiera."""
+    # Chi le barre le passa gia' sta piu' in alto per conto suo, e la regola non lo tocca.
+    assert status.status_of(0.95, 80.0, True, contended=False) == "bandiera"
+    assert status.status_of(0.85, 80.0, True, contended=False) == "titolarissimo"
+    # Chi non le passa arriva a `titolare` e si ferma li', qualunque cosa dicano i due numeri.
+    for play, mins in ((0.30, 20.0), (0.95, 10.0), (0.85, 64.0)):
+        assert status.status_of(play, mins, True, contended=False) == "titolare"
+
+
+def test_the_rule_never_touches_a_man_the_board_does_not_draw():
+    """L'altra meta' del cancello resta in piedi: «chi la board non schiera non puo' essere titolare».
+
+    E la ragione non e' prudenza: un uomo che la board non disegna non tiene nessun POSTO, quindi la
+    domanda «chi glielo contende» non ha soggetto - chi il posto ce l'ha E' il suo contendente.
+    """
+    for contended in (True, False, None):
+        assert status.status_of(1.0, 90.0, False, contended=contended) == "ballottaggio"
+        assert status.status_of(0.60, 90.0, False, contended=contended) == "panchina"
+        assert status.status_of(0.10, 90.0, False, contended=contended) == "riserva"
+
+
+def test_nothing_is_promoted_out_of_the_unknown():
+    """None in, None out: la regola non inventa un gradino per chi non ha calcio su file."""
+    assert status.status_of(None, 90.0, True, contended=False) is None

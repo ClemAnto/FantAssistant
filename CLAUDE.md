@@ -115,6 +115,22 @@ realised a q75 of **0.512 against 0.328** for the men it did not: the fit knows 
 and who else wants the shirt, and a share of a season does not. Without the gate a Serie A sheet showed 19
 `titolarissimo` the board does not field and 83 drawn men called `panchina`.
 
+**...E DALL'08/09/2026 IL CANCELLO HA UNA SECONDA META', DICHIARATA DA LUI: un uomo che la board disegna e
+a cui NESSUNO contende la maglia e' `titolare` e non `ballottaggio`** — «Ballottaggio con chi???», trovato a
+schermo su G. Ramos. Un contendente e' un rivale che la scala stessa chiama `ballottaggio` o meglio
+(`boards.CONTENDER_RUNGS`: si cita il metro invece di inventare una soglia, come `ownsShirt`); toglie il
+pavimento dei MINUTI e solo quello, non porta nessuno sopra `titolare`, non tocca chi la board non disegna
+(li' il posto e' di un altro, che E' il suo contendente) e **ignoto non promuove**. Il canale che l'avrebbe
+prodotta da sola e' stato MISURATO PRIMA e respinto sui suoi numeri — «quanto vale un vice che non c'e'» e'
++3,1' appaiato dentro l'uomo e +3,8' (t +1,7) come livello netto di quello che gia' giocava, contro i dieci
+che servono per scavalcare il pavimento — quindi questa e' una DICHIARAZIONE e non un termine fittato.
+**Il prezzo e' stato misurato prima e accettato guardandolo**: 76 dei 115 ballottaggi disegnati di Serie A
+diventano `titolare` e 56 di quei 76 hanno una quota sotto lo 0,80 che la parola promette (il piu' basso
+0,274). Le due varianti col pavimento sono respinte da lui e scritte a verbale: quella a 0,80 escluderebbe
+il 76% degli ARRIVATI, la cui quota e' scontata da `ARRIVAL_DISCOUNT` (mediana 0,710 contro 0,909), cioe'
+proprio la popolazione per cui la regola nasce. La riga lo dichiara (`desc_titolarita_contended`,
+`SHEET_REVISION` 56). Numeri e confini: `gate-motore-v1.md` §7-quinquinquagies e seguenti.
+
 Measured on four back-dated pre-season windows (two platforms x two seasons), against what those men really
 did: `bandiera` and `titolare` keep their promise **4 times out of 4**; `titolarissimo` is the weak rung
 (the residual between the other two, 0.7-1.0 men per club, 3 of 4). Three columns of the sheet
