@@ -6159,3 +6159,77 @@ Niente di misurabile. Una sola cosa che un domani potrebbe essere chiesta e non 
 `G:A` portano l'anno**, mentre `MV`, `FM`, `G`, `A`, `xG` e `xA` sono anch'esse «questa stagione» e non lo
 dicono. Datarle tutte allargherebbe la fila di sei pastiglie per ripetere sei volte la stessa cosa;
 `ReadingSpec.dated` è già il posto dove si decide, una riga per pastiglia.
+
+---
+
+# Chiusura 7 settembre 2026 — il null si è seduto al tavolo, e il `k` è sparito
+
+Sessione corta e interamente di MISURA: nessuna feature nuova, un solo numero cambiato in produzione, e
+due difetti d'ambiente trovati — uno nello script di prova, uno nel codice spedito.
+
+## Da dove veniva
+
+La chiusura del 6 settembre lasciava la richiesta dell'operatore «aumenta il k finché SWING(k) >
+SWING(k−1) … sempre insieme al surplus classico e a Qi … la prova falla su più stagioni», con una scala
+che sembrava un risultato: dieci stagioni, budget 250, quattro bracci, 480 campionati per punto, curva
+che saliva fino a **96/11** (+5,31 punti, t 17,7) e poi ripiegava — **ottimo interno**, cioè tutto quello
+che il protocollo di questo progetto pretende prima di adottare.
+
+## Cosa è entrato
+
+**Una costante e niente altro**: `STEADY_SHARE` da `1/11` a **`2/11`**, su dichiarazione dell'operatore —
+«il k dovrebbe dipendere da quanti punti è impostato il mod.dif e r-factor». La correzione è
+nell'INDICIZZAZIONE e non nel numero: nella sua lega l'R-Factor vale al massimo 2 punti, e due punti
+spalmati sugli undici uomini che li producono sono `2/11`. Quindi **è un parametro di LEGA e non una
+costante del gioco**, ed è scritto dove va aggiunta l'impostazione il giorno in cui servisse una seconda
+lega (`LeagueRules` porta il mod. difesa come interruttore e non come scala; la scala dell'R-Factor vive
+solo in `bench/auction/rules.py`).
+
+Con lei un secondo export, **`STEADY_MARGINAL` = 0,298**: il marginale esatto dell'R-Factor sull'undici
+tipo, che è il TETTO del peso e non un peso. *Il peso è una dichiarazione, il tetto è un conto* — e il
+test asserisce la disuguaglianza invece di un numero magico.
+
+## Le due misure che hanno deciso tutto
+
+**1) Il tavolo era il difetto, e il numero che lo diceva era il braccio a CASO.** Nella stessa tabella
+che incoronava 96/11, chi pescava a caso faceva **15,8 punti** contro 12,2 del surplus e 11,4 della
+quotazione: con 250 crediti i bracci greedy compravano senza guardare il prezzo e finivano la rosa con
+uomini da un credito, quindi quel banco premiava chi RIEMPIE. A 96/11 il braccio giudicato comprava **sei
+attaccanti per 13 crediti**. Curato dando a tutti la spartizione per reparto di un tavolo VERO
+(`profiles.MARKET`, dalle 131 aste reali), il CASO va **ultimo** (12,7) e la griglia si appiattisce:
+1/11 −0,11 · **2/11 −0,25** · 3/11 +0,55 · 6/11 +1,07 (t 3,5) · **12/11 −0,55 (t −2,2)** · 24/11 −0,26 ·
+48/11 +0,10 · 96/11 **+0,03**. Vicini di segno opposto entrambi «significativi»: **non c'è un `k` da
+adottare, e non c'è un `k` da temere.**
+
+**2) Il null ha trovato un difetto nel calendario, e uno è nel codice spedito.** Quattro bracci con lo
+stesso criterio pareggiano esatti (14,92, 25% di titoli a testa), ma il punto `k = 0` — che *è* il
+surplus nudo — leggeva 15,8 contro 15,4: `CYCLE` e `league.round_robin` nominano i partecipanti per
+INDICE, quindi scambiando due bracci l'insieme delle partite torna uguale e l'assegnazione
+partita→GIORNATA no. Nello script vale 0,4 punti alla posizione 0, sempre quella del giudicato; curato,
+il null legge **+0,000 esatto**. Su `league.py`, misurato a rose FERME: il braccio motore chiude **dal 1º
+al 9º posto** con la stessa rosa, sd **4,93**, sei posizioni di oscillazione dentro una finestra.
+
+## Cosa è stato RITIRATO, e dove
+
+I numeri che difendevano l'1/11 erano presi su quel tavolo, quindi sono ritirati e non cancellati:
+`swing.ts` (docstring), `swing.spec.ts`, `CLAUDE.md`, il BRIDGE e un **§32.10** nuovo in
+`letture-app-v1.md` che racconta i due difetti. Sopravvive il MECCANISMO — si paga il differenziale e non
+il totale, col marginale 0,298 come tetto — perché è aritmetica del regolamento e non una misura di quel
+banco. E la frase «vinceva sul solo banco col budget, cioè dove si gioca» è stata **riletta e riscritta**:
+su quel banco curato non vince più (−0,11 · 3 finestre su 10), quindi il termine resta adottato perché è
+la formula dell'operatore e perché nessuna misura lo trova dannoso — non perché un banco lo promuova.
+*Una lettura debole non si difende: si ricontrolla appena lo strumento migliora.*
+
+## Verifica
+
+**798 test** dell'app su 48 file, `ng build` pulito. Il 2/11 è stato **misurato e non interpolato** fra i
+due vicini già corsi (−0,25, t −0,7, 5 finestre su 10), perché su una superficie piatta i vicini non
+predicono niente. Una nota d'arnese: `npx vitest run` da solo salta il setup di Angular e legge 37
+fallimenti su `TestBed` — la suite si lancia con `ng test`, e quei fallimenti erano miei e non del codice.
+
+## Aperti
+
+Uno solo e non è un difetto, è una decisione dell'operatore: **mediare la tabella di `league.py` su ~100
+rotazioni delle caselle** (voce 1 della todolist del 07/09). Costa secondi perché le rose sono già
+calcolate, ma sposta numeri pubblicati — «posto medio 1,70 / 3,82 / 4,40» e i conteggi di titoli. I
+confronti in fantapunti non si muovono di un decimale.

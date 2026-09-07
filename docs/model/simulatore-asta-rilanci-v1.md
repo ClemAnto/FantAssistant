@@ -2636,3 +2636,82 @@ lo sconto del §23.1, la banda `DEPTH_TIER`/`DEPTH_HANDS` del §24, e il verdett
 (`options.bids`) e **nessun nodo che nomini il lotto in asta** è mai stato osservato. Quindi da collegati
 il lotto lo nomina l'operatore con un click sulla plancia, e `lotSource` dice se è la finzione o lui —
 un campo indovinato su un payload che nessuno ha letto è il difetto che questo repository ha già pagato.
+
+## 30. IL NULL SI SIEDE AL TAVOLO: il banco premiava chi riempie, e il calendario regalava punti a una casella (7 settembre 2026)
+
+Nato fuori da questo banco — dalla richiesta dell'operatore sulla colonna SWING dell'app, «aumenta il k
+finché SWING(k) > SWING(k−1) … la prova falla su più stagioni» — e finito qui, perché i due difetti che
+ha trovato sono dell'AMBIENTE e uno vive nel codice spedito.
+
+### 30.1 La scala che saliva, e il numero nella stessa tabella che la smentiva
+
+Dieci stagioni (`Tm7…T2`), budget 250, quattro bracci — SWING(k), SURPLUS, Qt.I, CASO — 24 permutazioni
+dell'ordine di scelta × 2 calendari = **480 campionati per punto di griglia**. La prima lettura aveva
+tutto quello che il protocollo chiede: la curva saliva fino a **96/11** (+5,31 punti, t 17,7, 42% di
+titoli) e poi ripiegava, cioè un **ottimo INTERNO**.
+
+Era falsa, e il numero che lo diceva stava nella stessa tabella: **il braccio a CASO faceva 15,8 punti,
+più del surplus (12,2) e della quotazione (11,4).** Con 250 crediti i bracci greedy compravano senza
+guardare il prezzo, si svenavano sui primi nomi e finivano la rosa con uomini da un credito, mentre chi
+pescava a caso spendeva poco per uomo e la rosa la riempiva. **Quel tavolo premiava chi RIEMPIE, non chi
+sceglie** — e un termine proporzionale alle presenze razionava di nascosto, quindi più `k` vinceva di più.
+
+Le rose lo dicevano a occhio, che è la ragione per cui vanno guardate: a **96/11** il braccio comprava
+**sei attaccanti per 13 crediti** (Esposito Se. 7 · Ekhator 1 · Ekuban 2 · Benedyczak 1 · Gabrielloni 1 ·
+Pizarro 1) e riempiva difesa e centrocampo di titolari veri, con la costanza mediana da 0,68 a 0,83 e il
+surplus mediano da 21,9 a 15,6. *Una rosa che nessuno comprerebbe non è una strategia* — è §21.1 («un
+aggregato che richiede una rosa non comprabile non è un vantaggio su cui agire») e §14.4 («una strategia
+che vince solo perché il tavolo butta i suoi soldi non è una strategia») incontrate da un terzo lato.
+
+### 30.2 La cura è una disciplina UGUALE PER TUTTI, e misurata invece che inventata
+
+La spartizione fra reparti di un tavolo vero (`profiles.MARKET`, dalle 131 aste reali di §15: P 9,1% ·
+D 16,3% · C 27,2% · A 47,4%). Ogni braccio ha quel budget per reparto e dentro sceglie col PROPRIO
+criterio: nessuno può bruciare tutto in attacco, e nessun ordinamento viene toccato.
+
+**La validazione di una cura dell'ambiente è che il null torni a perdere**, e torna: il CASO va da primo
+di quattro a **ultimo** (15,8 → 12,7) mentre surplus e quotazione salgono a 15,4 e 14,9.
+
+### 30.3 E il null ha trovato un secondo difetto, che è nel codice SPEDITO
+
+Quattro bracci con lo STESSO criterio pareggiano esattamente (14,92 a testa, 25% di titoli). Ma nella
+scala il punto `k = 0` — che **è** il surplus nudo, cioè lo stesso identico criterio del braccio 1 —
+leggeva 15,8 contro 15,4. Con un null esatto quello scarto non poteva essere rumore, e la causa era il
+**CALENDARIO**: `CYCLE` (nel banco di prova) e `league.round_robin` (in quello spedito) nominano i
+partecipanti per INDICE, quindi scambiando due bracci l'insieme delle partite torna uguale ma
+l'assegnazione partita→GIORNATA **no** — e una giornata è un punteggio fisso. Nel banco di prova valeva
+**0,4 punti alla posizione 0**, che è sempre quella del braccio giudicato; curato facendo passare le
+etichette delle partite per la stessa permutazione dell'ordine di scelta, il null legge **+0,000 esatto**
+(15,879 contro 15,879, 30,0% di titoli a testa).
+
+**Su `league.py` l'effetto è MISURATO e più grosso, ed è rumore e non una distorsione**: tenendo le dieci
+rose FERME e ruotando solo chi occupa quale casella (200 rotazioni per finestra, i punteggi di giornata
+identici), il braccio motore chiude **dal 1º al 9º posto** secondo la sola casella — 26 punti di
+escursione su una media di ~48, sd **4,93**, e dentro una finestra il posto oscilla di **6 posizioni**
+(posto medio da 1,32 su `T1` a 6,00 su `Tm3`). Non è a favore né contro: nel null a dieci profili uguali
+la lettera A esce una volta sotto e una volta sopra la media. Ma il braccio siede **sempre** nella stessa
+casella, quindi dentro una finestra non si media via.
+
+**Cosa tocca e cosa non tocca, detto per esteso**: i confronti in FANTAPUNTI non sono toccati per
+costruzione — il calendario non entra in `bench.matchday` — quindi §17, §21, §22 e §24 (la scala di
+mercato, `INSIGHT`, il rifiuto della lettura dei rivali, `DEPTH_TIER`) restano come sono. Quello che porta
+dentro il rumore sono i numeri di TABELLA: «posto medio 1,70 / 3,82 / 4,40» e i conteggi di titoli. E le
+correlazioni di §12 (r +0,833 col totale di stagione, −0,825 con le giornate sotto i 66) sono
+**attenuate** da quel rumore, non prodotte: la conclusione regge e il coefficiente è un minorante.
+
+**La cura è a costo quasi zero e non è stata applicata al codice spedito** (voce di todolist): le rose
+sono già calcolate, quindi basta rifare la TABELLA su un centinaio di rotazioni delle caselle — secondi.
+Cambierebbe però numeri pubblicati in README e nei documenti, quindi è una decisione e non un fix da
+infilare.
+
+### 30.4 Tre abitudini, e due sono regole di casa da un lato nuovo
+
+- **UN NULL SI SIEDE AL TAVOLO, non si stima.** Costa una corsa e qui ha trovato due difetti che nessuna
+  rilettura del codice avrebbe visto, perché tutt'e due sono proprietà dell'AMBIENTE e non di una
+  funzione.
+- **DUE BRACCI IDENTICI CHE LEGGONO DIVERSO SONO L'ARNESE, sempre.** È il gemello di «righe identiche non
+  sono un risultato: sono un guasto dello strumento» (§17.6, §16.5) — qui erano righe DIVERSE da uno
+  strumento identico, e si riconosce allo stesso modo: mettendo lo stesso criterio su due sedie.
+- **UN OTTIMO INTERNO NON BASTA SE L'AMBIENTE È SBAGLIATO.** La curva rotta aveva ottimo interno, `t`
+  enormi e coerenza fra stagioni, e misurava la disciplina di budget degli avversari. *Le guardie
+  procedurali proteggono dal fitting, non da un banco che sta rispondendo a un'altra domanda.*

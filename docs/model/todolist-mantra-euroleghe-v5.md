@@ -1467,3 +1467,36 @@ ventisei, è `copertura-eventi-motore-v1.md`; qui restano solo le tre che toccan
   λ è quasi non identificabile»; oggi le finestre sono dieci su Serie A e cinque su euro, e la ragione è
   scaduta. È anche l'unico canale che questo progetto abbia per la «severità del redattore»: le ancore sono
   già per stagione, quello che manca è quanto pesarle. Costo: uno slot di gate, nessuna acquisizione.
+
+## Aperto dopo la sessione del 07/09/2026 (il null al tavolo del banco d'asta)
+
+Dettaglio e numeri: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §32.10.
+
+1. **IL CALENDARIO DI `league.py` REGALA PUNTI A UNA CASELLA, e la cura costa secondi.** Misurato
+   tenendo le dieci rose FERME e ruotando solo chi occupa quale casella: il braccio motore chiude **dal
+   1º al 9º posto** con la stessa identica rosa, 26 punti di escursione su ~48, **sd 4,93**, e dentro una
+   finestra il posto oscilla di **6 posizioni**. È rumore e non una distorsione (nel null a dieci profili
+   uguali la lettera A esce una volta sotto e una sopra la media), ma il braccio siede sempre nella stessa
+   casella, quindi dentro una finestra non si media via.
+   **Cosa fare**: mediare la TABELLA su ~100 rotazioni dell'assegnazione lettera→casella, con i punteggi
+   di giornata già calcolati (nessuna asta in più da giocare). **Cosa NON fare**: cambiare il calendario,
+   che è dichiarato dall'operatore («2 andata e 2 ritorno»).
+   **Perché non è già fatto**: sposta numeri PUBBLICATI — «posto medio 1,70 / 3,82 / 4,40» e i conteggi di
+   titoli in README e nei documenti — quindi è una decisione dell'operatore e non un fix da infilare. I
+   confronti in fantapunti (§17, §21, §22, §24) non si muovono di un decimale, perché il calendario non
+   entra in `bench.matchday`.
+
+2. **La spartizione per reparto come disciplina COMUNE dei bracci di prova.** La cura di §30.2 vive nello
+   script di sessione e non nel banco: `bench/auction` ha già `profiles.MARKET`, quindi il giorno in cui
+   si misura un'altra colonna dell'app contro surplus/quotazione/caso conviene che quella disciplina sia
+   una funzione del banco e non una da riscrivere — o il prossimo ricade nello stesso tavolo che premia
+   chi riempie.
+
+3. **`STEADY_SHARE` è un parametro di LEGA e non ha ancora un'impostazione.** `2/11` sono i due punti
+   massimi dell'R-Factor della sua lega spalmati sugli undici; una lega con modificatori di taglia diversa
+   vuole un altro valore. Serve solo il giorno in cui ce ne fosse una seconda, e allora la TAGLIA dei due
+   modificatori va dichiarata (`LeagueRules` porta il mod. difesa come interruttore e non come scala; la
+   scala dell'R-Factor vive solo in `bench/auction/rules.py`) e la costante diventa una sua funzione.
+
+4. **Resta pre-registrata e non corsa: la griglia allargata di R25** (`R25K60 · R25K80 · R25K120`,
+   gate §7-quinquagies). Non è stata toccata da questa sessione.

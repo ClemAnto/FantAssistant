@@ -1,5 +1,37 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato: 6 settembre 2026 (notte tarda) — DUE COPPIE `G:A` SULLA STRATEGIA, E UN BANCO CHE
+**Aggiornato: 7 settembre 2026 — IL NULL SI È SEDUTO AL TAVOLO, E IL `k` È SPARITO.** Sessione
+interamente di misura, dalla richiesta «aumenta il k finché SWING(k) > SWING(k−1) … la prova falla su
+più stagioni». La scala saliva fino a **96/11** con un **ottimo interno** e `t` da 17 — e misurava
+l'incompetenza degli avversari.
+(a) **IL TAVOLO ERA IL DIFETTO, e il numero che lo diceva stava nella stessa tabella: il braccio a CASO
+faceva 15,8 punti** contro 12,2 del surplus e 11,4 della quotazione. Con 250 crediti i bracci greedy
+compravano senza guardare il prezzo e finivano la rosa con uomini da un credito, quindi quel banco
+premiava chi RIEMPIE e un termine ∝ presenze razionava di nascosto (a 96/11 il braccio comprava **sei
+attaccanti per 13 crediti**: una rosa che nessuno può giocare). Curato dando a TUTTI la spartizione per
+reparto di un tavolo vero (`profiles.MARKET`, dalle 131 aste reali), il CASO va **ultimo** — *la
+validazione di una cura dell'ambiente è che il null torni a perdere* — e la griglia si appiattisce:
+1/11 −0,11 · **2/11 −0,25** · 6/11 +1,07 (t 3,5) · **12/11 −0,55 (t −2,2)** · 96/11 **+0,03**. Vicini di
+segno opposto entrambi «significativi»: **nessun `k` da adottare e nessuno da temere.**
+(b) **E IL NULL HA TROVATO UN DIFETTO NEL CALENDARIO, uno nello script e uno nel codice SPEDITO**:
+`CYCLE` e `league.round_robin` nominano i partecipanti per INDICE, quindi scambiando due bracci le
+partite restano le stesse e cambiano GIORNATA. Nello script 0,4 punti alla posizione 0, sempre quella
+del giudicato; curato, null **+0,000 esatto**. Su `league.py`, misurato a rose FERME e ruotando solo le
+caselle: il braccio motore chiude **dal 1º al 9º posto** con la stessa rosa (sd **4,93**, sei posizioni
+dentro una finestra). È rumore e non una distorsione, e tocca solo i numeri di TABELLA — i confronti in
+fantapunti (§17, §21, §22, §24) non si muovono. Cura da secondi, **non applicata**: sposta numeri
+pubblicati, quindi è una decisione (todolist 07/09, voce 1).
+(c) **L'UNICA COSA ENTRATA IN PRODUZIONE È UNA COSTANTE**: `STEADY_SHARE` da 1/11 a **2/11**, su
+dichiarazione dell'operatore — «il k dovrebbe dipendere da quanti punti è impostato il mod.dif e
+r-factor». La correzione è nell'INDICIZZAZIONE: due punti di R-Factor spalmati sugli undici uomini che
+li producono. Quindi **è un parametro di LEGA e non una costante del gioco**, col tetto aritmetico
+`STEADY_MARGINAL` = 0,298 asserito dal test — *il peso è una dichiarazione, il tetto è un conto*.
+(d) **E UNA LETTURA DEBOLE È STATA RILETTA E RISCRITTA invece di difesa**: «vinceva sul solo banco col
+budget, cioè dove si gioca» su quel banco curato non è più vero (−0,11 · 3 finestre su 10), quindi il
+termine resta perché è la formula dell'operatore e perché nessuna misura lo trova dannoso — non perché
+un banco lo promuova. I numeri che lo difendevano sono **ritirati** in cinque file.
+**Verifica**: **798 test** dell'app, `ng build` pulito, `engine_*` e i fogli fermi. Il 2/11 è stato
+misurato e non interpolato. Dettaglio: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §32.10.
+· precedente: 6 settembre 2026 (notte tarda) — DUE COPPIE `G:A` SULLA STRATEGIA, E UN BANCO CHE
 GUARDAVA METÀ DELLA DOMANDA.** Richiesta dell'operatore in due messaggi più una precisazione: un pill
 **`G:A 25/26`** e uno **`G:A 26/27`** che mostrino **(GOL:ASSIST)** per ogni calciatore, «coi gol
 normali e i rigori trasformati». Quattordici pastiglie in tutto; nessuna riga di motore, nessuna
