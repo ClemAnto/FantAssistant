@@ -496,7 +496,20 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      viste (stessa k, stessa K, letta da `evaluate.ADOPTED` - misurata +4,7% a K=40, 13/13 finestre),
 #      o tutta la novita' in-season finirebbe nel tasso bonus derivato `fm - mv`, la famiglia v9.59.
 #      I quattro pacchetti del viaggio nel tempo sono datati in-season e vanno rifatti con i fogli.
-SHEET_REVISION = 48
+#   49 (07/09/2026) - L'ANCORA DI CHI NON HA UNA STAGIONE QUI legge l'ELO del club e parte SOTTO
+#      l'ancora di ruolo (`est.newcomer_anchor`, `default`, D/C/A): misurato fuori campione su 713 nuovi
+#      arrivati in dieci finestre, l'ancora di club che c'era valeva +0,7% sugli attaccanti, questa
+#      +16,8% (8/10; C +10,4%, D +10,0%). Muove `est_fm`/`est_mv`/`est_surplus` dei gradini `anchor` e
+#      `shrunk` e la Fpi di chi il core non prezza; `older` resta sull'ancora di club perche' li' l'Elo
+#      misura peggio. `engine_*` non si muove di un decimale, il gate non vede niente.
+#   50 (07/09/2026, sera) - LE CONFIDENZE DELLA CASCATA SONO CALIBRATE SUGLI ESITI e non piu' scelte
+#      (domanda dell'operatore: «misuriamo gli esiti su una stagione vecchia e vediamo qual e' la
+#      soluzione che piu' rispecchia la realta'»). `anchor` 0.50 -> 0.75 e `older` 0.85 -> 0.90; la
+#      tabella, i due gradini che NON si muovono e la ragione stanno in `est.CONFIDENCE`. Muove
+#      `est_surplus` di ogni riga stimata - 3.385 righe su 6.100 nelle dieci finestre - e con lui lo
+#      SWING e ogni graduatoria dell'app che legge il ripiego. `engine_*` fermo: la cascata non e' nel
+#      percorso del gate.
+SHEET_REVISION = 50
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -3481,7 +3494,7 @@ def _peer_groups(conn, window: features.Window, data_ids, marks: str) -> dict[in
 
 
 def estimation_layer(conn, window: features.Window, platform: str,
-                     observations) -> dict[int, dict]:
+                     observations, perimeter: set[str] | None = None) -> dict[int, dict]:
     """Everything the fallback valuation needs, gathered once: {fc_id: {...}} - see `engine.estimate`.
 
     Three reads, and each one is a rung of the ladder that module declares:
@@ -3632,7 +3645,31 @@ def estimation_layer(conn, window: features.Window, platform: str,
             (window.input_season, platform, est.FULL_SEASON_VOTES)):
         if club and role:
             club_level[(club, role)] = (mean_fm, count)
-    return {"players": layer, "club_level": club_level, "role_bonus": role_bonus}
+    # THE MEAN ELO OF THE CHAMPIONSHIP'S CLUBS, one value per club and not per row, so a club with thirty
+    # quoted men weighs what a club with twelve does: it is the zero of `est.newcomer_anchor`, which reads
+    # a club's strength as a DIFFERENCE from that level - centring is what keeps a league whose Elo drifts
+    # from drifting every newcomer's anchor with it. None when no club carries an Elo, and then the anchor
+    # applies its shift alone rather than a difference from nothing.
+    #
+    # ⚠️ ON THE PERIMETER'S CLUBS AND NOT ON THE POPULATION'S, and the difference is not cosmetic: with
+    # `squad_source='real'` the observations carry every club the provider sees a squad member at -
+    # foreign sides and Serie B included - so the mean fell from **1690 to ~1647** and every newcomer got
+    # +0.07 of fantamedia for free. The constants were measured centring on the CHAMPIONSHIP's clubs
+    # (the twenty a Serie A sheet draws), so this is «a parameter belongs to the population it was
+    # measured on» applied to a ZERO. Caught on the first sheet written after the adoption, by checking
+    # that Ramos's row reproduced the number computed by hand.
+    #
+    # Il perimetro arriva dal CHIAMANTE, che lo ha gia' (`build_rows` lo riceve per filtrare le righe):
+    # una definizione e due lettori, e questo modulo non deve interrogare `listone_quotes` per sapere
+    # dove sta il suo zero. `None` = perimetro ignoto, e allora si centra su tutto invece di svuotare -
+    # la stessa scelta che `build_rows` fa con le righe.
+    by_club: dict[str, float] = {}
+    for obs in observations:
+        club, elo = getattr(obs, "club_target", None), getattr(obs, "elo_target", None)
+        if club and elo is not None and (not perimeter or club in perimeter):
+            by_club.setdefault(club, elo)
+    elo_mean = sum(by_club.values()) / len(by_club) if by_club else None
+    return {"players": layer, "club_level": club_level, "role_bonus": role_bonus, "elo_mean": elo_mean}
 
 
 def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
@@ -3663,6 +3700,38 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
     return replace(guess, note=f"{guess.note} · {said}" if guess.note else said)
 
 
+def fallback_anchors(obs, layer: dict, anchors: dict, prediction,
+                     platform: str) -> tuple[float, float, float | None, float]:
+    """(role anchor, club anchor, newcomer anchor or None, THE ONE THE CASCADE USES for this man).
+
+    TWO ANCHORS FOR TWO POPULATIONS (07/09/2026). A man with an OLD season here regresses toward the
+    club's own level for his role (`est.club_anchor`, the `older` rung); a man with NO season here - the
+    `anchor` rung, and `shrunk` where his own votes are too few to be a season - starts from the role's
+    anchor SHIFTED and moved by his club's Elo (`est.newcomer_anchor`, the measurement is on the
+    constants). Measured separately on both populations: the Elo anchor is +16.8% on newcomer forwards
+    and -5.3% on the `older` ones, so one anchor for both would buy one rung with the other. None where
+    it was not measured (keepers, euro), and then the club anchor serves every rung as before.
+
+    ONE selection, TWO readers - `_rung_for` and the Fpi projection of a man the core cannot price - so
+    the anchor a row regresses toward and the one its Fpi regresses toward cannot be two numbers.
+    """
+    role = obs.role_classic or ""
+    role_anchor = anchors.get(role) or (prediction.anchor if prediction else None) or 6.0
+    club_level = layer.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0)
+    anchor_club = est.club_anchor(role_anchor, *club_level)
+    anchor_new = est.newcomer_anchor(role_anchor, role, platform, getattr(obs, "elo_target", None),
+                                     layer.get("elo_mean"))
+    mine = (layer.get("players", {}) or {}).get(obs.fc_id, {}) or {}
+    # the `older` rung is reached only by a man with no thin season here or on the other platform - the
+    # same order `_rung_for` walks, restated so this function answers what that one would do
+    other = mine.get("other") or {}
+    thin_here = bool(getattr(obs, "pv_prev", None)) and getattr(obs, "fm_prev", None) is not None
+    thin_other = other.get("fm") is not None and (other.get("pv") or 0) >= 1
+    reaches_older = bool(mine.get("older")) and not thin_here and not thin_other
+    anchor = anchor_club if (anchor_new is None or reaches_older) else anchor_new
+    return role_anchor, anchor_club, anchor_new, anchor
+
+
 def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
               window: features.Window, platform: str = "euro") -> est.Estimate:
     """One player's fallback valuation, down the ladder `engine.estimate` declares. Never returns None.
@@ -3672,18 +3741,19 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
     in a league the calendar does not cover is descriptive, and the anchor beats it at predicting here.
     """
     role = obs.role_classic or ""
-    role_anchor = anchors.get(role) or (prediction.anchor if prediction else None) or 6.0
-    anchor = est.club_anchor(
-        role_anchor,
-        *(layer.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0)))
+    role_anchor, anchor_club, anchor_new, anchor = fallback_anchors(obs, layer, anchors, prediction,
+                                                                    platform)
     # The anchor of the BASE VOTE, and it is NOT the fantamedia anchor minus anything: a keeper's sits
     # ABOVE his FM anchor (-1.29 of bonus) and a forward's well below (+0.74), and the CLUB's own level is
     # base vote only in part - a solid defence is clean sheets and good marks, a strong attack is bonus,
     # and `est.CLUB_MV_SHARE` carries how much of each. Every rung that transforms a measured season
     # transforms his MV toward this one exactly as it transforms his FM toward the other, so `fm - mv`
-    # stays a bonus rate and never becomes the leftover of two unrelated shrinkages.
+    # stays a bonus rate and never becomes the leftover of two unrelated shrinkages. The share was
+    # checked against the Elo anchor too (the MV part of its slope reads 0.25 / 0.48 / 0.60 for A / C / D
+    # against 0.33 / 0.44 / 0.59), so one share serves both anchors.
     role_bonus = layer.get("role_bonus", {}).get(role)
     anchor_mv = est.mv_anchor(role_anchor, role_bonus, anchor, role)
+    anchor_mv_club = est.mv_anchor(role_anchor, role_bonus, anchor_club, role)
     mine = layer.get("players", {}).get(obs.fc_id, {})
     calendar = data.matchdays_target or 0
     if prediction is not None and prediction.fm_pred is not None:
@@ -3776,7 +3846,24 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
             f"his {window.input_season} on {other['platform']} ({other['pv']} votes) stands in for "
             f"a season this platform has not got",
             mv=other.get("mv"))
-    level = f"the level of {obs.club_target or 'the club'}'s {role or 'players'} ({anchor:.2f})"
+    club_name = obs.club_target or "the club"
+    # A club with no measured man in that role (a promoted side) gets the ROLE anchor, and the note must
+    # say so: Mota's row read «the level of Monza's A (6.83)» about a club that had no Serie A forward on
+    # file, and 6.83 was the role's own number wearing the club's name.
+    club_measured = (layer.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0))[1]
+    level_club = (f"the level of {club_name}'s {role or 'players'} ({anchor_club:.2f})" if club_measured
+                  else f"the role's anchor ({anchor_club:.2f}; {club_name} has no measured "
+                       f"{role or 'player'} here to move it)")
+    if anchor_new is None or anchor is not anchor_new:
+        level = level_club
+    else:
+        elo = getattr(obs, "elo_target", None)
+        strength = (f"Elo {elo:.0f} against a sheet mean of {layer['elo_mean']:.0f}"
+                    if elo is not None and layer.get("elo_mean") is not None
+                    else "no Elo on file, so the club moves nothing")
+        level = (f"the anchor of a newcomer at {club_name} ({anchor:.2f}: the role's "
+                 f"{role_anchor:.2f} {est.NEWCOMER_SHIFT[role]:+.2f} for having no season here, "
+                 f"then {strength})")
     if obs.pv_prev and obs.fm_prev is not None:
         value, confidence = est.shrink(obs.fm_prev, obs.pv_prev, anchor)
         base = (est.shrink(obs.mv_prev, obs.pv_prev, anchor_mv)[0]
@@ -3798,14 +3885,16 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
         back = int(window.input_season[:4]) - int(older["season"][:4]) + 1
         # ...and it is REGRESSED toward the anchor, not handed over raw: an old fantamedia used as a
         # prediction is the naive baseline the core beats, and it is biased upward for exactly the men
-        # this rung serves (`est.OLDER_BETA` carries the measurement).
-        value = est.regress(older["fm"], anchor)
-        base = (est.regress(older["mv"], anchor_mv)
-                if older.get("mv") is not None and anchor_mv is not None else None)
+        # this rung serves (`est.OLDER_BETA` carries the measurement). Toward the CLUB anchor and not the
+        # newcomer's: a man with an old season here is not a newcomer, and on this population the Elo
+        # anchor measured worse (forwards -5.3%, 4 windows of 9).
+        value = est.regress(older["fm"], anchor_club)
+        base = (est.regress(older["mv"], anchor_mv_club)
+                if older.get("mv") is not None and anchor_mv_club is not None else None)
         pv_est = presences(recent_first=True, from_older=older)
         said = (f"his last measured season is {older['season']} on {older['platform']} "
                 f"({older['pv']} votes, {older['fm']:.2f}), {back} seasons back - pulled "
-                f"{int((1 - est.OLDER_BETA) * 100)}% toward {level}")
+                f"{int((1 - est.OLDER_BETA) * 100)}% toward {level_club}")
         # ...and the row says what happened to the PRESENCES too, because they are transformed now and a
         # note that explains one half of a pair invites the reader to trust the other half raw.
         if pv_pred is None and from_abroad is None and older.get("calendar"):
@@ -4930,7 +5019,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     # must end up with a surplus, and the ones the core cannot price need the other platform, an older
     # season and their club's own level to get one.
     window = window or data.window
-    estimation = estimation_layer(conn, window, platform, data.observations)
+    estimation = estimation_layer(conn, window, platform, data.observations, perimeter)
     left = departures(conn, window, window.auction_date)
     provider_known = observed_players(conn)
     live_squad = complete_squads(live_squads(conn, window.auction_date),
@@ -5094,11 +5183,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # L'ANCORA E' QUELLA DELLA CASCATA, non `prediction.anchor`: per un uomo che il core non
             # prezza quella previsione spesso non esiste affatto, e passandola si spegneva il ramo
             # proprio sui nomi per cui e' stato costruito (Ramos leggeva `anchor` con trenta partite di
-            # Ligue 1 sul groppone). Stessa riga di `_rung_for`, cosi' le due non possono divergere.
-            role = obs.role_classic or ""
-            anchor = est.club_anchor(
-                data.anchors.get(role) or (prediction.anchor if prediction else None) or 6.0,
-                *(estimation.get("club_level", {}).get((obs.club_target or "", role)) or (None, 0)))
+            # Ligue 1 sul groppone). STESSA FUNZIONE di `_rung_for` (`fallback_anchors`), cosi' le due non
+            # possono divergere - e dal 07/09/2026 divergerebbero, perche' per un nuovo arrivato
+            # l'ancora legge l'Elo del club e per chi ha una stagione vecchia qui legge il club.
+            anchor = fallback_anchors(obs, estimation, data.anchors, prediction, platform)[3]
             from_abroad = projection.fm_from_abroad(
                 equivalent, matches, anchor, platform, data.game, obs.role_classic)
             if from_abroad is not None:

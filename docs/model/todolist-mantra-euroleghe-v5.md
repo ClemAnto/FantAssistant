@@ -1528,3 +1528,63 @@ Dettaglio e numeri: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §
    quello che nessuno ha misurato è quanto quel differenziale valga davvero in punti a giornata contro
    l'esito. È misurabile sul banco d'asta (una colonna in più contro surplus/quotazione/caso, con la
    disciplina di reparto della voce 2) e costa una corsa, non un'acquisizione.
+
+## Aperto dopo la sessione del 07/09/2026 (l'ancora del nuovo arrivato, gate §7-unquinquagies)
+
+1. **`snapshot` + `export` + `data:pull` sono DOVUTI**: `SHEET_REVISION` 49 muove `est_fm`/`est_mv`/
+   `est_surplus` dei gradini `anchor` e `shrunk` su `default` (Ramos G. 6,52 → 6,79) e il foglio in
+   `data/export/` era alla 48 alla chiusura. Non lanciati perché il DB era di un'altra sessione.
+
+2. **`est_confidence` 0,50 del gradino `anchor` è una DICHIARAZIONE (05/08) e ora ha una misura contro**:
+   l'errore fuori campione dell'ancora nuova sugli attaccanti nuovi arrivati è **0,48 di MAE contro 0,55**
+   del core sugli attaccanti che prezza (n=403, stesse dieci finestre). Sul lato fantamedia il numero di un
+   nuovo arrivato non è più incerto di quello di un titolare misurato; il lato PRESENZE
+   (`presences_from_abroad` + investimento + fee) non è rimisurato. È quello che tiene Ramos (0,21 di
+   SWING) sotto Noslin (0,44). Decisione dell'operatore: la costante è sua. Se la si alza, misurare prima
+   l'errore delle presenze stimate contro il core, per non spostare una penale che copre due cose su una
+   misura di una.
+
+3. **La «fetta» del nuovo arrivato — la sua regola sulla quotazione decide**: sopra shift + Elo, il
+   percentile di Qt.I nel ruolo vale +3,4 punti sugli attaccanti (20,5%, 9/10) e +2,5 sui centrocampisti
+   (10/10); `peer_top` (oggettivo) +2,9 (8/10). Niente sui difensori. Spedito senza nessuna delle due;
+   se lo chiede, `peer_top` è la forma che rispetta la regola del 04/08 e viaggia già su `Observation`.
+
+4. **`club_elo` è ferma al 14/01/2026**: il modulo `elo` gira ogni giorno «from snapshot» e la cache non
+   ha un'istantanea di agosto 2026, quindi l'ancora di oggi (e `desc_level_elo`, e la board) leggono
+   l'Elo di gennaio. Acquisizione: una lettura di clubelo.com alla data di oggi. Il Como «che può ambire
+   alle prime posizioni» è il caso concreto.
+
+5. **Cosa NON riaprire**, coi numeri a verbale: la conversione gol/xG all'estero (n=9 attaccanti, −0,6%,
+   0/9), la produzione per 90 all'estero da sola (−0,7%), la media pluriennale per Diao (R18/R18b/R18c,
+   §7-septvicies), e l'Elo per il gradino `older` (−5,3% sugli attaccanti: chi ha una stagione vecchia qui
+   non è un nuovo arrivato).
+
+## Aperto dopo la sessione del 07/09/2026 sera (le confidenze calibrate, e la fetta di bonus)
+
+1. **IL MOTORE SOVRASTIMA IL SURPLUS DEL 6%**, ed è il risultato più grosso della serata perché non
+   riguarda la cascata: il gradino `core` calibra a **0,94** (2669 righe, dieci finestre, pendenza 0,93).
+   Non è applicato — `est_*` su una riga core deve riprodurre `engine_*` — quindi è una voce del GATE:
+   pre-registrare se `engine_surplus` va moltiplicato per un fattore di calibrazione, con la domanda
+   spinosa che il gate giudica l'ERRORE e non il livello, quindi un fattore <1 non cambia nessun
+   ordinamento e cambia ogni numero a schermo. Da decidere se è una correzione o solo una nota.
+
+2. **La FORMA dello `shrunk` è una SOGLIA e non una pendenza.** Calibrato per banda: 1-4 voti 0,45 · 5-9
+   **0,92** · 10-14 0,89, contro lo 0,53-0,97 lineare in vigore. Il salto sta fra 4 e 5 voti e la retta
+   non lo può riprodurre. Sono 1018 righe, quindi si può misurare: sostituire la retta con due gradini e
+   giudicarla sul deliverable, come le altre.
+
+3. **La nota della riga `anchor` va corretta**: dice «nothing measured anywhere» a 276 quotati che hanno
+   un FM-equivalente estero e fino a 30 partite col voto sintetico (Ramos G.: 1320 minuti di Ligue 1). Il
+   NUMERO è giusto — l'Elo cattura già quel calcio, misurato — ma la frase è falsa e l'operatore l'ha
+   letta. Deve dire cosa sappiamo di lui e perché non entra nella fantamedia (entra nelle presenze).
+
+4. **Il contesto del club per chi CAMBIA CLUB, sugli attaccanti**: +5,84% fuori campione (7/10, n=84) come
+   termine additivo sul tasso di bonus, e l'oracolo dice che il tetto è +8,36%. Non spedito perché n=84 e
+   perché l'Elo del club porta già la stessa informazione sul totale (`CLUB_MV_SHARE` dice che per un
+   attaccante il livello di un club è due terzi bonus). Si riapre solo se qualcuno vuole un canale
+   specifico sui BONUS separato da quello sul livello, e allora la forma è additiva e mai il prodotto
+   (−10,8%).
+
+5. **Cosa NON riprovare**, coi numeri: il prodotto «fetta × nuova squadra» (−10,8% A · −10,4% C · −14,4%
+   D), la fetta come proprietà dell'uomo (r +0,059 al cambio club sugli attaccanti), l'FM-equivalente
+   estero sopra l'Elo (−0,8 punti), «ha 15+ partite su file» come termine di fantamedia (−0,2).

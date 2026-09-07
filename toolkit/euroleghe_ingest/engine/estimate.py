@@ -37,13 +37,18 @@ THE LADDER, and every rung carries the measurement that put it there (05/08/2026
                       fantamedia is 1.36 for forwards (Inter 7.38, Pisa 6.02), 1.10 for midfielders, 0.75
                       for defenders and 0.25 for keepers - which is the operator's Juve-vs-Verona point,
                       quantified, and it is why the adjustment is per ROLE and not a single number.
-                                                                                                 conf 0.50
+                      SINCE 07/09/2026, on `default` and for D/C/A, the club enters through its ELO and the
+                      anchor starts BELOW the role's (`newcomer_anchor`): measured out of sample on 713
+                      newcomers over ten windows, the club-mean anchor above was worth +0.7% on forwards,
+                      this one +16.8% (8/10). `shrunk` regresses toward the same anchor; `older` does not,
+                      because for a man with an old season here it measures worse.       conf 0.50
 
 THE PENALTY multiplies the SURPLUS and nothing else. Indeterminacy is a fact about the number, not about the
 player's fantamedia: his level is our best guess either way, while what an auction ranks - points over the
-bench - is what should be discounted for not knowing. And it is a DECLARED product choice, not a fitted
-coefficient: the ladder is ordered by the measured errors above, the exact rungs are ours, and the sheet
-carries them per row so nobody has to trust this docstring.
+bench - is what should be discounted for not knowing. It USED to be a declared product choice; since
+07/09/2026 the rungs that moved are CALIBRATED on what those men really returned (`CONFIDENCE` carries the
+table and the two it refuses to move), and the sheet carries them per row so nobody has to trust this
+docstring.
 """
 
 from __future__ import annotations
@@ -58,15 +63,55 @@ from euroleghe_ingest.engine import model
 # this module must stay importable on its own (the gate's harness reaches both).
 FULL_SEASON_VOTES: int = 15
 
-# The confidence of each rung. Ordered by the measured errors in the docstring; the values themselves are a
-# product choice and are stated on every row that uses them.
+# THE CONFIDENCE OF EACH RUNG - CALIBRATED ON OUTCOMES since 07/09/2026, on the operator's own question:
+# «possiamo misurare gli esiti su una stagione vecchia e vedere qual e' la soluzione che piu' rispecchia
+# la realta'?». Until that day they were a declared product choice; the ones that moved are now measured.
+#
+# HOW. The confidence multiplies the surplus, so its calibration is a RATIO nobody has to choose: the
+# surplus a rung's men really returned over the surplus it predicted RAW. Measured on all ten gate windows
+# and every quoted D/C/A - the man who never played counting as the ZERO he returned, because
+# conditioning on having played measures another question and reads high:
+#
+#   rung              n      in force    ratio    slope    predicted    returned
+#   core           2669        1.00       0.94     0.93        13.3        12.5
+#   older           275        0.75-0.85  0.93     1.00         7.2         6.7
+#   shrunk         1018        0.76       0.77     0.67         4.8         3.7
+#   anchor         2092        0.50       0.69     0.80         6.1         4.2
+#
+# `anchor` 0.50 was the value furthest from what the outcome says, and its ratio is STABLE across windows
+# (0.58-0.95, median 0.68, ten windows). What decides a RANKING is the ratio relative to the core, 0.69 /
+# 0.94 = **0.73**; the deliverable (surplus captured in the top 60/80 per role, leave-one-window-out)
+# prefers 0.80 and is FLAT between them - 0.73 reads +1.66%, 0.75 +1.69%, 0.80 +1.86% against 0.50, and
+# the curve is not even monotone. On a flat surface this project takes the MEASURED value over the bench's
+# optimum, so: **0.75**, two decimals being false precision on a ratio whose windows span 0.58-0.95.
+#
+# `older` goes to 0.90 for the LEVEL and not for the ranking - it is 275 rows, so the deliverable cannot
+# tell 0.85 from 0.90 (+1.73% against +1.69%), while the calibration says 0.93 and the number on the row
+# is read by a person.
+#
+# `shrunk` IS NOT TOUCHED, and the reason reverses the objection that opened the question. Raising the
+# anchor above the shrunk floor (0.53 at one vote) looked like it would invert a ladder ordered by
+# evidence. Calibrated by vote band it does not: 1-4 votes **0.45** · 5-9 **0.92** · 10-14 **0.89**. A man
+# with three votes here deserves LESS than a man with none, because three votes are not «little evidence»,
+# they are evidence AGAINST - a player his own coach did not field - while «nothing» can be a starter
+# arriving from abroad. The floor is right and only the FORM is wrong (a threshold, not a slope), which is
+# a separate measurement and is left in the todolist rather than fitted here.
+#
+# `core` STAYS AT 1.00 although it calibrates at 0.94, and the reason is structural: `est_*` on a core row
+# must reproduce `engine_*`, or one man carries two surpluses on one sheet. What the 0.94 says is a fact
+# about the ENGINE - it overstates the surplus by 6% on the men it prices - and it belongs to the gate,
+# not to this cascade. Written down, not applied.
+#
+# ⚠️ THIS IS A CALIBRATION AND NOT PRUDENCE. It measures how much a rung OVERSTATES. The operator called
+# the 0.50 a «fattore di prudenza»; risk aversion is a separate preference and would multiply on top of
+# these, so nobody should read 0.75 as «I am 75% sure».
 CONFIDENCE: dict[str, float] = {
     "core": 1.00,
-    "other_platform": 0.95,
-    "older": 0.85,             # t-2; one more season back takes OLDER_DECAY off it
+    "other_platform": 0.95,    # n=3 in ten windows: not measurable, left where it was
+    "older": 0.90,             # t-2; one more season back takes OLDER_DECAY off it
     "shrunk_floor": 0.50,      # a shrunk estimate with one vote is barely more than the anchor...
     "shrunk_span": 0.50,       # ...and with 14 it is nearly the core
-    "anchor": 0.50,
+    "anchor": 0.75,
 }
 OLDER_DECAY: float = 0.10      # per season beyond t-2, floored at the anchor's own confidence
 
@@ -466,11 +511,91 @@ def club_anchor(role_anchor: float, club_mean: float | None, club_measured: int)
     Verona» - and the size of that difference is measured, not assumed: 1.36 of fantamedia between the best
     and the worst Serie A club's forwards in 25/26, 0.25 between their keepers. Nothing here decides how big
     it is; it comes out of the club's own mean, so a league where clubs are alike moves the anchor less.
+
+    Since 07/09/2026 this is the anchor of the `older` rung and of the keepers only: for a man with NO
+    Serie A season on file (`anchor`, `shrunk`) the club's STRENGTH does the same job better, see
+    `newcomer_anchor` - and it was measured on the `older` men too, where it is WORSE (forwards -5.3%,
+    4 windows of 9): a man with an old season here is not a newcomer, his old season already says his
+    level, so this stays what regresses it.
     """
     if club_mean is None or club_measured <= 0:
         return role_anchor
     weight = club_measured / (club_measured + CLUB_PRIOR)
     return role_anchor + (club_mean - role_anchor) * weight
+
+
+# THE ANCHOR OF A MAN NOBODY HAS SEEN HERE reads the club's STRENGTH, not its last forwards' fantamedia -
+# and it starts BELOW the role anchor. Born from the operator's sentence (07/09/2026): «soprattutto quando
+# non abbiamo dati sul calciatore dalla stagione precedente in serie-a dovremmo orientarci sulla squadra
+# ... un attaccante del Frosinone, per quanto forte sia, non avra' a disposizione le stesse occasioni che
+# avra' un attaccante del Como o della Roma».
+#
+# MEASURED on the men the core cannot price - no `default` votes at t-1 and none in any earlier season -
+# who then got >= 15 votes at t: 160 forwards, 290 midfielders, 263 defenders over the ten gate windows
+# (2016-17 -> 2025-26), leave-one-window-out, against the role anchor they were priced at. Two things were
+# found, and the first was not the one asked for:
+#
+#   1. THE ROLE ANCHOR IS TOO HIGH FOR A NEWCOMER. It is the mean of the men who had a full season here,
+#      and a man arriving from outside averages below it: forwards -0.26 of fantamedia, midfielders -0.06,
+#      defenders +0.06 (i.e. nothing). The shift alone is worth +13.7% of MAE on forwards.
+#   2. THE CLUB'S ELO AT THE AUCTION DATE PREDICTS HIM, at 0.17 of fantamedia per 100 Elo for a forward
+#      (0.11 C, 0.12 D), a slope that is nearly the same in every role and stable across the ten folds
+#      (0.15-0.18 on forwards). Roma against Frosinone is ~300 Elo = half a fantavoto. Shift + Elo:
+#
+#          role   n     vs role anchor   vs the club-mean anchor that shipped   windows   worst window
+#          A     160       +16.8%                    +16.2%                       8/10        -9.5%
+#          C     290       +10.4%                     +7.8%                       9/10        -2.6%
+#          D     263       +10.0%                     +6.1%                       9/10        -9.2%
+#          P      45       -11.3%   NOT ADOPTED: 3-7 keepers a window, 5/10 - the club mean stays
+#
+#      The two losing windows on forwards are the two COVID seasons (targets 2019-20 and 2020-21, n=17 and
+#      21) - stated, not argued away. The club-mean anchor it replaces was worth +0.7% on forwards (7 of
+#      10, worst -9.2%): a club's forwards of last season are 3-5 fantamedie wearing the club's name, and
+#      a promoted club has none at all, while every club has an Elo.
+#
+# WHY THIS IS NOT THE FAMILY THE GATE REFUSED FOUR TIMES (R5, R5b, R16, R16b: the destination club's
+# strength): those were measured on men WITH a season here, whose `fm_prev` already contains the club
+# they played for. A newcomer has no `fm_prev`, so for him the club is the only football on file - the
+# same lesson as R16 («la sua quota dei gol del club e' gia' dentro la sua fantamedia»), read from the
+# side of the man who has no fantamedia to be inside of.
+#
+# WHAT WAS MEASURED AND NOT TAKEN, so nobody re-proposes it: the club's goals per match last season
+# (+6.1% on forwards, 7/10: a noisier read of the same thing, absent for a promoted club); his production
+# ABROAD per 90 (g+a: -0.7%; xG+xA: n=9 forwards with >= 450' in a covered league over the three windows
+# that have xG, +0.0%; his CONVERSION goals/xG: -0.6%, 0 windows of 9) - the R13c / R1 wall met again,
+# what he did in another league does not predict his fantamedia here; and two readings of his SHARE of
+# the club's production, which DO add on forwards and are left to the operator because one of them is the
+# quotation his rule puts last: on top of shift + Elo, the Qt.I percentile inside the role +3.4 points
+# (20.5%, 9/10, and 13.1% on C with 10/10), his market value against the best rival for his shirt
+# (`peer_top`) +2.9 points (20.0%, 8/10); nothing on defenders for either.
+#
+# `default` ONLY, the population it was measured on: the euro anchor is a mean over the top clubs of five
+# leagues and «newcomer» means something else there. The MV anchor follows through `CLUB_MV_SHARE`, and
+# that carry-over was checked rather than assumed - the MV part of the Elo slope measures 0.25 / 0.48 /
+# 0.60 (A / C / D) against the shares 0.33 / 0.44 / 0.59 already in use. The Elo is the one at the
+# AUCTION DATE (`club_elo`, what `Observation.elo_target` carries), centred on the mean of the clubs of
+# the sheet, so a league whose level drifts does not drift the anchor with it. REPORTING like the whole
+# module: `engine_*` does not move.
+NEWCOMER_SHIFT: dict[str, float] = {"D": 0.06, "C": -0.06, "A": -0.26}
+NEWCOMER_ELO_SLOPE: dict[str, float] = {"D": 0.12, "C": 0.11, "A": 0.17}   # fantamedia per 100 Elo
+NEWCOMER_PLATFORMS: frozenset[str] = frozenset({"default"})
+
+
+def newcomer_anchor(role_anchor: float, role: str, platform: str,
+                    elo_club: float | None, elo_mean: float | None) -> float | None:
+    """The fantamedia anchor of a man with NO season here: the role's, shifted, moved by his club's Elo.
+
+    None where it was not measured - keepers, and every platform but `default` - so the caller falls back
+    to `club_anchor` there instead of applying a number outside its population. Without an Elo for the
+    club (or no mean to centre it on) the shift alone applies: it was measured on its own and is most of
+    the gain on forwards.
+    """
+    if platform not in NEWCOMER_PLATFORMS or role not in NEWCOMER_SHIFT:
+        return None
+    value = role_anchor + NEWCOMER_SHIFT[role]
+    if elo_club is not None and elo_mean is not None:
+        value += NEWCOMER_ELO_SLOPE[role] * (elo_club - elo_mean) / 100.0
+    return value
 
 
 def shrink(fm: float, votes: int, anchor: float, full: int = FULL_SEASON_VOTES) -> tuple[float, float]:

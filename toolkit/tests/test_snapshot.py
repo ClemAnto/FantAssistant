@@ -3389,6 +3389,17 @@ def test_every_player_gets_a_surplus_and_it_says_what_it_cost():
     # an older season is worth less the further back it is, and never less than the anchor it replaces
     assert est.older_confidence(2) > est.older_confidence(4) >= est.CONFIDENCE["anchor"]
 
+    # LE CONFIDENZE SONO CALIBRATE SUGLI ESITI (07/09/2026), non scelte - `est.CONFIDENCE` porta la
+    # tabella. Qui si fissano i tre fatti che una taratura futura non deve perdere in silenzio.
+    assert est.CONFIDENCE["core"] == 1.00, \
+        "il core calibra a 0.94 e resta 1.00: `est_*` su una riga core DEVE riprodurre `engine_*`"
+    assert 0.69 <= est.CONFIDENCE["anchor"] <= 0.80, \
+        "l'ancora sta fra la calibrazione relativa (0.73) e l'ottimo del deliverable (0.80)"
+    assert est.CONFIDENCE["shrunk_floor"] < est.CONFIDENCE["anchor"], (
+        "1-4 voti calibrano a 0.45, sotto l'ancora: pochi voti sono evidenza CONTRARIA e non poca "
+        "evidenza, quindi il pavimento dello shrunk sta SOTTO l'ancora di proposito")
+    assert est.CONFIDENCE["older"] > est.CONFIDENCE["anchor"]
+
 
 def test_an_out_is_not_a_departure_when_an_arrival_brings_him_back(tmp_path):
     """«Verifica bene le rose delle squadre ed i trasferimenti: Gutierrez ad esempio non è più nel Napoli.»
@@ -4351,3 +4362,90 @@ def test_the_mv_blends_the_seen_base_vote_exactly_where_the_fm_does():
 
     # euro: R25 is not adopted there, so the same seen votes move nothing - the pair stays whole
     assert build("euro", 6.9, 3) == pytest.approx(build("euro", None, None))
+
+
+def test_a_newcomer_is_anchored_on_his_clubs_elo_and_a_returning_man_on_his_clubs_level():
+    """TWO ANCHORS FOR TWO POPULATIONS (07/09/2026, from «un attaccante del Frosinone, per quanto forte
+    sia, non avra' le stesse occasioni di uno del Como o della Roma»).
+
+    Measured leave-one-window-out on the men the core cannot price (no `default` season at all, ten
+    windows): the role anchor is TOO HIGH for a newcomer forward (-0.26) and the club's Elo at the auction
+    date moves him 0.17 of fantamedia per 100 points - +16.8% of MAE against the role anchor, +16.2%
+    against the club-mean anchor that shipped. On the men with an OLD season here the same anchor is
+    -5.3%, so `older` keeps the club mean; keepers and euro are unmeasured and keep it too.
+    """
+    from types import SimpleNamespace
+
+    import pytest
+
+    from euroleghe_ingest.engine import estimate as est
+    from euroleghe_ingest.engine import features
+
+    role_anchor, elo_mean = 6.83, 1690.0
+    # the function itself: shift, then the Elo difference, per role - and None outside its population
+    strong = est.newcomer_anchor(role_anchor, "A", "default", 1817.0, elo_mean)     # Milan
+    weak = est.newcomer_anchor(role_anchor, "A", "default", 1539.0, elo_mean)       # Frosinone
+    assert strong == pytest.approx(role_anchor - 0.26 + 0.17 * 1.27, abs=1e-6)
+    assert weak < role_anchor - 0.26 < strong, "a newcomer starts below the role's anchor; the club moves him"
+    assert est.newcomer_anchor(role_anchor, "A", "default", None, elo_mean) == pytest.approx(role_anchor - 0.26), \
+        "no Elo on file: the shift alone, which was measured on its own"
+    assert est.newcomer_anchor(role_anchor, "P", "default", 1817.0, elo_mean) is None, "keepers: unmeasured"
+    assert est.newcomer_anchor(role_anchor, "A", "euro", 1817.0, elo_mean) is None, "euro: another population"
+    assert est.NEWCOMER_SHIFT["D"] > 0 > est.NEWCOMER_SHIFT["C"] > est.NEWCOMER_SHIFT["A"], \
+        "the shift is a fact about the ROLE: nothing for a defender, a quarter of a vote for a forward"
+    # E LA MEDIA SI PRENDE SUI CLUB DEL PERIMETRO: su un foglio costruito sulle rose osservate le
+    # osservazioni portano anche club esteri e di Serie B, e lo zero scendeva di 43 punti Elo
+    # (1690 -> 1647), cioe' 0,07 di fantamedia gratis a ogni nuovo arrivato - un parametro applicato
+    # con uno zero diverso da quello su cui e' stato misurato.
+    obs = [SimpleNamespace(fc_id=1, club_target="Milan", elo_target=1817.0),
+           SimpleNamespace(fc_id=2, club_target="Frosinone", elo_target=1539.0),
+           SimpleNamespace(fc_id=3, club_target="Barcellona", elo_target=1950.0)]   # fuori perimetro
+
+    class FakeConn:
+        def execute(self, *_args):
+            return []
+
+    zero_window = features.Window("ZERO", "2025-26", "2026-27", "2026-09-07")
+    inside = snapshot.estimation_layer(FakeConn(), zero_window, "default", obs,
+                                       {"Milan", "Frosinone"})["elo_mean"]
+    everything = snapshot.estimation_layer(FakeConn(), zero_window, "default", obs)["elo_mean"]
+    assert inside == pytest.approx((1817 + 1539) / 2), "solo i club del campionato entrano nello zero"
+    assert everything > inside, "senza perimetro si centra su tutto: e' il ripiego, non la regola"
+
+    # the cascade: the sheet's mean Elo is one value per CLUB (a club with thirty quoted men weighs one)
+    def obs_of(fc_id, club, elo, **kw):
+        fields = dict(fc_id=fc_id, role_classic="A", club_target=club, elo_target=elo, pv_prev=None,
+                      fm_prev=None, mv_prev=None, mv_seen=None, pv_seen=None)
+        fields.update(kw)
+        return SimpleNamespace(**fields)
+    layer = {"role_bonus": {"A": 0.74}, "club_level": {("Milan", "A"): (6.30, 4)},
+             "players": {}, "elo_mean": elo_mean}
+    data = SimpleNamespace(matchdays_target=36)
+    window = features.Window("NEW", "2025-26", "2026-27", "2026-09-07")
+
+    ramos = snapshot.estimate_for(obs_of(1, "Milan", 1817.0), None, layer, {"A": role_anchor}, data,
+                                  window, "default")
+    assert ramos.basis == "anchor" and ramos.fm == pytest.approx(strong)
+    assert ramos.fm > est.club_anchor(role_anchor, 6.30, 4), \
+        "Milan's last forwards averaged below the role; its Elo says the club is strong, and the Elo wins"
+    assert "Elo 1817" in ramos.note and "-0.26" in ramos.note, "the row says what moved the anchor"
+    # a thin season here regresses toward the SAME anchor...
+    thin = snapshot.estimate_for(obs_of(2, "Milan", 1817.0, pv_prev=5, fm_prev=7.5, mv_prev=6.5), None,
+                                 layer, {"A": role_anchor}, data, window, "default")
+    assert thin.basis == "shrunk" and thin.fm == pytest.approx(est.shrink(7.5, 5, strong)[0])
+    # ...while a man with an OLD season here regresses toward the club's own level, as before
+    layer_old = dict(layer, players={3: {"older": {"season": "2024-25", "platform": "default",
+                                                    "pv": 30, "fm": 6.9, "mv": 6.1}}})
+    older = snapshot.estimate_for(obs_of(3, "Milan", 1817.0), None, layer_old, {"A": role_anchor}, data,
+                                  window, "default")
+    assert older.basis == "older"
+    assert older.fm == pytest.approx(est.regress(6.9, est.club_anchor(role_anchor, 6.30, 4)))
+    # and the Fpi projection asks the SAME function, so the two cannot diverge
+    assert snapshot.fallback_anchors(obs_of(1, "Milan", 1817.0), layer, {"A": role_anchor}, None,
+                                     "default")[3] == pytest.approx(strong)
+    assert snapshot.fallback_anchors(obs_of(3, "Milan", 1817.0), layer_old, {"A": role_anchor}, None,
+                                     "default")[3] == pytest.approx(est.club_anchor(role_anchor, 6.30, 4))
+    # euro: the club anchor serves every rung, as it did
+    euro = snapshot.estimate_for(obs_of(1, "Milan", 1817.0), None, layer, {"A": role_anchor}, data,
+                                 window, "euro")
+    assert euro.fm == pytest.approx(est.club_anchor(role_anchor, 6.30, 4))

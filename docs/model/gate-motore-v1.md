@@ -6003,3 +6003,303 @@ tempo) `engine_fm_pred` e `engine_surplus` ora portano la miscela.
 miscela per decisione dell'operatore quando il motore non la leggeva; ora su una riga che il motore prezza su
 `default` il foglio la porta già, e riapplicarla sarebbe contarla due volte. `SwingInput.fmBlendsSeen` la
 spegne lì e la lascia viva dove il foglio non può portarla — le righe stimate (`est_*`) e i fogli euro.
+
+## 7-unquinquagies. L'ANCORA DI CHI NON HA UNA STAGIONE QUI: la FORZA del club, e un'ancora che partiva troppo alta (7 settembre 2026)
+
+Dalla richiesta dell'operatore: «vorrei che il mio parere dovuto all'esperienza si trasformasse in parametri
+per migliorare l'algoritmo dello swing», con due nomi (Ramos G. al Milan, Diao al Como) e un meccanismo: «le
+performance del calciatore dipendono molto dalla squadra in cui stanno, quindi soprattutto quando non abbiamo
+dati sul calciatore dalla stagione precedente in serie-a dovremmo orientarci sui bonus creati dalla squadra e
+capire quale fetta ne prende ... valutare la sua conversione di xG in gol e adattarla agli xG della squadra».
+
+**Non è una regola del motore e non passa dal gate**: la popolazione è quella che il core NON prezza — nessun
+voto `default` a t−1 — e la colonna che si muove è `est_fm` (la cascata di `engine/estimate.py`, `est_*`,
+reporting). Ma la disciplina è la stessa: leave-one-window-out sulle dieci finestre, il null è l'ancora di
+ruolo su cui quegli uomini erano prezzati, e il verdetto si legge per finestra. `engine_*` non si muove per
+costruzione (`evaluate.py` e `features.py` non sono toccati).
+
+### La popolazione e il null
+Uomini con ≥15 voti nella stagione bersaglio, **nessun voto `default` a t−1 e in nessuna stagione precedente**
+(il gradino `anchor` puro): A **160** · C **290** · D **263** · P 45, dieci finestre 2016-17 → 2025-26. Null =
+l'ancora di ruolo della finestra (`WindowData.anchors`). Confronto anche con l'ancora che SPEDIVA il foglio —
+`est.club_anchor`, la media di fantamedia dei giocatori di quel ruolo del club a t−1, pesata n/(n+3).
+
+### Quello che si è trovato, e il primo punto non era nella domanda
+
+| ruolo | n | solo lo SHIFT | shift + **Elo del club** | contro l'ancora di club spedita | finestre | peggiore |
+|---|---:|---:|---:|---:|---|---:|
+| A | 160 | +13,7% | **+16,8%** | +16,2% | 8/10 | −9,5% |
+| C | 290 | +6,6% | **+10,4%** | +7,8% | 9/10 | −2,6% |
+| D | 263 | +0,3% | **+10,0%** | +6,1% | 9/10 | −9,2% |
+| P | 45 | — | −11,3% | — | 5/10 | **non adottata** (3-7 portieri a finestra) |
+
+1. **L'ANCORA DI RUOLO È TROPPO ALTA PER UN NUOVO ARRIVATO.** È la media di chi ha giocato una stagione piena
+   qui, e chi arriva da fuori ci sta sotto: attaccanti **−0,26** di fantamedia, centrocampisti −0,06,
+   difensori +0,06 (cioè niente). Da solo lo shift vale +13,7% sugli attaccanti, 8 finestre su 10, e la sua
+   stima è stabile su tutti e dieci i fold (−0,27 … −0,31).
+2. **L'ELO DEL CLUB ALLA DATA D'ASTA LO PREDICE**, a **0,17 di fantamedia per 100 punti** per un attaccante
+   (0,11 C, 0,12 D): la pendenza è quasi la stessa in ogni ruolo e stabile fra i fold (0,15-0,18 sugli
+   attaccanti). Roma contro Frosinone sono ~300 Elo, cioè mezzo fantavoto — la frase dell'operatore con un
+   numero. L'ancora di club che c'era valeva **+0,7%** sugli attaccanti (7/10, peggiore −9,2%): la media di
+   3-5 attaccanti dell'anno prima è rumore col nome del club, e una promossa non ne ha nessuna, mentre un Elo
+   lo ha ogni club.
+3. Le due finestre negative sugli attaccanti sono le due stagioni COVID (bersagli 2019-20 e 2020-21, n=17 e
+   21). Dette, non spiegate via: sugli attaccanti il verdetto è 8/10 con la peggiore a −9,5%, che per la
+   lettera del criterio robusto (−2%) **non passerebbe**; con la quotazione dentro passa (sotto).
+
+**Perché non è la famiglia respinta quattro volte** (R5, R5b, R16, R16b: la forza del club di destinazione):
+quelle erano misurate su uomini CON una stagione qui, la cui `fm_prev` contiene già il club per cui hanno
+giocato — «la sua quota dei gol del club è già dentro la sua fantamedia» (R16). Un nuovo arrivato non ha una
+`fm_prev` dentro cui il club possa stare, quindi per lui il club è l'unico calcio su file. Stessa lezione,
+letta dal lato dell'uomo senza fantamedia.
+
+### Misurato e NON preso
+| candidato | A | note |
+|---|---:|---|
+| gol del club per partita a t−1 (rispetto alla lega) | +6,1%, 7/10 | una lettura più rumorosa dell'Elo; assente per una promossa; in aggiunta all'Elo +0,0 |
+| produzione ALL'ESTERO (g+a)/90, da sola | −0,7%, 4/10 | il muro di R13c/R1: quello che ha fatto in un altro campionato non predice la sua fantamedia qui |
+| (xG+xA)/90 all'estero | +0,0%, 1/9 | **n=9** attaccanti con ≥450' in un campionato coperto sulle tre finestre che hanno xG |
+| **la CONVERSIONE gol/xG all'estero** (la proposta letterale) | **−0,6%, 0/9** | n=9; e −0,5% su D/C/A insieme (n=39): non è misurabile sugli attaccanti e dove si misura ha il segno sbagliato |
+| FM-equivalente estero (R1) | −0,5%, 3/10 | confermato per la quarta volta |
+| età | +5,9%, **5/10** | rumore |
+
+### Il pezzo lasciato all'operatore: la SUA quota, e la sua regola sulla quotazione
+Sopra shift + Elo, due letture di «quale fetta ne prende» aggiungono qualcosa sugli attaccanti e niente sui
+difensori — e una delle due è la quotazione, che la sua regola del 04/08 mette per ultima:
+
+| in aggiunta a shift + Elo | A | C | D |
+|---|---|---|---|
+| percentile di **Qt.I** nel ruolo | **+20,5%, 9/10**, peggiore −4% (COVID) | **+13,1%, 10/10** | +10,5%, 8/10 |
+| `peer_top` (suo valore di mercato / miglior rivale per la maglia, oggettivo) | **+20,0%, 8/10** | +10,5%, 10/10 | +10,3%, 7/10 |
+
+La Qt.I da sola vale +17,9% sui 201 attaccanti senza stagione a t−1 (10/10, peggiore +2,4%) — il predittore singolo più forte, ed è
+il mercato che dice «titolare» prima di noi. `peer_top` è la lettura OGGETTIVA della stessa cosa e vale quasi
+uguale con una finestra in meno. Spedito: shift + Elo (oggettivo, senza la quotazione). La quota resta una
+decisione sua, con questi numeri davanti.
+
+### Dove entra, e dove no
+- `est.newcomer_anchor` (costanti `NEWCOMER_SHIFT`, `NEWCOMER_ELO_SLOPE`), letta da `snapshot.fallback_anchors`
+  — UNA selezione, DUE lettori (`_rung_for` e la Fπ di chi il core non prezza), così l'ancora verso cui una
+  riga regredisce e quella verso cui regredisce la sua Fπ non possono essere due numeri.
+- Gradini `anchor` e `shrunk` su `default`, D/C/A. **NON `older`**: sui 41 attaccanti con una stagione vecchia
+  qui la stessa ancora misura **−5,3%** (4/9) — chi ha giocato qui non è un nuovo arrivato, la sua stagione
+  vecchia dice già il suo livello, e `club_anchor` resta ciò che la regredisce. Sul gradino `shrunk` (1-14
+  voti) misurato a parte: A +7,9% (8/10), D +0,2%, C +1,0% rispetto allo shrink verso l'ancora di club.
+- L'ancora della MV segue per `CLUB_MV_SHARE`, verificato e non assunto: la parte di MV della pendenza Elo
+  misura 0,25 / 0,48 / 0,60 (A / C / D) contro gli 0,33 / 0,44 / 0,59 in uso.
+- **Solo `default`**: l'ancora euro è una media sui top club di cinque leghe e «nuovo arrivato» lì vuol dire
+  un'altra cosa. Portieri: n=45, non misurabile.
+- Centratura sulla media Elo dei CLUB del foglio (un valore per club), così una lega il cui livello deriva non
+  deriva ogni ancora con sé. Nel foglio 26/27: media 1690, Milan 1817 (+0,22), Como 1724 (+0,06), Monza e
+  Frosinone 1539 (−0,26).
+
+### Sui due nomi, detto per intero
+- **Ramos G.**: `anchor` → `est_fm` 6,52 → **6,79** (l'ancora spedita leggeva il livello degli attaccanti del
+  Milan 2025-26, sotto la media di ruolo; l'Elo dice che il Milan è forte, e vince), `est_surplus` 10,8 →
+  13,9, SWING 0,12 → 0,21. **Resta sotto Noslin (0,44) e Vitinha (0,48)**, e la ragione non è l'ancora: è
+  `est_confidence` **0,50**, che dimezza il surplus del gradino `anchor` per DICHIARAZIONE (05/08). Misurato
+  oggi, l'errore fuori campione dell'ancora nuova sugli attaccanti (MAE 0,48) è INFERIORE a quello del core
+  sugli attaccanti che prezza (0,55, n=403, stesse dieci finestre): sul lato della fantamedia lo 0,50 non è
+  più una misura dell'indeterminazione. Il lato delle PRESENZE (`presences_from_abroad` + investimento) non
+  è rimisurato qui. Decisione sua: la costante è sua.
+- **Diao**: è `core` (16 voti nel 2025-26, l'anno degli infortuni, 6,28 → regredito a 6,56), e la sua ottima
+  metà stagione 2024-25 non entra perché il core legge solo t−1. È la famiglia R18/R18b/R18c, misurata e
+  respinta il 10/08 su `default` (§7-septvicies) — non si riapre qui. Il suo swing (0,41) è già sopra Mota
+  (0,25); «Elphage» non è nel listone. **Mota** è `older` e non si muove; la sua nota diceva «il livello
+  degli attaccanti del Monza (6,83)» su un club che non aveva attaccanti misurati qui — era l'ancora di ruolo
+  col nome del club, e ora la riga lo dice.
+
+### Limiti, dichiarati
+- L'Elo più fresco in `club_elo` è del **14/01/2026**: il modulo `elo` gira ogni giorno «from snapshot» e la
+  cache non ha un'istantanea di agosto 2026. Il Como «che quest'anno può ambire alle prime posizioni» legge
+  l'Elo di gennaio. È un'acquisizione da fare, non un parametro.
+- Il foglio in `data/export/` è alla revisione 48: i numeri qui sopra sui nomi sono calcolati a mano dalla
+  riga e dall'Elo; il foglio li porta dopo `snapshot` + `export` + `data:pull`, che questa sessione non ha
+  lanciato perché il DB era di un'altra.
+
+
+### 7-unquinquagies (bis). E LO ZERO DI UN PARAMETRO CENTRATO È PARTE DEL PARAMETRO (7 settembre 2026, sera)
+
+Trovato sul PRIMO foglio scritto dopo l'adozione, e solo perché è stato verificato che la riga di Ramos
+riproducesse il numero calcolato a mano: il foglio leggeva `est_fm` **6,859** e il conto a mano dava
+**6,786**. Quei 7 centesimi erano tutto il difetto.
+
+`estimation_layer` calcolava la media Elo su TUTTE le osservazioni, e `snapshot` costruisce la sua
+popolazione sulle **rose osservate** (`squad_source='real'`, 786 uomini contro le 601 righe del foglio):
+quelle portano ogni club dove il provider vede un uomo in rosa — squadre estere e di Serie B comprese —
+e la media scendeva da **1690 a ~1647**. Siccome l'ancora legge una DIFFERENZA da quella media, ogni
+nuovo arrivato prendeva **+0,07 di fantamedia gratis**, sistematicamente, su ogni riga `anchor` e
+`shrunk`.
+
+Le costanti sono misurate centrando sui club del CAMPIONATO — i venti che un foglio di Serie A disegna —
+quindi questo è **«un parametro appartiene alla popolazione su cui è stato misurato» applicato a uno
+ZERO** e non a un coefficiente: la pendenza era giusta, sbagliato era il punto da cui si misura la
+distanza. È anche la ragione per cui la misura era stata fatta con la media per CLUB e non per uomo (un
+club con trenta quotati pesa quanto uno con dodici), e quella metà era già giusta.
+
+La cura non aggiunge una query: il perimetro arriva dal CHIAMANTE, che lo ha già — `build_rows` lo riceve
+per filtrare le righe — quindi **una definizione e due lettori**, e la cascata non deve interrogare
+`listone_quotes` per sapere dove sta il suo zero. `None` resta «perimetro ignoto» e allora si centra su
+tutto invece di svuotare, che è la stessa scelta che `build_rows` fa con le righe.
+
+Due abitudini, e la prima è la sola ragione per cui il difetto è durato mezz'ora invece di un mese:
+**il primo artefatto scritto dopo un'adozione si confronta col numero calcolato a mano**, non si guarda
+soltanto che «sia cambiato nella direzione giusta» — 6,859 è più alto di 6,52 come previsto, quindi ogni
+controllo di direzione avrebbe detto che funzionava. E **un test su una media centrata deve contenere una
+riga FUORI popolazione**, o passa qualunque zero: quello nuovo mette un club estero fra le osservazioni e
+pretende che non entri.
+
+## 7-duoquinquagies. LE CONFIDENZE DELLA CASCATA, CALIBRATE SUGLI ESITI — e «pochi voti» è evidenza CONTRARIA (7 settembre 2026, sera)
+
+Domanda dell'operatore, dopo che gli erano state messe davanti tre scale di confidenza da scegliere:
+**«possiamo misurare gli esiti su una stagione vecchia e vedere qual è la soluzione che più rispecchia la
+realtà?»** È la domanda giusta e ha una risposta oggettiva, e la sessione vale per quello: una costante
+DICHIARATA può diventare MISURATA senza cambiare il suo ruolo nel codice.
+
+### Il metodo, che non ha parametri
+La confidenza moltiplica il surplus, quindi la sua calibrazione è un RAPPORTO: il surplus che gli uomini di
+un gradino hanno reso davvero, sul surplus che quel gradino aveva predetto GREZZO. Dieci finestre, tutti i
+quotati D/C/A, chi non ha mai giocato **contato come lo zero che ha reso** (condizionare sull'aver giocato
+misura un'altra domanda e legge alto). Due stimatori, e vederli d'accordo è la prova che nessuno dei due
+segue un outlier: il rapporto delle somme (che conserva il totale) e la pendenza senza intercetta.
+
+| gradino | n | in vigore | **rapporto** | pendenza | predetto medio | reso medio |
+|---|---:|---:|---:|---:|---:|---:|
+| `core` | 2669 | 1,00 | **0,94** | 0,93 | 13,3 | 12,5 |
+| `older` | 275 | 0,75-0,85 | **0,93** | 1,00 | 7,2 | 6,7 |
+| `shrunk` | 1018 | 0,76 | **0,77** | 0,67 | 4,8 | 3,7 |
+| `anchor` | 2092 | **0,50** | **0,69** | 0,80 | 6,1 | 4,2 |
+
+`anchor` era il valore più lontano da quello che l'esito dice, ed è **stabile fra finestre**: 0,70 · 0,68 ·
+0,64 · 0,62 · 0,75 · 0,68 · 0,95 · 0,70 · 0,67 · 0,58 (mediana 0,68). Per ruolo: A 0,71 · C 0,69 · D 0,64.
+
+### Il numero adottato viene dalla MISURA e non dall'ottimo del banco
+Quello che decide un ORDINAMENTO è il rapporto RELATIVO al core: 0,69 / 0,94 = **0,73**. Il deliverable —
+surplus catturato nei primi 60/80 per ruolo, leave-one-window-out — preferisce 0,80, ed è **piatto e non
+monotono** fra i due (0,73 **+1,66%** · 0,75 **+1,69%** · 0,80 **+1,86%** contro lo 0,50, e la curva
+scende fra 0,73 e 0,75). Su una superficie piatta questo progetto adotta il valore misurato e non il picco
+del banco: **`anchor` = 0,75**, due decimali essendo falsa precisione su un rapporto le cui finestre vanno
+da 0,58 a 0,95. `older` va a **0,90** per il LIVELLO e non per la classifica: sono 275 righe, il
+deliverable non distingue 0,85 da 0,90 (+1,73% contro +1,69%), la calibrazione dice 0,93, e il numero
+sulla riga lo legge una persona. Tutte le varianti provate battono lo 0,50; **nessuna penale** (tutto a
+1,00) legge +0,98%, cioè peggio di ogni valore intermedio — l'ottimo è interno.
+
+### Due gradini NON si muovono, e il secondo ribalta l'obiezione che aveva aperto la questione
+**`shrunk` resta dov'è.** Alzare l'ancora sopra il pavimento dello shrunk (0,53 a un voto) sembrava
+rovesciare una scala ordinata per evidenza — era l'argomento con cui la scelta era stata presentata
+all'operatore, e la misura lo smentisce. Calibrato per banda di voti: **1-4 voti 0,45** · 5-9 **0,92** ·
+10-14 **0,89**. Un uomo con tre voti qui merita MENO di uno che non ne ha nessuno, perché tre voti non
+sono «poca evidenza», sono **evidenza CONTRARIA** — un giocatore che il suo allenatore non ha schierato —
+mentre «niente» può essere un titolare che arriva dall'estero. Il pavimento è giusto e sbagliata è solo la
+FORMA (una soglia fra 4 e 5 voti, non una pendenza): misurazione separata, lasciata in todolist invece di
+fittata qui.
+
+**`core` resta 1,00 benché calibri 0,94**, e la ragione è strutturale: `est_*` su una riga core deve
+riprodurre `engine_*`, o un uomo porta due surplus sullo stesso foglio. Quello che quello 0,94 dice è un
+fatto **sul motore** — sovrastima il surplus del 6% sugli uomini che prezza — e appartiene al gate, non a
+questa cascata. Scritto, non applicato: è una voce di todolist e un candidato di pre-registrazione.
+
+⚠️ **È una CALIBRAZIONE e non prudenza.** Misura quanto un gradino SOVRASTIMA. L'operatore aveva chiamato
+lo 0,50 un «fattore di prudenza»: l'avversione al rischio è una preferenza separata e si moltiplicherebbe
+sopra questi numeri, quindi 0,75 non va letto come «sono sicuro al 75%».
+
+`SHEET_REVISION` 50. `engine_*` fermo — la cascata non è nel percorso del gate.
+
+## 7-treduoquinquagies. LA FETTA DI BONUS DELLA SQUADRA: il prodotto è respinto, il termine vive solo per chi CAMBIA club (7 settembre 2026, sera)
+
+Proposta dell'operatore, alla lettera: «vedere nelle stagioni passate i fantapunti prodotti da una squadra
+reale e il contributo dei singoli rispetto ai minuti giocati... se il Milan ha prodotto 100 fantapunti in
+38 partite e Pulisic ne ha prodotti 25 in 150 minuti, Pulisic ottiene l'X% per ogni minuto dalla squadra.
+Se X% è più o meno costante negli anni **a prescindere dalla squadra**, possiamo usarlo per prevedere
+quanti bonus otterrà dalla squadra in cui milita.» Con una premessa che è un'obiezione a una misura del
+mattino, ed è giusta: **Qt.I e FVM non misurano la capacità di fare bonus**, valutano il complessivo.
+
+Aveva ragione anche su quello, e lo diceva la nostra stessa tabella senza che nessuno la leggesse così: la
+differenza fra Qt.I sopra e sotto la mediana era quasi tutta «96 su 262 non giocano mai», cioè la
+quotazione predice le PRESENZE.
+
+### La quantità, e i due difetti dello strumento trovati per strada
+Bonus di un uomo in una stagione = `(fm − mv) × pv` per la parte netta, e `3 × gol + 1 × assist` per la
+parte POSITIVA; il suo tasso è quello per 90 minuti; il tasso del CLUB è la stessa cosa sommata sui suoi
+uomini **senza lui dentro** (la sua produzione era nel proprio denominatore); la FETTA è il rapporto.
+La prima passata è stata buttata per due difetti, tutti e due dello strumento e tutti e due regole di casa:
+- **il club veniva da `rosters`** (ultima lettura) invece che da `listone_quotes` per piattaforma — la
+  falla del 03/09 — e il sintomo era **Barcellona, Chelsea e Tottenham** dentro una misura di Serie A;
+- **il denominatore passava per zero**: la produzione NETTA di un club può annullarsi (Empoli 2023-24:
+  0,0006 per 90), quindi la fetta andava **da −320 a +1089** e Pearson leggeva **+0,012** su dodici celle.
+  Uno zero uniforme non si crede: si guarda la forma del dato. La produzione positiva non si annulla.
+
+### Il verdetto, e la sua ipotesi è confermata a metà
+3447 stagioni-uomo, 11 stagioni, 1916 coppie (t, t+1) di cui 434 con cambio di club.
+
+| | fetta (Pearson/Spearman) | tasso assoluto |
+|---|---|---|
+| stesso club, A | +0,443 / +0,464 | +0,548 / +0,538 |
+| **cambio club, A** | **+0,059 / +0,074** | +0,244 / +0,219 |
+
+**La fetta non viaggia con l'uomo**: sugli attaccanti che cambiano squadra è indistinguibile da zero, cioè
+è una proprietà del POSTO che occupava e non sua. La metà «X% è costante a prescindere dalla squadra» è
+falsificata. La metà «il contesto conta» è confermata e forte: la parziale `r(suo tasso a t+1, produzione
+del club di arrivo | suo tasso a t)` legge **+0,533** sugli attaccanti (+0,245 C, +0,173 D).
+
+Fuori campione, leave-one-season-out, bersaglio il suo tasso di bonus a t+1:
+
+| forma | A | C | D |
+|---|---|---|---|
+| **prodotto** «fetta × nuova squadra» (la sua, alla lettera) | **−10,8%** | −10,4% | −14,4% |
+| contesto come termine ADDITIVO, tutta la popolazione | +0,07% | +0,32% | +0,35% |
+| **idem, SOLO chi cambia club** | **+5,84%, 7/10** | — | — |
+| lo stesso con la produzione VERA del club a t+1 (oracolo, non giocabile) | +8,36%, 8/10 | +0,36% | +0,45% |
+
+Il prodotto è respinto perché impone un'elasticità di 1. Il termine additivo vale ZERO su tutta la
+popolazione — per chi resta, il contesto è già dentro il suo tasso passato, che è stato misurato in quel
+contesto: è R16 («la sua quota dei gol del club è già dentro la sua fantamedia») incontrata da un lato
+nuovo — e vale **+5,84% sui soli attaccanti che cambiano club**, con n=84 e 7 finestre su 10, cioè una
+direzione e non un numero.
+
+**E la chiusura che rende la questione già risolta**: `CLUB_MV_SHARE` dice che per un attaccante il livello
+di un club è **un terzo voto e due terzi bonus**, e il tasso di bonus di un club è prevedibile dal suo Elo
+(r **+0,640**, e +27,4% sulla media di lega insieme alla sua produzione passata). Quindi il termine Elo
+adottato in §7-unquinquagies **sta già portando la sua idea**, in forma additiva e sul totale: si chiama
+Elo e non «fetta», ed è misurato su una popolazione dieci volte più grande.
+
+## 7-quaterquinquagies. LA FALLA DI RAMOS: la nota diceva il falso, il numero no (7 settembre 2026, sera)
+
+Segnalazione dell'operatore: «è vero che Ramos non ha mai giocato in Serie A, ma abbiamo i suoi voti
+sintetici dell'ultima stagione, che è già qualcosa e non è niente!». **Vero, e la nota della sua riga
+diceva letteralmente «nothing measured anywhere»**: ha **30 partite di Ligue 1 con voto sintetico** nel
+2025-26 (mv medio 5,779, 1320 minuti, 6 gol) e un FM-equivalente di **6,394**. Sono 276 quotati del listone
+2026-27 in quella condizione.
+
+La domanda che ne segue non è R1 (quella chiedeva se l'equivalente estero predice la fantamedia meglio
+dell'ancora: no, 5 finestre su 6) ma **«un uomo con 30 partite su file è più prevedibile di uno che non ne
+ha nessuna?»**, che nessuno aveva misurato. Diagnostica, attaccanti nuovi arrivati:
+
+| calcio estero su file | n | errore dell'ancora | **fm che hanno reso** |
+|---|---:|---:|---:|
+| niente | 111 | 0,445 | 6,461 |
+| 5-15 partite | 16 | 0,486 | 6,906 |
+| 15+ partite | 23 | 0,556 | **6,944** |
+
+L'errore **sale** con l'evidenza, e non perché siano meno prevedibili: **rendono +0,48 di fantamedia in
+più** e l'ancora non lo legge. Quindi la cura non è la confidenza — «una differenza fra due gruppi non è
+una virtù di chi la porta», al rovescio.
+
+E la cura giusta era **già adottata la mattina**. Sopra shift + Elo, sugli attaccanti:
+
+| termine aggiunto | media | finestre | peggiore |
+|---|---|---|---|
+| — (shift + Elo, adottato) | +16,6% | 8/10 | −5,7% |
+| «ha 15+ partite su file» | +16,4% | 8/10 | −2,5% |
+| quota di calendario estero giocata | +16,4% | **10/10** | **+0,6%** |
+| FM-equivalente estero (R1) | +15,8% | 8/10 | −5,5% |
+
+Su C e D ogni forma peggiora. **L'Elo del club cattura già quello che il calcio estero dice sulla
+fantamedia**: chi ha 15+ partite su file rende di più perché va in club forti. Il suo calcio estero è già
+letto dove paga davvero — le PRESENZE (`est.presences_from_abroad`, +17,9% fuori campione) — e la nota
+della riga è la cosa che va corretta, non il numero. Una nota che dice il falso su un dato che possediamo
+è la stessa famiglia del «il dato c'era e nessuno lo leggeva», vista dal lato della prosa.
+
+⚠️ Una cosa da non citare come adozione: la quota di calendario estero non alza la media e porta le
+finestre da 8/10 a **10/10** eliminando le due COVID. È dispersione, non guadagno, su n=201: registrata e
+non spedita.

@@ -495,6 +495,69 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.83 (7 settembre 2026, sera — lo ZERO dell'ancora si centra sul PERIMETRO)
+
+Difetto trovato sul primo foglio scritto dopo v9.81, confrontando la riga di Ramos col numero calcolato a
+mano (6,859 sul foglio contro 6,786): `estimation_layer` mediava l'Elo su TUTTE le osservazioni, e con
+`squad_source='real'` quelle portano club esteri e di Serie B, quindi lo zero scendeva da **1690 a ~1647**
+e ogni riga `anchor`/`shrunk` prendeva +0,07 di fantamedia. Le costanti di `est.newcomer_anchor` sono
+misurate centrando sui club del campionato: «un parametro appartiene alla popolazione su cui è misurato»,
+applicato a uno ZERO.
+
+- `estimation_layer(..., perimeter=None)`: il perimetro arriva da `build_rows`, che lo ha già per
+  filtrare le righe — una definizione e due lettori, e la cascata non interroga `listone_quotes`.
+- `None` = perimetro ignoto → si centra su tutto invece di svuotare, come fa `build_rows` con le righe.
+- 728 test verdi; il test dell'ancora ora mette un club FUORI perimetro fra le osservazioni, o passerebbe
+  qualunque zero.
+
+## Novità v9.82 (7 settembre 2026, sera — LE CONFIDENZE DELLA CASCATA sono CALIBRATE, non scelte)
+
+**`SHEET_REVISION` 50.** Dalla domanda dell'operatore: «possiamo misurare gli esiti su una stagione vecchia
+e vedere qual è la soluzione che più rispecchia la realtà?». Misura intera: gate §7-duoquinquagies.
+
+- **`est.CONFIDENCE["anchor"]` 0.50 → 0.75** e **`["older"]` 0.85 → 0.90**. Non sono scelte: la confidenza
+  moltiplica il surplus, quindi si calibra come RAPPORTO fra il surplus reso e quello predetto grezzo —
+  dieci finestre, tutti i quotati D/C/A, chi non ha mai giocato contato come lo zero che ha reso.
+  Misurato: `core` 0.94 · `older` 0.93 · `shrunk` 0.77 · `anchor` **0.69** (0.73 relativo al core, che è
+  il numero che decide un ordinamento). Stabile fra finestre (0.58-0.95, mediana 0.68).
+- **`core` resta 1.00 benché calibri 0.94**: `est_*` su una riga core deve riprodurre `engine_*`, o un
+  uomo porta due surplus sullo stesso foglio. Quel 6% è un fatto sul MOTORE e va al gate, non qui.
+- **`shrunk` non si tocca**, e la misura ribalta l'obiezione che aveva aperto la questione: per banda di
+  voti calibra 1-4 **0.45** · 5-9 0.92 · 10-14 0.89, quindi il suo pavimento sotto l'ancora è GIUSTO —
+  pochi voti sono evidenza contraria e non poca evidenza. La sua FORMA (una soglia, non una pendenza)
+  resta da misurare.
+- Muove `est_fm`/`est_mv`/`est_surplus` di ogni riga stimata (3.385 su 6.100 nelle dieci finestre) e con
+  loro lo SWING e ogni graduatoria dell'app che legge il ripiego. `engine_*` fermo, 727 test verdi.
+- ⚠️ **È una calibrazione e non prudenza**: misura quanto un gradino SOVRASTIMA. L'avversione al rischio
+  è una preferenza separata e si moltiplicherebbe sopra questi numeri.
+
+## Novità v9.81 (7 settembre 2026 — L'ANCORA DI CHI NON HA UNA STAGIONE QUI legge l'ELO del club)
+
+**`SHEET_REVISION` 49.** Dalla richiesta dell'operatore di trasformare la sua esperienza in parametri
+(Ramos G. al Milan, «quando non abbiamo dati dalla stagione precedente in serie-a dovremmo orientarci sulla
+squadra»). Misura intera: gate §7-unquinquagies; lettura d'app: `letture-app-v1.md` §35.
+
+- **`est.newcomer_anchor(role_anchor, role, platform, elo_club, elo_mean)`**: l'ancora di fantamedia di un
+  uomo SENZA stagione qui = ancora di ruolo + `NEWCOMER_SHIFT[ruolo]` (A −0,26 · C −0,06 · D +0,06) +
+  `NEWCOMER_ELO_SLOPE[ruolo]` × (Elo del club − media Elo dei club del foglio)/100 (A 0,17 · C 0,11 · D 0,12).
+  `None` fuori dalla popolazione misurata — portieri, e ogni piattaforma tranne `default` — e allora vale
+  `club_anchor` come prima. Senza Elo: il solo shift, misurato da solo (+13,7% sugli attaccanti).
+- **`snapshot.fallback_anchors`**: UNA selezione dell'ancora — club per chi arriva al gradino `older`, nuovo
+  arrivato per `anchor` e `shrunk` — letta da `_rung_for` E dal ramo Fπ di chi il core non prezza, che prima
+  ricalcolava `club_anchor` in linea e da oggi sarebbe divergito. `estimation_layer` porta `elo_mean`, un
+  valore per club e non per riga.
+- La MV segue per `CLUB_MV_SHARE` (verificato: la parte di MV della pendenza Elo misura 0,25 / 0,48 / 0,60
+  contro 0,33 / 0,44 / 0,59 in uso). `engine_*` non si muove per costruzione: `evaluate.py` e `features.py`
+  non sono toccati; 727 test verdi.
+- La nota della riga dice cosa ha mosso l'ancora («the anchor of a newcomer at Milan (6.79: the role's 6.83
+  −0.26 for having no season here, then Elo 1817 against a sheet mean of 1690)»), e dove un club non ha un
+  uomo misurato nel ruolo dice «the role's anchor» invece di prestare al club un numero che non è suo (la
+  riga di Mota leggeva «il livello degli attaccanti del Monza (6,83)» su una promossa).
+- **Limite d'acquisizione**: `club_elo` è ferma al **14/01/2026** — il modulo `elo` gira ogni giorno «from
+  snapshot» e la cache non ha un'istantanea di agosto 2026. L'ancora di oggi legge l'Elo di gennaio.
+- Il foglio in `data/export/` era alla revisione 48 alla chiusura: `snapshot` + `export` + `data:pull` sono
+  dovuti e non lanciati (il DB era di un'altra sessione).
+
 ## Novità v9.80 (7 settembre 2026 — R25K40 ADOTTATA, e la COPPIA fm/mv miscela insieme)
 
 **La griglia allargata di R25 è stata corsa come pre-registrato e la regola è ADOTTATA su `default`**

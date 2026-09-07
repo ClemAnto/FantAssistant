@@ -3842,3 +3842,160 @@ Verificato confrontando due righe della **stessa pagina**, mai con un letterale.
 E l'effetto collaterale, detto invece di lasciato trovare: nella vista **Calciatori** la stessa tabella
 passa da 49 a **39px di riga**, perché i marchi sono in linea anche lì. È la conseguenza della stessa
 modifica e non una seconda decisione; la densità (14px, padding 8) là non cambia.
+
+## 35. L'ANCORA DI UN NUOVO ARRIVATO LEGGE LA FORZA DEL CLUB, e partiva troppo alta (7 settembre 2026)
+
+Dalla richiesta dell'operatore di trasformare la sua esperienza in parametri dello SWING, su due nomi: «Diao
+del Como ... il suo swing dovrebbe essere superiore ad attaccanti mediocri come Mota», «G. Ramos del Milan ...
+è comunque l'attaccante titolare del Milan quindi dovrebbe portare tanti bonus ... superiore a Noslin o
+Vitinha», e sul meccanismo: «quando non abbiamo dati sul calciatore dalla stagione precedente in serie-a
+dovremmo orientarci sui bonus creati dalla squadra e capire quale fetta ne prende ... la sua conversione di xG
+in gol adattata agli xG della squadra». La misura intera è in `gate-motore-v1.md` §7-unquinquagies; qui
+quello che cambia a schermo e quello che resta da decidere.
+
+### 35.1 Prima di misurare: cosa dice il foglio dei sei nomi, e perché
+Lo SWING legge `est_surplus`, quindi la domanda è sulla CASCATA di `estimate.py`, non su `swing.ts`:
+
+| | basis | est_fm | pv | conf | surplus | SWING |
+|---|---|---:|---:|---:|---:|---:|
+| Vitinha O. | core | 6,48 | 28,5 | 1,00 | 25,1 | 0,48 |
+| Noslin | core | 6,68 | 19,7 | 1,00 | 21,2 | 0,44 |
+| **Diao** | **core** (16 voti nel 2025-26, l'anno degli infortuni) | 6,57 | 21,5 | 1,00 | 20,7 | 0,41 |
+| Mota | older (2024-25) | 6,59 | 15,9 | 0,85 | 13,3 | 0,25 |
+| **Ramos G.** | **anchor** (mai in Serie A) | 6,52 | 23,6 | **0,50** | 10,8 | 0,12 |
+
+**Diao è già sopra Mota** (0,41 contro 0,25); «Elphage» non è nel listone. Il suo caso è un altro: il core
+legge la sola stagione t−1 (16 voti a 6,28 nell'anno rotto, regrediti a 6,56) e la sua ottima metà stagione
+2024-25 non entra — è l'intuizione pluriennale, misurata e respinta in tre forme il 10/08 (R18/R18b/R18c su
+`default`), che non si riapre su un nome. **Ramos** è il caso della richiesta: la sua ancora era «il livello
+degli attaccanti del Milan 2025-26» (6,52, SOTTO l'ancora di ruolo 6,83, perché quegli attaccanti hanno reso
+poco) e la confidenza 0,50 gli dimezza il surplus.
+
+### 35.2 La misura, in una riga per punto
+Popolazione: chi il core non prezza — nessun voto Serie A a t−1 né prima — e poi ha giocato ≥15 giornate: 160
+attaccanti, 290 centrocampisti, 263 difensori su dieci finestre, leave-one-window-out contro l'ancora di ruolo.
+- **L'ancora di ruolo è troppo alta per chi arriva**: attaccanti −0,26, centrocampisti −0,06, difensori 0.
+  Solo lo shift vale +13,7% sugli attaccanti. Non era nella domanda ed è la cosa più grossa.
+- **L'Elo del club alla data d'asta lo predice**: 0,17 di fantamedia per 100 Elo per un attaccante (0,11 C,
+  0,12 D), pendenza stabile fra ruoli e fra fold. Shift + Elo: **A +16,8% (8/10) · C +10,4% (9/10) · D
+  +10,0% (9/10)**; l'ancora di club che spedivamo valeva +0,7% sugli attaccanti. La premessa dell'operatore
+  è confermata e ha un numero — e non è la famiglia forza-club respinta quattro volte, perché quella era
+  misurata su chi ha una `fm_prev` in cui il club sta già dentro.
+- **La conversione xG → gol all'estero non si può misurare** (9 attaccanti con xG e ≥450' in un campionato
+  coperto sulle tre finestre che hanno xG) e dove si misura ha il segno sbagliato (−0,6%, 0/9). La
+  produzione per 90 all'estero da sola non batte l'ancora (−0,7%): è il muro di R13c/R1 per la quarta volta.
+- **La «fetta»**: sopra shift + Elo, il percentile di Qt.I nel ruolo aggiunge +3,4 punti sugli attaccanti
+  (20,5%, 9/10) e +2,5 sui centrocampisti (13,1%, 10/10); `peer_top` — il suo valore di mercato contro il
+  miglior rivale per la maglia, oggettivo — +2,9 (20,0%, 8/10). Niente sui difensori per entrambi.
+
+### 35.3 Cosa è spedito, cosa no, e le due decisioni che restano sue
+**Spedito** (`est.newcomer_anchor`, `SHEET_REVISION` 49): shift + Elo su `default`, D/C/A, gradini `anchor` e
+`shrunk`; `older` resta sull'ancora di club perché lì l'Elo misura peggio (−5,3% sugli attaccanti); portieri ed
+euro non misurati, restano com'erano. Una sola selezione dell'ancora (`snapshot.fallback_anchors`) letta dalla
+cascata E dalla Fπ, così le due non possono divergere. Effetto sui nomi: Ramos `est_fm` 6,52 → **6,79**,
+surplus 10,8 → 13,9, SWING 0,12 → **0,21**; Diao, Noslin, Vitinha (core) e Mota (older) fermi.
+
+> ⚠️ **QUESTI TRE NUMERI SONO STATI SUPERATI LA SERA STESSA** e restano perché sono l'effetto di QUESTA
+> adozione, isolata. Con le confidenze calibrate (§36) e lo zero corretto sul perimetro (§36.5) il foglio
+> vivo legge `est_fm` **6,787**, `est_surplus` **20,9** e SWING **0,40**, revisione 50.
+
+**Ramos resta sotto Noslin e Vitinha, e la ragione ora è una costante dichiarata**: `est_confidence` 0,50
+sul gradino `anchor` («l'indeterminazione è comunque una nota negativa», 05/08). Misurato oggi, l'errore fuori
+campione dell'ancora nuova sugli attaccanti è **0,48 di MAE contro 0,55 del core** sugli attaccanti che
+prezza (n=403, stesse finestre): sul lato della fantamedia il numero di un nuovo arrivato non è più incerto di
+quello di un titolare misurato. Il lato delle presenze non è rimisurato qui. Alzare lo 0,50 è una decisione
+sua — con questa misura davanti, non più al buio.
+
+> **E l'ha presa: «0,5 è esagerato come fattore di prudenza, meglio uno 0,9».** La sera stessa la costante
+> è stata CALIBRATA invece che scelta (§36) e vale **0,75**; il lato presenze, che qui era dichiarato non
+> misurato, è stato misurato allora — la cascata sbaglia 12,3 giornate su 38 contro le 7,3 del core.
+
+**E la quota è la sua regola**: «utilizziamo la quotazione quando non abbiamo altre risorse oggettive». La
+risorsa oggettiva c'è (`peer_top`, +2,9 sugli attaccanti, 8/10) e la quotazione vale poco di più (+3,4, 9/10):
+spedito senza nessuna delle due, coi numeri qui.
+
+### 35.4 Due cose trovate per strada
+- La nota di Mota diceva «il livello degli attaccanti del Monza (6,83)»: il Monza non aveva attaccanti
+  misurati in Serie A, e 6,83 era l'ancora di ruolo col nome del club. Ora la riga dice «l'ancora di ruolo;
+  il Monza non ha un attaccante misurato qui che la muova».
+- L'Elo più fresco in `club_elo` è del **14/01/2026** (il modulo gira ogni giorno «from snapshot», la cache non
+  ha agosto 2026): il Como che «può ambire alle prime posizioni» legge l'Elo di gennaio. Acquisizione, non
+  parametro.
+
+## 36. LA PRUDENZA SI MISURA: le confidenze della cascata, calibrate sugli esiti (7 settembre 2026, sera)
+
+Tre correzioni dell'operatore in un messaggio, e tutte e tre hanno mosso qualcosa. La misura intera sta in
+`gate-motore-v1.md` §7-duoquinquagies / §7-treduoquinquagies / §7-quaterquinquagies; qui cosa cambia a
+schermo.
+
+### 36.1 «0,5 è esagerato come fattore di prudenza, meglio uno 0,9»
+Non gliel'ho concesso e non gliel'ho rifiutato: gli avevo messo davanti tre scale da scegliere, e lui ha
+risposto con la domanda giusta — **«possiamo misurare gli esiti su una stagione vecchia e vedere qual è la
+soluzione che più rispecchia la realtà?»**. Si può, e senza parametri: la confidenza moltiplica il surplus,
+quindi la sua calibrazione è il rapporto fra quello che quegli uomini hanno reso e quello che il gradino
+aveva predetto grezzo. Dieci finestre, chi non ha mai giocato contato come lo zero che ha reso.
+
+| gradino | in vigore | **misurato** | spedito |
+|---|---|---|---|
+| `core` | 1,00 | 0,94 | **1,00** (deve riprodurre `engine_*`) |
+| `older` | 0,85 | 0,93 | **0,90** |
+| `shrunk` | 0,53-0,97 | 0,77 medio | **invariato** |
+| `anchor` | **0,50** | **0,69** (0,73 relativo al core) | **0,75** |
+
+Effetto sui nomi della sua domanda: **Ramos 0,21 → 0,40** di SWING (surplus 14,0 → 21,0), Mota 0,25 →
+0,27, e i tre `core` fermi. Ramos resta sotto Noslin (0,44) e Vitinha (0,48) e ora la distanza è piccola e
+misurata invece che decisa.
+
+**Il suo 0,90 non è stato adottato** e la ragione è un numero: la realtà dice 0,69, e il deliverable —
+surplus catturato nelle prime 60/80 righe per ruolo — è piatto fra 0,73 e 0,80 (+1,66% · +1,69% · +1,86%
+contro lo 0,50), quindi si prende il valore misurato e non il picco del banco. Ogni valore provato batte lo
+0,50, **compreso «nessuna penale»** (+0,98%), che però è peggio di ogni valore intermedio: l'ottimo è
+interno e lo 0,50 era il punto peggiore della griglia.
+
+### 36.2 «Pochi voti» non è poca informazione: è informazione CONTRARIA
+L'obiezione con cui gli avevo presentato la scelta era che alzando l'ancora la scala si rovescia — un uomo
+con tre voti misurati qui (0,60) verrebbe punito più di uno che nessuno ha visto giocare (0,75). **La
+misura dice che è giusto così**: calibrato per banda di voti, lo `shrunk` legge 1-4 voti **0,45** · 5-9
+0,92 · 10-14 0,89. Tre voti sono un uomo che il suo allenatore non ha schierato; «niente» può essere un
+titolare che arriva dall'estero. Quindi non c'è nessuna scala da comprimere e lo `shrunk` non si tocca —
+la sua FORMA è una soglia fra 4 e 5 voti invece di una pendenza, ed è una misura separata (todolist).
+
+### 36.3 La falla su Ramos era nella NOTA e non nel numero
+«Abbiamo i suoi voti sintetici dell'ultima stagione, che è già qualcosa e non è niente!» — vero: **30
+partite di Ligue 1 col voto sintetico**, 1320 minuti, FM-equivalente 6,394, e la nota della riga diceva
+«nothing measured anywhere». 276 quotati del listone sono in quella condizione.
+
+Ma il numero non si muove, e la diagnostica spiega perché: l'errore dell'ancora **sale** con le partite su
+file (attaccanti 0,445 → 0,556) non perché quegli uomini siano meno prevedibili ma perché **rendono +0,48
+di fantamedia in più** — e l'Elo del club, adottato la mattina, quel +0,48 lo legge già (chi ha 15+ partite
+su file va in club forti). Provato sopra shift + Elo: il binario −0,2 punti, la quota di calendario estero
+−0,2, l'FM-equivalente −0,8, e su C e D tutte peggiorano. Il suo calcio estero è già letto dove paga
+davvero, cioè nelle **presenze** (`presences_from_abroad`, +17,9% fuori campione). Va corretta la nota.
+
+### 36.4 E Qt.I non misura i bonus: obiezione accolta, con la sua stessa tabella come prova
+«La fetta di bonus non è calcolabile con Qt o FVM perché valutano nel complessivo.» Giusto, e lo diceva la
+tabella che gli avevo mostrato un'ora prima senza che la leggessi così: fra gli attaccanti col Qt.I sopra e
+sotto la mediana la differenza era quasi tutta **«96 su 262 non giocano mai»** — la quotazione predice le
+PRESENZE, non la capacità di fare bonus. La sua alternativa (la fetta di produzione della squadra per
+minuto) è stata costruita e misurata: il prodotto «fetta × nuova squadra» è respinto (−10,8% sugli
+attaccanti), la fetta **non viaggia con l'uomo** (r +0,059 al cambio di club) ed è una proprietà del posto;
+quello che sopravvive è il contesto come termine additivo sui soli attaccanti che cambiano club (+5,84%,
+7/10, n=84), che è la stessa cosa che l'Elo già porta. Numeri in `gate-motore-v1.md`
+§7-treduoquinquagies.
+
+### 36.5 E lo ZERO di un parametro centrato è parte del parametro
+Trovato sul PRIMO foglio scritto dopo l'adozione della mattina, e solo perché è stato verificato che la
+riga di Ramos riproducesse il numero calcolato a mano: il foglio leggeva `est_fm` **6,859** contro i
+**6,785** attesi. `estimation_layer` mediava l'Elo su TUTTE le osservazioni, e `snapshot` costruisce la
+popolazione sulle **rose osservate** (786 uomini contro le 601 righe del foglio), che portano club esteri
+e di Serie B: la media scendeva da **1690 a ~1647** e ogni nuovo arrivato prendeva **+0,07 di fantamedia
+gratis**. Le costanti sono misurate centrando sui venti club del campionato, quindi era «un parametro
+appartiene alla popolazione su cui è misurato» applicato a uno ZERO — la pendenza era giusta, sbagliato
+era il punto da cui si misura la distanza. Il perimetro ora arriva da `build_rows`, che lo ha già: una
+definizione e due lettori, nessuna query nuova. Dopo la cura il foglio legge **6,787** contro 6,785.
+
+Due abitudini, e la prima è la sola ragione per cui è durato mezz'ora invece di un mese: **il primo
+artefatto scritto dopo un'adozione si confronta col numero calcolato a mano**, non con «è cambiato nella
+direzione giusta» — 6,859 era più alto di 6,52 come previsto, quindi ogni controllo di direzione avrebbe
+detto che funzionava. E **un test su una media centrata deve contenere una riga FUORI popolazione**, o
+passa qualunque zero.
