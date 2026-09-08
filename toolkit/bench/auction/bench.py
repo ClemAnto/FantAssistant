@@ -317,6 +317,33 @@ STEADY_WEIGHT = 0.0
 CLUB_FREE = 2
 CLUB_PENALTY = 0.45
 
+#: WHETHER THE ARM DIVERSIFIES AT A DRAWN AUCTION TOO. The `club_weight` multiplier was adopted
+#: 02/09/2026 on the ENGINE-NATIVE path - the one the arm walks at a CALLED auction. Measured
+#: 08/09/2026, the arm calls it 140 times at a called auction and ZERO at a drawn one, because there
+#: the tilt sends it down the market-ladder branch (`step`), which is the operator's own mechanism.
+#: So the diversification he asked for on the plancia was absent from the very auction he plays.
+#:
+#: MEASURED, paired, 10 windows x 20 urns, the flag ON against OFF: -0,68% of points (-18,2 fp, t
+#: -3,1), 2 windows of 10 improve, worst -1,44% - it FAILS the pre-registered criterion, so it is a
+#: COST and not a gain. What it buys is real and the bench cannot fully see it: the club's own men
+#: fall 4,00 -> 3,18 (the concentration the operator objected to), the season sd 86,9 -> 82,6, and
+#: holes barely move (11,9 -> 12,5). The benefit is WITHIN a season - a club's players correlate, so a
+#: tracollo takes them together - while this bench's sd is BETWEEN seasons, exactly the tension the
+#: 02/09 adoption carried on the called path (4,1 points for 4,4% off dispersion). The 40 credits it
+#: leaves in pocket are structural, not a bug to redeploy: diversifying at a drawn auction passes men
+#: it would take, and the better men to upgrade to were drawn early and are gone - the same reason
+#: §22's patience collects prices a real table never shows.
+#:
+#: So it is a PREFERENCE, not a gate-adoptable rule, and it is ON by the operator's decision of
+#: 08/09/2026 - «accendila, coerenza» - for the reason the flag exists: the plancia he plays with now
+#: discounts a repeated club, so with this OFF the bench arm bid on a scale the app's own advice
+#: contradicts. The 0,68% is paid knowingly for the within-season safety the bench cannot score, the
+#: same trade the called path already carries. It uses the bench's own measured scale (`CLUB_FREE` 2,
+#: `CLUB_PENALTY` 0.45), not the plancia's gentler role-aware one, because the two artefacts measure
+#: two different things - the bench a cost, the app a declared rule - and mixing the app's numbers
+#: into a bench figure would be citing one as evidence for the other.
+CLUB_ON_DRAWN = True
+
 
 def engine_worth(man: dict, team: Team) -> float:
     """WHAT A MAN IS WORTH TO THIS SQUAD, in fantapunti - the quantity the engine arm bids on.
@@ -1166,9 +1193,17 @@ class Team:
                 self.ladder = engine_ladder()
             kept, self.recipe = self.recipe, self.ladder
             try:
-                return self.bid(man, urn)
+                raw = self.bid(man, urn)
             finally:
                 self.recipe = kept
+            # ...AND THE DIVERSIFICATION, if switched on: the ladder branch above does not read
+            # `club_weight` (it is engine-native, and this branch is the market's), so the risk term
+            # the operator asked for is applied to the final bid here or it never touches the auction
+            # he plays. Only reduces a bid - a club's third man costs less - so it can free credits for
+            # a slot elsewhere, never invent one. See `CLUB_ON_DRAWN`.
+            if CLUB_ON_DRAWN and raw > 0:
+                return max(1, round(raw * club_weight(man, self)))
+            return raw
         if self.recipe is None:
             # THE ENGINE ARM, and the two things the first version was missing are both here.
             # COVERAGE: the bid is scaled by how much this squad still needs the role, on the graduated

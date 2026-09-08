@@ -2715,3 +2715,62 @@ infilare.
 - **UN OTTIMO INTERNO NON BASTA SE L'AMBIENTE È SBAGLIATO.** La curva rotta aveva ottimo interno, `t`
   enormi e coerenza fra stagioni, e misurava la disciplina di budget degli avversari. *Le guardie
   procedurali proteggono dal fitting, non da un banco che sta rispondendo a un'altra domanda.*
+
+## 31. Il braccio all'urna NON diversificava per club, e la plancia sì (8 settembre 2026)
+
+Dalla richiesta dell'operatore, dopo aver aggiunto lo sconto stesso-club alla plancia: «cerchiamo di
+migliorare le debolezze e di puntellare i punti di forza» del braccio motore, letto su un'asta a
+personalità diverse (i sette archetipi di `TILT` più il motore — vedi §31.1).
+
+**LA DEBOLEZZA HA UNA CAUSA PRECISA, ed era invisibile fino a contare le chiamate.** Il braccio è il più
+concentrato del tavolo (4,00 uomini del suo club più affollato contro 3,81 dei rivali), e la ragione è
+che **all'urna non chiama `club_weight` NEMMENO UNA VOLTA** — 140 chiamate a chiamata, ZERO a
+estrazione — perché l'adozione della scala di mercato (§17) lo manda sul ramo `step`, che è
+engine-native solo a chiamata. Quindi la diversificazione che l'operatore ha appena chiesto sulla
+plancia (`sameClubDiscount`, `assistente-asta-v1.md` §34.3-novies) era assente proprio dal meccanismo
+che lui gioca. Contato, non dedotto: è la regola «verifica la FUNZIONE, non la colonna che le somiglia»
+applicata a un ramo di codice.
+
+**MISURATA, appaiata, 10 finestre × 20 urne, il flag `CLUB_ON_DRAWN` ON contro OFF: −0,68% di punti**
+(−18,2 fp, t −3,1), **2 finestre di 10 migliorano, peggiore −1,44%**. FALLISCE il criterio
+pre-registrato — è un COSTO e non un guadagno. Quello che compra è reale e il banco non lo può vedere:
+gli uomini del suo club scendono **4,00 → 3,18**, la sd di stagione **86,9 → 82,6**, i buchi quasi non
+si muovono (11,9 → 12,5). Il beneficio è DENTRO una stagione — i giocatori di un club correlano, quindi
+un tracollo li porta via insieme — mentre la sd del banco è FRA stagioni: è la stessa tensione che
+l'adozione del 02/09 portava sul ramo a chiamata (4,1 punti per il 4,4% di dispersione).
+
+**I 40 CREDITI CHE LASCIA IN TASCA SONO STRUTTURALI, non un bug da ridistribuire.** `scale()` rialza già
+le offerte man mano che restano crediti, ma a un'asta a estrazione diversificare vuol dire passare uomini
+che prenderesti, e i migliori su cui fare l'upgrade sono usciti presto e non ci sono più — è lo stesso
+motivo per cui la pazienza del §22 raccoglie prezzi che a un tavolo vero non esistono. Il costo dello
+0,68% è la natura del trade, non un difetto.
+
+**ADOTTATO ON per DECISIONE DELL'OPERATORE, non per il banco** («accendila, coerenza»): è una preferenza
+che il banco non può arbitrare, e la ragione è la coerenza — la plancia che lui gioca sconta un club
+ripetuto, quindi con questo OFF il braccio del banco offriva su una scala che il consiglio dell'app
+contraddice, cioè una divergenza fra ciò che è misurato e ciò che viene spedito. Usa la scala MISURATA
+del banco (`CLUB_FREE` 2, `CLUB_PENALTY` 0,45) e non quella per-ruolo più gentile della plancia (25%/15%),
+perché i due artefatti misurano due cose diverse — il banco un costo, l'app una regola dichiarata — e
+mescolare i numeri dell'app in una cifra del banco sarebbe citare l'uno come prova dell'altro. Un test lo
+pinna (`test_the_arm_diversifies_by_club_at_a_drawn_auction_too`): un flag adottato senza un test è
+un'intenzione.
+
+**E SUL RESTO LA RISPOSTA ONESTA È «SONO GIÀ ALL'OTTIMO».** Le altre debolezze non sono leve: il vantaggio
+strutturale (non è un'opinione migliore sui calciatori, è offrire su una scala che vince un lotto, §17.5)
+è la natura dell'urna; la coda a un credito è il meccanismo di profondità, adottato a +1,88% (§24);
+INSIGHT, l'unico canale che paga per la nostra opinione, è a +1,02% (§21). Puntellarli oltre vorrebbe dire
+misurare un canale nuovo, e questo file è pieno di canali nuovi misurati e respinti. La cosa che si è
+migliorata è la sola che avesse una causa nel codice e non nell'ambiente.
+
+### 31.1 Il tavolo a personalità diverse
+
+Fino a qui il banco sedeva il tavolo DICHIARATO (`bench.DECLARED_TABLE`, 2-2-1-3-2), che è il verbale di
+cosa l'operatore dice di trovare normalmente. Su sua richiesta («i partecipanti devono avere personalità
+e strategie diverse, noi usare quella del motore») la lettura di §31 usa un tavolo che siede tutte e
+SETTE le personalità di `TILT` più il motore — otto strategie distinte contro le sei del tavolo
+dichiarato. Non è un banco nuovo: `seated` toglie una sedia al profilo più frequente per il motore, e le
+due sedie che avanzano ripetono i profili più frequenti (P3 a 3, P1a a 2), non a caso. L'OTTAVA
+personalità, il tifoso (`profiles.SUPPORTER_PROFILE`), resta seduta fuori: le serve una tabella di
+rivalità dichiarata («Napoli ↔ Juve») che è una decisione e non una misura. Il tavolo vive in
+`scratchpad/diverse_table.py` e non tocca `DECLARED_TABLE`, perché ogni numero pubblicato dal banco si
+riferisce a quello.

@@ -17,9 +17,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from bench.auction import rules
 from bench.auction import bench as bench_module
-from bench.auction.bench import (DEPTH_WEIGHT, HOLE_COST, PHASES, QUOTA_DEPTH, Team, Urn,
-                                 auction, called_order, cover_value, coverage_need, covered_places,
-                                 engine_rate, engine_worth, extraction_order, role_of, role_shares,
+from bench.auction.bench import (CLUB_FREE, CLUB_PENALTY, DEPTH_WEIGHT, HOLE_COST, PHASES,
+                                 QUOTA_DEPTH, Team, Urn,
+                                 auction, called_order, club_weight, cover_value, coverage_need,
+                                 covered_places, engine_rate, engine_worth, extraction_order,
+                                 role_of, role_shares,
                                  season, set_insight, set_tiers, tier_asks, to_credits)
 from bench.auction import advice
 from bench.auction.league import LEAGUE_TABLE, LEGS, fixtures, round_robin, standings
@@ -837,6 +839,49 @@ def test_the_arm_bids_on_the_MARKET_LADDER_at_a_drawn_auction_and_not_at_a_calle
     assert on_ladder == pytest.approx(expected, rel=.05)
     assert on_ladder > man["price"], "un difensore di prima fascia sotto la richiesta"
     assert arm.recipe is None, "la ricetta presa in prestito e' rimasta addosso al braccio"
+
+
+def test_the_arm_diversifies_by_club_at_a_drawn_auction_too():
+    """The plancia discounts a repeated club, so the bench arm must too on the mechanism he plays.
+
+    Measured 08/09/2026, the arm called `club_weight` 140 times at a called auction and ZERO at a
+    drawn one: the tilt sends it down the market-ladder branch, which did not read the diversification.
+    Turned on by the operator (`CLUB_ON_DRAWN`) for consistency with the plancia, at a stated bench
+    cost of -0,68% - a preference the bench cannot score, because the risk it removes is within a
+    season and the bench's sd is between seasons. This pins that the discount is now applied, and only
+    on the third man of a club (the first `CLUB_FREE` are free), and only at the DRAWN auction.
+    """
+    assert bench_module.CLUB_ON_DRAWN, "il flag e' spento: questo test descrive lo stato acceso"
+    pool = _pool()
+    set_tiers(pool)
+    band = [m for m in pool if role_of(m) == "D"][:rules.TEAMS]
+    for i, man in enumerate(band):
+        man["club"] = "Napoli" if i < CLUB_FREE + 1 else "Torino"
+    arm = Team("engine", "ENGINE", None)
+    arm.shares, arm.matchdays, arm.asks = role_shares(pool), 38, tier_asks(pool)
+    # the arm already holds CLUB_FREE men of Napoli, so a third one is discounted and a Torino man is not
+    for man in band[:CLUB_FREE]:
+        arm.men["D"].append({**man, "paid": 1})
+    third_napoli = band[CLUB_FREE]
+    fresh_torino = band[CLUB_FREE + 1]
+    assert third_napoli["club"] == "Napoli" and fresh_torino["club"] == "Torino"
+    assert third_napoli["tier"] == fresh_torino["tier"], "il test confronta due uomini della stessa fascia"
+
+    drawn = _urn([third_napoli, fresh_torino], random=True)
+    drawn.take(third_napoli)
+    concentrated = arm.bid(third_napoli, drawn)
+    drawn.take(fresh_torino)
+    diversified = arm.bid(fresh_torino, drawn)
+    assert concentrated < diversified, "l'offerta sul terzo dello stesso club non e' scesa"
+    expected = club_weight(third_napoli, arm)
+    assert expected == pytest.approx(CLUB_PENALTY, rel=1e-9), "la penalita' del terzo e' CLUB_PENALTY"
+
+    # ...and it is the DRAWN mechanism only: at a called auction the arm was always reading it, and
+    # switching CLUB_ON_DRAWN must not have changed that path.
+    called = _urn([third_napoli, fresh_torino], random=False)
+    called.take(third_napoli)
+    called_bid = arm.bid(third_napoli, called)
+    assert called_bid > 0
 
 
 def test_the_engine_ladder_conserves_the_budget_and_leans_on_the_back():
