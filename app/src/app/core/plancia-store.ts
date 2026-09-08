@@ -32,13 +32,16 @@ import {
   CalendarFile,
   EASY_ALREADY_SHARE,
   GridCell,
+  KeeperPlan,
   LeagueCalendar,
   PairSuggestion,
+  PlanKeeper,
   aloneCover,
   calendarBookFrom,
   cleanSheetBaseline,
   cleanSheetOutlook,
   coverGrid,
+  planKeepers,
   rankPairs,
 } from './keeper-pairs';
 import {
@@ -837,6 +840,53 @@ export class PlanciaStore {
     const { from, to } = this.pairingWindow();
     const clubs = calendar.clubNames();
     return { clubs, cells: coverGrid(calendar, clubs, from, to) };
+  });
+
+  /**
+   * IL PIANO PORTIERI ADATTIVO: cosa conviene comprare ADESSO, valutando le due strategie.
+   *
+   * Sua richiesta dell'08/09/2026: la plancia deve capire da se' quale strategia portieri e' la
+   * migliore in quel momento - la COPPIA complementare (due club che insieme fanno >= 32 giornate
+   * facili) o i TRE di un supertop (un club che da solo >= 32, come l'Inter a 35). Tutta la logica e'
+   * pura in `keeper-pairs.ts`; qui si raccoglie soltanto lo stato del tavolo.
+   *
+   * La finestra e' quella della lega dichiarata, ritagliata sulle giornate che il campionato ha
+   * davvero - la stessa di `pairingWindow`, ma senza dipendere da un portiere cliccato, perche' il
+   * piano vale sempre e non solo quando la modale e' aperta. Il campionato e' letto da un club
+   * qualunque del tavolo: la plancia prezza `default|classic`, quindi sono tutti di Serie A.
+   */
+  readonly keeperPlan = computed<KeeperPlan<BoardMan> | null>(() => {
+    const book = this.calendar();
+    if (!book) return null;
+    const first = this.boardKeeperIds();
+    const owned: PlanKeeper<BoardMan>[] = [];
+    const available: PlanKeeper<BoardMan>[] = [];
+    let sampleClub = '';
+    for (const block of this.blocks()) {
+      if (block.role !== 'P') continue;
+      for (const row of block.rows) {
+        if (!sampleClub) sampleClub = row.club;
+        // «vuoto = ignoto»: dove il campetto non dice chi e' il primo, non lo si esclude - un vice
+        // sconosciuto e' trattato come un'ancora possibile invece di scartato per invenzione.
+        const owner = first.get(row.club);
+        const entry: PlanKeeper<BoardMan> = {
+          man: row,
+          id: row.id,
+          club: row.club,
+          offer: this.offerOf(row.id),
+          first: owner == null || owner === row.id,
+        };
+        if (row.state === 'mio') owned.push(entry);
+        else if (row.state === 'urna' || row.state === 'asta') available.push(entry);
+      }
+    }
+    const calendar = sampleClub ? book.forClub(sampleClub) : null;
+    if (!calendar) return null;
+    const league = this.options.league();
+    const rounds = calendar.rounds;
+    const from = Math.max(1, Math.round(league.from));
+    const to = rounds > 0 ? Math.min(rounds, Math.round(league.to)) : Math.round(league.to);
+    return planKeepers(calendar, owned, available, from, Math.max(from, to));
   });
 
   /** Apre gli accoppiamenti su un portiere. NON mette niente in asta: sono due gesti diversi. */

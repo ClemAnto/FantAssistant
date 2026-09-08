@@ -1,0 +1,47 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     Una riga sola: l'obiettivo a sinistra, le pastiglie a destra. Sparisce del tutto senza un piano
+     (nessun calendario nel bundle), perche' la pagina non scorre e una riga vuota e' spazio rubato. -->
+@if (plan(); as plan) {
+  <div
+    class="flex shrink-0 items-center gap-2 overflow-x-auto rounded border border-border bg-control px-2 py-1 text-[11px]"
+  >
+    <nz-icon nzType="safety-certificate" nzTheme="outline" class="shrink-0 text-primary" />
+    <span class="shrink-0 font-semibold text-fg">{{ headline() }}</span>
+
+    @if (plan.phase === 'choose') {
+      <span
+        class="shrink-0 text-muted"
+        nz-tooltip
+        nzTooltipTitle="Due modi di coprire la porta ogni giornata: due club complementari che insieme fanno ≥32 giornate facili, oppure tre portieri di un solo club così forte che da solo le fa quasi tutte (e la porta è garantita, giochi sempre il suo)."
+      >
+        due club complementari, o tre di un supertop
+      </span>
+    }
+
+    <div class="flex min-w-0 items-center gap-1.5">
+      @for (chip of chips(); track chip.label) {
+        <button
+          type="button"
+          class="flex shrink-0 items-center gap-1 rounded border border-border bg-surface px-1.5 py-0.5 hover:bg-page"
+          [class.cursor-default]="chip.id <= 0"
+          nz-tooltip
+          [nzTooltipTitle]="chip.note"
+          (click)="open(chip.id)"
+        >
+          <span class="font-medium text-fg">{{ chip.label }}</span>
+          @if (chip.club && chip.club !== chip.label) {
+            <span class="text-muted">{{ chip.club }}</span>
+          }
+          @if (chip.offer > 0) {
+            <span class="tabular-nums text-primary">{{ chip.offer }}</span>
+          }
+        </button>
+      } @empty {
+        @if (plan.phase !== 'done') {
+          <span class="text-muted">nessun portiere comprabile per questa mossa</span>
+        }
+      }
+    </div>
+  </div>
+}

@@ -292,6 +292,254 @@ export function aloneCover(calendar: LeagueCalendar, club: string, from: number,
  */
 export const EASY_ALREADY_SHARE = 25 / 38;
 
+/**
+ * L'OBIETTIVO DI UN BUON ACCOPPIAMENTO, come QUOTA della finestra: «prenderne due con un ottimo
+ * accoppiamento, almeno 32 partite su 38» (operatore, 08/09/2026).
+ *
+ * 32 è il suo numero su una stagione intera, e va tenuto come quota per la stessa ragione di
+ * `EASY_ALREADY_SHARE`: su una competizione di tre giornate nessuno ha 32 di niente (la lezione R20,
+ * «una soglia di scoring è una QUOTA del calendario che si sta prevedendo»). Misurato sul calendario
+ * 2026-27: 64 coppie di 190 arrivano a 32 `facili`, la migliore fa 38/38 — quindi la soglia è
+ * raggiungibile e seleziona, cosa che sui «coperti» (porta inviolata attesa, max 24,8) non sarebbe.
+ */
+export const KEEPER_PAIR_TARGET_SHARE = 32 / 38;
+
+/** Quale strategia porta un portiere: la COPPIA complementare o i TRE di un solo supertop. */
+export type KeeperPathKind = 'choose' | 'single' | 'pair' | 'third' | 'done';
+
+/** Che tipo di terzo portiere: il VICE di un mio titolare (chiude un club) o un club NUOVO a poco. */
+export type KeeperThirdKind = 'deputy' | 'club';
+
+/** Un portiere come il piano lo maneggia: l'uomo, il club, la mia max offerta, se è il primo del club. */
+export interface PlanKeeper<T> {
+  man: T;
+  id: number;
+  club: string;
+  offer: number;
+  /** True se è il portiere che il campetto schiera per quel club — un vice non è un'ancora. */
+  first: boolean;
+}
+
+/**
+ * LA STRATEGIA DEI TRE DI UN SOLO SUPERTOP (operatore, 08/09/2026: «tre portieri di una sola squadra
+ * ma a livello supertop, come Inter»).
+ *
+ * Un club è «supertop» quando DA SOLO raggiunge già la soglia della coppia (`alone >= target`): non
+ * è una soglia nuova, è la stessa. Misurato: Inter 35/38 da sola, Roma 34, Juventus 31 — quindi tre
+ * dell'Inter danno la porta GARANTITA tutte le 38 giornate (giocano sempre, nessun rischio rotazione)
+ * con 35 facili, contro le 38 della migliore coppia: tre in meno, ma senza il rischio che entrambi i
+ * miei di una coppia saltino la stessa giornata. È anche il complemento esatto di `EASY_ALREADY_SHARE`:
+ * un club auto-coperto è un cattivo PARTNER (ridondante) e una buona ANCORA singola.
+ */
+export interface KeeperSingle<T> {
+  club: string;
+  /** Le giornate facili del club da solo — il numero che lo rende supertop. */
+  alone: number;
+  /** Quanti di quel club ho già in rosa. */
+  owned: number;
+  /** Quelli ancora comprabili, dal più economico: quello che serve per arrivare a tre. */
+  available: PlanKeeper<T>[];
+}
+
+/** Una coppia complementare candidata: due club e le giornate che coprono insieme. */
+export interface KeeperPairTarget {
+  a: string;
+  b: string;
+  facili: number;
+  /** Quanto la coppia aggiunge al migliore dei due da solo: distingue due calendari medi da uno già alto. */
+  gain: number;
+}
+
+/** Un terzo portiere economico, dei due tipi che l'operatore ha dichiarato «pari». */
+export interface KeeperThird<T> {
+  man: T;
+  club: string;
+  offer: number;
+  kind: KeeperThirdKind;
+  /** Per il vice: il club di cui chiude la porta (uno di cui ho già il titolare). Null per un club nuovo. */
+  locks: string | null;
+}
+
+/** Il piano adattivo: cosa conviene fare ADESSO per i portieri, capito dallo stato del tavolo. */
+export interface KeeperPlan<T> {
+  target: number;
+  windowRounds: number;
+  owned: { man: T; club: string; alone: number }[];
+  /** Le due strategie, sempre calcolate così il pannello mostra il menù di entrambe. */
+  singles: KeeperSingle<T>[];
+  pairs: KeeperPairTarget[];
+  /** In che fase sono, capita da cosa possiedo. */
+  phase: KeeperPathKind;
+  /** I portieri concreti da comprare adesso, i migliori per primi. Vuoto in fase «choose»/«done». */
+  next: PlanKeeper<T>[];
+  /** I terzi economici, quando la coppia o il singolo è a posto. */
+  thirds: KeeperThird<T>[];
+  /** Le giornate della mia coppia (se ho due club diversi) o del mio blocco. Null altrimenti. */
+  pairFacili: number | null;
+  /** True quando quello che ho già raggiunge la soglia. */
+  met: boolean;
+}
+
+/**
+ * COSA CONVIENE FARE ADESSO PER I PORTIERI, valutando le DUE strategie e capendo dallo stato quale.
+ *
+ * Su richiesta dell'operatore (08/09/2026: «il sistema deve suggerirti queste strategie capendo al
+ * momento quale sia la migliore»). Non sceglie una strategia in astratto: legge cosa possiedo e cosa
+ * è ancora comprabile e propone la mossa. Le due strategie sono la COPPIA complementare (≥ target
+ * insieme) e i TRE di un supertop (un club che da solo ≥ target); il terzo economico ha due tipi
+ * mostrati «pari». Nessun numero è inventato: `facili` è la sua regola e la soglia è la sua quota.
+ */
+export function planKeepers<T>(
+  calendar: LeagueCalendar,
+  owned: PlanKeeper<T>[],
+  available: PlanKeeper<T>[],
+  from: number,
+  to: number,
+  share = KEEPER_PAIR_TARGET_SHARE,
+): KeeperPlan<T> {
+  const windowRounds = Math.max(0, to - from + 1);
+  const target = Math.round(share * windowRounds);
+
+  const aloneCache = new Map<string, number>();
+  const aloneOf = (club: string): number => {
+    let value = aloneCache.get(club);
+    if (value == null) {
+      value = calendar.has(club) ? aloneCover(calendar, club, from, to) : 0;
+      aloneCache.set(club, value);
+    }
+    return value;
+  };
+  const win = (club: string) => calendar.window(club, from, to);
+
+  const ownedIds = new Set(owned.map((k) => k.id));
+  const ownedByClub = new Map<string, PlanKeeper<T>[]>();
+  for (const keeper of owned) {
+    const list = ownedByClub.get(keeper.club) ?? [];
+    list.push(keeper);
+    ownedByClub.set(keeper.club, list);
+  }
+  const ownedList = owned.map((k) => ({ man: k.man, club: k.club, alone: aloneOf(k.club) }));
+
+  // The clubs that field a FIRST keeper I could still buy - the anchors of both strategies.
+  const availByClub = new Map<string, PlanKeeper<T>[]>();
+  for (const keeper of available) {
+    const list = availByClub.get(keeper.club) ?? [];
+    list.push(keeper);
+    availByClub.set(keeper.club, list);
+  }
+  const firstAvailable = (club: string): PlanKeeper<T>[] =>
+    (availByClub.get(club) ?? []).filter((k) => k.first);
+
+  // SINGLES: super-top clubs (alone >= target) I can still build three of, or already hold some of.
+  const superClubs = [...new Set([...availByClub.keys(), ...ownedByClub.keys()])]
+    .filter((club) => calendar.has(club) && aloneOf(club) >= target);
+  const singles: KeeperSingle<T>[] = superClubs
+    .map((club) => ({
+      club,
+      alone: aloneOf(club),
+      owned: (ownedByClub.get(club) ?? []).length,
+      available: [...(availByClub.get(club) ?? [])].sort((a, b) => a.offer - b.offer),
+    }))
+    .filter((s) => s.owned + s.available.length >= 2)
+    .sort((a, b) => b.alone - a.alone);
+
+  // PAIRS: complementary clubs whose union reaches the target. A super-top club belongs to the single
+  // menu, not here - a pair of two already-covered clubs is redundant, and its GAIN would be near zero.
+  const pairClubs = [...new Set([...availByClub.keys(), ...ownedByClub.keys()])].filter(
+    (club) => calendar.has(club) && firstAvailable(club).length + (ownedByClub.has(club) ? 1 : 0) > 0,
+  );
+  const pairs: KeeperPairTarget[] = [];
+  for (let i = 0; i < pairClubs.length; i += 1) {
+    for (let j = i + 1; j < pairClubs.length; j += 1) {
+      const a = pairClubs[i];
+      const b = pairClubs[j];
+      const cover = pairCover(win(a), win(b), a === b);
+      if (cover.facili < target) continue;
+      const better = Math.max(aloneOf(a), aloneOf(b));
+      if (better >= target) continue; // both/one already self-covered - that is the single strategy
+      pairs.push({ a, b, facili: cover.facili, gain: cover.facili - better });
+    }
+  }
+  pairs.sort((left, right) => right.gain - left.gain || right.facili - left.facili);
+
+  // THIRDS: cheap coverage, both kinds shown «pari» (his instruction): the backup of a starter I own
+  // (locks that club), or a first keeper of a new club. Never invented, never ranked one over the other.
+  const thirds: KeeperThird<T>[] = [
+    ...available
+      .filter((k) => ownedByClub.has(k.club) && !ownedIds.has(k.id))
+      .map<KeeperThird<T>>((k) => ({ man: k.man, club: k.club, offer: k.offer, kind: 'deputy', locks: k.club })),
+    ...available
+      .filter((k) => k.first && !ownedByClub.has(k.club))
+      .map<KeeperThird<T>>((k) => ({ man: k.man, club: k.club, offer: k.offer, kind: 'club', locks: null })),
+  ].sort((a, b) => a.offer - b.offer);
+
+  // THE ADAPTIVE PHASE, read from what I hold and never chosen in the abstract.
+  let phase: KeeperPathKind;
+  let next: PlanKeeper<T>[] = [];
+  let pairFacili: number | null = null;
+  let met = false;
+
+  const distinctClubs = [...ownedByClub.keys()];
+  const superOwned = distinctClubs.find(
+    (club) => aloneOf(club) >= target && (ownedByClub.get(club) ?? []).length < 3 && firstAvailable(club).length + (availByClub.get(club)?.length ?? 0) > 0,
+  );
+
+  if (owned.length >= 3) {
+    phase = 'done';
+    pairFacili = bestOwnedFacili(ownedByClub, win, aloneOf);
+    met = pairFacili != null && pairFacili >= target;
+  } else if (owned.length === 0) {
+    phase = 'choose';
+  } else if (superOwned) {
+    // On the single-club path: complete the three of that super-top club.
+    phase = 'single';
+    next = [...(availByClub.get(superOwned) ?? [])].sort((a, b) => a.offer - b.offer);
+  } else if (owned.length === 1) {
+    // Pair path: the best partner that reaches the target, ranked by the union.
+    phase = 'pair';
+    const mine = owned[0].club;
+    next = rankPairs(
+      calendar,
+      mine,
+      available.filter((k) => k.first && k.club !== mine).map((k) => ({ man: k, club: k.club })),
+      from,
+      to,
+    )
+      .filter((s) => s.cover.facili >= target && aloneOf(s.club) < target)
+      .map((s) => s.man);
+  } else {
+    // Two keepers of two clubs: the pair is what it is, and the third is cheap coverage.
+    phase = 'third';
+    if (distinctClubs.length >= 2) {
+      pairFacili = pairCover(win(distinctClubs[0]), win(distinctClubs[1])).facili;
+      met = pairFacili >= target;
+    } else {
+      pairFacili = aloneOf(distinctClubs[0]);
+      met = pairFacili >= target;
+    }
+  }
+
+  return { target, windowRounds, owned: ownedList, singles, pairs, phase, next, thirds, pairFacili, met };
+}
+
+/** The best facili among the pairs of clubs I already hold - what a finished department is worth. */
+function bestOwnedFacili<T>(
+  ownedByClub: Map<string, PlanKeeper<T>[]>,
+  win: (club: string) => ClubMatch[],
+  aloneOf: (club: string) => number,
+): number | null {
+  const clubs = [...ownedByClub.keys()];
+  if (clubs.length === 0) return null;
+  if (clubs.length === 1) return aloneOf(clubs[0]);
+  let best = 0;
+  for (let i = 0; i < clubs.length; i += 1) {
+    for (let j = i + 1; j < clubs.length; j += 1) {
+      best = Math.max(best, pairCover(win(clubs[i]), win(clubs[j])).facili);
+    }
+  }
+  return best;
+}
+
 /** A candidate keeper, ranked. */
 export interface PairSuggestion<T> {
   man: T;

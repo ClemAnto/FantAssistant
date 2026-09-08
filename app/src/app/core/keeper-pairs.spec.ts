@@ -9,6 +9,7 @@ import {
   coverGrid,
   leagueCalendarFrom,
   pairCover,
+  planKeepers,
   rankPairs,
 } from './keeper-pairs';
 
@@ -328,5 +329,104 @@ describe('la quota di porte inviolate attesa', () => {
     // ...e un club che il calendario non conosce non ha una quota, non una quota zero.
     const fitted = leagueCalendarFrom(file([match(1, 'inter', 'lecce', 250, 0.4, 0.2)]), 'serie_a')!;
     expect(cleanSheetOutlook(fitted, 'Sconosciuta FC')).toBeNull();
+  });
+});
+
+describe('planKeepers: le due strategie, capite dallo stato del tavolo', () => {
+  // Sei club, quattro giornate. Inter e' FACILE 3 volte su 4 -> da sola raggiunge la soglia
+  // (round(32/38*4) = 3), quindi e' un SUPERTOP. Como e' facile alle giornate 1-2, Lecce alle 3-4:
+  // insieme coprono 4 giornate e nessuno dei due da solo arriva a 3 -> una coppia COMPLEMENTARE.
+  const EASY = 0.5;
+  const HARD = 0.1;
+  const board = () =>
+    calendarOf(
+      [
+        match(1, 'inter', 'torino', 300, EASY, HARD),
+        match(1, 'como', 'genoa', 300, EASY, HARD),
+        match(1, 'lecce', 'parma', 300, HARD, HARD),
+        match(2, 'inter', 'genoa', 300, EASY, HARD),
+        match(2, 'como', 'parma', 300, EASY, HARD),
+        match(2, 'lecce', 'torino', 300, HARD, HARD),
+        match(3, 'inter', 'parma', 300, EASY, HARD),
+        match(3, 'lecce', 'genoa', 300, EASY, HARD),
+        match(3, 'como', 'torino', 300, HARD, HARD),
+        match(4, 'lecce', 'parma', 300, EASY, HARD),
+        match(4, 'inter', 'como', 300, HARD, HARD),
+        match(4, 'torino', 'genoa', 300, HARD, HARD),
+      ],
+      {
+        clubs: [
+          ['inter', 'Inter'],
+          ['como', 'Como'],
+          ['lecce', 'Lecce'],
+          ['torino', 'Torino'],
+          ['genoa', 'Genoa'],
+          ['parma', 'Parma'],
+        ],
+      },
+    );
+
+  // Un portiere del piano: l'uomo e' la sua stessa riga fittizia, con club, offerta e se e' il primo.
+  let nextId = 1;
+  const gk = (club: string, offer: number, first = true) => {
+    const id = nextId++;
+    return { man: { id, club }, id, club, offer, first };
+  };
+
+  it('a rosa vuota mostra ENTRAMBE le strategie: il supertop e la coppia complementare', () => {
+    const cal = board();
+    const available = [gk('Inter', 40), gk('Inter', 3, false), gk('Como', 20), gk('Lecce', 18)];
+    const plan = planKeepers(cal, [], available, 1, 4);
+    expect(plan.phase).toBe('choose');
+    expect(plan.target).toBe(3);
+    // il supertop: l'Inter, che da sola fa 3
+    expect(plan.singles.map((s) => s.club)).toContain('Inter');
+    expect(plan.singles.find((s) => s.club === 'Inter')!.alone).toBe(3);
+    // la coppia complementare: Como + Lecce, e un club gia' coperto da solo non e' fra le coppie
+    const pair = plan.pairs.find(
+      (p) => (p.a === 'Como' && p.b === 'Lecce') || (p.a === 'Lecce' && p.b === 'Como'),
+    );
+    expect(pair, 'Como+Lecce dovrebbe essere una coppia candidata').toBeTruthy();
+    expect(pair!.facili).toBe(4);
+    expect(plan.pairs.some((p) => p.a === 'Inter' || p.b === 'Inter')).toBe(false);
+  });
+
+  it('con un portiere supertop in rosa, completa i TRE di quel club', () => {
+    const cal = board();
+    const mine = gk('Inter', 40);
+    const deputy = gk('Inter', 3, false);
+    const third = gk('Inter', 1, false);
+    const plan = planKeepers(cal, [mine], [deputy, third, gk('Como', 20)], 1, 4);
+    expect(plan.phase).toBe('single');
+    // i prossimi da comprare sono gli altri portieri dell'Inter, dal piu' economico
+    expect(plan.next.map((k) => k.club)).toEqual(['Inter', 'Inter']);
+    expect(plan.next[0].offer).toBeLessThanOrEqual(plan.next[1].offer);
+  });
+
+  it('con un portiere NON supertop, cerca il partner che porta la coppia alla soglia', () => {
+    const cal = board();
+    const mine = gk('Como', 20);
+    const plan = planKeepers(cal, [mine], [gk('Lecce', 18), gk('Torino', 2)], 1, 4);
+    expect(plan.phase).toBe('pair');
+    // Lecce completa la coppia a 4 (>=3); Torino no
+    expect(plan.next.map((k) => k.club)).toContain('Lecce');
+    expect(plan.next.map((k) => k.club)).not.toContain('Torino');
+  });
+
+  it('con due club diversi a posto, il terzo e’ economico e mostra ENTRAMBI i tipi', () => {
+    const cal = board();
+    const como = gk('Como', 20);
+    const lecce = gk('Lecce', 18);
+    const comoDeputy = gk('Como', 2, false);
+    const newClub = gk('Torino', 1);
+    const plan = planKeepers(cal, [como, lecce], [comoDeputy, newClub], 1, 4);
+    expect(plan.phase).toBe('third');
+    expect(plan.pairFacili).toBe(4);
+    expect(plan.met).toBe(true);
+    const kinds = new Set(plan.thirds.map((t) => t.kind));
+    expect(kinds.has('deputy')).toBe(true);
+    expect(kinds.has('club')).toBe(true);
+    // il vice chiude la porta del club che possiedo gia'
+    expect(plan.thirds.find((t) => t.kind === 'deputy')!.locks).toBe('Como');
   });
 });

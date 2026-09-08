@@ -16,6 +16,7 @@ import { FlagMenu } from '../../ui/flag-menu/flag-menu';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { KeeperPairs } from './keeper-pairs/keeper-pairs';
+import { KeeperStrategy } from './keeper-strategy/keeper-strategy';
 import { LotCard } from './lot-card/lot-card';
 import { SlotMatrix } from './slot-matrix/slot-matrix';
 import { TeamGrid } from './team-grid/team-grid';
@@ -52,6 +53,7 @@ import { TeamGrid } from './team-grid/team-grid';
     AppHeader,
     FlagMenu,
     KeeperPairs,
+    KeeperStrategy,
     LiveConnect,
     LotCard,
     PlayerCard,
