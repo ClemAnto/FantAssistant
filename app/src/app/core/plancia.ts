@@ -527,29 +527,69 @@ export interface OfferBand {
  * sotto il pavimento della clamp, ma solo fino a quella quota e non oltre.
  */
 /**
- * QUANTO SCENDE L'OFFERTA PER UN UOMO DI UN CLUB CHE HO GIÀ, per quanti ne ho già in rosa.
+ * QUANTO SCENDE L'OFFERTA PER UN UOMO DI UN CLUB CHE HO GIA', e la penalita' dipende dal RUOLO.
  *
- * Sua istruzione del 04/09/2026: «la max-offerta per un calciatore della stessa squadra reale di un
- * altro calciatore in rosa diminuisca, e peggiori ancora di più se in rosa abbiamo già 2 calciatori
- * della stessa squadra». La forma è sua e i valori sono DICHIARATI, non misurati - e vale la pena
- * dire contro cosa, perché una misura su questo esiste e dice una cosa diversa.
+ * Sua istruzione dell'08/09/2026, che raffina quella del 04/09: «se ho in squadra un calciatore della
+ * stessa squadra e dello stesso ruolo penalita' del 25% e poi aumento per i successivi. Stessa squadra
+ * e non stesso ruolo 15% al secondo e poi aumento per i successivi». La forma e' sua e i due valori
+ * sono DICHIARATI; quello che segue e' contro cosa stanno, perche' una misura su questo esiste.
  *
- * IL BANCO MISURA `CLUB_FREE` = 2 e `CLUB_PENALTY` = 0,45: i primi DUE di un club non costano niente e
- * la penalità scatta dal TERZO (adottata il 02/09: 4,1 punti di costo contro il 4,4% di dispersione in
- * meno). La sua regola comincia un uomo prima. E c'è una ragione, misurata dall'altro lato, per cui il
- * banco non può decidere qui: la sua sd è FRA STAGIONI mentre il rischio che si compra diversificando
- * è DENTRO una (`metrica-asta-surplus-v1.md` §24) - «questo banco non può vedere il beneficio che
- * compra». Quindi la scala è la sua, dichiarata qui, e i due numeri sono cauti apposta: −10% sul
- * secondo (dove il banco non toglie niente) e −25% dal terzo (dove il banco toglierebbe il 45%).
+ * LA DISTINZIONE PER RUOLO VA NELLA DIREZIONE CHE IL DATO INDICA, ed e' la meta' che la scala di
+ * prima non aveva. `metrica-asta-surplus-v1.md` §24 misura col null giusto che due uomini dello
+ * stesso club che si pestano il RUOLO correlano -0,151 contro -0,061 di ogni altro appaiamento
+ * (differenza -0,090 ± 0,028), ed e' anche l'unica cosa di questa famiglia che si sappia in agosto.
+ * Non e' una taratura di questi numeri - quella misura e' sui ruoli MANTRA e qui il ruolo e' la macro
+ * del listone classic - quindi vale come DIREZIONE e non come prova, che e' esattamente quello che
+ * serve a una regola dichiarata: dice che il gradino piu' ripido sta dove lui l'ha messo.
  *
- * Il conteggio è di uomini della MIA rosa, per club reale, e non tocca il valore del giocatore: è uno
- * sconto sull'OFFERTA, cioè su quanto sono disposto a pagarlo, che è la cosa che lui ha chiesto.
+ * IL BANCO, che misura l'altra faccia, resta piu' permissivo: `CLUB_FREE` = 2 e `CLUB_PENALTY` = 0,45,
+ * cioe' i primi DUE di un club gratis e la penalita' dal TERZO (adottata il 02/09: 4,1 punti di costo
+ * contro il 4,4% di dispersione in meno). Questa scala comincia un uomo prima e morde di piu', e la
+ * ragione per cui il banco non puo' decidere qui e' misurata dall'altro lato: la sua sd e' FRA
+ * STAGIONI mentre il rischio che si compra diversificando e' DENTRO una - «questo banco non puo'
+ * vedere il beneficio che compra». Quindi la scala e' la sua, dichiarata qui.
+ *
+ * LA FORMA E' GEOMETRICA E NON UNA LISTA, ed e' la forma che il banco usa gia' (`CLUB_PENALTY ** k`):
+ * ogni uomo che ho gia' di quel club porta la SUA penalita', piu' pesante se mi pesta il ruolo, e le
+ * penalita' si compongono sul fattore che resta. Cosi' «poi aumento per i successivi» esce da se'
+ * senza che nessuno scriva a mano il terzo e il quarto numero:
+ *
+ *   stesso ruolo   25% -> 43,8% -> 57,8% -> 68,4% -> 76,3% -> 82,2% -> 86,7% -> 90,0%
+ *   altro reparto  15% -> 27,8% -> 38,6% -> 47,8% -> 55,6% -> 62,3% -> 67,9% -> 72,8%
+ *
+ * IL TETTO E' IL 90% ED E' DICHIARATO (sua istruzione, 08/09/2026: «lo sconto massimo deve arrivare a
+ * 90%»). Non serve a impedire uno zero - un prodotto di fattori positivi non ci arriva mai da se' - ma
+ * a fissare il punto in cui la scala si ferma, che e' una decisione e non una misura: sotto quel tetto
+ * l'offerta resta un decimo della banda, cioe' un numero che si puo' ancora scrivere in un'asta. Va
+ * detto dove morde davvero, e il numero e' stato contato invece di stimato a occhio: l'ottavo uomo
+ * dello stesso club e dello stesso ruolo legge 89,99% per la progressione da se', quindi il tetto
+ * TAGLIA solo dal NONO in poi - in una rosa 3/8/8/6 nessuno dei due casi esiste. Oggi percio' il
+ * tetto e' inerte e quello che decide sono i primi due gradini; se la scala dovesse ARRIVARE al 90%
+ * su una rosa vera, quello che va cambiato sono i due passi dichiarati e non il tetto.
+ *
+ * E' uno sconto sull'OFFERTA e non sul VALORE, che e' quello che ha chiesto: il giocatore vale quello
+ * che vale, cambia quanto sono disposto a pagarlo. Il conteggio e' di uomini della MIA rosa (sua
+ * conferma dell'08/09: il club di un rivale non e' un rischio mio) e non tocca `points`, quindi lo
+ * SWING e i due numeri che spiegano l'ordine restano quello che sono.
  */
-export const SAME_CLUB_DISCOUNT = [0, 0.1, 0.25];
+export const SAME_CLUB_SAME_ROLE = 0.25;
+export const SAME_CLUB_OTHER_ROLE = 0.15;
 
-export function sameClubDiscount(held: number): number {
-  if (!(held > 0)) return 0;
-  return SAME_CLUB_DISCOUNT[Math.min(held, SAME_CLUB_DISCOUNT.length - 1)];
+/** Il fondo della scala, DICHIARATO: sotto resta sempre un decimo della banda da offrire. */
+export const SAME_CLUB_MAX_DISCOUNT = 0.9;
+
+/** Quanti uomini del suo club reale ho gia' in rosa, separati da chi gli pesta il ruolo. */
+export interface SameClubHeld {
+  sameRole: number;
+  otherRole: number;
+}
+
+export function sameClubDiscount(held?: SameClubHeld | null): number {
+  const sameRole = Math.max(0, Math.trunc(held?.sameRole ?? 0));
+  const otherRole = Math.max(0, Math.trunc(held?.otherRole ?? 0));
+  if (!sameRole && !otherRole) return 0;
+  const keep = (1 - SAME_CLUB_SAME_ROLE) ** sameRole * (1 - SAME_CLUB_OTHER_ROLE) ** otherRole;
+  return Math.min(1 - keep, SAME_CLUB_MAX_DISCOUNT);
 }
 
 export function offerBand(input: {
@@ -593,8 +633,15 @@ export function offerBand(input: {
    * scommessa qui sopra.
    */
   confidence?: number;
-  /** Quanti uomini del SUO club reale ho già in rosa: l'offerta scende, il suo valore no. */
-  sameClub?: number;
+  /**
+   * Quanti uomini del SUO club reale ho gia' in rosa: l'offerta scende, il suo valore no.
+   *
+   * Separato per ruolo perche' la penalita' e' diversa (sua istruzione, 08/09/2026): chi gli pesta il
+   * ruolo pesa il 25%, chi sta in un altro reparto il 15%. Un OGGETTO e non due numeri sciolti, cosi'
+   * un chiamante non puo' scambiarli di posto - e' la stessa forma con cui `pairCover` si fa dire
+   * `sameClub` invece di indovinarlo dal nome.
+   */
+  sameClub?: SameClubHeld | null;
 }): OfferBand | null {
   const ladder = LADDER[input.role];
   // LA DEMOZIONE PRIMA DI TUTTO: chi ha un infortunio aperto legge il gradino di sotto.
@@ -621,7 +668,7 @@ export function offerBand(input: {
     input.budget *
     own *
     depthFactor(input.exhaustedBelow ?? 0) *
-    (1 - sameClubDiscount(input.sameClub ?? 0)) *
+    (1 - sameClubDiscount(input.sameClub)) *
     clamp(input.confidence ?? 1, 0, 1);
   let low = Math.round(centre * 0.9);
   let high = Math.round(centre * 1.1);
@@ -731,6 +778,15 @@ export function adviseLot(input: {
    * che la ragione lo DICE: una banda più bassa senza il perché si legge come un ordinamento rotto.
    */
   out?: { until: string | null; lost: number; playable: number; seasonOver: boolean } | null;
+  /**
+   * ...e quanti del suo club ho gia' in rosa, che e' l'altro fattore che ha abbassato la banda.
+   *
+   * Sta qui per la stessa ragione della finestra e della demozione: la banda arriva gia' scontata e
+   * una cifra piu' bassa senza il perche' si legge come un ordinamento rotto. Il nome del club serve
+   * a rendere la frase leggibile - «ne hai 2 del Napoli» dice il fatto, «ne hai 2 dello stesso club»
+   * lo fa cercare.
+   */
+  sameClub?: (SameClubHeld & { club?: string | null }) | null;
 }): LotAdvice {
   const { band, tablePrice, slotIndex, hands, teams } = input;
   const expectedPrice = Math.max(
@@ -755,7 +811,25 @@ export function adviseLot(input: {
   const wager = band?.bet
     ? `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'. `
     : '';
-  const said = (reason: string) => window + priced + wager + reason;
+  // ...e il club che ho gia', che e' l'unico fattore della banda che prima non si dichiarava: lo
+  // sconto c'era dal 04/09 e non era scritto da nessuna parte, quindi l'offerta scendeva in silenzio.
+  // La percentuale si LEGGE dalla scala invece di essere riscritta qui: due copie di quei numeri
+  // finirebbero per dire due cose diverse il giorno che lui ne cambia uno.
+  const crowd = (() => {
+    const held = input.sameClub;
+    if (!held) return '';
+    const cut = sameClubDiscount(held);
+    if (!(cut > 0)) return '';
+    const who = held.club ? `del ${held.club}` : 'dello stesso club';
+    const mine =
+      held.sameRole && held.otherRole
+        ? `${held.sameRole + held.otherRole} ${who}, di cui ${held.sameRole} nel suo ruolo`
+        : held.sameRole
+          ? `${held.sameRole} ${who} nel suo ruolo`
+          : `${held.otherRole} ${who}`;
+    return `Ne hai gia' ${mine}: offro il ${Math.round(cut * 100)}% in meno per non concentrare il rischio. `;
+  })();
+  const said = (reason: string) => window + priced + wager + crowd + reason;
 
   // PRIMA DI OGNI ALTRA COSA: se oggi non gioca, il verdetto è quello e non un prezzo. Sta davanti al
   // caso «non prezzato» perché è più forte - lì non sappiamo quanto vale, qui sappiamo che non gioca -

@@ -118,10 +118,19 @@
                   <span class="shrink-0 tabular-nums opacity-40">{{
                     man.pv == null ? '' : '(' + (man.pv | number: '1.0-0') + ')'
                   }}</span>
+                  <!-- LA MAX OFFERTA, e TINTA quando e' scesa perche' di quel club ne ho gia'
+                       (operatore, 08/09/2026). Lo sconto esisteva dal 04/09 e non era scritto da
+                       nessuna parte: una cifra piu' bassa senza il perche' si legge come un
+                       ordinamento rotto. Si tinge il NUMERO e non il nome perche' il fatto e' sulla
+                       MIA rosa e non sull'uomo - l'infortunio tinge il nome, che e' suo - e solo dove
+                       quella cifra E' un'offerta: su chi e' di un altro la colonna porta il prezzo
+                       PAGATO, che nessuno sconto di mio ha toccato. -->
                   @let figure = shown(man);
-                  <span class="shrink-0 tabular-nums">{{
-                    figure != null ? (figure | number: '1.0-0') : '—'
-                  }}</span>
+                  <span
+                    class="shrink-0 tabular-nums"
+                    [class.text-warning]="man.sameClubCut > 0 && man.state !== 'altro'"
+                    >{{ figure != null ? (figure | number: '1.0-0') : '—' }}</span
+                  >
                 </button>
               }
             </div>
@@ -181,6 +190,13 @@
             <div class="flex items-center gap-1.5 text-[10px] text-muted">
               <span class="h-2 w-2 rounded-full bg-primary"></span>
               mio
+            </div>
+            <!-- LA TINTA DELLO SCONTO STESSO-CLUB: la legenda dichiara cosa vuol dire ogni colore di
+                 questa tabella, e questo e' il colore di un fattore che abbassa l'offerta. La
+                 percentuale del singolo sta nella sua card, qui sta cosa vuol dire la tinta. -->
+            <div class="flex items-center gap-1.5 text-[10px] text-muted">
+              <span class="tabular-nums text-warning">123</span>
+              offerta ridotta: di quel club ne hai già in rosa (di più se ti pesta il ruolo)
             </div>
             <!-- I DUE INCHIOSTRI ROSSI, che mancavano: la legenda dichiara cosa vuol dire ogni colore
                  di questa tabella e questi due non c'erano, quindi la domanda «perché McKennie e

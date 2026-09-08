@@ -2834,6 +2834,65 @@ vale quello che vale, cambia quanto sono disposto a pagarlo. Il conteggio è di 
 (il club di un rivale non è un rischio mio) e i test lo asseriscono alle due quote dichiarate invece
 che come un ordine qualsiasi.
 
+### 34.3-novies LA PENALITÀ DIPENDE DAL RUOLO, E IL TETTO È IL 90% (8 settembre 2026)
+
+**Sue due istruzioni**: «se ho in squadra un calciatore della stessa squadra e dello stesso ruolo
+penalità del 25% e poi aumento per i successivi. Stessa squadra e non stesso ruolo 15% al secondo e
+poi aumento per i successivi», poi «lo sconto massimo deve arrivare a 90%». Raffina il §34.3-octies,
+che aveva una scala sola per club (−10% / −25%) e non guardava il ruolo.
+
+**LA DISTINZIONE PER RUOLO VA NELLA DIREZIONE CHE IL DATO INDICA, ed è la metà che mancava.**
+`metrica-asta-surplus-v1.md` §24 misura col null giusto che due uomini dello stesso club che si
+pestano il RUOLO correlano **−0,151** contro **−0,061** di ogni altro appaiamento (differenza −0,090
+± 0,028) — ed è anche l'unica cosa di questa famiglia che si sappia in agosto. Non è una taratura di
+questi due numeri (quella misura è sui ruoli MANTRA, qui il ruolo è la macro del listone classic),
+quindi vale come **direzione e non come prova**: dice che il gradino più ripido sta dove lui l'ha
+messo. Il banco, che misura l'altra faccia, resta più permissivo (`CLUB_FREE` 2, `CLUB_PENALTY` 0,45:
+i primi due gratis) e non può decidere qui per la ragione già scritta — la sua sd è FRA STAGIONI
+mentre il rischio che si compra diversificando è DENTRO una.
+
+**LA FORMA È GEOMETRICA E NON UNA LISTA**, che è la forma che il banco usa già (`CLUB_PENALTY ** k`):
+ogni uomo che ho già di quel club porta la SUA penalità, più pesante se mi pesta il ruolo, e le
+penalità si compongono sul fattore che resta. Così «poi aumento per i successivi» esce da sé, senza
+che nessuno scriva a mano il terzo e il quarto numero, e uno del ruolo più uno di un altro reparto
+fanno 36,25% senza una terza costante:
+
+| uomini già in rosa di quel club | 1 | 2 | 3 | 4 | 8 | 9 |
+|---|---|---|---|---|---|---|
+| stesso ruolo | 25,0% | 43,8% | 57,8% | 68,4% | 90,0%* | 90% (tetto) |
+| altro reparto | 15,0% | 27,8% | 38,6% | 47,8% | 72,8% | 76,8% |
+
+**Il tetto del 90% è DICHIARATO e oggi è inerte, e il numero è stato contato invece che stimato**:
+l'ottavo uomo dello stesso club e dello stesso ruolo arriva a **89,99%** per la progressione da sé
+(l'asterisco sopra), quindi il tetto TAGLIA solo dal **nono** — in una rosa 3/8/8/6 nessuno dei due
+casi esiste. Quello che decide sono i primi due gradini; se la scala dovesse ARRIVARE al 90% su una
+rosa vera, quello che va cambiato sono i due passi e non il tetto. Il tetto serve comunque a una cosa
+detta: sotto di lui resta sempre **un decimo della banda** da offrire, cioè un numero che si può
+ancora scrivere in un'asta.
+
+**E LA COSA CHE MANCAVA DEL TUTTO ERA CHE SI VEDESSE.** Lo sconto esisteva dal 04/09, era vivo in
+tutt'e due i punti che chiamano `offerBand` e **non era scritto da nessuna parte**: sugli slot mercato
+abbassava la cifra a destra, sugli slot personali lo faceva anche *scendere di blocco* (là il taglio è
+il tetto), e la card del lotto dichiarava la finestra dell'infortunio, la demozione di slot e il tetto
+della scommessa — ogni fattore della banda tranne questo. Cioè «un vincolo che agisce in silenzio è
+indistinguibile da un ordinamento rotto», commesso dal lato del display. Tre dichiarazioni ora:
+
+- la **ragione del lotto** lo nomina col club e con la percentuale («Ne hai già 2 del Napoli, di cui 1
+  nel suo ruolo: offro il 36% in meno»), accanto agli altri tre fattori;
+- la **max offerta sulla riga è TINTA** dove è scesa. Si tinge il NUMERO e non il nome — l'infortunio
+  tinge il nome perché è un fatto sull'UOMO, questo è un fatto sulla MIA rosa e vive sul numero che ne
+  discende — e solo dove quella cifra È un'offerta: su chi è di un altro la colonna porta il prezzo
+  PAGATO, che nessuno sconto di mio ha toccato. La riga non ha un tooltip per sua istruzione del
+  03/09, quindi la legenda dichiara la tinta;
+- la **card** lo mette nel `capNote`, che esiste esattamente per «perché il tetto è quello».
+
+Due cose di forma. Le percentuali si **leggono dalla scala** invece di essere riscritte nelle stringhe:
+due copie di quei numeri finirebbero per dire due cose diverse il giorno che lui ne cambia uno. E il
+conteggio è di uomini della **MIA rosa** (sua conferma: il club di un rivale non è un rischio mio),
+`heldOf` è una definizione sola letta dalla riga E dal lotto, e il club viene da `men()` — il listone
+intero e non i 250 disegnati — così un mio acquisto che la plancia non disegna conta comunque per il
+suo club, che è l'unico modo di non sottostimare il rischio proprio dove si sta accumulando.
+
 ### 34.4 Dove vive cosa, e perché
 
 Il **toolkit** decide se una partita è facile e con che probabilità (`fixtures.schedule` → `calendar.json`

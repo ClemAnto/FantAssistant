@@ -50,12 +50,14 @@ import {
   PlanciaMap,
   Role,
   ROLES,
+  SameClubHeld,
   SlotBlock,
   adviseLot,
   alternativeFor,
   buildMap,
   offerBand,
   regroupByOffer,
+  sameClubDiscount,
   SlotView,
 } from './plancia';
 import { STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
@@ -87,6 +89,16 @@ export interface BoardMan extends PlanciaMan {
    * ritagliarla qui obbligherebbe la card a ricalcolare quella ragione, cioe' a darne una seconda.
    */
   band: OfferBand | null;
+  /**
+   * QUANTO L'OFFERTA E' SCESA PERCHE' DI QUEL CLUB NE HO GIA', 0 quando non ne ho.
+   *
+   * Sulla riga non c'e' un tooltip (sua istruzione del 03/09: su 250 righe un pannello che si apre
+   * passando copre quello che stai leggendo), quindi il fatto si dichiara TINGENDO la cifra che ha
+   * cambiato - la max offerta - e la legenda dice cosa vuol dire quella tinta. Marcare il nome
+   * sarebbe sbagliato: l'infortunio tinge il nome perche' e' un fatto sull'UOMO, questo e' un fatto
+   * sulla MIA rosa e vive sul numero che ne discende.
+   */
+  sameClubCut: number;
   ownerId: number | null;
   ownerLabel: string | null;
   ownerColour: string | null;
@@ -344,19 +356,52 @@ export class PlanciaStore {
    * mio - e per NOME canonico del club, che è quello che la riga porta: qui non si joina niente per
    * id perché sono le stesse stringhe della stessa mappa.
    */
-  private readonly mineByClub = computed<Map<string, number>>(() => {
+  /**
+   * QUANTI UOMINI DI OGNI CLUB HA LA MIA ROSA, contati per RUOLO.
+   *
+   * Per ruolo perche' la penalita' e' diversa (sua istruzione, 08/09/2026): chi pesta il ruolo di chi
+   * sto guardando vale il 25%, chi sta in un altro reparto il 15%. `sameClubDiscount` compone i due.
+   *
+   * Il conteggio si CONTA e non si ricava per differenza: «quanti ne ho di quel club» e «quanti posti
+   * mi restano» sono due domande, e ricavare la prima dalla seconda e' il difetto che questa pagina ha
+   * gia' pagato su `progress`. E il club viene da `men()`, che e' il listone intero con un ruolo e un
+   * FVM - non i 250 disegnati - cosi' un mio acquisto che la plancia non disegna conta comunque per il
+   * suo club, che e' l'unico modo di non sottostimare il rischio proprio dove si sta accumulando.
+   */
+  private readonly mineByClub = computed<Map<string, Map<Role, number>>>(() => {
     const mine = this.mineId();
-    const out = new Map<string, number>();
+    const out = new Map<string, Map<Role, number>>();
     if (mine == null) return out;
-    const byId = new Map<number, string>();
-    for (const man of this.men()) byId.set(man.id, man.club);
+    const byId = new Map<number, { club: string; role: Role }>();
+    for (const man of this.men()) byId.set(man.id, { club: man.club, role: man.role });
     for (const pick of this.feed.picks()) {
       if (pick.teamId !== mine) continue;
-      const club = byId.get(pick.playerId);
-      if (club) out.set(club, (out.get(club) ?? 0) + 1);
+      const held = byId.get(pick.playerId);
+      if (!held) continue;
+      const byRole = out.get(held.club) ?? new Map<Role, number>();
+      byRole.set(held.role, (byRole.get(held.role) ?? 0) + 1);
+      out.set(held.club, byRole);
     }
     return out;
   });
+
+  /**
+   * Quanti dei miei stanno nel suo club, separati fra chi gli pesta il ruolo e chi no.
+   *
+   * Una definizione sola, letta dalla riga E dal lotto: due chiamate con due conteggi diversi sono
+   * come un uomo finisce con due prezzi sulla stessa plancia.
+   */
+  private heldOf(club: string, role: Role): SameClubHeld {
+    const byRole = this.mineByClub().get(club);
+    if (!byRole) return { sameRole: 0, otherRole: 0 };
+    let sameRole = 0;
+    let otherRole = 0;
+    for (const [held, count] of byRole) {
+      if (held === role) sameRole += count;
+      else otherRole += count;
+    }
+    return { sameRole, otherRole };
+  }
 
   /** Who owns whom, at what price - the only field of a live session that is right at every instant. */
   private readonly owners = computed(() => {
@@ -378,7 +423,6 @@ export class PlanciaStore {
     const lot = this.lotId();
     const budget = this.budget();
 
-    const sameClub = this.mineByClub();
     return this.map().blocks.map((block) => {
       const medianPoints = middleOf(block.men.map((man) => man.points));
       let left = 0;
@@ -391,6 +435,7 @@ export class PlanciaStore {
         if (state === 'urna' || state === 'asta') left += 1;
         if (state === 'mio') hasMine = true;
         const team = owner ? teams.get(owner.teamId) : null;
+        const held = this.heldOf(man.club, block.role);
         const band =
           offerBand({
             role: block.role,
@@ -405,12 +450,13 @@ export class PlanciaStore {
             // Quanti ne ho gia' del suo club: l'offerta scende, il suo valore no (sua istruzione
             // del 04/09/2026). Sta in TUTT'E DUE i posti che chiamano `offerBand` - qui e sul lotto -
             // o la riga direbbe una cifra e la card un'altra.
-            sameClub: sameClub.get(man.club) ?? 0,
+            sameClub: held,
           }) ?? null;
         return {
           ...man,
           state,
           band,
+          sameClubCut: sameClubDiscount(held),
           price: owner?.price ?? band?.high ?? null,
           ownerId: owner?.teamId ?? null,
           ownerLabel: team?.label ?? null,
@@ -554,7 +600,7 @@ export class PlanciaStore {
       available: man.out?.share,
       hurt: !!man.out || !!man.outNow,
       confidence: man.confidence,
-      sameClub: this.mineByClub().get(man.club) ?? 0,
+      sameClub: this.heldOf(man.club, block.role),
     });
 
     const hands = this.handsFor(block.role, band?.low ?? 1);
@@ -578,6 +624,7 @@ export class PlanciaStore {
         outNow: man.outNow,
         outReason: this.status.unavailableNow(man.id)?.note ?? null,
         out: man.out ?? null,
+        sameClub: { ...this.heldOf(man.club, block.role), club: man.club },
       }),
       alternative: alternativeFor(
         this.map(),
@@ -1364,6 +1411,12 @@ function capNoteOf(man: BoardMan, block: BoardBlock): string | null {
   if (band.bet) return `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'.`;
   if (band.pricedAt !== block.index) {
     return `Prezzato come uno slot ${band.pricedAt}: infortunato oggi, non lo pago da primo.`;
+  }
+  // ...e il club che ho gia', che era il fattore muto: la percentuale la porta la riga
+  // (`sameClubCut`), calcolata dalla scala una volta sola, cosi' la card non ha una seconda copia di
+  // quei numeri da tenere allineata.
+  if (man.sameClubCut > 0) {
+    return `Di quel club ne hai gia' in rosa: offro il ${Math.round(man.sameClubCut * 100)}% in meno per non concentrare il rischio.`;
   }
   return null;
 }

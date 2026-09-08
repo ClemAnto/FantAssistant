@@ -11,6 +11,8 @@ import {
   PlanciaMan,
   Role,
   ROLES,
+  SAME_CLUB_MAX_DISCOUNT,
+  sameClubDiscount,
   adviseLot,
   alternativeFor,
   buildMap,
@@ -486,34 +488,64 @@ describe('chi ha una data di rientro', () => {
 });
 
 describe('lo sconto per un club che ho già', () => {
-  it('scende col secondo uomo e scende di più col terzo', () => {
-    // Sua istruzione del 04/09/2026, e la forma è sua: l'offerta cala già dal SECONDO uomo di un club
-    // e peggiora dal terzo. Il banco misura invece `CLUB_FREE` = 2 e `CLUB_PENALTY` = 0,45 - i primi
-    // due gratis e il 45% dal terzo - quindi questa scala comincia un uomo prima ed è più cauta: i
-    // valori sono DICHIARATI, e questo test è il posto che lo dice.
-    const shape = {
-      role: 'A' as const,
-      slotIndex: 1,
-      budget: 1000,
-      room: 1000,
-      points: 100,
-      medianPoints: 100,
-    };
-    const alone = offerBand({ ...shape, sameClub: 0 })!;
-    const second = offerBand({ ...shape, sameClub: 1 })!;
-    const third = offerBand({ ...shape, sameClub: 2 })!;
-    expect(second.high).toBeLessThan(alone.high);
-    expect(third.high).toBeLessThan(second.high);
-    // Le due quote dichiarate, non un ordine qualsiasi: −10% e −25%.
-    expect(second.high / alone.high).toBeCloseTo(0.9, 2);
-    expect(third.high / alone.high).toBeCloseTo(0.75, 2);
-    // E dal quarto in poi non peggiora oltre: una scala che continua a scendere finirebbe a zero su
-    // una rosa che pesca molto da un club, e nessuno ha misurato quel fondo.
-    expect(offerBand({ ...shape, sameClub: 5 })!.high).toBe(third.high);
+  const shape = {
+    role: 'A' as const,
+    slotIndex: 1,
+    budget: 1000,
+    room: 1000,
+    points: 100,
+    medianPoints: 100,
+  };
+
+  it('pesa il 25% chi mi pesta il ruolo e il 15% chi sta in un altro reparto', () => {
+    // Sua istruzione dell'08/09/2026, e i due valori sono DICHIARATI: «stessa squadra e stesso ruolo
+    // penalità del 25% ... stessa squadra e non stesso ruolo 15%». Il test asserisce le due quote
+    // dichiarate e non un ordine qualsiasi, perché è qui che si vede se qualcuno le muove.
+    const alone = offerBand({ ...shape, sameClub: { sameRole: 0, otherRole: 0 } })!;
+    const sameRole = offerBand({ ...shape, sameClub: { sameRole: 1, otherRole: 0 } })!;
+    const otherRole = offerBand({ ...shape, sameClub: { sameRole: 0, otherRole: 1 } })!;
+    expect(sameRole.high / alone.high).toBeCloseTo(0.75, 2);
+    expect(otherRole.high / alone.high).toBeCloseTo(0.85, 2);
+    // E il gradino del ruolo è il più ripido dei due, che è la direzione che §24 misura.
+    expect(sameRole.high).toBeLessThan(otherRole.high);
+  });
+
+  it('aumenta per i successivi, e le due penalità si compongono', () => {
+    // «...e poi aumento per i successivi»: la forma è geometrica, quindi il terzo uomo non ha un
+    // numero scritto a mano - esce dal prodotto. 25% -> 43,75% sullo stesso ruolo.
+    expect(sameClubDiscount({ sameRole: 2, otherRole: 0 })).toBeCloseTo(0.4375, 4);
+    expect(sameClubDiscount({ sameRole: 3, otherRole: 0 })).toBeCloseTo(0.578125, 4);
+    expect(sameClubDiscount({ sameRole: 0, otherRole: 2 })).toBeCloseTo(0.2775, 4);
+    // Ogni uomo che ho già porta la SUA penalità: uno nel ruolo e uno fuori si compongono.
+    expect(sameClubDiscount({ sameRole: 1, otherRole: 1 })).toBeCloseTo(1 - 0.75 * 0.85, 4);
+    // ...e la scala è monotona in tutt'e due i conteggi, che è quello che «aumento» vuol dire.
+    for (let n = 0; n < 5; n += 1) {
+      expect(sameClubDiscount({ sameRole: n + 1, otherRole: 0 })).toBeGreaterThan(
+        sameClubDiscount({ sameRole: n, otherRole: 0 }),
+      );
+      expect(sameClubDiscount({ sameRole: 0, otherRole: n + 1 })).toBeGreaterThan(
+        sameClubDiscount({ sameRole: 0, otherRole: n }),
+      );
+    }
+  });
+
+  it('si ferma al 90%, che è il tetto dichiarato', () => {
+    // Sua istruzione dell'08/09/2026: «lo sconto massimo deve arrivare a 90%». Un prodotto di fattori
+    // positivi non arriva a zero da sé, quindi il tetto è una DECISIONE e non una protezione - e
+    // sotto di lui resta sempre un decimo della banda da offrire.
+    expect(sameClubDiscount({ sameRole: 20, otherRole: 20 })).toBeCloseTo(SAME_CLUB_MAX_DISCOUNT, 6);
+    expect(sameClubDiscount({ sameRole: 20, otherRole: 20 })).toBeLessThan(1);
+    const crowded = offerBand({ ...shape, sameClub: { sameRole: 20, otherRole: 20 } })!;
+    const alone = offerBand({ ...shape, sameClub: { sameRole: 0, otherRole: 0 } })!;
+    expect(crowded.high / alone.high).toBeCloseTo(0.1, 2);
+    // E il tetto TAGLIA solo dal nono dello stesso ruolo: l'ottavo ci arriva da sé a 89,99%, quindi
+    // su una rosa 3/8/8/6 è inerte. Asserito perché il commento lo dichiara e un commento non si cita.
+    expect(sameClubDiscount({ sameRole: 8, otherRole: 0 })).toBeLessThan(SAME_CLUB_MAX_DISCOUNT);
+    expect(sameClubDiscount({ sameRole: 9, otherRole: 0 })).toBeCloseTo(SAME_CLUB_MAX_DISCOUNT, 6);
   });
 
   it('non tocca chi non ha compagni in rosa', () => {
-    const shape = {
+    const bare = {
       role: 'D' as const,
       slotIndex: 2,
       budget: 1000,
@@ -521,7 +553,45 @@ describe('lo sconto per un club che ho già', () => {
       points: 50,
       medianPoints: 50,
     };
-    expect(offerBand({ ...shape, sameClub: 0 })).toEqual(offerBand(shape));
+    expect(offerBand({ ...bare, sameClub: { sameRole: 0, otherRole: 0 } })).toEqual(offerBand(bare));
+    expect(sameClubDiscount(null)).toBe(0);
+    expect(sameClubDiscount(undefined)).toBe(0);
+  });
+
+  it('lo dichiara nella ragione del lotto, invece di abbassare la banda in silenzio', () => {
+    // «Un vincolo che agisce in silenzio è indistinguibile da un ordinamento rotto»: lo sconto
+    // esisteva dal 04/09 e non era scritto da nessuna parte, mentre la finestra dell'infortunio, la
+    // demozione di slot e il tetto della scommessa la loro riga ce l'avevano.
+    const band = offerBand({ ...shape, sameClub: { sameRole: 1, otherRole: 1 } });
+    const advice = adviseLot({
+      role: 'A',
+      slotIndex: 1,
+      band,
+      medianFvm: 200,
+      tablePrice: 10,
+      hands: 9,
+      teams: 10,
+      exhaustedBelow: 0,
+      priced: true,
+      sameClub: { sameRole: 1, otherRole: 1, club: 'Napoli' },
+    });
+    expect(advice.reason).toContain('Napoli');
+    expect(advice.reason).toContain('36%');
+    expect(advice.reason).toContain('nel suo ruolo');
+    // ...e tace su chi non ha compagni, invece di scrivere «offro lo 0% in meno».
+    const clean = adviseLot({
+      role: 'A',
+      slotIndex: 1,
+      band: offerBand({ ...shape, sameClub: { sameRole: 0, otherRole: 0 } }),
+      medianFvm: 200,
+      tablePrice: 10,
+      hands: 9,
+      teams: 10,
+      exhaustedBelow: 0,
+      priced: true,
+      sameClub: { sameRole: 0, otherRole: 0, club: 'Napoli' },
+    });
+    expect(clean.reason).not.toContain('in meno');
   });
 });
 
