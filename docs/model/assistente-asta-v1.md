@@ -2999,6 +2999,55 @@ Le altre quattro richieste della stessa sera, tutte misurate a schermo:
   discordanze su 37), che è più di quanto dica il totale già asserito.
 
 
+### 34.6 LA STRATEGIA PORTIERI ADATTIVA: due strade, e il sistema capisce quale (8 settembre 2026)
+
+**Sua richiesta**: «la plancia, come strategia per l'acquisto dei portieri, deve utilizzare la griglia
+degli accoppiamenti migliori: l'obiettivo è prenderne due con un ottimo accoppiamento (almeno 32
+partite su 38) e il terzo a poco — o un terzo portiere di una squadra diversa, o il secondo di un
+titolare per avere la porta di una squadra coperta sempre.» Poi, subito dopo: «un'altra strategia è
+prendere tre portieri di una sola squadra ma a livello supertop, come Inter.» E, alla domanda su dove
+metterla: «non lo so, il sistema deve suggerirti queste strategie capendo al momento quale sia la
+migliore.»
+
+**LA SOGLIA «32 SU 38» È SUI `FACILI`, ed è stata risolta MISURANDO invece di assumendo.** Sul `covered`
+(porta inviolata attesa, `sum 1-(1-pA)(1-pB)`) la coppia migliore arriva a **24,8/38** e ZERO coppie
+toccano 32 — quindi non è quella. Sui `facili` (la sua regola: almeno uno dei due gioca una partita con
+P(porta inviolata) > 0,30) **64 coppie di 190 arrivano a 32, la migliore fa 38/38** — raggiungibile e
+selettiva. È la metrica che `rankPairs` e la griglia già calcolano. La soglia vive come QUOTA
+(`KEEPER_PAIR_TARGET_SHARE` = 32/38), non come numero, per la lezione R20: su una competizione di tre
+giornate nessuno ha 32 di niente.
+
+**LA STRATEGIA DEI TRE DI UN SUPERTOP È CONFERMATA DAL CALENDARIO, e il «supertop» non ha una soglia
+nuova.** Misurato: l'Inter da SOLA fa **35/38** giornate facili, la Roma 34, la Juve 31. Tre portieri
+dell'Inter danno la porta GARANTITA tutte le 38 (giocano sempre, nessun rischio rotazione) con 35
+facili, contro le 38 della migliore coppia — tre in meno, ma senza il rischio che entrambi i miei di
+una coppia saltino la stessa giornata. E un club è «supertop» esattamente quando **da solo raggiunge già
+la soglia della coppia** (`alone >= target`): non è una costante nuova, è la stessa. È anche il
+complemento perfetto di `EASY_ALREADY_SHARE` (25/38), la regola per cui un club auto-coperto è un cattivo
+PARTNER (ridondante): quello stesso club è un'ottima ANCORA singola.
+
+**IL PIANO È PURO E ADATTIVO** (`keeper-pairs.planKeepers`, letto da `plancia-store.keeperPlan`): legge
+cosa possiedo e cosa è ancora comprabile, e capisce la fase — 0 portieri → «scegli» (mostra il supertop
+disponibile e le migliori coppie complementari); 1 → se è supertop, completa i tre di quel club, altrimenti
+cerca il partner che porta la coppia a ≥32; 2 club diversi → la coppia è quella che è, e il terzo è
+economico. Il terzo mostra ENTRAMBI i tipi «pari» (sua istruzione): il vice di un mio titolare (chiude la
+porta di quel club) o un primo portiere di un club nuovo. Nessun numero è inventato — `facili` è la sua
+regola, la soglia è la sua quota, il supertop è la stessa soglia — e le coppie che contengono un club già
+supertop sono ESCLUSE dal menù coppie, perché appartengono al menù singolo (una coppia di due club già
+coperti è ridondante e il suo `gain` sarebbe quasi zero).
+
+**LA STRISCIA** (`views/plancia/keeper-strategy`) è una riga sola in `shrink-0` sopra la griglia — la
+pagina non scorre, quindi la guida costa una riga e sparisce del tutto senza un calendario da contare.
+Traduce la fase in una frase e in qualche pastiglia; una pastiglia apre gli accoppiamenti di quel portiere,
+che è il dettaglio già esistente. Verificata in un browser vero (tavolo demo): fase «choose», nomina le due
+strade e mostra le coppie complementari comprabili. Il chip supertop compare quando i portieri di un club
+forte sono ancora in urna — nel demo (asta a un terzo) erano già presi, e il test unitario prova che con un
+supertop disponibile la strategia esce.
+
+Quattro test unitari pinnano la logica (le due strategie, le tre fasi, il terzo coi due tipi); 859 test app
+verdi, build pulito.
+
+
 ## 35. L'ASTERISCO del listone: chi non gioca piu' in questo campionato (3 settembre 2026, sera)
 
 Dalla segnalazione dell'operatore su una schermata della plancia — **Lukaku nello slot A3 del Napoli**,

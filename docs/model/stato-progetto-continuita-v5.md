@@ -6659,3 +6659,95 @@ metà** e le loro due voci restano fuori.
 - **Il campetto applica la dritta solo dentro i candidati che il toolkit ha già scritto** per un posto:
   chi non è né titolare né ballottaggio di nessuna maglia non ha un posto in cui entrare, e la pagina lo
   DICE. Il disegno completo lo rifà la prossima costruzione del foglio, che ha in mano la rosa intera.
+
+
+# Chiusura 8 settembre 2026 (seconda) — la diversificazione per club si VEDE, e i portieri hanno due strade
+
+## Le richieste
+
+Quattro, in fila, tutte sulla PLANCIA: «nella plancia dobbiamo disincentivare acquisti nella mia rosa
+della stessa squadra» (poi «lo sconto massimo deve arrivare a 90%»); simulare un'asta random a dieci
+con le rose e i prezzi; «i partecipanti devono avere personalità e strategie diverse, noi usare quella
+del motore»; «analizza l'asta e dimmi pro e contro della strategia del motore», poi «miglioriamo le
+debolezze e puntelliamo i punti di forza»; infine la strategia PORTIERI sulla griglia degli
+accoppiamenti, con la seconda strategia dei «tre di un supertop, come Inter».
+
+## La risposta
+
+**LO SCONTO STESSO-CLUB ESISTEVA DAL 04/09 E NON SI VEDEVA** (commit `8128cc3`). Era vivo in tutt'e due
+i punti che chiamano `offerBand` — abbassava la cifra sugli slot mercato e faceva scendere di blocco su
+quelli personali — mentre la card del lotto dichiarava infortunio, demozione e scommessa, cioè ogni
+fattore della banda TRANNE questo. La scala è ora per RUOLO (25% chi pesta il ruolo, 15% chi sta in un
+altro reparto), geometrica come quella del banco così «poi aumento per i successivi» esce da sé, col
+tetto dichiarato al 90%. Tre dichiarazioni a schermo: la ragione nella card col club e la percentuale,
+la max offerta TINTA sulla riga (solo dove è un'offerta e non un prezzo pagato), la voce in legenda.
+
+**IL BRACCIO MOTORE NON DIVERSIFICAVA ALL'URNA** (commit `99eae38`), e la causa si è vista contando le
+chiamate: `club_weight` 140 volte a chiamata e **ZERO** a estrazione, perché la scala di mercato lo
+manda sul ramo `step`. Quindi la regola che l'operatore aveva appena messo in plancia era assente dal
+meccanismo che lui gioca. `CLUB_ON_DRAWN` misurato appaiato su 10×20 urne: **−0,68%** (t −3,1, 2/10
+finestre) — FALLISCE il criterio, è un COSTO — contro club più affollato **4,00 → 3,18** e sd **86,9 →
+82,6**. ACCESO per sua decisione («accendila, coerenza»), non per il banco: è una preferenza che il
+banco non arbitra, e il beneficio è DENTRO una stagione mentre la sua sd è FRA stagioni.
+
+**LA STRATEGIA PORTIERI ADATTIVA** (in albero): `planKeepers` legge cosa possiedo e capisce la fase — 0
+portieri → mostra il supertop e le coppie complementari; 1 → completa i tre se è supertop, altrimenti
+cerca il partner che arriva a ≥32; 2 club diversi → il terzo è economico, coi due tipi «pari» (il vice
+di un mio titolare che chiude quel club, o un club nuovo). La striscia `keeper-strategy` lo traduce in
+una riga sopra la griglia.
+
+## Le lezioni di metodo
+
+- **UNA SOGLIA DELL'OPERATORE SI RISOLVE MISURANDO QUALE METRICA PUÒ RAGGIUNGERLA.** La sua «32 su 38»
+  non era sui *coperti* (porta inviolata attesa: la coppia migliore fa **24,8**, zero coppie a 32) ma sui
+  *facili* (64 coppie di 190 ci arrivano, la migliore 38/38). Costruirla sulla metrica sbagliata avrebbe
+  prodotto una funzione che non mostra mai niente — e il difetto sarebbe stato invisibile.
+- **UNA SUA INTUIZIONE SI VERIFICA SUL DATO PRIMA DI IMPLEMENTARLA, e qui è confermata**: l'Inter da sola
+  fa 35/38 facili (Roma 34, Juve 31), cioè tre di lei valgono tre giornate in meno della migliore coppia
+  ma con la porta garantita e zero rischio rotazione.
+- **UN CONCETTO NUOVO CHE RIUSA UNA SOGLIA ESISTENTE NON È UN PARAMETRO NUOVO**: «supertop» è
+  esattamente «un club che DA SOLO raggiunge già la soglia della coppia». Ed è il complemento di
+  `EASY_ALREADY_SHARE`: un club auto-coperto è un cattivo PARTNER e un'ottima ANCORA singola.
+- **PRIMA DI CAMBIARE UNA COSTANTE, GUARDA QUANTA DELLA RICHIESTA È GIÀ SODDISFATTA.** «Disincentivare
+  gli acquisti dello stesso club» era già implementato: quello che mancava era che si VEDESSE. Il difetto
+  vero era «un vincolo che agisce in silenzio è indistinguibile da un ordinamento rotto», dal lato display.
+- **UN NUMERO PUBBLICATO SI RICONTROLLA**: avevo scritto che il tetto del 90% morde all'ottavo uomo dello
+  stesso club e ruolo; contato, l'ottavo legge 89,99% per la progressione da sé e il tetto TAGLIA dal
+  NONO. Corretto nel commento e asserito in un test.
+- **UN FLAG GIRATO DOVE NESSUNO LEGGE STAMPA RIGHE IDENTICHE** (terza istanza in questo banco): il primo
+  controllo di `CLUB_ON_DRAWN` è stato «quante stagioni cambiano», 195 su 200, prima di guardare qualunque
+  verdetto.
+- **UN ARNESE SI VERIFICA PRIMA DI ACCUSARE IL CODICE**: `npx vitest run` a mano ha letto 38 fallimenti
+  (`describe is not defined`, `localStorage is not defined`) su un albero verde — era la configurazione
+  sbagliata, il comando vero è `ng test`. E `sorted(windows)[-1]` mi ha dato la finestra più VECCHIA
+  (Tm7, 2015-16) invece della più recente: una tabella coi nomi di dieci anni fa.
+- **UNA SOLA URNA MISURA LA FORTUNA DI QUELL'ORDINE**: nell'asta singola il braccio motore è quarto; su
+  10×20 urne fa 2686 punti, posto 2,18 e 103 titoli su 200 contro i 2574 del miglior umano.
+
+## Verifica
+
+859 test app (49 file) verdi, build pulito, 55 test del banco (uno nuovo che pinna la diversificazione
+all'urna), 4 test unitari nuovi sul piano portieri, banco e2e degli slot verde. Due commit pushati su
+`origin/motore/reparto-e-tasso-titolarita`: `8128cc3` (plancia) e `99eae38` (banco).
+
+## Aperti
+
+- **Il chip supertop non si è potuto vedere a schermo**: nel tavolo demo (asta a un terzo) i portieri di
+  Inter e Roma erano già presi, quindi `singles` era vuoto e la striscia ha mostrato solo le coppie. Il
+  test unitario prova che con un supertop disponibile la strategia esce; resta da guardarla su un tavolo
+  fresco.
+- **La strategia portieri non tocca l'ORDINE degli slot P**, solo la striscia che suggerisce. Se si
+  volesse che il taglio dei blocchi portiere segua il piano invece del valore, è una decisione e non un
+  fix — e va misurata, perché gli slot sono la popolazione su cui ogni banda è tarata.
+- **`bench/auction` non espone `--free`**: l'aggregato sul meccanismo VERO dell'operatore (estrazione
+  libera, non a reparti) si ottiene solo da uno script in scratchpad. Il CLI estrae dentro le fasi
+  P·D·C·A, che è la firma di 16 aste reali su 20 ma NON della sua.
+- **Il tavolo a personalità diverse vive in scratchpad** (`diverse_table.py`) e non tocca
+  `DECLARED_TABLE`, perché ogni numero pubblicato dal banco si riferisce a quello. Se lo si vuole
+  stabile, va nominato nel toolkit con la sua ragione.
+- **L'ottava personalità, il TIFOSO**, resta seduta fuori: le serve una tabella di rivalità dichiarata
+  («Napoli ↔ Juve»), che è una decisione dell'operatore e non una misura.
+- **Le aste più recenti dal RTDB**: l'operatore ha detto che i dati li porta lui. Quando arrivano, l'RTDB
+  dà le AGGIUDICAZIONI (`/sessions/{codice}/state.json`: settings, teams, picks) ma **non** l'ordine di
+  estrazione — quello resta ricostruibile solo dal seed, e infatti l'archivio ha gli estratti-senza-offerta
+  per 5 aste su 147.

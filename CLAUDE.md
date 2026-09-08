@@ -5152,6 +5152,60 @@ piattaforma (`PlayerRow.sold`), coi ceduti fuori dalle liste da comprare e fuori
 mentre la tabella dei Calciatori li MOSTRA, perche' «chi il listone quota» e' un'altra domanda e la sua
 storia con quel club e' un fatto. Resta da fare il MARCHIO su quella riga.
 
+## Uno SCONTO che agisce in silenzio, e una SOGLIA dell'operatore si risolve MISURANDO
+**08/09/2026, quattro richieste sulla plancia. Dettaglio: `assistente-asta-v1.md` §34.3-novies e §34.6,
+`simulatore-asta-rilanci-v1.md` §31.**
+
+**«DISINCENTIVARE GLI ACQUISTI DELLO STESSO CLUB» ERA GIA' IMPLEMENTATO, e quello che mancava era che si
+VEDESSE.** Lo sconto stesso-club viveva dal 04/09 in tutt'e due i punti che chiamano `offerBand` —
+abbassava la cifra sugli slot mercato e faceva scendere di BLOCCO su quelli personali — mentre la card
+del lotto dichiarava la finestra dell'infortunio, la demozione di slot e il tetto della scommessa, cioe'
+ogni fattore della banda TRANNE questo. E' «un vincolo che agisce in silenzio e' indistinguibile da un
+ordinamento rotto» commesso dal lato del DISPLAY, ed e' anche la ragione per cui l'operatore ha
+richiesto una cosa che c'era gia'. *Prima di cambiare una costante, guarda quanta della richiesta e'
+gia' soddisfatta* — e se lo e', il difetto e' che non si vede.
+La scala e' ora per RUOLO (25% chi gli pesta il ruolo, 15% chi sta in un altro reparto), **geometrica**
+come quella del banco (`CLUB_PENALTY ** k`) cosi' «poi aumento per i successivi» esce da se' senza
+scrivere a mano il terzo numero, col tetto DICHIARATO al 90%. Le percentuali si LEGGONO dalla scala e
+non si riscrivono nelle stringhe: due copie di quei numeri direbbero due cose il giorno che ne cambia
+uno. La direzione e' quella che `metrica-asta-surplus-v1.md` §24 misura (stesso club **e** ruolo −0,151
+contro −0,061 di ogni altro appaiamento), quindi vale come DIREZIONE e non come taratura.
+
+**E IL BRACCIO DEL BANCO NON LA APPLICAVA PROPRIO NEL MECCANISMO CHE LUI GIOCA**: contato invece che
+dedotto, `club_weight` e' chiamato **140 volte a chiamata e ZERO a estrazione**, perche' l'adozione della
+scala di mercato manda il braccio sul ramo `step`. `CLUB_ON_DRAWN` e' misurato appaiato (**−0,68%**, t
+−3,1, 2 finestre di 10: FALLISCE il criterio, e' un COSTO) contro un club piu' affollato **4,00 → 3,18**
+e una sd **86,9 → 82,6**; ACCESO per decisione dell'operatore e non per il banco, perche' e' una
+preferenza che il banco non arbitra — il beneficio e' DENTRO una stagione e la sua sd e' FRA stagioni — e
+perche' con OFF il braccio offriva su una scala che il consiglio dell'app contraddice.
+
+**UNA SOGLIA DELL'OPERATORE SI RISOLVE MISURANDO QUALE METRICA PUO' RAGGIUNGERLA.** La sua «almeno 32
+partite su 38» per una coppia di portieri non e' sui *coperti* (porta inviolata attesa: la coppia
+migliore fa **24,8/38** e ZERO coppie toccano 32) ma sui *facili* (**64 coppie di 190** ci arrivano, la
+migliore 38/38). Costruirla sulla metrica sbagliata avrebbe prodotto una funzione che non mostra mai
+niente, e il difetto sarebbe stato invisibile. La soglia vive come QUOTA (`KEEPER_PAIR_TARGET_SHARE`
+32/38) e non come numero, per la lezione R20.
+
+**LA SUA SECONDA STRATEGIA E' CONFERMATA DAL CALENDARIO, E IL CONCETTO NUOVO NON HA UNA COSTANTE NUOVA.**
+«Tre portieri di una sola squadra ma a livello supertop, come Inter»: misurato, l'**Inter da sola fa
+35/38** giornate facili (Roma 34, Juventus 31), cioe' tre di lei valgono tre giornate in meno della
+migliore coppia ma con la porta GARANTITA tutte le 38 e zero rischio rotazione. E «supertop» e'
+esattamente **«un club che DA SOLO raggiunge gia' la soglia della coppia»** — la stessa soglia, non una
+seconda — ed e' il complemento di `EASY_ALREADY_SHARE`: un club auto-coperto e' un cattivo PARTNER
+(ridondante) e un'ottima ANCORA singola. Da qui `planKeepers`, che legge cosa possiedo e capisce la fase
+(scegliere · completare i tre di un supertop · cercare il partner che arriva alla soglia · il terzo
+economico coi DUE tipi «pari», il vice di un mio titolare o un club nuovo), e la striscia
+`views/plancia/keeper-strategy` che la traduce in una riga.
+
+Tre abitudini piu' piccole, tutte pagate qui. **Un numero pubblicato si ricontrolla**: avevo scritto che
+il tetto del 90% morde all'ottavo uomo dello stesso club e ruolo, e contato l'ottavo legge 89,99% per la
+progressione da se', quindi taglia dal NONO. **Un arnese si verifica prima di accusare il codice**:
+`npx vitest run` a mano legge 38 fallimenti (`describe is not defined`, `localStorage is not defined`) su
+un albero verde, perche' il comando vero e' `ng test`; e `sorted(windows)[-1]` da' la finestra piu'
+VECCHIA (Tm7, 2015-16) invece della piu' recente. E **una sola urna misura la fortuna di
+quell'ordine**: nell'asta singola il braccio motore e' quarto, su 10×20 urne fa 2686 punti, posto 2,18 e
+103 titoli su 200 contro i 2574 del miglior umano.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
