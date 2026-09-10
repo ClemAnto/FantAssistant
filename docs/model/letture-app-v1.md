@@ -4980,3 +4980,205 @@ scritta accanto alla riga invece che scoperta dopo.
 ng-zorro, e un'icona non registrata non dà errore — disegna niente. È la lezione della lente del
 04/09/2026 applicata prima di pagarla una seconda volta. `poweroff` è nel set ed è anche la parola
 giusta.
+
+# §39 — IL NUOVO ARRIVATO: due bracci per due popolazioni, e la conversione «sempre» (10 settembre 2026)
+
+Nata da una domanda dell'operatore: «mettimi in evidenza i calciatori nuovi che potenzialmente
+potrebbero fare molto bene — nelle ultime 15 o 20 partite una media voto molto alta giocando con
+costanza, o molti bonus (gol+assist)». Le due metà della frase valgono su popolazioni **diverse**, e
+tutto quello che segue è il risultato di quella misura invece che una scelta di forma.
+
+## 39.1 — Chi sono, e perché il foglio non li vede
+
+Sul listone Serie A 2026-27, **188 quotati su 531** non hanno un solo voto della stagione appena
+finita. Il motore li prezza sull'ancora di ruolo (su `default` R0c non è adottata, quindi la cella
+`engine_*` è VUOTA e non zero) e `est_pv` cade sulla costante «nessuno lo ha mai visto giocare», che
+è **0,29 del calendario**. Misurato sul foglio vivo, `r(quota giocata all'estero, est_pv)` legge
+**+0,053** su default e **+0,069** su euro: il foglio non sbaglia su di loro, è **CIECO**. Sono
+ordinati da un numero uguale per tutti.
+
+L'evidenza che abbiamo su quei 188:
+
+| | uomini | cosa portano |
+|---|---|---|
+| dai 5 campionati coperti | 44 | voto sintetico, bonus, minuti |
+| Serie B / coppe / Serie C | 76 | minuti e bonus, **nessun voto** |
+| solo campionati non coperti | 57 | solo `tm_appearances` |
+| niente | 11 | — |
+
+## 39.2 — La misura, e perché i bracci sono DUE
+
+7 stagioni, **803 (uomo, stagione)** quotati in Serie A senza Serie A l'anno prima e con 900+ minuti su
+file. Esito «esploso» = **20+ presenze E fantamedia 6,0+**. Ogni segnale rankato **dentro ruolo e
+stagione**, cioè contro il pool da cui l'operatore sceglie davvero — e non contro tutti, che è
+l'errore del §20 di `metrica-asta-surplus-v1.md` (il null è l'insieme di condizionamento).
+
+| | coperti (n=155), base 36,8% | non coperti (n=648), base 23,6% |
+|---|---|---|
+| **quota di stagione** | **52,0% → 1,41x** | 30,2% → 1,28x |
+| **gol+assist per 90** | 38,0% → **1,03x** | **32,0% → 1,35x** |
+| voto sintetico | 50,0% → 1,36x | non esiste |
+| **Qt.I da solo** | 52,0% → **1,41x** | 35,6% → **1,51x** |
+
+Leave-one-season-out sui due adottati: **1,47x** e **1,33x**, cioè reggono.
+
+Dai cinque campionati che copriamo conta **quanto ha giocato**, e i bonus non contano — 1,03x, e
+**0,70x fra i quotati bassi**, cioè fuorviano proprio dove si cerca l'affare. Da fuori è il contrario.
+Il meccanismo: dentro i cinque il campionato dice già il livello, quindi ciò che distingue due uomini
+è se giocavano; fuori il livello è ignoto e i bonus sono l'unica cosa che dice «è forte» — ed è anche
+perché pagano meno di quanto sembri, essendo confusi con un campionato debole (il decile alto crolla a
+1,02x).
+
+**E LA METÀ SCOMODA VA DETTA PER PRIMA: il Qt.I da solo legge 1,41x e 1,51x**, cioè quanto o meglio di
+qualunque nostro segnale. Questo screen **non batte il mercato**. Quello che compra è che 188 uomini
+smettano di essere ordinati da una costante. Dentro una banda di prezzo i nostri segnali aggiungono
+1,2-1,4x, non di più.
+
+## 39.3 — Su EURO i due bracci si INVERTONO, e il marchio si spegne
+
+Domanda dell'operatore: «hai valutato anche le EuroLeghe?». No, e la risposta era diversa da quella
+che avrei esteso. Rimisurato là con lo stesso disegno, lo stesso esito e lo stesso null, cinque
+finestre, col braccio Serie A **rieseguito come controllo** (che riproduce, ed è ciò che rende
+leggibile la lettura euro):
+
+| | Serie A | EuroLeghe |
+|---|---|---|
+| coperto — minuti | **1,47x** | 1,27x |
+| coperto — bonus | **1,03x** | **1,35x** |
+| non coperto — minuti | 1,30x | **1,37x** |
+| non coperto — bonus | **1,36x** | **1,12x** |
+
+C'è anche un meccanismo che lo spiegherebbe — EuroLeghe è una selezione di **top club**, quindi il suo
+«nuovo coperto» è uno che già gioca nei cinque per un club che la piattaforma non porta, e di lui non
+distingue *se* gioca (in un club di metà classifica giocano tutti) ma *cosa produce*, che è ciò che lo
+sposta in un grande club.
+
+**NON È PER QUEL MECCANISMO CHE IL MARCHIO È SPENTO.** È spento perché con **n = 151 e 168** la
+differenza fra 1,27 e 1,35 non è risolvibile, e invertire i bracci su quella sarebbe adattare la storia
+al rumore. Vale la regola di casa: un parametro appartiene alla popolazione su cui è misurato, e la
+PIATTAFORMA è una di quelle (R19 su `default`, R20 con un K per piattaforma, R18 su euro).
+`abroad.SCREEN_PLATFORMS = ("default",)`, e l'ipotesi euro resta scritta come **pre-registrazione**,
+coi numeri che dovrà battere.
+
+**I NUMERI però viaggiano su tutt'e due i fogli** (115 righe su euro): la finestra è un FATTO
+sull'uomo, il marchio è un giudizio. Solo il secondo è legato alla piattaforma.
+
+## 39.4 — Le tre trappole, chiuse per costruzione
+
+- **I portieri sono fuori.** Il p90 del loro ruolo è **0,03** gol+assist per 90, quindi un portiere con
+  un assist lo supera: con loro dentro il marchio accendeva Renzetti, De Marzi e Sanchez Ro., tutti su
+  un assist a testa. È il difetto dei «primi portieri tutti a 99» (§9) da un lato nuovo — una frase
+  sul RIGHELLO e non su di loro.
+- **Il calcio GIOVANILE è fuori, e non con una lista di codici**: `tm_appearances` porta **1.086**
+  competizioni e dentro c'è la Primavera (anno di nascita mediano 2006), dove 38 partite e 14 gol non
+  sono una stagione da senior. Derivato dall'**età mediana** di chi gioca una competizione, così un
+  campionato giovanile nuovo si esclude da sé; una competizione troppo sottile per giudicarla resta
+  FUORI dall'insieme — «vuoto = ignoto», e qui è la direzione che non costa niente.
+- **Il LIVELLO del campionato non è letto affatto**, ed è un rifiuto e non una dimenticanza: vedi §39.6.
+
+## 39.5 — Due difetti trovati dai NUMERI, non dalla rilettura
+
+- **La quota era tagliata dalla FINESTRA.** Leggeva 0,588 per tutti, cioè **20/34**: dividevo i minuti
+  di venti partite per le giornate dell'intera stagione, quindi nessuno poteva superare quel tetto e la
+  classifica misurava la finestra invece dell'uomo. La finestra risponde a «cosa ha fatto ultimamente»
+  (la domanda dell'operatore), la quota a «quanto di una stagione è» — due domande, due denominatori.
+  Si è visto perché 0,588 era sospettosamente vicino a 20/34.
+- **Il braccio si decideva con «tutte le venti nei cinque»** mentre la misura diceva «900 minuti là»:
+  una partita di Ligue 2 spostava Moreira sul braccio sbagliato, e i due bracci leggono segnali
+  DIVERSI, quindi non è un dettaglio estetico. Ora decide la maggioranza dei MINUTI.
+
+Un test ciascuno, e falliscono se il difetto torna.
+
+## 39.6 — La conversione «sempre», e la regola di ripiego dell'operatore
+
+Richiesta: «applichiamo sempre al rating grezzo una conversione appropriata, non serve precisissima».
+
+**Il meccanismo esisteva già**, validato leave-one-out e spento da un interruttore, con un commento che
+diceva che accenderlo era una decisione dell'operatore: `synth.apply_model` applica la retta più un
+**offset per competizione** (`fit_offsets`, gate §7-nonies), e `APPLY_OFFSETS = False`.
+
+Il fatto che decide la forma: **il rating Sofascore è normalizzato DENTRO la competizione**, misurato
+in due modi indipendenti — le medie dei cinque campionati stanno in otto centesimi (Serie A 6,849,
+Bundesliga 6,929) e lo scarto **appaiato dentro lo stesso uomo e la stessa stagione** fra una coppa e
+il suo campionato è Champions −0,060, Europa League −0,002, amichevoli −0,012, Coppa Italia +0,046, FA
+Cup +0,161, Copa del Rey +0,205. Quindi per coppe e amichevoli la retta si applica quasi tale e quale;
+per un campionato estero il numero dice «com'è andato **dentro il suo** campionato».
+
+Gli offset misurati, e perché erano spenti:
+
+| competizione | δ | uomini | LOO offset | retta nuda | ancora ruolo | |
+|---|---|---|---|---|---|---|
+| Champions | +0,078 | 180 | 0,1735 | 0,1868 | 0,1679 | passa |
+| Europa League | +0,031 | 62 | 0,1479 | 0,1462 | 0,1402 | no |
+| **Serie B** | **−0,170** | 26 | 0,1667 | 0,1980 | 0,1739 | no |
+| Conference | −0,015 | 19 | 0,1029 | 0,0983 | 0,1574 | passa |
+| **Eredivisie** | **−0,303** | 15 | 0,2408 | 0,3216 | 0,1603 | no |
+| amichevoli | +0,227 | 11 | 0,3287 | 0,3273 | 0,1901 | no |
+| **Championship** | **−0,272** | 10 | 0,3063 | 0,3818 | 0,1484 | no |
+
+L'offset batte **sempre** la retta nuda e perde **sempre** contro l'ancora di ruolo. Quello è il
+verdetto per la PREVISIONE e resta: per prevedere quanto renderà, «è un attaccante medio» batte
+«convertiamo il suo rating olandese». **Ma per MOSTRARE venti righe di partita l'ancora non è
+un'opzione** — sarebbe venti volte 6,02 — quindi la richiesta dell'operatore non contraddice quel
+verdetto: parla di un'altra domanda.
+
+**Da qui `mv_est`, COMPLEMENTO di `mv_synth` e mai una seconda opinione**: popolata solo dove la
+calibrata è vuota, così un lettore fa `COALESCE(mv_synth, mv_est)` e sa sempre quale ha in mano. Due
+interruttori distinti — `APPLY_OFFSETS` governa `mv_synth` (che alimenta `foreign_fm_equiv`, la tier
+degli arrivi e `est_*`, percorsi gatati, e resta SPENTO), `READING_OFFSETS` governa la lettura — e un
+test pretende che restino separati. Effetto: **13.223 partite in più portano un voto**, e le righe con
+un rating e nessun voto passano a **ZERO**.
+
+**LA REGOLA DI RIPIEGO È DELL'OPERATORE, e la sua prima forma è stata MISURATA E RESPINTA.** Aveva
+proposto «prendi il δ di una divisione equivalente di un paese vicino», poi «il vicino con l'Elo più
+basso, perché se un campionato non ha dati sarà sicuramente un campionato minore». Il legame
+livello↔δ **non c'è**: sui tre campionati non coperti che hanno un δ l'ordine è **esattamente
+invertito** (Eredivisie, livello 1611, sposta −0,303; Championship 1562, −0,272; Serie B 1479,
+−0,170). Un meccanismo plausibile: δ non misura quanto è forte un campionato, misura quanto sono
+**gonfi i suoi rating** contro un voto italiano — e chi arriva in Serie A dall'Eredivisie è il migliore
+di quel campionato (rating medio 7,39 contro 7,26 della Serie B). È selezione, non livello.
+
+Quindi la sua regola sopravvive **per la seconda metà del suo argomento**: si prende il **δ più basso
+misurato** (oggi −0,303) per prudenza, non per vicinanza di livello. Ed è **DERIVATO e non digitato**:
+il giorno in cui un campionato più debole si guadagna il suo δ, il ripiego scende da sé.
+
+Un numero che vale la pena tenere perché smentisce una mia frase: **la Polonia È in `club_levels`** con
+33 club. Quello che falliva era il join del club di Bobcek — il provider scrive `KS Lechia Gdańsk`,
+ClubElo scrive `lechia`. Il livello di un campionato si legge dal PAESE (media dei 18 club più forti:
+Inghilterra 1838 · Germania 1763 · Italia 1754 · Portogallo 1558 · Olanda 1548 · **Polonia 1429** ·
+Grecia 1372 · Serbia 1170) e non dai singoli club, che è esattamente ciò che l'operatore aveva
+proposto — «una media tra le squadre».
+
+## 39.7 — Cosa c'è a schermo, e cosa no
+
+Dieci colonne sul foglio (`desc_abroad_*`, `SHEET_REVISION` 58), nel contratto di export e fra le
+**opzionali** — o i quattro pacchetti del viaggio nel tempo verrebbero scartati in blocco per una
+colonna nuova, che è la quarta volta che quel commento si scrive. Le colonne descrittive viaggiano su
+**75** righe e il marchio su **23**: togliere i numeri a chi non passa il taglio renderebbe impossibile
+capire perché non è passato.
+
+Nell'app: `core/newcomer.ts` possiede solo le PAROLE (il fatto lo misura il toolkit e non si
+ricalcola), `ValuationStore` legge le colonne e registra il marchio — non il pannello, perché un
+marchio disegnato in una vista sola è indistinguibile da uno che non esiste. Icona **bussola**, non il
+razzo di `starter_signs`: quello è una notizia su chi qui sta già giocando, questa dice «orientati su
+di lui». Registrata in `nz-icons` invece di sperare che ng-zorro la includa (la review del 04/09).
+**Nessun controllo di piattaforma nell'app**: su euro la colonna arriva vuota da sé, e un `if` là
+terrebbe la decisione in due posti.
+
+**Aperto**: le viste non disegnano ancora il marchio. È registrato nello store e nel menu dei filtri,
+e va agganciato dove serve al tavolo.
+
+## 39.8 — Chi accende lo screen oggi
+
+| | R | Qt.I | braccio | g+a/90 | quota | voto | rango |
+|---|---|---|---|---|---|---|---|
+| Bobcek | A | 9 | bonus | **1,04** | | 5,92 | 1/8 |
+| Calò | C | 7 | bonus | 1,00 | | 6,58 | 1/14 |
+| Gonçalves P. | C | 12 | bonus | 0,64 | | 5,81 | 2/14 |
+| Ghedjemis | A | 9 | bonus | 0,61 | | 6,12 | 2/8 |
+| Koulierakis | D | 8 | quota | | **1,000** | 6,15 | 1/22 |
+| Schmid | C | 8 | quota | | 0,976 | 6,06 | 1/10 |
+| Chalobah T. | D | 9 | quota | | 0,813 | 5,86 | 3/22 |
+
+Chalobah e Moreno M. sono marcati con **0,00** di gol+assist, ed è la prova che i due bracci servono:
+letti sui bonus sarebbero invisibili, ed è lo 0,70x che la misura respinge.

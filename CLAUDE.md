@@ -5373,6 +5373,120 @@ nomina le cinque fette con la loro metà stretta; e **la profondità di una cate
 grafo** — due guardiani sono caduti perché il listone è sceso di un livello, e si camminano le chiamate
 in modo TRANSITIVO invece di asserire una disposizione.
 
+## L'INDEX DI GIT È CONDIVISO, quindi «ho messo in index solo i miei» è una fotografia che scade
+**10/09/2026, quinta istanza di «due sessioni su un albero» e la prima con una causa nuova.** Avevo
+messo in index i miei nove file e **verificato con `git diff --cached --name-only`** che nulla
+dell'altra metà fosse dentro; fra quella verifica e il `git commit` l'altra sessione ha fatto il suo
+`git add`, e i suoi sei file sono entrati nel mio commit. Non è un hook (`.git/hooks/` è vuota) e non è
+una svista nel comando: **`.git/index` è un file solo**, quindi la separazione delle metà non si può
+ottenere mettendo in index i propri file — l'index non è privato più di quanto lo sia il working tree.
+La cura non è ricordarselo: **`git commit -- <elenco esplicito>`**, che committa quei percorsi
+ignorando l'index, oppure un worktree per sessione. E la regola già scritta si estende: si rilegge
+`git status` prima di scrivere il messaggio *e* si controlla `git show --stat` **dopo**, perché è lì
+che il difetto si vede.
+Il messaggio sbagliato è stato corretto con un `--amend`, non lasciato a verbale: diceva che i sei file
+restavano fuori. **Non separati con un reset**, e la ragione è la regola del 04/09 applicata alla
+lettera: i loro `engine/presence.py` e `engine/status.py` sono letti dai loro
+`tests/test_recent_window.py`, quindi spezzare avrebbe lasciato l'albero **ROSSO** — che è esattamente
+ciò che «non committare la metà di un altro» esiste per evitare. *Quando separare produce il rosso, si
+porta tutto e si dice di chi è cosa.*
+
+## Un LETTORE lungo blocca uno SCRITTORE, e «chi sta girando» non si chiede al filesystem
+**10/09/2026, e mi è costato due acquisizioni.** Il DB è in `journal_mode: delete` (non WAL), dove una
+SELECT lunga tiene uno SHARED lock e nessuno può scrivere: ho lanciato un'acquisizione e poi due query
+di misura sullo stesso database, e otto giocatori su 44 sono usciti con `database is locked`. La
+regola del progetto — «una sessione possiede il DB» — vale anche **dentro** una sessione: una misura
+read-only non è gratis mentre qualcuno scrive.
+E la guardia che avevo scritto per aspettare il DB era sbagliata nella domanda: **guardava il MTIME**
+dei file e rispondeva «libero» nelle pause fra due scritture. La domanda giusta è **chi sta girando**,
+e si risponde in un comando (`Get-CimInstance Win32_Process` filtrando `euroleghe_ingest` nella
+command line) — il vero occupante era `injuries` di un'altra sessione, partito prima di tutto quello
+che avevo fatto. *Una sonda istantanea su uno stato intermittente misura la fortuna dell'istante.*
+Per una misura mentre il DB è occupato: **la copia privata** (543 MB in un secondo), che il progetto
+già prescriveva per gli esperimenti di scrittura e vale identica in lettura.
+
+## `tsc -p tsconfig.json` NON compila gli spec, quindi «compila pulito» era metà albero
+**10/09/2026.** Ho dichiarato la metà app verificata dopo un `tsc --noEmit` uscito 0, e `npm test` ha
+poi trovato un errore vero: il fixture di `valuation-store.spec.ts` costruisce un oggetto ESAUSTIVO e
+non aveva i dieci campi nuovi. Il comando che compila tutto è **`npm test`** (builda l'app *e* i test);
+`tsconfig.json` copre solo `src/`. Stessa famiglia del `grep` che tronca l'output e fa citare un
+verdetto che non si è visto — qui il filtro era nel *perimetro* dello strumento invece che nel testo.
+Corollario sull'ambiente: `node_modules` dell'app può essere **parzialmente installato** (qui
+`typescript/lib` era vuota) e allora nessun comando funziona; `npm ci --prefer-offline` costa **18
+secondi** e ripara.
+
+## Il NUOVO ARRIVATO ha due bracci, e sono opposti sulle due piattaforme
+**10/09/2026, dalla domanda dell'operatore «mettimi in evidenza i calciatori nuovi che potrebbero fare
+molto bene — media voto alta giocando con costanza, o molti bonus». Dettaglio, tabelle e rifiuti:
+[docs/model/letture-app-v1.md](docs/model/letture-app-v1.md) §39.** `modules/abroad.py`, dieci colonne
+`desc_abroad_*`, `SHEET_REVISION` 58, REPORTING puro.
+
+**Le due metà della sua frase valgono su popolazioni DIVERSE**, e questo è il risultato invece che una
+scelta di forma. Su 7 stagioni e 803 (uomo, stagione) quotati in Serie A senza Serie A l'anno prima,
+esito «20+ presenze e fantamedia 6,0+», ogni segnale rankato dentro ruolo e stagione: dai cinque
+campionati che copriamo conta **quanto ha giocato** (1,41x) e i bonus **non contano** (1,03x, e
+**0,70x** fra i quotati bassi, cioè fuorviano proprio dove si cerca l'affare); da fuori è il contrario
+(bonus 1,35x, quota 1,28x). Il meccanismo: dentro i cinque il campionato dice già il livello, quindi
+distingue se giocavano; fuori il livello è ignoto e i bonus sono l'unica cosa che dice «è forte».
+
+**E LA METÀ SCOMODA VA DETTA PER PRIMA: il Qt.I da solo legge 1,41x e 1,51x**, cioè quanto o meglio di
+qualunque nostro segnale — questo **non batte il mercato**. Quello che compra è che **188 quotati su
+531** smettano di essere ordinati da una costante: `est_pv` cade sul «nessuno lo ha mai visto giocare»
+e `r(quota all'estero, est_pv)` legge **+0,05**. Il foglio non sbaglia su di loro, è CIECO.
+
+**SU EURO I DUE BRACCI SI INVERTONO E IL MARCHIO SI SPEGNE** (la sua domanda: «hai valutato anche le
+EuroLeghe?», che ha cambiato il codice). Coperto 1,27x sui minuti contro 1,35x sui bonus, non coperto
+1,37x contro 1,12x, col braccio Serie A rieseguito come controllo. C'è un meccanismo che lo
+spiegherebbe — EuroLeghe è una selezione di TOP CLUB — e **non è per quello che è spento**: è spento
+perché con n = 151 e 168 quella differenza non è risolvibile, e invertire i bracci su di essa sarebbe
+adattare la storia al rumore. *Un parametro appartiene alla popolazione su cui è misurato, e la
+piattaforma è una di quelle.* **I NUMERI viaggiano su tutt'e due i fogli, il VERDETTO no**: la finestra
+è un fatto sull'uomo, il marchio è un giudizio.
+
+Tre trappole chiuse per costruzione: i **portieri** fuori (il p90 del loro ruolo è 0,03 g+a/90, un
+assist lo supera — il difetto dei «primi portieri a 99» da un lato nuovo); il calcio **giovanile**
+fuori tramite l'**età mediana** di chi gioca una competizione e non con una lista di codici (1.086
+codici, dentro c'è la Primavera); il **livello** del campionato non letto affatto. E due difetti
+trovati dai numeri: la quota **tagliata dalla finestra** (0,588 per tutti, cioè 20/34 — la classifica
+misurava la finestra e non l'uomo) e il braccio deciso con «tutte le venti nei cinque» invece che coi
+minuti.
+
+## Una CONVERSIONE si applica sempre, ma in una colonna che non può contraddire quella gatata
+**10/09/2026, richiesta dell'operatore: «applichiamo sempre al rating grezzo una conversione
+appropriata, non serve precisissima».** Il meccanismo **esisteva già** — `synth.apply_model` con
+l'offset per competizione, validato leave-one-out, spento da `APPLY_OFFSETS` e con un commento che
+diceva che accenderlo era una sua decisione. Nona istanza di «il dato c'era».
+
+**Il fatto che decide la forma: il rating Sofascore è normalizzato DENTRO la competizione.** Due
+misure indipendenti — le medie dei cinque campionati stanno in otto centesimi (Serie A 6,849,
+Bundesliga 6,929), e lo scarto appaiato dentro lo stesso uomo fra una coppa e il suo campionato è
+−0,06 … +0,21. Quindi il rating **non porta il livello**, ed è anche perché il rating grezzo estero non
+predice niente (r = −0,069 con le presenze dell'anno dopo su 129 uomini, lift 1,07x).
+
+`mv_est` è il **COMPLEMENTO** di `mv_synth` e mai una seconda opinione: popolata solo dove la
+calibrata è vuota, così un lettore fa `COALESCE` e sa quale ha in mano, e le due non possono
+disaccordarsi (verificato: 0 righe con entrambe). **Due interruttori distinti**, perché uno non muova
+l'altro per sbaglio: `APPLY_OFFSETS` governa `mv_synth`, che alimenta `foreign_fm_equiv`, la tier degli
+arrivi e `est_*` — percorsi gatati, resta SPENTO — e `READING_OFFSETS` governa la lettura. La ragione
+per cui le due domande hanno due risposte è la misura stessa: l'offset batte **sempre** la retta nuda e
+perde **sempre** contro l'ancora di ruolo, quindi per PREVEDERE vince «è un attaccante medio» e per
+DISEGNARE venti righe l'ancora non è un'opzione. Effetto: 13.223 partite in più con un voto, e le
+righe con un rating e nessun voto passano a zero.
+
+**IL RIPIEGO È DELL'OPERATORE, E LA SUA PRIMA FORMA È STATA MISURATA E RESPINTA.** Aveva proposto «il δ
+di una divisione equivalente di un paese vicino», poi «il vicino con l'Elo più basso, perché se un
+campionato non ha dati sarà sicuramente un campionato minore». Il legame livello↔δ **non c'è**: sui tre
+campionati non coperti che hanno un δ l'ordine è invertito (Eredivisie 1611 → −0,303, Championship 1562
+→ −0,272, Serie B 1479 → −0,170), e il meccanismo plausibile è che δ misuri quanto sono **gonfi i
+rating** di quel campionato e non quanto è forte — chi arriva dall'Eredivisie è il migliore di lì. Così
+la sua regola sopravvive **per la seconda metà del suo argomento**: si prende il δ più basso misurato,
+per prudenza e non per vicinanza. **DERIVATO e non digitato**, quindi il giorno in cui un campionato
+più debole si guadagna il suo δ il ripiego scende da sé.
+*E una mia frase smentita, tenuta perché è il tipo di errore che torna:* «nessun club polacco è in
+`club_levels`» era falsa — ce ne sono 33, e a fallire era il join del club (`KS Lechia Gdańsk` contro
+`lechia`). Il livello di un campionato si legge dal PAESE, che è quello che l'operatore aveva proposto
+(«una media tra le squadre»): sesta istanza del join per nome.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

@@ -6939,3 +6939,92 @@ interruttore illeggibile, e il passaggio Task Scheduler → pwsh con `Start-Sche
   MOSTRA (viaggia nel bundle) e il pannello lo scrive. La strada per farlo davvero dalla pagina è un
   compagno locale su 127.0.0.1, con un'incognita da misurare prima: la pagina pubblicata è https.
 - **L'archivio infortuni** stava scaricando alla chiusura (25%, 0 errori), staccato dalla sessione.
+
+---
+
+# Chiusura 10 settembre 2026 (terza sessione) — i nuovi arrivati, e un canale che era spento da undici giorni
+
+Sessione nata da una domanda sola: «mettimi in evidenza i calciatori nuovi che potrebbero fare molto
+bene — media voto alta giocando con costanza, o molti bonus». Il documento pieno è
+`letture-app-v1.md` §39; qui sta cosa è successo e cosa resta.
+
+## La domanda aveva due metà, e valgono su popolazioni opposte
+
+Misurato su 7 stagioni e 803 (uomo, stagione): dai cinque campionati che copriamo conta **quanto ha
+giocato** (1,41x) e i bonus **non contano** (1,03x, e 0,70x fra i quotati bassi, cioè fuorviano dove si
+cerca l'affare); da fuori è il contrario (bonus 1,35x). Su EuroLeghe — che ha chiesto lui — i due
+bracci si **invertono**, e il marchio là è spento perché n = 151 e 168 non separano 1,27 da 1,35.
+
+**La metà scomoda, scritta per prima ovunque**: il Qt.I da solo legge 1,41x e 1,51x. Questo screen non
+batte il mercato. Compra che 188 quotati su 531 smettano di essere ordinati da una costante —
+`r(quota all'estero, est_pv)` = **+0,05**.
+
+## Il caso Bobcek: non un dato mancante, un canale spento
+
+Avevo risposto «per lui non abbiamo dati e non ne avremo», e l'operatore ha portato il link della sua
+scheda. Aveva ragione su tutto tranne il voto:
+
+- `recent_form` **esiste** per esattamente questo (i quotati sopra la mediana con zero storia qui);
+- il suo verbale del 1º settembre diceva **0 identità risolte su 21** — uno zero uniforme, la firma di
+  una causa nostra, ed era una corsa fatta mentre il provider rispondeva 403;
+- chiamato il resolver quel giorno: Bobcek → **918481, tier1_club_confirmed**, esattamente l'id del
+  suo link.
+
+Riacquisito: **44 su 44**, 880 righe, 20 partite a testa. Bobcek ha 18 partite di Ekstraklasa, 1554
+minuti, 13 gol e 5 assist.
+
+## Tre errori di procedura miei, e valgono più della feature
+
+- **Ho tenuto due query pesanti sul DB mentre partiva l'acquisizione**, e il DB è in `journal_mode:
+  delete`, dove un lettore lungo blocca uno scrittore. Otto giocatori usciti con `database is locked`.
+- **Il mio waiter guardava il MTIME del file** e rispondeva «libero» nelle pause fra due scritture: la
+  domanda giusta era **chi sta girando**, e si risponde in un comando (`Get-CimInstance` sui processi
+  con `euroleghe_ingest` nella command line). Il vero occupante era `injuries` dell'altra sessione,
+  partito prima di tutto quello che avevo fatto.
+- **Ho detto «compila pulito» dopo `tsc -p tsconfig.json`**, che **esclude gli spec**: il comando che
+  compila tutto è `npm test`, e infatti il fixture di `valuation-store.spec.ts` non aveva i dieci campi
+  nuovi. Metà albero verificata, dichiarata come intero.
+
+## E il difetto NUOVO per questo repository: l'INDEX DI GIT È CONDIVISO
+
+Avevo messo in index i miei nove file e **verificato con `git diff --cached`** che nulla dell'altra
+sessione fosse dentro. Fra quella verifica e il `git commit`, l'altra sessione ha fatto il suo
+`git add` e i suoi sei file sono entrati nel mio commit. Non è un hook e non è una svista nel comando:
+`.git/index` è **un file solo**, quindi «ho messo in index solo i miei» è una fotografia che scade
+esattamente come `git status`.
+
+La cura non è ricordarselo: **`git commit -- <elenco>`**, che committa un elenco esplicito ignorando
+l'index, oppure un worktree per sessione. Il primo messaggio del commit diceva che i sei file
+restavano fuori, il che era falso; corretto con un amend invece di lasciare a verbale una frase
+sbagliata. Non separati con un reset perché i loro `presence.py`/`status.py` sono letti dai loro
+`test_recent_window.py` — spezzare avrebbe lasciato l'albero **rosso**, che è ciò che la regola vuole
+evitare. Le due metà sono nominate nel messaggio.
+
+## Cosa è entrato
+
+`dc1104f`. Toolkit: `modules/abroad.py` (lo screen a due bracci), `mv_est` in `synth` con il ripiego
+derivato dell'operatore, dieci colonne `desc_abroad_*`, `SHEET_REVISION` **58**. App:
+`core/newcomer.ts` più le letture in `valuation-store`, `player-status`, `flag-prefs`, `player-flags`,
+`nz-icons`.
+
+Dati rigenerati con `update --offline` (9/9): `arrivals` ri-derivato (2.378 FM-equivalenti), i tre
+fogli, i quattro pacchetti, il bundle (468.501 righe in 26 tabelle) e il pull nell'app (25,8 MB).
+Verificato **sul bundle che l'app serve**: 75 righe coi numeri e 23 marcate su Serie A, 115 e **zero**
+su euro, `mv_est` su 11.891 partite con **zero** sovrapposizioni con `mv_synth`.
+
+Verifiche: 823 test toolkit, 879 app (52 file), `backtest --verify` **22/22**.
+
+## Aperti, in ordine di costo
+
+1. **Le viste non disegnano il marchio.** È registrato nello store e nel menu dei filtri, ma nessuna
+   pagina lo mostra ancora — va agganciato dove serve al tavolo (plancia, Strategia, tabella).
+   Finché non lo è, vale la regola di casa: un marchio che nessuna vista disegna è indistinguibile da
+   un marchio che non esiste.
+2. **`mv_est` non ha un lettore nell'app.** La colonna viaggia nel bundle (11.891 righe) e la card
+   continua a mostrare il vuoto sulle partite di un campionato non coperto.
+3. **L'ipotesi euro è pre-registrata**: se i due bracci invertiti reggono su un campione più grande, là
+   si scambiano e i numeri da battere sono in `letture-app-v1.md` §39.3.
+4. **`injuries` è stato fermato a metà** su decisione dell'operatore per liberare il DB: riparte da sé
+   con `--stale-days`, ed è esattamente perché quel flag esiste.
+5. **`npm ci` ha riparato l'installazione dell'app**, che era rotta (`typescript/lib` vuota). Non era
+   un obiettivo: è successo, e sbloccava anche l'altra sessione.
