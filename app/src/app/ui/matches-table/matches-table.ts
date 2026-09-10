@@ -1,21 +1,25 @@
-import { booleanAttribute, Component, computed, inject, input, signal } from '@angular/core';
+import { booleanAttribute, Component, computed, inject, input, output, signal } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzTableModule } from 'ng-zorro-antd/table';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, ScoringConfig } from '../../core/bundle';
-import { BonusKind, BonusRow, bonusesOf } from '../../core/match-bonuses';
+import { Platform } from '../../core/players-store';
+import { TITOLARITA_LADDER, Titolarita, titolaritaNote, titolaritaRank } from '../../core/titolarita';
+import { ValuationStore } from '../../core/valuation-store';
+import { BonusKind, BonusRow, bonusesOf, spellOf } from '../../core/match-bonuses';
 import { ColumnSlot, MatchCell, PlayerLine } from '../../core/players-store';
-import { short } from '../../core/tooltip';
 import { BonusMark } from '../bonus-mark/bonus-mark';
 import { ClubCrest } from '../club-crest/club-crest';
 import { MatchDetail } from '../match-detail/match-detail';
 import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
+import { SpellMark } from '../spell-mark/spell-mark';
+import { TipTone, matchTip } from './match-tip';
 import { lazyRows } from '../../core/lazy-rows';
-import { KIND_ICON, KIND_LABEL, STATE_ICON, STATE_LABEL, voteClass, voteText } from './vocabulary';
+import { KIND_ICON, KIND_LABEL, STATE_ICON, voteClass, voteText } from './vocabulary';
 
 /**
  * QUELLO CHE UNA CELLA MARCA: gol, rigori segnati, assist - gli stessi eventi che marcava prima, coi
@@ -33,8 +37,8 @@ import { KIND_ICON, KIND_LABEL, STATE_ICON, STATE_LABEL, voteClass, voteText } f
  */
 const CELL_MARKS = new Set<BonusKind>(['goal', 'pen-scored', 'assist']);
 
-/** dd/mm/yyyy, because a date in a tooltip is read by a person and not by a parser. */
-const it = (iso: string): string => iso.split('-').reverse().join('/');
+/** Da quale gradino in giu' il nome si smorza: `riserva`, cioe' l'ultimo. Vedi `faint`. */
+const FAINT_FROM = TITOLARITA_LADDER.indexOf('riserva');
 
 /**
  * The last matches of a list of men: one column per round (or per week), one cell per match.
@@ -59,15 +63,30 @@ const it = (iso: string): string => iso.split('-').reverse().join('/');
     PlayerFlags,
     RoleBadge,
     RoleSet,
+    SpellMark,
   ],
   host: { class: 'block' },
 })
 export class MatchesTable {
   private readonly bundle = inject(Bundle);
+  private readonly valuation = inject(ValuationStore);
 
   readonly lines = input.required<PlayerLine[]>();
   readonly columns = input.required<ColumnSlot[]>();
   readonly crests = input<Record<string, string>>({});
+  /**
+   * QUALE LISTONE, che e' quello che rende leggibile il gradino di titolarita': la stessa parola su due
+   * piattaforme e' due previsioni diverse (calendari diversi, perimetri diversi), quindi una colonna
+   * che non sapesse quale sta guardando ne mostrerebbe una a caso.
+   */
+  readonly platform = input<Platform>('default');
+  /**
+   * IL CLICK SUL NOME APRE LA CARD (operatore, 10/09/2026: «quando clicco sul nome del calciatore
+   * mostrami la sua card di dettaglio»). La tabella non apre niente da se': emette l'IDENTITA' e la
+   * pagina decide, come fa gia' `ui/squad-table` - due tabelle che aprissero due card sarebbero due
+   * letture degli stessi `engine_*`.
+   */
+  readonly pick = output<number>();
   /** A list of one club does not repeat the club on every row. */
   readonly showClub = input(true);
   /**
@@ -90,7 +109,6 @@ export class MatchesTable {
   protected readonly kindIcon = KIND_ICON;
   protected readonly kindLabel = KIND_LABEL;
   protected readonly stateIcon = STATE_ICON;
-  protected readonly stateLabel = STATE_LABEL;
 
   /**
    * The scoring config, read here rather than passed in.
@@ -123,26 +141,73 @@ export class MatchesTable {
     const dense = this.dense();
     return {
       name: this.narrow() ? 176 : dense ? 150 : 190,
+      // LA PAROLA INTERA e non la sigla di tre caratteri (operatore, 10/09/2026: «una colonna con le
+      // etichette della titolarita' - titolarissimo, titolare, ballottaggio, ecc.»): `ballottaggio` e'
+      // la piu' lunga delle sei e chiede ~78px a 11px di carattere, ~92px a 12px.
+      titolarita: dense ? 86 : 104,
       role: dense ? 40 : 60,
       mantra: dense ? 76 : 110,
       club: dense ? 96 : 130,
-      cell: dense ? 48 : 58,
-      detail: dense ? 66 : 92,
+      // UNA LARGHEZZA SOLA PER OGNI COLONNA DI PARTITA (operatore, 10/09/2026: «le colonne delle
+      // partite devono avere larghezza fissa uguale»). Prima erano DUE - 48 per una giornata nuda e
+      // 66/92 per una con l'intestazione a due righe - quindi la stessa tabella aveva colonne di due
+      // misure a seconda di quello che la testa aveva da dire, e le celle sotto (che sono identiche)
+      // ballavano. Il numero e' quello che serve alla cosa piu' larga che la testa porta: `Sq.A  0`
+      // e un modulo di sette caratteri (`3-4-1-2`).
+      cell: dense ? 58 : 68,
       // Il CONFINE fra due stagioni: dieci pixel, quanto basta a vedersi come una giuntura e non come
       // una colonna vuota che qualcuno ha dimenticato di riempire.
       divider: dense ? 10 : 14,
     };
   });
 
-  /** La larghezza minima, non uno scroller: scorre la PAGINA nei due assi (vedi `squad-table.minWidth`). */
+  /**
+   * DA DOVE COMINCIA OGNI COLONNA FISSA, in pixel: e' l'offset con cui si aggancia a sinistra.
+   *
+   * Sommato dalle STESSE larghezze che il template binda (`widths()`), quindi un aggancio non puo'
+   * finire per non essere d'accordo con la colonna che sta ancorando - la stessa cura che `minWidth` ha
+   * gia'. Non e' `nzLeft` di ng-zorro: quello e' nel template dal 06/09 e MISURATO oggi non produce
+   * niente (`left: auto` sulla cella del nome, cioe' nessun aggancio), perche' calcola gli offset solo
+   * quando la tabella gli passa anche `nzScroll` - che qui non c'e' per scelta.
+   */
+  protected readonly pinLeft = computed(() => {
+    const width = this.widths();
+    const name = 0;
+    const titolarita = name + width.name;
+    const role = titolarita + width.titolarita;
+    const mantra = role + width.role;
+    return { name, titolarita, role, mantra, club: mantra + width.mantra };
+  });
+
+  /**
+   * Quanto sono larghe in tutto le colonne che NON sono partite: e' quello che resta fermo mentre le
+   * giornate scorrono, e serve a decidere se agganciarle abbia senso. Sotto una certa larghezza del
+   * contenitore le colonne fisse mangerebbero tutto lo spazio e non resterebbe niente da scorrere.
+   */
+  protected readonly pinnedWidth = computed(() => {
+    const width = this.widths();
+    return this.narrow()
+      ? width.name
+      : width.name + width.titolarita + width.role + width.mantra
+        + (this.showClub() ? width.club : 0);
+  });
+
+  /**
+   * La larghezza minima della TABELLA, che ora e' la larghezza del suo scorrimento: il contenitore
+   * scorre in orizzontale e la tabella resta larga quanto le sue colonne (operatore, 10/09/2026: «se le
+   * colonne delle ultime partite non entrano nel contenitore, rendiamo il contenitore scrollabile
+   * orizzontalmente»). Prima scorreva la PAGINA nei due assi, cioe' per leggere l'ultima giornata si
+   * portava di lato anche l'intestazione della pagina e il campetto: misurato a 1200px di finestra, il
+   * documento sforava di 365px.
+   */
   protected readonly minWidth = computed(() => {
     const width = this.widths();
     const fixed = this.narrow()
       ? width.name
-      : width.name + width.role + width.mantra + (this.showClub() ? width.club : 0);
+      : width.name + width.titolarita + width.role + width.mantra
+        + (this.showClub() ? width.club : 0);
     const cells = this.columns().reduce(
-      (sum, one) =>
-        sum + (one.divider ? width.divider : one.detail || one.score ? width.detail : width.cell),
+      (sum, one) => sum + (one.divider ? width.divider : width.cell),
       0,
     );
     return `${fixed + cells}px`;
@@ -157,9 +222,27 @@ export class MatchesTable {
    *  not know whose it is, and the panel names him. */
   protected readonly selected = signal<{ cell: MatchCell; player: PlayerLine } | null>(null);
 
-  /** Which cell the pointer is on. The tooltip is driven from here instead of by hover alone,
-   *  so a CLICK can close it: otherwise it stays up over the panel it just opened. */
-  protected readonly hovered = signal<string | null>(null);
+  /**
+   * Which cell the pointer is on. The tooltip is driven from here instead of by hover alone, so a
+   * CLICK can close it: otherwise it stays up over the panel it just opened.
+   *
+   * PORTA ANCHE LA CELLA e non solo la chiave, perche' il tooltip e' ora un TEMPLATE e non una
+   * stringa: un template ne disegna UNO alla volta, quindi il modello e' quello della cella sotto il
+   * puntatore. Il guadagno non e' solo di forma - prima `tooltip(cell)` veniva ricostruita per OGNI
+   * cella a ogni giro di change detection (sessanta righe per una quarantina di colonne), adesso una
+   * volta per la sola cella che si sta guardando.
+   */
+  protected readonly hovered = signal<{ key: string; cell: MatchCell } | null>(null);
+
+  /**
+   * L'ELENCO DEL TOOLTIP, per la cella sotto il puntatore (operatore, 10/09/2026: «le informazioni
+   * devono essere visualizzate come un elenco evidenziando le cose positive e quelle negative con
+   * effetti diversi»). Il modello sta in `match-tip.ts`, puro; qui si sceglie solo la cella.
+   */
+  protected readonly tip = computed(() => {
+    const hovered = this.hovered();
+    return hovered ? matchTip(hovered.cell, this.scoring()) : null;
+  });
 
   constructor() {
     const narrow = matchMedia('(max-width: 700px)');
@@ -173,8 +256,8 @@ export class MatchesTable {
   /** The tooltip belongs to a MOUSE, and the pointer event says which one it is - a media query
    *  cannot: `(hover: none)` is read once, is wrong on a hybrid laptop, and did not stop the
    *  tooltip on an emulated phone. A finger opens the detail; only a mouse gets the hint. */
-  protected onPointerEnter(event: PointerEvent, key: string): void {
-    if (event.pointerType === 'mouse') this.hovered.set(key);
+  protected onPointerEnter(event: PointerEvent, key: string, cell: MatchCell): void {
+    if (event.pointerType === 'mouse') this.hovered.set({ key, cell });
   }
 
   protected open(cell: MatchCell, player: PlayerLine): void {
@@ -189,6 +272,68 @@ export class MatchesTable {
    */
   protected marksOf(cell: MatchCell): BonusRow[] {
     return bonusesOf(cell, this.scoring()).filter((one) => CELL_MARKS.has(one.kind));
+  }
+
+  /**
+   * I DUE TRIANGOLINI DELLA CELLA: e' subentrato, e' uscito, tutt'e due o nessuno dei due.
+   *
+   * Dalla definizione UNICA (`spellOf`), che e' la stessa che legge la riga compatta della card: due
+   * conti sullo stesso fatto finirebbero per dare a una partita due storie. Che «entrato E uscito»
+   * oggi non si accenda mai non e' una scelta di disegno ma il limite del dato, ed e' scritto dove il
+   * marchio si disegna (`ui/spell-mark`).
+   */
+  protected spellOf = spellOf;
+
+  /**
+   * IL GRADINO DI UN UOMO, letto e mai ricalcolato: lo decide il toolkit sull'undici tipo disegnato
+   * (`engine/status.py`), e le dritte dell'operatore lo scavalcano dentro `ValuationStore`. Vuoto dove
+   * il foglio non lo porta - e vuoto vuol dire IGNOTO, che e' la ragione per cui la riga di un uomo
+   * senza gradino non viene smorzata: non sappiamo che sia una riserva.
+   */
+  protected rung(fcId: number): Titolarita | null {
+    const word = this.valuation.rungOf(this.platform(), fcId)?.titolarita;
+    return titolaritaRank(word) == null ? null : (word as Titolarita);
+  }
+
+  /**
+   * Quanto e' forte la parola, come CONTRASTO e non come colore: la regola dell'app e' che il colore
+   * porta un significato, quindi sei tinte su una scala ordinale direbbero «allarme» dove c'e' solo una
+   * riserva. La stessa lettura che `ui/squad-table` da' alla sua sigla - una scala, un modo di leggerla.
+   */
+  protected rungTone(fcId: number): string {
+    const rank = titolaritaRank(this.rung(fcId));
+    if (rank == null) return 'text-muted';
+    if (rank <= 1) return 'font-semibold';
+    if (rank >= 4) return 'text-muted';
+    return '';
+  }
+
+  /** La parola intera, la promessa che porta e i due numeri da cui esce: la colonna non spiega, questo si'. */
+  protected rungHint(fcId: number): string {
+    const one = this.valuation.rungOf(this.platform(), fcId);
+    return (
+      titolaritaNote(one?.titolarita, one?.titolaritaPlay ?? null, one?.minutesNext ?? null)
+      ?? 'Il foglio non porta il gradino: nessuna partita sua è misurata, oppure il foglio non '
+        + 'porta l’undici tipo che lo decide. In tutt’e due i casi è IGNOTO e non «riserva»: '
+        + 'quella sarebbe un’affermazione sul calcio che gioca.'
+    );
+  }
+
+  /**
+   * IL NOME SMORZATO di chi il foglio chiama `riserva` (operatore, 10/09/2026: «rendiamo meno evidenti
+   * i nomi dei calciatori che sono riserve o peggio»).
+   *
+   * DA `riserva` IN GIU', che oggi vuol dire `riserva` e basta: e' l'ultimo gradino della scala, quindi
+   * «o peggio» non ha nessuno sotto - `panchina` e' un gradino SOPRA e resta in chiaro. La soglia e' una
+   * parola sola da cambiare se l'operatore vorra' anche quella.
+   *
+   * E UN UOMO SENZA GRADINO NON SI SMORZA: «vuoto = ignoto, mai riserva» - un foglio senza undici tipo,
+   * o un uomo di cui non e' misurata una partita, non e' un uomo che non gioca, e smorzarlo sarebbe
+   * un'affermazione sul calcio che nessuno ha fatto.
+   */
+  protected faint(fcId: number): boolean {
+    const rank = titolaritaRank(this.rung(fcId));
+    return rank != null && rank >= FAINT_FROM;
   }
 
   /** Se la colonna in quella posizione e' il CONFINE fra due stagioni e non una partita. */
@@ -217,47 +362,25 @@ export class MatchesTable {
   protected voteClass = voteClass;
 
   /**
-   * The hover: the match, what he did in it, and nothing else.
+   * L'EFFETTO DI UNA RIGA DEL TOOLTIP: il colore E un riquadro tenue, cioe' due canali e non uno.
    *
-   * Two lines at most (`TOOLTIP_MAX`, the operator's rule of 15/08/2026) - and it can afford to be
-   * short because a CLICK opens the whole match: the panel behind it has the scoreline, the shape, the
-   * fantavoto broken into its terms and why a vote is missing. A hover is for «which match is this?».
+   * Il verso lo dichiara il modello (`TipTone`, che per un evento viene da `BonusRow.good`); qui si
+   * traduce in classi e basta. Il fondo esiste perche' l'operatore ha chiesto «effetti diversi» e non
+   * «colori diversi»: il segno dei punti (`+3` contro `-0.5`) e il riquadro dicono la stessa cosa
+   * anche a chi il verde e il rosso non li distingue.
    */
-  protected tooltip(cell: MatchCell): string {
-    const parts: string[] = [];
-
-    if (cell.state !== 'played') parts.push(STATE_LABEL[cell.state]);
-
-    const fixture = cell.opponent
-      ? cell.home === false
-        ? `${cell.opponent} - ${cell.team}`
-        : `${cell.team} - ${cell.opponent}`
-      : cell.team;
-    parts.push(
-      cell.kind === 'league' && cell.matchday != null
-        ? `${fixture}, ${cell.matchday}ª`
-        : `${fixture} (${cell.competitionLabel})`,
-    );
-    if (cell.date) parts.push(it(cell.date));
-
-    if (cell.state === 'played' || cell.state === 'no_vote') {
-      parts.push(cell.minutes == null ? 'minuti ignoti' : `${cell.minutes}'`);
+  protected toneClass(tone: TipTone): string {
+    switch (tone) {
+      case 'good':
+        return 'bg-success/10 text-success';
+      case 'bad':
+        return 'bg-danger/10 text-danger';
+      case 'warn':
+        return 'text-warning';
+      case 'muted':
+        return 'text-muted';
+      default:
+        return 'text-fg';
     }
-
-    const events: string[] = [];
-    if (cell.goals + cell.penScored) events.push(`${cell.goals + cell.penScored} gol`);
-    if (cell.assists) events.push(`${cell.assists} assist`);
-    if (cell.penMissed) events.push('rig. sbagliato');
-    if (cell.ownGoals) events.push('autogol');
-    if (cell.yellows) events.push('ammonito');
-    if (cell.reds) events.push('espulso');
-    if (events.length) parts.push(events.join(', '));
-
-    if (cell.kind === 'league' && cell.fantavoto != null) {
-      parts.push(`fantavoto ${cell.fantavoto.toFixed(1)}`);
-    }
-    if (cell.alsoInWeek) parts.push(`+${cell.alsoInWeek} nella stessa settimana`);
-
-    return short(`${parts.join(' · ')} · clicca per il dettaglio`);
   }
 }

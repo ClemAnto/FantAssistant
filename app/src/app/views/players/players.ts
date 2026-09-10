@@ -229,15 +229,18 @@ export class Players {
   }
 
   /**
-   * The other table, and its data is fetched only when it is asked for.
+   * L'altra tabella, e il suo strato si chiede a tutt'e due i modi.
    *
-   * The valuation reads the engine sheet, the boards and the granular roles, and it ranks the whole
-   * listone for the stars: that is a real cost, and the page that opens by default does not owe it.
-   * `load()` is idempotent, so switching back and forth costs one fetch in a session.
+   * La valutazione legge il foglio del motore, le board e i ruoli granulari e classifica tutto il
+   * listone per le stelline: e' un costo vero, e per questo era chiesto solo dalle «Valutazioni». Dal
+   * 10/09/2026 lo chiedono anche le ULTIME PARTITE, perche' quella tabella porta ora la colonna della
+   * titolarita' - e una colonna che resta uniformemente vuota si legge come un guasto e non come uno
+   * strato non caricato. `load()` e' idempotente, quindi andare avanti e indietro costa una fetch per
+   * sessione (e il costruttore la paga comunque).
    */
   protected show(mode: PlayersMode): void {
     this.mode.set(mode);
-    if (mode === 'ratings') void this.valuation.load();
+    void this.valuation.load();
   }
 
   /**

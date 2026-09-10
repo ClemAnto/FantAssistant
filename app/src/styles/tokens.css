@@ -134,6 +134,12 @@
        `.scrollbar-quiet` ha bisogno di rimetterlo dopo averlo spento, e due copie dello stesso mix
        sarebbero due definizioni di un colore solo. */
     --scrollbar-thumb: color-mix(in srgb, var(--color-muted) 60%, var(--color-page));
+
+    /* LO ZEBRATO DI UNA RIGA DI TABELLA, definito UNA volta perché ha due lettori: la riga pari lo usa
+       come fondo, e una cella AGGANCIATA a sinistra - che deve essere opaca, o le colonne che le
+       scorrono sotto si leggono attraverso - lo ridipinge sopra la carta. Due copie del 30% sarebbero
+       due strisce che il giorno di un ritocco non sono più lo stesso grigio. */
+    --row-stripe: color-mix(in srgb, var(--color-control) 30%, transparent);
   }
 
   html,

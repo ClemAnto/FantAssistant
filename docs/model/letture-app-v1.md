@@ -4697,3 +4697,217 @@ nessuno dei due lati mente: la card dice «dritta tua del <data>» e il campetto
 Verificato: `ng build` verde, **844 test** su 49 file, e **quattordici banchi e2e** verdi compreso quello
 nuovo (`e2e-player-ruling.mjs`, che guida la vista Squadre con un puntatore vero e confronta le sei
 giornate del selettore col `.json.gz` del motore invece che con lo schermo).
+
+## 39. LE ULTIME PARTITE: due triangolini, un tooltip che è un elenco, e una tabella che scorre da sé (10 settembre 2026)
+
+Sei richieste dell'operatore in fila sulla stessa tabella (`ui/matches-table`, la stessa che disegnano la
+vista SQUADRE e la vista CALCIATORI), e nessuna ha aggiunto una previsione: tutto quello che c'è qui
+sotto è **lettura** di numeri che il foglio o il bundle già portano. Il valore della giornata non sta
+nelle sei feature ma nei difetti che la misura ha trovato mentre le verificava — sei dell'arnese, uno
+del dato e uno preesistente che non è di questa sessione.
+
+### 39.1 — I due triangolini, e la metà che il dato non può dire
+
+«Vicino ai voti mettimi un piccolo triangolino verde verso l'alto se il giocatore è subentrato e un
+triangolino verso il basso se è uscito (entrambi se è entrato e uscito).»
+
+Il fatto era **già calcolato** e già disegnato in un posto solo: `spellOf` (`core/match-bonuses.ts`) sta
+lì dal 5 settembre e la riga compatta della card lo mostrava con due **frecce**. Portarlo nelle celle
+con un glifo diverso avrebbe fatto due segni per un fatto solo — la cosa che `ui/bonus-mark` esiste per
+impedire, e che è una condizione esplicita dell'operatore («assicurati che le icone abbiano lo stesso
+significato in ogni pagina della piattaforma», 5 settembre). Quindi il triangolo è un **componente**
+(`ui/spell-mark`) e la card ci è passata insieme alla tabella: la parola nuova è sua e vale per tutte e
+due. Sei pixel nella cella, otto nella card (sua correzione a mezz'ora di distanza: «falli un po' più
+piccoli»); sono SVG scritti a mano perché a otto pixel una freccia di antd diventa un trattino.
+
+**«ENTRAMBI» È SCRITTO NEL CODICE E NON SI ACCENDE MAI, e non è una scelta di disegno.** I minuti sono i
+SUOI e non l'ora del campo: 45' è un uomo entrato all'intervallo tanto quanto uno uscito all'intervallo,
+quindi senza il MINUTO D'INGRESSO — che questo dataset non ha — «un subentrato è poi uscito?» non ha
+risposta e la seconda freccia resta spenta. È «vuoto = ignoto, mai zero» applicato a un triangolino.
+Misurato sul bundle del 10/09 (120.945 righe del livello per-partita, tre stagioni):
+
+| | righe |
+|---|---|
+| subentrati (freccia in su) | 25.103 |
+| usciti (freccia in giù) | 26.881 |
+| novanta minuti pieni | 37.380 |
+| ignoti (senza distinta o senza minuti) | 31.580 |
+
+Cioè **il 43% delle righe porta un triangolo**, e i 25.103 subentrati sono esattamente la popolazione per
+cui la seconda freccia è inosservabile. Accenderla è un'**ACQUISIZIONE** e non una formula: le
+sostituzioni stanno negli `incidents` della fonte, che oggi si scaricano solo per le amichevoli con dei
+gol da attribuire.
+
+### 39.2 — Il tooltip come ELENCO, e il verso non si decide lì
+
+«Formatta meglio il tooltip: le informazioni devono essere visualizzate come un elenco evidenziando le
+cose positive e quelle negative con effetti diversi.» Prima era un `join(' · ')`, cioè una stringa in cui
+un gol e un'espulsione avevano lo stesso inchiostro e lo stesso posto — proprio la cosa che quella forma
+non sapeva mostrare.
+
+`ui/matches-table/match-tip.ts` costruisce il modello (puro, testato senza montare niente) e il template
+lo disegna: perché non ha giocato · i minuti coi due triangolini · una riga per evento · il fantavoto.
+Tre decisioni che restano:
+
+- **IL VERSO DI UN EVENTO NON SI DECIDE QUI**: lo dichiara `BonusRow.good`, la stessa colonna su cui
+  `ui/bonus-mark` sceglie verde e rosso in ogni pagina. Un secondo giudizio scritto nel tooltip sarebbe
+  la porta da cui una pagina dipinge di verde quello che un'altra dipinge di rosso.
+- **DUE CANALI E NON SOLO LA TINTA**: colore *più* un riquadro tenue, e il segno dei punti (`+4` contro
+  `-0.5`) dice la stessa cosa senza dipendere dal colore. Misurato in un browser vero: una riga di evento
+  legge `rgb(255,107,107)` su un fondo rosso al 10%, una riga qualsiasi `rgb(242,242,247)` su
+  trasparente.
+- **IL VOTO NON SI RIPETE**: è il numero sotto il puntatore, e un tooltip che rilegge la riga ad alta
+  voce è un pannello che si apre per niente. Quello che porta è il FANTAVOTO, che la cella non disegna.
+
+Il file sta accanto al VOCABOLARIO (`ui/matches-table/`) e non in `core/` perché legge le fasce del voto
+e le icone di stato che il vocabolario possiede: un modello di tooltip che ricopiasse quelle soglie
+sarebbe una seconda scala sullo stesso numero.
+
+Guadagno non chiesto e misurato: prima `tooltip(cell)` veniva ricostruita per OGNI cella a ogni giro di
+change detection (sessanta righe per una quarantina di colonne), adesso il modello si costruisce una
+volta per la sola cella sotto il puntatore — il template è uno e `hovered()` decide di chi parla.
+
+### 39.3 — La colonna della titolarità, i nomi smorzati, e il click che apre la card
+
+«Quando le ultime partite sono attive aggiungi subito dopo il nome una colonna con le etichette della
+titolarità, e rendiamo meno evidenti i nomi dei calciatori che sono riserve o peggio.»
+
+La parola arriva da `ValuationStore.rungOf` — un accessore nuovo, non una seconda lettura del foglio:
+la stessa colonna che leggono la tabella dei valori, la card e il campetto, **con dentro le dritte
+dell'operatore**, che sono l'unica cosa che la scavalca. Si stampa la PAROLA INTERA e non la sigla di tre
+caratteri, perché è quello che ha chiesto e perché qui la colonna ha lo spazio che l'altra tabella non
+aveva; il tooltip porta la promessa e i due numeri.
+
+Due limiti dichiarati:
+
+- **«riserva o peggio» oggi vuol dire `riserva` e basta**: è l'ultimo gradino della scala, quindi «o
+  peggio» non ha nessuno sotto, e `panchina` è un gradino SOPRA e resta in chiaro. La soglia è una
+  parola sola (`FAINT_FROM`) da spostare se vorrà anche quella.
+- **CHI NON HA GRADINO NON SI SMORZA**: «vuoto = ignoto, mai riserva». Un foglio senza undici tipo, o un
+  uomo di cui non è misurata una partita, non è un uomo che non gioca — e smorzarlo sarebbe
+  un'affermazione sul calcio che nessuno ha fatto. Il banco lo verifica dal lato giusto: sulle 25 righe
+  di una rosa vera, 4 riserve smorzate, 21 in chiaro, e gli ignoti (quando ci sono) col colore dei
+  secondi.
+
+Il CLICK sul nome emette l'identità (`pick`) e la pagina decide, come fa già `ui/squad-table`: la vista
+SQUADRE la aggancia alla sua pila di card, e una card aperta dalla tabella dei valori o da quella delle
+partite è **la stessa**. La vista CALCIATORI non la aggancia, e la ragione è scritta nel template invece
+di essere lasciata scoprire: quella pagina non ha nessuna pila di card — nemmeno la sua tabella dei
+valori ne apre — quindi un nome cliccabile che non apre niente sarebbe peggio di un nome.
+
+Conseguenza da dire: le ULTIME PARTITE della vista Calciatori adesso chiedono lo strato della
+valutazione, che prima era chiesto solo dalle «Valutazioni». **Una colonna che resta uniformemente vuota
+si legge come un guasto**, non come uno strato non caricato.
+
+### 39.4 — Il contenitore scorre, le colonne che non sono partite restano ferme, e QUANTO COSTA
+
+«Se le colonne delle ultime partite non entrano nel contenitore, rendiamo il contenitore scrollabile
+orizzontalmente» + «rendi sticky le colonne che non sono partite».
+
+Il numero prima della cura, misurato a 1200px di finestra: scorreva la **PAGINA**, da 1162 a **1527px**,
+quindi per leggere l'ultima giornata si portava di lato l'intestazione della pagina, il campetto e le
+card. E `nzLeft` sulla colonna del nome — nel template dal 6 settembre — **non agganciava niente**:
+`left: auto`, perché ng-zorro calcola quegli offset solo quando la tabella gli passa anche `nzScroll`,
+che qui non c'è per scelta. Dopo: contenitore in `overflow-x: auto`, **la pagina non scorre più di lato**
+(988/988), e le quattro colonne fisse restano allo stesso pixel mentre le giornate passano sotto
+(verificato portando il contenitore a fondo corsa: la prima colonna di partita da 381 a 289, le
+agganciate ferme).
+
+Tre cose che il lavoro ha imposto:
+
+- **GLI OFFSET LI CALCOLA IL COMPONENTE** (`pinLeft`), sommando le stesse larghezze che il template
+  binda. Due sorgenti darebbero un aggancio che non coincide col bordo della colonna che ancora.
+- **`nzTableLayout` È ORA SEMPRE `fixed`**, anche sulla vista Calciatori: un aggancio si calcola sulle
+  larghezze DICHIARATE, e con `auto` il browser le ridistribuisce sul contenuto (116px dei 190
+  dichiarati, misurato il 6 settembre) — la colonna si fermerebbe a un pixel che non è il suo bordo.
+- **IL FONDO OPACO È LA METÀ CHE SI DIMENTICA**: una cella agganciata sta SOPRA le colonne che le
+  scorrono sotto, e lo zebrato è `color-mix(..., transparent)`, cioè semitrasparente per costruzione —
+  senza un fondo pieno si leggerebbe il voto di una giornata attraverso il nome. La cella agganciata
+  mette la carta e sopra la STESSA striscia, con lo zebrato definito una volta sola (`--row-stripe`,
+  letto da tutt'e due) invece di riscrivere il 30% una seconda volta. Più una giuntura di un pixel
+  sull'ultima colonna agganciata, scelta con `:has()` e non con una classe: quale sia l'ultima dipende
+  da due interruttori (`narrow`, `showClub`), e dedurla in CSS non può sbagliare mentre ricopiarla sì.
+
+**IL PREZZO È DETTO E MISURATO: l'intestazione non resta più appiccicata in alto.** `overflow-x: auto`
+porta con sé l'asse Y per specifica (`overflow-y: visible` accanto viene calcolato `auto`), quindi il
+contenitore diventa l'ancora dello sticky: scorrendo la pagina di 553px la testa legge **−184px**, cioè
+è uscita. È esattamente quello che `ng-zorro.css` aveva misurato il 17 agosto (−952px dopo 1200px) e che
+allora aveva fatto scegliere «un solo scroller» — la differenza è che allora era un effetto collaterale
+di `nzScroll` e oggi è il prezzo di una richiesta esplicita. La strada per riaverla è una riga: un
+`max-height` sul contenitore, così scorre anche in verticale e la testa si aggancia dentro di lui, al
+costo di un secondo scroller verticale nella pagina. **Non adottata: è una decisione sua.**
+
+### 39.5 — L'intestazione a quattro piani, e una larghezza sola
+
+«Le colonne delle partite devono avere larghezza fissa uguale», più il disegno della testa:
+
+```
+   (i)
+Sq.A  0
+Sq.B  1
+-------
+ 3-4-3
+```
+
+Prima le colonne di partita avevano **DUE** larghezze — 48/58 per una giornata nuda, 66/92 per una con
+risultato e modulo — quindi la stessa tabella aveva colonne di due misure a seconda di quanto la testa
+aveva da dire, mentre le celle sotto sono identiche. Ora è una sola. Misurato in un browser vero: **10
+colonne, una sola larghezza (63px), zero intestazioni tagliate**, i quattro piani nell'ordine `icona >
+squadra > squadra > modulo` e l'icona centrata al pixel.
+
+- **LE DUE METÀ ARRIVANO COME CAMPI** (`ColumnSlot.sides`, in casa per prima, ognuna coi suoi gol) e non
+  spezzando `Gen-Com` e `1-4`: un join per stringa è la famiglia di difetti più cara di questo progetto,
+  e si romperebbe il giorno che un'abbreviazione porta un trattino. `label` e `score` restano quello che
+  erano, perché li legge il tooltip e la vista senza club.
+- **IL COLORE RESTA SUL RISULTATO**, che ora è su due righe: si tingono tutti e due i gol col verso del
+  club della tabella (verde vinta, rosso persa, neutro il pari), i nomi restano neutri. È lo stesso
+  oggetto che prima era colorato come `1-4`, letto su due righe.
+- **IN CASA PER PRIMA, E NESSUN MARCHIO IN PIÙ**: siccome il club della tabella è sempre lo stesso, se
+  sta sulla riga di sopra ha giocato in casa. Un secondo segno per dirlo sarebbe inchiostro che il
+  lettore impara da solo in due colonne.
+- **IL FILETTO ESISTE SOLO SE C'È QUALCOSA SOTTO**: una riga che non separa niente promette una riga che
+  non arriva.
+
+La testa a due righe compare **solo con un club selezionato**, che è la condizione che `namedColumns`
+aveva già (`if (!query.club) return slots`): senza filtro una settimana contiene molte partite e nominare
+la colonna con una sola scriverebbe il tabellino di qualcun altro sopra quello di tutti. La vista
+Calciatori tiene quindi la testa di prima, ed è giusto così.
+
+### 39.6 — Sei difetti dell'ARNESE, uno del dato, e uno che non è di questa sessione
+
+Vale più delle feature, perché è il modo in cui si sbaglia a misurare.
+
+1. **UN PASSO CHE MISURA LA PAGINA SBAGLIATA ACCUSA IL CODICE DEL PROPRIO DIFETTO.** Il banco navigava da
+   `/players` a `/clubs` con un `pushState` + `popstate`: fra due ROTTE diverse non naviga, quindi
+   leggeva 60 righe (il listone) invece di 25 (una rosa) e concludeva «il click sul nome non apre nessuna
+   card» — su una pagina che una pila di card non ce l'ha. Con `Page.navigate` il passo legge la pagina
+   giusta e la card si apre.
+2. **UN'ICONA NON È LA PROVA CHE NON C'ERA.** Il primo passo dei triangolini bocciava «un triangolo su una
+   cella che dice *non c'era*»: ma `question-circle` vuol dire *in campo, senza voto*, cioè una partita
+   GIOCATA. Solo quattro icone su cinque dicono un'assenza, e il banco ora le nomina.
+3. **UN PASSO CHE NON PUÒ SFORARE NON MISURA NIENTE.** A 1600px le colonne di una rosa ci stanno tutte
+   (1028 per 1028): il passo dello scorrimento **si stringe la finestra apposta** a 1000px, o direbbe
+   «nessun problema» dopo aver guardato niente.
+4. **IL BANCO CHE LEGGE UNA FORMA CHE NON ESISTE PIÙ.** `e2e-clubs` cercava un singolo `1-4` per
+   verificare il colore dell'esito e ha detto «nessuna intestazione porta un risultato» — non un difetto
+   della pagina, il banco che leggeva il vecchio disegno. Ora legge le due righe da un appiglio stabile
+   (`data-side`) e non da una classe di utility, che lo legherebbe a una scelta di stile.
+5. **IL CONFRONTO È COL FOGLIO E NON CON LO SCHERMO.** I triangoli si verificano ricavandoli dal bundle
+   con la regola riscritta FUORI dall'app e unendo per `(fc_id, data)` — un'identità e non un nome: **570
+   celle su 570 d'accordo**. La colonna della titolarità si confronta con `desc_titolarita` del foglio del
+   motore: **25 righe su 25**. Dedurre l'atteso dallo schermo sarebbe l'asserzione circolare.
+6. **UN CLICK CHE FINISCE SOTTO L'INTESTAZIONE FISSA NON È UN CLICK SUL NOME**: il passo sceglie una riga
+   che `elementFromPoint` conferma raggiungibile, invece di fidarsi delle coordinate.
+
+Il difetto del **DATO** è che `nzLeft` era nel template da settembre e non agganciava niente: c'era, si
+leggeva come una feature, e `left: auto` diceva che non lo era. *Un binding che il framework ignora è
+peggio di un binding che manca, perché il build resta verde.*
+
+E uno che **NON è di questa sessione**: `e2e-player-card` e `e2e-nav` leggono in console un
+`<svg> tag not found.` di `@ant-design/icons-angular`. Riprodotto in un **worktree su HEAD pulito** prima
+di attribuirlo, e comparso anche su `/plancia`, che questa sessione non ha toccato: è preesistente e
+resta aperto. Vale la pena guardarlo perché sta sulla card che adesso il click apre.
+
+**Verificato:** `ng build` pulito, **867 test su 50 file** con la sola metà di questa sessione in un
+worktree su HEAD (872 su 51 nell'albero condiviso, dove c'è anche l'altra sessione), e i banchi
+`e2e-matches-tip` (nuovo, sette passi), `e2e-clubs`, `e2e-table` verdi.

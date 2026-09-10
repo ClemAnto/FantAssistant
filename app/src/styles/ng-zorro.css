@@ -206,11 +206,57 @@
      mouse e non dopo, perche' hanno la stessa specificita' e in un layer decide l'ordine - invertite,
      lo zebrato coprirebbe l'evidenziazione della riga sotto il puntatore. */
   .ant-table-tbody > tr:nth-child(even) > td {
-    background-color: color-mix(in srgb, var(--color-control) 30%, transparent);
+    background-color: var(--row-stripe);
   }
 
   .ant-table-tbody > tr:hover > td {
     background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+  }
+
+  /* LE COLONNE AGGANCIATE A SINISTRA (operatore, 10/09/2026: «rendi sticky le colonne che non sono
+     partite»), dentro il contenitore che scorre di `ui/matches-table`.
+
+     L'OFFSET LO SCRIVE IL COMPONENTE (`pinLeft`, sommando le larghezze che binda lui): qui c'e' solo
+     quello che una cella agganciata deve avere e che l'offset non puo' dare.
+
+     IL FONDO OPACO E' LA META' CHE SI DIMENTICA: una cella agganciata sta SOPRA le colonne che le
+     scorrono sotto, quindi senza un fondo pieno si legge il voto di una giornata attraverso il nome. Lo
+     zebrato e' semitrasparente per costruzione (`color-mix(..., transparent)`), percio' la cella
+     agganciata mette prima la carta e poi la STESSA striscia sopra - una definizione sola
+     (`--row-stripe`), letta da tutt'e due, invece di riscrivere il 30% una seconda volta.
+
+     L'ordine dei livelli e' quello che serve: la testa agganciata sopra tutto, le celle agganciate
+     sopra le partite che le scorrono sotto, il resto dov'era. */
+  .ant-table-tbody > tr > td.is-pinned {
+    background-color: var(--color-surface);
+    position: sticky;
+    z-index: 1;
+  }
+
+  .ant-table-tbody > tr:nth-child(even) > td.is-pinned {
+    background-image: linear-gradient(var(--row-stripe), var(--row-stripe));
+  }
+
+  /* Il passaggio del mouse vince anche qui, e per la stessa ragione di sopra: sta DOPO. */
+  .ant-table-tbody > tr:hover > td.is-pinned {
+    background-color: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface));
+    background-image: none;
+  }
+
+  .ant-table-thead > tr > th.is-pinned {
+    position: sticky;
+    z-index: calc(var(--z-affix) + 1);
+  }
+
+  /* LA GIUNTURA fra quello che sta fermo e quello che scorre, sull'ULTIMA colonna agganciata: senza,
+     una giornata che sparisce sotto il nome si legge come una colonna tagliata invece che come una
+     colonna scorsa - e' la stessa ragione per cui il confine fra due stagioni ha il suo bordo.
+     `:has()` invece di una classe scritta nel template perche' QUALE sia l'ultima dipende da due
+     interruttori (`narrow`, `showClub`): dedurla in CSS non puo' sbagliare, ricopiarla si'. Il bordo e'
+     `inset`, quindi non allarga la cella di un pixel. */
+  .ant-table-thead > tr > th.is-pinned:has(+ th:not(.is-pinned)),
+  .ant-table-tbody > tr > td.is-pinned:has(+ td:not(.is-pinned)) {
+    box-shadow: inset -1px 0 0 var(--color-border);
   }
 
   /* Measured 09/08/2026: the CHECKED radio button read 4.10:1 in antd's blue and the DISABLED

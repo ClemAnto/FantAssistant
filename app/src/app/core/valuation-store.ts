@@ -783,6 +783,29 @@ export class ValuationStore {
     return this.boards().get(platform)?.file ?? null;
   }
 
+  /**
+   * IL GRADINO DI TITOLARITA' DI UN UOMO, coi due numeri che l'hanno deciso: `desc_titolarita` con
+   * dentro le dritte dell'operatore, che e' l'unica cosa che lo scavalca.
+   *
+   * Un accessore e non una seconda lettura del foglio: la tabella delle ultime partite mostra la stessa
+   * parola che mostrano la tabella dei valori, la card e il campetto, e tre letture della stessa colonna
+   * sono come un uomo finisce con due gradini. Vuoto dove il foglio non lo porta - «vuoto = ignoto, mai
+   * riserva», che e' un'affermazione sul calcio che gioca.
+   */
+  rungOf(platform: Platform, fcId: number): {
+    titolarita: string | null;
+    titolaritaPlay: number | null;
+    minutesNext: number | null;
+  } | null {
+    const one = this.expected().get(`${platform}|${fcId}`);
+    if (!one) return null;
+    return {
+      titolarita: one.titolarita,
+      titolaritaPlay: one.titolaritaPlay,
+      minutesNext: one.minutesNext,
+    };
+  }
+
   /** What the two measured columns are about: one season, one calendar, said once for both tables. */
   measuredOn(platform: Platform): string {
     return `${this.inputSeason()} · calendario ${platform === 'euro' ? 'EuroLeghe' : 'Serie A'}`;

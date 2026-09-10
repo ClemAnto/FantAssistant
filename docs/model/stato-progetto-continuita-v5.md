@@ -6751,3 +6751,109 @@ all'urna), 4 test unitari nuovi sul piano portieri, banco e2e degli slot verde. 
   dà le AGGIUDICAZIONI (`/sessions/{codice}/state.json`: settings, teams, picks) ma **non** l'ordine di
   estrazione — quello resta ricostruibile solo dal seed, e infatti l'archivio ha gli estratti-senza-offerta
   per 5 aste su 147.
+
+# Chiusura 10 settembre 2026 — le ultime partite: due triangolini, un elenco, e una tabella che scorre da sé
+
+## Le richieste
+
+Sei, in fila, tutte sulla stessa tabella (`ui/matches-table`, la stessa delle viste SQUADRE e
+CALCIATORI): i **triangolini** accanto ai voti («verde in su se è subentrato, in giù se è uscito,
+entrambi se è entrato e uscito») e i **minuti nel tooltip**; poi «formatta meglio il tooltip: le
+informazioni devono essere visualizzate come un **elenco** evidenziando le cose positive e quelle
+negative con effetti diversi»; «i triangolini falli un po' più piccoli»; una **colonna della titolarità**
+subito dopo il nome, «e rendiamo meno evidenti i nomi dei calciatori che sono riserve o peggio»;
+«quando clicco sul nome del calciatore mostrami la sua **card di dettaglio**»; «se le colonne delle
+partite non entrano nel contenitore, rendiamo il **contenitore scrollabile orizzontalmente**» e «rendi
+sticky le colonne che non sono partite»; infine «le colonne delle partite devono avere **larghezza fissa
+uguale**» col disegno dell'intestazione a quattro piani.
+
+## La risposta
+
+Dettaglio pieno, coi numeri e le alternative respinte: `docs/model/letture-app-v1.md` §39.
+
+**NESSUNA DELLE SEI AGGIUNGE UNA PREVISIONE.** Tutto è lettura di numeri che il foglio o il bundle già
+portano — `spellOf` per i triangoli (esisteva dal 5 settembre, disegnato con due FRECCE nella card),
+`BonusRow.good` per il verso di un evento, `desc_titolarita` per la parola. Il valore della giornata non
+sta nelle feature ma nei difetti che la verifica ha trovato.
+
+**IL TRIANGOLO È UN COMPONENTE E LA CARD CI È PASSATA INSIEME** (`ui/spell-mark`): due glifi per un fatto
+solo sono la cosa che `ui/bonus-mark` esiste per impedire, ed è una condizione esplicita dell'operatore
+(«le icone abbiano lo stesso significato in ogni pagina»). **«Entrambi» è scritto e non si accende mai**,
+e non è una scelta di disegno: senza il MINUTO D'INGRESSO «un subentrato è poi uscito?» non ha risposta —
+25.103 subentrati su 120.945 righe sono esattamente la popolazione in cui la seconda freccia è
+inosservabile, contro 26.881 uscite osservate. Accenderla è un'ACQUISIZIONE (gli `incidents` della fonte),
+non una formula.
+
+**IL TOOLTIP È UN MODELLO PURO** (`ui/matches-table/match-tip.ts`) e il verso di un evento non si decide
+lì: lo dichiara `BonusRow.good`, la stessa colonna su cui ogni pagina sceglie verde e rosso. Due canali e
+non solo la tinta (colore + riquadro + il segno dei punti), e il VOTO non si ripete perché è il numero
+sotto il puntatore. Guadagno non chiesto: prima la stringa si ricostruiva per ogni cella a ogni giro di
+change detection, ora una volta per la sola cella guardata.
+
+**LA COLONNA DELLA TITOLARITÀ PASSA DA UN ACCESSORE NUOVO** (`ValuationStore.rungOf`) e non da una
+seconda lettura del foglio, quindi porta dentro le dritte dell'operatore. Due limiti detti: «riserva o
+peggio» oggi è `riserva` e basta (è l'ultimo gradino, `panchina` sta sopra e resta in chiaro), e **chi
+non ha gradino non si smorza** — vuoto è ignoto, non riserva.
+
+**IL CLICK SUL NOME EMETTE L'IDENTITÀ E LA PAGINA DECIDE**, come `ui/squad-table`: la vista Squadre lo
+aggancia alla sua pila di card, la vista Calciatori NO e la ragione è scritta nel template — quella
+pagina non ha nessuna pila di card, e un nome cliccabile che non apre niente è peggio di un nome.
+
+**IL CONTENITORE SCORRE E LE COLONNE FISSE RESTANO FERME**, col prezzo misurato e non nascosto. Prima
+scorreva la PAGINA (a 1200px: 1162 → 1527px), e `nzLeft` era nel template dal 6 settembre **senza
+agganciare niente** (`left: auto`: ng-zorro calcola quegli offset solo con `nzScroll`). Ora la pagina non
+scorre più di lato (988/988) e le quattro colonne restano allo stesso pixel. Il prezzo è
+**l'intestazione appiccicata in alto**: `overflow-x: auto` porta con sé l'asse Y per specifica, quindi il
+contenitore diventa l'ancora dello sticky e dopo 553px di pagina la testa legge **−184px**. È lo stesso
+numero che `ng-zorro.css` aveva misurato il 17 agosto (−952px), con la differenza che allora era un
+effetto collaterale e oggi è il prezzo di una richiesta esplicita.
+
+**L'INTESTAZIONE A QUATTRO PIANI E UNA LARGHEZZA SOLA**: icona centrata, una riga per squadra col suo gol
+(in casa per prima), un filetto, il modulo. Le due metà arrivano come CAMPI (`ColumnSlot.sides`) e non
+spezzando `Gen-Com` e `1-4` — un join per stringa è la famiglia di difetti più cara di questo progetto.
+Prima le colonne avevano due larghezze (48/58 e 66/92) a seconda di quanto la testa aveva da dire, mentre
+le celle sotto sono identiche; ora è una, misurata: 10 colonne, 63px, zero tagli.
+
+## Le lezioni di metodo
+
+- **UN PASSO CHE MISURA LA PAGINA SBAGLIATA ACCUSA IL CODICE DEL PROPRIO DIFETTO**: un `pushState` fra due
+  ROTTE diverse non naviga, quindi il banco leggeva 60 righe (il listone) invece di 25 (una rosa) e
+  concludeva «il click non apre nessuna card» su una pagina che una pila di card non ce l'ha.
+- **UN'ICONA NON È LA PROVA CHE NON C'ERA**: `question-circle` vuol dire *in campo, senza voto*, cioè una
+  partita GIOCATA — il primo passo bocciava un triangolo legittimo.
+- **UN PASSO CHE NON PUÒ SFORARE NON MISURA NIENTE**: a 1600px le colonne ci stanno tutte (1028 per
+  1028), quindi il passo dello scorrimento si stringe la finestra apposta a 1000px.
+- **UN BANCO CHE LEGGE UNA FORMA CHE NON ESISTE PIÙ NON È UN DIFETTO DELLA PAGINA**: `e2e-clubs` cercava
+  un singolo `1-4` e ha detto «nessuna intestazione porta un risultato». Ora legge le due righe da un
+  appiglio dichiarato (`data-side`) e non da una classe di utility.
+- **IL CONFRONTO È COL FOGLIO E NON CON LO SCHERMO**: i triangoli si ricavano dal bundle con la regola
+  riscritta FUORI dall'app, unendo per `(fc_id, data)` — **570 celle su 570** d'accordo; la colonna della
+  titolarità si confronta con `desc_titolarita`, **25 su 25**.
+- **UN BINDING CHE IL FRAMEWORK IGNORA È PEGGIO DI UNO CHE MANCA**, perché il build resta verde: `nzLeft`
+  si leggeva come una feature e `left: auto` diceva che non lo era.
+- **UN DIFETTO SI ATTRIBUISCE IN UN WORKTREE SU HEAD PRIMA DI CHIAMARLO REGRESSIONE**: il
+  `<svg> tag not found.` che `e2e-player-card` legge in console è PREESISTENTE (riprodotto su HEAD
+  pulito, e presente anche su `/plancia`, che questa sessione non ha toccato).
+
+## Verifica
+
+Metà di questa sessione da SOLA, in un worktree su HEAD: build pulito, **867 test su 50 file**, banchi
+`e2e-matches-tip` (nuovo, sette passi), `e2e-clubs` ed `e2e-table` verdi. Nell'albero condiviso (con
+l'altra sessione dentro) 872 test su 51 file, verdi.
+
+## Aperti
+
+- **`<svg> tag not found.` in console**, preesistente e non di questa sessione: si vede su
+  `e2e-player-card` e `e2e-nav` (`/plancia`). Vale la pena guardarlo perché sta sulla card che adesso il
+  click sul nome apre.
+- **L'intestazione appiccicata in alto della tabella partite è persa**, per il prezzo detto sopra. La
+  strada per riaverla è una riga (`max-height` sul contenitore, così scorre anche in verticale e la testa
+  si aggancia dentro di lui) al costo di un secondo scroller verticale, che l'operatore aveva rifiutato il
+  17 agosto: è una sua decisione e non è stata presa.
+- **La vista CALCIATORI non apre la card dal nome**, perché non ha una pila di card — nemmeno dalla sua
+  tabella dei valori, che pure emette `pick` da sempre. Darle la pila vuol dire il costruttore di
+  `CardMan` più lo SWING, che oggi vivono dentro `views/clubs/clubs.ts`: la cura giusta è estrarli in
+  `core/`, non ricopiarli.
+- **`ColumnSlot.detail` è rimasto** come riga di sotto per le colonne che non sono partite (giornata,
+  data): oggi la testa impilata legge `shape ?? detail`, quindi il numero di giornata compare solo dove
+  non c'è un modulo. Se un giorno servisse anche accanto al modulo, è un campo in più e non uno `split`.

@@ -247,34 +247,33 @@ function matchesShape() {
      * sarebbe l'asserzione circolare del 04/09.
      */
     results: (() => {
-      const labels = heads.map((one) => (one.querySelector('span')?.innerText || '').trim());
+      // L'INTESTAZIONE E' A DUE RIGHE dal 10/09/2026 (`Sq.A 0` / `Sq.B 1`), quindi le due meta' si
+      // leggono dalle righe stesse (`data-side`) e non spezzando `Gen-Com` e `1-4`. Il verso si
+      // RICAVA dai numeri invece di crederci: il club della pagina e' la sigla che compare in OGNI
+      // intestazione, quindi da «Lec 0 / Ata 3» si sa che i suoi gol sono i 3 - e allora quel numero
+      // deve essere verde. Confrontare il colore con se stesso sarebbe l'asserzione circolare.
+      const sidesOf = (head) => [...head.querySelectorAll('[data-side]')].map((row) => ({
+        name: row.getAttribute('data-side'),
+        goals: Number((row.children[1]?.innerText || '').trim()),
+        node: row.children[1] ?? null,
+      }));
       const counts = new Map();
-      for (const label of labels) {
-        for (const side of label.split('-')) {
-          if (side) counts.set(side, (counts.get(side) ?? 0) + 1);
-        }
+      for (const head of heads) {
+        for (const side of sidesOf(head)) counts.set(side.name, (counts.get(side.name) ?? 0) + 1);
       }
       let ours = null;
       for (const [side, seen] of counts) if (!ours || seen > counts.get(ours)) ours = side;
       return heads.flatMap((head) => {
-        const label = (head.querySelector('span')?.innerText || '').trim();
-        const score = [...head.querySelectorAll('span')]
-          .map((one) => (one.innerText || '').trim())
-          .find((text) => /^\d+-\d+$/.test(text));
-        if (!score || !label.includes('-')) return [];
-        const sides = label.split('-');
-        const goals = score.split('-').map(Number);
-        const at = sides.indexOf(ours);
-        if (at < 0) return [];
-        const mine = goals[at];
-        const theirs = goals[1 - at];
-        const node = [...head.querySelectorAll('span')]
-          .find((one) => (one.innerText || '').trim() === score);
+        const sides = sidesOf(head);
+        if (sides.length !== 2 || sides.some((one) => !Number.isFinite(one.goals))) return [];
+        const mine = sides.find((one) => one.name === ours);
+        const theirs = sides.find((one) => one.name !== ours);
+        if (!mine || !theirs) return [];
         return [{
-          label,
-          score,
-          want: mine > theirs ? 'win' : mine < theirs ? 'loss' : 'draw',
-          ink: node ? getComputedStyle(node).color : null,
+          label: `${sides[0].name}-${sides[1].name}`,
+          score: `${sides[0].goals}-${sides[1].goals}`,
+          want: mine.goals > theirs.goals ? 'win' : mine.goals < theirs.goals ? 'loss' : 'draw',
+          ink: mine.node ? getComputedStyle(mine.node).color : null,
         }];
       });
     })(),

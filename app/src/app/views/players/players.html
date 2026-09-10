@@ -238,10 +238,14 @@
     <!-- Le stesse partite della vista SQUADRE, e lo STESSO componente: il vocabolario delle celle -
          cosa vuol dire un colore, cosa vuol dire un'icona - deve essere lo stesso oggetto nelle due. -->
     @if (mode() === 'matches') {
+      <!-- Nessun `(pick)` qui: questa pagina non ha una pila di card - la vista Squadre si', ed e' da
+           la' che l'operatore ha chiesto il gesto. Il nome resta un nome finche' non c'e' una card da
+           aprire: un bottone che non apre niente e' peggio di nessun bottone. -->
       <ui-matches-table
         [lines]="store.lines()"
         [columns]="store.columns()"
         [crests]="store.crests()"
+        [platform]="store.platform()"
       />
     } @else {
       <!-- Le stesse colonne della vista SQUADRE, e lo STESSO componente: una rosa e tutto il listone

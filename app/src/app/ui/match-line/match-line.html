@@ -63,18 +63,19 @@
   }
 </span>
 
-<!-- 2. COM'È ANDATA LA SUA: i minuti con le due frecce, o l'icona della ragione per cui non c'era.
-     Le frecce sono due segni e non un'etichetta, e la rossa si accende solo per chi era in distinta:
-     i minuti sono i suoi e non l'ora del campo, quindi di un subentrato non si sa se sia poi uscito.
-     Il colore dice il VERSO e non un giudizio. -->
+<!-- 2. COM'È ANDATA LA SUA: i minuti coi due triangolini, o l'icona della ragione per cui non c'era.
+     Sono due segni e non un'etichetta, e il rosso si accende solo per chi era in distinta: i minuti
+     sono i suoi e non l'ora del campo, quindi di un subentrato non si sa se sia poi uscito. Il colore
+     dice il VERSO e non un giudizio.
+
+     I DUE SEGNI VENGONO DA `ui/spell-mark`, che li disegna anche nelle celle della tabella delle
+     ultime partite: erano due frecce qui e sarebbero stati due triangoli là, cioè due glifi per un
+     fatto solo - la cosa che il vocabolario dei marchi esiste per impedire (operatore, 05/09/2026:
+     «assicurati che le icone abbiano lo stesso significato in ogni pagina della piattaforma»). La
+     parola «triangolino» è sua (10/09/2026) e vale per tutte e due. -->
 <span class="flex items-center justify-end gap-px text-[10px] tabular-nums">
   @if (onPitch()) {
-    @if (spell().on) {
-      <nz-icon class="text-success" nzType="arrow-up" nzTheme="outline" />
-    }
-    @if (spell().off) {
-      <nz-icon class="text-danger" nzType="arrow-down" nzTheme="outline" />
-    }
+    <ui-spell [spell]="spell()" size="sm" />
     <span [class.text-muted]="shortSpell()">{{
       spell().minutes == null ? "?'" : spell().minutes + "'"
     }}</span>

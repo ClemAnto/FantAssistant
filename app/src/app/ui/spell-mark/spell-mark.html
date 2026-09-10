@@ -1,0 +1,29 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     DUE TRIANGOLI DISEGNATI QUI e non due `nz-icon`: antd non ha un triangolo pieno, e a otto pixel
+     una freccia diventa un trattino. `aria-label` e non un testo, perche' accanto c'e' gia' il numero
+     dei minuti che la riga legge ad alta voce. -->
+@if (spell().on) {
+  <svg
+    [class]="glyph() + ' text-success'"
+    viewBox="0 0 10 10"
+    aria-label="subentrato"
+    nz-tooltip
+    [nzTooltipMouseEnterDelay]="0.3"
+    [nzTooltipTitle]="hint() ? 'entrato a partita in corso' : ''"
+  >
+    <path d="M5 1.2 9.2 8.8H0.8z" fill="currentColor" />
+  </svg>
+}
+@if (spell().off) {
+  <svg
+    [class]="glyph() + ' text-danger'"
+    viewBox="0 0 10 10"
+    aria-label="sostituito"
+    nz-tooltip
+    [nzTooltipMouseEnterDelay]="0.3"
+    [nzTooltipTitle]="hint() ? 'sostituito' : ''"
+  >
+    <path d="M5 8.8 0.8 1.2h8.4z" fill="currentColor" />
+  </svg>
+}

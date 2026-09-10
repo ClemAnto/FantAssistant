@@ -7,6 +7,7 @@ import { BonusRow, PLAYED_THE_MATCH, bonusesOf, spellOf } from '../../core/match
 import { MatchCell, abbreviate, isChampionship } from '../../core/players-store';
 import { BonusMark } from '../bonus-mark/bonus-mark';
 import { ClubCrest } from '../club-crest/club-crest';
+import { SpellMark } from '../spell-mark/spell-mark';
 import {
   KIND_ICON,
   STATE_ICON,
@@ -42,7 +43,7 @@ import {
 @Component({
   selector: 'ui-match-line',
   templateUrl: './match-line.html',
-  imports: [BonusMark, ClubCrest, NzIconModule, NzTooltipModule],
+  imports: [BonusMark, ClubCrest, NzIconModule, NzTooltipModule, SpellMark],
   /**
    * UNA RIGA CHE SI PUO' DIPINGERE, e resta incolonnata: `grid-cols-subgrid`.
    *

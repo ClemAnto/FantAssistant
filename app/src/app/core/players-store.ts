@@ -199,6 +199,20 @@ export interface ColumnSlot {
   score: string | null;
   outcome: 'win' | 'draw' | 'loss' | null;
   /**
+   * LE DUE SQUADRE DELLA PARTITA, in casa per prima, ognuna coi suoi gol: e' l'intestazione che
+   * l'operatore ha disegnato il 10/09/2026 - una riga per squadra invece di `Gen-Com 1-4` su due
+   * righe che si leggono a zig-zag.
+   *
+   * SONO CAMPI E NON UNA STRINGA DA SPEZZARE: `label` e `score` restano quello che erano (il tooltip e
+   * le viste che non impilano), ma ricavare le due meta' con uno `split('-')` sarebbe un join per
+   * stringa - la famiglia di difetti piu' cara di questo progetto - e si romperebbe il giorno che
+   * un'abbreviazione contiene un trattino. Vuoto dove la colonna non e' una partita (una giornata
+   * senza club a schermo, il confine fra due stagioni).
+   */
+  sides: { name: string; goals: number | null }[] | null;
+  /** Il modulo con cui il club della tabella e' sceso in campo, sotto la riga di separazione. */
+  shape: string | null;
+  /**
    * IL CONFINE FRA DUE STAGIONI: una colonna che non e' una partita (operatore, 06/09/2026: «tra una
    * stagione e l'altra metti una colonna divisoria»).
    *
@@ -485,6 +499,8 @@ export class PlayersStore {
           detail: null,
           score: null,
           outcome: null,
+          sides: null,
+          shape: null,
           divider: null,
           kind: null,
           title: `Giornata ${md}`,
@@ -697,6 +713,8 @@ export class PlayersStore {
           detail: null,
           score: null,
           outcome: null,
+          sides: null,
+          shape: null,
           divider: `${before} → ${block.season}`,
           kind: null,
           title: `Confine fra le stagioni ${before} e ${block.season}`,
@@ -776,6 +794,8 @@ export class PlayersStore {
         // «quale partita e' questa».
         score: fixture.detail,
         outcome: fixture.outcome,
+        sides: fixture.sides,
+        shape: chosen.shape,
         detail: [fixture.detail ? null : slot.label, chosen.shape].filter(Boolean).join(' · ') || null,
         kind: chosen.kind,
         title: `${chosen.competitionLabel} · ${fixture.long}${chosen.shape ? ' · modulo ' + chosen.shape : ''} · ${slot.title}`,
@@ -829,6 +849,8 @@ export class PlayersStore {
           detail: null,
           score: null,
           outcome: null,
+          sides: null,
+          shape: null,
           divider: null,
           kind: null,
           title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,
@@ -1027,6 +1049,7 @@ function fixtureLabel(cell: MatchCell): {
   label: string;
   detail: string | null;
   outcome: 'win' | 'draw' | 'loss' | null;
+  sides: { name: string; goals: number | null }[];
   long: string;
 } {
   const away = cell.home === false;
@@ -1049,6 +1072,12 @@ function fixtureLabel(cell: MatchCell): {
     label: `${abbreviate(left)}-${abbreviate(right)}`,
     detail: score,
     outcome,
+    // In casa per prima, che e' come si scrive un tabellino: chi guarda impara che se il suo club sta
+    // sopra ha giocato in casa, e non serve un secondo marchio per dirlo.
+    sides: [
+      { name: abbreviate(left), goals: leftGoals ?? null },
+      { name: abbreviate(right), goals: rightGoals ?? null },
+    ],
     long: `${left ?? 'Ignota'} - ${right ?? 'Ignota'}${score ? ' ' + score : ''}`,
   };
 }

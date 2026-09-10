@@ -4914,6 +4914,35 @@ nessuno - la colonna del Nome riceveva **116px dei 190 dichiarati** e i nomi fin
 la FUNZIONE, non la colonna che le somiglia» applicato a un BINDING, e la variante è che il build resta
 verde e lo schermo quasi giusto. Insieme: dentro un flex un elemento non scende sotto il suo contenuto,
 quindi `truncate` senza `min-w-0` non tronca, sfonda.
+**E IL FRATELLO, TROVATO IL 10/09/2026: un INPUT valido che senza il suo compagno non fa niente.**
+`nzLeft` era sulla colonna del Nome dal 06/09 e MISURATO leggeva `left: auto`, cioe' non agganciava
+nessuna colonna: ng-zorro calcola quegli offset solo quando la tabella riceve anche `nzScroll`, che li'
+non c'e' per scelta. *Un binding che il framework ignora e' peggio di uno che manca, perche' si legge
+come una feature e il build resta verde* - e la cura e' stata calcolare gli offset dalle larghezze che il
+componente gia' binda (`pinLeft`), invece di dipendere dagli interni di una libreria.
+
+## Un CONTENITORE che scorre in orizzontale COSTA l'intestazione appiccicata, e la cella agganciata va OPACA
+**10/09/2026, dalle due richieste dell'operatore sulla tabella delle ultime partite («se le colonne non
+entrano nel contenitore rendiamolo scrollabile orizzontalmente» + «rendi sticky le colonne che non sono
+partite»). Dettaglio: `letture-app-v1.md` §39.** Prima scorreva la PAGINA nei due assi - a 1200px di
+finestra il documento sforava di 365px - quindi per leggere l'ultima giornata si portava di lato anche
+l'intestazione della pagina e il campetto.
+**IL PREZZO E' QUELLO CHE `ng-zorro.css` AVEVA GIA' MISURATO IL 17/08 E QUI SI PAGA APPOSTA**:
+`overflow-x: auto` porta con se' l'asse Y per specifica (`overflow-y: visible` accanto viene calcolato
+`auto`), quindi il contenitore diventa l'ancora dello sticky e la testa non si aggancia piu' al viewport
+(−184px dopo 553px di pagina; allora era −952px dopo 1200px). Allora era un effetto collaterale di
+`nzScroll` e la scelta fu «un solo scroller»; oggi e' una richiesta esplicita, quindi si paga la testa e
+si guadagnano il nome e il gradino sempre a schermo. La strada per riaverla e' una riga (`max-height` sul
+contenitore, che gli da' anche l'asse Y) al costo di un secondo scroller verticale: **e' una decisione
+dell'operatore e non e' stata presa.**
+Tre cose che viaggiano con la cura. **Una cella agganciata deve avere un fondo OPACO**, o le colonne che
+le scorrono sotto si leggono attraverso il nome - e lo zebrato di una riga e' `color-mix(..., transparent)`
+per costruzione, quindi la cella agganciata mette prima la carta e poi la STESSA striscia sopra
+(`--row-stripe`, una definizione e due lettori, invece di riscrivere il 30% una seconda volta).
+**Un aggancio si calcola sulle larghezze DICHIARATE**, quindi la tabella e' passata a `nzTableLayout`
+`fixed` ovunque: con `auto` il browser le ridistribuisce sul contenuto e la colonna si fermerebbe a un
+pixel che non e' il suo bordo. E **quale sia l'ULTIMA colonna agganciata si deduce in CSS** (`:has()`) e
+non si ricopia in una classe: dipende da due interruttori, e dedurla non puo' sbagliare.
 
 ## Il TAGLIO di una cella si misura sul CONTENUTO, e una decorazione non è un taglio
 **06/09/2026, e la lezione è la RITRATTAZIONE.** Ho misurato lo `scrollWidth` di un `<td>` e riportato che

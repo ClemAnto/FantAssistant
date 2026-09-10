@@ -5,6 +5,23 @@
      un budget, quindi la tabella le rispetta; nella vista Calciatori resta il comportamento di prima,
      perche' non e' quello che l'operatore ha chiesto di cambiare (il taglio la' diventa dei puntini,
      vedi il nome qui sotto). -->
+<!-- IL CONTENITORE SCORRE IN ORIZZONTALE (operatore, 10/09/2026), e le colonne che non sono partite
+     restano agganciate a sinistra (sua seconda frase). Prima scorreva la PAGINA nei due assi - misurato
+     a 1200px di finestra: il documento sforava di 365px - quindi per leggere l'ultima giornata si
+     portava di lato anche l'intestazione della pagina, il campetto e le card.
+
+     IL PREZZO E' L'INTESTAZIONE APPICCICATA IN ALTO, ed e' misurato e non supposto: `overflow-x: auto`
+     porta con se' l'asse Y per SPECIFICA (`overflow-y: visible` accanto diventa `auto`), quindi questo
+     div diventa l'ancora dello sticky e la testa non si aggancia piu' al viewport - e' la stessa cosa
+     che `ng-zorro.css` ha misurato il 17/08/2026 (dopo 1200px di pagina la testa era a -952px). La
+     differenza e' che allora era un effetto collaterale di `nzScroll` e oggi e' quello che e' stato
+     chiesto: si paga la testa e si guadagnano il nome e il gradino sempre a schermo.
+
+     `nzTableLayout` E' SEMPRE `fixed` da ora, e non e' un gusto: un aggancio si calcola sommando le
+     larghezze DICHIARATE, quindi con `auto` - dove il browser le ridistribuisce sul contenuto, 116px
+     dei 190 dichiarati misurati il 06/09 - la colonna agganciata si fermerebbe a un pixel che non e'
+     il suo bordo. -->
+<div class="overflow-x-auto">
 <nz-table
   #table
   nzSize="small"
@@ -12,7 +29,7 @@
   [nzData]="lazy.rows()"
   [nzFrontPagination]="false"
   [nzShowPagination]="false"
-  [nzTableLayout]="dense() ? 'fixed' : 'auto'"
+  nzTableLayout="fixed"
   [style.min-width]="minWidth()"
 >
   <thead>
@@ -21,12 +38,28 @@
            costruisce il `<colgroup>` - e un binding di ATTRIBUTO scrive nel DOM una cosa che nessuno
            legge. Era il difetto per cui la colonna del NOME riceveva 116px dei 190 dichiarati e tagliava
            ogni nome (misurato il 06/09/2026). -->
-      <th [nzWidth]="widths().name + 'px'" nzLeft>Nome</th>
+      <!-- LE COLONNE CHE NON SONO PARTITE restano ferme mentre le giornate scorrono. L'offset viene da
+           `pinLeft`, cioe' dalle stesse larghezze che la riga qui accanto binda: due sorgenti darebbero
+           un aggancio che non coincide col bordo della colonna che ancora. -->
+      <th class="is-pinned" [nzWidth]="widths().name + 'px'" [style.left.px]="pinLeft().name">Nome</th>
       @if (!narrow()) {
-        <th [nzWidth]="widths().role + 'px'">Ruolo</th>
-        <th [nzWidth]="widths().mantra + 'px'">Mantra</th>
+        <th
+          class="is-pinned text-center"
+          [nzWidth]="widths().titolarita + 'px'"
+          [style.left.px]="pinLeft().titolarita"
+        >
+          Titolarità
+        </th>
+        <th class="is-pinned" [nzWidth]="widths().role + 'px'" [style.left.px]="pinLeft().role">
+          Ruolo
+        </th>
+        <th class="is-pinned" [nzWidth]="widths().mantra + 'px'" [style.left.px]="pinLeft().mantra">
+          Mantra
+        </th>
         @if (showClub()) {
-          <th [nzWidth]="widths().club + 'px'">Squadra</th>
+          <th class="is-pinned" [nzWidth]="widths().club + 'px'" [style.left.px]="pinLeft().club">
+            Squadra
+          </th>
         }
       }
       @for (header of columns(); track $index) {
@@ -40,41 +73,72 @@
             [title]="header.title"
           ></th>
         } @else {
+        <!-- LA TESTA DI UNA PARTITA, come l'operatore l'ha disegnata (10/09/2026): l'icona della
+             competizione in cima, una riga per squadra col suo gol - in casa per prima - una riga di
+             separazione e il modulo sotto. Prima era `Gen-Com` e sotto `1-4 · 3-4-3`, cioe' si leggeva
+             a zig-zag: il primo club stava a sinistra e il suo gol tornava indietro sulla riga dopo.
+
+             LE DUE META' ARRIVANO COME CAMPI (`sides`) e non da uno `split('-')` dell'etichetta: un
+             join per stringa e' la famiglia di difetti piu' cara di questo progetto, e si romperebbe
+             il giorno che un'abbreviazione porta un trattino. -->
         <th
           class="text-center leading-tight"
-          [nzWidth]="(header.detail || header.score ? widths().detail : widths().cell) + 'px'"
+          [nzWidth]="widths().cell + 'px'"
           [title]="header.title"
         >
-          <span class="flex items-center justify-center gap-1">
-            @if (header.kind) {
-              <nz-icon
-                [nzType]="kindIcon[header.kind]"
-                class="text-[10px] text-muted"
-                [attr.title]="kindLabel[header.kind]"
-              />
-            }
-            {{ header.label }}
-          </span>
-          <!-- IL RISULTATO COLORATO (operatore, 06/09/2026), e il verso e' del CLUB della tabella: verde
-               vinta, rosso persa, neutro il pari - un pareggio non e' una mezza sconfitta. Il colore sta
-               sul RISULTATO e non sulla riga: accanto c'e' il modulo, che non ha un verso. -->
-          @if (header.score || header.detail) {
-            <span class="block text-[10px] font-normal">
-              @if (header.score) {
+          @if (header.sides; as sides) {
+            <span class="block leading-none">
+              @if (header.kind) {
+                <nz-icon
+                  [nzType]="kindIcon[header.kind]"
+                  class="text-[10px] text-muted"
+                  [attr.title]="kindLabel[header.kind]"
+                />
+              }
+            </span>
+            <!-- IL COLORE STA SUL RISULTATO e il verso e' del CLUB della tabella (06/09/2026): verde
+                 vinta, rosso persa, neutro il pari - un pareggio non e' una mezza sconfitta. I due gol
+                 SONO il risultato, quindi si tingono tutt'e due: e' lo stesso oggetto di prima, letto
+                 su due righe. Il nome resta neutro, che e' quello che era. -->
+            @for (side of sides; track $index) {
+              <!-- `data-side` e' l'appiglio di chi verifica: leggere le due meta' da una classe di
+                   utility le legherebbe a una scelta di stile, e il banco accuserebbe la pagina il
+                   giorno che qualcuno cambia `flex` in `grid`. -->
+              <span
+                class="flex items-baseline justify-between gap-1 font-normal"
+                [attr.data-side]="side.name"
+              >
+                <span class="min-w-0 truncate">{{ side.name }}</span>
                 <span
+                  class="tabular-nums"
                   [class.text-success]="header.outcome === 'win'"
                   [class.text-danger]="header.outcome === 'loss'"
                   [class.text-muted]="header.outcome !== 'win' && header.outcome !== 'loss'"
-                  >{{ header.score }}</span
+                  >{{ side.goals ?? '·' }}</span
                 >
+              </span>
+            }
+            <!-- La riga di separazione ESISTE SOLO SE c'e' qualcosa sotto: un filetto che non separa
+                 niente promette una riga che non arriva. -->
+            @if (header.shape ?? header.detail; as under) {
+              <span class="mt-px block border-t border-border text-[10px] font-normal text-muted">{{
+                under
+              }}</span>
+            }
+          } @else {
+            <span class="flex items-center justify-center gap-1">
+              @if (header.kind) {
+                <nz-icon
+                  [nzType]="kindIcon[header.kind]"
+                  class="text-[10px] text-muted"
+                  [attr.title]="kindLabel[header.kind]"
+                />
               }
-              @if (header.score && header.detail) {
-                <span class="text-muted">&nbsp;·&nbsp;</span>
-              }
-              @if (header.detail) {
-                <span class="text-muted">{{ header.detail }}</span>
-              }
+              {{ header.label }}
             </span>
+            @if (header.detail) {
+              <span class="block text-[10px] font-normal text-muted">{{ header.detail }}</span>
+            }
           }
         </th>
         }
@@ -83,13 +147,33 @@
   </thead>
   <tbody>
     @for (line of table.data; track line.fcId) {
-      <tr>
-        <td class="font-medium text-fg" nzLeft>
+      <!-- L'IDENTITA' DELLA RIGA e la DATA della cella, per chi verifica: un banco che unisse una riga
+           al foglio per NOME rifarebbe il join che una volta ha perso Milan, Roma e Napoli. Sono due
+           attributi e nessuno stile. -->
+      <tr [attr.data-fc]="line.fcId">
+        <!-- IL NOME APRE LA CARD (operatore, 10/09/2026), come nell'altra tabella della stessa rosa: e'
+             un BOTTONE e non un `td` cliccabile, cosi' la tastiera ci arriva e il cursore promette il
+             gesto solo dove il gesto c'e'.
+
+             ...E SI SMORZA per chi il foglio chiama `riserva` (sua richiesta della stessa ora). Il peso
+             e' l'unico canale: una tinta direbbe «allarme» dove c'e' solo un uomo che gioca poco, e chi
+             un gradino non ce l'ha resta in chiaro - vuoto e' IGNOTO, non «riserva». -->
+        <td
+          [class]="'is-pinned ' + (faint(line.fcId) ? 'text-muted' : 'font-medium text-fg')"
+          [style.left.px]="pinLeft().name"
+        >
           @if (narrow()) {
             <span class="flex items-center gap-1.5">
               <ui-crest [club]="line.club" [clubId]="line.clubId" [crests]="crests()" size="sm" />
               <ui-role [role]="line.role" [size]="dense() ? 'xs' : 'sm'" />
-              <span class="truncate">{{ line.name }}</span>
+              <span
+                class="cursor-pointer truncate hover:underline"
+                role="button"
+                tabindex="0"
+                (click)="pick.emit(line.fcId)"
+                (keydown.enter)="pick.emit(line.fcId)"
+                >{{ line.name }}</span
+              >
               <ui-flags [playerId]="line.fcId" />
             </span>
           } @else {
@@ -97,18 +181,39 @@
                  dice - misurato il 06/09/2026 sulla vista Squadre, 30px in meno su ogni riga. I puntini
                  sono meno della verita' ma non sono una bugia, e la card porta il nome intero. -->
             <span class="flex min-w-0 items-center gap-1.5">
-              <span class="min-w-0 truncate">{{ line.name }}</span>
+              <span
+                class="min-w-0 cursor-pointer truncate hover:underline"
+                role="button"
+                tabindex="0"
+                (click)="pick.emit(line.fcId)"
+                (keydown.enter)="pick.emit(line.fcId)"
+                >{{ line.name }}</span
+              >
               <ui-flags class="shrink-0" [playerId]="line.fcId" />
             </span>
           }
         </td>
         @if (!narrow()) {
+          <!-- LA PAROLA INTERA e non la sigla: e' quello che l'operatore ha chiesto di vedere qui, e la
+               colonna ha lo spazio che la tabella dei valori non aveva. Il tooltip porta la promessa e i
+               due numeri - la parola nomina un gradino, non lo spiega. -->
+          <td
+            [class]="'is-pinned text-center ' + rungTone(line.fcId)"
+            [style.left.px]="pinLeft().titolarita"
+            [title]="rungHint(line.fcId)"
+          >
+            {{ rung(line.fcId) ?? '—' }}
+          </td>
           <!-- Le pastiglie seguono la densita': sono elementi di dimensione fissa, quindi da compatti
                sarebbero loro a decidere l'altezza della riga (vedi `squad-table.html`). -->
-          <td><ui-role [role]="line.role" [size]="dense() ? 'xs' : 'sm'" /></td>
-          <td><ui-roles [roles]="line.mantraCodes" [size]="dense() ? 'xs' : 'sm'" /></td>
+          <td class="is-pinned" [style.left.px]="pinLeft().role">
+            <ui-role [role]="line.role" [size]="dense() ? 'xs' : 'sm'" />
+          </td>
+          <td class="is-pinned" [style.left.px]="pinLeft().mantra">
+            <ui-roles [roles]="line.mantraCodes" [size]="dense() ? 'xs' : 'sm'" />
+          </td>
           @if (showClub()) {
-            <td>
+            <td class="is-pinned" [style.left.px]="pinLeft().club">
               <span class="flex items-center gap-2 text-muted">
                 <ui-crest [club]="line.club" [clubId]="line.clubId" [crests]="crests()" size="sm" />
                 {{ line.club }}
@@ -128,11 +233,12 @@
                 class="inline-grid cursor-pointer grid-cols-[1.4rem_1.4rem] items-center rounded leading-none outline-offset-2 hover:bg-control focus-visible:outline focus-visible:outline-primary"
                 role="button"
                 tabindex="0"
+                [attr.data-day]="cell.date"
                 nz-tooltip
-                [nzTooltipTitle]="tooltip(cell)"
+                [nzTooltipTitle]="tipTpl"
                 [nzTooltipTrigger]="null"
-                [nzTooltipVisible]="hovered() === line.fcId + ':' + $index"
-                (pointerenter)="onPointerEnter($event, line.fcId + ':' + $index)"
+                [nzTooltipVisible]="hovered()?.key === line.fcId + ':' + $index"
+                (pointerenter)="onPointerEnter($event, line.fcId + ':' + $index, cell)"
                 (pointerleave)="hovered.set(null)"
                 (click)="open(cell, line)"
                 (keydown.enter)="open(cell, line)"
@@ -163,10 +269,23 @@
 
                      `pointer-events-none`: la cella è già un bottone col suo tooltip, e un marchio che
                      aprisse il proprio ne metterebbe due sovrapposti - il difetto delle buste. -->
-                  @if (cell.kind !== 'league' || marksOf(cell).length) {
+                  @if (
+                    cell.kind !== 'league' ||
+                    marksOf(cell).length ||
+                    spellOf(cell).on ||
+                    spellOf(cell).off
+                  ) {
                     <span
                       class="pointer-events-none flex items-center justify-self-start gap-0.5 pl-0.5 leading-none"
                     >
+                      <!-- I TRIANGOLINI PRIMA DI TUTTO, cioe' ATTACCATI AL VOTO (operatore,
+                           10/09/2026: «vicino ai voti ... un piccolo triangolino verde verso l'alto se
+                           il giocatore e' subentrato e uno verso il basso se e' uscito»). Stanno nella
+                           SECONDA pista e non nella prima perche' la prima e' quella del numero: un
+                           segno a sinistra del voto lo sposterebbe, e la colonna dei voti si legge
+                           come una colonna solo se il numero e' sempre allo stesso x (misurato il
+                           06/09/2026: un marchio spostava il numero di 6px e la colonna zigzagava). -->
+                      <ui-spell [spell]="spellOf(cell)" size="xs" [hint]="false" />
                       @if (cell.kind !== 'league') {
                         <nz-icon
                           class="text-[10px]"
@@ -192,6 +311,7 @@
     }
   </tbody>
 </nz-table>
+</div>
 
 <nz-modal
   [nzVisible]="!!selected()"
@@ -285,3 +405,56 @@
     <strong>{{ lazy.shown() }}</strong> di {{ lazy.total() }} a schermo — scorri per gli altri.
   }
 </p>
+
+<!-- IL TOOLTIP DI UNA CELLA, COME ELENCO (operatore, 10/09/2026: «formatta meglio il tooltip in
+     questione: le informazioni devono essere visualizzate come un elenco evidenziando le cose positive
+     e quelle negative con effetti diversi»). Prima era una stringa con le frasi separate da un punto,
+     dove un gol e un'espulsione avevano lo stesso inchiostro e lo stesso posto.
+
+     UN SOLO TEMPLATE PER TUTTE LE CELLE, e non uno per cella: di tooltip ne e' aperto uno alla volta -
+     `hovered()` decide quale - quindi il modello e' quello della cella sotto il puntatore. Il template
+     sta al livello ALTO del file e non dentro il `@for`: un `#ref` dichiarato dentro un blocco non si
+     vede da un blocco fratello (difetto pagato il 03/09/2026 sull'imbuto dei filtri).
+
+     I RIQUADRI SONO IL SECONDO CANALE, oltre al colore: le cose buone su un fondo verde tenue, quelle
+     cattive su uno rosso: il segno dei punti (`+3`, `-0.5`) dice la stessa cosa senza dipendere dalla
+     tinta - questa app usa il colore per un VERSO e non come unica portante di un fatto. -->
+<ng-template #tipTpl>
+  @if (tip(); as tip) {
+    <div class="min-w-[10rem] text-xs leading-tight">
+      <p class="font-semibold">{{ tip.fixture }}</p>
+      @if (tip.when) {
+        <p class="text-muted">{{ tip.when }}</p>
+      }
+      @if (tip.rows.length) {
+        <ul class="mt-1.5 flex flex-col gap-0.5">
+          @for (row of tip.rows; track $index) {
+            <li
+              class="flex items-center gap-1.5 rounded px-1 py-px"
+              [class]="toneClass(row.tone)"
+            >
+              <!-- La pista del marchio e' larga uguale su ogni riga, cosi' le etichette si incolonnano
+                   anche dove il marchio non c'e'. -->
+              <span class="flex w-3 shrink-0 items-center justify-center">
+                @if (row.bonus) {
+                  <ui-bonus [bonus]="row.bonus" size="sm" />
+                } @else if (row.spell) {
+                  <ui-spell [spell]="row.spell" size="sm" [hint]="false" />
+                } @else if (row.icon) {
+                  <nz-icon [nzType]="row.icon" nzTheme="outline" />
+                }
+              </span>
+              <span class="grow">{{ row.label }}</span>
+              @if (row.value) {
+                <span class="shrink-0 font-semibold tabular-nums" [class]="row.valueInk">{{
+                  row.value
+                }}</span>
+              }
+            </li>
+          }
+        </ul>
+      }
+      <p class="mt-1.5 text-muted">Clicca per il dettaglio.</p>
+    </div>
+  }
+</ng-template>

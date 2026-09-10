@@ -205,7 +205,9 @@
               [lines]="matchTable().lines"
               [columns]="matchTable().columns"
               [crests]="store.crests()"
+              [platform]="store.platform()"
               [showClub]="false"
+              (pick)="onPick($event)"
               dense
             />
           }
