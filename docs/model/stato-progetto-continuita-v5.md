@@ -7028,3 +7028,48 @@ Verifiche: 823 test toolkit, 879 app (52 file), `backtest --verify` **22/22**.
    con `--stale-days`, ed è esattamente perché quel flag esiste.
 5. **`npm ci` ha riparato l'installazione dell'app**, che era rotta (`typescript/lib` vuota). Non era
    un obiettivo: è successo, e sbloccava anche l'altra sessione.
+
+---
+
+## 11 settembre 2026 — la FINESTRA CORTA, e la pagina che non dice mai «è rientrato»
+
+**Fatto.** La formazione tipo dell'ULTIMO PERIODO, switchabile con quella di stagione: sei colonne
+`desc_recent_*`, una seconda board dentro lo stesso `boards.json`, il pulsante su `/clubs`, la regola
+dichiarata dell'operatore («se il padrone del posto rientra a breve, chi lo occupa è al massimo un
+ballottaggio»). Misurata fuori campione su 3.638 partite-club: Brier 0.1696 → 0.1544, 8.46 → 8.69 dei veri
+undici. Verificata facendo girare `snapshot` davvero (20/20 club, 60 uomini che la breve schiera e la
+lunga no, 9 tappati) e il pulsante con un puntatore vero in un browser. Dettaglio: `formazioni-tipo-v1.md`
+§10, spec «Novità v9.89».
+
+**Due correzioni nate da domande dell'operatore, entrambe su codice spedito poche ore prima.**
+
+1. **La prova di una quantità è la quantità stessa.** `recent_evidence` era `"minutes"`, parametro vinto
+   su un ALTRO bersaglio: sulla quota delle presenze legge 0.2073 contro lo 0.1716 della sola stagione,
+   peggio del non avere la finestra. Trovato costruendo la tabella promessa-contro-realizzato delle sei
+   parole, che alla scala corta mancava — e la stessa tabella su cui la scala corta ora vince (0.4384
+   contro 0.4047 della lunga) è quella che l'aveva condannata.
+2. **`availability_now` non guardava l'età della riga.** Bremer `suspended` dal 4 agosto con 270 minuti
+   su 270 giocati. 49 uomini con una riga smentita dal calcio; indisponibili 234 → 146.
+
+**Aperto, e sono i punti che l'operatore ha lasciato guardando la board della Juventus:**
+
+1. Le **staffette dalle sostituzioni vere** (Conceição/Zhegrova, e da verificare Cissé/Moreira). I minuti
+   non le sanno dire (30,3% di identificazione unica, misurato); la strada è l'acquisizione degli
+   `incidents`, **126 partite** per la stagione in corso, con parser e cache già scritti.
+2. **N. Gonzalez al centro** invece che `As`, e **Gonzalez/Woltemade in ballottaggio**: due giudizi
+   dell'operatore sul disegno, da rileggere DOPO un `snapshot` con la correzione degli indisponibili —
+   l'undici cambia se Bremer e gli altri rientrano fra i disponibili.
+3. **Il ruolo reale sulla card di dettaglio**: chiesto e non fatto. Il dato c'è (`desc_real_roles`, già
+   disegnato sul campetto da `ui/role-set`), mancano il campo su `CardMan` e la riga nel template.
+4. **Le board del bundle sono ancora `evidence: "minutes"`**: l'undici è giusto, le parole no. Un giro di
+   `snapshot` → `export` → `pull-bundle` le allinea, e il campo `evidence` in `boards.json` è come si
+   distingue un pacchetto vecchio da uno nuovo.
+
+**Attrezzi.** Il dev server è su `--port 49979` (la 4200 la tiene Fulcro, altro progetto) e in
+`angular.json` non c'è una porta configurata. Il banco `app/scripts/e2e-board-horizon.mjs` verifica il
+pulsante contro il FILE e salta dicendolo se il bundle non porta `short`.
+
+**Due sessioni, e l'INDICE di git è condiviso**: fra un comando e l'altro l'altra sessione può avere già
+messo i suoi file in stage, quindi `git add` dei propri li porterebbe dentro. Si committa **per
+percorso** (`git commit -- <file>`), che ignora l'indice per tutto il resto, e non si resetta l'indice
+altrui.

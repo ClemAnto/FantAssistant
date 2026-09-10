@@ -5487,6 +5487,53 @@ più debole si guadagna il suo δ il ripiego scende da sé.
 `lechia`). Il livello di un campionato si legge dal PAESE, che è quello che l'operatore aveva proposto
 («una media tra le squadre»): sesta istanza del join per nome.
 
+## Una pagina che elenca CHI È FUORI non dice mai che uno è rientrato
+**11/09/2026, trovato dall'operatore su una board: «Bremer non l'hai messo in campo ma è un
+titolarissimo». Dettaglio: `formazioni-tipo-v1.md` §10.8.** Bremer aveva giocato **270 minuti su 270**
+nelle tre giornate e la board dell'ultimo periodo non lo disegnava, perché `availability_now` prendeva la
+riga più recente di `availability` **senza nessun limite di età** e la sua era del **4 agosto**,
+`suspended`, con la nota «squalificato nella 38ª giornata di campionato» — la squalifica dell'anno prima,
+già scontata.
+
+**La pagina *indisponibili* è un ELENCO DI CHI È FUORI, quindi chi rientra ne sparisce e la sua riga resta
+lì per sempre.** Misurato: **49 uomini** con una riga più vecchia dell'ultima lettura E una partita
+giocata dopo (Kean, Ostigard, Baldanzi, Messias, Vitinha O., tutti marcati il 4 agosto e tutti in campo il
+4 settembre); gli indisponibili passano da **234 a 146**. È «una tabella datata sull'EVENTO ha bisogno
+anche della data dell'OSSERVAZIONE» (03/09) incontrata sul lato opposto: lì mancava la data della
+lettura, qui c'è e nessuno la confrontava con niente.
+
+Due regole, e la prima è quella che il progetto aveva già scritto per gli infortuni («la panchina batte
+uno stop datato», 14/08): **HA GIOCATO DOPO** è una prova POSITIVA su di lui e chiude tutti e 49 i casi da
+sola; **È CADUTO DALL'ELENCO** serve a chi è rientrato e non ha ancora giocato, poggia su un'assenza e
+quindi vuole `AVAILABILITY_READS` = 2 letture — la pagina si legge per CAMPIONATO e non tutti i giorni
+tutti (il 06/09 fu letta la sola Serie A). Il valore è preso in prestito da `ABSENT_READS` e lo dichiara:
+là è misurato, qui no.
+
+**E ha corretto una mia spiegazione di un'ora prima.** Avevo detto all'operatore che i quattro uomini che
+la board breve del Genoa non schiera «sono tutti indisponibili oggi»: tre erano righe di cinque settimane
+prima. Il numero che ne dipendeva — «48 dei 60 movimenti sono rimpiazzi di un indisponibile» — è costruito
+su quelle righe stantie e va rimisurato. *Una spiegazione plausibile costruita su una colonna che nessuno
+ha datato è la stessa famiglia del difetto che descrive.*
+
+## Le STAFFETTE non stanno nei minuti, e il dato vero è a un campo di distanza
+**11/09/2026, richiesta dell'operatore: «quando disegni i ballottaggi utilizza le sostituzioni avvenute
+realmente per capire quali sono le staffette», col caso concreto di Conceição e Zhegrova disegnati
+insieme. Dettaglio: `formazioni-tipo-v1.md` §10.9.**
+
+L'aritmetica sembra ovvia — chi esce al 62' e chi entra per 28' fanno 90 — ed è stata **misurata prima di
+scrivere una riga**, su tre stagioni e cinque campionati: i minuti di una squadra fanno esattamente 990'
+solo nel **38,2%** delle partite, e un'uscita trova un ingresso complementare UNICO nel **30,3%** dei casi
+(33,7% ambigua a due candidati, 22,7% nessuno). Le 5.239 coppie che ne escono sono irripetute 4.381 volte.
+Il caso dell'operatore lo conferma dal vivo: il 23/08 Conceição esce al 69' e Zhegrova entra per 21', ma
+con 21 minuti entrano anche Boga e Cambiaso. **Costruire i ballottaggi su quell'aritmetica sarebbe
+inventare un fatto due volte su tre.**
+
+La strada è un'ACQUISIZIONE ed è corta: `positions.fetch_extra_incidents` scarica già quel payload, lo
+mette in cache e ne scorre gli `incidents` scartando tutto ciò che non è un gol — le sostituzioni sono
+nello stesso oggetto. **126 partite** per la stagione in corso, che è la sola che la finestra corta
+guarda, contro ~1.750 per una stagione intera. *Un dato che si butta via mentre lo si legge non è
+un'acquisizione da zero, ed è la settima volta che questo repository lo scopre.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

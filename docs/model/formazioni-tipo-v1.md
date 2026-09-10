@@ -1110,3 +1110,81 @@ una partita di lega porta sempre le statistiche. Un test lo asserisce.
 | il confronto fra le due board | `boards._returning_owner` | dichiarata |
 | le due board nello stesso file | `boards.write_boards` → `boards.json` con `short` | — |
 | la scelta di quale leggere | `core/valuation-store.boardViewOf` + il pulsante su `/clubs` | display |
+
+### 10.8 — Una pagina che elenca CHI È FUORI non dice mai che uno è rientrato (11 settembre 2026)
+
+Trovato dall'operatore guardando la board dell'ultimo periodo della Juventus: **«Bremer non l'hai messo
+in campo ma è un titolarissimo»**. Bremer aveva giocato **270 minuti su 270** nelle tre giornate, e la
+board breve non lo disegnava affatto.
+
+La causa non era la finestra: `availability_now` prendeva la riga più recente di `availability` **senza
+nessun limite di età**. La sua era del **4 agosto**, `suspended`, con la nota *«squalificato nella 38ª
+giornata di campionato»* — la squalifica dell'ultima giornata dell'anno PRIMA, già scontata. La pagina
+*indisponibili* è un **elenco di chi è fuori**: chi rientra non ci compare più, e noi tenevamo la sua
+ultima riga per sempre.
+
+Misurato sul bundle del 10/09/2026: **49 uomini** portano una riga più vecchia dell'ultima lettura **e
+hanno giocato dopo** — Kean, Ostigard, Baldanzi, Messias, Vitinha O., tutti marcati il 4 agosto e tutti in
+campo il 4 settembre. In tutto la cura porta gli indisponibili da **234 a 146**.
+
+**Due regole, e la prima è quella che questo progetto ha già scritto per gli infortuni** («la panchina
+batte uno stop datato», 14/08/2026):
+
+- **HA GIOCATO DOPO.** Prova POSITIVA su di lui e non un'inferenza da un'assenza: chi è sceso in campo
+  dopo quella lettura non era fuori, qualunque cosa dicesse la pagina. Chiude tutti e 49 i casi da sola.
+- **È CADUTO DALL'ELENCO**, per `AVAILABILITY_READS` = 2 letture. Serve per chi è rientrato e non ha
+  ancora giocato, ed è l'unica delle due che poggia su un'assenza — quindi vuole più di una lettura,
+  perché la pagina si legge **per campionato** e non tutti i giorni tutti (il 06/09 fu letta la sola
+  Serie A). Stessa forma di `ABSENT_READS` per le rose vive; il valore lì è misurato, qui è **preso in
+  prestito e lo dichiara**.
+
+**E questo corregge una spiegazione che avevo dato all'operatore un'ora prima.** Sul Genoa gli avevo detto
+che i quattro che la board breve non schiera «sono tutti indisponibili oggi»: tre di loro erano invece
+uomini con una riga di cinque settimane prima. Il numero che ne dipendeva — «48 dei 60 movimenti sono
+rimpiazzi di un indisponibile» — è costruito in buona parte su quelle righe stantie e **va rimisurato dopo
+un giro di `snapshot`**.
+
+### 10.9 — Le STAFFETTE: i minuti non le sanno dire, e il dato vero è a un campo di distanza
+
+Richiesta dell'operatore, 11/09/2026: «quando disegni i ballottaggi utilizza le sostituzioni avvenute
+realmente per capire quali sono le staffette», col caso concreto: «nella Juve Conceição e Zhegrova vanno in
+staffetta mentre nelle formazioni li hai messi insieme».
+
+**IL DATO NON C'È, e va detto prima di ogni altra cosa**: nessuna tabella di sostituzioni nel DB, e né
+`tm_appearances` né il livello per-partita portano il minuto d'ingresso. È già dichiarato in `CLAUDE.md`
+dal 10/09 — le sostituzioni stanno negli `incidents` della fonte, scaricati solo per le amichevoli.
+
+**E I MINUTI NON BASTANO A RICOSTRUIRLE.** L'aritmetica sembra ovvia (chi esce al 62' e chi entra per 28'
+fanno 90) ed è stata misurata su tre stagioni e cinque campionati prima di scrivere una riga:
+
+| | |
+|---|---|
+| partite-club in cui i minuti fanno esattamente 990' | **38,2%** |
+| uscite che trovano UN SOLO ingresso complementare | **30,3%** |
+| ambigue a 2 candidati | 33,7% |
+| senza nessun ingresso complementare | 22,7% |
+| coppie distinte che ne escono | 5.239, di cui **4.381 una volta sola** |
+
+Il caso dell'operatore lo conferma dal vivo: il 23/08 Conceição esce al 69' e Zhegrova entra per 21' — ma
+con 21 minuti entrano anche **Boga e Cambiaso**. È esattamente la cella «ambigua a tre candidati».
+*Costruire i ballottaggi su questa aritmetica sarebbe inventare un fatto due volte su tre.*
+
+**LA STRADA È UN'ACQUISIZIONE, ed è corta**: `positions.fetch_extra_incidents` scarica già quel payload,
+lo mette in cache (`sofascore_incidents_<match>.json`, 449 file) e ne scorre gli `incidents` — scartando
+tutto ciò che non è un gol. Le sostituzioni sono nello stesso oggetto. Costo: **126 partite** per la
+stagione in corso (che è la sola che la finestra corta guarda), contro ~1.750 per una stagione intera.
+
+### 10.10 — I punti dell'operatore ancora aperti (11 settembre 2026)
+
+Tutti nati guardando la board della Juventus, e **due dei quattro potrebbero chiudersi da soli** una volta
+che `snapshot` gira con la correzione del §10.8: l'undici cambia se Bremer e gli altri rientrano fra i
+disponibili.
+
+1. **Conceição e Zhegrova disegnati insieme** invece che uno ballottaggio dell'altro. Vuole le
+   sostituzioni vere (§10.9).
+2. **N. Gonzalez dovrebbe giocare al centro**, ed è disegnato `As` sulla board breve.
+3. **N. Gonzalez e Woltemade faranno a ballottaggio** — una coppia che oggi la board non accosta.
+4. **Cissé × Moreira** come possibile staffetta da verificare sulle sostituzioni.
+5. **Il RUOLO REALE sulla card di dettaglio di un calciatore**: chiesto e non ancora fatto. Il dato c'è
+   (`desc_real_roles`, i dodici codici, già disegnati sul campetto da `ui/role-set`); manca il campo su
+   `CardMan` e la riga nel template.

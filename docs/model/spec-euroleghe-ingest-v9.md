@@ -495,6 +495,27 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.89 (11 settembre 2026 — la FINESTRA CORTA, e una pagina che elenca chi è fuori)
+
+**LA FORMAZIONE TIPO DELL'ULTIMO PERIODO**, richiesta dell'operatore: sei colonne `desc_recent_*` (le
+ultime `presence.recent_window` partite di campionato del club, contate sulle sole in cui era
+DISPONIBILE), una seconda board dentro lo stesso `boards.json` sotto `short`, e il pulsante
+«Stagione / Ultimo periodo» sulla pagina Squadre. `SHEET_REVISION` 57. Misurata fuori campione su 3.638
+partite-club: Brier 0.1696 → 0.1544 e 8.46 → 8.69 dei veri undici. `engine_*` non si muove e la finestra
+è vuota per costruzione in pre-stagione. Dettaglio e tutte le tabelle: `formazioni-tipo-v1.md` §10.
+
+**LA PROVA DI UNA QUANTITÀ È LA QUANTITÀ STESSA**, correzione dello stesso giorno: `recent_evidence` era
+`"minutes"` — un parametro che aveva vinto su «chi comincia» e che applicato alla quota delle PRESENZE
+legge 0.2073 contro lo 0.1716 della sola stagione, cioè peggio del non avere la finestra. Con
+`"appearances"` legge 0.1614. Trovato costruendo la tabella promessa-contro-realizzato delle sei parole,
+che alla scala corta mancava.
+
+**`availability_now` NON GUARDAVA L'ETÀ DELLA RIGA.** La pagina *indisponibili* è un elenco di chi è
+fuori, quindi chi rientra ne sparisce e la sua riga resta: Bremer leggeva `suspended` da una riga del 4
+agosto mentre aveva giocato 270 minuti su 270. Due regole — **ha giocato dopo** (prova positiva, chiude
+49 casi su 49) e **è caduto dall'elenco** per `AVAILABILITY_READS` = 2 letture, perché la pagina si legge
+per campionato e non tutti i giorni tutti. Indisponibili 234 → 146.
+
 ## Novità v9.88 (10 settembre 2026 — il listone è per PIATTAFORMA anche nella CADENZA, la freschezza ha un lettore, e l'aggiornamento non presidiato)
 
 ### 1. Il listone lo rilegge solo il PRIMO foglio, e il listone è per piattaforma

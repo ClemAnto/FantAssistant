@@ -344,3 +344,51 @@ def test_le_colonne_della_finestra_sono_sul_foglio_e_la_revisione_e_stata_alzata
                    "desc_recent_starts", "desc_recent_minutes", "desc_recent_full"):
         assert column in snapshot.PLAYER_COLUMNS, f"{column} non e' fra le colonne del foglio"
     assert snapshot.SHEET_REVISION >= 57
+
+
+# --------------------------------------------------------------------- lo stato di indisponibilita'
+
+def _availability_db():
+    """Un DB minimo con la pagina *indisponibili* letta piu' volte, e un uomo che nel frattempo gioca."""
+    import sqlite3
+    conn = sqlite3.connect(":memory:")
+    conn.execute("CREATE TABLE availability (fc_id INT, valid_from TEXT, status TEXT)")
+    conn.execute("CREATE TABLE external_match_stats (fc_id INT, match_date TEXT, minutes INT)")
+    return conn
+
+
+def test_una_riga_di_indisponibilita_e_scontata_da_una_partita_giocata():
+    """LA PROVA POSITIVA batte lo stato, che e' «la panchina batte uno stop datato» (14/08) da un altro lato.
+
+    Il caso vero: Bremer leggeva `suspended` da una riga del 4 agosto - la squalifica dell'ultima giornata
+    dell'anno prima, gia' scontata - mentre da allora aveva giocato 270 minuti su 270, e la board
+    dell'ultimo periodo non lo disegnava. Trovato dall'operatore l'11/09/2026 guardando quella board.
+    Sul bundle di quel giorno erano 49 uomini, fra cui Kean, Ostigard, Baldanzi e Messias.
+    """
+    conn = _availability_db()
+    conn.execute("INSERT INTO availability VALUES (1, '2026-08-04', 'suspended')")
+    conn.execute("INSERT INTO availability VALUES (2, '2026-08-04', 'injured')")
+    # solo il primo e' sceso in campo dopo quella lettura
+    conn.execute("INSERT INTO external_match_stats VALUES (1, '2026-08-23', 90)")
+    got = snapshot.availability_now(conn, "2026-09-11")
+    assert 1 not in got, "chi ha giocato dopo la riga non e' indisponibile"
+    assert got.get(2) == "injured", "chi non ha giocato resta fuori: la riga vale ancora"
+
+
+def test_cadere_dall_ELENCO_vuole_piu_di_una_lettura():
+    """La seconda regola poggia su un'ASSENZA, quindi vuole piu' di una prova.
+
+    La pagina si legge per CAMPIONATO e non tutti i giorni tutti - il 06/09/2026 fu letta la sola Serie A
+    - quindi una lettura sola che non lo trova puo' essere una lettura che non lo ha guardato. Stessa
+    forma di `ABSENT_READS` per le rose vive, e il valore e' DICHIARATO: la' e' misurato, qui e' preso in
+    prestito e lo dice.
+    """
+    conn = _availability_db()
+    conn.execute("INSERT INTO availability VALUES (3, '2026-09-01', 'injured')")
+    # UNA sola lettura dopo la sua: non basta
+    conn.execute("INSERT INTO availability VALUES (9, '2026-09-05', 'injured')")
+    assert snapshot.availability_now(conn, "2026-09-11").get(3) == "injured"
+    # ...la seconda si'
+    conn.execute("INSERT INTO availability VALUES (9, '2026-09-07', 'injured')")
+    assert 3 not in snapshot.availability_now(conn, "2026-09-11")
+    assert snapshot.AVAILABILITY_READS == 2

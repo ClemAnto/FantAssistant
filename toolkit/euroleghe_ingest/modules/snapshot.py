@@ -3107,12 +3107,68 @@ def latest_starters(conn, auction_date: str, season: str | None = None
     return out, date
 
 
+#: Quante LETTURE della pagina *indisponibili* devono passare senza trovarlo prima che il suo stato si
+#: consideri scontato. La pagina e' un ELENCO DI CHI E' FUORI: chi rientra non ci compare piu', quindi
+#: cadere dall'elenco E' il rientro - ma la pagina si legge per CAMPIONATO e non tutti i giorni tutti
+#: (il 06/09/2026 fu letta la sola Serie A), quindi una lettura sola non basta a dire che e' caduto.
+#:
+#: Due, come `ABSENT_READS` per le rose vive e per la stessa ragione: la' un'assenza da una lettura si
+#: rimangia il 4,9% delle volte e da due il 3,4%. Qui il numero non e' stato rimisurato e prende in
+#: prestito la forma, non il valore - il valore e' dichiarato e vale finche' qualcuno non lo misura.
+AVAILABILITY_READS = 2
+
+
 def availability_now(conn, auction_date: str) -> dict[int, str]:
-    """Latest injured/suspended state per player at the auction date (dated series, newest wins)."""
+    """Lo stato di indisponibilita' che vale OGGI, e le due ragioni per cui una riga puo' non valere piu'.
+
+    LA PAGINA *INDISPONIBILI* E' UN ELENCO DI CHI E' FUORI, quindi chi rientra non ci compare piu' e la
+    sua riga resta li' per sempre. Fino all'11/09/2026 questa funzione prendeva la piu' recente e basta:
+    Bremer leggeva `suspended` da una riga del **4 agosto** («squalificato nella 38a giornata di
+    campionato», cioe' la squalifica dell'anno prima, gia' scontata) mentre da allora aveva giocato
+    **270 minuti su 270**, e la board dell'ultimo periodo non lo disegnava. Trovato dall'operatore su
+    quella board: «Bremer non l'hai messo in campo ma e' un titolarissimo».
+
+    Misurato sul bundle del 10/09/2026: **49 uomini** portano una riga piu' vecchia dell'ultima lettura E
+    hanno giocato dopo - fra loro Kean, Ostigard, Baldanzi, Messias, Vitinha O., tutti marcati il 4 agosto
+    e tutti in campo il 4 settembre.
+
+    DUE REGOLE, e la prima e' quella che questo progetto ha gia' scritto per gli infortuni (14/08/2026,
+    «la panchina batte uno stop datato»):
+
+      * HA GIOCATO DOPO. E' una prova POSITIVA su di lui e non un'inferenza da un'assenza: un uomo che e'
+        sceso in campo dopo quella lettura non era fuori, qualunque cosa dicesse la pagina. Chiude tutti e
+        49 i casi da sola.
+      * E' CADUTO DALL'ELENCO. Se la pagina e' stata letta `AVAILABILITY_READS` volte dopo la sua riga e
+        lui non c'era mai, non e' piu' fuori. Serve per chi e' rientrato e NON ha ancora giocato - la
+        prima regola non lo vede - ed e' l'unica delle due che poggia su un'assenza, quindi vuole piu' di
+        una lettura: la pagina si legge per campionato e non tutti i giorni tutti.
+
+    Quello che NON cambia: chi e' fuori davvero. La sua riga e' fresca (o l'elenco lo ripete), non ha
+    giocato, e lo stato resta.
+    """
+    played: dict[int, str] = {}
+    for fc_id, last in conn.execute(
+            "SELECT fc_id, MAX(match_date) FROM external_match_stats "
+            "WHERE match_date IS NOT NULL AND match_date <= ? AND COALESCE(minutes, 0) > 0 "
+            "GROUP BY fc_id", (auction_date,)):
+        played[fc_id] = last
+    # I GIORNI IN CUI LA PAGINA E' STATA LETTA: una data che compare nella tabella e' un giorno in cui
+    # qualcuno e' stato scritto, cioe' un giorno in cui abbiamo guardato.
+    reads = [date for (date,) in conn.execute(
+        "SELECT DISTINCT valid_from FROM availability WHERE valid_from <= ? ORDER BY valid_from",
+        (auction_date,))]
+    seen: dict[int, str] = {}
+    for fc_id, valid_from, status in conn.execute(
+            "SELECT fc_id, valid_from, status FROM availability WHERE valid_from <= ? "
+            "ORDER BY valid_from", (auction_date,)):
+        seen[fc_id] = (valid_from, status)
     out: dict[int, str] = {}
-    for fc_id, status in conn.execute(
-            "SELECT fc_id, status FROM availability WHERE valid_from <= ? ORDER BY valid_from",
-            (auction_date,)):
+    for fc_id, (valid_from, status) in seen.items():
+        if played.get(fc_id, "") > valid_from:
+            continue                                    # ha giocato dopo: quella riga e' scontata
+        later = sum(1 for date in reads if date > valid_from)
+        if later >= AVAILABILITY_READS:
+            continue                                    # e' caduto dall'elenco, e non una volta sola
         out[fc_id] = status
     return out
 
