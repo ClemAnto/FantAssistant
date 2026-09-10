@@ -40,6 +40,15 @@ word promises. The measured channel behind it - «how much is a missing deputy w
 own numbers first (+3.1' paired, +3.8' as a level net of his own past), which is why this is a
 DECLARATION and not a term.
 
+...AND A SECOND DECLARED HALF THE OTHER WAY ROUND, 10/09/2026: a man the eleven draws whose place belongs
+to somebody who is out and COMING BACK SOON is capped at `ballottaggio`. The two rules are two halves of
+one question about one place - «nobody disputes his shirt» is false if the owner returns next week - and
+both are DECLARATIONS: the weighted-past version of this one (discount a start taken while a superior was
+absent) was measured first and refused on its own numbers, in all three ways of naming the rival (granular
+role, line, anybody with more starts), monotone in the weight, optimum on «no discount», over 19,259
+inherited starts of 115,955. The reason is that a three-match window FORGETS: if the first choice comes
+back, the deputy leaves the window within three matches, so the correction is already there.
+
 MEASURED, on four back-dated pre-season windows (`snapshot --season S --date S-08-15`, the state of an
 August auction, two platforms x two seasons), outcome = what the men of each rung really did in the season
 that followed: the share of his club's matches he was on the pitch for OUT OF THE ONES HE WAS FIT FOR (a
@@ -105,7 +114,8 @@ MOST_OF_THE_MATCH = 65.0
 
 
 def status_of(play_share: float | None, minutes: float | None, in_eleven: bool,
-              contended: bool | None = None) -> str | None:
+              contended: bool | None = None,
+              owner_returning: bool | None = None) -> str | None:
     """One of `LADDER`, or None when nothing is known about how often he plays.
 
     `play_share` is the share of the matches he is FIT FOR that he is expected to get a voto in
@@ -138,6 +148,21 @@ def status_of(play_share: float | None, minutes: float | None, in_eleven: bool,
     what this project does with a judgement the model cannot reach - `board_rulings.json` and
     `player_notes.json` are the other two.
 
+    `owner_returning` IS THE OPERATOR'S RULE OF 10/09/2026 and it is the MIRROR of the one above: «se un
+    calciatore risulta TITOLARE in una certa posizione, controlla che per quella posizione non ci siano
+    calciatori infortunati ... se c'e' un calciatore infortunato che rientrera' a breve bisogna capire se
+    e' lui il vero titolare (confronta la formazione tipo a lungo termine), in tal caso scala da TITOLARE
+    a BALLOTTAGGIO». Declared, like the other one, and read only for a man the eleven DRAWS - where it
+    caps him at `ballottaggio`, which is the floor the drawn men already have. None does not demote.
+
+    ITS FIRST FORMULATION WAS EMPTY BY CONSTRUCTION AND WAS COUNTED BEFORE IT WAS WRITTEN: «the long
+    board draws the injured man in that place» is 0 rows of 182, because a man listed among a place's
+    DUELS is never in its line - he is a rival precisely because the shirt is not his. The comparison has
+    to be between the two BOARDS (short draws A, long draws B, B is out and coming back), and the
+    population of that is real: 40 of the 220 men the Serie A board draws are unavailable today, 15 with
+    a return date. A rule that is mute by construction reads exactly like a rule that works, which is why
+    it was counted first.
+
     None in, None out: a man whose appearances nobody can forecast is unknown and not a `riserva` - the
     same rule the empty SURPLUS obeys, and it is the caller that owes the distinction. `riserva` reads
     «non entrerà spesso», which is a claim about football; a man nobody has measured has not earned it,
@@ -150,6 +175,35 @@ def status_of(play_share: float | None, minutes: float | None, in_eleven: bool,
     """
     if play_share is None:
         return None
+    if in_eleven and owner_returning:
+        # IL PADRONE DEL POSTO STA TORNANDO, quindi chi lo occupa non e' il titolare di quel posto: al
+        # massimo ne fa il ballottaggio. Regola dell'operatore, 10/09/2026, e la sua formulazione e' anche
+        # la sua implementazione - «se c'e' un calciatore infortunato che rientrera' a breve bisogna
+        # capire se e' lui il vero titolare (confronta la formazione tipo a lungo termine), in tal caso
+        # scala da TITOLARE a BALLOTTAGGIO».
+        #
+        # E' LO SPECCHIO DELLA REGOLA DELL'08/09 e le due sono due meta' di una domanda sola sullo stesso
+        # posto: la' «nessuno gli contende la maglia» promuove, qui il padrone che rientra retrocede - e
+        # infatti la promozione non puo' scattare, perche' uno che torna la settimana prossima E' un
+        # contendente. Il tappo agisce dopo la scala per questo: non litiga con `contended`, gli corregge
+        # l'ingresso.
+        #
+        # IL PAVIMENTO E' QUELLO CHE I DISEGNATI HANNO GIA' («chi la board schiera non scende sotto
+        # ballottaggio»), quindi questa regola non puo' portare nessuno fuori dal proprio perimetro: puo'
+        # solo spostare un uomo dai tre gradini alti al pavimento dei disegnati.
+        #
+        # CHI DECIDE `owner_returning` NON E' QUESTO MODULO, ed e' deliberato: la domanda «rientra entro
+        # l'orizzonte?» ha bisogno del CALENDARIO del suo club e della data di rientro, e questo file e'
+        # dependency-free perche' il motore che si spedisce viene portato da qui. Lo decide chi disegna le
+        # due board (`boards._returning_owner`), che e' anche l'unico posto che le ha tutt'e due.
+        #
+        # None NON RETROCEDE, che e' lo specchio di «ignoto non promuove»: senza una data di rientro non
+        # esiste un orizzonte da confrontare, e retrocedere l'uomo che sta giocando per un fatto che
+        # nessuno ha scritto sarebbe inventarlo. Va anche nella direzione del calcio - la durata residua
+        # di un'assenza CRESCE con quella trascorsa (da 60 giorni ne restano 38 di mediana), quindi
+        # «nessuna data» pende verso «non torna presto», cioe' verso il posto che resta suo. Sono 25 dei
+        # 40 disegnati indisponibili del foglio Serie A del 10/09/2026.
+        return LADDER[3]
     if in_eleven:
         if minutes is not None:
             if play_share > PLAY_EVERY and minutes >= FULL_MATCH:

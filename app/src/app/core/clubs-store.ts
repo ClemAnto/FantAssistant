@@ -4,7 +4,7 @@ import { Board } from './bundle';
 import { PlayerRulings } from './player-rulings';
 import { Platform, abbreviate, competitionLabel, nameWords } from './players-store';
 import { Titolarita } from './titolarita';
-import { SquadMan, ValuationStore } from './valuation-store';
+import { SquadMan, ValuationStore, shortShiftOf } from './valuation-store';
 
 /**
  * The SQUADS of today's snapshot: who a real club has, and the eleven the toolkit draws for it.
@@ -259,11 +259,29 @@ export class ClubsStore {
   /** The board of the chosen club, or null: a club the sheet could not draw says so, never a fallback. */
   readonly board = computed<Board | null>(() => {
     const club = this.club();
-    const file = this.valuation.boardsFor(this.platform());
-    if (!club || !file) return null;
-    const board = file.clubs?.[club] ?? null;
+    // L'ORIZZONTE SCELTO (stagione o ultimo periodo): il disegno lo fa il TOOLKIT per tutt'e due, e qui
+    // si sceglie quale dei due leggere. L'app non ricalcola nessun undici di un club vero.
+    const view = this.valuation.boardViewFor(this.platform());
+    if (!club || !view) return null;
+    const board = view.clubs?.[club] ?? null;
     return board && !board.error ? board : null;
   });
+
+  /** L'orizzonte del campetto, e se il pacchetto porta quello corto: il pulsante li legge da qui. */
+  readonly boardHorizon = this.valuation.boardHorizon;
+  readonly hasShortBoards = computed(() => this.valuation.hasShortBoards(this.platform()));
+  /** Quante partite guarda la finestra corta, dal toolkit che le ha usate: l'etichetta lo dice. */
+  readonly shortWindow = computed(
+    () => this.valuation.boardsFor(this.platform())?.short?.window ?? null);
+
+  /**
+   * Quanti uomini l'ultimo periodo schiera e la stagione no, e quanti la regola del padrone che rientra
+   * ha retrocesso. A zero le due board sono la stessa cosa e il pulsante è un ornamento: dirlo a schermo
+   * è la stessa disciplina del conteggio che `snapshot` stampa - uno zero silenzioso non si distingue da
+   * una funzione rotta.
+   */
+  readonly shortMoved = computed(
+    () => shortShiftOf(this.valuation.boardsFor(this.platform()), this.club()));
 
   selectPlatform(platform: Platform): void {
     if (platform === this.platform()) return;

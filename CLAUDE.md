@@ -5235,6 +5235,129 @@ VECCHIA (Tm7, 2015-16) invece della piu' recente. E **una sola urna misura la fo
 quell'ordine**: nell'asta singola il braccio motore e' quarto, su 10×20 urne fa 2686 punti, posto 2,18 e
 103 titoli su 200 contro i 2574 del miglior umano.
 
+## L'undici tipo ha DUE ORIZZONTI, e una regola muta si legge come una regola che funziona
+**10/09/2026, dalla richiesta dell'operatore «un algoritmo per valutare automaticamente le ultime 3
+partite ... per ottenere la formazione tipo nell'ultimo periodo switchabile con quella a lungo periodo».
+Dettaglio, tabelle e rifiuti: `formazioni-tipo-v1.md` §10.** Non è una lettura più fresca della stessa
+cosa: sono **due bersagli**. La lettura di stagione prevede le giornate che RESTANO — quella su cui
+`season_prior_rounds` è stato adottato — e serve a un'asta; la corta prevede la PROSSIMA partita. Due
+domande, due nomi (`season` / `short`), come i due zeri del surplus.
+
+**METÀ ESISTEVA GIÀ E NON VIAGGIAVA**, settima istanza di «il dato c'era»: `claim(horizon="recent")`,
+`eleven(mode="next")` e `boards.write_boards(mode=…)` ci sono da agosto, e il pannello Tk ha il selettore
+dal 03/08 — ma `snapshot` chiamava `write_boards` solo con `typical`. E il debito che è venuto a galla è
+quello che questo progetto vieta a parole nel file accanto: `gui.FORM_WEIGHT` = 0.60 e `RECENT_PRIOR` =
+3.0 erano dichiarate scelte di visualizzazione, **mai misurate**, e non stavano in `presence.Params` —
+cioè irraggiungibili da `sweep`. Il rimando che portavano («gate §7-octies») oggi punta a un'altra
+sezione, ed è così che si scopre che nessuno le ha mai corse.
+
+**LA MISURA, fuori campione su 3.638 partite-club** (due stagioni × cinque campionati; al match *m* si
+legge solo il calcio *< m* e si giudica su *m*): la stagione legge Brier **0.1696** e 8.46 dei veri
+undici, le ultime tre DA SOLE 0.1749 e **8.60**, la miscela **0.1581 / 8.68**. Le due metà di quella
+riga vanno lette insieme — **la finestra nuda sceglie l'undici meglio ed è tarata peggio** — ed è la
+ragione per cui si adotta la miscela: tiene il guadagno sull'ordine e aggiusta il numero. La finestra è
+piatta fra 2 e 4 (il «3» dell'operatore cade sull'ottimo) e il prior ottimo è **3**, cioè lo stesso
+numero che `RECENT_PRIOR` portava a occhio: due strade indipendenti sullo stesso valore.
+
+**«GIOCARE 90' È UN SEGNALE MOLTO FORTE»: il meccanismo è suo, la forma la decide la misura.** La prova
+per partita in MINUTI legge 0.1544 contro 0.1710 della partenza binaria (**+9,7%**, e migliora anche
+l'ordinamento, che è immune alla taratura); la lettura LETTERALE della sua frase — 90' = 1, sostituito =
+0,5 — legge **0.1746, peggio della binaria**. *Un'osservazione vera sul calcio non dice da sé se la sua
+forma è una soglia o un continuo.* Le tre forme restano nominate in `presence.recent_evidence`, perché
+un rifiuto cancellato non si può ri-correre.
+
+**E LA REGOLA CHE HA CHIESTO DOPO È STATA SALVATA DAL CONTARLA PRIMA DI SCRIVERLA.** Il suo primo
+suggerimento — scontare chi ha giocato perché il titolare era fuori — è respinto come PESO in tutte e tre
+le definizioni di rivale (ruolo granulare, linea, chiunque con più partenze), monotono, ottimo su «non
+fare niente», su 19.259 partenze ereditate di 115.955: **una finestra di tre partite si autocorregge
+perché dimentica**, e lo sconto conterebbe due volte un fatto che la finestra corregge da sé. Quello che
+si adotta è la forma che lui ha dettato dopo, un VINCOLO in avanti: se la board breve disegna A e la
+lunga disegna B in quel posto, e B rientra entro l'orizzonte, A è tappato a `ballottaggio`. **La mia
+prima formulazione di quella regola era VUOTA PER COSTRUZIONE** — «la board lunga disegna l'infortunato
+in quel posto» legge 0 righe su 182, perché un uomo elencato fra i `duels` non è mai nella sua linea, è
+un rivale *proprio perché* la maglia non è sua. Il confronto è fra le due BOARD, e lì la popolazione
+esiste: 40 dei 220 disegnati sono indisponibili oggi. *Una regola muta si legge esattamente come una
+regola che funziona, e l'unico modo di distinguerle è contare la popolazione prima di scrivere il
+codice.*
+
+Verificato facendo girare `snapshot` davvero, su una **copia privata del DB** perché l'albero è condiviso:
+20/20 club disegnati su tutt'e due gli orizzonti, **60 uomini che la board breve schiera e la lunga no** e
+**9 tappati** dalla sua regola. Di quei 60, **48 sono rimpiazzi di un indisponibile di oggi** e 12 sono
+«le ultime tre hanno cambiato l'ordine»: la decisione di escludere dalla board breve chi non può giocare
+(`gui.TODAY_MODES`) fa quattro quinti del movimento, ed è una scelta di DISEGNO che va detta invece che
+scoperta. Senza di lei la board breve sarebbe identica alla lunga proprio sugli uomini per cui è nata: la
+finestra di un infortunato è VUOTA, quindi la miscela gli restituisce lo standing di stagione intatto.
+
+**Cosa NON si muove, e perché**: `evaluate` non importa `presence`, quindi `backtest --verify` resta
+22/22; la finestra è vuota per costruzione su una pre-stagione, quindi ogni finestra su cui il gate ha
+pubblicato un numero legge la stagione intatta; il gradino del FOGLIO resta quello lungo, perché con
+quello si compra, e il corto vive in `boards.json` sotto `short`, **dentro lo stesso file** — un file
+nuovo avrebbe avuto bisogno di due righe in due allowlist, che è la famiglia di difetti più ripetuta di
+questo repository (i campetti, `availability`, l'asterisco). E la board breve cambia CHI e non lo SCHEMA:
+un modulo modale su tre partite è una statistica su tre osservazioni, e i moduli hanno un giudice loro.
+
+Tre abitudini d'arnese pagate nella stessa sessione. **Un `mklink` mandato in `Out-Null` nasconde il
+proprio fallimento**, e poi si ragiona come se la giunzione ci fosse: la cartella era una copia vera, e
+per fortuna la cura (`rmdir` e mai `Remove-Item -Recurse`, che prenderebbe il bersaglio) è stata comunque
+verificata prima. **Un BOM davanti alla prima colonna di un CSV fa leggere `None` a ogni `fc_id`**, e la
+misura che ne è uscita diceva «100% e 0» — cioè i due numeri uniformi che qui non si credono mai: la
+regola è stampare la FORMA di ciò che si legge prima di credere a uno zero, e ha funzionato. E **un test
+che legge un SORGENTE va riportato dove il sorgente è andato**: estrarre il corpo per-modo in
+`_boards_for` ha fatto cadere il guardiano degli undici alternativi, la cui invariante era intatta —
+spostarlo per far passare la suite sarebbe stato il modo in cui un invariante muore, quindi la nuova
+asserzione dice la stessa cosa e un test la lega al posto nuovo.
+
+## L'aggiornamento si fa da sé la notte, e l'interruttore è una DICHIARAZIONE
+**10/09/2026, dalla richiesta dell'operatore («possiamo creare un agente che aggiorni questi dati la
+notte?»). Dettaglio: spec «Novità v9.88».** La risposta è **un'attività pianificata e non un LLM**: il
+lavoro è deterministico e il giudizio sta già dentro `update` (un ordine solo, ogni passo riprendibile,
+la regola che una scansione che comincia a essere rifiutata si abbandona). E non può essere un agente
+CLOUD, per la ragione già a verbale sul publishing: servono `data/`, la cache e le credenziali in
+`.env`, che stanno sulla macchina dell'operatore e su nessun runner. `scripts/nightly-update.ps1`, 03:00,
+limite 5 ore, log in `data/logs/` (**gitignorata**: un log di `update` porta le note di `snapshot` coi
+NOMI dei giocatori, e il repo è pubblico).
+
+**L'INTERRUTTORE È `config/nightly.json`** — `{enabled, decided_on}`, la quinta cosa dichiarata dopo i
+board rulings, le note sui giocatori, le dritte e le coppe. NON `Disable-ScheduledTask`, e la ragione è
+la solita: un task disabilitato non lascia traccia, quindi «spento apposta» si legge identico a «il task
+è rotto». Con il file la corsa parte lo stesso, scrive comunque il quadro del mattino e DICE perché non
+ha fatto niente. **File assente = ACCESO** in tutt'e tre le metà (runner, pannello, app), perché una
+macchina a cui nessuno ha detto niente deve tenere i dati freschi; **file con un refuso = ACCESO** pure,
+perché una parentesi rotta non può fermare un'acquisizione. Lo scrive il **pannello Tk**, lo MOSTRA
+l'app: un browser non raggiunge il Task Scheduler — misurato prima di decidere, `app/src` non aveva un
+solo riferimento a localhost — quindi il fatto viaggia in una direzione sola.
+
+**LA GUARDIA CHE CONTA NON È IL LOCK.** «Una sessione possiede il DB» si verificava con
+`BEGIN IMMEDIATE`, e non basta: **un'acquisizione lunga scrive a LOTTI**, quindi fra un lotto e l'altro
+il database è libero e la sonda dice «vai» — misurato con due acquisizioni in corso. Si leggono anche le
+command line (`euroleghe_ingest`, escluso `gui`: un pannello aperto non è un'acquisizione e bloccare su
+di lui costerebbe ogni notte a chi ha scordato una finestra). Il limite resta detto: un'acquisizione
+lanciata DA dentro il pannello può essere invisibile, e per quella c'è `retry_on_lock`.
+
+**E LA FRESCHEZZA HA UN LETTORE: `fetch --stale`.** `--plan` risponde alla COMPLETEZZA; questa risponde a
+«quando abbiamo GUARDATO», che è la domanda che costa una mattina quando nessuno la fa. **Due tipi di
+riga, e il secondo è il motivo per cui non è una SELECT**: chi non ha una colonna di osservazione — il
+listone tiene l'ultima lettura e nessuna data — risponde solo dal FILE DI CACHE, e quando la data vive
+fuori dal database nessuna query ci arriva. Il listone è **spaccato per piattaforma**, o una riga sola
+leggerebbe «fresco» il giorno in cui metà non lo è. Appena acceso ha trovato **ClubElo a 239 giorni**
+(l'API risponde 502 da gennaio, e **R19 è adottata su `default`** sopra quella tabella) e la curva di
+mercato a 26.
+
+## Il listone è un fatto per PIATTAFORMA anche nella CADENZA
+**10/09/2026, trovato leggendo il log di una corsa e non il codice.** La fase di refresh di `snapshot`
+gira per la **prima lega dichiarata** e le altre leggono quella lettura: giusto per quattro canali su
+cinque — probabili, mercato, pagine-rosa ed Elo sono fatti su un GIORNO — e sbagliato per il quinto,
+perché `listone_quotes` ha `platform` nella chiave dal 07/08/2026 proprio perché le due liste discordano
+su 202 Qt.I e 226 FVM. Con EuroLeghe dichiarata per prima, il listone di Serie A non veniva più riletto:
+**l'evidenza pulita sono i file di cache** (`listone_euro` di quel mattino contro `listone_default` di due
+giorni prima) e i fogli lo stampavano su sé stessi mentre nessuno lo leggeva. Curato con
+`snapshot.refresh_listone_for_platform`, chiamato per le piattaforme che il primo foglio non copre.
+Due corollari: **`update --daily` prometteva MENO di quello che fa** («none of them feeds today's sheet»
+era falso su tre passi — `transfers_history` 6019 → 6026 in una corsa), e ora `snapshot.SHEET_REFRESHES`
+nomina le cinque fette con la loro metà stretta; e **la profondità di una catena non è una proprietà del
+grafo** — due guardiani sono caduti perché il listone è sceso di un livello, e si camminano le chiamate
+in modo TRANSITIVO invece di asserire una disposizione.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

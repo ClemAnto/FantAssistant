@@ -187,6 +187,17 @@ class Config:
     # windows costs a player, and that lives in `engine/cups.py` where a harness can reach it.
     international_cups_path: Path = field(
         default_factory=lambda: REPO_ROOT / "config" / "international_cups.json")
+    # THE NIGHTLY SWITCH (operator, 10/09/2026: «permettimi di attivare/disattivare il check
+    # notturno»). `{enabled, decided_on}`, and it is a DECLARATION like the three above rather than a
+    # property of the Windows task, for a reason this project has paid for elsewhere: a disabled task
+    # leaves no trace, so «spento apposta» and «il task e' rotto» read identically. Read from a file,
+    # the run still happens, still writes the morning picture, and SAYS why it did nothing.
+    #
+    # A MISSING FILE MEANS ON, which is the safe direction: a clone that has never been told anything
+    # should keep its data fresh, and «no file, no run» would stop the acquisition in silence.
+    # REPORTING in the bundle - the app draws the state and cannot write it, because a browser has no
+    # way to reach a scheduler; what writes it is the operator panel.
+    nightly_path: Path = field(default_factory=lambda: REPO_ROOT / "config" / "nightly.json")
 
     @property
     def raw_dir(self) -> Path:

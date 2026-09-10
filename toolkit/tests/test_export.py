@@ -126,6 +126,33 @@ def test_the_declared_player_notes_travel_and_their_absence_is_silence(tmp_path)
     assert copied["2025-26"]["1"]["kind"] == "out_of_squad"
 
 
+def test_the_nightly_switch_travels_so_the_app_can_SHOW_it(tmp_path):
+    """The app draws whether the unattended update is on; it can never write it.
+
+    Measured 10/09/2026 before deciding where the switch lives: `app/src` has not one reference to
+    localhost or 127.0.0.1, because the consultation page is static by construction - so a browser
+    cannot reach the Windows scheduler and the fact travels ONE WAY. The panel writes it.
+
+    Absence is silence and NOT «off», which is the same direction the runner takes: a clone that has
+    never declared anything keeps its data fresh, and reading a missing file as «off» would stop the
+    acquisition without anybody saying so.
+    """
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    switch = tmp_path / "nightly.json"
+    ctx = Context(config=Config(data_dir=ctx.config.data_dir, db_path=ctx.config.db_path,
+                                nightly_path=switch), conn=ctx.conn)
+    export.run(ctx, history=1)
+    config_dir = ctx.config.data_dir / "export" / "2025-26" / "config"
+    assert not (config_dir / "nightly.json").exists(), "nothing declared, nothing to copy"
+
+    switch.write_text(json.dumps({"enabled": False, "decided_on": "2026-09-10"}), encoding="utf-8")
+    export.run(ctx, history=1)
+    copied = json.loads((config_dir / "nightly.json").read_text(encoding="utf-8"))
+    assert copied["enabled"] is False
+    assert copied["decided_on"] == "2026-09-10"
+
+
 def test_verify_fails_on_a_dangling_reference(tmp_path):
     ctx = _ctx(tmp_path)
     _seed(ctx.conn)

@@ -313,6 +313,17 @@ export interface StrategyBidder {
    * quota, che non e' zero.
    */
   fvm: number | null;
+  /**
+   * QUELLO CHE UNA STANZA VERA HA PAGATO per lui, nella valuta della lega DICHIARATA.
+   *
+   * Letto da `AuctionPricesStore` e mai ricalcolato: e' un fatto sul MERCATO e non su di lui, quindi
+   * non entra nel gain, non riordina niente e nessuna valutazione lo moltiplica. Vuoto = nessuna asta
+   * vera l'ha messo all'incanto abbastanza volte, che non e' «costa zero».
+   */
+  paid?: number | null;
+  /** In quante delle aste di riferimento qualcuno l'ha preso, su quante: 15/15 = lo prendi ora. */
+  paidSold?: number | null;
+  paidSoldOf?: number | null;
 }
 
 /**
@@ -380,6 +391,19 @@ export interface ManReadings {
   seasonPlayed: number | null;
   /** Il fantavalore del listone: un PREZZO, e l'unico numero di questa riga che non e' nostro. */
   fvm: number | null;
+  /**
+   * IL PREZZO PAGATO DA UNA STANZA VERA, nella valuta della lega dichiarata.
+   *
+   * L'altro prezzo della riga, e i due dicono cose diverse: il FVM e' quanto l'autore del listone
+   * pensa che valga, questo e' quanto dieci manager hanno tirato fuori. Divergono in modo MISURATO e
+   * sistematico - sopra gli 80 di FVM un attaccante costa 1,09 volte il suo FVM, un centrocampista
+   * 0,79 - quindi tenerli come due pastiglie e non come una e' la stessa disciplina dei due zeri
+   * («Lead» e «Margine»): due domande, due nomi, mai una cifra sola.
+   */
+  paid: number | null;
+  /** Su quante aste di riferimento e' stato comprato, e su quante: la meta' che un prezzo non porta. */
+  paidSold: number | null;
+  paidSoldOf: number | null;
   /** Lo SWING: i gol di classifica che fa segnare, nell'unita' con cui la lega assegna i punti. */
   swing: number | null;
   /**
@@ -415,7 +439,7 @@ export interface ManReadings {
  */
 export type ReadingKey =
   | 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'goals' | 'assists' | 'xg' | 'xa'
-  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing' | 'titolarita';
+  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing' | 'titolarita' | 'paid';
 
 export interface ReadingSpec {
   key: ReadingKey;
@@ -595,6 +619,14 @@ export const READINGS: ReadingSpec[] = [
     width: 'min-w-9',
   },
   {
+    key: 'paid',
+    short: 'Prz',
+    label: 'Prezzo pagato davvero',
+    hint: 'Quanto e costato in aste vere del mese, nella valuta della tua lega.',
+    format: '1.0-0',
+    width: 'min-w-9',
+  },
+  {
     key: 'titolarita',
     // TRE CARATTERI come tutte le altre, e non `Tit.` con il punto della colonna della tabella: la
     // fila delle pastiglie deve restare compatta, e un test asserisce che l'unica sigla piu' lunga di
@@ -726,6 +758,8 @@ export function readingValue(key: ReadingKey, readings: ManReadings): number | n
       return null;
     case 'fvm':
       return readings.fvm;
+    case 'paid':
+      return readings.paid;
     case 'swing':
       return readings.swing;
   }
@@ -811,6 +845,12 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     gaNow: man.gaNow,
     seasonPlayed: man.seasonPlayed,
     fvm: man.fvm,
+    // IL PREZZO CHE UNA STANZA VERA HA PAGATO, gia' nella valuta della lega dichiarata: e' l'unico
+    // numero della riga che non sia un'opinione su di lui, quindi non si ricalcola qui - chi
+    // costruisce la riga lo legge dalla tabella e lo scala, e questa funzione lo passa e basta.
+    paid: man.paid ?? null,
+    paidSold: man.paidSold ?? null,
+    paidSoldOf: man.paidSoldOf ?? null,
     // La parola gia' risolta da chi ha costruito la riga: la dritta dichiarata batte il foglio, e
     // questa funzione non ha modo di leggere una dichiarazione (e' pura, e non deve averlo).
     titolarita: man.titolarita ?? null,

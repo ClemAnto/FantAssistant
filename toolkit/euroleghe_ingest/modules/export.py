@@ -130,6 +130,11 @@ CONTRACT: tuple[TableSpec, ...] = (
               "from it. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"),
     TableSpec("probable_starter", "full",
               "dated starting probabilities. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"),
+    TableSpec("auction_prices", "full",
+              "WHAT A ROOM ACTUALLY PAID, per month, normalised to a 10 x 1000 league - the clearing "
+              "price of real auctions, which is the one number here that is not somebody's opinion "
+              "about a footballer. Reporting only: no engine path reads it, and the Strategy page "
+              "draws it beside the FVM because the two disagree systematically"),
     TableSpec("availability", "full", "dated injured/suspended states, for the live auction view"),
     TableSpec("injuries", "full",
               "dated absences with the matches actually missed: the presences module's missing half, "
@@ -308,6 +313,19 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_riser_starts",
     "desc_riser_window",
     "desc_riser_keeper",
+    # Il NUOVO ARRIVATO e la sua ultima finestra altrove, piu' il marchio a due bracci. Senza queste
+    # dieci righe il foglio le scrive e l'app non le vede - il difetto dei campetti, e la ragione per
+    # cui questa lista e' esplicita.
+    "desc_abroad_watch",
+    "desc_abroad_comp",
+    "desc_abroad_matches",
+    "desc_abroad_minutes",
+    "desc_abroad_ga90",
+    "desc_abroad_vote",
+    "desc_abroad_voted",
+    "desc_abroad_share",
+    "desc_abroad_rank",
+    "desc_abroad_pool",
     # Fpi: quanto vale una sua partita secondo il calcio che ha DAVVERO giocato, con la base da cui viene
     # e su quante partite. Senza queste tre la colonna Fpi dell'app resta muta - e il contratto e' una
     # LISTA ESPLICITA proprio perche' una colonna nuova non viaggi per sbaglio ne' resti a casa in
@@ -384,6 +402,12 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     # cioe' spegnerebbe il viaggio nel tempo per aggiungere una colonna: e' la terza volta che questo
     # commento si scrive, ed e' la ragione per cui la lista opzionale esiste.
     "desc_out_until", "desc_out_rounds", "desc_out_share",
+    # ...e le dieci del nuovo arrivato, nate il 10/09/2026, per la stessa ragione e per una in piu': un
+    # foglio le porta VUOTE per chiunque abbia giocato qui l'anno prima, cioe' per i due terzi del
+    # listone. E' la quarta volta che questo commento si scrive.
+    "desc_abroad_watch", "desc_abroad_comp", "desc_abroad_matches", "desc_abroad_minutes",
+    "desc_abroad_ga90", "desc_abroad_vote", "desc_abroad_voted", "desc_abroad_share",
+    "desc_abroad_rank", "desc_abroad_pool",
     # ...e le cinque dell'esito, nate il 06/09/2026: ogni foglio scritto prima della revisione 46 non le
     # ha, pacchetti compresi. Quarta volta che questo commento si scrive, e la ragione e' sempre la
     # stessa: pretendere una colonna nuova da un foglio vecchio spegne il viaggio nel tempo per
@@ -983,6 +1007,17 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
                                 ctx.config.player_notes_path.read_bytes())
         except OSError as exc:
             print(f"[export] WARNING: config player_notes.json not copied ({exc})")
+
+    # THE NIGHTLY SWITCH, for the same reason and with the same optionality: the app SHOWS whether the
+    # unattended update is on, beside the freshness it already draws. It cannot toggle it - a browser
+    # has no way to reach the Windows scheduler, measured 10/09/2026 (`app/src` has not one reference
+    # to localhost) - so this is a fact travelling one way, and the panel is what writes it.
+    if ctx.config.nightly_path.exists():
+        try:
+            _atomic_write_bytes(config_out / ctx.config.nightly_path.name,
+                                ctx.config.nightly_path.read_bytes())
+        except OSError as exc:
+            print(f"[export] WARNING: config nightly.json not copied ({exc})")
 
     # `international_cups.json` deliberately does NOT travel. The app needs no window and no membership
     # list: the sheet's own `desc_cup*` columns already name the tournament, its dates and what it costs,

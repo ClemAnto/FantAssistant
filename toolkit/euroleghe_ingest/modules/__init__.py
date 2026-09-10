@@ -30,6 +30,7 @@ PIPELINE: tuple[str, ...] = (
     "tournaments",
     "elo",
     "press",
+    "auctions",   # come `press`: legge solo i propri file grezzi, e li rigioca offline
     "validate",
 )
 
@@ -57,7 +58,7 @@ IMPLEMENTED: frozenset[str] = frozenset(
     {"rosters", "stats", "ratings", "matchdays", "fc_site", "transfers", "injuries", "positions",
      "performance",
      "recent_form", "synth", "tournaments", "arrivals",
-     "elo", "press",
+     "elo", "press", "auctions",
      "validate"}
 )
 

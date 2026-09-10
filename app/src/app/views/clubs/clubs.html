@@ -118,10 +118,41 @@
            a 320px i nomi si troncavano a zero e restavano i soli badge - una carta illeggibile. -->
       <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
         <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <ui-crest [club]="club.name" [clubId]="club.id" [crests]="store.crests()" size="md" />
             <h2 class="text-lg font-semibold text-fg">{{ club.name }}</h2>
+            <!-- I DUE ORIZZONTI DELL'UNDICI TIPO (operatore, 10/09/2026). Il pulsante si disegna SOLO se
+                 il pacchetto porta la board dell'ultimo periodo: un pulsante che offre una lettura che il
+                 bundle non contiene mostrerebbe la stessa cosa due volte. -->
+            @if (store.hasShortBoards()) {
+              <nz-radio-group
+                class="ml-auto"
+                nzSize="small"
+                [ngModel]="store.boardHorizon()"
+                (ngModelChange)="store.boardHorizon.set($event)"
+              >
+                <label nz-radio-button nzValue="season" nz-tooltip
+                  nzTooltipTitle="L'undici che schiera quando sono tutti disponibili, su una stagione intera. È la lettura con cui si compra a un'asta: prevede le giornate che RESTANO.">Stagione</label>
+                <label nz-radio-button nzValue="short" nz-tooltip
+                  [nzTooltipTitle]="shortHint()">Ultimo periodo</label>
+              </nz-radio-group>
+            }
           </div>
+          @if (store.boardHorizon() === 'short') {
+            <!-- UNO STATO SCELTO SI DICE, o smorzare un campetto senza una parola in cima si legge come un
+                 guasto: la stessa regola della lente sulla plancia. E porta i due conteggi, perché a zero
+                 le due board sono la stessa cosa e il pulsante è un ornamento. -->
+            <p class="text-xs text-primary">
+              Undici dell'<strong>ultimo periodo</strong>@if (store.shortWindow(); as window) {
+                <span> · ultime {{ window }} partite di campionato in cui era disponibile</span>
+              }@if (store.shortMoved(); as moved) {
+                <span> · {{ moved.moved }} uomini che la stagione non schiera</span>
+                @if (moved.capped) {
+                  <span> · {{ moved.capped }} scesi a «ballottaggio» perché il padrone del posto rientra</span>
+                }
+              }
+            </p>
+          }
           <!-- UN CAMPETTO SOLO per le due schermate (operatore, 18/08/2026): `ui-club-board` è lo stesso
                componente che disegna il campetto del pannello d'asta, e qui riceve soltanto quello che
                questa vista sa - fuori da un tavolo nessuno è «già preso». -->

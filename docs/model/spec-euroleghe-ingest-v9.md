@@ -495,6 +495,85 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.88 (10 settembre 2026 — il listone è per PIATTAFORMA anche nella CADENZA, la freschezza ha un lettore, e l'aggiornamento non presidiato)
+
+### 1. Il listone lo rilegge solo il PRIMO foglio, e il listone è per piattaforma
+
+Trovato leggendo il log di una corsa `update --daily`, non il codice. La fase di refresh gira per la
+**prima lega dichiarata** e le altre leggono quella lettura — che è giusto per quattro dei cinque canali
+(probabili, mercato, pagine-rosa, Elo: sono fatti su un GIORNO) e sbagliato per il quinto, perché il
+listone è un fatto su una **PIATTAFORMA**: `listone_quotes` ha `platform` nella chiave dal 07/08/2026
+proprio perché le due liste discordano su **202 Qt.I e 226 FVM**, e un uomo può stare a due club diversi
+sulle due.
+
+Con EuroLeghe dichiarata per prima, il listone euro veniva riletto ogni giorno e quello di Serie A no.
+**L'evidenza pulita sono i file di cache** — `listone_euro_2026-27.xlsx` riscritto quel mattino,
+`listone_default_2026-27.xlsx` fermo all'8 — e i due fogli Serie A lo stampavano su sé stessi («THE
+LISTONE behind this sheet was last read 2026-09-07») mentre nessuno lo leggeva. Cioè i fogli su cui si
+compra a un tavolo classic portavano la più vecchia delle due liste. *Niente era nascosto e niente era
+sbagliato tranne la CADENZA.*
+
+Cura: `snapshot.refresh_listone_for_platform` (il listone di UNA piattaforma più la ri-derivazione che
+una rilettura obbliga) chiamato da `update._run_sheets` per le piattaforme che il primo foglio non
+copre — un login e una richiesta ciascuna, il più economico dei refresh. Verificato su una corsa vera:
+`listone default/2026-27 re-read: 595 rows · 2 new`, e la nota sui fogli **da 2 occorrenze a 0**.
+
+Tre cose di contorno che restano. `_listone_notes` è **una definizione e due lettori**, perché un
+cambiamento che non dichiara cosa ha cambiato è quello che salta fuori al tavolo. Il guardiano di
+`test_snapshot` che asseriva `refresh_listone_for(ctx, platform, window.target_season)` **è caduto
+facendo il suo mestiere** e ha avuto la cura giusta: la catena si cammina in modo TRANSITIVO, perché
+*una profondità è una proprietà della disposizione e non del grafo*. E i due mezzi del passaggio della
+stagione sono asseriti separatamente, perché quello che può sbagliare da solo è il primo.
+
+### 2. `fetch --stale`: quando abbiamo GUARDATO, strato per strato
+
+`--plan` risponde alla COMPLETEZZA (quante righe, quale stagione è vuota, e il comando che la riempie).
+Questa è l'altra domanda, e non aveva un lettore: *una tabella datata sull'EVENTO ha bisogno anche della
+data dell'OSSERVAZIONE* (03/09), e lo stesso vale un piano sopra — uno strato che nessuno ha riletto è
+indistinguibile da un mondo in cui non è successo niente.
+
+**DUE TIPI DI RIGA, ed è la ragione per cui non è una SELECT.** Chi ha una colonna di osservazione
+risponde dal DB; chi non ce l'ha — `listone_quotes` tiene l'ultima lettura e nessuna data — può
+rispondere solo dal **file di cache**, che è da dove è venuta l'evidenza del difetto qui sopra. Un
+lettore che sapesse solo interrogare il database l'avrebbe mancato del tutto: quando la data vive fuori
+dal database, nessuna query ci arriva.
+
+**E il listone è spaccato per piattaforma di proposito**: una riga sola avrebbe letto «fresco» esattamente
+il mattino in cui metà non lo era. *Un rapporto sulla freschezza che media via la cosa che deve cogliere
+è peggio di nessun rapporto.*
+
+Cosa ha trovato appena acceso: **`club_elo` a 239 giorni** e **la curva di mercato a 26**. La cadenza
+attesa è DICHIARATA con la sua ragione, come `update.DAILY`, e il rapporto dice due cose che non può
+sapere: che «vecchio» non distingue «nessuno ha guardato» da «la fonte non ha dato niente» (lo dice il
+log della corsa), e **quali strati non copre affatto** — voti, layer per-partita e `tm_appearances` non
+hanno una data di osservazione, e la loro domanda è la copertura.
+
+Il test più forte è quello che protegge il silenzio: una tabella o una colonna scritta male leggerebbe
+«ignoto» per sempre, che è identico a «mai letto» — cioè lo stato che il rapporto esiste per descrivere.
+I nomi si verificano contro lo SCHEMA e non contro una corsa.
+
+### 3. ClubElo è chiuso, e non da ieri
+
+Le due date richieste rispondono **502**, il mirror di ripiego offre `2026-01-14` che è già in cache, e
+`club_elo` si ferma lì: **239 giorni**, prima dell'intera finestra di mercato estiva. Misurato con una
+richiesta per indirizzo: `clubelo.com` risponde **200**, `api.clubelo.com` **502** su http e niente su
+https — quindi l'indirizzo è giusto ed è l'**API** a essere rotta. Conta perché **R19 è ADOTTATA su
+`default`** e legge quella tabella, insieme alla card del club. Il modulo lo dice a voce alta e la
+pastiglia della freschezza adesso lo mette in cima; sostituire la fonte è un'acquisizione e sta in
+todolist.
+
+### 4. `update --daily` prometteva MENO di quello che fa (09/09)
+
+L'elenco degli esclusi nominava i PASSI e si leggeva come se i FATTI restassero intatti: «none of them
+feeds today's sheet» era falso su tre. Misurato su una corsa: `transfers_history` 6019 → 6026, 995 righe
+di `fvm_history` scritte dalla rilettura del listone, e un `arrivals ... re-derived by snapshot` in
+`ingest_runs`. Ora `snapshot.SHEET_REFRESHES` nomina le cinque fette con la loro metà STRETTA (il
+listone e mai i voti, la pagina-rosa di oggi e mai lo storico infortuni), e `--daily` le stampa.
+*«Escluso» e «letto per intero» non sono i due soli stati, e il terzo era quello che mancava; un preset
+che promette MENO fa pianificare la corsa dopo su una fotografia falsa esattamente come uno che salta in
+silenzio.* La mappa è verificata contro il SORGENTE di `refresh_official_sources`, quindi un sesto canale
+aggiunto e non nominato fa cadere il test.
+
 ## Novità v9.87 (7 settembre 2026, notte — L'OSSERVAZIONE dei trasferimenti, le DRITTE dichiarate, la difesa NATIVA)
 
 Tre cose nate dalla stessa richiesta dell'operatore («i trasferimenti devono essere aggiornati in maniera

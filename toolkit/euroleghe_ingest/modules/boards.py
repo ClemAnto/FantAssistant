@@ -30,6 +30,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from euroleghe_ingest.engine import presence
+
 NAME = "boards"
 DESCRIPTION = "what the panel would draw for every club of a sheet, as data"
 
@@ -56,6 +58,14 @@ MAN_COLUMNS = {
     "starts_club": "desc_season_starts_club",
     "minutes_per_match": "desc_form_minutes_per_club_match",
     "starter_prob": "desc_starter_prob",
+    # LA FINESTRA CORTA, in due numeri: in quante delle ultime partite del suo club era DISPONIBILE e in
+    # quante ha giocato. Viaggiano su tutt'e due le board e servono a una sola cosa, ma necessaria: sulla
+    # board dell'ULTIMO PERIODO un uomo che la finestra non ha visto giocare va detto. Sono 16 dei 220
+    # disegnati (7%), e senza questi due numeri il campetto lo mostrerebbe come chiunque altro - la sua
+    # quota viene dalla stagione, perche' una finestra vuota restituisce il prior intatto. «Vuoto =
+    # ignoto» applicato al disegno, e non c'e' aritmetica qui: sono due colonne del foglio, lette.
+    "recent_available": "desc_recent_available",
+    "recent_played": "desc_recent_played",
 }
 
 #: WHEN A SECOND MODULE IS WORTH DRAWING TOO: the operator's own bar, «due o piu' moduli con percentuali
@@ -89,8 +99,14 @@ def _fc_id(row: dict) -> int | None:
 
 
 def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
-         contended: bool | None = None) -> dict:
-    """One drawn man: his identity, where he is drawn, what he is, and how much he plays."""
+         contended: bool | None = None, owner_returning: bool | None = None,
+         horizon: str = "season") -> dict:
+    """One drawn man: his identity, where he is drawn, what he is, and how much he plays.
+
+    `horizon` decides WHICH football the three numbers are read on, and it moves them TOGETHER: the
+    board breve is drawn on the last matches, so a card that showed the season's claim beside the short
+    board's eleven would explain one drawing with another's numbers.
+    """
     out: dict[str, Any] = {}
     for key, column in MAN_COLUMNS.items():
         value = row.get(column)
@@ -100,7 +116,7 @@ def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
         out["x"] = round(float(x), 3)
     # The claim is the panel's own standing - who starts when everybody is fit - and it is what picked him.
     try:
-        out["claim"] = round(view.claim(row, "season"), 3)
+        out["claim"] = round(view.claim(row, horizon), 3)
     except Exception:                                   # noqa: BLE001 - a claim we cannot read is not a zero
         out["claim"] = None
     # ...and how long he is expected to stay ON THE PITCH next season, which is a different question from
@@ -108,7 +124,7 @@ def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
     # against showing last season's average unchanged). It is written HERE and not recomputed in the app
     # for the same reason the board is: it is a prediction about a person. Unknown stays None.
     try:
-        predicted = view.minutes_next(row)
+        predicted = view.minutes_next(row, horizon)
         out["minutes_next"] = None if predicted is None else round(predicted, 0)
     except Exception:                                   # noqa: BLE001 - one man, never the board
         out["minutes_next"] = None
@@ -117,7 +133,7 @@ def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
     # player, not one per place. `in_eleven` is the DRAWN board's, never an alternative shape's: the label
     # is a fact about the man, and it must not change because a button was pressed.
     try:
-        out["status"] = view.titolarita_status(row, in_eleven, contended)
+        out["status"] = view.titolarita_status(row, in_eleven, contended, owner_returning, horizon)
     except Exception:                                   # noqa: BLE001 - one man, never the board
         out["status"] = None
     # ...and WHETHER ANYBODY IS DISPUTING THAT SHIRT, which is the fact behind the word whenever the word
@@ -125,6 +141,11 @@ def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
     # `titolare` beside a number under 0.80 has to be able to explain itself: «un vincolo che agisce in
     # silenzio e' indistinguibile da un ordinamento rotto». None stays None - unknown is not «he has one».
     out["contended"] = contended
+    # ...E SE IL PADRONE DEL SUO POSTO STA RIENTRANDO, che e' il fatto dietro la parola ogni volta che la
+    # parola e' stata decisa dalla regola del 10/09 invece che dalle due barre. Viaggia per la stessa
+    # ragione di `contended`: un gradino che dice `ballottaggio` accanto a una quota di 0,95 deve poter
+    # spiegarsi. None resta None - «non lo so» non e' «il posto e' suo».
+    out["owner_returning"] = owner_returning
     return out
 
 
@@ -155,9 +176,72 @@ def _contended(view: Any, row: dict, rivals: list | None, ids: set[int]) -> bool
     return False
 
 
+def _returning_owner(long_eleven: list, short_eleven: list,
+                     params: Any) -> dict[int, bool]:
+    """Chi, sulla board BREVE, tiene un posto il cui padrone sta per rientrare. Regola dell'operatore.
+
+    «Se un calciatore risulta TITOLARE in una certa posizione, controlla che per quella posizione non ci
+    siano calciatori infortunati; se ci sono calciatori infortunati che rientreranno fra un mese o piu',
+    lo ignoriamo perche' stiamo valutando la formazione nel breve termine; se c'e' un calciatore
+    infortunato che rientrera' a breve bisogna capire se e' lui il vero titolare (confronta la formazione
+    tipo a lungo termine) in tal caso scala da TITOLARE a BALLOTTAGGIO» (10/09/2026).
+
+    IL CONFRONTO E' FRA LE DUE BOARD, e la prima formulazione che ne avevo scritto era VUOTA PER
+    COSTRUZIONE: «la board lunga disegna l'infortunato in quel posto» legge 0 righe su 182, perche' un
+    uomo elencato fra i `duels` di un posto non e' mai nella sua linea - e' un rivale proprio perche' la
+    maglia non e' sua. Contata prima di scriverla, e una regola muta si legge esattamente come una regola
+    che funziona. La popolazione vera e' l'altra: 40 dei 220 uomini che la board lunga di Serie A disegna
+    sono indisponibili oggi, 15 con una data di rientro.
+
+    PER LINEA E NON PER PIAZZOLA, che e' la distinzione che questo pannello fa da sempre: «il claim
+    sceglie CHI, il fit solo DOVE». Un posto dentro una linea e' assegnato per fit e i posti di una linea
+    sono intercambiabili quanto basta, quindi la domanda «di chi e' questo posto» si fa sulla linea. Il
+    padrone che rientra fa scendere i NUOVI di quella linea - chi la board lunga non disegnava - e non
+    tocca chi c'era anche prima: quello il posto ce l'ha su tutt'e due gli orizzonti.
+
+    «A BREVE» E' `desc_out_rounds`, cioe' quante giornate del suo club salta, che e' la stessa quantita'
+    in cui l'operatore ha espresso la regola («un mese») tradotta nell'unita' che sopravvive a due
+    calendari - una giornata euro non e' una giornata di Serie A (la lezione di R20). None NON RETROCEDE:
+    senza una data non c'e' una durata da confrontare, e sono 25 dei 40 casi.
+    """
+    horizon = params.recent_owner_matches
+    out: dict[int, bool] = {}
+    short_by_line: dict[str, set[int]] = {}
+    long_by_line: dict[str, set[int]] = {}
+    rows: dict[int, dict] = {}
+    for role, row, _rivals in short_eleven:
+        if (fid := _fc_id(row)) is not None:
+            short_by_line.setdefault(role, set()).add(fid)
+            rows[fid] = row
+    for role, row, _rivals in long_eleven:
+        if (fid := _fc_id(row)) is not None:
+            long_by_line.setdefault(role, set()).add(fid)
+            rows.setdefault(fid, row)
+    for line, short_ids in short_by_line.items():
+        long_ids = long_by_line.get(line, set())
+        away = [fid for fid in long_ids - short_ids
+                if (missed := _number(rows.get(fid, {}).get("desc_out_rounds"))) is not None
+                and missed <= horizon]
+        if not away:
+            continue
+        for fid in short_ids - long_ids:
+            out[fid] = True
+    return out
+
+
+def _number(value: Any) -> float | None:
+    """Il numero di una cella, o None. None e non zero: e' su questa distinzione che la regola poggia."""
+    try:
+        return None if value in (None, "") else float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
            eleven_ids: set[int] | None = None,
-           contended: dict[int, bool | None] | None = None) -> tuple[str, dict, set[int], dict]:
+           contended: dict[int, bool | None] | None = None,
+           owners: dict[int, bool] | None = None,
+           horizon: str = "season") -> tuple[str, dict, set[int], dict]:
     """The PICTURE, the drawn lines and WHO IS IN THEM, by calling the panel's own functions.
 
     Extracted so that the drawn board and the ALTERNATIVE modules cannot drift: the app switches between
@@ -207,14 +291,18 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
         drawn = []
         for index, (x, row, rivals) in enumerate(placed):
             man = _man(view, row, x, in_eleven=_fc_id(row) in ids,
-                       contended=contended.get(_fc_id(row)))
+                       contended=contended.get(_fc_id(row)),
+                       owner_returning=(owners or {}).get(_fc_id(row)),
+                       horizon=horizon)
             # The role he wears IN THIS MODULE, which is one code and not his whole list: that is what the
             # pitch shows, and it is the panel's own answer rather than a re-derivation.
             man["badge"] = markers[index] if index < len(markers) else None
             if with_rivals:
                 # The panel's own order, capped: the first two are the ones a pitch can show.
                 man["duels"] = [_man(view, rival, in_eleven=_fc_id(rival) in ids,
-                                     contended=contended.get(_fc_id(rival)))
+                                     contended=contended.get(_fc_id(rival)),
+                                     owner_returning=(owners or {}).get(_fc_id(rival)),
+                                     horizon=horizon)
                                 for rival in (rivals or [])[:MAX_DUELS]]
                 # A starter whose granular real role is unknown has no duel the sheet can express: that
                 # is «unknown», never «no rival», and the flag says which.
@@ -225,7 +313,9 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
 
 
 def _statuses(view: Any, drawn: dict[str, set[int]],
-              contended: dict[int, bool | None] | None = None) -> dict[int, dict]:
+              contended: dict[int, bool | None] | None = None,
+              owners: dict[int, bool] | None = None,
+              horizon: str = "season") -> dict[int, dict]:
     """Which of the six words describes every man of the sheet, plus the two numbers behind the word.
 
     Sheet-wide and not eleven-wide, because the question is asked of every row an auction can bid on -
@@ -245,10 +335,11 @@ def _statuses(view: Any, drawn: dict[str, set[int]],
         if fid is None or club not in drawn:
             continue
         try:
-            play = view.play_share(row)
-            predicted = view.minutes_next(row)
+            play = view.play_share(row, horizon)
+            predicted = view.minutes_next(row, horizon)
             out[fid] = {
-                "status": view.titolarita_status(row, fid in drawn[club], contended.get(fid)),
+                "status": view.titolarita_status(row, fid in drawn[club], contended.get(fid),
+                                                 (owners or {}).get(fid), horizon),
                 # The two numbers the word is made of, so a row can explain its own label - «a number must
                 # say what it is measured against». `play` is a share of the matches he is FIT for.
                 "play": None if play is None else round(play, 3),
@@ -258,10 +349,96 @@ def _statuses(view: Any, drawn: dict[str, set[int]],
                 # the word since 08/09/2026 and it travels beside the other two for the same reason they
                 # do: a row must be able to explain its own label.
                 "contended": contended.get(fid),
+                # ...e se il padrone del suo posto rientra a breve, che sulla board lunga e' sempre None
+                # per costruzione: quella regola vive solo dove le due board si confrontano.
+                "owner_returning": (owners or {}).get(fid),
             }
         except Exception:                                   # noqa: BLE001 - one man, never the sheet
             continue
     return out
+
+
+def _boards_for(view: Any, mode: str, with_rivals: bool,
+                statuses: dict[int, dict] | None, horizon_of) -> dict[str, dict]:
+    """Cio' che il pannello disegnerebbe per ogni club, in UN modo, su una vista GIA' caricata.
+
+    Estratta da `extract_boards` il 10/09/2026 perche' i modi sono diventati tre e due di loro si
+    scrivono nello stesso file: aprire Tk e ricaricare il foglio una volta per modo costava il doppio
+    del lavoro utile, e - peggio - due caricamenti dello stesso foglio sono due popolazioni che nessuno
+    garantisce identiche. Una vista, tutti i modi che servono.
+    """
+    boards: dict[str, dict] = {}
+    drawn_ids: dict[str, set[int]] = {}
+    # Whose shirt is disputed, across every club: built once by the DRAWN board and read by the
+    # sheet-wide ladder below, so the column and the card cannot answer differently.
+    contended: dict[int, bool | None] = {}
+    # ...e chi tiene un posto il cui padrone rientra a breve, che esiste SOLO sulla board breve:
+    # la regola confronta le due board, quindi sulla lunga non c'e' niente da confrontare.
+    owners: dict[int, bool] = {}
+    # QUALE FINESTRA legge questo modo, da UNA definizione (`gui.HORIZON_OF`): la board breve e' un
+    # disegno sulle ultime partite, e i tre numeri di ogni uomo devono venire da quelle - un claim di
+    # stagione accanto a un undici dell'ultimo periodo spiegherebbe un disegno con i numeri di un
+    # altro.
+    horizon = horizon_of(mode)
+    for club in sorted(view.clubs):
+        info = view.clubs[club]
+        try:
+            odds = view.shape_odds(club, info, mode)
+            shape, why = view.board_shape(club, info, mode)
+            if mode == "short":
+                # LA REGOLA DELL'OPERATORE VUOLE TUTT'E DUE I DISEGNI, quindi la board lunga si
+                # disegna qui accanto - e' la sola cosa che sappia rispondere a «di chi e' questo
+                # posto». Solo l'undici e non il quadro intero: alla regola serve la LINEA di ognuno,
+                # che e' quello che `eleven` restituisce, e non la piazzola, che e' del fit.
+                long_shape, _long_why = view.board_shape(club, info, "typical")
+                owners.update(_returning_owner(
+                    view.eleven(club, long_shape, "typical"),
+                    view.eleven(club, shape, mode),
+                    view.PRESENCE))
+            picture, lines, eleven_ids, club_contended = _drawn(view, club, shape, mode,
+                                                                with_rivals, owners=owners,
+                                                                horizon=horizon)
+            drawn_ids[club] = eleven_ids
+            contended.update(club_contended)
+            # ...AND THE OTHER MODULES THE CLUB REALLY MIGHT DRAW, so the app can switch between them
+            # instead of showing one answer as if it were the only one. Same functions, same flags: the
+            # alternative is a board like the drawn one, and the only thing that changes is the shape
+            # it is solved on. A shape that reshapes into the same picture is dropped - it would be a
+            # button that changes nothing - and a broken one is skipped without taking the club down.
+            alternatives = {}
+            for other, p in (odds or {}).items():
+                if other == shape or p < ALTERNATIVE_MIN_ODDS:
+                    continue
+                try:
+                    other_picture, other_lines, _, _ = _drawn(view, club, other, mode,
+                                                              with_rivals,
+                                                              eleven_ids=eleven_ids,
+                                                              contended=club_contended,
+                                                              owners=owners,
+                                                              horizon=horizon)
+                except Exception:                       # noqa: BLE001 - one shape, not the club
+                    continue
+                if other_picture == picture:
+                    continue
+                alternatives[other] = {"picture": other_picture, "p": round(p, 3),
+                                       "lines": other_lines}
+            boards[club] = {
+                "coach": info.get("coach"), "new_coach": info.get("new_coach"),
+                "formation_typical": info.get("formation_typical"),
+                "coach_shapes": info.get("coach_shapes"),
+                "board_shape": shape, "why": why, "picture": picture,
+                "odds": {s: round(p, 3) for s, p in list(odds.items())[:4]},
+                "lines": lines,
+                # The other modules over the bar, each with its own eleven and its own probability.
+                # Empty for four clubs of five, which is the point: a button that offers a shape
+                # nobody expects would be an invitation to doubt the right answer.
+                "alternatives": alternatives,
+            }
+        except Exception as exc:    # noqa: BLE001 - one broken club must not hide the other 19
+            boards[club] = {"error": repr(exc)}
+    if statuses is not None:
+        statuses.update(_statuses(view, drawn_ids, contended, owners, horizon))
+    return boards
 
 
 def extract_boards(config, sheet: Path, mode: str = "typical", *,
@@ -278,10 +455,33 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
     parameter rather than a second return value so the two judges, which do not want it, keep calling this
     exactly as they did - and it is produced here rather than in a pass of its own because it reads the
     DRAWN eleven, and a second load of the sheet could draw a different one.
+
+    ONE MODE. Chi ne vuole due sullo stesso foglio chiama `extract_modes`, che apre Tk una volta sola:
+    due caricamenti dello stesso foglio sono due popolazioni che nessuno garantisce identiche, ed e'
+    esattamente il difetto dell'08/08/2026 visto da un altro lato.
+    """
+    out = extract_modes(config, sheet, (mode,), apply_rulings=apply_rulings,
+                        with_rivals=with_rivals, matchdays=matchdays)
+    boards, mode_statuses = out[mode]
+    if statuses is not None:
+        statuses.update(mode_statuses)
+    return boards
+
+
+def extract_modes(config, sheet: Path, modes: tuple[str, ...] = ("typical",), *,
+                  apply_rulings: bool = False,
+                  with_rivals: bool = False,
+                  matchdays: float | None = None,
+                  ) -> dict[str, tuple[dict[str, dict], dict[int, dict]]]:
+    """{modo: (board per club, scala per fc_id)} - una sessione Tk e un caricamento del foglio per tutti.
+
+    Nato il 10/09/2026, quando i modi sono diventati tre e due di loro devono viaggiare nello STESSO
+    `boards.json`: la board a lungo periodo e quella dell'ultimo periodo descrivono lo stesso foglio, e un
+    file per ciascuna sarebbe una coppia che qualcuno un giorno riscrive per metA.
     """
     import tkinter as tk
 
-    from euroleghe_ingest.gui import SnapshotView
+    from euroleghe_ingest.gui import SnapshotView, horizon_of
 
     root = tk.Tk()
     root.withdraw()
@@ -293,63 +493,18 @@ def extract_boards(config, sheet: Path, mode: str = "typical", *,
         # e `platform_matchdays()` risponde zero: `minutes_next` perde allora la meta' del suo `P` che
         # viene dal modello, e la colonna esce diversa da quella che lo stesso foglio ricalcola. Su una
         # cartella riusata e' peggio, perche' legge il manifest della corsa precedente senza dirlo. Il
-        # chiamante quel numero lo SA; qui si iniettA solo dove manca, cosi' i due giudici - che passano
+        # chiamante quel numero lo SA; qui si inietta solo dove manca, cosi' i due giudici - che passano
         # un foglio gia' scritto e completo - continuano a leggere il suo.
         if matchdays and not (view.manifest.get("matchdays") or {}).get("platform_target"):
             view.manifest.setdefault("matchdays", {})["platform_target"] = matchdays
-        boards: dict[str, dict] = {}
-        drawn_ids: dict[str, set[int]] = {}
-        # Whose shirt is disputed, across every club: built once by the DRAWN board and read by the
-        # sheet-wide ladder below, so the column and the card cannot answer differently.
-        contended: dict[int, bool | None] = {}
-        for club in sorted(view.clubs):
-            info = view.clubs[club]
-            try:
-                odds = view.shape_odds(club, info, mode)
-                shape, why = view.board_shape(club, info, mode)
-                picture, lines, eleven_ids, club_contended = _drawn(view, club, shape, mode,
-                                                                    with_rivals)
-                drawn_ids[club] = eleven_ids
-                contended.update(club_contended)
-                # ...AND THE OTHER MODULES THE CLUB REALLY MIGHT DRAW, so the app can switch between them
-                # instead of showing one answer as if it were the only one. Same functions, same flags: the
-                # alternative is a board like the drawn one, and the only thing that changes is the shape
-                # it is solved on. A shape that reshapes into the same picture is dropped - it would be a
-                # button that changes nothing - and a broken one is skipped without taking the club down.
-                alternatives = {}
-                for other, p in (odds or {}).items():
-                    if other == shape or p < ALTERNATIVE_MIN_ODDS:
-                        continue
-                    try:
-                        other_picture, other_lines, _, _ = _drawn(view, club, other, mode,
-                                                                  with_rivals,
-                                                                  eleven_ids=eleven_ids,
-                                                                  contended=club_contended)
-                    except Exception:                       # noqa: BLE001 - one shape, not the club
-                        continue
-                    if other_picture == picture:
-                        continue
-                    alternatives[other] = {"picture": other_picture, "p": round(p, 3),
-                                           "lines": other_lines}
-                boards[club] = {
-                    "coach": info.get("coach"), "new_coach": info.get("new_coach"),
-                    "formation_typical": info.get("formation_typical"),
-                    "coach_shapes": info.get("coach_shapes"),
-                    "board_shape": shape, "why": why, "picture": picture,
-                    "odds": {s: round(p, 3) for s, p in list(odds.items())[:4]},
-                    "lines": lines,
-                    # The other modules over the bar, each with its own eleven and its own probability.
-                    # Empty for four clubs of five, which is the point: a button that offers a shape
-                    # nobody expects would be an invitation to doubt the right answer.
-                    "alternatives": alternatives,
-                }
-            except Exception as exc:    # noqa: BLE001 - one broken club must not hide the other 19
-                boards[club] = {"error": repr(exc)}
-        if statuses is not None:
-            statuses.update(_statuses(view, drawn_ids, contended))
-        return boards
+        out: dict[str, tuple[dict[str, dict], dict[int, dict]]] = {}
+        for mode in modes:
+            statuses: dict[int, dict] = {}
+            out[mode] = (_boards_for(view, mode, with_rivals, statuses, horizon_of), statuses)
+        return out
     finally:
         root.destroy()
+
 
 
 def counts_of(picture: str | None) -> dict[str, int] | None:
@@ -399,10 +554,16 @@ def write_boards(config, folder: Path, mode: str = "typical",
     Beside the sheet ON PURPOSE: a board that could come from a different sheet than the one exported is a
     mismatch nobody would ever see. So it is produced from the folder just written and lives in it.
     """
-    statuses: dict[int, dict] = {}
-    boards = extract_boards(config, folder, mode=mode, apply_rulings=True, with_rivals=True,
-                            matchdays=matchdays,
-                            statuses=statuses)
+    # I DUE ORIZZONTI IN UNA SESSIONE, e nello stesso file. La board a lungo periodo resta al livello
+    # superiore del payload - dove ogni lettore dell'app la cerca da un mese - e quella dell'ultimo
+    # periodo sta sotto `short`: un file per ciascuna sarebbe una coppia che qualcuno un giorno riscrive
+    # per meta', e la regola di retrocessione (`_returning_owner`) ha bisogno di tutt'e due per esistere.
+    # Un bundle scritto prima di oggi non porta `short` e l'app deve leggerlo come IGNOTO - il pulsante
+    # non si disegna - non come «l'ultimo periodo non dice niente».
+    modes = (mode, "short") if mode == "typical" else (mode,)
+    drawn_modes = extract_modes(config, folder, modes, apply_rulings=True, with_rivals=True,
+                                matchdays=matchdays)
+    boards, statuses = drawn_modes[mode]
     payload = {
         "sheet": Path(folder).name,
         "mode": mode,
@@ -415,6 +576,35 @@ def write_boards(config, folder: Path, mode: str = "typical",
         # reader that has the board already has the state - one file, one drawing, one set of words.
         "titolarita": {str(fid): one for fid, one in sorted(statuses.items())},
     }
+    short_summary = None
+    if "short" in drawn_modes and "short" != mode:
+        short_boards, short_statuses = drawn_modes["short"]
+        payload["short"] = {
+            "mode": "short",
+            # QUANTE PARTITE guarda la finestra, dichiarato accanto ai numeri che ne escono: l'app scrive
+            # «le ultime 3» a schermo e quel 3 deve venire da chi l'ha usato, non da una costante
+            # ricopiata in TypeScript. Il giorno che lo sweep lo muove, l'etichetta si muove con lui.
+            "window": presence.DEFAULTS.recent_window,
+            "prior": presence.DEFAULTS.recent_prior,
+            "evidence": presence.DEFAULTS.recent_evidence,
+            "owner_matches": presence.DEFAULTS.recent_owner_matches,
+            "clubs": short_boards,
+            "titolarita": {str(fid): one for fid, one in sorted(short_statuses.items())},
+        }
+        short_drawn = {club: b for club, b in short_boards.items() if "error" not in b}
+        short_summary = {
+            "drawn": len(short_drawn),
+            "men": sum(len(line) for b in short_drawn.values() for line in b["lines"].values()),
+            # QUANTI UOMINI LA REGOLA HA RETROCESSO, e va stampato: una regola che non tocca nessuno si
+            # legge esattamente come una regola che funziona, ed e' il difetto che questa stessa regola
+            # ha evitato una volta contando prima di essere scritta.
+            "owner_returning": sum(1 for one in short_statuses.values()
+                                   if one.get("owner_returning")),
+            # ...e quanti uomini la board breve disegna e la lunga no, che e' il motivo per cui il
+            # pulsante esiste: a zero le due board sono la stessa e il pulsante e' un ornamento.
+            "moved": sum(1 for fid, one in short_statuses.items()
+                         if one.get("in_eleven") and not (statuses.get(fid) or {}).get("in_eleven")),
+        }
     (Path(folder) / "boards.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
     drawn = {club: board for club, board in boards.items() if "error" not in board}
@@ -445,4 +635,8 @@ def write_boards(config, folder: Path, mode: str = "typical",
         # nobody counts is a rung nobody can tell from a broken one.
         "statuses": statuses,
         "ladder": ladder,
+        # La board dell'ULTIMO PERIODO: quanti club, quanti uomini, quanti la regola del padrone che
+        # rientra ha retrocesso e quanti la finestra corta disegna e quella lunga no. None quando non e'
+        # stata disegnata (un modo che non e' `typical` non ne ha una), che e' diverso da uno zero.
+        "short": short_summary,
     }

@@ -115,3 +115,59 @@ def test_a_competition_the_line_never_saw_needs_an_offset_and_the_offset_needs_t
     few = {"lega-y": men["lega-x"][:4]}
     assert synth.fit_offsets(model, few)["lega-y"]["delta"] is None
 
+
+
+def test_the_fallback_offset_is_the_lowest_measured_and_is_derived_not_typed():
+    """The operator's rule of 10/09/2026, and the reason it is NOT «the neighbour by level».
+
+    «Se un campionato non ha dati sarà sicuramente un campionato minore» - so among the measured offsets
+    one takes the most severe, and the rule errs downward by construction. It is DERIVED from the
+    offsets so the day a weaker league earns its own delta the fallback follows it down by itself; a
+    typed constant would have to be remembered.
+
+    The first form of the same rule - borrow the delta of the league nearest in LEVEL - was measured and
+    dropped: over the three leagues that have one the order is inverted (Eredivisie, level 1611, shifts
+    -0.303 while Serie B at 1479 shifts -0.170), so choosing by level would choose on a link the data
+    does not show. Hence no Elo appears anywhere near this function.
+    """
+    offsets = {"a": {"delta": -0.170}, "b": {"delta": -0.303}, "c": {"delta": -0.272},
+               "thin": {"delta": None}}
+    assert synth.fallback_offset(offsets) == -0.303
+    assert synth.fallback_offset({"thin": {"delta": None}}) is None
+    assert synth.fallback_offset({}) is None
+
+
+def test_mv_est_is_the_complement_of_mv_synth_and_never_a_second_opinion():
+    """Two columns carrying one fact eventually disagree, so they must not overlap by construction.
+
+    Where the line is calibrated the reading returns None: that row already has `mv_synth`. Where it is
+    not, the reading converts - with the competition's OWN delta if it has one, and with the fallback if
+    it does not. A reader takes COALESCE(mv_synth, mv_est) and knows which he has by which is filled.
+    """
+    model = {"global": (1.0, 0.7), "roles": {}, "calibrated": ["serie_a"],
+             "offsets_measured": {"serie-b": {"delta": -0.2}}}
+    # calibrated: the calibrated column speaks and the reading stays silent
+    assert synth.apply_model(model, "C", 7.0, "serie_a") == 5.9
+    assert synth.reading_value(model, "C", 7.0, "serie_a", -0.303) is None
+    # not calibrated, own delta: that one wins over the fallback
+    assert synth.reading_value(model, "C", 7.0, "serie-b", -0.303) == 5.7
+    # not calibrated, no delta: the fallback converts what `apply_model` refuses
+    assert synth.apply_model(model, "C", 7.0, "ekstraklasa") is None
+    assert synth.reading_value(model, "C", 7.0, "ekstraklasa", -0.303) == 5.6
+    # ...and with no fallback at all it refuses too, rather than inventing a zero
+    assert synth.reading_value(model, "C", 7.0, "ekstraklasa", None) is None
+    # the switch is the OTHER one: `mv_est` must not depend on APPLY_OFFSETS, which governs mv_synth
+    assert "offsets" not in str(synth.reading_value.__doc__)
+    # and the band is enforced here as it is there
+    wide = {**model, "global": (0.0, 2.0)}
+    assert synth.reading_value(wide, "C", 9.0, "ekstraklasa", -0.303) == synth.MV_RANGE[1]
+
+
+def test_the_reading_switch_is_separate_from_the_gated_one():
+    """One switch cannot move the other: `mv_synth` feeds gated paths, `mv_est` feeds a screen."""
+    assert synth.APPLY_OFFSETS is False, "the gated path stays on the measured verdict"
+    assert synth.READING_OFFSETS is True
+    model = {"global": (1.0, 0.7), "roles": {}, "calibrated": [],
+             "offsets_measured": {}, "offsets": {}}
+    # APPLY_OFFSETS being off empties `offsets`, and the reading is unaffected because it reads the other key
+    assert synth.reading_value(model, "C", 7.0, "ekstraklasa", -0.303) == 5.6

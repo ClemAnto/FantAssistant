@@ -911,3 +911,150 @@ posto da rivale a Noslin (`RW;ST`, **0,366**) contro il suo **0,363** — tre mi
 `ST` puro e il motore lo mette secondo dell'attacco della Lazio (`engine_pv_pred` 23,2 contro 21,2 e 19,7).
 Il pareggio non è rotto dal mestiere del posto: resta come voce aperta.
 
+## 10. DUE ORIZZONTI, non due freschezze (10 settembre 2026)
+
+Richiesta dell'operatore: «un algoritmo per valutare automaticamente le ultime 3 partite e implementare
+questi giudizi per ottenere i giusti valori di titolarità ... in questo modo possiamo ottenere la
+formazione tipo nell'ultimo periodo switchabile con quella tipo a lungo periodo». Più tre precisazioni
+arrivate mentre la misura girava: «chi gioca dal principio, chi subentra e i minuti giocati da ognuno»,
+«se chi ha giocato aveva spazio per il titolare che era infortunato/squalificato/indisponibile», e
+«giocare 90' è un segnale molto forte di titolarità».
+
+**Non è una lettura più fresca della stessa cosa: sono due BERSAGLI.** La lettura di stagione prevede le
+giornate che RESTANO — il bersaglio su cui `season_prior_rounds` = 5 è stato adottato il 05/09 — e serve a
+un'asta, dove si compra per maggio. La lettura corta prevede la PROSSIMA partita. Due domande, due nomi
+(`season` / `short`), come `engine_replacement_fm` e lo zero schierato sono due zeri per due domande.
+
+### 10.1 — Metà esisteva già e non viaggiava
+
+`claim(row, horizon="recent")`, `presence(row, "recent")`, `eleven(club, shape, mode="next")` e
+`boards.write_boards(mode=...)` esistono da agosto, e il pannello Tk ha il selettore «schieramento tipo /
+prossima giornata» dal 03/08. Quello che mancava: `snapshot` chiamava `write_boards` **solo** con
+`typical`, la finestra era dieci partite di OGNI competizione, la scala non aveva un gemello corto, e
+l'app non aveva il pulsante. Più un debito: `gui.FORM_WEIGHT` = 0.60 e `gui.RECENT_PRIOR` = 3.0 erano
+dichiarate scelte di visualizzazione, **mai misurate**, e non stavano in `presence.Params` — cioè
+irraggiungibili da `sweep`, contro la regola che quel file stesso scrive. Il rimando che portavano («gate
+§7-octies») oggi punta a un'altra sezione, che è come si scopre che nessuno le ha mai corse.
+
+### 10.2 — La misura: quale finestra prevede la prossima partita
+
+Fuori campione per costruzione: al match *m* di un club si legge solo il calcio **< m** e si giudica su
+*m*. **3.638 partite-club, 72.022 righe, due stagioni complete × cinque campionati** (2024-25, 2025-26).
+Il null banale è «gli stessi undici di ieri».
+
+| lettura | Brier (parte titolare) | dei veri 11 |
+|---|---|---|
+| gli stessi di ieri (null) | 0.2314 | 8.43 |
+| **la stagione** (quello che il foglio faceva) | 0.1696 | 8.46 |
+| solo le ultime 3 | 0.1749 | 8.60 |
+| ultime 3 + prior di 3 | 0.1581 | 8.68 |
+| **ultime 3 + prior di 3, prova in MINUTI** | **0.1544** | **8.69** |
+
+Due cose che quella tabella dice e vanno lette insieme: **le ultime tre DA SOLE scelgono l'undici meglio
+della stagione** (8.60 contro 8.46) **e sono tarate peggio** (0.1749 contro 0.1696). È la ragione per cui
+si adotta la miscela e non la finestra nuda: tiene il guadagno sull'ordine e aggiusta il numero.
+
+`recent_window` è **piatta fra 2 e 4** e scende da 5 in su, quindi le 3 dell'operatore cadono sull'ottimo;
+`recent_prior` ottima a **3**, che è lo stesso valore che `RECENT_PRIOR` portava a occhio — due strade
+indipendenti sullo stesso numero, come per `season_prior_rounds` e la K di R20. E **UNA miscela e non
+due**: la forma del pannello ne faceva due in cascata (accorciare verso lo standing, poi mescolare con
+`FORM_WEIGHT`), e quella che vince è la forma che questo repository scrive da sempre, `k` osservate contro
+`K` di prior.
+
+### 10.3 — I 90 minuti: il meccanismo è suo, la forma la decide la misura
+
+| quanto vale una partita come prova | Brier | dei veri 11 |
+|---|---|---|
+| partenza sì/no | 0.1710 | 8.58 |
+| **minuti/90** | **0.1544** | **8.69** |
+| «90' = 1, sostituito = 0,5» (la lettura letterale) | 0.1746 | 8.62 |
+
+I minuti valgono **+9,7%** sulla partenza binaria e migliorano anche l'ORDINAMENTO, che è immune alla
+taratura — quindi non è un effetto di calibrazione. La versione a gradini è **peggiore della binaria**: la
+sua osservazione è vera e una soglia è la forma sbagliata per esprimerla. Le tre forme restano NOMINATE in
+`presence.recent_evidence`, perché un rifiuto cancellato non si può ri-correre.
+
+### 10.4 — Lo sconto del «posto liberato»: RESPINTO come peso, adottato come DICHIARAZIONE
+
+La prima forma — pesare meno una partenza presa mentre un superiore era assente — è misurata e respinta in
+**tutte e tre** le definizioni di rivale, su **19.259 partenze ereditate di 115.955 (17%)**, cioè una
+popolazione reale:
+
+| rivale assente definito come | peso 0.75 | peso 0.50 |
+|---|---|---|
+| stesso ruolo granulare (i 12 codici) | 0.1545 | 0.1550 |
+| stessa linea G/D/M/F | 0.1545 | 0.1554 |
+| chiunque con più partenze | 0.1548 | 0.1564 |
+| *nessuno sconto* | **0.1544** | |
+
+Monotono nel peso, ottimo su «non fare niente». La direzione dice che il meccanismo è reale — più
+precisamente si nomina il rivale, meno costa — e troppo piccolo. La ragione: **una finestra di 3 partite si
+autocorregge, perché dimentica.** Se il titolare torna, il vice esce dalla finestra in tre partite; lo
+sconto conterebbe due volte un fatto che la finestra corregge da sé. Stessa famiglia delle squalifiche
+(R21, −1,58%) e dell'età.
+
+**Quello che si adotta è la forma che l'operatore ha dettato dopo**, ed è un VINCOLO in avanti e non un
+peso sul passato: se la board BREVE disegna A in un posto e la board LUNGA ci disegna B, e B è
+indisponibile oggi e rientra entro l'orizzonte, **A è tappato a `ballottaggio`**. Fuori dall'orizzonte si
+ignora («stiamo valutando la formazione nel breve termine»); **senza una data non si retrocede**, che è lo
+specchio di «ignoto non promuove» e va nella direzione del calcio — la durata residua di un'assenza CRESCE
+con quella trascorsa.
+
+**La prima formulazione che ne avevo scritto era VUOTA PER COSTRUZIONE, e contarla prima l'ha salvata**:
+«la board lunga disegna l'infortunato in quel posto» legge **0 righe su 182**, perché un uomo elencato fra
+i `duels` di un posto non è mai nella sua linea — è un rivale *proprio perché* la maglia non è sua. Il
+confronto è fra le due BOARD, e lì la popolazione esiste: **40 dei 220 uomini che la board lunga di Serie A
+disegna sono indisponibili oggi**, 15 con una data di rientro, 13 entro trenta giorni (Hien `titolare`
+rientro 05/10, Orsolini `titolare` 25/09). *Una regola muta si legge esattamente come una regola che
+funziona.*
+
+Tre confini, e ognuno è un test: il tappo è il **pavimento che i disegnati hanno già** («chi la board
+schiera non scende sotto `ballottaggio`»), quindi la regola non può portare nessuno fuori dal proprio
+perimetro; non tocca chi la board non disegna, perché lì il posto è di un altro che È il suo contendente;
+e **non litiga con la regola dell'08/09** — «nessuno gli contende la maglia» è falso se il padrone torna la
+settimana prossima, quindi la promozione non scatta. Sono due metà di una domanda sola sullo stesso posto.
+
+L'orizzonte è **4 partite del suo club** e non trenta giorni: è il «un mese» dell'operatore tradotto
+nell'unità che sopravvive a due calendari — una giornata euro non è una giornata di Serie A (la lezione di
+R20 applicata a un rientro). La quantità che decide è `desc_out_rounds`, che vale `None` quando non c'è una
+data: nessuna soglia nuova, nessun parsing di date.
+
+### 10.5 — Chi è «disponibile», e perché la panchina risponde a tre domande insieme
+
+Il denominatore della finestra corta sono le partite in cui aveva una RIGA nel livello per-partita,
+**panchina compresa**. Una partita senza riga è IGNOTA — fuori rosa, infortunato o squalificato — e nessuna
+delle tre è una preferenza dell'allenatore per un altro. È anche il modo in cui questa finestra osserva
+un'indisponibilità **senza unire tre tabelle**: la distinta di una partita è una lettura-di-rosa completa,
+quindi vale la regola del 05/08 e la panchina batte uno stop datato (14/08). Un fatto solo che serve a
+tutt'e due i lati — il denominatore suo, e il posto vuoto del rivale.
+
+Verificato che il codice e la misura leggano la STESSA cosa: in un campionato le righe sono esattamente `p`
+(minuti > 0) e `b` (minuti NULL), **zero righe `x` su 103.565** nei cinque campionati, perché il payload di
+una partita di lega porta sempre le statistiche. Un test lo asserisce.
+
+### 10.6 — Cosa NON cambia, e perché
+
+- **La FORMA del modulo.** La board breve cambia CHI, non lo schema: un modulo modale su tre partite è una
+  statistica su tre osservazioni, e i moduli hanno un giudice loro (`press --against`). Limite dichiarato,
+  non dimenticanza.
+- **`engine_*` e il gate.** `evaluate` non importa `presence`, quindi `backtest --verify` resta 22/22. E la
+  finestra è **vuota per costruzione su una pre-stagione**, quindi ogni finestra su cui il gate ha
+  pubblicato un numero legge la stagione intatta.
+- **Le probabili.** `next` (la prossima giornata, pannello Tk) le legge; `short` no — una descrizione
+  dell'ultimo periodo che leggesse il giornale di domani non descriverebbe più quel periodo. Le due
+  differiscono per quella sola riga e condividono tutto il resto.
+- **Gli indisponibili di oggi sono FUORI dalla board breve** (`gui.TODAY_MODES`), e non è una simmetria
+  gratuita con `next`: la finestra di un infortunato è VUOTA, quindi la miscela gli restituirebbe lo
+  standing di stagione intatto e senza l'esclusione la board breve sarebbe identica alla lunga proprio
+  sugli uomini per cui l'operatore l'ha chiesta.
+
+### 10.7 — Dove vive ogni pezzo
+
+| pezzo | dove | natura |
+|---|---|---|
+| la finestra e le sue quattro costanti | `engine/presence.py` (`RecentWindow`, `recent_*`) | MISURATE, sweep-abili |
+| il tappo della scala | `engine/status.py` (`owner_returning`) | DICHIARATA |
+| la camminata sulle ultime partite | `snapshot.recent_block` → sei colonne `desc_recent_*` | misura |
+| il confronto fra le due board | `boards._returning_owner` | dichiarata |
+| le due board nello stesso file | `boards.write_boards` → `boards.json` con `short` | — |
+| la scelta di quale leggere | `core/valuation-store.boardViewOf` + il pulsante su `/clubs` | display |

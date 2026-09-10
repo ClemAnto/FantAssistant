@@ -26,6 +26,13 @@
 /data/timepacks/
 # report/modelli rigenerati dal toolkit (coverage, calibrazione voto sintetico)
 /data/reports/
+# I LOG DELLE CORSE (nightly, acquisizioni staccate) e il quadro del mattino. Aggiunto 10/09/2026, il
+# giorno in cui la cartella e' nata: un log di `update` porta le note per esteso di `snapshot`, che
+# NOMINANO i giocatori tolti dal foglio - contenuto a pagamento, su un repository pubblico. Ogni riga
+# di questa sezione e' ancorata a `/data/`, quindi una cartella NUOVA sotto `data/` non e' coperta da
+# nessuna delle altre: e' il difetto del 25/08/2026 visto dal verso opposto, dove li' mancava
+# l'ancora e qui manca la riga. Si rigenerano da soli a ogni corsa.
+/data/logs/
 # I dati di lavoro del banco del draft: nomi, prezzi e voti del contenuto a pagamento, e si RIGENERANO
 # (`toolkit/bench/draft/extract.py`, due minuti) invece di essere conservati. `appcode.mjs` e' il bundle
 # del codice dell'app: un artefatto di build, mai una copia da committare.

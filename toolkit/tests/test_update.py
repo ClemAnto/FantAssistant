@@ -45,6 +45,10 @@ class _Fake:
     def derive_from_ratings(self, _ctx):
         self.calls.append((self.name, {"derive_from_ratings": True}))
 
+    def refresh_listone_for_platform(self, _ctx, platform):
+        self.calls.append((self.name, {"listone_for": platform}))
+        return []
+
 
 def _stub_load(calls, boom: tuple[str, ...] = ()):
     return lambda name: _Fake(calls, name, boom=name in boom)
@@ -184,10 +188,56 @@ def test_the_sheets_are_one_per_declared_league_and_the_editorial_read_is_taken_
     ctx = _ctx(tmp_path)
     leagues = list(ctx.config.my_leagues())
     update.run(ctx, phases=("sheets",))
-    sheets = [params for name, params in calls if name == "snapshot"]
+    # `snapshot` is now called for two different jobs - a sheet and a listone top-up - so the rows are
+    # picked by what they SAY and not by the module they came from.
+    sheets = [params for name, params in calls if name == "snapshot" and "league" in params]
     assert len(sheets) == len(leagues)
     assert [one["league"] for one in sheets] == leagues
     assert [one["refresh"] for one in sheets] == [True] + [False] * (len(leagues) - 1)
+
+
+def test_the_listone_is_topped_up_ONCE_PER_PLATFORM_and_not_once_per_run(tmp_path, monkeypatch):
+    """Four of the five refreshed channels are facts about a DAY; the listone is a fact about a PLATFORM.
+
+    Found 10/09/2026 by reading a run's own log. `refresh` goes to the first declared league only -
+    right for the probabili, the market, the squad pages and the Elo, which one reading serves - and
+    the listone is not one of those: `listone_quotes` carries `platform` in its key because the two
+    lists disagree on 202 Qt.I and 226 FVM. With EuroLeghe declared first, the euro list was re-read
+    every day and the Serie A one was two days old, and the sheets built on it said so about
+    themselves while nobody read it.
+
+    The assertion is on the PLATFORM and not on a count: three leagues on two platforms must produce
+    exactly one top-up, for the platform the first sheet does not cover - one login and one request,
+    never three, and never zero.
+    """
+    import json
+
+    calls: list = []
+    monkeypatch.setattr(update, "load", _stub_load(calls))
+    # A DECLARED file and never the repository's own: a test whose fixture is a user-editable file is
+    # testing the user (the smoke-test lesson), and this one needs two platforms to say anything.
+    declared = tmp_path / "league_config.json"
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db",
+                 league_config_path=declared)
+    cfg.cache_dir.mkdir(parents=True)
+    ctx = Context(config=cfg, conn=init_db(cfg.db_path))
+    declared.write_text(json.dumps({
+        "teams": 10, "budget": 500, "squad_slots": {"P": 3, "D": 8, "C": 8, "A": 6},
+        "my_leagues": {
+            "EuroLeghe": {"platform": "euro", "game": "mantra"},
+            "Leghe": {"platform": "default", "game": "classic"},
+            "Leghe Mantra": {"platform": "default", "game": "mantra"},
+        },
+    }), encoding="utf-8")
+
+    update.run(ctx, phases=("sheets",))
+    sheets = [params["league"] for name, params in calls if name == "snapshot" and "league" in params]
+    topped = [params["listone_for"] for name, params in calls
+              if name == "snapshot" and "listone_for" in params]
+    assert sheets == ["EuroLeghe", "Leghe", "Leghe Mantra"]
+    assert topped == ["default"], (
+        "the listone must be re-read once for every platform the first sheet does not cover, "
+        f"and this run did {topped}")
 
 
 def test_the_packs_build_what_is_missing_and_rebuild_only_what_is_behind(tmp_path, monkeypatch):
@@ -283,3 +333,62 @@ def test_the_daily_preset_says_what_it_left_out(capsys):
     update._print_what_daily_leaves_out()
     out = capsys.readouterr().out
     assert "LEFT OUT" in out and "injuries" in out and "market" in out
+    # ...AND it says which of those the sheets step re-reads a slice of by itself. Until 09/09/2026 it
+    # said the opposite - «none of them feeds today's sheet» - while a real run moved
+    # `transfers_history` 6019 -> 6026, wrote 995 rows of `fvm_history` off the listone re-read and
+    # logged an `arrivals ... re-derived by snapshot`. A preset that promises LESS than it does makes
+    # the next run be planned on a false picture exactly like one that quietly skips.
+    # ...and the names are looked for in the SLICE section and not in the whole output: the plain
+    # leave-out list already carries every one of them, so an assertion on `out` could not fail - the
+    # circular assert this project has paid for, met inside its own guard.
+    head, marker, slices = out.partition("SLICE re-read by the sheets step")
+    assert marker, "the printout no longer says which steps the sheets re-read a slice of"
+    for named in ("transfers", "injuries:ids", "arrivals"):
+        assert named in slices, f"{named} is left out as a step and re-read by the sheets: say so"
+    assert "none of them feeds today's sheet" not in out
+
+
+def test_what_a_sheet_re_reads_is_DERIVED_from_the_calls_and_not_kept_by_hand():
+    """`snapshot.SHEET_REFRESHES` is what `--daily` prints, so a channel missing from it is a silence.
+
+    The map is checked against the SOURCE of `refresh_official_sources` - which channels it calls and
+    which module each of those reaches - because a list kept beside the consumer drifts from the
+    producer, and the first one to be wrong is the one the printout reads. Deliberately crude, like the
+    dispatcher test: it catches exactly the defect that has now cost one false declaration, a SEVENTH
+    channel added to the sheet refresh and never named where the operator reads it.
+    """
+    import ast
+    from pathlib import Path
+
+    from euroleghe_ingest.modules import snapshot
+
+    tree = ast.parse(Path(snapshot.__file__).read_text(encoding="utf-8"))
+    funcs = {n.name: n for n in tree.body if isinstance(n, ast.FunctionDef)}
+    # TRANSITIVE, and it was not on 09/09: the crawl walked one level and the listone moved one level
+    # deeper the next day (`_listone_notes` -> `refresh_listone_for` -> `ratings`), which read as «the
+    # refresh no longer reaches ratings». A depth is not a property of the graph, it is a property of
+    # the arrangement, and an assertion that depends on it fails on a rename.
+    reached: set[str] = set()
+    seen: set[str] = set()
+    todo = ["refresh_official_sources"]
+    while todo:
+        name = todo.pop()
+        if name in seen or name not in funcs:
+            continue
+        seen.add(name)
+        for node in ast.walk(funcs[name]):
+            if isinstance(node, ast.ImportFrom) and node.module == "euroleghe_ingest.modules":
+                reached |= {alias.name for alias in node.names}
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                todo.append(node.func.id)
+    # the map speaks in STEP keys (`ratings:euro`), the calls in module names (`ratings`)
+    declared = {key.split(":")[0] for key in snapshot.SHEET_REFRESHES}
+    assert declared == reached, (
+        f"the sheet refresh reaches {sorted(reached)} and SHEET_REFRESHES declares {sorted(declared)}")
+    # every key is a real step, or the printout drops the note without raising - the «flag the parser
+    # accepts and the dispatcher drops» family, one level up
+    keys = {step.key for step in update.plan()}
+    unknown = sorted(set(snapshot.SHEET_REFRESHES) - keys)
+    assert not unknown, f"SHEET_REFRESHES names steps that do not exist: {unknown}"
+    # ...and each one says WHICH SLICE, because «re-read» without «how much» is what was wrong before
+    assert all(why.strip() for why in snapshot.SHEET_REFRESHES.values())

@@ -46,6 +46,13 @@ def build_parser() -> argparse.ArgumentParser:
     # instead of printing a command that would not work.
     p_fetch.add_argument("--seasons", type=int, nargs="?", const=5, default=0, metavar="N",
                          help="also report per-season coverage for the last N seasons (default 5)")
+    # ...and the OTHER question, which `--plan` cannot answer: not «is it populated» but «when did we
+    # last LOOK». A table dated on the event needs the date of the observation, and a layer nobody
+    # has re-read is indistinguishable from a world where nothing happened. Alone it prints only the
+    # freshness, which is what makes it readable in the morning.
+    p_fetch.add_argument("--stale", action="store_true",
+                         help="report how OLD each dated layer is against the cadence it declares - "
+                              "the morning question. Alone it prints only that; with --plan, both")
 
     sub.add_parser("rebuild", help="rebuild the whole DB from raw files (idempotent)")
 
@@ -337,6 +344,14 @@ def build_parser() -> argparse.ArgumentParser:
                                 "'crosstab' for the provider-role vs listone-role report (offline), or "
                                 "'extra' for the matches no league calendar has - pre-season "
                                 "friendlies, cups, continental ties (one request per club)")
+        if name == "auctions":
+            p.add_argument("--import", dest="import_files", action="append", metavar="FILE",
+                           help="importa l'export per-aggiudicazione di aste vere (una riga per "
+                                "acquisto, coi settaggi della sessione) e ne ricava il PREZZO DI "
+                                "MERCATO per mese. Il file grezzo NON viene archiviato com'e' - porta "
+                                "i nomi delle squadre degli acquirenti - ma in copia anonima sotto "
+                                "data/raw/auctions/, che e' quello che `rebuild` rigioca. Senza "
+                                "opzioni rigioca l'archivio, che e' cio' che fa `rebuild`")
         if name == "press":
             p.add_argument("--import", dest="import_files", action="append", metavar="FILE",
                            help="import a press reference JSON (a list of per-club entries: club, "
@@ -438,7 +453,7 @@ def main(argv: list[str] | None = None) -> int:
         ctx.conn = init_db(cfg.db_path) if cfg.db_path.exists() else None
         try:
             load("fetch").run(ctx, plan=args.plan, do_run=args.do_run, inbox=args.inbox,
-                              seasons=args.seasons)
+                              seasons=args.seasons, stale=args.stale)
         except NotImplementedError as exc:
             print(f"[fetch] not implemented: {exc}")
             return 1
@@ -517,6 +532,8 @@ def main(argv: list[str] | None = None) -> int:
                                      games=args.game, rules=args.rules, cases=args.cases,
                                      verify=args.verify, gate=args.gate, auction=args.auction,
                                      pairs=args.pairs, report=args.report)
+            elif args.command == "auctions":
+                load("auctions").run(ctx, import_files=args.import_files)
             elif args.command == "press":
                 load("press").run(ctx, import_files=args.import_files, season=args.season,
                                   source=args.source, observed_on=args.observed_on,

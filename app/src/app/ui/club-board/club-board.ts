@@ -243,6 +243,43 @@ export class ClubBoard {
   }
 
   /**
+   * PERCHÉ QUELL'UOMO È SCESO A «BALLOTTAGGIO», o null se non è sceso.
+   *
+   * La regola dell'operatore (10/09/2026) agisce solo sulla board dell'ULTIMO PERIODO e può togliere tre
+   * gradini a un uomo che sta giocando: senza questa frase la riga sembra un ordinamento rotto, perché
+   * mostra `ballottaggio` accanto a una quota alta. La sua stessa frase, detta come una spiegazione e
+   * non come un'accusa - il posto non è suo, il che non toglie niente a quello che sta facendo.
+   */
+  /**
+   * SE LA FINESTRA CORTA NON L'HA VISTO GIOCARE, in una frase - o null.
+   *
+   * Su un campetto che si chiama «ultimo periodo» questo è l'unico fatto che il disegno da solo non
+   * direbbe: la sua quota lì viene dalla STAGIONE, perché una finestra vuota restituisce il prior
+   * intatto, quindi senza la frase lo si legge come uno che quel periodo l'ha giocato. Sono 16 dei 220
+   * disegnati sul foglio Serie A del 10/09/2026 - pochi, e sono proprio quelli su cui la parola
+   * «ultimo periodo» promette di più di quanto sa.
+   *
+   * NIENTE dove i due numeri non ci sono (una board più vecchia delle colonne): quello è ignoto, e un
+   * ignoto non si annuncia come un'assenza.
+   */
+  protected unseen(man: PitchMan): string | null {
+    if (man.recentPlayed == null || man.recentAvailable == null || man.recentPlayed > 0) return null;
+    return man.recentAvailable > 0
+      ? `Nelle ultime partite del suo club non è mai sceso in campo, pur essendo disponibile in `
+        + `${man.recentAvailable}. Il numero qui accanto viene quindi dalla stagione e non da questa `
+        + 'finestra: la lettura corta, senza partite sue, restituisce il prior intatto.'
+      : 'Nelle ultime partite del suo club non era disponibile in nessuna, quindi questa finestra non '
+        + 'dice niente su di lui: il numero qui accanto è quello della stagione.';
+  }
+
+  protected returning(man: PitchMan): string | null {
+    if (!man.ownerReturning) return null;
+    return 'Sta giocando lui, ma quel posto è di un altro: la formazione tipo a lungo periodo ci disegna '
+      + 'un compagno che oggi è indisponibile e rientra a breve. Per questo la parola è «ballottaggio» '
+      + 'anche se le ultime partite le ha fatte tutte — è una regola dichiarata, non una misura su di lui.';
+  }
+
+  /**
    * SE IL SUO NOME È UN BERSAGLIO, e ci vogliono tutt'e due le condizioni.
    *
    * La card la chiede la pagina (`detail`), e un uomo che la board non riesce a identificare non ne ha

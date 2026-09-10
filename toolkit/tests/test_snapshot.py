@@ -4138,7 +4138,12 @@ def test_the_alternative_modules_are_drawn_by_the_same_function_as_the_board():
     from euroleghe_ingest.modules import boards
 
     assert boards.ALTERNATIVE_MIN_ODDS == 0.30, "la soglia e' quella dichiarata dall'operatore"
-    source = inspect.getsource(boards.extract_boards)
+    # IL CORPO PER MODO VIVE IN `_boards_for` dal 10/09/2026, quando i modi sono diventati tre e due di
+    # loro si scrivono nello stesso file: `extract_boards` e' un guscio su `extract_modes`. L'invariante
+    # non cambia di una parola - il disegno e i suoi alternativi passano dalla stessa funzione - e questo
+    # test ha dovuto seguire il sorgente, che e' «verifica la FUNZIONE, non la colonna che le somiglia»
+    # applicato a un guardiano.
+    source = inspect.getsource(boards._boards_for)
     # Il modulo disegnato e gli alternativi passano dalla stessa funzione, chiamata due volte.
     assert source.count("_drawn(view, club") == 2, "il secondo modulo non passa dallo stesso disegno"
     assert "ALTERNATIVE_MIN_ODDS" in source, "la soglia va letta dalla costante"
@@ -4221,6 +4226,37 @@ def test_the_live_squad_is_dated_by_the_day_it_is_observed_not_by_the_sheets_day
         "a provider refusing every request must produce a NOTE on the sheet"
 
 
+def _refresh_chain() -> str:
+    """The source of the ONE DOOR plus every `snapshot` function it calls, transitively.
+
+    A DEPTH IS A PROPERTY OF THE ARRANGEMENT AND NOT OF THE GRAPH. On 10/09/2026 the listone re-read
+    moved out of `refresh_official_sources` and into `_listone_notes`, because a listone is a fact
+    about a PLATFORM and had to become callable on its own - and two guards here, which walked one
+    level, read that as «the door no longer refreshes the listone». What they mean to pin is that the
+    chain REACHES each channel, so the chain is what they are given.
+    """
+    import ast
+    import inspect
+
+    from euroleghe_ingest.modules import snapshot
+
+    tree = ast.parse(inspect.getsource(snapshot))
+    funcs = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
+    seen: set[str] = set()
+    todo = ["refresh_official_sources"]
+    out: list[str] = []
+    while todo:
+        name = todo.pop()
+        if name in seen or name not in funcs:
+            continue
+        seen.add(name)
+        out.append(ast.get_source_segment(inspect.getsource(snapshot), funcs[name]) or "")
+        for node in ast.walk(funcs[name]):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                todo.append(node.func.id)
+    return "\n".join(out)
+
+
 def test_a_snapshot_re_reads_the_official_list_and_declares_what_it_changed():
     """The third volatile state, and until 18/08/2026 the only one a snapshot never refreshed.
 
@@ -4240,10 +4276,16 @@ def test_a_snapshot_re_reads_the_official_list_and_declares_what_it_changed():
     source = inspect.getsource(ratings.refresh_listone)
     assert "listone_season(data)" in source and "refused" in source, \
         "a list that states another season would overwrite this season's prices with last one's"
-    chain = inspect.getsource(snapshot.refresh_official_sources)
+    chain = _refresh_chain()
     assert '"moved"' in source and "rederive_after_listone" in chain, \
         "the diff is reported, and what it obliges - `arrivals` - is re-derived in the same run"
-    assert "refresh_listone_for(ctx, platform, window.target_season)" in chain
+    # THE SEASON IT RE-READS IS THE WINDOW'S TARGET, and since 10/09/2026 that travels through two
+    # calls instead of one - the re-read had to become callable per PLATFORM, so the door passes the
+    # season in and `_listone_notes` passes it on. Both halves are pinned, because the half that could
+    # go wrong on its own is the first: a listone re-read for the INPUT season would overwrite this
+    # season's prices with last one's, which is the defect the guard below refuses at the source.
+    assert "_listone_notes(ctx, platform, window.target_season)" in chain
+    assert "refresh_listone_for(ctx, platform, season)" in chain
     # ...and it never costs a sheet: no credentials, no network, no listone - the sheet is still built.
     assert "return f\"listone refresh skipped" in source
 
@@ -4267,7 +4309,7 @@ def test_every_official_source_is_refreshed_behind_ONE_door():
     from euroleghe_ingest.modules import snapshot
 
     body = inspect.getsource(snapshot.run)
-    chain = inspect.getsource(snapshot.refresh_official_sources)
+    chain = _refresh_chain()
     assert "refresh_official_sources(ctx, platform, window, progress)" in body
 
     for door in ("refresh_editorial", "refresh_listone_for", "refresh_market",

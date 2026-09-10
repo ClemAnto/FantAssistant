@@ -176,6 +176,12 @@
     />
   }
 
+  <!-- Duecentocinquanta trattini in colonna si leggono come un guasto: se la pastiglia del prezzo
+       vero e' accesa e per questa combinazione non ci sono aste, la pagina lo DICE. -->
+  @if (paidNotice(); as issue) {
+    <nz-alert class="shrink-0" nzType="info" nzShowIcon [nzDescription]="issue" nzMessage="Nessun prezzo d'asta qui" />
+  }
+
   @if (warning(); as issue) {
     <nz-alert class="shrink-0" nzType="warning" nzShowIcon [nzDescription]="issue" nzMessage="Regolamento mantra assente" />
   }
@@ -388,6 +394,30 @@
                     "
                     >{{ row.man.name }}</span
                   ><ui-ruling-dot [playerId]="row.man.fcId" />
+                  <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
+                       motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
+                       come una misura è la cosa peggiore che una lista possa fare.
+
+                       STA ACCANTO AL NOME (operatore, 09/09/2026) e non accanto ai numeri che qualifica:
+                       quello che è stimato è l'uomo intero - il gain e le pastiglie vengono tutti dallo
+                       stesso ripiego - quindi il marchio è del NOME, come il pallino della dichiarazione
+                       che gli sta davanti.
+
+                       E resta comunque PRIMA delle pastiglie, che è la cura del difetto trovato lo stesso
+                       giorno («il simbolo ~ rompe l'incolonnamento dei valori»): in un flex dove il nome è
+                       `flex-1`, il bordo destro di un elemento vale `container.right - (somma dei
+                       successivi)`, quindi qualunque cosa condizionale messa FRA le pastiglie e il gain
+                       sposta la loro colonna solo sulle righe che ce l'hanno - misurato in un browser
+                       vero, 58 righe su 250 e la fila 10,84px più a sinistra (il glifo 6,84 più i 4 di
+                       `gap-x-1`). Qui davanti il costo lo paga il nome, che è a sinistra e tronca: il suo
+                       bordo sinistro non si muove, quindi la colonna che si scorre non fa zig-zag.
+
+                       FUORI dallo span del nome e non dentro, che sarebbe stato il modo ovvio di
+                       «metterlo vicino»: quello span è `truncate`, quindi su un nome lungo il marchio
+                       verrebbe tagliato via - e un nome lungo è esattamente una riga che si guarda. -->
+                  @if (row.estimated) {
+                    <span class="shrink-0 text-[10px] text-muted" data-estimated>~</span>
+                  }
                   <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
                   <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
                        Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
@@ -446,12 +476,6 @@
                         >
                       }
                     </span>
-                  }
-                  <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
-                       motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
-                       come una misura è la cosa peggiore che una lista possa fare. -->
-                  @if (row.estimated) {
-                    <span class="shrink-0 text-[10px] text-muted">~</span>
                   }
                   <!-- IL GAIN A GIORNATA (operatore, 04/09/2026), che è la sua regola del 03/09 sui
                        punti per giornata applicata alla colonna che ordina. `perMatch` è una

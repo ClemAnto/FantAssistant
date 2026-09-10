@@ -1,7 +1,8 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
+import { Bundle } from '../../core/bundle';
 import { UNAVAILABLE_FRESH_DAYS, PlayerStatus } from '../../core/player-status';
 import { TimeTravel } from '../../core/time-travel';
 import { itDate } from '../../core/tooltip';
@@ -35,6 +36,28 @@ export class DataFreshness {
   private readonly status = inject(PlayerStatus);
   /** Il giorno contro cui si legge: l'orologio, o la data scelta se si sta viaggiando nel tempo. */
   private readonly travel = inject(TimeTravel);
+  private readonly bundle = inject(Bundle);
+
+  /**
+   * L'AGGIORNAMENTO NOTTURNO E' SPENTO? (`config/nightly.json`, dichiarato dall'operatore).
+   *
+   * Serve a distinguere DUE CAUSE dello stesso schermo: dati di tre giorni fa con l'interruttore
+   * acceso sono un guasto da guardare, con l'interruttore spento sono una sua decisione. Senza questa
+   * riga la pastiglia dice «vecchi» in tutt'e due i casi e l'operatore va a cercare un guasto che ha
+   * causato lui.
+   *
+   * ASSENTE VUOL DIRE ACCESO, come lo leggono il runner e il pannello: un pacchetto che non porta il
+   * file (o una macchina che non ha mai dichiarato niente) non e' un aggiornamento spento.
+   */
+  private readonly nightlyOff = signal(false);
+  private readonly nightlyOn = signal<string | null>(null);
+
+  constructor() {
+    void this.bundle.nightly().then((declared) => {
+      this.nightlyOff.set(declared?.enabled === false);
+      this.nightlyOn.set(declared?.decided_on ?? null);
+    });
+  }
 
   protected readonly bundleOn = computed(() => this.status.readAt()?.slice(0, 10) ?? null);
   protected readonly pressOn = this.status.pressReadOn;
@@ -66,6 +89,10 @@ export class DataFreshness {
     () => this.status.pressAge() === 0 && (this.bundleAge() ?? 99) === 0,
   );
 
+  /** Spento per dichiarazione, e da quando: due letture separate perche' sono due frasi. */
+  protected readonly off = computed(() => this.nightlyOff());
+  protected readonly offSince = computed(() => this.nightlyOn());
+
   protected readonly icon = computed(() =>
     this.stale() ? 'alert' : this.fresh() ? 'check-circle' : 'clock-circle',
   );
@@ -81,6 +108,16 @@ export class DataFreshness {
         ? `Indisponibili letti il ${itDate(press)} (${this.label()}): da qui vengono gli allarmi «oggi non gioca».`
         : 'Indisponibili: questo pacchetto non porta la tabella, quindi nessun allarme può comparire.',
     ];
+    // L'INTERRUTTORE PRIMA DELLA SCADENZA, perche' se e' spento e' la CAUSA di quello che c'e' sopra:
+    // una riga che spiega e non un'altra cosa da sapere. Quando e' acceso non si dice niente - «va
+    // bene» non e' una notizia, che e' la regola su cui e' costruita tutta questa pastiglia.
+    if (this.off()) {
+      lines.push(
+        `Aggiornamento notturno SPENTO${this.offSince() ? ` dal ${itDate(this.offSince()!)}` : ''}: ` +
+          `nessuno rilegge le fonti alle 03:00, quindi da qui in poi queste date invecchiano di un ` +
+          `giorno al giorno. Si riaccende dal pannello del toolkit.`,
+      );
+    }
     if (this.stale()) {
       lines.push(
         `LETTURA SCADUTA: oltre ${UNAVAILABLE_FRESH_DAYS} giorni i marchi si spengono da soli, quindi ` +

@@ -157,6 +157,15 @@ export interface BoardMan {
   starts_club: string | null;
   minutes_per_match: string | null;
   starter_prob: string | null;
+  /**
+   * LA FINESTRA CORTA, in due numeri: in quante delle ultime partite del suo club era DISPONIBILE e in
+   * quante ha giocato. Su una board dell'ULTIMO PERIODO servono a dire l'unica cosa che il disegno da
+   * solo non direbbe — che quella finestra lui non l'ha giocata: la sua quota viene allora dalla
+   * stagione, perché una finestra vuota restituisce il prior intatto. Assenti su una board più vecchia
+   * delle colonne, e allora è ignoto e la carta tace invece di inventare uno zero.
+   */
+  recent_available?: string | null;
+  recent_played?: string | null;
   x?: number;
   claim: number | null;
   /**
@@ -171,6 +180,15 @@ export interface BoardMan {
   duels?: BoardMan[];
   /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */
   duels_known?: boolean;
+  /**
+   * IL PADRONE DEL SUO POSTO STA RIENTRANDO, quindi il gradino è tappato a `ballottaggio` (regola
+   * dell'operatore, 10/09/2026). Presente solo sulla board dell'ULTIMO PERIODO: la regola confronta le
+   * due board, e sulla lunga non c'è niente da confrontare. Viaggia perché un gradino che dice
+   * `ballottaggio` accanto a una quota di 0,95 deve poter spiegarsi — «un vincolo che agisce in silenzio
+   * è indistinguibile da un ordinamento rotto». `null`/assente = non lo sappiamo, che NON è «il posto è
+   * suo»: senza una data di rientro non c'è un orizzonte da confrontare.
+   */
+  owner_returning?: boolean | null;
 }
 
 export interface Board {
@@ -201,12 +219,59 @@ export interface Board {
   error?: string;
 }
 
+/**
+ * LA BOARD DELL'ULTIMO PERIODO: lo stesso disegno, letto sulle ultime partite di campionato invece che
+ * sulla stagione (`presence.recent_*`, misurate fuori campione il 10/09/2026 — Brier 0.1696 → 0.1544 e
+ * 8.46 → 8.69 dei veri undici contro la lettura di stagione, su 3.638 partite-club).
+ *
+ * Nello STESSO file della lunga, e non in un secondo: le due descrivono lo stesso foglio, e due file
+ * sarebbero una coppia che qualcuno un giorno riscrive per metà. La disegna il TOOLKIT come l'altra —
+ * l'undici di un club vero è una previsione su una persona, quindi l'app non ne calcola nessuno e qui
+ * SWITCHA fra due disegni già fatti.
+ *
+ * Assente su un bundle scritto prima del 10/09/2026: allora è IGNOTO e il pulsante non si disegna, che è
+ * diverso da «l'ultimo periodo non dice niente».
+ */
+export interface ShortBoards {
+  mode: string;
+  /** Quante partite guarda la finestra, e con che prior: DICHIARATE da chi le ha usate, così
+   *  l'etichetta a schermo («le ultime 3») non è una costante ricopiata in TypeScript. */
+  window: number;
+  prior: number;
+  evidence: string;
+  /** Entro quante partite del suo club un rientro conta come «a breve». */
+  owner_matches: number;
+  clubs: Record<string, Board>;
+  titolarita?: Record<string, BoardRung>;
+}
+
+/**
+ * I DUE ORIZZONTI su cui un undici tipo si legge, e sono due DOMANDE e non due freschezze:
+ * `season` prevede la stagione che resta - il bersaglio con cui si compra a un'asta - e `short` la
+ * prossima partita, sulle ultime giornate di campionato. Le due letture hanno due bersagli misurati
+ * separatamente, quindi due nomi: chiamarle «vecchia» e «nuova» sarebbe dire che una è sbagliata.
+ */
+export type BoardHorizon = 'season' | 'short';
+
+/** Il gradino di un uomo e i numeri da cui esce, come `boards._statuses` lo scrive. */
+export interface BoardRung {
+  status: string | null;
+  play: number | null;
+  minutes: number | null;
+  in_eleven?: boolean;
+  contended?: boolean | null;
+  owner_returning?: boolean | null;
+}
+
 export interface BoardsFile {
   sheet: string;
   mode: string;
   /** True for the panel's own boards: they honour the operator's rulings, unlike the judges'. */
   apply_rulings: boolean;
   clubs: Record<string, Board>;
+  titolarita?: Record<string, BoardRung>;
+  /** L'ultimo periodo, quando il bundle lo porta. Vedi `ShortBoards`. */
+  short?: ShortBoards;
 }
 
 /**
@@ -218,6 +283,16 @@ export interface BoardsFile {
 export interface PlayerNote {
   kind: 'out_of_squad' | 'dispute' | 'wants_out';
   note?: string | null;
+  decided_on?: string | null;
+}
+
+/**
+ * `config/nightly.json`: l'interruttore DICHIARATO dell'aggiornamento notturno, con la sua data.
+ *
+ * `enabled` assente vuol dire ACCESO - la stessa direzione che prendono il runner e il pannello.
+ */
+export interface NightlyFile {
+  enabled?: boolean;
   decided_on?: string | null;
 }
 
@@ -252,6 +327,7 @@ export class Bundle {
   private modulesPromise?: Promise<MantraModulesFile | null>;
   private classicModulesPromise?: Promise<MantraModulesFile | null>;
   private playerNotesPromise?: Promise<PlayerNotesFile | null>;
+  private nightlyPromise?: Promise<NightlyFile | null>;
   private readonly boardsByPath = new Map<string, Promise<BoardsFile | null>>();
   private readonly packsByPath = new Map<string, Promise<TimePackFile | null>>();
   private crestsPromise?: Promise<Record<string, string>>;
@@ -370,6 +446,31 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<PlayerNotesFile>) : null))
       .catch(() => null);
     return this.playerNotesPromise;
+  }
+
+  /**
+   * LO STATO DEL CONTROLLO NOTTURNO (`config/nightly.json`), che questa pagina MOSTRA e non tocca.
+   *
+   * L'aggiornamento non presidiato gira sulla macchina dell'operatore (un'attivita' pianificata alle
+   * 03:00) e obbedisce a questo file. L'app lo legge per una ragione sola: un pacchetto vecchio e un
+   * aggiornamento spento sono due CAUSE diverse dello stesso schermo, e distinguerle e' tutto il
+   * valore - «i dati sono di tre giorni fa» con l'interruttore spento e' una decisione, con
+   * l'interruttore acceso e' un guasto.
+   *
+   * NON PUO' SCRIVERLO, e non e' una scelta: un browser non ha modo di raggiungere il Task Scheduler
+   * di Windows, misurato il 10/09/2026 prima di decidere dove mettere l'interruttore (`app/src` non
+   * aveva un solo riferimento a localhost). Quindi il fatto viaggia in UNA direzione e chi lo scrive
+   * e' il pannello del toolkit, dove l'autorita' locale gia' vive.
+   *
+   * ASSENTE VUOL DIRE ACCESO, come lo leggono le altre due meta' (il runner e il pannello): una
+   * macchina a cui nessuno ha detto niente tiene i dati freschi, e leggere un file mancante come
+   * «spento» fermerebbe l'acquisizione in silenzio.
+   */
+  nightly(): Promise<NightlyFile | null> {
+    this.nightlyPromise ??= fetch(`${this.base}/nightly.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<NightlyFile>) : null))
+      .catch(() => null);
+    return this.nightlyPromise;
   }
 
   /**

@@ -4911,3 +4911,72 @@ resta aperto. Vale la pena guardarlo perché sta sulla card che adesso il click 
 **Verificato:** `ng build` pulito, **867 test su 50 file** con la sola metà di questa sessione in un
 worktree su HEAD (872 su 51 nell'albero condiviso, dove c'è anche l'altra sessione), e i banchi
 `e2e-matches-tip` (nuovo, sette passi), `e2e-clubs`, `e2e-table` verdi.
+
+## 40. IL TILDE CHE SPOSTAVA UNA COLONNA, e la pastiglia che dice se l'aggiornamento è spento (9-10 settembre 2026)
+
+> Sessione parallela alla §39: quella sulla tabella delle partite, questa sull'acquisizione. Qui c'è la
+> sola metà che tocca l'app.
+
+### 40.1 — «Il simbolo ~ rompe l'incolonnamento dei valori»
+
+Segnalazione dell'operatore sulla Strategia, e la causa è **aritmetica di flex** e non una svista di
+stile. La riga è un flex dove il NOME è `flex-1`, quindi il bordo destro di ogni elemento vale
+`container.right − (somma dei successivi)`: il tilde della stima stava **fra la fila delle pastiglie e il
+gain**, era l'unica cosa CONDIZIONALE lì in mezzo, e perciò spostava la fila e non il gain.
+
+Misurato in un browser vero prima di toccare niente: **58 righe su 250** portavano il tilde, e la loro
+fila stava **10,84px** più a sinistra — il glifo 6,84 più i 4 di `gap-x-1` — mentre il gain, essendo
+l'ULTIMO, era già allineato (un solo bordo). Tutti e quattro i blocchi spezzati.
+
+Prima cura: il tilde **prima** delle pastiglie, così il costo lo paga il nome, che è a sinistra e tronca
+— il suo bordo sinistro non si muove, quindi la colonna che si scorre non fa zig-zag. Poi, su sua
+richiesta, **accanto al nome**: subito dopo il pallino della dichiarazione, a 4px dal bordo del nome su
+tutte le righe, **0 tagliati**. E **fuori** dallo span `min-w-0 flex-1 truncate`, che sarebbe stato il
+modo ovvio di «metterlo vicino»: lì il marchio verrebbe tagliato via proprio sui nomi lunghi, cioè
+esattamente le righe che si guardano.
+
+**La guardia nel banco** (`e2e-strategy`, «le pastiglie sono incolonnate») asserisce un bordo destro per
+lista e porta il **conteggio dei tilde** nel verdetto, perché un passo che ne trova zero leggerebbe
+«incolonnato» dopo aver guardato una pagina senza il caso che giudica. Provata rimettendo il difetto: **4
+problemi con, 0 senza**. E una debolezza mia corretta subito: la prima versione cercava i nomi in tutto
+l'output, dove compaiono comunque nell'elenco grezzo degli esclusi — cioè un'asserzione che non poteva
+fallire. Ora si cerca nella sola sezione delle fette.
+
+Le altre tre `~` dell'app **non hanno il difetto**: in `sealed-bid` e nel pannello d'asta stanno DENTRO
+lo span `flex-1 truncate` del nome, quindi mangiano larghezza al nome e non spostano niente a destra.
+Nella card sta in una cella `text-right` di una griglia — lì sposta le cifre dentro la propria cella, ma
+sono sei righe che si leggono una per volta e non una colonna che si scorre. Segnalato e non toccato.
+
+### 40.2 — La pastiglia della freschezza dice anche se l'aggiornamento notturno è SPENTO
+
+`ui/data-freshness` porta già due date e due domande. Da oggi porta un terzo fatto, e serve a
+distinguere **due CAUSE dello stesso schermo**: dati di tre giorni fa con l'interruttore acceso sono un
+guasto da guardare, con l'interruttore spento sono una decisione dell'operatore. Senza quella riga la
+pastiglia dice «vecchi» in tutt'e due i casi, e lo si va a cercare un guasto che ha causato lui.
+
+Tre scelte, tutte figlie di regole che questa pastiglia aveva già.
+- **Solo quando è SPENTO** si disegna qualcosa (un `poweroff` accanto alla parola). Acceso non dice
+  niente, per la stessa ragione per cui «tutto di oggi» non ha colore: «va bene» non è una notizia.
+- **NON tinge la pastiglia.** Il rosso qui significa già «allarmi spenti», e dare due significati a un
+  colore è come uno schermo finisce per non dirne nessuno.
+- **La riga del tooltip sta PRIMA di quella della scadenza**, perché se è spento è la CAUSA di quello
+  che c'è sopra: una frase che spiega, non un'altra cosa da sapere.
+
+**L'app lo MOSTRA e non lo scrive, e non è una scelta**: un browser non ha modo di raggiungere il Task
+Scheduler di Windows. Misurato prima di decidere dove mettere l'interruttore — `app/src` non aveva **un
+solo riferimento** a `localhost` o `127.0.0.1`, perché la pagina di consultazione è statica per
+costruzione. Quindi il fatto viaggia in UNA direzione (`config/nightly.json` → export → `data:pull` →
+app) e chi lo scrive è il pannello del toolkit, dove l'autorità locale già vive. **Assente vuol dire
+acceso**, come lo leggono le altre due metà.
+
+E il file è stato aggiunto **a mano anche in `pull-bundle.mjs`**, perché quell'elenco copia i file di
+`config/` uno a uno: un file aggiunto all'export e non aggiunto lì non arriva all'app. È il difetto dei
+campetti (10/08), di `availability` (03/09) e dell'asterisco (07/09) — **la quarta istanza**, e stavolta
+scritta accanto alla riga invece che scoperta dopo.
+
+### 40.3 — Un'icona non registrata disegna il vuoto
+
+`nzType="moon"` è stato scritto e **cambiato prima di spedirlo**: `moon` non è nel set predefinito di
+ng-zorro, e un'icona non registrata non dà errore — disegna niente. È la lezione della lente del
+04/09/2026 applicata prima di pagarla una seconda volta. `poweroff` è nel set ed è anche la parola
+giusta.

@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import shutil
 
+from pathlib import Path
+
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.db.database import table_names
 from euroleghe_ingest.modules.base import not_implemented
@@ -111,6 +113,129 @@ SEASON_COVERAGE: tuple[tuple[str, str, str], ...] = (
     ("arrivals", "arrivals", "the roster diff (all seasons in one pass)"),
     ("flags", "transfers / positions / arrivals / injuries", "the derived booleans"),
 )
+
+
+# ------------------------------------------------------------------ freshness
+#
+# WHEN DID WE LAST LOOK, layer by layer - a different question from `--plan`'s, and one that had no
+# reader until 10/09/2026. `--plan` answers COMPLETENESS (how many rows, which season is empty, and
+# the command that fills it); this answers the one that costs a morning when nobody asks it. A table
+# dated on the EVENT also needs the date of the OBSERVATION, or it cannot tell an absence of facts
+# from an absence of looking (03/09/2026, `injuries.observed_on`) - and the same holds one level up:
+# a whole LAYER nobody has re-read is indistinguishable from a world where nothing happened.
+#
+# It was written after a morning spent finding by hand what this prints in a second: `club_elo` at 239
+# days because ClubElo's API has been answering 502 since January, the Serie A listone three days old
+# while the euro one was of that morning, and the injury archive at exactly its weekly cadence.
+#
+# TWO KINDS OF ROW, and the second is why this is not one SELECT. A layer with an observation column
+# answers from the DB; a layer without one - `listone_quotes` keeps the LAST read and no date - can
+# only answer from the CACHE FILE, which is where the cleanest evidence of that defect came from
+# (`listone_euro_2026-27.xlsx` rewritten that morning against `listone_default_2026-27.xlsx` two days
+# old). A reader that only knew how to ask the database would have missed it entirely: when the date
+# lives outside the database, no query can reach it.
+#
+# AND THE LISTONE IS SPLIT BY PLATFORM ON PURPOSE. It is the fact whose unit is the platform
+# (`listone_quotes` has `platform` in its key since 07/08/2026, and the two lists disagree on 202 Qt.I
+# and 226 FVM), so a single pooled row would have read «the listone is fresh» on exactly the day half
+# of it was not. A freshness report that averages away the thing it exists to catch is worse than none.
+#
+# The EXPECTED age is a DECLARATION and carries its reason, like `update.DAILY`: nothing here is
+# measured, and pretending otherwise would be inventing a cadence.
+#
+# (label, kind, where, expected days, why)
+#   kind "db"    -> where = (table, column)
+#   kind "cache" -> where = a glob under data/cache
+FRESHNESS: tuple[tuple[str, str, object, int, str], ...] = (
+    ("probabili", "db", ("probable_starter", "valid_from"), 1,
+     "the page publishes only «now», so a day not captured is gone"),
+    ("indisponibili", "db", ("availability", "valid_from"), 1,
+     "the fast channel the app draws its alarms from - past three days the pill goes red"),
+    ("ruoli granulari", "db", ("player_roles", "valid_from"), 1,
+     "the provider accepts a seasonId and ignores it: this is an observation of TODAY"),
+    ("rose live", "db", ("squad_snapshot", "valid_from"), 1,
+     "the authority on who is in a squad (operator, 17/08/2026), and only a full read says «absent»"),
+    ("calendario", "db", ("fixtures", "observed_on"), 1,
+     "a postponement moves a match by weeks, and the unit here is the MATCH"),
+    ("forza dei club", "db", ("club_elo", "date"), 1,
+     "R19 is ADOPTED on default and the club card stands on it; during a season the date asked for is "
+     "TODAY, so an old maximum means the source gave nothing - not that nobody asked"),
+    ("fantavalore", "db", ("fvm_history", "observed_on"), 1,
+     "the FVM moves at every salient event, so what we hold is the LAST READ and its date"),
+    ("listone euro", "cache", "listone_euro_*.xlsx", 1,
+     "the club the GAME says a man is at, and his ask price - PER PLATFORM"),
+    ("listone default", "cache", "listone_default_*.xlsx", 1,
+     "the same for the other list: one reading can never serve both"),
+    ("archivio infortuni", "db", ("injuries", "observed_on"), 7,
+     "an ARCHIVE whose unit is the week; the daily half of that question is `indisponibili`"),
+    ("curva di mercato", "db", ("market_value_history", "observed_on"), 7,
+     "REPORTING only - the gate refused the channel it was acquired for - so a week is generous"),
+    ("giudice stampa", "db", ("press_formations", "observed_on"), 30,
+     "optional and imported by hand: it is a JUDGE of the boards and never an input"),
+)
+
+
+def freshness(ctx: Context, today: str | None = None) -> list[dict]:
+    """Per layer: the newest observation, its age in days, what is expected, and the verdict.
+
+    A layer nobody can date at all reads as «ignoto» and NEVER as fresh - «vuoto = ignoto» applied to
+    a cadence.
+    """
+    import datetime as dt
+    import glob as _glob
+
+    now = dt.date.fromisoformat(today) if today else dt.datetime.now(tz=dt.UTC).date()
+    conn = ctx.conn
+    existing = set(table_names(conn)) if conn is not None else set()
+    out: list[dict] = []
+    for label, kind, where, expected, why in FRESHNESS:
+        seen = None
+        if kind == "db":
+            table, column = where
+            if table in existing:
+                seen = conn.execute(f'SELECT MAX("{column}") FROM "{table}"').fetchone()[0]
+            if seen:
+                seen = str(seen)[:10]
+        else:
+            files = _glob.glob(str(ctx.config.cache_dir / str(where)))
+            if files:
+                newest = max(Path(one).stat().st_mtime for one in files)
+                seen = dt.datetime.fromtimestamp(newest, tz=dt.UTC).date().isoformat()
+        age = (now - dt.date.fromisoformat(seen)).days if seen else None
+        out.append({
+            "label": label, "seen": seen, "age": age, "expected": expected, "why": why,
+            "verdict": "ignoto" if age is None else ("fresco" if age <= expected else "vecchio"),
+        })
+    return out
+
+
+def print_freshness(ctx: Context, today: str | None = None) -> None:
+    """The morning's picture: what was looked at, when, and what is past its cadence."""
+    rows = freshness(ctx, today)
+    late = [one for one in rows if one["verdict"] != "fresco"]
+    print("[fetch] freschezza degli strati datati - quando abbiamo GUARDATO, non quando e' successo")
+    for one in rows:
+        mark = "  " if one["verdict"] == "fresco" else "!!"
+        age = "mai" if one["age"] is None else f"{one['age']}g"
+        print(f" {mark} {one['label']:20} {str(one['seen'] or '-'):12} {age:>5} "
+              f"(atteso <= {one['expected']}g)  {one['why']}")
+    if late:
+        print()
+        print(f"[fetch] {len(late)} strato/i oltre la cadenza attesa: "
+              + ", ".join(f"{one['label']} ({one['age']}g)" for one in late))
+        # THE ONE THING THIS CANNOT SAY, said instead of implied: an overdue layer is either «nobody
+        # looked» or «the source gave nothing», and only the RUN knows which. The difference decides
+        # what to do - the first is a command, the second is a source to replace.
+        print("[fetch] «vecchio» non distingue «nessuno ha guardato» da «la fonte non ha dato "
+              "niente»: quello lo dice il log della corsa (data/logs/nightly-*.log).")
+    else:
+        print()
+        print("[fetch] ogni strato datato e' dentro la sua cadenza.")
+    # WHAT THIS DOES NOT COVER, said out loud: a picture that looks complete and is not is the very
+    # defect it exists to prevent. These layers have no observation date of their own, so their
+    # question is COVERAGE and `--plan` is the one that answers it.
+    print("[fetch] fuori da questa tabella: voti, layer per-partita e tm_appearances - non hanno una "
+          "data di osservazione, e la loro domanda e' la COPERTURA (`fetch --plan`).")
 
 
 def _seasons_present(conn, tables) -> list[str]:
@@ -250,7 +375,7 @@ def print_plan(ctx: Context) -> None:
 
 
 def run(ctx: Context, *, plan: bool = False, do_run: bool = False, inbox: bool = False,
-        seasons: int = 0) -> None:
+        seasons: int = 0, stale: bool = False) -> None:
     if inbox:
         import_inbox(ctx)
         return
@@ -258,6 +383,14 @@ def run(ctx: Context, *, plan: bool = False, do_run: bool = False, inbox: bool =
         raise not_implemented(
             NAME, "downloading belongs to each module (its own auth, rate limit and cache); "
                   "run `bootstrap` for the ordered acquisition")
+    # `--stale` ALONE prints only the freshness: it is the MORNING question, and a report that has to
+    # be scrolled past twenty tables of row counts is a report nobody reads.
+    if stale and not plan:
+        print_freshness(ctx)
+        return
     print_plan(ctx)
     if seasons:
         print_season_plan(ctx, last=seasons)
+    if stale:
+        print()
+        print_freshness(ctx)

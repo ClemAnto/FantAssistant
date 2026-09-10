@@ -187,6 +187,33 @@
                          disegno e' uno e la parola sta nel suo tooltip. Un uomo entrato nell'undici
                          per una dichiarazione non deve sembrare una scelta del modello. -->
                     <ui-ruling-dot [playerId]="one.fcId" />
+                    @if (unseen(one); as said) {
+                      <!-- LA FINESTRA NON L'HA VISTO GIOCARE: il suo numero viene dalla stagione, non
+                           dall'ultimo periodo. Smorzato e non d'allarme - non è un difetto suo, è il
+                           limite di quello che la finestra sa; e senza il marchio la parola «ultimo
+                           periodo» prometterebbe più di quanto sa proprio su di lui. -->
+                      <span
+                        class="shrink-0 text-[10px] leading-none text-muted"
+                        nz-tooltip
+                        [nzTooltipTitle]="said"
+                        >∅</span
+                      >
+                    }
+                    @if (returning(one); as said) {
+                      <!-- IL PADRONE DEL POSTO STA RIENTRANDO, ed è la ragione per cui la board
+                           dell'ultimo periodo lo tiene a «ballottaggio». Senza questo marchio la parola
+                           accanto a una quota alta si legge come un ordinamento rotto: è la regola di
+                           casa «un vincolo che agisce in silenzio è indistinguibile da un ordinamento
+                           rotto», e il segno è una FRECCIA DI RIENTRO perché quello che dice non è un
+                           giudizio su di lui - è un fatto su un altro. Compare solo sull'ultimo periodo:
+                           sulla board di stagione la regola non esiste. -->
+                      <span
+                        class="shrink-0 text-[10px] leading-none text-warning"
+                        nz-tooltip
+                        [nzTooltipTitle]="said"
+                        >↩</span
+                      >
+                    }
                     @if (disputed(one); as said) {
                       <!-- I due modelli non sono d'accordo su di lui: la board risponde a «chi parte
                            titolare», il motore a «in quante giornate prende voto». Nessuno dei due si

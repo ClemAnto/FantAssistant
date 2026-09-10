@@ -17,4 +17,14 @@
   } @else {
     <span>dati {{ label() }}</span>
   }
+  <!-- L'INTERRUTTORE NOTTURNO, e solo quando e' SPENTO: un glifo in piu' che dice perche' domani
+       queste date saranno di un giorno piu' vecchie. Acceso non disegna niente, per la stessa ragione
+       per cui «tutto di oggi» non ha colore - «va bene» non e' una notizia. Non tinge la pastiglia:
+       il rosso qui significa gia' «allarmi spenti», e dare due significati a un colore e' come uno
+       schermo finisce per non dirne nessuno. -->
+  @if (off()) {
+    <!-- `poweroff` e non `moon`: la seconda non e' nel set predefinito di ng-zorro, e un'icona non
+         registrata disegna il VUOTO senza dire niente (04/09/2026, il caso della lente). -->
+    <nz-icon class="opacity-70" nzType="poweroff" data-nightly-off />
+  }
 </span>

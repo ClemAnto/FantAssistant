@@ -255,6 +255,23 @@ export class Clubs {
    */
   private readonly cards = new CardStack();
 
+  /**
+   * COSA PROMETTE L'ULTIMO PERIODO, con la finestra DICHIARATA dal toolkit che l'ha usata.
+   *
+   * Il numero non è scritto qui: viene da `boards.json`, dove `snapshot` lo mette accanto ai numeri che
+   * ne escono. Una costante ricopiata in TypeScript sarebbe un'etichetta che smette di dire il vero il
+   * giorno che uno sweep muove la finestra - e nessuno lo scoprirebbe leggendo lo schermo.
+   */
+  protected readonly shortHint = computed(() => {
+    const window = this.store.shortWindow();
+    const matches = window ? `le ultime ${window} partite` : 'le ultime partite';
+    return `L'undici che esce da ${matches} di campionato, contate sulle sole in cui era disponibile e`
+      + ' miscelate con la stagione. Prevede la PROSSIMA partita, non le giornate che restano: misurata'
+      + ' fuori campione su 3.638 partite-club, sbaglia meno della lettura di stagione su chi comincia'
+      + " (Brier 0.170 → 0.154) e ne indovina 8.7 degli undici veri contro 8.5. Gli indisponibili di oggi"
+      + ' sono fuori.';
+  });
+
   protected readonly openCards = computed(() => {
     const byId = new Map(this.store.squad().map((man) => [man.fcId, man]));
     const engine = this.engine();

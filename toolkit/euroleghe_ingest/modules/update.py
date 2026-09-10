@@ -167,12 +167,24 @@ DELIVER: tuple[Step, ...] = (
 # history, the market curve, the per-match layer) - and «a cache over a fact that is finished can live
 # forever» is exactly what makes leaving them out a saving rather than a gamble.
 #
+# ...and there is a THIRD state, which is the one this preset used to hide: a step left out whose fact
+# the SHEETS step re-reads a slice of by itself, because a sheet cannot be built on a squad or a
+# listone from last week. `snapshot.SHEET_REFRESHES` names them and `--daily` prints them, so the
+# operator plans the next run on what really happened - a preset that promises LESS than it does is
+# the mirror of one that quietly skips, and costs the same wrong decision.
+#
 # THE DERIVATION IS DELIBERATELY OUT, and that is a claim about the graph rather than a preference:
-# `stats:derive`, `matchdays`, `synth` and `arrivals` read `match_ratings`, `external_match_stats`,
-# `external_stats`, `matchday_map` and `rosters` - not one of which a daily step writes. So on a run
-# that does not re-read the votes they reproduce yesterday's tables, and cost thirteen minutes to do
-# it. The same argument puts the PACKS out: a time-travel pack is rebuilt when SHEET_REVISION moves,
-# which is a code change and not a day.
+# `stats:derive`, `matchdays` and `synth` read `match_ratings`, `external_match_stats`,
+# `external_stats` and `matchday_map` - not one of which a daily step writes. So on a run that does
+# not re-read the votes they reproduce yesterday's tables, and cost thirteen minutes to do it. The
+# same argument puts the PACKS out: a time-travel pack is rebuilt when SHEET_REVISION moves, which is
+# a code change and not a day.
+#
+# `arrivals` IS in that list of steps and is NOT in that argument, and the difference is worth the
+# line: it reads `rosters`, which the sheets step DOES write, because `snapshot.refresh_official_
+# sources` re-reads the target season's listone before building anything. So it is left out as a
+# STEP and re-derived anyway, by whoever made it stale - see `snapshot.SHEET_REFRESHES`, which is
+# what `--daily` prints so the operator is not told the fact went untouched.
 #
 # What is left out is left out LOUDLY (`--daily` prints it), because a preset that quietly skips the
 # archives reads exactly like a full update that found nothing to do.
@@ -284,21 +296,37 @@ def _run_stats_derive(ctx: Context) -> None:
 
 
 def _run_sheets(ctx: Context) -> None:
-    """One sheet per declared league, and the editorial reading taken once.
+    """One sheet per declared league: the editorial reading taken once, the LISTONE once per platform.
 
     `refresh` on the first league only: the probabili cache is keyed on the DAY, so three refreshes in
     one run overwrite each other and cost three downloads for one fact. The order is the file's own, so
     the league that gets the fresh read is the one the operator declared first.
+
+    ...AND THAT RULE IS RIGHT FOR FOUR CHANNELS AND WRONG FOR THE FIFTH, found 10/09/2026 by reading a
+    run's own log: the probabili, the market, the squad pages and the Elo are facts about a DAY, so one
+    reading serves every sheet - but the LISTONE is a fact about a PLATFORM, and the first declared
+    league only has one. On a table that declares EuroLeghe first, the euro list was re-read daily and
+    the Serie A one was two days old, which the two default sheets said about themselves while nobody
+    read it. So the platforms the first sheet did not cover get their listone topped up here, by name:
+    one login and one request each, the cheapest of the refreshes.
     """
     snapshot = load("snapshot")
-    leagues = list(ctx.config.my_leagues())
-    for index, name in enumerate(leagues):
+    leagues = ctx.config.my_leagues()
+    covered: set[str] = set()
+    for index, (name, setup) in enumerate(leagues.items()):
         if ctx.cancelled():
             print("[update] cancelled - the sheets already written are kept")
             return
+        platform = setup["platform"]
+        if index and platform not in covered:
+            print(f"\n[update] the {platform} listone is not the one the first sheet "
+                  f"re-read: topping it up, because a listone is a fact about a PLATFORM")
+            for note in snapshot.refresh_listone_for_platform(ctx, platform):
+                print(f"[update] {note}")
         head = " (refreshing the editorial pages)" if index == 0 else ""
         print(f"\n[update] sheet {index + 1}/{len(leagues)}: {name}{head}")
         snapshot.run(ctx, league=name, refresh=(index == 0))
+        covered.add(platform)
 
 
 def _run_packs(ctx: Context) -> None:
@@ -427,14 +455,27 @@ def _print_what_daily_leaves_out() -> None:
     «zero that is indistinguishable from a broken feature» this project keeps paying for. So the run
     says what it did NOT read, in the same breath as what it did.
     """
+    from euroleghe_ingest.modules.snapshot import SHEET_REFRESHES
+
     left = [one for one in plan() if one.key not in DAILY]
     cost = sum(one.minutes for one in left)
     print(f"[update] --daily: {len(left)} steps LEFT OUT (~{hours(cost)}), because their fact is "
           f"finished or its unit is the week, not the day:")
     print(f"      {', '.join(one.key for one in left)}")
-    print("[update] none of them feeds today's sheet: the derivation reads the votes and the season "
-          "aggregates, which this run does not re-read. Run the full `update` when a round has been "
-          "played, a listone re-read, or SHEET_REVISION moved (the packs).\n")
+    # ...and of those, the ones the SHEETS step re-reads a SLICE of by itself. Naming them is the
+    # point: «left out» and «read in full» are not the only two states, and a preset that promises
+    # LESS than it does makes the next run be planned on a false picture exactly like one that
+    # promises more. The list belongs to `snapshot`, because that is where the calls are.
+    covered = [one for one in left if one.key in SHEET_REFRESHES]
+    if covered:
+        print(f"[update] ...but {len(covered)} of them have a SLICE re-read by the sheets step "
+              f"itself, before each sheet is built:")
+        for one in covered:
+            print(f"      {one.key:16} {SHEET_REFRESHES[one.key]}")
+    print("[update] what NO daily step re-reads is the VOTES and the season aggregates, so the "
+          "derivation that stands on them (stats:derive, matchdays, synth) would reproduce "
+          "yesterday's tables. Run the full `update` when a round has been played, or when "
+          "SHEET_REVISION moved (the packs).\n")
 
 
 def _summary(selected, done: list[str], failed: list[tuple[str, str]], abandoned: bool) -> dict:

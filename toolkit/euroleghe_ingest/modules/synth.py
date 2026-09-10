@@ -148,6 +148,65 @@ MIN_MEN_PER_OFFSET: int = 10
 APPLY_OFFSETS: bool = False
 
 
+# THE SECOND SWITCH, and it exists so that one cannot move the other by accident (10/09/2026).
+# `APPLY_OFFSETS` governs `mv_synth`, which feeds `foreign_fm_equiv`, the arrival tiers and `est_*` -
+# gated paths, so it stays off on the measurement above. `READING_OFFSETS` governs `mv_est`, a column
+# nothing predictive reads: it exists so a man whose only football is in a league we do not cover has a
+# VOTE to show per match instead of a blank. The operator asked for it in those terms («non serve
+# precisissima, cerchiamo qualcosa che si avvicini di simile e realistico», 10/09/2026), and the reason
+# the two questions get two answers is the measurement itself: the offset always beats the naked line
+# and always loses to the role ANCHOR - so for PREDICTING what he will do «he is an average forward»
+# wins, and for DRAWING twenty match rows the anchor is not an option, because it would be twenty times
+# 6.02.
+READING_OFFSETS: bool = True
+
+
+def fallback_offset(offsets: dict[str, dict]) -> float | None:
+    """The offset for a competition that has none: the LOWEST measured, and it is DERIVED, not typed.
+
+    The operator's rule and his argument for it (10/09/2026): «se un campionato non ha dati sarà
+    sicuramente un campionato minore», so among the candidates one takes the most severe. The rule
+    therefore errs downward by construction, which for an auction list is the right direction - it never
+    inflates a man nobody has seen.
+
+    What this is NOT, and saying so is the point: it is not «the neighbour by level». That was the
+    operator's first form of the same rule and it was MEASURED and dropped, because the link it assumes
+    is not there - over the three leagues that have a δ the order is exactly INVERTED (Eredivisie, level
+    1611, shifts −0.303; Championship 1562, −0.272; Serie B 1479, −0.170). A plausible mechanism for the
+    inversion: δ does not measure how strong a league is, it measures how INFLATED its ratings are
+    against an Italian vote, and the men who reach Serie A from the Eredivisie are that league's best
+    (mean rating 7.39 against Serie B's 7.26) - selection, not level. So the number below is chosen for
+    prudence and the level plays no part; do not re-derive it from an Elo.
+
+    Derived from the measured offsets rather than written down, so the day a weaker league earns its own
+    δ the fallback follows it down without anybody editing a constant.
+    """
+    measured = [info["delta"] for info in offsets.values() if info.get("delta") is not None]
+    return min(measured) if measured else None
+
+
+def reading_value(model: dict, role: str | None, rating: float | None,
+                  competition: str | None, fallback: float | None) -> float | None:
+    """The base voto to SHOW for a rated match, converted wherever a rating exists.
+
+    Complement of `mv_synth` and never a second opinion on the same match: where the line is calibrated
+    this returns None, because that row already has its calibrated value and two columns carrying one
+    fact eventually disagree. A reader takes `COALESCE(mv_synth, mv_est)` and knows which of the two he
+    is looking at by which one is filled.
+    """
+    if rating is None or not READING_OFFSETS or not model.get("global"):
+        return None
+    if competition is None or competition in (model.get("calibrated") or ()):
+        return None
+    delta = (model.get("offsets_measured") or {}).get(competition, {}).get("delta")
+    if delta is None:
+        delta = fallback
+    if delta is None:
+        return None
+    intercept, slope = model["roles"].get(role) or model["global"]
+    return round(min(max(intercept + slope * rating + delta, MV_RANGE[0]), MV_RANGE[1]), 2)
+
+
 def offset_samples(conn, calibrated: set[str]) -> dict[str, list[dict]]:
     """{competition: [{fc_id, season, rating, mv, role, same_season}]} - one row per MAN, both arms.
 
@@ -429,6 +488,10 @@ def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False
     model["calibrated"] = sorted(eligible)
     offsets = fit_offsets(model, offset_samples(conn, eligible))
     model["offsets"] = offsets if APPLY_OFFSETS else {}
+    # ...and the READING keeps them all, because its switch is the other one. `offsets_measured` is what
+    # `reading_value` consults, so `mv_est` is unaffected by whatever `APPLY_OFFSETS` is doing above.
+    model["offsets_measured"] = offsets
+    fallback = fallback_offset(offsets)
     for competition, info in sorted(offsets.items(), key=lambda kv: -(kv[1].get("men") or 0))[:8]:
         if info.get("delta") is None:
             continue
@@ -444,22 +507,28 @@ def run(ctx: Context, *, holdout_season: str = "2025-26", validate: bool = False
         WHERE e.rating IS NOT NULL
         """
     ).fetchall()
-    updates = [(apply_model(model, role, rating, competition), fc_id, season, source, match_id)
+    updates = [(apply_model(model, role, rating, competition),
+                reading_value(model, role, rating, competition, fallback),
+                fc_id, season, source, match_id)
                for fc_id, season, match_id, rating, role, competition, source in rows]
     conn.executemany(
-        "UPDATE external_match_stats SET mv_synth = ? "
+        "UPDATE external_match_stats SET mv_synth = ?, mv_est = ? "
         "WHERE fc_id = ? AND season = ? AND source = ? AND match_id = ?",
         updates,
     )
     conn.commit()
     converted = sum(1 for value, *_rest in updates if value is not None)
+    shown = sum(1 for _calibrated, value, *_rest in updates if value is not None)
     print(f"[synth] calibrated competitions: {len(eligible)} · converted {converted} of "
           f"{len(updates)} rated matches (the rest have no line to be converted with)")
+    print(f"[synth] mv_est (declared reading, fallback {fallback if fallback is None else f'{fallback:+.3f}'}): "
+          f"{shown} further matches now carry a vote to show")
 
     path = ctx.config.data_dir / "reports" / CALIBRATION_FILE
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"model": model, "in_sample": in_sample,
                                 "out_of_sample": out_sample, "holdout_season": holdout_season,
-                                "offsets_measured": offsets, "offsets_applied": APPLY_OFFSETS},
+                                "offsets_measured": offsets, "offsets_applied": APPLY_OFFSETS,
+                                "reading_offsets": READING_OFFSETS, "reading_fallback": fallback},
                                indent=2), encoding="utf-8")
     print(f"[synth] mv_synth written for {len(updates)} provider matches · model -> {path}")

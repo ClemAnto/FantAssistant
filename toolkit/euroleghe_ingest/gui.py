@@ -85,7 +85,7 @@ OPERATION_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Everything, in order", ("update",)),
     ("During the season - every matchday",
      ("ratings", "matchdays", "positions", "synth", "fc_site", "fixtures", "validate")),
-    ("Before an auction", ("snapshot", "press", "export")),
+    ("Before an auction", ("snapshot", "press", "auctions", "export")),
 )
 
 # Labels for the operations that are not pipeline modules (those just use their own name).
@@ -98,6 +98,7 @@ OPERATION_LABELS: dict[str, str] = {
     "export": "Export app bundle",
     "snapshot": "Auction snapshot (today)",
     "press": "Press reference (judge)",
+    "auctions": "Real auction prices",
 }
 
 
@@ -193,6 +194,11 @@ TOOLTIPS: dict[str, str] = {
     "export": "Write the app's data bundle (data/export/<season>/): a pruned SQLite + JSON tables + "
               "a manifest carrying provenance, which prices are auction-safe, the provisional "
               "parameters and the known gaps. Read-only on the DB, and it verifies what it wrote.",
+    "auctions": "WHAT A ROOM ACTUALLY PAID. Imports the per-award export of real auctions and "
+                "derives the clearing price per player and MONTH, normalised to a 10 x 1000 "
+                "league. It is the one price here that is not somebody's opinion about a "
+                "footballer: no engine path reads it, and the Strategy page draws it beside "
+                "the FVM because the two disagree systematically.",
     "press": "THE BOARDS' EXTERNAL JUDGE. Imports the press's typical formations as a DATED fact "
              "(press_formations, archived under data/raw/press/ - a reading not taken is gone) and "
              "judges a sheet's boards against them: module MATCH/ALT/DIFF on the drawn picture, "
@@ -241,6 +247,7 @@ OUTPUT_COUNTER: dict[str, str] = {
     "tournaments": "tournaments_squads",
     "transfers": "coaches",
     "injuries": "injuries",
+    "auctions": "auction_prices",
     "market": "market_value_history",
     "performance": "tm_appearances",
     "arrivals": "arrivals",
@@ -488,6 +495,33 @@ _DEFAULT_ROLE_COLOR = ("#9e9e9e", "#ffffff")
 CLASSIC_ORDER = {"P": 0, "D": 1, "C": 2, "A": 3}
 MANTRA_ORDER = {r: i for i, r in enumerate(
     ["por", "dc", "dd", "ds", "b", "e", "m", "c", "w", "t", "a", "pc"])}
+
+
+#: QUALE FINESTRA legge ogni modo di disegnare un undici. Una definizione, sei lettori: la stessa riga
+#: (`"recent" if mode == "next" else "season"`) era scritta sei volte fra questa classe e il pannello, e
+#: con un terzo modo sarebbe stata sbagliata in sei posti - un modo nuovo che nessuno aggiunge alla
+#: sesta copia disegna un undici sull'orizzonte di un altro, che e' un difetto invisibile da qualunque
+#: schermata.
+#:
+#:   typical -> season   l'undici con tutti disponibili, su una stagione intera. Quello di sempre.
+#:   next    -> recent   la PROSSIMA giornata: l'undici schierato, poi le probabili, poi la forma.
+#:   short   -> short    l'ULTIMO PERIODO: le ultime partite di campionato, senza le probabili.
+HORIZON_OF: dict[str, str] = {"typical": "season", "next": "recent", "short": "short"}
+
+#: I MODI CHE DISEGNANO L'UNDICI DI OGGI, e per cui un indisponibile e' fuori di netto invece di pagare
+#: lo sconto dentro il claim. `typical` non e' fra loro per definizione - «la squadra che schiera quando
+#: sono tutti disponibili» - mentre `short` lo e', e non e' un dettaglio: la finestra corta di un
+#: infortunato e' VUOTA (nessuna partita in cui era disponibile), quindi la miscela gli restituisce lo
+#: standing di stagione intatto e senza questa esclusione la board breve sarebbe identica alla lunga
+#: proprio sugli uomini per cui l'operatore l'ha chiesta. Hien, `titolare` sul foglio del 10/09/2026,
+#: rientro il 05/10: e' lui che deve lasciare il posto al vice sulla board breve, ed e' il posto su cui
+#: la regola di retrocessione (`status.status_of(owner_returning=...)`) poi si esprime.
+TODAY_MODES: frozenset[str] = frozenset({"next", "short"})
+
+
+def horizon_of(mode: str) -> str:
+    """La finestra che quel modo legge. Un modo che nessuno ha dichiarato legge la stagione."""
+    return HORIZON_OF.get(mode, "season")
 
 
 def role_pill_color(role) -> tuple[str, str]:
@@ -4670,7 +4704,7 @@ class SnapshotView(ttk.Frame):
         is written down here instead of tuned: what a squad cannot man is repaired where the men are chosen
         (`_flanked`, `_pointed`) and drawn (`_reshape`), never by re-ranking the modules a club plays.
         """
-        horizon = "recent" if mode == "next" else "season"
+        horizon = horizon_of(mode)
         return sum(self.claim(starter, horizon)
                    for _role, starter, _rivals in self.eleven(club, shape, mode))
 
@@ -4729,7 +4763,7 @@ class SnapshotView(ttk.Frame):
         cached = self._top_cache.get((club, mode))
         if cached is not None:
             return cached
-        horizon = "recent" if mode == "next" else "season"
+        horizon = horizon_of(mode)
         shape, _why = self.board_shape(club, self.clubs.get(club, {}), mode)
         eleven = self.eleven(club, shape, mode)
         floor = self._surplus_floor()
@@ -5084,12 +5118,15 @@ class SnapshotView(ttk.Frame):
     STANDING_WEIGHTS: ClassVar[tuple[float, float]] = PRESENCE.standing_weights
     LOAN_DISCOUNT: ClassVar[float] = PRESENCE.loan_discount
     ARRIVAL_DISCOUNT: ClassVar[float] = PRESENCE.arrival_discount
-    # For the NEXT matchday, form leads and standing is the ballast - with RECENT_PRIOR matches' worth of
-    # standing mixed into a ten-match window, which is what stops an empty or a dead-rubber window from
-    # deciding a side. These two stay here: they are about the panel's `recent` horizon, which is a
-    # reading of the last ten matches and not part of the season model the gate sweeps.
-    FORM_WEIGHT: ClassVar[float] = 0.60
-    RECENT_PRIOR: ClassVar[float] = 3.0
+    # LE COSTANTI DELLA FINESTRA CORTA SONO ANDATE IN `presence.Params` (10/09/2026), dove un banco le
+    # raggiunge: `recent_window`, `recent_prior`, `recent_evidence`, `recent_owner_matches`. Qui vivevano
+    # `FORM_WEIGHT` = 0.60 e `RECENT_PRIOR` = 3.0, dichiarate scelte di visualizzazione e MAI misurate -
+    # cioe' esattamente il difetto che questo file scrive due paragrafi piu' sopra a proposito di un
+    # parametro «che nessun banco puo' raggiungere», commesso su se stesso per un anno. Il rimando che
+    # portavano («gate §7-octies») oggi punta a un'altra sezione, che e' come si scopre che nessuno le ha
+    # mai corse. Misurate il 10/09: la forma a due miscele in cascata perde contro UNA sola, la finestra
+    # giusta sono tre partite di CAMPIONATO e non dieci di ogni competizione, e delle due costanti solo il
+    # 3 del prior era il numero giusto.
 
     def population(self) -> list:
         """The rows every POPULATION statistic is measured over: the SHEET, and not the club on screen.
@@ -5441,21 +5478,37 @@ class SnapshotView(ttk.Frame):
         squad visible at a glance - and an injury-prone first choice lands below a team-mate who is
         available every week, because `availability` discounts him.
 
-        `recent` (the next matchday) leads with FORM and keeps standing as the ballast: who has been
-        starting in the club's last ten, shrunk toward his standing by RECENT_PRIOR matches of it. That
-        shrinkage is what a July window needs - with nothing measured the number IS his standing, so a
-        rested international does not drop out of the eleven for having rested, and three benchings in a
-        dead rubber do not unseat a man who started every match that mattered.
+        `recent` (the next matchday) and `short` (the last period) lead with the SHORT WINDOW and keep the
+        standing as the ballast: who has been starting in the club's last `presence.recent_window`
+        CHAMPIONSHIP matches among the ones he was available for, blended toward his standing by
+        `recent_prior` matches of it. That prior is what a July window needs - with nothing measured the
+        number IS his standing, so a rested international does not drop out of the eleven for having
+        rested, and three benchings in a dead rubber do not unseat a man who started every match that
+        mattered. The two differ by ONE thing, the editors' probabili, which only `recent` reads.
         """
-        if horizon != "recent":
+        if horizon == "season":
             return min(self.standing(row) * self.availability(row), 1.0)
-        if row.get("desc_starter_prob"):
+        base = self.standing(row)
+        if horizon == "recent" and row.get("desc_starter_prob"):
             # the editors have answered the question for this match; nothing measured beats it
             return _number(row.get("desc_starter_prob"))
-        base = self.standing(row)
-        rate = ((_number(row.get("desc_form_starts")) + self.RECENT_PRIOR * base)
-                / (_number(row.get("desc_form_measured")) + self.RECENT_PRIOR))
-        return min(self.FORM_WEIGHT * rate + (1.0 - self.FORM_WEIGHT) * base, 1.0)
+        # LE DUE FINESTRE CORTE DIFFERISCONO PER UNA COSA SOLA, le probabili, e per questo condividono la
+        # stessa riga: `recent` prevede la PROSSIMA giornata e la stampa di domani e' la sua migliore
+        # prova (Brier 0.133 contro 0.175 del motore, 03/09/2026); `short` descrive l'ULTIMO PERIODO, e
+        # una descrizione che leggesse il giornale di domani non descriverebbe piu' quel periodo.
+        #
+        # LA FORMA E' MISURATA e ha ritirato due costanti che vivevano qui senza misura: `FORM_WEIGHT` =
+        # 0.60 e `RECENT_PRIOR` = 3.0 facevano DUE miscele in cascata su una finestra di dieci partite di
+        # ogni competizione. La forma che vince e' UNA miscela sulle ultime tre di CAMPIONATO contate
+        # sulle sole disponibili, con prior 3 - lo stesso numero che `RECENT_PRIOR` portava a occhio, che
+        # e' l'unica cosa delle due che la misura ha confermato. Fuori campione su 3.638 partite-club:
+        # Brier 0.1696 -> 0.1544, 8.46 -> 8.69 dei veri undici.
+        #
+        # UN FOGLIO SOTTO LA REVISIONE 57 NON PORTA LA FINESTRA, e allora questa lettura E' lo standing:
+        # non c'e' una seconda formula di riserva, perche' due formule per una domanda sono la cosa che
+        # questo modulo evita altrove. Che il foglio sia vecchio lo dice `manifest.sheet_revision`.
+        short = presence.recent_starting_share(self.recent_window(row), base, self.PRESENCE)
+        return min(base if short is None else short, 1.0)
 
     def claim(self, row: dict, horizon: str = "season") -> float:
         """How strong his claim to THIS SHIRT is - the number that picks the eleven and sits on the plate.
@@ -5482,10 +5535,10 @@ class SnapshotView(ttk.Frame):
         # last season rather than a claim on this one.
         if row.get("desc_left_for"):
             return 0.0
-        if horizon == "recent":
-            # Per la prossima partita non cambia niente: la' l'infortunato e' escluso di netto
-            # (`eleven`), quindi scontarlo sarebbe contare la stessa assenza due volte.
-            return self.presence(row, "recent")
+        if horizon in ("recent", "short"):
+            # Per la prossima partita e per l'ultimo periodo non cambia niente: la' l'infortunato e'
+            # escluso di netto (`eleven`), quindi scontarlo sarebbe contare la stessa assenza due volte.
+            return self.presence(row, horizon)
         # ...E UNA FINESTRA APERTA LUNGA SCONTA LA PERCENTUALE, che e' la regola dichiarata
         # dall'operatore il 05/09/2026 (vedi `BOARD_OUT_SHARE`): non tutti gli infortuni si ignorano, e
         # dove la fonte dice QUANDO torna il numero fa il lavoro meglio del vincolo perche' dice DI
@@ -5508,8 +5561,15 @@ class SnapshotView(ttk.Frame):
         share = _number(row.get("desc_out_share"), None)
         return 1.0 if share is None else max(0.0, min(share, 1.0))
 
-    def minutes_next(self, row: dict) -> float | None:
+    def minutes_next(self, row: dict, horizon: str = "season") -> float | None:
         """The minutes he is expected to play IN A MATCH HE PLAYS, next season (`engine.minutes`).
+
+        `horizon` = "short" legge gli ultimi minuti invece di quelli della stagione, ed e' l'asse su cui
+        l'operatore ha messo il dito il 10/09/2026 («giocare 90' e' un segnale molto forte di
+        titolarita'»): sulla finestra corta i minuti non sono un secondo dettaglio, sono la PROVA con cui
+        la quota stessa e' costruita (`presence.recent_evidence` = "minutes", misurata +9,7% sulla
+        partenza binaria). Il denominatore sono le sue PRESENZE e non le partite disponibili, come qui -
+        per un portiere di rotazione i due rapporti stanno uno al doppio dell'altro.
 
         Where the sheet's column names stop and the model starts, exactly like `presence_inputs`: the
         formula and its two measured weights live in `engine/minutes.py`, so a harness can reach them and
@@ -5528,7 +5588,7 @@ class SnapshotView(ttk.Frame):
         # calendar from the one `presence` is a share of.
         predicted = _number(row.get("engine_pv_pred"), None)
         rounds = self.platform_matchdays()
-        return minutes.per_appearance(
+        season = minutes.per_appearance(
             row.get("role_classic"),
             _number(row.get("desc_minutes_full_season")),
             _number(row.get("desc_season_matches")),
@@ -5542,6 +5602,9 @@ class SnapshotView(ttk.Frame):
             # engine rule moved the denominator alone.
             minutes.model_share_for(self.manifest.get("platform"), self.voto_share(row)),
         )
+        if horizon != "short":
+            return season
+        return presence.recent_minutes(self.recent_window(row), season, self.PRESENCE)
 
     #: The four columns that would carry a season of his football. All empty = nobody has measured him,
     #: which is not the same statement as «he played none of it».
@@ -5562,8 +5625,16 @@ class SnapshotView(ttk.Frame):
         "desc_season_matches", "desc_season_starts", "desc_minutes_full_season",
     )
 
-    def play_share(self, row: dict) -> float | None:
+    def play_share(self, row: dict, horizon: str = "season") -> float | None:
         """The share of the matches he is FIT FOR that he is expected to get a voto in. None = unknown.
+
+        `horizon` = "short" reads the LAST matches instead of the season - la sua titolarita' nell'ultimo
+        periodo, che e' una domanda diversa e non una versione piu' fresca della stessa: quella prevede
+        la stagione che resta (il bersaglio su cui `season_prior_rounds` e' stato misurato), questa la
+        prossima partita. Due bersagli, due letture, e un ARGOMENTO invece di una funzione nuova perche'
+        la scala legge questa quota E i minuti: due funzioni separate lascerebbero un chiamante libero di
+        confrontare la quota di una finestra col pavimento dell'altra, che e' l'errore di unita' piu' caro
+        di questo progetto.
 
         `voto_share` without the injury discount (`engine.presence.appearance_share`), and the reason is
         the same one that makes `claim` be `standing`: the question here is the COACH's, and a state that
@@ -5584,10 +5655,39 @@ class SnapshotView(ttk.Frame):
         """
         if not any(row.get(column) for column in self.APPEARANCE_FOOTBALL):
             return None
-        return presence.appearance_share(self.presence_inputs(row), self.PRESENCE)
+        season = presence.appearance_share(self.presence_inputs(row), self.PRESENCE)
+        if horizon != "short":
+            return season
+        return presence.recent_share(self.recent_window(row), season, self.PRESENCE)
+
+    # ------------------------------------------------------------------ la lettura BREVE
+    #: Le sei colonne che la finestra corta legge. Se NESSUNA e' sul foglio, quel foglio e' stato scritto
+    #: prima della revisione 57 e la lettura breve non esiste - che e' diverso da «e' vuota»: un foglio di
+    #: pre-stagione le porta a zero perche' non c'e' stata nessuna partita di campionato, e in tutt'e due
+    #: i casi la miscela restituisce la stagione intatta, ma solo nel secondo il numero e' una misura.
+    RECENT_FOOTBALL: ClassVar[tuple[str, ...]] = (
+        "desc_recent_looked", "desc_recent_available", "desc_recent_played",
+        "desc_recent_starts", "desc_recent_minutes", "desc_recent_full")
+
+    def recent_window(self, row: dict) -> presence.RecentWindow:
+        """Le ultime partite di campionato del suo club in cui era DISPONIBILE, dal foglio.
+
+        Dove i nomi delle colonne del foglio finiscono e il modello comincia, esattamente come
+        `presence_inputs` e `minutes_next`: la finestra e' un contenitore di contatori grezzi e la forma
+        della prova vive in `engine/presence.py`, dove un banco la raggiunge (`recent_evidence`, tre
+        forme di cui due misurate e respinte).
+        """
+        return presence.RecentWindow(
+            available=_number(row.get("desc_recent_available")),
+            starts=_number(row.get("desc_recent_starts")),
+            appearances=_number(row.get("desc_recent_played")),
+            minutes_capped=_number(row.get("desc_recent_minutes")),
+            full_matches=_number(row.get("desc_recent_full")))
 
     def titolarita_status(self, row: dict, in_eleven: bool,
-                          contended: bool | None = None) -> str | None:
+                          contended: bool | None = None,
+                          owner_returning: bool | None = None,
+                          horizon: str = "season") -> str | None:
         """Which of the six words describes his hold on the shirt (`engine.status`).
 
         Where the panel's numbers stop and the ladder starts, exactly like `presence_inputs` and
@@ -5603,8 +5703,18 @@ class SnapshotView(ttk.Frame):
         caller that has just built the board passes it. None - «we do not know» - is the default and does
         not promote, because a starter whose granular real role is missing has no duel the sheet can
         express and `boards.MAX_DUELS` says so with `duels_known`.
+
+        `owner_returning` is the operator's rule of 10/09/2026 and comes from the same place for the same
+        reason: whether the man whose place this is comes back soon is a fact about a PLACE and about the
+        OTHER board, so only the caller that has drawn both can answer it (`boards._returning_owner`).
+
+        `horizon` picks WHICH football the two numbers are read on, and it moves them TOGETHER: the ladder
+        compares a share against a minutes floor, so a word built on this season's share and the last
+        three matches' minutes would be a sentence about nobody.
         """
-        return status_engine.status_of(self.play_share(row), self.minutes_next(row), in_eleven, contended)
+        return status_engine.status_of(
+            self.play_share(row, horizon), self.minutes_next(row, horizon),
+            in_eleven, contended, owner_returning)
 
     @staticmethod
     def starting_record(row: dict, horizon: str) -> tuple[float, float]:
@@ -5633,6 +5743,16 @@ class SnapshotView(ttk.Frame):
         a word on the card are not the same object, and a stale «nobody reads it» is how one gets left out
         of a change that moved its two neighbours (see `snapshot.build_rows`, 05/09/2026).
         """
+        if horizon == "short":
+            # Le ultime partite DI CAMPIONATO contate sulle sole in cui era disponibile: e' il pareggio
+            # della graduatoria della lettura breve, quindi legge la sua stessa finestra. Con `desc_form_*`
+            # leggerebbe dieci partite di ogni competizione, cioe' un campione diverso da quello che ha
+            # deciso il claim accanto - e il pareggio deciderebbe fra due uomini su una prova che il primo
+            # numero non ha visto.
+            available = _number(row.get("desc_recent_available"))
+            starts = _number(row.get("desc_recent_starts"))
+            return (starts / available if available else 0.0,
+                    _number(row.get("desc_recent_minutes")))
         if horizon == "recent":
             measured = _number(row.get("desc_form_measured"))
             starts = _number(row.get("desc_form_starts"))
@@ -5725,7 +5845,7 @@ class SnapshotView(ttk.Frame):
                 by_role.setdefault(key, []).append(row)
             bucket[id(row)] = home
         defenders, midfielders, forwards = self.lines(formation)
-        horizon = "recent" if mode == "next" else "season"
+        horizon = horizon_of(mode)
         # by PRESENCE, the same number the shirt shows: ranking by anything else would draw a starter
         # carrying a percentage below his own alternative's
         # ...and a man who has LEFT is out of both elevens, which is not the same question as availability:
@@ -5749,8 +5869,13 @@ class SnapshotView(ttk.Frame):
              # `BOARD_OUT_SHARE` esce di netto; sopra resta e paga lo sconto dentro `claim`, che e' la
              # meta' «con tanti dubbi» della sua stessa frase. Chi non ha una data di rientro legge 1.0
              # e non e' toccato: senza una durata non c'e' una quota, e li' vale il vincolo.
-             and (mode == "next" or self.out_share(row) >= self.BOARD_OUT_SHARE)
-             and (mode != "next"    # a man who is out cannot play the next match; the tipo eleven can
+             # ...e i due modi che disegnano l'undici di OGGI (`TODAY_MODES`) lo escludono di netto invece
+             # di scontarlo: uno che non puo' giocare non gioca la prossima partita e non ha giocato le
+             # ultime. Per `short` non e' una simmetria gratuita ma la condizione perche' la board breve
+             # dica qualcosa - la finestra di un infortunato e' VUOTA, quindi la miscela gli
+             # restituirebbe lo standing di stagione e lo terrebbe disegnato.
+             and (mode in TODAY_MODES or self.out_share(row) >= self.BOARD_OUT_SHARE)
+             and (mode not in TODAY_MODES
                   or (not row.get("desc_injury_open")
                       and row.get("desc_availability_now") not in ("injured", "suspended")))),
             key=lambda row: (self.ruling_of(row) != "starter",
@@ -7874,7 +7999,7 @@ class SnapshotView(ttk.Frame):
         if not found:
             return ""
         starter, rivals = found
-        horizon = "recent" if self.xi_mode.get() == "next" else "season"
+        horizon = horizon_of(self.xi_mode.get())
         share = self.claim(starter, horizon)
         # The FOOT is on the head line, because it is half of why he stands on this side: the flanks of a
         # defence and of a midfield are played on the man's own foot (DL 96% left-footed, MR 98% right),
@@ -7934,7 +8059,7 @@ class SnapshotView(ttk.Frame):
         the men who can positionally take the place (`can_replace`, our inference from the real roles).
         Where the first is empty the second still answers; where they disagree, both are on screen.
         """
-        horizon = "recent" if self.xi_mode.get() == "next" else "season"
+        horizon = horizon_of(self.xi_mode.get())
         dialog = tk.Toplevel(self)
         dialog.title(f"{starter.get('name')} · who else wears this shirt")
         dialog.transient(self.winfo_toplevel())
@@ -8054,7 +8179,7 @@ class SnapshotView(ttk.Frame):
         A shirt contested by three men is a different risk from one contested by one, so the count is
         never dropped - but the pitch has ~90px between two lines and cannot draw them all.
         """
-        horizon = "recent" if self.xi_mode.get() == "next" else "season"
+        horizon = horizon_of(self.xi_mode.get())
         cap = self.PLATE_RIVALS if max_rivals is None else max(1, max_rivals)
         share = self.claim(starter, horizon)
         share_text = f" {share:.0%}" if share else ""
@@ -8542,6 +8667,49 @@ class ToolkitGUI:
         ttk.Label(bar, textvariable=self.last_run_var, style="CardMuted.TLabel").pack(
             side="right", padx=(0, 14))
 
+    # ---------- the nightly switch (config/nightly.json) ----------
+    def _nightly_declared(self) -> dict:
+        """`{enabled, decided_on}` - an ABSENT file means ON, like the runner reads it.
+
+        The two must agree or the panel would show a state the machine does not obey, and the safe
+        direction is the runner's: a clone that has never declared anything keeps its data fresh.
+        A file that cannot be PARSED is not a declaration to obey either - it is a typo, and reading a
+        typo as «off» would stop the acquisition on the strength of a broken brace.
+        """
+        path = self.config.nightly_path
+        if not path.exists():
+            return {"enabled": True, "decided_on": None}
+        try:
+            declared = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {"enabled": True, "decided_on": None, "unreadable": True}
+        return {"enabled": bool(declared.get("enabled", True)),
+                "decided_on": declared.get("decided_on")}
+
+    def _nightly_enabled(self) -> bool:
+        return bool(self._nightly_declared()["enabled"])
+
+    def _show_nightly(self) -> None:
+        """Say SINCE WHEN, because a switch without its date is a decision nobody can date."""
+        declared = self._nightly_declared()
+        if declared.get("unreadable"):
+            note = "config/nightly.json illeggibile - vale ACCESO"
+        elif declared["decided_on"]:
+            note = f"dal {declared['decided_on']}"
+        else:
+            note = "predefinito"
+        self.nightly_note.configure(text=note)
+
+    def _toggle_nightly(self) -> None:
+        """Write the declaration, dated. Same shape and same writer style as the board rulings."""
+        path = self.config.nightly_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"enabled": bool(self.nightly_var.get()),
+                   "decided_on": dt.datetime.now(tz=dt.UTC).date().isoformat()}
+        path.write_text(json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
+                        encoding="utf-8")
+        self._show_nightly()
+
     # ---------- operations tab layout ----------
     def _build_operations_tab(self, parent: tk.Widget) -> None:
         """Two columns: the operations as cards on the left, what the DB contains on the right.
@@ -8602,6 +8770,27 @@ class ToolkitGUI:
             tk.Label(legend, text=f" {state}   ", foreground=theme.color("text_faint"),
                      background=theme.color("bg"), font=theme.FONTS["small"]).pack(side="left")
             self._legend_dots.append((mark, state))
+
+        # THE NIGHTLY SWITCH, and it lives HERE because this is where local authority already is
+        # (operator, 10/09/2026: «permettimi di attivare/disattivare il check notturno dalla webapp»).
+        # The webapp cannot: it is a static page by construction and a browser has no way to reach the
+        # Windows scheduler - measured, `app/src` has not one reference to localhost. So the app SHOWS
+        # the state (it travels in the bundle's `config/`) and the panel WRITES it, which is the same
+        # split as every other declared fact: `board_rulings.json` is decided here too.
+        #
+        # It writes a FILE and does not disable the task, for the reason the runner's own comment
+        # gives: a disabled task leaves no trace, so «spento apposta» reads exactly like «rotto». With
+        # the file the run still happens, still writes the morning picture, and says why it did nothing.
+        nightly = ttk.Frame(columns[1])
+        nightly.pack(anchor="w", pady=(8, 0))
+        self.nightly_var = tk.BooleanVar(value=self._nightly_enabled())
+        ttk.Checkbutton(nightly, text="aggiornamento notturno (03:00)",
+                        variable=self.nightly_var,
+                        command=self._toggle_nightly).pack(side="left")
+        self.nightly_note = tk.Label(nightly, text="", foreground=theme.color("text_faint"),
+                                     background=theme.color("bg"), font=theme.FONTS["small"])
+        self.nightly_note.pack(side="left", padx=(6, 0))
+        self._show_nightly()
 
         right = ttk.Frame(main)
         right.pack(side="left", fill="both", expand=True, padx=(12, 0))

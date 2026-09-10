@@ -26,6 +26,7 @@ import { withRowAt } from '../../core/manual-order';
 import { looseMatch } from '../../core/loose-search';
 import { CardMan, CardStack, seasonTotals } from '../../core/player-card';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
+import { AuctionPricesStore, scaleTo } from '../../core/auction-prices';
 import { PlayersStore } from '../../core/players-store';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
@@ -216,6 +217,13 @@ export class Strategy {
    * niente). Finche' non atterra le due caselle portano un trattino, che e' quello che sono.
    */
   private readonly players = inject(PlayersStore);
+  /**
+   * IL PREZZO CHE UNA STANZA VERA HA PAGATO (`core/auction-prices.ts`, 08/09/2026, su richiesta
+   * dell'operatore). Caricato all'apertura e non al primo click come il calcio giocato: la tabella
+   * sta in 4 KB, quindi non c'e' niente da rimandare - il prezzo che si paga per una pastiglia
+   * pigra e' una casella vuota su una pagina gia' disegnata.
+   */
+  private readonly paidPrices = inject(AuctionPricesStore);
 
   /** Il calendario su cui il foglio esprime le sue previsioni: il divisore di ogni numero a giornata. */
   protected readonly matchdays = computed(() => this.sheet()?.matchdays_target ?? null);
@@ -303,6 +311,9 @@ export class Strategy {
 
   constructor() {
     void this.store.load();
+    // Il prezzo pagato da aste vere: 4 KB, quindi si carica con la pagina. La `pool` lo legge da un
+    // signal, cosi' le righe si rifanno da se' quando atterra - come per le sufficienze.
+    void this.paidPrices.ensure();
     void this.bundle.modules().then((file) => {
       this.rulebook.set(file);
       // Un bundle più vecchio non porta il regolamento: su mantra le liste non possono essere
@@ -696,6 +707,8 @@ export class Strategy {
     // bundle, e senza questa dipendenza la pastiglia delle sufficienze resterebbe muta per sempre su
     // una pagina già disegnata. Stessa riga, stessa ragione, di `ValuationStore.valuations`.
     const rated = this.ratings.ready();
+    // La valuta della sua lega, letta una volta: il prezzo osservato ci si converte dentro.
+    const { teams: teamsNow, budget: budgetNow } = this.settings();
     const matchdays = this.matchdays();
     // Il calendario prezzato, per il +1 a porta inviolata dei portieri; la media di campionato e'
     // cacheata per lega, o seicento righe la ricalcolerebbero venti volte.
@@ -750,6 +763,7 @@ export class Strategy {
       // IL +1 A PORTA INVIOLATA (solo portieri, opzione di lega): P(porta inviolata) del suo club sul
       // calendario che resta, e la media del campionato come metro del sostituto - il differenziale lo
       // fa `swingOf`, una definizione e due lettori (la plancia fa lo stesso conto).
+      const paid = this.paidPrices.priceOf(player.fcId, platform, this.settings().game);
       const csCalendar = player.role === 'P' ? (book?.forClub(player.club) ?? null) : null;
       const csShare = csCalendar ? cleanSheetOutlook(csCalendar, player.club) : null;
       const csMean = csCalendar
@@ -807,6 +821,13 @@ export class Strategy {
         gaNow: played_ ? { goals: played_.goals, assists: played_.assists } : null,
         // Il PREZZO del suo listone, nella valuta del gioco dichiarato: letto da chi lo possiede già.
         fvm: this.store.fvmOf(platform, player.fcId, this.settings().game),
+        // IL PREZZO VERO, portato nella valuta della lega DICHIARATA: la tabella lo archivia su una
+        // lega da 10 x 1000 e mostrarlo cosi' a chi ne gioca una da 500 sarebbe una cifra che nel suo
+        // gioco nessuno puo' pagare. La conversione e' l'inverso esatto della normalizzazione con cui
+        // il toolkit l'ha scritto - la quota del montepremi - e non una taratura.
+        paid: paid ? scaleTo(paid.median, teamsNow, budgetNow) : null,
+        paidSold: paid?.sold ?? null,
+        paidSoldOf: paid?.soldOf ?? null,
           // LO SWING: lo stesso surplus della riga, nell'unita' con cui la lega assegna i punti.
         // Una conversione e non una seconda valutazione - vedi `core/swing.ts` per i due termini che
         // un giudice fuori campione ha tolto il 06/09/2026.
@@ -854,6 +875,26 @@ export class Strategy {
   protected readonly scale = computed<GainScale>(() =>
     scaleOf(this.pool().map((man) => this.perMatch(gainOf(man, this.setup().auction)))),
   );
+
+  /**
+   * PERCHE' LA PASTIGLIA DEL PREZZO VERO E' VUOTA, quando lo e' per tutti.
+   *
+   * Duecentocinquanta trattini in colonna si leggono come un guasto, e la differenza fra «di questo
+   * gioco non abbiamo aste vere» e «la tabella non e' arrivata» e' esattamente quella che un catch
+   * muto cancella. Vuoto quando non c'e' niente da dire: la pastiglia spenta non merita un avviso, e
+   * nemmeno un libro che i prezzi ce li ha.
+   */
+  protected readonly paidNotice = computed<string | null>(() => {
+    if (!this.readings().includes('paid')) return null;
+    const { platform, game } = this.settings();
+    const read = this.paidPrices.diagnosis();
+    if (read == null) return null;
+    if (this.paidPrices.monthOf(platform, game)) return null;
+    const other = [...this.paidPrices.month().keys()];
+    return read.why
+      ? `Il pacchetto non porta prezzi d'asta: ${read.why}.`
+      : `Nessuna asta vera su questa combinazione. Il pacchetto ne porta per: ${other.join(', ') || 'nessuna'}.`;
+  });
 
   protected readonly blocks = computed<RoleBlock[]>(() =>
     blocksOf({

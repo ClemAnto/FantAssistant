@@ -1,7 +1,8 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { valueOf } from './auction-value';
-import { BoardsFile, Bundle, EngineSheetEntry, columnIndex, optionalIndex } from './bundle';
+import { Board, BoardHorizon, BoardRung, BoardsFile, Bundle, EngineSheetEntry, columnIndex,
+  optionalIndex } from './bundle';
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
 import { ClubOption, GlobalOptions } from './global-options';
 import { cupMark, windowFromNote } from './player-cup';
@@ -538,6 +539,59 @@ const ROLE_ORDER: Record<string, number> = { P: 0, D: 1, C: 2, A: 3 };
  * ballottaggio is a man who MIGHT play there, not one who does - and a club the panel could not draw
  * carries an `error` and contributes nobody.
  */
+/** Le board di un orizzonte, con quello che serve a dirlo a schermo. */
+export interface BoardView {
+  clubs: Record<string, Board>;
+  rungs: Record<string, BoardRung>;
+  horizon: BoardHorizon;
+  /** Quante partite guarda la finestra corta, DICHIARATE dal toolkit che le ha usate. Null sulla stagione. */
+  window: number | null;
+}
+
+/**
+ * QUALE DELLE DUE BOARD leggere, dato l'orizzonte scelto. Pura, perché è una decisione e non uno stato.
+ *
+ * RIPIEGA SULLA STAGIONE quando l'ultimo periodo non c'è: un bundle scritto prima del 10/09/2026 non
+ * porta `short`, e la risposta giusta è la lettura che c'è - non un vuoto. Chi disegna il PULSANTE invece
+ * chiede `hasShortBoards`, perché offrire una scelta che ripiega sull'altra mostrerebbe la stessa cosa
+ * due volte: le due domande sono diverse e hanno due funzioni.
+ */
+export function boardViewOf(file: BoardsFile | null, horizon: BoardHorizon): BoardView | null {
+  if (!file) return null;
+  const short = file.short;
+  if (horizon === 'short' && short?.clubs) {
+    return {
+      clubs: short.clubs, rungs: short.titolarita ?? {}, horizon: 'short',
+      window: short.window ?? null,
+    };
+  }
+  return { clubs: file.clubs ?? {}, rungs: file.titolarita ?? {}, horizon: 'season', window: null };
+}
+
+/**
+ * QUANTO LE DUE BOARD DI UN CLUB SI DISCOSTANO: quanti uomini l'ultimo periodo schiera e la stagione no,
+ * e quanti la regola del padrone che rientra ha retrocesso.
+ *
+ * A ZERO le due board sono la stessa cosa e il pulsante è un ornamento, quindi il numero sta a schermo:
+ * è la stessa disciplina del conteggio che `snapshot` stampa sui campetti - uno zero silenzioso non si
+ * distingue da una funzione rotta. Null quando l'ultimo periodo non c'è, che non è uno zero.
+ */
+export function shortShiftOf(file: BoardsFile | null, club: string | null): {
+  moved: number; capped: number;
+} | null {
+  const short = file?.short;
+  if (!file || !short?.clubs || !club) return null;
+  const drawn = (board: Board | null | undefined) => new Set(
+    Object.values(board?.lines ?? {}).flat()
+      .map((man) => man.fc_id)
+      .filter((id): id is number => id != null));
+  const before = drawn(file.clubs?.[club]);
+  const now = drawn(short.clubs?.[club]);
+  const capped = Object.values(short.clubs?.[club]?.lines ?? {}).flat()
+    .filter((man) => man.owner_returning).length;
+  return { moved: [...now].filter((id) => !before.has(id)).length, capped };
+}
+
 export function placesFrom(file: BoardsFile | null): Map<number, string> {
   const out = new Map<number, string>();
   for (const board of Object.values(file?.clubs ?? {})) {
@@ -784,6 +838,35 @@ export class ValuationStore {
   }
 
   /**
+   * QUALE DEI DUE ORIZZONTI si sta guardando: la stagione, o l'ULTIMO PERIODO (le ultime partite di
+   * campionato). Richiesta dell'operatore, 10/09/2026: «la formazione tipo nell'ultimo periodo
+   * switchabile con quella tipo a lungo periodo».
+   *
+   * VIVE QUI e non nella vista che disegna il pulsante, perché non è uno stato di quello schermo: è la
+   * risposta alla domanda «che giocatore è», e due schermate che la leggessero da due posti darebbero a
+   * un uomo due gradini nello stesso momento — che è il difetto che questo store esiste per impedire.
+   *
+   * E NON SI RICORDA fra una sessione e l'altra, deliberatamente: una preferenza salvata è invisibile, e
+   * questa cambia il senso di una parola su cinque schermate. Riapre sempre sulla lettura di stagione, che
+   * è quella con cui si compra, e il pulsante dice quale delle due è accesa.
+   */
+  readonly boardHorizon = signal<BoardHorizon>('season');
+
+  /** Le board dell'ORIZZONTE scelto, con quello che serve a dirlo a schermo. Null = niente da disegnare. */
+  boardViewFor(platform: Platform): BoardView | null {
+    return boardViewOf(this.boardsFor(platform), this.boardHorizon());
+  }
+
+  /**
+   * Se questa piattaforma porta la board dell'ultimo periodo. FALSO su un bundle scritto prima del
+   * 10/09/2026, e allora il pulsante NON si disegna: un pulsante che offre una lettura che il pacchetto
+   * non contiene è un pulsante che mostra la stessa cosa due volte.
+   */
+  hasShortBoards(platform: Platform): boolean {
+    return !!this.boardsFor(platform)?.short?.clubs;
+  }
+
+  /**
    * IL GRADINO DI TITOLARITA' DI UN UOMO, coi due numeri che l'hanno deciso: `desc_titolarita` con
    * dentro le dritte dell'operatore, che e' l'unica cosa che lo scavalca.
    *
@@ -797,6 +880,20 @@ export class ValuationStore {
     titolaritaPlay: number | null;
     minutesNext: number | null;
   } | null {
+    // L'ORIZZONTE SCELTO, quando è quello corto e il pacchetto lo porta: allora i tre numeri vengono
+    // dalla board dell'ultimo periodo, che li ha calcolati sulla SUA finestra. Leggerne uno da una
+    // finestra e gli altri due dall'altra sarebbe l'errore di unità che il pannello evita passandosi
+    // l'orizzonte come argomento - la parola è un confronto fra una quota e un pavimento di minuti.
+    if (this.boardHorizon() === 'short') {
+      const rung = this.boardViewFor(platform)?.rungs?.[String(fcId)];
+      if (rung) {
+        return {
+          titolarita: rung.status ?? null,
+          titolaritaPlay: rung.play ?? null,
+          minutesNext: rung.minutes ?? null,
+        };
+      }
+    }
     const one = this.expected().get(`${platform}|${fcId}`);
     if (!one) return null;
     return {

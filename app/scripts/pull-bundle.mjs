@@ -51,6 +51,21 @@ const TABLES = [
    * scritta allora - «una cartella aggiunta all'EXPORT va aggiunta anche QUI» - vale identica per una
    * tabella). Non e' una misura e nessun numero la legge: alza un marchio accanto a un nome. */
   'availability',
+  /* IL PREZZO CHE UNA STANZA VERA HA PAGATO, per mese (08/09/2026, su richiesta dell'operatore:
+   * «vorrei che il costo-medio-reale sia anche un attributo per i calciatori del nostro db associato
+   * al mese ... vorrei fosse visibile come dato nella pagina strategia»).
+   *
+   * E' l'unico prezzo di questo pacchetto che non sia l'opinione di qualcuno su un calciatore: la
+   * Qt.I e' l'attesa del mercato, il FVM la stessa opinione rinfrescata, questo e' il prezzo a cui
+   * dieci manager coi loro soldi hanno chiuso il lotto. Normalizzato a una lega da 10 x 1000, che e'
+   * anche il budget su cui il FVM stesso e' calibrato - ed e' cosi' che le due colonne si confrontano
+   * senza convertire niente.
+   *
+   * Quanto valga la differenza e' misurato: su 28 aste vere di settembre 2026 il FVM e' un prezzo
+   * onesto solo per i portieri e per i grandi attaccanti (A 1,09 volte il FVM sopra gli 80 di FVM),
+   * mentre un centrocampista di prima fascia si compra a 0,79 e un difensore a 0,80. Sotto i 50 di
+   * FVM la stanza paga un quarto di quello che il FVM dice. Dettaglio: docs/real-data/2026-27/. */
+  'auction_prices',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {
@@ -94,6 +109,19 @@ if (existsSync(join(src, 'config/classic_modules.json'))) {
  * bundle without the file simply shows no such icon. */
 if (existsSync(join(src, 'config/player_notes.json'))) {
   copyFileSync(join(src, 'config/player_notes.json'), join(OUT, 'player_notes.json'));
+}
+/* LO STATO DEL CONTROLLO NOTTURNO (`config/nightly.json`, 10/09/2026): acceso o spento, e da quando.
+ * Viaggia perche' l'app lo MOSTRA accanto alla freschezza che disegna gia' - un pacchetto vecchio e un
+ * aggiornamento spento sono due cause diverse dello stesso schermo, e distinguerle e' tutto il valore.
+ * L'app non lo scrive e non potrebbe: un browser non ha modo di raggiungere il Task Scheduler
+ * (misurato - `app/src` non ha un solo riferimento a localhost), quindi il fatto viaggia in UNA
+ * direzione e chi lo scrive e' il pannello.
+ *
+ * E STA QUI perche' questo elenco copia i file di `config/` UNO A UNO: un file aggiunto all'export e
+ * non aggiunto qui non arriva all'app, che e' il difetto dei campetti (10/08), di `availability`
+ * (03/09) e dell'asterisco - la stessa regola incontrata per la quarta volta. */
+if (existsSync(join(src, 'config/nightly.json'))) {
+  copyFileSync(join(src, 'config/nightly.json'), join(OUT, 'nightly.json'));
 }
 
 /* IL CALENDARIO ancora da giocare, gia' prezzato dal toolkit (`fixtures.schedule`): per ogni partita il

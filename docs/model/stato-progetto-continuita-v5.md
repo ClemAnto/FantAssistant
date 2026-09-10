@@ -6857,3 +6857,85 @@ l'altra sessione dentro) 872 test su 51 file, verdi.
 - **`ColumnSlot.detail` è rimasto** come riga di sotto per le colonne che non sono partite (giornata,
   data): oggi la testa impilata legge `shape ?? detail`, quindi il numero di giornata compare solo dove
   non c'è un modulo. Se un giorno servisse anche accanto al modulo, è un campo in più e non uno `split`.
+
+# Chiusura 10 settembre 2026 (seconda sessione) — l'aggiornamento che si fa da sé, e tre difetti trovati leggendo un log
+
+> Sessione parallela a quella qui sopra: quella lavorava sulla tabella delle partite, questa sul
+> toolkit e sull'acquisizione. Due metà dello stesso albero, dichiarate.
+
+## Le richieste
+
+Cinque, in fila: «aggiorna il db» (due giorni di seguito), «nella pagina della strategia il simbolo ~
+rompe l'incolonnamento dei valori», «~ mettilo vicino al nome del calciatore», «possiamo creare un
+agente che aggiorni questi dati la notte (dalle 3:00 in poi)?», «l'aggiornamento notturno parte anche se
+ho il pc spento?» e «permettimi di attivare/disattivare il check notturno dalla webapp».
+
+## La risposta
+
+Dettaglio: spec «Novità v9.88», `letture-app-v1.md` §40.
+
+**IL `~` ERA ARITMETICA DI FLEX, e la causa si è misurata in un browser vero prima di toccare niente.**
+In una riga dove il nome è `flex-1`, il bordo destro di un elemento vale `container.right - (somma dei
+successivi)`: il tilde era l'unica cosa CONDIZIONALE fra le pastiglie e il gain, quindi spostava loro
+(58 righe su 250, **10,84px** = il glifo 6,84 più i 4 di `gap-x-1`) e non lui. Spostato prima delle
+pastiglie e poi, su sua richiesta, **accanto al nome** — fuori dallo span `truncate`, perché lì sparirebbe
+proprio sui nomi lunghi. Guardia nel banco («le pastiglie sono incolonnate»), provata rimettendo il
+difetto: 4 rossi, 0 dopo.
+
+**IL LISTONE DI SERIE A NON VENIVA PIÙ RILETTO, e l'ha detto il LOG e non il codice.** La fase di
+refresh gira per il primo foglio soltanto — giusto per quattro canali su cinque — ma il listone è un
+fatto per PIATTAFORMA. I file di cache sono l'evidenza pulita, e i due fogli lo stampavano su sé stessi
+mentre nessuno lo leggeva. Curato con un rabbocco per piattaforma; la nota è passata da 2 occorrenze a 0.
+
+**«UN AGENTE PER LA NOTTE» È UN'ATTIVITÀ PIANIFICATA, non un LLM.** Il lavoro è deterministico e il
+giudizio sta già dentro `update`; e non può essere un agente cloud, per la ragione già a verbale sul
+publishing — servono `data/`, la cache e le credenziali, che stanno su questa macchina e su nessun
+runner. `scripts/nightly-update.ps1` alle 03:00, limite 5 ore, con `morning.txt` che raccoglie il
+verdetto della notte più la freschezza.
+
+**E LA FRESCHEZZA HA AVUTO IL SUO LETTORE** (`fetch --stale`), scritto dopo una mattina passata a
+trovare a mano quello che stampa in un secondo. Appena acceso: ClubElo a **239 giorni** (l'API risponde
+502 da gennaio: misurato, l'indirizzo è giusto) e la curva di mercato a **26**.
+
+## Le lezioni di metodo
+
+- **Una guardia che legge un solo istante non vede un'acquisizione lunga.** La sonda del lock
+  (`BEGIN IMMEDIATE`) diceva «libero» mentre due acquisizioni giravano: un walk lungo scrive a LOTTI.
+  Curata leggendo le command line, e verificata dal vivo — ha nominato entrambe, la mia e quella
+  dell'altra sessione.
+- **Un difetto del proprio disegno si trova provandolo, non rileggendolo.** La notte saltata usciva
+  *prima* del riassunto, cioè proprio la mattina in cui serve. Due volte nella stessa sera: la seconda
+  era la riga dell'interruttore illeggibile, che non arrivava in `morning.txt`.
+- **Un'ancora plausibile non è la classe giusta.** I metodi dell'interruttore sono finiti in
+  `SnapshotView` invece che in `ToolkitGUI` perché li ho messi accanto a un vicino che sembrava adatto;
+  l'ha preso il guardiano di geometria del pannello.
+- **Il verso di un default è una decisione.** File assente = ACCESO, in tutt'e tre le metà (runner,
+  pannello, app): una macchina a cui nessuno ha detto niente tiene i dati freschi, e leggere un file
+  mancante come «spento» fermerebbe l'acquisizione in silenzio. Un file con un refuso, uguale.
+- **Una cartella nuova sotto `data/` non è coperta da nessuna riga di `.gitignore`**, perché sono tutte
+  ancorate: `data/logs/` era fuori, e un log di `update` porta le note di `snapshot` **coi nomi** dei
+  giocatori. È il difetto del 25/08 dal verso opposto — là mancava l'ancora, qui la riga. Verificato che
+  non fosse mai stato tracciato niente: 0 file.
+- **Un preset che promette MENO è il gemello di uno che salta in silenzio.** Vedi spec §4.
+- **E la profondità di una catena non è una proprietà del grafo**: due guardiani sono caduti perché il
+  listone è sceso di un livello, e la cura è camminare le chiamate in modo transitivo invece di
+  asserire una disposizione.
+
+## Verifica
+
+Toolkit **785 passed** (1 skipped, quello dichiarato del Tk), app **879 passed** su 52 file, build
+pulito. Fogli, bundle e copia dell'app rifatti due volte nella giornata (`verify.ran = true, problems:
+[]`). Il task notturno è provato in tutti i rami che si possono provare senza far partire un update:
+sonda del lock da sola, rifiuto sotto lock vero, rifiuto con acquisizioni in corso, interruttore spento,
+interruttore illeggibile, e il passaggio Task Scheduler → pwsh con `Start-ScheduledTask` (esito 0).
+
+## Aperti
+
+- **ClubElo**: l'API è chiusa da gennaio e `club_elo` è a 239 giorni, con R19 adottata sopra. Serve una
+  fonte alternativa (acquisizione, non un parametro) o la dichiarazione che il canale è fermo.
+- **La curva di mercato** era a 26 giorni: la rilegge l'update completo, quindi la prima notte utile.
+- **L'interruttore notturno dalla WEBAPP** non si può fare: la pagina è statica e un browser non
+  raggiunge il Task Scheduler (misurato: `app/src` non aveva un riferimento a localhost). L'app lo
+  MOSTRA (viaggia nel bundle) e il pannello lo scrive. La strada per farlo davvero dalla pagina è un
+  compagno locale su 127.0.0.1, con un'incognita da misurare prima: la pagina pubblicata è https.
+- **L'archivio infortuni** stava scaricando alla chiusura (25%, 0 errori), staccato dalla sessione.

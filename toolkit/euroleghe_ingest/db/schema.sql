@@ -297,6 +297,12 @@ CREATE TABLE IF NOT EXISTS external_match_stats (
     yellows     INTEGER,
     reds        INTEGER,
     mv_synth    REAL,                        -- calibrated synthetic base voto, never the euro target
+    -- ...and its COMPLEMENT, for the competitions the line was never calibrated on (10/09/2026).
+    -- Filled only where `mv_synth` is NULL, so a reader takes COALESCE(mv_synth, mv_est) and knows
+    -- which of the two he has by which one is populated: two columns carrying one fact would
+    -- eventually disagree. It is a DECLARED reading and nothing predictive may join it - the gated
+    -- path (`foreign_fm_equiv`, the arrival tiers, `est_*`) reads `mv_synth` and only that.
+    mv_est      REAL,
     -- The SCORELINE of that match, from the side of `club`. Only the extra layer fills it: a
     -- league match derives its score inside `match_ratings` (goals + converted penalties for,
     -- the keeper's conceded against), while a friendly has no ratings row anywhere and summing
@@ -566,6 +572,42 @@ CREATE TABLE IF NOT EXISTS fvm_history (
     price       REAL,      -- Qt.A, the CURRENT quotation: see the note above
     price_mantra REAL,     -- ...and the same in the mantra currency
     PRIMARY KEY (fc_id, season, observed_on, platform)
+);
+
+-- WHAT A ROOM ACTUALLY PAID, per month. Every other price in this database is an OPINION about a
+-- footballer - the Qt.I is the market's pre-season expectation, the FVM the same author's opinion
+-- refreshed at every salient event. This one is a CLEARING PRICE: ten managers, their own money,
+-- their own deadline. It is a fact about the ROOM and never about the player, no engine path reads
+-- it, and it answers «what will it take» and not «who will score».
+--    DATED BY MONTH because a clearing price ages: a September auction prices a squad two rounds into
+-- the season and an August one does not. The month is the SESSION's own (the median award date), not
+-- the day the file was read - `injuries.observed_on` applied to a market.
+--    NORMALISED to a ten-squad, 1000-credit league, which is also the budget the FVM itself is
+-- calibrated on: that is what makes the two columns comparable without converting anything. The
+-- conversion is the share of the montepremi and it is VERIFIED, not assumed - paired on the same man,
+-- 6-8 squad leagues read 0.96 of the 10-12 squad ones (`modules/auctions.py`).
+--    `sold` / `sold_of` is the half no quotation can carry: in how many of the ten-squad sessions
+-- somebody took him AT ALL. On 2026-27 September, 131 men of 402 read 15/15 - two thirds of the 250
+-- slots are decided before anybody sits down - and a man at 5/15 is one you can wait for.
+--    WHY IT IS NOT INDEXED ON THE FVM ANYWHERE UPSTREAM: measured 08/09/2026, on the four bench
+-- windows that have one, `r(FVM, outcome)` is 0.71-0.79 against the Qt.I's 0.30-0.43, because the FVM
+-- we hold for a past season is the LAST read of that listone - taken after the season. Here the FVM
+-- is not read at all; the price is the auction's own.
+CREATE TABLE IF NOT EXISTS auction_prices (
+    fc_id     INTEGER NOT NULL REFERENCES players(fc_id),
+    season    TEXT NOT NULL,
+    platform  TEXT NOT NULL,            -- which listone those auctions were played on
+    game      TEXT NOT NULL,            -- classic | mantra: two games, two prices
+    month     TEXT NOT NULL,            -- YYYY-MM, the month the sessions were PLAYED
+    auctions  INTEGER NOT NULL,         -- how many real sessions this row is built on
+    sold      INTEGER,                  -- ...of the ten-squad ones, in how many somebody bought him
+    sold_of   INTEGER,                  -- ...out of how many
+    price_p25 REAL,
+    price_med REAL,                     -- the clearing price: credits in a 10 x 1000 league
+    price_p75 REAL,
+    price_min REAL,
+    price_max REAL,
+    PRIMARY KEY (fc_id, season, platform, game, month)
 );
 
 CREATE TABLE IF NOT EXISTS market_values (

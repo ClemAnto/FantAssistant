@@ -283,6 +283,61 @@ class Params:
     #                out of `presence` almost exactly and the injury history becomes decoration.
     # Both are on the table and the gate decides; the shapes are named so a report can say which it ran.
     contested_from: str = "measured"
+    # ------------------------------------------------------------------ LA FINESTRA CORTA
+    # LE ULTIME PARTITE, che sono una DOMANDA DIVERSA da tutto il resto di questo file e per questo hanno
+    # parametri loro: le funzioni sopra prevedono la stagione che resta - il bersaglio su cui
+    # `season_prior_rounds` e' stato misurato - e queste tre prevedono la PROSSIMA PARTITA. Due bersagli,
+    # due letture, due nomi (`recent_share`, `recent_claim`), come `engine_replacement_fm` e lo zero
+    # schierato sono due zeri per due domande.
+    #
+    # E STANNO QUI E NON NEL PANNELLO, che e' dove le due che ne esistevano hanno vissuto un anno:
+    # `gui.FORM_WEIGHT` = 0.60 e `gui.RECENT_PRIOR` = 3.0, dichiarate scelte di visualizzazione, MAI
+    # misurate e irraggiungibili da `sweep` - contro la regola di casa che questo file incarna, «un
+    # parametro che nessun banco raggiunge e' un parametro che nessuno puo' misurare». Il rimando che
+    # portavano («gate §7-octies») oggi punta a un'altra sezione.
+    #
+    # MISURATE FUORI CAMPIONE il 10/09/2026, sul bersaglio che pubblicano: al match m di un club si legge
+    # solo il calcio < m e si giudica su m - chi parte titolare, chi prende il voto, i minuti. 3.638
+    # partite-club, 72.022 righe, due stagioni complete x cinque campionati (2024-25, 2025-26).
+    #
+    #   lettura                                   Brier (parte titolare)   dei veri undici
+    #   gli stessi di ieri (null)                          0.2314                8.43
+    #   la stagione (cio' che il foglio fa oggi)            0.1696                8.46
+    #   solo le ultime 3                                   0.1749                8.60
+    #   ultime 3 + prior di 3                              0.1581                8.68
+    #   ...con la prova in MINUTI invece che in partenze    0.1544                8.69
+    #
+    # Due cose che quella tabella dice e vanno lette insieme: le ultime tre DA SOLE scelgono l'undici
+    # meglio della stagione (8.60 contro 8.46) e sono tarate PEGGIO (0.1749 contro 0.1696), che e' la
+    # ragione per cui quello che si adotta e' la miscela e non la finestra nuda - tiene il guadagno
+    # sull'ordine e aggiusta il numero.
+    #
+    # `recent_window` e' piatta fra 2 e 4 e scende da 5 in su, quindi le 3 dell'operatore cadono
+    # sull'ottimo; `recent_prior` ottima a 3, cioe' lo stesso valore che `gui.RECENT_PRIOR` portava senza
+    # misura - due strade indipendenti sullo stesso numero, come per `season_prior_rounds` e la K di R20.
+    # UNA miscela e non due: la forma del pannello ne faceva due in cascata (accorciare verso lo standing,
+    # poi mescolare con `FORM_WEIGHT`), e la forma misurata e' quella che questo repository scrive da
+    # sempre, k osservate contro K di prior.
+    recent_window: float = 3.0
+    recent_prior: float = 3.0
+    # QUANTO VALE UNA PARTITA come prova di titolarita', e le tre forme sono NOMINATE perche' due sono
+    # state misurate e respinte - un rifiuto nominato si puo' ri-correre, uno cancellato no:
+    #   "minutes" - min(minuti, 90)/90. ADOTTATA: 0.1544 di Brier e 8.69 undici.
+    #   "start"   - parte titolare si'/no. 0.1710 e 8.58, cioe' +9,7% di errore.
+    #   "full"    - la partita finita vale 1, una partenza sostituita 0,5, un ingresso 0. E' la lettura
+    #               LETTERALE di «giocare 90' e' un segnale molto forte di titolarita'» (l'operatore,
+    #               10/09/2026) e legge 0.1746, PEGGIO della binaria. Il suo meccanismo e' vero e una
+    #               soglia e' la forma sbagliata per esprimerlo: quello che lo incassa e' il continuo, che
+    #               e' anche l'asse che la scala a sei parole usa gia' (`status.FULL_MATCH` 75').
+    recent_evidence: str = "minutes"
+    # QUANTO E' «A BREVE» un rientro, in PARTITE DEL SUO CLUB e non in giorni. DICHIARATO: l'operatore ha
+    # detto «un mese» (10/09/2026) e quattro partite sono il suo mese in Serie A, ma una soglia in giorni
+    # non si confronta fra due calendari - una giornata euro non e' una giornata di Serie A, ed e' la
+    # lezione di R20 («una soglia di scoring e' una QUOTA del calendario che si sta prevedendo, non un
+    # numero») applicata a un rientro. Letto da chi disegna le due board, per decidere se il padrone di
+    # un posto torna dentro l'orizzonte: sopra questa soglia si IGNORA, cioe' per il breve termine il
+    # posto e' di chi lo sta occupando.
+    recent_owner_matches: float = 4.0
 
     def with_value(self, name: str, value) -> Params:
         return replace(self, **{name: value})
@@ -933,3 +988,135 @@ def voto_share(inputs: Inputs, params: Params = DEFAULTS) -> float:
     tell a ten-minute cameo from a full match.
     """
     return min(appearance_share(inputs, params) * availability(inputs, params), 1.0)
+
+
+# ---------------------------------------------------------------------------- la finestra CORTA
+#: Da quanti minuti una partita e' «finita», per la sola forma `recent_evidence="full"`. 85 e non 90
+#: perche' un cambio all'88' non e' una staffetta: e' la stessa lettura che `minutes.START_MINUTES` fa
+#: dall'altro lato (una partenza dura 84,5' per un difensore e 78,5' per un attaccante).
+FULL_MATCH_MINUTES = 85.0
+
+
+@dataclass(frozen=True)
+class RecentWindow:
+    """Le ultime partite del club in cui era DISPONIBILE, con il suo denominatore accanto.
+
+    Stessa disciplina di `SeasonWindow`: una finestra e' un pezzo di calcio col SUO denominatore, e
+    tenerli insieme e' l'unica difesa contro l'errore che questo progetto paga da sempre - numeratore e
+    denominatore contati su cose diverse.
+
+    COS'E' `available`, che e' la meta' che conta: le partite del club in cui lui aveva una RIGA nel
+    livello per-partita, panchina compresa. Una partita senza riga non e' uno zero, e' IGNOTO - fuori
+    rosa, infortunato o squalificato, e nessuna delle tre e' una preferenza dell'allenatore per un
+    altro. E' anche il modo in cui questa finestra osserva un'indisponibilita' senza unire tre tabelle:
+    la distinta di una partita e' una lettura-di-rosa completa, quindi vale la regola del 05/08/2026
+    («solo una lettura completa puo' esprimere un'ASSENZA») e la panchina batte uno stop datato, perche'
+    un uomo stampato in distinta era disponibile e non e' stato scelto (14/08/2026).
+
+    `available` = 0 e' una finestra VUOTA, non una finestra a zero: chi non ha giocato nessuna delle
+    ultime partite del suo club perche' era fuori non ha una lettura corta, e le funzioni qui sotto
+    restituiscono la lettura di stagione intatta. Quarta istanza in questo file di «una finestra vuota
+    non e' una finestra a zero».
+    """
+
+    #: In quante delle ultime partite del club aveva una riga. Il denominatore.
+    available: float = 0.0
+    #: In quante e' partito titolare, e in quante ha preso il voto.
+    starts: float = 0.0
+    appearances: float = 0.0
+    #: I minuti, ognuno TAPPATO a 90 prima di sommarli: 151 righe su 91.096 stanno sopra (i supplementari
+    #: di una coppa), e sommare un 120 renderebbe una partita una prova e un terzo.
+    minutes_capped: float = 0.0
+    #: Quante di quelle partite ha finito (>= `FULL_MATCH_MINUTES`). Serve alla sola forma `full`.
+    full_matches: float = 0.0
+
+
+def recent_evidence(window: RecentWindow, params: Params = DEFAULTS) -> float | None:
+    """Quanto dicono quelle partite, 0..1, o None se la finestra e' vuota.
+
+    Tre forme, una adottata e due misurate e respinte: vedi `Params.recent_evidence`. La scelta vive qui
+    e non nel chiamante perche' e' un parametro del MODELLO - la finestra porta i contatori grezzi, non
+    un'opinione su quanto valga una partita, o `sweep` non potrebbe piu' rimisurare il rifiuto.
+    """
+    if window.available <= 0:
+        return None
+    shape = params.recent_evidence
+    if shape == "minutes":
+        return min(window.minutes_capped / (window.available * 90.0), 1.0)
+    if shape == "start":
+        return min(window.starts / window.available, 1.0)
+    if shape == "full":
+        # La partita finita vale uno, la partenza sostituita mezzo, l'ingresso zero.
+        return min((window.full_matches + 0.5 * max(window.starts - window.full_matches, 0.0))
+                   / window.available, 1.0)
+    raise ValueError(f"unknown recent_evidence shape: {shape!r}")
+
+
+def blend_recent(short: float | None, season: float | None, available: float,
+                 params: Params = DEFAULTS) -> float | None:
+    """`k` partite osservate contro `recent_prior` di prior, che e' la forma di casa scritta una volta.
+
+    La stessa aritmetica di `blend_seasons`, di `model.blend_with_seen` e della shrinkage per taglia del
+    campione - qui sulle QUOTE invece che sui numeratori, perche' chi chiama ha gia' due quote in mano.
+
+        quota = (k x corta + K x stagione) / (k + K)
+
+    `k` e' tappata a `recent_window`: una finestra che portasse dieci partite peserebbe dieci volte il
+    prior, e la misura dice che da 5 in su si peggiora. Con la finestra vuota restituisce la lettura di
+    stagione INTATTA, che e' cio' che rende tutto questo inerte su una pre-stagione - e quindi su ogni
+    finestra su cui il gate ha pubblicato un numero.
+    """
+    if short is None:
+        return season
+    if season is None:
+        return short
+    k = min(available, params.recent_window)
+    if k <= 0:
+        return season
+    return (k * short + params.recent_prior * season) / (k + params.recent_prior)
+
+
+def recent_share(window: RecentWindow, season: float | None,
+                 params: Params = DEFAULTS) -> float | None:
+    """La sua TITOLARITA' nell'ultimo periodo: quanto le ultime partite dicono che gioca, 0..1.
+
+    Nel senso che questo progetto da' alla parola (CLAUDE.md): la quota delle partite in cui prende il
+    VOTO, non quella in cui e' in distinta - e la prova per partita sono i MINUTI, perche' misurati sono
+    la lettura che ordina meglio (vedi `Params.recent_evidence`).
+
+    E' il gemello corto di `appearance_share` e ne condivide il denominatore CONDIZIONALE: «delle partite
+    per cui era disponibile, quante ne ha giocate». La ragione e' la stessa - la board e' l'undici con
+    tutti disponibili, quindi uno stato che deve concordare con lei non puo' portare lo sconto degli
+    infortuni - e qui e' anche l'unica lettura possibile, perche' una partita saltata non ha una riga da
+    cui leggere niente.
+    """
+    return blend_recent(recent_evidence(window, params), season, window.available, params)
+
+
+def recent_starting_share(window: RecentWindow, season: float | None,
+                          params: Params = DEFAULTS) -> float | None:
+    """La sua QUOTA DA TITOLARE nell'ultimo periodo: in quante e' partito dal principio.
+
+    L'altra quantita', e le due non si scambiano - «titolarita'» e «quota da titolare» sono due cose in
+    questo repository e la seconda ha il suo nome. Qui la prova e' per forza la PARTENZA e non i minuti:
+    la domanda e' «comincia lui?», e i minuti risponderebbero a quella accanto.
+    """
+    short = None if window.available <= 0 else min(window.starts / window.available, 1.0)
+    return blend_recent(short, season, window.available, params)
+
+
+def recent_minutes(window: RecentWindow, season: float | None,
+                   params: Params = DEFAULTS) -> float | None:
+    """I minuti che gioca IN UNA PARTITA CHE GIOCA, nell'ultimo periodo.
+
+    Il denominatore sono le sue PRESENZE e non le partite disponibili, che e' la stessa scelta che
+    `minutes.per_appearance` fa e per la stessa ragione: per un portiere di rotazione i due rapporti
+    stanno uno al doppio dell'altro, e quello che la scala legge come pavimento e' questo (07/09/2026,
+    il caso Meret 89,1' contro 80).
+
+    Il prior si mescola con lo STESSO peso delle altre due - le partite DISPONIBILI e non le presenze -
+    perche' quella e' la taglia della finestra come prova: un uomo entrato una volta in tre partite non
+    ha una lettura dei minuti che pesi tre.
+    """
+    short = None if window.appearances <= 0 else window.minutes_capped / window.appearances
+    return blend_recent(short, season, window.available, params)

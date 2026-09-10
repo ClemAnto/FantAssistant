@@ -79,6 +79,10 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # The scoreline of a match the ratings layer never sees: friendlies and cup ties. Added
     # 09/08/2026 - the provider's event has always carried `homeScore`/`awayScore` and the
     # parser threw them away, so a pre-season friendly could name the opponent and not the result.
+    # Il voto da MOSTRARE dove la retta non è calibrata (10/09/2026): complemento di `mv_synth`, mai
+    # una seconda opinione sulla stessa partita. Additiva, quindi senza questa riga un DB esistente
+    # risponderebbe «no such column» e l'unica cura sarebbe un rebuild.
+    ("external_match_stats", "mv_est", "REAL"),
     ("external_match_stats", "team_goals", "INTEGER"),
     ("external_match_stats", "opponent_goals", "INTEGER"),
     ("rosters", "price_initial", "REAL"),

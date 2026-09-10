@@ -122,6 +122,27 @@ export interface PitchMan {
    * qui; la parola intera resta la SUA, cosi' la sigla accanto al nome e' la stessa della tabella.
    */
   ruled: Titolarita | null;
+  /**
+   * IL PADRONE DEL SUO POSTO STA RIENTRANDO, quindi la board dell'ULTIMO PERIODO lo tiene a
+   * `ballottaggio` (regola dell'operatore, 10/09/2026, `engine/status.py`).
+   *
+   * Sta sulla riga per la stessa ragione di `ruled`: il campetto lo DEVE dire. Un uomo che gioca da tre
+   * partite e legge `ballottaggio` accanto a una quota di 0,90 sembra un ordinamento rotto finché non si
+   * sa che quel posto è di un altro che torna fra poco — «un vincolo che agisce in silenzio è
+   * indistinguibile da un ordinamento rotto». Null/assente sulla board di STAGIONE, dove la regola non
+   * esiste: confronta le due board, e lì non c'è niente da confrontare.
+   */
+  ownerReturning: boolean | null;
+  /**
+   * QUANTE DELLE ULTIME PARTITE DEL SUO CLUB la finestra corta l'ha visto GIOCARE, e su quante era
+   * disponibile. Null dove la board non li porta: ignoto, mai zero.
+   *
+   * Servono a una cosa sola e necessaria: su un campetto che si chiama «ultimo periodo», un uomo che
+   * quel periodo non ha giocato va detto. La sua quota lì viene dalla STAGIONE — una finestra vuota
+   * restituisce il prior intatto — quindi senza questi due numeri sarebbe disegnato come chiunque altro.
+   */
+  recentPlayed: number | null;
+  recentAvailable: number | null;
   /** At most two, in the panel's own order. */
   duels: PitchMan[];
   /** False when his granular real role is unknown: then the duels are UNKNOWN, not absent. */
@@ -358,6 +379,11 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable, ruling?: Ruli
   const declared = man.fc_id != null && ruling ? ruling(man.fc_id) : null;
   return {
     ruled: isTitolarita(declared) ? declared : null,
+    // Letto e basta: la regola l'ha applicata il toolkit, che è il solo posto che ha in mano tutt'e due
+    // le board. Riderivarla qui sarebbe una seconda risposta a «di chi è questo posto».
+    ownerReturning: man.owner_returning ?? null,
+    recentPlayed: int(man.recent_played),
+    recentAvailable: int(man.recent_available),
     fcId: man.fc_id ?? null,
     name: man.name ?? '—',
     codes: (man.codes ?? '').split(';').map((code) => code.trim()).filter(Boolean),

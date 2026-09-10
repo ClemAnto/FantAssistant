@@ -320,7 +320,15 @@ function readPills() {
     const rect = row.getBoundingClientRect();
     return {
       id: Number(row.dataset.id),
+      // IL BLOCCO a cui la riga appartiene: le colonne si incolonnano DENTRO una lista, e due liste
+      // affiancate stanno a due x diverse per costruzione.
+      block: [...document.querySelectorAll('app-strategy ol')].indexOf(row.closest('ol')),
       name: (name?.innerText ?? '').trim(),
+      // IL BORDO DESTRO della fila e se la riga porta il TILDE della stima: in un flex dove il nome e'
+      // `flex-1`, il bordo destro di un elemento vale `container.right - (somma dei successivi)`,
+      // quindi QUALUNQUE cosa condizionale messa dopo la fila la sposta solo su alcune righe.
+      stripRight: strip ? Math.round(strip.getBoundingClientRect().right * 100) / 100 : null,
+      estimated: !!row.querySelector('[data-estimated]'),
       // Ogni riquadro col NOME della lettura che porta: confrontarli per posizione vorrebbe dire
       // sapere l'ordine, e l'ordine è quello che l'operatore può cambiare.
       say: Object.fromEntries(
@@ -1247,6 +1255,42 @@ async function main() {
       ],
     });
 
+    // 2c-ante. LA COLONNA DELLE PASTIGLIE E' UNA SOLA, dentro ogni lista.
+    //
+    // Il difetto che l'ha imposto (operatore, 09/09/2026: «il simbolo ~ rompe l'incolonnamento dei
+    // valori»): il tilde della stima stava FRA la fila e il gain, e in un flex col nome `flex-1` il
+    // bordo destro di un elemento vale `container.right - (somma dei successivi)` - quindi spostava la
+    // fila di 10,84px (il glifo 6,84 piu' i 4 di `gap-x-1`) sulle sole 58 righe di 250 che lo portano,
+    // mentre il gain, essendo l'ULTIMO, restava allineato. Si asserisce il fatto e non la cura: se
+    // domani qualcuno mette un altro marchio condizionale li' in mezzo, questo passo cade.
+    //
+    // Il conteggio dei tilde viaggia col verdetto perche' un passo che li trova ZERO leggerebbe
+    // «incolonnato» dopo aver guardato una pagina senza il caso che sta giudicando.
+    const columns = new Map();
+    for (const row of pills) {
+      if (row.stripRight == null) continue;
+      if (!columns.has(row.block)) columns.set(row.block, { edges: new Set(), tilde: 0, rows: 0 });
+      const seen = columns.get(row.block);
+      seen.edges.add(row.stripRight);
+      seen.rows += 1;
+      if (row.estimated) seen.tilde += 1;
+    }
+    const zigzag = [...columns.entries()]
+      .filter(([, seen]) => seen.edges.size > 1)
+      .map(([block, seen]) => `blocco ${block}: ${seen.edges.size} bordi destri `
+        + `${JSON.stringify([...seen.edges].sort((a, b) => a - b))} su ${seen.rows} righe `
+        + `(${seen.tilde} col tilde)`);
+    const tildeSeen = [...columns.values()].reduce((sum, one) => sum + one.tilde, 0);
+    note('le pastiglie sono incolonnate', {
+      said: `${columns.size} liste, ${pills.length} righe, ${tildeSeen} col tilde della stima `
+        + `· bordi destri per lista: ${[...columns.values()].map((one) => one.edges.size).join('/')}`,
+      problems: [
+        ...(columns.size ? [] : ['nessuna lista misurata: il passo non ha guardato niente']),
+        ...(tildeSeen ? [] : [`nessuna riga stimata a schermo: la colonna e' dritta perche' il caso che la spezza non c'e'`]),
+        ...zigzag,
+      ],
+    });
+
     // 2c-bis. GLI ATTESI, accesi con un CLICK VERO e confrontati col layer per-partita del bundle.
     //
     //     Due cose in un passo solo e sono la stessa: che la pastiglia si accenda (una preferenza che
@@ -1934,8 +1978,103 @@ async function main() {
     // ...e si rimette come si e' trovata, o i passi che seguono misurerebbero una scelta dell'arnese.
     for (const key of ['fvm', 'bonus']) pressed.push(await pressReading(session, key));
     const restoredPills = (await evaluate(session, readPills)) ?? [];
+    // IL PREZZO PAGATO DAVVERO, confrontato col PACCHETTO e non con se stesso: la pastiglia legge
+    // `auction_prices` e lo scala sulla lega dichiarata (10 squadre x 1000 crediti sul banco, cioe'
+    // la scala di archivio, quindi il numero deve tornare identico). Ricavarlo dallo schermo sarebbe
+    // l'asserzione circolare che questo progetto ha gia' pagato due volte.
+    // SI TORNA SU CLASSIC PER QUESTO PASSO, e si rimette com'era dopo: le aste vere che il pacchetto
+    // porta sono classic, quindi su mantra la pastiglia e' vuota per costruzione e il passo non
+    // misurerebbe niente. Verificare una colonna sulla popolazione in cui non puo' esistere e' il
+    // modo piu' rapido di dichiarare «nessun problema» dopo aver guardato niente.
+    const backToClassic = await setTo('Classic');
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (((await evaluate(session, readBlocks)) ?? []).some((one) => one.rows)) break;
+      await wait(300);
+    }
+    for (const key of ['paid']) pressed.push(await pressReading(session, key));
+    const withPaid = (await evaluate(session, readPills)) ?? [];
+    const paidProblems = backToClassic ? [`non sono tornato su Classic: ${backToClassic}`] : [];
+    try {
+      const raw = await readFile(join(DIST, 'data', 'auction_prices.json.gz'));
+      const table = JSON.parse(gunzipSync(raw).toString('utf8'));
+      const at = (name) => table.columns.indexOf(name);
+      const [idAt, platAt, gameAt, monthAt, medAt] =
+        ['fc_id', 'platform', 'game', 'month', 'price_med'].map(at);
+      const months = new Map();
+      for (const row of table.rows) {
+        const book = `${row[platAt]}|${row[gameAt]}`;
+        if (!months.has(book) || row[monthAt] > months.get(book)) months.set(book, row[monthAt]);
+      }
+      // IL LIBRO SU CUI LA PAGINA STA, letto da lei e non assunto: i passi che precedono cambiano
+      // listone e gioco, e restano cambiati. La prima versione di questo passo confrontava sempre con
+      // `default|classic` mentre la pagina era su MANTRA, e accusava l'app di mostrare una pastiglia
+      // vuota che era GIUSTA - di aste mantra non ne abbiamo nessuna. E' «un passo che misura la
+      // popolazione sbagliata accusa il codice del proprio difetto», ennesima istanza, e mi e' costato
+      // tre ricostruzioni prima di sospettare l'arnese invece del codice.
+      const league = await evaluate(session, () => {
+        try {
+          const stored = JSON.parse(localStorage.getItem('fantassistant.options.league') ?? '{}');
+          return {
+            platform: stored.platform === 'euro' ? 'euro' : 'default',
+            game: stored.game === 'mantra' ? 'mantra' : 'classic',
+            teams: Number(stored.teams) || 10,
+            budget: Number(stored.budget) || 1000,
+          };
+        } catch {
+          return { platform: 'default', game: 'classic', teams: 10, budget: 1000 };
+        }
+      });
+      const book = `${league.platform}|${league.game}`;
+      // ...e il prezzo si converte nella valuta della SUA lega, che e' esattamente quello che l'app
+      // fa: la tabella e' archiviata su 10 squadre x 1000 crediti.
+      const scale = (league.teams * league.budget) / (10 * 1000);
+      const priced = new Map();
+      for (const row of table.rows) {
+        if (`${row[platAt]}|${row[gameAt]}` === book && row[monthAt] === months.get(book)) {
+          priced.set(String(row[idAt]), row[medAt] * scale);
+        }
+      }
+      const shown = withPaid.filter((one) => one.say?.paid != null && one.say.paid !== '—');
+      // NESSUN PREZZO NEL LIBRO E' UNA RISPOSTA, non un guasto: su mantra la pastiglia DEVE essere
+      // vuota su ogni riga, ed e' quello che si asserisce - «vuoto = ignoto» visto dal banco.
+      if (!priced.size) {
+        if (shown.length) {
+          paidProblems.push(`${shown.length} righe mostrano un prezzo su ${book}, che il bundle non prezza`);
+        }
+      } else if (!shown.length) {
+        paidProblems.push(`nessuna riga mostra un prezzo, e il bundle ne prezza ${priced.size} su ${book}`);
+      }
+      for (const row of shown.slice(0, 12)) {
+        const want = priced.get(String(row.id));
+        const got = Number(String(row.say.paid).replace(/[^\d.-]/g, ''));
+        if (want == null) {
+          paidProblems.push(`«${row.name}» mostra ${row.say.paid} e il pacchetto non lo prezza`);
+        } else if (Math.abs(got - want) > 1) {
+          paidProblems.push(`«${row.name}» mostra ${got} e il pacchetto dice ${want.toFixed(0)}`);
+        }
+      }
+      note('il prezzo pagato davvero viene dal pacchetto', {
+        said: `libro ${book} (${league.teams} squadre x ${league.budget}) · ${priced.size} uomini`
+          + ` prezzati nel bundle · ${shown.length} righe con un prezzo`
+          + ` · esempio «${shown[0]?.name ?? '—'}» ${shown[0]?.say?.paid ?? '—'}`,
+        problems: paidProblems,
+      });
+    } catch (error) {
+      note('il prezzo pagato davvero viene dal pacchetto', {
+        said: 'non letto',
+        problems: [`non ho potuto leggere auction_prices: ${error.message}`],
+      });
+    }
+    for (const key of ['paid']) pressed.push(await pressReading(session, key));
+    // ...e la pagina si rimette su Mantra, che e' come i passi seguenti l'hanno trovata.
+    await setTo('Mantra');
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      if (((await evaluate(session, readBlocks)) ?? []).length > 4) break;
+      await wait(300);
+    }
+
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le quindici letture della barra', {
+    note('le sedici letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
@@ -1948,7 +2087,7 @@ async function main() {
         // xA accanto a MV e FM). Il numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non
         // una misura: se cresce, cresce per una richiesta, e allora si aggiorna insieme a `READINGS`
         // invece di leggere dallo schermo quello che lo schermo dice.
-        ...(toggles.length === 15 ? [] : [`${toggles.length} pastiglie invece delle quindici dichiarate`]),
+        ...(toggles.length === 16 ? [] : [`${toggles.length} pastiglie invece delle sedici dichiarate`]),
         // LE DUE `G:A` NOMINANO LA LORO STAGIONE, e sono DUE anni diversi: due pastiglie con lo stesso
         // testo sarebbero indistinguibili sulla barra, ed e' esattamente il difetto che `dated` cura.
         ...((() => {
