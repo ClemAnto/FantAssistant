@@ -320,16 +320,42 @@ class Params:
     # sempre, k osservate contro K di prior.
     recent_window: float = 3.0
     recent_prior: float = 3.0
-    # QUANTO VALE UNA PARTITA come prova di titolarita', e le tre forme sono NOMINATE perche' due sono
-    # state misurate e respinte - un rifiuto nominato si puo' ri-correre, uno cancellato no:
-    #   "minutes" - min(minuti, 90)/90. ADOTTATA: 0.1544 di Brier e 8.69 undici.
-    #   "start"   - parte titolare si'/no. 0.1710 e 8.58, cioe' +9,7% di errore.
-    #   "full"    - la partita finita vale 1, una partenza sostituita 0,5, un ingresso 0. E' la lettura
-    #               LETTERALE di «giocare 90' e' un segnale molto forte di titolarita'» (l'operatore,
-    #               10/09/2026) e legge 0.1746, PEGGIO della binaria. Il suo meccanismo e' vero e una
-    #               soglia e' la forma sbagliata per esprimerlo: quello che lo incassa e' il continuo, che
-    #               e' anche l'asse che la scala a sei parole usa gia' (`status.FULL_MATCH` 75').
-    recent_evidence: str = "minutes"
+    # QUANTO VALE UNA PARTITA come prova, e la regola che decide e' quella di casa: LA PROVA DI UNA
+    # QUANTITA' E' LA QUANTITA' STESSA. `recent_share` e' la quota delle partite in cui prende il VOTO -
+    # l'asse su cui la scala a sei parole e' costruita - quindi la sua prova e' «ha preso il voto», non i
+    # minuti.
+    #
+    # QUESTO CAMPO E' STATO SPEDITO A "minutes" IL 10/09/2026 ED E' UN DIFETTO, corretto lo stesso giorno
+    # su richiesta dell'operatore («verifica se i ragionamenti sui titolari a breve termine sono corretti
+    # confrontando l'andamento con le stagioni passate»). I minuti avevano vinto una misura vera - ma su
+    # un ALTRO bersaglio, «chi comincia la prossima partita» - e sono stati applicati a una quantita' su
+    # cui nessuno li aveva misurati: un uomo che entra ogni partita per 45' vale 1,0 di presenze e 0,5 di
+    # minuti, e la prova in minuti lo schiaccia. E' «un parametro appartiene alla domanda su cui e' stato
+    # misurato», commesso dentro la sessione che quella regola stava applicando altrove.
+    #
+    # MISURATO fuori campione sulla PROPRIA quantita' (76.315 osservazioni, due stagioni x cinque
+    # campionati; alla partita m si legge solo il calcio < m, l'esito e' la quota delle partite
+    # successive in cui era disponibile che ha giocato). Errore medio a +3 partite:
+    #
+    #   prova            +1       +3       +5
+    #   nessuna       0.2103   0.1716   0.1607     (la sola stagione: il null di questa domanda)
+    #   minuti        0.2566   0.2073   0.1944     spedita il 10/09: PEGGIO del non avere la finestra
+    #   presenze      0.1956   0.1614   0.1531     ADOTTATA: -6% sul null
+    #
+    # Le altre due forme restano nominate perche' un rifiuto cancellato non si puo' ri-correre, e perche'
+    # sull'ALTRO bersaglio i minuti vincono davvero: sulla quota da TITOLARE leggono 0.2187 contro 0.2199
+    # delle partenze e 0.2359 della sola stagione. Li' pero' la quantita' e' `recent_starting_share`, che
+    # ha la sua prova (le partenze) per la stessa regola: 0,0012 di errore non vale un'eccezione che
+    # rende inspiegabile perche' due funzioni vicine leggano assi diversi.
+    #   "appearances" - ha preso il voto. ADOTTATA.
+    #   "minutes"     - min(minuti, 90)/90. Vince su «chi comincia» e perde qui.
+    #   "start"       - parte titolare si'/no.
+    #   "full"        - la partita finita vale 1, una partenza sostituita 0,5, un ingresso 0. E' la
+    #                   lettura LETTERALE di «giocare 90' e' un segnale molto forte di titolarita'»
+    #                   (l'operatore, 10/09/2026) e sul suo stesso bersaglio legge PEGGIO della binaria
+    #                   (0.1746 contro 0.1710 di Brier): il meccanismo e' vero e una soglia e' la forma
+    #                   sbagliata per esprimerlo.
+    recent_evidence: str = "appearances"
     # QUANTO E' «A BREVE» un rientro, in PARTITE DEL SUO CLUB e non in giorni. DICHIARATO: l'operatore ha
     # detto «un mese» (10/09/2026) e quattro partite sono il suo mese in Serie A, ma una soglia in giorni
     # non si confronta fra due calendari - una giornata euro non e' una giornata di Serie A, ed e' la
@@ -1041,6 +1067,8 @@ def recent_evidence(window: RecentWindow, params: Params = DEFAULTS) -> float | 
     if window.available <= 0:
         return None
     shape = params.recent_evidence
+    if shape == "appearances":
+        return min(window.appearances / window.available, 1.0)
     if shape == "minutes":
         return min(window.minutes_capped / (window.available * 90.0), 1.0)
     if shape == "start":
@@ -1081,8 +1109,10 @@ def recent_share(window: RecentWindow, season: float | None,
     """La sua TITOLARITA' nell'ultimo periodo: quanto le ultime partite dicono che gioca, 0..1.
 
     Nel senso che questo progetto da' alla parola (CLAUDE.md): la quota delle partite in cui prende il
-    VOTO, non quella in cui e' in distinta - e la prova per partita sono i MINUTI, perche' misurati sono
-    la lettura che ordina meglio (vedi `Params.recent_evidence`).
+    VOTO, non quella in cui e' in distinta - e la prova per partita e' quella STESSA quantita', «ha preso
+    il voto». Spedita il 10/09/2026 con i MINUTI per prova e corretta lo stesso giorno: quel parametro
+    aveva vinto su un altro bersaglio ed era peggio del non avere finestra affatto qui (0.2073 contro
+    0.1716 della sola stagione, 0.1614 con la prova giusta). Vedi `Params.recent_evidence`.
 
     E' il gemello corto di `appearance_share` e ne condivide il denominatore CONDIZIONALE: «delle partite
     per cui era disponibile, quante ne ha giocate». La ragione e' la stessa - la board e' l'undici con

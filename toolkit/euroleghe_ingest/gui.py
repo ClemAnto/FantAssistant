@@ -5566,10 +5566,15 @@ class SnapshotView(ttk.Frame):
 
         `horizon` = "short" legge gli ultimi minuti invece di quelli della stagione, ed e' l'asse su cui
         l'operatore ha messo il dito il 10/09/2026 («giocare 90' e' un segnale molto forte di
-        titolarita'»): sulla finestra corta i minuti non sono un secondo dettaglio, sono la PROVA con cui
-        la quota stessa e' costruita (`presence.recent_evidence` = "minutes", misurata +9,7% sulla
-        partenza binaria). Il denominatore sono le sue PRESENZE e non le partite disponibili, come qui -
-        per un portiere di rotazione i due rapporti stanno uno al doppio dell'altro.
+        titolarita'»): sulla finestra corta i minuti sono uno dei due assi della scala e non un dettaglio.
+
+        NON sono pero' la prova con cui si costruisce la QUOTA, e questo commento diceva il contrario per
+        qualche ora: `recent_evidence` e' passata a "appearances" lo stesso giorno, perche' i minuti
+        avevano vinto su «chi comincia» e li' erano peggio del non avere finestra affatto (0.2073 contro
+        0.1716). La prova di una quantita' e' la quantita' stessa, e le tre restano tre.
+
+        Il denominatore sono le sue PRESENZE e non le partite disponibili, come per la quota: per un
+        portiere di rotazione i due rapporti stanno uno al doppio dell'altro.
 
         Where the sheet's column names stop and the model starts, exactly like `presence_inputs`: the
         formula and its two measured weights live in `engine/minutes.py`, so a harness can reach them and

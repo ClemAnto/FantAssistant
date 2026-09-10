@@ -134,3 +134,19 @@ def test_the_share_is_a_share_of_the_SEASON_and_the_window_cannot_cap_it(tmp_pat
     assert round(min(full_season_minutes / (90 * rounds), 1.0), 3) == 1.0
     window_only = 20 * 90
     assert round(window_only / (90 * rounds), 3) == 0.588, "this is the number the defect produced"
+
+
+def test_the_mark_is_drawn_only_on_the_platform_it_was_measured_on():
+    """«Un parametro appartiene alla popolazione su cui e' stato misurato», and platform is one.
+
+    Re-measured on euro, the two arms come out INVERTED (covered 1.27x on minutes against 1.35x on
+    bonuses, not covered 1.37x against 1.12x - the mirror of Serie A). There is even a mechanism that
+    would explain it, EuroLeghe being a selection of top clubs; it is not why the mark is off there.
+    It is off because n = 151 and 168 cannot resolve 1.27 from 1.35, and swapping the arms on that
+    would be fitting the story to the noise.
+
+    What must NOT happen is the descriptive columns going away with it: the window is a fact about the
+    man and belongs on both sheets. Only the verdict is platform-bound.
+    """
+    assert abroad.SCREEN_PLATFORMS == ("default",)
+    assert "euro" not in abroad.SCREEN_PLATFORMS

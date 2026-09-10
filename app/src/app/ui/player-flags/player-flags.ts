@@ -44,6 +44,11 @@ export const FLAG_ICON: Record<PlayerFlag, string> = {
   rotation_early: 'clock-circle',
   // The mirror: he is taking off, and it is the one piece of GOOD news among the marks.
   starter_signs: 'rocket',
+  // UNA BUSSOLA: viene da fuori e va guardato. Non il razzo di `starter_signs`, che è una notizia su
+  // uno che qui sta già giocando; non un allarme, perché non c'è niente da temere. Dice «orientati su
+  // di lui», che è tutto quello che il marchio promette - il Qt.I da solo ordina questi uomini quanto
+  // noi, e quello che aggiungiamo è che smettano di essere ordinati da una costante.
+  newcomer: 'compass',
   // UN CAMPANELLO: è un ALLARME e non una diagnosi. Non la croce della medicina (quella dice
   // «infortunato», e questa notizia può non essere ancora ufficiale né essere un infortunio) e non
   // l'orologio della rotazione: dice «guarda qui prima di offrire».
@@ -94,6 +99,9 @@ export const FLAG_TONE: Record<PlayerFlag, string> = {
   rotation_early: 'text-warning opacity-50',
   // Green confirms, and this is the only mark that is good news for the man carrying it.
   starter_signs: 'text-success',
+  // Verde come il razzo: è l'altra delle due sole buone notizie fra i marchi, e per lo stesso motivo -
+  // non è un avviso su cosa stai comprando, è un invito a guardare.
+  newcomer: 'text-success',
   // ROSSO, ed è l'eccezione che la regola dei colori consente: qui il pericolo è reale e immediato -
   // stai per offrire su un uomo che oggi non è disponibile - ed è il solo marchio che deve fermare la
   // mano. Gli altri avvisi restano ambra proprio perché questo non lo sia.

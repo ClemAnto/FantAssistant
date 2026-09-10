@@ -5,6 +5,7 @@ import { Board, BoardHorizon, BoardRung, BoardsFile, Bundle, EngineSheetEntry, c
   optionalIndex } from './bundle';
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
 import { ClubOption, GlobalOptions } from './global-options';
+import { newcomerMark } from './newcomer';
 import { cupMark, windowFromNote } from './player-cup';
 import { starterSignsFromSheet, starterSignsMark } from './player-place';
 import { EngineForecast, PlayerRating, rank99ByRole } from './player-ratings';
@@ -381,6 +382,25 @@ export interface EngineExpectation {
   riserStarts: number | null;
   riserWindow: number | null;
   riserKeeper: boolean;
+
+  /**
+   * IL NUOVO ARRIVATO e la sua ultima finestra altrove (`desc_abroad_*`, revisione 58+), misurata dal
+   * toolkit e mai ricalcolata qui. `abroadArm` porta due parole - `share` per chi arriva dai cinque
+   * campionati che copriamo, `bonuses` per chi arriva da dove il livello non lo sappiamo - e vuoto
+   * NON vuol dire «nessun segnale»: vuol dire o che ha giocato qui l'anno scorso (i due terzi del
+   * listone) o che il foglio è più vecchio della colonna. Su euro il verdetto non arriva per
+   * costruzione e i NUMERI sì: il toolkit scrive la finestra su tutt'e due i fogli.
+   */
+  abroadArm: string | null;
+  abroadComp: string | null;
+  abroadMatches: number | null;
+  abroadMinutes: number | null;
+  abroadGa90: number | null;
+  abroadVote: number | null;
+  abroadVoted: number | null;
+  abroadShare: number | null;
+  abroadRank: number | null;
+  abroadPool: number | null;
   preseasonStarts: number | null;
   preseasonMatches: number | null;
   cupCapped: boolean;
@@ -667,6 +687,36 @@ export class ValuationStore {
         friendlyStarts: engine.preseasonStarts,
         friendlyMatches: engine.preseasonMatches,
       }));
+      if (mark) out.set(fcId, mark);
+    }
+    return out;
+  });
+
+  /**
+   * ...e il marchio del NUOVO ARRIVATO, dalla stessa fonte e con la stessa disciplina degli altri due.
+   *
+   * Il PRIMO foglio che lo dichiara basta: la finestra è quella del CLUB all'estero, quindi i due
+   * listoni leggono le stesse partite. Ma il VERDETTO lo scrive solo il foglio `default` - su euro i
+   * due bracci si invertono e il campione non li separa (`abroad.SCREEN_PLATFORMS`) - quindi qui non
+   * serve nessun controllo di piattaforma: la colonna arriva vuota da sola, e mettere un `if` sulla
+   * piattaforma vorrebbe dire tenere quella decisione in due posti.
+   */
+  private readonly newcomerMarks = computed<Map<number, PlayerMark>>(() => {
+    const roles = new Map<number, string>();
+    for (const rows of this.rostersByPlatform().values()) {
+      for (const row of rows) if (!roles.has(row.fcId)) roles.set(row.fcId, row.role);
+    }
+    const out = new Map<number, PlayerMark>();
+    for (const [key, engine] of this.expected()) {
+      if (!engine.abroadArm) continue;
+      const fcId = Number(key.split('|')[1]);
+      if (out.has(fcId)) continue;
+      const mark = newcomerMark({
+        arm: engine.abroadArm, competition: engine.abroadComp, matches: engine.abroadMatches,
+        minutes: engine.abroadMinutes, ga90: engine.abroadGa90, vote: engine.abroadVote,
+        voted: engine.abroadVoted, share: engine.abroadShare, rank: engine.abroadRank,
+        pool: engine.abroadPool,
+      }, roles.get(fcId) ?? null);
       if (mark) out.set(fcId, mark);
     }
     return out;
@@ -1108,6 +1158,7 @@ export class ValuationStore {
     // che non copre quella lega) - il difetto «una lista mostrata i cui numeri descrivono un'altra lista».
     effect(() => this.marks.cups.set(this.cupMarks()));
     effect(() => this.marks.risers.set(this.riserMarks()));
+    effect(() => this.marks.newcomers.set(this.newcomerMarks()));
     /*
      * LE QUATTRO LETTURE, e si chiedono da QUI e da nessun altro posto.
      *
@@ -1456,6 +1507,13 @@ export class ValuationStore {
         riserWatch: at('desc_riser_watch'), riserMinutes: at('desc_riser_minutes'),
         riserStarts: at('desc_riser_starts'), riserWindow: at('desc_riser_window'),
         riserKeeper: at('desc_riser_keeper'),
+        // Il nuovo arrivato, revisione 58+: assente prima, e allora la colonna è muta invece di dire
+        // «non è nuovo» - che di un foglio d'agosto sarebbe falso per un terzo del listone.
+        abroadArm: at('desc_abroad_watch'), abroadComp: at('desc_abroad_comp'),
+        abroadMatches: at('desc_abroad_matches'), abroadMinutes: at('desc_abroad_minutes'),
+        abroadGa90: at('desc_abroad_ga90'), abroadVote: at('desc_abroad_vote'),
+        abroadVoted: at('desc_abroad_voted'), abroadShare: at('desc_abroad_share'),
+        abroadRank: at('desc_abroad_rank'), abroadPool: at('desc_abroad_pool'),
         // Le amichevoli: reporting dentro la frase della lettura pre-stagione, mai un grilletto.
         preseasonStarts: at('desc_preseason_starts'), preseasonMatches: at('desc_preseason_matches'),
         cup: at('desc_cup'), cupCountry: at('desc_cup_country'),
@@ -1544,6 +1602,24 @@ export class ValuationStore {
           riserWindow: columns.riserWindow < 0
             ? null : ((row[columns.riserWindow] as number | null) ?? null),
           riserKeeper: columns.riserKeeper >= 0 && row[columns.riserKeeper] === 'yes',
+          abroadArm: columns.abroadArm < 0 ? null : ((row[columns.abroadArm] as string) ?? null),
+          abroadComp: columns.abroadComp < 0 ? null : ((row[columns.abroadComp] as string) ?? null),
+          abroadMatches: columns.abroadMatches < 0
+            ? null : ((row[columns.abroadMatches] as number | null) ?? null),
+          abroadMinutes: columns.abroadMinutes < 0
+            ? null : ((row[columns.abroadMinutes] as number | null) ?? null),
+          abroadGa90: columns.abroadGa90 < 0
+            ? null : ((row[columns.abroadGa90] as number | null) ?? null),
+          abroadVote: columns.abroadVote < 0
+            ? null : ((row[columns.abroadVote] as number | null) ?? null),
+          abroadVoted: columns.abroadVoted < 0
+            ? null : ((row[columns.abroadVoted] as number | null) ?? null),
+          abroadShare: columns.abroadShare < 0
+            ? null : ((row[columns.abroadShare] as number | null) ?? null),
+          abroadRank: columns.abroadRank < 0
+            ? null : ((row[columns.abroadRank] as number | null) ?? null),
+          abroadPool: columns.abroadPool < 0
+            ? null : ((row[columns.abroadPool] as number | null) ?? null),
           preseasonStarts: columns.preseasonStarts < 0
             ? null : ((row[columns.preseasonStarts] as number | null) ?? null),
           preseasonMatches: columns.preseasonMatches < 0

@@ -62,22 +62,35 @@ def test_la_finestra_e_tappata_a_recent_window():
     assert presence.recent_share(long_window, 0.0) == 0.5
 
 
-def test_le_tre_forme_della_prova_esistono_tutte_e_quella_adottata_e_i_minuti():
-    """Due sono state misurate e RESPINTE, e restano raggiungibili perche' un rifiuto si ri-corre.
+def test_la_prova_di_una_quantita_e_la_quantita_stessa():
+    """LA CORREZIONE DEL 10/09/2026, e il test che impedisce di rifarla.
 
-    `start` legge +9,7% di errore e `full` - la lettura letterale di «giocare 90' e' un segnale molto
-    forte» - legge peggio della binaria. Cancellarle renderebbe il rifiuto non riproducibile, che e'
-    come una misura diventa un'opinione.
+    `recent_share` e' la quota delle partite in cui prende il VOTO, quindi la sua prova e' «ha preso il
+    voto». E' stata spedita con i MINUTI - un parametro che aveva vinto una misura vera su un ALTRO
+    bersaglio, «chi comincia la prossima» - e li' e' PEGGIO del non avere la finestra affatto: errore
+    0.2073 contro 0.1716 della sola stagione, e 0.1614 con la prova giusta (76.315 osservazioni fuori
+    campione). Le altre forme restano raggiungibili perche' un rifiuto cancellato non si ri-corre.
+
+    Il test guarda la DISTINZIONE e non solo il valore: sulla finestra di un uomo che entra ogni partita
+    per meno di un tempo, le due prove danno numeri diversi - ed e' esattamente la popolazione su cui il
+    difetto costava.
     """
-    assert presence.DEFAULTS.recent_evidence == "minutes"
+    assert presence.DEFAULTS.recent_evidence == "appearances"
     window = presence.RecentWindow(available=2, starts=2, appearances=2,
                                    minutes_capped=135, full_matches=1)   # 90' + 45'
     got = {shape: presence.recent_evidence(window, replace(presence.DEFAULTS,
                                                            recent_evidence=shape))
-           for shape in ("minutes", "start", "full")}
-    assert got["minutes"] == 0.75           # 135 / 180
+           for shape in ("appearances", "minutes", "start", "full")}
+    assert got["appearances"] == 1.0        # ha giocato tutte e due
+    assert got["minutes"] == 0.75           # 135 / 180 - la stessa finestra, un'altra quantita'
     assert got["start"] == 1.0              # due partenze su due
     assert got["full"] == 0.75              # una finita, una partenza sostituita
+    # ...e il caso che il difetto schiacciava: entra sempre, mai per molto.
+    cameo = presence.RecentWindow(available=3, starts=0, appearances=3,
+                                  minutes_capped=60, full_matches=0)
+    assert presence.recent_evidence(cameo, presence.DEFAULTS) == 1.0
+    assert presence.recent_evidence(cameo, replace(presence.DEFAULTS,
+                                                   recent_evidence="minutes")) < 0.3
     # ...e una forma che nessuno ha dichiarato non e' silenziosamente una delle tre.
     try:
         presence.recent_evidence(window, replace(presence.DEFAULTS, recent_evidence="nope"))
@@ -96,8 +109,14 @@ def test_i_minuti_hanno_il_denominatore_delle_presenze_e_non_delle_disponibili()
     once = presence.RecentWindow(available=3, starts=1, appearances=1,
                                  minutes_capped=90, full_matches=1)
     naked = replace(presence.DEFAULTS, recent_prior=0.0)
-    assert presence.recent_minutes(once, None, naked) == 90.0
-    assert presence.recent_share(once, None, naked) == 90 / 270
+    assert presence.recent_minutes(once, None, naked) == 90.0     # 90 su UNA presenza
+    assert presence.recent_share(once, None, naked) == 1 / 3      # una presenza su TRE disponibili
+    # ...e i due numeri qui coincidono per caso (90/270 = 1/3): con due tempi giocati in due partite
+    # diverse si separano, ed e' quello che il denominatore giusto deve mostrare.
+    half = presence.RecentWindow(available=3, starts=0, appearances=2,
+                                 minutes_capped=90, full_matches=0)
+    assert presence.recent_share(half, None, naked) == 2 / 3
+    assert presence.recent_minutes(half, None, naked) == 45.0
 
 
 # --------------------------------------------------------------------- il tappo della scala

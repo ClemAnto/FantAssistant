@@ -73,6 +73,35 @@ ROLES = ("D", "C", "A")
 
 # The five we cover: for these the synthetic vote exists and the ARM is «how much did he play».
 COVERED = ("serie_a", "premier_league", "la_liga", "bundesliga", "ligue_1")
+
+# WHERE THE MARK MAY BE DRAWN, and it is a verdict rather than a default (10/09/2026, from the
+# operator's «hai valutato anche le EuroLeghe?» - which is the question that produced this constant).
+#
+# Re-measured on euro with the same design, the same outcome and the same null, five windows, with the
+# `default` arm re-run beside it as a control (it reproduces, which is what makes the euro reading
+# readable at all):
+#
+#                            Serie A          EuroLeghe
+#      covered, minutes      1.47x            1.27x
+#      covered, bonuses      1.03x            1.35x
+#      not covered, minutes  1.30x            1.37x
+#      not covered, bonuses  1.36x            1.12x
+#
+# The two arms are INVERTED there, and there is a mechanism that would explain it - EuroLeghe is a
+# selection of TOP CLUBS, so its «covered» newcomer is a man already playing in one of the five for a
+# club the platform does not carry, and what distinguishes him is not whether he plays (everybody in a
+# mid-table club does) but what he produces, which is what moves him to a big club.
+#
+# THAT MECHANISM IS NOT WHY THE MARK IS OFF THERE. It is off because n = 151 and 168, so 1.27 against
+# 1.35 is not a difference this sample can resolve - and swapping the arms on it would be fitting the
+# story to the noise. What ships is the platform where the reading was taken, which is this project's
+# own rule (R19 on `default` only, R20 with a K per platform, R18 on euro only). The euro hypothesis is
+# written down so that it is a PRE-REGISTRATION and not a memory: if it is ever measured on a bigger
+# sample and holds, the arms swap there and the numbers above are what it has to beat.
+#
+# The descriptive columns are NOT gated by this: the window is a FACT about the man and travels on both
+# platforms. Only the verdict stays where it was measured.
+SCREEN_PLATFORMS = ("default",)
 # A competition whose median player is this young is youth football, whatever it is called.
 YOUTH_MEDIAN_AGE = 20
 YOUTH_MIN_ROWS = 20
@@ -250,8 +279,9 @@ def layer(conn, target_season: str, input_season: str, platform: str = "default"
                 # season is he», which needs the season.
                 share = round(min(played / (90 * rounds), 1.0), 3)
         men[fc_id] = {**window, "role": role, "share": share}
-    for fc_id, hit in screen(men).items():
-        men[fc_id]["screen"] = hit
+    if platform in SCREEN_PLATFORMS:
+        for fc_id, hit in screen(men).items():
+            men[fc_id]["screen"] = hit
     return men
 
 

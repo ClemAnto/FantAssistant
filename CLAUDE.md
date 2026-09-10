@@ -5259,12 +5259,27 @@ ragione per cui si adotta la miscela: tiene il guadagno sull'ordine e aggiusta i
 piatta fra 2 e 4 (il «3» dell'operatore cade sull'ottimo) e il prior ottimo è **3**, cioè lo stesso
 numero che `RECENT_PRIOR` portava a occhio: due strade indipendenti sullo stesso valore.
 
-**«GIOCARE 90' È UN SEGNALE MOLTO FORTE»: il meccanismo è suo, la forma la decide la misura.** La prova
-per partita in MINUTI legge 0.1544 contro 0.1710 della partenza binaria (**+9,7%**, e migliora anche
-l'ordinamento, che è immune alla taratura); la lettura LETTERALE della sua frase — 90' = 1, sostituito =
-0,5 — legge **0.1746, peggio della binaria**. *Un'osservazione vera sul calcio non dice da sé se la sua
-forma è una soglia o un continuo.* Le tre forme restano nominate in `presence.recent_evidence`, perché
-un rifiuto cancellato non si può ri-correre.
+**«GIOCARE 90' È UN SEGNALE MOLTO FORTE»: il meccanismo è suo, e la prova va sulla SUA quantità.** Sul
+bersaglio «chi comincia» i minuti vincono davvero (Brier 0.1544 contro 0.1710 della partenza binaria, e
+migliorano anche l'ordinamento, che è immune alla taratura; la lettura LETTERALE della sua frase — 90' =
+1, sostituito = 0,5 — legge 0.1746, peggio della binaria). **E io quel parametro l'ho applicato alla
+quantità sbagliata e l'ho spedito**: `recent_share` non è «chi comincia», è la quota delle partite in cui
+prende il VOTO, l'asse su cui la scala a sei parole è costruita — e un uomo che entra ogni partita per 45'
+vale 1,0 di presenze e 0,5 di minuti. Misurato sulla sua propria quantità (76.315 osservazioni fuori
+campione), la versione spedita legge **0.2073 contro lo 0.1716 della sola stagione**: *peggio del non
+avere la finestra affatto*. Con la prova giusta, 0.1614. Corretto lo stesso giorno perché l'operatore ha
+chiesto di verificare le PAROLE e non il numero — ed è «un parametro appartiene alla domanda su cui è
+stato misurato» commesso dentro la sessione che quella stessa regola stava applicando altrove.
+
+**E UNA SCALA SI VERIFICA SULLE PAROLE, non solo sul numero che le produce.** `status.py` porta per la
+scala lunga una tabella promessa-contro-realizzato su quattro finestre; quella corta non ne aveva nessuna,
+e costruirla è ciò che ha trovato il difetto. Con la prova giusta, su 79.334 osservazioni e due stagioni:
+**sei promesse su sei mantenute a ogni orizzonte** (+1, +3, +5, +10 partite), e la parola corta spiega
+dell'esito **0.4384 contro 0.4047** della lunga. Prima della correzione lo stesso conto leggeva **0.3989**,
+cioè sotto la lunga: la tabella su cui la scala corta ora vince è la tabella che l'ha condannata. Il
+prezzo è dichiarato e non curabile — la parola corta cambia fra una partita e l'altra il **19,6%** delle
+volte contro il 7,5%: un bollettino, non una caratterizzazione, ed è la ragione per cui il gradino del
+FOGLIO resta quello di stagione.
 
 **E LA REGOLA CHE HA CHIESTO DOPO È STATA SALVATA DAL CONTARLA PRIMA DI SCRIVERLA.** Il suo primo
 suggerimento — scontare chi ha giocato perché il titolare era fuori — è respinto come PESO in tutte e tre

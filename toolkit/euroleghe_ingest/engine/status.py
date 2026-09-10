@@ -84,6 +84,30 @@ midfielders and 4 forwards. That is the operator's own bar doing what it says, a
 that a difference between two GROUPS is not a virtue of whoever carries it - so it is written down here
 for him to rule on rather than quietly replaced by a per-role floor.
 
+...AND LA STESSA SCALA SULLA FINESTRA CORTA HA LA SUA TABELLA, che e' quello che l'operatore ha chiesto di
+verificare il 10/09/2026 («confrontando l'andamento con le stagioni passate»). Stesso disegno con
+l'orizzonte accorciato: alla partita m di un club si legge solo il calcio < m, si assegna un gradino, e si
+guarda la quota delle partite SUCCESSIVE in cui era disponibile che ha giocato. 79.334 osservazioni, due
+stagioni x cinque campionati (2024-25, 2025-26), SENZA il cancello della board su tutt'e due i bracci -
+servirebbero Tk e il DB per ogni data, e `status.py` pubblica i suoi numeri ungated proprio per questo.
+
+    gradino          promessa      +1 partita   +3       +5       +10      n (a +3)
+    bandiera         >.90 / 75'    .975 / 83'   .965/81  .959/80  .949/80   21.842
+    titolarissimo    >.80 / 75'    .898 / 81'   .873/78  .860/77  .837/76    1.424
+    titolare         >.80 / 65'    .946 / 70'   .931/68  .924/67  .914/66    8.399
+    ballottaggio     >.80          .876 / 53'   .864/51  .858/51  .847/51   17.272
+    panchina         >.50          .719 / 52'   .711/51  .705/50  .700/51   15.043
+    riserva          -             .295 / 41'   .307/40  .317/41  .333/43   15.329
+
+Sei promesse su sei mantenute a ogni orizzonte, e la scala corta SPIEGA PIU' della lunga: varianza
+dell'esito spiegata dalla parola 0.4384 contro 0.4047, errore medio 0.1937 contro 0.2002. Il livello
+regge fino a +10 partite, cioe' oltre la finestra che l'ha prodotta.
+
+IL PREZZO, misurato e non nascosto: LA PAROLA CORTA STA FERMA MENO. Fra una partita e la successiva
+cambia il 19,6% delle volte contro il 7,5% della lunga - una lettura di tre partite e' un bollettino e
+non una caratterizzazione, e chi la legge deve saperlo. E' anche la ragione per cui il gradino del FOGLIO
+resta quello di stagione: con quello si compra.
+
 WHAT IT IS NOT. REPORTING: no `engine_*` column moves, no gate owns these thresholds, `backtest --verify`
 does not change. The three numbers above the words are the operator's declared vocabulary and the two
 inputs are already gated or measured elsewhere; what this module adds is the mapping and the evidence that

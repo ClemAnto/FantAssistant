@@ -87,6 +87,7 @@ export type PlayerFlag =
   | 'rotation_risk'
   | 'rotation_early'
   | 'starter_signs'
+  | 'newcomer'
   | 'unavailable_press'
   | 'intl_cup';
 
@@ -116,6 +117,7 @@ export const FLAG_LABEL: Record<PlayerFlag, string> = {
   rotation_risk: 'Preso per titolare, ma ruotato',
   rotation_early: 'Preso per titolare, segnali di incertezza',
   starter_signs: 'Dato per riserva, gioca da titolare',
+  newcomer: 'Nuovo in questo campionato, e altrove faceva bene',
   // Il canale VELOCE, e la frase dice che non è l'ufficiale: «la stampa» invece di «infortunato».
   unavailable_press: 'La stampa lo dà indisponibile',
   // «Coppa» da sola sarebbe ambigua: questa stessa vista ha già un filtro «Coppe e altre competizioni»,
@@ -143,6 +145,11 @@ export const CONSULTABLE_FLAGS: PlayerFlag[] = [
   // perché li registra ancora il pannello: offrire un filtro che non trova mai niente è una bugia
   // con l'aria di una funzione, e la regola vale in tutt'e due i versi.
   'starter_signs',
+  // ...e IL NUOVO ARRIVATO che questo campionato non ha mai visto giocare (10/09/2026). Stessa
+  // famiglia di `starter_signs` e stessa disciplina: lo misura il toolkit (`modules/abroad.py`), lo
+  // registra `ValuationStore`, e le parole stanno in `core/newcomer.ts`. Il filtro trova qualcuno -
+  // 23 righe sul foglio Serie A - che è la condizione perché offrirlo non sia una bugia.
+  'newcomer',
   'mystery',
   'fragile',
   'yellows',
@@ -784,6 +791,17 @@ export class PlayerStatus {
    */
   readonly cups = signal<Map<number, PlayerMark>>(new Map());
 
+  /**
+   * ...e IL NUOVO ARRIVATO che questo campionato non ha mai visto giocare.
+   *
+   * Registrato da fuori come i due sopra e dalla stessa fonte, il FOGLIO: quale sia il suo ultimo
+   * calcio giocato e quanto valga dentro il suo ruolo lo misura `modules/abroad.py`, e ricalcolarlo
+   * qui darebbe a un uomo due frasi. Vuoto è lo stato normale per due terzi del listone - chi ha
+   * giocato qui l'anno scorso non è nuovo - e su un foglio euro è vuoto per TUTTI, perché là il
+   * verdetto non è misurato e il toolkit scrive i numeri senza il marchio.
+   */
+  readonly newcomers = signal<Map<number, PlayerMark>>(new Map());
+
   /** Every mark a man carries, in the order they are drawn. Empty is the normal case. */
   /**
    * L'INFORTUNIO DI ADESSO in numeri invece che in una frase: da quanti giorni e' fuori, fino a quando
@@ -882,6 +900,10 @@ export class PlayerStatus {
     // in quella dei titolari insieme, e i due screen leggono finestre opposte.
     const riser = this.risers().get(playerId);
     if (riser) marks.push(riser);
+    // ...e il nuovo arrivato, che non può collidere con nessuno dei due precedenti: quelli leggono le
+    // giornate di QUESTO campionato e di lui non ce n'è nessuna, che è esattamente perché esiste.
+    const newcomer = this.newcomers().get(playerId);
+    if (newcomer) marks.push(newcomer);
     // The screen goes LAST: an availability fact outranks a projection about form, and the order the
     // marks are pushed in is the order they are drawn.
     const screen = this.screens().get(playerId);

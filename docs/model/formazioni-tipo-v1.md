@@ -961,7 +961,9 @@ due**: la forma del pannello ne faceva due in cascata (accorciare verso lo stand
 `FORM_WEIGHT`), e quella che vince è la forma che questo repository scrive da sempre, `k` osservate contro
 `K` di prior.
 
-### 10.3 — I 90 minuti: il meccanismo è suo, la forma la decide la misura
+### 10.3 — I 90 minuti: il meccanismo è suo, e la prova va sulla SUA quantità
+
+Sul bersaglio «chi comincia la prossima partita» i minuti vincono davvero:
 
 | quanto vale una partita come prova | Brier | dei veri 11 |
 |---|---|---|
@@ -969,10 +971,60 @@ due**: la forma del pannello ne faceva due in cascata (accorciare verso lo stand
 | **minuti/90** | **0.1544** | **8.69** |
 | «90' = 1, sostituito = 0,5» (la lettura letterale) | 0.1746 | 8.62 |
 
-I minuti valgono **+9,7%** sulla partenza binaria e migliorano anche l'ORDINAMENTO, che è immune alla
-taratura — quindi non è un effetto di calibrazione. La versione a gradini è **peggiore della binaria**: la
-sua osservazione è vera e una soglia è la forma sbagliata per esprimerla. Le tre forme restano NOMINATE in
-`presence.recent_evidence`, perché un rifiuto cancellato non si può ri-correre.
+I minuti valgono +9,7% sulla partenza binaria e migliorano anche l'ORDINAMENTO, che è immune alla
+taratura. La versione a gradini è **peggiore della binaria**: l'osservazione è vera e una soglia è la
+forma sbagliata per esprimerla.
+
+**E QUEL PARAMETRO È STATO APPLICATO ALLA QUANTITÀ SBAGLIATA, spedito così, e corretto lo stesso giorno**
+su richiesta dell'operatore («verifica se i ragionamenti sui titolari a breve termine sono corretti
+confrontando l'andamento con le stagioni passate»). `recent_share` non è «chi comincia»: è la quota delle
+partite in cui prende il VOTO — l'asse su cui la scala a sei parole è costruita — e un uomo che entra ogni
+partita per 45' vale 1,0 di presenze e 0,5 di minuti. Misurato sulla sua propria quantità, fuori campione,
+76.315 osservazioni, errore medio della quota prevista sulle partite successive:
+
+| prova della finestra | +1 | +3 | +5 |
+|---|---|---|---|
+| nessuna (la sola stagione: il null) | 0.2103 | 0.1716 | 0.1607 |
+| **minuti** — quella spedita | 0.2566 | **0.2073** | 0.1944 |
+| **presenze** — adottata | 0.1956 | **0.1614** | 0.1531 |
+
+La versione spedita era **peggio del non avere la finestra affatto**. Sull'altro bersaglio, la quota da
+TITOLARE, i minuti vincono ancora (0.2187 contro 0.2199 delle partenze e 0.2359 della sola stagione) — ma
+lì la quantità è `recent_starting_share`, che ha la sua prova per la stessa regola: **la prova di una
+quantità è la quantità stessa**, e 0,0012 di errore non vale un'eccezione che rende inspiegabile perché
+due funzioni vicine leggano assi diversi.
+
+*È «un parametro appartiene alla domanda su cui è stato misurato» commesso dentro la sessione che quella
+stessa regola stava applicando altrove — e trovato solo perché l'operatore ha chiesto di verificare le
+parole invece del numero.*
+
+### 10.3-bis — Le sei PAROLE sulla finestra corta: promessa contro realizzato
+
+Quello che mancava. La misura del 10/09 aveva giudicato il NUMERO; le sei parole no — `status.py` porta
+per la scala lunga una tabella promessa-contro-realizzato e la corta non ne aveva nessuna. Stesso disegno
+con l'orizzonte accorciato, 79.334 osservazioni, senza il cancello della board su tutt'e due i bracci:
+
+| gradino | promessa | +1 | +3 | +5 | +10 | n (a +3) |
+|---|---|---|---|---|---|---|
+| bandiera | >.90 / 75' | .975 / 83' | .965 / 81' | .959 / 80' | .949 / 80' | 21.842 |
+| titolarissimo | >.80 / 75' | .898 / 81' | .873 / 78' | .860 / 77' | .837 / 76' | 1.424 |
+| titolare | >.80 / 65' | .946 / 70' | .931 / 68' | .924 / 67' | .914 / 66' | 8.399 |
+| ballottaggio | >.80 | .876 / 53' | .864 / 51' | .858 / 51' | .847 / 51' | 17.272 |
+| panchina | >.50 | .719 / 52' | .711 / 51' | .705 / 50' | .700 / 51' | 15.043 |
+| riserva | — | .295 / 41' | .307 / 40' | .317 / 41' | .333 / 43' | 15.329 |
+
+**Sei promesse su sei mantenute a ogni orizzonte**, e la scala corta spiega PIÙ della lunga: varianza
+dell'esito spiegata dalla parola **0.4384 contro 0.4047**, errore medio 0.1937 contro 0.2002. Il livello
+regge fino a +10 partite, cioè oltre la finestra che l'ha prodotta.
+
+**Il prezzo è la STABILITÀ, e va detto**: fra una partita e la successiva la parola corta cambia il
+**19,6%** delle volte contro il **7,5%** della lunga. Una lettura di tre partite è un bollettino e non una
+caratterizzazione — è anche la ragione per cui il gradino del FOGLIO resta quello di stagione: con quello
+si compra.
+
+E il numero prima della correzione diceva l'opposto: varianza spiegata **0.3989**, cioè sotto la lunga. La
+stessa tabella su cui la scala corta ora vince era la tabella che l'ha condannata: *una scala si verifica
+sulle parole e non solo sul numero che le produce.*
 
 ### 10.4 — Lo sconto del «posto liberato»: RESPINTO come peso, adottato come DICHIARAZIONE
 

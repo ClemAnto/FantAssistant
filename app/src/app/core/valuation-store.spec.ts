@@ -67,6 +67,8 @@ const sheetRow = (over: Partial<EngineExpectation> = {}): EngineExpectation => (
   basis: 'anchor', note: null,
   cup: null, cupCountry: null,
   riserWatch: null, riserMinutes: null, riserStarts: null, riserWindow: null, riserKeeper: false,
+  abroadArm: null, abroadComp: null, abroadMatches: null, abroadMinutes: null, abroadGa90: null,
+  abroadVote: null, abroadVoted: null, abroadShare: null, abroadRank: null, abroadPool: null,
   preseasonStarts: null, preseasonMatches: null,
   cupCapped: false, cupRounds: null, pvCup: null, valueCup: null, surplusCup: null,
   surplusFieldedCup: null, cupNote: null,

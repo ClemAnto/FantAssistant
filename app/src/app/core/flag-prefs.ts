@@ -89,6 +89,7 @@ export const FLAG_GROUPS: readonly { title: string; flags: readonly PlayerFlag[]
       'rotation_risk',
       'rotation_early',
       'starter_signs',
+      'newcomer',
     ],
   },
 ];
