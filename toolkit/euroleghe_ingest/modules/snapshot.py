@@ -612,7 +612,14 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      porta accanto alla prima. Misurate fuori campione su 3.638 partite-club (due stagioni, cinque
 #      campionati), giudicate sulla partita SUCCESSIVA: Brier 0.1696 -> 0.1544, 8.46 -> 8.69 dei veri
 #      undici. Vuote su una pre-stagione per costruzione, `engine_*` non si muove.
-SHEET_REVISION = 58
+#   59 `formation_shapes_recent` sui CLUB: i moduli delle ultime `presence.recent_window` partite di
+#      CAMPIONATO, da cui la board dell'ultimo periodo prende il suo modulo - regola dell'operatore
+#      dell'11/09/2026, «il modulo scelto dipende da quello usato nelle ultime tre partite e poi si vede
+#      gli 11 da schierare». Prima quella board sceglieva il modulo dalla distribuzione di STAGIONE,
+#      cioe' diceva «ultimo periodo» e disegnava l'abitudine dell'anno. Misurato: 20 club su 20 hanno
+#      tre undici completi, 14 su 20 ne giocano uno solo in tutte e tre, 3 su 20 danno un modulo diverso
+#      da quello di stagione. Piu' `desc_relay` corretto nel DENOMINATORE (§`relay_scores`).
+SHEET_REVISION = 59
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1733,8 +1740,24 @@ def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
                    senza questo fattore i primi tredici posti della Juventus erano Pinsoglio e Rugani,
                    due senza un minuto.
 
+    IL DENOMINATORE SEGUE IL SUO NUMERATORE, e la prima versione di questa funzione non lo faceva -
+    difetto mio, spedito l'11/09/2026 e trovato lo stesso giorno nel momento in cui la misura e' stata
+    usata per una domanda nuova. I minuti di ciascuno erano accumulati su TUTTE le partite ricevute,
+    cioe' su ogni club della finestra, mentre la sovrapposizione lo era solo su quelle che i due
+    CONDIVIDONO: per un uomo che ha cambiato squadra a meta' finestra il denominatore era molte volte
+    il campione su cui il numeratore e' stato contato, e la separazione tendeva a 1 per costruzione.
+    Il sintomo era leggibile a occhio e nessuno lo aveva guardato - un PORTIERE che legge 0,99 di
+    staffetta con un centrocampista, quando un portiere in campo 90' CONTIENE per intero i minuti di
+    chiunque altro e la sua separazione con chiunque non puo' che essere zero.
+    Misurato sulle 98.642 coppie del 2026-27: l'88,4% si muove, scarto mediano +0,415, e le due letture
+    si separano dove devono - Vicario/Koopmeiners 0,996 -> 0,022 e Maignan/Moreira 0,988 -> 0,000,
+    mentre i due portieri della Juventus restano in cima (0,982 -> 0,927) e la coppia da cui la
+    richiesta e' nata regge (Zhegrova/Conceicao 0,819 -> 0,753).
+
     Chi non ha giocato NESSUN minuto nella finestra non entra in nessuna coppia: la frase presuppone
-    che ciascuno dei due ci sia qualche volta.
+    che ciascuno dei due ci sia qualche volta - e «nella finestra» vuol dire NELLE PARTITE CHE
+    CONDIVIDONO, che e' la stessa correzione vista dal lato della guardia. Erano 3.841 coppie in cui uno
+    dei due non gioca mai insieme all'altro e che venivano prezzate lo stesso, fino a 1,000.
 
     PURA perche' la sua verifica non deve passare da un database: e' la stessa divisione che
     `engine/presence.py` ha con questo file, un livello piu' in basso.
@@ -1742,13 +1765,9 @@ def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
     together: dict[tuple[int, int], float] = {}
     union: dict[tuple[int, int], float] = {}
     covered: dict[tuple[int, int], float] = {}
-    played: dict[int, float] = {}
+    apart: dict[tuple[int, int], tuple[float, float]] = {}
     for squad in matches:
         men = sorted(squad)
-        for fid in men:
-            span = squad[fid]
-            if span:
-                played[fid] = played.get(fid, 0.0) + span[1] - span[0]
         for index, first in enumerate(men):
             for second in men[index + 1:]:
                 one, two = squad[first], squad[second]
@@ -1757,15 +1776,18 @@ def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
                 key = (first, second)
                 both = (max(0.0, min(one[1], two[1]) - max(one[0], two[0]))
                         if one and two else 0.0)
-                span = ((one[1] - one[0]) if one else 0.0) + ((two[1] - two[0]) if two else 0.0)
+                his = (one[1] - one[0]) if one else 0.0
+                hers = (two[1] - two[0]) if two else 0.0
                 together[key] = together.get(key, 0.0) + both
-                union[key] = union.get(key, 0.0) + span - both
+                union[key] = union.get(key, 0.0) + his + hers - both
                 covered[key] = covered.get(key, 0.0) + 90.0
+                was = apart.get(key, (0.0, 0.0))
+                apart[key] = (was[0] + his, was[1] + hers)
     out: dict[int, list[tuple[int, float]]] = {}
     for (first, second), span in union.items():
-        if span < RELAY_MIN_UNION or not played.get(first) or not played.get(second):
+        floor = min(apart[(first, second)])
+        if span < RELAY_MIN_UNION or not floor:
             continue
-        floor = min(played[first], played[second])
         score = (1 - together[(first, second)] / floor) * (span / covered[(first, second)])
         out.setdefault(first, []).append((second, round(score, 3)))
         out.setdefault(second, []).append((first, round(score, 3)))
@@ -4601,6 +4623,51 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
                    len(rows) if not coach_since else under_coach, spread)
 
 
+def recent_shapes(conn, spellings: list[str], season: str, before: str | None,
+                  matches: int) -> str:
+    """I moduli delle ULTIME `matches` partite di CAMPIONATO, dal piu' recente. Stesso formato dell'altro.
+
+    Regola dell'operatore (11/09/2026): «il modulo scelto dipende da quello usato nelle ultime tre partite
+    e poi si vede gli 11 da schierare». La board dell'ultimo periodo sceglieva il suo modulo dalla stessa
+    distribuzione di quella di stagione (`formation_shapes`), cioe' diceva «ultimo periodo» e disegnava
+    l'abitudine dell'anno: il pezzo che mancava e' questo.
+
+    DUE DIFFERENZE DA `typical_formation`, e sono le due che fanno la finestra:
+      * SOLO CAMPIONATO. Quella conta ogni competizione - la Juventus arriva a NOVE undici su tre giornate
+        giocate - e per «le ultime tre partite» una coppa non e' una delle tre. E' anche la stessa
+        popolazione su cui la finestra corta dei GIOCATORI e' misurata, quindi le due leggono lo stesso
+        calcio invece di due calci diversi.
+      * NESSUN PESO AL CAMBIO DI ALLENATORE. Su tre partite o le ha dirette tutte lui o e' arrivato dentro
+        la finestra, e in quel caso il peso non ha niente da riequilibrare: e' gia' il presente.
+
+    `matches` arriva da `presence.DEFAULTS.recent_window` come per i giocatori - due copie di quel numero
+    finirebbero per descrivere due finestre diverse con lo stesso nome.
+
+    MISURATO PRIMA DI SCRIVERLO, sul foglio Serie A dell'11/09/2026: tutti e VENTI i club hanno tre undici
+    completi, 14 su 20 giocano lo stesso modulo in tutte e tre, e 3 su 20 (Fiorentina, Lecce, Torino) ne
+    danno uno diverso dal tipico di stagione. Dove le tre partite non sono d'accordo il modo e' una
+    monetina - com'e' per il ritiro, che questo file gia' legge come DISTRIBUZIONE e mai come moda - e
+    infatti chi lo legge lo usa come prior e lascia che siano le altre sorgenti a rompere il pareggio.
+    """
+    if not spellings or matches <= 0:
+        return ""
+    placeholders = ",".join("?" * len(spellings))
+    rows = conn.execute(
+        f"""SELECT defenders, midfielders, forwards FROM club_match_lineups
+             WHERE club IN ({placeholders}) AND season = ? AND starters = 11
+               AND goalkeepers + defenders + midfielders + forwards = 11
+               AND match_date IS NOT NULL AND (? IS NULL OR match_date < ?)
+               AND competition IN ({_LEAGUE_IN})
+          ORDER BY match_date DESC LIMIT ?""",
+        (*spellings, season, before, before, *LEAGUE_COMPETITIONS, matches)).fetchall()
+    counts: dict[str, int] = {}
+    for defenders, midfielders, forwards in rows:
+        shape = f"{defenders}-{midfielders}-{forwards}"
+        counts[shape] = counts.get(shape, 0) + 1
+    return ";".join(f"{shape}:{count}"
+                    for shape, count in sorted(counts.items(), key=lambda item: -item[1]))
+
+
 def measured_elsewhere(conn, window) -> dict[int, dict]:
     """{fc_id: matches, minutes, where} - the window of football a man with no season here DID play.
 
@@ -5049,6 +5116,10 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
         shapes = typical_formation(conn, mine, season, coach_since, before)
         # ...and the same over the TARGET season, which before a ball is kicked is the pre-season alone
         friendly = typical_formation(conn, mine, window.target_season, None, before)
+        # ...e i moduli delle ULTIME `recent_window` partite di CAMPIONATO, per la board dell'ultimo
+        # periodo: quella di stagione risponde «cosa fa di solito», questa «cosa ha fatto adesso».
+        recent_shape_counts = recent_shapes(conn, mine, window.target_season, before,
+                                            int(presence.DEFAULTS.recent_window))
         typical, share, counted, basis = shapes.shape, shapes.share, shapes.counted, shapes.basis
         coach_shapes, coach_shapes_of = coach_repertoire(
             conn, coach[0] if coach else None, before, repertoires)
@@ -5085,6 +5156,12 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             # asks for a player the squad has not got - a formation nobody lined up in is not an
             # alternative, it is an invention.
             "formation_shapes": shapes.shapes,
+            # ...E LE ULTIME `recent_window` DI CAMPIONATO, che e' la sorgente del modulo per la board
+            # dell'ultimo periodo (operatore, 11/09/2026: «il modulo scelto dipende da quello usato nelle
+            # ultime tre partite e poi si vede gli 11 da schierare»). Stesso formato della riga sopra, e
+            # una colonna a parte invece di un ritaglio: quella conta ogni competizione e pesa il cambio
+            # di allenatore, cioe' risponde a un'altra domanda.
+            "formation_shapes_recent": recent_shape_counts,
             # THE SHAPES OF THE PRE-SEASON, i.e. of the TARGET season - the only elevens that exist for
             # a side that has not played a competitive match yet, and the one thing the repertoire
             # cannot answer: «what has he announced for THIS squad». Same format as `formation_shapes`.

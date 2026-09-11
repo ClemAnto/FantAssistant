@@ -449,6 +449,90 @@ def test_chi_non_era_disponibile_non_e_una_staffetta_mancata():
     assert got[1] == [(2, 0.0)]
 
 
+def test_il_denominatore_della_separazione_e_quello_delle_partite_CONDIVISE():
+    """Il difetto dell'11/09/2026: i minuti di ciascuno erano contati OVUNQUE, la sovrapposizione no.
+
+    Un uomo che cambia squadra a meta' finestra porta al denominatore anche i minuti giocati con l'altro
+    club, dove l'altro non c'era: la separazione tende a 1 per costruzione. Il sintomo era un PORTIERE
+    che legge 0,99 con un centrocampista - e un portiere in campo 90' contiene per intero i minuti di
+    chiunque, quindi la sua separazione non puo' che essere ZERO.
+
+    Il caso qui sotto e' quello: A gioca sempre, B gioca mezz'ora accanto a lui in tre partite (mai
+    senza) e poi altre cinque partite ALTROVE, dove A non compare. La risposta giusta e' zero; col
+    denominatore vecchio erano `1 - 90/240 = 0,625`.
+    """
+    shared = [{1: (0.0, 90.0), 2: (60.0, 90.0)} for _ in range(3)]
+    elsewhere = [{2: (0.0, 90.0)} for _ in range(5)]
+    got = snapshot.relay_scores(shared + elsewhere)
+    assert got[1] == [(2, 0.0)]
+    # ...e la guardia «ciascuno dei due ci sia qualche volta» vale sulle partite condivise, non sulla
+    # carriera: chi non gioca MAI accanto all'altro non e' la sua staffetta nemmeno se gioca altrove.
+    absent = [{1: (0.0, 90.0), 2: None} for _ in range(4)] + [{2: (0.0, 90.0)} for _ in range(5)]
+    assert snapshot.relay_scores(absent) == {}
+
+
+def test_il_modulo_dell_ultimo_periodo_viene_dalle_ultime_tre_partite():
+    """Regola dell'operatore (11/09/2026): «il modulo scelto dipende da quello usato nelle ultime tre».
+
+    Prima la board corta prendeva il modulo dalla distribuzione di STAGIONE, cioe' diceva «ultimo
+    periodo» e disegnava l'abitudine dell'anno. Le due colonne rispondono a due domande e restano due.
+    """
+    from euroleghe_ingest.gui import SnapshotView
+
+    info = {"formation_shapes": "4-5-1:4;3-4-3:2", "formation_shapes_recent": "3-4-3:3"}
+    assert SnapshotView.observed_shapes(info) == {"4-5-1": 4, "3-4-3": 2}
+    assert SnapshotView.observed_shapes(info, "season") == {"4-5-1": 4, "3-4-3": 2}
+    assert SnapshotView.observed_shapes(info, "short") == {"3-4-3": 3}
+
+    # ...e un foglio scritto PRIMA di questa revisione disegna comunque: vuoto = ignoto non vuol dire
+    # «nessun modulo», e una board vuota sarebbe peggio di una che legge la stagione.
+    old = {"formation_shapes": "4-5-1:4"}
+    assert SnapshotView.observed_shapes(old, "short") == {"4-5-1": 4}
+    assert SnapshotView.observed_shapes({"formation_shapes_recent": "  "}, "short") == {}
+
+
+def test_due_che_si_alternano_non_occupano_due_posti():
+    """La regola dell'operatore (11/09/2026), e la sua ECCEZIONE nello stesso test.
+
+    «Due che si alternano non occupano due posti, salvo buchi di formazione non riempibili da altri.»
+    Il vincolo agisce sulla scelta, non sul claim: dei due resta quello con la quota piu' alta, perche' il
+    serbatoio arriva gia' in ordine di claim.
+    """
+    from euroleghe_ingest.gui import SnapshotView
+
+    def man(fid, name, relay=""):
+        return {"fc_id": fid, "name": name, "desc_relay": relay}
+
+    # A e B si alternano (0,80); C non c'entra niente. Due posti: entrano A e C, non A e B.
+    a, b, c = man("1", "A", "2:0.80"), man("2", "B", "1:0.80"), man("3", "C")
+    got = SnapshotView._apart(SnapshotView, [a, b, c], 2, set(), SnapshotView.relay_apart([a, b, c]))
+    assert [row["name"] for row in got] == ["A", "C"]
+
+    # ...ma se C non esiste il posto resterebbe VUOTO, e un posto vuoto e' peggio di due che si alternano.
+    got = SnapshotView._apart(SnapshotView, [a, b], 2, set(), SnapshotView.relay_apart([a, b]))
+    assert [row["name"] for row in got] == ["A", "B"]
+
+    # ...e il vincolo attraversa le LINEE: chi e' gia' in campo conta anche se e' stato scelto altrove.
+    got = SnapshotView._apart(SnapshotView, [b, c], 1, {"1"}, SnapshotView.relay_apart([a, b, c]))
+    assert [row["name"] for row in got] == ["C"]
+
+    # ...e la lettura e' SIMMETRICA anche se la colonna tiene solo i primi tre per uomo: qui B non
+    # dichiara A, e il vincolo deve scattare lo stesso.
+    lop = man("2", "B", "9:0.99;8:0.95;7:0.91")
+    relays = SnapshotView.relay_apart([man("1", "A", "2:0.80"), lop, c])
+    got = SnapshotView._apart(SnapshotView, [lop, c], 1, {"1"}, relays)
+    assert [row["name"] for row in got] == ["C"]
+
+    # ...e la soglia e' la MAGGIORANZA della frase dell'operatore, non un numero scelto.
+    assert SnapshotView.RELAY_APART == 0.50
+
+    # ...e SENZA una mappa il vincolo e' inerte, che e' come `eleven` lo spegne fuori dall'ultimo
+    # periodo: una condizione sola al punto in cui la mappa si costruisce, invece di cinque sparse.
+    got = SnapshotView._apart(SnapshotView, [a, b, c], 2, set(), {})
+    assert [row["name"] for row in got] == ["A", "B"]
+    assert SnapshotView._no_relay(SnapshotView, [a, b, c], {"1", "2", "3"}, {}) == [a, b, c]
+
+
 def test_una_coppia_con_poco_calcio_insieme_resta_IGNOTA():
     """Sotto `RELAY_MIN_UNION` non si dice «non fanno staffetta»: non si dice niente."""
     thin = [{1: (0.0, 90.0), 2: None}]
