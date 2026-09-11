@@ -181,6 +181,100 @@ export interface PlayerLine extends PlayerRow {
 
 /** One column of the mixed-competition view: a WEEK, so that a round spread over Friday to
  *  Monday and the midweek cup tie of the same week share a column across every player. */
+/** Uno spell di panchina: chi allena quel club, da quando e fino a quando (null = ancora in carica). */
+export interface CoachSpell {
+  name: string;
+  from: string;
+  to: string | null;
+}
+
+/**
+ * Gli spell per club, dal piu' RECENTE: `{fc_club_id: [{name, from, to}]}`.
+ *
+ * L'ordine e' quello in cui si cerca - chi cerca una data vuole il primo spell che la copre - e le
+ * righe senza data d'inizio escono: uno spell che non sa quando comincia non puo' dire chi c'era.
+ */
+export function buildCoachSpells(table: BundleTable | null): Map<number, CoachSpell[]> {
+  const out = new Map<number, CoachSpell[]>();
+  if (!table) return out;
+  try {
+    const [club, name, from, to] = columnIndex(table, 'fc_club_id', 'coach_name', 'valid_from',
+                                               'valid_to');
+    for (const row of table.rows) {
+      const id = Number(row[club]);
+      const since = (row[from] as string) ?? null;
+      if (!Number.isFinite(id) || !since) continue;
+      const list = out.get(id);
+      const spell = { name: String(row[name] ?? '').trim(), from: since,
+                      to: (row[to] as string) ?? null };
+      list ? list.push(spell) : out.set(id, [spell]);
+    }
+    for (const list of out.values()) list.sort((left, right) => right.from.localeCompare(left.from));
+  } catch {
+    return new Map();
+  }
+  return out;
+}
+
+/** Chi allenava quel club in quella data, o null: il primo spell che la copre. */
+export function coachOn(spells: readonly CoachSpell[] | undefined, date: string): string | null {
+  for (const spell of spells ?? []) {
+    if (spell.from <= date && (!spell.to || spell.to >= date)) return spell.name;
+  }
+  return null;
+}
+
+/**
+ * LE COLONNE CON I CONFINI DI PANCHINA DENTRO: un separatore fra due partite allenate da due persone.
+ *
+ * Richiesta dell'operatore, 11/09/2026. Stesso MECCANISMO del confine fra due stagioni - una colonna
+ * che non e' una partita, con le celle vuote - e aspetto diverso, perche' sono due fatti diversi:
+ * quello dice «un altro campionato», questo «un altro criterio di scelta».
+ *
+ * SOLO CON UN CLUB A SCHERMO, ed e' una condizione e non una cautela: un allenatore e' un fatto di
+ * CLUB, e nella vista Calciatori le righe sono di venti club diversi - una colonna condivisa non
+ * potrebbe dire di chi e' il cambio. La vista Squadre ha un club solo e li' la domanda ha una risposta.
+ *
+ * SI LEGGE PER DATA e mai per giornata: con un rinvio la giornata 16 si gioca dopo la 20, e un confine
+ * messo sul numero cadrebbe fra due partite che non sono consecutive nel tempo.
+ */
+export function withCoachBreaks(
+  columns: readonly ColumnSlot[],
+  cells: (MatchCell | null)[][],
+  spells: readonly CoachSpell[] | undefined,
+): { columns: ColumnSlot[]; cells: (MatchCell | null)[][] } {
+  if (!spells?.length) return { columns: [...columns], cells: cells.map((row) => [...row]) };
+  const out: ColumnSlot[] = [];
+  const rows: (MatchCell | null)[][] = cells.map(() => []);
+  let previous: { coach: string; date: string } | null = null;
+  columns.forEach((column, at) => {
+    const coach = column.date ? coachOn(spells, column.date) : null;
+    // Le colonne sono dalla piu' RECENTE, quindi il cambio sta fra questa e quella prima di lei: il
+    // nome nuovo e' quello della colonna PRECEDENTE nella lettura, cioe' della partita successiva.
+    if (coach && previous && coach !== previous.coach) {
+      out.push({
+        key: `coach|${previous.date}|${column.date}`,
+        label: '',
+        detail: null,
+        score: null,
+        outcome: null,
+        sides: null,
+        shape: null,
+        divider: `${coach} → ${previous.coach}`,
+        breakKind: 'coach',
+        date: null,
+        kind: null,
+        title: `Cambio in panchina: da ${coach} a ${previous.coach}`,
+      });
+      for (const row of rows) row.push(null);
+    }
+    out.push(column);
+    cells.forEach((row, index) => rows[index].push(row[at] ?? null));
+    if (coach && column.date) previous = { coach, date: column.date };
+  });
+  return { columns: out, cells: rows };
+}
+
 export interface ColumnSlot {
   key: string;
   /** The matchday, the date, or - with one club on screen - the fixture: `Nap-Mil`. */
@@ -222,6 +316,23 @@ export interface ColumnSlot {
    * invece di stamparci il trattino delle giornate non giocate, che significa un'altra cosa.
    */
   divider: string | null;
+  /**
+   * CHE TIPO DI CONFINE E', perche' dall'11/09/2026 ce ne sono DUE e l'operatore ha chiesto che si
+   * vedano diversi: «evidenzia quando viene cambiato allenatore ... con un separatore diverso da quello
+   * del cambio stagione».
+   *
+   * Due confini e non uno perche' sono due fatti diversi sulla stessa striscia: una stagione nuova e' un
+   * altro campionato, un allenatore nuovo e' un altro criterio di scelta - e le presenze di un uomo
+   * prima e dopo sono due popolazioni in tutt'e due i casi. Null dove la colonna e' una partita.
+   */
+  breakKind: 'season' | 'coach' | null;
+  /**
+   * LA DATA della partita che questa colonna descrive, o null (una giornata senza club a schermo, un
+   * confine). Serve a dire quale allenatore era in carica, che e' un fatto DATATO per club: senza di
+   * lei il confine andrebbe dedotto dal numero di giornata, che con un rinvio e' la data sbagliata -
+   * «l'unita' e' la PARTITA, mai la giornata».
+   */
+  date: string | null;
   /** What kind of match the column is about - known only when one club is on screen, because
    *  without a filter a week holds a league round AND its cup ties AND friendlies at once. */
   kind: MatchKind | null;
@@ -346,6 +457,14 @@ type Status = 'idle' | 'loading' | 'ready' | 'error';
 @Injectable({ providedIn: 'root' })
 export class PlayersStore {
   private readonly bundle = inject(Bundle);
+
+  /**
+   * CHI ALLENA UN CLUB E DA QUANDO: spell datati, per `fc_club_id`, dal piu' recente.
+   *
+   * Vuota su un bundle che non porta la tabella, e allora il confine non si disegna - che NON e' «non
+   * ci sono stati cambi»: e' ignoto, e un separatore inventato sarebbe peggio di nessun separatore.
+   */
+  private readonly coaches = signal<Map<number, CoachSpell[]>>(new Map());
   /** I marchi che un nome porta: li possiede `PlayerStatus`, e il filtro legge quelli e non una copia. */
   private readonly marks = inject(PlayerStatus);
   /** Le squadre reali che l'operatore ha escluso: valgono per ogni vista, quindi tagliano il listone. */
@@ -491,6 +610,20 @@ export class PlayersStore {
    * definition for both. The ORDER of `players` is kept, so the caller decides how the list reads and
    * the two tables of a view can be the same list twice.
    */
+  /**
+   * GLI SPELL DI PANCHINA DI UN CLUB, dal suo NOME - e null senza un club a schermo.
+   *
+   * Il nome si risolve sull'INDICE che la tabella dei club dichiara (`fc_club_id` <-> nome canonico) e
+   * non con un confronto fuzzy: e' una chiave letta all'incontrario, non il join per stringa che a
+   * questo progetto e' costato Milan, Roma e Napoli. Un club che quella tabella non nomina non ha
+   * spell, e allora il confine non si disegna.
+   */
+  private spellsFor(club: string | null | undefined): CoachSpell[] | undefined {
+    if (!club) return undefined;
+    for (const [id, name] of this.clubNames()) if (name === club) return this.coaches().get(id);
+    return undefined;
+  }
+
   matchTable(query: MatchQuery, players: readonly PlayerRow[]): MatchTable {
     const slots = byMatchdayOf(query)
       ? this.daysOf(query).map((md) => ({
@@ -502,6 +635,8 @@ export class PlayersStore {
           sides: null,
           shape: null,
           divider: null,
+          breakKind: null,
+          date: null,
           kind: null,
           title: `Giornata ${md}`,
         }))
@@ -716,6 +851,8 @@ export class PlayersStore {
           sides: null,
           shape: null,
           divider: `${before} → ${block.season}`,
+          breakKind: 'season',
+          date: null,
           kind: null,
           title: `Confine fra le stagioni ${before} e ${block.season}`,
         });
@@ -724,9 +861,15 @@ export class PlayersStore {
       columns.push(...block.table.columns);
       block.table.lines.forEach((line, index) => cells[index]?.push(...line.cells));
     });
+    // ...E I CONFINI DI PANCHINA, che stanno DENTRO una stagione e non fra due: si inseriscono dopo
+    // aver unito i blocchi, cosi' un cambio a cavallo di due stagioni non ne produce due (quello la'
+    // e' gia' detto dal confine di stagione, e due separatori attaccati direbbero la stessa cosa due
+    // volte). Solo con un club a schermo: un allenatore e' un fatto di CLUB.
+    const withCoaches = withCoachBreaks(columns, cells, this.spellsFor(query.club));
     // L'identita' delle righe viene dal primo blocco: sono gli stessi uomini nello stesso ordine.
-    const lines = blocks[0].table.lines.map((line, index) => ({ ...line, cells: cells[index] ?? [] }));
-    return { columns, lines };
+    const lines = blocks[0].table.lines.map(
+      (line, index) => ({ ...line, cells: withCoaches.cells[index] ?? [] }));
+    return { columns: withCoaches.columns, lines };
   }
 
   /**
@@ -797,6 +940,7 @@ export class PlayersStore {
         sides: fixture.sides,
         shape: chosen.shape,
         detail: [fixture.detail ? null : slot.label, chosen.shape].filter(Boolean).join(' · ') || null,
+        date: chosen.date ?? null,
         kind: chosen.kind,
         title: `${chosen.competitionLabel} · ${fixture.long}${chosen.shape ? ' · modulo ' + chosen.shape : ''} · ${slot.title}`,
       };
@@ -852,6 +996,8 @@ export class PlayersStore {
           sides: null,
           shape: null,
           divider: null,
+          breakKind: null,
+          date: null,
           kind: null,
           title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,
         };
@@ -925,7 +1071,7 @@ export class PlayersStore {
     try {
       const manifest = await this.bundle.manifest();
       const [players, clubs, rosters, quotes, ratings, external, map, injuries, lineups, scoring,
-        crests] = await Promise.all([
+        crests, coaches] = await Promise.all([
         this.bundle.table('players'),
         this.bundle.table('clubs'),
         this.bundle.table('rosters'),
@@ -940,12 +1086,16 @@ export class PlayersStore {
         this.bundle.scoring().catch(() => null),
         // Optional by design: a bundle exported before the badges existed simply has none.
         this.bundle.crests().catch(() => null),
+        // CHI ALLENA E DA QUANDO: opzionale allo stesso modo, e un bundle che non la porta semplicemente
+        // non disegna il confine - che e' diverso da «non ci sono stati cambi».
+        this.bundle.table('coaches').catch(() => null),
       ]);
 
       this.generatedAt.set(manifest.generated_at);
       this.demo.set(manifest.demo === true);
       this.scoring.set(scoring);
       this.crests.set(crests ?? {});
+      this.coaches.set(buildCoachSpells(coaches));
 
       /* LE RIGHE DEL FOGLIO, per completare e correggere il listone. Dal `SHEET_REVISION` 26 il foglio è
        * costruito sulle rose OSSERVATE, quindi porta chi il listone non quota e il club vero di chi si è

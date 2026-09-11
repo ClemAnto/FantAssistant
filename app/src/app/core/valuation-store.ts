@@ -953,6 +953,24 @@ export class ValuationStore {
     };
   }
 
+  /**
+   * IL RUOLO REALE GRANULARE di un uomo - i dodici codici - con il giorno in cui è stato osservato.
+   *
+   * Pubblico perché la CARD lo mostra (operatore, 11/09/2026: «nella card di dettaglio di un calciatore,
+   * segna anche il ruolo reale»), e lo chiede LEI invece di riceverlo da chi la apre: è un fatto che NON
+   * dipende dal foglio. I numeri sì - il surplus di un uomo è del gioco che lo prezza, e la plancia e la
+   * Strategia leggono due fogli diversi - ma `player_roles` è una tabella sola con una lettura sola per
+   * uomo, quindi passarla dai tre punti che aprono la card sarebbe tre copie di un fatto unico. È la
+   * stessa regola per cui la card si prende da sé i marchi, la nota dichiarata e le ultime partite.
+   *
+   * La DATA viaggia perché la fonte serve solo «adesso» - accetta un `seasonId` e lo ignora - quindi
+   * questi codici sono un'istantanea e non una stagione. Vuoto = ignoto: un uomo che lo snapshot non ha
+   * raggiunto non ha codici, e la carta lo dice invece di disegnare un ruolo.
+   */
+  realRolesOf(fcId: number): { codes: string[]; on: string | null } | null {
+    return this.roles().get(fcId) ?? null;
+  }
+
   /** What the two measured columns are about: one season, one calendar, said once for both tables. */
   measuredOn(platform: Platform): string {
     return `${this.inputSeason()} · calendario ${platform === 'euro' ? 'EuroLeghe' : 'Serie A'}`;

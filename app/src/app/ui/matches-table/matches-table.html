@@ -63,15 +63,28 @@
         }
       }
       @for (header of columns(); track $index) {
-        <!-- IL CONFINE FRA DUE STAGIONI e' una colonna che non e' una partita (operatore, 06/09/2026):
-             dieci pixel, nessuna etichetta - il nome di una stagione non ci sta - e la frase nel titolo.
-             Il bordo sta a SINISTRA della cella, cioe' sulla giuntura. -->
+        <!-- I DUE CONFINI, e si vedono DIVERSI (operatore, 11/09/2026: «evidenzia quando viene cambiato
+             allenatore ... con un separatore diverso da quello del cambio stagione»).
+             Stagione: una linea sottile, il bordo di sempre - un altro campionato.
+             Panchina: una linea DOPPIA e accesa, col nome del nuovo in verticale - un altro criterio di
+             scelta, che e' la ragione per cui le presenze di prima e di dopo sono due popolazioni.
+             Dieci pixel per tutt'e due: un nome non ci sta, e lo dice il titolo. -->
         @if (header.divider) {
           <th
-            class="border-l border-border p-0"
+            class="p-0"
+            [class]="header.breakKind === 'coach'
+              ? 'border-l-2 border-double border-primary/70 bg-primary/5'
+              : 'border-l border-border'"
             [nzWidth]="widths().divider + 'px'"
             [title]="header.title"
-          ></th>
+          >
+            @if (header.breakKind === 'coach') {
+              <!-- IL SEGNO CHE SI VEDE SENZA PASSARCI SOPRA: un titolo si legge solo all'hover, e su una
+                   striscia di dieci colonne un confine che si distingue solo dal colore del bordo si
+                   confonde col confine di stagione a mezzo metro dallo schermo. -->
+              <span class="block text-center text-[9px] leading-none text-primary">⇄</span>
+            }
+          </th>
         } @else {
         <!-- LA TESTA DI UNA PARTITA, come l'operatore l'ha disegnata (10/09/2026): l'icona della
              competizione in cima, una riga per squadra col suo gol - in casa per prima - una riga di
@@ -224,8 +237,14 @@
 
         @for (cell of line.cells; track $index) {
           @if (divider($index)) {
-            <!-- Nessun trattino qui: un confine non e' una giornata non giocata. -->
-            <td class="border-l border-border p-0"></td>
+            <!-- Nessun trattino qui: un confine non e' una giornata non giocata. E la tinta segue la
+                 sua testa, o la colonna si spezzerebbe a meta' della tabella. -->
+            <td
+              class="p-0"
+              [class]="breakKind($index) === 'coach'
+                ? 'border-l-2 border-double border-primary/70 bg-primary/5'
+                : 'border-l border-border'"
+            ></td>
           } @else {
           <td class="text-center align-middle">
             @if (cell) {

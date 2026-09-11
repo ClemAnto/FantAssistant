@@ -37,6 +37,8 @@ import { BonusMark } from '../bonus-mark/bonus-mark';
 import { ClubCrest } from '../club-crest/club-crest';
 import { MatchLine } from '../match-line/match-line';
 import { PlayerFlags } from '../player-flags/player-flags';
+import { ValuationStore } from '../../core/valuation-store';
+import { RoleSet } from '../role-set/role-set';
 import { RulingDot } from '../ruling-dot/ruling-dot';
 
 /**
@@ -79,6 +81,7 @@ import { RulingDot } from '../ruling-dot/ruling-dot';
     NzIconModule,
     NzTooltipModule,
     PlayerFlags,
+    RoleSet,
     RulingDot,
   ],
 })
@@ -95,6 +98,23 @@ export class PlayerCard {
    * FOGLIO puo' essere diverso da un listone all'altro.
    */
   private readonly rulings = inject(PlayerRulings);
+  private readonly valuation = inject(ValuationStore);
+
+  /**
+   * IL RUOLO REALE GRANULARE, i dodici codici (operatore, 11/09/2026: «nella card di dettaglio di un
+   * calciatore, segna anche il ruolo reale»).
+   *
+   * NON e' il `where` dell'intestazione, che e' un POSTO e cambia da una pagina all'altra, ne' il ruolo
+   * di listone, che e' il mestiere con cui il GIOCO lo prezza: questo e' dove gioca davvero, ed e' la sola
+   * cosa che separa un terzino sinistro da un centrale - `role_classic` li chiama tutt'e due `D`.
+   *
+   * Se lo prende la CARD e non chi la apre, perche' e' un fatto che non dipende dal foglio: una tabella
+   * sola, una lettura sola per uomo. I numeri no - quelli sono del gioco che li prezza - ed e' la stessa
+   * divisione che vale per i marchi, la nota dichiarata e le ultime partite.
+   *
+   * Vuoto = IGNOTO: la fonte non ha raggiunto tutti, e la card lo dice invece di disegnare un ruolo.
+   */
+  protected readonly realRoles = computed(() => this.valuation.realRolesOf(this.man().id));
 
   /** L'uomo di QUESTA card, passato dalla pagina: le card aperte sono piu' di una. */
   readonly man = input.required<CardMan>();

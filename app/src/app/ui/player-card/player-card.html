@@ -45,7 +45,29 @@
           <span class="min-w-0 truncate text-sm font-semibold text-fg">{{ man.name }}</span>
           <ui-ruling-dot [playerId]="man.id" />
         </span>
-        <span class="block truncate text-[11px] text-muted">{{ man.club }} · {{ man.where }}</span>
+        <span class="flex min-w-0 items-center gap-1 text-[11px] text-muted">
+          <span class="min-w-0 truncate">{{ man.club }} · {{ man.where }}</span>
+          <!-- IL RUOLO REALE, i dodici codici (operatore, 11/09/2026). Lo STESSO componente del
+               campetto e della tabella: un marchio significa la stessa cosa in ogni pagina, e due
+               disegni dello stesso ruolo sarebbero due vocabolari. Non è il `where` qui accanto - quello
+               è un POSTO e cambia da una pagina all'altra - né il ruolo di listone: questo è dove gioca
+               davvero, l'unica cosa che separa un terzino sinistro da un centrale.
+               Assente = IGNOTO, e allora non si disegna niente invece di un ruolo inventato. -->
+          @if (realRoles(); as real) {
+            @if (real.codes.length) {
+              <ui-roles
+                class="shrink-0"
+                [roles]="real.codes"
+                size="xs"
+                nz-tooltip
+                [nzTooltipTitle]="
+                  'Dove gioca davvero, dai dodici codici osservati' +
+                  (real.on ? ' · letto il ' + real.on : '')
+                "
+              />
+            }
+          }
+        </span>
       </span>
       <ui-flags [playerId]="man.id" [max]="3" />
       <button

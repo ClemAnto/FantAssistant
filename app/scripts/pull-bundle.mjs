@@ -66,6 +66,23 @@ const TABLES = [
    * mentre un centrocampista di prima fascia si compra a 0,79 e un difensore a 0,80. Sotto i 50 di
    * FVM la stanza paga un quarto di quello che il FVM dice. Dettaglio: docs/real-data/2026-27/. */
   'auction_prices',
+  /* CHI ALLENA E DA QUANDO, spell datati per club (11/09/2026, su richiesta dell'operatore: «evidenzia
+   * quando viene cambiato allenatore nella vista squadre/ultime partite con un separatore diverso da
+   * quello del cambio stagione»).
+   *
+   * Un cambio di allenatore e' la cosa che spiega meglio perche' una striscia di ultime partite cambia
+   * faccia a meta': le presenze di un uomo prima e dopo sono due popolazioni, e leggerle come una sola
+   * e' la stessa famiglia del confine fra due stagioni - che infatti una colonna ce l'ha gia'.
+   *
+   * QUARTA ISTANZA del difetto dei campetti: era gia' nel contratto di export (`TableSpec("coaches")`)
+   * e gia' scritta in `data/export/<season>/json/coaches.json.gz` - mancava solo in questa lista. La
+   * regola scritta il 10/08 vale identica: una tabella aggiunta all'EXPORT va aggiunta anche QUI, o
+   * l'app legge una forma piu' vecchia dello stesso pacchetto.
+   *
+   * REPORTING: disegna un separatore e nessun numero la legge. 3.994 spell in archivio, 119 cambi dal
+   * 1o agosto 2024 - cioe' dentro la finestra che la tabella mostra - e i traghettatori ci sono tutti
+   * (il Genoa ha Murgita per quattro giorni fra Vieira e De Rossi), che e' un fatto e non rumore. */
+  'coaches',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {

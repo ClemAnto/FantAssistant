@@ -336,9 +336,20 @@ export class MatchesTable {
     return rank != null && rank >= FAINT_FROM;
   }
 
-  /** Se la colonna in quella posizione e' il CONFINE fra due stagioni e non una partita. */
+  /** Se la colonna in quella posizione e' un CONFINE e non una partita. */
   protected divider(index: number): boolean {
     return !!this.columns()[index]?.divider;
+  }
+
+  /**
+   * QUALE dei due confini e', perche' si disegnano diversi (operatore, 11/09/2026).
+   *
+   * Letto dalla COLONNA e non dedotto dal testo del titolo: due letture della stessa cosa finirebbero
+   * per dipingere la testa di un colore e la cella di un altro, e la colonna si spezzerebbe a meta'
+   * della tabella.
+   */
+  protected breakKind(index: number): 'season' | 'coach' | null {
+    return this.columns()[index]?.breakKind ?? null;
   }
 
   /** True when the cell has no number at all and is drawn as an icon only. */
