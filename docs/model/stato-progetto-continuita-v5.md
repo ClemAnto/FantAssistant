@@ -7073,3 +7073,116 @@ pulsante contro il FILE e salta dicendolo se il bundle non porta `short`.
 messo i suoi file in stage, quindi `git add` dei propri li porterebbe dentro. Si committa **per
 percorso** (`git commit -- <file>`), che ignora l'indice per tutto il resto, e non si resetta l'indice
 altrui.
+
+---
+
+# Chiusura 11 settembre 2026 — la notte che non arrivava mai a costruire, e un'ottimizzazione che non mordeva
+
+Sessione aperta da una domanda dell'operatore («l'aggiornamento è partito stanotte?») e chiusa da
+un'altra («questi aggiornamenti richiedono molto tempo, non c'è un modo per ottimizzarli?»). Due
+commit: `cfd5e46` e `88ef937`.
+
+## Il difetto più grande non era un costo, era un ORDINE
+
+La notte dell'11/09 ha fatto **18 passi su 31 in cinque ore**: i primi 18 ne hanno presi 262 su 300 e
+`injuries` ne ha avuti 38. Gli **ultimi dodici non sono stati raggiunti** — e fra quelli ci sono i
+fogli, i pacchetti, il bundle e la copia nell'app. Su un piano di 22 ore con una finestra di cinque il
+taglio è la REGOLA, quindi **la notte aggiornava il database e non produceva mai il deliverable**, che
+restava da lanciare a mano ogni volta.
+
+Il numero l'ho ricavato dal RITMO e non da un timestamp: 800 pagine a 2,75 secondi sono 37 minuti, e
+alle 07:59 `injuries` era a 800 — quindi era partito alle 07:22.
+
+E la fotografia del mattino **mancava proprio le notti per cui esiste**: `ExecutionTimeLimit` non
+chiede al processo di fermarsi, lo **uccide**, quindi nessun `finally` gira e la sezione finale non si
+raggiunge. Il `morning.txt` di quella mattina era della sera prima. Serviva un TRIGGER indipendente —
+niente dentro un processo sopravvive alla propria terminazione — e una FUNZIONE sola con due
+chiamanti, perché due copie stamperebbero due quadri della stessa notte.
+
+## Le due camminate, ciascuna col numero che l'ha decisa
+
+**`injuries` ruota invece di rileggere in blocco.** 3712 pagine a 2,5 secondi sono 2h51 di sola attesa
+dentro una finestra di cinque ore, e l'archivio rende **5 spell nuovi al giorno** (13 in quindici
+giorni fra i quotati di Serie A). `stale_days=7` ne rilegge un settimo a notte e nessuna pagina resta
+indietro più di una settimana; la freschezza che decide una formazione la porta `availability`, letta
+ogni giorno e già dentro `--daily`. Due letture, due domande, e solo la seconda è un archivio.
+**180 → 26 minuti.**
+
+**`recent_form` cammina solo le ultime tre stagioni su un update**, e la ragione non è che le vecchie
+contino meno: **la fonte non sa rispondere**. La ricerca del provider restituisce il club di OGGI — il
+modulo lo dichiara da sé — quindi aggancia su un listone recente e deriva su uno vecchio. Misurata la
+coda stagione per stagione: dal 2016-17 al 2023-24 ci sono **650 uomini di cui 618 danno zero
+partite**, e chi dà zero non è mai «coperto», quindi viene ritentato a ogni corsa per riottenere zero.
+Le ultime tre: 164 in coda, 143 già con righe. **90 → 20 minuti.**
+
+Su `bootstrap` camminano entrambe tutto: una cache vuota va riempita anche per le finestre del gate, e
+lì il tempo si paga una volta sola.
+
+Acquisizione notturna: **da 22h34 a 18h50**.
+
+## E la mia prima versione del taglio NON MORDEVA
+
+Il taglio delle stagioni lo calcolava il PIANO, e `update.run` passa `seasons=None` ogni volta che
+nessuno usa `--season`, cioè **sempre nel lavoro notturno**: «le ultime tre» venivano calcolate su una
+tupla vuota, il modulo tornava a camminarle tutte, e **la riga del piano dichiarava venti minuti**
+perché quel numero era cablato. Da fuori sembrava attiva.
+
+Stessa famiglia del flag che il dispatcher scarta, già pagata due volte qui: **un NUMERO attraversa il
+confine, un elenco che dipende da cosa il chiamante sa no.** Ora passa `last_seasons=3` e a tagliare è
+chi le stagioni le conosce, cioè il modulo che legge il DB. Trovato guardando la FUNZIONE invece della
+riga del piano, e il test gira **senza stagioni dichiarate** — la condizione in cui il difetto viveva —
+e pretende anche che `last_seasons` sia nella firma di `recent_form.run`.
+
+## Un test guardiano corretto sull'INTENTO, non sul valore
+
+`test_refresh_is_set_where_the_source_moves_and_nowhere_else` chiedeva `refresh is True` ed è andato
+rosso quando `injuries` è passato a `stale_days`. La sostanza che difende — una cache su un fatto che
+CAMBIA ha una scadenza, su uno FINITO no — non è cambiata: è l'ESPRESSIONE che si è allargata, perché
+un booleano e un numero di giorni sono due modi di dire «questa cache scade». Non è un criterio
+allentato perché una regola ci è caduta, ed è scritto nel test.
+
+## I passi muti, e la guardia che ne ha trovato un terzo
+
+Segnalazione dell'operatore: `market` dichiara 60 minuti e non stampava una riga, quindi da fuori «sta
+lavorando» e «è appeso» si leggevano uguali — l'unico modo di distinguerli è stato guardare il tempo di
+CPU del processo.
+
+**Cercato il fratello** invece di curare il caso segnalato: `performance`, 50 minuti, silenzioso allo
+stesso modo. È il genere di cosa che si trova solo contando, perché a leggere il codice un modulo
+silenzioso non ha niente di storto da vedere.
+
+**I due denominatori non sono lo stesso numero**: in `market` il ciclo gira su tutti i quotati e salta
+con un `continue` quelli già in cache, quindi contare i giri farebbe correre la barra mentre non si
+scarica niente; in `performance` ogni giro fa comunque parse e store. Un errore di unità dentro una
+barra è nel posto in cui si nota meno.
+
+La guardia (`≥30 minuti ⇒ `ctx.progress`) ha trovato subito `ratings`, e lì la risposta giusta era
+l'OPPOSTO: non è muto, stampa una riga per giornata, e una barra non può averla perché quante giornate
+ci siano si SCOPRE quando il foglio arriva vuoto — `Context.progress` lo vieta a parole sue. Esenzione
+**dichiarata** (`TOTAL_UNKNOWN`) e un secondo test verifica che chi è esentato parli comunque: un
+buco con un commento sopra non è un'esenzione.
+
+## Cosa è stato acquisito e costruito
+
+`injuries` ripreso con `--stale-days 1` (825 pagine già lette stanotte non ripagate): **36.243 assenze
+datate su 3729 giocatori**, pagine lette fino a oggi. `market` 1292 curve e 25.745 punti,
+`performance` 1304 giocatori. Poi la costruzione: `mv_est` da 13.223 a **18.522** partite con un voto —
+e il ripiego si è mosso **da sé** da −0,303 a −0,302, che è la proprietà per cui era stato scritto
+derivato invece che digitato.
+
+Bundle 26,4 MB, 479.159 righe in 26 tabelle, tre fogli a revisione 58. Sul foglio Serie A i nuovi
+arrivati passano a **78 righe coi numeri e 24 marcate** (erano 75 e 23): entrano Romero D. (0,87 g+a/90
+in Argentina) e Hutchinson (0,712 della stagione in Premier).
+
+## Aperti
+
+1. **Le viste non disegnano ancora il marchio del nuovo arrivato**, né leggono `mv_est`. Restano i due
+   aperti della chiusura precedente.
+2. **L'Elo dei club è fermo al 14 gennaio**: ClubElo risponde 502 e il mirror non ha di meglio. Lo
+   segnala da sé il `morning.txt` (`!! forza dei club 240g`). `desc_level_elo` e il termine `level_gap`
+   ci stanno sopra — non li invalida, va saputo prima di leggerli come freschi.
+3. **Il task delle 08:05 ricostruisce anche quando la notte è finita da sé**: dieci minuti di lavoro
+   già fatto. Lasciato così deliberatamente — un task che tace quando il primo ha funzionato è un task
+   di cui nessuno sa se gira.
+4. **Il branch è ahead 6 e non pubblicato.** Il push è una decisione dell'operatore, e l'altra sessione
+   ha lavoro in corso sullo stesso branch.

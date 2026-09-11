@@ -5534,6 +5534,78 @@ nello stesso oggetto. **126 partite** per la stagione in corso, che è la sola c
 guarda, contro ~1.750 per una stagione intera. *Un dato che si butta via mentre lo si legge non è
 un'acquisizione da zero, ed è la settima volta che questo repository lo scopre.*
 
+## Un'OTTIMIZZAZIONE che dipende da cosa il chiamante sa è un'ottimizzazione che non morde
+**11/09/2026, e la riga del piano la dichiarava attiva.** Per far camminare `recent_form` solo sulle
+ultime tre stagioni avevo calcolato l'elenco nel PIANO — e `update.run` passa `seasons=None` ogni volta
+che nessuno usa `--season`, cioè **sempre nel lavoro notturno**. Quindi «le ultime tre» si calcolavano
+su una tupla vuota, il modulo tornava a camminarle tutte, e il piano stampava «~20 min» perché quel
+numero era cablato accanto. Da fuori l'ottimizzazione sembrava in funzione.
+
+Terza istanza della famiglia «un flag che il parser accetta e il dispatcher scarta», e la regola
+generale che la distingue: **un NUMERO attraversa il confine fra due moduli, un elenco che dipende da
+cosa il chiamante sa no.** Ora viaggia `last_seasons=3` e a tagliare è chi le stagioni le conosce
+davvero — il modulo, che legge il DB. Il test gira **senza stagioni dichiarate**, cioè nella condizione
+in cui il difetto viveva, e pretende anche che il parametro sia nella FIRMA del modulo: un parametro
+che il piano dichiara e la firma non accetta è il difetto vecchio con un nome nuovo.
+Trovato guardando la funzione invece della riga del piano, per la sesta volta.
+
+## UN PASSO MUTO è un passo su cui non si può decidere, e il fratello si cerca
+**11/09/2026, dalla segnalazione dell'operatore su `market`.** Quel passo dichiara 60 minuti e non
+stampava una riga: da fuori «sta lavorando» e «è appeso» si leggono uguali, e l'unico modo di
+distinguerli è stato guardare il **tempo di CPU del processo**. Non è un difetto estetico — è un passo
+su cui non si può decidere se aspettare o fermare, e stamattina quella decisione è costata quattro ore.
+
+**Cercato il fratello invece di curare il caso segnalato**, e c'era: `performance`, 50 minuti,
+silenzioso allo stesso modo. È il genere di cosa che si trova solo CONTANDO (quali moduli chiamano
+`ctx.progress` contro quanto dichiarano di durare), perché a leggere il codice un modulo silenzioso non
+ha niente di storto da vedere.
+
+Tre cose che restano.
+- **`ctx.progress` e non una print qualsiasi**: è la forma di riga che il pannello Tk parsa per la sua
+  barra, e un secondo formato vorrebbe dire un secondo parser — il docstring di `Context.progress` lo
+  dice già.
+- **I DUE DENOMINATORI NON SONO LO STESSO NUMERO.** In `market` il ciclo gira su tutti i quotati e
+  salta con un `continue` quelli già in cache, quindi contare i giri farebbe correre la barra mentre
+  non si scarica niente; in `performance` ogni giro fa comunque parse e store. Due cicli, due risposte
+  — *un errore di unità dentro una barra di avanzamento è nel posto in cui si nota meno.*
+- **La guardia, e l'eccezione DICHIARATA che ha prodotto.** «Ogni passo che dichiara ≥30 minuti chiama
+  `ctx.progress`» ha trovato subito un terzo caso, `ratings` — dove la risposta giusta era l'opposto:
+  non è muto (stampa una riga per giornata) e una barra **non può** averla, perché quante giornate ci
+  siano si SCOPRE quando il foglio arriva vuoto, e `Context.progress` vieta «uno spinner travestito da
+  numero». Quindi `TOTAL_UNKNOWN` con la ragione accanto, **più un secondo test che verifica che chi è
+  esentato parli comunque**: un'esenzione che nessuno controlla è un buco con un commento sopra.
+
+## Una CADENZA è un'altra cosa da un REFRESH, e un archivio ha la sua
+**11/09/2026, dalla domanda «non c'è un modo per ottimizzare gli aggiornamenti?».** Il difetto più
+grosso non era un costo, era un ORDINE: la notte faceva **18 passi su 31 in cinque ore** — i primi 18
+ne prendevano 262 su 300 — e gli **ultimi dodici non venivano raggiunti mai**. Fra quelli ci sono i
+fogli, i pacchetti, il bundle e la copia nell'app: *la notte aggiornava il database e non produceva mai
+il deliverable.* Su un piano di 22 ore con una finestra di cinque il taglio è la regola, non
+l'eccezione, quindi la costruzione è stata spostata in un task che gira **dopo** il limite e costruisce
+su dati parziali — quello che è arrivato è comunque più fresco di ieri, e il manifest porta la propria
+data. Aspettare l'acquisizione completa vorrebbe dire non costruire mai.
+E il quadro del mattino **mancava proprio le notti per cui esiste**: `ExecutionTimeLimit` non chiede al
+processo di fermarsi, lo UCCIDE, quindi nessun `finally` gira. *Niente dentro un processo sopravvive
+alla propria terminazione*, quindi la cura è un TRIGGER indipendente e non un try/finally — con una
+FUNZIONE sola e due chiamanti, perché due copie stamperebbero due quadri della stessa notte.
+
+**E due camminate ripagavano il nulla, ciascuna col suo numero.** `injuries` rileggeva 3712 pagine a
+2,5 secondi (2h51) per un archivio che rende **5 spell al giorno**: ora ruota, `stale_days=7`, un
+settimo a notte, e la freschezza che decide una formazione la porta `availability` che è già in
+`--daily` — *due letture, due domande, e solo la seconda è un archivio*. `recent_form` camminava tutte
+le stagioni quando **la fonte non sa rispondere sulle vecchie**: la ricerca del provider restituisce il
+club di OGGI, quindi aggancia su un listone recente e deriva su uno vecchio — dal 2016-17 al 2023-24
+sono **650 uomini di cui 618 danno zero**, e chi dà zero non è mai «coperto», quindi viene ritentato a
+ogni corsa per riottenere zero. Su `bootstrap` camminano entrambe tutto: una cache vuota va riempita
+anche per le finestre del gate, e lì il tempo si paga una volta sola. Da 22h34 a 18h50.
+
+**E il test guardiano si corregge sull'INTENTO, non sul valore.**
+`test_refresh_is_set_where_the_source_moves_and_nowhere_else` chiedeva `refresh is True` ed è andato
+rosso quando `injuries` è passato a `stale_days`. La sostanza che difende — una cache su un fatto che
+CAMBIA ha una scadenza, su uno FINITO no — è intatta, e quello che si è allargato è l'ESPRESSIONE:
+*un booleano e un numero di giorni sono due modi di dire «questa cache scade»*. Non è un criterio
+allentato perché una regola ci è caduta, e la differenza è scritta nel test.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
