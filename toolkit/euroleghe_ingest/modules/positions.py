@@ -63,6 +63,16 @@ PLAYER_ENDPOINT = BASE_URL + "/player/{pid}"
 # pre-season is invisible - which is precisely the window an August auction is prepared in.
 TEAM_EVENTS_ENDPOINT = BASE_URL + "/team/{tid}/events/last/{page}"
 INCIDENTS_ENDPOINT = BASE_URL + "/event/{eid}/incidents"
+
+#: La chiave che dice «LA FONTE HA RISPOSTO E NON AVEVA NIENTE», che e' un fatto e va salvato - mentre un
+#: dizionario vuoto non lo distingue da un download morto. Misurato l'11/09/2026: 600 file su 606 erano
+#: vuoti, e fra loro 21 partite di Champions League e 30 di Serie B, cioe' competizioni di cui la fonte
+#: pubblica certamente gli incidenti. Seconda istanza della regola del 17/08.
+EMPTY_CONFIRMED = "_source_said_nothing"
+#: Dopo quanti rifiuti DI FILA si smette: «un lungo sweep che comincia a essere rifiutato e' uno sweep da
+#: abbandonare» (17/08/2026). Vale solo finche' non si e' attribuito niente: una corsa che sta lavorando
+#: e incontra un buco isolato continua.
+MAX_REFUSALS = 5
 CREST_ENDPOINT = BASE_URL + "/team/{tid}/image"
 EXTRA_WINDOW_DAYS = 150       # how far back a non-league match is still part of "the last ten"
 
@@ -720,7 +730,8 @@ def fetch_extra_incidents(ctx: Context, seasons=None, refresh: bool = False) -> 
         HAVING declared > attributed
         ORDER BY match_id
         """, params).fetchall()
-    counts = {"matches": 0, "goals": 0, "assists": 0, "unmatched": 0, "requests": 0}
+    counts = {"matches": 0, "goals": 0, "assists": 0, "unmatched": 0, "requests": 0,
+              "refused": 0}
     if not todo:
         print("[positions] incidents: nothing to attribute")
         return counts
@@ -734,12 +745,47 @@ def fetch_extra_incidents(ctx: Context, seasons=None, refresh: bool = False) -> 
             if ctx.cancelled():
                 raise KeyboardInterrupt
             cache = ctx.config.cache_dir / f"sofascore_incidents_{match_id}.json"
+            payload = None
             if cache.exists() and not refresh:
                 payload = json.loads(cache.read_text(encoding="utf-8"))
-            else:
+                # UN FILE DI CACHE VUOTO E' UN DOWNLOAD FALLITO, non «la fonte non ha detto niente», e
+                # qui e' la SECONDA istanza di un difetto che questo repository ha gia' pagato una volta
+                # (17/08/2026, `fetch_extra_matches`: 91 file di 93 sovrascritti con «zero eventi»).
+                #
+                # Misurato l'11/09/2026 sulla cache viva: **600 file su 606 sono vuoti**, e fra loro ci
+                # sono 21 partite di Champions League, 30 di Serie B, 20 di Championship, 84 di Serie C e
+                # 18 di Liga 2 - competizioni di cui la fonte pubblica certamente gli incidenti. I 6
+                # pieni sono tutti amichevoli, cioe' quelli che per caso hanno risposto. Un 0-0 non
+                # arriva qui: `todo` seleziona solo le partite con gol NON attribuiti, quindi un file
+                # senza incidenti su una partita con gol e' una risposta che non c'e' stata.
+                #
+                # Quindi si ri-chiede invece di leggere lo zero. Non e' un `--refresh` mascherato: una
+                # cache PIENA non viene toccata (una partita finita non prende gol nuovi), e questo
+                # ripara solo i buchi.
+                if not payload.get("incidents") and not payload.get(EMPTY_CONFIRMED):
+                    payload = None
+            if payload is None:
                 _polite_sleep(ctx.cancel_event)
-                payload = _get_json(session, INCIDENTS_ENDPOINT.format(eid=match_id)) or {}
+                answer = _get_json(session, INCIDENTS_ENDPOINT.format(eid=match_id))
                 counts["requests"] += 1
+                if answer is None:
+                    # LA FONTE NON HA RISPOSTO, e questo NON si mette in cache: un marcatore che non sa
+                    # chi ha detto l'assenza e' il difetto del 17/08/2026 - scriverlo qui vorrebbe dire
+                    # ricreare i 600 file vuoti che questa cura ripara.
+                    counts["refused"] += 1
+                    if counts["refused"] >= MAX_REFUSALS and not counts["goals"]:
+                        print(f"[positions] incidents: {counts['refused']} rifiuti di fila, mi fermo."
+                              f" Continuare non riapre la fonte e la cache resta intatta.")
+                        break
+                    continue
+                counts["refused"] = 0
+                payload = answer
+                if not payload.get("incidents"):
+                    # LA FONTE HA RISPOSTO E HA DETTO NIENTE: questo E' un fatto e si salva, o ogni
+                    # corsa ripagherebbe la stessa richiesta. Il marcatore dice CHI ha detto l'assenza,
+                    # che e' la meta' che mancava - un dizionario vuoto non lo distingue da un download
+                    # morto.
+                    payload = {**payload, EMPTY_CONFIRMED: True}
                 _atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
             goals: dict[int, int] = {}
             assists: dict[int, int] = {}
