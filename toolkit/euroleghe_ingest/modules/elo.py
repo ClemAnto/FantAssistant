@@ -83,6 +83,32 @@ REQUEST_DELAY = 1.5          # a static file server, but polite is still polite
 MIRROR_URL = ("https://github.com/tonyelhabr/club-rankings/releases/download/club-rankings/"
               "clubelo-club-rankings.csv")
 MIRROR_COLUMNS = ("Rank", "Club", "Country", "Level", "Elo", "From", "To")
+
+# IL PRIMO RIPIEGO DAL 11/09/2026, e sostituira' quello sopra (decisione dell'operatore: affiancare
+# adesso, togliere l'altro a breve). Un archivio che ricopia la STESSA serie di ClubElo con uno
+# snapshot il 1º e il 15 di ogni mese - e il 15 e' la data d'asta convenzionale di questo progetto.
+#
+# CHE SIA LA STESSA QUANTITA' E' MISURATO e non dedotto dalla descrizione, che e' il test su cui lo
+# SCRAPING DEL SITO era stato bocciato lo stesso giorno: confrontato con i CSV dell'API genuina che
+# abbiamo in cache, **2024-08-15 e 2023-08-15 coincidono al centesimo** (|max| 0.00, 100% entro un
+# punto). Il 2025-08-15 ha uno scarto tipico di 4,8 punti sui club minori (Lincoln, Telstar, KFUM
+# Oslo) e mediana −0,01: e' lo stesso giorno letto a un'ora diversa - a meta' agosto giocano i
+# campionati nordici e le qualificazioni europee - e non un'altra scala. Per contrasto il sito
+# leggeva **+170 sui club deboli e +12 sui forti**, cioe' una scala che comprime, e quella differenza
+# sarebbe finita dentro R19, che standardizza l'Elo dei club di ORIGINE: club medi, dove le due scale
+# divergono di cento punti.
+#
+# Copre 2000-07-01 -> oggi in un file solo, quindi serve anche le finestre del gate, e usa gli STESSI
+# nomi dell'API - il che e' una conseguenza del coincidere al centesimo, non una speranza: la
+# mappatura che questo modulo ha gia' (`club_xref(clubelo)`) continua a valere.
+#
+# QUELLO CHE NON PORTA e' il LIVELLO di divisione. Non entra in `club_elo` - lo legge solo la
+# segnalazione «questo club di prima divisione non e' mappato» - quindi la conseguenza e' che da
+# questa fonte quella segnalazione TACE invece di sbagliare. Detto qui perche' un aiuto alla
+# manutenzione che si spegne in silenzio si scopre solo quando serve.
+ARCHIVE_URL = ("https://raw.githubusercontent.com/xgabora/Club-Football-Match-Data/"
+               "main/data/EloRatings.csv")
+ARCHIVE_COLUMNS = ("date", "club", "country", "elo")
 # Countries -> our league keys. Used only to REPORT coverage, never to filter a match: a club that
 # dropped out of its top division still has an Elo, and the older windows need exactly those.
 COUNTRY_LEAGUE: dict[str, str] = {
@@ -177,6 +203,12 @@ def fetch_snapshots(ctx: Context, dates: list[str], refresh: bool = False) -> in
         print(f"[elo] {date}: snapshot cached ({len(payload) // 1024} KB)")
         time.sleep(REQUEST_DELAY)
     if missing and not ctx.cancelled():
+        # DUE RIPIEGHI IN CASCATA, e l'ordine e' la freschezza: l'archivio arriva a ieri, il mirror si
+        # e' fermato al 14/01/2026. Il secondo vede solo quello che il primo non ha coperto, quindi
+        # quando l'archivio serve tutto - il caso normale - non viene nemmeno scaricato: sono 49 MB.
+        written, missing = fetch_from_archive(ctx, missing)
+        fetched += written
+    if missing and not ctx.cancelled():
         fetched += fetch_from_mirror(ctx, missing)
     return fetched
 
@@ -239,6 +271,155 @@ def parse_snapshot(text: str) -> list[dict]:
     return out
 
 
+def api_snapshots_in_cache(config) -> dict[str, dict[tuple[str, float], str]]:
+    """{data: {(paese, Elo): nome dell'API}} dai soli CSV che vengono DALL'API.
+
+    Riconosciuti dal non avere un `.origin.txt` accanto: quel marcatore lo scrivono i due ripieghi, e
+    imparare i nomi da un ripiego significherebbe imparare i suoi invece di quelli veri.
+    """
+    out: dict[str, dict[tuple[str, float], str]] = {}
+    for path in sorted(config.cache_dir.glob("clubelo_*.csv")):
+        if path.with_suffix(".origin.txt").exists():
+            continue
+        date = path.stem.replace("clubelo_", "")
+        try:
+            rows = parse_snapshot(path.read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        seen: dict[tuple[str, float], str] = {}
+        for rec in rows:
+            key = (rec["country"], round(rec["elo"], 1))
+            # Un Elo che due club dello stesso paese condividono quel giorno non identifica nessuno
+            # dei due: la chiave si marca ambigua invece di assegnarla al primo che passa.
+            seen[key] = "" if key in seen and seen[key] != rec["club"] else seen.get(key, rec["club"])
+        out[date] = {k: v for k, v in seen.items() if v}
+    return out
+
+
+def name_bridge(archive_rows_by_date, api_by_date) -> dict[str, str]:
+    """{nome dell'archivio: nome dell'API}, derivato incrociando le date che HANNO tutt'e due.
+
+    PERCHE' SERVE, e non era prevedibile dalla descrizione della fonte: quel repository unisce i match
+    data agli Elo e ha RINOMINATO i club nella convenzione dei primi - `Bayern Munich` dove ClubElo
+    scrive `Bayern`, `Ath Bilbao` dove scrive `Bilbao`, `Ein Frankfurt` dove scrive `Frankfurt`. Alla
+    prima corsa quattro club del listone restarono senza Elo, e sono i grossi. Sesta istanza in questo
+    repository del join per NOME.
+
+    E IL MIO ERRORE DI LETTURA VA SCRITTO PERCHE' E' RIPETIBILE: avevo concluso «usa gli stessi nomi
+    dell'API» dal fatto che gli Elo coincidono al centesimo. Ma li avevo confrontati sui club che il
+    join per nome agganciava - cioe' su quelli col nome uguale, per costruzione. *Una coincidenza
+    misurata dentro il proprio criterio di selezione non dice niente su chi resta fuori.*
+
+    LA CURA E' QUELLO STESSO COINCIDERE usato come CHIAVE: allo STESSO GIORNO, due club con lo stesso
+    paese e lo stesso Elo sono lo stesso club. E lo stesso giorno e' la condizione che rende valido il
+    ponte - la prima versione di questa funzione incrociava (paese, Elo) di date DIVERSE e non
+    agganciava niente, perche' l'Elo si muove: la chiave giusta e' un nome, e la si deriva dove le due
+    fonti si sovrappongono. Misurato: 375 e 383 club univoci sulle due date disponibili, e le due
+    concordano sul nome tranne che in un caso.
+    """
+    bridge: dict[str, set] = {}
+    for date, api in api_by_date.items():
+        for club, country, elo in archive_rows_by_date.get(date, ()):  # noqa: B007
+            name = api.get((country, round(elo, 1)))
+            if name:
+                bridge.setdefault(club, set()).add(name)
+    # Un nome che due date traducono in due modi non e' una traduzione: si lascia stare, e il club
+    # restera' col proprio nome fra gli irrisolti che il modulo gia' stampa.
+    return {club: next(iter(names)) for club, names in bridge.items() if len(names) == 1}
+
+
+def pick_from_archive(lines, wanted, api_by_date=None) -> dict[str, tuple[str, str]]:
+    """{data richiesta: (data OSSERVATA, csv)} dall'archivio, in una passata sola sul file.
+
+    A O PRIMA e mai dopo, come il ripiego che sostituisce: l'Elo del giorno d'asta e' quello che
+    valeva quel giorno, e uno snapshot successivo conterrebbe partite che quel giorno non erano state
+    giocate - cioe' del futuro dentro una finestra che il gate misura.
+
+    Il CSV prodotto ha le colonne dell'API (`MIRROR_COLUMNS`) e i NOMI dell'API, tradotti da
+    `name_bridge`: cosi' `parse_snapshot`, `ELO_ALIASES` e `club_xref` non sanno da dove viene il
+    file. `Rank` si ricalcola dall'Elo - e' la sua definizione - mentre `Level` resta VUOTO perche'
+    l'archivio non lo porta, e un livello inventato accenderebbe la segnalazione degli irrisolti su
+    club che nessuno ha classificato.
+    """
+    per_date: dict[str, list[tuple[str, str, float]]] = {}
+    for index, raw in enumerate(lines):
+        if index == 0:
+            continue
+        parts = next(csv.reader([raw.rstrip()]), None)
+        if not parts or len(parts) < 4:
+            continue
+        date, club, country, elo = parts[0], parts[1], parts[2], parts[3]
+        # Solo le date che possono servire a QUALCUNO dei richiesti, PIU' quelle su cui si costruisce
+        # il ponte dei nomi: il file ha 629 date e tenerle tutte per servirne dieci e' pagare 270.000
+        # righe per niente.
+        if not any(date <= one for one in wanted) and date not in (api_by_date or {}):
+            continue
+        try:
+            per_date.setdefault(date, []).append((club, country, float(elo)))
+        except ValueError:
+            continue
+
+    bridge = name_bridge(per_date, api_by_date or {})
+    out: dict[str, tuple[str, str]] = {}
+    for one in wanted:
+        available = [date for date in per_date if date <= one]
+        if not available:
+            continue
+        observed = max(available)
+        rows = sorted(per_date[observed], key=lambda r: -r[2])
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(MIRROR_COLUMNS)
+        for rank, (club, country, elo) in enumerate(rows, start=1):
+            # Il nome dell'API dove il ponte lo conosce, il suo dove no: un club che non si riesce a
+            # tradurre resta col proprio nome invece di sparire, e finira' fra gli irrisolti che il
+            # modulo gia' stampa - visibile, non perso.
+            writer.writerow([rank, bridge.get(club, club), country, "", elo, observed, observed])
+        out[one] = (observed, buffer.getvalue())
+    return out
+
+
+def fetch_from_archive(ctx: Context, wanted: list[str]) -> tuple[int, list[str]]:
+    """Scarica l'archivio e ne scrive gli snapshot in cache. Torna (scritti, date ancora scoperte)."""
+    print(f"[elo] ripiego sull'archivio per {len(wanted)} data/e: {ARCHIVE_URL}")
+    try:
+        with urllib.request.urlopen(ARCHIVE_URL, timeout=180) as response:
+            lines = (raw.decode("utf-8", errors="replace") for raw in response)
+            picked = pick_from_archive(lines, wanted, api_snapshots_in_cache(ctx.config))
+    except (urllib.error.URLError, TimeoutError, OSError) as exc:
+        print(f"[elo] l'archivio non risponde ({exc}) - resta il ripiego successivo")
+        return 0, list(wanted)
+
+    written, missing = 0, []
+    for date in wanted:
+        chosen = picked.get(date)
+        if chosen is None:
+            print(f"[elo] {date}: l'archivio non ha niente a quella data o prima")
+            missing.append(date)
+            continue
+        observed, payload = chosen
+        path = _cache_path(ctx.config, observed)
+        if path.exists():
+            print(f"[elo] {date}: l'archivio offre {observed}, gia' in cache - lasciato stare")
+            continue
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(payload, encoding="utf-8")
+        os.replace(tmp, path)
+        path.with_suffix(".origin.txt").write_text(
+            f"{ARCHIVE_URL}\nrequested={date}\nobserved={observed}\n",
+            encoding="utf-8")
+        written += 1
+        same = " (la data chiesta)" if observed == date else f" - archiviato come {observed}, che e' quando e' stato OSSERVATO"
+        print(f"[elo] {date}: snapshot dall'archivio{same}")
+    return written, missing
+
+
+# ---------- DEPRECATO dal 11/09/2026, e la data e' la ragione ----------
+# Questo ripiego copre 2023-04-16 -> 2026-01-14 e **non e' piu' aggiornato**: l'asset della release e'
+# fermo al 14/01/2026, mentre `ARCHIVE_URL` era al 1º settembre. Resta come SECONDO ripiego finche'
+# non si e' visto il primo reggere per qualche mese - due fonti di terzi che si spengono nello stesso
+# trimestre sono improbabili, e il costo di tenerlo e' una funzione che nessuno chiama quasi mai.
+# Da togliere insieme a `MIRROR_URL` e `pick_from_mirror` quando l'archivio avra' una storia.
 def pick_from_mirror(lines, wanted: list[str]) -> dict[str, tuple[str, str]]:
     """{requested date: (the date actually observed, the CSV the API would have returned)}.
 

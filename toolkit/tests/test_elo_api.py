@@ -194,3 +194,90 @@ def test_the_mirror_changing_shape_is_an_error_and_not_a_silent_empty():
 
     with pytest.raises(ValueError, match="columns"):
         elo.pick_from_mirror(["Team,Rating,day\n", "Inter,1900,2026-01-14\n"], ["2026-08-07"])
+
+
+def test_the_archive_serves_the_snapshot_at_or_before_the_date_asked():
+    """`pick_from_archive`: la stessa disciplina del ripiego che sostituisce, su un formato diverso.
+
+    A O PRIMA e mai dopo: l'Elo del giorno d'asta e' quello che valeva quel giorno, e uno snapshot
+    successivo conterrebbe partite che quel giorno non erano state giocate - cioe' del futuro dentro
+    una finestra che il gate misura.
+    """
+    lines = [
+        "date,club,country,elo",
+        "2026-08-15,Arsenal,ENG,2050.5", "2026-08-15,Napoli,ITA,1830.0",
+        "2026-09-01,Arsenal,ENG,2060.0", "2026-09-01,Napoli,ITA,1840.0",
+        "2027-01-01,Arsenal,ENG,9999.0",
+    ]
+    got = elo.pick_from_archive(iter(lines), ["2026-08-20", "2026-09-11", "2020-01-01"])
+    assert got["2026-08-20"][0] == "2026-08-15", "il piu' vicino PRECEDENTE"
+    assert got["2026-09-11"][0] == "2026-09-01"
+    assert "2020-01-01" not in got, "prima del primo snapshot non si inventa niente"
+    assert all(observed <= asked for asked, (observed, _csv) in got.items()), "mai uno successivo"
+
+
+def test_the_archive_names_are_bridged_to_the_API_s_own():
+    """L'archivio ha RINOMINATO i club nella convenzione dei match data, e il ponte lo cura.
+
+    `Bayern Munich` dove ClubElo scrive `Bayern`, `Ath Bilbao` dove scrive `Bilbao`, `Ein Frankfurt`
+    dove scrive `Frankfurt`: alla prima corsa quattro club del listone restarono senza Elo, e sono i
+    grossi. Il ponte si deriva incrociando una data che ha ENTRAMBE le fonti - stesso giorno, stesso
+    paese, stesso Elo = stesso club - e poi vale per qualunque data.
+
+    LO STESSO GIORNO E' LA CONDIZIONE, ed e' l'errore che la prima versione ha fatto: incrociava
+    (paese, Elo) di date DIVERSE e non agganciava niente, perche' l'Elo si muove. Da 43 club del
+    listone a 46 su 47.
+    """
+    lines = ["date,club,country,elo",
+             "2024-08-15,Bayern Munich,GER,1900.0", "2024-08-15,Napoli,ITA,1800.0",
+             "2026-08-15,Bayern Munich,GER,1950.0", "2026-08-15,Napoli,ITA,1830.0"]
+    api = {"2024-08-15": {("GER", 1900.0): "Bayern", ("ITA", 1800.0): "Napoli"}}
+    got = elo.pick_from_archive(iter(lines), ["2026-08-15"], api)
+    names = [r["club"] for r in elo.parse_snapshot(got["2026-08-15"][1])]
+    assert names == ["Bayern", "Napoli"], "tradotto su una data dove l'API non c'e'"
+    # senza ponte il club NON sparisce: resta col proprio nome e finira' fra gli irrisolti stampati
+    plain = elo.pick_from_archive(iter(lines), ["2026-08-15"], None)
+    assert [r["club"] for r in elo.parse_snapshot(plain["2026-08-15"][1])] == ["Bayern Munich", "Napoli"]
+
+
+def test_a_name_two_dates_translate_differently_is_not_a_translation():
+    """Meglio nessuna traduzione che una scelta a caso fra due: il club resta col proprio nome."""
+    bridge = elo.name_bridge(
+        {"d1": [("X", "ITA", 1000.0)], "d2": [("X", "ITA", 2000.0)]},
+        {"d1": {("ITA", 1000.0): "Alpha"}, "d2": {("ITA", 2000.0): "Beta"}})
+    assert "X" not in bridge
+    one = elo.name_bridge({"d1": [("Y", "ITA", 1000.0)]}, {"d1": {("ITA", 1000.0): "Alpha"}})
+    assert one == {"Y": "Alpha"}
+
+
+def test_the_archive_writes_the_API_s_own_columns_and_leaves_the_level_empty():
+    """Il ripiego produce un file che `parse_snapshot` legge senza sapere da dove viene.
+
+    E il LIVELLO resta vuoto perche' l'archivio non lo porta: non entra in `club_elo` - lo legge solo
+    la segnalazione «questo club di prima divisione non e' mappato» - quindi la conseguenza e' che da
+    questa fonte quella segnalazione TACE invece di sbagliare. Un livello inventato la accenderebbe su
+    club che nessuno ha classificato, ed e' «vuoto = ignoto» applicato a una colonna di servizio.
+    """
+    lines = ["date,club,country,elo", "2026-08-15,Napoli,ITA,1830.0", "2026-08-15,Arsenal,ENG,2050.5"]
+    _observed, payload = elo.pick_from_archive(iter(lines), ["2026-08-15"], None)["2026-08-15"]
+    assert payload.splitlines()[0].split(",") == list(elo.MIRROR_COLUMNS)
+    rows = elo.parse_snapshot(payload)
+    assert [r["club"] for r in rows] == ["Arsenal", "Napoli"], "ordinati per Elo, che E' il rank"
+    assert all(r["level"] == "" for r in rows)
+    assert rows[0]["country"] == "ENG" and rows[0]["elo"] == 2050.5
+
+
+def test_the_two_fallbacks_are_ordered_by_freshness_and_the_old_one_is_marked():
+    """L'archivio prima, il mirror dopo - e il secondo vede solo cio' che il primo non ha coperto.
+
+    L'ordine e' la freschezza misurata l'11/09/2026: l'archivio era al 1º settembre, il mirror fermo
+    al 14/01/2026. Quello vecchio resta come SECONDA rete finche' il primo non ha una storia, ed e'
+    marcato deprecato nel modulo con la data - due fonti di terzi che si spengono nello stesso
+    trimestre sono improbabili, e tenerlo costa una funzione che quasi nessuno chiama.
+    """
+    import inspect
+    source = inspect.getsource(elo)
+    archive = source.index("fetch_from_archive(ctx, missing)")
+    mirror = source.index("fetch_from_mirror(ctx, missing)")
+    assert archive < mirror, "l'archivio si prova per primo"
+    assert "DEPRECATO" in source, "il ripiego vecchio dice di esserlo"
