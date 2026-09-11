@@ -7316,3 +7316,82 @@ log della corsa, non il codice.
 3. **Il branch è ahead e non pubblicato**: il push è una decisione dell'operatore.
 4. I cinque punti aperti di `formazioni-tipo-v1.md` §10.10 restano, con quello che la board fresca dice
    accanto a ciascuno.
+
+---
+
+# Chiusura 11 settembre 2026 (sera) — ClubElo: una fonte viva accanto a una ferma, e due volte lo stesso errore di selezione
+
+Terzo blocco della giornata, aperto da «verifica ogni quando si aggiorna ClubElo» e chiuso da
+«affianchiamola, con l'obiettivo di rimuovere l'altra a breve». Commit: `efa0fc0`.
+
+## La domanda aveva tre risposte, e solo la terza era il problema
+
+**La fonte** pubblica ogni giorno — è un rating che si ricalcola dopo ogni partita. **Noi** leggiamo
+una volta per data d'asta, e durante la stagione il modulo chiede *oggi*. **In pratica**, da gennaio
+non entrava un dato nuovo, e le due fonti erano ferme per ragioni diverse:
+
+| | stato misurato |
+|---|---|
+| `api.clubelo.com` | **502 su tutto** — anche su date in cache e sull'endpoint per club, quindi non è la nostra richiesta |
+| `clubelo.com` (sito) | 200, e `Last-Modified` di otto minuti prima: vivo |
+| mirror `tonyelhabr` | **finito** al 14/01/2026 — non «vecchio»: l'asset ha smesso di essere aggiornato |
+
+## Il candidato bocciato, e il metro che l'ha bocciato
+
+Lo **scraping del sito** era la strada ovvia, e il parser funzionava: 1709 club, paese dall'`alt`
+della bandiera, livello dalle righe di sezione, data dichiarata. I numeri no. Contro i nostri storici:
+**+170 sui club sotto 1200 e +12 sopra 1800**, gradiente monotono che comprime i deboli.
+
+Isolato muovendo una variabile per volta, ed è questo che lo rende un verdetto e non un sospetto:
+
+| confronto | gradiente |
+|---|---|
+| API(ago 25) vs **mirror**(gen 26) — due fonti, 5 mesi | +0 · +4 · −4 · −12 · −1 |
+| API vs API — stessa fonte, **12 mesi** | +24 · +11 · +1 · −3 · −15 |
+| **sito**(oggi) vs mirror — 8 mesi | **+170 · +133 · +101 · +57 · +12** |
+
+E la fascia colpita è quella che conta: R19 standardizza l'Elo dei club di **origine**, e chi arriva in
+Serie A viene quasi sempre da un club medio.
+
+## La fonte adottata
+
+[`xgabora/Club-Football-Match-Data`](https://github.com/xgabora/Club-Football-Match-Data), `data/EloRatings.csv`:
+snapshot il **1° e il 15** di ogni mese, dal 2000-07-01 a ieri, e il 15 è la data d'asta convenzionale
+di questo progetto. Coincide **al centesimo** con l'API genuina — `|max| 0.00` sul 2024-08-15 e sul
+2023-08-15, 100% entro un punto. Il 2025-08-15 ha uno scarto tipico di 4,8 punti sui club minori: lo
+stesso giorno letto a un'ora diversa, non un'altra scala.
+
+Cascata **API → archivio → mirror**, ordinata per freschezza, col mirror marcato deprecato e
+interrogato solo su ciò che l'archivio non copre — quando l'archivio serve tutto, i suoi 49 MB non
+vengono nemmeno scaricati.
+
+## DUE VOLTE LO STESSO ERRORE, e la seconda l'ha trovata la misura
+
+**Primo**: ho concluso «usa gli stessi nomi dell'API» *dal fatto che gli Elo coincidono al centesimo*.
+Ma quegli Elo li avevo confrontati sui club che il join per nome agganciava — cioè su quelli col nome
+uguale, **per costruzione**. *Una coincidenza misurata dentro il proprio criterio di selezione non dice
+niente su chi resta fuori.* Fuori c'erano Bayern, Atletico, Bilbao ed Eintracht: l'archivio unisce i
+match data agli Elo e ha rinominato i club nella convenzione dei primi (`Bayern Munich`, `Ath Bilbao`,
+`Ein Frankfurt`). Sesta istanza del join per NOME.
+
+**La cura è quello stesso coincidere usato come CHIAVE invece che come conferma**: allo stesso giorno,
+due club con lo stesso paese e lo stesso Elo sono lo stesso club. Il ponte si deriva dalle date che
+hanno entrambe le fonti — 375 e 383 club univoci, una sola discordanza — e vale per qualunque data.
+Niente elenco di alias che andrebbe stale al primo club nuovo.
+
+**Secondo**: la prima versione del ponte incrociava `(paese, Elo)` di date **diverse** e non agganciava
+niente, perché l'Elo si muove. Lo stesso giorno è la condizione che lo rende valido, e la chiave giusta
+è un NOME. L'ha trovata la misura, non la rilettura: 43 su 47 prima e dopo, invariato.
+
+Effetto finale: club del listone con un Elo al 2026-08-15 **da 43 a 46 su 47**, `club_elo` da 1014 a
+**1212 righe**.
+
+## Dichiarato invece che nascosto
+
+- Il **livello di divisione** l'archivio non lo porta. Non entra in `club_elo` — lo legge solo la
+  segnalazione «club di prima divisione non mappato» — quindi da questa fonte quella segnalazione
+  **tace invece di sbagliare**.
+- **`Eintracht` resta senza Elo**, ed è preesistente: il nome canonico è `Eintracht` mentre
+  `ELO_ALIASES` mappa su `Eintracht Francoforte`. Non ne ha mai avuto uno.
+- Il mirror va **tolto** quando l'archivio avrà una storia (decisione dell'operatore), insieme a
+  `MIRROR_URL` e `pick_from_mirror`.

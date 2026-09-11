@@ -5704,6 +5704,50 @@ porta tutt'e due i vocabolari lo strumento lo DICE invece di sceglierne uno in s
 ricostruisce a mano. Controprova *dopo* il commit e non solo prima — `git show | grep` sul loro vocabolario —
 perché l'index è condiviso e una fotografia scade.
 
+## Una COINCIDENZA misurata dentro il proprio criterio di selezione non dice niente su chi resta fuori
+**11/09/2026, e l'ho commesso due volte in un'ora sulla stessa fonte.** Cercando un rimpiazzo per
+ClubElo — l'API risponde 502 su tutto e il mirror di terzi è *finito* al 14/01/2026 — ho validato un
+archivio candidato confrontandone gli Elo con quelli dell'API genuina: **coincidono al centesimo**,
+`|max| 0.00` su due date. Da lì ho concluso che usasse anche gli stessi NOMI, e la conclusione era
+falsa: quegli Elo li avevo confrontati **sui club che il join per nome agganciava**, cioè su quelli col
+nome uguale, per costruzione. Fuori c'erano Bayern, Atletico, Bilbao ed Eintracht, perché l'archivio
+unisce i match data agli Elo e ha rinominato i club nella convenzione dei primi (`Bayern Munich`,
+`Ath Bilbao`, `Ein Frankfurt`). Sesta istanza del join per NOME, e la prima in cui il difetto era
+NELLA VALIDAZIONE invece che nel codice.
+
+**La cura è quella stessa coincidenza usata come CHIAVE invece che come conferma**: allo STESSO GIORNO,
+due club con lo stesso paese e lo stesso Elo sono lo stesso club. Il ponte dei nomi si DERIVA dalle
+date in cui le due fonti si sovrappongono (375 e 383 club univoci, una sola discordanza) e poi vale per
+qualunque data — mentre un elenco di alias andrebbe stale al primo club che entra in un campionato.
+*Quando due fonti concordano su una quantità, quella concordanza è anche il modo di appaiarle.*
+
+**E il secondo errore è dentro la cura**: la prima versione del ponte incrociava `(paese, Elo)` di date
+DIVERSE e non agganciava niente, perché l'Elo si muove — la chiave giusta è un NOME, derivato dove le
+due fonti si sovrappongono. L'ha trovata la misura e non la rilettura: 43 club su 47 prima e dopo,
+identico. *Un'ottimizzazione o una cura che non muove il numero che dovrebbe muovere è rotta, anche
+quando il codice sembra giusto.*
+
+## Una fonte si valida sulla QUANTITÀ, e il gradiente dice se è la stessa
+**Stesso giorno, e questo è il metro che ha bocciato il candidato ovvio.** Il sito di ClubElo risponde
+200 e si aggiorna ogni giorno mentre la sua API dà 502, quindi lo scraping sembrava la strada: il
+parser funzionava (1709 club, il paese dall'`alt` della bandiera, il livello dalle righe di sezione).
+I NUMERI no. Contro i nostri storici leggeva **+170 sui club sotto 1200 e +12 sopra 1800**, un
+gradiente monotono che comprime i deboli.
+
+**Che fosse una scala e non movimento del calcio è stato isolato muovendo una variabile per volta**, ed
+è questo che lo rende un verdetto: API contro mirror sulla stessa data legge ~0 in ogni fascia; due API
+genuine a DODICI mesi di distanza hanno un gradiente sette volte più piccolo; il sito ne ha centosettanta
+in otto mesi e solo sui deboli. E la fascia colpita è quella che decide: R19 standardizza l'Elo dei
+club di ORIGINE, e chi arriva in Serie A viene quasi sempre da un club medio - proprio dove le due
+scale divergono di cento punti. *Una fonte «equivalente» va confrontata per FASCE e non in media: una
+mediana vicina a zero può nascondere due scale che si incrociano.*
+
+Adottato invece un archivio che coincide al centesimo con l'API (`|max| 0.00` su due date, 100% entro
+un punto), copre 2000→oggi e pubblica il 1º e il 15 di ogni mese - e il 15 è la data d'asta
+convenzionale di questo progetto. Cascata **API → archivio → mirror**, ordinata per freschezza, col
+vecchio marcato DEPRECATO e interrogato solo su ciò che il nuovo non copre: quando il nuovo serve
+tutto, i 49 MB dell'altro non vengono nemmeno scaricati.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
