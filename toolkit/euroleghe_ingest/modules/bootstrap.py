@@ -143,9 +143,29 @@ def plan(seasons: tuple[str, ...] | None = None, *,
         Step("injuries:ids", "injuries", minutes=25,
              params={"layer": "ids", "refresh": refresh},
              why="Transfermarkt squad pages: player ids + the contract-expiry snapshot"),
-        Step("injuries", "injuries", minutes=180,
-             params={"layer": "injuries", "refresh": refresh},
-             why="THE OTHER LONG ONE: the injury history, one request per player. Resumable"),
+        # L'ARCHIVIO INFORTUNI A ROTAZIONE, e non piu' in blocco (11/09/2026). Su un UPDATE il passo
+        # chiedeva `refresh`, cioe' 3712 pagine a 2,5 secondi l'una: 2h51 di sola attesa cortese, su
+        # una finestra notturna di cinque ore. Misurata la resa, quella camminata produce **5 spell
+        # nuovi al giorno** su tutto l'archivio e **13 in due settimane** fra i quotati di Serie A -
+        # circa uno al giorno che riguardi l'asta dell'operatore.
+        #
+        # `stale_days` invece di `refresh` trasforma il blocco in una ROTAZIONE: ogni notte si
+        # rileggono le pagine non lette da una settimana, cioe' ~1/7 dell'archivio, e nessuna pagina
+        # resta indietro piu' di sette giorni. E' la stessa quantita' che `injuries.observed_on`
+        # archivia e lo stesso flag con cui una corsa interrotta si riprende (03/09/2026) - qui usato
+        # per la cadenza invece che per la ripresa.
+        #
+        # SETTE E NON UNO perche' questo e' l'ARCHIVIO: la freschezza di un infortunio che decide una
+        # formazione la porta `availability` (la pagina *indisponibili*, riletta ogni giorno sui cinque
+        # campionati, che sta in `fc_site` ed e' dentro `--daily`). Le due letture rispondono a due
+        # domande - «chi e' fuori oggi» e «quanto e' durato ogni suo stop» - e solo la seconda e' un
+        # archivio. Su una cache VUOTA il flag e' inerte per costruzione: un file che non esiste e'
+        # stale a qualunque eta', quindi `bootstrap` riempie tutto come prima.
+        Step("injuries", "injuries", minutes=180 if not refresh else 26,
+             params={"layer": "injuries", **({"stale_days": 7} if refresh else {"refresh": False})},
+             why="THE OTHER LONG ONE: the injury history, one request per player. Resumable, and on an "
+                 "update it ROTATES (a seventh of the archive a night) instead of re-reading 3712 pages "
+                 "for the five spells a day they yield"),
         Step("market", "market", minutes=60, params={"refresh": refresh},
              why="the market-value CURVE per player from Transfermarkt's own JSON - every change with "
                  "its date. AFTER injuries:ids, because the tm ids are its. RE-READ on an update: the "
@@ -155,9 +175,25 @@ def plan(seasons: tuple[str, ...] | None = None, *,
              why="Transfermarkt's per-match layer -> tm_appearances: the competition of every match, the "
                  "minutes, and whether it was a NATIONAL-team game. Same tm ids, same reason to re-read "
                  "- its own docstring says a file downloaded yesterday is short by construction"),
-        Step("recent_form", "recent_form", minutes=90,
-             params={},
-             why="the last matches of the players with no history (the ones an auction overpays)"),
+        # SOLO LE STAGIONI RECENTI SU UN UPDATE, e la ragione e' che la fonte non sa rispondere sulle
+        # altre (11/09/2026). La ricerca del provider restituisce il club di OGGI - il modulo lo
+        # dichiara da se' - quindi coincide col listone di una stagione recente e DERIVA su una
+        # vecchia. Misurata la coda stagione per stagione: dal 2016-17 al 2023-24 ci sono 650 uomini
+        # di cui 618 danno zero partite, e chi da' zero non e' mai «coperto», quindi viene ritentato a
+        # ogni corsa per riottenere zero. Sono ~4 ore di ricerche a vuoto ogni notte.
+        #
+        # Le ultime tre invece rendono: 164 in coda, 143 gia' con righe. E il calcio di quelle vecchie
+        # e' un fatto FINITO, gia' in archivio (393 + 588 + 540 righe): rileggerlo non aggiunge niente,
+        # che e' la stessa regola per cui un badge o gli incidenti di una partita giocata non hanno
+        # `refresh`.
+        #
+        # Su `bootstrap` restano TUTTE: una cache vuota va riempita anche per le finestre del gate, e
+        # li' il tempo e' messo in conto una volta sola.
+        Step("recent_form", "recent_form", minutes=90 if not refresh else 20,
+             params={} if not refresh else {"last_seasons": 3},
+             why="the last matches of the players with no history (the ones an auction overpays). On an "
+                 "update only the LAST THREE seasons: on an older listone the provider's search returns "
+                 "today's club and matches almost nobody (618 of 650 give zero, re-paid every run)"),
     )
 
 

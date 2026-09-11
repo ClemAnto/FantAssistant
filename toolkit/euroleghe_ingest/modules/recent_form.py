@@ -714,7 +714,8 @@ def _write_report(ctx: Context, report: list[dict], stored_total: int) -> None:
     print(f"[recent_form] tiers: {json.dumps(tiers, sort_keys=True)}")
 
 
-def run(ctx: Context, *, seasons=None, wanted: int = MATCHES_WANTED, bonuses: bool = True,
+def run(ctx: Context, *, seasons=None, last_seasons: int | None = None,
+        wanted: int = MATCHES_WANTED, bonuses: bool = True,
         limit: int | None = None, **kwargs) -> None:
     """Resolve and fetch the recent form of priced players with no history, season by season.
 
@@ -729,6 +730,19 @@ def run(ctx: Context, *, seasons=None, wanted: int = MATCHES_WANTED, bonuses: bo
     all_seasons = [row[0] for row in conn.execute(
         "SELECT DISTINCT season FROM rosters ORDER BY season")]
     targets = list(seasons) if seasons else all_seasons[1:]      # the first season has no "previous"
+    # ...E LE ULTIME N, deciso da chi le stagioni le CONOSCE (11/09/2026). Il taglio e' nato nel piano
+    # di `update` come elenco di stagioni, e li' non mordeva: `update.run` passa `seasons=None` quando
+    # nessuno usa `--season`, cioe' sempre nel lavoro notturno, quindi il piano calcolava «le ultime
+    # tre» su una tupla vuota e il modulo tornava a camminarle tutte - mentre la riga del piano
+    # dichiarava vent'anni di minuti. Stessa famiglia del flag che il dispatcher scarta: un numero
+    # attraversa il confine, un elenco che dipende da cosa il chiamante sa no.
+    #
+    # PERCHE' LE ULTIME: la ricerca del provider restituisce il club di OGGI - questo modulo lo dichiara
+    # da se' - quindi aggancia su un listone recente e deriva su uno vecchio. Misurato per stagione, dal
+    # 2016-17 al 2023-24 ci sono 650 uomini in coda di cui 618 danno ZERO partite, e chi da' zero non e'
+    # mai «coperto»: viene ritentato a ogni corsa per riottenere zero.
+    if last_seasons:
+        targets = targets[-last_seasons:]
     session = _client()
     report: list[dict] = []
     stored_total = 0

@@ -76,10 +76,18 @@ def test_the_acquisition_is_bootstraps_own_plan_and_not_a_copy():
 
 
 def test_refresh_is_set_where_the_source_moves_and_nowhere_else():
-    """A cache over a fact that CHANGES needs an expiry; over a FINISHED fact it must not have one.
+    """A cache over a fact that CHANGES needs an EXPIRY; over a FINISHED fact it must not have one.
 
     The second half is what makes the test worth having: a `refresh` on a played round or on a club
     badge costs the entire download again and cannot buy a single new row.
+
+    AN EXPIRY AND NOT A FLAG, which is the correction of 11/09/2026: this test asked for
+    `refresh is True` and went red when `injuries` moved to `stale_days=7`, i.e. to a FINER expiry -
+    a seventh of the archive a night instead of all of it, because 3712 pages at 2.5 seconds are 2h51
+    inside a five-hour window and they yield five spells a day. The substance it defends is unchanged
+    and only the EXPRESSION widened, so this is not a criterion loosened because a rule fell on it: a
+    boolean and a number of days are two ways of saying «this cache goes stale», and the test now asks
+    the question it always meant to ask.
     """
     params = {step.key: step.params for step in update.plan(("acquire",), refresh=True)}
     moves = ("positions:season", "positions:roles", "positions:extra", "transfers", "fixtures",
@@ -87,12 +95,16 @@ def test_refresh_is_set_where_the_source_moves_and_nowhere_else():
     finished = ("ratings:default", "ratings:euro", "positions:match", "positions:complete",
                 "positions:crests", "positions:heatmap", "tournaments", "elo")
     for key in moves:
-        assert params[key].get("refresh") is True, f"{key} re-reads a source that moves"
+        expiry = params[key].get("refresh") is True or params[key].get("stale_days") is not None
+        assert expiry, f"{key} re-reads a source that moves, so it needs an expiry"
     for key in finished:
         assert params[key].get("refresh") is not True, f"{key} would re-download a finished fact"
-    # ...and with the flag off, nothing re-reads anything: that is what --no-refresh means.
+        assert params[key].get("stale_days") is None, f"{key} is finished: no expiry at all"
+    # ...and with the flag off, nothing re-reads anything: that is what --no-refresh means. An expiry
+    # counts here too - a `--no-refresh` that still rotated a seventh of an archive would be a flag
+    # that does not do what it says.
     off = {step.key: step.params for step in update.plan(("acquire",), refresh=False)}
-    assert not [key for key, one in off.items() if one.get("refresh")]
+    assert not [key for key, one in off.items() if one.get("refresh") or one.get("stale_days")]
 
 
 def test_the_extra_layer_carries_its_window():
@@ -392,3 +404,43 @@ def test_what_a_sheet_re_reads_is_DERIVED_from_the_calls_and_not_kept_by_hand():
     assert not unknown, f"SHEET_REFRESHES names steps that do not exist: {unknown}"
     # ...and each one says WHICH SLICE, because «re-read» without «how much» is what was wrong before
     assert all(why.strip() for why in snapshot.SHEET_REFRESHES.values())
+
+
+def test_the_long_walks_do_not_re_pay_for_what_the_source_cannot_answer():
+    """The two optimisations of 11/09/2026, each with the number that decided it.
+
+    `injuries` ROTATES instead of re-reading in block: 3712 pages at 2.5 seconds are 2h51 of polite
+    waiting inside a five-hour window, and the archive yields five new spells a day (13 in a fortnight
+    among the quoted of Serie A). A seventh a night keeps every page under a week old, and the
+    freshness that decides a line-up comes from `availability` - read daily, and already in `--daily`.
+
+    `recent_form` walks only the LAST THREE seasons on an update, and the reason is that the source
+    cannot answer about the others: the provider's search returns TODAY's club, which matches a recent
+    listone and drifts on an old one. Measured season by season, 2016-17 to 2023-24 hold 650 men of
+    whom 618 give zero matches - and a man who gives zero is never «covered», so he is re-paid at every
+    single run. The last three hold 164, of whom 143 already have rows.
+
+    On BOOTSTRAP both walk everything: an empty cache has to be filled for the gate's windows too, and
+    there the time is spent once.
+    """
+    # SENZA STAGIONE DICHIARATA, che e' come gira il lavoro notturno: `update.run` passa `seasons=None`
+    # quando nessuno usa `--season`. La prima versione di questo taglio calcolava «le ultime tre» nel
+    # PIANO, quindi su None dava una tupla vuota e il modulo tornava a camminarle tutte - mentre la riga
+    # del piano dichiarava venti minuti. Ora attraversa il confine un NUMERO e a tagliare e' chi le
+    # stagioni le conosce, cioe' il modulo che legge il DB; questo test gira senza stagioni APPOSTA,
+    # perche' e' la condizione in cui il difetto viveva.
+    on = {step.key: step.params for step in update.plan(("acquire",), refresh=True)}
+    assert on["injuries"].get("stale_days") == 7
+    assert on["injuries"].get("refresh") is not True
+    assert on["recent_form"].get("last_seasons") == 3
+
+    off = {step.key: step.params for step in update.plan(("acquire",), refresh=False)}
+    assert off["injuries"].get("stale_days") is None, "a bootstrap fills the whole archive"
+    assert not off["recent_form"].get("last_seasons"), "a bootstrap walks every season"
+
+    # E IL NUMERO DEVE ARRIVARE AL MODULO, che e' la meta' che mancava: un parametro che il piano
+    # dichiara e la firma non accetta e' il flag che il dispatcher scarta, e questo repository l'ha
+    # gia' pagato due volte.
+    import inspect
+    from euroleghe_ingest.modules import recent_form
+    assert "last_seasons" in inspect.signature(recent_form.run).parameters

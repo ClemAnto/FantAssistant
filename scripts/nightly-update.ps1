@@ -42,6 +42,17 @@ param(
     [switch]$Register,
     [switch]$Unregister,
     [switch]$Status,
+    # WRITE ONLY THE MORNING PICTURE, and this exists because the picture was going missing on exactly
+    # the nights it is for (11/09/2026). `ExecutionTimeLimit` does not ask the process to stop, it
+    # KILLS it: no `finally` runs, so the run that is cut off at five hours never reaches the section
+    # below - and being cut off is the NORMAL case, because the plan is 22 hours long. The morning of
+    # 11/09 opened on a `morning.txt` from the evening before, which is the one thing a file called
+    # «the morning's picture» must never do.
+    #
+    # The cure is a SECOND trigger and not a `try/finally`, because nothing inside a process survives
+    # its own termination. Same script, same function, one more registration - two copies of the
+    # reporting would eventually print two different pictures of one night.
+    [switch]$Morning,
     # The nightly cut-off, in hours. Task Scheduler enforces it; the run resumes tomorrow.
     [int]$MaxHours = 5,
     [string]$At = '03:00'
@@ -52,6 +63,11 @@ $repo = Split-Path -Parent $PSScriptRoot
 $python = Join-Path $repo 'toolkit\.venv\Scripts\python.exe'
 $logDir = Join-Path $repo 'data\logs'
 $taskName = 'FantAssistant nightly update'
+$morningTaskName = 'FantAssistant morning build'
+# Il nome che questo task aveva per poche ore l'11/09/2026, quando faceva solo la fotografia. Sta qui
+# perche' `-Unregister` lo deve togliere: un'attivita' orfana continuerebbe a girare senza che nessun
+# comando di questo script la nomini.
+$morningTaskLegacy = 'FantAssistant morning picture'
 # Two weeks of logs: enough to see a source that has been refusing for days, which is a thing that
 # has happened (Sofascore 403 on 16 and 17/08, ClubElo's API 502 since January).
 $keepLogs = 14
@@ -60,6 +76,94 @@ function Assert-Toolkit {
     if (-not (Test-Path $python)) {
         throw "python not found at $python - create the venv first (toolkit/.venv)"
     }
+}
+
+# ---------------------------------------------------------------- the morning's picture
+#
+# ONE FUNCTION, TWO CALLERS: the run itself when it gets that far, and the 08:05 task when it does
+# not. Two copies of this would eventually print two different pictures of one night, which is the
+# defect this repository keeps paying for in every other shape.
+#
+# ONE FILE TO OPEN, because the alternative is what it replaced: a morning spent reading logs by hand
+# to find that ClubElo's API had been answering 502 since January, that the Serie A listone was three
+# days old while the euro one was of that morning, and that the injury archive had reached its weekly
+# cadence. All three are FRESHNESS - «when did we last look» - and none of them needs judgement: they
+# need somebody to ask. `fetch --stale` is that reader, and this is where the asking happens.
+#
+# It runs even when the update FAILED, and that is the point rather than an oversight: a night that
+# died halfway is exactly the night whose picture is worth having, and a report that only prints after
+# a success would go quiet in the one case it exists for.
+function Write-Morning {
+    param([string]$log, [int]$code)
+    $morning = Join-Path $logDir 'morning.txt'
+# WHAT COUNTS AS THE NIGHT'S VERDICT, and the list is longer than the obvious one: a run that did
+# nothing has as many ways of saying so as a run that worked. «SPENTO» and «illeggibile» were added
+# after the filter was written without them - the second one is the worse omission, because a switch
+# file with a typo is read as ON and would have left no trace in the one page read in the morning.
+    $verdict = @(Get-Content $log -Tail 60 |
+    Where-Object { $_ -match 'steps done|abandoning|SKIPPED|SPENTO|illeggibile|=== exit' })
+    Set-Content -Path $morning -Value ("=== la notte del {0} ===" -f (Get-Date).ToString('yyyy-MM-dd'))
+    Add-Content -Path $morning -Value $verdict
+    Add-Content -Path $morning -Value ''
+    Push-Location (Join-Path $repo 'toolkit')
+    try {
+    # Read-only on the DB, so it costs nothing and cannot damage what the run just wrote.
+    & $python -m euroleghe_ingest fetch --stale 2>&1 | Tee-Object -FilePath $morning -Append |
+        Tee-Object -FilePath $log -Append | Out-Null
+    }
+    finally {
+    Pop-Location
+    }
+    Write-Host "il quadro del mattino: $morning"
+    }
+
+# THE 08:05 CALLER: the picture without the run, for the night that was cut off before reaching it.
+# It picks the log by NAME and not by mtime, because a log still being written by a run that has not
+# died yet is the freshest file and the wrong one to summarise; today's name is today's night.
+if ($Morning) {
+    Assert-Toolkit
+    $today = Join-Path $logDir ("nightly-{0}.log" -f (Get-Date).ToString('yyyy-MM-dd'))
+    if (-not (Test-Path $today)) {
+        # No log for today is itself the night's verdict, and it goes in the picture rather than in a
+        # silence: the task did not start, or the machine was off.
+        $morning = Join-Path $logDir 'morning.txt'
+        Set-Content -Path $morning -Value ("=== la notte del {0} ===" -f (Get-Date).ToString('yyyy-MM-dd'))
+        Add-Content -Path $morning -Value "nessun log di stanotte: l'aggiornamento non e' partito"
+        Write-Host "nessun log di stanotte: $morning"
+        exit 0
+    }
+    # ...E PRIMA DELLA FOTOGRAFIA, LA COSTRUZIONE - che e' la ragione per cui questo task e' stato
+    # allargato (11/09/2026). Misurato sulla notte del giorno prima: i primi 18 passi hanno preso 262
+    # dei 300 minuti della finestra, `injuries` ne ha avuti 38, e gli ULTIMI DODICI non sono stati
+    # raggiunti affatto. Fra quei dodici ci sono i FOGLI, i pacchetti, il BUNDLE e la copia nell'app,
+    # cioe' tutto quello che l'operatore apre: la notte aggiornava il database e non produceva mai il
+    # deliverable, che restava da fare a mano ogni volta.
+    #
+    # SU DATI PARZIALI, DELIBERATAMENTE: quello che e' arrivato stanotte e' comunque piu' fresco di
+    # ieri, e il manifest porta la propria data - un foglio costruito su meta' acquisizione dichiara
+    # quando e' stato scritto, e nessuno lo legge per quello che non contiene. Aspettare
+    # un'acquisizione completa vorrebbe dire non costruire mai, perche' il piano e' di 22 ore e la
+    # finestra di cinque.
+    #
+    # Le quattro fasi e non `--offline`, che le ripeterebbe tutte partendo dalla derivazione: sono le
+    # stesse, ma nominarle qui dice cosa fa questo task senza dover leggere un altro comando.
+    Push-Location (Join-Path $repo 'toolkit')
+    try {
+        & $python -m euroleghe_ingest update --phase derive --phase sheets --phase packs `
+            --phase bundle --phase app 2>&1 | Tee-Object -FilePath $today -Append
+        $buildCode = $LASTEXITCODE
+    }
+    finally {
+        Pop-Location
+    }
+    Add-Content -Path $today -Value ("=== costruzione del mattino: exit {0} alle {1} ===" -f `
+            $buildCode, (Get-Date).ToString('HH:mm:ss'))
+
+    # `$buildCode` e non `-1`: da qui in avanti un esito ESISTE, ed e' quello della costruzione. Il -1
+    # sarebbe stato giusto per la sola fotografia, quando l'unica cosa da riportare era «la notte e'
+    # stata tagliata e non ha un codice suo».
+    Write-Morning -log $today -code $buildCode
+    exit 0
 }
 
 if ($Register) {
@@ -89,6 +193,34 @@ if ($Register) {
         -ExecutionTimeLimit (New-TimeSpan -Hours $MaxHours) `
         -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries:$false `
         -MultipleInstances IgnoreNew
+    # ...E IL SECONDO TRIGGER, cinque minuti DOPO il limite del primo: quando l'update viene ucciso a
+    # meta', la fotografia la scrive questo. Cinque minuti e non zero perche' il kill non e' istantaneo
+    # e un `fetch --stale` che partisse mentre il primo tiene ancora il lock leggerebbe un DB occupato
+    # - la lezione del 10/09/2026, dove un lettore lungo ha bloccato uno scrittore su un DB in
+    # `journal_mode: delete`.
+    #
+    # NON e' un doppione del percorso normale: se l'update finisce da se' scrive gia' la sua
+    # fotografia, e questa la RISCRIVE con la stessa funzione e dati piu' freschi. Un secondo task che
+    # tacesse quando il primo ha funzionato sarebbe un task che nessuno sa se gira.
+    # IL NOME VECCHIO VA TOLTO QUI E NON SOLO IN `-Unregister`: un rinomino lascia un'attivita' ORFANA
+    # che continua a girare mentre nessun comando di questo script la nomina piu'. Chi registra lascia
+    # lo stato pulito, altrimenti la pulizia e' un passo in piu' da ricordarsi - e non ce lo si ricorda.
+    Unregister-ScheduledTask -TaskName $morningTaskLegacy -Confirm:$false -ErrorAction SilentlyContinue
+    $morningAt = ([datetime]::ParseExact($At, 'HH:mm', $null)).AddHours($MaxHours).AddMinutes(5)
+    $morningAction = New-ScheduledTaskAction -Execute $pwsh `
+        -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -Morning" -WorkingDirectory $repo
+    # Novanta minuti: la costruzione dichiara ~40 (derivazione, tre fogli, pacchetti, bundle, copia
+    # nell'app) e la fotografia conta righe. Un tetto serve comunque - senza, un DB occupato terrebbe
+    # il task appeso fino a domani.
+    $morningSettings = New-ScheduledTaskSettingsSet -WakeToRun `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 90) `
+        -DontStopIfGoingOnBatteries -AllowStartIfOnBatteries:$false `
+        -MultipleInstances IgnoreNew
+    Register-ScheduledTask -TaskName $morningTaskName -Action $morningAction `
+        -Trigger (New-ScheduledTaskTrigger -Daily -At $morningAt.ToString('HH:mm')) `
+        -Settings $morningSettings -Description 'La fotografia del mattino, anche se la notte e stata tagliata' -Force | Out-Null
+    Write-Host ("registrata: '{0}' ogni giorno alle {1}" -f $morningTaskName, $morningAt.ToString('HH:mm'))
+
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
         -Settings $settings -Description 'euroleghe-ingest: the full update, nightly' -Force | Out-Null
     Write-Host "registrata: '$taskName' ogni giorno alle $At, limite $MaxHours ore"
@@ -98,7 +230,9 @@ if ($Register) {
 
 if ($Unregister) {
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-    Write-Host "rimossa: '$taskName'"
+    Unregister-ScheduledTask -TaskName $morningTaskName -Confirm:$false -ErrorAction SilentlyContinue
+    Unregister-ScheduledTask -TaskName $morningTaskLegacy -Confirm:$false -ErrorAction SilentlyContinue
+    Write-Host "rimosse: '$taskName' e '$morningTaskName'"
     exit 0
 }
 
@@ -119,6 +253,16 @@ if ($Status) {
     }
     else {
         Write-Host "dichiarato: ACCESO (nessun config/nightly.json: il default e' acceso)"
+    }
+    # ANCHE IL SECONDO: un'attivita' registrata e non mostrata e' un'attivita' che nessuno sa che c'e'.
+    $second = Get-ScheduledTask -TaskName $morningTaskName -ErrorAction SilentlyContinue
+    if ($second) {
+        $secondInfo = Get-ScheduledTaskInfo -TaskName $morningTaskName
+        Write-Host ("fotografia: {0} | ultima {1} | esito {2} | prossima {3}" -f `
+                $second.State, $secondInfo.LastRunTime, $secondInfo.LastTaskResult, $secondInfo.NextRunTime)
+    }
+    else {
+        Write-Host "fotografia: NON registrata - una notte tagliata non lascera' il quadro del mattino"
     }
     $logs = @(Get-ChildItem $logDir -Filter 'nightly-*.log' -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 5)
@@ -238,37 +382,7 @@ else {
 }
 Add-Content -Path $log -Value ("=== exit {0} at {1} ===" -f $code, (Get-Date).ToString('HH:mm:ss'))
 
-# ---------------------------------------------------------------- the morning's picture
-#
-# ONE FILE TO OPEN, because the alternative is what it replaced: a morning spent reading logs by hand
-# to find that ClubElo's API had been answering 502 since January, that the Serie A listone was three
-# days old while the euro one was of that morning, and that the injury archive had reached its weekly
-# cadence. All three are FRESHNESS - «when did we last look» - and none of them needs judgement: they
-# need somebody to ask. `fetch --stale` is that reader, and this is where the asking happens.
-#
-# It runs even when the update FAILED, and that is the point rather than an oversight: a night that
-# died halfway is exactly the night whose picture is worth having, and a report that only prints after
-# a success would go quiet in the one case it exists for.
-$morning = Join-Path $logDir 'morning.txt'
-# WHAT COUNTS AS THE NIGHT'S VERDICT, and the list is longer than the obvious one: a run that did
-# nothing has as many ways of saying so as a run that worked. «SPENTO» and «illeggibile» were added
-# after the filter was written without them - the second one is the worse omission, because a switch
-# file with a typo is read as ON and would have left no trace in the one page read in the morning.
-$verdict = @(Get-Content $log -Tail 60 |
-    Where-Object { $_ -match 'steps done|abandoning|SKIPPED|SPENTO|illeggibile|=== exit' })
-Set-Content -Path $morning -Value ("=== la notte del {0} ===" -f (Get-Date).ToString('yyyy-MM-dd'))
-Add-Content -Path $morning -Value $verdict
-Add-Content -Path $morning -Value ''
-Push-Location (Join-Path $repo 'toolkit')
-try {
-    # Read-only on the DB, so it costs nothing and cannot damage what the run just wrote.
-    & $python -m euroleghe_ingest fetch --stale 2>&1 | Tee-Object -FilePath $morning -Append |
-        Tee-Object -FilePath $log -Append | Out-Null
-}
-finally {
-    Pop-Location
-}
-Write-Host "il quadro del mattino: $morning"
+Write-Morning -log $log -code $code
 
 # Keep two weeks and say what was dropped: a log directory that silently trims is one nobody can use
 # to see how long a source has been refusing.
