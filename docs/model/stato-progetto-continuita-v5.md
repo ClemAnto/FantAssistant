@@ -4,6 +4,51 @@
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 11 settembre 2026: la staffetta aveva il denominatore sbagliato, e il modulo corto viene dalle ultime tre
+
+Commit `5d0fb7b`. Foglio a `SHEET_REVISION` **59**, tre leghe rigenerate (562 · 562 · 952 righe), export
+verificato e bundle nell'app (26,7 MB). 840 test sull'albero condiviso, **835 in un worktree su HEAD più i
+soli file miei** — che è anche il modo in cui so che questa metà sta in piedi senza l'altra.
+
+**COSA HA CHIESTO L'OPERATORE**, in tre frasi che si sono corrette a vicenda: «due che si alternano non
+occupano due posti (salvo buchi di formazione non riempibili da altri)», poi — davanti al prezzo misurato —
+la limitazione a una finestra sola, e infine «il modulo scelto dipende da quello usato nelle ultime tre
+partite e poi si vede gli 11 da schierare», che ha trovato un difetto a monte di tutto.
+
+**IL DIFETTO PIÙ GROSSO ERA MIO E DELLO STESSO GIORNO**: `relay_scores` contava i minuti di ciascuno su
+tutte le partite della finestra e la sovrapposizione solo su quelle condivise — «il denominatore segue il suo
+NUMERATORE» commesso nel file che la cita. Sintomo leggibile a occhio e mai guardato: un **portiere** in cima
+alle staffette. 88,4% delle 98.642 coppie si muove; Vicario/Koopmeiners 0,996 → 0,022. Dettaglio, tabelle e
+2×2 in `formazioni-tipo-v1.md` §10.12, spec «Novità v9.90».
+
+**DOVE SIAMO, in una riga per pezzo:**
+- la regola delle staffette è **accesa solo sull'ultimo periodo** (`gui.RELAY_APART` = 0,50, la maggioranza
+  della sua frase); sulla board di stagione costava 2 moduli esatti e non comprava uomini, e i nomi dicono
+  perché — là «si alternano» vuol dire due titolari che si dividono un posto per un anno;
+- il modulo della board corta viene da `formation_shapes_recent` e l'undici **dopo**, senza l'anello di
+  ritorno che lo faceva dipendere da chi riesce a schierare;
+- la board di stagione è **invariata** rispetto a prima di questa sessione: 10 MATCH / 3 ALT / 7 DIFF e
+  150/220 uomini contro un null di 104 (erano 147 stamattina: i tre in più vengono dalla cura sugli
+  indisponibili stantii, §10.8).
+
+**COSA RESTA APERTO**
+1. `docs/model/formazioni-tipo-v1.md` §10.10, punti 2-3-4: N. Gonzalez al centro, il ballottaggio con
+   Woltemade, Cissé × Moreira. Vanno **riletti sui fogli di revisione 59**, non ridiscussi: due di quei
+   giudizi nascevano da board costruite con gli indisponibili stantii e con la staffetta rotta.
+2. `desc_relay` non viaggia nel bundle (il foglio ha 234 colonne, il pacchetto ne porta 106: è una
+   allowlist). È **corretto** — la colonna la legge il toolkit quando disegna e all'app arriva l'effetto —
+   ed è scritto qui perché «una colonna che manca nel pacchetto» è la famiglia di difetti che questo
+   repository ha già pagato quattro volte, e la prossima volta va distinta da quelle.
+3. Il vincolo agisce su cinque vie dentro `gui.eleven`; se un giorno se ne aggiunge una sesta, va
+   consultata anche lì. Le cinque sono nominate nei commenti al punto in cui agiscono.
+
+**DUE SESSIONI SU UN ALBERO, e stavolta la separazione è costata due tentativi.** L'altra sessione scriveva
+i rivali indisponibili (`sidelined`, `SIDELINED_DUELS`, le targhe) negli stessi tre file. Il commit porta
+SOLO la mia metà, e la lezione nuova è sul METODO: gli hunk classificati per **numero di riga** hanno tenuto
+zero hunk — quelle coordinate dipendono da quanto contesto ha la patch, quindi cambiano fra la passata con
+cui le leggi e quella su cui le applichi. Il **vocabolario** di una feature no. Controprova fatta *dopo* il
+commit e non solo prima: zero righe loro in `git show`.
+
 ## CHIUSURA — 7 settembre 2026 (notte): chi è partito esce in un giorno, e le DRITTE hanno un posto dove stare
 
 Sessione lunga, aperta da una domanda («le partite attese del Napoli») e chiusa da una richiesta che le

@@ -1287,3 +1287,109 @@ di stagione, dove un'assenza lunga sconta la percentuale invece di togliere l'uo
 rientro dalla prosa): **Serie A 111 voci · 49 nomi · 19 club su 20**, **EuroLeghe 201 · 86 · 33**, e
 **zero** marchi sulle board di stagione. La tabella qui sopra era misurata sul foglio del giorno prima e
 serviva a scegliere il tetto; questi sono i numeri che viaggiano.
+
+### 10.12 — DUE CHE SI ALTERNANO NON OCCUPANO DUE POSTI, e il denominatore che lo rendeva indecidibile (11 settembre 2026)
+
+Regola dichiarata dall'operatore, con l'eccezione dentro la frase: «due che si alternano non occupano due
+posti (salvo buchi di formazione non riempibili da altri)». Nasce dal suo caso del §10.9 — Conceição e
+Zhegrova vanno in staffetta e il campetto li disegnava insieme, cioè un undici che la Juventus non ha mai
+messo in campo.
+
+**PRIMA C'ERA DA CURARE LA MISURA SU CUI LA REGOLA POGGIA, ed era rotta.** `relay_scores` contava i minuti
+di ciascuno su TUTTE le partite della finestra — quindi anche su quelle giocate con un altro club — mentre
+la sovrapposizione la contava solo sulle partite che i due CONDIVIDONO. Per chi cambia squadra a metà
+finestra il denominatore diventa molte volte il campione del numeratore, e la separazione tende a 1 per
+costruzione: è «il denominatore segue il suo NUMERATORE» (20/08/2026) commesso nel file che la cita.
+
+Il sintomo era leggibile a occhio e nessuno lo aveva guardato: **un PORTIERE in cima alle staffette**. Un
+portiere in campo 90' CONTIENE per intero i minuti di chiunque altro, quindi la sua separazione con
+chiunque non può che essere zero.
+
+| coppia | spedito | corretto |
+|---|---|---|
+| Vicario + Koopmeiners (portiere + mediano) | 0,996 | **0,022** |
+| Maignan + Moreira (portiere + esterno) | 0,988 | **0,000** |
+| Perin + Di Gregorio (i due portieri) | 0,982 | 0,927 |
+| Vlahović + David (le due punte) | 0,892 | 0,751 |
+| Zhegrova + Conceição (il caso) | 0,819 | **0,753** |
+
+Su 98.642 coppie del 2026-27 l'**88,4% si muove**, scarto mediano +0,415, e **3.841 coppie** in cui uno dei
+due non gioca MAI accanto all'altro venivano prezzate lo stesso, fino a 1,000.
+
+**LA SOGLIA È LA SUA FRASE E NON UN NUMERO SCELTO.** La misura è `separazione × copertura`, e la
+separazione È «quanta parte dei minuti del minore è passata senza l'altro»: chiedere «per la MAGGIOR PARTE
+della partita» vuol dire chiedere la maggioranza, cioè **0,50**. È un VINCOLO e mai un peso — il claim resta
+quello misurato — e l'eccezione è una seconda passata invece di una condizione: chi viene saltato è messo da
+parte e rientra se la linea resterebbe corta, perché un posto vuoto è peggio di due che si alternano.
+
+**LE VIE PER CUI UN UOMO ENTRA NELL'UNDICI SONO CINQUE**, e le prime tre sono state indovinate una per corsa
+mentre il riepilogo stampava numeri quasi identici (1 club mosso, poi 18, poi 0). La quarta era una cura
+sbagliata: filtrare `benches`, che sono i RIVALI disegnati sotto ogni posto — toglieva dai ballottaggi
+proprio il compagno di staffetta, cioè «non giocano insieme» diventava «non si contendono la maglia», che è
+il contrario. La quinta l'ha trovata **una sonda su tutti gli stadi insieme, alla prima corsa**: la
+selezione funzionava già (`_apart` riceveva `[Conceicao, Woltemade, Zhegrova, Milik]` e restituiva
+`[Conceicao]`) e poi `_settle` — che riceve l'INTERA lista degli eleggibili — lo rimetteva dentro.
+*Dopo tre tentativi a indovinare, strumentare tutto costa una corsa sola.*
+
+**E VALE SOLO SULL'ULTIMO PERIODO**, decisione dell'operatore presa guardando i nomi: la stessa misura vuol
+dire due cose diverse nelle due finestre.
+
+| | esce | perché | entra |
+|---|---|---|---|
+| **corto** · Genoa | Messias 0,19 | Baldanzi 0,92 | Vitinha O. **0,61** |
+| **corto** · Como | Rodriguez Je. 0,39 | Baturina 0,58 | Baturina **0,75** |
+| **corto** · Juventus | Zhegrova 0,18 | Conceição 0,75 | Alajbegovic 0,26 |
+| **lungo** · Cagliari | Maldini **0,56** | Felici 0,76 | Mendy P. 0,41 |
+| **lungo** · Sassuolo | Thorstvedt **0,53** | Adzic 0,88 | Bakola 0,41 |
+| **lungo** · Bologna | Orsolini **0,51** | Bernardeschi 0,67 | Pobega 0,45 |
+
+Sulle ultime tre «si alternano» vuol dire *uno gioca e l'altro no*, quindi esce un comprimario ed entra chi
+sta giocando; su 38 partite vuol dire *due titolari che si dividono un posto tutto l'anno*, e togliendone
+uno entra il TERZO della fila.
+
+**IL GIUDICE ESTERNO DICE LA STESSA COSA.** Stesso foglio, una variabile (la soglia portata sopra 1, che
+spegne il vincolo per costruzione), board di STAGIONE: gli uomini **non si muovono** (150/220 con e senza,
+null 104 — il vincolo scambia uomini che la stampa non ha comunque) e i moduli calano, **MATCH 10 → 8** con
+DIFF 7 → 6. Il caso per intero: la stampa dà la Fiorentina **4-3-3**, col vincolo spento la disegniamo 4-3-3
+e con quello acceso esce Dodò (0,584, si alterna con Valdepenas a 0,89) e diventa **3-5-2**. Nell'altro verso
+c'è un guadagno vero — l'Udinese passa a una difesa a tre e la stampa dice 3-4-2-1 — ed è la ragione per cui
+i DIFF calano mentre i MATCH calano: non è un peggioramento uniforme, è una regola applicata dove non
+descrive niente. Limitata all'ultimo periodo, la board di stagione torna a **10/3/7** e il caso resta risolto.
+
+**E LA VIA CON CUI SPOSTAVA I MODULI NON ERA QUELLA SCRITTA PER PRIMA.** Lo spostamento era stato attribuito
+a `shape_odds`, che pesa un modulo anche per l'undici che riesce a schierare: **falso, e misurato** —
+neutralizzando quel fattore la board col vincolo legge 8/6/6 identico. Il 2×2 completo:
+
+| | fattore attivo | fattore inerte |
+|---|---|---|
+| vincolo spento | 10 / 3 / 7 · 150 | 9 / 3 / 8 · 148 |
+| vincolo acceso | 8 / 6 / 6 · 150 | 8 / 6 / 6 · 150 |
+
+Il vincolo **APPIATTISCE** le differenze fra i moduli, quindi quel fattore smette di discriminare: vale
++1 MATCH e +2 uomini quando la regola è spenta e zero quando è accesa.
+
+**E POI L'OPERATORE HA CORRETTO L'ORDINE, e la correzione ha trovato un difetto a monte**: «il modulo scelto
+dipende da quello usato nelle ultime tre partite e poi si vede gli 11 da schierare». La board dell'ultimo
+periodo prendeva il modulo dalla distribuzione di STAGIONE — diceva «ultimo periodo» e disegnava l'abitudine
+dell'anno. Da qui **`formation_shapes_recent`** (`SHEET_REVISION` 59): i moduli delle ultime
+`presence.recent_window` partite di CAMPIONATO, una definizione sola di «le ultime tre» condivisa con la
+finestra dei giocatori, e senza il peso del cambio di allenatore (su tre partite o le ha dirette tutte lui,
+o è arrivato dentro la finestra e quelle SONO il presente). Misurato prima di scriverlo: **20 club su 20**
+hanno tre undici completi, **14 su 20** ne giocano uno solo in tutte e tre, **3 su 20** (Fiorentina, Lecce,
+Torino) ne danno uno diverso da quello di stagione. Con lei cade anche l'anello di ritorno «l'undici decide
+il modulo», che sull'orizzonte corto invertiva l'ordine dichiarato; sulla stagione resta intero, dove
+risponde a un'altra domanda e ha la sua storia (il caso Marsiglia nel docstring di `shape_matchdays`).
+
+**Dove vive**: `snapshot.relay_scores` (il denominatore) e `snapshot.recent_shapes` (la colonna);
+`gui.RELAY_APART`, `gui.relay_apart`, `gui._no_relay`, `gui._apart` e le cinque vie dentro `gui.eleven`;
+`gui.observed_shapes(info, horizon)` e il ramo corto di `gui.shape_odds`. Tre test, e due si provano
+RIMETTENDO il difetto: col denominatore vecchio la coppia di prova legge 0,667 invece di 0,000.
+
+**Il §10.9 resta vero e rispondeva a un'altra domanda.** Là si misurava se dai minuti si può ricostruire
+l'EVENTO sostituzione (no: un'uscita trova un ingresso complementare unico nel 30,3% dei casi); qui la
+domanda è se i due stanno in campo INSIEME, e per quella l'intervallo dai soli minuti basta — è la
+riformulazione dell'operatore, «quando c'è uno manca l'altro per la maggior parte della partita». Quindi
+l'acquisizione degli `incidents` che il §10.9 proponeva **non è stata fatta e non serve più** per questo.
+
+**Del §10.10 si chiude il punto 1**; restano aperti il 2, il 3 e il 4 (N. Gonzalez al centro, il ballottaggio
+con Woltemade, Cissé × Moreira), che vanno riletti sui fogli di revisione 59.

@@ -5643,6 +5643,67 @@ CAMBIA ha una scadenza, su uno FINITO no — è intatta, e quello che si è alla
 *un booleano e un numero di giorni sono due modi di dire «questa cache scade»*. Non è un criterio
 allentato perché una regola ci è caduta, e la differenza è scritta nel test.
 
+## Una misura usata per una domanda NUOVA è una misura da rileggere, e cinque vie per un undici
+**11/09/2026, dalla regola dell'operatore «due che si alternano non occupano due posti (salvo buchi di
+formazione non riempibili da altri)». Dettaglio: `formazioni-tipo-v1.md` §10.12, spec «Novità v9.90».**
+
+**IL DIFETTO L'HA TROVATO LA DOMANDA NUOVA, NON UNA RILETTURA.** La misura delle staffette era stata spedita
+la mattina stessa e sembrava sana finché serviva solo a ORDINARE dei rivali; usata per DECIDERE chi sta in
+campo, la prima tabella ha messo in cima **un portiere accoppiato a un centrocampista**. Un portiere in campo
+90' contiene per intero i minuti di chiunque, quindi la sua separazione non può che essere zero: il sintomo
+era leggibile a occhio e nessuno lo aveva guardato, perché nessuna domanda lo interrogava. *Prima di
+costruire su una misura, guardarne le prime dieci righe nella POPOLAZIONE in cui la si sta per usare.*
+La causa è la regola più vecchia di questo file: **il denominatore segue il suo NUMERATORE** — i minuti di
+ciascuno erano contati su tutte le partite della finestra, la sovrapposizione solo su quelle CONDIVISE, e per
+chi cambia club a metà finestra la separazione tende a 1 per costruzione. 88,4% delle 98.642 coppie si muove.
+
+**UNA REGOLA SUL DISEGNO VA MESSA SU OGNI VIA, E LE VIE SI CONTANO INSTRUMENTANDO.** Un uomo entra
+nell'undici per **cinque** strade — la graduatoria, il prestito fra linee, le tre riparazioni di fascia e di
+fronte, la panchina di `_settle` — e le prime tre sono state indovinate una per corsa, mentre il riepilogo
+stampava numeri quasi identici (1 club mosso, poi 18, poi 0). La quinta l'ha trovata **una sonda su tutti gli
+stadi insieme, alla prima corsa**. *Dopo tre tentativi a indovinare, strumentare tutto costa una corsa sola* —
+ed è la regola «la fotografia batte il ragionamento» che andava applicata al PRIMO numero identico.
+Con lei: **un limite dichiarato onestamente resta un difetto se esclude il caso d'uso.** La prima versione
+diceva a voce alta di agire solo sulla prima scelta; il caso per cui la regola era nata (Zhegrova, claim
+0,175) entrava da una riparazione di fascia, cioè esattamente dentro il limite.
+
+**E UNA CURA PUÒ ROVESCIARE IL SENSO DELLA REGOLA CHE IMPLEMENTA.** Filtrare anche i `benches` sembrava
+coerente e toglieva dai BALLOTTAGGI il compagno di staffetta: «non giocano insieme» diventava «non si
+contendono la maglia», che è il contrario. Il vincolo riguarda **chi è in campo**, mai chi gli sta dietro.
+
+**LA SOGLIA ERA GIÀ NELLA FRASE DELL'OPERATORE.** «Quando c'è uno manca l'altro per la MAGGIOR PARTE della
+partita»: la misura è `separazione × copertura` e la separazione È quella quota, quindi la soglia è la
+maggioranza, 0,50. *Dove una frase dichiarata contiene già una quantità, quella quantità non si sceglie.*
+
+**LA STESSA MISURA PUÒ VOLER DIRE DUE COSE IN DUE FINESTRE, e allora la regola vale in una sola.** Sulle
+ultime tre partite «si alternano» vuol dire *uno gioca e l'altro no* (esce un comprimario, entra chi sta
+giocando: Genoa 0,19 → 0,61); su 38 partite vuol dire *due titolari che si dividono un posto tutto l'anno*, e
+togliendone uno entra il TERZO della fila (Cagliari 0,56 → 0,41). Il giudice esterno concorda: sulla board di
+stagione gli uomini non si muovono (150/220) e i moduli calano (MATCH 10 → 8). **Il prezzo di una regola
+DICHIARATA si misura e si mette davanti all'operatore**, e la decisione di limitarla è sua.
+
+**E UNA SPIEGAZIONE DI UN EFFETTO È UN'IPOTESI FINCHÉ NON HA IL SUO 2×2.** Lo spostamento dei moduli era
+stato attribuito al fattore che pesa un modulo per l'undici che riesce a schierare: **falso**, e la quarta
+cella lo dice — neutralizzando quel fattore la board col vincolo legge identico. Il vincolo APPIATTISCE le
+differenze fra i moduli, quindi quel fattore smette di discriminare (vale +1 MATCH quando la regola è spenta,
+zero quando è accesa). *Una tabella a due condizioni non basta a dire per DOVE passa un effetto: servono
+tutte e quattro le celle.*
+
+**INFINE, L'ORDINE DICHIARATO DALL'OPERATORE HA TROVATO UN DIFETTO A MONTE**: «il modulo scelto dipende da
+quello usato nelle ultime tre partite e poi si vede gli 11 da schierare». La board dell'ultimo periodo
+prendeva il modulo dalla distribuzione di STAGIONE — diceva «ultimo periodo» e disegnava l'abitudine
+dell'anno. `formation_shapes_recent` (`SHEET_REVISION` 59) e, con lei, l'anello di ritorno spento su
+quell'orizzonte. *Quando una vista dice di guardare una finestra, ogni sua sorgente va verificata su quella
+finestra: basta che una legga la finestra vecchia perché la vista menta col suo stesso nome.*
+
+**E LA SEPARAZIONE DI DUE META' SU UN ALBERO SI FA PER VOCABOLARIO, MAI PER COORDINATA** (quinta istanza di
+«due sessioni su un albero», e la variante è nuova). Classificare gli hunk di una patch per NUMERO DI RIGA ha
+tenuto **zero hunk su quindici**: quelle coordinate dipendono da quanto contesto ha la patch, quindi cambiano
+fra la passata con cui le leggi e quella su cui le applichi. Il vocabolario di una feature no. Dove un hunk
+porta tutt'e due i vocabolari lo strumento lo DICE invece di sceglierne uno in silenzio, e quel caso si
+ricostruisce a mano. Controprova *dopo* il commit e non solo prima — `git show | grep` sul loro vocabolario —
+perché l'index è condiviso e una fotografia scade.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

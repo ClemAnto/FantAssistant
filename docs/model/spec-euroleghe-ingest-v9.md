@@ -495,6 +495,49 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.90 (11 settembre 2026 — la STAFFETTA aveva il denominatore sbagliato, e il modulo corto viene dalle ultime tre)
+
+**`SHEET_REVISION` 59.** Due cose, e la prima è la cura di un difetto spedito lo stesso giorno.
+
+**1) `relay_scores`: il denominatore segue il suo NUMERATORE.** I minuti di ciascuno erano accumulati su
+TUTTE le partite ricevute — quindi su ogni club della finestra — mentre la sovrapposizione lo era solo sulle
+partite che i due CONDIVIDONO. Per un uomo che ha cambiato squadra a metà finestra il denominatore era molte
+volte il campione del numeratore, e la separazione tendeva a 1 per costruzione. Il sintomo: **un portiere in
+cima alle staffette**, quando un portiere in campo 90' contiene per intero i minuti di chiunque e la sua
+separazione non può che essere zero. Misurato su 98.642 coppie: **88,4% si muove**, scarto mediano +0,415;
+Vicario/Koopmeiners 0,996 → **0,022**, Maignan/Moreira 0,988 → **0,000**, mentre i due portieri della
+Juventus restano in cima (0,982 → 0,927) e Zhegrova/Conceição regge (0,819 → 0,753). Più **3.841 coppie** in
+cui uno dei due non gioca mai accanto all'altro, prezzate lo stesso fino a 1,000 e ora fuori: la guardia
+«ciascuno dei due ci sia qualche volta» vale sulle partite CONDIVISE e non sulla carriera.
+
+**2) `formation_shapes_recent` sui club** — i moduli delle ultime `presence.recent_window` partite di
+CAMPIONATO, dal più recente, stesso formato di `formation_shapes`. Regola dell'operatore: «il modulo scelto
+dipende da quello usato nelle ultime tre partite e poi si vede gli 11 da schierare». La board dell'ultimo
+periodo prendeva il modulo dalla distribuzione di STAGIONE, cioè diceva «ultimo periodo» e disegnava
+l'abitudine dell'anno. Due differenze da `typical_formation`, e sono le due che fanno la finestra: **solo
+campionato** (quella conta ogni competizione — la Juventus arriva a NOVE undici su tre giornate giocate — ed
+è anche la popolazione su cui la finestra corta dei giocatori è misurata) e **nessun peso al cambio di
+allenatore** (su tre partite o le ha dirette tutte lui, o è arrivato dentro la finestra e quelle SONO il
+presente). Il numero di partite viene da `presence.DEFAULTS.recent_window` come per i giocatori: due copie
+descriverebbero due finestre diverse con lo stesso nome.
+
+Misurato prima di scriverla, foglio Serie A dell'11/09: **20 club su 20** hanno tre undici completi, **14 su
+20** giocano lo stesso modulo in tutte e tre, **3 su 20** (Fiorentina, Lecce, Torino) ne danno uno diverso da
+quello di stagione. Dove le tre partite non sono d'accordo il modo è una monetina — com'è per il ritiro, che
+questo file già legge come DISTRIBUZIONE e mai come moda — e infatti chi lo legge lo usa come prior e lascia
+che siano le altre sorgenti a rompere il pareggio.
+
+Lato pannello: `observed_shapes(info, horizon)` sceglie la colonna, `shape_odds` sull'orizzonte corto dà
+fiducia piena all'abitudine recente (niente da scontare a un predecessore) e **non consulta il fattore che
+pesa un modulo per l'undici che riesce a schierare** — è l'anello di ritorno che invertiva l'ordine
+dichiarato. Sulla stagione resta intero. Un foglio scritto prima di questa revisione non ha la colonna e
+torna a quella di stagione: «vuoto = ignoto» non vuol dire «nessun modulo».
+
+Il vincolo che ne consuma la misura (`gui.RELAY_APART`, «due che si alternano non occupano due posti») vive
+nel pannello e non nel foglio, con il suo prezzo misurato sul giudice stampa e la decisione dell'operatore di
+limitarlo all'ultimo periodo: dettaglio, tabelle e il 2×2 in `docs/model/formazioni-tipo-v1.md` §10.12.
+`engine_*` non si muove — `evaluate` non importa `presence` né il pannello — e `backtest --verify` resta 22/22.
+
 ## Novità v9.89 (11 settembre 2026 — la FINESTRA CORTA, e una pagina che elenca chi è fuori)
 
 **LA FORMAZIONE TIPO DELL'ULTIMO PERIODO**, richiesta dell'operatore: sei colonne `desc_recent_*` (le
