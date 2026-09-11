@@ -182,6 +182,14 @@ def _store_once(conn, fc_id: int, games: list[dict]) -> int:
     return len(games)
 
 
+# OGNI 25 come `injuries` e `market`, e nello stesso formato di `ctx.progress`: il pannello Tk legge
+# UNA forma di riga sola. Il DENOMINATORE qui e' `len(people)` e non «quanti si scaricano», al
+# contrario di `market`, e la differenza e' nel ciclo: li' un `continue` salta del tutto chi e' gia'
+# in cache, qui ogni giro fa comunque il parse e lo store. Due cicli, due denominatori - contarli allo
+# stesso modo sarebbe l'errore di unita' che in una barra non si vede.
+PROGRESS_EVERY = 25
+
+
 def run(ctx: Context, **kwargs) -> dict[str, int]:
     conn = ctx.require_conn()
     refresh = bool(kwargs.get("refresh"))
@@ -194,6 +202,7 @@ def run(ctx: Context, **kwargs) -> dict[str, int]:
     print(f"[performance] {len(people)} giocatori con id Transfermarkt"
           f"{' (pilota)' if limit else ''}")
     session = _client()
+    done = 0
     try:
         for fc_id, tm_id in people:
             if ctx.cancelled():
@@ -210,6 +219,10 @@ def run(ctx: Context, **kwargs) -> dict[str, int]:
                     continue
                 cache.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             games = parse_games(payload)
+            done += 1
+            if done % PROGRESS_EVERY == 0 or done == len(people):
+                print(f"[performance] {done}/{len(people)} giocatori letti")
+                ctx.progress("performance", done, len(people), "giocatori letti")
             if not games:
                 continue
             counts["players"] += 1

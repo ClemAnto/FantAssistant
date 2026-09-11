@@ -194,6 +194,23 @@ def upsert(conn, fc_id: int, points: list[dict]) -> int:
     return len(points)
 
 
+# OGNI 25 COME `injuries`, e nello stesso identico formato: `ctx.progress` esiste perche' il pannello
+# Tk legge UNA forma di riga sola, e un secondo formato vorrebbe dire un secondo parser. Il passo e'
+# quello dell'altro modulo lungo, cosi' due camminate che durano ore si leggono allo stesso ritmo.
+#
+# NATO DA UN'ORA DI SILENZIO (11/09/2026): questo passo dichiara 60 minuti e non stampava una riga, e
+# dall'esterno «sta lavorando» e «e' appeso» si leggono uguali - l'unico modo di distinguerli era
+# guardare il tempo di CPU del processo. Un passo muto non e' un dettaglio estetico: e' un passo su cui
+# non si puo' decidere se aspettare o fermare.
+PROGRESS_EVERY = 25
+
+
+def _say(ctx: Context, done: int, todo: int) -> None:
+    if done % PROGRESS_EVERY == 0 or done == todo:
+        print(f"[market] {done}/{todo} curve scaricate")
+        ctx.progress("market", done, todo, "curve scaricate")
+
+
 def run(ctx: Context, limit: int | None = None, refresh: bool = False,
         all_seasons: bool = False, **kwargs) -> dict[str, int]:
     conn = ctx.require_conn()
@@ -202,6 +219,10 @@ def run(ctx: Context, limit: int | None = None, refresh: bool = False,
     if not targets:
         print("[market] nessun tm_id in player_xref - lancia prima `injuries --layer ids`")
         return counts
+    # QUANTE NE RESTANO, e il denominatore e' `todo` e mai `len(targets)`: il ciclo gira su TUTTI i
+    # quotati e salta con un `continue` quelli gia' in cache, quindi contare i giri farebbe correre la
+    # barra mentre non si scarica niente - un errore di unita' dentro una barra di avanzamento, che e'
+    # il posto in cui si nota meno.
     todo = len(targets) if refresh else sum(
         1 for _fc_id, tm_id in targets if not _cache_path(ctx, tm_id).exists())
     print(f"[market] curva del valore per {len(targets)} quotati"
@@ -228,11 +249,13 @@ def run(ctx: Context, limit: int | None = None, refresh: bool = False,
                 # marcatore ogni ri-lancio lo ripaga.
                 counts["misses"] += 1
                 cache.write_text(json.dumps({"list": []}), encoding="utf-8")
+                _say(ctx, counts["requests"], todo)
                 continue
             cache.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
             points = parse_graph(payload)
             counts["players"] += 1
             counts["points"] += upsert(conn, fc_id, points)
+            _say(ctx, counts["requests"], todo)
     except KeyboardInterrupt:
         print("[market] interrotto - quello che è in cache resta")
     finally:

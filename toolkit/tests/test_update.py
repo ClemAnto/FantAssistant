@@ -444,3 +444,59 @@ def test_the_long_walks_do_not_re_pay_for_what_the_source_cannot_answer():
     import inspect
     from euroleghe_ingest.modules import recent_form
     assert "last_seasons" in inspect.signature(recent_form.run).parameters
+
+
+# Sopra questa soglia un passo che non dice niente non e' un dettaglio estetico: e' un passo su cui non
+# si puo' decidere se aspettare o fermare. Mezz'ora perche' e' l'ordine di grandezza in cui un silenzio
+# smette di essere tollerabile - sotto, si aspetta e basta; sopra, l'unico modo di distinguere «sta
+# lavorando» da «e' appeso» diventa guardare il tempo di CPU del processo, che e' quello che e'
+# successo l'11/09/2026 con `market`.
+LONG_STEP_MINUTES = 30
+
+# CHI NON PUO' CONTARE, e l'esenzione e' dichiarata invece che dedotta. `ratings` cammina le giornate
+# finche' il foglio non arriva vuoto: quante siano si SCOPRE alla fine, quindi non esiste un totale da
+# mettere in una barra - e `Context.progress` lo vieta a parole sue, «a COUNTED total and never a
+# spinner dressed up as a number». Non e' muto pero': stampa una riga per ogni giornata scaricata, che
+# e' la cosa che serviva («sta lavorando» contro «e' appeso»), e il test qui sotto lo verifica invece
+# di fidarsi di questo commento.
+TOTAL_UNKNOWN = {"ratings"}
+
+
+def test_every_long_walk_says_how_far_it_has_got():
+    """Un passo che dichiara mezz'ora o piu' deve chiamare `ctx.progress`.
+
+    NON una print qualsiasi: `ctx.progress` e' il formato che il pannello Tk parsa per la sua barra, e
+    un secondo formato vorrebbe dire un secondo parser (il docstring di `Context.progress` lo dice).
+    Quindi la guardia chiede QUELLO.
+
+    Nato da un'ora di silenzio: `market` dichiara 60 minuti e non stampava una riga. Cercando il
+    fratello del difetto invece di curare solo il caso segnalato, `performance` (50 minuti) era muto
+    allo stesso modo - ed e' il genere di cosa che si trova solo contando, perche' a leggere il codice
+    un modulo silenzioso non ha niente di storto da vedere.
+    """
+    import inspect
+    from euroleghe_ingest.modules import load
+
+    mute = []
+    for step in update.plan(("acquire",), refresh=True):
+        if step.minutes < LONG_STEP_MINUTES or not step.module:
+            continue
+        if step.module in TOTAL_UNKNOWN:
+            continue
+        if "ctx.progress(" not in inspect.getsource(load(step.module)):
+            mute.append(f"{step.key} ({step.minutes} min, modulo {step.module})")
+    assert not mute, "camminate lunghe senza avanzamento: " + ", ".join(mute)
+
+
+def test_the_declared_exception_is_loud_in_its_own_way():
+    """Chi e' esentato dalla barra deve comunque dire dove e' arrivato, e si controlla.
+
+    Un'esenzione che non si verifica e' un buco con un commento sopra: `ratings` sta fuori perche' non
+    puo' CONTARE, non perche' possa tacere.
+    """
+    import inspect
+    from euroleghe_ingest.modules import load
+
+    for name in TOTAL_UNKNOWN:
+        source = inspect.getsource(load(name))
+        assert f'print(f"[{name}]' in source, f"{name} e' esentato dalla barra ma non dice niente"
