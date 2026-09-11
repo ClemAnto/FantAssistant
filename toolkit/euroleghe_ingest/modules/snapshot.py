@@ -1672,6 +1672,141 @@ def trend_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
     }
 
 
+#: Quante partite di campionato del club guarda la misura delle staffette. Una STAGIONE e non la finestra
+#: corta: misurato sulla Juventus, con tre partite la coppia dei portieri non si distingue da un uomo con
+#: otto minuti, e con trentotto il primo posto e' Perin/Di Gregorio a 1.000 - cioe' la staffetta piu'
+#: certa che esista nel calcio, trovata senza dire niente sui ruoli.
+RELAY_MATCHES = 38
+#: Quante coppie si scrivono per uomo. Due bastano al campetto (`boards.MAX_DUELS`), tre lasciano un
+#: margine a chi legge la colonna per altro.
+RELAY_KEEP = 3
+#: Sotto quanti minuti condivisi la coppia e' IGNOTA e non «non fanno staffetta»: due uomini che non si
+#: sono mai visti in campo insieme perche' uno e' arrivato a gennaio non sono un'alternanza.
+RELAY_MIN_UNION = 270.0
+
+
+def pitch_span(started: int | None, minutes: float | None) -> tuple[float, float] | None:
+    """Quando un uomo era IN CAMPO, in minuti dall'inizio: `[dentro, fuori]`, o None se non ha giocato.
+
+    L'EVENTO DI SOSTITUZIONE NON SERVE, che e' la formulazione dell'operatore (11/09/2026) e il motivo
+    per cui questa misura non ha bisogno di nessuna acquisizione: «non devi creare un nuovo campo per le
+    sostituzioni ma devi trovare un modo per valutare chi entra e chi esce ... devi intersecare i minuti
+    dell'ingresso/uscita di entrambi». Un titolare comincia a zero ed esce al minuto che ha giocato; un
+    subentrato entra e finisce la partita, quindi il suo intervallo e' l'ultimo pezzo.
+
+    L'ASSUNZIONE E' UNA SOLA - che chi entra non esca di nuovo - ed e' MISURATA sulle 119 sostituzioni
+    vere in cache: **1 ingresso su 37 esce una seconda volta (2,7%)**, e quelle sono amichevoli, cioe' il
+    caso peggiore. La verifica che conta pero' e' un invariante del REGOLAMENTO e non un campione:
+    a ogni minuto in campo ce ne sono UNDICI. Su tutte le 4.316 partite-club di campionato il conto
+    ricostruito fa 11 nel **76,4%** dei minuti-squadra, e le deviazioni sono di uno o due - la firma piu'
+    frequente e' `(11, 12)`, cioe' il RECUPERO, che i minuti di chi entra contengono e il minuto d'uscita
+    di chi esce no. Zero dei cali sotto 11 ha un'espulsione, quindi non sono cartellini: sono minuti che
+    non chiudono, e valgono un paio di minuti su novanta.
+    """
+    played = min(minutes or 0.0, 90.0)
+    if played <= 0:
+        return None
+    return (0.0, played) if started else (90.0 - played, 90.0)
+
+
+def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
+                 ) -> dict[int, list[tuple[int, float]]]:
+    """Il CUORE della misura, puro: una lista di partite -> {fc_id: [(compagno, staffetta)]}.
+
+    Una partita e' `{fc_id: intervallo}` per chi era DISPONIBILE, con `None` per chi era in panchina e
+    non e' entrato. Chi non ha una voce non era disponibile e non entra in nessuna coppia di quella
+    partita: due uomini che non si sovrappongono perche' uno era infortunato non sono una staffetta,
+    sono un'assenza - ed e' la meta' che distingue le due cose.
+
+    LA DEFINIZIONE E' DELL'OPERATORE (11/09/2026) e ha due meta', che qui sono due numeri moltiplicati:
+
+      SEPARAZIONE  «quando c'e' uno manca l'altro»: quanta parte dei minuti del MINORE dei due e'
+                   passata senza l'altro in campo. 1 = non stanno mai insieme.
+                   Sul MINORE e non sull'unione, ed e' un test che l'ha trovato: normalizzando
+                   sull'unione, un uomo che gioca 90' e uno che ne gioca 30 SEMPRE accanto a lui
+                   leggevano 0,667 - perche' i 60 minuti in cui il primo e' solo contavano come prova di
+                   alternanza. Non lo sono: il secondo non e' mai in campo senza il primo, e il minore
+                   e' il solo denominatore che lo dice.
+      COPERTURA    «per la maggior parte della partita»: quanta parte del tempo disponibile i due
+                   coprono INSIEME. Senza di lei un uomo che gioca sempre leggerebbe 1.000 con chiunque
+                   non giochi mai - da solo copre tutto e non si sovrappone con nessuno. Misurato:
+                   senza questo fattore i primi tredici posti della Juventus erano Pinsoglio e Rugani,
+                   due senza un minuto.
+
+    Chi non ha giocato NESSUN minuto nella finestra non entra in nessuna coppia: la frase presuppone
+    che ciascuno dei due ci sia qualche volta.
+
+    PURA perche' la sua verifica non deve passare da un database: e' la stessa divisione che
+    `engine/presence.py` ha con questo file, un livello piu' in basso.
+    """
+    together: dict[tuple[int, int], float] = {}
+    union: dict[tuple[int, int], float] = {}
+    covered: dict[tuple[int, int], float] = {}
+    played: dict[int, float] = {}
+    for squad in matches:
+        men = sorted(squad)
+        for fid in men:
+            span = squad[fid]
+            if span:
+                played[fid] = played.get(fid, 0.0) + span[1] - span[0]
+        for index, first in enumerate(men):
+            for second in men[index + 1:]:
+                one, two = squad[first], squad[second]
+                if not one and not two:
+                    continue
+                key = (first, second)
+                both = (max(0.0, min(one[1], two[1]) - max(one[0], two[0]))
+                        if one and two else 0.0)
+                span = ((one[1] - one[0]) if one else 0.0) + ((two[1] - two[0]) if two else 0.0)
+                together[key] = together.get(key, 0.0) + both
+                union[key] = union.get(key, 0.0) + span - both
+                covered[key] = covered.get(key, 0.0) + 90.0
+    out: dict[int, list[tuple[int, float]]] = {}
+    for (first, second), span in union.items():
+        if span < RELAY_MIN_UNION or not played.get(first) or not played.get(second):
+            continue
+        floor = min(played[first], played[second])
+        score = (1 - together[(first, second)] / floor) * (span / covered[(first, second)])
+        out.setdefault(first, []).append((second, round(score, 3)))
+        out.setdefault(second, []).append((first, round(score, 3)))
+    for pairs in out.values():
+        pairs.sort(key=lambda one: -one[1])
+        del pairs[RELAY_KEEP:]
+    return out
+
+
+def relay_pairs(conn, auction_date: str, resolve,
+                limit: int = RELAY_MATCHES) -> dict[int, list[tuple[int, float]]]:
+    """{fc_id: [(compagno, quanto sono una STAFFETTA)]} - chi gioca quando l'altro non c'e'.
+
+    Il LETTORE attorno a `relay_scores`: costruisce le partite di ogni club dal livello per-partita e
+    gli passa gli intervalli. Niente aritmetica qui, per la stessa ragione per cui `presence` e' un
+    file a parte - una misura che si puo' provare solo con un database e' una misura che nessuno prova.
+
+    A COSA SERVE, e non serve a scoprire coppie da zero: il campetto i candidati di una maglia li ha
+    gia' (`_placed` restituisce i rivali di ogni posto), e questa misura li ORDINA - cosi' il taglio a
+    due di `boards.MAX_DUELS` tiene i due giusti invece dei due col claim piu' alto. E' anche la ragione
+    per cui il rumore delle code non conta: un uomo con otto minuti non e' un candidato di nessun posto.
+    """
+    fixtures = club_matches(conn, auction_date, resolve, limit, LEAGUE_COMPETITIONS)
+    belongs = player_clubs(conn, resolve)
+    rows: dict[str, dict[int, tuple[int | None, float | None]]] = {}
+    for fc_id, match_id, started, minutes in conn.execute(
+            f"""SELECT fc_id, match_id, started, minutes FROM external_match_stats
+                WHERE match_date IS NOT NULL AND match_date < ?
+                  AND competition IN ({_LEAGUE_IN})""", (auction_date, *LEAGUE_COMPETITIONS)):
+        rows.setdefault(str(match_id), {})[fc_id] = (started, minutes)
+    squads: list[dict[int, tuple[float, float] | None]] = []
+    for club_key, matches in fixtures.items():
+        for _date, match_id, *_rest in matches:
+            here = rows.get(str(match_id))
+            if not here:
+                continue
+            squads.append({fid: pitch_span(st, mn) for fid, (st, mn) in here.items()
+                           if club_key in (belongs.get(fid) or {})})
+    return relay_scores(squads)
+
+
 def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
                  with_players: set[str], benched: dict[int, set[str]],
                  lineup_only: dict[int, set[str]],
@@ -5187,6 +5322,14 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # un numero. `engine_*` non le legge: `evaluate` non importa `presence`.
     "desc_recent_looked", "desc_recent_available", "desc_recent_played",
     "desc_recent_starts", "desc_recent_minutes", "desc_recent_full",
+    # LE SUE STAFFETTE: i compagni che giocano QUANDO LUI NON C'E', come `fc_id:punteggio` separati da
+    # `;` e dal piu' forte. Definizione dell'operatore (11/09/2026) e nessuna acquisizione: l'intervallo
+    # in campo si ricava dai minuti (`pitch_span`), e l'evento di sostituzione non serve perche' quello
+    # che conta e' l'INTERSEZIONE - due che si danno il cambio non sono per forza sostituiti insieme.
+    # Serve a ORDINARE i ballottaggi che il campetto gia' calcola, cosi' il taglio a due tiene i due
+    # giusti: sulla Juventus 2025-26 il primo posto e' Perin/Di Gregorio a 1.000 e il quarto
+    # Zhegrova/Conceicao, che e' la coppia da cui la richiesta e' nata.
+    "desc_relay",
     # WHO GAINED A PLACE DURING THE MEASURED SEASON AND WHO LOST ONE, with the department control that
     # makes it honest: a man who plays because the starter in front of him is broken has not won the
     # place, and he goes back when the other returns. Dated, because the ORDER between the day the place
@@ -5782,6 +5925,8 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_recent_starts": form.get("recent_starts"),
             "desc_recent_minutes": form.get("recent_minutes"),
             "desc_recent_full": form.get("recent_full"),
+            "desc_relay": ";".join(f"{other}:{score:.3f}"
+                                   for other, score in layers["relay"].get(obs.fc_id, ())) or None,
             "desc_place_change": place.get("change"),
             "desc_place_on": place.get("on"),
             "desc_place_md": place.get("md"),
@@ -6767,6 +6912,9 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                                    previous=window.input_season),
         "starters": starters,
         "availability": availability_now(conn, window.auction_date),
+        # LE STAFFETTE, per ordinare i ballottaggi del campetto: una stagione di partite di campionato,
+        # perche' con tre la coppia dei portieri non si distingue da un uomo con otto minuti.
+        "relay": relay_pairs(conn, window.auction_date, club_index(conn)),
         # LE GIORNATE CHE RESTANO, per club: il denominatore della finestra d'infortunio aperta. Vuoto
         # su una stagione non ancora calendarizzata, e allora nessuna riga porta una quota.
         "remaining": remaining_rounds(conn, window.target_season, window.auction_date),

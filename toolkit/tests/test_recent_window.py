@@ -392,3 +392,65 @@ def test_cadere_dall_ELENCO_vuole_piu_di_una_lettura():
     conn.execute("INSERT INTO availability VALUES (9, '2026-09-07', 'injured')")
     assert 3 not in snapshot.availability_now(conn, "2026-09-11")
     assert snapshot.AVAILABILITY_READS == 2
+
+
+# --------------------------------------------------------------------- le STAFFETTE
+
+def test_l_intervallo_in_campo_si_ricava_dai_soli_minuti():
+    """Un titolare comincia a zero, un subentrato finisce la partita: l'evento non serve.
+
+    E' la formulazione dell'operatore (11/09/2026) - «devi intersecare i minuti dell'ingresso/uscita di
+    entrambi» - e la sola assunzione e' che chi entra non esca di nuovo: MISURATA sulle 119 sostituzioni
+    vere in cache, 1 ingresso su 37 (2,7%), e quelle sono amichevoli, cioe' il caso peggiore.
+    """
+    assert snapshot.pitch_span(1, 90) == (0.0, 90.0)      # ha giocato tutta la partita
+    assert snapshot.pitch_span(1, 62) == (0.0, 62.0)      # titolare uscito al 62'
+    assert snapshot.pitch_span(0, 28) == (62.0, 90.0)     # entrato al 62' e ha finito
+    assert snapshot.pitch_span(0, None) is None           # in panchina: nessun intervallo
+    assert snapshot.pitch_span(1, 0) is None
+    # ...e il recupero non allunga la partita: 95 minuti restano 90, o due uomini si sovrapporrebbero
+    # in un tempo che non e' mai esistito.
+    assert snapshot.pitch_span(0, 95) == (0.0, 90.0)
+
+
+def test_una_staffetta_e_separazione_PER_copertura():
+    """Le due meta' della frase dell'operatore sono due numeri, e servono tutt'e due.
+
+    Il caso che lo dimostra e' quello che la prima versione sbagliava: un uomo che gioca SEMPRE non si
+    sovrappone mai con uno che non gioca MAI, quindi la sola separazione lo dichiarava una staffetta
+    perfetta - sulla Juventus i primi tredici posti erano due uomini senza un minuto.
+    """
+    # tre partite: A titolare e sostituito, B entra e finisce. Mai insieme, e insieme coprono tutto.
+    relay = [{1: (0.0, 60.0), 2: (60.0, 90.0)} for _ in range(3)]
+    got = snapshot.relay_scores(relay)
+    assert got[1] == [(2, 1.0)]
+    # ...e chi non gioca MAI non e' la staffetta di nessuno, per quanto non si sovrapponga.
+    never = [{1: (0.0, 90.0), 3: None} for _ in range(3)]
+    assert 3 not in snapshot.relay_scores(never)
+    # ...mentre due che giocano SEMPRE insieme leggono zero.
+    always = [{1: (0.0, 90.0), 2: (0.0, 90.0)} for _ in range(3)]
+    assert snapshot.relay_scores(always)[1] == [(2, 0.0)]
+
+
+def test_chi_non_era_disponibile_non_e_una_staffetta_mancata():
+    """Due uomini che non si sovrappongono perche' uno era FUORI non sono un'alternanza, sono un'assenza.
+
+    E' la meta' che distingue le due cose, e si esprime nella FORMA del dato: chi non ha una voce in una
+    partita non era disponibile, e quella partita non entra nella coppia. Senza questo, un infortunato
+    di tre mesi risulterebbe la staffetta perfetta di chi ha giocato al posto suo.
+    """
+    # A gioca sempre; B e' fuori rosa per due partite e poi gioca mezz'ora accanto a lui.
+    matches = [{1: (0.0, 90.0)}, {1: (0.0, 90.0)}, {1: (0.0, 90.0), 2: (60.0, 90.0)},
+               {1: (0.0, 90.0), 2: (60.0, 90.0)}, {1: (0.0, 90.0), 2: (60.0, 90.0)}]
+    got = snapshot.relay_scores(matches)
+    # B non e' MAI in campo senza A: separazione zero. Il denominatore e' il minore dei due e non
+    # l'unione - con l'unione i 60 minuti in cui A e' solo contavano come alternanza e la coppia
+    # leggeva 0,667, che e' il difetto che questo caso ha trovato.
+    assert got[1] == [(2, 0.0)]
+
+
+def test_una_coppia_con_poco_calcio_insieme_resta_IGNOTA():
+    """Sotto `RELAY_MIN_UNION` non si dice «non fanno staffetta»: non si dice niente."""
+    thin = [{1: (0.0, 90.0), 2: None}]
+    assert snapshot.relay_scores(thin) == {}
+    assert snapshot.RELAY_MIN_UNION == 270.0

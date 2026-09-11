@@ -237,6 +237,31 @@ def _number(value: Any) -> float | None:
         return None
 
 
+def _relay_of(row: dict) -> dict[int, float]:
+    """Le staffette di un uomo dalla sua riga: `{fc_id: punteggio}`. Vuoto dove il foglio non le porta."""
+    out: dict[int, float] = {}
+    for piece in str(row.get("desc_relay") or "").split(";"):
+        other, _sep, score = piece.partition(":")
+        try:
+            out[int(float(other))] = float(score)
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _by_relay(starter: dict, rivals: list | None) -> list:
+    """I rivali di un posto, chi si da' il cambio col titolare PER PRIMO.
+
+    La misura sta in `snapshot.relay_scores` e qui si legge soltanto: due definizioni di «staffetta»
+    darebbero a una maglia due ballottaggi diversi. Ordine STABILE, quindi una coppia su cui la misura
+    non dice niente non si muove - «vuoto = ignoto» applicato a un ordinamento.
+    """
+    scores = _relay_of(starter)
+    if not scores or not rivals:
+        return list(rivals or [])
+    return sorted(rivals, key=lambda rival: -scores.get(_fc_id(rival) or -1, 0.0))
+
+
 def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
            eleven_ids: set[int] | None = None,
            contended: dict[int, bool | None] | None = None,
@@ -298,6 +323,19 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
             # pitch shows, and it is the panel's own answer rather than a re-derivation.
             man["badge"] = markers[index] if index < len(markers) else None
             if with_rivals:
+                # ...E I RIVALI SI RIORDINANO PER STAFFETTA PRIMA DEL TAGLIO (operatore, 11/09/2026:
+                # «quando disegni i ballottaggi utilizza le sostituzioni avvenute realmente per capire
+                # quali sono le staffette»). L'ordine di casa e' il claim; chi gioca DAVVERO quando il
+                # titolare non c'e' viene prima, perche' e' quello la domanda che un ballottaggio pone.
+                #
+                # QUI E NON PRIMA, ed e' la ragione per cui il riordino vive in questo file: `MAX_DUELS`
+                # taglia a due proprio in questa riga, quindi un ordine deciso altrove lascerebbe il
+                # taglio a tenere i due col claim piu' alto invece dei due che si danno il cambio.
+                #
+                # STABILE: a parita' di staffetta resta l'ordine del pannello, quindi dove la misura non
+                # dice niente (una coppia con poco calcio insieme e' IGNOTA, non «non fanno staffetta»)
+                # il campetto disegna esattamente quello che disegnava prima.
+                rivals = _by_relay(row, rivals)
                 # The panel's own order, capped: the first two are the ones a pitch can show.
                 man["duels"] = [_man(view, rival, in_eleven=_fc_id(rival) in ids,
                                      contended=contended.get(_fc_id(rival)),
