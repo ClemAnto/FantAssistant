@@ -189,6 +189,20 @@ export interface BoardMan {
    * suo»: senza una data di rientro non c'è un orizzonte da confrontare.
    */
   owner_returning?: boolean | null;
+  /**
+   * OGGI NON PUÒ GIOCARE, e per questo è elencato fra i ballottaggi di una board che gli indisponibili
+   * li ESCLUDE dall'undici (regola dell'operatore, 11/09/2026).
+   *
+   * `true` solo su quei rivali, e mai altrove: sulla board di stagione un infortunato è disegnato per
+   * definizione («la squadra che schiera quando sono tutti disponibili») e lì la board non dice niente
+   * su oggi — assente = non lo afferma, come `owner_returning`.
+   *
+   * SI LEGGE E NON SI DEDUCE dalla tabella `injuries` del bundle: `ui-flags` risponde a un'altra domanda
+   * e solo per gli stop lunghi (45+ giorni) o per una lettura della stampa di tre giorni, e sul foglio
+   * del 10/09/2026 **34 di questi 67 uomini non porterebbero nessuna icona**. La board sa perché ce li
+   * ha messi.
+   */
+  out_today?: boolean | null;
 }
 
 export interface Board {

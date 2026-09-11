@@ -1188,3 +1188,102 @@ disponibili.
 5. **Il RUOLO REALE sulla card di dettaglio di un calciatore**: chiesto e non ancora fatto. Il dato c'è
    (`desc_real_roles`, i dodici codici, già disegnati sul campetto da `ui/role-set`); manca il campo su
    `CardMan` e la riga nel template.
+
+**Cosa dice la board FRESCA dell'11/09 (sera), dopo `update --daily` e il marchio del §10.11** — fatti,
+non verdetti, perché tre di questi punti chiedono una regola e non un dato:
+
+* il punto **1 non si pone più su questa board**: la Juventus disegna Conceição titolare della trequarti
+  (0,801) e **Zhegrova come suo ballottaggio** (0,175), non accanto a lui. Se la richiesta resta è sulla
+  REGOLA (le staffette vere, §10.9) e non su questo caso;
+* il punto **3 resta aperto**: Woltemade è rivale di Kolo Muani in attacco, N. Gonzalez sta sulla
+  trequarti, e la board non li accosta;
+* i punti **2 e 4** restano come sono: nessuno dei due è deciso da quello che è cambiato oggi;
+* e quello che il marchio nuovo fa vedere proprio lì è il caso per cui è nato — **Locatelli (0,835,
+  più alto del titolare disegnato Douglas Luiz a 0,808), Yildiz (0,708), McKennie (0,711) e Cambiaso
+  (0,316) compaiono marcati**: quattro maglie che ieri leggevano meno contese di quanto sono.
+
+### 10.11 — Il BALLOTTAGGIO che oggi non può giocare (11 settembre 2026)
+
+Richiesta dell'operatore: «nelle formazioni "Ultimo Periodo" sul campetto visualizza i calciatori che
+secondo l'algoritmo dovrebbero essere in ballottaggio ma sono infortunati, in rosso o con l'icona
+dell'infortunio».
+
+**IL CANCELLO TOGLIE DALL'UNDICI, NON DAL BALLOTTAGGIO.** I due modi che disegnano l'undici di oggi
+(`gui.TODAY_MODES`) escludono gli indisponibili di netto, e la ragione resta buona — «la finestra di un
+infortunato è VUOTA, quindi la miscela gli restituirebbe lo standing di stagione e lo terrebbe
+disegnato» (§10.6). Quello che era sbagliato è il secondo effetto, mai voluto: sparivano anche dai
+RIVALI, e una maglia che legge «nessun ballottaggio» perché il ballottaggio è in infermeria dice una cosa
+falsa sul posto. Sul foglio Serie A del 10/09/2026: **59 posti su 220 senza nessun rivale disegnato, e 26
+di quelli ne hanno uno che semplicemente oggi non può giocare.**
+
+**IN AGGIUNTA E MAI AL POSTO DI UN SANO, ed è misurato e non una preferenza.** La lettura letterale della
+richiesta — un serbatoio solo, e i due rivali scelti fra tutti — è stata misurata per prima: gli assenti
+prenderebbero uno dei due posti su **81 maglie** e ne caccerebbero **94 sani**, cioè i due terzi di quello
+che la board breve esiste per dire (chi contende la maglia ADESSO). *La lettura letterale costa
+esattamente la ragione per cui il cancello era stato adottato.* Quindi stanno in coda, con un tetto loro
+(`SnapshotView.SIDELINED_DUELS`) e non dentro `MAX_DUELS`: un tetto solo sui due insiemi messi insieme
+farebbe dipendere il secondo da quanti rivali sani ha quel posto, che è proprio l'informazione che il
+marchio serve a dare dove manca.
+
+**IL TETTO È UNO, e la misura è questa** (foglio Serie A del 10/09/2026, col pavimento che il campetto
+applica ai ballottaggi, `PITCH_CLAIM_FLOOR` = 0,20 — cioè quello che si vede):
+
+| tetto | voci | nomi distinti | club | mediana/club | massimo |
+|---|---|---|---|---|---|
+| **1** | **106 su 220 posti** | **47** | 19 su 20 | 2 | 5 |
+| 2 | 146 | 58 | 19 | 2 | 6 |
+
+Il secondo tetto aggiunge 11 nomi e mette un SECONDO indisponibile su 40 maglie, cioè una quinta riga su
+un item largo un terzo di riga. Uno.
+
+**LA COLONNA È STATA RICALCOLATA PRIMA DI MISURARE, e senza quello ogni numero qui sopra sarebbe falso.**
+Il foglio del 10/09 è anteriore alla cura del §10.8 (le righe stantie di `availability`), quindi porta
+Bremer, Kean, Ostigard e altri 46 come indisponibili: misurandoci sopra si legge **67 nomi invece di 47**,
+e metà Serie A risulta in infermeria. `desc_availability_now` è stato riscritto chiamando la funzione vera
+(`snapshot.availability_now`) su un SQLite costruito dalle due tabelle del bundle — lo stesso export del
+foglio.
+
+**COSA NON SI MUOVE, verificato e non dedotto.** La board di STAGIONE è identica riga per riga (20 club su
+20, a meno della chiave nuova che là vale sempre `null`); la scala a sei parole della board breve non si
+muove di una riga (`contended` diverso su **0** righe su 312 confrontate, misurato con un A/B a una
+variabile sola — `SIDELINED_DUELS` a 0 e a 1). `engine_*` non è toccato: `evaluate` non importa né `gui`
+né `boards`, e nessuna colonna del foglio cambia (`desc_duel_rivals` lo scrive `snapshot.duels`, che è
+un'altra funzione). Quindi **nessun `SHEET_REVISION` da alzare** e nessun gate da rigirare.
+
+**IL DISEGNO: ambra e il ✚, non il rosso.** L'operatore ha lasciato la scelta («in rosso **o** con
+l'icona»), e la tinta di un'assenza in questa app è l'ambra da sempre — «un infortunio è un fatto su un
+calciatore, mai una colpa, e il rosso resta al pericolo» (sua decisione dell'11/08/2026, `FLAG_TONE`). Il
+glifo è quello che il PANNELLO usa già nella sua legenda (`✚` uno stop aperto, `✖` una squalifica), nella
+stessa famiglia di `∅`, `↩` e `⚖` che il campetto ha già: **non** l'icona di `ui-flags`, che risponde a
+un'altra domanda e su **34 di quei 67 uomini non disegna niente** (risponde solo a uno stop di 45+ giorni
+o a una voce di stampa di tre giorni). Per la stessa ragione il `∅` («la finestra non l'ha visto giocare»)
+TACE su di lui: due simboli per un fatto solo occupano il posto di un fatto diverso.
+
+**Costo in larghezza, misurato muovendo una cosa sola** (si nascondono i ✚ sul DOM vero e si rimisura):
+sul campetto della Lazio i nomi accorciati dai puntini passano da 4 a 6 su 40, cioè il marchio ne accorcia
+**due** — e `truncate` è una degradazione dichiarata e visibile, col nome intero nella card.
+
+**Tre cose che il marchio non deve poter fare, e tre asserzioni che lo provano** (`e2e-board-sidelined.mjs`
+più i test di unità, verificati rimettendo il difetto — tre test cadono):
+
+- **non contende la maglia**: `_contended` lo salta sui modi di oggi, o un uomo che la maglia se la gioca
+  con nessuno leggerebbe `ballottaggio` per colpa di un uomo in infermeria (la regola «Ballottaggio con
+  chi???» dell'08/09, letta dall'altro lato);
+- **non sta in cima**: la sua quota è quella di STAGIONE — la finestra corta di un infortunato è vuota,
+  quindi la miscela le restituisce il prior intatto — e ordinato per claim finirebbe quasi sempre PRIMO,
+  sopra il rivale vero. In coda sul campetto (`spreadDuels`), in coda sulla targa del pannello
+  (`plate_lines`), e fuori dal conto dei contendenti di `top_players`;
+- **non entra in campo per una dritta**: il riordino dell'app lo rifarebbe entrare dalla finestra dopo che
+  il toolkit lo ha escluso. Rifiutato, e DETTO nei `problems` del campetto.
+
+**Una definizione sola**: `SnapshotView.out_today(row)` — uno stop aperto o la stampa che lo dà fuori — con
+quattro lettori (il cancello dell'undici, il filtro di `top_players`, la targa del pannello, l'undici
+dichiarato dai probabili) e un test che conta quante volte la condizione è scritta. Non è `out_share`, che
+risponde a un'altra domanda: quella dice QUANTA parte delle giornate che restano salta, e serve alla board
+di stagione, dove un'assenza lunga sconta la percentuale invece di togliere l'uomo.
+
+**Cosa ha prodotto la corsa vera** (`update --daily` dell'11/09/2026, `SHEET_REVISION` 59, con la pagina
+*indisponibili* riletta lo stesso giorno — 56 risolti su Serie A, 99 su euro, 46 dei quali con una data di
+rientro dalla prosa): **Serie A 111 voci · 49 nomi · 19 club su 20**, **EuroLeghe 201 · 86 · 33**, e
+**zero** marchi sulle board di stagione. La tabella qui sopra era misurata sul foglio del giorno prima e
+serviva a scegliere il tetto; questi sono i numeri che viaggiano.

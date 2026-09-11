@@ -4808,12 +4808,16 @@ class SnapshotView(ttk.Frame):
             # the duel is a RATIO between two men of the same club, so the denominator that makes
             # start share incomparable between clubs cancels out and it can be read straight
             share = self.claim(starter, horizon)
-            challenger = max((self.claim(row, horizon) for row in rivals), default=0.0)
+            # ...e un rivale che oggi non puo' giocare non gli contende niente: dall'11/09/2026
+            # `eleven` ne elenca uno in coda sui modi di OGGI, e contarlo qui toglierebbe il marchio a un
+            # titolare per colpa di un uomo in infermeria - la cosa che questo blocco esiste per dire
+            # e' esattamente l'opposto.
+            challenger = max((self.claim(row, horizon) for row in rivals
+                              if not self.out_today(row)), default=0.0)
             if (matches >= self.TOP_MINUTES_MATCHES and always >= self.TOP_MINUTES_ALWAYS
                     and floor is not None and surplus >= floor
                     and challenger <= self.TOP_DUEL_SHARE * share
-                    and not starter.get("desc_injury_open")
-                    and starter.get("desc_availability_now") not in ("injured", "suspended")):
+                    and not self.out_today(starter)):
                 picked.append((surplus, starter.get("name") or ""))
         out = [name for _surplus, name in sorted(picked, reverse=True)[:self.TOP_PLAYERS]]
         self._top_cache[(club, mode)] = out
@@ -5595,6 +5599,34 @@ class SnapshotView(ttk.Frame):
         share = _number(row.get("desc_out_share"), None)
         return 1.0 if share is None else max(0.0, min(share, 1.0))
 
+    @staticmethod
+    def draws_today(mode: str) -> bool:
+        """Se questo modo disegna l'undici di OGGI, cioe' se il cancello dell'indisponibilita' vale.
+
+        Esiste perche' la risposta serve anche a `boards`, che di `gui` non puo' fare un import in cima -
+        questo modulo tira dentro tkinter e un foglio si scrive anche su una macchina senza display. La
+        domanda si fa al pannello, come `out_today`, invece di dedurla dalla finestra (`horizon_of`):
+        sono due mappe diverse sullo stesso modo, e il giorno in cui un modo nuovo le separa una
+        deduzione direbbe la cosa sbagliata in silenzio.
+        """
+        return mode in TODAY_MODES
+
+    def out_today(self, row: dict) -> bool:
+        """Se OGGI non puo' scendere in campo: uno stop aperto, oppure la stampa che lo da' fuori.
+
+        UNA DEFINIZIONE, TRE LETTORI, e tutti e tre la scrivevano a mano: il cancello di `eleven` per i
+        due modi che disegnano l'undici di oggi, il filtro dei rivali di `top_players`, e il marchio che
+        `boards` fa viaggiare fino al campetto dell'app. Tre copie di una condizione finiscono per
+        rispondere in due modi il giorno in cui una delle due colonne cambia nome.
+
+        NON E' `out_share`, che risponde a un'altra domanda: quella dice QUANTA parte delle giornate che
+        restano salta - un numero, e serve alla board di STAGIONE, dove un'assenza lunga sconta la
+        percentuale invece di togliere l'uomo - mentre questa e' un si'/no sulla prossima partita. Chi non
+        dice quando torna legge 1.0 la' e True qui, ed e' giusto in tutt'e due i posti.
+        """
+        return (bool(row.get("desc_injury_open"))
+                or row.get("desc_availability_now") in ("injured", "suspended"))
+
     def minutes_next(self, row: dict, horizon: str = "season") -> float | None:
         """The minutes he is expected to play IN A MATCH HE PLAYS, next season (`engine.minutes`).
 
@@ -5966,10 +5998,19 @@ class SnapshotView(ttk.Frame):
         # graduatoria della sua linea, che e' letteralmente quello che la dichiarazione dice. Non gli si
         # sposta il claim: quel numero e' misurato e deve continuare a leggersi per quello che e' - la
         # stessa ragione per cui le tre regole delle buste chiuse sono vincoli e non pesi.
+        today = mode in TODAY_MODES
+
+        def in_squad(row: dict) -> bool:
+            """Chi fa parte della domanda, prima ancora di chiedersi se oggi puo' giocare."""
+            return self.ruling_of(row) != "reserve" and not row.get("desc_left_for")
+
+        def order(row: dict) -> tuple:
+            return (self.ruling_of(row) != "starter",
+                    -self.claim(row, horizon), -self.starting_record(row, horizon)[1])
+
         eligible = sorted(
             (row for row in squad
-             if self.ruling_of(row) != "reserve"
-             and not row.get("desc_left_for")
+             if in_squad(row)
              # ...e un'assenza LUNGA lo toglie anche dall'undici tipo (operatore, 05/09/2026): «se un
              # calciatore non puo' giocare 6 mesi, non puo' rientrare nella formazione tipo». Sotto
              # `BOARD_OUT_SHARE` esce di netto; sopra resta e paga lo sconto dentro `claim`, che e' la
@@ -5980,12 +6021,25 @@ class SnapshotView(ttk.Frame):
              # ultime. Per `short` non e' una simmetria gratuita ma la condizione perche' la board breve
              # dica qualcosa - la finestra di un infortunato e' VUOTA, quindi la miscela gli
              # restituirebbe lo standing di stagione e lo terrebbe disegnato.
-             and (mode in TODAY_MODES or self.out_share(row) >= self.BOARD_OUT_SHARE)
-             and (mode not in TODAY_MODES
-                  or (not row.get("desc_injury_open")
-                      and row.get("desc_availability_now") not in ("injured", "suspended")))),
-            key=lambda row: (self.ruling_of(row) != "starter",
-                             -self.claim(row, horizon), -self.starting_record(row, horizon)[1]))
+             and (today or self.out_share(row) >= self.BOARD_OUT_SHARE)
+             and not (today and self.out_today(row))),
+            key=order)
+        # ...MA IL CANCELLO TOGLIE DALL'UNDICI, NON DAL BALLOTTAGGIO (operatore, 11/09/2026: «nelle
+        # formazioni Ultimo Periodo visualizza i calciatori che secondo l'algoritmo dovrebbero essere in
+        # ballottaggio ma sono infortunati»). Una maglia che legge «nessun rivale» perche' il rivale e'
+        # in infermeria dice una cosa falsa sul posto: sul foglio Serie A del 10/09/2026 sono 59 posti
+        # senza nessun ballottaggio disegnato, e 26 di quelli ne hanno uno che semplicemente oggi non
+        # puo' giocare. Quindi restano candidati per i RIVALI e per niente altro, marcati, e il
+        # `claim` che portano e' quello vero - il disegno dice che e' fuori, e un numero basso direbbe
+        # che il posto non e' suo.
+        #
+        # IN AGGIUNTA E MAI AL POSTO di un rivale sano, ed e' misurato e non una preferenza: a
+        # serbatoio unico gli assenti prenderebbero uno dei due posti su 81 maglie e ne caccerebbero
+        # **94 sani**, cioe' i due terzi di quello che la board breve esiste per dire - chi contende la
+        # maglia ADESSO. La lettura letterale della richiesta costa esattamente la ragione per cui il
+        # cancello era stato adottato.
+        sidelined = sorted((row for row in squad if in_squad(row) and self.out_today(row)),
+                           key=order) if today else []
         rank = {id(row): index for index, row in enumerate(eligible)}
         out: list[tuple[str, dict, list[dict]]] = []
         taken: set[str] = set()          # one shirt per man, across every line
@@ -6189,6 +6243,13 @@ class SnapshotView(ttk.Frame):
             # una dichiarazione su QUANTO gioca non e' una dichiarazione su DOVE, e disegnarlo su una
             # maglia che non puo' indossare sarebbe inventare due fatti al prezzo di uno.
             able.sort(key=lambda row: self.ruling_of(row) not in ("alternative", "starter"))
+            # ...E CHI LA MAGLIA SE LA GIOCHEREBBE MA OGGI NON PUO' (`sidelined`, vuoto fuori dai
+            # `TODAY_MODES`). Stesso filtro posizionale e stesso ordine di tutti gli altri: quello che
+            # cambia e' che sta in CODA e non compete per i due posti dei sani, perche' la board breve
+            # risponde a «chi contende la maglia adesso» e lui non contende niente - e' il fatto
+            # accanto, quello che spiega una maglia che sembra incontrastata.
+            hurt = ([row for row in sidelined if self.can_replace(starter, row)]
+                    or [row for row in sidelined if self.can_replace(starter, row, mirrored=True)])
             # An alternative is whoever else can wear THIS shirt. Two men of equal claim in one slot
             # alternate, and the shirt then reads 50% - the sentence an auction needs ("50%, in
             # ballottaggio") instead of two 100%s.
@@ -6209,7 +6270,7 @@ class SnapshotView(ttk.Frame):
             #
             # DUE, come e' sempre stato per la nostra inferenza: il TRE era la ragione della stampa
             # («gli editori nominano tre uomini per un posto abbastanza spesso») e va via con lei.
-            final.append((role, starter, able[:2]))
+            final.append((role, starter, able[:2] + hurt[:self.SIDELINED_DUELS]))
         return final
 
     # What the drawing is willing to PAY, in shares of a season, to put a man who really plays a flank on
@@ -6616,6 +6677,22 @@ class SnapshotView(ttk.Frame):
     # con quello acceso: il vincolo APPIATTISCE le differenze fra i moduli, quindi quel fattore smette di
     # discriminare - vale +1 MATCH e +2 uomini quando la regola e' spenta e zero quando e' accesa.
     RELAY_APART: ClassVar[float] = 0.50
+
+    # QUANTI BALLOTTAGGI INDISPONIBILI una maglia porta, sui due modi che disegnano l'undici di OGGI
+    # (operatore, 11/09/2026). Si AGGIUNGONO ai due rivali sani e non li sostituiscono, quindi il tetto
+    # e' una scelta di quanta carta costa un posto - misurata, non ipotizzata, sul foglio Serie A del
+    # 10/09/2026 con la colonna dell'indisponibilita' ricalcolata dalla funzione di oggi (il foglio e'
+    # anteriore alla cura dell'11/09 sulle righe stantie, e misurarci sopra avrebbe detto che meta'
+    # della Serie A e' infortunata):
+    #
+    #   uno  -> 106 voci su 220 posti, 47 nomi distinti, 19 club su 20, mediana 2 per club, massimo 5
+    #   due  -> 146 voci e 58 nomi, cioe' 40 maglie portano un SECONDO indisponibile
+    #
+    # Undici nomi in piu' non valgono una quinta riga su 40 maglie: un item del campetto e' largo un
+    # terzo di riga e la gerarchia - titolare, poi chi gli contende la maglia - e' la notizia. UNO.
+    # (Numeri col pavimento che l'app applica ai ballottaggi, `club-eleven.PITCH_CLAIM_FLOOR` = 0,20:
+    # sono quelli che si vedono, e nel file ne viaggiano 115 perche' il pavimento e' del disegno.)
+    SIDELINED_DUELS: ClassVar[int] = 1
 
     def _settle(self, out: list, eligible: list[dict],
                 home: dict[int, str] | None = None) -> list:
@@ -7520,8 +7597,7 @@ class SnapshotView(ttk.Frame):
         chosen = keepers[:1] + [row for row in listed if self.lane_of(row) != "P"][:10]
         names = {row.get("name") for row in chosen}
         rest = sorted((row for row in squad if row.get("name") not in names
-                       and not row.get("desc_injury_open")
-                       and row.get("desc_availability_now") not in ("injured", "suspended")),
+                       and not self.out_today(row)),
                       key=lambda row: -self.presence(row, "recent"))
         alternatives: dict[str, list[dict]] = {}
         offered: set[str] = set()
@@ -8232,13 +8308,17 @@ class SnapshotView(ttk.Frame):
                          f"{always:.0%} of his last {matches} LEAGUE matches, in the top "
                          f"{1 - self.TOP_SURPLUS_PERCENTILE:.0%} of the sheet by surplus, and with no "
                          "real challenger for the shirt")
-        ranked = sorted(rivals, key=lambda row: -self.claim(row, horizon))
+        # ...e chi oggi non puo' giocare in CODA e marcato, come sulla targa (`plate_lines`): due ordini
+        # per una domanda sola darebbero al pannello due risposte su chi contende quella maglia.
+        ranked = sorted(rivals, key=lambda row: (self.out_today(row), -self.claim(row, horizon)))
         if ranked:
             lines.append("")
             lines.append(f"who else wears this shirt ({len(ranked)}):")
             for rival in ranked:
                 rival_share = self.claim(rival, horizon)
-                lines.append(f"   {rival.get('name')}"
+                mark = (("✚ " if rival.get("desc_injury_open") else "✖ ")
+                        if self.out_today(rival) else "   ")
+                lines.append(f"{mark}{rival.get('name')}"
                              + (f"  {rival_share:.0%}" if rival_share else "  -")
                              + f"  {', '.join(self.real_roles(rival)) or '?'}"
                              + (f"  {self.build(rival)}" if self.build(rival) else ""))
@@ -8394,15 +8474,21 @@ class SnapshotView(ttk.Frame):
             if name_budget - len(tail) >= 4:
                 out = [name[:name_budget - len(tail)] + tail]
                 break
+        # ...E CHI OGGI NON PUO' GIOCARE STA IN CODA, con il glifo che questa finestra usa gia' per
+        # dirlo (`✚` uno stop aperto, `✖` una squalifica - la legenda delle icone, citata invece che
+        # reinventata). Dall'11/09/2026 `eleven` ne elenca uno sui modi che disegnano l'undici di oggi:
+        # ordinato per claim come gli altri finirebbe PRIMO - la sua quota e' quella di stagione - e
+        # caccerebbe dalla targa il rivale vero, che e' il solo che quella maglia se la gioca adesso.
         ranked = sorted((row for row in rivals if row.get("name")),
-                        key=lambda row: -self.claim(row, horizon))
+                        key=lambda row: (self.out_today(row), -self.claim(row, horizon)))
         for index, rival in enumerate(ranked[:cap]):
             rival_share = self.claim(rival, horizon)
             share_tail = f" {rival_share:.0%}" if rival_share else ""
             extra = len(ranked) - cap
             # the count rides on the LAST line drawn, where it reads as "and this many more"
             count_tail = f" +{extra}" if extra > 0 and index == cap - 1 else ""
-            lead = "vs " if index == 0 else "   "
+            lead = ("✚ " if rival.get("desc_injury_open") else "✖ ") \
+                if self.out_today(rival) else "vs " if index == 0 else "   "
             budget = max(4, rival_budget - len(lead))
             name = rival.get("name") or ""
             # What gives way, in order: the count of the others, then his percentage, and the name is cut

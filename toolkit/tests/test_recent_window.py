@@ -538,3 +538,49 @@ def test_una_coppia_con_poco_calcio_insieme_resta_IGNOTA():
     thin = [{1: (0.0, 90.0), 2: None}]
     assert snapshot.relay_scores(thin) == {}
     assert snapshot.RELAY_MIN_UNION == 270.0
+
+
+def test_il_cancello_toglie_dall_undici_e_non_dal_ballottaggio():
+    """Un indisponibile esce dall'UNDICI di oggi e resta disegnabile come BALLOTTAGGIO.
+
+    Richiesta dell'operatore, 11/09/2026: «nelle formazioni Ultimo Periodo sul campetto visualizza i
+    calciatori che secondo l'algoritmo dovrebbero essere in ballottaggio ma sono infortunati». Una maglia
+    che legge «nessun rivale» perche' il rivale e' in infermeria dice una cosa falsa sul POSTO: sul foglio
+    Serie A del 10/09/2026 sono 59 posti senza nessun ballottaggio disegnato e 26 di quelli ne hanno uno
+    che semplicemente oggi non puo' giocare.
+
+    IN CODA E MAI AL POSTO DI UN SANO, che e' misurato e non una preferenza: a serbatoio unico gli
+    assenti prenderebbero uno dei due posti su 81 maglie e ne caccerebbero 94 sani.
+    """
+    from euroleghe_ingest import gui
+
+    source = inspect.getsource(gui.SnapshotView.eleven)
+    assert "sidelined" in source, "il serbatoio degli indisponibili deve esistere"
+    # il cancello agisce su `eligible` (chi puo' PARTIRE) e non sul serbatoio dei rivali
+    assert "and not (today and self.out_today(row))" in source
+    assert "if in_squad(row) and self.out_today(row)" in source
+    # ...e i due insiemi non competono per gli stessi posti
+    assert "able[:2] + hurt[:self.SIDELINED_DUELS]" in source
+    assert gui.SnapshotView.SIDELINED_DUELS == 1
+
+
+def test_una_definizione_sola_di_chi_oggi_non_puo_giocare():
+    """`out_today` ha quattro lettori e la condizione si scrive in UN posto.
+
+    Due copie di «e' fuori oggi» finiscono per rispondere in due modi il giorno in cui una delle due
+    colonne cambia nome - ed e' esattamente la forma di difetto che questo repository ha gia' pagato con
+    le due letture di `engine_fm_pred`.
+    """
+    from euroleghe_ingest import gui
+
+    source = inspect.getsource(gui)
+    spelled = source.count('"desc_availability_now") in ("injured", "suspended")')
+    assert spelled == 1, f"la condizione e' scritta {spelled} volte invece che dentro `out_today`"
+    assert '"desc_availability_now") not in ("injured", "suspended")' not in source, \
+        "una copia negata della stessa condizione e' comunque una seconda definizione"
+    assert 'in ("injured", "suspended")' in inspect.getsource(gui.SnapshotView.out_today)
+    # ...e i lettori la CHIAMANO: il cancello dell'undici, il filtro dei top, la targa del pannello e
+    # l'undici dichiarato dai probabili.
+    for who in (gui.SnapshotView.eleven, gui.SnapshotView.top_players,
+                gui.SnapshotView.plate_lines, gui.SnapshotView._declared):
+        assert "out_today(" in inspect.getsource(who), who.__name__

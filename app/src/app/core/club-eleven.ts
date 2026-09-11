@@ -134,6 +134,15 @@ export interface PitchMan {
    */
   ownerReturning: boolean | null;
   /**
+   * OGGI NON PUÒ GIOCARE, ed è per questo che è disegnato: è in ballottaggio per una maglia su una board
+   * — l'ULTIMO PERIODO — che gli indisponibili li tiene fuori dall'undici (operatore, 11/09/2026).
+   *
+   * Letto dalla board e mai dedotto qui: `ui-flags` risponde a un'altra domanda (uno stop di 45+ giorni,
+   * o una voce di stampa di tre giorni) e su metà di questi uomini non disegna niente. `false` su un
+   * rivale che gioca, `null` dove la board non lo afferma — la board di stagione non se lo chiede.
+   */
+  outToday: boolean | null;
+  /**
    * QUANTE DELLE ULTIME PARTITE DEL SUO CLUB la finestra corta l'ha visto GIOCARE, e su quante era
    * disponibile. Null dove la board non li porta: ignoto, mai zero.
    *
@@ -382,6 +391,8 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable, ruling?: Ruli
     // Letto e basta: la regola l'ha applicata il toolkit, che è il solo posto che ha in mano tutt'e due
     // le board. Riderivarla qui sarebbe una seconda risposta a «di chi è questo posto».
     ownerReturning: man.owner_returning ?? null,
+    // Idem: la board dice perché l'ha disegnato, e questo file non ha l'altra metà della risposta.
+    outToday: man.out_today ?? null,
     recentPlayed: int(man.recent_played),
     recentAvailable: int(man.recent_available),
     fcId: man.fc_id ?? null,
@@ -562,12 +573,20 @@ function spreadDuels(rows: PitchRow[]): { floor: number; duplicate: number } {
 
   // Rimontaggio: ogni posto riceve i suoi, il più credibile per primo. Un `claim` ignoto va in fondo - è
   // un ignoto e non uno zero, ma un ordine ci vuole e metterlo in cima direbbe il contrario.
+  //
+  // ...E CHI OGGI NON PUÒ GIOCARE VA IN CODA PRIMA DEL CLAIM (11/09/2026). La sua quota è quella di
+  // STAGIONE - la finestra corta di un infortunato è vuota, quindi la miscela gli restituisce il prior
+  // intatto - quindi ordinato per claim finirebbe quasi sempre PRIMO, sopra il rivale che quella maglia
+  // se la gioca adesso. La gerarchia è la notizia di questo campetto, e lui non ne fa parte: è il fatto
+  // accanto, quello che spiega perché la maglia sembra incontrastata.
   const drawn: PitchMan[][] = places.map(() => []);
   for (const one of candidates) drawn[one.at].push(one.rival);
   places.forEach(({ starter }, place) => {
     starter.duels = drawn[place]
       .map((rival, index) => ({ rival, index }))
-      .sort((left, right) => (right.rival.claim ?? -1) - (left.rival.claim ?? -1) || left.index - right.index)
+      .sort((left, right) => Number(left.rival.outToday ?? false) - Number(right.rival.outToday ?? false)
+        || (right.rival.claim ?? -1) - (left.rival.claim ?? -1)
+        || left.index - right.index)
       .map((one) => one.rival);
   });
   return counted;
@@ -609,7 +628,17 @@ function applyRulings(rows: PitchRow[], problems: string[]): void {
   for (const row of rows) {
     row.men = row.men.map((starter) => {
       const candidates = [starter, ...starter.duels];
+      // UNA DRITTA NON MANDA IN CAMPO CHI OGGI NON PUÒ GIOCARE. Su questa board un indisponibile è
+      // disegnato come ballottaggio APPOSTA (`outToday`, 11/09/2026), e promuoverlo rimetterebbe
+      // nell'undici esattamente l'uomo che il cancello di questa board toglie - il toolkit lo aveva già
+      // escluso, e questo riordino lo rifarebbe entrare dalla finestra. Si DICE, invece di tacere.
+      for (const man of candidates) {
+        if (man !== starter && man.outToday && effect(man) === 'starter') {
+          problems.push(`${man.name}: la tua dritta lo metterebbe in campo, ma oggi è indisponibile`);
+        }
+      }
       const rank = (man: PitchMan): number => {
+        if (man !== starter && man.outToday) return 1;
         const what = effect(man);
         if (what === 'starter') {
           // Gia' titolare da un'altra parte: qui vale come chiunque altro, o giocherebbe due partite.

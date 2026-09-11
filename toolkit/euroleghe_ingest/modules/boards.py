@@ -79,6 +79,12 @@ ALTERNATIVE_MIN_ODDS = 0.30
 #: How many rivals a starter may carry. The operator's own bound: «eventualmente uno o due ballottaggi».
 #: A man with NONE is not a man without rivals - a starter whose granular role is unknown has no duel the
 #: sheet can express, and `duels_known` says which of the two it is («vuoto = ignoto, mai zero»).
+#:
+#: SUI SANI, e da solo: i ballottaggi INDISPONIBILI che i modi di oggi elencano in coda hanno il loro
+#: tetto in `gui.SnapshotView.SIDELINED_DUELS`, perche' sono un'altra domanda - «chi contende la maglia
+#: adesso» contro «di chi e' quella maglia quando torna». Un tetto solo sui due insiemi messi insieme
+#: farebbe dipendere il secondo da quanti rivali sani ha quel posto, che e' esattamente l'informazione
+#: che il marchio serve a dare dove manca.
 MAX_DUELS = 2
 
 #: WHEN A RIVAL IS A RIVAL, for the operator's rule of 08/09/2026 («se non c'e' nessuno con cui fare il
@@ -100,7 +106,7 @@ def _fc_id(row: dict) -> int | None:
 
 def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
          contended: bool | None = None, owner_returning: bool | None = None,
-         horizon: str = "season") -> dict:
+         horizon: str = "season", out_today: bool | None = None) -> dict:
     """One drawn man: his identity, where he is drawn, what he is, and how much he plays.
 
     `horizon` decides WHICH football the three numbers are read on, and it moves them TOGETHER: the
@@ -146,10 +152,22 @@ def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
     # ragione di `contended`: un gradino che dice `ballottaggio` accanto a una quota di 0,95 deve poter
     # spiegarsi. None resta None - «non lo so» non e' «il posto e' suo».
     out["owner_returning"] = owner_returning
+    # ...E SE OGGI NON PUO' GIOCARE, che e' la ragione per cui un uomo puo' essere elencato fra i
+    # ballottaggi di una board che gli indisponibili li esclude (operatore, 11/09/2026). Sta qui e non si
+    # deduce nell'app da `injuries`: quel marchio la' e' un'altra domanda e risponde solo agli stop lunghi
+    # (45+ giorni) o a una lettura della stampa di tre giorni: misurato sul foglio del 10/09, **34 di
+    # questi 67 uomini non porterebbero nessuna icona**, cioe' meta' sarebbero disegnati come chiunque
+    # altro. La board sa perche' ce li ha messi; l'app lo legge.
+    #
+    # None FUORI dai modi di oggi: sulla board di stagione la domanda non si pone - li' un infortunato e'
+    # disegnato per definizione («la squadra che schiera quando sono tutti disponibili») - e riempirlo
+    # comunque sarebbe una seconda diagnosi accanto a quella che `ui-flags` gia' fa dal suo canale.
+    out["out_today"] = out_today
     return out
 
 
-def _contended(view: Any, row: dict, rivals: list | None, ids: set[int]) -> bool | None:
+def _contended(view: Any, row: dict, rivals: list | None, ids: set[int],
+               today: bool = False) -> bool | None:
     """Is anybody disputing this man's shirt? True / False / **None = we cannot know**.
 
     None when the sheet cannot express his duels at all - no granular real role, the same condition
@@ -163,10 +181,21 @@ def _contended(view: Any, row: dict, rivals: list | None, ids: set[int]) -> bool
 
     ALL his rivals and not the two a pitch can show: `MAX_DUELS` is a display bound, and cutting the list
     before asking would let a third strong claimant promote him.
+
+    ...MA NON CHI OGGI NON PUO' GIOCARE, e solo dove la board lo elenca per quello. Dall'11/09/2026
+    `eleven` mette in coda, sui modi che disegnano l'undici di oggi (`today`), un rivale indisponibile:
+    e' li' per spiegare la maglia, non per contenderla, e contarlo direbbe `ballottaggio` di un uomo che
+    quella maglia se la gioca con nessuno - la parola cambierebbe per colpa di un uomo in infermeria. La
+    riga lo dice da se' (`out_today`).
+
+    Sulla board di STAGIONE `today` e' falso e non cambia niente: la' un infortunato e' un rivale a pieno
+    titolo, perche' quella board e' «la squadra che schiera quando sono tutti disponibili».
     """
     if not row.get("desc_real_roles"):
         return None
     for rival in (rivals or []):
+        if today and view.out_today(rival):
+            continue
         try:
             rung = view.titolarita_status(rival, _fc_id(rival) in ids)
         except Exception:                               # noqa: BLE001 - one rival, never the board
@@ -302,7 +331,7 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
             for _x, row, rivals in placed_by_line[line]:
                 fid = _fc_id(row)
                 if fid is not None:
-                    contended[fid] = _contended(view, row, rivals, ids)
+                    contended[fid] = _contended(view, row, rivals, ids, view.draws_today(mode))
     lines: dict[str, list] = {}
     for line in LINES:
         # The panel's EXACT sequence: `_lane` puts the line in screen order (and decides the side of the
@@ -335,13 +364,33 @@ def _drawn(view: Any, club: str, shape: str, mode: str, with_rivals: bool,
                 # STABILE: a parita' di staffetta resta l'ordine del pannello, quindi dove la misura non
                 # dice niente (una coppia con poco calcio insieme e' IGNOTA, non «non fanno staffetta»)
                 # il campetto disegna esattamente quello che disegnava prima.
-                rivals = _by_relay(row, rivals)
+                #
+                # CHI OGGI NON PUO' GIOCARE SI SEPARA PRIMA DI TUTTO QUESTO (operatore, 11/09/2026):
+                # `eleven` lo elenca in coda sui modi che disegnano l'undici di oggi, e il taglio a
+                # `MAX_DUELS` lo mangerebbe - oppure, se il riordino per staffetta lo trovasse prima, si
+                # mangerebbe un rivale vero. Non e' un rivale in meno ne' uno in piu': e' la riga che
+                # spiega una maglia che sembra incontrastata, e viaggia con la sua marca.
+                #
+                # SOLO SUI MODI DI OGGI, e il modo si chiede al pannello (`draws_today`): sulla board di
+                # STAGIONE un infortunato e' un rivale a pieno titolo - quella board e' «la squadra che
+                # schiera quando sono tutti disponibili» - e marcarlo lo spingerebbe in coda cambiando
+                # l'ordine dei ballottaggi su 106 righe di venti club, per una richiesta che non c'e'.
+                hurt = ([rival for rival in (rivals or []) if view.out_today(rival)]
+                        if view.draws_today(mode) else [])
+                marked = {id(rival) for rival in hurt}
+                rivals = _by_relay(row, [rival for rival in (rivals or [])
+                                         if id(rival) not in marked])
                 # The panel's own order, capped: the first two are the ones a pitch can show.
                 man["duels"] = [_man(view, rival, in_eleven=_fc_id(rival) in ids,
                                      contended=contended.get(_fc_id(rival)),
                                      owner_returning=(owners or {}).get(_fc_id(rival)),
                                      horizon=horizon)
-                                for rival in (rivals or [])[:MAX_DUELS]]
+                                for rival in rivals[:MAX_DUELS]]
+                man["duels"] += [_man(view, rival, in_eleven=_fc_id(rival) in ids,
+                                      contended=contended.get(_fc_id(rival)),
+                                      owner_returning=(owners or {}).get(_fc_id(rival)),
+                                      horizon=horizon, out_today=True)
+                                 for rival in hurt]
                 # A starter whose granular real role is unknown has no duel the sheet can express: that
                 # is «unknown», never «no rival», and the flag says which.
                 man["duels_known"] = bool(row.get("desc_real_roles"))
@@ -642,6 +691,13 @@ def write_boards(config, folder: Path, mode: str = "typical",
             # pulsante esiste: a zero le due board sono la stessa e il pulsante e' un ornamento.
             "moved": sum(1 for fid, one in short_statuses.items()
                          if one.get("in_eleven") and not (statuses.get(fid) or {}).get("in_eleven")),
+            # ...e quanti BALLOTTAGGI INDISPONIBILI il campetto disegna (operatore, 11/09/2026), per la
+            # stessa ragione della riga qui sopra: a zero il marchio non esiste e nessuno lo saprebbe.
+            # Attese ~115 voci su venti club di Serie A - il pavimento dei ballottaggi e' del DISEGNO,
+            # quindi a schermo diventano 106 voci e 47 nomi, che e' la misura con cui il tetto e' scelto.
+            "out_today": sum(1 for b in short_drawn.values() for line in b["lines"].values()
+                             for man in line for one in (man.get("duels") or [])
+                             if one.get("out_today")),
         }
     (Path(folder) / "boards.json").write_text(
         json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")

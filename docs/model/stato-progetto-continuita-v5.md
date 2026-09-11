@@ -7186,3 +7186,88 @@ in Argentina) e Hutchinson (0,712 della stagione in Premier).
    di cui nessuno sa se gira.
 4. **Il branch è ahead 6 e non pubblicato.** Il push è una decisione dell'operatore, e l'altra sessione
    ha lavoro in corso sullo stesso branch.
+
+# Chiusura 11 settembre 2026 (sera) — un cancello che escludeva dall'undici escludeva anche dai RIVALI
+
+Richiesta dell'operatore: «nelle formazioni "Ultimo Periodo" sul campetto visualizza i calciatori che
+secondo l'algoritmo dovrebbero essere in ballottaggio ma sono infortunati, in rosso o con l'icona
+dell'infortunio». Dettaglio, misure e varianti respinte: `formazioni-tipo-v1.md` §10.11.
+
+## La diagnosi, e il secondo effetto che nessuno aveva voluto
+
+I due modi che disegnano l'undici di oggi (`gui.TODAY_MODES`) escludono gli indisponibili di netto, e la
+ragione regge — «la finestra di un infortunato è VUOTA, quindi la miscela gli restituirebbe lo standing di
+stagione e lo terrebbe disegnato». Quello che era sbagliato è la conseguenza mai voluta: **sparivano anche
+dai RIVALI**, e una maglia che legge «nessun ballottaggio» perché il ballottaggio è in infermeria dice una
+cosa falsa sul posto. Misurato prima di scrivere: **59 posti su 220 senza nessun rivale disegnato, e 26 di
+quelli ne hanno uno che semplicemente oggi non può giocare.**
+
+## La lettura LETTERALE è stata misurata per prima, ed è respinta
+
+Un serbatoio solo, i due rivali scelti fra tutti: gli assenti prenderebbero un posto su **81 maglie** e ne
+caccerebbero **94 sani**, cioè i due terzi di quello che la board breve esiste per dire. *La lettura
+letterale della richiesta costa esattamente la ragione per cui il cancello era stato adottato.* Quindi
+stanno in coda, con un tetto loro (`SIDELINED_DUELS` = 1: a due sono 11 nomi in più e una quinta riga su 40
+maglie) e non dentro `MAX_DUELS` — un tetto solo sui due insiemi farebbe dipendere il secondo da quanti
+rivali sani ha quel posto, che è proprio l'informazione che il marchio serve a dare dove manca.
+
+## La colonna è stata ricalcolata prima di misurare, o ogni numero sarebbe stato falso
+
+Il foglio su cui ho misurato è del 10/09, cioè **anteriore alla cura di quella stessa mattina** sulle righe
+stantie di `availability`: ci leggevo Bremer, Kean e Ostigard fra gli infortunati e **67 nomi invece di
+47**, metà Serie A in infermeria. Riscritta chiamando la funzione vera (`snapshot.availability_now`) su un
+SQLite costruito dalle due tabelle del bundle — lo stesso export del foglio. *Un difetto si spiega da sé con
+una storia plausibile se lo si lascia fare, e qui la storia plausibile era «sono davvero tanti».*
+
+## Cosa NON si muove, verificato e non dedotto
+
+Board di STAGIONE identica riga per riga (20 club su 20, a meno della chiave nuova che là vale sempre
+`null`); la scala a sei parole della board breve non si muove (`contended` diverso su **0** righe di 312,
+con un A/B a una variabile sola — `SIDELINED_DUELS` a 0 e a 1); `engine_*` fermo (`evaluate` non importa né
+`gui` né `boards`) e nessuna colonna del foglio cambia, quindi **nessun `SHEET_REVISION` da alzare**.
+Nello stesso A/B è emerso che `play` della board breve differisce su 312 righe **a tetto 0 come a tetto 1**:
+è la deriva fra il file del 10/09 e il codice di oggi, non mia.
+
+## Ambra e il ✚, non il rosso — e l'icona non poteva venire da `ui-flags`
+
+Lui ha lasciato la scelta («in rosso **o** con l'icona»), e la tinta di un'assenza in questa app è l'ambra
+per sua decisione dell'11/08 («il rosso resta al pericolo»). Il glifo è quello della legenda del PANNELLO
+(`✚` stop aperto, `✖` squalifica), nella stessa famiglia di `∅`, `↩` e `⚖` che il campetto ha già.
+**Non** l'icona di `ui-flags`: quella risponde a un'altra domanda e solo agli stop di 45+ giorni o a una
+voce di stampa di tre giorni — misurato, **34 di quei 67 uomini non porterebbero nessuna icona**. Per la
+stessa ragione il `∅` tace su di lui: due simboli per un fatto solo tolgono il posto a un fatto diverso.
+
+## Tre cose che il marchio non può fare, e le asserzioni che lo provano
+
+`_contended` lo salta sui modi di oggi (o un uomo che la maglia se la gioca con nessuno leggerebbe
+`ballottaggio` per colpa di un infortunato); sta in CODA ovunque — campetto (`spreadDuels`), targa del
+pannello (`plate_lines`), tooltip del duello — perché la sua quota è quella di STAGIONE e ordinato per claim
+finirebbe primo; e una DRITTA non lo manda in campo, il che è detto nei `problems`. Verificate rimettendo il
+difetto: **tre test cadono**.
+
+Una definizione sola, `SnapshotView.out_today(row)`, con quattro lettori e un test che conta quante volte
+la condizione è scritta a mano (una).
+
+## Cosa è stato costruito
+
+`update --daily`, 7/7 passi. Fogli a revisione 59, bundle 26,7 MB, copia dell'app aggiornata. Il marchio nel
+pacchetto: **Serie A 111 voci · 49 nomi · 19 club su 20**, **EuroLeghe 201 · 86 · 33**, zero sulle board di
+stagione. Poggia su una lettura di oggi (`fc_site`: 56 indisponibili risolti su Serie A, 99 su euro, 46 con
+una data di rientro dalla prosa). Banco in un browser vero (`e2e-board-sidelined.mjs`) sul bundle
+definitivo: 10 righe marcate sulla Lazio identiche al file, ✚ che risponde alle sue coordinate 10/10,
+tooltip che si apre, e il glifo non accorcia nemmeno un nome. 840 test toolkit, 892 app.
+
+**E un conteggio che avevo messo dove nessuno lo legge**: `out_today` era nel riepilogo di `write_boards` e
+non nella riga che `snapshot` stampa, cioè il difetto contro cui quel conteggio esiste. Corretto leggendo il
+log della corsa, non il codice.
+
+## Aperti
+
+1. **I quattro pacchetti del viaggio nel tempo sono a revisione 58** contro il 59 dei fogli: `--daily`
+   salta `packs` per costruzione e la revisione si è mossa per l'altra metà (il modulo sulle ultime tre
+   partite). L'app lo dichiara da sé. Si chiude con `update --from packs` (~25 min).
+2. **ClubElo risponde ancora 502** e il mirror offre solo il 14/01/2026, già in cache: le date d'asta di
+   agosto e di oggi leggono un Elo di otto mesi fa. È l'aperto n. 2 della chiusura precedente, riosservato.
+3. **Il branch è ahead e non pubblicato**: il push è una decisione dell'operatore.
+4. I cinque punti aperti di `formazioni-tipo-v1.md` §10.10 restano, con quello che la board fresca dice
+   accanto a ciascuno.

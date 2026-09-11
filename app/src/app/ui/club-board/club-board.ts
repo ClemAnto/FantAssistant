@@ -263,6 +263,10 @@ export class ClubBoard {
    * ignoto non si annuncia come un'assenza.
    */
   protected unseen(man: PitchMan): string | null {
+    // ...e su chi oggi non può giocare TACE: la sua finestra è vuota per la ragione che il marchio
+    // accanto già dice, e due simboli per un fatto solo occupano il posto di un fatto diverso (la
+    // regola di `pressSaysTheSame`, 04/09/2026, incontrata su un altro canale).
+    if (man.outToday) return null;
     if (man.recentPlayed == null || man.recentAvailable == null || man.recentPlayed > 0) return null;
     return man.recentAvailable > 0
       ? `Nelle ultime partite del suo club non è mai sceso in campo, pur essendo disponibile in `
@@ -270,6 +274,29 @@ export class ClubBoard {
         + 'finestra: la lettura corta, senza partite sue, restituisce il prior intatto.'
       : 'Nelle ultime partite del suo club non era disponibile in nessuna, quindi questa finestra non '
         + 'dice niente su di lui: il numero qui accanto è quello della stagione.';
+  }
+
+  /**
+   * OGGI NON PUÒ GIOCARE, ed è per questo che è disegnato - o null (richiesta dell'operatore,
+   * 11/09/2026: «nelle formazioni Ultimo Periodo ... visualizza i calciatori che secondo l'algoritmo
+   * dovrebbero essere in ballottaggio ma sono infortunati»).
+   *
+   * È il solo marchio del campetto che spiega una PRESENZA invece di una parola: questa board esclude
+   * gli indisponibili dall'undici, quindi un uomo così è in lista soltanto perché quella maglia se la
+   * giocherebbe. Senza la frase la sua riga si legge come un rivale qualunque con una quota alta - e la
+   * quota è quella di STAGIONE, perché la finestra corta di un infortunato è vuota.
+   *
+   * Letto dalla board e mai dedotto da `injuries`: `ui-flags` risponde a un'altra domanda e solo per gli
+   * stop di 45+ giorni o per una voce di stampa di tre giorni - misurato sul foglio del 10/09/2026,
+   * **34 di questi 67 uomini non portano nessuna icona**, cioè metà sarebbero disegnati come chiunque
+   * altro.
+   */
+  protected sidelined(man: PitchMan): string | null {
+    if (!man.outToday) return null;
+    return 'Oggi non è disponibile, e su questo campetto è in lista solo per questo: la formazione '
+      + "dell'ultimo periodo gli indisponibili non li schiera, quindi non contende la maglia adesso - "
+      + 'ma quando rientra quel posto è fra i suoi. La percentuale qui accanto è quella di stagione: la '
+      + 'finestra corta, senza partite sue, restituisce il prior intatto.';
   }
 
   protected returning(man: PitchMan): string | null {

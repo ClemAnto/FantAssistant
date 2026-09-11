@@ -4156,6 +4156,43 @@ succede in questo progetto, e come le altre due **è evidenza e non una ragione 
 quei numeri** (n = 38 nella banda lunga). Il RODAGGIO, che era l'altra metà della sua ipotesi, era già
 misurato il 04/09 e vale ~1,3%: piccolo. La parte che valeva era quella che non modellavamo.
 
+## Un cancello che toglie dall'UNDICI non deve togliere anche dai RIVALI
+**11/09/2026, dalla richiesta dell'operatore: «nelle formazioni "Ultimo Periodo" sul campetto visualizza i
+calciatori che secondo l'algoritmo dovrebbero essere in ballottaggio ma sono infortunati». Dettaglio:
+`formazioni-tipo-v1.md` §10.11.** I due modi che disegnano l'undici di OGGI escludono gli indisponibili, e
+la ragione regge — la finestra di un infortunato è vuota, quindi senza il cancello la miscela gli
+restituirebbe lo standing di stagione e lo terrebbe DISEGNATO. Sbagliato era il secondo effetto, che
+nessuno aveva voluto: sparivano anche dai rivali, e **una maglia che legge «nessun ballottaggio» perché il
+ballottaggio è in infermeria dice una cosa falsa sul posto** (59 posti su 220 senza rivali, 26 dei quali ne
+hanno uno che semplicemente oggi non può giocare). *Un cancello si scrive sulla domanda a cui risponde: chi
+non può GIOCARE non è chi non può essere NOMINATO.*
+
+**LA LETTURA LETTERALE DI UNA RICHIESTA SI MISURA PRIMA DI IMPLEMENTARLA.** «Chi secondo l'algoritmo
+dovrebbe essere in ballottaggio» letto alla lettera è un serbatoio solo: gli assenti prenderebbero uno dei
+due posti su **81 maglie** e ne caccerebbero **94 sani**, cioè i due terzi di quello che quella board esiste
+per dire — la lettura letterale costa esattamente la ragione per cui il cancello era stato adottato. Quindi
+si AGGIUNGONO in coda, con un tetto loro (`SIDELINED_DUELS` = 1, misurato contro 2) e non dentro
+`MAX_DUELS`: un tetto solo sui due insiemi farebbe dipendere il secondo da quanti rivali sani ha quel
+posto, che è proprio l'informazione che il marchio serve a dare dove manca.
+
+Quattro cose che restano, e tre sono regole di casa incontrate da un lato nuovo.
+- **UNA COLONNA SI RICALCOLA PRIMA DI MISURARCI SOPRA.** Il foglio su cui ho misurato era anteriore alla
+  cura della stessa mattina sulle righe stantie di `availability`: leggeva **67 nomi invece di 47**, cioè
+  mezza Serie A in infermeria, e la storia plausibile («sono davvero tanti») copriva il difetto. Riscritta
+  chiamando `snapshot.availability_now` su un SQLite costruito dalle due tabelle del bundle.
+- **UN MARCHIO CHE L'APP POTREBBE DEDURSI, E NON PUÒ**: `ui-flags` risponde a un'altra domanda e solo agli
+  stop di 45+ giorni o a una voce di stampa di tre giorni — **34 di quei 67 uomini non porterebbero nessuna
+  icona**. Il fatto lo sa la BOARD, che è il posto che ce li ha messi, e viaggia con lei (`out_today`).
+  Ambra e non rosso, per la regola del colore dell'11/08; e il `∅` («la finestra non l'ha visto giocare»)
+  tace su di lui, perché due simboli per un fatto solo tolgono il posto a un fatto diverso.
+- **UN RIVALE CHE NON PUÒ GIOCARE NON CONTENDE NIENTE**, quindi esce da `_contended` (o un uomo che la
+  maglia se la gioca con nessuno leggerebbe `ballottaggio` per colpa di un infortunato) e sta in CODA in
+  tutt'e tre i posti che ordinano rivali — la sua quota è quella di STAGIONE e per claim finirebbe primo.
+- **E QUELLO CHE NON SI MUOVE SI VERIFICA, non si deduce**: board di stagione identica su 20 club di 20, la
+  scala a sei parole della board breve ferma su 0 righe di 312 (A/B a una variabile sola), `engine_*` e
+  colonne del foglio intatti — quindi nessun `SHEET_REVISION`. Nello stesso A/B `play` differiva su 312
+  righe **a tetto 0 come a tetto 1**: deriva del tempo, non del candidato.
+
 ## Il dato c'era, in una tabella che nessuno leggeva per quella domanda
 **05/09/2026, quinta istanza. Dall'operatore: «non riusciamo in nessun modo a recuperare le partite di
 Varela in Primeira Liga?»** Sì: `tm_appearances` (acquisita il 17/08, 2,08M righe su 3.535 giocatori) ne

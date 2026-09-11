@@ -13,15 +13,20 @@ from euroleghe_ingest.modules import boards
 class _View:
     """Un pannello finto: risponde con il gradino che il caso vuole, per `fc_id`."""
 
-    def __init__(self, rungs: dict[int, str | None], explodes: set[int] | None = None):
+    def __init__(self, rungs: dict[int, str | None], explodes: set[int] | None = None,
+                 out: set[int] | None = None):
         self.rungs = rungs
         self.explodes = explodes or set()
+        self.out = out or set()
 
     def titolarita_status(self, row, in_eleven, contended=None):
         fid = int(row["fc_id"])
         if fid in self.explodes:
             raise RuntimeError("un rivale che non so giudicare")
         return self.rungs.get(fid)
+
+    def out_today(self, row):
+        return int(row["fc_id"]) in self.out
 
 
 def _man(fid: int, roles: str = "ST") -> dict:
@@ -66,3 +71,27 @@ def test_a_rival_we_cannot_judge_leaves_the_answer_UNKNOWN():
     """Un gradino che esplode non e' un rivale in meno: e' una cosa che non sappiamo."""
     view = _View({2: "riserva"}, explodes={3})
     assert boards._contended(view, _man(1), [_man(2), _man(3)], set()) is None
+
+
+def test_a_rival_who_cannot_play_today_is_not_a_contender():
+    """Il ballottaggio INDISPONIBILE della board breve spiega la maglia, non la contende.
+
+    Dall'11/09/2026 `eleven` ne elenca uno in coda sui modi che disegnano l'undici di oggi (richiesta
+    dell'operatore: «visualizza i calciatori che secondo l'algoritmo dovrebbero essere in ballottaggio ma
+    sono infortunati»). Contarlo qui farebbe leggere `ballottaggio` a un uomo che la maglia se la gioca
+    con nessuno - la parola cambierebbe per colpa di un uomo in infermeria.
+    """
+    view = _View({2: "titolare"}, out={2})
+    assert boards._contended(view, _man(1), [_man(2)], set(), today=True) is False
+    # ...e resta un contendente il giorno in cui rientra: e' la stessa riga, senza la marca.
+    assert boards._contended(_View({2: "titolare"}), _man(1), [_man(2)], set(), today=True) is True
+    # ...E SULLA BOARD DI STAGIONE NON CAMBIA NIENTE, che e' l'altra meta' della regola: la' un
+    # infortunato e' un rivale a pieno titolo, perche' quella board e' «la squadra che schiera quando
+    # sono tutti disponibili». Il default e' `today=False`, cioe' il caso che non deve muoversi.
+    assert boards._contended(view, _man(1), [_man(2)], set()) is True
+
+
+def test_an_unavailable_rival_does_not_hide_an_available_one():
+    """Uno indisponibile non e' un rivale in meno per gli altri: si salta lui, non la lista."""
+    view = _View({2: "titolare", 3: "ballottaggio"}, out={2})
+    assert boards._contended(view, _man(1), [_man(2), _man(3)], set(), today=True) is True

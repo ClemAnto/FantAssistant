@@ -146,6 +146,11 @@
                     }
                   </dl>
 
+                  @if (sidelined(one); as said) {
+                    <p class="border-t border-border pt-1.5 text-[11px] leading-snug text-warning">
+                      ✚ {{ said }}
+                    </p>
+                  }
                   @if (disputed(one); as said) {
                     <p class="border-t border-border pt-1.5 text-[11px] leading-snug text-warning">
                       ⚖ {{ said }}
@@ -173,12 +178,36 @@
                        viaggiare DENTRO il suo gruppo: col nome a `flex-1` la riga lo allargava fino al
                        bordo e le spingeva in fondo, lontane dalla parola che descrivono. -->
                   <span class="flex min-w-0 flex-1 items-center gap-1">
+                    <!-- IL NOME IN AMBRA DOVE OGGI NON PUÒ GIOCARE (operatore, 11/09/2026: «visualizza
+                         ... in rosso o con l'icona dell'infortunio»). Ambra e non rosso perché è la
+                         tinta che questa app dà a un'assenza da sempre — «un infortunio è un fatto su un
+                         calciatore, mai una colpa, e il rosso resta al pericolo» (`FLAG_TONE`, sua
+                         decisione dell'11/08/2026) — e un marchio significa la stessa cosa in ogni
+                         pagina. L'icona è il ✚ qui sotto. -->
                     <span
                       class="min-w-0 truncate text-[11px]"
                       [class.font-semibold]="first"
                       [class.border-dashed]="!one.onTable"
+                      [class.text-warning]="one.outToday"
                       >{{ one.name }}</span
                     >
+                    @if (sidelined(one); as said) {
+                      <!-- OGGI NON PUÒ GIOCARE, ed è la ragione per cui è in lista: questa board gli
+                           indisponibili non li schiera, quindi la sua riga non dice «contende la maglia»
+                           ma «quella maglia è sua quando torna». Senza il marchio è un rivale qualunque
+                           con una quota alta, e la maglia sopra di lui sembrerebbe contesa adesso.
+                           Il glifo è quello che il PANNELLO usa già nella sua legenda (`✚` uno stop
+                           aperto, la stessa famiglia di `∅`, `↩` e `⚖` qui accanto): non l'icona di
+                           `ui-flags`, che risponde a un'altra domanda e su metà di questi uomini non
+                           disegna niente - due simboli per un fatto solo tolgono il posto a un fatto
+                           diverso. -->
+                      <span
+                        class="shrink-0 text-[10px] leading-none text-warning"
+                        nz-tooltip
+                        [nzTooltipTitle]="said"
+                        >✚</span
+                      >
+                    }
                     <!-- Le icone viaggiano col NOME dovunque sia disegnato (operatore, 11/08/2026). -->
                     <ui-flags class="shrink-0 text-[10px]" [playerId]="one.fcId" />
                     <!-- LA TUA PERSONALIZZAZIONE: lo STESSO pallino di ogni altra lista (operatore,

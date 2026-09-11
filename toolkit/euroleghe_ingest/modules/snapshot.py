@@ -7423,7 +7423,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             print(f"[snapshot] boards (ultimo periodo): {short['drawn']} clubs · {short['men']} men"
                   f" · {short['moved']} men the short board fields and the long one does not"
                   f" · {short['owner_returning']} capped at `ballottaggio` because the owner of their"
-                  f" place is back within {int(presence.DEFAULTS.recent_owner_matches)} matches")
+                  f" place is back within {int(presence.DEFAULTS.recent_owner_matches)} matches"
+                  # ...e quanti ballottaggi la board elenca pur non potendoli schierare oggi (operatore,
+                  # 11/09/2026). Stampato per la ragione dei due numeri qui sopra: a zero il marchio non
+                  # esiste e uno zero STAMPATO si distingue da una funzione rotta.
+                  f" · {short.get('out_today', 0)} ballottaggi indisponibili oggi, elencati e marcati")
         else:
             print("[snapshot] note: no short-period board (the long one was not drawn either, or this"
                   " run asked for a single mode). The app will not offer the switch.")

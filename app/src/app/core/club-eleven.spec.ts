@@ -449,3 +449,65 @@ describe('pitchOf e le dritte dichiarate', () => {
     expect(drawn.length).toBe(2);
   });
 });
+
+describe('il ballottaggio che oggi non può giocare', () => {
+  /**
+   * Richiesta dell'operatore, 11/09/2026: sulla board dell'ULTIMO PERIODO un uomo che la board stessa
+   * non schiera - perché oggi è indisponibile - deve comunque vedersi fra i ballottaggi, marcato. Chi lo
+   * mette in lista è il TOOLKIT (`gui.eleven`, in coda e mai al posto di un rivale sano); qui si pinna
+   * quello che l'app ne fa, che è l'altra metà.
+   */
+  const hurt = (over: Partial<BoardMan> = {}): BoardMan =>
+    man('Infortunato', 0.5, { fc_id: 9, claim: 0.9, out_today: true, ...over });
+
+  const withHurt = (): Board => board('4-3-3', {
+    D: [man('Titolare', 0.5, {
+      fc_id: 1,
+      claim: 0.7,
+      duels: [man('Rivale', 0.5, { fc_id: 2, claim: 0.5 }), hurt()],
+    })],
+  });
+
+  const defence = (pitch: NonNullable<ReturnType<typeof pitchOf>>): PitchMan =>
+    pitch.rows.find((row) => row.line === 'D')!.men[0];
+
+  it('si legge dalla board e non si deduce: `out_today` viaggia fino alla riga', () => {
+    const drawn = defence(pitchOf(withHurt(), () => free)!);
+    expect(drawn.duels.map((one) => one.outToday)).toEqual([null, true]);
+    // ...e chi la board non marca non è «disponibile»: è una board che non lo afferma.
+    expect(drawn.outToday).toBeNull();
+  });
+
+  it('STA IN CODA anche col claim più alto di tutti, perché quella quota è di STAGIONE', () => {
+    // La finestra corta di un infortunato è vuota, quindi la miscela gli restituisce il prior intatto:
+    // ordinato per claim finirebbe primo, sopra il rivale che quella maglia se la gioca ADESSO.
+    expect(defence(pitchOf(withHurt(), () => free)!).duels.map((one) => one.name))
+      .toEqual(['Rivale', 'Infortunato']);
+  });
+
+  it('...e si vede anche dove nessun rivale sano esiste, che è il caso per cui è nato', () => {
+    // 26 dei 59 posti senza nessun ballottaggio disegnato, sul foglio Serie A del 10/09/2026, ne hanno
+    // uno che semplicemente oggi non può giocare: quella maglia sembrava incontrastata e non lo è.
+    const alone = board('4-3-3', { D: [man('Titolare', 0.5, { fc_id: 1, duels: [hurt()] })] });
+    const drawn = defence(pitchOf(alone, () => free)!);
+    expect(drawn.duels.map((one) => one.name)).toEqual(['Infortunato']);
+    expect(drawn.duels[0].outToday).toBe(true);
+  });
+
+  it('UNA DRITTA NON LO MANDA IN CAMPO, e il campetto lo dice', () => {
+    // Promuoverlo rimetterebbe nell'undici esattamente l'uomo che il cancello di questa board toglie -
+    // il toolkit lo aveva già escluso, e il riordino dell'app lo rifarebbe entrare dalla finestra.
+    const pitch = pitchOf(withHurt(), () => free, null, (fcId) => (fcId === 9 ? 'titolare' : null))!;
+    expect(defence(pitch).name).toBe('Titolare');
+    expect(pitch.problems.join(' ')).toContain('oggi è indisponibile');
+  });
+
+  it('il pavimento dei ballottaggi vale anche per lui: sotto non è un ballottaggio', () => {
+    const weak = board('4-3-3', {
+      D: [man('Titolare', 0.5, { fc_id: 1, duels: [hurt({ claim: 0.05 })] })],
+    });
+    const pitch = pitchOf(weak, () => free)!;
+    expect(defence(pitch).duels).toEqual([]);
+    expect(pitch.hiddenDuels.floor).toBe(1);
+  });
+});
