@@ -119,7 +119,8 @@ def match_in_pool(provider_name: str, pool) -> tuple[int, list[tuple[int, str]]]
     """Best (lowest) tier that yields candidates for `provider_name`, and those candidates.
 
     `pool` = iterable of (fc_id, our_name, base, initial) as produced by `build_pool_entry`.
-    Tiers: 1 surname/tail match · 2 squashed-name match · 3 single-token match · 4 fuzzy.
+    Tiers: 1 surname/tail match · 2 squashed-name match · 3 single-token match · 4 fuzzy
+    · 5 surname FIRST (the tail read from the other end), unique candidate only.
     Returns (0, []) when nothing matches.
     """
     theirs = fold(provider_name)
@@ -167,6 +168,30 @@ def match_in_pool(provider_name: str, pool) -> tuple[int, list[tuple[int, str]]]
             tiers.setdefault(4, []).append((fc_id, our_name))
     for tier in sorted(tiers):
         return tier, tiers[tier]
+
+    # ...E UNA FONTE PUO' SCRIVERE IL COGNOME PER PRIMO. Ogni tier qui sopra legge la CODA come
+    # cognome, che e' la convenzione occidentale; il provider scrive «N'Dri Konan», «Kim Min-jae»,
+    # «Kepa Arrizabalaga», e allora la coda e' il nome di battesimo e il confronto fallisce. Dal caso
+    # Chukwueze dell'operatore (12/09/2026): la distinta del Lecce leggeva 10 titolari su 11 e il
+    # payload ne aveva 11 - non mancava il dato, mancava un'identita'.
+    #
+    # ULTIMO TIER, quindi NON PUO' CAMBIARE NESSUNA identita' che i tier sopra risolvono gia': entra
+    # solo dove tutti hanno risposto niente. E il PREZZO e' misurato su tutta la cache invece che sul
+    # caso - 1.391 file di round, 796 nomi che nessun tier risolve: quattro uomini trovati (N'Dri,
+    # Kim Min-jae, Kepa, Pablo Felipe) e ZERO ambigui. La forma larga - provare il nome rovesciato su
+    # tutti i tier - e' stata misurata e RESPINTA nella stessa passata: i tier deboli ci mettono
+    # dentro «Romeo Hueso -> Romero» e «Simon Garcia Vicente -> Unai Simon», cioe' due uomini
+    # sbagliati per due veri. Qui vale solo la TESTA contro il cognome, che e' il tier 1 letto
+    # dall'altro capo.
+    head_first = [
+        (fc_id, our_name)
+        for fc_id, our_name, base, _initial in pool
+        if base and lossy_eq(base, " ".join(their_tokens[:len(base.split())]))
+    ]
+    # ...e un solo candidato, o non e' un'identita': due uomini che rispondono allo stesso nome sono
+    # esattamente il caso in cui una corrispondenza ambigua e' peggio di una mancante.
+    if len(head_first) == 1:
+        return 5, head_first
     return 0, []
 
 

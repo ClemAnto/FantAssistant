@@ -229,3 +229,36 @@ def test_merging_twin_clubs_keeps_every_row_and_says_what_it_dropped():
     assert {c for (c,) in conn.execute("SELECT DISTINCT club FROM squad_snapshot")} == {"Newcastle"}
     assert conn.execute("SELECT origin_club FROM arrivals").fetchone()[0] == "Newcastle"
     assert merge_twin_clubs(conn) == [], "idempotent: nothing left to merge"
+
+
+def test_una_fonte_puo_scrivere_il_cognome_per_primo():
+    """Tier 5: la TESTA contro il cognome, cioe' il tier 1 letto dall'altro capo.
+
+    Dal caso Chukwueze (operatore, 12/09/2026): la distinta del Lecce leggeva 10 titolari su 11 mentre
+    il payload ne aveva 11 - non mancava il dato, mancava un'identita', perche' il provider scrive
+    «N'Dri Konan» e ogni tier legge la CODA come cognome. Misurato su 1.391 file di round e 796 nomi
+    che nessun tier risolve: quattro uomini trovati e zero ambigui.
+    """
+    from euroleghe_ingest.matching import build_pool_entry, match_in_pool
+
+    lecce = [build_pool_entry(7001, "N'Dri"), build_pool_entry(1, "Gallo"),
+             build_pool_entry(2, "Banda")]
+    assert match_in_pool("N'Dri Konan", lecce) == (5, [(7001, "N'Dri")])
+    # ...e i casi veri degli altri campionati, dove la convenzione e' la stessa
+    assert match_in_pool("Kim Min-jae", [build_pool_entry(5892, "Kim")])[0] == 5
+    assert match_in_pool("Kepa Arrizabalaga", [build_pool_entry(2681, "Kepa")])[0] == 5
+
+    # E' L'ULTIMO TIER, quindi non tocca niente di quello che gli altri risolvono gia': dove la coda
+    # risponde, la risposta resta quella e il tier resta 1.
+    assert match_in_pool("Evan Ndicka", [build_pool_entry(3, "N'Dicka")])[0] in (1, 2)
+
+    # AMBIGUO = NIENTE: due uomini che rispondono alla stessa testa sono esattamente il caso in cui
+    # una corrispondenza sbagliata costa piu' di una mancante.
+    due = [build_pool_entry(10, "Pablo"), build_pool_entry(11, "Pablo")]
+    assert match_in_pool("Pablo Felipe", due) == (0, [])
+
+    # ...e la forma LARGA - il nome rovesciato provato su tutti i tier - e' respinta e resta respinta:
+    # li' dentro finivano «Romeo Hueso -> Romero» (fuzzy) e «Simon Garcia Vicente -> Unai Simon»
+    # (token singolo), cioe' due uomini sbagliati per due veri.
+    assert match_in_pool("Romeo Hueso", [build_pool_entry(4307, "Romero")])[0] != 5
+

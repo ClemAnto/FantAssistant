@@ -168,9 +168,62 @@ def test_la_regola_legge_le_due_board_e_la_riga_del_padrone():
 
 # --------------------------------------------------------------------- la camminata di snapshot
 
-def _appearance(date: str, minutes: int, started: int) -> snapshot.Appearance:
+def _appearance(date: str, minutes: int, started: int,
+               position: str | None = None, slot: int | None = None,
+               shape: str | None = None) -> snapshot.Appearance:
     return snapshot.Appearance("Genoa", "serie_a", date, minutes, started, None, 0, 0,
-                               None, None, None, None, None, None, None)
+                               None, None, None, None, None, None, None, position, slot, shape)
+
+
+def test_lo_slot_viaggia_col_modulo_della_sua_partita():
+    """`desc_recent_slots`: il POSTO, e senza il modulo quel numero non e' confrontabile.
+
+    Con tre dietro lo slot 4 e' il primo centrocampista; con quattro dietro e' un difensore. Quindi la
+    coppia, e chi legge tiene solo le partite del modulo che sta disegnando. Un uomo che ha cambiato
+    modulo fra le due partite porta due coppie diverse e non un numero sommato.
+    """
+    window = [(f"2026-09-0{i}", str(i), "serie_a", "genoa") for i in (6, 5, 4)]
+    mine = {"6": _appearance("2026-09-06", 90, 1, "M", 4, "3-4-2-1"),
+            "5": _appearance("2026-09-05", 90, 1, "M", 4, "3-4-2-1"),
+            "4": _appearance("2026-09-04", 90, 1, "D", 4, "4-3-3")}
+    got = snapshot.recent_block(7, window, mine, {"6", "5", "4"}, {}, {}, {}, matches=3)
+    assert got["recent_slots"] == "3-4-2-1:4;3-4-2-1:4;4-3-3:4"
+
+    # ...e una partita senza modulo non porta uno slot orfano: un numero che nessuno puo' interpretare
+    # e' peggio di un numero che manca.
+    senza = {"6": _appearance("2026-09-06", 90, 1, "M", 4, None)}
+    assert snapshot.recent_block(7, window, senza, {"6", "5", "4"}, {}, {}, {},
+                                 matches=3)["recent_slots"] is None
+
+
+def test_la_linea_osservata_viene_dalle_partite_che_ha_COMINCIATO():
+    """`desc_recent_line`: dove la FONTE lo ha schierato, non che ruolo dice la sua scheda.
+
+    Dal caso Chukwueze (operatore, 12/09/2026): il ruolo granulare legge `RW`/`F` su tutti i 26 giorni
+    dal 28/07 all'11/09 - e' il profilo del giocatore e non cambia con l'uso - mentre nelle due partite
+    che ha cominciato la fonte lo mette a CENTROCAMPO, slot 4. Chi entra a gara in corso prende il posto
+    che si e' liberato, quindi la sua riga direbbe una cosa sull'avversario invece che su di lui: i
+    subentri non entrano, ed e' proprio la sua terza partita (29 minuti da `F`).
+    """
+    window = [(f"2026-09-0{i}", str(i), "serie_a", "genoa") for i in (6, 5, 4)]
+    mine = {"6": _appearance("2026-09-06", 29, 0, "F"),      # subentrato: non dice dove gioca
+            "5": _appearance("2026-09-05", 90, 1, "M"),
+            "4": _appearance("2026-09-04", 90, 1, "M")}
+    got = snapshot.recent_block(7, window, mine, {"6", "5", "4"}, {}, {}, {}, matches=3)
+    assert got["recent_line"] == "M"
+    assert got["recent_starts"] == 2
+
+    # ...e a PARI MERITO vince la piu' recente, perche' `window` arriva dalla piu' recente e
+    # `Counter.most_common` conserva l'ordine in cui i valori sono stati visti.
+    mixed = {"6": _appearance("2026-09-06", 90, 1, "M"), "5": _appearance("2026-09-05", 90, 1, "D")}
+    assert snapshot.recent_block(7, window, mixed, {"6", "5", "4"}, {}, {}, {},
+                                 matches=3)["recent_line"] == "M"
+
+    # ...e VUOTA per chi non ha cominciato niente: li' non c'e' un'osservazione, e un ripiego sul
+    # profilo sarebbe «vuoto = ignoto» rotto proprio dove la colonna nasce per non rompersi.
+    bench = {"6": _appearance("2026-09-06", 29, 0, "F")}
+    assert snapshot.recent_block(7, window, bench, {"6", "5", "4"}, {}, {}, {},
+                                 matches=3)["recent_line"] is None
 
 
 def test_disponibile_e_chi_ha_giocato_o_era_in_panchina_e_nessun_altro():
@@ -769,3 +822,31 @@ def test_il_lato_giocato_lo_legge_solo_lultimo_periodo():
     # ...e l'orizzonte lo dichiara `eleven`, che e' la porta d'ingresso del disegno
     assert "self._fit_horizon = horizon" in inspect.getsource(gui.SnapshotView.eleven)
     assert gui.SnapshotView._fit_horizon == "season", "una vista che non ha disegnato legge la stagione"
+
+
+def test_il_cancello_del_wing_back_legge_la_distinta_e_non_solo_il_profilo():
+    """La fascia intera di un centrocampo davanti a una difesa a tre e' un lavoro di corsia.
+
+    Il profilo resta la prima risposta; quando non basta, decide quello che la fonte ha DAVVERO fatto
+    nella finestra. I due casi che questa riga deve separare sono reali e stanno nei dati del 12/09/2026:
+    Chukwueze `RW`, schierato `M` in tutt'e due le partite che ha cominciato, ENTRA; Malen `RW;ST`,
+    schierato `F` in tutte e tre, resta FUORI - cioe' la sentenza dell'operatore dell'08/08/2026 non si
+    riapre. Senza la distinta (colonna vuota) il comportamento e' quello di prima.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def row(codes: str, line: str | None) -> dict:
+        return {"desc_real_roles": codes, "desc_recent_line": line}
+
+    # il profilo basta da solo, e non ha bisogno di nessuna osservazione
+    assert View._wing_back_trade(row("DR;MR", None)) is True
+    assert View._wing_back_trade(row("ML;DL", None)) is True
+    # Chukwueze: ala pura, ma la fonte lo schiera a centrocampo
+    assert View._wing_back_trade(row("RW", "M")) is True
+    # Malen: ala pura schierata in attacco, tutte e tre le volte
+    assert View._wing_back_trade(row("RW;ST", "F")) is False
+    # ...e senza osservazione si torna al profilo: un'ala pura non e' un esterno a tutta fascia
+    assert View._wing_back_trade(row("RW", None)) is False
+    # ...e una linea osservata NON di corsia non promuove chi non fa quel mestiere: un centrale
+    # schierato a centrocampo resta un centrale, perche' il posto chiede comunque una FASCIA.
+    assert View._wing_back_trade(row("DC", "M")) is False

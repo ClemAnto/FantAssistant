@@ -4601,7 +4601,8 @@ class SnapshotView(ttk.Frame):
         total = _number(info.get("coach_shapes_of"), 0.0) or sum(out.values())
         return ({shape: count / total for shape, count in out.items()} if total else {}), int(total)
 
-    def plausible_shapes(self, info: dict) -> dict[str, tuple[int, float]]:
+    def plausible_shapes(self, info: dict,
+                         horizon: str = "season") -> dict[str, tuple[int, float]]:
         """{shape: (elevens THIS club played it in, its share of the league's)}, the club's first.
 
         Two kinds of plausible, and the difference is kept visible rather than merged into one list: a
@@ -4609,8 +4610,16 @@ class SnapshotView(ttk.Frame):
         that this side has not used. Both can be drawn; only the first is drawn by default.
         A shape the COACH lines up in is plausible too, even where neither the club nor the league floor
         offers it: Sarri's 4-3-3 has to be reachable at a club that spent the year in a back three.
+
+        SULL'ORIZZONTE CORTO ENTRANO I MODULI DELLE ULTIME PARTITE, e senza di loro la regola
+        dell'operatore non puo' nemmeno essere applicata: le altre tre sorgenti parlano tutte il
+        vocabolario a TRE linee (i conteggi di club, il repertorio della lega, quello dell'allenatore),
+        quindi un `4-2-3-1` dichiarato non era SELEZIONABILE e il prior lo assegnava a un modulo che
+        nessuno ha giocato. Misurato sul foglio Serie A: 10 board brevi su 20 disegnavano un modulo che
+        il club non ha dichiarato in nessuna delle ultime tre - l'Atalanta `4-3-2-1` contro un `4-3-3`
+        detto TRE volte su tre, il Napoli `4-2-1-3` contro `4-3-3`, il Parma `3-4-1-2` contro `4-4-2`.
         """
-        own = self.observed_shapes(info)
+        own = self.observed_shapes(info, horizon)
         league = self.league_shapes()
         out = {shape: (count, league.get(shape, 0.0))
                for shape, count in sorted(own.items(), key=lambda item: -item[1])}
@@ -4623,6 +4632,13 @@ class SnapshotView(ttk.Frame):
                 if shape not in out and share >= self.LEAGUE_SHAPE_FLOOR:
                     out[shape] = (0, 0.0)
         return out
+
+    # QUANTO VALE, IN PARTITE, ESSERE STATO L'ULTIMO MODULO quando due pareggiano. MEZZA, che e' la sola
+    # taglia che rende la regola dell'operatore uno SPAREGGIO: rompe un pareggio esatto e non arriva mai a
+    # scavalcare un modulo giocato una volta di piu'. Non e' un parametro da tarare - a qualunque valore
+    # fra 0 e 1 fa esattamente la stessa cosa - ed e' scritto come numero perche' il prior e' una frazione
+    # di partite e un pareggio si rompe nella stessa unita'.
+    RECENT_SHAPE_TIE: ClassVar[float] = 0.5
 
     def shape_odds(self, club: str, info: dict, mode: str) -> dict[str, float]:
         """{shape: how likely this side is to line up in it}, summing to 1. A DISPLAY estimate.
@@ -4643,7 +4659,7 @@ class SnapshotView(ttk.Frame):
         Not gated and not a prediction of anything the engine values: it orders the shapes a human is
         choosing between, and it is shown as a percentage so that choice can be made with a number.
         """
-        options = self.plausible_shapes(info)
+        options = self.plausible_shapes(info, horizon_of(mode))
         if not options:
             return {}
         if mode == "next" and info.get("formation_today"):
@@ -4657,6 +4673,24 @@ class SnapshotView(ttk.Frame):
         horizon = horizon_of(mode)
         own = self.observed_shapes(info, horizon)
         played = sum(own.values())
+        # ...E IN CASO DI PAREGGIO DECIDE L'ULTIMA PARTITA (operatore, 11/09/2026: «in caso di dubbio o
+        # indeterminazione, dai maggior credito all'ultima partita»). Su tre giornate il pareggio non e'
+        # un caso di scuola: sul foglio Serie A dell'11/09 sono 3 club su 20 a leggere 1-1-1 (Lecce,
+        # Parma, Torino), e li' il prior lasciava decidere il termine generico - la lega e l'allenatore -
+        # cioe' una fonte che non ha guardato nessuna delle tre partite.
+        # UNO SPAREGGIO E MAI UN PESO, che e' la sua frase alla lettera: mezza partita non puo' scavalcare
+        # un modulo giocato una volta di piu', quindi la Fiorentina (4-3-3 due volte su tre) resta 4-3-3
+        # qualunque sia stata l'ultima. Un peso sulla recenza la ribalterebbe se il 4-5-1 fosse l'ultimo,
+        # e il 4-3-3 e' proprio la risposta che lui ha dichiarato.
+        # L'ULTIMA E' LA PRIMA DELLA COLONNA: `snapshot.recent_shapes` scrive dalla piu' recente e ordina
+        # in modo stabile, quindi a parita' di conteggio l'ordine e' quello delle partite. Sta scritto la'
+        # e un test lo lega.
+        if horizon == "short" and played:
+            top = max(own.values())
+            latest = next((shape for shape, count in own.items() if count == top), None)
+            if latest is not None and sum(1 for count in own.values() if count == top) > 1:
+                own = dict(own)
+                own[latest] = top + self.RECENT_SHAPE_TIE
         if horizon == "short":
             his = 1.0
         else:
@@ -4677,7 +4711,17 @@ class SnapshotView(ttk.Frame):
         preseason, friendly_xis = self.friendly_shapes(info)
         camp = (min(1.0, friendly_xis / self.PRESEASON_FULL) * self.PRESEASON_WEIGHT
                 if friendly_xis else 0.0)
-        for shape, (count, league_share) in options.items():
+        for shape, (_season_count, league_share) in options.items():
+            # IL NUMERATORE E IL DENOMINATORE VENGONO DALLA STESSA FINESTRA (11/09/2026, dal caso
+            # Fiorentina dell'operatore: «moduli usati 4-3-3, 4-3-3, 4-5-1 ... quindi il risultante
+            # dovrebbe essere un 4-3-3», e la board disegnava 3-5-2). `options` porta il conteggio di
+            # STAGIONE - e' la lista dei moduli che questo club, la lega e l'allenatore rendono
+            # plausibili - mentre `played` e' il totale della finestra scelta: sull'orizzonte corto il
+            # rapporto leggeva «2 su 3» per QUATTRO moduli diversi, cioe' la colonna dell'ultimo periodo
+            # non entrava nel prior e decideva tutto il resto. Il conteggio si legge da `own`, che e' la
+            # stessa finestra di `played`; sulla stagione le due letture sono la stessa colonna e nessun
+            # numero si muove.
+            count = own.get(shape, 0)
             generic = mine * coach_share.get(shape, 0.0) + (1 - mine) * league_share
             prior = trust * (count / played if played else 0.0) + (1 - trust) * generic
             prior = (1 - camp) * prior + camp * preseason.get(shape, 0.0)
@@ -5855,8 +5899,38 @@ class SnapshotView(ttk.Frame):
                 out.setdefault(other, {})[me] = max(out.setdefault(other, {}).get(me, 0.0), score)
         return out
 
+    @classmethod
+    def _relay_block(cls, row: dict, chosen: set[str],
+                     relays: dict[str, dict[str, float]],
+                     claims: dict[str, int] | None = None) -> bool:
+        """Se questo uomo va SALTATO perche' uno gia' in campo si alterna con lui.
+
+        E MAI PER UNO PEGGIORE DI LUI, che e' la promessa che `_apart` fa di se stessa («dei due resta
+        quello con la quota piu' alta») ed era vera solo DENTRO una linea: li' il serbatoio arriva in ordine
+        di claim, quindi chi e' gia' in campo e' per forza il migliore. Fra due linee no - l'ordine e'
+        P, D, M, A - e alla Juventus il vincolo toglieva Conceicao (claim 0,801, tre partite su tre da
+        titolare) perche' Gonzalez N. (0,427) era entrato a centrocampo un giro prima. Una regola che
+        conserva chi capita per primo non e' una regola.
+
+        IL LIMITE CHE RESTA E' DICHIARATO: quando il migliore arriva dopo, la coppia finisce disegnata
+        insieme, perche' questa passata non puo' togliere retroattivamente chi una linea precedente ha gia'
+        messo in campo. Il verso dell'errore e' pero' quello giusto - la regola non si applica, invece di
+        applicarsi al contrario - e chi ha il claim piu' alto resta sempre.
+        """
+        me = str(row.get("fc_id") or "")
+        mine = relays.get(me) or {}
+        for other in chosen:
+            if mine.get(other, 0.0) < cls.RELAY_APART:
+                continue
+            if claims is None or other not in claims or me not in claims:
+                return True                     # senza una graduatoria la regola vale come prima
+            if claims[other] <= claims[me]:     # posizione in graduatoria: piu' bassa = migliore
+                return True
+        return False
+
     def _no_relay(self, rows: list[dict], chosen: set[str],
-                  relays: dict[str, dict[str, float]]) -> list[dict]:
+                  relays: dict[str, dict[str, float]],
+                  claims: dict[str, int] | None = None) -> list[dict]:
         """Il serbatoio senza chi si alterna con uno gia' in campo.
 
         Serve alle vie che SCAMBIANO un uomo con un altro (le riparazioni di fascia e di fronte): li'
@@ -5864,12 +5938,29 @@ class SnapshotView(ttk.Frame):
         invece si AGGIUNGE - il prestito fra linee - l'eccezione dell'operatore torna, ed e' il chiamante
         a doverla mettere.
         """
-        return [row for row in rows
-                if not any((relays.get(str(row.get("fc_id") or "")) or {}).get(other, 0.0)
-                           >= self.RELAY_APART for other in chosen)]
+        kept = [row for row in rows if not self._relay_block(row, chosen, relays, claims)]
+        if claims is None:
+            return kept
+        # ...E NON SI TOGLIE UN UOMO PER FARNE ENTRARE UNO PEGGIORE, che e' la stessa frase di
+        # `_relay_block` letta dal lato del rimpiazzo (11/09/2026). Queste vie SCAMBIANO, quindi togliere
+        # un compagno di staffetta dal serbatoio non lascia un posto vuoto: lo riempie il primo che resta,
+        # e se quello e' peggio di lui la regola ha peggiorato l'undici per evitare una coppia.
+        # IL CASO: alla Roma il vincolo toglieva Castro S. (claim 0,206, tre partite su tre) perche' si
+        # alterna con Malen, e `_fronted` scendeva ad Arena A. (0,180, mai sceso in campo). L'eccezione
+        # dell'operatore dice «salvo buchi di formazione non riempibili da ALTRI», e un uomo piu' debole di
+        # quello che esce non e' un altro che riempie: e' lo stesso buco, con un nome diverso.
+        # Senza costanti nuove e nella stessa graduatoria del resto: si salta solo chi ha qualcuno di
+        # MEGLIO pronto a prendere il suo posto.
+        best = min((claims[str(row.get("fc_id") or "")] for row in kept
+                    if str(row.get("fc_id") or "") in claims), default=None)
+        if best is None:
+            return kept
+        return kept + [row for row in rows if row not in kept
+                       and claims.get(str(row.get("fc_id") or ""), 10 ** 6) < best]
 
     def _apart(self, pool: list[dict], slots: int, chosen: set[str],
-               relays: dict[str, dict[str, float]]) -> list[dict]:
+               relays: dict[str, dict[str, float]],
+               claims: dict[str, int] | None = None) -> list[dict]:
         """I primi `slots` della graduatoria, SALTANDO chi si alterna con uno gia' scelto.
 
         La regola dell'operatore dell'11/09/2026 (vedi `RELAY_APART`), e la sua eccezione e' la seconda
@@ -5886,8 +5977,7 @@ class SnapshotView(ttk.Frame):
         for row in pool:
             if len(take) >= slots:
                 break
-            mine = relays.get(str(row.get("fc_id") or "")) or {}
-            if any(mine.get(other, 0.0) >= self.RELAY_APART for other in here):
+            if self._relay_block(row, here, relays, claims):
                 spare.append(row)
                 continue
             take.append(row)
@@ -5949,6 +6039,12 @@ class SnapshotView(ttk.Frame):
         by_role: dict[str, list[dict]] = {}
         bucket: dict[int, str] = {}
 
+        # LE RIGHE CHE IL MODULO DICHIARATO CHIEDE, sull'ultimo periodo: (P,1),(D,3),(M,4),(T,2),(A,1)
+        # per un 3-4-2-1. Altrove restano le tre linee del listone, che e' come l'undici e' sempre stato
+        # scelto.
+        declared_rows = (dict(self.shape_lanes(formation))
+                         if horizon_of(mode) == "short" else {})
+
         def line_key(code_line: str) -> str:
             # the trequartisti compete for the attacking line: which of the two lanes they are DRAWN in
             # is decided afterwards, by `lanes_for`, and only for the men actually chosen
@@ -5979,11 +6075,31 @@ class SnapshotView(ttk.Frame):
             provider_line = self.PROVIDER_LINE.get(row.get("desc_real_role_line") or "")
             if provider_line:
                 keys.add(provider_line)
+            # ...E SE IL MODULO DICHIARATO HA UNA RIGA DI TREQUARTI, un trequartista e' candidato PER
+            # QUELLA e non solo per l'attacco (operatore, 12/09/2026: «perche' nella Roma vedo Wesley
+            # sulla trequarti?»). `line_key` manda ogni `T` in ATTACCO perche' li' la riga di trequarti
+            # non esiste finche' il disegno non la crea; con un modulo OSSERVATO che la nomina, quel
+            # collasso fa competere Soule' per l'unico posto d'attacco contro Malen e lascia riempire i
+            # due posti di trequarti da chi era stato scelto come centrocampista - Wesley, che e' un
+            # esterno e nelle ultime tre ha giocato `ML` per 60 e 90 minuti.
+            #
+            # ...E IL SERBATOIO E' QUELLO DEI CODICI `T` E NON L'ATTACCO INTERO. La forma larga - ogni
+            # uomo d'attacco candidato anche alla trequarti, che e' la regola «i due attaccanti esterni
+            # possono arretrare» presa alla lettera - e' stata SCRITTA E MISURATA: uomini disegnati su
+            # una linea che i loro codici non coprono **14 -> 22**, e il Milan finiva per schierare
+            # Pulisic, che nelle ultime tre partite ha ZERO minuti. Un serbatoio piu' largo non e' una
+            # scelta piu' generosa: sposta uomini in tutte e tre le righe attraverso il prestito e le
+            # riparazioni.
+            if declared_rows.get("T") and any(self.LANE_OF_ROLE.get(code) == "T" for code in codes):
+                keys.add("T")
             for key in keys:
                 by_role.setdefault(key, []).append(row)
             bucket[id(row)] = home
         defenders, midfielders, forwards = self.lines(formation)
         horizon = horizon_of(mode)
+        # ...e lo DICHIARA al prezzo dei posti, che e' l'unico modo che `_slot_price` ha di sapere su
+        # quale finestra sta disegnando: il lato giocato vale per l'ultimo periodo e non per la stagione.
+        self._fit_horizon = horizon
         # by PRESENCE, the same number the shirt shows: ranking by anything else would draw a starter
         # carrying a percentage below his own alternative's
         # ...and a man who has LEFT is out of both elevens, which is not the same question as availability:
@@ -6043,7 +6159,12 @@ class SnapshotView(ttk.Frame):
         rank = {id(row): index for index, row in enumerate(eligible)}
         out: list[tuple[str, dict, list[dict]]] = []
         taken: set[str] = set()          # one shirt per man, across every line
-        left = {"P": 1, "D": defenders, "M": midfielders, "A": forwards}
+        # QUANTI NE CHIEDE OGNI RIGA. Sull'ultimo periodo sono le righe del modulo DICHIARATO, trequarti
+        # compresa; altrove le tre linee del listone con la trequarti fusa nel centrocampo, che e' come
+        # `lines()` la legge e come l'undici e' sempre stato scelto.
+        rows_wanted = (tuple(declared_rows.items()) if declared_rows
+                       else (("P", 1), ("D", defenders), ("M", midfielders), ("A", forwards)))
+        left = dict(rows_wanted)
 
         def can_lend(row: dict, asking: str) -> bool:
             """Whether his own line can spare him: he is BEYOND the men it still needs for itself.
@@ -6080,12 +6201,15 @@ class SnapshotView(ttk.Frame):
         # mappa vuota altrove rende inerti `_apart` e `_no_relay` senza una condizione ripetuta in cinque
         # punti: una regola che si spegne in un posto solo non puo' restare accesa in un sesto.
         relays = self.relay_apart(squad) if horizon == "short" else {}
+        # LA GRADUATORIA CON CUI IL VINCOLO CONFRONTA DUE UOMINI, ed e' la STESSA che ordina il serbatoio:
+        # una seconda definizione di «chi e' meglio» e' come una coppia finisce per avere due risposte.
+        standing = {str(row.get("fc_id") or ""): index for index, row in enumerate(eligible)}
         on_pitch: set[str] = set()              # gli fc_id gia' in campo, attraverso TUTTE le linee
-        for role, slots in (("P", 1), ("D", defenders), ("M", midfielders), ("A", forwards)):
+        for role, slots in rows_wanted:
             pool = [row for row in eligible
                     if id(row) in rank and row.get("name") not in taken
                     and row in by_role.get(role, [])]
-            take = self._apart(pool, slots, on_pitch, relays)
+            take = self._apart(pool, slots, on_pitch, relays, standing)
             if role != "P":
                 # A line short of its own men borrows - a line of the module is still a line: Bayern's
                 # 4-5-1 had four midfielders in the M lane and drew TEN men, calling it 4-4-1, while its
@@ -6112,7 +6236,8 @@ class SnapshotView(ttk.Frame):
                 def free(rows: list[dict]) -> list[dict]:
                     """Il serbatoio senza chi si alterna con uno gia' in campo, `take` compreso."""
                     return self._no_relay(
-                        rows, on_pitch | {str(row.get("fc_id") or "") for row in take}, relays)
+                        rows, on_pitch | {str(row.get("fc_id") or "") for row in take},
+                        relays, standing)
 
                 for near in (True, False, None):
                     for row in eligible:
@@ -6172,14 +6297,37 @@ class SnapshotView(ttk.Frame):
             return self._assign(men, shape, order=lambda row: rank.get(id(row), 99), home=picked)
 
         placed = arranged(formation)
-        # How many ROWS the shape really has: a five whose majority plays AHEAD of it is a two and a three,
-        # which is the module the source cannot name. Read off the men the assignment PLACED in the row and
-        # not off the line they were picked for, because a line picks men for places it may not give them -
-        # Liverpool's five is picked with three attacking men in it and drawn with a real wide midfielder on
-        # its right, and splitting on the selection sent that right back onto the trequarti.
-        split = self._two_rows(placed, formation)
-        if split != formation:
-            formation, placed = split, arranged(split)
+        # SULL'ULTIMO PERIODO IL MODULO E' OSSERVATO E NON SI DEDUCE PIU' (operatore, 12/09/2026: «la
+        # formazione ULTIMO PERIODO deve rappresentare la formazione tipo della squadra reale nel breve
+        # termine, e quindi utilizzare i moduli visti nelle ultime partite»).
+        #
+        # `_two_rows` esiste per una ragione che su questa finestra non c'e' piu': spaccare una linea
+        # quando «il modulo e' quello che la fonte non sa nominare». La fonte ADESSO lo nomina - il suo
+        # vocabolario e' fatto per il 69% di moduli a quattro numeri (`4-2-3-1` 81 volte su 178) - quindi
+        # dedurlo dai codici degli uomini significa rispondere a una domanda gia' risposta, e rispondere
+        # peggio: il Napoli leggeva `4-2-1-3` e ha dichiarato `4-3-3` tre volte su tre.
+        #
+        # Lo stesso vale per il RIMODELLAMENTO piu' sotto: quelle cinque regole riparano un modulo che la
+        # rosa non riesce a coprire, e un modulo che il club ha giocato la settimana scorsa la rosa lo
+        # copre per costruzione. Quello che resta - `_settle`, `_repointed`, `_native_defence` - scambia
+        # UOMINI dentro i posti e non tocca le righe, quindi resta.
+        drawn_as_declared = horizon == "short"
+        if not drawn_as_declared:
+            # How many ROWS the shape really has: a five whose majority plays AHEAD of it is a two and a
+            # three, which is the module the source cannot name. Read off the men the assignment PLACED in
+            # the row and not off the line they were picked for, because a line picks men for places it may
+            # not give them - Liverpool's five is picked with three attacking men in it and drawn with a
+            # real wide midfielder on its right, and splitting on the selection sent that right back onto
+            # the trequarti.
+            split = self._two_rows(placed, formation)
+            if split != formation:
+                formation, placed = split, arranged(split)
+        else:
+            # I POSTI SONO DECISI: `lanes_for` non deve rileggerli dai codici, o rimanderebbe indietro
+            # ogni uomo che il modulo dichiarato ha messo fuori dalla sua casa - che e' esattamente cio'
+            # che un modulo E'. Stessa scelta delle due strade che gia' disegnano un undici dichiarato
+            # (l'undici davvero schierato e quello dei probabili).
+            self._lanes_final = True
         out = [(lane, row, benches.get(row.get("name"), []))
                for lane, row in placed]
         # ...E LE DUE RIPARAZIONI FINALI SONO LA QUINTA VIA, l'ultima e quella che il caso dell'operatore
@@ -6193,7 +6341,7 @@ class SnapshotView(ttk.Frame):
         # l'uomo che esce, la mossa viene rifiutata invece che accettata - e il verso giusto in cui
         # sbagliare per un vincolo e' rinunciare a una riparazione, non disegnare la coppia.
         on_board = {str(row.get("fc_id") or "") for _lane, row, _bench in out}
-        spares = self._no_relay(eligible, on_board, relays)
+        spares = self._no_relay(eligible, on_board, relays, standing)
         out = self._settle(out, spares, picked)
         # ...and the middle of the front line is checked AGAIN on the settled eleven, because `_settle`
         # can create the very thing `_pointed` refused: Napoli's 4-4-2 is picked with Hojlund and De Bruyne
@@ -6202,9 +6350,10 @@ class SnapshotView(ttk.Frame):
         out = self._repointed(out, spares)
         # A line the squad cannot fill with men who play there is redrawn around the men it has, instead of
         # showing a central midfielder on a touchline.
-        reshaped = {id(row): lane for lane, row in
-                    self._reshape([(lane, row) for lane, row, _bench in out], formation)}
-        out = [(reshaped.get(id(row), lane), row, bench) for lane, row, bench in out]
+        if not drawn_as_declared:
+            reshaped = {id(row): lane for lane, row in
+                        self._reshape([(lane, row) for lane, row, _bench in out], formation)}
+            out = [(reshaped.get(id(row), lane), row, bench) for lane, row, bench in out]
         # ...e un posto in DIFESA va a chi la difesa la gioca, finche' uno arruolabile ce n'e'
         # (`_native_defence`, la regola dell'operatore del 07/09/2026). DOPO il rimodellamento, perche'
         # la domanda e' su dove un uomo e' DISEGNATO e non su dove e' stato scelto - la stessa ragione
@@ -6374,8 +6523,27 @@ class SnapshotView(ttk.Frame):
         wingers - Bologna's 4-5-1 right is Orsolini's, the case `_flanked` was built on - and `_reshape`
         rule 3 can still drop a wide attacker onto a VACATED wing: an emergency, never a selection.
         """
-        return any(REAL_ROLE_SIDE.get(code) and cls.LANE_OF_ROLE.get(code) in ("D", "M")
-                   for code in cls.real_roles(row))
+        if any(REAL_ROLE_SIDE.get(code) and cls.LANE_OF_ROLE.get(code) in ("D", "M")
+               for code in cls.real_roles(row)):
+            return True
+        # ...E IL CODICE E' UN PROFILO, LA DISTINTA E' UN'OSSERVAZIONE (operatore, 12/09/2026: «nelle
+        # ultime 3 Chukwueze ha giocato 90' come centrocampista destro, come mai non compare?»). Il
+        # ruolo granulare lo scrive la scheda del giocatore e non cambia con l'uso - `RW`, linea `F`,
+        # su tutti i 26 giorni dal 28/07 all'11/09 - mentre la fonte lo ha SCHIERATO a centrocampo
+        # (slot 4, avg_y 16) in tutt'e due le partite che ha cominciato. Non e' un allargamento per
+        # analogia, che l'operatore ha rifiutato lo stesso giorno in tutt'e due le forme proposte
+        # («un'ala pura fa l'esterno a tutta fascia davanti a una difesa a tre?» no; «un'ala sulla
+        # trequarti di un 3-4-2-1?» no): e' la sua regola del 07/09 applicata dove mancava -
+        # «adattamenti in posizioni che non gli competono devono essere avallati da situazioni
+        # realmente viste in campo e non immaginate».
+        #
+        # E NON RIAPRE LA SENTENZA SU MALEN, che e' il controllo che decide e si legge nel dato invece
+        # che nell'argomento: Malen ha 3 partenze su 3 con posizione `F` e slot 10 in tutte e tre,
+        # quindi qui resta fuori esattamente come l'08/08/2026. Misurato sul foglio del 12/09: si muove
+        # UN undici su 20, e il giudice (le probabili dell'11/09) legge identico, 157/198 e 11/18.
+        # La fascia serve comunque - il posto e' un lavoro di corsia e non una linea qualunque.
+        return (cls.PROVIDER_LINE.get(row.get("desc_recent_line") or "") in ("D", "M")
+                and any(REAL_ROLE_SIDE.get(code) for code in cls.real_roles(row)))
 
     @classmethod
     def _flank_trade(cls, row: dict, role: str) -> bool:
@@ -7026,6 +7194,50 @@ class SnapshotView(ttk.Frame):
     HEATMAP_SIDE: ClassVar[float] = 0.0
     HEATMAP_DEPTH: ClassVar[float] = 0.0
 
+    # ...E DOVE IL CODICE NON DICE NIENTE, LA MISURA DECIDE: la heatmap come SPAREGGIO e mai come peso
+    # (operatore, 11/09/2026: «utilizza la heatmap dei calciatori per capire in che posizione giocano»,
+    # sui suoi casi Lazio - Taylor e Belahyane da invertire - e Juventus).
+    #
+    # PERCHE' UNO SPAREGGIO E NON UN PESO, e la differenza e' misurata tre volte. Come PESO la heatmap e'
+    # piatta dove non e' negativa: il lato disegnato contro la posizione VERA partita per partita
+    # (`tm_appearances` 2026-27, 990 uomini con un lato stabile, concordanza a coppie dentro la riga) legge
+    # 90,2% -> 91,2% -> 92,9% -> 91,6% -> 91,5% sull'ultimo periodo e 97,5% -> 97,6% -> 92,8% (due volte
+    # peggio) sulla stagione, ai pesi 0 / 0,25 / 0,50 / 0,75 / 1. E la ragione per cui non puo' essere un
+    # peso e' che il CENTROIDE DI UN CENTRALE NON E' ZERO - Bastoni -0,529, Pavard +0,445, Frattesi +0,285 -
+    # quindi usato per DECIDERE un lato manda i centrali sulle fasce: sui 173 uomini con un codice, una
+    # heatmap e un lato vero, il codice indovina 162 volte e la heatmap 130, e dove i due sono in disaccordo
+    # (45 uomini) ha ragione il CODICE 38 volte e la misura 6.
+    #
+    # QUELLO CHE IL CENTROIDE SA DIRE E' L'ALTRA META' DELLA DOMANDA: non «gioca su una fascia» ma «di che
+    # meta' del campo e' il suo raggio d'azione», che e' esattamente cio' che serve quando la riga e' fatta
+    # di uomini con lo STESSO codice. I tre centrocampisti della Lazio sono tutti `MC`, quindi le tre
+    # caselle costano IDENTICHE e l'ordine di oggi non lo decide nessuno - il termine di rango di `_assign`
+    # e' una costante di RIGA della matrice, quindi non puo' spareggiare due uomini su tre caselle. Con la
+    # misura, Frattesi (+0,285) va a destra, Belahyane (+0,074) in mezzo e Taylor (-0,392) a sinistra, che
+    # e' la risposta dell'operatore - e la fonte per-partita, che non ha nessuna ragione di concordare, dice
+    # la stessa cosa per un'altra strada (Belahyane e' l'unico dei tre che gioca `DM`).
+    #
+    # LA TAGLIA E' SCELTA PERCHE' IL TERMINE NON POSSA MAI DECIDERE NIENT'ALTRO: il prezzo del posto pesa
+    # 1000 e lo spostamento di linea 10, quindi la somma di questo termine su un undici intero
+    # (11 x 2 x 0,4 = 8,8) resta sotto il piu' piccolo dei due. Non e' prudenza, e' la definizione di uno
+    # spareggio: un test lo asserisce sul prezzo TOTALE delle board di tutti i club, che non si muove.
+    MEASURED_TIE: ClassVar[float] = 0.4
+
+    # SU QUALE ORIZZONTE STA DISEGNANDO, per le due funzioni che decidono il POSTO. Lo mette `eleven`,
+    # che e' l'unica porta d'ingresso del disegno, e il default e' la stagione: una vista che non ha
+    # ancora disegnato niente non deve leggere una finestra corta che nessuno ha chiesto.
+    _fit_horizon: ClassVar[str] = "season"
+
+    def played_side(self, row: dict) -> float | None:
+        """IL LATO CHE HA TENUTO NELLE ULTIME PARTITE, o None - `snapshot.played_sides`.
+
+        Una misura per PARTITA e non una nuvola di stagione, che e' la differenza con `desc_side_measured`:
+        la heatmap della fonte esiste solo per (giocatore, stagione) e quest'anno e' vuota, mentre il posto
+        in formazione c'e' per ogni partita giocata. Risponde a «dove gioca ADESSO», quindi la legge il
+        disegno dell'ULTIMO PERIODO e nessun altro.
+        """
+        return _number(row.get("desc_played_side"), None)
+
     def measured_point(self, row: dict) -> tuple[float | None, float | None]:
         """(depth, side) where he ACTUALLY stood, on the same grid the codes live on - or None, None.
 
@@ -7077,6 +7289,17 @@ class SnapshotView(ttk.Frame):
         wanted = {"R": 1.0, "L": -1.0}.get(side, 0.0)
         depth = self.LANE_DEPTH.get(lane, 0.60)
         weight = self.SIDE_WEIGHT.get(lane, 8)
+        # ...E SULL'ULTIMO PERIODO IL LATO E' QUELLO CHE HA TENUTO DAVVERO (operatore, 11/09/2026:
+        # «alcune posizioni non tornano ... dove hanno giocato nelle ultime 3 partite?»). Un codice dice
+        # cosa PUO' fare, letto OGGI; questa e' dove e' stato, partita per partita. Sostituisce il lato e
+        # NON la linea, perche' la griglia della fonte divide le linee in un altro modo e il lato no
+        # (`snapshot.TM_SLOT_SIDE`): Celik legge `MR;DR;DC` e ha giocato 159 minuti da terzino SINISTRO,
+        # e la board lo disegnava sulla destra della difesa.
+        # Su 340 uomini del foglio Serie A che una posizione vera ce l'hanno, 45 l'hanno giocata FUORI dai
+        # propri codici. Il prezzo entra anche nelle riparazioni, quindi muove sei undici su venti: sono
+        # scambi uno a uno e portano dentro chi la fascia l'ha tenuta davvero (Berardi al Sassuolo,
+        # Fortini al Torino). Sulla stagione non e' letto: la' la domanda e' un'altra e la finestra pure.
+        held = self.played_side(row) if self._fit_horizon == "short" else None
         seen_depth = seen_side = 0.0
         pull_depth = pull_side = 0.0
         if self.HEATMAP_DEPTH or self.HEATMAP_SIDE:      # both zero: the hot path stays what it was
@@ -7089,8 +7312,9 @@ class SnapshotView(ttk.Frame):
         # gives the shirt to the man whose first job it is (Olivera `DL;DC` left, the `DC;DL` inside).
         prices = [round(40 * abs((1 - pull_depth) * REAL_ROLE_DEPTH[code]
                                  + pull_depth * (seen_depth or 0.0) - depth)
-                        + 2 * weight * abs((1 - pull_side) * REAL_ROLE_SIDE[code]
-                                           + pull_side * (seen_side or 0.0) - wanted))
+                        + 2 * weight * abs((held if held is not None
+                                            else (1 - pull_side) * REAL_ROLE_SIDE[code]
+                                            + pull_side * (seen_side or 0.0)) - wanted))
                   + (1 if order else 0)
                   for order, code in enumerate(self.real_roles(row))
                   if code in REAL_ROLE_DEPTH and code in REAL_ROLE_SIDE]
@@ -7101,7 +7325,9 @@ class SnapshotView(ttk.Frame):
             wide = 4 if lane == "A" and side != "C" and "ST" in self.real_roles(row) else 0
             return min(prices) + wide + 2 * self._off_the_front(row, lane, lone=lone)
         own = self.LANE_DEPTH.get(self.lane_of(row), 0.60)
-        return (round(40 * abs(own - depth) + 2 * weight * abs(wanted))
+        # ...e chi non ha nessun codice e' il caso in cui il lato giocato vale di piu': senza, e' al
+        # centro per definizione e paga ogni fascia allo stesso modo.
+        return (round(40 * abs(own - depth) + 2 * weight * abs((held or 0.0) - wanted))
                 + 2 * self._off_the_front(row, lane, lone=lone))
 
     def plays_the_line(self, row: dict, lane: str) -> bool:
@@ -7215,7 +7441,24 @@ class SnapshotView(ttk.Frame):
         codes = self.real_roles(row)
         home = ({self.LANE_OF_ROLE.get(code) for code in codes} if codes
                 else {self.lane_of(row)})
-        return 0 if "A" in home else self.LINE_REACH
+        if "A" in home:
+            return 0
+        # UN TREQUARTISTA PAGA ANCHE UNA LINEA D'ATTACCO A PIU' POSTI, ed e' una scelta MISURATA e non
+        # un'omissione (11/09/2026, dal caso Roma dell'operatore: «343 -> 3421, Mora/Soule (T) - Dybala»).
+        # Esentarlo qui da' esattamente il suo disegno - la Roma diventa 3-4-2-1 su tutt'e due gli
+        # orizzonti, e la STAMPA, che non sapeva niente di questa riga, la da' 3-4-2-1 con Soule - ma
+        # quello che si muove non e' il DISEGNO: il prezzo di un posto entra in `_assign` e nelle tre
+        # riparazioni, e sull'Atalanta il guardiano ha letto Krstovic (`ST`, claim 0,52) FUORI dall'undici
+        # e Harrison (0,27) dentro. Una modifica che cambia CHI viene scelto non e' una regola sul dove:
+        # «il claim sceglie CHI, il fit solo DOVE».
+        # Il prezzo aggregato, sul giudice stampa e sullo stesso foglio: uomini 149 -> 150, moduli MATCH
+        # 11 -> 11 ma ALT 3 -> 1 e DIFF 6 -> 8 (Roma ALT -> MATCH, Lazio MATCH -> DIFF, Atalanta ALT ->
+        # DIFF). La forma piu' stretta - vietare la RIMOZIONE di un trequartista invece di renderlo
+        # gratis - legge MATCH 9 / ALT 2 / DIFF 9 con 151 uomini, cioe' peggio sui moduli.
+        # Cosa servirebbe per darla senza il prezzo: che `_flanked` e `_pointed` sappiano che una linea
+        # d'attacco con dentro un trequartista PURO e' un 2+1 e non ha fasce proprie. E' un cambio di
+        # struttura, non una riga, e sta scritto qui perche' nessuno lo riprovi come una riga.
+        return self.LINE_REACH
 
     def _leads_the_line(self, row: dict) -> bool:
         """Who may hold the LONE place of a front line: a real centre-forward, or an UNCODED listone A.
@@ -7353,6 +7596,22 @@ class SnapshotView(ttk.Frame):
             self._slot_side[id(row)] = side
             out.append((lane, row))
         return out
+
+    def measured_across(self, row: dict) -> float:
+        """DI CHE META' DEL CAMPO E' IL SUO RAGGIO D'AZIONE, dal centroide misurato: +1 destra, -1 sinistra.
+
+        Lo SPAREGGIO di `_placed`, e vale solo dove la riga non sa gia' rispondere: un uomo a cui il modulo
+        ha dato una casella laterale porta il suo `across_bucket` e questa non lo tocca mai.
+
+        ZERO dove la heatmap non c'e', e non e' una scelta di comodo: zero e' il centro, quindi un uomo mai
+        misurato si ordina FRA chi ha giocato a destra e chi a sinistra invece di scavalcare l'uno o
+        l'altro. «Vuoto = ignoto» detto nell'unico modo che un ordinamento capisce.
+        """
+        held = self.played_side(row) if self._fit_horizon == "short" else None
+        if held is not None:
+            return held                 # dove e' stato batte dove stava in media l'anno scorso
+        _depth, measured = self.measured_point(row)
+        return measured or 0.0
 
     def _reshape(self, placed: list[tuple[str, dict]],
                  formation: str = "") -> list[tuple[str, dict]]:
@@ -7901,18 +8160,35 @@ class SnapshotView(ttk.Frame):
         is filled FROM THE OUTSIDE IN, shallowest first: what ends up in the middle is the man whose own job
         is the deepest, which is what a mediano davanti alla difesa is.
 
-        By his PRIMARY code, the provider's order of evidence and the same reading the rest of this module
-        uses: `DM` is a mediano, `MC;DM` is a central midfielder who can also sit deeper. Rows of two are
-        left alone - two central places are symmetric, so there is no middle to hold.
+        PER IL CODICE PRIMARIO, e A PARITA' per il piu' arretrato che ha (11/09/2026, dal caso Lazio
+        dell'operatore: «Taylor e Belahyane devono invertirsi la posizione»). I tre di quel centrocampo sono
+        `MC`, `MC` e `MC;DM`: sul solo codice primario hanno la stessa profondita', quindi il centro lo
+        decideva l'ordine in cui capitavano e in mezzo finiva una mezzala. Lo spareggio e' la stessa lettura
+        che `_slot_price` fa da sempre - «Spinazzola e' `ML;DL` e il lavoro chiesto puo' essere l'uno o
+        l'altro» - portata sulla domanda «chi tiene il centro»: uno che il `DM` lo gioca puo' sedersi li',
+        uno che non ce l'ha no. La fonte per-partita dice la stessa cosa per un'altra strada, e non aveva
+        nessuna ragione di concordare: nell'ultima giornata Belahyane e' l'unico dei tre che
+        `tm_appearances` mette a `DM` (Taylor e Frattesi `MC`).
+
+        E IL PRIMARIO RESTA IL PRIMO CRITERIO perche' il piu' arretrato DA SOLO perde un'informazione che
+        il guardiano di questa funzione porta: Rodri (`DM;MC`), Nico Gonzalez (`MC;DM`) e Reijnders
+        (`MC;DM;AM`) sanno tutti e tre sedersi a 0,45, e letti cosi' il mediano vero non si distingue piu'
+        dalle due mezzali - il test lo ha bocciato nel momento in cui la lettura e' diventata una sola.
+
+        Rows of two are left alone - two central places are symmetric, so there is no middle to hold.
         """
         places = [index for index, (row, _rivals) in enumerate(entries)
                   if self.across_bucket(row, lane) == 0]
         if len(places) < 3:
             return entries
-        shallow_first = sorted(
-            (entries[index] for index in places),
-            key=lambda entry: -REAL_ROLE_DEPTH.get(
-                next(iter(self.real_roles(entry[0])), ""), self.LANE_DEPTH.get(lane, 0.60)))
+        def depths(entry) -> tuple[float, float]:
+            """(il suo mestiere, il posto piu' arretrato che sa fare) - il secondo SOLO come spareggio."""
+            codes = [code for code in self.real_roles(entry[0]) if code in REAL_ROLE_DEPTH]
+            here = self.LANE_DEPTH.get(lane, 0.60)
+            first = REAL_ROLE_DEPTH.get(codes[0], here) if codes else here
+            return (-first, -min((REAL_ROLE_DEPTH[code] for code in codes), default=here))
+
+        shallow_first = sorted((entries[index] for index in places), key=depths)
         arranged: list[tuple[dict, list[dict]] | None] = [None] * len(places)
         low, high = 0, len(places) - 1
         for step, entry in enumerate(shallow_first):
@@ -7952,7 +8228,9 @@ class SnapshotView(ttk.Frame):
             # the widest man of a flank goes OUTSIDE, and outside is a different direction on each
             # flank: the drawn order runs from the team's right to its left, so on the right the widest
             # comes first and on the left it comes last
-            return (-bucket, -abs(side) * bucket, -self.foot_side(entry[0], lane),
+            return (-bucket, -abs(side) * bucket,
+                    -self.MEASURED_TIE * self.measured_across(entry[0]),
+                    -self.foot_side(entry[0], lane),
                     -self.claim(entry[0], "season"))
 
         entries = self._centred(sorted(slots, key=order), lane)

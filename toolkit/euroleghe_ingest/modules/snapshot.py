@@ -42,6 +42,7 @@ import os
 import sqlite3
 import statistics
 import time
+from collections import Counter
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -612,6 +613,15 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      porta accanto alla prima. Misurate fuori campione su 3.638 partite-club (due stagioni, cinque
 #      campionati), giudicate sulla partita SUCCESSIVA: Brier 0.1696 -> 0.1544, 8.46 -> 8.69 dei veri
 #      undici. Vuote su una pre-stagione per costruzione, `engine_*` non si muove.
+#   57-bis (12/09/2026) `desc_recent_line`: la linea in cui la FONTE lo ha schierato nelle partite
+#      della finestra che ha COMINCIATO (G|D|M|F), dal caso Chukwueze dell'operatore - «nelle ultime 3
+#      ha giocato come centrocampista destro, come mai non compare?». Il ruolo granulare e' un PROFILO
+#      osservato il giorno in cui gira e non cambia con l'uso (`RW`/`F` su tutti i 26 giorni dal 28/07
+#      all'11/09), mentre la distinta di una partita e' un fatto su quella partita: lui la fonte lo
+#      mette a CENTROCAMPO, slot 4, in tutt'e due quelle che ha cominciato. Misurato sul foglio del
+#      12/09: 26 titolari su 298 sono schierati in una linea che i loro codici non coprono, 11 non sono
+#      disegnati e di quelli 4 le probabili li fanno partire. Il valore era gia' nella SELECT di
+#      `appearances_with_worth` e nessuno lo teneva.
 #   59 `formation_shapes_recent` sui CLUB: i moduli delle ultime `presence.recent_window` partite di
 #      CAMPIONATO, da cui la board dell'ultimo periodo prende il suo modulo - regola dell'operatore
 #      dell'11/09/2026, «il modulo scelto dipende da quello usato nelle ultime tre partite e poi si vede
@@ -648,7 +658,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      moduli e 12 disegni, e passa da 11 a 20 club su 20 concordi col modulo dichiarato nelle ultime
 #      tre - l'Atalanta leggeva 4-3-2-1 contro un 4-3-3 detto tre volte su tre, il Napoli 4-2-1-3.
 #      `engine_*` non si muove: nessuna di queste colonne entra in `evaluate`.
-SHEET_REVISION = 62
+SHEET_REVISION = 63
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1355,6 +1365,19 @@ class Appearance(NamedTuple):
     reds: int | None
     xga: float | None
     in_euro: int | None
+    # LA LINEA IN CUI LA FONTE LO HA SCHIERATO IN QUELLA PARTITA (G|D|M|F), che non e' il suo RUOLO:
+    # `player_roles` porta il profilo del giocatore - Chukwueze legge `RW`/`F` su tutti i 26 giorni dal
+    # 28/07 all'11/09 - mentre la distinta di una partita e' un fatto su quella partita, e nelle due che
+    # ha cominciato la fonte lo mette a CENTROCAMPO (slot 4, avg_y 16). Era gia' nella SELECT e nessuno
+    # la teneva. In coda e con un default perche' le NamedTuple si estendono da li'.
+    position: str | None = None
+    # IL POSTO NELLA DISTINTA, 0-10 dentro il modulo che la fonte pubblica: `lineup_slot`. E' la
+    # stessa colonna su cui il campetto della pagina CLUBS taglia le linee per intervalli.
+    slot: int | None = None
+    # IL MODULO DI QUELLA PARTITA, che e' cio' che rende leggibile lo slot: con quattro dietro i
+    # difensori occupano gli slot 1-4 e il 4 e' un difensore, con tre dietro e' il primo
+    # centrocampista. Uno slot senza il suo modulo non e' un posto.
+    shape: str | None = None
 
 
 def appearances_with_worth(conn, auction_date: str,
@@ -1373,7 +1396,7 @@ def appearances_with_worth(conn, auction_date: str,
     mapped = euro_mapped_leagues(conn)
     for (fc_id, match_id, club, competition, date, minutes, started, rating, goals, assists,
          real_fv, real_mv, mv_synth, xg, xa, shots, position, yellows, reds,
-         euro_md, season) in conn.execute(
+         euro_md, season, lineup_slot, shape) in conn.execute(
             """
             SELECT e.fc_id, e.match_id, e.club, e.competition, e.match_date,
                    COALESCE(e.minutes, 0), e.started, e.rating,
@@ -1381,8 +1404,10 @@ def appearances_with_worth(conn, auction_date: str,
                    COALESCE(dm.fantavoto, em.fantavoto), COALESCE(dm.mv, em.mv), e.mv_synth,
                    e.xg, e.xa, e.shots, e.position,
                    COALESCE(dm.yellows, em.yellows), COALESCE(dm.reds, em.reds),
-                   m.euro_md, e.season
+                   m.euro_md, e.season, e.lineup_slot, cml.formation
             FROM external_match_stats e
+            LEFT JOIN club_match_lineups cml ON cml.season = e.season AND cml.source = e.source
+                                            AND cml.match_id = e.match_id AND cml.club = e.club
             LEFT JOIN matchday_map m ON m.season = e.season AND m.league = e.competition
                                     AND m.real_md = e.real_md
             LEFT JOIN match_ratings em ON em.fc_id = e.fc_id AND em.season = e.season
@@ -1400,7 +1425,8 @@ def appearances_with_worth(conn, auction_date: str,
             vote, source, points,
             yellows if source == "real" else None, reds if source == "real" else None,
             _xga(xg, xa, shots),
-            (1 if euro_md is not None else 0) if (season, competition) in mapped else None)
+            (1 if euro_md is not None else 0) if (season, competition) in mapped else None,
+            position, lineup_slot, shape)
     return out
 
 
@@ -1938,6 +1964,16 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
     available = played = starts = full = 0
     minutes = 0.0
     looked = 0
+    # LA LINEA IN CUI LO HANNO SCHIERATO, sulle sole partite che ha COMINCIATO: chi entra a gara in
+    # corso prende il posto che si e' liberato e non quello che l'allenatore gli aveva assegnato, quindi
+    # una sua riga direbbe una cosa sull'avversario invece che su di lui (Chukwueze: `M` nelle due da
+    # titolare, `F` nei 29 minuti da subentrato).
+    lines: list[str] = []
+    # ...E IL POSTO, non solo la linea. La fonte numera la distinta 0-10 dentro il modulo, quindi
+    # «dove ha giocato» e' un intero e non una deduzione: e' cio' su cui la board dell'ultimo periodo
+    # si costruisce (regola dell'operatore, 12/09/2026: «vedi i calciatori che hanno giocato di piu'
+    # nelle ultime 3 e mettili dove hanno giocato in queste 3»). Dalla piu' recente, come `window`.
+    slots: list[str] = []
     # `window` e' dal piu' recente: le ultime `matches` partite sono le prime della lista. `trend_block`
     # la scorre al contrario perche' disegna una striscia che si legge da sinistra; qui l'ordine non
     # entra in nessun numero, e prendere le ULTIME e' tutto il punto.
@@ -1952,6 +1988,10 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
             minutes += min(entry.minutes, 90.0)
             starts += 1 if entry.started else 0
             full += 1 if entry.minutes >= presence.FULL_MATCH_MINUTES else 0
+            if entry.started and entry.position:
+                lines.append(entry.position)
+            if entry.started and entry.slot is not None and entry.shape:
+                slots.append(f"{entry.shape}:{int(entry.slot)}")
         elif state == "b":
             available += 1
     return {
@@ -1961,6 +2001,19 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
         "recent_starts": starts,
         "recent_minutes": round(minutes, 1),
         "recent_full": full,
+        # La piu' frequente, e a pari merito la PIU' RECENTE - `window` e' dal piu' recente e
+        # `Counter.most_common` conserva l'ordine di inserimento. VUOTA per chi non ha cominciato
+        # nessuna delle partite guardate: li' non c'e' niente da osservare, e «vuoto = ignoto» tiene
+        # chi legge sui codici invece di inventargli una linea.
+        "recent_line": Counter(lines).most_common(1)[0][0] if lines else None,
+        # Gli slot delle partite che ha cominciato, dalla piu' recente, OGNUNO COL MODULO in cui e'
+        # stato giocato: «3-4-2-1:4;3-4-2-1:4» e' un uomo che ha giocato due volte nello stesso posto
+        # dello stesso modulo. Senza il modulo il numero non e' confrontabile - 7 club su 20 hanno
+        # giocato lo stesso modulo in tutte e tre le ultime, 12 in due su tre - e chi legge tiene solo
+        # le partite del modulo che sta disegnando: «vuoto = ignoto» invece di sommare posti diversi. Il conteggio per slot lo fa chi DISEGNA, perche' e'
+        # una domanda sul club e non sull'uomo - due uomini si contendono uno slot, e un numero
+        # scritto sulla riga di ciascuno non saprebbe dirlo.
+        "recent_slots": ";".join(slots) or None,
     }
 
 
@@ -5558,7 +5611,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # ed e' quello che rende tutta la lettura corta inerte su ogni finestra su cui il gate ha pubblicato
     # un numero. `engine_*` non le legge: `evaluate` non importa `presence`.
     "desc_recent_looked", "desc_recent_available", "desc_recent_played",
-    "desc_recent_starts", "desc_recent_minutes", "desc_recent_full",
+    "desc_recent_starts", "desc_recent_minutes", "desc_recent_full", "desc_recent_line", "desc_recent_slots",
     # LE SUE STAFFETTE: i compagni che giocano QUANDO LUI NON C'E', come `fc_id:punteggio` separati da
     # `;` e dal piu' forte. Definizione dell'operatore (11/09/2026) e nessuna acquisizione: l'intervallo
     # in campo si ricava dai minuti (`pitch_span`), e l'evento di sostituzione non serve perche' quello
@@ -6162,6 +6215,8 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_recent_starts": form.get("recent_starts"),
             "desc_recent_minutes": form.get("recent_minutes"),
             "desc_recent_full": form.get("recent_full"),
+            "desc_recent_line": form.get("recent_line"),
+            "desc_recent_slots": form.get("recent_slots"),
             "desc_relay": ";".join(f"{other}:{score:.3f}"
                                    for other, score in layers["relay"].get(obs.fc_id, ())) or None,
             "desc_place_change": place.get("change"),
