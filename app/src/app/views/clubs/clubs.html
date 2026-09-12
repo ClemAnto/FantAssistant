@@ -115,16 +115,24 @@
 
     @if (selected(); as club) {
       <!-- IL CAMPETTO HA BISOGNO DI PIÙ LARGHEZZA da quando un item porta i ballottaggi (18/08/2026):
-           a 320px i nomi si troncavano a zero e restavano i soli badge - una carta illeggibile. -->
-      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,460px)_minmax(0,1fr)]">
+           a 320px i nomi si troncavano a zero e restavano i soli badge - una carta illeggibile. A 460px
+           un posto con due ballottaggi restava stretto: 550px su richiesta dell'operatore (11/09/2026).
+           E' un MINIMO e non un massimo - la traccia non si stringe piu' sotto quella misura - mentre la
+           tabella accanto (`minmax(0,1fr)`) puo' cedere, che e' quello che le serve: ha il suo scroller
+           orizzontale dal 10/09 e la carta no. Sotto `lg` la griglia e' a una colonna e non la legge. -->
+      <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(550px,550px)_minmax(0,1fr)]">
         <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
           <div class="flex flex-wrap items-center gap-2">
             <ui-crest [club]="club.name" [clubId]="club.id" [crests]="store.crests()" size="md" />
             <h2 class="text-lg font-semibold text-fg">{{ club.name }}</h2>
             <!-- I DUE ORIZZONTI DELL'UNDICI TIPO (operatore, 10/09/2026). Il pulsante si disegna SOLO se
                  il pacchetto porta la board dell'ultimo periodo: un pulsante che offre una lettura che il
-                 bundle non contiene mostrerebbe la stessa cosa due volte. -->
-            @if (store.hasShortBoards()) {
+                 bundle non contiene mostrerebbe la stessa cosa due volte.
+
+                 ...E NON MENTRE SI GUARDA UNA PARTITA GIA' GIOCATA: i due orizzonti sono due PREVISIONI
+                 ("le giornate che restano" e "la prossima partita"), e li' non c'e' niente da prevedere -
+                 un interruttore acceso sopra un fatto direbbe che anche quello e' una delle due letture. -->
+            @if (store.hasShortBoards() && !picked()) {
               <nz-radio-group
                 class="ml-auto"
                 nzSize="small"
@@ -138,7 +146,29 @@
               </nz-radio-group>
             }
           </div>
-          @if (store.boardHorizon() === 'short') {
+          @if (picked()) {
+            <!-- UNO STATO SCELTO SI DICE, e qui dice anche QUALE partita: senza la riga, un campetto
+                 diverso da quello di un minuto fa si legge come un guasto (la stessa regola della lente
+                 sulla plancia). La via d'uscita sta accanto alla frase che la rende necessaria. -->
+            <p class="flex flex-wrap items-baseline gap-x-2 text-xs text-primary">
+              <span>
+                Formazione di <strong>{{ pickedColumn()?.label ?? 'questa partita' }}</strong>
+                @if (pickedColumn()?.score; as score) {
+                  <span> {{ score }}</span>
+                }
+                @if (pickedColumn()?.when; as when) {
+                  <span> · {{ when }}</span>
+                }
+              </span>
+              <button
+                type="button"
+                class="text-xs text-muted underline hover:text-fg"
+                (click)="picked.set(null)"
+              >
+                torna all'undici tipo
+              </button>
+            </p>
+          } @else if (store.boardHorizon() === 'short') {
             <!-- UNO STATO SCELTO SI DICE, o smorzare un campetto senza una parola in cima si legge come un
                  guasto: la stessa regola della lente sulla plancia. E porta i due conteggi, perché a zero
                  le due board sono la stessa cosa e il pulsante è un ornamento. -->
@@ -159,22 +189,47 @@
           <!-- IL DETTAGLIO QUI E' LA CARD E NON UN TOOLTIP (operatore, 06/09/2026): questa pagina sa
                quale foglio prezza i suoi uomini, quindi puo' costruirla - il pannello d'asta legge un
                altro foglio e si tiene la sua scheda all'hover. -->
-          <ui-club-board
-            [board]="store.board()"
-            [noBoards]="store.noBoards()"
-            [overall]="store.overalls()"
-            [expectedShares]="store.expectedShares()"
-            [ruled]="store.rulings()"
-            detail="card"
-            (pick)="onPick($event)"
-          />
-          <p class="text-xs text-muted">
-            È la <strong>board del toolkit</strong>, non un undici ricalcolato qui: la disegna la classe
-            del pannello guidata senza finestra, con le <strong>tue</strong> decisioni per club applicate.
-            @if (store.boardSheet(); as sheet) {
-              <span>Foglio «{{ sheet.league }}».</span>
+          @if (picked()) {
+            <!-- IL CAMPETTO DI UNA PARTITA GIA' GIOCATA, che e' un'altra domanda e quindi un altro
+                 componente (`ui/match-lineup`): qui ogni voce ha una risposta osservata, e riempire la
+                 carta dell'undici tipo - ballottaggi, quota da titolare, minuti previsti - con i fatti
+                 di una partita mostrerebbe l'arredamento di una domanda sotto un'altra. -->
+            @if (lineup(); as drawn) {
+              <ui-match-lineup
+                [lineup]="drawn"
+                [cells]="pickedCells()"
+                [roles]="squadRoles()"
+                (pick)="onPick($event)"
+              />
+              <p class="text-xs text-muted">
+                È quello che il <strong>layer per-partita</strong> ha registrato, non una previsione: il
+                modulo viene dai conteggi della distinta del club (completi), i nomi dalle righe per
+                (uomo, partita).
+              </p>
+            } @else {
+              <div class="flex items-center gap-3 py-6 text-muted">
+                <nz-spin nzSimple nzSize="small" />
+                Leggo la distinta di questa partita...
+              </div>
             }
-          </p>
+          } @else {
+            <ui-club-board
+              [board]="store.board()"
+              [noBoards]="store.noBoards()"
+              [overall]="store.overalls()"
+              [expectedShares]="store.expectedShares()"
+              [ruled]="store.rulings()"
+              detail="card"
+              (pick)="onPick($event)"
+            />
+            <p class="text-xs text-muted">
+              È la <strong>board del toolkit</strong>, non un undici ricalcolato qui: la disegna la classe
+              del pannello guidata senza finestra, con le <strong>tue</strong> decisioni per club applicate.
+              @if (store.boardSheet(); as sheet) {
+                <span>Foglio «{{ sheet.league }}».</span>
+              }
+            </p>
+          }
         </section>
 
         <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
@@ -238,7 +293,9 @@
               [crests]="store.crests()"
               [platform]="store.platform()"
               [showClub]="false"
+              [selectedMatch]="picked()?.matchId ?? null"
               (pick)="onPick($event)"
+              (match)="chooseMatch($event)"
               dense
             />
           }

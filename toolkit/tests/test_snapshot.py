@@ -4559,3 +4559,56 @@ def test_a_newcomer_is_anchored_on_his_clubs_elo_and_a_returning_man_on_his_club
     euro = snapshot.estimate_for(obs_of(1, "Milan", 1817.0), None, layer, {"A": role_anchor}, data,
                                  window, "euro")
     assert euro.fm == pytest.approx(est.club_anchor(role_anchor, 6.30, 4))
+
+
+def test_lo_spareggio_della_heatmap_non_puo_scavalcare_un_codice():
+    """La misura decide l'ordine DENTRO la riga, e solo dove la riga non sa gia' rispondere.
+
+    Come PESO la heatmap e' piatta dove non e' negativa (`MEASURED_TIE` porta i numeri): il centroide di un
+    CENTRALE non e' zero - Bastoni -0,529, Pavard +0,445 - quindi usato per DECIDERE un lato manderebbe i
+    centrali sulle fasce. Qui e' l'ULTIMO criterio dopo la casella che il modulo ha assegnato, quindi un
+    uomo con una casella laterale non la perde mai per un centroide.
+    """
+    import inspect
+
+    from euroleghe_ingest.gui import SnapshotView
+
+    source = inspect.getsource(SnapshotView._placed)
+    # l'ordine e': la casella del modulo, la larghezza del suo flank, POI la misura, poi il piede
+    bucket = source.index("-bucket, -abs(side) * bucket")
+    measured = source.index("self.measured_across(entry[0])")
+    foot = source.index("self.foot_side(entry[0], lane)")
+    assert bucket < measured < foot, "la misura sta fra la casella del modulo e il piede"
+    # e chi non e' mai stato misurato si ordina al CENTRO, non in fondo: zero e' il centro
+    class _Panel:
+        HEATMAP_DEPTH = HEATMAP_SIDE = 0.0
+        _depth_cache = (None, 0.0)
+        # sulla STAGIONE, che e' dove la heatmap e' l'unica misura di lato che esiste: sull'ultimo periodo
+        # `measured_across` preferisce il posto giocato, ed e' un'altra affermazione con un altro test
+        _fit_horizon = "season"
+        _depth_fit = SnapshotView._depth_fit
+        played_side = SnapshotView.played_side
+        measured_point = SnapshotView.measured_point
+        measured_across = SnapshotView.measured_across
+
+    panel = _Panel()
+    assert panel.measured_across({"desc_side_measured": None}) == 0.0
+    assert panel.measured_across({}) == 0.0
+    assert panel.measured_across({"desc_side_measured": "0.42"}) == 0.42
+
+
+def test_il_centro_di_una_riga_lo_tiene_chi_sa_sedersi_piu_indietro():
+    """A parita' di codice PRIMARIO decide il piu' arretrato che il giocatore sa fare.
+
+    Tre `MC` per tre caselle centrali costano identico, quindi il centro lo decideva l'ordine in cui
+    capitavano: alla Lazio in mezzo finiva una mezzala e il mediano fuori. Il primario resta il primo
+    criterio, perche' letto sul solo piu' arretrato un mediano vero non si distingue da due mezzali che
+    sanno sedersi (il caso del Manchester City qui sopra).
+    """
+    import inspect
+
+    from euroleghe_ingest.gui import SnapshotView
+
+    source = inspect.getsource(SnapshotView._centred)
+    assert "def depths(entry)" in source
+    assert "-first" in source and "-min((REAL_ROLE_DEPTH[code] for code in codes)" in source

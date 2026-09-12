@@ -619,7 +619,36 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      cioe' diceva «ultimo periodo» e disegnava l'abitudine dell'anno. Misurato: 20 club su 20 hanno
 #      tre undici completi, 14 su 20 ne giocano uno solo in tutte e tre, 3 su 20 danno un modulo diverso
 #      da quello di stagione. Piu' `desc_relay` corretto nel DENOMINATORE (§`relay_scores`).
-SHEET_REVISION = 59
+#   60 (11/09/2026) - DUE DENOMINATORI CHE SEGUONO LA LORO DOMANDA, dai casi Fiorentina e Roma
+#      dell'operatore. Le sei colonne `desc_recent_*` camminano il calendario del club di OGGI e non
+#      l'unione dei club della finestra: dentro una stagione sola un trasferimento estivo mette tutt'e due
+#      i club fra i suoi, e le ultime tre partite finivano per essere di due campionati diversi - 30 righe
+#      sul foglio Serie A, sempre nello stesso verso (Mastantuono 1 partita su 3 e 45 minuti dopo averne
+#      cominciate 3 su 3 per 198, Pellegrino 1 su 3, il portiere della Juventus 1 su 3). E `desc_relay`
+#      tiene solo le coppie di COMPAGNI DI OGGI: il taglio a tre per uomo le spendeva su chi non e' piu'
+#      suo compagno, quindi delle 376 coppie sopra la soglia del vincolo ne erano visibili 216 - Malen e
+#      Castro S. (0,593) fra le invisibili, che e' il caso da cui la segnalazione e' nata. `engine_*` non
+#      si muove: sono due colonne `desc_*` e nessuna entra in `evaluate`.
+#   61 (11/09/2026) - DOVE HA GIOCATO DAVVERO NELLE ULTIME PARTITE, `desc_played_side` e
+#      `desc_played_roles`. Dalla domanda dell'operatore: «riesci ad usare la heatmap dei calciatori per
+#      capire dove hanno giocato nelle ultime 3 partite?» - la heatmap no, e' per STAGIONE e quest'anno ha
+#      `avg_y` vuoto su tutte e 1226 le righe; il posto in formazione di `tm_appearances` si', partita per
+#      partita, ed era in casa dal 17/08 letto da un solo modulo. Solo il LATO, perche' le LINEE della
+#      griglia della fonte e le nostre non coincidono (`played_sides`). 342 righe su 562, e il disegno
+#      dell'ULTIMO PERIODO lo preferisce al codice: 45 uomini su 340 hanno giocato fuori dai propri
+#      codici. Effetto misurato: board di STAGIONE identica su 20 club di 20 (uomini e ordine), board
+#      breve 17 club cambiano l'ordine e 6 un uomo - scambi uno a uno che portano dentro chi la fascia
+#      l'ha tenuta davvero. `engine_*` non si muove.
+#   62 (12/09/2026) - IL MODULO DELL'ULTIMO PERIODO E' QUELLO CHE IL CLUB HA DICHIARATO.
+#      `formation_shapes_recent` leggeva i tre conteggi di club, che hanno TRE linee e non sanno dire un
+#      4-2-3-1; da oggi legge `club_match_lineups.formation`, che la fonte pubblica e che il downloader
+#      scartava fino all'11/09. Sulle 178 partite-lato gia' in archivio il vocabolario della fonte e'
+#      fatto per il 69% di moduli a QUATTRO numeri. Misurato A/B su una variabile sola: la board di
+#      STAGIONE non si muove (0 moduli, 0 disegni su 20 club), quella dell'ultimo periodo cambia 11
+#      moduli e 12 disegni, e passa da 11 a 20 club su 20 concordi col modulo dichiarato nelle ultime
+#      tre - l'Atalanta leggeva 4-3-2-1 contro un 4-3-3 detto tre volte su tre, il Napoli 4-2-1-3.
+#      `engine_*` non si muove: nessuna di queste colonne entra in `evaluate`.
+SHEET_REVISION = 62
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1512,6 +1541,18 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             key, name = resolve(candidate)
             if key:
                 clubs.setdefault(key, name)
+        # ...E DOVE E' ADESSO, DA SOLO: la finestra corta chiede «lo sceglie», che e' una domanda sul club
+        # per cui gioca OGGI, quindi il suo calendario e' quello e nessun altro. L'unione sopra e' giusta
+        # per il TREND - «quanto ha reso», una domanda su di LUI - e sbagliata qui, e per un trasferimento
+        # ESTIVO le due meta' si mescolano davvero: dentro una stagione sola tutt'e due i club sono suoi,
+        # quindi `build` non puo' separarli con le stagioni e le ultime tre partite della lista finiscono
+        # per essere quelle di due campionati diversi. Il verso dell'errore e' sempre lo stesso - la prova
+        # sua viene BUTTATA - perche' nelle giornate dell'altro club lui non ha nessuna riga e quelle
+        # giornate non entrano fra le disponibili: Mastantuono legge 1 partita su 3 e 45 minuti dopo averne
+        # cominciate TRE su tre per 198, Pellegrino 1 su 3 e 76 minuti invece di 3 su 3 e 256, e il portiere
+        # della Juventus 1 su 3 invece di 3 su 3. Sono 30 righe sul foglio Serie A dell'11/09/2026, ed e'
+        # esattamente la popolazione per cui la lettura corta esiste - chi e' arrivato quest'estate.
+        own: dict[str, str] = dict(clubs)
         for entry in sorted(mine.values(), key=lambda one: one.date, reverse=True)[:limit]:
             key, name = resolve(entry.club)
             if key:
@@ -1525,6 +1566,11 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
         # lettura corta). Prima `build` girava di nuovo dentro la chiamata a `trend_block`: due liste
         # dalla stessa funzione sono due liste che qualcuno un giorno cambia una sola.
         league_window = build(clubs, league_fixtures)
+        # La finestra della lettura CORTA: le ultime partite del club di oggi. Uguale a quella sopra per
+        # chiunque non abbia cambiato squadra dentro la stagione, e un club che non ha un calendario qui
+        # (uno straniero, uno che non giochiamo) la lascia vuota - «vuoto = ignoto», che e' quello che la
+        # miscela fa gia' con una finestra vuota: restituisce il prior della stagione intatto.
+        own_window = build(own, league_fixtures) if own else []
 
         played = starts = minutes = measured = bench = 0
         ratings: list[float] = []
@@ -1596,7 +1642,7 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             # (`presence.Params.recent_window`) e non una costante di questo modulo: due copie di quel
             # numero darebbero una finestra camminata di tre partite e una miscelata su cinque, cioe' la
             # scala tarata su un campione diverso da quello che la produce.
-            **recent_block(obs.fc_id, league_window, mine, with_players,
+            **recent_block(obs.fc_id, own_window or league_window, mine, with_players,
                            benched, lineup_only, spells,
                            int(presence.DEFAULTS.recent_window)),
         }
@@ -1717,6 +1763,7 @@ def pitch_span(started: int | None, minutes: float | None) -> tuple[float, float
 
 
 def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
+                 mates: dict[int, str] | None = None,
                  ) -> dict[int, list[tuple[int, float]]]:
     """Il CUORE della misura, puro: una lista di partite -> {fc_id: [(compagno, staffetta)]}.
 
@@ -1759,6 +1806,18 @@ def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
     CONDIVIDONO, che e' la stessa correzione vista dal lato della guardia. Erano 3.841 coppie in cui uno
     dei due non gioca mai insieme all'altro e che venivano prezzate lo stesso, fino a 1,000.
 
+    `mates` E' IL CLUB DI OGGI DI CIASCUNO, e senza di lui il taglio a `RELAY_KEEP` butta via proprio le
+    coppie che qualcuno chiedera'. Chi legge questa colonna - l'ordine dei ballottaggi del campetto e il
+    vincolo «due che si alternano non occupano due posti» - chiede SEMPRE di due uomini dello STESSO club:
+    una coppia fra due club diversi non e' sbagliata, e' una domanda che nessuno fara' mai. E intanto
+    occupa i tre posti per uomo, e li occupa proprio a chi ha cambiato squadra, perche' la finestra e' di
+    38 partite di campionato e li' dentro c'e' ancora il club di prima: le tre staffette di Castro S. erano
+    tre compagni del BOLOGNA, quelle di Beto tre dell'Everton, quelle di Mastantuono tre del Real Madrid.
+    Misurato sul foglio Serie A dell'11/09/2026: delle 376 coppie di compagni sopra la soglia del vincolo
+    ne sopravvivevano al taglio 216, cioe' il 43% era invisibile - Malen e Castro S. (0,593) fra quelle -
+    e 463 delle 839 coppie sopra soglia erano fra club diversi, cioe' scartabili senza perdere niente.
+    Con il filtro, a parita' di `RELAY_KEEP`, se ne vedono 363 su 376.
+
     PURA perche' la sua verifica non deve passare da un database: e' la stessa divisione che
     `engine/presence.py` ha con questo file, un livello piu' in basso.
     """
@@ -1788,6 +1847,8 @@ def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
         floor = min(apart[(first, second)])
         if span < RELAY_MIN_UNION or not floor:
             continue
+        if mates is not None and (mates.get(first) is None or mates.get(first) != mates.get(second)):
+            continue
         score = (1 - together[(first, second)] / floor) * (span / covered[(first, second)])
         out.setdefault(first, []).append((second, round(score, 3)))
         out.setdefault(second, []).append((first, round(score, 3)))
@@ -1797,7 +1858,7 @@ def relay_scores(matches: list[dict[int, tuple[float, float] | None]],
     return out
 
 
-def relay_pairs(conn, auction_date: str, resolve,
+def relay_pairs(conn, auction_date: str, resolve, season: str | None = None,
                 limit: int = RELAY_MATCHES) -> dict[int, list[tuple[int, float]]]:
     """{fc_id: [(compagno, quanto sono una STAFFETTA)]} - chi gioca quando l'altro non c'e'.
 
@@ -1826,7 +1887,20 @@ def relay_pairs(conn, auction_date: str, resolve,
                 continue
             squads.append({fid: pitch_span(st, mn) for fid, (st, mn) in here.items()
                            if club_key in (belongs.get(fid) or {})})
-    return relay_scores(squads)
+    # IL CLUB DI OGGI, dal listone della stagione bersaglio: e' la stessa autorita' su cui il foglio decide
+    # a che club appartiene una riga, quindi le coppie che questa colonna porta sono quelle che il campetto
+    # di quel club potra' davvero chiedere.
+    mates: dict[int, str] | None = None
+    if season:
+        mates = {}
+        for fc_id, club in conn.execute(
+                """SELECT r.fc_id, c.canonical_name FROM rosters r
+                   JOIN clubs c ON c.fc_club_id = r.fc_club_id
+                   WHERE r.season = ? AND c.canonical_name IS NOT NULL""", (season,)):
+            key, _name = resolve(club)
+            if key:
+                mates[fc_id] = key
+    return relay_scores(squads, mates)
 
 
 def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
@@ -4653,7 +4727,7 @@ def recent_shapes(conn, spellings: list[str], season: str, before: str | None,
         return ""
     placeholders = ",".join("?" * len(spellings))
     rows = conn.execute(
-        f"""SELECT defenders, midfielders, forwards FROM club_match_lineups
+        f"""SELECT defenders, midfielders, forwards, formation FROM club_match_lineups
              WHERE club IN ({placeholders}) AND season = ? AND starters = 11
                AND goalkeepers + defenders + midfielders + forwards = 11
                AND match_date IS NOT NULL AND (? IS NULL OR match_date < ?)
@@ -4661,11 +4735,97 @@ def recent_shapes(conn, spellings: list[str], season: str, before: str | None,
           ORDER BY match_date DESC LIMIT ?""",
         (*spellings, season, before, before, *LEAGUE_COMPETITIONS, matches)).fetchall()
     counts: dict[str, int] = {}
-    for defenders, midfielders, forwards in rows:
-        shape = f"{defenders}-{midfielders}-{forwards}"
+    for defenders, midfielders, forwards, declared in rows:
+        # IL MODULO CHE IL CLUB HA DICHIARATO, quando la fonte lo porta (12/09/2026). I tre conteggi
+        # accanto hanno TRE linee e non sanno dire un 4-2-3-1, quindi su questa finestra dicevano
+        # «3-4-3» della Roma che ha giocato 3-4-1-2 e «4-5-1» del Bologna che ha giocato 4-2-3-1:
+        # misurato sul foglio Serie A dell'11/09/2026, **12 club su 20** leggono un modulo diverso, e
+        # sulle 178 partite-lato in archivio il vocabolario della fonte e' fatto per il 69% di moduli a
+        # QUATTRO numeri che i conteggi non possono esprimere.
+        #
+        # I conteggi restano il ripiego e non spariscono: una partita scaricata prima che il downloader
+        # tenesse `formation` non lo ha, e li' tre linee sono meglio di niente - «vuoto = ignoto» non
+        # vuol dire «nessun modulo». Le due letture convivono nella stessa colonna perche' rispondono
+        # alla stessa domanda con precisione diversa, e chi legge non deve sapere quale sia quale.
+        shape = (declared or "").strip() or f"{defenders}-{midfielders}-{forwards}"
         counts[shape] = counts.get(shape, 0) + 1
+    # L'ORDINE E' UN DATO E NON UN DETTAGLIO: a parita' di conteggio viene prima il modulo dell'ULTIMA
+    # partita, perche' le righe arrivano dalla piu' recente e il `sorted` di Python e' stabile. Ci si
+    # appoggia chi legge la colonna (`gui.shape_odds`, la regola dell'operatore dell'11/09/2026: «in caso
+    # di dubbio o indeterminazione, dai maggior credito all'ultima partita»), quindi e' scritto qui invece
+    # di essere una proprieta' che qualcuno scopre - e un test lo asserisce.
     return ";".join(f"{shape}:{count}"
                     for shape, count in sorted(counts.items(), key=lambda item: -item[1]))
+
+
+#: Come la griglia di TRANSFERMARKT nomina un posto in formazione, tradotta nel LATO che tiene. Solo il
+#: lato: la LINEA di quella griglia e la nostra non sono la stessa cosa - il posto 8 e' un esterno destro
+#: che puo' essere terzino o di centrocampo (MR 31%, DR 29%) e il 9 il suo speculare - mentre destra,
+#: centro e sinistra sono la stessa affermazione in tutt'e due i vocabolari. Derivata dai dati e non
+#: dichiarata: incrociando `position_id` con `player_roles.primary_role` su 2,08 milioni di partite ogni
+#: posto ha un codice dominante (1 GK 100%, 3 DC 89%, 4 DL 67%, 5 DR 66%, 11 LW 45%, 12 RW 42%, 14 ST 86%).
+TM_SLOT_SIDE: dict[int, float] = {1: 0.0, 2: 0.0, 3: 0.0, 6: 0.0, 7: 0.0, 10: 0.0, 13: 0.0, 14: 0.0,
+                                  4: -1.0, 9: -1.0, 11: -1.0,
+                                  5: 1.0, 8: 1.0, 12: 1.0}
+#: E come si chiama, per la riga che deve spiegarsi: il codice dominante di quel posto.
+TM_SLOT_NAME: dict[int, str] = {1: "GK", 2: "DC", 3: "DC", 4: "DL", 5: "DR", 6: "DM", 7: "MC",
+                                8: "MR", 9: "ML", 10: "AM", 11: "LW", 12: "RW", 13: "ST", 14: "ST"}
+
+
+def played_sides(conn, season: str, before: str | None,
+                 matches: int) -> dict[int, tuple[float, str]]:
+    """{fc_id: (il LATO che ha davvero tenuto nelle ultime `matches` partite, come si chiamano quei posti)}.
+
+    LA DOMANDA DELL'OPERATORE (11/09/2026): «riesci ad usare la heatmap dei calciatori per capire dove
+    hanno giocato nelle ultime 3 partite?». La heatmap NO, e non per una svista: l'endpoint della fonte e'
+    `/player/{id}/unique-tournament/{t}/season/{s}/heatmap/overall`, cioe' una nuvola per STAGIONE, e per
+    il 2026-27 le 1226 righe di `positions` hanno `avg_y` vuoto su tutte. Quello che risponde e' un'altra
+    colonna che il progetto ha gia' pagato: `tm_appearances.position_id`, il posto in formazione partita
+    per partita, acquisito il 17/08/2026 e fin qui letto solo per i profili di rivalita' di `est`.
+
+    SOLO IL LATO, e la ragione e' nel vocabolario: la griglia di Transfermarkt e la nostra non dividono le
+    LINEE allo stesso modo - il posto 8 e' un esterno destro che puo' essere terzino o mediano (MR 31%,
+    DR 29%) - mentre destra, centro e sinistra vogliono dire la stessa cosa in tutt'e due. Prendere anche
+    la linea vorrebbe dire spostare un uomo di reparto su un'ambiguita' della fonte.
+
+    LE ULTIME `matches` CHE HA GIOCATO LUI, non quelle del suo club: la domanda e' «dove ha giocato», e
+    di una partita che ha saltato non c'e' nessun posto da leggere. Un uomo che ne ha saltata una porta
+    quindi una finestra un po' piu' lunga in giorni, che e' il verso giusto - il lato e' una cosa che
+    cambia poco e lentamente, e la colonna e' piu' piena.
+
+    MISURATO PRIMA DI SCRIVERLO, sul foglio Serie A dell'11/09/2026: 340 uomini su 562 hanno un posto vero
+    nelle ultime tre (gli altri 222 non hanno giocato), e per 45 di loro il posto giocato NON e' fra i suoi
+    codici - Celik `MR;DR;DC` che gioca 159 minuti da DL, Zappacosta `MR;ML` da DR, Valdepenas `DC` da DL.
+    Sono esattamente le posizioni che «non tornano»: i codici sono cio' che la fonte dice che puo' fare,
+    letti OGGI, e questo e' dove e' stato.
+
+    Pesato sui MINUTI, cosi' mezz'ora a destra non pareggia una partita intera a sinistra.
+    """
+    codes = tuple(config.TM_CHAMPIONSHIPS)
+    marks = ",".join("?" * len(codes))
+    mine: dict[int, list[tuple[int, float]]] = {}
+    try:
+        rows = conn.execute(
+            f"""SELECT fc_id, position_id, minutes FROM tm_appearances
+                WHERE season = ? AND state = 'played' AND is_national = 0
+                  AND position_id IS NOT NULL AND position_id != 0
+                  AND competition IN ({marks})
+                  AND (? IS NULL OR played_on < ?)
+                ORDER BY fc_id, played_on DESC""", (season, *codes, before, before))
+    except sqlite3.OperationalError:
+        return {}                       # un DB senza quel layer: la colonna resta vuota, non zero
+    for fc_id, slot, minutes in rows:
+        if slot in TM_SLOT_SIDE and len(mine.setdefault(fc_id, [])) < matches:
+            mine[fc_id].append((slot, float(minutes or 0.0)))
+    out: dict[int, tuple[float, str]] = {}
+    for fc_id, played in mine.items():
+        total = sum(minutes or 1.0 for _slot, minutes in played)
+        if not total:
+            continue
+        side = sum(TM_SLOT_SIDE[slot] * (minutes or 1.0) for slot, minutes in played) / total
+        names = ";".join(f"{TM_SLOT_NAME[slot]}:{round(minutes)}" for slot, minutes in played)
+        out[fc_id] = (round(side, 3), names)
+    return out
 
 
 def measured_elsewhere(conn, window) -> dict[int, dict]:
@@ -5445,7 +5605,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_real_role_side", "desc_mantra_real", "desc_foot", "desc_height", "desc_weight",
     "desc_real_role_observed",
     "desc_preseason_starts", "desc_preseason_matches",
-    "desc_avg_x", "desc_avg_y", "desc_side_measured",
+    "desc_avg_x", "desc_avg_y", "desc_side_measured", "desc_played_side", "desc_played_roles",
     "desc_starter_prob", "desc_starter_status", "desc_expected_minutes",
     # ...and LA TITOLARITÀ IN UNA PAROLA (`engine/status.py`): bandiera | titolarissimo | titolare |
     # ballottaggio | panchina | riserva, the operator's own vocabulary, dictated 20/08/2026. It is made of
@@ -6090,6 +6250,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_avg_x": layers["positions"].get(obs.fc_id, (None, None))[0],
             "desc_avg_y": layers["positions"].get(obs.fc_id, (None, None))[1],
             "desc_side_measured": layers["sides"].get(obs.fc_id),
+            # ...E IL LATO CHE HA TENUTO NELLE ULTIME PARTITE, con i posti che lo compongono: una misura
+            # per PARTITA, non una nuvola di stagione (`played_sides`). La legge il disegno dell'ultimo
+            # periodo, dove risponde a «dove gioca ADESSO»; vuota per chi non ha giocato, che e' ignoto.
+            "desc_played_side": (layers["played"].get(obs.fc_id) or (None, None))[0],
+            "desc_played_roles": (layers["played"].get(obs.fc_id) or (None, None))[1],
             "desc_starter_prob": starter.get("probability"),
             "desc_starter_status": starter.get("status"),
             # Expected minutes = minutes per CLUB match recently x the appearances the engine
@@ -6991,7 +7156,12 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         "availability": availability_now(conn, window.auction_date),
         # LE STAFFETTE, per ordinare i ballottaggi del campetto: una stagione di partite di campionato,
         # perche' con tre la coppia dei portieri non si distingue da un uomo con otto minuti.
-        "relay": relay_pairs(conn, window.auction_date, club_index(conn)),
+        "relay": relay_pairs(conn, window.auction_date, club_index(conn), window.target_season),
+        # DOVE HA GIOCATO DAVVERO nelle ultime partite: il LATO, dal posto in formazione di
+        # `tm_appearances`. E' la risposta alla domanda dell'operatore sulla heatmap - quella e' per
+        # STAGIONE e quest'anno e' vuota - e la legge SOLO il disegno dell'ultimo periodo.
+        "played": played_sides(conn, window.target_season, window.auction_date,
+                               int(presence.DEFAULTS.recent_window)),
         # LE GIORNATE CHE RESTANO, per club: il denominatore della finestra d'infortunio aperta. Vuoto
         # su una stagione non ancora calendarizzata, e allora nessuna riga porta una quota.
         "remaining": remaining_rounds(conn, window.target_season, window.auction_date),

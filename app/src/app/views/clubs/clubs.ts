@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, linkedSignal, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -12,14 +12,16 @@ import { ExpectedPlay, PlayOutlook } from '../../core/expected-play';
 import { GlobalOptions } from '../../core/global-options';
 import { cleanSheetBaseline, cleanSheetOutlook } from '../../core/keeper-pairs';
 import { CardMan, CardStack } from '../../core/player-card';
+import { LineupMan, MatchLineup, lineupOf } from '../../core/match-lineup';
 import { EDGE_BASE } from '../../core/plancia';
-import { Platform, PlayersStore } from '../../core/players-store';
+import { MatchCell, Platform, PlayersStore, day } from '../../core/players-store';
 import { Role } from '../../core/plancia';
 import { swingOf } from '../../core/swing';
 import { EngineExpectation, SquadMan, ValuationStore } from '../../core/valuation-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubBoard } from '../../ui/club-board/club-board';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
+import { MatchLineupBoard } from '../../ui/match-lineup/match-lineup';
 import { MatchesTable } from '../../ui/matches-table/matches-table';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { SquadTable } from '../../ui/squad-table/squad-table';
@@ -52,6 +54,7 @@ export type SquadMode = 'values' | 'matches';
     ClubBoard,
     ClubCrest,
     FormsModule,
+    MatchLineupBoard,
     MatchesTable,
     NzAlertModule,
     NzButtonModule,
@@ -119,6 +122,115 @@ export class Clubs {
       this.store.squad(),
     );
   });
+
+  // ------------------------------------------------------------- la formazione di UNA partita
+  //
+  // «Quando nella visualizzazione "ultime partite" seleziono una partita (cliccando sul nome della
+  // colonna) vorrei che nel campetto ricostruissi la formazione che ha giocato quella partita»
+  // (operatore, 12/09/2026). E' un FATTO e non una previsione, quindi l'app puo' leggerlo: la regola
+  // «l'undici di un club vero lo disegna il toolkit» vincola la board DISEGNATA, che e' una previsione
+  // su una persona. Il perche' e le misure di completezza stanno in `core/match-lineup.ts`.
+
+  /**
+   * LA PARTITA SCELTA, e si azzera da se' quando cambia quello che la rende sensata.
+   *
+   * `linkedSignal` sul club, sulla piattaforma e sulla vista: una formazione e' di UN club in UNA
+   * partita, quindi tenerla mentre si passa a un'altra squadra disegnerebbe l'undici di qualcun altro
+   * sotto il nome sbagliato - e uscendo dalle «ultime partite» non c'e' piu' nessuna colonna accesa
+   * che dica da dove viene il disegno.
+   */
+  protected readonly picked = linkedSignal<string, { matchId: string; club: string } | null>({
+    source: () => `${this.store.platform()}|${this.store.club()}|${this.mode()}`,
+    computation: () => null,
+  });
+
+  /** Gli uomini di quella partita, come il layer per-partita li registra. Null = non ancora letti. */
+  private readonly lineupMen = signal<{ key: string; men: LineupMan[] } | null>(null);
+
+  /**
+   * L'UNDICI DISEGNATO: lo scheletro dal MODULO della colonna, i nomi dal layer per-partita.
+   *
+   * Il modulo viene dalla colonna e non si ricava dagli uomini trovati: e' un conteggio di CLUB
+   * (`club_match_lineups`), quindi completo anche dove un nome manca - e ricavarlo dai nomi che
+   * abbiamo farebbe descrivere il nostro perimetro invece della partita (misurato: su 820 partite-club
+   * di Serie A le due letture danno le stesse linee 815 volte, e le cinque che discordano sono proprio
+   * quelle in cui un nome manca).
+   */
+  protected readonly lineup = computed<MatchLineup | null>(() => {
+    const chosen = this.picked();
+    const loaded = this.lineupMen();
+    if (!chosen || loaded?.key !== keyOf(chosen)) return null;
+    const column = this.matchTable().columns.find((one) => one.matchId === chosen.matchId);
+    // I codici del RIPIEGO, e sono DUE vocabolari perche' dicono due cose diverse: i granulari
+    // (`DR`, `LW`) portano il LATO, quelli di listone (`dd`, `ds`) pure e in piu' esistono per chi il
+    // provider non ha mai osservato. Servono solo dove la distinta della fonte non porta il posto -
+    // nella finestra pesante e' il 100% dei titolari di campionato, quindi quasi mai.
+    const codes = this.squadRoles();
+    return lineupOf(
+      column?.shape ?? null,
+      loaded.men,
+      (fcId) => [...(this.valuation.realRolesOf(fcId)?.codes ?? []), ...(codes.get(fcId) ?? [])],
+      column?.formation ?? null,
+    );
+  });
+
+  /** La colonna che ha prodotto il disegno, per nominarla in cima: la partita, la data, il risultato. */
+  protected readonly pickedColumn = computed(() => {
+    const chosen = this.picked();
+    const column = chosen
+      ? (this.matchTable().columns.find((one) => one.matchId === chosen.matchId) ?? null)
+      : null;
+    // La data si legge come la legge la tabella accanto (`day`): due formati sulla stessa schermata
+    // fanno leggere due date diverse per la stessa partita.
+    return column && { ...column, when: column.date ? day(column.date) : null };
+  });
+
+  /**
+   * LE CELLE DI QUELLA PARTITA, per `fc_id`: il voto, il fantavoto e i bonus che la colonna mostra.
+   *
+   * Prese dalla TABELLA accanto e non rilette dal bundle: sono gli stessi numeri che si vedono due dita
+   * piu' in la', e una seconda lettura darebbe allo stesso uomo due pagelle nella stessa schermata. Chi
+   * la tabella non ha - un titolare che questo listone non quota - resta senza, che e' quello che di lui
+   * si sa qui.
+   */
+  protected readonly pickedCells = computed<ReadonlyMap<number, MatchCell>>(() => {
+    const chosen = this.picked();
+    const table = this.matchTable();
+    const at = chosen ? table.columns.findIndex((one) => one.matchId === chosen.matchId) : -1;
+    const out = new Map<number, MatchCell>();
+    if (at < 0) return out;
+    for (const line of table.lines) {
+      const cell = line.cells[at];
+      if (cell) out.set(line.fcId, cell);
+    }
+    return out;
+  });
+
+  /** I ruoli di listone accanto a ogni nome, dalla rosa: vuoti per chi il listone non quota. */
+  protected readonly squadRoles = computed<ReadonlyMap<number, readonly string[]>>(() => {
+    const out = new Map<number, readonly string[]>();
+    for (const man of this.store.squad()) out.set(man.fcId, man.mantraCodes);
+    return out;
+  });
+
+  /**
+   * IL CLICK SU UNA COLONNA. La lettura e' asincrona (la tabella per-partita e' la piu' pesante del
+   * pacchetto e si chiede solo quando serve), quindi la risposta si accetta solo se e' ANCORA quella
+   * che si sta guardando: passare da una colonna all'altra mentre la prima arriva disegnerebbe la
+   * formazione della partita sbagliata sotto il nome di questa.
+   */
+  protected chooseMatch(what: { matchId: string; club: string }): void {
+    if (this.picked()?.matchId === what.matchId) {
+      this.picked.set(null);
+      return;
+    }
+    this.picked.set(what);
+    const key = keyOf(what);
+    void this.matches.lineupOf(what.matchId, what.club).then((men) => {
+      const still = this.picked();
+      if (still && keyOf(still) === key) this.lineupMen.set({ key, men });
+    });
+  }
 
   /** Quali stagioni la tabella sta mostrando davvero, per dirlo in intestazione. */
   protected readonly matchSeasons = computed(() => {
@@ -350,6 +462,18 @@ export class Clubs {
   protected closeAllCards(): void {
     this.cards.openCard(null);
   }
+}
+
+/**
+ * LA CHIAVE DI UNA PARTITA, in una funzione sola: (evento, club) e mai una delle due.
+ *
+ * Un id di evento e' di una PARTITA e una partita ha due squadre, quindi confrontare i due id direbbe
+ * «e' la stessa» di due formazioni opposte. Scritta qui perche' la legge sia chi accetta una risposta
+ * arrivata tardi sia chi la mette da parte: due modi di dire «e' ancora questa» finirebbero per non
+ * essere d'accordo esattamente nel caso per cui il confronto esiste.
+ */
+function keyOf(what: { matchId: string; club: string }): string {
+  return `${what.matchId}|${what.club}`;
 }
 
 /**

@@ -1,0 +1,167 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+@if (lineup(); as drawn) {
+  <!-- Lo stesso campo dell'undici tipo - porta in alto, attacco in basso, una zona per linea - perche'
+       e' lo stesso oggetto guardato in un altro tempo: due sfondi direbbero che sono due cose. -->
+  <div
+    class="flex w-full flex-col gap-1 rounded-lg p-2 outline outline-1 -outline-offset-4
+           outline-fg/25 sm:gap-2 sm:p-3"
+    style="background-image: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
+      color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
+    )"
+  >
+    @for (row of drawn.rows; track row.line) {
+      <!-- `data-line` e' l'appiglio di chi verifica, come `data-place`: leggere le righe da `aria-label`
+           prendeva anche i titoli delle iconcine dei bonus, cioe' un banco che conta due righe in piu'
+           e accusa la pagina del proprio difetto. -->
+      <div
+        class="flex items-stretch justify-center gap-1 sm:gap-2"
+        [attr.data-line]="row.line"
+        [attr.aria-label]="label[row.line]"
+      >
+        @for (place of row.places; track $index) {
+          <!-- UN ITEM E' UN POSTO, come sul campetto dell'undici tipo: sopra chi lo occupava, sotto
+               chi e' entrato in quella zona - la stessa forma dei ballottaggi, che e' quello che
+               l'operatore ha chiesto (12/09/2026). Quello che la carta NON dice e' «ha sostituito
+               lui»: quale cambio sia stato fatto non e' nel pacchetto (vedi `LineupPlace.came`).
+
+               UNA CARTA SOLA per il posto con un nome e per quello senza: erano due, e un subentrato
+               finito su un posto senza nome spariva dal disegno - un filtro silenzioso, trovato dal
+               banco e non da una rilettura. Cambia quello che sta al posto del nome, non la carta. -->
+          <span
+            class="flex min-w-0 max-w-[33%] flex-1 flex-col gap-0.5 rounded-md border px-1 py-1"
+            [class]="place.man
+              ? 'border-border bg-surface/90'
+              : 'border-dashed border-border bg-surface/50'"
+            data-place
+            [attr.data-unnamed]="place.man ? null : ''"
+          >
+            @if (place.man; as man) {
+              <span class="flex min-w-0 items-center gap-1" data-starter>
+                <ui-roles [roles]="rolesOf(man)" size="xs" />
+                <!-- IL NOME APRE LA CARD, come sul campetto dell'undici tipo: un uomo ha una scheda
+                     sola in questa pagina, e il gesto per aprirla e' lo stesso su tutt'e due i campi. -->
+                <span
+                  class="min-w-0 flex-1 cursor-pointer truncate text-[11px] font-medium leading-tight
+                         text-fg hover:underline"
+                  role="button"
+                  tabindex="0"
+                  [title]="man.name"
+                  (click)="onPick(man)"
+                  (keydown.enter)="onPick(man)"
+                  >{{ man.name }}</span
+                >
+              </span>
+              <span class="flex w-full min-w-0 items-center gap-1 pl-0.5 text-[9px] tabular-nums">
+                <span class="shrink-0 text-muted">{{ minutesOf(man) }}</span>
+                <!-- IL TRIANGOLINO DI CHI ESCE (operatore, 12/09/2026), dallo stesso componente che lo
+                     disegna nelle celle della tabella e nella card: un'icona significa la stessa cosa
+                     in ogni pagina, quindi il marchio si riusa e non si ridisegna. -->
+                <ui-spell class="shrink-0" [spell]="spellOf(man)" size="xs" />
+                @if (cellOf(man); as cell) {
+                  <span class="shrink-0" [class]="voteClass(cell)">{{ voteText(cell) }}</span>
+                }
+                @for (mark of marksOf(man); track $index) {
+                  <ui-bonus class="shrink-0" [bonus]="mark" size="xs" />
+                }
+              </span>
+            } @else {
+              <!-- UN POSTO CHE C'ERA E CHE NON SI SA NOMINARE, e non un posto in meno: il MODULO viene
+                   dai conteggi della distinta del club - completi, perche' contare quanti difensori
+                   schiera una squadra non passa dall'imbuto delle identita' - mentre i NOMI passano di
+                   li' e dal perimetro del listone. Togliere il posto farebbe leggere «ha giocato in
+                   dieci», che e' una cosa falsa detta al posto di un ignoto. -->
+              <span
+                class="flex min-h-4 items-center justify-center text-[11px] leading-tight text-muted"
+                nz-tooltip
+                nzTooltipTitle="Un posto dell'undici che questo listone non sa nominare"
+                >?</span
+              >
+            }
+
+            @for (sub of place.came; track sub.fcId) {
+              <!-- CHI E' ENTRATO IN QUELLA ZONA, piu' tenue del titolare: la gerarchia e' la notizia,
+                   esattamente come un ballottaggio sta sotto il titolare sull'altro campetto. La
+                   freccia dice «entrato» e il minuto dice quanto ha giocato. -->
+              <span class="flex min-w-0 items-center gap-1 text-muted" data-came>
+                <ui-roles [roles]="rolesOf(sub)" size="xs" />
+                <span
+                  class="min-w-0 flex-1 cursor-pointer truncate text-[10px] leading-tight
+                         hover:underline"
+                  role="button"
+                  tabindex="0"
+                  [title]="sub.name + ' · entrato'"
+                  (click)="onPick(sub)"
+                  (keydown.enter)="onPick(sub)"
+                  >{{ sub.name }}</span
+                >
+              </span>
+              <span class="flex w-full min-w-0 items-center gap-1 pl-0.5 text-[9px] tabular-nums">
+                <span class="shrink-0 text-muted">{{ minutesOf(sub) }}</span>
+                <ui-spell class="shrink-0" [spell]="spellOf(sub)" size="xs" />
+                @if (cellOf(sub); as cell) {
+                  <span class="shrink-0" [class]="voteClass(cell)">{{ voteText(cell) }}</span>
+                }
+                @for (mark of marksOf(sub); track $index) {
+                  <ui-bonus class="shrink-0" [bonus]="mark" size="xs" />
+                }
+              </span>
+            }
+          </span>
+        }
+      </div>
+    }
+  </div>
+
+  <p class="mt-2 text-xs text-muted">
+    @if (drawn.shape) {
+      <span>Modulo <strong>{{ drawn.shape }}</strong></span>
+      @if (!drawn.fromSource) {
+        <!-- DA DOVE VIENE IL MODULO, e si dice solo quando NON e' quello dichiarato dalla fonte: i
+             conteggi delle posizioni hanno TRE linee, quindi un 4-2-3-1 si legge qui `4-5-1` e i suoi
+             trequartisti stanno in mezzo al campo. E' un limite del dato di quel turno, non una scelta,
+             e chi guarda lo deve sapere invece di scoprirlo contando i nomi. -->
+        <span
+          class="text-warning"
+          nz-tooltip
+          nzTooltipTitle="Dai conteggi della distinta, che hanno tre linee: la trequarti non si vede"
+        >
+          (contato, non dichiarato)</span
+        >
+      }
+    } @else {
+      <span>Modulo ignoto: la distinta di questa partita non fa undici titolari</span>
+    }
+    @if (unnamed()) {
+      <!-- Un filtro silenzioso e' un filtro che inganna, e qui non e' nemmeno un filtro: e' quello che
+           il pacchetto non sa. Si dice, e a zero non si dice niente - «va bene» non e' una notizia. -->
+      <span> · {{ drawn.named }} nomi su {{ drawn.wanted }}</span>
+    }
+    @if (drawn.came.length) {
+      <span> · {{ drawn.came.length }} entrati</span>
+    }
+    @if (deduced()) {
+      <!-- DA DOVE VIENE L'ORDINE DENTRO UNA RIGA, e si dice solo quando NON e' quello della fonte: un
+           posto dedotto dai ruoli di oggi e uno letto dalla distinta sono due cose diverse, e chi
+           guarda deve sapere quale ha davanti. Muto quando e' tutto dalla fonte - «va bene» non e' una
+           notizia, ed e' il caso di tutte le partite di campionato della finestra. -->
+      <span
+        class="text-warning"
+        nz-tooltip
+        nzTooltipTitle="La distinta non dice il posto: l'ordine viene dai ruoli di oggi"
+      >
+        · {{ deduced() }} righe dedotte</span
+      >
+    }
+  </p>
+
+  @if (drawn.unplaced.length) {
+    <p class="mt-1 text-xs text-warning">
+      ⚠ Senza una posizione in distinta, quindi non disegnati: {{ drawn.unplaced.length }}
+    </p>
+  }
+  @for (problem of drawn.problems; track problem) {
+    <p class="mt-1 text-xs text-warning">⚠ {{ problem }}</p>
+  }
+}

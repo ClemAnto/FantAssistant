@@ -274,12 +274,15 @@ def test_parse_round_uses_the_xref_and_keeps_the_real_matchday():
     assert unknown == 2                       # 31 has no xref, 32 never came on
     assert len(rows) == 1
     # the club-level count reads EVERY entry, identity or not: one starter, and he is a forward
+    # ...e un file di cache scritto PRIMA del 12/09/2026 tiene una LISTA per lato e nessun modulo: si
+    # legge lo stesso, e il modulo resta ignoto invece di essere dedotto dai tre conteggi.
     assert club_rows == [("2023-24", "111", "Liverpool FC", "premier_league", 7, "2023-09-29",
-                          1, 0, 0, 0, 1)]
+                          1, 0, 0, 0, 1, None)]
     (fc_id, season, match_id, competition, real_md, match_date, club, opponent, home, position,
      started, minutes, rating, goals, assists, xg, xa,
      shots, shots_on_target, bcc, bcm, key_passes, touches,
-     team_goals, opponent_goals) = rows[0]
+     team_goals, opponent_goals, lineup_slot) = rows[0]
+    assert lineup_slot == 0                   # primo dell'array: e' il suo posto nel modulo
     assert (fc_id, season, match_id, competition, real_md) == (1, "2023-24", "111", "premier_league", 7)
     assert (club, opponent, home, started, minutes, rating) == ("Liverpool FC", "Arsenal", 1, 1, 88, 7.4)
     assert (goals, assists, xg, xa, position) == (1, 1, 0.7, 0.2, "F")
@@ -381,7 +384,8 @@ def test_reingest_match_layer_is_idempotent(tmp_path):
 def _match_row(rating: float) -> tuple:
     """One parsed row in the shape `_store_match_rows` takes: (fc_id, season, match_id, ...)."""
     return (1, "2023-24", "111", "premier_league", 7, "2023-09-30", "Liverpool FC", "Arsenal",
-            1, "F", 1, 90, rating, 0, 0, None, None, None, None, None, None, None, None, None, None)
+            1, "F", 1, 90, rating, 0, 0, None, None, None, None, None, None, None, None, None, None,
+            10)
 
 
 def _synth_after_rewrite(tmp_path, second_rating: float):
@@ -403,6 +407,27 @@ def _synth_after_rewrite(tmp_path, second_rating: float):
     return tuple(rows[0])
 
 
+def test_a_reread_without_a_formation_never_replaces_a_cached_one(tmp_path):
+    """Una rilettura puo' solo AGGIUNGERE: e' la regola di `_merged_round`, un piano piu' sotto.
+
+    La fonte a volte risponde con un lato vuoto, e sostituire una distinta piena con quella e' il
+    difetto del 17/08/2026 - 91 file di 93 riscritti con «zero eventi» in un'ora. La voce fresca vince
+    solo se porta davvero il modulo, o se quella vecchia non ha nemmeno la distinta.
+    """
+    full = {"formation": "4-2-3-1", "players": [{"player": {"id": 1}}]}
+    mute = {"formation": None, "players": [{"player": {"id": 1}}]}
+    assert positions._richer_side(full, mute) is full, "una risposta senza modulo non scavalca"
+    assert positions._richer_side(mute, full) is full, "una che ce l'ha si'"
+    assert positions._richer_side(full, {"players": []}) is full, "un lato vuoto non sostituisce"
+    assert positions._richer_side(None, mute) is mute, "dove non c'era niente, qualcosa e' meglio"
+    # E la vecchia forma della cache - una lista nuda per lato - chiede il modulo.
+    assert positions._side_wants_formation([{"player": {"id": 1}}]) is True
+    assert positions._side_wants_formation(full) is False
+    # Un lato che la fonte non ha mai dato NON e' un modulo che manca: e' una distinta che manca, e
+    # ri-chiederla partita per partita costerebbe una scansione per niente.
+    assert positions._side_wants_formation(None) is False
+
+
 def test_reingesting_a_round_does_not_throw_away_the_synthetic_voto(tmp_path):
     """The defect that emptied `mv_synth` on exactly the seasons the bundle carries.
 
@@ -414,6 +439,27 @@ def test_reingesting_a_round_does_not_throw_away_the_synthetic_voto(tmp_path):
     Put the old statement back and this test names the column it loses.
     """
     assert _synth_after_rewrite(tmp_path, 7.4) == (7.4, 6.33)
+
+
+def test_reingesting_a_round_keeps_where_he_played_and_whose_place_he_took(tmp_path):
+    """La stessa famiglia di `mv_synth`, per le tre colonne aggiunte il 12/09/2026.
+
+    `avg_x`, `avg_y` e `came_for` le scrive `ingest_average_positions` e nessun parser: se un domani
+    qualcuno le mettesse nell'INSERT senza pensarci, una rilettura del turno le riporterebbe a NULL e
+    il campetto tornerebbe a disegnare i subentrati sul profilo - cioe' il difetto che l'operatore ha
+    trovato, in silenzio e mesi dopo.
+
+    A differenza di `mv_synth` NON si ritirano quando il rating cambia: non sono derivate dalla riga,
+    sono un'altra lettura della stessa partita.
+    """
+    ctx = _ctx(tmp_path)
+    ctx.conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (1, 'Nunez')")
+    positions._store_match_rows(ctx.conn, [_match_row(7.4)])
+    ctx.conn.execute("UPDATE external_match_stats SET avg_x = 66.7, avg_y = 16.4, came_for = 99")
+    positions._store_match_rows(ctx.conn, [_match_row(6.1)])
+    ctx.conn.commit()
+    assert tuple(ctx.conn.execute(
+        "SELECT avg_x, avg_y, came_for FROM external_match_stats").fetchone()) == (66.7, 16.4, 99)
 
 
 def test_a_changed_rating_retracts_the_synthetic_voto_instead_of_keeping_a_stale_one(tmp_path):
@@ -841,3 +887,82 @@ def test_a_refused_request_never_writes_the_empty_marker(tmp_path, monkeypatch):
     monkeypatch.setattr(positions, "_get_json", lambda *_args, **_kwargs: {"events": []})
     payload = positions.download_extra(None, "2687", "2023-08-14")
     assert payload == {"league": "extra", "round": 0, "events": [], "lineups": {}}
+
+
+def test_the_lineup_slot_is_the_place_in_the_formation_and_a_substitute_has_none():
+    """L'ORDINE DELL'ARRAY E' IL POSTO NEL MODULO, e il parser lo buttava via fino al 12/09/2026.
+
+    La fonte disegna il suo campetto da quella lista: il portiere, poi la difesa dalla DESTRA della
+    squadra alla sua sinistra, poi il centrocampo, poi l'attacco. Misurato sulle 24.201 distinte in
+    cache prima di adottarlo - linee contigue nel 99,05% dei casi, primo difensore `DR` nel 98,6% -
+    quindi il verso e' misurato e non dedotto da un caso.
+
+    E un SUBENTRATO non ne ha: per lui l'indice e' l'ordine della panchina, cioe' un numero che non
+    dice dove ha giocato. Riempirlo sarebbe una colonna con due significati.
+    """
+    def man(pid, position, substitute, minutes):
+        return {"player": {"id": pid, "name": f"#{pid}", "position": position},
+                "substitute": substitute, "position": position,
+                "statistics": {"minutesPlayed": minutes, "rating": 6.0}}
+
+    payload = {
+        "league": "serie_a", "round": 3,
+        "events": [{"id": 9, "home": "Atalanta", "away": "AS Roma", "round": 3,
+                    "startTimestamp": 1_696_000_000}],
+        "lineups": {"9": {
+            "home": [man(1, "G", False, 90), man(2, "D", False, 90), man(3, "D", False, 90),
+                     man(4, "F", False, 45), man(5, "F", True, 45)],
+            "away": []}},
+    }
+    xref = {str(pid): pid for pid in (1, 2, 3, 4, 5)}
+    rows, _, _ = positions.parse_round(payload, "2026-27", xref)
+    slots = {row[0]: row[-1] for row in rows}
+    assert slots == {1: 0, 2: 1, 3: 2, 4: 3, 5: None}
+
+
+def test_the_formation_comes_from_the_source_and_not_from_the_three_counts():
+    """I CONTEGGI HANNO TRE LINEE E LA FONTE NE DICHIARA QUATTRO (operatore, 12/09/2026).
+
+    `goalkeepers/defenders/midfielders/forwards` vengono dalle posizioni G/D/M/F, quindi un 4-2-3-1 si
+    legge `4-5-1` e i suoi tre trequartisti finiscono in mezzo al campo - la Juventus del 23/08/2026.
+    Il payload porta `formation` dalla prima corsa e il downloader lo scartava.
+    """
+    def man(pid, position, substitute=False):
+        return {"player": {"id": pid, "name": f"#{pid}", "position": position},
+                "substitute": substitute, "position": position,
+                "statistics": {"minutesPlayed": 90, "rating": 6.0}}
+
+    payload = {
+        "league": "serie_a", "round": 1,
+        "events": [{"id": 9, "home": "Juventus", "away": "Frosinone", "round": 1,
+                    "startTimestamp": 1_696_000_000}],
+        "lineups": {"9": {
+            # la forma NUOVA: un dizionario per lato, col modulo dichiarato dalla fonte
+            "home": {"formation": "4-2-3-1",
+                     "players": [man(1, "G"), *[man(i, "D") for i in range(2, 6)],
+                                 *[man(i, "M") for i in range(6, 11)], man(11, "F")]},
+            "away": {"formation": None, "players": []}}},
+    }
+    _, club_rows, _ = positions.parse_round(payload, "2026-27", {})
+    (*_, goalkeepers, defenders, midfielders, forwards, formation) = club_rows[0]
+    # i conteggi leggono 4-5-1...
+    assert (goalkeepers, defenders, midfielders, forwards) == (1, 4, 5, 1)
+    # ...e la fonte dice com'e' davvero
+    assert formation == "4-2-3-1"
+
+
+def test_a_cache_written_before_the_formation_still_reads_its_players():
+    """La forma della cache e' cambiata, e i file gia' su disco restano leggibili.
+
+    Un lettore che conoscesse una forma sola leggerebbe ZERO titolari su meta' dell'archivio - e uno
+    zero uniforme e' la cosa che questo progetto ha imparato a non credere.
+    """
+    old = {"home": [{"player": {"id": 1}, "substitute": False, "position": "G",
+                     "statistics": {"minutesPlayed": 90}}]}
+    new = {"home": {"formation": "3-5-2",
+                    "players": [{"player": {"id": 1}, "substitute": False, "position": "G",
+                                 "statistics": {"minutesPlayed": 90}}]}}
+    assert len(positions._players_of(old, "home")) == 1
+    assert len(positions._players_of(new, "home")) == 1
+    assert positions._formation_of(old, "home") is None
+    assert positions._formation_of(new, "home") == "3-5-2"

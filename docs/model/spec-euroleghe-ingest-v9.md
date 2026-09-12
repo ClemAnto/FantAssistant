@@ -495,6 +495,54 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.91 (12 settembre 2026 — IL MODULO DICHIARATO, DOVE HA GIOCATO CIASCUNO E DI CHI HA PRESO IL POSTO)
+
+Tre acquisizioni e due colonne nuove, tutte nate da segnalazioni dell'operatore sul campetto delle ultime
+partite. Il filo che le lega è la regola più vecchia di questo repository: **il dato c'era e mancava un
+lettore**, tre volte in un giorno.
+
+**`club_match_lineups.formation` — il modulo che la fonte DICHIARA.** I quattro conteggi accanto hanno TRE
+linee e non sanno dire un `4-2-3-1`: misurato, **122 disegni su 178 (68,5%)** discordavano dal modulo vero.
+Il campo è nel payload dalla prima corsa (`home.formation`) e `_sides_of` lo buttava via. La cache però
+tiene l'evento già sfoltito, quindi il valore non si recupera offline: da qui il layer nuovo.
+
+**`positions --layer formations`** — una richiesta per PARTITA e nessuna per turno. Gli id sono già nei
+file dei turni, quindi non serve la lista di nessun turno, non si ripaga la distinta delle partite che il
+modulo ce l'hanno già, e una corsa interrotta riprende da dove era arrivata. Cammina **dalla stagione più
+recente all'indietro** — una scansione da nove ore si abbandona appena la fonte comincia a rifiutare, e
+quello che è arrivato deve essere quello che si guarda. Verificata la rotta su UNA partita per stagione
+prima di lanciarla: il modulo è dichiarato fino al **2019-20**. Chiusa: **178 → 2.267 partite-lato**.
+
+**`positions --layer places`** (`/event/{id}/average-positions`) — **due fatti in una risposta**: la
+posizione media (x, y) di chiunque abbia messo piede in campo, SUBENTRATI COMPRESI, e l'elenco dei cambi con
+`playerIn`/`playerOut`. Si chiede questo e non `/incidents`, che porta solo il secondo. Tre colonne su
+`external_match_stats`:
+
+* **`avg_y`** — l'asse LATERALE, nello stesso verso di `lineup_slot` (0 = destra della squadra). Verificato
+  su tutt'e due i lati di una partita (terzino destro 16,4 · sinistro 84,9) e poi misurato: l'ordine di
+  `lineup_slot` dentro una linea concorda con quello di `avg_y` l'**86,0%** su 683 linee.
+* **`avg_x`** — la PROFONDITÀ, e si dichiara che è l'asse DEBOLE: su 111 partite-club le quattro righe di
+  un modulo leggono 40,7 · 48,7 · 61,4 · **63,1**, cioè trequarti e attacco non si separano — la
+  saturazione già misurata («ala 61, centravanti 62»).
+* **`came_for`** — l'`fc_id` dell'uomo uscito nel cambio che lo ha fatto entrare. Può puntare a un altro
+  SUBENTRATO e allora si risale la catena (Koopmeiners ← Cambiaso ← Conceição). NULL dove l'uscente è fuori
+  dal nostro pool: mettere l'id del provider in una colonna di `fc_id` sarebbe una chiave con due
+  significati, e i due casi si contano invece di mescolarli. Copertura **84,9%**.
+
+**Le tre colonne le scrive `ingest_average_positions` e nessun parser**, quindi l'upsert di
+`_store_match_rows` non le nomina e non le può cancellare — è la disciplina che protegge `mv_synth`, scritta
+dal lato di chi le aggiunge, con un test che la pretende. E l'ingest è SEPARATO dalla lettura, così un
+`rebuild` lo rigioca senza rete e la scansione lunga non tiene aperto il database mentre scarica.
+
+**Un difetto del downloader curato prima che mordesse.** `--refresh` rileggeva 7-8 distinte su 10, cioè
+avrebbe perso due o tre partite per turno — il difetto del 17/08/2026. Ora un turno riletto si **fonde** con
+quello in cache (`_merged_round`): può solo aggiungere, e la voce fresca vince solo se porta davvero il
+modulo o se quella vecchia non ha nemmeno la distinta.
+
+**`SHEET_REVISION` 62**: `formation_shapes_recent` legge il modulo dichiarato invece dei tre conteggi. Il
+dettaglio e l'A/B stanno in `formazioni-tipo-v1.md` §11. `engine_*` non si muove — nessuna di queste colonne
+entra in `evaluate`.
+
 ## Novità v9.90 (11 settembre 2026 — la STAFFETTA aveva il denominatore sbagliato, e il modulo corto viene dalle ultime tre)
 
 **`SHEET_REVISION` 59.** Due cose, e la prima è la cura di un difetto spedito lo stesso giorno.

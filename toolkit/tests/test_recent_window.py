@@ -584,3 +584,188 @@ def test_una_definizione_sola_di_chi_oggi_non_puo_giocare():
     for who in (gui.SnapshotView.eleven, gui.SnapshotView.top_players,
                 gui.SnapshotView.plate_lines, gui.SnapshotView._declared):
         assert "out_today(" in inspect.getsource(who), who.__name__
+
+
+def test_di_due_che_si_alternano_esce_il_peggiore_anche_fra_due_linee():
+    """La promessa di `_apart` - «dei due resta quello con la quota piu' alta» - vale anche FRA le linee.
+
+    Dentro una linea era vera per costruzione: il serbatoio arriva in ordine di claim, quindi chi e' gia'
+    in campo e' per forza il migliore. Fra due linee l'ordine e' P, D, M, A e a decidere era CHI CAPITA
+    PRIMA: alla Juventus il vincolo toglieva Conceicao (0,801, tre partite su tre da titolare) perche'
+    Gonzalez N. (0,427) era entrato a centrocampo un giro prima.
+    """
+    from euroleghe_ingest.gui import SnapshotView
+
+    relays = {"1": {"2": 0.80}, "2": {"1": 0.80}}
+    # graduatoria: 0 = il migliore. "1" e' meglio di "2".
+    better, worse = {"fc_id": "1", "name": "Il migliore"}, {"fc_id": "2", "name": "Il peggiore"}
+    standing = {"1": 0, "2": 1}
+
+    # il PEGGIORE e' gia' in campo: il migliore passa lo stesso
+    assert not SnapshotView._relay_block(better, {"2"}, relays, standing)
+    # il MIGLIORE e' gia' in campo: il peggiore no
+    assert SnapshotView._relay_block(worse, {"1"}, relays, standing)
+    # senza graduatoria la regola vale come prima, per tutt'e due i versi
+    assert SnapshotView._relay_block(better, {"2"}, relays, None)
+    # e un uomo che la graduatoria non conosce non scavalca nessuno
+    assert SnapshotView._relay_block(better, {"2"}, relays, {"1": 0})
+
+
+def test_la_finestra_corta_cammina_il_calendario_del_club_di_oggi():
+    """«Lo sceglie» e' una domanda sul club per cui gioca ORA, quindi il denominatore e' il suo calendario.
+
+    L'unione dei club serve al TREND - «quanto ha reso», una domanda su di LUI - e dentro una stagione sola
+    un trasferimento estivo mette tutt'e due i club fra i suoi, quindi le ultime tre partite finivano per
+    essere di due campionati diversi e la prova sua veniva buttata.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    source = inspect.getsource(snapshot.observations_layer if hasattr(snapshot, "observations_layer")
+                               else snapshot)
+    assert "own_window = build(own, league_fixtures)" in source
+    assert "**recent_block(obs.fc_id, own_window or league_window" in source
+    # ...e il TREND continua a leggere l'unione: due domande, due denominatori
+    assert "**trend_block(obs.fc_id, league_window" in source
+
+
+def test_le_staffette_sono_fra_compagni_di_oggi():
+    """Il taglio a `RELAY_KEEP` non puo' spendersi su coppie che nessuno chiedera' mai.
+
+    Chi legge quella colonna - l'ordine dei ballottaggi e il vincolo dell'undici - chiede sempre di due
+    uomini dello STESSO club; una coppia fra due club diversi occupa un posto e non risponde a niente.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    # Uno gioca le prime due, gli altri due le ultime due: sono staffette di lui, tutt'e due.
+    matches = [{1: (0.0, 90.0), 2: None, 3: None}] * 2 + [{1: None, 2: (0.0, 90.0), 3: (0.0, 90.0)}] * 2
+    # ...ma solo il 2 e' un suo compagno OGGI.
+    got = snapshot.relay_scores(matches, {1: "roma", 2: "roma", 3: "bologna"})
+    assert any(other == 2 for other, _score in got.get(1, ())), "la coppia fra compagni deve restare"
+    assert not any(other == 3 for other, _score in got.get(1, ())),         "una coppia fra due club diversi non serve a nessun lettore"
+    # senza la mappa la funzione resta quella di prima, che e' quello che rende il filtro del CHIAMANTE
+    assert any(other == 3 for other, _score in snapshot.relay_scores(matches).get(1, ()))
+
+
+def test_il_modulo_dell_ultimo_periodo_viene_dalle_ultime_tre_partite():
+    """Numeratore e denominatore dalla STESSA finestra, e in caso di pareggio decide l'ultima partita.
+
+    Il prior del modulo leggeva il conteggio di STAGIONE (`plausible_shapes`) e lo divideva per il totale
+    della finestra CORTA: sulla Fiorentina il rapporto diceva «2 su 3» per quattro moduli diversi, cioe' la
+    colonna dell'ultimo periodo non entrava nel prior. La board disegnava 3-5-2 mentre le ultime tre erano
+    4-3-3, 4-3-3, 4-5-1 (operatore, 11/09/2026: «quindi il risultante dovrebbe essere un 4-3-3»).
+    """
+    from euroleghe_ingest import gui
+
+    source = inspect.getsource(gui.SnapshotView.shape_odds)
+    assert "count = own.get(shape, 0)" in source, "il conteggio viene dalla finestra scelta"
+    assert "for shape, (_season_count, league_share) in options.items():" in source
+    # ...e lo spareggio dell'ultima partita non puo' scavalcare un modulo giocato una volta di piu'
+    assert 0.0 < gui.SnapshotView.RECENT_SHAPE_TIE < 1.0
+
+
+def test_le_ultime_partite_si_scrivono_dalla_piu_recente():
+    """L'ordine della colonna E' un dato: `shape_odds` ci appoggia lo spareggio dell'operatore.
+
+    `sorted` di Python e' stabile e le righe arrivano `ORDER BY match_date DESC`, quindi a parita' di
+    conteggio il primo della colonna e' il modulo dell'ULTIMA partita. Se qualcuno riordina quella query
+    la regola «in caso di dubbio dai maggior credito all'ultima partita» smette di funzionare in silenzio.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    source = inspect.getsource(snapshot.recent_shapes)
+    assert "ORDER BY match_date DESC" in source
+    assert "key=lambda item: -item[1]" in source, "stabile: a parita' resta l'ordine delle partite"
+
+
+def test_il_modulo_dell_ultimo_periodo_e_quello_dichiarato_dal_club():
+    """«Utilizzare i moduli visti nelle ultime partite» (operatore, 12/09/2026), e quelli sono DICHIARATI.
+
+    I tre conteggi di club hanno tre linee e non sanno dire un 4-2-3-1: leggendo loro, la board
+    dell'ultimo periodo diceva 4-5-1 di un club che ha giocato 4-2-3-1. Il dichiarato vince; dove manca
+    - un turno scaricato prima che il downloader tenesse quel campo - restano i conteggi, perche' tre
+    linee sono meglio di niente.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    source = inspect.getsource(snapshot.recent_shapes)
+    assert "SELECT defenders, midfielders, forwards, formation" in source
+    assert '(declared or "").strip() or f"{defenders}-{midfielders}-{forwards}"' in source
+
+
+def test_l_ultimo_periodo_disegna_il_modulo_invece_di_dedurlo():
+    """Un modulo OSSERVATO non si deduce dai codici degli uomini, e non si ripara.
+
+    `_two_rows` spacca una linea «quando il modulo e' quello che la fonte non sa nominare» e `_reshape`
+    ripara un modulo che la rosa non copre: sulla finestra corta la fonte il modulo lo NOMINA, e un
+    modulo giocato la settimana scorsa la rosa lo copre per costruzione. Misurato A/B su una variabile
+    sola: board di stagione ferma su 20 club di 20, board breve da 11 a 20 concordi col dichiarato.
+    """
+    from euroleghe_ingest import gui
+
+    source = inspect.getsource(gui.SnapshotView.eleven)
+    assert 'drawn_as_declared = horizon == "short"' in source
+    assert "if not drawn_as_declared:" in source
+    assert "self._lanes_final = True" in source, "i posti decisi non si rileggono dai codici"
+    # ...e i moduli delle ultime partite devono essere SELEZIONABILI, o il prior li assegna a un modulo
+    # che il club non ha mai giocato: le altre tre sorgenti parlano tutte a tre linee.
+    assert "self.plausible_shapes(info, horizon_of(mode))" in inspect.getsource(
+        gui.SnapshotView.shape_odds)
+
+
+def test_una_staffetta_non_si_salta_per_uno_peggiore():
+    """Queste vie SCAMBIANO, quindi togliere un compagno di staffetta deve lasciare qualcuno di MEGLIO.
+
+    Alla Roma il vincolo toglieva Castro S. (che si alterna con Malen) e la riparazione scendeva ad
+    Arena A., piu' debole di lui: l'eccezione dell'operatore dice «salvo buchi non riempibili da ALTRI», e
+    un uomo peggiore non e' un altro che riempie.
+    """
+    from euroleghe_ingest.gui import SnapshotView
+
+    relays = {"1": {"2": 0.80}, "2": {"1": 0.80}}
+    partner = {"fc_id": "2", "name": "Il compagno di staffetta"}
+    better = {"fc_id": "3", "name": "Uno migliore"}
+    worse = {"fc_id": "4", "name": "Uno peggiore"}
+    standing = {"1": 0, "2": 2, "3": 1, "4": 3}          # posizione: piu' bassa = migliore
+
+    # c'e' chi e' meglio di lui: si salta
+    got = SnapshotView._no_relay(SnapshotView, [partner, better], {"1"}, relays, standing)
+    assert [row["name"] for row in got] == ["Uno migliore"]
+    # restano solo uomini peggiori: rientra
+    got = SnapshotView._no_relay(SnapshotView, [partner, worse], {"1"}, relays, standing)
+    assert {row["name"] for row in got} == {"Il compagno di staffetta", "Uno peggiore"}
+
+
+def test_il_lato_lo_dice_la_partita_e_non_la_stagione():
+    """La heatmap non puo' rispondere «dove ha giocato nelle ultime tre», il posto in formazione si'.
+
+    L'endpoint della heatmap e' per (giocatore, STAGIONE) e per il 2026-27 `positions.avg_y` e' vuoto su
+    tutte le righe: `tm_appearances.position_id` invece c'e' per ogni partita giocata. Se ne legge il solo
+    LATO, perche' la griglia della fonte divide le linee in un altro modo (il posto 8 e' un esterno destro
+    che puo' essere terzino o mediano) mentre destra/centro/sinistra vuol dire la stessa cosa.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    # ogni posto della griglia ha un lato, e i tre valori sono i soli ammessi
+    assert set(snapshot.TM_SLOT_SIDE.values()) == {-1.0, 0.0, 1.0}
+    assert set(snapshot.TM_SLOT_SIDE) == set(snapshot.TM_SLOT_NAME) == set(range(1, 15))
+    # ...e il lato concorda col codice dominante di quel posto, che e' come la tabella e' stata derivata
+    from euroleghe_ingest.modules.positions import REAL_ROLE_SIDE
+    for slot, side in snapshot.TM_SLOT_SIDE.items():
+        assert REAL_ROLE_SIDE[snapshot.TM_SLOT_NAME[slot]] == side, slot
+
+
+def test_il_lato_giocato_lo_legge_solo_lultimo_periodo():
+    """Il prezzo di un posto lo usa sulla finestra corta e mai sulla stagione: sono due domande.
+
+    «Dove gioca adesso» e «dove gioca di solito» hanno due finestre, e la seconda ha il suo giudice
+    esterno (la stampa) che questa colonna non deve muovere - misurato: 20 club su 20 identici.
+    """
+    import inspect
+
+    from euroleghe_ingest import gui
+
+    source = inspect.getsource(gui.SnapshotView._slot_price)
+    assert 'held = self.played_side(row) if self._fit_horizon == "short" else None' in source
+    # ...e l'orizzonte lo dichiara `eleven`, che e' la porta d'ingresso del disegno
+    assert "self._fit_horizon = horizon" in inspect.getsource(gui.SnapshotView.eleven)
+    assert gui.SnapshotView._fit_horizon == "season", "una vista che non ha disegnato legge la stagione"

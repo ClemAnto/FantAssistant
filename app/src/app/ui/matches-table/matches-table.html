@@ -94,10 +94,27 @@
              LE DUE META' ARRIVANO COME CAMPI (`sides`) e non da uno `split('-')` dell'etichetta: un
              join per stringa e' la famiglia di difetti piu' cara di questo progetto, e si romperebbe
              il giorno che un'abbreviazione porta un trattino. -->
+        <!-- LA COLONNA E' UN BERSAGLIO dove e' una partita di UN club (operatore, 12/09/2026): il
+             click sceglie quella partita e il campetto accanto ci disegna chi e' sceso in campo. Il
+             cursore e il `role` seguono la RISPOSTA di `pickable` e non l'esistenza del gesto - nella
+             vista Calciatori una colonna e' una giornata del listone intero e non ha un undici, quindi
+             li' non promette niente. La colonna scelta si accende, o un'evidenziazione che vive solo
+             sul campetto accanto lascerebbe la tabella senza dire quale riga ha prodotto quel disegno. -->
+        <!-- `data-match` e' l'appiglio di chi verifica e non uno stile, come `data-side` qui sotto:
+             leggere l'identita' di una partita da un'etichetta abbreviata sarebbe il join per stringa
+             che questo progetto paga da sempre. Le due meta' sono due attributi perche' sono due meta'
+             di una chiave. -->
         <th
-          class="text-center leading-tight"
+          [class]="'text-center leading-tight ' + headerTone(header)"
+          [attr.data-match]="header.matchId"
+          [attr.data-match-club]="header.matchClub"
+          [attr.role]="pickable(header) ? 'button' : null"
+          [attr.tabindex]="pickable(header) ? 0 : null"
+          [attr.aria-pressed]="pickable(header) ? header.matchId === selectedMatch() : null"
           [nzWidth]="widths().cell + 'px'"
-          [title]="header.title"
+          [title]="pickable(header) ? header.title + ' · clicca per la formazione' : header.title"
+          (click)="onMatch(header)"
+          (keydown.enter)="onMatch(header)"
         >
           @if (header.sides; as sides) {
             <span class="block leading-none">
@@ -179,10 +196,14 @@
             <span class="flex items-center gap-1.5">
               <ui-crest [club]="line.club" [clubId]="line.clubId" [crests]="crests()" size="sm" />
               <ui-role [role]="line.role" [size]="dense() ? 'xs' : 'sm'" />
+              <!-- Da stretti il fatto lo porta la sola TINTA: il ✚ starebbe accanto a stemma, ruolo e
+                   marchi su una riga che ha già poco spazio, e il colore è la metà del vocabolario che si
+                   legge senza leggere. -->
               <span
                 class="cursor-pointer truncate hover:underline"
                 role="button"
                 tabindex="0"
+                [class.text-warning]="sidelined(line.fcId)"
                 (click)="pick.emit(line.fcId)"
                 (keydown.enter)="pick.emit(line.fcId)"
                 >{{ line.name }}</span
@@ -194,14 +215,28 @@
                  dice - misurato il 06/09/2026 sulla vista Squadre, 30px in meno su ogni riga. I puntini
                  sono meno della verita' ma non sono una bugia, e la card porta il nome intero. -->
             <span class="flex min-w-0 items-center gap-1.5">
+              <!-- IL NOME IN AMBRA E IL ✚ DI CHI OGGI NON PUÒ GIOCARE, la stessa grafica del campetto
+                   (operatore, 11/09/2026). Ambra e non rosso perché è la tinta che questa app dà a
+                   un'assenza da sempre - «un infortunio è un fatto su un calciatore, mai una colpa» - e il
+                   glifo è quello della legenda del pannello, non l'icona di `ui-flags`, che risponde a
+                   un'altra domanda. Solo sull'ultimo periodo, perché è lì che il campo viaggia. -->
               <span
                 class="min-w-0 cursor-pointer truncate hover:underline"
                 role="button"
                 tabindex="0"
+                [class.text-warning]="sidelined(line.fcId)"
                 (click)="pick.emit(line.fcId)"
                 (keydown.enter)="pick.emit(line.fcId)"
                 >{{ line.name }}</span
               >
+              @if (sidelined(line.fcId)) {
+                <span
+                  class="shrink-0 text-[10px] leading-none text-warning"
+                  nz-tooltip
+                  nzTooltipTitle="Oggi non è disponibile. La formazione dell'ultimo periodo gli indisponibili non li schiera, quindi la percentuale qui accanto è quella di stagione: la finestra corta, senza partite sue, restituisce il prior intatto."
+                  >✚</span
+                >
+              }
               <ui-flags class="shrink-0" [playerId]="line.fcId" />
             </span>
           }

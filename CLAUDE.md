@@ -5571,6 +5571,90 @@ nello stesso oggetto. **126 partite** per la stagione in corso, che è la sola c
 guarda, contro ~1.750 per una stagione intera. *Un dato che si butta via mentre lo si legge non è
 un'acquisizione da zero, ed è la settima volta che questo repository lo scopre.*
 
+## Un MODULO è quello che la fonte DICHIARA, e il regolamento del fantacalcio non c'entra
+**12/09/2026, dalle correzioni dell'operatore sul campetto delle ultime partite. Dettaglio:
+`formazioni-tipo-v1.md` §11, `letture-app-v1.md` §40, spec «Novità v9.91».**
+
+**IL DATO C'ERA, DUE VOLTE IN UN GIORNO, E SONO L'OTTAVA E LA NONA ISTANZA.** Le linee di un campetto
+venivano dai conteggi `G/D/M/F`, che ne hanno **TRE**: misurato, **122 disegni su 178 (68,5%)**
+discordavano dal modulo vero, e il più frequente è proprio il `4-2-3-1` che tre linee non possono
+esprimere (81 su 178). `home.formation` è nel payload dalla prima corsa e il downloader lo scartava. E
+`/event/{id}/average-positions` porta **due fatti in una risposta** — la posizione media di chiunque abbia
+messo piede in campo, SUBENTRATI COMPRESI, e l'elenco dei cambi con chi esce e chi entra — mentre noi
+chiedevamo `/incidents`, che porta solo il secondo, e solo per le amichevoli.
+
+**UN SUBENTRATO NON PUÒ OCCUPARE UN POSTO CHE NON SI È MAI LIBERATO**, ed è la segnalazione da cui tutto è
+nato: González disegnato sotto Kolo Muani, che ha giocato **90 minuti**. Il posto lo sceglieva il PROFILO
+del subentrato, e un profilo non sa che il modulo è cambiato. I minuti non ricostruiscono lo scambio — un
+uscita trova un ingresso complementare unico nel **30,3%** dei casi — e su quella partita nemmeno tornano:
+cinque entrati contro quattro titolari usciti, perché **Cambiaso è entrato al 76′ ed è uscito lui stesso al
+86′**. Col cambio vero si risale la CATENA (Koopmeiners ← Cambiaso ← Conceição) e i subentrati entrati per
+un uomo rimasto in campo tutta la gara diventano **ZERO per costruzione**.
+
+**E IL VOCABOLARIO DEI MODULI NON È IL REGOLAMENTO** (sua correzione, e cambia il confine): «la formazione
+ULTIMO PERIODO deve rappresentare la formazione tipo della squadra reale nel breve termine, e quindi
+utilizzare i moduli visti nelle ultime partite — **e non c'entrano CLASSIC o MANTRA**». Un undici di
+fantacalcio è legale sul rulebook; l'undici di un club vero è un fatto, e i suoi sette moduli classic non
+lo vincolano. Effetto sulla board breve: **da 11 a 20 club su 20** concordi col modulo dichiarato nelle
+ultime tre.
+
+**LE RIGHE DI UN MODULO DEVONO ARRIVARE ALLA SELEZIONE, non solo al disegno**, ed è il difetto che la
+prima versione ha prodotto e che lui ha trovato in minuti («perché nella Roma vedo Wesley sulla
+trequarti?»). `lines('3-4-2-1')` collassa a (3, **6**, 1) — «sei centrocampisti e un attaccante» — mentre
+un trequartista viene spedito in ATTACCO: così l'unico posto d'attacco se lo contendono i trequartisti e i
+due posti di trequarti li riempie chi è stato scelto come centrocampista, cioè un esterno. *Due funzioni
+che collassano la stessa riga in due direzioni opposte non si notano finché il modulo ha tre numeri.*
+
+**E UN SERBATOIO PIÙ LARGO NON È UNA SCELTA PIÙ GENEROSA.** La forma larga — ogni uomo d'attacco candidato
+anche alla trequarti, che è la regola «i due attaccanti esterni possono arretrare» presa alla lettera — è
+stata scritta e **bocciata dalla misura**: uomini su una linea che i loro codici non coprono **14 → 22**, e
+il Milan finiva per schierare Pulisic, che nelle ultime tre ha **zero minuti**. Allargare un serbatoio
+sposta uomini in TUTTE le righe attraverso il prestito e le riparazioni.
+
+**UNA CONVENZIONE DICHIARATA NON DIVENTA UNA MISURA PERCHÉ ESISTE UN DATO VICINO.** La sua griglia a sei
+linee (PORTA · DIFESA · MEDIANA · CENTROCAMPO · TREQUARTI · ATTACCO) è stata messa alla prova con `avg_x`:
+le quattro righe di un modulo leggono 40,7 · 48,7 · 61,4 · **63,1**, cioè la profondità ordina le prime tre
+e **non separa la trequarti dall'attacco** — la saturazione già misurata. Quindi i nomi restano una sua
+dichiarazione. E la quinta riga non si costruisce: **nessun modulo a cinque numeri esiste** nell'archivio
+(0 su 178, la fonte ne pubblica solo a 3 e a 4). *Prima di costruire una riga, contare quante volte la
+fonte la nomina.*
+
+Quattro abitudini di misura, e tre sono errori miei della stessa giornata.
+- **UN A/B SU DUE VARIABILI NON È UN A/B**, e la seconda variabile ero io stesso: il primo confronto
+  metteva a fronte il codice nuovo col pacchetto del mattino, che nel frattempo le acquisizioni della
+  stessa giornata avevano cambiato, e leggeva 15 club mossi sulla board di STAGIONE che non doveva muoversi.
+  Rifatto con un interruttore temporaneo su una variabile sola: **0 moduli e 0 disegni**. *Quando si sta
+  acquisendo dati e cambiando codice nello stesso giorno, la base di confronto si ricostruisce, non si cita.*
+- **SI CHIAMA LA FUNZIONE, non si rifà il conto a mano** — settima istanza, commessa mentre citavo la
+  regola: ho ricostruito la formula della staffetta dagli intervalli e ne è uscito un numero che non era
+  quello del foglio. La differenza era la FINESTRA (`RELAY_MATCHES` = 38 contro le 3 che credevo), e senza
+  chiamare `relay_scores` avrei attribuito il difetto alla formula.
+- **UN FIXTURE CON ID COLLIDENTI NON PUÒ PROVARE UNA REGOLA CHIAVATA SULL'ID.** `fcId = lunghezza × 100 +
+  prima lettera` dava a `MedianoA`, `MedianoB` e `MedianoC` lo STESSO numero (e ai quattro difensori, e ai
+  tre attaccanti). Finché il disegno guardava posizione e minuti non si vedeva; il primo test della catena
+  dei cambi sembrava un difetto del codice ed era il fixture.
+- **E UN'ASSERZIONE NUOVA SI PROVA RIMETTENDO IL DIFETTO**: col codice vecchio il banco nomina
+  «Dovbyk e Mbangula disegnato sotto Piccoli, che ha giocato 90′ e quindi non ha ceduto il posto a
+  nessuno» — cioè la famiglia esatta del caso segnalato, su un club diverso.
+
+**E UNA SCANSIONE LUNGA CAMMINA DALLA STAGIONE PIÙ RECENTE ALL'INDIETRO.** Il glob di una cache è
+alfabetico, quindi una passata da nove ore sarebbe partita da `bundesliga_2019-20_r1` e la stagione in
+corso sarebbe stata l'ultima di dodicimila. Una scansione così si abbandona appena la fonte comincia a
+rifiutare (regola del 17/08) e può essere fermata: **quello che è arrivato deve essere quello che si
+guarda.** Con lei, la forma che rende la passata economica: gli id delle partite sono già nei file dei
+turni, quindi una richiesta per PARTITA e nessuna per turno, e non si ripaga quello che è già in cache.
+
+## Due sessioni su un albero: HEAD può essere ROSSO, e allora si porta anche la loro metà
+**12/09/2026, sesta istanza e una causa nuova.** `club-eleven.ts` a HEAD legge `outToday` **sei volte** e
+`valuation-store.ts` a HEAD non lo definisce: l'altra sessione aveva committato i CONSUMATORI e lasciato
+fuori le DEFINIZIONI. Committare solo i propri file avrebbe lasciato in piedi esattamente il rosso che la
+regola «non committare la metà di un altro» esiste per evitare.
+
+La verifica è meccanica e non un'intuizione — `git show HEAD:<file> | grep` sul simbolo condiviso — e va
+fatta PRIMA di decidere la composizione del commit, non dopo. *Quando separare produce il rosso, si porta
+tutto e si dice di chi è cosa*, che è la regola già scritta, incontrata dal lato in cui è l'ALTRO ad avere
+committato la metà sbagliata.
+
 ## Un'OTTIMIZZAZIONE che dipende da cosa il chiamante sa è un'ottimizzazione che non morde
 **11/09/2026, e la riga del piano la dichiarava attiva.** Per far camminare `recent_form` solo sulle
 ultime tre stagioni avevo calcolato l'elenco nel PIANO — e `update.run` passa `seasons=None` ogni volta

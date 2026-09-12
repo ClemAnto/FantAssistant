@@ -142,14 +142,26 @@ export const FULL_MATCH = 90;
 export const PLAYED_THE_MATCH = 75;
 
 export function spellOf(cell: MatchCell): MatchSpell {
-  const minutes = cell.minutes;
+  return spellFrom(cell.started, cell.minutes);
+}
+
+/**
+ * LO STESSO FATTO, dai due campi che lo decidono: una definizione, DUE lettori.
+ *
+ * Esiste perche' il campetto di una partita gia' giocata disegna gli stessi triangolini su righe che
+ * non sono celle di una tabella (`core/match-lineup.ts`, 12/09/2026): un uomo che il listone non quota
+ * non ha una cella, e ricopiare qui la condizione «titolare con meno di 90 minuti» sarebbe una seconda
+ * definizione di «e' stato sostituito» - cioe' due schermate che un giorno dicono due cose sullo stesso
+ * cambio.
+ */
+export function spellFrom(started: boolean | null, minutes: number | null): MatchSpell {
   // Senza i minuti o senza la distinta non si dice niente: una freccia inventata su una riga di
   // fantacalcio e' una frase sul calciatore che nessuno ha osservato.
-  if (minutes == null || cell.started == null) return { minutes, on: false, off: false };
+  if (minutes == null || started == null) return { minutes, on: false, off: false };
   return {
     minutes,
-    on: !cell.started && minutes > 0,
-    off: cell.started && minutes > 0 && minutes < FULL_MATCH,
+    on: !started && minutes > 0,
+    off: started && minutes > 0 && minutes < FULL_MATCH,
   };
 }
 

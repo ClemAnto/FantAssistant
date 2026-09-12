@@ -439,6 +439,18 @@ def _statuses(view: Any, drawn: dict[str, set[int]],
                 # ...e se il padrone del suo posto rientra a breve, che sulla board lunga e' sempre None
                 # per costruzione: quella regola vive solo dove le due board si confrontano.
                 "owner_returning": (owners or {}).get(fid),
+                # OGGI NON PUO' GIOCARE, e viaggia solo sull'ULTIMO PERIODO (operatore, 11/09/2026:
+                # «quando ho selezionato ULTIMO PERIODO riporta anche nella lista calciatori la stessa
+                # grafica per gli infortunati»). Sta qui e non lo deduce l'app perche' la definizione e'
+                # una sola (`SnapshotView.out_today`: uno stop aperto oppure la stampa che lo da' fuori) e
+                # le due colonne che la compongono NON viaggiano nel pacchetto - `ui-flags` risponde a
+                # un'altra domanda e solo per gli stop di 45+ giorni, quindi meta' di questi uomini non
+                # porterebbe nessun marchio.
+                # Solo sull'ultimo periodo perche' e' li' che SPIEGA i numeri accanto: quella board gli
+                # indisponibili non li schiera e la loro finestra e' vuota, quindi la quota che si legge e'
+                # quella di stagione. Sulla board lunga lo stesso fatto non spiega niente - li' un'assenza
+                # e' gia' dentro il claim come sconto - e disegnarlo sarebbe un marchio senza una frase.
+                "out_today": view.out_today(row) if horizon == "short" else None,
             }
         except Exception:                                   # noqa: BLE001 - one man, never the sheet
             continue

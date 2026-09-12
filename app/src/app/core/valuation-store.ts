@@ -929,6 +929,8 @@ export class ValuationStore {
     titolarita: string | null;
     titolaritaPlay: number | null;
     minutesNext: number | null;
+    /** Oggi non può giocare - solo sull'ultimo periodo, dove è il fatto che spiega gli altri due. */
+    outToday: boolean;
   } | null {
     // L'ORIZZONTE SCELTO, quando è quello corto e il pacchetto lo porta: allora i tre numeri vengono
     // dalla board dell'ultimo periodo, che li ha calcolati sulla SUA finestra. Leggerne uno da una
@@ -941,6 +943,7 @@ export class ValuationStore {
           titolarita: rung.status ?? null,
           titolaritaPlay: rung.play ?? null,
           minutesNext: rung.minutes ?? null,
+          outToday: !!rung.out_today,
         };
       }
     }
@@ -950,6 +953,9 @@ export class ValuationStore {
       titolarita: one.titolarita,
       titolaritaPlay: one.titolaritaPlay,
       minutesNext: one.minutesNext,
+      // FALSE e non «ignoto» sulla stagione, perché là la domanda non si pone: quella board un
+      // indisponibile lo disegna comunque, scontato dentro il claim, quindi non c'è niente da marcare.
+      outToday: false,
     };
   }
 

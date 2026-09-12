@@ -275,6 +275,12 @@ export interface BoardRung {
   in_eleven?: boolean;
   contended?: boolean | null;
   owner_returning?: boolean | null;
+  /**
+   * OGGI NON PUÒ GIOCARE. Viaggia solo sulla scala dell'ULTIMO PERIODO, dove spiega i numeri accanto: là
+   * la board gli indisponibili non li schiera, quindi la quota che si legge è quella di stagione. Assente
+   * su un pacchetto scritto prima dell'11/09/2026, e assente è IGNOTO - non «disponibile».
+   */
+  out_today?: boolean | null;
 }
 
 export interface BoardsFile {

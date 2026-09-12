@@ -1393,3 +1393,134 @@ l'acquisizione degli `incidents` che il §10.9 proponeva **non è stata fatta e 
 
 **Del §10.10 si chiude il punto 1**; restano aperti il 2, il 3 e il 4 (N. Gonzalez al centro, il ballottaggio
 con Woltemade, Cissé × Moreira), che vanno riletti sui fogli di revisione 59.
+
+---
+
+# 11. L'ULTIMO PERIODO SI APPOGGIA AI MODULI OSSERVATI (12 settembre 2026)
+
+Richiesta dell'operatore: «devi rivedere completamente la formazione ULTIMO PERIODO basandoti sui moduli
+acquisiti e sui titolari e sulle sostituzioni delle ultime partite per avere uno schema fondato sui fatti
+reali», con due precisazioni arrivate mentre lavoravo — «deve rappresentare la formazione tipo della
+squadra reale nel breve termine, e quindi utilizzare i moduli visti nelle ultime partite, **e non c'entrano
+CLASSIC o MANTRA**» e «nella realtà i ruoli si basano su cinque linee + porta: PORTA, DIFESA, MEDIANA,
+CENTROCAMPO, TREQUARTI, ATTACCO, ma di solito MEDIANA e CENTROCAMPO si fondono».
+
+## 11.1 — Il modulo era DEDOTTO e la fonte lo DICHIARA
+
+`formation_shapes_recent` (rev 59) leggeva i tre conteggi di club, che hanno TRE linee e non sanno dire un
+4-2-3-1. Da quando `club_match_lineups.formation` esiste (11/09) quel modulo è un fatto pubblicato, e il
+vocabolario vero della fonte è fatto per il **69% di moduli a QUATTRO numeri**: sulle 178 partite-lato del
+primo archivio, `4-2-3-1` 81 volte, `3-4-2-1` 24, `4-3-3` 23, `4-4-2` 15.
+
+Misurato sul foglio Serie A: **10 board brevi su 20 disegnavano un modulo che il club non ha dichiarato in
+nessuna delle ultime tre.** Non erano scarti di vocabolario:
+
+| club | disegnato | dichiarato nelle ultime tre |
+|---|---|---|
+| Atalanta | `4-3-2-1` | `4-3-3` ×3 |
+| Napoli | `4-2-1-3` | `4-3-3` ×3 |
+| Monza | `3-4-2-1` | `3-4-3` ×3 |
+| Parma | `3-4-1-2` | `4-4-2` (linea difensiva diversa) |
+
+Adottato: `recent_shapes` legge `formation` e tiene i tre conteggi come RIPIEGO dove manca — una partita
+scaricata prima che il downloader tenesse quel campo non ha il dichiarato, e tre linee sono meglio di
+niente. Effetto: **da 11 a 20 club su 20** concordi col modulo delle ultime tre.
+
+## 11.2 — Un modulo OSSERVATO non si deduce e non si ripara
+
+Due macchine lavoravano sul modulo e tutt'e due rispondono a una domanda che su questa finestra non esiste
+più. `_two_rows` spacca una linea «quando il modulo è quello che la fonte non sa nominare»: adesso la fonte
+lo nomina. `_reshape` ripara un modulo che la rosa non copre: un modulo giocato la settimana scorsa la rosa
+lo copre per costruzione. Tutt'e due SPENTE sull'orizzonte corto e intatte sulla stagione, con
+`_lanes_final = True` perché `lanes_for` non rilegga i posti dai codici — la stessa scelta delle due strade
+che già disegnano un undici dichiarato (l'undici davvero schierato e quello dei probabili).
+
+**A/B su UNA variabile sola**, e la prima misura ne muoveva due (il codice *e* i dati, cambiati dalle
+acquisizioni dello stesso giorno): board di STAGIONE **0 moduli e 0 disegni** su 20 club, board breve 11
+moduli e 12 disegni. `engine_*` fermo, `SHEET_REVISION` 62.
+
+## 11.3 — Le righe del modulo devono arrivare alla SELEZIONE, non solo al disegno
+
+E qui la prima versione ha prodotto un difetto che l'operatore ha trovato in pochi minuti: «perché nella
+Roma vedo Wesley sulla trequarti? La formazione tipo è più realistica con Molina e Wesley sulle fasce a
+centrocampo».
+
+La causa non era il modulo — il `3-4-2-1` della Roma è dichiarato due volte su tre — era che **l'undici si
+sceglieva ancora sulle TRE linee del listone**. `lines('3-4-2-1')` = (3, **6**, 1), cioè «sei
+centrocampisti e un attaccante», mentre `line_key` manda ogni trequartista in ATTACCO: così Soulè
+contendeva l'unico posto d'attacco a Malen e i due posti di trequarti li riempiva chi era stato scelto come
+centrocampista — **Wesley**, che è un esterno e nelle ultime tre ha giocato `ML` per 60 e 90 minuti.
+
+Adottato: sull'orizzonte corto la selezione chiede le righe del modulo DICHIARATO (`shape_lanes`:
+P·D·M·T·A), e un uomo con un codice `T` è candidato per la trequarti e non solo per l'attacco. Roma:
+**Wesley torna all'`Es`, Soulè va sulla trequarti accanto a Dybala**, Molina esce (0 partite da titolare
+nelle ultime tre). Sui venti club: uomini disegnati su una linea che i loro codici non coprono **15 → 14**
+(erano 17 con la sola §11.2), moduli 20/20, board di stagione ferma.
+
+**E LA FORMA LARGA È STATA SCRITTA E BOCCIATA DALLA MISURA.** Mettere ogni uomo d'attacco nel serbatoio
+della trequarti — la regola «i due attaccanti esterni possono arretrare» presa alla lettera — porta i fuori
+ruolo a **22** e fa schierare al Milan **Pulisic, che nelle ultime tre ha ZERO minuti**. *Un serbatoio più
+largo non è una scelta più generosa: sposta uomini in tutte e tre le righe attraverso il prestito e le
+riparazioni.*
+
+## 11.4 — La griglia a sei linee dell'operatore, misurata
+
+Con `avg_x` per partita (§11.6) si può chiedere al dato dove cade ogni riga di un modulo dichiarato, invece
+di decidere i nomi a tavolino. Su 111 partite-club: difesa **40,7** · seconda riga **48,7** · terza
+**61,4** · quarta **63,1** (0 = propria porta). L'asse ordina le prime tre e **non separa la trequarti
+dall'attacco** — è la saturazione che questo progetto ha già misurato («ala 61, centravanti 62»).
+
+Quindi i NOMI delle righe restano una convenzione DICHIARATA, ed è la sua. E la quinta riga non serve:
+misurato su tutto l'archivio, **nessun modulo a cinque numeri esiste** (0 su 178 — la fonte pubblica solo
+3 e 4 numeri), quindi `shape_lanes` con le sue quattro righe di movimento copre il vocabolario intero.
+Detto invece di costruito.
+
+## 11.5 — Quanto l'ultimo periodo «ricalca» la tipo
+
+Sua osservazione: «ricordati che la formazione nel breve periodo deve ricalcare un po' quella tipo».
+Misurato: i due undici condividono **173 uomini su 220 (78,6%)**, ed è un numero che le modifiche di questa
+sessione hanno spostato di **meno di un punto e mezzo** (era 80,0%). La somiglianza è già nella costruzione
+— la miscela pesa la finestra corta col prior di stagione, K=5 — e quello che lui aveva visto alla Roma era
+lo scambio Wesley/Molina del §11.3, non una deriva.
+
+## 11.6 — Il dato nuovo sotto tutto questo
+
+Due acquisizioni, una richiesta per partita ciascuna:
+
+* **`--layer formations`**: il modulo dichiarato sulle partite già in archivio. Era su **178 partite-lato
+  su 24.214** e ogni stagione fino al 2025-26 stava a ZERO — la cache le teneva nella forma vecchia e
+  nessun replay offline può inventarlo. Verificato sulla fonte PRIMA di lanciare (una partita per stagione:
+  il modulo è dichiarato fino al 2019-20), passata mirata dalla stagione in corso all'indietro, ~9 ore.
+  Chiusa: **2.267 partite-lato** hanno ora il modulo.
+* **`--layer places`** (`/event/{id}/average-positions`): dove ogni uomo ha giocato quella partita,
+  SUBENTRATI COMPRESI, **più l'elenco dei cambi con chi esce e chi entra** — due fatti in una risposta.
+  `avg_y` è l'asse laterale nello stesso verso di `lineup_slot` (0 = destra della squadra), misurato:
+  concorda con l'ordine della distinta l'**86,0%** su 683 linee.
+
+## 11.7 — Aperto, con il suo numero
+
+**Chukwueze non è nell'undici del Milan e dovrebbe esserci** (segnalazione dell'operatore). Ha cominciato
+**2 delle ultime 3** (90′ + 90′), 209 minuti, la scala lo chiama `titolare`; la fonte lo mette a
+CENTROCAMPO in tutt'e due le partite che ha cominciato, con `avg_y` **16** — la fascia destra. Quel posto
+(`Ed`) la board lo dà a **Rabiot**, che è un centrale (y 33-55): è la regola dell'operatore «una fascia la
+copre un esterno, mai un centrale», rotta.
+
+La causa è che l'undici mette un uomo in una linea guardando il suo **CODICE** (`RW` → attacco), quindi
+un'ala contende solo l'unico posto d'attacco; la sua linea e la sua fascia MISURATE partita per partita non
+entrano nel serbatoio. Dell'11/09 di `desc_played_roles` era stato tenuto **solo il lato**, per una ragione
+buona — le righe della griglia di Transfermarkt e le nostre non coincidono (`MR` è il codice dominante del
+posto 8 al 31%) — ma **`external_match_stats.position` è il NOSTRO vocabolario a quattro linee**, la
+stessa colonna da cui vengono i conteggi del modulo, e quella trappola non ce l'ha. Da pre-registrare.
+
+**Le staffette dai cambi VERI.** I ballottaggi si ordinano ancora sulla misura a intervalli di minuti
+(`desc_relay`, §10.11), che poggia sull'assunzione «un subentrato entra al minuto `90 − giocati`». Adesso i
+cambi sono osservati: misurate **43 coppie con due o più cambi reciproci** in tre giornate di Serie A, e
+sono inequivocabili — Hojlund↔Lucca, Scamacca↔Krstović, **Malen↔Castro S.**, Soulè↔Mora, Modrić↔Jashari.
+Il caso che lo rende necessario è il Milan: `relay(Chukwueze, Saelemaekers)` legge **0,526** e li separa,
+mentre i cambi veri dicono che non si sono mai sostituiti a vicenda e sono stati in campo insieme 55
+minuti — quella separazione è l'artefatto di un doppio cambio al 61′.
+
+**Le coppe.** `desc_cup*` è sul foglio dal 17/08 e la board non lo legge. Oggi è inerte e va detto: la
+Coppa d'Asia 2027 è **07/01 → 05/02/2027**, 7 giocatori esposti, fino a −0,1 giornate di questo calendario
+— non può muovere una board a breve termine di settembre, e un cancello scritto adesso avrebbe popolazione
+zero.

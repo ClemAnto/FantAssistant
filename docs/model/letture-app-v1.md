@@ -5182,3 +5182,100 @@ e va agganciato dove serve al tavolo.
 
 Chalobah e Moreno M. sono marcati con **0,00** di gol+assist, ed è la prova che i due bracci servono:
 letti sui bonus sarebbero invisibili, ed è lo 0,70x che la misura respinge.
+
+---
+
+# 40. LA FORMAZIONE DI UNA PARTITA GIÀ GIOCATA (12 settembre 2026)
+
+Richiesta dell'operatore: «nella pagina CLUBS, quando nella visualizzazione "ultime partite" seleziono una
+partita cliccando sul nome della colonna, vorrei che nel campetto ricostruissi la formazione che ha giocato
+quella partita». Poi sei correzioni sue, una per volta, e ognuna ha trovato un difetto diverso.
+
+**Perché sta nell'APP.** La regola di casa — «l'undici di un club vero lo disegna il toolkit e l'app lo
+legge» — vincola la board DISEGNATA, che è una previsione su una persona e quindi una misura da giudicare.
+Qui non si prevede niente: chi è sceso in campo il 29 agosto è scritto nel layer per-partita che il
+pacchetto già porta, per intero. Farlo esportare di nuovo dal toolkit sarebbe una seconda copia di un fatto
+solo.
+
+## 40.1 — Le tre metà vengono da tre posti, e non è un dettaglio
+
+Il MODULO è un conteggio di CLUB (`club_match_lineups`, scritto su tutte le voci della distinta, risolte o
+no) ed è COMPLETO; i NOMI passano dall'imbuto delle identità e dal perimetro del listone e possono mancare;
+il POSTO dentro la linea è `external_match_stats.lineup_slot`.
+
+Costo della seconda metà, misurato: Serie A nomina **11 uomini su 11 nel 99,4%** delle partite-club e
+almeno 10 nel 100%; sugli altri quattro campionati si scende al 65-67% e al **49% in Ligue 1**. Per questo
+un posto che non si riesce a nominare resta VUOTO e si conta: un undici di nove uomini disegnato come un
+undici direbbe che il club ha giocato in nove.
+
+## 40.2 — `lineup_slot`: l'ordine dell'array È il modulo
+
+L'indice della voce nella distinta della fonte. Misurato sulle **24.201 distinte in cache** prima di
+adottarlo: linee contigue nel **99,05%** dei casi, il PRIMO difensore dell'array è un `DR` **10.620 volte
+contro 146** `DL` e l'ultimo un `DL` 8.816 contro 1.085. Il verso — dalla DESTRA della squadra alla sua
+sinistra — è misurato, non dedotto da un caso, ed è lo stesso della `x` del pannello.
+
+NULL per un subentrato, per costruzione: per lui l'indice è l'ordine della panchina.
+
+## 40.3 — Il modulo DICHIARATO, e i tre conteggi non bastavano
+
+Prima correzione dell'operatore: «non è un 3-4-3 ma un 3-4-2-1», poi «non è un 4-5-1 ma un 4-2-3-1, infatti
+Conceição, McKennie e Yildiz sono trequartisti». Aveva ragione e la causa era strutturale: le linee venivano
+dai conteggi `G/D/M/F`, che ne hanno **tre**. Misurato sul pacchetto: **122 disegni su 178 (68,5%)**
+discordavano dal modulo vero, e il più frequente è proprio `4-2-3-1` (81 su 178).
+
+La fonte lo dichiara (`home.formation`) e il downloader lo scartava — nona istanza di «il dato c'era e
+mancava un lettore» — verificato con UNA richiesta prima di toccare niente. Adottata la sua regola:
+«utilizziamo il modulo della fonte, altrimenti non ci troviamo più con il resto».
+
+**Il taglio si fa per INTERVALLI DI POSTO e non per fette.** La prima versione tagliava a fette e pretendeva
+tutti e undici i nomi: cadeva proprio su `euro`, dove un nome manca per costruzione. Con l'indice assoluto
+un nome mancante lascia **il suo** posto vuoto senza spostare nessun altro.
+
+## 40.4 — I SUBENTRATI: il posto che si è liberato DAVVERO
+
+Sua segnalazione: «la Juve ha cominciato con un 442 ma poi si è trasformato in un 4-2-3-1, e sembra che
+González abbia giocato nella stessa posizione di Kolo Muani, che non è uscito».
+
+Il posto lo sceglieva il **profilo** del subentrato (un `pc` al centro, una `w` di lato), e un profilo non
+sa che il modulo è cambiato. **Kolo Muani ha giocato 90 minuti: il suo posto non si è mai liberato e nessuno
+può averlo occupato.**
+
+Il fatto mancava e la fonte lo dà: `/event/{id}/average-positions` porta in UNA risposta le posizioni medie
+di chiunque abbia messo piede in campo — subentrati compresi — **e l'elenco dei cambi con chi esce e chi
+entra**. I minuti non lo ricostruiscono: un'uscita trova un ingresso complementare unico nel **30,3%** dei
+casi, e su quella partita nemmeno torna — cinque entrati contro quattro titolari usciti, perché **Cambiaso
+è entrato al 76′ ed è uscito lui stesso al 86′**.
+
+Adottato: il subentrato va nel posto del titolare che ha sostituito, **risalendo la catena** (Koopmeiners ←
+Cambiaso ← Conceição). Dove il cambio non è noto — una coppa, un pacchetto vecchio, un uscente fuori dal
+listone — resta il ripiego, ma i posti eleggibili sono solo quelli che si sono LIBERATI, e il LATO lo dice
+`avg_y` (una misura su di lui) prima del suo codice di listone (il mestiere per cui lo compri).
+
+Misure: **84,9%** dei subentrati ha il cambio noto (il resto è l'uscente fuori dal nostro pool), **8 catene**,
+e **ZERO** subentrati risultano entrati per un uomo che ha giocato 90′ — il difetto è impossibile per
+costruzione.
+
+## 40.5 — Il banco, e l'asserzione provata rimettendo il difetto
+
+`e2e-clubs-lineup.mjs` sceglie la partita dal PACCHETTO prima di aprire la pagina (se la scegliesse
+leggendo l'intestazione, una pagina che dichiara la partita sbagliata verrebbe verificata contro la partita
+sbagliata), e confronta nomi, posti per riga, ordine dentro la linea, subentrati e la coppia (entrato,
+uscente). Due casi e non uno: `default`, dove i nomi ci sono tutti, ed `euro`, dove un posto resta vuoto per
+costruzione — un banco che guardasse solo il primo direbbe «nessun problema» del ramo che nessuno ha mai
+disegnato.
+
+**Le due asserzioni nuove sono state provate rimettendo il difetto**: col codice vecchio il banco legge
+«Dovbyk e Mbangula disegnato sotto Piccoli, che ha giocato 90′ e quindi non ha ceduto il posto a nessuno» —
+la stessa famiglia del caso dell'operatore.
+
+**E un difetto del FIXTURE, non del codice.** Il primo test della catena falliva: `man()` generava
+`fcId = lunghezza × 100 + prima lettera`, quindi `MedianoA`, `MedianoB` e `MedianoC` leggevano lo STESSO id
+— come i quattro difensori e i tre attaccanti. Finché il disegno guardava solo posizione e minuti non si
+vedeva; dal momento in cui una regola si chiave sull'id, un fixture così non la può provare.
+
+## 40.6 — Quello che viaggia
+
+`external_match_stats` porta tre colonne nuove — `avg_x`, `avg_y`, `came_for` — scritte da una passata LORO
+e quindi **non nominate dall'upsert del parser**, che è la disciplina che protegge `mv_synth` vista dal lato
+di chi le aggiunge. Un test lo pretende: una rilettura del turno non le può cancellare.

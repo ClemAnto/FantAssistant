@@ -85,6 +85,21 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("external_match_stats", "mv_est", "REAL"),
     ("external_match_stats", "team_goals", "INTEGER"),
     ("external_match_stats", "opponent_goals", "INTEGER"),
+    # IL POSTO NEL MODULO di un titolare (12/09/2026): l'indice della sua voce nella distinta della
+    # fonte, che e' l'ordine con cui la fonte stessa disegna il campetto. Additiva, e si riempie
+    # OFFLINE (`positions --from-cache`) perche' l'ordine e' nei file gia' su disco - il parser lo
+    # buttava via. Vedi lo schema per la misura che ne ha stabilito il verso.
+    ("external_match_stats", "lineup_slot", "INTEGER"),
+    # IL MODULO DICHIARATO DALLA FONTE (12/09/2026): i quattro conteggi accanto hanno tre linee e non
+    # sanno dire un 4-2-3-1. Additiva, e si riempie solo per i turni RISCARICATI - il campo non e' nei
+    # file di cache scritti prima, perche' il downloader lo scartava. Vedi lo schema.
+    ("club_match_lineups", "formation", "TEXT"),
+    # DOVE HA GIOCATO E DI CHI HA PRESO IL POSTO (12/09/2026), da `average-positions` - una richiesta
+    # per partita che porta tutt'e due i fatti. Additive e scritte da una passata SUA, quindi
+    # l'upsert del parser non le nomina e non le puo' cancellare. Vedi lo schema.
+    ("external_match_stats", "avg_x", "REAL"),
+    ("external_match_stats", "avg_y", "REAL"),
+    ("external_match_stats", "came_for", "INTEGER"),
     ("rosters", "price_initial", "REAL"),
     ("rosters", "fvm", "REAL"),
     ("rosters", "fvm_mantra", "REAL"),

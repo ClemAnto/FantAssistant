@@ -1,5 +1,51 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 12 settembre 2026 — il campetto delle partite giocate e la board breve
+
+Dettaglio e numeri: `formazioni-tipo-v1.md` §11, `letture-app-v1.md` §40, spec «Novità v9.91».
+
+1. **[ ] LA LINEA MISURATA DI UN UOMO DEVE ENTRARE NEL SERBATOIO DELL'UNDICI** — dalla segnalazione
+   dell'operatore «perché nel Milan non vedo Chukwueze?». Ha cominciato **2 delle ultime 3** (209′), la
+   scala lo chiama `titolare`, la fonte lo mette a CENTROCAMPO in tutt'e due le partite che ha cominciato
+   con `avg_y` **16** (fascia destra) — e quel posto (`Ed`) la board lo dà a **Rabiot**, un centrale
+   (y 33-55). L'undici mette un uomo in una linea guardando il suo CODICE (`RW` → attacco), quindi un'ala
+   contende solo l'unico posto d'attacco. L'11/09 di `desc_played_roles` era stato tenuto solo il LATO
+   perché le righe della griglia di Transfermarkt e le nostre non coincidono (`MR` dominante del posto 8 al
+   31%): **`external_match_stats.position` è il NOSTRO vocabolario a quattro linee** e quella trappola non
+   ce l'ha. Da PRE-REGISTRARE (quale finestra, quanta evidenza serve per scavalcare il codice, e il prezzo
+   sul giudice stampa) prima di scriverlo.
+
+2. **[ ] LE STAFFETTE DAI CAMBI VERI, al posto degli intervalli dedotti dai minuti.** `desc_relay` poggia
+   su `pitch_span`, che assume «un subentrato entra al minuto `90 − giocati`» — un'assunzione dichiarata e
+   misurata allora, ma adesso i cambi sono OSSERVATI (`came_for`). Misurate **43 coppie con due o più cambi
+   reciproci** in tre giornate di Serie A, inequivocabili (Hojlund↔Lucca, Scamacca↔Krstović,
+   **Malen↔Castro S.**, Soulè↔Mora, Modrić↔Jashari). Il caso che lo rende necessario: al Milan
+   `relay(Chukwueze, Saelemaekers)` legge **0,526** e il vincolo li separa, mentre i cambi veri dicono che
+   non si sono mai sostituiti a vicenda e sono stati in campo insieme 55 minuti — quella separazione è
+   l'artefatto di un doppio cambio al 61′. Da fare: una colonna a parte per i cambi CONTATI (un conteggio e
+   una quota non stanno nella stessa colonna) e il riordino dei ballottaggi che la legge per prima.
+   **Nota di unità**: `desc_relay` è misurata su `RELAY_MATCHES` = **38** partite, mentre la board breve
+   parla di TRE — una staffetta di stagione e una di adesso sono due affermazioni diverse, e questo va
+   deciso in chiaro quando si tocca la colonna.
+
+3. **[ ] LE COPPE SULLA BOARD, e oggi la popolazione è ZERO.** Richiesta dell'operatore («tener conto anche
+   degli infortuni e di indisponibilità — come la coppa Africa o simili»). Gli infortuni ci sono già
+   (`TODAY_MODES`, `out_share`, i ballottaggi indisponibili marcati); `desc_cup*` è sul foglio dal 17/08 e
+   la board non lo legge. **Inerte adesso e va detto**: la Coppa d'Asia 2027 è **07/01 → 05/02/2027**, 7
+   quotati esposti, fino a −0,1 giornate di questo calendario — non può muovere una board a breve termine di
+   settembre. Da scrivere quando la finestra si avvicina, o da pre-registrare con la data.
+
+4. **[ ] COMPLETARE `--layer places`.** La passata si è fermata sulla guardia dei rifiuti dopo 210 partite.
+   Fatto: la stagione in corso (Serie A 31/31, Liga 41/41, Premier 30/30, Ligue 1 28/28). Manca la
+   Bundesliga 2026-27 (18 partite) e tutte le stagioni che il pacchetto esporta (~3.400 partite, ~2,6 ore).
+   Riprende da sola: la passata salta quello che è già in cache.
+
+5. **[ ] IL MODULO SULLE STAGIONI VECCHIE, e cosa ci si può fare.** `--layer formations` ha chiuso 178 →
+   **2.267 partite-lato**; l'archivio ne ha 24.214. Quando sarà pieno si apre una domanda che oggi non si
+   può fare: `coach_repertoire` e `coach_shapes` parlano ancora il vocabolario a TRE linee, e con il modulo
+   dichiarato su tutta la storia potrebbero parlare a quattro. È territorio GATATO (muove la board di
+   stagione), quindi pre-registrazione prima di qualunque riga.
+
 ## Aperti alla chiusura dell'8 agosto 2026 — nessuno con scadenza
 
 **Chiusura 20/08 (il reparto in cui arriva, e un numeratore che non si muoveva col suo denominatore)**: una

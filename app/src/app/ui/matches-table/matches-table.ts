@@ -87,6 +87,23 @@ export class MatchesTable {
    * letture degli stessi `engine_*`.
    */
   readonly pick = output<number>();
+  /**
+   * IL CLICK SULL'INTESTAZIONE SCEGLIE UNA PARTITA (operatore, 12/09/2026: «quando seleziono una
+   * partita cliccando sul nome della colonna vorrei che nel campetto ricostruissi la formazione che ha
+   * giocato quella partita»).
+   *
+   * La tabella non ricostruisce niente da se': emette l'IDENTITA' della partita - la coppia (evento,
+   * club nella grafia del provider) che la colonna gia' porta - e la pagina decide. La stessa forma del
+   * click sul nome di un uomo qui sopra, e per la stessa ragione: le due viste che usano questa tabella
+   * hanno accanto due cose diverse, e una sola delle due ha un campetto.
+   *
+   * Offerto SOLO dove la colonna e' una partita di UN club, che e' l'unico caso in cui `matchId` e'
+   * pieno: nella vista Calciatori una colonna e' una giornata dell'intero listone, e li' la domanda «chi
+   * ha giocato questa» non ha una risposta sola.
+   */
+  readonly match = output<{ matchId: string; club: string }>();
+  /** Quale partita e' scelta adesso, per accendere la sua colonna. Null = nessuna. */
+  readonly selectedMatch = input<string | null>(null);
   /** A list of one club does not repeat the club on every row. */
   readonly showClub = input(true);
   /**
@@ -266,6 +283,38 @@ export class MatchesTable {
   }
 
   /**
+   * IL CLICK SU UNA COLONNA: la partita che quella colonna descrive, o niente.
+   *
+   * Il guard sta QUI e non solo nel template perche' la tastiera arriva allo stesso posto: una colonna
+   * che promette un gesto e non lo fa e' peggio di una che non lo promette (la regola del cursore che
+   * segue la risposta e non l'interruttore).
+   */
+  protected onMatch(header: ColumnSlot): void {
+    if (header.matchId && header.matchClub) {
+      this.match.emit({ matchId: header.matchId, club: header.matchClub });
+    }
+  }
+
+  /** Se questa colonna e' una partita su cui si puo' cliccare: le due meta' della chiave, non una. */
+  protected pickable(header: ColumnSlot): boolean {
+    return !!header.matchId && !!header.matchClub;
+  }
+
+  /**
+   * L'aspetto di un'intestazione: cliccabile, e scelta.
+   *
+   * Una TINTA e non un fondo pieno: i due gol della testa portano gia' il verde e il rosso dell'esito,
+   * e un fondo pieno li renderebbe illeggibili proprio sulla colonna che si sta guardando. Il colore
+   * qui dice «e' questa» - uno stato SCELTO - ed e' per questo che ha anche un bordo: una tinta sola,
+   * su uno schermo non tarato, e' la differenza che sparisce per prima.
+   */
+  protected headerTone(header: ColumnSlot): string {
+    const chosen = this.selectedMatch() != null && header.matchId === this.selectedMatch();
+    return (this.pickable(header) ? 'cursor-pointer ' : '')
+      + (chosen ? 'bg-primary/15 ring-1 ring-inset ring-primary' : '');
+  }
+
+  /**
    * I marchi di una cella, dal lettore UNICO dei bonus (`core/match-bonuses.ts`): la stessa funzione che
    * legge la riga compatta della card e il pannello grande della partita, quindi una partita non può
    * portare due elenchi di eventi.
@@ -306,6 +355,22 @@ export class MatchesTable {
     if (rank <= 1) return 'font-semibold';
     if (rank >= 4) return 'text-muted';
     return '';
+  }
+
+  /**
+   * OGGI NON PUÒ GIOCARE, e va detto anche QUI (operatore, 11/09/2026: «quando ho selezionato ULTIMO
+   * PERIODO riporta anche nella lista calciatori la stessa grafica per gli infortunati»).
+   *
+   * Letto dalla scala che il toolkit fa viaggiare e mai dedotto: è lo stesso fatto che il campetto marca
+   * accanto al nome, quindi una definizione sola per le due viste - `ui-flags` risponde a un'altra domanda
+   * (45+ giorni, o una voce di stampa di tre) e su metà di questi uomini non disegna niente.
+   *
+   * VUOTO SULLA STAGIONE, per costruzione: il toolkit quel campo lo scrive solo sull'ultimo periodo,
+   * perché è là che SPIEGA il numero accanto - quella board gli indisponibili non li schiera, quindi la
+   * quota che si legge viene dalla stagione. Sulla lettura lunga non c'è niente da marcare.
+   */
+  protected sidelined(fcId: number): boolean {
+    return !!this.valuation.rungOf(this.platform(), fcId)?.outToday;
   }
 
   /** La parola intera, la promessa che porta e i due numeri da cui esce: la colonna non spiega, questo si'. */

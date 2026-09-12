@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Bundle, BundleManifest, BundleTable, ScoringConfig, columnIndex, optionalIndex } from './bundle';
 import { GlobalOptions } from './global-options';
+import { LineupMan, MatchPosition } from './match-lineup';
 import { roundVote, syntheticFantavoto } from './match-bonuses';
 import { PlayerFlag, PlayerStatus } from './player-status';
 
@@ -25,6 +26,9 @@ export type Platform = 'default' | 'euro';
  * fantacalcio scale?» is answered here and a trophy beside a Premier League match would be a lie.
  */
 export type MatchKind = 'league' | 'other_league' | 'cup' | 'friendly';
+
+/** Le quattro posizioni che il layer per-partita scrive, e nessuna quinta: vedi `core/match-lineup.ts`. */
+const POSITIONS = new Set<string>(['G', 'D', 'M', 'F']);
 
 /** Un campionato, il suo o un altro: le due righe che possono portare un voto di fantacalcio. */
 export function isChampionship(kind: MatchKind): boolean {
@@ -131,6 +135,33 @@ export interface MatchCell {
    *  matching a club NAME across sources, which is how `coach_repertoire` once lost 13,830
    *  elevens of 24,042. */
   shape: string | null;
+  /**
+   * ...E IL MODULO COME LA FONTE LO DICHIARA, che non e' la stessa cosa e la differenza e' il
+   * TREQUARTISTA (12/09/2026).
+   *
+   * `shape` qui sopra viene dai conteggi delle posizioni G/D/M/F, che hanno TRE linee: un 4-2-3-1 si
+   * legge `4-5-1` e i suoi tre trequartisti finiscono in mezzo al campo (la Juventus del 23/08/2026),
+   * un 3-4-1-2 si legge `3-4-3` e il centravanti finisce sull'ala (la Roma del 05/09). La fonte
+   * pubblica il modulo per ogni lato e il downloader lo scartava.
+   *
+   * Null su un turno scaricato prima di quella data: ignoto, e allora si torna ai conteggi e lo si
+   * dice - non si deduce una quarta linea che il dato non distingue.
+   */
+  formation: string | null;
+  /**
+   * L'IDENTITA' DELLA PARTITA, che e' la stessa chiave con cui `shape` viene letto: l'id dell'evento
+   * del provider e la grafia del club che LUI usa (`AC Milan`, non `Milan`).
+   *
+   * Le due cose viaggiano insieme perche' insieme sono una chiave e da sole non lo sono: il layer
+   * per-partita ha una riga per (uomo, partita) e una partita ha due squadre, quindi «chi e' sceso in
+   * campo» si chiede a una COPPIA. Sono i due campi che il costruttore gia' aveva in mano per il
+   * modulo e buttava via - la settima istanza di «il dato c'era e mancava un lettore».
+   *
+   * Null dove la riga non ha una partita del provider dietro (una giornata senza la sua riga, un
+   * confine): «vuoto = ignoto», e chi legge non ha niente da ricostruire.
+   */
+  matchId: string | null;
+  matchClub: string | null;
   /** Set only in the mixed view, when the week held more than one match for this player. */
   alsoInWeek?: number;
 }
@@ -260,6 +291,9 @@ export function withCoachBreaks(
         outcome: null,
         sides: null,
         shape: null,
+        formation: null,
+        matchId: null,
+        matchClub: null,
         divider: `${coach} → ${previous.coach}`,
         breakKind: 'coach',
         date: null,
@@ -306,6 +340,8 @@ export interface ColumnSlot {
   sides: { name: string; goals: number | null }[] | null;
   /** Il modulo con cui il club della tabella e' sceso in campo, sotto la riga di separazione. */
   shape: string | null;
+  /** ...e come la FONTE lo dichiara, che sa dire una quarta linea dove i conteggi no. Vedi `MatchCell`. */
+  formation: string | null;
   /**
    * IL CONFINE FRA DUE STAGIONI: una colonna che non e' una partita (operatore, 06/09/2026: «tra una
    * stagione e l'altra metti una colonna divisoria»).
@@ -326,6 +362,18 @@ export interface ColumnSlot {
    * prima e dopo sono due popolazioni in tutt'e due i casi. Null dove la colonna e' una partita.
    */
   breakKind: 'season' | 'coach' | null;
+  /**
+   * QUALE PARTITA E', come chiave: l'id dell'evento del provider e la grafia che LUI da' al club di
+   * questa tabella. E' la coppia con cui il modulo della colonna e' gia' stato letto.
+   *
+   * Piena soltanto dove la colonna E' una partita di UN club, cioe' con un club a schermo - senza
+   * filtro una settimana ne contiene molte, e nominarne una sarebbe scrivere la partita di qualcun
+   * altro su questa colonna. E' quello che permette di chiedere «chi ha giocato QUESTA»: senza una
+   * chiave si arriverebbe alla riposta per (data, nome del club), che e' il join per stringa che a
+   * questo progetto e' costato Milan, Roma e Napoli.
+   */
+  matchId: string | null;
+  matchClub: string | null;
   /**
    * LA DATA della partita che questa colonna descrive, o null (una giornata senza club a schermo, un
    * confine). Serve a dire quale allenatore era in carica, che e' un fatto DATATO per club: senza di
@@ -634,6 +682,9 @@ export class PlayersStore {
           outcome: null,
           sides: null,
           shape: null,
+          formation: null,
+          matchId: null,
+          matchClub: null,
           divider: null,
           breakKind: null,
           date: null,
@@ -692,6 +743,69 @@ export class PlayersStore {
 
   /** `fc_club_id` -> il nome canonico, dalla tabella dei club: la sola cosa che serve qui. */
   private readonly clubNames = signal<Map<number, string>>(new Map());
+
+  /**
+   * IL NOME DI OGNI UOMO CHE IL PACCHETTO CONOSCE, non solo di quelli che un listone quota.
+   *
+   * `rosters` risponde «chi e' in questo listone quest'anno» e questa tabella «chi e' questo `fc_id`»:
+   * sono due domande, e chi ricostruisce una formazione gia' giocata ha bisogno della seconda - su 656
+   * titolari di Serie A del 2026-27, otto righe sono di uomini che il listone non quota o da' per
+   * ceduti (David, Dia, Pedersen...), e nominarli `#5544` sarebbe un buco al posto di un fatto.
+   */
+  private readonly playerNames = signal<Map<number, string>>(new Map());
+
+  /**
+   * CHI HA GIOCATO UNA PARTITA, per la coppia (id dell'evento, club nella grafia del provider).
+   *
+   * Legge il layer per-partita GREZZO e non le righe della tabella, ed e' una scelta: le righe di una
+   * tabella sono la rosa QUOTATA, quindi un titolare che il listone non ha sparirebbe dall'undici - e
+   * sono misurati, otto su 656 in Serie A, fra cui uomini che quel giorno hanno giocato dal primo
+   * minuto. Qui la domanda e' «chi c'era», non «chi posso comprare».
+   *
+   * UNA SCANSIONE E NON UN INDICE, di proposito: la tabella e' gia' in memoria (`Bundle` tiene la
+   * promessa in cache e altri due lettori la chiedono) e un indice per partita sarebbe centoventottomila
+   * voci tenute in piedi per un click. Il risultato dell'ultima richiesta resta da parte, perche' il
+   * gesto che la produce - passare da una colonna all'altra - la rifa' subito.
+   */
+  async lineupOf(matchId: string, club: string): Promise<LineupMan[]> {
+    const key = `${matchId}|${club}`;
+    if (this.lastLineup?.key === key) return this.lastLineup.men;
+    const table = await this.bundle.table('external_match_stats');
+    const [id, match, team, position, started, minutes] = columnIndex(
+      table, 'fc_id', 'match_id', 'club', 'position', 'started', 'minutes');
+    // IL POSTO NEL MODULO, quando il pacchetto lo porta: e' arrivato il 12/09/2026, quindi su uno piu'
+    // vecchio la colonna non esiste proprio - `optionalIndex` risponde -1 e la riga legge null, che e'
+    // ignoto e fa tornare il disegno al ripiego dei codici.
+    const slot = optionalIndex(table, 'lineup_slot');
+    // DI CHI HA PRESO IL POSTO chi e' entrato, e dove ha giocato davvero: arrivate il 12/09/2026
+    // dall'endpoint delle posizioni medie, che porta i due fatti in una risposta sola. Su un pacchetto
+    // piu' vecchio le colonne non esistono e la riga legge null - ignoto, e il disegno torna al
+    // ripiego dei profili.
+    const cameFor = optionalIndex(table, 'came_for');
+    const lateral = optionalIndex(table, 'avg_y');
+    const names = this.playerNames();
+    const men: LineupMan[] = [];
+    for (const row of table.rows) {
+      if (row[match] !== matchId || row[team] !== club) continue;
+      const fcId = row[id] as number;
+      men.push({
+        fcId,
+        name: names.get(fcId) ?? `#${fcId}`,
+        // Solo le quattro che la fonte scrive: qualunque altra cosa e' ignoto, e un ignoto non si
+        // disegna in una riga scelta a caso.
+        position: POSITIONS.has(row[position] as string) ? (row[position] as MatchPosition) : null,
+        started: row[started] === 1,
+        minutes: (row[minutes] as number) ?? null,
+        slot: slot < 0 ? null : ((row[slot] as number) ?? null),
+        cameFor: cameFor < 0 ? null : ((row[cameFor] as number) ?? null),
+        lateral: lateral < 0 ? null : ((row[lateral] as number) ?? null),
+      });
+    }
+    this.lastLineup = { key, men };
+    return men;
+  }
+
+  private lastLineup: { key: string; men: LineupMan[] } | null = null;
 
   /**
    * LE ULTIME `count` PARTITE di un uomo - OGNI competizione - la piu' recente per prima.
@@ -850,6 +964,9 @@ export class PlayersStore {
           outcome: null,
           sides: null,
           shape: null,
+          formation: null,
+          matchId: null,
+          matchClub: null,
           divider: `${before} → ${block.season}`,
           breakKind: 'season',
           date: null,
@@ -939,6 +1056,11 @@ export class PlayersStore {
         outcome: fixture.outcome,
         sides: fixture.sides,
         shape: chosen.shape,
+        formation: chosen.formation,
+        // DALLA CELLA SCELTA e non da un'altra: la colonna e il suo undici devono descrivere la stessa
+        // partita, che e' la stessa ragione per cui `shape` viene da qui e non da un secondo conto.
+        matchId: chosen.matchId,
+        matchClub: chosen.matchClub,
         detail: [fixture.detail ? null : slot.label, chosen.shape].filter(Boolean).join(' · ') || null,
         date: chosen.date ?? null,
         kind: chosen.kind,
@@ -995,6 +1117,9 @@ export class PlayersStore {
           outcome: null,
           sides: null,
           shape: null,
+          formation: null,
+          matchId: null,
+          matchClub: null,
           divider: null,
           breakKind: null,
           date: null,
@@ -1105,6 +1230,12 @@ export class PlayersStore {
       const roster = buildRosters(players, clubs, rosters, quotes, manifest.target_season,
                                   await sheetIdentities(this.bundle, manifest));
       this.rosters.set(roster);
+      // ...e la tabella dei GIOCATORI intera, per la stessa ragione: chi ricostruisce una formazione
+      // gia' giocata incontra uomini che questo listone non quota piu'.
+      const [nameId, nameOf] = columnIndex(players, 'fc_id', 'canonical_name');
+      this.playerNames.set(
+        new Map(players.rows.map((row) => [row[nameId] as number, row[nameOf] as string])),
+      );
       // La tabella dei club serve intera - e non solo per chi ha un quotato - all'indice degli stemmi.
       const [clubId, clubName] = columnIndex(clubs, 'fc_club_id', 'canonical_name');
       this.clubNames.set(
@@ -1243,7 +1374,9 @@ export function plain(text: string): string {
 }
 
 /** dd/mm/yyyy: a date in a header is read by a person. */
-function day(iso: string): string {
+/** `2026-09-07` -> `07/09/2026`. Esportata perche' chi legge una `ColumnSlot.date` la stampa: la data
+ *  di una partita e' scritta qui, quindi il modo di leggerla sta qui e non in una quarta copia. */
+export function day(iso: string): string {
   return iso.split('-').reverse().join('/');
 }
 
@@ -1632,7 +1765,7 @@ function buildLeagueMatches(
   provider: Map<string, ProviderMatch>,
   leagueOf: Map<number, string | null>,
   euroToReal: Map<string, number>,
-  shapes: Map<string, string>,
+  shapes: Map<string, { counted: string; declared: string | null }>,
   scoring: ScoringConfig | null,
 ) {
   const [
@@ -1751,7 +1884,11 @@ function buildLeagueMatches(
       home: extra?.home ?? null,
       goalsFor: score?.for ?? null,
       goalsAgainst: score?.against ?? null,
-      shape: extra ? (shapes.get(`${extra.matchId}|${extra.club}`) ?? null) : null,
+      shape: extra ? (shapes.get(`${extra.matchId}|${extra.club}`)?.counted ?? null) : null,
+      formation: extra ? (shapes.get(`${extra.matchId}|${extra.club}`)?.declared ?? null) : null,
+      // La stessa coppia con cui il modulo e' stato appena letto: e' una CHIAVE, non due etichette.
+      matchId: extra?.matchId ?? null,
+      matchClub: extra?.club ?? null,
     };
     // IL FANTAVOTO SI CALCOLA SOLO DOVE LA FONTE NON LO PUBBLICA. Qui succede su una giornata senza
     // pagella recuperata dal sintetico: i bonus li porta la riga dei VOTI, quindi sono completi -
@@ -1770,7 +1907,7 @@ function buildOtherMatches(
   scope: ExpectedScope,
   seasons: Set<string>,
   leagueOf: Map<number, string | null>,
-  shapes: Map<string, string>,
+  shapes: Map<string, { counted: string; declared: string | null }>,
   scoring: ScoringConfig | null,
   roleOf: Map<number, ClassicRole>,
 ): Map<string, Map<number, MatchCell[]>> {
@@ -1897,7 +2034,10 @@ function buildOtherMatches(
       home: row[home] == null ? null : row[home] === 1,
       goalsFor: teamGoals < 0 ? null : ((row[teamGoals] as number) ?? null),
       goalsAgainst: opponentGoals < 0 ? null : ((row[opponentGoals] as number) ?? null),
-      shape: shapes.get(`${row[matchIdOther]}|${row[club]}`) ?? null,
+      shape: shapes.get(`${row[matchIdOther]}|${row[club]}`)?.counted ?? null,
+      formation: shapes.get(`${row[matchIdOther]}|${row[club]}`)?.declared ?? null,
+      matchId: (row[matchIdOther] as string) ?? null,
+      matchClub: (row[club] as string) ?? null,
     };
     // IL FANTAVOTO SINTETICO, dove c'e' un voto sintetico da cui partire. Per un portiere si fa solo
     // se i gol subiti si sono potuti contare: la funzione lo decide sul DATO e non sul ruolo.
@@ -1936,7 +2076,7 @@ interface InjurySpell {
  *  (match_id, club), both written by the same parser from the same payload - so this is not a
  *  name join across sources. Only complete elevens count: 24,378 rows of 24,379 have eleven
  *  starters, and the odd one out cannot say a shape. */
-function buildShapes(lineups: BundleTable): Map<string, string> {
+function buildShapes(lineups: BundleTable): Map<string, { counted: string; declared: string | null }> {
   const [matchId, club, starters, defenders, midfielders, forwards] = columnIndex(
     lineups,
     'match_id',
@@ -1946,13 +2086,17 @@ function buildShapes(lineups: BundleTable): Map<string, string> {
     'midfielders',
     'forwards',
   );
-  const out = new Map<string, string>();
+  // IL MODULO DICHIARATO DALLA FONTE, quando il pacchetto lo porta: e' arrivato il 12/09/2026, quindi
+  // su uno piu' vecchio la colonna non esiste - `optionalIndex` risponde -1 e la riga legge null, che
+  // e' ignoto e fa tornare il disegno ai conteggi.
+  const formation = optionalIndex(lineups, 'formation');
+  const out = new Map<string, { counted: string; declared: string | null }>();
   for (const row of lineups.rows) {
     if (row[starters] !== 11) continue;
-    out.set(
-      `${row[matchId]}|${row[club]}`,
-      `${row[defenders]}-${row[midfielders]}-${row[forwards]}`,
-    );
+    out.set(`${row[matchId]}|${row[club]}`, {
+      counted: `${row[defenders]}-${row[midfielders]}-${row[forwards]}`,
+      declared: formation < 0 ? null : ((row[formation] as string) ?? null),
+    });
   }
   return out;
 }
@@ -2086,6 +2230,12 @@ function buildAbsences(
           goalsFor: null,
           goalsAgainst: null,
           shape: null,
+          formation: null,
+          // UNA PANCHINA SA QUAL E' LA SUA PARTITA e chi non ha nemmeno quella no: e' la stessa
+          // distinzione dei minuti due righe piu' su, e la colonna che la legge ricostruisce l'undici
+          // anche da una giornata in cui questo club aveva tutti in panchina.
+          matchId: bench?.matchId ?? null,
+          matchClub: bench?.club ?? null,
         });
       }
       if (missing.size) seasonOut.set(player.fcId, missing);

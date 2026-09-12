@@ -281,6 +281,52 @@ CREATE TABLE IF NOT EXISTS external_match_stats (
     opponent    TEXT,
     home        INTEGER,                     -- 0/1
     position    TEXT,                        -- provider position code (G|D|M|F)
+    -- IL POSTO NEL MODULO, per i soli TITOLARI: l'indice della sua voce nella distinta della fonte
+    -- (12/09/2026). 0 e' il portiere e 10 l'ultimo uomo della linea piu' avanzata; DENTRO una linea
+    -- l'array va dalla DESTRA della squadra alla sua sinistra, cioe' lo stesso verso della `x` che il
+    -- pannello scrive per i suoi undici.
+    --
+    -- E' la sola posizione granulare STORICA che questo progetto abbia senza pagare una richiesta: i
+    -- dodici codici di `player_roles` sono un'istantanea di oggi e `position` qui accanto dice solo la
+    -- LINEA. Il payload la porta dalla prima corsa - Sofascore disegna il suo campetto da quell'array -
+    -- e il parser buttava via l'ordine, che e' l'ottava istanza di «il dato c'era e mancava un lettore».
+    --
+    -- Misurato sulle 24.201 distinte in cache prima di adottarlo: 24.198 hanno undici titolari, le
+    -- linee sono contigue (G, D, M, F senza tornare indietro) nel 99,05% dei casi, il PRIMO difensore
+    -- dell'array e' un `DR` 10.620 volte contro 146 `DL` (98,6%) e l'ultimo un `DL` 8.816 contro 1.085
+    -- (89,0%). Il verso e' quindi misurato e non dedotto da un caso.
+    --
+    -- NULL PER UN SUBENTRATO, e non e' una dimenticanza: per lui l'indice e' l'ordine della panchina -
+    -- misurato, i minuti giocati in ordine decrescente e poi i non utilizzati - cioe' un numero che non
+    -- dice dove ha giocato. Riempirlo sarebbe una colonna con due significati.
+    lineup_slot INTEGER,
+    -- DOVE HA GIOCATO DAVVERO, in QUELLA partita (endpoint `average-positions`, 12/09/2026). Una
+    -- richiesta per partita, e porta anche i SUBENTRATI - che e' la ragione per cui esiste: per un
+    -- titolare `lineup_slot` dice gia' il posto, per chi entra dalla panchina l'indice della fonte e'
+    -- l'ordine della panchina e non dice niente.
+    --
+    -- `avg_y` e' l'asse LATERALE ed e' nello stesso verso di `lineup_slot`: misurato sulla Juventus
+    -- del 29/08/2026, il terzino destro (slot 1) legge 16,4 e il sinistro (slot 4) 84,9, l'ala destra
+    -- (slot 5) 15,9 e quella sinistra (slot 8) 80,9 - quindi 0 e' la DESTRA della squadra, come
+    -- l'array della distinta e come la `x` del pannello. `avg_x` e' la PROFONDITA', 0 la propria porta,
+    -- ed e' l'asse debole: questo progetto ha gia' misurato che satura in avanti (mediana 61 per
+    -- un'ala, 62 per un centravanti), quindi dice la linea molto peggio di quanto `avg_y` dica la
+    -- fascia.
+    --
+    -- E' una MEDIA su pochi tocchi per una gara breve (`pointsCount`), quindi si legge accanto ai
+    -- minuti e non da sola.
+    avg_x       REAL,
+    avg_y       REAL,
+    -- DI CHI HA PRESO IL POSTO: l'`fc_id` dell'uomo uscito nel cambio che lo ha fatto entrare, dalla
+    -- stessa risposta (`substitutions`). NULL per un titolare - e per un subentrato di cui non si sa,
+    -- che e' «vuoto = ignoto» e non «e' entrato al posto di nessuno».
+    --
+    -- Puo' puntare a un altro SUBENTRATO: il 29/08/2026 Koopmeiners entra al 86' per Cambiaso, che
+    -- era entrato al 76' per Conceicao. Quindi chi vuole il posto del MODULO risale la catena invece
+    -- di fermarsi al primo anello - e senza questa colonna non c'e' nessun modo di farlo, perche'
+    -- l'aritmetica dei minuti da' un ingresso complementare unico solo nel 30,3% dei casi (misurato
+    -- l'11/09/2026) e qui addirittura non torna: cinque entrati contro quattro titolari usciti.
+    came_for    INTEGER,
     started     INTEGER,                     -- 0/1
     minutes     INTEGER,
     rating      REAL,                        -- provider rating (SofaScore scale)
@@ -362,6 +408,17 @@ CREATE TABLE IF NOT EXISTS club_match_lineups (
     defenders   INTEGER,
     midfielders INTEGER,
     forwards    INTEGER,
+    -- IL MODULO COME LA FONTE LO DICHIARA (12/09/2026), e non come i quattro conteggi qui sopra lo
+    -- farebbero leggere. Sono due cose diverse e la differenza e' il TREQUARTISTA: i conteggi hanno
+    -- tre linee e non sanno dire un 3-4-1-2 ne' un 4-2-3-1 - lo dichiarava gia' il commento di questa
+    -- tabella - quindi la Roma del 05/09/2026 leggeva 3-4-3 mentre la fonte dice `3-4-1-2`, e la
+    -- Juventus del 23/08 leggeva 4-5-1 contro un `4-2-3-1`. Con `lineup_slot` accanto, il modulo
+    -- DICHIARATO taglia l'array nelle sue linee esatte e il campetto diventa quello della fonte.
+    --
+    -- Il campo e' nel payload dalla prima corsa (`home.formation`) e il parser lo buttava via: nona
+    -- istanza di «il dato c'era e mancava un lettore». NULL su un turno scaricato prima di questa
+    -- data - ignoto, non «tre linee» - e allora chi legge torna ai conteggi e lo dice.
+    formation   TEXT,
     PRIMARY KEY (season, source, match_id, club)
 );
 

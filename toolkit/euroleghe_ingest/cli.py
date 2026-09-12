@@ -333,7 +333,8 @@ def build_parser() -> argparse.ArgumentParser:
                                 "in 2024-25)")
             p.add_argument("--layer",
                            choices=["season", "match", "complete", "heatmap", "roles", "all",
-                                    "reparse", "crosstab", "extra", "crests"],
+                                    "reparse", "crosstab", "extra", "crests", "formations",
+                                    "places"],
                            default="season",
                            help="season aggregates (fast), the per-match layer (hours), "
                                 "'complete' to add the matches the perimeter filter skipped, "
@@ -341,6 +342,13 @@ def build_parser() -> argparse.ArgumentParser:
                                 "'roles' for the granular real role + foot (one request per CLUB), "
                                 "both, "
                                 "'reparse' to rebuild from the cache offline (zero requests), "
+                                "'places' for WHERE each man played that match and WHOSE place a "
+                                "substitute took (one request each, both facts in one answer - a "
+                                "substitute's `lineup_slot` is the bench order and says nothing), "
+                                "'formations' to fill the DECLARED module on the matches already in "
+                                "the cache (one request each, and only for those that lack it - the "
+                                "files downloaded before 12/09/2026 do not carry it and no offline "
+                                "replay can invent it), "
                                 "'crosstab' for the provider-role vs listone-role report (offline), or "
                                 "'extra' for the matches no league calendar has - pre-season "
                                 "friendlies, cups, continental ties (one request per club)")

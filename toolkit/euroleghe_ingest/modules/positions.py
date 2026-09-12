@@ -26,6 +26,7 @@ import re
 import time
 
 from collections.abc import Mapping
+from pathlib import Path
 
 from euroleghe_ingest import config
 from euroleghe_ingest.config import DEFAULT_SEASONS
@@ -63,6 +64,10 @@ PLAYER_ENDPOINT = BASE_URL + "/player/{pid}"
 # pre-season is invisible - which is precisely the window an August auction is prepared in.
 TEAM_EVENTS_ENDPOINT = BASE_URL + "/team/{tid}/events/last/{page}"
 INCIDENTS_ENDPOINT = BASE_URL + "/event/{eid}/incidents"
+# DOVE OGNUNO HA GIOCATO in una partita, SUBENTRATI COMPRESI, piu' l'elenco dei cambi con chi esce e
+# chi entra: due fatti in una richiesta sola, ed e' la ragione per cui si chiede questo e non
+# `/incidents`, che porta solo il secondo. Verificato su una partita prima di scrivere la passata.
+AVGPOS_ENDPOINT = BASE_URL + "/event/{eid}/average-positions"
 
 #: La chiave che dice «LA FONTE HA RISPOSTO E NON AVEVA NIENTE», che e' un fatto e va salvato - mentre un
 #: dizionario vuoto non lo distingue da un download morto. Misurato l'11/09/2026: 600 file su 606 erano
@@ -311,16 +316,39 @@ def download_round(session, league: str, season_id: int, rnd: int, perimeter: se
         _polite_sleep(cancel_event)
         detail = _get_json(session, LINEUPS_ENDPOINT.format(eid=event.get("id")))
         if detail:
-            lineups[str(event.get("id"))] = {
-                side: [{"player": {k: (entry.get("player") or {}).get(k)
-                                   for k in ("id", "name", "position", "dateOfBirthTimestamp")},
-                        "substitute": entry.get("substitute"),
-                        "position": entry.get("position"),
-                        "statistics": entry.get("statistics") or {}}
-                       for entry in (detail.get(side) or {}).get("players") or []]
-                for side in ("home", "away")
-            }
+            lineups[str(event.get("id"))] = _sides_of(detail)
     return {"league": league, "round": rnd, "events": events, "lineups": lineups} if events else None
+
+
+def _merged_round(cache: Path, fresh: dict) -> tuple[dict, int]:
+    """Il turno riscaricato FUSO con quello gia' in cache: una rilettura puo' solo aggiungere.
+
+    `download_round` salta in silenzio la distinta di una partita che non risponde, quindi con la fonte
+    che rifiuta a meta' corsa un `--refresh` scriverebbe un file con MENO distinte al posto di uno
+    pieno - il difetto del 17/08/2026, quando 91 file di 93 furono sostituiti da marcatori vuoti in
+    un'ora. Misurato alla prima corsa del 12/09/2026: le riletture di Serie A portavano 7-8 distinte su
+    10, cioe' un `--refresh` avrebbe perso da due a tre partite per turno.
+
+    Tenere il file vecchio e basta non basta: le distinte nuove sono le uniche che portano il MODULO
+    dichiarato, e chi rifiuta oggi puo' rispondere domani. Quindi si UNISCE, e la voce nuova vince su
+    quella vecchia - viene dallo stesso endpoint, quindi se c'e' e' completa. Ripetendo la corsa il
+    file si riempie invece di ballare.
+    """
+    if not cache.exists():
+        return fresh, 0
+    try:
+        old = json.loads(cache.read_text(encoding="utf-8"))
+    except Exception:   # noqa: BLE001 - un file illeggibile si puo' sostituire
+        return fresh, 0
+    lineups = dict(old.get("lineups") or {})
+    kept = sum(1 for key in lineups if key not in (fresh.get("lineups") or {}))
+    lineups.update(fresh.get("lineups") or {})
+    # Gli EVENTI freschi vincono - portano il risultato aggiornato - salvo che la rilettura ne abbia
+    # trovati meno: li' il turno era gia' piu' completo di adesso.
+    events = fresh.get("events") or []
+    if len(events) < len(old.get("events") or []):
+        events = old["events"]
+    return {**fresh, "events": events, "lineups": lineups}, kept
 
 
 def _season_of(date: str) -> str:
@@ -375,7 +403,13 @@ def parse_round(payload: dict, season: str, xref: dict[str, int],
             opponent_goals = away_goals if side == "home" else home_goals
             slots = {"G": 0, "D": 0, "M": 0, "F": 0}
             starters = 0
-            for entry in sides.get(side) or []:
+            # L'INDICE E' IL POSTO NEL MODULO, e va preso sull'array INTERO: la fonte disegna il suo
+            # campetto da questa lista, quindi l'ordine e' il portiere, poi la difesa, poi il
+            # centrocampo, poi l'attacco - e dentro una linea dalla destra della squadra alla sua
+            # sinistra. Vale per i soli titolari: per un subentrato l'indice e' l'ordine della
+            # panchina (i minuti in ordine decrescente, poi i non utilizzati), cioe' un numero che non
+            # dice dove ha giocato. Vedi lo schema per la misura sulle 24.201 distinte in cache.
+            for at, entry in enumerate(_players_of(sides, side)):
                 player = entry.get("player") or {}
                 if not entry.get("substitute"):
                     starters += 1
@@ -406,11 +440,13 @@ def parse_round(payload: dict, season: str, xref: dict[str, int],
                     _int(stats.get("bigChanceCreated")), _int(stats.get("bigChanceMissed")),
                     _int(stats.get("keyPass")), _int(stats.get("touches")),
                     team_goals, opponent_goals,
+                    None if entry.get("substitute") else at,
                 ))
             if starters:
                 club_rows.append((event_season, event_id, club, competition, real_md, match_date,
                                   starters,
-                                  slots["G"], slots["D"], slots["M"], slots["F"]))
+                                  slots["G"], slots["D"], slots["M"], slots["F"],
+                                  _formation_of(sides, side)))
     return rows, club_rows, unknown
 
 
@@ -430,7 +466,7 @@ _MATCH_COLUMNS = (
     "competition", "real_md", "match_date", "club", "opponent", "home", "position", "started",
     "minutes", "rating", "goals", "assists", "xg", "xa", "shots", "shots_on_target",
     "big_chances_created", "big_chances_missed", "key_passes", "touches", "team_goals",
-    "opponent_goals",
+    "opponent_goals", "lineup_slot",
 )
 
 
@@ -459,8 +495,8 @@ def _store_match_rows(conn, rows: list[tuple], source: str = LEAGUE_SOURCE) -> i
             fc_id, season, source, match_id, competition, real_md, match_date, club, opponent,
             home, position, started, minutes, rating, goals, assists, xg, xa,
             shots, shots_on_target, big_chances_created, big_chances_missed, key_passes, touches,
-            team_goals, opponent_goals)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            team_goals, opponent_goals, lineup_slot)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(fc_id, season, source, match_id) DO UPDATE SET
             {assignments},
             mv_synth = CASE WHEN external_match_stats.rating IS excluded.rating
@@ -476,8 +512,8 @@ def _store_club_rows(conn, club_rows: list[tuple], source: str = LEAGUE_SOURCE) 
         """
         INSERT OR REPLACE INTO club_match_lineups(
             season, source, match_id, club, competition, real_md, match_date,
-            starters, goalkeepers, defenders, midfielders, forwards)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            starters, goalkeepers, defenders, midfielders, forwards, formation)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         [(row[0], source, *row[1:]) for row in club_rows],
     )
@@ -515,9 +551,11 @@ def fetch_match_layer(ctx: Context, leagues, seasons, refresh: bool = False) -> 
                         print(f"[positions] {league} {season}: stop at round {rnd} "
                               "(no finished perimeter match)")
                         continue
+                    payload, kept = _merged_round(cache, payload)
                     _atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
                     print(f"[positions] {league} {season} r{rnd}: {len(payload['events'])} matches, "
-                          f"{len(payload['lineups'])} lineups cached")
+                          f"{len(payload['lineups'])} lineups cached"
+                          + (f" ({kept} kept from the previous read)" if kept else ""))
     except KeyboardInterrupt:
         print("[positions] interrupted - already-downloaded rounds are cached")
     finally:
@@ -528,17 +566,52 @@ def fetch_match_layer(ctx: Context, leagues, seasons, refresh: bool = False) -> 
 def _lineups_for(session, event_id) -> dict | None:
     """The two lineups of one match, in the shape the round cache stores."""
     detail = _get_json(session, LINEUPS_ENDPOINT.format(eid=event_id))
-    if not detail:
-        return None
+    return _sides_of(detail) if detail else None
+
+
+def _sides_of(detail: dict) -> dict:
+    """La distinta di una partita, sfoltita: UNA definizione per i due punti che la scrivono.
+
+    IL MODULO STA QUI DAL 12/09/2026 (`formation`), e prima si buttava via: i quattro conteggi che
+    `club_match_lineups` ricava dalle posizioni G/D/M/F hanno TRE linee e non sanno dire un 4-2-3-1,
+    quindi la Juventus del 23/08 leggeva `4-5-1` con tre trequartisti in mezzo al campo. La fonte lo
+    dichiara, e con l'ordine dell'array (`lineup_slot`) taglia l'undici nelle sue linee esatte.
+
+    LA FORMA CAMBIA, e i lettori accettano anche quella vecchia (`_players_of`): i file gia' in cache
+    tengono una LISTA per lato, e un `rebuild` li rigioca - riscriverli non si puo' e non serve, il
+    modulo li' resta ignoto finche' quel turno non viene riscaricato.
+    """
     return {
-        side: [{"player": {k: (entry.get("player") or {}).get(k)
-                           for k in ("id", "name", "position", "dateOfBirthTimestamp")},
-                "substitute": entry.get("substitute"),
-                "position": entry.get("position"),
-                "statistics": entry.get("statistics") or {}}
-               for entry in (detail.get(side) or {}).get("players") or []]
+        side: {
+            "formation": (detail.get(side) or {}).get("formation"),
+            "players": [{"player": {k: (entry.get("player") or {}).get(k)
+                                    for k in ("id", "name", "position", "dateOfBirthTimestamp")},
+                         "substitute": entry.get("substitute"),
+                         "position": entry.get("position"),
+                         "statistics": entry.get("statistics") or {}}
+                        for entry in (detail.get(side) or {}).get("players") or []],
+        }
         for side in ("home", "away")
     }
+
+
+def _players_of(sides: dict, side: str) -> list:
+    """Le voci di un lato, da una cache scritta PRIMA o DOPO il 12/09/2026.
+
+    Prima era una lista nuda, adesso e' `{formation, players}`. Un lettore che conoscesse una forma
+    sola leggerebbe zero titolari su meta' dell'archivio - e uno zero uniforme e' la cosa che questo
+    progetto ha imparato a non credere.
+    """
+    one = (sides or {}).get(side)
+    if isinstance(one, dict):
+        return one.get("players") or []
+    return one or []
+
+
+def _formation_of(sides: dict, side: str) -> str | None:
+    """Il modulo dichiarato dalla fonte, o None: ignoto, mai «tre linee»."""
+    one = (sides or {}).get(side)
+    return one.get("formation") if isinstance(one, dict) else None
 
 
 def _slug_of(event: dict) -> str:
@@ -886,6 +959,298 @@ def fetch_club_crests(ctx: Context, refresh: bool = False) -> dict[str, int]:
         _atomic_write_text(out / "index.json", json.dumps(index, ensure_ascii=False, indent=1))
     print(f"[positions] crests: {counts['downloaded']} downloaded, {len(index)} in cache, "
           f"{counts['bytes'] / 1024:.0f} KB")
+    return counts
+
+
+def _cached_matches(ctx: Context, leagues=None, seasons=None):
+    """Le partite gia' in archivio, DALLA STAGIONE PIU' RECENTE ALL'INDIETRO.
+
+    L'ordine non e' un dettaglio: una scansione da ore si abbandona appena la fonte comincia a
+    rifiutare (17/08/2026) e puo' essere fermata, quindi quello che e' arrivato deve essere quello che
+    si guarda - le stagioni che il pacchetto esporta. Con il glob nudo il primo file sarebbe
+    `bundesliga_2019-20_r1` e la stagione in corso l'ultima di dodicimila.
+
+    Una definizione per le due passate che camminano questa cache: due camminate diverse darebbero
+    due ordini, e la seconda a essere interrotta si fermerebbe altrove.
+    """
+    wanted_leagues = set(leagues or ())
+    wanted_seasons = set(seasons or ())
+    found = []
+    for cache in ctx.config.cache_dir.glob("sofascore_round_*.json"):
+        match = re.match(r"sofascore_round_(.+)_(\d{4}-\d{2})_r(\d+)$", cache.stem)
+        if not match:
+            continue
+        if wanted_leagues and match.group(1) not in wanted_leagues:
+            continue
+        if wanted_seasons and match.group(2) not in wanted_seasons:
+            continue
+        found.append((match.group(2), match.group(1), int(match.group(3)), cache))
+    for _season, _league, _rnd, cache in sorted(found, key=lambda one: (one[0], one[1], one[2]),
+                                                reverse=True):
+        try:
+            payload = json.loads(cache.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for match_id, sides in (payload.get("lineups") or {}).items():
+            yield cache, match_id, sides
+
+
+def _richer_side(old, fresh):
+    """Fra la voce in cache e quella appena letta, quella che dice DI PIU'.
+
+    Una rilettura puo' solo aggiungere (`_merged_round`, stessa regola un piano piu' sotto): la voce
+    fresca vince solo se porta davvero il modulo o se quella vecchia non ha nemmeno la distinta,
+    perche' la fonte a volte risponde con un lato vuoto e sostituire una distinta piena con quella
+    sarebbe il difetto del 17/08/2026 - 91 file di 93 riscritti con «zero eventi» in un'ora.
+    """
+    if not isinstance(fresh, dict) or not fresh.get("players"):
+        return old
+    if fresh.get("formation"):
+        return fresh
+    old_players = old.get("players") if isinstance(old, dict) else old
+    return fresh if not old_players else old
+
+
+def _side_wants_formation(side) -> bool:
+    """Vero se di quel lato il modulo dichiarato e' IGNOTO: forma vecchia della cache, o assente."""
+    if side is None:
+        return False        # la fonte quel giorno non ha dato nessuna distinta: non e' un modulo che manca
+    return not (isinstance(side, dict) and side.get("formation"))
+
+
+def fill_formations(ctx: Context, leagues=None, seasons=None,
+                    refresh: bool = False) -> dict[str, int]:
+    """IL MODULO DICHIARATO sulle partite gia' in archivio, e nient'altro.
+
+    `_sides_of` tiene il `formation` della fonte dal 12/09/2026; i file scaricati prima ne portano la
+    forma vecchia - una lista nuda per lato - quindi li' il modulo e' IGNOTO. Misurato prima di
+    scrivere questa passata: **178 partite-lato su 24.214** ce l'hanno, e ogni stagione fino al
+    2025-26 sta a ZERO. Non e' un dato ricostruibile offline - un `rebuild` rigioca la cache, e nella
+    cache non c'e' - quindi l'unica strada e' una rilettura.
+
+    UNA RICHIESTA PER PARTITA E NESSUNA PER TURNO, ed e' la ragione per cui questa passata esiste
+    invece di un `--refresh`: gli id delle partite sono gia' nei file dei turni, quindi non serve la
+    lista di nessun turno, non si ripaga la distinta delle partite che il modulo ce l'hanno gia', e
+    una corsa interrotta riprende da dove era arrivata invece di ricominciare il turno.
+
+    Verificato sulla fonte PRIMA di lanciarla, una partita per stagione: il modulo e' dichiarato fino
+    al 2019-20 (Serie A 2019-20 `3-5-2`/`4-3-1-2`, 2022-23 `4-4-2`/`4-3-3`, 2025-26 `3-5-2`/`4-3-3`).
+
+    `refresh=True` rilegge anche le distinte che il modulo ce l'hanno: serve solo a ri-misurare, e
+    costa la cache intera.
+    """
+    todo: list[tuple[Path, str]] = [
+        (cache, match_id)
+        for cache, match_id, sides in _cached_matches(ctx, leagues, seasons)
+        if refresh or any(_side_wants_formation((sides or {}).get(side))
+                          for side in ("home", "away"))
+    ]
+    counts = {"matches": 0, "filled": 0, "requests": 0, "refused": 0, "empty": 0}
+    if not todo:
+        print("[positions] moduli: niente da riempire")
+        return counts
+    minutes = len(todo) * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60
+    print(f"[positions] moduli: {len(todo)} partite senza il modulo dichiarato "
+          f"(~{minutes:.0f} min, {minutes / 60:.1f} h)")
+
+    session = _client()
+    done = 0
+    try:
+        # Raggruppate per FILE: il turno si riscrive una volta sola e la corsa e' riprendibile a ogni
+        # file invece che a ogni partita.
+        for cache in dict.fromkeys(one for one, _ in todo):
+            ids = [match_id for one, match_id in todo if one == cache]
+            try:
+                payload = json.loads(cache.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                done += len(ids)
+                continue
+            lineups = dict(payload.get("lineups") or {})
+            touched = False
+            for match_id in ids:
+                if ctx.cancelled():
+                    raise KeyboardInterrupt
+                _polite_sleep(ctx.cancel_event)
+                detail = _get_json(session, LINEUPS_ENDPOINT.format(eid=match_id))
+                counts["requests"] += 1
+                done += 1
+                if detail is None:
+                    # UNA SCANSIONE CHE COMINCIA A ESSERE RIFIUTATA SI ABBANDONA (17/08/2026):
+                    # continuare non riapre la fonte, e qui non si scrive niente di vuoto in cache.
+                    counts["refused"] += 1
+                    if counts["refused"] >= MAX_REFUSALS:
+                        print(f"[positions] moduli: {counts['refused']} rifiuti di fila, mi fermo. "
+                              f"Quello che e' stato letto e' in cache, la corsa riprende da li'.")
+                        raise KeyboardInterrupt
+                    continue
+                counts["refused"] = 0
+                fresh = _sides_of(detail)
+                old = lineups.get(match_id) or {}
+                merged = {side: _richer_side((old or {}).get(side), fresh.get(side))
+                          for side in ("home", "away")}
+                gained = sum(1 for side in ("home", "away")
+                             if _side_wants_formation((old or {}).get(side))
+                             and isinstance(merged[side], dict) and merged[side].get("formation"))
+                if gained:
+                    counts["filled"] += gained
+                else:
+                    counts["empty"] += 1
+                lineups[match_id] = merged
+                touched = True
+                counts["matches"] += 1
+                if done % 25 == 0:
+                    ctx.progress("positions", done, len(todo), f"moduli · {cache.stem}")
+            if touched:
+                _atomic_write_text(cache, json.dumps({**payload, "lineups": lineups},
+                                                     ensure_ascii=False))
+    except KeyboardInterrupt:
+        print("[positions] moduli: interrotto - quello che e' stato letto resta in cache")
+    finally:
+        session.close()
+    print(f"[positions] moduli: {counts['matches']} partite lette, {counts['filled']} lati "
+          f"hanno ora il modulo, {counts['empty']} partite in cui la fonte non lo dichiara, "
+          f"{counts['requests']} richieste")
+    return counts
+
+
+def fetch_average_positions(ctx: Context, leagues=None, seasons=None,
+                            refresh: bool = False) -> dict[str, int]:
+    """DOVE OGNUNO HA GIOCATO quella partita, e DI CHI ha preso il posto chi e' entrato.
+
+    Serve per i SUBENTRATI e per loro soltanto: di un titolare il posto lo dice gia' `lineup_slot`,
+    mentre per chi entra dalla panchina l'indice della fonte e' l'ordine della panchina. Finche' non
+    c'era, il campetto lo metteva dove il suo PROFILO diceva - e il profilo non sa che il modulo e'
+    cambiato: la Juventus del 29/08/2026 disegnava Gonzalez N. sotto Kolo Muani, che ha giocato 90
+    minuti e il cui posto quindi non si e' mai liberato (operatore, 12/09/2026).
+
+    UNA RICHIESTA PER PARTITA e due fatti: `home`/`away` portano la media (x, y) di chiunque abbia
+    messo piede in campo, `substitutions` porta ogni cambio con chi esce e chi entra. L'aritmetica dei
+    minuti non li sostituisce - un'uscita trova un ingresso complementare unico nel 30,3% dei casi
+    (11/09/2026), e su questa partita nemmeno torna: cinque entrati contro quattro titolari usciti,
+    perche' Cambiaso e' entrato al 76' ed e' uscito lui stesso al 86'.
+
+    La cache non scade: una partita finita non cambia ne' le medie ne' i cambi.
+    """
+    todo = [(cache, match_id) for cache, match_id, _sides in _cached_matches(ctx, leagues, seasons)]
+    if not refresh:
+        todo = [(cache, match_id) for cache, match_id in todo
+                if not (ctx.config.cache_dir / f"sofascore_avgpos_{match_id}.json").exists()]
+    counts = {"matches": 0, "requests": 0, "refused": 0, "empty": 0}
+    if not todo:
+        print("[positions] posizioni: tutte le partite sono gia' in cache")
+        return counts
+    minutes = len(todo) * (REQUEST_DELAY + REQUEST_JITTER / 2) / 60
+    print(f"[positions] posizioni: {len(todo)} partite da leggere "
+          f"(~{minutes:.0f} min, {minutes / 60:.1f} h)")
+    session = _client()
+    try:
+        for done, (cache, match_id) in enumerate(todo, start=1):
+            if ctx.cancelled():
+                raise KeyboardInterrupt
+            _polite_sleep(ctx.cancel_event)
+            answer = _get_json(session, AVGPOS_ENDPOINT.format(eid=match_id))
+            counts["requests"] += 1
+            if answer is None:
+                # LA FONTE NON HA RISPOSTO, e questo NON si mette in cache: un file vuoto che non sa
+                # chi ha detto l'assenza e' il difetto del 17/08/2026.
+                counts["refused"] += 1
+                if counts["refused"] >= MAX_REFUSALS:
+                    print(f"[positions] posizioni: {counts['refused']} rifiuti di fila, mi fermo. "
+                          f"Quello che e' stato letto resta in cache e la corsa riprende da li'.")
+                    break
+                continue
+            counts["refused"] = 0
+            if not answer.get("home") and not answer.get("away"):
+                # LA FONTE HA RISPOSTO E HA DETTO NIENTE: questo E' un fatto e si salva col marcatore,
+                # o ogni corsa ripagherebbe la stessa richiesta su ogni partita vecchia che non le ha.
+                answer = {**answer, EMPTY_CONFIRMED: True}
+                counts["empty"] += 1
+            _atomic_write_text(ctx.config.cache_dir / f"sofascore_avgpos_{match_id}.json",
+                               json.dumps(answer, ensure_ascii=False))
+            counts["matches"] += 1
+            if done % 25 == 0:
+                ctx.progress("positions", done, len(todo), f"posizioni · {cache.stem}")
+    except KeyboardInterrupt:
+        print("[positions] posizioni: interrotto - quello che e' stato letto resta in cache")
+    finally:
+        session.close()
+    print(f"[positions] posizioni: {counts['matches']} partite lette, {counts['empty']} senza "
+          f"posizioni alla fonte, {counts['requests']} richieste")
+    return counts
+
+
+def ingest_average_positions(ctx: Context, seasons=None) -> dict[str, int]:
+    """Le posizioni medie e i cambi gia' in cache dentro il layer per partita. OFFLINE.
+
+    Separata dalla lettura per la ragione di sempre: cosi' un `rebuild` la rigioca senza rete, e la
+    scansione lunga non tiene aperto il database mentre scarica.
+
+    Scrive TRE colonne che nessun parser nomina (`avg_x`, `avg_y`, `came_for`), quindi l'upsert di
+    `_store_match_rows` non le puo' cancellare - e' la stessa disciplina che protegge `mv_synth`,
+    scritta dal lato di chi le aggiunge.
+
+    `came_for` resta NULL dove l'uomo USCITO non e' nel nostro pool: mettere l'id del provider in una
+    colonna di `fc_id` sarebbe una chiave con due significati, e i due casi si contano invece di
+    mescolarli.
+    """
+    conn = ctx.require_conn()
+    xref = {str(source_id): fc_id for source_id, fc_id in conn.execute(
+        "SELECT source_id, fc_id FROM player_xref WHERE source = 'sofascore'")}
+    known: dict[str, list[tuple[str, str]]] = {}
+    params: list = []
+    where = ""
+    if seasons:
+        where = f" WHERE season IN ({','.join('?' * len(seasons))})"
+        params = list(seasons)
+    for match_id, season, source in conn.execute(
+            f"SELECT DISTINCT match_id, season, source FROM external_match_stats{where}", params):
+        known.setdefault(str(match_id), []).append((season, source))
+    counts = {"files": 0, "rows": 0, "subs": 0, "outside": 0, "unmatched": 0}
+    updates: list[tuple] = []
+    for cache in ctx.config.cache_dir.glob("sofascore_avgpos_*.json"):
+        match_id = cache.stem.removeprefix("sofascore_avgpos_")
+        where_rows = known.get(match_id)
+        if not where_rows:
+            continue
+        try:
+            payload = json.loads(cache.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        counts["files"] += 1
+        spots: dict[int, tuple] = {}
+        for side in ("home", "away"):
+            for row in payload.get(side) or []:
+                fc_id = xref.get(str((row.get("player") or {}).get("id") or ""))
+                if fc_id is None:
+                    counts["unmatched"] += 1
+                    continue
+                spots[fc_id] = (row.get("averageX"), row.get("averageY"), None)
+        for swap in payload.get("substitutions") or []:
+            came = xref.get(str((swap.get("playerIn") or {}).get("id") or ""))
+            went = xref.get(str((swap.get("playerOut") or {}).get("id") or ""))
+            if came is None:
+                continue
+            if went is None:
+                counts["outside"] += 1
+                continue
+            x, y, _ = spots.get(came, (None, None, None))
+            spots[came] = (x, y, went)
+            counts["subs"] += 1
+        for fc_id, (x, y, went) in spots.items():
+            for season, source in where_rows:
+                updates.append((x, y, went, fc_id, season, source, match_id))
+    if updates:
+        # Il CONTEGGIO e' quello delle righe DAVVERO toccate e non quello delle UPDATE spedite: un
+        # uomo puo' aver giocato una partita che questo listone non registra per lui, e contare i
+        # tentativi direbbe «aggiornate» di righe che non esistono.
+        cursor = conn.executemany(
+            "UPDATE external_match_stats SET avg_x = ?, avg_y = ?, came_for = ? "
+            "WHERE fc_id = ? AND season = ? AND source = ? AND match_id = ?", updates)
+        conn.commit()
+        counts["rows"] = cursor.rowcount
+    print(f"[positions] posizioni: {counts['files']} file rigiocati, {counts['rows']} righe "
+          f"aggiornate, {counts['subs']} cambi attribuiti, {counts['outside']} con l'uscente fuori "
+          f"dal nostro pool, {counts['unmatched']} uomini senza identita'")
     return counts
 
 
@@ -2531,6 +2896,12 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
         seasons = [seasons]
     # A bare run walks the leagues IN SCOPE. A feeder league (`serie_b`) has to be asked for by name:
     # it is not a championship the engine reasons about, only the place a promoted club's men played.
+    # ...e come per le stagioni, quello che il CHIAMANTE ha nominato non e' quello su cui si scarica:
+    # le passate che camminano la CACHE (reparse, formations) la coprono tutta - coppe e amichevoli
+    # comprese, che nel cache dei turni stanno sotto `extra_<id>` - mentre il default dei cinque
+    # campionati riguarda i download nuovi. Filtrare anche loro sui cinque nomi lascerebbe fuori
+    # proprio le partite che nessun calendario di lega contiene.
+    requested_leagues = tuple(leagues) if leagues else None
     leagues = tuple(leagues) if leagues else tuple(TOURNAMENTS)
     # SEASONS only bounds NEW downloads; the offline reparse covers the whole cache unless the
     # caller names seasons explicitly (the cache spans further back than the download default).
@@ -2547,9 +2918,10 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
     if layer == "crests":
         return fetch_club_crests(ctx, refresh=refresh)
     if layer not in ("season", "match", "complete", "heatmap", "roles", "all", "reparse",
-                     "crosstab", "extra", "crests"):
+                     "crosstab", "extra", "crests", "formations", "places"):
         raise RuntimeError(f"Unknown layer {layer!r}; choose from "
-                           "season|match|complete|heatmap|roles|all|reparse|crosstab|extra")
+                           "season|match|complete|heatmap|roles|all|reparse|crosstab|extra|"
+                           "formations|places")
 
     ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
     if layer == "crosstab":
@@ -2561,11 +2933,25 @@ def run(ctx: Context, *, leagues=None, seasons=None, refresh: bool = False,
         derive_club_xref(ctx)
         fetch_roles(ctx, clubs=kwargs.get("clubs"), refresh=refresh)
         return
+    if layer == "formations":
+        # Solo la LETTURA: la colonna la scrive il reparse, che e' offline e va corso dopo. Tenerli
+        # separati e' quello che rende questa passata riprendibile senza toccare il database.
+        return fill_formations(ctx, leagues=requested_leagues,
+                               seasons=requested_seasons, refresh=refresh)
+    if layer == "places":
+        fetch_average_positions(ctx, leagues=requested_leagues, seasons=requested_seasons,
+                                refresh=refresh)
+        return ingest_average_positions(ctx, seasons=requested_seasons)
     if layer == "reparse":
         reingest_match_layer(ctx, seasons=requested_seasons)
         derive_roles_from_match_layer(ctx)
         ingest_heatmaps_from_cache(ctx, seasons=requested_seasons)
         ingest_roles_from_cache(ctx)
+        # DOPO il reparse e non prima: `_store_match_rows` non nomina queste tre colonne, quindi non
+        # le cancella - ma una riga che il reparse CREA adesso non le ha ancora, e rigiocare la cache
+        # costa zero richieste. Senza questa riga il replay offline resterebbe incompleto proprio
+        # sulle partite appena entrate, che e' la famiglia «una replica offline che nessuno chiama».
+        ingest_average_positions(ctx, seasons=requested_seasons)
         return
     if layer == "extra":
         # Only if they are missing: deriving them is a WRITE, and this layer is the one most likely to
@@ -2714,8 +3100,10 @@ def derive_birth_years(ctx: Context) -> int:
             print(f"[positions] skipping unreadable round cache {path.name}: {exc}")
             continue
         for sides in (payload.get("lineups") or {}).values():
-            for entries in sides.values():
-                for entry in entries or []:
+            # `_players_of` e non `sides.values()`: dal 12/09/2026 un lato e' `{formation, players}`,
+            # e camminare i VALORI di quel dizionario darebbe anche la stringa del modulo.
+            for side in ("home", "away"):
+                for entry in _players_of(sides, side):
                     player = entry.get("player") or {}
                     fc_id = xref.get(str(player.get("id") or ""))
                     timestamp = player.get("dateOfBirthTimestamp")
