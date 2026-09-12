@@ -4574,11 +4574,15 @@ def test_lo_spareggio_della_heatmap_non_puo_scavalcare_un_codice():
     from euroleghe_ingest.gui import SnapshotView
 
     source = inspect.getsource(SnapshotView._placed)
-    # l'ordine e': la casella del modulo, la larghezza del suo flank, POI la misura, poi il piede
-    bucket = source.index("-bucket, -abs(side) * bucket")
+    # l'ordine e': la casella del modulo, il POSTO OSSERVATO dove c'e', la larghezza del suo flank,
+    # POI la misura, poi il piede. Il posto osservato sta con la casella e non con la misura perche' e'
+    # la stessa specie di affermazione - dove la fonte lo ha MESSO - e non una misura di quanto fosse
+    # largo; vuoto fuori dalla board per slot, quindi altrove la chiave e' quella di sempre.
+    bucket = source.index("-bucket, self._slot_order")
+    width = source.index("-abs(side) * bucket")
     measured = source.index("self.measured_across(entry[0])")
     foot = source.index("self.foot_side(entry[0], lane)")
-    assert bucket < measured < foot, "la misura sta fra la casella del modulo e il piede"
+    assert bucket < width < measured < foot, "la misura sta fra la casella del modulo e il piede"
     # e chi non e' mai stato misurato si ordina al CENTRO, non in fondo: zero e' il centro
     class _Panel:
         HEATMAP_DEPTH = HEATMAP_SIDE = 0.0

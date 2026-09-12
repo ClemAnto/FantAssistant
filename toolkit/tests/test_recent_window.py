@@ -850,3 +850,144 @@ def test_il_cancello_del_wing_back_legge_la_distinta_e_non_solo_il_profilo():
     # ...e una linea osservata NON di corsia non promuove chi non fa quel mestiere: un centrale
     # schierato a centrocampo resta un centrale, perche' il posto chiede comunque una FASCIA.
     assert View._wing_back_trade(row("DC", "M")) is False
+
+
+def _slot_view(rows: list[dict]):
+    """Una vista minima per `_from_slots`: gli servono il claim, `can_replace` e i due appigli."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view._slot_side, view._slot_order = {}, {}
+    view.claim = lambda row, _horizon="short": float(row.get("claim") or 0.0)
+    for row in rows:
+        row.setdefault("desc_real_roles", "MC")
+        row.setdefault("desc_titolarita", "riserva")
+    return view
+
+
+def test_l_undici_dell_ultimo_periodo_si_legge_posto_per_posto():
+    """Le tre regole dell'operatore (12/09/2026), e questa funzione non ne aggiunge nessuna.
+
+    «Devi vedere i calciatori che hanno giocato di piu' nelle ultime 3 partite e metterli DOVE hanno
+    giocato in queste 3 partite. Se ci sono piu' giocatori per una stessa posizione li metti in
+    ballottaggio.» Il claim entra SOLO a parita' di partite.
+    """
+    def man(name, claim, slots, rung="riserva"):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": "MC"}
+
+    # un 1-1-1 fittizio non esiste: si usa un modulo vero e si riempiono tre posti
+    rows = [man("Por", 0.9, "4-3-3:0"),
+            man("Tiene", 0.2, "4-3-3:1;4-3-3:1"),        # due volte quel posto
+            man("Perde", 0.9, "4-3-3:1"),                 # claim piu' alto, UNA volta sola
+            man("Pari", 0.4, "4-3-3:2"), man("PariB", 0.7, "4-3-3:2")]
+    view = _slot_view(rows)
+    drawn = view._from_slots(rows, [], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    by_slot = {row["name"]: (lane, [r["name"] for r in rivals]) for lane, row, rivals in drawn}
+    # LE PARTITE PRIMA DEL CLAIM: chi ha occupato il posto due volte lo tiene, anche con claim 0.2
+    assert "Tiene" in by_slot and "Perde" not in by_slot
+    assert by_slot["Tiene"][1][0] == "Perde"          # e l'altro e' il suo ballottaggio
+    # ...e a PARITA' di partite decide il claim
+    assert "PariB" in by_slot and by_slot["PariB"][1][0] == "Pari"
+    # il posto porta la LINEA del modulo: slot 0 il portiere, 1-4 la difesa
+    assert by_slot["Por"][0] == "P" and by_slot["Tiene"][0] == "D"
+
+    # ...E UNO SLOT DI UN ALTRO MODULO VOTA LO STESSO (regola dell'operatore, 12/09/2026), mappato sul
+    # blocco di righe giusto: un difensore di un 3-4-2-1 resta un difensore in un 4-3-3.
+    altro = [man("Estraneo", 0.9, "3-4-2-1:1")]
+    solo = view._from_slots(altro, [], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    assert [lane for lane, _row, _rivals in solo] == ["D"]
+    # ...e senza NESSUNO slot leggibile non c'e' niente da leggere, e il chiamante torna al calcolo
+    assert view._from_slots([man("Vuoto", 0.9, "")], [], "4-3-3", "short",
+                            {"P": 1, "D": 4, "M": 3, "A": 3}) is None
+
+
+def test_il_posto_di_un_indisponibile_va_a_chi_puo_prenderlo_e_lui_resta_in_ballottaggio():
+    """«Qualche calciatore che rientra da infortunio... ma li metti sempre in ballottaggio» - e undici
+    uomini vanno messi in campo comunque. E' l'unica cosa che la lettura per slot SCEGLIE."""
+    def man(name, claim, slots, rung="riserva"):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": "MC"}
+
+    owner = man("Padrone", 0.9, "4-3-3:1")
+    stand_in = man("Riserva", 0.3, "", rung="panchina")
+    rows = [man("Por", 0.9, "4-3-3:0"), stand_in]
+    view = _slot_view(rows + [owner])
+    drawn = view._from_slots(rows, [owner], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    by_name = {row["name"]: [r["name"] for r in rivals] for _lane, row, rivals in drawn}
+    assert "Riserva" in by_name, "il posto va comunque riempito"
+    assert "Padrone" not in by_name, "chi oggi non puo' giocare non si disegna in campo"
+    assert "Padrone" in by_name["Riserva"], "ma resta il ballottaggio che spiega quella maglia"
+
+
+def test_le_righe_che_coincidono_valgono_uguale_le_altre_no():
+    """La regola dell'operatore sul peso (12/09/2026), col suo stesso esempio.
+
+    «Modulo scelto 3-4-1-2, modulo diverso 3-4-3: difesa e centrocampo sono uguali e i posti vanno
+    trattati allo stesso livello; trequarti e attacco sono diversi e vanno trattati con pesi diversi.»
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    # il suo esempio: P, D e M coincidono riga per riga -> STESSO posto, peso pieno
+    for slot in range(8):
+        assert View._slot_across_shapes("3-4-3", slot, "3-4-1-2") == (slot, True)
+    # trequarti + attacco (1+2) contro attacco (3): stesso totale, righe diverse -> peso ridotto
+    for slot in (8, 9, 10):
+        place, exact = View._slot_across_shapes("3-4-3", slot, "3-4-1-2")
+        assert not exact and 8 <= place <= 10
+
+    # ...e dove la DIFESA cambia, il blocco si allarga invece di far scivolare tutto: un difensore di
+    # un 4-3-3 non finisce in attacco in un 3-4-2-1 - resta dentro il blocco difesa+centrocampo.
+    for slot in range(1, 5):
+        place, exact = View._slot_across_shapes("4-3-3", slot, "3-4-2-1")
+        assert not exact and 1 <= place <= 7
+
+    # un modulo identico non e' mai un'approssimazione
+    assert View._slot_across_shapes("4-3-3", 5, "4-3-3") == (5, True)
+
+
+def test_una_partita_con_un_altro_modulo_vota_e_non_decide_da_sola():
+    """Peso dichiarato: due osservazioni approssimate valgono un'osservazione esatta, non di piu'."""
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def man(name, claim, slots):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": "riserva", "desc_real_roles": "MC"}
+
+    # uno ha il posto UNA volta nel modulo disegnato, l'altro DUE volte in un modulo diverso, sulla
+    # riga che non coincide: 1.0 contro 2 x OTHER_SHAPE_WEIGHT = 1.0, e allora decide il claim.
+    esatto = man("Esatto", 0.2, "3-4-1-2:9")
+    altro = man("Altro", 0.9, "3-4-3:9;3-4-3:9")
+    view = _slot_view([esatto, altro])
+    drawn = view._from_slots([esatto, altro], [], "3-4-1-2", "short",
+                             {"P": 1, "D": 3, "M": 4, "T": 1, "A": 2})
+    assert View.OTHER_SHAPE_WEIGHT == 0.5
+    names = [row["name"] for _lane, row, _rivals in drawn]
+    assert "Altro" in names, "a parita' di peso decide il claim"
+    # ...ma UNA sola partita in un altro modulo non scavalca una partita esatta
+    solo_una = man("Altro", 0.9, "3-4-3:9")
+    view2 = _slot_view([esatto, solo_una])
+    drawn2 = view2._from_slots([esatto, solo_una], [], "3-4-1-2", "short",
+                               {"P": 1, "D": 3, "M": 4, "T": 1, "A": 2})
+    assert [row["name"] for _lane, row, _rivals in drawn2] == ["Esatto"]
+
+
+def test_un_calendario_NEGATIVO_e_una_stagione_senza_calendario_come_lo_zero():
+    """La 4a giornata e' COMINCIATA e non ancora votata: 3 in archivio meno 4 viste fa **-1**.
+
+    Trovato il 12/09/2026 sul foglio vero: `engine_pv_pred` da -0,8 a -0,1 su 393 righe, e con lui
+    valore e surplus, perche' la guardia era `if not matchdays_target` - falsa per -1 - e il calendario
+    negativo si moltiplicava dentro ogni colonna. Uno ZERO si vede; un meno uno passa e rende il foglio
+    inutilizzabile senza che niente si lamenti. La cura e' la guardia, e questo test e' il suo verso.
+    """
+    import inspect
+
+    from euroleghe_ingest.modules import snapshot as snap
+
+    source = inspect.getsource(snap.engine_predictions)
+    assert "if data.matchdays_target <= 0:" in source, (
+        "la guardia deve prendere anche un calendario NEGATIVO, non solo lo zero")
+    assert "if not data.matchdays_target:" not in source
+    # ...e il ripiego resta quello che era: le giornate della stagione precedente meno quelle viste
+    assert "max(data.matchdays_prev - data.matchdays_seen, 1)" in source
+

@@ -29,6 +29,7 @@ import sqlite3
 import sys
 import threading
 import tkinter as tk
+from collections import Counter
 from dataclasses import replace
 from tkinter import messagebox, scrolledtext, ttk
 from typing import ClassVar
@@ -2531,6 +2532,9 @@ class SnapshotView(ttk.Frame):
         # `eleven`, read by `across_bucket`; empty until an eleven has been built, and empty for the
         # elevens that hand out no slots (declared, fielded).
         self._slot_side: dict[int, str] = {}
+        # L'ORDINE dentro la linea dove il posto e' OSSERVATO (la board per slot): vuoto
+        # altrove, cosi' ogni altro percorso legge lo stesso zero per tutti e non cambia nulla.
+        self._slot_order: dict[int, int] = {}
         # id(row) -> the men the TRANSFORMATION moved out of the line the shape gave them (`_reshape`):
         # their lane is a decision already taken, so `lanes_for` must not re-read it from their codes.
         self._reshaped: set[int] = set()
@@ -5023,6 +5027,7 @@ class SnapshotView(ttk.Frame):
     # unticked", "no sheet, so no mean" - so a lane can be drawn and a cell coloured before a panel has
     # been through `__init__`. Every instance rebinds all three there, and loading a sheet resets them.
     _slot_side: ClassVar[dict[int, str]] = {}
+    _slot_order: ClassVar[dict[int, int]] = {}
     _reshaped: ClassVar[set[int]] = set()
     _lanes_final: ClassVar[bool] = False
     _excluded: ClassVar[set] = set()
@@ -5988,6 +5993,212 @@ class SnapshotView(ttk.Frame):
             take.append(row)
         return take
 
+    #: QUANTO VALE UNA PARTITA GIOCATA CON UN ALTRO MODULO, sui posti che i due moduli non hanno in
+    #: comune. Regola dell'operatore (12/09/2026): le righe che COINCIDONO valgono uguale, le altre
+    #: «vanno trattate con pesi diversi». Il valore e' DICHIARATO e nessun gate lo possiede - due
+    #: osservazioni approssimate valgono un'osservazione esatta - ed e' l'unico numero di tutta la
+    #: lettura per slot: dove le righe coincidono non c'e' nessuna approssimazione da scontare.
+    OTHER_SHAPE_WEIGHT: ClassVar[float] = 0.5
+
+    @classmethod
+    def _slot_across_shapes(cls, played: str, slot: int, drawn: str) -> tuple[int, bool] | None:
+        """Il posto `slot` del modulo `played`, letto nel modulo `drawn`: (posto, e' lo stesso posto?).
+
+        A BLOCCHI DI RIGHE, che e' la forma generale dell'esempio dell'operatore. Si cammina le due
+        scomposizioni accumulando finche' il totale corrente coincide: quel pezzo e' un blocco. Un
+        blocco fatto di UNA riga sola con lo stesso numero di uomini e' lo STESSO posto - difesa 3
+        contro 3, centrocampo 4 contro 4 - e vale pieno; ogni altro blocco e' una approssimazione e si
+        mappa per posizione relativa, a peso ridotto.
+
+        Sul suo esempio (3-4-1-2 disegnato, 3-4-3 giocato): P, D e M fanno tre blocchi da una riga con
+        lo stesso conto, quindi gli slot 0-7 sono gli stessi posti; trequarti + attacco fanno 3 da una
+        parte e 3 dall'altra, cioe' un blocco solo di due righe contro una, e i suoi tre slot si
+        distribuiscono per posizione. Che i blocchi si chiudano sempre e' garantito dall'aritmetica:
+        undici uomini da tutt'e due le parti.
+        """
+        here = cls.shape_lanes(played)
+        there = cls.shape_lanes(drawn)
+        if not here or not there:
+            return None
+        # (inizio, fine) di ogni blocco sui due lati, piu' se il blocco e' una riga sola uguale
+        blocks: list[tuple[int, int, int, int, bool]] = []
+        i = j = 0
+        start_here = start_there = 0
+        while i < len(here) and j < len(there):
+            take_here, take_there = here[i][1], there[j][1]
+            lanes_here, lanes_there = 1, 1
+            while take_here != take_there:
+                if take_here < take_there and i + lanes_here < len(here):
+                    take_here += here[i + lanes_here][1]
+                    lanes_here += 1
+                elif j + lanes_there < len(there):
+                    take_there += there[j + lanes_there][1]
+                    lanes_there += 1
+                else:
+                    return None
+            same = (lanes_here == 1 and lanes_there == 1)
+            blocks.append((start_here, take_here, start_there, take_there, same))
+            start_here += take_here
+            start_there += take_there
+            i += lanes_here
+            j += lanes_there
+        for begin_here, size_here, begin_there, size_there, same in blocks:
+            if not begin_here <= slot < begin_here + size_here:
+                continue
+            inside = slot - begin_here
+            if same:
+                return begin_there + inside, True
+            share = inside / (size_here - 1) if size_here > 1 else 0.0
+            return begin_there + round(share * (size_there - 1)), False
+        return None
+
+    def _from_slots(self, eligible: list[dict], sidelined: list[dict], formation: str,
+                    horizon: str, declared_rows: dict[str, int],
+                    ) -> list[tuple[str, dict, list[dict]]] | None:
+        """L'undici dell'ultimo periodo LETTO dalle distinte, posto per posto.
+
+        Le tre regole sono dell'operatore (12/09/2026) e questa funzione non ne aggiunge nessuna: in
+        ogni posto va chi lo ha occupato PIU' VOLTE nella finestra, il claim rompe le parita' e basta,
+        e dove il posto ha cambiato uomo gli altri occupanti sono il BALLOTTAGGIO. Non si sceglie
+        niente: la fonte numera la distinta 0-10 dentro il modulo e quello e' «dove ha giocato».
+
+        LO SLOT VALE SOLO DENTRO IL SUO MODULO, ed e' per questo che `desc_recent_slots` porta la
+        coppia: con quattro dietro i difensori occupano gli slot 1-4 e il 4 e' un difensore, con tre e'
+        il primo centrocampista. Le partite giocate con un altro modulo non votano - «vuoto = ignoto»
+        invece di sommare posti che non sono lo stesso posto - e sono 13 club su 20 ad averne almeno
+        una, quindi non e' un caso di scuola.
+
+        IL VERSO E' MISURATO E NON SCELTO: lo slot cresce con `avg_y` dentro la linea (mediana 29.1 per
+        gli slot bassi contro 70.4 per gli alti, 583 osservazioni) e `avg_y` basso e' la DESTRA della
+        squadra (18.8 destra · 49.6 centro · 79.7 sinistra, calibrato sui codici granulari). La destra
+        della squadra e' il lato SINISTRO dello schermo (`_lane`), quindi l'ordine degli slot e' gia'
+        l'ordine a schermo e non c'e' nessuna geometria da inventare: qui si scrive solo `_slot_side`,
+        lo stesso appiglio che usano gli altri due undici dichiarati.
+
+        NIENTE DA LEGGERE = NIENTE, e il chiamante torna al calcolo: un foglio sotto la revisione 63
+        non porta la colonna, e un club che non ha mai giocato il modulo dichiarato non ha slot da
+        contare. Restituire un undici a meta' sarebbe peggio di non rispondere.
+        """
+        order = tuple(lane for lane, _count in self.shape_lanes(formation))
+        if not order:
+            return None
+        place: dict[int, tuple[str, int, int]] = {}
+        index = 0
+        for lane, count in self.shape_lanes(formation):
+            for inside in range(count):
+                place[index] = (lane, inside, count)
+                index += 1
+
+        def slots_of(row: dict) -> Counter:
+            """Quante volte ha cominciato in ogni posto, e quanto vale ciascuna volta.
+
+            UNA PARTITA GIOCATA CON UN ALTRO MODULO HA IL SUO PESO (operatore, 12/09/2026), e il peso
+            dipende da QUALI righe coincidono: «modulo scelto 3-4-1-2, modulo diverso 3-4-3: difesa e
+            centrocampo sono uguali e i posti vanno trattati allo stesso livello; trequarti e attacco
+            sono diversi e vanno trattati con pesi diversi». Buttarle via - la prima versione - toglieva
+            un terzo della finestra a 13 club su 20.
+            """
+            seen: Counter = Counter()
+            for item in (row.get("desc_recent_slots") or "").split(";"):
+                shape, _sep, number = item.rpartition(":")
+                if not number.isdigit():
+                    continue
+                if shape == formation:
+                    seen[int(number)] += 1.0
+                    continue
+                mapped = self._slot_across_shapes(shape, int(number), formation)
+                if mapped is not None:
+                    slot_there, exact = mapped
+                    seen[slot_there] += 1.0 if exact else self.OTHER_SHAPE_WEIGHT
+            return seen
+
+        healthy = {id(row) for row in eligible}
+        occupants: dict[int, list[tuple[int, dict]]] = {}
+        for row in list(eligible) + list(sidelined):
+            for slot, times in slots_of(row).items():
+                occupants.setdefault(slot, []).append((times, row))
+        if not occupants:
+            return None
+
+        def strength(pair: tuple[int, dict]) -> tuple:
+            # le volte che ha occupato il posto, e solo a PARITA' il claim - la regola dell'operatore
+            return (-pair[0], -self.claim(pair[1], horizon))
+
+        # ...e chi la finestra non ha visto affatto, ordinato per il GRADINO DI STAGIONE, che e' il
+        # metro che l'operatore ha scelto per «importante» (12/09/2026). La scala si cita invece di
+        # inventarne una: `status.LADDER` e' la stessa che scrive la parola sul foglio.
+        rungs = {word: position for position, word in enumerate(status_engine.LADDER)}
+        outside = [row for row in eligible if not slots_of(row)]
+        outside.sort(key=lambda row: (rungs.get(row.get("desc_titolarita") or "", len(rungs)),
+                                      -self.claim(row, horizon)))
+        hurt_outside = [row for row in sidelined if not slots_of(row)]
+        hurt_outside.sort(key=lambda row: (rungs.get(row.get("desc_titolarita") or "", len(rungs)),
+                                           -self.claim(row, horizon)))
+
+        # ...E OGNUNO VA PRIMA DOVE HA GIOCATO DI PIU'. Un uomo che nella finestra ha occupato DUE
+        # posti si conta in tutt'e due, e prendendo i posti in ordine crescente prendeva il primo che
+        # capitava: il secondo restava senza nessuno e la board ne disegnava dieci (il Genoa). Quindi
+        # due passate - prima i posti di cui e' il padrone, poi gli altri - che e' la sua stessa regola
+        # («mettili DOVE hanno giocato») detta per un uomo che ha giocato in due posti.
+        mine: dict[int, Counter] = {}
+        for slot, pairs in occupants.items():
+            for times, row in pairs:
+                mine.setdefault(id(row), Counter())[slot] = times
+        # a pari volte vince il posto piu' ARRETRATO, che e' il numero piu' basso: e' la scelta
+        # conservativa fra due posti che ha occupato una volta ciascuno.
+        home = {who: min(counts, key=lambda slot: (-counts[slot], slot))
+                for who, counts in mine.items()}
+
+        drawn: list[tuple[str, dict, list[dict]]] = []
+        taken: set[int] = set()
+        owners_first = [slot for slot in sorted(place)
+                        if any(home.get(id(row)) == slot for _times, row in occupants.get(slot, []))]
+        for slot in owners_first + [slot for slot in sorted(place) if slot not in owners_first]:
+            lane, inside, count = place[slot]
+            men = sorted((pair for pair in occupants.get(slot, []) if id(pair[1]) not in taken),
+                         key=strength)
+            starters = [row for _times, row in men if id(row) in healthy]
+            # IL PADRONE DEL POSTO E' IL PRIMO OCCUPANTE, anche se una maglia ce l'ha gia': chi ha
+            # giocato in DUE posti si conta in tutt'e due e ne prende uno, quindi l'altro resta con
+            # la lista vuota - e senza questo il posto restava vuoto invece di cercare un sostituto
+            # (il Genoa ne perdeva due: Ellertsson e Baldanzi, sani e gia' disegnati altrove).
+            owned = sorted(occupants.get(slot, []), key=strength)
+            if not starters and owned:
+                # IL POSTO E' SUO E OGGI NON PUO' GIOCARLO. Tutti gli occupanti sono indisponibili -
+                # Meret e Anguissa al Napoli, Solet e Piotrowski all'Udinese, Varela al Monza - o
+                # hanno gia' una maglia altrove. La board breve non disegna chi non puo' giocare e
+                # nessuno ne indossa due, quindi la maglia va
+                # al miglior uomo che quel posto lo puo' prendere (`can_replace`, lo stesso filtro di
+                # ogni rivale del pannello, nell'ordine del gradino di stagione), e il PADRONE resta
+                # disegnato come ballottaggio: e' la regola dell'11/09/2026 - un cancello che toglie
+                # dall'undici non deve togliere anche dai rivali - ed e' l'unica cosa che questa
+                # funzione SCEGLIE, perche' undici uomini vanno messi in campo comunque.
+                owner = owned[0][1]
+                stand_in = [row for row in outside
+                            if id(row) not in taken and self.can_replace(owner, row)]
+                starters = stand_in[:1]
+            if not starters:
+                # E QUI NON C'E' NESSUNO DAVVERO: il posto resta vuoto e la board ne ha dieci. Succede
+                # quando quel posto lo ha occupato un uomo che il listone non quota (Bologna slot 4,
+                # Parma slot 6). Un posto vuoto si vede; un uomo inventato no.
+                continue
+            starter = starters[0]
+            taken.add(id(starter))
+            self._slot_order[id(starter)] = slot
+            self._slot_side[id(starter)] = ("C" if count == 1 else
+                                            "R" if inside == 0 else
+                                            "L" if inside == count - 1 else "C")
+            rivals = [row for _times, row in men if row is not starter]
+            # ...POI chi non ha giocato: in AGGIUNTA e mai al posto di chi il posto lo ha davvero
+            # occupato, e sempre come ballottaggio - «eventualmente devi considerare qualche calciatore
+            # che rientra da infortunio o importante come Pulisic (ma li metti sempre in ballottaggio)».
+            # Il filtro di posizione e' `can_replace`, lo stesso di ogni altro rivale del pannello.
+            rivals += [row for row in outside
+                       if row is not starter and self.can_replace(starter, row)]
+            rivals += [row for row in hurt_outside if self.can_replace(starter, row)]
+            drawn.append((lane, starter, rivals))
+        return drawn or None
+
     def eleven(self, club: str, formation: str,
                mode: str = "typical") -> list[tuple[str, dict, list[dict]]]:
         """(role, starter, rivals) per shirt. Two modes, two questions, and neither uses a valuation.
@@ -6020,6 +6231,7 @@ class SnapshotView(ttk.Frame):
         # re-deciding it from his own codes (`across_bucket`). Cleared per eleven, and left empty by the
         # two paths that hand out no slots: the editors' declared side and the one really fielded.
         self._slot_side = {}
+        self._slot_order = {}
         self._reshaped = set()
         # Whether the lanes this eleven reports are the DRAWING's own (an assignment to a shape's places)
         # or the four listone lines the men were chosen by, which `lanes_for` then splits by role.
@@ -6157,6 +6369,21 @@ class SnapshotView(ttk.Frame):
         sidelined = sorted((row for row in squad if in_squad(row) and self.out_today(row)),
                            key=order) if today else []
         rank = {id(row): index for index, row in enumerate(eligible)}
+        # ...E SULL'ULTIMO PERIODO L'UNDICI NON SI SCEGLIE: SI LEGGE (operatore, 12/09/2026, «devi
+        # vedere i calciatori che hanno giocato di piu' nelle ultime 3 partite e metterli DOVE hanno
+        # giocato in queste 3 partite»). Tutto cio' che segue - la graduatoria per claim, il prestito
+        # fra linee, le riparazioni di fascia e di fronte, l'assegnazione per fit - risponde alla
+        # domanda «chi giocherebbe», che su questa finestra e' gia' stata risposta dalla fonte: la
+        # distinta e' pubblicata, numerata posto per posto, e dedurla e' rispondere peggio a una
+        # domanda che ha gia' una risposta. Stesso filo del modulo osservato, un piano piu' su.
+        if declared_rows and horizon == "short":
+            drawn = self._from_slots(eligible, sidelined, formation, horizon, declared_rows)
+            if drawn is not None:
+                # I POSTI SONO DECISI, come per gli altri due undici dichiarati: `lanes_for` non deve
+                # rileggere la linea dai codici, o rimanderebbe a casa ogni uomo che il modulo ha messo
+                # altrove - che e' esattamente cio' che un modulo E'.
+                self._lanes_final = True
+                return drawn
         out: list[tuple[str, dict, list[dict]]] = []
         taken: set[str] = set()          # one shirt per man, across every line
         # QUANTI NE CHIEDE OGNI RIGA. Sull'ultimo periodo sono le righe del modulo DICHIARATO, trequarti
@@ -8100,7 +8327,12 @@ class SnapshotView(ttk.Frame):
         """
         def key(entry):
             side, row = entry[0], entry[1]
-            return (-self.across_bucket(row, lane), -(side or 0.0), -self.foot_side(row, lane))
+            # ...E DOVE IL POSTO E' OSSERVATO, l'ordine e' il suo (`_slot_order`, solo la board per
+            # slot). Il secchio dice R/C/L e due CENTRALI restano pari: li' decideva la misura, e sulla
+            # finestra corta la fonte ha gia' risposto - Musah e' lo slot 5 e Modric il 6. Vuoto
+            # altrove, quindi ogni altro percorso legge lo stesso zero per tutti e la chiave non cambia.
+            return (-self.across_bucket(row, lane), self._slot_order.get(id(row), 0),
+                    -(side or 0.0), -self.foot_side(row, lane))
 
         known = [(self.lateral(row), row, rivals) for row, rivals in slots]
         # Side unknown AND no slot to stand on: those are the men the flanks are filled with, alternately,
@@ -8228,7 +8460,7 @@ class SnapshotView(ttk.Frame):
             # the widest man of a flank goes OUTSIDE, and outside is a different direction on each
             # flank: the drawn order runs from the team's right to its left, so on the right the widest
             # comes first and on the left it comes last
-            return (-bucket, -abs(side) * bucket,
+            return (-bucket, self._slot_order.get(id(entry[0]), 0), -abs(side) * bucket,
                     -self.MEASURED_TIE * self.measured_across(entry[0]),
                     -self.foot_side(entry[0], lane),
                     -self.claim(entry[0], "season"))

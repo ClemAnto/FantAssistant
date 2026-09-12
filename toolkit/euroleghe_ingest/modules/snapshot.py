@@ -5443,7 +5443,7 @@ def engine_predictions(conn, window: features.Window, platform: str, game: str,
         prepared = features.prepare(conn, window, platform, game, league=league,
                                     squad_source=squad_source)
     data = prepared
-    if not data.matchdays_target:
+    if data.matchdays_target <= 0:
         # THE CALENDAR OF A SEASON NOT YET PLAYED, and it lives here rather than in whoever calls this:
         # appearances are predicted as a SHARE of the target calendar, so a calendar of zero rounds turns
         # every prediction into zero - and then VALUE and SURPLUS are zero too and the ranking is sorted
@@ -5458,6 +5458,13 @@ def engine_predictions(conn, window: features.Window, platform: str, game: str,
         # ogni surplus erano gonfi del 5,6%. Non e' una regola ed e' un errore di UNITA': le giornate che
         # restano sono quelle del calendario meno quelle gia' giocate, e il gate non lo vede perche' le
         # sue finestre in-season hanno la stagione bersaglio COMPLETA in archivio (38 - k, positivo).
+        #
+        # ...E LA GUARDIA E' `<= 0` E NON `not`, che e' come questa stessa cura e' rimasta meta' cura
+        # per otto giorni (12/09/2026). Appena una giornata e' COMINCIATA ma non ancora votata - la 4a
+        # di Serie A si e' giocata l'11/09 e i voti ne portano 3 - il conto e' 3 - 4 = **-1**, che e'
+        # falso per `not` e vero per la vita del foglio: ogni `engine_pv_pred` usciva NEGATIVO (da -0,8
+        # a -0,1 su 393 righe) e con lui valore e surplus. Uno zero si vede e si era visto; un meno uno
+        # passa la guardia e rende l'intero foglio inutilizzabile senza che nulla si lamenti.
         remaining = max(data.matchdays_prev - data.matchdays_seen, 1)
         data.matchdays_target = remaining
         notes.append(
