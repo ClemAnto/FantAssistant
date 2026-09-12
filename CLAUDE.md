@@ -5943,6 +5943,12 @@ Quattro abitudini, e tre sono errori miei della stessa giornata.
 - **UNA DICHIARAZIONE SU QUANTO GIOCA NON DICE DOVE.** «Come AD deve andare sempre Berardi»: `player_rulings`
   porta solo lo `standing`, quindi entra dove PUO' (`can_replace`, e col destro del tridente non condivide
   un codice) e poi **la linea si riordina per lato**. Il posto lo dice il suo codice, non la dritta.
+- **UNA TRASFORMAZIONE DICHIARATA IN UN DOCSTRING NON E' UNA MISURA DEL CODICE.** La mappatura fra due
+  moduli diceva «si mappa per posizione relativa» ed era l'IDENTITA' su **1331 combinazioni su 1331**:
+  i blocchi avevano per costruzione la stessa taglia sui due lati, quindi il conto si annullava. I test
+  passavano perche' asserivano INTERVALLI che l'identita' soddisfa. *Quando si scrive una
+  trasformazione, si conta quante volte cambia qualcosa - e un test che accetta l'identita' non e' un
+  test di quella trasformazione.*
 - E **`git checkout -- <file>` cancella il lavoro non committato di un'altra sessione**: fatto su `gui.py`
   con 298 righe altrui dentro, recuperate da una copia di scratchpad. Per tornare indietro su una propria
   modifica in un file condiviso si toglie la patch, non si ripristina il file.

@@ -7575,3 +7575,17 @@ che la lettura non leggeva (Sassuolo/Berardi, dichiarato in `config/player_rulin
 - **`OTHER_SHAPE_WEIGHT` = 0,5** e il gradino di stagione come ORDINE per i ballottaggi extra sono due
   scelte dichiarate: si cambiano in una riga se lui decide diversamente.
 
+## 12 settembre, notte — la pre-registrazione e la review non spedita
+
+- **Pre-registrazione** (`docs/model/preregistrazione-board-breve-2026-09-12.md`, commit `020c899`): gli
+  undici dell'ultimo periodo dei 23 club che giocano il 13-14/09, presi alle 22:53 PRIMA dei calci
+  d'inizio. E' il giudice che §12.7 dichiarava mancante, e contro il FATTO invece che contro un'altra
+  previsione. Domani si scora: uomini su 11 per club, moduli, e il null «chi ha giocato l'ultima
+  partita». In git e non solo in `data/reports/`, che e' gitignorata.
+- **Code-review della lettura per slot**: 15 rilievi, 10 verificati, **zero corretti**. Dettaglio e
+  numeri in `formazioni-tipo-v1.md` §12.8. I tre grossi: la mappatura fra moduli e' l'identita' (1331
+  combinazioni, 0 rimappate), la regola delle staffette e' irraggiungibile sulla board breve, due dritte
+  `starter` si scacciano a vicenda. Il tentativo di correggerli in blocco porta gli undici completi da
+  20/20 a 16/20 ed e' in uno **stash locale** (`stash@{0}`), che non e' un archivio: la sezione 12.8 e'
+  il record.
+

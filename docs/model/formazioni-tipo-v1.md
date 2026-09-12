@@ -1621,3 +1621,52 @@ le probabili è stato fatto a mano il 12/09 (176/220 uomini, 12/20 moduli, contr
 l'ultima partita» a 180/220) e dovrebbe diventare il quarto riferimento di `press.py` — è anche l'unico
 giudice che esiste a metà settimana, prima che si giochi.
 
+## 12.8 — La code-review della lettura per slot: 15 rilievi, 10 verificati, ZERO corretti (12/09, notte)
+
+Richiesta dell'operatore a fine giornata. I rilievi sono veri e **non sono stati spediti**: il tentativo
+di correggerli in blocco ha introdotto una regressione che non ho chiuso, e l'albero e' tornato al commit
+verificato. Il lavoro e' in uno `stash` locale, che NON e' un archivio — se questa sezione non esistesse,
+domani si ricomincerebbe da capo.
+
+**I tre che contano.**
+
+- **La mappatura fra moduli era l'IDENTITA'.** Verificato esaustivamente: 11 moduli x 11 x tutti gli
+  slot = **1331 combinazioni, ZERO rimappate**. I blocchi di §12.3 hanno per costruzione la stessa
+  taglia sui due lati, quindi `begin_there == begin_here` e `size_there == size_here` sempre, e il
+  `round(share * (size-1))` e' aritmetica morta. Il docstring dichiarava una trasformazione che il
+  codice non faceva, e i test asserivano INTERVALLI (`8 <= place <= 10`) che l'identita' soddisfa. Il
+  danno e' concreto: lo slot 4 di un 4-3-3 e' il quarto difensore e vota per lo slot 4 di un 3-4-2-1,
+  che e' il primo centrocampista.
+- **La regola delle staffette e' irraggiungibile sulla board breve.** Il ritorno anticipato di
+  `_from_slots` esce prima del punto in cui `eleven` calcola `relays`: adottata e misurata l'11/09,
+  spenta in silenzio il 12. Misurato: 19 coppie disegnate insieme che bloccherebbe, di cui **11 non
+  hanno mai cominciato la stessa partita** (per le altre 8 il blocco sarebbe l'artefatto gia' a
+  verbale, quindi la forma giusta e' «solo dove non sono mai stati in campo insieme» — e sulle distinte
+  quella domanda ha una risposta OSSERVATA, che e' il motivo per cui la colonna dovrebbe portare anche
+  la partita e non solo il modulo).
+- **Due dritte `starter` si scacciano a vicenda.** Verificato eseguendo: col secondo dichiarato, il
+  primo esce dall'undici e torna come ballottaggio, perche' un uomo appena inserito non ha occupato
+  nessun posto e segna zero sulla chiave del «piu' debole». La configurazione viva ne ha gia' due
+  (Pinamonti e Berardi).
+
+**Gli altri sette verificati**: nessun tetto `SIDELINED_DUELS` sui ballottaggi indisponibili; la dritta
+`alternative` ignorata nell'ordine dei rivali (sotto `MAX_DUELS` equivale a non disegnarla); nessun
+pavimento sotto cui rinunciare alla lettura (un club puo' uscire con un uomo solo); `can_replace` senza
+il ripiego specchiato nel ripiego posizionale; `declared_rows` passato e mai letto e una guardia `order`
+morta; `SHEET_REVISION` non alzata per il fix del calendario negativo, che muove `engine_*` su 393
+righe; la clamp del calendario messa in un consumatore invece che in `features.prepare`, dove ogni altro
+lettore la vedrebbe; `slots_of` ricalcolata due o tre volte per uomo. Piu' due buchi di test: `_slot_view`
+non imposta mai `_player_rulings`, quindi **tutto il ramo delle dritte e' scoperto** — ed e' cosi' che il
+difetto dei due `starter` e' arrivato a HEAD.
+
+**Perche' non e' stato spedito.** La mappatura PER RIGA funziona (0 slot finiti in una riga diversa su
+1331 combinazioni, e l'esempio dell'operatore esce esatto), ma cambiando la mappatura una partita giocata
+in un modulo senza trequarti smette di votare per la trequarti: gli undici completi passano da **20/20 a
+16/20**. Tre rami di completamento provati, nessuno l'ha chiusa. Spedire una regressione visibile per
+curare difetti latenti sarebbe il baratto sbagliato, e un albero a meta' peggio ancora.
+
+**Da dove ripartire**: chiudere prima il completamento (quale uomo prende un posto che, con la mappatura
+per riga, nessuno ha mai occupato), poi spedire il blocco intero. La colonna dovra' portare anche la
+PARTITA (`match:modulo:slot`) perche' la staffetta possa distinguere un fatto da un'inferenza, e quello
+alza `SHEET_REVISION`.
+
