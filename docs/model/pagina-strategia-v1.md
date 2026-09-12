@@ -875,6 +875,117 @@ direzione sola trova solo metà delle cose che cerca.*
 
 ---
 
+## 19. LA STAGIONE DIVENTA UNA DIMENSIONE della lettura (12 settembre 2026, sera)
+
+Due richieste dell'operatore nella stessa riga: «quando si crea un filtro vorrei che si potesse
+scegliere a quale stagione applicarlo — **voglio filtrare tutti i calciatori che nella stagione corrente
+abbiano mv > 7 e nella stagione passata mv < 6**»; e «per ogni pill visualizzabile vorrei poter
+selezionare la stagione di afferenza in qualche modo».
+
+**Hanno una radice sola, e non è l'interfaccia**: fino a oggi la stagione era CABLATA dentro ogni
+lettura — `gaPrev` e `gaNow` erano due chiavi per lo stesso numero, `MV` voleva dire «media voto della
+stagione in corso» — quindi «la stessa lettura su un'altra stagione» non era esprimibile. Una lettura è
+ora `(chiave, stagione)`, scritta `mv@2025-26`, e le due richieste diventano la stessa cosa vista dal
+lato del filtro e dal lato della riga.
+
+### 19.1 Quali letture prendono una stagione, e quali no
+
+Le letture che descrivono CALCIO GIOCATO (`mv`, `fm`, `G`, `A`, `xG`, `xA`, `G:A`, le quattro
+frequenze). Quelle del FOGLIO no — `Bpm`, `Pa`, `Pas`, `mp`, `FVM`, `Prz`, `Tit`, `SWING` — e non è una
+dimenticanza: `Pa` è quello che il motore si aspetta per la stagione che si sta comprando, e «le partite
+attese del 2024-25» non esiste. Una previsione di una stagione finita non è una previsione, è un esito,
+che ha un altro nome e un'altra colonna (`actual_*`, §-why). Il controllo della stagione su quelle
+pastiglie **non compare affatto**, invece di comparire spento: un controllo disabilitato si legge come
+una cosa che dovrebbe funzionare.
+
+**`gaPrev` e `gaNow` sono collassate in una sola `G:A`**, che è la semplificazione che questa richiesta
+porta con sé: erano la stessa riga dichiarata due volte. Chi le aveva accese le ritrova accese, perché
+`readRef` le MIGRA (`gaPrev` → `ga@<input>`); le pastiglie passano da venti a diciannove.
+
+### 19.2 Quali stagioni si offrono, e perché sono tre e non undici
+
+Le **heavy seasons** del pacchetto (2024-25, 2025-26, 2026-27), più «tutte» dove la lettura lo dichiara
+(le quattro frequenze, per la ragione misurata in §18.1). Misurato sul pacchetto del 12/09/2026, listone
+Serie A, 532 quotati non ceduti: **275 · 343 · 391 uomini con voti**, mediana **26 · 26 · 3** partite.
+La stagione in corso è un campione di tre partite ed è offerta lo stesso, perché «come sta andando
+adesso» è una domanda legittima che l'operatore fa al tavolo — quello che la pagina deve fare è DIRE su
+quanto poggia, e infatti il tooltip del nome scrive «MV/FM 26/27 su 3ª» per ogni stagione accesa.
+
+**Undici sarebbero disponibili per la sola media voto** (`season_stats` viaggia dal 2015-16), e non si
+offrono: un menù che dà undici stagioni a `MV` e tre a `xG` è un menù da imparare due volte, e una
+pastiglia che offre il 2018-19 accanto a una che non può si legge come un guasto. È scritto qui perché
+il giorno in cui servisse, il dato per la MV c'è già.
+
+### 19.3 Il costo: le due metà non costano uguale, ed è dichiarato
+
+`mv` e `fm` vengono dall'**aggregato di stagione** (`season_stats`), che è già in memoria: chiedere la
+media voto di un'altra stagione è **gratis**. Tutto il resto viene dal **livello per-partita** (2,1 MB),
+e quello si chiede solo se una pastiglia accesa o una condizione del filtro lo nomina — `ReadingSpec.heavy`
+è la sola dichiarazione e `seasonsNeeded` deriva da lì QUALI stagioni ricostruire, non «tutte quelle che
+esistono». Un asserto lo fissa: se un giorno `mv` diventasse `heavy`, cambiare stagione su una lista di
+seicento nomi costerebbe un caricamento, e quel test è ciò che lo direbbe.
+
+`ValuationStore` tiene ora UNA mappa per (piattaforma, stagione, uomo) e le due che c'erano — la
+stagione di input e quella in corso — sono due sue FETTE: tre letture della stessa tabella sarebbero tre
+risposte alla stessa domanda.
+
+### 19.4 L'interfaccia: una pastiglia per lettura, le stagioni nel suo menù
+
+Una pastiglia per LETTURA e non una per istanza, ed è una decisione di larghezza: con tre stagioni per
+undici letture stagionali la fila sarebbe di quarantacinque bottoni. La molteplicità vive nel MENÙ della
+pastiglia (quali stagioni, a spunta) e sulla RIGA (una cella per stagione accesa). **Il caret compare
+solo quando la lettura è accesa**, così la fila resta compatta per le sedici spente e cresce solo per le
+tre o quattro in uso.
+
+Sulla riga le celle della stessa lettura sono **adiacenti e per stagione decrescente** — «quest'anno,
+l'anno prima» è il verso in cui si guarda una carriera — e la sigla della barra le nomina (`MV 26/27`,
+oppure `MV ×2` quando sono due). Il selettore d'ordinamento offre una voce per ogni istanza accesa e una
+al default per le spente: offrire tutte le combinazioni darebbe un menù di cinquanta voci di cui
+quarantasette ordinano su una colonna che non si vede.
+
+### 19.5 Il filtro: la stagione è metà della condizione
+
+`FilterClause` porta la sua stagione, e senza di lei la richiesta dell'operatore **non ha soluzioni**:
+«mv > 7 E mv < 6» è una contraddizione. Cambiare la lettura di una condizione cambia anche la sua
+stagione, a quella che la nuova lettura dichiara: tenere la precedente lascerebbe una condizione che
+parla di una stagione che quella lettura non offre. I gettoni in barra la scrivono (`Media voto 25/26 <
+6.2`), perché due condizioni sulla stessa lettura senza l'anno si leggerebbero come una contraddizione —
+ed è esattamente la coppia che lui ha chiesto di poter scrivere.
+
+**Il suo esempio alla lettera, misurato: `mv 26/27 > 7` e `mv 25/26 < 6` seleziona ZERO uomini oggi.**
+Alla terza giornata nessuno tiene una media VOTO sopra il sette dopo un anno sotto il sei (il voto base
+sta quasi sempre fra 5 e 7; sopra il 7 è l'eccezione). Non è un difetto del filtro ed è la ragione per
+cui il banco usa `> 6.5` e `< 6.2`, che ne seleziona **19**: uno zero non distingue un filtro che
+funziona da uno rotto.
+
+### 19.6 Come è verificato
+
+`e2e-strategy-filters.mjs` guida la pagina vera e misura due cose nuove, oltre alle cinque che già
+misurava:
+
+- **la stessa lettura su due stagioni**: aperto il menù di `MV` e spuntata la stagione scorsa, **161
+  righe su 161** portano tutt'e due le celle, **144** con numeri diversi (se nessuna differisse sarebbero
+  la stessa cella disegnata due volte), e ogni cella è confrontata con `season_stats` DEL PACCHETTO —
+  zero scarti;
+- **due condizioni sulla stessa lettura**: scritte a mano nella finestra con un puntatore vero,
+  `Media voto 26/27 > 6.5` e `Media voto 25/26 < 6.2` lasciano **19 righe**, e il pacchetto ne conta
+  **19** in tutto il listone. Accordo esatto fra lo schermo e il file.
+
+`e2e-strategy.mjs` resta sui suoi **26 problemi**, gli stessi che precedono questo lavoro: il suo passo
+sulle due `G:A` ora spunta la seconda stagione dal menù invece di accendere una seconda pastiglia, e
+verifica **337 coppie su 500** contro i voti del pacchetto.
+
+**E una nota sul mio metodo, perché è un difetto che ho commesso e non trovato per un giorno intero.**
+`npx tsc -p tsconfig.json --noEmit` su questo workspace **non compila niente**: `tsconfig.json` ha
+`"files": []` e solo `references`, quindi esce zero dopo aver guardato il vuoto. L'ho usato come
+controllo rapido per tutto il lavoro del §18 leggendo «nessun output» come «compila» — i cancelli veri
+(`ng build` e `ng test`) giravano davvero e nulla è stato spedito rotto, ma quel controllo non provava
+niente. Le forme che guardano davvero sono `tsc -p tsconfig.app.json` e `tsc -p tsconfig.spec.json`. È
+la stessa famiglia di «un audit che risponde *nessun problema* dopo aver guardato niente», commessa
+dentro lo strumento con cui si controlla.
+
+---
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

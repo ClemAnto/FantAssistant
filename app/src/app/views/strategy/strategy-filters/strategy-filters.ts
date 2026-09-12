@@ -17,6 +17,7 @@ import {
   FilterKey,
   FilterSet,
   OP_SIGN,
+  clauseSeason,
   describeClause,
 } from '../../../core/strategy-filter';
 
@@ -87,7 +88,11 @@ export class StrategyFilters {
     const named = new Map(this.fields().map((one) => [one.key, one.label]));
     return this.clauses().map((clause, at) => ({
       at,
-      text: describeClause(clause, named.get(clause.key) ?? clause.key),
+      // LA STAGIONE SUL GETTONE, dove c'e': «MV 25/26 < 6» e «MV 26/27 > 7» sono due condizioni che
+      // senza l'anno si leggerebbero come una contraddizione - ed e' esattamente la coppia che
+      // l'operatore ha chiesto di poter scrivere.
+      text: describeClause(clause, [named.get(clause.key) ?? clause.key, clauseSeason(clause)]
+        .filter(Boolean).join(' ')),
     }));
   });
 
@@ -104,7 +109,10 @@ export class StrategyFilters {
   protected add(): void {
     const first = this.fields()[0];
     if (!first) return;
-    this.clauses.update((one) => [...one, { key: first.key, op: 'gte' as CompareOp, value: 0 }]);
+    this.clauses.update((one) => [
+      ...one,
+      { key: first.key, season: this.defaultSeason(first), op: 'gte' as CompareOp, value: 0 },
+    ]);
   }
 
   protected remove(at: number): void {
@@ -115,8 +123,27 @@ export class StrategyFilters {
     this.clauses.set([]);
   }
 
+  /**
+   * CAMBIARE LETTURA CAMBIA ANCHE LA STAGIONE, alla sua: una condizione su `Pa` non ha una stagione e
+   * una su `MV` ne ha una, quindi tenere quella di prima lascerebbe una condizione che dice «media voto
+   * di nessuna stagione» - o peggio, una stagione che quella lettura non offre.
+   */
   protected setKey(at: number, key: FilterKey): void {
-    this.edit(at, { key });
+    const field = this.fields().find((one) => one.key === key);
+    this.edit(at, { key, season: field?.season ?? null });
+  }
+
+  protected setSeason(at: number, season: string): void {
+    this.edit(at, { season });
+  }
+
+  /** Le stagioni che una condizione puo' prendere: quelle della sua lettura. */
+  protected seasonsOf(clause: FilterClause): { value: string; label: string }[] {
+    return this.fields().find((one) => one.key === clause.key)?.seasons ?? [];
+  }
+
+  private defaultSeason(field: FilterField): string | null {
+    return field.season ?? null;
   }
 
   protected setOp(at: number, op: CompareOp): void {

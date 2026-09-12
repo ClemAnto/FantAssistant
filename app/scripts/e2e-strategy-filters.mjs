@@ -47,6 +47,15 @@ const GOOD_MATCH = 6.5;
 const POOR_MATCH = 6;
 /** Sotto quante partite la pastiglia va SBIADITA: `match-frequency.THIN_SAMPLE`. */
 const THIN_SAMPLE = 10;
+/**
+ * TUTTO IL CALCIO IN ARCHIVIO, come lo scrive un riferimento (`strategy.WHOLE_CAREER`).
+ *
+ * Da quando la stagione si sceglie (12/09/2026) una cella della riga si chiama `chiave@stagione`, e le
+ * quattro frequenze nascono su questa finestra: leggerle per la chiave nuda troverebbe `undefined`, che
+ * e' esattamente il difetto che questo banco ha trovato per primo.
+ */
+const WHOLE = 'tutte';
+const whole = (key) => `${key}@${WHOLE}`;
 /** I campionati che il bundle chiama «campionato»: `players-store.LEAGUE_COMPETITIONS`, riscritti. */
 const LEAGUES = new Set(['serie_a', 'premier_league', 'la_liga', 'bundesliga', 'ligue_1', 'serie_b']);
 /**
@@ -250,6 +259,19 @@ function readToggles() {
   });
 }
 
+/**
+ * LE RAGIONI CHE UN BLOCCO VUOTO SCRIVE DI SE'.
+ *
+ * Un blocco corto senza una ragione a schermo si legge come un blocco rotto; con la ragione SBAGLIATA
+ * si legge come un difetto dei DATI. Col filtro attivo «nessuno ha un numero sul foglio» e' una frase
+ * falsa su una lista che i numeri ce li ha, quindi il banco la legge invece di fidarsi.
+ */
+function readEmpty() {
+  return [...document.querySelectorAll('app-strategy section')]
+    .filter((one) => !one.querySelector('ol li[data-id]'))
+    .map((one) => (one.querySelector('p')?.innerText ?? '').replace(/\s+/g, ' ').trim());
+}
+
 /** Lo stato del filtro come lo schermo lo dichiara: i gettoni, il conteggio, e cosa c'e' sul disco. */
 function readFilterBar() {
   const chips = [...document.querySelectorAll('app-strategy strategy-filters nz-tag')]
@@ -286,6 +308,8 @@ function readModal() {
       value: row.querySelector('[data-clause-value] input')?.value ?? '',
       keyPoint: box(row.querySelector('[data-clause-key]')),
       opPoint: box(row.querySelector('[data-clause-op]')),
+      season: (row.querySelector('[data-clause-season]')?.innerText ?? '').trim(),
+      seasonPoint: box(row.querySelector('[data-clause-season]')),
       valuePoint: box(row.querySelector('[data-clause-value] input')),
     })),
     sets: [...modal.querySelectorAll('[data-set]')].map((one) => (one.innerText ?? '').trim()),
@@ -480,6 +504,41 @@ async function frequenciesFromBundle() {
   return said;
 }
 
+/**
+ * LA MEDIA VOTO DI OGNI STAGIONE dal pacchetto, ri-derivata qui.
+ *
+ * Dall'AGGREGATO (`season_stats`) e non dal livello per-partita, perche' e' da li' che la pagina la
+ * prende: un banco che la ricalcolasse dai voti confronterebbe due definizioni invece di una, e la
+ * prima volta che divergessero accuserebbe la pagina del proprio metodo.
+ */
+async function seasonMvFromBundle() {
+  const raw = await readFile(join(DIST, 'data', 'season_stats.json.gz'));
+  const table = JSON.parse(gunzipSync(raw).toString('utf8'));
+  const at = (name) => table.columns.indexOf(name);
+  const [id, season, platform, pv, mv, fm] = ['fc_id', 'season', 'platform', 'pv', 'mv', 'fm'].map(at);
+  const out = new Map();
+  for (const row of table.rows) {
+    if (row[platform] !== 'default') continue;
+    out.set(`${row[season]}|${Number(row[id])}`, {
+      pv: row[pv] ?? null, mv: row[mv] ?? null, fm: row[fm] ?? null,
+    });
+  }
+  return out;
+}
+
+/** Le due stagioni che il MANIFEST dichiara: mai «bersaglio meno uno», che dentro il viaggio nel
+ *  tempo sarebbe un anno inventato. */
+async function declaredSeasons() {
+  const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
+  return { target: manifest.target_season, input: manifest.input_season };
+}
+
+/** `2025-26` -> `25/26`, come la pastiglia e il menu' la scrivono (`strategy.shortSeason`). */
+function shortSeason(season) {
+  const parts = /^(\d{2})(\d{2})-(\d{2})$/.exec(season);
+  return parts ? `${parts[2]}/${parts[3]}` : season;
+}
+
 /** Quante giornate di Serie A il pacchetto porta per la stagione BERSAGLIO: il null del passo 3. */
 async function playedInTarget() {
   const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
@@ -516,6 +575,9 @@ async function main() {
     '--window-size=1600,1000',
     url,
   ], { stdio: 'ignore' });
+
+  // LE DUE STAGIONI, dal manifest: sono il vocabolario di ogni passo che segue.
+  const { target: TARGET, input: INPUT } = await declaredSeasons();
 
   const report = { url, steps: [], problems: [] };
   const note = (step, detail) => {
@@ -563,7 +625,7 @@ async function main() {
     await waitFor(session, () =>
       document.querySelector('app-strategy [data-readings] [data-reading="longPlay"]') ? true : null, 60);
     const rows = (await evaluate(session, readRows)) ?? [];
-    const withAll = rows.filter((one) => keys.every((key) => key in one.say));
+    const withAll = rows.filter((one) => keys.every((key) => whole(key) in one.say));
     const narrowest = (list) => Math.min(...list.map((one) => one.nameWidth));
     const clipped = (list) => list.filter((one) => one.nameClipped).length;
     // ...E LA CONFIGURAZIONE CHE QUESTA FEATURE PORTA DAVVERO: le quattro sole, con le tre di partenza
@@ -576,7 +638,7 @@ async function main() {
     await wait(300);
     note('le quattro frequenze in barra', {
       said: `${rows.length} righe · ${withAll.length} portano tutte e quattro le pastiglie · esempio `
-        + `${JSON.stringify(rows.find((one) => one.say.longPlay && one.say.longPlay !== '—')?.say ?? null)}`
+        + `${JSON.stringify(rows.find((one) => one.say[whole('longPlay')] !== '—')?.say ?? null)}`
         + ` · il nome piu' stretto: ${narrowest(naked)}px con le tre di partenza, `
         + `${narrowest(fourOnly)}px con le sole quattro nuove, ${narrowest(rows)}px con tutte e sette `
         + `· nomi tagliati ${clipped(naked)} / ${clipped(fourOnly)} / ${clipped(rows)} su ${rows.length}`,
@@ -607,7 +669,7 @@ async function main() {
       if (!mine) continue;
       checked.push(row.id);
       for (const key of keys) {
-        const said = row.say[key];
+        const said = row.say[whole(key)];
         const wanted = mine[key];
         // `undefined` = questo banco non sa rispondere su quella quota per quest'uomo (fantavoto
         // sintetico); `null` = la risposta e' «non lo sappiamo», che invece si confronta.
@@ -621,8 +683,10 @@ async function main() {
       // ...E IL CAMPIONE SOTTILE E' SBIADITO: la stessa riga puo' avere una quota solida e una
       // spannometrica, perche' i tre denominatori sono tre numeri diversi.
       const thin = mine.timed > 0 && mine.timed < THIN_SAMPLE;
-      if (thin === row.faded.includes('longPlay')) faded.right += 1;
-      else if (mine.timed > 0) faded.wrong.push(`${row.id}: ${mine.timed} partite e sbiadito=${row.faded.includes('longPlay')}`);
+      if (thin === row.faded.includes(whole('longPlay'))) faded.right += 1;
+      else if (mine.timed > 0) {
+        faded.wrong.push(`${row.id}: ${mine.timed} partite e sbiadito=${row.faded.includes(whole('longPlay'))}`);
+      }
     }
     note('i quattro numeri vengono dal pacchetto', {
       said: `${checked.length} righe confrontate su ${rows.length} (solo chi ha giocato SOLO in Serie A) `
@@ -646,7 +710,7 @@ async function main() {
     const k = await playedInTarget();
     const possible = new Set(Array.from({ length: k + 1 }, (_, at) => Math.round((at * 100) / k)));
     const values = rows
-      .map((one) => one.say.longPlay)
+      .map((one) => one.say[whole('longPlay')])
       .filter((one) => one && one !== '—')
       .map((one) => Number(String(one).replace('%', '').replace(',', '.')));
     const impossible = values.filter((one) => !possible.has(one));
@@ -784,7 +848,130 @@ async function main() {
       ],
     });
 
-    // 6. Quello che la PAGINA urla: un'eccezione vuol dire che qualcosa non e' stato provato.
+    // 6. LA STESSA LETTURA SU DUE STAGIONI (operatore, 12/09/2026), che e' la meta' nuova.
+    //
+    //    L'asserto che conta non e' «ci sono due celle»: e' che le due portino NUMERI DIVERSI e che
+    //    ognuno sia quello della SUA stagione nel pacchetto. Due celle con lo stesso numero sarebbero
+    //    una lettura disegnata due volte, che e' il difetto che questa feature esiste per non avere.
+    const aggregate = await seasonMvFromBundle();
+    await pressReading(session, 'mv');
+    const menu = await clickSteady(session, 'app-strategy [data-seasons="mv"]');
+    const ticked = await clickSteady(session, `[data-season="${INPUT}"]`);
+    await session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', windowsVirtualKeyCode: 27 });
+    await wait(400);
+    const twin = (await evaluate(session, readRows)) ?? [];
+    const both = twin.filter((one) => `mv@${TARGET}` in one.say && `mv@${INPUT}` in one.say);
+    const differ = both.filter((one) => one.say[`mv@${TARGET}`] !== one.say[`mv@${INPUT}`]);
+    const wrongMv = [];
+    for (const row of both) {
+      for (const season of [TARGET, INPUT]) {
+        const said = row.say[`mv@${season}`];
+        const want = aggregate.get(`${season}|${row.id}`)?.mv ?? null;
+        const read = said === '—' ? null : Number(String(said).replace(',', '.'));
+        if (want == null && read == null) continue;
+        if (want == null || read == null || Math.abs(read - want) > 0.01) {
+          wrongMv.push(`${row.id}: MV ${season} dice ${said} e il pacchetto ${want}`);
+        }
+      }
+    }
+    note('la stessa lettura su DUE stagioni', {
+      said: `${both.length} righe su ${twin.length} portano tutt'e due le celle · ${differ.length} `
+        + `con numeri diversi · esempio `
+        + `${JSON.stringify(both.find((one) => one.say[`mv@${INPUT}`] !== '—')?.say ?? null)}`,
+      problems: [
+        ...(menu?.reachable ? [] : ['il caret delle stagioni non risponde alle proprie coordinate']),
+        ...(ticked?.reachable ? [] : [`la voce «${INPUT}» del menu non si e fatta cliccare`]),
+        ...(both.length === twin.length ? [] : [`${twin.length - both.length} righe senza le due celle`]),
+        // Se NESSUNA riga differisse, le due celle sarebbero la stessa cosa disegnata due volte.
+        ...(differ.length > both.length / 2
+          ? [] : [`solo ${differ.length} righe su ${both.length} hanno due numeri diversi`]),
+        ...wrongMv.slice(0, 5),
+        ...(wrongMv.length > 5 ? [`...e altre ${wrongMv.length - 5} righe che non tornano`] : []),
+      ],
+    });
+
+    // 7. ...E DUE CONDIZIONI SULLA STESSA LETTURA, che e' la sua domanda alla lettera: «mv > X nella
+    //    stagione corrente e mv < Y nella passata». Senza la stagione sarebbe una contraddizione.
+    //
+    //    LE SOGLIE SONO SCELTE SUL PACCHETTO e non copiate dalla sua frase: il suo «> 7 e < 6» oggi
+    //    seleziona ZERO uomini (alla terza giornata nessuno tiene una media voto sopra il sette dopo
+    //    un anno sotto il sei), e uno zero non distingue un filtro che funziona da uno rotto.
+    await clickSteady(session, 'app-strategy [data-clear-filters]');
+    await wait(300);
+    const wanted = [
+      { label: 'Media voto', season: TARGET, op: '>', value: '6.5' },
+      { label: 'Media voto', season: INPUT, op: '<', value: '6.2' },
+    ];
+    const writing = [];
+    await clickSteady(session, 'app-strategy [data-filters]');
+    await waitFor(session, readModal, 40);
+    for (const [index, want] of wanted.entries()) {
+      await clickSteady(session, '[data-add-clause]');
+      await wait(250);
+      const opened = await evaluate(session, readModal);
+      const row = opened?.clauses?.[index];
+      if (!row) {
+        writing.push(`la condizione ${index + 1} non e comparsa`);
+        continue;
+      }
+      await click(session, row.keyPoint);
+      await wait(250);
+      writing.push(await pickOption(session, want.label));
+      let now = await evaluate(session, readModal);
+      const seasonPoint = now?.clauses?.[index]?.seasonPoint;
+      if (!seasonPoint) writing.push(`la condizione ${index + 1} non offre la stagione`);
+      else {
+        await click(session, seasonPoint);
+        await wait(250);
+        writing.push(await pickOption(session, shortSeason(want.season)));
+      }
+      now = await evaluate(session, readModal);
+      const opPoint = now?.clauses?.[index]?.opPoint;
+      if (opPoint) {
+        await click(session, opPoint);
+        await wait(250);
+        writing.push(await pickOption(session, want.op));
+      }
+      now = await evaluate(session, readModal);
+      const valuePoint = now?.clauses?.[index]?.valuePoint;
+      if (valuePoint) await typeNumber(session, valuePoint, want.value);
+    }
+    const written = await evaluate(session, readModal);
+    if (flag('--shot')) {
+      const shot = await session.send('Page.captureScreenshot', { format: 'png' });
+      await writeFile(join(ROOT, 'dist', 'e2e-strategy-seasons.png'), Buffer.from(shot.data, 'base64'));
+      console.log('· screenshot delle due condizioni: dist/e2e-strategy-seasons.png');
+    }
+    await clickSteady(session, '.ant-modal-close');
+    await wait(400);
+    const survivors = (await evaluate(session, readRows)) ?? [];
+    const should = new Set();
+    for (const [key, one] of aggregate) {
+      const [season, id] = key.split('|');
+      if (season !== TARGET || (one.mv ?? 0) <= 6.5) continue;
+      const past = aggregate.get(`${INPUT}|${id}`);
+      if (past?.mv != null && past.mv < 6.2) should.add(Number(id));
+    }
+    const wrongMen = survivors.filter((one) => !should.has(one.id));
+    const empty = (await evaluate(session, readEmpty)) ?? [];
+    note('due condizioni sulla stessa lettura, due stagioni', {
+      said: `condizioni ${JSON.stringify(written?.clauses?.map(
+        (one) => `${one.key} ${one.season} ${one.op} ${one.value}`) ?? [])} `
+        + `· ${survivors.length} righe restano · il pacchetto ne conta ${should.size} in tutto il listone `
+        + `· ${empty.length} blocchi vuoti, e dicono «${empty[0] ?? ''}»`,
+      problems: [
+        ...writing.filter(Boolean),
+        ...(written?.clauses?.length === 2 ? [] : [`${written?.clauses?.length ?? 0} condizioni invece di due`]),
+        // Zero righe proverebbe soltanto che il filtro taglia: la coppia e' scelta perche' ne lascia.
+        ...(survivors.length > 0 ? [] : ['nessuna riga resta: il passo non prova niente']),
+        ...wrongMen.slice(0, 5).map((one) => `${one.name} (${one.id}) resta e il pacchetto dice di no`),
+        // UN BLOCCO VUOTO DA' LA COLPA AL FILTRO e non al foglio: la lista i numeri ce li ha.
+        ...empty.filter((one) => !/passa il filtro/.test(one))
+          .map((one) => `un blocco vuoto dice «${one.slice(0, 60)}» invece di nominare il filtro`),
+      ],
+    });
+
+    // 8. Quello che la PAGINA urla: un'eccezione vuol dire che qualcosa non e' stato provato.
     const noise = session.noise();
     note('la console', {
       said: noise.length ? noise.join(' | ') : 'niente',

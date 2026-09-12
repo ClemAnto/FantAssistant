@@ -125,20 +125,73 @@
         [(sets)]="filterSets"
         [hidden]="hiddenByFilter()"
       />
+      <!-- LE PASTIGLIE, una per LETTURA. Quelle STAGIONALI accese portano anche il loro menù delle
+           stagioni (operatore, 12/09/2026): il caret compare solo quando la lettura è accesa, così la
+           fila resta compatta per le venti spente e cresce solo per le tre o quattro in uso. Spuntarne
+           due dà due celle sulla riga, adiacenti e dalla più recente. -->
       @for (pill of readingPills(); track pill.key) {
-        <button
-          nz-button
-          nzSize="small"
-          [nzType]="pill.on ? 'primary' : 'default'"
-          nz-tooltip
-          [nzTooltipTitle]="pill.label + ' — ' + pill.hint"
-          [attr.aria-pressed]="pill.on"
-          [attr.data-reading]="pill.key"
-          (click)="toggleReading(pill.key)"
-        >
-          {{ pill.short }}
-        </button>
+        @if (pill.on && pill.seasonal) {
+          <nz-space-compact>
+            <button
+              nz-button
+              nzSize="small"
+              nzType="primary"
+              nz-tooltip
+              [nzTooltipTitle]="pill.label + ' — ' + pill.hint"
+              [attr.aria-pressed]="true"
+              [attr.data-reading]="pill.key"
+              (click)="toggleReading(pill.key)"
+            >
+              {{ pill.short }}
+            </button>
+            <button
+              nz-button
+              nzSize="small"
+              nzType="primary"
+              nz-dropdown
+              nzTrigger="click"
+              [nzDropdownMenu]="seasonMenu"
+              nz-tooltip
+              nzTooltipTitle="Su quale stagione leggerla"
+              [attr.data-seasons]="pill.key"
+              (click)="menuFor.set(pill.key)"
+            >
+              <nz-icon nzType="down" />
+            </button>
+          </nz-space-compact>
+        } @else {
+          <button
+            nz-button
+            nzSize="small"
+            [nzType]="pill.on ? 'primary' : 'default'"
+            nz-tooltip
+            [nzTooltipTitle]="pill.label + ' — ' + pill.hint"
+            [attr.aria-pressed]="pill.on"
+            [attr.data-reading]="pill.key"
+            (click)="toggleReading(pill.key)"
+          >
+            {{ pill.short }}
+          </button>
+        }
       }
+      <!-- UN MENÙ SOLO, riempito dalla pastiglia che lo apre: uno per pastiglia significherebbe venti
+           `nz-dropdown-menu` nel DOM, e due direttive che attaccano lo STESSO `TemplateRef` a due
+           overlay è il guasto che questa app ha già pagato (20/08/2026). -->
+      <nz-dropdown-menu #seasonMenu="nzDropdownMenu">
+        <ul nz-menu>
+          @for (choice of seasonChoices(); track choice.season) {
+            <li
+              nz-menu-item
+              [attr.data-season]="choice.season"
+              [nzSelected]="choice.on"
+              (click)="toggleSeason(menuFor()!, choice.season); $event.stopPropagation()"
+            >
+              <nz-icon [nzType]="choice.on ? 'check-circle' : 'minus-circle'" />
+              {{ choice.label }}
+            </li>
+          }
+        </ul>
+      </nz-dropdown-menu>
       <!-- I DUE FATTI CHE LA SCRITTA DICEVA restano a un hover: quale valuta ordina la lista e quanti
            uomini non hanno un numero. Una cifra che non c'è va DETTA - è la regola di casa sui vuoti -
            ma non merita una riga di testo in barra. -->
@@ -399,7 +452,7 @@
                       (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
                       (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
                       (row.estimated ? ' · numero stimato' : '') +
-                      (row.readings.seasonPlayed ? ' · MV/FM su ' + row.readings.seasonPlayed + 'ª' : '')
+                      sampleSaid(row.readings)
                     "
                     >{{ row.man.name }}</span
                   ><ui-ruling-dot [playerId]="row.man.fcId" />
@@ -469,19 +522,19 @@
                              @max-[23rem]:order-last @max-[23rem]:w-full @max-[23rem]:justify-end"
                       data-readings
                     >
-                      @for (reading of shownReadings(); track reading.key) {
+                      @for (reading of shownReadings(); track reading.id) {
                         <span
                           class="inline-flex justify-center rounded border px-1"
                           [class]="
-                            (has(reading.key, row.readings)
+                            (has(reading.ref, row.readings)
                               ? 'border-border bg-page text-fg'
                               : 'border-transparent text-muted') +
                             ' ' +
-                            reading.width
+                            reading.spec.width
                           "
-                          [class.opacity-50]="isRough(reading.key, row.readings)"
-                          [attr.data-reading]="reading.key"
-                          >{{ text(reading, row.readings) }}</span
+                          [class.opacity-50]="isRough(reading.ref, row.readings)"
+                          [attr.data-reading]="reading.id"
+                          >{{ text(reading.spec, reading.ref, row.readings) }}</span
                         >
                       }
                     </span>
@@ -501,6 +554,12 @@
               @if (block.hidden) {
                 Nessuno dei {{ block.hidden }} nomi di questa lista si chiama così, o gioca in una
                 squadra che si chiama così.
+              } @else if (block.dropped) {
+                <!-- LA RAGIONE GIUSTA PER UN BLOCCO VUOTO: col filtro attivo, dare la colpa al foglio
+                     («nessuno ha un numero») è una frase falsa su una lista che i numeri ce li ha. Un
+                     blocco corto senza la sua ragione a schermo si legge come un blocco rotto, e con
+                     la ragione SBAGLIATA si legge come un difetto dei dati. -->
+                Nessuno dei {{ block.dropped }} uomini di questo ruolo passa il filtro.
               } @else if (settings().view === 'natives' && !block.nativePool && block.pool) {
                 Nessuno dei {{ block.pool }} uomini che coprono questo posto ci sta di mestiere: hanno
                 tutti un ruolo più arretrato. Passa a «Tutti» per vederli.

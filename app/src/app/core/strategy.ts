@@ -235,94 +235,22 @@ export interface StrategyBidder {
   /** La frase che quella quota scrive di sé: il campione, la finestra, la mediana del suo ruolo. */
   steadyNote: string;
   /**
-   * LA SUA STAGIONE IN CORSO, MISURATA: quante ne ha giocate e con che media (`season_stats`).
+   * IL SUO CALCIO, UNA STAGIONE PER VOCE - piu' `WHOLE_CAREER`, che le tiene tutte insieme.
    *
-   * Su richiesta dell'operatore (05/09/2026) sono queste - e non le previste - le pastiglie `MV` e
-   * `FM`: al tavolo la domanda e' «come sta andando», e una previsione risponde a un'altra. Restano
-   * accanto a quelle previste senza mescolarsi: `bonus` e' il tasso ATTESO (`fm` meno `mv` qui sopra),
-   * queste sono quello che ha gia' fatto, e il vocabolario delle pastiglie dice quale e' quale.
+   * Prima del 12/09/2026 erano dieci campi sciolti con la stagione cablata nel nome (`seasonMv`,
+   * `gaPrev`, `frequencies`...): la lettura e la sua stagione erano la stessa cosa, e per vedere la
+   * media voto di due stagioni bisognava dichiarare due letture. Ora la stagione e' una CHIAVE, e la
+   * riga ne porta quante ne servono.
    *
-   * Vuote per chi non ha ancora giocato, che non e' uno zero.
+   * CHI COSTRUISCE LA RIGA RIEMPIE SOLO LE STAGIONI CHIESTE, perche' meta' di questi numeri costa un
+   * caricamento da 2,1 MB: `mv` e `fm` vengono dall'aggregato di stagione (gia' in casa, undici
+   * stagioni), tutto il resto dal livello per-partita. Una stagione assente si legge come «non lo
+   * sappiamo», che e' quello che e'.
+   *
+   * OPZIONALE come lo SWING, e per la stessa ragione: un lettore che non lo passa lascia il campo
+   * assente e le pastiglie stagionali non si stampano.
    */
-  seasonPlayed: number | null;
-  seasonMv: number | null;
-  seasonFm: number | null;
-  /**
-   * ...E GLI ATTESI DELLA STESSA STAGIONE, per PARTITA GIOCATA (operatore, 05/09/2026: «aggiungi qui
-   * xG e xA», sulla fila delle pastiglie dove stanno gia' MV e FM).
-   *
-   * Sono la coppia REALE come le due accanto - quello che ha prodotto finora, non quello che ci si
-   * aspetta - e non hanno piattaforma: una fantamedia e' un fatto su un CALENDARIO, un xG e' un fatto
-   * su una PARTITA, e la stessa partita produce lo stesso xG su tutt'e due i listoni.
-   *
-   * Vuoti dove la fonte non pubblica gli attesi, che non e' uno zero: uno zero direbbe che non ha mai
-   * tirato.
-   */
-  seasonXg: number | null;
-  seasonXa: number | null;
-  /**
-   * ...E I GOL E GLI ASSIST VERI della stessa stagione, PER PARTITA GIOCATA (operatore, 05/09/2026:
-   * «GOL -> Gol per partita, ASSIST -> Assist per partita»).
-   *
-   * La sua correzione mette le quattro pastiglie nella STESSA UNITA', ed e' il solo motivo per cui gli
-   * attesi servono a qualcosa: `G 0,50` accanto a `xG 0,45` e' una frase («segna quanto produce»),
-   * mentre `G 1` accanto a `xG 0,45` sono due cifre che non si possono confrontare - un conteggio e una
-   * media, cioe' la famiglia di errori piu' cara di questo progetto.
-   *
-   * I RIGORI SEGNATI SONO GOL e gli assist da fermo sono assist, come nel riepilogo della card e per la
-   * stessa ragione: «quanti gol ha fatto» e' una domanda sul calcio e non sul punteggio, e un rigorista
-   * che ne segna dieci non ne ha fatti zero.
-   *
-   * IL DENOMINATORE E' LE PARTITE GIOCATE, che non e' quello degli attesi: un xG lo si sa solo delle
-   * giornate in cui la fonte ha una riga sua, un gol di tutte. Due medie vicine con due denominatori
-   * e' giusto - ognuna col suo - e il tooltip di ognuna dice qual e'.
-   *
-   * Zero e' un fatto (ha giocato e non ha segnato), vuoto e' un altro (non ha giocato, o le pastiglie
-   * sono spente e il calcio giocato non e' in casa).
-   */
-  seasonGoals: number | null;
-  seasonAssists: number | null;
-  /**
-   * ...E LE DUE COPPIE CONTATE, una per stagione (operatore, 06/09/2026: «un pill `G:A 25/26` e uno
-   * `G:A 26/27` dove mostri (GOL:ASSIST)»).
-   *
-   * SONO LA STESSA LETTURA DI `seasonGoals`/`seasonAssists` IN UN'ALTRA UNITA', e non una seconda
-   * misura: escono dalla stessa chiamata a `seasonTotals`, che le divide per le partite giocate dove
-   * la media serve e le lascia intere qui. Due somme degli stessi voti darebbero a un uomo due
-   * conteggi, ed e' il difetto che questo progetto paga da sempre.
-   *
-   * DUE DOMANDE DIVERSE, ed e' la ragione per cui convivono con le medie: una media dice «che
-   * giocatore e'», un conteggio dice «quanto ha portato», e a settembre - su due giornate - la media
-   * di chi ha segnato una volta e' 0,50 mentre il conteggio e' 1. Nessuna delle due sostituisce
-   * l'altra.
-   *
-   * I RIGORI TRASFORMATI SONO GOL (sua precisazione, stessa richiesta) e gli assist da fermo sono
-   * assist: `seasonTotals` somma `goals + penScored` e `assists + assistsSetPiece`, che e' la stessa
-   * convenzione del riepilogo della card.
-   *
-   * `gaPrev` legge la stagione DICHIARATA come input dal manifest (`input_season`) e `gaNow` quella
-   * bersaglio: due stagioni lette dal pacchetto e mai calcolate da un anno meno uno. Vuote per chi non
-   * ha una giornata su file in quella stagione - che non e' uno zero-zero.
-   */
-  gaPrev: GoalsAssists | null;
-  gaNow: GoalsAssists | null;
-  /**
-   * QUANTO SPESSO GLI SUCCEDE UNA COSA, su TUTTO il calcio che ha in archivio (`match-frequency.ts`).
-   *
-   * Richiesta dell'operatore (12/09/2026): oltre l'85', fantavoto almeno buono, almeno un bonus,
-   * fantavoto insufficiente. Quattro quote e una lettura sola, perche' sono lo stesso conto con quattro
-   * predicati - e due passate sulle stesse partite darebbero a un uomo due denominatori.
-   *
-   * NON E' LA STAGIONE IN CORSO come le sei pastiglie qui sopra, e la ragione e' misurata: alla terza
-   * giornata ogni quotato ha al massimo tre partite, quindi una quota potrebbe valere solo 0, 1/3, 2/3
-   * o 1. La finestra e' quella su cui la COSTANZA e' gia' costruita, cioe' tutto il suo calcio nel
-   * pacchetto. Vuoto per chi non ne ha nessuno, che non e' uno zero.
-   *
-   * OPZIONALE come lo SWING, e per la stessa ragione: chi costruisce la riga puo' non avere il livello
-   * per-partita in casa (costa un caricamento, e le quattro pastiglie sono spente all'apertura). Un
-   * lettore che non lo passa lascia il campo assente e le pastiglie non si stampano.
-   */
-  frequencies?: MatchFrequencies | null;
+  seasons?: ReadonlyMap<string, SeasonFootball>;
   /**
    * IL FANTAVALORE DI MERCATO del suo listone, nella valuta del gioco dichiarato.
    *
@@ -362,6 +290,97 @@ export interface StrategyBidder {
  * sarebbe una regola senza gate - quindi le due metà restano due numeri accanto (`24:20`) e il tooltip
  * dice quale è quale.
  */
+/**
+ * TUTTO IL CALCIO IN ARCHIVIO, come stagione: non e' una stagione, ed e' per questo che ha un nome suo.
+ *
+ * E' la finestra delle quattro frequenze (`match-frequency.ts`), misurata e non scelta: sulla stagione
+ * in corso ognuno ha al massimo tre partite, e una quota su tre partite non e' una quota. Vive nello
+ * stesso posto dove vivono le stagioni vere perche' risponde alla stessa domanda - «di quale calcio
+ * stiamo parlando» - e tenerla altrove vorrebbe dire due modi di dirlo.
+ */
+export const WHOLE_CAREER = 'tutte';
+
+/**
+ * UNA LETTURA E LA STAGIONE SU CUI SI LEGGE (operatore, 12/09/2026: «per ogni pill vorrei poter
+ * selezionare la stagione di afferenza»).
+ *
+ * La stagione e' una DIMENSIONE della lettura e non una sua variante: `mv` e' sempre la media voto, e
+ * `mv@2025-26` dice su quale calcio. Prima della sua richiesta la stagione era CABLATA in ogni
+ * pastiglia - `G:A 25/26` e `G:A 26/27` erano due chiavi diverse per lo stesso numero - e dichiararla
+ * una volta sola e' quello che permette di averne due accanto senza dichiararne due.
+ *
+ * `season` e' `null` per le letture che vengono dal FOGLIO: sono la previsione per la stagione che si
+ * sta comprando, e offrire una stagione a `Pa` significherebbe promettere «le partite attese del
+ * 2024-25», che non esiste - una previsione di una stagione finita non e' una previsione.
+ */
+export interface ReadingRef {
+  key: ReadingKey;
+  season: string | null;
+}
+
+/** Come una lettura si scrive in una preferenza salvata e in una chiave d'ordinamento: `mv@2025-26`. */
+export function refText(ref: ReadingRef): string {
+  return ref.season ? `${ref.key}@${ref.season}` : ref.key;
+}
+
+/**
+ * ...e come si rilegge. `null` per quello che questa versione non capisce piu'.
+ *
+ * LE DUE COPPIE `G:A` SI MIGRANO invece di essere buttate: erano `gaPrev` e `gaNow`, cioe' la stessa
+ * lettura con la stagione scritta dentro la chiave, e chi le aveva accese ieri deve ritrovarle accese
+ * oggi. Le due stagioni le passa chi chiama, perche' sono un fatto del pacchetto e non di questo file.
+ */
+export function readRef(text: unknown, seasons: { target: string; input: string }): ReadingRef | null {
+  if (typeof text !== 'string' || !text) return null;
+  if (text === 'gaPrev') return { key: 'ga', season: seasons.input };
+  if (text === 'gaNow') return { key: 'ga', season: seasons.target };
+  const [key, season] = text.split('@');
+  const spec = READINGS.find((one) => one.key === key);
+  if (!spec) return null;
+  if (!spec.seasonal) return { key: spec.key, season: null };
+  return { key: spec.key, season: season || defaultSeasonOf(spec, seasons) };
+}
+
+/** La stagione su cui una lettura si legge quando nessuno ha scelto: quella che la sua spec dichiara. */
+export function defaultSeasonOf(spec: ReadingSpec, seasons: { target: string; input: string }): string {
+  if (spec.season === 'career') return WHOLE_CAREER;
+  if (spec.season === 'input') return seasons.input;
+  return seasons.target;
+}
+
+/** Due riferimenti sono lo stesso: una lettura puo' essere accesa su piu' stagioni, non due volte sulla stessa. */
+export function sameRef(one: ReadingRef, other: ReadingRef): boolean {
+  return one.key === other.key && one.season === other.season;
+}
+
+/**
+ * IL CALCIO DI UNA STAGIONE, come la riga lo legge - e le fonti NON sono la stessa.
+ *
+ * `mv` e `fm` vengono dall'AGGREGATO di stagione (`season_stats`), che il pacchetto porta per undici
+ * stagioni e che e' gia' in casa: chiedere la media voto di un'altra stagione non costa un caricamento.
+ * Tutto il resto viene dal LIVELLO PER-PARTITA, che e' 2,1 MB e si chiede solo quando serve - ed e'
+ * anche la ragione per cui le due meta' hanno denominatori diversi, cosa che questa pagina dichiara da
+ * quando le pastiglie esistono.
+ *
+ * Vuoto e non zero dappertutto: chi non ha giocato quella stagione non ha una media, non ha una media
+ * di zero.
+ */
+export interface SeasonFootball {
+  /** Le giornate con un voto di quella stagione (`season_stats.pv`): il campione di `mv` e `fm`. */
+  played: number | null;
+  mv: number | null;
+  fm: number | null;
+  /** I gol per partita GIOCATA, rigori compresi (dal livello per-partita). */
+  goals: number | null;
+  assists: number | null;
+  xg: number | null;
+  xa: number | null;
+  /** ...e gli stessi gol e assist CONTATI: la stessa lettura in un'altra unita'. */
+  ga: GoalsAssists | null;
+  /** Le quattro frequenze di quella finestra (`match-frequency.ts`). */
+  frequencies: MatchFrequencies | null;
+}
+
 export interface ManReadings {
   /**
    * IL BONUS A PARTITA MEDIO: `fantamedia attesa − media voto attesa`, cioe' quanto dei suoi punti NON
@@ -384,39 +403,19 @@ export interface ManReadings {
   passedIsHis: boolean;
   /** I minuti attesi quando gioca. Vuoto dove il foglio non li dichiara, mai zero. */
   minutes: number | null;
-  /** La media voto REALE di questa stagione: quello che ha gia' preso, non quello che ci si aspetta. */
-  mv: number | null;
-  /** ...e la fantamedia REALE, cioe' quella piu' i bonus che ha gia' portato. */
-  fm: number | null;
-  /** I gol VERI di questa stagione PER PARTITA GIOCATA, rigori compresi. */
-  goals: number | null;
-  /** ...e gli assist veri, sulla stessa base, quelli da fermo compresi. */
-  assists: number | null;
-  /** I gol ATTESI a partita di questa stagione: quello che ha prodotto, non quello che ha segnato. */
-  xg: number | null;
-  /** ...e gli assist attesi, sulla stessa stagione e con lo stesso denominatore. */
-  xa: number | null;
   /**
-   * I GOL E GLI ASSIST CONTATI, una coppia per stagione: quella scorsa e quella in corso.
+   * IL SUO CALCIO, UNA STAGIONE PER VOCE - piu' `WHOLE_CAREER`, che e' tutto insieme.
    *
-   * Non sono `goals`/`assists` con un altro nome: quelli sono MEDIE per partita giocata, questi sono
-   * CONTEGGI, e le due domande convivono («che giocatore e'» contro «quanto ha portato»). Escono dalla
-   * stessa lettura, quindi non possono contraddirsi.
-   */
-  gaPrev: GoalsAssists | null;
-  gaNow: GoalsAssists | null;
-  /**
-   * LE QUATTRO FREQUENZE, con i loro denominatori (`match-frequency.ts`).
+   * Una MAPPA e non dieci campi sciolti, da quando la stagione si sceglie (operatore, 12/09/2026): con
+   * i campi sciolti «la media voto» e «di quale stagione» erano la stessa cosa, e per averne due
+   * accanto bisognava dichiarare due letture. Qui la lettura e' una e la stagione e' una chiave.
    *
-   * L'OGGETTO INTERO e non quattro numeri sciolti: i tre denominatori servono a dire quando una quota e'
-   * spannometrica (`readingIsRough`), e tenerli accanto alle quote e' quello che impedisce a una riga di
-   * avere la quota di una finestra e il campione di un'altra. Le quote qui dentro sono 0-1, cioe' la
-   * MISURA; quello che la pastiglia stampa e' la percentuale, e la conversione si fa in un punto solo
-   * (`readingValue`).
+   * DENTRO C'E' SOLO QUELLO CHE E' STATO CHIESTO: chi costruisce la riga riempie le stagioni che le
+   * pastiglie accese e il filtro nominano, perche' meta' di questi numeri costa un caricamento da 2,1
+   * MB. Una stagione assente e una stagione senza calcio si leggono uguale - entrambe «non lo sappiamo»
+   * - ed e' giusto cosi': la pagina non chiede quello che non mostra.
    */
-  frequencies: MatchFrequencies | null;
-  /** Su quante giornate quelle due medie sono fatte: a settembre puo' essere UNA, e va detto. */
-  seasonPlayed: number | null;
+  seasons: ReadonlyMap<string, SeasonFootball>;
   /** Il fantavalore del listone: un PREZZO, e l'unico numero di questa riga che non e' nostro. */
   fvm: number | null;
   /**
@@ -467,7 +466,10 @@ export interface ManReadings {
  */
 export type ReadingKey =
   | 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'goals' | 'assists' | 'xg' | 'xa'
-  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing' | 'titolarita' | 'paid'
+  // UNA SOLA `G:A` dal 12/09/2026: erano `gaPrev` e `gaNow`, cioe' la stessa lettura con la stagione
+  // scritta dentro la chiave. Da quando la stagione si sceglie, due chiavi per un numero sarebbero due
+  // vocabolari per la stessa cosa - e chi le aveva accese le ritrova, perche' `readRef` le migra.
+  | 'ga' | 'fvm' | 'swing' | 'titolarita' | 'paid'
   // LE QUATTRO FREQUENZE (operatore, 12/09/2026). Stanno in fondo all'elenco e non accanto a `passed`,
   // che e' la lettura piu' simile, per una ragione che si vede a schermo: sono le uniche che non
   // parlano della stagione in corso, e una fila di pastiglie si legge da sinistra come si legge una
@@ -499,18 +501,39 @@ export interface ReadingSpec {
    *  non dipende dal numero - una fila di riquadri uguali si scorre a colpo d'occhio. */
   width: string;
   /**
-   * QUALE STAGIONE DI CALCIO GIOCATO le serve, o niente se il numero sta gia' nel foglio.
-   *
-   * E' la sola dichiarazione: `SEASON_READINGS` e `PREV_SEASON_READINGS` si DERIVANO da qui, cosi' una
-   * pastiglia nuova non puo' esistere senza che la pagina sappia cosa caricarle sotto - due elenchi
-   * della stessa cosa sono come una pastiglia finisce per accendersi su una casella vuota per sempre.
+   * SU CHE CALCIO SI LEGGE QUANDO NESSUNO HA SCELTO, o niente se il numero sta gia' nel foglio.
    *
    * `target` e' la stagione che si sta comprando, `input` quella che il manifest dichiara come input
    * (`input_season`): due stagioni LETTE dal pacchetto, mai un anno meno uno. `career` e' TUTTE quelle
    * che il pacchetto porta, che e' la sola finestra in cui una frequenza sia una frequenza (vedi
-   * `match-frequency.ts`) - e costa lo stesso caricamento, perche' `PlayersStore` le porta in un colpo.
+   * `match-frequency.ts`).
+   *
+   * Da oggi e' il DEFAULT e non il vincolo: `seasonal` dice che si puo' cambiare.
    */
   season?: 'target' | 'input' | 'career';
+  /**
+   * LA STAGIONE SI PUO' SCEGLIERE (operatore, 12/09/2026), e non tutte le letture possono.
+   *
+   * Quelle del FOGLIO non possono, e non e' una dimenticanza: `Pa` e' quello che il motore si aspetta
+   * per la stagione che si sta comprando, e «le partite attese del 2024-25» non esiste - una previsione
+   * di una stagione finita non e' una previsione, e' un esito, che ha un altro nome e un'altra colonna.
+   * Le letture stagionali sono quelle che descrivono CALCIO GIOCATO.
+   */
+  seasonal?: true;
+  /**
+   * ...e puo' essere letta anche su TUTTO il calcio in archivio (`WHOLE_CAREER`), non solo su una
+   * stagione: vale per le quattro frequenze, che su tre partite non sarebbero una quota.
+   */
+  whole?: true;
+  /**
+   * IL NUMERO VIENE DAL LIVELLO PER-PARTITA, cioe' costa un caricamento da 2,1 MB.
+   *
+   * E' la sola dichiarazione da cui si deriva cosa caricare (`wantsPlayedFootball`, `seasonsNeeded`):
+   * `mv` e `fm` vengono dall'aggregato di stagione, che e' gia' in casa per undici stagioni, quindi
+   * chiedere la media voto di un'altra stagione e' gratis - e il resto no. Due elenchi della stessa
+   * cosa sono come una pastiglia finisce per accendersi su una casella vuota per sempre.
+   */
+  heavy?: true;
   /**
    * LA PASTIGLIA PORTA UNA COPPIA e non un numero: si stampa `12:5` e non si puo' ordinare.
    *
@@ -571,7 +594,9 @@ export const READINGS: ReadingSpec[] = [
     key: 'mv',
     short: 'MV',
     label: 'Media voto',
-    hint: 'Media voto REALE di questa stagione.',
+    hint: 'Media voto MISURATA della stagione scelta.',
+    season: 'target',
+    seasonal: true,
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -579,7 +604,9 @@ export const READINGS: ReadingSpec[] = [
     key: 'fm',
     short: 'FM',
     label: 'Fantamedia',
-    hint: 'Fantamedia REALE di questa stagione.',
+    hint: 'Fantamedia MISURATA della stagione scelta.',
+    season: 'target',
+    seasonal: true,
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -587,8 +614,10 @@ export const READINGS: ReadingSpec[] = [
     key: 'goals',
     short: 'G',
     label: 'Gol per partita',
-    hint: 'Gol per partita giocata, questa stagione. Rigori compresi.',
+    hint: 'Gol per partita giocata. Rigori compresi.',
     season: 'target',
+    seasonal: true,
+    heavy: true,
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -596,8 +625,10 @@ export const READINGS: ReadingSpec[] = [
     key: 'assists',
     short: 'A',
     label: 'Assist per partita',
-    hint: 'Assist per partita giocata, questa stagione. Quelli da fermo compresi.',
+    hint: 'Assist per partita giocata. Quelli da fermo compresi.',
     season: 'target',
+    seasonal: true,
+    heavy: true,
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -605,8 +636,10 @@ export const READINGS: ReadingSpec[] = [
     key: 'xg',
     short: 'xG',
     label: 'Gol attesi a partita',
-    hint: 'Gol ATTESI per partita, questa stagione.',
+    hint: 'Gol ATTESI per partita.',
     season: 'target',
+    seasonal: true,
+    heavy: true,
     format: '1.2-2',
     width: 'min-w-10',
   },
@@ -614,34 +647,31 @@ export const READINGS: ReadingSpec[] = [
     key: 'xa',
     short: 'xA',
     label: 'Assist attesi a partita',
-    hint: 'Assist ATTESI per partita, questa stagione.',
+    hint: 'Assist ATTESI per partita.',
     season: 'target',
+    seasonal: true,
+    heavy: true,
     format: '1.2-2',
     width: 'min-w-10',
   },
-  // LE DUE COPPIE CONTATE (operatore, 06/09/2026). Stanno dopo le quattro medie perche' sono la
-  // stessa lettura in un'altra unita', e portano l'ANNO perche' senza sarebbero due pastiglie con un
-  // nome solo - l'anno lo compone `readingShort` dalla stagione che il pacchetto dichiara.
+  // LA COPPIA CONTATA (operatore, 06/09/2026). Sta dopo le quattro medie perche' e' la stessa lettura
+  // in un'altra unita', e porta l'ANNO perche' la stessa lettura puo' essere accesa su due stagioni -
+  // l'anno lo compone `readingShort` dalla stagione del riferimento, mai da un'aritmetica.
+  //
+  // UNA E NON DUE dal 12/09/2026: `gaPrev`/`gaNow` erano questa stessa riga dichiarata due volte, con
+  // la stagione cablata nella chiave. Da quando la stagione si sceglie, la seconda dichiarazione
+  // sarebbe un secondo vocabolario per lo stesso numero.
   {
-    key: 'gaPrev',
+    key: 'ga',
     short: 'G:A',
     label: 'Gol e assist',
-    hint: 'Gol e assist CONTATI della stagione scorsa. Rigori e assist da fermo compresi.',
+    hint: 'Gol e assist CONTATI della stagione scelta. Rigori e assist da fermo compresi.',
     // Un conteggio non ha decimali. Il formato resta dichiarato perche' e' chi disegna a usarlo, e una
     // coppia senza formato sarebbe l'unica riga di questo elenco a non dire come si stampa.
     format: '1.0-0',
-    season: 'input',
-    pair: true,
-    dated: true,
-    width: 'min-w-12',
-  },
-  {
-    key: 'gaNow',
-    short: 'G:A',
-    label: 'Gol e assist',
-    hint: 'Gol e assist CONTATI di questa stagione. Rigori e assist da fermo compresi.',
-    format: '1.0-0',
     season: 'target',
+    seasonal: true,
+    heavy: true,
     pair: true,
     dated: true,
     width: 'min-w-12',
@@ -699,6 +729,9 @@ export const READINGS: ReadingSpec[] = [
     label: `Partite oltre l'${LONG_SHIFT}'`,
     hint: `Quota di partite giocate finite oltre l'${LONG_SHIFT}'.`,
     season: 'career',
+    seasonal: true,
+    whole: true,
+    heavy: true,
     format: '1.0-0',
     suffix: '%',
     width: 'min-w-9',
@@ -709,6 +742,9 @@ export const READINGS: ReadingSpec[] = [
     label: `Partite da ${GOOD_MATCH}+`,
     hint: `Quota di partite con fantavoto almeno ${GOOD_MATCH}.`,
     season: 'career',
+    seasonal: true,
+    whole: true,
+    heavy: true,
     format: '1.0-0',
     suffix: '%',
     width: 'min-w-9',
@@ -719,6 +755,9 @@ export const READINGS: ReadingSpec[] = [
     label: 'Partite con bonus',
     hint: 'Quota di partite con almeno un bonus: gol, assist, rigore parato.',
     season: 'career',
+    seasonal: true,
+    whole: true,
+    heavy: true,
     format: '1.0-0',
     suffix: '%',
     width: 'min-w-9',
@@ -729,6 +768,9 @@ export const READINGS: ReadingSpec[] = [
     label: `Partite sotto il ${POOR_MATCH}`,
     hint: `Quota di partite con fantavoto sotto ${POOR_MATCH}.`,
     season: 'career',
+    seasonal: true,
+    whole: true,
+    heavy: true,
     format: '1.0-0',
     suffix: '%',
     width: 'min-w-9',
@@ -739,88 +781,79 @@ export const READINGS: ReadingSpec[] = [
 export const DEFAULT_READINGS: ReadingKey[] = ['bonus', 'played', 'passed'];
 
 /**
- * LE LETTURE CHE VOGLIONO IL CALCIO GIOCATO, cioe' quelle che costano un caricamento.
+ * LE LETTURE CHE VOGLIONO IL LIVELLO PER-PARTITA, cioe' quelle che costano un caricamento da 2,1 MB.
  *
- * Gol, assist, xG e xA non stanno in nessun aggregato che la pagina della Strategia legge da se': li
- * porta `PlayersStore`, che e' 2,1 MB di layer per-partita. Sono spente all'apertura e lo store si
- * chiede al primo click, quindi il prezzo lo paga chi le accende - e l'elenco sta QUI, accanto a
- * `READINGS`, perche' e' un fatto sul vocabolario e non una condizione da ripetere in due punti della
- * vista (una delle due si dimentica, e allora una pastiglia si accende su una casella vuota).
+ * Gol, assist, attesi, la coppia contata e le quattro frequenze non stanno in nessun aggregato che
+ * questa pagina legge da se': li porta `PlayersStore`. La media voto e la fantamedia SI' (`season_stats`,
+ * undici stagioni gia' in casa), ed e' la ragione per cui chiedere la MV di un'altra stagione e' gratis
+ * mentre chiedere i suoi xG non lo e'.
  *
- * DERIVATI e non riscritti a mano dal 06/09/2026, quando le coppie `G:A` hanno portato una SECONDA
- * stagione: con due elenchi da tenere allineati la prossima pastiglia si accenderebbe su una casella
- * vuota, che e' proprio il difetto che questo commento dichiarava di evitare. La sorgente unica e'
- * `ReadingSpec.season`.
- *
- * LE DUE STAGIONI COSTANO UN CARICAMENTO SOLO: `PlayersStore` porta tutte le `heavy_seasons` del
- * pacchetto in un colpo, quindi leggere anche quella scorsa non e' un byte in piu' - e' un secondo
- * giro sulla mappa che e' gia' in casa.
+ * DERIVATO da `ReadingSpec.heavy` e non riscritto: con due elenchi da tenere allineati la prossima
+ * pastiglia si accenderebbe su una casella vuota per sempre.
  */
-export const SEASON_READINGS: ReadingKey[] = READINGS
-  .filter((one) => one.season === 'target')
+export const HEAVY_READINGS: ReadingKey[] = READINGS
+  .filter((one) => one.heavy)
   .map((one) => one.key);
 
-/** ...e quelle che vogliono la stagione DICHIARATA come input dal manifest, non quella bersaglio. */
-export const PREV_SEASON_READINGS: ReadingKey[] = READINGS
-  .filter((one) => one.season === 'input')
+/** ...e quelle su cui la stagione si puo' scegliere. */
+export const SEASONAL_READINGS: ReadingKey[] = READINGS
+  .filter((one) => one.seasonal)
   .map((one) => one.key);
 
 /**
- * ...e quelle che vogliono TUTTE le stagioni che il pacchetto porta: le quattro frequenze.
+ * SE SERVE IL LIVELLO PER-PARTITA, e quindi se lo store va chiesto.
  *
- * Non e' un terzo caricamento - `PlayersStore` porta tutte le `heavy_seasons` in un colpo solo - e' un
- * terzo giro sulla mappa che e' gia' in casa. La ragione per cui la finestra e' questa e non la stagione
- * in corso e' misurata e sta in `match-frequency.ts`: a settembre una quota su tre partite non e' una
- * quota.
+ * Si guarda cosa e' ACCESO e cosa il FILTRO interroga, non l'elenco delle letture: una pastiglia spenta
+ * non costa niente, e una condizione su una lettura spenta costa eccome - senza, il filtro taglierebbe
+ * la lista leggendo una colonna che nessuno ha caricato, cioe' svuoterebbe ogni blocco in silenzio.
  */
-export const CAREER_READINGS: ReadingKey[] = READINGS
-  .filter((one) => one.season === 'career')
-  .map((one) => one.key);
-
-/**
- * SE QUALCUNA DI QUELLE E' ACCESA, e quindi se il calcio giocato serve.
- *
- * Una funzione e non un `some` scritto due volte nella vista, e la ragione e' MISURABILE e non
- * estetica: il secondo lettore e' dentro `pool`, cioe' dentro il computed che ricostruisce SEICENTO
- * righe (l'esito atteso di ognuno, la costanza, il fantavalore). Letta li' com'era, la lista si
- * rifaceva a ogni click su QUALUNQUE pastiglia - anche su una che non c'entra col calcio giocato -
- * mentre il commento due righe piu' sotto dichiara l'esatto contrario («ricostruire il listone a ogni
- * click sarebbe pagare un giro di 600 righe per accendere una pastiglia»).
- *
- * Passando da qui, `pool` dipende dal RISULTATO (una stagione, o niente) e non dall'elenco: accendere
- * `Bpm` non lo tocca, e accendere `xG` lo rifa' una volta sola, che e' quando serve davvero.
- */
-export function wantsSeasonReadings(keys: readonly ReadingKey[]): boolean {
-  const on = new Set(keys);
-  return SEASON_READINGS.some((key) => on.has(key));
-}
-
-/** ...e lo stesso per la stagione scorsa: due domande, perche' sono due stagioni da leggere. */
-export function wantsPrevSeasonReadings(keys: readonly ReadingKey[]): boolean {
-  const on = new Set(keys);
-  return PREV_SEASON_READINGS.some((key) => on.has(key));
-}
-
-/** ...e per tutto il suo calcio in archivio, che e' la finestra delle quattro frequenze. */
-export function wantsCareerReadings(keys: readonly ReadingKey[]): boolean {
-  const on = new Set(keys);
-  return CAREER_READINGS.some((key) => on.has(key));
-}
-
-/** Se una qualunque delle tre serve, e quindi se lo store va chiesto. Un caricamento per tutte. */
-export function wantsPlayedFootball(keys: readonly ReadingKey[]): boolean {
-  return wantsSeasonReadings(keys) || wantsPrevSeasonReadings(keys) || wantsCareerReadings(keys);
+export function wantsPlayedFootball(refs: readonly ReadingRef[]): boolean {
+  const heavy = new Set<ReadingKey>(HEAVY_READINGS);
+  return refs.some((one) => heavy.has(one.key));
 }
 
 /**
- * IL NUMERO DI UNA PASTIGLIA, dalla lettura che la riga ha gia' fatto.
+ * QUALI STAGIONI DI CALCIO GIOCATO VANNO RICOSTRUITE: solo quelle che qualcuno guarda.
  *
- * Una funzione e non sette rami nel template: quale numero sta dietro una sigla e' vocabolario di questa
- * pagina, e un test lo raggiunge senza un browser. Null resta null - «vuoto = ignoto, mai zero» - e la
- * pastiglia allora stampa un trattino invece di uno zero che nessuno ha misurato.
+ * `WHOLE_CAREER` e' una voce come le altre e vuol dire «tutte insieme», che e' una finestra e non una
+ * stagione. Le stagioni delle letture NON pesanti non compaiono: la loro media voto e' gia' in casa.
+ *
+ * Ordinate come arrivano, senza doppioni: chi costruisce la riga cammina questa lista e paga una volta
+ * per stagione, non una per pastiglia.
  */
-export function readingValue(key: ReadingKey, readings: ManReadings): number | null {
-  switch (key) {
+export function seasonsNeeded(refs: readonly ReadingRef[]): string[] {
+  const heavy = new Set<ReadingKey>(HEAVY_READINGS);
+  const out: string[] = [];
+  for (const ref of refs) {
+    if (!ref.season || !heavy.has(ref.key)) continue;
+    if (!out.includes(ref.season)) out.push(ref.season);
+  }
+  return out;
+}
+
+/**
+ * LE STAGIONI CHE UNA LETTURA PUO' PRENDERE, dalle stagioni che il pacchetto porta.
+ *
+ * Le stesse tre per tutte le letture stagionali, piu' «tutte» dove la spec lo dichiara. Offrirne di
+ * piu' alla media voto - l'aggregato ne porta undici - darebbe un menu' da imparare due volte, e una
+ * pastiglia che offre il 2018-19 accanto a una che non puo' si legge come un guasto. Il giorno in cui
+ * servisse, il dato per la MV c'e' gia': e' scritto qui perche' e' il posto da leggere.
+ */
+export function seasonsFor(spec: ReadingSpec, seasons: readonly string[]): string[] {
+  if (!spec.seasonal) return [];
+  return spec.whole ? [WHOLE_CAREER, ...seasons] : [...seasons];
+}
+
+/**
+ * IL NUMERO DI UNA PASTIGLIA, dalla lettura e dalla STAGIONE che il riferimento nomina.
+ *
+ * Una funzione e non venti rami nel template: quale numero sta dietro una sigla e' vocabolario di
+ * questa pagina, e un test lo raggiunge senza un browser. Null resta null - «vuoto = ignoto, mai zero»
+ * - e la pastiglia allora stampa un trattino invece di uno zero che nessuno ha misurato.
+ */
+export function readingValue(ref: ReadingRef, readings: ManReadings): number | null {
+  const football = ref.season ? readings.seasons.get(ref.season) : undefined;
+  switch (ref.key) {
     // LA TITOLARITA' ORDINA PER LA SCALA, e il segno e' meno perche' la lista scende: `bandiera` e'
     // il gradino 0 e deve stare in cima. Ordinare per la sigla darebbe BAL, BAN, PAN, RIS, TIS, TIT,
     // cioe' l'alfabeto al posto dei gradini (`core/titolarita.ts` lo scrive di se').
@@ -837,22 +870,21 @@ export function readingValue(key: ReadingKey, readings: ManReadings): number | n
     case 'minutes':
       return readings.minutes;
     case 'mv':
-      return readings.mv;
+      return football?.mv ?? null;
     case 'fm':
-      return readings.fm;
+      return football?.fm ?? null;
     case 'goals':
-      return readings.goals;
+      return football?.goals ?? null;
     case 'assists':
-      return readings.assists;
+      return football?.assists ?? null;
     case 'xg':
-      return readings.xg;
+      return football?.xg ?? null;
     case 'xa':
-      return readings.xa;
-    // LE COPPIE NON HANNO UN NUMERO, e restituirne uno sarebbe inventare quale delle due cifre conta:
+      return football?.xa ?? null;
+    // LA COPPIA NON HA UN NUMERO, e restituirne uno sarebbe inventare quale delle due cifre conta:
     // la somma ordinerebbe una pastiglia che stampa `12:5`, cioe' due cifre di cui nessuna scende.
-    // Chi disegna passa da `readingPair`; chi ordina non le ha in elenco (`ReadingSpec.pair`).
-    case 'gaPrev':
-    case 'gaNow':
+    // Chi disegna passa da `readingPair`; chi ordina non la ha in elenco (`ReadingSpec.pair`).
+    case 'ga':
       return null;
     case 'fvm':
       return readings.fvm;
@@ -864,13 +896,13 @@ export function readingValue(key: ReadingKey, readings: ManReadings): number | n
     // e' una quota, quello che si legge sta in 0-100 perche' e' una frequenza - e chi filtra confronta
     // quello che si legge. Due conversioni in due posti sarebbero due unita' per un numero.
     case 'longPlay':
-      return percent(readings.frequencies?.long);
+      return percent(football?.frequencies?.long);
     case 'goodMatch':
-      return percent(readings.frequencies?.good);
+      return percent(football?.frequencies?.good);
     case 'bonusMatch':
-      return percent(readings.frequencies?.bonus);
+      return percent(football?.frequencies?.bonus);
     case 'poorMatch':
-      return percent(readings.frequencies?.poor);
+      return percent(football?.frequencies?.poor);
   }
 }
 
@@ -885,20 +917,19 @@ function percent(share: number | null | undefined): number | null {
  * porta il livello per-partita, il fantavoto i voti, i bonus la riga dei voti. Una giornata puo' avere
  * gli uni e non l'altro, quindi ogni quota dichiara il suo.
  */
-export function frequencySample(key: ReadingKey, readings: ManReadings): number | null {
-  const counted = readings.frequencies;
+export function frequencySample(ref: ReadingRef, readings: ManReadings): number | null {
+  const counted = ref.season ? readings.seasons.get(ref.season)?.frequencies : null;
   if (!counted) return null;
-  if (key === 'longPlay') return counted.timed;
-  if (key === 'goodMatch' || key === 'poorMatch') return counted.rated;
-  if (key === 'bonusMatch') return counted.played;
+  if (ref.key === 'longPlay') return counted.timed;
+  if (ref.key === 'goodMatch' || ref.key === 'poorMatch') return counted.rated;
+  if (ref.key === 'bonusMatch') return counted.played;
   return null;
 }
 
 /** LA COPPIA DI UNA PASTIGLIA, o `null` sia per chi non ne ha una sia per chi non l'ha giocata. */
-export function readingPair(key: ReadingKey, readings: ManReadings): GoalsAssists | null {
-  if (key === 'gaPrev') return readings.gaPrev;
-  if (key === 'gaNow') return readings.gaNow;
-  return null;
+export function readingPair(ref: ReadingRef, readings: ManReadings): GoalsAssists | null {
+  if (ref.key !== 'ga' || !ref.season) return null;
+  return readings.seasons.get(ref.season)?.ga ?? null;
 }
 
 /**
@@ -907,8 +938,19 @@ export function readingPair(key: ReadingKey, readings: ManReadings): GoalsAssist
  * Un lettore solo, perche' «la cella e' vuota» decide sia il testo sia il bordo che la disegna: due
  * condizioni scritte in due posti sono come un riquadro finisce per essere pieno e sbiadito.
  */
-export function readingHas(key: ReadingKey, readings: ManReadings): boolean {
-  return readingValue(key, readings) != null || readingPair(key, readings) != null;
+export function readingHas(ref: ReadingRef, readings: ManReadings): boolean {
+  return readingValue(ref, readings) != null || readingPair(ref, readings) != null;
+}
+
+/**
+ * SU QUANTE GIORNATE POGGIA LA MEDIA VOTO di una stagione: il campione che la riga dichiara.
+ *
+ * Dall'aggregato di stagione e non dal livello per-partita, che e' la stessa fonte da cui `mv` e `fm`
+ * vengono: un campione letto da una parte e una media dall'altra sarebbero due numeri che parlano di
+ * due popolazioni.
+ */
+export function seasonSample(season: string | null, readings: ManReadings): number | null {
+  return season ? (readings.seasons.get(season)?.played ?? null) : null;
 }
 
 /**
@@ -923,11 +965,16 @@ export function shortSeason(season: string): string {
   return parts ? `${parts[2]}/${parts[3]}` : season;
 }
 
-/** La sigla come si legge sulla pastiglia: con l'anno per quelle che ne hanno due (`ReadingSpec.dated`). */
-export function readingShort(spec: ReadingSpec, seasons: { target: string; input: string }): string {
-  if (!spec.dated || !spec.season) return spec.short;
-  const season = spec.season === 'target' ? seasons.target : seasons.input;
-  return season ? `${spec.short} ${shortSeason(season)}` : spec.short;
+/**
+ * LA SIGLA COME SI LEGGE SULLA PASTIGLIA, con la stagione del RIFERIMENTO quando ne ha una.
+ *
+ * `dated` dice che la sigla nomina la sua stagione, e dal 12/09/2026 ogni lettura stagionale la nomina:
+ * la stessa lettura puo' essere accesa su due stagioni, e due riquadri con lo stesso nome sarebbero due
+ * numeri indistinguibili. `tutte` si scrive per esteso perche' non e' un anno.
+ */
+export function readingShort(spec: ReadingSpec, ref: ReadingRef): string {
+  if (!ref.season || !spec.seasonal) return spec.short;
+  return `${spec.short} ${ref.season === WHOLE_CAREER ? WHOLE_CAREER : shortSeason(ref.season)}`;
 }
 
 /**
@@ -942,13 +989,13 @@ export function readingShort(spec: ReadingSpec, seasons: { target: string; input
  * sappiamo» di una cosa che sappiamo male. Un numero spannometrico che si legge come misurato e' la
  * cosa peggiore che una lista possa fare - e' la ragione del `~` sulle stime, applicata qui.
  */
-export function readingIsRough(key: ReadingKey, readings: ManReadings): boolean {
-  if (key === 'passed') return !readings.passedIsHis;
-  const sample = frequencySample(key, readings);
+export function readingIsRough(ref: ReadingRef, readings: ManReadings): boolean {
+  if (ref.key === 'passed') return !readings.passedIsHis;
+  const sample = frequencySample(ref, readings);
   return sample != null && sample < THIN_SAMPLE;
 }
 
-/** Le tre pastiglie di un uomo. Pura: legge la riga e non tocca né il foglio né lo store. */
+/** Le letture di un uomo. Pura: legge la riga e non tocca né il foglio né lo store. */
 export function readingsOf(man: StrategyBidder): ManReadings {
   return {
     // Vuoto e non zero se una delle due metà manca: una sottrazione con un termine ignoto è ignota.
@@ -958,31 +1005,11 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     passed: man.pv == null || man.steady == null ? null : man.pv * man.steady,
     passedIsHis: man.steadyWeight >= MOSTLY_ANCHOR,
     minutes: man.minutes,
-    // LE DUE REALI e non le previste (operatore, 05/09/2026): «MV e FM devono essere quelli reali
-    // della stagione corrente». Il `bonus` qui sopra resta il tasso ATTESO, che e' un'altra domanda -
-    // due nature, due nomi, e il vocabolario delle pastiglie lo dice.
-    mv: man.seasonMv,
-    fm: man.seasonFm,
-    // I GOL E GLI ASSIST VERI, per partita giocata: la coppia misurata di cui gli attesi qui sotto
-    // sono la controparte, nella stessa unita' - che e' quello che rende le quattro confrontabili.
-    goals: man.seasonGoals,
-    assists: man.seasonAssists,
-    // GLI ATTESI DELLA STESSA STAGIONE, gia' per partita giocata: il loro denominatore e' le partite
-    // di CAMPIONATO che ha davvero giocato, che non e' `seasonPlayed` (quello e' il calendario di
-    // questo listone), e nemmeno quello dei gol qui sopra: un gol si sa di ogni giornata giocata, un
-    // xG solo di quelle in cui la fonte ha una riga sua. Ognuna col suo, e il tooltip lo dice.
-    xg: man.seasonXg,
-    xa: man.seasonXa,
-    // LE DUE COPPIE CONTATE, lette e non ricalcolate: `gaNow` e i due `goals`/`assists` qui sopra
-    // escono dalla STESSA somma - una divisa per le partite giocate, l'altra intera - quindi la
-    // pastiglia `G 0,50` e la pastiglia `G:A 1:0` non possono dire due cose diverse dello stesso uomo.
-    gaPrev: man.gaPrev,
-    gaNow: man.gaNow,
-    // LE QUATTRO FREQUENZE gia' contate da chi ha in mano le partite: questa funzione e' pura e riceve
-    // solo l'uomo, mentre la finestra e' TUTTO il suo calcio - che vive nello store del livello
-    // per-partita. Lette e non ricalcolate, come lo SWING e per la stessa ragione.
-    frequencies: man.frequencies ?? null,
-    seasonPlayed: man.seasonPlayed,
+    // IL SUO CALCIO, UNA STAGIONE PER VOCE, gia' letto da chi ha in mano gli store: questa funzione e'
+    // pura e riceve solo l'uomo, mentre meta' di quei numeri vive nel livello per-partita. Letto e non
+    // ricalcolato, come lo SWING e per la stessa ragione - due punti che lo calcolano darebbero allo
+    // stesso nome due numeri.
+    seasons: man.seasons ?? new Map(),
     fvm: man.fvm,
     // IL PREZZO CHE UNA STANZA VERA HA PAGATO, gia' nella valuta della lega dichiarata: e' l'unico
     // numero della riga che non sia un'opinione su di lui, quindi non si ricalcola qui - chi
@@ -1166,10 +1193,18 @@ export type BlockView = 'all' | 'natives';
  * collaterale. E chi non ha quel numero va in fondo e non in mezzo: un ignoto non è uno zero, e
  * ordinando per xG i primi sono quelli che un xG ce l'hanno.
  */
-export type SortKey = 'gain' | ReadingKey;
+/**
+ * SU COSA SI ORDINA: il gain, oppure una LETTURA CON LA SUA STAGIONE (`mv@2025-26`).
+ *
+ * Una stringa e non un oggetto, perche' e' anche quello che finisce in `localStorage` e in una guardia
+ * di validita': `refText` la scrive e `readRef` la rilegge, e una chiave che questa versione non capisce
+ * piu' torna al gain invece di ordinare per una colonna che nessuno disegna.
+ */
+export type SortKey = string;
 
 /** Il gain non è una lettura e quindi non è in `READINGS`: la sua etichetta la scrive chi lo mostra. */
-export const DEFAULT_SORT: SortKey = 'gain';
+export const GAIN_SORT = 'gain';
+export const DEFAULT_SORT: SortKey = GAIN_SORT;
 
 /**
  * LE LETTURE SU CUI SI PUO' ORDINARE: tutte tranne le COPPIE.
@@ -1309,6 +1344,15 @@ export function blocksOf(input: {
   /** Su cosa ordinare: il gain quando nessuno ha scelto. Vedi `SortKey`. */
   sort?: SortKey;
   /**
+   * LE DUE STAGIONI CHE IL PACCHETTO DICHIARA, per rileggere la chiave d'ordinamento.
+   *
+   * Servono perche' una chiave e' `mv@2025-26` e una lettura senza stagione scritta cade sul suo
+   * default, che e' `target` o `input` - due nomi che solo il manifest sa tradurre in un anno. Lette e
+   * mai calcolate come «bersaglio meno uno», che sarebbe giusto oggi e sbagliato dentro la macchina
+   * del tempo.
+   */
+  seasons?: { target: string; input: string };
+  /**
    * IL FILTRO COMPOSTO, gia' come PREDICATO e non come condizioni (operatore, 12/09/2026).
    *
    * Un predicato e non le clausole, e non e' pigrizia: il gain si stampa PER GIORNATA mentre qui e' un
@@ -1325,6 +1369,7 @@ export function blocksOf(input: {
   keep?: (row: RankedMan) => boolean;
 }): RoleBlock[] {
   const { pool, setup, rules, priority, keep } = input;
+  const seasons = input.seasons ?? { target: '', input: '' };
   const sort = input.sort ?? DEFAULT_SORT;
   const demand = demandOf(setup, rules);
   const mantra = setup.game === 'mantra';
@@ -1371,8 +1416,12 @@ export function blocksOf(input: {
     // e l'altro: un ordine che cambia da solo si legge come un numero che è cambiato. La CHIAVE la
     // sceglie chi guarda (`SortKey`) e il gain è il default; chi quel numero non ce l'ha va in fondo,
     // perché un ignoto non è uno zero.
+    // La chiave e' il gain o una lettura CON la sua stagione: una stringa che questa versione non
+    // capisce piu' ordina per gain invece di mettere tutti a pari merito, che si leggerebbe come una
+    // lista non ordinata.
+    const sortRef = sort === GAIN_SORT ? null : readRef(sort, seasons);
     const keyOf = (one: RankedMan): number =>
-      (sort === 'gain' ? one.gain : readingValue(sort, one.readings)) ?? Number.NEGATIVE_INFINITY;
+      (sortRef ? readingValue(sortRef, one.readings) : one.gain) ?? Number.NEGATIVE_INFINITY;
     ranked.sort((left, right) => keyOf(right) - keyOf(left) || left.man.name.localeCompare(right.man.name));
     const size = demand.get(role) ?? 0;
     const native = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;

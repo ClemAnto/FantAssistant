@@ -4,11 +4,14 @@ import { Component, LOCALE_ID, computed, effect, inject, signal } from '@angular
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule, NzSelectOptionInterface } from 'ng-zorro-antd/select';
+import { NzSpaceModule } from 'ng-zorro-antd/space';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, EngineSheetEntry, MantraModulesFile } from '../../core/bundle';
@@ -36,10 +39,19 @@ import {
   DEFAULT_READINGS,
   READINGS,
   SORTABLE_READINGS,
-  wantsCareerReadings,
+  GAIN_SORT,
+  ReadingRef,
+  SeasonFootball,
+  refText,
+  WHOLE_CAREER,
+  defaultSeasonOf,
+  readRef,
+  sameRef,
+  seasonSample,
+  seasonsFor,
+  seasonsNeeded,
+  shortSeason,
   wantsPlayedFootball,
-  wantsPrevSeasonReadings,
-  wantsSeasonReadings,
   RankedMan,
   ManReadings,
   ReadingKey,
@@ -180,11 +192,14 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     GainChip,
     NzAlertModule,
     NzButtonModule,
+    NzDropdownModule,
     NzIconModule,
+    NzMenuModule,
     NzInputModule,
     NzPopconfirmModule,
     NzRadioModule,
     NzSelectModule,
+    NzSpaceModule,
     NzTooltipModule,
     PlayerCard,
     PlayerFlags,
@@ -411,11 +426,9 @@ export class Strategy {
    * lista vuota sul disco deve restare vuota invece di ripartire dai default: «vuoto = ignoto» vale per
    * chi non ha mai scelto, non per chi ha scelto di spegnere tutto.
    */
-  protected readonly readings = storedJson<ReadingKey[]>('strategy.readings', (raw) => {
-    if (!Array.isArray(raw)) return [...DEFAULT_READINGS];
-    const known = new Set(READINGS.map((one) => one.key));
-    return raw.filter((one): one is ReadingKey => typeof one === 'string' && known.has(one as ReadingKey));
-  });
+  protected readonly readings = storedJson<string[]>('strategy.readings', (raw) =>
+    Array.isArray(raw) ? raw.filter((one): one is string => typeof one === 'string') : [...DEFAULT_READINGS],
+  );
 
   /**
    * LE CONDIZIONI IN VIGORE (operatore, 12/09/2026): tutte insieme, in AND.
@@ -445,9 +458,17 @@ export class Strategy {
    * caricato - cioe' avrebbe svuotato ogni blocco in silenzio, che e' il difetto peggiore che un filtro
    * possa avere.
    */
-  private readonly needed = computed<ReadingKey[]>(() => [
-    ...this.readings(),
-    ...filterReadings(this.clauses()),
+  private readonly needed = computed<ReadingRef[]>(() => [
+    ...this.shownReadings().map((one) => one.ref),
+    ...filterReadings(this.clauses()).map((one) => ({
+      key: one.key,
+      // Una condizione scritta prima che la stagione esistesse non la porta: cade sul default della
+      // sua lettura, che e' la stessa risposta che da' la pastiglia.
+      season: one.season ?? defaultSeasonOf(
+        READINGS.find((spec) => spec.key === one.key)!,
+        this.seasonNames(),
+      ),
+    })),
   ]);
 
   /**
@@ -463,19 +484,100 @@ export class Strategy {
     input: this.store.inputSeason(),
   }));
 
-  /** Le pastiglie nell'ordine dichiarato, con acceso/spento: il template non ne decide nessuno. */
-  protected readonly readingPills = computed(() => {
-    const on = new Set(this.readings());
-    const seasons = this.seasonNames();
-    // La sigla si compone QUI e non nel template: `G:A` esiste due volte e quello che le distingue e'
-    // l'anno, che e' un fatto del pacchetto - vedi `readingShort`.
-    return READINGS.map((one) => ({ ...one, on: on.has(one.key), short: readingShort(one, seasons) }));
+  /**
+   * LE STAGIONI CHE SI POSSONO SCEGLIERE: quelle di cui il pacchetto porta il calcio giocato.
+   *
+   * Dallo store e non dal manifest, perche' la domanda e' «di quali stagioni ho le partite» e non
+   * «quali dichiara il foglio»: sono le `heavy_seasons`, e finche' il livello per-partita non e' in
+   * casa restano le due che il foglio nomina - cosi' il menu' non e' mai vuoto e non offre una
+   * stagione su cui ogni cella sarebbe un trattino.
+   *
+   * Dalla piu' recente: al tavolo la prima domanda e' «quest'anno».
+   */
+  protected readonly pickableSeasons = computed<string[]>(() => {
+    const { target, input } = this.seasonNames();
+    const carried = this.players.ready() ? [...this.players.seasons()] : [];
+    const known = carried.length ? carried : [target, input].filter(Boolean);
+    return [...new Set(known)].sort().reverse();
   });
 
-  /** ...e solo quelle accese, che e' quello che una riga disegna. */
+  /**
+   * LE PASTIGLIE DELLA BARRA: una per LETTURA, con le stagioni che ha accese.
+   *
+   * Una per lettura e non una per istanza, ed e' una decisione di larghezza: con tre stagioni per
+   * undici letture stagionali la fila sarebbe di quarantacinque bottoni. La molteplicita' vive nel
+   * MENU' della pastiglia (quali stagioni) e sulla RIGA (una cella per stagione accesa), che e' anche
+   * dove serve leggerla.
+   */
+  protected readonly readingPills = computed(() => {
+    const refs = this.shownReadings();
+    const seasons = this.seasonNames();
+    const pickable = this.pickableSeasons();
+    return READINGS.map((spec) => {
+      const mine = refs.filter((one) => one.ref.key === spec.key);
+      return {
+        key: spec.key,
+        label: spec.label,
+        hint: spec.hint,
+        seasonal: !!spec.seasonal,
+        on: mine.length > 0,
+        /** Le stagioni accese di questa lettura, per il segno di spunta nel menu'. */
+        seasons: mine.map((one) => one.ref.season),
+        /** ...e quelle che puo' prendere: `tutte` solo dove la spec lo dichiara. */
+        choices: seasonsFor(spec, pickable).map((season) => ({
+          season,
+          label: season === WHOLE_CAREER ? WHOLE_CAREER : shortSeason(season),
+          on: mine.some((one) => one.ref.season === season),
+        })),
+        /** La sigla come si legge: con la stagione quando ne ha UNA sola accesa, o quante sono. */
+        short: mine.length === 1
+          ? readingShort(spec, mine[0].ref)
+          : mine.length > 1
+            ? `${spec.short} ×${mine.length}`
+            : spec.short,
+        default: defaultSeasonOf(spec, seasons),
+      };
+    });
+  });
+
+  /**
+   * QUALE PASTIGLIA HA APERTO IL MENU' DELLE STAGIONI.
+   *
+   * Un menu' solo per tutte, riempito da chi lo apre: uno per pastiglia vorrebbe dire venti
+   * `nz-dropdown-menu` nel DOM, e due direttive che attaccano lo STESSO `TemplateRef` a due overlay e'
+   * il guasto misurato il 20/08/2026 sugli imbuti della tabella.
+   */
+  protected readonly menuFor = signal<ReadingKey | null>(null);
+
+  /** Le stagioni che la pastiglia aperta puo' prendere, con la spunta su quelle accese. */
+  protected readonly seasonChoices = computed(() => {
+    const key = this.menuFor();
+    return this.readingPills().find((one) => one.key === key)?.choices ?? [];
+  });
+
+  /**
+   * ...e le ISTANZE accese, che e' quello che una riga disegna: una cella per (lettura, stagione).
+   *
+   * Nell'ordine in cui `READINGS` dichiara le letture, e dentro una lettura per stagione DECRESCENTE:
+   * due celle `MV` accanto si leggono «quest'anno, l'anno prima», che e' il verso in cui si guarda una
+   * carriera. Senza un ordine dichiarato sarebbero due numeri uguali in ordine di click.
+   */
   protected readonly shownReadings = computed(() => {
-    const on = new Set(this.readings());
-    return READINGS.filter((one) => on.has(one.key));
+    const seasons = this.seasonNames();
+    const refs = this.readings()
+      .map((one) => readRef(one, seasons))
+      .filter((one): one is ReadingRef => !!one);
+    const out: { ref: ReadingRef; spec: ReadingSpec; id: string }[] = [];
+    for (const spec of READINGS) {
+      const mine = refs.filter((one) => one.key === spec.key);
+      mine.sort((left, right) => (right.season ?? '').localeCompare(left.season ?? ''));
+      for (const ref of mine) {
+        // `id` e' la chiave di `@for` E l'attributo che l'arnese legge: due celle della stessa lettura
+        // su due stagioni devono essere distinguibili, e la chiave nuda le renderebbe la stessa cosa.
+        if (!out.some((one) => sameRef(one.ref, ref))) out.push({ ref, spec, id: refText(ref) });
+      }
+    }
+    return out;
   });
 
   /**
@@ -491,50 +593,20 @@ export class Strategy {
   });
 
   /**
-   * LA STAGIONE SU CUI LEGGERE GLI ATTESI, o `null` quando non c'e' niente da leggere.
+   * LE STAGIONI DI CALCIO GIOCATO DA RICOSTRUIRE, e nient'altro: quelle che qualcuno guarda.
    *
-   * Un computed a se' e non tre righe dentro `pool`, e la ragione e' la stessa che tiene `pool` fuori
-   * dal template: un computed si invalida sul VALORE che produce, quindi da qui passa «una stagione, o
-   * niente» invece dell'elenco delle pastiglie accese. Scritto dentro `pool`, accendere una qualunque
-   * delle undici ricostruiva le seicento righe - con l'esito atteso, la costanza e il fantavalore di
-   * ognuna - per una preferenza di LETTURA che non cambia ne' chi si puo' comprare ne' in che ordine.
+   * Un computed a se' e non tre righe dentro `pool`, per la ragione di sempre: un computed si invalida
+   * sul VALORE che produce, quindi da qui passa un ELENCO DI STAGIONI e non le pastiglie accese.
+   * Scritto dentro `pool`, accendere una qualunque pastiglia ricostruiva le seicento righe - con
+   * l'esito atteso, la costanza e il fantavalore di ognuna - per una preferenza di lettura.
    *
-   * `players.ready()` letto qui e non nella riga: le righe si rifanno quando lo store atterra, ed e'
-   * quello a farle rifare - una volta, non a ogni click.
+   * La chiave e' una stringa perche' un array nuovo a ogni giro invaliderebbe comunque: due elenchi
+   * con le stesse stagioni sono la stessa risposta, e `pool` non deve rifarsi per un oggetto nuovo.
    */
-  private readonly expectedSeason = computed<string | null>(() => {
-    if (!wantsSeasonReadings(this.needed())) return null;
-    return this.players.ready() ? this.store.targetSeason() : null;
+  private readonly heavySeasons = computed<string>(() => {
+    if (!this.players.ready()) return '';
+    return seasonsNeeded(this.needed()).sort().join('|');
   });
-
-  /**
-   * ...E QUELLA SCORSA, per le coppie `G:A` (operatore, 06/09/2026).
-   *
-   * `inputSeason` e non «la bersaglio meno uno»: e' il manifest a dichiarare quale stagione ha nutrito
-   * questo foglio (`input_season`), e il pacchetto del viaggio nel tempo porta la SUA - quindi una
-   * data passata legge la coppia dell'anno che quel giorno era «l'anno scorso», e non del 2025-26 per
-   * sempre. Un anno calcolato sarebbe giusto oggi e sbagliato dentro la macchina del tempo.
-   *
-   * NON COSTA UN SECONDO CARICAMENTO: `PlayersStore` porta tutte le `heavy_seasons` in un colpo, e
-   * questa e' una di quelle. Un computed suo per la stessa ragione dell'altro: `pool` dipende dal
-   * VALORE (una stagione, o niente) e non dall'elenco delle pastiglie accese.
-   */
-  private readonly prevSeason = computed<string | null>(() => {
-    if (!wantsPrevSeasonReadings(this.needed())) return null;
-    return this.players.ready() ? this.store.inputSeason() : null;
-  });
-
-  /**
-   * ...E SE SERVE TUTTO IL SUO CALCIO, che e' la finestra delle quattro frequenze.
-   *
-   * Un BOOLEANO e non l'elenco, per la ragione scritta sopra `expectedSeason`: `pool` dipende dal
-   * risultato e non dalle pastiglie accese, quindi accenderne una che non c'entra non rifa' le seicento
-   * righe. Non costa un secondo caricamento - `PlayersStore` porta tutte le `heavy_seasons` in un colpo
-   * - ma costa un giro sulle partite di ognuno, e quel giro lo paga solo chi lo chiede.
-   */
-  private readonly careerOn = computed<boolean>(
-    () => wantsCareerReadings(this.needed()) && this.players.ready(),
-  );
 
   /**
    * Se la cella ha qualcosa da stampare e se quel qualcosa è spannometrico: dal vocabolario.
@@ -554,7 +626,24 @@ export class Strategy {
    * template vorrebbe dire chiamare `readingValue` tre volte per pastiglia a ogni giro di change
    * detection. Un trattino e non uno zero dove il numero non c'è, che è la regola di casa sui vuoti.
    */
-  protected text(spec: ReadingSpec, readings: ManReadings): string {
+  /**
+   * SU QUANTE GIORNATE POGGIANO LE MEDIE che la riga mostra, e di QUALE stagione.
+   *
+   * Da quando la stagione si sceglie, «MV/FM su 3ª» non basta piu': la stessa riga puo' portare la
+   * media di due stagioni, e un campione senza il suo anno descriverebbe l'altra. Una frase per
+   * stagione accesa, e niente per chi non ne ha nessuna.
+   */
+  protected sampleSaid(readings: ManReadings): string {
+    const said: string[] = [];
+    for (const season of new Set(this.shownReadings().map((one) => one.ref.season))) {
+      if (!season || season === WHOLE_CAREER) continue;
+      const sample = seasonSample(season, readings);
+      if (sample) said.push(`MV/FM ${shortSeason(season)} su ${sample}ª`);
+    }
+    return said.length ? ` · ${said.join(' · ')}` : '';
+  }
+
+  protected text(spec: ReadingSpec, ref: ReadingRef, readings: ManReadings): string {
     // LE PAROLE PER PRIME, e non passano da `DecimalPipe`: un formato numerico su una stringa stampa
     // `NaN`, che e' il modo in cui una pastiglia nuova finisce a schermo sbagliata invece che vuota.
     // La sigla e' quella della tabella (`TITOLARITA_SHORT`): due vocabolari per un gradino sarebbero
@@ -566,21 +655,58 @@ export class Strategy {
     // LE COPPIE PER PRIME, perche' per loro `readingValue` risponde `null` per costruzione: leggerlo
     // e basta stamperebbe un trattino su un uomo che ha segnato dodici gol.
     if (spec.pair) {
-      const pair = readingPair(spec.key, readings);
+      const pair = readingPair(ref, readings);
       if (!pair) return '—';
       const digits = (value: number) => formatNumber(value, this.locale, spec.format);
       return `${digits(pair.goals)}:${digits(pair.assists)}`;
     }
-    const value = readingValue(spec.key, readings);
+    const value = readingValue(ref, readings);
     if (value == null) return '—';
     const sign = spec.signed && value > 0 ? '+' : '';
     return sign + formatNumber(value, this.locale, spec.format) + (spec.suffix ?? '');
   }
 
+  /**
+   * ACCENDE UNA LETTURA SULLA SUA STAGIONE DI DEFAULT, o la spegne TUTTA.
+   *
+   * Spegnere tutte le sue stagioni e non solo una, e non e' una scorciatoia: il bottone dice «questa
+   * lettura», e lasciarne accesa una mentre il bottone si spegne sarebbe un interruttore che non
+   * corrisponde a quello che si vede sulla riga. Le stagioni una per una si scelgono nel menu'.
+   */
   protected toggleReading(key: ReadingKey): void {
+    const spec = READINGS.find((one) => one.key === key);
+    if (!spec) return;
+    const season = spec.seasonal ? defaultSeasonOf(spec, this.seasonNames()) : null;
+    const mine = this.shownReadings().filter((one) => one.ref.key === key);
     this.readings.update((on) =>
-      on.includes(key) ? on.filter((one) => one !== key) : [...on, key],
+      mine.length
+        ? on.filter((one) => readRef(one, this.seasonNames())?.key !== key)
+        : [...on, refText({ key, season })],
     );
+  }
+
+  /**
+   * ...E UNA STAGIONE PER VOLTA (operatore, 12/09/2026), che e' quello che permette di averne due
+   * accanto: `MV 26/27` e `MV 25/26` sono due celle della stessa lettura.
+   *
+   * Togliere l'ultima spegne la lettura, perche' una lettura accesa su nessuna stagione non e' uno
+   * stato che si possa disegnare - e il bottone la mostrerebbe accesa su una riga che non ha celle.
+   */
+  protected toggleSeason(key: ReadingKey, season: string): void {
+    const seasons = this.seasonNames();
+    const wanted = refText({ key, season });
+    this.readings.update((on) => {
+      const mine = on.filter((one) => {
+        const ref = readRef(one, seasons);
+        return ref?.key === key && refText(ref) === wanted;
+      });
+      return mine.length
+        ? on.filter((one) => {
+          const ref = readRef(one, seasons);
+          return !(ref?.key === key && refText(ref) === wanted);
+        })
+        : [...on, wanted];
+    });
   }
 
   // ---------------------------------------------------------------- la ricerca dentro un blocco
@@ -773,18 +899,17 @@ export class Strategy {
     // cacheata per lega, o seicento righe la ricalcolerebbero venti volte.
     const book = this.calendar();
     const csBase = new Map<LeagueCalendar, number | null>();
-    // LA STAGIONE DEGLI ATTESI, o `null` se non c'e' niente da leggere: le pastiglie sono spente, o lo
-    // store non e' ancora atterrato. Da un computed suo, cosi' questa lista dipende dal RISULTATO e
-    // non dall'elenco delle pastiglie - vedi `expectedSeason`, e il commento sulle letture qui sotto.
-    const expectedOn = this.expectedSeason();
-    // ...e la stagione SCORSA, per la coppia `G:A` che la nomina. Stesso patto: `null` quando quella
-    // pastiglia e' spenta, cosi' accenderne un'altra non fa un secondo giro sulle seicento righe.
-    const prevOn = this.prevSeason();
-    // ...E SE SERVE TUTTO IL SUO CALCIO, per le quattro frequenze. Lo `scoring` serve solo a dare un
-    // VALORE agli eventi e non a dire quali sono bonus, quindi una lega senza file di punteggio legge
-    // le stesse quote: si passa perche' e' in casa, non perche' il conto ne dipenda.
-    const career = this.careerOn();
+    // LE STAGIONI DI CALCIO GIOCATO DA RICOSTRUIRE, e nient'altro: quelle che le pastiglie accese e il
+    // filtro nominano. Da un computed suo, cosi' questa lista dipende dal RISULTATO - un elenco di
+    // stagioni - e non dalle pastiglie: accenderne una che non costa niente non rifa' le seicento
+    // righe. Lo `scoring` serve solo a dare un VALORE agli eventi e non a dire quali sono bonus,
+    // quindi una lega senza file di punteggio legge le stesse quote.
+    const heavy = this.heavySeasons().split('|').filter(Boolean);
     const scoring = this.players.scoring();
+    // ...e le stagioni per cui serve l'AGGREGATO (media voto e fantamedia), che non costa un
+    // caricamento: undici stagioni sono gia' in casa, quindi si legge quello che serve senza chiedere
+    // niente a nessuno.
+    const light = [...new Set(this.needed().map((one) => one.season).filter((one): one is string => !!one))];
     // SOLO CHI IL LISTONE QUOTA (operatore, 04/09/2026: «Cheddira del Napoli e' ridicolo che stia nei
     // primi 60 attaccanti, non giochera' mai»). Il difetto non era la sua valutazione: e' che non e'
     // quotato affatto - zero righe in `listone_quotes` per il 2026-27, su nessuna delle due piattaforme
@@ -801,28 +926,38 @@ export class Strategy {
       const one = engine.get(player.fcId);
       const steady = rated ? this.ratings.for(platform, player.fcId)?.steady : null;
       const played = this.store.playedOf(platform, player.fcId);
-      // GLI ATTESI, con la STESSA funzione che scrive il riepilogo della card (`seasonTotals`): due
-      // aritmetiche sugli stessi voti darebbero a un uomo due xG, e le due cose stanno sullo schermo
-      // insieme. Vuoto finche' lo store non e' in casa, che e' quello che e'.
-      const played_ = expectedOn
-        ? seasonTotals(this.players.matchesOf(player.fcId, platform, expectedOn))
-        : null;
-      // ...e la stessa lettura sulla stagione scorsa, per la coppia contata. Stessa funzione e stessa
-      // convenzione (rigori dentro i gol, assist da fermo dentro gli assist): due somme diverse degli
-      // stessi voti darebbero a un uomo due conteggi, e le due coppie stanno sulla stessa riga.
-      const before = prevOn
-        ? seasonTotals(this.players.matchesOf(player.fcId, platform, prevOn))
-        : null;
-      // LE QUATTRO FREQUENZE su TUTTE le stagioni che il pacchetto porta, che e' la sola finestra in cui
-      // una quota sia una quota (misurato: alla terza giornata ognuno ha al massimo tre partite). Si
-      // passa da `recent` senza limiti, cioe' dal lettore che questo store dichiara per «tutto il suo
-      // calcio»: un secondo elenco di quali stagioni contano sarebbe una seconda risposta.
-      const often = career
-        ? matchFrequencies(
-            this.players.recent(player.fcId, platform, {}).map((one) => one.cell),
-            scoring,
-          )
-        : null;
+      // IL SUO CALCIO, UNA STAGIONE PER VOCE (operatore, 12/09/2026: «per ogni pill vorrei poter
+      // selezionare la stagione di afferenza»). Si riempiono SOLO le stagioni chieste, e le due meta'
+      // costano diverso: la media voto viene dall'aggregato (gia' in casa), tutto il resto dal livello
+      // per-partita. Le celle di una stagione si leggono UNA VOLTA e nutrono tutt'e due le funzioni -
+      // il riepilogo della card (`seasonTotals`) e le frequenze - perche' due passate sulle stesse
+      // partite darebbero a un uomo due denominatori.
+      const football = new Map<string, SeasonFootball>();
+      for (const season of light) {
+        const cells = heavy.includes(season) && season !== WHOLE_CAREER
+          ? this.players.matchesOf(player.fcId, platform, season)
+          : null;
+        const totals = cells ? seasonTotals(cells) : null;
+        // TUTTO IL SUO CALCIO e' una finestra e non una stagione: si passa da `recent` senza limiti,
+        // cioe' dal lettore che questo store dichiara per «tutte le sue partite».
+        const whole = season === WHOLE_CAREER && heavy.includes(season)
+          ? this.players.recent(player.fcId, platform, {}).map((one) => one.cell)
+          : null;
+        const aggregate = this.store.seasonStatsOf(platform, player.fcId, season);
+        football.set(season, {
+          played: aggregate?.pv ?? null,
+          mv: aggregate?.mv ?? null,
+          fm: aggregate?.fm ?? null,
+          goals: totals?.played ? totals.goals / totals.played : null,
+          assists: totals?.played ? totals.assists / totals.played : null,
+          xg: totals?.xg ?? null,
+          xa: totals?.xa ?? null,
+          ga: totals ? { goals: totals.goals, assists: totals.assists } : null,
+          frequencies: whole
+            ? matchFrequencies(whole, scoring)
+            : cells ? matchFrequencies(cells, scoring) : null,
+        });
+      }
       // QUANTE NE GIOCHERA' DAVVERO, col conto unico dell'app (`core/expected-play.ts`, 04/09/2026):
       // il metro della plancia dove il motore ripiega su una costante, meno le giornate che uno stop
       // aperto gli toglie di sicuro, meno l'assicurazione dell'operatore. Il FATTORE che ne esce
@@ -867,35 +1002,9 @@ export class Strategy {
         steady: steady?.share ?? null,
         steadyWeight: steady?.weight ?? 0,
         steadyNote: steady?.note ?? '',
-        // LA SUA STAGIONE IN CORSO, misurata (operatore, 05/09/2026: «MV e FM devono essere quelli
-        // reali della stagione corrente»): letta da chi la possiede già, e vuota per chi non ha
-        // ancora una giornata su file - che non è uno zero.
-        seasonPlayed: played?.pv ?? null,
-        seasonMv: played?.mv ?? null,
-        seasonFm: played?.fm ?? null,
-        // ...e i suoi ATTESI, letti sul CALENDARIO DICHIARATO come ogni altro numero di questa riga:
-        // un xG e' un fatto su una partita, ma «quali partite» lo decide la piattaforma - su euro il
-        // calendario e' un sottoinsieme, quindi leggerne uno solo per tutt'e due darebbe alla riga una
-        // popolazione e alla card che si apre da lei un'altra. Chi ha giocato in piu' campionati li
-        // porta sommati, che e' quello che fa anche il riepilogo della card.
-        seasonXg: played_?.xg ?? null,
-        seasonXa: played_?.xa ?? null,
-        // I gol e gli assist VERI escono dalla stessa lettura - una seconda somma degli stessi voti
-        // darebbe a un uomo due conteggi - e si dividono QUI, dove il denominatore e' in mano: sono
-        // per PARTITA GIOCATA (sua correzione del 05/09/2026), cosi' le quattro pastiglie stanno nella
-        // stessa unita' e `G` si puo' leggere accanto a `xG`.
-        seasonGoals: played_?.played ? played_.goals / played_.played : null,
-        seasonAssists: played_?.played ? played_.assists / played_.played : null,
-        // LE DUE COPPIE CONTATE (operatore, 06/09/2026), dalle stesse due letture: `gaNow` e' il
-        // NUMERATORE delle due medie qui sopra, quindi le quattro pastiglie non possono contraddirsi.
-        // Vuoto e non `0:0` per chi in quella stagione non ha una giornata su file: `seasonTotals`
-        // restituisce `null` quando non c'e' nessuna partita giocata, ed e' la differenza fra «non ha
-        // segnato» e «non ha giocato».
-        gaPrev: before ? { goals: before.goals, assists: before.assists } : null,
-        gaNow: played_ ? { goals: played_.goals, assists: played_.assists } : null,
-        // LE QUATTRO FREQUENZE, gia' contate: `readingsOf` e' pura e riceve solo l'uomo, mentre questa
-        // finestra vive nello store del livello per-partita. Letta e non ricalcolata, come lo SWING.
-        frequencies: often,
+        // IL SUO CALCIO PER STAGIONE, gia' letto: la riga lo porta e `readingsOf` lo passa. Vuoto per
+        // le stagioni che nessuno ha chiesto, che non e' uno zero - e' una domanda che non si e' fatta.
+        seasons: football,
         // Il PREZZO del suo listone, nella valuta del gioco dichiarato: letto da chi lo possiede già.
         fvm: this.store.fvmOf(platform, player.fcId, this.settings().game),
         // IL PREZZO VERO, portato nella valuta della lega DICHIARATA: la tabella lo archivia su una
@@ -1002,15 +1111,30 @@ export class Strategy {
     // quindi e' `blocks` a dipendere dal calendario - che e' esattamente il computed che si deve rifare
     // se il calendario cambia.
     return (row: RankedMan) =>
-      passesFilter(clauses, (key) =>
+      passesFilter(clauses, (clause) =>
         // LA STESSA DIVISIONE CHE DISEGNA LA RIGA, e non una sua copia: `perMatch` e' la definizione, e
         // due copie darebbero al filtro e alla colonna due unita' il giorno in cui una cambia.
-        key === 'gain' ? this.perMatch(row.gain) : readingValue(key, row.readings),
+        clause.key === 'gain'
+          ? this.perMatch(row.gain)
+          // ...e la STAGIONE della condizione, che e' meta' della domanda: senza, «mv > 7 e mv < 6»
+          // non avrebbe soluzioni. Una condizione senza stagione cade sul default della sua lettura.
+          : readingValue(
+            { key: clause.key, season: clause.season ?? this.seasonOfKey(clause.key) },
+            row.readings,
+          ),
       );
   });
 
-  /** Le voci del menu' «valore», col nome che il gain ha in questa asta. */
-  protected readonly filterFieldsHere = computed(() => filterFields(this.gainLabel()));
+  /** Le voci del menu' «valore», col nome che il gain ha in questa asta e le stagioni del pacchetto. */
+  protected readonly filterFieldsHere = computed(() =>
+    filterFields(this.gainLabel(), { pickable: this.pickableSeasons(), ...this.seasonNames() }),
+  );
+
+  /** La stagione su cui una lettura si legge quando la condizione non ne porta una: la sua dichiarata. */
+  private seasonOfKey(key: ReadingKey): string | null {
+    const spec = READINGS.find((one) => one.key === key);
+    return spec?.seasonal ? defaultSeasonOf(spec, this.seasonNames()) : null;
+  }
 
   /**
    * QUANTI NOMI IL FILTRO STA NASCONDENDO, sommati su tutti i blocchi.
@@ -1052,12 +1176,30 @@ export class Strategy {
    * elenchi della stessa cosa sono come una pastiglia finisce per esistere e non essere ordinabile.
    * Le COPPIE sono l'eccezione dichiarata, e non un dimenticato - vedi `SORTABLE_READINGS`.
    */
-  protected readonly sortOptions = computed<NzSelectOptionInterface[]>(() => [
-    { label: this.gainLabel(), value: 'gain' },
-    // SENZA LE COPPIE, per la ragione scritta in `SORTABLE_READINGS`: una voce che non ordina niente
-    // e' peggio di una voce che manca, perche' sceglierla non fa succedere nulla.
-    ...READINGS.filter((one) => !one.pair).map((one) => ({ label: one.label, value: one.key })),
-  ]);
+  protected readonly sortOptions = computed<NzSelectOptionInterface[]>(() => {
+    const seasons = this.seasonNames();
+    const shown = this.shownReadings();
+    const out: NzSelectOptionInterface[] = [{ label: this.gainLabel(), value: GAIN_SORT }];
+    for (const spec of READINGS) {
+      // SENZA LE COPPIE, per la ragione scritta in `SORTABLE_READINGS`: una voce che non ordina niente
+      // e' peggio di una voce che manca, perche' sceglierla non fa succedere nulla.
+      if (spec.pair) continue;
+      // UNA VOCE PER STAGIONE ACCESA, e una sola al default per le letture spente: offrire tutte le
+      // combinazioni darebbe un menu' di cinquanta voci di cui quarantasette ordinano su una colonna
+      // che non si vede. Chi vuole ordinare per la MV di un'altra stagione l'accende, e la voce compare.
+      const mine = shown.filter((one) => one.ref.key === spec.key);
+      const refs = mine.length
+        ? mine.map((one) => one.ref)
+        : [{ key: spec.key, season: spec.seasonal ? defaultSeasonOf(spec, seasons) : null }];
+      for (const ref of refs) {
+        // IL NOME PER ESTESO, con l'anno solo dove la stagione esiste: «SWING · SWING» e «FVM ·
+        // Fantavalore di mercato» erano la sigla incollata al nome, cioe' due volte la stessa cosa.
+        const said = ref.season ? `${spec.label} ${ref.season === WHOLE_CAREER ? WHOLE_CAREER : shortSeason(ref.season)}` : spec.label;
+        out.push({ label: said, value: refText(ref) });
+      }
+    }
+    return out;
+  });
 
   protected setSort(key: SortKey): void {
     this.sort.set(key);

@@ -1,4 +1,12 @@
-import { READINGS, ReadingKey, SortKey } from './strategy';
+import {
+  READINGS,
+  ReadingKey,
+  ReadingRef,
+  WHOLE_CAREER,
+  defaultSeasonOf,
+  seasonsFor,
+  shortSeason,
+} from './strategy';
 
 /**
  * I FILTRI DELLA STRATEGIA: una lettura, un criterio, un numero - e altri pezzi in AND.
@@ -38,12 +46,27 @@ export const OP_SIGN: Record<CompareOp, string> = {
   ne: '≠',
 };
 
-/** Su cosa si puo' filtrare: le stesse chiavi su cui si puo' ordinare. */
-export type FilterKey = SortKey;
+/**
+ * Su cosa si puo' filtrare: una lettura, o il GAIN.
+ *
+ * La STAGIONE non sta qui ma accanto (`FilterClause.season`): la chiave dice QUALE numero, la stagione
+ * su quale calcio, e tenerle separate e' quello che permette due condizioni sulla stessa lettura.
+ */
+export type FilterKey = ReadingKey | 'gain';
 
-/** Una condizione sola. Le condizioni di un filtro sono in AND, quindi non portano un legame. */
+/**
+ * Una condizione sola. Le condizioni di un filtro sono in AND, quindi non portano un legame.
+ *
+ * LA STAGIONE E' PARTE DELLA CONDIZIONE (operatore, 12/09/2026: «voglio filtrare i calciatori che nella
+ * stagione corrente abbiano mv > 7 e nella stagione passata mv < 6»). Due condizioni sulla stessa
+ * lettura e su due stagioni sono due condizioni diverse, ed e' esattamente la domanda che ha fatto:
+ * senza la stagione, «mv > 7 E mv < 6» non ha soluzioni.
+ *
+ * `null` per il gain e per le letture del foglio, che una stagione non ce l'hanno.
+ */
 export interface FilterClause {
   key: FilterKey;
+  season: string | null;
   op: CompareOp;
   value: number;
 }
@@ -76,6 +99,12 @@ export const FILTERABLE_READINGS: ReadingKey[] = READINGS
 export interface FilterField {
   key: FilterKey;
   label: string;
+  /** Se prende una stagione: allora la riga del filtro ne offre il menu' accanto. */
+  seasonal: boolean;
+  /** Le stagioni che puo' prendere, gia' con l'etichetta: `25/26`, `tutte`. Vuoto se non ne prende. */
+  seasons: { value: string; label: string }[];
+  /** ...e quella su cui nasce una condizione nuova: quella che la lettura dichiara. */
+  season: string | null;
   /** Le cifre con cui la riga la stampa: e' la precisione a cui `=` e `≠` rispondono. Vedi `passesClause`. */
   decimals: number;
 }
@@ -110,13 +139,22 @@ export const GAIN_DECIMALS = 2;
  * modulo non ha un setup: e' la stessa ragione per cui il selettore dell'ordinamento la compone nella
  * vista.
  */
-export function filterFields(gainLabel: string): FilterField[] {
+export function filterFields(
+  gainLabel: string,
+  seasons: { pickable: readonly string[]; target: string; input: string },
+): FilterField[] {
   const known = new Set<ReadingKey>(FILTERABLE_READINGS);
   return [
-    { key: 'gain', label: gainLabel, decimals: GAIN_DECIMALS },
+    { key: 'gain', label: gainLabel, seasonal: false, seasons: [], season: null, decimals: GAIN_DECIMALS },
     ...READINGS.filter((one) => known.has(one.key)).map((one) => ({
       key: one.key as FilterKey,
       label: one.label,
+      seasonal: !!one.seasonal,
+      seasons: seasonsFor(one, seasons.pickable).map((season) => ({
+        value: season,
+        label: season === WHOLE_CAREER ? WHOLE_CAREER : shortSeason(season),
+      })),
+      season: one.seasonal ? defaultSeasonOf(one, seasons) : null,
       decimals: decimalsOf(one.format),
     })),
   ];
@@ -171,10 +209,10 @@ function round(value: number, decimals: number): number {
  */
 export function passesFilter(
   clauses: readonly FilterClause[],
-  valueOf: (key: FilterKey) => number | null,
+  valueOf: (clause: FilterClause) => number | null,
 ): boolean {
   return clauses.every((clause) =>
-    passesClause(clause, valueOf(clause.key), filterDecimals(clause.key)),
+    passesClause(clause, valueOf(clause), filterDecimals(clause.key)),
   );
 }
 
@@ -186,10 +224,14 @@ export function passesFilter(
  * svuoterebbe ogni blocco in silenzio. E' la stessa dipendenza dichiarata da `ReadingSpec.season`, vista
  * dal lato di chi filtra.
  */
-export function filterReadings(clauses: readonly FilterClause[]): ReadingKey[] {
-  const keys = new Set<ReadingKey>();
-  for (const clause of clauses) if (clause.key !== 'gain') keys.add(clause.key);
-  return [...keys];
+export function filterReadings(clauses: readonly FilterClause[]): ReadingRef[] {
+  const out: ReadingRef[] = [];
+  for (const clause of clauses) {
+    if (clause.key === 'gain') continue;
+    const ref = { key: clause.key as ReadingKey, season: clause.season };
+    if (!out.some((one) => one.key === ref.key && one.season === ref.season)) out.push(ref);
+  }
+  return out;
 }
 
 /**
@@ -201,6 +243,12 @@ export function filterReadings(clauses: readonly FilterClause[]): ReadingKey[] {
  */
 export function describeClause(clause: FilterClause, name: string): string {
   return `${name} ${OP_SIGN[clause.op]} ${round(clause.value, filterDecimals(clause.key))}`;
+}
+
+/** La stagione di una condizione come si legge su un gettone: `25/26`, o niente se non ne ha una. */
+export function clauseSeason(clause: FilterClause): string {
+  if (!clause.season) return '';
+  return clause.season === WHOLE_CAREER ? WHOLE_CAREER : shortSeason(clause.season);
 }
 
 /**
@@ -221,7 +269,16 @@ export function readClauses(raw: unknown): FilterClause[] {
     if (typeof key !== 'string' || !keys.has(key)) return [];
     if (typeof op !== 'string' || !ops.has(op)) return [];
     if (typeof value !== 'number' || !Number.isFinite(value)) return [];
-    return [{ key: key as FilterKey, op: op as CompareOp, value }];
+    // La stagione di una versione precedente non c'era: chi non la porta cade sul default della sua
+    // lettura, che e' chi costruisce la riga a risolvere - qui resta `null`, che vuol dire «quella che
+    // la lettura dichiara».
+    const season = (one as Record<string, unknown>)['season'];
+    return [{
+      key: key as FilterKey,
+      season: typeof season === 'string' && season ? season : null,
+      op: op as CompareOp,
+      value,
+    }];
   });
 }
 

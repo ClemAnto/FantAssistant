@@ -68,6 +68,23 @@
           [nzOptions]="fieldOptions()"
           (ngModelChange)="setKey($index, $event)"
         ></nz-select>
+        <!-- LA STAGIONE, e solo dove la lettura ne ha una (operatore, 12/09/2026): «mv > 7 nella
+             stagione corrente e mv < 6 nella passata». Per le letture del foglio la casella non
+             compare affatto invece di comparire disabilitata: un controllo spento si legge come una
+             cosa che dovrebbe funzionare. -->
+        @if (seasonsOf(clause).length) {
+          <nz-select
+            class="w-20 shrink-0"
+            nzSize="small"
+            data-clause-season
+            [ngModel]="clause.season"
+            (ngModelChange)="setSeason($index, $event)"
+          >
+            @for (season of seasonsOf(clause); track season.value) {
+              <nz-option [nzValue]="season.value" [nzLabel]="season.label" />
+            }
+          </nz-select>
+        }
         <nz-select
           class="w-16 shrink-0"
           nzSize="small"

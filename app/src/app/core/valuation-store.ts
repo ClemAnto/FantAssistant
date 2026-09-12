@@ -788,6 +788,29 @@ export class ValuationStore {
     return this.played().get(`${platform}|${fcId}`) ?? null;
   }
 
+  /**
+   * L'AGGREGATO DI UNA STAGIONE QUALUNQUE: presenze, media voto e fantamedia misurate.
+   *
+   * Serve da quando la Strategia lascia scegliere la stagione di una lettura (operatore, 12/09/2026), e
+   * non costa niente: `season_stats` viaggia nel pacchetto per UNDICI stagioni ed e' gia' in memoria -
+   * `playedOf` e `measured` sono due fette di questa stessa mappa, non tre letture diverse.
+   *
+   * Null per chi in quella stagione non ha una riga, che non e' uno zero: quella tabella ha una riga
+   * solo per chi un voto ce l'ha.
+   */
+  seasonStatsOf(
+    platform: Platform,
+    fcId: number,
+    season: string,
+  ): { pv: number | null; mv: number | null; fm: number | null } | null {
+    return this.bySeason().get(`${platform}|${season}|${fcId}`) ?? null;
+  }
+
+  /** Tutte le stagioni dell'aggregato, chiave `piattaforma|stagione|fc_id`: la sorgente delle due fette. */
+  private readonly bySeason = signal<Map<string, { pv: number | null; mv: number | null; fm: number | null }>>(
+    new Map(),
+  );
+
   private readonly measured = signal<Map<string, { pv: number | null; mv: number | null; fm: number | null }>>(
     new Map(),
   );
@@ -1290,17 +1313,22 @@ export class ValuationStore {
       const stats = new Map<string, { pv: number | null; mv: number | null; fm: number | null }>();
       // ...e la stagione IN CORSO, che e' una domanda diversa: quella che ha giocato finora.
       const so_far = new Map<string, { pv: number | null; mv: number | null; fm: number | null }>();
+      // ...e TUTTE, per chi sceglie la stagione di una lettura (12/09/2026). Una passata sola e una
+      // mappa sola: le due qui sopra sono due FETTE di questa, non tre letture della stessa tabella.
+      const every = new Map<string, { pv: number | null; mv: number | null; fm: number | null }>();
       for (const row of seasons.rows) {
-        const where = row[sSeason] === input ? stats : row[sSeason] === target ? so_far : null;
-        if (!where) continue;
-        where.set(`${row[sPlatform]}|${row[sId]}`, {
+        const one = {
           pv: (row[sPv] as number) ?? null,
           mv: (row[sMv] as number) ?? null,
           fm: (row[sFm] as number) ?? null,
-        });
+        };
+        every.set(`${row[sPlatform]}|${row[sSeason]}|${row[sId]}`, one);
+        const where = row[sSeason] === input ? stats : row[sSeason] === target ? so_far : null;
+        if (where) where.set(`${row[sPlatform]}|${row[sId]}`, one);
       }
       this.measured.set(stats);
       this.played.set(so_far);
+      this.bySeason.set(every);
 
       this.roles.set(await this.realRoles());
       // I fogli del PACCHETTO se c'è, quelli di oggi altrimenti - stesso formato, perché li scrive la

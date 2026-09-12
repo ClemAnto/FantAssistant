@@ -1,12 +1,10 @@
 import { MantraModules } from './auction-value';
 import {
-  CAREER_READINGS,
   DEFAULT_READINGS,
-  PREV_SEASON_READINGS,
   READINGS,
-  SEASON_READINGS,
   SORTABLE_READINGS,
   RankedMan,
+  ReadingRef,
   ReadingKey,
   StrategyBidder,
   StrategySetup,
@@ -24,10 +22,16 @@ import {
   readingsOf,
   roleDepth,
   shortSeason,
-  wantsCareerReadings,
   wantsPlayedFootball,
-  wantsPrevSeasonReadings,
-  wantsSeasonReadings,
+  HEAVY_READINGS,
+  SeasonFootball,
+  WHOLE_CAREER,
+  defaultSeasonOf,
+  readRef,
+  refText,
+  seasonSample,
+  seasonsFor,
+  seasonsNeeded,
 } from './strategy';
 
 /**
@@ -89,15 +93,6 @@ const man = (over: Partial<StrategyBidder> = {}): StrategyBidder => ({
   steady: null,
   steadyWeight: 0,
   steadyNote: '',
-  seasonPlayed: null,
-  seasonMv: null,
-  seasonFm: null,
-  seasonXg: null,
-  seasonXa: null,
-  seasonGoals: null,
-  seasonAssists: null,
-  gaPrev: null,
-  gaNow: null,
   fvm: null,
   // Il conto delle giornate a riposo: questi test parlano di liste e di domanda, non di infortuni.
   outlook: {
@@ -106,6 +101,23 @@ const man = (over: Partial<StrategyBidder> = {}): StrategyBidder => ({
   },
   ...over,
 });
+
+
+/** Le due stagioni che il pacchetto dichiara, come ogni lettore le riceve. */
+const SEASONS = { target: '2026-27', input: '2025-26' };
+
+/** Un riferimento: una lettura E la stagione su cui si legge. */
+const at = (key: ReadingKey, season: string | null = null): ReadingRef => ({ key, season });
+
+/** Il calcio di una stagione, per un uomo che l'ha giocata. */
+const football = (over: Partial<SeasonFootball> = {}): SeasonFootball => ({
+  played: null, mv: null, fm: null, goals: null, assists: null,
+  xg: null, xa: null, ga: null, frequencies: null, ...over,
+});
+
+/** ...e un uomo che porta una stagione sola. */
+const withSeason = (season: string, one: Partial<SeasonFootball>, rest: Partial<StrategyBidder> = {}) =>
+  man({ seasons: new Map([[season, football(one)]]), ...rest });
 
 describe('demandOf', () => {
   it('su classic conta la stanza: otto difensori per otto partecipanti fanno 64', () => {
@@ -542,24 +554,44 @@ describe('le sette letture di una riga', () => {
   });
 
   it('ogni sigla pesca il proprio numero, e nessuna ne inventa uno', () => {
-    const readings = readingsOf(
-      man({
-        fm: 7, mv: 6, pv: 30, steady: 0.5, steadyWeight: 1, minutes: 78, fvm: 210,
-        seasonPlayed: 2, seasonMv: 6.25, seasonFm: 8.5,
-      }),
-    );
-    expect(readingValue('bonus', readings)).toBeCloseTo(1, 6);
-    expect(readingValue('played', readings)).toBe(30);
-    expect(readingValue('passed', readings)).toBe(15);
-    expect(readingValue('minutes', readings)).toBe(78);
-    expect(readingValue('fvm', readings)).toBe(210);
+    const readings = readingsOf(withSeason(
+      SEASONS.target,
+      { played: 2, mv: 6.25, fm: 8.5 },
+      { fm: 7, mv: 6, pv: 30, steady: 0.5, steadyWeight: 1, minutes: 78, fvm: 210 },
+    ));
+    expect(readingValue(at('bonus'), readings)).toBeCloseTo(1, 6);
+    expect(readingValue(at('played'), readings)).toBe(30);
+    expect(readingValue(at('passed'), readings)).toBe(15);
+    expect(readingValue(at('minutes'), readings)).toBe(78);
+    expect(readingValue(at('fvm'), readings)).toBe(210);
+  });
+
+  /**
+   * LA STESSA LETTURA SU DUE STAGIONI E' DUE NUMERI (operatore, 12/09/2026), ed e' il fatto che rende
+   * possibile la sua domanda: «mv > 7 quest'anno e mv < 6 l'anno scorso».
+   */
+  it('la stessa lettura su due stagioni da due numeri', () => {
+    const readings = readingsOf(man({
+      seasons: new Map([
+        [SEASONS.target, football({ mv: 7.4, played: 3 })],
+        [SEASONS.input, football({ mv: 5.8, played: 34 })],
+      ]),
+    }));
+    expect(readingValue(at('mv', SEASONS.target), readings)).toBe(7.4);
+    expect(readingValue(at('mv', SEASONS.input), readings)).toBe(5.8);
+    // ...e una stagione che nessuno ha chiesto e' IGNOTA, non zero.
+    expect(readingValue(at('mv', '2024-25'), readings)).toBeNull();
+    // Il campione lo dichiara la stagione, non la riga: due medie, due denominatori.
+    expect(seasonSample(SEASONS.target, readings)).toBe(3);
+    expect(seasonSample(SEASONS.input, readings)).toBe(34);
   });
 
   it('LA TITOLARITA ORDINA PER LA SCALA e non per la sigla, che darebbe l’alfabeto', () => {
     // Richiesta dell'operatore, 07/09/2026. Ordinando per le tre lettere si leggerebbe BAL, BAN, PAN,
     // RIS, TIS, TIT: il gradino 4 in cima e il 3 in fondo. La chiave e' il rango della scala col segno
     // meno, perche' la lista scende e `bandiera` e' lo zero.
-    const rank = (rung: string | null) => readingValue('titolarita', readingsOf(man({ titolarita: rung })));
+    const rank = (rung: string | null) =>
+      readingValue(at('titolarita'), readingsOf(man({ titolarita: rung })));
     expect(rank('bandiera')).toBe(-0);
     expect(rank('ballottaggio')).toBe(-3);
     expect(rank('riserva')).toBe(-5);
@@ -579,50 +611,51 @@ describe('le sette letture di una riga', () => {
     // Le due misurate accanto alle due attese, nella stessa unita' (sua correzione del 05/09/2026):
     // `G 0,50` accanto a `xG 0,45` e' una frase, `G 1` accanto a `xG 0,45` sono due cifre che non si
     // confrontano. Zero e' un fatto - ha giocato e non ha segnato - e va distinto dal vuoto.
-    const scored = readingsOf(man({ seasonGoals: 0, seasonAssists: 0.5 }));
-    expect(readingValue('goals', scored)).toBe(0);
-    expect(readingValue('assists', scored)).toBe(0.5);
+    const scored = readingsOf(withSeason(SEASONS.target, { goals: 0, assists: 0.5 }));
+    expect(readingValue(at('goals', SEASONS.target), scored)).toBe(0);
+    expect(readingValue(at('assists', SEASONS.target), scored)).toBe(0.5);
     const unknown = readingsOf(man({ fm: 7 }));
-    expect(readingValue('goals', unknown)).toBeNull();
-    expect(readingValue('assists', unknown)).toBeNull();
+    expect(readingValue(at('goals', SEASONS.target), unknown)).toBeNull();
+    expect(readingValue(at('assists', SEASONS.target), unknown)).toBeNull();
   });
 
-  it('xG e xA sono gli ATTESI di questa stagione, e vuoti non sono zeri', () => {
-    // Operatore, 05/09/2026: «aggiungi qui xG e xA», sulla fila dove stanno gia' MV e FM - quindi la
-    // stessa natura, cioe' quello che ha prodotto finora e non quello che ci si aspetta.
-    const his = readingsOf(man({ seasonXg: 0.41, seasonXa: 0.08 }));
-    expect(readingValue('xg', his)).toBe(0.41);
-    expect(readingValue('xa', his)).toBe(0.08);
+  it('xG e xA sono gli ATTESI della stagione scelta, e vuoti non sono zeri', () => {
+    const his = readingsOf(withSeason(SEASONS.target, { xg: 0.41, xa: 0.08 }));
+    expect(readingValue(at('xg', SEASONS.target), his)).toBe(0.41);
+    expect(readingValue(at('xa', SEASONS.target), his)).toBe(0.08);
     // La fonte non pubblica gli attesi per tutte le stagioni: li' la pastiglia non ha un numero, e un
     // trattino dice «non lo so» mentre uno zero direbbe «non ha mai tirato».
     const nobody = readingsOf(man({ fm: 7, mv: 6 }));
-    expect(readingValue('xg', nobody)).toBeNull();
-    expect(readingValue('xa', nobody)).toBeNull();
+    expect(readingValue(at('xg', SEASONS.target), nobody)).toBeNull();
+    expect(readingValue(at('xa', SEASONS.target), nobody)).toBeNull();
   });
 
-  it('MV E FM SONO QUELLE REALI DI QUESTA STAGIONE, non le previste (operatore, 05/09/2026)', () => {
+  it('MV E FM SONO QUELLE MISURATE, non le previste (operatore, 05/09/2026)', () => {
     // Le previste restano dentro il `bonus`, che è il tasso ATTESO: due nature, due nomi.
-    const readings = readingsOf(man({ fm: 7, mv: 6, seasonMv: 6.25, seasonFm: 8.5, seasonPlayed: 2 }));
-    expect(readingValue('mv', readings)).toBe(6.25);
-    expect(readingValue('fm', readings)).toBe(8.5);
-    expect(readingValue('bonus', readings)).toBeCloseTo(1, 6);
-    expect(readings.seasonPlayed).toBe(2);
+    const readings = readingsOf(withSeason(
+      SEASONS.target, { played: 2, mv: 6.25, fm: 8.5 }, { fm: 7, mv: 6 },
+    ));
+    expect(readingValue(at('mv', SEASONS.target), readings)).toBe(6.25);
+    expect(readingValue(at('fm', SEASONS.target), readings)).toBe(8.5);
+    expect(readingValue(at('bonus'), readings)).toBeCloseTo(1, 6);
+    expect(seasonSample(SEASONS.target, readings)).toBe(2);
   });
 
   it('chi non ha ancora giocato non ha una media: vuoto, e non uno zero', () => {
     const readings = readingsOf(man({ fm: 7, mv: 6 }));
-    expect(readingValue('mv', readings)).toBeNull();
-    expect(readingValue('fm', readings)).toBeNull();
+    expect(readingValue(at('mv', SEASONS.target), readings)).toBeNull();
+    expect(readingValue(at('fm', SEASONS.target), readings)).toBeNull();
   });
 
   it('SOLO le partite sufficienti possono essere spannometriche, perché solo loro portano una quota misurata', () => {
     const his = readingsOf(man({ pv: 30, steady: 0.5, steadyWeight: 1 }));
     const anchor = readingsOf(man({ pv: 30, steady: 0.5, steadyWeight: 0 }));
-    expect(readingIsRough('passed', his)).toBe(false);
-    expect(readingIsRough('passed', anchor)).toBe(true);
-    for (const key of ['bonus', 'played', 'minutes', 'mv', 'fm', 'fvm'] as const) {
-      expect(readingIsRough(key, anchor)).toBe(false);
+    expect(readingIsRough(at('passed'), his)).toBe(false);
+    expect(readingIsRough(at('passed'), anchor)).toBe(true);
+    for (const key of ['bonus', 'played', 'minutes', 'fvm'] as const) {
+      expect(readingIsRough(at(key), anchor)).toBe(false);
     }
+    expect(readingIsRough(at('mv', SEASONS.target), anchor)).toBe(false);
   });
 
   it("le accese all'inizio sono LE PRIME TRE dell'elenco dichiarato, non tre a caso", () => {
@@ -657,61 +690,90 @@ describe('le sette letture di una riga', () => {
 
 
 describe('le letture che costano un caricamento', () => {
-  it("una pastiglia che non c'entra col calcio giocato non ne chiede nemmeno una riga", () => {
+  const refs = (...keys: ReadingKey[]) =>
+    keys.map((key) => ({ key, season: SEASONS.target }));
+
+  it("una pastiglia che non c'entra col livello per-partita non ne chiede nemmeno una riga", () => {
     // La prova che serve non e' sul valore: e' che il RISULTATO non cambia accendendo e spegnendo le
-    // altre sette. `pool` dipende da questa risposta - non dall'elenco - quindi un true/false stabile
-    // e' esattamente cio' che tiene ferme le seicento righe mentre si accende `Bpm`.
-    expect(wantsSeasonReadings(DEFAULT_READINGS)).toBe(false);
-    expect(wantsSeasonReadings(['bonus', 'played', 'passed', 'minutes', 'mv', 'fm', 'fvm'])).toBe(false);
-    expect(wantsSeasonReadings([])).toBe(false);
-  });
-
-  it("basta una delle cinque, e ognuna delle cinque basta", () => {
-    for (const key of SEASON_READINGS) expect(wantsSeasonReadings([key])).toBe(true);
-    expect(wantsSeasonReadings(['fvm', 'xa'])).toBe(true);
-  });
-
-  it('quelle che costano sono quelle che vengono dal layer per-partita, e nessun altra', () => {
-    // Un elenco che scivolasse (una sigla aggiunta a `READINGS` e dimenticata qui) accenderebbe una
-    // pastiglia su una casella vuota per sempre: nessuno chiederebbe lo store. Dal 06/09/2026 non puo'
-    // piu' scivolare - i due elenchi sono DERIVATI da `ReadingSpec.season` - e l'asserto resta perche'
-    // dice QUALI sono, cioe' cattura una `season` messa sulla pastiglia sbagliata.
-    expect([...SEASON_READINGS].sort()).toEqual(['assists', 'gaNow', 'goals', 'xa', 'xg']);
-    expect([...PREV_SEASON_READINGS].sort()).toEqual(['gaPrev']);
-    for (const key of [...SEASON_READINGS, ...PREV_SEASON_READINGS]) {
-      expect(READINGS.some((one) => one.key === key)).toBe(true);
-    }
-  });
-
-  it('la stagione scorsa e una domanda a parte, e ognuna delle due chiede il calcio giocato', () => {
-    // Le due stagioni sono due letture e un caricamento solo: `wantsPlayedFootball` e' quello che
-    // decide se chiedere lo store, le altre due quale stagione ritagliare. Tenerle separate e' cio'
-    // che impedisce a `G:A 25/26` di ricostruire le seicento righe sulla stagione bersaglio.
-    expect(wantsPrevSeasonReadings(['gaNow'])).toBe(false);
-    expect(wantsSeasonReadings(['gaPrev'])).toBe(false);
-    expect(wantsPrevSeasonReadings(['gaPrev'])).toBe(true);
-    expect(wantsPlayedFootball(['gaPrev'])).toBe(true);
-    expect(wantsPlayedFootball(['gaNow'])).toBe(true);
-    expect(wantsPlayedFootball(DEFAULT_READINGS)).toBe(false);
+    // altre. `pool` dipende da questa risposta - non dall'elenco - quindi un true/false stabile e'
+    // esattamente cio' che tiene ferme le seicento righe mentre si accende `Bpm`.
+    expect(wantsPlayedFootball(refs('bonus', 'played', 'passed'))).toBe(false);
+    expect(wantsPlayedFootball(refs('minutes', 'fvm', 'paid', 'swing'))).toBe(false);
+    expect(wantsPlayedFootball([])).toBe(false);
   });
 
   /**
-   * LA TERZA FINESTRA: tutte le stagioni che il pacchetto porta, che e' quella delle quattro frequenze.
-   *
-   * Costa lo stesso caricamento delle altre due (`PlayersStore` porta tutte le `heavy_seasons` in un
-   * colpo) e NON e' la stagione bersaglio: accendere `85′` non deve far ritagliare la stagione in corso,
-   * dove ognuno ha al massimo tre partite e una quota non e' una quota.
+   * LA MEDIA VOTO NON COSTA, e da qui viene la meta' economica della richiesta del 12/09/2026: chiedere
+   * la MV di un'altra stagione e' gratis (l'aggregato ne porta undici ed e' gia' in casa), chiedere i
+   * suoi xG no. Se un giorno `mv` diventasse `heavy`, cambiare stagione su una lista di seicento nomi
+   * costerebbe un caricamento - e questo asserto e' quello che lo direbbe.
    */
-  it('le frequenze vogliono tutte le stagioni, e non quella in corso', () => {
-    expect([...CAREER_READINGS].sort()).toEqual(['bonusMatch', 'goodMatch', 'longPlay', 'poorMatch']);
-    for (const key of CAREER_READINGS) {
-      expect(wantsCareerReadings([key])).toBe(true);
-      expect(wantsPlayedFootball([key])).toBe(true);
-      expect(wantsSeasonReadings([key])).toBe(false);
-      expect(wantsPrevSeasonReadings([key])).toBe(false);
+  it('la media voto e la fantamedia NON costano un caricamento, gli attesi si', () => {
+    expect(wantsPlayedFootball(refs('mv', 'fm'))).toBe(false);
+    expect(wantsPlayedFootball(refs('xg'))).toBe(true);
+    expect([...HEAVY_READINGS].sort())
+      .toEqual(['assists', 'bonusMatch', 'ga', 'goals', 'goodMatch', 'longPlay', 'poorMatch', 'xa', 'xg']);
+  });
+
+  /**
+   * SI CARICANO SOLO LE STAGIONI CHIESTE, e una lettura che non costa non ne fa caricare nessuna: e'
+   * quello che rende gratis avere `MV 24/25` accanto a `MV 26/27`.
+   */
+  it('dice quali stagioni ricostruire, e solo per le letture che costano', () => {
+    expect(seasonsNeeded([
+      { key: 'xg', season: '2026-27' },
+      { key: 'mv', season: '2024-25' },
+      { key: 'ga', season: '2025-26' },
+      { key: 'xg', season: '2026-27' },
+      { key: 'bonus', season: null },
+    ])).toEqual(['2026-27', '2025-26']);
+    expect(seasonsNeeded([])).toEqual([]);
+  });
+
+  it('le frequenze chiedono TUTTO il calcio, che e una finestra e non una stagione', () => {
+    const whole = READINGS.filter((one) => one.whole).map((one) => one.key);
+    expect([...whole].sort()).toEqual(['bonusMatch', 'goodMatch', 'longPlay', 'poorMatch']);
+    for (const key of whole) {
+      const spec = READINGS.find((one) => one.key === key)!;
+      expect(defaultSeasonOf(spec, SEASONS)).toBe(WHOLE_CAREER);
+      expect(seasonsNeeded([{ key, season: WHOLE_CAREER }])).toEqual([WHOLE_CAREER]);
+      // ...e possono anche prendere una stagione sola, che e' la scelta di chi la chiede.
+      expect(seasonsFor(spec, ['2026-27'])).toEqual([WHOLE_CAREER, '2026-27']);
     }
-    expect(wantsCareerReadings(DEFAULT_READINGS)).toBe(false);
-    expect(wantsCareerReadings(['gaNow', 'xg'])).toBe(false);
+    // Una lettura stagionale che NON e' una frequenza non offre «tutte»: la media voto di tutte le
+    // stagioni insieme non e' un numero che qualcuno abbia misurato.
+    expect(seasonsFor(READINGS.find((one) => one.key === 'mv')!, ['2026-27'])).toEqual(['2026-27']);
+    expect(seasonsFor(READINGS.find((one) => one.key === 'played')!, ['2026-27'])).toEqual([]);
+  });
+});
+
+/**
+ * IL RIFERIMENTO `chiave@stagione` (operatore, 12/09/2026), e la MIGRAZIONE delle due `G:A`.
+ */
+describe('una lettura e la sua stagione', () => {
+  it('si scrive e si rilegge, e la stagione di default viene dal pacchetto', () => {
+    expect(refText({ key: 'mv', season: '2025-26' })).toBe('mv@2025-26');
+    expect(refText({ key: 'bonus', season: null })).toBe('bonus');
+    expect(readRef('mv@2025-26', SEASONS)).toEqual({ key: 'mv', season: '2025-26' });
+    // Una lettura stagionale senza stagione scritta cade sul suo default, che e' un fatto del manifest.
+    expect(readRef('mv', SEASONS)).toEqual({ key: 'mv', season: SEASONS.target });
+    expect(readRef('bonus', SEASONS)).toEqual({ key: 'bonus', season: null });
+  });
+
+  /**
+   * LE DUE COPPIE SI MIGRANO invece di essere buttate: erano la stessa lettura con la stagione cablata
+   * nella chiave, e chi le aveva accese ieri deve ritrovarle accese oggi.
+   */
+  it('le due vecchie G:A diventano la stessa lettura su due stagioni', () => {
+    expect(readRef('gaPrev', SEASONS)).toEqual({ key: 'ga', season: SEASONS.input });
+    expect(readRef('gaNow', SEASONS)).toEqual({ key: 'ga', season: SEASONS.target });
+    expect(READINGS.filter((one) => one.key === 'ga').length).toBe(1);
+  });
+
+  it('quello che questa versione non capisce piu non ordina e non si disegna', () => {
+    expect(readRef('una-lettura-che-non-esiste', SEASONS)).toBeNull();
+    expect(readRef('', SEASONS)).toBeNull();
+    expect(readRef(42, SEASONS)).toBeNull();
   });
 });
 
@@ -725,20 +787,36 @@ describe('le quattro frequenze sulla riga', () => {
   const counted = {
     played: 30, timed: 30, rated: 30, long: 0.6, good: 0.4, bonus: 0.2, poor: 0.1, synthetic: false,
   };
+  const FREQUENCIES: ReadingKey[] = ['longPlay', 'goodMatch', 'bonusMatch', 'poorMatch'];
 
   it('si leggono in percentuale, che e anche l unita in cui si scrive un filtro', () => {
-    const one = readingsOf(man({ frequencies: counted }));
-    expect(readingValue('longPlay', one)).toBeCloseTo(60, 10);
-    expect(readingValue('goodMatch', one)).toBeCloseTo(40, 10);
-    expect(readingValue('bonusMatch', one)).toBeCloseTo(20, 10);
-    expect(readingValue('poorMatch', one)).toBeCloseTo(10, 10);
+    const one = readingsOf(withSeason(WHOLE_CAREER, { frequencies: counted }));
+    expect(readingValue(at('longPlay', WHOLE_CAREER), one)).toBeCloseTo(60, 10);
+    expect(readingValue(at('goodMatch', WHOLE_CAREER), one)).toBeCloseTo(40, 10);
+    expect(readingValue(at('bonusMatch', WHOLE_CAREER), one)).toBeCloseTo(20, 10);
+    expect(readingValue(at('poorMatch', WHOLE_CAREER), one)).toBeCloseTo(10, 10);
+  });
+
+  /**
+   * ...E SU UNA STAGIONE SOLA, che e' la meta' nuova (operatore, 12/09/2026): la stessa quota misurata
+   * su una finestra diversa e' un numero diverso, e le due possono stare accanto.
+   */
+  it('la stessa quota su due finestre da due numeri', () => {
+    const one = readingsOf(man({
+      seasons: new Map([
+        [WHOLE_CAREER, football({ frequencies: counted })],
+        [SEASONS.target, football({ frequencies: { ...counted, long: 0.2, timed: 3 } })],
+      ]),
+    }));
+    expect(readingValue(at('longPlay', WHOLE_CAREER), one)).toBeCloseTo(60, 10);
+    expect(readingValue(at('longPlay', SEASONS.target), one)).toBeCloseTo(20, 10);
   });
 
   it('chi non ha calcio in archivio non ha una quota, e non ha uno zero', () => {
     const one = readingsOf(man());
-    for (const key of CAREER_READINGS) {
-      expect(readingValue(key, one)).toBeNull();
-      expect(readingHas(key, one)).toBe(false);
+    for (const key of FREQUENCIES) {
+      expect(readingValue(at(key, WHOLE_CAREER), one)).toBeNull();
+      expect(readingHas(at(key, WHOLE_CAREER), one)).toBe(false);
     }
   });
 
@@ -748,37 +826,40 @@ describe('le quattro frequenze sulla riga', () => {
    * spannometrica.
    */
   it('e spannometrica sotto le dieci partite, ognuna sul suo denominatore', () => {
-    const thin = readingsOf(man({ frequencies: { ...counted, timed: 4, rated: 30, played: 30 } }));
-    expect(readingIsRough('longPlay', thin)).toBe(true);
-    expect(readingIsRough('goodMatch', thin)).toBe(false);
-    expect(readingIsRough('bonusMatch', thin)).toBe(false);
-    const solid = readingsOf(man({ frequencies: counted }));
-    for (const key of CAREER_READINGS) expect(readingIsRough(key, solid)).toBe(false);
+    const thin = readingsOf(withSeason(
+      WHOLE_CAREER, { frequencies: { ...counted, timed: 4, rated: 30, played: 30 } },
+    ));
+    expect(readingIsRough(at('longPlay', WHOLE_CAREER), thin)).toBe(true);
+    expect(readingIsRough(at('goodMatch', WHOLE_CAREER), thin)).toBe(false);
+    expect(readingIsRough(at('bonusMatch', WHOLE_CAREER), thin)).toBe(false);
+    const solid = readingsOf(withSeason(WHOLE_CAREER, { frequencies: counted }));
+    for (const key of FREQUENCIES) expect(readingIsRough(at(key, WHOLE_CAREER), solid)).toBe(false);
   });
 });
 
 /**
- * LE DUE COPPIE `G:A` (operatore, 06/09/2026), e quello che le distingue dalle medie accanto.
+ * LA COPPIA `G:A` (operatore, 06/09/2026), e quello che la distingue dalle medie accanto.
  *
- * Sono la stessa lettura in un'altra unita', quindi il test che conta e' quello che lega le due: una
+ * E' la stessa lettura in un'altra unita', quindi il test che conta e' quello che lega le due: una
  * media e un conteggio che si contraddicono sono la famiglia di errori piu' cara di questo progetto.
  */
-describe('le coppie gol:assist', () => {
+describe('la coppia gol:assist', () => {
   it('una coppia non ha un numero, quindi non ordina e non si stampa come tale', () => {
-    const one = readingsOf(man({ gaNow: { goals: 12, assists: 5 } }));
-    expect(readingValue('gaNow', one)).toBeNull();
-    expect(readingPair('gaNow', one)).toEqual({ goals: 12, assists: 5 });
+    const one = readingsOf(withSeason(SEASONS.target, { ga: { goals: 12, assists: 5 } }));
+    expect(readingValue(at('ga', SEASONS.target), one)).toBeNull();
+    expect(readingPair(at('ga', SEASONS.target), one)).toEqual({ goals: 12, assists: 5 });
     // ...e la cella NON e' vuota, che e' la ragione per cui `readingHas` esiste: leggere il valore e
     // basta avrebbe disegnato vuota la pastiglia di chi ha segnato dodici gol.
-    expect(readingHas('gaNow', one)).toBe(true);
+    expect(readingHas(at('ga', SEASONS.target), one)).toBe(true);
   });
 
   it('vuoto e vuoto: chi non ha giocato quella stagione non porta uno 0:0', () => {
     const nobody = readingsOf(man());
-    expect(readingPair('gaPrev', nobody)).toBeNull();
-    expect(readingHas('gaPrev', nobody)).toBe(false);
+    expect(readingPair(at('ga', SEASONS.input), nobody)).toBeNull();
+    expect(readingHas(at('ga', SEASONS.input), nobody)).toBe(false);
     // Zero gol e' un fatto (ha giocato e non ha segnato) e si stampa.
-    expect(readingHas('gaPrev', readingsOf(man({ gaPrev: { goals: 0, assists: 0 } })))).toBe(true);
+    const scored = readingsOf(withSeason(SEASONS.input, { ga: { goals: 0, assists: 0 } }));
+    expect(readingHas(at('ga', SEASONS.input), scored)).toBe(true);
   });
 
   it('nessuna coppia e ordinabile, e tutte le altre lo sono', () => {
@@ -786,22 +867,23 @@ describe('le coppie gol:assist', () => {
     // voce che non ordina niente e che nessuno ha dichiarato tale.
     expect([...SORTABLE_READINGS].sort())
       .toEqual(READINGS.filter((one) => !one.pair).map((one) => one.key).sort());
-    for (const key of SORTABLE_READINGS) expect(readingPair(key, readingsOf(man()))).toBeNull();
-    expect(SORTABLE_READINGS).not.toContain('gaPrev');
-    expect(SORTABLE_READINGS).not.toContain('gaNow');
+    for (const key of SORTABLE_READINGS) {
+      expect(readingPair(at(key, SEASONS.target), readingsOf(man()))).toBeNull();
+    }
+    expect(SORTABLE_READINGS).not.toContain('ga');
   });
 
-  it("la sigla NOMINA la sua stagione, e la prende dal pacchetto invece di calcolarla", () => {
-    const seasons = { target: '2026-27', input: '2025-26' };
+  it("la sigla NOMINA la sua stagione, e la prende dal RIFERIMENTO invece di calcolarla", () => {
     const spec = (key: ReadingKey) => READINGS.find((one) => one.key === key)!;
-    expect(readingShort(spec('gaPrev'), seasons)).toBe('G:A 25/26');
-    expect(readingShort(spec('gaNow'), seasons)).toBe('G:A 26/27');
-    // Le altre non portano l'anno: aggiungerlo a tutte allargherebbe la fila senza dire niente di
-    // nuovo, perche' solo `G:A` esiste due volte.
-    expect(readingShort(spec('goals'), seasons)).toBe('G');
-    expect(readingShort(spec('swing'), seasons)).toBe('SWING');
-    // Un pacchetto che non dichiara ancora le stagioni lascia la sigla nuda, mai un anno inventato.
-    expect(readingShort(spec('gaNow'), { target: '', input: '' })).toBe('G:A');
+    expect(readingShort(spec('ga'), at('ga', '2025-26'))).toBe('G:A 25/26');
+    expect(readingShort(spec('ga'), at('ga', '2026-27'))).toBe('G:A 26/27');
+    // OGNI lettura stagionale nomina la sua, da quando la stessa puo' essere accesa su due: due
+    // riquadri con lo stesso nome sarebbero due numeri indistinguibili.
+    expect(readingShort(spec('goals'), at('goals', '2024-25'))).toBe('G 24/25');
+    expect(readingShort(spec('longPlay'), at('longPlay', WHOLE_CAREER))).toBe('85′ tutte');
+    // Quelle del FOGLIO no: non hanno una stagione da nominare.
+    expect(readingShort(spec('swing'), at('swing'))).toBe('SWING');
+    expect(readingShort(spec('played'), at('played'))).toBe('Pa');
   });
 
   it('una stagione fuori formato torna come e, invece di essere tagliata a caso', () => {

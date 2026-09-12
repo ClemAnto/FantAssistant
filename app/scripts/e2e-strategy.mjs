@@ -1081,6 +1081,13 @@ async function main() {
     url,
   ], { stdio: 'ignore' });
 
+  // LE DUE STAGIONI CHE IL PACCHETTO DICHIARA: da quando una lettura porta la sua stagione
+  // (12/09/2026), la cella di una riga si chiama `chiave@stagione` e questo e' il vocabolario per
+  // leggerla. Dal manifest e mai «bersaglio meno uno».
+  const manifestSeasons = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
+  const TARGET_SEASON = manifestSeasons.target_season;
+  const INPUT_SEASON = manifestSeasons.input_season;
+
   const report = { url, steps: [], problems: [] };
   const note = (step, detail) => {
     report.steps.push({ step, ...detail });
@@ -1356,17 +1363,27 @@ async function main() {
     // LE DUE COPPIE INSIEME ALLE QUATTRO MEDIE (06/09/2026): sono la stessa lettura in due unita', e
     // metterle nello stesso passo e' quello che permette di legarle - un conteggio e una media che si
     // contraddicono sullo stesso uomo sono la prova che la definizione e' tornata a essere due.
-    const SEASON_PILLS = ['goals', 'assists', 'xg', 'xa', 'gaPrev', 'gaNow'];
-    // Sei accese qui piu' le tre dell'apertura: nove, che e' il carico massimo che questo banco prova.
+    //
+    // CINQUE E NON SEI dal 12/09/2026: `G:A` e' UNA lettura con una stagione, e la seconda stagione si
+    // chiede al suo menu' invece di essere un'altra pastiglia. Il carico massimo che questo banco prova
+    // resta nove celle - le tre dell'apertura piu' sei - perche' la `G:A` ne porta due da sola.
+    const SEASON_PILLS = ['goals', 'assists', 'xg', 'xa', 'ga'];
     const switched = [];
     for (const key of SEASON_PILLS) switched.push(await pressReading(session, key));
+    // ...e la SECONDA stagione della coppia, dal menu' della sua pastiglia: e' l'unico modo di avere le
+    // due `G:A` accanto, che e' quello che questo passo confronta col pacchetto.
+    await clickSteady(session, 'app-strategy [data-seasons="ga"]', '');
+    const ticked = await clickSteady(session, `[data-season="${INPUT_SEASON}"]`, '');
+    if (!ticked) switched.push('la stagione scorsa della G:A non si e fatta spuntare');
+    await session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', windowsVirtualKeyCode: 27 });
+    await wait(300);
     switched.splice(0, switched.length, ...switched.filter(Boolean));
     if (!switched.length) {
       for (const row of (await evaluate(session, readPills)) ?? []) {
         const want = producedByBundle.get(row.id);
         const number = (text) => (text == null || text === '—' ? null : Number(String(text).replace(',', '.')));
-        const said = { xg: number(row.say.xg), xa: number(row.say.xa) };
-        if (said.xg === undefined || !('xg' in row.say)) {
+        const said = { xg: number(row.say[`xg@${TARGET_SEASON}`]), xa: number(row.say[`xa@${TARGET_SEASON}`]) };
+        if (said.xg === undefined || !(`xg@${TARGET_SEASON}` in row.say)) {
           wrongExpected.push(`${row.name}: la pastiglia xG non si e' accesa`);
           continue;
         }
@@ -1375,7 +1392,7 @@ async function main() {
           file == null ? screen == null : screen != null && Math.abs(screen - file) < 0.006;
         if (!near(said.xg, want?.xg ?? null) || !near(said.xa, want?.xa ?? null)) {
           wrongExpected.push(
-            `${row.name}: xG/xA dicono ${row.say.xg}/${row.say.xa} e il bundle `
+            `${row.name}: xG/xA dicono ${row.say[`xg@${TARGET_SEASON}`]}/${row.say[`xa@${TARGET_SEASON}`]} e il bundle `
             + `${want ? `${want.xg?.toFixed(2)}/${want.xa?.toFixed(2)} su ${want.matches} partite` : 'niente'}`,
           );
         }
@@ -1391,7 +1408,7 @@ async function main() {
       };
       let withCounted = 0;
       for (const row of (await evaluate(session, readPills)) ?? []) {
-        for (const [key, when] of [['gaNow', 'now'], ['gaPrev', 'prev']]) {
+        for (const [key, when] of [[`ga@${TARGET_SEASON}`, 'now'], [`ga@${INPUT_SEASON}`, 'prev']]) {
           if (!(key in row.say)) {
             wrongExpected.push(`${row.name}: la pastiglia ${key} non si e' accesa`);
             continue;
@@ -2123,7 +2140,7 @@ async function main() {
     }
 
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le venti letture della barra', {
+    note('le diciannove letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
@@ -2136,17 +2153,18 @@ async function main() {
         // numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non una misura: se cresce,
         // cresce per una richiesta, e allora si aggiorna insieme a `READINGS` invece di leggere dallo
         // schermo quello che lo schermo dice.
-        ...(toggles.length === 20 ? [] : [`${toggles.length} pastiglie invece delle venti dichiarate`]),
-        // LE DUE `G:A` NOMINANO LA LORO STAGIONE, e sono DUE anni diversi: due pastiglie con lo stesso
-        // testo sarebbero indistinguibili sulla barra, ed e' esattamente il difetto che `dated` cura.
+        ...(toggles.length === 19 ? [] : [`${toggles.length} pastiglie invece delle diciannove dichiarate`]),
+        // UNA PASTIGLIA PER LETTURA, e quelle stagionali NOMINANO la stagione su cui sono accese
+        // (12/09/2026): `G:A` era dichiarata due volte con l'anno dentro la chiave, e da quando la
+        // stagione si sceglie e' una sola - due bottoni con lo stesso testo erano il difetto che
+        // `dated` curava, e adesso il testo lo compone il riferimento.
         ...((() => {
-          const dated = toggles.filter((one) => one.text.startsWith('G:A'));
-          if (dated.length !== 2) return [`${dated.length} pastiglie G:A invece di due`];
-          const said = dated.map((one) => one.text);
-          if (!said.every((one) => /^G:A \d\d\/\d\d$/.test(one))) {
-            return [`le G:A non portano il loro anno: ${JSON.stringify(said)}`];
-          }
-          return said[0] === said[1] ? [`le due G:A dicono lo stesso anno: ${said[0]}`] : [];
+          const dated = toggles.filter((one) => /^G:A/.test(one.text));
+          if (dated.length !== 1) return [`${dated.length} pastiglie G:A invece di una`];
+          const said = dated[0].text;
+          // Accesa su una stagione la nomina; spenta resta la sigla nuda.
+          return dated[0].on && !/^G:A (\d\d\/\d\d|×\d)$/.test(said)
+            ? [`la G:A accesa non nomina la sua stagione: «${said}»`] : [];
         })()),
         ...(toggles.filter((one) => one.on).length === 3
           ? [] : [`${toggles.filter((one) => one.on).length} accese all'apertura invece di tre`]),

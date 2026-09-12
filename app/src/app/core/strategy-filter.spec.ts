@@ -16,10 +16,14 @@ import {
 
 const clause = (over: Partial<FilterClause> = {}): FilterClause => ({
   key: 'played',
+  season: null,
   op: 'gte',
   value: 25,
   ...over,
 });
+
+/** Le stagioni come il pacchetto le dichiara, per le voci del menu'. */
+const SEASONS = { pickable: ['2026-27', '2025-26', '2024-25'], target: '2026-27', input: '2025-26' };
 
 describe('i sei criteri', () => {
   it('sono i sei che l operatore ha dettato', () => {
@@ -61,8 +65,28 @@ describe('i sei criteri', () => {
 });
 
 describe('il filtro intero', () => {
-  const numbers: Record<string, number | null> = { gain: 1.5, played: 30, fm: 6.8, xg: null };
-  const valueOf = (key: string) => numbers[key] ?? null;
+  // Un uomo con due stagioni diverse sulla stessa lettura: e' il caso che l'operatore ha chiesto.
+  const numbers: Record<string, number | null> = {
+    gain: 1.5, 'played|': 30, 'fm|': 6.8, 'xg|': null,
+    'mv|2026-27': 7.4, 'mv|2025-26': 5.8,
+  };
+  const valueOf = (clause: FilterClause) =>
+    numbers[clause.key === 'gain' ? 'gain' : `${clause.key}|${clause.season ?? ''}`] ?? null;
+
+  /**
+   * LA STAGIONE E' PARTE DELLA CONDIZIONE, ed e' l'esempio dell'operatore alla lettera: senza di lei
+   * «mv > 7 E mv < 6» non avrebbe soluzioni, e con lei seleziona chi e' esploso quest'anno.
+   */
+  it('due condizioni sulla stessa lettura e due stagioni non si contraddicono', () => {
+    const now = clause({ key: 'mv', season: '2026-27', op: 'gt', value: 7 });
+    const before = clause({ key: 'mv', season: '2025-26', op: 'lt', value: 6 });
+    expect(passesFilter([now, before], valueOf)).toBe(true);
+    // ...e la stessa coppia SENZA le stagioni non passa mai, perche' e' una contraddizione.
+    expect(passesFilter(
+      [clause({ key: 'fm', op: 'gt', value: 7 }), clause({ key: 'fm', op: 'lt', value: 6 })],
+      valueOf,
+    )).toBe(false);
+  });
 
   it('sono in AND: bastano tutte, e ne basta una a mancare', () => {
     expect(passesFilter([clause({ key: 'played', op: 'gte', value: 25 })], valueOf)).toBe(true);
@@ -117,9 +141,29 @@ describe('il vocabolario dei filtri', () => {
   });
 
   it('il gain e la prima voce e porta il nome della sua asta', () => {
-    const fields = filterFields('SURPLUS a giornata');
-    expect(fields[0]).toEqual({ key: 'gain', label: 'SURPLUS a giornata', decimals: 2 });
+    const fields = filterFields('SURPLUS a giornata', SEASONS);
+    expect(fields[0]).toEqual({
+      key: 'gain', label: 'SURPLUS a giornata', seasonal: false, seasons: [], season: null, decimals: 2,
+    });
     expect(fields.length).toBe(FILTERABLE_READINGS.length + 1);
+  });
+
+  /**
+   * LE STAGIONI LE OFFRE CHI PUO' PRENDERLE, e `tutte` solo dove la spec lo dichiara: offrirla a una
+   * media voto vorrebbe dire promettere «la MV di tutte le stagioni insieme», che nessuno ha misurato.
+   */
+  it('ogni lettura stagionale offre le stagioni del pacchetto, e le frequenze anche «tutte»', () => {
+    const fields = filterFields('SURPLUS', SEASONS);
+    const mv = fields.find((one) => one.key === 'mv')!;
+    expect(mv.seasonal).toBe(true);
+    expect(mv.season).toBe('2026-27');
+    expect(mv.seasons.map((one) => one.value)).toEqual(['2026-27', '2025-26', '2024-25']);
+    expect(mv.seasons.map((one) => one.label)).toEqual(['26/27', '25/26', '24/25']);
+    const long = fields.find((one) => one.key === 'longPlay')!;
+    expect(long.season).toBe('tutte');
+    expect(long.seasons[0]).toEqual({ value: 'tutte', label: 'tutte' });
+    // ...e una lettura del FOGLIO non ne offre nessuna: una previsione di una stagione finita non esiste.
+    expect(fields.find((one) => one.key === 'played')!.seasons).toEqual([]);
   });
 
   it('le cifre di una voce sono quelle del suo formato', () => {
@@ -138,9 +182,13 @@ describe('il vocabolario dei filtri', () => {
    * QUALI STAGIONI CARICARE DIPENDE ANCHE DAL FILTRO: senza, una condizione su `xG` leggerebbe una
    * colonna che nessuno ha caricato, cioe' svuoterebbe ogni blocco in silenzio.
    */
-  it('dice quali letture interroga, e il gain non ne e una', () => {
-    expect(filterReadings([clause({ key: 'xg' }), clause({ key: 'gain' }), clause({ key: 'xg' })]))
-      .toEqual(['xg']);
+  it('dice quali letture interroga CON la loro stagione, e il gain non ne e una', () => {
+    expect(filterReadings([
+      clause({ key: 'xg', season: '2026-27' }),
+      clause({ key: 'gain' }),
+      clause({ key: 'xg', season: '2026-27' }),
+      clause({ key: 'xg', season: '2025-26' }),
+    ])).toEqual([{ key: 'xg', season: '2026-27' }, { key: 'xg', season: '2025-26' }]);
     expect(filterReadings([])).toEqual([]);
   });
 });
@@ -148,13 +196,13 @@ describe('il vocabolario dei filtri', () => {
 describe('quello che sta sul disco', () => {
   it('si valida invece di fidarsi, e quello che non si capisce si butta', () => {
     const read = readClauses([
-      { key: 'played', op: 'gte', value: 25 },
+      { key: 'played', op: 'gte', value: 25, season: null },
       { key: 'una-lettura-che-non-esiste', op: 'gte', value: 1 },
       { key: 'fm', op: 'circa', value: 6 },
       { key: 'fm', op: 'gte', value: 'sei' },
       null,
     ]);
-    expect(read).toEqual([{ key: 'played', op: 'gte', value: 25 }]);
+    expect(read).toEqual([{ key: 'played', season: null, op: 'gte', value: 25 }]);
   });
 
   it('quello che non e nemmeno una lista torna vuoto invece di far cadere la pagina', () => {
