@@ -1,10 +1,12 @@
 import { MantraModules } from './auction-value';
 import {
+  CAREER_READINGS,
   DEFAULT_READINGS,
   PREV_SEASON_READINGS,
   READINGS,
   SEASON_READINGS,
   SORTABLE_READINGS,
+  RankedMan,
   ReadingKey,
   StrategyBidder,
   StrategySetup,
@@ -22,6 +24,7 @@ import {
   readingsOf,
   roleDepth,
   shortSeason,
+  wantsCareerReadings,
   wantsPlayedFootball,
   wantsPrevSeasonReadings,
   wantsSeasonReadings,
@@ -405,6 +408,72 @@ describe("l'ordine personale dentro un blocco", () => {
   });
 });
 
+describe('il filtro dentro un blocco', () => {
+  const setup: StrategySetup = {
+    ...CLASSIC,
+    teams: 2,
+    slots: { ...CLASSIC.slots, classic: { P: 1, D: 1, C: 1, A: 1 } },
+  };
+  const pool = [
+    man({ fcId: 101, name: 'Primo', surplus: 30, pv: 30 }),
+    man({ fcId: 102, name: 'Secondo', surplus: 20, pv: 10 }),
+    man({ fcId: 103, name: 'Terzo', surplus: 10, pv: 28 }),
+  ];
+  const keepPlayers = (row: RankedMan) => (row.man.pv ?? 0) >= 25;
+
+  /**
+   * SI FILTRA PRIMA DEL TAGLIO: un filtro serve a TROVARE i nomi che rispondono, e applicandolo dopo
+   * risponderebbe solo su quelli che la stanza comprerà comunque - cioè su una lista in cui si stava
+   * già guardando. La domanda è 2 e «Terzo» è il terzo per surplus: senza filtro non si vede.
+   */
+  it('trova anche i nomi che il taglio alla domanda avrebbe tolto', () => {
+    const block = blocksOf({ pool, setup, rules: null, keep: keepPlayers })
+      .find((one) => one.role === 'D')!;
+    expect(block.men.map((row) => row.man.name)).toEqual(['Primo', 'Terzo']);
+    expect(block.dropped).toBe(1);
+  });
+
+  /**
+   * ...E IL POSTO RESTA QUELLO VERO, che è quello che `RankedMan.at` promette di sé: rinumerare da uno
+   * le righe rimaste direbbe che il terzo difensore è il secondo.
+   */
+  it('non rinumera niente: il posto è quello della lista intera', () => {
+    const block = blocksOf({ pool, setup, rules: null, keep: keepPlayers })
+      .find((one) => one.role === 'D')!;
+    expect(block.men.map((row) => row.at)).toEqual([0, 2]);
+  });
+
+  it('la lunghezza resta la domanda della stanza, non il numero di chi passa', () => {
+    const block = blocksOf({ pool, setup, rules: null, keep: () => true })
+      .find((one) => one.role === 'D')!;
+    expect(block.demand).toBe(2);
+    expect(block.men.length).toBe(2);
+    expect(block.dropped).toBe(0);
+  });
+
+  /**
+   * I NOMI SISTEMATI A MANO CHE IL FILTRO HA TOLTO NON SI CONTANO PIÙ: «i primi due vengono dalla tua
+   * lista» detto su una lista da cui uno è uscito è una frase falsa sul confine fra preferenza e misura.
+   */
+  it('conta i nomi sistemati che restano, non quelli che erano', () => {
+    const block = blocksOf({
+      pool,
+      setup,
+      rules: null,
+      priority: new Map([['D', [102, 103]]]),
+      keep: keepPlayers,
+    }).find((one) => one.role === 'D')!;
+    // Sistemati: 102 e 103. Il filtro toglie 102, quindi ne resta uno solo in cima.
+    expect(block.men.map((row) => row.man.fcId)).toEqual([103, 101]);
+    expect(block.pinned).toBe(1);
+  });
+
+  it('senza predicato non si filtra affatto, e nessun blocco dichiara di aver tolto qualcosa', () => {
+    const blocks = blocksOf({ pool, setup, rules: null });
+    expect(blocks.every((one) => one.dropped === 0)).toBe(true);
+  });
+});
+
 describe('le tre pastiglie di una riga', () => {
   it('quanto rende una sua partita e la fantamedia attesa MENO il sei, non un punteggio a giornata', () => {
     // Il 6 e' la media di riferimento di un voto (`EDGE_BASE`), e la lettura e' PER PARTITA GIOCATA:
@@ -624,6 +693,67 @@ describe('le letture che costano un caricamento', () => {
     expect(wantsPlayedFootball(['gaPrev'])).toBe(true);
     expect(wantsPlayedFootball(['gaNow'])).toBe(true);
     expect(wantsPlayedFootball(DEFAULT_READINGS)).toBe(false);
+  });
+
+  /**
+   * LA TERZA FINESTRA: tutte le stagioni che il pacchetto porta, che e' quella delle quattro frequenze.
+   *
+   * Costa lo stesso caricamento delle altre due (`PlayersStore` porta tutte le `heavy_seasons` in un
+   * colpo) e NON e' la stagione bersaglio: accendere `85′` non deve far ritagliare la stagione in corso,
+   * dove ognuno ha al massimo tre partite e una quota non e' una quota.
+   */
+  it('le frequenze vogliono tutte le stagioni, e non quella in corso', () => {
+    expect([...CAREER_READINGS].sort()).toEqual(['bonusMatch', 'goodMatch', 'longPlay', 'poorMatch']);
+    for (const key of CAREER_READINGS) {
+      expect(wantsCareerReadings([key])).toBe(true);
+      expect(wantsPlayedFootball([key])).toBe(true);
+      expect(wantsSeasonReadings([key])).toBe(false);
+      expect(wantsPrevSeasonReadings([key])).toBe(false);
+    }
+    expect(wantsCareerReadings(DEFAULT_READINGS)).toBe(false);
+    expect(wantsCareerReadings(['gaNow', 'xg'])).toBe(false);
+  });
+});
+
+/**
+ * LE QUATTRO FREQUENZE (operatore, 12/09/2026), viste dal lato della riga.
+ *
+ * Quello che si misura sta in `match-frequency.spec.ts`; qui si prova la cosa che questo file possiede:
+ * l'UNITA' in cui quel numero arriva a schermo, e quando va sbiadito.
+ */
+describe('le quattro frequenze sulla riga', () => {
+  const counted = {
+    played: 30, timed: 30, rated: 30, long: 0.6, good: 0.4, bonus: 0.2, poor: 0.1, synthetic: false,
+  };
+
+  it('si leggono in percentuale, che e anche l unita in cui si scrive un filtro', () => {
+    const one = readingsOf(man({ frequencies: counted }));
+    expect(readingValue('longPlay', one)).toBeCloseTo(60, 10);
+    expect(readingValue('goodMatch', one)).toBeCloseTo(40, 10);
+    expect(readingValue('bonusMatch', one)).toBeCloseTo(20, 10);
+    expect(readingValue('poorMatch', one)).toBeCloseTo(10, 10);
+  });
+
+  it('chi non ha calcio in archivio non ha una quota, e non ha uno zero', () => {
+    const one = readingsOf(man());
+    for (const key of CAREER_READINGS) {
+      expect(readingValue(key, one)).toBeNull();
+      expect(readingHas(key, one)).toBe(false);
+    }
+  });
+
+  /**
+   * SBIADITA SOTTO LE DIECI PARTITE, e ognuna guarda il SUO denominatore: i minuti li porta il livello
+   * per-partita e il fantavoto i voti, quindi la stessa riga puo' avere una quota solida e una
+   * spannometrica.
+   */
+  it('e spannometrica sotto le dieci partite, ognuna sul suo denominatore', () => {
+    const thin = readingsOf(man({ frequencies: { ...counted, timed: 4, rated: 30, played: 30 } }));
+    expect(readingIsRough('longPlay', thin)).toBe(true);
+    expect(readingIsRough('goodMatch', thin)).toBe(false);
+    expect(readingIsRough('bonusMatch', thin)).toBe(false);
+    const solid = readingsOf(man({ frequencies: counted }));
+    for (const key of CAREER_READINGS) expect(readingIsRough(key, solid)).toBe(false);
   });
 });
 

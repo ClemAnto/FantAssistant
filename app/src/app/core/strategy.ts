@@ -1,6 +1,7 @@
 import { MantraModules, demandFromShapes, slotShares } from './auction-value';
 import { PlayOutlook } from './expected-play';
 import { orderedBy } from './manual-order';
+import { GOOD_MATCH, LONG_SHIFT, MatchFrequencies, POOR_MATCH, THIN_SAMPLE } from './match-frequency';
 // IL SEI e la soglia della SUFFICIENZA sono due domande diverse sullo stesso numero, e ognuna vive dove
 // e' stata decisa: `EDGE_BASE` e' la media di riferimento di un voto (quanto un uomo RENDE sopra di
 // essa), `PASS_MARK` e' la soglia che il regolamento paga (`steadyOf` conta le partite chiuse almeno
@@ -306,6 +307,23 @@ export interface StrategyBidder {
   gaPrev: GoalsAssists | null;
   gaNow: GoalsAssists | null;
   /**
+   * QUANTO SPESSO GLI SUCCEDE UNA COSA, su TUTTO il calcio che ha in archivio (`match-frequency.ts`).
+   *
+   * Richiesta dell'operatore (12/09/2026): oltre l'85', fantavoto almeno buono, almeno un bonus,
+   * fantavoto insufficiente. Quattro quote e una lettura sola, perche' sono lo stesso conto con quattro
+   * predicati - e due passate sulle stesse partite darebbero a un uomo due denominatori.
+   *
+   * NON E' LA STAGIONE IN CORSO come le sei pastiglie qui sopra, e la ragione e' misurata: alla terza
+   * giornata ogni quotato ha al massimo tre partite, quindi una quota potrebbe valere solo 0, 1/3, 2/3
+   * o 1. La finestra e' quella su cui la COSTANZA e' gia' costruita, cioe' tutto il suo calcio nel
+   * pacchetto. Vuoto per chi non ne ha nessuno, che non e' uno zero.
+   *
+   * OPZIONALE come lo SWING, e per la stessa ragione: chi costruisce la riga puo' non avere il livello
+   * per-partita in casa (costa un caricamento, e le quattro pastiglie sono spente all'apertura). Un
+   * lettore che non lo passa lascia il campo assente e le pastiglie non si stampano.
+   */
+  frequencies?: MatchFrequencies | null;
+  /**
    * IL FANTAVALORE DI MERCATO del suo listone, nella valuta del gioco dichiarato.
    *
    * E' un PREZZO, non una nostra opinione, e questa pagina lo MOSTRA senza farlo entrare in niente («la
@@ -387,6 +405,16 @@ export interface ManReadings {
    */
   gaPrev: GoalsAssists | null;
   gaNow: GoalsAssists | null;
+  /**
+   * LE QUATTRO FREQUENZE, con i loro denominatori (`match-frequency.ts`).
+   *
+   * L'OGGETTO INTERO e non quattro numeri sciolti: i tre denominatori servono a dire quando una quota e'
+   * spannometrica (`readingIsRough`), e tenerli accanto alle quote e' quello che impedisce a una riga di
+   * avere la quota di una finestra e il campione di un'altra. Le quote qui dentro sono 0-1, cioe' la
+   * MISURA; quello che la pastiglia stampa e' la percentuale, e la conversione si fa in un punto solo
+   * (`readingValue`).
+   */
+  frequencies: MatchFrequencies | null;
   /** Su quante giornate quelle due medie sono fatte: a settembre puo' essere UNA, e va detto. */
   seasonPlayed: number | null;
   /** Il fantavalore del listone: un PREZZO, e l'unico numero di questa riga che non e' nostro. */
@@ -439,7 +467,13 @@ export interface ManReadings {
  */
 export type ReadingKey =
   | 'bonus' | 'played' | 'passed' | 'minutes' | 'mv' | 'fm' | 'goals' | 'assists' | 'xg' | 'xa'
-  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing' | 'titolarita' | 'paid';
+  | 'gaPrev' | 'gaNow' | 'fvm' | 'swing' | 'titolarita' | 'paid'
+  // LE QUATTRO FREQUENZE (operatore, 12/09/2026). Stanno in fondo all'elenco e non accanto a `passed`,
+  // che e' la lettura piu' simile, per una ragione che si vede a schermo: sono le uniche che non
+  // parlano della stagione in corso, e una fila di pastiglie si legge da sinistra come si legge una
+  // frase - prima quello che il motore si aspetta, poi quello che ha fatto quest'anno, poi la sua
+  // abitudine.
+  | 'longPlay' | 'goodMatch' | 'bonusMatch' | 'poorMatch';
 
 export interface ReadingSpec {
   key: ReadingKey;
@@ -472,9 +506,11 @@ export interface ReadingSpec {
    * della stessa cosa sono come una pastiglia finisce per accendersi su una casella vuota per sempre.
    *
    * `target` e' la stagione che si sta comprando, `input` quella che il manifest dichiara come input
-   * (`input_season`): due stagioni LETTE dal pacchetto, mai un anno meno uno.
+   * (`input_season`): due stagioni LETTE dal pacchetto, mai un anno meno uno. `career` e' TUTTE quelle
+   * che il pacchetto porta, che e' la sola finestra in cui una frequenza sia una frequenza (vedi
+   * `match-frequency.ts`) - e costa lo stesso caricamento, perche' `PlayersStore` le porta in un colpo.
    */
-  season?: 'target' | 'input';
+  season?: 'target' | 'input' | 'career';
   /**
    * LA PASTIGLIA PORTA UNA COPPIA e non un numero: si stampa `12:5` e non si puo' ordinare.
    *
@@ -653,6 +689,50 @@ export const READINGS: ReadingSpec[] = [
     format: '1.2-2',
     width: 'min-w-10',
   },
+  // LE QUATTRO FREQUENZE (operatore, 12/09/2026). Si stampano in PERCENTUALE e non in quota: e' la
+  // forma in cui una frequenza si legge, ed e' anche quella in cui si scrive un filtro («> 70» invece
+  // di «> 0.7»). La conversione avviene in un punto solo, `readingValue`, cosi' il numero che il filtro
+  // confronta e' lo stesso che la riga stampa.
+  {
+    key: 'longPlay',
+    short: '85′',
+    label: `Partite oltre l'${LONG_SHIFT}'`,
+    hint: `Quota di partite giocate finite oltre l'${LONG_SHIFT}'.`,
+    season: 'career',
+    format: '1.0-0',
+    suffix: '%',
+    width: 'min-w-9',
+  },
+  {
+    key: 'goodMatch',
+    short: 'Fv+',
+    label: `Partite da ${GOOD_MATCH}+`,
+    hint: `Quota di partite con fantavoto almeno ${GOOD_MATCH}.`,
+    season: 'career',
+    format: '1.0-0',
+    suffix: '%',
+    width: 'min-w-9',
+  },
+  {
+    key: 'bonusMatch',
+    short: 'Bon',
+    label: 'Partite con bonus',
+    hint: 'Quota di partite con almeno un bonus: gol, assist, rigore parato.',
+    season: 'career',
+    format: '1.0-0',
+    suffix: '%',
+    width: 'min-w-9',
+  },
+  {
+    key: 'poorMatch',
+    short: 'Fv-',
+    label: `Partite sotto il ${POOR_MATCH}`,
+    hint: `Quota di partite con fantavoto sotto ${POOR_MATCH}.`,
+    season: 'career',
+    format: '1.0-0',
+    suffix: '%',
+    width: 'min-w-9',
+  },
 ];
 
 /** Quelle accese quando nessuno ha ancora scelto: le prime tre (operatore, 05/09/2026). */
@@ -686,6 +766,18 @@ export const PREV_SEASON_READINGS: ReadingKey[] = READINGS
   .map((one) => one.key);
 
 /**
+ * ...e quelle che vogliono TUTTE le stagioni che il pacchetto porta: le quattro frequenze.
+ *
+ * Non e' un terzo caricamento - `PlayersStore` porta tutte le `heavy_seasons` in un colpo solo - e' un
+ * terzo giro sulla mappa che e' gia' in casa. La ragione per cui la finestra e' questa e non la stagione
+ * in corso e' misurata e sta in `match-frequency.ts`: a settembre una quota su tre partite non e' una
+ * quota.
+ */
+export const CAREER_READINGS: ReadingKey[] = READINGS
+  .filter((one) => one.season === 'career')
+  .map((one) => one.key);
+
+/**
  * SE QUALCUNA DI QUELLE E' ACCESA, e quindi se il calcio giocato serve.
  *
  * Una funzione e non un `some` scritto due volte nella vista, e la ragione e' MISURABILE e non
@@ -709,9 +801,15 @@ export function wantsPrevSeasonReadings(keys: readonly ReadingKey[]): boolean {
   return PREV_SEASON_READINGS.some((key) => on.has(key));
 }
 
-/** Se una qualunque delle due serve, e quindi se lo store va chiesto. Un caricamento per tutte. */
+/** ...e per tutto il suo calcio in archivio, che e' la finestra delle quattro frequenze. */
+export function wantsCareerReadings(keys: readonly ReadingKey[]): boolean {
+  const on = new Set(keys);
+  return CAREER_READINGS.some((key) => on.has(key));
+}
+
+/** Se una qualunque delle tre serve, e quindi se lo store va chiesto. Un caricamento per tutte. */
 export function wantsPlayedFootball(keys: readonly ReadingKey[]): boolean {
-  return wantsSeasonReadings(keys) || wantsPrevSeasonReadings(keys);
+  return wantsSeasonReadings(keys) || wantsPrevSeasonReadings(keys) || wantsCareerReadings(keys);
 }
 
 /**
@@ -762,7 +860,38 @@ export function readingValue(key: ReadingKey, readings: ManReadings): number | n
       return readings.paid;
     case 'swing':
       return readings.swing;
+    // LE QUATTRO FREQUENZE, dalla quota alla PERCENTUALE in un punto solo: la misura sta in 0-1 perche'
+    // e' una quota, quello che si legge sta in 0-100 perche' e' una frequenza - e chi filtra confronta
+    // quello che si legge. Due conversioni in due posti sarebbero due unita' per un numero.
+    case 'longPlay':
+      return percent(readings.frequencies?.long);
+    case 'goodMatch':
+      return percent(readings.frequencies?.good);
+    case 'bonusMatch':
+      return percent(readings.frequencies?.bonus);
+    case 'poorMatch':
+      return percent(readings.frequencies?.poor);
   }
+}
+
+function percent(share: number | null | undefined): number | null {
+  return share == null ? null : share * 100;
+}
+
+/**
+ * SU QUANTE PARTITE POGGIA UNA DELLE QUATTRO FREQUENZE, o `null` per ogni altra lettura.
+ *
+ * I denominatori sono TRE e non uno, ed e' un fatto sulle fonti e non una sottigliezza: i minuti li
+ * porta il livello per-partita, il fantavoto i voti, i bonus la riga dei voti. Una giornata puo' avere
+ * gli uni e non l'altro, quindi ogni quota dichiara il suo.
+ */
+export function frequencySample(key: ReadingKey, readings: ManReadings): number | null {
+  const counted = readings.frequencies;
+  if (!counted) return null;
+  if (key === 'longPlay') return counted.timed;
+  if (key === 'goodMatch' || key === 'poorMatch') return counted.rated;
+  if (key === 'bonusMatch') return counted.played;
+  return null;
 }
 
 /** LA COPPIA DI UNA PASTIGLIA, o `null` sia per chi non ne ha una sia per chi non l'ha giocata. */
@@ -804,13 +933,19 @@ export function readingShort(spec: ReadingSpec, seasons: { target: string; input
 /**
  * SE QUEL NUMERO E' SPANNOMETRICO, cioe' se va SBIADITO.
  *
- * Vale per una sola delle sette: le partite sufficienti sono una previsione moltiplicata per una quota
- * MISURATA sulle sue stagioni, e dove quella quota e' quasi tutta l'ancora del ruolo non e' sua. Un
- * numero spannometrico che si legge come misurato e' la cosa peggiore che una lista possa fare - e' la
- * ragione del `~` sulle stime, applicata qui.
+ * Vale per le partite sufficienti - una previsione moltiplicata per una quota MISURATA sulle sue
+ * stagioni, e dove quella quota e' quasi tutta l'ancora del ruolo non e' sua - e per le quattro
+ * FREQUENZE, dove la stessa domanda ha una risposta aritmetica: una quota e' grossolana quando una
+ * partita in piu' la sposta di oltre dieci punti, cioe' sotto le `THIN_SAMPLE` partite.
+ *
+ * SBIADITE E NON NASCOSTE: la quota di un uomo con tre partite e' vera, e toglierla direbbe «non lo
+ * sappiamo» di una cosa che sappiamo male. Un numero spannometrico che si legge come misurato e' la
+ * cosa peggiore che una lista possa fare - e' la ragione del `~` sulle stime, applicata qui.
  */
 export function readingIsRough(key: ReadingKey, readings: ManReadings): boolean {
-  return key === 'passed' && !readings.passedIsHis;
+  if (key === 'passed') return !readings.passedIsHis;
+  const sample = frequencySample(key, readings);
+  return sample != null && sample < THIN_SAMPLE;
 }
 
 /** Le tre pastiglie di un uomo. Pura: legge la riga e non tocca né il foglio né lo store. */
@@ -843,6 +978,10 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     // pastiglia `G 0,50` e la pastiglia `G:A 1:0` non possono dire due cose diverse dello stesso uomo.
     gaPrev: man.gaPrev,
     gaNow: man.gaNow,
+    // LE QUATTRO FREQUENZE gia' contate da chi ha in mano le partite: questa funzione e' pura e riceve
+    // solo l'uomo, mentre la finestra e' TUTTO il suo calcio - che vive nello store del livello
+    // per-partita. Lette e non ricalcolate, come lo SWING e per la stessa ragione.
+    frequencies: man.frequencies ?? null,
     seasonPlayed: man.seasonPlayed,
     fvm: man.fvm,
     // IL PREZZO CHE UNA STANZA VERA HA PAGATO, gia' nella valuta della lega dichiarata: e' l'unico
@@ -1123,6 +1262,14 @@ export interface RoleBlock {
    * dichiara dove passa il confine è una lista i cui numeri descrivono un'altra lista.
    */
   pinned: number;
+  /**
+   * QUANTI NOMI IL FILTRO HA TOLTO da questo ruolo (operatore, 12/09/2026).
+   *
+   * Contato e detto, come tutto quello che questa pagina nasconde: un blocco corto senza una ragione a
+   * schermo si legge come un blocco rotto, ed e' la stessa regola per cui i filtri della tabella
+   * portano la loro etichetta SOPRA la tabella. Zero quando nessun filtro e' in vigore.
+   */
+  dropped: number;
 }
 
 /**
@@ -1161,8 +1308,23 @@ export function blocksOf(input: {
   priority?: ReadonlyMap<string, readonly number[]>;
   /** Su cosa ordinare: il gain quando nessuno ha scelto. Vedi `SortKey`. */
   sort?: SortKey;
+  /**
+   * IL FILTRO COMPOSTO, gia' come PREDICATO e non come condizioni (operatore, 12/09/2026).
+   *
+   * Un predicato e non le clausole, e non e' pigrizia: il gain si stampa PER GIORNATA mentre qui e' un
+   * totale di stagione, quindi in che unita' si confronta lo sa chi disegna la riga e non questo
+   * modulo (`strategy-filter.passesFilter` lo dice dal suo lato). Cosi' `blocksOf` non importa il
+   * vocabolario dei filtri e i due file non si citano a vicenda.
+   *
+   * SI APPLICA PRIMA DEL TAGLIO ALLA DOMANDA, come l'ordine personale e per una ragione vicina: un
+   * filtro serve a trovare i nomi che rispondono, e applicandolo dopo risponderebbe solo su quelli che
+   * la stanza comprera' comunque - cioe' su una lista in cui si stava gia' guardando. Quello che NON
+   * cambia e' la LUNGHEZZA: la lista resta lunga quanto la domanda della stanza, e il numero accanto a
+   * ogni nome resta il suo posto VERO, assegnato prima del filtro.
+   */
+  keep?: (row: RankedMan) => boolean;
 }): RoleBlock[] {
-  const { pool, setup, rules, priority } = input;
+  const { pool, setup, rules, priority, keep } = input;
   const sort = input.sort ?? DEFAULT_SORT;
   const demand = demandOf(setup, rules);
   const mantra = setup.game === 'mantra';
@@ -1213,9 +1375,17 @@ export function blocksOf(input: {
       (sort === 'gain' ? one.gain : readingValue(sort, one.readings)) ?? Number.NEGATIVE_INFINITY;
     ranked.sort((left, right) => keyOf(right) - keyOf(left) || left.man.name.localeCompare(right.man.name));
     const size = demand.get(role) ?? 0;
-    const filtered = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;
-    const chosen = orderedBy(filtered, (one) => one.man.fcId, priority?.get(role) ?? []);
-    const men = chosen.men.slice(0, size).map((one, at) => ({ ...one, at }));
+    const native = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;
+    const chosen = orderedBy(native, (one) => one.man.fcId, priority?.get(role) ?? []);
+    // IL POSTO PRIMA DEL FILTRO, che e' quello che `RankedMan.at` promette di se': se un filtro
+    // rinumerasse le righe rimaste, il quarantesimo difensore si leggerebbe come il primo.
+    const placed = chosen.men.map((one, at) => ({ ...one, at }));
+    const kept = keep ? placed.filter(keep) : placed;
+    const men = kept.slice(0, size);
+    // I NOMI SISTEMATI A MANO CHE IL FILTRO HA LASCIATO PASSARE: sono ancora un prefisso, perche' un
+    // filtro conserva l'ordine. Contarli invece di riusare `chosen.pinned` e' la differenza fra «i
+    // primi tre vengono dalla tua lista» e la stessa frase detta su una lista da cui due sono usciti.
+    const stillPinned = men.filter((one) => one.at < chosen.pinned).length;
     return {
       role,
       label: blockLabel(role, setup.game),
@@ -1224,7 +1394,8 @@ export function blocksOf(input: {
       pool: mine.length,
       unranked: mine.length - ranked.length,
       natives: men.filter((one) => !one.fromBehind).length,
-      pinned: Math.min(chosen.pinned, men.length),
+      pinned: Math.min(stillPinned, men.length),
+      dropped: placed.length - kept.length,
       // Quanti di mestiere ne esistono in tutto, che è il numero che dice quanto costa la lettura
       // `natives`: sul listone vero i braccetti sono ZERO, e un blocco vuoto deve poter dire perché.
       nativePool: ranked.filter((one) => !one.fromBehind).length,

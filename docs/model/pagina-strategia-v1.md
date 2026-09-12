@@ -730,6 +730,151 @@ che il banco prova: **0 nomi tagliati, 0 riquadri fuori riga**.
 
 ---
 
+## 18. LE QUATTRO FREQUENZE, e i FILTRI COMPOSTI (12 settembre 2026)
+
+Due richieste in una sera: «nella vista STRATEGIA vorrei poter visualizzare i seguenti valori: **1)
+frequenza delle partite con più di 85' giocati · 2) frequenza delle partite con almeno 6.5 come fantavoto
+· 3) frequenza delle partite con almeno 1 bonus · 4) frequenza delle partite con fantavoto < 6**»; e
+«vorrei anche poter creare dei **filtri** … scegli valore (mv | pv | ecc.) … criterio (`<`, `<=`, `=`,
+`>=`, `>`, `!=`) … riferimento (valore numerico) … **più filtri in AND** … **salvare e richiamare un set
+di filtri**».
+
+### 18.1 La finestra non è la stagione in corso, ed è MISURATO
+
+Le altre sei pastiglie di calcio giocato (`MV`, `FM`, `G`, `A`, `xG`, `xA`) parlano della stagione
+BERSAGLIO — «come sta andando» — e la scelta ovvia sarebbe stata mettere le quattro nuove accanto a loro.
+Misurato prima di scriverle, sul pacchetto del 12/09/2026 (532 quotati di Serie A non ceduti): sulla
+stagione in corso ognuno di loro ha **al massimo TRE partite**, mediana 3, e **tutti e 388** quelli con
+una riga stanno sotto le cinque. Una quota su tre partite può valere solo 0, ⅓, ⅔ o 1: non è una misura,
+è un lancio di dado. Sulle tre stagioni che il pacchetto porta la mediana è **32 partite** e 465 uomini su
+532 ne hanno almeno una.
+
+Quindi la finestra è **tutto il suo calcio in archivio**, che è anche quella su cui la COSTANZA è già
+costruita (`player-ratings.matchHistories`): non una finestra nuova, quella di casa.
+`ReadingSpec.season` ha un terzo valore, `career`, e `CAREER_READINGS` si DERIVA da lì come gli altri due
+elenchi — una pastiglia nuova non può esistere senza che la pagina sappia cosa caricarle sotto. Il prezzo
+è **zero caricamenti**: `PlayersStore` porta tutte le `heavy_seasons` in un colpo, quindi è un terzo giro
+sulla mappa che è già in casa.
+
+**E l'invariante che lo prova sta nel banco, non in un commento**: con `k` giornate giocate una quota
+calcolata sulla sola stagione bersaglio potrebbe valere solo uno dei `k+1` multipli di `100/k`.
+Misurato a schermo: `k` = 3, quindi solo 0/33/67/100% — e **151 righe su 207 portano un valore che su
+quel campione non esiste**. Falsificabile e senza bisogno di nessuna fonte.
+
+### 18.2 Tre denominatori e non uno, e una soglia DERIVATA
+
+I minuti li porta il livello per-partita, il fantavoto i voti, i bonus la riga dei voti: una giornata può
+avere gli uni e non l'altro, quindi `MatchFrequencies` dichiara **`played`, `timed` e `rated`** e ognuna
+delle quattro quote è contata sul suo. Il denominatore è «quando gioca» e non «quante giornate ha il
+calendario», come per ogni altra lettura per partita di questa pagina: quante ne gioca è un'altra domanda
+e ha già la sua pastiglia (`Pa`).
+
+Le tre soglie sono DICHIARATE dall'operatore e portano un nome tutto loro, perché questo repository ne ha
+già tre vicine e nessuna risponde a questa domanda: `FULL_MATCH` 90 dice «è stato sostituito?»,
+`OWN_MATCH` 75 «è stata una sua partita?», `status.MOST_OF_THE_MATCH` 65 è il pavimento del terzo
+gradino. `LONG_SHIFT` = **85** è la quarta. `POOR_MATCH` = 6 ha lo stesso numero di `PASS_MARK` e **una
+domanda diversa**, e va detto o le due letture sembrano contraddirsi su una riga sola: la Costanza (`Pas`)
+conta i VOTI BASE almeno sufficienti — quello che i due modificatori pagano — questa conta i FANTAVOTI
+sotto la sufficienza, cioè quello che la rosa incassa. Un difensore che prende 6 e si fa ammonire entra in
+tutt'e due, e tutt'e due le righe sono vere.
+
+**Un bonus è un bonus dove è già definito** (`match-bonuses.bonusesOf`): gol, rigore segnato, assist —
+anche da fermo — e il rigore parato di chi era in porta. Non «fantavoto sopra il voto», che leggerebbe
+«nessun bonus» su un gol più un rosso. Il file di punteggio serve a dare un VALORE agli eventi, non a dire
+quali sono buoni, quindi una lega senza `scoring_config` legge le stesse quote.
+
+**Sotto le dieci partite la quota è SBIADITA, e il dieci è derivato e non scelto**: una quota è grossolana
+quando una partita in più la sposta di oltre dieci punti, cioè `1/n > 0,10`. Sbiadita e non nascosta — la
+quota di un uomo con tre partite è vera, e toglierla direbbe «non lo sappiamo» di una cosa che sappiamo
+male. È lo stesso trattamento di `Pas` quando la costanza dietro è quasi tutta l'ancora del ruolo.
+
+### 18.3 I filtri: quello che si è deciso, e perché
+
+- **SOLO IN AND**, che è quello che ha chiesto. L'OR ha un costo già scritto in `core/player-filter.ts`:
+  senza parentesi «A e B o C» si legge da sinistra a destra e non come chiunque lo leggerebbe. Con l'AND
+  soltanto l'ordine delle condizioni non cambia la risposta — ed è quello che rende sicuro cancellarne
+  una a metà lista (asserito).
+- **SI FILTRA SULLE STESSE LETTURE CHE LA RIGA STAMPA**, derivate da `READINGS` come l'elenco
+  dell'ordinamento: due elenchi della stessa cosa sono come una lettura nuova finisce per esistere e non
+  essere filtrabile. Fuori le COPPIE (`G:A` stampa `12:5` e non ha un numero) e fuori la TITOLARITÀ, che
+  un numero ce l'ha ma è il rango di un gradino: «Tit > 3» sarebbe un riferimento numerico su una scala
+  di parole. Ordinarci sopra resta legittimo: è un'altra domanda.
+- **`=` E `≠` RISPONDONO ALLA PRECISIONE CHE LA RIGA STAMPA** (`decimalsOf` legge il formato di
+  `DecimalPipe`). Senza, sarebbero due controlli che non fanno niente: una fantamedia attesa vale
+  6.4999999 e nessuno scriverà mai quel numero in una casella. Gli altri quattro criteri confrontano il
+  valore vero.
+- **«VUOTO = IGNOTO» IN TUTTE E SEI LE DIREZIONI**, `≠` compreso: un uomo senza xG non è «xG diverso da
+  1». Quanti ne sono usciti lo dice la barra.
+- **IL GAIN SI FILTRA NELL'UNITÀ IN CUI SI LEGGE**, cioè per GIORNATA: `passesFilter` riceve un
+  `valueOf` dal chiamante e la vista gli passa `perMatch`, che è la stessa definizione che disegna la
+  colonna. Un filtro sul totale di stagione risponderebbe su un'altra unità di quella che si ha davanti.
+- **SI APPLICA PRIMA DEL TAGLIO ALLA DOMANDA**, come l'ordine personale e per una ragione vicina: un
+  filtro serve a TROVARE i nomi che rispondono, e applicandolo dopo risponderebbe solo su quelli che la
+  stanza comprerà comunque — cioè su una lista in cui si stava già guardando. Quello che non cambia è la
+  LUNGHEZZA (resta la domanda della stanza) e il NUMERO accanto al nome, che è il posto VERO: assegnato
+  prima del filtro, così i posti restano non contigui (1, 4, 9…) e si vede che il filtro ha pescato più
+  in basso. Rinumerare direbbe che il quarantesimo difensore è il primo.
+- **I NOMI SISTEMATI A MANO CHE IL FILTRO TOGLIE NON SI CONTANO PIÙ** (`RoleBlock.pinned` si ricalcola
+  sui sopravvissuti): «i primi due vengono dalla tua lista» detto su una lista da cui uno è uscito è una
+  frase falsa sul confine fra preferenza e misura.
+- **QUALI STAGIONI CARICARE DIPENDE ANCHE DAL FILTRO** e non solo dalle pastiglie accese
+  (`Strategy.needed` = accese ∪ `filterReadings`). Senza, una condizione su una lettura SPENTA avrebbe
+  letto una colonna che nessuno ha caricato, cioè avrebbe svuotato ogni blocco **in silenzio** — il
+  difetto peggiore che un filtro possa avere. Il banco lo prova spegnendo le quattro pastiglie e poi
+  filtrandoci sopra: 250 → 161 righe, e non 250 → 0.
+
+**E si RICORDA fra una sessione e l'altra**, a differenza della ricerca per blocco, che questa pagina ha
+deciso di NON ricordare (§15) perché «un filtro salvato che al ricaricamento nasconde metà lista è la
+cosa peggiore che questa pagina possa fare a un'asta». Quello che rende diverso questo caso è la cura del
+20/08 sui filtri per colonna della tabella: **ogni condizione è scritta in barra col suo nome per esteso
+e col suo segno, fuori da ogni pannello che si chiude, si toglie da sé, e accanto c'è quanti uomini
+ESCLUDE**. La parola è «esclusi» e non «nascosti», ed è misurata: il filtro agisce prima del taglio,
+quindi porta in lista anche nomi che senza di lui non si vedevano — «nascosti» prometterebbe una
+sottrazione che non torna (250 → 161 righe con 334 esclusi).
+
+**La finestra è un MODALE e non una tendina**, e la ragione sta nei controlli: una riga di filtro sono due
+`nz-select` e una casella numerica, e i menù di quei tre vivono in un overlay FUORI dal pannello che li
+contiene — in una tendina ogni scelta sarebbe un click «fuori» e chiuderebbe il pannello mentre lo si
+compila. `ui/flag-menu` può permettersi la tendina perché porta solo interruttori.
+
+### 18.4 Il costo di layout, misurato invece che sperato
+
+Quattro riquadri in più si pagano sul NOME, e l'attribuzione si fa una incognita per volta: **le tre
+pastiglie di partenza lasciano il nome più stretto a 137px e 0 nomi tagliati; le quattro nuove DA SOLE a
+83px e ancora 0 tagliati; tutte e sette insieme a 9px e 230 tagliati su 250**. Il costo di questa
+richiesta è 54px e zero nomi tagliati; il crollo a sette pastiglie è una proprietà della fila che
+precede questo lavoro (la soglia del container query, `@max-[23rem]`, è tarata su una fila più corta) e
+**non è stata toccata**: nessuno ha chiesto sette pastiglie insieme, e cambiare il pavimento del nome
+muoverebbe ogni configurazione esistente. Detto qui perché il giorno in cui darà fastidio, questo è il
+posto da leggere.
+
+### 18.5 Come è verificato
+
+`app/scripts/e2e-strategy-filters.mjs`, banco suo perché `e2e-strategy.mjs` è rosso su difetti che
+precedono questo lavoro e un verdetto su una feature dev'essere leggibile. Guida la pagina vera con un
+puntatore vero e misura: le quattro pastiglie che si accendono; **i quattro numeri contro il PACCHETTO**
+(131 righe di 250, e 33 anche sulle due quote del fantavoto — solo chi ha giocato SOLO in Serie A, perché
+un banco che legge una popolazione più stretta della pagina la accusa del proprio difetto); l'invariante
+della finestra; la condizione che accorcia le liste e lo dice; e salva/azzera/richiama **con un
+ricaricamento in mezzo**. Verde.
+
+**Due difetti erano dell'arnese e vanno a verbale**, perché sono la stessa famiglia due volte: la prima
+passata filtrava le righe del provider su `source = 'sofascore'` — copiato da un altro banco — mentre
+**l'app non fa nessun filtro sulla sorgente** (`sofascore_extra` porta le coppe e i campionati esteri,
+`sofascore_recent` la forma di chi qui non ha storia), e così 15 partite di Serie B di un uomo che la
+pagina conta restavano fuori: 146 righe «sbagliate» che erano giuste. E la seconda leggeva la finestra dei
+filtri PRIMA di digitare, riportando il valore di prima. *Prima di credere a uno scarto, chiedersi se le
+due parti stiano rispondendo alla stessa domanda sulla stessa popolazione.*
+
+**E una terza cosa, sul banco della pagina intera** (`e2e-strategy.mjs`): con quattro voci in più il
+selettore dell'ordinamento non ci stava più nella tendina, che è VIRTUALE — `cdk-virtual-scroll-viewport`
+disegna solo quello che si vede, e la tendina si apre già scorsa sulla voce scelta, quindi
+`querySelectorAll` letto una volta sola rispondeva «la voce non c'è» a proposito della PRIMA. `findOption`
+ora scorre dall'alto finché la trova e riporta quello che ha visto passare. *Un passo che cerca in una
+direzione sola trova solo metà delle cose che cerca.*
+
+---
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

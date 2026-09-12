@@ -23,6 +23,7 @@ import {
   cleanSheetOutlook,
 } from '../../core/keeper-pairs';
 import { withRowAt } from '../../core/manual-order';
+import { matchFrequencies } from '../../core/match-frequency';
 import { looseMatch } from '../../core/loose-search';
 import { CardMan, CardStack, seasonTotals } from '../../core/player-card';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
@@ -35,6 +36,7 @@ import {
   DEFAULT_READINGS,
   READINGS,
   SORTABLE_READINGS,
+  wantsCareerReadings,
   wantsPlayedFootball,
   wantsPrevSeasonReadings,
   wantsSeasonReadings,
@@ -57,6 +59,16 @@ import {
   readingValue,
   readingsOf,
 } from '../../core/strategy';
+import {
+  FilterClause,
+  FilterSet,
+  filterFields,
+  filterReadings,
+  isFilterSet,
+  passesFilter,
+  readClauses,
+  readFilterSet,
+} from '../../core/strategy-filter';
 import { swingOf } from '../../core/swing';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
 import { stored, storedJson } from '../../core/view-state';
@@ -69,6 +81,7 @@ import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { PlayerRulings } from '../../core/player-rulings';
 import { TITOLARITA_SHORT, isTitolarita } from '../../core/titolarita';
 import { RulingDot } from '../../ui/ruling-dot/ruling-dot';
+import { StrategyFilters } from './strategy-filters/strategy-filters';
 
 /**
  * IL REGOLAMENTO NON È PIÙ DI QUESTA PAGINA: sta in `core/global-options.ts` e vale per ogni vista.
@@ -177,6 +190,7 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     PlayerFlags,
     RoleBadge,
     RulingDot,
+    StrategyFilters,
   ],
   templateUrl: './strategy.html',
   host: { class: 'view-host' },
@@ -404,6 +418,39 @@ export class Strategy {
   });
 
   /**
+   * LE CONDIZIONI IN VIGORE (operatore, 12/09/2026): tutte insieme, in AND.
+   *
+   * SI RICORDANO, a differenza della ricerca per blocco qui sotto, e la differenza non e' un capriccio:
+   * quella e' una domanda che si fa e si chiude, questo e' uno strumento che si costruisce. Quello che
+   * rende legittimo ricordarlo e' che ogni condizione e' SCRITTA IN BARRA col suo segno e con quanti
+   * nomi sta nascondendo (`strategy-filters`), quindi non puo' aprire una sessione nascondendo meta'
+   * lista in silenzio - e' la stessa cura con cui i filtri per colonna della tabella si ricordano.
+   *
+   * `readClauses` come lettore e non un type guard: una condizione scritta da una versione precedente
+   * su una lettura che non esiste piu' si BUTTA, e le altre restano. Un filtro che non si puo' ne'
+   * leggere ne' spegnere taglierebbe una lista senza dire perche'.
+   */
+  protected readonly clauses = storedJson<FilterClause[]>('strategy.filter', readClauses);
+
+  /** ...e gli insiemi SALVATI, che sono quello che l'operatore richiama («salvare e richiamare un set»). */
+  protected readonly filterSets = storedJson<FilterSet[]>('strategy.filters', (raw) =>
+    Array.isArray(raw) ? raw.filter(isFilterSet).map(readFilterSet) : [],
+  );
+
+  /**
+   * LE LETTURE CHE SERVONO ALLA PAGINA: quelle accese PIU' quelle che il filtro interroga.
+   *
+   * Una definizione sola, e non e' un dettaglio: quali stagioni di calcio giocato caricare si decide da
+   * qui, e senza le chiavi del filtro una condizione su `xG` avrebbe letto una colonna che nessuno ha
+   * caricato - cioe' avrebbe svuotato ogni blocco in silenzio, che e' il difetto peggiore che un filtro
+   * possa avere.
+   */
+  private readonly needed = computed<ReadingKey[]>(() => [
+    ...this.readings(),
+    ...filterReadings(this.clauses()),
+  ]);
+
+  /**
    * LE DUE STAGIONI CHE IL PACCHETTO DICHIARA, come le pastiglie le scrivono.
    *
    * Lette dal manifest e mai calcolate: `targetSeason` e' quella che si sta comprando, `inputSeason`
@@ -440,7 +487,7 @@ export class Strategy {
    * se e' gia' stata fatta.
    */
   private readonly wantsExpected = effect(() => {
-    if (wantsPlayedFootball(this.readings())) void this.players.load();
+    if (wantsPlayedFootball(this.needed())) void this.players.load();
   });
 
   /**
@@ -456,7 +503,7 @@ export class Strategy {
    * quello a farle rifare - una volta, non a ogni click.
    */
   private readonly expectedSeason = computed<string | null>(() => {
-    if (!wantsSeasonReadings(this.readings())) return null;
+    if (!wantsSeasonReadings(this.needed())) return null;
     return this.players.ready() ? this.store.targetSeason() : null;
   });
 
@@ -473,9 +520,21 @@ export class Strategy {
    * VALORE (una stagione, o niente) e non dall'elenco delle pastiglie accese.
    */
   private readonly prevSeason = computed<string | null>(() => {
-    if (!wantsPrevSeasonReadings(this.readings())) return null;
+    if (!wantsPrevSeasonReadings(this.needed())) return null;
     return this.players.ready() ? this.store.inputSeason() : null;
   });
+
+  /**
+   * ...E SE SERVE TUTTO IL SUO CALCIO, che e' la finestra delle quattro frequenze.
+   *
+   * Un BOOLEANO e non l'elenco, per la ragione scritta sopra `expectedSeason`: `pool` dipende dal
+   * risultato e non dalle pastiglie accese, quindi accenderne una che non c'entra non rifa' le seicento
+   * righe. Non costa un secondo caricamento - `PlayersStore` porta tutte le `heavy_seasons` in un colpo
+   * - ma costa un giro sulle partite di ognuno, e quel giro lo paga solo chi lo chiede.
+   */
+  private readonly careerOn = computed<boolean>(
+    () => wantsCareerReadings(this.needed()) && this.players.ready(),
+  );
 
   /**
    * Se la cella ha qualcosa da stampare e se quel qualcosa è spannometrico: dal vocabolario.
@@ -721,6 +780,11 @@ export class Strategy {
     // ...e la stagione SCORSA, per la coppia `G:A` che la nomina. Stesso patto: `null` quando quella
     // pastiglia e' spenta, cosi' accenderne un'altra non fa un secondo giro sulle seicento righe.
     const prevOn = this.prevSeason();
+    // ...E SE SERVE TUTTO IL SUO CALCIO, per le quattro frequenze. Lo `scoring` serve solo a dare un
+    // VALORE agli eventi e non a dire quali sono bonus, quindi una lega senza file di punteggio legge
+    // le stesse quote: si passa perche' e' in casa, non perche' il conto ne dipenda.
+    const career = this.careerOn();
+    const scoring = this.players.scoring();
     // SOLO CHI IL LISTONE QUOTA (operatore, 04/09/2026: «Cheddira del Napoli e' ridicolo che stia nei
     // primi 60 attaccanti, non giochera' mai»). Il difetto non era la sua valutazione: e' che non e'
     // quotato affatto - zero righe in `listone_quotes` per il 2026-27, su nessuna delle due piattaforme
@@ -748,6 +812,16 @@ export class Strategy {
       // stessi voti darebbero a un uomo due conteggi, e le due coppie stanno sulla stessa riga.
       const before = prevOn
         ? seasonTotals(this.players.matchesOf(player.fcId, platform, prevOn))
+        : null;
+      // LE QUATTRO FREQUENZE su TUTTE le stagioni che il pacchetto porta, che e' la sola finestra in cui
+      // una quota sia una quota (misurato: alla terza giornata ognuno ha al massimo tre partite). Si
+      // passa da `recent` senza limiti, cioe' dal lettore che questo store dichiara per «tutto il suo
+      // calcio»: un secondo elenco di quali stagioni contano sarebbe una seconda risposta.
+      const often = career
+        ? matchFrequencies(
+            this.players.recent(player.fcId, platform, {}).map((one) => one.cell),
+            scoring,
+          )
         : null;
       // QUANTE NE GIOCHERA' DAVVERO, col conto unico dell'app (`core/expected-play.ts`, 04/09/2026):
       // il metro della plancia dove il motore ripiega su una costante, meno le giornate che uno stop
@@ -819,6 +893,9 @@ export class Strategy {
         // segnato» e «non ha giocato».
         gaPrev: before ? { goals: before.goals, assists: before.assists } : null,
         gaNow: played_ ? { goals: played_.goals, assists: played_.assists } : null,
+        // LE QUATTRO FREQUENZE, gia' contate: `readingsOf` e' pura e riceve solo l'uomo, mentre questa
+        // finestra vive nello store del livello per-partita. Letta e non ricalcolata, come lo SWING.
+        frequencies: often,
         // Il PREZZO del suo listone, nella valuta del gioco dichiarato: letto da chi lo possiede già.
         fvm: this.store.fvmOf(platform, player.fcId, this.settings().game),
         // IL PREZZO VERO, portato nella valuta della lega DICHIARATA: la tabella lo archivia su una
@@ -903,7 +980,46 @@ export class Strategy {
       rules: this.rulebook(),
       priority: this.priorityHere(),
       sort: this.sort(),
+      keep: this.keep(),
     }),
+  );
+
+  /**
+   * IL FILTRO COME PREDICATO, nell'UNITA' IN CUI LA RIGA STAMPA I NUMERI.
+   *
+   * Il gain in memoria e' un totale di stagione e sulla riga si legge PER GIORNATA (`perMatch`): un
+   * filtro che confrontasse il numero grezzo risponderebbe su un'unita' diversa da quella che
+   * l'operatore ha davanti, che e' la famiglia di difetti piu' cara di questo progetto. Le letture
+   * passano da `readingValue`, cioe' dalla stessa funzione che disegna la pastiglia.
+   *
+   * Null quando non c'e' nessuna condizione, cosi' `blocksOf` non filtra affatto invece di filtrare con
+   * un predicato che dice sempre di si'.
+   */
+  private readonly keep = computed<((row: RankedMan) => boolean) | undefined>(() => {
+    const clauses = this.clauses();
+    if (!clauses.length) return undefined;
+    // `perMatch` legge `matchdays()` dove serve, cioe' dentro il predicato: e' `blocks` a eseguirlo,
+    // quindi e' `blocks` a dipendere dal calendario - che e' esattamente il computed che si deve rifare
+    // se il calendario cambia.
+    return (row: RankedMan) =>
+      passesFilter(clauses, (key) =>
+        // LA STESSA DIVISIONE CHE DISEGNA LA RIGA, e non una sua copia: `perMatch` e' la definizione, e
+        // due copie darebbero al filtro e alla colonna due unita' il giorno in cui una cambia.
+        key === 'gain' ? this.perMatch(row.gain) : readingValue(key, row.readings),
+      );
+  });
+
+  /** Le voci del menu' «valore», col nome che il gain ha in questa asta. */
+  protected readonly filterFieldsHere = computed(() => filterFields(this.gainLabel()));
+
+  /**
+   * QUANTI NOMI IL FILTRO STA NASCONDENDO, sommati su tutti i blocchi.
+   *
+   * Contato e detto in barra: un blocco corto senza una ragione a schermo si legge come un blocco rotto,
+   * ed e' la ragione per cui questa pagina puo' permettersi di RICORDARE un filtro.
+   */
+  protected readonly hiddenByFilter = computed(() =>
+    this.blocks().reduce((sum, one) => sum + one.dropped, 0),
   );
 
   /**

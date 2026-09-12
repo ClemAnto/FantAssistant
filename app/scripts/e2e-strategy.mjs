@@ -638,6 +638,60 @@ async function openInjuries() {
  * pannello alla fine: un overlay lasciato aperto intercetta i click dei passi seguenti, che poi
  * accusano la pagina di aprire la card di un altro.
  */
+/**
+ * LA VOCE DI UNA TENDINA VIRTUALE, cercata SCORRENDO: `cdk-virtual-scroll-viewport` disegna solo quello
+ * che si vede, quindi «non e' nel DOM» e «non esiste» sono due frasi diverse.
+ *
+ * Si scorre SOLO il contenitore della tendina e mai con `scrollIntoView`, che si porta dietro ogni
+ * antenato scorrevole (05/09) e sposterebbe la pagina sotto i passi seguenti. Si riporta anche tutto
+ * quello che si e' visto passare: un errore che dice «non c'e'» senza dire cosa c'era e' un errore che
+ * non si puo' diagnosticare.
+ */
+async function findOption(session, label) {
+  const seen = new Set();
+  let scrolled = null;
+  // SI PARTE DALL'ALTO, e questo e' il passo che mancava: la tendina si apre gia' scorsa sulla voce
+  // SCELTA, quindi scorrendo solo in avanti le voci PRECEDENTI non compaiono mai - e l'arnese diceva
+  // «non c'e'» della prima voce dell'elenco. Un passo che cerca in una direzione sola trova solo meta'
+  // delle cose che cerca.
+  await evaluate(session, () => {
+    const item = document.querySelector('nz-option-item');
+    const holder = item?.closest('cdk-virtual-scroll-viewport, .rc-virtual-list-holder, .ant-select-dropdown');
+    if (holder) holder.scrollTop = 0;
+    return true;
+  });
+  await wait(150);
+  for (let turn = 0; turn < 40; turn += 1) {
+    const step = await evaluate(session, (wanted) => {
+      const items = [...document.querySelectorAll('nz-option-item')];
+      if (!items.length) return { texts: [], stuck: true };
+      const holder = items[0].closest(
+        'cdk-virtual-scroll-viewport, .rc-virtual-list-holder, .ant-select-dropdown',
+      );
+      const texts = items.map((one) => (one.innerText ?? '').trim());
+      const item = items.find((one, at) => texts[at] === wanted);
+      if (item && holder) {
+        const before = holder.scrollTop;
+        holder.scrollTop = item.offsetTop - holder.clientHeight / 2 + item.offsetHeight / 2;
+        return { texts, found: true, scrolled: { before, after: holder.scrollTop, height: holder.clientHeight } };
+      }
+      if (!holder) return { texts, stuck: true };
+      const before = holder.scrollTop;
+      holder.scrollTop = before + Math.max(64, holder.clientHeight - 32);
+      return { texts, stuck: holder.scrollTop === before };
+    }, label);
+    for (const one of step?.texts ?? []) seen.add(one);
+    if (step?.found) {
+      scrolled = step.scrolled;
+      await wait(250);
+      return { found: true, seen: [...seen], scrolled };
+    }
+    if (step?.stuck) break;
+    await wait(120);
+  }
+  return { found: false, seen: [...seen], scrolled };
+}
+
 async function pickSort(session, label) {
   const before = await evaluate(session, () => {
     const select = document.querySelector('app-strategy nz-select[data-sort]');
@@ -651,9 +705,6 @@ async function pickSort(session, label) {
   if (!before) return { problem: "non c'e' nessun selettore d'ordinamento in barra" };
   await click(session, before.point);
   await wait(400);
-  const listed = await evaluate(session, () =>
-    [...document.querySelectorAll('nz-option-item')].map((one) => (one.innerText ?? '').trim()),
-  );
   // LA VOCE PUO' ESSERE FUORI DALLO SCORRIMENTO DELLA TENDINA, e allora il dito non ci arriva.
   //
   // Misurato il 06/09/2026: il pannello e' alto 264px e tiene nove voci; la dodicesima esiste nel DOM
@@ -661,22 +712,20 @@ async function pickSort(session, label) {
   // riga della PAGINA e il click chiude la tendina invece di scegliere. E' la lezione dei varchi fuori
   // schermo (20/08) su un contenitore piu' piccolo: si porta la voce dentro il pannello e si clicca.
   //
-  // Si scorre SOLO il contenitore della tendina e non con `scrollIntoView`, che si porta dietro ogni
-  // antenato scorrevole (05/09) e sposterebbe la pagina sotto i passi seguenti.
-  const scrolled = await evaluate(session, (wanted) => {
-    const item = [...document.querySelectorAll('nz-option-item')]
-      .find((one) => (one.innerText ?? '').trim() === wanted);
-    if (!item) return 'la voce non e nel DOM';
-    const holder = item.closest('cdk-virtual-scroll-viewport, .rc-virtual-list-holder, .ant-select-dropdown');
-    if (!holder) return 'nessun contenitore scorrevole';
-    const before = holder.scrollTop;
-    holder.scrollTop = item.offsetTop - holder.clientHeight / 2 + item.offsetHeight / 2;
-    return { before, after: holder.scrollTop, height: holder.clientHeight };
-  }, label);
-  await wait(250);
-  if (!listed?.includes(label)) {
+  // ...E DAL 12/09/2026 SI CERCA SCORRENDO, perche' quella tendina e' VIRTUALE: quello che non e'
+  // visibile non e' nel DOM affatto. Con ventuno voci al posto di diciassette (le quattro frequenze) la
+  // tendina si apre gia' scorsa sulla voce scelta, e un `querySelectorAll` letto una volta sola
+  // rispondeva «la voce non c'e'» a proposito della PRIMA - cioe' l'arnese accusava la pagina del
+  // proprio difetto, per l'ennesima volta. `findOption` scorre il contenitore dall'alto finche' la
+  // trova, e riporta tutto quello che ha visto passare.
+  const scan = await findOption(session, label);
+  const scrolled = scan.scrolled;
+  if (!scan.found) {
     await session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', windowsVirtualKeyCode: 27 });
-    return { was: before.text, problem: `la voce «${label}» non e' nel pannello: ci sono ${JSON.stringify(listed ?? [])}` };
+    return {
+      was: before.text,
+      problem: `la voce «${label}» non e' nel pannello: ci sono ${JSON.stringify(scan.seen)}`,
+    };
   }
   const probe = await evaluate(session, boxOf, 'nz-option-item', label);
   const hit = await clickSteady(session, 'nz-option-item', label);
@@ -2074,20 +2123,20 @@ async function main() {
     }
 
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le sedici letture della barra', {
+    note('le venti letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
         + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
       problems: [
         ...pressed.filter(Boolean),
-        // QUINDICI dal 07/09/2026 (la titolarita', su sua richiesta: «nella pagina strategia, aggiungi
-        // anche la possibilita' di vedere la titolarita' dei calciatori»), quattordici dal 06/09 (le
-        // due coppie `G:A`), dodici lo stesso giorno (lo SWING), undici dal 05/09 (gol, assist, xG e
-        // xA accanto a MV e FM). Il numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non
-        // una misura: se cresce, cresce per una richiesta, e allora si aggiorna insieme a `READINGS`
-        // invece di leggere dallo schermo quello che lo schermo dice.
-        ...(toggles.length === 16 ? [] : [`${toggles.length} pastiglie invece delle sedici dichiarate`]),
+        // VENTI dal 12/09/2026 (le quattro frequenze: oltre l'85', fantavoto 6.5+, con bonus, sotto il
+        // 6), sedici dal 07/09 (la titolarita'), quattordici dal 06/09 (le due coppie `G:A`), dodici lo
+        // stesso giorno (lo SWING), undici dal 05/09 (gol, assist, xG e xA accanto a MV e FM). Il
+        // numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non una misura: se cresce,
+        // cresce per una richiesta, e allora si aggiorna insieme a `READINGS` invece di leggere dallo
+        // schermo quello che lo schermo dice.
+        ...(toggles.length === 20 ? [] : [`${toggles.length} pastiglie invece delle venti dichiarate`]),
         // LE DUE `G:A` NOMINANO LA LORO STAGIONE, e sono DUE anni diversi: due pastiglie con lo stesso
         // testo sarebbero indistinguibili sulla barra, ed e' esattamente il difetto che `dated` cura.
         ...((() => {

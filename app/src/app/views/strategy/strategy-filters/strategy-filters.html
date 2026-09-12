@@ -1,0 +1,166 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+
+<!-- IL BOTTONE, sempre visibile anche senza filtri: e' la porta della funzione, e un conteggio acceso
+     quando qualcosa e' in vigore. -->
+<button
+  nz-button
+  nzSize="small"
+  [nzType]="clauses().length ? 'primary' : 'default'"
+  data-filters
+  nz-tooltip
+  nzTooltipTitle="Filtra le liste su uno qualunque dei numeri che la riga mostra"
+  (click)="open.set(true)"
+>
+  <nz-icon nzType="filter" nzTheme="fill" />
+  filtri
+  @if (clauses().length) {
+    <span class="ml-1 rounded bg-page/30 px-1 text-[10px] tabular-nums">{{ clauses().length }}</span>
+  }
+</button>
+
+<!-- I GETTONI DELLE CONDIZIONI IN VIGORE, FUORI da ogni pannello che si chiude: un filtro invisibile si
+     legge come «il listone ha dodici difensori». Ognuno si toglie da se', e accanto c'e' quanti nomi
+     sta nascondendo - la stessa cura dei filtri per colonna della tabella. -->
+@for (chip of chips(); track chip.at) {
+  <nz-tag nzMode="closeable" (nzOnClose)="remove(chip.at)">
+    <span class="text-fg">{{ chip.text }}</span>
+  </nz-tag>
+}
+@if (clauses().length) {
+  <!-- «ESCLUSI» e non «nascosti», e la parola è misurata: il filtro agisce PRIMA del taglio alla
+       domanda, quindi porta in lista anche nomi che senza di lui non si vedevano - il numero è quanti
+       uomini in classifica non passano le condizioni, non quante righe sono sparite dallo schermo. Una
+       parola che promette la seconda cosa sarebbe una sottrazione che non torna. -->
+  <span class="text-[10px] text-muted" nz-tooltip nzTooltipTitle="Uomini in classifica che non passano">
+    {{ hidden() }} esclusi
+  </span>
+  <button nz-button nzType="link" nzSize="small" data-clear-filters (click)="clear()">azzera</button>
+}
+
+<nz-modal
+  [nzVisible]="open()"
+  nzTitle="Filtri"
+  [nzFooter]="null"
+  nzWidth="560px"
+  (nzOnCancel)="open.set(false)"
+>
+  <div *nzModalContent class="flex flex-col gap-3">
+    <p class="text-xs text-muted">
+      Le condizioni valgono tutte insieme. Chi non ha quel numero resta fuori: un valore che non
+      conosciamo non è uno zero.
+    </p>
+
+    @if (!clauses().length) {
+      <p class="text-xs text-muted">Nessun filtro: le liste sono quelle intere.</p>
+    }
+
+    <!-- UNA RIGA = UNA CONDIZIONE: valore, criterio, riferimento. `track at` perché una condizione non
+         ha un'identità propria - è la sua posizione nella lista, e l'elenco viene riscritto intero a
+         ogni modifica. -->
+    @for (clause of clauses(); track $index) {
+      <div class="flex items-center gap-1.5" [attr.data-clause]="$index">
+        <nz-select
+          class="min-w-0 flex-1"
+          nzSize="small"
+          nzShowSearch
+          data-clause-key
+          [ngModel]="clause.key"
+          [nzOptions]="fieldOptions()"
+          (ngModelChange)="setKey($index, $event)"
+        ></nz-select>
+        <nz-select
+          class="w-16 shrink-0"
+          nzSize="small"
+          data-clause-op
+          [ngModel]="clause.op"
+          [nzOptions]="opOptions"
+          (ngModelChange)="setOp($index, $event)"
+        ></nz-select>
+        <nz-input-number
+          class="w-24 shrink-0"
+          nzSize="small"
+          data-clause-value
+          [ngModel]="clause.value"
+          (ngModelChange)="setValue($index, $event)"
+        ></nz-input-number>
+        <button
+          nz-button
+          nzType="text"
+          nzSize="small"
+          class="shrink-0"
+          nz-tooltip
+          nzTooltipTitle="Togli questa condizione"
+          (click)="remove($index)"
+        >
+          <nz-icon nzType="close" />
+        </button>
+      </div>
+    }
+
+    <div>
+      <button nz-button nzSize="small" data-add-clause (click)="add()">
+        <nz-icon nzType="plus" />
+        aggiungi filtro
+      </button>
+    </div>
+
+    <!-- GLI INSIEMI SALVATI. Un nome e le sue condizioni: si salva quello in vigore, si richiama
+         sostituendo - «richiamare un set» è «guarda la lista con quel filtro», non «aggiungi il suo
+         al mio». -->
+    <div class="flex flex-col gap-2 border-t border-border pt-3">
+      <div class="flex items-center gap-1.5">
+        <input
+          nz-input
+          nzSize="small"
+          class="min-w-0 flex-1"
+          placeholder="nome del filtro"
+          data-set-name
+          [ngModel]="draftName()"
+          (ngModelChange)="draftName.set($event)"
+          (keyup.enter)="save()"
+        />
+        <button
+          nz-button
+          nzSize="small"
+          nzType="primary"
+          data-save-set
+          [disabled]="!canSave()"
+          (click)="save()"
+        >
+          salva
+        </button>
+      </div>
+
+      @for (one of sets(); track one.id) {
+        <div class="flex items-center gap-1.5" [attr.data-set]="one.id">
+          <button
+            nz-button
+            nzType="text"
+            nzSize="small"
+            class="min-w-0 flex-1 text-left"
+            data-recall-set
+            (click)="recall(one)"
+          >
+            <span class="truncate text-fg">{{ one.name }}</span>
+          </button>
+          <span class="shrink-0 text-[10px] tabular-nums text-muted">
+            {{ one.clauses.length }} condizioni
+          </span>
+          <button
+            nz-button
+            nzType="text"
+            nzSize="small"
+            class="shrink-0"
+            nz-tooltip
+            nzTooltipTitle="Elimina questo filtro salvato"
+            (click)="drop(one.id)"
+          >
+            <nz-icon nzType="delete" />
+          </button>
+        </div>
+      } @empty {
+        <p class="text-xs text-muted">Nessun filtro salvato.</p>
+      }
+    </div>
+  </div>
+</nz-modal>

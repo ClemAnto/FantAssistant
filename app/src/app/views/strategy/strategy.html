@@ -116,6 +116,15 @@
         nz-tooltip
         nzTooltipTitle="Su cosa sono ordinate le liste"
       ></nz-select>
+      <!-- I FILTRI (operatore, 12/09/2026): il bottone, e i gettoni delle condizioni in vigore accanto.
+           I gettoni stanno QUI, in barra e fuori dalla finestra che si chiude, perché un filtro che si
+           ricorda e non si vede si legge come «il listone ha dodici difensori». -->
+      <strategy-filters
+        [fields]="filterFieldsHere()"
+        [(clauses)]="clauses"
+        [(sets)]="filterSets"
+        [hidden]="hiddenByFilter()"
+      />
       @for (pill of readingPills(); track pill.key) {
         <button
           nz-button

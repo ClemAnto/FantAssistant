@@ -507,6 +507,14 @@ session's file**, and never commit your own half that cannot compile without the
 `core/` half went in); and **leave the harness RED where the defect is real**, naming the cause — here a
 button that calls `GlobalOptions.open()` while the panel opens on its own signal, which the harness pinned
 down not by reading code but by measuring `hasModalHost: true` with `containers: 0`.
+**E `git worktree remove` SEGUE LA GIUNZIONE, che è la stessa trappola del `Remove-Item -Recurse` vista
+da un comando che non sembra distruttivo** (12/09/2026): smontare un worktree di verifica con
+`git worktree remove --force` ha svuotato `app/public/data` dell'albero VERO, perché quel comando
+cancella l'albero ricorsivamente e cammina dentro il link. Danno reale e reversibile - quella cartella è
+una COPIA che `npm run data:pull` rifà da `data/export/` in un minuto, e infatti è stata rifatta - ma
+l'altra sessione stava lavorando su quell'albero. La procedura è **`rmdir <link>` PRIMA, `git worktree
+remove` dopo**, e si verifica contando i file del bersaglio, non fidandosi del fatto che il comando
+appartenga a git. *Un comando che non sembra distruttivo lo diventa quando nel suo cammino c'è un link.*
 **Same view again on 01/09/2026, and this time it cost a feature its commit.** One session added the
 «Costanza» column to `squad-table/` and `player-ratings.ts` while the other added «Categoria» to the
 SAME three files (plus `letture-app-v1.md` §20) — merged cleanly, both anchored, and one of their
