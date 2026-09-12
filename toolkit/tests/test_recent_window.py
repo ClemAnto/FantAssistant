@@ -187,7 +187,10 @@ def test_lo_slot_viaggia_col_modulo_della_sua_partita():
             "5": _appearance("2026-09-05", 90, 1, "M", 4, "3-4-2-1"),
             "4": _appearance("2026-09-04", 90, 1, "D", 4, "4-3-3")}
     got = snapshot.recent_block(7, window, mine, {"6", "5", "4"}, {}, {}, {}, matches=3)
-    assert got["recent_slots"] == "3-4-2-1:4;3-4-2-1:4;4-3-3:4"
+    # ...E LA PARTITA, che e' la terza cosa e non un ornamento: due uomini che possiedono due slot della
+    # STESSA distinta hanno cominciato insieme, e su quel fatto la regola delle staffette distingue un
+    # osservazione da un'inferenza sui minuti.
+    assert got["recent_slots"] == "6:3-4-2-1:4;5:3-4-2-1:4;4:4-3-3:4"
 
     # ...e una partita senza modulo non porta uno slot orfano: un numero che nessuno puo' interpretare
     # e' peggio di un numero che manca.
@@ -196,34 +199,32 @@ def test_lo_slot_viaggia_col_modulo_della_sua_partita():
                                  matches=3)["recent_slots"] is None
 
 
-def test_la_linea_osservata_viene_dalle_partite_che_ha_COMINCIATO():
-    """`desc_recent_line`: dove la FONTE lo ha schierato, non che ruolo dice la sua scheda.
+def test_il_POSTO_viene_dalle_partite_che_ha_COMINCIATO_e_nessuna_colonna_ripete_la_linea():
+    """Dal caso Chukwueze (operatore, 12/09/2026), e la colonna e' UNA.
 
-    Dal caso Chukwueze (operatore, 12/09/2026): il ruolo granulare legge `RW`/`F` su tutti i 26 giorni
-    dal 28/07 all'11/09 - e' il profilo del giocatore e non cambia con l'uso - mentre nelle due partite
-    che ha cominciato la fonte lo mette a CENTROCAMPO, slot 4. Chi entra a gara in corso prende il posto
-    che si e' liberato, quindi la sua riga direbbe una cosa sull'avversario invece che su di lui: i
-    subentri non entrano, ed e' proprio la sua terza partita (29 minuti da `F`).
+    Il ruolo granulare legge `RW`/`F` su tutti i 26 giorni dal 28/07 all'11/09 - e' il profilo del
+    giocatore e non cambia con l'uso - mentre nelle due partite che ha cominciato la fonte lo mette a
+    CENTROCAMPO, slot 4. Chi entra a gara in corso prende il posto che si e' liberato, quindi la sua riga
+    direbbe una cosa sull'avversario invece che su di lui: i subentri non entrano, ed e' proprio la sua
+    terza partita (29 minuti da `F`).
+
+    E una colonna gemella con la sola LINEA e' stata scritta e tolta lo stesso giorno: il POSTO la
+    contiene, e due risposte a una domanda sola sono la cosa che questo repository evita altrove.
     """
     window = [(f"2026-09-0{i}", str(i), "serie_a", "genoa") for i in (6, 5, 4)]
-    mine = {"6": _appearance("2026-09-06", 29, 0, "F"),      # subentrato: non dice dove gioca
-            "5": _appearance("2026-09-05", 90, 1, "M"),
-            "4": _appearance("2026-09-04", 90, 1, "M")}
+    mine = {"6": _appearance("2026-09-06", 29, 0, "F", 9, "4-3-3"),   # subentrato: non dice dove gioca
+            "5": _appearance("2026-09-05", 90, 1, "M", 4, "3-4-2-1"),
+            "4": _appearance("2026-09-04", 90, 1, "M", 4, "3-4-2-1")}
     got = snapshot.recent_block(7, window, mine, {"6", "5", "4"}, {}, {}, {}, matches=3)
-    assert got["recent_line"] == "M"
+    assert got["recent_slots"] == "5:3-4-2-1:4;4:3-4-2-1:4"
     assert got["recent_starts"] == 2
-
-    # ...e a PARI MERITO vince la piu' recente, perche' `window` arriva dalla piu' recente e
-    # `Counter.most_common` conserva l'ordine in cui i valori sono stati visti.
-    mixed = {"6": _appearance("2026-09-06", 90, 1, "M"), "5": _appearance("2026-09-05", 90, 1, "D")}
-    assert snapshot.recent_block(7, window, mixed, {"6", "5", "4"}, {}, {}, {},
-                                 matches=3)["recent_line"] == "M"
+    assert "recent_line" not in got, "una risposta sola alla domanda «dove ha giocato»"
 
     # ...e VUOTA per chi non ha cominciato niente: li' non c'e' un'osservazione, e un ripiego sul
     # profilo sarebbe «vuoto = ignoto» rotto proprio dove la colonna nasce per non rompersi.
-    bench = {"6": _appearance("2026-09-06", 29, 0, "F")}
+    bench = {"6": _appearance("2026-09-06", 29, 0, "F", 9, "4-3-3")}
     assert snapshot.recent_block(7, window, bench, {"6", "5", "4"}, {}, {}, {},
-                                 matches=3)["recent_line"] is None
+                                 matches=3)["recent_slots"] is None
 
 
 def test_disponibile_e_chi_ha_giocato_o_era_in_panchina_e_nessun_altro():
@@ -836,20 +837,27 @@ def test_la_fascia_intera_di_un_centrocampo_resta_un_lavoro_di_corsia():
     """
     from euroleghe_ingest.gui import SnapshotView as View
 
-    def row(codes: str) -> dict:
-        return {"desc_real_roles": codes, "desc_recent_line": "M"}
+    def row(codes: str, slots: str | None = None) -> dict:
+        return {"desc_real_roles": codes, "desc_recent_slots": slots}
 
     assert View._wing_back_trade(row("DR;MR")) is True
     assert View._wing_back_trade(row("ML;DL")) is True
     # un'ala pura resta fuori, ed e' la sentenza su Malen
     assert View._wing_back_trade(row("RW;ST")) is False
     assert View._wing_back_trade(row("RW")) is False
-    # ...e la distinta NON entra piu' qui: la colonna c'e' e questo cancello non la legge
-    assert View._wing_back_trade(row("RW")) is False
+    # ...e la DISTINTA non entra qui nemmeno quando c'e': un'ala che la fonte ha schierato a
+    # centrocampo resta un'ala per questo cancello, che e' una domanda sul profilo
+    assert View._wing_back_trade(row("RW", "16284970:3-4-2-1:4")) is False
 
 
-def _slot_view(rows: list[dict]):
-    """Una vista minima per `_from_slots`: gli servono il claim, `can_replace` e i due appigli."""
+def _slot_view(rows: list[dict], rulings: dict | None = None, floor: int = 1):
+    """Una vista minima per `_from_slots`: il claim, `can_replace`, i due appigli - E LE DRITTE.
+
+    `_player_rulings` non era impostato, quindi `ruling_of` rispondeva None su ogni riga e TUTTO il ramo
+    delle dichiarazioni era scoperto: e' cosi' che il difetto dei due `starter` che si scacciavano a
+    vicenda e' arrivato a HEAD. La vista del pannello lo imposta a `load_sheet`; qui si passa per NOME,
+    e la chiave resta l'`fc_id` come nel file vero.
+    """
     from euroleghe_ingest.gui import SnapshotView as View
 
     view = View.__new__(View)
@@ -858,6 +866,15 @@ def _slot_view(rows: list[dict]):
     for row in rows:
         row.setdefault("desc_real_roles", "MC")
         row.setdefault("desc_titolarita", "riserva")
+    view._player_rulings = {}
+    for name, ruling in (rulings or {}).items():
+        for row in rows:
+            if row.get("name") == name:
+                view._player_rulings[int(float(row["fc_id"]))] = ruling
+    # ...e il PAVIMENTO sceso a uno, DICHIARATO: quasi ogni caso qui riempie tre posti di undici per
+    # isolare una regola, e col pavimento vero leggerebbero tutti `None` - cioe' proverebbero il
+    # pavimento e nient'altro. Quello lo prova il suo test, che usa la costante vera.
+    view.SLOT_BOARD_MIN = floor
     return view
 
 
@@ -872,30 +889,35 @@ def test_l_undici_dell_ultimo_periodo_si_legge_posto_per_posto():
         return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
                 "desc_titolarita": rung, "desc_real_roles": "MC"}
 
-    # un 1-1-1 fittizio non esiste: si usa un modulo vero e si riempiono tre posti
-    rows = [man("Por", 0.9, "4-3-3:0"),
-            man("Tiene", 0.2, "4-3-3:1;4-3-3:1"),        # due volte quel posto
-            man("Perde", 0.9, "4-3-3:1"),                 # claim piu' alto, UNA volta sola
-            man("Pari", 0.4, "4-3-3:2"), man("PariB", 0.7, "4-3-3:2")]
+    # un 1-1-1 fittizio non esiste: si usa un modulo vero e si riempie la DIFESA INTERA. Gli altri due
+    # posti di difesa hanno un padrone di proposito: senza, chi perde un ballottaggio finisce sul posto
+    # scoperto accanto (§12.8) e questo caso non potrebbe piu' dire niente sul ballottaggio.
+    rows = [man("Por", 0.9, "m1:4-3-3:0"),
+            man("Tiene", 0.2, "m1:4-3-3:1;m2:4-3-3:1"),        # due volte quel posto
+            man("Perde", 0.9, "m1:4-3-3:1"),                 # claim piu' alto, UNA volta sola
+            man("Pari", 0.4, "m1:4-3-3:2"), man("PariB", 0.7, "m1:4-3-3:2"),
+            man("Terzo", 0.5, "m1:4-3-3:3;m2:4-3-3:3"), man("Quarto", 0.5, "m1:4-3-3:4;m2:4-3-3:4")]
     view = _slot_view(rows)
-    drawn = view._from_slots(rows, [], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    drawn = view._from_slots(rows, [], "4-3-3", "short")
     by_slot = {row["name"]: (lane, [r["name"] for r in rivals]) for lane, row, rivals in drawn}
-    # LE PARTITE PRIMA DEL CLAIM: chi ha occupato il posto due volte lo tiene, anche con claim 0.2
-    assert "Tiene" in by_slot and "Perde" not in by_slot
+    where = {row["name"]: view._slot_order.get(id(row)) for _lane, row, _rivals in drawn}
+    # LE PARTITE PRIMA DEL CLAIM: chi ha occupato il posto due volte lo tiene, anche con claim 0.2 -
+    # e l'asserzione e' sul POSTO, perche' chi lo perde non sparisce dalla board: la sua riga ha altri
+    # posti scoperti e lui li' ci sta bene (§12.8), il che e' un'altra regola e ha il suo test.
+    assert where["Tiene"] == 1 and where.get("Perde") != 1
     assert by_slot["Tiene"][1][0] == "Perde"          # e l'altro e' il suo ballottaggio
     # ...e a PARITA' di partite decide il claim
-    assert "PariB" in by_slot and by_slot["PariB"][1][0] == "Pari"
+    assert where["PariB"] == 2 and by_slot["PariB"][1][0] == "Pari"
     # il posto porta la LINEA del modulo: slot 0 il portiere, 1-4 la difesa
     assert by_slot["Por"][0] == "P" and by_slot["Tiene"][0] == "D"
 
     # ...E UNO SLOT DI UN ALTRO MODULO VOTA LO STESSO (regola dell'operatore, 12/09/2026), mappato sul
     # blocco di righe giusto: un difensore di un 3-4-2-1 resta un difensore in un 4-3-3.
-    altro = [man("Estraneo", 0.9, "3-4-2-1:1")]
-    solo = view._from_slots(altro, [], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    altro = [man("Estraneo", 0.9, "m1:3-4-2-1:1")]
+    solo = view._from_slots(altro, [], "4-3-3", "short")
     assert [lane for lane, _row, _rivals in solo] == ["D"]
     # ...e senza NESSUNO slot leggibile non c'e' niente da leggere, e il chiamante torna al calcolo
-    assert view._from_slots([man("Vuoto", 0.9, "")], [], "4-3-3", "short",
-                            {"P": 1, "D": 4, "M": 3, "A": 3}) is None
+    assert view._from_slots([man("Vuoto", 0.9, "")], [], "4-3-3", "short") is None
 
 
 def test_il_posto_di_un_indisponibile_va_a_chi_puo_prenderlo_e_lui_resta_in_ballottaggio():
@@ -905,11 +927,11 @@ def test_il_posto_di_un_indisponibile_va_a_chi_puo_prenderlo_e_lui_resta_in_ball
         return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
                 "desc_titolarita": rung, "desc_real_roles": "MC"}
 
-    owner = man("Padrone", 0.9, "4-3-3:1")
+    owner = man("Padrone", 0.9, "m1:4-3-3:1")
     stand_in = man("Riserva", 0.3, "", rung="panchina")
-    rows = [man("Por", 0.9, "4-3-3:0"), stand_in]
+    rows = [man("Por", 0.9, "m1:4-3-3:0"), stand_in]
     view = _slot_view(rows + [owner])
-    drawn = view._from_slots(rows, [owner], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    drawn = view._from_slots(rows, [owner], "4-3-3", "short")
     by_name = {row["name"]: [r["name"] for r in rivals] for _lane, row, rivals in drawn}
     assert "Riserva" in by_name, "il posto va comunque riempito"
     assert "Padrone" not in by_name, "chi oggi non puo' giocare non si disegna in campo"
@@ -917,26 +939,60 @@ def test_il_posto_di_un_indisponibile_va_a_chi_puo_prenderlo_e_lui_resta_in_ball
 
 
 def test_le_righe_che_coincidono_valgono_uguale_le_altre_no():
-    """La regola dell'operatore sul peso (12/09/2026), col suo stesso esempio.
+    """La regola dell'operatore sul peso (12/09/2026), col suo stesso esempio - e la mappatura CONTATA.
 
     «Modulo scelto 3-4-1-2, modulo diverso 3-4-3: difesa e centrocampo sono uguali e i posti vanno
     trattati allo stesso livello; trequarti e attacco sono diversi e vanno trattati con pesi diversi.»
+
+    E IL PRIMO ASSERTO E' UN CONTEGGIO, non un intervallo. La prima versione di questa mappatura
+    decomponeva i due moduli in BLOCCHI di righe e diceva di mappare «per posizione relativa dentro il
+    blocco»: i blocchi hanno per costruzione la stessa taglia sui due lati, quindi quel conto era
+    l'IDENTITA' su 1331 combinazioni di 1331 - e i test passavano perche' asserivano INTERVALLI che
+    l'identita' soddisfa. Un test che accetta l'identita' non e' un test di quella trasformazione.
     """
     from euroleghe_ingest.gui import SnapshotView as View
+
+    from euroleghe_ingest.config import Config
+
+    # i moduli si LEGGONO dal regolamento, che e' configurazione e non si trascrive
+    shapes = sorted(Config().load_modules("mantra").get("modules", {}))
+    assert len(shapes) >= 11
+    moved = sum(1 for played in shapes for drawn in shapes for slot in range(11)
+                if (View._slot_across_shapes(played, slot, drawn) or (slot,))[0] != slot)
+    assert moved > 0, "una mappatura che non sposta mai niente e' l'identita' con un docstring"
+    # ...e quello che sposta e' la RIGA: un difensore resta un difensore. Lo slot 4 di un 4-3-3 e' il
+    # quarto difensore e NON puo' finire sullo slot 4 di un 3-4-2-1, che e' il primo centrocampista.
+    place, exact = View._slot_across_shapes("4-3-3", 4, "3-4-2-1")
+    assert not exact and place == 3, "il quarto di una difesa a quattro e' il terzo di una a tre"
+    for played in shapes:
+        for drawn in shapes:
+            lanes = {}
+            index = 0
+            for lane, count in View.shape_lanes(played):
+                for _inside in range(count):
+                    lanes[index] = lane
+                    index += 1
+            there = {}
+            index = 0
+            for lane, count in View.shape_lanes(drawn):
+                for _inside in range(count):
+                    there[index] = lane
+                    index += 1
+            for slot, lane in lanes.items():
+                got = View._slot_across_shapes(played, slot, drawn)
+                if got is None or lane not in set(there.values()):
+                    continue
+                assert there[got[0]] == lane, (
+                    f"{played}:{slot} ({lane}) finisce in {there[got[0]]} di {drawn}")
 
     # il suo esempio: P, D e M coincidono riga per riga -> STESSO posto, peso pieno
     for slot in range(8):
         assert View._slot_across_shapes("3-4-3", slot, "3-4-1-2") == (slot, True)
-    # trequarti + attacco (1+2) contro attacco (3): stesso totale, righe diverse -> peso ridotto
+    # trequarti + attacco (1+2) contro attacco (3): righe diverse -> peso ridotto, e la trequarti che
+    # il modulo disegnato non ha cade nella riga piu' vicina che esiste
     for slot in (8, 9, 10):
-        place, exact = View._slot_across_shapes("3-4-3", slot, "3-4-1-2")
-        assert not exact and 8 <= place <= 10
-
-    # ...e dove la DIFESA cambia, il blocco si allarga invece di far scivolare tutto: un difensore di
-    # un 4-3-3 non finisce in attacco in un 3-4-2-1 - resta dentro il blocco difesa+centrocampo.
-    for slot in range(1, 5):
-        place, exact = View._slot_across_shapes("4-3-3", slot, "3-4-2-1")
-        assert not exact and 1 <= place <= 7
+        _place, exact = View._slot_across_shapes("3-4-3", slot, "3-4-1-2")
+        assert not exact
 
     # un modulo identico non e' mai un'approssimazione
     assert View._slot_across_shapes("4-3-3", 5, "4-3-3") == (5, True)
@@ -952,20 +1008,19 @@ def test_una_partita_con_un_altro_modulo_vota_e_non_decide_da_sola():
 
     # uno ha il posto UNA volta nel modulo disegnato, l'altro DUE volte in un modulo diverso, sulla
     # riga che non coincide: 1.0 contro 2 x OTHER_SHAPE_WEIGHT = 1.0, e allora decide il claim.
-    esatto = man("Esatto", 0.2, "3-4-1-2:9")
-    altro = man("Altro", 0.9, "3-4-3:9;3-4-3:9")
+    esatto = man("Esatto", 0.2, "m1:3-4-1-2:9")
+    altro = man("Altro", 0.9, "m1:3-4-3:9;m2:3-4-3:9")
     view = _slot_view([esatto, altro])
-    drawn = view._from_slots([esatto, altro], [], "3-4-1-2", "short",
-                             {"P": 1, "D": 3, "M": 4, "T": 1, "A": 2})
+    drawn = view._from_slots([esatto, altro], [], "3-4-1-2", "short")
     assert View.OTHER_SHAPE_WEIGHT == 0.5
-    names = [row["name"] for _lane, row, _rivals in drawn]
-    assert "Altro" in names, "a parita' di peso decide il claim"
+    at_nine = {view._slot_order.get(id(row)): row["name"] for _lane, row, _rivals in drawn}
+    assert at_nine.get(9) == "Altro", "a parita' di peso decide il claim"
     # ...ma UNA sola partita in un altro modulo non scavalca una partita esatta
-    solo_una = man("Altro", 0.9, "3-4-3:9")
+    solo_una = man("Altro", 0.9, "m1:3-4-3:9")
     view2 = _slot_view([esatto, solo_una])
-    drawn2 = view2._from_slots([esatto, solo_una], [], "3-4-1-2", "short",
-                               {"P": 1, "D": 3, "M": 4, "T": 1, "A": 2})
-    assert [row["name"] for _lane, row, _rivals in drawn2] == ["Esatto"]
+    drawn2 = view2._from_slots([esatto, solo_una], [], "3-4-1-2", "short")
+    at_nine2 = {view2._slot_order.get(id(row)): row["name"] for _lane, row, _rivals in drawn2}
+    assert at_nine2.get(9) == "Esatto"
 
 
 def test_un_calendario_NEGATIVO_e_una_stagione_senza_calendario_come_lo_zero():
@@ -974,18 +1029,36 @@ def test_un_calendario_NEGATIVO_e_una_stagione_senza_calendario_come_lo_zero():
     Trovato il 12/09/2026 sul foglio vero: `engine_pv_pred` da -0,8 a -0,1 su 393 righe, e con lui
     valore e surplus, perche' la guardia era `if not matchdays_target` - falsa per -1 - e il calendario
     negativo si moltiplicava dentro ogni colonna. Uno ZERO si vede; un meno uno passa e rende il foglio
-    inutilizzabile senza che niente si lamenti. La cura e' la guardia, e questo test e' il suo verso.
+    inutilizzabile senza che niente si lamenti.
+
+    E LA CURA STA IN `features.prepare` E NON IN CHI LEGGE. Era nata dentro `snapshot.engine_predictions`,
+    che e' un CONSUMATORE: il pannello d'asta, `estimates` e chiunque chiami `prepare` da se' leggevano il
+    numero crudo. Qui si prova la FUNZIONE, e in coda si verifica che il consumatore non se ne sia tenuta
+    una copia - due copie di questa sottrazione sono come il foglio e il pannello cominciano a rispondere
+    due cose sullo stesso calendario.
     """
     import inspect
 
+    from euroleghe_ingest.engine.features import target_matchdays
     from euroleghe_ingest.modules import snapshot as snap
 
+    # pre-stagione: nessuna giornata vista, il conteggio di sempre, e NON e' un ripiego
+    assert target_matchdays(38, 38, 0) == (38, False)
+    # una finestra in-season del gate: la stagione bersaglio e' completa in archivio, 38 - 6
+    assert target_matchdays(38, 38, 6) == (32, False)
+    # LA STAGIONE VIVA: tre giornate votate, quattro giocate -> -1, e il ripiego e' il calendario
+    # precedente meno quelle viste
+    assert target_matchdays(3, 38, 4) == (34, True)
+    # ...e lo zero che si vedeva gia'
+    assert target_matchdays(0, 38, 0) == (38, True)
+    # ...e un calendario che non esiste da nessuna parte non scende sotto UNA giornata: una previsione
+    # si divide per quel numero
+    assert target_matchdays(0, 0, 0) == (1, True)
+
+    # il consumatore scrive la NOTA e non rifa' il conto
     source = inspect.getsource(snap.engine_predictions)
-    assert "if data.matchdays_target <= 0:" in source, (
-        "la guardia deve prendere anche un calendario NEGATIVO, non solo lo zero")
-    assert "if not data.matchdays_target:" not in source
-    # ...e il ripiego resta quello che era: le giornate della stagione precedente meno quelle viste
-    assert "max(data.matchdays_prev - data.matchdays_seen, 1)" in source
+    assert "data.matchdays_from_prev" in source
+    assert "matchdays_target <= 0" not in source and "not data.matchdays_target" not in source
 
 
 def test_un_rivale_non_puo_essere_anche_un_titolare():
@@ -1002,11 +1075,11 @@ def test_un_rivale_non_puo_essere_anche_un_titolare():
                 "desc_titolarita": "titolare", "desc_real_roles": "MC"}
 
     # due uomini, due posti: ognuno e' titolare del suo, quindi nessuno dei due e' rivale dell'altro
-    uno = man("Uno", 0.9, "4-3-3:5;4-3-3:6")
-    due = man("Due", 0.8, "4-3-3:6;4-3-3:5")
+    uno = man("Uno", 0.9, "m1:4-3-3:5;m2:4-3-3:6")
+    due = man("Due", 0.8, "m1:4-3-3:6;m2:4-3-3:5")
     rows = [uno, due]
     view = _slot_view(rows)
-    drawn = view._from_slots(rows, [], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    drawn = view._from_slots(rows, [], "4-3-3", "short")
     on_pitch = {row["name"] for _lane, row, _rivals in drawn}
     assert on_pitch == {"Uno", "Due"}
     for _lane, row, rivals in drawn:
@@ -1030,24 +1103,227 @@ def test_nessuno_viene_consumato_da_un_posto_dove_vale_meno_che_a_casa_sua():
                 "desc_titolarita": "titolare", "desc_real_roles": "MC"}
 
     # IL CASO JUVE: il padrone del 5 e' fuori, e il 5 non deve prendersi il padrone del 7
-    padrone5 = man("Locatelli", 0.9, "4-2-3-1:5;4-2-3-1:5")
-    suo7 = man("Conceicao", 0.8, "4-2-3-1:7;4-2-3-1:7;4-4-2:5")
+    padrone5 = man("Locatelli", 0.9, "m1:4-2-3-1:5;m2:4-2-3-1:5")
+    suo7 = man("Conceicao", 0.8, "m1:4-2-3-1:7;m2:4-2-3-1:7;m3:4-4-2:5")
     ripiego = man("Koopmeiners", 0.4, "")
     view = _slot_view([suo7, ripiego, padrone5])
-    drawn = view._from_slots([suo7, ripiego], [padrone5], "4-2-3-1", "short",
-                             {"P": 1, "D": 4, "M": 2, "T": 3, "A": 1})
+    drawn = view._from_slots([suo7, ripiego], [padrone5], "4-2-3-1", "short")
     where = {row["name"]: lane for lane, row, _rivals in drawn}
     assert where.get("Conceicao") == "T", "il suo posto e' il 7, cioe' la trequarti"
     assert where.get("Koopmeiners") == "M", "il ripiego prende la maglia del padrone infortunato"
 
     # IL CASO MILAN: due uomini una volta ciascuno sullo stesso posto, e decide il claim
-    casa6 = man("Jashari", 0.3, "3-4-2-1:6")
-    altrove = man("Modric", 0.6, "3-4-2-1:5;3-4-2-1:6")
-    forte5 = man("Musah", 0.9, "3-4-2-1:5;3-4-2-1:5")
+    casa6 = man("Jashari", 0.3, "m1:3-4-2-1:6")
+    altrove = man("Modric", 0.6, "m1:3-4-2-1:5;m2:3-4-2-1:6")
+    forte5 = man("Musah", 0.9, "m1:3-4-2-1:5;m2:3-4-2-1:5")
     rows = [casa6, altrove, forte5]
     view2 = _slot_view(rows)
-    drawn2 = view2._from_slots(rows, [], "3-4-2-1", "short",
-                              {"P": 1, "D": 3, "M": 4, "T": 2, "A": 1})
-    names = {row["name"] for _lane, row, _rivals in drawn2}
-    assert "Musah" in names and "Modric" in names and "Jashari" not in names
+    drawn2 = view2._from_slots(rows, [], "3-4-2-1", "short")
+    where2 = {row["name"]: view2._slot_order.get(id(row)) for _lane, row, _rivals in drawn2}
+    assert where2["Musah"] == 5, "due volte quel posto, e nessuno lo protegge altrove"
+    assert where2["Modric"] == 6, "a pesi uguali sullo stesso posto decide il claim"
+    assert where2["Jashari"] != 6, "chi perde il suo posto non lo tiene comunque"
 
+
+
+def test_la_staffetta_arriva_alla_board_breve_e_non_lascia_mai_un_posto_vuoto():
+    """La regola dell'11/09/2026 era IRRAGGIUNGIBILE sulla board breve dal giorno dopo la sua adozione.
+
+    Il ritorno anticipato di `_from_slots` esce prima del punto in cui `eleven` calcola `relays`: adottata
+    e misurata l'11/09, spenta in silenzio il 12. Qui vive dentro la lettura, e con una differenza che e'
+    il motivo per cui la colonna porta anche la PARTITA: due uomini che possiedono due slot della STESSA
+    distinta hanno COMINCIATO insieme, e una misura a intervalli di minuti - che e' un'inferenza - non puo'
+    contraddire un fatto osservato.
+
+    E IL VETO NON LASCIA MAI UN POSTO VUOTO. Trovato all'Atalanta: lo slot 6 e' di Gaetano, indisponibile,
+    e dei sei uomini liberi l'unico centrocampista era Kessie - tolto dal veto PRIMA del filtro di
+    posizione, il posto restava vuoto e la board scendeva a dieci. Il veto si applica DOPO e cede se
+    toglie l'ultimo candidato, che e' l'eccezione dell'operatore («a quel punto la linea sarebbe corta»).
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def man(name, claim, slots, relay="", rung="titolare"):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_relay": relay, "desc_titolarita": rung, "desc_real_roles": "MC"}
+
+    # due uomini che non hanno MAI cominciato la stessa partita e che la colonna dichiara staffetta
+    uno = man("Uno", 0.9, "m1:4-3-3:5;m2:4-3-3:5", relay=f"Due:{View.RELAY_APART + 0.2:.3f}")
+    due = man("Due", 0.6, "m3:4-3-3:6;m4:4-3-3:6")
+    terzo = man("Terzo", 0.5, "m1:4-3-3:6;m2:4-3-3:6")
+    rows = [uno, due, terzo]
+    view = _slot_view(rows)
+    drawn = view._from_slots(rows, [], "4-3-3", "short")
+    where = {row["name"]: view._slot_order.get(id(row)) for _lane, row, _rivals in drawn}
+    assert where["Uno"] == 5
+    assert where.get("Due") != 6, "una staffetta dichiarata non occupa il secondo posto"
+    assert where["Terzo"] == 6, "...che va a chi quel posto lo ha occupato e non si alterna con lui"
+
+    # ...MA SE HANNO COMINCIATO INSIEME, il fatto batte l'inferenza e il vincolo non si applica
+    insieme = man("Due", 0.6, "m1:4-3-3:6;m2:4-3-3:6")
+    rows2 = [uno, insieme]
+    view2 = _slot_view(rows2)
+    drawn2 = view2._from_slots(rows2, [], "4-3-3", "short")
+    where2 = {row["name"]: view2._slot_order.get(id(row)) for _lane, row, _rivals in drawn2}
+    assert where2["Uno"] == 5 and where2["Due"] == 6
+
+    # ...e il veto CEDE prima di lasciare un posto vuoto: l'unico candidato resta l'unico candidato
+    solo = man("Solo", 0.6, "m3:4-3-3:6")
+    rows3 = [uno, solo]
+    view3 = _slot_view(rows3)
+    drawn3 = view3._from_slots(rows3, [], "4-3-3", "short")
+    where3 = {row["name"]: view3._slot_order.get(id(row)) for _lane, row, _rivals in drawn3}
+    assert where3["Solo"] == 6, "un posto vuoto e' peggio di due che si alternano"
+
+
+def test_un_undici_a_META_non_si_disegna_e_il_chiamante_torna_al_calcolo():
+    """`SLOT_BOARD_MIN`: la funzione lo DICHIARAVA nel suo docstring e non lo applicava.
+
+    Un club le cui distinte sono riempite da uomini che il listone non quota poteva uscire con un uomo
+    solo in campo. Nove di undici perche' un posto vuoto e' onesto - quel posto e' di un uomo fuori
+    perimetro - e cinque non lo sono. Qui si usa la costante VERA: il pavimento della vista dei test e'
+    sceso a uno apposta, e un test che lo abbassa non prova il pavimento.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def man(name, slot):
+        return {"name": name, "fc_id": name, "claim": 0.9,
+                "desc_recent_slots": f"m1:4-3-3:{slot}", "desc_titolarita": "titolare",
+                "desc_real_roles": "MC"}
+
+    assert View.SLOT_BOARD_MIN == 9
+    pochi = [man(f"M{slot}", slot) for slot in range(8)]
+    view = _slot_view(pochi, floor=View.SLOT_BOARD_MIN)
+    assert view._from_slots(pochi, [], "4-3-3", "short") is None, "otto posti non sono un undici"
+    abbastanza = [man(f"M{slot}", slot) for slot in range(9)]
+    view2 = _slot_view(abbastanza, floor=View.SLOT_BOARD_MIN)
+    assert len(view2._from_slots(abbastanza, [], "4-3-3", "short")) == 9
+
+
+def test_gli_indisponibili_sono_ballottaggi_in_coda_e_col_loro_tetto():
+    """Come nella coda di `eleven`: sono un'altra domanda - «di chi e' la maglia quando torna».
+
+    Un tetto solo sui due insiemi farebbe dipendere il secondo da quanti rivali sani ha quel posto, che
+    e' proprio l'informazione che il marchio serve a dare dove manca (regola dell'11/09/2026).
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    def man(name, claim, slots="", rung="titolare"):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": "MC"}
+
+    titolare = man("Titolare", 0.9, "m1:4-3-3:5;m2:4-3-3:5")
+    sani = [man(f"Sano{i}", 0.5 - i / 100) for i in range(3)]
+    fuori = [man(f"Fuori{i}", 0.8 - i / 100) for i in range(3)]
+    rows = [titolare, *sani]
+    view = _slot_view(rows + fuori)
+    drawn = view._from_slots(rows, fuori, "4-3-3", "short")
+    rivali = {row["name"]: [r["name"] for r in rivals] for _lane, row, rivals in drawn}
+    hurt = [name for name in rivali["Titolare"] if name.startswith("Fuori")]
+    assert len(hurt) == View.SIDELINED_DUELS, "gli indisponibili hanno un tetto loro"
+    assert rivali["Titolare"][-len(hurt):] == hurt, "...e stanno in CODA ai sani"
+
+
+def test_una_dritta_alternative_compare_fra_i_rivali_invece_di_finire_tagliata():
+    """«Deve comparire sul campetto» (operatore, 07/09/2026), e sotto il tetto di `boards.MAX_DUELS` un
+    ordine sbagliato equivale a non disegnarla."""
+    # ...e una dritta si unisce per `fc_id`, come nel file vero: qui i fixture ne hanno uno NUMERICO
+    ids = iter(range(100, 200))
+
+    def man(name, claim, slots="", rung="riserva"):
+        return {"name": name, "fc_id": next(ids), "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": "MC"}
+
+    titolare = man("Titolare", 0.9, "m1:4-3-3:5;m2:4-3-3:5")
+    # il centrocampo e' pieno di proposito: un posto libero della sua linea si prenderebbe uno dei
+    # ripieghi, e un uomo in campo non e' piu' un rivale - questo caso misura l'ORDINE dei rivali
+    compagni = [man(f"Compagno{slot}", 0.7, f"m1:4-3-3:{slot};m2:4-3-3:{slot}", rung="titolare")
+                for slot in (6, 7)]
+    forti = [man(f"Forte{i}", 0.8, rung="titolare") for i in range(3)]
+    dichiarato = man("Dichiarato", 0.1)
+    rows = [titolare, *compagni, *forti, dichiarato]
+    senza = _slot_view(rows)
+    prima = {row["name"]: [r["name"] for r in rivals]
+             for _lane, row, rivals in senza._from_slots(rows, [], "4-3-3", "short")}
+    assert prima["Titolare"][0] != "Dichiarato"
+    con = _slot_view(rows, {"Dichiarato": "alternative"})
+    dopo = {row["name"]: [r["name"] for r in rivals]
+            for _lane, row, rivals in con._from_slots(rows, [], "4-3-3", "short")}
+    assert dopo["Titolare"][0] == "Dichiarato", "la dritta viene prima del gradino di stagione"
+
+
+def test_due_dritte_starter_non_si_scacciano_a_vicenda():
+    """Verificato eseguendo, e la configurazione viva ne ha gia' DUE (Pinamonti e Berardi).
+
+    Col secondo dichiarato, il primo usciva dall'undici e tornava come ballottaggio: un uomo appena
+    inserito non ha occupato nessun posto, quindi segna zero sulla chiave del «piu' debole» ed e' sempre
+    lui la maglia piu' facile da prendere. E il ramo era del tutto SCOPERTO dai test, perche' la vista
+    che li serve non impostava `_player_rulings`: e' cosi' che il difetto e' arrivato a HEAD.
+    """
+    ids = iter(range(100, 200))
+
+    def man(name, claim, slots="", rung="titolare"):
+        return {"name": name, "fc_id": next(ids), "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": "MC"}
+
+    campo = [man(f"Campo{slot}", 0.9 - slot / 100, f"m1:4-3-3:{slot};m2:4-3-3:{slot}")
+             for slot in range(11)]
+    primo, secondo = man("Primo", 0.2), man("Secondo", 0.1)
+    rows = campo + [primo, secondo]
+    view = _slot_view(rows, {"Primo": "starter", "Secondo": "starter"})
+    drawn = view._from_slots(rows, [], "4-3-3", "short")
+    in_campo = [row["name"] for _lane, row, _rivals in drawn]
+    assert "Primo" in in_campo and "Secondo" in in_campo, "due dichiarazioni, due maglie"
+    assert len(in_campo) == 11 and len(set(in_campo)) == 11
+
+
+def test_un_posto_che_nessuno_ha_occupato_va_prima_alla_sua_RIGA():
+    """Il COMPLETAMENTO, ed e' l'aritmetica della mappatura per riga e non un difetto dei dati.
+
+    Una riga di `n` uomini letta dentro una di `m` piu' larga cade sui suoi ESTREMI: il centrocampo a
+    due di un 4-2-3-1 vota gli slot 5 e 7 di un 4-3-3 e MAI il 6. Quindi il posto scoperto e' una cosa
+    che la fonte non dice, e va a chi quella RIGA l'ha occupata e non ha ancora una maglia - la fonte
+    dice che ha cominciato li', e quale dei tre posti sia e' esattamente cio' che la mappatura non sa
+    dire. E' il caso Fiorentina: Fagioli secondo sul 5 e sul 7, e senza questo ramo non era disegnato
+    affatto mentre la riga restava a due.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    # il 6 di un 4-3-3 non riceve nessun voto da un centrocampo a due
+    assert View._slot_across_shapes("4-2-3-1", 5, "4-3-3")[0] == 5
+    assert View._slot_across_shapes("4-2-3-1", 6, "4-3-3")[0] == 7
+
+    def man(name, claim, slots, rung="titolare"):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": "MC"}
+
+    ndour = man("Ndour", 0.9, "m1:4-2-3-1:5;m2:4-3-3:5")
+    atta = man("Atta", 0.8, "m1:4-2-3-1:8;m2:4-3-3:7")
+    fagioli = man("Fagioli", 0.7, "m1:4-2-3-1:6;m3:4-3-3:5")
+    estraneo = man("Estraneo", 0.95, "", rung="bandiera")
+    rows = [ndour, atta, fagioli, estraneo]
+    view = _slot_view(rows)
+    drawn = view._from_slots(rows, [], "4-3-3", "short")
+    where = {row["name"]: view._slot_order.get(id(row)) for _lane, row, _rivals in drawn}
+    assert where["Ndour"] == 5 and where["Atta"] == 7
+    assert where["Fagioli"] == 6, "la RIGA viene prima di chi la finestra non ha visto giocare"
+    assert where.get("Estraneo") != 6
+
+
+def test_il_ripiego_di_un_posto_scoperto_accetta_la_fascia_SPECCHIATA():
+    """`can_replace` col suo ripiego specchiato, che e' il filtro di ogni rivale del pannello: un destro
+    fa la fascia mancina quando nessuno la gioca. Senza, il posto restava vuoto."""
+    def man(name, claim, slots, codes, rung="titolare"):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": codes}
+
+    padrone = man("Mancino", 0.9, "m1:4-3-3:4;m2:4-3-3:4", "DL")
+    destro = man("Destro", 0.5, "", "DR")
+    # gli altri posti della difesa hanno un padrone, o il ripiego cade sul primo libero e questo caso
+    # misurerebbe l'ordine dei posti invece dello specchio
+    altri = [man(f"Centrale{slot}", 0.8, f"m1:4-3-3:{slot};m2:4-3-3:{slot}", "DC")
+             for slot in (1, 2, 3)]
+    rows = [destro, *altri]
+    view = _slot_view([padrone, destro, *altri])
+    drawn = view._from_slots(rows, [padrone], "4-3-3", "short")
+    where = {row["name"]: view._slot_order.get(id(row)) for _lane, row, _rivals in drawn}
+    assert where.get("Destro") == 4, "nessun mancino libero: la fascia va allo specchio"

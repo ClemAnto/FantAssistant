@@ -91,3 +91,36 @@ def test_the_judges_see_no_rulings_at_all(tmp_path):
 def test_the_three_values_are_declared_in_one_place():
     """Un quarto valore non si aggiunge senza dire cosa FA, quindi l'elenco è asserito e non implicito."""
     assert SnapshotView.PLAYER_RULINGS == ("starter", "alternative", "reserve")
+
+
+def test_una_dritta_non_tace_perche_la_cartella_e_nuova(tmp_path):
+    """`snapshot` disegna i campetti PRIMA di scrivere il manifest, e le dritte si leggono per STAGIONE.
+
+    Quindi su una cartella NUOVA `manifest.target_season` non c'e' ancora e `_load_player_rulings`
+    restituiva `{}`: tutte le dichiarazioni dell'operatore sparivano dai campetti che il toolkit spedisce,
+    in silenzio - e su una cartella RIUSATA valevano quelle della corsa precedente. Misurato il
+    13/09/2026 sul Sassuolo: con la stagione la board breve disegna Berardi, che e' letteralmente la
+    dritta «come AD deve andare sempre», e senza no.
+
+    E' lo stesso difetto del calendario di `platform_target` (v9.75) un piano piu' in la', quindi la cura
+    e' la stessa: il chiamante la stagione la SA e la passa, e l'iniezione avviene solo dove manca -
+    chi apre un foglio gia' scritto continua a leggere la sua.
+    """
+    import inspect
+
+    from euroleghe_ingest.gui import SnapshotView
+    from euroleghe_ingest.modules import boards, snapshot
+
+    # SENZA stagione il lettore non ha un blocco da leggere, ed e' il caso di una cartella nuova
+    path = tmp_path / "player_rulings.json"
+    path.write_text(json.dumps({"2026-27": {"531": {"standing": "starter"}}}), encoding="utf-8")
+    cfg = _Config(path)
+    assert _View(cfg, season=None)._load_player_rulings() == {}
+    assert _View(cfg, season="2026-27")._load_player_rulings() == {531: "starter"}
+
+    # ...quindi la stagione la passa chi la sa, e la catena la porta fino a li'
+    assert "season" in inspect.signature(SnapshotView.load_sheet).parameters
+    assert 'self.manifest["target_season"] = season' in inspect.getsource(SnapshotView.load_sheet)
+    assert "season=season" in inspect.getsource(boards.extract_modes)
+    assert "season=season" in inspect.getsource(boards.write_boards)
+    assert "season=window.target_season" in inspect.getsource(snapshot.run)

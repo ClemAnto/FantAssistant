@@ -571,6 +571,7 @@ def extract_modes(config, sheet: Path, modes: tuple[str, ...] = ("typical",), *,
                   apply_rulings: bool = False,
                   with_rivals: bool = False,
                   matchdays: float | None = None,
+                  season: str | None = None,
                   ) -> dict[str, tuple[dict[str, dict], dict[int, dict]]]:
     """{modo: (board per club, scala per fc_id)} - una sessione Tk e un caricamento del foglio per tutti.
 
@@ -586,7 +587,15 @@ def extract_modes(config, sheet: Path, modes: tuple[str, ...] = ("typical",), *,
     root.withdraw()
     try:
         view = SnapshotView(root, config)
-        view.load_sheet(Path(sheet), apply_rulings=apply_rulings)
+        # ...E LA STAGIONE PRIMA DI CARICARE, per la stessa ragione del calendario qui sotto e con un
+        # prezzo peggiore. `_load_player_rulings` chiede `manifest.target_season` per sapere quale blocco
+        # di `config/player_rulings.json` leggere, e su una cartella NUOVA quel manifest non c'e' ancora:
+        # le dritte dell'operatore uscivano VUOTE su ogni foglio scritto da zero, e su una cartella
+        # riusata valevano quelle della corsa precedente. Misurato il 13/09/2026 sul Sassuolo: col
+        # manifest la board breve disegna Berardi - che e' letteralmente la dritta «come AD deve andare
+        # sempre» - e senza no. Una dichiarazione che tace secondo se la cartella esisteva e' peggio di
+        # una dichiarazione che nessuno applica, perche' nessuno se ne accorge.
+        view.load_sheet(Path(sheet), apply_rulings=apply_rulings, season=season)
         # IL CALENDARIO DELLA PIATTAFORMA, DETTO invece che riletto. `snapshot` chiama questa funzione
         # PRIMA di scrivere il manifest, quindi su una cartella nuova `view.manifest` non ha `matchdays`
         # e `platform_matchdays()` risponde zero: `minutes_next` perde allora la meta' del suo `P` che
@@ -647,7 +656,7 @@ def disagreements(board: dict) -> list[str]:
 
 
 def write_boards(config, folder: Path, mode: str = "typical",
-                 matchdays: float | None = None) -> dict:
+                 matchdays: float | None = None, season: str | None = None) -> dict:
     """Write `boards.json` beside the sheet it describes, and say what it contains.
 
     Beside the sheet ON PURPOSE: a board that could come from a different sheet than the one exported is a
@@ -661,7 +670,7 @@ def write_boards(config, folder: Path, mode: str = "typical",
     # non si disegna - non come «l'ultimo periodo non dice niente».
     modes = (mode, "short") if mode == "typical" else (mode,)
     drawn_modes = extract_modes(config, folder, modes, apply_rulings=True, with_rivals=True,
-                                matchdays=matchdays)
+                                matchdays=matchdays, season=season)
     boards, statuses = drawn_modes[mode]
     payload = {
         "sheet": Path(folder).name,

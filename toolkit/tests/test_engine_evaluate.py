@@ -980,17 +980,25 @@ def test_a_season_not_yet_played_is_priced_on_last_seasons_calendar(prepared):
     so a calendar of zero prices every player at zero appearances, which makes VALUE and SURPLUS zero and
     leaves the auction list sorted by nothing at all.
 
-    The fallback used to live in `snapshot.build`, i.e. in one CALLER, and the Auction panel asking the
-    same question got a whole listone at zero. It now lives in `engine_predictions`, where the price is
-    decided, which is the only place that reaches every caller.
+    IT LIVES IN `features.prepare`, and the road here is the lesson. The fallback was first written in
+    `snapshot.build`, i.e. in one CALLER, and the Auction panel asking the same question got a whole
+    listone at zero; it was then moved to `engine_predictions`, which is a caller too - `estimates`, the
+    panel and anyone else who calls `prepare` still read the raw number. Now the number is right for
+    EVERY reader of a `WindowData`, and the consumer only writes the note.
     """
     from euroleghe_ingest.modules import snapshot
 
-    _cfg, conn, window, data = prepared
-    data.matchdays_target = 0                     # what August looks like: a season with no votes yet
+    _cfg, conn, window, _data = prepared
+    # AGOSTO COM'E' DAVVERO: la stagione bersaglio non ha ancora nessun voto in archivio
+    conn.execute("DELETE FROM match_ratings WHERE season = ?", (TARGET_SEASON,))
+    conn.commit()
+    august = features.prepare(conn, window, "euro", "classic")
+    assert august.matchdays_target == MATCHDAYS, "the target calendar falls back to the input season's"
+    assert august.matchdays_from_prev is True
+
     out, predictions, source, notes = snapshot.engine_predictions(
-        conn, window, "euro", "classic", None, prepared=data, fits={})
-    assert out.matchdays_target == MATCHDAYS, "the target calendar falls back to the input season's"
+        conn, window, "euro", "classic", None, prepared=august, fits={})
+    assert out.matchdays_target == MATCHDAYS
     assert any("no full calendar" in note for note in notes), notes
     assert source == "R0-core"                    # no fits given, so the honest fallback says so
     priced = [p for p in predictions if p.pv_pred is not None]
@@ -998,17 +1006,17 @@ def test_a_season_not_yet_played_is_priced_on_last_seasons_calendar(prepared):
 
 
 def test_a_season_already_under_way_is_priced_on_what_REMAINS(prepared):
-    """...e se due giornate sono gia' state giocate, il bersaglio e' 36 e non 38 (04/09/2026).
+    """...e se due giornate sono gia' state giocate, il bersaglio e' 28 e non 30 (04/09/2026).
 
     Lo stesso ramo, dall'altro lato: `matchday_count` conta le giornate GIA' IN ARCHIVIO, quindi su una
-    stagione in corso `matchdays_target` (= quelle - le viste) e' zero e il ripiego diceva «non e' ancora
-    cominciata» di una stagione alla terza giornata. Il foglio del 03/09/2026 prezzava 38 giornate quando
-    ne restavano 36: ogni presenza attesa e ogni surplus gonfi del 5,6%.
+    stagione in corso `matchdays_target` (= quelle - le viste) e' zero o NEGATIVO, e il ripiego diceva
+    «non e' ancora cominciata» di una stagione alla terza giornata. Il foglio del 03/09/2026 prezzava 38
+    giornate quando ne restavano 36: ogni presenza attesa e ogni surplus gonfi del 5,6%.
     """
     from euroleghe_ingest.modules import snapshot
 
     _cfg, conn, window, data = prepared
-    data.matchdays_target = 0
+    data.matchdays_target, data.matchdays_from_prev = features.target_matchdays(0, MATCHDAYS, 2)
     data.matchdays_seen = 2
     out, _predictions, _source, notes = snapshot.engine_predictions(
         conn, window, "euro", "classic", None, prepared=data, fits={})

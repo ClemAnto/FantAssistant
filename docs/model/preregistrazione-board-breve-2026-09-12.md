@@ -4,6 +4,14 @@ Presa alle **2026-09-12T22:53**, PRIMA dei calci d'inizio — richiesta dell'ope
 tutte le attuali formazioni a breve termine delle squadre che non hanno ancora giocato questo
 weekend (anche europee) e poi confrontiamo gli appunti con le effettive partite».
 
+> **Nota del 13/09/2026, aggiunta prima che si giocasse:** questa tabella descrive la revisione
+> **63** del foglio. Nella notte e' entrato il blocco delle quindici correzioni della code-review
+> (`formazioni-tipo-v1.md` §12.8-§12.9) e la board breve cambia un uomo in 5 di questi 23 club, quindi
+> e' stata presa una **seconda** pre-registrazione alla revisione 64
+> ([preregistrazione-board-breve-2026-09-13.md](preregistrazione-board-breve-2026-09-13.md)), sempre
+> prima dei calci d'inizio. Si scorano tutte e due: questa dice come andava il codice di ieri, quella
+> come va quello che si spedisce.
+
 Sono i 23 club dei cinque campionati che giocano il **13-14/09/2026** e hanno un campetto sui nostri
 due fogli (`SHEET_REVISION` 63). Chi ha giocato l'11 o il 12 è fuori: di loro la board non è più una
 previsione. Il JSON completo, coi ballottaggi e le posizioni, è in

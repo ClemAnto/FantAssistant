@@ -1744,6 +1744,33 @@ def feature_availability(observations: list[Observation]) -> dict[str, dict[str,
             for name, _description in FEATURE_CHECKS}
 
 
+def target_matchdays(target_rounds: int, prev_rounds: int, seen: int) -> tuple[int, bool]:
+    """Le giornate che il modello sta PREVEDENDO, e se sono un ripiego: (giornate, ripiego?).
+
+    IL CALENDARIO DI UNA STAGIONE CHE NON SI E' ANCORA GIOCATA, e vive QUI e non in chi legge. Le
+    presenze si prevedono come QUOTA del calendario bersaglio, quindi un calendario di zero giornate
+    porta a zero ogni previsione - e con lei il valore, il surplus e l'ordinamento, che finisce ordinato
+    per niente. Su una stagione gia' cominciata il bersaglio e' quello che RESTA: `matchday_count` conta
+    le giornate GIA' IN ARCHIVIO, quindi su una stagione in corso il totale e quelle viste sono lo stesso
+    numero e la differenza e' zero - il foglio del 03/09/2026 prezzava 38 giornate quando ne restavano 36
+    e ogni surplus era gonfio del 5,6%.
+
+    LA GUARDIA E' `<= 0` E NON `not`: appena una giornata e' COMINCIATA ma non ancora votata - la 4a di
+    Serie A si e' giocata l'11/09/2026 e i voti ne portavano 3 - il conto e' 3 - 4 = **-1**, che e' falso
+    per `not` e vero per la vita del foglio: ogni `engine_pv_pred` usciva NEGATIVO (da -0,8 a -0,1 su 393
+    righe) e con lui valore e surplus. Uno zero si vede e si era visto; un meno uno passa.
+
+    E STA IN `prepare` PERCHE' OGNI LETTORE LO VEDA. La cura e' nata dentro `snapshot.engine_predictions`,
+    che e' un CONSUMATORE: il pannello d'asta, `estimates` e chiunque chiami `prepare` da se' leggevano il
+    numero crudo, e un calendario negativo moltiplicato dentro una colonna non si lamenta. Il gate non e'
+    toccato ne' qui ne' li': le sue finestre hanno la stagione bersaglio COMPLETA in archivio - una
+    pre-stagione non ha giornate viste e una in-season legge 38 - k - quindi questo ramo non scatta mai.
+    """
+    if target_rounds - seen > 0:
+        return target_rounds - seen, False
+    return max(prev_rounds - seen, 1), True
+
+
 @dataclass
 class WindowData:
     """A window plus everything the model is allowed to know. Built only by `prepare`."""
@@ -1763,6 +1790,11 @@ class WindowData:
     # ...e quelle già giocate alla data d'asta, che sono l'altro pezzo della stessa somma. 0 = finestra
     # pre-stagione, cioè tutte e dieci quelle pubblicate.
     matchdays_seen: int = 0
+    # ...e se `matchdays_target` è un RIPIEGO invece di un conteggio (`target_matchdays`): vero solo su
+    # una stagione bersaglio che i voti non hanno ancora, cioè mai su una finestra del gate. Chi scrive
+    # una nota lo legge di qui invece di rifare la sottrazione, o le due risposte finiscono per
+    # divergere - che è esattamente come questa guardia è rimasta mezza cura per otto giorni.
+    matchdays_from_prev: bool = False
     rounds: dict[str, int] = field(default_factory=dict)
     # Input-season lineup structure (auction-safe: the lineups are last season's). Per club the
     # (mean, p90, complete-XI count) of simultaneously fielded forwards, and per sorted fc_id pair
@@ -1937,16 +1969,20 @@ def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, 
                 replace(obs, cup_conf=exposed[obs.fc_id][0], cup_capped=exposed[obs.fc_id][1],
                         cup_at_risk=exposed[obs.fc_id][2]) if obs.fc_id in exposed else obs
                 for obs in observations]
+    prev_rounds = matchday_count(conn, platform, window.input_season)
+    target_rounds, from_prev = target_matchdays(
+        matchday_count(conn, platform, window.target_season), prev_rounds, len(seen))
     return WindowData(
         window=window, platform=platform, game=game,
         observations=observations,
         anchors=anchors(conn, platform, seasons, game),
         gk_rates=gk_rates, mu_rate=mu_rate,
-        matchdays_prev=matchday_count(conn, platform, window.input_season),
+        matchdays_prev=prev_rounds,
         # Su una finestra in-season il bersaglio è il RESTO: il totale meno quelle già giocate. Su una
         # pre-stagione `seen` è vuoto e questa riga è il conteggio di sempre.
-        matchdays_target=(matchday_count(conn, platform, window.target_season) - len(seen)),
+        matchdays_target=target_rounds,
         matchdays_seen=len(seen),
+        matchdays_from_prev=from_prev,
         rounds=league_rounds(conn, window.input_season),
         forward_caps=club_forward_caps(conn, platform, window.input_season),
         co_starts=forward_co_starts(conn, platform, window.input_season),

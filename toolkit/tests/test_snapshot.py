@@ -3301,9 +3301,12 @@ def test_a_shape_ruling_outlives_the_session_and_never_reaches_the_judge(tmp_pat
     view._save_ruling("Napoli", None)
     assert json.loads((tmp_path / "board_rulings.json").read_text(encoding="utf-8")) == {}
 
-    # and the harness seam: the loader seeds by default, and not when asked to stay pure
-    assert View.load_sheet.__defaults__ == (True,)
+    # and the harness seam: the loader seeds by default, and not when asked to stay pure. Il default si
+    # legge per NOME e non dalla tupla posizionale: `load_sheet` ha preso un parametro `season` il
+    # 13/09/2026 e quella tupla e' cambiata senza che l'invariante si muovesse di un millimetro.
     import inspect
+
+    assert inspect.signature(View.load_sheet).parameters["apply_rulings"].default is True
 
     from euroleghe_ingest.modules import boards, press
     from euroleghe_ingest.modules import snapshot as snap

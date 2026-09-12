@@ -5948,10 +5948,53 @@ Quattro abitudini, e tre sono errori miei della stessa giornata.
   i blocchi avevano per costruzione la stessa taglia sui due lati, quindi il conto si annullava. I test
   passavano perche' asserivano INTERVALLI che l'identita' soddisfa. *Quando si scrive una
   trasformazione, si conta quante volte cambia qualcosa - e un test che accetta l'identita' non e' un
-  test di quella trasformazione.*
+  test di quella trasformazione.* **Chiusa il 13/09/2026**: riscritta PER RIGA ne sposta **512 su
+  1331**, il test e' un conteggio e non un intervallo, e la board breve legge 220 uomini su 220 in
+  20 club di 20.
 - E **`git checkout -- <file>` cancella il lavoro non committato di un'altra sessione**: fatto su `gui.py`
   con 298 righe altrui dentro, recuperate da una copia di scratchpad. Per tornare indietro su una propria
   modifica in un file condiviso si toglie la patch, non si ripristina il file.
+
+## Un VINCOLO si applica DOPO il filtro di ammissibilita', e una DICHIARAZIONE non tace per una cartella
+**13/09/2026, chiudendo i quindici rilievi della code-review della lettura per slot
+(`formazioni-tipo-v1.md` §12.8-§12.9).** Il completamento che quella review aveva lasciato aperto - «chi
+prende un posto che, con la mappatura per riga, nessuno ha mai occupato» - si e' chiuso con due regole, e
+nessuna delle due riguarda la mappatura.
+
+**UN VETO APPLICATO PRIMA DEL FILTRO DI POSIZIONE SVUOTA IL SERBATOIO DEGLI UOMINI CHE QUEL POSTO LO SANNO
+FARE.** La regola delle staffette («due che si alternano non occupano due posti») era messa sul serbatoio
+GREZZO dei ripieghi, e si tornava indietro solo se il serbatoio si svuotava del tutto. All'Atalanta lo slot
+6 e' di un indisponibile, i liberi erano sei e l'unico centrocampista era Kessie: il veto toglieva lui,
+restavano un difensore e due ali, il filtro di posizione le rifiutava e **il posto restava vuoto**. Il
+ripiego `or serbatoio` non scattava perche' il serbatoio non era vuoto - era vuoto di gente utile. La forma
+che regge: prima chi PUO' occupare il posto, poi il veto, e il veto cede se toglie l'ultimo candidato.
+*Un ripiego che chiede «e' rimasto qualcuno?» invece di «e' rimasto qualcuno che serve?» non scatta mai
+dove serve.*
+
+**E UN POSTO SCOPERTO SI RIEMPIE DALLA SUA RIGA PRIMA CHE DA FUORI, perche' e' l'aritmetica a lasciarlo
+scoperto.** Una riga di `n` uomini letta dentro una di `m` piu' larga cade sui suoi ESTREMI - il centrocampo
+a due di un 4-2-3-1 vota gli slot 5 e 7 di un 4-3-3 e mai il 6 - quindi quel posto e' una cosa che la fonte
+NON DICE, non una che dice vuota. Va a chi quella RIGA l'ha occupata e non ha ancora una maglia (alla
+Fiorentina e' Fagioli, secondo sul 5 e sul 7, che senza questo ramo non era disegnato affatto), e li' non si
+chiede il ruolo granulare: e' un PROFILO, e non puo' contraddire un'osservazione.
+
+**UNA DICHIARAZIONE CHE TACE SECONDO SE LA CARTELLA ESISTEVA E' PEGGIO DI UNA CHE NESSUNO APPLICA**, perche'
+nessuno se ne accorge. `_load_player_rulings` chiede `manifest.target_season` per sapere quale blocco di
+`config/player_rulings.json` leggere, e `snapshot` scrive il manifest DOPO la passata dei campetti: su una
+cartella NUOVA le dritte dell'operatore uscivano **vuote** da ogni board che il toolkit spedisce, su una
+riusata valevano quelle della corsa precedente. Terza istanza della stessa famiglia dopo il calendario di
+`platform_target` (v9.75), e la cura e' la sua - **il chiamante la stagione la SA e la passa**, iniettata
+solo dove manca. Misurato sul Sassuolo: con la stagione la board breve disegna Berardi, che e' letteralmente
+la dritta «come AD deve andare sempre», e senza no. *Quando un fatto manca in fondo a una catena si cerca
+dove viene LASCIATO CADERE, prima di concludere che nessuno l'ha misurato* - e a trovarlo non e' stata una
+rilettura ma un A/B fra due cartelle, una nuova e una riusata.
+
+**E LA GUARDIA DI UN NUMERO STA DOVE IL NUMERO NASCE, non in chi lo legge.** La clamp del calendario («le
+giornate che restano non possono essere zero ne' negative») viveva in `snapshot.engine_predictions`, che e'
+un CONSUMATORE: il pannello d'asta, `estimates` e chiunque chiami `features.prepare` da se' leggevano il
+numero crudo. Ora e' `features.target_matchdays`, dentro `prepare`, e il consumatore scrive solo la NOTA
+leggendo un flag invece di rifare la sottrazione. `backtest --verify` resta **22/22** - nessuna finestra del
+gate ha la stagione bersaglio incompleta in archivio - e quello si VERIFICA invece di argomentarlo.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

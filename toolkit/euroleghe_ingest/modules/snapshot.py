@@ -42,7 +42,6 @@ import os
 import sqlite3
 import statistics
 import time
-from collections import Counter
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
@@ -613,15 +612,17 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      porta accanto alla prima. Misurate fuori campione su 3.638 partite-club (due stagioni, cinque
 #      campionati), giudicate sulla partita SUCCESSIVA: Brier 0.1696 -> 0.1544, 8.46 -> 8.69 dei veri
 #      undici. Vuote su una pre-stagione per costruzione, `engine_*` non si muove.
-#   57-bis (12/09/2026) `desc_recent_line`: la linea in cui la FONTE lo ha schierato nelle partite
-#      della finestra che ha COMINCIATO (G|D|M|F), dal caso Chukwueze dell'operatore - «nelle ultime 3
-#      ha giocato come centrocampista destro, come mai non compare?». Il ruolo granulare e' un PROFILO
-#      osservato il giorno in cui gira e non cambia con l'uso (`RW`/`F` su tutti i 26 giorni dal 28/07
-#      all'11/09), mentre la distinta di una partita e' un fatto su quella partita: lui la fonte lo
-#      mette a CENTROCAMPO, slot 4, in tutt'e due quelle che ha cominciato. Misurato sul foglio del
-#      12/09: 26 titolari su 298 sono schierati in una linea che i loro codici non coprono, 11 non sono
-#      disegnati e di quelli 4 le probabili li fanno partire. Il valore era gia' nella SELECT di
-#      `appearances_with_worth` e nessuno lo teneva.
+#   57-bis (12/09/2026) `desc_recent_slots`: il POSTO in cui la fonte lo ha schierato nelle partite
+#      della finestra che ha COMINCIATO, ognuno con la partita e col modulo («16284970:3-4-2-1:4»).
+#      Dal caso Chukwueze dell'operatore - «nelle ultime 3 ha giocato come centrocampista destro, come
+#      mai non compare?». Il ruolo granulare e' un PROFILO osservato il giorno in cui gira e non cambia
+#      con l'uso (`RW`/`F` su tutti i 26 giorni dal 28/07 all'11/09), mentre la distinta di una partita
+#      e' un fatto su quella partita: lui la fonte lo mette a CENTROCAMPO, slot 4, in tutt'e due quelle
+#      che ha cominciato. Su di lui la board dell'ultimo periodo si LEGGE invece di calcolarla
+#      (`gui._from_slots`, `formazioni-tipo-v1.md` §12). Il valore era gia' nella SELECT di
+#      `appearances_with_worth` e nessuno lo teneva. Una colonna gemella con la sola LINEA e' stata
+#      scritta e tolta lo stesso giorno: il posto la contiene, e due risposte a una domanda sola sono
+#      la cosa che questo file evita altrove.
 #   59 `formation_shapes_recent` sui CLUB: i moduli delle ultime `presence.recent_window` partite di
 #      CAMPIONATO, da cui la board dell'ultimo periodo prende il suo modulo - regola dell'operatore
 #      dell'11/09/2026, «il modulo scelto dipende da quello usato nelle ultime tre partite e poi si vede
@@ -658,7 +659,25 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      moduli e 12 disegni, e passa da 11 a 20 club su 20 concordi col modulo dichiarato nelle ultime
 #      tre - l'Atalanta leggeva 4-3-2-1 contro un 4-3-3 detto tre volte su tre, il Napoli 4-2-1-3.
 #      `engine_*` non si muove: nessuna di queste colonne entra in `evaluate`.
-SHEET_REVISION = 63
+#   63 (12/09/2026) - `desc_recent_slots`: il POSTO che la fonte gli ha dato, non la sola linea.
+#   64 (13/09/2026) - LA COLONNA PORTA ANCHE LA PARTITA (`16284970:3-4-2-1:4`), E `engine_*` SI MUOVE.
+#      Due cose in una revisione perche' un foglio alla 63 e' stantio per tutt'e due.
+#      (a) La PARTITA serve perche' «hanno cominciato insieme» sia un fatto invece di un'inferenza: due
+#      uomini che possiedono due slot della stessa distinta erano in campo insieme, e la regola delle
+#      staffette - che poggia su un'euristica sui minuti - non puo' contraddire un'osservazione. Senza
+#      quel terzo campo la regola era IRRAGGIUNGIBILE sulla board breve, spenta in silenzio il giorno
+#      dopo la sua adozione. Con lei viaggia la mappatura fra moduli riscritta PER RIGA: la vecchia
+#      diceva di mappare per posizione relativa dentro un blocco ed era l'IDENTITA' su 1331
+#      combinazioni di 1331, cioe' lo slot 4 di un 4-3-3 (il quarto difensore) votava per lo slot 4 di
+#      un 3-4-2-1, che e' il primo centrocampista. Ora ne sposta 512 su 1331, e la board dell'ultimo
+#      periodo legge undici uomini su undici in 20 club di 20.
+#      (b) `engine_*` SI MUOVE, ed e' il fix del calendario NEGATIVO della revisione precedente, che
+#      non era stata alzata: la 4a giornata cominciata e non votata faceva `3 - 4 = -1`, e ogni
+#      `engine_pv_pred` usciva negativo su 393 righe di 562, con valore e surplus. La guardia e' ora in
+#      `features.target_matchdays`, cioe' dove ogni lettore di una `WindowData` la vede e non solo
+#      questo modulo; `backtest --verify` resta 22/22, perche' nessuna finestra del gate ha la stagione
+#      bersaglio incompleta in archivio.
+SHEET_REVISION = 64
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1968,7 +1987,6 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
     # corso prende il posto che si e' liberato e non quello che l'allenatore gli aveva assegnato, quindi
     # una sua riga direbbe una cosa sull'avversario invece che su di lui (Chukwueze: `M` nelle due da
     # titolare, `F` nei 29 minuti da subentrato).
-    lines: list[str] = []
     # ...E IL POSTO, non solo la linea. La fonte numera la distinta 0-10 dentro il modulo, quindi
     # «dove ha giocato» e' un intero e non una deduzione: e' cio' su cui la board dell'ultimo periodo
     # si costruisce (regola dell'operatore, 12/09/2026: «vedi i calciatori che hanno giocato di piu'
@@ -1988,10 +2006,8 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
             minutes += min(entry.minutes, 90.0)
             starts += 1 if entry.started else 0
             full += 1 if entry.minutes >= presence.FULL_MATCH_MINUTES else 0
-            if entry.started and entry.position:
-                lines.append(entry.position)
             if entry.started and entry.slot is not None and entry.shape:
-                slots.append(f"{entry.shape}:{int(entry.slot)}")
+                slots.append(f"{match_id}:{entry.shape}:{int(entry.slot)}")
         elif state == "b":
             available += 1
     return {
@@ -2001,18 +2017,13 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
         "recent_starts": starts,
         "recent_minutes": round(minutes, 1),
         "recent_full": full,
-        # La piu' frequente, e a pari merito la PIU' RECENTE - `window` e' dal piu' recente e
-        # `Counter.most_common` conserva l'ordine di inserimento. VUOTA per chi non ha cominciato
-        # nessuna delle partite guardate: li' non c'e' niente da osservare, e «vuoto = ignoto» tiene
-        # chi legge sui codici invece di inventargli una linea.
-        "recent_line": Counter(lines).most_common(1)[0][0] if lines else None,
-        # Gli slot delle partite che ha cominciato, dalla piu' recente, OGNUNO COL MODULO in cui e'
-        # stato giocato: «3-4-2-1:4;3-4-2-1:4» e' un uomo che ha giocato due volte nello stesso posto
-        # dello stesso modulo. Senza il modulo il numero non e' confrontabile - 7 club su 20 hanno
-        # giocato lo stesso modulo in tutte e tre le ultime, 12 in due su tre - e chi legge tiene solo
-        # le partite del modulo che sta disegnando: «vuoto = ignoto» invece di sommare posti diversi. Il conteggio per slot lo fa chi DISEGNA, perche' e'
-        # una domanda sul club e non sull'uomo - due uomini si contendono uno slot, e un numero
-        # scritto sulla riga di ciascuno non saprebbe dirlo.
+        # Gli slot delle partite che ha COMINCIATO, dalla piu' recente, ognuno con la partita e col
+        # modulo in cui e' stato giocato: «16284970:3-4-2-1:4». La PARTITA serve perche' «hanno
+        # cominciato insieme» sia un fatto invece di un'inferenza - due uomini che possiedono due slot
+        # della stessa distinta erano in campo insieme, e nessuna euristica sui minuti lo puo' negare.
+        # Il MODULO perche' senza di lui il numero non e' confrontabile: con quattro dietro lo slot 4
+        # e' un difensore, con tre e' il primo centrocampista. VUOTO per chi non ha cominciato nessuna
+        # delle partite guardate: li' non c'e' niente da osservare.
         "recent_slots": ";".join(slots) or None,
     }
 
@@ -5443,34 +5454,15 @@ def engine_predictions(conn, window: features.Window, platform: str, game: str,
         prepared = features.prepare(conn, window, platform, game, league=league,
                                     squad_source=squad_source)
     data = prepared
-    if data.matchdays_target <= 0:
-        # THE CALENDAR OF A SEASON NOT YET PLAYED, and it lives here rather than in whoever calls this:
-        # appearances are predicted as a SHARE of the target calendar, so a calendar of zero rounds turns
-        # every prediction into zero - and then VALUE and SURPLUS are zero too and the ranking is sorted
-        # by nothing. It used to sit in `snapshot.build`, which is the caller: the Auction panel asking
-        # the same question got a whole listone priced at zero appearances. Same shape as every other
-        # defect this project has paid for - the fix belongs where the price is decided.
-        # ...E SU UNA STAGIONE GIA' COMINCIATA IL BERSAGLIO E' QUELLO CHE RESTA (04/09/2026). Il conto
-        # sopra e' `giornate del bersaglio - quelle viste`, e `matchday_count` conta le giornate GIA' IN
-        # ARCHIVIO: su una stagione in corso sono le stesse due, quindi la differenza e' zero e questo
-        # ramo scattava dicendo «non e' ancora cominciata» di una stagione alla terza giornata. Il foglio
-        # del 03/09/2026 prezzava percio' 38 giornate quando ne restavano 36, e ogni `engine_pv_pred` e
-        # ogni surplus erano gonfi del 5,6%. Non e' una regola ed e' un errore di UNITA': le giornate che
-        # restano sono quelle del calendario meno quelle gia' giocate, e il gate non lo vede perche' le
-        # sue finestre in-season hanno la stagione bersaglio COMPLETA in archivio (38 - k, positivo).
-        #
-        # ...E LA GUARDIA E' `<= 0` E NON `not`, che e' come questa stessa cura e' rimasta meta' cura
-        # per otto giorni (12/09/2026). Appena una giornata e' COMINCIATA ma non ancora votata - la 4a
-        # di Serie A si e' giocata l'11/09 e i voti ne portano 3 - il conto e' 3 - 4 = **-1**, che e'
-        # falso per `not` e vero per la vita del foglio: ogni `engine_pv_pred` usciva NEGATIVO (da -0,8
-        # a -0,1 su 393 righe) e con lui valore e surplus. Uno zero si vede e si era visto; un meno uno
-        # passa la guardia e rende l'intero foglio inutilizzabile senza che nulla si lamenti.
-        remaining = max(data.matchdays_prev - data.matchdays_seen, 1)
-        data.matchdays_target = remaining
+    if data.matchdays_from_prev:
+        # IL CALENDARIO E' UN RIPIEGO, e lo dice il foglio. L'aritmetica sta in `features.target_matchdays`
+        # - dove ogni lettore di una `WindowData` la vede, e non solo questo - e qui resta solo la frase,
+        # che legge il flag invece di rifare la sottrazione: due copie di quel conto sono come il foglio e
+        # il pannello cominciano a rispondere due cose sullo stesso calendario.
         notes.append(
             f"{window.target_season} has no full calendar in the ratings yet, so expected appearances "
             f"are scaled on {window.input_season}'s ({data.matchdays_prev} rounds)"
-            + (f" LESS the {data.matchdays_seen} already played: {remaining} remain"
+            + (f" LESS the {data.matchdays_seen} already played: {data.matchdays_target} remain"
                if data.matchdays_seen else ""))
     listone = sum(1 for obs in data.observations if obs.price_initial is not None)
     if squad_source == "real" and listone < len(data.observations):
@@ -5618,7 +5610,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # ed e' quello che rende tutta la lettura corta inerte su ogni finestra su cui il gate ha pubblicato
     # un numero. `engine_*` non le legge: `evaluate` non importa `presence`.
     "desc_recent_looked", "desc_recent_available", "desc_recent_played",
-    "desc_recent_starts", "desc_recent_minutes", "desc_recent_full", "desc_recent_line", "desc_recent_slots",
+    "desc_recent_starts", "desc_recent_minutes", "desc_recent_full", "desc_recent_slots",
     # LE SUE STAFFETTE: i compagni che giocano QUANDO LUI NON C'E', come `fc_id:punteggio` separati da
     # `;` e dal piu' forte. Definizione dell'operatore (11/09/2026) e nessuna acquisizione: l'intervallo
     # in campo si ricava dai minuti (`pitch_span`), e l'evento di sostituzione non serve perche' quello
@@ -6222,7 +6214,6 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_recent_starts": form.get("recent_starts"),
             "desc_recent_minutes": form.get("recent_minutes"),
             "desc_recent_full": form.get("recent_full"),
-            "desc_recent_line": form.get("recent_line"),
             "desc_recent_slots": form.get("recent_slots"),
             "desc_relay": ";".join(f"{other}:{score:.3f}"
                                    for other, score in layers["relay"].get(obs.fc_id, ())) or None,
@@ -7635,8 +7626,11 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # decisi da se la cartella esisteva - misurato il 05/09/2026 su Malen: 74.0 col manifest, 78.0
         # senza, e 241 righe su 602 in mezzo, abbastanza da riordinare i tre gradini alti della scala
         # (che hanno un pavimento a 75' e uno a 65').
+        # ...E LA STAGIONE PER LO STESSO MOTIVO: le dritte dell'operatore si leggono per stagione, e il
+        # manifest che la porta si scrive DOPO questa riga - su una cartella nuova uscivano vuote.
         board_summary = write_boards(ctx.config, folder,
-                                     matchdays=float(data.matchdays_target or 0) or None)
+                                     matchdays=float(data.matchdays_target or 0) or None,
+                                     season=window.target_season)
     except Exception as exc:                              # noqa: BLE001 - a display is not a sheet's problem
         print(f"[snapshot] note: boards.json not written ({exc!r}). The sheet is complete; the app's pitch"
               f" falls back to what the bundle carries. `python -m euroleghe_ingest snapshot` on a machine"

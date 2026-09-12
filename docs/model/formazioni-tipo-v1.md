@@ -1670,3 +1670,122 @@ per riga, nessuno ha mai occupato), poi spedire il blocco intero. La colonna dov
 PARTITA (`match:modulo:slot`) perche' la staffetta possa distinguere un fatto da un'inferenza, e quello
 alza `SHEET_REVISION`.
 
+**CHIUSA IL 13/09/2026, in quell'ordine: §12.9.** Il completamento non c'entrava con la mappatura - erano
+un veto applicato prima del filtro di posizione e un posto che l'aritmetica lascia scoperto - e il blocco
+e' partito intero, con un rilievo in piu' che solo l'A/B poteva trovare.
+
+
+## 12.9 — Il blocco spedito: il completamento chiuso, e i quindici rilievi con il loro numero (13/09/2026)
+
+§12.8 lasciava il lavoro in uno stash con una regressione aperta - gli undici completi da 20/20 a 16/20 -
+e una strada: **chiudere prima il completamento, poi spedire il blocco intero**. Fatto in quest'ordine, e
+la parte utile e' che il completamento non c'entrava con la mappatura.
+
+### 12.9.1 — Il completamento: due cause, e nessuna era quella che sembrava
+
+Ripresa la misura sul foglio Serie A, la regressione non era 16/20 ma **17/20**, e i tre club scoperti
+avevano tutti un posto di CENTROCAMPO vuoto. Le cause sono due e si sono trovate FOTOGRAFANDO il singolo
+posto invece di ragionare sull'aggregato - quello che il §16 del simulatore chiama «la fotografia batte il
+ragionamento», qui applicato a uno slot.
+
+- **Il veto della staffetta era applicato PRIMA del filtro di posizione.** All'Atalanta lo slot 6 e' di
+  Gaetano, indisponibile; dei sei uomini liberi il veto ne toglieva tre e ne restavano `[Kristensen T.
+  (DC;DR;DL), Rowe (LW;RW), Pompei (nessun codice)]` - cioe' **l'unico centrocampista libero, Kessie, era
+  proprio uno dei tolti**. Il ripiego «se il veto svuota tutto, si rinuncia al veto» non scattava, perche'
+  il serbatoio non era vuoto: era vuoto di gente utile. Ora il veto si applica DOPO `can_replace` e cede se
+  toglie l'ultimo candidato.
+- **Un posto che nessuno ha mai occupato non aveva un serbatoio.** Alla Fiorentina e alla Juventus lo slot
+  scoperto non ha nemmeno un padrone, e non e' un difetto dei dati: e' l'aritmetica della mappatura per
+  riga - un centrocampo a DUE letto dentro uno a TRE vota gli slot 5 e 7 e **mai** il 6
+  (`_slot_across_shapes("4-2-3-1", 5 / 6, "4-3-3")` = 5 e 7, asserito). Quel posto ora va a chi quella
+  RIGA l'ha occupata e non ha ancora una maglia - alla Fiorentina e' Fagioli, secondo sia sul 5 sia sul 7,
+  che senza questo ramo non era disegnato affatto - e solo dopo a chi la finestra non ha visto giocare,
+  col filtro della linea. Sul row-mate NON si chiede `can_replace`: la fonte dice che ha cominciato li', e
+  il ruolo granulare e' un PROFILO che non puo' contraddire un'osservazione (§11.2).
+
+Verdetto sul foglio Serie A: **20/20 undici completi, 220 uomini su 220**, e su euro 36 club su 37 - il
+trentasettesimo e' il Monaco, dove il terzo trequartista delle tre distinte e' un uomo che il listone
+EuroLeghe non quota. Quello resta un posto vuoto ed e' giusto che si veda: *un posto vuoto si vede, un
+uomo inventato no.*
+
+### 12.9.2 — L'A/B, su UNA variabile e con la base ricostruita
+
+Il foglio del 12/09 era stato SOVRASCRITTO dalla rigenerazione, quindi la base non si poteva citare: e'
+stata **ricostruita** montando un worktree su HEAD e rifacendo il foglio con lo stesso DB e lo stesso
+`--no-refresh`. Le due cartelle sono entrambe NUOVE, il che conta piu' di quanto sembri (§12.9.3).
+
+| | HEAD | col blocco |
+|---|---|---|
+| board BREVE, uomini | 220 | 220 |
+| ...undici completi | 20/20 | 20/20 |
+| ...uomini in comune | — | **211 su 220** (7 club muovono un uomo) |
+| ...moduli disegnati diversi | — | **0** |
+| board STAGIONE, giudice stampa | MATCH 11 · ALT 3 · DIFF 6 · **150/220** | identico |
+| ballottaggi indisponibili elencati | 142 | **115** (`SIDELINED_DUELS`) |
+| `backtest --verify` | 22/22 | 22/22 |
+
+I nove uomini che si muovono: Atalanta `Kessie -> Samardzic`, Lazio `Leite -> Pedraza`, Lecce
+`Ndaba -> Kaba`, Parma `Ndiaye, Romero D. -> Britschgi, Lontani`, **Sassuolo `Esposito Se. -> Berardi`**,
+Torino `Adams C., Mandragora -> Braganca, Cacciamani`, Udinese `Kabasele -> Bertola`. Il piu' istruttivo e'
+l'Atalanta: Samardzic ha COMINCIATO una delle tre partite a centrocampo e Kessie nessuna, quindi il posto
+scoperto va a chi la fonte ci ha visto - che e' tutto il senso della lettura per slot.
+
+### 12.9.3 — Il sedicesimo rilievo, e l'ha trovato l'A/B: le DRITTE tacevano su una cartella nuova
+
+Il Sassuolo esce dall'A/B con **Berardi dentro**, e sulle prime sembrava un effetto del blocco. Non lo era:
+rifacendo il foglio in una cartella NUOVA, Berardi **spariva anche col codice nuovo**, mentre leggendo la
+stessa cartella una volta finita ricompariva. La causa non e' in questa funzione: `_load_player_rulings`
+chiede `manifest.target_season` per sapere quale blocco di `config/player_rulings.json` leggere, e
+`snapshot` scrive il manifest **dopo** la passata dei campetti. Quindi su ogni cartella nuova le dritte
+dell'operatore uscivano vuote - in silenzio - e su una riusata valevano quelle della corsa precedente.
+
+E' la terza istanza della stessa famiglia dopo il calendario di `platform_target` (v9.75), e la cura e' la
+sua: la stagione la passa il chiamante (`write_boards(..., season=window.target_season)` ->
+`extract_modes` -> `load_sheet(..., season=...)`), iniettata **solo dove manca**, cosi' chi apre un foglio
+gia' scritto continua a leggere la sua. *Una dichiarazione che tace secondo se la cartella esisteva e'
+peggio di una che nessuno applica, perche' nessuno se ne accorge.*
+
+### 12.9.4 — I quindici rilievi, uno per uno
+
+**I tre grossi.**
+
+1. **La mappatura era l'IDENTITA'** (1331 combinazioni, 0 rimappate). Riscritta per RIGA: **512 su 1331**
+   si spostano, un difensore resta un difensore, e dove la riga nel modulo disegnato non esiste (una
+   trequarti che quel modulo non ha) si cade sulla riga piu' vicina, a peso ridotto. Il test non asserisce
+   piu' un intervallo: **conta** quante combinazioni cambiano e verifica su tutte le coppie di moduli del
+   regolamento che la LINEA sia conservata.
+2. **La regola delle staffette era irraggiungibile sulla board breve.** Ora vive dentro `_from_slots`, e
+   con la distinzione che ha reso necessaria la colonna nuova: due uomini che possiedono due slot della
+   STESSA partita hanno cominciato insieme, e un fatto osservato batte l'inferenza sui minuti. Piu' la
+   guardia del §12.9.1 - non lascia mai un posto vuoto.
+3. **Due dritte `starter` si scacciavano a vicenda.** Un uomo appena inserito non ha occupato nessun posto,
+   quindi segna zero sulla chiave del «piu' debole» ed era sempre lui la maglia piu' facile da prendere.
+   Un `promoted` set, e le due dichiarazioni vive (Pinamonti e Berardi) stanno in campo tutte e due.
+
+**I sette minori.** Tetto `SIDELINED_DUELS` sui ballottaggi indisponibili, in coda ai sani (142 -> 115
+elencati); la dritta `alternative` in testa all'ordine dei rivali, o sotto `MAX_DUELS` equivaleva a non
+disegnarla; il pavimento `SLOT_BOARD_MIN` = 9 applicato davvero (lo dichiarava il docstring e non lo faceva
+nessuno); `can_replace` col ripiego SPECCHIATO per il posto scoperto; `declared_rows` passato e mai letto e
+la guardia `order` morta, tolti; `SHEET_REVISION` alzata a **64** dicendo anche che porta il fix del
+calendario negativo (che muove `engine_*` su 393 righe e non era stato dichiarato); la clamp del calendario
+spostata da `snapshot.engine_predictions` a **`features.target_matchdays`**, cioe' dentro `prepare`, dove
+ogni lettore di una `WindowData` la vede - il consumatore scrive solo la nota, leggendo un flag.
+Piu' `slots_of` memoizzata: era ricalcolata due o tre volte per uomo, e ogni chiamata riparsava i moduli.
+
+**I due buchi di test.** `_slot_view` non impostava `_player_rulings`, quindi **tutto** il ramo delle
+dichiarazioni era scoperto - ed e' cosi' che il difetto dei due `starter` e' arrivato a HEAD; e il test
+della mappatura asseriva intervalli che l'identita' soddisfa. Chiusi tutti e due, con sette casi nuovi che
+coprono una regola ciascuna.
+
+**Il sedicesimo** e' §12.9.3, che i quindici non contenevano perche' nessuna rilettura poteva vederlo.
+
+### 12.9.5 — Due prese, e si scorano tutte e due
+
+La pre-registrazione del 12/09 descrive la revisione 63 e cinque dei suoi 23 club cambiano un uomo, quindi
+ne e' stata presa una SECONDA alla revisione 64 (`preregistrazione-board-breve-2026-09-13.md`), sempre prima
+dei calci d'inizio - alle 00:45 del 13/09 nessuna delle 23 partite era cominciata. Si scorano entrambe sulle
+stesse distinte: e' il primo confronto appaiato fra due versioni di questa board, ed e' anche il primo
+giudizio che la board breve abbia contro il FATTO invece che contro un'altra previsione (§12.7). Il limite
+va detto prima di leggerlo: **la differenza fra le due prese e' larga nove nomi su 253**, quindi non e' un
+campione che possa promuovere o bocciare la mappatura - quella sta in piedi sull'aritmetica e sui 512
+spostamenti, non su questa tabella.

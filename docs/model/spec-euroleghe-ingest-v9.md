@@ -495,6 +495,58 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.92 (13 settembre 2026 — I QUINDICI RILIEVI SPEDITI, E LA GUARDIA DI UN NUMERO STA DOVE IL NUMERO NASCE)
+
+Il blocco che chiude la code-review della lettura per slot (`formazioni-tipo-v1.md` §12.8-§12.9). Quindici
+rilievi piu' uno che solo l'A/B poteva trovare; `SHEET_REVISION` **64**, `backtest --verify` **22/22**, 880
+test toolkit e 961 app.
+
+**`desc_recent_slots` porta la PARTITA** (`16284970:3-4-2-1:4`), e non e' un ornamento: due uomini che
+possiedono due slot della stessa distinta hanno COMINCIATO insieme, quindi la regola delle staffette - che
+poggia su un'euristica sui minuti - non puo' contraddire un'osservazione. Senza quel terzo campo la regola
+era irraggiungibile sulla board breve, spenta in silenzio il giorno dopo la sua adozione. La colonna gemella
+con la sola linea (`desc_recent_line`, nata e morta il 12/09) sparisce: il posto la contiene.
+
+**`SnapshotView._slot_across_shapes` mappa PER RIGA.** La versione precedente decomponeva i due moduli in
+blocchi di righe e diceva di mappare «per posizione relativa dentro il blocco»: i blocchi hanno per
+costruzione la stessa taglia sui due lati, quindi era l'**IDENTITA' su 1331 combinazioni di 1331** - lo slot
+4 di un 4-3-3, che e' il quarto difensore, votava per lo slot 4 di un 3-4-2-1, che e' il primo
+centrocampista. Ora ne sposta **512 su 1331**: la riga viene prima del blocco (un difensore resta un
+difensore, e il quarto di una difesa a quattro diventa il terzo di una a tre) e si cade sulla riga piu'
+vicina solo dove quella riga nel modulo disegnato non esiste, a peso ridotto. Il test e' un CONTEGGIO e non
+un intervallo — asserire `8 <= place <= 10` e' cio' che aveva lasciato passare l'identita' per una giornata.
+
+**`features.target_matchdays`, e qui sta la lezione di forma.** La guardia «le giornate che restano non
+possono essere zero ne' negative» viveva in `snapshot.engine_predictions`, che e' un CONSUMATORE: il
+pannello d'asta, `estimates` e chiunque chiami `features.prepare` da se' leggevano il numero crudo, e un
+calendario negativo moltiplicato dentro una colonna non si lamenta. Adesso la clamp e' dentro `prepare` e
+`WindowData` porta `matchdays_from_prev`, cosi' il consumatore scrive solo la NOTA leggendo un flag invece
+di rifare la sottrazione — due copie di quel conto sono come il foglio e il pannello cominciano a rispondere
+due cose sullo stesso calendario. **Il gate non si muove e lo si e' verificato**: nessuna sua finestra ha la
+stagione bersaglio incompleta in archivio (una pre-stagione non ha giornate viste, una in-season legge
+38 − k), quindi il ramo non scatta mai.
+
+**`boards.write_boards(..., season=...)` -> `extract_modes` -> `load_sheet(..., season=...)`.**
+`_load_player_rulings` chiede `manifest.target_season` per sapere quale blocco di
+`config/player_rulings.json` leggere, e `snapshot` scrive il manifest DOPO la passata dei campetti: su una
+cartella NUOVA le dritte dell'operatore uscivano **vuote** da ogni board che il toolkit spedisce, su una
+riusata valevano quelle della corsa precedente. Terza istanza dopo il calendario di `platform_target`
+(v9.75) e stessa cura: il chiamante la stagione la SA e la passa, iniettata solo dove manca. Misurato sul
+Sassuolo — con la stagione la board breve disegna Berardi, che e' letteralmente la dritta «come AD deve
+andare sempre», e senza no.
+
+**Il resto del blocco**, in una riga ciascuno: il veto della staffetta applicato DOPO il filtro di posizione
+e non prima (prima svuotava il serbatoio proprio degli uomini che quel posto lo sanno fare); un posto che
+nessuno ha mai occupato riempito dalla sua RIGA prima che da fuori; `SLOT_BOARD_MIN` = 9 applicato davvero;
+`SIDELINED_DUELS` sui ballottaggi indisponibili, in coda ai sani (142 → 115 elencati sul foglio Serie A); la
+dritta `alternative` in testa all'ordine dei rivali; `can_replace` col ripiego specchiato; `declared_rows`
+e una guardia `order` morti, tolti; `slots_of` memoizzata.
+
+**Effetto misurato, A/B su UNA variabile con la base ricostruita in un worktree su HEAD**: board breve
+220 → 220 uomini con **211 in comune** e 0 moduli diversi, undici completi 20/20 su Serie A e 36/37 su euro;
+board di STAGIONE identica e giudice stampa identico (MATCH 11 · ALT 3 · DIFF 6 · **150/220**); `engine_*`
+invariato a parita' di dati.
+
 ## Novità v9.91 (12 settembre 2026 — IL MODULO DICHIARATO, DOVE HA GIOCATO CIASCUNO E DI CHI HA PRESO IL POSTO)
 
 Tre acquisizioni e due colonne nuove, tutte nate da segnalazioni dell'operatore sul campetto delle ultime
