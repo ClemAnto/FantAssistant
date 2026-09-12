@@ -1656,3 +1656,39 @@ Dettaglio e numeri: `simulatore-asta-rilanci-v1.md` §30, `letture-app-v1.md` §
 5. **Cosa NON riprovare**, coi numeri: il prodotto «fetta × nuova squadra» (−10,8% A · −10,4% C · −14,4%
    D), la fetta come proprietà dell'uomo (r +0,059 al cambio club sugli attaccanti), l'FM-equivalente
    estero sopra l'Elo (−0,8 punti), «ha 15+ partite su file» come termine di fantamedia (−0,2).
+
+## Aperto dopo la sessione del 12/09/2026 (frequenze, filtri e stagione sulla Strategia)
+
+Il lavoro chiuso sta in `pagina-strategia-v1.md` §18-§19 e in due commit (`e29214f`, `dd7e0fc`). Quello
+che resta è **fuori** da quel lavoro e va deciso.
+
+1. **`matchdays_target` = −1 sui due fogli `default` del pacchetto, e si vede a schermo.** Il manifest
+   dichiara 29 per euro e **−1** per `Leghe` e `Leghe Mantra`: sulla Strategia `Pa` e `Pas` leggono
+   **0 per tutti** (292 righe nel banco: «0 presenze su un calendario di −1 giornate») e il gain a
+   giornata viene diviso per −1. È la famiglia già a verbale del 04/09 — «il calendario di una stagione
+   in corso è quello che RESTA», e `matchday_count` conta le giornate già in archivio — quindi a tre
+   giornate giocate la sottrazione va sotto zero. Lato EXPORT del toolkit, non dell'app: l'app legge il
+   numero che il pacchetto dichiara. **Resa: alta** — è il denominatore di due pastiglie accese di
+   default e della colonna che ORDINA le liste. Non guardato in questa sessione perché fuori tema.
+
+2. **`e2e-clubs.mjs` è FLAKY**, 1 corsa su 4: legge lo zebrato della tabella delle ultime partite prima
+   che il `color-mix` della riga dispari sia risolto e dichiara «lo zebrato non dipinge» (nella corsa
+   rossa legge `rgb(20,20,28)` su tutt'e due, nelle altre `oklab(0.195…)` contro `rgb(20,20,28)`). La
+   cura è quella di casa — **due letture identiche di fila prima di asserire**, come per i bersagli che
+   si muovono — e non è stata applicata perché è il banco di un'altra pagina. **Resa: bassa in valore,
+   alta in fastidio**: un banco che fallisce a caso insegna a ignorare i banchi.
+
+3. **Le stagioni offerte sono TRE** (le `heavy_seasons`), anche dove il dato ce ne sarebbe per undici:
+   `season_stats` viaggia dal 2015-16 e basterebbe per `MV` e `FM`. Non offerte perché un menù che ne dà
+   undici a una pastiglia e tre a quella accanto è un menù da imparare due volte. Se servisse, il posto
+   è `seasonsFor` e il costo è zero (l'aggregato è già in memoria).
+
+4. **Filtrare la TITOLARITÀ non si può**, ed è dichiarato: è una scala di PAROLE e il controllo giusto
+   non è una casella numerica ma un elenco di gradini da spuntare. Ordinarci sopra resta possibile e
+   funziona. Si apre solo se lui lo chiede, e allora il filtro cresce di un TIPO (`pick`), che è la
+   forma che `ui/squad-table/column-filter.ts` ha già.
+
+5. **Cosa NON riprovare**, coi numeri: mettere le quattro frequenze sulla stagione in corso (al massimo
+   tre partite per uomo, quindi una quota può valere solo 0/⅓/⅔/1); dare una stagione alle letture del
+   FOGLIO (una previsione di una stagione finita è un esito, e ha già `actual_*`); dedurre la stagione
+   di una condizione invece di salvarla (senza, «mv > 7 e mv < 6» non ha soluzioni).

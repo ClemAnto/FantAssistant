@@ -2733,6 +2733,68 @@ other game's sheet, because a surplus is a fact about the GAME you are buying fo
 NAMED sheet); a declared league that disagrees with the sheet's own teams and slots keeps the sheet's GAIN
 and gets the declared LENGTHS, with the mismatch drawn; and the budget enters no number yet.
 
+## Una FREQUENZA ha bisogno di un denominatore, e la STAGIONE è una dimensione della lettura
+**12/09/2026, `app/src/app/core/match-frequency.ts` + `strategy-filter.ts`, dettaglio in
+`docs/model/pagina-strategia-v1.md` §18-§19.** Tre richieste dell'operatore in una giornata sulla pagina
+STRATEGIA — quattro frequenze, i filtri composti, la scelta della stagione — e una regola sola che le
+tiene insieme: **un numero dice di quale calcio parla, o non è un numero.**
+
+**LA FINESTRA DI UNA QUOTA SI MISURA, NON SI SCEGLIE.** «Frequenza delle partite con più di 85' · con
+fantavoto ≥ 6.5 · con almeno un bonus · con fantavoto < 6»: l'ovvio era metterle accanto alle altre
+letture di calcio giocato, che parlano della stagione in corso. Misurato prima di scrivere, sul listone
+Serie A: **sulla stagione bersaglio ognuno ha al massimo TRE partite** (tutti e 388 sotto le cinque),
+quindi una quota potrebbe valere solo 0, ⅓, ⅔ o 1 — un lancio di dado. Sulle tre stagioni del pacchetto
+la mediana è **32**. La finestra è quindi tutto il calcio in archivio, la stessa su cui la Costanza è già
+costruita. E l'invariante che lo prova sta nel banco: con `k` giornate giocate una quota calcolata sulla
+sola stagione bersaglio può valere solo uno dei `k+1` multipli di `100/k`, e **151 righe su 207** portano
+un valore che su quel campione non esiste. *Un'invariante aritmetica falsificabile vale più di un
+commento che dichiara la finestra.*
+
+**TRE DENOMINATORI E NON UNO**, perché le fonti sono tre: i minuti li porta il livello per-partita, il
+fantavoto i voti, i bonus la riga dei voti. `LONG_SHIFT` = 85 ha un nome tutto suo accanto ai tre vicini
+che rispondono ad altre domande (90 «è stato sostituito?», 75 «è stata una sua partita?», 65 il pavimento
+del terzo gradino); e `POOR_MATCH` ha lo stesso numero di `PASS_MARK` e un'altra domanda — quella conta
+i VOTI BASE sufficienti (quello che i due modificatori pagano), questa i FANTAVOTI insufficienti (quello
+che la rosa incassa). Sotto le dieci partite la quota è SBIADITA e il dieci è DERIVATO: sotto, una
+partita la sposta di oltre dieci punti.
+
+**LA STAGIONE È UNA DIMENSIONE, e prima era cablata.** «Voglio filtrare chi nella stagione corrente ha mv
+> 7 e nella passata mv < 6»: quella coppia **non aveva soluzioni**, perché `MV` voleva dire «media voto
+di quest'anno» e `gaPrev`/`gaNow` erano due chiavi per lo stesso numero. Una lettura è ora `(chiave,
+stagione)` — `mv@2025-26` — e le due richieste (filtri e pastiglie) diventano la stessa cosa vista da due
+lati. Quello che NON prende una stagione sono le letture del FOGLIO: «le partite attese del 2024-25» non
+esiste, perché una previsione di una stagione finita è un ESITO e ha un'altra colonna — e il controllo
+**non compare affatto** invece di comparire spento, che si leggerebbe come una cosa che dovrebbe
+funzionare.
+
+**IL COSTO DI UNA DIMENSIONE VA GUARDATO PRIMA DI OFFRIRLA**, e qui è asimmetrico: `mv` e `fm` vengono
+dall'aggregato di stagione, che il pacchetto porta per UNDICI stagioni ed è già in memoria (cambiare
+stagione è gratis); tutto il resto dal livello per-partita, 2,1 MB, e si ricostruiscono **solo le
+stagioni che una pastiglia accesa o una condizione nominano**. Le stagioni offerte sono TRE e non undici
+proprio per questo: un menù che ne dà undici a una pastiglia e tre a quella accanto è un menù da imparare
+due volte.
+
+Quattro cose che restano oltre la pagina.
+- **UN FILTRO SI APPLICA PRIMA DEL TAGLIO**, perché serve a TROVARE nomi: applicato dopo risponderebbe
+  solo su quelli che si stavano già guardando. Quello che non cambia è il NUMERO accanto al nome, che
+  resta il posto vero — i posti restano non contigui (52, 111, 118…) e si vede che ha pescato più in
+  basso. *Rinumerare direbbe che il quarantesimo difensore è il primo.*
+- **«VUOTO = IGNOTO» VALE IN TUTTE E SEI LE DIREZIONI**, `≠` compresa: un uomo senza xG non è «xG diverso
+  da 1». E `=` e `≠` rispondono alla PRECISIONE STAMPATA, o sarebbero due controlli che non fanno niente
+  — una fantamedia vale 6,4999999 e nessuno scriverà mai quel numero in una casella.
+- **QUALI DATI CARICARE DIPENDE ANCHE DAL FILTRO e non solo da cosa si vede**: senza, una condizione su
+  una lettura SPENTA avrebbe letto una colonna che nessuno ha caricato, cioè avrebbe svuotato ogni blocco
+  **in silenzio**. È «una lista mostrata i cui numeri descrivono un'altra lista» vista dal lato del costo.
+- **E UN BLOCCO VUOTO DEVE DARE LA COLPA ALLA COSA GIUSTA**: col filtro attivo diceva «nessuno ha un
+  numero sul foglio», frase falsa su una lista che i numeri ce li ha. Trovato su uno SCREENSHOT e non da
+  un banco — *un blocco corto senza una ragione a schermo si legge come un blocco rotto, e con la ragione
+  sbagliata si legge come un difetto dei dati.*
+
+**Il suo esempio alla lettera vale ZERO uomini oggi** (`mv > 7` ora e `< 6` prima), ed è un fatto sul
+calcio e non sul filtro: alla terza giornata nessuno tiene una media VOTO sopra il sette dopo un anno
+sotto il sei. Il banco perciò misura su `> 6.5` e `< 6.2`, che ne lascia **19 a schermo contro 19 nel
+pacchetto** — *uno zero non distingue un filtro che funziona da uno rotto.*
+
 ## A PREFERENCE ON TOP OF A MEASUREMENT IS A PREFIX, and the boundary between them is drawn
 **27/08/2026, `core/manual-order.ts`, on the operator's request** — «nei vari blocchi le liste devono essere
 riordinabili in modo che posso impostare il mio personale ordine di priorità». The strategy blocks are

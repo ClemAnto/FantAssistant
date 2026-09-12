@@ -246,6 +246,20 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   produzione verde», and the consolidation that followed claimed «app 314 test» - a number that cannot
   have come from a run. Two habits: `ng test` is a SEPARATE gate from `ng build`, and a test count is
   quoted from the run that printed it, never from the last time it was true.
+- **E `npx tsc -p tsconfig.json --noEmit` NON COMPILA NIENTE su questo workspace** (misurato
+  12/09/2026): quel file ha `"files": []` e solo `references`, quindi esce ZERO dopo aver guardato il
+  vuoto — ed è stato usato come controllo rapido per un'intera feature leggendo «nessun output» come
+  «compila». I cancelli veri (`ng build`, `ng test`) giravano davvero e non è uscito niente di rotto, ma
+  quel controllo non provava niente. Le forme che guardano davvero sono **`tsc -p tsconfig.app.json`**
+  (le sorgenti, TEMPLATE ESCLUSI: quelli li verifica solo `ng build`) e **`tsc -p tsconfig.spec.json`**
+  (gli spec). È «un audit che risponde *nessun problema* dopo aver guardato niente» commesso dentro lo
+  strumento con cui si controlla, ed è la ragione per cui un comando di verifica si prova una volta
+  facendolo FALLIRE.
+- **Le diagnostiche dell'IDE possono essere STANTIE quando i file si scrivono da fuori dell'editor**
+  (12/09/2026): dopo una modifica fatta da uno script il language service ha riportato quindici errori
+  («`menuFor` non esiste», «`nz-space-compact` non è un elemento noto») su un albero che `ng build`
+  compila pulito. L'autorità è il compilatore, non il pannello: prima di inseguire un errore dell'IDE si
+  ricompila.
 - **A dependency that works in dev is NOT proven.** `ng serve` pre-bundles dependencies and synthesises
   the named exports of UMD/CJS libraries; `ng build` does not. A library can work in dev and break only
   in the package, at runtime, under a minified name (`i is not a function`), with TypeScript none the

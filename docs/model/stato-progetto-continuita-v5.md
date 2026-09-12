@@ -7396,3 +7396,122 @@ Effetto finale: club del listone con un Elo al 2026-08-15 **da 43 a 46 su 47**, 
   `ELO_ALIASES` mappa su `Eintracht Francoforte`. Non ne ha mai avuto uno.
 - Il mirror va **tolto** quando l'archivio avrà una storia (decisione dell'operatore), insieme a
   `MIRROR_URL` e `pick_from_mirror`.
+
+# Chiusura 12 settembre 2026 — la Strategia impara a CONTARE le partite e a scegliere la STAGIONE
+
+Due blocchi in una giornata, dalle richieste dell'operatore. Commit: `e29214f` (le quattro frequenze e i
+filtri composti) e `dd7e0fc` (la stagione come dimensione). Dettaglio pieno:
+[pagina-strategia-v1.md](pagina-strategia-v1.md) §18 e §19.
+
+## Blocco 1 — quattro frequenze, e la finestra è MISURATA e non scelta
+
+«Frequenza delle partite con più di 85' giocati · con almeno 6.5 di fantavoto · con almeno 1 bonus · con
+fantavoto < 6». Quattro quote da un conto solo (`core/match-frequency.ts`): due passate sulle stesse
+partite darebbero a un uomo due denominatori.
+
+**La domanda che ha deciso tutto è «su quale calcio».** Le altre sei pastiglie di calcio giocato parlano
+della stagione in corso, e metterle lì sarebbe stato l'ovvio. Misurato prima di scrivere, sul pacchetto
+del giorno (532 quotati di Serie A non ceduti): **sulla stagione bersaglio ognuno ha al massimo TRE
+partite** — mediana 3, tutti e 388 sotto le cinque — quindi una quota potrebbe valere solo 0, ⅓, ⅔ o 1.
+Sulle tre stagioni che il pacchetto porta la mediana è **32**. La finestra è quindi tutto il suo calcio
+in archivio, che è anche quella su cui la Costanza è già costruita: non una finestra nuova, quella di
+casa.
+
+L'invariante che lo PROVA sta nel banco e non in un commento: con `k` giornate giocate una quota
+calcolata sulla sola stagione bersaglio potrebbe valere solo uno dei `k+1` multipli di `100/k`. A
+schermo, `k` = 3 e **151 righe su 207 portano un valore che su quel campione non esiste**.
+
+Tre denominatori e non uno (`played` · `timed` · `rated`: i minuti li porta il livello per-partita, il
+fantavoto i voti). `LONG_SHIFT` = 85 ha un nome tutto suo perché il repository ne porta già tre vicine
+che rispondono ad altre domande (90, 75, 65). `POOR_MATCH` ha il numero di `PASS_MARK` e un'altra
+domanda: quella conta i VOTI BASE sufficienti, questa i FANTAVOTI insufficienti. Sotto le dieci partite
+la quota è SBIADITA, e il dieci è derivato: sotto, una partita la sposta di oltre dieci punti.
+
+## Blocco 1-bis — i filtri composti, e dove si applicano
+
+«+aggiungi filtro», valore · criterio (`< ≤ = ≥ > ≠`) · numero, tutti in **AND**, con salvataggio e
+richiamo per nome. Le decisioni che contano: si filtra sui numeri che la riga STAMPA (elenco derivato da
+`READINGS`, il gain nell'unità **a giornata** in cui lo si legge); `=` e `≠` rispondono alla precisione
+stampata, o sarebbero due controlli che non fanno niente; **vuoto non passa niente**, `≠` compreso.
+
+**Si applica PRIMA del taglio alla domanda** — un filtro serve a TROVARE nomi, e dopo risponderebbe solo
+su quelli che si stavano già guardando — ma il numero accanto al nome resta il posto VERO, quindi i
+posti restano non contigui (52, 111, 118…) e si vede che ha pescato più in basso. E **quali stagioni
+caricare dipende anche dal filtro** (`needed`), o una condizione su una lettura spenta avrebbe svuotato
+ogni blocco **in silenzio**.
+
+Si RICORDA fra sessioni, a differenza della ricerca per blocco, e quello che lo rende legittimo è la
+cura del 20/08: ogni condizione è scritta in barra col suo nome e il suo segno, si toglie da sé, e
+accanto c'è quanti uomini **esclude** (parola misurata: il filtro agisce prima del taglio, quindi
+«nascosti» prometterebbe una sottrazione che non torna).
+
+## Blocco 2 — la stagione diventa una DIMENSIONE
+
+«Quando si crea un filtro vorrei poter scegliere a quale stagione applicarlo — mv > 7 nella corrente e
+mv < 6 nella passata» e «per ogni pill vorrei poter selezionare la stagione di afferenza». Due richieste
+con una radice sola: la stagione era CABLATA dentro ogni lettura (`gaPrev`/`gaNow` erano due chiavi per
+lo stesso numero), quindi la sua coppia di condizioni **non aveva soluzioni**.
+
+Una lettura è ora `(chiave, stagione)`, scritta `mv@2025-26`. Le letture del FOGLIO non ne prendono una
+e il controllo **non compare affatto** invece di comparire spento: «le partite attese del 2024-25» non
+esiste — una previsione di una stagione finita è un ESITO, che ha un altro nome. `G:A` collassa da due
+dichiarazioni a una, con migrazione dal disco; le pastiglie passano da 20 a 19.
+
+**Il costo è asimmetrico e dichiarato**: `mv` e `fm` vengono dall'aggregato (undici stagioni già in
+memoria, quindi cambiare stagione è GRATIS), il resto dal livello per-partita, e si ricostruiscono solo
+le stagioni che qualcuno guarda. Tre stagioni offerte e non undici, perché un menù che ne dà undici a
+una pastiglia e tre a quella accanto è un menù da imparare due volte.
+
+**Il suo esempio alla lettera seleziona ZERO uomini oggi** (`mv > 7` ora e `< 6` prima): alla terza
+giornata nessuno tiene una media VOTO sopra il sette dopo un anno sotto il sei. È un fatto sul calcio e
+non sul filtro, ed è la ragione per cui il banco usa `> 6.5` e `< 6.2`, che ne lascia 19 — **uno zero
+non distingue un filtro che funziona da uno rotto**.
+
+## Quello che la verifica ha trovato, e che nessun test unitario poteva
+
+- **Un blocco vuoto dava la colpa al FOGLIO**: col filtro attivo diceva «nessuno ha un numero sul
+  foglio», frase falsa su una lista che i numeri ce li ha. Visto su uno **screenshot** e non da un
+  banco; ora dice «nessuno passa il filtro» ed è asserito.
+- **Due difetti erano dell'ARNESE e dicevano «la pagina è rotta»**: il banco filtrava le righe del
+  provider su `source = 'sofascore'` mentre l'app non fa nessun filtro di sorgente (146 righe
+  «sbagliate» che erano giuste), e leggeva la finestra dei filtri PRIMA di digitare. *Prima di credere a
+  uno scarto, chiedersi se le due parti rispondano alla stessa domanda sulla stessa popolazione.*
+- **Una tendina VIRTUALE si cerca scorrendo, e dall'alto**: con quattro voci in più il selettore
+  dell'ordinamento rispondeva «la voce non c'è» a proposito della PRIMA, perché si apre già scorso sulla
+  voce scelta e `querySelectorAll` legge solo ciò che è disegnato. *Un passo che cerca in una direzione
+  sola trova solo metà delle cose che cerca.*
+- **`git worktree remove` SEGUE LA GIUNZIONE** e ha svuotato `app/public/data` dell'albero vero.
+  Ripristinato con `data:pull`; la procedura è `rmdir <link>` PRIMA. Scritto in `CLAUDE.md`.
+- **E un difetto del METODO, che vale più della feature**: `npx tsc -p tsconfig.json --noEmit` su questo
+  workspace **non compila niente** (`"files": []` più solo `references`) e l'avevo usato come controllo
+  rapido leggendo «nessun output» come «compila». I cancelli veri giravano e non è uscito niente di
+  rotto, ma quel controllo guardava il vuoto: è «un audit che risponde *nessun problema* dopo aver
+  guardato niente», commesso dentro lo strumento con cui si controlla. Le forme giuste sono `tsc -p
+  tsconfig.app.json` e `-p tsconfig.spec.json`, ed è in `app/CLAUDE.md`.
+
+## Cosa è stato costruito
+
+- `core/match-frequency.ts` (+ spec) — le quattro quote da una lettura sola, con i tre denominatori.
+- `core/strategy-filter.ts` (+ spec) — le condizioni in AND, i sei criteri, gli insiemi salvati, la
+  stagione per condizione.
+- `views/strategy/strategy-filters/` — i gettoni in barra e la finestra che li scrive.
+- `core/strategy.ts` — `ReadingRef`, `SeasonFootball`, `seasonsNeeded`, le letture per riferimento.
+- `core/valuation-store.ts` — l'aggregato per (piattaforma, stagione, uomo), di cui le due mappe che
+  c'erano sono due fette.
+- `app/scripts/e2e-strategy-filters.mjs` — il banco della feature: otto passi, tutti contro il
+  PACCHETTO e mai contro lo schermo.
+
+## Aperti
+
+- **`matchdays_target` = −1 sui due fogli `default` del pacchetto** (euro dice 29): sulla Strategia `Pa`
+  e `Pas` leggono 0 per tutti e il gain a giornata viene diviso per −1. È la famiglia già a verbale («il
+  calendario di una stagione in corso è quello che resta»), lato export del toolkit, e si vede a
+  schermo. **Non guardato**: è fuori da questo lavoro e va deciso.
+- **`e2e-clubs.mjs` è FLAKY** (1 corsa su 4): legge lo zebrato prima che il `color-mix` sia risolto e
+  dichiara «lo zebrato non dipinge». La cura è quella di casa — due letture identiche di fila prima di
+  asserire — e non è stata applicata perché è il banco di un'altra pagina.
+- **Le stagioni offerte sono tre** anche dove l'aggregato ne porta undici (MV e FM). Il giorno in cui
+  servisse, `seasonsFor` è il posto.
+- **Filtrare la TITOLARITÀ** non si può: è una scala di parole e il controllo giusto non è una casella
+  numerica ma un elenco di gradini da spuntare. Ordinarci sopra resta possibile.
+
