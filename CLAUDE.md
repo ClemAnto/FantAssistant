@@ -5902,6 +5902,51 @@ convenzionale di questo progetto. Cascata **API → archivio → mirror**, ordin
 vecchio marcato DEPRECATO e interrogato solo su ciò che il nuovo non copre: quando il nuovo serve
 tutto, i 49 MB dell'altro non vengono nemmeno scaricati.
 
+## Un UNDICI PUBBLICATO non si deduce, e uno ZERO che si vede nasconde un MENO UNO che passa
+**12/09/2026, giornata guidata da segnalazioni dell'operatore davanti al campetto. Dettaglio:
+`formazioni-tipo-v1.md` §12, continuita' del 12 settembre (sera).**
+
+**LA BOARD DELL'ULTIMO PERIODO E' UNA LETTURA, non un calcolo** (`gui._from_slots`, `desc_recent_slots`,
+`SHEET_REVISION` 63). La fonte numera la distinta **0-10 dentro il modulo** e quel numero era gia' in
+archivio: su quella finestra l'undici si legge posto per posto - chi lo ha occupato di piu', il claim SOLO
+a parita', ballottaggio dove il posto ha cambiato uomo - e tutto il resto (graduatoria per claim, prestito
+fra linee, riparazioni, assegnazione per fit, rimodellamento) esce di scena. L'undici che l'operatore aveva
+scritto a mano e' uscito identico, ballottaggi compresi. **E' lo stesso filo del modulo osservato, un piano
+piu' su: anche l'undici e' un fatto pubblicato.**
+Tre cose che viaggiano con lei. **Lo slot vale solo dentro il suo modulo**, quindi viaggia accanto ad esso
+(`3-4-2-1:4`): con quattro dietro il 4 e' un difensore, con tre e' il primo centrocampista. **Una partita
+giocata con un ALTRO modulo ha il suo peso** (sua regola: «le righe che coincidono vanno trattate allo
+stesso livello, le altre con pesi diversi»), a blocchi di righe, `OTHER_SHAPE_WEIGHT` = 0,5 dichiarato -
+buttarle via toglieva un terzo della finestra a 13 club su 20. E **il verso e' misurato**: lo slot cresce
+con `avg_y` (29,1 contro 70,4 su 583 osservazioni) e `avg_y` basso e' la destra della squadra (18,8 · 49,6
+· 79,7), che e' il lato sinistro dello schermo - l'ordine degli slot E' l'ordine a schermo, e non c'era
+nessuna geometria da inventare.
+
+**E UNO ZERO CHE SI VEDE NASCONDE UN MENO UNO CHE PASSA.** Il difetto piu' grosso della giornata non
+c'entrava con le board: `engine_predictions` ripiega quando la stagione bersaglio non ha ancora un
+calendario nei voti, e chiedeva `if not data.matchdays_target`. Appena una giornata e' COMINCIATA e non
+ancora votata il conto e' `3 - 4 = -1`, che e' **falso per `not`** e vero per la vita del foglio: ogni
+`engine_pv_pred` usciva da -0,8 a -0,1 su 393 righe, e con lui valore e surplus. Il foglio del giorno prima
+legge 35 e sta bene. La regola generale: **una guardia scritta contro il VUOTO va scritta contro il
+DOMINIO** - `<= 0` e non `not` - perche' il caso che la supera non e' il caso per cui era stata scritta.
+
+Quattro abitudini, e tre sono errori miei della stessa giornata.
+- **UN RIVALE E' PER DEFINIZIONE UNO CHE NON E' IN CAMPO**, e il filtro sta DOPO il ciclo perche' chi e'
+  titolare si sa solo a maglie consegnate. La regola esisteva nella coda di `eleven` e la funzione nuova
+  non la applicava: «nel Como N. Paz esce 2 volte». *Quando si scrive un secondo percorso per una domanda
+  vecchia, le regole del primo non si ereditano da sole.*
+- **NESSUNO SI FA CONSUMARE DA UN POSTO DOVE VALE MENO CHE A CASA SUA.** Conceicao ha lo slot 7 in tutt'e
+  due i 4-2-3-1 e il 5 solo nel 4-4-2; il padrone del 5 era infortunato e, servendo i posti in ordine, il 5
+  si prendeva lui. La prima cura - «nella prima passata solo i padroni» - era **troppo forte** e buttava
+  fuori Modric, che quel posto lo aveva occupato quanto l'altro: *una protezione si scrive sul confronto
+  (vale di piu' altrove?) e non sull'etichetta (e' il padrone?).*
+- **UNA DICHIARAZIONE SU QUANTO GIOCA NON DICE DOVE.** «Come AD deve andare sempre Berardi»: `player_rulings`
+  porta solo lo `standing`, quindi entra dove PUO' (`can_replace`, e col destro del tridente non condivide
+  un codice) e poi **la linea si riordina per lato**. Il posto lo dice il suo codice, non la dritta.
+- E **`git checkout -- <file>` cancella il lavoro non committato di un'altra sessione**: fatto su `gui.py`
+  con 298 righe altrui dentro, recuperate da una copia di scratchpad. Per tornare indietro su una propria
+  modifica in un file condiviso si toglie la patch, non si ripristina il file.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

@@ -1524,3 +1524,100 @@ minuti — quella separazione è l'artefatto di un doppio cambio al 61′.
 Coppa d'Asia 2027 è **07/01 → 05/02/2027**, 7 giocatori esposti, fino a −0,1 giornate di questo calendario
 — non può muovere una board a breve termine di settembre, e un cancello scritto adesso avrebbe popolazione
 zero.
+
+
+# 12 — L'UNDICI DELL'ULTIMO PERIODO NON SI SCEGLIE: SI LEGGE (12/09/2026)
+
+Chiude §11.7 e la sostituisce. La richiesta dell'operatore, dopo aver confrontato a schermo il campetto del
+Milan con quello che aveva in testa: «devi vedere i calciatori che hanno giocato di più nelle ultime 3
+partite e metterli **dove** hanno giocato in queste 3 partite; se ci sono più giocatori per una stessa
+posizione li metti in ballottaggio; eventualmente considera qualche calciatore che rientra da infortunio o
+importante (ma li metti sempre in ballottaggio)». Più tardi: «usa il claim solo in caso di parità».
+
+Il suo undici del Milan, scritto a mano, **è la lettura posto per posto delle tre distinte vere**:
+
+| slot | 1ª | 2ª | 3ª | modale |
+|---|---|---|---|---|
+| 0-3 | Maignan, Gila, De Winter, Pavlovic | idem | idem | gli stessi |
+| 4 | Chukwueze | Chukwueze | Moreira | **Chukwueze** |
+| 5 | Musah | Musah | Modric | **Musah** |
+| 6 | Jashari | Modric | Musah | **Modric** |
+| 7 | Estupinan | Bartesaghi | Estupinan | **Estupinan**/Bartesaghi |
+| 8 | Loftus-Cheek | Loftus-Cheek | Rabiot | **Loftus**/Rabiot |
+| 9 | Cissè A. | Cissè A. | Saelemaekers | **Cissè**/Saelemakers |
+| 10 | Ramos G. | Ramos G. | Ramos G. | **Ramos** |
+
+Tutti e quattro i suoi ballottaggi sono esattamente gli slot che hanno cambiato uomo. `gui._from_slots`
+sostituisce, su questa finestra, TUTTO il calcolo: graduatoria per claim, prestito fra linee, riparazioni
+di fascia e di fronte, assegnazione per fit, rimodellamento. Non è un modello più furbo, è una lettura.
+
+## 12.1 — Il dato: `desc_recent_slots`, e il posto viaggia col suo MODULO
+
+`external_match_stats.lineup_slot` numera la distinta **0-10 dentro il modulo**, ed era già lì. Il foglio lo
+porta per le partite che ha COMINCIATO (i subentri no: chi entra prende il posto che si è liberato, quindi
+la sua riga direbbe una cosa sull'avversario), ognuna **con il modulo di quella partita**: `3-4-2-1:4;3-4-2-1:4`.
+Senza il modulo il numero non è confrontabile — con quattro dietro lo slot 4 è un difensore, con tre è il
+primo centrocampista. `SHEET_REVISION` 63.
+
+## 12.2 — Il VERSO è misurato, e l'ordine degli slot è già l'ordine a schermo
+
+Due misure indipendenti: lo slot **cresce con `avg_y`** dentro la linea (mediana 29,1 per gli slot bassi
+contro 70,4 per gli alti, 583 osservazioni), e `avg_y` basso è la **destra della squadra** (18,8 destra ·
+49,6 centro · 79,7 sinistra, calibrato sui codici granulari). La destra della squadra è il lato sinistro
+dello schermo (`_lane`), quindi non c'è nessuna geometria da inventare: si scrivono `_slot_side` e il nuovo
+`_slot_order`, vuoti ovunque tranne qui.
+
+## 12.3 — Una partita giocata con un ALTRO modulo ha il suo peso
+
+Regola dell'operatore, col suo esempio: «scelto 3-4-1-2, diverso 3-4-3: difesa e centrocampo sono uguali e
+vanno trattati allo stesso livello; trequarti e attacco sono diversi e vanno trattati con pesi diversi».
+`_slot_across_shapes` cammina le due scomposizioni **a blocchi di righe**: un blocco di una riga sola con lo
+stesso conto è lo STESSO posto e vale pieno, ogni altro blocco si mappa per posizione relativa a peso
+ridotto. `OTHER_SHAPE_WEIGHT` = **0,5**, dichiarato — due osservazioni approssimate valgono un'osservazione
+esatta — ed è l'unico numero della lettura.
+
+La prima versione le buttava via e toglieva un terzo della finestra a **13 club su 20**. La forma a blocchi
+impedisce anche che un difensore di un 4-3-3 finisca in attacco in un 3-4-2-1.
+
+## 12.4 — L'unica cosa che sceglie: undici uomini vanno messi in campo
+
+Dove il padrone del posto oggi non può giocare (Meret, Anguissa, Solet, Varela) o indossa già un'altra
+maglia, la maglia va al miglior uomo che quel posto lo può prendere — `can_replace`, nell'ordine di
+`status.LADDER`, che è il metro che l'operatore ha scelto per «importante» — e il padrone resta disegnato
+come **ballottaggio**. Da 17/20 a **20/20 undici completi**.
+
+## 12.5 — Tre difetti trovati a SCHERMO, e nessuno nei dati
+
+Tutti e tre segnalati dall'operatore guardando i campetti, e tutti e tre nella mia funzione.
+
+- **«Nel Como N. Paz esce 2 volte»** — un rivale è per definizione uno che non è in campo. Paz N. era
+  titolare della trequarti e ballottaggio di Diao, Baturina titolare a sinistra e rivale della trequarti.
+  È la regola che la coda di `eleven` applica da sempre; il filtro sta DOPO il ciclo, perché chi è titolare
+  si sa solo a maglie consegnate. Ora zero uomini contati due volte su tutta la Serie A.
+- **«Nella Juve hai invertito Koopmeiners con Conceicao»** — Conceicao ha lo slot 7 in tutt'e due i 4-2-3-1
+  e il 5 solo nel 4-4-2: il suo posto è il 7. Ma **Locatelli, padrone del 5, è infortunato**, e servendo i
+  posti in ordine crescente il 5 si prendeva Conceicao. Nessuno si fa consumare da un posto dove vale meno
+  che a casa sua. Il vincolo «solo i padroni», scritto prima, era **troppo forte**: al Milan lo slot 6 ha
+  Jashari (una volta, casa sua) e Modric (una volta, casa altrove per spareggio), e Modric usciva
+  dall'undici pur avendo occupato quel posto quanto l'altro. A pesi uguali nessuno è protetto.
+- **«Nel Sassuolo come AD dovrebbe andare sempre Berardi»** — la lettura per slot **non leggeva le dritte**.
+  Berardi nelle ultime tre è entrato dalla panchina (18′ e 52′), quindi non ha un posto e nessuna lettura
+  può metterlo in campo: è il caso per cui `player_rulings.json` esiste. Vincolo e mai peso. E siccome la
+  sua frase dice anche DOVE mentre una dritta porta solo il «quanto gioca», dopo l'inserimento **la linea si
+  riordina per lato**: Berardi è `RW` e col destro del tridente (`ST;AM`) non condivide nessun codice,
+  quindi `can_replace` ha ragione a rifiutare quella maglia — entra dove può e poi la destra va a chi la
+  destra la gioca.
+
+## 12.6 — Cosa NON si muove
+
+`evaluate` non importa `presence` né `gui`, quindi `backtest --verify` resta **22/22** (verificato, letto
+nel blocco dei controlli e non dalla coda). La board di STAGIONE non cambia: la lettura per slot vive solo
+sull'orizzonte corto, e il gradino del foglio resta quello lungo.
+
+## 12.7 — Aperto
+
+La board breve **non ha un giudice**. `press --against press` giudica quella di stagione; il confronto con
+le probabili è stato fatto a mano il 12/09 (176/220 uomini, 12/20 moduli, contro un null di «chi ha giocato
+l'ultima partita» a 180/220) e dovrebbe diventare il quarto riferimento di `press.py` — è anche l'unico
+giudice che esiste a metà settimana, prima che si giochi.
+

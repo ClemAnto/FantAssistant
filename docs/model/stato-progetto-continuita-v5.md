@@ -7515,3 +7515,63 @@ non distingue un filtro che funziona da uno rotto**.
 - **Filtrare la TITOLARITÀ** non si può: è una scala di parole e il controllo giusto non è una casella
   numerica ma un elenco di gradini da spuntare. Ordinarci sopra resta possibile.
 
+
+# 12 settembre 2026 (sera) — L'undici dell'ultimo periodo si LEGGE, e un calendario negativo passava una guardia
+
+Sessione guidata interamente da segnalazioni dell'operatore davanti al campetto. Dettaglio:
+`formazioni-tipo-v1.md` §12. Commit `408b5cf`, `7bbc1de` (più `f0772f6` del pomeriggio).
+
+## Il difetto più grosso, e non c'entra con le board
+
+`engine_predictions` ripiega quando la stagione bersaglio non ha ancora un calendario nei voti, e chiedeva
+`if not data.matchdays_target` — **falso per −1**. Appena una giornata è COMINCIATA e non ancora votata (la
+4ª si è giocata l'11/09, i voti ne portano 3) il conto è `3 − 4 = −1`, e quel meno uno si moltiplica dentro
+ogni colonna: sul foglio del 12/09 `engine_pv_pred` andava **da −0,8 a −0,1 su 393 righe**, e con lui valore
+e surplus. Il foglio dell'11/09 legge 35 e sta bene: la regressione è nata quel giorno. Guardia `<= 0` e un
+test che la pretende. **Chiude l'aperto «`matchdays_target` = −1» di questa stessa nota.**
+
+Uno zero si vede, ed era già stato visto e curato; un meno uno passa la guardia e rende il foglio
+inutilizzabile senza che niente si lamenti.
+
+## L'undici dell'ultimo periodo
+
+`gui._from_slots` sostituisce il calcolo con una LETTURA delle distinte, posto per posto
+(`desc_recent_slots`, rev 63). Regole dell'operatore: chi ha occupato di più quel posto, il claim solo a
+parità, ballottaggio dove lo slot ha cambiato uomo, e una partita giocata con un altro modulo vota col suo
+peso (righe che coincidono a peso pieno, le altre a 0,5). 20 undici completi su 20 in Serie A, 36/37 su
+euro. `backtest --verify` **22/22**.
+
+Tre difetti trovati a schermo da lui e tutti e tre nella funzione nuova: un rivale che era anche titolare
+(Como), un posto che si consumava il padrone di un altro perché il suo era infortunato (Juve), le dritte
+che la lettura non leggeva (Sassuolo/Berardi, dichiarato in `config/player_rulings.json`).
+
+## Il resto della giornata
+
+- **`matching` tier 5**: una fonte può scrivere il cognome per primo («N'Dri Konan»). Ultimo tier,
+  candidato unico, misurato su tutta la cache: 1.391 file, 796 nomi non risolti → 4 uomini, 0 ambigui. La
+  forma larga (nome rovesciato su tutti i tier) misurata e respinta: ci mette dentro `Romeo Hueso → Romero`.
+- **Distinte recuperate**: `club_match_lineups` leggeva 11 titolari dove il livello per giocatore ne aveva
+  10. Non mancava il dato, mancava un'identità. Reparse offline + ri-risoluzione identità 2026-27 +
+  un'identità dichiarata a mano (N'Dri = 7001, `resolved_by='manual'`). Restano due uomini che **il listone
+  non quota** (Bologna slot 4, Parma slot 6): non c'è niente da recuperare.
+- **`desc_recent_line`** aggiunta e il suo unico lettore (`_wing_back_trade`) **tolto lo stesso giorno**: la
+  lettura per slot lo supera, e quello che restava poteva scattare solo sulla board di stagione, dove una
+  finestra di tre partite non ha titolo a decidere un disegno d'annata. Misurato inerte prima di toglierlo
+  (0 club si muovono).
+
+## Aperti
+
+- **La board breve non ha un giudice.** `press --against press` giudica quella di stagione. Il confronto
+  con le probabili è stato fatto a mano (176/220 uomini, 12/20 moduli, contro un null «chi ha giocato
+  l'ultima partita» a 180/220, che ci batte): dovrebbe diventare il quarto riferimento di `press.py`, ed è
+  l'unico giudice disponibile a metà settimana.
+- **Heatmap 2026-27 mai acquisita**: `desc_avg_y` e `desc_side_measured` vuote su tutte le 562 righe,
+  quindi `flank` ripiega sempre sui codici. È un'acquisizione (`positions --layer places`).
+- **L'identità di N'Dri è nel DB e non in git**: un `rebuild` da zero la perde. La cura strutturale sarebbe
+  lasciare che anche le DISTINTE stabiliscano un'identità, che oggi `parse_round` rifiuta per scelta
+  dichiarata (le identità vengono dagli aggregati di stagione, e di lui non esiste una riga di aggregato).
+- **Curva di mercato** a 8 giorni; **forza dei club** a 11, ma lì l'API dà 502 e l'archivio è fermo al
+  01/09 — la fonte non dà, non è che nessuno guarda.
+- **`OTHER_SHAPE_WEIGHT` = 0,5** e il gradino di stagione come ORDINE per i ballottaggi extra sono due
+  scelte dichiarate: si cambiano in una riga se lui decide diversamente.
+
