@@ -1,19 +1,24 @@
 {
-  "2026-27": {
-    "5273": {
-      "standing": "alternative",
-      "decided_on": "2026-09-07",
-      "note": "Estupinan dovrebbe comparire sul campetto come alternativa"
-    },
-    "6191": {
-      "standing": "alternative",
-      "decided_on": "2026-09-07",
-      "note": "Belahyane sta giocando sempre: presto per dirlo titolare, ma deve vedersi come alternativa"
-    },
-    "2038": {
-      "standing": "starter",
-      "decided_on": "2026-09-07",
-      "note": "Pinamonti e' una Pc di buon livello: non gli si preferisce una ST/AM fuori ruolo"
-    }
+ "2026-27": {
+  "5273": {
+   "standing": "alternative",
+   "decided_on": "2026-09-07",
+   "note": "Estupinan dovrebbe comparire sul campetto come alternativa"
+  },
+  "6191": {
+   "standing": "alternative",
+   "decided_on": "2026-09-07",
+   "note": "Belahyane sta giocando sempre: presto per dirlo titolare, ma deve vedersi come alternativa"
+  },
+  "2038": {
+   "standing": "starter",
+   "decided_on": "2026-09-07",
+   "note": "Pinamonti e' una Pc di buon livello: non gli si preferisce una ST/AM fuori ruolo"
+  },
+  "531": {
+   "standing": "starter",
+   "decided_on": "2026-09-12",
+   "note": "come AD deve andare sempre Berardi se non e' infortunato: e' un giocatore fortissimo essenziale per la squadra. Nelle ultime tre e' entrato dalla panchina (18' e 52'), quindi non ha un posto nelle distinte e nessuna lettura puo' metterlo in campo"
   }
+ }
 }

@@ -824,32 +824,28 @@ def test_il_lato_giocato_lo_legge_solo_lultimo_periodo():
     assert gui.SnapshotView._fit_horizon == "season", "una vista che non ha disegnato legge la stagione"
 
 
-def test_il_cancello_del_wing_back_legge_la_distinta_e_non_solo_il_profilo():
-    """La fascia intera di un centrocampo davanti a una difesa a tre e' un lavoro di corsia.
+def test_la_fascia_intera_di_un_centrocampo_resta_un_lavoro_di_corsia():
+    """`_wing_back_trade`: davanti a una difesa a tre le fasce del centrocampo sono tutta la corsia, e
+    il rivale deve avere un codice di fascia della linea D o M.
 
-    Il profilo resta la prima risposta; quando non basta, decide quello che la fonte ha DAVVERO fatto
-    nella finestra. I due casi che questa riga deve separare sono reali e stanno nei dati del 12/09/2026:
-    Chukwueze `RW`, schierato `M` in tutt'e due le partite che ha cominciato, ENTRA; Malen `RW;ST`,
-    schierato `F` in tutte e tre, resta FUORI - cioe' la sentenza dell'operatore dell'08/08/2026 non si
-    riapre. Senza la distinta (colonna vuota) il comportamento e' quello di prima.
+    E' la sentenza dell'operatore sul caso Malen (08/08/2026), «un attaccante puro non diventa un
+    esterno a tutta fascia per 0,03 di claim». Un ramo che leggeva anche la DISTINTA delle ultime tre
+    partite e' stato aggiunto e tolto il 12/09/2026: serviva al caso Chukwueze, la lettura per slot lo
+    supera - li' l'undici non passa piu' da qui - e quello che restava poteva scattare solo sulla board
+    di STAGIONE, dove una finestra di tre partite non ha titolo a decidere un disegno d'annata.
     """
     from euroleghe_ingest.gui import SnapshotView as View
 
-    def row(codes: str, line: str | None) -> dict:
-        return {"desc_real_roles": codes, "desc_recent_line": line}
+    def row(codes: str) -> dict:
+        return {"desc_real_roles": codes, "desc_recent_line": "M"}
 
-    # il profilo basta da solo, e non ha bisogno di nessuna osservazione
-    assert View._wing_back_trade(row("DR;MR", None)) is True
-    assert View._wing_back_trade(row("ML;DL", None)) is True
-    # Chukwueze: ala pura, ma la fonte lo schiera a centrocampo
-    assert View._wing_back_trade(row("RW", "M")) is True
-    # Malen: ala pura schierata in attacco, tutte e tre le volte
-    assert View._wing_back_trade(row("RW;ST", "F")) is False
-    # ...e senza osservazione si torna al profilo: un'ala pura non e' un esterno a tutta fascia
-    assert View._wing_back_trade(row("RW", None)) is False
-    # ...e una linea osservata NON di corsia non promuove chi non fa quel mestiere: un centrale
-    # schierato a centrocampo resta un centrale, perche' il posto chiede comunque una FASCIA.
-    assert View._wing_back_trade(row("DC", "M")) is False
+    assert View._wing_back_trade(row("DR;MR")) is True
+    assert View._wing_back_trade(row("ML;DL")) is True
+    # un'ala pura resta fuori, ed e' la sentenza su Malen
+    assert View._wing_back_trade(row("RW;ST")) is False
+    assert View._wing_back_trade(row("RW")) is False
+    # ...e la distinta NON entra piu' qui: la colonna c'e' e questo cancello non la legge
+    assert View._wing_back_trade(row("RW")) is False
 
 
 def _slot_view(rows: list[dict]):
@@ -990,4 +986,68 @@ def test_un_calendario_NEGATIVO_e_una_stagione_senza_calendario_come_lo_zero():
     assert "if not data.matchdays_target:" not in source
     # ...e il ripiego resta quello che era: le giornate della stagione precedente meno quelle viste
     assert "max(data.matchdays_prev - data.matchdays_seen, 1)" in source
+
+
+def test_un_rivale_non_puo_essere_anche_un_titolare():
+    """Trovato dall'operatore sullo schermo (12/09/2026): «nel Como N. Paz esce 2 volte».
+
+    Paz N. era il titolare della trequarti e insieme il ballottaggio di Diao, Baturina titolare a
+    sinistra e rivale della trequarti. Contare il claim di un compagno come concorrenza per un posto
+    che non gli contende e' esattamente cio' che la coda di `eleven` evita da sempre, e la lettura per
+    slot non lo faceva. Il filtro sta DOPO il ciclo, perche' chi e' titolare si sa solo quando tutte le
+    maglie sono consegnate.
+    """
+    def man(name, claim, slots):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": "titolare", "desc_real_roles": "MC"}
+
+    # due uomini, due posti: ognuno e' titolare del suo, quindi nessuno dei due e' rivale dell'altro
+    uno = man("Uno", 0.9, "4-3-3:5;4-3-3:6")
+    due = man("Due", 0.8, "4-3-3:6;4-3-3:5")
+    rows = [uno, due]
+    view = _slot_view(rows)
+    drawn = view._from_slots(rows, [], "4-3-3", "short", {"P": 1, "D": 4, "M": 3, "A": 3})
+    on_pitch = {row["name"] for _lane, row, _rivals in drawn}
+    assert on_pitch == {"Uno", "Due"}
+    for _lane, row, rivals in drawn:
+        assert not [r for r in rivals if r["name"] in on_pitch], (
+            f"{row['name']} ha per rivale un titolare")
+
+
+def test_nessuno_viene_consumato_da_un_posto_dove_vale_meno_che_a_casa_sua():
+    """Trovato dall'operatore sullo schermo: «nella Juve hai invertito Koopmeiners con Conceicao».
+
+    Conceicao ha lo slot 7 in tutt'e due i 4-2-3-1 e il 5 solo nel 4-4-2; il suo posto e' il 7. Ma
+    Locatelli, padrone del 5, e' infortunato, e servendo i posti in ordine il 5 si prendeva Conceicao e
+    lasciava il 7 a un ripiego. La prima passata salta chi vale di piu' su una maglia ancora libera.
+
+    E il vincolo NON e' «solo i padroni», che e' stato scritto prima ed era troppo forte: al Milan lo
+    slot 6 ha Jashari (una volta, casa sua) e Modric (una volta, casa altrove per spareggio), e cosi'
+    Modric non era nemmeno candidato. A pesi uguali nessuno e' protetto e decide il claim.
+    """
+    def man(name, claim, slots):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": "titolare", "desc_real_roles": "MC"}
+
+    # IL CASO JUVE: il padrone del 5 e' fuori, e il 5 non deve prendersi il padrone del 7
+    padrone5 = man("Locatelli", 0.9, "4-2-3-1:5;4-2-3-1:5")
+    suo7 = man("Conceicao", 0.8, "4-2-3-1:7;4-2-3-1:7;4-4-2:5")
+    ripiego = man("Koopmeiners", 0.4, "")
+    view = _slot_view([suo7, ripiego, padrone5])
+    drawn = view._from_slots([suo7, ripiego], [padrone5], "4-2-3-1", "short",
+                             {"P": 1, "D": 4, "M": 2, "T": 3, "A": 1})
+    where = {row["name"]: lane for lane, row, _rivals in drawn}
+    assert where.get("Conceicao") == "T", "il suo posto e' il 7, cioe' la trequarti"
+    assert where.get("Koopmeiners") == "M", "il ripiego prende la maglia del padrone infortunato"
+
+    # IL CASO MILAN: due uomini una volta ciascuno sullo stesso posto, e decide il claim
+    casa6 = man("Jashari", 0.3, "3-4-2-1:6")
+    altrove = man("Modric", 0.6, "3-4-2-1:5;3-4-2-1:6")
+    forte5 = man("Musah", 0.9, "3-4-2-1:5;3-4-2-1:5")
+    rows = [casa6, altrove, forte5]
+    view2 = _slot_view(rows)
+    drawn2 = view2._from_slots(rows, [], "3-4-2-1", "short",
+                              {"P": 1, "D": 3, "M": 4, "T": 2, "A": 1})
+    names = {row["name"] for _lane, row, _rivals in drawn2}
+    assert "Musah" in names and "Modric" in names and "Jashari" not in names
 
