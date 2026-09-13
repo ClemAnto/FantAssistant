@@ -6520,3 +6520,87 @@ altri due ingressi della parola. Una riga che legge `titolare` con 0,274 accanto
 viene quel gradino, si legge come un difetto — «un vincolo che agisce in silenzio è indistinguibile da un
 ordinamento rotto». Il campo è una PAROLA e non un booleano, per la ragione che `flags.new_coach` ha
 insegnato a questo repository.
+
+## 7-sexquinquagies. PRE-REGISTRAZIONE (13 settembre 2026) — R26: LE GIORNATE VISTE SONO QUELLE IN CUI ERA IN ROSA
+
+**Scritta e committata PRIMA della corsa**, come R24 e R25. Dalla domanda dell'operatore su Kessié:
+«nell'Atalanta è uno degli ultimi acquisti … riusciamo a riconoscere i nuovi acquisti presi per essere
+titolari?», e poi «il fatto che per qualche partita un nuovo acquisto non giochi è normale perché deve
+entrare negli schemi della squadra».
+
+**IL FATTO CHE APRE LA DOMANDA, e non è un canale nuovo: è un DENOMINATORE.** R20 legge
+`pv_seen / data.matchdays_seen`, e `matchdays_seen` è uno SCALARE uguale per tutti — le giornate del
+calendario già finite alla data d'asta. Un uomo comprato a mercato inoltrato non ha «saltato» quelle
+giornate: **non era in rosa**. Kessié compare nelle letture di rosa il 1º settembre (e leggiamo le rose
+dal 26 luglio, quindi è un acquisto vero e non un buco di osservazione) mentre le prime due giornate si
+sono giocate il 23 e il 31 agosto; il foglio gli conta 4 giornate con 1 voto e legge una quota di 0,25.
+È «il denominatore segue il suo NUMERATORE» (la correzione di Malen, 20/08) applicata alla metà
+in-season del motore, dove non era mai stata guardata.
+
+### La regola
+
+Identica a R20 nella forma, con UNA quantità per uomo al posto dello scalare:
+
+    k_suo  = quante delle giornate viste lui era in rosa
+    signal = pv_seen / k_suo
+    share  = model.blend_with_seen(share, signal, k_suo, K)
+
+**IL NUMERATORE NON SI MUOVE, ed è la ragione per cui questa è una correzione e non un canale**: il
+termine che entra nella miscela è `k × signal = pv_seen`, cioè le partite che ha giocato, che sono sue
+comunque. Cambia solo per quante gliene chiediamo conto. R26 è quindi R20 con il proprio denominatore, e
+si giudica contro R20 al K già adottato (`R20K10` su `default`, `R20K6` su `euro`), un punto di griglia
+per volta come l'idioma di R18b/R20/R25.
+
+**CHI C'ERA E NON GIOCAVA NON È TOCCATO, e la distinzione è la regola stessa.** Una giornata in cui era
+in rosa e non è stato schierato è **una prova su di lui** — è quello che il commento di `pv_seen` dice
+già («c'era e non è stato scelto») — e resta nel denominatore. Si tolgono solo le giornate in cui non
+era tesserato per un club di questo campionato. Un uomo che non ha mai cambiato squadra ha `k_suo =
+matchdays_seen` per costruzione, quindi legge **identico** a oggi.
+
+### Da dove viene «era in rosa», e la guardia
+
+Cascata dichiarata, complemento e mai una seconda opinione, con la freschezza a decidere l'ordine:
+
+1. **`squad_snapshot`** (tre fonti, letta ogni giorno) — usabile solo se quel CLUB è stato letto PRIMA
+   della sua prima partita di campionato. Altrimenti la prima lettura non data un ingresso: data
+   l'inizio della nostra osservazione, che è la trappola di «un'assenza ha due significati e la più cara
+   è *non abbiamo guardato*». Copre la stagione viva (dal 26/07/2026).
+2. **`tm_appearances`** — il provider emette una riga per ogni partita del club in cui era tesserato,
+   `not in squad` e `injured` compresi, quindi l'ASSENZA di righe è l'assenza dal club e non dalla
+   distinta. Copre lo storico (127-167k righe a stagione); la competizione via `config.TM_CHAMPIONSHIPS`.
+3. **Un VOTO riporta indietro**: se ha preso un voto in una giornata, quel giorno era in rosa qualunque
+   cosa dicano le due sorgenti. È la guardia che rende l'errore unilaterale.
+4. **Ignoto ⇒ tutte le giornate**, cioè il comportamento di oggi. Mai zero.
+
+**IL COSTO DELLA FONTE È MISURATO E DICHIARATO PRIMA**: fra gli uomini con 30+ voti in Serie A 2023-24,
+il **90,0% (135/150)** ha righe TM dalla prima partita del proprio club. Il 10% residuo è il tasso di
+falsi «non era in rosa» che la sorgente 2 può produrre da sola, ed è la ragione per cui esiste la
+guardia 3 — che non può correggerli tutti, perché un uomo che non ha MAI giocato le prime giornate non
+ha un voto che lo riporti indietro.
+
+### Criteri, scritti prima di guardare un numero
+
+* **Finestre**: le 14 in-season (`INSEASON_WINDOWS`, I19set … I25feb), cross-fit leave-one-window-out,
+  accoppiate fra loro e mai con una pre-stagione.
+* **Verdetti**: strict e robusto come sempre, **pavimento 0,5% sulla media**, nessuna finestra sotto
+  **−2%**, e i due riportati affiancati senza che uno nasconda l'altro.
+* **Metrica**: MAE sulle presenze del resto della stagione, la stessa di R20.
+* **Guardia sul DELIVERABLE**: i nomi e il valore delle liste d'asta (`captured_not_harmed`), come ogni
+  candidata dal 06/08/2026.
+* **Adozione per PIATTAFORMA**, non una sola risposta per tutte: è l'asimmetria di R19 e di R20 stessa.
+  Su `euro` il calendario è un sottoinsieme e i cinque campionati hanno codici TM diversi, quindi la
+  copertura della fonte è un'altra e il verdetto può legittimamente differire.
+
+**INERZIA DICHIARATA, e va verificata invece che argomentata**: su una finestra pre-stagione
+`matchdays_seen` è 0 e il blocco non esiste, quindi **le 10 finestre pubblicate non si muovono di un
+decimale e `backtest --verify` resta 22/22**. Se non fosse così, è la correzione a essere sbagliata.
+
+**COSA LA FALSIFICA.** Che la popolazione toccata sia troppo piccola per muovere la media oltre il
+pavimento (è il rischio più probabile: pochi uomini spostati di molto); che la fonte produca falsi
+ingressi tardivi abbastanza da peggiorare chi c'era davvero; o che il guadagno ci sia sulle finestre di
+febbraio e non su quelle di settembre, dove la correzione è più grande in proporzione — nel qual caso è
+un artefatto e non un meccanismo, perché a febbraio le giornate non sue sono una frazione minore.
+
+**E UN'ATTESA SCRITTA PRIMA, così non la si racconta dopo**: l'effetto è per costruzione **maggiore a
+settembre** (con 4 giornate viste togliere 2 raddoppia il peso del prior) e **minore a febbraio** (con 22
+viste togliere 2 cambia poco). Se il gate leggesse il contrario, la spiegazione non è questa regola.
