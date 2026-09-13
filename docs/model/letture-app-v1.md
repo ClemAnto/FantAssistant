@@ -5279,3 +5279,79 @@ vedeva; dal momento in cui una regola si chiave sull'id, un fixture così non la
 `external_match_stats` porta tre colonne nuove — `avg_x`, `avg_y`, `came_for` — scritte da una passata LORO
 e quindi **non nominate dall'upsert del parser**, che è la disciplina che protegge `mv_synth` vista dal lato
 di chi le aggiunge. Un test lo pretende: una rilettura del turno non le può cancellare.
+
+---
+
+# 41 — Il pavimento dei ballottaggi non sbaglia: non sa distinguere un comprimario da un titolare FERMO (13/09/2026)
+
+Dalla segnalazione dell'operatore sul campetto del Milan («vorrei che Rabiot e Pulisic compaiano almeno in
+ballottaggio»), e i due nomi hanno avuto due risposte diverse: Rabiot era un difetto del TOOLKIT
+(`formazioni-tipo-v1.md` §13), Pulisic è una scelta dell'APP.
+
+## 41.1 — Il fatto
+
+Pulisic nel file c'è, con **0,178** di quota da titolare nella finestra corta; `PITCH_CLAIM_FLOOR` = 0,20
+lo taglia **prima** di ogni riassegnazione (`spreadDuels`), quindi non c'è niente che il toolkit possa fare
+per farlo comparire. Il pavimento è giusto nel caso generale — un rivale a diciassette centesimi è rumore
+su una carta che si legge in due secondi — e quello che non sa distinguere è **un comprimario da un
+titolare fermo**.
+
+## 41.2 — E il gradino di stagione non porta quella distinzione
+
+Misurato sul foglio del 13/09: dei **193** ballottaggi della board breve sotto il pavimento, solo **8**
+hanno un gradino di stagione alto (`bandiera`/`titolarissimo`/`titolare`), su 4 club — e **Pulisic non è
+fra loro**, perché il modello lo classifica già `panchina` (0,535 di titolarità). Un'esenzione costruita sul
+gradino sarebbe stata plausibile, misurabile e **non avrebbe risolto il caso segnalato**: è la ragione per
+cui è stata scartata prima di scriverla.
+
+## 41.3 — Quello che lo riconosce è il segnale che l'operatore aveva proposto lui
+
+«Quando parlo di prezzo del cartellino non mi riferisco alla Qt ma al prezzo REALE del calciatore». Come
+predittore di presenze quel canale è stato respinto due volte dal gate (`value_weight`, sotto il pavimento
+dello 0,5%, e la forma condizionale è la peggiore di tutte) — ma **questa è un'altra domanda**: non «quante
+ne gioca» ma «chi mostrare fra i candidati di un posto», su una popolazione ristretta.
+
+Misurato su **4.324** ex titolari fermi da due giornate (due stagioni, cinque campionati), esito = quota di
+partenze nelle cinque partite successive:
+
+| segnale | ρ con l'esito |
+|---|---|
+| **valore di mercato relativo ai titolari** | **+0,103** |
+| quota di partenze precedente | +0,069 |
+| età | −0,024 |
+| i due insieme | +0,118 |
+
+Regge **a parità di età** (+0,103) e **a parità di quota** (+0,099 ≈ il grezzo): non è l'età travestita e
+non è ridondante. Per quintile di valore relativo: 0,326 · 0,362 · 0,387 · 0,383 · **0,430**. Contro la
+media voto è un pareggio dove esistono entrambe (+0,079 e +0,086 su n=1.161, Serie A), e decide la
+**copertura**: 94% contro 25%.
+
+**RELATIVO e mai assoluto** — quaranta milioni dicono una cosa a Cremona e un'altra a Milano — con la
+mediana presa sui TITOLARI che il campetto sta disegnando, cioè gli uomini contro cui compete davvero.
+È la stessa forma che `engine/projection.py` già usa e che lì paga.
+
+## 41.4 — `KEY_MAN_VALUE` = 2, e perché la soglia non è circolare
+
+**Pulisic entra a 1,0×, a 1,5× e a 2,0×**: la scelta del numero non decide il caso segnalato, ed è quello
+che la rende non circolare. Il 2,0 è dove la misura mette il salto (il quinto quintile) e costa **15 voci
+in più su 20 club, 9 uomini** — Pulisic, Neres, Beukema, Gilmour, Castro S., Messias — cioè meno di una
+riga per club. A 2,5× non entra più nessuno: il massimo osservato è 2,30.
+
+È una scelta di **VISUALIZZAZIONE** come il pavimento che corregge: non entra in nessuna valutazione, non
+ordina niente, nessun gate la possiede, e si spegne da sé passando un `marketValue` nullo — un chiamante
+che non ha la curva in mano non esenta nessuno, che è «ignoto» e non «non vale niente». Servono **almeno
+sei** titolari con un valore perché la mediana dica qualcosa: sotto, nessuno passa — «vuoto = ignoto»
+applicato allo ZERO di un rapporto e non solo al suo numeratore.
+
+## 41.5 — Il dato c'era, per l'undicesima volta
+
+Nessuna acquisizione e nessuna riga nuova in `pull-bundle.mjs`: `market_value_history` viaggia nel bundle
+da agosto (233 KB) e `MarketValues.trend()` è il lettore unico che sa già ritagliare la curva al giorno del
+viaggio nel tempo. Un secondo lettore avrebbe dato allo stesso uomo due valori nella stessa schermata.
+
+## 41.6 — E il test giusto è quello che cade
+
+Tre asserzioni nuove, provate rimettendo il difetto: col filtro senza esenzione ne cade **una sola**, quella
+che descrive la cura («...ma non chi il mercato VERO prezza come un uomo del club»), mentre le altre due
+restano verdi perché descrivono il comportamento che NON cambia. È il modo in cui si vede che un test
+misura quello che dice di misurare.

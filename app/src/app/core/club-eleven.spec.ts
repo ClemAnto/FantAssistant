@@ -1,6 +1,7 @@
 import { Board, BoardMan } from './bundle';
 import {
   BOARD_ENGINE_GAP,
+  KEY_MAN_VALUE,
   OnTable,
   PitchMan,
   disagreementHint,
@@ -509,5 +510,41 @@ describe('il ballottaggio che oggi non può giocare', () => {
     const pitch = pitchOf(weak, () => free)!;
     expect(defence(pitch).duels).toEqual([]);
     expect(pitch.hiddenDuels.floor).toBe(1);
+  });
+});
+
+
+describe('il pavimento dei ballottaggi, e chi lo passa', () => {
+  /** Un campetto con sei titolari che valgono 10M e un rivale sotto il pavimento. */
+  const withRival = (rivalWorth: number | null) => {
+    const rival = man('Fermo', 0.5, { fc_id: 991, claim: 0.178 });
+    const starters = [0, 1, 2, 3].map((i) => man(`Titolare${i}`, i / 4, { fc_id: 900 + i, duels: [] }));
+    starters[0] = { ...starters[0], duels: [rival] };
+    const drawn = pitchOf(
+      board('4-3-3', {
+        P: [man('Portiere', 0.5, { fc_id: 800, role_line: 'G', codes: 'GK', badge: 'Por' })],
+        D: starters,
+        M: [0, 1, 2].map((i) => man(`Mezzo${i}`, i / 3, { fc_id: 910 + i, role_line: 'M' })),
+        A: [0, 1, 2].map((i) => man(`Punta${i}`, i / 3, { fc_id: 920 + i, role_line: 'A' })),
+      }),
+      (who) => ({ ...free, marketValue: who.fc_id === 991 ? rivalWorth : 10_000_000 }),
+    )!;
+    return drawn.rows.flatMap((row) => row.men).flatMap((starter) => starter.duels.map((d) => d.name));
+  };
+
+  it("scarta un rivale sotto la quota, che nel caso generale e rumore", () => {
+    expect(withRival(8_000_000)).not.toContain('Fermo');
+  });
+
+  it("...ma non chi il mercato VERO prezza come un uomo del club", () => {
+    // Il caso Pulisic (operatore, 13/09/2026): 0,178 di quota e il valore piu' alto della rosa. La
+    // soglia e' un MULTIPLO della mediana dei titolari, non una cifra: 10M x KEY_MAN_VALUE.
+    expect(withRival(10_000_000 * KEY_MAN_VALUE)).toContain('Fermo');
+    // ...e appena sotto no, cosi' il test fallisce se qualcuno alza la soglia in silenzio.
+    expect(withRival(10_000_000 * KEY_MAN_VALUE - 1)).not.toContain('Fermo');
+  });
+
+  it("senza un valore nessuno e esentato: ignoto non e «vale molto»", () => {
+    expect(withRival(null)).not.toContain('Fermo');
   });
 });

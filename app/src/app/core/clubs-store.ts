@@ -5,6 +5,7 @@ import { PlayerRulings } from './player-rulings';
 import { Platform, abbreviate, competitionLabel, nameWords } from './players-store';
 import { Titolarita } from './titolarita';
 import { SquadMan, ValuationStore, shortShiftOf } from './valuation-store';
+import { MarketValues } from './market-trend';
 
 /**
  * The SQUADS of today's snapshot: who a real club has, and the eleven the toolkit draws for it.
@@ -108,6 +109,8 @@ export function shortNames(names: readonly string[]): Map<string, string> {
 @Injectable({ providedIn: 'root' })
 export class ClubsStore {
   private readonly valuation = inject(ValuationStore);
+  /** La curva del mercato vero, letta da chi la legge gia' per la tabella: un lettore solo. */
+  private readonly market = inject(MarketValues);
   /** Le dritte dichiarate: il campetto le applica al disegno, i numeri le hanno gia' dentro. */
   private readonly rulingsOf = inject(PlayerRulings);
 
@@ -232,6 +235,20 @@ export class ClubsStore {
    * un uomo che legge 85 nella tabella deve leggere 85 sul campetto, o le due letture della stessa
    * schermata direbbero due cose. Il rango è calcolato sul listone intero, non su questa rosa.
    */
+  /**
+   * QUANTO VALE OGNI UOMO DELLA ROSA SUL MERCATO VERO, alla data che si sta guardando.
+   *
+   * Serve a una cosa sola: l'esenzione al pavimento dei ballottaggi del campetto (`KEY_MAN_VALUE`), cioè
+   * far vedere un titolare FERMO che la finestra corta non ha visto giocare. Letto da `MarketValues`, che
+   * è il lettore unico di quella curva e sa già ritagliarla al giorno del viaggio nel tempo: un secondo
+   * lettore darebbe allo stesso uomo due valori nella stessa schermata.
+   */
+  readonly marketValues = computed<ReadonlyMap<number, number | null>>(() => {
+    const out = new Map<number, number | null>();
+    for (const man of this.squad()) out.set(man.fcId, this.market.trend(man.fcId)?.value ?? null);
+    return out;
+  });
+
   readonly overalls = computed<ReadonlyMap<number, number | null>>(() => {
     const out = new Map<number, number | null>();
     for (const man of this.squad()) out.set(man.fcId, man.rating?.overall.score ?? null);

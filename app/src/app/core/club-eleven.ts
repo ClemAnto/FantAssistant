@@ -37,6 +37,15 @@ export interface PitchMan {
   name: string;
   /** The granular REAL role codes, which is what says a left back is not a centre back. */
   codes: string[];
+  /**
+   * QUANTO VALE SUL MERCATO VERO, in euro, alla data che si sta guardando (`core/market-trend.ts`).
+   *
+   * Non entra in nessuna valutazione e non ordina niente: risponde a UNA domanda, «questo uomo che la
+   * finestra non ha visto e' un comprimario o un titolare fermo?», che e' la sola cosa che il pavimento
+   * qui sotto non sa distinguere. Null dove il chiamante non lo passa - e allora il pavimento vale per
+   * tutti, cioe' il disegno di prima senza una riga di differenza.
+   */
+  marketValue: number | null;
   /** The LISTONE's own role(s): what the game scores by, and what a bid is made against. */
   mantra: string[];
   /**
@@ -283,6 +292,13 @@ export interface OnTable {
    * disagreement is ever marked, which is «ignoto» and not «d'accordo».
    */
   expectedShare?: number | null;
+  /**
+   * IL VALORE DI MERCATO VERO, per l'esenzione al pavimento dei ballottaggi (`KEY_MAN_VALUE`).
+   *
+   * Opzionale come `overall`: un chiamante che non ha la curva in mano non passa niente e nessuno e'
+   * esentato - che e' «ignoto» e non «non vale niente».
+   */
+  marketValue?: number | null;
 }
 
 /**
@@ -328,6 +344,34 @@ export const BOARD_ENGINE_GAP = 0.2;
  * per una misura.
  */
 export const PITCH_CLAIM_FLOOR = 0.2;
+
+/**
+ * ...E CHI VALE ALMENO DUE VOLTE LA MEDIANA DEI TITOLARI DEL SUO CLUB SI VEDE COMUNQUE, sul mercato
+ * VERO (operatore, 13/09/2026: «vorrei che Rabiot e Pulisic, due elementi fondamentali, compaiano almeno
+ * in ballottaggio»).
+ *
+ * IL PAVIMENTO NON SBAGLIA: un rivale a 0,178 di quota da titolare È rumore nel caso generale. Quello
+ * che non sa distinguere è un comprimario da un titolare fermo, e quella distinzione il gradino di
+ * stagione non la porta - misurato sul foglio del 13/09, dei 193 ballottaggi sotto il pavimento solo 8
+ * hanno un gradino alto, e Pulisic NON è fra loro: il modello lo classifica già `panchina` (0,535 di
+ * titolarità). Quello che lo riconosce è il segnale che l'operatore aveva proposto lui - il prezzo del
+ * cartellino - misurato su 4.324 ex titolari fermi da due giornate, esito = quota di partenze nelle
+ * cinque successive: il valore RELATIVO ai titolari legge ρ +0,103 contro +0,069 della quota di
+ * partenze precedente, sopravvive a parità di età (+0,103) e di quota (+0,099), e i due si compongono
+ * (+0,118). Per quintile di valore relativo: 0,326 · 0,362 · 0,387 · 0,383 · 0,430.
+ *
+ * RELATIVO e mai assoluto, per la stessa ragione per cui lo è in `engine/projection.py`: 40 milioni
+ * dicono una cosa a Cremona e un'altra a Milano. La mediana è quella dei TITOLARI che il campetto sta
+ * disegnando, cioè gli uomini contro cui compete davvero.
+ *
+ * LA SOGLIA NON È SCELTA PER FAR ENTRARE IL CASO SEGNALATO, ed è quello che la rende non circolare:
+ * Pulisic entra a 1,0×, a 1,5× e a 2,0×, quindi la scelta del numero non decide il suo caso. Il 2,0 è
+ * dove la misura mette il salto (il quinto quintile) e costa poco: 15 voci in più su 20 club, 9 uomini
+ * (Pulisic, Neres, Beukema, Gilmour, Castro S., Messias...), meno di una per club. È una scelta di
+ * VISUALIZZAZIONE come il pavimento che corregge - non entra in nessuna valutazione, non ordina niente
+ * e nessun gate la possiede - e si spegne passando `marketValue` nullo.
+ */
+export const KEY_MAN_VALUE = 2;
 
 /** Which of the two is the optimist, when they are far enough apart to be worth saying. */
 export function disagreementOf(
@@ -398,6 +442,7 @@ function toMan(man: BoardMan, resolve: (man: BoardMan) => OnTable, ruling?: Ruli
     fcId: man.fc_id ?? null,
     name: man.name ?? '—',
     codes: (man.codes ?? '').split(';').map((code) => code.trim()).filter(Boolean),
+    marketValue: live.marketValue ?? null,
     mantra: (man.mantra ?? '').split(';').map((code) => code.trim()).filter(Boolean),
     badge: man.badge ?? null,
     minutes: int(man.minutes),
@@ -506,6 +551,20 @@ function spreadDuels(rows: PitchRow[]): { floor: number; duplicate: number } {
    *  esattamente la cosa da togliere (Pasalic, ballottaggio in mezzo e sulla trequarti insieme). */
   const places = rows.flatMap((row) => row.men.map((starter) => ({ row, starter })));
 
+  /** Quanto vale il titolare MEDIANO di questo campetto: lo zero contro cui si misura un uomo fermo. */
+  const worths = places.map(({ starter }) => starter.marketValue).filter((v): v is number => v != null);
+  const median = worths.length >= 6
+    ? [...worths].sort((a, b) => a - b)[Math.floor(worths.length / 2)]
+    : null;
+  /**
+   * ...e chi vale almeno `KEY_MAN_VALUE` volte quella mediana passa il pavimento (`KEY_MAN_VALUE`).
+   *
+   * Sei titolari con un valore sono il minimo perché una mediana dica qualcosa: sotto, nessuno è
+   * esentato - «vuoto = ignoto» applicato allo ZERO di un rapporto, non solo al suo numeratore.
+   */
+  const keyMan = (man: PitchMan): boolean =>
+    median != null && man.marketValue != null && man.marketValue >= median * KEY_MAN_VALUE;
+
   /** Un candidato: l'uomo - un oggetto solo, anche dove il toolkit lo elencava su tre posti - i posti su
    *  cui era elencato, che è quello che distingue uno spostamento da una conferma, e le LINEE di quei
    *  posti, che sono il suo perimetro: un rivale della difesa non si sposta a centrocampo. */
@@ -514,8 +573,10 @@ function spreadDuels(rows: PitchRow[]): { floor: number; duplicate: number } {
   const byId = new Map<number, Candidate>();
   places.forEach(({ row, starter }, place) => {
     for (const rival of starter.duels) {
-      // Sotto la soglia non è un ballottaggio: via, e il titolare resta comunque disegnato.
-      if (rival.claim != null && rival.claim < PITCH_CLAIM_FLOOR) {
+      // Sotto la soglia non è un ballottaggio: via, e il titolare resta comunque disegnato - salvo chi
+      // il mercato vero prezza come un uomo del club e non come un comprimario, che è l'unica cosa che
+      // il pavimento non sa distinguere.
+      if (rival.claim != null && rival.claim < PITCH_CLAIM_FLOOR && !keyMan(rival)) {
         counted.floor += 1;
         continue;
       }

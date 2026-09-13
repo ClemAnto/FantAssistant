@@ -75,6 +75,14 @@ export class ClubBoard {
   readonly overall = input<ReadonlyMap<number, number | null>>(NOTHING);
   /** La quota di calendario che il MOTORE gli prevede, per il marchio del disaccordo. */
   readonly expectedShares = input<ReadonlyMap<number, number | null>>(NOTHING);
+  /**
+   * QUANTO VALE OGNUNO SUL MERCATO VERO, per l'esenzione al pavimento dei ballottaggi
+   * (`KEY_MAN_VALUE`): un titolare fermo si vede, un comprimario no.
+   *
+   * Un INPUT come l'Overall e per la stessa ragione: la curva la legge `core/market-trend.ts` e a quale
+   * data vada letta lo sa il chiamante. Vuota = nessuno esentato, cioè il campetto di prima.
+   */
+  readonly marketValues = input<ReadonlyMap<number, number | null>>(NOTHING);
   /** Quello che solo un tavolo sa: chi è già stato preso, cosa chiede, se è in questo listone. */
   readonly table = input<ReadonlyMap<number, OnTable>>(NO_TABLE);
   /**
@@ -133,6 +141,7 @@ export class ClubBoard {
     const known = this.table();
     const shares = this.expectedShares();
     const worth = this.overall();
+    const market = this.marketValues();
     const resolve = (man: BoardMan): OnTable => {
       const id = man.fc_id;
       const live = id == null ? undefined : known.get(id);
@@ -144,6 +153,7 @@ export class ClubBoard {
         value99: live?.value99 ?? null,
         overall: id == null ? null : (worth.get(id) ?? null),
         expectedShare: id == null ? null : (shares.get(id) ?? null),
+        marketValue: id == null ? null : (market.get(id) ?? null),
       };
     };
     const declared = this.ruled();
