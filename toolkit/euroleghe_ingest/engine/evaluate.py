@@ -170,6 +170,15 @@ RULES: tuple[Rule, ...] = (
                 f"K = {rounds:.0f} giornate", True, metric="pv")
       for key, rounds in (("R20K40", 40.0), ("R20K25", 25.0), ("R20K15", 15.0),
                           ("R20K10", 10.0), ("R20K6", 6.0), ("R20K3", 3.0))),
+    # R26 - LO STESSO, CON IL DENOMINATORE DI CIASCUNO (pre-registrata §7-sexquinquagies, 13/09/2026).
+    # `matchdays_seen` e' uno scalare uguale per tutti, e per chi e' arrivato a mercato inoltrato e' il
+    # denominatore sbagliato: quelle giornate non le ha saltate, non era in rosa. Non e' un canale nuovo
+    # ma R20 con la propria taglia, quindi si giudica contro R20 al suo stesso K. Inerte su una finestra
+    # pre-stagione come le R20, e identica a R20 su chiunque non abbia cambiato squadra.
+    *(Rule(key, f"come R20, ma le giornate viste sono quelle in cui era IN ROSA: il prior pesa "
+                f"K = {rounds:.0f} giornate", True, metric="pv")
+      for key, rounds in (("R26K40", 40.0), ("R26K25", 25.0), ("R26K15", 15.0),
+                          ("R26K10", 10.0), ("R26K6", 6.0), ("R26K3", 3.0))),
     # R24 - UNA PARTENZA DA TITOLARE NON E' UNA PRESENZA (pre-registrata §7-quinquadragies, 06/09/2026).
     # `pv_seen` conta le presenze A VOTO, quindi mette nello stesso numero il titolare e chi entra dalla
     # panchina e gioca abbastanza da prendere il voto. La diagnostica pre-corsa dice che la distinzione
@@ -220,10 +229,17 @@ R25_MATCHES: dict[str, float] = {"R25K120": 120.0, "R25K80": 80.0, "R25K60": 60.
                                  "R25K10": 10.0, "R25K6": 6.0, "R25K3": 3.0}
 
 
-#: L'ordine in cui le due famiglie si contendono l'unico ramo della miscela: la piu' specifica prima.
-_SEEN_BLENDS: tuple[tuple[str, float, float], ...] = (
-    *((key, prior, bench) for key, (prior, bench) in R24_BENCH.items()),
-    *((key, prior, 0.0) for key, prior in R20_ROUNDS.items()),
+#: R26 - LA STESSA MISCELA CON IL DENOMINATORE DI CIASCUNO (§7-sexquinquagies). Stessa griglia di R20,
+#: perche' il K e' la stessa quantita' e il confronto e' punto contro punto: quello che cambia e' che `k`
+#: sono le giornate in cui era IN ROSA e non quelle del calendario.
+R26_ROUNDS: dict[str, float] = {f"R26K{key[4:]}": rounds for key, rounds in R20_ROUNDS.items()}
+
+#: L'ordine in cui le famiglie si contendono l'unico ramo della miscela: la piu' specifica prima.
+#: `own` dice se il peso e il denominatore sono quelli DI LUI (R26) o del calendario (R20/R24).
+_SEEN_BLENDS: tuple[tuple[str, float, float, bool], ...] = (
+    *((key, prior, bench, False) for key, (prior, bench) in R24_BENCH.items()),
+    *((key, prior, 0.0, True) for key, prior in R26_ROUNDS.items()),
+    *((key, prior, 0.0, False) for key, prior in R20_ROUNDS.items()),
 )
 
 
@@ -259,7 +275,11 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                # R22/R23: pre-registrate §7-noviestricies (20/08/2026).
                                "R22", "R23",
                                # R25: pre-registrata §7-noviesquadragies (06/09/2026).
-                               *R25_MATCHES)
+                               *R25_MATCHES,
+                               # R26: pre-registrata §7-sexquinquagies (13/09/2026). Inerte come le R20
+                               # su una pre-stagione, e in piu' inerte su chiunque non abbia cambiato
+                               # squadra dentro la stagione bersaglio.
+                               *R26_ROUNDS)
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -1689,14 +1709,19 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     # nello stesso ciclo e non accanto: sono due letture della stessa domanda, e due rami separati
     # applicherebbero la miscela due volte. R24 viene PRIMA perche' e' la piu' specifica - in `ALL`, dove
     # ci sono entrambe, vince lei e il `break` la lascia sola.
-    for key, prior, bench in _SEEN_BLENDS:
+    for key, prior, bench, own in _SEEN_BLENDS:
         if key in rules and data.matchdays_seen and obs.pv_seen is not None:
-            signal = obs.pv_seen / data.matchdays_seen
+            # R26: le giornate in cui era IN ROSA, e lo scalare quando non ci sono prove del contrario -
+            # «vuoto = ignoto, mai zero», che qui vuol dire «si comporta come R20». Il numeratore non si
+            # muove in nessun caso: `k x signal` e' `pv_seen` per costruzione, quindi quello che cambia
+            # e' solo per quante giornate gliene chiediamo conto.
+            rounds = (obs.rounds_mine if own and obs.rounds_mine else data.matchdays_seen)
+            signal = obs.pv_seen / rounds
             if bench:
                 rate = _start_rate_seen(obs)
                 if rate is not None:
                     signal *= 1 - bench * (1 - rate)
-            share = model.blend_with_seen(share, signal, data.matchdays_seen, prior)
+            share = model.blend_with_seen(share, signal, rounds, prior)
             break
     # R21 - LA COPPA CONTINENTALE IN MEZZO AL CAMPIONATO, e va DOPO R20 per la stessa ragione per cui R20
     # va dopo tutto il resto: è l'ultima cosa che si sa. Qualunque quota di stagione il modello preveda,

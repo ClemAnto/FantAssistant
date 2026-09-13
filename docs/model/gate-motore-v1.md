@@ -6604,3 +6604,58 @@ un artefatto e non un meccanismo, perché a febbraio le giornate non sue sono un
 **E UN'ATTESA SCRITTA PRIMA, così non la si racconta dopo**: l'effetto è per costruzione **maggiore a
 settembre** (con 4 giornate viste togliere 2 raddoppia il peso del prior) e **minore a febbraio** (con 22
 viste togliere 2 cambia poco). Se il gate leggesse il contrario, la spiegazione non è questa regola.
+
+### ESITO (13 settembre 2026) — NON PASSA, e l'attesa scritta prima è SMENTITA
+
+Corsa sulle 14 finestre in-season di `default` (13 utilizzabili, I20set non lo è), cross-fit
+leave-one-window-out, R26 contro R20 **allo stesso K**, entrambe misurate contro lo stesso baseline R0
+sulle stesse finestre — quindi un confronto appaiato.
+
+| R26 vs R20, stesso K | media | finestre migliori | peggiore | migliore |
+|---|---|---|---|---|
+| K40 | +0,006% | 7/13 | −0,520% | +0,445% |
+| K25 | +0,029% | 9/13 | −0,693% | +0,630% |
+| K15 | +0,078% | 9/13 | −0,851% | +0,929% |
+| **K10 (l'adottata)** | **+0,151%** | **9/13** | **−0,842%** | +1,364% |
+| K6 | +0,267% | 9/13 | −0,727% | +1,874% |
+| K3 | +0,381% | 9/13 | −0,600% | +2,228% |
+
+**Robusto NO** (la media è un terzo del pavimento dello 0,5%), **strict NO** (4 finestre su 13
+peggiorano). Nessun punto della griglia arriva al pavimento, e il migliore è K3, cioè il BORDO — che
+non si adotterebbe comunque. Identico su `classic` e `mantra`, come dev'essere: la regola è
+`metric="pv"` e il gioco non entra in questo ramo.
+
+**L'ATTESA PRE-REGISTRATA ERA SBAGLIATA, e va detto perché la pre-registrazione diceva cosa farne.** Era
+scritto «effetto maggiore a settembre, minore a febbraio, e se il gate legge il contrario la spiegazione
+non è questa regola». Il gate legge il contrario: i guadagni stanno a FEBBRAIO (I23feb +1,364%, I19feb
++0,658%, I25feb +0,323%) e a settembre sono nulli (I19set +0,028%, I21set +0,000%, I23set +0,068%,
+I25set −0,076%). La spiegazione è la NUMEROSITÀ e non la proporzione: a settembre la regola tocca 1-9
+uomini di ~400, a febbraio 9-14, perché il mercato di gennaio è dentro la finestra vista mentre quello
+estivo la precede quasi tutto. Avevo ragionato su quanto la correzione sposta UN uomo e il gate misura
+quanto sposta la MEDIA — lo stesso errore di unità che questo file registra altrove, commesso su una
+mia stessa previsione.
+
+**E SUGLI UOMINI CHE TOCCA il meccanismo c'è, ma non è un verdetto.** Rimisurato sui soli uomini con
+`rounds_mine < matchdays_seen`, chiamando le stesse funzioni con gli stessi parametri cross-fit: media
+**+4,30%**, migliorano **8 finestre su 10** (le altre tre hanno meno di tre uomini e non si leggono) — e
+la peggiore è **−36,76%** su dodici uomini (I22feb). Popolazioni da 6 a 14 righe: la direzione è
+plausibile, il numero non è identificato, ed è esattamente la forma che il pavimento dello 0,5% esiste
+per rifiutare.
+
+**QUINDI R26 NON ENTRA IN `ADOPTED`** — no gate, no engine — e le sei chiavi restano DICHIARATE fra i
+candidati, come le quattro di R24: così la prossima corsa le rimisura senza che nessuno le riscriva, e
+un K che oggi non paga può essere riletto quando le finestre in-season saranno più di quattordici.
+Verificato invece che argomentato: `backtest --verify` resta **22/22** e `ADOPTED` è intatta su
+tutt'e due le piattaforme.
+
+**COSA RESTA VERO ANCHE COL VERDETTO NEGATIVO**, e non è una consolazione: `matchdays_seen` è il
+denominatore sbagliato per un uomo che quel giorno non era tesserato, e quel difetto non sparisce
+perché muove poco la media. Quello che il gate dice è che **non si può pagare con una regola del
+motore**: l'informazione vale dove un uomo si guarda uno per uno, cioè come REPORTING. `rounds_mine` è
+già calcolato e disponibile per quella strada.
+
+**Due limiti della misura, dichiarati.** `euro` non è stato corso: la sua adozione sarebbe comunque per
+piattaforma, e con `default` che non arriva al pavimento su nessun punto della griglia non c'è un caso
+da portare. E la fonte copre i club che il provider ha guardato dalla prima giornata: sulla stagione
+viva sono 15 uomini di 532, dopo che la guardia per club ne ha tolti 172 che erano falsi ingressi
+tardivi (prima 187) — misurato chiamando la funzione, non dedotto.

@@ -271,6 +271,12 @@ class Observation:
     # stagione bersaglio - perché quel giorno era pubblico: lo vede chiunque sieda al tavolo.
     # None (e non 0) su una finestra pre-stagione, dove la domanda non esiste: «vuoto = ignoto».
     pv_seen: int | None = None
+    # ...E DI QUANTE DI QUELLE GIORNATE ERA IN ROSA (R26, §7-sexquinquagies). `pv_seen` e' un numeratore
+    # e questo e' il suo denominatore: `matchdays_seen` vale per chi c'era da agosto, mentre un uomo
+    # comprato a mercato inoltrato quelle giornate non le ha saltate - non c'era. None (e non
+    # `matchdays_seen`) quando non ci sono prove del contrario, cosi' «era in rosa da sempre» e «non
+    # sappiamo» arrivano al lettore come la stessa cosa, che e' il comportamento di oggi.
+    rounds_mine: int | None = None
     # ...E CHE FANTAMEDIA HA TENUTO IN QUELLE GIORNATE (R25, §7-noviesquadragies): la media del fantavoto
     # sulle stesse righe che `pv_seen` conta, quindi la media e la sua TAGLIA escono dalla stessa query e
     # non possono divergere. La taglia e' `pv_seen`, cioe' le partite che ha GIOCATO - non le giornate
@@ -402,6 +408,89 @@ def matchdays_before(conn: sqlite3.Connection, platform: str, season: str, date:
     se è finita: nessuna partita giocata DOPO la data può entrare in quello che il modello legge.
     """
     return {md for md, played in matchday_dates(conn, platform, season).items() if played <= date}
+
+
+def rounds_in_squad(conn: sqlite3.Connection, window: "Window", platform: str,
+                    seen: set[int]) -> dict[int, int]:
+    """Di quante delle giornate VISTE lui era in rosa in un club di questo campionato: fc_id -> k.
+
+    R26 (gate §7-sexquinquagies). `matchdays_seen` è uno SCALARE uguale per tutti, e per un uomo comprato
+    a mercato inoltrato è il denominatore sbagliato: quelle giornate non le ha saltate, non c'era. È «il
+    denominatore segue il suo NUMERATORE» - la correzione di Malen - sulla metà in-season del motore.
+
+    CHI C'ERA E NON GIOCAVA NON È TOCCATO: una giornata passata in panchina è una prova su di lui
+    (`pv_seen` lo dice già di sé), quindi resta nel conto. Si tolgono solo le giornate in cui non era
+    tesserato. Un uomo che non ha cambiato squadra legge `matchdays_seen` per costruzione, e non compare
+    affatto in questo dizionario: il chiamante usa lo scalare quando la chiave manca, così «nessuna
+    prova» e «era in rosa da sempre» danno lo stesso numero senza che nessuno debba scriverlo.
+
+    UNA FONTE SOLA, e `squad_snapshot` è stata TOLTA dopo averla provata: le letture di rosa non sono
+    complete per ogni club a ogni data (tre sorgenti che leggono club diversi in giorni diversi), quindi
+    un uomo assente da una lettura per copertura legge come arrivato dopo - 187 uomini su 532 della
+    stagione viva, con Juan Jesus alla Roma da cinque anni fra loro. Il livello per-partita non ha quel
+    problema perché il provider elenca la rosa intera a ogni partita, e la guardia per club qui sotto
+    copre il caso in cui non abbia guardato affatto. Le due fonti:
+
+      1. `tm_appearances` - il provider emette una riga per ogni partita del club in cui era tesserato,
+         `not in squad` e `injured` compresi (mediana 25-28 righe a partita, cioè la rosa intera), quindi
+         l'assenza di righe è l'assenza dal CLUB e non dalla distinta. È PER PARTITA, ed è la ragione per
+         cui viene prima - ma vale solo per i club che la fonte ha guardato DALL'INIZIO: vedi sotto.
+      2. UN VOTO RIPORTA INDIETRO: se ha preso un voto in una giornata, quel giorno era in rosa
+         qualunque cosa dicano le altre due. È la guardia che rende l'errore unilaterale, e non può
+         correggerli tutti - chi non ha mai giocato le prime giornate non ha un voto che lo riporti.
+
+    Il taglio è la data di FINE di ogni giornata (`matchday_dates`), quindi una giornata cominciata prima
+    del suo arrivo e finita dopo resta sua: la scelta conservativa, che tiene più giornate e non meno.
+    """
+    if not seen:
+        return {}
+    dates = matchday_dates(conn, platform, window.target_season)
+    days = sorted(dates[md] for md in seen if md in dates)
+    if not days:
+        return {}
+    first, last = days[0], days[-1]
+
+    entered: dict[int, str] = {}
+    # 1. il livello di carriera del provider. L'import è LOCALE come quello di `evaluate._auction_date`:
+    #    i codici del provider sono dichiarati in un posto solo (`config.TM_CHAMPIONSHIPS`) e ricopiarli
+    #    qui ne farebbe due, ma il modulo non si lega a `config` per una riga - `engine/` è portabile e
+    #    questa è l'unica cosa che ne esce.
+    from euroleghe_ingest.config import TM_CHAMPIONSHIPS
+    leagues = frozenset(PLATFORM_COMPETITIONS.get(platform, PLATFORM_COMPETITIONS["default"]))
+    competitions = [code for code, league in TM_CHAMPIONSHIPS.items() if league in leagues]
+    if competitions:
+        marks = ",".join("?" * len(competitions))
+        # QUALI CLUB LA FONTE HA GUARDATO DALL'INIZIO, e senza questo il canale si rovescia: se di un club
+        # la prima partita in archivio è la seconda giornata, la prima riga di OGNUNO dei suoi tesserati
+        # cade lì e l'intera rosa legge «arrivato dopo». Misurato sulla stagione viva prima di scriverlo:
+        # 187 uomini su 532, El Shaarawy e Ceballos fra loro. Un club è osservato se ha una partita in
+        # archivio non più tarda della prima giornata vista; degli altri non si deduce nessun ingresso.
+        watched = {club for (club,) in conn.execute(
+            f"SELECT club_id FROM tm_appearances WHERE season = ? AND competition IN ({marks}) "
+            f"AND played_on <= ? GROUP BY club_id, played_on HAVING COUNT(*) >= ?",
+            (window.target_season, *competitions, first, STARTERS))}
+        if watched:
+            for fc_id, club, day in conn.execute(
+                    f"SELECT fc_id, club_id, MIN(played_on) FROM tm_appearances "
+                    f"WHERE season = ? AND competition IN ({marks}) AND played_on <= ? "
+                    f"GROUP BY fc_id",
+                    (window.target_season, *competitions, last)):
+                if club in watched:
+                    entered[int(fc_id)] = day
+    if not entered:
+        return {}
+    # 3. un voto riporta indietro: quel giorno era in rosa, qualunque cosa dicano le due sorgenti
+    for fc_id, md in conn.execute(
+            "SELECT fc_id, MIN(matchday) FROM match_ratings "
+            "WHERE season = ? AND platform = ? GROUP BY fc_id",
+            (window.target_season, platform)):
+        day = dates.get(md)
+        if day is not None and int(fc_id) in entered and day < entered[int(fc_id)]:
+            entered[int(fc_id)] = day
+
+    return {fc_id: sum(1 for day in days if day >= arrived)
+            for fc_id, arrived in entered.items()
+            if arrived > first}
 
 
 def matchdays_straddling(conn: sqlite3.Connection, platform: str, season: str,
@@ -1560,6 +1649,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     straddling = matchdays_straddling(conn, platform, window.target_season, window.auction_date)
     seen_totals, rest_totals = _split_target_season(conn, window, platform, seen_rounds, straddling)
     seen_starts = _seen_starts(conn, window, platform, seen_rounds)
+    mine_rounds = rounds_in_squad(conn, window, platform, seen_rounds)
 
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
@@ -1613,6 +1703,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             peer_top=peer_top.get(fc_id), value_percentile=value_percentile.get(fc_id),
             starter_prob=starters.get(fc_id), penalty_rank=rank, penalty_confidence=confidence,
             pv_seen=(seen_totals.get(fc_id, (0, None, None))[0] if seen_rounds else None),
+            rounds_mine=(mine_rounds.get(fc_id) if seen_rounds else None),
             # ZERO PARTITE E NESSUNA FANTAMEDIA sono due cose diverse, e la riga le tiene diverse: chi non
             # ha giocato ha `pv_seen` 0 (una prova su di lui: c'era e non e' stato scelto) e `fm_seen`
             # None (di lui non e' stato misurato niente). R25 legge la seconda e si rifiuta.
