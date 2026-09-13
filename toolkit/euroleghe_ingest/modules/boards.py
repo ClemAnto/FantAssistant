@@ -163,6 +163,18 @@ def _man(view: Any, row: dict, x: float | None = None, in_eleven: bool = False,
     # disegnato per definizione («la squadra che schiera quando sono tutti disponibili») - e riempirlo
     # comunque sarebbe una seconda diagnosi accanto a quella che `ui-flags` gia' fa dal suo canale.
     out["out_today"] = out_today
+    # ...E DOVE ERA NELLE ULTIME PARTITE, che e' il fatto dietro un ballottaggio che sembra uguale a
+    # tutti gli altri (operatore, 13/09/2026). Un rivale elencato accanto a un titolare puo' essere uno
+    # che subentra ogni domenica o uno che non e' nemmeno in distinta da tre giornate, e la misura dice
+    # che sono due cose diverse (0,393 contro 0,127 di partite ricominciate): senza il marchio il
+    # campetto li disegna identici, ed e' «un vincolo che agisce in silenzio» visto dal lato del
+    # display. La board lo sa perche' e' lei che ce li ha messi; l'app lo legge e non lo deduce.
+    #
+    # SOLO SULLA FINESTRA CORTA, come `out_today` sui modi di oggi: sulla board di STAGIONE le tre
+    # giornate non sono la domanda, e riempirlo comunque sarebbe una diagnosi accanto a una che nessuno
+    # ha chiesto. None resta None - una pre-stagione non ha finestra, e «non abbiamo guardato» non e'
+    # «non c'era».
+    out["recent_state"] = view.recent_state(row) if horizon == "short" else None
     return out
 
 

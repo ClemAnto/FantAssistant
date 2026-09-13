@@ -5684,6 +5684,43 @@ class SnapshotView(ttk.Frame):
         return (bool(row.get("desc_injury_open"))
                 or row.get("desc_availability_now") in ("injured", "suspended"))
 
+    #: DOVE ERA, nelle partite della finestra che non lo hanno visto cominciare, dalla piu' promettente
+    #: alla meno. Non e' una scala inventata: e' misurata sulla domanda che un ballottaggio pone - un ex
+    #: titolare fermo da tre giornate, quante ne ricomincia? - su 4.324 casi di due stagioni e cinque
+    #: campionati, con l'esito letto sulle cinque partite successive.
+    #:
+    #:   `sub`    e' entrato dalla panchina      0,393   <- e' un uomo che sta rientrando
+    #:   `bench`  in distinta e mai usato        0,165
+    #:   `away`   non era nemmeno disponibile    0,127
+    #:   (con uno stop aperto e' 0,083, e quello e' un altro elenco: `out_today`)
+    #:
+    #: A parita' di GRADINO, che resta il primo criterio perche' e' il metro che l'operatore ha scelto
+    #: per «importante»: quella misura e' presa sugli ex titolari, e farla passare davanti alla parola
+    #: la applicherebbe a una popolazione su cui nessuno l'ha misurata.
+    RECENT_STATES: ClassVar[tuple[str, ...]] = ("started", "sub", "bench", "away")
+
+    def recent_state(self, row: dict) -> str | None:
+        """Dove era nelle partite della finestra: `started` | `sub` | `bench` | `away`, o None.
+
+        VUOTO = IGNOTO: un foglio senza le colonne della finestra - una pre-stagione, dove sono vuote per
+        costruzione - non risponde `away`, che sarebbe una frase sul calciatore ricavata dal fatto che
+        non abbiamo guardato. La stessa distinzione che `injuries.observed_on` fa per un'assenza.
+
+        `bench` E' UNA PROVA E NON UN VUOTO, ed e' la ragione per cui vale il doppio di `away`: un uomo
+        stampato sulla distinta era DISPONIBILE e non e' stato scelto (la regola del 14/08/2026, «la
+        panchina batte uno stop datato»). Per questo i due stati non si fondono in «non ha giocato».
+        """
+        looked = _number(row.get("desc_recent_looked"))
+        if not looked:
+            return None
+        if _number(row.get("desc_recent_starts")):
+            return "started"
+        if _number(row.get("desc_recent_played")):
+            return "sub"
+        if _number(row.get("desc_recent_available")):
+            return "bench"
+        return "away"
+
     def minutes_next(self, row: dict, horizon: str = "season") -> float | None:
         """The minutes he is expected to play IN A MATCH HE PLAYS, next season (`engine.minutes`).
 
@@ -6008,6 +6045,25 @@ class SnapshotView(ttk.Frame):
     #: lettura per slot: dove le righe coincidono non c'e' nessuna approssimazione da scontare.
     OTHER_SHAPE_WEIGHT: ClassVar[float] = 0.5
 
+    #: QUANTO SI SCONTA UNA PARTITA PIU' VECCHIA dentro la finestra, dal caso Rabiot dell'operatore
+    #: (13/09/2026): due partenze nelle prime due giornate gli tenevano il posto contro una partenza
+    #: nella terza, e la stampa lo dava titolare. La regola dichiarata era «va chi lo ha occupato PIU'
+    #: VOLTE» e questo la cambia, quindi e' MISURATO sulla domanda che la board pone - chi occupera'
+    #: quel posto alla prossima - su 49.810 slot-partita di due stagioni e cinque campionati:
+    #:
+    #:   w = 1,0 (contare, cioe' ieri)   0,5898   <- il punto PEGGIORE della griglia
+    #:   w = 0,7 … 0,9                   0,6030
+    #:   w <= 0,6                        0,6077   <- plateau, e 0,0 e' il bordo
+    #:
+    #: Sui 13.979 posti (28,1%) dove contare e pesare NON sono d'accordo: 0,375 contro 0,311.
+    #: I gradini non sono scelti, sono l'algebra della finestra: `w + w^2 = 1` cade a 0,618, cioe' e'
+    #: li' che una partenza nell'ULTIMA smette di battere due nelle due precedenti - e la stessa
+    #: popolazione dice che deve batterle (`nnS` 0,563 contro `SSn` 0,483, n 6.973 e 7.440). Lo 0,5 e'
+    #: dentro il plateau e lontano da tutt'e due i bordi, e si dichiara in una frase: ogni partita
+    #: indietro pesa la meta'. Un foglio sotto la revisione 65 non porta la distanza e legge 1 per
+    #: tutti, cioe' il conteggio di prima.
+    RECENT_DECAY: ClassVar[float] = 0.5
+
     @classmethod
     def _slot_across_shapes(cls, played: str, slot: int, drawn: str) -> tuple[int, bool] | None:
         """Il posto `slot` del modulo `played`, letto nel modulo `drawn`: (posto, e' lo stesso posto?).
@@ -6069,10 +6125,16 @@ class SnapshotView(ttk.Frame):
                     horizon: str) -> list[tuple[str, dict, list[dict]]] | None:
         """L'undici dell'ultimo periodo LETTO dalle distinte, posto per posto.
 
-        Le regole sono dell'operatore (12/09/2026) e questa funzione non ne aggiunge nessuna: in ogni
-        posto va chi lo ha occupato PIU' VOLTE nella finestra, il claim rompe le parita' e basta, e
-        dove il posto ha cambiato uomo gli altri occupanti sono il BALLOTTAGGIO. Non si sceglie niente:
-        la fonte numera la distinta 0-10 dentro il modulo e quello e' «dove ha giocato».
+        Le regole sono dell'operatore (12/09/2026): in ogni posto va chi lo ha occupato DI PIU' nella
+        finestra, il claim rompe le parita' e basta, e dove il posto ha cambiato uomo gli altri
+        occupanti sono il BALLOTTAGGIO. Non si sceglie niente: la fonte numera la distinta 0-10 dentro
+        il modulo e quello e' «dove ha giocato».
+
+        «DI PIU'» E' PESATO E NON CONTATO (13/09/2026, `RECENT_DECAY`), e questa e' l'unica cosa che la
+        funzione aggiunge alla regola come fu dettata. Il conteggio puro e' il punto peggiore della
+        griglia sulla domanda che questa board pone - chi occupera' il posto alla prossima - e il caso
+        che lo ha mostrato e' Rabiot, tenuto fuori dal campetto del Milan da due partenze piu' vecchie
+        della sua. Numeri, soglia e popolazione: sulla costante.
 
         UNA PARTITA GIOCATA CON UN ALTRO MODULO HA IL SUO PESO, e il peso dipende da quali RIGHE
         coincidono - «difesa e centrocampo sono uguali e vanno trattati allo stesso livello, trequarti
@@ -6111,17 +6173,24 @@ class SnapshotView(ttk.Frame):
             matches: set[str] = set()
             for item in (row.get("desc_recent_slots") or "").split(";"):
                 parts = item.split(":")
-                if len(parts) != 3 or not parts[2].isdigit():
+                if len(parts) < 3 or not parts[2].isdigit():
                     continue
                 match_id, shape, number = parts[0], parts[1], int(parts[2])
+                # QUANTE PARTITE FA (`RECENT_DECAY`), e ZERO per un foglio sotto la revisione 65, che
+                # quel campo non lo porta: li' ogni partita pesa 1 e la lettura e' il conteggio di
+                # prima. La distanza non si puo' dedurre dalla posizione nella lista - quella tiene le
+                # sole partite che ha COMINCIATO, quindi la testa e' «la sua piu' recente» e non «la
+                # piu' recente», che e' esattamente la confusione che teneva Rabiot fuori dal campetto.
+                back = int(parts[3]) if len(parts) > 3 and parts[3].isdigit() else 0
+                fresh = self.RECENT_DECAY ** back
                 matches.add(match_id)
                 if shape == formation:
-                    weights[number] += 1.0
+                    weights[number] += fresh
                     continue
                 mapped = self._slot_across_shapes(shape, number, formation)
                 if mapped is not None:
                     slot_there, exact = mapped
-                    weights[slot_there] += 1.0 if exact else self.OTHER_SHAPE_WEIGHT
+                    weights[slot_there] += fresh if exact else fresh * self.OTHER_SHAPE_WEIGHT
             seen[id(row)] = (weights, matches)
             return weights, matches
 
@@ -6134,7 +6203,8 @@ class SnapshotView(ttk.Frame):
             return None
 
         def strength(pair: tuple[float, dict]) -> tuple:
-            # le volte che ha occupato il posto, e solo a PARITA' il claim - la regola dell'operatore
+            # quanto vale il posto per lui - le volte che lo ha occupato, scontate per quanto sono
+            # vecchie - e solo a PARITA' il claim, che e' la regola dell'operatore
             return (-pair[0], -self.claim(pair[1], horizon))
 
         # ...e chi la finestra non ha visto affatto, ordinato per il GRADINO DI STAGIONE, che e' il
@@ -6143,9 +6213,18 @@ class SnapshotView(ttk.Frame):
         # sotto il tetto di `boards.MAX_DUELS` un ordine sbagliato equivale a non disegnarlo.
         rungs = {word: position for position, word in enumerate(status_engine.LADDER)}
 
+        # ...e A PARITA' DI GRADINO viene prima chi la finestra ha visto in campo (`recent_state`,
+        # 13/09/2026): fra due uomini che la lettura per slot non ha trovato da nessuna parte, quello
+        # che subentra ogni domenica ricomincia a giocare il 39% delle volte e quello che non era
+        # nemmeno in distinta il 13%. E' un ordine dentro la parola e mai davanti ad essa: il gradino
+        # e' il metro che l'operatore ha scelto per «importante», e quella misura e' presa su una
+        # popolazione - gli ex titolari - che non e' tutta la panchina.
+        states = {word: position for position, word in enumerate(self.RECENT_STATES)}
+
         def rival_order(row: dict) -> tuple:
             return (self.ruling_of(row) not in ("alternative", "starter"),
                     rungs.get(row.get("desc_titolarita") or "", len(rungs)),
+                    states.get(self.recent_state(row) or "", len(states)),
                     -self.claim(row, horizon))
 
         outside = sorted((row for row in eligible if not slots_of(row)[0]), key=rival_order)
@@ -6211,6 +6290,16 @@ class SnapshotView(ttk.Frame):
                 kept = [pair for pair in free_here
                         if not any(alternates_with(pair[1], man) for man in on_pitch)]
                 men = sorted(kept or free_here, key=strength)
+                # ...MA IL VETO SCEGLIE CHI GIOCA E NON CHI E' UN RIVALE (operatore, 13/09/2026: «vorrei
+                # che Rabiot e Pulisic compaiano almeno in ballottaggio»). E' la regola gia' scritta per
+                # `eleven` l'11/09 - «il vincolo riguarda chi e' in campo, mai chi gli sta dietro»,
+                # perche' «non giocano insieme» diventerebbe «non si contendono la maglia», che e' il
+                # contrario - e questo secondo percorso, nato il 12/09, non l'aveva ereditata: le regole
+                # del primo non si ereditano da sole. Rabiot ha lo slot 8 del Milan nell'ultima giornata
+                # e si alterna con Loftus-Cheek, quindi il veto lo toglieva da `men` e con `men`
+                # sparivano tutt'e due i canali, il titolare E il ballottaggio: dal campetto non era
+                # elencato da nessuna parte.
+                pool = sorted(free_here, key=strength)
                 starters = [row for _times, row in men if id(row) in healthy]
                 owned = sorted(occupants.get(slot, []), key=strength)
                 if not starters and not own_only:
@@ -6275,7 +6364,7 @@ class SnapshotView(ttk.Frame):
                 self._slot_side[id(starter)] = ("C" if count == 1 else
                                                 "R" if inside == 0 else
                                                 "L" if inside == count - 1 else "C")
-                rivals = [row for _times, row in men if row is not starter]
+                rivals = [row for _times, row in pool if row is not starter]
                 rivals += [row for row in outside
                            if row is not starter and self.can_replace(starter, row)]
                 # ...e gli indisponibili in CODA e col loro tetto, come nella coda di `eleven`: sono

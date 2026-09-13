@@ -1789,3 +1789,117 @@ giudizio che la board breve abbia contro il FATTO invece che contro un'altra pre
 va detto prima di leggerlo: **la differenza fra le due prese e' larga nove nomi su 253**, quindi non e' un
 campione che possa promuovere o bocciare la mappatura - quella sta in piedi sull'aritmetica e sui 512
 spostamenti, non su questa tabella.
+
+---
+
+# 13 — Il caso Rabiot: un veto che cancellava i rivali, e «di più» che era contato invece che pesato (13/09/2026)
+
+Segnalazione dell'operatore sul campetto del Milan: «la formazione ultimo periodo è coerente ma vorrei che
+Rabiot e Pulisic (due elementi fondamentali) compaiano almeno in ballottaggio». I due nomi sono **due casi
+opposti**, e solo uno era un difetto.
+
+- **Pulisic c'era già**, elencato fra i rivali di Ramos G. con quota 0,178. Rientrato il 20/08 da una
+  frattura (44 giorni), poi **tre panchine NON utilizzate** - riga in distinta, minuti NULL, cioè era
+  disponibile e non è stato scelto - e i probabili lo tengono a 0,50-0,55 `warn` da un mese.
+- **Rabiot non era in nessun posto del campetto**, né titolare né ballottaggio, pur avendo giocato tutte e
+  tre le giornate e **cominciato l'ultima** (slot 8, 61'), con la stampa che lo dà titolare a 0,85-1,0.
+
+## 13.1 — Il primo difetto: il veto della staffetta toglieva anche dai RIVALI
+
+`_from_slots` filtrava il serbatoio con `RELAY_APART` e poi leggeva **dallo stesso serbatoio filtrato** sia
+il titolare sia i ballottaggi: chi il veto scartava spariva da tutt'e due i canali. È la regola già scritta
+per `eleven` l'11/09 - «il vincolo riguarda chi è in campo, mai chi gli sta dietro», perché «non giocano
+insieme» diventerebbe «non si contendono la maglia», che è il contrario - e questo secondo percorso, nato il
+12/09, **non l'aveva ereditata**: *quando si scrive un secondo percorso per una domanda vecchia, le regole
+del primo non si ereditano da sole* (terza istanza).
+
+Il meccanismo, letto sul foglio vero: Rabiot porta `relay = 6618:0,921; 4856:0,644; 5295:0,247`, e
+Chukwueje (4856, sopra la soglia 0,50) occupa uno slot **servito prima** del suo - quindi quando si arriva
+allo slot 8 il veto scatta e lo cancella.
+
+## 13.2 — Il secondo: «chi lo ha occupato di più» era un CONTEGGIO
+
+Rabiot `…:8:0` (slot 8, la partita più recente) contro Loftus-Cheek `…:8:1` e `…:8:2`: contando è 2-1 per
+il secondo. Misurato sulla domanda che questa board pone - **chi occuperà quel posto alla prossima** - su
+**49.810 slot-partita** di due stagioni e cinque campionati:
+
+| peso `w` | azzecca il posto |
+|---|---|
+| 1,0 (contare, cioè ieri) | **0,5898** ← il punto peggiore della griglia |
+| 0,7 … 0,9 | 0,6030 |
+| ≤ 0,6 | **0,6077** (plateau; 0,0 è il bordo) |
+
+Sui **13.979 posti (28,1%)** dove contare e pesare non sono d'accordo: **0,375 contro 0,311**.
+
+**I gradini non sono scelti, sono l'algebra della finestra**: `w + w² = 1` cade a **0,618**, cioè è lì che
+una partenza nell'ULTIMA smette di battere due nelle due precedenti. E la stessa popolazione dice che deve
+batterle, letta per pattern delle ultime tre:
+
+| ultime 3 | n | P(parte alla prossima) |
+|---|---|---|
+| `nSS` | 7.333 | 0,710 |
+| `SnS` | 5.121 | 0,677 |
+| **`nnS`** | 6.973 | **0,563** |
+| **`SSn`** | 7.440 | **0,483** |
+| `nSn` | 4.629 | 0,351 |
+| `Snn` | 6.801 | 0,273 |
+
+`RECENT_DECAY` = **0,5**: dentro il plateau, lontano da tutt'e due i bordi, e dichiarabile in una frase -
+ogni partita indietro pesa la metà.
+
+**La distanza doveva entrare nel DATO** (`SHEET_REVISION` 65, quarto campo di `desc_recent_slots`): la lista
+di un uomo porta le sole partite che ha COMINCIATO, quindi la sua testa è «la sua più recente» e non «la più
+recente», e due uomini non sono confrontabili. Un foglio sotto la 65 legge zero per tutti, cioè **degrada al
+conteggio di prima** e non a un ordine inventato.
+
+## 13.3 — Il terzo: dove era, nelle partite che non lo hanno visto cominciare
+
+Un rivale che la finestra non ha visto era indistinguibile da uno che gioca. `recent_state` - `started` ·
+`sub` · `bench` · `away`, `None` dove non abbiamo guardato - viaggia nel file e ordina i rivali **a parità
+di gradino**. La scala è misurata su 4.324 ex titolari fermi da due giornate (quota di partenze nelle
+cinque successive): **sub 0,393 · bench 0,165 · away 0,127**, e con uno stop aperto 0,083 (quello è un altro
+elenco, `out_today`).
+
+`bench` vale il doppio di `away` **perché è una prova e non un vuoto**: un uomo stampato sulla distinta era
+disponibile e non è stato scelto - la regola del 14/08, «la panchina batte uno stop datato». E il gradino
+resta il primo criterio: quella misura è presa sugli ex titolari e non su tutta la panchina, quindi non
+passa davanti alla parola che l'operatore ha scelto per «importante».
+
+## 13.4 — L'attribuzione, a una variabile per volta (Milan, quattro corse)
+
+| | undici | Rabiot |
+|---|---|---|
+| A base | Loftus-Cheek in T | **assente dal campetto** |
+| B solo veto | identico ad A | **ballottaggio di Loftus-Cheek** |
+| C solo peso | Rabiot in T | **titolare** |
+| D adottato | = C | titolare |
+
+Cioè **la richiesta letterale dell'operatore è soddisfatta dalla sola (b)**, e il peso lo porta in campo. Da
+notare che in A il veto scattava e in C no: col peso Chukwueze non è più titolare quando si serve lo slot 8,
+quindi non c'è nessuno in campo con cui Rabiot si alterni - *l'effetto di una cura può aprire la strada
+all'altra, ed è la ragione per cui le due si misurano separate.*
+
+Sui venti club l'attribuzione tiene la stessa forma, e dice quanto è **piccolo** il primo intervento: il
+veto da solo lascia l'undici **fermo su 220 maglie** e porta **6 ballottaggi nuovi** (uno sparito, che è il
+taglio a `MAX_DUELS`), cioè cura esattamente la classe di casi segnalata - sei uomini che erano cancellati
+dal campetto - senza toccare altro; il peso è quello che muove la board.
+
+## 13.5 — L'insieme, e cosa NON si muove
+
+Due corse complete di Serie A sulla stessa copia privata del DB, una variabile per volta:
+
+- board di **STAGIONE: identica** - 0 moduli, 0 uomini, 0 ballottaggi su 20 club
+- **nessuna colonna del foglio cambia**, `engine_*`/`est_*`/`pi_*` compresi (misurato, non dedotto: la
+  lettura per slot vive nel pannello)
+- board **breve**: 0 moduli mossi, **20 uomini dentro e 20 fuori** su 220 maglie (scambi uno a uno) e 102
+  maglie con ballottaggi diversi; le voci passano da 439 a 443, con 93 nuove e 89 sparite
+- i marchi dello stato sui 443 ballottaggi: **sub 183 · bench 109 · started 81 · away 70**
+
+## 13.6 — Il limite, detto invece che aggirato
+
+**Non c'è un giudice esterno per questo blocco.** La board breve prevede la PROSSIMA partita, e la 4ª
+giornata è in corso mentre questo si scrive: `press --against round` potrà scorarla solo dopo. Quello su cui
+la decisione poggia è la misura fuori campione (49.810 slot-partita, due stagioni, cinque campionati) - che
+è un campione tre ordini di grandezza più grande di una giornata - e il fatto che le due cure siano state
+attribuite a una variabile per volta. La pre-registrazione del §12.9.5 resta il canale per il giudizio sul
+fatto.

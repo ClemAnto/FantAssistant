@@ -677,7 +677,16 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      `features.target_matchdays`, cioe' dove ogni lettore di una `WindowData` la vede e non solo
 #      questo modulo; `backtest --verify` resta 22/22, perche' nessuna finestra del gate ha la stagione
 #      bersaglio incompleta in archivio.
-SHEET_REVISION = 64
+#   65 (13/09/2026) - LA COLONNA PORTA ANCHE LA DISTANZA (`16284970:3-4-2-1:4:0`), dal caso Rabiot
+#      dell'operatore. La lettura per slot contava le occorrenze e la lista di un uomo non sa dire
+#      quante partite fa sia una partenza - porta solo quelle che ha COMINCIATO - quindi due partenze
+#      vecchie battevano una recente. MISURATO sulla domanda che la board pone (chi occupera' quel posto
+#      alla prossima), 49.810 slot-partita di due stagioni e cinque campionati: il conteggio puro e' il
+#      punto PEGGIORE della griglia (0,5898) e ogni peso sotto 0,618 legge 0,6077; sui 13.979 posti dove
+#      le due regole non sono d'accordo, 0,375 contro 0,311. La soglia 0,618 non e' scelta: e' dove
+#      `w + w^2 = 1`, cioe' dove una partenza nell'ULTIMA smette di battere due nelle due precedenti -
+#      e i dati dicono che deve batterle (pattern `nnS` 0,563 contro `SSn` 0,483, n 6.973 e 7.440).
+SHEET_REVISION = 65
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1995,7 +2004,13 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
     # `window` e' dal piu' recente: le ultime `matches` partite sono le prime della lista. `trend_block`
     # la scorre al contrario perche' disegna una striscia che si legge da sinistra; qui l'ordine non
     # entra in nessun numero, e prendere le ULTIME e' tutto il punto.
-    for date, match_id, _competition, _club_key in window[:matches]:
+    #
+    # ...E LA DISTANZA DI OGNI PARTITA VIAGGIA CON LO SLOT, perche' la lista di UN UOMO non la sa dire:
+    # porta solo le partite che ha COMINCIATO, quindi chi ha cominciato le prime due e chi ha cominciato
+    # solo l'ultima hanno tutt'e due «la piu' recente» in testa alla propria lista. Senza un'ancora
+    # comune il pannello puo' solo contare le occorrenze, ed e' la misura che dice quanto costa
+    # (revisione 65 qui sopra, e `gui.SnapshotView.RECENT_DECAY` per la griglia intera).
+    for back, (date, match_id, _competition, _club_key) in enumerate(window[:matches]):
         looked += 1
         entry = mine.get(str(match_id))
         state = _state_token(fc_id, str(match_id), date, entry, str(match_id) in with_players,
@@ -2007,7 +2022,7 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
             starts += 1 if entry.started else 0
             full += 1 if entry.minutes >= presence.FULL_MATCH_MINUTES else 0
             if entry.started and entry.slot is not None and entry.shape:
-                slots.append(f"{match_id}:{entry.shape}:{int(entry.slot)}")
+                slots.append(f"{match_id}:{entry.shape}:{int(entry.slot)}:{back}")
         elif state == "b":
             available += 1
     return {
@@ -2017,13 +2032,18 @@ def recent_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
         "recent_starts": starts,
         "recent_minutes": round(minutes, 1),
         "recent_full": full,
-        # Gli slot delle partite che ha COMINCIATO, dalla piu' recente, ognuno con la partita e col
-        # modulo in cui e' stato giocato: «16284970:3-4-2-1:4». La PARTITA serve perche' «hanno
-        # cominciato insieme» sia un fatto invece di un'inferenza - due uomini che possiedono due slot
-        # della stessa distinta erano in campo insieme, e nessuna euristica sui minuti lo puo' negare.
-        # Il MODULO perche' senza di lui il numero non e' confrontabile: con quattro dietro lo slot 4
-        # e' un difensore, con tre e' il primo centrocampista. VUOTO per chi non ha cominciato nessuna
-        # delle partite guardate: li' non c'e' niente da osservare.
+        # Gli slot delle partite che ha COMINCIATO, dalla piu' recente, ognuno con la partita, col
+        # modulo in cui e' stato giocato e con QUANTE PARTITE FA: «16284970:3-4-2-1:4:0». La PARTITA
+        # serve perche' «hanno cominciato insieme» sia un fatto invece di un'inferenza - due uomini che
+        # possiedono due slot della stessa distinta erano in campo insieme, e nessuna euristica sui
+        # minuti lo puo' negare. Il MODULO perche' senza di lui il numero non e' confrontabile: con
+        # quattro dietro lo slot 4 e' un difensore, con tre e' il primo centrocampista. La DISTANZA
+        # perche' e' l'unica ancora comune fra due uomini che hanno cominciato partite diverse, ed e'
+        # cio' che permette al pannello di pesare invece di contare. VUOTO per chi non ha cominciato
+        # nessuna delle partite guardate: li' non c'e' niente da osservare.
+        # Un foglio anteriore alla revisione 65 porta tre campi e non quattro: la' la distanza si legge
+        # zero per tutti, cioe' il conteggio puro di prima - un ripiego che degrada al comportamento
+        # vecchio invece che a un ordine inventato.
         "recent_slots": ";".join(slots) or None,
     }
 

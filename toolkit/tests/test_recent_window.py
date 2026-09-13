@@ -190,7 +190,10 @@ def test_lo_slot_viaggia_col_modulo_della_sua_partita():
     # ...E LA PARTITA, che e' la terza cosa e non un ornamento: due uomini che possiedono due slot della
     # STESSA distinta hanno cominciato insieme, e su quel fatto la regola delle staffette distingue un
     # osservazione da un'inferenza sui minuti.
-    assert got["recent_slots"] == "6:3-4-2-1:4;5:3-4-2-1:4;4:4-3-3:4"
+    # ...E LA DISTANZA, che e' la quarta (13/09/2026): quante partite fa, contate sulla finestra del
+    # CLUB e non sulla lista dell'uomo - quella tiene le sole partite che ha cominciato, quindi la sua
+    # testa e' «la sua piu' recente» e due uomini non sono confrontabili.
+    assert got["recent_slots"] == "6:3-4-2-1:4:0;5:3-4-2-1:4:1;4:4-3-3:4:2"
 
     # ...e una partita senza modulo non porta uno slot orfano: un numero che nessuno puo' interpretare
     # e' peggio di un numero che manca.
@@ -216,7 +219,10 @@ def test_il_POSTO_viene_dalle_partite_che_ha_COMINCIATO_e_nessuna_colonna_ripete
             "5": _appearance("2026-09-05", 90, 1, "M", 4, "3-4-2-1"),
             "4": _appearance("2026-09-04", 90, 1, "M", 4, "3-4-2-1")}
     got = snapshot.recent_block(7, window, mine, {"6", "5", "4"}, {}, {}, {}, matches=3)
-    assert got["recent_slots"] == "5:3-4-2-1:4;4:3-4-2-1:4"
+    # La distanza e' quella nella finestra del CLUB: il subentro della partita piu' recente non entra,
+    # e le due partenze restano a una e due giornate fa invece di scalare a zero e uno. E' l'ancora che
+    # rende confrontabili due uomini che hanno cominciato partite diverse.
+    assert got["recent_slots"] == "5:3-4-2-1:4:1;4:3-4-2-1:4:2"
     assert got["recent_starts"] == 2
     assert "recent_line" not in got, "una risposta sola alla domanda «dove ha giocato»"
 
@@ -1327,3 +1333,120 @@ def test_il_ripiego_di_un_posto_scoperto_accetta_la_fascia_SPECCHIATA():
     drawn = view._from_slots(rows, [padrone], "4-3-3", "short")
     where = {row["name"]: view._slot_order.get(id(row)) for _lane, row, _rivals in drawn}
     assert where.get("Destro") == 4, "nessun mancino libero: la fascia va allo specchio"
+
+
+def test_una_partenza_RECENTE_batte_due_VECCHIE():
+    """`RECENT_DECAY`, dal caso Rabiot dell'operatore (13/09/2026).
+
+    Il Milan gioca tre giornate: Loftus-Cheek comincia le prime due e Rabiot la terza, sullo stesso
+    posto. Contando le occorrenze il posto resta al primo, 2-1; misurato sulla domanda che questa board
+    pone - chi lo occupera' alla PROSSIMA - contare e' il punto peggiore della griglia (0,5898 contro
+    0,6077 di ogni peso sotto 0,618) e sui 13.979 posti dove le due regole non sono d'accordo il peso
+    azzecca 0,375 contro 0,311. La stessa popolazione lo dice anche per pattern: chi ha cominciato solo
+    l'ultima ricomincia il 56,3% delle volte, chi ha cominciato le prime due il 48,3%.
+    """
+    def man(name, claim, slots):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": "titolare", "desc_real_roles": "MC"}
+
+    # distanze: 0 = la piu' recente. Il claim del vecchio padrone e' piu' ALTO, cosi' la parita' non
+    # puo' spiegare il risultato: quello che decide e' il peso.
+    nuovo = man("Rabiot", 0.30, "m3:4-3-3:5:0")
+    vecchio = man("LoftusCheek", 0.90, "m2:4-3-3:5:1;m1:4-3-3:5:2")
+    altri = [man(f"Mezzala{slot}", 0.8, f"m3:4-3-3:{slot}:0") for slot in (4, 6)]
+    rows = [nuovo, vecchio, *altri]
+    drawn = _slot_view(rows)._from_slots(rows, [], "4-3-3", "short")
+    posto = [(row, rivals) for _lane, row, rivals in drawn if _lane == "M"]
+    starter = next(row["name"] for row, _rivals in posto if row["name"] in ("Rabiot", "LoftusCheek"))
+    assert starter == "Rabiot", "una partenza nell'ultima batte due nelle due precedenti"
+
+    # ...E UN FOGLIO SENZA LA DISTANZA DEGRADA AL CONTEGGIO DI PRIMA, non a un ordine inventato: sotto
+    # la revisione 65 la colonna ha tre campi, ogni partita pesa 1 e il posto torna al 2-1. E' anche il
+    # modo in cui questo test rimette il difetto: con la stringa vecchia l'asserzione qui sopra cade.
+    vecchio_foglio = [man("Rabiot", 0.30, "m3:4-3-3:5"),
+                      man("LoftusCheek", 0.90, "m2:4-3-3:5;m1:4-3-3:5"),
+                      *[man(f"Mezzala{slot}", 0.8, f"m3:4-3-3:{slot}") for slot in (4, 6)]]
+    prima = _slot_view(vecchio_foglio)._from_slots(vecchio_foglio, [], "4-3-3", "short")
+    chi = next(row["name"] for _lane, row, _rivals in prima
+               if row["name"] in ("Rabiot", "LoftusCheek"))
+    assert chi == "LoftusCheek", "tre campi = il conteggio di prima, non un ordine nuovo"
+
+
+def test_la_staffetta_sceglie_chi_GIOCA_e_non_chi_e_un_RIVALE():
+    """La regola dell'11/09 che questo secondo percorso non aveva ereditato (operatore, 13/09/2026).
+
+    «Il vincolo riguarda chi e' in campo, mai chi gli sta dietro»: filtrare anche i ballottaggi fa
+    diventare «non giocano insieme» un «non si contendono la maglia», che e' il contrario. Il veto
+    toglieva il candidato da `men`, e da `men` uscivano tutt'e due i canali - il titolare E i rivali -
+    quindi chi si alterna con un uomo gia' in campo spariva dal campetto invece di comparire in
+    ballottaggio.
+    """
+    def man(name, claim, slots, relay=""):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": "titolare", "desc_real_roles": "MC", "desc_relay": relay}
+
+    # Il modulo si riempie tutto: un posto scoperto pesca dal serbatoio e questo caso misurerebbe il
+    # ripiego invece del veto. Lo slot 4 e' del Titolare; sul 5 si contendono Staffetta e Terzo, e
+    # Staffetta si alterna con un uomo che a quel punto e' gia' in campo.
+    rows = [man(f"Padrone{slot}", 0.8, f"m1:4-3-3:{slot}:0;m2:4-3-3:{slot}:1")
+            for slot in (0, 1, 2, 3, 6, 7, 8, 9, 10)]
+    titolare = man("Titolare", 0.9, "m1:4-3-3:4:0;m2:4-3-3:4:1")
+    staffetta = man("Staffetta", 0.9, "m3:4-3-3:5:2", relay="Titolare:0.90")
+    terzo = man("Terzo", 0.5, "m1:4-3-3:5:0;m2:4-3-3:5:1")
+    rows += [titolare, staffetta, terzo]
+    view = _slot_view(rows)
+    drawn = view._from_slots(rows, [], "4-3-3", "short")
+    posto = {row["name"]: [rival["name"] for rival in rivals] for _lane, row, rivals in drawn}
+    assert "Terzo" in posto, "il veto deve ancora DECIDERE chi gioca: la maglia non e' della staffetta"
+    assert "Staffetta" in posto["Terzo"], "…ma chi perde per il veto resta un ballottaggio"
+
+
+def test_dove_era_nelle_ultime_partite_e_un_fatto_e_ordina_i_rivali():
+    """`recent_state`, e «vuoto = ignoto» applicato a una finestra che non abbiamo guardato.
+
+    Le tre parole non sono una scala inventata: sui 4.324 ex titolari fermi da due giornate (due
+    stagioni, cinque campionati) chi subentra ricomincia a partire il 39,3% delle volte, chi e' in
+    distinta e non gioca il 16,5%, chi non e' nemmeno disponibile il 12,7%. `bench` e' una PROVA e non
+    un vuoto - era li' e non e' stato scelto - ed e' per questo che vale il doppio di `away`.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    def stato(looked, available, played, starts):
+        return view.recent_state({"desc_recent_looked": looked, "desc_recent_available": available,
+                                  "desc_recent_played": played, "desc_recent_starts": starts})
+    assert stato(3, 3, 3, 1) == "started"
+    assert stato(3, 3, 3, 0) == "sub"
+    assert stato(3, 3, 0, 0) == "bench"
+    assert stato(3, 0, 0, 0) == "away"
+    # una pre-stagione non ha finestra: «non abbiamo guardato» non e' «non c'era»
+    assert stato(0, 0, 0, 0) is None
+    assert view.recent_state({}) is None
+
+    # ...e a PARITA' DI GRADINO l'ordine dei rivali lo legge. Il gradino resta il primo criterio, che e'
+    # il metro dell'operatore per «importante»: quella misura e' presa sugli ex titolari e non su tutta
+    # la panchina, quindi non passa davanti alla parola.
+    def man(name, slots, rung, looked=3, available=3, played=0, starts=0, claim=0.5):
+        return {"name": name, "fc_id": name, "claim": claim, "desc_recent_slots": slots,
+                "desc_titolarita": rung, "desc_real_roles": "MC", "desc_recent_looked": looked,
+                "desc_recent_available": available, "desc_recent_played": played,
+                "desc_recent_starts": starts}
+
+    # …e di nuovo il modulo pieno: un posto scoperto si prende un uomo del serbatoio, e i tre che
+    # questo caso vuole vedere in ballottaggio finirebbero disegnati invece che elencati.
+    rows = [man(f"Padrone{slot}", f"m1:4-3-3:{slot}:0;m2:4-3-3:{slot}:1", "titolare",
+                played=2, starts=2)
+            for slot in range(11)]
+    # Il claim dell'assente e' piu' ALTO, e non e' un dettaglio: e' l'ultima chiave dell'ordine,
+    # quindi senza lo stato osservato questo caso si rovescia. Con due claim uguali l'ordinamento
+    # stabile teneva l'ordine della lista e il test passava anche col difetto rimesso - che e'
+    # un'asserzione che non puo' fallire.
+    entra = man("Entra", "", "panchina", played=3, claim=0.4)      # subentra ogni domenica
+    assente = man("Assente", "", "panchina", available=0, claim=0.6)   # non era in distinta
+    sopra = man("Sopra", "", "titolare", available=0)              # gradino piu' alto, non c'era
+    rows += [entra, assente, sopra]
+    drawn = _slot_view(rows)._from_slots(rows, [], "4-3-3", "short")
+    rivals = [rival["name"] for _lane, row, rivals in drawn if row["name"] == "Padrone4"
+              for rival in rivals]
+    assert rivals[0] == "Sopra", "il gradino viene prima: e' il metro dichiarato"
+    assert rivals.index("Entra") < rivals.index("Assente"),         "…e dentro il gradino, chi la finestra ha visto in campo"
