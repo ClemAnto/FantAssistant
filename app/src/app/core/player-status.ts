@@ -67,6 +67,21 @@ export const FRAGILE_SHARE = 0.2;
  */
 export const UNAVAILABLE_FRESH_DAYS = 3;
 
+/**
+ * Per quanti giorni un acquisto è ancora «nuovo» (operatore, 13/09/2026: «gli ultimi 3 mesi»).
+ *
+ * SCELTA DI VISUALIZZAZIONE come le quattro qui sopra - non entra in nessuna valutazione e nessun gate
+ * la possiede - ma con un limite che va detto invece che scoperto: `transfers_history` è un DIFF FRA
+ * ROSE e non un registro datato, quindi ogni trasferimento porta la data convenzionale del 1º luglio.
+ * Misurato sul pacchetto: quattro date distinte in tutta la tabella, una per anno.
+ *
+ * Quindi questa soglia non dice «tre mesi fa» di un uomo: dice SE LA SESSIONE DI MERCATO da cui viene è
+ * ancora recente. La conseguenza è che i marchi si spengono tutti insieme il giorno in cui il 1º luglio
+ * esce dalla finestra, e non uno per uno - il che è corretto (dopo tre mesi non è più un acquisto
+ * nuovo) e va saputo, perché sembra un guasto.
+ */
+export const RECENT_SIGNING_DAYS = 90;
+
 export type PlayerFlag =
   | 'long_injury'
   | 'back_from_long'
@@ -88,6 +103,7 @@ export type PlayerFlag =
   | 'rotation_early'
   | 'starter_signs'
   | 'newcomer'
+  | 'signing'
   | 'unavailable_press'
   | 'intl_cup';
 
@@ -103,6 +119,7 @@ export const FLAG_LABEL: Record<PlayerFlag, string> = {
   mystery: 'Mistero: disponibile, quotato, e non gioca',
   yellows: 'Si fa ammonire spessissimo',
   reds: 'Si fa espellere: −1 e il voto rovinato',
+  signing: 'Nuovo acquisto',
   own_goals: 'Fa autogol più della norma',
   penalty_risk: 'Sbaglia spesso i rigori',
   penalty_saved: 'Para i rigori',
@@ -414,6 +431,51 @@ export interface Unavailable {
  * riga vecchia non è uno stato di oggi. Chi non compare nell'ultima lettura non è «disponibile», è
  * semplicemente non nominato - la pagina elenca gli indisponibili, non tutti.
  */
+/**
+ * Chi è arrivato in questa rosa di recente: fc_id -> il club da cui viene.
+ *
+ * DUE RIGHE PER UN UOMO SONO LA NORMA e non un difetto del dato: il PK di `transfers_history` è stato
+ * allargato apposta perché un rientro da prestito e un acquisto definitivo portano la stessa data del 1º
+ * luglio. Quindi un rientro si RICONOSCE - `from_club` uguale a `to_club` - e si scarta: Cutrone legge
+ * «dal Monza al Monza» e non è un acquisto di nessuno. Senza questo filtro il marchio si accende su 311
+ * righe invece che su 243 uomini.
+ *
+ * Il club si unisce per NOME, che in questo repository è la cosa da guardare due volte: qui regge perché
+ * le due stringhe sono scritte dallo stesso toolkit (misurato: ZERO righe di `to_club` fuori da
+ * `clubs.canonical_name`), e perché un nome che non aggancia costa un'icona e mai un numero.
+ */
+export function buildSignings(table: BundleTable, today: string, clubs: ReadonlySet<string>,
+                              days = RECENT_SIGNING_DAYS): Map<number, string> {
+    const [id, date, from, to] = columnIndex(table, 'fc_id', 'date', 'from_club', 'to_club');
+    const since = new Date(new Date(today).getTime() - days * 86400000).toISOString().slice(0, 10);
+    const moves = new Map<number, { on: string; from: string; to: string }>();
+    for (const row of table.rows) {
+      const on = String(row[date] ?? '');
+      // La finestra ha DUE estremi: in viaggio nel tempo un trasferimento del futuro non è ancora
+      // avvenuto, e leggerlo sarebbe sapere oggi una cosa di domani.
+      if (!on || on < since || on > today) continue;
+      const key = Number(row[id]);
+      if (!key) continue;
+      const one = { on, from: String(row[from] ?? '').trim(), to: String(row[to] ?? '').trim() };
+      const previous = moves.get(key);
+      // L'ULTIMO movimento vince, ed è la metà che dice dov'è ADESSO: chi è arrivato e poi ripartito
+      // nella stessa finestra non è un acquisto di nessuno qui.
+      if (!previous || previous.on <= on) moves.set(key, one);
+    }
+    const out = new Map<number, string>();
+    for (const [key, move] of moves) {
+      // UNA PARTENZA NON È UN ACQUISTO, e senza questa riga il marchio la chiama così: Bakker ha un
+      // movimento «dall'Atalanta a svincolato» e leggeva «nuovo acquisto» sulla rosa dell'Atalanta
+      // (trovato dal banco il 13/09/2026). La destinazione dev'essere un CLUB, e lo si chiede alla
+      // tabella dei club invece che a una stringa magica: «svincolato» non è un nome che qualcuno ha
+      // scelto di escludere, è semplicemente un posto che non esiste.
+      if (!move.from || !move.to || move.from === move.to || !clubs.has(move.to)) continue;
+      out.set(key, move.from);
+    }
+    return out;
+}
+
+
 export function buildUnavailable(table: BundleTable, cutoff?: string): Map<number, Unavailable> {
   const [id, from] = columnIndex(table, 'fc_id', 'valid_from');
   const status = optionalIndex(table, 'status');
@@ -498,6 +560,9 @@ export class PlayerStatus {
   /** L'ultima lettura degli indisponibili, per uomo. Vuota su un pacchetto che non porta la tabella. */
   private readonly unavailable = signal<Map<number, Unavailable>>(new Map());
 
+  /** Chi è arrivato di recente, e da dove. Vuota su un pacchetto che non porta `transfers_history`. */
+  private readonly signings = signal<Map<number, string>>(new Map());
+
   /**
    * The day the marks are read against.
    *
@@ -535,6 +600,9 @@ export class PlayerStatus {
     const cutoff = this.travel.travelling() ? this.travel.today() : undefined;
     this.spells.set(buildSpells(await this.bundle.table('injuries'), cutoff));
     await this.readUnavailable(cutoff);
+    // La finestra dei tre mesi si muove col giorno: viaggiando nel tempo un acquisto può non essere
+    // ancora avvenuto, quindi la mappa si rilegge e non si ri-giudica soltanto.
+    await this.readSignings();
   }
 
   /**
@@ -553,6 +621,27 @@ export class PlayerStatus {
     }
   }
 
+  /**
+   * I trasferimenti recenti, che un pacchetto più vecchio non porta.
+   *
+   * Silenzio = mappa VUOTA, come per gli indisponibili e per la stessa ragione: «nessun acquisto
+   * recente» è anche lo stato normale di un club che non ha comprato, quindi qui il silenzio non
+   * mente. È il contrario degli infortuni, dove `loaded` resta falso perché nessuno deve leggere
+   * l'assenza della tabella come «nessuno è infortunato».
+   */
+  private async readSignings(): Promise<void> {
+    try {
+      const clubs = await this.bundle.table('clubs');
+      const name = columnIndex(clubs, 'canonical_name')[0];
+      const known = new Set(clubs.rows.map((row) => String(row[name] ?? '').trim()).filter(Boolean));
+      this.signings.set(
+        buildSignings(await this.bundle.table('transfers_history'), this.today(), known),
+      );
+    } catch {
+      this.signings.set(new Map());
+    }
+  }
+
   private async ensure(): Promise<void> {
     if (this.loading) return;
     this.loading = true;
@@ -564,6 +653,7 @@ export class PlayerStatus {
       declaredFor(await this.bundle.playerNotes(), manifest?.target_season ?? null),
     );
     await this.readUnavailable();
+    await this.readSignings();
     try {
       this.spells.set(buildSpells(await this.bundle.table('injuries')));
       this.loaded.set(true);
@@ -904,6 +994,14 @@ export class PlayerStatus {
     // giornate di QUESTO campionato e di lui non ce n'è nessuna, che è esattamente perché esiste.
     const newcomer = this.newcomers().get(playerId);
     if (newcomer) marks.push(newcomer);
+    // ...e da dove arriva, che è un FATTO sul mercato e non una previsione su di lui. Sta dopo il
+    // newcomer perché i due possono cadere insieme e quello dice la cosa più forte («guardalo»), qui
+    // si dice solo «è appena arrivato»; e sta prima degli screen per la stessa ragione per cui ci sta
+    // l'infortunio: un fatto viene prima di una proiezione.
+    const origin = this.signings().get(playerId);
+    // La nota non ripete l'etichetta: `ui-flags` scrive gia' «Nuovo acquisto» e la nota le sta
+    // accanto, quindi qui va solo la meta' che l'etichetta non ha. I tooltip sono SEMPRE corti.
+    if (origin) marks.push({ flag: 'signing', note: `dal ${origin}` });
     // The screen goes LAST: an availability fact outranks a projection about form, and the order the
     // marks are pushed in is the order they are drawn.
     const screen = this.screens().get(playerId);

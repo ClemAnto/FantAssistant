@@ -65,6 +65,9 @@ export const FLAG_GROUPS: readonly { title: string; flags: readonly PlayerFlag[]
       'mystery',
       'dispute',
       'intl_cup',
+      // È uno STATO e non una lettura: `newcomer` sta fra le letture perché è un verdetto («viene da
+      // fuori, guardalo»), questo dice solo da quanto è qui.
+      'signing',
     ],
   },
   {

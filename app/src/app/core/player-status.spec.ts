@@ -1,6 +1,8 @@
 import { BundleTable } from './bundle';
 import {
   BACK_FROM_LONG_DAYS,
+  RECENT_SIGNING_DAYS,
+  buildSignings,
   LONG_INJURY_DAYS,
   Spell,
   buildSpells,
@@ -261,5 +263,68 @@ describe('quando le due fonti dicono la stessa notizia', () => {
     expect(pressSaysTheSame(reading('injured', '2026-09-03'), null)).toBe(false);
     // ...e un RIENTRO recente non e uno stato di oggi: la stampa lo batte e resta.
     expect(pressSaysTheSame(reading('injured', '2026-09-03'), back)).toBe(false);
+  });
+});
+
+describe('buildSignings: chi è arrivato di recente, e da dove', () => {
+  const CLUBS = new Set(['Monza', 'Atalanta', 'Como', 'Inter', 'Roma', 'Napoli', 'Lazio']);
+  const TRANSFERS = (rows: unknown[][]) =>
+    ({ columns: ['fc_id', 'date', 'from_club', 'to_club'], rows }) as BundleTable;
+
+  it('un RIENTRO DA PRESTITO non è un acquisto: from_club uguale a to_club si scarta', () => {
+    // Cutrone legge davvero «dal Monza al Monza» sul pacchetto: due righe per un uomo sono la norma,
+    // perché il PK è stato allargato per tenere un rientro e una cessione datati lo stesso 1º luglio.
+    const seen = buildSignings(
+      TRANSFERS([
+        [5, '2026-07-01', 'Monza', 'Monza'],
+        [7, '2026-07-01', 'Napoli', 'Atalanta'],
+      ]),
+      '2026-09-13',
+      CLUBS,
+    );
+    expect(seen.has(5)).toBe(false);
+    expect(seen.get(7)).toBe('Napoli');
+  });
+
+  it('la finestra ha DUE estremi: niente di troppo vecchio e niente dal futuro', () => {
+    const rows = TRANSFERS([
+      [1, '2025-07-01', 'Inter', 'Como'],      // la sessione dell'anno scorso
+      [2, '2026-07-01', 'Roma', 'Como'],       // questa
+      [3, '2027-07-01', 'Lazio', 'Como'],      // una che non è ancora avvenuta
+    ]);
+    const seen = buildSignings(rows, '2026-09-13', CLUBS);
+    expect([...seen.keys()]).toEqual([2]);
+  });
+
+  it('la soglia è una QUOTA di giorni dichiarata, e spegne tutto insieme quando il 1º luglio esce', () => {
+    // Il limite che la costante dichiara: la data è convenzionale, quindi passata la finestra i marchi
+    // si spengono tutti lo stesso giorno. È corretto e va saputo, perché sembra un guasto.
+    const rows = TRANSFERS([[2, '2026-07-01', 'Roma', 'Como']]);
+    expect(buildSignings(rows, '2026-09-13', CLUBS).size).toBe(1);
+    const after = new Date(new Date('2026-07-01').getTime() + (RECENT_SIGNING_DAYS + 1) * 86400000);
+    expect(buildSignings(rows, after.toISOString().slice(0, 10), CLUBS).size).toBe(0);
+  });
+
+  it("una PARTENZA non è un acquisto: la destinazione dev'essere un club vero", () => {
+    // Il caso Bakker, trovato dal banco il 13/09/2026: «dall'Atalanta a svincolato» leggeva «nuovo
+    // acquisto» sulla rosa dell'Atalanta, cioè il contrario di quello che è successo.
+    const seen = buildSignings(
+      TRANSFERS([[8, '2026-07-01', 'Atalanta', 'svincolato']]), '2026-09-13', CLUBS);
+    expect(seen.has(8)).toBe(false);
+  });
+
+  it("chi arriva e riparte nella stessa finestra non è un acquisto di nessuno: vince l'ULTIMO movimento", () => {
+    const seen = buildSignings(
+      TRANSFERS([
+        [9, '2026-07-01', 'Roma', 'Como'],
+        [9, '2026-08-20', 'Como', 'svincolato'],
+      ]),
+      '2026-09-13', CLUBS);
+    expect(seen.has(9)).toBe(false);
+  });
+
+  it("senza un club di provenienza non c'è niente da dire, quindi niente marchio", () => {
+    const seen = buildSignings(TRANSFERS([[4, '2026-07-01', null, 'Como']]), '2026-09-13', CLUBS);
+    expect(seen.has(4)).toBe(false);
   });
 });

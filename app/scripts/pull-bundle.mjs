@@ -83,6 +83,15 @@ const TABLES = [
    * 1o agosto 2024 - cioe' dentro la finestra che la tabella mostra - e i traghettatori ci sono tutti
    * (il Genoa ha Murgita per quattro giorni fra Vieira e De Rossi), che e' un fatto e non rumore. */
   'coaches',
+  /* CHI E' ARRIVATO IN QUESTA ROSA, per il marchio «nuovo acquisto» (13/09/2026, su richiesta
+   * dell'operatore). Sessantaquattro KB, e porta il club di PROVENIENZA, che e' la meta' che la
+   * tabella `rosters` non ha: il fatto «e' cambiato club» l'app lo dedurrebbe da sola diffando due
+   * stagioni, «viene dal Napoli» no.
+   *
+   * LA DATA E' CONVENZIONALE e la riga che la legge lo dichiara: ogni trasferimento e' datato 1
+   * luglio, perche' questa tabella e' un DIFF FRA ROSE e non un registro datato - quindi dice in
+   * quale sessione di mercato un uomo e' arrivato, mai in quale giorno. */
+  'transfers_history',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {

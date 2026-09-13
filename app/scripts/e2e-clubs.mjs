@@ -29,7 +29,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
@@ -350,6 +350,35 @@ function cards() {
 }
 
 /** Il testo dei tooltip VISIBILI: ng-zorro tiene l'overlay nel DOM e lo dissolve, quindi si filtra. */
+/**
+ * Il marchio «nuovo acquisto» sulle righe della rosa, e il CLUB che la pagina sta mostrando.
+ *
+ * Si contano le righe marcate e non le icone: `ui-flags` ne disegna al piu' due per riga e taglia il
+ * resto in un `+N`, quindi contare le icone risponderebbe a un'altra domanda.
+ */
+function signingMarks() {
+  const club = document.querySelector('h2.text-lg')?.textContent?.trim() ?? null;
+  // LO STESSO SELETTORE del passo che misura la tabella: `ui-squad-table tbody tr` legge ZERO righe, e
+  // un passo che guarda l'elemento sbagliato accusa il codice del proprio difetto (commesso qui).
+  const table = document.querySelector('nz-table table');
+  const rows = table ? [...table.querySelectorAll('tbody tr')] : [];
+  const nameOf = (row) => {
+    const cell = [...row.querySelectorAll('td')].find((one) => one.innerText?.trim());
+    return (cell?.innerText ?? '').split(/\s{2,}|\n/)[0].trim();
+  };
+  const all = rows.map(nameOf).filter(Boolean);
+  const marked = rows.filter((row) => row.querySelector('.anticon-user-add'))
+    .map(nameOf).filter(Boolean);
+  const first = rows.find((row) => row.querySelector('.anticon-user-add'))
+    ?.querySelector('.anticon-user-add');
+  const box = first?.getBoundingClientRect();
+  return {
+    club, rows: rows.length, marked, all,
+    // Il bersaglio per l'hover: un tooltip si verifica APRENDOLO, non leggendo un attributo.
+    icon: box ? { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) } : null,
+  };
+}
+
 function tooltipText() {
   return [...document.querySelectorAll('.ant-tooltip')]
     .filter((one) => !one.classList.contains('ant-tooltip-hidden') && one.offsetParent !== null
@@ -619,6 +648,89 @@ async function main() {
       problems: matches?.stripes?.different ? []
         : ['le due righe hanno lo stesso fondo: lo zebrato non dipinge'],
     });
+
+    // 5e. IL MARCHIO «NUOVO ACQUISTO», e l'asserzione e' DAL LATO DELLO SCHERMO.
+    //
+    // Non «quanti ne dichiara il pacchetto», che vorrebbe indovinare la stessa popolazione che la
+    // tabella disegna (i trasferimenti verso l'Atalanta sono 15, i suoi quotati a schermo 6: due
+    // domande diverse, e la prima fa accusare la pagina). Si chiede invece, riga per riga: «questo
+    // nome, il pacchetto lo dichiara arrivato di recente?» - cosi' la popolazione e' quella dello
+    // schermo e il confronto resta col BUNDLE e non con la pagina stessa.
+    const marks = await evaluate(session, signingMarks);
+    let truth = null;
+    try {
+      const base = `http://127.0.0.1:${port}/data`;
+      const { gunzipSync } = await import('node:zlib');
+      const gz = async (name) => JSON.parse(
+        gunzipSync(Buffer.from(await (await fetch(`${base}/${name}`)).arrayBuffer())).toString('utf-8'));
+      const transfers = await gz('transfers_history.json.gz');
+      const players = await gz('players.json.gz');
+      const col = (table, name) => table.columns.indexOf(name);
+      const named = new Map(players.rows.map((row) =>
+        [String(row[col(players, 'canonical_name')]), Number(row[col(players, 'fc_id')])]));
+      const [tid, tdate, tfrom, tto] = ['fc_id', 'date', 'from_club', 'to_club']
+        .map((one) => col(transfers, one));
+      const today = new Date().toISOString().slice(0, 10);
+      const since = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+      const arrived = new Set();
+      for (const row of transfers.rows) {
+        const on = String(row[tdate] ?? '');
+        const from = String(row[tfrom] ?? '').trim();
+        const to = String(row[tto] ?? '').trim();
+        if (!on || on < since || on > today || !from || from === to) continue;
+        if (marks?.club && to === marks.club) arrived.add(Number(row[tid]));
+      }
+      truth = new Set((marks?.all ?? []).filter((name) => arrived.has(named.get(name) ?? -1)));
+    } catch {
+      truth = null;
+    }
+    const shown = new Set(marks?.marked ?? []);
+    const missing = truth ? [...truth].filter((one) => !shown.has(one)) : [];
+    const extra = truth ? [...shown].filter((one) => !truth.has(one)) : [];
+    note('il marchio del nuovo acquisto dice quello che dice il pacchetto', {
+      said: `${marks?.club ?? '???'}: ${shown.size} marcati su ${marks?.rows ?? 0} righe \u00b7 `
+        + `il pacchetto ne dichiara ${truth ? truth.size : '???'} fra quei nomi`
+        + (shown.size ? ` \u00b7 ${[...shown].slice(0, 3).join(', ')}` : ''),
+      problems: [
+        ...(marks?.rows ? [] : ['nessuna riga di rosa a schermo']),
+        ...(truth == null ? ['il pacchetto non porta transfers_history: il marchio non puo esistere'] : []),
+        ...missing.map((one) => `${one} e un nuovo acquisto e non e marcato`),
+        ...extra.map((one) => `${one} e marcato e il pacchetto non lo dichiara`),
+        ...(truth && truth.size === 0
+          ? ['zero attesi: uno zero non distingue un marchio che funziona da uno rotto'] : []),
+      ],
+    });
+
+    // 5f. E IL TOOLTIP SI VERIFICA APRENDOLO, perche' `[nzTooltipTitle]` non lascia nessun attributo.
+    if (marks?.icon) {
+      await hover(marks.icon);
+      let said = '';
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        said = await evaluate(session, tooltipText);
+        if (said && said.includes('acquisto')) break;
+        await wait(150);
+      }
+      note('il marchio dice da dove viene, e lo dice in poche parole', {
+        said: said || 'nessun tooltip aperto',
+        problems: [
+          ...(said.includes('Nuovo acquisto') ? [] : ['il tooltip non nomina il nuovo acquisto']),
+          ...(/dal\s+\S/.test(said) ? [] : ['il tooltip non dice da quale club viene']),
+          // La regola dell'operatore, 05/09/2026: i tooltip sono SEMPRE corti.
+          ...(said.length <= 60 ? [] : [`tooltip lungo ${said.length} caratteri`]),
+        ],
+      });
+      await hover({ x: 5, y: 5 });
+    }
+
+    // LA FOTOGRAFIA, che non e' la verifica ma e' quello che l'operatore guarda: un marchio puo'
+    // essere contato e stare male (sovrapposto, o dello stesso colore di quello accanto).
+    if (flag('--shot')) {
+      const shot = await session.send('Page.captureScreenshot', { format: 'png' });
+      const where = join(ROOT, 'clubs.png');
+      await writeFile(where, Buffer.from(shot.data, 'base64'));
+      report.screenshot = where;
+      console.log(`  screenshot: ${where}`);
+    }
 
     // 6. NIENTE ECCEZIONI: un errore vuol dire che qualcosa non e' stato provato.
     const noise = session.noise();

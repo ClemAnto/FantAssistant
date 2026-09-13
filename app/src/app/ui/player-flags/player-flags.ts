@@ -49,6 +49,11 @@ export const FLAG_ICON: Record<PlayerFlag, string> = {
   // di lui», che è tutto quello che il marchio promette - il Qt.I da solo ordina questi uomini quanto
   // noi, e quello che aggiungiamo è che smettano di essere ordinati da una costante.
   newcomer: 'compass',
+  // UN UOMO CON UN PIU': è arrivato nella rosa, ed è la cosa più letterale che l'icona possa dire.
+  // Non la bussola di `newcomer`, che è un CONSIGLIO («viene da fuori e vale uno sguardo») mentre
+  // questo è un fatto anagrafico sul mercato; e non le due porte di `place_gained`/`place_lost`, che
+  // parlano di una maglia dentro la squadra e non di come ci è entrato.
+  signing: 'user-add',
   // UN CAMPANELLO: è un ALLARME e non una diagnosi. Non la croce della medicina (quella dice
   // «infortunato», e questa notizia può non essere ancora ufficiale né essere un infortunio) e non
   // l'orologio della rotazione: dice «guarda qui prima di offrire».
@@ -71,6 +76,9 @@ export const FLAG_TONE: Record<PlayerFlag, string> = {
   fragile: 'text-warning',
   // Una DESCRIZIONE e non un verdetto: niente rosso, niente ambra, come i due screen.
   mystery: 'opacity-70',
+  // Neutro come il mistero, e per la stessa ragione: è una DESCRIZIONE e non un verdetto. Comprare un
+  // nuovo acquisto non è né una buona né una cattiva notizia - è la cosa che si sta guardando.
+  signing: 'opacity-70',
   // Il giallo non è un grosso problema (l'operatore, 15/08/2026): ambra sfumata. Il ROSSO sì - vale −1
   // più il voto rovinato - ed è l'uso del rosso che la regola dei colori consente: un verdetto
   // esplicitamente negativo.
