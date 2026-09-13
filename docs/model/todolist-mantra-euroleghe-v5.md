@@ -1,5 +1,34 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 13 settembre 2026 (notte) — i nuovi acquisti titolari
+
+Dettaglio e numeri: `letture-app-v1.md` §42, `gate-motore-v1.md` §7-sexquinquagies.
+
+1. **`desc_starter_prob` non arriva all'app, e non e' il foglio a non portarla.** E' popolata su **459
+   righe di 562** nel CSV del toolkit e non e' in `export.SHEET_COLUMNS` (106 colonne, nessuna
+   `starter`). E' la colonna che spiega le **33 righe su 156** con probabile ≥0,85 che il foglio chiama
+   `riserva` o `panchina` — Kessie' fra loro, dato 1,00 dalla stampa e letto 17,3 presenze su 34.
+   **Offerta e non richiesta**, come il 07/09. *Cosa NON fare*: metterla dentro una valutazione — la
+   regola della maglia e' stata respinta dalla misura, e reintrodurla per un'altra porta sarebbe la
+   stessa cosa senza il gate.
+
+2. **Lo screen «acquisto importante in rampa»**: misurato e non implementato. Tre ingredienti gia' in
+   casa — e' un arrivo · Qt.I nel top 20% del ruolo (il segnale piu' forte, +0,249 a parita' dei minuti
+   esteri) · gli mancano giornate perche' non c'era, oppure ha gia' subentrato (il subentro RADDOPPIA:
+   0,511 contro 0,230). Oggi accenderebbe **6 righe su 532**: Kessie', Woltemade, Perri, Theate,
+   Gonçalves P., Jones C.
+
+3. **R26 si rimisura quando le finestre in-season saranno piu' di quattordici.** Respinta oggi
+   (+0,151% contro un pavimento di 0,5%, 9/13, e nessun punto della griglia al pavimento), ma le sei
+   chiavi restano fra i candidati come le quattro di R24: la prossima corsa le legge senza che nessuno
+   riscriva niente. Quello che la riaprirebbe non e' una taratura, e' una popolazione piu' grande —
+   oggi tocca 1-9 uomini di ~400 a settembre.
+
+4. **Il marchio `signing` si spegnera' tutto insieme**, e non e' un guasto: `transfers_history` porta
+   quattro date distinte in tutto (il 1º luglio di ogni anno), quindi passati i 90 giorni i marchi
+   cadono lo stesso giorno per tutti. Se si vuole una vera data d'arrivo servirebbe un'ACQUISIZIONE
+   (la data di annuncio del provider), non una formula.
+
 ## Aperti alla chiusura del 13 settembre 2026 (sera) — il caso Rabiot/Pulisic
 
 Dettaglio e numeri: `formazioni-tipo-v1.md` §13, `letture-app-v1.md` §41.

@@ -6044,6 +6044,70 @@ numero crudo. Ora e' `features.target_matchdays`, dentro `prepare`, e il consuma
 leggendo un flag invece di rifare la sottrazione. `backtest --verify` resta **22/22** - nessuna finestra del
 gate ha la stagione bersaglio incompleta in archivio - e quello si VERIFICA invece di argomentarlo.
 
+## Una SCORCIATOIA in un gate non e' neutra se sposta il BASELINE, e un'attesa si pre-registra col suo SEGNO
+**13/09/2026, R26 - «le giornate viste sono quelle in cui era IN ROSA» - pre-registrata e RESPINTA.
+Dettaglio: `gate-motore-v1.md` §7-sexquinquagies, diagnosi in `letture-app-v1.md` §42.** Dalla domanda
+dell'operatore su Kessie', che il foglio legge `riserva` a 17,3 presenze mentre la stampa lo da'
+titolare a 1,00. `matchdays_seen` e' uno SCALARE uguale per tutti, e per chi e' arrivato a mercato
+inoltrato e' il denominatore sbagliato: quelle giornate non le ha saltate, non c'era. Non era un canale
+nuovo ma R20 col proprio denominatore - il numeratore non si muove, `k x signal` e' `pv_seen` per
+costruzione.
+
+**IL VERDETTO E' NEGATIVO E VALE PIU' DELLA REGOLA**: +0,151% contro un pavimento di 0,5%, 9 finestre su
+13, e nessun punto della griglia ci arriva (il migliore e' K3, cioe' il bordo). Sugli uomini che TOCCA
++4,30% con 8 finestre su 10 e una a −36,76% su dodici uomini: *la direzione e' plausibile e il numero
+non e' identificato, che e' esattamente la forma che il pavimento esiste per rifiutare.* Il difetto
+descritto resta vero — quello che il gate dice e' che **non si puo' pagare con una regola del motore**,
+e allora vale come reporting.
+
+Quattro abitudini, e tre sono errori commessi qui.
+- **RESTRINGERE I CANDIDATI DI UNA CORSA DI GATE CAMBIA I COEFFICIENTI**, quindi non e' una scorciatoia:
+  `fit_params` misura i residui contro `residual_baseline`, che e' l'intersezione fra le regole passate e
+  `SHARE_REPLACING` - con due candidati legge `R0`, con tutti legge `R0,R0c,R3,R3c,R7,R13,R15,R3d`, e
+  quattro `history_lam_*` si muovono. Verificato PRIMA di usarla, perche' sembrava innocua (R20/R26 non
+  sono in `SHARE_REPLACING`, e infatti la prima verifica diceva «nessun parametro condiviso cambia»).
+  *Una scorciatoia si valida sui coefficienti che produce, non sulla lista di quello che tocca.*
+- **SI PRE-REGISTRA ANCHE IL SEGNO ATTESO, cosi' non lo si racconta dopo.** Avevo scritto «effetto
+  maggiore a settembre che a febbraio, e se il gate legge il contrario la spiegazione non e' questa
+  regola». Il gate legge il contrario: domina la NUMEROSITA' e non la proporzione (a settembre la regola
+  tocca 1-9 uomini di ~400, a febbraio 9-14, perche' il mercato di gennaio cade dentro la finestra
+  vista). Avevo ragionato su quanto sposta UN uomo mentre il gate misura quanto sposta la MEDIA.
+- **IL DENOMINATORE SEGUE IL SUO NUMERATORE, e l'ho rotto dentro la misura che lo studiava**: la prima
+  passata leggeva «0,9% di quelli arrivati dopo arriva al 60% delle giornate» e non voleva dire niente,
+  perche' misuravo l'esito su 34 giornate anche per chi ne aveva a disposizione 19. Il numero piu'
+  estremo di una tabella e' il primo da cui sospettare il proprio denominatore.
+- **E UNA FONTE SI USA SOLO DOVE HA GUARDATO.** `squad_snapshot` non e' completa per ogni club a ogni
+  data (tre sorgenti che leggono club diversi in giorni diversi), quindi un uomo assente per copertura
+  legge come arrivato dopo: **187 su 532**, con Juan Jesus alla Roma da cinque anni. Tolta. E del livello
+  per-partita serve la guardia PER CLUB - se di un club manca la prima giornata, la prima riga di OGNI
+  suo tesserato cade piu' tardi e l'intera rosa risulta arrivata dopo. Con la guardia: 15, tutti veri.
+
+## Una PARTENZA non e' un acquisto, e un marchio che dice l'opposto del fatto non lo vede nessun conteggio
+**13/09/2026, `signing` in `ui-flags` (`letture-app-v1.md` §42.4).** Il marchio dei nuovi acquisti
+contava qualunque movimento recente senza guardare dove finisse: Bakker ha una riga «dall'Atalanta a
+svincolato» e leggeva **NUOVO ACQUISTO sulla rosa dell'Atalanta**. Ora vince l'ULTIMO movimento
+dell'uomo e la destinazione dev'essere un club vero, chiesto alla tabella dei club e non a una stringa
+magica - «svincolato» non e' un nome che qualcuno ha scelto di escludere, e' un posto che non esiste.
+*Un marchio che afferma il contrario del fatto e' peggio di un marchio assente, e un conteggio non lo
+distingue: erano 7 marcati contro 6 attesi.*
+
+Tre cose che viaggiano con lui.
+- **DODICESIMA ISTANZA DI «IL DATO C'ERA»** dopo i campetti, `availability`, l'asterisco e la data di
+  rientro: `transfers_history` e' nel contratto di export e nel bundle da sempre, e non era in `TABLES`
+  di `pull-bundle`. Sessantaquattro KB.
+- **E QUELLO CHE LA TABELLA NON PUO' DIRE SI DICHIARA**: e' un DIFF FRA ROSE e non un registro datato,
+  quindi porta **quattro date distinte in tutto** (il 1º luglio di ogni anno). `RECENT_SIGNING_DAYS` = 90
+  non dice «tre mesi fa» di un uomo, dice se la SESSIONE DI MERCATO e' ancora recente - e i marchi si
+  spegneranno tutti insieme, il che e' corretto e va saputo perche' sembra un guasto.
+- **UN'ICONA NUOVA VA REGISTRATA**: `user-add` non e' nella lista di default di ng-zorro, quindi la
+  pagina urlava `<svg> tag not found` dodici volte e disegnava una casella vuota - la stessa cosa vista
+  il 04/09 su `eye`, dal lato in cui l'icona davvero non c'e'.
+- **E L'ASSERZIONE DI UN BANCO STA DAL LATO DELLO SCHERMO**: non «quanti ne dichiara il pacchetto», che
+  vorrebbe indovinare la stessa popolazione che la pagina disegna (15 trasferimenti verso l'Atalanta
+  contro 6 suoi quotati a schermo, e la prima domanda fa accusare la pagina), ma «questo nome, il
+  pacchetto lo dichiara arrivato?». Il selettore delle righe, intanto, era quello sbagliato e ne leggeva
+  ZERO: *un passo che misura l'elemento sbagliato accusa il codice del proprio difetto*, ennesima volta.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

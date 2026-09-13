@@ -5355,3 +5355,127 @@ Tre asserzioni nuove, provate rimettendo il difetto: col filtro senza esenzione 
 che descrive la cura («...ma non chi il mercato VERO prezza come un uomo del club»), mentre le altre due
 restano verdi perché descrivono il comportamento che NON cambia. È il modo in cui si vede che un test
 misura quello che dice di misurare.
+
+---
+
+## 42 — RICONOSCERE I NUOVI ACQUISTI, e il marchio che ne è uscito (13 settembre 2026)
+
+Dalla domanda dell'operatore su Kessié: «è uno degli ultimi acquisti, è forte e di grande esperienza e
+dovrebbe essere titolare … riusciamo a riconoscere i nuovi acquisti presi per essere titolari?», e poi
+«non posso mettermi a segnalarli manualmente, dobbiamo trovare un sistema». La giornata ha prodotto tre
+cose: una DIAGNOSI misurata, una regola del motore **respinta dal gate** (R26,
+`gate-motore-v1.md` §7-sexquinquagies) e un MARCHIO di reporting, che è quello che è rimasto.
+
+### 42.1 — Il caso, e i due numeri che lo spiegano
+
+Il foglio del 12/09 legge Kessié `riserva` e **17,3 presenze su 34**, mentre `probable_starter` lo dà a
+**1,00** (0,85 nei tre giorni prima, 0,40 il 07/09). Non è isolato: sul foglio di quel giorno **33 righe
+su 156** con probabile ≥0,85 sono `riserva` o `panchina`, e due sono i suoi compagni di reparto
+(Samardzic 1,00 `panchina`, Rowe 1,00 `riserva`).
+
+Lo sconto viene da **R20**, che legge le giornate già giocate: 1 voto su 4. E Kessié compare nelle
+letture di rosa il **1º settembre** — le rose si leggono dal 26 luglio, quindi è un acquisto vero di
+fine mercato e non un buco di osservazione — mentre `tm_appearances` gli dà una riga `absent` il **31
+agosto**. Le giornate non sue sono quindi UNA, non due: `17,8 → 19,2` con la formula vera di R20K10,
+e non i 22,7 che avevo pubblicato prima di misurare (correzione a verbale, §42.5).
+
+### 42.2 — Cosa riconosce un arrivo destinato a giocare: misurato su 1.485 uomini
+
+Popolazione: quotati in Serie A senza Serie A a t−1, 8 stagioni. Esito: quota di giornate col voto dopo
+la quarta. Ogni segnale rankato dentro (ruolo, stagione), come fa `abroad`.
+
+| segnale | n | r grezzo | r a parità dei minuti esteri |
+|---|---|---|---|
+| **Qt.I nel ruolo** | 1485 | **+0,431** | **+0,249** (su 383) |
+| fee in milioni, chi ce l'ha | 584 | +0,226 | +0,152 |
+| minuti all'estero a t−1 | 383 | +0,299 | — (è il controllo) |
+| partenze da titolare a t−1 | 383 | +0,236 | **+0,015** |
+| età | 979 | +0,215 | +0,056 |
+| ha una fee pubblicata | 1485 | +0,148 | +0,051 |
+
+Il segnale forte è **la quotazione**, che il motore per regola non legge («la quotazione va ultima»); le
+partenze da titolare valgono zero una volta noti i minuti, che è R24 respinta incontrata da un'altra
+parte; la fee è già misurata e adottata **solo su euro** (§7-octiestricies) e su Kessié è muta perché la
+sua riga ha `fee` NULL.
+
+### 42.3 — Le due ipotesi dell'operatore, confermate — e il denominatore che me le nascondeva
+
+«Per qualche partita un nuovo acquisto non gioca perché deve entrare negli schemi» e «il fatto che sia
+subentrato indica che è quasi pronto». Misurate su 1.214 arrivi (7 stagioni), esito sulle partite del
+club **dopo** la finestra e **dopo** il suo ingresso in rosa:
+
+| stato nelle prime 4 | n | gioca dopo | da titolare |
+|---|---|---|---|
+| non era in rosa (arriva dopo) | 264 | 0,438 | 0,219 |
+| in rosa, mai in campo | 330 | **0,230** | 0,115 |
+| solo subentrato | 230 | **0,511** | 0,224 |
+| almeno una da titolare | 390 | 0,675 | 0,461 |
+
+Il subentro **raddoppia** (0,511 contro 0,230). E fra gli acquisti importanti (Qt.I nel top 20% del
+ruolo) chi **non c'era** gioca poi **0,729**, quanto chi era titolare dal primo giorno (0,716), contro
+0,490 di chi c'era e non giocava — n di 17 e 12, quindi la direzione è netta e il decimale no.
+
+**La prima passata di questa misura leggeva 0,259 e «0,9% arriva al 60%», e quel numero non voleva dire
+niente**: misuravo l'esito su 34 giornate anche per chi ne aveva a disposizione 19, cioè **commettevo io
+l'errore che stavo misurando**. È «il denominatore segue il suo NUMERATORE» pagato dentro la misura che
+lo stava studiando.
+
+### 42.4 — IL MARCHIO, e una partenza non è un acquisto
+
+`PlayerFlag` `signing` (icona `user-add`), in `ui-flags`, quindi ovunque si disegni un giocatore e non
+solo nelle Squadre: un'icona significa la stessa cosa in ogni pagina.
+
+**IL DATO C'ERA E NON ARRIVAVA ALL'APP, dodicesima istanza** dopo i campetti, `availability`,
+l'asterisco e la data di rientro: `transfers_history` è nel contratto di export e nel bundle da sempre e
+non era in `TABLES` di `pull-bundle`. Sessantaquattro KB.
+
+**QUELLO CHE LA TABELLA NON PUÒ DIRE, dichiarato invece che scoperto**: è un DIFF FRA ROSE e non un
+registro datato, quindi ogni trasferimento porta la data convenzionale del 1º luglio — **quattro date
+distinte in tutta la tabella**, una per anno. `RECENT_SIGNING_DAYS` = 90 non dice perciò «tre mesi fa»
+di un uomo: dice se la SESSIONE DI MERCATO da cui viene è ancora recente, e i marchi si spengono tutti
+insieme il giorno in cui il 1º luglio esce dalla finestra. Scelta di visualizzazione come
+`LONG_INJURY_DAYS`: non entra in nessuna valutazione.
+
+Quanto accende, misurato prima di scriverlo: **243 uomini su 532 quotati, mediana 12 per club** — Inter
+7 e Atalanta 6 contro Venezia 17. Non è saturazione, è il mercato: le neopromosse rifanno la rosa.
+
+**E IL DIFETTO CHE IL BANCO HA TROVATO ERA MIO E GRAVE.** Bakker ha un movimento «dall'Atalanta a
+svincolato» e leggeva **NUOVO ACQUISTO sulla rosa dell'Atalanta**, cioè il contrario di quello che era
+successo: contavo qualunque movimento senza guardare dove finisse. Ora vince l'**ultimo** movimento
+dell'uomo e la destinazione dev'essere un club vero — chiesto alla tabella dei club e non a una stringa
+magica, perché «svincolato» non è un nome che qualcuno ha scelto di escludere, è un posto che non
+esiste. Due test lo fissano. *Un marchio che dice l'opposto del fatto è peggio di un marchio assente, e
+un conteggio non lo vede: erano 7 marcati contro 6 attesi.*
+
+Due più piccole: il tooltip **ripeteva l'etichetta** («Nuovo acquisto — Nuovo acquisto: dal …», 73
+caratteri contro i 35 di adesso), e l'icona **va REGISTRATA** — `user-add` non è nella lista di default
+di ng-zorro, quindi la pagina urlava `<svg> tag not found` dodici volte e disegnava una casella vuota.
+È la stessa cosa vista il 04/09 su `eye`, dal lato in cui l'icona davvero non c'è.
+
+### 42.5 — Tre cose che ho pubblicato e ho dovuto correggere
+
+Si scrivono perché sono il modo in cui si sbaglia, non perché siano interessanti.
+
+* **«Kessié passerebbe da 17,8 a 22,7»**: era 19,2. La stima veniva dalle letture di rosa (1º
+  settembre); il livello per-partita lo dà tesserato dal 31 agosto, quindi la giornata non sua è una.
+* **187 uomini letti come arrivati tardi** nella prima versione di `rounds_in_squad`, fra cui Juan
+  Jesus, alla Roma da cinque anni. Due cause: le letture di rosa non sono complete per ogni club a ogni
+  data (fonte tolta), e serviva una **guardia per club** — se di un club manca la prima giornata, la
+  prima riga di ogni suo tesserato cade più tardi e l'intera rosa risulta arrivata dopo. Con la
+  guardia: 15, tutti veri (Woltemade, Kessié, Theate, Perri).
+* **Il banco accusava la pagina del proprio difetto**, due volte: il selettore delle righe era
+  `ui-squad-table tbody tr`, che ne legge ZERO, e l'atteso era «quanti ne dichiara il pacchetto» (15
+  verso l'Atalanta) invece che «questo nome, il pacchetto lo dichiara arrivato?» (6 fra quelli a
+  schermo). La forma che regge è l'asserzione **dal lato dello schermo**, che non deve indovinare la
+  popolazione.
+
+### 42.6 — Cosa resta aperto
+
+* **`desc_starter_prob` non è in `export.SHEET_COLUMNS`** (106 colonne, nessuna `starter`) mentre è
+  popolata su **459 righe di 562** nel CSV del toolkit: l'app non l'ha mai vista. Il verbale del 07/09
+  la offriva dicendo «il foglio non li porta più» — la causa non è il foglio, è l'allowlist. Sarebbe la
+  colonna che risolve le 33 righe con probabile ≥0,85 marcate `riserva`/`panchina`. **Offerta e non
+  richiesta**, come allora; quello che NON va fatto è metterla dentro una valutazione.
+* **Lo screen «acquisto importante in rampa»** (Qt.I nel top 20% + gli mancano giornate perché non
+  c'era, oppure ha già subentrato) è misurato e non implementato: oggi accenderebbe **6 righe su 532**
+  — Kessié, Woltemade, Perri, Theate, Gonçalves P., Jones C.
