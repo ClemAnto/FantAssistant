@@ -1,5 +1,38 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 13 settembre 2026 (sera) — il caso Rabiot/Pulisic
+
+Dettaglio e numeri: `formazioni-tipo-v1.md` §13, `letture-app-v1.md` §41.
+
+A. **[ ] RIGENERARE `EuroLeghe` E `Leghe Mantra`**, che nel bundle sono ancora del 12/09 sera: è stato
+   rifatto il solo foglio Serie A. Non è una scelta — **la corsa con il refresh di rete si è APPESA**
+   (2,2 secondi di CPU in 25 minuti) e il secondo tentativo è stato abbandonato; la terza corsa, con
+   `--no-refresh`, ha finito in 12 minuti a piena CPU. **Da capire prima di rifare le altre due**: quale
+   delle cinque fette del refresh si blocca e perché (le candidate sono i probabili, la curva del mercato,
+   le pagine-rosa e ClubElo, che `fetch --stale` dava a 239 giorni perché l'API risponde 502 da gennaio).
+   Finché non è chiarito, i probabili di oggi non sono stati riletti per nessuno dei tre fogli.
+
+B. **[ ] IL MARCHIO DI `recent_state` A SCHERMO.** Il fatto viaggia nel file (`started`/`sub`/`bench`/
+   `away`, e la misura dice che sono tre probabilità diverse: 0,393 · 0,165 · 0,127), la card lo può
+   leggere, ma **nella lista dei ballottaggi non c'è un'icona** che distingua «subentra ogni domenica» da
+   «fermo da tre giornate». Tocca `ui-flags`, dove un'altra sessione stava lavorando, quindi non è stato
+   aperto. Vale la regola dell'11/09: un marchio che si disegna in una vista sola è indistinguibile da un
+   marchio che non esiste — qui non se ne disegna nessuno, il che è onesto ma lascia il fatto muto.
+
+C. **[ ] IL GIUDIZIO SUL FATTO per il blocco del 13/09.** Non c'è un giudice esterno: la board breve
+   prevede la PROSSIMA partita e la 4ª giornata era in corso mentre si spediva. `press --against round`
+   potrà scorarla dopo, e la pre-registrazione del §12.9.5 è il canale. Quello su cui la decisione poggia
+   oggi è la misura fuori campione (49.810 slot-partita) e l'attribuzione a una variabile per volta.
+
+D. **[ ] IL FEE DI TRASFERIMENTO come alternativa al valore di mercato**, non misurato. `transfers_history.
+   fee` esiste dal 2023; la curva del valore probabilmente vince perché è DATATA e si legge al giorno,
+   mentre il fee è un evento unico che invecchia — ma è una misura da fare, non un'opinione da tenere.
+
+E. **[ ] `PITCH_CLAIM_FLOOR` e `KEY_MAN_VALUE` sono due scelte di DISPLAY** che nessun gate possiede, e la
+   seconda è nuova: se il campetto comincia a sembrare affollato, il numero da guardare è quello (15 voci
+   su 20 club oggi), non il pavimento.
+
+
 ## Aperti alla chiusura del 12 settembre 2026 — il campetto delle partite giocate e la board breve
 
 Dettaglio e numeri: `formazioni-tipo-v1.md` §11, `letture-app-v1.md` §40, spec «Novità v9.91».

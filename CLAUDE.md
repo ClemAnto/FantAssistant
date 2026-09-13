@@ -4263,6 +4263,54 @@ Quattro cose che restano, e tre sono regole di casa incontrate da un lato nuovo.
   colonne del foglio intatti — quindi nessun `SHEET_REVISION`. Nello stesso A/B `play` differiva su 312
   righe **a tetto 0 come a tetto 1**: deriva del tempo, non del candidato.
 
+## Un PAVIMENTO non sbaglia: non sa DISTINGUERE — e la stessa quantità ha due verdetti su due domande
+**13/09/2026, dal caso Rabiot e Pulisic dell'operatore («due elementi fondamentali, vorrei che compaiano
+almeno in ballottaggio»). Dettaglio: `formazioni-tipo-v1.md` §13, `letture-app-v1.md` §41.** Due nomi, due
+cause opposte, e riconoscerle prima è metà del lavoro: **Pulisic era già nel file** e lo nascondeva una
+soglia dell'app, **Rabiot non c'era** e mancava per due difetti del toolkit.
+
+- **UN VETO CHE SCEGLIE CHI GIOCA NON DEVE CANCELLARE CHI GLI STA DIETRO**, terza istanza in tre giorni.
+  `_from_slots` leggeva titolare E ballottaggi dallo stesso serbatoio filtrato dalle staffette, quindi chi
+  il veto scartava spariva da tutt'e due i canali. È la regola dell'11/09 che il percorso nato il 12/09 non
+  aveva ereditato: *quando si scrive un secondo percorso per una domanda vecchia, le regole del primo non
+  si ereditano da sole.* Costo misurato sui 20 club: undici **fermo**, 6 ballottaggi nuovi — una cura
+  chirurgica, ed è quella che soddisfa la richiesta alla lettera.
+- **«DI PIÙ» ERA CONTATO E NON PESATO** (`RECENT_DECAY` = 0,5, `SHEET_REVISION` 65). Due partenze vecchie
+  battevano una recente. Misurato sulla domanda che la board pone — chi occuperà quel posto alla prossima —
+  su **49.810 slot-partita**: il conteggio puro è il punto PEGGIORE della griglia (0,5898) e ogni peso sotto
+  0,618 legge 0,6077; sui 13.979 posti dove le due regole non sono d'accordo, **0,375 contro 0,311**. La
+  soglia non è scelta: `w + w² = 1` cade a 0,618, cioè dove una partenza nell'ULTIMA smette di battere due
+  nelle due precedenti — e la stessa popolazione dice che deve batterle (`nnS` 0,563 contro `SSn` 0,483).
+  **E la DISTANZA è dovuta entrare nel DATO**: la lista di un uomo porta le sole partite che ha COMINCIATO,
+  quindi la sua testa è «la sua più recente» e non «la più recente», e due uomini non sono confrontabili.
+- **IL PAVIMENTO DELL'APP NON SBAGLIA, NON SA DISTINGUERE un comprimario da un titolare FERMO.** Un rivale
+  a 0,178 di quota È rumore nel caso generale, ed è per questo che la cura non è abbassare la soglia — che
+  sarebbe allargare un criterio perché un caso ci è caduto — ma dire QUALE popolazione lo attraversa.
+- **E IL CRITERIO OVVIO SI MISURA PRIMA DI SCRIVERLO**: l'esenzione per gradino alto era plausibile e
+  **non avrebbe risolto il caso segnalato** — dei 193 ballottaggi sotto il pavimento solo 8 hanno un gradino
+  alto, e Pulisic non è fra loro perché il modello lo classifica già `panchina`. Scartata prima di scriverla.
+- **LA STESSA QUANTITÀ DÀ DUE VERDETTI SU DUE DOMANDE**, e il valore di mercato REALE è il caso pulito.
+  Come PREDITTORE di presenze il gate l'ha respinto due volte (`value_weight` sotto il pavimento dello 0,5%,
+  e la forma condizionale «usalo dove i minuti mancano» è la peggiore di tutte); come ORDINAMENTO DI
+  VISIBILITÀ su una popolazione ristretta paga: su 4.324 ex titolari fermi da due giornate, il valore
+  RELATIVO ai titolari legge ρ **+0,103** contro **+0,069** della quota di partenze precedente, regge a
+  parità di età (+0,103) e di quota (+0,099), e i due si **compongono** (+0,118). Contro la media voto è un
+  pareggio dove esistono entrambe (+0,079 e +0,086) e decide la **COPERTURA**: 94% contro 25%. Relativo e
+  mai assoluto, come in `engine/projection.py`. È la terza istanza della regola dopo `tm_appearances`.
+- **UNA SOGLIA È NON CIRCOLARE QUANDO LA SUA SCELTA NON DECIDE IL CASO CHE L'HA FATTA NASCERE.**
+  `KEY_MAN_VALUE` = 2 e Pulisic entra a 1,0×, 1,5× e 2,0×: quindi il numero non è stato scelto per lui — il
+  2,0 è dove la misura mette il salto, e costa 15 voci su 20 club. È il modo di rispondere all'obiezione
+  che il progetto si fa da sé ogni volta che una POPOLAZIONE bersaglio è dichiarata dall'operatore.
+- **E UN'ASSERZIONE CHE NON PUÒ FALLIRE PASSA ANCHE COL DIFETTO RIMESSO.** Uno dei tre test nuovi restava
+  verde togliendo la cura: i due uomini avevano lo stesso claim e l'ordinamento STABILE teneva l'ordine
+  della lista. Riscritto con claim diversi, cade. *La controprova non è «la suite è verde»: è rimettere il
+  difetto e guardare QUALE test cade* — e devono caderne esattamente quelli che descrivono la cura, non
+  tutti (gli altri due sono restati verdi a ragione, perché descrivono il comportamento che non cambia).
+- **Nota d'attrezzo, pagata due volte**: un `timeout` troppo corto su una corsa lenta la uccide e lascia un
+  log **vuoto**, che si legge come un fallimento invece che come un troncamento — e prima di dire «è
+  appesa» si guarda il TEMPO DI CPU: 2,2 secondi in 25 minuti è appesa davvero, 31 secondi in 30 è una fase
+  lunga. Le due corse vanno trattate in modo opposto.
+
 ## Il dato c'era, in una tabella che nessuno leggeva per quella domanda
 **05/09/2026, quinta istanza. Dall'operatore: «non riusciamo in nessun modo a recuperare le partite di
 Varela in Primeira Liga?»** Sì: `tm_appearances` (acquisita il 17/08, 2,08M righe su 3.535 giocatori) ne
