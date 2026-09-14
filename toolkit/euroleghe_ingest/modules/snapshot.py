@@ -711,7 +711,23 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      modulo del board non e' la moda del club, e' pesata col REPERTORIO DI CARRIERA dell'allenatore, che
 #      e' quasi tutto archivio e dichiarato allo 0% (Amorim `3-4-3:55`, Gasperini `3-4-3:288`). Li sblocca
 #      `positions --layer formations`, 10.763 partite, in corso.
-SHEET_REVISION = 67
+#   68 IL RITIRO NON E' CALCIO GIOCATO, e finiva DUE VOLTE nella stessa miscela (14/09/2026).
+#      `club_context` chiama `typical_formation` due volte, una per il club e una per il ritiro, e la
+#      seconda porta il commento «prima che si giochi una palla e' il solo ritiro»: vero ad agosto e
+#      falso da quando la stagione bersaglio E' quella in corso, perche' allora le due chiamate hanno lo
+#      stesso `season` e restituiscono LA STESSA COSA - verificato identiche su 8 club di 8. Cosi' le
+#      amichevoli pesavano a pieno nel termine di club E di nuovo come `camp`, e a settembre sono meta'
+#      del campione: il Milan aveva 3 partite di Serie A dichiarate 3-4-2-1 e CINQUE amichevoli non
+#      dichiarate contate 3-4-3, che vincevano 5 a 3. `scope` separa i due termini riusando
+#      `competition_class`, che il vocabolario ce l'ha gia'.
+#      NON e' «solo campionato», misurato e RESPINTO (Brier 0,1870 contro 0,1784 con le coppe dentro,
+#      2025-26, 96 club, 960 osservazioni): una coppa e' calcio vero e informa, un ritiro no.
+#      A/B su una variabile sola: 7 club su 20 cambiano modulo, e i casi che l'operatore ha segnalato
+#      tornano - Milan 3-4-2-1 con Rabiot trequartista, Roma 3-4-2-1 con Dybala e Soule' dietro Malen
+#      (Castro esce), Juventus 4-2-3-1, Atalanta 4-3-3 invariata. Giudice stampa: moduli MATCH 11 -> 12
+#      e DIFF 6 -> 4, uomini 153 -> 154 su 220 - piccolo su venti club, quindi accompagna l'adozione e
+#      non la regge: quella sta sull'aritmetica del doppio conteggio.
+SHEET_REVISION = 68
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -4772,7 +4788,7 @@ class Typical(NamedTuple):
 
 
 def typical_formation(conn, spellings: list[str], season: str, coach_since: str | None = None,
-                      before: str | None = None) -> Typical:
+                      before: str | None = None, scope: str = "all") -> Typical:
     """The club's MODAL formation over its complete elevens, and the whole distribution with it.
 
     The mode, not the mean. A club that alternates 3-5-2 and 4-3-3 has a mean of 3.5 defenders, which is
@@ -4783,22 +4799,43 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
     his predecessor's: a new coach's shape is the club's shape now, and the previous one is only evidence
     about a side that no longer exists. The `basis` says which of the two happened, because "3-4-3" from
     38 elevens and "3-4-3" from four are not the same statement.
+
+    `scope` DIVIDE IL CALCIO VERO DAL RITIRO, e prima non divideva niente (14/09/2026). `club_context`
+    chiama questa funzione DUE volte - una per il club e una per il ritiro - e la seconda porta il
+    commento «prima che si giochi una palla e' il solo ritiro», che era vero ad agosto: da quando la
+    stagione bersaglio E' quella in corso le due chiamate hanno lo stesso `season` e restituiscono LA
+    STESSA COSA (verificato: identiche su 8 club di 8). Cosi' le amichevoli entravano due volte nella
+    miscela di `gui.shape_odds` - a peso pieno nel termine di club e di nuovo come `camp` - e a
+    settembre sono la meta' del campione: il Milan ha 3 partite di Serie A dichiarate 3-4-2-1 e CINQUE
+    amichevoli non dichiarate, contate 3-4-3, che vincono 5 a 3 e gli tolgono la trequarti.
+
+    La classe la decide `competition_class`, che il vocabolario ce l'ha gia': una seconda lista di
+    parole direbbe «amichevole» in due modi il giorno che la fonte ne cambia una.
+
+    NON e' «solo campionato», che e' stato misurato e RESPINTO (Brier 0,1870 contro 0,1784 con le coppe
+    dentro, 2025-26, 96 club): una coppa vera e' calcio vero e informa. Quello che non e' calcio vero e'
+    il ritiro, e per lui esiste gia' un termine suo con il suo peso.
     """
     if not spellings:
         return Typical(None, None, 0, "no lineups", 0, "")
     placeholders = ",".join("?" * len(spellings))
     rows = conn.execute(
-        f"""SELECT defenders, midfielders, forwards, match_date, formation FROM club_match_lineups
+        f"""SELECT defenders, midfielders, forwards, match_date, formation, competition
+            FROM club_match_lineups
             WHERE club IN ({placeholders}) AND season = ? AND starters = 11
               AND goalkeepers + defenders + midfielders + forwards = 11
               AND (? IS NULL OR (match_date IS NOT NULL AND match_date < ?))""",
         (*spellings, season, before, before)).fetchall()
+    if scope != "all":
+        want_friendly = scope == "friendly"
+        rows = [row for row in rows
+                if (competition_class(row[5]) == "friendly") == want_friendly]
     if not rows:
         return Typical(None, None, 0, "no lineups", 0, "")
     weights: dict[str, float] = {}
     counts: dict[str, int] = {}
     under_coach = 0
-    for defenders, midfielders, forwards, date, declared in rows:
+    for defenders, midfielders, forwards, date, declared, _competition in rows:
         his = bool(coach_since and date and date >= coach_since)
         under_coach += his
         weight = 1.0 if (his or not coach_since) else PREVIOUS_COACH_WEIGHT
@@ -5456,9 +5493,14 @@ def club_context(conn, data: features.WindowData, starters_date: str | None,
             coach_since = None
         # NOT `measured`: that name is this function's own parameter, the season the layers are measured
         # on, and shadowing it fed a NamedTuple to the next query as a season.
-        shapes = typical_formation(conn, mine, season, coach_since, before)
-        # ...and the same over the TARGET season, which before a ball is kicked is the pre-season alone
-        friendly = typical_formation(conn, mine, window.target_season, None, before)
+        # IL CALCIO VERO, ritiro ESCLUSO: le amichevoli hanno un termine loro due righe piu' sotto, e
+        # contarle in tutt'e due le miscele e' la stessa prova pesata due volte (vedi `typical_formation`).
+        shapes = typical_formation(conn, mine, season, coach_since, before, scope="competitive")
+        # ...e IL SOLO RITIRO della stagione bersaglio. Fino al 14/09/2026 questa riga diceva «which
+        # before a ball is kicked is the pre-season alone» e non filtrava niente: era vero ad agosto e
+        # falso da quando la stagione bersaglio e' cominciata, perche' allora le due chiamate sono la
+        # stessa. Adesso lo scope lo dice invece di lasciarlo dedurre dalla data.
+        friendly = typical_formation(conn, mine, window.target_season, None, before, scope="friendly")
         # ...e i moduli delle ULTIME `recent_window` partite di CAMPIONATO, per la board dell'ultimo
         # periodo: quella di stagione risponde «cosa fa di solito», questa «cosa ha fatto adesso».
         recent_shape_counts = recent_shapes(conn, mine, window.target_season, before,
