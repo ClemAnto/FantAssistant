@@ -1903,3 +1903,111 @@ la decisione poggia è la misura fuori campione (49.810 slot-partita, due stagio
 è un campione tre ordini di grandezza più grande di una giornata - e il fatto che le due cure siano state
 attribuite a una variabile per volta. La pre-registrazione del §12.9.5 resta il canale per il giudizio sul
 fatto.
+
+---
+
+# 14 — Il MODULO che il club dichiara, il RITIRO contato due volte, e un K misurato e non adottato
+
+**14/09/2026.** Quattro casi dell'operatore sul board di stagione: «la Juve ha Conceicao, Gonzalez,
+Zeghrova come AD, perché invece c'è Celik fuori ruolo?», «nel Milan hai messo Rabiot centrocampista
+centrale ma sta giocando sempre da trequartista», «nella Roma Castro è solo la riserva di Malen perché
+li hai messi entrambi? Sulla trequarti devi mettere due tra Soulé, Dybala e Mora», e l'Atalanta che «ha
+giocato le ultime 3 partite con il 4-3-3». Tre di quattro erano **una causa sola**, e la quarta è un
+problema diverso che resta aperto.
+
+## 14.1 — I due board non parlavano lo stesso vocabolario
+
+`formation_shapes_recent` legge `club_match_lineups.formation` dal 12/09; `formation_shapes` leggeva i
+tre conteggi di linea, e tre linee non sanno dire un 4-2-3-1 — lo scrivono 4-5-1, e un 3-4-2-1 diventa
+3-4-3, che pretende tre attaccanti. **I due board erano in disaccordo sul modulo in 13 club su 20.**
+Non sono due moduli che competono: sono due nomi per la stessa cosa, e uno perde l'informazione che
+decide chi ci gioca — «l'etichetta 4-2-3-1 è più corretta, 4-5-1 indica 5 centrocampisti in linea e non
+evidenzia la trequarti» (l'operatore).
+
+`declared_or_counted`: una definizione e **tre lettori** (`typical_formation`, `recent_shapes`,
+`coach_repertoires`). A/B: **5 club su 20** cambiano modulo di stagione. `SHEET_REVISION` 67.
+
+**E la previsione pubblicata prima della corsa era sbagliata**: avevo dichiarato «zero o pochissimi
+club» leggendo `formation_shapes` come il repertorio di carriera dell'allenatore, perché è quello che il
+board cita nel proprio `why`. È invece la stagione IN CORSO su tutte le competizioni. *Verifica la
+funzione, non la colonna che le somiglia*, ennesima volta.
+
+## 14.2 — E il peso dell'allenatore non era quello che avevo detto
+
+```
+trust = 0,40 + 0,50 × (undici di quest'anno che sono suoi / totale)
+prior = trust × (distribuzione del CLUB) + (1 − trust) × (carriera dell'allenatore / lega)
+```
+
+Per tutti e quattro i club `trust` = **0,90**: la carriera pesa il **10%**, non il 90 che avevo detto.
+Verificato riproducendo le quote pubblicate della Juventus (4-5-1 previsto 0,436 contro 0,478, 3-4-3
+0,22 contro 0,197).
+
+## 14.3 — Il ritiro entrava DUE VOLTE, ed è quello che decideva
+
+`club_context` chiama `typical_formation` due volte, e la seconda porta il commento «which before a ball
+is kicked is the pre-season alone». Vero ad agosto; da quando la stagione bersaglio **è** quella in corso
+le due chiamate hanno lo stesso `season` e restituiscono la stessa cosa — **identiche su 8 club di 8**.
+Quindi le amichevoli pesavano a pieno nel termine di club **e di nuovo** come `camp`.
+
+A settembre sono metà del campione: il Milan ha 3 partite di Serie A dichiarate `3-4-2-1` e **cinque
+amichevoli** non dichiarate contate `3-4-3`, che vincono 5 a 3.
+
+`scope` ("all" | "competitive" | "friendly") separa i due termini riusando `competition_class`.
+Effetto: **7 club su 20** cambiano modulo, e tre dei quattro casi tornano — Milan `3-4-2-1` con
+`T:Rabiot`, Roma `3-4-2-1` con `T:Dybala T:Soulé Pc:Malen` e Castro fuori, Atalanta `4-3-3` invariata.
+Giudice stampa moduli MATCH 11 → 12 e DIFF 6 → 4, uomini 153 → 154 su 220: piccolo su venti club, quindi
+accompagna l'adozione e non la regge — quella sta sull'aritmetica del doppio conteggio.
+`SHEET_REVISION` 68.
+
+**La Juventus no**: prende il modulo giusto e disegna ancora `Ad:Celik`. È un problema di CHI e non di
+QUALE MODULO, cioè la seconda metà della richiesta dell'operatore — il posto letto dalle ultime partite
+(`desc_recent_slots` esiste e lo legge solo il board breve). Resta aperto.
+
+## 14.4 — K = 5: misurato, e NON adottato
+
+Banco: `toolkit/bench/panel/shape_prior.py`, 2025-26, 96 club, 960 osservazioni. Alla giornata k
+prevedere il modulo delle giornate che RESTANO, prior = la distribuzione della lega escluso il club.
+
+| K | 0 | 1 | 3 | **5** | 8 | 12 | 40 | incumbent |
+|---|---|---|---|---|---|---|---|---|
+| Brier | 0,315 | 0,224 | 0,185 | **0,178** | 0,182 | 0,192 | 0,241 | 0,270 |
+
+Ottimo **interno**, stesso su Brier e su «nomina la moda» (65,8% contro 62,5%), **scelto da tutte e
+cinque le pieghe** leave-one-league-out, tenuto fuori −24%…−41%. L'incumbent non è un punto della
+griglia: `trust` fisso a 0,90 è K = k/9, cioè **un prior il cui peso cresce con l'evidenza**.
+
+**E non è adottato, perché il prior del banco non è il prior del codice.** Provato sul pannello vero
+(ogni braccio costruito *e* giudicato con lo stesso codice): K = 5 muove 3 club su 20 e **tutti e tre
+tornano indietro** — Como `4-2-3-1`→`4-5-1`, Genoa `3-4-2-1`→`3-5-2`, **Roma `3-4-2-1`→`3-4-3`**, cioè
+disfa §14.3 sul caso stesso da cui è nato — e il giudice peggiora (MATCH 12 → 10, uomini 154 → 152).
+Il meccanismo è aritmetico: K = 5 rende il prior più pesante, e il prior del codice è in parte il
+repertorio dell'allenatore, **dichiarato all'80% ancora a tre linee**. *Un prior più forte su un
+vocabolario stantio è peggio di un prior debole.*
+
+**Si riapre** quando `positions --layer formations` ha finito l'archivio, rifacendo la misura con il
+prior del CODICE invece che con quello di lega.
+
+## 14.5 — Due arm respinti, e uno indecidibile
+
+**«Solo campionato» RESPINTO**: Brier 0,1870 contro 0,1784 con le coppe dentro, a ogni taglio e su tutti
+e cinque i campionati. L'ipotesi era che in coppa si ruoti; il numero dice il contrario. È anche la
+strada che avrebbe sistemato i quattro casi subito, e adottarla sarebbe stato fittare sui casi.
+
+**Il ritiro: NON DECIDIBILE su questo archivio.** L'arm che lo esclude perde (0,1834 contro 0,1784), ma
+nel 2025-26 la quota di amichevoli nella finestra alla terza giornata ha **mediana 0%** e solo **5 club
+su 96** stanno sopra il 50% — dove il Milan sta oggi al 57%. La popolazione non contiene il regime, e
+dirlo è la parte utile: il ritiro è uscito dal termine di club su un argomento (§14.3) che non ha
+bisogno di questo banco.
+
+## 14.6 — Due trappole di misura pagate qui
+
+**IL GIUDICE NON È UNA FUNZIONE DEL SOLO FOGLIO.** `press --sheet DIR` **ridisegna** le board col
+pannello di adesso: la stessa cartella, giudicata prima e dopo una modifica a `gui.py`, è passata da
+154/220 a 152/220. Un A/B su `gui.py` va fatto costruendo **e** giudicando ogni braccio con il proprio
+codice, altrimenti si confronta un foglio vecchio con un pannello nuovo.
+
+**LA RILETTURA D'ARCHIVIO RIEMPIE LA CACHE, NON IL DATABASE.** `positions --layer formations` dichiara
+«2484 lati hanno ora il modulo» e nessun lettore li vede: la colonna la scrive il reparse offline, che va
+corso dopo. È «il dato c'era e mancava un lettore» spostato di un passo indietro — il dato c'è e manca
+l'ingestione — e la frase, letta da sola, fa credere che sia disponibile.
