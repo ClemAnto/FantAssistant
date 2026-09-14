@@ -686,7 +686,18 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      le due regole non sono d'accordo, 0,375 contro 0,311. La soglia 0,618 non e' scelta: e' dove
 #      `w + w^2 = 1`, cioe' dove una partenza nell'ULTIMA smette di battere due nelle due precedenti -
 #      e i dati dicono che deve batterle (pattern `nnS` 0,563 contro `SSn` 0,483, n 6.973 e 7.440).
-SHEET_REVISION = 65
+#   66 IL DENOMINATORE DELLA STAGIONE IN CORSO E' PER CLUB (14/09/2026), dal giudizio dell'operatore
+#      «le giornate della nuova stagione dovrebbero valere molto di piu' di quella passata». La costante
+#      che pesa le due stagioni (`presence.season_prior_rounds` = 5) e' misurata e spostarla costa
+#      (+1,4% di MAE a K=3, +4,7% a K=2, +51% a K=0): quello che era rotto e' il denominatore.
+#      `rounds_played` contava le giornate del CAMPIONATO, quindi al 13/09 leggeva 4 anche ai diciotto
+#      club di Serie A che ne avevano giocate 3 - Malen tre partite su tre della Roma, letto tre su
+#      quattro. A/B su una variabile sola, stesso DB e stessa data: 506 righe su 562 passano da 4 a 3,
+#      la quota si sposta di +0,062 di mediana (p90 +0,098, max +0,165), 124 righe cambiano gradino e la
+#      scala va da 6/29/163/43/127/194 a 41/15/130/80/123/173; sul foglio euro 465 righe di 956 con il
+#      denominatore corretto e 118 gradini cambiati (tre campionati su cinque erano colpiti: serie_a 18 club su 20, la_liga 18 su 20, ligue_1 16 su 18).
+#      `engine_*` NON si muove: verificato colonna per colonna, e `backtest --verify` resta 22/22.
+SHEET_REVISION = 66
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -5202,26 +5213,65 @@ def starting_record(conn, season: str, before: str | None = None) -> dict[int, d
 
 
 def rounds_played(conn, season: str, before: str | None) -> dict[str, int]:
-    """Quante giornate ha gia' giocato ogni campionato alla data d'asta: il denominatore della finestra IN CORSO.
+    """Quante partite di campionato ha gia' giocato OGNI CLUB alla data d'asta: il denominatore della
+    finestra IN CORSO.
 
-    PER COMPETIZIONE e non per club, e non e' una scorciatoia: e' il denominatore della meta' «questa
-    stagione» della miscela (`presence.blend_seasons`), e dentro un campionato tutti i club hanno giocato
-    lo stesso numero di giornate a meno di un rinvio. Contarlo per club vorrebbe dire ripetere il join per
-    NOME che questo progetto ha gia' pagato una volta (Milan, Roma, Napoli persi dal calendario di tutti),
-    e per un denominatore da due giornate quel rischio non compra niente.
+    PER CLUB, e fino al 14/09/2026 era per COMPETIZIONE con un argomento che il calendario smentisce ogni
+    fine settimana: «dentro un campionato tutti i club hanno giocato lo stesso numero di giornate a meno
+    di un rinvio». Non e' un rinvio, e' una GIORNATA IN CORSO - cioe' la condizione normale di un foglio
+    costruito di sabato. Sul foglio del 13/09/2026 la 4a giornata di Serie A l'avevano giocata Fiorentina
+    e Venezia, e `desc_now_rounds` leggeva **4,0 su tutte e 562 le righe**: Malen aveva giocato 3 delle 3
+    partite della Roma ed era letto 3 su 4. Ricostruito dalle colonne del foglio, sulle 506 righe dei 18
+    club indietro la quota si sposta di **+0,063 di mediana** e **187 righe** cambiano fascia di gradino
+    (Thuram K. 0,814 -> 0,976, Buongiorno 0,787 -> 0,945). E' «"questa giornata e' finita?" si chiede per
+    CLUB, mai per giornata» (24/08/2026, i ventidue zeri inventati) e la giornata a cavallo che R20 toglie
+    da tutt'e due i lati: il gate aveva la cura e il pannello no.
 
-    Vuoto quando la stagione bersaglio non e' cominciata: la miscela ha una finestra sola e resta quella
-    di sempre, cioe' ogni foglio di pre-stagione legge esattamente quello che leggeva prima.
+    L'OBIEZIONE DEL DOCSTRING VECCHIO ERA IL JOIN PER NOME (Milan, Roma, Napoli persi dal calendario di
+    tutti) e oggi non regge: `club_index` e' gia' usato in questo file, ed E' la cura di quel difetto.
+    `remaining_rounds` conta l'altra meta' dello stesso calendario esattamente cosi'.
+
+    E SI CONTA SULLA TABELLA DEL NUMERATORE, non sul calendario pubblicato, che e' la regola di casa «il
+    denominatore segue il suo NUMERATORE». Le due fonti non dicono lo stesso numero: al 13/09 `fixtures`
+    dava OTTO club a quota 4 e il livello per partita solo due, perche' le partite del 12 non erano ancora
+    state acquisite. Contando da `fixtures` quei sei club avrebbero avuto una partita al denominatore che
+    il loro numeratore non puo' contenere - il difetto curato, rimesso dall'altro lato. Stessi filtri di
+    `starting_record` (`source`, competizione, `match_date`), meno quello sui minuti, che seleziona gli
+    uomini e non le partite.
+
+    L'UNITA' E' LA PARTITA E NON LA GIORNATA, come ogni altra camminata di calendario qui: un recupero non
+    vale un turno e un turno spezzato non vale due.
+
+    Un club senza righe nel livello per partita NON e' nel risultato, e allora la miscela ha una finestra
+    sola e legge la stagione precedente intatta. E' «vuoto = ignoto, mai zero» e cura un secondo difetto
+    che il conteggio per competizione aveva: di un club le cui partite non sono ancora state acquisite il
+    numeratore e' vuoto, quindi dividerlo per le giornate del CAMPIONATO leggeva zero presenze su quattro
+    - `riserva` per una rosa intera.
+
+    Vuoto quando la stagione bersaglio non e' cominciata: ogni foglio di pre-stagione legge esattamente
+    quello che leggeva prima, e quindi ogni finestra su cui il gate ha pubblicato un numero non si muove.
     """
     if not before:
         return {}
-    rows = conn.execute(
-        f"""SELECT competition, COUNT(DISTINCT real_md) FROM external_match_stats
-            WHERE season = ? AND source = 'sofascore' AND real_md IS NOT NULL
-              AND match_date IS NOT NULL AND match_date < ?
-              AND competition IN ({_LEAGUE_IN}) GROUP BY competition""",
-        (season, before, *LEAGUE_COMPETITIONS))
-    return {competition: int(count or 0) for competition, count in rows}
+    resolve = club_index(conn)
+    # LE PARTITE E NON IL LORO CONTEGGIO, perche' due grafie dello stesso club portano partite DIVERSE:
+    # sommare i due conteggi darebbe piu' del calendario e tenere il massimo ne perderebbe una meta'. Si
+    # risolve la grafia e si conta l'UNIONE degli id, che e' l'unica delle tre risposte che non dipende
+    # da come la fonte ha scritto il nome quel giorno.
+    seen: dict[str, set] = {}
+    for club, match_id in conn.execute(
+            f"""SELECT DISTINCT club, match_id FROM external_match_stats
+                WHERE season = ? AND source = 'sofascore' AND club IS NOT NULL
+                  AND match_id IS NOT NULL AND match_date IS NOT NULL AND match_date < ?
+                  AND competition IN ({_LEAGUE_IN})""",
+            (season, before, *LEAGUE_COMPETITIONS)):
+        # La riga esce sul NOME CANONICO, che e' come la conosce l'osservazione (`obs.club_target`), per
+        # la stessa ragione per cui `remaining_rounds` risolve qui una volta per club invece che a ogni
+        # riga del foglio.
+        _key, name = resolve(club)
+        if name:
+            seen.setdefault(name, set()).add(match_id)
+    return {name: len(ids) for name, ids in seen.items()}
 
 
 def previously_at_club(conn, observations, squads: dict[int, str], season: str) -> dict[int, str]:
@@ -5972,7 +6022,13 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         # test unitario la legge; qui si costruiscono le finestre, che e' l'unico punto in cui esistono
         # tutt'e due (il DB). Su una pre-stagione `now_rounds` e' vuoto, la miscela ha una finestra sola e
         # ogni numero pubblicato dal gate resta identico.
-        now_rounds = float((layers.get("now_rounds") or {}).get(obs.league or "", 0) or 0)
+        #
+        # PER CLUB E NON PER CAMPIONATO (14/09/2026): la giornata in corso non l'hanno giocata tutti, e
+        # contare quella del campionato dava al 13/09 un denominatore di 4 a diciotto club che ne avevano
+        # giocate 3 - Malen 3 partite su 3 della Roma, letto 3 su 4. Vedi `rounds_played`. Un club che il
+        # livello per partita non conosce non e' nella mappa e la miscela torna ad avere una finestra sola,
+        # che e' anche quello che il suo numeratore dice di lui.
+        now_rounds = float((layers.get("now_rounds") or {}).get(obs.club_target or "", 0) or 0)
         prev_play = (layers.get("prev_record") or {}).get(obs.fc_id)
         prev_club = (layers.get("prev_at_club") or {}).get(obs.fc_id, {})
         prev_prop = (layers.get("prev_propensity") or {}).get(obs.fc_id, {})
