@@ -2011,3 +2011,57 @@ codice, altrimenti si confronta un foglio vecchio con un pannello nuovo.
 «2484 lati hanno ora il modulo» e nessun lettore li vede: la colonna la scrive il reparse offline, che va
 corso dopo. È «il dato c'era e mancava un lettore» spostato di un passo indietro — il dato c'è e manca
 l'ingestione — e la frase, letta da sola, fa credere che sia disponibile.
+
+---
+
+# 15 — Il LATO misurato sulla board di stagione: misurato e RESPINTO nella forma provata
+
+**15/09/2026**, dal caso Juventus rimasto aperto in §14.3: «la Juve ha Conceicao, Gonzalez, Zeghrova come
+AD, perché invece c'è Celik fuori ruolo?».
+
+## 15.1 — La diagnosi: non è CHI, è DOVE, e sulla stagione non c'è nessuna misura di posizione
+
+Celik ha claim **0,677**, più alto di Conceição (0,602): nell'undici ci sta di diritto, e il difetto è il
+posto. Il suo primo codice è `MR`, che compra la fascia destra d'attacco a poco — mentre nelle ultime
+partite quel posto è di Conceição.
+
+Sull'orizzonte di stagione il piazzamento sta sui **soli codici**: l'unico canale di posizione misurata
+sarebbe la heatmap, che vive a peso **zero** (`HEATMAP_SIDE`/`HEATMAP_DEPTH`, misurate e respinte, gate
+§5-quaterdecies) e per il 2026-27 è pure vuota. Un codice dice cosa un uomo *può* fare, letto oggi.
+
+## 15.2 — La cura provata, e perché non si spedisce
+
+`played_sides` su una finestra di **stagione** (`SEASON_SIDE_MATCHES` = 38) accanto a quella corta, letta
+da `_slot_price` sull'orizzonte lungo — lo stesso schema di `formation_shapes` contro
+`formation_shapes_recent`. Colonna piena su 342 righe di 562, **10 club su 20 cambiano disegno**, quindi
+il canale non è inerte.
+
+**La Juventus si risolve esattamente come chiesto**: `Ad:Conceicao`, e Celik scende a `Ts`, che è dove ha
+davvero giocato (`DL:90;DL:69`, 159 minuti). **E Milan e Atalanta si rompono**: il Milan perde tutt'e due
+le fasce del 3-4-2-1 (nessun `Ed`, nessun `Es`, tre `T` in una riga da due) e l'Atalanta disegna
+**quattro `Dc`** in un 4-3-3. Giudice stampa: **identico** su tutt'e due i bracci (MATCH 12, uomini
+152/220), cioè sta scambiando un club guadagnato con uno perso.
+
+## 15.3 — La causa, che è nella FORMA e non nel dato
+
+`_slot_price` **sostituisce** il lato del codice con quello misurato. E la distribuzione del lato
+misurato è quasi degenere: **229 valori su 342 sono esattamente 0,0** (centro), con 53 a −1 e 47 a +1.
+Sostituirlo appiattisce quasi tutti al centro e lascia le fasce ai pochi che misurano ±1 — anche quando
+quel ±1 poggia su nulla: Saelemaekers legge `LW:31;LW:24`, cioè **55 minuti**, e con quelli diventa un
+uomo di sinistra che contende `Es` a Bartesaghi (87+24 minuti da `ML`), lasciando la destra del Milan
+senza nessuno.
+
+Sull'orizzonte corto la stessa sostituzione funziona, e non per caso: là la finestra è di tre partite e
+gli uomini disegnati sono quelli che hanno appena giocato, quindi il valore misurato ha sempre dei minuti
+dietro. Su una finestra di stagione la colonna si riempie anche per chi ha giocato mezz'ora.
+
+## 15.4 — Cosa resta pre-registrato
+
+La forma da misurare è il **tiraggio pesato** che il canale heatmap già usa —
+`(1 − w)·codice + w·misurato` — con `w` funzione dei MINUTI dietro la misura, non una sostituzione. Da
+misurare sulla griglia, con l'ottimo interno obbligatorio e il giudice costruito *e* interrogato con il
+proprio codice per ogni braccio (§14.6). Attesa dichiarata: a `w` piccolo il canale non arriva, a `w` = 1
+si torna alla geometria rotta di §15.2, quindi se l'ottimo non è interno non si adotta.
+
+**Il caso Juventus resta aperto**, ed è giusto così: una cura che ne sistema uno e ne rompe due non è una
+cura, e il giudice che legge lo stesso numero su tutt'e due i bracci lo sta dicendo.
