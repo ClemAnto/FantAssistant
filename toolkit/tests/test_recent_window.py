@@ -749,7 +749,16 @@ def test_il_modulo_dell_ultimo_periodo_e_quello_dichiarato_dal_club():
 
     source = inspect.getsource(snapshot.recent_shapes)
     assert "SELECT defenders, midfielders, forwards, formation" in source
-    assert '(declared or "").strip() or f"{defenders}-{midfielders}-{forwards}"' in source
+    # UNA DEFINIZIONE, TRE LETTORI (14/09/2026): la regola viveva qui come espressione in linea ed e'
+    # stata estratta quando `typical_formation` e `coach_repertoires` hanno dovuto leggerla anche loro.
+    # L'asserzione segue il sorgente invece di essere indebolita, e ci guadagna: adesso pretende ANCHE
+    # che la definizione sia una sola, che e' la meta' che tre copie avrebbero perso.
+    assert "declared_or_counted(declared, defenders, midfielders, forwards)" in source
+    rule = inspect.getsource(snapshot.declared_or_counted)
+    assert '(declared or "").strip() or f"{defenders}-{midfielders}-{forwards}"' in rule
+    for reader in (snapshot.typical_formation, snapshot.coach_repertoires):
+        assert "declared_or_counted(declared" in inspect.getsource(reader), (
+            f"{reader.__name__} deve leggere il modulo dichiarato dalla stessa definizione")
 
 
 def test_l_ultimo_periodo_disegna_il_modulo_invece_di_dedurlo():

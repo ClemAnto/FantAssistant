@@ -697,7 +697,21 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      scala va da 6/29/163/43/127/194 a 41/15/130/80/123/173; sul foglio euro 465 righe di 956 con il
 #      denominatore corretto e 118 gradini cambiati (tre campionati su cinque erano colpiti: serie_a 18 club su 20, la_liga 18 su 20, ligue_1 16 su 18).
 #      `engine_*` NON si muove: verificato colonna per colonna, e `backtest --verify` resta 22/22.
-SHEET_REVISION = 66
+#   67 IL MODULO E' QUELLO CHE IL CLUB DICHIARA, in TUTTI E TRE i lettori (14/09/2026). «L'etichetta
+#      del modulo 4-2-3-1 e' piu' corretta, 4-5-1 indica 5 centrocampisti in linea e non evidenzia la
+#      trequarti» (l'operatore), da quattro casi suoi: Celik disegnato `Ad` alla Juve, Rabiot `C` invece
+#      che `T` al Milan, Castro accanto a Malen alla Roma. Una causa sola - il board dell'ultimo periodo
+#      legge `club_match_lineups.formation` dal 12/09 e quello di stagione leggeva i tre conteggi di
+#      linea, che non sanno dire un 4-2-3-1: i due erano in disaccordo sul modulo in 13 club su 20.
+#      `declared_or_counted` e' una definizione e TRE lettori (`typical_formation`, `recent_shapes`,
+#      `coach_repertoires`); i conteggi restano il ripiego dove la fonte non ha dichiarato niente.
+#      Misurato A/B su una variabile sola: 5 club su 20 cambiano il modulo di stagione (Bologna, Cagliari,
+#      Como 4-5-1 -> 4-2-3-1, Fiorentina 4-5-1 -> 4-3-3, Genoa 3-4-3 -> 3-4-2-1) e 3 undici cambiano
+#      uomini e posizioni. I tre casi dell'operatore NON si muovono ancora, e la ragione e' misurata: il
+#      modulo del board non e' la moda del club, e' pesata col REPERTORIO DI CARRIERA dell'allenatore, che
+#      e' quasi tutto archivio e dichiarato allo 0% (Amorim `3-4-3:55`, Gasperini `3-4-3:288`). Li sblocca
+#      `positions --layer formations`, 10.763 partite, in corso.
+SHEET_REVISION = 67
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -4718,6 +4732,30 @@ def league_repertoire(conn, season: str, before: str | None = None) -> dict[str,
             for defenders, midfielders, forwards, count in rows}
 
 
+def declared_or_counted(declared: str | None, defenders: int, midfielders: int,
+                        forwards: int) -> str:
+    """IL MODULO CHE IL CLUB HA DICHIARATO, e i tre conteggi di linea come ripiego.
+
+    UNA DEFINIZIONE E DUE LETTORI (`typical_formation` e `recent_shapes`), perche' due copie di questa
+    riga farebbero descrivere la stessa partita in due vocabolari secondo chi la conta - ed e' esattamente
+    il difetto che questa funzione cura, un piano piu' su.
+
+    «L'etichetta del modulo 4-2-3-1 e' piu' corretta, 4-5-1 indica 5 centrocampisti in linea e non
+    evidenzia la trequarti» (l'operatore, 14/09/2026). Non sono due moduli che competono: sono due nomi
+    per la stessa cosa, e uno dei due perde l'informazione che decide chi ci gioca. I tre conteggi non
+    possono dire un 4-2-3-1 - `goalkeepers + defenders + midfielders + forwards` ha tre linee - quindi
+    una trequarti letta cosi' diventa un centrocampo a cinque, e nel disegno la maglia va a un terzino.
+
+    Il ripiego resta e non sparisce: una partita scaricata prima che il downloader tenesse `formation`
+    (11/09/2026) non ce l'ha, e li' tre linee sono meglio di niente - «vuoto = ignoto» non vuol dire
+    «nessun modulo». Finche' l'archivio non e' riletto (`positions --layer formations`) le due letture
+    convivono nella stessa distribuzione, e un 4-2-3-1 dichiarato di quest'anno CONTA A PARTE dal 4-5-1
+    contato dell'archivio: e' una transizione dichiarata e non un modello di alias, che sarebbe un
+    secondo parere sulla stessa partita.
+    """
+    return (declared or "").strip() or f"{defenders}-{midfielders}-{forwards}"
+
+
 class Typical(NamedTuple):
     """What the club's complete elevens say about its shape."""
 
@@ -4750,21 +4788,25 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
         return Typical(None, None, 0, "no lineups", 0, "")
     placeholders = ",".join("?" * len(spellings))
     rows = conn.execute(
-        f"""SELECT defenders, midfielders, forwards, match_date FROM club_match_lineups
+        f"""SELECT defenders, midfielders, forwards, match_date, formation FROM club_match_lineups
             WHERE club IN ({placeholders}) AND season = ? AND starters = 11
               AND goalkeepers + defenders + midfielders + forwards = 11
               AND (? IS NULL OR (match_date IS NOT NULL AND match_date < ?))""",
         (*spellings, season, before, before)).fetchall()
     if not rows:
         return Typical(None, None, 0, "no lineups", 0, "")
-    weights: dict[tuple[int, int, int], float] = {}
-    counts: dict[tuple[int, int, int], int] = {}
+    weights: dict[str, float] = {}
+    counts: dict[str, int] = {}
     under_coach = 0
-    for defenders, midfielders, forwards, date in rows:
+    for defenders, midfielders, forwards, date, declared in rows:
         his = bool(coach_since and date and date >= coach_since)
         under_coach += his
         weight = 1.0 if (his or not coach_since) else PREVIOUS_COACH_WEIGHT
-        shape = (defenders, midfielders, forwards)
+        # Il modulo DICHIARATO dove la fonte lo porta: vedi `declared_or_counted`. Finche' l'archivio non
+        # e' riletto questo tocca le sole partite di quest'anno, che contro un repertorio di carriera da
+        # decine di undici non sposta quasi niente - la rietichettatura e' il LETTORE, la rilettura e' il
+        # DATO, e senza il primo la seconda riempirebbe una colonna che nessuno consulta.
+        shape = declared_or_counted(declared, defenders, midfielders, forwards)
         weights[shape] = weights.get(shape, 0.0) + weight
         counts[shape] = counts.get(shape, 0) + 1
     total = sum(weights.values())
@@ -4783,12 +4825,12 @@ def typical_formation(conn, spellings: list[str], season: str, coach_since: str 
     # to trust this shape needs a value it can compare, and the Auction board does exactly that - a modal
     # shape resting on 0 elevens of the current coach is a historical note, not a habit, and the board is
     # allowed to draw a different one. Parsing the sentence back out would be reading our own prose.
-    spread = ";".join(f"{'-'.join(str(part) for part in key)}:{count}"
+    spread = ";".join(f"{key}:{count}"
                       for key, count in sorted(counts.items(), key=lambda item: -item[1]))
     # No `coach_since` inside the sample means the man in charge PREDATES it, so every eleven is his -
     # counting the rows that fall after a date that does not exist returned 0 and read as "this is his
     # predecessor's shape" for Arteta, who has been at Arsenal since 2019.
-    return Typical("-".join(str(part) for part in shape), round(weight / total, 2), len(rows), basis,
+    return Typical(shape, round(weight / total, 2), len(rows), basis,
                    len(rows) if not coach_since else under_coach, spread)
 
 
@@ -4842,7 +4884,7 @@ def recent_shapes(conn, spellings: list[str], season: str, before: str | None,
         # tenesse `formation` non lo ha, e li' tre linee sono meglio di niente - «vuoto = ignoto» non
         # vuol dire «nessun modulo». Le due letture convivono nella stessa colonna perche' rispondono
         # alla stessa domanda con precisione diversa, e chi legge non deve sapere quale sia quale.
-        shape = (declared or "").strip() or f"{defenders}-{midfielders}-{forwards}"
+        shape = declared_or_counted(declared, defenders, midfielders, forwards)
         counts[shape] = counts.get(shape, 0) + 1
     # L'ORDINE E' UN DATO E NON UN DETTAGLIO: a parita' di conteggio viene prima il modulo dell'ULTIMA
     # partita, perche' le righe arrivano dalla piu' recente e il `sorted` di Python e' stabile. Ci si
@@ -5054,8 +5096,9 @@ def coach_repertoires(conn, before: str | None = None) -> dict[str, dict[str, in
         if key and coach:
             spells.setdefault(key, []).append((coach, valid_from or "0000", valid_to or "9999"))
     out: dict[str, dict[str, int]] = {}
-    for club, defenders, midfielders, forwards, date in conn.execute(
-            """SELECT club, defenders, midfielders, forwards, match_date FROM club_match_lineups
+    for club, defenders, midfielders, forwards, date, declared in conn.execute(
+            """SELECT club, defenders, midfielders, forwards, match_date, formation
+               FROM club_match_lineups
                WHERE starters = 11 AND match_date IS NOT NULL
                  AND goalkeepers + defenders + midfielders + forwards = 11"""):
         if before and date >= before:
@@ -5063,7 +5106,13 @@ def coach_repertoires(conn, before: str | None = None) -> dict[str, dict[str, in
         key, _name = resolve(club or "")
         for coach, valid_from, valid_to in spells.get(key or "", ()):
             if valid_from <= date <= valid_to:
-                shape = f"{defenders}-{midfielders}-{forwards}"
+                # IL MODULO DICHIARATO anche qui (14/09/2026), e questo e' il lettore che decide: il
+                # repertorio di un allenatore e' la sua CARRIERA, quindi e' quasi tutto archivio, e finche'
+                # `positions --layer formations` non l'ha riletto questa riga rende il conteggio di linea
+                # quasi sempre. E' il motivo per cui la rilettura vale la pena: senza di lei il board
+                # continua a leggere «Amorim 3-4-3:55» di un uomo cha ha giocato 3-4-2-1, e con lei senza
+                # QUESTA riga la colonna si riempirebbe e nessuno la leggerebbe.
+                shape = declared_or_counted(declared, defenders, midfielders, forwards)
                 shapes = out.setdefault(coach, {})
                 shapes[shape] = shapes.get(shape, 0) + 1
                 break
