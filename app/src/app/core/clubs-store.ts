@@ -4,7 +4,7 @@ import { Board } from './bundle';
 import { PlayerRulings } from './player-rulings';
 import { Platform, abbreviate, competitionLabel, nameWords } from './players-store';
 import { Titolarita } from './titolarita';
-import { SquadMan, ValuationStore, shortShiftOf } from './valuation-store';
+import { SquadMan, ValuationStore } from './valuation-store';
 import { MarketValues } from './market-trend';
 
 /**
@@ -290,15 +290,6 @@ export class ClubsStore {
   /** Quante partite guarda la finestra corta, dal toolkit che le ha usate: l'etichetta lo dice. */
   readonly shortWindow = computed(
     () => this.valuation.boardsFor(this.platform())?.short?.window ?? null);
-
-  /**
-   * Quanti uomini l'ultimo periodo schiera e la stagione no, e quanti la regola del padrone che rientra
-   * ha retrocesso. A zero le due board sono la stessa cosa e il pulsante è un ornamento: dirlo a schermo
-   * è la stessa disciplina del conteggio che `snapshot` stampa - uno zero silenzioso non si distingue da
-   * una funzione rotta.
-   */
-  readonly shortMoved = computed(
-    () => shortShiftOf(this.valuation.boardsFor(this.platform()), this.club()));
 
   selectPlatform(platform: Platform): void {
     if (platform === this.platform()) return;

@@ -4595,6 +4595,12 @@ def test_lo_spareggio_della_heatmap_non_puo_scavalcare_un_codice():
         _fit_horizon = "season"
         _depth_fit = SnapshotView._depth_fit
         played_side = SnapshotView.played_side
+        # la scelta fra i due lati giocati vive in `fit_side` e i due lettori la chiamano: il fixture
+        # la porta con se', o starebbe provando una classe che non e' quella che disegna
+        held_side = SnapshotView.held_side
+        fit_side = SnapshotView.fit_side
+        shape_lanes = SnapshotView.shape_lanes
+        SLOT_SHAPE = SnapshotView.SLOT_SHAPE
         measured_point = SnapshotView.measured_point
         measured_across = SnapshotView.measured_across
 

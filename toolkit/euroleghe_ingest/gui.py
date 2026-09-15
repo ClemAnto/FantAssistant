@@ -5135,6 +5135,17 @@ class SnapshotView(ttk.Frame):
         sides = {("L" if REAL_ROLE_SIDE[code] < -0.34 else
                   "R" if REAL_ROLE_SIDE[code] > 0.34 else "C")
                  for code in cls.real_roles(row) if code in REAL_ROLE_SIDE}
+        # ...E IL FIANCO CHE HA TENUTO PER TUTTA LA FINESTRA SI AGGIUNGE AI SUOI (`held_side`, regola
+        # dell'operatore del 15/09/2026). «Un giocatore di fascia gioca preferibilmente da un lato ma
+        # facilmente puo' adattarsi sull'altro»: ANCHE, quindi si aggiunge e non sostituisce - Celik
+        # resta il terzino destro che e', e da oggi puo' coprire pure la sinistra, perche' e' li' che
+        # l'allenatore lo ha schierato per tre partite intere. Non e' la heatmap, che fu provata su
+        # questa stessa riga e non muoveva niente a nessuna soglia (una nuvola di stagione, che i codici
+        # gia' contengono): questo e' il posto della DISTINTA, partita per partita, e la guardia di
+        # `held_side` pretende che sia lo stesso in tutte quelle della finestra.
+        held = cls.held_side(row)
+        if held is not None:
+            sides = sides | {"R" if held > 0 else "L"}
         return sides or {cls.side_of(row)}
 
     @classmethod
@@ -6525,6 +6536,18 @@ class SnapshotView(ttk.Frame):
             provider_line = self.PROVIDER_LINE.get(row.get("desc_real_role_line") or "")
             if provider_line:
                 keys.add(provider_line)
+            # ...E LA RIGA CHE HA OCCUPATO IN TUTTA LA FINESTRA E' LA SUA CASA (`held_lane`, regola
+            # dell'operatore del 15/09/2026: «3 partite intere o quasi giocate in una nuova posizione
+            # sono una conferma che l'allenatore voglia utilizzarlo anche li'»). La CASA e non solo una
+            # candidatura, perche' e' quella che decide chi una linea puo' cedere: Celik e' il secondo
+            # claim della Juventus e la sua casa era il centrocampo, quindi la difesa non lo poteva
+            # chiedere e il disegno lo mandava sulla trequarti, mentre da tre partite gioca terzino.
+            # La riga vecchia resta fra le candidature - un uomo non smette di poter fare il suo
+            # mestiere - ed e' la stessa asimmetria del lato: si aggiunge, e a decidere e' dove sta.
+            held_lane = self.held_lane(row) if declared_rows else None
+            if held_lane:
+                keys.add(line_key(held_lane) if not declared_rows.get("T") else held_lane)
+                home = line_key(held_lane) if not declared_rows.get("T") else held_lane
             # ...E SE IL MODULO DICHIARATO HA UNA RIGA DI TREQUARTI, un trequartista e' candidato PER
             # QUELLA e non solo per l'attacco (operatore, 12/09/2026: «perche' nella Roma vedo Wesley
             # sulla trequarti?»). `line_key` manda ogni `T` in ATTACCO perche' li' la riga di trequarti
@@ -6540,9 +6563,17 @@ class SnapshotView(ttk.Frame):
             # Pulisic, che nelle ultime tre partite ha ZERO minuti. Un serbatoio piu' largo non e' una
             # scelta piu' generosa: sposta uomini in tutte e tre le righe attraverso il prestito e le
             # riparazioni.
-            if declared_rows.get("T") and any(
-                    self.LANE_OF_ROLE.get(code) == "T" or code in self.TREQUARTI_WIDE
-                    for code in codes):
+            # ...e l'ala e' candidata alla trequarti solo se fare l'ala e' il suo MESTIERE, cioe' il
+            # suo PRIMO codice - mentre un `AM` lo e' con qualunque codice, perche' quella E' la riga.
+            # Trovato dall'operatore il giorno dopo l'adozione, sulla Roma: Malen legge `ST;RW`, e
+            # bastava quel `RW` in seconda posizione perche' un CENTRAVANTI si contendesse la trequarti
+            # - e da li' l'assegnazione lo mandava addirittura in mezzo al campo («Malen a centrocampo
+            # e' un errore sicuramente: ha sempre e solo giocato come Pc»). Il primo codice e' il
+            # mestiere e gli altri sono cio' che puo' fare: la stessa lettura che `_slot_price` fa
+            # pagando mezzo punto in piu' ai codici successivi.
+            if declared_rows.get("T") and (
+                    any(self.LANE_OF_ROLE.get(code) == "T" for code in codes)
+                    or (codes and codes[0] in self.TREQUARTI_WIDE)):
                 keys.add("T")
             for key in keys:
                 by_role.setdefault(key, []).append(row)
@@ -7091,6 +7122,16 @@ class SnapshotView(ttk.Frame):
         sides = [side for side in self.slot_shape(role, slots) if side in ("R", "L")]
         if not sides or len(take) < slots:
             return take                      # a row with no flanks, or one that has not even got its men
+        # ...E UNA RIGA CHE LE SUE FASCE LE COPRE GIA' NON HA NIENTE DA RIPARARE. Senza questa guardia la
+        # funzione smette di coprire fasce e diventa un massimizzatore di claim su ogni corsia: scambiava
+        # l'uomo piu' debole della riga con qualunque rivale piu' forte che toccasse quel lato, ANCHE
+        # quando quel lato era gia' presidiato. Due dei casi dell'operatore nascono qui - la trequarti
+        # della Juventus perdeva Yildiz (`LW;AM`, che la sinistra la copre) per Cambiaso, che e' un
+        # TERZINO sinistro, e da li' l'assegnazione mandava Celik in trequarti per fargli posto.
+        # La copertura e' un MATCHING e non un conteggio (`_covers`): Gonzalez legge `RW;LW` e tocca
+        # tutt'e due le corsie, ma puo' stare su una sola.
+        if self._covers(take, sides) >= len(sides):
+            return take
         for side in sides:
             # `wing_backs` = this row's flanks are the WHOLE touchline (no full back behind them), so a
             # flank is a D/M job and a pure attacker does not compete for it (`_wing_back_trade`)
@@ -7759,6 +7800,107 @@ class SnapshotView(ttk.Frame):
         """
         return _number(row.get("desc_played_side"), None)
 
+    @classmethod
+    def held_side(cls, row: dict) -> float | None:
+        """Il fianco che ha tenuto in OGNI partita della finestra, o None - la regola dell'operatore
+        del 15/09/2026: «3 partite intere o quasi giocate in una nuova posizione sono una conferma che
+        l'allenatore voglia utilizzarlo anche li', e quindi dobbiamo prenderne atto e rivalutare la
+        formazione stagionale con questa nuova chiave di lettura».
+
+        E' il LATO e non la linea, ed e' quello che i suoi due casi sono davvero: Celik legge `MR;DR;DC`
+        e ha giocato terzino SINISTRO, Wesley legge `DR;ML` e ha giocato a sinistra - restano difensore
+        e esterno, cambia da che parte. «Un giocatore di fascia gioca preferibilmente da un lato ma
+        facilmente puo' adattarsi sull'altro, quindi non e' una situazione cosi' rara»: misurato sul
+        foglio del 15/09, 29 uomini su 294 hanno tenuto lo stesso fianco per tutta la finestra, di cui
+        2 OPPOSTO ai propri codici (Celik, Wesley) e 3 largo mentre i codici li dicono centrali.
+
+        LA CONFERMA E' LA MAGGIORANZA delle partite della finestra, e il numero di partite non e' una
+        costante nuova: e' `presence.recent_window`, la stessa finestra su cui la board dell'ultimo
+        periodo e' misurata, quindi chi ne ha giocate meno non ha una conferma da dare e legge None.
+        La forma piu' severa - lo stesso fianco in TUTTE - e' stata scritta per prima e MISURATA: tiene
+        Celik e lascia fuori Baturina, che gioca due volte a sinistra e una al centro ed e' uno dei due
+        casi da cui la regola nasce. Sul giudice stampa la maggioranza vale un uomo in piu' (154 contro
+        153 su 220, moduli identici), quindi non e' lei a decidere: decide che la regola e' DICHIARATA e
+        che il giudice non la smentisce. Tre partite in una riga fluida come la trequarti di un 4-2-3-1
+        non si giocano tutte sullo stesso piede, ed e' esattamente il caso che la severa perdeva.
+
+        DAGLI SLOT E NON DA `played_side`, che pure risponde alla stessa domanda e viene da Transfermarkt:
+        li' il posto e' una griglia che non divide le LINEE come le dividiamo noi, mentre lo slot e' il
+        numero della distinta DENTRO il modulo dichiarato, quindi il fianco si legge senza ambiguita' -
+        ed e' la stessa colonna con cui la board dell'ultimo periodo sceglie l'undici, cioe' una sorgente
+        e non una seconda. Dove parlano tutt'e due concordano su 5 casi di 5.
+        """
+        window = int(presence.DEFAULTS.recent_window)
+        sides: list[str] = []
+        for item in (row.get("desc_recent_slots") or "").split(";"):
+            parts = item.split(":")
+            if len(parts) < 3 or not parts[2].isdigit():
+                continue
+            shape, number = parts[1], int(parts[2])
+            index = 0
+            for lane, count in cls.shape_lanes(shape):
+                for inside in range(count):
+                    if index == number and count:
+                        sides.append(cls.SLOT_SHAPE.get((lane, count),
+                                                        tuple("C" * count))[inside])
+                    index += 1
+        if len(sides) < window:
+            return None
+        counts = Counter(sides)
+        best, times = counts.most_common(1)[0]
+        if best not in ("R", "L") or times * 2 <= len(sides):
+            return None                 # nessuna maggioranza, o una maggioranza CENTRALE
+        return 1.0 if best == "R" else -1.0
+
+    @classmethod
+    def held_lane(cls, row: dict) -> str | None:
+        """La RIGA che ha occupato in ogni partita della finestra, o None - la meta' «linea» della
+        regola dell'operatore del 15/09/2026, di cui `held_side` e' la meta' «lato».
+
+        Stessa guardia e stessa sorgente: il numero della distinta dentro il modulo DICHIARATO di quella
+        partita, quindi la riga si legge senza dedurla (`shape_lanes`), e serve che sia la STESSA in
+        tutte le partite della finestra. Misurato sul foglio del 15/09: 123 uomini su 294 hanno una riga
+        confermata e 13 ce l'hanno DIVERSA dalla propria riga primaria - fra loro i due nomi che
+        l'operatore ha portato, Celik (`MR;DR;DC`, casa a centrocampo, tre partite da terzino) e Lulli
+        (`DR`, casa in difesa, tre partite da esterno di centrocampo).
+
+        SERVE PERCHE' IL LATO DA SOLO NON BASTA: Celik aveva gia' la sinistra confermata e restava
+        disegnato sulla trequarti, perche' la riga di casa decide chi la sua linea puo' CEDERE
+        (`can_lend`) - e un uomo che e' il migliore della propria non viene ceduto a nessuno. Finche' la
+        sua casa e' il centrocampo, la difesa non lo puo' nemmeno chiedere.
+        """
+        window = int(presence.DEFAULTS.recent_window)
+        lanes: list[str] = []
+        for item in (row.get("desc_recent_slots") or "").split(";"):
+            parts = item.split(":")
+            if len(parts) < 3 or not parts[2].isdigit():
+                continue
+            shape, number = parts[1], int(parts[2])
+            index = 0
+            for lane, count in cls.shape_lanes(shape):
+                for inside in range(count):
+                    if index == number:
+                        lanes.append(lane)
+                    index += 1
+        if len(lanes) < window or len(set(lanes)) != 1 or lanes[0] == "P":
+            return None
+        return lanes[0]
+
+    def fit_side(self, row: dict) -> float | None:
+        """Il lato GIOCATO che questo disegno deve leggere, o None - una definizione e due lettori.
+
+        Le due finestre chiedono due cose e la risposta e' diversa, ma la SCELTA fra le due e' una sola
+        e stava scritta in due punti (`_slot_price` e `measured_across`), cioe' una riga che qualcuno
+        avrebbe aggiornato per meta'. L'ultimo periodo vuole sapere dove sta ADESSO, e li' basta l'ultima
+        partita giocata (`played_side`, pesato sui minuti); la stagione vuole sapere se l'allenatore lo
+        sta USANDO li', e quella e' una domanda a cui una partita non risponde - serve la conferma di
+        `held_side`. Il 12/09 il lato era spento sulla stagione con una ragione che valeva allora - «una
+        finestra di tre partite non ha titolo a decidere un disegno d'annata» - e la regola dell'operatore
+        del 15/09 la sostituisce dicendo a quali condizioni quel titolo ce l'ha.
+        """
+        return (self.played_side(row) if self._fit_horizon == "short"
+                else self.held_side(row))
+
     def measured_point(self, row: dict) -> tuple[float | None, float | None]:
         """(depth, side) where he ACTUALLY stood, on the same grid the codes live on - or None, None.
 
@@ -7820,7 +7962,7 @@ class SnapshotView(ttk.Frame):
         # propri codici. Il prezzo entra anche nelle riparazioni, quindi muove sei undici su venti: sono
         # scambi uno a uno e portano dentro chi la fascia l'ha tenuta davvero (Berardi al Sassuolo,
         # Fortini al Torino). Sulla stagione non e' letto: la' la domanda e' un'altra e la finestra pure.
-        held = self.played_side(row) if self._fit_horizon == "short" else None
+        held = self.fit_side(row)
         seen_depth = seen_side = 0.0
         pull_depth = pull_side = 0.0
         if self.HEATMAP_DEPTH or self.HEATMAP_SIDE:      # both zero: the hot path stays what it was
@@ -8128,7 +8270,7 @@ class SnapshotView(ttk.Frame):
         misurato si ordina FRA chi ha giocato a destra e chi a sinistra invece di scavalcare l'uno o
         l'altro. «Vuoto = ignoto» detto nell'unico modo che un ordinamento capisce.
         """
-        held = self.played_side(row) if self._fit_horizon == "short" else None
+        held = self.fit_side(row)
         if held is not None:
             return held                 # dove e' stato batte dove stava in media l'anno scorso
         _depth, measured = self.measured_point(row)

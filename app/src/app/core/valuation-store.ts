@@ -596,6 +596,11 @@ export function boardViewOf(file: BoardsFile | null, horizon: BoardHorizon): Boa
  * è la stessa disciplina del conteggio che `snapshot` stampa sui campetti - uno zero silenzioso non si
  * distingue da una funzione rotta. Null quando l'ultimo periodo non c'è, che non è uno zero.
  */
+/**
+ * NOTA (15/09/2026): oggi NESSUNA vista la legge. La didascalia dell'ultimo periodo che la usava e'
+ * stata tolta su richiesta dell'operatore («questo commento non serve»); la funzione resta perche' e'
+ * pura e il suo test documenta la forma di `boards.json`, ma va tolta con lui se nessuno la richiama.
+ */
 export function shortShiftOf(file: BoardsFile | null, club: string | null): {
   moved: number; capped: number;
 } | null {

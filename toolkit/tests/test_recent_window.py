@@ -823,18 +823,31 @@ def test_il_lato_lo_dice_la_partita_e_non_la_stagione():
         assert REAL_ROLE_SIDE[snapshot.TM_SLOT_NAME[slot]] == side, slot
 
 
-def test_il_lato_giocato_lo_legge_solo_lultimo_periodo():
-    """Il prezzo di un posto lo usa sulla finestra corta e mai sulla stagione: sono due domande.
+def test_il_lato_giocato_lo_leggono_le_due_finestre_in_due_modi():
+    """Le due finestre leggono DUE lati, e la scelta fra loro sta in UN posto solo (`fit_side`).
 
-    «Dove gioca adesso» e «dove gioca di solito» hanno due finestre, e la seconda ha il suo giudice
-    esterno (la stampa) che questa colonna non deve muovere - misurato: 20 club su 20 identici.
+    Il 12/09/2026 il lato giocato era acceso sull'ultimo periodo e spento sulla stagione, con una
+    ragione che valeva allora: «una finestra di tre partite non ha titolo a decidere un disegno
+    d'annata». Il 15/09 l'operatore l'ha sostituita dicendo a quali condizioni quel titolo ce l'ha -
+    «3 partite intere o quasi giocate in una nuova posizione sono una conferma che l'allenatore voglia
+    utilizzarlo anche li'» - quindi sulla stagione entra `held_side`, che quella conferma la pretende,
+    mentre l'ultimo periodo continua a leggere l'ultima partita giocata.
+
+    La scelta viveva in DUE punti (`_slot_price` e `measured_across`), cioe' una riga che qualcuno
+    avrebbe aggiornato per meta': ora e' una funzione, e questo test asserisce che nessuno dei due se
+    ne tenga una copia.
     """
     import inspect
 
     from euroleghe_ingest import gui
 
-    source = inspect.getsource(gui.SnapshotView._slot_price)
-    assert 'held = self.played_side(row) if self._fit_horizon == "short" else None' in source
+    choice = inspect.getsource(gui.SnapshotView.fit_side)
+    assert 'self.played_side(row) if self._fit_horizon == "short"' in choice
+    assert "self.held_side(row)" in choice
+    for reader in (gui.SnapshotView._slot_price, gui.SnapshotView.measured_across):
+        source = inspect.getsource(reader)
+        assert "held = self.fit_side(row)" in source, reader.__name__
+        assert "played_side" not in source, f"{reader.__name__} tiene una copia della scelta"
     # ...e l'orizzonte lo dichiara `eleven`, che e' la porta d'ingresso del disegno
     assert "self._fit_horizon = horizon" in inspect.getsource(gui.SnapshotView.eleven)
     assert gui.SnapshotView._fit_horizon == "season", "una vista che non ha disegnato legge la stagione"
@@ -1459,3 +1472,71 @@ def test_dove_era_nelle_ultime_partite_e_un_fatto_e_ordina_i_rivali():
               for rival in rivals]
     assert rivals[0] == "Sopra", "il gradino viene prima: e' il metro dichiarato"
     assert rivals.index("Entra") < rivals.index("Assente"),         "…e dentro il gradino, chi la finestra ha visto in campo"
+
+
+def test_il_posto_confermato_dalla_finestra_e_una_riga_e_un_fianco():
+    """La regola dell'operatore del 15/09/2026, nelle sue due meta'.
+
+    «Il ruolo di Celik e' terzino destro ma adesso sta giocando a sinistra ... 3 partite intere o quasi
+    giocate in una nuova posizione sono una conferma che l'allenatore voglia utilizzarlo anche li' e
+    quindi dobbiamo prenderne atto e rivalutare la formazione stagionale con questa nuova chiave di
+    lettura.»
+
+    Il posto si legge dal numero della distinta DENTRO il modulo di quella partita, quindi la riga e il
+    fianco escono senza dedurli. La finestra e' `presence.recent_window` e non una costante nuova.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    # Celik: slot 4 di un 4-2-3-1 e di un 4-4-2 = l'ULTIMO difensore, cioe' il terzino sinistro. I suoi
+    # codici lo dicono tutto a destra, ed e' il caso da cui la regola nasce.
+    celik = {"desc_real_roles": "MR;DR;DC",
+             "desc_recent_slots": "1:4-2-3-1:4:0;2:4-4-2:4:1;3:4-2-3-1:4:2"}
+    assert View.held_lane(celik) == "D", "tre partite in difesa sono la sua riga"
+    assert View.held_side(celik) == -1.0, "e le ha giocate a sinistra"
+    assert View.sides_of(celik) == {"C", "R", "L"}, "il fianco confermato si AGGIUNGE ai suoi"
+
+    # ...e una MAGGIORANZA basta, che e' la forma adottata: Baturina gioca due volte a sinistra e una
+    # al centro, ed e' l'altro caso che l'operatore ha portato.
+    baturina = {"desc_real_roles": "AM",
+                "desc_recent_slots": "1:4-2-3-1:9:0;2:4-2-3-1:9:1;3:4-2-3-1:8:2"}
+    assert View.held_side(baturina) == -1.0
+    assert View.held_lane(baturina) == "T"
+
+    # SOTTO LA FINESTRA NON C'E' CONFERMA: una partita sola non dice dove l'allenatore lo sta usando.
+    assert View.held_side({"desc_real_roles": "LW", "desc_recent_slots": "1:4-2-3-1:9:2"}) is None
+    assert View.held_lane({"desc_real_roles": "LW", "desc_recent_slots": "1:4-2-3-1:9:2"}) is None
+    # ...e nemmeno un pareggio, ne' una maggioranza CENTRALE: il centro non e' un fianco da confermare.
+    assert View.held_side({"desc_recent_slots": "1:4-3-3:9:0;2:4-3-3:10:1;3:4-3-3:8:2"}) is None
+    # ...e senza colonna (un foglio sotto la revisione 64) si legge IGNOTO e non «al centro».
+    assert View.held_side({"desc_real_roles": "DR"}) is None
+    assert View.held_lane({}) is None
+    assert View.sides_of({"desc_real_roles": "DR"}) == {"R"}, "senza conferma decidono i codici"
+
+
+def test_una_riga_che_copre_gia_le_sue_fasce_non_scambia_nessuno(monkeypatch):
+    """`_flanked` ripara le fasce SCOPERTE, non massimizza il claim su ogni corsia.
+
+    Il caso della Juventus (operatore, 15/09/2026): la trequarti aveva Yildiz (`LW;AM`) sulla sinistra e
+    la funzione lo scambiava con Cambiaso - un TERZINO sinistro con mezzo punto di claim in piu' - per
+    una fascia che era gia' coperta. Da li' l'assegnazione mandava Celik in trequarti per far posto a
+    Cambiaso in difesa, e il terzino destro finiva davanti.
+    """
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    view = View.__new__(View)
+    view._fit_horizon = "season"
+    take = [{"name": "Conceicao", "desc_real_roles": "RW;AM", "share": 0.60},
+            {"name": "Gonzalez", "desc_real_roles": "RW;LW", "share": 0.48},
+            {"name": "Yildiz", "desc_real_roles": "LW;AM", "share": 0.47}]
+    rival = {"name": "Cambiaso", "desc_real_roles": "DL;ML", "share": 0.53}
+    # con `monkeypatch` e non a mano: `del View.claim` non ripristina il metodo, lo CANCELLA dalla
+    # classe, e da li' in poi ogni altro test che disegna un undici cade - misurato, 32 di loro.
+    monkeypatch.setattr(View, "claim", lambda _self, row, _h="season": row.get("share", 0.0))
+    kept = view._flanked(list(take), "T", 3, "season", [rival])
+    assert [row["name"] for row in kept] == [row["name"] for row in take], kept
+    # ...e dove una fascia MANCA davvero la riparazione fa ancora il suo lavoro
+    narrow = [{"name": "Uno", "desc_real_roles": "AM", "share": 0.60},
+              {"name": "Due", "desc_real_roles": "AM", "share": 0.50},
+              {"name": "Tre", "desc_real_roles": "AM", "share": 0.40}]
+    repaired = view._flanked(list(narrow), "T", 3, "season", [rival])
+    assert "Cambiaso" in [row["name"] for row in repaired], repaired

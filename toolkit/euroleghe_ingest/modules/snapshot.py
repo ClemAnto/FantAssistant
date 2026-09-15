@@ -765,7 +765,43 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      VINCOLO e mai un peso, come le altre dritte. Invisibile ai due giudici per costruzione
 #      (`apply_rulings=False`), quindi il verdetto della stampa non si muove di un'unita': e' la prova
 #      che la regola non lo inquina.
-SHEET_REVISION = 69
+#   70 IL POSTO CHE LA FINESTRA CONFERMA VALE ANCHE SULLA STAGIONE (15/09/2026), regola dell'operatore:
+#      «il ruolo di Celik e' terzino destro ma adesso sta giocando a sinistra ... in generale un
+#      giocatore di fascia gioca preferibilmente da un lato ma facilmente puo' adattarsi sull'altro,
+#      quindi non e' una situazione cosi' rara. 3 partite intere o quasi giocate in una nuova posizione
+#      sono una conferma che l'allenatore voglia utilizzarlo anche li', e quindi dobbiamo prenderne atto
+#      e rivalutare la formazione stagionale con questa nuova chiave di lettura.»
+#      Il posto si legge dal numero della DISTINTA dentro il modulo dichiarato di quella partita
+#      (`desc_recent_slots`, la stessa colonna con cui la board dell'ultimo periodo sceglie l'undici),
+#      quindi riga e fianco escono senza dedurli - a differenza di `played_side`, che viene da
+#      Transfermarkt e li' la riga e' ambigua. Due meta': `gui.held_side` (il fianco) entra fra i lati
+#      che l'uomo puo' coprire, `gui.held_lane` (la riga) diventa la sua CASA, che e' quella che decide
+#      chi una linea puo' cedere - senza la seconda, Celik aveva la sinistra confermata e restava
+#      disegnato sulla trequarti, perche' era il migliore della propria linea e nessuno lo cedeva.
+#      Misurato sul foglio del 15/09: 29 uomini su 294 hanno tenuto lo stesso fianco per la finestra (2
+#      OPPOSTO ai codici, 3 largo contro codici centrali) e 13 su 123 hanno una riga confermata diversa
+#      dalla primaria - fra loro i due nomi dell'operatore, Celik e Lulli. La soglia e' la MAGGIORANZA
+#      della finestra e non «tutte»: la forma severa e' stata scritta per prima, tiene Celik e perde
+#      Baturina (due volte a sinistra e una al centro), e sul giudice stampa vale un uomo in meno.
+#   70-bis UNA RIGA CHE COPRE GIA' LE SUE FASCE NON SCAMBIA NESSUNO (stesso giorno, caso Juventus).
+#      `_flanked` ripara le fasce SCOPERTE; senza quella guardia diventava un massimizzatore di claim su
+#      ogni corsia e scambiava l'uomo piu' debole con qualunque rivale piu' forte che toccasse quel lato,
+#      anche dove il lato era presidiato: la trequarti perdeva Yildiz (`LW;AM`) per Cambiaso, che e' un
+#      TERZINO, e da li' l'assegnazione spediva Celik in trequarti per far posto a Cambiaso in difesa.
+#      La copertura e' un MATCHING e non un conteggio (`_covers`).
+#   70-ter E UN'ALA E' CANDIDATA ALLA TREQUARTI SOLO SE E' IL SUO MESTIERE, cioe' il suo PRIMO codice -
+#      correzione di un difetto introdotto dalla revisione 69 e trovato dall'operatore il giorno dopo:
+#      Malen legge `ST;RW` e bastava quel `RW` in seconda posizione perche' un CENTRAVANTI si contendesse
+#      la trequarti, da cui l'assegnazione lo mandava addirittura in mezzo al campo («Malen a centrocampo
+#      e' un errore sicuramente: ha sempre e solo giocato come Pc»). Un `AM` resta candidato con
+#      qualunque codice, perche' quella E' la sua riga.
+#      Effetto delle tre insieme, A/B su una variabile per volta: 5 club mossi e 5 scambi, disegno
+#      concorde col modulo scelto fermo a 19/20, giudice stampa 153 -> 154 uomini su 220 con i moduli
+#      identici, e l'accordo fra la board di stagione e quella dell'ultimo periodo sale da 171 a 175
+#      uomini su 220 - che e' la direzione che l'operatore chiede («la formazione dell'ultimo periodo
+#      dovrebbe combaciare gia' completamente con quella stagionale»). `engine_*` non si muove; si
+#      muovono 18 righe della scala di titolarita', 13 delle quali cambiano GRADINO.
+SHEET_REVISION = 70
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
