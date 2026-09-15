@@ -7970,7 +7970,30 @@ class SnapshotView(ttk.Frame):
             pull_depth = self.HEATMAP_DEPTH if seen_depth is not None else 0.0
             pull_side = self.HEATMAP_SIDE if seen_side is not None else 0.0
         # Everything on the grid is DOUBLED so that half a step can break a tie: where two of his codes
-        # price a place the same, the FIRST one is his first job and wins it. Two men who both play `DL`
+        # price a place the same, the FIRST one is his first job and wins it.
+        #
+        # ...E QUEL +1 E' TROPPO POCO PER DISTINGUERE IL MESTIERE DAL RIPIEGO, che e' un difetto REALE,
+        # MISURATO E NON CURATO (15/09/2026, dal caso Juventus dell'operatore: «come mai c'e' Yildiz al
+        # centro e Gonzalez a sinistra? dovrebbero essere invertiti»). Su una trequarti il lato pesa
+        # `2 * SIDE_WEIGHT['T']` = 6 e un codice successivo costa 1, quindi il secondo mestiere vale
+        # quasi quanto il primo: Gonzalez (`RW;LW`) va a SINISTRA per un credito e Yildiz (`LW;AM`,
+        # mancino) finisce al centro, perche' quella coppia costa 2 contro i 6 della disposizione che
+        # l'operatore chiede. E' anche una contraddizione interna - `flank` dichiara da che parte sta un
+        # uomo leggendo il PRIMO codice, e qui il prezzo ne usa un altro.
+        # TRE CURE MISURATE E TUTTE E TRE RIFIUTATE, col giudice dei LATI (il lato disegnato contro
+        # quello osservato nelle distinte, tolti gli uomini il cui lato il prezzo gia' legge da li',
+        # sennonche' il metro sarebbe circolare; base 151/166 sul foglio del 15/09):
+        #   * il lato dal solo MESTIERE (`flank`) invece che per codice: 156/166, e QUATTRO guardiani
+        #     rossi - un uomo a due fasce non puo' piu' coprire la seconda e le corsie restano scoperte;
+        #   * penalita' d'ordine = 2 x weight: 155/165, TRE guardiani rossi, stessa famiglia;
+        #   * penalita' alta solo dove il primo codice nomina una fascia: 154/166, TRE guardiani rossi.
+        # Ogni variante guadagna 3-5 posti su 166 e rompe le regole della COPERTURA DELLE FASCE, che
+        # sono dettate dall'operatore («servono sempre due esterni di centrocampo di ruolo»). Quando
+        # tarare un numero sistema un club e ne rompe un altro, il difetto e' nel MODELLO e non nel
+        # valore: qui i due obiettivi - «il mestiere decide il lato» e «le fasce vanno coperte» - si
+        # contendono lo stesso numero, e servirebbe che il prezzo sapesse distinguere «lo metto qui
+        # perche' e' il suo posto» da «lo metto qui perche' non c'e' nessun altro». Scritto invece che
+        # tarato, e il caso vale 2 uomini su 200. Two men who both play `DL`
         # and `DC` were splitting the left back's shirt and the second centre back arbitrarily; a coach
         # gives the shirt to the man whose first job it is (Olivera `DL;DC` left, the `DC;DL` inside).
         prices = [round(40 * abs((1 - pull_depth) * REAL_ROLE_DEPTH[code]
