@@ -193,6 +193,26 @@ export class LeagueCalendar {
     }
     return out;
   }
+
+  /**
+   * LA PROSSIMA PARTITA DI UN CLUB, o null quando la stagione e' finita o il club non e' qui.
+   *
+   * PER DATA e non per giornata, che e' la regola di casa: con un rinvio la 16a si gioca dopo la 20a,
+   * quindi «la prossima» e' la prima del calendario che non e' ancora passata e non quella col numero
+   * piu' basso fra quelle che restano.
+   *
+   * `>= today` e non `> today`: la partita di OGGI e' la prossima da giocare finche' non e' finita, e
+   * di un calendario si sa il giorno e non l'ora - trattarla come passata la nasconderebbe proprio il
+   * giorno in cui la si sta aspettando.
+   */
+  next(clubName: string, today: string): ClubMatch | null {
+    let best: ClubMatch | null = null;
+    for (const match of this.window(clubName, 1, this.rounds)) {
+      if (match.date < today) continue;
+      if (!best || match.date < best.date) best = match;
+    }
+    return best;
+  }
 }
 
 /** One matchday of a pair: what each of the two plays, and whether his rule fires. */

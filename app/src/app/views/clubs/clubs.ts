@@ -15,6 +15,7 @@ import { CardMan, CardStack } from '../../core/player-card';
 import { LineupMan, MatchLineup, lineupOf } from '../../core/match-lineup';
 import { EDGE_BASE } from '../../core/plancia';
 import { MatchCell, Platform, PlayersStore, day } from '../../core/players-store';
+import { upcomingFor, withUpcoming } from '../../core/next-match';
 import { Role } from '../../core/plancia';
 import { swingOf } from '../../core/swing';
 import { EngineExpectation, SquadMan, ValuationStore } from '../../core/valuation-store';
@@ -25,6 +26,7 @@ import { MatchLineupBoard } from '../../ui/match-lineup/match-lineup';
 import { MatchesTable } from '../../ui/matches-table/matches-table';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { SquadTable } from '../../ui/squad-table/squad-table';
+import { TimeTravel } from '../../core/time-travel';
 import { bindQuery } from '../../core/view-state';
 
 /**
@@ -106,6 +108,20 @@ export class Clubs {
     if (!club || !seasons.length || this.matches.status() !== 'ready') {
       return { columns: [], lines: [] };
     }
+    // ...E DAVANTI A TUTTE LA PROSSIMA PARTITA (operatore, 15/09/2026). Viene dal CALENDARIO e non dai
+    // voti, quindi si aggiunge qui: `PlayersStore` e' lo store del calcio giocato e un secondo lettore
+    // del calendario la' dentro sarebbe una seconda risposta alla stessa domanda. Sta a sinistra perche'
+    // la tabella si legge dalla piu' recente - il futuro viene prima del passato piu' vicino.
+    return withUpcoming(this.playedTable(club, seasons), this.upcoming());
+  });
+
+  /** La colonna del futuro, dal calendario del bundle: null a stagione finita o senza `fixtures`. */
+  protected readonly upcoming = computed(() =>
+    upcomingFor(this.play.book()?.forClub(this.store.club() ?? '') ?? null,
+                this.store.club(), this.travel.today()));
+
+  /** Le ultime giornate GIOCATE, che sono quelle che lo store sa comporre attraverso le stagioni. */
+  private playedTable(club: string, seasons: string[]) {
     return this.matches.matchTableAcross(
       {
         platform: this.store.platform(),
@@ -121,7 +137,7 @@ export class Clubs {
       seasons,
       this.store.squad(),
     );
-  });
+  }
 
   // ------------------------------------------------------------- la formazione di UNA partita
   //
@@ -345,6 +361,8 @@ export class Clubs {
 
   /** La formula unica delle presenze attese: serve la FINESTRA di uno stop aperto, che la card scrive. */
   private readonly play = inject(ExpectedPlay);
+  /** Il giorno in cui l'app crede di trovarsi: la colonna del futuro segue il viaggio nel tempo. */
+  private readonly travel = inject(TimeTravel);
   /** Le impostazioni di lega: i due modificatori decidono se lo SWING paga la costanza e la porta. */
   private readonly options = inject(GlobalOptions);
 

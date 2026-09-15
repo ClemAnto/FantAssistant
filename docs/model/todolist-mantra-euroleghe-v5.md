@@ -1798,3 +1798,38 @@ trequarti a ogni uomo d'attacco e non alle sole ali (muove 7 club invece di 6 e 
 dei due bersagli; sull'orizzonte corto era già stato misurato a 14 → 22 fuori ruolo). Le tre cure sul lato
 per uomo del punto 3. E la conferma del posto su **tutte** le partite invece che sulla maggioranza: tiene
 Celik e perde Baturina, che è uno dei due casi da cui la regola nasce.
+
+## Vista Squadre / striscia «Ultime partite» — aperti del 16 settembre 2026
+
+Chiuso quel giorno: la linea del cambio allenatore (un bordo che ridipingeva il separatore di riga), i
+due separatori attaccati a cavallo di due stagioni, le colonne che non sanno dire quale partita sono, e
+la colonna della prossima partita. Dettaglio: [letture-app-v1.md](letture-app-v1.md) §44.
+
+1. **`TimeTravel.realToday` è UTC, non locale.** `new Date().toISOString().slice(0,10)` fra mezzanotte e
+   le due italiane risponde IERI. Si vede sulla colonna della prossima partita (Real Madrid mostrava la
+   partita del 15 alle 00:40 del 16) ma la data è la stessa che governa le finestre d'infortunio, il
+   marchio dei nuovi acquisti e la pastiglia della freschezza: **spostarla è una decisione, non una
+   correzione**, e chi la prende deve rimisurare quei tre. Non urgente: due ore di notte.
+
+2. **Le sei colonne tolte tornano da sole** appena il livello per-partita copre la 4ª giornata del
+   2026-27. Se l'operatore le rivolesse a schermo, la riga è una (`dropUnnamed` in `players-store.ts`) e
+   il prezzo è la testa che scrive `???`, senza campo e senza modulo.
+
+3. **Il confine di stagione su cui cade anche un cambio di panchina porta la tinta della STAGIONE**, col
+   `⇄` primario sopra e le due frasi nel titolo. È una scelta — «un altro campionato» è il fatto che
+   viene prima — e non una misura: si gira in una riga (`breakClass` in `matches-table.ts`) se
+   l'operatore la legge al contrario.
+
+4. **Due banchi e2e rossi, e sono PREESISTENTI** (verificati a HEAD con `git stash`, falliscono identici):
+   * `e2e-board-horizon.mjs` cerca la didascalia dell'ultimo periodo che il 15/09 è stata **tolta su
+     richiesta dell'operatore** (§43): è il banco da aggiornare, non la pagina;
+   * `e2e-player-card.mjs` legge un riepilogo di stagione con `season: null` (1 partita) che non torna
+     col pacchetto. Da diagnosticare: la domanda da farsi per prima è se quel riepilogo sia una riga
+     senza stagione nel pacchetto o un raggruppamento del banco.
+
+**COSA NON RIPROVARE, coi numeri.** Riconoscere un confine da «non ha testo» o dalla classe che si sta
+verificando: il primo legge zero da quando il confine di stagione può portare il `⇄`, il secondo fa
+passare il banco col difetto rimesso. Usare `border-double`/`border-<colore>` su una cella di tabella:
+scrivono su tutti e quattro i lati e antd usa il bordo inferiore come separatore di riga. E costruire la
+testa di una colonna dalla prima cella della rosa: il livello per-partita copre il 94% dei convocati, e
+il 6% che manca cancella l'identità dell'intera colonna.

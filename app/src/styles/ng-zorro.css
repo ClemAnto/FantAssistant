@@ -259,6 +259,62 @@
     box-shadow: inset -1px 0 0 var(--color-border);
   }
 
+  /* I DUE CONFINI della tabella delle ultime partite - stagione e panchina - e il perche' stiano qui
+     invece che nelle utility di Tailwind (15/09/2026, «sistema la linea che evidenzia il cambio
+     allenatore perche' e' rotta»).
+
+     `border-double` e `border-primary/70` scrivono lo STILE e il COLORE su TUTTI E QUATTRO i lati, e
+     antd da' a ogni cella un `border-bottom` da 1px come separatore di riga: il risultato misurato era
+     `border-bottom: 1px double` del colore primario sotto ogni cella del confine, cioe' un piolo rosa a
+     ogni riga della tabella - una scaletta, non una linea. Qui si dipinge il SOLO lato sinistro.
+
+     LA LINEA E' UNO SFONDO e non un bordo, perche' un bordo sinistro si ferma sopra il bordo inferiore
+     della cella e si interrompe di un pixel a ogni riga: lo sfondo copre tutta la scatola (il default e'
+     `background-clip: border-box`) e con il separatore di riga reso trasparente sulla sola colonna del
+     confine - larga dieci pixel, quindi non manca a nessuno - la linea scende intera.
+
+     LA TINTA sta nello stesso gradiente della linea: una seconda dichiarazione di `background-color`
+     litigherebbe con lo zebrato delle righe pari, che e' un `background-color` pure lui. */
+  .ant-table-thead > tr > th.is-break-season,
+  .ant-table-tbody > tr > td.is-break-season,
+  .ant-table-thead > tr > th.is-break-coach,
+  .ant-table-tbody > tr > td.is-break-coach {
+    border-bottom-color: transparent;
+  }
+
+  .ant-table-thead > tr > th.is-break-season,
+  .ant-table-tbody > tr > td.is-break-season {
+    background-image: linear-gradient(to right, var(--color-border) 0 1px, transparent 1px);
+  }
+
+  /* Il confine di PANCHINA e' una linea DOPPIA vera: tre pixel, che e' il minimo a cui `double` dipinge
+     due righe invece di una barra piena - a due pixel il browser ne disegna una sola, quindi la parola
+     «doppio» che questo componente usava dall'11/09 non era vera sullo schermo. */
+  .ant-table-thead > tr > th.is-break-coach,
+  .ant-table-tbody > tr > td.is-break-coach {
+    background-image: linear-gradient(
+      to right,
+      var(--color-primary) 0 1px,
+      transparent 1px 2px,
+      var(--color-primary) 2px 3px,
+      color-mix(in srgb, var(--color-primary) 6%, transparent) 3px
+    );
+  }
+
+  /* LA COLONNA DELLA PROSSIMA PARTITA: non e' un'assenza di dati, e' una partita che nessuno ha ancora
+     giocato, quindi si legge come un blocco a parte invece che come venticinque celle vuote - che sullo
+     schermo di una tabella di numeri e' esattamente cio' che si legge come un guasto.
+
+     LA TINTA E' IL TOKEN DEL CONTROLLO, cioe' la superficie appena sopra la carta con cui questa app
+     dice gia' «qui non c'e' niente da leggere», e non un colore nuovo: il colore in questa app porta un
+     VERSO (verde buono, rosso negativo, ambra un'assenza) e una colonna che non giudica nessuno non ne
+     ha uno. Piu' densa dello zebrato delle righe pari (30%), che su una colonna intera era invisibile -
+     e a quel punto la colonna si leggeva come dati mancanti invece che come il futuro. */
+  .ant-table-thead > tr > th.is-upcoming,
+  .ant-table-tbody > tr > td.is-upcoming {
+    background-image: linear-gradient(var(--upcoming-tint), var(--upcoming-tint));
+  }
+
   /* Measured 09/08/2026: the CHECKED radio button read 4.10:1 in antd's blue and the DISABLED
      checkbox label 2.71:1 - the first is the control that says which listone you are looking
      at, the second says "campionato is always in". Both have to be readable. */

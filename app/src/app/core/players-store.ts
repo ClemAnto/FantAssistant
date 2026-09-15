@@ -268,6 +268,13 @@ export function coachOn(spells: readonly CoachSpell[] | undefined, date: string)
  *
  * SI LEGGE PER DATA e mai per giornata: con un rinvio la giornata 16 si gioca dopo la 20, e un confine
  * messo sul numero cadrebbe fra due partite che non sono consecutive nel tempo.
+ *
+ * ...E UN CAMBIO A CAVALLO DI DUE STAGIONI NON PRODUCE UN SECONDO CONFINE: il confine c'e' gia' e
+ * porta anche lui. Questo docstring lo prometteva dall'11/09/2026 e il codice non lo faceva - una
+ * colonna di confine ha `date` nulla, quindi `previous` restava quello dell'ultima partita
+ * dell'altra stagione e il cambio veniva emesso subito DOPO il confine. Misurato il 15/09 sul foglio
+ * vero: Atalanta, due separatori di undici pixel attaccati (Palladino → Sarri e 2026-27 → 2025-26).
+ * E' un caso frequente e non un angolo - un allenatore nuovo quasi sempre arriva d'estate.
  */
 export function withCoachBreaks(
   columns: readonly ColumnSlot[],
@@ -278,35 +285,80 @@ export function withCoachBreaks(
   const out: ColumnSlot[] = [];
   const rows: (MatchCell | null)[][] = cells.map(() => []);
   let previous: { coach: string; date: string } | null = null;
+  /** Dove sta, in `out`, il confine appena attraversato: e' li' che un cambio si appoggia invece di
+   *  farsi una colonna sua. Null appena una colonna VERA e' passata, o un cambio di dicembre finirebbe
+   *  scritto sul confine di stagione di agosto. */
+  let boundary: number | null = null;
   columns.forEach((column, at) => {
     const coach = column.date ? coachOn(spells, column.date) : null;
     // Le colonne sono dalla piu' RECENTE, quindi il cambio sta fra questa e quella prima di lei: il
     // nome nuovo e' quello della colonna PRECEDENTE nella lettura, cioe' della partita successiva.
     if (coach && previous && coach !== previous.coach) {
-      out.push({
-        key: `coach|${previous.date}|${column.date}`,
-        label: '',
-        detail: null,
-        score: null,
-        outcome: null,
-        sides: null,
-        shape: null,
-        formation: null,
-        matchId: null,
-        matchClub: null,
-        divider: `${coach} → ${previous.coach}`,
-        breakKind: 'coach',
-        date: null,
-        kind: null,
-        title: `Cambio in panchina: da ${coach} a ${previous.coach}`,
-      });
-      for (const row of rows) row.push(null);
+      const bench = `${coach} → ${previous.coach}`;
+      const crossed = boundary == null ? null : out[boundary];
+      if (crossed) {
+        // UN CONFINE SOLO, DUE FATTI: la tinta resta quella della stagione - e' il fatto che viene
+        // prima, un altro campionato - e il segno `⇄` piu' la frase nel titolo dicono anche l'altro.
+        out[boundary!] = {
+          ...crossed,
+          bench,
+          title: `${crossed.title} · cambio in panchina: da ${coach} a ${previous.coach}`,
+        };
+      } else {
+        out.push({
+          key: `coach|${previous.date}|${column.date}`,
+          label: '',
+          detail: null,
+          score: null,
+          outcome: null,
+          sides: null,
+          shape: null,
+          formation: null,
+          matchId: null,
+          matchClub: null,
+          divider: bench,
+          breakKind: 'coach',
+          bench,
+          unnamed: false,
+          upcoming: false,
+          date: null,
+          kind: null,
+          title: `Cambio in panchina: da ${coach} a ${previous.coach}`,
+        });
+        for (const row of rows) row.push(null);
+      }
     }
+    boundary = column.divider ? out.length : null;
     out.push(column);
     cells.forEach((row, index) => rows[index].push(row[at] ?? null));
     if (coach && column.date) previous = { coach, date: column.date };
   });
   return { columns: out, cells: rows };
+}
+
+/**
+ * LE COLONNE CHE NON SANNO DIRE QUALE PARTITA SONO, TOLTE CON LE LORO CELLE.
+ *
+ * Operatore, 15/09/2026: «quando i dati sono corrotti o incompleti, non visualizzarli», sulla partita
+ * piu' recente delle squadre. Quella e' la GIORNATA IN CORSO: i voti di fantacalcio arrivano prima del
+ * livello per-partita, quindi per qualche ora la colonna ha il punteggio e non ha ne' l'avversario, ne'
+ * il campo, ne' il modulo, ne' la chiave che la rende cliccabile. Misurato quel giorno sul bundle: 6
+ * slot su 1.588 di tutta la storia di `default` non hanno NESSUNA riga del livello per-partita, e sono
+ * tutti e sei la 4a giornata del 2026-27, cioe' quella che si stava giocando.
+ *
+ * IL PREZZO E' DETTO E NON NASCOSTO: quei voti sono veri e spariscono dalla tabella finche' una corsa
+ * del livello per-partita non arriva. E' cio' che e' stato chiesto, ed e' reversibile in una riga.
+ *
+ * Una FUNZIONE pura e fuori dalla classe perche' e' una definizione - «cosa questa tabella si rifiuta
+ * di disegnare» - e un test deve poterla chiamare senza costruire mezzo bundle.
+ */
+export function dropUnnamed(table: MatchTable): MatchTable {
+  const keep = table.columns.map((column) => !column.unnamed);
+  if (keep.every(Boolean)) return table;
+  return {
+    columns: table.columns.filter((_, at) => keep[at]),
+    lines: table.lines.map((line) => ({ ...line, cells: line.cells.filter((_, at) => keep[at]) })),
+  };
 }
 
 export interface ColumnSlot {
@@ -362,6 +414,37 @@ export interface ColumnSlot {
    * prima e dopo sono due popolazioni in tutt'e due i casi. Null dove la colonna e' una partita.
    */
   breakKind: 'season' | 'coach' | null;
+  /**
+   * IL CAMBIO DI PANCHINA CHE CADE SU QUESTO CONFINE (`Palladino → Sarri`), o null.
+   *
+   * Vive su TUTT'E DUE i tipi di confine, ed e' la ragione per cui un cambio a cavallo di due stagioni
+   * non produce una seconda colonna: il docstring di `withCoachBreaks` lo prometteva dall'11/09/2026 e
+   * il codice non lo faceva - misurato il 15/09 sull'Atalanta, due separatori di undici pixel
+   * attaccati, che e' meta' di quello che a schermo si legge come una linea rotta. Il confine e' uno
+   * solo e porta i due fatti: la sua tinta resta quella della stagione, il segno `⇄` e la frase nel
+   * titolo dicono anche l'altro.
+   */
+  bench: string | null;
+  /**
+   * UNA COLONNA CHE NON SA DIRE QUALE PARTITA E': c'e' una cella di questo club in questo slot e
+   * nessuna di loro porta l'avversario, quindi la testa scriverebbe `Ata 1 - ??? 2`.
+   *
+   * Non e' un'assenza di partite - quella e' una colonna senza celle e resta una giornata nuda - e' una
+   * partita GIOCATA di cui il livello per-partita non e' ancora arrivato: i voti ci sono, il tabellino
+   * no. `matchTable` la toglie con le sue celle (operatore, 15/09/2026: «quando i dati sono corrotti o
+   * incompleti, non visualizzarli»), e il flag esiste perche' la decisione sia leggibile da un banco
+   * invece che dedotta da un `sides` vuoto, che vuol dire un'altra cosa.
+   */
+  unnamed: boolean;
+  /**
+   * LA PARTITA CHE DEVE ANCORA GIOCARSI (operatore, 15/09/2026: «mostriamo sempre una colonna con la
+   * prossima partita da giocare della squadra»). Non viene dai voti: viene dal CALENDARIO del bundle,
+   * quindi la costruisce chi il calendario ce l'ha (`core/next-match.ts`) e questo store non la vede.
+   *
+   * Le sue celle sono vuote per costruzione, come quelle di un confine, e per la stessa ragione: non
+   * c'e' niente da sapere di una partita che nessuno ha giocato - «vuoto = ignoto, mai zero».
+   */
+  upcoming: boolean;
   /**
    * QUALE PARTITA E', come chiave: l'id dell'evento del provider e la grafia che LUI da' al club di
    * questa tabella. E' la coppia con cui il modulo della colonna e' gia' stato letto.
@@ -687,15 +770,21 @@ export class PlayersStore {
           matchClub: null,
           divider: null,
           breakKind: null,
+          bench: null,
+          unnamed: false,
+          upcoming: false,
           date: null,
           kind: null,
           title: `Giornata ${md}`,
         }))
       : this.weekSlots(query, players);
-    return {
+    // LE DUE META' NASCONO DALLO STESSO ASSE, quindi si tagliano INSIEME e per indice: una testa che
+    // descrivesse una giornata diversa dalle celle sotto e' l'invariante che questa tabella tiene da
+    // sempre, e togliere una colonna dalle sole intestazioni la romperebbe in silenzio.
+    return dropUnnamed({
       columns: this.namedColumns(query, players, slots),
       lines: this.rowsOf(query, players, slots),
-    };
+    });
   }
 
   /**
@@ -969,6 +1058,9 @@ export class PlayersStore {
           matchClub: null,
           divider: `${before} → ${block.season}`,
           breakKind: 'season',
+          bench: null,
+          unnamed: false,
+          upcoming: false,
           date: null,
           kind: null,
           title: `Confine fra le stagioni ${before} e ${block.season}`,
@@ -1043,8 +1135,23 @@ export class PlayersStore {
       const own = (bySlot.get(slot.key) ?? []).filter((cell) => cell.team === team);
       // Where the same club has both in one week, the league match is the column's subject: the cup
       // tie is named in the tooltip of the cell, not in the header of the column.
-      const chosen = own.find((cell) => cell.kind === 'league') ?? own[0];
+      //
+      // ...E FRA LE CELLE DI QUELLA PARTITA SI PRENDE QUELLA CHE SA DIRE QUAL E'. Sono tutte la stessa
+      // partita di questo club, ma l'avversario, il modulo e la chiave vengono dal livello per-partita,
+      // che copre il 94% dei convocati e non il 100%: prendendo la PRIMA in ordine di rosa, un portiere
+      // senza quella riga cancellava l'identita' dell'intera colonna. Misurato il 15/09/2026 sulle 200
+      // colonne dei venti club di Serie A: Inter - Hellas Verona della 37a leggeva `Inter - Ignota 0-0`
+      // e non era cliccabile, con 15 dei 17 compagni che la riga ce l'avevano.
+      const named = (cell: MatchCell) => !!cell.opponent && !!cell.matchId;
+      const chosen =
+        own.find((cell) => cell.kind === 'league' && named(cell))
+        ?? own.find((cell) => cell.kind === 'league')
+        ?? own.find(named)
+        ?? own[0];
       if (!chosen || (!chosen.opponent && !chosen.team)) return slot;
+      // NESSUNA CELLA SA CHE PARTITA ERA: i voti sono arrivati e il tabellino no (la giornata in corso).
+      // La colonna scriverebbe `Ata 1 - ??? 2`, quindi viene tolta - con le sue celle - da `matchTable`.
+      if (!chosen.opponent) return { ...slot, unnamed: true };
       const fixture = fixtureLabel(chosen);
       return {
         ...slot,
@@ -1122,6 +1229,9 @@ export class PlayersStore {
           matchClub: null,
           divider: null,
           breakKind: null,
+          bench: null,
+          unnamed: false,
+          upcoming: false,
           date: null,
           kind: null,
           title: days.length ? `Giornata ${days.join(', ')} · ${range}` : range,

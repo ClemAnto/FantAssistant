@@ -140,6 +140,12 @@
        scorrono sotto si leggono attraverso - lo ridipinge sopra la carta. Due copie del 30% sarebbero
        due strisce che il giorno di un ritocco non sono più lo stesso grigio. */
     --row-stripe: color-mix(in srgb, var(--color-control) 30%, transparent);
+
+    /* LA COLONNA DI UNA PARTITA ANCORA DA GIOCARE (vista Squadre, 15/09/2026): lo stesso grigio dello
+       zebrato ma piu' denso, perche' li' e' una riga su due e qui e' una colonna intera - al 30% non si
+       vedeva, e una colonna di celle vuote che non si dichiara si legge come dati mancanti. Nessun
+       colore nuovo, e nessun VERSO: quella colonna non giudica nessuno. */
+    --upcoming-tint: color-mix(in srgb, var(--color-control) 75%, transparent);
   }
 
   html,

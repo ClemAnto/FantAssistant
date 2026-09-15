@@ -311,7 +311,27 @@ export class MatchesTable {
   protected headerTone(header: ColumnSlot): string {
     const chosen = this.selectedMatch() != null && header.matchId === this.selectedMatch();
     return (this.pickable(header) ? 'cursor-pointer ' : '')
+      + (header.upcoming ? 'is-upcoming ' : '')
       + (chosen ? 'bg-primary/15 ring-1 ring-inset ring-primary' : '');
+  }
+
+  /**
+   * L'ASPETTO DI UN CONFINE, in una classe e non nelle utility dei bordi.
+   *
+   * `border-double` e `border-primary/70` scrivono lo STILE e il COLORE su tutti e quattro i lati di
+   * una cella, quindi ridipingevano anche il `border-bottom` da 1px che antd usa come separatore di
+   * riga: la linea del cambio allenatore usciva con un piolo rosa a ogni riga - misurato il 15/09/2026
+   * sulla pagina vera, `border-bottom: 1px double` del colore primario - ed e' quella la «linea rotta».
+   * Le due classi (`styles/ng-zorro.css`) dipingono il solo lato sinistro e lasciano il separatore di
+   * riga dov'era.
+   */
+  protected breakClass(header: ColumnSlot | undefined): string {
+    return header?.breakKind === 'coach' ? 'is-break-coach' : 'is-break-season';
+  }
+
+  /** Se la colonna in quella posizione e' la PROSSIMA partita, cioe' una che nessuno ha giocato. */
+  protected upcoming(index: number): boolean {
+    return !!this.columns()[index]?.upcoming;
   }
 
   /**

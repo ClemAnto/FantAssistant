@@ -6207,6 +6207,77 @@ giusto.** «La rietichettatura muoverà zero club» era sbagliata (ne muove 5) p
 «l'ottimo del tiraggio sarà interno fra 90 e 270 minuti, altrimenti la diagnosi va riscritta» è caduta sul
 bordo: la diagnosi è stata riscritta. *Una previsione falsificata riscrive la diagnosi, mai il criterio.*
 
+## Un'utility di BORDO scrive su quattro lati, e uno di quei lati è il separatore di riga
+**16/09/2026, dalla segnalazione dell'operatore «sistema la linea che evidenzia il cambio allenatore
+perché è rotta». Dettaglio: `letture-app-v1.md` §44.** La linea scendeva con un **piolo rosa a ogni
+riga**: non un bordo interrotto, un bordo IN PIÙ. `border-double` e `border-primary/70` scrivono stile e
+colore su **tutti e quattro i lati**, e antd usa il `border-bottom` da 1px di ogni cella come separatore
+di riga — misurato, quel separatore usciva `1px double` del colore primario sotto la colonna del
+confine. Tailwind non ha una forma per-lato per lo stile e il colore (`border-l-2` esiste,
+`border-l-double` no), quindi la scorciatoia che sembra naturale è proprio quella che sporca gli altri
+tre. *Una proprietà che si scrive per LATO e una che si scrive per ELEMENTO non si mescolano in una riga
+di utility.*
+Due corollari misurati: **una linea verticale su una tabella si disegna come SFONDO e non come bordo**
+(un `border-left` si ferma sopra il bordo inferiore, quindi si interrompe di un pixel a ogni riga; uno
+sfondo copre tutta la scatola, e col separatore di riga reso trasparente sulla sola colonna larga dieci
+pixel la linea scende intera); e **`double` sotto i 3px è una barra piena**, quindi la parola «doppio»
+che quel componente usava dall'11/09 non descriveva niente di ciò che si vedeva.
+
+## Un FIXTURE che somiglia al caso non è il caso, e allora il commento e l'asserzione si contraddicono
+**Stessa sera, e il difetto era a verbale da cinque giorni.** `withCoachBreaks` prometteva nel proprio
+docstring che un cambio di panchina a cavallo di due stagioni non producesse un secondo separatore
+(«quello là è già detto dal confine di stagione»), e ne produceva uno: una colonna di confine ha `date`
+nulla, quindi `previous` non si aggiorna e il cambio scatta sulla prima colonna vera dopo. Sull'Atalanta
+erano **22px di separatori affiancati**, e non è un angolo — un allenatore nuovo quasi sempre arriva
+d'estate.
+**Il test che ci provava passava col difetto, e il suo commento diceva la cosa giusta**: il suo confine
+finto era `column('border', null)`, cioè una colonna senza data e **senza `divider`** — una giornata che
+quel club non ha giocato, che a un confine somiglia in tutto tranne che nel campo che lo definisce. *Un
+fixture costruito «abbastanza simile» verifica il caso simile, e la contraddizione fra un commento e la
+sua asserzione è il posto in cui guardare per prima cosa.* Riscritto col confine come lo produce la
+funzione vera, e rimettendo il difetto cade **quello e solo quello** — gli altri due restano verdi a
+ragione, perché descrivono comportamenti che non cambiano.
+
+## Un banco che riconosce il suo bersaglio dalla PROPRIETÀ CHE STA VERIFICANDO non può fallire
+**Stessa sera, trovato dalla controprova e non dalla suite.** Rimettendo il markup vecchio,
+`e2e-coach-break.mjs` ha stampato «L'ASSE DELLA STRISCIA È COME DEVE ESSERE» **dopo aver guardato ZERO
+confini**: identificava un confine dalla classe che stava controllando, quindi senza quella classe
+l'elenco restava vuoto — e **un `every` su un elenco vuoto è vero**. È l'asserzione circolare del 04/09
+vista da un angolo nuovo: là il banco confrontava la card con se stessa, qui non trova nemmeno l'oggetto.
+Due cure e sono la stessa: **si riconosce dal DATO** (qui il titolo della colonna, che il disegno non
+può portarsi via) e **si pretende di aver guardato tutto** (`breakCells.length === coach + season`).
+Con quelle, la controprova nomina le due asserzioni che descrivono la cura e stampa il colpevole.
+E la stessa sera lo stesso difetto è uscito dal lato opposto in `e2e-clubs.mjs`: contava i confini come
+«una `th` senza testo», e il confine che ora porta il `⇄` ne ha — **zero confini su una tabella che ne ha
+uno**, cioè il banco che accusa la pagina del proprio difetto, ennesima volta.
+
+## L'IDENTITÀ di una colonna viene dalla cella che sa dirla, non dalla prima della lista
+**16/09/2026, e il difetto grosso della serata lo nascondeva quello piccolo.** L'operatore ha segnalato
+«dati strani sulla partita più recente»: era la giornata IN CORSO — i voti di fantacalcio arrivano prima
+del livello per-partita, quindi la testa scriveva `Ata 1 - ??? 2` senza avversario, senza campo, senza
+modulo e non cliccabile (**6 slot su 1.588** di tutta la storia di `default`, tutti e sei la 4ª giornata
+del 2026-27). Sotto c'era il difetto vero: la testa si costruiva dalla **prima cella in ordine di rosa**,
+e il livello per-partita copre il **94%** dei convocati — quindi **un portiere senza quella riga
+cancellava l'identità dell'intera colonna**. `Inter - Hellas Verona` della 37ª leggeva `Inter - Ignota
+0-0` con 15 dei 17 compagni che la riga ce l'avevano, e con lei se ne andava il modulo e il click che
+apre la formazione. *Dove una proprietà è coperta al 94%, prendere «il primo» è prendere il 6% una volta
+su sedici, e il prezzo non è un dato mancante: è la riga intera che non sa più di cosa parla.*
+Due cose viaggiano con la cura. **Quello che resta senza nome si toglie con le sue celle** — le due metà
+della tabella nascono dallo stesso asse, e tagliarne una farebbe scivolare ogni voto di una posizione —
+e il taglio si **ricuce da sé**, perché la finestra scala il suo fabbisogno e pesca una colonna in più
+dalla stagione prima. E **il prezzo si dichiara**: quei voti sono veri e spariscono finché il livello
+per-partita non arriva, il che è ciò che è stato chiesto ed è reversibile in una riga. Dal lato dello
+schermo: **da 7 colonne senza avversario su 200 a 0 su 220**.
+
+## Il join per NOME, la settima volta, e stavolta dentro la MISURA
+**Stessa sera.** La prima misura della copertura del livello per-partita ha unito `match_ratings.team` a
+`external_match_stats.club` per NOME e ha letto «quattro club interi senza tabellino in due stagioni»:
+erano **Milan, Napoli, Roma e Verona**, cioè esattamente i nomi che il provider scrive `AC Milan`, `SSC
+Napoli`, `AS Roma`, `Hellas Verona`. L'app quel join lo fa per `fc_id` e non aveva niente di rotto.
+Rifatta per `fc_id`: zero club interi, sei slot. *Le regole di casa valgono anche per lo strumento con
+cui si misura, e un numero estremo che nomina proprio i tre club che questo repository ha già perso una
+volta è un numero da rifare prima di riportarlo.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

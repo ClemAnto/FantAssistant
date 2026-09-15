@@ -70,18 +70,24 @@
              scelta, che e' la ragione per cui le presenze di prima e di dopo sono due popolazioni.
              Dieci pixel per tutt'e due: un nome non ci sta, e lo dice il titolo. -->
         @if (header.divider) {
+          <!-- LA LINEA LA DISEGNA UNA CLASSE e non le utility dei bordi, ed e' la cura del 15/09/2026.
+               `border-double` e `border-primary/70` scrivono STILE e COLORE su tutti e quattro i lati,
+               quindi ridipingevano anche il `border-bottom` da 1px che antd mette a ogni riga: la linea
+               del cambio allenatore usciva con un piolo rosa a ogni riga della tabella - misurato, «1px
+               double» del colore primario - che e' la «linea rotta» che si vedeva. Le due classi
+               dipingono il SOLO lato sinistro (`styles/ng-zorro.css`). -->
           <th
             class="p-0"
-            [class]="header.breakKind === 'coach'
-              ? 'border-l-2 border-double border-primary/70 bg-primary/5'
-              : 'border-l border-border'"
+            [class]="breakClass(header)"
             [nzWidth]="widths().divider + 'px'"
             [title]="header.title"
           >
-            @if (header.breakKind === 'coach') {
+            @if (header.bench) {
               <!-- IL SEGNO CHE SI VEDE SENZA PASSARCI SOPRA: un titolo si legge solo all'hover, e su una
                    striscia di dieci colonne un confine che si distingue solo dal colore del bordo si
-                   confonde col confine di stagione a mezzo metro dallo schermo. -->
+                   confonde col confine di stagione a mezzo metro dallo schermo.
+                   Sta su TUTT'E DUE i confini, perche' un cambio di panchina che cade fra due stagioni
+                   non si fa una colonna sua: il confine e' uno e porta i due fatti. -->
               <span class="block text-center text-[9px] leading-none text-primary">⇄</span>
             }
           </th>
@@ -274,12 +280,13 @@
           @if (divider($index)) {
             <!-- Nessun trattino qui: un confine non e' una giornata non giocata. E la tinta segue la
                  sua testa, o la colonna si spezzerebbe a meta' della tabella. -->
-            <td
-              class="p-0"
-              [class]="breakKind($index) === 'coach'
-                ? 'border-l-2 border-double border-primary/70 bg-primary/5'
-                : 'border-l border-border'"
-            ></td>
+            <td class="p-0" [class]="breakClass(columns()[$index])"></td>
+          } @else if (upcoming($index)) {
+            <!-- LA PROSSIMA PARTITA NON HA CELLE: nessuno l'ha giocata, quindi non c'e' niente da
+                 sapere di nessuno - «vuoto = ignoto, mai zero». La tinta della colonna e' quello che
+                 la distingue da una giornata che qualcuno non ha giocato, che e' un'altra cosa e
+                 porta il suo trattino. -->
+            <td class="is-upcoming"></td>
           } @else {
           <td class="text-center align-middle">
             @if (cell) {

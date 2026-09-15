@@ -30,9 +30,20 @@ const column = (key: string, date: string | null): ColumnSlot => ({
   matchClub: null,
   divider: null,
   breakKind: null,
+  bench: null,
+  unnamed: false,
+  upcoming: false,
   date,
   kind: null,
   title: key,
+});
+
+/** Il confine fra due stagioni come `matchTableAcross` lo scrive davvero: senza data E con `divider`. */
+const border = (): ColumnSlot => ({
+  ...column('border', null),
+  divider: '2026-27 → 2025-26',
+  breakKind: 'season',
+  title: 'Confine fra le stagioni 2026-27 e 2025-26',
 });
 
 const cell = (date: string): MatchCell => ({ date } as MatchCell);
@@ -110,13 +121,49 @@ describe('withCoachBreaks', () => {
   });
 
   it('salta le colonne senza data invece di dedurne una', () => {
-    // Il confine fra due stagioni non ha una data, e non deve rompere la catena né produrre un secondo
-    // separatore: quello è già detto dal confine di stagione, e due separatori attaccati direbbero la
-    // stessa cosa due volte.
-    const columns = [column('a', '2026-09-06'), column('border', null), column('b', '2026-08-23')];
+    // Una colonna senza data non deve rompere la catena: il cambio si vede lo stesso, fra le due
+    // partite che hanno una data. Qui la colonna di mezzo NON è un confine - è una giornata che questo
+    // club non ha giocato - quindi il separatore di panchina ci vuole eccome.
+    const columns = [column('a', '2026-09-06'), column('vuota', null), column('b', '2026-08-23')];
     const got = withCoachBreaks(columns, [[cell('2026-09-06'), null, cell('2026-08-23')]], spells);
     const coach = got.columns.filter((one) => one.breakKind === 'coach');
     expect(coach.length).toBe(1);
+    expect(got.cells[0].length).toBe(got.columns.length);
+  });
+
+  it('su un confine di STAGIONE non fa una seconda colonna: la marca e basta', () => {
+    // Il docstring lo prometteva dall'11/09/2026 e il codice non lo faceva. Il test che ci provava
+    // passava CON il difetto, perché il suo confine finto non aveva `divider`: era una colonna senza
+    // data e basta, cioè un altro caso. Misurato il 15/09 sulla pagina vera - Atalanta, due separatori
+    // di undici pixel attaccati - e questa volta il fixture è il confine come lo scrive `matchTableAcross`.
+    const columns = [column('a', '2026-09-06'), border(), column('b', '2026-05-24')];
+    const got = withCoachBreaks(columns, [[cell('2026-09-06'), null, cell('2026-05-24')]], spells);
+    expect(got.columns.filter((one) => one.breakKind === 'coach').length).toBe(0);
+    expect(got.columns.length).toBe(3);
+    // Il fatto non si perde: il confine porta il segno e la frase, cioè i due fatti su una colonna sola.
+    expect(got.columns[1].bench).toBe('Palladino → Sarri');
+    expect(got.columns[1].title).toContain('da Palladino a Sarri');
+    expect(got.cells[0].length).toBe(got.columns.length);
+  });
+
+  it('un cambio DENTRO la stagione dopo un confine resta una colonna sua', () => {
+    // La marcatura vale per il cambio che CADE sul confine, non per il primo che capita dopo: il
+    // confine si «consuma» appena una colonna vera è passata, o un cambio di dicembre finirebbe scritto
+    // sul confine di agosto.
+    const inSeason = buildCoachSpells(table([
+      [1, 'Grosso', '2026-06-01', '2026-09-06'],
+      [1, 'Vanoli', '2026-09-07', null],
+    ])).get(1);
+    const columns = [
+      column('a', '2026-09-12'), column('b', '2026-08-30'), border(), column('c', '2026-05-24'),
+    ];
+    const got = withCoachBreaks(
+      columns,
+      [[cell('2026-09-12'), cell('2026-08-30'), null, cell('2026-05-24')]],
+      inSeason,
+    );
+    expect(got.columns.map((one) => one.breakKind)).toEqual([null, 'coach', null, 'season', null]);
+    expect(got.columns[1].bench).toBe('Grosso → Vanoli');
     expect(got.cells[0].length).toBe(got.columns.length);
   });
 });

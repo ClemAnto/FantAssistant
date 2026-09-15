@@ -7859,3 +7859,92 @@ artefatti miei; un `del View.claim` in un test mio ha cancellato il metodo dalla
 test; e un tracciatore che confrontava `before`/`after` **dopo** la chiamata diceva «uguale» su una lista
 mutata in place, il che mi ha fatto cercare il colpevole altrove per tre corse. Tutti e tre sono la stessa
 famiglia: misurare senza tenere ferma la cosa che si misura.
+
+## 15-16 settembre 2026 (notte) — L'asse della striscia «Ultime partite»: tre richieste, quattro difetti
+
+Tre richieste dell'operatore sulla vista Squadre, in un messaggio solo: la linea del cambio allenatore
+«è rotta», i «dati strani relativi alla partita più recente delle squadre» da non visualizzare quando
+sono incompleti, e una colonna con la prossima partita da giocare. Dettaglio completo, coi numeri:
+[letture-app-v1.md](letture-app-v1.md) §44.
+
+Sono tre facce di una domanda sola — **di quale partita una colonna parla** — e dietro le prime due
+c'erano **quattro** difetti e non due.
+
+### La linea rotta era un bordo IN PIÙ
+
+`border-double` e `border-primary/70` scrivono stile e colore su **tutti e quattro i lati**, e antd dà a
+ogni cella un `border-bottom` da 1px come separatore di riga: misurato, quel bordo usciva `1px double`
+del colore primario, cioè **un piolo rosa a ogni riga**. Le utility di Tailwind non hanno una forma
+per-lato per lo stile e il colore, quindi la scorciatoia naturale è proprio quella che sporca gli altri
+tre lati. Ora la linea è uno **SFONDO** dichiarato in una classe del layer dei componenti, col
+separatore di riga reso trasparente sulla sola colonna di confine — larga dieci pixel, quindi non manca
+a nessuno — e scende intera. E la linea «doppia» adesso lo è davvero: a 2px `double` è una barra piena,
+a 3px sono due righe.
+
+### E il docstring prometteva dall'11/09 una cosa che il codice non faceva
+
+Un cambio di panchina a cavallo di due stagioni produceva un **secondo** separatore attaccato a quello
+di stagione (22px affiancati sull'Atalanta), che è lo stesso fatto detto due volte. Il meccanismo: una
+colonna di confine ha `date` nulla, quindi `previous` non si aggiorna e il cambio scatta sulla prima
+colonna vera dopo. Non è un angolo — un allenatore nuovo quasi sempre arriva d'estate. Ora il confine è
+**uno e porta i due fatti** (`ColumnSlot.bench`, il `⇄` e la frase nel titolo).
+
+**Il test che ci provava passava col difetto**, e il suo commento diceva letteralmente la cosa giusta:
+il fixture non era un confine (`divider` nullo), cioè descriveva un altro caso che gli somiglia.
+Riscritto col confine vero, e rimettendo il difetto cade quello e solo quello.
+
+### La «partita più recente» era la giornata IN CORSO, e nascondeva un difetto nostro
+
+Misurato sul pacchetto con il join per `fc_id` che l'app usa davvero: **6 slot su 1.588** di tutta la
+storia di `default` non hanno nessuna riga del livello per-partita, e sono tutti e sei la **4ª giornata
+del 2026-27** — i voti arrivano prima del tabellino, quindi la testa scriveva `Ata 1 - ??? 2`.
+
+Sotto c'era il difetto peggiore: `namedColumns` costruiva la testa dalla **prima cella in ordine di
+rosa**, e il livello per-partita copre il 94% dei convocati — **un portiere senza quella riga cancellava
+l'identità dell'intera colonna**. `Inter - Hellas Verona` della 37ª leggeva `Inter - Ignota 0-0`, non
+era cliccabile e non mostrava il modulo, con 15 dei 17 compagni che la riga ce l'avevano.
+
+Curati tutt'e due: si sceglie la cella che sa dire QUAL È la partita, e quello che resta senza nome
+viene tolto con le sue celle (`dropUnnamed` — le due metà nascono dallo stesso asse). **Dal lato dello
+schermo: da 7 colonne senza avversario su 200 a 0 su 220.** Il prezzo è detto: i voti veri della 4ª
+giornata degli 8 club che l'hanno giocata spariscono finché non gira il livello per-partita, e si ricuce
+da sé perché `matchTableAcross` pesca una colonna in più dalla stagione prima.
+
+### La prossima partita
+
+`core/next-match.ts` più `LeagueCalendar.next`: prima colonna a sinistra (la tabella si legge dalla più
+recente, quindi il futuro viene prima), scelta **per data** e non per giornata, con `>= today` perché di
+un calendario si sa il giorno e non l'ora. Celle **vuote** e non un trattino, nessun click promesso
+(`matchId` nullo), e niente colonna a stagione finita invece di una testa vuota. Vive nella vista e non
+in `PlayersStore`, che è lo store del calcio giocato.
+
+### Il banco non mordeva, e l'ha detto la controprova
+
+Rimettendo il markup vecchio, `e2e-coach-break.mjs` ha stampato «tutto a posto» **dopo aver guardato
+zero confini**: riconosceva un confine dalla classe che stava verificando, quindi senza quella classe
+l'elenco restava vuoto e un `every` su un elenco vuoto è vero. Ora un confine si riconosce dal TITOLO
+(il dato) e si pretende di averli guardati tutti. Lo stesso difetto era in `e2e-clubs.mjs` dal lato
+opposto: contava i confini come «senza testo», e quello che ora porta il `⇄` ne ha.
+
+### Un errore di misura mio, a verbale
+
+La prima misura della copertura ha unito `match_ratings.team` a `external_match_stats.club` **per nome**
+e ha letto «quattro club interi senza tabellino»: erano **Milan, Napoli, Roma e Verona**. Settima
+istanza del join per nome, e la prima commessa **dentro una misura** invece che dentro il codice.
+
+### Verifica
+
+983 test app verdi (57 file), build pulito, banchi `coach-break` (riscritto e allargato ai tre casi),
+`clubs`, `clubs-lineup`, `matches-tip`, `table`, `nav` verdi su Serie A **e** su EuroLeghe. Due banchi
+restano rossi — `e2e-player-card` e `e2e-board-horizon` — e sono **preesistenti**: verificati a HEAD con
+`git stash`, falliscono identici senza le modifiche di oggi.
+
+### Aperti
+
+1. **`TimeTravel.realToday` è una data UTC**, quindi fra mezzanotte e le due di notte italiane «oggi» è
+   ieri. Preesistente e globale (governa anche infortuni, acquisti e freschezza): spostarla è una
+   decisione dell'operatore, non una correzione.
+2. **Il confine di stagione che porta anche un cambio di panchina** usa la tinta della stagione col `⇄`
+   primario sopra. Scelta, non misura; si gira in una riga.
+3. I due banchi rossi preesistenti restano da chiudere — quello di `board-horizon` cerca la didascalia
+   tolta il 15/09 (§43), quindi è il banco da aggiornare e non la pagina.

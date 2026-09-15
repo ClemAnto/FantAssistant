@@ -5500,3 +5500,181 @@ nessun lettore nell'app. E' rimasta perche' e' pura e il suo test documenta la f
 una nota sopra la firma che dice esattamente questo — va tolta insieme al suo test il giorno che nessuno
 la richiama. Una funzione esportata senza lettori e senza una riga che lo dica e' la cosa che il prossimo
 trova e non sa se puo' toccare.
+
+# 44 — L'ASSE DELLA STRISCIA «ULTIME PARTITE»: la linea rotta, la giornata in corso, la prossima partita (15-16 settembre 2026)
+
+Tre richieste dell'operatore in un messaggio solo, sulla vista Squadre: «1) sistema la linea che
+evidenzia il cambio allenatore perché è rotta; 2) vedo dati strani relativi alla partita più recente
+delle squadre… dati incompleti? Quando i dati sono corrotti o incompleti, non visualizzarli; 3)
+mostriamo sempre una colonna con la prossima partita da giocare della squadra».
+
+Sono tre facce di **una domanda sola** — di quale partita una colonna parla — e la ragione per tenerle
+insieme non è di comodo: la prima è una colonna che dice DUE cose dove una basta, la seconda una che
+non riesce a dirne nessuna, la terza una che ne dice una che non è ancora successa.
+
+## 44.1 — La linea era una SCALETTA, e la causa sta in Tailwind e non nel disegno
+
+Fotografata a 14× sulla pagina vera: la linea del cambio allenatore scende con un **piolo rosa a ogni
+riga** della tabella, sporgente verso destra. Non è un bordo interrotto — è un bordo IN PIÙ.
+
+`border-double` e `border-primary/70` scrivono **stile e colore su tutti e quattro i lati**, e antd dà
+a ogni cella un `border-bottom` da 1px come separatore di riga. Misurato con `getComputedStyle` sulla
+cella di confine: `border-bottom: 1px double oklab(0.657 0.240 0.029 / 0.7)`, cioè il separatore di
+riga **ridipinto del colore primario**. Le utility di Tailwind per lo stile e il colore del bordo non
+hanno una forma per-lato (`border-l-2` esiste, `border-l-double` no), quindi la scorciatoia che sembra
+naturale è esattamente quella che sporca gli altri tre lati.
+
+**La cura è una classe nel layer dei componenti** (`styles/ng-zorro.css`, `.is-break-coach` e
+`.is-break-season`) e la linea è uno **SFONDO** e non un bordo:
+
+* un `border-left` si ferma **sopra** il bordo inferiore della cella, quindi si interrompe di un pixel a
+  ogni riga; uno sfondo copre tutta la scatola (`background-clip: border-box` è il default);
+* il separatore di riga è reso **trasparente sulla sola colonna del confine**, larga dieci pixel, quindi
+  non manca a nessuno e la linea scende intera;
+* la TINTA sta nello stesso gradiente della linea, perché un secondo `background-color` litigherebbe con
+  lo zebrato delle righe pari, che è un `background-color` pure lui.
+
+**E la linea «doppia» non era doppia**: a 2px il browser disegna `double` come una barra piena. Adesso
+sono 3px, che è il minimo a cui si vedono due righe — la parola che il componente usava dall'11/09
+descrive finalmente quello che c'è sullo schermo.
+
+## 44.2 — E c'erano DUE separatori attaccati, che il docstring vietava e il codice produceva
+
+Sull'Atalanta la striscia portava **22px di separatori affiancati**: il confine di stagione (2026-27 →
+2025-26) e subito dopo il cambio di panchina (Palladino → Sarri), che è lo stesso fatto detto due volte.
+
+Il docstring di `withCoachBreaks` lo vietava **dall'11/09**: «un cambio a cavallo di due stagioni non ne
+produce due (quello là è già detto dal confine di stagione, e due separatori attaccati direbbero la
+stessa cosa due volte)». Il codice non lo faceva, e il meccanismo è semplice: una colonna di confine ha
+`date` nulla, quindi `coachOn` risponde null, `previous` resta quello dell'ultima partita dell'altra
+stagione, e il cambio viene emesso alla prima colonna vera dopo il confine.
+
+**Non è un angolo, è il caso frequente**: un allenatore nuovo quasi sempre arriva d'estate.
+
+La cura tiene il posto dell'ultimo confine attraversato (`boundary`) e, quando il cambio ci cade sopra,
+**marca quel confine invece di aggiungerne uno**: `ColumnSlot.bench` porta la frase, il titolo la
+aggiunge, il `⇄` si disegna su tutt'e due i tipi. Un confine, due fatti. `boundary` si azzera appena
+passa una colonna VERA, o un cambio di dicembre finirebbe scritto sul confine di agosto — ed è il terzo
+test nuovo.
+
+**IL TEST CHE CI PROVAVA PASSAVA COL DIFETTO.** `coach-break.spec.ts` aveva un caso il cui commento
+diceva letteralmente «non deve … produrre un secondo separatore: quello è già detto dal confine di
+stagione» e la cui asserzione era `coach.length === 1`. Commento e asserzione si contraddicevano, e
+nessuno se ne accorgeva perché **il fixture non era un confine**: `column('border', null)` ha `date`
+nulla e `divider` nullo, cioè è una giornata che quel club non ha giocato — un altro caso, che a una
+colonna di confine per il resto somiglia. Riscritto con il confine come `matchTableAcross` lo produce
+davvero, e con la cura rimessa indietro cade **quello e solo quello** (gli altri due restano verdi a
+ragione: descrivono comportamenti che non cambiano).
+
+## 44.3 — «Dati strani sulla partita più recente»: era la giornata IN CORSO, e i difetti erano due
+
+La colonna leggeva `Ata 1 - ??? 2`, titolo «Serie A · Atalanta - Ignota 1-2 · Giornata 4», senza modulo
+e non cliccabile. Il punteggio è giusto (viene dai voti); quello che manca è **chi fosse l'avversario e
+in che campo**, che vengono dal livello per-partita.
+
+**Il primo difetto è l'acquisizione che arriva dopo, ed è il caso che l'operatore ha visto.** Misurato
+sul pacchetto, per (stagione, giornata, club) di `default`, con il join per `fc_id` che l'app usa
+davvero: **6 slot su 1.588** di tutta la storia non hanno NESSUNA riga del livello per-partita, e sono
+tutti e sei la **4ª giornata del 2026-27** — quella che si stava giocando (8 club su 20 con i voti, 2
+su 20 col tabellino). Ogni altro slot è coperto all'82-94%.
+
+**Il secondo è nostro e più grave, e il primo lo nascondeva.** `namedColumns` costruiva la testa dalla
+**prima cella in ordine di rosa** (`own.find(kind === 'league')`), e il livello per-partita copre il 94%
+dei convocati e non il 100%: **un portiere senza quella riga cancellava l'identità dell'intera colonna**.
+Misurato sulle 200 colonne dei venti club di Serie A: **Inter - Hellas Verona della 37ª** leggeva
+`Inter - Ignota 0-0`, non era cliccabile e non mostrava il modulo, mentre **15 dei 17** compagni la riga
+ce l'avevano. Ora si prende la cella che sa dire QUAL È la partita (di campionato, con avversario e
+chiave; i ripieghi sono dichiarati in ordine), e sono tutte la stessa partita di quel club, quindi la
+regola «la colonna e il suo undici descrivono la stessa partita» resta.
+
+**La regola dell'operatore, applicata alla lettera**: quello che dopo la cura non sa ancora dire di che
+partita parla viene tolto — `ColumnSlot.unnamed` lo marca, `dropUnnamed` toglie la colonna **e le sue
+celle**, perché le due metà nascono dallo stesso asse e tagliarne una sola farebbe scivolare ogni voto
+di una posizione (il difetto degli 84px del 20/08, un piano più sotto).
+
+**Il prezzo è detto e non nascosto**: i voti veri della 4ª giornata degli 8 club che l'hanno giocata
+spariscono finché non gira il livello per-partita. È reversibile in una riga, e si ricuce da sé —
+`matchTableAcross` scala il suo `need`, quindi la stagione precedente contribuisce una colonna in più e
+la striscia resta lunga dieci.
+
+**Il numero, dal lato dello schermo**: da **7 colonne senza avversario su 200** a **0 su 220** sui venti
+club di Serie A (le 220 sono 200 + le venti colonne della prossima partita).
+
+## 44.4 — La prossima partita: una colonna che viene dal CALENDARIO e non dai voti
+
+`core/next-match.ts` più `LeagueCalendar.next(club, today)`. Sta a **sinistra di tutte** perché la
+tabella si legge dalla più recente: il futuro viene prima del passato più vicino.
+
+* **Per DATA e non per giornata**, che è la regola di casa: con un rinvio la 16ª si gioca dopo la 20ª.
+* **`>= today` e non `> today`**: di un calendario si sa il giorno e non l'ora, quindi la partita di oggi
+  è ancora da giocare — trattarla come passata la nasconderebbe proprio il giorno in cui la si aspetta.
+* **Le celle sono VUOTE** e non un trattino, che in questa tabella vuol dire «nessuna partita in questa
+  posizione». Di una partita che nessuno ha giocato non c'è niente da sapere.
+* **La testa la disegna il codice che c'era già**: `sides` coi gol a `null`, che la tabella stampa come
+  `·`, e `outcome` nullo che tiene la cifra neutra. Sotto il filetto, dove per una partita giocata sta il
+  modulo, c'è la DATA.
+* **Non promette il click** che apre la formazione (`matchId` nullo): una partita che nessuno ha giocato
+  non ha un undici da disegnare, e un bersaglio che non risponde è peggio di nessun bersaglio.
+* **Vive nella VISTA e non in `PlayersStore`**, che è lo store del calcio giocato: un secondo lettore del
+  calendario là dentro sarebbe una seconda risposta a «che partita hanno fra tre giorni».
+* **Niente colonna** a stagione finita o su un bundle senza `fixtures`, invece di una testa vuota che si
+  legge come un guasto.
+
+**La tinta è un token e non un colore nuovo** (`--upcoming-tint`, il grigio del controllo al 75%): lo
+zebrato al 30% su una colonna INTERA non si vedeva, e una colonna di celle vuote che non si dichiara si
+legge come dati mancanti. Nessun VERSO, perché quella colonna non giudica nessuno.
+
+**E il nome dell'avversario prende la maiuscola solo dove il calendario non ne ha uno.** `LeagueCalendar`
+ripiega sulla sua chiave per un club fuori perimetro, ed è giusto che ripieghi; stamparla com'è, in una
+testa fatta di `Juv`, `Ata`, `Nap`, dà un `elc` minuscolo che si legge come un refuso. Misurato sul
+calendario del 15/09: Serie A **0 club su 20** senza nome canonico — sul listone dell'operatore il ramo
+non scatta mai — Premier 7, Liga 9, Bundesliga 6, Ligue 1 9, Serie B 13.
+
+## 44.5 — Il banco non mordeva, e se n'è accorta la controprova
+
+`e2e-coach-break.mjs` riconosceva un confine come «una `th` senza testo e stretta», e la classe che
+verificava era `border-double`. Rimettendo il markup vecchio per la controprova, il banco ha stampato
+**«L ASSE DELLA STRISCIA E COME DEVE ESSERE» dopo aver guardato ZERO confini**: senza le classi nuove
+`kindOf` rispondeva null, l'elenco delle celle da controllare restava vuoto, e un `every` su un elenco
+vuoto è vero.
+
+Due cure, e sono la stessa:
+
+1. **Un confine si riconosce dal TITOLO**, cioè dal dato, e non dalla classe che si sta verificando —
+   identificarlo dalla classe è l'asserzione circolare vista da un angolo nuovo.
+2. **Si pretende di aver guardato TUTTI i confini** (`breakCells.length === coach + season`), o un
+   elenco vuoto continua a passare.
+
+Con queste, la controprova nomina esattamente le due asserzioni che descrivono la cura e stampa il
+colpevole: `oklab(0.657 0.240 0.029 / 0.7)` come colore del separatore di riga.
+
+**E lo stesso difetto era in `e2e-clubs.mjs`**, dall'altro lato: contava i confini come «senza testo»,
+e il confine di stagione che ora porta il `⇄` ne ha, quindi leggeva **0 confini** su una tabella che ne
+ha uno — il banco accusava la pagina del proprio difetto. Anche lì il predicato è passato al titolo.
+
+## 44.6 — Un errore di misura mio, a verbale
+
+La prima misura della copertura del livello per-partita ha unito `match_ratings.team` a
+`external_match_stats.club` **per NOME**, e ha letto «quattro club interi senza tabellino in due
+stagioni»: erano **Milan, Napoli, Roma e Verona**, cioè esattamente i nomi che il provider scrive `AC
+Milan`, `SSC Napoli`, `AS Roma`, `Hellas Verona`. Il difetto era nel banco e non nel dato — l'app quel
+join lo fa per `fc_id` — ed è la settima volta che questo repository incontra il join per nome, la prima
+**dentro una misura invece che dentro il codice**. Rifatta per `fc_id`, i club interi scoperti sono zero
+e gli slot vuoti sei.
+
+## 44.7 — Cosa resta aperto
+
+* **`TimeTravel.realToday` è una data UTC** (`new Date().toISOString()`), quindi fra mezzanotte e le due
+  di notte italiane «oggi» è ieri. Si vede sulla colonna nuova — Real Madrid mostrava la partita del 15
+  alle 00:40 del 16 — ed è preesistente e globale: la stessa data governa le finestre d'infortunio, i
+  nuovi acquisti e la freschezza, quindi spostarla è una decisione e non una correzione.
+* **Le 6 colonne tolte tornano da sole** appena il livello per-partita copre la 4ª giornata. Se
+  l'operatore preferisse vederle lo stesso, la riga da cambiare è una (`dropUnnamed`), e il prezzo
+  sarebbe la testa che scrive `???`.
+* **Il confine di stagione che porta anche un cambio di panchina usa la tinta della STAGIONE** e non
+  quella della panchina, col `⇄` primario sopra. È una scelta — il fatto che viene prima è «un altro
+  campionato» — e si cambia in una riga se l'operatore la legge al contrario.
+* **Due banchi rossi e NON sono di questa giornata**: `e2e-player-card` (un riepilogo di stagione con
+  `season: null` che non torna col pacchetto) e `e2e-board-horizon` («nessuna riga dice che si sta
+  guardando l'ultimo periodo» — è la didascalia tolta in §43, e il banco la cerca ancora). Verificati a
+  HEAD con `git stash`: falliscono identici senza le modifiche di oggi.

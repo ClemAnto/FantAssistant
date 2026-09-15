@@ -210,6 +210,8 @@ function matchesShape() {
     return Math.max(0, need - room);
   };
   const host = table.closest('nz-table')?.parentElement ?? null;
+  /** Quale colonna e' un CONFINE, dal titolo: vedi il commento su `dividers` qui sotto. */
+  const DIVIDER = /^(Confine fra le stagioni|Cambio in panchina)/;
   return {
     ready: true,
     dense: !!document.querySelector('ui-matches-table nz-table.table-dense'),
@@ -225,7 +227,12 @@ function matchesShape() {
     // I MARCHI DEL VOCABOLARIO (`ui-bonus`): gol, rigori e assist disegnati come nella card.
     bonuses: table.querySelectorAll('tbody ui-bonus').length,
     // IL CONFINE FRA DUE STAGIONI: la colonna che non e' una partita, e quante ne sono.
-    dividers: heads.filter((one) => !(one.innerText || '').trim() && one.clientWidth < 24).length,
+    //
+    // RICONOSCIUTO DAL TITOLO e non da «non ha testo»: dal 15/09/2026 un confine di stagione su cui
+    // cade anche un cambio di panchina porta il segno `⇄` (una colonna sola per i due fatti), quindi
+    // il predicato vecchio leggeva ZERO confini su una tabella che ne ha uno - il banco accusava la
+    // pagina del proprio difetto. Il titolo e' il DATO, e non cambia con il disegno.
+    dividers: heads.filter((one) => DIVIDER.test(one.getAttribute('title') || '')).length,
     /*
      * L'ORDINE DELLE COLONNE, ricavato dal TITOLO di ognuna e non creduto: il titolo porta «Giornata N»,
      * quindi si legge la sequenza delle giornate e si guarda che SCENDA - la piu' recente a sinistra
@@ -237,7 +244,7 @@ function matchesShape() {
       return found ? Number(found[1]) : null;
     }),
     dividerWidth: (() => {
-      const found = heads.find((one) => !(one.innerText || '').trim() && one.clientWidth < 24);
+      const found = heads.find((one) => DIVIDER.test(one.getAttribute('title') || ''));
       return found ? Math.round(found.getBoundingClientRect().width) : null;
     })(),
     /*
