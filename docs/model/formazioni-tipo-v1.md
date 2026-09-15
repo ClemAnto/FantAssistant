@@ -2065,3 +2065,63 @@ si torna alla geometria rotta di §15.2, quindi se l'ottimo non è interno non s
 
 **Il caso Juventus resta aperto**, ed è giusto così: una cura che ne sistema uno e ne rompe due non è una
 cura, e il giudice che legge lo stesso numero su tutt'e due i bracci lo sta dicendo.
+
+---
+
+# 16 — Il lato misurato È giusto, e §15 aveva la diagnosi sbagliata
+
+**15/09/2026**, banco `toolkit/bench/panel/side_pull.py`. §15 aveva respinto la sostituzione del lato con
+la diagnosi «la forma è troppo forte» e aveva pre-registrato un tiraggio pesato sui minuti. Misurato,
+**l'attesa è falsificata** e la diagnosi va riscritta.
+
+## 16.1 — La misura
+
+107.034 previsioni fuori campione su quattro stagioni: alla partita `m` prevedere il lato dalla sola
+storia `< m`, con `lato = (1−w)·codice + w·misurato` e `w = minuti/(minuti + M)`.
+
+| M | 0 | 45 | 90 | 270 | 900 | codici |
+|---|---|---|---|---|---|---|
+| tutti | 0,1517 | 0,1519 | 0,1522 | 0,1527 | 0,1530 | 0,1517 |
+| **discordi** | **0,579** | 0,616 | 0,645 | 0,716 | 0,819 | **0,985** |
+
+L'ottimo è **M = 0**, cioè la sostituzione piena, **sul bordo basso e monotono**: più ci si fida della
+misura, meglio va. Il canale tocca il **4,5%** delle previsioni — i casi in cui codice e misura dicono
+lati diversi di un gradino pieno — e su quelli vale **−41%**; sul totale è piatto alla quarta cifra
+perché il 95,5% concorda. Le due letture vanno insieme, ed è la forma «pochi uomini spostati di molto»
+che il gate premia.
+
+## 16.2 — Quindi non era la forma: un prezzo PER UOMO non può esprimere un vincolo sull'UNDICI
+
+Come previsione di dove giocherà un uomo la sostituzione è la forma migliore che ci sia, e nessun
+tiraggio la batte. Quello che §15 ha osservato è vero e ha un'altra causa, fotografata sul Milan:
+
+| | misurato |
+|---|---|
+| Saelemaekers | −1,0 (`LW:31;LW:24`) |
+| Bartesaghi | −1,0 (`ML:87;ML:24`) |
+| Estupinan | −1,0 (`ML:66`) |
+| **Chukwueze** | **+1,0** (`MR:90;MR:90`) — e il claim **non lo disegna** |
+| tutti gli altri | 0,0 |
+
+Tre uomini misurati a sinistra per una fascia sola, e l'unico misurato a destra è fuori dall'undici.
+Con i codici Saelemaekers copriva la destra; con la misura va a sinistra e non resta **nessuno** che
+misuri destra, mentre tutti gli altri leggono 0,0. Il Kolasinac dell'Atalanta è lo stesso caso un
+reparto più indietro.
+
+È «le parti non fanno il tutto» (l'R-Factor) su una **struttura** invece che su una soglia: rendere più
+accurato ogni uomo separatamente peggiora l'undici, perché l'undici deve coprire due fasce e la
+selezione — che è del claim — non sa di doverlo fare. La divisione «il claim sceglie CHI, il fit decide
+solo DOVE» regge finché i codici sono abbastanza elastici da far coprire una fascia a chi capita; la
+misura toglie quell'elasticità e scopre che la selezione non era vincolata.
+
+## 16.3 — Cosa si misura dopo, e non è un peso
+
+Due candidati, e questo banco non può giudicare né l'uno né l'altro (misura la previsione del lato di un
+uomo, non l'assegnazione):
+
+- un **vincolo strutturale** — una riga raggiunge le due fasce, imposto nella SELEZIONE e non solo nel
+  disegno, dove `_reshape` ha già le sue regole di simmetria;
+- la misura come **spareggio** fra uomini altrimenti pari, che è la forma di `RECENT_SHAPE_TIE` («uno
+  spareggio e mai un peso») e non toglie ai codici il lavoro che stanno facendo.
+
+Il secondo è molto più piccolo e va provato per primo. Il caso Juventus resta aperto fino ad allora.
