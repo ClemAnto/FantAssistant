@@ -7787,3 +7787,75 @@ zero rose) e cancellato; la base e' stata poi ricostruita col percorso giusto.
   20/20 a 16/20 ed e' in uno **stash locale** (`stash@{0}`), che non e' un archivio: la sezione 12.8 e'
   il record.
 
+## CHIUSURA — 15 settembre 2026: la board di STAGIONE impara quello che la breve sapeva già
+
+Giornata guidata interamente da segnalazioni dell'operatore sui campetti STAGIONALI — «le formazioni
+dell'ultimo periodo mi sembrano buone, le formazioni tipo stagionali non ancora» — con sei incoerenze in
+un primo messaggio e altre tre dopo la prima consegna. Dettaglio completo, misure e rifiuti:
+`formazioni-tipo-v1.md` §17. Quattro commit: `228fc49`, `f34f0b4`, `a78a291`, `69c61a3`.
+`SHEET_REVISION` 68 → **70**, bundle rigenerato e caricato nell'app.
+
+### Il filo: una cura applicata a un orizzonte solo
+
+Quattro dei sei casi avevano una causa sola, e **la cura era già scritta e applicata alla sola board
+breve** (12/09): l'undici si sceglie sulle righe che il modulo DICHIARA, mentre la stagione continuava a
+usare le tre linee del listone, dove un 4-2-3-1 collassa a (4, 5, 1). Il caso Soulé che l'operatore
+segnala era scritto **per nome** nel commento di quella cura, come la ragione per cui esiste. È la lezione
+che dà il titolo al primo commit e vale oltre le board.
+
+### Cosa si è mosso, con i numeri
+
+| | |
+|---|---|
+| disegno concorde col modulo SCELTO | 17/20 → **19/20** (la breve stava già a 20/20) |
+| giudice stampa | DIFF 5 → 3, uomini 152 → **154** su 220 |
+| accordo stagione / ultimo periodo | 171 → **175** su 220 |
+| moduli senza trequarti (controprova) | 180 celle su 180 **invariate** |
+| scala di titolarità | 18 righe mosse, 13 di gradino |
+| `engine_*` | fermo |
+
+Le cure adottate: le righe del modulo dichiarato anche sulla stagione; il POSTO (riga + fianco) che la
+finestra CONFERMA entra nel disegno di stagione (`held_side` / `held_lane`, regola dell'operatore «3
+partite intere o quasi»); `_flanked` ripara solo le fasce SCOPERTE; un'ala è candidata alla trequarti
+solo se è il suo PRIMO codice; e le tre riparazioni non possono più sacrificare un uomo che una dritta
+dichiara titolare.
+
+### Tre cose che vanno tenute
+
+- **La dritta su Pinamonti era a verbale dal 07/09 e il disegno la disfaceva**: `order` la applicava,
+  `_flanked` lo buttava fuori e `_pointed` rimetteva al centro proprio la `ST;AM` che la dritta nominava.
+  Una dichiarazione applicata in un punto e disfatta nel punto dopo è peggio di una che nessuno applica.
+- **Il dato per «prenderne atto» c'era già**: alla domanda dell'operatore «nuovo ruolo in acquisizione?»
+  la risposta è no — è `desc_recent_slots`, la stessa colonna con cui la board breve sceglie l'undici.
+  Ennesima istanza di «il dato c'era e mancava un lettore», e la seconda volta che misurare prima ha
+  risparmiato un'acquisizione.
+- **Un difetto mio, trovato dall'operatore il giorno dopo**: la revisione 69 rendeva candidato
+  trequartista chiunque avesse `RW`/`LW` fra i codici, e Malen (`ST;RW`) finiva a centrocampo. Corretto
+  nella 70 leggendo il primo codice.
+
+### Il rifiuto della giornata
+
+Il caso Juventus (Yildiz al centro, Gonzalez a sinistra) è **reale, diagnosticato e non curato**. Tre
+forme diverse della stessa cura — il lato dal solo mestiere, la penalità d'ordine ×2, la penalità alta
+solo per chi ha un lato nel primo codice — guadagnano 3-5 posti su 166 sul giudice dei lati e rompono da
+3 a 4 guardiani che difendono la COPERTURA DELLE FASCE. È `formazioni-tipo-v1.md` §16.2 ritrovata da
+un'altra strada: un prezzo PER UOMO non può esprimere un vincolo sull'UNDICI. Scritto invece che tarato.
+
+### Aperti
+
+1. **Bologna / Pobega**: Odgaard ha la trequarti confermata ma il claim lo tiene a centrocampo (0,498
+   contro 0,455) e Pobega ha 2 partite su 3. Una cura provata ha effetto ZERO: la causa è un'altra.
+2. **Cissé** e **Koopmeiners**: ballottaggi nel reparto sbagliato, e hanno in comune un limite che va
+   detto — le dritte governano **quanto** gioca e non **dove**, quindi oggi non c'è un canale per
+   dichiarare la posizione di un uomo. Sarebbe la terza faccia di `player_rulings.json`.
+3. **Torino** a 5-3-2: prezzo dichiarato della prima cura, su odds in parità a quattro moduli.
+4. Il **giudice stampa resta quello dell'8 agosto** (20 club): +1 uomo è dentro il rumore, e ogni verdetto
+   di questa giornata lo dichiara.
+
+### Errori di strumento, a verbale
+
+Due corse della suite lanciate **mentre modificavo i file** hanno letto 2 e poi 14 fallimenti che erano
+artefatti miei; un `del View.claim` in un test mio ha cancellato il metodo dalla classe e fatto cadere 32
+test; e un tracciatore che confrontava `before`/`after` **dopo** la chiamata diceva «uguale» su una lista
+mutata in place, il che mi ha fatto cercare il colpevole altrove per tre corse. Tutti e tre sono la stessa
+famiglia: misurare senza tenere ferma la cosa che si misura.

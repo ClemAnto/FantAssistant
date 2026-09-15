@@ -2125,3 +2125,176 @@ uomo, non l'assegnazione):
   spareggio e mai un peso») e non toglie ai codici il lavoro che stanno facendo.
 
 Il secondo è molto più piccolo e va provato per primo. Il caso Juventus resta aperto fino ad allora.
+
+# 17 — La board di STAGIONE prende atto del posto, e tre cure sul lato restano scritte
+
+**15/09/2026**, dalle sei incoerenze che l'operatore ha portato guardando i campetti stagionali («le
+formazioni dell'ultimo periodo mi sembrano buone ... le formazioni tipo stagionali non ancora»), e da tre
+segnalazioni successive sugli stessi campetti. Commit `228fc49`, `f34f0b4`, `a78a291`; `SHEET_REVISION`
+68 → 69 → 70.
+
+## 17.1 — Una cura applicata a un orizzonte solo lascia in piedi il difetto per cui era stata scritta
+
+Quattro dei sei casi avevano **una causa sola**, e la cura era già scritta: il 12/09 la board dell'ultimo
+periodo aveva imparato a scegliere l'undici sulle **righe che il modulo dichiara** (in un 4-2-3-1: 4 · 2 ·
+3 · 1), mentre la stagione continuava a scegliere sulle tre linee del listone, dove lo stesso modulo
+collassa a (4, **5**, 1) — quindi la riga di mezzo ne chiedeva cinque e il disegno li spalmava come poteva.
+
+Il caso che l'operatore segnala sulla Roma — **Soulé**, un `AM` puro che si contende l'unico posto
+d'ATTACCO con Malen invece dei due di trequarti — era già scritto **per nome** nel commento di quella cura,
+come la ragione per cui la riga dichiarata esiste.
+
+Tre parti, e la seconda l'ha imposta un guardiano:
+
+| | |
+|---|---|
+| (a) | `declared_rows` vale su tutt'e due gli orizzonti |
+| (b) | un modulo che NOMINA la sua trequarti non la fa rileggere dai codici — ma il RIMODELLAMENTO resta |
+| (c) | il serbatoio della trequarti ammette le ALI e non i soli `AM` |
+
+Su (b): spegnere `_reshape` insieme alla rilettura toglieva le cinque regole dell'operatore sul disegno, e
+il test che cade lo dice per nome — in un 3-4-1-2 Neres restava fra i due attaccanti. **`_two_rows` DEDUCE
+una riga che la fonte non sa dire, `_reshape` RIPARA un modulo che la rosa non copre**: due domande, e la
+seconda esiste su qualunque orizzonte.
+
+Su (c): il codice `AM` è portato da **3 uomini per club di mediana**, l'Inter non ne ha nessuno e sette
+club su venti ne hanno al massimo due, contro righe che ne chiedono da due a quattro.
+
+**A/B su una variabile per volta**: il disegno concorda col modulo SCELTO su **17 club di 20 → 19** (la
+board breve stava già a 20/20), giudice stampa **DIFF 5 → 3** e uomini **152 → 153** su 220. I moduli SENZA
+trequarti non si muovono di un decimale (**180 celle di punteggio su 180**), che è la controprova che la
+variabile mossa è una sola.
+
+**Prezzo dichiarato**: il Torino passa da 3-1-4-2 a **5-3-2** — le sue odds sono in parità a quattro moduli
+(27/25/22/18%) e l'anello di ritorno le riordina — e lì il giudice perde un uomo.
+
+## 17.2 — Una dritta dell'operatore non la disfa il disegno
+
+Il caso Lazio, ed è il difetto più netto della giornata perché la dichiarazione era **a verbale da otto
+giorni**. La dritta del 07/09 — «Pinamonti è una Pc di buon livello: non gli si preferisce una ST/AM fuori
+ruolo» — entrava in `order` e veniva cancellata due funzioni dopo. La traccia, riga per riga:
+
+```
+_apart    [Pinamonti, Zaccagni, Cancellieri]       <- la dritta funziona
+_flanked  -> [Zaccagni, Cancellieri, Isaksen]      <- lo butta fuori per un'ala
+_pointed  -> [Zaccagni, Cancellieri, Gudmundsson]  <- e rimette al centro la ST/AM
+```
+
+Cioè la riparazione rimetteva in campo **esattamente l'uomo che la dritta nominava**. Le tre riparazioni non
+possono più scegliere un dichiarato come uomo da sacrificare (`gui.declared_starter`); se non resta nessun
+altro da togliere, la riparazione rinuncia — il verso giusto in cui sbagliare per un vincolo. **Un VINCOLO e
+mai un peso**, come le altre dritte, e **invisibile ai due giudici** per costruzione: infatti il verdetto
+della stampa non si muove di un'unità, che è la prova che la regola non lo inquina.
+
+## 17.3 — Il posto che la finestra CONFERMA vale anche sulla stagione
+
+Regola dell'operatore: «il ruolo di Celik è terzino destro ma adesso sta giocando a sinistra ... in generale
+un giocatore di fascia gioca preferibilmente da un lato ma facilmente può adattarsi sull'altro, quindi non è
+una situazione così rara. **3 partite intere o quasi giocate in una nuova posizione sono una conferma** che
+l'allenatore voglia utilizzarlo anche lì, e quindi dobbiamo prenderne atto e rivalutare la formazione
+stagionale con questa nuova chiave di lettura.»
+
+Alla sua domanda «nuovo ruolo in acquisizione?» la risposta è **no, il dato c'era**: il numero della DISTINTA
+dentro il modulo dichiarato di quella partita (`desc_recent_slots`), che è la stessa colonna con cui la board
+dell'ultimo periodo sceglie il suo undici. Da lì riga e fianco escono senza dedurli — a differenza di
+`played_side`, che viene da Transfermarkt e lì la riga è ambigua («il posto 8 è un esterno destro che può
+essere terzino o mediano»).
+
+**I suoi due casi non erano cambi di LINEA ma di LATO**, e riconoscerlo è metà del lavoro: Celik resta un
+difensore (destra → sinistra), Baturina un trequartista (centro → sinistra). Misurato sul foglio del 15/09:
+**29 uomini su 294** hanno tenuto lo stesso fianco per tutta la finestra, di cui **2 opposto ai propri
+codici** (Celik, Wesley) e 3 largo mentre i codici li dicono centrali; e **13 su 123** hanno una riga
+confermata diversa dalla primaria — fra loro i due nomi dell'operatore, Celik e **Lulli**.
+
+Due metà, e la seconda l'ha imposta la misura: `held_side` (il fianco) entra fra i lati che l'uomo può
+coprire, `held_lane` (la riga) diventa la sua **CASA**. Serve la seconda perché **la casa decide chi una
+linea può CEDERE**: col solo lato, Celik aveva la sinistra confermata e restava disegnato sulla trequarti,
+essendo il migliore della propria linea e quindi non cedibile a nessuno.
+
+**La soglia è la MAGGIORANZA e non «tutte»**, e la scelta è misurata: la forma severa tiene Celik e **perde
+Baturina** (due volte a sinistra e una al centro), che è uno dei due casi da cui la regola nasce; sul giudice
+stampa la maggioranza vale un uomo in più (154 contro 153 su 220, moduli identici). Non è il giudice a
+decidere — decide che la regola è DICHIARATA e che il giudice non la smentisce.
+
+## 17.4 — Una riga che copre già le sue fasce non scambia nessuno
+
+Trovato inseguendo Celik, ed è la causa comune di metà dei casi. `_flanked` esiste per riparare le fasce
+**scoperte**; senza quella guardia diventava un massimizzatore di claim su ogni corsia, e scambiava l'uomo
+più debole della riga con qualunque rivale più forte che toccasse quel lato — **anche dove il lato era già
+presidiato**. Sulla Juventus la trequarti perdeva Yildiz (`LW;AM`, che la sinistra la copre) per Cambiaso,
+che è un **terzino**, e da lì l'assegnazione spediva Celik in trequarti per fargli posto. La copertura è un
+**MATCHING e non un conteggio** (`_covers`): Gonzalez legge `RW;LW` e tocca tutt'e due le corsie, ma può
+stare su una sola.
+
+## 17.5 — Un'ala è candidata alla trequarti solo se è il suo MESTIERE
+
+Correzione di un difetto **introdotto dalla revisione 69** e trovato dall'operatore il giorno dopo: «Malen a
+centrocampo è un errore sicuramente: ha sempre e solo giocato come Pc». Malen legge `ST;RW`, e bastava quel
+`RW` in seconda posizione perché un CENTRAVANTI si contendesse la trequarti — da cui l'assegnazione lo
+mandava addirittura in mezzo al campo. Ora conta il **primo** codice, che è il mestiere; un `AM` resta
+candidato con qualunque codice, perché quella È la sua riga. Verificato a variabile singola: muove **un solo
+club**.
+
+## 17.6 — Il LATO per uomo: tre cure misurate, nessuna adottata, e §16.2 confermato da un'altra strada
+
+Il caso Juventus che §16.3 lasciava aperto: «come mai c'è Yildiz al centro e Gonzalez a sinistra? Dovrebbero
+essere invertiti». La causa è esatta e va scritta perché è piccola e letale: su una trequarti il lato pesa
+`2 × SIDE_WEIGHT['T']` = **6** e un codice SUCCESSIVO costa **1**, quindi il secondo mestiere vale quasi
+quanto il primo — Gonzalez (`RW;LW`) va a sinistra per un credito e Yildiz (`LW;AM`, mancino) finisce al
+centro, perché quella coppia costa **2** contro i **6** della disposizione giusta. È anche una contraddizione
+interna: `flank` dichiara da che parte sta un uomo leggendo il PRIMO codice, e il prezzo di un posto ne usa
+un altro.
+
+**Il giudice dei LATI**, costruito per questa domanda: il lato disegnato contro quello OSSERVATO nelle
+distinte, **tolti gli uomini il cui lato il prezzo già legge da lì** (`held_side`), o il metro sarebbe
+circolare.
+
+| | lato giusto | guardiani |
+|---|---|---|
+| base (rev 70) | 151/166 | verdi |
+| il lato dal solo MESTIERE (`flank`) | **156**/166 | **4 rossi** |
+| penalità d'ordine = 2 × weight | 155/165 | 3 rossi |
+| penalità alta solo dove il primo codice nomina una fascia | 154/166 | 3 rossi |
+
+Ognuna guadagna 3-5 posti su 166 e rompe le regole della **copertura delle fasce**, che sono dettate
+dall'operatore («servono sempre due esterni di centrocampo di ruolo»): togliendo a un uomo a due fasce la
+capacità di coprire la seconda, le corsie restano vuote.
+
+**Questa è §16.2 ritrovata da un'altra strada, ed è il valore della misura**: là il banco aveva concluso che
+«un prezzo PER UOMO non può esprimere un vincolo sull'UNDICI», e qui tre forme diverse dello stesso tentativo
+cadono tutte e tre sullo stesso scoglio. Quando tarare un numero sistema un club e ne rompe un altro il
+difetto è nel MODELLO e non nel valore: i due obiettivi — «il mestiere decide il lato» e «le fasce vanno
+coperte» — si contendono lo stesso numero, e servirebbe che il prezzo sapesse distinguere «lo metto qui
+perché è il suo posto» da «lo metto qui perché non c'è nessun altro». Scritto invece che tarato, e il caso
+vale **2 uomini su 200**.
+
+## 17.7 — Cosa resta aperto, con il suo numero
+
+1. **Bologna / Pobega**: Odgaard ha la trequarti confermata (3 su 3) ma a centrocampo lo tiene davanti il
+   claim, **0,498 contro 0,455**, e Pobega ha giocato 2 delle 3, quindi non ha una riga confermata da
+   opporgli. Una cura provata — far cedere la classificazione del provider davanti alla riga confermata — ha
+   effetto **ZERO**, quindi la causa è un'altra e non è stata inseguita.
+2. **Cissé** (Milan) è ballottaggio a CENTROCAMPO sulla board di stagione e in trequarti su quella breve: il
+   provider lo classifica `MC;AM` e nelle distinte ha giocato in trequarti **2 volte su 3**. Con tre la
+   regola del §17.3 lo sposterebbe da sola.
+3. **Koopmeiners** è ballottaggio in **entrambi** i reparti; primo codice `AM` e nessuno slot (non ha giocato
+   da titolare), quindi non c'è osservazione che lo muova.
+4. **Il limite che 2 e 3 hanno in comune, e va detto**: le dritte di `player_rulings.json` governano
+   **quanto** gioca e non **dove** — «una dichiarazione su QUANTO gioca non è una dichiarazione su DOVE» —
+   quindi oggi l'operatore non ha un canale per dichiarare la posizione di un uomo. Sarebbe la terza faccia
+   delle dritte, e non è stata aperta.
+5. Il **Torino** a 5-3-2 (§17.1), che è il prezzo dichiarato della prima cura.
+
+## 17.8 — Quattro trappole di misura, tutte pagate qui
+
+- **La suite non si fa girare mentre si modificano i file**, e l'ho fatto **due volte**: due corse hanno
+  letto 2 e poi 14 fallimenti che erano artefatti delle mie stesse modifiche a metà. Su un albero fermo: 894
+  verdi.
+- **`del View.claim` non ripristina il metodo, lo CANCELLA dalla classe**, e da lì in poi ogni test che
+  disegna un undici cade — 32 di loro. Si usa `monkeypatch`, che i test vicini usavano già.
+- **Un tracciatore che confronta `before` e `after` dopo la chiamata è un'asserzione circolare** se la
+  funzione muta la lista in place: `_settle` diceva «uguale» mentre cambiava l'undici, e per tre corse ho
+  cercato il colpevole altrove. La copia si fa PRIMA.
+- **Una controprova va fatta un difetto per volta e senza rompere la sintassi**: togliendo due blocchi
+  insieme ne sono caduti 33, che non prova niente. Rimessi uno alla volta con `if False`, cade **esattamente**
+  il test che descrive quella cura e nessun altro.

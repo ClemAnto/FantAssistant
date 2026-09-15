@@ -4311,6 +4311,49 @@ soglia dell'app, **Rabiot non c'era** e mancava per due difetti del toolkit.
   appesa» si guarda il TEMPO DI CPU: 2,2 secondi in 25 minuti è appesa davvero, 31 secondi in 30 è una fase
   lunga. Le due corse vanno trattate in modo opposto.
 
+## Una cura applicata a UN ORIZZONTE SOLO lascia in piedi il difetto per cui era stata scritta
+**15/09/2026, dalle sei incoerenze che l'operatore ha portato sui campetti STAGIONALI («le formazioni
+dell'ultimo periodo mi sembrano buone ... le formazioni tipo stagionali non ancora»). Dettaglio:
+`formazioni-tipo-v1.md` §17, `SHEET_REVISION` 68 → 70.** Quattro dei sei casi avevano una causa sola, e
+la cura era GIÀ SCRITTA: il 12/09 la board dell'ultimo periodo aveva imparato a scegliere l'undici sulle
+righe che il modulo DICHIARA, e quella cura era stata messa su un orizzonte solo — la stagione continuava
+a scegliere sulle tre linee del listone, dove un 4-2-3-1 collassa a (4, **5**, 1). Il caso che lui segnala
+oggi — Soulé, un `AM` puro che si contende l'unico posto d'ATTACCO invece dei due di trequarti — era
+scritto **per nome** nel commento di quella cura, come la ragione per cui la riga dichiarata esiste.
+*Quando si cura una domanda che ha due finestre, si cura in tutt'e due o si scrive perché no.*
+
+**E UNA DICHIARAZIONE DELL'OPERATORE NON LA DISFA IL DISEGNO.** La dritta del 07/09 su Pinamonti («è una
+Pc di buon livello: non gli si preferisce una ST/AM fuori ruolo») entrava in `order` e veniva cancellata
+due funzioni dopo: `_flanked` lo toglieva per un'ala su una fascia GIÀ coperta e `_pointed` rimetteva al
+centro proprio la `ST;AM` che la dritta nominava. Una dichiarazione applicata in un punto e disfatta nel
+punto dopo è peggio di una che nessuno applica, perché nessuno se ne accorge — e questa era a verbale da
+otto giorni. Le tre riparazioni non possono più scegliere un dichiarato come uomo da sacrificare
+(`gui.declared_starter`); se non resta nessun altro, la riparazione rinuncia.
+
+**IL POSTO CHE LA FINESTRA CONFERMA vale anche sulla stagione** (sua regola: «3 partite intere o quasi
+giocate in una nuova posizione sono una conferma che l'allenatore voglia utilizzarlo anche lì»), e alla
+sua domanda «nuovo ruolo in acquisizione?» la risposta è **no, il dato c'era**: il numero della DISTINTA
+dentro il modulo dichiarato di quella partita, cioè la colonna con cui la board breve sceglie già il suo
+undici. I suoi due casi non erano cambi di LINEA ma di LATO (Celik resta difensore, Baturina
+trequartista), e servono **tutt'e due le metà**: `held_side` entra fra i lati che può coprire, `held_lane`
+diventa la sua CASA — perché la casa decide chi una linea può CEDERE, e col solo lato Celik restava in
+trequarti essendo il migliore della propria linea. La soglia è la MAGGIORANZA e non «tutte»: la forma
+severa tiene Celik e perde Baturina, che è uno dei due casi da cui la regola nasce.
+
+**E UN GIUDICE SI RIPULISCE DALLA CIRCOLARITÀ PRIMA DI CREDERGLI.** Il giudice dei LATI (il lato disegnato
+contro quello osservato nelle distinte) è pulito solo TOGLIENDO gli uomini il cui lato il prezzo legge già
+da lì: 184/200 diventa 151/166, e solo il secondo numero misura qualcosa. Con quello, tre cure sul lato
+per uomo guadagnano 3-5 posti su 166 e rompono da 3 a 4 guardiani della COPERTURA DELLE FASCE — cioè
+`formazioni-tipo-v1.md` §16.2 ritrovata da un'altra strada: *un prezzo PER UOMO non può esprimere un
+vincolo sull'UNDICI*. Nessuna adottata, tutte scritte.
+
+Tre trappole di misura pagate lo stesso giorno, e sono la stessa famiglia — **misurare senza tenere ferma
+la cosa che si misura**: la suite lanciata DUE volte mentre modificavo i file (2 e poi 14 fallimenti che
+erano artefatti miei); `del View.claim` in un test che non ripristina il metodo ma lo CANCELLA dalla
+classe, facendone cadere 32; e un tracciatore che confrontava `before`/`after` **dopo** la chiamata,
+quindi diceva «uguale» su una lista mutata in place e mi ha fatto cercare il colpevole altrove per tre
+corse. La copia si fa PRIMA, e una controprova si fa un difetto per volta.
+
 ## Il dato c'era, in una tabella che nessuno leggeva per quella domanda
 **05/09/2026, quinta istanza. Dall'operatore: «non riusciamo in nessun modo a recuperare le partite di
 Varela in Primeira Liga?»** Sì: `tm_appearances` (acquisita il 17/08, 2,08M righe su 3.535 giocatori) ne
