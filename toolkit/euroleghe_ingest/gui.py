@@ -6482,8 +6482,18 @@ class SnapshotView(ttk.Frame):
         # LE RIGHE CHE IL MODULO DICHIARATO CHIEDE, sull'ultimo periodo: (P,1),(D,3),(M,4),(T,2),(A,1)
         # per un 3-4-2-1. Altrove restano le tre linee del listone, che e' come l'undici e' sempre stato
         # scelto.
-        declared_rows = (dict(self.shape_lanes(formation))
-                         if horizon_of(mode) == "short" else {})
+        # ...E VALE SU TUTT'E DUE GLI ORIZZONTI (operatore, 15/09/2026: «le formazioni tipo stagionali non
+        # ancora ... perche' risulta nello schema stagionale un'improbabile 4-1-4-1?»). La cura del
+        # 12/09 - le righe che il modulo DICHIARA, trequarti compresa - era stata scritta per la sola
+        # board breve, e la stagione ha continuato a scegliere sulle tre linee del listone: un 4-2-3-1
+        # collassa a (4, 5, 1), quindi la riga di mezzo ne chiedeva CINQUE e il disegno li spalmava
+        # come poteva. Le conseguenze misurate sul foglio del 14/09 sono esattamente le sue
+        # segnalazioni - Soule' (`AM` puro) si contendeva l'unico posto d'attacco con Malen invece dei
+        # due di trequarti, e il Bologna disegnava un mediano solo dietro quattro trequartisti. Il caso
+        # Soule' era gia' scritto QUI, nel commento della cura di tre giorni fa, come la ragione per
+        # cui la riga dichiarata esiste: una cura applicata a un orizzonte solo lascia in piedi il
+        # difetto per cui era stata scritta.
+        declared_rows = dict(self.shape_lanes(formation))
 
         def line_key(code_line: str) -> str:
             # the trequartisti compete for the attacking line: which of the two lanes they are DRAWN in
@@ -6530,7 +6540,9 @@ class SnapshotView(ttk.Frame):
             # Pulisic, che nelle ultime tre partite ha ZERO minuti. Un serbatoio piu' largo non e' una
             # scelta piu' generosa: sposta uomini in tutte e tre le righe attraverso il prestito e le
             # riparazioni.
-            if declared_rows.get("T") and any(self.LANE_OF_ROLE.get(code) == "T" for code in codes):
+            if declared_rows.get("T") and any(
+                    self.LANE_OF_ROLE.get(code) == "T" or code in self.TREQUARTI_WIDE
+                    for code in codes):
                 keys.add("T")
             for key in keys:
                 by_role.setdefault(key, []).append(row)
@@ -6766,7 +6778,25 @@ class SnapshotView(ttk.Frame):
         # rosa non riesce a coprire, e un modulo che il club ha giocato la settimana scorsa la rosa lo
         # copre per costruzione. Quello che resta - `_settle`, `_repointed`, `_native_defence` - scambia
         # UOMINI dentro i posti e non tocca le righe, quindi resta.
-        drawn_as_declared = horizon == "short"
+        # ...E UN MODULO CHE NOMINA LA SUA TREQUARTI NON HA NIENTE DA DEDURRE. `_two_rows` e il
+        # rimodellamento esistono per scoprire le righe che la FONTE non sa dire - un 4-5-1 che e'
+        # davvero un 4-4-1-1 - e un 4-2-3-1 le dice da se': la selezione qui sopra ha gia' riempito
+        # (D 4, M 2, T 3, A 1), quindi rileggere la linea dai codici disfa una decisione gia' presa.
+        # E' cio' che faceva uscire il Bologna 4-1-4-1 con un modulo scelto 4-2-3-1 al 91%: `lanes_for`
+        # concede a un uomo su un posto CENTRALE di salire di una riga, e su una riga di mezzo gia'
+        # lunga due quella concessione la svuota. Misurato sul foglio del 14/09: il disegno concorda
+        # col modulo scelto su 17 club di 20 e passa a 20 su 20, che e' dove la board breve sta gia'.
+        # Un modulo a TRE numeri resta come prima - li' la trequarti non e' dichiarata, quindi va
+        # dedotta, ed e' il caso Napoli (3-4-3 giocato come 3-4-2-1) che `_two_rows` esiste per dire.
+        #
+        # E GOVERNA LA LETTURA DELLE RIGHE, NON IL RIMODELLAMENTO, che e' la correzione che un guardiano
+        # ha imposto alla prima stesura: spegnere anche `_reshape` toglieva le cinque regole
+        # dell'operatore sul DISEGNO, e il test che cade lo dice per nome - in un 3-4-1-2 Neres restava
+        # fra i due attaccanti («non e' una Sp, e' un esterno, non potrebbe mai giocare al centro ... al
+        # massimo sulla trequarti»). Le due cose rispondono a due domande: `_two_rows` DEDUCE una riga
+        # che la fonte non sa dire, `_reshape` RIPARA un modulo che la rosa non copre - e una rosa che
+        # non copre il proprio modulo esiste su qualunque orizzonte.
+        drawn_as_declared = horizon == "short" or bool(declared_rows.get("T"))
         if not drawn_as_declared:
             # How many ROWS the shape really has: a five whose majority plays AHEAD of it is a two and a
             # three, which is the module the source cannot name. Read off the men the assignment PLACED in
@@ -6805,7 +6835,7 @@ class SnapshotView(ttk.Frame):
         out = self._repointed(out, spares)
         # A line the squad cannot fill with men who play there is redrawn around the men it has, instead of
         # showing a central midfielder on a touchline.
-        if not drawn_as_declared:
+        if horizon != "short":
             reshaped = {id(row): lane for lane, row in
                         self._reshape([(lane, row) for lane, row, _bench in out], formation)}
             out = [(reshaped.get(id(row), lane), row, bench) for lane, row, bench in out]
@@ -7009,6 +7039,27 @@ class SnapshotView(ttk.Frame):
         return bool(REAL_ROLE_SIDE.get(next(iter(codes), ""))) or role in {
             cls.LANE_OF_ROLE.get(code) for code in codes}
 
+    def declared_starter(self, row: dict) -> bool:
+        """Se l'operatore ha DICHIARATO che quest'uomo gioca (`config/player_rulings.json`).
+
+        Serve alle tre riparazioni, e la ragione e' un difetto misurato il 15/09/2026 sulla Lazio: la
+        dritta del 07/09 - «Pinamonti e' una Pc di buon livello: non gli si preferisce una ST/AM fuori
+        ruolo» - entrava nella graduatoria (`order`) e poi veniva CANCELLATA dal disegno. La traccia,
+        riga per riga: `_apart` restituisce [Pinamonti, Zaccagni, Cancellieri], `_flanked` lo butta fuori
+        per Isaksen (`RW`) su una fascia che Cancellieri copriva gia', e `_pointed` rimette al centro
+        proprio Gudmundsson (`ST;AM`), cioe' la «ST/AM fuori ruolo» che la dritta nominava. Una
+        dichiarazione applicata in un punto e disfatta nel punto dopo e' peggio di una che nessuno
+        applica, perche' nessuno se ne accorge - e questa era a verbale da otto giorni.
+
+        UN VINCOLO E MAI UN PESO, come le altre dritte: non gli si sposta il claim (quel numero e'
+        misurato e deve continuare a leggersi per quello che e') e non lo si mette davanti a nessuno che
+        `order` non gli avesse gia' messo dietro. Toglie solo alle riparazioni il diritto di scegliere
+        LUI come uomo da sacrificare; se non resta nessun altro da togliere, la riparazione rinuncia,
+        che e' il verso giusto in cui sbagliare per un vincolo (la stessa scelta di `_settle` con le
+        staffette).
+        """
+        return self.ruling_of(row) == "starter"
+
     def _flanked(self, take: list[dict], role: str, slots: int, horizon: str,
                  rivals: list[dict], wing_backs: bool = False) -> list[dict]:
         """A ROW'S FLANK IS A JOB, and the men who do it are not only the ones its own line's pool holds.
@@ -7065,7 +7116,9 @@ class SnapshotView(ttk.Frame):
                  # better than the rival does: that is what makes the swap an improvement and not a shuffle
                  if not any(other in self.sides_of(row)
                             and not any(other in self.sides_of(kept) for kept in take if kept is not row)
-                            for other in others)),
+                            for other in others)
+                 # ...e non un titolare DICHIARATO (`declared_starter`)
+                 and not self.declared_starter(row)),
                 key=lambda row: self.claim(row, horizon), default=None)
             if weakest is None:
                 continue
@@ -7130,7 +7183,8 @@ class SnapshotView(ttk.Frame):
             return take
         lone = slots == 1
         while True:
-            weakest = min((row for row in take if self._off_the_front(row, "A", lone=lone)),
+            weakest = min((row for row in take if self._off_the_front(row, "A", lone=lone)
+                           and not self.declared_starter(row)),
                           key=lambda row: self.claim(row, horizon), default=None)
             if weakest is None:
                 return take                  # every place is held by a man who plays up there
@@ -7167,7 +7221,8 @@ class SnapshotView(ttk.Frame):
         while sum(1 for row in take if "C" in self.sides_of(row)) < wanted:
             rival = max((row for row in rivals if "C" in self.sides_of(row)),
                         key=lambda row: self.claim(row, horizon), default=None)
-            weakest = min((row for row in take if "C" not in self.sides_of(row)),
+            weakest = min((row for row in take if "C" not in self.sides_of(row)
+                           and not self.declared_starter(row)),
                           key=lambda row: self.claim(row, horizon), default=None)
             if (rival is None or weakest is None or self.claim(rival, horizon) <= 0.0
                     or self.claim(weakest, horizon) - self.claim(rival, horizon)
@@ -7510,6 +7565,26 @@ class SnapshotView(ttk.Frame):
     # (a 4-4-1-1, a 3-5-1-1) or is not a module: a row of four behind a lone striker with one man holding
     # the middle is nobody's side, and `lanes_for` has the measured case of a 3-3-3-1 that is «no module».
     TREQUARTI_ROW: ClassVar[int] = 3
+
+    #: CHI E' CANDIDATO A UNA TREQUARTI, oltre a chi ha un codice `AM`. Una trequarti di tre e' un'ALA,
+    #: un trequartista e un'ala - non tre trequartisti - e il serbatoio ristretto ai soli `AM` non basta
+    #: a riempirla: misurato sul foglio del 14/09/2026, il codice `AM` e' portato da 3 uomini per club di
+    #: MEDIANA, l'Inter non ne ha NESSUNO e sette club su venti ne hanno al massimo due, contro righe che
+    #: ne chiedono da due a quattro. Una riga che non trova i suoi uomini li prende comunque dai prestiti
+    #: e dalle riparazioni, quindi il costo non e' un posto vuoto: e' che il modulo vale meno di quanto
+    #: dovrebbe (`shape_matchdays`) e il disegno finisce altrove.
+    #:
+    #: Misurato contro la forma ristretta, a parita' di tutto il resto: il giudice stampa legge DIFF 4 -> 3
+    #: e il disegno concorda col modulo scelto su 18 club di 20 -> 19, con gli stessi 153 uomini su 220.
+    #: Il Lecce e' il caso che lo mostra - un solo `AM` in rosa (Gandelman) - e passava da MATCH a DIFF
+    #: con la sola trequarti stretta.
+    #:
+    #: E NON SI ALLARGA OLTRE: le punte restano fuori. La forma che candida ogni uomo d'attacco e' gia'
+    #: stata scritta e MISURATA sull'orizzonte corto (uomini disegnati su una linea che i loro codici non
+    #: coprono 14 -> 22), e qui muoverebbe sette club invece di sei senza guadagnare un punto su nessuno
+    #: dei due bersagli. Un serbatoio piu' largo non e' una scelta piu' generosa: sposta uomini in tutte
+    #: le righe attraverso il prestito e le riparazioni.
+    TREQUARTI_WIDE: ClassVar[frozenset[str]] = frozenset(("LW", "RW"))
 
     def _two_rows(self, placed: list[tuple[str, dict]], formation: str) -> str:
         """The shape to DRAW where a row of five is really a two and a three: «spesso scambi il 4-2-3-1 con

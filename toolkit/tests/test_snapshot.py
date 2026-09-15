@@ -4619,3 +4619,54 @@ def test_il_centro_di_una_riga_lo_tiene_chi_sa_sedersi_piu_indietro():
     source = inspect.getsource(SnapshotView._centred)
     assert "def depths(entry)" in source
     assert "-first" in source and "-min((REAL_ROLE_DEPTH[code] for code in codes)" in source
+
+
+def test_a_declared_starter_survives_the_three_repairs(monkeypatch):
+    """La dritta dell'operatore non la disfa il disegno - il caso Lazio del 15/09/2026.
+
+    «Come punta centrale ci sono Noslin e Pinamonti ... Gudmundsson potrebbe essere solo un'alternativa»:
+    la dritta esisteva dal 07/09 («Pinamonti e' una Pc di buon livello: non gli si preferisce una ST/AM
+    fuori ruolo»), entrava in `order` - `_apart` restituiva [Pinamonti, Zaccagni, Cancellieri] - e poi
+    `_flanked` lo buttava fuori per un'ala su una fascia GIA' coperta, e `_pointed` rimetteva al centro
+    proprio la `ST;AM` che la dritta nominava. Una dichiarazione applicata in un punto e disfatta nel
+    punto dopo e' peggio di una che nessuno applica.
+
+    La fascia dell'attacco e' coperta da Zaccagni e Cancellieri, quindi togliere la punta per una terza
+    ala non copre niente: quello che il vincolo toglie alle riparazioni e' il diritto di scegliere LUI
+    come uomo da sacrificare, mai la loro ragione di esistere.
+    """
+    rows = [{"fc_id": str(index), "name": name, "desc_real_roles": codes, "role_classic": role,
+             "share": share}
+            for index, (name, codes, role, share) in enumerate((
+                ("Mandas", "GK", "P", 0.47),
+                ("Marusic", "DR", "D", 0.63), ("Doekhi", "DC;DR", "D", 0.54),
+                ("Provstgaard", "DC;DL", "D", 0.55), ("Pedraza", "DL", "D", 0.49),
+                ("Frattesi", "MC", "C", 0.63), ("Cataldi", "MC;DM", "C", 0.53),
+                ("Taylor", "MC", "C", 0.51),
+                ("Zaccagni", "LW", "C", 0.65), ("Cancellieri", "RW", "C", 0.51),
+                ("Isaksen", "RW", "C", 0.47), ("Gudmundsson", "ST;AM", "C", 0.43),
+                ("Pinamonti", "ST", "A", 0.40)))]
+    view = _view_of(rows)
+    view._calendar, view._slot_side, view._excluded, view._reshaped = {}, {}, set(), set()
+    from euroleghe_ingest.gui import SnapshotView as View
+
+    monkeypatch.setattr(View, "squad", lambda _self, _club: rows)
+    monkeypatch.setattr(View, "presence", lambda _self, row, _horizon: row.get("share", 0.0))
+    monkeypatch.setattr(View, "claim", lambda _self, row, _horizon="season": row.get("share", 0.0))
+    monkeypatch.setattr(View, "starting_record", lambda _self, row, _horizon: (0.0, row.get("share", 0.0)))
+
+    def drawn():
+        return {row["name"] for _lane, row, _rivals in view.eleven("Test", "4-3-3", "typical")}
+
+    # SENZA la dritta il claim decide, e la punta piu' debole del reparto resta fuori: e' il
+    # comportamento corretto quando nessuno ha dichiarato niente, ed e' anche il null di questo test.
+    view._player_rulings = {}
+    assert "Pinamonti" not in drawn()
+
+    # CON la dritta la punta gioca, e la `ST;AM` che l'operatore nominava non entra al suo posto.
+    view._player_rulings = {12: "starter"}
+    eleven = drawn()
+    assert "Pinamonti" in eleven, eleven
+    assert "Gudmundsson" not in eleven, eleven
+    # ...e il vincolo non ha svuotato le fasce, che e' la ragione per cui le riparazioni esistono
+    assert {"Zaccagni", "Cancellieri"} <= eleven, eleven

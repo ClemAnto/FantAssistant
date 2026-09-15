@@ -727,7 +727,45 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      (Castro esce), Juventus 4-2-3-1, Atalanta 4-3-3 invariata. Giudice stampa: moduli MATCH 11 -> 12
 #      e DIFF 6 -> 4, uomini 153 -> 154 su 220 - piccolo su venti club, quindi accompagna l'adozione e
 #      non la regge: quella sta sull'aritmetica del doppio conteggio.
-SHEET_REVISION = 68
+#   69 L'UNDICI DI STAGIONE SI SCEGLIE SULLE RIGHE DEL MODULO CHE SI STA DISEGNANDO (15/09/2026), dalle
+#      sei incoerenze che l'operatore ha portato guardando i campetti stagionali - «perche' risulta nello
+#      schema stagionale un'improbabile 4-1-4-1?». La cura del 12/09 - le righe che il modulo DICHIARA,
+#      trequarti compresa - era stata scritta per la sola board BREVE, e la stagione ha continuato a
+#      scegliere sulle tre linee del listone: un 4-2-3-1 collassa a (4, 5, 1), quindi la riga di mezzo ne
+#      chiedeva CINQUE e il disegno li spalmava come poteva. Il caso che l'operatore segnala oggi sulla
+#      Roma - Soule', un `AM` puro, che si contende l'unico posto d'ATTACCO con Malen invece dei due di
+#      trequarti - era gia' scritto per nome nel commento di quella cura, come la ragione per cui la riga
+#      dichiarata esiste: UNA CURA APPLICATA A UN ORIZZONTE SOLO LASCIA IN PIEDI IL DIFETTO PER CUI ERA
+#      STATA SCRITTA.
+#      Tre parti, e la seconda l'ha imposta un guardiano. (a) `declared_rows` vale su tutt'e due gli
+#      orizzonti. (b) Un modulo che NOMINA la sua trequarti non ha niente da dedurre, quindi `lanes_for`
+#      non rilegge la riga dai codici - ma il RIMODELLAMENTO resta, perche' spegnerlo toglieva le cinque
+#      regole dell'operatore sul disegno e il test che cade lo dice per nome (in un 3-4-1-2 Neres restava
+#      fra i due attaccanti). `_two_rows` DEDUCE una riga che la fonte non sa dire, `_reshape` RIPARA un
+#      modulo che la rosa non copre: due domande, e la seconda esiste su qualunque orizzonte. (c) Il
+#      serbatoio della trequarti ammette le ALI e non i soli `AM`, perche' una trequarti di tre e' ala +
+#      trequartista + ala: il codice `AM` e' portato da 3 uomini per club di mediana, l'Inter non ne ha
+#      nessuno e sette club su venti ne hanno al massimo due (`gui.TREQUARTI_WIDE`, con la forma piu'
+#      larga misurata e respinta).
+#      A/B su una variabile sola, foglio del 14/09: il disegno concorda col modulo SCELTO su 17 club di
+#      20 -> 19 (la board breve sta gia' a 20/20), 8 club mossi e 9 scambi di uomini. Giudice stampa:
+#      DIFF 5 -> 3 e uomini 152 -> 153 su 220, moduli MATCH 12 fermi. I moduli SENZA trequarti non si
+#      muovono di un decimale (180 celle di punteggio su 180 identiche), che e' la controprova che la
+#      variabile mossa e' una sola. Prezzo dichiarato: il Torino passa da 3-1-4-2 a 5-3-2 - le sue odds
+#      sono in parita' a quattro moduli (27/25/22/18%) e l'anello di ritorno le riordina - e li' il
+#      giudice perde un uomo. `engine_*` non si muove (`evaluate` non importa `presence`); si muovono
+#      `desc_titolarita*` e il claim su 27 righe di 562.
+#   69-bis UNA DRITTA DELL'OPERATORE NON LA DISFA IL DISEGNO (stesso giorno, caso Lazio). La dichiarazione
+#      del 07/09 - «Pinamonti e' una Pc di buon livello: non gli si preferisce una ST/AM fuori ruolo» -
+#      entrava in `order` e veniva CANCELLATA due funzioni dopo: `_apart` restituiva [Pinamonti,
+#      Zaccagni, Cancellieri], `_flanked` lo buttava fuori per un'ala su una fascia che Cancellieri
+#      copriva GIA', e `_pointed` rimetteva al centro proprio Gudmundsson (`ST;AM`), cioe' l'uomo che la
+#      dritta nominava. Le tre riparazioni non possono piu' scegliere un dichiarato come uomo da
+#      sacrificare (`gui.declared_starter`); se non resta nessun altro, la riparazione rinuncia. Un
+#      VINCOLO e mai un peso, come le altre dritte. Invisibile ai due giudici per costruzione
+#      (`apply_rulings=False`), quindi il verdetto della stampa non si muove di un'unita': e' la prova
+#      che la regola non lo inquina.
+SHEET_REVISION = 69
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
