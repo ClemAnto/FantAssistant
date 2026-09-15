@@ -6108,6 +6108,62 @@ Tre cose che viaggiano con lui.
   pacchetto lo dichiara arrivato?». Il selettore delle righe, intanto, era quello sbagliato e ne leggeva
   ZERO: *un passo che misura l'elemento sbagliato accusa il codice del proprio difetto*, ennesima volta.
 
+## Una prova non entra DUE VOLTE in una miscela, e un prezzo per UOMO non vincola l'UNDICI
+**15/09/2026, da quattro casi dell'operatore sul campetto di stagione** (Rabiot centrocampista invece che
+trequartista, Castro accanto a Malen, Celik `Ad` alla Juventus, l'Atalanta col 4-3-3). Tre adozioni e due
+rifiuti; dettaglio in `formazioni-tipo-v1.md` §14-§16.
+
+**TRE DEI QUATTRO CASI ERANO UNA CAUSA SOLA, E NESSUNO ERA UN PROBLEMA DI CALCIO.** Il board
+dell'ultimo periodo legge il modulo che il club DICHIARA (`club_match_lineups.formation`, dal 12/09) e
+quello di stagione leggeva i tre conteggi di linea, che non sanno dire un 4-2-3-1: lo scrivono 4-5-1, e un
+3-4-2-1 diventa 3-4-3, che pretende tre attaccanti. **I due board erano in disaccordo sul modulo in 13 club
+su 20.** La cura del 12/09 era stata applicata a un board solo; `declared_or_counted` è ora una definizione
+e TRE lettori. *Quando si cura un vocabolario, si cerca chi altro lo parla.*
+
+**E LA STESSA PROVA NON ENTRA DUE VOLTE IN UNA MISCELA SOTTO DUE NOMI.** `club_context` chiama
+`typical_formation` due volte, e la seconda porta il commento «prima che si giochi una palla è il solo
+ritiro» — vero ad agosto e falso da quando la stagione bersaglio È quella in corso, perché allora le due
+chiamate hanno lo stesso `season` e restituiscono la stessa cosa (verificato: identiche su 8 club di 8).
+Così le amichevoli pesavano a pieno nel termine di club e di nuovo come `camp`, e a settembre sono metà del
+campione: il Milan aveva 3 partite di Serie A dichiarate `3-4-2-1` e CINQUE amichevoli non dichiarate
+contate `3-4-3`, che vincevano 5 a 3. *Un commento che descrive una condizione temporale va riletto quando
+quella condizione cambia — «prima che si giochi una palla» scade da sé.*
+
+**UN PRIOR PIÙ FORTE SU UN VOCABOLARIO STANTIO È PEGGIO DI UN PRIOR DEBOLE.** `K` = 5 (quante partite di
+prior vale la stagione già vista) è misurato bene — ottimo INTERNO, scelto da tutte e cinque le pieghe,
+−34% di Brier sull'incumbent, che è `trust` fisso a 0,90 cioè K = k/9, **un prior il cui peso CRESCE con
+l'evidenza** — e **non è adottato**: il prior del banco è la lega, quello del codice è in parte il
+repertorio dell'allenatore, dichiarato all'80% ancora a tre linee. Provato sul pannello riporta tre club al
+vocabolario vecchio e disfa la correzione di un'ora prima. *Una costante misurata su un prior non si
+trasferisce a un codice il cui prior è un altro.*
+
+**E UN PREZZO PER UOMO NON PUÒ ESPRIMERE UN VINCOLO SULL'UNDICI.** Il lato MISURATO (dove un uomo ha
+davvero giocato, da `tm_appearances`) batte nettamente il codice dove i due discordano: su 107.034
+previsioni fuori campione l'errore va da 0,985 a 0,579 (**−41%**) sul 4,5% dei casi in disaccordo, e
+l'ottimo è la **sostituzione piena**, monotona. Eppure sostituirlo in `_slot_price` ROMPE il disegno: il
+Milan perde tutt'e due le fasce. La causa non è la forma — è che l'undici deve coprire due fasce e la
+SELEZIONE, che è del claim, non sa di doverlo fare: il Milan ha tre uomini misurati a sinistra per una
+fascia sola, e l'unico misurato a destra (Chukwueze) il claim non lo disegna. È «le parti non fanno il
+tutto» (l'R-Factor) su una STRUTTURA invece che su una soglia, e scopre che «il claim sceglie CHI, il fit
+decide solo DOVE» reggeva finché i codici erano abbastanza elastici da far coprire una fascia a chi
+capita. *Rendere più accurato ogni pezzo separatamente può peggiorare l'insieme, quando l'insieme ha una
+struttura che nessun pezzo conosce.*
+
+**DUE TRAPPOLE DI MISURA, e la prima invalida un A/B intero.** `press --sheet DIR` **RIDISEGNA** le board
+col pannello di adesso: la stessa cartella, giudicata prima e dopo una modifica a `gui.py`, è passata da
+154/220 a 152/220. Un A/B su `gui.py` va COSTRUITO e GIUDICATO con lo stesso codice per ogni braccio — un
+giudice che rilegge il codice non è una funzione del solo artefatto. E `positions --layer formations`
+riempie la **CACHE** e non il database: dichiara «2484 lati hanno ora il modulo» mentre nessun lettore li
+vede, perché la colonna la scrive il reparse offline. È «il dato c'era e mancava un lettore» spostato di un
+passo indietro — il dato c'è e manca l'INGESTIONE.
+
+**E DUE PREVISIONI PRE-REGISTRATE SMENTITE NELLA STESSA GIORNATA, tenute a verbale perché è il verso
+giusto.** «La rietichettatura muoverà zero club» era sbagliata (ne muove 5) perché leggevo
+`formation_shapes` come il repertorio di carriera, che è quello che il board cita nel proprio `why`, mentre
+è la stagione in corso — *verifica la FUNZIONE, non la colonna che le somiglia*, ennesima volta. E
+«l'ottimo del tiraggio sarà interno fra 90 e 270 minuti, altrimenti la diagnosi va riscritta» è caduta sul
+bordo: la diagnosi è stata riscritta. *Una previsione falsificata riscrive la diagnosi, mai il criterio.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
