@@ -1754,3 +1754,47 @@ che resta è **fuori** da quel lavoro e va deciso.
    tre partite per uomo, quindi una quota può valere solo 0/⅓/⅔/1); dare una stagione alle letture del
    FOGLIO (una previsione di una stagione finita è un esito, e ha già `actual_*`); dedurre la stagione
    di una condizione invece di salvarla (senza, «mv > 7 e mv < 6» non ha soluzioni).
+
+## Aperto dopo la sessione del 15/09/2026 (i campetti stagionali, e la posizione dichiarata)
+
+Ordinati per quanto costano, e ognuno col numero che serve per decidere se aprirlo. Dettaglio e misure:
+`formazioni-tipo-v1.md` §17.
+
+1. **LA TERZA FACCIA DELLE DRITTE: la POSIZIONE.** Oggi `config/player_rulings.json` governa **quanto**
+   gioca un uomo e non **dove** — «una dichiarazione su QUANTO gioca non è una dichiarazione su DOVE» —
+   quindi l'operatore non ha nessun canale per dire «Cissé è un trequartista» o «Koopmeiners è un
+   centrocampista», che sono due sue segnalazioni rimaste senza risposta. Sarebbe un campo accanto a
+   `standing`, con la stessa forma di tutte le dritte: un VINCOLO e mai un peso, datato, revocabile, e
+   **invisibile ai due giudici**. È l'unica delle voci qui che l'operatore ha di fatto chiesto due volte.
+   Prima di scriverla, contare quanti uomini la userebbero: i casi noti sono 2.
+
+2. **Bologna / Pobega, e la causa NON è quella che sembra.** Odgaard ha la trequarti confermata (3 su 3)
+   ma a centrocampo lo tiene davanti il claim, **0,498 contro 0,455**, e Pobega ha giocato 2 delle 3
+   quindi non ha una riga confermata da opporgli. La cura ovvia — far cedere la classificazione del
+   provider (`PROVIDER_LINE`) davanti alla riga confermata — è stata scritta e misurata: **effetto ZERO,
+   0 club mossi**. Quindi Odgaard entra a centrocampo da un'altra via, e chi riapre la voce cominci
+   tracciando quella, non riscrivendo la stessa cura.
+
+3. **Il caso Yildiz/Gonzalez resta aperto e le tre strade ovvie sono chiuse.** Serve che il prezzo di un
+   posto sappia distinguere «lo metto qui perché è il suo posto» da «lo metto qui perché non c'è nessun
+   altro» — cioè un vincolo di COPERTURA nella selezione, che è il primo dei due candidati che §16.3
+   aveva già pre-registrato. Il secondo (la misura come spareggio fra uomini pari) è più piccolo e va
+   provato per primo. Vale 2 uomini su 200, quindi non è urgente: quello che è urgente è non ritentare
+   le tre forme già misurate.
+
+4. **Il giudice della board di stagione è vecchio di cinque settimane.** `press_formations` porta 20 club
+   letti l'**8 agosto**, con rose che nel frattempo sono cambiate (la Juventus di quel riferimento ha Di
+   Gregorio in porta). Ogni verdetto di questa giornata lo dichiara, e +1 uomo su 220 è dentro il rumore.
+   Una lettura nuova della stampa renderebbe misurabile tutto il §17; senza, le adozioni stanno in piedi
+   sull'argomento strutturale e non sul giudice.
+
+5. **Il Torino a 5-3-2**, prezzo dichiarato della revisione 69: le sue odds sono in parità a quattro
+   moduli (27/25/22/18%) e l'anello di ritorno le riordina. Da riguardare quando il club avrà una
+   abitudine, non prima — su una parità così, muovere una costante è tararla sul rumore.
+
+**COSA NON RIPROVARE, coi numeri.** Spegnere `_reshape` insieme alla rilettura delle righe (toglie le
+cinque regole dell'operatore sul disegno; un guardiano lo dice per nome). Allargare il serbatoio della
+trequarti a ogni uomo d'attacco e non alle sole ali (muove 7 club invece di 6 e non guadagna su nessuno
+dei due bersagli; sull'orizzonte corto era già stato misurato a 14 → 22 fuori ruolo). Le tre cure sul lato
+per uomo del punto 3. E la conferma del posto su **tutte** le partite invece che sulla maggioranza: tiene
+Celik e perde Baturina, che è uno dei due casi da cui la regola nasce.

@@ -495,6 +495,46 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.93 (15 settembre 2026 — LA BOARD DI STAGIONE SCEGLIE SULLE RIGHE DEL MODULO, E PRENDE ATTO DEL POSTO)
+
+`SHEET_REVISION` 68 → **70**, due passi. Tutto nasce da segnalazioni dell'operatore sui campetti
+STAGIONALI; il dettaglio con le tabelle è in `formazioni-tipo-v1.md` §17.
+
+**Revisione 69 — le righe che il modulo DICHIARA valgono su tutt'e due gli orizzonti.** La cura del 12/09
+era stata scritta per la sola board breve, e la stagione continuava a scegliere sulle tre linee del
+listone, dove un 4-2-3-1 collassa a (4, **5**, 1): la riga di mezzo ne chiedeva cinque e il disegno li
+spalmava come poteva. Tre parti — `declared_rows` ovunque; un modulo che NOMINA la sua trequarti non la fa
+rileggere dai codici, **ma il rimodellamento resta** (spegnerlo toglieva le cinque regole dell'operatore, e
+un guardiano lo dice per nome: in un 3-4-1-2 Neres restava fra i due attaccanti); il serbatoio della
+trequarti ammette le ALI, perché il codice `AM` è portato da 3 uomini per club di mediana e l'Inter non ne
+ha nessuno. Con lei, `gui.declared_starter`: le tre riparazioni non possono più sacrificare un uomo che una
+dritta dichiara titolare, difetto che teneva fuori Pinamonti da otto giorni.
+
+**Revisione 70 — il POSTO che la finestra CONFERMA entra nel disegno di stagione.** `gui.held_side` (il
+fianco) e `gui.held_lane` (la riga), letti dal numero della DISTINTA dentro il modulo dichiarato di quella
+partita (`desc_recent_slots`) e non da `played_side`, che viene da Transfermarkt e lì la riga è ambigua.
+Il fianco si AGGIUNGE ai lati che l'uomo può coprire, la riga diventa la sua CASA — e serve, perché la casa
+decide chi una linea può CEDERE. Soglia: **maggioranza** della finestra, misurata contro «tutte». Con lei
+due correzioni: `_flanked` ripara solo le fasce SCOPERTE (era diventato un massimizzatore di claim su ogni
+corsia), e un'ala è candidata alla trequarti solo se è il suo PRIMO codice — difetto introdotto dalla 69 e
+trovato dall'operatore il giorno dopo su Malen (`ST;RW`, che finiva a centrocampo).
+
+**Una definizione e due lettori**: `gui.fit_side` incapsula la scelta fra i due lati giocati, che viveva
+in due punti (`_slot_price` e `measured_across`) — una riga che qualcuno avrebbe aggiornato per metà.
+
+**Numeri**: disegno concorde col modulo scelto **17/20 → 19/20**, giudice stampa DIFF **5 → 3** e uomini
+**152 → 154** su 220, accordo fra board di stagione e board breve **171 → 175** su 220; i moduli senza
+trequarti fermi su **180 celle di 180**, che è la controprova della variabile singola. `engine_*` non si
+muove (`evaluate` non importa `presence`); si muovono 18 righe della scala di titolarità, 13 di gradino.
+**Prezzo dichiarato**: il Torino passa a 5-3-2, su odds in parità a quattro moduli.
+
+**E TRE CURE SUL LATO PER UOMO, MISURATE E NON ADOTTATE** (il caso Yildiz/Gonzalez): il lato dal solo
+mestiere, la penalità d'ordine ×2, la penalità alta solo dove il primo codice nomina una fascia. Guadagnano
+3-5 posti su 166 sul giudice dei lati — costruito togliendo gli uomini il cui lato il prezzo legge già da
+lì, o sarebbe circolare — e rompono da 3 a 4 guardiani della COPERTURA DELLE FASCE. È
+`formazioni-tipo-v1.md` §16.2 ritrovata da un'altra strada: un prezzo PER UOMO non può esprimere un vincolo
+sull'UNDICI. Il verbale è nel docstring di `_slot_price`, così la misura non va rifatta.
+
 ## Novità v9.92 (13 settembre 2026 — I QUINDICI RILIEVI SPEDITI, E LA GUARDIA DI UN NUMERO STA DOVE IL NUMERO NASCE)
 
 Il blocco che chiude la code-review della lettura per slot (`formazioni-tipo-v1.md` §12.8-§12.9). Quindici

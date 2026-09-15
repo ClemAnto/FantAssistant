@@ -5479,3 +5479,24 @@ Si scrivono perché sono il modo in cui si sbaglia, non perché siano interessan
 * **Lo screen «acquisto importante in rampa»** (Qt.I nel top 20% + gli mancano giornate perché non
   c'era, oppure ha già subentrato) è misurato e non implementato: oggi accenderebbe **6 righe su 532**
   — Kessié, Woltemade, Perri, Theate, Gonçalves P., Jones C.
+
+# 43 — La didascalia dell'ultimo periodo esce dai Club (15 settembre 2026)
+
+Richiesta dell'operatore, arrivata in mezzo al lavoro sui campetti: «Undici dell'ultimo periodo · ultime 3
+partite di campionato in cui era disponibile · 2 uomini che la stagione non schiera · 1 scesi a
+"ballottaggio" perche' il padrone del posto rientra — questo commento non serve, eliminiamolo».
+
+Tolta. La ragione per cui era stata scritta resta valida in generale — «uno stato scelto si dice», la
+stessa regola della lente sulla plancia — e qui non reggeva il suo peso: il pulsante che commuta i due
+orizzonti dice gia' quale board si sta guardando, e i due conteggi erano un dettaglio diagnostico che il
+toolkit stampa comunque a fine corsa.
+
+**Con lei e' uscito il `computed` che alimentava soltanto lei** (`ClubsStore.shortMoved`), perche' un
+calcolo che nessuno legge e' debito. `shortWindow` invece resta: lo legge il tooltip di `shortHint`, dove
+la finestra e' DICHIARATA dal toolkit e non ricopiata in TypeScript.
+
+**E UN DEBITO DICHIARATO INVECE CHE SILENZIOSO**: `shortShiftOf` in `valuation-store.ts` non ha piu'
+nessun lettore nell'app. E' rimasta perche' e' pura e il suo test documenta la forma di `boards.json`, con
+una nota sopra la firma che dice esattamente questo — va tolta insieme al suo test il giorno che nessuno
+la richiama. Una funzione esportata senza lettori e senza una riga che lo dica e' la cosa che il prossimo
+trova e non sa se puo' toccare.
