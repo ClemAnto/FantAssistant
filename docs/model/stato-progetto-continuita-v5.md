@@ -65,6 +65,25 @@ passo dall'uccidere venticinque minuti di lavoro. E ho lanciato la suite con `--
 pytest non ha: **il comando e' uscito con codice 0 senza eseguire un test**, cioe' un verde che non
 aveva guardato niente. Rilanciata: **910 passed, 2 skipped**.
 
+**E LA TERZA RICHIESTA DELLA SESSIONE E' UNA FEATURE: il doppio click che ordina** (Strategia,
+`pagina-strategia-v1.md` §20, commit `6eecbc2`). «Doppio click su un valore nell'item del giocatore =
+ordina per quello, un secondo = inverte, e deve funzionare anche sul nome.» **La chiave esisteva già**
+- ogni pastiglia porta `reading.id`, che E' la stessa stringa che il selettore mette in `sort` - quindi
+non se n'è costruita una seconda. Il NOME è una chiave e non una lettura; il VERSO ha un naturale per
+chiave (un numero dal più alto, un nome dalla A) e vive in un campo suo, perchè `sort` passa da una
+guardia a elenco e un `-swing` sarebbe un ordinamento che si perde alla prima ricarica. **I vuoti
+restano in fondo in TUTT'E DUE i versi**: prima un ignoto entrava come `-Infinity`, cioè come un
+numero, e invertendo finiva in cima. **E la guardia sul click non è un di più**: togliendola il banco
+passa da 0 problemi a 10, perchè la card aperta si prende il secondo click e il `dblclick` non arriva
+mai al bersaglio - la forma della plancia applicata PER BERSAGLIO, dato che qui il gesto raro arriva
+secondo. Verificato dove un gesto si verifica (`e2e-strategy-sort.mjs`, puntatore vero, `clickCount: 2`),
+con la controprova che nomina le asserzioni che cadono.
+
+**E QUEL COMMIT PORTA DUE SESSIONI**, dichiarate nel messaggio: la mia metà e il gain-come-pastiglia
+dell'altra, piu' i suoi due banchi. Separare avrebbe lasciato ROSSO il banco nuovo su HEAD - cioè
+esattamente quello che la regola «non committare la metà di un altro» esiste per evitare - e l'albero
+COMBINATO è quello misurato (990 test, build pulito, cinque banchi).
+
 APERTO: la cura del resume e' nel codice ma **nessuna corsa l'ha ancora esercitata sulla rete** (il
 recupero di stasera e' stato fatto con `--refresh`, che scavalca il resume): la prima prova vera e' il
 prossimo weekend, e il segno da guardare e' che una giornata parziale venga ripresa **senza** che nessuno
