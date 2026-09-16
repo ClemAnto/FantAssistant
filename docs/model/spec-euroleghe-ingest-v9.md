@@ -495,6 +495,84 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.98 (16 settembre 2026 — IL CALCIO GIÀ GIOCATO ENTRAVA IN METÀ DELLA CATENA)
+
+Dalla richiesta dell'operatore: «adesso abbiamo formazione a breve termine e formazione stagionale tipo
+… e conosciamo qualche partita per avere una traccia della mediavoto e della fantamedia più veritiera:
+analizza le varie funzioni surplus e similari per vedere se è tutto ok». L'aritmetica era sana —
+`(fm − rimpiazzo) × pv × confidenza` riproduce le due colonne su **1.533 righe motore e 2.075 stimate,
+0 fallimenti** — e il calcio di quest'anno entrava in una colonna sì e in quella accanto no.
+
+### 1. `est_fm` era cieca sulle partite giocate mentre `est_pv` no (`SHEET_REVISION` 71)
+
+Il 07/09 le giornate viste sono entrate nelle PRESENZE di ripiego (`est.presences_with_seen`) e non nella
+FANTAMEDIA: da allora due colonne della stessa riga rispondevano su due campioni diversi. Sul foglio Serie
+A del 16/09 sono **145 righe su 561**, scarto mediano **0,488** di fantamedia fra quella tenuta quest'anno
+e la colonna, **32 righe oltre 1,0** (Raimondo 9,62 contro 6,37; Kolo Muani 5,38 contro 6,85). La prova che
+non era una scelta: **l'app lo faceva già** per lo SWING (`swing.inSeason`, guardia `fmBlendsSeen` accesa
+proprio sulle righe che il motore non prezza), quindi sullo stesso schermo un numero leggeva il calcio
+giocato e quello accanto no.
+
+`est.value_with_seen`, chiamata da `snapshot.estimate_for` su **fantamedia e voto base insieme**, perché
+`fm − mv` è il tasso di bonus della riga e muoverne una sola scaricherebbe su quel tasso tutta la novità
+della stagione (il difetto v9.59). Misurata fuori campione sulle quattro finestre retrodatate, esito = la
+media del RESTO della stagione, K scelta sulle altre tre:
+
+| colonna | n | null | cross-fit | finestre | ottimo pooled |
+|---|---:|---:|---:|---:|---|
+| `est_fm` | 515 | 0,4059 | **+2,8%** | 3 su 4 | interno, K = 20 (banda 15-25 piatta) |
+| `est_mv` | 515 | 0,2183 | **+4,7%** | **4 su 4** | interno, K = 20 |
+
+La finestra che non guadagna (−0,1%) ha **due** giornate viste su 35: lì non c'è campione, ed è la ragione
+per cui la forma è una miscela e non un interruttore. **La K è quella di R25** (`snapshot.seen_matches`, da
+`evaluate.ADOPTED`) e non la propria: le due metà devono pesare le stesse partite allo stesso modo, e il
+prezzo è dichiarato — +2,5% invece di +2,8%, un decimo di quello disponibile, lo stesso baratto che la
+sorella delle presenze ha già fatto per non avere due K. Su `euro` R25 non è adottata e la miscela **si
+spegne da sé**. Effetto sul foglio vivo: 145 righe, **56 su e 89 giù** (Raimondo +5,3 di surplus, Kolo
+Muani −3,0) — nei due versi, che è ciò che distingue una misura da un premio.
+
+**E LA NOTA DELLA RIGA ORA LO DICE.** Il testo di un rung descrive il PRIOR: sei righe dicevano «nothing
+measured anywhere» portando dentro quattro partite di quest'anno. Una riga deve poter spiegare il proprio
+numero, quindi la nota nomina le partite invece di lasciarle dedurre.
+
+### 2. La media minuti di un portiere non aveva un campione minimo (`SHEET_REVISION` 71-bis)
+
+Il ramo `P` di `minutes.per_appearance` restituiva `minuti / presenze` grezzo — giusto e misurato finché le
+presenze erano un CONTEGGIO, fuori dominio da quando `presence.blend_seasons` (04/09) le rende una
+frazione. Sedici righe di foglio leggevano **120 minuti esatti** (Adrian, 12,0 / 0,1) e altrettante 3-10
+minuti; e il difetto cresce al calare del campione — sotto mezza presenza **53 righe su 209** stanno fuori
+da [70, 95], sopra le dieci presenze **nessuna**.
+
+Ora il rapporto si regge su `START_MINUTES["P"]` (quanto dura la partenza di un portiere, il numero che il
+regolamento scrive già di lui) con la taglia del proprio campione, `keeper_prior_matches` = **6**. Esito =
+i minuti a presenza davvero tenuti nel campionato bersaglio, K scelta sulle altre tre finestre: **MAE 3,18
+→ 1,88 minuti, +40,9%, 4 finestre su 4** (+48,7 · +21,7 · +52,8 · +11,6%), ottimo **interno** (K=2 1,933 ·
+4 1,848 · **6 1,828** · 8 1,829 · 12 1,855 · 16 1,886). **Dove il campione c'è non cambia niente** — sopra
+le dieci presenze 0,60 contro 0,60 — ed è la metà che rende la cura sicura. Sul foglio vivo 17 portieri su
+67 si muovono, 6 dei quali attraversano un pavimento della scala della titolarità.
+
+**La stessa cura sui giocatori di MOVIMENTO è misurata e RESPINTA**: smorzare il residuo con la taglia del
+campione legge **0 finestre su 4** e peggiora in modo monotono su tutta la griglia (11,29 → 11,33 a K=0,5,
+11,53 a K=20). Il loro errore a campione corto — 20-25 minuti fra mezza e due presenze, sempre verso l'ALTO
+(D 68' previsti contro 46' veri) — non è nel residuo: è nel LIVELLO, cioè nel tasso di partenza previsto,
+e toglierlo dal residuo cura il pezzo sbagliato. Per questo la shrinkage vive nel ramo del portiere e non
+sopra di lui, e un test lo pretende.
+
+### 3. `engine_*` non si muove, e si verifica
+
+Nessuna delle due tocca il percorso del gate: `evaluate` importa `cups`, `features` e `model` e nient'altro
+— non `minutes`, non `estimate`, non `presence`. **`backtest --verify` letto per intero: 22/22 reproduced.**
+Tutte e due sono inoltre INERTI a zero giornate giocate, quindi nessuna finestra pubblicata si muove.
+
+### 4. E l'app smette di correggere ciò che il foglio ora porta
+
+Lo SWING applicava la miscela in-season proprio sulle righe stimate: con la 71 quelle righe la portano già,
+quindi la correzione le peserebbe **due volte**. La guardia perde il secondo termine e diventa una domanda
+sulla sola PIATTAFORMA (`swing.sheetBlendsSeen`), scritta **una volta** e letta dai tre punti che prima la
+ripetevano (plancia, Strategia, Squadre) — il giorno in cui R25 venisse adottata su `euro` è l'unica riga
+da cambiare. Il transitorio è detto: con un bundle più vecchio della 71 una riga stimata di `default` perde
+la correzione per un giro di export, che è l'errore che OMETTE invece di contare due volte.
+
 ## Novità v9.97 (16 settembre 2026, notte — UNA GIORNATA VOTATA A META' SI LEGGEVA COME COMPLETA)
 
 Dalla segnalazione dell'operatore («aggiorna anche il db, non vedo le ultime partite della serie a»), e

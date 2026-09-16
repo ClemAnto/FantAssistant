@@ -1,18 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  GOALS_PER_POINT,
-  LADDER_FLOOR,
-  LADDER_KINK,
-  LADDER_RUNG,
-  MATCHDAY_MEAN,
-  MATCHDAY_SD,
-  ROLE_STEADY,
-  SEEN_MATCHES,
-  STEADY_MARGINAL,
-  STEADY_SHARE,
-  swingOf,
-} from './swing';
+import { GOALS_PER_POINT, LADDER_FLOOR, LADDER_KINK, LADDER_RUNG, MATCHDAY_MEAN, MATCHDAY_SD, ROLE_STEADY, SEEN_MATCHES, STEADY_MARGINAL, STEADY_SHARE, sheetBlendsSeen, swingOf } from './swing';
 
 describe('la scala dei gol', () => {
   it('e il ginocchio mezzo gradino sotto il pavimento, che e la media della scalinata', () => {
@@ -312,5 +300,30 @@ describe('la fantamedia gia tenuta in questa stagione (R25)', () => {
     const solo = swingOf(base)!;
     expect(gated).toBeCloseTo(solo, 9);
     expect(doppio).toBeGreaterThan(gated);
+  });
+
+  /**
+   * ...E DALLA REVISIONE 71 LA PORTA ANCHE PER LE RIGHE STIMATE (16/09/2026). La cascata di ripiego
+   * miscela la fantamedia come il motore, quindi la domanda non ha piu' un secondo termine: la guardia
+   * e' della PIATTAFORMA e non della riga, e vive in un posto solo perche' tre copie sarebbero tre
+   * risposte il giorno in cui R25 venisse adottata anche su `euro`.
+   */
+  it('la guardia e della piattaforma e non della riga', () => {
+    expect(sheetBlendsSeen('default')).toBe(true);
+    expect(sheetBlendsSeen('euro')).toBe(false);
+    expect(sheetBlendsSeen(null)).toBe(false);
+    expect(sheetBlendsSeen(undefined)).toBe(false);
+  });
+
+  /**
+   * La guardia deve spegnere ESATTAMENTE il termine in-season e nient'altro: se spegnesse anche la
+   * costanza o la ribasatura sul 6, la colonna direbbe un'altra cosa sulle righe di `default`.
+   */
+  it('spegne il termine in-season e nessun altro', () => {
+    const acceso = { ...base, seasonFm: 8.0, seasonPlayed: 15, steady: 0.8 };
+    const senza = swingOf({ ...acceso, fmBlendsSeen: sheetBlendsSeen('default') })!;
+    const nudo = swingOf({ ...base, steady: 0.8 })!;
+    expect(senza).toBeCloseTo(nudo, 9);
+    expect(swingOf({ ...acceso, fmBlendsSeen: sheetBlendsSeen('euro') })!).not.toBeCloseTo(nudo, 9);
   });
 });

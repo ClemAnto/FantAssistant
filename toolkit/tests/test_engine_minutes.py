@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from euroleghe_ingest.engine import minutes
 
 # A midfielder with a full season: 30 appearances, 2400 minutes, started 80% of them.
@@ -69,9 +71,21 @@ def test_without_a_prediction_only_the_shrinkage_acts():
 
 def test_the_keeper_is_not_rescaled():
     """Measured: rescaling him is WORSE (MAE 3.65 -> 6.19 and 2.24 -> 5.88 on the two windows), because
-    his P is 1 by the rulebook and the model's is not. His measurement is his forecast."""
+    his P is 1 by the rulebook and the model's is not. His measurement is his forecast.
+
+    L'INVARIANTE E' «IL TASSO DI PARTENZA NON LO TOCCA», non un letterale (16/09/2026). Questo test
+    chiedeva `== 90.0` ed e' caduto quando la media del portiere ha preso il prior della propria taglia
+    di campione: con 30 presenze quel prior pesa il 17% e 90,0 diventa 89,92, che e' un cambiamento vero
+    e non un difetto. Riscritto sulla sostanza che difende - variare `presence_share`, `expected_share`
+    e la quota di partenze non muove la sua previsione di un decimale, mentre muove quella di chiunque
+    altro - com'e' gia' successo a `test_refresh_is_set_where_the_source_moves_and_nowhere_else`.
+    """
     kept = minutes.per_appearance("P", 2700.0, 30.0, 1.0, 0.2, 0.9)
-    assert kept == 90.0
+    assert kept == pytest.approx(90.0, abs=0.2)
+    # ...e questa e' l'affermazione: per lui i tre ingressi del MODELLO non contano
+    assert minutes.per_appearance("P", 2700.0, 30.0, 0.1, 0.9, 0.1) == kept
+    assert minutes.per_appearance("C", 2700.0, 30.0, 0.1, 0.9, 0.1) != minutes.per_appearance(
+        "C", 2700.0, 30.0, 1.0, 0.2, 0.9)
 
 
 def test_an_unknown_role_gets_its_own_constants_and_not_the_midfielder_s():
@@ -197,3 +211,43 @@ def test_the_panel_passes_its_own_share_and_only_where_it_is_adopted():
                                              minutes.DEFAULTS, 0.60)
     assert on_default == minutes.per_appearance("C", 2400.0, 30.0, 0.8, 0.70, 24.8 / 31)
     assert on_euro != on_default
+
+
+def test_a_keeper_forecast_stays_inside_a_match_however_short_his_sample():
+    """120 minuti non sono una previsione, e la miscela della finestra li rendeva normali.
+
+    Il ramo del portiere restituiva `minuti / presenze` grezzo: giusto finche' le presenze erano un
+    CONTEGGIO, fuori dominio da quando `presence.blend_seasons` le rende una frazione. Adrian leggeva
+    12,0 / 0,1 = 120 minuti sul foglio del 16/09/2026, e sedici righe su 10.369 stavano cosi'.
+
+    Il test guarda il DOMINIO e non un numero magico: una partita dura una partita, e chiunque abbia un
+    campione ridicolo deve poggiare sul prior invece che sulla propria estrazione.
+    """
+    assert minutes.per_appearance("P", 12.0, 0.1, None, None, None) <= minutes.MAX_MINUTES
+    # e il caso opposto, che e' lo stesso difetto: un solo spezzone non fa di lui un portiere da 3'
+    assert minutes.per_appearance("P", 3.0, 0.05, None, None, None) > 80.0
+    # DOVE IL CAMPIONE C'E', NULLA CAMBIA: e' la meta' che rende la cura sicura, ed e' misurata
+    # (MAE 0,60 contro 0,60 sopra le dieci presenze).
+    assert minutes.per_appearance("P", 2700.0, 30.0, None, None, None) == pytest.approx(90.0, abs=0.2)
+
+
+def test_the_keeper_prior_is_a_parameter_a_harness_can_move():
+    """Una costante che nessun banco raggiunge e' una costante che nessuno puo' rimisurare (7-bis)."""
+    short = replace(minutes.DEFAULTS, keeper_prior_matches=0.0)
+    # a K = 0 il prior non pesa e il ramo torna a essere quello di prima, che e' il punto della griglia
+    # con cui l'adozione e' stata confrontata
+    assert minutes.per_appearance("P", 900.0, 12.0, None, None, None, short) == pytest.approx(75.0)
+    assert minutes.per_appearance("P", 900.0, 12.0, None, None, None) > 75.0
+
+
+def test_the_outfield_residual_is_not_shrunk_by_the_sample_and_that_is_measured():
+    """La stessa cura sui giocatori di movimento e' stata misurata e RESPINTA (0 finestre su 4).
+
+    Vive percio' nel ramo del portiere e non sopra di lui, e questo test lo pretende: chi ha un livello e
+    un tasso non dipende dalla taglia del campione per il proprio residuo, quindi cambiare la costante del
+    portiere non puo' muovere un centrocampista.
+    """
+    moved = replace(minutes.DEFAULTS, keeper_prior_matches=40.0)
+    for role in ("D", "C", "A", "?"):
+        assert (minutes.per_appearance(role, 600.0, 10.0, 0.5, 0.6, 0.6, moved)
+                == minutes.per_appearance(role, 600.0, 10.0, 0.5, 0.6, 0.6))

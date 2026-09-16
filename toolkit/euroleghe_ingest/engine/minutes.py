@@ -69,6 +69,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from euroleghe_ingest.engine import model
+
 # ---------------------------------------------------------------- the two constants, measured
 #
 # S and C: how long a START lasts and how long a SUBSTITUTE APPEARANCE lasts, by listone role. Measured
@@ -112,6 +114,25 @@ class Params:
     # perverse direction `model_share` exists to remove, and looking for a coefficient with the wrong
     # sign is not measuring, it is fishing.
     news_weight: float = 0.0
+    # QUANTE PRESENZE DI PRIOR VALE LA MEDIA MISURATA DI UN PORTIERE. Il suo ramo non ha ne' livello ne'
+    # tasso - la media misurata E' la previsione, ed e' misurato (sotto) - quindi per lui la taglia del
+    # campione e' l'unica cosa fra il numero e il rumore, e da quando la finestra e' MISCELATA
+    # (`presence.blend_seasons`, 04/09/2026) il denominatore puo' valere una frazione di presenza:
+    # 12 minuti diviso 0,1 presenze leggeva **120 minuti** su una riga di foglio.
+    #
+    # Il prior e' `START_MINUTES["P"]`, cioe' quanto dura la PARTENZA di un portiere, che e' il numero
+    # che il regolamento gia' scrive di lui (ne schieri uno e gioca la partita) e non una costante nuova.
+    # Misurato fuori campione sulle quattro finestre retrodatate, esito = i minuti a presenza che ha poi
+    # davvero tenuto nel campionato bersaglio (almeno due presenze vere, o la verita' e' rumore anche lei),
+    # K scelta sulle ALTRE tre finestre: **MAE 3,18 -> 1,88 minuti, +40,9%, 4 finestre su 4** (+48,7% ·
+    # +21,7% · +52,8% · +11,6%), e l'ottimo pooled e' INTERNO a 6 con la banda 5-8 piatta entro l'1%
+    # (K=2 1,933 · 4 1,848 · **6 1,828** · 8 1,829 · 12 1,855 · 16 1,886).
+    #
+    # DOVE IL CAMPIONE C'E' NON CAMBIA NIENTE, ed e' la meta' che rende la cura sicura: per chi ha piu' di
+    # dieci presenze miscelate il MAE resta 0,60 contro 0,60, perche' li' il peso della misura e' gia' il
+    # 63% e sale. Quello che si muove e' la coda - sotto mezza presenza 13,50 -> 1,24 - cioe' esattamente
+    # la popolazione in cui un rapporto non e' una media.
+    keeper_prior_matches: float = 6.0
 
 
 DEFAULTS = Params()
@@ -212,6 +233,22 @@ def per_appearance(role: str | None, minutes: float | None, matches: float | Non
     windows, against 6.19 and 5.88 for the rescaled version - the structural form makes him worse because
     his P is 1 by construction and the model's P is not).
 
+    ...MA UNA MEDIA HA BISOGNO DI UN CAMPIONE, e il suo e' l'unico ramo che non ha nient'altro (16/09/2026).
+    Gli altri tre tengono il LIVELLO (`sub + rate x (start - sub)`) e usano la misura solo per il residuo,
+    al 20%; qui la misura e' tutto il numero, quindi con un denominatore che vale una frazione di presenza
+    - cosa che la finestra MISCELATA rende normale - il rapporto non e' una media ma un'estrazione. Sui
+    fogli veri erano 16 righe a 120 minuti esatti (Adrian, 12,0 / 0,1) e, dal lato opposto, portieri a 5
+    minuti. Il rapporto si regge quindi su `START_MINUTES["P"]` con la taglia del suo campione
+    (`keeper_prior_matches`, misurata li'), che e' la stessa shrinkage di `model.blend_with_seen` e della
+    miscela delle stagioni - e sopra le dieci presenze non muove un decimale.
+
+    E LA STESSA CURA SUI GIOCATORI DI MOVIMENTO E' MISURATA E RESPINTA, che e' la ragione per cui vive nel
+    ramo del portiere e non sopra di lui: smorzare il residuo con la taglia del campione (stessa forma,
+    `anchor x K/(n+K)`) legge **0 finestre su 4 e peggiora in modo monotono** in tutta la griglia (MAE
+    11,29 -> 11,33 a K=0,5, 11,53 a K=20). Il loro errore a campione corto - 20-25 minuti fra mezza e due
+    presenze, e sempre verso l'ALTO (D 68' previsti contro 46' veri) - non e' nel residuo: e' nel livello,
+    cioe' nel tasso di partenza previsto, e toglierlo dal residuo cura il pezzo sbagliato.
+
     A man with no measured start rate keeps his own average untouched: without `P_prev` the residual is
     undefined, and substituting the population's would turn «unknown» into «average», which is the failure
     mode the window branch of `presence.standing` was rewritten to avoid.
@@ -223,7 +260,12 @@ def per_appearance(role: str | None, minutes: float | None, matches: float | Non
     if line not in START_MINUTES:
         line = "?"
     if line == "P":
-        return measured
+        # La sua media E' la previsione, retta dalla taglia del proprio campione: `n` presenze contro `K`
+        # di prior, dove il prior e' quanto dura la partenza di un portiere. A `matches` grande il peso
+        # della misura tende a 1 e questo ramo torna a essere `measured`, che e' come era stato misurato.
+        return min(max(model.blend_with_seen(START_MINUTES["P"], measured, matches,
+                                             params.keeper_prior_matches),
+                       MIN_MINUTES), MAX_MINUTES)
     rate = start_rate_next(presence_share, expected_share, start_share, params, model_share)
     if rate is None:
         return measured

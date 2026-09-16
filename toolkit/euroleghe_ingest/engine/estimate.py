@@ -542,6 +542,46 @@ def presences_with_seen(pv: float | None, calendar: int | None, played_seen: int
     return round(calendar * min(max(blended, 0.0), ABROAD_MAX_SHARE), 1)
 
 
+def value_with_seen(value: float | None, seen: float | None, appearances_seen: float | None,
+                    prior_matches: float | None) -> float | None:
+    """La FANTAMEDIA (o il VOTO BASE) di un rung, miscelata con quella che ha gia' tenuto quest'anno.
+
+    LA SORELLA DI `presences_with_seen`, E ARRIVA NOVE GIORNI DOPO PERCHE' NESSUNO L'AVEVA CHIESTA. Il
+    07/09/2026 le giornate viste sono entrate in `est_pv` e non in `est_fm`: da allora due colonne della
+    STESSA riga rispondevano su due campioni diversi - le presenze sul calcio di quest'anno, la fantamedia
+    sulla sola stagione scorsa. Misurato sul foglio Serie A del 16/09: **145 righe su 561** stanno su un
+    rung di ripiego e hanno una fantamedia misurata quest'anno, con uno scarto mediano di **0,488** da
+    `est_fm` e 32 righe oltre 1,0 (Raimondo 9,62 contro 6,37; Kolo Muani 5,38 contro 6,85). L'app lo
+    faceva gia' da sola per lo SWING (`swing.inSeason`, con la guardia `fmBlendsSeen` accesa proprio sulle
+    righe che il motore prezza), quindi sulla stessa riga una colonna leggeva il calcio giocato e l'altra no.
+
+    IL PESO E' IN PRESENZE E NON IN GIORNATE, ed e' la differenza con la sorella: la taglia del campione di
+    una MEDIA e' quante volte quella media e' stata misurata, mentre una QUOTA di calendario si pesa con le
+    giornate. E' la stessa distinzione che R20 e R25 fanno fra loro (`pv_seen` come denominatore la', come
+    peso qui).
+
+    MISURATA FUORI CAMPIONE, esito = la fantamedia (o il voto base) del RESTO della stagione, sulle quattro
+    finestre retrodatate, K scelta sulle altre tre:
+
+        colonna   n     null      cross-fit        finestre    ottimo pooled
+        est_fm   515   0,4059   +2,8% (K 15-20)      3 su 4    interno, K=20 (banda 15-25 piatta)
+        est_mv   515   0,2183   +4,7% (K 15-20)      4 su 4    interno, K=20
+
+    La finestra che non guadagna e' quella con DUE giornate viste su 35 (-0,1%): li' non c'e' campione, che
+    e' la ragione per cui la forma e' una miscela e non un interruttore.
+
+    E LA `K` NON E' LA SUA: e' quella di R25, letta da `evaluate.ADOPTED` dal chiamante. Le due meta' di
+    una coppia derivata devono miscelarsi con lo STESSO peso o `fm - mv` smette di essere un tasso di bonus
+    e diventa la differenza fra due miscele diverse - il difetto v9.59, e la ragione per cui `est_mv` sul
+    ramo core legge gia' quella costante. Il prezzo e' dichiarato: a K=40 il guadagno e' +2,5% invece di
+    +2,8% (e +3,8% invece di +4,7% sul voto base), cioe' un decimo di quello disponibile, che e' lo stesso
+    baratto che la sorella ha gia' fatto per non avere due K.
+    """
+    if value is None or seen is None or not appearances_seen or not prior_matches:
+        return value
+    return model.blend_with_seen(value, seen, float(appearances_seen), float(prior_matches))
+
+
 @dataclass(frozen=True)
 class Estimate:
     """One player's fallback valuation, with the reason it exists attached to it."""

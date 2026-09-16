@@ -113,9 +113,133 @@ def test_the_blend_never_lands_on_top_of_R20():
     window = features.Window("GUARD", "2025-26", "2026-27", "2026-09-07")
     data = SimpleNamespace(matchdays_target=36, matchdays_seen=2)
     obs = SimpleNamespace(fc_id=1, role_classic="A", club_target="Napoli", elo_target=1700.0,
-                          fm_prev=None, mv_prev=None, pv_prev=11, mv_seen=None, pv_seen=2)
+                          fm_prev=None, mv_prev=None, pv_prev=11, mv_seen=None, fm_seen=None,
+                          pv_seen=2)
     # il motore prevede le presenze e NON la fantamedia: il gradino e' di ripiego, il pv e' suo
     prediction = SimpleNamespace(fm_pred=None, pv_pred=17.5, anchor=6.83)
     guess = snapshot.estimate_for(obs, prediction, layer, {"A": 6.83}, data, window, "default")
     assert guess.estimated, "senza fantamedia il gradino non e' il core"
     assert guess.pv == 17.5, "le presenze del motore restano quelle del motore: R20 le ha gia' mescolate"
+
+
+def test_the_fantamedia_of_a_fallback_rung_reads_the_same_matches_as_its_presences():
+    """LE DUE COLONNE DELLA STESSA RIGA SU UN CAMPIONE SOLO (16/09/2026).
+
+    Il 07/09 le giornate viste sono entrate in `est_pv` e non in `est_fm`: da allora una riga di ripiego
+    diceva le presenze sul calcio di quest'anno e la fantamedia sulla sola stagione scorsa - 145 righe su
+    561 del foglio Serie A, scarto mediano 0,488. Qui si pretende che si muovano insieme.
+    """
+    from types import SimpleNamespace
+
+    from euroleghe_ingest.engine import features
+
+    layer = {"role_bonus": {"A": 0.74}, "club_level": {}, "players": {}, "elo_mean": 1690.0}
+    window = features.Window("PAIR", "2025-26", "2026-27", "2026-09-16")
+    data = SimpleNamespace(matchdays_target=34, matchdays_seen=4)
+    obs = SimpleNamespace(fc_id=1, role_classic="A", club_target="Bologna", elo_target=1690.0,
+                          fm_prev=None, mv_prev=None, pv_prev=None, pv_seen=4,
+                          fm_seen=9.62, mv_seen=6.75)
+    blind = SimpleNamespace(fc_id=2, role_classic="A", club_target="Bologna", elo_target=1690.0,
+                            fm_prev=None, mv_prev=None, pv_prev=None, pv_seen=0,
+                            fm_seen=None, mv_seen=None)
+    anchors = {"A": 6.83}
+    scored = snapshot.estimate_for(obs, None, layer, anchors, data, window, "default")
+    never = snapshot.estimate_for(blind, None, layer, anchors, data, window, "default")
+    assert scored.estimated and never.estimated
+    assert scored.fm > never.fm, "chi ha segnato per quattro giornate non puo' leggere l'ancora nuda"
+    assert scored.mv > never.mv, "le due meta' si muovono insieme o `fm - mv` smette di essere un tasso"
+    # ...e il tasso di bonus resta un tasso: la novita' non cade tutta su una delle due (v9.59)
+    assert abs((scored.fm - scored.mv) - (never.fm - never.mv)) < 0.25
+
+
+def test_the_pair_uses_the_adopted_K_and_switches_itself_off_where_R25_is_not():
+    """UNA DEFINIZIONE E TRE LETTORI: la K e' quella del gate e non una costante di questo file.
+
+    Su `euro` R25 non e' adottata, quindi `seen_matches` risponde None e la miscela non parte da se' - e
+    una futura adozione con un'altra K arriverebbe a tutti insieme invece che a chi se ne ricorda.
+    """
+    from euroleghe_ingest.engine import evaluate
+
+    assert snapshot.seen_matches("default") == evaluate.R25_MATCHES["R25K40"]
+    assert snapshot.seen_matches("euro") is None
+    assert snapshot.seen_matches("chi-lo-sa") is None
+    # la K non e' scritta due volte: il ramo core e quello di ripiego chiamano la stessa funzione
+    source = inspect.getsource(snapshot)
+    assert source.count("R25_MATCHES[key] for key") == 1, \
+        "due ricerche della stessa K sono due risposte il giorno in cui ADOPTED cambia"
+
+
+def test_the_fallback_blend_never_lands_on_top_of_R25():
+    """Dove il motore prezza la fantamedia, quella colonna porta GIA' le partite viste (R25).
+
+    La guardia e' `guess.estimated`, che su questo ramo e' esattamente «il core non l'ha prezzato»: se
+    scattasse anche sul core, le stesse partite peserebbero due volte - l'errore che la sorella delle
+    presenze ha gia' pagato una volta.
+    """
+    from types import SimpleNamespace
+
+    from euroleghe_ingest.engine import features
+
+    layer = {"role_bonus": {"A": 0.74}, "club_level": {}, "players": {}, "elo_mean": 1690.0}
+    window = features.Window("CORE", "2025-26", "2026-27", "2026-09-16")
+    data = SimpleNamespace(matchdays_target=34, matchdays_seen=4)
+    obs = SimpleNamespace(fc_id=3, role_classic="A", club_target="Napoli", elo_target=1700.0,
+                          fm_prev=6.4, mv_prev=6.0, pv_prev=30, pv_seen=4,
+                          fm_seen=9.62, mv_seen=6.75)
+    prediction = SimpleNamespace(fm_pred=6.55, pv_pred=27.0, anchor=6.83)
+    guess = snapshot.estimate_for(obs, prediction, layer, {"A": 6.83}, data, window, "default")
+    assert not guess.estimated
+    assert guess.fm == 6.55, "la fantamedia del motore e' quella del motore: R25 l'ha gia' mescolata"
+
+
+def test_a_row_that_read_this_season_says_so():
+    """«nothing measured anywhere» su una riga che porta quattro partite di quest'anno e' una frase falsa.
+
+    Il testo di un rung descrive il PRIOR; dopo la miscela vale solo per la meta' vecchia, e sul foglio del
+    16/09/2026 sei righe lo dicevano portando dentro il calcio giocato. Una riga deve poter spiegare il
+    proprio numero: la nota nomina le partite invece di lasciarle dedurre.
+    """
+    from types import SimpleNamespace
+
+    from euroleghe_ingest.engine import features
+
+    layer = {"role_bonus": {"A": 0.74}, "club_level": {}, "players": {}, "elo_mean": 1690.0}
+    window = features.Window("NOTE", "2025-26", "2026-27", "2026-09-16")
+    data = SimpleNamespace(matchdays_target=34, matchdays_seen=4)
+    common = dict(role_classic="A", club_target="Bologna", elo_target=1690.0,
+                  fm_prev=None, mv_prev=None, pv_prev=None)
+    played = snapshot.estimate_for(
+        SimpleNamespace(fc_id=1, pv_seen=4, fm_seen=9.62, mv_seen=6.75, **common),
+        None, layer, {"A": 6.83}, data, window, "default")
+    never = snapshot.estimate_for(
+        SimpleNamespace(fc_id=2, pv_seen=0, fm_seen=None, mv_seen=None, **common),
+        None, layer, {"A": 6.83}, data, window, "default")
+    assert "4 partite di questa stagione" in played.note
+    assert "partite di questa stagione" not in never.note, \
+        "chi non ha giocato non ha niente da dichiarare, e «vuoto = ignoto» vale anche per una frase"
+
+
+def test_the_note_fires_on_what_was_blended_and_not_on_a_lookalike_condition():
+    """Su `euro` la coppia non si miscela (R25 non adottata) ma le PRESENZE si: la nota deve dirlo.
+
+    I due rami hanno guardie diverse - le presenze si fermano dove R20 le porta gia', la coppia dove R25
+    non e' adottata - quindi una condizione riscritta accanto alla frase direbbe «pesate dentro» su una
+    riga in cui non e' entrato niente, o tacerebbe su una in cui e' entrato qualcosa.
+    """
+    from types import SimpleNamespace
+
+    from euroleghe_ingest.engine import features
+
+    layer = {"role_bonus": {"A": 0.74}, "club_level": {}, "players": {}, "elo_mean": 1690.0}
+    window = features.Window("EURO", "2025-26", "2026-27", "2026-09-16")
+    data = SimpleNamespace(matchdays_target=28, matchdays_seen=3)
+    obs = SimpleNamespace(fc_id=9, role_classic="A", club_target="Bayern", elo_target=1900.0,
+                          fm_prev=None, mv_prev=None, pv_prev=None, pv_seen=3,
+                          fm_seen=8.5, mv_seen=6.5)
+    on_euro = snapshot.estimate_for(obs, None, layer, {"A": 6.83}, data, window, "euro")
+    assert "3 partite di questa stagione" in on_euro.note, \
+        "le presenze si miscelano su ogni piattaforma, quindi la riga ha letto qualcosa"
+    # ...e la fantamedia no, perche' li' R25 non e' adottata: la nota non promette piu' di quel che e' entrato
+    blind = SimpleNamespace(**{**vars(obs), "fc_id": 10, "fm_seen": None, "mv_seen": None})
+    assert on_euro.fm == snapshot.estimate_for(
+        blind, None, layer, {"A": 6.83}, data, window, "euro").fm

@@ -4525,7 +4525,7 @@ def test_a_newcomer_is_anchored_on_his_clubs_elo_and_a_returning_man_on_his_club
     # the cascade: the sheet's mean Elo is one value per CLUB (a club with thirty quoted men weighs one)
     def obs_of(fc_id, club, elo, **kw):
         fields = dict(fc_id=fc_id, role_classic="A", club_target=club, elo_target=elo, pv_prev=None,
-                      fm_prev=None, mv_prev=None, mv_seen=None, pv_seen=None)
+                      fm_prev=None, mv_prev=None, mv_seen=None, fm_seen=None, pv_seen=None)
         fields.update(kw)
         return SimpleNamespace(**fields)
     layer = {"role_bonus": {"A": 0.74}, "club_level": {("Milan", "A"): (6.30, 4)},

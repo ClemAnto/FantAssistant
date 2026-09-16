@@ -1,5 +1,45 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 16 settembre 2026 (II) — l'audit del surplus: due cure spedite, una respinta, una pre-registrata
+
+Dettaglio e numeri: spec «Novità v9.98», `letture-app-v1.md` §46, gate §7-septquinquagies.
+
+**CHIUSI dall'audit**: `est_fm`/`est_mv` leggono le partite giocate come già le presenze
+(`SHEET_REVISION` 71); il minutaggio di un portiere non si calcola più su una frazione di presenza; la
+guardia dello SWING nell'app è una definizione sola invece di tre condizioni ripetute.
+
+1. **[ ] R27 — LA BOARD NON ARRIVA AL MOTORE: misurata, pre-registrata, NON misurabile dal gate oggi.**
+   Il motore è compresso verso il centro (sottostima ~2 giornate su 36 chi l'undici disegna, sovrastima
+   chi non nomina mai) e una correzione per gruppo vale +1,0 … +1,6% su euro, 4 finestre su 4, oltre una
+   correzione di puro livello. **L'ostacolo è strutturale e definisce il lavoro**: `backtest` prepara le
+   finestre con `features.prepare`, mentre la board nasce da `boards.extract_boards`, che guida il
+   pannello Tk sopra un foglio già scritto. Due passi, in quest'ordine: **(a)** misurare R27a, il `claim`
+   del pannello come termine di `_rule_pv` — raggiungibile oggi, perché `sweep.build_inputs` costruisce
+   `presence.Inputs` dal DB senza display, ed è la forma con più probabilità di FALLIRE (lo standing
+   legge gli stessi minuti di R3, cioè la famiglia di R24); **(b)** solo se (a) fallisce e si vuole
+   comunque la board, renderla una colonna che `prepare` sa produrre per ogni finestra — che è
+   un'acquisizione e non una formula. Criteri e attesa dichiarata sono scritti PRIMA della corsa nel
+   gate.
+
+2. **[ ] I PACCHETTI DEL VIAGGIO NEL TEMPO SONO A REVISIONE 70** mentre i fogli vivi sono a 71. La
+   scatola dell'app lo dichiara da sé, che è esattamente il comportamento per cui quel campo esiste, e
+   rifarli è una corsa di `timepack --all`. Da fare quando il DB è libero: sono anche lo strumento con
+   cui le due cure di oggi sono state misurate, quindi una loro ricostruzione è pure il modo di
+   ri-misurarle a stagione più avanti.
+
+3. **[ ] IL RIMPIAZZO VIVE SULLE STAGIONI DI INPUT e la fantamedia del motore legge anche quella in
+   corso.** Oggi la divergenza che passa nella sottrazione vale ~0,02 (a quattro giornate R25 pesa il
+   9%), quindi non è un difetto ed è misurato; a metà stagione il peso cresce e le due scale vanno
+   riguardate insieme. Non c'è una cura ovvia: `replacement_levels` chiede `pv >= 20`, che in-season non
+   esiste per nessuno, quindi la domanda è se la SCALA della stagione in corso vada stimata altrimenti —
+   e va aperta con una misura, non con una formula.
+
+4. **[ ] LA `K` DELLA COPPIA DI RIPIEGO È QUELLA DI R25 PER COERENZA, non per ottimo.** Il suo ottimo
+   misurato è 20 (banda 15-25 piatta) contro il 40 adottato: un decimo del guadagno lasciato sul tavolo,
+   dichiarato, e lo stesso baratto che `presences_with_seen` aveva già fatto. Si riapre solo se qualcuno
+   dimostra che le due metà possono pesare le stesse partite in modo diverso senza rompere `fm − mv` —
+   cioè quasi certamente mai, ed è scritto perché il numero non si legga come una svista.
+
 ## Aperti alla chiusura del 16 settembre 2026 — le tre prese scorate, e il giudice riallineato
 
 Dettaglio e numeri: `formazioni-tipo-v1.md` §18, spec «Novità v9.94».

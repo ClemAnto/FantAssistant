@@ -6659,3 +6659,79 @@ piattaforma, e con `default` che non arriva al pavimento su nessun punto della g
 da portare. E la fonte copre i club che il provider ha guardato dalla prima giornata: sulla stagione
 viva sono 15 uomini di 532, dopo che la guardia per club ne ha tolti 172 che erano falsi ingressi
 tardivi (prima 187) — misurato chiamando la funzione, non dedotto.
+
+## 7-septquinquagies. PRE-REGISTRAZIONE (16 settembre 2026) — R27: L'UNDICI CHE IL CLUB SCHIERA NON ARRIVA AL MOTORE
+
+**Scritta PRIMA della corsa**, come R24, R25 e R26, e nata dalla richiesta dell'operatore di controllare
+le funzioni del surplus ora che «abbiamo formazione a breve termine e formazione stagionale tipo per
+valutare titolarità e minutaggio».
+
+### Il fatto che apre la domanda, misurato prima di proporre niente
+
+`evaluate` non importa `presence`: la board — chi l'undici schiera, con quale modulo, e chi gli contende
+la maglia — non tocca `engine_pv_pred` di un decimale. Misurato sui quattro pacchetti retrodatati (che
+portano l'esito vero) confrontando la quota di calendario PREVISTA con quella REALIZZATA, per gruppo:
+
+| gruppo (board di stagione × board dell'ultimo periodo) | n | prevista | reale | errore |
+|---|---:|---:|---:|---:|
+| l'undici lo schiera su ENTRAMBE | 161 | 0,697 | 0,758 | **−0,061** |
+| su una sola delle due | 118 | 0,545 | 0,600 | −0,055 |
+| solo rivale di una maglia | 209 | 0,380 | 0,374 | +0,006 |
+| la board non lo nomina affatto | 68 | 0,227 | 0,177 | **+0,050** |
+
+(finestra 2025-09-05, Serie A; l'ordine è giusto su tutte e quattro le finestre, i livelli no — vedi
+sotto.) Il motore è **compresso verso il centro**: sottostima di ~2 giornate chi l'undici disegna e
+sovrastima chi non nomina mai.
+
+### Che sia informazione e non un LIVELLO è la parte che va misurata, e una prima lettura c'è
+
+Correggere per gruppo, con il coefficiente stimato sulle ALTRE tre finestre (leave-one-window-out), **oltre**
+una correzione di puro livello — cioè la stessa correzione applicata a tutti, che è quello che un anno
+storto produce da sé:
+
+| | 2024-09 | 2025-02 | 2025-09 | 2026-02 | finestre |
+|---|---:|---:|---:|---:|---:|
+| euro | +1,02% | +1,62% | +1,63% | +0,98% | **4 su 4** |
+| Serie A | +1,05% | +0,99% | **−1,20%** | +0,65% | 3 su 4 |
+
+Il livello da solo vale circa zero (euro) o un decimo di questo (Serie A), quindi ciò che si misura non è
+«il motore sbaglia la media». Sono numeri di MAE sulla quota, non il metro del gate: valgono come
+diagnostica pre-corsa e non come verdetto.
+
+### Le due forme, e la prima è l'unica che un banco raggiunge oggi
+
+**R27a — il CLAIM del pannello come termine di `_rule_pv`.** `presence.standing` è dependency-free e
+`sweep.build_inputs` costruisce già `presence.Inputs` direttamente dal DB: nessun display, nessuna board,
+quindi questa forma è misurabile con gli strumenti di oggi. È anche quella da provare per prima **perché è
+la più probabile che fallisca**: lo standing legge gli stessi minuti che R3 legge, quindi buona parte di
+quello che porterebbe il motore lo sconta già, ed è la famiglia di R24 (segnale vero, ridondante col set
+adottato) e dell'età.
+
+**R27b — la BOARD, che è ciò che la diagnostica sopra misura davvero.** Non è raggiungibile da `backtest`:
+la board nasce da `boards.extract_boards`, che guida il pannello Tk sopra un foglio già scritto, mentre il
+gate prepara le proprie finestre con `features.prepare` e basta. Renderla misurabile è **un'acquisizione,
+non una formula**: servirebbe che il verdetto della board (schierato / rivale / non nominato) fosse una
+colonna che `prepare` sa produrre per ogni finestra. Si scrive qui invece di farlo ora, perché un canale
+che nessun banco può giudicare non entra nel motore per la regola aurea.
+
+### Criteri, scritti prima della corsa
+
+Il solito, senza sconti: **strict** (migliora su ogni finestra che la misura, pavimento dello 0,5% sulla
+media) e **robust** (maggioranza delle finestre, media sopra il pavimento, nessuna finestra sotto −2%),
+riportati affiancati; le quattro guardie del deliverable (nomi, `captured_not_harmed`, FM, VALUE) come per
+ogni altra regola; un punto di griglia per volta, e **mai un parametro sul bordo**. Il confronto è contro
+il set adottato INTERO (R20 e R25 compresi), non contro un baseline più debole: è la lezione di R24, dove
+un surrogato senza il set adottato aveva dato il segno opposto.
+
+**L'attesa dichiarata, così non la si racconta dopo.** R27a fallisce il pavimento (ridondanza con R3); R27b
+paga su `euro` più che su `default`, perché là il calendario della piattaforma è un SOTTOINSIEME di quello
+del club e chi l'undici schiera è il solo a esserci sempre. **Se il gate legge il contrario — R27a che passa
+— la diagnosi qui sopra è sbagliata e va riscritta, non il criterio.**
+
+### Cosa NON è questa regola
+
+Non è la scala della titolarità (`desc_titolarita`), che è già gatata dalla board e vive sul foglio; non è
+`desc_minutes_next`; e non tocca nessuna delle due correzioni adottate lo stesso giorno (la fantamedia di
+ripiego che legge le partite viste, e la media minuti del portiere), che sono **reporting** e non passano
+da `evaluate` — `backtest --verify` resta 22/22 e nessuna finestra pubblicata si muove.
+

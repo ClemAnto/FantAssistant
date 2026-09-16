@@ -279,6 +279,28 @@ export const STEADY_MARGINAL = 0.298;
 export const SEEN_MATCHES = 40;
 
 /**
+ * IL FOGLIO PORTA GIA' LA MISCELA IN-SEASON PER QUESTA PIATTAFORMA? Una definizione e tre lettori.
+ *
+ * Fino alla revisione 70 del foglio la domanda aveva DUE termini — la piattaforma e se la riga fosse una
+ * STIMA — perche' su `default` R25 miscelava la fantamedia del motore e la cascata di ripiego no. Dalla
+ * revisione 71 la miscela e' su tutt'e due (`snapshot.estimate_for`, con la stessa K letta da
+ * `evaluate.ADOPTED`), quindi il secondo termine e' sparito: su un foglio `default` la correzione qui
+ * dentro peserebbe le stesse partite una seconda volta, su un foglio `euro` resta il solo canale.
+ *
+ * IL TRANSITORIO E' DETTO INVECE CHE NASCOSTO, e la direzione e' scelta: con un bundle piu' vecchio della
+ * revisione 71 una riga STIMATA di `default` perde la correzione per un giro di export. E' un errore che
+ * OMETTE un termine piccolo, mentre il verso opposto lo conterebbe due volte — la stessa scelta che
+ * `fmBlendsSeen` aveva gia' dichiarato per le righe motore il 07/09/2026.
+ *
+ * E LA PIATTAFORMA E' CABLATA QUI E IN NESSUN ALTRO POSTO: l'app non puo' leggere `evaluate.ADOPTED`,
+ * quindi il giorno in cui R25 venisse adottata anche su `euro` questa e' l'unica riga da cambiare —
+ * mentre tre copie della stessa condizione sarebbero tre risposte, e due di loro sbagliate.
+ */
+export function sheetBlendsSeen(platform: string | null | undefined): boolean {
+  return platform === 'default';
+}
+
+/**
  * LA COSTANZA DI CHI NON NE HA UNA MISURATA: la mediana del suo ruolo, mai zero.
  *
  * «Vuoto = ignoto»: uno zero direbbe «non prende mai la sufficienza», che e' una frase sul calciatore

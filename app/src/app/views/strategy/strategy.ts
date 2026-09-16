@@ -83,7 +83,7 @@ import {
   readClauses,
   readFilterSet,
 } from '../../core/strategy-filter';
-import { swingOf } from '../../core/swing';
+import { sheetBlendsSeen, swingOf } from '../../core/swing';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
 import { DOUBLE_MS, stored, storedJson } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
@@ -1137,9 +1137,9 @@ export class Strategy {
           seasonFm: played?.fm ?? null,
           seasonPlayed: played?.pv ?? null,
           confidence: one?.confidence ?? null,
-          // Su `default` una riga che il motore prezza porta gia' la miscela (R25K40 adottata il
-          // 07/09/2026); su `euro` R25 non e' adottata e la correzione resta il solo canale.
-          fmBlendsSeen: platform === 'default' && one != null && !one.fmIsEstimate,
+          // Su `default` il foglio la porta su TUTTE le righe dalla revisione 71 (motore e ripiego);
+          // su `euro` la correzione qui dentro resta il solo canale. Una definizione: `sheetBlendsSeen`.
+          fmBlendsSeen: sheetBlendsSeen(platform),
           // ...e la costanza si paga solo dove la lega paga l'R-Factor (opzione dichiarata).
           rFactor: this.settings().rFactor,
           // ...e il +1 a porta inviolata solo dove la lega lo paga (opzione dichiarata, 07/09/2026).

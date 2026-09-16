@@ -65,7 +65,7 @@ import {
 } from './plancia';
 import { STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
 import { PlayerRulings, rungShares } from './player-rulings';
-import { swingOf } from './swing';
+import { sheetBlendsSeen, swingOf } from './swing';
 
 /** The four letters of the board's lines, from the two alphabets the feed splits the outfield into. */
 const ZONE_ROLE: Record<string, Role> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
@@ -335,9 +335,9 @@ export class PlanciaStore {
             : null,
           seasonFm: played?.fm ?? null,
           seasonPlayed: played?.pv ?? null,
-          // La plancia prezza sempre il foglio default|classic, e li' una riga MISURATA porta gia'
-          // la miscela in-season (R25K40 adottata il 07/09/2026): la correzione resta alle stimate.
-          fmBlendsSeen: valuation.basis === 'measured',
+          // La plancia prezza sempre il foglio default|classic, e li' dalla revisione 71 la miscela
+          // in-season e' su TUTTE le righe - anche quelle di ripiego, che prima la prendevano qui.
+          fmBlendsSeen: sheetBlendsSeen('default'),
           // ...e la costanza si paga solo dove la lega paga l'R-Factor (opzione dichiarata).
           rFactor: this.options.league().rFactor,
           // ...e il +1 a porta inviolata solo dove la lega lo paga (opzione dichiarata, 07/09/2026).

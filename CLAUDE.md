@@ -6487,6 +6487,56 @@ a capo» e «nessun nome largo zero»). **Quello che il banco garantisce diventa
 e non presa si scrive fra gli aperti** (stringere i riquadri: ~30-55px, una-due pastiglie in più prima
 del muro), perché è la cosa che chiude il caso senza toccare la regola appena adottata.
 
+## Una correzione che vive nell'APP e' una segnalazione sul FOGLIO, e un rapporto ha bisogno di un campione
+**16/09/2026, dall'audit chiesto dall'operatore: «adesso abbiamo formazione a breve termine e formazione
+stagionale tipo … analizza le varie funzioni surplus e similari per vedere se e' tutto ok». Dettaglio:
+spec «Novita' v9.98», `letture-app-v1.md` §46, gate §7-septquinquagies.** L'aritmetica reggeva —
+l'invariante `(fm − rimpiazzo) × pv × confidenza` riproduce le due colonne su **1.533 righe motore e 2.075
+stimate, 0 fallimenti** — e il calcio di quest'anno entrava in una colonna si' e in quella accanto no.
+
+**IL DIFETTO SI SEGNALAVA DA SOLO, DENTRO L'APP.** Dal 07/09 le giornate viste erano entrate in `est_pv` e
+non in `est_fm`: due colonne della STESSA riga su due campioni diversi (145 righe su 561, scarto mediano
+0,488 di fantamedia, 32 oltre 1,0). E `swing.inSeason` correggeva proprio quelle righe — cioe' **sullo
+stesso schermo lo SWING leggeva il calcio giocato e il surplus, l'Overall e l'ordinamento della plancia
+no**. La regola generale: *quando l'app corregge una colonna del foglio, quella correzione e' una
+segnalazione sul foglio* — o si misura e sale nel toolkit, o le due letture della stessa riga continuano a
+non essere d'accordo. Qui e' salita, e la guardia dell'app si e' **semplificata** (una domanda sulla
+PIATTAFORMA invece che sulla riga, `swing.sheetBlendsSeen`, una definizione e tre lettori) invece di
+aggiungere un caso: una cura nel posto giusto toglie codice al posto sbagliato. Le due meta' di `fm − mv`
+si miscelano **insieme** con la K di R25 letta da `evaluate.ADOPTED` (+2,8% e +4,7% fuori campione,
+ottimo interno a 20, e il prezzo del 40 e' dichiarato): la coppia deve pesare le stesse partite allo stesso
+modo o quel tasso smette di essere un tasso.
+
+**E UN RAPPORTO HA BISOGNO DI UN CAMPIONE, che e' «vuoto = ignoto» su un DENOMINATORE.** Il ramo portiere
+di `minutes.per_appearance` restituiva `minuti / presenze` grezzo — misurato e giusto finche' le presenze
+sono un CONTEGGIO, fuori dominio da quando la finestra e' MISCELATA e il denominatore vale una frazione:
+16 righe leggevano **120 minuti esatti** (12,0 / 0,1) e altrettante 3-10, con 53 righe su 209 fuori da
+[70, 95] sotto mezza presenza e **nessuna** sopra le dieci. Retto su `START_MINUTES["P"]` — il numero che
+il regolamento scrive gia' di lui — con la taglia del suo campione: **+40,9% di MAE, 4 finestre su 4**,
+ottimo interno, e zero movimento dove il campione c'e', che e' la meta' che rende la cura sicura.
+**La stessa forma sui giocatori di MOVIMENTO e' misurata e RESPINTA** (0 su 4, monotona): il loro errore a
+campione corto e' piu' grande (20-25 minuti, sempre verso l'alto) ma sta nel LIVELLO e non nel residuo.
+*Due popolazioni con lo stesso sintomo non hanno per forza la stessa causa, e la cura si misura su
+ciascuna* — ed e' anche la ragione per cui la shrinkage vive nel ramo del portiere e non sopra di lui.
+
+**UN OSTACOLO STRUTTURALE E' PARTE DEL VERDETTO, e va scritto invece di lasciarlo scoprire.** Il terzo buco
+— `evaluate` non importa `presence`, quindi chi l'undici schiera non tocca `engine_pv_pred`, e il motore e'
+compresso verso il centro (−0,061 di calendario su chi la board disegna, +0,050 su chi non nomina mai;
+correggere per gruppo oltre il livello vale +1,0…+1,6% su euro, 4 finestre su 4) — e' **pre-registrato e
+non adottato** per DUE ragioni distinte: la regola aurea, e il fatto che **il gate non lo raggiunge**, perche'
+la board nasce guidando il pannello Tk sopra un foglio gia' scritto mentre `backtest` prepara le finestre
+con `features.prepare`. Quello che si raggiunge e' il `claim` (`sweep.build_inputs` costruisce
+`presence.Inputs` dal DB senza display), ed e' anche la forma con piu' probabilita' di fallire, perche'
+legge gli stessi minuti di R3. *Prima di proporre un canale, chiedersi se un banco lo puo' giudicare: un
+canale che nessuno puo' misurare non e' un candidato, e' un'acquisizione.*
+
+Due abitudini, e sono vecchie regole incontrate da un lato nuovo. **Un guardiano si corregge sull'INTENTO
+e non sul valore**: `test_the_keeper_is_not_rescaled` chiedeva `== 90.0` ed e' caduto perche' la media del
+portiere ora porta un prior; l'invariante che difende (il tasso di partenza non lo tocca) e' intatta ed e'
+ora asserita esplicitamente invece di essere implicata da un letterale. E **la controprova non e' «la suite
+e' verde»: e' rimettere il difetto e guardare QUALI test cadono** — qui esattamente i cinque che descrivono
+le cure, su due linguaggi, e nessun altro.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

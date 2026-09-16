@@ -801,7 +801,33 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      uomini su 220 - che e' la direzione che l'operatore chiede («la formazione dell'ultimo periodo
 #      dovrebbe combaciare gia' completamente con quella stagionale»). `engine_*` non si muove; si
 #      muovono 18 righe della scala di titolarita', 13 delle quali cambiano GRADINO.
-SHEET_REVISION = 70
+#   71 LA FANTAMEDIA DI RIPIEGO LEGGE LE PARTITE GIA' GIOCATE, come le presenze dal 07/09 (16/09/2026).
+#      Dalla richiesta dell'operatore di controllare le funzioni del surplus ora che «conosciamo qualche
+#      partita per avere una traccia della mediavoto e della fantamedia piu' veritiera»: `est_pv` le
+#      leggeva e `est_fm` no, quindi due colonne della STESSA riga rispondevano su due campioni diversi -
+#      145 righe su 561 del foglio Serie A, scarto mediano 0,488 di fantamedia fra quella tenuta
+#      quest'anno e la colonna, 32 righe oltre 1,0. L'app lo faceva gia' per lo SWING (`swing.inSeason`,
+#      guardia `fmBlendsSeen`), quindi sullo stesso schermo un numero leggeva il calcio giocato e quello
+#      accanto no. Fuori campione sulle quattro finestre retrodatate, K scelta sulle altre tre: fantamedia
+#      +2,8% di MAE (3 finestre su 4, la quarta ha DUE giornate viste su 35) e voto base +4,7% (4 su 4),
+#      ottimo INTERNO a K=20 in tutte e due. Si adotta la K di R25 (`seen_matches`, da `evaluate.ADOPTED`)
+#      e non la propria: le due meta' di `fm - mv` devono pesare le stesse partite allo stesso modo o quel
+#      tasso smette di essere un tasso (v9.59), e il prezzo e' dichiarato - +2,5% invece di +2,8%.
+#      Effetto: 145 righe, 56 su e 89 giu (Raimondo +5,3 di surplus, Kolo Muani -3,0); su `euro` R25 non
+#      e' adottata e la miscela si spegne da se'. `engine_*` non si muove - la cascata non e' nel percorso
+#      del gate - e la correzione e' INERTE a zero giornate giocate, quindi nessuna finestra pubblicata.
+#   71-bis E LA MEDIA MINUTI DI UN PORTIERE HA BISOGNO DI UN CAMPIONE (stesso giorno, stessa richiesta).
+#      Il suo ramo di `minutes.per_appearance` non ha ne' livello ne' tasso - la media misurata E' la
+#      previsione - quindi da quando la finestra e' MISCELATA il denominatore puo' valere una frazione di
+#      presenza: 16 righe di foglio leggevano **120 minuti esatti** (Adrian, 12,0 diviso 0,1) e altrettante
+#      leggevano 3-10 minuti. Ora il rapporto si regge su `START_MINUTES["P"]` con la taglia del proprio
+#      campione (`keeper_prior_matches` = 6, ottimo interno, banda 5-8 piatta): fuori campione **MAE 3,18
+#      -> 1,88 minuti, +40,9%, 4 finestre su 4**, e sopra le dieci presenze non cambia un decimale (0,60
+#      contro 0,60), che e' la meta' che rende la cura sicura. Sul foglio vivo 17 portieri su 67, 6 dei
+#      quali attraversano un pavimento della scala della titolarita'. La stessa forma sui giocatori di
+#      MOVIMENTO e' misurata e RESPINTA (0 finestre su 4, monotona): il loro errore a campione corto sta
+#      nel livello e non nel residuo.
+SHEET_REVISION = 71
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -4423,6 +4449,21 @@ def estimation_layer(conn, window: features.Window, platform: str,
     return {"players": layer, "club_level": club_level, "role_bonus": role_bonus, "elo_mean": elo_mean}
 
 
+def seen_matches(platform: str) -> float | None:
+    """QUANTE PRESENZE DI PRIOR VALE LA FANTAMEDIA GIA' TENUTA QUEST'ANNO, o None dove non si legge.
+
+    La `K` di R25, letta da `evaluate.ADOPTED` e non scritta qui: e' la costante che il GATE possiede, e
+    chi la miscela fuori dal motore deve usare la stessa o le due colonne finiscono per pesare le stesse
+    partite in due modi. Su `euro` R25 non e' adottata, quindi questa risponde None e ogni lettore si
+    spegne da se' - e una futura adozione con un'altra K arriva a tutti insieme.
+
+    UNA DEFINIZIONE E TRE LETTORI (il voto base del ramo core, e la coppia fantamedia/voto base dei rung
+    di ripiego), perche' tre copie di questa ricerca sono tre risposte il giorno in cui `ADOPTED` cambia.
+    """
+    return next((evaluate.R25_MATCHES[key] for key in evaluate.ADOPTED.get(platform, ())
+                 if key in evaluate.R25_MATCHES), None)
+
+
 def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
                  window: features.Window, platform: str = "euro") -> est.Estimate:
     """The rung, and then the BASE VOTE that goes with whatever fantamedia it produced.
@@ -4456,7 +4497,9 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
     # (`anchor` e `abroad`) il cui null e' davvero la costante o la retta. La popolazione spedita e' un
     # SOTTOINSIEME di quella misurata (15 righe hanno zero voti e una previsione comunque, e restano
     # fuori), che e' il verso sicuro dei due.
+    read_now = False
     if guess.estimated and (prediction is None or prediction.pv_pred is None):
+        read_now = bool(obs.pv_seen is not None and data.matchdays_seen)
         guess = replace(guess, pv=est.presences_with_seen(
             guess.pv, data.matchdays_target, obs.pv_seen, data.matchdays_seen,
             presence.DEFAULTS.season_prior_rounds))
@@ -4471,6 +4514,40 @@ def estimate_for(obs, prediction, layer: dict, anchors: dict, data,
             None, None,
             est.mv_anchor(anchors.get(role), layer.get("role_bonus", {}).get(role), None, role),
             guess.fm, layer.get("role_bonus", {}).get(role), platform))
+    # ...E LA COPPIA FANTAMEDIA/VOTO BASE DI UN RUNG DI RIPIEGO, sulle stesse giornate (16/09/2026).
+    # Dal 07/09 le presenze di ripiego leggevano il calcio di quest'anno e la fantamedia no: due colonne
+    # della stessa riga su due campioni diversi, 145 righe su 561 del foglio Serie A, scarto mediano 0,488
+    # (`est.value_with_seen` porta la misura fuori campione e il perche' della K).
+    #
+    # LE DUE META' SI MISCELANO INSIEME O NON SI MISCELA NIENTE: `fm - mv` e' il tasso di bonus che la riga
+    # si aspetta, quindi muoverne una sola scaricherebbe su quel tasso tutta la novita' della stagione -
+    # il difetto v9.59, dove la regressione verso l'ancora cadeva per intero sul voto base e Malen leggeva
+    # 5,67. Con la stessa K su entrambe il tasso resta un tasso per costruzione.
+    #
+    # E LA GUARDIA E' «IL MOTORE NON PREZZA LA SUA FANTAMEDIA», cioe' `guess.estimated`: dove `fm_pred`
+    # esiste il rung restituisce `core` e quella colonna porta gia' R25: rimescolarla qui sarebbe pesare
+    # due volte le stesse partite, che e' l'errore che la sorella delle presenze ha gia' pagato una volta.
+    if guess.estimated:
+        seen_k = seen_matches(platform)
+        read_now = read_now or bool(seen_k and obs.pv_seen and obs.fm_seen is not None)
+        guess = replace(guess,
+                        fm=est.value_with_seen(guess.fm, obs.fm_seen, obs.pv_seen, seen_k),
+                        mv=est.value_with_seen(guess.mv, obs.mv_seen, obs.pv_seen, seen_k))
+    # ...E LA NOTA DICE CHE LE HA LETTE, o la riga contraddice il proprio numero. Il testo di un rung
+    # descrive il PRIOR («nothing measured anywhere»), che dopo la miscela e' vero solo della meta' vecchia:
+    # sul foglio del 16/09 sei righe dicevano di non avere niente di misurato mentre portavano quattro
+    # partite di quest'anno dentro fantamedia, voto base e presenze. Una riga che spiega se' stessa e' la
+    # ragione per cui `est_note` esiste, quindi la frase nomina le partite invece di lasciarle dedurre.
+    # LA CONDIZIONE E' QUELLO CHE E' STATO DAVVERO MISCELATO e non una sua approssimazione: `read_now` lo
+    # segna nei due punti in cui succede, perche' i due rami hanno guardie diverse (le presenze si fermano
+    # dove R20 le porta gia', la coppia dove R25 non e' adottata) e una condizione riscritta qui sotto
+    # direbbe «pesate dentro» su una riga in cui non e' entrato niente.
+    if read_now and obs.pv_seen:
+        played = int(obs.pv_seen)
+        guess = replace(guess, note=" · ".join(filter(None, [
+            guess.note,
+            f"{played} {'partita' if played == 1 else 'partite'} di questa stagione "
+            f"{'pesata' if played == 1 else 'pesate'} dentro"])))
     if guess.mv is None or guess.fm is None:
         return guess
     said = f"MV attesa {guess.mv:.2f}, cioè {guess.fm - guess.mv:+.2f} di bonus a presenza"
@@ -4552,11 +4629,7 @@ def _rung_for(obs, prediction, layer: dict, anchors: dict, data,
         # worst +0.55%. The nominal optimum is K=25 (+5.4%); 40 is kept for the pair's coherence AND
         # because the measurement's prior was weaker than the shipped one (no club term), which biases
         # its optimum low - the gain is a ceiling, the true K a floor.
-        seen_k = next((evaluate.R25_MATCHES[key] for key in evaluate.ADOPTED.get(platform, ())
-                       if key in evaluate.R25_MATCHES), None)
-        if (seen_k is not None and mv_pred is not None
-                and obs.mv_seen is not None and obs.pv_seen):
-            mv_pred = model.blend_with_seen(mv_pred, obs.mv_seen, float(obs.pv_seen), seen_k)
+        mv_pred = est.value_with_seen(mv_pred, obs.mv_seen, obs.pv_seen, seen_matches(platform))
         return est.Estimate(
             prediction.fm_pred, prediction.pv_pred, "core", est.CONFIDENCE["core"], "", mv=mv_pred)
     other, older = mine.get("other"), mine.get("older")

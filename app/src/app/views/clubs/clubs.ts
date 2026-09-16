@@ -17,7 +17,7 @@ import { EDGE_BASE } from '../../core/plancia';
 import { MatchCell, Platform, PlayersStore, day } from '../../core/players-store';
 import { upcomingFor, withUpcoming } from '../../core/next-match';
 import { Role } from '../../core/plancia';
-import { swingOf } from '../../core/swing';
+import { sheetBlendsSeen, swingOf } from '../../core/swing';
 import { EngineExpectation, SquadMan, ValuationStore } from '../../core/valuation-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubBoard } from '../../ui/club-board/club-board';
@@ -462,9 +462,10 @@ export class Clubs {
       seasonFm: man.fm,
       seasonPlayed: man.pv,
       confidence: numbers?.confidence ?? null,
-      // Su `default` una riga che il motore prezza porta già la miscela in-season (R25K40, 07/09/2026);
-      // su `euro` R25 non è adottata e la correzione dentro SWING resta il solo canale.
-      fmBlendsSeen: this.store.platform() === 'default' && numbers != null && !numbers.fmIsEstimate,
+      // Su `default` il foglio porta già la miscela in-season su TUTTE le righe dalla revisione 71
+      // (motore per R25K40, ripiego per `estimate_for`); su `euro` resta il solo canale. Una
+      // definizione sola: `swing.sheetBlendsSeen`.
+      fmBlendsSeen: sheetBlendsSeen(this.store.platform()),
       rFactor: league.rFactor,
       cleanSheetBonus: league.cleanSheet,
       cleanSheetShare: calendar ? cleanSheetOutlook(calendar, man.club) : null,

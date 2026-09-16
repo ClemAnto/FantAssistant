@@ -5729,3 +5729,67 @@ illeggibile lo si va a guardare, uno inventato no. L'ha trovato il test, non la 
 
 **Verifica**: 988 test app (+5), build pulito, `e2e-clubs` verde — e la controprova rimette il taglio a
 dieci caratteri e fa cadere i due test che descrivono le due metà della cura, non gli altri.
+
+## 46 — L'AUDIT DELLE FUNZIONI DI SURPLUS: cosa regge, e le tre cose che il calcio giocato non toccava
+
+**16/09/2026**, dalla richiesta dell'operatore: «adesso abbiamo formazione a breve termine e formazione
+stagionale tipo … analizza le varie funzioni surplus e similari per vedere se è tutto ok». Dettaglio delle
+due cure in spec «Novità v9.98», la terza è pre-registrata in `gate-motore-v1.md` §7-septquinquagies.
+
+### 46.1 — Quello che regge, verificato e non dedotto
+
+- **L'invariante torna su tutte le righe**: `(fm − rimpiazzo) × pv × confidenza` riproduce `engine_surplus`
+  e `est_surplus` su **1.533 righe motore e 2.075 stimate, 0 fallimenti** (scarto massimo 0,09, che è
+  l'arrotondamento delle tre colonne). Nessuna riga senza surplus, nessuna presenza fuori calendario.
+- **La scala a sei parole è tornata monotona** con le presenze attese su tutt'e due le piattaforme (Serie A
+  0,804 · 0,749 · 0,693 · 0,653 · 0,524 · 0,291): la miscela del 04/09 regge, e il difetto di allora — 313
+  righe su 358 in disaccordo col proprio Pa — non c'è più.
+- **`engine_pv_pred` è sulle giornate che RESTANO** (34 e 28), e ogni quota che lo legge usa quel
+  denominatore.
+- **Lo spostamento d'ambiente di quest'anno è piccolo rispetto al peso che R25 gli dà.** Il rimpiazzo si
+  misura sulle stagioni di INPUT mentre la fantamedia del motore ora legge anche il campionato in corso, e
+  le due scale potrebbero divergere: misurato, quest'anno l'attacco sta +0,25 di fantavoto sul 2025-26 e i
+  portieri −0,49, ma a quattro giornate la miscela pesa il **9%**, quindi quello che passa nella
+  sottrazione vale ~0,02. Da ri-guardare a stagione inoltrata, non adesso.
+
+### 46.2 — Una colonna leggeva il calcio giocato e quella accanto no
+
+`est_pv` lo legge dal 07/09 e `est_fm` no: **145 righe su 561** del foglio Serie A, scarto mediano **0,488**
+di fantamedia, 32 righe oltre 1,0. Curato insieme al voto base (le due metà di `fm − mv`), con la K di R25 e
+una misura fuori campione che dà +2,8% e +4,7% di MAE. **La prova che era un difetto e non una scelta è che
+l'app lo faceva già**: `swing.inSeason` correggeva proprio le righe di ripiego, quindi sullo stesso schermo
+lo SWING leggeva il calcio giocato e il surplus, l'Overall, `pi_fm` e l'ordinamento della plancia no. La
+conseguenza è la parte che vale oltre il caso: **quando l'app corregge una colonna del foglio, quella
+correzione è una segnalazione sul foglio** — o la si misura e sale nel toolkit, o le due letture della
+stessa riga continuano a non essere d'accordo. Qui è salita, e la guardia dell'app si è **semplificata**
+(una domanda sulla piattaforma invece che sulla riga) invece di aggiungere un caso.
+
+### 46.3 — Un rapporto ha bisogno di un campione, e il portiere è l'unico che non ce l'ha
+
+`minutes.per_appearance` restituisce per i portieri la media misurata grezza — misurato, e giusto finché le
+presenze sono un CONTEGGIO. Da quando la finestra è miscelata il denominatore può valere **0,1 presenze**, e
+allora il rapporto non è una media: 16 righe a 120 minuti esatti e altrettante a 3-10. Retto sul numero che
+il regolamento scrive già di lui (`START_MINUTES["P"]`) con la taglia del suo campione: **+40,9% di MAE, 4
+finestre su 4**, e zero movimento sopra le dieci presenze.
+
+**E la stessa cura sui giocatori di movimento è misurata e respinta (0 su 4, monotona)**, il che è la parte
+istruttiva: il loro errore a campione corto è grande — 20-25 minuti, e sempre verso l'alto — ma sta nel
+LIVELLO e non nel residuo, quindi smorzare il residuo cura il pezzo sbagliato. *Due popolazioni con lo
+stesso sintomo non hanno per forza la stessa causa, e la cura si misura su ciascuna.*
+
+### 46.4 — E la board non arriva al motore: misurato, pre-registrato, non adottato
+
+`evaluate` non importa `presence`, quindi chi l'undici schiera non tocca `engine_pv_pred`. Il motore è
+**compresso verso il centro**: sottostima di ~2 giornate su 36 chi la board disegna (−0,061 di calendario) e
+sovrastima chi non nomina mai (+0,050). Correggere per gruppo, **oltre** una correzione di puro livello e
+con il coefficiente stimato sulle altre finestre, vale +1,0 … +1,6% su euro (4 su 4) e +1,05 / +0,99 /
+−1,20 / +0,65% su Serie A (3 su 4).
+
+**Non adottata**, e per due ragioni che vanno tenute distinte. La prima è la regola aurea: è una regola di
+previsione e passa dal gate. La seconda è strutturale e va detta perché decide il lavoro — **il gate non
+può raggiungerla oggi**: la board nasce guidando il pannello Tk sopra un foglio già scritto, mentre
+`backtest` prepara le finestre con `features.prepare` e basta. Quello che **è** raggiungibile è il `claim`
+del pannello (`sweep.build_inputs` costruisce `presence.Inputs` dal DB senza display), ed è anche la forma
+che ha più probabilità di fallire, perché lo standing legge gli stessi minuti che R3 legge già. Le due forme
+e i criteri sono scritti prima della corsa in `gate-motore-v1.md` §7-septquinquagies.
+
