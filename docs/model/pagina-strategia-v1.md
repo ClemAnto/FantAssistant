@@ -1041,6 +1041,118 @@ doppio click mandato come lo manda il sistema (la seconda coppia press/release a
 singoli). Quattro gesti, 30 righe del primo blocco, e le due asserzioni che nessun banco aveva prima:
 che il doppio click NON apra la card, e che un click singolo la apra ancora.
 
+## 21. LA RIGA: le icone tornano dal nome, il surplus diventa una pastiglia, e i valori restano in riga (16 settembre 2026)
+
+Tre richieste dell'operatore in una sessione, tutte sulla stessa riga, piu' una quarta che si e'
+rivelata una cosa che c'era gia' e non si vedeva.
+
+### 21.1 «Le icone devono stare dal lato del nome a sinistra»
+
+Nel DOM ci stavano gia': pallino della dritta, `~` della stima, `ui-flags` e la freccia del ripiego
+erano fratelli del nome, subito dopo di lui. Quello che le spostava era il LAYOUT - il nome era
+`flex-1`, quindi si prendeva tutto lo spazio libero della riga e i marchi finivano appiccicati alla
+fila delle pastiglie, cioe' in mezzo ai numeri, dove sembravano appartenere a loro.
+
+Cura: **il nome e i suoi marchi sono un gruppo solo**, e il `flex-1` passa al gruppo. Il bordo sinistro
+del nome non si muove (prima di lui ci sono solo il posto e lo stemma, a larghezza fissa), quindi la
+colonna che si scorre non fa zig-zag, e la fila delle pastiglie resta incolonnata **per costruzione** -
+qualunque marchio condizionale ora sta dentro il gruppo e non fra la fila e il gain, che e' il difetto
+misurato il 09/09/2026 («il simbolo ~ rompe l'incolonnamento dei valori»).
+
+**Misurato dal lato dello schermo e non del DOM** (`e2e-strategy.mjs`, passo «i marchi stanno accanto al
+nome»): la distanza si prende dall'ultima LETTERA con un `Range` sul contenuto, perche' il bordo della
+CELLA sarebbe stato «vicino» in tutt'e due i casi - col nome `flex-1` la cella arrivava fino ai marchi
+mentre il testo finiva decine di pixel prima. Legge **4px di massimo e 4px di mediana** su 158-161 righe
+di 250 che portano un marchio, cioe' il `gap-x-1` del gruppo e nient'altro.
+
+### 21.2 Il PAVIMENTO del nome: provato due volte, spostato una e poi tolto
+
+Il gruppo ha un prezzo che la misura ha trovato subito: incollati al nome, i marchi non possono piu'
+andare a capo quando la riga e' affollata, quindi il nome paga per tutti. Con sette pastiglie accese
+scendeva a **0px con 249 nomi tagliati su 250**, contro 9px e 229 del layout precedente.
+
+- **Pavimento sul NOME (`min-w-12`)**: la sua cella smette di stringersi sul testo, quindi su un nome
+  corto i marchi si staccavano di **31,8px** dall'ultima lettera - cioe' il difetto che il gruppo esiste
+  per curare, rifatto un livello piu' in basso. Respinto dalla misura.
+- **Pavimento sul GRUPPO (`min-w-28`, poi `min-w-20`)**: il nome continua a misurare il proprio testo e
+  i marchi restano a 4px. Funziona, e manda a capo la fila appena il nome non ci sta piu'.
+- **Nessun pavimento**: e' quello che si spedisce, per la decisione del §21.4.
+
+### 21.3 IL SURPLUS E' UNA PASTIGLIA COME LE ALTRE
+
+«Nella pagina strategia il surplus mettilo come uno dei tanti valori attivabili.» Apre la fila delle
+pastiglie - e' il numero che ORDINA e le altre lo SPIEGANO - con lo stesso vestito e lo stesso
+`data-reading`, quindi l'arnese lo preme come preme le altre.
+
+**Non entra in `READINGS`, e non e' una dimenticanza.** Una lettura e' un fatto sull'UOMO che
+`readingsOf` ricava da sola e su cui si puo' scegliere una stagione; il gain dipende dal tipo d'asta
+DICHIARATO (surplus a rilanci, valore in un draft) e dalle giornate che il foglio prevede, quindi non
+sta in `ManReadings` e non ci puo' stare senza far sapere a `readingsOf` cose che non sono dell'uomo.
+E' gia' l'eccezione dichiarata in altri tre punti - l'etichetta, il predicato del filtro, il selettore
+dell'ordine - e questo e' il quarto.
+
+**Un interruttore suo (`gainPref`) e non una voce dentro `strategy.readings`**: li' dentro «acceso»
+vuol dire ELENCATO, quindi una preferenza salvata mesi fa - che il gain non lo nomina, perche' fino a
+ieri non si poteva spegnere - avrebbe spento in silenzio la colonna che ordina la lista. E' la ragione
+per cui `FlagPrefs` tiene l'elenco degli SPENTI: quello che nessuno ha scelto nasce acceso.
+
+**E spegnerlo non riordina niente**, come per ogni altra pastiglia: chi ordina e' il selettore, e la
+chiave in vigore resta SCRITTA in barra anche quando la colonna non c'e' - una lista ordinata su un
+numero che non si vede si legge come una lista non ordinata, e quello che la salva e' che il suo nome
+sia a schermo. Il banco pretende che la colonna sparisca e torni sulle 250 righe: una pastiglia che si
+accende senza cambiare niente sotto e' un bottone che mente.
+
+### 21.4 «Tutti i valori sulla stessa riga incolonnati»: una decisione presa col prezzo davanti
+
+Il pavimento del §21.2 fa quello per cui e' nato e produce esattamente cio' che lui non vuole vedere: la
+fila va a capo. E la regola del 04/09 faceva lo stesso da sola su un blocco stretto
+(`@max-[23rem]:order-last`), quindi a mantra i valori erano SEMPRE su due righe.
+
+Il muro e' **aritmetico** e va detto per primo: una pastiglia occupa ~46px, una lista classic ne ha ~294
+liberi e una mantra ~168. Da ~6 pastiglie su classic e ~4 su mantra qualcosa deve cedere, e le due
+risposte sono state misurate e messe davanti a lui:
+
+| | a capo (com'era) | in riga (adottato) |
+|---|---|---|
+| mantra, 3 pastiglie | riga 38px, 0 nomi tagliati | riga **24px**, **182 nomi tagliati su 255** |
+| classic, 7 pastiglie | 0 tagliati | **249 tagliati su 250**, il piu' stretto 0px |
+
+**Decisione dell'operatore: in riga, e cede il NOME.** Quindi nessun pavimento e nessuna regola sul
+contenitore stretto. `flex-wrap` resta come ULTIMA risorsa e non come regola: quando nemmeno un nome
+largo zero basta, la fila va a capo invece di spingere il gain fuori dal blocco, che e' il difetto
+misurato il 04/09.
+
+**I due banchi asserivano l'OPPOSTO**, ed e' la parte che vale oltre la feature: `e2e-strategy.mjs`
+falliva se anche una sola riga stretta teneva le pastiglie in linea, `e2e-strategy-filters.mjs` se un
+nome era largo zero. Non sono stati cancellati: sono stati **rovesciati citando la frase e la data**, e
+il prezzo (182 e 249) resta STAMPATO nel `said` a ogni corsa, dove si legge invece di sparire con la
+regola che lo produceva. Quello che il banco garantisce adesso e' che a cedere sia il nome e non la
+colonna dei valori - nessun riquadro fuori dalla propria riga, nessuna riga che manda i valori a capo.
+
+### 21.5 «Un bg leggermente diverso ogni n righe»: c'era dal 04/09 e valeva DUE punti su 255
+
+La banda per SLOT (`bandTone`, n = i partecipanti) esisteva, era asserita dal banco - il fondo DEVE
+cambiare a ogni confine e restare uguale dentro una banda - e il banco era verde. Il difetto era il
+COLORE e non la regola: `bg-control/25` sulla carta del blocco vale **2 punti su 255**, perche' su
+questo tema `control` (#1c1c26) e `surface` (#14141c) distano otto punti per canale e il 25% ne lascia
+due. Una banda che il codice dichiara e lo schermo non porta.
+
+Adottato `bg-fg/5`: **11,1 punti misurati**. Si appoggia all'INCHIOSTRO e non a una superficie perche'
+quello segue il tema da se' - su un tema chiaro `fg` e' scuro, quindi la banda scurisce invece di
+schiarire e resta una banda. *Una tinta presa da una superficie vale finche' quelle due superfici
+restano distanti, che e' esattamente come questa e' morta.*
+
+**E LA SONDA CHE L'HA MISURATA ERA ROTTA NELLO STESSO MODO DEL DIFETTO CHE CERCAVA.** La prima versione
+leggeva **1,4 punti** su una banda da undici: componeva un `oklab(0.23 0.005 -0.019 / 0.25)` - che e'
+quello che Chrome restituisce per i token di questa app, tutti `color-mix(in oklab, ...)` - con un
+`rgb(20, 20, 28)`, cioe' sommava una L fra 0 e 1 a un canale fra 0 e 255. Errore di unita' dentro lo
+strumento che dovrebbe trovarlo. Ora ogni strato si porta in sRGB prima di comporlo, e la soglia (6
+punti) e' asserita: se qualcuno rimette una tinta che lo schermo non porta, il banco cade.
+
+*La lezione generale: «i due fondi sono diversi» e' un'affermazione sul CSS, «si vedono diversi» e' una
+misura, e solo la seconda e' quello che la banda promette.* Stessa famiglia del conteggio della favicon
+(un'area non ha una forma) e di «righe identiche non sono un risultato».
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina
@@ -1077,6 +1189,10 @@ che il doppio click NON apra la card, e che un click singolo la apra ancora.
    qualunque classe e anche con un colore letterale. Da capire guardando gli stili che CDK inietta a
    runtime - `document.styleSheets` va interrogato durante il volo, che è la sola finestra in cui
    l'anteprima esiste. Costo stimato: mezz'ora; resa: leggibilità del fantasma, niente di funzionale.
-10. **Il D-Factor non è misurato.** Se la lega lo accende, un modulo con un posto ibrido in mezzo (`M/C`,
+10. **Il prezzo del «tutto in riga» non e' stato ridotto, solo dichiarato** (16/09/2026, §21.4).
+   Con la decisione di tenere i valori in linea, a mantra 182 nomi su 255 sono tagliati. La terza via
+   misurata e NON presa e' stringere i riquadri (padding e margine: ~30-55px, cioe' una-due pastiglie
+   in piu' prima del muro). Resa: nomi leggibili su mantra senza toccare la regola appena adottata.
+11. **Il D-Factor non è misurato.** Se la lega lo accende, un modulo con un posto ibrido in mezzo (`M/C`,
    `E/W`) fa schierare SEI uomini di ruolo difensivo fra cui scegliere i cinque migliori, e quel vantaggio
    nessuno lo ha quantificato.

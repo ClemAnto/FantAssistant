@@ -6451,6 +6451,42 @@ presenta molto dopo, come un giorno di scarto in un numero che nessuno sa spiega
 `date.today()` e `date.fromtimestamp(...)` senza fuso e li rifiuta; l'eccezione legittima (una data che
 nessuno confronta con niente) si aggiunge con la ragione accanto invece di allentare la regola.
 
+## Una TINTA DICHIARATA può non arrivare allo schermo, e la sonda sbagliava nello stesso modo
+**16/09/2026, dalla richiesta dell'operatore «metti un bg leggermente diverso ogni n righe dove n è il
+numero di partecipanti settato» — su una pagina che quelle bande le aveva già dal 04/09, asserite da un
+banco verde. Dettaglio: `pagina-strategia-v1.md` §21.5.** Il banco pretendeva che il fondo CAMBIASSE a
+ogni confine di banda e restasse uguale dentro, e lo faceva: quello che nessuno chiedeva è di quanto.
+`bg-control/25` sulla carta del blocco vale **2 punti su 255**, perché su quel tema `control` (#1c1c26)
+e `surface` (#14141c) distano otto punti per canale. *«I due fondi sono diversi» è un'affermazione sul
+CSS, «si vedono diversi» è una misura, e solo la seconda è quello che una banda promette* — stessa
+famiglia dell'area della favicon (un'area non ha una forma) e di «righe identiche non sono un
+risultato». Adottato `bg-fg/5`, **11,1 punti**, e la tinta si prende dall'INCHIOSTRO perché quello segue
+il tema da sé: su un tema chiaro scurisce invece di schiarire. *Una tinta presa da una superficie vale
+finché quelle due superfici restano distanti, che è esattamente come questa è morta.*
+
+**E LA SONDA CHE L'HA TROVATA ERA ROTTA NELLO STESSO MODO DEL DIFETTO CHE CERCAVA**: leggeva **1,4
+punti** su una banda da undici perché componeva un `oklab(0.23 0.005 -0.019 / 0.25)` — che è quello che
+Chrome restituisce per un token definito con `color-mix(in oklab, …)` — con un `rgb(20, 20, 28)`, cioè
+sommava una L fra 0 e 1 a un canale fra 0 e 255. **Due colori letti dallo stesso browser possono essere
+in due spazi**, quindi si normalizzano prima di confrontarli; il numero assurdo che ne esce assomiglia
+al difetto che si sta cercando, ed è il modo in cui una misura sbagliata si fa credere.
+
+## Quando due richieste dell'operatore si contraddicono, si misura il PREZZO di ciascuna e decide lui
+**16/09/2026, stessa sessione.** «Le icone devono stare dal lato del nome» e «tutti i valori sulla stessa
+riga incolonnati» non possono valere insieme su una lista stretta, ed è aritmetica e non opinione: una
+pastiglia occupa ~46px, una lista classic ne ha ~294 liberi e una mantra ~168, quindi da ~6 pastiglie su
+classic e ~4 su mantra qualcosa deve cedere. Incollati al nome, i marchi non possono più andare a capo,
+quindi il nome paga per tutti. Le due risposte sono state MISURATE e messe davanti a lui — in riga: riga
+da 38 a 24px e **182 nomi tagliati su 255** a mantra, **249 su 250** a classic con sette pastiglie; a
+capo: nessun nome tagliato e due righe — e la decisione («in riga, e cede il nome») è sua.
+Tre cose restano oltre il caso. **Un banco che asseriva l'opposto non si cancella: si ROVESCIA citando la
+frase e la data**, e il prezzo resta STAMPATO nel suo `said` a ogni corsa, dove si legge invece di
+sparire insieme alla regola che lo produceva (qui erano due: «tutte le righe strette mandano le pastiglie
+a capo» e «nessun nome largo zero»). **Quello che il banco garantisce diventa un'altra cosa** — non più
+«il nome resta leggibile» ma «a cedere è il nome e non la colonna dei valori». E **la terza via misurata
+e non presa si scrive fra gli aperti** (stringere i riquadri: ~30-55px, una-due pastiglie in più prima
+del muro), perché è la cosa che chiude il caso senza toccare la regola appena adottata.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

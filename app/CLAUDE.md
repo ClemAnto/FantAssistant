@@ -236,6 +236,14 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
 - **Prettier è configurato e l'albero NON è formattato** (verificato 06/09/2026 sulle versioni a HEAD):
   lanciarlo su un file che si sta toccando riformatta in massa il codice di tutti, quindi non si lancia -
   si scrive a mano nello stile del file (100 colonne, apici singoli).
+- **Due colori letti dallo stesso browser possono essere in DUE SPAZI, e vanno normalizzati prima di
+  confrontarli.** I token di questa app sono `color-mix(in oklab, …)` e Chrome li restituisce così
+  (`oklab(0.23 0.005 -0.019 / 0.25)`), mentre un fondo opaco arriva come `rgb(20, 20, 28)`: comporre i
+  due somma una L fra 0 e 1 a un canale fra 0 e 255. Misurato 16/09/2026 - la sonda leggeva **1,4 punti**
+  su una banda da **11,1**, cioè un numero che assomigliava al difetto che stava cercando. E quello che
+  si misura è il colore COMPOSTO sul primo antenato opaco: `getComputedStyle` restituisce quello
+  DICHIARATO, non quello che si vede, quindi un'alfa del 25% su due superfici vicine è una tinta che il
+  codice dichiara e lo schermo non porta.
 - Before delivering a change: **the production build must pass** (`ng build`) AND **`ng test`**, and for
   anything visible, the page opened in a real browser.
 - **A green `ng build` says nothing about the tests, and on 20/08/2026 it hid a suite that would not even
