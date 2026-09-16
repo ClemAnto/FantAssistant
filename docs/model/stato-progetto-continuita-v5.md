@@ -8142,3 +8142,51 @@ chi potrebbe riconoscerlo non ha un momento in cui fallire a comando, e si prese
 giorno di scarto che nessuno sa spiegare.
 
 907 test toolkit, controprova sulla guardia, nessuna riga esistente riscritta.
+
+## 16 settembre 2026 (chiusura) — «solo la visualizzazione in orario locale»: la seconda metà
+
+La regola per intero: «con le date lavoriamo sempre in UTC, solo la visualizzazione deve essere in
+orario locale». La prima metà è il toolkit (sei righe unificate più la guardia sul sorgente); questa è
+lo schermo, e il lavoro sta in una distinzione che è stata MISURATA prima di scrivere qualunque cosa.
+Dettaglio: [letture-app-v1.md](letture-app-v1.md) §45.
+
+**Una DATA non ha un fuso, un ISTANTE sì.** Sul manifest gli unici campi con un'ora sono i
+`generated_at`; `observed_on`, `valid_from`, `match_date`, `decided_on` e `auction_date` sono date pure
+— il giorno in cui una partita si è giocata o una dritta è stata dichiarata — e convertirle vorrebbe
+dire inventare loro un'ora che non hanno. La distinzione vive dentro `itDate` e non nei punti di
+chiamata: il taglio `iso.slice(0, 10)` era scritto in tre posti, due dei quali nel TEMPLATE, e su un
+pacchetto delle 01:30 avrebbe detto «del giorno prima».
+
+**Anche un'ETÀ è visualizzazione.** `today()` resta la base dei confronti in UTC; «oggi / ieri / 3
+giorni fa» si conta fra giorni locali (`todayShown`, accanto e non al posto di `today()`), o all'01:30
+la pastiglia direbbe «scritto il 16, oggi» a chi ha il 17 sul calendario. *Il difetto da evitare non è
+avere due date: è non sapere quale si sta usando.*
+
+**Una definizione e due formati** — `localDay` conta, `itDate` stampa — con un test che pretende che
+siano d'accordo. E il test ha trovato un comportamento che non avevo deciso: il fallback su una stringa
+illeggibile la tagliava e la girava (`non-una-data-T` → `da/una/non`), cioè inventava un giorno da un
+valore incomprensibile. Ora torna com'è.
+
+988 test app, 907 toolkit, `e2e-clubs` verde, controprova su entrambe le metà.
+
+## Stato alla chiusura del 16 settembre 2026
+
+**Sei commit, tutti su `origin/master`** (`865e91b` → `466fc4f`): il quarto giudice e lo scoring delle
+tre prese · la contaminazione misurata e il confronto fra i due orizzonti · la guardia che la dichiara
+· il Torino e la fiducia sul modulo · un orologio solo nel toolkit · la visualizzazione in locale
+nell'app.
+
+**Cosa NON si è mosso, verificato e non dedotto**: `engine_*`, `SHEET_REVISION` (70) e il pacchetto.
+Tutto il lavoro di oggi è giudizio, lettura e presentazione — nessuna colonna del motore cambia di un
+decimale, e `backtest --verify` non è stato toccato perché nessun percorso del gate lo è.
+
+**Il punto di ripresa, in ordine di leva.**
+1. **Scorare la presa del 16/09 dopo domenica 20** (`press --score-preregistration
+   docs/model/preregistrazione-board-breve-2026-09-16.md`), e accanto a lei giudicare il foglio
+   autentico di oggi: è l'altro braccio del confronto fra i due orizzonti, e quattro o cinque giornate
+   trasformano quel p = 0,0078 in un verdetto invece che in una direzione.
+2. Le prese future costano due minuti l'una: `press --take-preregistration --from-sheet DIR` il venerdì,
+   `--score-preregistration` il lunedì.
+3. Gli aperti di merito restano quelli della todolist: il modulo dichiarato sull'archivio vecchio (che
+   riguarda solo `--against outcome`), Pobega al Bologna, Cissé e Koopmeiners nel reparto sbagliato con
+   il limite che hanno in comune — **le dritte governano quanto gioca e non dove**.
