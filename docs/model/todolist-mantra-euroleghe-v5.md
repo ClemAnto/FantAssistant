@@ -68,8 +68,13 @@ del codice è non decidibile come la presa stessa aveva dichiarato prima di sape
    comincerebbero a decidere**: è il modo più economico che questa board abbia di guadagnarsi un
    verdetto, e l'unico che non passa da un'altra previsione.
 
-3. **[ ] IL TORINO A 5-3-2** resta l'unico modulo che nessuna delle tre prese prende (pronosticato
-   3-1-4-2, tre volte), ed era già l'aperto 3 del 15/09 — «prezzo dichiarato della prima cura, su odds
+3. **[x] IL TORINO A 5-3-2 - CHIUSO il 16/09: non era un difetto.** Al 13/09 le sue ultime tre partite
+   erano TRE MODULI DIVERSI (3-4-2-1, 5-3-2, 3-1-4-2), cioè un pareggio a tre in cui ogni scelta vale un
+   terzo; la board ha preso il più recente, che è ciò che `RECENT_DECAY` = 0,5 giustifica. Con la quarta
+   giornata in archivio si è corretta da sé: **5-3-2 al 67%**, ed è quello che la presa di oggi porta.
+   Contato: sui venti club di Serie A **zero** scelgono fra moduli in parità, la fiducia va da 0,40 a
+   0,99. Ne esce una colonna nuova sulla presa (la fiducia sul modulo), perché un DIFF al 99% e uno al
+   40% sono due fatti diversi. *Il testo originale:* — «prezzo dichiarato della prima cura, su odds
    in parità a quattro moduli». Adesso ha anche un caso vero contro cui misurarsi.
 
 4. **[ ] `TimeTravel.realToday` È UNA DATA UTC** (aperto del 15-16/09, non toccato): fra mezzanotte e le

@@ -2527,3 +2527,35 @@ La presa del **16/09** (47 club dei cinque campionati, turno del 17-20, `SHEET_R
 [preregistrazione-board-breve-2026-09-16.md](preregistrazione-board-breve-2026-09-16.md). Si scora dopo
 il 20 con `press --score-preregistration`, e — per la lezione del §18.6 — vale la pena giudicare accanto
 a lei il foglio autentico di oggi, che è l'altro braccio del confronto fra i due orizzonti.
+
+## 18.8 — Il Torino non era un difetto, ed è la board stessa a dimostrarlo
+
+L'aperto del 15/09 («Torino a 5-3-2, prezzo dichiarato della prima cura, su odds in parità a quattro
+moduli») ha ora un caso vero: tutte e tre le prese pronosticavano `3-1-4-2` e il Torino ha giocato
+`5-3-2`. Guardato il dato, non c'era niente da curare.
+
+| giornata | modulo dichiarato dal Torino |
+|---|---|
+| 1 (23/08) | `3-4-2-1` |
+| 2 (29/08) | `5-3-2` |
+| 3 (05/09) | `3-1-4-2` |
+| 4 (14/09) | `5-3-2` |
+
+Al 13/09, quando le prese sono state scritte, le ultime tre partite erano **tre moduli diversi**: un
+pareggio a tre, in cui qualunque scelta vale un terzo. La board ha preso il più recente, che è la
+scelta con la giustificazione migliore — `RECENT_DECAY` = 0,5 è stato adottato il 13/09 proprio su
+quella domanda, misurato su 49.810 slot-partita.
+
+**E si è corretta da sé appena l'ambiguità si è sciolta**: con la quarta giornata in archivio le ultime
+tre sono `5-3-2`, `3-1-4-2`, `5-3-2`, e la board di oggi dà **5-3-2 al 67%** — infatti la presa del
+16/09 lo porta. *Un caso segnalato come errore può essere il comportamento corretto su un'informazione
+ambigua, e il test non è la singola previsione: è se si corregge quando arriva il dato che mancava.*
+
+Quanto è frequente quella condizione, contato invece che stimato: sui venti club di Serie A di oggi,
+**zero** scelgono fra moduli in parità, e la fiducia sul modulo va da 0,40 a 0,99 (tre club sotto il
+45%, nove sopra il 90%). Il pareggio a tre del Torino era un caso transitorio della terza giornata.
+
+**Da qui una colonna in più sulla presa**: la FIDUCIA sul modulo, che la board calcolava già e che la
+tabella buttava via. Serve a chi scora — un DIFF su un modulo dato al 99% e uno su un modulo dato al
+40% sono due fatti diversi, e senza il numero si leggono uguali. Settima colonna, che il lettore regge
+senza leggerla: le sei che decidono il verdetto non si spostano, e un test lo asserisce.

@@ -863,8 +863,15 @@ def take_preregistration_file(ctx, sheets: list[Path | str], *, season: str | No
             if not eleven:
                 continue
             league, day, side, other = fixture[key]
+            # QUANTO E' SICURA LA SCELTA DEL MODULO, che la board calcola gia' e la presa buttava via.
+            # Serve a chi scora: un DIFF su un modulo dato al 99% e uno su un modulo dato al 40% sono
+            # due fatti diversi, e senza il numero si leggono uguali. Misurato il 16/09 sui venti club
+            # di Serie A, la fiducia va da 0,40 a 0,99 - e il caso Torino (tre moduli in tre partite,
+            # un pareggio a tre) non esiste piu' su nessuno.
+            odds = board.get("odds") or {}
             rows.append((club, league, f"{day} {side}", other,
-                         board.get("picture") or board.get("board_shape") or "", eleven))
+                         board.get("picture") or board.get("board_shape") or "", eleven,
+                         max(odds.values()) if odds else None))
     if not rows:
         print(f"[press] no club of these sheets plays on {', '.join(dates)}")
         return None
@@ -883,17 +890,19 @@ def take_preregistration_file(ctx, sheets: list[Path | str], *, season: str | No
         "disponibile, quindi le coppe infrasettimanali non la muovono - una presa anticipata di qualche",
         "giorno differisce da una dell'ultimo momento solo per infortuni e squalifiche sopravvenuti.", "",
     ]
-    short = [(club, len(eleven)) for club, _lg, _w, _o, _m, eleven in rows if len(eleven) < 11]
+    short = [(club, len(eleven)) for club, _lg, _w, _o, _m, eleven, _c in rows if len(eleven) < 11]
     if short:
         # UNA BOARD CORTA NON E' UNA PREVISIONE SBAGLIATA: e' un club il cui contingente su QUESTO
         # foglio non riesce a schierare un undici (`compare` la conta a parte per la stessa ragione).
         # Detto qui perche' chi legge la tabella veda «10 nomi» e sappia di cosa e' il numero.
         lines += [f"**Board corte**, contate a parte e non errori di previsione: "
                   + ", ".join(f"{club} ({got}/11)" for club, got in sorted(short)) + ".", ""]
-    lines += ["| club | lega | quando | avversario | modulo | undici previsto |",
-              "|---|---|---|---|---|---|"]
-    for club, league, when, other, module, eleven in sorted(rows, key=lambda one: (one[1], one[0])):
-        lines.append(f"| {club} | {league} | {when} | {other} | `{module}` | {', '.join(eleven)} |")
+    lines += ["| club | lega | quando | avversario | modulo | undici previsto | fiducia sul modulo |",
+              "|---|---|---|---|---|---|---|"]
+    for club, league, when, other, module, eleven, odds in sorted(rows,
+                                                                  key=lambda one: (one[1], one[0])):
+        lines.append(f"| {club} | {league} | {when} | {other} | `{module}` | {', '.join(eleven)} |"
+                     f" {f'{odds:.0%}' if odds is not None else '-'} |")
     lines += ["", "## Come si scora", "",
               "Per club: quanti degli undici previsti sono nella distinta vera (su 11), e se il modulo",
               "coincide. Il null e' l'undici che ha cominciato l'ULTIMA partita di quel club, letto dallo",

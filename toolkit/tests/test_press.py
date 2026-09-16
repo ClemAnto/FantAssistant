@@ -767,6 +767,10 @@ def test_the_taker_and_the_reader_agree_on_the_format(tmp_path):
     assert inter["module"] == "3-5-2" and inter["date"] == "2026-09-18" and inter["side"] == "casa"
     assert inter["opponent"] == "milan" and len(inter["xi"]) == 11
     assert taken["clubs"]["Milan"]["side"] == "fuori"
+    # LA FIDUCIA SUL MODULO viaggia in una settima colonna, e il lettore deve reggerla senza leggerla:
+    # serve a chi scora (un DIFF su un modulo dato al 99% e uno su uno dato al 40% sono due fatti
+    # diversi), e una colonna in piu' non puo' spostare le sei che decidono il verdetto.
+    assert "fiducia sul modulo" in out.read_text(encoding="utf-8")
 
 
 def test_a_club_that_does_not_play_is_left_out_and_a_short_board_is_DECLARED(tmp_path):
