@@ -1046,6 +1046,42 @@ Due convenzioni nate qui e da rispettare altrove.
   giornata, il tempismo +1,3, due attaccanti del secondo slot invece di un top +0,8, i consigli del
   motore dentro uno slot +0,7, un buco −4,7.
 
+## Una giornata votata a META' si legge come completa, e un processo si dichiara appeso su DUE letture della stessa metrica
+**16/09/2026, dalla segnalazione dell'operatore «non vedo le ultime partite della serie a». Dettaglio:
+spec «Novita' v9.97».** Il resume di `ratings` chiedeva `SELECT DISTINCT matchday`: **una riga bastava
+a dichiarare scaricata una giornata**. I voti arrivano partita per partita, quindi la lettura del sabato
+archivia mezza giornata e da quel momento nessuna corsa la riguarda piu' — Serie A md4 a **8 club su
+20**, euro md3 a **20 su 37** — e `update --daily`, che e' quello che gira la notte, i voti non li
+rilegge affatto e lo dichiara nella propria ultima riga. E' «vuoto = ignoto, mai zero» applicato a una
+GIORNATA invece che a una colonna, e il difetto era permanente perche' nessun percorso automatico lo
+poteva riparare.
+**La completezza si misura sul DATO e non su una soglia** (`ratings.matchdays_done`): almeno tanti CLUB
+quanti la MEDIANA delle ALTRE giornate di quella (stagione, piattaforma), che e' la forma di
+`snapshot.complete_squads` e per la stessa ragione — 20 club su Serie A ma 33-37 su euro, dove il
+perimetro cambia ogni settimana. Una giornata sola in archivio non ha «altre» e si rilegge: e' il primo
+weekend di una stagione, l'unico momento in cui una mediana mentirebbe su se stessa. Costo misurato
+PRIMA di adottarla: 5 giornate su 145, tre delle quali storiche euro che non porteranno mai una riga —
+il prezzo dichiarato per non avere una costante. Effetto del recupero, tutto nella stessa direzione
+perche' un voto mancante si legge come «non ha giocato»: **245 righe di 953 su euro e 140 di 561 su
+Serie A** cambiano `engine_pv_pred` (Kane 24,2 → 27,3), mentre i CAMPETTI non si muovono di una riga —
+la board sceglie sui minuti del livello per-partita, la scala della titolarita' sulle apparizioni.
+Tre abitudini, e due sono errori di misura commessi quel giorno.
+- **UN PROCESSO SI DICHIARA APPESO SU DUE LETTURE DELLA STESSA METRICA.** Ho letto `UserModeTime` via
+  CIM e l'ho confrontato con `Get-Process.CPU`, che sono due quantita' diverse, e ho annunciato «e'
+  appeso» su una corsa che lavorava: campionata la stessa metrica due volte, cresceva di 15 secondi ogni
+  15. Ero a un passo dall'uccidere venticinque minuti di lavoro. *Il tempo di CPU si legge per
+  INTERVALLI, mai per valore assoluto*, ed e' il complemento della regola gia' scritta («2,2 secondi in
+  25 minuti e' appesa davvero, 31 in 30 e' una fase lunga»).
+- **UN FLAG CHE UN ARNESE NON CONOSCE PUO' USCIRE CON CODICE 0.** `pytest --timeout=600` senza il
+  plugin stampa l'usage e **esce 0** senza eseguire un test: un verde che non ha guardato niente, la
+  stessa famiglia del `grep` che tiene solo le righe di successo. Rilanciata: 910 test.
+- **E LA SECONDA DOMANDA DELL'OPERATORE HA TROVATO IL DIFETTO CHE LA PRIMA CERCAVA.** «C'e' qualcosa da
+  allineare sulle leghe euro?» ha prodotto una risposta negativa e misurata (le board euro leggono
+  **80,0% degli uomini e 10 moduli su 11** contro il 74-79% e l'8 su 12 della Serie A, sulle tre prese
+  pre-registrate spaccate per piattaforma); il buco vero era su tutt'e due le piattaforme e stava nei
+  VOTI. *Una domanda su una differenza fra due popolazioni si risponde meglio cercando quello che
+  hanno in comune.*
+
 ## Un'assenza recente ha DUE significati, e la piu' cara e' «non abbiamo guardato»
 **03/09/2026, da una domanda dell'operatore: «come mai non abbiamo nessun infortunio di serie a che
 risale a oggi o ieri?». Dettaglio: `letture-app-v1.md` §22.** Ci sono volute cinque interrogazioni e un

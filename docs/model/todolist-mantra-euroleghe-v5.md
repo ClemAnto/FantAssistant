@@ -121,13 +121,17 @@ Dettaglio e numeri: `letture-app-v1.md` §42, `gate-motore-v1.md` §7-sexquinqua
 
 Dettaglio e numeri: `formazioni-tipo-v1.md` §13, `letture-app-v1.md` §41.
 
-A. **[ ] RIGENERARE `EuroLeghe` E `Leghe Mantra`**, che nel bundle sono ancora del 12/09 sera: è stato
-   rifatto il solo foglio Serie A. Non è una scelta — **la corsa con il refresh di rete si è APPESA**
-   (2,2 secondi di CPU in 25 minuti) e il secondo tentativo è stato abbandonato; la terza corsa, con
-   `--no-refresh`, ha finito in 12 minuti a piena CPU. **Da capire prima di rifare le altre due**: quale
-   delle cinque fette del refresh si blocca e perché (le candidate sono i probabili, la curva del mercato,
-   le pagine-rosa e ClubElo, che `fetch --stale` dava a 239 giorni perché l'API risponde 502 da gennaio).
-   Finché non è chiarito, i probabili di oggi non sono stati riletti per nessuno dei tre fogli.
+A. **[x] ~~RIGENERARE `EuroLeghe` E `Leghe Mantra`~~ — CHIUSO il 16/09/2026, e il blocco non si è
+   riprodotto.** Tutti e tre i fogli sono stati rifatti **con il refresh di rete acceso** e la fase ha
+   finito in ~22 minuti (EuroLeghe 20:22 · Leghe 20:25 · Leghe Mantra 20:28), col bundle e la copia
+   dell'app dietro. Quindi le cinque fette hanno risposto tutte, ClubElo compreso — che nel frattempo
+   ha un'altra sorgente (l'archivio adottato l'11/09, `fetch --stale` lo dà a 15 giorni su una cadenza
+   di 17) e non è più la candidata che era.
+   **E la diagnosi di allora resta NON riprodotta, il che va detto invece di dichiararla risolta**: se
+   la causa era un endpoint che a volte non risponde, il prossimo blocco arriverà senza preavviso. Cosa
+   servirebbe per chiuderla davvero, e costa una riga: **`py-spy` non è nel venv**, quindi quando una
+   corsa sembra ferma non si può leggere lo stack e si finisce a dedurre dalle connessioni aperte — che
+   è esattamente quello che è successo oggi, con una diagnosi sbagliata (aperto B-quater).
 
 B. **[ ] IL MARCHIO DI `recent_state` A SCHERMO.** Il fatto viaggia nel file (`started`/`sub`/`bench`/
    `away`, e la misura dice che sono tre probabilità diverse: 0,393 · 0,165 · 0,127), la card lo può
@@ -135,6 +139,28 @@ B. **[ ] IL MARCHIO DI `recent_state` A SCHERMO.** Il fatto viaggia nel file (`s
    «fermo da tre giornate». Tocca `ui-flags`, dove un'altra sessione stava lavorando, quindi non è stato
    aperto. Vale la regola dell'11/09: un marchio che si disegna in una vista sola è indistinguibile da un
    marchio che non esiste — qui non se ne disegna nessuno, il che è onesto ma lascia il fatto muto.
+
+B-bis. **[ ] LA CURA DEL RESUME DEI VOTI NON È ANCORA STATA ESERCITATA SULLA RETE.**
+   `ratings.matchdays_done` (spec «Novità v9.97») è nel codice e nei test, ma il recupero del 16/09 è
+   stato fatto con `--refresh`, che il resume lo scavalca: **la prima prova vera è il prossimo weekend**,
+   e il segno da guardare è che una giornata parziale venga ripresa *senza* che nessuno passi un flag.
+   Resta vero, e documentato, che `update --daily` i voti non li rilegge affatto: chi vuole i voti dopo
+   una giornata lancia `ratings` o l'`update` intero.
+
+B-ter. **[ ] EURO NON HA UN GIUDICE DELLE BOARD, e le pre-registrazioni sono l'unico che abbia mai
+   avuto.** `press_formations` porta 20 club, tutti di Serie A — la stampa italiana non pubblica le
+   formazioni tipo del Bayern — quindi `press --against press` su euro non esiste, `--against round` è
+   contaminato (§18.5) e `--against outcome` vuole una stagione finita. Misurato il 16/09: sulle tre
+   prese gli 11 club esteri leggono **80,0% degli uomini e 10 moduli su 11** contro il 74-79% e l'8 su
+   12 dei 12 club di Serie A, quindi **non c'è un divario da recuperare** e quello che manca è il modo
+   di continuare a saperlo. Due strade, e la prima non costa niente: **prendere le prese ogni turno**
+   (quella del 16/09 porta 27 club esteri su 47) oppure **scorare `--against outcome` su un foglio euro
+   back-dated** di una stagione chiusa, che darebbe il primo giudizio pulito della board di STAGIONE
+   euro — le cartelle `auction-snapshot-2025-26-euro-mantra-*` esistono già.
+
+B-quater. **[ ] `py-spy` NON È NEL VENV.** Costa `pip install py-spy` ed è la differenza fra leggere
+   lo stack di una corsa che sembra ferma e dedurlo dalle connessioni TCP aperte. Non installato di
+   mia iniziativa perché è l'ambiente dell'operatore: è una sua decisione, non una misura.
 
 C. **[x] IL GIUDIZIO SUL FATTO per il blocco del 13/09 - CHIUSO il 16/09/2026**, e il canale era
    quello previsto: tre prese scorate contro le distinte vere, la board batte il suo null su tutte
