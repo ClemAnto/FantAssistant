@@ -68,6 +68,28 @@ export class TimeTravel {
   /** La data in cui l'app crede di trovarsi: quella scelta, o oggi. */
   readonly today = computed(() => this.chosen() ?? this.realToday);
 
+  /**
+   * Lo stesso giorno PER LO SCHERMO, sull'orologio di chi guarda.
+   *
+   * Si lavora in UTC e si mostra in locale (regola dell'operatore, 16/09/2026): `today()` e' la base
+   * dei CONFRONTI - un infortunio ancora aperto, una finestra di rientro, la freschezza di una lettura
+   * - e sta in UTC come ogni data che il toolkit scrive, mentre un'ETA' stampata («oggi», «ieri», «3
+   * giorni fa») e' visualizzazione e va detta nel giorno che l'operatore sta vivendo. I due
+   * differiscono per le due ore dopo la mezzanotte italiana: senza questo, all'01:30 la pastiglia
+   * direbbe «scritto il 16, oggi» a chi ha il 17 sul calendario.
+   *
+   * DUE DEFINIZIONI E NON DUE OROLOGI SPARSI: stanno una accanto all'altra e i nomi dicono a quale
+   * domanda rispondono, perche' il difetto da evitare non e' avere due date - e' non sapere quale si
+   * sta usando. Viaggiando nel tempo la data scelta e' una data PURA e non ha un fuso: si usa quella.
+   */
+  readonly todayShown = computed(() => {
+    const chosen = this.chosen();
+    if (chosen) return chosen;
+    const now = new Date();
+    const pad = (one: number) => String(one).padStart(2, '0');
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  });
+
   /** Se stiamo viaggiando. Quando è falso nessuna parte dell'app deve comportarsi diversamente. */
   readonly travelling = computed(() => this.chosen() != null);
 

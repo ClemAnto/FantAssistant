@@ -14,6 +14,7 @@ import { CLASSIC_ROLES, ClassicRole, Platform } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { bindQuery } from '../../core/view-state';
 import { piBand, piHistogram } from '../../core/projection';
+import { itDate } from '../../core/tooltip';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { Bar, BarChart } from '../../ui/bar-chart/bar-chart';
 import { PieChart, PieSlice } from '../../ui/pie-chart/pie-chart';
@@ -58,6 +59,15 @@ const ROLE_LABEL: Record<ClassicRole, string> = {
   host: { class: 'view-host' },
 })
 export class Charts {
+  /**
+   * Il giorno di un ISTANTE come lo legge chi guarda lo schermo.
+   *
+   * Si lavora in UTC e si mostra in locale: il template tagliava l'ISO a dieci caratteri, che e' il
+   * giorno UTC - per un pacchetto scritto all'01:30 italiane sarebbe il giorno prima. Una definizione
+   * sola (`core/tooltip`), qui e nella pastiglia della freschezza.
+   */
+  protected readonly shownDay = itDate;
+
   protected readonly store = inject(ValuationStore);
   /** Solo per sapere SE le letture ci sono: i numeri arrivano tutti da `store.valuations`. */
   private readonly ratings = inject(PlayerRatingsStore);

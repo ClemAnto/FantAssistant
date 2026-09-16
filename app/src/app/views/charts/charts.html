@@ -4,7 +4,7 @@
     <div actions class="flex items-baseline gap-3">
       @if (store.generatedAt(); as generated) {
         <span class="text-xs text-muted">
-          Snapshot del {{ generated.slice(0, 10).split('-').reverse().join('/') }}
+          Snapshot del {{ shownDay(generated) }}
           @if (store.targetSeason()) {
             <span> · listone {{ store.targetSeason() }}</span>
           }

@@ -28,6 +28,7 @@ import { PlayerCard } from '../../ui/player-card/player-card';
 import { SquadTable } from '../../ui/squad-table/squad-table';
 import { TimeTravel } from '../../core/time-travel';
 import { bindQuery } from '../../core/view-state';
+import { itDate } from '../../core/tooltip';
 
 /**
  * The two questions this page can answer about the same rosa.
@@ -70,6 +71,15 @@ export type SquadMode = 'values' | 'matches';
   host: { class: 'view-host' },
 })
 export class Clubs {
+  /**
+   * Il giorno di un ISTANTE come lo legge chi guarda lo schermo.
+   *
+   * Si lavora in UTC e si mostra in locale: il template tagliava l'ISO a dieci caratteri, che e' il
+   * giorno UTC - per un pacchetto scritto all'01:30 italiane sarebbe il giorno prima. Una definizione
+   * sola (`core/tooltip`), qui e nella pastiglia della freschezza.
+   */
+  protected readonly shownDay = itDate;
+
   protected readonly store = inject(ClubsStore);
   /** The per-match layer, for the other reading of the same rosa. Loaded only when it is asked for. */
   protected readonly matches = inject(PlayersStore);

@@ -5,7 +5,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { Bundle } from '../../core/bundle';
 import { UNAVAILABLE_FRESH_DAYS, PlayerStatus } from '../../core/player-status';
 import { TimeTravel } from '../../core/time-travel';
-import { itDate } from '../../core/tooltip';
+import { itDate, localDay } from '../../core/tooltip';
 
 /**
  * SONO AGGIORNATI I DATI? — sempre a schermo, su ogni pagina.
@@ -59,14 +59,31 @@ export class DataFreshness {
     });
   }
 
+  /**
+   * Il giorno del pacchetto per il CONFRONTO, in UTC come la data con cui viene confrontato
+   * (`travel.today()`). L'etichetta a schermo passa invece da `itDate`, che di un istante mostra il
+   * giorno LOCALE: due domande, due valori, e mescolarle farebbe leggere un'eta' diversa dalla data
+   * stampata accanto per le due ore dopo la mezzanotte.
+   */
   protected readonly bundleOn = computed(() => this.status.readAt()?.slice(0, 10) ?? null);
+
+  /** Lo stesso istante per lo SCHERMO: il giorno che l'operatore stava vivendo. */
+  protected readonly bundleShown = computed(() => {
+    const at = this.status.readAt();
+    return at ? itDate(at) : null;
+  });
+
   protected readonly pressOn = this.status.pressReadOn;
   protected readonly stale = this.status.pressStale;
 
   /** Quanti giorni ha il pacchetto. Null finché il manifest non è arrivato. */
   protected readonly bundleAge = computed(() => {
-    const on = this.bundleOn();
-    return on ? days(on, this.travel.today()) : null;
+    // L'ETA' E' UNA COSA CHE SI LEGGE, quindi si conta fra due giorni LOCALI: il giorno in cui il
+    // pacchetto e' stato scritto per chi guarda, e il giorno di chi guarda. Contarla in UTC farebbe
+    // dire «scritto il 16, oggi» all'01:30 a chi ha il 17 sul calendario - la data e la parola accanto
+    // si contraddirebbero, che e' peggio di averle tutt'e due un po' spostate.
+    const at = this.status.readAt();
+    return at ? days(localDay(at), this.travel.todayShown()) : null;
   });
 
   /** «oggi», «ieri», «3 giorni fa»: la forma in cui un uomo legge un'età, non una data ISO. */
@@ -102,7 +119,7 @@ export class DataFreshness {
     const press = this.pressOn();
     const lines = [
       bundle
-        ? `Pacchetto del motore scritto il ${itDate(bundle)} (${ageWord(this.bundleAge() ?? 0)}): da qui vengono fantamedia, presenze e surplus.`
+        ? `Pacchetto del motore scritto il ${this.bundleShown()} (${ageWord(this.bundleAge() ?? 0)}): da qui vengono fantamedia, presenze e surplus.`
         : 'Pacchetto del motore: non ancora caricato.',
       press
         ? `Indisponibili letti il ${itDate(press)} (${this.label()}): da qui vengono gli allarmi «oggi non gioca».`

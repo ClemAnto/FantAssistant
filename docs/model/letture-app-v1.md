@@ -5678,3 +5678,54 @@ e gli slot vuoti sei.
   `season: null` che non torna col pacchetto) e `e2e-board-horizon` («nessuna riga dice che si sta
   guardando l'ultimo periodo» — è la didascalia tolta in §43, e il banco la cerca ancora). Verificati a
   HEAD con `git stash`: falliscono identici senza le modifiche di oggi.
+
+
+# 45 — Si lavora in UTC e si mostra in locale (16 settembre 2026)
+
+Regola dell'operatore, in una riga: «con le date lavoriamo sempre in UTC, solo la visualizzazione deve
+essere in orario locale». La prima metà era già vera e il toolkit l'ha completata quella sera (spec
+«Novità v9.96»); questa è la seconda, e il lavoro sta tutto in una distinzione.
+
+## 45.1 — Una DATA non ha un fuso, un ISTANTE sì
+
+Misurato sul manifest prima di toccare qualunque cosa: gli unici campi con un'ora sono i `generated_at`
+(del pacchetto e di ogni foglio). `auction_date`, le date dei timepack, e nelle tabelle del bundle
+`observed_on`, `valid_from`, `match_date`, `decided_on` sono **date pure**.
+
+La conseguenza decide tutto: una data pura **non si converte**. È il giorno in cui una partita si è
+giocata, in cui una pagina è stata letta, in cui una dritta è stata dichiarata — applicarle un fuso
+vorrebbe dire inventarle un'ora che non ha e, a seconda del segno, spostarla di un giorno. Un istante
+invece il fuso ce l'ha, ed è UTC: il giorno da mostrare è quello che l'operatore stava vivendo.
+
+**La distinzione sta DENTRO la funzione e non nei punti di chiamata**, perché è quella che si sbaglia:
+`itDate` riconosce l'istante dalla `T` e converte solo lui. Il difetto che cura era scritto in tre
+posti — `iso.slice(0, 10)`, cioè il giorno UTC — nella pastiglia della freschezza e nelle intestazioni
+di Squadre e Grafici, due delle quali ripetevano la formattazione **nel template**. Un pacchetto scritto
+all'01:30 italiane si sarebbe letto «del giorno prima».
+
+## 45.2 — Anche un'ETÀ è visualizzazione, e deve accordarsi con la data che le sta accanto
+
+`TimeTravel.today()` è la base dei CONFRONTI — un infortunio ancora aperto, una finestra di rientro, la
+freschezza di una lettura — e resta in UTC come ogni data che il toolkit scrive. Ma «oggi», «ieri», «3
+giorni fa» è una cosa che si legge, e va contata fra due giorni LOCALI: senza, all'01:30 la pastiglia
+direbbe «scritto il 16, **oggi**» a chi ha il 17 sul calendario — cioè la data e la parola accanto si
+contraddirebbero, che è peggio di averle tutt'e due un po' spostate.
+
+Da qui `TimeTravel.todayShown`, **accanto** a `today()` e non al suo posto: due definizioni con due nomi
+che dicono a quale domanda rispondono, perché il difetto da evitare non è avere due date — è non sapere
+quale si sta usando. Viaggiando nel tempo la data scelta è una data pura e non ha un fuso: si usa
+quella, in tutt'e due.
+
+## 45.3 — Una definizione, due formati
+
+`localDay` dà il giorno locale in ISO (per chi conta), `itDate` lo stampa (per chi legge), e la seconda
+è scritta sopra la prima. Un test lo pretende su tre istanti diversi: se le due metà calcolassero il
+giorno in due modi, l'età e la data scritta accanto si contraddirebbero — che è esattamente il difetto
+che questa sezione cura, commesso un piano più sotto.
+
+**E una stringa che non si riesce a leggere torna com'è.** Il primo fallback tagliava a dieci caratteri
+e girava (`non-una-data-T` → `da/una/non`): un numero inventato da un valore incomprensibile. Un numero
+illeggibile lo si va a guardare, uno inventato no. L'ha trovato il test, non la rilettura.
+
+**Verifica**: 988 test app (+5), build pulito, `e2e-clubs` verde — e la controprova rimette il taglio a
+dieci caratteri e fa cadere i due test che descrivono le due metà della cura, non gli altri.

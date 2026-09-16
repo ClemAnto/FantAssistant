@@ -6394,6 +6394,20 @@ della curva di mercato e la finestra del prossimo turno.
 `injuries` il confronto era fra `date.today()` e `date.fromtimestamp(mtime)`, tutt'e due locali, cioe'
 una coppia coerente - spostarne una sola l'avrebbe rotta. Si spostano insieme o non si toccano.
 
+**E LA SECONDA META' DELLA REGOLA E' LO SCHERMO** («solo la visualizzazione deve essere in orario
+locale»), dove la cosa che si sbaglia e' un'altra: **una DATA non ha un fuso e un ISTANTE si'.** Misurato
+sul manifest, gli unici campi con un'ora sono i `generated_at`; `observed_on`, `valid_from`,
+`match_date`, `decided_on`, `auction_date` sono date pure — il giorno in cui una partita si e' giocata o
+una dritta e' stata dichiarata — e convertirle vorrebbe dire inventare loro un'ora che non hanno,
+spostandole di un giorno. La distinzione vive DENTRO `itDate` e non nei punti di chiamata, perche' e'
+quella che si dimentica: il taglio `iso.slice(0, 10)` di un istante era scritto in tre posti (due nei
+template) e su un pacchetto delle 01:30 italiane avrebbe detto «del giorno prima». **Anche un'ETA' e'
+visualizzazione**, quindi «oggi / ieri / 3 giorni fa» si conta fra giorni LOCALI (`TimeTravel.todayShown`,
+accanto a `today()` e non al suo posto: il difetto da evitare non e' avere due date, e' non sapere quale
+si sta usando) — altrimenti la pastiglia direbbe «scritto il 16, oggi» a chi ha il 17 sul calendario, e
+la data e la parola accanto si contraddirebbero. *Una definizione e due formati*: `localDay` conta,
+`itDate` stampa, e un test pretende che siano d'accordo.
+
 **E la guardia e' un test sul SORGENTE, non un controllo a runtime, perche' due orologi divergono solo
 nelle due ore dopo la mezzanotte** - esattamente la finestra in cui nessuno guarda. Un difetto che non
 si manifesta mai davanti a chi potrebbe riconoscerlo non ha un momento in cui fallire a comando: si
