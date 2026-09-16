@@ -495,6 +495,61 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.94 (16 settembre 2026 — IL QUARTO GIUDICE: una PRE-REGISTRAZIONE si scora come è scritta)
+
+Dettaglio, tabelle e verdetto: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18.
+
+1. **`press --score-preregistration FILE [--taken-at ...]`** — il quarto giudice delle board. Legge la
+   tabella markdown di una pre-registrazione (`docs/model/preregistrazione-*.md`) e la confronta con gli
+   undici davvero schierati nelle date che quella tabella nomina. **Non ricalcola niente**, ed è tutta la
+   differenza con `--against round`: quel comando ridisegna le board col pannello di OGGI
+   (`extract_boards`), che è giusto per «il foglio da cui compro è buono?» e sbagliato per «quella
+   previsione era giusta?» — misurato il 15/09, la stessa cartella giudicata prima e dopo una modifica a
+   `gui.py` passa da 154/220 a 152/220. Quello che invece è condiviso con gli altri tre giudici è il
+   METRO: nomi, unione dei club per identità e verdetto sul modulo passano tutti da `compare`, e la
+   tabella ci entra attraverso un adattatore dichiarato (`_as_board`) e non attraverso una copia.
+
+2. **`press.previous_match_null`** — il null che le prese dichiarano, «l'undici che ha cominciato
+   l'ULTIMA partita di quel club», e non quello di `null_model` («lo stesso undici dell'anno scorso»).
+   Sono due null perché sono due domande: la board di stagione prevede una stagione, quella breve la
+   PROSSIMA partita. *Scorare una previsione contro un null diverso da quello che ha pre-registrato è
+   riscriverla dopo il fatto.* Un club la cui partita precedente non è su file non prende uno zero: esce
+   dal null e viene contato a parte, come `null_model` fa con una promossa.
+
+3. **`round_reference(dates=...)`** — la finestra di un giudizio può essere un WEEKEND e non un numero di
+   giornata, perché cinque campionati giocano cinque giornate diverse nella stessa domenica (13-14/09/2026
+   era Serie A 4, la_liga 5, bundesliga 3). Stessa query, stessa unità (la partita), e i due filtri sono
+   esclusivi.
+
+4. **`positions.kickoff_times`** — l'ORA di un calcio d'inizio, letta offline dal payload dei turni
+   (`startTimestamp`, 976 istanti in cache per il 2026-27, zero richieste). Serve a una domanda sola: una
+   presa scritta a metà giornata è una previsione solo per le partite non ancora cominciate, e senza
+   l'ora l'unico modo di restare onesti sarebbe buttare via l'intero giorno. Con l'ora, la terza presa
+   perde **tre club e non diciotto**. Il database non ce l'ha — `fixtures` porta la DATA e
+   `club_match_lineups` un giorno — quindi la risposta stava fuori dal database, come per
+   `injuries.observed_on` un anno di lezioni fa.
+
+5. **IL GIUDICE `--against round` PARLAVA IL VOCABOLARIO SBAGLIATO, ed è il difetto grosso della
+   giornata.** `round_reference` costruiva il modulo dai tre conteggi di linea mentre dal 12/09 la board
+   legge il modulo **dichiarato** dal club: ogni 4-2-3-1 vero veniva confrontato con un «4-5-1» costruito
+   da noi e letto come previsione sbagliata. `declared_or_counted` prende così il suo **quarto lettore**,
+   e `compare` un terzo valore di `on` — **`"reference"`, che sceglie riga per riga** la rappresentazione
+   che quel club può esprimere, perché il modulo dichiarato è su file solo per le partite scaricate dopo
+   l'11/09 e l'archivio dietro non è ancora riletto. A/B sulla stessa cartella e con lo stesso pannello
+   (Serie A, 4ª giornata): **7 MATCH / 13 DIFF → 15 MATCH / 5 DIFF**, con gli uomini **identici**
+   (161/220 nei due bracci), che è la prova di aver mosso una variabile sola. Conseguenza dichiarata: il
+   verdetto sui MODULI del 24/08 (Serie A 9/18, euro 18/23) era contato al vecchio modo e non è
+   confrontabile con uno preso adesso; quello sugli uomini è intatto.
+
+6. **La cadenza attesa di `forza dei club` passa da 1 giorno a 17.** `fetch --stale` la chiedeva
+   quotidiana, che era la cadenza dell'API — morta a 502 da gennaio. Quello che serve è l'ARCHIVIO
+   adottato l'11/09, e quello pubblica **il 1º e il 15 di ogni mese**: misurato sulla coda del file
+   (ultime dieci date 15/04 · 01/05 · … · 01/09, ~980 club l'una), quindi la lettura più vecchia che una
+   fonte in salute può dare è di sedici giorni, più uno di tolleranza. *Una cadenza appartiene alla fonte
+   che sta rispondendo davvero, e un allarme che suona tutti i giorni non è un allarme.* Con lei è stato
+   corretto un commento in `elo.py` che diceva «l'archivio arriva a ieri» — falso, e in contraddizione
+   con il commento della costante cento righe più su, che la cadenza bimensile la dichiarava già.
+
 ## Novità v9.93 (15 settembre 2026 — LA BOARD DI STAGIONE SCEGLIE SULLE RIGHE DEL MODULO, E PRENDE ATTO DEL POSTO)
 
 `SHEET_REVISION` 68 → **70**, due passi. Tutto nasce da segnalazioni dell'operatore sui campetti

@@ -6278,6 +6278,57 @@ Rifatta per `fc_id`: zero club interi, sei slot. *Le regole di casa valgono anch
 cui si misura, e un numero estremo che nomina proprio i tre club che questo repository ha già perso una
 volta è un numero da rifare prima di riportarlo.*
 
+## Una PRE-REGISTRAZIONE si scora come e' scritta, e il giudice va aggiornato con chi giudica
+**16/09/2026, dalla domanda dell'operatore «ci sono cose da chiudere?». Dettaglio:
+`formazioni-tipo-v1.md` §18, spec «Novita' v9.94».** Le tre prese della board breve (12-13/09)
+pronosticavano partite ormai giocate, ed erano l'unica cosa in lista che invecchia.
+
+**NIENTE SI RICALCOLA.** `press --against round` RIDISEGNA le board col pannello di oggi
+(`extract_boards`), il che e' giusto per «il foglio da cui compro e' buono?» e sbagliato per «quella
+previsione era giusta?» — misurato il 15/09, la stessa cartella giudicata prima e dopo una modifica a
+`gui.py` legge 154/220 e 152/220. Una pre-registrazione e' una tabella di nomi scritta a verbale prima
+dei calci d'inizio: si scora **come e' scritta** (`press --score-preregistration`). Quello che invece
+resta CONDIVISO con gli altri tre giudici e' il metro — nomi, unione dei club per identita' e verdetto
+sul modulo passano da `compare`, e la tabella ci entra con un adattatore dichiarato, perche' un secondo
+conteggio di «quanti uomini in comune» darebbe due risposte a una domanda sola. **E il null e' quello
+che la presa DICHIARA** («l'undici che ha cominciato l'ultima partita»), non quello di un altro giudice:
+scorare una previsione contro un null diverso da quello pre-registrato e' riscriverla dopo il fatto.
+
+**QUANDO SI INSEGNA UNA PAROLA NUOVA AL MODELLO, LA SI INSEGNA ANCHE A CHI LO CORREGGE.** Il difetto
+grosso della giornata non era nella board: `round_reference` costruiva il modulo dai tre CONTEGGI mentre
+dal 12/09 la board legge il modulo che il club **dichiara**, quindi ogni 4-2-3-1 vero era confrontato con
+un «4-5-1» costruito da noi e letto come errore. A/B a una variabile (stessa cartella, stesso pannello):
+**7 MATCH / 13 DIFF → 15 / 5**, con gli uomini **identici** (161/220) — otto club di venti erano
+vocabolario. `declared_or_counted` prende il quarto lettore e `compare` un `on="reference"` che sceglie
+la rappresentazione **riga per riga**, perche' il dichiarato e' su file solo dopo l'11/09: un riferimento
+puo' parlare due vocabolari mentre un archivio si rilegge, e la regola «quale rappresentazione si puo'
+confrontare lo decide il RIFERIMENTO» si applica allora per RIGA e non per giudice.
+
+**UN AGGREGATO CHE BATTE IL NULL PUO' ESSERE UN PAREGGIO PER UNITA'.** La board vince su tutte e tre le
+prese (uomini 195, 194, 172 contro 189, 189, 161) e il test dei segni dice un'altra cosa: 8 club meglio,
+2 peggio, 10 pari sulla presa che si spedisce (**p = 0,109**, la direzione giusta e non la prova), e un
+pareggio secco (6-6, 6-5) sulle prime due, dove il margine viene da tre code (Villarreal +4, Lipsia +2,
+Napoli +2). *Un null si legge anche PER UNITA'* — e la stessa presa aveva scritto prima dell'esito che
+nove nomi di differenza fra due versioni non sono un campione: infatti leggono 195 contro 194, e senza
+quella riga scritta prima quel −1 si leggerebbe come un verdetto.
+
+Tre cose piu' piccole, tutte della stessa famiglia.
+- **Quando una regola dichiarata sembra costare un giorno intero di dati, guarda se il dato che la rende
+  esatta non sia gia' su disco.** «Scarta chi era gia' in campo alle 15:10» sembrava obbligare a buttare
+  via le diciotto partite del 13/09, perche' `fixtures` porta la DATA e non l'ora; l'ora sta nel payload
+  dei turni da sempre (`positions.kickoff_times`, 976 istanti in cache, zero richieste) e i club scartati
+  sono **tre**.
+- **UNA CADENZA APPARTIENE ALLA FONTE CHE STA RISPONDENDO DAVVERO.** `fetch --stale` chiedeva a ClubElo
+  un giorno, che era la cadenza dell'API — 502 da gennaio; quello che serve e' l'archivio adottato
+  l'11/09, che pubblica il 1º e il 15 (misurato sulla coda del file, non dedotto dalla descrizione),
+  quindi 17. *Un allarme che suona tutti i giorni non e' un allarme*, e con la cura e' caduto un commento
+  che diceva «l'archivio arriva a ieri», falso e in contraddizione con quello della costante cento righe
+  sopra.
+- **Un banco che cerca una funzione che l'operatore ha fatto togliere misura il proprio ricordo.**
+  `e2e-board-horizon` restava rosso sulla didascalia rimossa il 15/09 (§43): il compito di dichiarare
+  l'orizzonte e' passato al PULSANTE, quindi si chiede a lui. *Una feature che esce porta con se' il
+  passo che la verificava, o il rosso diventa rumore e il prossimo lo salta.*
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

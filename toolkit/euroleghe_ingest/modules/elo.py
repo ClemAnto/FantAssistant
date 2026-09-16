@@ -203,9 +203,17 @@ def fetch_snapshots(ctx: Context, dates: list[str], refresh: bool = False) -> in
         print(f"[elo] {date}: snapshot cached ({len(payload) // 1024} KB)")
         time.sleep(REQUEST_DELAY)
     if missing and not ctx.cancelled():
-        # DUE RIPIEGHI IN CASCATA, e l'ordine e' la freschezza: l'archivio arriva a ieri, il mirror si
+        # DUE RIPIEGHI IN CASCATA, e l'ordine e' la freschezza: l'archivio pubblica il 1º e il 15 di
+        # ogni mese (la costante lo dichiara di se', ed e' RIMISURATO il 16/09/2026 sulla coda del file:
+        # ultime dieci date pubblicate 15/04 · 01/05 · 15/05 ... 01/09, ~980 club l'una), il mirror si
         # e' fermato al 14/01/2026. Il secondo vede solo quello che il primo non ha coperto, quindi
-        # quando l'archivio serve tutto - il caso normale - non viene nemmeno scaricato: sono 49 MB.
+        # quando l'archivio serve tutto - il caso normale - non viene nemmeno scaricato: sono 10 MB.
+        #
+        # QUI C'ERA SCRITTO «l'archivio arriva a ieri», che e' falso e contraddiceva il commento della
+        # costante cento righe piu' su. Costa: su una stagione in corso la domanda e' «l'Elo di OGGI» e
+        # la risposta migliore possibile e' vecchia fino a sedici giorni, quindi `fetch --stale` non
+        # puo' chiedere a questo strato la cadenza di un giorno che l'API viva aveva - e finche' l'API
+        # risponde 502 quel numero e' la cadenza della FONTE CHE SERVE, non quella che vorremmo.
         written, missing = fetch_from_archive(ctx, missing)
         fetched += written
     if missing and not ctx.cancelled():

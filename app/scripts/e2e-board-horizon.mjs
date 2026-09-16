@@ -4,7 +4,11 @@
  * Serve `dist/`, dove il `boards.json` porta la board dell'ultimo periodo scritta da uno `snapshot` vero.
  * Quello che misura, e ogni passo dice su quante cose ha guardato:
  *   - il pulsante c'e' (il pacchetto porta `short`) e parte su «Stagione»
- *   - un click su «Ultimo periodo» CAMBIA gli undici nomi disegnati, e la barra lo dichiara
+ *   - un click su la voce «Ultimo periodo» CAMBIA gli undici nomi disegnati, e il PULSANTE
+ *     dichiara quale dei due orizzonti e' acceso: la didascalia che lo diceva a parole e'
+ *     stata tolta il 15/09/2026 su richiesta dell'operatore (letture-app-v1.md §43) e il
+ *     suo compito e' passato al selettore. Si misura quello che la pagina dice ADESSO, o
+ *     il banco resta rosso su una funzione che nessuno vuole piu'
  *   - i nomi nuovi sono quelli che la board breve del file dichiara: il confronto e' col FILE e non con
  *     lo schermo, o sarebbe l'asserzione circolare
  *
@@ -126,7 +130,7 @@ const pitch = () => ev(s, () => {
     return { text: l.textContent.trim(), on: l.className.includes('checked'),
       x: box.x + box.width / 2, y: box.y + box.height / 2 };
   });
-  return { names, buttons, banner: document.body.innerText.includes('ultimo periodo') };
+  return { names, buttons };
 });
 
 let seen = null;
@@ -139,6 +143,11 @@ for (let i = 0; i < 200; i += 1) {
 const horizonButtons = seen.buttons.filter((b) => /Stagione|Ultimo periodo/.test(b.text));
 console.log(`· il pulsante c'e': ${horizonButtons.length} voci (${horizonButtons.map((b) => b.text).join(' / ')})`);
 if (horizonButtons.length !== 2) problems.push('il selettore dei due orizzonti non e\' a schermo');
+const chosen = (buttons) => buttons.filter((b) => b.on).map((b) => b.text).join(', ') || 'nessuna';
+console.log(`- all'apertura il pulsante e' su: ${chosen(horizonButtons)}`);
+if (chosen(horizonButtons) !== 'Stagione') {
+  problems.push(`all'apertura il selettore dovrebbe dire Stagione, dice ${chosen(horizonButtons)}`);
+}
 const before = seen.names.filter((n) => wantLong.includes(n) || wantShort.includes(n)).sort();
 console.log(`· all'apertura disegna ${before.length} nomi · combaciano con la board LUNGA del file: `
   + `${JSON.stringify(before) === JSON.stringify(wantLong)}`);
@@ -167,8 +176,14 @@ if (target) {
   if (JSON.stringify(now) !== JSON.stringify(wantShort)) {
     problems.push(`dopo il click: ${JSON.stringify(now)} contro ${JSON.stringify(wantShort)}`);
   }
-  console.log(`· la barra dichiara l'orizzonte scelto: ${after.banner}`);
-  if (!after.banner) problems.push('nessuna riga dice che si sta guardando l\'ultimo periodo');
+  // CHI DICHIARA L'ORIZZONTE E' IL PULSANTE. La didascalia a parole e' uscita il 15/09/2026 e il
+  // suo compito e' passato al selettore, quindi si chiede a LUI: un banco che cerca ancora una
+  // frase che l'operatore ha fatto togliere non misura la pagina, misura il proprio ricordo.
+  const afterHorizon = after.buttons.filter((b) => /Stagione|Ultimo periodo/.test(b.text));
+  console.log(`- dopo il click il pulsante dichiara: ${chosen(afterHorizon)}`);
+  if (chosen(afterHorizon) !== 'Ultimo periodo') {
+    problems.push(`il selettore non dichiara l'orizzonte scelto: dice ${chosen(afterHorizon)}`);
+  }
 } else {
   problems.push('nessun bottone «Ultimo periodo» da premere');
 }

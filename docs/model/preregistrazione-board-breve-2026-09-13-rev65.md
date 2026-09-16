@@ -1,5 +1,14 @@
 # Pre-registrazione: la board dell'ULTIMO PERIODO alla revisione 65 (13/09/2026)
 
+> **ESITO, 16/09/2026** (dettaglio in [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18): il limite
+> dichiarato qui sotto e' stato applicato ESATTAMENTE e non in modo conservativo - l'ora dei calci
+> d'inizio e' nel payload dei turni (`positions.kickoff_times`), quindi i club gia' in campo alle
+> 15:10 sono **tre e solo tre** (Lecce e Monza delle 15:00, Brighton delle 15:00) e gli altri venti
+> restano giudicabili. Su quei 20: **172 uomini di 219** (78,5%) e **16 moduli di 20**, contro un
+> null di 161/219 e 14/20 - la migliore delle tre prese, e le altre due sugli stessi 20 club leggono
+> 169 e 168. Test dei segni contro il null: 8 club meglio, 2 peggio, 10 pari, **p = 0,109** - la
+> direzione giusta su una giornata sola, che non e' una prova e la presa lo diceva.
+
 Il FOGLIO e' quello delle **14:13** del 13/09 (`sheet_revision` 65, lo stesso che l'app sta
 mostrando); questa tabella e' stata estratta alle **15:10**. Stessi 23 club e stesso metro delle
 due prese precedenti — [12/09 22:53, rev 63](preregistrazione-board-breve-2026-09-12.md) e

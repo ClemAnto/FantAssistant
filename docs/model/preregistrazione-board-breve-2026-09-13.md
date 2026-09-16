@@ -1,5 +1,11 @@
 # Pre-registrazione: la board dell'ULTIMO PERIODO alla revisione 64 (13/09/2026)
 
+> **ESITO, 16/09/2026** (dettaglio in [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18): sui suoi
+> 23 club **194 uomini di 252** (77,0%) e **18 moduli di 23**, contro un null di 189/252 e 16/23;
+> test dei segni 6-5, p = 1,000. Sui 20 club comuni: 168/219, cioe' **un uomo sotto la presa di
+> ieri** (169) - e la presa stessa aveva scritto, prima di sapere l'esito, che nove nomi su 253 non
+> sono un campione che possa promuovere o bocciare la mappatura fra moduli. Non lo e'.
+
 Presa alle **2026-09-13T00:45**, sempre PRIMA dei calci d'inizio del 13-14/09: **nessuna** delle 23
 partite era ancora cominciata. Stessi 23 club e stesso metro della presa del 12/09
 ([preregistrazione-board-breve-2026-09-12.md](preregistrazione-board-breve-2026-09-12.md)), che

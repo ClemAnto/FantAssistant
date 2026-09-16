@@ -1,5 +1,11 @@
 # Pre-registrazione: la board dell'ULTIMO PERIODO contro le distinte vere (12/09/2026)
 
+> **ESITO, 16/09/2026** (`press --score-preregistration`, dettaglio in
+> [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18): sui suoi 23 club **195 uomini di 252**
+> (77,4%) e **18 moduli di 23**, contro un null di 189/252 e 16/23. Batte il null in aggregato e
+> **pareggia nel test dei segni** (6 club meglio, 6 peggio, p = 1,000): il margine viene da poche
+> code e non da una superiorita' diffusa. Sui 20 club comuni alle tre prese: 169/219.
+
 Presa alle **2026-09-12T22:53**, PRIMA dei calci d'inizio — richiesta dell'operatore: «appuntati
 tutte le attuali formazioni a breve termine delle squadre che non hanno ancora giocato questo
 weekend (anche europee) e poi confrontiamo gli appunti con le effettive partite».

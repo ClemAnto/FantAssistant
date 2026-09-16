@@ -489,3 +489,204 @@ def test_a_round_that_is_scored_for_one_club_leaves_the_other_unknown(tmp_path):
     milan = [one for one in verdict["detail"] if one["club"] == "Milan"]
     assert all(one["voto"] is None for one in milan)
     assert {one["name"] for one in milan if one["minutes"] > 0} == {"Leao", "Modric"}
+
+
+# ---------- the FOURTH judge: a pre-registration against the round it predicted (16/09/2026) ----------
+
+PREREG = """# Pre-registrazione: la board dell'ULTIMO PERIODO (13/09/2026)
+
+Presa alle **2026-09-13T00:45**, prima dei calci d'inizio. `SHEET_REVISION` 64.
+
+Cosa cambia rispetto alla presa di ieri:
+
+| club | fuori | dentro |
+|---|---|---|
+| Inter | Barella | Calhanoglu |
+
+| club | lega | quando | avversario | modulo | undici previsto |
+|---|---|---|---|---|---|
+| Inter | serie_a | 2026-09-13 casa | milan | `3-5-2` | Lautaro Martinez, Barella |
+| Milan | serie_a | 2026-09-13 fuori | inter | `4-2-3-1` | Leao, Modric |
+"""
+
+
+def _weekend(ctx, *, formations=("3-4-2-1", None)) -> None:
+    """Two clubs, two matchdays: the one being judged and the one before it (the null).
+
+    The second round carries the DECLARED module for the first club and none for the second, because
+    the fallback to the three counts is half the rule and an archive not yet re-read is the normal case.
+    """
+    conn = ctx.conn
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name) VALUES (1, 'Inter')")
+    conn.execute("INSERT INTO clubs(fc_club_id, canonical_name) VALUES (2, 'Milan')")
+    for fc_id, name, club in ((10, "Lautaro Martinez", 1), (11, "Barella", 1),
+                              (20, "Leao", 2), (21, "Modric", 2)):
+        conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)", (fc_id, name))
+        conn.execute("INSERT INTO rosters(fc_id, season, fc_club_id) VALUES (?, '2026-27', ?)",
+                     (fc_id, club))
+        conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (?, 'sofascore', ?)",
+                     (fc_id, str(fc_id)))
+    rows = (
+        # The round under judgement, and the two clubs play SEPARATE matches on purpose: they share a
+        # kick-off if they meet, and then dropping one for having started drops the other with it.
+        ("j1", "Inter", 3, 4, 3, formations[0], 4, "2026-09-13"),
+        ("j2", "AC Milan", 4, 3, 3, formations[1], 4, "2026-09-13"),
+        # the round before it: the null
+        ("p1", "Inter", 3, 5, 2, None, 3, "2026-09-06"),
+        ("p2", "AC Milan", 4, 4, 2, None, 3, "2026-09-06"),
+    )
+    for match_id, club, back, middle, front, declared, real_md, day in rows:
+        conn.execute(
+            """INSERT INTO club_match_lineups(season, source, match_id, club, competition, real_md,
+                                              match_date, starters, goalkeepers, defenders,
+                                              midfielders, forwards, formation)
+               VALUES ('2026-27', 'sofascore', ?, ?, 'serie_a', ?, ?, 11, 1, ?, ?, ?, ?)""",
+            (match_id, club, real_md, day, back, middle, front, declared))
+    for fc_id, match_id, club, day, started in ((10, "j1", "Inter", "2026-09-13", 1),
+                                                (11, "j1", "Inter", "2026-09-13", 1),
+                                                (20, "j2", "AC Milan", "2026-09-13", 1),
+                                                (21, "j2", "AC Milan", "2026-09-13", 0),
+                                                # the previous match: Barella did NOT start it
+                                                (10, "p1", "Inter", "2026-09-06", 1),
+                                                (11, "p1", "Inter", "2026-09-06", 0),
+                                                (20, "p2", "AC Milan", "2026-09-06", 1),
+                                                (21, "p2", "AC Milan", "2026-09-06", 1)):
+        conn.execute(
+            """INSERT INTO external_match_stats(fc_id, season, source, match_id, competition,
+                                                real_md, match_date, club, started, minutes)
+               VALUES (?, '2026-27', 'sofascore', ?, 'serie_a', 4, ?, ?, ?, 90)""",
+            (fc_id, match_id, day, club, started))
+    conn.commit()
+
+
+def test_the_round_reference_prefers_the_module_the_club_declared(tmp_path):
+    """«Un modulo e' quello che la fonte DICHIARA» (12/09/2026), applied to the JUDGE.
+
+    Counted, a 3-4-2-1 reads 3-4-3 - and the short board speaks the declared vocabulary on three
+    readers already, so judging it on the counts scores a vocabulary difference as a wrong forecast.
+    The fallback stays where the archive has not been re-read: the second club declares nothing and is
+    counted, which is the transition `declared_or_counted` describes about itself.
+    """
+    ctx = _ctx(tmp_path)
+    _weekend(ctx)
+    reference = press.round_reference(ctx.conn, "2026-27", dates=("2026-09-13",))
+    assert reference["inter"]["module"] == "3-4-2-1"          # declared
+    assert reference["inter"]["module_counted"] == "3-4-3"    # what the counts alone could say
+    assert reference["milan"]["module"] == "4-3-3"            # no declaration: the counts, as before
+
+
+def test_a_weekend_is_selected_by_DATE_because_five_leagues_have_five_round_numbers(tmp_path):
+    """13-14/09/2026 was Serie A 4, la_liga 5, bundesliga 3. A pre-registration taken before the
+    kick-offs covers a weekend and cannot name one round, so the window is the DATE - same query,
+    same unit (the match)."""
+    ctx = _ctx(tmp_path)
+    _weekend(ctx)
+    by_date = press.round_reference(ctx.conn, "2026-27", dates=("2026-09-13",))
+    assert {key: entry["observed_on"] for key, entry in by_date.items()} == {
+        "inter": "2026-09-13", "milan": "2026-09-13"}
+    # ...and the round selector still answers about its own round, untouched
+    by_round = press.round_reference(ctx.conn, "2026-27", rounds=(3,))
+    assert {entry["observed_on"] for entry in by_round.values()} == {"2026-09-06"}
+
+
+def test_the_null_of_the_short_board_is_the_eleven_that_started_the_PREVIOUS_match(tmp_path):
+    """The null the pre-registration itself names, and it is not `null_model`'s.
+
+    The outcome judge scores a season-long board, so its baseline is last season; the short board
+    forecasts the NEXT match, so its baseline is the LAST one. Barella started the judged match and
+    not the one before, so he is in the reference and not in the null - which is exactly the kind of
+    change the board has to see to be worth anything.
+    """
+    ctx = _ctx(tmp_path)
+    _weekend(ctx)
+    reference = press.round_reference(ctx.conn, "2026-27", dates=("2026-09-13",))
+    null = press.previous_match_null(ctx.conn, "2026-27", reference)
+    assert null["inter"]["observed_on"] == "2026-09-06"
+    assert null["inter"]["xi"] == ["Lautaro Martinez"]
+    assert "Barella" in reference["inter"]["xi"]["XI"]
+    # a club whose previous match is not on file gets no null rather than a zero
+    ctx.conn.execute("DELETE FROM club_match_lineups WHERE match_id = 'p1' AND club = 'Inter'")
+    ctx.conn.commit()
+    assert "inter" not in press.previous_match_null(ctx.conn, "2026-27", reference)
+
+
+def test_the_reader_finds_the_table_that_carries_the_eleven_and_not_the_first_one(tmp_path):
+    """A take may open with «what changed since yesterday», three columns. Matching «the first table»
+    would score a diff table as if it were the forecast."""
+    path = tmp_path / "preregistrazione.md"
+    path.write_text(PREREG, encoding="utf-8")
+    taken = press.read_preregistration(path)
+    assert taken["taken_at"] == "2026-09-13T00:45" and taken["sheet_revision"] == 64
+    assert set(taken["clubs"]) == {"Inter", "Milan"}
+    assert taken["clubs"]["Inter"]["module"] == "3-5-2"
+    assert taken["clubs"]["Inter"]["xi"] == ["Lautaro Martinez", "Barella"]
+    assert taken["clubs"]["Milan"]["date"] == "2026-09-13"
+
+
+def test_a_club_already_playing_when_the_take_was_written_is_dropped_and_NAMED(tmp_path):
+    """For a club whose match had kicked off the take is not a forecast, and the alternative to
+    knowing the hour is throwing the whole matchday away.
+
+    The hour is nowhere in the database - `fixtures` carries the date - so it is read from the
+    provider's own `startTimestamp` in the round cache. Here Inter kicked off at 15:00 and the take is
+    of 15:10: it is dropped, named, and the men of the club that had not started are still judged.
+    """
+    ctx = _ctx(tmp_path)
+    _weekend(ctx)
+    ctx.config.cache_dir.mkdir(parents=True, exist_ok=True)
+    (ctx.config.cache_dir / "sofascore_round_serie_a_2026-27_r4.json").write_text(json.dumps({
+        "league": "serie_a", "round": 4,
+        # 15:00 CEST for the judged match, 19:00 CEST for the other
+        "events": [{"id": "j1", "home": "Inter", "away": "Lazio", "startTimestamp": 1789304400},
+                   {"id": "j2", "home": "AC Milan", "away": "Roma", "startTimestamp": 1789318800}],
+    }), encoding="utf-8")
+    path = tmp_path / "preregistrazione.md"
+    path.write_text(PREREG, encoding="utf-8")
+    verdict = press.score_preregistration(ctx, path, taken_at="2026-09-13T15:10", report=False)
+    assert [club for club, _when in verdict["dropped_started_before"]] == ["Inter"]
+    assert {row["club"] for row in verdict["clubs"] if "module" in row} == {"Milan"}
+    # ...and with no hour the take is scored whole, which is the other half of the rule
+    whole = press.score_preregistration(ctx, path, taken_at=None, report=False)
+    assert whole["dropped_started_before"] == []
+    assert whole["summary"]["clubs"] == 2
+
+
+def test_the_kickoff_hour_comes_from_the_round_cache_and_nowhere_else(tmp_path):
+    """`fixtures` has a DATE and `club_match_lineups` a day: the only place the hour survives is the
+    payload the per-match layer already stores."""
+    from euroleghe_ingest.modules.positions import kickoff_times
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    cfg.cache_dir.mkdir(parents=True, exist_ok=True)
+    (cfg.cache_dir / "sofascore_round_serie_a_2026-27_r4.json").write_text(json.dumps({
+        "events": [{"id": 16434041, "startTimestamp": 1789304400}, {"id": 2, "startTimestamp": None}],
+    }), encoding="utf-8")
+    (cfg.cache_dir / "sofascore_round_serie_a_2025-26_r4.json").write_text(json.dumps({
+        "events": [{"id": 99, "startTimestamp": 1700000000}],
+    }), encoding="utf-8")
+    times = kickoff_times(cfg, "2026-27")
+    # the season is part of the question: the same day in another season is another match
+    assert times == {"16434041": 1789304400}
+
+
+def test_the_round_judge_picks_the_vocabulary_ROW_BY_ROW(tmp_path):
+    """One reference, two vocabularies - and that is the archive's state, not a defect.
+
+    The provider's declared module is on file only for matches downloaded after 11/09/2026, so on the
+    same judgement a club can carry `3-4-2-1` (declared) and another `4-3-3` (counted). Judged all on
+    the board shape, every declared four-number module reads DIFF against a board that says the same
+    thing; judged all on the picture, every counted one does. `on="reference"` asks, per club, what
+    that club's reference can express.
+    """
+    board = {"lines": {"P": [], "D": [], "M": [], "T": [], "A": []},
+             "picture": "3-4-2-1", "board_shape": "3-4-3"}
+    declared = {"inter": {"club": "Inter", "observed_on": "2026-09-13", "source": "round 4",
+                          "module": "3-4-2-1", "xi": {"XI": []}, "confidence": "serie_a md4"}}
+    counted = {"inter": dict(declared["inter"], module="3-4-3")}
+    for reference, expected in ((declared, "MATCH"), (counted, "MATCH")):
+        rows, _summary = press.compare({"Inter": board}, reference, on="reference")
+        assert rows[0]["module"] == expected, reference["inter"]["module"]
+    # ...and a real disagreement still reads DIFF in both vocabularies
+    other = {"inter": dict(declared["inter"], module="4-3-3")}
+    rows, _summary = press.compare({"Inter": board}, other, on="reference")
+    assert rows[0]["module"] == "DIFF"

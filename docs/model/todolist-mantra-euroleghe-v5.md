@@ -1,5 +1,39 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 16 settembre 2026 — le tre prese scorate, e il giudice riallineato
+
+Dettaglio e numeri: `formazioni-tipo-v1.md` §18, spec «Novità v9.94».
+
+**CHIUSO l'aperto C del 13/09** («il giudizio sul fatto per il blocco del 13/09: non c'è un giudice
+esterno, `press --against round` potrà scorarla dopo, e la pre-registrazione del §12.9.5 è il canale»).
+Scorate tutte e tre: la board batte il suo null su ogni presa (uomini 195, 194 e 172 contro 189, 189 e
+161; moduli 18, 18 e 16 contro 16, 16 e 14), **il test dei segni resta sotto la soglia** (8-2-10 sulla
+presa che si spedisce, p = 0,109; pareggio secco sulle prime due), e il confronto fra le due versioni
+del codice è non decidibile come la presa stessa aveva dichiarato prima di sapere l'esito.
+
+1. **[ ] RIESEGUIRE `--against round` SUI NUMERI DEL 24/08 quando l'archivio sarà riletto.** Il giudice
+   ora legge il modulo DICHIARATO (`declared_or_counted`, quarto lettore) e sceglie la rappresentazione
+   riga per riga (`compare(on="reference")`), perché il dichiarato è su file solo per le partite
+   scaricate dopo l'11/09. Finché i due vocabolari convivono, **i verdetti sui moduli di corse diverse
+   non si confrontano fra loro**: quelli del 24/08 (Serie A 9/18, euro 18/23) sono contati al vecchio
+   modo. Il comando che chiude la transizione è `positions --layer formations` più il reparse, e va
+   messo in conto che riempie la CACHE e non il database (la trappola del 15/09).
+
+2. **[ ] LA PROSSIMA PRE-REGISTRAZIONE HA UN COMANDO, e conviene prenderla.** Una presa prima dei calci
+   d'inizio e `press --score-preregistration FILE --taken-at ...` il lunedì: il metro, il null e il
+   taglio per ora d'inizio sono scritti, quindi il costo di un'altra giornata di evidenza è due minuti.
+   Una giornata sola non decide niente (p = 0,109 con la direzione giusta) e **quattro o cinque
+   comincerebbero a decidere**: è il modo più economico che questa board abbia di guadagnarsi un
+   verdetto, e l'unico che non passa da un'altra previsione.
+
+3. **[ ] IL TORINO A 5-3-2** resta l'unico modulo che nessuna delle tre prese prende (pronosticato
+   3-1-4-2, tre volte), ed era già l'aperto 3 del 15/09 — «prezzo dichiarato della prima cura, su odds
+   in parità a quattro moduli». Adesso ha anche un caso vero contro cui misurarsi.
+
+4. **[ ] `TimeTravel.realToday` È UNA DATA UTC** (aperto del 15-16/09, non toccato): fra mezzanotte e le
+   due italiane «oggi» è ieri, e governa infortuni, acquisti e freschezza. Spostarla è una decisione
+   dell'operatore e non una correzione.
+
 ## Aperti alla chiusura del 13 settembre 2026 (notte) — i nuovi acquisti titolari
 
 Dettaglio e numeri: `letture-app-v1.md` §42, `gate-motore-v1.md` §7-sexquinquagies.
@@ -48,7 +82,9 @@ B. **[ ] IL MARCHIO DI `recent_state` A SCHERMO.** Il fatto viaggia nel file (`s
    aperto. Vale la regola dell'11/09: un marchio che si disegna in una vista sola è indistinguibile da un
    marchio che non esiste — qui non se ne disegna nessuno, il che è onesto ma lascia il fatto muto.
 
-C. **[ ] IL GIUDIZIO SUL FATTO per il blocco del 13/09.** Non c'è un giudice esterno: la board breve
+C. **[x] IL GIUDIZIO SUL FATTO per il blocco del 13/09 - CHIUSO il 16/09/2026**, e il canale era
+   quello previsto: tre prese scorate contro le distinte vere, la board batte il suo null su tutte
+   e tre, il test dei segni resta sotto la soglia (vedi in cima a questo file). *Il testo originale:* Non c'è un giudice esterno: la board breve
    prevede la PROSSIMA partita e la 4ª giornata era in corso mentre si spediva. `press --against round`
    potrà scorarla dopo, e la pre-registrazione del §12.9.5 è il canale. Quello su cui la decisione poggia
    oggi è la misura fuori campione (49.810 slot-partita) e l'attribuzione a una variabile per volta.

@@ -334,7 +334,8 @@ def outcome_reference(conn, season: str, clubs: list[str] | None = None,
 
 
 def round_reference(conn, season: str, rounds: tuple[int, ...] = (1,),
-                    clubs: list[str] | None = None) -> dict[str, dict]:
+                    clubs: list[str] | None = None,
+                    dates: tuple[str, ...] | None = None) -> dict[str, dict]:
     """THE JUDGE THAT ARRIVES FIRST: the elevens actually FIELDED in the rounds already played.
 
     Same evidence as `outcome` - what the clubs DID, nobody's opinion, counted in the provider's own
@@ -358,12 +359,28 @@ def round_reference(conn, season: str, rounds: tuple[int, ...] = (1,),
     `player_xref` - so the shape verdict is complete and the men verdict is over the names the
     identity funnel resolved. `xi_resolved` says how many of the eleven that is, per club, because a
     10/11 reference silently scored as 11 would credit us with a miss.
+
+    `dates` SELECTS A WEEKEND INSTEAD OF A ROUND NUMBER, and it is not a convenience: five leagues
+    play five different matchday numbers on the same Sunday (13-14/09/2026 was Serie A 4, la_liga 5,
+    bundesliga 3), so a pre-registration taken before the kick-offs cannot name one round. Same query,
+    same unit - the MATCH - and the two filters are exclusive: `dates` wins where it is given.
+
+    THE MODULE IS THE ONE THE CLUB DECLARED (`declared_or_counted`, the fourth reader), with the three
+    line counts as the fallback they have always been. Until 11/09/2026 the downloader threw
+    `formation` away, so this judge could only say `4-5-1` about a 4-2-3-1 - and that is a sentence
+    about our vocabulary, not about the club: measured on the archive, the counts disagree with the
+    declared module on 68,5% of the elevens. Every number this judge published before that date
+    (24/08/2026: Serie A 9/18 modules, euro 18/23) was counted the old way and is not comparable with
+    one taken after the archive is re-read; the men verdict of those runs is untouched.
     """
+    from euroleghe_ingest.modules.snapshot import declared_or_counted
     from euroleghe_ingest import config
     from euroleghe_ingest.modules.snapshot import lineup_spellings
 
     holes = ",".join("?" * len(config.CHAMPIONSHIPS))
-    round_holes = ",".join("?" * len(rounds))
+    window = tuple(dates) if dates else tuple(rounds)
+    window_column = "match_date" if dates else "real_md"
+    window_holes = ",".join("?" * len(window))
     wanted = clubs or [row[0] for row in conn.execute(
         """SELECT DISTINCT c.canonical_name FROM rosters r JOIN clubs c USING(fc_club_id)
            WHERE r.season = ? AND c.canonical_name IS NOT NULL ORDER BY 1""", (season,))]
@@ -374,25 +391,28 @@ def round_reference(conn, season: str, rounds: tuple[int, ...] = (1,),
         club_holes = ",".join("?" * len(mine))
         played = conn.execute(
             f"""SELECT match_id, club, competition, real_md, match_date,
-                       defenders, midfielders, forwards
+                       defenders, midfielders, forwards, formation
                 FROM club_match_lineups
-                WHERE season = ? AND club IN ({club_holes}) AND real_md IN ({round_holes})
+                WHERE season = ? AND club IN ({club_holes}) AND {window_column} IN ({window_holes})
                   AND competition IN ({holes})
                   AND starters = 11 AND goalkeepers + defenders + midfielders + forwards = 11
                 ORDER BY match_date DESC, real_md DESC LIMIT 1""",
-            (season, *mine, *rounds, *config.CHAMPIONSHIPS)).fetchone()
+            (season, *mine, *window, *config.CHAMPIONSHIPS)).fetchone()
         if not played:
             continue
-        match_id, spelling, competition, real_md, match_date, back, middle, front = played
+        match_id, spelling, competition, real_md, match_date, back, middle, front, declared = played
         starters = [name for name, in conn.execute(
             """SELECT p.canonical_name FROM external_match_stats e JOIN players p USING(fc_id)
                WHERE e.season = ? AND e.match_id = ? AND e.club = ? AND e.started = 1
                ORDER BY COALESCE(e.minutes, 0) DESC""", (season, match_id, spelling))]
         out[club_identity(club)] = {
             "club": club, "observed_on": match_date, "source": f"round {real_md}",
-            "coach": None, "module": f"{back}-{middle}-{front}", "module_alternatives": [],
+            "coach": None, "module": declared_or_counted(declared, back, middle, front),
+            "module_counted": f"{back}-{middle}-{front}",
+            "module_declared": (declared or "").strip() or None, "module_alternatives": [],
             "xi": {"XI": starters}, "duels": [],
             "confidence": f"{competition} md{real_md}", "xi_resolved": len(starters),
+            "match_id": match_id,
         }
     return out
 
@@ -428,6 +448,53 @@ def null_model(conn, season: str, reference: dict[str, dict]) -> dict:
             out["module_alt"] += 1
         else:
             out["module_diff"] += 1
+    return out
+
+
+def previous_match_null(conn, season: str, reference: dict[str, dict]) -> dict[str, dict]:
+    """THE NULL OF THE SHORT BOARD: the eleven that started the club's PREVIOUS match.
+
+    Not the same null as `null_model`, and the difference is the question. The outcome judge scores a
+    board built for a whole season, so its baseline is «the same eleven as last year». The short board
+    forecasts the NEXT match, so its baseline is the LAST one - free, public, and already better than
+    anything a model owes its keep to: on the 11/09 comparison with the press it beat us 180/220
+    against 176/220. The pre-registration of 12/09 names this one, in these words, and a judgement
+    scored against a different null than the one it pre-registered is a judgement rewritten after the
+    fact.
+
+    «Previous» is by DATE and strictly before the judged match, over the championships in scope - so a
+    club that played a cup tie in between is not judged against a rotated eleven, and a postponement
+    moves the baseline with the match instead of with the round number. A club whose previous match is
+    not on file gets no null rather than a zero: «vuoto = ignoto, mai zero», and it is counted apart
+    exactly as `null_model` counts a promoted club.
+    """
+    from euroleghe_ingest import config
+    from euroleghe_ingest.modules.snapshot import declared_or_counted, lineup_spellings
+
+    holes = ",".join("?" * len(config.CHAMPIONSHIPS))
+    spellings = lineup_spellings(conn, lambda name: (club_identity(name), name))
+    out: dict[str, dict] = {}
+    for key, entry in reference.items():
+        mine = spellings.get(key, [entry["club"]])
+        club_holes = ",".join("?" * len(mine))
+        row = conn.execute(
+            f"""SELECT match_id, club, real_md, match_date, defenders, midfielders, forwards, formation
+                FROM club_match_lineups
+                WHERE season = ? AND club IN ({club_holes}) AND match_date < ?
+                  AND competition IN ({holes})
+                  AND starters = 11 AND goalkeepers + defenders + midfielders + forwards = 11
+                ORDER BY match_date DESC, real_md DESC LIMIT 1""",
+            (season, *mine, entry["observed_on"], *config.CHAMPIONSHIPS)).fetchone()
+        if not row:
+            continue
+        match_id, spelling, real_md, match_date, back, middle, front, declared = row
+        starters = [name for name, in conn.execute(
+            """SELECT p.canonical_name FROM external_match_stats e JOIN players p USING(fc_id)
+               WHERE e.season = ? AND e.match_id = ? AND e.club = ? AND e.started = 1""",
+            (season, match_id, spelling))]
+        out[key] = {"club": entry["club"], "observed_on": match_date, "real_md": real_md,
+                    "module": declared_or_counted(declared, back, middle, front),
+                    "xi": starters}
     return out
 
 
@@ -627,7 +694,12 @@ def compare(boards: dict[str, dict], reference: dict[str, dict],
     """Score the boards against the reference: per club, the module verdict and the XI overlap.
 
     `on` picks WHICH OF OUR TWO SHAPE STRINGS is comparable, and it is not a preference: it is decided
-    by what the reference can express. The press writes four-number modules ('4-2-3-1'), so it is
+    by what the reference can express - which since 11/09/2026 can differ ROW BY ROW, hence
+    `on="reference"`: the provider declares the module on matches downloaded after that date and not
+    on the archive behind it, so one judge's reference now speaks both vocabularies. A four-number
+    module is compared with the drawn picture and a three-number one with the board shape, per club,
+    because the alternative is scoring a vocabulary difference as a wrong forecast in whichever half
+    of the table happens to be the other kind. The press writes four-number modules ('4-2-3-1'), so it is
     judged against the DRAWN picture after `_reshape`. The outcome is counted off `club_match_lineups`,
     which holds the provider's three lines and therefore CANNOT say 4-2-3-1 at all - judged on the
     picture it reads as a disagreement whenever the transformation split a row, which is the same shape
@@ -655,7 +727,9 @@ def compare(boards: dict[str, dict], reference: dict[str, dict],
         our_names = [man["name"] for line in ("P", "D", "M", "T", "A")
                      for man in (board["lines"].get(line) or [])]
         shared = [name for name in press_xi if any(_names_match(name, ours) for ours in our_names)]
-        drawn = board["picture"] if on == "picture" else board["board_shape"]
+        pick = ("picture" if len((entry["module"] or "").split("-")) > 3 else "board"
+                ) if on == "reference" else on
+        drawn = board["picture"] if pick == "picture" else board["board_shape"]
         # an alternative may carry a free-text qualifier («4-2-3-1 (in partita)»): the module is its
         # first token
         verdict = ("MATCH" if drawn == entry["module"] else
@@ -684,6 +758,166 @@ def compare(boards: dict[str, dict], reference: dict[str, dict],
         "xi_of": sum(row["xi_of"] for row in scored),
     }
     return rows, summary
+
+
+# ---------- the FOURTH judge: a PRE-REGISTRATION against the round it predicted (16/09/2026) ----------
+# Same evidence and the same metre as `--against round`, and one thing more that cannot be recovered
+# afterwards: WHEN the forecast was written. `--against round` re-draws the boards with the panel as it
+# is TODAY (`compare_sheet` calls `extract_boards`), which is right for «is the sheet I am buying from
+# any good» and wrong for «was that forecast right» - measured on 15/09, the same folder judged before
+# and after a change to `gui.py` went from 154/220 to 152/220. A pre-registration is a table of names
+# written to the record before the kick-offs, so it is scored AS WRITTEN and nothing re-computes it.
+
+_PREREG_HEADER = re.compile(r"^\|\s*club\s*\|.*\bundici previsto\b", re.IGNORECASE | re.MULTILINE)
+_PREREG_TAKEN_AT = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})")
+_PREREG_REVISION = re.compile(r"(?:SHEET_REVISION|revisione)\D{0,20}?(\d{2,3})", re.IGNORECASE)
+
+
+def read_preregistration(path: Path | str) -> dict:
+    """The pre-registered table, parsed: per club the module and the eleven, exactly as published.
+
+    THE MARKDOWN IS THE PRE-REGISTRATION, not the JSON beside it: the file under `docs/model/` is what
+    was committed before the matches, and the third take of 13/09 has no JSON at all. One reader for
+    all three, so a take cannot be scored in a shape nobody published.
+
+    A file may carry more than one table - the take of 13/09 opens with «what changed since yesterday»,
+    three columns - so the header is matched on its own last column and never on «the first table».
+    """
+    text = Path(path).read_text(encoding="utf-8")
+    header = _PREREG_HEADER.search(text)
+    if not header:
+        raise ValueError(f"{path}: no pre-registration table (a header ending in «undici previsto»)")
+    clubs: dict[str, dict] = {}
+    for line in text[header.end():].splitlines()[1:]:
+        line = line.strip()
+        if not line.startswith("|"):
+            break
+        cells = [cell.strip() for cell in line.strip("|").split("|")]
+        if len(cells) < 6 or set(cells[0]) <= {"-", ":"}:
+            continue
+        club, league, when, opponent, module, eleven = cells[:6]
+        day, _, side = when.partition(" ")
+        clubs[club] = {
+            "club": club, "league": league, "date": day, "side": side or None,
+            "opponent": opponent,
+            "module": module.strip("`"),
+            "xi": [name.strip() for name in eleven.split(",") if name.strip()],
+        }
+    taken = _PREREG_TAKEN_AT.search(text)
+    revision = _PREREG_REVISION.search(text)
+    return {"path": str(path), "clubs": clubs,
+            "taken_at": f"{taken.group(1)}T{taken.group(2)}" if taken else None,
+            "sheet_revision": int(revision.group(1)) if revision else None}
+
+
+def _as_board(module: str, xi: list[str]) -> dict:
+    """A pre-registered eleven in the shape `compare` reads.
+
+    An ADAPTER and not a second metre: the verdict, the name matcher and the club join stay the ones
+    every other judge here uses. The whole eleven goes in one line because the table does not say who
+    stood where - and the comparison is on the SET of men, which is what was pre-registered.
+    """
+    return {"lines": {"P": [{"name": name} for name in xi], "D": [], "M": [], "T": [], "A": []},
+            "picture": module, "board_shape": module}
+
+
+def score_preregistration(ctx: Context, path: Path | str, *, season: str | None = None,
+                          taken_at: str | None = None, report: bool = True) -> dict | None:
+    """Score a pre-registered set of boards against the elevens actually fielded.
+
+    The criterion is the one the take itself declares and is not re-chosen here: per club, how many of
+    the eleven forecast are in the real line-up (out of 11) and whether the module coincides, against
+    the NULL the take names - «the eleven that started that club's LAST match» (`previous_match_null`).
+
+    `taken_at` is the honesty of the thing. A take written in the middle of a matchday is a forecast
+    only for the matches that had not kicked off yet: every club whose match had already started is
+    dropped and counted apart, reading the hour from the provider's own `startTimestamp`
+    (`positions.kickoff_times`) instead of throwing the whole day away. Without an hour the take is
+    scored whole and the print says so.
+    """
+    from euroleghe_ingest.modules.positions import kickoff_times
+
+    taken = read_preregistration(path)
+    entries = taken["clubs"]
+    if not entries:
+        print(f"[press] {Path(path).name}: the pre-registration table is empty")
+        return None
+    dates = tuple(sorted({entry["date"] for entry in entries.values()}))
+    if not season:
+        # A season starts in July: a match played in September belongs to the season that opened that
+        # summer. Declared here because the table carries dates and never a season.
+        year, month = int(dates[0][:4]), int(dates[0][5:7])
+        start = year if month >= 7 else year - 1
+        season = f"{start}-{(start + 1) % 100:02d}"
+    reference = round_reference(ctx.conn, season, dates=dates,
+                               clubs=[entry["club"] for entry in entries.values()])
+    reference = {key: entry for key, entry in reference.items()
+                 if key in {club_identity(club) for club in entries}}
+    started_before: list[tuple[str, str]] = []
+    taken_at = taken_at or taken["taken_at"]
+    if taken_at:
+        # The hour has no timezone in the note: it is the operator's own clock, CEST in September.
+        cutoff = dt.datetime.fromisoformat(taken_at)
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=dt.timezone(dt.timedelta(hours=2)))
+        kickoffs = kickoff_times(ctx.config, season)
+        for key, entry in list(reference.items()):
+            stamp = kickoffs.get(str(entry.get("match_id")))
+            if stamp is None:
+                continue
+            kicked = dt.datetime.fromtimestamp(stamp, dt.UTC)
+            if kicked < cutoff:
+                started_before.append((entry["club"],
+                                       kicked.astimezone(cutoff.tzinfo).strftime("%Y-%m-%d %H:%M")))
+                reference.pop(key)
+    boards = {entry["club"]: _as_board(entry["module"], entry["xi"]) for entry in entries.values()}
+    rows, summary = compare(boards, reference, on="picture")
+    null_boards = {entry["club"]: _as_board(entry["module"], entry["xi"])
+                   for entry in previous_match_null(ctx.conn, season, reference).values()}
+    null_rows, null_summary = compare(null_boards, reference, on="picture")
+    print(f"[press] {Path(path).name}"
+          + (f" (sheet revision {taken['sheet_revision']})" if taken["sheet_revision"] else "")
+          + f" vs the elevens fielded on {', '.join(dates)}:"
+            f" module MATCH {summary['module_match']}, DIFF {summary['module_diff']}"
+          + (f", NO BOARD {summary['no_board']}" if summary["no_board"] else "")
+          + f" | men {summary['xi_shared']}/{summary['xi_of']} over {len(reference)} club(s)")
+    print(f"[press] NULL - the eleven that started each club's PREVIOUS match:"
+          f" module MATCH {null_summary['module_match']}, DIFF {null_summary['module_diff']}"
+          f" | men {null_summary['xi_shared']}/{null_summary['xi_of']}"
+          + (f" · {null_summary['no_board']} club(s) with no previous match on file, which the null"
+             f" cannot answer and the take can" if null_summary["no_board"] else ""))
+    if started_before:
+        print(f"[press] {len(started_before)} club(s) dropped - their match had already kicked off when"
+              f" the take was written ({taken_at}): "
+              + ", ".join(f"{club} {when}" for club, when in sorted(started_before)))
+    elif taken_at:
+        print(f"[press] taken at {taken_at}: no club had kicked off yet")
+    else:
+        print("[press] no hour on the take, so every club is scored - say so rather than assume it")
+    by_club = {row["club"]: row for row in null_rows}
+    for row in sorted(rows, key=lambda one: one["club"]):
+        if "module" not in row:
+            print(f"  {row['club']:22s} NO BOARD - {row['error']}")
+            continue
+        null_row = by_club.get(row["club"]) or {}
+        print(f"  {row['club']:22s} fielded {row['press_module'] or '-':8s}"
+              f" ours {row['our_drawn'] or '-':8s} [{row['module']:5s}]"
+              f" XI {row['xi_shared']:2d}/{row['xi_of']:2d}"
+              f" (null {null_row.get('xi_shared', '-'):>2}/{null_row.get('xi_of', '-'):>2})"
+              f" | missed: {', '.join(row['only_ours']) or '-'}")
+    payload = {
+        "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
+        "preregistration": str(path), "season": season, "dates": list(dates),
+        "sheet_revision": taken["sheet_revision"], "taken_at": taken_at,
+        "dropped_started_before": started_before,
+        "summary": summary, "null": null_summary, "clubs": rows, "null_clubs": null_rows,
+    }
+    if report:
+        dest = ctx.config.data_dir / "reports" / f"preregistration_score_{Path(path).stem}.json"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"[press] report -> {dest}")
+    return payload
 
 
 def _pool_of(conn, season: str, club_key_wanted: str):
@@ -826,9 +1060,12 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
                                       indent=1, ensure_ascii=False), encoding="utf-8")
             print(f"[press] report -> {out}")
         return verdict
-    # `round` is counted off `club_match_lineups` exactly as `outcome` is - three lines, and it
-    # cannot say 4-2-3-1 at all - so it is judged on the same shape string, for the same reason.
-    on = "board" if against in ("outcome", "round") else "picture"
+    # `outcome` is counted off `club_match_lineups` over a whole season - three lines, and it cannot
+    # say 4-2-3-1 at all - so it is judged on the same shape string. `round` reads the SAME table but
+    # one match at a time, and there the provider's declared module is on file since 11/09/2026: it is
+    # judged per club on whichever vocabulary its own reference speaks (`on="reference"`), or every
+    # 4-2-3-1 of the new archive would read DIFF against a board that says the same thing.
+    on = "board" if against == "outcome" else "reference" if against == "round" else "picture"
     rows, summary = compare(boards, reference, on=on)
     # ...and the SAME comparison on our other shape string, which quantifies how much of the
     # disagreement is VOCABULARY rather than disposition (item 6b). Not a tolerance and not a second
@@ -899,7 +1136,14 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
 def run(ctx: Context, *, import_files: list[str] | None = None, season: str | None = None,
         source: str | None = None, observed_on: str | None = None, sheet: str | None = None,
         against: str = "press", report: bool = True, fetch_duels: str | None = None,
-        rounds: tuple[int, ...] | list[int] | None = None, **_kwargs) -> None:
+        rounds: tuple[int, ...] | list[int] | None = None,
+        preregistration: str | None = None, taken_at: str | None = None, **_kwargs) -> None:
+    if preregistration:
+        # A pre-registration is judged on its own and nothing else runs: it re-ingests nothing, it
+        # re-draws nothing, and mixing it with the archive replay would make the print ambiguous about
+        # which judge spoke.
+        score_preregistration(ctx, preregistration, season=season, taken_at=taken_at, report=report)
+        return
     if fetch_duels:
         if not season:
             raise ValueError("--fetch-duels needs the season the article predicts (--season YYYY-YY)")

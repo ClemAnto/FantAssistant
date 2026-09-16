@@ -995,6 +995,38 @@ def _cached_matches(ctx: Context, leagues=None, seasons=None):
             yield cache, match_id, sides
 
 
+def kickoff_times(config, season: str, leagues=None) -> dict[str, int]:
+    """match_id -> the KICK-OFF instant (unix seconds), read from the round cache.
+
+    The hour lives nowhere in the database: `fixtures` carries the DATE and not the time, and
+    `club_match_lineups.match_date` is a day. The provider's own `startTimestamp` has been kept in the
+    round payload since the layer was written, so a question that needs an hour is answered offline
+    instead of with a request - and there is exactly one such question: a pre-registration taken in the
+    middle of a matchday can only be a forecast for the matches that had NOT started when it was taken
+    (`press.score_preregistration`). Without this, the whole day has to be thrown away to stay honest.
+
+    A cache file is one (league, season, round); `season` is required because a `2026-09-13` in this
+    season and one in another are different matches with different ids.
+    """
+    wanted = set(leagues or ())
+    out: dict[str, int] = {}
+    for cache in config.cache_dir.glob(f"sofascore_round_*_{season}_r*.json"):
+        match = _ROUND_CACHE_NAME.search(cache.name)
+        if not match or match.group(2) != season:
+            continue
+        if wanted and match.group(1) not in wanted:
+            continue
+        try:
+            payload = json.loads(cache.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        for event in payload.get("events") or []:
+            stamp = event.get("startTimestamp")
+            if event.get("id") is not None and stamp:
+                out[str(event["id"])] = int(stamp)
+    return out
+
+
 def _richer_side(old, fresh):
     """Fra la voce in cache e quella appena letta, quella che dice DI PIU'.
 

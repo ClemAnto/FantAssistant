@@ -7948,3 +7948,94 @@ restano rossi — `e2e-player-card` e `e2e-board-horizon` — e sono **preesiste
    primario sopra. Scelta, non misura; si gira in una riga.
 3. I due banchi rossi preesistenti restano da chiudere — quello di `board-horizon` cerca la didascalia
    tolta il 15/09 (§43), quindi è il banco da aggiornare e non la pagina.
+
+## 16 settembre 2026 — Le cose da chiudere: le tre prese scorate, e il giudice che parlava un'altra lingua
+
+Domanda dell'operatore: «ci sono cose da chiudere?». Quattro, e la prima aveva una scadenza appena
+arrivata. Dettaglio: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18, spec «Novità v9.94».
+
+### 1. Le tre pre-registrazioni della board breve: il primo giudizio contro il FATTO
+
+Le prese del 12-13/09 (rev 63, 64, 65) pronosticavano le partite del 13-14 settembre: sono la 4ª
+giornata, le distinte sono in archivio per tutti e cinque i campionati (20 club di 20 in Serie A), e
+`press --score-preregistration` le ha scorate tutte e tre — come la §12.9.5 imponeva, perché scorarne
+una sola giudicherebbe una previsione che non si spedisce più.
+
+| presa | club | uomini | moduli |
+|---|---|---|---|
+| rev 63 | 23 | **195/252** (77,4%) | 18 / 23 |
+| rev 64 | 23 | **194/252** | 18 / 23 |
+| *null (ultima partita giocata)* | 23 | *189/252* | *16 / 23* |
+| rev 63 · rev 64 · **rev 65**, sui 20 club comuni | 20 | 169 · 168 · **172** /219 | 16 / 20 |
+| *null, stessi 20* | 20 | *161/219* | *14 / 20* |
+
+**La board batte il suo null su tutte e tre le prese e su tutte e due le metà**, e il null non è debole
+(«chi ha cominciato l'ultima partita» ci batteva 180/220 contro 176/220 sul confronto con le probabili
+dell'11/09). **La metà scomoda è il test dei segni**: la presa che si spedisce fa meglio in 8 club,
+peggio in 2, pari in 10 — **p = 0,109**, la direzione giusta e non la prova — e le prime due, sui loro
+23, sono un pareggio secco (6-6 e 6-5, p = 1,000) pur vincendo l'aggregato, perché il margine viene da
+tre code (Villarreal +4, Lipsia +2, Napoli +2). *Un null si legge anche per unità: un aggregato può
+essere trainato da due club.*
+
+Il confronto appaiato fra le due versioni del codice resta **non decidibile**, come la presa stessa
+aveva scritto prima di sapere l'esito: 195 contro 194 sui 23, 169 contro 168 sui 20 — la revisione nuova
+è un uomo sotto, su una differenza larga nove nomi. *Averlo dichiarato prima è ciò che impedisce di
+leggere quel −1 come un verdetto.*
+
+Due cose sul come. **Una pre-registrazione si scora COME È SCRITTA**: `--against round` ridisegna le
+board col pannello di oggi, e il 15/09 si è misurato che questo vale 154 → 152 sulla stessa cartella.
+Quello che invece è condiviso con gli altri giudici è il metro (`compare`, `_names_match`, l'unione per
+identità), perché un secondo conteggio di «quanti uomini in comune» darebbe due risposte a una domanda.
+E **l'ORA dei calci d'inizio era su disco**: il limite che la terza presa dichiarava («scarta chi era già
+in campo alle 15:10») si è potuto applicare esattamente invece che buttando via il giorno intero, perché
+`startTimestamp` sta nel payload dei turni — tre club scartati (Lecce, Monza, Brighton delle 15:00) e
+non diciotto.
+
+### 2. Il giudice della board di stagione parlava il vocabolario sbagliato
+
+Trovato preparando lo scoring, ed è il difetto più grosso della giornata. `round_reference` costruiva il
+modulo dai TRE CONTEGGI mentre dal 12/09 la board legge il modulo che il club **dichiara**: ogni 4-2-3-1
+vero veniva confrontato con un «4-5-1» costruito da noi e letto come previsione sbagliata. A/B sulla
+stessa cartella e con lo stesso pannello, Serie A 4ª giornata: **7 MATCH / 13 DIFF → 15 / 5**, con gli
+uomini **identici** (161/220), che è la prova di aver mosso una variabile sola. Otto club di venti erano
+vocabolario. `declared_or_counted` prende il suo quarto lettore e `compare` un `on="reference"` che
+sceglie la rappresentazione **riga per riga**, perché il dichiarato è su file solo dopo l'11/09 e
+l'archivio dietro non è riletto. Dichiarato: il verdetto sui MODULI del 24/08 non è confrontabile con
+uno preso adesso, quello sugli uomini sì.
+
+### 3. I due banchi e2e rossi
+
+`e2e-board-horizon` cercava la didascalia che l'operatore aveva fatto togliere il 15/09 (§43), quindi
+**era il banco a misurare il proprio ricordo**: il compito di dichiarare l'orizzonte è passato al
+pulsante, e adesso il banco chiede a lui (e anche allo stato iniziale, che prima nessuno verificava).
+Controprova: azzerando la lettura del `checked` cadono esattamente i due passi nuovi. `e2e-player-card`
+è **verde** con un build fresco e il bundle di stamattina; era rosso ieri notte sui dati di ieri, e non
+posso attribuire la differenza senza quei dati — l'ipotesi più probabile è la 4ª giornata allora a metà
+(voti arrivati prima dei tabellini), che è il caso che la cura del 15/09 gestisce e che nel frattempo si
+è chiuso.
+
+### 4. La cadenza di ClubElo era quella di una fonte morta
+
+`fetch --stale` chiedeva un giorno, che è la cadenza dell'API — 502 da gennaio. Quello che serve è
+l'archivio adottato l'11/09, e **pubblica il 1º e il 15 di ogni mese**: misurato sulla coda del file
+remoto (ultime dieci date 15/04 · 01/05 · … · 01/09), quindi 17 giorni. Con lei è caduto un commento in
+`elo.py` che diceva «l'archivio arriva a ieri», falso e in contraddizione con quello della costante
+cento righe sopra. Adesso il quadro del mattino legge «ogni strato datato è dentro la sua cadenza».
+
+### Verifica
+
+902 test del toolkit verdi (+7 nuovi, tutti con la loro controprova: rimettendo ciascun difetto cade
+quello e solo quello), build dell'app pulito, `e2e-board-horizon` e `e2e-player-card` verdi,
+`--against round` rieseguito sul foglio vero. Nessuna riga dell'app toccata: il solo file di `app/` che
+si muove è uno script di banco.
+
+### Aperti
+
+1. **`--against round` va rieseguito sui numeri pubblicati il 24/08** quando l'archivio sarà riletto
+   (`positions --layer formations`): finché convivono i due vocabolari, i verdetti sui moduli di corse
+   diverse non si confrontano fra loro.
+2. Restano quelli del 15-16/09 che nessuno ha toccato: `TimeTravel.realToday` in UTC, la tinta del
+   confine che porta anche il cambio di panchina, e il Torino a 5-3-2 (l'unico modulo che nessuna delle
+   tre prese prende, già a verbale il 15/09).
+3. **La prossima pre-registrazione ha ora un comando**: si prende prima dei calci d'inizio e si scora il
+   lunedì, senza che nessuno debba ricostruire il metro.

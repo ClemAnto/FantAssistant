@@ -157,9 +157,12 @@ FRESHNESS: tuple[tuple[str, str, object, int, str], ...] = (
      "the authority on who is in a squad (operator, 17/08/2026), and only a full read says «absent»"),
     ("calendario", "db", ("fixtures", "observed_on"), 1,
      "a postponement moves a match by weeks, and the unit here is the MATCH"),
-    ("forza dei club", "db", ("club_elo", "date"), 1,
-     "R19 is ADOPTED on default and the club card stands on it; during a season the date asked for is "
-     "TODAY, so an old maximum means the source gave nothing - not that nobody asked"),
+    ("forza dei club", "db", ("club_elo", "date"), 17,
+     "R19 is ADOPTED on default and the club card stands on it. 17 and not 1 since 16/09/2026: the "
+     "API has answered 502 since January, so what serves is the ARCHIVE, and that publishes on the "
+     "1st and the 15th (measured on the file's own tail) - the oldest a healthy read can be is the "
+     "16 days from the 15th to the 1st of a 31-day month, plus one of slack. A cadence belongs to the "
+     "source that is actually answering, and an alarm that rings every day is not an alarm"),
     ("fantavalore", "db", ("fvm_history", "observed_on"), 1,
      "the FVM moves at every salient event, so what we hold is the LAST READ and its date"),
     ("listone euro", "cache", "listone_euro_*.xlsx", 1,

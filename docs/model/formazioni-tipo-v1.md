@@ -2298,3 +2298,115 @@ vale **2 uomini su 200**.
 - **Una controprova va fatta un difetto per volta e senza rompere la sintassi**: togliendo due blocchi
   insieme ne sono caduti 33, che non prova niente. Rimessi uno alla volta con `if False`, cade **esattamente**
   il test che descrive quella cura e nessun altro.
+
+# 18 — Le tre prese si scorano: il primo giudizio della board breve contro il FATTO (16/09/2026)
+
+Le tre pre-registrazioni del 12-13/09 (§12.9.5) pronosticavano le partite del 13-14 settembre. Quelle
+partite sono state giocate, le distinte sono in archivio per tutti e cinque i campionati, e questo è il
+primo giudizio che la board dell'ultimo periodo abbia mai avuto contro il fatto invece che contro
+un'altra previsione. `python -m euroleghe_ingest press --score-preregistration FILE`.
+
+## 18.1 — Il metro è quello che le prese dichiarano, e non si ricalcola niente
+
+La differenza con `--against round` non è un dettaglio di implementazione: **quel comando RIDISEGNA le
+board col pannello di oggi** (`compare_sheet` chiama `extract_boards`), che è giusto per «il foglio da
+cui sto comprando è buono?» e sbagliato per «quella previsione era giusta?» — misurato il 15/09, la
+stessa cartella giudicata prima e dopo una modifica a `gui.py` passa da 154/220 a 152/220. Una
+pre-registrazione è una tabella di nomi scritta a verbale prima dei calci d'inizio, quindi si scora
+**come è scritta** e nessuna funzione la ricostruisce.
+
+Quello che invece è CONDIVISO con gli altri tre giudici è tutto il resto: il confronto dei nomi
+(`_names_match`), l'unione dei club per identità e il verdetto sul modulo passano da `compare`, perché
+un secondo metro per «quanti uomini in comune» darebbe due risposte alla stessa domanda. La tabella
+markdown entra in `compare` attraverso un ADATTATORE dichiarato (`_as_board`) e non attraverso una copia
+della logica.
+
+**Il null è quello che le prese nominano**, e non quello dell'outcome: «l'undici che ha cominciato
+l'ULTIMA partita di quel club» (`previous_match_null`). Sono due null perché sono due domande — il
+giudice dell'esito scora una board costruita per una stagione e il suo riferimento è «lo stesso undici
+dell'anno scorso», la board breve prevede la PROSSIMA partita e il suo riferimento è l'ultima. Scorare
+una previsione contro un null diverso da quello che ha pre-registrato è riscriverla dopo il fatto.
+
+## 18.2 — L'ORA di un calcio d'inizio non è nel database, ed è nella cache
+
+La terza presa dichiarava un limite: scritta alle 15:10 del 13/09, per i club già in campo non è una
+previsione, e «si scarta ogni club la cui partita è cominciata prima delle 15:10». Il problema è che
+`fixtures` porta la DATA e non l'ora, e `club_match_lineups.match_date` è un giorno: la lettura
+conservativa avrebbe buttato via tutte e diciotto le partite del 13/09.
+
+L'ora c'è, e sta dove il layer per-partita l'ha sempre salvata: `startTimestamp` dentro il payload di
+ogni turno (`positions.kickoff_times`, 976 istanti in cache per il 2026-27, zero richieste). Con quella,
+la regola si applica **esattamente**: i club già in campo alle 15:10 erano **tre** — Lecce, Monza
+(Lecce-Monza delle 15:00) e Brighton (Coventry-Brighton delle 15:00) — e le altre venti partite di quel
+weekend cominciavano dalle 15:30 in poi. *Quando una regola dichiarata sembra costare un giorno intero
+di dati, la domanda da farsi è se il dato che la renderebbe precisa non sia già su disco.*
+
+## 18.3 — Il verdetto
+
+Ogni presa sui club che aveva davvero pronosticato, e poi le tre appaiate sui venti club comuni, perché
+due popolazioni non sono due risposte.
+
+| presa | club | uomini | moduli MATCH/DIFF |
+|---|---|---|---|
+| rev 63 (12/09 22:53) | 23 | **195/252** (77,4%) | 18 / 5 |
+| rev 64 (13/09 00:45) | 23 | **194/252** (77,0%) | 18 / 5 |
+| *null, stessi 23 club* | 23 | *189/252* (75,0%) | *16 / 7* |
+| rev 63, sui 20 comuni | 20 | 169/219 | 16 / 4 |
+| rev 64, sui 20 comuni | 20 | 168/219 | 16 / 4 |
+| rev 65 (13/09 15:10) | 20 | **172/219** (78,5%) | 16 / 4 |
+| *null, stessi 20 club* | 20 | *161/219* (73,5%) | *14 / 6* |
+
+**La board batte il suo null su tutte e tre le prese e su tutte e due le metà** — gli uomini di +6, +5 e
++11, i moduli di +2. Il null non è debole: è «chi ha cominciato l'ultima partita», gratis e pubblico, e
+sul confronto con le probabili dell'11/09 ci batteva 180/220 contro 176/220.
+
+**E LA META' SCOMODA STA NEL TEST DEI SEGNI, che l'aggregato nasconde.** Per club, la presa che si
+spedisce (rev 65) fa meglio del null in **8 club, peggio in 2 e pari in 10**: p = 0,109 a due code, cioè
+la direzione giusta e non la prova. Le prime due prese, sui loro 23 club, sono un **pareggio secco** (6-6
+e 6-5, p = 1,000) pur vincendo l'aggregato di 6 e 5 uomini — il margine viene da pochi club con scarti
+grandi (Villarreal +4, Lipsia +2, Napoli +2) e non da una superiorità diffusa. *Un null si legge anche
+PER UNITA', perché un aggregato può essere trainato da due code*, ed è la stessa disciplina che l'11/09
+aveva imposto alle prese: una giornata è un'estrazione sola di una cosa che se ne gioca trentotto.
+
+**Il confronto appaiato fra le due versioni del codice resta quello che la presa dichiarava: non
+decidibile.** Sui 23 club rev 63 legge 195 e rev 64 legge 194, cioè la revisione nuova è **un uomo
+peggio**; sui 20 comuni 169 contro 168. La differenza fra le due prese era larga nove nomi su 253 e la
+pre-registrazione lo aveva scritto prima di sapere il risultato: non è un campione che possa promuovere
+o bocciare la mappatura fra moduli, che sta in piedi sull'aritmetica e sui 512 spostamenti su 1331.
+Averlo dichiarato prima è ciò che impedisce di leggere quel −1 come un verdetto.
+
+Il club che sbaglia di più è il **Bayern** (5 dei 10 titolari risolti), e non è la board: è una
+rotazione vera, contro l'Elversberg, di una squadra che gioca in mezzo alla settimana. **Torino** è
+l'unico modulo che nessuna delle tre prese prende (5-3-2 giocato contro il 3-1-4-2 pronosticato), ed era
+già a verbale come aperto del 15/09.
+
+## 18.4 — E il giudice della board di STAGIONE parlava il vocabolario sbagliato
+
+Trovato mentre si preparava lo scoring, ed è il difetto più grosso della giornata. `round_reference`
+costruiva il modulo dai TRE CONTEGGI di linea (`{difensori}-{centrocampisti}-{attaccanti}`) mentre dal
+12/09 la board legge il modulo che il club **dichiara** — quindi ogni 4-2-3-1 vero veniva confrontato
+con un «4-5-1» costruito da noi, e letto come previsione sbagliata. È il difetto che `declared_or_counted`
+cura da tre lettori, rimasto in casa del giudice: *quando si insegna una parola nuova al modello, la si
+insegna anche a chi lo corregge.*
+
+A/B sulla stessa cartella e con lo stesso pannello (quindi una variabile sola, che è la cautela imposta
+dal 15/09), Serie A, 4ª giornata:
+
+| giudice | moduli | uomini |
+|---|---|---|
+| prima: conteggi + `on="board"` | **7 MATCH / 13 DIFF** | 161/220 |
+| dopo: dichiarato + `on="reference"` | **15 MATCH / 5 DIFF** | 161/220 |
+
+Otto club di venti erano un disaccordo di vocabolario. **Gli uomini non si muovono di uno** (161/220 nei
+due bracci), che è la prova che la correzione tocca la rappresentazione del modulo e nient'altro.
+
+`compare` ha per questo un terzo valore, `on="reference"`, che sceglie **riga per riga**: un modulo di
+quattro numeri si confronta con la picture, uno di tre col `board_shape`. Non è una tolleranza — è la
+regola di sempre («quale rappresentazione si può confrontare lo decide il RIFERIMENTO») applicata a un
+riferimento che oggi parla due vocabolari, perché il modulo dichiarato è su file solo per le partite
+scaricate dopo l'11/09 e l'archivio dietro non è ancora riletto.
+
+**Conseguenza sui numeri pubblicati**: il verdetto sui MODULI del 24/08 (Serie A 9/18, euro 18/23) era
+contato al vecchio modo e non è confrontabile con uno preso adesso; quello sugli UOMINI è intatto,
+perché il vocabolario del modulo non tocca i nomi. Dichiarato invece di lasciarlo scoprire a chi
+confronterà le due corse.

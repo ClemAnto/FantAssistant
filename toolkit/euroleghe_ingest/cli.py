@@ -393,6 +393,16 @@ def build_parser() -> argparse.ArgumentParser:
                            help="with --against round: which real matchday(s) to judge on "
                                 "(repeatable; default 1). A club that played more than one is judged "
                                 "on its last")
+            p.add_argument("--score-preregistration", dest="preregistration", metavar="FILE",
+                           help="score a PRE-REGISTERED table of boards (docs/model/preregistrazione-"
+                                "*.md) against the elevens actually fielded on the dates it names. "
+                                "Unlike --against round it re-computes nothing: a forecast is judged "
+                                "as it was written, with the null the take itself declares")
+            p.add_argument("--taken-at", dest="taken_at", metavar="YYYY-MM-DDTHH:MM",
+                           help="with --score-preregistration: when the take was written (CEST if no "
+                                "offset). Clubs whose match had already kicked off are dropped and "
+                                "named - for them the take is not a forecast. Default: the ISO "
+                                "timestamp the file declares, if it has one")
             p.add_argument("--no-report", dest="report", action="store_false",
                            help="print only, do not write data/reports/press_comparison.json")
         if name == "injuries":
@@ -546,7 +556,8 @@ def main(argv: list[str] | None = None) -> int:
                 load("press").run(ctx, import_files=args.import_files, season=args.season,
                                   source=args.source, observed_on=args.observed_on,
                                   sheet=args.sheet, against=args.against, report=args.report,
-                                  fetch_duels=args.fetch_duels, rounds=args.rounds)
+                                  fetch_duels=args.fetch_duels, rounds=args.rounds,
+                                  preregistration=args.preregistration, taken_at=args.taken_at)
             elif args.command == "sweep":
                 load("sweep").run(ctx, windows=args.window, platforms=args.platform,
                                   games=args.game, report=args.report)
