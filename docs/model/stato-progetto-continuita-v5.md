@@ -8112,9 +8112,10 @@ il caso storico. Nessun file dell'app toccato in questa metà.
 
 ### Aperti
 
-1. **Dichiarare in `press` che il livello di `--against round` è un limite superiore** quando la
-   giornata cade dentro la finestra che la board legge. Misurato oggi, non ancora scritto nel codice:
-   finché non c'è, il prossimo lettore rifarà l'errore che ho fatto stamattina.
+1. ~~Dichiarare in `press` che il livello di `--against round` è un limite superiore~~ **FATTO la sera
+   stessa** (`judged_after_the_fact`, e il verdetto stampa quanti club avevano già giocato: 20 di 20 sul
+   foglio di stamattina, 0 su quello del 10/09). Restava aperto meno di un'ora, ed era quello che
+   impediva al prossimo lettore di rifare l'errore della mattina.
 2. **Scorare la presa del 16/09 dopo il 20**, e accanto a lei il foglio autentico di oggi: è l'altro
    braccio del confronto fra orizzonti, e quattro o cinque giornate lo trasformano in un verdetto.
 3. Il Torino a 5-3-2 e `realToday` in UTC restano dov'erano.

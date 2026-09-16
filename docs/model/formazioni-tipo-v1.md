@@ -2445,6 +2445,13 @@ alla revisione 58 e non porta `desc_recent_slots` (nata alla 63), che il pannell
 il braccio pulito è penalizzato anche da una colonna mancante, e quei numeri sono un **limite superiore**
 della contaminazione, non una sua stima.
 
+**E ADESSO IL COMANDO LO DICE DA SÉ** (la sera stessa): `judged_after_the_fact` confronta il giorno in
+cui il foglio è stato scritto con quello della partita, e il verdetto stampa quanti club avevano già
+giocato — 20 di 20 sul foglio di stamattina, 0 su quello del 10/09. Non blocca e non corregge: dichiara,
+perché quanto valga la contaminazione dipende dal club e nessuno l'ha misurato per club. Una partita
+giocata lo STESSO giorno conta come già vista, perché senza l'ora la direzione prudente è quella che non
+spaccia una lettura per un pronostico.
+
 **E il braccio pulito è stato trovato invece che costruito, dopo un errore che è la lezione.** Avevo
 lanciato `snapshot --date 2026-09-10` per fabbricarlo, e la cartella di destinazione **esisteva già dal
 10 settembre**: la corsa stava per sovrascrivere l'artefatto autentico con una sua ricostruzione. Fermata

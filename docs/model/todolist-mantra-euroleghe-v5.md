@@ -50,7 +50,13 @@ del codice è non decidibile come la presa stessa aveva dichiarato prima di sape
    foglio autentico di oggi: e' l'altro braccio del confronto fra i due orizzonti (§18.6), che con
    quattro o cinque giornate diventa un verdetto invece di una direzione.
 
-2-bis. **[ ] DICHIARARE NEL CODICE che il livello di `--against round` e' un LIMITE SUPERIORE** quando la
+2-bis. **[x] DICHIARARE NEL CODICE che il livello di `--against round` e' un LIMITE SUPERIORE - FATTO
+   la sera stessa.** `judged_after_the_fact` confronta la data in cui il foglio e' stato scritto con
+   quella della partita e il comando STAMPA quanti club avevano gia' giocato (oggi: 20 di 20 sul foglio
+   di stamattina, 0 su quello del 10/09). Il confronto e' fra DATE e non fra colonne del foglio: sono
+   due fatti che ogni artefatto porta, mentre «quante giornate ha visto» vive in una colonna che una
+   revisione puo' rinominare. Funzione a parte perche' `compare_sheet` ridisegna con Tk e un test sulla
+   frase stampata sarebbe un test sul pannello. *Il testo originale:* quando la
    giornata giudicata cade dentro la finestra che la board legge - misurato il 16/09 (6/20 contro 15/20
    sui moduli, 144 contro 161 sugli uomini) e non ancora scritto dove il comando stampa il suo verdetto.
    Finche' non c'e', il prossimo lettore rifara' l'errore che ho fatto quella mattina.

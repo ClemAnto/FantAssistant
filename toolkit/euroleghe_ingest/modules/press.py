@@ -1131,6 +1131,26 @@ def judge_duels(conn, boards: dict, reference: dict, season: str) -> dict:
     return out
 
 
+def judged_after_the_fact(generated_at: str | None, reference: dict[str, dict]) -> list[str]:
+    """I club la cui partita era gia' stata giocata quando il foglio e' stato scritto.
+
+    Una funzione sua perche' e' la condizione che decide se un verdetto e' un pronostico o una lettura,
+    e perche' cosi' si puo' provare senza un display: `compare_sheet` ridisegna le board col pannello
+    headless, quindi un test sulla frase stampata sarebbe un test su Tk.
+
+    Il confronto e' fra DATE - il giorno in cui il foglio e' stato generato e il giorno della partita -
+    e non fra colonne del foglio: sono due fatti che ogni artefatto porta, mentre «quante giornate ha
+    visto» vive in una colonna che una revisione puo' rinominare. Una partita giocata LO STESSO giorno
+    conta come gia' vista: senza l'ora non si puo' dire il contrario, e la direzione prudente e' quella
+    che non spaccia una lettura per un pronostico.
+    """
+    written = (generated_at or "")[:10]
+    if not written:
+        return []
+    return sorted(entry["club"] for entry in reference.values()
+                  if (entry.get("observed_on") or "") <= written)
+
+
 def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: str | None = None,
                   against: str = "press", report: bool = True,
                   rounds: tuple[int, ...] = (1,)) -> dict | None:
@@ -1222,6 +1242,26 @@ def compare_sheet(ctx: Context, sheet: Path, *, mode: str = "typical", source: s
           + (f" · {summary['short_board']} club(s) whose contingent on this sheet cannot field an "
              f"eleven - a defect of the SHEET, not of the board" if summary["short_board"] else ""))
     if against == "round":
+        # IL GIUDICE HA LETTO LA RISPOSTA? Questo comando RIDISEGNA le board col pannello di oggi
+        # leggendo il foglio, e la board legge le giornate giocate (`blend_seasons` sull'orizzonte di
+        # stagione, le ultime tre sul corto). Se il foglio e' stato scritto DOPO la partita che si sta
+        # giudicando, quel club non e' un pronostico: e' in parte una copia. Misurato il 16/09/2026 sulla
+        # 4a giornata di Serie A, stesso pannello e una variabile sola (il foglio autentico del 10/09
+        # contro quello del 16): 6 MATCH di 20 e 144/220 contro 15 e 161/220.
+        #
+        # Si confrontano le DATE e non le colonne del foglio: `generated_at` e la data della partita
+        # sono due fatti che ogni artefatto porta, mentre «quante giornate ha visto» vive in una colonna
+        # che una revisione puo' rinominare. Il giudizio non si blocca e non si corregge - si DICHIARA,
+        # perche' quanto valga la contaminazione dipende dal club e nessuno l'ha misurato per club.
+        after = judged_after_the_fact(manifest.get("generated_at"), reference)
+        written = (manifest.get("generated_at") or "")[:10]
+        if after:
+            print(f"[press] ATTENZIONE, il livello di questo verdetto e' un LIMITE SUPERIORE:"
+                  f" il foglio e' del {written} e {len(after)} club di {len(reference)} avevano gia'"
+                  f" giocato la partita giudicata, quindi la board che li' li disegna l'ha letta."
+                  f" Un pronostico si giudica su un foglio scritto PRIMA (una pre-registrazione, o la"
+                  f" cartella autentica di quel giorno): misurato, la differenza vale 6 moduli di 20"
+                  f" contro 15 e 144/220 uomini contro 161 (formazioni-tipo-v1.md §18.5)")
         short = [(entry["club"], entry.get("xi_resolved") or 0) for entry in reference.values()
                  if (entry.get("xi_resolved") or 0) < 11]
         print(f"[press] the SHAPE is counted off every lineup entry and is complete; the MEN come"

@@ -788,3 +788,26 @@ def test_a_club_that_does_not_play_is_left_out_and_a_short_board_is_DECLARED(tmp
     taken = press.read_preregistration(out)
     assert set(taken["clubs"]) == {"Inter"}, "il Torino non gioca in quella finestra"
     assert "Board corte" in text and "Inter (10/11)" in text
+
+
+def test_a_verdict_on_a_match_the_sheet_had_already_seen_is_a_reading_and_says_so():
+    """«Un giudice che ha letto la risposta non arbitra» (04/09), esteso al giudizio della BOARD.
+
+    `--against round` ridisegna le board col pannello di oggi leggendo il foglio, e la board legge le
+    giornate giocate: se il foglio e' stato scritto dopo la partita, quel club non e' un pronostico.
+    Misurato il 16/09/2026 a una variabile sola (foglio del 10/09 contro quello del 16, stessa giornata,
+    stesso pannello): 6 MATCH di 20 e 144/220 contro 15 e 161/220.
+    """
+    reference = {
+        "inter": {"club": "Inter", "observed_on": "2026-09-13"},
+        "milan": {"club": "Milan", "observed_on": "2026-09-20"},
+    }
+    # un foglio scritto dopo la prima partita e prima della seconda: solo la prima e' stata letta
+    assert press.judged_after_the_fact("2026-09-16T06:20:13+00:00", reference) == ["Inter"]
+    # un foglio scritto prima di tutte: il verdetto e' un pronostico intero
+    assert press.judged_after_the_fact("2026-09-10T21:35:00+00:00", reference) == []
+    # stesso giorno = gia' vista, perche' senza l'ora la direzione prudente e' quella che non spaccia
+    # una lettura per un pronostico
+    assert press.judged_after_the_fact("2026-09-13T23:00:00+00:00", reference) == ["Inter"]
+    # e un foglio che non dichiara quando e' stato scritto non accusa nessuno
+    assert press.judged_after_the_fact(None, reference) == []
