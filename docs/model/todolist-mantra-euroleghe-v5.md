@@ -11,7 +11,31 @@ Scorate tutte e tre: la board batte il suo null su ogni presa (uomini 195, 194 e
 presa che si spedisce, p = 0,109; pareggio secco sulle prime due), e il confronto fra le due versioni
 del codice è non decidibile come la presa stessa aveva dichiarato prima di sapere l'esito.
 
-1. **[ ] RIESEGUIRE `--against round` SUI NUMERI DEL 24/08 quando l'archivio sarà riletto.** Il giudice
+1. **[~] RIESEGUIRE `--against round` SUI NUMERI DEL 24/08 — RISCRITTO la sera stessa, perché come era
+   formulato è in buona parte IMPOSSIBILE.** Due scoperte. (i) L'archivio della stagione IN CORSO è già
+   riletto: il modulo dichiarato copre **il 100% delle righe di campionato** di tutte e cinque le leghe
+   2026-27 (il 44% complessivo è diluito dalle 681 amichevoli, che il giudice non guarda), quindi non
+   c'è nessuna acquisizione da aspettare per le giornate di quest'anno. (ii) Ma **rieseguire il giudizio
+   di una giornata passata col foglio di OGGI è contaminato per costruzione** — la board legge le
+   giornate giocate — e misurato vale 6/20 contro 15/20 sui moduli e 144 contro 161 sugli uomini
+   (§18.5). Quindi quei numeri non si «rifanno»: l'unico giudizio pulito su una giornata è quello preso
+   PRIMA, cioè una pre-registrazione o un foglio autentico di allora. Quello che resta da fare è
+   **dichiarare in `press` che il livello di `--against round` è un limite superiore** quando la
+   giornata giudicata cade dentro la finestra che la board legge — e quella riga di codice non c'è
+   ancora.
+
+   *Il testo originale, tenuto perché la correzione vale più dell'item:* «rieseguire quando l'archivio
+   sarà riletto, finché convivono i due vocabolari i verdetti sui moduli non si confrontano fra loro» —
+   vero per i moduli, e non era quello il vincolo.
+
+1-bis. **[ ] IL CONFRONTO FRA I DUE ORIZZONTI, SU PIÙ DI UNA GIORNATA.** Il risultato più forte del
+   16/09 sta su **10 club e una giornata**: a parità di conoscenza la board breve batte quella di
+   stagione 8 club a 0 (+14 uomini su 110, p = 0,0078) e batte anche quella che la giornata l'ha vista
+   (+10, p = 0,219). È il primo confronto diretto e pulito fra i due orizzonti e chiede di essere
+   ripetuto: **ogni presa futura lo produce gratis**, perché basta giudicare il foglio autentico di
+   quel giorno accanto alla presa. Quattro o cinque giornate e diventa un verdetto.
+
+   **[ ] RIESEGUIRE `--against round` SUI NUMERI DEL 24/08 (testo superato, vedi sopra):** Il giudice
    ora legge il modulo DICHIARATO (`declared_or_counted`, quarto lettore) e sceglie la rappresentazione
    riga per riga (`compare(on="reference")`), perché il dichiarato è su file solo per le partite
    scaricate dopo l'11/09. Finché i due vocabolari convivono, **i verdetti sui moduli di corse diverse
@@ -19,7 +43,19 @@ del codice è non decidibile come la presa stessa aveva dichiarato prima di sape
    modo. Il comando che chiude la transizione è `positions --layer formations` più il reparse, e va
    messo in conto che riempie la CACHE e non il database (la trappola del 15/09).
 
-2. **[ ] LA PROSSIMA PRE-REGISTRAZIONE HA UN COMANDO, e conviene prenderla.** Una presa prima dei calci
+2. **[x] LA PROSSIMA PRE-REGISTRAZIONE - PRESA lo stesso giorno**, e adesso il comando c'e' da tutt'e
+   due i lati: `press --take-preregistration` la scrive e `--score-preregistration` la scora, nello
+   stesso file e con un test di round-trip. Fatta: `preregistrazione-board-breve-2026-09-16.md`, 47 club
+   dei cinque campionati, turno del 17-20. **Da scorare dopo il 20**, e accanto a lei va giudicato il
+   foglio autentico di oggi: e' l'altro braccio del confronto fra i due orizzonti (§18.6), che con
+   quattro o cinque giornate diventa un verdetto invece di una direzione.
+
+2-bis. **[ ] DICHIARARE NEL CODICE che il livello di `--against round` e' un LIMITE SUPERIORE** quando la
+   giornata giudicata cade dentro la finestra che la board legge - misurato il 16/09 (6/20 contro 15/20
+   sui moduli, 144 contro 161 sugli uomini) e non ancora scritto dove il comando stampa il suo verdetto.
+   Finche' non c'e', il prossimo lettore rifara' l'errore che ho fatto quella mattina.
+
+   *Il testo originale dell'item 2:* Una presa prima dei calci
    d'inizio e `press --score-preregistration FILE --taken-at ...` il lunedì: il metro, il null e il
    taglio per ora d'inizio sono scritti, quindi il costo di un'altra giornata di evidenza è due minuti.
    Una giornata sola non decide niente (p = 0,109 con la direzione giusta) e **quattro o cinque

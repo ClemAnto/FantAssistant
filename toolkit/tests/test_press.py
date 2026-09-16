@@ -9,6 +9,7 @@ extraction that drives the panel's own functions.
 from __future__ import annotations
 
 import json
+import pathlib
 from pathlib import Path
 
 import pytest
@@ -690,3 +691,100 @@ def test_the_round_judge_picks_the_vocabulary_ROW_BY_ROW(tmp_path):
     other = {"inter": dict(declared["inter"], module="4-3-3")}
     rows, _summary = press.compare({"Inter": board}, other, on="reference")
     assert rows[0]["module"] == "DIFF"
+
+
+def _fixtures(ctx, rows) -> None:
+    for league, rnd, day, home, away in rows:
+        ctx.conn.execute(
+            """INSERT INTO fixtures(event_id, season, league, round, date, home_key, away_key,
+                                   played, source, observed_on)
+               VALUES (?, '2026-27', ?, ?, ?, ?, ?, 0, 'test', '2026-09-16')""",
+            (f"{league}-{rnd}-{home}", league, rnd, day, home, away))
+    ctx.conn.commit()
+
+
+def _sheet(tmp_path, name: str, clubs: dict) -> pathlib.Path:
+    folder = tmp_path / name
+    folder.mkdir()
+    (folder / "manifest.json").write_text(
+        json.dumps({"target_season": "2026-27", "sheet_revision": 70}), encoding="utf-8")
+    (folder / "boards.json").write_text(json.dumps({
+        "sheet": name, "mode": "typical",
+        "short": {"mode": "short", "clubs": {
+            club: {"picture": module,
+                   "lines": {"P": [{"name": eleven[0]}],
+                             "D": [{"name": one} for one in eleven[1:]],
+                             "M": [], "T": [], "A": []}}
+            for club, (module, eleven) in clubs.items()}},
+    }), encoding="utf-8")
+    return folder
+
+
+def test_the_next_round_is_the_one_the_source_NUMBERS(tmp_path):
+    """Non si deduce dalle date, e il perche' e' misurato: fra due giornate consecutive di una lega lo
+    scarto vale 1 giorno 124 volte, 2 sette volte, 3 sette, 4-6 quarantasei e 7 novanta - non c'e' una
+    soglia che separi «dentro un turno» da «fra turni». Il numero e' sulla riga.
+
+    E si chiede PER LEGA: qui la prima gioca 17-20 e la seconda 18-20, e una finestra sola che parte
+    dal giorno piu' vicino taglierebbe la domenica a tutte e due.
+    """
+    ctx = _ctx(tmp_path)
+    _fixtures(ctx, [
+        ("la_liga", 6, "2026-09-16", "levante", "celta"),        # oggi: fuori, non sappiamo se iniziata
+        ("la_liga", 6, "2026-09-17", "betis", "getafe"),
+        ("la_liga", 6, "2026-09-18", "sevilla", "elche"),
+        ("la_liga", 6, "2026-09-19", "valencia", "girona"),
+        ("la_liga", 6, "2026-09-20", "barcelona", "osasuna"),
+        # IL TURNO DOPO, a DUE giorni: e' il caso che nessuna soglia sulle date sa separare, e che il
+        # numero di giornata separa senza sceglierla. Con «giorni contigui entro due» finirebbe dentro.
+        ("la_liga", 7, "2026-09-22", "levante", "betis"),
+        ("serie_a", 5, "2026-09-18", "inter", "milan"),
+        ("serie_a", 5, "2026-09-20", "roma", "lazio"),
+    ])
+    assert press.next_round_dates(ctx.conn, "2026-27", today="2026-09-16") == (
+        "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20")
+
+
+def test_the_taker_and_the_reader_agree_on_the_format(tmp_path):
+    """IL ROUND-TRIP, ed e' la ragione per cui chi scrive e chi legge stanno nello stesso file: due
+    formati per una tabella sola sarebbero la stessa famiglia di difetti dei due lettori di
+    `engine_fm_pred`, e si scoprirebbero il lunedi' in cui una presa non si riesce a scorare.
+    """
+    ctx = _ctx(tmp_path)
+    _fixtures(ctx, [("serie_a", 5, "2026-09-18", "inter", "milan")])
+    folder = _sheet(tmp_path, "sheet-a", {
+        "Inter": ("3-5-2", ["Martinez Jo.", "Bisseck", "Akanji", "Bastoni", "Diouf", "Barella",
+                            "Sucic P.", "Zielinski", "Dimarco", "Esposito F.P.", "Martinez L."]),
+        "Milan": ("4-2-3-1", ["Maignan", "Tomori", "Gabbia", "Pavlovic", "Bartesaghi", "Modric",
+                              "Fofana", "Saelemaekers", "Loftus-Cheek", "Leao", "Gimenez"]),
+    })
+    out = tmp_path / "presa.md"
+    press.take_preregistration_file(ctx, [folder], out=out, taken_at="2026-09-16T14:00")
+    taken = press.read_preregistration(out)
+    assert taken["taken_at"] == "2026-09-16T14:00" and taken["sheet_revision"] == 70
+    assert set(taken["clubs"]) == {"Inter", "Milan"}
+    inter = taken["clubs"]["Inter"]
+    assert inter["module"] == "3-5-2" and inter["date"] == "2026-09-18" and inter["side"] == "casa"
+    assert inter["opponent"] == "milan" and len(inter["xi"]) == 11
+    assert taken["clubs"]["Milan"]["side"] == "fuori"
+
+
+def test_a_club_that_does_not_play_is_left_out_and_a_short_board_is_DECLARED(tmp_path):
+    """Due assenze diverse. Un club che non gioca in quella finestra non e' una previsione e non entra.
+    Un club la cui board ha meno di undici uomini entra e lo DICE: non e' una previsione sbagliata, e'
+    un contingente che su quel foglio non schiera un undici (`compare` la conta a parte) - senza la
+    riga, «10 nomi» si legge come un errore.
+    """
+    ctx = _ctx(tmp_path)
+    _fixtures(ctx, [("serie_a", 5, "2026-09-18", "inter", "milan")])
+    folder = _sheet(tmp_path, "sheet-b", {
+        "Inter": ("4-2-2-1", ["Martinez Jo.", "Bisseck", "Akanji", "Bastoni", "Diouf",
+                              "Barella", "Sucic P.", "Zielinski", "Dimarco", "Martinez L."]),
+        "Torino": ("3-5-2", ["Perri"] + [f"Uomo {i}" for i in range(10)]),
+    })
+    out = tmp_path / "presa.md"
+    press.take_preregistration_file(ctx, [folder], out=out, taken_at="2026-09-16T14:00")
+    text = out.read_text(encoding="utf-8")
+    taken = press.read_preregistration(out)
+    assert set(taken["clubs"]) == {"Inter"}, "il Torino non gioca in quella finestra"
+    assert "Board corte" in text and "Inter (10/11)" in text

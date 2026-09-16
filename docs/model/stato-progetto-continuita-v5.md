@@ -8039,3 +8039,82 @@ si muove è uno script di banco.
    tre prese prende, già a verbale il 15/09).
 3. **La prossima pre-registrazione ha ora un comando**: si prende prima dei calci d'inizio e si scora il
    lunedì, senza che nessuno debba ricostruire il metro.
+
+## 16 settembre 2026 (pomeriggio) — Il giudizio della mattina era CONTAMINATO, e i due orizzonti hanno il loro confronto
+
+«Vai avanti» sugli aperti, e il primo ha smentito un numero pubblicato tre ore prima. Dettaglio:
+[formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18.5-§18.7, spec «Novità v9.95».
+
+### L'aperto n.1 era formulato male, e scoprirlo è costato una misura
+
+Dicevo «rieseguire `--against round` sui numeri del 24/08 quando l'archivio sarà riletto». Due cose, e
+nessuna è quella che avevo scritto. **L'archivio della stagione in corso è GIÀ riletto**: il modulo
+dichiarato copre il 100% delle righe di campionato di tutte e cinque le leghe (il 44% complessivo è
+diluito dalle 681 amichevoli, che il giudice non guarda). **E rieseguire una giornata passata col foglio
+di oggi non si può**: la board legge le giornate giocate, quindi il giudice ha letto la risposta.
+
+Misurato, perché era l'unico modo di sapere quanto pesa. Foglio autentico del **10/09** (revisione 58,
+tre giornate viste) contro quello di stamattina, stessa 4ª giornata, stesso pannello — e per una volta
+il fatto che `--against round` RIDISEGNI è ciò che isola la variabile:
+
+| foglio | giornate viste | moduli | uomini |
+|---|---|---|---|
+| 10/09 | 3 | **6/20** | **144/220** |
+| 16/09 | 4 | 15/20 | 161/220 |
+
+Quindi il «15 su 20» del §18.4 è un livello contaminato, e la correzione sta accanto alla tabella invece
+di sostituirla: **l'A/B fra i due metri resta valido** (stessa board, stessa contaminazione, uomini
+identici), il livello no.
+
+### E il braccio pulito l'ho trovato dopo aver quasi distrutto l'unico che esisteva
+
+Avevo lanciato `snapshot --date 2026-09-10` per fabbricarlo. La cartella **esisteva già dal 10
+settembre**: la corsa stava per sovrascrivere l'artefatto autentico con una sua ricostruzione. Fermata
+con i byte intatti (data di scrittura 10/09 23:35). *Prima di generare un artefatto datato si guarda se
+quel giorno non ne abbia già lasciato uno* — e quello vero è evidenza migliore, perché un back-dated
+conosce un mercato che allora non era chiuso.
+
+### Il risultato della giornata: i due orizzonti, a parità di conoscenza
+
+Sugli **stessi 10 club** e la stessa giornata:
+
+| board | giornate viste | moduli | uomini |
+|---|---|---|---|
+| **BREVE**, pre-registrata il 13/09 | 3 | **7/10** | **87/110** |
+| STAGIONE, foglio del 10/09 | 3 | 2/10 | 73/110 |
+| STAGIONE, foglio di oggi (ha visto la giornata) | 4 | 7/10 | 77/110 |
+
+**8 club su 10 meglio, nessuno peggio, p = 0,0078.** E la board breve, con TRE giornate, batte quella di
+stagione che ne ha viste QUATTRO (+10 uomini, p = 0,219). È il primo confronto diretto fra i due
+orizzonti sulla domanda per cui il corto è nato, e non esisteva perché mancava il giudice del corto. Non
+l'avevo previsto: è nato dall'errore di sopra.
+
+### Il prenditore, e un turno è quello che la fonte NUMERA
+
+`press --take-preregistration --from-sheet DIR`, nello stesso file del lettore e con un test di
+ROUND-TRIP: due formati per una tabella sola si scoprirebbero il lunedì in cui una presa non si riesce a
+scorare. **Due forme dedotte scritte e buttate**: «il primo giorno futuro più quelli entro quattro»
+tagliava la domenica a tutte le leghe (la Liga gioca 16-20, le altre 18-20) e «giorni contigui» non ha
+una soglia difendibile — fra due giornate consecutive lo scarto vale 1 giorno 124 volte, 2 sette, 3
+sette, 4-6 quarantasei, 7 novanta. Il numero è sulla riga di `fixtures`. Validazione gratis: chiesto
+«dal 10/09» restituisce 11-14 settembre, la finestra che le prese avevano scelto a mano.
+
+**Presa fatta**: [preregistrazione-board-breve-2026-09-16.md](preregistrazione-board-breve-2026-09-16.md),
+47 club dei cinque campionati, turno del 17-20, revisione 70. Le quattro partite di Liga di oggi restano
+fuori perché di una partita odierna non sappiamo se sia cominciata; il Monaco entra con 10 nomi e la
+tabella lo dichiara.
+
+### Verifica
+
+906 test toolkit (+4, ognuno con la controprova: rimettendo la finestra dedotta cade quello e solo
+quello), round-trip fra prenditore e lettore, `next_round_dates` verificata su tre date diverse incluso
+il caso storico. Nessun file dell'app toccato in questa metà.
+
+### Aperti
+
+1. **Dichiarare in `press` che il livello di `--against round` è un limite superiore** quando la
+   giornata cade dentro la finestra che la board legge. Misurato oggi, non ancora scritto nel codice:
+   finché non c'è, il prossimo lettore rifarà l'errore che ho fatto stamattina.
+2. **Scorare la presa del 16/09 dopo il 20**, e accanto a lei il foglio autentico di oggi: è l'altro
+   braccio del confronto fra orizzonti, e quattro o cinque giornate lo trasformano in un verdetto.
+3. Il Torino a 5-3-2 e `realToday` in UTC restano dov'erano.

@@ -773,6 +773,139 @@ _PREREG_TAKEN_AT = re.compile(r"(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})")
 _PREREG_REVISION = re.compile(r"(?:SHEET_REVISION|revisione)\D{0,20}?(\d{2,3})", re.IGNORECASE)
 
 
+def next_round_dates(conn, season: str, leagues: tuple[str, ...] | None = None,
+                     today: str | None = None) -> tuple[str, ...]:
+    """The days of the NEXT round, asked LEAGUE BY LEAGUE and unioned.
+
+    THE ROUND IS THE ONE THE SOURCE NUMBERS (`fixtures.round`), not a block of days deduced from the
+    calendar. The deduced version was written first and measured: the gaps between two consecutive
+    match days of a league run 1 (124 times), 2 (7), 3 (7), 4-6 (46) and 7 (90), so there is no
+    threshold that separates «inside a round» from «between rounds» - any value picks up some rounds and
+    splits others. The number is on the row; deducing it would be inventing a fact next to a column that
+    states it, which is the defect this project paid for on the module (12/09/2026).
+
+    Per league because the leagues do not play the same days: measured on 2026-09-16, la_liga plays
+    16-17-18-19-20 while the other four play 18-19-20 - so one window from the earliest future match
+    started on the 16th and CUT THE SUNDAY off every league, half of Serie A's round.
+
+    ONLY STRICTLY FUTURE DAYS. Of a match played TODAY we cannot know whether it has already kicked off
+    (`fixtures` carries the date and not the hour, and the hour reaches the round cache only once the
+    round has been downloaded), so pre-registering one would write a forecast for something that may be
+    in its second half. The scorer drops what has started; the taker never writes it.
+    """
+    from euroleghe_ingest import config
+
+    day = today or dt.date.today().isoformat()
+    days: set[str] = set()
+    for league in tuple(leagues or config.CHAMPIONSHIPS):
+        row = conn.execute(
+            """SELECT round FROM fixtures
+               WHERE season = ? AND league = ? AND date > ? AND round IS NOT NULL
+               ORDER BY date LIMIT 1""", (season, league, day)).fetchone()
+        if not row:
+            continue
+        days.update(one for one, in conn.execute(
+            """SELECT DISTINCT date FROM fixtures
+               WHERE season = ? AND league = ? AND round = ? AND date > ?""",
+            (season, league, row[0], day)))
+    return tuple(sorted(days))
+
+
+def take_preregistration_file(ctx, sheets: list[Path | str], *, season: str | None = None,
+                         dates: tuple[str, ...] | None = None, out: Path | str | None = None,
+                         taken_at: str | None = None) -> Path | None:
+    """Write the pre-registration of the SHORT boards for the coming round.
+
+    The counterpart of `score_preregistration`, and it lives beside it on purpose: one file writes the
+    table and one reads it, so the two cannot drift into two formats - the defect this repository pays
+    for whenever a fact has two readers.
+
+    What it takes is what a forecast is made of and nothing else: per club the drawn module and the
+    eleven names, as the SHORT board has them at this instant. It re-computes nothing and it judges
+    nothing; the sheet is read, never rebuilt, because the whole value of a pre-registration is that it
+    was written before the matches and can be shown to have been.
+
+    A club that does not play in the window is left out, and so is one whose sheet carries no short
+    board: «vuoto = ignoto» - a table row for a club we cannot forecast would be scored as a miss.
+    """
+    from euroleghe_ingest import config
+
+    folders = [Path(one) for one in sheets]
+    season = season or json.loads(
+        (folders[0] / "manifest.json").read_text(encoding="utf-8")).get("target_season")
+    dates = tuple(dates) if dates else next_round_dates(ctx.conn, season)
+    if not dates:
+        print("[press] no future fixture on file: nothing to pre-register")
+        return None
+    # WHO PLAYS, AND AGAINST WHOM - by club identity and never by the string a source spells.
+    holes = ",".join("?" * len(dates))
+    league_holes = ",".join("?" * len(config.CHAMPIONSHIPS))
+    fixture: dict[str, tuple[str, str, str, str]] = {}
+    for league, day, home, away in ctx.conn.execute(
+            f"""SELECT league, date, home_key, away_key FROM fixtures
+                WHERE season = ? AND date IN ({holes}) AND league IN ({league_holes})
+                ORDER BY date""", (season, *dates, *config.CHAMPIONSHIPS)):
+        fixture.setdefault(club_identity(home), (league, day, "casa", away))
+        fixture.setdefault(club_identity(away), (league, day, "fuori", home))
+    rows: list[tuple] = []
+    revisions: set[int] = set()
+    for folder in folders:
+        payload = json.loads((folder / "boards.json").read_text(encoding="utf-8"))
+        manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("sheet_revision") is not None:
+            revisions.add(int(manifest["sheet_revision"]))
+        for club, board in ((payload.get("short") or {}).get("clubs") or {}).items():
+            key = club_identity(club)
+            if key not in fixture or any(key == club_identity(one[0]) for one in rows):
+                continue
+            eleven = [man["name"] for line in ("P", "D", "M", "T", "A")
+                      for man in (board.get("lines") or {}).get(line) or []]
+            if not eleven:
+                continue
+            league, day, side, other = fixture[key]
+            rows.append((club, league, f"{day} {side}", other,
+                         board.get("picture") or board.get("board_shape") or "", eleven))
+    if not rows:
+        print(f"[press] no club of these sheets plays on {', '.join(dates)}")
+        return None
+    taken_at = taken_at or dt.datetime.now().strftime("%Y-%m-%dT%H:%M")
+    dest = Path(out) if out else (
+        config.REPO_ROOT / "docs" / "model" /
+        f"preregistrazione-board-breve-{taken_at[:10]}.md")
+    revision = f"`SHEET_REVISION` {', '.join(str(one) for one in sorted(revisions))}" if revisions else ""
+    lines = [
+        f"# Pre-registrazione: la board dell'ULTIMO PERIODO ({taken_at[:10]})", "",
+        f"Presa alle **{taken_at}**, PRIMA dei calci d'inizio del {' / '.join(dates)}. {revision}.",
+        "Scritta da `press --take-preregistration`, che LEGGE il foglio e non lo ricostruisce: il valore",
+        "di una pre-registrazione e' che sia stata scritta prima delle partite e che lo si possa",
+        "dimostrare. Si scora con `press --score-preregistration` su questo stesso file.", "",
+        "**Cosa la finestra corta NON vede**: legge le ultime partite di CAMPIONATO in cui l'uomo era",
+        "disponibile, quindi le coppe infrasettimanali non la muovono - una presa anticipata di qualche",
+        "giorno differisce da una dell'ultimo momento solo per infortuni e squalifiche sopravvenuti.", "",
+    ]
+    short = [(club, len(eleven)) for club, _lg, _w, _o, _m, eleven in rows if len(eleven) < 11]
+    if short:
+        # UNA BOARD CORTA NON E' UNA PREVISIONE SBAGLIATA: e' un club il cui contingente su QUESTO
+        # foglio non riesce a schierare un undici (`compare` la conta a parte per la stessa ragione).
+        # Detto qui perche' chi legge la tabella veda «10 nomi» e sappia di cosa e' il numero.
+        lines += [f"**Board corte**, contate a parte e non errori di previsione: "
+                  + ", ".join(f"{club} ({got}/11)" for club, got in sorted(short)) + ".", ""]
+    lines += ["| club | lega | quando | avversario | modulo | undici previsto |",
+              "|---|---|---|---|---|---|"]
+    for club, league, when, other, module, eleven in sorted(rows, key=lambda one: (one[1], one[0])):
+        lines.append(f"| {club} | {league} | {when} | {other} | `{module}` | {', '.join(eleven)} |")
+    lines += ["", "## Come si scora", "",
+              "Per club: quanti degli undici previsti sono nella distinta vera (su 11), e se il modulo",
+              "coincide. Il null e' l'undici che ha cominciato l'ULTIMA partita di quel club, letto dallo",
+              "stesso livello per-partita - un numero senza il suo null non e' interpretabile. E il null",
+              "si legge anche PER CLUB e non solo in aggregato: un margine puo' venire da due code",
+              "(16/09/2026, `formazioni-tipo-v1.md` §18).", ""]
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_text("\n".join(lines), encoding="utf-8")
+    print(f"[press] {len(rows)} club pre-registrati per il {', '.join(dates)} -> {dest}")
+    return dest
+
+
 def read_preregistration(path: Path | str) -> dict:
     """The pre-registered table, parsed: per club the module and the eleven, exactly as published.
 
@@ -1137,7 +1270,15 @@ def run(ctx: Context, *, import_files: list[str] | None = None, season: str | No
         source: str | None = None, observed_on: str | None = None, sheet: str | None = None,
         against: str = "press", report: bool = True, fetch_duels: str | None = None,
         rounds: tuple[int, ...] | list[int] | None = None,
-        preregistration: str | None = None, taken_at: str | None = None, **_kwargs) -> None:
+        preregistration: str | None = None, taken_at: str | None = None,
+        take_preregistration: bool = False, from_sheets: list[str] | None = None,
+        dates: list[str] | None = None, **_kwargs) -> None:
+    if take_preregistration:
+        if not from_sheets:
+            raise ValueError("--take-preregistration needs at least one --from-sheet DIR")
+        take_preregistration_file(ctx, from_sheets, season=season,
+                                  dates=tuple(dates) if dates else None, taken_at=taken_at)
+        return
     if preregistration:
         # A pre-registration is judged on its own and nothing else runs: it re-ingests nothing, it
         # re-draws nothing, and mixing it with the archive replay would make the print ambiguous about

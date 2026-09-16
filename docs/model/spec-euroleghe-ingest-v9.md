@@ -495,6 +495,48 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.95 (16 settembre 2026, sera — il giudizio era CONTAMINATO, e il prenditore delle prese)
+
+Dettaglio e tabelle: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18.5-§18.7.
+
+1. **IL LIVELLO DI `--against round` È UN LIMITE SUPERIORE quando la giornata giudicata cade dentro la
+   finestra che la board legge**, e la mattina stessa l'avevo pubblicato come se non lo fosse. Il foglio
+   di oggi ha `why_pv_seen` = 4: la board che scoravo sulla 4ª giornata l'aveva già letta. Misurato
+   contro il foglio AUTENTICO del 10/09 (tre giornate viste), sulla stessa giornata e con lo stesso
+   pannello — una variabile sola, e per una volta il fatto che `--against round` ridisegni è ciò che la
+   isola: **6 MATCH / 20 e 144/220 contro 15 / 20 e 161/220**. Il progetto aveva già scritto «un giudice
+   che ha letto la risposta non arbitra» (04/09) su un'altra colonna e non l'aveva esteso a questa.
+   Limite dichiarato: il foglio vecchio è alla revisione 58 e non porta `desc_recent_slots`, quindi è
+   penalizzato anche da una colonna mancante e la differenza è un limite superiore della contaminazione.
+
+2. **I DUE ORIZZONTI, sulla stessa giornata e a parità di conoscenza** (10 club di Serie A comuni alla
+   presa e al giudizio): board BREVE pre-registrata **7 moduli su 10 e 87/110 uomini**, board di
+   STAGIONE del 10/09 **2 e 73/110**, board di stagione di oggi (che la giornata l'ha vista) 7 e 77/110.
+   La breve batte la stagionale in **8 club su 10 e in nessuno peggio** (test dei segni **p = 0,0078**) e
+   batte anche quella che ha visto una giornata in più (+10 uomini, p = 0,219). È il primo confronto
+   diretto fra i due orizzonti sulla domanda per cui il corto è nato, e non esisteva perché mancava il
+   giudice del corto.
+
+3. **`press --take-preregistration --from-sheet DIR`** — il prenditore, nello stesso file del lettore, con
+   un test di ROUND-TRIP invece di due formati che possono divergere. Legge il foglio e non lo
+   ricostruisce; scrive solo giorni **strettamente futuri** (di una partita di oggi non sappiamo se sia
+   cominciata); dichiara le board corte in cima alla tabella (il Monaco a 10/11 non è una previsione
+   sbagliata).
+
+4. **`press.next_round_dates` legge il NUMERO di giornata e non lo deduce dalle date**, per lega. Le due
+   forme dedotte sono state scritte e misurate: «il primo giorno futuro più quelli entro quattro»
+   tagliava la domenica a tutte le leghe (la Liga gioca 16-20, le altre 18-20); «giorni contigui» non ha
+   una soglia difendibile, perché fra due giornate consecutive di una lega lo scarto vale 1 giorno 124
+   volte, 2 sette, 3 sette, 4-6 quarantasei e 7 novanta. Il numero è sulla riga di `fixtures`: dedurlo
+   sarebbe inventare un fatto accanto alla colonna che lo dichiara. Validazione gratuita: chiesto «dal
+   10/09» restituisce 11-14 settembre, la finestra che le tre prese avevano scelto a mano.
+
+5. **Un artefatto datato può esistere già, e una corsa che lo rigenera lo distrugge.** `snapshot --date
+   2026-09-10` stava per sovrascrivere la cartella scritta il 10 settembre — cioè il braccio pulito che
+   serviva alla misura del punto 1 — ed è stata fermata con i byte ancora intatti. *Prima di generare un
+   artefatto datato si guarda se quel giorno non ne abbia già lasciato uno*, che oltretutto è evidenza
+   migliore: un foglio back-dated conosce un mercato che allora non era chiuso.
+
 ## Novità v9.94 (16 settembre 2026 — IL QUARTO GIUDICE: una PRE-REGISTRAZIONE si scora come è scritta)
 
 Dettaglio, tabelle e verdetto: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18.

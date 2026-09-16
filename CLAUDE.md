@@ -6329,6 +6329,53 @@ Tre cose piu' piccole, tutte della stessa famiglia.
   l'orizzonte e' passato al PULSANTE, quindi si chiede a lui. *Una feature che esce porta con se' il
   passo che la verificava, o il rosso diventa rumore e il prossimo lo salta.*
 
+## Un GIUDICE che ha letto la risposta, e un turno e' quello che la fonte NUMERA
+**16/09/2026 (pomeriggio), andando avanti sugli aperti della mattina — il primo dei quali ha smentito un
+numero pubblicato tre ore prima. Dettaglio: `formazioni-tipo-v1.md` §18.5-§18.7, spec «Novita' v9.95».**
+
+**IL LIVELLO DI UN GIUDIZIO E' CONTAMINATO QUANDO LA GIORNATA GIUDICATA STA DENTRO LA FINESTRA CHE IL
+MODELLO LEGGE.** `--against round` giudica la board che il foglio di OGGI disegna, e quella board legge
+le giornate giocate (`blend_seasons` per la stagione, le ultime tre per il corto): giudicarla sulla 4a
+giornata e' in parte leggere una copia. Misurato contro il foglio AUTENTICO di prima di quella giornata,
+stessa giornata e stesso pannello — e per una volta il fatto che il comando RIDISEGNI e' cio' che isola
+la variabile: **6 MATCH di 20 e 144/220 contro 15 e 161/220**. Il progetto l'aveva gia' scritto il 04/09
+su un'altra colonna («un giudice che ha letto la risposta non arbitra») e non l'aveva esteso a questa.
+*Quando si scrive una regola su un caso, si cerca subito chi altro ha la stessa forma* — e la
+conseguenza pratica: l'unico giudizio pulito su una giornata e' quello preso PRIMA, cioe' una
+pre-registrazione o un foglio autentico di allora, e «rieseguirlo adesso» non e' un'opzione.
+
+**UN ARTEFATTO DATATO PUO' ESISTERE GIA', E UNA CORSA CHE LO RIGENERA LO DISTRUGGE.** Avevo lanciato
+`snapshot --date 2026-09-10` per fabbricare il braccio pulito: la cartella c'era **dal 10 settembre** e
+la corsa stava per sovrascrivere l'originale con una ricostruzione. Fermata con i byte intatti. *Prima
+di generare un artefatto datato si guarda se quel giorno non ne abbia gia' lasciato uno* — ed e' anche
+evidenza migliore, perche' un foglio back-dated conosce un mercato che allora non era chiuso. Stessa
+famiglia di «prima di cancellare o sovrascrivere, guarda il bersaglio», applicata a una corsa che non
+sembra distruttiva.
+
+**E DALL'ERRORE E' USCITO IL RISULTATO DELLA GIORNATA**: il primo confronto pulito fra i DUE ORIZZONTI,
+sugli stessi 10 club e la stessa giornata, a parita' di conoscenza. La board BREVE pre-registrata legge
+**7 moduli su 10 e 87/110 uomini**, quella di STAGIONE con le stesse tre giornate viste **2 e 73/110**:
+8 club meglio, nessuno peggio, **p = 0,0078**. E la breve, con tre giornate, batte quella di stagione che
+ne ha viste quattro (+10 uomini). Non esisteva perche' mancava il giudice del corto, e nessuno dei due
+comandi da solo poteva produrlo.
+
+**UN TURNO E' QUELLO CHE LA FONTE NUMERA, non un gruppo di date che si deduce.** Due forme dedotte
+scritte e buttate: «il primo giorno futuro piu' quelli entro quattro» tagliava la domenica a tutte le
+leghe (la Liga gioca 16-20, le altre 18-20 — cioe' «cinque leghe, cinque giornate» incontrata sulle
+DATE); «giorni contigui» non ha una soglia difendibile, perche' fra due giornate consecutive di una lega
+lo scarto vale 1 giorno **124 volte**, 2 sette, 3 sette, 4-6 quarantasei e 7 novanta. Il numero e' sulla
+riga di `fixtures`: dedurlo sarebbe inventare un fatto accanto alla colonna che lo dichiara, che e' il
+difetto del modulo del 12/09 un piano piu' giu'. *E una definizione nuova si valida sul caso storico che
+gia' esiste*: chiesta «dal 10/09» restituisce 11-14 settembre, la finestra che le tre prese avevano
+scelto a mano.
+
+Due cose piu' piccole. **Chi scrive e chi legge un formato stanno nello stesso file, e il test e' un
+ROUND-TRIP** (`press --take-preregistration` accanto a `--score-preregistration`): due formati per una
+tabella sola si scoprirebbero il lunedi' in cui una presa non si riesce a scorare. E **un fixture che
+darebbe lo stesso risultato col difetto rimesso non prova niente**: il primo test del turno passava sia
+leggendo il numero sia deducendo la finestra, e ho dovuto costruire il caso che li separa (due turni a
+due giorni di distanza) prima che la controprova mordesse.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

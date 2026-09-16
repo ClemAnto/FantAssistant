@@ -2397,6 +2397,12 @@ dal 15/09), Serie A, 4ª giornata:
 | prima: conteggi + `on="board"` | **7 MATCH / 13 DIFF** | 161/220 |
 | dopo: dichiarato + `on="reference"` | **15 MATCH / 5 DIFF** | 161/220 |
 
+> **Il LIVELLO di questa tabella e' CONTAMINATO e il suo A/B no** (§18.5, scritto un'ora dopo): il
+> foglio giudicato e' quello di stamattina e ha gia' letto la 4a giornata. La differenza fra i due
+> bracci resta valida — stessa board, stessa contaminazione, e gli uomini identici lo provano — mentre
+> «15 su 20» non e' una previsione. Sul foglio del 10/09, che quella giornata non l'aveva vista, lo
+> stesso giudice legge **6 su 20 e 144/220**.
+
 Otto club di venti erano un disaccordo di vocabolario. **Gli uomini non si muovono di uno** (161/220 nei
 due bracci), che è la prova che la correzione tocca la rappresentazione del modulo e nient'altro.
 
@@ -2410,3 +2416,107 @@ scaricate dopo l'11/09 e l'archivio dietro non è ancora riletto.
 contato al vecchio modo e non è confrontabile con uno preso adesso; quello sugli UOMINI è intatto,
 perché il vocabolario del modulo non tocca i nomi. Dichiarato invece di lasciarlo scoprire a chi
 confronterà le due corse.
+
+## 18.5 — CORREZIONE, un'ora dopo: quei 15/20 erano un giudizio CONTAMINATO
+
+I numeri della tabella del §18.4 restano validi **come A/B fra due metri** — stessa board in tutt'e due
+i bracci, e gli uomini identici (161/220) lo provano — e il loro LIVELLO no. Il foglio giudicato è
+quello di stamattina, e `why_pv_seen` ci arriva a **4**: la board che stavo scorando sulla 4ª giornata
+aveva già letto la 4ª giornata. Non è una previsione, è in parte una copia.
+
+Il progetto lo aveva già incontrato una volta e su un'altra colonna — «un giudice che ha letto la
+risposta non arbitra», 04/09, sulla scala della titolarità — e non l'aveva esteso al giudizio della
+BOARD. Vale per costruzione: `--against round` giudica la board che il foglio di oggi disegna, e la
+board di stagione legge le giornate giocate attraverso `blend_seasons`, quella breve attraverso le sue
+ultime tre. **Più la giornata giudicata è recente, più il giudice ha letto la risposta.**
+
+**QUANTO VALE, MISURATO.** Il foglio autentico del **10/09** (revisione 58, tre giornate viste, scritto
+quel giorno) contro quello di oggi, giudicati sulla stessa 4ª giornata. Una variabile sola, e per una
+volta il fatto che `--against round` RIDISEGNI è quello che la isola: il pannello è lo stesso nei due
+bracci, cambia solo ciò che il foglio sa.
+
+| foglio giudicato sulla 4ª | giornate viste | moduli | uomini |
+|---|---|---|---|
+| 10/09, non ha visto la giornata | 3 | **6 / 20** | **144/220** (65,5%) |
+| 16/09, l'ha vista | 4 | 15 / 20 | 161/220 (73,2%) |
+
+Nove moduli e diciassette uomini. Il limite è dichiarato e la sua direzione pure: il foglio vecchio è
+alla revisione 58 e non porta `desc_recent_slots` (nata alla 63), che il pannello di oggi legge — quindi
+il braccio pulito è penalizzato anche da una colonna mancante, e quei numeri sono un **limite superiore**
+della contaminazione, non una sua stima.
+
+**E il braccio pulito è stato trovato invece che costruito, dopo un errore che è la lezione.** Avevo
+lanciato `snapshot --date 2026-09-10` per fabbricarlo, e la cartella di destinazione **esisteva già dal
+10 settembre**: la corsa stava per sovrascrivere l'artefatto autentico con una sua ricostruzione. Fermata
+in tempo (i byte e la data di scrittura sono quelli del 10/09 alle 23:35). *Prima di generare un
+artefatto datato, guarda se quel giorno non ne abbia già lasciato uno* — e un foglio vero di quel giorno
+è evidenza migliore di uno back-dated, che conosce un mercato che allora non era chiuso.
+
+## 18.6 — E allora la domanda giusta: i DUE ORIZZONTI sulla stessa giornata, a parità di conoscenza
+
+Il confronto che il §18.4 non poteva fare, e che l'errore di sopra ha reso possibile: sugli **stessi 10
+club** (quelli di Serie A comuni alla presa rev 65 e al giudizio) e sulla **stessa 4ª giornata**.
+
+| board | giornate viste | moduli | uomini |
+|---|---|---|---|
+| **BREVE**, pre-registrata il 13/09 | 3 | **7 / 10** | **87/110** (79,1%) |
+| STAGIONE, foglio del 10/09 | 3 | 2 / 10 | 73/110 (66,4%) |
+| STAGIONE, foglio di oggi (ha visto la giornata) | 4 | 7 / 10 | 77/110 (70,0%) |
+
+**A parità di conoscenza la board breve batte quella di stagione in 8 club su 10, in nessuno peggio, +14
+uomini su 110: test dei segni p = 0,0078.** È il primo confronto diretto e pulito fra i due orizzonti
+sulla domanda per cui il corto è nato — «chi gioca la PROSSIMA» — e finora non esisteva, perché mancava
+il giudice del corto: `--against round` giudica la board di stagione e la pre-registrazione giudicava
+solo se stessa.
+
+E la riga che vale di più: **la board breve, che ha visto TRE giornate, batte quella di stagione che ne
+ha viste QUATTRO** (+10 uomini, 5 club meglio e 1 peggio, p = 0,219 — la direzione, non la prova). Un
+orizzonte corto su informazione più povera sta davanti a uno lungo su informazione più ricca, il che è
+quanto di più vicino a una giustificazione questa board potesse ottenere.
+
+La contaminazione, sugli stessi 10 club, vale +4 uomini e 5 moduli (p = 0,219): grande sui moduli,
+piccola sui nomi.
+
+**Cosa NON dicono questi numeri.** Dieci club e una giornata: il p = 0,0078 è un test dei segni su dieci
+coppie, non una stagione. E i tre bracci non sono equivalenti in tutto — il foglio del 10/09 ha sei
+giorni in meno di infortuni, probabili e rose, che è parte di «cosa il foglio sa» ma non solo
+dell'orizzonte. Quello che regge è la direzione, ed è la stessa in tutte e tre le letture.
+
+## 18.7 — Il PRENDITORE, e un turno è quello che la fonte NUMERA
+
+`press --take-preregistration --from-sheet DIR [--from-sheet DIR2]` scrive la presa del turno che
+arriva, e vive **nello stesso file** del suo lettore: due formati per una tabella sola sarebbero la
+famiglia di difetti dei due lettori di `engine_fm_pred`, e si scoprirebbero il lunedì in cui una presa
+non si riesce a scorare. Un test lo asserisce come **round-trip** — quello che il prenditore scrive, il
+lettore lo rilegge — invece di confrontare due stringhe attese.
+
+Legge il foglio e non lo ricostruisce, che è l'unica cosa che rende una pre-registrazione quello che è.
+
+**UN TURNO È QUELLO CHE LA FONTE NUMERA, e la versione dedotta è stata scritta e buttata.** La prima
+forma prendeva «il primo giorno futuro più quelli entro quattro», e su questo calendario sbagliava
+subito: la Liga gioca **16-17-18-19-20** e le altre quattro 18-19-20, quindi la finestra partiva dal 16
+e **tagliava la domenica a tutte** — metà del turno di Serie A. La seconda forma, «giorni contigui», è
+stata rifiutata dalla misura: fra due giornate consecutive di una lega lo scarto vale 1 giorno **124
+volte**, 2 sette volte, 3 sette, 4-6 quarantasei e 7 novanta — *non esiste una soglia che separi «dentro
+un turno» da «fra turni»*, e qualunque valore ne incatena alcuni e ne spezza altri. Il numero di
+giornata è sulla riga (`fixtures.round`): dedurlo sarebbe inventare un fatto accanto alla colonna che lo
+dichiara, che è il difetto del modulo (12/09) un piano più giù. Chiesto **per lega**, perché le leghe
+non giocano gli stessi giorni.
+
+Validazione che non costa niente: chiesto «dal 10/09», restituisce **11-14 settembre**, cioè esattamente
+la finestra che le tre prese avevano scelto a mano.
+
+**SOLO GIORNI STRETTAMENTE FUTURI.** Di una partita di OGGI non sappiamo se abbia già preso il via —
+`fixtures` porta la data e non l'ora, e l'ora arriva nella cache solo quando il turno è stato scaricato —
+quindi pre-registrarla scriverebbe una previsione per qualcosa che potrebbe essere al secondo tempo. Lo
+scorer scarta ciò che è cominciato, il prenditore non lo scrive proprio: le quattro partite di Liga di
+oggi restano fuori.
+
+**E UNA BOARD CORTA SI DICHIARA NEL FILE.** Il Monaco esce con dieci nomi e un `4-2-2-1`: non è una
+previsione sbagliata, è un contingente che su quel foglio non schiera un undici — `compare` lo conta già
+a parte, e senza una riga in cima alla tabella «10 nomi» si legge come un errore.
+
+La presa del **16/09** (47 club dei cinque campionati, turno del 17-20, `SHEET_REVISION` 70) è
+[preregistrazione-board-breve-2026-09-16.md](preregistrazione-board-breve-2026-09-16.md). Si scora dopo
+il 20 con `press --score-preregistration`, e — per la lezione del §18.6 — vale la pena giudicare accanto
+a lei il foglio autentico di oggi, che è l'altro braccio del confronto fra i due orizzonti.

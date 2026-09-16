@@ -393,6 +393,19 @@ def build_parser() -> argparse.ArgumentParser:
                            help="with --against round: which real matchday(s) to judge on "
                                 "(repeatable; default 1). A club that played more than one is judged "
                                 "on its last")
+            p.add_argument("--take-preregistration", dest="take_preregistration",
+                           action="store_true",
+                           help="WRITE the pre-registration of the short boards for the coming round, "
+                                "reading the sheets given with --from-sheet (repeatable). Its "
+                                "counterpart is --score-preregistration, and the two live in one file "
+                                "so the format cannot drift")
+            p.add_argument("--from-sheet", dest="from_sheets", action="append", metavar="DIR",
+                           help="with --take-preregistration: a sheet folder whose boards.json carries "
+                                "the short board (repeatable: one per listone)")
+            p.add_argument("--dates", dest="dates", action="append", metavar="YYYY-MM-DD",
+                           help="with --take-preregistration: the days to pre-register (repeatable; "
+                                "default: the next round, i.e. the first future fixture and the days "
+                                "within four of it)")
             p.add_argument("--score-preregistration", dest="preregistration", metavar="FILE",
                            help="score a PRE-REGISTERED table of boards (docs/model/preregistrazione-"
                                 "*.md) against the elevens actually fielded on the dates it names. "
@@ -557,7 +570,9 @@ def main(argv: list[str] | None = None) -> int:
                                   source=args.source, observed_on=args.observed_on,
                                   sheet=args.sheet, against=args.against, report=args.report,
                                   fetch_duels=args.fetch_duels, rounds=args.rounds,
-                                  preregistration=args.preregistration, taken_at=args.taken_at)
+                                  preregistration=args.preregistration, taken_at=args.taken_at,
+                                  take_preregistration=args.take_preregistration,
+                                  from_sheets=args.from_sheets, dates=args.dates)
             elif args.command == "sweep":
                 load("sweep").run(ctx, windows=args.window, platforms=args.platform,
                                   games=args.game, report=args.report)
