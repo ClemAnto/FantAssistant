@@ -114,8 +114,24 @@
         [nzOptions]="sortOptions()"
         (ngModelChange)="setSort($event)"
         nz-tooltip
-        nzTooltipTitle="Su cosa sono ordinate le liste"
+        nzTooltipTitle="Su cosa sono ordinate le liste · doppio click su un valore della riga per
+                        ordinare per quello"
       ></nz-select>
+      <!-- IL VERSO, accanto alla chiave e non dentro un menu': il doppio click su una riga lo inverte,
+           e un ordinamento che si gira senza dirlo si legge come una lista rotta. La freccia e' anche
+           il modo in cui il gesto si fa scoprire. -->
+      <button
+        nz-button
+        nzSize="small"
+        type="button"
+        data-sort-dir
+        [attr.data-dir]="sortDesc() ? 'desc' : 'asc'"
+        (click)="flipSort()"
+        nz-tooltip
+        [nzTooltipTitle]="sortDirHint()"
+      >
+        <nz-icon [nzType]="sortArrow()" />
+      </button>
       <!-- I FILTRI (operatore, 12/09/2026): il bottone, e i gettoni delle condizioni in vigore accanto.
            I gettoni stanno QUI, in barra e fuori dalla finestra che si chiude, perché un filtro che si
            ricorda e non si vede si legge come «il listone ha dodici difensori». -->
@@ -125,6 +141,24 @@
         [(sets)]="filterSets"
         [hidden]="hiddenByFilter()"
       />
+      <!-- LA PASTIGLIA DEL GAIN, prima delle altre e con lo stesso vestito (operatore, 16/09/2026:
+           «nella pagina strategia il surplus mettilo come uno dei tanti valori attivabili»). È il numero
+           che ORDINA e le altre lo SPIEGANO, quindi apre la fila; non è una lettura e non sta in
+           `READINGS` - la ragione è accanto a `gainPref` - quindi è un bottone suo, e l'arnese lo preme
+           come preme le altre (`data-reading`). Spegnerlo non riordina niente: la chiave dell'ordine
+           resta scritta qui accanto, nel selettore. -->
+      <button
+        nz-button
+        nzSize="small"
+        [nzType]="gainShown() ? 'primary' : 'default'"
+        nz-tooltip
+        [nzTooltipTitle]="gainLabel() + ' — ' + gainTip()"
+        [attr.aria-pressed]="gainShown()"
+        data-reading="gain"
+        (click)="toggleGain()"
+      >
+        {{ gainShort() }}
+      </button>
       <!-- LE PASTIGLIE, una per LETTURA. Quelle STAGIONALI accese portano anche il loro menù delle
            stagioni (operatore, 12/09/2026): il caret compare solo quando la lettura è accesa, così la
            fila resta compatta per le venti spente e cresce solo per le tre o quattro in uso. Spuntarne
@@ -364,9 +398,11 @@
             <!-- LA LISTA È IL CONTENITORE che decide la forma della riga (`@container`), e non una
                  soglia sulla FINESTRA: quanto è larga una lista dipende da quanti blocchi ci sono -
                  quattro a classic, dodici a mantra - quindi la stessa finestra dà 386px o 254px. Una
-                 media query risponderebbe alla domanda sbagliata. Misurato: sotto le 23rem le tre
-                 pastiglie mangiano il nome per intero (a mantra il nome spariva e il gain finiva fuori
-                 dal blocco), quindi lì vanno a capo invece di spingere. -->
+                 media query risponderebbe alla domanda sbagliata. Quello che il contenitore decide
+                 oggi è il RIENTRO della riga; la fila delle pastiglie non va più a capo sotto le 23rem
+                 (operatore, 16/09/2026) - e la misura che l'aveva imposto resta vera e dichiarata:
+                 lì il nome viene tagliato su 182 righe di 255. Quello che non può succedere è il gain
+                 spinto fuori dal blocco, e per quello c'è `flex-wrap` sulla riga. -->
             <ol
               class="@container scrollbar-slim scrollbar-quiet min-h-0 flex-1 overflow-y-auto"
               [class.pb-11]="last"
@@ -414,7 +450,7 @@
                   [cdkDragPreviewClass]="previewClass"
                   (cdkDragStarted)="onDragStarted()"
                   (cdkDragEnded)="onDragEnded()"
-                  (click)="onPick(row.man)"
+                  (click)="onPick(row.man, $event)"
                 >
                   <span
                     class="w-5 shrink-0 text-right text-[10px] tabular-nums"
@@ -441,54 +477,101 @@
                        qui resta il solo per-uomo: il nome intero (la colonna lo taglia), il club, i suoi
                        codici e i due marchi. Il bersaglio è il nome perché è l'elemento più largo, ed è
                        anche quello che si sta leggendo quando serve saperne di più. -->
-                  <span
-                    class="min-w-0 flex-1 truncate text-fg"
-                    nz-tooltip
-                    [nzTooltipMouseEnterDelay]="0.4"
-                    [nzTooltipTitle]="
-                      row.man.name +
-                      ' · ' +
-                      row.man.club +
-                      (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
-                      (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
-                      (row.estimated ? ' · numero stimato' : '') +
-                      sampleSaid(row.readings)
-                    "
-                    >{{ row.man.name }}</span
-                  ><ui-ruling-dot [playerId]="row.man.fcId" />
-                  <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
-                       motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
-                       come una misura è la cosa peggiore che una lista possa fare.
+                  <!-- IL NOME E I SUOI MARCHI SONO UN GRUPPO SOLO, e i marchi stanno DALLA PARTE DEL
+                       NOME (operatore, 16/09/2026: «le icone devono stare dal lato del nome a
+                       sinistra»). Prima erano fratelli del nome in un flex dove il nome era `flex-1`:
+                       il nome si prendeva tutto lo spazio libero e le icone finivano spinte a destra,
+                       appiccicate alla fila delle pastiglie - cioè in mezzo ai numeri, che è dove
+                       sembravano appartenere a loro invece che a lui.
 
-                       STA ACCANTO AL NOME (operatore, 09/09/2026) e non accanto ai numeri che qualifica:
-                       quello che è stimato è l'uomo intero - il gain e le pastiglie vengono tutti dallo
-                       stesso ripiego - quindi il marchio è del NOME, come il pallino della dichiarazione
-                       che gli sta davanti.
+                       IL GRUPPO È `flex-1` AL POSTO DEL NOME, che è quello che tiene fermo tutto il
+                       resto: il bordo sinistro del nome non si muove (prima di lui ci sono solo il
+                       posto e lo stemma, tutt'e due a larghezza fissa), quindi la colonna che si
+                       scorre non fa zig-zag, e la fila delle pastiglie resta incolonnata PER
+                       COSTRUZIONE - qualunque marchio condizionale ora sta dentro il gruppo e non fra
+                       la fila e il gain, che è il difetto misurato il 09/09/2026 («il simbolo ~ rompe
+                       l'incolonnamento dei valori»).
 
-                       E resta comunque PRIMA delle pastiglie, che è la cura del difetto trovato lo stesso
-                       giorno («il simbolo ~ rompe l'incolonnamento dei valori»): in un flex dove il nome è
-                       `flex-1`, il bordo destro di un elemento vale `container.right - (somma dei
-                       successivi)`, quindi qualunque cosa condizionale messa FRA le pastiglie e il gain
-                       sposta la loro colonna solo sulle righe che ce l'hanno - misurato in un browser
-                       vero, 58 righe su 250 e la fila 10,84px più a sinistra (il glifo 6,84 più i 4 di
-                       `gap-x-1`). Qui davanti il costo lo paga il nome, che è a sinistra e tronca: il suo
-                       bordo sinistro non si muove, quindi la colonna che si scorre non fa zig-zag.
+                       Dentro il gruppo il nome è l'unico che si stringe e i marchi sono `shrink-0`,
+                       quindi il prezzo lo paga lui - che è la cosa che già tronca. Il nome a larghezza
+                       naturale con uno spaziatore dopo - la forma della plancia - qui non va: in un
+                       contenitore `flex-wrap` un nome lungo manderebbe i marchi a capo invece di
+                       stringersi.
 
-                       FUORI dallo span del nome e non dentro, che sarebbe stato il modo ovvio di
-                       «metterlo vicino»: quello span è `truncate`, quindi su un nome lungo il marchio
-                       verrebbe tagliato via - e un nome lungo è esattamente una riga che si guarda. -->
-                  @if (row.estimated) {
-                    <span class="shrink-0 text-[10px] text-muted" data-estimated>~</span>
-                  }
-                  <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
-                  <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
-                       Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
-                       del nome: a sinistra spostava ogni nome di qualche pixel e la colonna si leggeva a
-                       zig-zag, che è esattamente quello che l'occhio scorre. Il colore è quello dei dati
-                       e non un allarme: non è una brutta notizia, è un'altra domanda. -->
-                  @if (row.fromBehind) {
-                    <span class="shrink-0 text-[10px] text-muted">&darr;{{ row.deepest }}</span>
-                  }
+                       E QUANDO LO SPAZIO FINISCE CEDE IL NOME, non la fila: è la decisione
+                       dell'operatore del 16/09/2026 («tutti i valori dovrebbero andare sulla stessa riga
+                       incolonnati invece vanno su 2 righe»), presa col prezzo davanti - su mantra con tre
+                       pastiglie sono 182 nomi tagliati su 255 e il più stretto a 0px, su classic con
+                       sette 249 su 250. Quindi `min-w-0` sul gruppo e nessun pavimento: un pavimento -
+                       provato a 112px e poi a 80 - manda a capo la fila appena il nome non ci sta più,
+                       che è esattamente quello che lui non vuole vedere.
+
+                       Il pavimento era stato provato PRIMA sul nome, e quella misura resta perché dice
+                       dove NON va: con un `min-w` addosso a lui la sua cella non si stringe più sul
+                       testo, quindi su un nome corto i marchi si staccavano di 31,8px dall'ultima
+                       lettera - cioè il difetto che questo gruppo esiste per curare, rifatto un livello
+                       più in basso. Sul gruppo invece il nome continua a misurare il proprio testo e i
+                       marchi restano a 4px sempre. -->
+                  <span class="flex min-w-0 flex-1 items-center gap-x-1">
+                    <!-- DOPPIO CLICK = ORDINA PER NOME (operatore, 16/09/2026). `data-sort-key` non e'
+                         solo per l'arnese: e' quello che `onPick` legge per sapere se questo click deve
+                         aspettare il doppio, quindi il bersaglio si DICHIARA invece di essere indovinato
+                         da un selettore che vive in un altro file. -->
+                    <span
+                      class="min-w-0 truncate text-fg"
+                      data-name
+                      [attr.data-sort-key]="nameSort"
+                      (dblclick)="onSortHere(nameSort); $event.stopPropagation()"
+                      nz-tooltip
+                      [nzTooltipMouseEnterDelay]="0.4"
+                      [nzTooltipTitle]="
+                        row.man.name +
+                        ' · ' +
+                        row.man.club +
+                        (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
+                        (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
+                        (row.estimated ? ' · numero stimato' : '') +
+                        sampleSaid(row.readings)
+                      "
+                      >{{ row.man.name }}</span
+                    ><ui-ruling-dot [playerId]="row.man.fcId" />
+                    <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
+                         motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
+                         come una misura è la cosa peggiore che una lista possa fare.
+
+                         STA ACCANTO AL NOME (operatore, 09/09/2026) e non accanto ai numeri che qualifica:
+                         quello che è stimato è l'uomo intero - il gain e le pastiglie vengono tutti dallo
+                         stesso ripiego - quindi il marchio è del NOME, come il pallino della dichiarazione
+                         che gli sta davanti.
+
+                         IL DIFETTO PER CUI STA QUI ORA È IMPOSSIBILE PER COSTRUZIONE, e la storia resta
+                         perché è quella che spiega il vincolo. Trovato il 09/09/2026 («il simbolo ~ rompe
+                         l'incolonnamento dei valori»): il tilde era fratello delle pastiglie, e in un flex
+                         il bordo destro di un elemento vale `container.right - (somma dei successivi)` -
+                         quindi qualunque cosa condizionale messa FRA la fila e il gain sposta quella
+                         colonna solo sulle righe che ce l'hanno (misurato in un browser vero: 58 righe su
+                         250 e la fila 10,84px più a sinistra, il glifo 6,84 più i 4 di `gap-x-1`). Dal
+                         16/09 vive DENTRO il gruppo del nome, quindi il costo lo paga il nome - che è a
+                         sinistra e tronca - e la fila non lo vede affatto. L'arnese asserisce il FATTO e
+                         non la cura: se domani qualcuno rimette un marchio condizionale fuori di qui, quel
+                         passo cade lo stesso.
+
+                         FUORI dallo span del nome e non dentro, che sarebbe stato il modo ovvio di
+                         «metterlo vicino»: quello span è `truncate`, quindi su un nome lungo il marchio
+                         verrebbe tagliato via - e un nome lungo è esattamente una riga che si guarda. -->
+                    @if (row.estimated) {
+                      <span class="shrink-0 text-[10px] text-muted" data-estimated>~</span>
+                    }
+                    <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
+                    <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
+                         Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
+                         del nome: a sinistra spostava ogni nome di qualche pixel e la colonna si leggeva a
+                         zig-zag, che è esattamente quello che l'occhio scorre. Il colore è quello dei dati
+                         e non un allarme: non è una brutta notizia, è un'altra domanda. -->
+                    @if (row.fromBehind) {
+                      <span class="shrink-0 text-[10px] text-muted">&darr;{{ row.deepest }}</span>
+                    }
+                  </span>
                   <!-- LE PASTIGLIE, e da oggi sono SETTE e si scelgono (operatore, 05/09/2026): la
                        barra le accende e le spegne, la riga disegna quelle accese nell'ordine
                        dichiarato. Le prime tre partono accese.
@@ -505,11 +588,16 @@
 
                        NIENTE COLORE: il colore di questa riga è del GAIN, che è il numero che ordina.
                        Dipingere anche queste sarebbe una seconda scala accanto a quella vera, e la
-                       prima domanda al tavolo diventerebbe «quale dei due verdi conta?». Quindi il
-                       DOVE VANNO quando il blocco è stretto: su una riga LORO, sotto il nome e dopo il
-                       gain (`order-last`), che è la ragione per cui la riga è `flex-wrap`. Il gain resta
-                       in cima perché è il numero che ORDINA la lista, e le pastiglie lo spiegano: se
-                       andasse a capo lui, la colonna del colore - quella che si scorre - si spezzerebbe.
+                       prima domanda al tavolo diventerebbe «quale dei due verdi conta?».
+
+                       E RESTANO IN RIGA ANCHE SU UN BLOCCO STRETTO (operatore, 16/09/2026). Dal
+                       04/09 sotto le 23rem andavano a capo per conto loro - il contenitore, non la
+                       finestra - e la misura che lo imponeva è ancora vera: a mantra, in riga, 182
+                       nomi su 255 vengono tagliati. La decisione, presa con quel numero davanti, è che
+                       una colonna di valori incolonnati vale più di un nome intero, e il nome ha
+                       comunque il suo tooltip. `flex-wrap` resta come ULTIMA risorsa e non come regola:
+                       quando nemmeno un nome largo zero basta, la fila va a capo invece di spingere il
+                       gain fuori dal blocco, che è il difetto misurato il 04/09.
 
                        Il riquadro è un INCAVO - il fondo della pagina con il suo bordo - e non una tinta:
                        `bg-control` era stato provato e MISURATO a schermo, ma su questo tema `control`
@@ -518,11 +606,16 @@
                        riquadro che non si vede è un riquadro che non c'è. -->
                   @if (shownReadings().length) {
                     <span
-                      class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums
-                             @max-[23rem]:order-last @max-[23rem]:w-full @max-[23rem]:justify-end"
+                      class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums"
                       data-readings
                     >
                       @for (reading of shownReadings(); track reading.id) {
+                        <!-- DOPPIO CLICK = ORDINA PER QUESTO VALORE (operatore, 16/09/2026), e la
+                             chiave e' `reading.id`, che E' gia' `refText(ref)`: la stessa stringa che
+                             il selettore in barra mette in `sort`. Una seconda costruzione della
+                             chiave sarebbe come il gesto e il selettore finiscono per ordinare su due
+                             cose diverse con lo stesso nome. Sulle COPPIE `sortKeyOf` risponde niente
+                             e il bersaglio non si offre: `12:5` non ha un numero dietro. -->
                         <span
                           class="inline-flex justify-center rounded border px-1"
                           [class]="
@@ -533,7 +626,13 @@
                             reading.spec.width
                           "
                           [class.opacity-50]="isRough(reading.ref, row.readings)"
+                          [class.cursor-pointer]="!!sortKeyOf(reading)"
                           [attr.data-reading]="reading.id"
+                          [attr.data-sort-key]="sortKeyOf(reading)"
+                          (dblclick)="
+                            sortKeyOf(reading) && onSortHere(sortKeyOf(reading)!);
+                            $event.stopPropagation()
+                          "
                           >{{ text(reading.spec, reading.ref, row.readings) }}</span
                         >
                       }
@@ -545,7 +644,9 @@
                        lascerebbe le fasce tarate sui totali di stagione e ogni uomo leggerebbe
                        `scarso`. Due cifre perché il numero ora sta fra 0 e ~1,3 e con una sola metà
                        listone leggerebbe «0,1». -->
-                  <ui-gain [gain]="perMatch(row.gain)" [scale]="scale()" [digits]="2" size="sm" />
+                  @if (gainShown()) {
+                    <ui-gain [gain]="perMatch(row.gain)" [scale]="scale()" [digits]="2" size="sm" />
+                  }
                 </li>
               }
             </ol>

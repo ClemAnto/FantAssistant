@@ -986,6 +986,61 @@ dentro lo strumento con cui si controlla.
 
 ---
 
+## 20. IL DOPPIO CLICK CHE ORDINA, e il verso che si vede (16 settembre 2026)
+
+Richiesta dell'operatore: «quando faccio doppio click su un valore nell'item del giocatore, attivi
+l'ordinamento per quel valore; un successivo doppio click inverti l'ordinamento; deve funzionare anche
+cliccando sul nome».
+
+**LA CHIAVE ESISTEVA GIÈ, E NON SE NE È' COSTRUITA UNA SECONDA.** Ogni pastiglia porta già
+`reading.id`, che è `refText(ref)` - cioè la stessa stringa che il selettore in barra mette in
+`sort`. Costruirne una dal gesto sarebbe stato come il selettore e il doppio click finiscono per
+ordinare su due cose diverse con lo stesso nome. Le COPPIE (`12:5`) non si offrono affatto:
+`sortKeyOf` risponde niente, perchè `SORTABLE_READINGS` dice già che non hanno un numero dietro -
+e un bersaglio che non si offre non promette nulla, mentre un doppio click che non fa succedere niente
+si legge come un gesto rotto.
+
+**IL NOME È' UNA CHIAVE, NON UNA LETTURA** (`NAME_SORT`, accanto a `GAIN_SORT`). Non sta in
+`READINGS` per la stessa ragione del gain: `readingsOf` ricava fatti sul CALCIO di un uomo, e come si
+chiama non è uno di quelli - non ha stagione, non ha larghezza e `readingValue` non gli sa
+rispondere. Entra però nell'elenco ammesso di `stored` e fra le voci del selettore, o la barra
+direbbe «gain» su una lista ordinata per nome.
+
+**IL VERSO HA UN NATURALE PER CHIAVE, e non è lo stesso per tutte** (`descendsByDefault`): un numero
+si legge dal più grande, un nome dalla A. Aprire l'ordinamento per nome su ZòA sarebbe la risposta
+giusta alla domanda sbagliata. Quindi una chiave NUOVA parte dal proprio naturale e non eredita il
+verso in vigore, mentre la STESSA chiave lo gira. Vive in un campo suo (`sortDir`) e non come segno
+dentro `sort`, perchè `sort` passa da una guardia che elenca le chiavi ammesse: un `-swing` sarebbe
+un ordinamento che si perde alla prima ricarica, e in silenzio.
+
+**I VUOTI RESTANO IN FONDO IN TUTT'E DUE I VERSI, ed è la parte che un test protegge.** Prima un
+ignoto entrava nel confronto come `-Infinity`, cioè come un NUMERO: con la sola sottrazione girare il
+verso lo portava in cima. Un vuoto non è il più piccolo dei valori, è un ignoto, e in cima a una
+lista da comprare è l'ultima cosa che ci si vuole trovare. Controprova fatta rimettendo il difetto:
+cade **quello e solo quello** dei due test nuovi, e quello del nome resta verde a ragione.
+
+**E LA GUARDIA SUL CLICK NON È' UN DI PIÙ: senza, la feature non funziona affatto.** Un doppio
+click emette PRIMA un `click`, e sull'item il click apre la card - misurato togliendo la guardia e
+ricostruendo: il banco passa da 0 problemi a **10**, e non solo per la card, perchè la card aperta si
+prende il SECONDO click e il `dblclick` al bersaglio non arriva mai. La forma è quella già adottata
+sulla plancia il 04/09 (l'apertura ASPETTA e il doppio click la annulla), con una differenza: là il
+ritardo cade sul gesto raro, qui il raro è il doppio click e non lo si può ritardare perchè arriva
+secondo. La stessa regola si applica allora PER BERSAGLIO - solo un click che parte da un
+`[data-sort-key]` aspetta, e su tutto il resto della riga la card resta istantanea. `DOUBLE_MS` è
+passata in `core/view-state.ts`: una definizione e due lettori, o due schermate rispondono a velocità
+diverse allo stesso gesto.
+
+**E IL VERSO SI VEDE**, con una freccia accanto alla chiave che lo gira anche da sola: un ordinamento
+che si inverte senza dirlo si legge come una lista rotta, che è la stessa regola con cui l'ordine
+personale dichiara il proprio prefisso. La freccia è anche il secondo modo in cui il gesto si fa
+scoprire.
+
+Verificato dove un gesto si verifica: `scripts/e2e-strategy-sort.mjs`, con un puntatore vero e il
+doppio click mandato come lo manda il sistema (la seconda coppia press/release a `clickCount: 2`, che
+è quella che fa sintetizzare `dblclick` - due click a `clickCount: 1` proverebbero due click
+singoli). Quattro gesti, 30 righe del primo blocco, e le due asserzioni che nessun banco aveva prima:
+che il doppio click NON apra la card, e che un click singolo la apra ancora.
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

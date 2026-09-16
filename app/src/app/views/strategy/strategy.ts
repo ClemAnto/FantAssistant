@@ -40,6 +40,8 @@ import {
   READINGS,
   SORTABLE_READINGS,
   GAIN_SORT,
+  NAME_SORT,
+  descendsByDefault,
   ReadingRef,
   SeasonFootball,
   refText,
@@ -83,7 +85,7 @@ import {
 } from '../../core/strategy-filter';
 import { swingOf } from '../../core/swing';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
-import { stored, storedJson } from '../../core/view-state';
+import { DOUBLE_MS, stored, storedJson } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
@@ -161,6 +163,19 @@ const PER_MATCH_HINT =
   + ' esprime (il foglio le dichiara), perché un totale nasconde l\'ordine di grandezza. L\'ordine delle'
   + ' liste non cambia - dividere tutti per lo stesso numero non riordina niente - e nemmeno le fasce del'
   + ' colore, che sono percentili.';
+
+/**
+ * LA FRASE CORTA DELLA SUA PASTIGLIA, che e' un'altra cosa da `GAIN_HINT`.
+ *
+ * Regola dell'operatore sui tooltip (05/09/2026: «poche parole per indicare il significato di quella
+ * sigla»), che su una fila di venti bottoni vale doppio: il PERCHE' della valuta - i crediti contro le
+ * scelte, e il 4% che il surplus costa in un draft - sta in `GAIN_HINT` e nei documenti, cioe' dove si
+ * legge una volta invece che cento.
+ */
+const GAIN_TIP: Record<AuctionKind, string> = {
+  rilanci: "i fantapunti che dà in più di chi giocherebbe al suo posto",
+  draft: 'fantamedia attesa × presenze attese, senza sottrarre niente',
+};
 
 const GAIN_HINT: Record<AuctionKind, string> = {
   rilanci:
@@ -280,6 +295,39 @@ export class Strategy {
         : ' Il foglio non dichiara il suo calendario, quindi questo è il TOTALE di stagione: senza le'
           + ' giornate su cui il motore lo esprime, un numero a giornata sarebbe una quota di niente.'),
   );
+
+  /** La sigla sulla sua pastiglia: la parola e basta - l'unita' la dice l'etichetta per esteso. */
+  protected readonly gainShort = computed(() => GAIN_LABEL[this.settings().auction]);
+
+  protected readonly gainTip = computed(() => GAIN_TIP[this.settings().auction]);
+
+  /**
+   * IL GAIN E' UNA PASTIGLIA COME LE ALTRE (operatore, 16/09/2026): si accende e si spegne in barra.
+   *
+   * ...e NON entra in `READINGS`, che non e' una dimenticanza. Una lettura e' un fatto sull'UOMO che
+   * `readingsOf` sa ricavare da sola e su cui si puo' scegliere una stagione; il gain dipende dal tipo
+   * d'asta DICHIARATO (il surplus a rilanci, il valore in un draft) e dalle giornate che il foglio
+   * prevede, quindi non sta in `ManReadings` e non ci puo' stare senza far sapere a `readingsOf` cose
+   * che non sono dell'uomo. E' gia' l'eccezione dichiarata in altri tre punti - l'etichetta, il
+   * predicato del filtro, il selettore dell'ordine - e questo e' il quarto.
+   *
+   * UN INTERRUTTORE SUO, e non una voce dentro `strategy.readings`: li' dentro «acceso» vuol dire
+   * ELENCATO, quindi una preferenza salvata mesi fa - che il gain non lo nomina, perche' fino a ieri
+   * non si poteva spegnere - avrebbe spento in silenzio la colonna che ORDINA la lista. E' la ragione
+   * per cui `FlagPrefs` tiene l'elenco degli SPENTI: quello che nessuno ha scelto nasce acceso.
+   *
+   * E SPEGNERLO NON RIORDINA NIENTE, come per ogni altra pastiglia: chi ordina e' il selettore, e la
+   * chiave in vigore resta SCRITTA in barra (`sortLabel`) anche quando la colonna non c'e' - una lista
+   * ordinata su un numero che non si vede si legge come una lista non ordinata, e quello che la salva
+   * e' che il suo nome sia a schermo.
+   */
+  private readonly gainPref = stored<'on' | 'off'>('strategy.gain', 'on', ['on', 'off']);
+
+  protected readonly gainShown = computed(() => this.gainPref() === 'on');
+
+  protected toggleGain(): void {
+    this.gainPref.update((one) => (one === 'on' ? 'off' : 'on'));
+  }
 
   /**
    * IL REGOLAMENTO, letto dalle opzioni globali, più la sola preferenza che è di questa pagina.
@@ -832,10 +880,62 @@ export class Strategy {
     setTimeout(() => (this.dragging = false));
   }
 
-  protected onPick(man: StrategyBidder): void {
+  /**
+   * UN CLICK APRE LA CARD, UN DOPPIO CLICK ORDINA - e il ritardo cade solo dove il doppio click c'e'.
+   *
+   * La forma e' quella gia' adottata sulla plancia (`team-grid`, 04/09/2026) e per la stessa ragione:
+   * filtrare `MouseEvent.detail` non funziona, perche' il PRIMO click di un doppio ha `detail` 1 come
+   * tutti gli altri - quindi la card si aprirebbe comunque, e un guard che ferma meta' di un gesto lo
+   * rende meta' rotto. Quindi l'apertura ASPETTA e il doppio click la annulla.
+   *
+   * QUELLO CHE CAMBIA RISPETTO ALLA PLANCIA E' DOVE CADE IL RITARDO. La' il gesto raro e' il click e
+   * il ritardo sta su di lui; qui il raro e' il doppio click (si ordina una volta ogni tanto, la card
+   * si apre di continuo) e non lo si puo' ritardare, perche' arriva SECONDO. La risposta e' la stessa
+   * regola letta per BERSAGLIO: solo il nome e le pastiglie hanno un doppio click, quindi solo un
+   * click che parte da li' aspetta, e su tutto il resto della riga la card resta istantanea.
+   */
+  private pending: ReturnType<typeof setTimeout> | null = null;
+
+  protected onPick(man: StrategyBidder, event: MouseEvent): void {
     if (this.dragging) return;
-    this.cards.openCard(man.fcId);
+    // Il SECONDO click di un doppio annulla senza aspettare il timer: fra i due click possono passare
+    // fino a 500 ms (la soglia di sistema), quindi un'attesa piu' corta lascerebbe partire la card in
+    // mezzo al gesto - che e' proprio quello che questo codice esiste per impedire.
+    if (event.detail > 1) return this.cancelPick();
+    this.cancelPick();
+    const target = event.target as HTMLElement | null;
+    if (!target?.closest('[data-sort-key]')) return this.cards.openCard(man.fcId);
+    this.pending = setTimeout(() => {
+      this.pending = null;
+      this.cards.openCard(man.fcId);
+    }, DOUBLE_MS);
   }
+
+  /** Il doppio click vince: annulla la card che il suo primo click aveva messo in coda. */
+  protected onSortHere(key: SortKey): void {
+    this.cancelPick();
+    this.sortOn(key);
+  }
+
+  private cancelPick(): void {
+    if (this.pending === null) return;
+    clearTimeout(this.pending);
+    this.pending = null;
+  }
+
+  /**
+   * LA CHIAVE D'ORDINAMENTO DI UNA PASTIGLIA, o niente per una COPPIA.
+   *
+   * `id` e' gia' `refText(ref)`, cioe' la `SortKey`: non se ne costruisce una seconda. Le coppie non
+   * ordinano (`SORTABLE_READINGS` dice perche': `12:5` non ha un numero dietro), e tacere e' la
+   * risposta giusta - un doppio click che non fa succedere niente si legge come un gesto rotto, ma
+   * un bersaglio che non si offre affatto non promette nulla.
+   */
+  protected sortKeyOf(reading: { spec: ReadingSpec; id: string }): string | null {
+    return reading.spec.pair ? null : reading.id;
+  }
+
+  protected readonly nameSort = NAME_SORT;
 
   /**
    * DOVE LA DICHIARAZIONE E IL FOGLIO NON VANNO D'ACCORDO, e non si corregge da sé.
@@ -1089,6 +1189,7 @@ export class Strategy {
       rules: this.rulebook(),
       priority: this.priorityHere(),
       sort: this.sort(),
+      desc: this.sortDesc(),
       keep: this.keep(),
     }),
   );
@@ -1156,17 +1257,71 @@ export class Strategy {
    */
   protected readonly sort = stored<SortKey>('strategy.sort', DEFAULT_SORT, [
     'gain',
+    // IL NOME, che il doppio click sul nome imposta (operatore, 16/09/2026). Sta nell'elenco ammesso
+    // per la stessa ragione delle altre: una chiave che la guardia non conosce torna al gain, e una
+    // preferenza che si perde a ogni ricarica e' peggio di una che non si puo' esprimere.
+    NAME_SORT,
     // SENZA LE COPPIE: `G:A` stampa due cifre e non ha un numero dietro, quindi ordinarci sopra
     // lascerebbe a schermo una colonna che non scende - vedi `SORTABLE_READINGS`.
     ...SORTABLE_READINGS,
   ]);
 
+  /**
+   * IL VERSO, e resta scelto come la chiave (operatore, 16/09/2026: «un successivo doppio click
+   * inverti l'ordinamento»).
+   *
+   * Un valore suo e non un segno dentro `sort`, per la ragione scritta in `blocksOf`: `sort` passa da
+   * una guardia che elenca le chiavi ammesse, e `-swing` non e' fra quelle - sarebbe un ordinamento
+   * che si perde da solo alla prima ricarica, e in silenzio. Due parole invece di un booleano perche'
+   * `stored` guarda le stringhe, il che gli da' la stessa guardia di tutto il resto della barra.
+   */
+  protected readonly sortDir = stored<'desc' | 'asc'>('strategy.sortDir', 'desc', ['desc', 'asc']);
+
+  protected readonly sortDesc = computed(() => this.sortDir() === 'desc');
+
+  /**
+   * IL DOPPIO CLICK SU UN VALORE (operatore, 16/09/2026): la stessa chiave gira il verso, una chiave
+   * nuova parte dal suo verso NATURALE.
+   *
+   * Parte dal naturale e non dal verso in vigore perche' i due sono opposti fra un numero e un nome:
+   * ereditare `asc` scelto sullo SWING farebbe aprire i gol dal piu' basso, che e' la risposta giusta
+   * alla domanda sbagliata. Una definizione sola per il gesto e per il selettore: due strade che
+   * impostano la stessa cosa in due modi finiscono per non essere d'accordo.
+   */
+  protected sortOn(key: SortKey): void {
+    if (this.sort() === key) {
+      this.sortDir.set(this.sortDesc() ? 'asc' : 'desc');
+      return;
+    }
+    this.sort.set(key);
+    this.sortDir.set(descendsByDefault(key) ? 'desc' : 'asc');
+  }
+
   /** L'etichetta della chiave in vigore: il gain non e' una lettura e la sua se la scrive da se'. */
   protected readonly sortLabel = computed(() => {
     const key = this.sort();
     if (key === 'gain') return this.gainLabel();
+    if (key === NAME_SORT) return 'Nome';
     return READINGS.find((one) => one.key === key)?.label ?? key;
   });
+
+  /**
+   * IL VERSO A SCHERMO, perche' un ordinamento che si gira senza dirlo si legge come una lista rotta.
+   *
+   * E' la regola che questa pagina applica gia' all'ordine personale («un blocco corto senza una
+   * ragione a schermo si legge come un blocco rotto»): il doppio click inverte, e senza un segno in
+   * barra la stessa lista in due versi sarebbe due liste diverse senza spiegazione. La freccia dice
+   * anche COSA fa il click, quindi il gesto ha un secondo modo di essere scoperto.
+   */
+  protected readonly sortArrow = computed(() => (this.sortDesc() ? 'arrow-down' : 'arrow-up'));
+
+  protected readonly sortDirHint = computed(() =>
+    this.sortDesc() ? 'Dal più alto: premi per invertire' : 'Dal più basso: premi per invertire',
+  );
+
+  protected flipSort(): void {
+    this.sortDir.set(this.sortDesc() ? 'asc' : 'desc');
+  }
 
   /**
    * LE VOCI DEL SELETTORE: il gain piu' le letture ORDINABILI, nell'ordine in cui `READINGS` le
@@ -1179,7 +1334,13 @@ export class Strategy {
   protected readonly sortOptions = computed<NzSelectOptionInterface[]>(() => {
     const seasons = this.seasonNames();
     const shown = this.shownReadings();
-    const out: NzSelectOptionInterface[] = [{ label: this.gainLabel(), value: GAIN_SORT }];
+    const out: NzSelectOptionInterface[] = [
+      { label: this.gainLabel(), value: GAIN_SORT },
+      // IL NOME fra le voci, perche' il doppio click sul nome lo imposta: una chiave che il gesto sa
+      // scegliere e il selettore non sa mostrare lascerebbe la barra a dire «gain» mentre la lista e'
+      // ordinata per nome - cioe' un'etichetta che descrive un'altra lista.
+      { label: 'Nome', value: NAME_SORT },
+    ];
     for (const spec of READINGS) {
       // SENZA LE COPPIE, per la ragione scritta in `SORTABLE_READINGS`: una voce che non ordina niente
       // e' peggio di una voce che manca, perche' sceglierla non fa succedere nulla.
@@ -1201,8 +1362,11 @@ export class Strategy {
     return out;
   });
 
+  /** Il selettore passa dalla stessa porta del doppio click, verso naturale compreso. */
   protected setSort(key: SortKey): void {
+    if (key === this.sort()) return;
     this.sort.set(key);
+    this.sortDir.set(descendsByDefault(key) ? 'desc' : 'asc');
   }
 
   /** Quanti nomi la pagina sta mostrando in tutto, e quanti il foglio non prezza affatto. */
@@ -1276,13 +1440,23 @@ export class Strategy {
   /**
    * Il fondo di una riga: le bande si alternano, la prima tinta.
    *
-   * La tinta è quella della zebra che sostituisce (`bg-control/25`, misurata a schermo su questo tema),
-   * e la zebra se ne va invece di restare: due alternanze sulla stessa proprietà darebbero quattro
-   * tinte, e il confine della banda - la sola cosa che questo colore deve dire - si perderebbe fra le
-   * altre tre. Il segnaposto del trascinamento vince comunque, perché la sua regola porta due classi.
+   * La zebra se ne va invece di restare: due alternanze sulla stessa proprietà darebbero quattro tinte,
+   * e il confine della banda - la sola cosa che questo colore deve dire - si perderebbe fra le altre
+   * tre. Il segnaposto del trascinamento vince comunque, perché la sua regola porta due classi.
+   *
+   * LA TINTA È `fg/5` E NON PIÙ `control/25` (operatore, 16/09/2026: «metti un bg leggermente diverso
+   * ogni n righe dove n è il numero di partecipanti settato» - su una pagina che quelle bande le aveva
+   * già dal 04/09). Il difetto era il COLORE e non la regola: su questo tema `control` (#1c1c26) e la
+   * carta del blocco (#14141c) distano otto punti per canale, quindi al 25% la banda vale DUE punti su
+   * 255 - una differenza che il codice dichiara e lo schermo non porta. `fg` al 5% ne vale undici, che
+   * è «leggermente diverso» come lo intende un occhio invece che un `diff`.
+   *
+   * E si appoggia all'INCHIOSTRO perché quello segue il tema da sé: su un tema chiaro `fg` è scuro,
+   * quindi la banda scurisce invece di schiarire e resta una banda. Una tinta presa da una superficie
+   * vale solo finché quelle due superfici restano distanti - che è esattamente come questa è morta.
    */
   protected bandTone(at: number): string {
-    return this.bandOf(at) % 2 === 0 ? 'bg-control/25' : '';
+    return this.bandOf(at) % 2 === 0 ? 'bg-fg/5' : '';
   }
 
   /**

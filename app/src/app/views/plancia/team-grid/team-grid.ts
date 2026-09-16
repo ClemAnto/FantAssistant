@@ -2,12 +2,8 @@ import { Component, DestroyRef, computed, inject, input, output } from '@angular
 import { NzIconModule } from 'ng-zorro-antd/icon';
 
 import { ROLES, Role } from '../../../core/plancia';
+import { DOUBLE_MS } from '../../../core/view-state';
 import { BoardTeam } from '../../../core/plancia-store';
-
-/**
- * Quanto si aspetta per capire se un click e' solo un click: vedi `TeamGrid.press`.
- */
-const DOUBLE_MS = 250;
 
 /**
  * THE TEN PARTICIPANTS, as a column of cards beside the board.

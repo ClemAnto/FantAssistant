@@ -259,9 +259,12 @@ function readBlocks() {
     const list = section.querySelector('ol');
     // Le righe dei GIOCATORI, e non ogni `li`: la lista porta anche la riga di confine «arrivano da
     // dietro», che non è un nome e non va contata contro il contatore del blocco.
-    const rows = list
-      ? [...list.querySelectorAll('li')].filter((one) => one.querySelector('ui-gain'))
-      : [];
+    //
+    // SI RICONOSCONO DA `data-id` E NON DAL GAIN (16/09/2026): da quando il gain è una pastiglia che si
+    // accende e si spegne, «ha un `ui-gain`» è una PREFERENZA e non un fatto sulla riga - un arnese che
+    // identifica il proprio bersaglio da qualcosa che l'operatore può spegnere legge zero righe e accusa
+    // la pagina. L'identità di una riga è il calciatore che porta.
+    const rows = list ? [...list.querySelectorAll('li[data-id]')] : [];
     return {
       role: header?.querySelector('ui-role')?.innerText?.trim() ?? '',
       label: header?.querySelector('span')?.innerText?.trim() ?? '',
@@ -277,7 +280,7 @@ function readBlocks() {
       parts: rows.map((row) => ({
         crest: row.querySelectorAll('ui-crest img, ui-crest span').length,
         roles: row.querySelectorAll('ui-roles span').length,
-        name: (row.querySelector('span.flex-1')?.innerText ?? '').trim(),
+        name: (row.querySelector('[data-name]')?.innerText ?? '').trim(),
         gain: (row.querySelector('ui-gain')?.innerText ?? '').trim(),
         // «lo metteresti più arretrato»: in questo blocco è un ripiego, non un acquisto per questo posto.
         behind: row.dataset.behind === '1',
@@ -290,11 +293,8 @@ function readBlocks() {
         // La frase della riga: è dove sono finiti i codici mantra da quando il badge non c'è più.
         title: row.getAttribute('title') ?? '',
       })),
-      // La riga di confine è l'unico `li` senza un gain: contarla per l'attributo prenderebbe anche i
-      // nativi, che non ne hanno nessuno (`null` non scrive l'attributo).
-      dividers: list
-        ? [...list.querySelectorAll('li')].filter((one) => !one.querySelector('ui-gain')).length
-        : 0,
+      // La riga di confine è l'unico `li` che non è di un calciatore, quindi è l'unico senza `data-id`.
+      dividers: list ? list.querySelectorAll('li:not([data-id])').length : 0,
     };
   });
 }
@@ -311,7 +311,7 @@ function readBlocks() {
 function readPills() {
   const rows = [...document.querySelectorAll('app-strategy ol li[data-id]')];
   return rows.map((row) => {
-    const name = row.querySelector('span.flex-1');
+    const name = row.querySelector('[data-name]');
     // LA FILA SI TROVA PER IL SUO MARCHIO e non contandone i figli: da quando le letture si scelgono
     // (05/09/2026) quanti riquadri ci siano è una PREFERENZA, quindi un arnese che cerca «quello con
     // tre span» misura il default e non la pagina.
@@ -329,6 +329,24 @@ function readPills() {
       // quindi QUALUNQUE cosa condizionale messa dopo la fila la sposta solo su alcune righe.
       stripRight: strip ? Math.round(strip.getBoundingClientRect().right * 100) / 100 : null,
       estimated: !!row.querySelector('[data-estimated]'),
+      // QUANTO DISTANO I MARCHI DALLA FINE DEL NOME (operatore, 16/09/2026: «le icone devono stare dal
+      // lato del nome a sinistra»). Si misura dal bordo del TESTO e non da quello della CELLA, che e'
+      // tutta la differenza: prima il nome era `flex-1` e la sua cella si prendeva lo spazio libero,
+      // quindi i marchi erano attaccati alla cella e lontanissimi dalle lettere - un `right` della
+      // cella li avrebbe letti «vicini» in tutt'e due i casi. Il Range misura il contenuto e ignora
+      // sia il riempimento sia gli pseudo-elementi, che e' la lezione del 06/09 sui tagli.
+      markGap: (() => {
+        if (!name) return null;
+        const marks = [...row.querySelectorAll('ui-ruling-dot, [data-estimated], ui-flags')]
+          .map((one) => one.getBoundingClientRect())
+          .filter((box) => box.width > 0);
+        if (!marks.length) return null;
+        const range = document.createRange();
+        range.selectNodeContents(name);
+        const text = range.getBoundingClientRect().right;
+        range.detach?.();
+        return Math.round((Math.min(...marks.map((box) => box.left)) - text) * 10) / 10;
+      })(),
       // Ogni riquadro col NOME della lettura che porta: confrontarli per posizione vorrebbe dire
       // sapere l'ordine, e l'ordine è quello che l'operatore può cambiare.
       say: Object.fromEntries(
@@ -506,7 +524,7 @@ function rowGeometry(block, index) {
     y: Math.round(box.top + box.height / 2),
     top: Math.round(box.top),
     id: Number(one.dataset.id),
-    name: (one.querySelector('span.flex-1')?.innerText ?? '').trim(),
+    name: (one.querySelector('[data-name]')?.innerText ?? '').trim(),
     of: rows.length,
   };
 }
@@ -962,7 +980,7 @@ function readTooltip() {
  */
 function namePoint() {
   const row = document.querySelector('app-strategy ol li[data-id]');
-  const name = row?.querySelector('span.flex-1');
+  const name = row?.querySelector('[data-name]');
   if (!name) return null;
   const box = name.getBoundingClientRect();
   const x = box.left + box.width / 2;
@@ -1009,7 +1027,7 @@ function readRowTips() {
 /** Il centro del nome di UNA riga scelta (per `fc_id`), per bussare dove il tooltip di quel nome sta. */
 function namePointOf(id) {
   const row = document.querySelector(`app-strategy ol li[data-id="${id}"]`);
-  const name = row?.querySelector('span.flex-1');
+  const name = row?.querySelector('[data-name]');
   if (!name) return null;
   const box = name.getBoundingClientRect();
   return { x: box.left + box.width / 2, y: box.top + box.height / 2, text: (name.innerText ?? '').trim() };
@@ -1211,13 +1229,77 @@ async function main() {
         }
       }
     }
+    // ...E LA DIFFERENZA SI MISURA, non si dichiara (operatore, 16/09/2026). «I fondi sono diversi» era
+    // vero e non voleva dire niente: `bg-control/25` sulla carta del blocco valeva DUE punti su 255, cioe'
+    // una banda che esiste nel CSS e non sullo schermo. Si compone l'alfa sul fondo che sta sotto - il
+    // browser restituisce il colore DICHIARATO e non quello che si vede - e si pretende che lo scarto sia
+    // percepibile. Sei punti e' la soglia: sotto, due tinte adiacenti si leggono come una.
+    const bandDelta = await evaluate(session, () => {
+      const rows = [...document.querySelectorAll('app-strategy ol li[data-id]')];
+      const tinted = rows.find((one) => Number(one.dataset.band) % 2 === 0);
+      const plain = rows.find((one) => Number(one.dataset.band) % 2 === 1);
+      if (!tinted || !plain) return null;
+      // OGNI STRATO SI PORTA IN sRGB PRIMA DI COMPORLO, e non e' un dettaglio: i token di questa app
+      // sono `color-mix(in oklab, ...)` e Chrome li restituisce COSI' - `oklab(0.23 0.005 -0.019 / .25)`
+      // - quindi comporre quei numeri con un `rgb(20, 20, 28)` somma una L fra 0 e 1 a un canale fra 0 e
+      // 255 e produce un verdetto che non parla di niente. La prima versione di questa sonda leggeva
+      // 1,4 punti su una banda da undici: e' l'errore di unita', commesso dentro lo strumento che
+      // dovrebbe trovarlo.
+      const srgb = (paint) => {
+        const parts = (paint.match(/-?[\d.]+/g) ?? []).map(Number);
+        if (parts.length < 3) return null;
+        const alpha = parts.length > 3 ? parts[3] : 1;
+        if (!paint.startsWith('oklab')) return { rgb: parts.slice(0, 3), alpha };
+        const [L, a, b] = parts;
+        const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+        const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+        const t = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3;
+        const enc = (x) => {
+          const clamped = Math.max(0, Math.min(1, x));
+          return 255 * (clamped <= 0.0031308
+            ? 12.92 * clamped
+            : 1.055 * Math.pow(clamped, 1 / 2.4) - 0.055);
+        };
+        return {
+          rgb: [
+            enc(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * t),
+            enc(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * t),
+            enc(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * t),
+          ],
+          alpha,
+        };
+      };
+      // Il fondo VERO di una riga: il suo colore composto su quello del primo antenato opaco.
+      const seen = (node) => {
+        const stack = [];
+        for (let one = node; one; one = one.parentElement) {
+          const layer = srgb(getComputedStyle(one).backgroundColor);
+          if (!layer || layer.alpha === 0) continue;
+          stack.push(layer);
+          if (layer.alpha === 1) break;
+        }
+        let out = [0, 0, 0];
+        for (const layer of stack.reverse()) {
+          out = out.map((was, at) => was * (1 - layer.alpha) + layer.rgb[at] * layer.alpha);
+        }
+        return out;
+      };
+      const one = seen(tinted);
+      const two = seen(plain);
+      return Math.round(Math.max(...one.map((was, at) => Math.abs(was - two[at]))) * 10) / 10;
+    });
+    if (bandDelta == null) {
+      bandProblems.push('non ho trovato due bande adiacenti da confrontare');
+    } else if (bandDelta < 6) {
+      bandProblems.push(`le due bande distano ${bandDelta} punti su 255: il codice le dichiara e lo schermo no`);
+    }
     const bar = await evaluate(session, () => {
       const said = document.querySelector('app-strategy .bg-surface')?.innerText ?? '';
       return said.replace(/\s+/g, ' ').trim().slice(0, 80);
     });
     note('le bande dello slot', {
       said: `${TEAMS} partecipanti dichiarati · ${boundaries} confini fra bande · barra «${bar}» · `
-        + `prime tinte: ${JSON.stringify(blocks[0]?.parts.slice(0, 2).map((one) => one.background) ?? [])}`,
+        + `le due bande distano ${bandDelta ?? '—'} punti su 255`,
       problems: [
         ...bandProblems.slice(0, 4),
         ...(boundaries ? [] : ['nessun confine di banda: la lista non è raggruppata affatto']),
@@ -1337,6 +1419,29 @@ async function main() {
         + `${JSON.stringify([...seen.edges].sort((a, b) => a - b))} su ${seen.rows} righe `
         + `(${seen.tilde} col tilde)`);
     const tildeSeen = [...columns.values()].reduce((sum, one) => sum + one.tilde, 0);
+    // 2c-ante-bis. I MARCHI STANNO DALLA PARTE DEL NOME (operatore, 16/09/2026).
+    //
+    // Non «sono nel DOM dopo il nome», che era vero anche prima: quello che si misura e' la distanza
+    // dall'ultima LETTERA, perche' e' li' che l'occhio li cerca. Col nome `flex-1` la sua cella si
+    // prendeva lo spazio libero della riga e i marchi finivano appiccicati alle pastiglie - stessa
+    // posizione nel DOM, decine di pixel piu' in la' sullo schermo.
+    //
+    // La soglia e' il `gap-x-1` del gruppo piu' un paio di pixel di sotto-pixel: un numero piu' largo
+    // vorrebbe dire che fra il nome e il suo primo marchio c'e' dello spazio elastico, cioe' che il
+    // gruppo si e' rotto. E il conteggio di quante righe PORTANO un marchio viaggia col verdetto,
+    // perche' un passo che non ne trova nessuno leggerebbe «attaccati» dopo aver guardato niente.
+    const gaps = pills.map((one) => one.markGap).filter((one) => one != null);
+    const worstGap = gaps.length ? Math.max(...gaps) : null;
+    note('i marchi stanno accanto al nome', {
+      said: `${gaps.length} righe su ${pills.length} portano un marchio · distanza dall'ultima lettera:`
+        + ` al piu' ${worstGap ?? '—'}px, mediana ${gaps.length ? gaps.sort((a, b) => a - b)[Math.floor(gaps.length / 2)] : '—'}px`,
+      problems: [
+        ...(gaps.length ? [] : ['nessuna riga con un marchio: il passo non ha misurato niente']),
+        ...(worstGap == null || worstGap <= 8
+          ? [] : [`un marchio sta ${worstGap}px dopo la fine del nome: non e' piu' attaccato a lui`]),
+      ],
+    });
+
     note('le pastiglie sono incolonnate', {
       said: `${columns.size} liste, ${pills.length} righe, ${tildeSeen} col tilde della stima `
         + `· bordi destri per lista: ${[...columns.values()].map((one) => one.edges.size).join('/')}`,
@@ -1923,15 +2028,18 @@ async function main() {
     });
 
     // 7a. LA RIGA STRETTA: dodici blocchi in una finestra fanno liste da ~254px, e le tre pastiglie
-    //     inline lì non ci stanno - il nome sparisce e il gain esce dal blocco. Misurato invece che
-    //     creduto: un passo che guarda solo la vista larga direbbe «nessun problema» dopo aver
-    //     guardato l'altra metà della pagina.
+    //     inline lì stanno strette. Misurato invece che creduto: un passo che guarda solo la vista
+    //     larga direbbe «nessun problema» dopo aver guardato l'altra metà della pagina.
+    //
+    //     DAL 16/09/2026 SI PRETENDE L'OPPOSTO DI PRIMA, e non perché la misura sia cambiata: fino a
+    //     quel giorno le pastiglie qui dovevano andare A CAPO (regola del 04/09, e questo passo
+    //     falliva se anche una sola restava in riga), perché in riga mangiano il nome. La misura è
+    //     ancora quella - 182 nomi tagliati su 255 - e la DECISIONE è dell'operatore, presa con quel
+    //     numero davanti: «tutti i valori dovrebbero andare sulla stessa riga incolonnati». Quindi il
+    //     verdetto si rovescia e il prezzo resta STAMPATO nel `said`, dove si legge a ogni corsa
+    //     invece di sparire con la regola che lo produceva.
     const narrow = (await evaluate(session, readPills)) ?? [];
     const wrapped = narrow.filter((one) => one.stripOwnLine).length;
-    // Un nome schiacciato conta come difetto SOLO dove le pastiglie sono ancora sulla sua riga: dove
-    // sono andate a capo, quello che stringe il nome sono i codici, i marchi e il gain, cioe' la lista
-    // stretta di prima. Attribuire a loro anche quelli sarebbe accusarle di un difetto altrui.
-    const namesGone = narrow.filter((one) => !one.stripOwnLine && one.nameWidth < 40).length;
     const clippedInline = narrow.filter((one) => !one.stripOwnLine && one.nameClipped).length;
     const stripsOut = narrow.reduce((sum, one) => sum + one.outside, 0);
     const withoutPills = narrow.filter((one) => Object.keys(one.say).length !== 3).length;
@@ -1942,9 +2050,11 @@ async function main() {
         + `pastiglie ancora in riga) · esempio «${narrow[0]?.name}» ${JSON.stringify(narrow[0]?.say ?? null)}`,
       problems: [
         ...(narrow.length ? [] : ['nessuna riga letta: il passo non ha misurato niente']),
-        ...(wrapped === narrow.length
-          ? [] : [`${narrow.length - wrapped} righe tengono le pastiglie in riga su un blocco stretto`]),
-        ...(namesGone ? [`${namesGone} righe col nome ridotto a meno di 40px: le pastiglie se lo mangiano`] : []),
+        // IN RIGA, anche qui. `flex-wrap` resta come ultima risorsa, quindi una riga a capo non e' un
+        // guasto di per se' - lo e' se ci vanno TUTTE, perche' allora la regola che le teneva in riga
+        // non e' piu' in vigore e nessuno se ne accorgerebbe.
+        ...(wrapped === narrow.length && narrow.length
+          ? [`tutte e ${wrapped} le righe mandano le pastiglie a capo: dovrebbero restare in riga`] : []),
         ...(stripsOut ? [`${stripsOut} pastiglie fuori dalla loro riga`] : []),
         ...(withoutPills ? [`${withoutPills} righe senza le tre pastiglie`] : []),
       ],
@@ -2037,6 +2147,20 @@ async function main() {
     const toggles = (await evaluate(session, readToggles)) ?? [];
     const beforeToggle = (await evaluate(session, readPills)) ?? [];
     const pressed = [];
+    // ...E IL GAIN E' UNA PASTIGLIA COME LE ALTRE (operatore, 16/09/2026). Quello che si asserisce non
+    // e' che il bottone si accenda - quello e' un fatto su antd - ma che la COLONNA sparisca e torni:
+    // questa spegne il numero che ORDINA la lista, quindi e' quella su cui un bottone che mente
+    // costerebbe di piu'. Si conta il riquadro sulle righe dei giocatori e non i `li`, che dal 16/09
+    // sono contati per `data-id` proprio perche' il gain si puo' spegnere.
+    const countGains = () => evaluate(
+      session,
+      () => document.querySelectorAll('app-strategy ol li[data-id] ui-gain').length,
+    );
+    const gainsBefore = (await countGains()) ?? 0;
+    pressed.push(await pressReading(session, 'gain'));
+    const gainsOff = (await countGains()) ?? 0;
+    pressed.push(await pressReading(session, 'gain'));
+    const gainsBack = (await countGains()) ?? 0;
     for (const key of ['fvm']) pressed.push(await pressReading(session, key));
     const withFvm = (await evaluate(session, readPills)) ?? [];
     for (const key of ['bonus']) pressed.push(await pressReading(session, key));
@@ -2140,20 +2264,29 @@ async function main() {
     }
 
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le diciannove letture della barra', {
+    note('le venti letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
         + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
       problems: [
         ...pressed.filter(Boolean),
-        // VENTI dal 12/09/2026 (le quattro frequenze: oltre l'85', fantavoto 6.5+, con bonus, sotto il
-        // 6), sedici dal 07/09 (la titolarita'), quattordici dal 06/09 (le due coppie `G:A`), dodici lo
-        // stesso giorno (lo SWING), undici dal 05/09 (gol, assist, xG e xA accanto a MV e FM). Il
+        // VENTI dal 16/09/2026: le diciannove letture piu' il GAIN, che da quel giorno si accende e si
+        // spegne come loro. Diciannove dal 12/09 (le quattro frequenze: oltre l'85', fantavoto 6.5+, con
+        // bonus, sotto il 6), quindici dal 07/09 (la titolarita'), quattordici dal 06/09 (le due coppie
+        // `G:A`), dodici lo stesso giorno (lo SWING), undici dal 05/09 (gol, assist, xG e xA accanto a MV
+        // e FM). Il
         // numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non una misura: se cresce,
         // cresce per una richiesta, e allora si aggiorna insieme a `READINGS` invece di leggere dallo
         // schermo quello che lo schermo dice.
-        ...(toggles.length === 19 ? [] : [`${toggles.length} pastiglie invece delle diciannove dichiarate`]),
+        ...(toggles.length === 20 ? [] : [`${toggles.length} pastiglie invece delle venti dichiarate`]),
+        // IL GAIN SPARISCE E TORNA: una pastiglia che si accende senza cambiare la riga e' un bottone
+        // che mente, e il conto PRIMA viaggia col verdetto perche' un passo che trova zero riquadri
+        // leggerebbe «spento correttamente» dopo aver guardato una pagina che non ne aveva.
+        ...(gainsBefore ? [] : ['nessun gain a schermo prima di spegnerlo: il passo non ha misurato niente']),
+        ...(gainsOff === 0 ? [] : [`spegnere il gain ha lasciato ${gainsOff} riquadri sulle righe`]),
+        ...(gainsBack === gainsBefore
+          ? [] : [`riacceso, i riquadri sono ${gainsBack} invece dei ${gainsBefore} di prima`]),
         // UNA PASTIGLIA PER LETTURA, e quelle stagionali NOMINANO la stagione su cui sono accese
         // (12/09/2026): `G:A` era dichiarata due volte con l'anno dentro la chiave, e da quando la
         // stagione si sceglie e' una sola - due bottoni con lo stesso testo erano il difetto che
@@ -2166,8 +2299,11 @@ async function main() {
           return dated[0].on && !/^G:A (\d\d\/\d\d|×\d)$/.test(said)
             ? [`la G:A accesa non nomina la sua stagione: «${said}»`] : [];
         })()),
-        ...(toggles.filter((one) => one.on).length === 3
-          ? [] : [`${toggles.filter((one) => one.on).length} accese all'apertura invece di tre`]),
+        // QUATTRO dal 16/09/2026: le tre letture di sempre piu' il GAIN, che nasce acceso perche' fino a
+        // quel giorno non si poteva spegnere - una preferenza salvata prima non lo nomina, e leggerla
+        // come «spento» avrebbe tolto in silenzio la colonna che ordina.
+        ...(toggles.filter((one) => one.on).length === 4
+          ? [] : [`${toggles.filter((one) => one.on).length} accese all'apertura invece di quattro`]),
         ...(toggles.every((one) => one.under === 'button' || one.under === 'span')
           ? [] : ['qualche pastiglia non risponde alle proprie coordinate: nel DOM e non sullo schermo']),
         ...(keysOf(withFvm).includes('fvm')
@@ -2275,7 +2411,7 @@ async function main() {
       const row = document.querySelector('app-strategy ol li[data-id]');
       if (!row) return null;
       const box = row.getBoundingClientRect();
-      const name = row.querySelector('span.flex-1');
+      const name = row.querySelector('[data-name]');
       return {
         id: Number(row.dataset.id),
         name: (name?.innerText ?? '').trim(),
@@ -2412,6 +2548,9 @@ async function main() {
       try {
         localStorage.removeItem('fantassistant.strategy.priority');
         localStorage.removeItem('fantassistant.strategy.readings');
+        // ...e il gain, che dal 16/09/2026 e' una pastiglia come le altre: una corsa che lo lasciasse
+        // spento consegnerebbe la pagina senza la colonna che ordina.
+        localStorage.removeItem('fantassistant.strategy.gain');
       } catch {
         /* niente memoria: non c'era niente da rimettere */
       }
@@ -2440,7 +2579,7 @@ async function main() {
       const rows = [...document.querySelectorAll('app-strategy section:first-of-type ol li[data-id]')];
       return rows.map((one) => ({
         id: Number(one.dataset.id),
-        name: (one.querySelector('span.flex-1')?.innerText ?? '').trim(),
+        name: (one.querySelector('[data-name]')?.innerText ?? '').trim(),
         at: (one.querySelector('span.w-5')?.innerText ?? '').trim(),
       }));
     });
@@ -2470,7 +2609,7 @@ async function main() {
         counter: (section?.querySelector('header span:last-of-type')?.innerText ?? '').trim(),
         rows: rows.map((one) => ({
           id: Number(one.dataset.id),
-          name: (one.querySelector('span.flex-1')?.innerText ?? '').trim(),
+          name: (one.querySelector('[data-name]')?.innerText ?? '').trim(),
           at: (one.querySelector('span.w-5')?.innerText ?? '').trim(),
           // Il trascinamento è sospeso mentre si filtra: CDK lo dichiara sulla riga.
           draggable: !one.classList.contains('cdk-drag-disabled'),

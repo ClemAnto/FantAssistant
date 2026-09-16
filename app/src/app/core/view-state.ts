@@ -19,6 +19,18 @@ import { ActivatedRoute, Router } from '@angular/router';
  * nobody else, so there is never a second writer that could say something different.
  */
 
+/**
+ * QUANTO UN CLICK ASPETTA PRIMA DI AGIRE, dove sullo stesso bersaglio vive anche un doppio click.
+ *
+ * Una definizione e due lettori (la plancia dal 04/09/2026, la Strategia dal 16/09): due copie sono
+ * come due schermate finiscono per rispondere a velocita' diverse allo stesso gesto.
+ *
+ * 250 ms non e' una misura nostra e non deve esserlo: il SECONDO click annulla l'attesa da se', quindi
+ * questo ritardo non gareggia con la soglia di sistema del doppio click (500 ms su Windows di default)
+ * - deve solo essere abbastanza corto perche' l'azione si legga come istantanea.
+ */
+export const DOUBLE_MS = 250;
+
 /** One setting that travels in the address. */
 export interface QueryField {
   /** Its name in the address bar. */

@@ -221,7 +221,7 @@ function readRows() {
   return [...document.querySelectorAll('app-strategy ol li[data-id]')].map((row) => {
     const strip = row.querySelector('[data-readings]');
     const pills = strip ? [...strip.querySelectorAll(':scope > span')] : [];
-    const name = row.querySelector('span.flex-1');
+    const name = row.querySelector('[data-name]');
     return {
       id: Number(row.dataset.id),
       block: [...document.querySelectorAll('app-strategy ol')].indexOf(row.closest('ol')),
@@ -240,6 +240,14 @@ function readRows() {
       // misura due incognite insieme attribuisce il difetto a quella sbagliata.
       stripOwnLine: !!(strip && name
         && strip.getBoundingClientRect().top >= name.getBoundingClientRect().bottom - 2),
+      // ...e quanti riquadri stanno fuori dalla propria riga, che dal 16/09/2026 e' la guardia vera:
+      // i valori restano in riga e il nome cede, quindi quello che non puo' succedere e' che un
+      // riquadro finisca fuori dal blocco - «276px di colonne non strette, ASSENTI».
+      outside: pills.filter((one) => {
+        const box = one.getBoundingClientRect();
+        const line = row.getBoundingClientRect();
+        return box.right > line.right + 1 || box.left < line.left - 1 || box.width === 0;
+      }).length,
     };
   });
 }
@@ -646,9 +654,16 @@ async function main() {
         ...pressed.filter(Boolean),
         ...(withAll.length === rows.length
           ? [] : [`${rows.length - withAll.length} righe senza le quattro pastiglie`]),
-        // NESSUN NOME RIDOTTO A NIENTE: il taglio e' il prezzo dichiarato di una pastiglia accesa, ma
-        // una colonna del nome che sparisce e' un'altra cosa - e' la riga che non si puo' piu' leggere.
-        ...(narrowest(rows) > 0 ? [] : ['qualche nome e largo zero: la riga non si legge piu']),
+        // IL NOME CHE SI ACCORCIA E' IL PREZZO DICHIARATO (operatore, 16/09/2026): «tutti i valori
+        // dovrebbero andare sulla stessa riga incolonnati», scelto con questo numero davanti. Fino a
+        // quel giorno un nome largo zero era un difetto; adesso e' la conseguenza aritmetica di sette
+        // pastiglie su una lista da 380px, e quello che il passo deve garantire e' che sia IL NOME a
+        // cedere e non la colonna dei valori - quindi si guarda che i riquadri restino tutti sulla
+        // riga e dentro di essa. Il conto dei tagliati resta stampato nel `said`.
+        ...(rows.filter((one) => one.stripOwnLine).length
+          ? [`${rows.filter((one) => one.stripOwnLine).length} righe mandano i valori a capo`] : []),
+        ...(rows.reduce((sum, one) => sum + one.outside, 0)
+          ? [`${rows.reduce((sum, one) => sum + one.outside, 0)} riquadri fuori dalla propria riga`] : []),
       ],
     });
 

@@ -1,6 +1,8 @@
 import { MantraModules } from './auction-value';
 import {
   DEFAULT_READINGS,
+  GAIN_SORT,
+  NAME_SORT,
   READINGS,
   SORTABLE_READINGS,
   RankedMan,
@@ -12,6 +14,7 @@ import {
   blocksOf,
   deepestRole,
   demandOf,
+  descendsByDefault,
   gainOf,
   mantraBlocks,
   readingHas,
@@ -240,6 +243,49 @@ describe('blocksOf', () => {
     expect(defence.men.map((row) => row.man.name)).toEqual(['Con', 'Senza']);
     // ...e resta in lista col suo gain: ordinarlo per ultimo non e' toglierlo.
     expect(defence.unranked).toBe(0);
+  });
+
+  /**
+   * IL VERSO (operatore, 16/09/2026: «un successivo doppio click inverti l'ordinamento»).
+   *
+   * La parte che conta non e' che la lista si giri: e' che I VUOTI RESTINO IN FONDO anche girata. Un
+   * ignoto non e' il piu' piccolo dei valori, e con la sola sottrazione ci finiva in cima, perche'
+   * entrava nel confronto come `-Infinity`, cioe' come un numero.
+   */
+  it('inverte il verso e lascia comunque in fondo chi quel numero non ha', () => {
+    const pool = [
+      man({ name: 'Alto', surplus: 30, swing: 9 }),
+      man({ name: 'Basso', surplus: 10, swing: 1 }),
+      man({ name: 'Medio', surplus: 20, swing: 5 }),
+      man({ name: 'Senza', surplus: 25, swing: null }),
+    ];
+    const wide = { ...setup, slots: { ...setup.slots, classic: { P: 1, D: 4, C: 1, A: 1 } } };
+    const names = (desc?: boolean) =>
+      blocksOf({ pool, setup: wide, rules: null, sort: 'swing', desc })
+        .find((one) => one.role === 'D')!
+        .men.map((row) => row.man.name);
+    expect(names(true)).toEqual(['Alto', 'Medio', 'Basso', 'Senza']);
+    expect(names(false)).toEqual(['Basso', 'Medio', 'Alto', 'Senza']);
+  });
+
+  /** Il NOME e' una chiave come le altre, e il suo verso naturale e' dalla A. */
+  it('ordina per nome, e il suo verso naturale e ascendente', () => {
+    const pool = [
+      man({ name: 'Zola', surplus: 30 }),
+      man({ name: 'Baggio', surplus: 10 }),
+      man({ name: 'Maldini', surplus: 20 }),
+    ];
+    const wide = { ...setup, slots: { ...setup.slots, classic: { P: 1, D: 3, C: 1, A: 1 } } };
+    const names = (desc?: boolean) =>
+      blocksOf({ pool, setup: wide, rules: null, sort: NAME_SORT, desc })
+        .find((one) => one.role === 'D')!
+        .men.map((row) => row.man.name);
+    // Nessun verso chiesto: quello naturale della chiave, che per un nome e' A -> Z e non Z -> A.
+    expect(names()).toEqual(['Baggio', 'Maldini', 'Zola']);
+    expect(names(true)).toEqual(['Zola', 'Maldini', 'Baggio']);
+    expect(descendsByDefault(NAME_SORT)).toBe(false);
+    expect(descendsByDefault(GAIN_SORT)).toBe(true);
+    expect(descendsByDefault('swing')).toBe(true);
   });
 
   it('nel draft la stessa lista può invertirsi, perché la valuta è un\'altra', () => {

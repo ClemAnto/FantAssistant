@@ -2,6 +2,8 @@ import { IconDefinition } from '@ant-design/icons-angular';
 import {
   AimOutline,
   AlertOutline,
+  ArrowDownOutline,
+  ArrowUpOutline,
   CalendarOutline,
   CheckCircleOutline,
   ClockCircleOutline,
@@ -59,6 +61,11 @@ import {
  *  reads it, and so must any TestBed that renders a component containing an `<nz-icon>`
  *  (otherwise the icon is fetched dynamically, 404s, and the test hangs). */
 export const NZ_ICONS: IconDefinition[] = [
+  // LE DUE FRECCE DEL VERSO D'ORDINAMENTO (Strategia, 16/09/2026). Registrate perche' la lista
+  // di default di ng-zorro non le contiene: un'icona non registrata disegna una casella vuota e la
+  // pagina urla «<svg> tag not found» in console, che e' il difetto gia' pagato il 13/09 su `user-add`.
+  ArrowDownOutline,
+  ArrowUpOutline,
   AimOutline,
   AlertOutline,
   CalendarOutline,

@@ -1204,7 +1204,30 @@ export type SortKey = string;
 
 /** Il gain non è una lettura e quindi non è in `READINGS`: la sua etichetta la scrive chi lo mostra. */
 export const GAIN_SORT = 'gain';
+
+/**
+ * IL NOME, che non è una lettura e non è un numero (operatore, 16/09/2026: «deve funzionare anche
+ * cliccando sul nome»).
+ *
+ * Sta accanto a `GAIN_SORT` e non in `READINGS` per la stessa ragione del gain: `readingsOf` ricava
+ * fatti sul CALCIO di un uomo, e come si chiama non è uno di quelli - non ha una stagione, non ha una
+ * larghezza e `readingValue` non gli può rispondere. Quello che invece deve valere anche per lui è la
+ * guardia di `stored`: una chiave che questa versione non conosce torna al gain.
+ */
+export const NAME_SORT = 'name';
 export const DEFAULT_SORT: SortKey = GAIN_SORT;
+
+/**
+ * IL VERSO NATURALE DI UNA CHIAVE, che non è lo stesso per tutte.
+ *
+ * Un numero si legge dal più grande (il gain in cima è tutto il senso di questa pagina), un NOME dalla
+ * A: aprire l'ordinamento per nome su `Z→A` sarebbe la risposta giusta alla domanda sbagliata. È una
+ * dichiarazione e non una misura, e sta qui invece che nella vista perché il verso e la chiave si
+ * leggono insieme - chi mostra un'etichetta «↓» deve poterla chiedere allo stesso posto che ordina.
+ */
+export function descendsByDefault(key: SortKey): boolean {
+  return key !== NAME_SORT;
+}
 
 /**
  * LE LETTURE SU CUI SI PUO' ORDINARE: tutte tranne le COPPIE.
@@ -1344,6 +1367,15 @@ export function blocksOf(input: {
   /** Su cosa ordinare: il gain quando nessuno ha scelto. Vedi `SortKey`. */
   sort?: SortKey;
   /**
+   * IL VERSO, quando non è quello naturale della chiave (`descendsByDefault`).
+   *
+   * Un campo a parte e non un segno dentro la stringa: `sort` è anche la chiave salvata in
+   * `localStorage` e passata a una guardia di validità che elenca i valori ammessi, quindi un `-mv@…`
+   * sarebbe una chiave che quella guardia non riconosce - cioè un ordinamento che si perde da solo
+   * alla prima ricarica, e per giunta in silenzio.
+   */
+  desc?: boolean;
+  /**
    * LE DUE STAGIONI CHE IL PACCHETTO DICHIARA, per rileggere la chiave d'ordinamento.
    *
    * Servono perche' una chiave e' `mv@2025-26` e una lettura senza stagione scritta cade sul suo
@@ -1371,6 +1403,7 @@ export function blocksOf(input: {
   const { pool, setup, rules, priority, keep } = input;
   const seasons = input.seasons ?? { target: '', input: '' };
   const sort = input.sort ?? DEFAULT_SORT;
+  const desc = input.desc ?? descendsByDefault(sort);
   const demand = demandOf(setup, rules);
   const mantra = setup.game === 'mantra';
   // Una volta per tutto il foglio e non una per uomo: `deepestRole` rileggerebbe i moduli 600 volte.
@@ -1412,17 +1445,28 @@ export function blocksOf(input: {
         fromBehind: !!deep && deep.toLowerCase() !== key,
       });
     }
-    // A parità il nome, così due liste dello stesso foglio non si scambiano due righe fra un disegno
-    // e l'altro: un ordine che cambia da solo si legge come un numero che è cambiato. La CHIAVE la
-    // sceglie chi guarda (`SortKey`) e il gain è il default; chi quel numero non ce l'ha va in fondo,
-    // perché un ignoto non è uno zero.
-    // La chiave e' il gain o una lettura CON la sua stagione: una stringa che questa versione non
-    // capisce piu' ordina per gain invece di mettere tutti a pari merito, che si leggerebbe come una
-    // lista non ordinata.
-    const sortRef = sort === GAIN_SORT ? null : readRef(sort, seasons);
-    const keyOf = (one: RankedMan): number =>
-      (sortRef ? readingValue(sortRef, one.readings) : one.gain) ?? Number.NEGATIVE_INFINITY;
-    ranked.sort((left, right) => keyOf(right) - keyOf(left) || left.man.name.localeCompare(right.man.name));
+    // La CHIAVE la sceglie chi guarda (`SortKey`) e il gain è il default; il VERSO è il suo naturale
+    // finché nessuno lo gira (`descendsByDefault`). La chiave e' il gain, il NOME, o una lettura CON
+    // la sua stagione: una stringa che questa versione non capisce piu' ordina per gain invece di
+    // mettere tutti a pari merito, che si leggerebbe come una lista non ordinata.
+    const sortRef = sort === GAIN_SORT || sort === NAME_SORT ? null : readRef(sort, seasons);
+    const valueOf = (one: RankedMan): number | null =>
+      sortRef ? readingValue(sortRef, one.readings) : one.gain;
+    const byName = (left: RankedMan, right: RankedMan): number =>
+      left.man.name.localeCompare(right.man.name);
+    // CHI QUEL NUMERO NON CE L'HA VA IN FONDO IN TUTT'E DUE I VERSI, e non è un dettaglio: un vuoto è
+    // un IGNOTO e non il più piccolo dei valori, quindi invertire il verso non lo deve portare in
+    // cima. Con la sola sottrazione ci finirebbe, perché un ignoto entrava come `-Infinity` - cioè un
+    // numero, che l'inversione ordina come tutti gli altri.
+    ranked.sort((left, right) => {
+      if (sort === NAME_SORT) return desc ? byName(right, left) : byName(left, right);
+      const a = valueOf(left);
+      const b = valueOf(right);
+      if (a == null || b == null) return a == null && b == null ? byName(left, right) : a == null ? 1 : -1;
+      // A parità il nome, così due liste dello stesso foglio non si scambiano due righe fra un disegno
+      // e l'altro: un ordine che cambia da solo si legge come un numero che è cambiato.
+      return (desc ? b - a : a - b) || byName(left, right);
+    });
     const size = demand.get(role) ?? 0;
     const native = setup.view === 'natives' ? ranked.filter((one) => !one.fromBehind) : ranked;
     const chosen = orderedBy(native, (one) => one.man.fcId, priority?.get(role) ?? []);
