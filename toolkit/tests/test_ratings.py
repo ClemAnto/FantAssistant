@@ -394,3 +394,60 @@ def test_a_listone_says_which_season_it_is_and_a_new_one_is_found_before_the_fir
         assert ratings.resolve_championship_id(Session(), "default", "2027-28") is None
     finally:
         ratings._http = original
+
+
+def _rows_for(conn, platform, matchday, clubs):
+    """Una giornata scaricata: una riga per club, che e' quello che il resume conta."""
+    for i, club in enumerate(clubs):
+        fc_id = matchday * 1000 + i + (500000 if platform == "euro" else 0)
+        conn.execute("INSERT OR IGNORE INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     (fc_id, f"P{fc_id}"))
+        conn.execute(
+            "INSERT INTO match_ratings(fc_id, season, matchday, platform, team, status) "
+            "VALUES (?, '2026-27', ?, ?, ?, 'played')",
+            (fc_id, matchday, platform, club))
+
+
+SERIE_A = [f"club{i}" for i in range(20)]
+
+
+def test_a_matchday_voted_only_in_half_is_not_done(tmp_path):
+    """Il difetto del 16/09/2026: la 4a di Serie A stava a 8 club di 20 e il resume la saltava.
+
+    Il resume contava le giornate PRESENTI, quindi una riga bastava: una giornata votata a meta' -
+    il normale stato di un sabato pomeriggio - non veniva piu' riletta da nessuna corsa, e nemmeno
+    da `update --daily`, che i voti non li rilegge affatto."""
+    conn = init_db(tmp_path / "euro.db")
+    for md in (1, 2, 3):
+        _rows_for(conn, "default", md, SERIE_A)
+    _rows_for(conn, "default", 4, SERIE_A[:8])
+    assert ratings.matchdays_done(conn, "2026-27", "default") == {1, 2, 3}
+
+
+def test_a_full_season_costs_no_request(tmp_path):
+    """Il prezzo della cura: su una stagione chiusa e uniforme nessuna giornata si rilegge."""
+    conn = init_db(tmp_path / "euro.db")
+    for md in range(1, 39):
+        _rows_for(conn, "default", md, SERIE_A)
+    assert ratings.matchdays_done(conn, "2026-27", "default") == set(range(1, 39))
+
+
+def test_the_only_matchday_on_file_is_re_read(tmp_path):
+    """Senza «altre» giornate non c'e' mediana: il primo weekend di una stagione si rilegge, perche'
+    e' l'unico momento in cui una mediana mentirebbe su se stessa."""
+    conn = init_db(tmp_path / "euro.db")
+    _rows_for(conn, "default", 1, SERIE_A[:8])
+    assert ratings.matchdays_done(conn, "2026-27", "default") == set()
+
+
+def test_completeness_is_per_platform(tmp_path):
+    """Le due piattaforme condividono la chiave (stagione, giornata) e coprono club diversi: 37 su
+    euro contro 20 su Serie A, quindi una mediana comune direbbe che ogni giornata di Serie A e'
+    tronca."""
+    conn = init_db(tmp_path / "euro.db")
+    euro_clubs = [f"euro{i}" for i in range(37)]
+    for md in (1, 2, 3):
+        _rows_for(conn, "default", md, SERIE_A)
+        _rows_for(conn, "euro", md, euro_clubs)
+    assert ratings.matchdays_done(conn, "2026-27", "default") == {1, 2, 3}
+    assert ratings.matchdays_done(conn, "2026-27", "euro") == {1, 2, 3}

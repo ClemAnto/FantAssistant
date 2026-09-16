@@ -2380,6 +2380,42 @@ rotazione vera, contro l'Elversberg, di una squadra che gioca in mezzo alla sett
 l'unico modulo che nessuna delle tre prese prende (5-3-2 giocato contro il 3-1-4-2 pronosticato), ed era
 già a verbale come aperto del 15/09.
 
+## 18.3-bis — E LA STESSA TABELLA SPACCATA PER PIATTAFORMA: la board euro non è indietro
+
+**16/09/2026 (notte), dalla domanda dell'operatore «abbiamo lavorato molto sulla serie-a, c'è qualcosa da
+allineare sulle leghe euro?».** Le tre prese contengono **12 club di Serie A e 11 dei quattro campionati
+esteri**, cioè esattamente il materiale per rispondere, e nessuno l'aveva spaccato. Stesso metro, stesse
+distinte, stesso null.
+
+| presa | Serie A (12 club) | esteri / euro (11 club) |
+|---|---|---|
+| rev 63 | 99/132 (75,0%) · null 98 · moduli 8/12 | **96/120 (80,0%)** · null 91 · moduli **10/11** |
+| rev 64 | 98/132 (74,2%) · null 98 · moduli 8/12 | 96/120 (80,0%) · null 91 · moduli 10/11 |
+| rev 65 | 104/132 (78,8%) · null 98 · moduli 8/12 | 96/120 (80,0%) · null 91 · moduli 10/11 |
+
+**La board dei club esteri legge 80,0% degli uomini e 10 moduli su 11 in tutte e tre le prese**, contro il
+74-79% e l'8 su 12 della Serie A, con un margine sul proprio null di +5 uomini contro +0/+1/+6. Quindi la
+risposta alla domanda è NO: non c'è un divario di qualità fra le due piattaforme da recuperare, e se un
+divario c'è va nell'altro verso.
+
+**E va detto per intero, perché è la parte che conta: non è un verdetto.** Undici club di una giornata
+sola sono un campione minuscolo — il test dei segni della presa intera legge p = 0,109 su venti club, e
+qui ce ne sono undici. Quello che la tabella esclude è l'ipotesi grossa («euro è rimasto indietro»), non
+quella fine. Due ragioni strutturali per cui la lettura è plausibile e non una fortuna: le tre cure di
+settembre che hanno mosso queste board — il modulo DICHIARATO dalla fonte, la lettura per SLOT, il
+denominatore per club — poggiano su `club_match_lineups.formation`, che è coperta al **100% su tutti e
+cinque i campionati** nella stagione in corso (misurato: serie_a 80/80, premier 80/80, la_liga 108/108,
+ligue_1 72/72, bundesliga 54/54), quindi nessuna di quelle cure è arrivata a una piattaforma sola; e il
+foglio euro prezza **più** righe di quello Serie A (`engine_pv_pred` 100% contro 70%, `engine_surplus`
+99% contro 52%), perché là il core prezza tutti (R0c) e qui no.
+
+**Quello che euro NON ha è un giudice, e lo si dice invece di dedurlo dai numeri**: `press_formations`
+porta **20 club, tutti di Serie A** — la stampa italiana non pubblica le formazioni tipo del Bayern —
+quindi `press --against press`, che è il giudice con cui queste board sono state costruite da agosto, su
+euro non esiste. Restano `--against round` (contaminato, §18.5) e `--against outcome` (che vuole una
+stagione finita). **Le PRE-REGISTRAZIONI sono l'unico giudice pulito che euro abbia mai avuto**, ed è un
+argomento per continuare a prenderle: quella del 16/09 porta 27 club esteri su 47.
+
 ## 18.4 — E il giudice della board di STAGIONE parlava il vocabolario sbagliato
 
 Trovato mentre si preparava lo scoring, ed è il difetto più grosso della giornata. `round_reference`

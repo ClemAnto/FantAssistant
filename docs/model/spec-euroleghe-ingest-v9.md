@@ -495,6 +495,60 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.97 (16 settembre 2026, notte — UNA GIORNATA VOTATA A META' SI LEGGEVA COME COMPLETA)
+
+Dalla segnalazione dell'operatore («aggiorna anche il db, non vedo le ultime partite della serie a»), e
+il difetto era nel RESUME di `ratings`: `SELECT DISTINCT matchday` — quindi **una riga bastava a
+dichiarare scaricata una giornata**. I voti arrivano partita per partita, quindi una lettura fatta il
+sabato pomeriggio archivia mezza giornata, e da quel momento nessuna corsa la riguarda piu'.
+
+1. **La misura, prima della cura.** Serie A 2026-27 md4: **8 club su 20**, 134 righe di 339. euro md3:
+   **20 club su 37**, 331 righe di ~610. Tutt'e due le piattaforme, e su euro il buco era piu' grosso in
+   assoluto. Le colonne del foglio che ne dipendono sono le presenze viste (`pv_seen`), la miscela della
+   stagione in corso e, per `default`, R25 — cioe' proprio i canali che esistono per leggere la stagione
+   mentre si gioca.
+
+2. **E `update --daily` non poteva ripararlo per costruzione**: il preset lascia fuori i voti e lo
+   dichiara nella propria ultima riga («what NO daily step re-reads is the VOTES ... Run the full
+   `update` when a round has been played»). Il lavoro notturno gira `--daily`, quindi il difetto era
+   permanente: la giornata restava a meta' finche' qualcuno non passava `--refresh` a mano.
+
+3. **`ratings.matchdays_done`**: una giornata e' «fatta» se ha almeno tanti CLUB quanti la MEDIANA delle
+   ALTRE giornate della stessa (stagione, piattaforma). E' la forma di `snapshot.complete_squads` e per
+   la stessa ragione — il riferimento e' il dato stesso e non una costante, perche' quante squadre giochi
+   una giornata lo dice il campionato: 20 su Serie A, 33-37 su euro, dove il perimetro cambia di
+   settimana in settimana e una soglia fissa sbaglierebbe da sola. Una giornata sola in archivio non ha
+   «altre» e si rilegge: e' il primo weekend di una stagione, l'unico momento in cui una mediana
+   mentirebbe su se stessa.
+
+4. **Costo misurato prima di adottarlo**, sulle 145 giornate-piattaforma in archivio: **5 si rileggono**.
+   Due sono le parziali che la cura esiste per riprendere; tre sono giornate euro storiche a 33-34 club
+   contro una mediana di 35-36, e quelle si rileggeranno a ogni corsa senza portare una riga. E' il
+   prezzo dichiarato per non avere una soglia — su `default`, dove una giornata e' sempre 20 club,
+   **nessuna stagione chiusa costa una richiesta**.
+
+5. **Recuperato a mano nel frattempo** (`ratings --season 2026-27 --refresh`, tutt'e due le
+   piattaforme): Serie A md4 → 20 club e 320 voti (**+1354 righe**), euro md3 → 37 club e 563 voti
+   (**+1832**), piu' la catena `derive → sheets → bundle → app`.
+
+6. **QUANTO VALEVA, misurato riga per riga contro i fogli di stamattina** — e la direzione e' una sola,
+   perche' un voto mancante si legge come «non ha giocato»: su **euro 245 righe di 953** cambiano
+   `engine_pv_pred` (Kane 24,2 → 27,3 · Haaland 23,4 → 26,5 · Lamine Yamal 22,4 → 25,5: **tre giornate
+   sotto** per i titolari) e **41 gradini** della scala della titolarita' (Mbappe' da `titolare` a
+   `bandiera`); su **Serie A 140 righe di 561**, col surplus che si muove su 117 (Malen 63,0 → 70,4) e
+   **`engine_fm_pred` su 115**. Che la fantamedia si muova su `default` e NON su euro e' la conferma
+   strutturale della diagnosi: R25K40 e' adottata su `default` sola e legge le giornate viste, mentre
+   `desc_season_matches` e `desc_season_starts` non si muovono di una riga da nessuna parte — vengono
+   dal livello per-partita, che era completo. **Erano i voti e solo i voti.** E i CAMPETTI non si
+   muovono di una riga (euro: 0 club, 0 moduli, 0 uomini su 37, su tutt'e due gli orizzonti), il che
+   e' la stessa cosa detta dall'altro lato: la board sceglie sui MINUTI e sulle partenze del livello
+   per-partita, la scala della titolarita' sulle APPARIZIONI, che sono i voti.
+
+La controprova e' nei test: rimettendo il `DISTINCT matchday` cadono i due test che descrivono la cura
+(la giornata a meta' e la giornata sola) e gli altri due restano verdi a ragione, perche' descrivono il
+comportamento che non cambia — una stagione chiusa che non costa richieste, e la completezza per
+PIATTAFORMA, che le due liste condividono la chiave e coprono club diversi.
+
 ## Novità v9.96 (16 settembre 2026, sera tardi — UN OROLOGIO SOLO, e le date sono in UTC)
 
 Decisione dell'operatore sull'aperto di `TimeTravel.realToday`, e la misura dice che l'aperto era

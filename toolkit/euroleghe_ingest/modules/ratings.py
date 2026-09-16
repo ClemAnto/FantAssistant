@@ -22,6 +22,7 @@ import io
 import os
 import random
 import re
+import statistics
 import time
 
 import requests
@@ -506,6 +507,41 @@ def upsert_listone(conn, season: str, records: list[dict], platform: str = DEFAU
 
 
 # ---------- orchestration ----------
+def matchdays_done(conn, season: str, platform: str) -> set[int]:
+    """Le giornate che il resume puo' SALTARE: quelle COMPLETE, non quelle presenti.
+
+    Il resume chiedeva `SELECT DISTINCT matchday`, quindi UNA riga bastava a dichiarare scaricata una
+    giornata - e una giornata votata a meta', che e' il normale stato di un sabato pomeriggio, non
+    veniva piu' riletta da nessuna corsa. Misurato il 16/09/2026: la 4a di Serie A stava a 8 club di
+    20 (134 righe di 339) e la 3a euro a 20 di 37, e `update --daily` i voti non li rilegge per
+    definizione - quindi da sole non si sarebbero completate mai, e l'app mostrava mezza giornata.
+    E' «vuoto = ignoto, mai zero» applicato a una GIORNATA invece che a una colonna.
+
+    Completa = con almeno tanti CLUB quanti la MEDIANA delle ALTRE giornate della stessa (stagione,
+    piattaforma). E' la forma con cui `snapshot.complete_squads` decide se una lettura di rosa e'
+    troncata, e per la stessa ragione: il riferimento e' il dato stesso e non una costante, perche'
+    quante squadre giochino una giornata lo dice il campionato - 20 su Serie A, 33-37 su euro, dove
+    il perimetro cambia di settimana in settimana e una soglia fissa sbaglierebbe da sola.
+    Una giornata sola in archivio non ha «altre», quindi si rilegge: e' il primo weekend di una
+    stagione, l'unico momento in cui una mediana mentirebbe su se stessa.
+
+    COSTO, misurato sulle 145 giornate-piattaforma in archivio il 16/09/2026 prima della cura: 5 si
+    rileggono. Due sono le parziali che questa funzione esiste per riprendere; tre sono giornate euro
+    storiche a 33-34 club contro una mediana di 35-36, e quelle si rileggeranno a ogni corsa senza
+    portare una riga. E' il prezzo dichiarato per non avere una soglia - su `default`, dove una
+    giornata e' sempre 20 club, nessuna stagione chiusa costa una richiesta.
+    """
+    counts = {md: clubs for md, clubs in conn.execute(
+        "SELECT matchday, COUNT(DISTINCT team) FROM match_ratings "
+        "WHERE season = ? AND platform = ? GROUP BY matchday", (season, platform))}
+    done = set()
+    for matchday, clubs in counts.items():
+        others = [n for other, n in counts.items() if other != matchday]
+        if others and clubs >= statistics.median(others):
+            done.add(matchday)
+    return done
+
+
 def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
         refresh: bool = False, **kwargs) -> None:
     """Scrape ratings for a platform ('euro' or 'default') and one or more seasons.
@@ -538,10 +574,10 @@ def run(ctx: Context, *, platform: str = DEFAULT_PLATFORM, seasons=None,
                 continue
             # resume PER COMPETITION: EuroLeghe and Serie A share the (season, matchday) key but
             # cover different teams, so a matchday scraped for one is NOT done for the other.
-            done = {md for (md,) in conn.execute(
-                "SELECT DISTINCT matchday FROM match_ratings WHERE season = ? AND platform = ?",
-                (season, platform))}
-            note = f" (resuming, {len(done)} matchdays already present)" if done and not refresh else ""
+            done = matchdays_done(conn, season, platform)
+            # «complete» e non «presenti»: quello che il resume salta ora e' una giornata intera, e
+            # una riga che dicesse «presenti» descriverebbe il criterio di prima.
+            note = f" (resuming, {len(done)} matchdays complete)" if done and not refresh else ""
             print(f"[ratings] {season}: championship {cid}{note} - downloading...")
             # Listone (quotazioni), same championship id as the votes: Mantra roles (RM) + prices for
             # ALL teams -> enrich rosters (fills non-top Serie A players who had only the Classic role).

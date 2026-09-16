@@ -312,10 +312,15 @@ tre chiusure non è più appeso. Cinque voci nuove, e due sono debiti dichiarati
   it a simple mathematical term» con cui ha lasciato l'Overall fermo quando è arrivato Fπ. Il fatto
   DICHIARATO resta a schermo come icona; quello che non esiste più è la penalità in punti. Se la rivuole,
   il posto non è l'Overall che ha definito lui: è Fπ o una colonna sua, con il suo nome.
-- [ ] **Il buco del Como sul foglio euro**: **24 dei 29 quotati** mancano perché `_TARGET_FROM_AUTHORITY`
-  filtra sui team presenti in `match_ratings`, e un club appena arrivato nel perimetro euro non ce l'ha.
-  È la stessa forma del difetto del PERIMETRO curato il 08/08 («il listone sa di una promozione prima che
-  si giochi»), un livello più in là.
+- [x] ~~**Il buco del Como sul foglio euro**: **24 dei 29 quotati** mancano perché `_TARGET_FROM_AUTHORITY`
+  filtra sui team presenti in `match_ratings`, e un club appena arrivato nel perimetro euro non ce l'ha.~~
+  **CHIUSO — misurato il 16/09/2026 sul bundle in corso**: 37 club quotati sul listone euro, **37 sul
+  foglio, ZERO uomini mancanti** (`listone_quotes` platform=euro non ceduti contro le righe del foglio).
+  Il club è entrato nel perimetro appena ha avuto giornate in `match_ratings`, quindi il difetto si è
+  chiuso da sé col passare delle giornate — il che vuol dire che **si riaprirà il prossimo agosto**, su
+  una promossa del perimetro euro, ed è quello il momento in cui misurarlo di nuovo. La forma resta
+  quella del difetto del PERIMETRO curato il 08/08 («il listone sa di una promozione prima che si
+  giochi»), un livello più in là.
 
 **Chiusura 19/08 (un vecchio PV non è una previsione di presenze, e l'attesa sul lock)**: nessuna corsa di
 gate, `--verify` 22/22, `SHEET_REVISION` **28 → 29** (fogli, board e i quattro pacchetti rifatti). Le due
