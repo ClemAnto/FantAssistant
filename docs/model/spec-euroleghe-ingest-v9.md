@@ -495,6 +495,31 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.96 (16 settembre 2026, sera tardi — UN OROLOGIO SOLO, e le date sono in UTC)
+
+Decisione dell'operatore sull'aperto di `TimeTravel.realToday`, e la misura dice che l'aperto era
+formulato al contrario: il toolkit data gia' in UTC quasi ovunque e l'app legge in UTC, quindi
+produttore e consumatore erano d'accordo — spostare l'app sull'ora locale avrebbe CREATO la
+discrepanza, e la pastiglia della freschezza avrebbe letto un giorno di ritardo inesistente.
+
+1. **Sei righe portate su UTC**, e nessuna era innocua perche' ognuna produce una data che qualcun
+   altro confronta: `fixtures.observed_on` del calendario (che viaggia nel bundle e l'app confronta col
+   proprio `realToday`), `injuries.observed_on` (idem), l'ancora dell'orizzonte della forma, il
+   riferimento della curva di mercato in `snapshot`, e la finestra del prossimo turno in `press` —
+   quest'ultima scritta la mattina stessa.
+
+2. **`injuries` era una COPPIA gia' coerente**: `date.today()` contro `date.fromtimestamp(mtime)`,
+   tutt'e due locali. Spostarne una sola avrebbe rotto una sottrazione che funzionava; si spostano
+   insieme.
+
+3. **`tests/test_one_clock.py` legge il SORGENTE.** Due orologi divergono solo nelle due ore dopo la
+   mezzanotte italiana, cioe' quando nessuno guarda: un difetto cosi' non ha un momento in cui fallire
+   a comando, quindi la guardia non puo' essere un controllo a runtime. Cerca `date.today()` e
+   `date.fromtimestamp(...)` senza fuso; la controprova rimette una delle sei e il test cade.
+
+Effetto sui dati: nessuna riga esistente viene riscritta, e le date future coincidono con quelle di
+prima tranne per le letture fatte fra mezzanotte e le due.
+
 ## Novità v9.95 (16 settembre 2026, sera — il giudizio era CONTAMINATO, e il prenditore delle prese)
 
 Dettaglio e tabelle: [formazioni-tipo-v1.md](formazioni-tipo-v1.md) §18.5-§18.7.

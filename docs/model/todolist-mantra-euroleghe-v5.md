@@ -77,7 +77,14 @@ del codice è non decidibile come la presa stessa aveva dichiarato prima di sape
    40% sono due fatti diversi. *Il testo originale:* — «prezzo dichiarato della prima cura, su odds
    in parità a quattro moduli». Adesso ha anche un caso vero contro cui misurarsi.
 
-4. **[ ] `TimeTravel.realToday` È UNA DATA UTC** (aperto del 15-16/09, non toccato): fra mezzanotte e le
+4. **[x] `TimeTravel.realToday` È UNA DATA UTC — DECISO dall'operatore il 16/09 («ok UTC») e chiuso.**
+   La decisione conferma l'app, e la misura dice che l'aperto era scritto al contrario: il toolkit data
+   già in UTC quasi ovunque, quindi produttore e consumatore erano d'accordo e passare l'app all'ora
+   locale avrebbe creato la discrepanza. Quello che ne è venuto è l'opposto: **sei righe del toolkit
+   rimaste sull'orologio locale**, portate su UTC (fra cui `calendar.observed_on` e
+   `injuries.observed_on`, che viaggiano nel bundle), più `tests/test_one_clock.py` che legge il
+   sorgente — due orologi divergono solo nelle due ore dopo la mezzanotte, quindi non c'è un momento in
+   cui un controllo a runtime fallirebbe. *Il testo originale:* fra mezzanotte e le
    due italiane «oggi» è ieri, e governa infortuni, acquisti e freschezza. Spostarla è una decisione
    dell'operatore e non una correzione.
 

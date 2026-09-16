@@ -323,7 +323,7 @@ def recent_goals(conn, *, before: str | None = None, league: str = "serie_a",
     history: dict[str, list[tuple[str, float, float]]] = {}
     floor = None
     if horizon_days:
-        anchor = dt.date.fromisoformat(before) if before else dt.date.today()
+        anchor = dt.date.fromisoformat(before) if before else dt.datetime.now(tz=dt.UTC).date()
         floor = (anchor - dt.timedelta(days=horizon_days)).isoformat()
     for season, real_md, club, date in conn.execute(
             """SELECT DISTINCT season, real_md, club, match_date FROM external_match_stats
@@ -567,7 +567,12 @@ def schedule(conn, season: str, leagues: tuple[str, ...] | list[str]) -> dict:
         "SELECT fc_club_id, canonical_name FROM clubs")}
     # The form is «as of today», and the day is written into the artefact: a dated reading whose date
     # nobody stores is a reading that cannot be told from a stale one.
-    today = dt.date.today().isoformat()
+    #
+    # UTC, like every other date this project stamps (operator's decision, 16/09/2026): this one TRAVELS
+    # IN THE BUNDLE as `calendar.observed_on` and the app compares it with its own `realToday`, which is
+    # UTC too - so a local clock here would make the freshness pill read a day off between midnight and
+    # two in the morning, which is exactly the window in which nobody is watching.
+    today = dt.datetime.now(tz=dt.UTC).date().isoformat()
 
     out: dict[str, dict] = {}
     for league in leagues:

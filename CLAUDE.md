@@ -6376,6 +6376,31 @@ darebbe lo stesso risultato col difetto rimesso non prova niente**: il primo tes
 leggendo il numero sia deducendo la finestra, e ho dovuto costruire il caso che li separa (due turni a
 due giorni di distanza) prima che la controprova mordesse.
 
+## UN OROLOGIO SOLO, e le date di questo progetto sono in UTC
+**Decisione dell'operatore, 16/09/2026 («ok UTC»), sull'aperto che diceva che `TimeTravel.realToday` e'
+una data UTC e che fra mezzanotte e le due italiane «oggi» e' ieri.** La decisione conferma lo stato
+dell'app, e **la misura dice che l'aperto era formulato al contrario**: il toolkit data gia' in UTC
+quasi ovunque (`dt.datetime.now(tz=dt.UTC).date()`) e l'app legge in UTC, quindi produttore e
+consumatore erano d'accordo - spostare l'app sull'ora locale avrebbe creato la discrepanza invece di
+curarla, e la pastiglia della freschezza avrebbe letto un giorno di ritardo che non c'era.
+
+**Quello che la decisione ha reso lavoro e' l'opposto: unificare le SEI righe rimaste sull'orologio
+locale**, una delle quali scritta da me quella stessa mattina. Non erano innocue, perche' ognuna
+produce una data che qualcun altro CONFRONTA: `calendar.observed_on` (che l'app confronta col proprio
+`realToday`), `injuries.observed_on` (che viaggia nel bundle), l'ancora della forma, il riferimento
+della curva di mercato e la finestra del prossimo turno.
+
+**Due meta' di una sottrazione stanno sullo stesso orologio**, e una di quelle sei lo era gia': in
+`injuries` il confronto era fra `date.today()` e `date.fromtimestamp(mtime)`, tutt'e due locali, cioe'
+una coppia coerente - spostarne una sola l'avrebbe rotta. Si spostano insieme o non si toccano.
+
+**E la guardia e' un test sul SORGENTE, non un controllo a runtime, perche' due orologi divergono solo
+nelle due ore dopo la mezzanotte** - esattamente la finestra in cui nessuno guarda. Un difetto che non
+si manifesta mai davanti a chi potrebbe riconoscerlo non ha un momento in cui fallire a comando: si
+presenta molto dopo, come un giorno di scarto in un numero che nessuno sa spiegare. Il test cerca
+`date.today()` e `date.fromtimestamp(...)` senza fuso e li rifiuta; l'eccezione legittima (una data che
+nessuno confronta con niente) si aggiunge con la ragione accanto invece di allentare la regola.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

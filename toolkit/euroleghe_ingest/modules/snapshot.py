@@ -2647,7 +2647,7 @@ def starter_signs(conn, season: str, observations, belongs: dict[int, dict[str, 
     # vuole DUE punti, e `market_values` ne ha uno solo per stagione. Un uomo senza curva non e' un uomo
     # che non e' cresciuto - e' un uomo che non abbiamo guardato - quindi non entra nell'insieme e il
     # terzo regime non scatta su di lui, che e' «vuoto = ignoto» applicato a un rapporto.
-    day = as_of or before or dt.date.today().isoformat()
+    day = as_of or before or dt.datetime.now(tz=dt.UTC).date().isoformat()
     then = f"{int(day[:4]) - RISER_REVALUE_MONTHS // 12}{day[4:]}"
     revalued: set[int] = set()
     for fc_id, now_value, old_value in conn.execute(

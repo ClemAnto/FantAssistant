@@ -84,8 +84,13 @@ def _read_on(path) -> str:
     The filesystem is the only place that fact lives - the page carries no stamp we parse - and using
     it rather than the clock is what makes the column survive a `rebuild`, which replays the cache
     offline months later.
+
+    UTC, because this is `injuries.observed_on`: it goes into the table, travels in the bundle and is
+    compared there with dates every other module stamps in UTC. One clock per project (operator,
+    16/09/2026) - two of them differ for the two hours after midnight, which is precisely when nobody
+    is looking and therefore when nobody would catch it.
     """
-    return dt.date.fromtimestamp(path.stat().st_mtime).isoformat()
+    return dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).date().isoformat()
 
 # The source's own Italian labels -> a small vocabulary. Ordered: the first key found wins, so
 # "lesione del legamento crociato" is a knee injury and not a generic muscle one.
@@ -384,8 +389,11 @@ def _stale(path, stale_days: int | None) -> bool:
         return True                    # there is no reading to be old: this is not a judgement call
     if stale_days is None:
         return False
-    read_on = dt.date.fromtimestamp(path.stat().st_mtime)
-    return (dt.date.today() - read_on).days >= stale_days
+    # LE DUE META' DI UNA SOTTRAZIONE STANNO SULLO STESSO OROLOGIO, e qui erano gia' d'accordo perche'
+    # erano tutt'e due locali: spostandone una sola si romperebbe una coppia che funzionava. UTC come
+    # tutto il resto (16/09/2026), quindi si spostano insieme.
+    read_on = dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.UTC).date()
+    return (dt.datetime.now(tz=dt.UTC).date() - read_on).days >= stale_days
 
 
 def _perimeter_clubs(conn) -> list[tuple[int, str]]:

@@ -795,7 +795,7 @@ def next_round_dates(conn, season: str, leagues: tuple[str, ...] | None = None,
     """
     from euroleghe_ingest import config
 
-    day = today or dt.date.today().isoformat()
+    day = today or dt.datetime.now(tz=dt.UTC).date().isoformat()
     days: set[str] = set()
     for league in tuple(leagues or config.CHAMPIONSHIPS):
         row = conn.execute(

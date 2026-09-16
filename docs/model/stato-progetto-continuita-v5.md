@@ -8119,3 +8119,26 @@ il caso storico. Nessun file dell'app toccato in questa metà.
 2. **Scorare la presa del 16/09 dopo il 20**, e accanto a lei il foglio autentico di oggi: è l'altro
    braccio del confronto fra orizzonti, e quattro o cinque giornate lo trasformano in un verdetto.
 3. Il Torino a 5-3-2 e `realToday` in UTC restano dov'erano.
+
+## 16 settembre 2026 (sera tardi) — «ok UTC», e l'aperto era scritto al contrario
+
+L'ultima decisione della giornata, e misurarla prima di eseguirla ha capovolto il lavoro. L'aperto
+diceva «`realToday` è una data UTC, fra mezzanotte e le due "oggi" è ieri» — vero, e la conclusione
+implicita (metterla locale) è **sbagliata**: il toolkit data in UTC quasi ovunque
+(`dt.datetime.now(tz=dt.UTC).date()`) e l'app legge in UTC, quindi produttore e consumatore erano già
+d'accordo. Spostare l'app avrebbe creato la discrepanza, e la pastiglia della freschezza avrebbe letto
+un giorno di ritardo che non esiste.
+
+Il lavoro vero era l'opposto: **sei righe del toolkit sull'orologio locale**, una scritta da me quella
+mattina. Nessuna innocua, perché ognuna produce una data che qualcun altro confronta —
+`calendar.observed_on` (che l'app confronta col proprio `realToday`), `injuries.observed_on` (nel
+bundle), l'ancora della forma, il riferimento della curva di mercato, la finestra del prossimo turno.
+
+Due cose che restano. **Le due metà di una sottrazione stanno sullo stesso orologio**: in `injuries` il
+confronto era fra `date.today()` e `date.fromtimestamp(mtime)`, entrambi locali, cioè una coppia
+coerente — spostarne una sola l'avrebbe rotta. E **la guardia è un test sul SORGENTE**, perché due
+orologi divergono solo nelle due ore dopo la mezzanotte: un difetto che non si manifesta mai davanti a
+chi potrebbe riconoscerlo non ha un momento in cui fallire a comando, e si presenta mesi dopo come un
+giorno di scarto che nessuno sa spiegare.
+
+907 test toolkit, controprova sulla guardia, nessuna riga esistente riscritta.
