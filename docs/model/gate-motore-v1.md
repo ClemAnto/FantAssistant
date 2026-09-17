@@ -6834,3 +6834,45 @@ l'unico modo in cui questa misura può mentire, e va detto invece di essere scop
 dello 0,5%; che l'ottimo si muova con `k` (allora non è un prior, è un fit); che il segno sia negativo su
 una piattaforma; o che le presenze migliorino e il surplus no, cioè che tutto il guadagno sia il doppio
 conteggio con la fantamedia.
+
+### ESITO (17 settembre 2026) — RESPINTO, e su tre criteri su cinque
+
+Corso con il null pre-registrato (`presences_with_seen` a `g` = 0, K = 5), popolazione fuori-core spaccata
+per rung, MAE sulla quota delle giornate che RESTANO, cross-fit leave-one-season-out.
+
+    default   k   n      null     ottimo in-sample      CROSS-FIT LOSO
+              2  1220   0,2470   g = 0     +0,00%      +0,00%   0/10 stagioni
+              4  1626   0,2325   g = 0,06  +0,20%      −0,12%   5/10   peggiore −2,47%
+              6  1833   0,2210   g = 0,08  +0,78%      +0,51%   7/10   peggiore −1,43%
+
+    euro      2  1753   0,2400   g = 0     +0,00%      +0,00%   0/6
+              4  2170   0,2209   g = 0     +0,00%      +0,00%   0/6
+              6  2356   0,2098   g = 0,03  +0,07%      −0,12%   3/6    peggiore −0,63%
+
+**Tre criteri falsificati, e ognuno da solo basterebbe.** L'ottimo **si muove con k** (0 → 0,06 → 0,08 su
+`default`, 0 → 0 → 0,03 su `euro`), che la pre-registrazione dichiarava come la firma di un fit e non di un
+prior. Il segno è **nullo o negativo su `euro`** a ogni k, con la griglia monotona in discesa a k = 2 e 4.
+E l'unica cella che supera il pavimento — `default` a k = 6, +0,51% — ha comunque una stagione a **−1,43%**
+e sette su dieci, cioè un robusto di misura contro un pavimento di 0,5%: non si adotta un canale su una
+cella di sei.
+
+**IL MECCANISMO È IL CONTRARIO DI QUELLO CHE SERVIREBBE, ed è il risultato che vale.** Il guadagno CRESCE
+con k (+0,00 → +0,20 → +0,78 in-sample): il termine comincia a dire qualcosa solo quando le partite sono
+tante — e a quel punto la quota vista lo dice già da sé, che è perché il cross-fit lo mangia. Dove
+servirebbe davvero, alle prime due giornate, **la fantamedia di due partite è rumore**: un gol o un 4,5
+spostano `fm_seen` di un punto e mezzo, e il termine trasferisce quel rumore dentro le presenze. La
+fantamedia d'avvio predice le presenze future, ma non abbastanza presto perché serva a qualcosa.
+
+**E LA DIAGNOSTICA PRE-CORSA AVEVA PROMESSO DIECI VOLTE TANTO** (+1,14 giornate per punto, t 5,05), esattamente
+nel verso che la pre-registrazione aveva scritto prima di correre: il suo null era «quota vista + Elo», che
+non contiene il prior del rung, e il prior del rung porta già gran parte di quell'informazione. *Un `t` di
+5 su un baseline che non è quello che gira non è un canale: è la misura di quanto è debole quel baseline.*
+Vale la pena tenerlo accanto ai due precedenti della stessa famiglia — R24 (+0,198 di parziale, ridondante)
+e le squalifiche (effetto grande, già contenuto nel baseline).
+
+**COSA RESTA VERO**, e va detto perché la domanda che ha aperto tutto era buona: la cascata legge già
+l'avvio su entrambe le colonne (presenze dal 07/09, fantamedia e voto base dal 16/09), e su Kvernadze vale
++7,1 giornate e +0,22 di fantamedia. Quello che il foglio NON gli dà — la quota di 0,94 che la scala della
+titolarità gli legge contro lo 0,74 delle presenze attese — non si chiude con questo termine, e dove sia la
+differenza resta una domanda aperta: il prior del ramo `abroad` (una retta sui minuti di Serie B) è il
+sospetto naturale, e non è stato misurato qui. Nessuna riga di codice cambiata, `engine_*` fermo.
