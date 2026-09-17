@@ -6735,3 +6735,102 @@ Non è la scala della titolarità (`desc_titolarita`), che è già gatata dalla 
 ripiego che legge le partite viste, e la media minuti del portiere), che sono **reporting** e non passano
 da `evaluate` — `backtest --verify` resta 22/22 e nessuna finestra pubblicata si muove.
 
+
+## 7-octoquinquagies. PRE-REGISTRAZIONE (17 settembre 2026) — LA CASCATA LEGGE QUANTE PARTITE HA GIOCATO, NON COME
+
+**Scritta e committata PRIMA della corsa**, come R24, R25, R26 e R27. Dalla domanda dell'operatore su
+Kvernadze: «guardando le prime partite e confrontandolo con casi simili delle passate stagioni (stessa
+titolarità e fm+mv iniziale) … non è meglio lui di tanta gente dopo Soulé o G. Ramos?».
+
+**NON È UNA REGOLA DEL MOTORE E NON HA UNA LETTERA R**: vive in `engine/estimate.py`, cioè nella cascata
+di ripiego, che è REPORTING — `evaluate` non la importa, `engine_*` non si muove di un decimale e
+`backtest --verify` resta 22/22 per costruzione. Si misura lo stesso e con lo stesso protocollo, come
+`presences_with_seen` (07/09), `value_with_seen` (16/09) e le confidenze (§7-duoquinquagies): il gate non
+la possiede, la disciplina sì.
+
+### Il falso allarme che l'ha preceduta, a verbale perché è la parte istruttiva
+
+La prima diagnosi era **sbagliata**: «le presenze di ripiego non leggono le giornate giocate», dedotta dal
+fatto che `est_pv` di Kvernadze (25,1 su 34 = 0,738) coincide con `why_minutes_share` (0,735), che la sua
+nota chiama «il 74% del calendario». Sono due cose diverse — quel 74% sono i minuti di Serie B che entrano
+nel CALENDARIO, non una previsione di presenze — e la sonda sul codice vero lo dice in una riga:
+
+    _rung_for            -> pv=18.0
+    presences_with_seen(18.0, 34, 4, 4, 5.0) -> 25.1
+
+Il prior era **18,0** e la miscela vale **+7,1 giornate**: funziona. Due numeri vicini per ragioni diverse,
+e ci ho costruito sopra una diagnosi. **Il campanello c'era e l'ho letto al contrario**: il test che
+ricostruiva il prior su tutto il foglio sbagliava su **92 righe di 94**, e l'ho registrato come «strumento
+che non discrimina» invece che come «la mia ricostruzione del prior è falsa». *Quando un arnese sbaglia su
+92 casi su 94 non ha un caso giusto: ne ha 94 sbagliati, e quello che sembra tornare è il più pericoloso,
+perché è quello su cui si scrive la conclusione.* È «verifica la FUNZIONE, non la colonna che le somiglia»
+commesso su una colonna diagnostica presa per un ingrediente.
+
+### Il fatto che apre la domanda
+
+`presences_with_seen` riceve `pv_seen` e `rounds_seen` e **non riceve `fm_seen`**: sa quante partite ha
+giocato, non come le ha giocate. `value_with_seen` legge `fm_seen`, ma lo spende sulla FANTAMEDIA. Quindi
+nessuna delle due chiede se chi parte segnando giocherà anche *di più*.
+
+**Diagnostica pre-corsa** (n=1626, chi ha almeno un voto nelle prime 4 giornate di `default`, senza
+stagione utile a t−1, undici stagioni), presenze del resto ~ quota vista + fm d'avvio + Elo del club:
+
+    quota di presenze vista   +13,605 ± 0,781  (t +17,4)
+    FM d'avvio                 +1,140 ± 0,226  (t  +5,1)
+    Elo club /100              +0,309 ± 0,192  (t  +1,6)
+
+**È una diagnostica e NON un risultato, e la differenza è dichiarata qui**: è in-sample, e il suo null non
+è la cascata ma «quota vista + Elo» — cioè un baseline più debole di quello contro cui il candidato dovrà
+vincere. «Un baseline più debole fa sembrare un canale nuovo migliore di quanto sia» (§7-quinquadragies), e
+il verso del bias si scrive prima e non dopo: **mi aspetto che il guadagno vero sia più piccolo di questo.**
+
+### La forma, dichiarata prima
+
+Un parametro, inerte dove non c'è niente da leggere, e che conserva la scala:
+
+    scarto = fm_seen - ancora della fantamedia del suo RUOLO
+    signal = clip(pv_seen / rounds_seen + g * scarto, 0, 1)
+    share  = model.blend_with_seen(prior, signal, rounds_seen, K)
+
+A `fm_seen` uguale all'ancora il termine è ZERO, quindi la correzione non ha un livello: sposta solo chi si
+discosta, nei DUE versi — chi ha giocato quattro partite da 4,5 scende, ed è la metà che rende questa una
+miscela e non un premio. `K` resta quella adottata (`presence.DEFAULTS.season_prior_rounds`): una
+definizione e due lettori, e una seconda K qui rimetterebbe la contraddizione che la miscela ha chiuso.
+
+**Griglia dichiarata**: `g` fra 0 e 0,12 nei punti 0 · 0,01 · 0,02 · 0,03 · 0,04 · 0,06 · 0,08 · 0,12. La
+diagnostica prevede l'ottimo intorno a **0,034** (1,14 giornate su 34), quindi la griglia lo contiene con
+margine da entrambi i lati — e **un ottimo al bordo non si adotta**, come sempre.
+
+### Criteri, scritti prima di guardare un numero
+
+* **Null**: la cascata COME È ADOTTATA OGGI, cioè `presences_with_seen` a `g` = 0. Non la costante, non la
+  quota vista: il candidato deve battere quello che gira adesso.
+* **Popolazione**: gli uomini che il core non prezza (< `MIN_PV_PREV` voti a t−1), **spaccata per rung**
+  (`anchor` · `shrunk` · `abroad`) e per piattaforma, perché i tre hanno tre null diversi — è la lezione
+  che la misura del 07/09 ha già pagato.
+* **Metrica**: MAE sulla quota delle giornate che RESTANO in cui prende il voto, nessuna delle quali entra
+  nel predittore.
+* **Fuori campione**: leave-one-season-out, i coefficienti non vedono mai la stagione su cui sono scorati.
+* **Verdetti**: strict e robusto affiancati, **pavimento 0,5%** sulla media, **nessuna stagione sotto −2%**,
+  ottimo **interno** alla griglia.
+* **Stabilità in k**: misurato a `k` = 2, 4, 6. L'ottimo deve essere stabile al muoversi di k — è la
+  proprietà che un prior deve avere, ed è la stessa conferma che `presences_with_seen` ha portato.
+* **Adozione per PIATTAFORMA**, mai una sola risposta per tutte.
+
+**IL RISCHIO SPECIFICO DI QUESTO CANDIDATO, ed è il primo da misurare: il DOPPIO CONTEGGIO.** Dal 16/09
+`value_with_seen` spende già `fm_seen` sulla fantamedia. Qui lo stesso fatto entra nelle PRESENZE, che è
+un'altra colonna — ma il surplus le MOLTIPLICA, quindi un uomo che parte forte verrebbe premiato due volte
+nello stesso prodotto. Perciò la misura si fa sulle presenze (dove il doppio conteggio non esiste, perché
+`value_with_seen` non le tocca) **e** si riporta l'effetto sul surplus, che è la quantità che l'operatore
+legge. Se il guadagno sulle presenze c'è ma il surplus peggiora, non si adotta.
+
+**LIMITE DICHIARATO SULLA RICOSTRUZIONE**: il prior storico del rung è ricostruito dalle funzioni pure di
+`estimate.py` (`PRESENCE_SHARE`, `presences_from_abroad`) e non rieseguendo `snapshot` su ogni data, quindi
+non è il prior al bit. Il confronto è **appaiato sullo stesso prior** nei due bracci, quindi un prior
+imperfetto non favorisce nessuno dei due — a meno che il suo errore sia correlato con `fm_seen`, che è
+l'unico modo in cui questa misura può mentire, e va detto invece di essere scoperto.
+
+**COSA LA FALSIFICA.** Che l'ottimo cada su `g` = 0 o sul bordo; che il guadagno stia sotto il pavimento
+dello 0,5%; che l'ottimo si muova con `k` (allora non è un prior, è un fit); che il segno sia negativo su
+una piattaforma; o che le presenze migliorino e il surplus no, cioè che tutto il guadagno sia il doppio
+conteggio con la fantamedia.
