@@ -6932,3 +6932,49 @@ retta in vigore, e vince solo se batte **il pavimento dello 0,5%** con ottimo in
 calibrazione); che sparisca restringendo la popolazione a «chi ha poi giocato», cioè a quella del fit
 (allora è la mia popolazione a essere un'altra); o che il MAE della retta in vigore batta comunque quello
 del rifit fuori campione, che è l'unico metro che decide.
+
+### ESITO (18 settembre 2026) — LA RETTA È CALIBRATA, e l'aperto che l'aveva chiesta era MAL POSTO
+
+Quattro fogli back-dated al 15 agosto su `default` e due su `euro`, ingredienti dalla sonda sul codice
+vero, esito dal foglio stesso (`actual_pv / actual_rounds`):
+
+    foglio          n    RETTA   REALE   scarto   MAE
+    2022-23       178    0,431   0,409   −0,022   0,2670
+    2023-24       179    0,449   0,469   +0,020   0,2220
+    2024-25       150    0,437   0,469   +0,032   0,2307
+    2025-26       157    0,431   0,509   +0,078   0,2568   ← la stagione dell'IPOTESI, non conta
+    euro 2024-25    9    0,204   0,047   −0,157
+    euro 2025-26    8    0,212   0,048   −0,163
+
+**IPOTESI FALSIFICATA SUL CRITERIO SCRITTO PRIMA.** Lo scarto **cambia segno** fra le stagioni di prova
+(−0,022 · +0,020 · +0,032), la mediana è +0,020 contro la soglia di 0,04, e per banda oscilla attorno allo
+zero senza forma (+0,007 · +0,023 · −0,003 · +0,025 · −0,025). La pre-registrazione lo diceva: «se lo
+scarto cambia segno fra le stagioni è rumore di stagione, non calibrazione».
+
+**E IL NUMERO CHE CHIUDE LA QUESTIONE È LA PENDENZA**: sulle tre stagioni di prova il realizzato legge
+**+0,321 di pendenza e +0,347 di intercetta** contro il **+0,320 e +0,339** che la retta porta da agosto.
+Calibrata al millesimo, su 415 uomini che non erano nel campione da cui l'ipotesi è nata. La controprova
+più dura è che **un rifit su quelle stesse righe non guadagna nemmeno IN-SAMPLE**: MAE 0,2405 contro
+0,2404 della retta in vigore. Non c'è niente da correggere, e il 2025-26 è una stagione — la sola che ho
+guardato prima di formulare l'ipotesi, che è esattamente perché non contava.
+
+**SU `euro` LA DOMANDA NON È MISURABILE E LA RAGIONE È STRUTTURALE**: 9 e 8 uomini. Là il set adottato
+include R0c (l'ancora del ruolo), quindi il core prezza quasi tutti e questa retta non viene quasi mai
+chiamata. Lo scarto negativo che si legge su quelle righe (−0,16) è su una popolazione troppo piccola per
+dire qualunque cosa, e va registrato come «non misurato» e non come «sovrastima».
+
+**E L'APERTO CHE AVEVA CHIESTO QUESTA MISURA ERA MAL POSTO, che è il risultato più utile della giornata.**
+Il 17/09 avevo scritto: «la scala della titolarità legge Kvernadze 0,94 e le presenze attese 0,74, e il
+sospetto naturale è il prior del ramo `abroad`». **Le due quote non sono la stessa quantità.**
+`desc_titolarita_play` è `presence.appearance_share`, il cui denominatore è CONDIZIONALE — «delle giornate
+per cui è in contesa», senza lo sconto di disponibilità, perché la scala deve accordarsi con l'undici tipo,
+che è la squadra con tutti sani — mentre `est_pv` è una previsione su TUTTO il calendario, sconto infortuni
+compreso. Un uomo che gioca ogni partita per cui è disponibile legge 1,0 sulla prima ed è giusto così.
+Quindi non c'era nessuna contraddizione da spiegare: **era un errore di unità**, la famiglia più cara di
+questo repository, commessa per la terza volta in tre giorni sullo stesso caso — dopo `why_minutes_share`
+preso per il prior e `external_stats` letto senza il filtro della fonte.
+
+**Il filo si chiude qui, e la risposta alla domanda che l'ha aperto è che il motore Kvernadze lo legge
+bene**: l'avvio entra già nelle presenze (+7,1 giornate) e nella fantamedia (+0,22), il termine che avrebbe
+fatto entrare la FM d'avvio anche nelle presenze è respinto (§7-octoquinquagies), e il prior da cui tutto
+parte è calibrato. Nessuna riga di codice cambiata in tre giorni di misure, che è il verdetto.
