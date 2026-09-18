@@ -6537,6 +6537,58 @@ ora asserita esplicitamente invece di essere implicata da un letterale. E **la c
 e' verde»: e' rimettere il difetto e guardare QUALI test cadono** — qui esattamente i cinque che descrivono
 le cure, su due linguaggi, e nessun altro.
 
+## La STAMPA ha un foglio che la cattura, e l'app la RI-PUBBLICA senza mai leggerla
+**18-19/09/2026, richiesta dell'operatore. Dettaglio:
+[docs/model/attendibilita-probabili-v1.md](docs/model/attendibilita-probabili-v1.md).**
+`scripts/gas/probabili-sheet.gs` e' un Apps Script su un foglio Google (fuori dal repository, su Drive):
+cattura **quattro fonti** di probabili formazioni a QUINDICI MINUTI dal fischio di ogni club - il numero
+e' suo, e «le formazioni ufficiali rientrano nel computo» - legge la verita' dalla pagina dei voti e
+misura, turno dopo turno, **quale sito ci prende di piu'**. La terza voce della sezione Squadre
+(«Prossimo turno», `core/next-round.ts`) legge il suo endpoint DAL VIVO e disegna quello che le fonti
+hanno pubblicato.
+
+**E' UNA TERZA COSA, non un terzo orizzonte delle nostre board.** In questo progetto la stampa e' un
+GIUDICE (`press --against press`) e mai un input: leggerla dentro il claim renderebbe circolare proprio
+il confronto che la usa. Quindi `BoardHorizon` NON la contiene - infilarla li' la farebbe arrivare a
+`boardViewOf`, cioe' al lettore di `boards.json` - il payload dichiara di se' cosa e' (`what`), la pagina
+lo ripete, e nessun percorso del motore la rilegge.
+
+**Perche' legge la RETE e non il pacchetto** (sua decisione): il bundle lo scrive `export` sul suo
+portatile, mentre le prese avvengono col portatile magari spento - una board consegnata dal pacchetto
+sarebbe vecchia di un giorno **proprio per le partite per cui esiste**. Che l'origine dell'app possa
+davvero leggere quell'endpoint e' stato MISURATO prima di scrivere una riga di vista (200, `type: cors`,
+20 club, da gh-pages E da localhost): una risposta `opaque` sarebbe stata un 200 illeggibile.
+
+**UN TRASPORTO PUO' FALLIRE DA SE', E ALLORA RITENTARE NON NASCONDE NIENTE.** Apps Script risponde a un
+`doGet` con un 302 verso `script.googleusercontent.com`, e quel secondo salto porta un gettone monouso
+che ogni tanto non si risolve: misurato, il PRIMO salto risponde 302 sei volte su sei e il secondo **404
+due volte su sei**, con 5-27 secondi di attesa. Tre tentativi, e il messaggio dice quanti ne sono caduti -
+o un endpoint rotto davvero si leggerebbe come uno lento. Prima della cura il banco era verde **una corsa
+su due**, che e' il modo in cui un difetto del trasporto si fa scambiare per un difetto della vista.
+
+**QUATTRO REGOLE SUL DISEGNARE UN UNDICI CHE NON E' NOSTRO**, e valgono oltre questa pagina.
+- **Un matching MASSIMO risponde a «quanti ne entrano», non a «dove»**: a parita' di cardinalita'
+  qualunque assegnazione gli va bene, e fra quelle ce ne sono di assurde (un centrale in mezzo al campo,
+  un quinto fra i tre difensori). Si prova prima quella che rispetta la riga di CASA di ognuno e la si
+  tiene solo se piazza tanti uomini - **un posto vuoto e' una bugia piu' grossa di un uomo fuori posto**.
+- **I CODICI di un uomo vengono prima di una posizione presa altrove.** `Pc` e' un'affermazione su QUEL
+  CALCIATORE; la `x` del nostro campetto e' un'affermazione su un ALTRO undici, e se li' il posto largo
+  era quello che restava, trasportarlo disegna un centravanti sull'ala. La nostra board resta preziosa
+  dove i codici TACCIONO - `C`, `M`, `T`, `B` non dicono niente sulla fascia.
+- **Una riga si dispone CERCANDO e non ordinando.** `laneCost` risponde ZERO a chi non ha codici che
+  parlano, e zero in un ordinamento crescente vuol dire «primo» invece di «dove capita». Le righe sono di
+  cinque uomini al massimo: il minimo si trova esatto, e non c'e' nessuna priorita' da fissare fra il lato
+  e la linea - che e' la scelta che il pannello del toolkit ha gia' misurato come sbagliata in tutt'e due
+  gli ordini.
+- **Un marcatore non puo' rivendicare un lato che non e' il suo**: `Ad`/`As`, `Td`/`Ts` dicono mestiere E
+  fascia, e dove il posto non conferma il lato si toglie il lato e resta il mestiere.
+
+**E UNA FONTE ARCHIVIATA COME RIFIUTATA SMETTE DI ESSERE MISURATA.** Il verdetto su SOS Fanta era
+sbagliato **due volte**: i «49 canvas» erano `offcanvas-menu` (un grep, non un browser), e la pagina che
+porta gli undici era LINKATA dall'hub e non era mai stata provata. Una volta che una fonte e' in lista
+«non utilizzabile», il metodo che ribalterebbe il verdetto non le viene piu' applicato - ed e' la stessa
+forma del difetto che si spiega da se' con una storia plausibile.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

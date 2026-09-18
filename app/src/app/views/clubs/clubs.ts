@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
@@ -14,6 +15,18 @@ import { cleanSheetBaseline, cleanSheetOutlook } from '../../core/keeper-pairs';
 import { CardMan, CardStack } from '../../core/player-card';
 import { LineupMan, MatchLineup, lineupOf } from '../../core/match-lineup';
 import { EDGE_BASE } from '../../core/plancia';
+import { BoardHorizon, BoardMan } from '../../core/bundle';
+import { PitchLine } from '../../core/club-eleven';
+import { laneKnown } from '../../core/match-lineup';
+
+/** Dove la board disegna un uomo: la riga, il punto sull'asse laterale e la parola del suo posto. */
+interface Spot {
+  line: PitchLine;
+  x: number;
+  badge: string | null;
+}
+import { NextRoundStore } from '../../core/next-round-store';
+import { NextMan, ShapeOdds, linesFor, nextClubFor, nextPitch, nextShapes } from '../../core/next-round';
 import { MatchCell, Platform, PlayersStore, day } from '../../core/players-store';
 import { upcomingFor, withUpcoming } from '../../core/next-match';
 import { Role } from '../../core/plancia';
@@ -23,6 +36,7 @@ import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubBoard } from '../../ui/club-board/club-board';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { MatchLineupBoard } from '../../ui/match-lineup/match-lineup';
+import { NextRoundBoard } from '../../ui/next-round/next-round';
 import { MatchesTable } from '../../ui/matches-table/matches-table';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { SquadTable } from '../../ui/squad-table/squad-table';
@@ -38,6 +52,18 @@ import { itDate } from '../../core/tooltip';
  * schermata calciatori» has to mean the same cells and not a second drawing of them.
  */
 export type SquadMode = 'values' | 'matches';
+
+/**
+ * LE TRE LETTURE DELL'UNDICI DI UN CLUB, e la terza non e' un terzo orizzonte della stessa cosa.
+ *
+ * `season` e `short` sono le nostre board: le disegna il toolkit, sono previsioni nostre e si scelgono
+ * su `ValuationStore.boardHorizon`, che altre schermate leggono. `next` e' LA STAMPA - quello che
+ * quattro siti hanno pubblicato a un quarto d'ora dal fischio - e in questo progetto la stampa e' un
+ * GIUDICE delle prime due e mai un input. Per questo vive in un campo di questa vista e NON dentro
+ * `BoardHorizon`: infilarla li' la farebbe arrivare a `boardViewOf`, cioe' al lettore di `boards.json`,
+ * che una board della stampa non ce l'ha e non deve averla.
+ */
+export type BoardTab = BoardHorizon | 'next';
 
 /**
  * Le squadre: what each real club has, in today's snapshot.
@@ -61,7 +87,9 @@ export type SquadMode = 'values' | 'matches';
     MatchesTable,
     NzAlertModule,
     NzButtonModule,
+    NextRoundBoard,
     NzIconModule,
+    NzInputModule,
     NzRadioModule,
     NzSpinModule,
     NzTooltipModule,
@@ -410,6 +438,238 @@ export class Clubs {
       + ' fuori campione su 3.638 partite-club, sbaglia meno della lettura di stagione su chi comincia'
       + " (Brier 0.170 → 0.154) e ne indovina 8.7 degli undici veri contro 8.5. Gli indisponibili di oggi"
       + ' sono fuori.';
+  });
+
+  // ------------------------------------------------------------------ il prossimo turno (la stampa)
+
+  /** Il foglio delle probabili, letto dal vivo. Solo questa vista lo chiede, e solo se lo si apre. */
+  protected readonly next = inject(NextRoundStore);
+
+  /** Quale delle tre letture e' a schermo. Non e' salvata: si riparte sempre dalla nostra. */
+  protected readonly boardTab = signal<BoardTab>('season');
+
+  /**
+   * La scelta scrive in DUE posti diversi apposta: i due orizzonti nostri vanno su `boardHorizon`, che
+   * e' dello store e lo leggono altre schermate; la stampa resta qui. E la rete si paga solo quando la
+   * si apre - `load()` chiede una volta sola, e `idle` esiste proprio per poter dire «nessuno ha ancora
+   * chiesto» invece di far partire una lettura a ogni apertura della pagina.
+   */
+  protected chooseBoard(tab: BoardTab): void {
+    this.boardTab.set(tab);
+    if (tab !== 'next') {
+      this.store.boardHorizon.set(tab);
+      return;
+    }
+    this.next.load();
+  }
+
+  /**
+   * Il club del payload che corrisponde a questo, AGGANCIATO PER `fc_id` E MAI PER NOME: il foglio
+   * chiama i club con la sua tabella di alias e questa app col nome canonico del listone: un join per
+   * stringa fra i due e' il difetto che qui ha gia' perso Milan, Roma e Napoli una volta.
+   */
+  protected readonly nextClub = computed(() =>
+    nextClubFor(this.next.round(), this.store.squad().map((man) => man.fcId)),
+  );
+
+  /**
+   * Il ruolo del LISTONE per ogni uomo della rosa: le fonti ne pubblicano uno solo a volte, e il
+   * vocabolario con cui si compra e' il nostro. Non torna in nessun numero - e' come si legge una riga.
+   */
+  protected readonly nextRoles = computed<ReadonlyMap<number, string>>(() => {
+    const out = new Map<number, string>();
+    for (const man of this.store.squad()) out.set(man.fcId, man.role);
+    return out;
+  });
+
+  /** Chi di quei nomi e' uno che compriamo: solo per lui c'e' una card da aprire. */
+  protected readonly nextKnown = computed<ReadonlySet<number>>(
+    () => new Set(this.store.squad().map((man) => man.fcId)),
+  );
+
+  /**
+   * I MODULI CHE QUESTO CLUB GIOCA, e sono quelli VERI.
+   *
+   * Non il regolamento mantra - correzione dell'operatore, 18/09/2026: quella e' la legalita' di un
+   * undici al fantacalcio, mentre qui la domanda e' sul calcio. Il repertorio lo MISURA gia' il toolkit
+   * e viaggia nel pacchetto: `odds` da' a ogni modulo la probabilita' che quel club lo giochi, e
+   * `board_shape` e' quello su cui la board e' stata risolta. Una lista di moduli scritta a mano in
+   * TypeScript sarebbe una seconda copia di una misura.
+   */
+  protected readonly shapeCandidates = computed<ShapeOdds[]>(() => {
+    const board = this.store.board();
+    if (!board) return [];
+    const out = new Map<string, number | null>();
+    for (const [shape, odds] of Object.entries(board.odds ?? {})) out.set(shape, odds);
+    for (const shape of [board.board_shape, board.picture, board.formation_typical]) {
+      if (shape && !out.has(shape)) out.set(shape, null);
+    }
+    // ...E I MODULI VERI CHE IL PACCHETTO HA VISTO NEGLI ALTRI CLUB, come ripiego dichiarato. Il
+    // repertorio di un club e' stretto - il Cagliari gioca quattro schemi, tutti con la difesa a
+    // quattro - e la stampa puo' annunciare una cosa che quel club non ha ancora giocato. Sono misurati
+    // (le board del toolkit), non trascritti, entrano SENZA probabilita' e quindi vanno sempre dopo i
+    // suoi, e la carta dice che non sono roba sua.
+    for (const shape of this.leagueShapes()) if (!out.has(shape)) out.set(shape, null);
+    return [...out].map(([shape, odds]) => ({ shape, odds }));
+  });
+
+  /** I moduli che il pacchetto disegna su TUTTI i club di questa piattaforma: un universo misurato. */
+  private readonly leagueShapes = computed<string[]>(() => {
+    const view = this.valuation.boardViewFor(this.store.platform());
+    const out = new Set<string>();
+    for (const board of Object.values(view?.clubs ?? {})) {
+      for (const shape of [board.board_shape, board.picture, board.formation_typical]) {
+        if (shape) out.add(shape);
+      }
+      for (const shape of Object.keys(board.odds ?? {})) out.add(shape);
+    }
+    return [...out];
+  });
+
+  /**
+   * SU QUALI LINEE PUO' STARE OGNI UOMO: dai suoi codici granulari, o dal suo macro-ruolo.
+   *
+   * Una definizione (`linesFor`) e non una per schermata: e' il vocabolario con cui il quinto sta in
+   * difesa o a centrocampo e l'ala arretra a coprire la fascia, che questo progetto ha gia' scritto
+   * nelle trasformazioni del pannello.
+   */
+  /**
+   * Il ruolo del LISTONE di un uomo: il nostro quando e' uno che compriamo, quello della fonte
+   * altrimenti. Una definizione e tre lettori (la riga, il ripiego delle linee, il badge), o tre
+   * risposte diverse allo stesso «che ruolo ha» disegnerebbero un campetto che non torna coi suoi nomi.
+   */
+  private readonly roleFor = (man: { fcId: number | null; role: string | null }): string | null =>
+    (man.fcId !== null ? this.nextRoles().get(man.fcId) : null) ?? man.role;
+
+  private readonly codesFor = (man: NextMan): readonly string[] =>
+    (man.fcId !== null ? this.squadRoles().get(man.fcId) : null) ?? [];
+
+  /**
+   * DOVE LA NOSTRA BOARD DISEGNA OGNI UOMO - la linea e il punto sull'asse laterale.
+   *
+   * E' il meccanismo della formazione stagionale RIUSATO invece che rifatto (operatore, 18/09/2026): il
+   * campetto del toolkit ha gia' risolto quell'assegnazione sull'intero undici, con l'ungherese sui
+   * codici granulari e le sue riparazioni, e il risultato viaggia nel pacchetto uomo per uomo. Entrano
+   * anche i BALLOTTAGGI, perche' un rivale di un posto gioca in quella linea: e' quello che il posto
+   * dice di lui.
+   */
+  private readonly boardSpot = computed<ReadonlyMap<number, Spot>>(() => {
+    const out = new Map<number, Spot>();
+    const lines = this.store.board()?.lines;
+    if (!lines) return out;
+    for (const [line, men] of Object.entries(lines) as [PitchLine, BoardMan[]][]) {
+      for (const man of men ?? []) {
+        if (man?.fc_id) {
+          out.set(Number(man.fc_id), { line, x: man.x ?? 0.5, badge: man.badge ?? null });
+        }
+        for (const duel of man?.duels ?? []) {
+          if (duel?.fc_id && !out.has(Number(duel.fc_id))) {
+            // Un ballottaggio eredita il POSTO che si contende, quindi anche la sua etichetta.
+            out.set(Number(duel.fc_id), { line, x: man.x ?? 0.5, badge: man.badge ?? null });
+          }
+        }
+      }
+    }
+    return out;
+  });
+
+  /**
+   * SU QUALI LINEE PUO' STARE: quella in cui la NOSTRA board lo disegna, o - per chi non disegna - le
+   * linee che i suoi codici coprono. Il primo canale e' un'assegnazione gia' risolta, il secondo una
+   * proprieta' dell'uomo: l'ordine fra i due e' la decisione.
+   */
+  /**
+   * Le linee di un uomo si calcolano UNA VOLTA. `nextShapes` interroga ogni modulo candidato e, dove c'e'
+   * una maglia contesa, ogni combinazione di contendenti: senza memoria la stessa risposta veniva
+   * ricostruita qualche migliaio di volte per club. La chiave e' l'OGGETTO - gli uomini escono tutti da
+   * `parseNextRound` - quindi una `WeakMap` si svuota da se' quando arriva una presa nuova.
+   */
+  private readonly lines = computed<WeakMap<NextMan, readonly PitchLine[]>>(() => {
+    // LA CACHE DIPENDE DA CIO' CHE MEMORIZZA, e questa riga e' la ragione per cui e' un `computed` e non
+    // un campo: le linee di un uomo leggono la board, quindi cambiando ORIZZONTE (stagione / ultimo
+    // periodo) la stessa persona puo' avere una riga di casa diversa. Con una WeakMap tenuta a mano
+    // sarebbero rimaste quelle di prima - un'ottimizzazione che si ricorda una risposta vecchia e' un
+    // difetto, non un guadagno.
+    this.boardSpot();
+    return new WeakMap<NextMan, readonly PitchLine[]>();
+  });
+
+  private readonly linesOf = (man: NextMan): readonly PitchLine[] => {
+    const memo = this.lines();
+    const seen = memo.get(man);
+    if (seen) return seen;
+    const out = this.linesFresh(man);
+    memo.set(man, out);
+    return out;
+  };
+
+  private readonly linesFresh = (man: NextMan): readonly PitchLine[] => {
+    const spot = man.fcId !== null ? this.boardSpot().get(man.fcId) : null;
+    const own = linesFor(this.codesFor(man), this.roleFor(man));
+    if (!spot) return own;
+    // LA BOARD SI AGGIUNGE, NON RESTRINGE, e la prima versione faceva il contrario: inchiodare ognuno
+    // alla riga in cui il nostro campetto lo disegna ha fatto smettere di disegnare Roma e Milan, perche'
+    // la stampa schiera un modulo diverso dal nostro e li' qualcuno deve stare in un'altra riga. Il suo
+    // posto e' un SUGGERIMENTO su dove gioca, non un veto su dove puo' giocare - e dove pesa davvero e'
+    // nell'ORDINE dentro la riga (`xOf`), che e' un'assegnazione gia' risolta sull'intero undici.
+    return own.includes(spot.line) ? own : [spot.line, ...own];
+  };
+
+  /** Dove la board lo mette sull'asse laterale, per ordinare la riga. Null = non lo disegna. */
+  private readonly xOf = (man: NextMan): number | null =>
+    (man.fcId !== null ? this.boardSpot().get(man.fcId)?.x : null) ?? null;
+
+  /** ...e in quale RIGA, che e' quella che decide dove mostrarlo come alternativa. */
+  private readonly homeOf = (man: NextMan): PitchLine | null =>
+    (man.fcId !== null ? this.boardSpot().get(man.fcId)?.line : null) ?? null;
+
+  /**
+   * ...e come si chiama il suo posto: la parola della NOSTRA board, o il suo codice primario di listone.
+   * Nessuna delle due e' inventata qui, che e' la ragione per cui non si costruisce un'etichetta dalla
+   * posizione nella riga - «il terzo di una difesa a tre» non e' una parola che qualcuno usa.
+   */
+  private readonly badgeOf = (man: NextMan): string | null => {
+    const codes = this.codesFor(man);
+    // IL MARCATORE NON PUO' CONTRADDIRE IL POSTO. Quello della board porta un LATO (`Ad`, `As`), e la
+    // fascia la decidono i CODICI quando parlano: Noslin, disegnato al centro perche' e' un `Pc`,
+    // leggeva «Ad» sopra la testa (operatore, 19/09/2026). Dove i codici parlano l'etichetta e' la loro;
+    // il marcatore della board resta dove sono muti, che e' l'unico posto in cui aggiunge qualcosa.
+    if (laneKnown(codes)) return codes[0].charAt(0).toUpperCase() + codes[0].slice(1);
+    const spot = man.fcId !== null ? this.boardSpot().get(man.fcId) : null;
+    if (spot?.badge) return spot.badge;
+    return codes.length ? codes[0].charAt(0).toUpperCase() + codes[0].slice(1) : null;
+  };
+
+  /** Che modulo giocano questi undici: quello dichiarato dalle fonti, o il più probabile del suo repertorio. */
+  protected readonly nextShape = computed(() => {
+    const club = this.nextClub();
+    return club ? nextShapes(club, this.linesOf, this.shapeCandidates()) : null;
+  });
+
+  /** Gli undici ai loro posti. Niente campetto finché il modulo non è UNO. */
+  protected readonly nextPitch = computed(() => {
+    const club = this.nextClub();
+    const shape = this.nextShape();
+    if (!club || shape?.shapes.length !== 1) return null;
+    return nextPitch(club, shape.shapes[0], this.linesOf, this.codesFor, shape.by, shape.ours,
+      this.xOf, this.homeOf, this.badgeOf);
+  });
+
+  /**
+   * QUANDO ABBIAMO LETTO, e il GIORNO c'e' appena non e' oggi.
+   *
+   * E' un'altra cosa dal momento in cui la presa e' stata fatta (quello sta sul campetto, in minuti dal
+   * fischio): questo dice quanto e' vecchia la copia che stiamo guardando. Da quando la lettura si tiene
+   * in `localStorage` puo' essere di ieri o di un altro turno, e una presa vecchia disegnata senza la sua
+   * data si leggerebbe come quella di oggi. In ora LOCALE, perche' e' visualizzazione.
+   */
+  protected readonly nextReadAt = computed(() => {
+    const when = this.next.readAt();
+    if (!when) return null;
+    const at = when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    const same = when.toDateString() === new Date().toDateString();
+    return same ? `oggi alle ${at}` : `il ${when.toLocaleDateString('it-IT',
+      { day: '2-digit', month: '2-digit' })} alle ${at}`;
   });
 
   protected readonly openCards = computed(() => {

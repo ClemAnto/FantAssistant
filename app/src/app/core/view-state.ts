@@ -194,3 +194,17 @@ function write(key: string, value: string): void {
     // No storage: the preference lasts for this session, which is better than a broken page.
   }
 }
+
+/**
+ * ...e lo stesso per un TESTO LIBERO, che è quello che è un indirizzo.
+ *
+ * Non ha un elenco di valori ammessi perché non ne esiste uno: quello che si valida qui è soltanto che
+ * sul disco ci fosse una stringa. Un valore vuoto NON è lo stesso di «mai scritto» - chi legge deve
+ * poter dire «l'operatore l'ha cancellato» - quindi si torna quello che c'è, spazi compresi.
+ */
+export function storedText(key: string, initial: string): WritableSignal<string> {
+  const saved = read(key);
+  const value = signal<string>(saved === null ? initial : saved);
+  effect(() => write(key, value()));
+  return value;
+}

@@ -121,7 +121,10 @@
            tabella accanto (`minmax(0,1fr)`) puo' cedere, che e' quello che le serve: ha il suo scroller
            orizzontale dal 10/09 e la carta no. Sotto `lg` la griglia e' a una colonna e non la legge. -->
       <div class="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(550px,550px)_minmax(0,1fr)]">
-        <section class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
+        <!-- IL GANCIO `data-board` E' PER CHI VERIFICA, ed e' sulla CARTA e non su quello che ci sta
+             dentro: un banco che cercasse la sezione a partire dal campetto non potrebbe dire niente
+             proprio quando il campetto non c'e' - che e' lo stato in cui c'e' piu' da capire. -->
+        <section data-board class="flex flex-col gap-2 rounded-card border border-border bg-surface p-3">
           <div class="flex flex-wrap items-center gap-2">
             <ui-crest [club]="club.name" [clubId]="club.id" [crests]="store.crests()" size="md" />
             <h2 class="text-lg font-semibold text-fg">{{ club.name }}</h2>
@@ -132,17 +135,29 @@
                  ...E NON MENTRE SI GUARDA UNA PARTITA GIA' GIOCATA: i due orizzonti sono due PREVISIONI
                  ("le giornate che restano" e "la prossima partita"), e li' non c'e' niente da prevedere -
                  un interruttore acceso sopra un fatto direbbe che anche quello e' una delle due letture. -->
-            @if (store.hasShortBoards() && !picked()) {
+            <!-- ...E LA TERZA NON È UNA NOSTRA LETTURA (operatore, 18/09/2026). «Prossimo turno» è quello
+                 che quattro siti hanno PUBBLICATO a un quarto d'ora dal fischio, raccolto dal foglio
+                 Google e riletto qui dal vivo. Sta accanto alle altre due perché è la stessa domanda
+                 vista da fuori - chi gioca sabato - e resta un oggetto separato perché in questo
+                 progetto la stampa è il GIUDICE delle nostre due board e mai un loro input.
+
+                 Il pulsante c'è anche dove «Ultimo periodo» non c'è: quello dipende dal pacchetto, che
+                 può non portare la board breve; questo dipende dal foglio, che è un'altra fonte. -->
+            @if (!picked()) {
               <nz-radio-group
                 class="ml-auto"
                 nzSize="small"
-                [ngModel]="store.boardHorizon()"
-                (ngModelChange)="store.boardHorizon.set($event)"
+                [ngModel]="boardTab()"
+                (ngModelChange)="chooseBoard($event)"
               >
                 <label nz-radio-button nzValue="season" nz-tooltip
                   nzTooltipTitle="L'undici che schiera quando sono tutti disponibili, su una stagione intera. È la lettura con cui si compra a un'asta: prevede le giornate che RESTANO.">Stagione</label>
-                <label nz-radio-button nzValue="short" nz-tooltip
-                  [nzTooltipTitle]="shortHint()">Ultimo periodo</label>
+                @if (store.hasShortBoards()) {
+                  <label nz-radio-button nzValue="short" nz-tooltip
+                    [nzTooltipTitle]="shortHint()">Ultimo periodo</label>
+                }
+                <label nz-radio-button nzValue="next" nz-tooltip
+                  nzTooltipTitle="Quello che fantacalcio.it, Sky, il Corriere dello Sport e SOS Fanta hanno pubblicato per la prossima partita di questo club, contato: quanti lo nominano su quante fonti hanno letto. NON è una nostra previsione - è la stampa, che qui giudica le altre due letture.">Prossimo turno</label>
               </nz-radio-group>
             }
           </div>
@@ -196,6 +211,89 @@
               <div class="flex items-center gap-3 py-6 text-muted">
                 <nz-spin nzSimple nzSize="small" />
                 Leggo la distinta di questa partita...
+              </div>
+            }
+          } @else if (boardTab() === 'next') {
+            <!-- I QUATTRO STATI DI UNA LETTURA DALLA RETE, disegnati tutti e quattro: una board vuota e
+                 una rete muta non devono leggersi uguali, o uno schermo senza nomi direbbe «le fonti non
+                 schierano nessuno» quando il vero significato è «non ho parlato con nessuno». -->
+            <!-- LA LETTURA IN MANO VIENE PRIMA DELLO STATO, e l'ordine di questi rami E' la decisione:
+                 da quando la lettura si conserva in `localStorage` una rilettura che parte non deve far
+                 sparire quello che si sta guardando, ne' una rilettura fallita cancellare una presa
+                 buona. Quindi si disegna cio' che si ha, e lo stato lo dice la riga sotto. -->
+            @if (nextClub(); as reading) {
+              <ui-next-round
+                [club]="reading"
+                [roles]="nextRoles()"
+                [known]="nextKnown()"
+                [what]="next.round()?.what ?? ''"
+                [shape]="nextShape()"
+                [pitch]="nextPitch()"
+                (pick)="onPick($event)"
+              />
+              <p class="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+                <span>
+                  Turno <strong>{{ next.round()?.round ?? '?' }}</strong> ·
+                  {{ next.round()?.clubs?.length ?? 0 }} club nel foglio@if (nextReadAt(); as at) {
+                    <span> · letto {{ at }}</span>
+                  }
+                </span>
+                <!-- IL TASTINO (operatore, 18/09/2026): la rete e' un GESTO e non un effetto
+                     dell'aprire la pagina. Porta la sua attesa addosso, cosi' «sto leggendo» si vede
+                     dove si e' premuto invece che al posto del campetto. -->
+                <button
+                  nz-button
+                  nzSize="small"
+                  [nzLoading]="next.state() === 'loading'"
+                  (click)="next.refresh()"
+                >
+                  Rileggi
+                </button>
+                @if (next.state() === 'unreachable') {
+                  <!-- LA RILETTURA E' FALLITA E LA PRESA VECCHIA RESTA: due fatti, e si dicono tutti e
+                       due. Nasconderne uno farebbe leggere una copia di ieri come la lettura di adesso. -->
+                  <span class="text-warning">l'ultima rilettura non è riuscita: {{ next.why() }}</span>
+                }
+              </p>
+            } @else if (next.state() === 'loading' || next.state() === 'idle') {
+              <div class="flex items-center gap-3 py-6 text-muted">
+                <nz-spin nzSimple nzSize="small" />
+                Leggo le probabili dal foglio...
+              </div>
+            } @else if (next.state() === 'unreachable') {
+              <div class="flex flex-col gap-2 py-2">
+                <nz-alert
+                  nzType="warning"
+                  nzMessage="Il foglio delle probabili non risponde"
+                  [nzDescription]="next.why()"
+                />
+                <!-- L'INDIRIZZO SI PUÒ RISCRIVERE DA QUI, e non è una comodità: Apps Script cambia
+                     l'indirizzo a ogni NUOVA distribuzione, quindi senza questa casella una
+                     ridistribuzione richiederebbe una ricompilazione dell'app. -->
+                <div class="flex flex-wrap items-center gap-2">
+                  <input
+                    nz-input
+                    nzSize="small"
+                    class="min-w-0 flex-1"
+                    placeholder="https://script.google.com/macros/s/.../exec"
+                    [ngModel]="next.url()"
+                    (ngModelChange)="next.url.set($event)"
+                    (keyup.enter)="next.refresh()"
+                  />
+                  <button nz-button nzSize="small" (click)="next.refresh()">Rileggi</button>
+                </div>
+              </div>
+            } @else {
+              <!-- LETTO, e per questa squadra non c'è niente: è un'altra cosa da «non ho letto», e il
+                   messaggio dice quale delle due, perché la via d'uscita è diversa. -->
+              <div class="flex flex-col items-start gap-2 py-4 text-sm text-muted">
+                <p>
+                  Il foglio ha letto <strong>{{ next.round()?.clubs?.length ?? 0 }}</strong> club del turno
+                  {{ next.round()?.round ?? '?' }} e nessuno di loro è questo: o la presa di questa
+                  giornata non c'è ancora, o i nomi non si agganciano alla rosa.
+                </p>
+                <button nz-button nzSize="small" [nzLoading]="next.state() === 'loading'"
+                  (click)="next.refresh()">Rileggi il foglio</button>
               </div>
             }
           } @else {

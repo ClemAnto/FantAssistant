@@ -180,6 +180,18 @@ const LANE: Record<string, Lane> = {
  * «destra» come farebbe un massimo. Zero ovunque per chi non ne ha nessuno che parli: non e' un uomo
  * che sta bene ovunque, e' un uomo di cui non si sa niente, e infatti finisce dove resta posto.
  */
+/**
+ * QUESTI CODICI DICONO QUALCOSA SULLA FASCIA? - la stessa tabella di `laneCost`, letta dall'altro lato.
+ *
+ * Serve perche' `laneCost` risponde ZERO a chi non parla, e zero e' anche una risposta legittima (la
+ * fascia destra a x=0): dal costo non si distingue «sta bene qui» da «non ne so niente». Chi ha bisogno
+ * di quella differenza - il campetto delle probabili, per decidere se fidarsi dei codici o di una
+ * posizione presa altrove - la chiede qui invece di ricopiarsi l'elenco.
+ */
+export function laneKnown(codes: readonly string[] | null | undefined): boolean {
+  return (codes ?? []).some((code) => !!LANE[code.trim().toUpperCase()]);
+}
+
 export function laneCost(codes: readonly string[] | null | undefined, x: number): number {
   let sum = 0;
   let heard = 0;

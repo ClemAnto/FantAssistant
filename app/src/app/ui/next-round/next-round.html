@@ -1,0 +1,275 @@
+<div class="flex flex-col gap-3">
+  <!-- QUANDO E' STATA PRESA, che e' il numero che qualifica tutto quello che c'e' sotto: a settantadue
+       minuti dal fischio e' una previsione di quattro redazioni, a dieci e' in buona parte la copia di un
+       undici gia' annunciato. Due letture identiche prese in due momenti diversi non valgono uguale, e
+       senza questa riga si leggerebbero uguali. -->
+  <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+    @if (kickoff(); as when) {
+      <span class="text-fg">Fischio <strong>{{ when }}</strong></span>
+    }
+    @if (lead(); as minutes) {
+      <span
+        nz-tooltip
+        [nzTooltipTitle]="leadHint()"
+        [class.text-muted]="official() !== true"
+        [class.text-warning]="official() === true"
+        >letta {{ minutes }}′ prima@if (official() === true) {
+          <span> · dentro le ufficiali</span>
+        }</span
+      >
+    } @else {
+      <span class="text-muted" [nzTooltipTitle]="leadHint()" nz-tooltip>quando, non si sa</span>
+    }
+    <span class="text-muted">{{ club().sources }} fonti lette</span>
+  </div>
+
+  <!-- IL CAMPETTO, quando il modulo si riesce a DEDURRE dagli undici. Lo stesso campo degli altri due
+       - porta in alto, attacco in basso, una zona per linea - perche' e' la stessa domanda guardata da
+       un'altra parte: due sfondi direbbero che sono tre cose diverse.
+
+       QUELLO CHE QUI NON C'E' e' il vocabolario delle altre due carte: niente quota da titolare, niente
+       minuti previsti, niente voti. Le fonti pubblicano NOMI, e riempire l'arredamento di una domanda
+       con i dati di un'altra e' il difetto che questa pagina si e' gia' scritta due volte. -->
+  @if (pitch(); as drawn) {
+    <div
+      class="flex w-full flex-col gap-1 rounded-lg p-2 outline outline-1 -outline-offset-4
+             outline-fg/25 sm:gap-2"
+      style="background-image: linear-gradient(
+        to bottom,
+        color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
+        color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
+      )"
+    >
+      @for (row of drawn.rows; track row.line) {
+        <div class="flex items-stretch justify-center gap-1 sm:gap-2" [attr.data-line]="row.line">
+          @for (place of row.places; track $index) {
+            <!-- UN ITEM E' UN POSTO, come sugli altri due campetti: sopra il nome che il regolamento
+                 chiama quel posto (`DC/B`, `A/PC`), sotto chi lo occupa. Il posto e' del MODULO e resta
+                 anche quando nessuno lo riempie - un undici disegnato in dieci direbbe che le fonti ne
+                 schierano dieci. -->
+            <span
+              class="flex min-w-0 max-w-[33%] flex-1 flex-col gap-0.5 rounded-md border px-1 py-1"
+              [class]="place.man
+                ? 'border-border bg-surface/90'
+                : 'border-dashed border-warning/60 bg-surface/50'"
+              data-place
+              [attr.data-badge]="place.badge"
+            >
+              <!-- L'ETICHETTA DEL POSTO, come sul campetto stagionale (richiesta dell'operatore,
+                   18/09/2026): spenta, perche' e' il POSTO e non un dodicesimo giocatore - i colori del
+                   listone appartengono ai calciatori sotto. Assente dove non si sa come si chiama:
+                   una casella senza scritta, mai una scritta a caso. -->
+              @if (place.badge) {
+                <span class="flex justify-center"><ui-role [role]="place.badge" size="xs" quiet /></span>
+              }
+              @if (at(place.man); as one) {
+                <span class="flex min-w-0 items-center gap-1">
+                  @if (one.role) {
+                    <ui-role [role]="one.role" size="xs" />
+                  }
+                  @if (one.known) {
+                    <span
+                      data-cell="name"
+                      class="min-w-0 flex-1 cursor-pointer truncate text-[11px] font-medium leading-tight
+                             text-fg hover:underline"
+                      role="button"
+                      tabindex="0"
+                      [title]="one.man.player"
+                      (click)="choose(one)"
+                      >{{ one.man.player }}</span
+                    >
+                  } @else {
+                    <span data-cell="name" class="min-w-0 flex-1 truncate text-[11px] leading-tight text-muted"
+                      [title]="one.man.player">{{ one.man.player }}</span>
+                  }
+                  <span
+                    data-cell="votes"
+                    class="shrink-0 text-[10px] tabular-nums"
+                    [class.text-muted]="!one.unanimous"
+                    [class.text-fg]="one.unanimous"
+                    nz-tooltip
+                    [nzTooltipTitle]="one.man.by.join(' · ')"
+                    >{{ one.man.votes }}/{{ one.man.of }}</span
+                  >
+                </span>
+              } @else if (place.contested.length) {
+                <!-- LA MAGLIA CONTESA E' UN POSTO, e ci stanno dentro tutti e due: il campo e' dove una
+                     monetina si vede meglio, e riempirlo con uno dei due sarebbe romperla proprio dove
+                     nessuno se ne accorgerebbe. Quale posto sia lo ha deciso l'assegnazione, non noi. -->
+                <span class="flex flex-col gap-0.5" data-contested nz-tooltip
+                  [nzTooltipTitle]="contestHint()">
+                  @for (man of place.contested; track man.player) {
+                    @if (at(man); as one) {
+                      <span class="flex min-w-0 items-center gap-1">
+                        @if (one.role) {
+                          <ui-role [role]="one.role" size="xs" />
+                        }
+                        <span data-cell="name"
+                          class="min-w-0 flex-1 truncate text-[11px] leading-tight text-warning"
+                          [title]="one.man.player">{{ one.man.player }}</span>
+                        <span data-cell="votes" class="shrink-0 text-[10px] tabular-nums text-warning"
+                          >{{ one.man.votes }}/{{ one.man.of }}</span>
+                      </span>
+                    }
+                  }
+                </span>
+              } @else {
+                <span class="py-1 text-center text-[10px] leading-tight text-muted">—</span>
+              }
+              <!-- CHI LE FONTI RIMASTE METTONO AL SUO POSTO: sotto il nome, piu' piccolo e in grigio,
+                   perche' e' una minoranza e non una seconda scelta nostra. Compare solo dove chi
+                   occupa il posto non e' nominato da tutti - sotto un 4/4 non c'e' niente da vedere. -->
+              @for (other of place.alternatives; track other.player) {
+                @if (at(other); as alt) {
+                  <span class="flex min-w-0 items-center gap-1 border-t border-border/60 pt-0.5" data-alt>
+                    @if (alt.role) {
+                      <ui-role [role]="alt.role" size="xs" quiet />
+                    }
+                    <span data-cell="name" class="min-w-0 flex-1 truncate text-[10px] leading-tight text-muted"
+                      [title]="alt.man.player">{{ alt.man.player }}</span>
+                    <span data-cell="votes" class="shrink-0 text-[9px] tabular-nums text-muted"
+                      >{{ alt.man.votes }}/{{ alt.man.of }}</span>
+                  </span>
+                }
+              }
+            </span>
+          }
+        </div>
+      }
+    </div>
+    @if (drawn.orphans.length) {
+      <p class="text-[11px] leading-snug text-warning">
+        Si giocano una maglia e il campo non ha un posto che li ospiti:
+        @for (man of drawn.orphans; track man.player) {
+          <strong>{{ man.player }}</strong> ({{ man.votes }}/{{ man.of }}){{ $last ? '' : ' · ' }}
+        }
+      </p>
+    }
+    <p class="text-[11px] leading-snug text-muted">
+      Modulo <strong class="text-fg">{{ shapeName() }}</strong>, {{ shapeSaid() }}. I posti vengono dal
+      <strong>nostro campetto</strong> per chi il toolkit disegna, e dall'assegnazione sui ruoli granulari
+      per gli altri.
+    </p>
+  } @else if (shape()?.why; as why) {
+    <!-- IL MODULO NON SI PUO' DIRE, E LA RAGIONE STA A SCHERMO: un campetto che sparisce senza una
+         frase si legge come un guasto, ed e' il difetto che questa app ha gia' pagato su un blocco
+         vuoto che dava la colpa alla cosa sbagliata. -->
+    <p class="rounded-card border border-dashed border-border px-2 py-1.5 text-[11px] text-muted">
+      Nessun campetto: {{ why }}.
+    </p>
+  }
+
+  <!-- LE LISTE SOLO DOVE IL CAMPETTO NON C'E' (operatore, 18/09/2026: «puoi togliere la lista, basta il
+       campetto»). Dove il modulo si deduce, il campo dice tutto quello che le liste dicevano - i nomi,
+       chi contende una maglia e quante fonti nominano ognuno - e ripeterlo sotto sarebbe la stessa cosa
+       due volte. Dove il modulo NON si deduce, invece, restano: un club su cinque legge un 3-4-2-1 coi
+       ruoli del listone e non sta in nessun modulo classic, e li' senza le liste non resterebbe niente
+       da guardare - che e' peggio di una lista in piu'.
+
+       Quello che si perde dove il campetto c'e' e' «gli altri nominati», cioe' chi una fonte sola mette
+       fuori dagli undici: e' una sua decisione, ed e' reversibile togliendo questo `@if`. -->
+  @if (!pitch()) {
+  <!-- CHI E' DENTRO SENZA CONTESA, e possono essere meno di undici: e' proprio quando lo sono che questa
+         lettura dice qualcosa, perche' vuol dire che le fonti non si sono messe d'accordo sul resto. -->
+    <div class="flex flex-col gap-1">
+      <p class="text-[11px] uppercase tracking-wide text-muted">
+        Nominati da tutti o quasi · {{ certain().length }} di 11
+      </p>
+      <ul class="flex flex-col gap-0.5">
+        @for (one of certain(); track one.man.player) {
+          <ng-container *ngTemplateOutlet="row; context: { $implicit: one, band: 'certain' }" />
+        }
+      </ul>
+    </div>
+  
+    @if (contested().length) {
+      <!-- IL PAREGGIO SI MOSTRA E NON SI ROMPE. La prima versione prendeva gli undici piu' votati e
+           spareggiava sulla probabilita' e poi sul NOME, cioe' decideva l'undicesima maglia in ordine
+           alfabetico: invisibile, e sbagliata la meta' delle volte. -->
+      <div class="flex flex-col gap-1 rounded-card border border-warning/40 bg-warning/5 p-2">
+        <p class="text-[11px] uppercase tracking-wide text-warning" nz-tooltip [nzTooltipTitle]="contestHint()">
+          {{ club().contestedPlaces === 1 ? 'Una maglia' : club().contestedPlaces + ' maglie' }} ·
+          {{ contested().length }} uomini a pari voti
+        </p>
+        <ul class="flex flex-col gap-0.5">
+          @for (one of contested(); track one.man.player) {
+            <ng-container *ngTemplateOutlet="row; context: { $implicit: one, band: 'contested' }" />
+          }
+        </ul>
+      </div>
+    }
+  
+    @if (out().length) {
+      <div class="flex flex-col gap-1">
+        <p class="text-[11px] uppercase tracking-wide text-muted">
+          Nominati da qualcuno, fuori dall'undici · {{ out().length }}
+        </p>
+        <ul class="flex flex-col gap-0.5">
+          @for (one of out(); track one.man.player) {
+            <ng-container *ngTemplateOutlet="row; context: { $implicit: one, band: 'out' }" />
+          }
+        </ul>
+      </div>
+    }
+  }
+
+  <!-- LA FRASE VIENE DAL PAYLOAD e non e' riscritta qui: chi legge deve sapere che e' la stampa e non una
+       nostra previsione, e due copie della stessa affermazione finirebbero per dirne due versioni. -->
+  <p class="border-t border-border pt-2 text-[11px] leading-snug text-muted">
+    {{ what() }} — le nostre due board stanno sugli altri due pulsanti, e sono
+    <strong>giudicate</strong> contro queste fonti.
+  </p>
+</div>
+
+<!-- I GANCI `data-` SONO PER CHI VERIFICA, e sono DATI e non stili: un banco che riconoscesse una riga
+     dalla classe che sta controllando non potrebbe fallire su quella classe (il difetto del 04/09/2026,
+     e un `every` su un elenco vuoto e' vero). Qui la banda e' quello che la riga E', non come e' dipinta. -->
+<ng-template #row let-one let-band="band">
+  <li
+    class="flex items-center gap-2 rounded px-1 py-0.5 text-xs"
+    [class]="one.unanimous ? 'bg-fg/5' : ''"
+    [attr.data-band]="band"
+  >
+    @if (one.role) {
+      <ui-role [role]="one.role" size="xs" />
+    } @else {
+      <!-- Vuoto = ignoto: uno spazio della taglia del badge, non una lettera inventata. -->
+      <span class="inline-block h-4 w-4 shrink-0"></span>
+    }
+    @if (one.known) {
+      <button
+        type="button"
+        data-cell="name"
+        class="truncate text-fg hover:text-primary hover:underline"
+        (click)="choose(one)"
+      >
+        {{ one.man.player }}
+      </button>
+    } @else {
+      <!-- Un nome che la nostra identita' non aggancia resta un uomo, e lo dice: toglierlo lo farebbe
+           leggere come «nessuno lo nomina» mentre le fonti lo nominano eccome. -->
+      <span
+        data-cell="name"
+        class="truncate text-muted"
+        nz-tooltip
+        nzTooltipTitle="Le fonti lo nominano, il listone di questa piattaforma non lo aggancia: nessuna card da aprire."
+        >{{ one.man.player }}</span
+      >
+    }
+    <span
+      data-cell="votes"
+      class="ml-auto shrink-0 tabular-nums"
+      [class.text-muted]="!one.unanimous"
+      [class.text-fg]="one.unanimous"
+      nz-tooltip
+      [nzTooltipTitle]="one.man.by.join(' · ')"
+      >{{ one.man.votes }}/{{ one.man.of }}</span
+    >
+    <!-- La percentuale la pubblicano due fonti su quattro: si mostra, e non decide niente. -->
+    <span class="w-10 shrink-0 text-right text-[10px] tabular-nums text-muted">
+      @if (one.pct) {
+        {{ one.pct }}
+      }
+    </span>
+  </li>
+</ng-template>

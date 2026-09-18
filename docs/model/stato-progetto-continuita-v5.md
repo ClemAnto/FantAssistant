@@ -8374,19 +8374,88 @@ falsa».
 pre-registrazioni e due esiti. **Nessuna riga di codice in tre giorni di misure**, `engine_*` fermo,
 `SHEET_REVISION` invariato, nessun percorso del gate toccato.
 
-## Stato alla chiusura del 18 settembre 2026
+## 18-19 settembre 2026 — LE PROBABILI DELLA STAMPA: un foglio che le cattura, e la terza lettura in Squadre
 
-**Cosa NON si è mosso, verificato e non dedotto**: `engine_*`, la cascata `est_*`, `SHEET_REVISION`, il
-pacchetto. Tutto il lavoro è misura e verbale.
+**Richiesta dell'operatore**: «crea uno script anche su google-sheet che in automatico per ogni giornata
+di serie-a... scansioni i siti principali che mostrano le probabili formazioni... poi alla fine del turno
+crei un report con i calciatori corretti e quelli sbagliati». Dettaglio pieno:
+[attendibilita-probabili-v1.md](attendibilita-probabili-v1.md).
+
+**COSA C'E' ORA.** `scripts/gas/probabili-sheet.gs` (~1.900 righe): quattro fonti
+(fantacalcio.it, sport.sky.it, corrieredellosport.it, sosfanta.com), presa a **15 minuti dal fischio di
+ogni club** (numero dell'operatore, e «le formazioni ufficiali rientrano nel computo»: sono una PREVISIONE
+delle fonti sopra i 30' e in parte una copia sotto, e la riga lo dice), verita' dalla pagina dei voti,
+punteggio per fonte, quadro `Stato`, potatura delle prese vecchie, e un `doGet` che pubblica il turno in
+JSON. Dal lato app: la terza voce **«Prossimo turno»** accanto a *stagione* e *ultimo periodo*
+(`core/next-round.ts`, `core/next-round-store.ts`, `ui/next-round/`), che legge quell'endpoint DAL VIVO.
+
+**LE DECISIONI SUE, e ognuna ha cambiato il lavoro.** La linea e' il FISCHIO e non il primo anticipo;
+le ufficiali contano; **lettura diretta** e non dal pacchetto (che sarebbe vecchio di un giorno proprio
+per le partite per cui serve); la lettura si tiene in `localStorage` e **la rete e' un tastino**; via la
+lista dove c'e' il campetto; i moduli sono quelli **reali** e non quelli del regolamento mantra; e
+«utilizza i nostri algoritmi delle formazioni per piazzare le 11 scelte».
+
+**QUELLO CHE SI MISURA E' LA STAMPA, E LA STAMPA QUI E' UN GIUDICE.** Le nostre due board sono giudicate
+CONTRO queste fonti (`press --against press`), quindi leggerle dentro il claim renderebbe circolare quel
+confronto: la terza voce e' un oggetto SEPARATO che nessun percorso del motore rilegge, il payload lo
+dichiara di se' (`what`) e la pagina lo ripete.
+
+**I NUMERI DELLA GIORNATA.**
+- L'endpoint: 200, `type: cors`, 39.768 byte e 20 club **sia da gh-pages sia da localhost** - misurato
+  prima di scrivere una riga di vista.
+- Il secondo salto di Apps Script (`script.googleusercontent.com`, gettone monouso) risponde **404 due
+  volte su sei**, fino a 27 secondi: `TRIES` = 3, e prima della cura il banco era verde **una corsa su
+  due**.
+- Il campetto: **19 club su 20** disegnano (l'Inter no, due nominati non sono su questo listone). Con i
+  soli ruoli classic erano 12 e quattro undici veri non stavano in nessun modulo; coi posti tipati mantra
+  erano 6.
+
+**QUATTRO LEZIONI CHE RESTANO.**
+1. **Un matching MASSIMO risponde a «quanti», non a «dove»**: a parita' di cardinalita' qualunque
+   assegnazione gli va bene, e fra quelle ce ne sono di assurde. Si prova prima quella che rispetta la
+   riga di CASA di ognuno e la si tiene solo se piazza tanti uomini - un posto vuoto e' una bugia piu'
+   grossa di un uomo fuori posto.
+2. **I CODICI vengono prima della posizione presa altrove**: `Pc` e' un'affermazione su QUELL'UOMO, la
+   `x` del nostro campetto e' un'affermazione su un ALTRO undici. La board resta preziosa dove i codici
+   TACCIONO (`C`, `M`, `T`, `B` non dicono niente sulla fascia).
+3. **Una riga si dispone CERCANDO, non ordinando**: `laneCost` risponde zero a chi non parla, e zero in
+   un ordinamento crescente vuol dire «primo» invece di «dove capita».
+4. **Un marcatore non puo' rivendicare un lato che non e' il suo**: dove il lato non torna si toglie il
+   lato e resta il mestiere (`Ad` -> `A`).
+
+**E DUE ERRORI DI METODO, tutti e due pagati.** Il verdetto su SOS Fanta era sbagliato **due volte** (i
+«49 canvas» erano `offcanvas-menu`, e la pagina con gli undici era LINKATA dall'hub e mai provata): una
+volta che una fonte e' archiviata come rifiutata, il metodo che ribalterebbe il verdetto smette di
+esserle applicato. E la prima controprova del banco e' stata **inerte** - il difetto rimesso non muoveva
+niente su quel club - quindi il banco sembrava cieco: *un fixture che darebbe lo stesso risultato col
+difetto rimesso non prova niente.*
+
+**Verificato**: build pulito, **1020 test** su 58 file, `app/scripts/e2e-next-round.mjs` verde su otto
+club (ogni nome e ogni conteggio contro il payload scaricato da Node, mai contro lo schermo), e la cache
+provata **bloccando `script.google.com` nel browser**: se il turno e' ancora li', viene dal disco.
+
+**Cosa NON si e' mosso**: `engine_*`, `SHEET_REVISION`, la cascata `est_*`, il pacchetto. Il lato app
+legge e non ricalcola; il lato foglio vive fuori dal repository, su Drive.
+
+## Stato alla chiusura del 19 settembre 2026
+
+**Cosa NON si e' mosso, verificato e non dedotto**: `engine_*`, la cascata `est_*`, `SHEET_REVISION`, il
+pacchetto. Il lavoro del 18-19 e' un foglio Google (fuori dal repository) piu' una vista che LEGGE.
 
 **Il punto di ripresa, in ordine di leva.**
-1. **Scorare la presa del 16/09** (`press --score-preregistration
-   docs/model/preregistrazione-board-breve-2026-09-16.md`) e accanto a lei il foglio autentico di oggi:
-   resta l'aperto a leva più alta, e le giornate ormai giocate lo rendono scorabile.
-2. **L'aperto di PRESENTAZIONE nato oggi** (§47, ultimo capoverso): il gradino della titolarità e le
-   presenze attese stanno vicini sullo schermo e hanno denominatori diversi, e la riga non lo dice — chi
-   le guarda insieme fa lo stesso confronto sbagliato che ho fatto io. La cura è un tooltip che nomini il
-   denominatore, come per il chip dei minuti del 18/08.
-3. **Su `euro` la retta dei minuti all'estero è NON MISURATA** (9 e 8 uomini, perché là R0c prezza quasi
-   tutti): registrato come tale, e non come «sovrastima». Riapribile solo se quella popolazione cresce.
-4. Gli aperti di merito restano quelli della todolist.
+1. **Ricopiare il `.gs` nel foglio e ridistribuire.** Due cose aspettano li': l'export dei moduli che
+   ogni fonte DICHIARA (`shapes`) - che manda in pensione la deduzione e vale i tre club che oggi non
+   disegnano - e la fusione delle due grafie di un uomo solo (`Haps` / `Haps R.`, `mergeInitials_`). Una
+   ridistribuzione **cambia l'indirizzo**, che si incolla nella casella della sezione.
+2. **Il primo verdetto di attendibilita'.** Lo scorer gira il lunedi' mattina: il turno 5 e' il primo
+   turno catturato, e la classifica va letta col **margine sul null** accanto alla percentuale, mai la
+   percentuale da sola (venti club sono venti osservazioni, e sulla giornata 4 l'Atalanta ha tenuto 9
+   degli 11 titolari della giornata prima).
+3. **Scorare la presa del 16/09** (`press --score-preregistration
+   docs/model/preregistrazione-board-breve-2026-09-16.md`), che resta l'aperto a leva piu' alta del
+   lavoro sui campetti.
+4. **L'aperto di PRESENTAZIONE del 18/09** (`letture-app-v1.md` §47): il gradino della titolarita' e le
+   presenze attese stanno vicini sullo schermo e hanno denominatori diversi, e la riga non lo dice.
+5. **La riga `N% degli uomini al 100%`** nel `Log` del foglio: dice se le letture prese DENTRO la
+   finestra delle ufficiali sono copie dell'undici annunciato. Si guarda dopo qualche turno.
+6. Gli aperti di merito restano quelli della todolist.
