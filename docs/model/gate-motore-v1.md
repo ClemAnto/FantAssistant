@@ -6876,3 +6876,59 @@ l'avvio su entrambe le colonne (presenze dal 07/09, fantamedia e voto base dal 1
 titolarità gli legge contro lo 0,74 delle presenze attese — non si chiude con questo termine, e dove sia la
 differenza resta una domanda aperta: il prior del ramo `abroad` (una retta sui minuti di Serie B) è il
 sospetto naturale, e non è stato misurato qui. Nessuna riga di codice cambiata, `engine_*` fermo.
+
+## 7-novenquinquagies. PRE-REGISTRAZIONE (18 settembre 2026) — LA RETTA DEI MINUTI ALL'ESTERO È TROPPO BASSA?
+
+**Scritta prima delle corse di verifica, e con la contaminazione dichiarata in cima** (vedi sotto). Nasce
+dall'aperto lasciato da §7-octoquinquagies: la scala della titolarità legge Kvernadze 0,94 e le presenze
+attese 0,74, e il sospetto naturale è il PRIOR del ramo `abroad` — `est.presences_from_abroad`, la retta
+`share = a + b × (minuti di lega / 90 × giornate)`, adottata il 19/08/2026 con `default (0,339 · 0,320)` e
+`euro (0,183 · 0,357)`.
+
+**LA CONTAMINAZIONE, detta per prima perché decide il peso dell'evidenza.** La stagione **2025-26 è già
+stata guardata**: è quella su cui l'ipotesi è nata, con il foglio back-dated al 15/08/2025 giudicato
+sull'esito vero e gli ingredienti presi dalla SONDA sul codice (non ricostruiti — due ricostruzioni
+sbagliate in due giorni bastano). n=157, e la retta sottostima in **tutte e cinque** le bande:
+
+    banda minuti   n    RETTA   est_pv   REALE   scarto
+    0,0-0,2       74    0,367    0,404   0,467   +0,100
+    0,2-0,4       43    0,430    0,459   0,501   +0,071
+    0,4-0,6       17    0,502    0,477   0,536   +0,034
+    0,6-0,8       13    0,562    0,533   0,595   +0,033
+    0,8-1,0       10    0,613    0,596   0,692   +0,079
+    TOTALE       157    0,431    0,450   0,509   +0,078
+
+pendenza realizzata **+0,246** contro +0,320 adottata, intercetta **+0,438** contro +0,339. Quella tabella
+è quindi **l'ipotesi e non la prova**: passare là è l'evidenza più debole possibile, esattamente come T1/T2
+per il gate. La prova sono le stagioni che non ho guardato.
+
+### Criteri, scritti prima delle altre corse
+
+* **Finestre di prova**: i fogli back-dated al 15 agosto di **2022-23, 2023-24, 2024-25** su `default`, più
+  `euro` su due stagioni. 2025-26 è riportata ma **non conta** nel verdetto.
+* **Ingredienti**: dalla SONDA sul codice vero (`presences_from_abroad` intercettata durante `snapshot`),
+  mai ricostruiti da una colonna che somiglia all'ingrediente. È la regola che questa sessione ha già
+  violato due volte — `why_minutes_share` preso per il prior, e `external_stats` letto senza
+  `source='sofascore'` né il ripiego `tm_appearances`.
+* **Esito**: `actual_pv / actual_rounds` dal foglio stesso, cioè le giornate DOPO la data d'asta.
+* **Metrica**: lo SCARTO medio (predetto − reale) per banda di minuti, e il MAE.
+* **Cosa conta come difetto**: uno scarto dello stesso SEGNO su **almeno 3 delle 4 stagioni** di `default`
+  e una mediana sopra **0,04** di calendario (una giornata e mezza su 38). Sotto, la retta resta dov'è.
+* **Il verso della popolazione è dichiarato**: sul foglio entra anche chi poi NON ha giocato
+  (`actual_pv` = 0), mentre il fit originale è su «chi ha poi giocato qui». È il verso CONSERVATIVO — una
+  popolazione più larga abbassa il realizzato — quindi uno scarto positivo misurato così è un minimo.
+
+**SE IL DIFETTO C'È, LA CURA NON È OVVIA E NON VA SCELTA ORA.** Un rifit è la risposta pigra: la retta è
+adottata con un LOSO che dichiara +17,9% su `default`, quindi se oggi legge bassa la domanda è **cosa è
+cambiato** — e i due candidati sono scritti prima di guardare, perché dopo si razionalizza. (1) La
+POPOLAZIONE si è mossa: il 06/09 la rinomina degli slug e il ripiego `tm_appearances` hanno allargato chi
+arriva a questa retta (455 righe di foglio che prima prendevano la costante), e un fit non si applica fuori
+dalla popolazione su cui è stato misurato. (2) Il DENOMINATORE: `league_rounds` per l'estero è stato curato
+il 06/09, e prima poteva leggere una giornata sola su alcune celle. Se la causa è (1) o (2), la cura è
+ri-misurare sulla popolazione di oggi; se non è nessuna delle due, il rifit va giudicato LOSO contro la
+retta in vigore, e vince solo se batte **il pavimento dello 0,5%** con ottimo interno.
+
+**COSA LA FALSIFICA.** Che lo scarto cambi segno fra le stagioni (allora è rumore di stagione, non
+calibrazione); che sparisca restringendo la popolazione a «chi ha poi giocato», cioè a quella del fit
+(allora è la mia popolazione a essere un'altra); o che il MAE della retta in vigore batta comunque quello
+del rifit fuori campione, che è l'unico metro che decide.
