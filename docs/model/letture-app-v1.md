@@ -5793,3 +5793,45 @@ del pannello (`sweep.build_inputs` costruisce `presence.Inputs` dal DB senza dis
 che ha più probabilità di fallire, perché lo standing legge gli stessi minuti che R3 legge già. Le due forme
 e i criteri sono scritti prima della corsa in `gate-motore-v1.md` §7-septquinquagies.
 
+
+## 47 — IL CASO KVERNADZE: la domanda era buona, e i tre sospetti erano tre errori di unità miei
+
+**16-18 settembre 2026, dalla domanda dell'operatore**: «guardando le prime partite di Kvernadze e
+confrontandolo con casi simili delle passate stagioni (stessa titolarità e fm+mv iniziale) … non è meglio
+lui di tanta gente dopo Soulé o G. Ramos?». Dettaglio e protocollo delle due misure: gate
+§7-octoquinquagies e §7-novenquinquagies.
+
+**LA FOTOGRAFIA GLI DAVA RAGIONE.** Kvernadze (Frosinone, A, `est_basis` = `anchor`) era **53º fra gli
+attaccanti** con la fantamedia d'avvio **più alta del listone** — 4 su 4 da titolare, 90·90·90·87 minuti,
+voti 5,5 · 7,5 · 7,5 · 7,5, due gol e un assist, FM 8,75 — sotto uomini con un avvio da 1,15 (Neres,
+panchina), 1,5 (Bobcek, riserva) e 2,65 (Dovbyk, panchina).
+
+**E LA RISPOSTA È CHE IL MOTORE LO LEGGE BENE.** L'avvio entra già in tutte e tre le colonne della cascata,
+e la sonda sul codice vero lo stampa in una riga (`_rung_for` → `presences_with_seen` → `value_with_seen`):
+presenze **18,0 → 25,1** (+7,1 giornate, miscela del 07/09), fantamedia **6,373 → 6,589** e voto base
+6,070 → 6,154 (miscela del 16/09). Quello che resta fuori — la FM d'avvio che predice anche le PRESENZE —
+è stato pre-registrato e **respinto**; il prior da cui tutto parte, la retta sui minuti all'estero, è stato
+pre-registrato e misurato **calibrato al millesimo**. Oggi legge 45º con 18,5 di surplus, e quella
+posizione è difendibile.
+
+**I TRE SOSPETTI ERANO TRE ERRORI DELLA STESSA FAMIGLIA, ed è la parte che vale.**
+1. **`why_minutes_share` preso per il prior delle presenze.** 25,1/34 = 0,738 somiglia a 0,735, e quel
+   0,735 sono i minuti di Serie B che entrano nel CALENDARIO — non una previsione. Il prior vero era 18,0.
+2. **`external_stats` letto senza il filtro della fonte** (`source='sofascore'`) e senza il ripiego
+   `tm_appearances`: la popolazione ricostruita non era quella del codice, e la pendenza che ne usciva
+   (+0,44) non era confrontabile con quella adottata (+0,357).
+3. **`desc_titolarita_play` 0,94 confrontata con `est_pv/34` = 0,74.** Non sono la stessa quantità:
+   `appearance_share` ha un denominatore **CONDIZIONALE** — «delle giornate per cui è in contesa», senza lo
+   sconto di disponibilità, perché la scala deve accordarsi con l'undici tipo, che è la squadra con tutti
+   sani — mentre `est_pv` è una previsione su TUTTO il calendario. Un uomo che gioca ogni partita per cui
+   è disponibile legge 1,0 sulla prima ed è giusto così. **Non c'era nessuna contraddizione da spiegare.**
+
+Tutti e tre hanno prodotto una storia plausibile prima di essere misurati, e tutti e tre sono caduti
+chiamando la funzione invece di ricostruirla. È «verifica la FUNZIONE, non la colonna che le somiglia»
+tre volte in tre giorni sullo stesso uomo.
+
+**PER L'INTERFACCIA RESTA UNA COSA VERA**: due colonne che l'operatore legge vicine — il gradino della
+titolarità e le presenze attese — hanno denominatori diversi e la riga non lo dice. Chi le guarda insieme
+fa esattamente il confronto che ho fatto io. Non è un difetto di calcolo ed è un aperto di PRESENTAZIONE,
+scritto qui invece che risolto: la cura naturale è che il tooltip del gradino nomini il proprio
+denominatore, come il chip dei minuti del 18/08 fu curato dichiarando quale delle due nature portava.

@@ -8336,3 +8336,57 @@ decimale, e `backtest --verify` non è stato toccato perché nessun percorso del
 3. Gli aperti di merito restano quelli della todolist: il modulo dichiarato sull'archivio vecchio (che
    riguarda solo `--against outcome`), Pobega al Bologna, Cissé e Koopmeiners nel reparto sbagliato con
    il limite che hanno in comune — **le dritte governano quanto gioca e non dove**.
+
+## 16-18 settembre 2026 — La domanda su Kvernadze: due pre-registrazioni, due rifiuti, zero righe di codice
+
+Nata da una domanda dell'operatore sul foglio («non è meglio lui di tanta gente dopo Soulé o G. Ramos?»)
+e chiusa da due misure pre-registrate. Il merito sta in `letture-app-v1.md` §47 e nel gate
+(§7-octoquinquagies, §7-novenquinquagies); qui c'è quello che serve per riprendere.
+
+**IL RISULTATO È CHE NON C'ERA NIENTE DA CORREGGERE**, e ci sono voluti tre giorni per stabilirlo. La
+cascata di ripiego legge già le giornate giocate su tutte e tre le colonne — presenze dal 07/09
+(`presences_with_seen`, +7,1 giornate su di lui), fantamedia e voto base dal 16/09 (`value_with_seen`,
++0,22) — il termine che avrebbe fatto entrare la FM d'avvio anche nelle PRESENZE è respinto, e la retta
+sui minuti all'estero è calibrata al millesimo su 415 uomini di tre stagioni non guardate (pendenza
+realizzata +0,321 contro +0,320 adottata, intercetta +0,347 contro +0,339).
+
+**LE DUE PRE-REGISTRAZIONI HANNO FATTO IL LORO LAVORO, e la seconda ha impedito un'adozione sbagliata.**
+La retta leggeva +0,078 di sottostima sulla stagione 2025-26 — abbastanza per giustificare un rifit — e
+quella era la sola stagione che avevo guardato prima di formulare l'ipotesi. Averla dichiarata in cima e
+messa fuori dal verdetto è ciò che ha portato a misurare le altre tre, dove lo scarto cambia segno
+(−0,022 · +0,020 · +0,032) e un rifit non guadagna **nemmeno in-sample** (MAE 0,2405 contro 0,2404).
+
+**E IL PRIMO CANDIDATO È CADUTO SU TRE CRITERI SCRITTI PRIMA**: l'ottimo si muove con `k` (0 → 0,06 →
+0,08, la firma di un fit e non di un prior), il segno è nullo o negativo su `euro` a ogni `k`, e l'unica
+cella sopra il pavimento ha una stagione a −1,43%. Il meccanismo è il contrario di quello che servirebbe:
+il guadagno cresce con `k`, cioè il termine parla solo quando le partite sono tante — e lì la quota vista
+lo dice già da sé — mentre alle prime due giornate, dove servirebbe, la fantamedia è rumore.
+
+**Tre errori di misura MIEI, tutti della stessa famiglia e tutti a verbale** (§47 li elenca con i numeri):
+`why_minutes_share` preso per il prior; `external_stats` letto senza `source='sofascore'` né il ripiego
+`tm_appearances`; e `desc_titolarita_play` (denominatore CONDIZIONALE) confrontata con `est_pv` (calendario
+intero), che era l'aperto da cui è nata la seconda misura ed era **mal posto**. Più due trappole d'arnese
+già a verbale e reincontrate: il BOM che fa leggere `None` a ogni `fc_id`, e un arnese che sbagliava su
+**92 righe di 94** e che avevo registrato come «non discrimina» invece che come «la mia ricostruzione è
+falsa».
+
+**Quattro commit, tutti in `docs/model/`** (`1817359` · `16e28aa` · `4d61ea4` · `02edcdf`): due
+pre-registrazioni e due esiti. **Nessuna riga di codice in tre giorni di misure**, `engine_*` fermo,
+`SHEET_REVISION` invariato, nessun percorso del gate toccato.
+
+## Stato alla chiusura del 18 settembre 2026
+
+**Cosa NON si è mosso, verificato e non dedotto**: `engine_*`, la cascata `est_*`, `SHEET_REVISION`, il
+pacchetto. Tutto il lavoro è misura e verbale.
+
+**Il punto di ripresa, in ordine di leva.**
+1. **Scorare la presa del 16/09** (`press --score-preregistration
+   docs/model/preregistrazione-board-breve-2026-09-16.md`) e accanto a lei il foglio autentico di oggi:
+   resta l'aperto a leva più alta, e le giornate ormai giocate lo rendono scorabile.
+2. **L'aperto di PRESENTAZIONE nato oggi** (§47, ultimo capoverso): il gradino della titolarità e le
+   presenze attese stanno vicini sullo schermo e hanno denominatori diversi, e la riga non lo dice — chi
+   le guarda insieme fa lo stesso confronto sbagliato che ho fatto io. La cura è un tooltip che nomini il
+   denominatore, come per il chip dei minuti del 18/08.
+3. **Su `euro` la retta dei minuti all'estero è NON MISURATA** (9 e 8 uomini, perché là R0c prezza quasi
+   tutti): registrato come tale, e non come «sovrastima». Riapribile solo se quella popolazione cresce.
+4. Gli aperti di merito restano quelli della todolist.

@@ -6542,3 +6542,43 @@ The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
 consolidate all `docs/model/` docs (and this file if conventions changed) with the current
 state/decisions/commits/next steps, then commit — so a new chat resumes with no lost context.
+
+## Un arnese che sbaglia su 92 casi di 94 non ha un caso giusto, e due quote con DENOMINATORI diversi non sono una contraddizione
+**16-18/09/2026, da una domanda dell'operatore su un nome** («guardando le prime partite di Kvernadze …
+non è meglio lui di tanta gente dopo Soulé o G. Ramos?»). Tre giorni di misure, due candidati
+pre-registrati, **due rifiuti e zero righe di codice**. Dettaglio: `letture-app-v1.md` §47, gate
+§7-octoquinquagies e §7-novenquinquagies.
+
+**LA DOMANDA ERA BUONA E LA RISPOSTA È CHE IL MOTORE LEGGE GIÀ.** Un uomo 53º fra gli attaccanti con la
+fantamedia d'avvio più alta del listone (8,75 in quattro partite tutte da titolare) *sembra* un uomo che
+il foglio non guarda; la sonda sul codice vero stampa il contrario in una riga — presenze **18,0 → 25,1**,
+fantamedia 6,373 → 6,589 — perché la cascata di ripiego miscela le giornate giocate da settembre. Il
+termine che avrebbe fatto entrare la FM d'avvio anche nelle PRESENZE è respinto su tre criteri scritti
+prima; la retta sui minuti all'estero da cui parte il prior è **calibrata al millesimo** (pendenza
+realizzata +0,321 contro +0,320 adottata su 415 uomini di tre stagioni non guardate).
+
+**UN ARNESE CHE SBAGLIA SU 92 RIGHE DI 94 NON HA UN CASO GIUSTO: ne ha 94 sbagliati**, e quello che
+«torna» è il più pericoloso, perché è quello su cui si scrive la conclusione. Un test che ricostruiva il
+prior di un rung dal foglio tornava su 2 righe di 94, e l'ho registrato come «strumento che non
+discrimina» invece che come «la mia ricostruzione è falsa» — poi ho costruito una diagnosi sull'unico caso
+che tornava. *Quando un arnese fallisce sulla quasi totalità della popolazione, il primo sospetto non è la
+popolazione: è l'arnese, e i casi che passano non sono evidenza.*
+
+**E DUE QUOTE NON SI CONFRONTANO SE I LORO DENOMINATORI RISPONDONO A DUE DOMANDE.** L'aperto che ha
+richiesto la seconda misura — «la scala della titolarità legge 0,94 e le presenze attese 0,74, quindi
+qualcosa non torna» — era **mal posto**: `appearance_share` ha un denominatore CONDIZIONALE («delle
+giornate per cui è in contesa», senza sconto di disponibilità, perché la scala deve accordarsi con
+l'undici tipo, che è la squadra con tutti sani) e `est_pv` è una previsione su TUTTO il calendario. Un uomo
+che gioca ogni partita per cui è disponibile legge 1,0 sulla prima ed è giusto così. Errore di unità, la
+famiglia più cara di questo progetto, e **l'aperto ha comunque prodotto una misura utile** — il che è il
+modo in cui un errore di unità si paga: non con un numero sbagliato, con una sessione.
+Ne resta un aperto di PRESENTAZIONE e non di calcolo: quelle due colonne stanno vicine su cinque schermate
+e la riga non dice che hanno due denominatori, quindi chi le legge insieme rifà il mio ragionamento.
+
+**LA CONTAMINAZIONE SI DICHIARA IN CIMA, e su una misura che nessun gate possiede vale identico.** La
+retta leggeva +0,078 di sottostima sulla stagione da cui l'ipotesi era nata — abbastanza per giustificare
+un rifit. Scritto prima che quella stagione NON contava, le altre tre hanno mostrato uno scarto che cambia
+segno e un rifit che non guadagna nemmeno in-sample (0,2405 contro 0,2404). *La pre-registrazione non
+serve a essere rigorosi con le regole del motore: serve nei casi in cui una sola finestra ti darebbe
+ragione*, ed è il secondo caso in due giorni in cui ha impedito un'adozione — il primo era una diagnostica
+da t 5,05 il cui null era più debole di quello adottato.

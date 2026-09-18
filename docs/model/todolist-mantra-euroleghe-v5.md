@@ -1994,3 +1994,41 @@ passare il banco col difetto rimesso. Usare `border-double`/`border-<colore>` su
 scrivono su tutti e quattro i lati e antd usa il bordo inferiore come separatore di riga. E costruire la
 testa di una colonna dalla prima cella della rosa: il livello per-partita copre il 94% dei convocati, e
 il 6% che manca cancella l'identità dell'intera colonna.
+
+## CHIUSO il 16-18/09/2026 — «l'avvio di Kvernadze non è letto»: due candidati misurati, due respinti
+
+Dalla domanda dell'operatore sul foglio. Dettaglio in `letture-app-v1.md` §47, protocollo e numeri nel
+gate (§7-octoquinquagies, §7-novenquinquagies).
+
+* **La FM d'avvio dentro le PRESENZE** (`presences_with_seen` legge quante partite ha giocato e non come)
+  — **RESPINTO**. Ottimo che si muove con `k` (0 → 0,06 → 0,08), segno nullo o negativo su `euro`, una
+  stagione a −2,47%. Diagnostica pre-corsa +1,14 giornate per punto (t 5,05) su un null più debole di
+  quello che gira: *un `t` di 5 contro un baseline che non è quello adottato misura la debolezza del
+  baseline.*
+* **La retta sui minuti all'estero è troppo bassa** — **FALSIFICATO**. Calibrata al millesimo su tre
+  stagioni non guardate; il rifit non guadagna nemmeno in-sample.
+
+**COSA NON RIPROVARE, coi numeri.** Aggiungere un termine sulla fantamedia d'avvio alle presenze di
+ripiego: il guadagno cresce con `k`, quindi paga solo dove la quota vista lo dice già, e alle prime due
+giornate la FM è rumore (un gol la sposta di un punto e mezzo). Rifittare `ABROAD_SHARE` su `default`:
+pendenza realizzata +0,321 contro +0,320 adottata, intercetta +0,347 contro +0,339, MAE del rifit 0,2405
+contro 0,2404. E ricostruire il prior di un rung da una colonna del foglio: `why_minutes_share` è il
+denominatore del calendario e non una previsione, `external_stats` va letta con `source='sofascore'` più
+il ripiego `tm_appearances`, e l'ingrediente vero si prende con una sonda su `snapshot`.
+
+### Aperto nato qui (PRESENTAZIONE, non calcolo)
+
+Il gradino della titolarità (`desc_titolarita_play` = `appearance_share`, denominatore **condizionale**:
+«delle giornate per cui è in contesa», senza sconto di disponibilità) e le presenze attese (`est_pv` /
+`engine_pv_pred`, su TUTTO il calendario) stanno vicini su cinque schermate e la riga non dice che hanno
+due denominatori. Chi li legge insieme conclude che il motore si contraddice — è successo a me per due
+giorni. Cura proposta e non fatta: il tooltip del gradino nomina il proprio denominatore, come il chip dei
+minuti del 18/08 fu curato dichiarando quale delle due nature portava. Costo: una stringa; il rischio di
+non farlo è che la prossima domanda sullo stesso apparente scarto costi un'altra sessione.
+
+### Non misurato, e registrato come tale
+
+Su `euro` la retta dei minuti all'estero tocca **9 e 8 uomini** sui due fogli back-dated provati, perché
+là il set adottato include R0c e il core prezza quasi tutti. Lo scarto negativo che si legge (−0,16) è su
+una popolazione troppo piccola per dire qualcosa: **non misurato**, non «sovrastima». Riapribile solo se
+quella popolazione cresce.
