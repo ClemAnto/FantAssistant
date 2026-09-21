@@ -174,5 +174,61 @@ for (const [label, fn, file] of [['corriere', 'fromCorriere_', 'cds.html'],
   check(first.length < 2 || same, 'the schedule readers disagree on the first kick-off instant');
 }
 
+// ================================================================================================
+// The deadline: one photograph per round, taken before the round opens
+// ================================================================================================
+//
+// These need no saved page, so they run on every invocation. They are here and not only in the head
+// comment because the rule they describe is the one thing in this file that a future edit can undo
+// without the parsers noticing: `chosenTakes_` is where "which reading counts" is decided, and a
+// per-club deadline and a per-round one differ ONLY on the clubs that play later than the opener.
+//
+// The fixture is built so the two answers are different: Sunday's club has a reading taken on Sunday,
+// fifteen minutes before its own kick-off. Under the old rule that reading is the one that counts;
+// under the operator's rule of 21/09/2026 it is taken while the round is being played and counts for
+// nothing. So a regression to the old definition fails the very first assertion below.
+console.log('\n=== the deadline is the round opener, for every club ===');
+{
+  const H = ['round', 'season', 'source', 'club', 'club_key', 'formation', 'fc_id', 'player', 'role',
+    'probability', 'starter', 'taken_at_utc', 'kickoff_utc', 'lead_min'];
+  const OPENER = '2026-09-18T18:45:00Z';       // Friday 20:45 local - the round's first kick-off
+  const SUNDAY = '2026-09-20T16:00:00Z';
+  const row = (club, kickoff, taken) => {
+    const r = new Array(14).fill('');
+    r[0] = 5; r[1] = '2026-27'; r[2] = 'fantacalcio.it'; r[3] = club; r[4] = club;
+    r[6] = '1'; r[7] = 'Tizio'; r[10] = 1; r[11] = taken; r[12] = kickoff;
+    return r;
+  };
+  const values = [H,
+    row('monza', OPENER, '2026-09-18T18:30:00Z'),      // 15 min before the opener
+    row('roma', SUNDAY, '2026-09-18T18:30:00Z'),       // same photograph, a club playing on Sunday
+    row('roma', SUNDAY, '2026-09-20T15:45:00Z'),       // 15 min before ROMA's kick-off: too late now
+  ];
+  const chosen = sandbox.chosenTakes_(values);
+  const used = (club) => {
+    const c = chosen['5|fantacalcio.it|' + club];
+    return c && c.use === null ? null : new Date(c.use).toISOString();
+  };
+  console.log(`monza -> ${used('monza')}`);
+  console.log(`roma  -> ${used('roma')}   (la lettura della domenica non conta)`);
+  check(used('roma') === '2026-09-18T18:30:00.000Z',
+    'a reading taken after the round opened is still being scored - the deadline is not the opener');
+  check(used('monza') === '2026-09-18T18:30:00.000Z', 'the opener club lost its pre-opener reading');
+  // The pruner reads the same definition, so what it keeps must be what the scorer uses - otherwise
+  // Sunday's prune deletes Friday's photograph and the round loses every prediction it had.
+  check(new Date(chosen['5|fantacalcio.it|roma'].keep).toISOString() === '2026-09-18T18:30:00.000Z',
+    'the pruner would keep a reading the scorer does not use');
+
+  // A round nobody could attach a kick-off to has no opener, and there a prediction must survive.
+  const blind = [H, row('lecce', '', '2026-09-18T18:30:00Z'), row('lecce', '', '2026-09-20T15:45:00Z')];
+  const bc = sandbox.chosenTakes_(blind)['5|fantacalcio.it|lecce'];
+  check(bc && bc.use !== null && new Date(bc.use).toISOString() === '2026-09-20T15:45:00.000Z',
+    'a round with no kick-off on any row lost its readings instead of keeping the newest');
+
+  // And the opener is per ROUND, read from the rows: the earliest kick-off, whichever club carries it.
+  const openers = sandbox.openerIndex_(values);
+  check(openers[5] === new Date(OPENER).getTime(), 'openerIndex_ did not read the round opener');
+}
+
 console.log(failed ? `\n### ${failed} CHECK(S) FAILED ###` : '\n### all checks passed ###');
 process.exit(failed ? 1 : 0);

@@ -8459,3 +8459,99 @@ pacchetto. Il lavoro del 18-19 e' un foglio Google (fuori dal repository) piu' u
 5. **La riga `N% degli uomini al 100%`** nel `Log` del foglio: dice se le letture prese DENTRO la
    finestra delle ufficiali sono copie dell'undici annunciato. Si guarda dopo qualche turno.
 6. Gli aperti di merito restano quelli della todolist.
+
+## 21-22 settembre 2026 — Il primo turno misurato, e il metro era sbagliato
+
+**Dalla sua domanda «come sono andate le probabili formazioni?» e poi dalla sua regola.** Dettaglio,
+tabelle e controprove: [attendibilita-probabili-v1.md](attendibilita-probabili-v1.md) §5.
+
+**IL TURNO 5 ERA STATO SCORATO E DICEVA UNA COSA FALSA.** fantacalcio 100,0% degli undici veri, sosfanta
+99,1%, Sky 92,3%, Corriere 81,4% su un null di 80,9%. Tre fonti entro due punti dalla perfezione non
+sono tre fonti brave: con la presa a quindici minuti dal fischio **di ogni club**, un club della
+domenica veniva fotografato la domenica, a formazioni ufficiali gia' uscite. Il log del foglio lo
+diceva con parole sue, dieci volte («100% of the men are given at 100%: this reading may be the
+OFFICIAL line-up rather than a forecast»): *la guardia aveva funzionato, nessuno l'aveva letta.*
+
+**LA REGOLA NUOVA E' SUA, ED E' LA SUA RICHIESTA ORIGINALE.** «Il meccanismo di lettura deve avvenire
+solo fino a quando la prima partita del turno non inizia, dopo non si deve piu' aggiornare.» La prima
+riga del 18/09 diceva gia' «subito prima dell'inizio del primo anticipo»; la precisazione della sera
+(«15 minuti prima del fischio iniziale») e' ambigua in italiano e il codice l'ha letta come il fischio
+di ogni partita. **Quando una frase nuova dell'operatore e' ambigua, la disambigua quella vecchia, non
+la comodita' di chi implementa.**
+
+**E I DATI PER RIFARE IL TURNO C'ERANO**, che e' stata la sua seconda domanda. `recover(round)`: le
+fotografie su Drive (43, 90 giorni) si rigiocano, e l'intestazione del file lo prometteva dal primo
+giorno senza che nessuna funzione lo facesse — *una replica offline che nessuno chiama e' una cache che
+non esiste*, la regola gia' scritta su `recent_form.reingest_from_cache`. Idempotente (una riga gia'
+presente a quel minuto non si riscrive), **aggiunge e non toglie mai** (le letture tardive restano e lo
+scorer smette di leggerle, quindi la misura vecchia non viene distrutta), e l'apertura la legge dal
+FOGLIO e non dal calendario di oggi, perche' un turno si recupera mesi dopo.
+
+**IL RISULTATO, e il controllo vale piu' della tabella.**
+
+| fonte | prima | adesso | margine | non risolti |
+|---|---|---|---|---|
+| sosfanta.com | 99,1% | **90,9%** (200/220) | **+10,0** | 2 |
+| fantacalcio.it | 100,0% | **89,1%** (196/220) | +8,2 | 0 |
+| sport.sky.it | 92,3% | **89,1%** (196/220) | +8,2 | 5 |
+| corrieredellosport.it | 81,4% | **81,4%** (179/220) | +0,5 | 4 |
+
+Il Corriere **non si muove di un decimale**: era l'unica fonte gia' misurata cosi' (le sue prese
+successive erano tutte rifiutate, quindi scorava sulla fotografia del venerdi'). *Una correzione che
+muove tutto tranne il caso che era gia' corretto ha mosso la cosa giusta.* Il primo posto cambia mano e
+**non e' quel risultato**: appaiato per club sosfanta batte fantacalcio 6-3 con 11 pari (p = 0,51) e Sky
+4-1 con 15 pari (p = 0,38), mentre contro il Corriere e' **12-0 con 8 pari (p = 0,0005)**. E la distanza
+fra i primi tre e' **piu' piccola del costo della nostra identita'** (coi non risolti tutti azzeccati
+Sky farebbe 91,4% e sosfanta 91,8%). Quindi: tre fonti insieme, una staccata. In chiaro, +10 punti su
+220 uomini in 20 club sono **1,1 titolari per squadra** in piu' del ricopiare l'undici della giornata
+prima; il Corriere a +0,5 ne dice uno su tutto il turno, cioe' a trenta ore vale il null.
+
+**Quattro difetti curati lungo la strada, e tre sono regole di casa incontrate da un lato nuovo.**
+- **Un anticipo IGNOTO veniva letto come «prima delle ufficiali».** `after_official` e' `lead_min <
+  OFFICIAL_MINUTES`, e `Number('') < 30` e' falso: **33 letture su 80** risultavano previsioni senza che
+  nessuno lo sapesse. La causa e' due letture della stessa cosa dentro una funzione sola —
+  l'ammissibilita' recuperava il calcio d'inizio da qualunque riga del turno lo conoscesse, il `lead`
+  no. Adesso il lead si recupera con lo stesso indice e dove non si recupera `after_official` resta
+  **vuoto**. Sui dati: da 27 + 33 ignote a **6 su 80 e zero ignote**.
+- **«TURNO 6 PERSO» era un falso allarme, in rosso.** Il numero del turno lo da' fantacalcio, il
+  calendario Corriere o Sky, e non cambiano nello stesso momento. La discriminante e' provabile dal
+  foglio invece che indovinata: se l'apertura che il calendario mostra e' un calcio d'inizio **gia'
+  archiviato sotto un turno precedente**, il calendario e' quello vecchio. *Un allarme che suona sullo
+  stato normale di un lunedi' mattina e' un allarme che si impara a ignorare.*
+- **L'intestazione del foglio era vecchia di una colonna** e mostrava `updated_utc: 9`. Il codice era
+  immune (`TABS[...].indexOf`), la persona che legge no: `tab_` la ripara una volta per esecuzione.
+- **Un trigger chiama il suo handler con un oggetto evento**, quindi il Log stampava `[object Object]`
+  in **25 delle 36 righe** che portano una ragione — diceva chi aveva lanciato le prese fatte a mano e
+  taceva su quelle che nessuno guardava.
+
+**Verificato**: sintassi, `verify-parsers.mjs` verde con una sezione nuova sulla scadenza che gira senza
+fotografie, e la **controprova fatta** — rimettendo la regola vecchia cadono esattamente le due
+asserzioni che descrivono la cura e le altre tre restano verdi. La corsa vera l'ha fatta l'operatore:
+`recover(5)` ha rigiocato **due** fotografie pre-apertura e rimesso **1452 righe** (le altre due prese
+di quella sera non hanno un file su disco: sono le primissime, di quando la pagina veniva salvata dopo
+il parsing).
+
+## Stato alla chiusura del 22 settembre 2026
+
+**Cosa NON si e' mosso, verificato e non dedotto**: `engine_*`, la cascata `est_*`, `SHEET_REVISION`, il
+pacchetto, l'app. Il lavoro del 21-22 e' tutto dentro il foglio Google e il suo banco.
+
+**Il punto di ripresa, in ordine di leva.**
+1. **IL TURNO 6 E' A RISCHIO ADESSO.** Il foglio alle 00:01 del 22/09 leggeva ancora il calendario del
+   turno 5; il pianificatore gira alle 9:00 e se le pagine non hanno pubblicato il turno 6 non arma
+   niente — e li' `recover` NON salva, perche' senza presa non c'e' nemmeno la fotografia da rileggere.
+   La contromisura e' una *Capture now* a mano prima del primo fischio.
+2. **La ridistribuzione del `.gs`** resta quella del 19/09 (moduli dichiarati nel payload, fusione delle
+   due grafie di un uomo) e ora porta anche tutto il lavoro di oggi. Una ridistribuzione **cambia
+   l'indirizzo**, che si incolla nella casella della sezione Squadre.
+3. **Il secondo turno di attendibilita'**, che e' il primo preso davvero con la regola nuova: con un
+   turno solo l'unica affermazione che regge il test dei segni e' quella sul Corriere.
+4. **Scorare la presa del 16/09** (`press --score-preregistration
+   docs/model/preregistrazione-board-breve-2026-09-16.md`), che resta l'aperto a leva piu' alta sui
+   campetti.
+5. **L'aperto di PRESENTAZIONE del 18/09** (`letture-app-v1.md` §47): il gradino della titolarita' e le
+   presenze attese stanno vicini sullo schermo e hanno denominatori diversi, e la riga non lo dice.
+6. **Se servisse la lettura fresca durante il turno** (oggi «Prossimo turno» smette di aggiornarsi
+   quando il turno comincia, che e' quello che la regola chiede): si cura nel PRUNER, facendogli tenere
+   anche l'ultima lettura oltre l'apertura, non nello scorer.
+7. Gli aperti di merito restano quelli della todolist.

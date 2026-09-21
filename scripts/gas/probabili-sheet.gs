@@ -13,10 +13,15 @@
  * file must answer the whole question with the laptop switched off, because a probabili page shows
  * only "now" and a round not taken is a round lost for ever.
  *
+ * ONE PHOTOGRAPH PER ROUND, TAKEN BEFORE IT OPENS - his own words above, "subito prima dell'inizio del
+ * primo anticipo", restated on 21/09/2026 after the first round measured showed the code had drifted
+ * from them: see LEAD_MINUTES for the rule, its price and what the drift cost.
+ *
  * IT KEEPS THE PHOTOGRAPH. Every fetch is saved to Drive gzipped BEFORE anything is parsed, exactly
  * as fc_site does on the laptop: the photographs ARE the historical series, and the rows in the
  * Sheet are a READING of them. If a parser is wrong the evidence is still on disk and the reading
- * can be redone; without the photograph a parsing defect would destroy the round it misread.
+ * can be redone - `recover(round)` is what redoes it, and until 21/09/2026 that promise had no
+ * function behind it.
  *
  * -----------------------------------------------------------------------------------------------
  * WHAT WAS MEASURED BEFORE ANY OF THIS WAS WRITTEN (18/09/2026, anonymous client, no credentials):
@@ -112,26 +117,36 @@ var TRUTH_URL = 'https://www.fantacalcio.it/voti-fantacalcio-serie-a/{season}/{r
  * minutes before kick-off - i.e. ten minutes INSIDE the window, on the one fixture it was built for.
  */
 var OFFICIAL_MINUTES = 30;
-// ...and it is REPORTING and not a rule, by the operator's decision of 18/09/2026: "va bene 15 minuti
-// prima del fischio iniziale, le formazioni ufficiali rientrano nel computo". That changes the
-// QUESTION, and the change is his to make: not "which site forecasts best" but "which site, fifteen
-// minutes before I have to decide, tells me who plays" - and to that question a site that has already
-// copied the announced eleven is giving the right answer, which is what he needs at that moment.
-// The consequence is stated rather than hidden: inside this window the ranking largely measures WHO
-// UPDATES FASTEST, not who predicts best. So the fact travels - every scored row says whether its
-// reading was taken after the announcement - and the column is there the day the other question is
-// asked again, without re-capturing anything.
+// It is REPORTING and not a rule - see LEAD_MINUTES for the line that IS the rule.
 
 /**
- * How long before kick-off the capture fires. FIFTEEN, the operator's own number (18/09/2026).
+ * How long before the round's FIRST kick-off the one capture of the round fires. Fifteen minutes, the
+ * operator's own number (18/09/2026).
  *
- * It is deliberately INSIDE the official-line-up window, and that is the point: the reading he wants
- * is the one closest to the moment he has to hand his own team in. The boundary that still holds is
- * the WHISTLE - `chosenTakes_` refuses a reading taken after it - because past that the page has
- * stopped answering the question and his own deadline has passed too.
+ * THE LINE IS THE OPENER, AND IT APPLIES TO EVERY CLUB OF THE ROUND. His rule of 21/09/2026: «il
+ * meccanismo di lettura deve avvenire solo fino a quando la prima partita del turno non inizia, dopo
+ * non si deve piu' aggiornare: si deve prendere la fotografia delle predizioni per ogni sito solo
+ * quando le partite non sono ancora giocate». One photograph per source per round, taken while the
+ * round is entirely unplayed - which is the same definition this project already uses for the board
+ * judges: the press is the only judge that exists before a ball is kicked.
  *
- * A late trigger is therefore cheap here and expensive only if it slips past the kick-off itself, in
- * which case that fixture is not scored rather than scored wrong.
+ * IT REPLACES A PER-CLUB DEADLINE, and the first round measured is why. Until 21/09 the capture fired
+ * fifteen minutes before EACH club's own kick-off, so a club playing on Sunday was photographed on
+ * Sunday - after its official line-up was out. Round 5 came back reading fantacalcio 100.0% of the
+ * real elevens, sosfanta 99.1%, sky 92.3%, and the capture log said why in its own words: "100% of the
+ * men are given at 100%: this reading may be the OFFICIAL line-up rather than a forecast". A ranking
+ * where three sources sit within two points of perfect is not measuring forecasting.
+ *
+ * THE PRICE IS STATED. Against the opener the other nineteen fixtures are one to three days away, so
+ * every share will FALL and some will fall to the null (the eleven that started the club's previous
+ * match). That is the point: the null is what a forecast has to beat, and on round 5 the only source
+ * measured this way - corrieredellosport.it, whose later pages were refused, so it was scored on its
+ * Friday photograph at an average of 30 hours - read 81.4% against a null of 80.9%.
+ *
+ * WHAT IT DOES NOT BUY IS A CLEAN WINDOW FOR THE OPENER'S OWN TWO CLUBS. At fifteen minutes their
+ * line-ups are already announced, so two clubs of twenty stay inside the official window. The residue
+ * is not hidden: `after_official` still marks exactly those rows, and it is now a number to read
+ * rather than a caveat to remember.
  */
 var LEAD_MINUTES = 15;
 
@@ -199,7 +214,7 @@ var TABS = {
   Report: ['round', 'source', 'club', 'named', 'of', 'share', 'null_share',
     'missed', 'invented', 'unresolved', 'lead_min', 'after_official'],
   Attendibilita: ['source', 'rounds', 'clubs', 'named', 'of', 'share', 'null_share', 'margin_pt',
-    'unresolved', 'avg_lead_min', 'after_official', 'updated_utc'],
+    'unresolved', 'avg_lead_min', 'after_official', 'lead_unknown', 'updated_utc'],
   Log: ['when_utc', 'step', 'subject', 'detail']
 };
 
@@ -325,21 +340,71 @@ function capture(reason) {
     folder_().createFile(Utilities.gzip(Utilities.newBlob(pages[key].html, 'text/html', base), base + '.gz'));
   });
 
+  var done = readAll_(pages, takenAt, how_(reason), null);
+  // Superseded readings go now, so the Sheet carries one reading per source and club per round
+  // instead of one per capture. It runs AFTER the writing, on this round only: a prune that walked
+  // every round would pay for the whole archive at every kick-off.
+  if (done.written && done.round) prune_(done.round);
+  tidy_();
+  // The picture is refreshed by whoever changed something, so the Sheet is never older than the last
+  // thing that happened. It must not be able to take a capture down with it.
+  try { refreshStatus(pages); } catch (e) { log_('capture', 'status', 'not refreshed: ' + e.message); }
+  return done.written;
+}
+
+/**
+ * How a run describes itself in the Log.
+ *
+ * A time-based trigger calls its handler WITH AN EVENT OBJECT, so `capture` used to print
+ * "[object Object]" as its own reason on every automatic run - i.e. the log line said who captured on
+ * the runs a person started and said nothing on the runs nobody watched, which is the wrong way
+ * round. Measured on the live Sheet 21/09/2026: 25 of the 36 capture lines that carry a reason.
+ */
+function how_(reason) {
+  if (!reason) return '';
+  if (typeof reason === 'string') return reason;
+  return 'armed trigger';
+}
+
+/**
+ * Turn pages in hand into rows in the Sheet. ONE definition, two callers: the live `capture` and
+ * `recover`, which replays photographs from Drive.
+ *
+ * IT IS IDEMPOTENT, and that is what makes a replay safe: a (round, source, club) already recorded at
+ * that same minute is not written again, so running `recover` twice writes nothing the second time
+ * and a photograph whose rows partly survived the pruner contributes only the missing ones.
+ *
+ * `anchor` forces the round when the caller knows it better than the page does; null means read it
+ * from fantacalcio, which is the live case.
+ *
+ * APPEND and never replace: a source that publishes twice leaves two rows, and choosing between them
+ * is the SCORER's job (one prediction per round, the last one before the opener). Overwriting here
+ * would destroy the earlier reading, and nobody could then ask how much a site changes its mind
+ * between Friday and Sunday - a question worth keeping the option on.
+ *
+ * A source that does not answer writes a line in Log and NO row in Probabili. An empty marker that
+ * reads like "this site predicted nothing" is the defect that cost this project 91 good cache files.
+ */
+function readAll_(pages, takenAt, how, anchor) {
   // The round comes from fantacalcio, which is the only page carrying it with its season - but a
   // failure there must not cost the OTHER three. They answered, their pages are in hand, and a round
   // not taken is a round lost for ever: so the last round seen in the Sheet stands in, and the row
   // says which of the two it is. Guessing a round would be worse; reusing the one already recorded is
   // not a guess.
-  var anchor = round_(pages.fantacalcio);
-  if (!anchor.round) {
-    anchor = lastRound_();
-    if (!anchor.round) { log_('capture', 'skipped', 'no round on the page and none in the Sheet'); return 0; }
-    log_('capture', 'round', 'fantacalcio unreadable: falling back to round ' + anchor.round
-      + ' of ' + anchor.season + ', the last one this Sheet recorded');
+  if (!anchor || !anchor.round) {
+    anchor = round_(pages.fantacalcio);
+    if (!anchor.round) {
+      anchor = lastRound_();
+      if (!anchor.round) { log_('capture', 'skipped', 'no round on the page and none in the Sheet'); return { written: 0, round: null }; }
+      log_('capture', 'round', 'fantacalcio unreadable: falling back to round ' + anchor.round
+        + ' of ' + anchor.season + ', the last one this Sheet recorded');
+    }
   }
   var cal = schedule_(pages);
   var index = pages.fantacalcio.ok ? rosterIndex_(pages.fantacalcio.html) : null;
   if (!index) log_('capture', 'identity', 'fantacalcio not read: the other sources keep their names without ids');
+  var already = writtenIndex_();
+  var minute = iso_(takenAt).slice(0, 16);
   var written = 0;
 
   Object.keys(SOURCES).forEach(function (key) {
@@ -360,38 +425,153 @@ function capture(reason) {
     // A name that still fails to join keeps its verbatim spelling, carries no id and is COUNTED in
     // Log instead of vanishing: a name normalised into an archive is a name lost.
     var unmatched = 0;
-    var out = rows.map(function (r) {
+    var skipped = 0;
+    var out = [];
+    rows.forEach(function (r) {
+      if (already[anchor.round + '|' + src.label + '|' + r.clubKey + '|' + minute]) { skipped += 1; return; }
       var fcId = r.fcId || (index ? resolve_(index, r.clubKey, r.player) : '');
       if (!fcId) unmatched += 1;
       var kick = kickoffOf_(cal, r.clubKey);
-      return [anchor.round, anchor.season, src.label, r.club, r.clubKey, r.formation, fcId, r.player,
+      out.push([anchor.round, anchor.season, src.label, r.club, r.clubKey, r.formation, fcId, r.player,
         r.role || '', r.probability === null ? '' : r.probability, r.starter ? 1 : 0,
         iso_(takenAt), kick ? iso_(kick) : '',
-        kick ? Math.round((kick.getTime() - takenAt.getTime()) / 60000) : ''];
+        kick ? Math.round((kick.getTime() - takenAt.getTime()) / 60000) : '']);
     });
+    if (!out.length) {
+      log_('capture', src.label, 'nothing to add - this reading is already in the Sheet');
+      return;
+    }
     appendRows_('Probabili', out);
     written += out.length;
     var sure = certainty_(rows);
-    log_('capture', src.label, Utilities.formatString('%s players over %s clubs%s%s%s',
+    log_('capture', src.label, Utilities.formatString('%s players over %s clubs%s%s%s%s',
       out.length, clubs, unmatched ? ' | ' + unmatched + ' names without an fc_id' : '',
+      skipped ? ' | ' + skipped + ' already there' : '',
       sure === null ? '' : ' | ' + Math.round(sure * 100) + '% of the men at 100%',
-      reason ? ' | ' + reason : ''));
+      how ? ' | ' + how : ''));
     if (sure !== null && sure >= CERTAIN_SHARE) {
       log_('capture', src.label, 'WARNING - ' + Math.round(sure * 100) + '% of the men are given at'
         + ' 100%: this reading may be the OFFICIAL line-up rather than a forecast, and a source scored'
         + ' on it is being credited for copying the answer');
     }
   });
+  return { written: written, round: anchor.round };
+}
 
-  // Superseded readings go now, so the Sheet carries one reading per source and club per round
-  // instead of one per capture. It runs AFTER the writing, on this round only: a prune that walked
-  // every round would pay for the whole archive at every kick-off.
-  if (written) prune_(anchor.round);
-  tidy_();
-  // The picture is refreshed by whoever changed something, so the Sheet is never older than the last
-  // thing that happened. It must not be able to take a capture down with it.
-  try { refreshStatus(pages); } catch (e) { log_('capture', 'status', 'not refreshed: ' + e.message); }
+/**
+ * Re-read a round from the PHOTOGRAPHS, keeping only what was taken before the round opened.
+ *
+ * WHY IT EXISTS. The header of this file has promised from day one that "the photographs ARE the
+ * historical series, and the rows in the Sheet are a derived reading that can be redone" - and
+ * nothing redid them. An offline replay nobody calls is a cache that does not exist, which this
+ * project has already written down once about `recent_form.reingest_from_cache`.
+ *
+ * WHAT IT BUYS THE DAY IT WAS WRITTEN. Round 5 of 2026-27 was captured under the old rule, fifteen
+ * minutes before EACH club's kick-off, and the pruner then kept one reading per source and club - the
+ * late one. So the Sheet holds, for nine clubs of twenty, only readings taken after those clubs had
+ * their official line-ups out, and the pre-opener readings that the new rule wants are in the Sheet
+ * for no source at all. They are on Drive: 43 photographs, 90 days, four of them taken at 20:30 on
+ * Friday 18/09 - fifteen minutes before Monza-Sassuolo opened the round. `recover(5)` puts those rows
+ * back and `score()` then answers the operator's question on them.
+ *
+ * IT ADDS AND NEVER REMOVES. The late readings stay where they are; under the new deadline the scorer
+ * simply stops reading them. Nothing measured under the old rule is destroyed by adopting the new one
+ * - the two questions remain answerable from the same tab.
+ *
+ * THE OPENER IS READ FROM THE SHEET AND NOT FROM TODAY'S CALENDAR, because a round is recovered long
+ * after its fixtures have left the sites. A round whose rows carry no kick-off has no opener, and
+ * there this refuses rather than guessing: replaying every photograph would file readings taken
+ * during the round as forecasts of it.
+ */
+function recover(round) {
+  round = Number(round);
+  if (!round) { log_('recover', 'skipped', 'no round given'); return 0; }
+  var v = tab_('Probabili').getDataRange().getValues();
+  var opener = openerIndex_(v)[round];
+  if (opener === undefined) {
+    log_('recover', 'round ' + round, 'REFUSED - no kick-off on any row of this round, so the opener'
+      + ' is unknown and a photograph cannot be told from one taken while the round was played');
+    return 0;
+  }
+
+  // The photographs of that window, grouped by the instant they were taken.
+  var byStamp = {};
+  var it = folder_().getFiles();
+  var seen = 0;
+  while (it.hasNext()) {
+    var f = it.next();
+    var m = String(f.getName()).match(/^([a-z]+)_(\d{4}-\d{2}-\d{2})T(\d{2})-(\d{2})Z\.html\.gz$/);
+    if (!m || !SOURCES[m[1]]) continue;
+    seen += 1;
+    var when = new Date(m[2] + 'T' + m[3] + ':' + m[4] + ':00Z');
+    if (when.getTime() >= opener) continue;                  // the round had already started
+    var key = m[2] + 'T' + m[3] + '-' + m[4];
+    if (!byStamp[key]) byStamp[key] = { when: when, files: {} };
+    byStamp[key].files[m[1]] = f;
+  }
+  var stamps = Object.keys(byStamp).sort();                  // oldest first, so the last one read wins
+  if (!stamps.length) {
+    log_('recover', 'round ' + round, 'nothing to replay - ' + seen + ' photographs on Drive and none'
+      + ' of them taken before ' + iso_(new Date(opener)));
+    return 0;
+  }
+
+  var written = 0;
+  stamps.forEach(function (key) {
+    var pages = {};
+    Object.keys(SOURCES).forEach(function (k) {
+      var f = byStamp[key].files[k];
+      if (!f) { pages[k] = { ok: false, why: 'no photograph at this instant', html: '' }; return; }
+      var html;
+      try { html = Utilities.ungzip(f.getBlob()).getDataAsString(); }
+      catch (e) { pages[k] = { ok: false, why: 'photograph unreadable (' + e.message + ')', html: '' }; return; }
+      // The SAME guard the live fetch applies, so a page refused then is refused now for the same
+      // reason: a replay that believed pages the capture refused would be measuring a different rule.
+      pages[k] = believable_(html);
+    });
+    // The photograph's own round wins over the one asked for; where it cannot be read, the window
+    // decides - the file was taken before this round opened, which is evidence enough.
+    var own = round_(pages.fantacalcio);
+    if (own.round && own.round !== round) {
+      log_('recover', key, 'skipped - this photograph carries round ' + own.round + ', not ' + round);
+      return;
+    }
+    var anchor = own.round ? own : { round: round, season: seasonOfRound_(v, round) };
+    written += readAll_(pages, byStamp[key].when, 'recovered from the photograph of ' + key, anchor).written;
+  });
+  log_('recover', 'round ' + round, written + ' row(s) restored from ' + stamps.length
+    + ' pre-opener photograph(s)');
+  try { refreshStatus(); } catch (e) { log_('recover', 'status', 'not refreshed: ' + e.message); }
   return written;
+}
+
+/** The season a round was recorded under, from the Sheet - never today's, which is a different season
+ *  the moment a recovery is run in August. */
+function seasonOfRound_(values, round) {
+  for (var i = 1; i < values.length; i += 1) if (Number(values[i][0]) === round) return values[i][1];
+  return '';
+}
+
+/** Is this HTML a line-up page? The guard `fetch_` applies to what arrives, reachable on its own so a
+ *  replayed photograph is judged by the same rule as the live page. */
+function believable_(html, minShapes) {
+  var floor = (minShapes === undefined) ? MIN_SHAPES : minShapes;
+  if (floor && countShapes_(html) < floor) {
+    return { ok: false, why: '200 without elevens (' + html.length + ' bytes)', html: html };
+  }
+  return { ok: true, why: '', html: html };
+}
+
+/** What Probabili already holds, as (round|source|club|minute) - the key `readAll_` refuses to write
+ *  twice. Minute and not second, because that is the resolution of a photograph's file name. */
+function writtenIndex_() {
+  var v = tab_('Probabili').getDataRange().getValues();
+  var out = {};
+  for (var i = 1; i < v.length; i += 1) {
+    if (!v[i][11]) continue;
+    out[Number(v[i][0]) + '|' + v[i][2] + '|' + v[i][4] + '|' + iso_(new Date(v[i][11])).slice(0, 16)] = 1;
+  }
+  return out;
 }
 
 /**
@@ -442,35 +622,45 @@ function resolve_(idx, clubKey, name) {
 // ==============================================================================================
 
 /**
- * Arm one capture per distinct kick-off slot of TODAY.
+ * Arm the ONE capture of the round: fifteen minutes before its first kick-off.
  *
- * Per SLOT and not per fixture, because three matches at 15:00 are one capture. Yesterday's triggers
- * are dropped first: Apps Script allows twenty per project, and letting them pile up would make the
- * twenty-first installation fail without saying why.
+ * One, and not one per slot: by the operator's rule of 21/09/2026 the photograph is taken while the
+ * round is entirely unplayed, so every later slot would produce a reading that scores nothing (see
+ * LEAD_MINUTES and `chosenTakes_`). Arming them anyway would not be harmless - it would keep writing
+ * rows that look like predictions in a tab whose other rows are predictions.
+ *
+ * The planner still runs EVERY morning, because it is what notices that a new round's calendar has
+ * been published; on the days after the opener it arms nothing and says so.
+ *
+ * Yesterday's triggers are dropped first: Apps Script allows twenty per project, and letting them
+ * pile up would make the twenty-first installation fail without saying why.
  */
 function planToday() {
   var cal = schedule_();
   if (!cal.length) { log_('plan', 'skipped', 'schedule not read - no capture could be timed'); return 0; }
   dropTriggers_('capture');
   var now = new Date();
-  var today = Utilities.formatDate(now, tz_(), 'yyyy-MM-dd');
-  var slots = {};
-  cal.forEach(function (f) {
-    if (Utilities.formatDate(f.kickoff, tz_(), 'yyyy-MM-dd') !== today) return;
-    slots[Utilities.formatDate(f.kickoff, tz_(), 'HH:mm')] = f.kickoff;
-  });
-  var keys = Object.keys(slots).sort();
-  var armed = 0;
-  keys.forEach(function (hhmm) {
-    var when = new Date(slots[hhmm].getTime() - LEAD_MINUTES * 60000);
-    if (when <= now) return;                       // a slot already past is not armed
-    ScriptApp.newTrigger('capture').timeBased().at(when).create();
-    armed += 1;
-  });
-  log_('plan', 'armed', armed + ' capture(s) today' +
-    (keys.length ? ' | slots ' + keys.join(', ') + ' minus ' + LEAD_MINUTES + ' min' : ''));
+  var opener = firstFixture_(cal);
+  var when = new Date(opener.kickoff.getTime() - LEAD_MINUTES * 60000);
+  if (when <= now) {
+    // Two different sentences, and the Log says which: the round has been photographed, or the moment
+    // went by. A single "0 armed" would read the same in both cases.
+    log_('plan', 'armed', '0 capture(s) - the opener (' + itDate_(opener.kickoff, true)
+      + ') is past: this round is photographed or lost, never pending');
+    try { refreshStatus(); } catch (e) { log_('plan', 'status', 'not refreshed: ' + e.message); }
+    return 0;
+  }
+  if (!sameDay_(when, now)) {
+    log_('plan', 'armed', '0 capture(s) today - the opener is ' + itDate_(opener.kickoff, true)
+      + ', the capture arms on its own morning');
+    try { refreshStatus(); } catch (e) { log_('plan', 'status', 'not refreshed: ' + e.message); }
+    return 0;
+  }
+  ScriptApp.newTrigger('capture').timeBased().at(when).create();
+  log_('plan', 'armed', '1 capture | opener ' + itDate_(opener.kickoff, true)
+    + ' minus ' + LEAD_MINUTES + ' min (' + opener.home + '-' + opener.away + ')');
   try { refreshStatus(); } catch (e) { log_('plan', 'status', 'not refreshed: ' + e.message); }
-  return armed;
+  return 1;
 }
 
 /**
@@ -855,6 +1045,9 @@ function score() {
   if (v.length < 2) { log_('score', 'skipped', 'nothing captured yet'); return; }
 
   var chosen = chosenTakes_(v);
+  // Per (round, club) kick-off, recovered from whichever row of that club knows it: the scorer needs
+  // it to state how early a reading was, even when the capture that wrote the row could not.
+  var kicks = kickoffIndex_(v);
   var best = {};
   var seasonOf = {};
   for (var i = 1; i < v.length; i += 1) {
@@ -943,19 +1136,34 @@ function score() {
       var invented = [];
       Object.keys(said).forEach(function (id) { if (!realSet[id]) invented.push(said[id]); });
 
-      // Was this reading taken after the official line-ups were out? A fact about the reading, not a
-      // judgement on the source: with the capture at 15 minutes it is normally 1, and the column is
-      // what lets somebody later ask the forecast question on the subset where it is 0.
-      var afterOfficial = (best[k].lead !== '' && best[k].lead !== null
-        && Number(best[k].lead) < OFFICIAL_MINUTES) ? 1 : 0;
+      // How early the reading was, in minutes before THIS club's kick-off - and whether that puts it
+      // inside the official-line-up window. A fact about the reading, not a judgement on the source.
+      //
+      // THE LEAD IS RECOVERED WHEN THE ROW DOES NOT CARRY IT, and that is a defect this cost. The
+      // capture writes `lead_min` only when it could read the calendar at that instant; when it could
+      // not, the cell is empty - while eligibility has always recovered the kick-off from whichever
+      // row of the round knows it. Two readers, two answers, in one function: on round 5, 33 readings
+      // of 80 had an empty lead and `Number('') < 30` is false, so `after_official` read 0 and eleven
+      // clubs of twenty were filed as forecasts when nobody knew. "Vuoto = ignoto, mai zero", broken
+      // in the one column that exists to tell a forecast from a copy.
+      var kick = best[k].kick ? best[k].kick.getTime() : kicks[round + '|' + clubKey];
+      var lead = best[k].lead;
+      if ((lead === '' || lead === null) && kick !== undefined && kick !== null) {
+        lead = Math.round((kick - best[k].taken.getTime()) / 60000);
+      }
+      // And an unknown lead stays UNKNOWN. A blank here is not "it was a forecast": it is a reading
+      // whose distance from the whistle nobody can state.
+      var afterOfficial = (lead === '' || lead === null) ? ''
+        : (Number(lead) < OFFICIAL_MINUTES ? 1 : 0);
       reportRows.push([round, source, clubKey, named, real.length, named / real.length,
         nullNamed / real.length, missed.join(', '), invented.join(', '), unresolved,
-        best[k].lead, afterOfficial]);
+        lead, afterOfficial]);
 
-      var a = tally[source] = tally[source] || { rounds: {}, clubs: 0, named: 0, of: 0, nullNamed: 0, lead: [], unresolved: 0, afterOfficial: 0 };
+      var a = tally[source] = tally[source] || { rounds: {}, clubs: 0, named: 0, of: 0, nullNamed: 0, lead: [], unresolved: 0, afterOfficial: 0, leadUnknown: 0 };
       a.rounds[round] = true; a.clubs += 1; a.named += named; a.of += real.length;
-      a.nullNamed += nullNamed; a.unresolved += unresolved; a.afterOfficial += afterOfficial;
-      if (best[k].lead !== '' && best[k].lead !== null) a.lead.push(Number(best[k].lead));
+      a.nullNamed += nullNamed; a.unresolved += unresolved;
+      if (afterOfficial === '') a.leadUnknown += 1; else a.afterOfficial += afterOfficial;
+      if (lead !== '' && lead !== null) a.lead.push(Number(lead));
     });
   });
 
@@ -968,10 +1176,12 @@ function score() {
     var a = tally[s];
     var share = a.of ? a.named / a.of : 0;
     var nullShare = a.of ? a.nullNamed / a.of : 0;
+    // `after_official` counts only the rows whose distance from the whistle is KNOWN, and the rows
+    // where it is not are counted apart instead of being added to the safe side.
     return [s, Object.keys(a.rounds).length, a.clubs, a.named, a.of, share, nullShare,
       (share - nullShare) * 100, a.unresolved,
       a.lead.length ? Math.round(a.lead.reduce(function (x, y) { return x + y; }, 0) / a.lead.length) : '',
-      a.afterOfficial, iso_(new Date())];
+      a.afterOfficial, a.leadUnknown, iso_(new Date())];
   }).sort(function (x, y) { return y[5] - x[5]; });
   write_('Attendibilita', rank);
   log_('score', 'done', rank.length + ' source(s) over ' + Object.keys(rounds).length + ' round(s) | '
@@ -1018,14 +1228,32 @@ function refreshStatus(pages) {
     handlers[t.getHandlerFunction()] = (handlers[t.getHandlerFunction()] || 0) + 1;
   });
 
-  // The next kick-off still to come, and the one this round opened with.
+  // The next kick-off still to come, and the one this round opened with. The OPENER is the one that
+  // decides everything now (LEAD_MINUTES): the capture is armed on it and the scorer reads nothing
+  // taken after it.
   var next = null;
   cal.forEach(function (f) { if (f.kickoff > now && (!next || f.kickoff < next.kickoff)) next = f; });
   var first = firstFixture_(cal);
+  var openPassed = first && first.kickoff <= now;
 
   var taken = captureSummary_(anchor.round);
   var expected = Object.keys(SOURCES).length;
   var got = Object.keys(taken).length;
+
+  // IS THE CALENDAR THE ONE OF THE ROUND THE ANCHOR NAMES? The round number comes from fantacalcio and
+  // the fixtures from Corriere or Sky, and they do not change at the same moment: on Monday 21/09/2026
+  // the anchor already said 6 while the fixture pages still carried round 5, all of it played - so the
+  // Sheet printed "TURNO 6 PERSO" about a round nobody had had the chance to capture. It is provable
+  // from the Sheet rather than guessed: if the opener this calendar shows is a kick-off ALREADY stored
+  // under an earlier round, the calendar is the old one.
+  var stale = false;
+  if (first) {
+    var t = first.kickoff.getTime();
+    var pv = tab_('Probabili').getDataRange().getValues();
+    for (var q = 1; q < pv.length && !stale; q += 1) {
+      if (pv[q][12] && Number(pv[q][0]) < anchor.round && new Date(pv[q][12]).getTime() === t) stale = true;
+    }
+  }
 
   // ---- the verdict -------------------------------------------------------------------------
   var verdict, colour;
@@ -1035,23 +1263,33 @@ function refreshStatus(pages) {
   } else if (!cal.length) {
     verdict = 'CALENDARIO NON LETTO - nessuna presa puo\' essere messa in orario';
     colour = '#f4cccc';
-  } else if (!next) {
+  } else if (stale) {
+    // Not a loss and not an alarm: the fixture pages have not published the new round yet. Saying
+    // "turno perso" here is crying wolf on the normal state of a Monday morning.
+    verdict = 'IN ATTESA DEL CALENDARIO DEL TURNO ' + anchor.round
+      + ' - le pagine portano ancora le partite del turno precedente, gia\' giocate';
+    colour = '#efefef';
+  } else if (openPassed) {
     verdict = got
-      ? 'TURNO ' + anchor.round + ' PRESO (' + got + ' fonti su ' + expected + '). Si scora quando le partite sono giocate.'
-      : 'TURNO ' + anchor.round + ' PERSO: tutte le partite sono cominciate e non c\'e\' nessuna presa.';
+      ? 'TURNO ' + anchor.round + ' FOTOGRAFATO (' + got + ' fonti su ' + expected
+        + '). Si scora quando le partite sono giocate.'
+      : 'TURNO ' + anchor.round + ' PERSO: e\' cominciato (' + itDate_(first.kickoff, true)
+        + ') e non c\'e\' nessuna presa. Le fotografie su Drive si rileggono con recover('
+        + anchor.round + ').';
     colour = got ? '#d9ead3' : '#f4cccc';
   } else if (!ScriptApp.getProjectTriggers().length) {
     verdict = 'NON INSTALLATO - lancia install(), altrimenti non succede niente da solo';
     colour = '#f4cccc';
-  } else if (sameDay_(next.kickoff, now) && !armedAt.length) {
-    verdict = 'SI GIOCA OGGI E NESSUNA PRESA E\' ARMATA - lancia planToday() adesso';
+  } else if (sameDay_(first.kickoff, now) && !armedAt.length) {
+    verdict = 'IL TURNO SI APRE OGGI E LA PRESA NON E\' ARMATA - lancia planToday() adesso';
     colour = '#f4cccc';
   } else if (armedAt.length) {
-    verdict = 'A POSTO - ' + armedAt.length + ' presa/e armata/e, la prossima partita e\' '
-      + itDate_(next.kickoff, true);
+    verdict = 'A POSTO - presa armata a ' + LEAD_MINUTES + ' minuti dall\'apertura del turno, '
+      + itDate_(first.kickoff, true);
     colour = '#d9ead3';
   } else {
-    verdict = 'IN ATTESA - oggi non si gioca; il piano si arma alle ' + PLAN_HOUR + ':00 del giorno della partita';
+    verdict = 'IN ATTESA - il turno si apre ' + itDate_(first.kickoff, true)
+      + '; la presa si arma alle ' + PLAN_HOUR + ':00 di quel giorno';
     colour = '#efefef';
   }
   note('VERDETTO', verdict);
@@ -1063,10 +1301,15 @@ function refreshStatus(pages) {
     'letto dal numero che la pagina stessa porta');
   note('Partite del turno', cal.length || 'ignote',
     first ? 'prima: ' + first.home + '-' + first.away + ' ' + itDate_(first.kickoff, true) : '');
+  note('Apertura del turno', first ? itDate_(first.kickoff, true) : 'ignota',
+    first ? (openPassed ? 'gia\' passata: dopo di lei nessuna lettura conta'
+      : 'fra ' + human_(first.kickoff.getTime() - now.getTime()) + ' - e\' la scadenza di TUTTI i club')
+      : '');
   note('Prossimo calcio d\'inizio', next ? itDate_(next.kickoff, true) : 'nessuno: il turno e\' cominciato tutto',
     next ? 'fra ' + human_(next.kickoff.getTime() - now.getTime()) + ' (' + next.home + '-' + next.away + ')' : '');
   note('Prese armate', armedAt.length, armedAt.length
-    ? 'una per slot, a ' + LEAD_MINUTES + ' minuti dal fischio' : 'nessun trigger di presa in questo momento');
+    ? 'una sola, a ' + LEAD_MINUTES + ' minuti dall\'apertura del turno'
+    : 'nessun trigger di presa in questo momento');
   note('Automatismi', Object.keys(handlers).length
     ? Object.keys(handlers).map(function (k) { return k + ' x' + handlers[k]; }).join(', ')
     : 'NESSUNO', Object.keys(handlers).length ? '' : 'lancia install()');
@@ -1079,8 +1322,9 @@ function refreshStatus(pages) {
     if (!s) {
       // An absence is stated, never left blank: "not yet" and "it failed" are different sentences and
       // the second one is in the Log with its reason.
-      note('  ' + SOURCES[key].label, next ? 'non ancora' : 'MANCA',
-        next ? 'si prende a ' + LEAD_MINUTES + ' minuti dal fischio' : 'il turno e\' cominciato senza questa fonte');
+      note('  ' + SOURCES[key].label, openPassed ? 'MANCA' : 'non ancora',
+        openPassed ? 'il turno e\' cominciato senza questa fonte'
+          : 'si prende a ' + LEAD_MINUTES + ' minuti dall\'apertura del turno');
       return;
     }
     note('  ' + SOURCES[key].label, s.players + ' giocatori su ' + s.clubs + ' club',
@@ -1112,14 +1356,21 @@ function refreshStatus(pages) {
       'il null e\' l\'undici della partita precedente: una fonte vale solo quanto lo batte');
     // What the number is ABOUT, said where it is read: with the capture fifteen minutes out, the
     // official eleven is already public, so this largely measures who copies it soonest.
-    var afterAll = 0, clubsAll = 0;
+    var afterAll = 0, clubsAll = 0, unknownAll = 0;
     for (var j = 1; j < rank.length; j += 1) {
       afterAll += Number(rank[j][col('after_official')]) || 0;
+      unknownAll += Number(rank[j][col('lead_unknown')]) || 0;
       clubsAll += Number(rank[j][col('clubs')]) || 0;
     }
     note('  letture dopo le ufficiali', afterAll + ' su ' + clubsAll,
       afterAll ? 'li\' l\'undici e\' gia\' annunciato: si misura chi lo riporta prima, non chi lo prevede'
         : 'tutte prese prima dell\'annuncio: e\' una previsione');
+    // An unknown distance from the whistle is its own line and is NEVER added to the safe side: a
+    // blank in `lead_min` says nobody can state whether that reading was a forecast or a copy.
+    if (unknownAll) {
+      note('  letture di distanza ignota', unknownAll + ' su ' + clubsAll,
+        'il calendario non fu letto a quella presa: non si sa se erano previsioni o copie');
+    }
   }
   note('', '');
 
@@ -1282,37 +1533,61 @@ function kickoffIndex_(values) {
 }
 
 /**
+ * The instant a round OPENED, per round, read from the rows themselves.
+ *
+ * It is the deadline every club of that round shares (LEAD_MINUTES): a reading taken at or after it
+ * describes a round that has started. Derived from the archive and not from today's calendar on
+ * purpose - a round is scored months after its fixtures have left the sites, and a deadline that
+ * depended on a page still carrying them would quietly change what an old round means.
+ *
+ * A round whose rows carry no kick-off at all has no opener, and there `chosenTakes_` keeps the
+ * newest reading rather than none: an unknown deadline must not silently delete a prediction.
+ */
+function openerIndex_(values) {
+  var out = {};
+  for (var i = 1; i < values.length; i += 1) {
+    var r = values[i];
+    if (!r[12]) continue;
+    var round = Number(r[0]);
+    var t = new Date(r[12]).getTime();
+    if (out[round] === undefined || t < out[round]) out[round] = t;
+  }
+  return out;
+}
+
+/**
  * Which capture counts, per (round, source, club) - ONE definition, read by the scorer and by the
  * pruner.
  *
- * `use` is the last reading strictly before that club's KICK-OFF, and null when there is none: a
- * reading taken after the whistle is not a forecast, so it scores nothing. `keep` is what the Sheet
- * should still carry, which is `use` when it exists and otherwise the last reading there is - a
- * source that only published late still said something, and a row removed would read as a source
- * that said nothing.
+ * `use` is the last reading strictly before the round's FIRST kick-off, and null when there is none:
+ * once the opener has started the round is under way, so a later reading is not a forecast of it and
+ * scores nothing. `keep` is what the Sheet should still carry, which is `use` when it exists and
+ * otherwise the last reading there is - a source that only published late still said something, and a
+ * row removed would read as a source that said nothing.
+ *
+ * THE DEADLINE IS THE OPENER AND NOT THE CLUB'S OWN KICK-OFF, by the operator's rule of 21/09/2026;
+ * LEAD_MINUTES carries the rule, its reason and its price. The club's own kick-off is still read, and
+ * still matters - it is what `lead_min` and `after_official` are measured against - but it no longer
+ * decides what counts.
  *
  * TWO READERS AND ONE DEFINITION, on purpose: if the pruner kept "the newest" while the scorer used
- * "the last before kick-off", then by Sunday the only surviving reading for Friday's fixture would be
- * one taken after it was played, and that fixture would silently lose its prediction for every
- * source. A row with no kick-off at all is eligible either way, and there the newest is the newest.
+ * "the last before the opener", then the only surviving reading would be one taken while the round
+ * was being played, and every club would silently lose its prediction. A round with no kick-off on
+ * any row has no opener, and there the newest is the newest - an unknown deadline must not delete a
+ * prediction.
  */
 function chosenTakes_(values) {
-  var kicks = kickoffIndex_(values);
+  var openers = openerIndex_(values);
   var out = {};
   for (var i = 1; i < values.length; i += 1) {
     var r = values[i];
     if (!r[11]) continue;
     var k = takeKey_(r);
     var taken = new Date(r[11]).getTime();
-    // The fixture's own kick-off, from whichever row knows it - not only from this row.
-    var kick = r[12] ? new Date(r[12]).getTime() : kicks[Number(r[0]) + '|' + r[4]];
-    if (kick === undefined) kick = null;
-    // The deadline is the WHISTLE, by the operator's decision: readings taken after the official
-    // line-ups count, because the question is what the page says when he has to decide. Whether a
-    // reading was inside that window is RECORDED (see the Report's `official` column) so the other
-    // question stays answerable from the same rows.
+    var opener = openers[Number(r[0])];
+    if (opener === undefined) opener = null;
     var o = out[k] || (out[k] = { use: null, keep: null });
-    if (kick === null || taken < kick) { if (o.use === null || taken > o.use) o.use = taken; }
+    if (opener === null || taken < opener) { if (o.use === null || taken > o.use) o.use = taken; }
     if (o.keep === null || taken > o.keep) o.keep = taken;
   }
   Object.keys(out).forEach(function (k) { if (out[k].use !== null) out[k].keep = out[k].use; });
@@ -1430,6 +1705,20 @@ function clearRound(round) {
 }
 
 /** The menu entry: a destructive action asks which round, and says what it did. */
+function recoverAsked() {
+  var ui = SpreadsheetApp.getUi();
+  var answer = ui.prompt('Rileggere un turno dalle fotografie',
+    'Numero del turno. Rimette le letture prese PRIMA che il turno cominciasse, senza togliere niente'
+    + ' di quello che c\'e\' gia\'. Poi lancia lo scoring.', ui.ButtonSet.OK_CANCEL);
+  if (answer.getSelectedButton() !== ui.Button.OK) return 0;
+  var round = Number(String(answer.getResponseText()).trim());
+  if (!round) { ui.alert('Niente fatto: non ho letto un numero di turno.'); return 0; }
+  var n = recover(round);
+  ui.alert(n ? n + ' righe rimesse per il turno ' + round + '. Adesso lancia lo scoring.'
+    : 'Nessuna riga rimessa per il turno ' + round + ': guarda il foglio Log per la ragione.');
+  return n;
+}
+
 function clearRoundAsked() {
   var ui = SpreadsheetApp.getUi();
   var anchor = round_();
@@ -1651,6 +1940,7 @@ function onOpen() {
     .addItem('Refresh the Stato tab', 'status')
     .addSeparator()
     .addItem('Repair the shapes Sheets turned into dates', 'repairFormations')
+    .addItem('Re-read a round from the photographs...', 'recoverAsked')
     .addItem('Drop superseded readings', 'pruneNow')
     .addItem('Remove the captures of a round...', 'clearRoundAsked')
     .addToUi();
@@ -1703,12 +1993,10 @@ function fetch_(url, minShapes) {
   var code = res.getResponseCode();
   if (code !== 200) return { ok: false, why: 'HTTP ' + code, html: '' };
   var html = res.getContentText();
-  // A 200 is not evidence for a LINE-UP page: both refused sites answer 200. The elevens decide.
-  var floor = (minShapes === undefined) ? MIN_SHAPES : minShapes;
-  if (floor && countShapes_(html) < floor) {
-    return { ok: false, why: '200 without elevens (' + html.length + ' bytes)', html: html };
-  }
-  return { ok: true, why: '', html: html };
+  // A 200 is not evidence for a LINE-UP page: both refused sites answer 200. The elevens decide - and
+  // the same judgement is reachable on its own (`believable_`) so a replayed photograph is refused for
+  // the same reason the live page was.
+  return believable_(html, minShapes);
 }
 
 /** How many of the rulebook's own shapes the page carries. A naive n-n-n pattern is not enough:
@@ -1846,6 +2134,17 @@ function tab_(name) {
     (TEXT_COLUMNS[name] || []).forEach(function (c) {
       sh.getRange(1, c, sh.getMaxRows(), 1).setNumberFormat('@');
     });
+    // THE HEADER IS REPAIRED, not written once. A tab created before a column existed keeps the old
+    // header for ever while the rows below it carry the new width, so the name over a column stops
+    // describing it: measured 21/09/2026 on the live Sheet, where `after_official` had pushed
+    // `updated_utc` one place along and the column labelled `updated_utc` was showing a count of 9.
+    // The code was already immune - every reader goes through `TABS[...].indexOf(name)` - and the
+    // person reading the Sheet was not.
+    var want = TABS[name];
+    var head = sh.getRange(1, 1, 1, want.length).getValues()[0];
+    var same = head.length === want.length;
+    for (var h = 0; same && h < want.length; h += 1) if (String(head[h]) !== want[h]) same = false;
+    if (!same) sh.getRange(1, 1, 1, want.length).setValues([want]).setFontWeight('bold');
   }
   return sh;
 }

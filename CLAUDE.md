@@ -6541,11 +6541,15 @@ le cure, su due linguaggi, e nessun altro.
 **18-19/09/2026, richiesta dell'operatore. Dettaglio:
 [docs/model/attendibilita-probabili-v1.md](docs/model/attendibilita-probabili-v1.md).**
 `scripts/gas/probabili-sheet.gs` e' un Apps Script su un foglio Google (fuori dal repository, su Drive):
-cattura **quattro fonti** di probabili formazioni a QUINDICI MINUTI dal fischio di ogni club - il numero
-e' suo, e «le formazioni ufficiali rientrano nel computo» - legge la verita' dalla pagina dei voti e
-misura, turno dopo turno, **quale sito ci prende di piu'**. La terza voce della sezione Squadre
-(«Prossimo turno», `core/next-round.ts`) legge il suo endpoint DAL VIVO e disegna quello che le fonti
-hanno pubblicato.
+cattura **quattro fonti** di probabili formazioni, legge la verita' dalla pagina dei voti e misura,
+turno dopo turno, **quale sito ci prende di piu'**. La terza voce della sezione Squadre («Prossimo
+turno», `core/next-round.ts`) legge il suo endpoint DAL VIVO e disegna quello che le fonti hanno
+pubblicato.
+
+**LA LINEA E' L'APERTURA DEL TURNO E VALE PER OGNI CLUB** (sua regola del 21/09/2026, e la sezione
+«Un metro che misura la copia» qui sotto porta cosa e' costato leggerla in un altro modo): una
+fotografia per fonte per turno, presa **quindici minuti prima del primo anticipo**, cioe' mentre il
+turno e' interamente da giocare. Dopo, non si aggiorna piu'.
 
 **E' UNA TERZA COSA, non un terzo orizzonte delle nostre board.** In questo progetto la stampa e' un
 GIUDICE (`press --against press`) e mai un input: leggerla dentro il claim renderebbe circolare proprio
@@ -6588,6 +6592,61 @@ sbagliato **due volte**: i «49 canvas» erano `offcanvas-menu` (un grep, non un
 porta gli undici era LINKATA dall'hub e non era mai stata provata. Una volta che una fonte e' in lista
 «non utilizzabile», il metodo che ribalterebbe il verdetto non le viene piu' applicato - ed e' la stessa
 forma del difetto che si spiega da se' con una storia plausibile.
+
+## Un metro che misura la COPIA, e una frase nuova la disambigua quella vecchia
+**21-22/09/2026, dal primo turno che il foglio delle probabili ha scorato. Dettaglio:
+`attendibilita-probabili-v1.md` §5.** Il turno 5 leggeva fantacalcio **100,0%** degli undici veri,
+sosfanta 99,1%, Sky 92,3% su un null di 80,9%. **Tre fonti entro due punti dalla perfezione non sono
+tre fonti brave: sono un metro che misura un'altra cosa** — con la presa a quindici minuti dal fischio
+*di ogni club*, un club della domenica veniva fotografato la domenica, a ufficiali gia' uscite. Il log
+del foglio lo diceva con parole sue dieci volte («100% of the men are given at 100%: this reading may
+be the OFFICIAL line-up rather than a forecast»): *la guardia aveva funzionato, nessuno l'aveva letta.*
+
+**QUANDO UNA FRASE NUOVA DELL'OPERATORE E' AMBIGUA, LA DISAMBIGUA QUELLA VECCHIA — non la comodita' di
+chi implementa.** La sua regola («il meccanismo di lettura deve avvenire solo fino a quando la prima
+partita del turno non inizia») non era un cambio di idea: la sua PRIMA riga, tre giorni prima, diceva
+gia' «subito prima dell'inizio del primo anticipo». La precisazione della sera — «15 minuti prima del
+fischio iniziale» — e' ambigua in italiano, ed e' stata letta come il fischio di ogni partita. *La
+deriva comincia da una precisazione letta senza rileggere la richiesta che precisava.*
+
+**UNA CORREZIONE CHE MUOVE TUTTO TRANNE IL CASO CHE ERA GIA' CORRETTO HA MOSSO LA COSA GIUSTA.** Col
+metro nuovo le tre fonti scendono di 3-11 punti e il Corriere **non si muove di un decimale** — era
+l'unica gia' misurata cosi', perche' le sue prese successive venivano tutte rifiutate. Vale come
+controprova di un cambio di metrica piu' di qualunque aggregato.
+
+**E UNA GRADUATORIA PIU' FINE DEL RUMORE DEL PROPRIO STRUMENTO NON E' UNA GRADUATORIA.** Il primo posto
+cambia mano (sosfanta +10,0 contro +8,2 dei due appaiati) e non e' quello il risultato: appaiato per
+club, sosfanta batte fantacalcio 6-3 con 11 pari (p = 0,51) e Sky 4-1 con 15 pari (p = 0,38), mentre
+contro il Corriere e' **12-0 con 8 pari (p = 0,0005)**. La distanza fra i primi tre e' **piu' piccola
+del costo della nostra identita'**: coi nomi non risolti tutti azzeccati Sky farebbe 91,4% e sosfanta
+91,8%. Quindi la frase che regge e' «tre fonti insieme, una staccata». In chiaro, +10 punti su 220
+uomini in 20 club sono **1,1 titolari per squadra** in piu' del ricopiare l'undici della giornata prima.
+
+**UNA REPLICA OFFLINE CHE NESSUNO CHIAMA E' UNA CACHE CHE NON ESISTE** (seconda istanza dopo
+`recent_form.reingest_from_cache`, e stavolta la promessa era scritta nell'intestazione del file):
+`recover(round)` rigioca le fotografie su Drive. Tre proprieta' che la rendono sicura e che valgono per
+ogni replica: **e' idempotente** (una riga gia' presente a quel minuto non si riscrive); **aggiunge e
+non toglie mai**, quindi adottare la regola nuova non distrugge la misura fatta con quella vecchia — le
+letture tardive restano e lo scorer smette di leggerle; e **l'apertura si legge dall'ARCHIVIO e non dal
+calendario di oggi**, perche' un turno si recupera mesi dopo che le sue partite hanno lasciato i siti.
+Il limite va detto con lei: **una replica salva da una LETTURA sbagliata, non da una PRESA mancante** —
+senza capture non c'e' fotografia, e li' non c'e' niente da recuperare.
+
+Tre difetti piu' piccoli, tutti della famiglia gia' nota.
+- **`Number('') < 30` e' FALSO**, quindi un anticipo IGNOTO veniva contato come «prima delle ufficiali»:
+  33 letture su 80 filate come previsioni senza che nessuno lo sapesse. La causa e' due letture della
+  stessa cosa dentro una funzione sola — l'ammissibilita' recuperava il calcio d'inizio da qualunque
+  riga del turno lo conoscesse, il `lead` no. «Vuoto = ignoto, mai zero» rotto **nella sola colonna che
+  esiste per distinguere una previsione da una copia**.
+- **Un allarme che suona sullo stato normale di un lunedi' mattina e' un allarme che si impara a
+  ignorare.** «TURNO 6 PERSO» in rosso era il numero del turno (da fantacalcio) confrontato con un
+  calendario (da Corriere o Sky) ancora fermo al turno prima: due pagine che non cambiano nello stesso
+  momento. La discriminante e' PROVABILE dall'archivio invece che indovinata — se l'apertura che il
+  calendario mostra e' un calcio d'inizio gia' registrato sotto un turno precedente, il calendario e'
+  quello vecchio.
+- **Un'intestazione vecchia di una colonna: il codice era immune, la persona no.** Ogni lettore passava
+  da `TABS[...].indexOf(name)`, e la scheda mostrava `updated_utc: 9`. Un'intestazione si RIPARA a ogni
+  esecuzione, come gia' si riparava il formato TESTO delle colonne.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

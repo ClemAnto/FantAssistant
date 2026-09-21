@@ -661,7 +661,176 @@ quattro righe che non combaciano.
 
 ---
 
-## 5. Quello che il primo turno potrà dire, e quello che non potrà
+## 5. Quello che il primo turno ha detto — e la regola che ha cambiato
+
+**21/09/2026. Il turno 5 è stato scorato, e il primo risultato riguarda il METRO e non le fonti.**
+
+| fonte | nominati | quota | null | margine | anticipo medio | dopo le ufficiali |
+|---|---|---|---|---|---|---|
+| fantacalcio.it | 220/220 | 100,0% | 80,9% | **+19,1** | 15 min | 9 club |
+| sosfanta.com | 218/220 | 99,1% | 80,9% | +18,2 | 15 min | 9 |
+| sport.sky.it | 203/220 | 92,3% | 80,9% | +11,4 | 15 min | 9 |
+| corrieredellosport.it | 179/220 | 81,4% | 80,9% | **+0,5** | **1815 min** | 0 |
+
+**TRE FONTI ENTRO DUE PUNTI DALLA PERFEZIONE NON SONO TRE FONTI BRAVE: SONO UN METRO CHE NON MISURA
+QUELLO CHE CREDE.** Con la presa a quindici minuti dal fischio *di ogni club*, un club della domenica
+veniva fotografato la domenica — a formazioni ufficiali già uscite — e il log del foglio lo dice con
+parole sue, dieci volte: «100% of the men are given at 100%: this reading may be the OFFICIAL line-up
+rather than a forecast, and a source scored on it is being credited for copying the answer». La
+guardia aveva funzionato: nessuno l'aveva letta.
+
+**E LA QUARTA FONTE NON ERA QUARTA: ERA FUORI GARA.** Dal 19/09 ogni presa del Corriere è stata
+rifiutata — `NOT TAKEN - 200 without elevens`, con la pagina che si assottiglia 457K → 433K → 408K →
+381K → 328K → 304K → 276K — perché **toglie le partite già giocate** e scende sotto il pavimento dei
+cinque moduli. È «un parametro applicato fuori dalla popolazione su cui è stato misurato»: il pavimento
+è misurato su una pagina di PRE-turno e applicato a una pagina di METÀ turno. Gli resta la fotografia
+del venerdì sera, da 72 a 2894 minuti prima delle singole partite. Quindi l'81,4% **non è un giudizio
+sul Corriere**, ed è invece l'unico numero del turno che misuri davvero una PREVISIONE: a trenta ore di
+distanza una previsione vale **+0,5 punti sul null**, cioè quanto l'undici della giornata precedente,
+che è gratis. Una finestra sola, quindi una direzione e non un verdetto.
+
+### 5.1 La regola nuova, dichiarata
+
+**L'operatore, 21/09/2026**: «il meccanismo di lettura deve avvenire solo fino a quando la prima
+partita del turno non inizia, dopo non si deve più aggiornare: si deve prendere la fotografia delle
+predizioni per ogni sito solo quando le partite non sono ancora giocate!»
+
+**UNA FOTOGRAFIA PER FONTE PER TURNO, presa mentre il turno è interamente da giocare.** È la stessa
+definizione che questo progetto usa già per i giudici delle board — la stampa è il solo giudice che
+esista prima che si giochi una palla — e cambia la domanda che la classifica risponde: non più «chi mi
+dice chi gioca quando devo decidere», ma «chi lo prevede».
+
+**E NON È UN CAMBIO DI IDEA: È LA SUA RICHIESTA ORIGINALE, che il codice aveva perso per strada.** La
+prima riga di tutte, 18/09, diceva «per ogni giornata di serie-a, **subito prima dell'inizio del primo
+anticipo**, scansioni i siti principali»; la precisazione della sera diceva «va bene 15 minuti prima del
+**fischio iniziale**», e l'implementazione ha letto «fischio iniziale» come il fischio di ogni partita.
+La seconda frase è ambigua in italiano, la prima no — quindi *la deriva è cominciata da una
+precisazione letta senza rileggere la richiesta che precisava.* Vale oltre il caso: quando una frase
+nuova dell'operatore è ambigua, la disambigua quella vecchia, non la comodità di chi implementa.
+
+**IL PREZZO È DICHIARATO E VA ASPETTATO**: contro l'apertura gli altri diciannove club sono lontani da
+uno a tre giorni, quindi **tutte le quote scenderanno** e qualcuna arriverà al null. È il punto: il null
+è quello che una previsione deve battere.
+
+**E QUELLO CHE NON COMPRA**: i due club dell'apertura restano dentro la finestra delle ufficiali, perché
+a quindici minuti la loro formazione è annunciata. Due club su venti, e non sono nascosti —
+`after_official` marca esattamente quelle righe, ed è un numero da leggere e non un'avvertenza da
+ricordare.
+
+**Conseguenza sull'app, che va detta**: «Prossimo turno» smette di aggiornarsi quando il turno comincia,
+perché non ci sono più prese. È quello che la regola chiede; se un giorno servisse la lettura fresca
+durante il turno, la strada è che il pruner tenga anche l'ultima lettura oltre l'apertura, non che lo
+scorer la legga.
+
+### 5.2 I tre difetti che il primo turno ha trovato
+
+- **UN ANTICIPO IGNOTO VENIVA LETTO COME «PRIMA DELLE UFFICIALI».** `after_official` è `lead_min <
+  OFFICIAL_MINUTES`, e la cella è vuota quando la presa non riuscì a leggere il calendario in
+  quell'istante: `Number('') < 30` è falso, quindi **33 letture su 80** risultavano previsioni senza che
+  nessuno lo sapesse. Sul turno 5: 27 certamente dopo le ufficiali, 33 ignote, 20 (tutte del Corriere)
+  previsioni vere. Peggio, la CAUSA è due letture della stessa cosa dentro una funzione sola —
+  l'ammissibilità recuperava il calcio d'inizio da qualunque riga del turno lo conoscesse, il `lead` no.
+  Curato dai due lati: il lead si recupera con lo stesso indice, e dove non si recupera
+  `after_official` resta **vuoto**. «Vuoto = ignoto, mai zero», rotto nella sola colonna che esiste per
+  distinguere una previsione da una copia.
+- **«TURNO 6 PERSO» ERA UN FALSO ALLARME**, e in rosso. Il numero del turno lo dà fantacalcio, il
+  calendario lo danno Corriere o Sky, e non cambiano nello stesso momento: lunedì mattina l'ancora
+  diceva già 6 mentre le pagine portavano ancora le dieci partite del 5, tutte giocate. Il verdetto
+  confrontava le due cose come se fossero la stessa. La discriminante è PROVABILE dal foglio invece che
+  indovinata: se l'apertura che il calendario mostra è un calcio d'inizio **già archiviato sotto un
+  turno precedente**, il calendario è quello vecchio — e la frase diventa «in attesa del calendario del
+  turno 6». *Un allarme che suona sullo stato normale di un lunedì mattina è un allarme che si impara a
+  ignorare.*
+- **L'INTESTAZIONE DEL FOGLIO ERA VECCHIA DI UNA COLONNA.** `after_official` aveva spinto `updated_utc`
+  di un posto e la scheda `Attendibilita` mostrava **`updated_utc: 9`**. Il codice era immune — ogni
+  lettore passa da `TABS[...].indexOf(name)` — e la persona che legge il foglio no. Adesso `tab_`
+  ripara l'intestazione una volta per esecuzione, come già faceva col formato TESTO delle colonne.
+- Minore, e della stessa famiglia: un trigger chiama il suo handler **con un oggetto evento**, quindi
+  `capture` stampava `[object Object]` come propria ragione in **25 delle 36 righe** che ne portano una
+  — cioè diceva chi aveva lanciato la presa sulle corse fatte a mano e taceva su quelle che nessuno
+  guardava, che è il verso sbagliato.
+
+### 5.3 E il turno 5 si può rifare, perché le fotografie ci sono
+
+`recover(round)` — voce di menù «Re-read a round from the photographs...».
+
+**L'intestazione di questo file promette dal primo giorno che «le fotografie SONO la serie storica, e le
+righe del foglio sono una lettura derivata che si può rifare», e niente le rifaceva.** Una replica
+offline che nessuno chiama è una cache che non esiste, che è la regola che questo progetto ha già
+scritto su `recent_form.reingest_from_cache`.
+
+Quello che compra il giorno in cui è scritta: il turno 5 è stato preso con la regola vecchia e poi il
+pruner ha tenuto **una lettura per fonte e per club**, la tardiva. Quindi nel foglio le letture
+pre-apertura, che sono quelle che la regola nuova vuole, non ci sono per nessuna fonte su nove club di
+venti. Su Drive ci sono: **43 fotografie** — e il conto torna esatto con le undici prese dei tre giorni
+— quattro delle quali scattate alle **20:30 di venerdì 18/09**, quindici minuti prima di Monza-Sassuolo.
+
+Tre proprietà, e la prima è quella che rende sicuro rigiocare: **è idempotente** (una riga già presente
+a quel minuto non viene riscritta, quindi una fotografia le cui righe sono sopravvissute in parte
+contribuisce solo quelle che mancano); **aggiunge e non toglie mai** — le letture tardive restano dove
+sono, e sotto la scadenza nuova lo scorer semplicemente smette di leggerle, quindi adottare la regola
+nuova non distrugge la misura fatta con quella vecchia; e **l'apertura si legge dal FOGLIO e non dal
+calendario di oggi**, perché un turno si recupera mesi dopo che le sue partite hanno lasciato i siti —
+un turno le cui righe non portano nessun calcio d'inizio non ha apertura, e lì `recover` **rifiuta**
+invece di indovinare, o rigiocherebbe come previsioni delle fotografie scattate a turno in corso.
+
+La stessa guardia della presa dal vivo decide se una fotografia è una pagina di formazioni
+(`believable_`, estratta da `fetch_` e condivisa): *una replica che credesse a pagine che la presa aveva
+rifiutato misurerebbe una regola diversa.*
+
+**Come si rifà il turno 5**: incollare il file nell'editor, poi menù → *Re-read a round from the
+photographs...* → `5`, poi *Score the played rounds*. Il Corriere rientra in gara con la stessa scadenza
+degli altri tre, e per la prima volta le quattro fonti sono confrontabili.
+
+### 5.5 Rifatto — e la classifica cambia
+
+**21/09/2026, ore 22:00. `recover(5)` ha rigiocato DUE fotografie pre-apertura** (18/09 alle 17:33 e
+alle 18:30 UTC) e rimesso **1452 righe**; l'idempotenza ha fatto il suo lavoro e lo dichiara nel Log
+(«22 already there» per i due club dell'apertura, «nothing to add» per il Corriere sulla presa in cui
+le sue righe c'erano già). Le altre due prese di quella sera non hanno una fotografia su disco: sono le
+primissime, di quando il file salvava la pagina *dopo* il parsing invece che prima. Non costa niente —
+quella che conta è l'ULTIMA prima dell'apertura, e c'è per tutte e quattro le fonti.
+
+| fonte | prima (regola vecchia) | **adesso** | margine | non risolti | anticipo |
+|---|---|---|---|---|---|
+| sosfanta.com | 99,1% · +18,2 | **90,9%** (200/220) | **+10,0** | 2 | 14-2895 min |
+| fantacalcio.it | 100,0% · +19,1 | **89,1%** (196/220) | +8,2 | 0 | 14-2895 |
+| sport.sky.it | 92,3% · +11,4 | **89,1%** (196/220) | +8,2 | 5 | 14-2895 |
+| corrieredellosport.it | 81,4% · +0,5 | **81,4%** (179/220) | +0,5 | 4 | 72-2894 |
+
+**IL CONTROLLO CHE VALE PIÙ DELLA TABELLA È L'ULTIMA RIGA: il Corriere non si muove di un decimale.**
+Era l'unica fonte già misurata così — le sue prese successive erano state tutte rifiutate, quindi
+scorava sulla fotografia del venerdì — e infatti la regola nuova non la tocca. Le altre tre scendono di
+3-11 punti. *Una correzione che muove tutto tranne il caso che era già corretto è una correzione che ha
+mosso la cosa giusta.*
+
+**E IL PRIMO POSTO CAMBIA MANO, ma non è quello il risultato.** Appaiando club per club, sosfanta batte
+fantacalcio **6 a 3 con 11 pari** (p = 0,51) e Sky **4 a 1 con 15 pari** (p = 0,38): fra i tre non c'è
+niente. C'è invece contro il Corriere, **12 a 0 con 8 pari** (p = 0,0005). E la distanza fra i tre è
+**più piccola del costo della nostra identità**: se i nomi non risolti fossero tutti azzeccati, Sky
+andrebbe a 91,4% e sosfanta a 91,8%, cioè appaiati. Quindi quello che questo turno dice è: **tre fonti
+insieme, una staccata**, e non una graduatoria fra le prime tre.
+
+**QUANTO VALE UNA BUONA FONTE, in chiaro**: +10 punti su 220 uomini in 20 club sono **1,1 uomini per
+club** — leggere sosfanta invece di ricopiare l'undici della giornata prima ti dice un titolare in più
+per squadra. Il Corriere a +0,5 ne dice **uno su tutto il turno**, cioè niente: a trenta ore
+dall'apertura la sua previsione vale il null.
+
+**Le due colonne curate lo dicono sui dati e non solo nel codice**: `after_official` **6 su 80** (i due
+club dell'apertura per le tre fonti che li prendono a 14 minuti; il Corriere li prende a 72 e resta
+fuori dalla finestra) contro le 27 di prima, e `lead_unknown` **0 su 80** contro 33 — la rilettura ha
+riattaccato il calcio d'inizio a ogni riga, perché la fotografia porta con sé il calendario di quel
+momento. Il verdetto in cima al foglio è «IN ATTESA DEL CALENDARIO DEL TURNO 6» e non più «TURNO 6
+PERSO».
+
+**Resta vero quello che §5.4 aveva scritto prima di giocare**: venti club sono venti osservazioni, e la
+riga da leggere è il margine. Con un turno solo l'unica affermazione che regge il test dei segni è
+quella sul Corriere.
+
+### 5.4 Quello che il primo turno non potrà dire comunque
+
+*Scritto il 18/09/2026, prima che si giocasse: tenuto com'era, perché è la previsione a cui i numeri di
+§5 vanno confrontati. La riga «non c'è ancora nessun verdetto» descrive quel giorno e non oggi.*
 
 Il foglio parte **vuoto**: la prima presa è quella del turno 5 (primo fischio venerdì 18/09 alle 20:45,
 Monza-Sassuolo). Quindi **non c'è ancora nessun verdetto**, e questa è la metà da dire per prima.
@@ -700,5 +869,19 @@ null** accanto alla percentuale, mai la percentuale da sola.
   dell'operatore, è calcolato quando il portatile lo costruisce (non a ridosso del fischio, e l'anticipo
   va stampato), e l'orizzonte da usare è quello **corto**, perché è quello che risponde alla stessa
   domanda delle fonti.
-- **Due letture nello stesso giorno.** Oggi vengono appese entrambe e lo scorer tiene l'ultima prima del
-  fischio, che è il comportamento voluto. La serie c'è se un giorno servisse.
+- **Due letture nello stesso giorno.** Oggi vengono appese entrambe e lo scorer tiene l'ultima prima
+  dell'APERTURA del turno, che è il comportamento voluto. La serie c'è se un giorno servisse.
+- **IL TURNO 6 È IL PRIMO RISCHIO, e non è teorico** (22/09/2026). Alle 00:01 il foglio leggeva ancora
+  il calendario del turno 5; il pianificatore gira alle 9:00 e se le pagine non hanno pubblicato il
+  turno nuovo non arma niente. Lì **`recover` NON salva**, perché senza presa non esiste nemmeno la
+  fotografia da rileggere: *una replica salva da una lettura sbagliata, non da una presa mancante.* La
+  contromisura è una *Capture now* a mano prima del primo fischio. Una cura vera sarebbe un secondo
+  tentativo del pianificatore nel pomeriggio, o leggere il calendario da SOS Fanta (che dichiara gli
+  istanti in ISO) quando gli altri due sono fermi al turno passato — non misurato, quindi non scritto.
+- **La lettura fresca durante il turno, per l'app.** «Prossimo turno» smette di aggiornarsi quando il
+  turno comincia, perché non ci sono più prese: è quello che la regola chiede. Se un giorno servisse, la
+  strada è il PRUNER — fargli tenere anche l'ultima lettura oltre l'apertura, che lo scorer già ignora
+  per definizione — e mai lo scorer, o si rimette dentro la contaminazione appena tolta.
+- **Il secondo turno è il primo preso davvero con la regola nuova.** Con uno solo, l'unica affermazione
+  che regge il test dei segni è quella sul Corriere; il resto è una banda di tre fonti larga meno del
+  costo della nostra identità.
