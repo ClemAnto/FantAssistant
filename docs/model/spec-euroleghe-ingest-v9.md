@@ -495,6 +495,64 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.99 (22 settembre 2026 — UN AGGREGATO DERIVATO CONGELATO ALLA PRIMA GIORNATA)
+
+Dalla richiesta dell'operatore «risolvi le anomalie», cioe' la riga che `validate` stampava in coda a ogni
+corsa — «653 ratings-vs-season anomalies to review» — e che nessuno aveva mai aperto. Non erano 653 casi:
+era **un difetto solo**, e non stava nei dati.
+
+1. **La forma del numero diceva gia' che la causa era nostra.** Tutte e 653 erano dello stesso tipo (i voti
+   contano piu' presenze del `pv` di stagione) e **zero** erano di Mv; 615 su 653 cadevano nella stagione in
+   corso, cioe' piu' della meta' dei quotati euro. *Un numero enorme e uniforme e' la firma di una causa
+   nostra, non di seicento casi singoli* — la stessa lettura dello zero uniforme, dal capo opposto.
+
+2. **La misura che ha localizzato il difetto e' la DISTRIBUZIONE, non un caso.** Il `pv` di
+   `season_stats` 2026-27 valeva **solo 0 o 1** — 89 giocatori a 0 e 655 a 1, con quattro giornate giocate
+   — su **entrambe** le piattaforme, mentre ogni altra stagione porta la sua distribuzione piena (0-38 su
+   `default`, 0-32 su `euro`). Il 2021-22 euro tutto a zero e' noto e dichiarato (vuoto alla fonte).
+
+3. **Il test decisivo.** Quel `pv` coincide **esattamente con i voti della sola GIORNATA 1** su 574 righe
+   euro e 319 default — **il 100%** — mentre coi voti TOTALI coincide nel 16-17%. `derive_from_ratings`
+   scriveva solo dove la riga non ESISTEVA (`NOT EXISTS`), quindi una riga creata a stagione in corso
+   nasceva col conteggio di quel giorno e nessuna corsa successiva poteva piu' toccarla. Stesso
+   congelamento su **38 righe di due stagioni chiuse** (fc_id 7287, euro 2025-26: `pv` 5 contro 22 voti,
+   con le due Mv d'accordo al centesimo), cioe' i giocatori la cui riga era nata a meta' di quelle stagioni.
+   E' «un derivato stantio e' peggio di uno vuoto» (v9.73) applicato a un AGGREGATO invece che a una
+   colonna.
+
+4. **LA CONDIZIONE E' «I VOTI NE CONTANO DI PIU'», mai «i voti non sono d'accordo».** I due versi sono
+   fatti diversi e vanno trattati in modo opposto: piu' voti della riga = l'aggregato e' indietro rispetto a
+   cio' che abbiamo misurato; **meno** = la nostra copertura e' parziale e il listone sa di piu' (111 righe
+   di euro 2024-25), e li' il listone resta autoritativo. Non e' un criterio inventato per l'occasione: e'
+   la stessa asimmetria che `check_ratings_consistency` gia' applicava, saltando le parziali e segnalando
+   solo l'altro lato. Una riga col `pv` NULL resta ferma — non puo' rivendicare un conteggio, ma qualcuno
+   l'ha scritta. La prova che il criterio rispetta l'autorita' del listone e' che **i due test che la
+   proteggevano da prima passano invariati**: una riga a `pv` 30 contro un voto in archivio non si tocca.
+
+5. **La misura che ha deciso il DISEGNO** e' stata «cosa cambierebbe un ricalcolo, stagione per stagione»:
+   **17 stagioni-piattaforma su 21 non si muovono di una riga**. Ricalcolare dai voti concorda col listone
+   quasi ovunque, quindi il conflitto da risolvere era localizzato e non generale — ed e' questo che ha
+   escluso sia la sovrascrittura cieca sia una migrazione di schema con una colonna `source`, che avrebbe
+   avuto un backfill indecidibile per le righe gia' esistenti.
+
+6. **Effetto.** Anomalie **653 → 0**; copertura completa 5844 → **6497**, tutti Mv- e FM-consistenti; le
+   111 parziali **invariate**, che e' il segno che il verso giusto e' stato lasciato stare; `pv` 2026-27 da
+   {0,1} a **0-5** su `default` (5 giornate giocate) e **0-4** su `euro` (4). 1030 righe riscritte.
+
+7. **I NUMERI DEL GATE SI MUOVONO, e va dichiarato.** Le 38 righe storiche alimentano `pv_prev`, che e' un
+   INPUT del motore: `beta_mantra_T2` 0,446 → 0,444 (367 → **369** coppie), `pv_gain_vs_naive_T1`
+   0,0211 → 0,0197, `pv_gain_crossfit_T2` −0,0209 → −0,0194, `pv_bias_naive_starters_T2` 5,47 → 5,50.
+   **`backtest --verify` resta 22/22** e ogni controllo sta dentro la propria tolleranza. La distinzione
+   che conta: *non e' una regola che peggiora, e' un dato che cambia* — il confronto non e' modello contro
+   modello, sono righe che dicevano `pv` 5 dove i voti ne contano 22. Riallineare i valori `expected` e'
+   una decisione dell'operatore, non una conseguenza di questa cura.
+
+8. **Il metodo, e vale oltre il caso.** La cura e' stata applicata prima su una **copia privata del DB**
+   (558 MB, un secondo — la procedura che il progetto prescrive per gli esperimenti di scrittura), misurata
+   li', e solo dopo sul database vero, dove ha dato un risultato **identico** ai 22 controlli. La
+   controprova e' stata fatta **rimettendo il difetto**: cade esattamente il test nuovo e nessun altro,
+   perche' gli altri diciassette descrivono comportamenti che non cambiano.
+
 ## Novità v9.98 (16 settembre 2026 — IL CALCIO GIÀ GIOCATO ENTRAVA IN METÀ DELLA CATENA)
 
 Dalla richiesta dell'operatore: «adesso abbiamo formazione a breve termine e formazione stagionale tipo

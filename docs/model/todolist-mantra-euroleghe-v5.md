@@ -1,5 +1,36 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 22 settembre 2026 — i turni giocati, e un aggregato congelato
+
+Dettaglio e numeri: spec «Novità v9.99», continuità del 22 settembre.
+
+**CHIUSI**: i voti e il layer per-partita sono allineati al turno del 20/09 (Serie A md5, euro md4, tutti e
+cinque i campionati); l'aggregato di stagione non si congela più al giorno in cui la sua riga è nata
+(`e9691f5`, anomalie di `validate` 653 → 0); e l'aperto del 16/09 — «il resume di `ratings` non è ancora
+stato esercitato sulla rete» — è chiuso: questa corsa non ha usato `--refresh` e il resume ha saltato le
+giornate complete fermandosi al primo foglio vuoto.
+
+1. **[ ] DUE TEST DI `press` SCADONO CON L'OROLOGIO.**
+   `test_the_taker_and_the_reader_agree_on_the_format` e
+   `test_a_club_that_does_not_play_is_left_out_and_a_short_board_is_DECLARED` fissano una partita al
+   **2026-09-18** e chiedono una presa FUTURA: dal 19 in poi `next_round_dates` non trova nessun turno,
+   `presa.md` non viene scritto e i due cadono con un `FileNotFoundError`. Il test vicino
+   (`next_round_dates`) passa un **`today=` esplicito** e infatti regge. Verificato preesistente mettendo
+   da parte la cura di `stats.py`: **cadono lo stesso**, quindi non sono un effetto di quel commit. La
+   cura è una riga per test — passare l'«oggi» invece di lasciarlo all'orologio — ed è la stessa famiglia
+   di «un test il cui fixture è un file modificabile dall'utente sta testando l'utente», qui in versione
+   temporale: *un test che dipende dall'orologio non fallisce quando il codice si rompe, fallisce quando
+   passa il tempo.* Non toccati perché fuori dalla richiesta e in un'altra feature.
+
+2. **[ ] `positions` STAMPA `stop at round N` E NON SI FERMA.** Il ramo fa `continue` e cammina fino a
+   `MAX_ROUNDS`, quindi su una stagione in corso paga **~31 richieste a vuoto per lega** (2-3,5 s l'una,
+   ~7 minuti a corsa). **La sostanza è giusta e non va cambiata**: un turno vuoto può essere un rinvio e i
+   successivi essersi giocati, che è «l'unità è la PARTITA, mai la giornata» — un `break` perderebbe un
+   recupero. Quello che è falso è la PAROLA, che dice «stop» di una cosa che non succede. Due strade, e la
+   scelta è una misura da fare: rinominare il messaggio (gratis, e onesto), oppure fermarsi dopo N turni
+   vuoti consecutivi — dove N va **misurato** sull'archivio dei rinvii e non scelto, o si ricasca nel
+   difetto che il `continue` evita.
+
 ## Aperti alla chiusura del 16 settembre 2026 (II) — l'audit del surplus: due cure spedite, una respinta, una pre-registrata
 
 Dettaglio e numeri: spec «Novità v9.98», `letture-app-v1.md` §46, gate §7-septquinquagies.

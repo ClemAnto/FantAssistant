@@ -6648,6 +6648,53 @@ Tre difetti piu' piccoli, tutti della famiglia gia' nota.
   da `TABS[...].indexOf(name)`, e la scheda mostrava `updated_utc: 9`. Un'intestazione si RIPARA a ogni
   esecuzione, come gia' si riparava il formato TESTO delle colonne.
 
+## Un AGGREGATO derivato si ri-deriva quando i suoi voti si muovono, e i due versi del disaccordo non sono lo stesso fatto
+**22/09/2026, dalla richiesta dell'operatore «risolvi le anomalie» — la riga che `validate` stampava in
+coda a ogni corsa, «653 ratings-vs-season anomalies to review», e che nessuno aveva mai aperto. Dettaglio:
+spec «Novita' v9.99», gate §7-sexagies.** Non erano 653 casi: era **un difetto solo**, e non stava nei dati.
+`stats.derive_from_ratings` scriveva la riga di `season_stats` solo dove non ESISTEVA, quindi una riga
+creata a stagione in corso restava congelata al conteggio di quel giorno e nessuna corsa poteva piu'
+toccarla — **«un derivato stantio e' peggio di uno vuoto» (v9.73) applicato a un AGGREGATO invece che a una
+colonna**, ed e' la seconda volta che quella regola si presenta in due settimane.
+
+**LA FORMA DEL NUMERO DICEVA GIA' CHE LA CAUSA ERA NOSTRA.** Tutte e 653 dello stesso tipo, zero di Mv, e
+615 nella stagione in corso: piu' della meta' dei quotati euro. *Un numero enorme e uniforme e' la firma di
+una causa nostra, non di seicento casi singoli* — lo zero uniforme letto dal capo opposto. A localizzarlo e'
+stata la DISTRIBUZIONE e non un caso: il `pv` della stagione bersaglio valeva **solo 0 o 1** con quattro
+giornate giocate, su entrambe le piattaforme, mentre ogni altra stagione porta la sua piena (0-38, 0-32). E
+il test decisivo e' stato appaiarlo alla giornata 1: **coincide esattamente su 574 righe euro e 319 default,
+il 100%**, contro il 16% coi voti totali.
+
+**LA CONDIZIONE E' «I VOTI NE CONTANO DI PIU'», MAI «I VOTI NON SONO D'ACCORDO».** I due versi sono fatti
+diversi e vanno trattati in modo opposto: piu' voti della riga = l'aggregato e' indietro rispetto a cio' che
+abbiamo misurato; **meno** = la nostra copertura e' parziale e il listone sa di piu' (111 righe di euro
+2024-25), e li' il listone resta autoritativo. Non e' un criterio inventato per l'occasione: e' la stessa
+asimmetria che `check_ratings_consistency` gia' applicava saltando le parziali e segnalando solo l'altro
+lato, e la prova che rispetta l'autorita' del listone e' che **i due test che la proteggevano da prima
+passano invariati**. Una riga col `pv` NULL resta ferma: non puo' rivendicare un conteggio, ma qualcuno
+l'ha scritta.
+
+**E LA MISURA CHE DECIDE IL DISEGNO NON E' SUL CASO, E' SULLA POPOLAZIONE.** «Cosa cambierebbe un ricalcolo,
+stagione per stagione» ha risposto **17 stagioni-piattaforma su 21 non si muovono di una riga**: e' quello
+che ha escluso sia la sovrascrittura cieca sia una migrazione con una colonna `source`, il cui backfill
+sarebbe stato indecidibile proprio per le righe congelate. Effetto: anomalie **653 → 0**, copertura completa
+5844 → 6497, `pv` della stagione in corso da {0,1} a 0-5 e 0-4.
+
+**UN DATO CHE CAMBIA NON E' UNA REGOLA CHE PEGGIORA, e la distinzione decide come si legge il gate.** Le 38
+righe congelate di due stagioni CHIUSE alimentano `pv_prev`, che e' un input del motore, quindi i numeri di
+`--verify` si sono mossi: `beta_mantra_T2` 0,446 → 0,444 (367 → 369 coppie), `pv_gain_vs_naive_T1` 0,0211 →
+0,0197, `pv_gain_crossfit_T2` −0,0209 → −0,0194. **22/22 reproduced**, ognuno dentro la sua tolleranza. La
+regola aurea confronta un modello con un altro **sulla stessa base**; qui la base non e' la stessa, perche'
+prima diceva `pv` 5 dove i voti ne contano 22. Presentarlo come un peggioramento attribuirebbe al motore un
+difetto dell'archivio; nasconderlo sarebbe peggio. Riallineare i valori `expected` e' una decisione
+dell'operatore e non una conseguenza.
+
+**Due abitudini di procedura, entrambe gia' scritte e qui esercitate per intero**: la cura e' stata
+applicata prima su una **copia privata del DB** e misurata li', e i 22 controlli della copia sono usciti
+**identici** a quelli del vero — il che valida anche l'esperimento; e la controprova si e' fatta
+**rimettendo il difetto**, dove cade esattamente il test nuovo e nessun altro, perche' gli altri diciassette
+descrivono comportamenti che non cambiano.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

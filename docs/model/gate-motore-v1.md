@@ -6978,3 +6978,51 @@ preso per il prior e `external_stats` letto senza il filtro della fonte.
 bene**: l'avvio entra già nelle presenze (+7,1 giornate) e nella fantamedia (+0,22), il termine che avrebbe
 fatto entrare la FM d'avvio anche nelle presenze è respinto (§7-octoquinquagies), e il prior da cui tutto
 parte è calibrato. Nessuna riga di codice cambiata in tre giorni di misure, che è il verdetto.
+
+
+## 7-sexagies. I NUMERI DI `--verify` SI SONO MOSSI (22 settembre 2026) — una correzione di DATI, non di regola
+
+Non è una pre-registrazione e non è un candidato: è il verbale di un movimento nei numeri pubblicati, messo
+qui perché **questo è il file che porta i numeri con la loro data**, e un coefficiente citato senza la data
+non è un fatto.
+
+**La causa.** `stats.derive_from_ratings` scriveva la riga di `season_stats` solo dove non ESISTEVA, quindi
+una riga creata a stagione in corso restava congelata al conteggio di quel giorno. Oltre alla stagione
+bersaglio (992 righe), il congelamento toccava **38 righe di due stagioni chiuse** — euro 2024-25 (22) e
+2025-26 (16) — e quelle alimentano `sp.pv/mv/fm`, cioè `pv_prev`, che è un **INPUT del motore**. Diagnosi,
+misure e criterio della cura: spec «Novità v9.99».
+
+**Il movimento, misurato muovendo UNA cosa sola** (stessa base, stesso codice del motore, solo le righe
+ri-derivate), con la baseline presa PRIMA di toccare il database:
+
+| controllo | prima | dopo |
+|---|---|---|
+| `beta_mantra_T2` | 0,446 (367 coppie) | 0,444 (**369** coppie) |
+| `pv_coeffs_T1` | (0,483, 0,155, 0,025) int. +0,280 | (0,482, 0,156, 0,025) int. +0,281 |
+| `pv_coeffs_T2` | (0,532, 0,125, 0,060) int. +0,235 | (0,534, 0,121, 0,062) int. +0,233 |
+| `pv_gain_vs_naive_T1` | 0,0211 | 0,0197 |
+| `pv_gain_crossfit_T2` | −0,0209 | −0,0194 |
+| `pv_bias_naive_starters_T2` | 5,47 | 5,50 |
+| `pv_mae_starters_model_T2` | 6,22 | 6,20 |
+| `gk_fm_mae_T2` | 0,268 | 0,267 |
+
+**`backtest --verify` resta 22/22 reproduced**, ogni controllo dentro la propria tolleranza, e il verdetto è
+stato letto per intero e non troncato (il blocco dei controlli sta in TESTA al report, non in coda: un
+`tail` lo mangia).
+
+**LA DISTINZIONE CHE CONTA, e vale oltre il caso: non è una regola che peggiora, è un dato che cambia.**
+La regola aurea dice che l'errore complessivo non deve mai peggiorare, e quel criterio confronta un modello
+con un altro modello **sulla stessa base**. Qui la base non è la stessa: 38 righe dicevano `pv` 5 dove i
+voti in archivio ne contano 22, con le due Mv d'accordo al centesimo. `pv_gain_vs_naive_T1` che scende da
+0,0211 a 0,0197 non è il modello che rende meno — è la stessa quantità misurata su dati che prima erano
+falsi. Presentarla come un peggioramento sarebbe attribuire al motore un difetto dell'archivio; nasconderla
+sarebbe peggio.
+
+**Cosa NON è stato fatto, e perché è una decisione dell'operatore.** I valori `expected` dei 22 controlli
+sono rimasti quelli di prima: ogni `got` sta dentro tolleranza, quindi nulla obbliga a riscriverli, e
+riallinearli è un atto separato che cambia il riferimento contro cui le corse future si misurano. Chi lo
+farà citi questa sezione come la ragione dello scarto.
+
+**Il metodo.** La cura è stata applicata prima su una **copia privata del DB** e misurata lì, e solo dopo
+sul database vero: i 22 controlli della copia e quelli del vero sono usciti **identici**, il che è anche la
+verifica che l'esperimento fosse rappresentativo. Costo della copia: 558 MB e un secondo.
