@@ -451,3 +451,55 @@ def test_completeness_is_per_platform(tmp_path):
         _rows_for(conn, "euro", md, euro_clubs)
     assert ratings.matchdays_done(conn, "2026-27", "default") == {1, 2, 3}
     assert ratings.matchdays_done(conn, "2026-27", "euro") == {1, 2, 3}
+
+
+def test_derive_season_stats_re_derives_a_row_the_votes_have_outgrown(tmp_path):
+    """A row derived mid-season is re-derived when more votes land; the listone is still untouched.
+
+    The defect this pins (22/09/2026): `derive_from_ratings` wrote only where the row did not EXIST,
+    so a season in progress stayed frozen at the count of the day its row was created - the whole
+    2026-27 target season read `pv` in {0, 1} against five played matchdays, on both platforms.
+    """
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.context import Context
+    from euroleghe_ingest.modules import stats
+
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    (tmp_path / "data").mkdir()
+    conn = init_db(cfg.db_path)
+    conn.executemany("INSERT INTO players(fc_id, canonical_name) VALUES (?, ?)",
+                     [(11, "Frozen"), (12, "Listone"), (13, "NoCount")])
+    # matchday 1 only: this is the state the row was first derived in
+    conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, role, platform, mv, fantavoto, goals) "
+                 "VALUES (11, '2026-27', 1, 'A', 'euro', 6.0, 6.0, 0)")
+    conn.commit()
+    stats.derive_from_ratings(Context(config=cfg, conn=conn))
+    assert conn.execute("SELECT pv FROM season_stats WHERE fc_id=11").fetchone()[0] == 1
+
+    # two more matchdays are played, and one goal is scored
+    conn.executemany(
+        "INSERT INTO match_ratings(fc_id, season, matchday, role, platform, mv, fantavoto, goals) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [(11, "2026-27", 2, "A", "euro", 7.0, 10.0, 1),
+         (11, "2026-27", 3, "A", "euro", 5.0, 5.0, 0)],
+    )
+    # a listone row that knows MORE than our partial scrape must stay put (the other direction)
+    conn.execute("INSERT INTO season_stats(fc_id, season, platform, pv, mv, fm) "
+                 "VALUES (12, '2026-27', 'euro', 30, 6.9, 7.7)")
+    conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, role, platform, mv, fantavoto) "
+                 "VALUES (12, '2026-27', 1, 'C', 'euro', 5.0, 5.0)")
+    # a row that declares no count at all is somebody's write and is left alone
+    conn.execute("INSERT INTO season_stats(fc_id, season, platform, pv, mv) "
+                 "VALUES (13, '2026-27', 'euro', NULL, 4.4)")
+    conn.execute("INSERT INTO match_ratings(fc_id, season, matchday, role, platform, mv, fantavoto) "
+                 "VALUES (13, '2026-27', 1, 'D', 'euro', 6.0, 6.0)")
+    conn.commit()
+
+    stats.derive_from_ratings(Context(config=cfg, conn=conn))
+
+    moved = conn.execute("SELECT pv, mv, goals FROM season_stats WHERE fc_id=11").fetchone()
+    assert tuple(moved) == (3, 6.0, 1)          # re-derived, not frozen at matchday 1
+    kept = conn.execute("SELECT pv, mv, fm FROM season_stats WHERE fc_id=12").fetchone()
+    assert tuple(kept) == (30, 6.9, 7.7)        # our scrape is partial: the listone knows more
+    no_count = conn.execute("SELECT pv, mv FROM season_stats WHERE fc_id=13").fetchone()
+    assert tuple(no_count) == (None, 4.4)       # a row without a count is not a row to overwrite

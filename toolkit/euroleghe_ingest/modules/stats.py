@@ -60,10 +60,26 @@ def run(ctx: Context, **kwargs) -> None:
 
 
 def derive_from_ratings(ctx: Context) -> None:
-    """Compute season_stats (Pv, Mv, FM, and the bonus sums) from the per-matchday match_ratings,
-    for any (player, season) NOT already covered by the listone. This gives seasons that have no
-    listone (older voti-only seasons) their aggregates, and fills players missing from the listone.
-    The listone-backed seasons are left untouched (authoritative). No Mantra roles / prices here."""
+    """Compute season_stats (Pv, Mv, FM, and the bonus sums) from the per-matchday match_ratings.
+
+    This gives seasons that have no listone (older voti-only seasons) their aggregates, and fills
+    players the listone does not carry. No Mantra roles / prices here.
+
+    A DERIVED ROW IS RE-DERIVED WHEN ITS INPUT MOVES, which is the rule `_UPSERT` states for
+    `clean_sheets` from the other side. It used to write only where the row did not EXIST, so a row
+    created while the season was in progress was frozen at the count of that day and no later run
+    could touch it: measured 22/09/2026, the whole target season read `pv` in {0, 1} on BOTH
+    platforms - 574 euro rows and 319 default rows matching the votes of MATCHDAY 1 exactly, 100% of
+    them - and 38 rows of two closed seasons carried the same freeze (fc_id 7287, euro 2025-26: `pv`
+    5 against 22 votes, with the two Mv agreeing to a hundredth). It is «a stale derivative is worse
+    than an empty one» (v9.73) applied to an aggregate instead of a column.
+
+    THE CONDITION IS «THE VOTES COUNT MORE», never «the votes disagree», and the two directions are
+    different facts. More votes than the row declares means the aggregate is behind what we have
+    measured. FEWER means our own scrape is partial and the listone knows more - 111 rows of euro
+    2024-25 - and there the listone stays authoritative, which is what `check_ratings_consistency`
+    already says by skipping those and reporting only the other side. A row whose `pv` is NULL is
+    left alone too: it cannot claim a count, but somebody wrote it."""
     conn = ctx.require_conn()
     # Aggregate PER platform (different calendars -> never mix). Fill each (player, season, platform)
     # not already present: the listone provides 'euro'; this adds 'default' (full-season propensity)
@@ -76,9 +92,16 @@ def derive_from_ratings(ctx: Context) -> None:
                SUM(mr.pen_scored), SUM(mr.pen_missed), SUM(mr.goals_conceded), SUM(mr.pen_saved)
         FROM match_ratings mr
         WHERE mr.role IN ('P','D','C','A')
-          AND NOT EXISTS (SELECT 1 FROM season_stats s
-                          WHERE s.fc_id = mr.fc_id AND s.season = mr.season AND s.platform = mr.platform)
         GROUP BY mr.fc_id, mr.season, mr.platform
+        HAVING NOT EXISTS (SELECT 1 FROM season_stats s
+                           WHERE s.fc_id = mr.fc_id AND s.season = mr.season
+                             AND s.platform = mr.platform)
+            -- ...or the votes count MORE than the row declares. NULL `pv` compares false here, so a
+            -- row that exists without a count is kept: see the docstring for why the two directions
+            -- of the disagreement are not the same fact.
+            OR COUNT(mr.mv) > (SELECT s.pv FROM season_stats s
+                               WHERE s.fc_id = mr.fc_id AND s.season = mr.season
+                                 AND s.platform = mr.platform)
         """
     ).fetchall()
 
