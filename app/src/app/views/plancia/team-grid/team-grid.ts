@@ -6,11 +6,21 @@ import { DOUBLE_MS } from '../../../core/view-state';
 import { BoardTeam } from '../../../core/plancia-store';
 
 /**
- * THE TEN PARTICIPANTS, as a column of cards beside the board.
+ * THE TEN PARTICIPANTS, in the room the keepers' line leaves over.
  *
- * A column and not a strip along the bottom, because the board needs its height for 250 rows and this
- * needs to be read at every extraction: three states the card has to say without a word - RIVAL on this
- * lot (a free place in the role AND the credits to reach the band), not interested, out of it.
+ * A COLUMN ON THE RIGHT until 22/09/2026, when the operator moved them here («spostiamo le card delle
+ * squadre nello spazio vuoto dopo i portieri»). The old reason - «the board needs its height for 250
+ * rows» - was right and pointed the other way once the line was measured: three keeper blocks of eight
+ * columns leave FIVE empty, so the cards were paying 240px of WIDTH for room that was already free, and
+ * every one of the 25 blocks was narrower for it. They still have to be read at every extraction, and
+ * here they are beside the lot instead of at the far edge of the screen.
+ *
+ * TWO ROWS, always, and the columns follow the count (`ceil(n / 2)`): the space is wide and short - one
+ * role line - so the shape is fixed by the room and not by the number of squads. Row-major, so ten cards
+ * read left to right the way the participants are listed.
+ *
+ * Three states the card has to say without a word - RIVAL on this lot (a free place in the role AND the
+ * credits to reach the band), not interested, out of it.
  *
  * The one that carries a number is the first: how many rosters still want that role is what decides the
  * second price (§23.1) and what the adopted timing rule reads (§24), and at a free extraction it changes
@@ -23,7 +33,7 @@ import { BoardTeam } from '../../../core/plancia-store';
   selector: 'plancia-team-grid',
   templateUrl: './team-grid.html',
   imports: [NzIconModule],
-  host: { class: 'block min-h-0' },
+  host: { class: 'block h-full min-h-0' },
 })
 export class TeamGrid {
   constructor() {
@@ -34,6 +44,16 @@ export class TeamGrid {
   }
 
   readonly teams = input.required<BoardTeam[]>();
+
+  /**
+   * Le colonne della striscia: due righe sempre, quindi tante quante ne servono a starci.
+   *
+   * Calcolate qui e non scritte in una classe perche' il numero di rose e' una DICHIARAZIONE della lega
+   * (8, 10, 12) e una griglia fissa direbbe la cosa giusta per una sola di quelle. `max(1, ...)` perche'
+   * `repeat(0, ...)` non e' una griglia: senza partecipanti non si disegna niente comunque, ma una
+   * regola CSS invalida spegnerebbe anche la prima card che arriva.
+   */
+  protected readonly columns = computed(() => Math.max(1, Math.ceil(this.teams().length / 2)));
   /** The role of the lot on the table: the only one of the four numbers that lights up. */
   readonly role = input<Role | null>(null);
 

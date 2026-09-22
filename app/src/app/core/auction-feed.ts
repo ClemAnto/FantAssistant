@@ -1,5 +1,7 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 
+import { teamColour } from './team-colours';
+
 /**
  * Live feed of a fanta-asta-live session.
  *
@@ -314,6 +316,17 @@ export function deriveTeams(
   const order = state.pickOrder ?? [];
   const onTheClockId = state.turnTeamId ?? order[0];
 
+  // LO SLOT DI COLORE È IL RANGO PER `id` e non la posizione nell'array: l'ospite ripubblica lo stato
+  // intero a ogni evento e niente promette che le rose tornino nello stesso ordine, mentre un colore
+  // che cambia fra due poll è peggio di un colore brutto - «una rosa e' quella rossa» smetterebbe di
+  // essere vero a metà asta. Il rango è deterministico e non dipende da quante rose ci sono.
+  const seats = new Map<number, number>();
+  [...(state.teams ?? [])]
+    .filter(Boolean)
+    .map((team) => team.id as number)
+    .sort((a, b) => a - b)
+    .forEach((id, rank) => seats.set(id, rank));
+
   return (state.teams ?? []).filter(Boolean).map((team) => {
     const connection = team.connection ?? {};
 
@@ -346,7 +359,13 @@ export function deriveTeams(
     return {
       id: team.id,
       label: connection.label || team.name || `Squadra ${team.id}`,
-      colour: team.color ?? 'currentColor',
+      // IL COLORE LO DECIDE UN POSTO SOLO, e la sorgente resta l'asta vera quando ne pubblica uno: è
+      // ciò che si vede sullo schermo della stanza, e ridipingerlo qui vorrebbe dire che la sua app e
+      // il tabellone del banditore non sono d'accordo su chi è il rosso. Quando non ne pubblica -
+      // ed è il caso del tavolo INVENTATO, che è quello su cui l'operatore segna la sua asta - vale
+      // la palette, che prima di oggi era `currentColor`: dieci rose dello STESSO colore, cioè il
+      // canale spento proprio dove non c'era nient'altro a distinguerle.
+      colour: team.color ?? teamColour(seats.get(team.id) ?? 0),
       online: !!connection.active,
       host: !!connection.host,
       spent,

@@ -297,6 +297,52 @@ function readBoard() {
 }
 
 /** Which of the two grids the buttons say is on - read from the control, never from our own state. */
+/**
+ * LA CARD DELLE ROSE, misurata dove vive: nello spazio che la linea dei portieri lascia libera.
+ *
+ * L'operatore l'ha chiesta «per rendere più evidente il cambio di contesto dai calciatori», che è
+ * un'affermazione su cosa si VEDE e non sul CSS: due fondi possono essere dichiarati diversi e valere
+ * due punti su 255 (misurato il 16/09 sulle bande della Strategia). Quindi il passo confronta ELEMENTI
+ * DELLA STESSA PAGINA - la card, la pagina dietro di lei, un blocco accanto - e non un letterale, che
+ * con due temi non vorrebbe dire niente. E normalizza prima di sottrarre: Chrome restituisce un
+ * `color-mix` come `oklab(...)` e un token come `rgb(...)`, e sommare una L fra 0 e 1 a un canale fra
+ * 0 e 255 è il modo in cui una sonda mente (stesso giorno, stessa pagina).
+ */
+function readTeamCard() {
+  const strip = document.querySelector('plancia-team-grid');
+  const card = strip?.parentElement;
+  const block = document.querySelector('plancia-slot-matrix .grid > div');
+  if (!card || !block) return null;
+  const paint = (el) => getComputedStyle(el).backgroundColor;
+  const box = card.getBoundingClientRect();
+  return {
+    card: paint(card),
+    page: paint(document.body),
+    block: paint(block),
+    border: getComputedStyle(card).borderTopWidth,
+    width: Math.round(box.width),
+    height: Math.round(box.height),
+    teams: strip.querySelectorAll('[role="button"]').length,
+    // La card deve stare NELLA linea dei portieri: se finisse sotto la plancia sarebbe un'altra cosa.
+    aboveDefence: Math.round(box.bottom) <= Math.round(
+      (document.querySelectorAll('plancia-slot-matrix > div > div')[1]?.getBoundingClientRect().top ?? 0) + 2,
+    ),
+  };
+}
+
+/** `rgb()`/`rgba()`/`oklab()` -> tre numeri confrontabili. Senza questo si sottraggono unità diverse. */
+function channels(paint) {
+  const numbers = (paint.match(/-?[0-9.]+/g) ?? []).map(Number);
+  if (paint.startsWith('oklab') || paint.startsWith('oklch') || paint.startsWith('color(')) {
+    return [numbers[0] * 255, numbers[1] * 255, numbers[2] * 255];
+  }
+  return numbers.slice(0, 3);
+}
+const apart = (a, b) => {
+  const [x, y] = [channels(a), channels(b)];
+  return Math.max(...x.map((v, at) => Math.abs(v - y[at])));
+};
+
 function readToggle() {
   const labels = [...document.querySelectorAll('header nz-radio-group label')];
   return labels.length
@@ -504,7 +550,7 @@ async function main() {
     // 0. TUTTI NELL'URNA. La colonna del MERCATO porta due significati - max offerta finche' e' nell'urna,
     //    prezzo pagato dopo - e i passi che confrontano le due plance riga per riga hanno bisogno che sia
     //    una cifra sola. Per questo l'azzeramento sta qui e non prima del passo qui sopra.
-    const reset = await evaluate(session, boxOf, 'header button', 'azzera le rose');
+    const reset = await evaluate(session, boxOf, 'ui-global-options button', 'azzera le rose');
     if (reset) await click(session, reset);
     const confirmed = await clickSteady(session, '.ant-popover button', 'Azzera');
     await wait(500);
@@ -697,6 +743,27 @@ async function main() {
         ? 'riga per riga, la stessa plancia di partenza'
         : "la plancia del mercato e' cambiata",
       problems: identical ? [] : ["tornando al mercato la plancia non e' quella di partenza"],
+    });
+
+    const strip = await evaluate(session, readTeamCard);
+    const fromPage = strip ? apart(strip.card, strip.page) : 0;
+    const fromBlock = strip ? apart(strip.card, strip.block) : 0;
+    note('le rose stanno in una card, nello spazio dei portieri', {
+      said: strip
+        ? `${strip.teams} rose in ${strip.width}x${strip.height}px · fondo ${strip.card} · ` +
+          `${fromPage} punti dalla pagina, ${fromBlock} da un blocco · bordo ${strip.border}`
+        : 'nessuna card delle rose sullo schermo',
+      problems: [
+        ...(strip ? [] : ["la striscia delle rose non e' dentro la plancia"]),
+        ...(strip && strip.teams === 10 ? [] : [`${strip?.teams} rose disegnate invece di 10`]),
+        // Dieci punti per canale e' il gradino che i blocchi usano per leggersi come card: sotto
+        // quello il «cambio di contesto» che la card promette e' un bordo da un pixel e basta.
+        ...(fromPage >= 8 ? [] : [`la card si stacca dalla pagina di ${fromPage} punti per canale`]),
+        ...(strip && parseFloat(strip.border) > 0 ? [] : ['la card non ha un bordo']),
+        ...(strip?.aboveDefence
+          ? []
+          : ["la card delle rose non sta nella linea dei portieri: e' scesa sotto la plancia"]),
+      ],
     });
 
     if (flag('--shot')) {

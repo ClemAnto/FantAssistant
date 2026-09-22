@@ -15,7 +15,10 @@
      QUATTRO NUMERINI P·D·C·A e nessuna etichetta: si accende solo il ruolo del lotto, e solo sulle rose
      che possono ancora prenderlo. Il pallino vale «mano ancora alzata», la crocetta «fuori gioco»,
      l'occhio «stai guardando lui». -->
-<div class="grid h-full min-h-0 grid-cols-2 content-start gap-1.5 overflow-y-auto">
+<div
+  class="grid h-full min-h-0 grid-rows-2 gap-1.5"
+  [style.grid-template-columns]="'repeat(' + columns() + ', minmax(0, 1fr))'"
+>
   @for (team of teams(); track team.id) {
     <!-- `select-none` perché un doppio click su del testo lo SELEZIONA, e una card che resta
          evidenziata dopo il gesto si legge come se fosse rimasta «attiva» - la stessa cura che il
@@ -27,7 +30,7 @@
          ruolo la card e' anche raggiungibile da tastiera, e li' il gesto disponibile e' il singolo
          (Invio accende la lente): un doppio click non si batte a tastiera. -->
     <div
-      class="flex cursor-pointer flex-col gap-1 rounded-lg border px-1.5 py-1 select-none"
+      class="flex cursor-pointer flex-col justify-center gap-1 rounded-lg border px-2 py-1 select-none"
       [class]="cardTone(team)"
       role="button"
       tabindex="0"
@@ -42,7 +45,7 @@
           [style.background-color]="team.colour"
           >{{ sigla(team) }}</span
         >
-        <span class="min-w-0 flex-1 truncate text-[10px] text-muted">{{ team.label }}</span>
+        <span class="min-w-0 flex-1 truncate text-[11px] text-muted">{{ team.label }}</span>
         <!-- LA LENTE ACCESA PRENDE IL POSTO DEL PALLINO, e non gli sta accanto: il pallino dice «può
              ancora rilanciare», un fatto sul lotto, e questo dice «stai guardando lui», uno stato che
              hai scelto. A questa larghezza due segni si leggono come uno. -->

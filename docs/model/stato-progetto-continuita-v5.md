@@ -8749,3 +8749,105 @@ vale uno slot di gate, perché al netto non c'è niente da prendere.
 **APERTO**: il perimetro non guardato è dichiarato — solo Serie A, solo voti e presenze; le **coppe
 europee** restano l'«ASSENTE» di `copertura-eventi-motore-v1.md` §5, e su EuroLeghe la misura non è stata
 ripetuta. I punti di ripresa restano quelli della chiusura del 22 settembre qui sopra, invariati.
+
+## 22 settembre 2026 (notte) — LA PLANCIA SI SVUOTA, e una palette che dichiara cosa non può fare
+
+Sessione tutta di INTERFACCIA sulla plancia, guidata da **sei istruzioni sue in fila**, ognuna con uno
+screenshot e un segno rosso sopra. Dettaglio: `assistente-asta-v1.md` §44 (i quattro tagli, il layout,
+la card, i gesti spostati) e `letture-app-v1.md` §49 (la palette). **Nessun numero del motore si
+muove**: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto e il toolkit non toccati.
+
+### Cosa è stato tolto, e dove il fatto è finito
+
+Striscia strategia portieri · CODA · legenda · «la mia borsa» · i tre numeri del lotto (mercato · mani ·
+nello slot) · la riga del PERCHÉ · il regolamento in barra · l'avanzamento per ruolo · foglio e
+revisione. Per ognuna la tabella di §44.1 dice dove il fatto si legge adesso, e **due cose vanno dette
+a voce alta**:
+
+- **il PERCHÉ era scritto DUE VOLTE sulla stessa riga** (`l.advice.reason` nel tooltip dell'icona del
+  verdetto e nel paragrafo accanto). Nessuno l'aveva notato perché i due non possono contraddirsi: sono
+  la stessa espressione. *Un fatto ripetuto non si nota come si nota un fatto sbagliato — si nota
+  contando i lettori.*
+- **l'avanzamento per ruolo (`P 4/30 …`) è l'unico che sparisce davvero**, e sta scritto nel commento
+  che lo sostituisce invece di essere lasciato scoprire: quanti posti di un ruolo sono già andati è il
+  numero su cui poggia `hands`, e adesso si legge contando i blocchi esauriti.
+
+### Le rose nello spazio dei portieri: uno spazio già pagato
+
+La linea dei portieri usa **3 colonne di 8** — ogni linea è tagliata su otto perché la più lunga ne ha
+otto — quindi cinque erano libere, e le dieci card stavano in una colonna larga **240px sulla destra**.
+Pagavano in LARGHEZZA uno spazio che era già libero, e a pagarlo erano i 25 blocchi: ogni blocco passa
+da ~193 a ~222px, cioè le 250 righe. Proiettate (`ng-content select="[spare]"`) e non disegnate dentro
+la griglia: dov'è lo spazio lo sa la griglia, cosa ci va lo sa la pagina.
+
+Dentro una **card** su sua richiesta, e il fondo è stato scelto sulla misura e non a occhio: la prima
+versione (`bg-page`) non si staccava da niente, perché dietro c'è la pagina. Con `surface`: **959x181px,
+13 punti per canale dalla pagina, bordo 1px**, asserito in `e2e-plancia-slots` confrontando elementi
+della stessa pagina e normalizzando `oklab()` contro `rgb()`.
+
+### I tre gesti escono dalla barra senza morire — sua decisione
+
+Dei sei segni rossi sull'header, tre erano LETTURE e tre erano GESTI. Cancellare «azzera le rose»
+avrebbe tolto **il modo di cominciare** (il tavolo inventato arriva con un terzo d'asta giocata ed è il
+foglio su cui segna l'asta vera), quindi la domanda è stata fatta invece di indovinata, e lui ha scelto
+**spostarli accanto a Opzioni**. `core/page-actions.ts`: un registro e non una seconda scatola fissa,
+perché `ui/global-options` dichiara di sé che due riquadri nello stesso angolo si coprono appena uno
+cresce — e non una proiezione, perché quella scatola sta fuori dall'outlet.
+
+### La palette delle rose, e il NO che viene prima del sì
+
+«Utilizziamo una palette di colori per le squadre in modo che siano ben distinguibili gli uni dagli
+altri.» **Misurata col validatore categorico prima di scriverla**, e la risposta più importante è che
+per dieci squadre quella frase **non è ottenibile col solo colore**: coppia peggiore ΔE 13,0 a vista
+normale (pavimento 15) e **0,8 sotto deuteranopia**. Non è taratura — con dieci tinte sul cerchio la
+collisione è garantita, e la palette di riferimento del metodo, che ne ha otto, ne valida **tre** a
+tutte le coppie. Quindi il colore è un canale di SUPPORTO e l'identità la porta la **sigla**.
+
+Quello che invece si poteva aggiustare era rotto davvero, e il confronto con la lista scritta a mano è
+la misura che giustifica il cambio: coppia peggiore **11,0 → 13,0**; tinte che leggono GRIGIE (sotto il
+pavimento di cromaticità) **1 → 0** (il Kraken); tinte sotto 3:1 sulla superficie — cioè barrette del
+proprietario quasi invisibili — **2 → 0**. E il difetto più grosso non era nella lista: senza un colore
+pubblicato `auction-feed` leggeva `currentColor`, cioè **dieci rose dello stesso identico colore**.
+
+Sedici tinte in OKLCH, cromaticità massima del gamut, tre livelli di chiarezza, **ordine max-min greedy
+(i primi `k` slot sono i `k` meglio separati)**; banda di chiarezza più alta di quella del riferimento,
+e la sostituzione è dichiarata con la misura che la impone (dentro quella banda ogni variante fa cadere
+una tinta sotto la cromaticità). Nove asserti in `core/team-colours.spec.ts` ricalcolano in OKLab
+quello che il file afferma.
+
+### La controprova che resta verde, e cosa vuol dire
+
+Il passo nuovo in `e2e-nav` prova che i gesti di una pagina escono dalla scatola insieme a lei — il caso
+che un banco su una pagina sola non può vedere. Poi la parte istruttiva: avevo scritto che rileggere
+`viewChild` dentro `onDestroy` era un difetto (la query risponderebbe `undefined`, i tasti della plancia
+resterebbero su ogni pagina dopo). **Rimesso quel codice, il banco resta verde**: il difetto non
+c'era. *Una controprova che non fallisce ha due letture e vanno distinte — o l'asserzione è debole, o il
+difetto che credevi di aver curato non esisteva.* Il codice difensivo resta, il commento adesso dice che
+è una cintura e non la cura di qualcosa di misurato, e il banco dichiara di sé che non distingue le due
+forme.
+
+### Verifica
+
+Build pulito, **1038 test su 59 file**, banchi e2e verdi: `nav`, i cinque della plancia, `options`,
+`clubs`, `why`, `table`, `sealed-bid`. **Due rossi non sono di questa sessione e sono verificati come
+tali**: `e2e-player-card` fallisce identico su HEAD (corsa in un worktree su `HEAD`, un riepilogo con
+`season: null` che legge `~5.7` contro il 5,5 del pacchetto) ed è quindi un difetto preesistente
+committato; `e2e-strategy` legge 21 pastiglie invece delle venti dichiarate perché l'altra sessione ne
+ha aggiunta una (commit `9c8729c`) senza aggiornare il suo banco. **Una cosa vista una volta e non
+riprodotta**: in una corsa in batch di undici banchi `e2e-nav` ha stampato «2 PROBLEMI» e cinque corse
+successive (tre sole, due in sequenza) sono verdi — quel banco documenta da sé la contesa fra headless
+consecutivi, ma non lo do per spiegato.
+
+**Il worktree di verifica è stato smontato con la procedura del 12/09**: `rmdir` della giunzione PRIMA,
+`git worktree remove` dopo, e il bersaglio contato prima e dopo (151 file, invariati).
+
+### APERTI che questa sessione lascia
+
+- **`planKeepers` e i suoi quattro test non hanno più lettori nell'app.** La logica delle due strategie
+  portieri (`assistente-asta-v1.md` §34.6) è misurata e documentata, quindi rimetterla a schermo costa
+  una vista e non una misura; il file lo dichiara in cima, così nessuno la crede viva.
+- **L'avanzamento per ruolo non ha più un posto.** Torna in una riga se gli manca.
+- **`e2e-strategy` è rosso su una pastiglia dell'altra sessione**: non toccato, perché aggiornare
+  quel banco vorrebbe dire committare la loro metà.
+- **`e2e-player-card` è rosso su HEAD** dal commit precedente a questa sessione: il riepilogo con
+  `season: null` che non torna col pacchetto.

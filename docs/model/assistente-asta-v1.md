@@ -4170,3 +4170,124 @@ correttivo deve stare fuori dal righello.
 **Aperto, offerto e non richiesto**: visibilità per (ruolo, slot) di quanti uomini restano contro quante
 mani sono ancora aperte — il numero che decide i secondi prezzi, già contato dentro l'alternativa.
 Sarebbe un cambio di DISPLAY a modello fermo. Voce 5 della todolist del 07/09.
+
+## 44. LA PLANCIA SI SVUOTA: quattro pezzi via, le rose nello spazio dei portieri (22 settembre 2026)
+
+Sessione tutta di INTERFACCIA, guidata da sei istruzioni sue in fila, ognuna con uno screenshot e un
+segno sopra. Nessun numero del motore si muove: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto
+fermo. Quello che cambia e' cosa la pagina mostra e dove.
+
+### 44.1 Quattro cose tolte, e per ognuna dove il fatto e' finito
+
+«Elimina questa barra» · «elimina questi due blocchi» · «elimina questo blocco» · «elimina le cose
+inutili» · «ripulisci l'header con le cose fuori contesto». Tolte:
+
+| Cosa | Dove stava | Il fatto dove si legge adesso |
+|---|---|---|
+| Striscia strategia portieri | sopra la plancia | il piano puro resta in `keeper-pairs.planKeepers`, senza lettori |
+| CODA (`229 a 1 credito`) | colonne libere della linea P | la riga del lotto quando l'urna e' vuota |
+| Legenda dei due significati | colonne libere della linea P | la barra del proprietario e l'inchiostro della riga |
+| La mia borsa (crediti / posti / per posto) | colonne libere della linea A | la card della propria rosa, che adesso e' grande |
+| I tre numeri del lotto (mercato · mani · nello slot) | riga del lotto | tooltip del blocco da cui il lotto viene |
+| La riga del PERCHE' | riga del lotto | **era gia'** il tooltip dell'icona del verdetto, stessa stringa |
+| Regolamento (`10 partecipanti · rose 3-8-8-6 · …`) | barra | Opzioni, dove lui lo dichiara |
+| Avanzamento per ruolo (`P 4/30 …`) | barra | **da nessuna parte**: e' il prezzo dichiarato di questa pulizia |
+| Foglio e revisione (`Leghe · rev. 71`) | barra | freschezza in basso a sinistra, revisione in `/why` |
+
+**Il PERCHE' era scritto DUE VOLTE sulla stessa riga** - `l.advice.reason` nel tooltip dell'icona e nel
+paragrafo accanto - cioe' «due canali per una frase» a dodici centimetri di distanza, e nessuno l'aveva
+notato perche' i due non si contraddicono mai: vengono dalla stessa espressione. *Un fatto ripetuto non
+si nota come si nota un fatto sbagliato; si nota contando i lettori.*
+
+**E l'avanzamento per ruolo e' l'unico che sparisce davvero**, quindi e' scritto nel commento che lo
+sostituisce invece di essere lasciato scoprire. Quanti posti di un ruolo sono gia' andati e' il numero
+su cui poggia `hands`; adesso si legge contando i blocchi esauriti.
+
+### 44.2 Le rose nello spazio dei portieri, e perche' e' un guadagno misurabile
+
+«Ottimizziamo il layout: spostiamo le card delle squadre nello spazio vuoto dopo i portieri.» La linea
+dei portieri usa **3 colonne di 8** - ogni linea e' tagliata su otto perche' la piu' lunga ne ha otto -
+quindi cinque erano libere, e le rose stavano in una colonna larga **240px sulla destra**. Pagavano in
+LARGHEZZA uno spazio che era gia' libero, e a pagarlo erano i 25 blocchi: ogni blocco passa da ~193 a
+~222px, cioe' le 250 righe.
+
+**PROIETTATE E NON DISEGNATE LI'.** `slot-matrix` espone un `ng-content` con selettore `[spare]` dentro
+la linea P e la pagina ci mette `plancia-team-grid`: dov'e' lo spazio lo sa la griglia - e' lei che
+taglia su otto - cosa ci va lo sa la pagina, che e' quella che sa cosa un doppio click deve fare. Lo
+`span` vale `spare('P')` **oppure 8 quando la linea e' piena**, cosi' una lega con otto portieri non fa
+sparire le rose: prendono una riga loro dentro quella linea. *Uno slot proiettato che non renderizza da
+nessuna parte e' indistinguibile da una feature che nessuno ha collegato.*
+
+**DUE RIGHE SEMPRE, colonne `ceil(n / 2)`**: lo spazio e' largo e basso (una linea di ruolo), quindi la
+forma la fissa la stanza e non il numero di squadre - dieci rose leggono 5x2, dodici 6x2, sedici 8x2.
+
+### 44.3 «Mettile in una card», e il fondo si sceglie sulla misura
+
+«Il blocco delle squadre mettile in una card per rendere piu' evidente il cambio di contesto dai
+calciatori.» Senza un contenitore suo la striscia sta nella stessa griglia dei blocchi e si legge come
+un **sesto blocco della linea P**: stesso fondo, stessa distanza, nessun bordo a dire dove finisce il
+listone.
+
+Il fondo e' `surface` e la prima versione (`page`) e' stata **bocciata dalla misura**: dietro c'e' la
+PAGINA, che e' `page`, quindi una card di quel colore non si stacca da niente e resta un bordo da un
+pixel. Misurato a schermo, confrontando elementi della stessa pagina e mai un letterale: **959x181px,
+fondo `rgb(20,20,28)`, 13 punti per canale dalla pagina, bordo 1px**. E' anche il gradino che i blocchi
+usano gia' per leggersi come card, e lascia libero `control`, che e' come una rosa RIVALE si accende
+dentro - un terzo tono li' avrebbe spento quel marchio.
+
+Asserito in `e2e-plancia-slots`, con la normalizzazione che il 16/09 era costata una sonda: Chrome
+restituisce un `color-mix` come `oklab(...)` e un token come `rgb(...)`, e sommare una L fra 0 e 1 a un
+canale fra 0 e 255 e' il modo in cui una sonda mente. Il passo verifica anche che la card **stia nella
+linea dei portieri** e non sia scivolata sotto la plancia.
+
+### 44.4 I gesti di preparazione escono dalla barra senza morire
+
+Dei sei segni rossi sull'header, tre erano LETTURE e tre erano GESTI - «estrai», «azzera le rose», il
+menu dei marchi. Cancellarli avrebbe tolto **il modo di cominciare**: il tavolo inventato arriva con un
+terzo d'asta gia' giocato ed e' il foglio su cui lui segna l'asta vera (§37), quindi azzerare le rose e'
+il primo gesto di una sessione. Messo davanti alle quattro strade, ha scelto **spostarli in basso
+accanto a Opzioni**.
+
+**UN REGISTRO E NON UNA SECONDA SCATOLA FISSA** (`core/page-actions.ts`): `ui/global-options` lo dichiara
+di se' - «due riquadri fissi nello stesso angolo si coprono appena uno cresce» - e quella scatola cresce
+davvero, perche' la pastiglia dei club esclusi compare e sparisce. E non una proiezione, perche'
+`ui-global-options` sta in `app.html`, fuori dall'outlet: una vista non lo contiene. La pagina dichiara
+un `ng-template`, la scatola lo disegna con `ngTemplateOutlet`, e il separatore si disegna solo quando
+c'e' qualcosa da separare.
+
+**E i banchi seguono la feature**: `e2e-plancia-award` e `e2e-plancia-slots` cercavano i due tasti sotto
+`header button` e adesso li cercano dove sono; il passo che leggeva l'avanzamento per ruolo e' stato
+RITIRATO con la riga, perche' un banco che cerca una funzione che l'operatore ha fatto togliere misura
+il proprio ricordo. Quello che l'azzeramento deve fare resta asserito dalle due prove che parlano del
+DATO: dieci rose a 1000 crediti con le quote intatte, e zero righe con la barra di un proprietario.
+
+### 44.5 La controprova che resta verde, e cosa vuol dire
+
+Il passo nuovo in `e2e-nav` prova che i gesti di una pagina **escono dalla scatola insieme a lei** (sulla
+plancia legge `[Opzioni · estrai · azzera le rose · segnali]`, sui Calciatori `[Opzioni]`) - il caso che
+un banco su una pagina sola non puo' vedere, perche' si vede solo navigando.
+
+Poi la controprova, che e' la parte istruttiva. Avevo scritto che rileggere `viewChild` dentro
+`onDestroy` sarebbe un difetto - la query risponderebbe `undefined`, quindi `clear(null)` non
+corrisponderebbe mai e i tasti della plancia resterebbero su ogni pagina dopo. **Rimesso quel codice, il
+banco resta verde**: oggi la query risponde ancora alla distruzione, quindi il difetto non c'era. *Una
+controprova che non fallisce ha due letture, e vanno distinte: o l'asserzione e' debole, o il difetto
+che credevi di aver curato non esisteva.* Qui e' la seconda: il codice difensivo resta (cosi' la pulizia
+non dipende dall'ordine di smontaggio di Angular, che e' un dettaglio del framework) ma il commento
+adesso dice che e' una cintura e non la cura di qualcosa di misurato, e il banco dichiara di se' che
+**non distingue le due forme**.
+
+### 44.6 Cosa NON si e' mosso, verificato invece che dedotto
+
+`engine_*` e le colonne del foglio intatti (nessuna delle sei richieste tocca un calcolo), nessun
+`SHEET_REVISION`, nessuna riga del pacchetto. Suite app **1038 test su 59 file**, e i banchi e2e verdi:
+`nav`, i cinque della plancia, `options`, `clubs`, `why`, `table`, `sealed-bid`. Due rossi **non sono di
+questa sessione** e sono verificati come tali: `e2e-player-card` fallisce identico su HEAD (corsa in un
+worktree su `HEAD`, un riepilogo con `season: null` che legge `~5.7` contro il 5.5 del pacchetto), e
+`e2e-strategy` legge 21 pastiglie invece delle venti dichiarate perche' l'altra sessione ne ha aggiunta
+una (commit `9c8729c`) senza aggiornare il suo banco.
+
+**APERTO**: `planKeepers` e i suoi quattro test restano senza lettori nell'app - la logica delle due
+strategie portieri (§34.6) e' misurata e documentata, quindi rimetterla a schermo costa una vista e non
+una misura, ma oggi non entra in nessuna schermata e il file lo dichiara. E l'avanzamento per ruolo non
+ha piu' un posto: torna in una riga se gli manca.

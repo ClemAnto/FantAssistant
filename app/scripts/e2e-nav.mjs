@@ -227,6 +227,26 @@ function tooltipText() {
 }
 
 /** L'altezza della barra col nav e senza: l'A/B piu' piccolo possibile, una cosa sola che si muove. */
+/**
+ * I TASTI CHE UNA PAGINA METTE NELLA SCATOLA FISSA, letti da quella scatola e non dalla pagina.
+ *
+ * `core/page-actions.ts` e' un registro globale, quindi il caso che puo' rompersi non e' «li disegna»
+ * ma «li TOGLIE quando si va via»: la vista nuova si registra prima che la vecchia sia distrutta, e
+ * una pulizia scritta male lascerebbe «azzera le rose» sulla pagina Calciatori - un gesto che la'
+ * non vuol dire niente e che, se premuto, azzererebbe un'asta. Un banco su una pagina sola non lo
+ * puo' vedere: si vede solo NAVIGANDO.
+ *
+ * QUELLO CHE QUESTO PASSO NON DISTINGUE, detto perche' un banco che sembra provare piu' di quanto
+ * prova e' peggio di uno che non c'e': le due forme della pulizia (ricordarsi il template in una
+ * variabile, o rileggerlo dalla query dentro `onDestroy`) passano TUTT'E DUE - provato rimettendo la
+ * seconda. Quindi qui si asserisce che la pulizia AVVIENE, non come e' scritta.
+ */
+function boxButtons() {
+  const box = document.querySelector('ui-global-options > div');
+  if (!box) return null;
+  return [...box.querySelectorAll('button')].map((one) => (one.innerText ?? '').trim()).filter(Boolean);
+}
+
 function navCost() {
   const shell = [...document.querySelectorAll('header')]
     .find((one) => one.querySelector('nav a[data-nav]'));
@@ -459,6 +479,27 @@ async function main() {
         .join(' · '),
       problems: cost.filter((one) => one.shape?.scrolls).map((one) =>
         `${one.path} ha ricominciato a scorrere (${one.shape.overflow}px oltre la finestra)`),
+    });
+
+    // 6. I GESTI DI UNA PAGINA ESCONO CON LEI. Sulla plancia la scatola in basso porta i suoi tre;
+    //    altrove deve tornare a portare solo i propri, o il registro globale perde il suo senso.
+    await goTo('/plancia', 'app-plancia');
+    await wait(600);
+    const onBoard = (await evaluate(session, boxButtons)) ?? [];
+    await goTo('/', 'app-players');
+    await wait(600);
+    const elsewhere = (await evaluate(session, boxButtons)) ?? [];
+    const own = (list) => list.filter((one) => /estrai|azzera|segnali/i.test(one));
+    note('i gesti di una pagina escono dalla scatola insieme a lei', {
+      said: `sulla plancia [${onBoard.join(' · ')}] · sui calciatori [${elsewhere.join(' · ')}]`,
+      problems: [
+        ...(own(onBoard).length >= 2
+          ? []
+          : ['la plancia non mette i suoi gesti nella scatola in basso']),
+        ...(own(elsewhere).length === 0
+          ? []
+          : [`i gesti della plancia sono rimasti sui calciatori: ${own(elsewhere).join(', ')}`]),
+      ],
     });
 
   } finally {

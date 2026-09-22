@@ -100,53 +100,28 @@
         <span class="text-[11px] text-muted">sul tavolo</span>
       </span>
 
-      <!-- 3. I TRE NUMERI -->
-      <div class="flex shrink-0 gap-1.5 text-center">
-        <div
-          class="rounded bg-control px-2 py-1"
-          nz-tooltip
-          [nzTooltipTitle]="
-            'Quanto paga di solito il tavolo per uno slot ' +
-            l.block.index +
-            ' di questo ruolo, con ' +
-            l.advice.hands +
-            ' rose ancora aperte.'
-          "
-        >
-          <div class="text-sm leading-none font-semibold tabular-nums text-fg">
-            {{ l.advice.expectedPrice }}
-          </div>
-          <div class="mt-0.5 text-[9px] text-muted">mercato</div>
-        </div>
-        <div
-          class="rounded bg-control px-2 py-1"
-          nz-tooltip
-          nzTooltipTitle="Quante rose hanno ancora un posto in questo ruolo E i crediti per arrivare alla banda: è il numero che decide il secondo prezzo."
-        >
-          <div class="text-sm leading-none font-semibold tabular-nums text-fg">
-            {{ l.advice.hands }}
-          </div>
-          <div class="mt-0.5 text-[9px] text-muted">mani</div>
-        </div>
-        <div
-          class="rounded bg-control px-2 py-1"
-          nz-tooltip
-          nzTooltipTitle="Quanti dei dieci uomini di questo slot sono ancora nell'urna. A zero, il tetto di chi sta sopra sale."
-        >
-          <div class="text-sm leading-none font-semibold tabular-nums text-fg">
-            {{ l.block.left }}
-          </div>
-          <div class="mt-0.5 text-[9px] text-muted">nello slot</div>
-        </div>
-      </div>
+      <!-- I TRE NUMERI (mercato · mani · nello slot) E LA RIGA DEL PERCHE' NON CI SONO PIU' (sua
+           istruzione, 22/09/2026: «elimina le cose inutili»), e nessuno dei quattro fatti se ne va con
+           loro - questo e' il motivo per cui la riga si puo' accorciare senza perdere niente:
 
-      <!-- 4. PERCHE' — una riga sola, e prende lo spazio che resta. -->
-      <p class="min-w-0 flex-1 truncate text-xs text-muted">{{ l.advice.reason }}</p>
+           il PERCHE' e' il tooltip dell'icona del verdetto, che sta due caselle piu' a sinistra e
+           porta la stessa identica stringa (`l.advice.reason`) - era scritto due volte sulla stessa
+           riga, che e' la cosa che questo progetto chiama «due canali per una frase»;
 
-      <!-- 5. L'ALTERNATIVA: cio' che rende dubitabile il verdetto. -->
+           MANI e NELLO SLOT sono nel tooltip del blocco da cui il lotto viene («9 ancora nell'urna ·
+           D5 del mercato: i 10 piu' cari del ruolo dopo i precedenti · mediana pagata 18 cr»), cioe'
+           dove la domanda si fa - guardando quel blocco;
+
+           il MERCATO e' la mediana pagata dello slot, ed e' anche la cifra che l'intestazione di ogni
+           blocco porta gia' a destra del suo nome.
+
+           Quello che si guadagna e' lo spazio: l'alternativa e la banda sono le due cose su cui si
+           decide un rilancio, e adesso hanno la riga per loro. -->
+
+      <!-- L'ALTERNATIVA: cio' che rende dubitabile il verdetto. -->
       @if (l.alternative; as alt) {
         <div
-          class="flex shrink-0 items-center gap-2 rounded border border-dashed border-border px-2 py-1"
+          class="ml-auto flex shrink-0 items-center gap-2 rounded border border-dashed border-border px-2 py-1"
           [class.border-solid]="l.advice.verdict === 'lascia'"
           [class.bg-control]="l.advice.verdict === 'lascia'"
           nz-tooltip

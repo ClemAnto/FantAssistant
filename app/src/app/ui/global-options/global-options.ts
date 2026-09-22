@@ -1,4 +1,5 @@
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
@@ -15,6 +16,7 @@ import { EngineSheetEntry } from '../../core/bundle';
 import { LEAGUE_ORDER } from '../../core/clubs-store';
 import { ClubOption, GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { ClassicRole, competitionLabel } from '../../core/players-store';
+import { PageActions } from '../../core/page-actions';
 import { ValuationStore } from '../../core/valuation-store';
 import { ClubCrest } from '../club-crest/club-crest';
 import { DataFreshness } from '../data-freshness/data-freshness';
@@ -46,6 +48,7 @@ interface ClubGroup {
   imports: [
     ClubCrest,
     DataFreshness,
+    NgTemplateOutlet,
     FormsModule,
     NzButtonModule,
     NzCheckboxModule,
@@ -69,6 +72,9 @@ export class GlobalOptionsPanel {
    * qualcuno le ha lette.
    */
   private readonly valuation = inject(ValuationStore);
+
+  /** Cosa la pagina corrente vuole disegnare in questa scatola: vedi `core/page-actions.ts`. */
+  protected readonly pageActions = inject(PageActions);
 
   protected readonly classicRoles: ClassicRole[] = ['P', 'D', 'C', 'A'];
   protected readonly crests = this.valuation.crests;

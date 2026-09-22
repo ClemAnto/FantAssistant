@@ -408,6 +408,11 @@ export interface KeeperPlan<T> {
  * è ancora comprabile e propone la mossa. Le due strategie sono la COPPIA complementare (≥ target
  * insieme) e i TRE di un supertop (un club che da solo ≥ target); il terzo economico ha due tipi
  * mostrati «pari». Nessun numero è inventato: `facili` è la sua regola e la soglia è la sua quota.
+ *
+ * NESSUN LETTORE NELL'APP dal 22/09/2026, quando lui ha fatto togliere la striscia che la traduceva
+ * («elimina questa barra»). La funzione resta perché è PURA e misurata — le due strategie e la soglia
+ * sono in `assistente-asta-v1.md` §34.6, e i suoi test girano — così rimetterla a schermo costa una
+ * vista e non una misura. Chi legge questo file sappia che oggi non entra in nessuna schermata.
  */
 export function planKeepers<T>(
   calendar: LeagueCalendar,

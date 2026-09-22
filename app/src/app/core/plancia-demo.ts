@@ -41,20 +41,29 @@ export const STANDARD_LEAGUE = {
   slots: { P: 3, D: 8, C: 8, A: 6 } as Record<Role, number>,
 };
 
-/** The invented squads: fixed names and colours, so two runs of the demo are the SAME table. */
-const DEMO_TEAMS: { label: string; colour: string }[] = [
-  { label: 'La mia rosa', colour: '#6f8cff' },
-  { label: 'Bar Centrale', colour: '#f21a3c' },
-  { label: 'Tridente', colour: '#63c617' },
-  { label: 'Volk FC', colour: '#6300ff' },
-  { label: 'Spartani', colour: '#0096a0' },
-  { label: 'Gladiatori', colour: '#c89614' },
-  { label: 'Marine', colour: '#a1400c' },
-  { label: 'Zenith', colour: '#1169f7' },
-  { label: 'Lupi di Fiume', colour: '#fa824c' },
-  { label: 'Kraken', colour: '#757780' },
-  { label: 'Ultimo Minuto', colour: '#c94f9b' },
-  { label: 'Fuorigioco FC', colour: '#5fb0b7' },
+/**
+ * The invented squads: fixed NAMES, so two runs of the demo are the same table.
+ *
+ * The colours are no longer here (22/09/2026). They were twelve hand-picked hexes and the measurement
+ * says what that costs: one read GREY (below the chroma floor, so it did no identity work at all) and
+ * two sat under 3:1 on the card, i.e. their owner's bar was nearly invisible. They now come from
+ * `team-colours.ts` through the feed, which is the ONE place a squad's colour is decided - a real
+ * table and an invented one get the same treatment, and a second list here would eventually disagree
+ * with it.
+ */
+const DEMO_TEAMS: { label: string }[] = [
+  { label: 'La mia rosa' },
+  { label: 'Bar Centrale' },
+  { label: 'Tridente' },
+  { label: 'Volk FC' },
+  { label: 'Spartani' },
+  { label: 'Gladiatori' },
+  { label: 'Marine' },
+  { label: 'Zenith' },
+  { label: 'Lupi di Fiume' },
+  { label: 'Kraken' },
+  { label: 'Ultimo Minuto' },
+  { label: 'Fuorigioco FC' },
 ];
 
 /** How much of the auction the fixture plays before handing the board over. */
@@ -175,7 +184,6 @@ export function buildRandomAuction(input: {
     },
     teams: squads.map((squad, at) => ({
       id: squad.id,
-      color: DEMO_TEAMS[at].colour,
       connection: { label: DEMO_TEAMS[at].label, active: true, host: at === 0 },
     })),
     picks,

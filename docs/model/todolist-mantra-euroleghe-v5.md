@@ -2097,3 +2097,42 @@ Su `euro` la retta dei minuti all'estero tocca **9 e 8 uomini** sui due fogli ba
 là il set adottato include R0c e il core prezza quasi tutti. Lo scarto negativo che si legge (−0,16) è su
 una popolazione troppo piccola per dire qualcosa: **non misurato**, non «sovrastima». Riapribile solo se
 quella popolazione cresce.
+
+## Aperto dopo la sessione del 22/09/2026 notte (la plancia svuotata, e la palette delle rose)
+
+Dettaglio: `assistente-asta-v1.md` §44 e `letture-app-v1.md` §49. Niente qui è un candidato di gate:
+sono tutte cose di interfaccia o debiti dichiarati.
+
+1. **`planKeepers` non ha lettori nell'app.** Tolta la striscia strategia portieri, la logica delle due
+   strade (coppia complementare ≥32 giornate facili, oppure tre di un supertop — §34.6) resta pura in
+   `core/keeper-pairs.ts` coi suoi quattro test, e non entra in nessuna schermata. Non è stata
+   cancellata perché è MISURATA e documentata: rimetterla a schermo costa una vista e non una misura.
+   Da decidere: rimetterla altrove (la card di un portiere? la striscia `keeper-strategy` sulla pagina
+   Strategia?) o toglierla del tutto. Finché resta, il file lo dichiara in cima.
+
+2. **L'avanzamento per ruolo non ha più un posto.** `P 4/30 · D 12/80 · …` era in barra ed è uscito con
+   la pulizia dell'header; è l'unica delle nove cose tolte che non si legga da nessun'altra parte.
+   Quanti posti di un ruolo sono già andati è il numero su cui poggia `hands` e che la regola del
+   tempismo legge (§24 del simulatore). Oggi si conta guardando i blocchi esauriti. Torna in una riga
+   se gli manca.
+
+3. **Oltre sedici rose la palette ricicla.** Due squadre condividono un colore e le separa solo la
+   sigla. Non è un difetto da curare con una diciassettesima tinta — il metodo lo vieta e la misura dà
+   ragione al metodo (a dieci la coppia peggiore è già sotto il pavimento) — ma se una lega da più di
+   sedici entrasse in gioco, la risposta è un secondo canale sulla barretta del proprietario (una
+   texture, o l'iniziale), non un colore in più.
+
+4. **`e2e-strategy` è rosso e non è nostro**: legge 21 pastiglie invece delle venti dichiarate, perché
+   il commit `9c8729c` dell'altra sessione ne ha aggiunta una senza aggiornare il banco. Aggiornarlo
+   vorrebbe dire committare la loro metà; va fatto da chi ha scritto la pastiglia.
+
+5. **`e2e-player-card` è rosso su HEAD** (verificato in un worktree su `HEAD`, quindi preesistente a
+   questa sessione): un riepilogo di stagione con `season: null` legge `~5.7` dove il pacchetto dice
+   5,5. Da guardare: quel gruppo senza stagione è un difetto di raggruppamento o una convenzione
+   sull'arrotondamento dei voti sintetici.
+
+6. **Una cosa vista una volta e non riprodotta.** In una corsa in batch di undici banchi `e2e-nav` ha
+   stampato «2 PROBLEMI»; cinque corse successive sono verdi. Quel banco documenta da sé la contesa fra
+   headless consecutivi («un headless si sdoppia in figli, e uccidere il padre lascia in piedi il
+   browser»), ma i due problemi non sono stati letti, quindi la spiegazione non è verificata. Se
+   ricapita, leggere le righe prima di attribuirla.

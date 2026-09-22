@@ -6,7 +6,9 @@
      tutto o non si vede niente.
 
      OGNI BLOCCO E' LARGO UGUALE: la linea piu' lunga ne ha otto, quindi ogni linea e' tagliata su una
-     griglia di otto e lo spazio che avanza porta la CODA e la legenda invece di allargare i blocchi. -->
+     griglia di otto. LO SPAZIO CHE AVANZA RESTA VUOTO (sua istruzione, 22/09/2026): portava la CODA, la
+     legenda e la borsa, e tutt'e tre sono state togliute - allargare i blocchi per riempirlo direbbe
+     che un portiere vale piu' schermo di un difensore, che e' proprio cio' che la griglia nega. -->
 <div class="flex h-full min-h-0 flex-col gap-1.5">
   @for (role of roles; track role) {
     <div class="flex min-h-0 flex-1 gap-1.5">
@@ -137,115 +139,28 @@
           </div>
         }
 
-        <!-- LA CODA, nello spazio che avanza sulla linea dei portieri. Nasconderla convince ad
-             aspettare, e aspettare fino a lasciare posti vuoti e' l'errore piu' caro che questo banco
-             abbia misurato: cinque uomini su venticinque di ogni rosa vengono da qui. -->
-        @if (role === 'P' && spare('P') > 0) {
-          <div
-            class="flex items-center gap-3 rounded border border-dashed border-border px-3"
-            [style.grid-column]="'span 2'"
-            nz-tooltip
-            nzTooltipTitle="I calciatori sotto la mappa: si prendono a un credito. Contati e non nominati, perché quello che serve sapere è che ci sono."
-          >
-            <span class="text-[10px] font-bold tracking-widest text-muted uppercase">coda</span>
-            <span class="text-2xl leading-none font-bold tabular-nums text-fg">{{ tail() }}</span>
-            <span class="text-[11px] text-muted">a 1 credito</span>
-          </div>
-        }
+        <!-- LE ROSE, nello spazio che avanza sulla linea dei portieri (sua richiesta, 22/09/2026).
+             Proiettate e non disegnate qui: dov'e' lo spazio lo sa questa griglia, cosa ci va lo sa la
+             pagina. Sta DENTRO la linea e non sopra o sotto, cosi' le dieci card sono alte quanto un
+             blocco e la plancia si riprende i 240px che la colonna di destra le toglieva. -->
+        @if (role === 'P') {
+          <!-- DENTRO UNA CARD, e non appoggiate sul fondo (sua richiesta, 22/09/2026: «per rendere
+               più evidente il cambio di contesto dai calciatori»). Senza un contenitore suo la
+               striscia sta nella stessa griglia dei blocchi e si legge come un sesto blocco della
+               linea dei portieri: stessa distanza, stesso fondo, nessun bordo a dire dove finisce il
+               listone e cominciano le rose.
 
-        <!-- LA LEGENDA, nello spazio che avanza in attacco: la colonna dei numeri porta due
-             significati e questo è il posto dove si dice quali. -->
-        @if (role === 'P' && spare('P') > 2) {
+               IL FONDO E' `surface` E NON `page`, e la differenza non e' di gusto: dietro c'e' la
+               PAGINA, che e' `page`, quindi una card di quel colore non si stacca da niente e resta
+               un bordo da un pixel. `surface` e' il gradino che i blocchi usano gia' per leggersi
+               come card (dieci punti per canale sopra la pagina), e lascia libero `control`, che e'
+               come una rosa RIVALE si accende dentro. Nessuna tinta: il colore qui e' gia' preso -
+               e' l'identita' di una rosa - e spenderlo due volte lo spegnerebbe. -->
           <div
-            class="flex flex-col justify-center gap-1 rounded border border-border bg-surface px-3 py-1"
-            [style.grid-column]="'span ' + (spare('P') - 2)"
+            class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface p-1.5"
+            [style.grid-column]="'span ' + teamsSpan()"
           >
-            <!-- COSA DICE LA COLONNA, e sono due frasi diverse per i due tagli: sul mercato porta due
-                 significati (e li dichiara qui), sulla griglia personale uno solo, perche' la' e'
-                 anche la chiave dell'ordinamento. -->
-            @if (view() === 'market') {
-              <div class="flex items-center gap-1.5 text-[10px] text-muted">
-                <span class="h-2 w-2 rounded-full border border-muted"></span>
-                nell'urna: <b class="text-fg">max offerta</b>
-              </div>
-              <div class="flex items-center gap-1.5 text-[10px] text-muted">
-                <span class="h-2 w-2 rounded-full bg-muted"></span>
-                di un altro: <b class="text-fg">prezzo pagato</b>
-              </div>
-            } @else {
-              <div class="flex items-center gap-1.5 text-[10px] text-muted">
-                <span class="h-2 w-2 rounded-full border border-muted"></span>
-                a destra sempre la tua <b class="text-fg">max offerta</b>, ed è il TAGLIO dei blocchi
-              </div>
-              <div class="flex items-center gap-1.5 text-[10px] text-muted">
-                <span class="h-2 w-2 rounded-full bg-primary/60"></span>
-                a sinistra lo <b class="text-fg">SWING</b>, punti a giornata sopra il 6 (portieri:
-                sopra il 5): è l'ORDINE dentro
-              </div>
-              <div class="flex items-center gap-1.5 text-[10px] text-muted">
-                <span class="h-2 w-2 rounded-full bg-muted"></span>
-                di un altro: quanto è stato pagato lo dicono gli slot mercato
-              </div>
-            }
-            <div class="flex items-center gap-1.5 text-[10px] text-muted">
-              <span class="h-2 w-2 rounded-full bg-primary"></span>
-              mio
-            </div>
-            <!-- LA TINTA DELLO SCONTO STESSO-CLUB: la legenda dichiara cosa vuol dire ogni colore di
-                 questa tabella, e questo e' il colore di un fattore che abbassa l'offerta. La
-                 percentuale del singolo sta nella sua card, qui sta cosa vuol dire la tinta. -->
-            <div class="flex items-center gap-1.5 text-[10px] text-muted">
-              <span class="tabular-nums text-warning">123</span>
-              offerta ridotta: di quel club ne hai già in rosa (di più se ti pesta il ruolo)
-            </div>
-            <!-- I DUE INCHIOSTRI ROSSI, che mancavano: la legenda dichiara cosa vuol dire ogni colore
-                 di questa tabella e questi due non c'erano, quindi la domanda «perché McKennie e
-                 Cambiaso sono cancellati?» (operatore, 04/09/2026) non aveva una risposta a schermo -
-                 e la risposta giusta è stata cambiare il fatto che il barrato dice. La ragione del
-                 SINGOLO sta sull'icona della sua riga e nella sua card; qui sta cosa vuol dire
-                 l'inchiostro. Chi salta solo la prossima giornata non è in questa legenda perché non
-                 ha un inchiostro: ha un'icona. -->
-            <div class="flex items-center gap-1.5 text-[10px] text-muted">
-              <span class="text-danger line-through decoration-danger/60">nome</span>
-              infortunato da 45 giorni o più
-            </div>
-            <div class="flex items-center gap-1.5 text-[10px] text-muted">
-              <span class="text-danger/75">nome</span>
-              torna a una data (e non è fuori da 45 giorni): le giornate che perde sono già nei suoi
-              numeri
-            </div>
-            <p class="text-[10px] leading-tight text-muted">
-              Passa sopra un nome per la coppia che compreresti al suo posto.
-            </p>
-          </div>
-        }
-        <!-- LA MIA BORSA, nello spazio che avanza in attacco: a estrazione libera il vincolo che si
-             perde di vista non e' quanto ho, e' quanto posso ancora spendere PER POSTO. -->
-        @if (role === 'A' && spare('A') > 0) {
-          <div
-            class="flex items-center justify-around gap-2 rounded border border-primary/40 bg-control px-3"
-            [style.grid-column]="'span ' + spare('A')"
-            nz-tooltip
-            nzTooltipTitle="La tua borsa: crediti rimasti, posti ancora da riempire (P·D·C·A) e quanto puoi spendere in media su ognuno."
-          >
-            <div class="text-center">
-              <div class="text-xl leading-none font-bold tabular-nums text-fg">
-                {{ myCredits() }}
-              </div>
-              <div class="mt-0.5 text-[9px] text-muted">crediti</div>
-            </div>
-            <div class="text-center">
-              <div class="text-sm leading-none font-semibold tabular-nums text-fg">
-                {{ myMissing().join('·') }}
-              </div>
-              <div class="mt-0.5 text-[9px] text-muted">posti</div>
-            </div>
-            <div class="text-center">
-              <div class="text-xl leading-none font-bold tabular-nums text-fg">
-                {{ perPlace() ?? '—' }}
-              </div>
-              <div class="mt-0.5 text-[9px] text-muted">per posto</div>
-            </div>
+            <ng-content select="[spare]" />
           </div>
         }
       </div>

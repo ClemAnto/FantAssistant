@@ -218,13 +218,12 @@ function readTeams() {
   });
 }
 
-/** The header's own progress, per role: how many places of each are already assigned. */
-function readProgress() {
-  const chips = [...document.querySelectorAll('header span.tabular-nums')]
-    .map((one) => (one.innerText ?? '').trim())
-    .filter((text) => /^[PDCA] [0-9]+\/[0-9]+$/.test(text));
-  return chips.length ? chips : null;
-}
+// L'AVANZAMENTO PER RUOLO NON E' PIU' IN BARRA (operatore, 22/09/2026: «ripulisci l'header con le
+// cose fuori contesto»), quindi il passo che lo leggeva se n'e' andato con lui: un banco che cerca una
+// funzione che l'operatore ha fatto togliere misura il proprio ricordo, e il rosso che ne esce e'
+// rumore che il prossimo impara a saltare. Quello che l'azzeramento deve fare resta asserito dalle
+// due prove che parlano del DATO e non della barra - dieci rose a 1000 crediti con le quote intatte,
+// e zero righe della plancia con la barra di un proprietario.
 
 /** The lot on the table, and the price field beside it. */
 function readLot() {
@@ -325,20 +324,18 @@ async function main() {
     });
 
     // 2. AZZERA LE ROSE, and the confirmation is a second real pointer.
-    const reset = await evaluate(session, boxOf, 'header button', 'azzera le rose');
+    const reset = await evaluate(session, boxOf, 'ui-global-options button', 'azzera le rose');
     if (reset) await click(session, reset);
     const confirmed = await clickSteady(session, '.ant-popover button', 'Azzera');
     await wait(400);
     const after = await evaluate(session, readTeams);
-    const progress = await evaluate(session, readProgress);
     const board = await evaluate(session, readRows, null);
     const rich = (after ?? []).filter((one) => one.credits === 1000).length;
     note('azzera le rose', {
       said: `tasto ${reset ? 'presente' : 'ASSENTE'} · conferma ${confirmed ? 'premuta' : 'MAI apparsa'} · `
-        + `${rich}/10 rose a 1000 cr · avanzamento ${progress?.join(' ') ?? '?'} · `
-        + `${board?.owned ?? '?'} righe con un proprietario`,
+        + `${rich}/10 rose a 1000 cr · ${board?.owned ?? '?'} righe con un proprietario`,
       problems: [
-        ...(reset ? [] : ["non c'e' nessun tasto «azzera le rose» in barra"]),
+        ...(reset ? [] : ["non c'e' nessun tasto «azzera le rose» nella scatola in basso"]),
         ...(reset && !reset.reachable ? ['il tasto «azzera le rose» ha qualcosa sopra'] : []),
         ...(confirmed ? [] : ["la conferma non e' comparsa: il tasto azzererebbe senza chiedere"]),
         ...(rich === 10
@@ -349,9 +346,6 @@ async function main() {
           ? []
           : ["dopo l'azzeramento qualche rosa ha ancora dei posti occupati: "
              + (after ?? []).filter((o) => String(o.missing) !== '3,8,8,6').map((o) => `${o.label} ${o.missing}`).join(', ')]),
-        ...((progress ?? []).every((chip) => chip.includes(' 0/'))
-          ? []
-          : [`l'avanzamento non e' tornato a zero: ${progress?.join(' ')}`]),
         ...(board?.owned === 0
           ? []
           : [`${board?.owned} righe della plancia hanno ancora la barra di un proprietario`]),
@@ -366,7 +360,7 @@ async function main() {
 
     // 4. A NAME ON THE TABLE, and the refusal FIRST: at price zero nothing may be bought, and the
     //    page has to say why - a mute refusal reads exactly like a broken gesture.
-    await clickSteady(session, 'header button', 'estrai');
+    await clickSteady(session, 'ui-global-options button', 'estrai');
     await wait(300);
     const lot = await waitFor(session, readLot, 20);
     const seated = await evaluate(session, readTeams);

@@ -6838,3 +6838,64 @@ Tre abitudini di casa incontrate da un lato nuovo.
   +0,115 dopo. All'inizio della stagione il mercato sottovaluta le GRANDI — con il limite dichiarato che
   nel quartile più caro ci sono 73 uomini delle cinque forti e **7** delle cinque deboli, quindi «a parità
   di prezzo» esiste davvero solo nella metà bassa del listone.
+
+## DIECI COLORI DISTINGUIBILI NON ESISTONO, e uno spazio vuoto è spazio già pagato
+**22/09/2026, sei istruzioni dell'operatore sulla plancia in una sessione. Dettaglio:
+`assistente-asta-v1.md` §44 (i tagli, il layout, i gesti) e `letture-app-v1.md` §49 (la palette).**
+Nessun numero del motore si muove: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto fermo.
+
+**UNA PALETTE SI SCEGLIE PER QUELLO CHE PUÒ FARE E SI DICHIARA PER QUELLO CHE NON PUÒ.** «Utilizziamo
+una palette di colori per le squadre in modo che siano ben distinguibili gli uni dagli altri»: misurata
+col validatore categorico PRIMA di scriverla, e la risposta più importante è un NO — per dieci squadre
+quella frase non è ottenibile col solo colore. Coppia peggiore **ΔE 13,0 a vista normale** (pavimento
+15) e **0,8 sotto deuteranopia**, cioè due rose dello stesso colore per chi non distingue il rosso dal
+verde. Non è taratura: con dieci tinte sul cerchio la collisione è garantita, e la palette di
+riferimento del metodo, che ne ha OTTO, ne valida **tre** a tutte le coppie. Quindi il colore è un
+canale di SUPPORTO e l'identità la porta la SIGLA; dove la sigla non c'è — la barretta del proprietario,
+tre pixel — il colore dice «è di qualcuno» e «è dello stesso di quell'altro», e a «di CHI» risponde la
+lente.
+Quello che invece si poteva aggiustare era rotto davvero, ed è la misura che giustifica il cambio:
+contro la lista scritta a mano, coppia peggiore **11,0 → 13,0**, tinte che leggono GRIGIE (sotto il
+pavimento di cromaticità, cioè che non fanno lavoro di identità) **1 → 0**, tinte sotto 3:1 sulla
+superficie **2 → 0**. E il difetto più grosso non era nella lista: senza un colore pubblicato il feed
+leggeva `currentColor`, cioè **dieci rose dello stesso identico colore** — il canale spento proprio dove
+non c'era nient'altro. Sedici tinte in OKLCH con ordine max-min greedy, così **i primi `k` slot sono i
+`k` meglio separati** e una lega da otto non paga le tinte che servono a una da sedici; banda di
+chiarezza più alta di quella del riferimento, e la sostituzione è DICHIARATA con la misura che la impone
+(dentro quella banda ogni variante fa cadere una tinta sotto la cromaticità).
+
+**UNO SPAZIO VUOTO IN UNA GRIGLIA È SPAZIO GIÀ PAGATO, e a pagarlo è quello che gli sta accanto.** Le
+dieci card delle rose stavano in una colonna di **240px sulla destra** mentre la linea dei portieri usa
+**3 colonne di 8** — ogni linea è tagliata su otto perché la più lunga ne ha otto — quindi cinque erano
+libere. Spostarle lì ha ridato quei 240px ai 25 blocchi (~193 → ~222px ciascuno), cioè alle 250 righe
+che sono la ragione per cui quella pagina esiste. *Prima di stringere qualcosa per fare posto, contare
+le colonne che la griglia lascia già libere.* Proiettate e non disegnate lì dentro: dov'è lo spazio lo
+sa la griglia, cosa ci va lo sa la pagina — e lo `span` vale il residuo **oppure la riga intera** quando
+non ce n'è, perché uno slot proiettato che non renderizza da nessuna parte è indistinguibile da una
+feature che nessuno ha collegato.
+
+**UN FATTO RIPETUTO NON SI NOTA COME SI NOTA UN FATTO SBAGLIATO: si nota contando i lettori.** La riga
+del lotto portava il PERCHÉ due volte a dodici centimetri di distanza — `advice.reason` nel tooltip
+dell'icona del verdetto e nel paragrafo accanto — e nessuno l'aveva visto perché i due non possono
+contraddirsi: sono la stessa espressione. È «due canali per una frase» nel caso in cui il canale
+ridondante non fa danno, e per questo sopravvive.
+
+**E QUANDO SI RIPULISCE UNO SCHERMO, LE LETTURE E I GESTI NON SI TRATTANO ALLO STESSO MODO.** Dei sei
+segni rossi sull'header tre erano readout e tre erano gesti; cancellare «azzera le rose» avrebbe tolto
+il modo di COMINCIARE (il tavolo inventato arriva con un terzo d'asta giocata ed è il foglio su cui lui
+segna l'asta vera), quindi la domanda è stata fatta invece di indovinata e la risposta è stata
+spostarli. Di ogni lettura tolta si scrive **dove il fatto si legge adesso**, e quella che sparisce
+davvero si dichiara: l'avanzamento per ruolo non sta da nessun'altra parte, e ora lo dice il commento
+che lo sostituisce. Un registro (`core/page-actions.ts`) e non una seconda scatola fissa, perché il
+componente che già occupa quell'angolo dichiara di sé che due riquadri lì si coprono appena uno cresce.
+
+**E UNA CONTROPROVA CHE RESTA VERDE HA DUE LETTURE, che vanno distinte.** La regola di casa dice di
+rimettere il difetto e guardare quale test cade; qui il test non è caduto, e la ragione non era
+un'asserzione debole — **il difetto non c'era**. Avevo scritto che rileggere `viewChild` dentro
+`onDestroy` avrebbe lasciato i tasti della plancia su ogni pagina successiva; rimesso quel codice, il
+banco legge lo stesso `[Opzioni]` altrove, cioè la query risponde ancora alla distruzione. *O
+l'asserzione è debole, o il difetto che credevi di aver curato non esisteva: si stabilisce quale, e nel
+secondo caso si corregge il COMMENTO e non il codice.* Il codice difensivo resta come cintura — così la
+pulizia non dipende dall'ordine di smontaggio del framework — e il banco dichiara di sé che **non
+distingue le due forme**, perché un banco che sembra provare più di quanto prova è peggio di uno che non
+c'è.

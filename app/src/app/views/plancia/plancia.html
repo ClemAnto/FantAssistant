@@ -29,15 +29,6 @@
       </span>
     }
 
-    <span class="text-muted">
-      {{ rules().teams }} partecipanti · rose {{ rules().roster }} · {{ rules().budget }} cr ·
-      <span
-        nz-tooltip
-        nzTooltipTitle="Un software esterno estrae un calciatore a caso da tutto il listone: qualsiasi ruolo, in qualsiasi momento."
-        >estrazione libera</span
-      >
-    </span>
-
     <!-- I DUE TAGLI DELLA PLANCIA (sua richiesta, 04/09/2026). Non è un ordinamento della tabella:
          sono due insiemi diversi dentro lo stesso blocco, quindi il bottone li NOMINA e resta a
          schermo - un `D1` che porta dieci uomini o altri dieci a seconda di uno stato invisibile si
@@ -55,23 +46,6 @@
         }}</label>
       }
     </nz-radio-group>
-
-    <!-- L'AVANZAMENTO: a estrazione libera non c'è una fase, c'è quanto è già uscito per ruolo. -->
-    <span class="flex items-center gap-1">
-      @for (step of store.progress(); track step.role) {
-        <span
-          class="rounded bg-control px-1.5 py-0.5 tabular-nums"
-          [class.text-fg]="step.role === store.lot()?.block?.role"
-          [class.text-muted]="step.role !== store.lot()?.block?.role"
-          nz-tooltip
-          [nzTooltipTitle]="
-            step.done + ' posti di ' + step.role + ' già assegnati su ' + step.total
-          "
-        >
-          {{ step.role }} {{ step.done }}/{{ step.total }}
-        </span>
-      }
-    </span>
 
     <!-- LA LENTE SI DICHIARA IN BARRA, e non solo sulla card che l'ha accesa: smorza duecentocinquanta
          righe, quindi uno schermo mezzo spento senza una parola in cima si legge come un guasto. E la
@@ -119,63 +93,73 @@
          frase resta dove la domanda si fa: nel tooltip del blocco CORTO, che porta il conto, i nomi
          e la soglia. *Un vincolo si dichiara dove si vede, non necessariamente in cima allo schermo.* -->
 
-    @if (store.sheet(); as sheet) {
-      <span
-        class="text-muted"
-        nz-tooltip
-        [nzTooltipTitle]="
-          'I numeri di ogni giocatore sono del motore, letti dal foglio ' +
-          sheet.league +
-          ' (revisione ' +
-          (sheet.sheet_revision ?? 0) +
-          ', generato il ' +
-          (sheet.generated_at ?? sheet.auction_date ?? '?').slice(0, 10) +
-          ') e mai ricalcolati qui.'
-        "
-        >{{ sheet.league }} · rev. {{ sheet.sheet_revision ?? 0 }}</span
-      >
-    }
+    <!-- TRE LETTURE TOLTE DALLA BARRA (sua istruzione, 22/09/2026: «ripulisci l'header con le cose
+         fuori contesto»), e quello che ciascuna portava va detto invece di lasciarlo scoprire:
+
+         IL REGOLAMENTO («10 partecipanti · rose 3-8-8-6 · 1000 cr · estrazione libera») e' quello che
+         lui DICHIARA in Opzioni, dove resta leggibile e modificabile. Era in barra per la ragione
+         scritta sopra la riga - «decide ogni numero sotto di lei» - che e' vera e non e' una ragione
+         per tenerla a schermo per quattro ore: non cambia durante un'asta.
+
+         L'AVANZAMENTO PER RUOLO (P 4/30 · D 12/80 …) invece non sta da nessun'altra parte, ed e' il
+         solo di questi tre a sparire davvero. Detto per intero perche' e' il prezzo di questa pulizia:
+         quanti posti di un ruolo sono gia' andati e' il numero su cui poggia `hands`, e adesso si
+         legge contando i blocchi esauriti. Torna in una riga se gli manca.
+
+         IL FOGLIO E LA SUA REVISIONE («Leghe · rev. 71») dicevano da quale foglio del motore vengono i
+         numeri. La freschezza del pacchetto resta in basso a sinistra (`ui/data-freshness`), che e'
+         la domanda che si fa davvero prima di sedersi; la revisione e' diagnostica e vive in /why. -->
 
     <span actions class="flex items-center gap-1">
-      @if (feed.demo()) {
-        <button
-          nz-button
-          nzType="text"
-          nzSize="small"
-          (click)="store.drawNext()"
-          nz-tooltip
-          nzTooltipTitle="Estrae il prossimo nome dall'urna. Solo sul tavolo finto: un'urna vera non è nostra da girare."
-        >
-          <nz-icon nzType="reload" />
-          estrai
-        </button>
-        <!-- AZZERA LE ROSE (sua richiesta, 04/09/2026): il tavolo inventato si gioca da sé un terzo
-             dell'asta prima di consegnare la plancia, e la sua asta comincia da zero. Dietro una
-             conferma perché butta via quello che c'è scritto - a un tavolo vero, tutto quello che ha
-             registrato fin lì - e la conferma DICE cosa tocca e cosa no. Nessun tooltip qui:
-             tooltip e popconfirm sullo stesso bottone sono due overlay, e il primo copre i tasti del
-             secondo (misurato il 20/08 sugli imbuti della tabella). -->
-        <button
-          nz-button
-          nzType="text"
-          nzSize="small"
-          nz-popconfirm
-          nzPopconfirmTitle="Azzero le rose di tutti: nessun acquisto, borse piene, tutti i nomi di nuovo nell'urna. Partecipanti, crediti e posti restano come sono."
-          nzOkText="Azzera"
-          nzCancelText="No"
-          (nzOnConfirm)="store.resetSquads()"
-        >
-          <nz-icon nzType="rollback" />
-          azzera le rose
-        </button>
-      }
-      <ui-flag-menu />
       <button nz-button nzType="primary" nzSize="small" (click)="connecting.set(true)">
         <nz-icon nzType="wifi" />
         {{ feed.connected() ? 'Cambia asta' : "Collegati a un'asta vera" }}
       </button>
     </span>
   </ui-app-header>
+
+  <!-- I TRE GESTI DI PREPARAZIONE, spostati dalla barra alla scatola fissa in basso a sinistra (sua
+       decisione, 22/09/2026, dopo averli barrati in cima). Non sono gesti d'ASTA - «estrai» gira
+       un'urna che a un tavolo vero non è nostra, «azzera le rose» si preme una volta prima di
+       cominciare, i marchi sono una preferenza di visualizzazione - quindi stavano in cima a uno
+       schermo che si guarda per quattro ore per decidere un rilancio. Vivono in un `ng-template` e non
+       in una seconda scatola fissa: la ragione è in `core/page-actions.ts`, ed è quella che
+       `ui/global-options` scrive già di sé. -->
+  <ng-template #pageActions>
+    @if (feed.demo()) {
+      <button
+        nz-button
+        nzType="text"
+        nzSize="small"
+        (click)="store.drawNext()"
+        nz-tooltip
+        nzTooltipTitle="Estrae il prossimo nome dall'urna. Solo sul tavolo finto: un'urna vera non è nostra da girare."
+      >
+        <nz-icon nzType="reload" />
+        estrai
+      </button>
+      <!-- AZZERA LE ROSE (sua richiesta, 04/09/2026): il tavolo inventato si gioca da sé un terzo
+           dell'asta prima di consegnare la plancia, e la sua asta comincia da zero. Dietro una
+           conferma perché butta via quello che c'è scritto - a un tavolo vero, tutto quello che ha
+           registrato fin lì - e la conferma DICE cosa tocca e cosa no. Nessun tooltip qui:
+           tooltip e popconfirm sullo stesso bottone sono due overlay, e il primo copre i tasti del
+           secondo (misurato il 20/08 sugli imbuti della tabella). -->
+      <button
+        nz-button
+        nzType="text"
+        nzSize="small"
+        nz-popconfirm
+        nzPopconfirmTitle="Azzero le rose di tutti: nessun acquisto, borse piene, tutti i nomi di nuovo nell'urna. Partecipanti, crediti e posti restano come sono."
+        nzOkText="Azzera"
+        nzCancelText="No"
+        (nzOnConfirm)="store.resetSquads()"
+      >
+        <nz-icon nzType="rollback" />
+        azzera le rose
+      </button>
+    }
+    <ui-flag-menu />
+  </ng-template>
 
   @if (store.error()) {
     <nz-alert
@@ -201,31 +185,29 @@
     [myMissing]="myMissing()"
   />
 
-  <plancia-keeper-strategy />
-
-  <div class="flex min-h-0 flex-1 gap-2">
-    <plancia-slot-matrix
-      class="min-h-0 min-w-0 flex-1"
-      [blocks]="store.viewBlocks()"
-      [view]="store.slotView()"
-      [activeTeam]="store.lensId()"
-      [lotBlockId]="store.viewLotBlockId()"
-      [tail]="store.tail()"
-      [pairs]="store.pairs()"
-      [myCredits]="room()"
-      [myMissing]="myMissing()"
-      (pick)="onPick($event)"
-    />
-
+  <!-- LE ROSE NON SONO PIU' UNA COLONNA A DESTRA (sua richiesta, 22/09/2026): stanno nello spazio che
+       la linea dei portieri lascia libera, PROIETTATE dentro la plancia. La griglia e' l'unica a sapere
+       dove quello spazio sia - e' lei che taglia ogni linea su otto colonne - mentre le card restano
+       della pagina, che e' quella che sa cosa un doppio click deve fare. Il guadagno e' misurabile e
+       non estetico: i 240px della colonna tornano ai 25 blocchi, cioe' alle 250 righe. -->
+  <plancia-slot-matrix
+    class="min-h-0 min-w-0 flex-1"
+    [blocks]="store.viewBlocks()"
+    [view]="store.slotView()"
+    [activeTeam]="store.lensId()"
+    [lotBlockId]="store.viewLotBlockId()"
+    [pairs]="store.pairs()"
+    (pick)="onPick($event)"
+  >
     <plancia-team-grid
-      class="w-60 shrink-0"
+      spare
       [teams]="store.teams()"
       [role]="store.lot()?.block?.role ?? null"
       [assignable]="canAssign()"
       (activate)="store.toggleTeam($event)"
       (assign)="onAssign($event)"
     />
-  </div>
+  </plancia-slot-matrix>
 </div>
 
 <ui-live-connect [(open)]="connecting" />

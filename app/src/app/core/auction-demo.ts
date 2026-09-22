@@ -40,28 +40,30 @@ import { Bundle, BundleTable, EngineSheetEntry } from './bundle';
  */
 
 /**
- * The invented squads: fixed names and fixed colours, so two runs of the demo are the SAME table.
+ * The invented squads: fixed NAMES, so two runs of the demo are the SAME table.
  *
  * Deterministic on purpose - `Math.random()` here would mean the operator could never point at
- * something twice, and a demo nobody can reproduce is a demo nobody can report a defect about.
+ * something twice, and a demo nobody can reproduce is a demo nobody can report a defect about. The
+ * colours are just as deterministic and no longer live here: they come from `team-colours.ts`
+ * through the feed, so this table and the plancia's paint a squad the same way (22/09/2026).
  */
-const DEMO_TEAMS: { label: string; colour: string }[] = [
-  { label: 'Sporting Divano', colour: '#e04f5f' },
-  { label: 'Real Panchina', colour: '#3f8cff' },
-  { label: 'Atletico Rigore', colour: '#2fb673' },
-  { label: 'Dinamo Fuorigioco', colour: '#f0a132' },
-  { label: 'Union Contropiede', colour: '#9b5de5' },
-  { label: 'Cucchiaio United', colour: '#00b8d9' },
-  { label: 'Borussia Recupero', colour: '#e8734a' },
-  { label: 'Ajax Rimborso', colour: '#5fb0b7' },
-  { label: 'Tiki Taka FC', colour: '#c94f9b' },
-  { label: 'Bayer Mai Vinto', colour: '#7d8b3f' },
-  { label: 'Olympique Ammonito', colour: '#8a6b4f' },
-  { label: 'Deportivo Sospiro', colour: '#4f6ce0' },
-  { label: 'Vitesse Melina', colour: '#b7433f' },
-  { label: 'Standard Tribuna', colour: '#3f9b8a' },
-  { label: 'Sparta Rimessa', colour: '#a1793f' },
-  { label: 'Legia Turnover', colour: '#6f5fd0' },
+const DEMO_TEAMS: { label: string }[] = [
+  { label: 'Sporting Divano' },
+  { label: 'Real Panchina' },
+  { label: 'Atletico Rigore' },
+  { label: 'Dinamo Fuorigioco' },
+  { label: 'Union Contropiede' },
+  { label: 'Cucchiaio United' },
+  { label: 'Borussia Recupero' },
+  { label: 'Ajax Rimborso' },
+  { label: 'Tiki Taka FC' },
+  { label: 'Bayer Mai Vinto' },
+  { label: 'Olympique Ammonito' },
+  { label: 'Deportivo Sospiro' },
+  { label: 'Vitesse Melina' },
+  { label: 'Standard Tribuna' },
+  { label: 'Sparta Rimessa' },
+  { label: 'Legia Turnover' },
 ];
 
 /** How many full rounds the fixture plays before handing the table over. */
@@ -262,7 +264,6 @@ export function buildDemoSession(input: {
     options: { draft: { maxAheadPicks: MAX_AHEAD_PICKS } },
     teams: squads.map((squad, at) => ({
       id: squad.id,
-      color: DEMO_TEAMS[at].colour,
       connection: { label: DEMO_TEAMS[at].label, active: true, host: at === 0 },
     })),
     picks,

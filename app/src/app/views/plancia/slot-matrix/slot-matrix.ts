@@ -58,14 +58,22 @@ const COLUMNS = 8;
  *
  * That number is the MAX OFFER while he is in the urn and the PRICE PAID once somebody has him. Two
  * meanings in one column is a thing this project normally refuses; here the row says which by its own
- * ink and by the owner's colour on its left edge, and the legend says it in words - so the column is
- * readable rather than ambiguous. Dropping the price paid would cost the more useful half: what the
- * room actually paid for this slot is the only live reading of the market there is.
+ * ink and by the owner's colour on its left edge. Dropping the price paid would cost the more useful
+ * half: what the room actually paid for this slot is the only live reading of the market there is.
+ *
+ * The LEGEND that said it in words is gone (operator, 22/09/2026), with the CODA and the purse that
+ * shared the spare columns. What the ink means is not lost - the owner's bar and the row's own colour
+ * carry it, and the block's tooltip carries the rest.
+ *
+ * WHAT THOSE SPARE COLUMNS CARRY NOW ARE THE PARTICIPANTS (operator, same day: «spostiamo le card
+ * delle squadre nello spazio vuoto dopo i portieri»), PROJECTED and not drawn here: where the room is
+ * is arithmetic this component owns - it is the one that cuts every line on eight - while what goes in
+ * it belongs to the page. The board wins the 240px the cards had on the right, which is the reason the
+ * move pays: every one of the 25 blocks gets wider, and a block is where the 250 rows live.
  *
  * EVERY BLOCK IS THE SAME WIDTH, the keepers' three included: a slot is a rank divided by the number of
  * squads, so a block is one unit of the market whatever role it belongs to, and drawing the keepers
- * wider would say they are worth more of the screen than a defender. The room left over on the short
- * lines carries the CODA and the legend instead of stretching the blocks.
+ * wider would say they are worth more of the screen than a defender.
  */
 @Component({
   selector: 'plancia-slot-matrix',
@@ -97,28 +105,8 @@ export class SlotMatrix {
    * la struttura del mercato.
    */
   readonly activeTeam = input<number | null>(null);
-  readonly tail = input(0);
   /** The pair from the slot below, by man: what you would buy instead of him, at the same currency. */
   readonly pairs = input<Map<number, Alternative | null>>(new Map());
-  /**
-   * My own purse, drawn in the room the attack line leaves over.
-   *
-   * It is here and not only in the strip because at a FREE extraction it is the constraint one loses
-   * track of: any role can come up at any moment, so «how much can I still spend per place I have to
-   * fill» is the number that decides whether the next bid is affordable at all. The spare columns are
-   * the price of drawing every block the same width; filling them with a real figure is cheaper than
-   * leaving a hole and cheaper than stretching the blocks.
-   */
-  readonly myCredits = input(0);
-  readonly myMissing = input<number[]>([]);
-
-  protected readonly myPlaces = computed(() =>
-    this.myMissing().reduce((total, left) => total + left, 0),
-  );
-  protected readonly perPlace = computed(() => {
-    const places = this.myPlaces();
-    return places > 0 ? Math.floor(this.myCredits() / places) : null;
-  });
 
   /** Naming a lot is a two-click job and this is the first click: press a name, it goes on the table. */
   readonly pick = output<BoardMan>();
@@ -154,17 +142,25 @@ export class SlotMatrix {
   protected readonly roles = ROLES;
   protected readonly roleTone = ROLE_TONE;
 
+  /**
+   * How many of the eight columns the keepers' line leaves over: the room the participants take.
+   *
+   * ZERO IS A REAL ANSWER and it is not «no room»: a league that declared eight keeper slots fills the
+   * line, and the strip then takes a full row of its own inside that line (`span 8`) instead of
+   * disappearing. A projected slot that renders nowhere is indistinguishable from a feature that was
+   * never wired - this repository has paid for that shape more than once - so there is one
+   * `<ng-content>` and it is always in the tree.
+   */
+  protected teamsSpan(): number {
+    return Math.max(0, COLUMNS - (this.byRole().get('P')?.length ?? 0)) || COLUMNS;
+  }
+
   protected readonly byRole = computed(() => {
     const out = new Map<Role, BoardBlock[]>();
     for (const role of ROLES) out.set(role, []);
     for (const block of this.blocks()) out.get(block.role)?.push(block);
     return out;
   });
-
-  /** How many grid columns are left over on a line: they carry the coda and the legend. */
-  protected spare(role: Role): number {
-    return Math.max(0, COLUMNS - (this.byRole().get(role)?.length ?? 0));
-  }
 
   protected blockTone(block: BoardBlock): string {
     const lot = block.id === this.lotBlockId();

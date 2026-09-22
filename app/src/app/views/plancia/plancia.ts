@@ -1,4 +1,13 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  TemplateRef,
+  computed,
+  effect,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -9,14 +18,14 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { AuctionFeed } from '../../core/auction-feed';
-import { ROLES, SlotView } from '../../core/plancia';
+import { PageActions } from '../../core/page-actions';
+import { SlotView } from '../../core/plancia';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { FlagMenu } from '../../ui/flag-menu/flag-menu';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { KeeperPairs } from './keeper-pairs/keeper-pairs';
-import { KeeperStrategy } from './keeper-strategy/keeper-strategy';
 import { LotCard } from './lot-card/lot-card';
 import { SlotMatrix } from './slot-matrix/slot-matrix';
 import { TeamGrid } from './team-grid/team-grid';
@@ -27,9 +36,10 @@ import { TeamGrid } from './team-grid/team-grid';
  * The page opens on an invented table with the standard league settings and connects to a real session
  * only when the operator presses the button (his decision of 03/09/2026, which holds for `/auction`
  * too). Three zones and a fixed regulation bar, laid out the way he asked on the same day: the LOT is a
- * ROW under the header, the ten participants are a COLUMN of cards on the right, and everything else is
- * the board - which needs the room, because all 250 rows are on screen at once. The page itself does
- * NOT scroll.
+ * ROW under the header, and everything else is the board - which needs the room, because all 250 rows
+ * are on screen at once. The page itself does NOT scroll. The ten participants were a COLUMN of cards
+ * on the right until 22/09/2026, when he moved them into the empty space the keepers' line leaves:
+ * that room was free and the column was costing the board 240px of width.
  *
  * The mechanic is FREE extraction over the whole listone - one name at a time, any role at any moment -
  * which is the operator's own auction. It is not the departmental order the bench models
@@ -53,7 +63,6 @@ import { TeamGrid } from './team-grid/team-grid';
     AppHeader,
     FlagMenu,
     KeeperPairs,
-    KeeperStrategy,
     LiveConnect,
     LotCard,
     PlayerCard,
@@ -62,10 +71,19 @@ import { TeamGrid } from './team-grid/team-grid';
   ],
 })
 export class Plancia {
+  /**
+   * I TRE GESTI DI PREPARAZIONE, disegnati dalla scatola fissa in basso e non dalla barra in cima.
+   *
+   * Registrati e non proiettati perché `ui-global-options` sta fuori dall'outlet: la ragione per
+   * intero, e perché non è una seconda scatola fissa, è in `core/page-actions.ts`. L'`effect` scrive
+   * il template appena la vista esiste, e `DestroyRef` lo toglie quando la pagina se ne va - passando
+   * IL PROPRIO, perché la vista che arriva si registra prima che questa sia distrutta e un `set(null)`
+   * secco cancellerebbe i tasti di chi è appena entrato.
+   */
+  private readonly actions = viewChild<TemplateRef<unknown>>('pageActions');
   protected readonly store = inject(PlanciaStore);
   protected readonly feed = inject(AuctionFeed);
 
-  protected readonly roles = ROLES;
   protected readonly connecting = signal(false);
 
   /**
@@ -86,17 +104,6 @@ export class Plancia {
       hint: 'Gli stessi uomini, ripartiti per la MIA max offerta: D1 diventa i dieci difensori che pagherei di più. I tetti non si ricalcolano sulla nuova griglia: restano quelli misurati sullo slot di mercato, che la card continua a nominare.',
     },
   ];
-
-  /** The regulation, always on screen: it is what decides every number under it. */
-  protected readonly rules = computed(() => {
-    const slots = this.store.slots();
-    return {
-      sheet: this.store.sheet(),
-      teams: this.store.teamsCount(),
-      budget: this.store.budget(),
-      roster: ROLES.map((role) => slots[role]).join('·'),
-    };
-  });
 
   /**
    * La frase della lente: cosa ha acceso, quanto ne vede la plancia e come si spegne.
@@ -150,6 +157,22 @@ export class Plancia {
   protected readonly canAssign = computed(() => this.feed.demo() && !!this.store.lot());
 
   constructor() {
+    // IL TEMPLATE SI RICORDA IN UNA VARIABILE invece di rileggerlo dalla query alla distruzione, e la
+    // ragione NON e' quella che avevo scritto: sospettavo che `viewChild` rispondesse `undefined`
+    // dentro `onDestroy` - nel qual caso `clear(null)` non avrebbe mai corrisposto e i tasti della
+    // plancia sarebbero rimasti nella scatola su ogni pagina dopo - e la controprova dice di no. Con
+    // quella forma rimessa, `e2e-nav` legge lo stesso [Opzioni] sui Calciatori: oggi la query risponde
+    // ancora. La variabile resta perche' cosi' la pulizia non DIPENDE dall'ordine di smontaggio di
+    // Angular, che e' un dettaglio del framework e non una cosa che questo file possa asserire - ma
+    // e' una cintura, non la cura di un difetto misurato, e dirlo e' il punto.
+    const actions = inject(PageActions);
+    let mine: TemplateRef<unknown> | null = null;
+    effect(() => {
+      mine = this.actions() ?? null;
+      actions.set(mine);
+    });
+    inject(DestroyRef).onDestroy(() => actions.clear(mine));
+
     // The board opens on a table, never on a code field: `startDemo` is a no-op when one is already up,
     // so coming back to the page does not throw away an auction in progress.
     void this.store.startDemo();

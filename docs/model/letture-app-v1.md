@@ -5889,3 +5889,101 @@ su «0,72» quando Scamacca è 0,718). *Il percentile trova la zona, il caso dic
 il caso va letto alla precisione con cui decide.* Più uno peggiore perché riguarda un'affermazione fatta
 a lui: **un `str.replace` senza `assert` è un no-op silenzioso**, e due test delle regole nuove non sono
 mai entrati nel file mentre la sessione riportava che c'erano.
+
+## 49 — LA PALETTE DELLE ROSE: dieci colori distinguibili non esistono, e la misura lo dice prima
+
+**22 settembre 2026**, da una richiesta sua sulla plancia: «utilizziamo una palette di colori per le
+squadre in modo che siano ben distinguibili gli uni dagli altri». `app/src/app/core/team-colours.ts`,
+16 slot, REPORTING puro — nessuna valutazione li legge, nessun gate li possiede.
+
+### 49.1 Il risultato principale è un NO, e va detto per primo
+
+La frase, presa alla lettera per dieci squadre, **non è ottenibile col solo colore**. Il validatore
+categorico (`validate_palette.js`, tutte le coppie, superficie `#14141c`) su dieci tinte qualunque
+legge sempre due fallimenti che nessuna taratura toglie:
+
+- **coppia peggiore a vista normale ΔE 13,0**, sotto il pavimento di 15;
+- **sotto deuteranopia ΔE 0,8** — due rose dello stesso colore per chi non distingue il rosso dal verde.
+
+Non è una palette scelta male: con dieci tinte sul cerchio una collisione del genere è garantita, e il
+metodo di riferimento lo dichiara di sé (la sua palette di OTTO ne valida **tre** a tutte le coppie, e
+nessun riordino delle otto passa — l'elenco delle coppie non dipende dall'ordine). *Una palette si
+sceglie per quello che può fare e si dichiara per quello che non può.*
+
+Quindi il colore qui è un canale di SUPPORTO e l'identità la porta la **SIGLA**, che sta su ogni
+pastiglia. Dove la sigla non c'è — la barretta del proprietario su una riga della plancia, tre pixel —
+il colore dice «questa riga è di qualcuno» e «è dello stesso di quell'altra»; a «di CHI» risponde la
+lente. Questo è il motivo per cui la richiesta è stata implementata e non rifiutata: le due cose che si
+potevano aggiustare erano rotte davvero.
+
+### 49.2 Quanto vale, contro la lista scritta a mano che sostituisce
+
+Stessa misura, stesse dieci sedie, superficie `#14141c`:
+
+| | lista a mano (12 esadecimali) | palette calcolata |
+|---|---|---|
+| coppia peggiore, vista normale | 11,0 | **13,0** |
+| tinte sotto il pavimento di cromaticità | **1** (`#757780`, il Kraken: leggeva GRIGIA) | 0 |
+| tinte sotto 3:1 sulla superficie | **2** (`#6300ff` 2,59 · `#a1400c` 2,84) | 0 |
+| sotto deuteranopia | 1,7 | 0,8 |
+
+Le due righe di mezzo sono il vero guadagno e sono FATTI e non estetica: una tinta sotto la
+cromaticità non fa lavoro di identità, e due sotto i 3:1 sono due barrette del proprietario quasi
+invisibili su una card.
+
+**E il difetto più grosso non era nella lista: era che non ce n'era una.** `auction-feed` leggeva
+`team.color ?? 'currentColor'` — cioè, quando la sessione non pubblica colori, **dieci rose dello
+stesso identico colore**, il canale spento proprio dove non c'è nient'altro a distinguerle. Il tavolo
+INVENTATO, che è quello su cui lui segna la sua asta vera, ora prende la palette.
+
+### 49.3 Come sono costruiti, e perché nessun esadecimale è stato digitato
+
+Sedici tinte equispaziate in OKLCH (offset 40°), la cromaticità massima che il gamut sRGB regge a
+quella (L, h) meno un margine, e la chiarezza che gira su **tre livelli (0,62 · 0,70 · 0,78)** — così
+due tinte vicine che il gamut schiaccia alla stessa cromaticità restano separate dalla chiarezza.
+L'ORDINE è un max-min greedy sulla distanza OKLab: **i primi `k` slot sono i `k` meglio separati**, così
+una lega da otto o da dieci non paga le tinte che servono a una da sedici (peggiore coppia: 13,9 a otto
+· 13,0 a dieci · 10,4 a dodici · 6,6 a sedici).
+
+**LA BANDA DI CHIAREZZA È PIÙ ALTA di quella che il metodo prescrive per uno sfondo scuro (0,48-0,67),
+ed è una sostituzione dichiarata.** Due ragioni, tutt'e due misurate: la pastiglia porta inchiostro
+quasi nero (`text-page`, e i due temi di questa app sono **tutt'e due scuri**), e così com'è
+l'inchiostro sta fra **5,0:1 e 10,6:1**; le nostre superfici sono molto più scure di quella del
+riferimento (`#0a0a0f` contro `#1a1a19`), quindi i 3:1 non sono ciò che vincola. **Tenuta dentro quella
+banda, ogni variante provata fa cadere la cromaticità sotto il pavimento** (Cmin 0,076-0,097 contro
+0,109): una squadra leggerebbe grigia, cioè il difetto che la lista a mano aveva già. Il prezzo della
+sostituzione è un `[FAIL]` sulla banda nel report del validatore, e sta scritto nel file.
+
+**INDIPENDENTE DAL TEMA di proposito**: un colore qui è l'IDENTITÀ di una rosa, e una rosa non cambia
+squadra quando si cambia tema. Per questo sono esadecimali e non token — e possono esserlo perché
+tutt'e due i temi sono scuri, quindi un insieme solo li serve entrambi. Verificato su tutte e tre le
+superfici (`#14141c` · `#141d19` · `#1c1c26`): **16 slot su 16** passano cromaticità e contrasto su
+ognuna.
+
+### 49.4 Chi decide il colore di una rosa, e cosa resta della fonte
+
+**Una definizione e ogni lettore**: `auction-feed.deriveTeams`. L'asta VERA che pubblica i suoi colori
+se li tiene — è ciò che si vede sullo schermo della stanza, e ridipingerlo qui vorrebbe dire che la sua
+app e il tabellone del banditore non sono d'accordo su chi è il rosso. La palette entra dove la fonte
+tace, che è il tavolo inventato e ogni sessione che non pubblica `color`. Le due liste di esadecimali
+scritte a mano nei due fixture (`plancia-demo.ts`, `auction-demo.ts`) sono sparite: una seconda lista
+avrebbe finito per non essere d'accordo con la prima.
+
+**LO SLOT È IL RANGO PER `id` e non la posizione nell'array**: l'ospite ripubblica lo stato intero a
+ogni evento e niente promette che le rose tornino nello stesso ordine, e **un colore che cambia fra due
+poll è peggio di un colore brutto** — «una rosa è quella rossa» smetterebbe di essere vero a metà asta.
+
+**Oltre il sedicesimo si RICICLA e lo dichiara.** Il metodo vieta di generare una tinta nuova per il
+nono nome e prescrive di raggrupparlo sotto «altro»: qui non si può, perché un partecipante è
+un'identità. Oltre sedici rose due squadre condividono un colore e la sigla resta l'unica cosa che le
+separa — che è già vero, misurato, a dieci.
+
+### 49.5 Gli asserti, perché una palette misurata smette di esserlo in silenzio
+
+`core/team-colours.spec.ts` ricalcola in OKLab quello che il file CLAIMA, invece di lasciarlo nei
+commenti: sedici tinte distinte; l'ordine è monotono (la coppia peggiore può solo peggiorare
+crescendo, che è la proprietà che il max-min garantisce e che un riordino distratto romperebbe senza
+rompere altro); a dieci rose batte la lista a mano **ed è sopra 12** (pavimento, non il valore: il 13,0
+meno un margine); ogni chip regge l'inchiostro quasi nero a 4,5:1; ogni chip si stacca a 3:1 dalle tre
+superfici. Più tre test su `deriveTeams`: senza colore pubblicato le rose ne prendono uno **diverso**
+ciascuna, l'ordine dell'array non lo cambia, e un colore pubblicato vince.

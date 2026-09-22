@@ -14,6 +14,14 @@
   <!-- QUANTO SONO FRESCHI I DATI, su ogni pagina e senza aprire niente. Sta qui e non in una scatola
        propria perché due riquadri fissi nello stesso angolo si coprono, e questo deve esserci sempre. -->
   <ui-data-freshness />
+  <!-- I GESTI DELLA PAGINA, se ne ha (`core/page-actions.ts`): stanno QUI e non in una seconda scatola
+       fissa, perché due riquadri in questo angolo si coprirebbero appena uno dei due cresce - ed è
+       proprio la ragione per cui la freschezza sta dentro a questo invece che in uno suo. Il separatore
+       si disegna solo quando c'è qualcosa da separare. -->
+  @if (pageActions.template(); as actions) {
+    <span class="h-4 w-px shrink-0 bg-border"></span>
+    <ng-container *ngTemplateOutlet="actions" />
+  }
   <!-- UN FILTRO GLOBALE È INVISIBILE PER COSTRUZIONE: se qualcosa è escluso lo dice qui, con quanti
        uomini nasconde, perché una lista che tace quello che ha tolto si legge come la lista intera. -->
   @if (excludedClubs().length) {
