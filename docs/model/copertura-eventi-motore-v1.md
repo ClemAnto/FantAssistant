@@ -67,6 +67,7 @@ Ogni voce cade in una di queste, e la distinzione è la parte utile:
 | Concorrenza nel reparto | **UNA passa, cinque no** | Respinte: R11 (arrivi stesso ruolo), R11b (soglia 2+), R16, R16b, R17 — cinque meccanismi diversi. **ADOTTATA R23** (20/08, tutt'e due le piattaforme, 5/5 euro e **10/10** Serie A): il suo valore di mercato contro il compagno più caro che condivide un codice mantra, più il percentile di valore |
 | Ritorno di un titolare | **REPORTING** | `snapshot.place_changes`, col controllo di reparto e la DATA («chi gioca perché il titolare davanti è rotto non ha vinto il posto»). La forma previsionale è misurata: **+0,049, 6/8** — debole e instabile. «Mostrarlo è utile, ordinarci sopra no» |
 | Obiettivi stagionali e solidità | **ASSENTE** | Nessun input, ed è la stessa famiglia respinta quattro volte |
+| **Il MOMENTO della stagione**: «le piccole rendono nelle prime partite, le grandi da novembre» | **MISURATA e SMENTITA sul rendimento, un pareggio al netto** (22/09/2026) | Il gap fantavoto fra i 5 club più forti e i 5 più deboli **si restringe**: +0,516 prima di novembre → +0,398 dopo, cambio **−0,117 ± 0,041 (t −2,85), 1 stagione su 7**. Sulle PRESENZE il segno è quello dell'affermazione (+0,014 ± 0,004, **7/7**) ma il meccanismo è un altro: le grandi non guadagnano niente, sono le piccole a perdere uomini. Al netto in fantapunti **+0,016 ± 0,046 (t +0,34), 4/7** = **+0,17 punti a giornata su un undici**, cioè zero. Dettaglio: §11 |
 | Forza del club di DESTINAZIONE per chi **non ha una stagione in Serie A** | **ADOTTATA nella STIMA (`est_*`), non nel motore** (07/09) | `est.newcomer_anchor`, `default`, D/C/A: l'ancora di ruolo è troppo alta per chi arriva (A **−0,26**, C −0,06, D 0) e l'Elo del club alla data d'asta vale **0,17 di FM per 100 punti** (A; 0,11 C, 0,12 D). Fuori campione su 713 nuovi arrivati in dieci finestre: A **+16,8%** (8/10), C +10,4%, D +10,0% contro l'ancora di ruolo; l'ancora di club che c'era valeva +0,7% sugli attaccanti. Non contraddice la riga sopra: là il club è già dentro la `fm_prev`, qui non c'è una `fm_prev`. Misurato e respinto nello stesso giro: la CONVERSIONE gol/xG all'estero (n=9, −0,6%) e la produzione per 90 (−0,7%). Gate §7-unquinquagies |
 
 ## 5. Disponibilità
@@ -207,3 +208,117 @@ Le varianti utili, tutte pagate:
   solo su `default`, e il listone `default` è monolingua** (2018-19: 641 righe, tutte `serie_a`; su
   euro i tedeschi ci sono, 79, ma là c'è R3c che legge un altro campo). Scritto come «lo zero è
   strutturale», il prossimo lettore si sentirebbe autorizzato a toccare `league_rounds` senza gate.
+
+---
+
+## 11. «Le piccole rendono all'inizio, le grandi da novembre» — misurata su dieci stagioni
+
+**22 settembre 2026**, dalla domanda dell'operatore: «analizza le stagioni precedenti e dimmi se questa
+affermazione è confermata: i giocatori delle squadre minori fanno buone prestazioni nelle prime partite
+mentre le squadre più forti escono fuori più avanti (da novembre in poi)». È l'unico evento della pagina
+che nomina il **momento** della stagione invece di un fatto sul giocatore o sul club, e non aveva una casa.
+
+**Perimetro.** Serie A (`platform='default'`), **dieci stagioni** 2016-17 → 2025-26 — tutte quelle per cui
+esiste uno snapshot ClubElo *prima* della prima giornata — di cui **sette** (2019-20 →) hanno la DATA vera
+di ogni giornata, presa come mediana delle `match_date` di quel turno nel livello per-partita. «Forza» = Elo
+al **15 agosto**, cioè quello che si sa all'asta: nessuna banda conosce l'esito. Cinque club per fascia
+dentro ogni stagione, così l'inflazione dell'Elo fra gli anni non entra. Il join fra la grafia dei voti e
+`clubs` passa da `matching.club_identity`: **35 su 35**, nessun Milan/Roma/Napoli perso.
+
+### 11.1 Sul RENDIMENTO l'affermazione è smentita, e il verso è opposto
+
+Gap in fantavoto fra le cinque più forti e le cinque più deboli, sulle righe che un voto l'hanno preso:
+
+| taglio | prima | dopo | cambio | stagioni nel verso dell'affermazione |
+|---|---|---|---|---|
+| **data** (< 1 nov / ≥ 1 nov), 7 stagioni | **+0,516** | **+0,398** | **−0,117 ± 0,041** (t −2,85) | **1 su 7** |
+| **giornata** (1-10 / 11-38), 10 stagioni | +0,534 | +0,438 | −0,096 ± 0,063 (t −1,51) | 2 su 10 |
+| forza letta **ex post** (Elo dell'agosto dopo) | +0,587 | +0,518 | −0,070 ± 0,044 (t −1,57) | 3 su 7 |
+
+Il gap si **restringe**. E non è composizione: sullo **stesso uomo, stesso club, stessa stagione** (3+ voti
+per finestra) il fantavoto da novembre fa **−0,100 ± 0,030** per chi gioca in una delle cinque forti
+(n=641) e **−0,008 ± 0,026** per chi gioca in una delle cinque deboli (n=633), differenza **−0,092 ± 0,040
+(t −2,32)**. È lo stesso uomo che rende meno, non una rosa diversa.
+
+### 11.2 Non c'è nessun novembre, e agosto dice il contrario
+
+Gap per mese, con l'errore standard fra le sette stagioni:
+
+    08  +0,630 ± 0,064      12  +0,444 ± 0,053      04  +0,280 ± 0,114
+    09  +0,486 ± 0,121      01  +0,456 ± 0,083      05  +0,396 ± 0,081
+    10  +0,481 ± 0,060      02  +0,461 ± 0,071
+    11  +0,259 ± 0,065      03  +0,567 ± 0,183
+
+**Agosto è il mese col gap più GRANDE di tutta la stagione.** Novembre è il minimo, ma dicembre torna a
++0,444 e da lì la curva è piatta: c'è al massimo *un* novembre — una cella su dieci, che è quello che
+produce il guardare dieci celle — e va nel verso contrario all'affermazione, perché a novembre le piccole
+si **avvicinano**. E il gap **non si chiude mai**: in nessun mese i giocatori delle piccole rendono quanto
+quelli delle grandi.
+
+### 11.3 Col null giusto sparisce anche «le sorprese di settembre»
+
+La versione forte dell'intuizione non è la media, è la CIMA: a settembre la classifica della fantamedia
+sembra piena di gente delle piccole. Il null non è la stagione intera (campione lungo contro campione
+corto) ma **la stessa finestra di dieci giornate estratta a caso dal resto della stagione**, 200 estrazioni
+per stagione. Quota della top-50 (6+ voti nella finestra) che gioca nei dieci club più deboli:
+
+    prime 10 giornate  30,6%     null a finestra corta  33,6%     stagione intera  29,8%
+    osservato − null: −3,0% ± 1,5% (t −2,00), 4 stagioni su 10
+
+Il confronto ingenuo — prime dieci contro stagione intera — dà **+0,8%**, cioè non sostiene l'affermazione
+nemmeno prima di correggere. E le **neopromosse** non partono forte e non crollano: 5,931 → 5,953 (+0,022)
+contro +0,003 di tutte le altre.
+
+### 11.4 A parità di PREZZO l'intuizione si rovescia
+
+Residuo dal fantavoto medio della cella (stagione × ruolo × quartile di Qt.I), cioè «due uomini che il
+mercato ha prezzato uguale», che è l'unico confronto che un'asta fa:
+
+    cinque più forti   +0,182  ->  +0,115      cinque più deboli   −0,076  ->  −0,026
+    gap  +0,258 -> +0,141  |  cambio −0,117 ± 0,044 (t −2,64), 1 su 7
+
+All'inizio della stagione il mercato **sottovaluta i giocatori delle grandi**, non quelli delle piccole. Da
+notare il limite della popolazione: nel quartile più caro ci sono 73 uomini delle cinque forti e **7** delle
+cinque deboli, quindi «a parità di prezzo» esiste davvero solo nella metà bassa del listone.
+
+### 11.5 Quello che è vero sta nelle PRESENZE, e al netto è un pareggio
+
+Quota dei quotati di una fascia che prende il voto in una giornata media:
+
+| fascia | prima | dopo | cambio |
+|---|---|---|---|
+| cinque più forti | 0,533 | 0,533 | +0,000 |
+| cinque più deboli | 0,482 | 0,468 | **−0,014** |
+| **gap** | +0,051 | +0,065 | **+0,014 ± 0,004 (t +3,52), 7 su 7** |
+
+Qui il segno è quello dell'affermazione, ed è l'unico risultato netto su tutte e sette le stagioni — ma il
+meccanismo non è «le grandi escono fuori»: le grandi **non guadagnano niente**, sono le piccole a perdere
+uomini da novembre (infortuni, gennaio, rotazioni di chi lotta). Messe insieme le due metà, fantapunti
+attesi da un quotato in una giornata (`P(voto) × fantavoto`):
+
+    cinque più forti   3,447 -> 3,405 (−0,041)      terza fascia    2,879 -> 2,901 (+0,023)
+    seconda fascia     3,189 -> 3,196 (+0,007)      cinque deboli   2,856 -> 2,799 (−0,057)
+    gap  +0,591 -> +0,607  |  cambio +0,016 ± 0,046 (t +0,34), 4 su 7  =  +0,17 punti a giornata su un undici
+
+**Le due metà hanno segni opposti e si annullano.** La risposta è il netto: zero.
+
+### 11.6 Cosa se ne porta via un'asta
+
+La differenza fra le due fasce è **+0,59 fantapunti per uomo a giornata**, cioè **~6,5 punti a giornata su
+un undici**, ed è **la stessa ad agosto e a marzo**. Non esiste un momento della stagione in cui conviene
+spostarsi sulle piccole, e non esiste un novembre in cui le grandi cambiano marcia: quello che vale in
+un'asta di agosto vale tutto l'anno.
+
+**Limiti dichiarati.** Solo Serie A e solo voti/presenze: le coppe europee e la EuroLeghe non sono state
+guardate, e il turnover per le coppe resta l'«ASSENTE» di §5. Non è una pre-registrazione di gate e non
+propone nessun canale — è una DIAGNOSTICA, come §9.1: dice che non c'è ragione di spendere uno slot di
+gate su un termine «periodo della stagione × forza del club», perché al netto non c'è niente da prendere.
+
+### 11.7 La regola di metodo che ne esce
+
+**Un'affermazione su «quanto rende» ha DUE metà — quanto rende quando gioca, e quanto spesso gioca — e
+possono avere segni OPPOSTI.** Qui la prima smentisce l'affermazione (t −2,85) e la seconda la conferma
+(t +3,52, 7/7): fermarsi a una delle due dà una risposta netta e sbagliata in tutt'e due i versi, e solo il
+prodotto risponde alla domanda. È il complemento di «`Var(ln pv)` è l'86-90% della varianza dei fantapunti»:
+quella riga dice dove sta il segnale da migliorare, questa dice che per GIUDICARE una frase servono
+entrambe le metà nella stessa unità.

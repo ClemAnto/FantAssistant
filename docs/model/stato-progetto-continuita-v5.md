@@ -8555,3 +8555,58 @@ pacchetto, l'app. Il lavoro del 21-22 e' tutto dentro il foglio Google e il suo 
    quando il turno comincia, che e' quello che la regola chiede): si cura nel PRUNER, facendogli tenere
    anche l'ultima lettura oltre l'apertura, non nello scorer.
 7. Gli aperti di merito restano quelli della todolist.
+
+## 22 settembre 2026 (sera) — «Le piccole rendono all'inizio, le grandi da novembre»: due metà con segni opposti
+
+Domanda dell'operatore: «analizza le stagioni precedenti e dimmi se questa affermazione è confermata: i
+giocatori delle squadre minori fanno buone prestazioni nelle prime partite mentre le squadre più forti
+escono fuori più avanti (da novembre in poi)». **Nessuna riga di codice**: una misura in sola lettura su
+una **copia privata** del DB (un `update` di un'altra sessione stava scrivendo sul vivo), consolidata in
+`copertura-eventi-motore-v1.md` §11 e in una riga della tabella §4.
+
+**MISURATO.** Serie A, **dieci stagioni** 2016-17 → 2025-26 (sette con la DATA vera di ogni giornata, presa
+come mediana del turno dal livello per-partita), forza = Elo al **15 agosto** — quindi *ex ante*, non sa
+l'esito — cinque club per fascia dentro ogni stagione, join `matching.club_identity` **35 su 35**.
+
+- **Sul RENDIMENTO è smentita e il verso è opposto**: il gap fantavoto fra le cinque più forti e le cinque
+  più deboli passa da **+0,516 a +0,398**, cambio **−0,117 ± 0,041 (t −2,85), 1 stagione su 7**. Non è
+  composizione: lo **stesso uomo, stesso club** fa −0,100 ± 0,030 se gioca in una forte e −0,008 ± 0,026 se
+  gioca in una debole (differenza −0,092 ± 0,040). Concorde col taglio per giornata (−0,096, 10 stagioni) e
+  con la forza letta *ex post* (−0,070).
+- **Non c'è nessun novembre**: il mese col gap PIÙ GRANDE è **agosto (+0,630 ± 0,064)**; novembre è il
+  minimo (+0,259 ± 0,065) ma dicembre torna a +0,444 e la curva è piatta — una cella su dieci, e nel verso
+  contrario, perché a novembre le piccole si *avvicinano*. Il gap non si chiude in nessun mese dell'anno.
+- **Col null giusto sparisce anche «le sorprese di settembre»**: la top-50 della fantamedia delle prime
+  dieci giornate è per il **30,6%** di uomini dei dieci club più deboli, contro il **33,6%** di una finestra
+  di dieci giornate **estratta a caso dal resto della stagione** (200 estrazioni), cioè −3,0% ± 1,5%. Il
+  confronto ingenuo con la stagione intera dà +0,8%. Neopromosse: 5,931 → 5,953, nessun crollo.
+- **A parità di PREZZO si rovescia**: sul residuo dalla cella (stagione × ruolo × quartile Qt.I), i
+  giocatori delle forti battono le attese del mercato di **+0,182** all'inizio e +0,115 dopo, quelli delle
+  deboli le deludono di −0,076 e poi −0,026 (cambio del gap −0,117 ± 0,044). All'inizio il mercato
+  sottovaluta le GRANDI.
+- **Quello che è vero sta nelle PRESENZE**: la quota di quotati che prende il voto in una giornata media
+  resta 0,533 per le forti e scende da 0,482 a **0,468** per le deboli, gap **+0,014 ± 0,004 (t +3,52), 7 su
+  7** — l'unico risultato netto su tutte le stagioni. Ma il meccanismo non è «le grandi escono fuori»: le
+  grandi non guadagnano niente, sono le piccole a perdere uomini.
+- **AL NETTO è un pareggio**: `P(voto) × fantavoto` per uomo a giornata, gap +0,591 → +0,607, cambio
+  **+0,016 ± 0,046 (t +0,34), 4 su 7** = **+0,17 punti a giornata su un undici**. Le due metà si annullano.
+
+**LA REGOLA CHE NE ESCE, ed è la parte riusabile.** *Un'affermazione su «quanto rende» ha DUE metà — quanto
+rende quando gioca e quanto spesso gioca — e possono avere segni OPPOSTI.* Fermarsi alla prima avrebbe dato
+«smentita, t −2,85»; fermarsi alla seconda «confermata, 7 su 7»: due risposte nette e sbagliate in tutt'e due
+i versi, e solo il prodotto risponde alla domanda. È il complemento della riga «`Var(ln pv)` è l'86-90% della
+varianza dei fantapunti» — quella dice dove sta il segnale da migliorare, questa che per GIUDICARE una frase
+servono entrambe le metà nella stessa unità. Scritta anche in CLAUDE.md.
+
+**Conseguenza per un'asta**: la differenza fra le due fasce vale **+0,59 fantapunti per uomo a giornata**
+(~6,5 su un undici) ed è **la stessa ad agosto e a marzo**. Non esiste un momento in cui conviene spostarsi
+sulle piccole; quello che vale in un'asta di agosto vale tutto l'anno.
+
+**VERIFICATO che nulla si è mosso**: nessun file di codice toccato, `engine_*`, `SHEET_REVISION`, il
+pacchetto e l'app fermi — è tutta lettura, su una copia. Non è una pre-registrazione di gate e non propone
+un canale: è una DIAGNOSTICA come §9.1, e dice che un termine «periodo della stagione × forza del club» non
+vale uno slot di gate, perché al netto non c'è niente da prendere.
+
+**APERTO**: il perimetro non guardato è dichiarato — solo Serie A, solo voti e presenze; le **coppe
+europee** restano l'«ASSENTE» di `copertura-eventi-motore-v1.md` §5, e su EuroLeghe la misura non è stata
+ripetuta. I punti di ripresa restano quelli della chiusura del 22 settembre qui sopra, invariati.

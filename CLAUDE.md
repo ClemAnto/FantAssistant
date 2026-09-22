@@ -6693,3 +6693,37 @@ segno e un rifit che non guadagna nemmeno in-sample (0,2405 contro 0,2404). *La 
 serve a essere rigorosi con le regole del motore: serve nei casi in cui una sola finestra ti darebbe
 ragione*, ed è il secondo caso in due giorni in cui ha impedito un'adozione — il primo era una diagnostica
 da t 5,05 il cui null era più debole di quello adottato.
+
+## Un'affermazione su «quanto rende» ha DUE metà, e possono avere segni OPPOSTI
+**22/09/2026, dalla domanda dell'operatore «i giocatori delle squadre minori fanno buone prestazioni nelle
+prime partite mentre le squadre più forti escono fuori da novembre in poi». Dettaglio, numeri e rifiuti:
+`copertura-eventi-motore-v1.md` §11.** Misurata su dieci stagioni di Serie A con la forza del club letta
+dall'Elo del **15 agosto** (ex ante, non sa l'esito) e la finestra tagliata sulle DATE vere: **smentita sul
+rendimento e nel verso opposto** — il gap fantavoto fra le cinque più forti e le cinque più deboli si
+RESTRINGE, da +0,516 a +0,398, cambio −0,117 ± 0,041 (t −2,85), 1 stagione su 7 — e **confermata sulle
+presenze**, dove il gap cresce di +0,014 ± 0,004 (t +3,52), **7 su 7**. Al netto, `P(voto) × fantavoto`:
++0,016 ± 0,046 (t +0,34), cioè **+0,17 punti a giornata su un undici**. Zero.
+
+**Fermarsi a una delle due metà dà una risposta netta e sbagliata in tutt'e due i versi**, e nessuna delle
+due è il numero da riportare: solo il prodotto risponde alla domanda che è stata fatta. È il complemento
+della riga già scritta qui — «il segnale sfruttabile sta su CHI GIOCA, `Var(ln pv)` è il 90% della varianza
+dei fantapunti»: quella dice dove sta il margine da migliorare, questa che per GIUDICARE una frase servono
+entrambe le metà **nella stessa unità**. E il meccanismo non si legge dal segno del gap: qui le grandi non
+guadagnano un decimale di presenze (0,533 → 0,533), sono le piccole a perderne (0,482 → 0,468), quindi
+«le grandi escono fuori» è falso anche nella metà che dà ragione alla frase.
+
+Tre abitudini di casa incontrate da un lato nuovo.
+- **IL NULL DI UNA FINESTRA CORTA È UNA FINESTRA CORTA, non la stagione intera.** La versione forte
+  dell'intuizione non è la media, è la CIMA: a settembre la classifica della fantamedia sembra piena di
+  gente delle piccole. Contro dieci giornate **estratte a caso dal resto della stagione** (200 estrazioni
+  per stagione) la top-50 delle prime dieci legge **30,6% contro 33,6%**, cioè meno. Il confronto ingenuo
+  con la stagione intera dà +0,8% e non sosterrebbe l'affermazione nemmeno prima di correggere.
+- **Una curva a dieci celle si legge con l'errore standard di ciascuna.** Novembre È il minimo del gap
+  (+0,259 ± 0,065) e dicembre torna a +0,444: c'è al massimo *un* novembre — una cella su dieci, che è
+  quello che produce il guardare dieci celle — e per giunta nel verso contrario, perché lì le piccole si
+  AVVICINANO. Il mese col gap più grande è **agosto**, che è l'opposto esatto della frase.
+- **E la stessa domanda posta A PARITÀ DI PREZZO si rovescia**: sul residuo dalla cella (stagione × ruolo ×
+  quartile di Qt.I) i giocatori delle grandi battono le attese del mercato di +0,182 all'inizio contro
+  +0,115 dopo. All'inizio della stagione il mercato sottovaluta le GRANDI — con il limite dichiarato che
+  nel quartile più caro ci sono 73 uomini delle cinque forti e **7** delle cinque deboli, quindi «a parità
+  di prezzo» esiste davvero solo nella metà bassa del listone.
