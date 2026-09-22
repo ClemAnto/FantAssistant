@@ -42,6 +42,25 @@
              lungo il marchio sarebbe tagliato via - cioè invisibile esattamente sui nomi più lunghi, che
              non è una regola che qualcuno vorrebbe. È il nome a cedere (`min-w-0`), mai il marchio. -->
         <span class="flex min-w-0 items-center">
+          <!-- LA CATEGORIA E' UN PALLINO PRIMA DEL NOME (operatore, 22/09/2026), col colore della
+               scala e l'icona del suo mestiere. Sta FUORI dal nome per la ragione scritta qui sopra -
+               `truncate` e' overflow-hidden e lo taglierebbe via sui nomi lunghi - e `shrink-0`
+               perche' a cedere dev'essere il nome. Porta la frase intera nel tooltip, ed e' l'UNICO
+               posto in cui la card mostra la categoria: due posti sarebbero due legende. -->
+          @if (categoria(); as parola) {
+            <span
+              class="mr-1.5 inline-flex size-4 shrink-0 items-center justify-center rounded-full text-[9px]"
+              [class]="categoriaTinta() || 'bg-control text-fg'"
+              nz-tooltip
+              [nzTooltipTitle]="categoriaNota()"
+              [attr.aria-label]="parola"
+              [attr.data-categoria]="man.category"
+            >
+              @if (categoriaIcona(); as icona) {
+                <nz-icon [nzType]="icona.type" [nzTheme]="icona.theme" />
+              }
+            </span>
+          }
           <span class="min-w-0 truncate text-sm font-semibold text-fg">{{ man.name }}</span>
           <ui-ruling-dot [playerId]="man.id" />
         </span>

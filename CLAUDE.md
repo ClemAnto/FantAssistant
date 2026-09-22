@@ -6695,6 +6695,70 @@ applicata prima su una **copia privata del DB** e misurata li', e i 22 controlli
 **rimettendo il difetto**, dove cade esattamente il test nuovo e nessun altro, perche' gli altri diciassette
 descrivono comportamenti che non cambiano.
 
+## I NOMI dell'operatore sono la specifica, e quando si contraddicono si mostra la contraddizione
+**22/09/2026, dalla richiesta di dare a ogni calciatore un'etichetta. Dettaglio: spec «Novita' v9.100»,
+`letture-app-v1.md` §48, gate §7-unsexagies e §7-duosexagies.** Sette parole — **super · top · semi ·
+solido · riserva · scommessa · scarto** — che sostituiscono le sei del 01/09, e con loro cambia la
+QUANTITA' che le decide.
+
+**LA PRIMA COSA UTILE E' STATA NON COSTRUIRE.** La scala esisteva gia': il toolkit la calcolava, l'app
+aveva vocabolario, colonna e filtro, e `desc_category` **non era in `export.SHEET_COLUMNS`** — vuota su
+562 righe per tre settimane. *La richiesta nasceva da quel vuoto*, e dirglielo ha trasformato
+«costruiscila» in una scelta sua fra vederla e rifarla. E' la famiglia dei campetti, di `availability`,
+dell'asterisco e di `transfers_history`, qui su una COLONNA: **prima di costruire, chiedersi se il dato
+non sia gia' calcolato e fermo a un'allowlist.**
+
+**I NOMI SONO LA SPECIFICA — e due volte i suoi verdetti NON ERANO SIMULTANEAMENTE SODDISFACIBILI.** Le
+due volte la risposta non e' stata scegliere per lui ma **mostrargli la contraddizione coi numeri**:
+«Rabiot top e Malen super» non sta in piedi ne' in assoluto (Rabiot e' 46esimo del listone) ne' dentro
+il ruolo (Malen e' 5o), e la sua frase — «i super sono quelli fuori scala *per gli A*» piu' «Calhanoglu
+no, ha poche presenze» — ha sciolto il nodo in una riga. La seconda contraddizione («Kvernadze e Varela
+buoni» contro «Pinamonti riserva», stessa fantamedia) ha prodotto la misura piu' importante della
+giornata. *Una taratura che non riproduce i suoi esempi non e' tarata; una che li riproduce piegandoli
+non e' misurata.*
+
+**L'ASSE GIUSTO NON ERA QUELLO OVVIO.** Il tasso di bonus e' stato provato per primo e RESPINTO dai suoi
+stessi nomi (35 configurazioni, massimo 4 verdetti su 6); la **fantamedia attesa dentro il ruolo** li
+ordina tutti e sei esattamente come li ha etichettati, perche' somma voto base e bonus — che e' quello
+che lui guarda. *Prima di tarare i parametri di una forma, verificare che sia la forma.*
+
+**IL PESO DELLE PRIME GIORNATE E' PER RUOLO, e cambia di DUE VOLTE.** Leave-one-season-out su dieci
+stagioni, bersaglio le giornate DOPO la k-esima: a cinque giornate la stagione in corso vale il **21%**
+per un attaccante e il **10%** per un centrocampista (K 18,5 contro 43,5). Il meccanismo sta nella
+colonna dell'errore — la fantamedia di un attaccante e' volatile (0,63 di MAE contro 0,28), quindi il
+segnale dell'anno prima e' piu' debole. Il motore tiene la sua K unica di 40: questa vive in un `desc_*`
+e portarla dentro `evaluate` e' **R28, da pre-registrare**, perche' la misura e' sul predittore NUDO e
+un baseline piu' debole fa sembrare un canale piu' forte — la lezione di R24 applicata a se' stessi.
+
+**UNA COMPRESSIONE PUO' ESSERE GIUSTA, E A DIRLO E' IL NULL.** «I migliori non superano le 25 presenze
+previste» e' vero: chi sta a 0,80-1,00 riceve −0,169 di quota e la sd della previsione e' il 64% di
+quella vera. **Ma chi ha giocato il 90% di una stagione ne gioca il 75% l'anno dopo**, e il motore
+prevede 0,728 dove la storia realizza 0,747: mezza giornata su 33. Il caveat rafforza invece di
+indebolire (il null esclude chi e' sparito dal listone, quindi la persistenza vera e' piu' bassa). Prima
+di correggere una compressione, misurare quanto ne e' REGRESSIONE.
+
+**I CONTEGGI SONO UNO STRUMENTO E NON UN RIEPILOGO.** Pubblicare quante righe cadono in ogni parola ha
+trovato il difetto che nessun test vedeva: `scommessa` usciva **ZERO**, vuota per costruzione, perche' il
+foglio una fantamedia la da' a tutti (`est_fm` ripiega sull'ancora del ruolo) — quindi 147 uomini che
+nessuno ha visto giocare prendevano un giudizio. E' `bandiera` (20/08) su una PAROLA. *Dopo aver spedito
+una classificazione, contare quanti cadono in ogni classe: una classe vuota o che mangia il listone e'
+un difetto che solo il conteggio mostra.*
+
+**E UNA SOGLIA SCRITTA SULL'INDICE DI UNA SCALA E' UNA SOGLIA CHE LA SCALA SUCCESSIVA ROMPE IN SILENZIO**
+(trovato dalla code-review): `rank >= 4` smorzava `scommessa` quando le parole erano sei e smorza
+`riserva` adesso che sono sette, cioe' meta' del listone letto come uno scarto. Stessa famiglia, un
+piano sopra: **le sbarre appartengono alla PIATTAFORMA** — la scala euro sta piu' in alto (mediana
+attaccanti 7,14 contro 6,61) e una tabella sola avrebbe messo meta' degli attaccanti euro almeno `semi`
+per costruzione.
+
+**DUE ERRORI DELLA STESSA FAMIGLIA, e il secondo e' stato commesso dopo averla scritta nel codice.** Ho
+tarato una sbarra su un numero ARROTONDATO due volte: Svilar (5,329 contro un p97 stampato 5,33) e
+Varela (6,878 contro 6,88), poi il pavimento di `semi` su «0,72» letto dalla mia stessa tabella quando
+Scamacca e' 0,718. *Il percentile trova la zona, il caso dichiarato fissa il valore — e il caso va letto
+alla precisione con cui decide.* E il piu' grave, perche' riguarda cio' che si riporta all'operatore:
+**un `str.replace` senza `assert` e' un no-op silenzioso**, e due test non sono mai entrati nel file
+mentre la sessione dichiarava che c'erano.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

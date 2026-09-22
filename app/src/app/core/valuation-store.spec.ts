@@ -61,7 +61,7 @@ const sheetRow = (over: Partial<EngineExpectation> = {}): EngineExpectation => (
   piFm: null, piBasis: null, piMatches: null,
   titolarita: 'riserva', titolaritaPlay: 0.25, minutesNext: 55,
   seasonMatches: 30, minutesFullSeason: 1800,
-  category: 'bronzo', categoryBonus: 0.2, categoryBars: '0.1|0.3',
+  category: 'bronzo', categoryLevel: 0.2, categoryBars: '0.1|0.3',
   replacementFm: 5.9, slot: 'A', surplus: 24, surplusIsEstimate: true,
   surplusFielded: 20, replacementFielded: 6.8, spm: 40, dvm: 10, confidence: 0.5,
   basis: 'anchor', note: null,

@@ -691,15 +691,30 @@ export class Strategy {
     return said.length ? ` · ${said.join(' · ')}` : '';
   }
 
+  /**
+   * LA CLASSE DELLA PASTIGLIA: il fondo dice la QUALITA' dove la lettura ne ha una.
+   *
+   * La tinta la porta la `ReadingSpec` (`tone`) e non la decide questa vista, per la ragione di
+   * sempre: una scala di colori decisa da chi disegna sarebbe una seconda scala, e la prima e'
+   * dichiarata in `ui/gain-chip`. Il fondo colorato SOSTITUISCE `bg-page` invece di aggiungersi -
+   * due utility sulla stessa proprieta' si decidono sull'ordine del CSS generato, che non e' una
+   * cosa su cui appoggiarsi.
+   *
+   * Una lettura senza tinta, o un uomo la cui parola il foglio non porta, resta com'era.
+   */
+  protected pill(reading: { spec: ReadingSpec; ref: ReadingRef }, readings: ManReadings): string {
+    const width = reading.spec.width;
+    if (!this.has(reading.ref, readings)) return `border-transparent text-muted ${width}`;
+    const tone = reading.spec.tone?.(readings);
+    return `border-border ${tone || 'bg-page text-fg'} ${width}`;
+  }
+
   protected text(spec: ReadingSpec, ref: ReadingRef, readings: ManReadings): string {
     // LE PAROLE PER PRIME, e non passano da `DecimalPipe`: un formato numerico su una stringa stampa
     // `NaN`, che e' il modo in cui una pastiglia nuova finisce a schermo sbagliata invece che vuota.
     // La sigla e' quella della tabella (`TITOLARITA_SHORT`): due vocabolari per un gradino sarebbero
     // due legende da imparare.
-    if (spec.word) {
-      const rung = readings.titolarita;
-      return isTitolarita(rung) ? TITOLARITA_SHORT[rung] : '—';
-    }
+    if (spec.word) return spec.word(readings) ?? '—';
     // LE COPPIE PER PRIME, perche' per loro `readingValue` risponde `null` per costruzione: leggerlo
     // e basta stamperebbe un trattino su un uomo che ha segnato dodici gol.
     if (spec.pair) {
@@ -1121,6 +1136,9 @@ export class Strategy {
         // del foglio. Risolta qui perche' e' qui che si sa chi ha dichiarato cosa - `readingsOf` e'
         // pura - e cosi' la pastiglia, la card e il campetto dicono la stessa parola.
         titolarita: this.rulings.rungOf(player.fcId) ?? one?.titolarita ?? null,
+        // ...e la categoria, che il foglio porta gia' risolta: qui non c'e' nessuna dritta da
+        // far vincere, perche' le dritte dichiarano la titolarita' e non il livello.
+        categoria: one?.category ?? null,
         swing: swingOf({
           role: player.role,
           surplus: one?.surplus == null ? null : one.surplus * outlook.factor,
@@ -1598,6 +1616,9 @@ function cardManOf(
     minutesNext: engine?.minutesNext ?? null,
     seasonMatches: engine?.seasonMatches ?? null,
     minutesFullSeason: engine?.minutesFullSeason ?? null,
+    category: engine?.category ?? null,
+    categoryLevel: engine?.categoryLevel ?? null,
+    categoryBars: engine?.categoryBars ?? null,
     unpricedReason: null,
     fvm: man.fvm,
     out: man.outlook.window,

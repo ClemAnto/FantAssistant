@@ -180,8 +180,12 @@ class Observation:
     # ...and the DIFFERENCE, per season, aligned - which the two tuples above cannot give you: `mv_seasons`
     # drops the seasons with no base vote and `fm_seasons` keeps them, so zipping them would pair a
     # fantamedia with ANOTHER season's voto. Today that pairs nothing wrong (0 season rows of 7453 carry an
-    # fm without an mv), which is exactly why nobody would find out when it starts. `engine/categories.py`
-    # reads it: bonus per appearance is what separates an `oro` from a `bronzo`.
+    # fm without an mv), which is exactly why nobody would find out when it starts. NOBODY READS IT TODAY: it was
+    # `engine/categories.py`'s axis until 22/09/2026, when the seven words moved onto the expected
+    # fantamedia because the bonus rate did not reproduce the operator's own verdicts (Kvernadze and
+    # Varela sit under «qualche bonus» and he calls them `buono`). Kept because it is a measured
+    # trait with no other source and the next channel that wants «how much bonus does he bring»
+    # would have to re-derive it - but a reader has to be added back, not assumed.
     bonus_seasons: tuple[float, ...] = ()
     minutes_prev: int | None = None
     starts_prev: int | None = None

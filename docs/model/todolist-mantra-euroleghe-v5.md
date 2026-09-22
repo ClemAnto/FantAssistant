@@ -1,5 +1,39 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 22 settembre 2026 (sera) — le sette parole
+
+Dettaglio: spec «Novità v9.100», `letture-app-v1.md` §48, gate §7-unsexagies e §7-duosexagies.
+
+**CHIUSI**: la scala a sette parole è tarata sui diciotto verdetti dell'operatore e li riproduce tutti;
+`desc_category` arriva finalmente a schermo (era calcolata dal 01/09 e ferma a un'allowlist); la
+categoria è un pallino colorato con icona nella card e la dodicesima pastiglia in Strategia;
+`scommessa` descrive 83 uomini invece di zero.
+
+1. **[ ] R28 — LA K PER RUOLO DENTRO IL MOTORE, da pre-registrare.** Misurata fuori campione
+   (leave-one-season-out, dieci stagioni): P 16,6 · D 32,6 · C 43,5 · A 18,5 contro il 40 unico di
+   R25, con un guadagno del 6,0-6,2% su attaccanti e portieri e dell'1,7-2,4% su centrocampisti e
+   difensori. **Oggi vive solo in un `desc_*`** (`categories.relevel`), quindi `engine_fm_pred` non si
+   muove. **L'ostacolo non è tecnico ma di metodo**: quella misura è sul predittore NUDO, mentre R25
+   ha misurato il 40 col SET ADOTTATO, dove R3 e R19 leggono già parte delle giornate giocate — e un
+   baseline più debole fa sembrare un canale più forte (R24, §7-quinquadragies). La pre-registrazione
+   deve dichiarare il verso atteso di quel bias PRIMA della corsa. Se R28 passasse, la correzione in
+   `categories.py` diventa l'identità e **va tolta**, non contata due volte.
+
+2. **[ ] IL RAMO `top` NON HA PAVIMENTO DI PRESENZE.** Un uomo fuori scala che gioca il 5% del
+   calendario legge `top` e non `scarto`: è il caso di Calhanoglu (0,60, «il migliore del suo ruolo ma
+   non ci sarà») portato al limite, e l'operatore non ha ruolato su quell'estremo. Prima di aggiungere
+   un pavimento va **contata la popolazione** che toccherebbe — la regola di casa è che una lista di
+   cose promettenti si misura prima di aprirla.
+
+3. **[ ] LE SBARRE EURO SONO MISURATE SUI LIVELLI NON RI-MISCELATI**, perché lì R25 non è adottata.
+   È coerente oggi (le due metà di ogni confronto vengono dalla stessa quantità) e **scade il giorno in
+   cui il gate adottasse R25 su euro**: quella tabella va rimisurata, non ereditata.
+
+4. **[ ] SU EURO LA CATEGORIA DI UN PORTIERE DISTINGUE POCO, e non è colpa della scala**: 80 portieri
+   su 110 (73%) portano la stessa identica fantamedia attesa, tutti dal `core`. È un fatto sul MOTORE e
+   merita di essere guardato per conto suo — una previsione che dà lo stesso numero a tre quarti di un
+   ruolo è una previsione che su quel ruolo non sta dicendo niente.
+
 ## Aperti alla chiusura del 22 settembre 2026 — i turni giocati, e un aggregato congelato
 
 Dettaglio e numeri: spec «Novità v9.99», continuità del 22 settembre.

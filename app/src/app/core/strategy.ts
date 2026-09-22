@@ -10,7 +10,8 @@ import { GOOD_MATCH, LONG_SHIFT, MatchFrequencies, POOR_MATCH, THIN_SAMPLE } fro
 import { EDGE_BASE } from './plancia';
 import { MOSTLY_ANCHOR } from './player-ratings';
 import { ClassicRole } from './players-store';
-import { titolaritaRank } from './titolarita';
+import { CATEGORIA_SHORT, categoriaRank, categoriaTone, isCategoria } from './categoria';
+import { TITOLARITA_SHORT, isTitolarita, titolaritaRank } from './titolarita';
 
 /**
  * LA STRATEGIA D'ASTA: quanti uomini di ogni ruolo la stanza comprerà, e quali sono i migliori.
@@ -190,6 +191,8 @@ export interface StrategyBidder {
    * modello accanto a una card che mostra la tua, sullo stesso uomo e nella stessa schermata.
    */
   titolarita?: string | null;
+  /** ...e la PAROLA dentro il ruolo (`desc_category`), letta dal foglio come la precedente. */
+  categoria?: string | null;
   /**
    * IL CONTO DELLE GIORNATE che gioca davvero (`core/expected-play.ts`), con ogni pezzo separato.
    *
@@ -446,10 +449,22 @@ export interface ManReadings {
    * mostra la tua.
    */
   titolarita: string | null;
+
+  /**
+   * LA CATEGORIA IN UNA PAROLA (richiesta dell'operatore, 22/09/2026).
+   *
+   * Seconda lettura che porta una PAROLA invece di una cifra, quindi la sua `ReadingSpec` ha `word`
+   * come quella della titolarita' accanto. Ordina per la SCALA (`categoriaRank`) e non per la sigla,
+   * che darebbe BUO, INC, SMT, SRT, SUP, TAP, TOP - l'alfabeto al posto dei gradini.
+   *
+   * Dice una cosa DIVERSA dalla titolarita' e le due non si sostituiscono: quella e' quanto gioca,
+   * questa quanto vale dentro il suo ruolo - un `riserva` puo' essere un `bandiera`.
+   */
+  categoria: string | null;
 }
 
 /**
- * LE UNDICI LETTURE CHE UNA RIGA PUO' MOSTRARE, e quali sono accese all'inizio.
+ * LE DODICI LETTURE CHE UNA RIGA PUO' MOSTRARE, e quali sono accese all'inizio.
  *
  * Richiesta dell'operatore (05/09/2026): al posto della scritta in barra, una fila di pastiglie
  * cliccabili che accendono e spengono ognuno di questi numeri sulla riga. L'ELENCO sta qui e non nella
@@ -469,7 +484,7 @@ export type ReadingKey =
   // UNA SOLA `G:A` dal 12/09/2026: erano `gaPrev` e `gaNow`, cioe' la stessa lettura con la stagione
   // scritta dentro la chiave. Da quando la stagione si sceglie, due chiavi per un numero sarebbero due
   // vocabolari per la stessa cosa - e chi le aveva accese le ritrova, perche' `readRef` le migra.
-  | 'ga' | 'fvm' | 'swing' | 'titolarita' | 'paid'
+  | 'ga' | 'fvm' | 'swing' | 'titolarita' | 'categoria' | 'paid'
   // LE QUATTRO FREQUENZE (operatore, 12/09/2026). Stanno in fondo all'elenco e non accanto a `passed`,
   // che e' la lettura piu' simile, per una ragione che si vede a schermo: sono le uniche che non
   // parlano della stagione in corso, e una fila di pastiglie si legge da sinistra come si legge una
@@ -494,7 +509,31 @@ export interface ReadingSpec {
    * `DecimalPipe` - e un `format` letto su una stringa stampa `NaN`, che e' il modo in cui una colonna
    * nuova finisce a schermo sbagliata invece che vuota.
    */
-  word?: true;
+  /**
+   * LA SIGLA DA STAMPARE, per le letture che portano una PAROLA invece di una cifra.
+   *
+   * E' il LETTORE e non un booleano, e la differenza e' un difetto pagato: finche' la parola era una
+   * sola (la titolarita', 07/09/2026) chi disegnava faceva `if (spec.word) return readings.titolarita`
+   * - quindi la seconda pastiglia, la categoria, mostrava il gradino di titolarita' al posto suo. Il
+   * guardiano che c'era asseriva l'ELENCO delle letture-parola e non che ognuna sapesse leggersi, cioe'
+   * proteggeva meta' del problema. Con la funzione dentro la spec, una terza parola non puo' entrare
+   * senza dire come si legge: non compila.
+   *
+   * Torna `null` quando il foglio non porta quella parola, e chi disegna ci mette il trattino - un
+   * formato numerico su una stringa stamperebbe `NaN`, che e' come una pastiglia nuova finisce a
+   * schermo sbagliata invece che vuota.
+   */
+  word?: (readings: ManReadings) => string | null;
+  /**
+   * ...e la TINTA della pastiglia, per le parole che ne hanno una (operatore, 22/09/2026: «dai anche
+   * una connotazione di colore per sottolineare la qualita' del giocatore»).
+   *
+   * Sta accanto al lettore e per la stessa ragione: una tinta decisa da chi disegna sarebbe una
+   * seconda scala di colori, e la prima e' gia' dichiarata in `ui/gain-chip`. La titolarita' NON ne
+   * ha una - dice quanto gioca, non quanto vale, e dipingerla farebbe leggere due scale di qualita'
+   * sulla stessa riga.
+   */
+  tone?: (readings: ManReadings) => string;
   /** Cosa segue il numero, quando l'unita' non e' ovvia. */
   suffix?: string;
   /** Quanto e' larga la sua pastiglia: le pastiglie sono INCOLONNATE, quindi la larghezza e' fissa e
@@ -703,7 +742,22 @@ export const READINGS: ReadingSpec[] = [
     // Una parola non si formatta: il campo resta perche' la `ReadingSpec` e' una sola, e `word` dice
     // a chi disegna di non passare da `DecimalPipe`.
     format: '1.0-0',
-    word: true,
+    word: (readings) =>
+      isTitolarita(readings.titolarita) ? TITOLARITA_SHORT[readings.titolarita] : null,
+    width: 'min-w-8',
+  },
+  {
+    key: 'categoria',
+    // TRE CARATTERI come le altre: le sigle stanno in `core/categoria.ts`, che e' anche il posto in
+    // cui si legge perche' `scarto` e `scommessa` si allontanano di tutt'e tre le lettere.
+    short: 'Cat',
+    label: 'Categoria',
+    hint: 'Quanto vale dentro il suo ruolo: SUP, TOP, SMT, BUO, TAP, SRT, INC.',
+    // Una parola non si formatta: vale la stessa nota della titolarita' qui sopra.
+    format: '1.0-0',
+    word: (readings) =>
+      isCategoria(readings.categoria) ? CATEGORIA_SHORT[readings.categoria] : null,
+    tone: (readings) => categoriaTone(readings.categoria),
     width: 'min-w-8',
   },
   {
@@ -859,6 +913,12 @@ export function readingValue(ref: ReadingRef, readings: ManReadings): number | n
     // cioe' l'alfabeto al posto dei gradini (`core/titolarita.ts` lo scrive di se').
     case 'titolarita': {
       const rank = titolaritaRank(readings.titolarita);
+      return rank == null ? null : -rank;
+    }
+    // ...e la categoria per la SUA scala, con lo stesso segno e per la stessa ragione: `super` e'
+    // il gradino 0 e deve stare in cima a una lista che scende.
+    case 'categoria': {
+      const rank = categoriaRank(readings.categoria);
       return rank == null ? null : -rank;
     }
     case 'bonus':
@@ -1020,6 +1080,7 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     // La parola gia' risolta da chi ha costruito la riga: la dritta dichiarata batte il foglio, e
     // questa funzione non ha modo di leggere una dichiarazione (e' pura, e non deve averlo).
     titolarita: man.titolarita ?? null,
+    categoria: man.categoria ?? null,
     // LETTA E NON RICALCOLATA, come il gain: lo SWING nasce dove nasce la riga, perche' ha bisogno
     // del calendario del foglio e questa funzione riceve solo l'uomo. Due punti che la calcolano
     // darebbero allo stesso nome due numeri, ed e' il difetto che questo progetto paga da sempre.

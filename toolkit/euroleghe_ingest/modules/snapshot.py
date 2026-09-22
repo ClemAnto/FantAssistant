@@ -827,7 +827,27 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      quali attraversano un pavimento della scala della titolarita'. La stessa forma sui giocatori di
 #      MOVIMENTO e' misurata e RESPINTA (0 finestre su 4, monotona): il loro errore a campione corto sta
 #      nel livello e non nel residuo.
-SHEET_REVISION = 71
+#   72 LE SETTE PAROLE DELL'OPERATORE, E L'ASSE NON E' PIU' IL TASSO DI BONUS (22/09/2026). Le sei del
+#      01/09 (oro, argento, bronzo, cristallo, scommessa, scarto) diventano supertop · top · semitop ·
+#      buono · tappabuchi · scarto · incognita, su sua istruzione, e con loro cambia la quantita' che le
+#      decide: non il bonus a presenza - provato per primo e RESPINTO perche' non riproduce i suoi nomi
+#      (Kvernadze e Varela stanno sotto «qualche bonus» su tutt'e due le scale e lui li chiama `buono`) -
+#      ma la FANTAMEDIA ATTESA dentro il ruolo, che somma voto base e bonus ed e' quello che lui guarda.
+#      Quindici verdetti dettati a voce sono la specifica e sono riprodotti tutti e quindici; le sbarre
+#      stanno ai percentili che i suoi nomi indicano (97 · 93,5 · 85 · 77) e la sbarra delle presenze per
+#      `supertop` e' 0,72, fissata fra De Bruyne FUORI a 0,70 («e' fragile e non puo' darti tante
+#      presenze») e Martinez DENTRO a 0,74.
+#      IL LIVELLO SI RI-MISCELA CON UNA K PER RUOLO (`categories.BLEND_K`), misurata leave-one-season-out
+#      su dieci stagioni: P 16,6 · D 32,6 · C 43,5 · A 18,5, cioe' a cinque giornate la stagione in corso
+#      pesa il 21-23% per attaccanti e portieri e il 10-13% per centrocampisti e difensori. Senza quella,
+#      Varela e Pinamonti hanno la STESSA fantamedia (6,60 e 6,61) e finiscono in due parole diverse per
+#      un centesimo; con quella distano 36 percentili. L'engine non si muove: `engine_fm_pred` tiene la K
+#      di R25, e la K per ruolo dentro il motore e' una domanda GATATA da pre-registrare a parte.
+#      Colonne: `desc_category`, `desc_category_level` (il livello ri-miscelato) e `desc_category_bars`
+#      (le quattro sbarre del ruolo) - e tutt'e tre entrano in `export.SHEET_COLUMNS`, dove `desc_category`
+#      non era MAI stata messa: calcolata dal 01/09 e mai arrivata a schermo, la famiglia dei campetti e
+#      di `availability` su una COLONNA invece che su una cartella.
+SHEET_REVISION = 72
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -5989,7 +6009,7 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # dice quanto GIOCA. Due assi asimmetrici per costruzione - una previsione e un tratto misurato -
     # e i due numeri che li decidono, perche' una parola senza i suoi numeri e' una parola che nessuno
     # puo' controllare. `engine/categories.py` porta la misura delle sbarre.
-    "desc_category", "desc_category_bonus", "desc_category_bars",
+    "desc_category", "desc_category_level", "desc_category_bars",
     # How often he STARTS, which is NOT what this project calls titolarita (that is the share of the
     # matches he gets a VOTO in, above). Two horizons, because they answer different questions - the
     # season's share is the coach's habit over a year, the recent one is the shape of the side now.
@@ -6391,13 +6411,24 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         # e il bonus a presenza e' un TRATTO misurato (se no Dybala legge +0,48, sotto la mediana
         # attaccanti, e non «porta bonus»). La quota ripiega su `est_pv` perche' ogni riga deve portare
         # una categoria come porta un surplus: chi il core non prezza non e' senza parola.
-        category_rate = categories_engine.bonus_rate(obs.bonus_seasons)
-        category_bars = categories_engine.bars_for(data.game, slot)
+        category_level = categories_engine.relevel(
+            prediction.fm_pred if prediction and prediction.fm_pred is not None else guess.fm,
+            obs.pv_seen, obs.fm_seen, obs.role_classic, seen_matches(platform))
+        category_bars = categories_engine.bars_for(platform, obs.role_classic)
         category_pv = pv_pred if pv_pred is not None else guess.pv
         category = categories_engine.category_of(
             (category_pv / data.matchdays_target)
             if category_pv is not None and data.matchdays_target else None,
-            category_rate, category_bars)
+            category_level, category_bars,
+            # IL LIVELLO POGGIA SU DEL CALCIO? L'ancora di ruolo da sola NO - e' la costante «nessuno
+            # l'ha mai visto giocare» - ma l'ancora piu' le giornate di quest'anno si': un uomo che
+            # stiamo guardando adesso non e' un ignoto. Senza questa domanda `incognita` non
+            # descriveva nessuno, perche' il foglio una fantamedia la da' a tutti.
+            # DUE FATTI E NON UNO. `history`: c'e' una fantamedia PRECEDENTE da cui partire - senza,
+            # il livello e' l'ancora del ruolo anche quando il motore lo serve come `core`, e sopra
+            # `solido` non si sale. `seen`: ci sono giornate di QUESTA stagione. Senza nessuno dei
+            # due non c'e' niente da leggere e la parola e' `scommessa`.
+            history=obs.fm_prev is not None, seen=bool(obs.pv_seen))
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
             "role_classic": obs.role_classic, "roles_mantra": ";".join(obs.roles_mantra),
@@ -6459,10 +6490,15 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "pi_basis": pi_basis,
             "pi_matches": pi_matches,
             # LE SEI PAROLE: oro | argento | bronzo | cristallo | scommessa | scarto. I due numeri che la
-            # decidono viaggiano accanto, o la riga non puo' spiegare la propria parola: il TASSO misurato
-            # e le due SBARRE del suo slot, «porta bonus» e «tanti bonus».
+            # decidono viaggiano accanto, o la riga non puo' spiegare la propria parola: il LIVELLO
+            # (la fantamedia attesa ri-miscelata con la K del suo ruolo) e le QUATTRO sbarre del ruolo.
             "desc_category": category,
-            "desc_category_bonus": _round(category_rate, 3),
+            # TRE decimali e non due: `category_of` decide sul valore INTERO, quindi arrotondando a due
+            # la riga puo' mostrare un livello UGUALE a una sbarra e portare la parola di sotto
+            # (5,3151 stampato 5,32 con la sbarra a 5,32). E' la stessa famiglia dei due
+            # centesimi che tagliavano fuori Svilar e Varela: un numero che spiega una parola
+            # deve essere quello su cui la parola e' stata decisa.
+            "desc_category_level": _round(category_level, 3),
             "desc_category_bars": ("/".join(f"{one:.2f}" for one in category_bars)
                                    if category_bars else None),
             # L'ALTRO ZERO: il rimpiazzo che ENTRA (rango `squadre x posti schierati`) e il surplus

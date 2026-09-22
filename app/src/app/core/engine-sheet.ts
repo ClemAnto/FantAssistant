@@ -45,6 +45,12 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
     // costante di ruolo - li' la board ne sa di piu' (il metro della plancia, 04/09/2026).
     titolaritaPlay: at('desc_titolarita_play'),
     minutesNext: at('desc_minutes_next'),
+    // LA PAROLA DENTRO IL RUOLO coi numeri che la decidono, letta qui per la stessa ragione delle due
+    // sopra: tre viste la mostrano e tre lettori dello stesso foglio finirebbero per dare a un uomo
+    // tre categorie. `engine/categories.py` la misura, `core/categoria.ts` la traduce.
+    category: at('desc_category'),
+    categoryLevel: at('desc_category_level'),
+    categoryBars: at('desc_category_bars'),
   };
 
   const numbers = new Map<number, EngineNumbers>();
@@ -75,6 +81,11 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
       titolarita: (row[columns.titolarita] as string | null) ?? null,
       titolaritaPlay: (row[columns.titolaritaPlay] as number | null) ?? null,
       minutesNext: (row[columns.minutesNext] as number | null) ?? null,
+      // ...e la categoria, con lo stesso `?? null` delle tre sopra e per la stessa ragione: un
+      // foglio anteriore alla revisione 72 non ha la colonna e `row[-1]` e' `undefined`.
+      category: (row[columns.category] as string | null) ?? null,
+      categoryLevel: (row[columns.categoryLevel] as number | null) ?? null,
+      categoryBars: (row[columns.categoryBars] as string | null) ?? null,
     });
   }
   return numbers;

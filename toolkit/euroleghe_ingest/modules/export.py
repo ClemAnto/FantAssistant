@@ -344,6 +344,13 @@ SHEET_COLUMNS: tuple[str, ...] = (
     # ...e se qualcuno gli contende la maglia (08/09/2026): e' il terzo ingresso della parola, quindi
     # viaggia con gli altri due o la riga non puo' spiegare il proprio gradino.
     "desc_titolarita_contended",
+    # LE SETTE PAROLE dentro il ruolo (`engine/categories.py`) piu' i due numeri che le spiegano: il
+    # LIVELLO ri-miscelato e le quattro sbarre del suo ruolo. Viaggiano insieme per la ragione dei tre
+    # qui sopra - una parola senza i suoi numeri e' una parola che nessuno puo' controllare - e la
+    # colonna e' stata calcolata dal 01/09/2026 senza MAI arrivare a schermo, perche' era scritta da
+    # `snapshot` e non era in questa lista: la famiglia dei campetti, di `availability` e
+    # dell'asterisco, qui su una COLONNA invece che su una cartella o una tabella.
+    "desc_category", "desc_category_level", "desc_category_bars",
     # ...E LE DUE META' DELLA MISCELA (04/09/2026, `presence.blend_seasons`): quante partite ha giocato
     # DAVVERO in questa stagione, su quante giornate, e quanto pesa questa stagione dentro i numeri qui
     # sopra. Viaggiano per la stessa ragione dei tre di prima: un numero mescolato che non dice quanto e'
@@ -393,6 +400,8 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     "why_fm_steps", "why_pv_steps",
     "desc_live_club", "desc_live_club_on", "pi_fm", "pi_basis", "pi_matches",
     "desc_titolarita", "desc_titolarita_play", "desc_minutes_next", "desc_titolarita_contended",
+    # ...e le tre della categoria, per la stessa ragione: i pacchetti scritti prima non le hanno.
+    "desc_category", "desc_category_level", "desc_category_bars",
     # ...e le tre della miscela, nate il 04/09/2026: i pacchetti del viaggio nel tempo sono stati scritti
     # prima e non le hanno, e un foglio di PRE-STAGIONE non le ha per costruzione (una finestra sola).
     "desc_now_matches", "desc_now_rounds", "desc_blend_now",

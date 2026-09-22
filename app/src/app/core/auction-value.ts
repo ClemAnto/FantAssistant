@@ -73,6 +73,17 @@ export interface EngineNumbers {
   titolaritaPlay: number | null;
   /** I minuti che si aspetta per partita GIOCATA: una previsione, non la media dell'anno scorso. */
   minutesNext: number | null;
+  /**
+   * LA PAROLA DENTRO IL RUOLO (`desc_category`) e i numeri che la decidono.
+   *
+   * Sta qui accanto alla titolarita' perche' sono le due parole che il foglio porta di un uomo, e
+   * dicono cose diverse: quella quanto gioca, questa quanto vale nel suo ruolo. `categoryLevel` e' la
+   * fantamedia attesa ri-miscelata con la K del ruolo e `categoryBars` le quattro sbarre, cosi' la
+   * riga puo' spiegare la propria parola. Vuota su un foglio anteriore alla revisione 72.
+   */
+  category: string | null;
+  categoryLevel: number | null;
+  categoryBars: string | null;
 }
 
 /** Which of the two valuations a row is standing on. A ranking that mixes them says which is which. */

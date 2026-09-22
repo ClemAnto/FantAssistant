@@ -1,182 +1,271 @@
-"""categories - which of six words describes what a man is WORTH INSIDE HIS ROLE, for the season coming.
+"""categories - which of seven words describes what a man is WORTH INSIDE HIS ROLE, for the season coming.
 
-THE SIX WORDS ARE THE OPERATOR'S, dictated 01/09/2026, and five of them are his own list:
+THE SEVEN WORDS ARE THE OPERATOR'S, dictated 22/09/2026, and they replace the six of 01/09 (oro,
+argento, bronzo, cristallo, scommessa, scarto) on his instruction:
 
-    oro         he plays every week and brings a lot of bonus      (Malen, Dimarco, Paz N.)
-    argento     he plays every week and brings some bonus
-    bronzo      he plays every week                                (Lobotka, Cristante)
-    cristallo   he plays little, and brings bonus when he does     (Dybala, Berardi)
-    scommessa   nobody has measured him yet - he might beat the discards
-    scarto      he plays little and brings nothing
+    supertop    he plays and is OFF THE SCALE in his role    (Malen, Martinez L., Dimarco, Paz N.)
+    top         the best of his role, or off the scale but too fragile to play  (Calhanoglu, Hojlund)
+    semitop     high in his role                             (Scamacca)
+    buono       in the top quarter of his role, and he plays (Kvernadze, Varela)
+    tappabuchi  he plays, and that is what you buy him for   (Pinamonti, Douglas Luiz)
+    scarto      he does not even play - and it is MEASURED
+    incognita   nothing to read: no expected fantamedia at all
 
-The sixth is his own word too, taken from the sentence that defines the fifth («potrebbe fare bene
-rispetto agli SCARTI»): every player must carry a category, and a man who is neither a regular nor a
-bonus man is not unknown - he is measured, and the measurement is bad. Naming him is a statement;
-leaving him blank would read as «not computed», which is what `scommessa` means here.
+TWO AXES, AND EVERY BAR COMES FROM A NAME HE GAVE. The nine verdicts he dictated are the
+specification, exactly as the seven names of 01/09 were: they were all reproduced before this module
+was written, and a change that breaks one of them is a change to re-discuss with him.
 
-TWO AXES, AND THEY ARE ASYMMETRIC ON PURPOSE - which is the whole content of this module.
+  * THE LEVEL is the expected fantamedia INSIDE THE ROLE. It has to be the forecast and not his
+    record (Malen played 18 matches, all after January, and is the first `super`), and it has to be
+    read inside the role because 6.78 is the best defender in the listone and the 44th forward.
+    IT IS NOT THE BONUS RATE, which was tried first and REFUSED because it does not reproduce his
+    names: Kvernadze and Varela sit under «qualche bonus» on both the historical and the expected
+    scale and he calls them `solido`, while the expected fantamedia orders all six of his first names
+    exactly as he labelled them (8.21 · 7.73 · 7.11 · 6.70 · 6.65 · 6.60 against supertop · supertop ·
+    top · top · buono · buono). The fantamedia sums the base vote and the bonus, which is what he
+    looks at.
+  * WILL HE PLAY is `engine_pv_pred / matchdays`, titolarita in this project's only sense. It is what
+    keeps Calhanoglu (the best midfielder of the listone, 0.60 of the calendar) and De Bruyne (0.70,
+    «fragile, non puo' darti tante presenze») out of `super` - his own words, and the bar sits
+    between De Bruyne at 0.70 and Martinez at 0.74.
 
-  * WILL HE PLAY is a FORECAST: `engine_pv_pred / matchdays`, i.e. titolarita in this project's only
-    sense (the share of the matchdays he gets a VOTO in). It has to be the forecast and not his record,
-    or Malen - 18 Serie A appearances, all of them after January - would not be a man who plays every
-    week, and the operator's first example would fail.
-  * WHAT HE BRINGS is a TRAIT: the bonus per appearance he has actually delivered, `fm - mv` per season,
-    over the five most recent seasons anybody measured (`features.bonus_seasons`, one aligned pair per
-    season, `pv >= 15`). It has to be his record and not the forecast, or Dybala reads +0.48 - BELOW the
-    median forward - because the engine regresses a falling rate, and the operator's fourth example
-    would fail. His history says +1.19, and that is what the word «cristallo» is about.
+THE LEVEL IS RE-BLENDED WITH A K PER ROLE, and this is the one piece that is measured rather than
+declared. The sheet's fantamedia blends the season in progress with the previous one using R25's K,
+which is FORTY for every role; measured out of sample (leave-one-season-out, ten seasons of Serie A,
+target = the matchdays AFTER the k-th so the ones already seen are not inside the outcome), the right
+weight depends on the role - and by a factor of two:
 
-    A mean that JUDGES drops the best and the worst season from five up (the operator's standing
-    convention), so one freak season cannot crown a man - and cannot bury him either.
+    role   K     weight of 5 played matchdays   gain over last season alone   seasons better
+    P      16.6  23%                            6.2%                          9/10
+    D      32.6  13%                            2.4%                          9/10
+    C      43.5  10%                            1.7%                          7/10
+    A      18.5  21%                            6.0%                          10/10
 
-WITHIN HIS ROLE, and the bars are ABSOLUTE (his ruling, 01/09/2026, over percentiles recomputed per
-sheet): a `pc` is not compared with a `dc`, and a bar that moved with the sheet would make «oro» mean a
-different thing every week. They are MEASURED once and written here: the 60th and 80th percentile of the
-per-season bonus rate of the men each listone quoted in that role, over five seasons (2021-22 .. 2025-26),
-one row per (player, season) with at least 15 votes - a rate over three matches is noise, and a bar
-measured on noise is a bar about noise. The pool is every man any listone carried, and each season is read
-from the platform that measured it best, so the TRAIT and the BAR sit on one ruler.
+The mechanism is in the error itself: a forward's fantamedia is volatile (0.63 of MAE against a
+defender's 0.28), so last season's signal is weaker and the new matches matter more. WITHOUT THIS the
+scale cannot tell `solido` from `riserva`: Varela and Pinamonti have the same expected fantamedia
+(6.60 and 6.61) and he puts them in different words - what separates them is that Varela is playing
+well NOW (+2.88 of bonus, 6.62 of base vote) and Pinamonti is not (0.00 and 5.75). Re-blended, they
+sit 36 percentiles apart instead of 1.
 
-WHY p60 AND p80: because his seven names are the specification and those two bars reproduce all seven.
-p90 puts Malen (1.33 against 1.54) and Paz N. (0.74 against 0.77) in argento, contradicting two of the
-three examples he gave for `oro`; p70/p80 also reproduces the seven but leaves `argento` ten percentiles
-wide - 12 men on a 609-row sheet - which is a band nobody could read. Delivered on the 2026-27 Serie A
-sheet: oro 13, argento 25, bronzo 57, cristallo 86, scommessa 218, scarto 210.
+THIS IS REPORTING AND THE ENGINE DOES NOT MOVE. `engine_fm_pred` keeps R25's K of 40: changing the
+engine's own blend per role is a GATED question and is pre-registered separately. What happens here is
+that a `desc_*` column reads the same numbers with a weight measured for the question it answers - and
+if the gate ever adopts a per-role K, this correction becomes the identity and should be removed
+rather than counted twice.
 
-TWO THINGS THAT ARE TRUE AND LOOK LIKE DEFECTS, so they are stated rather than cured:
-
-  * A MAN CAN READ DIFFERENTLY ON TWO SHEETS. Malen is `oro` on Serie A classic and `argento` on
-    EuroLeghe mantra, because `pc` is a narrower and stronger class than `A` (its p80 is 1.39 against
-    1.25) - the same reason his SURPLUS is a different number there. Lobotka is `bronzo` on one and
-    `scarto` on the other, because the two platforms have different calendars and the euro engine expects
-    him in 0.63 of 31 rounds against 0.72 of 38. A category is a fact about (sheet, role), like every
-    other number on the row.
-  * THE KEEPERS' BARS ARE NEGATIVE (-1.10 / -0.93). For a keeper `fm - mv` is dominated by the goals he
-    concedes, so «brings bonus» means «concedes little and keeps clean sheets», which is exactly what a
-    keeper is bought for. Reading it inside the role is what makes the word survive the sign.
-
-WHAT IT IS NOT. REPORTING: no `engine_*` column moves and no gate owns these bars. What is gated is
-underneath - the appearances forecast is the engine's, the fantamedia and the base vote are the engine's -
-and this module only says where two of those numbers put a man. `engine_*` cannot move for a structural
-reason and not because somebody hopes so: no rule reads `bonus_seasons`, and `evaluate` never sees a
-`desc_*` column. The `backtest --verify` 22/22 that says it out loud is OWED and not yet run - on
-01/09/2026 the acquisition held the write lock (the DB is `journal_mode=delete`, so a long read blocks it)
-and a check that breaks the run it is checking is worse than a check taken an hour later.
+THE BARS ARE ABSOLUTE (his ruling of 01/09/2026, over percentiles recomputed per sheet): a bar that
+moved with the sheet would make a word mean something different every week. They were measured ONCE,
+on the 2026-27 Serie A sheet the nine verdicts were given on, at the percentiles his own names put
+them: `super` 97, `top` 93.5, `semi` 85, `solido` 77. Re-measure them when the listone changes
+shape, and say so when you do.
 
 Dependency-free, like the rest of `engine/`: the shippable TypeScript engine gets ported from here.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 
-#: The six words. Their INDEX is the order the operator dictated them in, so a screen that sorts by
-#: category has ONE ordering - three copies of six words would eventually disagree about one of them.
-LADDER: tuple[str, ...] = ("oro", "argento", "bronzo", "cristallo", "scommessa", "scarto")
+#: The seven words. Their INDEX is the order he dictated them in, so a screen that sorts by category
+#: has ONE ordering - three copies of seven words would eventually disagree about one of them.
+#: `scommessa` is last because it is not a judgement: it is the absence of one.
+#: L'ORDINE E' IL SUO (22/09/2026, sera): `scommessa` sta SOPRA `scarto`, perche' «nessuno l'ha
+#: ancora misurato» promette piu' di «e' misurato e non gioca» - la stessa ragione per cui le due
+#: parole non si fondono. Nella prima stesura `scommessa` (allora `scommessa`) chiudeva la scala come
+#: non-giudizio; lui l'ha messa davanti allo scarto, e la graduatoria e' sua.
+LADDER: tuple[str, ...] = (
+    "super", "top", "semi", "solido", "riserva", "scommessa", "scarto")
 
-#: «gioca sempre»: the share of the target calendar he is expected to get a voto in. DECLARED, not
-#: fitted - it is the one number he did not give. What it delivers is the separation of his own examples:
-#: Lobotka 0.72 and Cristante 0.77 above it, Dybala 0.61 and Berardi 0.59 below.
-PLAYS_ALWAYS = 0.70
+#: Le stesse sette parole per NOME, cosi' la cascata non si scrive con gli indici: riordinarle - e lui
+#: l'ha gia' fatto una volta, spostando `scommessa` sopra `scarto` - rinumerava ogni `LADDER[n]` e il
+#: compilatore non avrebbe detto niente. Con i nomi un riordino non puo' cambiare quale parola torna.
+SUPER, TOP, SEMI, SOLIDO, RISERVA, SCOMMESSA, SCARTO = LADDER
 
-#: (some bonus, a lot of bonus) per appearance, per role. See the module docstring for the measurement.
-#: `b` is the thin pool (39 season-rows against 300-1300 for every other code): it is written down with
-#: the others, and its bar is the one to re-measure first when the braccetti get quoted more widely.
-BONUS_BARS: Mapping[str, Mapping[str, tuple[float, float]]] = {
-    "classic": {
-        "P": (-1.10, -0.93),
-        "D": (0.10, 0.22),
-        "C": (0.33, 0.57),
-        "A": (0.87, 1.25),
+#: «gioca sempre», the gate of `super`. DECLARED from two of his own cases and not fitted: De Bruyne
+#: at 0.70 is OUT («e' fragile e non puo' darti tante presenze») and Martinez at 0.74 is IN, so the bar
+#: is between them. It is deliberately stricter than the 0.70 the six-word scale used.
+PLAYS_ALWAYS = 0.72
+
+#: «gioca spesso», the floor under which a man is a `scarto` whatever his level. His decision of
+#: 22/09/2026, taken to let Varela (0.54) be a `solido`: half the calendar.
+PLAYS_OFTEN = 0.50
+
+#: «gioca parecchio», the floor of `semi`. His ruling of 22/09/2026 evening - «Adams C. non puo'
+#: essere un SEMITOP perche' ha troppe poche partite attese» - and the band is closed by two cases:
+#: Adams C. OUT at 0.630 (with a measured history behind him, so the level is not the problem) and
+#: Scamacca IN at 0.718.
+#:
+#: IT IS NOT `PLAYS_ALWAYS`, and the first version made it so by reading «0,72» off a ROUNDED table:
+#: Scamacca's real share is 0.718 and the bar cut him out by two thousandths, which is the same
+#: mistake the two bars of Svilar and Varela had already cost - committed again, by whoever had just
+#: written it down. The value sits in the middle of the band and not on either edge.
+PLAYS_A_LOT = 0.68
+
+#: The blend constant PER ROLE for the level, measured leave-one-season-out on ten Serie A seasons.
+#: See the module docstring for the table and the mechanism. `k/(k+K)` is the weight of the matchdays
+#: already played, the same shape R25 uses in the engine.
+BLEND_K: Mapping[str, float] = {"P": 16.6, "D": 32.6, "C": 43.5, "A": 18.5}
+
+#: (buono, semitop, top, supertop) of EXPECTED FANTAMEDIA, per PLATFORM and listone role.
+#:
+#: PER PLATFORM, and it is not a refinement: the euro sheet's fantamedia sits systematically higher
+#: than Serie A's (median forward 7.14 against 6.61, keeper 5.05 against 4.96), because EuroLeghe is a
+#: selection of top clubs. One table for both would have made half the euro forwards at least
+#: `semi` by construction - «a parameter belongs to the population it was measured on», and the
+#: platform is such a population, which this repository has written down for prices, tiers and K.
+#:
+#: DUE VALORI DI `default` SONO ABBASSATI DI UN CENTESIMO rispetto al percentile, e non e' un
+#: ritocco: il percentile trova la ZONA, il CASO DICHIARATO fissa il valore. Svilar (livello 5,329) e'
+#: un `super` per sua parola e il p97 arrotondato a 5,33 lo tagliava fuori di un millesimo; Varela
+#: (6,878) e' un `solido` e il p77 a 6,88 lo tagliava per due.
+#:
+#: E LE DUE TABELLE NON SONO MISURATE SULLA STESSA QUANTITA', il che e' corretto e va detto: su
+#: `default` sui livelli RI-MISCELATI (R25 e' adottata la', quindi `relevel` lavora), su `euro` sui
+#: livelli come sono (R25 non e' adottata, quindi `relevel` restituisce il valore intatto). Le due
+#: meta' di ogni confronto vengono dalla stessa quantita'; il giorno in cui il gate adottasse R25 su
+#: euro, QUESTA TABELLA VA RIMISURATA - non e' una nota di cortesia, e' la condizione che la tiene in
+#: piedi.
+#:
+#: UNA SBARRA DENTRO UN PLATEAU NON SEPARA NIENTE, e su euro ce ne sono due: 80 portieri su 110 (73%)
+#: e 42 attaccanti su 173 portano la STESSA fantamedia attesa, tutti dal core - un fatto sul motore e
+#: non su questa scala. Dove il p77 e il p85 cadevano sullo stesso valore la sbarra superiore e'
+#: spostata al primo valore STRETTAMENTE maggiore, cosi' quei 42 uomini uguali restano tutti nella
+#: stessa parola invece di essere spaccati in due da un arrotondamento. Resta vero, e va saputo, che
+#: su euro la categoria di un PORTIERE distingue poco: il motore non li distingue.
+LEVEL_BARS: Mapping[str, Mapping[str, tuple[float, float, float, float]]] = {
+    "default": {
+        "P": (5.07, 5.16, 5.24, 5.32),
+        "D": (6.11, 6.16, 6.26, 6.35),
+        "C": (6.35, 6.42, 6.53, 6.71),
+        "A": (6.87, 6.97, 7.09, 7.61),
     },
-    "mantra": {
-        "por": (-1.10, -0.93),
-        "dc": (0.05, 0.17),
-        "dd": (0.12, 0.24),
-        "ds": (0.11, 0.23),
-        "b": (0.08, 0.15),
-        "e": (0.16, 0.30),
-        "m": (0.16, 0.32),
-        "c": (0.22, 0.40),
-        "t": (0.50, 0.71),
-        "w": (0.55, 0.77),
-        "a": (0.75, 1.06),
-        "pc": (1.00, 1.39),
+    "euro": {
+        "P": (5.048, 5.066, 5.140, 5.186),
+        "D": (6.163, 6.175, 6.285, 6.399),
+        "C": (6.708, 6.796, 6.891, 6.987),
+        "A": (7.424, 7.438, 7.728, 7.932),
     },
 }
 
 
-def bars_for(game: str, slot: str | None) -> tuple[float, float] | None:
-    """The two bars for a row's own slot, or None when nothing can be said about it.
+def bars_for(platform: str | None,
+             slot: str | None) -> tuple[float, float, float, float] | None:
+    """The four bars for a row's PLATFORM and listone role, or None when nothing can be said.
 
-    A mantra sheet falls back to the CLASSIC table for a man the listone gives no code to, which is the
-    same third case `snapshot.auction_level` already handles and for the same reason: his row would
-    otherwise carry a word measured against nobody.
+    The LISTONE role and not the mantra slot, unlike the bonus bars the six-word scale used: the level
+    is a fantamedia, and a fantamedia is comparable across the twelve codes of one macro-role in a way
+    a bonus rate is not (a `dc` and a `dd` bring different bonus and score the same marks). Read
+    case-insensitively for the reason the previous version already stated: this repository lowercases
+    slots elsewhere, and a caller that normalises must not silently get None.
 
-    AND THE DISCRIMINATOR IS THE CASE, which is worth stating exactly rather than claiming the two
-    vocabularies cannot meet - they DO. Reviewed 02/09/2026: the rulebook's codes are lowercase (`a` =
-    ala, `c` = centrale) and the listone's roles uppercase (`A` = attaccante, `C` = centrocampista), so
-    `bars_for("mantra", "a")` reads (0.75, 1.06) and `bars_for("mantra", "A")` reads (0.87, 1.25) - two
-    different classes behind one letter. Today every caller obeys the contract (`auction_level` returns
-    'P'/'D'/'C'/'A' on classic and the twelve codes on mantra), but this repository lowercases slots
-    elsewhere - `bench/draft/extract.py` writes `slot.lower()` - so a future caller that normalises would
-    get a word measured against the wrong class, silently. Hence: the classic table is read case-
-    INSENSITIVELY (a lowercase listone role on a classic sheet now answers instead of returning None),
-    the mantra path reaches it only for a slot that IS uppercase, and a test pins the collision so
-    nobody "tidies up" the case handling without meeting it.
-
-    What CANNOT be fixed here is a lowercase classic role on a MANTRA sheet: the ambiguity is born in
-    `auction_level`, which collapses a mantra code and a listone role into one string, so no function
-    reading that string alone can tell them apart. Curing it means carrying the vocabulary beside the
-    slot, and that is a change to the sheet's own shape rather than to this lookup.
+    A platform with no measured table answers None - and a row with no bars is `scommessa`, which is
+    the honest reading: a word measured against nobody is not a word.
     """
-    if not slot:
+    if not slot or not platform:
         return None
-    if game == "mantra":
-        return BONUS_BARS["mantra"].get(slot) or (
-            BONUS_BARS["classic"].get(slot) if slot.isupper() else None)
-    return BONUS_BARS["classic"].get(slot.upper())
+    return LEVEL_BARS.get(platform, {}).get(slot.upper())
 
 
-def bonus_rate(seasons: Sequence[float]) -> float | None:
-    """His bonus per appearance over the seasons anybody measured, most recent first.
+def relevel(fm_pred: float | None, seen_matches: int | None, seen_fm: float | None,
+            role: str | None, sheet_k: float | None) -> float | None:
+    """The expected fantamedia re-blended with this ROLE's K instead of the sheet's single one.
 
-    The mean drops the best and the worst season from five up - the operator's standing rule for a mean
-    that judges - so neither one explosion nor one injured season decides a word. None in, None out: a man
-    with no measured season has no rate, which is what makes him a `scommessa` rather than a `scarto`, and
-    the two are opposite statements.
+    `fm_pred` already blends the season in progress with `sheet_k` (R25's, forty for every role), so
+    the base is recovered before re-blending - undoing exactly what is about to be redone differently,
+    which is the only way the two do not count the same matches twice.
+
+    Returns `fm_pred` untouched when there is nothing to re-blend: no matches played yet, no K on the
+    sheet (a pre-season sheet, where R25 is inert by construction), or a role with no measured K. That
+    is not a fallback that hides a hole - on a pre-season sheet the two blends ARE the same number.
     """
-    kept = list(seasons)[:5]
-    if not kept:
+    if fm_pred is None:
         return None
-    if len(kept) >= 5:
-        kept = sorted(kept)[1:-1]
-    return sum(kept) / len(kept)
+    k = BLEND_K.get((role or "").upper())
+    if not seen_matches or seen_fm is None or k is None or not sheet_k:
+        return fm_pred
+    w_sheet = seen_matches / (seen_matches + sheet_k)
+    if w_sheet >= 1.0:
+        return fm_pred
+    base = (fm_pred - w_sheet * seen_fm) / (1 - w_sheet)
+    w_role = seen_matches / (seen_matches + k)
+    return w_role * seen_fm + (1 - w_role) * base
 
 
-def category_of(play_share: float | None, rate: float | None,
-                bars: tuple[float, float] | None) -> str | None:
+def category_of(play_share: float | None, level: float | None,
+                bars: tuple[float, float, float, float] | None,
+                history: bool = True, seen: bool = False) -> str | None:
     """One of `LADDER`, or None when not even the appearances are known.
 
-    `play_share` is `engine_pv_pred / matchdays`, `rate` is `bonus_rate(...)`, `bars` is `bars_for(...)`.
+    `play_share` is `engine_pv_pred / matchdays`, `level` is `relevel(...)`, `bars` is `bars_for(...)`.
 
-    NO RATE IS `scommessa` AND NEVER `scarto`: «vuoto = ignoto, mai zero», met here on a word that would
-    otherwise call a nineteen-year-old bad because nobody has watched him yet. A row with no appearance
-    forecast at all gets no word - the caller owes that distinction, exactly as it does for the six-rung
-    ladder next door.
+    NO LEVEL IS `scommessa` AND NEVER `scarto`: «vuoto = ignoto, mai zero», met here on a word that
+    would otherwise call a nineteen-year-old bad because nobody has priced him yet. The two are
+    opposite statements, and he chose the word himself on 22/09/2026 rather than folding them together.
+
+    `grounded` IS THE OTHER HALF OF THAT, and without it the word was empty by construction. The sheet
+    gives EVERY row a fantamedia - where the engine cannot price a man, `est_fm` falls back to his
+    role's anchor - so a level is never missing and `scommessa` described nobody: measured on the
+    2026-27 Serie A sheet, 147 rows sat on the anchor and were handed 103 `scarto`, 31 `riserva`
+    and even 7 `solido`, which is a judgement about men nobody has watched. It is the `bandiera` defect
+    of 20/08 (a rung empty by construction) met on a word instead of a ladder.
+
+    The caller says whether the level STANDS ON FOOTBALL: the anchor alone does not, but the anchor
+    plus matchdays played THIS season does - a man we are watching right now is not an unknown, and
+    that is also why 3 of those 147 read `top` legitimately.
+
+    A ROW WITH NO APPEARANCE FORECAST AT ALL GETS NO WORD - the caller owes that distinction, exactly
+    as it does for the six-rung ladder next door.
+
+    THE ORDER OF THE TESTS IS THE CASCADE and it is not an implementation detail: his six definitions
+    overlap (a man who plays often with a high level satisfies several at once), so «the first rule
+    that matches» is what makes them exclusive, and it is the order he dictated them in.
     """
     if play_share is None:
         return None
-    if rate is None or bars is None:
-        return LADDER[4]
-    some, many = bars
-    if play_share >= PLAYS_ALWAYS:
-        return LADDER[0] if rate >= many else LADDER[1] if rate >= some else LADDER[2]
-    return LADDER[3] if rate >= some else LADDER[5]
+    if level is None or bars is None or not (history or seen):
+        return SCOMMESSA
+    good, semi, top, sup = bars
+    # SENZA STORICO NON SI SALE SOPRA `solido`, sua regola del 22/09/2026 sera: «Osmajic e Romero D.
+    # non possono essere SEMITOP perche' hanno uno storico poco definito». I due leggevano 6,996 - il
+    # PLATEAU dell'ancora di ruolo, che il motore serve come `core` a confidenza piena quando non ha
+    # una fantamedia precedente da regredire - cioe' un numero che non parla di loro, appena sopra la
+    # sbarra. Il tetto e' consistente con tutti e quindici i suoi verdetti: i tre uomini senza storico
+    # (Kvernadze, Varela, Douglas Luiz) sono `solido` o sotto, e chiunque metta da `semi` in su ce
+    # l'ha. NON e' `scommessa`: quelli il calcio di quest'anno ce l'hanno, e si vede.
+    if not history:
+        return SOLIDO if play_share >= PLAYS_OFTEN and level >= good else (
+            RISERVA if play_share >= PLAYS_OFTEN else SCARTO)
+    if level >= sup and play_share >= PLAYS_ALWAYS:
+        return SUPER
+    # ...off the scale but not playing enough is `top` and not `super`: Calhanoglu is the best
+    # midfielder of the listone at 0.60 of the calendar, and the word has to say that he is worth it
+    # AND that he will not be there. His ruling, 22/09/2026.
+    #
+    # `or level >= sup` used to be here and was REDUNDANT - the bars are sorted and a test asserts it,
+    # so `level >= sup` implies `level >= top` - and removing it makes the real property visible: this
+    # branch has NO appearance floor, so a man off the scale who plays 5% of the calendar reads `top`
+    # and never `scarto`. That is Calhanoglu's case taken to its limit and the operator has not ruled
+    # on it; it is stated here rather than guessed, and the population it would affect is worth
+    # counting before anybody adds a floor.
+    if level >= top:
+        return TOP
+    if play_share < PLAYS_OFTEN:
+        return SCARTO
+    # ...e `semi` VUOLE LE PRESENZE, sua regola dello stesso giorno: «Adams C. non puo' essere un
+    # SEMITOP perche' ha troppe poche partite attese» - 0,630 del calendario, con lo storico che ce
+    # l'ha (6,67 su 33 presenze), quindi qui il difetto non e' il livello. La sbarra e' `PLAYS_A_LOT`,
+    # chiusa fra lui e Scamacca (0,718), e NON `PLAYS_ALWAYS` - vedi la costante per il perche' la
+    # prima stesura sbagliava.
+    if level >= semi and play_share >= PLAYS_A_LOT:
+        return SEMI
+    if level >= good:
+        return SOLIDO
+    return RISERVA
 
 
 def rank_of(category: str | None) -> int | None:
-    """Where a word sits in the list, 0 = `oro`. None for a row with no word, never a number."""
+    """Where a word sits in the list, 0 = `super`. None for a row with no word, never a number."""
     if category is None:
         return None
     try:

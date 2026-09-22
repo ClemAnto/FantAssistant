@@ -67,7 +67,13 @@ import { PlayerFlags } from '../player-flags/player-flags';
 import { RoleBadge } from '../role-badge/role-badge';
 import { RoleSet } from '../role-set/role-set';
 import { StarRating } from '../star-rating/star-rating';
-import { CATEGORIA_SHORT, categoriaNote, categoriaRank, isCategoria } from '../../core/categoria';
+import {
+  CATEGORIA_SHORT,
+  categoriaNote,
+  categoriaRank,
+  categoriaTone,
+  isCategoria,
+} from '../../core/categoria';
 import { TITOLARITA_SHORT, isTitolarita, titolaritaNote, titolaritaRank } from '../../core/titolarita';
 import { RulingDot } from '../ruling-dot/ruling-dot';
 
@@ -1478,26 +1484,27 @@ export class SquadTable {
   /** La frase intera coi due numeri: la sigla è un promemoria, il tooltip la spiegazione. */
   protected categoriaHint(man: SquadMan): string {
     return (
-      categoriaNote(man.category, man.categoryBonus, man.categoryBars)
-      ?? 'Il foglio non porta la categoria: è più vecchio della revisione 38, oppure il motore non '
+      categoriaNote(man.category, man.categoryLevel, man.categoryBars)
+      ?? 'Il foglio non porta la categoria: è più vecchio della revisione 72, oppure il motore non '
         + 'gli prevede nemmeno le presenze. In tutt\'e due i casi è IGNOTO, che non è «scarto».'
     );
   }
 
   /**
-   * Quanto è forte la parola, come CONTRASTO e non come colore - la stessa regola della titolarità.
+   * La tinta della parola, dal vocabolario - IL COLORE ORA LO CHIEDE LUI (22/09/2026).
    *
-   * Qui la tentazione è più grossa perché le parole SONO colori (oro, argento, bronzo), ma la regola
-   * dell'app è che il colore porta un significato e i dati vanno neutri: tre tinte metalliche su una
-   * colonna di dati direbbero «premio» dove c'è una misura. Si legge dal peso, e il colore si
-   * aggiunge solo se lo chiede lui.
+   * Questa funzione leggeva i RANGHI a mano (`rank <= 1`, `rank >= 4`) quando le parole erano sei, e
+   * con sette quelle soglie dicevano un'altra cosa: il rango 4 era `scommessa` e adesso e'
+   * `riserva`, cioe' meta' del listone e un acquisto legittimo, smorzato come uno scarto. Una
+   * soglia scritta sull'INDICE di una scala e' una soglia che la scala successiva rompe in silenzio;
+   * ora la tinta la porta `core/categoria.ts` e la tabella non ne decide nessuna.
+   *
+   * La nota che c'era - «il colore si aggiunge solo se lo chiede lui» - non e' stata ignorata: e'
+   * stata esaudita, ed e' la ragione per cui questa funzione ora chiama il vocabolario invece di
+   * contare i gradini.
    */
   protected categoriaTone(man: SquadMan): string {
-    const rank = categoriaRank(man.category);
-    if (rank == null) return 'text-muted';
-    if (rank <= 1) return 'font-semibold';
-    if (rank >= 4) return 'text-muted';
-    return '';
+    return categoriaTone(man.category) || 'text-muted';
   }
 
   /** La sigla di tre caratteri, o null per uno stato che il foglio non porta. */

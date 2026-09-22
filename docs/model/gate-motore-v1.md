@@ -7026,3 +7026,78 @@ farà citi questa sezione come la ragione dello scarto.
 **Il metodo.** La cura è stata applicata prima su una **copia privata del DB** e misurata lì, e solo dopo
 sul database vero: i 22 controlli della copia e quelli del vero sono usciti **identici**, il che è anche la
 verifica che l'esperimento fosse rappresentativo. Costo della copia: 558 MB e un secondo.
+
+
+## 7-unsexagies. QUANTO PESANO LE PRIME k GIORNATE (22 settembre 2026) — e il peso è PER RUOLO
+
+Dalla domanda dell'operatore: «vedi quanto bene rappresentano le giornate giocate fino ad oggi l'intera
+stagione rispetto alle medie della stagione scorsa». Misura, non pre-registrazione di una regola: quello
+che ne esce è adottato in un `desc_*` (`engine/categories.py`) e il motore non si muove. Se un giorno si
+volesse dentro `evaluate`, quella è R28 e va pre-registrata.
+
+**LA FORMA.** Due predittori del RESTO della stagione - la fantamedia delle prime k giornate e quella
+della stagione precedente (≥15 voti) - e la loro miscela `w·A + (1−w)·B`. Il bersaglio sono le giornate
+DOPO la k-esima, mai il totale: le viste stanno dentro il totale, e un predittore che le ricopiasse
+sembrerebbe bravissimo per la parte di stagione già successa (la regola di R20). `w` scelto
+**leave-one-season-out** - sulle altre stagioni, misurato su quella tenuta fuori - perché il `w` scelto
+sulle stesse righe su cui lo si misura sovrastima il guadagno.
+
+**IL RISULTATO, e il ruolo cambia la risposta di due volte:**
+
+| ruolo | errore con la sola stagione scorsa | con la miscela | guadagno | stagioni migliorate | peso di 5 giornate | K |
+|---|---|---|---|---|---|---|
+| A | 0,634 | 0,596 | **6,0%** | **10/10** | **21%** | 18,5 |
+| P | 0,361 | 0,339 | **6,2%** | 9/10 | **23%** | 16,6 |
+| D | 0,284 | 0,277 | 2,4% | 9/10 | 13% | 32,6 |
+| C | 0,372 | 0,366 | 1,7% | 7/10 | 10% | 43,5 |
+
+**IL MECCANISMO È NELLA COLONNA DELL'ERRORE**: la fantamedia di un attaccante è volatile (0,63 di MAE
+contro 0,28 di un difensore), quindi il segnale dell'anno prima è più debole e le partite nuove pesano di
+più. Non è una proprietà del ruolo in astratto: è il rapporto fra due rumori.
+
+**IL LIMITE, dichiarato prima che qualcuno lo usi per muovere il motore.** Questa misura è sul predittore
+NUDO, mentre R25 ha misurato K=40 col SET ADOTTATO, dove R3 e R19 leggono già parte delle giornate
+giocate. **Un baseline più debole fa sembrare un canale più forte** - la lezione di R24 (§7-quinquadragies)
+- quindi questi 16-44 non smentiscono il 40 di R25: misurano un'altra cosa. Solo Serie A, e le soglie
+(≥8 voti nel resto, ≥15 l'anno prima) sono scelte da me.
+
+---
+
+## 7-duosexagies. LA COMPRESSIONE DEL MOTORE SULLE PRESENZE (22 settembre 2026) — misurata, e CORRETTA
+
+Dall'osservazione dell'operatore su una lista di attaccanti: «quasi tutti superano le 26 presenze e molti
+anche 30, mentre nelle nostre previsioni quasi nessuno dei migliori supera le 25». Vera, e la risposta ha
+tre pezzi in ordine di peso.
+
+**1. I DUE NUMERI NON ERANO SULLA STESSA BASE.** Le presenze realizzate sono su 38 giornate; le previsioni
+su un foglio di settembre sono sulle **33 che restano**. 24 su 33 è la stessa quota di 27,6 su 38. È
+l'errore di unità, la famiglia più cara di questo progetto, incontrata su uno schermo invece che in un
+calcolo.
+
+**2. LA COMPRESSIONE ESISTE.** Su 349 uomini con calcio 2025-26 in archivio, previsione contro realizzato
+per fascia: chi stava a 0,00-0,20 riceve **+0,268** di quota, chi stava a 0,80-1,00 riceve **−0,169**. La
+dispersione della previsione è il 64% di quella vera (sd 0,180 contro 0,280).
+
+**3. ED È QUELLO CHE SUCCEDE DAVVERO, che è il pezzo senza il quale il 2 non è interpretabile.** Il NULL è
+la persistenza vera fra due stagioni (2024-25 → 2025-26, 372 uomini):
+
+| fascia | il motore PREVEDE | la storia REALIZZA |
+|---|---|---|
+| 0,80-1,00 | 0,728 | **0,747** |
+| 0,60-0,80 | 0,619 | 0,560 |
+| 0,00-0,20 | 0,343 | 0,414 |
+
+Chi gioca il 90% di una stagione ne gioca il **75%** l'anno dopo - infortuni, cali, mercato, panchina - e
+il motore sbaglia di **mezza giornata su 33** sulla fascia alta. **E il caveat rafforza invece di
+indebolire**: quel null conta solo chi è presente in entrambe le stagioni, quindi esclude chi è sparito
+dal listone, e la persistenza vera è più bassa di 0,747.
+Che la previsione abbia meno dispersione dell'esito è CORRETTO: una previsione con la stessa dispersione
+del risultato starebbe scommettendo che ogni titolare ripeta esattamente l'anno prima.
+
+**E I CASI ESTREMI SI SPIEGANO DA SÉ**: i sei più lontani (Montipò 35 presenze l'anno scorso e 0 adesso,
+Terracciano F. 36 e 0, Thuram K. 35 e 0) hanno tutti giocato **ZERO** delle cinque giornate di
+quest'anno, e i loro gradini lo dicono (`riserva`, `panchina`). La miscela li abbassa correttamente.
+
+**Quello che resta aperto e NON è questo**: R27 (§7-septquinquagies) misura una compressione RESIDUA di
+altro tipo - per gruppo, fra chi l'undici tipo disegna e chi non nomina mai - e vale +1,0…+1,6% su euro.
+Resta non adottata perché il gate non la raggiunge.

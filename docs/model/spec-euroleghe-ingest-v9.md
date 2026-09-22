@@ -495,6 +495,75 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.100 (22 settembre 2026, sera — LE SETTE PAROLE, E L'ASSE NON È IL TASSO DI BONUS)
+
+Dalla richiesta dell'operatore di dare a ogni calciatore un'etichetta, con sei definizioni dettate a
+voce. La scala a sei parole del 01/09 (oro · argento · bronzo · cristallo · scommessa · scarto) è
+sostituita su sua istruzione, e con lei cambia la QUANTITÀ che la decide. `SHEET_REVISION` 72.
+
+1. **PRIMA DI COSTRUIRE: la scala c'era già, e non era MAI arrivata a schermo.** `engine/categories.py`
+   la calcolava dal 01/09 e `snapshot` scriveva `desc_category` — ma quella colonna non era in
+   `export.SHEET_COLUMNS`, quindi il bundle non la portava e la colonna «Categoria» della tabella era
+   vuota per tutte le 562 righe, da tre settimane. È la famiglia dei campetti, di `availability`,
+   dell'asterisco e di `transfers_history`, qui su una COLONNA invece che su una cartella o una
+   tabella. **La richiesta nasceva da quel vuoto**, e dirlo prima ha cambiato la conversazione: la
+   scelta fra «fammela vedere» e «rifalla» è stata sua, con il prezzo davanti.
+
+2. **L'ASSE NON È IL TASSO DI BONUS, ed è stato provato per primo e RESPINTO dai suoi stessi nomi.**
+   Kvernadze e Varela stanno sotto «qualche bonus» su ENTRAMBE le scale (storica e attesa) e lui li
+   chiama `solido`; una ricerca su 35 configurazioni (5 valori di K × 7 terne di percentili) arriva al
+   massimo a 4 verdetti su 6. La **fantamedia attesa dentro il ruolo** invece li ordina tutti e sei
+   esattamente come li ha etichettati (8,21 · 7,73 · 7,11 · 6,70 · 6,65 · 6,60 contro super · super ·
+   top · top · solido · solido), perché somma voto base e bonus, che è quello che lui guarda.
+
+3. **IL LIVELLO SI RI-MISCELA CON UNA K PER RUOLO** (`BLEND_K`), ed è l'unico pezzo misurato invece che
+   dichiarato: leave-one-season-out su dieci stagioni di Serie A, bersaglio le giornate DOPO la k-esima
+   così le viste non stanno dentro l'esito. **P 16,6 · D 32,6 · C 43,5 · A 18,5** — a cinque giornate la
+   stagione in corso pesa il 21-23% per attaccanti e portieri e il 10-13% per centrocampisti e
+   difensori, cioè **due volte**. Il meccanismo è nell'errore: la fantamedia di un attaccante è volatile
+   (MAE 0,63 contro 0,28 di un difensore), quindi il segnale dell'anno prima è più debole. Guadagno
+   fuori campione 6,0-6,2% su A e P, 1,7-2,4% su C e D, 7-10 stagioni su 10.
+   **Senza questa, la scala non distingue `solido` da `riserva`**: Varela e Pinamonti hanno la STESSA
+   fantamedia sul foglio (6,60 e 6,61) e lui li mette in parole diverse; ri-miscelati distano 36
+   percentili. `engine_fm_pred` NON si muove — tiene la K di R25 — e la K per ruolo dentro il motore è
+   una domanda GATATA da pre-registrare a parte.
+
+4. **LE SBARRE SONO PER PIATTAFORMA**, trovato da una code-review e confermato dalla misura: la scala
+   euro sta sistematicamente più in alto (mediana attaccanti 7,14 contro 6,61, perché EuroLeghe è una
+   selezione di top club), quindi una tabella sola avrebbe messo metà degli attaccanti euro almeno
+   `semi` per costruzione. Le due tabelle non sono misurate sulla stessa quantità e va detto: su
+   `default` sui livelli RI-MISCELATI, su `euro` sui livelli come sono, perché lì R25 non è adottata.
+   Se il gate adottasse R25 su euro, **quella tabella va rimisurata**.
+
+5. **E UNA SBARRA DENTRO UN PLATEAU NON SEPARA NIENTE.** Su euro **80 portieri su 110 (73%)** e 42
+   attaccanti su 173 portano la stessa identica fantamedia attesa, tutti dal `core`: un fatto sul
+   MOTORE e non su questa scala. Dove il p77 e il p85 cadevano sullo stesso valore la sbarra superiore
+   è spostata al primo valore strettamente maggiore, così 42 uomini uguali non finiscono in due parole
+   per un arrotondamento. Resta vero, ed è scritto, che **su euro la categoria di un portiere distingue
+   poco: il motore non li distingue**.
+
+6. **LE REGOLE CHE I SUOI NOMI HANNO IMPOSTO**, ognuna chiusa da due casi e non da un percentile:
+   `PLAYS_ALWAYS` = 0,72 per `super`, fra De Bruyne FUORI a 0,70 («è fragile e non può darti tante
+   presenze») e Martinez DENTRO a 0,74; `PLAYS_A_LOT` = 0,68 per `semi`, fra Adams C. a 0,630 e
+   Scamacca a 0,718; **senza storico non si sale sopra `solido`** (Osmajic e Romero D. leggevano 6,996,
+   il plateau dell'ancora servita come `core`, appena sopra la sbarra), tetto consistente con tutti e
+   quindici i verdetti precedenti; e `scommessa` per chi non ha né storico né giornate viste.
+
+7. **`scommessa` ERA VUOTA PER COSTRUZIONE, e l'hanno trovata i CONTEGGI.** Il foglio dà una fantamedia
+   a TUTTI - dove il motore non prezza, `est_fm` ripiega sull'ancora - quindi un livello non manca mai:
+   147 righe sedute sull'ancora prendevano 103 `scarto`, 31 `riserva` e 7 `solido`, cioè un giudizio su
+   uomini che nessuno ha guardato. È il difetto di `bandiera` (20/08) su una parola. La cura distingue
+   l'ancora NUDA dall'ancora PIÙ le giornate di quest'anno: chi stiamo guardando adesso non è un
+   ignoto. Effetto: da 0 a **83 righe**.
+
+**DUE ERRORI MIEI, tutt'e due sullo stesso punto e il secondo dopo averlo scritto nel codice.**
+Ho tarato due volte una sbarra su un numero ARROTONDATO: prima le sbarre di Svilar (5,329 contro un
+p97 stampato 5,33) e Varela (6,878 contro 6,88), poi il pavimento di `semi` su «0,72» letto dalla mia
+stessa tabella quando il valore vero di Scamacca è 0,718. *Il percentile trova la zona, il caso
+dichiarato fissa il valore, e il caso va letto alla precisione con cui decide.* E un `str.replace`
+senza `assert` è un **no-op silenzioso**: due test delle regole nuove non sono mai entrati nel file
+perché il bersaglio non corrispondeva più dopo una rinomina, e la sessione ha riportato che c'erano.
+
 ## Novità v9.99 (22 settembre 2026 — UN AGGREGATO DERIVATO CONGELATO ALLA PRIMA GIORNATA)
 
 Dalla richiesta dell'operatore «risolvi le anomalie», cioe' la riga che `validate` stampava in coda a ogni

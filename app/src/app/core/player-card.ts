@@ -100,6 +100,17 @@ export interface CardMan {
   titolaritaPlay: number | null;
   minutesNext: number | null;
   seasonMatches: number | null;
+  /**
+   * LA PAROLA DENTRO IL RUOLO (`desc_category`) coi numeri che la decidono.
+   *
+   * Letta dal foglio e mai ricalcolata, come la titolarita' accanto: `core/categoria.ts` e' il
+   * vocabolario e `engine/categories.py` la misura. `categoryLevel` e' la sua fantamedia attesa
+   * ri-miscelata con la K del suo ruolo e `categoryBars` le quattro sbarre, cosi' la riga puo'
+   * spiegare la propria parola invece di chiedere di crederle.
+   */
+  category: string | null;
+  categoryLevel: number | null;
+  categoryBars: string | null;
   minutesFullSeason: number | null;
   unpricedReason: string | null;
   fvm: number | null;

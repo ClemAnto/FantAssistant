@@ -16,7 +16,7 @@ const man = (over: Partial<SquadMan> = {}): SquadMan => ({
   cup: null, cupRounds: null, pvCup: null, valueCup: null,
   surplusCup: null, surplusFieldedCup: null,
   titolarita: null, titolaritaPlay: null, minutesNext: null,
-  category: null, categoryBonus: null, categoryBars: null,
+  category: null, categoryLevel: null, categoryBars: null,
   ...over,
 });
 

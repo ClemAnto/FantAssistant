@@ -5835,3 +5835,57 @@ titolarità e le presenze attese — hanno denominatori diversi e la riga non lo
 fa esattamente il confronto che ho fatto io. Non è un difetto di calcolo ed è un aperto di PRESENTAZIONE,
 scritto qui invece che risolto: la cura naturale è che il tooltip del gradino nomini il proprio
 denominatore, come il chip dei minuti del 18/08 fu curato dichiarando quale delle due nature portava.
+
+---
+
+## 48 — LE SETTE PAROLE: la scala c'era e non si vedeva, e la quantità che la decide era un'altra
+
+**22/09/2026**, dalla richiesta dell'operatore di dare a ogni calciatore un'etichetta. Dettaglio nel
+toolkit: spec «Novità v9.100»; i pesi per ruolo: gate §7-unsexagies.
+
+**LA COSA PIÙ UTILE È STATA GUARDARE PRIMA.** La scala c'era dal 01/09 (sei parole: oro · argento ·
+bronzo · cristallo · scommessa · scarto), `snapshot` scriveva `desc_category`, l'app aveva il
+vocabolario, la colonna nella tabella e il filtro — e **la colonna non era in `export.SHEET_COLUMNS`**,
+quindi nessuno l'aveva mai vista: vuota su tutte le 562 righe per tre settimane. La richiesta nasceva
+da quel vuoto, e metterlo davanti a lui ha cambiato la domanda da «costruiscila» a «vuoi vedere quella
+che c'è, o rifarla?».
+
+**L'ASSE È LA FANTAMEDIA ATTESA E NON IL TASSO DI BONUS**, ed è il suo esempio ad averlo deciso: una
+ricerca su 35 configurazioni col tasso di bonus arriva a 4 verdetti su 6, mentre la fantamedia attesa
+ordina i suoi sei primi nomi esattamente come li ha etichettati. Il tasso di bonus è un pezzo solo; la
+fantamedia somma voto base e bonus, che è quello che lui guarda.
+
+**COME SI TARA UNA SCALA SUI NOMI, e cosa fare quando i nomi si contraddicono.** I quindici verdetti
+dettati a voce sono la specifica. Due volte non erano simultaneamente soddisfacibili, e le due volte la
+risposta non è stata scegliere: è stata **mostrargli la contraddizione coi numeri** e chiedere. «Rabiot
+top e Malen super top» non sta in piedi né in assoluto (Rabiot è il 46° del listone) né dentro il ruolo
+(Malen è il 5°) — la sua risposta («i super sono quelli fuori scala *per gli A*», più «Dimarco sì,
+Calhanoglu no perché ha poche presenze») ha sciolto il nodo in una frase. E «Kvernadze e Varela buoni»
+contro «Pinamonti riserva» con la stessa fantamedia è stato ciò che ha fatto emergere la K per ruolo.
+
+**IL COLORE RIUSA LA GRAMMATICA CHE C'ERA** (`ui/gain-chip`, 25/08): verde pieno in cima, verde calante,
+**neutro al centro** perché «uno schermo dove ogni numero è dipinto è uno schermo che urla», ambra sotto
+e **mai il rosso** — un calciatore scarso non è un pericolo. `scommessa` non prende una tinta della
+scala: non è un giudizio, è l'assenza di uno.
+
+**QUATTRO DIFETTI TROVATI DA STRUMENTI DIVERSI, e nessuno da una rilettura.**
+- **La code-review**: le sbarre erano una tabella sola per due piattaforme, e la scala euro sta più in
+  alto (mediana attaccanti 7,14 contro 6,61) — metà degli attaccanti euro sarebbe stata almeno `semi`
+  per costruzione. E `squad-table` smorzava con soglie scritte sull'INDICE della scala (`rank >= 4`):
+  con sei parole era `scommessa`, con sette è `riserva`, cioè metà listone smorzato come uno scarto.
+  *Una soglia scritta sull'indice di una scala è una soglia che la scala successiva rompe in silenzio.*
+- **I CONTEGGI delle sette parole**: `scommessa` usciva **0**, vuota per costruzione, perché il foglio
+  una fantamedia la dà a tutti (`est_fm` ripiega sull'ancora) — quindi 147 uomini che nessuno ha visto
+  giocare prendevano un giudizio. È `bandiera` (20/08) su una parola. Da 0 a 83 righe.
+- **Lui, guardando lo schermo**: tre nomi, e le cause erano DUE diverse — Adams C. aveva lo storico ma
+  0,630 di presenze, Osmajic e Romero D. leggevano 6,996, il plateau dell'ancora servita come `core`.
+- **Il compilatore**, tre volte, su cose che a leggere il diff sembravano complete: il blocco degli
+  INDICI delle colonne riempito e quello dei VALORI no, una variabile che in `clubs.ts` si chiama
+  `numbers` e non `engine`, un tipo aggiornato e il suo fixture no.
+
+**E DUE ERRORI MIEI DELLA STESSA FAMIGLIA**, il secondo dopo averlo scritto nel codice: ho tarato una
+sbarra su un numero ARROTONDATO due volte (Svilar e Varela a due centesimi, poi il pavimento di `semi`
+su «0,72» quando Scamacca è 0,718). *Il percentile trova la zona, il caso dichiarato fissa il valore — e
+il caso va letto alla precisione con cui decide.* Più uno peggiore perché riguarda un'affermazione fatta
+a lui: **un `str.replace` senza `assert` è un no-op silenzioso**, e due test delle regole nuove non sono
+mai entrati nel file mentre la sessione riportava che c'erano.

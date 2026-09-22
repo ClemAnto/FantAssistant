@@ -4,6 +4,13 @@ import { Component, ElementRef, computed, inject, input, output, signal, viewChi
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
+import {
+  CATEGORIA_LABEL,
+  categoriaIcon,
+  categoriaNote,
+  categoriaTone,
+  isCategoria,
+} from '../../core/categoria';
 import { outWindowNote } from '../../core/injury-window';
 import { BonusRow } from '../../core/match-bonuses';
 import {
@@ -232,6 +239,25 @@ export class PlayerCard {
       man.minutesNext,
       this.ruling()?.decidedOn ?? null,
     ) ?? 'Il foglio non porta il gradino di titolarità: cliccalo per dichiararlo tu.';
+  });
+
+  /** La PAROLA dentro il ruolo, per esteso: il foglio porta lo slug, qui si legge in italiano. */
+  protected readonly categoria = computed(() => {
+    const word = this.man().category;
+    return isCategoria(word) ? CATEGORIA_LABEL[word] : null;
+  });
+
+  /** L'icona della parola, dal vocabolario: il pallino non sceglie il proprio disegno. */
+  protected readonly categoriaIcona = computed(() => categoriaIcon(this.man().category));
+
+  /** La tinta della parola: la stessa della pastiglia in Strategia, e una definizione sola. */
+  protected readonly categoriaTinta = computed(() => categoriaTone(this.man().category));
+
+  /** ...e la sua frase, con il livello e le quattro sbarre del ruolo che l'hanno decisa. */
+  protected readonly categoriaNota = computed(() => {
+    const man = this.man();
+    return categoriaNote(man.category, man.categoryLevel, man.categoryBars)
+      ?? 'Il foglio non porta la categoria: serve un pacchetto alla revisione 72 o successiva.';
   });
 
   /** Le sei parole con le giornate che ognuna comporta su QUESTO calendario: il selettore le mostra. */

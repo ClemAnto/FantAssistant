@@ -32,6 +32,9 @@ const numbers = (over: Partial<EngineNumbers> = {}): EngineNumbers => ({
   titolarita: null,
   titolaritaPlay: null,
   minutesNext: null,
+  category: null,
+  categoryLevel: null,
+  categoryBars: null,
   ...over,
 });
 

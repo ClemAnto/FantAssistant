@@ -104,12 +104,13 @@ export interface SquadMan extends PlayerRow {
    * LE SEI PAROLE DENTRO IL RUOLO: quanto vale per quello che PORTA, dove la titolarità qui sopra dice
    * quanto GIOCA - oro, argento, bronzo, cristallo, scommessa, scarto (`engine/categories.py`).
    *
-   * Vuoto = ignoto: un foglio più vecchio della revisione 38 non porta la parola. `categoryBonus` è il
-   * suo tasso bonus a presenza misurato e `categoryBars` le due sbarre del suo slot, così la riga può
+   * Vuoto = ignoto: un foglio più vecchio della revisione 72 non porta la parola. `categoryLevel` è la
+   * sua FANTAMEDIA ATTESA dentro il ruolo (ri-miscelata con la K del ruolo, non il tasso di bonus che
+   * decideva le sei parole fino al 22/09) e `categoryBars` le QUATTRO sbarre del ruolo, così la riga può
    * spiegare la propria parola invece di chiedere fiducia.
    */
   category: string | null;
-  categoryBonus: number | null;
+  categoryLevel: number | null;
   categoryBars: string | null;
   /** Which rung of the cascade produced the estimate, and the sentence the toolkit wrote for it. */
   estimateBasis: string | null;
@@ -295,18 +296,18 @@ export interface EngineExpectation {
   seasonMatches: number | null;
   minutesFullSeason: number | null;
   /**
-   * LE SEI PAROLE DENTRO IL RUOLO (`desc_category`): oro, argento, bronzo, cristallo, scommessa, scarto.
+   * LE SETTE PAROLE DENTRO IL RUOLO (`desc_category`): supertop, top, semitop, buono, tappabuchi, scarto, incognita.
    *
    * Letta e mai ricalcolata, come la titolarità qui sopra: i due assi che la decidono sono una PREVISIONE
-   * (le presenze che il motore aspetta) e un TRATTO misurato (il bonus a presenza delle sue stagioni), e
+   * (le presenze che il motore aspetta) e la sua FANTAMEDIA ATTESA dentro il ruolo, e
    * le sbarre del ruolo sono misurate dove le misure si giudicano - `engine/categories.py`. Assente prima
    * della revisione 38 del foglio, e allora la colonna resta muta invece di inventare una parola.
    *
-   * `categoryBonus` è il suo tasso misurato e `categoryBars` le due sbarre del suo slot («porta bonus» /
+   * `categoryLevel` è la sua fantamedia attesa e `categoryBars` le quattro sbarre del suo ruolo («buono» /
    * «tanti bonus»), perché una parola senza i suoi numeri è una parola che nessuno può controllare.
    */
   category: string | null;
-  categoryBonus: number | null;
+  categoryLevel: number | null;
   categoryBars: string | null;
   /**
    * The fantamedia of the man you would field INSTEAD - `engine_replacement_fm`, the marginal rostered
@@ -1141,7 +1142,7 @@ export class ValuationStore {
           titolaritaPlay: engine?.titolaritaPlay ?? null,
           minutesNext: engine?.minutesNext ?? null,
           category: engine?.category ?? null,
-          categoryBonus: engine?.categoryBonus ?? null,
+          categoryLevel: engine?.categoryLevel ?? null,
           categoryBars: engine?.categoryBars ?? null,
           estimateBasis: engine?.basis ?? null,
           estimateNote: engine?.note ?? null,
@@ -1548,8 +1549,8 @@ export class ValuationStore {
         // La stagione scorsa MISURATA: partite e minuti, per la card di un calciatore.
         seasonMatches: at('desc_season_matches'),
         minutesFullSeason: at('desc_minutes_full_season'),
-        // Le sei parole dentro il ruolo, revisione 38+, coi due numeri che le decidono.
-        category: at('desc_category'), categoryBonus: at('desc_category_bonus'),
+        // Le sette parole dentro il ruolo (rev. 72), col livello e le quattro sbarre che le decidono.
+        category: at('desc_category'), categoryLevel: at('desc_category_level'),
         categoryBars: at('desc_category_bars'),
         surplus: at('engine_surplus'), estSurplus: at('est_surplus'),
         // L'ALTRO ZERO: una colonna sola, perché il foglio la scrive già per tutta la lista - motore
@@ -1641,8 +1642,8 @@ export class ValuationStore {
           minutesFullSeason: columns.minutesFullSeason < 0
             ? null : ((row[columns.minutesFullSeason] as number | null) ?? null),
           category: columns.category < 0 ? null : ((row[columns.category] as string) ?? null),
-          categoryBonus: columns.categoryBonus < 0
-            ? null : ((row[columns.categoryBonus] as number | null) ?? null),
+          categoryLevel: columns.categoryLevel < 0
+            ? null : ((row[columns.categoryLevel] as number | null) ?? null),
           categoryBars:
             columns.categoryBars < 0 ? null : ((row[columns.categoryBars] as string) ?? null),
           replacementFm:

@@ -5,6 +5,7 @@ import {
   NAME_SORT,
   READINGS,
   SORTABLE_READINGS,
+  ManReadings,
   RankedMan,
   ReadingRef,
   ReadingKey,
@@ -647,10 +648,44 @@ describe('le sette letture di una riga', () => {
     expect(rank(null)).toBeNull();
   });
 
-  it('e’ l’UNICA lettura che porta una parola, dichiarata come tale', () => {
+  it('e’ una delle DUE letture che portano una parola, ed entrambe sono dichiarate', () => {
     // `word` dice a chi disegna di non passare da `DecimalPipe`: un formato numerico su una stringa
-    // stampa `NaN`. Asserito che l'eccezione e' una sola, cosi' una seconda non entra in silenzio.
-    expect(READINGS.filter((one) => one.word).map((one) => one.key)).toEqual(['titolarita']);
+    // stampa `NaN`. L'elenco e' ESATTO e non un conteggio, cosi' una terza non entra in silenzio -
+    // che e' l'intento con cui questo guardiano e' nato quando la parola era una sola (07/09/2026).
+    // La seconda e' la CATEGORIA, aggiunta il 22/09/2026 su richiesta dell'operatore: dice quanto
+    // vale dentro il ruolo dove la titolarita' dice quanto gioca, e le due non si sostituiscono.
+    expect(READINGS.filter((one) => one.word).map((one) => one.key))
+      .toEqual(['titolarita', 'categoria']);
+  });
+
+  it('OGNI lettura-parola legge la PROPRIA parola, e non quella della vicina', () => {
+    // IL DIFETTO CHE QUESTO TEST PINNA (22/09/2026): finche' la parola era una sola, chi disegnava
+    // faceva `if (spec.word) return readings.titolarita`, quindi accendendo la CATEGORIA usciva il
+    // gradino di titolarita'. Il guardiano qui sopra asseriva l'elenco e non che ognuna sapesse
+    // leggersi: proteggeva meta' del problema, e questa e' l'altra meta'.
+    // `riserva` e' una parola di TUTT'E DUE le scale, e le sigle DEVONO restare diverse:
+    // la titolarita' la abbrevia RIS, la categoria RSV, e sulla Strategia le due pastiglie
+    // stanno sulla stessa riga.
+    const readings = { titolarita: 'bandiera', categoria: 'riserva' } as ManReadings;
+    const said = Object.fromEntries(
+      READINGS.filter((one) => one.word).map((one) => [one.key, one.word!(readings)]),
+    );
+    expect(said['titolarita']).toBe('BAN');
+    expect(said['categoria']).toBe('RSV');
+    // ...e nessuna delle due dice la parola dell'altra
+    expect(new Set(Object.values(said)).size).toBe(Object.keys(said).length);
+  });
+
+  it('una lettura-parola che il foglio non porta risponde null, e chi disegna ci mette il trattino', () => {
+    const vuoto = { titolarita: null, categoria: null } as ManReadings;
+    for (const spec of READINGS.filter((one) => one.word)) {
+      expect(spec.word!(vuoto)).toBeNull();
+    }
+    // ...e una parola che la scala non conosce non si traduce a caso
+    const ignota = { titolarita: 'boh', categoria: 'oro' } as unknown as ManReadings;
+    for (const spec of READINGS.filter((one) => one.word)) {
+      expect(spec.word!(ignota)).toBeNull();
+    }
   });
 
   it('i gol e gli assist sono PER PARTITA come i loro attesi, e uno zero non e un vuoto', () => {

@@ -618,13 +618,7 @@
                              e il bersaglio non si offre: `12:5` non ha un numero dietro. -->
                         <span
                           class="inline-flex justify-center rounded border px-1"
-                          [class]="
-                            (has(reading.ref, row.readings)
-                              ? 'border-border bg-page text-fg'
-                              : 'border-transparent text-muted') +
-                            ' ' +
-                            reading.spec.width
-                          "
+                          [class]="pill(reading, row.readings)"
                           [class.opacity-50]="isRough(reading.ref, row.readings)"
                           [class.cursor-pointer]="!!sortKeyOf(reading)"
                           [attr.data-reading]="reading.id"
