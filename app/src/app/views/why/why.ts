@@ -266,7 +266,7 @@ export class Why {
     return this.store.sheets().find((one) => one.platform === platform && one.game === game) ?? null;
   });
 
-  protected readonly matchdays = computed(() => this.sheet()?.matchdays_target ?? null);
+  protected readonly matchdays = computed(() => this.store.seasonRoundsFor(this.sheet()));
 
   protected openSettings(): void {
     this.options.open();

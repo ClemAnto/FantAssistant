@@ -150,7 +150,7 @@
         <h2 class="mb-1 font-semibold text-fg">Il conto, per intero</h2>
         <p class="text-muted">
           <span class="text-fg">surplus = (FM attesa − rimpiazzo) × presenze attese</span>, e
-          <span class="text-fg">+/giornata</span> è quel totale diviso le giornate che restano
+          <span class="text-fg">+/giornata</span> è quel totale diviso le giornate della stagione
           ({{ matchdays() ?? '—' }}). È una divisione per una costante uguale per tutti: non può
           riordinare niente, serve solo a leggere un ordine di grandezza. Accanto c'è
           <span class="text-fg">+/partita</span>, che è <span class="text-fg">FM − rimpiazzo</span>:
@@ -203,7 +203,7 @@
       <div>
         <h2 class="mb-1 font-semibold text-fg">Dove finisce il motore e comincia questa app</h2>
         <p class="text-muted">
-          Il foglio dà un surplus sulle giornate che restano. Questa app lo riprezza due volte, e nessuna
+          Il foglio dà un surplus sulle giornate che restano, e l'app lo riporta sulla stagione piena. Poi lo riprezza due volte, e nessuna
           delle due è una previsione nuova: toglie le giornate che uno STOP APERTO gli porta via (una
           data pubblicata, quindi un fatto) e un'ASSICURAZIONE, che è lo scarto fra la sua stagione tipica
           e la sua peggiore. Il secondo numero è quello con cui la Strategia e la Plancia ordinano, e per
@@ -346,12 +346,12 @@
             </th>
             <th class="px-2 py-1.5 text-right font-medium">
               <button class="w-full text-right hover:text-fg" (click)="toggleSort('surplus')" nz-tooltip
-                nzTooltipTitle="Il surplus come lo scrive il foglio. Clicca per ordinare."
+                nzTooltipTitle="Il surplus del foglio, riportato sulla stagione piena come ovunque nell'app: il foglio lo scrive sulle giornate che restano. La catena qui sotto riproduce lo stesso numero, perche' la fantamedia e il rimpiazzo sono PER PARTITA e non si riportano. Clicca per ordinare."
                 >Surplus{{ sortArrow('surplus') }}</button>
             </th>
             <th class="px-2 py-1.5 text-right font-medium">
               <button class="w-full text-right hover:text-fg" (click)="toggleSort('perMatch')" nz-tooltip
-                nzTooltipTitle="Il surplus diviso le giornate che restano. Clicca per ordinare."
+                nzTooltipTitle="Il surplus diviso le giornate della stagione piena. Clicca per ordinare."
                 >+/giornata{{ sortArrow('perMatch') }}</button>
             </th>
             <th class="px-2 py-1.5 text-right font-medium">

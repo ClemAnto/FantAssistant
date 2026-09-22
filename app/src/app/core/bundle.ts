@@ -7,6 +7,16 @@ export interface BundleTable {
   table: string;
   columns: string[];
   rows: unknown[][];
+  /**
+   * SOLO SUI FOGLI DEL MOTORE: i due calendari su cui i suoi numeri sono scritti.
+   *
+   * `platform_target` e' quello che `engine_pv_pred` misura - le giornate che RESTANO, quindi 33 a
+   * settembre - e `platform_input` la stagione piena di quella piattaforma (38 su Serie A, 31 su
+   * euro). Il foglio li dichiara da sempre accanto alle righe e nessuno li leggeva: il caricatore
+   * fa `JSON.parse` dell'oggetto intero, quindi erano gia' in memoria. Servono a `season-scale.ts`,
+   * che riporta ogni numero in giornate sulla stagione piena prima di mostrarlo.
+   */
+  matchdays?: { platform_target?: number | null; platform_input?: number | null } | null;
 }
 
 /**
@@ -60,6 +70,12 @@ export interface EngineSheetEntry {
   teams: number | null;
   squad_slots: Record<string, number> | null;
   matchdays_target: number | null;
+  /**
+   * La stagione piena di quella piattaforma (38 su Serie A, 31 su euro): la base su cui l'app riporta
+   * ogni numero in giornate. Opzionale perche' un bundle anteriore al 22/09/2026 non ce l'ha - e
+   * allora chi legge ripiega sul foglio, che quei due calendari li dichiara da sempre.
+   */
+  matchdays_input?: number | null;
   sheet_revision: number | null;
   generated_at: string | null;
   auction_date: string | null;

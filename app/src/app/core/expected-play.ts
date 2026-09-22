@@ -37,7 +37,9 @@
  *     04/09/2026). E' un FATTO - la fonte pubblica la data - e va tolto per intero: Yildiz salta 10
  *     delle 36 giornate che restano, quindi non puo' giocarne 26.
  *
- *  3. L'ASSICURAZIONE, che e' il «di piu'». Il Pa del motore contiene gia' uno sconto per gli infortuni,
+ *  3. L'ASSICURAZIONE, che e' il «di piu'» - e dal 22/09/2026 e' SOLO la parte personale, perche' il
+ *     pavimento uguale per tutti e' stato spento guardando il suo prezzo (`INSURANCE_FLOOR_ROUNDS`).
+ *     Il Pa del motore contiene gia' uno sconto per gli infortuni,
  *     ma e' lo sconto della stagione MEDIA; questo aggiunge la differenza fra la sua stagione media e la
  *     sua stagione PEGGIORE, che e' esattamente «cammino un metro piu' in la'». Misurato sul bundle del
  *     04/09/2026, 533 quotati di Serie A senza asterisco, tre stagioni di archivio: per stagione-uomo si
@@ -61,19 +63,30 @@ import { FRAGILITY_YEARS, PlayerStatus, Spell } from './player-status';
 import type { Platform } from './players-store';
 
 /**
- * LO SCARTO fra la stagione peggiore e quella tipica, per chi non ha abbastanza storia: 2,1 giornate.
+ * IL PAVIMENTO dell'assicurazione: quanto si toglie a chi la sua storia non la distingue. SPENTO.
  *
- * Misurato e non scelto: sui 533 quotati di Serie A senza asterisco il p75 delle giornate perse in una
- * stagione-uomo e' 7 contro una media di 4,93. Il p75 e non la mediana perche' la domanda e' «quanto puo'
- * andare storto», e non il p90 (15) perche' quello e' il disastro e non l'anno brutto: chi non ha storia
- * non e' un uomo fragile, e trattarlo come tale sarebbe inventare un fatto su di lui.
+ * ZERO dal 22/09/2026, per decisione dell'operatore e con il numero davanti. Valeva 2,1 giornate - il
+ * p75 delle giornate perse in una stagione-uomo (7) meno la media (4,93), misurato su 533 quotati -
+ * ed era una scelta dichiarata contro «vuoto = ignoto, mai zero»: l'ignoto non e' zero, e' il rischio
+ * medio del listone.
  *
- * SI APPLICA ANCHE A CHI NON HA NESSUNO STOP IN ARCHIVIO, ed e' una scelta dichiarata contro la regola
- * di casa «vuoto = ignoto, mai zero»: qui l'ignoto non e' zero, e' il rischio medio del listone. E' la
- * frase dell'operatore letta alla lettera - il metro dal ciglio lo si tiene anche dove nessuno e' mai
- * caduto - e si spegne mettendo questa costante a zero.
+ * COSA L'HA SPENTO: una costante uguale per tutti non protegge da niente. Misurata sui 165 quotati che
+ * nel 2025-26 avevano fatto 26-38 presenze, il **46%** aveva l'assicurazione esattamente al pavimento,
+ * cioe' per quasi meta' della popolazione era un numero fisso - e un numero fisso abbassa senza
+ * distinguere, quindi non riordina niente e non evita nessun disastro: sposta la scala di lettura. Il
+ * prezzo si vedeva sull'aggregato: contro il null empirico di quella fascia (chi fa 26-38 l'anno dopo
+ * ne fa 26,4, su 1.898 casi in 11 stagioni) il MOTORE legge 26,2 - in centro - e lo schermo leggeva
+ * 22,3, cioe' -4,1; e sopra le 30 giornate ci arrivava il 5% degli uomini contro un vero del 47%.
+ * Tolto il pavimento lo schermo legge 24,4.
+ *
+ * QUELLO CHE RESTA ACCESO E' LA META' CHE FA IL LAVORO: lo scarto fra la stagione tipica di UN uomo e
+ * la sua peggiore (`worst - mean`), che sui 165 vale fino a 13,3 giornate e discrimina chi si fa male
+ * davvero da chi non si e' mai fatto male. La frase dell'operatore - «cammino distante dal ciglio 1
+ * metro» - la esprime quella, non una costante.
+ *
+ * Si riaccende rimettendo qui un numero: la formula non cambia, e' un pavimento su un massimo.
  */
-export const INSURANCE_DEFAULT_ROUNDS = 2.1;
+export const INSURANCE_FLOOR_ROUNDS = 0;
 
 /**
  * Quante stagioni di storia servono perche' sia LA SUA e non quella del listone.
@@ -163,10 +176,10 @@ export function seasonLosses(
 /** Lo scarto fra la sua stagione peggiore e la sua media: il «di piu'» che si assicura. */
 export function insuranceRounds(losses: ReadonlyMap<string, number>): number {
   const seasons = [...losses.values()];
-  if (seasons.length < INSURANCE_MIN_SEASONS) return INSURANCE_DEFAULT_ROUNDS;
+  if (seasons.length < INSURANCE_MIN_SEASONS) return INSURANCE_FLOOR_ROUNDS;
   const mean = seasons.reduce((sum, one) => sum + one, 0) / seasons.length;
   const worst = Math.max(...seasons);
-  return Math.max(worst - mean, INSURANCE_DEFAULT_ROUNDS);
+  return Math.max(worst - mean, INSURANCE_FLOOR_ROUNDS);
 }
 
 /** Quello che serve per prezzare un uomo: il foglio, la board, la finestra aperta e la sua storia. */
@@ -256,7 +269,16 @@ export function expectedPlay(input: PlayInput): PlayOutlook {
       window: input.out,
     };
   }
-  const out = Math.min(input.out?.lost ?? 0, base);
+  // LA FINESTRA SI RIPORTA SULLA SCALA DELLA BASE, e il fattore lo porta lei: `lost` e' un CONTEGGIO
+  // di partite vere del suo club («ne salta 10»), mentre dal 22/09/2026 `base` e `matchdays` sono
+  // riportati sulla stagione piena (`season-scale.ts`). Sottrarre dieci giornate vere da una base
+  // riportata sarebbe un errore di unita', ed e' la famiglia piu' cara di questo progetto. Il
+  // denominatore giusto e' dentro la finestra stessa (`remaining`, le giornate vere che restano),
+  // quindi non c'e' nessun parametro nuovo da ricordare in un punto di chiamata - e dove i due
+  // numeri coincidono, cioe' quando non si riporta niente, il fattore e' 1 e questo e' il conto di
+  // prima alla cifra.
+  const windowScale = matchdays && input.out?.remaining ? matchdays / input.out.remaining : 1;
+  const out = Math.min((input.out?.lost ?? 0) * windowScale, base);
   const cap = matchdays ? matchdays * INSURANCE_CAP_SHARE : base * INSURANCE_CAP_SHARE;
   const insurance = Math.min(insuranceRounds(input.losses), cap, Math.max(base - out, 0));
   const expected = Math.max(base - out - insurance, 0);

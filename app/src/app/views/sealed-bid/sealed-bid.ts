@@ -380,7 +380,7 @@ export class SealedBid {
     const sheet = this.sheet();
     const slots = sheet?.squad_slots;
     const settings = this.settings();
-    const matchdays = sheet?.matchdays_target ?? DEFAULT_RULES.matchdays;
+    const matchdays = this.store.seasonRoundsFor(sheet) ?? DEFAULT_RULES.matchdays;
     // Clamped to a calendar that exists, so a typo cannot buy a 400-round season.
     const from = Math.max(1, Math.min(Math.round(settings.from), matchdays));
     const to = Math.max(from, Math.min(Math.round(settings.to), matchdays));

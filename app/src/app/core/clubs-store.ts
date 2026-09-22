@@ -220,7 +220,7 @@ export class ClubsStore {
    * denominator comes from a different sheet is a share of nothing.
    */
   readonly expectedShares = computed<ReadonlyMap<number, number | null>>(() => {
-    const rounds = this.boardSheet()?.matchdays_target ?? null;
+    const rounds = this.valuation.seasonRoundsFor(this.boardSheet());
     const out = new Map<number, number | null>();
     for (const man of this.squad()) {
       out.set(man.fcId, man.expected == null || !rounds ? null : Math.min(1, man.expected / rounds));

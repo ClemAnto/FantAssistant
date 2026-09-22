@@ -3,6 +3,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { valueOf } from './auction-value';
 import { Board, BoardHorizon, BoardRung, BoardsFile, Bundle, EngineSheetEntry, columnIndex,
   optionalIndex } from './bundle';
+import { onSeasonBase, seasonRoundsOf, sheetSeasonScale } from './season-scale';
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
 import { ClubOption, GlobalOptions } from './global-options';
 import { newcomerMark } from './newcomer';
@@ -1486,9 +1487,13 @@ export class ValuationStore {
     for (const platform of ['default', 'euro'] as Platform[]) {
       const sheet = chosen.get(platform)?.sheet ?? sheets.find((one) => one.platform === platform);
       if (!sheet) continue;
-      // The calendar of THIS sheet, recorded with its numbers: what the pv values are a share of.
-      rounds.set(platform, sheet.matchdays_target ?? null);
       const columns = await this.expectationsFor(sheet);
+      // The calendar of THIS sheet, recorded with its numbers: what the pv values are a share of - e
+      // dal 22/09/2026 e' la STAGIONE PIENA, perche' e' la base su cui il lettore riporta le presenze
+      // (`season-scale.ts`). Si legge dopo `expectationsFor`, che e' chi l'ha misurata sul foglio:
+      // ricavarla qui dal manifest sarebbe una seconda risposta alla stessa domanda, e le due
+      // divergerebbero il giorno in cui un foglio dichiara un calendario che il manifest non ha.
+      rounds.set(platform, this.seasonRoundsFor(sheet));
       if (!columns) {
         // A sheet the bundle does not carry: the column stays empty and says «ignoto», which is the
         // truth - the engine has not been run for this platform.
@@ -1528,10 +1533,55 @@ export class ValuationStore {
     Promise<Map<number, EngineExpectation> | null>
   >();
 
+  /**
+   * Le giornate su cui i numeri di ogni foglio sono ESPRESSI, dopo il riporto a stagione piena.
+   *
+   * Chiavata per PERCORSO come la cache qui sopra e per la stessa ragione: un percorso nomina un file
+   * immutabile, e il pacchetto di una data passata ha i suoi fogli sotto la propria data. E' quello
+   * che ogni quota (`pv / giornate`) deve dividere, o si otterrebbe una quota sopra 1 su un uomo che
+   * gioca sempre - il primo sintomo di due basi sotto un nome solo.
+   */
+  private readonly sheetSeasonRounds = signal<ReadonlyMap<string, number | null>>(new Map());
+
+  /**
+   * LE GIORNATE SU CUI I NUMERI DI UN FOGLIO SONO ESPRESSI, e l'unico posto che risponde.
+   *
+   * Ogni vista che mostra una quota (`pv / giornate`) o che passa un calendario a `expectedPlay`
+   * chiede qui invece di leggere `matchdays_target` dal manifest: quel campo e' il calendario su cui
+   * il foglio e' SCRITTO, mentre i numeri che escono da questo store sono gia' riportati sulla
+   * stagione piena. Sette punti lo leggevano per conto loro, ed e' esattamente il modo in cui meta'
+   * dell'app finisce su una base e meta' sull'altra.
+   */
+  seasonRoundsFor(sheet: EngineSheetEntry | null | undefined): number | null {
+    if (!sheet) return null;
+    return (
+      this.sheetSeasonRounds().get(sheet.path) ??
+      sheet.matchdays_input ??
+      sheet.matchdays_target ??
+      null
+    );
+  }
+
   private async readSheet(sheet: EngineSheetEntry): Promise<Map<number, EngineExpectation> | null> {
     const out = new Map<number, EngineExpectation>();
     try {
       const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
+      // OGNI NUMERO IN GIORNATE SI LEGGE SU UNA STAGIONE PIENA (`season-scale.ts`, regola
+      // dell'operatore del 22/09/2026). Il foglio prevede le giornate che RESTANO, quindi a settembre
+      // un attaccante che gioca sempre legge 26 su 33; qui quel numero torna sulla stagione della
+      // piattaforma, che e' la scala su cui lo si confronta con l'anno scorso. Si moltiplica per una
+      // costante uguale per tutti, quindi nessun ordinamento e nessun rapporto si muovono - e
+      // l'identita' che `/why` verifica regge, perche' `fm` e il rimpiazzo sono PER PARTITA e restano
+      // fermi mentre `pv` e il surplus salgono insieme.
+      const scale = sheetSeasonScale(table.matchdays);
+      // ...e il denominatore delle quote viaggia con lei, letto dallo STESSO foglio: riportare le
+      // presenze e lasciare le giornate sarebbe un errore di unita', cioe' la famiglia piu' cara di
+      // questo progetto. Senza i due calendari la scala e' 1 e questo e' `matchdays_target` come prima.
+      this.sheetSeasonRounds.update((known) => {
+        const next = new Map(known);
+        next.set(sheet.path, seasonRoundsOf(table.matchdays, sheet.matchdays_target));
+        return next;
+      });
       const [id] = columnIndex(table, 'fc_id');
       const at = (name: string) => optionalIndex(table, name);
       const columns = {
@@ -1613,14 +1663,14 @@ export class ValuationStore {
         const surplus = read(row, columns.surplus, columns.estSurplus);
         if (pv.value == null && fm.value == null) continue;
         out.set(Number(row[id]), {
-          pv: pv.value,
+          pv: onSeasonBase(pv.value, scale),
           pvIsEstimate: pv.isEstimate,
           fm: fm.value,
           fmIsEstimate: fm.isEstimate,
-          surplus: surplus.value,
+          surplus: onSeasonBase(surplus.value, scale),
           surplusIsEstimate: surplus.isEstimate,
-          surplusFielded: columns.surplusFielded < 0
-            ? null : ((row[columns.surplusFielded] as number | null) ?? null),
+          surplusFielded: onSeasonBase(columns.surplusFielded < 0
+            ? null : ((row[columns.surplusFielded] as number | null) ?? null), scale),
           replacementFielded: columns.replacementFielded < 0
             ? null : ((row[columns.replacementFielded] as number | null) ?? null),
           spm: columns.spm < 0 ? null : ((row[columns.spm] as number | null) ?? null),
@@ -1690,13 +1740,17 @@ export class ValuationStore {
           cupCapped: columns.cupCapped >= 0 && row[columns.cupCapped] === 'yes',
           cupRounds:
             columns.cupRounds < 0 ? null : ((row[columns.cupRounds] as number | null) ?? null),
-          pvCup: columns.pvCup < 0 ? null : ((row[columns.pvCup] as number | null) ?? null),
-          valueCup:
-            columns.valueCup < 0 ? null : ((row[columns.valueCup] as number | null) ?? null),
-          surplusCup:
-            columns.surplusCup < 0 ? null : ((row[columns.surplusCup] as number | null) ?? null),
-          surplusFieldedCup: columns.surplusFieldedCup < 0
-            ? null : ((row[columns.surplusFieldedCup] as number | null) ?? null),
+          // Lo sconto della coppa e' in GIORNATE e in punti, quindi viaggia sulla stessa scala di
+          // cio' che sconta: lasciarlo fermo direbbe che una coppa costa meno su un foglio di
+          // settembre che su uno d'agosto.
+          pvCup: onSeasonBase(
+            columns.pvCup < 0 ? null : ((row[columns.pvCup] as number | null) ?? null), scale),
+          valueCup: onSeasonBase(
+            columns.valueCup < 0 ? null : ((row[columns.valueCup] as number | null) ?? null), scale),
+          surplusCup: onSeasonBase(
+            columns.surplusCup < 0 ? null : ((row[columns.surplusCup] as number | null) ?? null), scale),
+          surplusFieldedCup: onSeasonBase(columns.surplusFieldedCup < 0
+            ? null : ((row[columns.surplusFieldedCup] as number | null) ?? null), scale),
           cupNote: columns.cupNote < 0 ? null : ((row[columns.cupNote] as string) ?? null),
           anchor: number(row, columns.anchor),
           // Tutto o niente: senza le due SCALE non c'e' una spiegazione da disegnare, e mezza

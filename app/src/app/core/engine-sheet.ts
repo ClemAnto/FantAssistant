@@ -11,6 +11,7 @@
 
 import { BundleTable } from './bundle';
 import { EngineNumbers } from './auction-value';
+import { onSeasonBase, sheetSeasonScale } from './season-scale';
 
 /** `fc_id` -> what the engine says about him. A row without an id is not a row. */
 export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers> {
@@ -53,23 +54,31 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
     categoryBars: at('desc_category_bars'),
   };
 
+  // OGNI NUMERO IN GIORNATE SU UNA STAGIONE PIENA (`season-scale.ts`, 22/09/2026): il foglio prevede
+  // le giornate che RESTANO, e le pagine leggono sulla scala della stagione. Derivata dal foglio
+  // STESSO invece di essere passata dal chiamante, perche' i due calendari sono scritti accanto alle
+  // righe che si stanno leggendo - un parametro in piu' sarebbe una cosa da ricordare in ogni punto
+  // di chiamata, ed e' cosi' che una meta' dell'app finirebbe su una base e l'altra su un'altra.
+  // Una tabella che non e' un foglio non li ha, e allora la scala e' 1.
+  const scale = sheetSeasonScale(table.matchdays);
+
   const numbers = new Map<number, EngineNumbers>();
   for (const row of table.rows) {
     const id = Number(row[columns.id]);
     if (!id) continue;
     numbers.set(id, {
       fm: row[columns.fm] as number | null,
-      pv: row[columns.pv] as number | null,
+      pv: onSeasonBase(row[columns.pv] as number | null, scale),
       slot: (row[columns.slot] as string | null) ?? null,
       replacementFm: row[columns.replacement] as number | null,
-      surplusLeague: row[columns.surplus] as number | null,
+      surplusLeague: onSeasonBase(row[columns.surplus] as number | null, scale),
       // `?? null` come le due sotto: una colonna che il foglio non ha legge -1 dall'`indexOf`, e
       // `row[-1]` e' `undefined` - normalizzata qui, dove la colonna viene letta.
-      estSurplus: (row[columns.estSurplus] as number | null) ?? null,
+      estSurplus: onSeasonBase((row[columns.estSurplus] as number | null) ?? null, scale),
       mv: (row[columns.mv] as number | null) ?? null,
       unpricedReason: (row[columns.reason] as string | null) ?? null,
       estFm: row[columns.estFm] as number | null,
-      estPv: row[columns.estPv] as number | null,
+      estPv: onSeasonBase(row[columns.estPv] as number | null, scale),
       estConfidence: row[columns.estConfidence] as number | null,
       estBasis: (row[columns.estBasis] as string | null) ?? null,
       estNote: (row[columns.estNote] as string | null) ?? null,

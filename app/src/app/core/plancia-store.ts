@@ -25,6 +25,7 @@ import { ExpectedPlay } from './expected-play';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
+import { seasonRoundsOf } from './season-scale';
 import { GlobalOptions } from './global-options';
 import { CardMan, CardStack } from './player-card';
 import {
@@ -192,6 +193,14 @@ export class PlanciaStore {
 
   /** Which sheet prices the board, so the page can NAME it with its revision. */
   readonly sheet = signal<EngineSheetEntry | null>(null);
+  /**
+   * Le giornate su cui i numeri di questo foglio sono espressi, dopo il riporto a stagione piena.
+   *
+   * Questa pagina legge il foglio da se' e non passa da `ValuationStore`, quindi la sua base la
+   * dichiara qui: senza, `pv` e surplus sarebbero riportati e il loro denominatore no - due basi
+   * sotto un nome solo, che e' l'errore di unita' piu' caro di questo progetto.
+   */
+  readonly seasonRounds = signal<number | null>(null);
 
   private readonly numbers = signal<Map<number, EngineNumbers>>(new Map());
   private readonly listone = signal<AuctionPlayer[]>([]);
@@ -260,7 +269,7 @@ export class PlanciaStore {
         { pv: valuation.pv, pvIsEstimate: valuation.basis === 'estimated',
           playShare: numbers.get(player.id)?.titolaritaPlay ?? null,
           titolarita: numbers.get(player.id)?.titolarita ?? null },
-        this.sheet()?.matchdays_target ?? null,
+        this.seasonRounds(),
       );
       const pv = outlook.expected;
       // La finestra viene da `outlook` e non da una seconda chiamata a `outWindow` accanto: due strade
@@ -324,7 +333,7 @@ export class PlanciaStore {
           // Lo zero del foglio e il calendario su cui `pv` e surplus vivono: servono alla ribasatura
           // verso il 6 e al «per giornata» — l'unita' dichiarata dall'operatore (07/09/2026).
           replacement: engine?.replacementFm ?? null,
-          matchdays: this.sheet()?.matchdays_target ?? null,
+          matchdays: this.seasonRounds(),
           fm: valuation.fm,
           confidence: valuation.confidence,
           steady: this.ratings.ready()
@@ -864,7 +873,7 @@ export class PlanciaStore {
       for (const row of block.rows) byId.set(row.id, { man: row, block });
     }
     const numbers = this.numbers();
-    const rounds = this.sheet()?.matchdays_target ?? null;
+    const rounds = this.seasonRounds();
     // Chi non è più in mappa esce da sé: la coda si compra a un credito e non ha una riga, quindi non
     // ha una card - e una card che sopravvive alla propria riga mostrerebbe numeri di un altro giro.
     return this.cards.place((id) => {
@@ -1231,6 +1240,7 @@ export class PlanciaStore {
     const table = await this.bundle.table(chosen.path.replace(/\.json(\.gz)?$/, ''));
 
     this.sheet.set(chosen);
+    this.seasonRounds.set(seasonRoundsOf(table.matchdays, chosen.matchdays_target));
     const numbers = engineNumbersFrom(table);
     this.numbers.set(numbers);
     // QUANTO VALE UNA PAROLA su questo foglio, consegnato a chi tiene le dritte dell'operatore: questa

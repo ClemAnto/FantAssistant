@@ -675,7 +675,7 @@ export class Clubs {
   protected readonly openCards = computed(() => {
     const byId = new Map(this.store.squad().map((man) => [man.fcId, man]));
     const engine = this.engine();
-    const rounds = this.store.boardSheet()?.matchdays_target ?? null;
+    const rounds = this.valuation.seasonRoundsFor(this.store.boardSheet());
     const platform = this.store.platform();
     return this.cards.place((id) => {
       const man = byId.get(id);

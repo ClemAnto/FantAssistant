@@ -608,7 +608,9 @@ export const READINGS: ReadingSpec[] = [
     key: 'played',
     short: 'Pa',
     label: 'Partite attese',
-    hint: 'Giornate in cui il motore lo aspetta col voto.',
+    hint: 'Giornate in cui il motore lo aspetta col voto, su una stagione piena (38 in Serie A, '
+      + '31 su EuroLeghe) anche a stagione iniziata: il foglio prevede quelle che restano, e il '
+      + 'numero è riportato per poterlo confrontare con le stagioni passate.',
     format: '1.0-0',
     width: 'min-w-7',
   },

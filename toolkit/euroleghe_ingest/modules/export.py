@@ -625,6 +625,13 @@ def write_engine_sheets(ctx: Context, folder: Path, target: str,
             "teams": (manifest.get("league") or {}).get("teams"),
             "squad_slots": (manifest.get("league") or {}).get("squad_slots"),
             "matchdays_target": (manifest.get("matchdays") or {}).get("platform_target"),
+            # ...E LA STAGIONE PIENA DI QUELLA PIATTAFORMA, che e' il denominatore su cui l'app
+            # riporta ogni numero che moltiplica le presenze (richiesta dell'operatore, 22/09/2026:
+            # «tutti i valori che leggiamo sulle pagine devono essere rapportati all'intera
+            # stagione»). Il foglio la dichiara gia' accanto al target e nessuno la trasportava,
+            # quindi l'app avrebbe dovuto indovinarla - e indovinarla vuol dire scrivere 38 anche
+            # su euro, dove una stagione di piattaforma ne ha 31.
+            "matchdays_input": (manifest.get("matchdays") or {}).get("platform_input"),
             "sheet_revision": manifest.get("sheet_revision"),
             "generated_at": manifest.get("generated_at"),
             "auction_date": manifest.get("auction_date"),

@@ -2,7 +2,7 @@ import { OutWindow } from './injury-window';
 import { Spell } from './player-status';
 import {
   INSURANCE_CAP_SHARE,
-  INSURANCE_DEFAULT_ROUNDS,
+  INSURANCE_FLOOR_ROUNDS,
   PlayInput,
   expectedPlay,
   insuranceRounds,
@@ -42,7 +42,7 @@ describe('expectedPlay', () => {
     const out = { lost: 10 } as OutWindow;
     const result = expectedPlay(input({ pv: 25.8, out }));
     expect(result.out).toBe(10);
-    expect(result.expected).toBeCloseTo(25.8 - 10 - INSURANCE_DEFAULT_ROUNDS, 5);
+    expect(result.expected).toBeCloseTo(25.8 - 10 - INSURANCE_FLOOR_ROUNDS, 5);
   });
 
   it("assicura lo SCARTO fra la stagione peggiore e la media, non il totale perso", () => {
@@ -54,9 +54,22 @@ describe('expectedPlay', () => {
     expect(result.expected).toBeCloseTo(30 - (12 - 17 / 3), 5);
   });
 
-  it('a chi non ha abbastanza storia applica il numero del listone, non uno zero', () => {
-    expect(insuranceRounds(NO_HISTORY)).toBe(INSURANCE_DEFAULT_ROUNDS);
-    expect(insuranceRounds(new Map([['2025-26', 30]]))).toBe(INSURANCE_DEFAULT_ROUNDS);
+  it('non toglie niente a chi la sua storia non lo distingue: il pavimento e' + ' spento', () => {
+    // Dal 22/09/2026 `INSURANCE_FLOOR_ROUNDS` e' ZERO, per decisione dell'operatore: una costante
+    // uguale per tutti abbassava senza distinguere (il 46% dei titolari la pagava identica) e non
+    // evitava nessun disastro. Chi non ha storia e chi non si e' mai fatto male ora pagano NULLA.
+    expect(INSURANCE_FLOOR_ROUNDS).toBe(0);
+    expect(insuranceRounds(NO_HISTORY)).toBe(0);
+    expect(insuranceRounds(new Map([['2025-26', 30]]))).toBe(0);
+    expect(insuranceRounds(new Map([['2023-24', 0], ['2024-25', 0], ['2025-26', 0]]))).toBe(0);
+  });
+
+  it('...e continua a toglierne a chi ha avuto un anno brutto, che e' + ' la meta' + ' che lavora', () => {
+    // La parte personale resta: lo scarto fra la sua stagione tipica e la sua peggiore. Senza questa
+    // riga, spegnere il pavimento si leggerebbe uguale a spegnere l'assicurazione intera.
+    const hurt = new Map([['2023-24', 2], ['2024-25', 4], ['2025-26', 12]]);
+    expect(insuranceRounds(hurt)).toBeCloseTo(12 - 6, 5);
+    expect(insuranceRounds(hurt)).toBeGreaterThan(insuranceRounds(NO_HISTORY));
   });
 
   it('non toglie mai piu' + ' del tetto dichiarato, perche' + ' uno storico brutto e' + ' uno sconto e non una sentenza', () => {
@@ -171,7 +184,7 @@ describe('expectedPlay e la dritta dichiarata', () => {
     const out = { lost: 10 } as OutWindow;
     const ruled = expectedPlay(input({ pv: 12.6, pvIsEstimate: true, ruled: 0.949, out }));
     expect(ruled.out).toBe(10);
-    expect(ruled.expected).toBeCloseTo(0.949 * 36 - 10 - INSURANCE_DEFAULT_ROUNDS, 5);
+    expect(ruled.expected).toBeCloseTo(0.949 * 36 - 10 - INSURANCE_FLOOR_ROUNDS, 5);
   });
 
   it('il FATTORE resta contato sulla `pv` DEL FOGLIO, che e’ quella su cui il surplus e’ costruito', () => {

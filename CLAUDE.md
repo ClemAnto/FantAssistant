@@ -6759,6 +6759,60 @@ alla precisione con cui decide.* E il piu' grave, perche' riguarda cio' che si r
 **un `str.replace` senza `assert` e' un no-op silenzioso**, e due test non sono mai entrati nel file
 mentre la sessione dichiarava che c'erano.
 
+## Ogni numero IN GIORNATE si legge su una STAGIONE PIENA, e «35 presenze» non e' la previsione per l'anno dopo
+**22-23/09/2026, da una domanda dell'operatore sui dieci attaccanti piu' cari: «hanno partite attese fra
+20 e 26, e i migliori dell'anno scorso ne hanno fatte fra 30 e 36 — come mai?». Dettaglio:
+`letture-app-v1.md` §50, spec «Novita' v9.101».** Lo scarto che sembrava del motore era per tre quarti
+ARITMETICA, e scomporlo e' stata tutta la diagnosi: **−2,9 la lista scelta ex post · −3,9 il
+denominatore · −0,5 il motore · −2,9 l'assicurazione.**
+
+**UNA LISTA DEI «MIGLIORI DELL'ANNO SCORSO» E' SELEZIONATA DALL'AVER GIOCATO.** Su 11 stagioni la top-10
+attaccanti scelta per FVM finale realizza **32,2** presenze, quella scelta per Qt.I pre-asta **29,3** — e
+il FVM di una stagione passata e' l'ULTIMA LETTURA, quindi conosce l'esito: la contaminazione e'
+esattamente nella direzione che fa sembrare basse le previsioni. E il null vero, su **1.898 casi**: chi
+fa 26-38 presenze, l'anno dopo **il 17% non ha una riga di Serie A** e chi resta ne fa **26,4** (mediana
+29, sd 9,2; chi ne aveva 34+ arriva a 29,3). Sui 165 quotati di quella fascia il motore prevede **26,2
+contro 26,4**, cioe' in centro. *Una previsione predice la media condizionale, quindi la distribuzione
+delle previsioni e' piu' stretta di quella degli esiti per costruzione* — il 31% sopra le 30 giornate
+contro un vero del 47% non e' un difetto, mentre il 5% che leggeva lo schermo era traslazione.
+
+**LA REGOLA DI PRESENTAZIONE, sua** («tutti i valori che leggiamo sulle pagine devono essere rapportati
+all'intera stagione ... anche se il mercato dura 3 giorni, su base 38, sia partite attese che surplus»):
+`core/season-scale.ts`, una definizione e due punti d'ingresso. **«Base 38» ha DUE significati** —
+riscalare (`x 38/33`) o sommare le giornate viste (`pv_seen + attese`) — che divergono di ±2,6 (mediana
+0,17): si adotta il riscalamento, perche' **il surplus un passato da sommare non ce l'ha** e le due
+colonne della stessa riga devono stare sulla stessa base. **La base e' la stagione della PIATTAFORMA e
+non il numero 38**: su euro sono 31, e scriverci 38 inventerebbe sette giornate che quella piattaforma
+non gioca. Si riporta cio' che e' ESTENSIVO nelle giornate (presenze, surplus, valore, margine, coppa,
+finestra d'infortunio) e NON l'intensivo (fantamedia, minuti a partita, quote, lo SWING che e' gia' per
+giornata), i prezzi, ne' le MISURE — proiettare un gol gia' fatto trasformerebbe un fatto in una
+previsione. **La prova che la lista di cosa si riporta e' quella giusta e' l'identita' che `/why`
+verifica**: `(fm − rimpiazzo) × pv × conf = surplus` regge, perche' le due meta' si riportano in modo
+diverso; una lista sbagliata l'avrebbe rotta alla prima riga.
+
+Quattro cose che restano, e due sono errori miei.
+- **UN NUMERO DEDOTTO DA UNA PERCENTUALE NON E' UN NUMERO MISURATO.** Avevo pubblicato che spegnere il
+  pavimento dell'assicurazione avrebbe portato lo schermo da 22,3 a **24,4**, sommando 2,1 a chi stava al
+  pavimento: il pavimento non si sottrae intero, chi ci sta sopra guadagna solo la differenza col PROPRIO
+  scarto. Misurato, **22,8** — un fattore quattro sull'effetto, e Dimarco non si muove di un decimo.
+- **UNA COSTANTE UGUALE PER TUTTI NON PROTEGGE DA NIENTE.** `INSURANCE_FLOOR_ROUNDS` = 0 (era 2,1), per
+  decisione dell'operatore col numero davanti: **il 46%** dei titolari la pagava identica, e un numero
+  fisso abbassa senza distinguere, quindi non riordina e non evita nessun disastro — sposta la scala.
+  Resta accesa la meta' personale (lo scarto fra la sua stagione tipica e la sua peggiore, fino a 13,3
+  giornate), che e' quella che distingue Pulisic da Douvikas.
+- **UN VERDE PUO' NON AVER GUARDATO NIENTE, e si scopre solo rimettendo il difetto.** Dopo un cambio di
+  scala che tocca l'intera app, **1038 test passavano**: nessun fixture porta `matchdays`, quindi la
+  scala valeva 1 ovunque. Un test scritto DOPO la cura su un fixture che non contiene la condizione e' un
+  test che non puo' fallire — e l'asserzione che vale e' quella FALSIFICABILE che non passa dal fattore
+  («se il foglio prevede 33 e la stagione ne ha 38, un numero sopra 33 e' impossibile senza il riporto»).
+- **UN RIPORTO E' UNA MOLTIPLICAZIONE, QUINDI IL DENOMINATORE VIAGGIA COL NUMERATORE.** Sette viste
+  leggevano `matchdays_target` dal manifest per conto loro e ora chiedono a un lettore solo
+  (`ValuationStore.seasonRoundsFor()`): e' il modo in cui meta' dell'app finisce su una base e meta'
+  sull'altra. La finestra d'infortunio si riporta col DENOMINATORE CHE PORTA DENTRO DI SE'
+  (`remaining`), cosi' non c'e' nessun parametro nuovo da ricordare in un punto di chiamata. E la cura ha
+  sistemato un rapporto gia' sbagliato: `sealed-bid` dichiara `matchdays: 38` mentre `expected` viveva su
+  33, quindi la quota leggeva 0,63 dove la verita' e' 0,73.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

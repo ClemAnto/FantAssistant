@@ -1539,7 +1539,7 @@ export class SquadTable {
 
   /** What P is, said once in its header: a number of matches needs the calendar it is out of. */
   protected readonly expectedHeader = computed(() => {
-    const rounds = this.valuation.sheetFor(this.platform())?.matchdays_target;
+    const rounds = this.valuation.seasonRoundsFor(this.valuation.sheetFor(this.platform()));
     return short(
       `Partite attese A VOTO dal motore${rounds ? ` su ${rounds} giornate` : ''}: «~» è la stima, `
         + 'vuoto vuol dire ignoto.',
@@ -1587,7 +1587,7 @@ export class SquadTable {
   /** ...and on the row: the number, what it is out of, and whether it is the estimate. */
   protected expectedHint(man: SquadMan): string {
     if (man.expected == null) return 'Il motore non lo prevede: ignoto, che non vuol dire zero.';
-    const rounds = this.valuation.sheetFor(this.platform())?.matchdays_target;
+    const rounds = this.valuation.seasonRoundsFor(this.valuation.sheetFor(this.platform()));
     return short(
       `${man.expected.toFixed(1)} partite a voto attese${rounds ? ` su ${rounds}` : ''}`
         + (man.expectedIsEstimate ? ' · è la STIMA, il motore non riesce a valutarlo' : '')

@@ -34,6 +34,7 @@ import {
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { engineNumbersFrom } from './engine-sheet';
+import { seasonRoundsOf } from './season-scale';
 import {
   PlaceChange,
   RotationWatch,
@@ -285,8 +286,18 @@ export class AuctionAdvice {
     return out;
   });
 
-  /** The rounds of the platform's own calendar, from the sheet: `engine_pv_pred` is expressed on it. */
-  readonly matchdaysTarget = computed(() => this.entry()?.matchdays_target ?? null);
+  /**
+   * Le giornate su cui i numeri del foglio sono espressi: la STAGIONE PIENA della piattaforma.
+   *
+   * Dal 22/09/2026 `engine_pv_pred` e il surplus arrivano riportati li' (`season-scale.ts`), quindi
+   * questo e' il loro denominatore. Viene dal FOGLIO e non dal manifest, perche' e' il foglio a
+   * dichiarare i suoi due calendari accanto alle righe: leggerlo dal manifest darebbe la stagione
+   * piena solo dopo un export nuovo, e nel frattempo i numeri sarebbero riportati e la base no.
+   */
+  readonly matchdaysTarget = computed(() => this.sheetSeasonRounds() ?? this.entry()?.matchdays_target ?? null);
+
+  /** Popolato quando il foglio viene letto: e' la table a portare i due calendari. */
+  private readonly sheetSeasonRounds = signal<number | null>(null);
 
   readonly lastMatchday = computed(() => this.to() ?? this.matchdaysTarget());
 
@@ -1184,6 +1195,10 @@ export class AuctionAdvice {
   private async read(sheet: EngineSheetEntry): Promise<Map<number, EngineNumbers>> {
     // One reader for every page that stands on these columns (`engine-sheet.ts`): two would give one
     // man two valuations, and the first place anybody notices is at a table.
-    return engineNumbersFrom(await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, '')));
+    const table = await this.bundle.table(sheet.path.replace(/\.json(\.gz)?$/, ''));
+    // ...e la base su cui quel lettore li ha riportati, presa dallo stesso foglio e nello stesso
+    // punto: un numero riportato e un denominatore che non lo e' sono due basi sotto un nome solo.
+    this.sheetSeasonRounds.set(seasonRoundsOf(table.matchdays, sheet.matchdays_target));
+    return engineNumbersFrom(table);
   }
 }

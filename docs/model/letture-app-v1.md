@@ -5987,3 +5987,151 @@ rompere altro); a dieci rose batte la lista a mano **ed è sopra 12** (pavimento
 meno un margine); ogni chip regge l'inchiostro quasi nero a 4,5:1; ogni chip si stacca a 3:1 dalle tre
 superfici. Più tre test su `deriveTeams`: senza colore pubblicato le rose ne prendono uno **diverso**
 ciascuna, l'ordine dell'array non lo cambia, e un colore pubblicato vince.
+
+
+## 50 — OGNI NUMERO IN GIORNATE SU UNA STAGIONE PIENA, e «35 presenze» non è la previsione per l'anno dopo
+
+**22/09/2026, da una domanda dell'operatore sui dieci attaccanti più cari del listone**: «hanno partite
+attese fra 20 e 26, e i migliori attaccanti dell'anno scorso ne hanno fatte fra 30 e 36 — come mai?».
+Ne sono uscite una regola di presentazione, una costante spenta e due null misurati; e nella diagnosi
+lo scarto che sembrava del motore era per tre quarti aritmetica.
+
+### 50.1 Le tre cose che stavano fra il suo ricordo e quel numero
+
+La colonna leggeva 24 per Malen mentre il foglio scrive 26,2, e il suo ricordo diceva 35. Scomposto:
+
+| da | a | chi |
+|---|---|---|
+| 32,2 → 29,3 | −2,9 | **la lista scelta ex post** |
+| 29,3 → 25,4 | −3,9 | **le 33 giornate che restano** invece di 38 |
+| 25,4 → 24,9 | −0,5 | **il motore** |
+| 24,9 → 22,0 | −2,9 | **l'assicurazione** |
+
+- **IL DENOMINATORE.** Il foglio prevede le giornate che RESTANO (`matchdays.platform_target` = 33 il
+  22/09), non la stagione. 24 su 33 è 0,73, non 0,63.
+- **LA SELEZIONE.** «I migliori attaccanti dell'anno scorso» è una lista scelta DOPO: chi si fa male non
+  ci entra. Su 11 stagioni, top-10 attaccanti di Serie A scelti per FVM finale (ex post) realizzano
+  **32,2** presenze di media, scelti per Qt.I (ex ante, il prezzo pre-asta) **29,3** — mediana 31, e solo
+  il **61%** sopra le 30 contro l'80%. La differenza di 2,9 giornate è il bias, e il FVM di una stagione
+  passata è l'ULTIMA LETTURA, quindi conosce l'esito: è contaminato esattamente in quella direzione.
+- **L'ASSICURAZIONE**, che è dell'operatore (04/09) e non del motore.
+
+### 50.2 La regola adottata: `core/season-scale.ts`
+
+Sua richiesta, e vale per tutte le pagine: «tutti i valori che leggiamo sulle pagine devono essere
+rapportati all'intera stagione. Quindi se il mercato impostato dura 3 giorni dovrai cmq mostrarmi i dati
+su base 38 (sia partite attese che surplus quindi)».
+
+**«BASE 38» HA DUE SIGNIFICATI E DANNO DUE NUMERI.** Riscalare (`× 38/33`, «il suo ritmo su una stagione
+intera») oppure sommare le giornate già viste (`pv_seen + attese`, «quante ne avrà a fine stagione»).
+Misurati: divergono al massimo di ±2,6 giornate, mediana 0,17. Si adotta il **riscalamento**, e la
+ragione è il SURPLUS: quello un passato da sommare non ce l'ha, quindi l'unica operazione possibile per
+tutti è la moltiplicazione — e le due colonne della stessa riga devono stare sulla stessa base. Il
+prezzo è dichiarato: chi ha saltato le prime cinque giornate (Buongiorno, 0 giocate e 15,5 attese) legge
+17,8 e non le recupererà, perché quello è il ritmo e non il totale.
+
+**LA BASE È LA STAGIONE DELLA PIATTAFORMA, NON IL NUMERO 38**: su euro `platform_input` è **31**, e
+scrivere 38 là inventerebbe sette giornate che quella piattaforma non gioca.
+
+**COSA SI RIPORTA.** Quello che è ESTENSIVO nelle giornate: partite attese, partite attese sufficienti,
+surplus, valore, margine, lo sconto della coppa, e le giornate perse per una finestra d'infortunio. NON
+si riporta nulla di INTENSIVO (fantamedia, media voto, bonus a partita, minuti a partita, quote, lo
+SWING che è già per giornata), né i PREZZI (FVM, Qt.I, pagato, SpM), né le **MISURE** — gol, assist, xG
+e partite già giocate sono quello che è successo, e proiettarli trasformerebbe un fatto in una
+previsione.
+
+**E LA PROVA CHE LA LISTA È QUELLA GIUSTA È L'IDENTITÀ DI `/why`**: `(fm − rimpiazzo) × pv × confidenza =
+surplus` continua a reggere, perché le due metà si riportano in modo diverso — `fm` e il rimpiazzo sono
+per partita e restano fermi, `pv` e il surplus salgono insieme. Una lista sbagliata avrebbe rotto quella
+catena alla prima riga.
+
+### 50.3 Il dato c'era, e curava anche un rapporto già sbagliato
+
+I due calendari il foglio li dichiara accanto alle proprie righe da sempre e il caricatore fa
+`JSON.parse` dell'oggetto intero: erano già in memoria e mancava il lettore (`BundleTable.matchdays`).
+`export` ora scrive anche `matchdays_input` nel manifest, ma non serve aspettarlo — la base si legge dal
+foglio, quindi funziona col bundle già in casa.
+
+**E `sealed-bid.ts` dichiara `matchdays: 38` mentre `expected` viveva su 33**: la quota leggeva 0,63
+dove la verità è 0,73. Il riporto la cura per costruzione. *Una normalizzazione che rende coerenti due
+metà non è solo una scelta di lettura.*
+
+**UN SOLO PUNTO CHE RISPONDE.** Sette viste leggevano `matchdays_target` dal manifest per conto loro:
+ora chiedono a `ValuationStore.seasonRoundsFor()`, ed è esattamente il modo in cui metà dell'app
+finirebbe su una base e metà sull'altra. La plancia e il pannello d'asta, che il foglio lo leggono da
+sé, dichiarano la propria base dove leggono la table.
+
+**LA FINESTRA D'INFORTUNIO PORTA IL PROPRIO DENOMINATORE.** `lost` è un CONTEGGIO di partite vere («ne
+salta 10»), e sottrarlo da una base riportata sarebbe un errore di unità; il fattore è dentro la
+finestra stessa (`remaining`), quindi non c'è nessun parametro nuovo da ricordare in un punto di
+chiamata — e dove non si riporta niente il fattore è 1 e il conto è quello di prima alla cifra.
+
+### 50.4 Il null che risponde a «sono troppo basse»
+
+Seconda domanda dell'operatore, con quattro nomi: «Dimarco 35 → 29, Douvikas 36 → 28, Paz 35 → 30,
+Pulisic 27 → 17: mi sembrano tutte troppo basse». Misurato su **1.898 casi in 11 stagioni**, chi ha
+fatto 26-38 presenze in Serie A:
+
+- **il 17% l'anno dopo non ha una riga di Serie A** (estero, B, fine carriera);
+- di chi resta: media **26,4**, mediana 29, sd 9,2;
+- chi ne aveva 34+: 29,3 e il 62% ne rifà 30+ · 30-33: 25,7 e il 44% · 26-29: 23,5 e il 34%.
+
+**Trentacinque presenze non sono la previsione per l'anno dopo: la previsione è 26-29.** La metà alta di
+quella distribuzione è fatta anche di non essersi infortunati, non essere stati squalificati e non
+essere stati ruotati, e quella parte non si ripete.
+
+Sui **165 quotati** 2026-27 che nel 2025-26 stavano in quella fascia (media 31,9 l'anno scorso):
+
+| | media | sopra 30 |
+|---|---|---|
+| il NULL | 26,4 | 47% |
+| **il motore** | **26,2** (−0,2) | 31% |
+| lo schermo di allora | 22,3 (−4,1) | 5% |
+
+**Il motore non è basso: è in centro al null a due decimi.** Il 31% contro il 47% non è un difetto — una
+previsione predice la media condizionale, quindi la distribuzione delle previsioni è più stretta di
+quella degli esiti per costruzione. Il 5% dello schermo sì: quella non era compressione, era
+traslazione.
+
+### 50.5 Il pavimento dell'assicurazione, spento — e il numero che avevo dedotto era sbagliato
+
+`INSURANCE_FLOOR_ROUNDS` = **0** (era `INSURANCE_DEFAULT_ROUNDS` = 2,1), per decisione dell'operatore col
+numero davanti. La ragione: **una costante uguale per tutti non protegge da niente** — il 46% dei 165
+titolari la pagava esattamente identica, e un numero fisso abbassa senza distinguere, quindi non
+riordina e non evita nessun disastro: sposta la scala.
+
+**QUELLO CHE RESTA ACCESO È LA METÀ CHE LAVORA**: lo scarto fra la stagione tipica di un uomo e la sua
+peggiore (`worst − mean`), fino a 13,3 giornate, che distingue Pulisic (8,0 giornate perse nel 2025-26,
+4,1 nel 2024-25) da Douvikas (0,5).
+
+**E IL NUMERO CHE AVEVO PUBBLICATO ERA SBAGLIATO, dedotto invece che calcolato.** Avevo annunciato che
+lo schermo sarebbe passato a 24,4 sommando 2,1 a chi stava al pavimento: il pavimento non si sottrae
+intero, chi ci sta sopra guadagna solo la differenza fra 2,1 e il *suo* scarto personale. Misurato:
+**22,3 → 22,8**, e sopra le 30 giornate dal 5% all'**11%**. Dimarco non si muove di un decimo (la sua
+assicurazione era già personale, 2,6), Douvikas guadagna 1,8, Paz 0,3, Pulisic zero. *Un numero dedotto
+da una percentuale non è un numero misurato, e la differenza qui era di un fattore quattro.*
+
+Cosa resta, detto: lo schermo è **−3,6** dal null e adesso è tutto assicurazione personale (3,4 giornate
+di media sui 165). È prudenza per costruzione — punta sotto la media apposta — quindi la colonna non è
+la previsione neutra. Spegnere anche quella lascerebbe il numero del motore (26,2, in centro al null) ed
+è una decisione dell'operatore, non una misura: **aperto**.
+
+### 50.6 Le verifiche, e l'invariante che prova il riporto
+
+1048 test dell'app, 931 del toolkit, banco della Strategia senza problemi. Il banco ha guadagnato
+un'asserzione **falsificabile e non circolare**: se il foglio prevede 33 giornate e la stagione ne ha
+38, un numero sopra 33 è IMPOSSIBILE senza il riporto — a schermo il più alto legge **34**. Prima della
+cura lo stesso banco segnalava **130 righe fuori scala**, che è stata la prova che il cambiamento era
+arrivato allo schermo e non solo al codice.
+
+Due controprove, entrambe fatte rimettendo il difetto: per il riporto cadono esattamente i due test che
+lo descrivono; per il pavimento cade solo quello che descrive la decisione.
+
+**E il primo verde non aveva guardato niente**: 1038 test passavano perché nessun fixture porta
+`matchdays`, quindi la scala valeva 1 ovunque. Un test scritto DOPO la cura, su un fixture che non
+contiene la condizione, è un test che non può fallire.
+
+**Rossi preesistenti, verificati su albero pulito e dichiarati**: due test in `test_press.py` e un
+riepilogo del banco della card (una media voto sintetica, 5,7 contro 5,5 attesi). E il banco della
+Strategia dichiarava «venti letture» mentre `READINGS` ne porta venti più il gain: era rosso su un conto
+suo dal 16/09, allineato a ventuno.

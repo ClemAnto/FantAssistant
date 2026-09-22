@@ -495,6 +495,29 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.101 (22-23 settembre 2026 — LA STAGIONE PIENA VIAGGIA NEL MANIFEST)
+
+**Una riga in `export`, e il resto della sessione è nell'app** (`letture-app-v1.md` §50). Dalla domanda
+dell'operatore sui dieci attaccanti più cari — «partite attese fra 20 e 26, e i migliori dell'anno scorso
+ne hanno fatte fra 30 e 36» — e dalla sua regola che ne è uscita: «tutti i valori che leggiamo sulle
+pagine devono essere rapportati all'intera stagione ... anche se il mercato dura 3 giorni, su base 38».
+
+**`engine_sheets[].matchdays_input`**, accanto a `matchdays_target` che c'era già. È la stagione piena
+di quella piattaforma — **38 su Serie A, 31 su euro** — cioè il denominatore su cui l'app riporta ogni
+numero espresso in giornate. Il foglio la dichiara da sempre nel proprio blocco `matchdays`
+(`platform_input`) e il manifest non la trasportava, quindi chi legge il manifest avrebbe dovuto
+indovinarla; e indovinarla vuol dire scrivere 38 anche su euro, dove una stagione di piattaforma ne ha
+31.
+
+**NON È UN PREREQUISITO DELL'APP, ed è scritto dove si legge**: `BundleTable` porta il blocco
+`matchdays` del foglio, perché il caricatore fa `JSON.parse` dell'oggetto intero e quei due numeri erano
+già in memoria. L'app usa il foglio e tiene il manifest come ripiego, quindi la regola è in vigore col
+bundle già esportato e questa riga serve a chi il manifest lo legge senza aprire i fogli.
+
+**Niente si muove**: `export` non tocca una riga dei fogli, `engine_*` non cambia, `SHEET_REVISION` resta
+72. Il riporto è una scelta di LETTURA e vive tutto nell'app (`core/season-scale.ts`), dove nessun gate
+lo possiede — è una moltiplicazione per una costante uguale per tutti, quindi non riordina niente.
+
 ## Novità v9.100 (22 settembre 2026, sera — LE SETTE PAROLE, E L'ASSE NON È IL TASSO DI BONUS)
 
 Dalla richiesta dell'operatore di dare a ogni calciatore un'etichetta, con sei definizioni dettate a

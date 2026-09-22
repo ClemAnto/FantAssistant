@@ -153,10 +153,13 @@ const GAIN_LABEL: Record<AuctionKind, string> = {
  * liste. Un totale nasconde l'ordine di grandezza, e la giornata è anche l'unità in cui la differenza
  * CONTA, perché una giornata vale ~70 punti e la scala dei gol parte da 66.
  *
- * IL DIVISORE È DEL FOGLIO (`matchdays_target`, 38 su Serie A e 31 su EuroLeghe) e non una costante:
+ * IL DIVISORE È LA STAGIONE PIENA DEL FOGLIO (38 su Serie A, 31 su EuroLeghe) e non una costante:
  * `engine_pv_pred` vive sul calendario della PIATTAFORMA, e dividere il surplus di un foglio per le
- * giornate di un altro è una quota di niente. Dove il foglio non lo dichiara il numero resta il totale
- * di stagione e l'etichetta lo DICE, invece di stampare un totale sotto un'unità che non è la sua.
+ * giornate di un altro è una quota di niente. Dal 22/09/2026 è anche la base su cui il surplus stesso
+ * è riportato (`core/season-scale.ts`), quindi numeratore e denominatore stanno sullo stesso
+ * calendario - prima il foglio ne dichiarava 33 a settembre e questo commento diceva 38, che era il
+ * numero giusto della frase sbagliata. Dove il foglio non lo dichiara il numero resta il totale di
+ * stagione e l'etichetta lo DICE, invece di stampare un totale sotto un'unità che non è la sua.
  */
 const PER_MATCH_HINT =
   ' Il numero è A GIORNATA: il totale di stagione diviso le giornate del calendario su cui il motore lo'
@@ -270,7 +273,7 @@ export class Strategy {
   private readonly paidPrices = inject(AuctionPricesStore);
 
   /** Il calendario su cui il foglio esprime le sue previsioni: il divisore di ogni numero a giornata. */
-  protected readonly matchdays = computed(() => this.sheet()?.matchdays_target ?? null);
+  protected readonly matchdays = computed(() => this.store.seasonRoundsFor(this.sheet()));
 
   /**
    * Il gain A GIORNATA, che è quello che le liste mostrano (vedi `PER_MATCH_HINT`).
