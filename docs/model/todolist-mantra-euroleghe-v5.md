@@ -2294,11 +2294,14 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
    sugli uomini che il campetto disegna prima di toccarla. **Resa: una definizione in meno; rischio: due
    campetti che smettono di dire la stessa cosa al tavolo.**
 
-2. **LA CURA DEL CONTEGGIO SULLA PLANCIA E' NELL'ALBERO E NON NEL COMMIT.** Il tasto «chiudi le N card»
-   e' stato corretto in tre punti (conta quello che si VEDE e non quello che la pila ricorda): clubs e
-   Strategia sono committati, la terza riga vive in `core/plancia-store.ts`, che al momento del commit e'
-   in mano all'altra sessione. Senza di lei la plancia tiene il comportamento di HEAD - annuncia una card
-   che lo schermo non disegna piu' - e chi committa quel file se la porta dietro. **Una riga.**
+2. **NIENTE: LA CURA DEL CONTEGGIO E' DENTRO IL COMMIT ANCHE SULLA PLANCIA.** Questa voce diceva che la
+   terza delle tre righe restava fuori perche' vive in `core/plancia-store.ts`, che l'altra sessione
+   stava usando; e' stata invece portata dentro costruendo il blob su HEAD piu' il solo proprio pezzo
+   (`git hash-object -w` + `git update-index --cacheinfo`, la forma del 10/09/2026), con la controprova
+   che nel diff in index non c'e' una riga del vocabolario dell'altra meta'. **Lasciata scritta e non
+   cancellata**: il paragrafo diceva il falso per il tempo che separa la sua scrittura dal commit, e
+   registrarlo costa meno che far credere al prossimo lettore che un file condiviso non si possa
+   spaccare.
 
 3. **COSA LEGGE `state.selectedPlayerId` QUANDO NESSUNO E' IN ASTA.** Le due letture della sessione
    FA-xxx-xxx cadono nello stesso istante (stesso `_lastUpdate`), quindi la TRANSIZIONE non e' stata
