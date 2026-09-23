@@ -22,7 +22,7 @@ import {
 describe('le dieci parole dentro il ruolo', () => {
   it('ha le parole dell\'operatore, nell\'ordine della scala', () => {
     expect([...CATEGORIA_LADDER]).toEqual([
-      'super', 'top', 'semi', 'promessa', 'solido', 'operaio', 'boa', 'scommessa', 'scarto',
+      'super', 'top', 'semi', 'promessa', 'solido', 'scommessa', 'operaio', 'boa', 'scarto',
       'incognita',
     ]);
   });
@@ -35,9 +35,13 @@ describe('le dieci parole dentro il ruolo', () => {
     // `incognita` CHIUDE la scala: non è un giudizio ma l'assenza di uno.
     expect(categoriaRank('incognita')).toBe(CATEGORIA_LADDER.length - 1);
     // ...e `boa` sta UN GRADINO SOTTO `operaio` (sua correzione del 23/09/2026: «piuttosto che
-    // affondare meglio averlo in squadra»), quindi sopra `scommessa` e non sotto.
+    // affondare meglio averlo in squadra»).
     expect(categoriaRank('boa')).toBe(categoriaRank('operaio')! + 1);
-    expect(categoriaRank('boa')!).toBeLessThan(categoriaRank('scommessa')!);
+    // ...E `scommessa` E' RISALITA SOPRA `operaio` la sera del 23/09/2026, quando ha smesso di dire
+    // «nessuno l'ha prezzato» e ha cominciato a dire «partenza non eccezionale ma potenziale ottimo
+    // proseguimento». Il suo ordine, in tre parole: PROMESSA > SCOMMESSA > OPERAIO.
+    expect(categoriaRank('promessa')!).toBeLessThan(categoriaRank('scommessa')!);
+    expect(categoriaRank('scommessa')!).toBeLessThan(categoriaRank('operaio')!);
     // `scommessa` sta SOPRA `scarto` (sua graduatoria, 22/09 sera): «nessuno l'ha ancora misurato»
     // promette più di «è misurato e non gioca».
     expect(categoriaRank('scommessa')!).toBeLessThan(categoriaRank('scarto')!);
