@@ -6568,3 +6568,259 @@ una soglia, non a una popolazione che non esiste.*
   appena chiesto di stringere. Trovato contando per ruolo e non rileggendo il codice.
 * **E LA MIA SONDA ERA CIRCOLARE**: calcolava la sbarra nuova leggendo le categorie prodotte dalla sbarra
   nuova. Dava sempre lo stesso numero, che sembrava stabilita' ed era una tautologia.
+
+## 53 - LA RITARATURA DEL 24 SETTEMBRE: quattro suoi verdetti erano IMPOSSIBILI insieme, e la causa era una sola
+
+**Nove correzioni sue sulle categorie, tutte su attaccanti, tutte trovate a schermo.** La parte che
+vale oltre i nove nomi e' che i primi quattro **non erano soddisfacibili** al peso in vigore: non
+difficili, impossibili - non esiste nessuna coppia di sbarre che li tenga insieme.
+
+### 53.1 Quattro frasi, una causa: la stagione in corso pesava il 21% e scavalcava lo storico
+
+Le sue due frasi sono la stessa detta con nomi opposti:
+
+* «SIMEONE e' un SEMITOP perche' ha molte presenze previste e una ottima FM dell'anno scorso» - FM
+  precedente **7,25**, cinque giornate a **5,70**, leggeva `operaio`.
+* «MALDINI e' una PROMESSA perche' ha una FM dello scorso anno troppo bassa per essere un SEMITOP» -
+  FM precedente **6,39**, cinque giornate a **8,40**, leggeva `semi`.
+
+`categories.relevel` miscela la fantamedia attesa con le giornate gia' giocate usando una K per ruolo,
+e per l'attaccante era 18,5: a cinque giornate **il 21%**. Quaranta centesimi di storico si scavalcano
+con quel peso, e infatti l'ordine del livello era il ROVESCIO dell'ordine dello storico.
+
+**La misura che rende la cosa un fatto e non un'opinione**, e va fatta prima di cercare una cura:
+misurando la finestra di pesi in cui esistono due sbarre che soddisfano i suoi quattro nomi PIU' quelli
+gia' dichiarati (Scamacca `semi`, Hojlund `top`), la risposta e' `w` fra **0,075 e 0,125**, e a 0,213
+non ce n'e' nessuna - ne' su `semi` ne' su `top`. Il centro della finestra e' `w` = 0,10, cioe' K = 45.
+
+| nome | storico | 5 giornate | livello a K=18,5 | livello a K=45 | oggi | chiede |
+|---|---|---|---|---|---|---|
+| Scamacca | 7,166 | 6,30 | 6,982 | 7,080 | semi | semi |
+| Simeone | 7,041 | 5,70 | 6,756 | 6,907 | **operaio** | semi |
+| Davis K. | 7,017 | 6,63 | 6,947 | 6,985 | promessa | = Scamacca |
+| Esposito F.P. | 6,941 | 8,25 | **7,174** | 7,048 | **top** | NON top |
+| Maldini | 6,611 | 8,40 | **6,992** | 6,790 | **semi** | promessa |
+
+### 53.2 Il prezzo e' misurato, e la K resta scritta accanto alla dichiarazione
+
+La misura originale e' stata **riprodotta prima di toccarla** (P +6,8% - D +2,7% - C +1,8% - A +6,0%
+contro i +6,2 - +2,4 - +1,7 - +6,0 pubblicati), che e' la condizione per poter dire quanto costa
+muoverla. Sul bersaglio «la fantamedia delle giornate DOPO la quinta», dieci stagioni di Serie A:
+
+| K | MAE attaccanti | guadagno sulla sola stagione scorsa | stagioni migliori |
+|---|---|---|---|
+| infinito (solo storico) | 0,6295 | - | - |
+| 45 | 0,6019 | **+4,4%** | 10/10 |
+| 18,5 (ottimo) | 0,5920 | **+6,0%** | 10/10 |
+
+Un centesimo di MAE su una dispersione di 0,63, e la curva e' **piatta fra 20 e 60**. Quindi la
+direzione e' il risultato e i decimali no.
+
+**E LE DUE TABELLE SONO SEPARATE APPOSTA.** `BLEND_K` resta la misura e `DECLARED_K` porta la sua
+decisione: una dichiarazione che cancella una misura la fa sparire dal verbale, e il giorno in cui
+qualcuno rimisura deve poter vedere da dove ci si e' mossi. La ragione per cui non e' un capriccio
+sta nella domanda: **la K e' misurata per PREVEDERE una fantamedia, la parola deve dire CHE GIOCATORE
+E'** - e quello che sta facendo adesso ha gia' la sua parola, `promessa`. Al peso vecchio la stagione
+in corso entrava DUE VOLTE, nel livello e in `in_form`.
+
+### 53.3 E la direzione era opposta per chi non ha storico: misurata nei due versi
+
+La prima stesura applicava la K dichiarata a tutti, e faceva cadere **Kvernadze** (6,911 -> 6,654) e
+**Varela G.** (6,878 -> 6,601), i due `solido` che lui aveva dichiarato il 22/09. La seconda toglieva
+del tutto il re-blend senza storico e leggeva **gli stessi due numeri**, perche' il livello del foglio
+quel re-blend ce l'ha gia' dentro.
+
+La ragione e' che senza una stagione precedente la domanda e' un'altra: il peso non risponde a «quanto
+contano cinque giornate contro il suo passato» ma a «quanto contano contro l'ANCORA DEL RUOLO», cioe'
+contro la costante «nessuno l'ha mai visto giocare» (`est_basis` = `anchor` per tutt'e due). **Li'
+quelle cinque giornate sono la sola prova che esista su di lui**, e alzarne il prezzo vuol dire dare
+piu' peso al nulla. `DECLARED_K` vale solo dove c'e' uno storico da pesare; senza, decide la misura.
+
+*Un parametro appartiene alla popolazione su cui e' stato misurato, e «ha una stagione precedente» e'
+una di quelle popolazioni* - la K e' stata misurata su uomini che ce l'hanno.
+
+### 53.4 Le tre sbarre rimisurate, e le due che tagliavano per millesimi
+
+Cambiando la QUANTITA' cambiano le sbarre, che e' la condizione che quella tabella si da' da se'. I
+percentili sono gli stessi degli altri tre ruoli (63,5 - 77 - 85 - 93,5 - 97 = 6,721 - 6,87 - 6,925 -
+7,074 - 7,179) e poi **i casi dichiarati fissano il valore**, come sempre in quel modulo:
+
+* `semi` **6,90** fra Maldini 6,790 e Simeone 6,907 - `top` **7,10** fra Esposito F.P. 7,048 e
+  Hojlund 7,106 - `sup` **7,55** fra Thuram 7,460 e Martinez L. 7,712 - `good` **6,78** sotto Maldini
+  - `low` **6,742**, il percentile, che nessun nome tocca.
+
+**E DUE SBARRE TAGLIAVANO PER MILLESIMI, che e' la quarta volta in questo repository** dopo Scamacca,
+Svilar e Varela: Piccoli gioca lo **0,7182** contro lo 0,72 che `boa` chiede (mancava 0,0018, e la MV
+ce l'aveva) e Toure E. legge **6,549** contro una mediana del potenziale che cade a 6,549 esatti. La
+prima scende a 0,715, in mezzo fra lui e Pinamonti (0,721) e non sul bordo; `PLAYS_ALWAYS` resta 0,72,
+perche' due costanti con lo stesso numero rispondevano a due domande. La seconda scende a 6,540.
+
+### 53.5 Il tetto delle scommesse non vale per chi qui non ha mai giocato
+
+Tre dei quattro nomi che chiedeva come scommesse - **Kolo Muani, Adams A., Toure E.** - hanno 26,7-28,8
+presenze previste su 38 contro le 26 della banda, e nessuno dei tre ha una fantamedia precedente in
+Serie A. Il tetto e' una **prova sulle sue presenze**, e le presenze di chi non ha giocato qui sono una
+previsione, cioe' la cosa stessa su cui si scommette.
+
+Le due forme sono state misurate e messe davanti a lui, e **ha scelto sapendo il prezzo**: l'altra
+(tetto a 29/38) prendeva anche Castro S. ma portava le scommesse da 21 a 27 su 96 attaccanti e faceva
+scendere `operaio` **da 5 a 1**, cioe' svuotava la parola che aveva stretto il giorno prima. Castro ha
+uno storico (6,71) e resta `scarto`; la via per lui e' una dritta in `player_rulings.json`.
+
+### 53.6 Una sua ragione non era implementabile, e il caso si risolve lo stesso
+
+Alla domanda su Esposito F.P. («non puo' essere un top perche'...», frase troncata) ha risposto **«ha
+poche presenze previste»**, e quella ragione **non si puo' scrivere**: Calhanoglu, che lui ha
+dichiarato `top` proprio come «fuori scala e non gioca abbastanza», gioca **meno** di lui - 0,600 del
+calendario contro 0,667 - quindi nessun pavimento di presenze toglie il secondo senza togliere il
+primo (a 0,667 ne cadrebbero cinque, Calhanoglu, Bisseck, Adzic e McTominay compresi).
+
+Il caso si chiude da se' con la cura del peso: il suo 8,25 di fantavoto in quattro partite pesa meno,
+il livello scende da 7,174 a 7,048 e la parola diventa `promessa`. **Un pavimento su `top` resta una
+decisione aperta, e comporta ritirare Calhanoglu.**
+
+### 53.7 Verifica e controprova
+
+**17 verdetti su 17** sui 96 attaccanti del foglio del 23/09 - i nove di oggi piu' gli otto gia'
+dichiarati (i due `super`, Hojlund e Thuram `top`, Scamacca `semi`, Pinamonti `boa`, Kvernadze e
+Varela G.) - con **16 righe mosse su 96**. Portieri, difensori e centrocampisti non si muovono di un
+decimale (`DECLARED_K` ha una riga sola) e su `euro` la cosa e' inerte per costruzione: la' R25 non e'
+adottata, quindi `relevel` restituisce il livello intatto.
+
+`engine_*` non si muove - `evaluate` non importa `categories` - quindi `backtest --verify` resta
+22/22; il foglio va rigenerato perche' la colonna cambi (`SHEET_REVISION` 75).
+
+**E LA CONTROPROVA E' STATA FATTA RIMETTENDO OGNI DIFETTO UNO PER VOLTA**, non guardando il verde: la
+K dichiarata tolta fa cadere due test, le sbarre vecchie uno, `BOA_PLAYS` uno, il tetto senza storico
+uno, la K dichiarata applicata a tutti uno, la sbarra del potenziale vecchia uno - **esattamente
+quelli che descrivono ciascuna cura, e nessun altro**.
+
+### 53.8 Tre errori di misura miei, dello stesso giorno
+
+* **Ho letto `engine_fm_pred` e non il ripiego su `est_fm`** che lo snapshot usa, quindi ~176 righe su
+  562 avevano un livello ricostruito sbagliato. Non e' emerso da una rilettura ma da un **guardiano
+  che e' caduto**: quello su Varela e Pinamonti, che sui numeri veri diceva il contrario di quello che
+  la mia simulazione stampava. *Un test che cade su un caso che la simulazione dava per risolto e' la
+  simulazione a essere rotta, non il test.*
+* **La prima sonda ricalcolava la sbarra del potenziale invece di leggere la costante**, quindi
+  misurava una cura che il codice non avrebbe avuto. Toure E. leggeva `scommessa` in simulazione e
+  `scarto` nel codice - la solita regola, si chiama la funzione e non si rifa' il conto accanto.
+* **E la suite l'ho lanciata su un albero in movimento**, che e' la regola gia' scritta il 23/09: un
+  rosso raccolto mentre si modificano i file non e' un rosso. Rilanciata a fermo - e a fermo era
+  ancora rossa, per la ragione del §53.9, che non e' questa.
+
+### 53.9 UNA CONTROPROVA CHE CONSERVA LA LUNGHEZZA LASCIA UN BYTECODE CHE PYTHON CREDE VALIDO
+
+Il quarto errore della giornata e' il piu' insidioso, perche' produce **un rosso vero su un file
+giusto** e resiste a due corse. La controprova del §53.7 rimette ogni difetto uno per volta e poi
+ripristina il sorgente; per la sbarra del potenziale la sostituzione era `"A": 6.561}` ->
+`"A": 6.540}`, cioe' **esattamente la stessa lunghezza**, e le due scritture sono avvenute **dentro
+lo stesso secondo**.
+
+Python invalida un `.pyc` confrontando `(mtime al secondo, dimensione)` del sorgente. Con la
+lunghezza conservata e l'mtime che non cambia secondo, la coppia combacia: il bytecode compilato
+**con il difetto dentro** resta valido, e da quel momento il modulo importato non e' il file su
+disco. Sintomo: `grep` sul sorgente legge 6,540, `python -c "print(...)"` legge **6,561**, il test
+da solo passa (era gia' in memoria dalla corsa precedente) e nella suite completa cade.
+
+Due abitudini, e la prima e' quella che ha risolto in un minuto dopo che due suite da tre minuti
+avevano mentito:
+* **Quando un test cade e il sorgente sembra giusto, si stampa il valore COME IL PROCESSO LO VEDE**
+  (`python -c "from ... import x; print(x.COSTANTE, x.__file__)"`) prima di rileggere il codice. E'
+  «si chiama la funzione invece di guardare la colonna che le somiglia» applicato all'IMPORT.
+* **Una controprova che riscrive un sorgente deve cancellare `__pycache__`**, o misura la versione
+  precedente - e il caso peggiore e' proprio quello in cui la si scrive bene, perche' una
+  sostituzione chirurgica conserva la lunghezza piu' spesso di una sciatta.
+
+E la diagnosi che avevo dato per prima era sbagliata: avevo attribuito il rosso all'albero in
+movimento (§53.8), che quel giorno era successo davvero ma non era questo. *Una causa gia' incontrata
+e' la prima a venire in mente ed e' anche la prima da verificare, non da assumere.*
+
+### 53.10 IL PAVIMENTO SU `top`: la prima dichiarazione che ne RITIRA una sua precedente
+
+Messo davanti al fatto che la sua ragione per Esposito F.P. non era scrivibile senza toccare
+Calhanoglu (§53.6), ha risposto **«ok va bene se costa Calhanoglu ... un top deve garantire almeno 25
+presenze»**. E' il caso piu' pulito di come questo progetto tratta una contraddizione fra due sue
+dichiarazioni: **non si sceglie per lui e non si aggira - si misura il prezzo e si chiede**, e quando
+decide, la regola ritirata resta a verbale con la sua data invece di sparire.
+
+`TOP_PLAYS` = **25/38**, una QUOTA come le due della banda delle scommesse (su un foglio di 33 giornate
+sono 21,7). Il ramo `top` era l'unico della cascata senza pavimento, e il commento che ci stava sopra
+dal 23/09 chiedeva di **CONTARE la popolazione prima di metterne uno**: contata,
+
+| | top+super | cadono a 25/38 | chi |
+|---|---|---|---|
+| Serie A | 27 | **4** | Calhanoglu 22,8 · Bisseck 23,5 · Adzic 23,8 · McTominay 24,5 |
+| euro | 51 | **17** | Bensebaini 17 · O'Reilly 22 · Laimer 25 · Orsolini 25 · Hakimi 26 · ... |
+
+Un terzo dei `top` di euro, che e' il prezzo grosso e va scritto qui invece di lasciarlo trovare. Chi
+cade **non precipita**: prende la parola che il suo livello gli da' senza quel ramo - Calhanoglu legge
+6,987 contro un `good` di 6,35 e diventa `solido`. E De Bruyne, l'altro nome con cui la parola era
+stata dettata («fragile, non puo' darti tante presenze»), gioca 26,6 e **resta dov'e'**: il pavimento
+separa i due casi che sembravano lo stesso.
+
+Il cancello dell'undici tipo resta dov'e' e non e' ridondante: risponde a «l'undici lo schiera?»,
+questo a «quante ne gioca», e i due si compongono.
+
+**E il test che difendeva Calhanoglu `top` e' stato RISCRITTO col suo nome e la data, non cancellato**
+- la riga sta ancora nella tabella dei verdetti dettati, con l'atteso nuovo e la ragione accanto -
+perche' una dichiarazione che sparisce dal file sparisce anche dalla discussione la prossima volta.
+
+### 53.11 Castro: la seconda sbarra che tagliava per millesimi, sullo stesso foglio
+
+«Perche' Castro e' uno scarto? Dovrebbe essere almeno una BOA.» Gioca **26,7 presenze su 38** e ha la
+media voto attesa che `boa` chiede (6,168 contro 5,94): gli mancava solo la quota, di **dodici
+millesimi**. `BOA_PLAYS` scende da 0,715 a **0,702**, fra lui e Locatelli (26,6), che e' il primo sotto
+di lui e che non ha nominato - la sbarra sta fra i casi e non sul bordo di quello che la richiede.
+
+Costo contato prima: **due righe sole** di Serie A attraversano, Castro e Adams A. (e il secondo finisce
+`scommessa` lo stesso, perche' non ha storico); su euro **nessuna**, perche' li' i `boa` di quella fascia
+arrivano gia' dal pavimento degli operai di `as_bet` e non da questa sbarra.
+
+E' la **seconda volta nella stessa giornata** che `BOA_PLAYS` si muove per millesimi (era 0,72 → 0,715
+per Piccoli, 0,7182) e la quinta volta nel repository. Il fatto che due nomi consecutivi cadano nello
+stesso modo su una sbarra fissata il giorno prima dice qualcosa sulla sbarra e non sui due uomini: la
+quota di calendario e' fitta in quella zona - fra 0,68 e 0,73 ci sono diciotto attaccanti di Serie A -
+quindi li' ogni millesimo separa qualcuno, e una sbarra scelta su un caso solo ne taglia un altro alla
+correzione successiva.
+
+**Verifica finale: 18 verdetti su 18** sugli attaccanti di Serie A, **17 righe mosse su 96**
+(super 2 · top 3 · semi 6 · promessa 8 · scommessa 25 · operaio 1 · boa 6 · scarto 36 · incognita 9).
+
+### 53.12 UNA SBARRA SU UNA COLONNA ARROTONDATA SI METTE NEL VUOTO, non sul valore che si legge
+
+**Il foglio rigenerato ha smentito la sbarra scritta un'ora prima, ed e' la ragione per cui si rigenera
+invece di fidarsi della simulazione.** `BOA_PLAYS` era stata portata a 0,702 per Castro S., scelta
+guardando la sua quota 23,2/33 = **0,70303**; sul foglio vero e' uscito `scarto`, mentre la funzione
+chiamata a mano con quello stesso 0,70303 rispondeva `boa`.
+
+La causa: **`engine_pv_pred` e' arrotondato a UN DECIMALE** (`_round(pv_pred, 1)`), quindi «23,2» non e'
+il suo valore, e' l'intervallo [23,15 · 23,25] - cioe' una quota vera fra **0,70152 e 0,70455**. La
+sbarra a 0,702 cadeva DENTRO quell'intervallo, e il valore vero le e' passato sotto. Quinta istanza
+dell'arrotondamento in questo repository, **commessa mentre si curava la quarta** e per giunta in due
+posti (anche lo 0,715 di Piccoli era scelto sul nominale, e ha funzionato per fortuna).
+
+**LA FORMA CHE REGGE SFRUTTA L'ARROTONDAMENTO INVECE DI SUBIRLO.** Due uomini consecutivi distano
+sempre `1/matchdays` = 3 millesimi, quindi fra loro c'e' un vuoto in cui **nessun valore vero puo'
+cadere**: Castro legge 23,2 e Busio, il primo sotto di lui, legge 23,0. La sbarra a **0,700** sta nel
+mezzo e non puo' sbagliare in nessuno dei due versi, qualunque sia il valore non arrotondato.
+
+Due corollari che valgono per ogni sbarra di questo modulo:
+* **Il costo si conta sul foglio vero e non sulla simulazione**: a 0,700 attraversa **una riga sola**
+  (Castro) e non le due che la simulazione prevedeva - Adams A. e' gia' `scommessa` per l'esenzione
+  senza storico, quindi non passa mai da `boa`.
+* **E i test asseriscono l'INTERVALLO e non il nominale**, che e' la sola cosa di cui si sappia che e'
+  vera: `for pv in (23.15, 23.20, 23.25)`. Un test scritto su 23,2/33 passerebbe anche con la sbarra
+  sbagliata, ed e' esattamente quello che e' successo.
+
+**Verifica finale, sul foglio rigenerato e non su una sonda: 12 nomi su 12**, revisione 75, tutte e tre
+le leghe dichiarate (562 righe Serie A classic e mantra, 953 euro). Conteggi Serie A classic: super 8 ·
+top 14 · semi 22 · promessa 26 · solido 5 · scommessa 142 · operaio 7 · boa 31 · scarto 231 ·
+incognita 76.
+
+**E UN ERRORE DI PROCEDURA, il quinto della giornata**: la prima rigenerazione e' stata lanciata
+`snapshot --no-refresh` senza `--league`, e quel comando NON gira sulle leghe dichiarate - ha costruito
+un foglio `euro/classic` a **8 squadre**, che non e' nessuna delle tre di `my_leagues`, in una cartella
+nuova, senza toccare i fogli veri. Otto minuti. *Un comando che ha un default plausibile e sbagliato
+non da' errore: si controlla la PRIMA riga del suo output, dove `snapshot` scrive la lega su cui sta
+lavorando.*

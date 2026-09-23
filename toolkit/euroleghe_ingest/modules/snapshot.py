@@ -839,7 +839,13 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      presenze») e Martinez DENTRO a 0,74.
 #      IL LIVELLO SI RI-MISCELA CON UNA K PER RUOLO (`categories.BLEND_K`), misurata leave-one-season-out
 #      su dieci stagioni: P 16,6 · D 32,6 · C 43,5 · A 18,5, cioe' a cinque giornate la stagione in corso
-#      pesa il 21-23% per attaccanti e portieri e il 10-13% per centrocampisti e difensori. Senza quella,
+#      pesa il 21-23% per attaccanti e portieri e il 10-13% per centrocampisti e difensori.
+#      ...E DAL 24/09/2026 L'ATTACCANTE CHE HA UNO STORICO STA SU UNA K DICHIARATA (`DECLARED_K` = 45,
+#      cioe' il 10%), perche' al 21% quattro verdetti dell'operatore erano SIMULTANEAMENTE impossibili;
+#      il prezzo e' misurato (+4,4% invece di +6,0% di guadagno sulla previsione, 10 stagioni su 10
+#      comunque migliori) e le due tabelle restano separate cosi' la misura si legge accanto alla
+#      dichiarazione. Chi non ha una fantamedia precedente resta sulla misurata: senza storico le
+#      cinque giornate sono la sola prova che esista. Senza quella,
 #      Varela e Pinamonti hanno la STESSA fantamedia (6,60 e 6,61) e finiscono in due parole diverse per
 #      un centesimo; con quella distano 36 percentili. L'engine non si muove: `engine_fm_pred` tiene la K
 #      di R25, e la K per ruolo dentro il motore e' una domanda GATATA da pre-registrare a parte.
@@ -895,10 +901,12 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      lui davanti al conteggio: ~210 uomini scendono in `scarto`, che smette di dire «non gioca
 #      abbastanza» e dice «e' misurato, e non vale un posto» - il che RITIRA la sua regola del 22/09
 #      «chi gioca non e' mai uno scarto». E i suoi due `riserva` dichiarati (Pinamonti, Douglas Luiz)
-#      diventano `boa`, il gradino nato per loro: `BOA_PLAYS` 0,80 -> 0,72 e `BOA_MARK` per PIATTAFORMA
+#      diventano `boa`, il gradino nato per loro: `BOA_PLAYS` 0,80 -> 0,72 (-> 0,715 il 24/09, perche'
+#      tagliava Piccoli per DUE millesimi: quarta volta che una sbarra si legge su un numero
+#      arrotondato) e `BOA_MARK` per PIATTAFORMA
 #      (5,94 / 6,10), chiuse dai loro numeri. Boa 33 e 42. `scommessa` resta a 7 e 14 per un limite di
 #      DATI e non di soglia: gli uomini non prezzati che hanno i due numeri sono 9 e 16 in tutto.
-SHEET_REVISION = 74
+SHEET_REVISION = 75
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -6465,7 +6473,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         # una categoria come porta un surplus: chi il core non prezza non e' senza parola.
         category_level = categories_engine.relevel(
             prediction.fm_pred if prediction and prediction.fm_pred is not None else guess.fm,
-            obs.pv_seen, obs.fm_seen, obs.role_classic, seen_matches(platform))
+            obs.pv_seen, obs.fm_seen, obs.role_classic, seen_matches(platform),
+            # ...e senza una fantamedia precedente non si ri-miscela: la K e' misurata su chi ne ha
+            # una, e per gli altri la base e' l'ancora del ruolo, cioe' un numero che non parla di
+            # loro. Stessa domanda che due righe sotto decide che sopra `solido` non si sale.
+            history=obs.fm_prev is not None)
         category_bars = categories_engine.bars_for(platform, obs.role_classic)
         category_pv = pv_pred if pv_pred is not None else guess.pv
         category = categories_engine.category_of(
@@ -8126,7 +8138,13 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                 (pv_share / data.matchdays_target)
                 if pv_share is not None and data.matchdays_target else None,
                 row.get("desc_category_level"),
-                categories_engine.potential_bar(platform, row.get("role_classic")))
+                categories_engine.potential_bar(platform, row.get("role_classic")),
+                # ...e il TETTO delle presenze non vale per chi qui non ha mai giocato (24/09/2026):
+                # e' una prova sulle SUE presenze, e le presenze di chi non ha una fantamedia
+                # precedente sono una previsione e non una misura. Stessa colonna con cui la cascata
+                # decide che senza storico non si sale sopra `solido`, letta dal punto in cui la riga
+                # e' gia' scritta.
+                history=row.get("why_fm_prev") is not None)
             if row["desc_category"] != was:
                 bets += 1
         _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)

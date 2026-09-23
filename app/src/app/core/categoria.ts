@@ -119,7 +119,7 @@ export function categoriaRank(category: string | null | undefined): number | nul
  * La frase intera: la parola, la promessa e i numeri che l'hanno decisa. Null se il foglio non la porta.
  *
  * `level` è la sua fantamedia attesa ri-miscelata e `bars` le quattro sbarre del suo ruolo, come
- * «6.87/6.97/7.09/7.61». Una `scommessa` non ha livello da mostrare - è la definizione - quindi la frase
+ * «6.78/6.90/7.10/7.55». Una `scommessa` non ha livello da mostrare - è la definizione - quindi la frase
  * lo dice invece di stampare un trattino accanto a quattro sbarre che non la riguardano.
  */
 export function categoriaNote(

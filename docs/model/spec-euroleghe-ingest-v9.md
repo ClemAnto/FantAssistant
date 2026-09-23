@@ -495,6 +495,76 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.102 (24 settembre 2026 — LA K DELL'ATTACCANTE È UNA DICHIARAZIONE, E VALE SOLO DOVE C'È UNO STORICO)
+
+**Nove correzioni dell'operatore sulle categorie, tutte su attaccanti** (dettaglio, tabelle e misure:
+`letture-app-v1.md` §53). `SHEET_REVISION` 75; `engine_*` non si muove di un decimale, perché
+`evaluate` non importa `categories`, quindi `backtest --verify` resta **22/22**.
+
+**QUATTRO DEI SUOI VERDETTI ERANO SIMULTANEAMENTE IMPOSSIBILI, e il primo lavoro è stato dimostrarlo
+invece di cercare una cura.** «Simeone è un SEMITOP perché ha una ottima FM dell'anno scorso» (storico
+7,25, cinque giornate a 5,70, leggeva `operaio`) e «Maldini è una PROMESSA perché ha una FM dello
+scorso anno troppo bassa per essere un SEMITOP» (6,39 e 8,40, leggeva `semi`) sono la stessa frase
+detta con nomi opposti: dentro il livello di un attaccante le cinque giornate pesavano il **21%**,
+abbastanza da rovesciare l'ordine dello storico. Misurata la finestra di pesi in cui esistono due
+sbarre che soddisfano i suoi nomi più quelli già dichiarati, è `w` ∈ [0,075 · 0,125] e **0,213 non ne
+ammette nessuna**.
+
+**`categories.DECLARED_K` = {"A": 45.0}, separata da `BLEND_K` che resta la misura.** Il prezzo è
+misurato e citato con la sua direzione: la previsione della fantamedia del resto di stagione passa da
++6,0% a **+4,4%** sulla sola stagione scorsa (MAE 0,5920 → 0,6019, un centesimo su una dispersione di
+0,63), **10 stagioni su 10** comunque migliori del baseline, curva piatta fra K = 20 e 60. Le due
+tabelle sono separate apposta: una dichiarazione che cancella una misura la fa sparire dal verbale.
+
+**E VALE SOLO DOVE C'È UNO STORICO DA PESARE, misurato nei DUE versi prima di scegliere.** Senza una
+stagione precedente il peso non risponde a «quanto contano cinque giornate contro il suo passato» ma
+a «quanto contano contro l'ANCORA DEL RUOLO», cioè contro la costante «nessuno l'ha mai visto
+giocare»: lì quelle giornate sono la sola prova che esista su di lui. Con la K dichiarata applicata a
+tutti, Kvernadze (6,911 → 6,654) e Varela G. (6,878 → 6,601) — i due `solido` che aveva dichiarato il
+22/09 — cadevano in `scommessa`; togliendo del tutto il re-blend leggevano **gli stessi due numeri**,
+perché il livello del foglio quel re-blend ce l'ha già dentro.
+
+**Le cinque sbarre dell'attaccante sono rimisurate** (la quantità è cambiata, e le due metà di un
+confronto vengono dalla stessa quantità): percentili identici agli altri ruoli, poi i casi dichiarati
+fissano il valore — `semi` 6,90 fra Maldini e Simeone, `top` 7,10 fra Esposito F.P. e Hojlund, `sup`
+7,55 fra Thuram e Martinez L., `good` 6,78 sotto Maldini, `low` 6,742 al percentile.
+
+**Due sbarre tagliavano per millesimi, quarta istanza dopo Scamacca, Svilar e Varela**: `BOA_PLAYS`
+0,72 → **0,715** (Piccoli gioca lo 0,7182 e la MV ce l'aveva; `PLAYS_ALWAYS` resta 0,72, perché due
+costanti con lo stesso numero rispondevano a due domande) e `POTENTIAL_BARS["default"]["A"]` 6,561 →
+**6,540** (Tourè E. legge 6,549 e la mediana nuova cade a 6,549 esatti).
+
+**`as_bet` prende `history`**: il tetto delle presenze di una `scommessa` non vale per chi in Serie A
+non ha mai giocato, perché è una prova sulle SUE presenze e le presenze di chi non ha giocato qui sono
+una previsione — cioè la cosa su cui si scommette. Prende Kolo Muani, Adams A. e Tourè E.; **Castro S.
+resta `scarto` e il prezzo è dichiarato**, perché l'altra forma (tetto a 29/38) lo prendeva ma faceva
+scendere `operaio` da 5 attaccanti a 1.
+
+**Verifica: 17 verdetti su 17** sui 96 attaccanti del foglio del 23/09, 16 righe mosse su 96, gli
+altri tre ruoli fermi al decimale, `euro` inerte per costruzione (R25 non è adottata là, quindi
+`relevel` restituisce il livello intatto). Controprova fatta **rimettendo ogni difetto uno per volta**:
+cadono esattamente i test che descrivono ciascuna cura e nessun altro.
+
+**E UNA SUA RAGIONE NON ERA IMPLEMENTABILE, il che è stato messo davanti a lui invece che aggirato**:
+alla domanda su Esposito F.P. ha risposto «ha poche presenze previste», e nessun pavimento di presenze
+lo toglie da `top` senza togliere anche Calhanoglu, che lui ha dichiarato `top` proprio come «fuori
+scala e non gioca abbastanza» e che gioca **meno** di lui (22,8 presenze su 38 contro 25,3). Messo
+davanti al prezzo ha deciso: **«ok va bene se costa Calhanoglu — un top deve garantire almeno 25
+presenze»**. `TOP_PLAYS` = 25/38, una quota come le due della banda; cadono **4 top di 27** su Serie A
+e **17 di 51** su euro, che è un terzo e va detto. Chi cade non precipita (Calhanoglu diventa `solido`)
+e De Bruyne, l'altro nome della parola, gioca 26,6 e resta dov'è. **La dichiarazione del 22/09 è
+ritirata con la sua data**, e il test che la difendeva è riscritto e non cancellato.
+
+**E `BOA_PLAYS` si è mossa DUE volte nella stessa giornata, sempre per millesimi**: 0,72 → 0,715 per
+Piccoli (0,7182) e → **0,700** per Castro S. («perché Castro è uno scarto? dovrebbe essere almeno
+una BOA»). Il secondo valore era stato scritto 0,702 e **il foglio rigenerato lo ha smentito**:
+`engine_pv_pred` è arrotondato a un decimale, quindi il «23,2» di Castro è l'intervallo
+[0,70152 · 0,70455] e la sbarra ci cadeva dentro. La forma che regge sfrutta l'arrotondamento invece
+di subirlo — fra due valori consecutivi c'è un vuoto di `1/matchdays` in cui nessun valore vero può
+cadere, e 0,700 sta fra il 23,0 di Busio e il 23,2 di Castro. **Una riga sola attraversa**, e i test
+asseriscono l'intervallo e non il nominale. *Su una quantità che viene da una colonna arrotondata non
+si fissano sbarre a millesimi.*
+
 ## Novità v9.101 (22-23 settembre 2026 — LA STAGIONE PIENA VIAGGIA NEL MANIFEST)
 
 **Una riga in `export`, e il resto della sessione è nell'app** (`letture-app-v1.md` §50). Dalla domanda

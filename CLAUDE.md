@@ -6911,6 +6911,65 @@ Tre abitudini piu' piccole, tutte pagate in quella sessione.
   Le colonne le decide il budget (`String(max).length`), che e' la sola forma che non mente su nessuna
   taglia di lega.
 
+## Quattro verdetti dell'operatore possono essere IMPOSSIBILI insieme, e dimostrarlo e' il primo lavoro
+**24/09/2026, dalle sue nove correzioni sulle categorie. Dettaglio: `letture-app-v1.md` §53, spec
+«Novita' v9.102».** Due delle sue frasi erano la stessa detta con nomi opposti — Simeone (storico 7,25,
+cinque giornate a 5,70) doveva SALIRE a `semi` e Maldini (6,39 e 8,40) doveva SCENDERE da `semi` — e al
+peso in vigore **non esisteva nessuna coppia di sbarre** che le soddisfacesse entrambe. Prima di cercare
+una cura si misura la FINESTRA in cui i suoi nomi sono simultaneamente soddisfacibili: qui `w` fra 0,075
+e 0,125 contro lo 0,213 in vigore, e quel numero *e'* la cura. *Quando due richieste si contraddicono, il
+risultato utile non e' scegliere: e' il numero che dice di quanto si contraddicono.*
+
+**UNA COSTANTE MISURATA PUO' CEDERE A UNA DICHIARAZIONE, e allora le due restano SEPARATE.** `BLEND_K`
+tiene l'ottimo fuori campione e `DECLARED_K` la sua decisione, perche' una dichiarazione che sovrascrive
+una misura la fa sparire dal verbale e il prossimo che rimisura non sa da dove ci si e' mossi. Il prezzo
+si cita dopo aver **riprodotto i numeri pubblicati** (qui: la previsione passa da +6,0% a +4,4% sulla
+sola stagione scorsa, 10 stagioni su 10 comunque migliori, curva piatta fra K 20 e 60). E la ragione per
+cui non e' un capriccio e' che sono **due domande**: la K e' misurata per PREVEDERE una fantamedia,
+mentre la parola deve dire CHE GIOCATORE E' — e quello che sta facendo adesso ha gia' la sua parola.
+
+**E UNA DICHIARAZIONE VALE SOLO DOVE LA SUA DOMANDA HA SENSO.** La K nuova si applica a chi ha una
+stagione precedente; senza, la base e' l'ANCORA DEL RUOLO e pesarla di piu' non da' peso allo storico,
+lo da' al nulla — misurato nei due versi prima di scegliere, perche' la prima stesura aveva la direzione
+sbagliata e faceva cadere due suoi nomi dichiarati.
+
+**UNA SUA RAGIONE PUO' ESSERE NON IMPLEMENTABILE, e allora si misura e si chiede.** Per Esposito F.P.
+aveva risposto «ha poche presenze previste», e nessun pavimento lo toglie da `top` senza togliere
+Calhanoglu, che gioca MENO di lui ed era `top` dichiarato. Messo davanti al conto ha scelto il pavimento
+(«ok va bene se costa Calhanoglu»). **La dichiarazione ritirata resta a verbale con la data e il test che
+la difendeva si RISCRIVE invece di sparire**: una regola cancellata dal file e' una regola che alla
+prossima discussione nessuno sa di aver gia' avuto.
+
+## Una sbarra su una colonna ARROTONDATA si mette nel VUOTO, non sul valore che si legge
+**24/09/2026, quinta istanza dell'arrotondamento in questo repository e commessa mentre si curava la
+quarta.** `BOA_PLAYS` era stata portata a 0,702 per un uomo la cui quota leggeva 23,2/33 = 0,70303; sul
+foglio rigenerato usciva `scarto` mentre la funzione chiamata a mano diceva `boa`. `engine_pv_pred` e'
+arrotondato a **un decimale**, quindi «23,2» non e' un valore, e' l'intervallo [0,70152 · 0,70455], e la
+sbarra ci cadeva dentro.
+**La forma che regge SFRUTTA l'arrotondamento invece di subirlo**: due valori consecutivi distano sempre
+`1/matchdays`, quindi fra loro c'e' un vuoto in cui nessun valore vero puo' cadere, e la sbarra si mette
+al centro di quello. Due corollari: **i test asseriscono l'INTERVALLO e non il nominale** (un test scritto
+su 23,2/33 passa anche con la sbarra sbagliata, ed e' esattamente quello che era successo), e **il costo
+si conta sul foglio rigenerato e non sulla simulazione** — la simulazione ne prevedeva due, ne attraversa
+uno.
+
+**E LA RIGENERAZIONE E' PARTE DELLA VERIFICA, non una formalita' dopo.** Il foglio ha smentito una sbarra
+scritta un'ora prima e una sonda che diceva 17 verdetti su 17: la sonda usava la quota nominale, il
+codice il valore vero. *Una simulazione che legge le colonne di un artefatto misura le colonne, non il
+codice che le scrive.*
+
+**Tre trappole di strumento della stessa giornata, tutte gia' scritte altrove e incontrate di nuovo.**
+Un `__pycache__` resta valido quando una sostituzione **conserva la lunghezza** e avviene **nello stesso
+secondo** (Python confronta mtime al secondo e dimensione): due suite rosse su un file giusto, e la cura
+e' cancellare il bytecode dopo ogni controprova che riscrive un sorgente — quando un test cade e il
+sorgente sembra giusto, **si stampa il valore come il PROCESSO lo vede** prima di rileggere il codice.
+`snapshot --no-refresh` **senza `--league` non gira sulle leghe dichiarate**: costruisce un foglio
+euro/classic a 8 squadre in una cartella nuova senza toccare i fogli veri — *un comando con un default
+plausibile e sbagliato non da' errore, quindi si legge la PRIMA riga del suo output, dove dichiara su
+cosa sta lavorando.* E la simulazione che ha guidato tutta la giornata leggeva `engine_fm_pred` senza il
+ripiego su `est_fm`, cioe' sbagliava il livello di ~176 righe su 562: a trovarlo non e' stata una
+rilettura ma **un guardiano che e' caduto** dicendo il contrario di quello che la simulazione stampava.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

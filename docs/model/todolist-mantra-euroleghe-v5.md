@@ -1,5 +1,38 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 24 settembre 2026 — la ritaratura delle categorie
+
+Dettaglio: `letture-app-v1.md` §53, spec «Novita' v9.102».
+
+**CHIUSI**: i nove verdetti dell'operatore sulle categorie (piu' i nove gia' dichiarati, 12 su 12
+verificati sul foglio rigenerato); il peso delle giornate giocate dentro il livello di un attaccante
+(`DECLARED_K` = 45, solo dove c'e' uno storico); il pavimento di presenze su `top` (`TOP_PLAYS` =
+25/38, con Calhanoglu ritirato da lui); le due sbarre che tagliavano per millesimi; il tetto delle
+scommesse che non vale per chi in Serie A non ha mai giocato.
+
+1. **[ ] `operaio` FRA GLI ATTACCANTI E' A 7 RIGHE E `solido` A 5**, contro i «~15 per ruolo» che ha
+   chiesto il 23/09. Non e' un effetto di questa sessione — `as_bet` converte in `scommessa` o fa
+   scendere a `boa` quasi tutto quello che sta fra `low` e `good`, e succedeva gia' prima — ma la sua
+   richiesta su quel ruolo non e' rispettata e va messa davanti a lui con il conto. Le due strade
+   misurabili: restringere la banda della scommessa (che pero' e' appena stata allargata per i suoi
+   nomi), oppure accettare che su un ruolo la taglia sia un'altra e dirlo.
+
+2. **[ ] IL PAVIMENTO `top` TOGLIE UN TERZO DEI `top` DI EURO** (17 righe di 51, contro 4 di 27 su
+   Serie A). E' applicato su tutt'e due le piattaforme perche' la sua frase e' assoluta e perche' e'
+   una QUOTA, ma i nomi su cui l'ha decisa sono tutti di Serie A. Se intendeva la sola Serie A e' una
+   riga, e allora `TOP_PLAYS` diventa una tabella per piattaforma come `BOA_MARK`.
+
+3. **[ ] IL PORTIERE HA LA STESSA FORMA DELL'ATTACCANTE E NON E' STATO TOCCATO.** `BLEND_K["P"]` =
+   16,6, cioe' il 23% alle cinque giornate — il peso piu' alto della tabella dopo quello che l'operatore
+   ha appena fatto scendere. Non c'e' nessun suo verdetto su un portiere da riprodurre, quindi non si
+   muove nulla senza di lui; ma se la ragione della cura (la parola deve dire che giocatore e', non cosa
+   sta facendo) vale per un attaccante, vale anche per lui.
+
+4. **[ ] R28 — LA K PER RUOLO DENTRO IL MOTORE**, da pre-registrare come sempre. Ha ora un vicino che
+   non aveva: se il gate la adottasse, `relevel` diventerebbe l'identita' per la parte misurata e
+   `DECLARED_K` andrebbe **rimisurata o tolta**, o conterebbe due volte. La misura che esiste e' sul
+   predittore NUDO, e un baseline piu' debole fa sembrare un canale piu' forte (la lezione di R24).
+
 ## Aperti alla chiusura del 23 settembre 2026 — la plancia che non si schiaccia, e le barre che si piegano
 
 Dettaglio: `assistente-asta-v1.md` §45, `letture-app-v1.md` §51.

@@ -21,7 +21,12 @@ DETTATI = [
     ("Svilar", "P", 5.329, 0.90, True, None, "super"),        # un portiere PUO' essere supertop (sua parola)
     # TOP: il meglio del ruolo, oppure fuori scala ma troppo fragile per giocare.
     ("De Bruyne", "C", 6.800, 0.70, True, None, "top"),          # «fragile, non puo' darti tante presenze»
-    ("Calhanoglu", "C", 6.987, 0.60, True, None, "top"),         # 1o centrocampista del listone, gioca 0.60
+    # CALHANOGLU E' STATO RITIRATO DA LUI IL 24/09/2026, e la riga resta col suo nome invece di sparire:
+    # «ok va bene se costa Calhanoglu ... un top deve garantire almeno 25 presenze». Era il caso su cui
+    # il ramo `top` non aveva pavimento (1o centrocampista del listone e 22,8 presenze su 38); messo
+    # davanti al prezzo di metterne uno, ha scelto il pavimento. Ora e' `solido` - il livello che ha,
+    # senza il ramo `top` - e De Bruyne, che gioca 26,6, resta dove lui lo aveva messo.
+    ("Calhanoglu", "C", 6.987, 0.60, True, None, "solido"),
     ("Rabiot", "C", 6.692, 0.79, True, None, "top"),
     ("Hojlund", "A", 7.105, 0.86, True, None, "top"),
     # SEMITOP, BUONO, TAPPABUCHI.
@@ -156,9 +161,15 @@ def test_la_ri_miscela_pesa_la_stagione_in_corso_piu_per_gli_attaccanti():
     Due uomini con la STESSA fantamedia sul foglio (6,60) e due stagioni in corso opposte devono
     finire lontani: e' il caso Varela/Pinamonti, che sul foglio distano un centesimo.
     """
-    bene = cat.relevel(6.60, 4, 9.5, "A", 40.0)      # Varela: sta rendendo adesso
-    male = cat.relevel(6.61, 4, 5.75, "A", 40.0)     # Pinamonti: no
+    # Tutt'e due senza una fantamedia precedente, che e' cio' che li mette sulla K MISURATA: sono
+    # nuovi arrivati, e le cinque giornate sono la sola prova che esista su di loro.
+    bene = cat.relevel(6.60, 4, 9.5, "A", 40.0, history=False)   # Varela: sta rendendo adesso
+    male = cat.relevel(6.61, 4, 5.75, "A", 40.0, history=False)  # Pinamonti: no
     assert bene > 6.87 > male
+    # ...E CON UNO STORICO DA PESARE LA RISPOSTA E' UN'ALTRA, dal 24/09/2026: gli stessi due numeri
+    # sotto `DECLARED_K` si avvicinano fin quasi a scambiarsi, ed e' esattamente cio' che lui ha
+    # chiesto guardando Maldini (8,40 in cinque giornate, storico 6,39) contro Simeone (5,70 e 7,25).
+    assert cat.relevel(6.60, 4, 9.5, "A", 40.0) < cat.relevel(6.61, 4, 5.75, "A", 40.0)
     # ...e lo stesso scarto pesa MENO per un centrocampista, che e' la misura
     scarto_a = cat.relevel(6.60, 5, 9.0, "A", 40.0) - 6.60
     scarto_c = cat.relevel(6.60, 5, 9.0, "C", 40.0) - 6.60
@@ -506,3 +517,149 @@ def test_la_scommessa_riproduce_i_nomi_che_ha_dettato():
     assert word("operaio", 22.0, 6.100) == cat.BOA
     # ...e sotto le 15 giornate non si e' nemmeno una scommessa, che e' l'altra sua dichiarazione.
     assert word("scarto", 14.0, 7.000) == "scarto"
+
+
+def test_i_quattro_verdetti_del_24_settembre_sulla_parte_alta():
+    """SIMEONE `semi`, DAVIS K. COME SCAMACCA, MALDINI `promessa`, ESPOSITO F.P. FUORI DA `top`.
+
+    Sono una dichiarazione sola detta con nomi opposti - «Simeone ha una ottima FM dell'anno scorso» e
+    «Maldini ha una FM dello scorso anno troppo bassa per essere un SEMITOP» - e al peso vecchio
+    (`BLEND_K["A"]` = 18,5, cioe' il 21% alle cinque giornate) erano SIMULTANEAMENTE IMPOSSIBILI:
+    Maldini leggeva 6,992 di livello e Simeone 6,756, cioe' l'ordine rovesciato rispetto al loro
+    storico (6,61 contro 7,04). I livelli qui sono quelli che la K nuova produce sul foglio vero.
+
+    RIMETTENDO IL DIFETTO (K = 18,5) questo test cade su Simeone e su Maldini, che e' il punto: la
+    controprova e' che la coppia non si possa soddisfare senza la cura.
+    """
+    bars = cat.bars_for("default", "A")
+    # i tre `semi`: Scamacca era gia' suo, Simeone e Davis K. arrivano con la cura
+    assert cat.category_of(0.718, 7.080, bars) == cat.SEMI            # Scamacca
+    assert cat.category_of(0.821, 6.907, bars) == cat.SEMI            # Simeone
+    assert cat.category_of(0.718, 6.985, bars, form=True) == cat.SEMI  # Davis K., come Scamacca
+    # Maldini: il livello alto e' la fiammata di cinque giornate, lo storico no -> `promessa`
+    assert cat.category_of(0.688, 6.790, bars, form=True) == cat.PROMESSA
+    # Esposito F.P.: «non puo' essere un top». Il suo 8,25 di fantavoto in quattro partite pesa meno,
+    # e le 22 presenze previste lo tengono sotto `semi` (`PLAYS_A_LOT`), quindi cade su `promessa`.
+    assert cat.category_of(0.667, 7.048, bars, form=True) == cat.PROMESSA
+    # ...E LE DICHIARAZIONI DI IERI RESTANO IN PIEDI, che e' la meta' che rende la cura adottabile.
+    assert cat.category_of(0.864, 7.106, bars) == cat.TOP             # Hojlund
+    assert cat.category_of(0.688, 7.460, bars) == cat.TOP             # Thuram
+    assert cat.category_of(0.736, 7.712, bars) == cat.SUPER           # Martinez L.
+    assert cat.category_of(0.794, 8.184, bars) == cat.SUPER           # Malen
+
+
+def test_la_k_dell_attaccante_e_una_dichiarazione_e_non_il_suo_ottimo():
+    """L'unica riga di `BLEND_K` che non sta sull'ottimo misurato, e il test dice perche' esiste.
+
+    A K = 18,5 le cinque giornate pesano il 21% e nessuna coppia di sbarre soddisfa i suoi nomi; a 45
+    ne pesano il 10% e tutti e diciotto i verdetti tornano. Il prezzo e' scritto accanto alla costante
+    (+4,4% invece di +6,0% sulla previsione, 10 stagioni su 10 comunque migliori del baseline).
+
+    L'INVARIANTE ASSERITA E' QUELLA CHE DECIDE: a cinque giornate lo storico deve pesare almeno otto
+    volte le partite viste, o Maldini (6,61 di base, 8,40 in cinque partite) torna sopra Simeone (7,04
+    e 5,70) e la coppia di verdetti si rompe di nuovo.
+    """
+    k = 5.0
+    peso = k / (k + cat.DECLARED_K["A"])
+    assert peso <= 0.125, "sopra il 12,5% i verdetti del 24/09 non sono soddisfacibili"
+    assert peso >= 0.075, "sotto il 7,5% Scamacca scavalca Hojlund e diventa `top`"
+    maldini = peso * 8.40 + (1 - peso) * 6.611
+    simeone = peso * 5.70 + (1 - peso) * 7.041
+    assert maldini < simeone, "lo storico deve decidere l'ordine, non le cinque giornate"
+
+
+def test_chi_non_ha_giocato_qui_non_ha_il_tetto_delle_presenze():
+    """Sua scelta del 24/09/2026 fra due forme misurate: Kolo Muani, Adams A. e Tourè E. sono
+    scommesse con 26,7-28,8 presenze previste su 38, cioe' oltre il tetto della banda, e non hanno una
+    fantamedia precedente in Serie A. Il tetto e' una prova sulle SUE presenze e le presenze di chi non
+    ha mai giocato qui sono una previsione, non una misura.
+
+    IL PREZZO E' ASSERITO INSIEME AL GUADAGNO: Castro S. ha uno storico (6,71) e 26,7 presenze, quindi
+    resta dove la cascata lo mette - lui lo aveva chiesto come scommessa e ha scelto questa forma
+    sapendolo, contro l'altra che svuotava `operaio`.
+    """
+    bar = cat.potential_bar("default", "A")
+    def word(now, pv38, level, history):
+        return cat.as_bet(now, pv38 / 38.0, level, bar, history=history)
+
+    assert word("boa", 28.8, 6.584, False) == cat.SCOMMESSA      # Kolo Muani
+    assert word("operaio", 26.7, 6.698, False) == cat.SCOMMESSA  # Adams A.
+    assert word("scarto", 25.9, 6.549, False) == cat.SCOMMESSA   # Tourè E., sulla sbarra al millesimo
+    # ...e con lo storico lo stesso uomo alle stesse presenze resta dov'e': e' `history` a decidere
+    assert word("scarto", 26.7, 6.656, True) == "scarto"         # Castro S., il prezzo dichiarato
+    # IL PAVIMENTO INVECE VALE PER TUTTI, storico o no: sotto le 15 giornate non si scommette.
+    assert word("scarto", 14.0, 7.000, False) == "scarto"
+    # ...e senza potenziale l'esenzione non promuove nessuno, o direbbe «ottimi presupposti» di chi
+    # non ne ha: un operaio senza storico scende, esattamente come dentro la banda.
+    assert word("operaio", 30.0, 6.100, False) == cat.BOA
+
+
+def test_piccoli_e_una_boa_e_la_sbarra_tagliava_per_due_millesimi():
+    """Sua risposta del 24/09/2026 su «Piccoli e' una BOA o una SCOMMESSA?»: mancava DUE MILLESIMI di
+    quota (0,7182 contro 0,72) e ne aveva la media voto (5,977 contro 5,94). Quarta volta che una
+    sbarra di questo repository taglia su un numero arrotondato.
+
+    La sbarra sta FRA lui e Pinamonti (0,721) e non sul bordo, e `PLAYS_ALWAYS` resta dov'era: due
+    costanti con lo stesso numero rispondevano a due domande.
+    """
+    bars, mark = cat.bars_for("default", "A"), cat.BOA_MARK["default"]
+    # Tutto l'intervallo che il suo 23,7 rappresenta, non il nominale: vedi il test di Castro per la
+    # ragione, che e' costata una rigenerazione del foglio.
+    for pv in (23.65, 23.70, 23.75):
+        assert cat.category_of(pv / 33.0, 6.550, bars, mv=5.977, boa_mark=mark) == cat.BOA, pv
+    assert cat.BOA_PLAYS < 23.65 / 33.0 < cat.PLAYS_ALWAYS
+    # ...e non ha allargato la porta a chi gioca meno: 22,9 resta fuori in tutto il suo intervallo.
+    for pv in (22.85, 22.90, 22.95):
+        assert cat.category_of(pv / 33.0, 6.550, bars, mv=5.977, boa_mark=mark) == cat.SCARTO, pv
+
+
+def test_un_top_garantisce_venticinque_presenze_e_calhanoglu_e_ritirato():
+    """«Ok va bene se costa Calhanoglu ... un top deve garantire almeno 25 presenze» (24/09/2026).
+
+    E' la prima dichiarazione di questo modulo che ne RITIRA una precedente: il 22/09 Calhanoglu era
+    `top` proprio in quanto «fuori scala e non gioca abbastanza», e la misura gli ha messo davanti che
+    nessun pavimento di presenze toglie Esposito F.P. (25,3 su 38) senza togliere anche lui (22,8).
+    Messo davanti al prezzo, ha scelto il pavimento.
+
+    IL TEST TIENE TUTT'E DUE LE META': chi cade e chi resta. Un pavimento asserito solo dai nomi che
+    cadono passerebbe anche a 30 presenze, cioe' non direbbe dove sta.
+    """
+    bars_c, bars_a = cat.bars_for("default", "C"), cat.bars_for("default", "A")
+    assert bars_c is not None and bars_a is not None
+    # Calhanoglu: il livello da `top` ce l'ha (6,987 contro una sbarra di 6,53) e le presenze no
+    assert 6.987 >= bars_c[3]
+    assert cat.category_of(22.8 / 38.0, 6.987, bars_c) != cat.TOP
+    # ...e non precipita: prende la parola che il suo livello gli da' senza quel ramo
+    assert cat.category_of(22.8 / 38.0, 6.987, bars_c) == cat.SOLIDO
+    # gli altri tre che cadono con lui, tutti sotto le 25 presenze
+    for pv38 in (23.5, 23.8, 24.5):
+        assert cat.category_of(pv38 / 38.0, 7.200, bars_a) != cat.TOP
+    # E CHI RESTA: Esposito F.P. a 25,3 supera il pavimento - esce da `top` per il LIVELLO e non per
+    # le presenze, che e' la ragione per cui questa cura e quella sulla K sono due cose diverse.
+    assert 25.3 / 38.0 >= cat.TOP_PLAYS
+    assert cat.category_of(25.3 / 38.0, 7.200, bars_a) == cat.TOP
+    # ...e Hojlund, che gioca lo 0,864, non lo sfiora
+    assert cat.category_of(0.864, 7.106, bars_a) == cat.TOP
+
+
+def test_castro_e_almeno_una_boa():
+    """«Perche' Castro e' uno scarto? Dovrebbe essere almeno una BOA» (operatore, 24/09/2026).
+
+    Gioca **26,7 presenze su 38** e ha la media voto attesa che `boa` chiede (6,168 contro 5,94): gli
+    mancava solo la quota, di dodici millesimi. La sbarra scende FRA lui e Locatelli (26,6), che e' il
+    primo sotto di lui e che non ha nominato.
+    """
+    bars, mark = cat.bars_for("default", "A"), cat.BOA_MARK["default"]
+    # LA QUOTA E' `engine_pv_pred / matchdays` E QUELLA COLONNA E' ARROTONDATA A UN DECIMALE, quindi il
+    # suo valore VERO non e' 23,2/33 ma un punto qualsiasi dell'intervallo che quel 23,2 rappresenta.
+    # La prima stesura metteva la sbarra a 0,702 leggendo il nominale, e sul foglio rigenerato Castro
+    # usciva `scarto` mentre la funzione chiamata a mano diceva `boa`: il test asserisce quindi TUTTO
+    # l'intervallo, che e' la sola cosa di cui si sappia che e' vera.
+    for pv in (23.15, 23.20, 23.25):
+        assert cat.category_of(pv / 33.0, 6.718, bars, mv=6.168, boa_mark=mark) == cat.BOA, pv
+    # ...e la sbarra sta nel VUOTO che l'arrotondamento garantisce: fra il 23,0 di Busio e il 23,2 di
+    # Castro non puo' esserci nessuno, perche' due valori consecutivi distano 1/33.
+    assert 23.15 / 33.0 > cat.BOA_PLAYS > 23.05 / 33.0
+    # ...e non ha aperto la porta a chi gioca meno: Busio, 23,0, resta fuori in tutto il suo intervallo
+    for pv in (22.95, 23.00, 23.05):
+        assert cat.category_of(pv / 33.0, 6.718, bars, mv=5.966, boa_mark=mark) == cat.SCARTO, pv

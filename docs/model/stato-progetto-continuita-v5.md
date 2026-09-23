@@ -1,5 +1,15 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 23 settembre 2026 — LA PLANCIA NON SI SCHIACCIA PIU', E LE DUE BARRE IN BASSO SI PIEGANO.** Due richieste sue in fila, tutte e due di INTERFACCIA: «per altezze non sufficienti della pagina visualizza i nomi dei calciatori accavallati, impostiamo un'altezza minima e permettiamo lo scroll verticale quando necessario», poi «i menu' in basso siano position fixed e non occupino spazio nella pagina ... e collassabili». Dettaglio: `assistente-asta-v1.md` §45, `letture-app-v1.md` §51. Nessun numero del motore si muove: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto fermo.
+**Aggiornato: 24 settembre 2026 — QUATTRO SUOI VERDETTI ERANO IMPOSSIBILI INSIEME, E LA CAUSA ERA UNA SOLA.** Nove correzioni sue sulle categorie, tutte su attaccanti, tutte trovate a schermo. Dettaglio: `letture-app-v1.md` §53, spec «Novita' v9.102». `SHEET_REVISION` 75, `engine_*` fermo (`evaluate` non importa `categories`), `backtest --verify` 22/22.
+IL PRIMO LAVORO E' STATO DIMOSTRARE CHE NON ERANO SODDISFACIBILI, invece di cercare una cura. «Simeone e' un SEMITOP perche' ha una ottima FM dell'anno scorso» (storico 7,25, cinque giornate a 5,70, leggeva `operaio`) e «Maldini e' una PROMESSA perche' ha una FM dello scorso anno troppo bassa per essere un SEMITOP» (6,39 e 8,40, leggeva `semi`) sono la stessa frase con nomi opposti: dentro il livello di un attaccante le cinque giornate pesavano il **21%**, abbastanza da rovesciare l'ordine dello storico. Misurata la finestra di pesi in cui esistono due sbarre che soddisfano i suoi nomi piu' quelli gia' dichiarati: `w` ∈ [0,075 · 0,125], e **a 0,213 non ce n'e' nessuna**, ne' su `semi` ne' su `top`.
+ADOTTATO `categories.DECLARED_K` = {"A": 45}, **separata da `BLEND_K` che resta la misura** — una dichiarazione che cancella una misura la fa sparire dal verbale. Prezzo misurato dopo aver RIPRODOTTO i numeri pubblicati (P +6,8% · D +2,7% · C +1,8% · A +6,0%): la previsione della fantamedia del resto di stagione passa da **+6,0% a +4,4%** sulla sola stagione scorsa, 10 stagioni su 10 comunque migliori, curva piatta fra K 20 e 60. La ragione per cui non e' un capriccio: **la K e' misurata per PREVEDERE, la parola deve dire CHE GIOCATORE E'** — e quello che sta facendo adesso ha gia' la sua parola, `promessa`. Al peso vecchio la stagione in corso entrava DUE VOLTE.
+E VALE SOLO DOVE C'E' UNO STORICO, misurato nei DUE versi prima di scegliere: senza una stagione precedente la base e' l'ANCORA DEL RUOLO, quindi pesarla di piu' da' peso al nulla. Con la K dichiarata applicata a tutti, Kvernadze e Varela G. — i due `solido` del 22/09 — cadevano in `scommessa`; togliendo del tutto il re-blend leggevano gli stessi due numeri, perche' il livello del foglio quel re-blend ce l'ha gia' dentro.
+LE ALTRE TRE CURE: sbarre attaccanti rimisurate (percentili come gli altri ruoli, poi i casi dichiarati fissano il valore: `semi` 6,90 fra Maldini e Simeone, `top` 7,10 fra Esposito F.P. e Hojlund); **`as_bet` prende `history`** — il tetto delle presenze non vale per chi in Serie A non ha mai giocato, perche' e' una prova sulle SUE presenze e le presenze di chi non ha giocato qui sono una previsione; e due sbarre spostate per millesimi.
+POI LUI HA DECISO DUE COSE GUARDANDO IL PREZZO. **`TOP_PLAYS` = 25/38**: la ragione che aveva dato per Esposito F.P. («poche presenze previste») non era scrivibile senza toccare Calhanoglu, che gioca MENO di lui (22,8 contro 25,3) ed era `top` dichiarato — messo davanti al conto ha risposto «ok va bene se costa Calhanoglu». Cadono **4 top di 27** su Serie A e **17 di 51 su euro**, che e' un terzo e va detto; chi cade non precipita (Calhanoglu → `promessa`) e De Bruyne, l'altro nome della parola, gioca 26,6 e resta. **La dichiarazione del 22/09 e' RITIRATA con la data, e il test che la difendeva e' riscritto e non cancellato.** E `BOA_PLAYS` → **0,700** per Castro S.
+IL FOGLIO RIGENERATO HA SMENTITO UNA SBARRA SCRITTA UN'ORA PRIMA, ed e' la ragione per cui si rigenera. `BOA_PLAYS` era 0,702, scelta sulla quota **nominale** di Castro (23,2/33 = 0,70303); ma `engine_pv_pred` e' arrotondato a UN DECIMALE, quindi «23,2» e' l'intervallo [0,70152 · 0,70455] e la sbarra ci cadeva dentro — a schermo `scarto`, con la funzione chiamata a mano che diceva `boa`. **Quinta istanza dell'arrotondamento, commessa mentre si curava la quarta.** La forma che regge lo SFRUTTA: fra due valori consecutivi c'e' un vuoto di `1/matchdays` in cui nessun valore vero puo' cadere, e 0,700 sta fra il 23,0 di Busio e il 23,2 di Castro. I test asseriscono l'INTERVALLO e non il nominale.
+VERIFICATO SUL FOGLIO VERO E NON SU UNA SONDA: **12 nomi su 12**, revisione 75, tutte e tre le leghe dichiarate (562 righe classic e mantra, 953 euro). **964 test toolkit**, e la controprova fatta **rimettendo ogni difetto uno per volta**: cadono esattamente i test che descrivono ciascuna cura e nessun altro.
+CINQUE ERRORI MIEI, tutti a verbale in §53.8-§53.12: leggere `engine_fm_pred` senza il ripiego su `est_fm` (~176 righe, trovato da un guardiano che e' caduto); una sonda che ricalcolava una costante invece di leggerla; **un bytecode che Python credeva valido** (sostituzione della stessa lunghezza nello stesso secondo: due suite rosse su un file giusto); `snapshot --no-refresh` **senza `--league`**, che non gira sulle leghe dichiarate e ha costruito un foglio euro/classic a 8 squadre in una cartella nuova; e la sbarra sul numero arrotondato.
+APERTI: (a) **`operaio` fra gli attaccanti e' sceso a 7 righe e `solido` a 5** — `as_bet` si mangia quella fascia, ed e' un effetto che esisteva gia', ma la sua richiesta del 23/09 era «~15 operai per ruolo» e su quel ruolo non e' rispettata. (b) **Il pavimento `top` toglie 17 righe su euro**: applicato perche' la sua frase e' assoluta, da rivedere se intendeva la sola Serie A. (c) **R28**, la K per ruolo dentro il MOTORE, resta da pre-registrare — e ora ha un vicino: se il gate la adottasse, `DECLARED_K` andrebbe rimisurata o conterebbe due volte. (d) Il PORTIERE ha la stessa forma dell'attaccante (K 16,6, il 23% a cinque giornate) e non e' stato toccato perche' non ci sono suoi verdetti da riprodurre li'.
+· precedente: **Aggiornato: 23 settembre 2026 — LA PLANCIA NON SI SCHIACCIA PIU', E LE DUE BARRE IN BASSO SI PIEGANO.** Due richieste sue in fila, tutte e due di INTERFACCIA: «per altezze non sufficienti della pagina visualizza i nomi dei calciatori accavallati, impostiamo un'altezza minima e permettiamo lo scroll verticale quando necessario», poi «i menu' in basso siano position fixed e non occupino spazio nella pagina ... e collassabili». Dettaglio: `assistente-asta-v1.md` §45, `letture-app-v1.md` §51. Nessun numero del motore si muove: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto fermo.
 IL DIFETTO AVEVA UN CONFINE ESATTO: le righe erano `min-h-0` fino in fondo, quindi una linea in `flex-1` scendeva sotto il proprio contenuto — misurato a 1600px di larghezza, da 17,8px di riga a 1000px di finestra a 6,3px a 540. ADOTTATO: `min-h-[10.5px]` sulla riga, via i `min-h-0` da linea/blocco/colonna, `overflow-y-auto` sulla plancia. Lo scroll sta nella PLANCIA e non nella pagina (l'intestazione e la card del lotto sono quello che si guarda mentre si decide), mai in orizzontale, e l'ultima riga resta raggiungibile a ogni altezza provata.
 **LA MISURA CHE HA DECISO IL PAVIMENTO E' L'INCHIOSTRO E NON LA SCATOLA DEL FONT, e la prima versione ha misurato quella sbagliata.** Il `Range` su un nodo di testo da' ascent+descent della FACCIA (14px a `text-[10px]`), che contiene spazio che quasi nessuna lettera usa; `actualBoundingBox*` sulla STRINGA dice dove i pixel cadono davvero, e il nome piu' alto delle 249 righe ne dipinge **NOVE** («Caprile», che ha una discendente). A 10,5px di riga le scatole della faccia si sovrappongono su **224 coppie su 224** e l'inchiostro su **ZERO**: due misure, due verdetti opposti, e solo la seconda descrive quello che si vede. Il pavimento e' suo e dettato in tre tempi (11 → 10 → 10,5): aria fra due nomi **1,0px a 11, 0,5px a 10,5, ZERO a 10** — e a 10 tondi la dichiarazione era pure INERTE, perche' il fondo glielo davano gia' il `leading-none` (linea alta dieci) e la barra del proprietario (`h-2.5`). L'arnese si verifica prima della pagina: la scatola della faccia che il canvas dichiara deve leggere gli stessi 14px del Range, o starebbe misurando un altro carattere.
 IL PAVIMENTO E' PER RIGA e non per plancia: un blocco porta `teams` nomi, quindi l'altezza necessaria si SOMMA da se' (535px sulla sua lega, misurati). Una plancia alta N pixel sarebbe un numero vero per una lega da dieci e falso per una da otto.
@@ -60,6 +70,75 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 · precedente: **Aggiornato: 7 settembre 2026 - CHIUSURA SERALE (L'ANCORA DI CHI NON HA GIOCATO QUI LEGGE L'ELO, E LA PRUDENZA SI MISURA. Dalla richiesta dell'operatore di trasformare la sua esperienza in parametri, su due nomi e un meccanismo suo: «le performance dipendono molto dalla squadra, quindi quando non abbiamo dati sul calciatore dalla stagione precedente in serie-a dovremmo orientarci sulla squadra». Misurato su 713 nuovi arrivati in dieci finestre: l'ancora di ruolo e' TROPPO ALTA per chi arriva (A -0,26) e l'Elo del club vale 0,17 di fantamedia per 100 punti - **A +16,8% (8/10), C +10,4%, D +10,0%** contro l'ancora di ruolo, mentre l'ancora di CLUB che spedivamo valeva +0,7% sugli attaccanti. Poi la sua seconda correzione - «0,5 e' esagerato come fattore di prudenza» - e la sua domanda giusta: «possiamo misurare gli esiti e vedere qual e' la soluzione che piu' rispecchia la realta'?». Si puo': la confidenza moltiplica il surplus, quindi si CALIBRA come rapporto fra reso e predetto grezzo - core 0,94 · older 0,93 · shrunk 0,77 · **anchor 0,69** (0,73 relativo al core). Adottati anchor 0,50 -> **0,75** e older -> 0,90; il core resta 1,00 benche' calibri 0,94, perche' est_* deve riprodurre engine_* e quel 6% e' un fatto sul MOTORE (todolist). E la mia obiezione era MAL POSTA: `shrunk` calibrato per banda legge 1-4 voti **0,45**, cioe' pochi voti sono evidenza CONTRARIA e non poca evidenza, quindi non c'e' nessuna scala da comprimere. Due sue segnalazioni con esiti opposti: i voti sintetici di Ramos ESISTONO (30 partite di Ligue 1, e la nota diceva «nothing measured anywhere» a 276 quotati) ma il NUMERO non si muove, perche' l'Elo cattura gia' quel +0,48; e «Qt.I e FVM non misurano i bonus» e' ACCOLTA, con la nostra stessa tabella come prova. La sua alternativa - la fetta di produzione della squadra per minuto - e' stata costruita e misurata: il PRODOTTO e' respinto (-10,8% A), la fetta NON viaggia con l'uomo (r +0,059 al cambio club), sopravvive il contesto come termine additivo sui soli attaccanti che cambiano club (+5,84%, n=84) che e' cio' che l'Elo gia' porta. E LO ZERO DI UN PARAMETRO CENTRATO E' PARTE DEL PARAMETRO, trovato sul primo foglio scritto dopo l'adozione perche' e' stato verificato che Ramos riproducesse il numero calcolato a mano: 6,859 contro 6,785, e la media Elo era presa su TUTTE le osservazioni invece che sui venti club del campionato. `--verify` 22/22, 728 test, SHEET_REVISION 50, tre fogli + export + data:pull; i quattro pacchetti del viaggio nel tempo restano alla 48 e lo dichiarano. Prima di questa chiusura: 7 settembre 2026 - CHIUSURA (R25 ADOTTATA E LO SWING CAMBIA UNITA'. La griglia allargata di R25 e' stata corsa come pre-registrato e l'ottimo e' INTERNO - la media scende oltre il 40 (+5,0% -> +4,0% -> +3,4% -> +2,5% su classic, e su mantra K40 e' STRICT 12/12) - quindi **R25K40 e' ADOTTATA su `default`**: la fantamedia GIA' TENUTA nelle giornate giocate entra in `engine_fm_pred` con un prior che pesa 40 PARTITE. Su euro resta fuori (3 finestre, verdetto negativo, non rimescolato per pre-registrazione). Conseguenza trovata prima che facesse danni: **la coppia fm/mv miscela INSIEME o non miscela** - `est_mv` leggeva solo la stagione scorsa, quindi tutta la novita' in-season sarebbe finita nel tasso bonus derivato `fm - mv` (la famiglia v9.59); misurata fuori campione, la miscela della MV vale **+4,7% a K=40, 13 finestre su 13**, e la K la legge da `evaluate.ADOPTED` (una definizione, due lettori). `--verify` 22/22, `SHEET_REVISION` 48, tre fogli + quattro pacchetti + bundle + app rifatti. Sull'APP quattro richieste dell'operatore: lo SWING passa a **punti sopra il 6 a giornata** (il suo esempio - fantamedia 10 sempre in campo -> ~4 - e' un test), due decimali sulla pastiglia, e **il «6» del portiere e' un 5** perche' il suo fantavoto porta il malus dei gol subiti e con lo zero al 6 la colonna ordinava i portieri per NON giocare (lo zero fielded misurato e' 5,01/5,03); piu' due OPZIONI DI LEGA dichiarate, l'R-Factor (spegne il termine di costanza) e il +1 a porta inviolata (che NON e' nel fantavoto: 1.218 portieri su 1.222 lo dimostrano - entra al DIFFERENZIALE sul calendario, perche' anche il sostituto le porte inviolate le incassa). E la sua ipotesi sui portieri e' stata MISURATA E RESPINTA: dove la maglia cambia mano nelle prime due giornate resta a chi l'ha presa **10 volte su 18**, e il controesempio e' la stessa coppia un anno prima (2025-26 Napoli: Meret le prime due, Milinkovic-Savic poi 27 contro 9). 809 test app, 727 toolkit, build verde. Prima di questa chiusura: 6 settembre 2026, sera (UNO SLUG NON E' UN'IDENTITA'. Quattro decisioni prese una per volta su richiesta dell'operatore, e sulla prima la strada intera: pre-registrazione committata PRIMA della corsa, due cambi misurati separatamente, adottati. Il difetto: `recent_form` si era riscritto la denominazione delle competizioni invece di chiamare `positions._slug_of`, che decide per ID di torneo - 352 righe di 45 giocatori senza voto sintetico per un trattino, 17 arrivi del listone in uso. E la prima cura fondeva la Bundesliga AUSTRIACA nella tedesca: 36 partite, quattro arrivi prezzati con la retta sbagliata, Alajbegovic sul foglio in uso - e la riga di CLAUDE.md che giustifica la regola per competizione citava proprio lui, corretta dove sta. Numeri: voto sintetico 44 -> 396, arrivi 28/8/42/29, 0 differenze su 50.284 numeri del gate perche' l'unico lettore di `foreign_fm_equiv` in `evaluate` e' R1, non adottata; il valore cade sui FOGLI, `SHEET_REVISION` 47, tre fogli rifatti coi campetti, bundle e app aggiornati. Le altre tre decisioni: preferenze del 15/08 SPENTE, zero realizzato NO (+-0,35 e cambia segno per ruolo: e' un fatto sulla lega), terza giornata NO (la convenzione, non l'1%). E TRE SESSIONI SU UN ALBERO, con la lezione nuova sul tempo: una base di confronto scade fra due corse dello stesso comando. Prima di questa chiusura: 6 settembre 2026, pomeriggio (L'AUDIT DIVENTA UN TEST, E UN BUCO ERA UNA GRAFIA - chiuse le voci di codice della code-review del mattino con i numeri della base viva: `tests/test_upsert_columns.py` legge 43 `INSERT OR REPLACE` su 36 tabelle in tre classi dichiarate (32 complete, 8 parziali con una `basis` verificata ciascuna, 3 illeggibili) e il lettore e' un AST perche' Python unisce i letterali adiacenti - il difetto che al primo audit faceva leggere 14 siti; la conta pubblicata ieri era di SEI siti legittimi e sono OTTO (`transfers` -> `club_xref` e `ratings` -> `match_ratings`); `recent_form --from-cache` ha rigiocato 1.731 partite per 177 giocatori senza perdere niente e uno `stats` da solo lascia 1.028 stagioni-portiere e 4.898 porte inviolate, cioe' le due cure del mattino provate sul percorso che rompeva; orfani di cache 0 su 1.731. E il buco del voto sintetico - 44 righe su 1.731 - non era ne' un ri-salvataggio ne' la regola di calibrazione: `recent_form` archivia lo SLUG del provider e la calibrazione parla le nostre chiavi, quindi `bundesliga` e' l'unica grafia che coincide per caso e 352 righe di 45 giocatori sono rifiutate per un `-` al posto di un `_`. Misurato e NON spedito: la cura muove l'FM-equivalente degli arrivi (canale adottato) e farebbe leggere 29 giornate a `la_liga 2015-16`, che `evaluate` usa come divisore, quindi e' un candidato da pre-registrare. Nell'app tolto il macchinario morto dell'Overall, con la lista sbagliata su uno dei cinque nomi (`CLUB_PRIOR` e' VIVO): 181 righe tolte e 20 di nota, 757 test verdi. Prima di questa voce, la stessa giornata: UN PRONOSTICO SI GIUDICA SULLA FINESTRA CHE PREVEDE - da «capire quanto questo pronostico si avvicina alla realta'». Meta' della richiesta era gia' costruita: `timepack` impacchetta il motore di quattro date passate e una e' il 5 settembre 2025, quando la Serie A aveva giocato 2 giornate e il foglio ne prevede 36. Mancava il METRO, e ora sono cinque colonne `actual_*` (`SHEET_REVISION` 46) misurate sulle giornate DOPO la data d'asta - non sul totale di stagione, perche' 38 giocate contro 36 previste e' un fatto sul calendario e non sui calciatori - riletto dalla stessa finestra che il gate usa per il proprio esito. Su `/why` una tendina delle date (lo stesso `TimeTravel` del box, non una copia), sei colonne dell'esito col loro scarto e una barra di calibrazione con due numeri per grandezza. Il verdetto sul foglio Serie A del 05/09/2025: presenze 6,87 giornate di errore su 36, fantamedia 0,317, fantapunti 42,7 - cioe' quello che il motore sbaglia sono le PRESENZE, il che concorda con tre misure indipendenti gia' in casa. Detto per intero: non e' un verdetto (dry run su una stagione che ha tarato i parametri) e l'asterisco del listone toglie 131 righe di cui nessuna ha poi giocato 25 giornate, quindi l'errore e' OTTIMISTICO. La data «dopo la terza giornata» e' stata misurata e NON aggiunta: vale l'1,0% di errore in meno contro una convenzione nuova e nove minuti a ogni refresh. `backtest --verify` 22/22, 697 test toolkit + 764 app, banco `e2e-why` verde, bundle a revisione 46. Prima di questa voce, la stessa giornata: UNA SUITE VERDE NON VEDE UN DIFETTO DI ORDINE FRA MODULI, v5 SOSTITUISCE la v4))**
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
+
+## CHIUSURA — 24 settembre 2026: quattro suoi verdetti erano impossibili insieme, e la causa era una sola
+
+Nove correzioni dell'operatore sulle categorie, tutte su attaccanti, tutte trovate guardando lo
+schermo. Dettaglio, tabelle e rifiuti: `letture-app-v1.md` §53; spec «Novita' v9.102».
+
+**IL PRIMO LAVORO E' STATO DIMOSTRARE L'IMPOSSIBILITA'.** Due delle sue frasi sono la stessa detta con
+nomi opposti — Simeone (storico 7,25, cinque giornate a 5,70) doveva salire a `semi` e Maldini (6,39 e
+8,40) doveva scendere da `semi` — e al peso in vigore **non esiste nessuna coppia di sbarre** che le
+soddisfi entrambe. La finestra in cui esistono e' `w` fra 0,075 e 0,125; il peso era 0,213.
+
+| nome | storico | 5 giornate | a K=18,5 | a K=45 | prima | chiede |
+|---|---|---|---|---|---|---|
+| Scamacca | 7,166 | 6,30 | 6,982 | 7,080 | semi | semi |
+| Simeone | 7,041 | 5,70 | 6,756 | 6,907 | **operaio** | semi |
+| Davis K. | 7,017 | 6,63 | 6,947 | 6,985 | promessa | = Scamacca |
+| Esposito F.P. | 6,941 | 8,25 | **7,174** | 7,048 | **top** | NON top |
+| Maldini | 6,611 | 8,40 | **6,992** | 6,790 | **semi** | promessa |
+
+**SEI COSE ADOTTATE**, tutte in `engine/categories.py` e nessuna nel motore:
+
+1. **`DECLARED_K` = {"A": 45}**, separata da `BLEND_K` che resta la misura. Prezzo misurato dopo aver
+   riprodotto i numeri pubblicati: la previsione passa da +6,0% a **+4,4%** di guadagno sulla sola
+   stagione scorsa (MAE 0,5920 → 0,6019), **10 stagioni su 10** comunque migliori, curva piatta fra 20
+   e 60. *La K e' misurata per PREVEDERE, la parola deve dire che giocatore e'.*
+2. **Vale solo dove c'e' uno storico** (`relevel(..., history)`): senza, la base e' l'ancora del ruolo
+   e le cinque giornate sono la sola prova che esista. Misurato nei due versi.
+3. **Sbarre attaccanti rimisurate**: `(6,742 · 6,78 · 6,90 · 7,10 · 7,55)`, percentili come gli altri
+   ruoli e poi i casi dichiarati a fissare il valore.
+4. **`as_bet` prende `history`**: il tetto delle presenze non vale per chi in Serie A non ha mai
+   giocato. Prende Kolo Muani, Adams A. e Tourè E.; Castro resta fuori di li' (l'altra forma, tetto a
+   29/38, lo prendeva ma faceva scendere `operaio` da 5 attaccanti a 1).
+5. **`TOP_PLAYS` = 25/38**, sua decisione presa guardando il prezzo — vedi sotto.
+6. **`BOA_PLAYS` = 0,700** e **`POTENTIAL_BARS` A = 6,540**, due sbarre che tagliavano per millesimi.
+
+**UNA SUA RAGIONE NON ERA IMPLEMENTABILE, E GLIELO SI E' DETTO.** Per Esposito F.P. aveva risposto «ha
+poche presenze previste», e nessun pavimento lo toglie da `top` senza togliere Calhanoglu, che gioca
+**meno** di lui (22,8 presenze su 38 contro 25,3) ed era `top` dichiarato proprio come «fuori scala e
+non gioca abbastanza». Messo davanti al conto: **«ok va bene se costa Calhanoglu»**. Cadono 4 top di 27
+su Serie A e **17 di 51 su euro**; chi cade non precipita. *La dichiarazione del 22/09 e' ritirata con
+la data, e il test che la difendeva e' riscritto e non cancellato.*
+
+**IL FOGLIO RIGENERATO HA SMENTITO UNA SBARRA SCRITTA UN'ORA PRIMA.** `BOA_PLAYS` era 0,702, scelta
+sulla quota **nominale** di Castro (23,2/33 = 0,70303); `engine_pv_pred` e' arrotondato a un decimale,
+quindi quel 23,2 e' l'intervallo [0,70152 · 0,70455] e la sbarra ci cadeva dentro. La forma che regge
+sfrutta l'arrotondamento: fra due valori consecutivi c'e' un vuoto di `1/matchdays` in cui nessun
+valore vero puo' cadere, e **0,700** sta fra il 23,0 di Busio e il 23,2 di Castro. I test asseriscono
+l'intervallo e non il nominale — quello vecchio sarebbe passato anche con la sbarra sbagliata.
+
+**VERIFICA**: 12 nomi su 12 **sul foglio rigenerato** (revisione 75, tutte e tre le leghe: 562 righe
+Serie A classic e mantra, 953 euro), **964 test toolkit**, e la controprova fatta rimettendo ogni
+difetto uno per volta — cadono esattamente i test che descrivono ciascuna cura. Conteggi Serie A
+classic: super 8 · top 14 · semi 22 · promessa 26 · solido 5 · scommessa 142 · operaio 7 · boa 31 ·
+scarto 231 · incognita 76.
+
+**CINQUE ERRORI DI MISURA MIEI**, tutti in §53.8-§53.12 perche' sono il modo in cui si sbaglia:
+leggere `engine_fm_pred` senza il ripiego su `est_fm` (trovato da un guardiano che e' caduto, non da
+una rilettura); una sonda che ricalcolava una costante invece di leggerla; **un bytecode che Python
+credeva valido** (sostituzione della stessa lunghezza nello stesso secondo — due suite rosse su un file
+giusto, e la prima diagnosi che ho dato era quella sbagliata); `snapshot --no-refresh` **senza
+`--league`**, che ha costruito un foglio euro/classic a 8 squadre senza toccare i fogli veri; e la
+sbarra sul numero arrotondato.
+
+**APERTI**: `operaio` fra gli attaccanti e' a 7 righe e `solido` a 5 contro i «~15 per ruolo» che aveva
+chiesto il 23/09 — `as_bet` si mangia quella fascia; il pavimento `top` toglie un terzo dei `top` di
+euro, da rivedere se intendeva la sola Serie A; **R28** (la K per ruolo dentro il motore) resta da
+pre-registrare, e se il gate l'adottasse `DECLARED_K` andrebbe rimisurata o conterebbe due volte; il
+PORTIERE ha la stessa forma dell'attaccante e non e' stato toccato perche' non ci sono suoi verdetti
+da riprodurre li'.
 
 ## CHIUSURA — 22-23 settembre 2026: ogni numero in giornate su una stagione piena, e il null di «35 presenze»
 
@@ -9128,4 +9207,56 @@ difetti: con una griglia sola cade il solo passo che la descrive («la riga di s
 
 Commit fatto coi **percorsi espliciti** (`git commit -- …`) e non dall'index, che è condiviso: l'altra
 sessione lavora in `ui/digit-input`, `core/plancia*` e `views/plancia/`, e quella metà resta fuori.
+
+## 23 settembre 2026 (notte tarda) — FOCUS, il riordino a mano, e le righe della plancia
+
+Sessione lunga sulla sola PLANCIA, guidata da otto sue richieste in fila. Nessun numero del motore si
+muove: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto fermo. Dettaglio in
+[assistente-asta-v1.md](assistente-asta-v1.md) §49-§51.
+
+**Cosa è entrato**
+- **La modalità FOCUS** (`core/focus.ts`): quattro obiettivi per reparto — TOP · TITOLARE · COPERTURA ·
+  RESTO — scelti automaticamente sulla rosa e sull'asta (scarsità e budget), scavalcabili con un click,
+  col PRIMARIO a dire quale dei due sta parlando. Il bersaglio dei top è misurato e non dettato: sette,
+  `{P 0 · D 3 · C 1 · A 3}`.
+- **Il riordino a mano sugli slot personali**, col cestino, l'annulla e il reset — e il conto di un
+  ruolo che non si muove: al posto di chi butto entra il primo della coda (80 righe prima, 80 dopo).
+- **`MIN_BID` = 1**: il costo minimo di un calciatore è un credito, che è il regolamento e non una
+  taratura, ed è la stessa frase che `award` applicava già dal lato opposto.
+- **La select dei due SET di numeri**: `default` e `scorso (2025-26)` con Pv · Mv · Fm, letti da
+  `seasonLines` (cui il livello per-partita è diventato opzionale, così la plancia non paga 2,1 MB per
+  quattro campi che non stampa).
+- **Le righe incolonnate**, le icone accanto al nome, un decimale solo.
+- **La persistenza dei tre interruttori** della barra (`plancia.view`, `plancia.focus`, `plancia.goals`)
+  in `localStorage` e non nell'indirizzo: questa pagina non è un link da mandare a qualcuno, è il foglio
+  su cui si segna l'asta.
+
+**I tre difetti che ha trovato il BANCO e non una rilettura**
+1. Il **tooltip della select copriva le sue stesse voci** (`elementFromPoint` → `div.ant-tooltip-inner`):
+   terza istanza di «un tooltip copre il controllo che sta spiegando», e la prima in cui copre se stesso.
+2. Il **cestino non riceveva** perché creato da un `@if` durante il gesto: CDK calcola le liste connesse
+   quando il trascinamento comincia.
+3. Il **cestino del riordino ha rotto sei banchi vicini** che camminavano `plancia-slot-matrix > div >
+   div`: da quando è un fratello delle quattro righe, quel cammino finisce su di LUI — `e2e-plancia-squad`
+   accusava la card di stare fuori dalla linea degli attaccanti mentre misurava il cestino. Curato dove il
+   componente lo dichiara (`data-line`, come `data-block`).
+
+**Banchi**: `e2e-plancia-stats.mjs` nuovo (il minimo, i due set contro il PACCHETTO, l'allineamento per
+blocco, il prezzo in nomi tagliati); `e2e-plancia-order.mjs` nuovo (trascinamento, cestino, annulla,
+reset, il conto invariante); `e2e-focus.mjs` con il passo del ricaricamento. Le intestazioni di due di
+loro nominavano un ALTRO banco — erano copiate da `e2e-plancia-slots` — e sono state riscritte.
+
+**Verde alla chiusura**: 1092 test dell'app, nove banchi della plancia. Resta rosso `e2e-player-card` sul
+riepilogo dei voti sintetici (`~5.7` contro 5.5), che era già rosso a inizio sessione e non è in questo
+perimetro.
+
+**Aperti**
+- Il **filtro «meno del 25% della competizione»** che aveva chiesto è misurato (84 righe su Serie A, 114
+  su euro; 39 portieri e 65 `incognita`) e NON implementato: il punto è `views/strategy/strategy.ts`
+  dopo il calcolo di `expectedPlay`, e va deciso se vale su tutte le pagine o solo sulla Strategia.
+- La **regola `promessa`** non riproduce Douvikas e Maldini: le due quantità che lui ha nominato
+  (minuti a partita, tasso di bonus) sono state misurate e NON stanno nel foglio come le descrive —
+  Douvikas ha 63 minuti a partita, il più alto dei quattro top. Da chiedergli quale numero sta leggendo.
+- Le **dritte dell'app** vivono in `localStorage` e non entrano nei fogli: la strada per farlo è
+  ridichiararle in `config/player_rulings.json`, ed è l'unico pezzo aperto di quella feature.
 

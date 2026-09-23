@@ -61,6 +61,13 @@ weight depends on the role - and by a factor of two:
     C      43.5  10%                            1.7%                          7/10
     A      18.5  21%                            6.0%                          10/10
 
+...E DAL 24/09/2026 L'ATTACCANTE CHE HA UNO STORICO NON STA PIU' SU QUELL'OTTIMO: `DECLARED_K` lo
+porta a 45, cioe' il 10%, su dichiarazione dell'operatore e con il prezzo misurato accanto (+4,4%
+invece di +6,0%, 10 stagioni su 10 comunque migliori del baseline). LE DUE TABELLE SONO SEPARATE
+APPOSTA - la misura resta leggibile accanto alla dichiarazione - e la dichiarata vale SOLO dove c'e'
+uno storico da pesare: senza, le cinque giornate sono la sola prova che esista e la misura torna a
+decidere. Vedi `relevel` per i due versi in cui la cosa e' stata misurata prima di scegliere.
+
 The mechanism is in the error itself: a forward's fantamedia is volatile (0.63 of MAE against a
 defender's 0.28), so last season's signal is weaker and the new matches matter more. WITHOUT THIS the
 scale cannot tell `solido` from `operaio`: Varela and Pinamonti have the same expected fantamedia
@@ -138,6 +145,26 @@ PLAYS_ALWAYS = 0.72
 #: 22/09/2026, taken to let Varela (0.54) be a `solido`: half the calendar.
 PLAYS_OFTEN = 0.50
 
+#: «UN TOP DEVE GARANTIRE ALMENO 25 PRESENZE», sua dichiarazione del 24/09/2026 dopo che la misura gli
+#: aveva messo davanti il prezzo: la ragione che aveva dato per Esposito F.P. («ha poche presenze
+#: previste») non era scrivibile senza toccare Calhanoglu, che lui aveva dichiarato `top` proprio come
+#: «fuori scala e non gioca abbastanza» e che gioca MENO di lui - 22,8 presenze su 38 contro 25,3.
+#: Messo davanti alla scelta, ha ritirato Calhanoglu: il pavimento vale e lui scende.
+#:
+#: E' UNA QUOTA E NON UNA CIFRA, la lezione di R20, e la base e' 38 come le due della banda delle
+#: scommesse - «25 presenze» e' una frase su una stagione piena, e sul foglio di oggi sono 21,7
+#: giornate di 33. Il ramo `top` era l'unico della cascata senza pavimento, e il commento che ci stava
+#: chiedeva di CONTARE la popolazione prima di metterne uno: contata, su Serie A cadono **4 righe di
+#: 27** (Calhanoglu 22,8 · Bisseck 23,5 · Adzic 23,8 · McTominay 24,5) e su euro **17 di 51**, che e'
+#: un terzo e va detto invece di lasciarlo scoprire. Nessuna delle due tocca Esposito F.P. (25,3), che
+#: esce da `top` per il livello e non per le presenze.
+#:
+#: NON TOCCA `super`, che ha gia' `PLAYS_ALWAYS` = 0,72, cioe' piu' severo: chi cade da li' incontra
+#: comunque questo pavimento un gradino sotto. E chi non lo passa non precipita - prende la parola che
+#: il suo livello gli da' senza il ramo `top`, cioe' `semi` se ha anche le presenze per quello e
+#: `solido`/`promessa` altrimenti (Calhanoglu legge 6,987 contro un `good` di 6,35).
+TOP_PLAYS = 25.0 / 38.0
+
 #: «gioca parecchio», the floor of `semi`. His ruling of 22/09/2026 evening - «Adams C. non puo'
 #: essere un SEMITOP perche' ha troppe poche partite attese» - and the band is closed by two cases:
 #: Adams C. OUT at 0.630 (with a measured history behind him, so the level is not the problem) and
@@ -213,7 +240,34 @@ PROSPECT_BONUS = -0.25
 #: lo 0,742, e la loro promessa di ieri - «gioca, ed e' per quello che lo compri» - e' parola per parola
 #: quello che `boa` dice oggi. A 0,80 restavano fuori tutti e due e finivano in `scarto`: la sbarra e'
 #: fissata dai suoi nomi, che e' come sono state fissate tutte le altre di questo modulo.
-BOA_PLAYS = 0.72
+#:
+#: SCESA A 0,715 IL 24/09/2026, e la ragione e' che tagliava per DUE MILLESIMI. Piccoli («e' una BOA o
+#: una SCOMMESSA?») gioca lo **0,7182** del calendario e ha la media voto attesa che serve (5,977
+#: contro 5,94): mancava la quota, di 0,0018. E' la QUARTA volta che questo repository paga una sbarra
+#: letta su un numero arrotondato - Scamacca (0,718 contro 0,72), Svilar e Varela sono le altre tre - e
+#: la scelta fra le due sbarre che lui mancava e' sua: l'altra, il pavimento del potenziale, gli stava
+#: cinque millesimi sopra. Il valore sta in mezzo fra lui e Pinamonti (0,721), non sul bordo, e
+#: `PLAYS_ALWAYS` resta 0,72: due costanti con lo stesso numero rispondevano a due domande, e questa si
+#: e' mossa da sola. Costo misurato prima: `boa` resta a 5 attaccanti su 96, cioe' e' uno scambio.
+#: ...E SCESA ANCORA A 0,700 IL 24/09/2026 su un suo nome: «perche' Castro e' uno scarto? Dovrebbe
+#: essere almeno una BOA». Castro S. ha la media voto che serve (6,168 contro 5,94) e gli mancava solo
+#: la quota.
+#:
+#: IL VALORE STA AL CENTRO DI UN VUOTO, E IL VUOTO LO PRODUCE L'ARROTONDAMENTO. La quota e'
+#: `engine_pv_pred / matchdays` e quella colonna e' arrotondata a UN DECIMALE, quindi due uomini
+#: consecutivi distano sempre `1/matchdays` = 3 millesimi e in mezzo non c'e' nessuno: Castro legge
+#: 23,2 su 33, cioe' un vero in [0,70152 · 0,70455], e Busio - il primo sotto di lui - legge 23,0,
+#: cioe' [0,69545 · 0,69848]. La sbarra a **0,700** cade nel mezzo e non puo' sbagliare in nessuno dei
+#: due versi.
+#: LA PRIMA STESURA ERA 0,702 E HA FALLITO PROPRIO COSI', che e' la QUINTA istanza dell'arrotondamento
+#: di questo repository commessa mentre si curava la quarta: 0,702 era stato scelto leggendo la quota
+#: NOMINALE di Castro (23,2/33 = 0,70303) come se fosse il suo valore, e il valore vero gli e' caduto
+#: sotto - il foglio rigenerato lo ha stampato `scarto` e la funzione chiamata a mano diceva `boa`.
+#: *Su una quantita' che arriva da una colonna arrotondata non si fissano sbarre a millesimi: si mette
+#: la sbarra nel vuoto che l'arrotondamento stesso garantisce.*
+#: COSTO CONTATO SUL FOGLIO VERO: **una riga sola** di Serie A attraversa, Castro. Su euro nessuna -
+#: la' i `boa` di quella fascia arrivano gia' dal pavimento degli operai di `as_bet`.
+BOA_PLAYS = 0.700
 
 #: «MEDIA VOTO DIGNITOSA», la MV ATTESA (`est_mv`) e non una misura. Sulla media voto e non sulla
 #: fantamedia perche' e' la parola che lui ha usato, ed e' anche l'unica che funziona per un portiere: la
@@ -253,7 +307,42 @@ KEEPER_MALUS = -1.0
 #: The blend constant PER ROLE for the level, measured leave-one-season-out on ten Serie A seasons.
 #: See the module docstring for the table and the mechanism. `k/(k+K)` is the weight of the matchdays
 #: already played, the same shape R25 uses in the engine.
+#:
+#: L'ATTACCANTE E' L'UNICO CHE NON STA SUL SUO OTTIMO DI PREVISIONE, ed e' una DICHIARAZIONE
+#: dell'operatore (24/09/2026) messa davanti al prezzo misurato. Le sue quattro frasi di quel giorno
+#: sono la stessa frase detta con nomi opposti: «Simeone e' un SEMITOP perche' ha molte presenze
+#: previste e una ottima FM dell'anno scorso» (storico 7,25, cinque giornate a 5,70, leggeva
+#: `operaio`) e «Maldini e' una PROMESSA perche' ha una FM dello scorso anno troppo bassa per essere
+#: un SEMITOP» (storico 6,39, cinque giornate a 8,40, leggeva `semi`). A K = 18,5 le prime cinque
+#: giornate pesano il 21% del livello di un attaccante, che basta a scavalcare quaranta centesimi di
+#: storico - e i suoi quattro verdetti (piu' quello su Davis K. e quello su Esposito F.P.) sono
+#: **SIMULTANEAMENTE IMPOSSIBILI**: misurata la finestra in cui esistono due sbarre che li
+#: soddisfano tutti, e' `w` fra 0,075 e 0,125, mentre 0,213 non ne ammette nessuna (ne' su `semi`
+#: ne' su `top`). 45 e' il centro di quella finestra, cioe' `w` = 0,10 a cinque giornate.
+#:
+#: IL PREZZO E' MISURATO E VA CITATO CON LA SUA DIREZIONE (stessa misura del docstring, riprodotta
+#: prima di toccare il numero - P +6,8% · D +2,7% · C +1,8% · A +6,0%, che sono i valori pubblicati):
+#: sul bersaglio «la fantamedia delle giornate DOPO la quinta», l'attaccante passa da **+6,0% a
+#: +4,4%** di guadagno sulla sola stagione scorsa, cioe' MAE 0,5920 -> 0,6019. Un centesimo su una
+#: dispersione di 0,63, e **10 stagioni su 10 restano migliori del baseline** in tutt'e due i casi.
+#: La curva e' piatta fra 20 e 60 (0,5921 - 0,6065), quindi la direzione e' il risultato e i decimali
+#: no - e' la stessa forma con cui questo modulo sceglie ogni sua sbarra.
+#:
+#: E LA RAGIONE PER CUI NON E' UN CAPRICCIO: la K e' misurata per PREVEDERE una fantamedia, mentre la
+#: parola deve dire CHE GIOCATORE E'. Quello che sta facendo adesso ha gia' la sua parola - `promessa`
+#: - quindi al peso vecchio la stagione in corso entrava DUE VOLTE, nel livello e in `in_form`, ed e'
+#: «lo stesso fatto contato due volte» incontrato dentro una scala invece che dentro un canale. Gli
+#: altri tre ruoli restano sul loro ottimo: lui ha parlato di attaccanti, e D e C hanno gia' una K
+#: alta (35 e 45 all'ottimo). IL PORTIERE HA LA STESSA FORMA (16,6, il 23% a cinque giornate) e non e'
+#: stato toccato perche' non ci sono suoi verdetti da riprodurre li': va detto invece di lasciarlo
+#: scoprire.
 BLEND_K: Mapping[str, float] = {"P": 16.6, "D": 32.6, "C": 43.5, "A": 18.5}
+
+#: ...E LA K CHE L'OPERATORE HA DICHIARATO, che si applica SOLO a chi ha una stagione precedente da
+#: pesare. Sta in una tabella sua e non dentro `BLEND_K` perche' sono due cose di natura diversa e la
+#: misura deve restare leggibile accanto alla dichiarazione: quella sopra e' l'ottimo fuori campione,
+#: questa e' la sua decisione con il prezzo scritto. Una sola riga, perche' una sola ne ha chiesta.
+DECLARED_K: Mapping[str, float] = {"A": 45.0}
 
 #: (operaio, solido, semitop, top, supertop) of EXPECTED FANTAMEDIA, per PLATFORM and listone role.
 #:
@@ -313,8 +402,14 @@ BET_CEILING_SHARE = 26.0 / 38.0
 #: IL PREZZO E' DICHIARATO: sei delle sue sette scommesse stanno fra il 51° e il 96° percentile del
 #: ruolo, e la settima - Lang, 6,061, il **1° percentile** degli attaccanti - non la prende nessun
 #: pavimento che non prenda mezzo listone: quello e' un caso da `player_rulings.json`.
+#: ...E QUELLA DELL'ATTACCANTE E' RIMISURATA IL 24/09/2026 con le cinque del livello e per la stessa
+#: ragione: `DECLARED_K` sposta ogni livello di quel ruolo, e una mediana calcolata su una quantita'
+#: e confrontata con un'altra non e' una mediana. La nuova cade a 6,549 e il CASO DICHIARATO la fissa
+#: appena sotto - Tourè E. legge esattamente 6,549 ed e' una sua scommessa del 24/09, quindi una
+#: sbarra che gli cade addosso al millesimo e' la quarta istanza dell'arrotondamento che questo
+#: repository ha gia' pagato con Scamacca, Svilar e Varela.
 POTENTIAL_BARS: Mapping[str, Mapping[str, float]] = {
-    "default": {"P": 4.992, "D": 5.951, "C": 6.151, "A": 6.561},
+    "default": {"P": 4.992, "D": 5.951, "C": 6.151, "A": 6.540},
     "euro": {"P": 5.048, "D": 6.051, "C": 6.441, "A": 7.126},
 }
 
@@ -334,7 +429,7 @@ def potential_bar(platform: str | None, slot: str | None) -> float | None:
 
 
 def as_bet(word: str | None, play_share: float | None, level: float | None,
-           bar: float | None) -> str | None:
+           bar: float | None, history: bool = True) -> str | None:
     """«Partenza non eccezionale ma potenziale ottimo proseguimento» (operatore, 23/09/2026).
 
     DOPO il gate e non dentro la cascata, per la stessa ragione per cui il gate sta fuori: la parola su
@@ -344,10 +439,26 @@ def as_bet(word: str | None, play_share: float | None, level: float | None,
     E IL PAVIMENTO DEGLI OPERAI E' LA STESSA SOGLIA letta dall'altro lato, cosi' non ci sono due numeri
     per un confine solo: chi non arriva al tetto della banda non e' un `operaio` - quella parola dice
     «gioca sempre e rende il minimo» - quindi scende dove sarebbe senza di lei.
+
+    IL TETTO NON VALE PER CHI NON HA UNO STORICO QUI (24/09/2026, sua scelta fra due forme misurate).
+    Tre dei quattro nomi che chiedeva come scommesse - Kolo Muani, Adams A., Tourè E. - sono uomini
+    che in Serie A non hanno mai giocato, e il tetto li escludeva tutti perche' il motore ne prevede
+    26,7-28,8 presenze su 38 contro le 26 della banda. Il punto e' che quel tetto e' una PROVA SULLE
+    SUE PRESENZE, e le presenze di chi non ha giocato qui non sono una misura su di lui: sono una
+    previsione, cioe' la cosa stessa su cui si scommette. «Vuoto = ignoto» applicato a un confine
+    invece che a una colonna, ed e' lo stesso `history` con cui la cascata gia' decide che sopra
+    `solido` non si sale.
+    QUELLO CHE RESTA FUORI E' DETTO: Castro S. ha una fantamedia precedente (6,71) e 26,7 presenze,
+    quindi il tetto lo tiene `scarto` - lui lo aveva chiesto come scommessa e ha scelto questa forma
+    sapendolo, contro l'altra (tetto a 29/38) che lo prendeva e faceva scendere `operaio` da 5
+    attaccanti a 1, cioe' svuotava la parola che aveva stretto il giorno prima. La via per lui e' una
+    dritta in `player_rulings.json`, non una sbarra.
     """
     if word not in BET_FROM or play_share is None:
         return word
-    if not (BET_FLOOR_SHARE < play_share <= BET_CEILING_SHARE):
+    if play_share <= BET_FLOOR_SHARE:
+        return word
+    if history and play_share > BET_CEILING_SHARE:
         return word
     if level is not None and bar is not None and level >= bar:
         return SCOMMESSA
@@ -359,7 +470,22 @@ LEVEL_BARS: Mapping[str, Mapping[str, tuple[float, float, float, float, float]]]
         "P": (4.820, 5.07, 5.16, 5.24, 5.32),
         "D": (6.078, 6.11, 6.16, 6.26, 6.35),
         "C": (6.294, 6.35, 6.42, 6.53, 6.71),
-        "A": (6.698, 6.87, 6.97, 7.09, 7.61),
+        # ...E LE CINQUE DELL'ATTACCANTE SONO RIMISURATE (24/09/2026) perche' la loro QUANTITA' e'
+        # cambiata: `BLEND_K["A"]` da 18,5 a 45 sposta ogni livello di quel ruolo, e «le due meta' di
+        # ogni confronto vengono dalla stessa quantita'» e' la condizione che tiene in piedi questa
+        # tabella. Percentili identici agli altri tre ruoli (63,5 · 77 · 85 · 93,5 · 97 = 6,740 ·
+        # 6,861 · 6,907 · 7,074 · 7,180), poi i CASI DICHIARATI fissano il valore, che e' come sono
+        # state fissate tutte le sbarre di questo modulo:
+        #   `semi`  6,90  fra Maldini 6,790 (che lui vuole `promessa`) e Simeone 6,907 (`semi`)
+        #   `top`   7,10  fra Esposito F.P. 7,048 («non puo' essere un top») e Hojlund 7,106 (`top`)
+        #   `sup`   7,55  fra Thuram 7,460 (`top`) e Martinez L. 7,712 (`super`) - il p97 sui livelli
+        #                 nuovi cade a 7,180 e farebbe tre `super`, quindi qui il caso vince largo
+        #   `good`  6,78  sotto Maldini 6,790, che e' l'unico vincolo: senza, lui sarebbe `operaio`
+        #   `low`   6,742 il p63,5, nessun nome dichiarato lo tocca
+        # Verificato sui 96 attaccanti del foglio del 23/09: **18 verdetti su 18**, cioe' i nove di
+        # quel giorno piu' le nove dichiarazioni precedenti (i due `super`, Hojlund e Thuram `top`,
+        # Scamacca `semi`, Pinamonti `boa`, Kvernadze e Varela G.), 16 righe mosse su 96.
+        "A": (6.742, 6.78, 6.90, 7.10, 7.55),
     },
     "euro": {
         "P": (5.028, 5.048, 5.066, 5.140, 5.186),
@@ -389,7 +515,7 @@ def bars_for(platform: str | None,
 
 
 def relevel(fm_pred: float | None, seen_matches: int | None, seen_fm: float | None,
-            role: str | None, sheet_k: float | None) -> float | None:
+            role: str | None, sheet_k: float | None, history: bool = True) -> float | None:
     """The expected fantamedia re-blended with this ROLE's K instead of the sheet's single one.
 
     `fm_pred` already blends the season in progress with `sheet_k` (R25's, forty for every role), so
@@ -399,10 +525,24 @@ def relevel(fm_pred: float | None, seen_matches: int | None, seen_fm: float | No
     Returns `fm_pred` untouched when there is nothing to re-blend: no matches played yet, no K on the
     sheet (a pre-season sheet, where R25 is inert by construction), or a role with no measured K. That
     is not a fallback that hides a hole - on a pre-season sheet the two blends ARE the same number.
+
+    LA K DICHIARATA VALE SOLO DOVE C'E' UNO STORICO DA PESARE (24/09/2026), e la ragione e' che senza
+    di esso la domanda e' un'altra. Con una stagione precedente il peso risponde a «quanto contano
+    cinque giornate CONTRO il suo passato», ed e' li' che l'operatore ha deciso il 10% (`DECLARED_K`);
+    senza, risponde a «quanto contano cinque giornate CONTRO l'ancora del ruolo», cioe' contro la
+    costante «nessuno l'ha mai visto giocare» - e li' quelle cinque giornate sono la SOLA prova che
+    esista su di lui, quindi alzarne il prezzo vuol dire dare piu' peso al nulla.
+    MISURATO IN TUTT'E DUE I VERSI, perche' la prima stesura aveva la direzione sbagliata: con la K
+    dichiarata applicata a tutti, Kvernadze (6,911 -> 6,654) e Varela G. (6,878 -> 6,601) - i due
+    `solido` che lui dichiaro' il 22/09 - cadevano in `scommessa`; togliendo del tutto il re-blend
+    senza storico leggevano gli stessi due numeri, perche' il livello del foglio quel re-blend ce
+    l'ha gia' dentro. Quello che li tiene dove lui li ha messi e' la K MISURATA, che per l'attaccante
+    pesa le sue cinque giornate il 21%.
     """
     if fm_pred is None:
         return None
-    k = BLEND_K.get((role or "").upper())
+    role_key = (role or "").upper()
+    k = (DECLARED_K.get(role_key) if history else None) or BLEND_K.get(role_key)
     if not seen_matches or seen_fm is None or k is None or not sheet_k:
         return fm_pred
     w_sheet = seen_matches / (seen_matches + sheet_k)
@@ -562,11 +702,18 @@ def category_of(play_share: float | None, level: float | None,
     #
     # SU QUESTO L'OPERATORE HA DECISO IL 23/09/2026, e il commento che stava qui chiedeva di CONTARE la
     # popolazione prima di mettere un pavimento: contata, erano Cabal (0,303 del calendario, zero
-    # presenze su cinque giornate) e Pavard fra i `top` di Serie A. Il pavimento NON e' stato messo qui,
-    # perche' nessuna quota di presenze separa i suoi casi da Calhanoglu: la risposta e' `gated`, che
-    # cappa la parola quando l'undici tipo non lo schiera. Questo ramo resta senza pavimento apposta -
-    # il livello e' quello che dice, e a dire «non gioca» e' il cancello.
-    if level >= top:
+    # presenze su cinque giornate) e Pavard fra i `top` di Serie A. Il pavimento NON fu messo qui,
+    # perche' nessuna quota di presenze separava i suoi casi da Calhanoglu: la risposta era `gated`,
+    # che cappa la parola quando l'undici tipo non lo schiera.
+    #
+    # ...E IL 24/09/2026 LUI HA DECISO IL CONTRARIO, guardando il prezzo: «ok va bene se costa
+    # Calhanoglu ... un top deve garantire almeno 25 presenze». Cioe' la ragione per cui il pavimento
+    # non c'era - che avrebbe portato via il suo stesso nome dichiarato - e' stata messa davanti a lui
+    # ed e' stata accettata. La dichiarazione del 22/09 su Calhanoglu `top` e' RITIRATA, con la data,
+    # invece di essere lasciata a contraddire il codice. Vedi `TOP_PLAYS` per i quattro che cadono.
+    # Il cancello resta dov'e': risponde a un'altra domanda («l'undici lo schiera?») e i due si
+    # compongono.
+    if level >= top and play_share >= TOP_PLAYS:
         return TOP
     if play_share < PLAYS_OFTEN:
         return SCARTO
