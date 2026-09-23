@@ -120,6 +120,41 @@ export interface CardMan {
 }
 
 /**
+ * LA CHIAVE DI UNA CARD, e le due specie stanno in UNA pila sola.
+ *
+ * Dal 23/09/2026 una card puo' essere di un CALCIATORE o di un CLUB (operatore: «quando si clicca sul
+ * nome della squadra all'interno della card dettaglio calciatore fai aprire una nuova card draggabile
+ * con il campetto con la formazione tipo della squadra»), e le due NON possono avere due pile. La pila
+ * decide due cose - il POSTO e chi sta DAVANTI - e sono tutt'e due globali allo schermo: due pile
+ * darebbero lo stesso posto a due card aperte insieme, e due «davanti» contemporanei, cioe' una card
+ * toccata che non passa davanti alle altre - che e' una regola esplicita dell'operatore (04/09/2026).
+ *
+ * Quindi la chiave porta la SPECIE: `p<fc_id>` per un uomo, `c<piattaforma>|<club>` per una squadra.
+ * La piattaforma sta dentro perche' i due listoni sono due domande - lo stesso club vi compare con
+ * board diverse - e una chiave che la lasciasse fuori mostrerebbe l'undici dell'altro listone.
+ */
+export type CardKey = string;
+
+export function playerCard(id: number): CardKey {
+  return `p${id}`;
+}
+
+export function clubCard(platform: Platform, club: string): CardKey {
+  return `c${platform}|${club}`;
+}
+
+/** Di chi e' questa card, o null se e' dell'altra specie: la pila le tiene insieme, le viste no. */
+export function playerOfCard(key: CardKey): number | null {
+  return key.startsWith('p') ? Number(key.slice(1)) : null;
+}
+
+export function clubOfCard(key: CardKey): { platform: Platform; club: string } | null {
+  if (!key.startsWith('c')) return null;
+  const at = key.indexOf('|');
+  return at < 0 ? null : { platform: key.slice(1, at) as Platform, club: key.slice(at + 1) };
+}
+
+/**
  * CHI E' APERTO E DOVE STA, una definizione per tutte le pagine che aprono card.
  *
  * Una CLASSE SEMPLICE e non un servizio: due pagine ne vogliono una ciascuna - le card della plancia
@@ -137,38 +172,38 @@ export interface CardMan {
  * ne porti una avanti.
  */
 export class CardStack {
-  private readonly open = signal<{ id: number; slot: number }[]>([]);
-  private readonly frontId = signal<number | null>(null);
+  private readonly open = signal<{ key: CardKey; slot: number }[]>([]);
+  private readonly frontKey = signal<CardKey | null>(null);
 
-  readonly ids = computed(() => this.open());
-  readonly front = computed(() => this.frontId());
+  readonly cards = computed(() => this.open());
+  readonly front = computed(() => this.frontKey());
   readonly count = computed(() => this.open().length);
 
-  /** Apre una card, o le chiude tutte con `null`. Ri-cliccare un uomo aperto lo porta davanti. */
-  openCard(id: number | null): void {
-    if (id == null) {
+  /** Apre una card, o le chiude tutte con `null`. Ri-cliccare una gia' aperta la porta davanti. */
+  openCard(key: CardKey | null): void {
+    if (key == null) {
       this.open.set([]);
-      this.frontId.set(null);
+      this.frontKey.set(null);
       return;
     }
     this.open.update((cards) => {
-      if (cards.some((one) => one.id === id)) return cards;
+      if (cards.some((one) => one.key === key)) return cards;
       const taken = new Set(cards.map((one) => one.slot));
       let slot = 0;
       while (taken.has(slot)) slot += 1;
-      return [...cards, { id, slot }];
+      return [...cards, { key, slot }];
     });
-    this.frontId.set(id);
+    this.frontKey.set(key);
   }
 
   /** Toccata: davanti alle altre. Un click o un trascinamento, che per questo sono la stessa cosa. */
-  raiseCard(id: number): void {
-    this.frontId.set(id);
+  raiseCard(key: CardKey): void {
+    this.frontKey.set(key);
   }
 
-  closeCard(id: number): void {
-    this.open.update((cards) => cards.filter((one) => one.id !== id));
-    if (this.frontId() === id) this.frontId.set(null);
+  closeCard(key: CardKey): void {
+    this.open.update((cards) => cards.filter((one) => one.key !== key));
+    if (this.frontKey() === key) this.frontKey.set(null);
   }
 
   /**
@@ -178,11 +213,11 @@ export class CardStack {
    * aggiudicazione e a ogni cambio di foglio, e una card che tenesse la COPIA continuerebbe a mostrare
    * i numeri di dieci minuti prima. Chi non e' piu' in mappa esce da se'.
    */
-  place<T>(byId: (id: number) => T | undefined): { man: T; slot: number }[] {
-    const out: { man: T; slot: number }[] = [];
+  place<T>(byKey: (key: CardKey) => T | undefined): { man: T; slot: number; key: CardKey }[] {
+    const out: { man: T; slot: number; key: CardKey }[] = [];
     for (const one of this.open()) {
-      const man = byId(one.id);
-      if (man !== undefined) out.push({ man, slot: one.slot });
+      const man = byKey(one.key);
+      if (man !== undefined) out.push({ man, slot: one.slot, key: one.key });
     }
     return out;
   }
@@ -218,6 +253,35 @@ export function cardLeft(slot: number): number {
 
 export function cardTop(slot: number): number {
   return 96 + (Math.floor(slot / 4) % 3) * 44;
+}
+
+/**
+ * LA CARD DI UN CLUB E' LARGA 520 e non 320, perche' dentro c'e' un CAMPETTO e non una colonna di
+ * numeri: una riga del modulo ne mette fino a cinque, quindi a 320 ogni casella avrebbe ~52px e i nomi
+ * sarebbero tagliati via - «un valore tagliato dal bordo non e' stretto, e' ASSENTE». A 520 una casella
+ * ne ha ~96, che e' quello che il campetto riceve nella colonna della vista Squadre, dove e' stato
+ * disegnato e misurato.
+ */
+export const CLUB_CARD_WIDTH = 520;
+
+/**
+ * DOVE NASCE UNA CARD DI CLUB: una CASCATA, e non la griglia a quattro colonne dei calciatori.
+ *
+ * Due geometrie e una sola pila, e la ragione delle due e' la larghezza: la griglia e' tagliata su
+ * `CARD_WIDTH`, quindi una card di 520 messa in una di quelle colonne ne coprirebbe due. La cascata
+ * parte da un'ORIGINE CHE NON CADE MAI su una casella della griglia (le x dei calciatori sono 16, 348,
+ * 680, 1012 e le loro y 96, 140, 184): cosi' una card di club non nasce mai esattamente sopra la card
+ * dell'uomo da cui e' stata aperta, che e' il solo modo in cui si legge come una card sparita.
+ *
+ * La prima nasce a destra della prima colonna di calciatori: la card dell'uomo resta scoperta, ed e'
+ * quella che si stava leggendo quando si e' cliccato il club.
+ */
+export function clubCardLeft(slot: number): number {
+  return 364 + (slot % 4) * 32;
+}
+
+export function clubCardTop(slot: number): number {
+  return 128 + (slot % 4) * 32;
 }
 
 /** Quante partite mostra la card chiusa: la richiesta dell'operatore del 05/09/2026, non una misura. */

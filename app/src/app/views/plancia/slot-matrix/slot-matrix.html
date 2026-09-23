@@ -27,12 +27,17 @@
      LO SCROLL STA QUI E NON SULLA PAGINA: la pagina non scorre per scelta (l'intestazione e la card
      del lotto sono quello che si guarda mentre si decide), quindi eccedere e' un fatto della plancia e
      la barra e' sua. -->
-<div class="flex h-full min-h-0 flex-col gap-1.5 overflow-y-auto">
+<div class="flex h-full min-h-0 flex-col gap-1.5 overflow-y-auto" cdkDropListGroup>
   @for (role of roles; track role) {
     <!-- Niente `min-h-0` da qui in giu': e' proprio quello che permetteva a una linea di scendere sotto
          il proprio contenuto. Senza, il minimo automatico di un elemento flex e' cio' che disegna, e
          `flex-1` resta a distribuire lo spazio quando ce n'e'. -->
-    <div class="flex flex-1 gap-1.5">
+    <!-- `data-line` E' L'AGGANCIO DI UNA RIGA, per la stessa ragione di `data-block` qui sotto e per un
+         difetto misurato (23/09/2026): il CESTINO e' un fratello di queste quattro righe, quindi da
+         quando esiste `plancia-slot-matrix > div > div` finisce SUL CESTINO invece che sulla linea
+         degli attaccanti - e il banco della card accusava la pagina di mettere la rosa fuori dalla
+         linea A, che e' il banco che misura l'elemento sbagliato. Una riga si dichiara, non si conta. -->
+    <div class="flex flex-1 gap-1.5" [attr.data-line]="role">
       <div class="flex w-3.5 shrink-0 items-center justify-center rounded" [class]="roleTone[role]">
         <span class="text-[10px] font-bold text-page">{{ role }}</span>
       </div>
@@ -102,7 +107,19 @@
                  stessa proprietà si decidono sull'ordine del CSS generato e non su quale delle due è
                  legata (il difetto del 27/08), mentre un inline condizionale vince quando c'è e
                  lascia dipingere la classe quando non c'è. -->
-            <div class="flex flex-1 flex-col">
+            <!-- LA LISTA TRASCINABILE, e SOLO sulla griglia personale (`cdkDropListDisabled`): sul
+                 mercato il taglio e' il rango per prezzo, una legge di conservazione, e spostarci un
+                 nome a mano direbbe una cosa falsa sul mercato. I blocchi di un ruolo sono CONNESSI fra
+                 loro (`cdkDropListGroup` piu' in su), perche' i dieci di uno slot sono la stessa
+                 graduatoria tagliata: portare un nome dal terzo slot al primo e' un movimento nella
+                 lista, non un trasloco fra due insiemi. -->
+            <div
+              class="flex flex-1 flex-col"
+              cdkDropList
+              [cdkDropListData]="block"
+              [cdkDropListDisabled]="view() !== 'mine'"
+              (cdkDropListDropped)="dropped($event, block)"
+            >
               @for (man of block.rows; track man.id) {
                 <!-- `min-h-[10.5px]` E' IL PAVIMENTO, ed e' suo (23/09/2026, in tre tempi: «stringiamo
                      fino a 11px», «stringiamo a 10px», «no 10 e' troppo poco ... proviamo con 10.5px»).
@@ -139,6 +156,11 @@
                      della tabella aveva pagato prima di loro. -->
                 <button
                   type="button"
+                  cdkDrag
+                  [cdkDragData]="man"
+                  [cdkDragDisabled]="view() !== 'mine'"
+                  (cdkDragStarted)="dragging.set(true)"
+                  (cdkDragEnded)="dragging.set(false)"
                   class="flex min-h-[10.5px] flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none select-none"
                   [class]="rowTone(man)"
                   [class.opacity-30]="dimmed(man)"
@@ -155,17 +177,24 @@
                   ></span>
                   <span class="min-w-0 truncate">{{ man.name }}</span>
                   <ui-ruling-dot [playerId]="man.id" />
-                  <span class="flex-1"></span>
-                  <!-- LE ICONCINE, fra il nome e i numeri (operatore, 03/09/2026). Due al massimo,
-                       perche' una riga e' alta 17px e la terza mangerebbe il nome: `ui-flags` taglia in
-                       coda, dove i marchi sono gia' in ordine di importanza, e DICE quante ne restano
-                       fuori. Quali disegnarne lo decide il menu' in barra, che e' una preferenza sola
-                       per tutta l'app. -->
+                  <!-- LE ICONCINE, SUBITO DOPO IL NOME (sua istruzione, 23/09/2026; prima stavano
+                       appoggiate ai numeri). Due al massimo, perche' una riga e' alta 17px e la terza
+                       mangerebbe il nome: `ui-flags` taglia in coda, dove i marchi sono gia' in ordine
+                       di importanza, e DICE quante ne restano fuori. Quali disegnarne lo decide il
+                       menu' in barra, che e' una preferenza sola per tutta l'app.
+
+                       E SPOSTARLE QUI E' ANCHE CIO' CHE RENDE POSSIBILE INCOLONNARE I NUMERI: da
+                       destra le icone erano il primo elemento a larghezza variabile prima delle cifre
+                       (0, 1 o 2 marchi piu' un «+N», misurati fino a 39px), quindi ogni riga spostava
+                       le colonne di quel tanto. Adesso la variabilita' sta tutta nello SPAZIATORE, che
+                       e' l'unico elemento che puo' assorbirla. Il prezzo e' il solito e va detto: le
+                       icone tolgono larghezza al NOME invece che allo spazio vuoto. -->
                   <ui-flags
                     class="shrink-0 text-[10px] leading-none"
                     [playerId]="man.id"
                     [max]="2"
                   />
+                  <span class="flex-1"></span>
                   <!-- IL NUMERO CHE SPIEGA L'ORDINE, e cambia col taglio perche' l'ordine cambia.
                        Sul mercato il blocco e' ordinato per valore atteso, quindi qui c'e' quanto
                        rende sopra il sei; sulla griglia personale c'e' LA MONETA SU CUI IL BLOCCO E'
@@ -190,16 +219,56 @@
 
                        Le partite attese restano accanto in tutt'e due, perche' spiegano tutt'e due
                        i numeri. -->
-                  <span class="shrink-0 tabular-nums opacity-60">{{
-                    view() === 'mine'
-                      ? (man.surplus == null ? '·' : (man.surplus | number: '1.1-1'))
-                      : man.edge == null
-                        ? '·'
-                        : (man.edge > 0 ? '+' : '') + (man.edge | number: '1.1-1')
-                  }}</span>
-                  <span class="shrink-0 tabular-nums opacity-40">{{
-                    man.pv == null ? '' : '(' + (man.pv | number: '1.0-0') + ')'
-                  }}</span>
+                  <!-- I NUMERI, OGNUNO IN UNA COLONNA SUA (sua richiesta, 23/09/2026: «mantieni i
+                       valori allineati verticalmente tra di loro»). Le larghezze sono DICHIARATE e le
+                       cifre allineate a destra, che e' l'unico modo in cui righe sorelle di un flex si
+                       incolonnano: `tabular-nums` rende uguali le cifre fra loro, non le celle fra le
+                       righe. Non e' un subgrid perche' queste righe sono trascinabili - CDK clona la
+                       riga per l'anteprima, e un `subgrid` senza il suo genitore si sfascia in volo.
+
+                       E LE LARGHEZZE SONO MISURATE, non scelte: sulle 249 righe il massimo reso e' 19,8
+                       per la moneta, 17,8 per le presenze e 16,2 per l'offerta (13,5 per le due medie a
+                       un decimale). Sopra ognuna c'e' un carattere di margine, perche' un dato che
+                       cresce di una cifra - un surplus negativo a tre cifre, un prezzo a quattro - non
+                       deve tagliarsi: il banco asserisce che nessuna cella e' tagliata, cosi' il giorno
+                       che succede si vede li' invece che a schermo. -->
+                  @if (stats() === 'engine') {
+                    <span class="w-[26px] shrink-0 text-right tabular-nums opacity-60">{{
+                      view() === 'mine'
+                        ? (man.surplus == null ? '·' : (man.surplus | number: '1.1-1'))
+                        : man.edge == null
+                          ? '·'
+                          : (man.edge > 0 ? '+' : '') + (man.edge | number: '1.1-1')
+                    }}</span>
+                    <span class="w-[19px] shrink-0 text-right tabular-nums opacity-40">{{
+                      man.pv == null ? '' : '(' + (man.pv | number: '1.0-0') + ')'
+                    }}</span>
+                  } @else {
+                    <!-- LA STAGIONE SCORSA, tre MISURE dove prima c'erano due previsioni (sua
+                         richiesta, 23/09/2026): presenze a voto · media voto · fantamedia, nelle unita'
+                         con cui il gioco le pubblica. Le presenze restano fra parentesi come nell'altro
+                         set - stessa posizione, stessa domanda, «quante volte l'hai visto». Un trattino
+                         dove la stagione non c'e', che su un listone di agosto e' un quarto delle righe.
+
+                         UN DECIMALE SOLO, su sua istruzione, e il prezzo e' piccolo per una ragione che
+                         va detta: qui la cifra non ORDINA niente. Il blocco resta tagliato e ordinato
+                         sulla moneta, quindi due medie che leggono 6,3 non sono due righe che si
+                         contraddicono - sono due uomini che l'anno scorso hanno reso uguale, e su una
+                         riga alta dieci pixel il secondo decimale costa piu' di quanto distingua. E' la
+                         stessa disciplina del 04/09 girata dall'altra parte: allora il decimale ci VOLLE
+                         perche' quella colonna era l'ordine, qui il centesimo non serve perche' non
+                         lo e'. -->
+                    @let last = lastOf(man);
+                    <span class="w-[19px] shrink-0 text-right tabular-nums opacity-40">{{
+                      last?.pv == null ? '' : '(' + (last?.pv | number: '1.0-0') + ')'
+                    }}</span>
+                    <span class="w-[17px] shrink-0 text-right tabular-nums opacity-60">{{
+                      last?.mv == null ? '·' : (last?.mv | number: '1.1-1')
+                    }}</span>
+                    <span class="w-[17px] shrink-0 text-right tabular-nums opacity-60">{{
+                      last?.fm == null ? '·' : (last?.fm | number: '1.1-1')
+                    }}</span>
+                  }
                   <!-- LA MAX OFFERTA, e TINTA quando e' scesa perche' di quel club ne ho gia'
                        (operatore, 08/09/2026). Lo sconto esisteva dal 04/09 e non era scritto da
                        nessuna parte: una cifra piu' bassa senza il perche' si legge come un
@@ -209,7 +278,7 @@
                        PAGATO, che nessuno sconto di mio ha toccato. -->
                   @let figure = shown(man);
                   <span
-                    class="shrink-0 tabular-nums"
+                    class="w-[22px] shrink-0 text-right tabular-nums"
                     [class.text-warning]="man.sameClubCut > 0 && man.state !== 'altro'"
                     >{{ figure != null ? (figure | number: '1.0-0') : '—' }}</span
                   >
@@ -266,4 +335,36 @@
       </div>
     </div>
   }
+
+  <!-- IL CESTINO, e compare SOLO mentre si trascina (sua richiesta del 23/09/2026: «quando draggo un
+     calciatore fai comparire anche un'area cestino dove posso buttare il calciatore»).
+     FISSO IN BASSO AL CENTRO e non dentro la griglia: dev'essere raggiungibile da qualunque blocco, e
+     la plancia ne ha venticinque su quattro righe - una zona dentro uno di loro sarebbe lontana da
+     tutti gli altri. E compare solo durante il gesto perche' uno schermo che porta sempre un cestino
+     invita a usarlo: questo e' un gesto raro, e la sua area esiste finche' serve.
+
+       E STA DENTRO IL `cdkDropListGroup`, che non e' un dettaglio di annidamento: CDK collega fra loro
+       solo le liste dello stesso gruppo, e fuori da qui il cestino COMPARIVA e non riceveva niente -
+       misurato, 224x56px a meta' volo e il nome ancora in lista dopo il rilascio. Un bersaglio che si
+       vede e non prende e' peggio di un bersaglio che non c'e'. Essendo `fixed` non gli costa nulla
+       stare qui dentro: il suo posto sullo schermo non dipende dall'albero. -->
+  <!-- ...E STA SEMPRE NEL DOM, si NASCONDE soltanto: e' il difetto che il banco ha trovato dopo averlo
+       gia' spostato dentro il gruppo. CDK calcola le liste connesse QUANDO IL GESTO COMINCIA, e un
+       bersaglio creato da un `@if` durante il trascinamento non e' fra quelle - misurato, 224x56px a
+       meta' volo e il nome ancora in lista dopo il rilascio, due volte di fila.
+       *Un bersaglio che si vede e non prende e' peggio di un bersaglio che non c'e'*, e la differenza
+       fra `@if` e `invisible` qui non e' di stile: e' se il gesto arriva. -->
+  <div
+    data-bin
+    cdkDropList
+    (cdkDropListDropped)="dumped($event)"
+    class="fixed bottom-6 left-1/2 z-(--z-dropdown) flex h-14 w-56 -translate-x-1/2 items-center
+           justify-center gap-2 rounded-lg border-2 border-dashed border-danger bg-surface text-xs
+           font-medium text-danger shadow-lg transition-opacity"
+    [class.pointer-events-none]="!dragging()"
+    [class.opacity-0]="!dragging()"
+  >
+    <nz-icon nzType="delete" />
+    Butta via
+  </div>
 </div>

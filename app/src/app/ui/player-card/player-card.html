@@ -65,7 +65,24 @@
           <ui-ruling-dot [playerId]="man.id" />
         </span>
         <span class="flex min-w-0 items-center gap-1 text-[11px] text-muted">
-          <span class="min-w-0 truncate">{{ man.club }} · {{ man.where }}</span>
+          <!-- IL NOME DELLA SQUADRA APRE IL SUO CAMPETTO (operatore, 23/09/2026), e solo dove un campetto
+               c'è: un nome che sembra cliccabile e non fa niente è peggio di un nome che non lo sembra,
+               quindi dove il foglio non porta la board resta il testo di prima. Sottolineato punteggiato
+               e non colorato: in questa intestazione il colore è già del ruolo e della categoria. -->
+          @if (hasBoard()) {
+            <button
+              type="button"
+              class="min-w-0 truncate text-left underline decoration-dotted underline-offset-2
+                     hover:text-fg"
+              data-club-link
+              nz-tooltip
+              nzTooltipTitle="Apri la formazione tipo di questa squadra"
+              (click)="openClub()"
+            >{{ man.club }}</button>
+            <span class="shrink-0">· {{ man.where }}</span>
+          } @else {
+            <span class="min-w-0 truncate">{{ man.club }} · {{ man.where }}</span>
+          }
           <!-- IL RUOLO REALE, i dodici codici (operatore, 11/09/2026). Lo STESSO componente del
                campetto e della tabella: un marchio significa la stessa cosa in ogni pagina, e due
                disegni dello stesso ruolo sarebbero due vocabolari. Non è il `where` qui accanto - quello

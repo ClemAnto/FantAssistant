@@ -246,8 +246,10 @@ function readCard() {
   const shell = card.parentElement;
   const box = shell.getBoundingClientRect();
   const dock = document.querySelector('[data-dock="right"]')?.getBoundingClientRect() ?? null;
-  const lines = [...document.querySelectorAll('plancia-slot-matrix > div > div')];
-  const attack = lines.at(-1)?.getBoundingClientRect() ?? null;
+  // LA LINEA SI CHIEDE PER NOME e non si conta: il cestino del riordino e' un fratello delle quattro
+  // righe, quindi `> div > div` finisce su di LUI - misurato, questo passo accusava la card di stare
+  // fuori dalla linea degli attaccanti mentre misurava il cestino.
+  const attack = document.querySelector('[data-line="A"]')?.getBoundingClientRect() ?? null;
   const pitch = card.querySelector('[data-pitch]');
   const rows = [...(pitch?.children ?? [])].map((row) => {
     const rect = row.getBoundingClientRect();

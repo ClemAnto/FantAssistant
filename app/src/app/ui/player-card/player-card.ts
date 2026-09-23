@@ -141,11 +141,43 @@ export class PlayerCard {
   readonly closed = output<number>();
   readonly raised = output<number>();
 
+  /**
+   * IL CLICK SUL NOME DELLA SQUADRA (operatore, 23/09/2026): «fai aprire una nuova card draggabile con
+   * il campetto con la formazione tipo della squadra».
+   *
+   * Un `output<void>` e non un evento che porta il club: chi apre la card ha gia' `man.club` e
+   * `man.platform` in mano, e la PILA delle card e' della pagina - due specie di card, una pila sola,
+   * perche' il posto e chi sta davanti sono globali allo schermo (`core/player-card.ts`).
+   */
+  readonly club = output<void>();
+
   constructor() {
     // Le ultime partite vivono in un altro store, che nessuna delle due pagine d'asta carica: si chiede
     // QUI, cioe' alla prima card aperta, e non all'apertura della pagina. `load()` tiene la sua promessa,
     // quindi la seconda card non paga niente.
     void this.players.load();
+    // ...e lo stesso vale per il negozio che porta le BOARD e il ruolo reale granulare: la plancia non
+    // lo chiede, quindi senza questa riga il campetto di una squadra non si aprirebbe MAI di li' e il
+    // ruolo reale sarebbe vuoto - un marchio che si disegna in una vista sola e' indistinguibile da un
+    // marchio che non esiste.
+    void this.valuation.load();
+  }
+
+  /**
+   * SE DI QUESTA SQUADRA C'E' UNA FORMAZIONE TIPO DA APRIRE.
+   *
+   * Un nome che sembra cliccabile e non fa niente e' peggio di un nome che non lo sembra, quindi il
+   * bottone c'e' solo dove la board esiste davvero: un foglio costruito senza display non porta i
+   * campetti, e un club che il pannello non e' riuscito a disegnare non ne ha uno.
+   */
+  protected readonly hasBoard = computed(() => {
+    const man = this.man();
+    const board = this.valuation.boardViewFor(man.platform)?.clubs?.[man.club];
+    return !!board && !board.error;
+  });
+
+  protected openClub(): void {
+    this.club.emit();
   }
 
   protected close(): void {

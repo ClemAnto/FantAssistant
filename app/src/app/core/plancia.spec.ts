@@ -828,6 +828,44 @@ describe('la griglia PERSONALE', () => {
     expect(blocks[0].men.at(-1)?.id).toBe(1);
   });
 
+  it('IL MIO ORDINE VA IN TESTA, e il resto resta sulla moneta', () => {
+    const men: PlanciaMan[] = [];
+    // surplus 19...0: senza il mio ordine il primo blocco sono i dieci piu' alti, 20...11.
+    for (let at = 0; at < 20; at += 1) men.push({ ...man(at + 1, 'D', 20 - at), surplus: 19 - at });
+    const plain = regroupByCoin(men, (one) => one.surplus, 10, { P: 0, D: 2, C: 0, A: 0 });
+    expect(plain[0].men.map((one) => one.id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+    // ...e col prefisso i due nomi sistemati salgono in cima NEL SUO ORDINE, gli altri scalano.
+    const mine = regroupByCoin(men, (one) => one.surplus, 10, { P: 0, D: 2, C: 0, A: 0 },
+                               { D: [20, 15] });
+    expect(mine[0].men.map((one) => one.id)).toEqual([20, 15, 1, 2, 3, 4, 5, 6, 7, 8]);
+    // ...e i due che sono saliti NON sono piu' nel secondo blocco: la lista e' una sola.
+    expect(mine[1].men.map((one) => one.id)).not.toContain(20);
+  });
+
+  it('un nome che la lista non ha piu viene ignorato, non lascia un buco', () => {
+    const men: PlanciaMan[] = [];
+    for (let at = 0; at < 20; at += 1) men.push({ ...man(at + 1, 'D', 20 - at), surplus: 19 - at });
+    // 99 non esiste: un ordine e' una preferenza sui NOMI, non un elenco di righe.
+    const mine = regroupByCoin(men, (one) => one.surplus, 10, { P: 0, D: 2, C: 0, A: 0 },
+                               { D: [99, 15] });
+    expect(mine[0].men.map((one) => one.id)).toEqual([15, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    expect(mine.flatMap((block) => block.men)).toHaveLength(20);
+  });
+
+  it('LA MEDIANA DELL INTESTAZIONE NON LA TOCCA IL MIO ORDINE, perche non e una valutazione', () => {
+    const men: PlanciaMan[] = [];
+    for (let at = 0; at < 20; at += 1) men.push({ ...man(at + 1, 'D', 20 - at), surplus: 19 - at });
+    // Il difetto che il parametro evita: mettere i nomi in cima con una moneta finta (un valore
+    // enorme) darebbe lo stesso ordine e farebbe stampare quei numeri all'intestazione.
+    const mine = regroupByCoin(men, (one) => one.surplus, 10, { P: 0, D: 2, C: 0, A: 0 },
+                               { D: [20, 15] });
+    for (const block of mine) {
+      expect(block.medianCoin).toBeLessThanOrEqual(19);
+      expect(block.medianCoin).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it('porta DUE mediane, e quella dell intestazione e la coordinata su cui ha tagliato', () => {
     const { men, offerOf } = upsideDown();
     const first = regroupByCoin(men, offerOf, 10, slots)[0];

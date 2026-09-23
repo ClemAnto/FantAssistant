@@ -12,7 +12,15 @@ import { ClubsStore } from '../../core/clubs-store';
 import { ExpectedPlay, PlayOutlook } from '../../core/expected-play';
 import { GlobalOptions } from '../../core/global-options';
 import { cleanSheetBaseline, cleanSheetOutlook } from '../../core/keeper-pairs';
-import { CardMan, CardStack } from '../../core/player-card';
+import {
+  CardKey,
+  CardMan,
+  CardStack,
+  clubCard,
+  clubOfCard,
+  playerCard,
+  playerOfCard,
+} from '../../core/player-card';
 import { LineupMan, MatchLineup, lineupOf } from '../../core/match-lineup';
 import { EDGE_BASE } from '../../core/plancia';
 import { BoardHorizon, BoardMan } from '../../core/bundle';
@@ -38,6 +46,7 @@ import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { MatchLineupBoard } from '../../ui/match-lineup/match-lineup';
 import { NextRoundBoard } from '../../ui/next-round/next-round';
 import { MatchesTable } from '../../ui/matches-table/matches-table';
+import { ClubCard } from '../../ui/club-card/club-card';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { SquadTable } from '../../ui/squad-table/squad-table';
 import { TimeTravel } from '../../core/time-travel';
@@ -81,6 +90,7 @@ export type BoardTab = BoardHorizon | 'next';
   imports: [
     AppHeader,
     ClubBoard,
+    ClubCard,
     ClubCrest,
     FormsModule,
     MatchLineupBoard,
@@ -677,10 +687,11 @@ export class Clubs {
     const engine = this.engine();
     const rounds = this.valuation.seasonRoundsFor(this.store.boardSheet());
     const platform = this.store.platform();
-    return this.cards.place((id) => {
-      const man = byId.get(id);
+    return this.cards.place((key) => {
+      const id = playerOfCard(key);
+      const man = id == null ? undefined : byId.get(id);
       if (!man) return undefined;
-      const numbers = engine?.get(id) ?? null;
+      const numbers = engine?.get(id as number) ?? null;
       const outlook = this.play.outlook(
         { id: man.fcId, club: man.club, platform },
         { pv: man.expected, pvIsEstimate: man.expectedIsEstimate, playShare: man.titolaritaPlay,
@@ -733,19 +744,35 @@ export class Clubs {
     });
   }
 
+  /**
+   * LE CARD DI UNA SQUADRA, dalla stessa pila: il click sul nome del club dentro la card di un uomo.
+   *
+   * Una pila sola per le due specie perche' il POSTO e chi sta DAVANTI sono globali allo schermo: due
+   * pile darebbero lo stesso posto a due card aperte insieme e due «davanti» contemporanei.
+   */
+  protected readonly clubCards = computed(() =>
+    this.cards.place((key) => clubOfCard(key) ?? undefined),
+  );
+
+  protected readonly cardCount = computed(() => this.cards.count());
+
   protected readonly frontCard = computed(() => this.cards.front());
 
   /** Il click su un nome del campetto: apre la sua card e nient'altro. */
   protected onPick(id: number): void {
-    this.cards.openCard(id);
+    this.cards.openCard(playerCard(id));
   }
 
-  protected closeCard(id: number): void {
-    this.cards.closeCard(id);
+  protected openClubCard(platform: Platform, club: string): void {
+    this.cards.openCard(clubCard(platform, club));
   }
 
-  protected raiseCard(id: number): void {
-    this.cards.raiseCard(id);
+  protected closeCard(key: CardKey): void {
+    this.cards.closeCard(key);
+  }
+
+  protected raiseCard(key: CardKey): void {
+    this.cards.raiseCard(key);
   }
 
   protected closeAllCards(): void {

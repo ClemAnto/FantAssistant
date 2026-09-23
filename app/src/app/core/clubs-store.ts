@@ -1,11 +1,9 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Board } from './bundle';
-import { PlayerRulings } from './player-rulings';
+import { ClubBoards } from './club-boards';
 import { Platform, abbreviate, competitionLabel, nameWords } from './players-store';
-import { Titolarita } from './titolarita';
 import { SquadMan, ValuationStore } from './valuation-store';
-import { MarketValues } from './market-trend';
 
 /**
  * The SQUADS of today's snapshot: who a real club has, and the eleven the toolkit draws for it.
@@ -109,10 +107,15 @@ export function shortNames(names: readonly string[]): Map<string, string> {
 @Injectable({ providedIn: 'root' })
 export class ClubsStore {
   private readonly valuation = inject(ValuationStore);
-  /** La curva del mercato vero, letta da chi la legge gia' per la tabella: un lettore solo. */
-  private readonly market = inject(MarketValues);
-  /** Le dritte dichiarate: il campetto le applica al disegno, i numeri le hanno gia' dentro. */
-  private readonly rulingsOf = inject(PlayerRulings);
+  /**
+   * TUTTO QUELLO CHE IL CAMPETTO CHIEDE ACCANTO ALLA BOARD, dal posto unico in cui si costruisce
+   * (`core/club-boards.ts`): l'Overall, la quota del motore, il valore di mercato e le dritte.
+   *
+   * Prima quelle quattro mappe nascevano qui, e dal 23/09/2026 le chiede anche la card di un club aperta
+   * dalla card di un calciatore: due copie dello stesso conto sono due valutazioni per un uomo, che e'
+   * esattamente il difetto che `ValuationStore` esiste per impedire.
+   */
+  private readonly boards = inject(ClubBoards);
 
   /* The bundle's own state, read from the one store that loads it: two copies of «sto caricando» would
    * eventually disagree, and the view would show a table under a spinner or the other way round. */
@@ -131,7 +134,7 @@ export class ClubsStore {
   readonly boardSheet = computed(() => this.valuation.sheetFor(this.platform()));
 
   /** True when nothing on this platform carries boards at all: then there is nothing honest to draw. */
-  readonly noBoards = computed(() => !this.valuation.boardsFor(this.platform()));
+  readonly noBoards = computed(() => this.pack().noBoards);
 
   readonly clubs = computed<ClubEntry[]>(() => {
     const leagues = this.valuation.clubLeagues();
@@ -190,23 +193,18 @@ export class ClubsStore {
   });
 
   /** The chosen club's squad, valued by the one store that values a man - see `ValuationStore`. */
-  readonly squad = computed<SquadMan[]>(() => {
-    const club = this.club();
-    if (!club) return [];
-    const platform = this.platform();
-    // ...E CHI IL LISTONE DA' PER CEDUTO NON E' PIU' IN QUELLA ROSA (operatore, 07/09/2026: «perche' nel
-    // Napoli c'e' ancora Lukaku?»). L'asterisco accanto al nome e' la piattaforma che dichiara che quel
-    // calciatore non gioca piu' qui, ed e' il piu' forte dei tre segnali di partenza: i fogli del motore
-    // quelle righe non le portano piu' affatto (`snapshot`, 03/09), ma questa lista si costruisce dalle
-    // QUOTAZIONI, dove il ceduto conserva prezzo e club fino alla prossima lettura del listone.
-    // La domanda di questa vista e' «chi c'e' in questa rosa», quindi lui non c'e'. La tabella dei
-    // Calciatori resta un'altra domanda - «chi il listone quota» - e la' la riga si MOSTRA col suo
-    // marchio, perche' la sua storia con quel club e' un fatto e cancellarla sarebbe l'errore opposto.
-    const men = (this.valuation.rosters().get(platform) ?? []).filter(
-      (player) => player.club === club && !player.sold,
-    );
-    return this.valuation.valuations(platform, men);
-  });
+  readonly squad = computed<SquadMan[]>(() => this.boards.squadOf(this.platform(), this.club()));
+
+  /**
+   * IL PACCHETTO DEL CAMPETTO: la board di questo club e le quattro mappe che le vanno accanto.
+   *
+   * La rosa gli si PASSA, perche' questa vista la possiede gia' per la tabella: ricostruirla dentro
+   * sarebbe pagare due volte lo stesso conto e - peggio - aprire la porta a due liste diverse sotto la
+   * stessa intestazione.
+   */
+  private readonly pack = computed(() =>
+    this.boards.packFor(this.platform(), this.club(), this.squad()),
+  );
 
   /** What the table's two measured columns are about: one season, one calendar. */
   readonly measuredOn = computed(() => this.valuation.measuredOn(this.platform()));
@@ -219,14 +217,15 @@ export class ClubsStore {
    * The calendar is the BOARD SHEET's own (`matchdays_target`) and never another's - a share whose
    * denominator comes from a different sheet is a share of nothing.
    */
-  readonly expectedShares = computed<ReadonlyMap<number, number | null>>(() => {
-    const rounds = this.valuation.seasonRoundsFor(this.boardSheet());
-    const out = new Map<number, number | null>();
-    for (const man of this.squad()) {
-      out.set(man.fcId, man.expected == null || !rounds ? null : Math.min(1, man.expected / rounds));
-    }
-    return out;
-  });
+  readonly expectedShares = computed(() => this.pack().expectedShares);
+
+  /**
+   * QUANTO VALE OGNI UOMO DELLA ROSA SUL MERCATO VERO, alla data che si sta guardando.
+   *
+   * Serve a una cosa sola: l'esenzione al pavimento dei ballottaggi del campetto (`KEY_MAN_VALUE`), cioè
+   * far vedere un titolare FERMO che la finestra corta non ha visto giocare.
+   */
+  readonly marketValues = computed(() => this.pack().marketValues);
 
   /**
    * L'OVERALL 0-99 di ogni uomo della rosa, che è il numero che il campetto mostra accanto ai nomi.
@@ -235,25 +234,7 @@ export class ClubsStore {
    * un uomo che legge 85 nella tabella deve leggere 85 sul campetto, o le due letture della stessa
    * schermata direbbero due cose. Il rango è calcolato sul listone intero, non su questa rosa.
    */
-  /**
-   * QUANTO VALE OGNI UOMO DELLA ROSA SUL MERCATO VERO, alla data che si sta guardando.
-   *
-   * Serve a una cosa sola: l'esenzione al pavimento dei ballottaggi del campetto (`KEY_MAN_VALUE`), cioè
-   * far vedere un titolare FERMO che la finestra corta non ha visto giocare. Letto da `MarketValues`, che
-   * è il lettore unico di quella curva e sa già ritagliarla al giorno del viaggio nel tempo: un secondo
-   * lettore darebbe allo stesso uomo due valori nella stessa schermata.
-   */
-  readonly marketValues = computed<ReadonlyMap<number, number | null>>(() => {
-    const out = new Map<number, number | null>();
-    for (const man of this.squad()) out.set(man.fcId, this.market.trend(man.fcId)?.value ?? null);
-    return out;
-  });
-
-  readonly overalls = computed<ReadonlyMap<number, number | null>>(() => {
-    const out = new Map<number, number | null>();
-    for (const man of this.squad()) out.set(man.fcId, man.rating?.overall.score ?? null);
-    return out;
-  });
+  readonly overalls = computed(() => this.pack().overall);
 
   /**
    * LE DRITTE DELL'OPERATORE sugli uomini di QUESTA rosa, per il campetto.
@@ -262,27 +243,15 @@ export class ClubsStore {
    * quante dichiarazioni NON ha potuto disegnare: la stessa mappa su tutto il listone farebbe contare
    * come «non disegnabili» gli uomini di altri diciannove club.
    */
-  readonly rulings = computed<ReadonlyMap<number, Titolarita>>(() => {
-    const declared = this.rulingsOf.all();
-    const out = new Map<number, Titolarita>();
-    if (!declared.size) return out;
-    for (const man of this.squad()) {
-      const one = declared.get(man.fcId);
-      if (one) out.set(man.fcId, one.rung);
-    }
-    return out;
-  });
+  readonly rulings = computed(() => this.pack().ruled);
 
-  /** The board of the chosen club, or null: a club the sheet could not draw says so, never a fallback. */
-  readonly board = computed<Board | null>(() => {
-    const club = this.club();
-    // L'ORIZZONTE SCELTO (stagione o ultimo periodo): il disegno lo fa il TOOLKIT per tutt'e due, e qui
-    // si sceglie quale dei due leggere. L'app non ricalcola nessun undici di un club vero.
-    const view = this.valuation.boardViewFor(this.platform());
-    if (!club || !view) return null;
-    const board = view.clubs?.[club] ?? null;
-    return board && !board.error ? board : null;
-  });
+  /**
+   * The board of the chosen club, or null: a club the sheet could not draw says so, never a fallback.
+   *
+   * L'ORIZZONTE SCELTO (stagione o ultimo periodo) lo sceglie `ClubBoards`, che legge `boardViewFor`: il
+   * disegno lo fa il TOOLKIT per tutt'e due e l'app non ricalcola nessun undici di un club vero.
+   */
+  readonly board = computed<Board | null>(() => this.pack().board);
 
   /** L'orizzonte del campetto, e se il pacchetto porta quello corto: il pulsante li legge da qui. */
   readonly boardHorizon = this.valuation.boardHorizon;

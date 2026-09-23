@@ -1,29 +1,24 @@
 /**
- * e2e-focus.mjs - drive the REAL plancia and measure the FOCUS mode, its goals, and what SURVIVES
- * a page reload.
+ * e2e-plancia-order.mjs - drive the REAL plancia and measure the PERSONAL grid's hand order:
+ * drag, bin, undo, reset, and the count that must not move.
  *
- * Three claims, and each one is about the SCREEN rather than about the code.
- *  - FOCUS DIMS AND DOES NOT HIDE («evidenziamo solo i calciatori che ci servono ... e nascondiamo gli
- *    altri», operatore 23/09/2026, implemented as dimming because at a drawn auction what comes up
- *    comes up: a list that REMOVES a name does not make him unbuyable, it makes him invisible the
- *    moment he is called). So the run counts the DIFFERENCE in dimmed rows, never the absolute - the
- *    page dims other things too (the squad cards), and a bench that demands a zero accuses the page of
- *    its own selector.
- *  - THE LABEL IS A BUTTON («cliccando sull'etichetta seleziona l'obiettivo successivo»), and that is
- *    verified on BOTH halves of the gesture: the word changes AND the list moves. A cycle that changed
- *    only the label would be a switch wired to nothing.
- *  - THE THREE SWITCHES SURVIVE A REFRESH («memorizza lo stato dei tasti premuti in modo che al
- *    refresh non si perdano le impostazioni», 23/09/2026) - which is a claim no unit test can make,
- *    because the thing being claimed is a reload.
- *
- * And the reload step first MAKES SURE THE STATE EXISTS: it clicks the goal until the label stops
- * being the advised one, because `cycleGoal` drops an override that lands back on the advice - so a
- * check taken on a coincidentally-advised label would pass with nothing stored, which is this
- * project's own «un'asserzione che non puo' fallire» read from the fixture's side.
+ * Four claims, and every one of them is about the SCREEN.
+ *  - DRAG REORDERS ACROSS BLOCKS («permettimi di riordinare i calciatori tramite drag&drop», operatore
+ *    23/09/2026), because the blocks of a role are one ranking cut into tens - moving a name from the
+ *    third slot to the first is a move inside a list, not a removal from one set and an insert in
+ *    another. The gesture is verified with a REAL pointer and CDK's own 5px threshold.
+ *  - THE BIN EXISTS ONLY MID-FLIGHT and it has to RECEIVE: a target that shows and takes nothing is
+ *    worse than no target (CDK computes the connected lists when the drag STARTS, so the zone lives in
+ *    the DOM and only hides - measured twice at 224x56px with the name still in the list afterwards).
+ *  - THE ROLE'S COUNT DOES NOT MOVE when a name is binned («il numero totale di calciatori di quel
+ *    ruolo deve rimanere invariato quindi deve entrare uno dei calciatori che prima era rimasto
+ *    fuori», 23/09/2026): one man comes up from the tail. The step also PRINTS where he landed, since
+ *    the grid places him by its own coin and «last» is a consequence and not a rule.
+ *  - AND THE HAND ORDER SURVIVES A RELOAD, while the ✕ gives the sheet's own order back.
  *
  * Zero dependencies, like the other harnesses: serves `dist/`, launches Edge or Chrome headless, CDP.
  *
- * Usage: node scripts/e2e-focus.mjs [--headed]
+ * Usage: node scripts/e2e-plancia-order.mjs [--headed]
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -603,12 +598,35 @@ function names(board) {
 function shapeOf(board) {
   return (board ?? []).map((one) => `${one.id}:${one.rows.length}`).join(' ');
 }
+async function dragTo(session, from, to, steps = 8, midFlight = null) {
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none' });
+  await wait(40);
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1,
+  });
+  for (let step = 1; step <= steps; step += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: Math.round(from.x + ((to.x - from.x) * step) / steps),
+      y: Math.round(from.y + ((to.y - from.y) * step) / steps),
+      button: 'left',
+      buttons: 1,
+    });
+    await wait(25);
+    // A metà volo si guarda quello che esiste SOLO mentre si trascina: l'anteprima e il segnaposto.
+    if (midFlight && step === Math.ceil(steps / 2)) await midFlight();
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased', x: Math.round(to.x), y: Math.round(to.y), button: 'left', clickCount: 1,
+  });
+  await wait(300);
+}
 
-/** LA MODALITA' FOCUS: quante righe restano accese, chi sono, e cosa la barra dichiara. */
+/** IL RIORDINO A MANO della griglia personale: il trascinamento, il cestino, l'annulla, il reset. */
 async function main() {
   const binary = BROWSERS.find((one) => existsSync(one));
   const { server, port } = await serve(DIST);
-  const profile = await mkdtemp(join(tmpdir(), 'fant-focus-'));
+  const profile = await mkdtemp(join(tmpdir(), 'fant-order-'));
   const debugPort = Number(await freePort());
   const url = `http://127.0.0.1:${port}/plancia`;
   const browser = spawn(binary, ['--headless=new', `--remote-debugging-port=${debugPort}`,
@@ -616,129 +634,169 @@ async function main() {
     '--disable-extensions', '--window-size=1600,1000', url], { stdio: 'ignore' });
   let session;
   const problems = [];
+  const rowsOf = (role) => {
+    const out = [];
+    // `[data-block]` e non un cammino nell'albero: dentro questa griglia stanno anche due card
+    // PROIETTATE, e da quando la seconda porta dei `<button>` un selettore strutturale prende anche
+    // le sue righe - tre banchi vicini rossi insieme il 23/09, tutti e tre ad accusare la pagina.
+    for (const block of document.querySelectorAll('[data-block]')) {
+      const head = block.querySelector('span')?.innerText?.trim() ?? '';
+      if (!head.startsWith(role)) continue;
+      for (const b of block.querySelectorAll('button')) {
+        out.push({ name: (b.innerText ?? '').split('\n')[0].trim(), block: head });
+      }
+    }
+    return out;
+  };
   try {
     session = await attach(debugPort);
     await session.send('Page.enable');
     await session.send('Runtime.enable');
     await session.send('Page.navigate', { url });
     await waitFor(session, readBoard, 120);
-
-    // LO SFONDO DI OGNI RIGA PRIMA, che e' il modo di misurare un'evidenziazione senza conoscere il
-    // formato di un token: si contano le DIFFERENZE, non i canali (la lezione del 03/09).
-    const read = () => {
-      const rows = [...document.querySelectorAll('[class*="grid-cols-8"] button')];
-      return {
-        rows: rows.length,
-        faded: rows.filter((r) => Number(getComputedStyle(r).opacity) < 0.9).length,
-        says: (document.querySelector('[data-focus-needs]')?.innerText ?? '').replace(/\n/g, ' · '),
-        on: !!document.querySelector('[data-focus].ant-btn-primary'),
-      };
-    };
-    // SI CONTA LA DIFFERENZA e non il valore assoluto: sulla pagina ci sono altre cose smorzate che
-    // non c'entrano (le card delle rose), e un banco che pretende lo zero accusa la pagina del proprio
-    // selettore - la lezione del 03/09 sull'evidenziazione, applicata al suo complemento.
-    const before = await evaluate(session, read);
-    console.log(`. prima: ${before.rows} righe, ${before.faded} smorzate, focus ${before.on ? 'ON' : 'off'}`);
-
-    const at = await evaluate(session, boxOf, '[data-focus]', 'FOCUS');
-    if (!at) throw new Error('il tasto FOCUS non e sullo schermo');
-    await click(session, at);
+    const toMine = await evaluate(session, boxOf, 'header nz-radio-group label', 'personali');
+    await click(session, toMine);
     await wait(500);
-    const after = await evaluate(session, read);
-    console.log(`. dopo:  ${after.rows} righe, ${after.faded} smorzate, focus ${after.on ? 'ON' : 'off'}`);
-    console.log(`. la barra dice: «${after.says}»`);
-    if (!after.on) problems.push('il tasto non si accende');
-    const spenti = after.faded - before.faded;
-    console.log(`. il focus ne spegne ${spenti} di ${after.rows}`);
-    if (spenti <= 0) problems.push('acceso, non smorza niente di piu: il focus non arriva alle righe');
-    // ...e non basta che ne spenga QUALCUNA: se ne spegnesse una manciata non restringerebbe, che e'
-    // il difetto che questo banco ha trovato alla prima corsa (10 righe su 271, soglia 0,35).
-    if (spenti < after.rows / 5) problems.push(`acceso ne spegne solo ${spenti} su ${after.rows}: non restringe`);
-    if (after.faded === after.rows) problems.push('acceso, smorza TUTTO: nessuna riga serve, e una lista vuota non e un consiglio');
-    if (!after.says) problems.push('smorza senza dire cosa cerca: uno schermo mezzo spento senza una parola in cima si legge come un guasto');
 
-    // IL CLICK SULL'ETICHETTA passa all'obiettivo successivo (sua richiesta del 23/09/2026). Si verifica
-    // su DUE cose insieme, perche' sono due meta' dello stesso gesto: la parola cambia E la lista si
-    // muove - un ciclo che cambiasse solo l'etichetta sarebbe un interruttore scollegato.
-    const goal = await evaluate(session, () => {
-      const b = document.querySelector('[data-goal]');
+    const before = await evaluate(session, rowsOf, 'D');
+    console.log(`. la difesa personale: ${before.length} righe, la prima e «${before[0]?.name}»`);
+
+    // IL TRASCINAMENTO: una riga del TERZO blocco portata in cima al PRIMO. Fra blocchi e non dentro
+    // uno, perche' e' il movimento che conta - i blocchi sono la stessa graduatoria tagliata a dieci.
+    const from = await evaluate(session, (name) => {
+      const b = [...document.querySelectorAll('[data-block] button')]
+        .find((one) => (one.innerText ?? '').includes(name));
       if (!b) return null;
       const r = b.getBoundingClientRect();
-      return { text: b.innerText.trim(), x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }, before[22]?.name ?? '');
+    const to = await evaluate(session, (name) => {
+      const b = [...document.querySelectorAll('[data-block] button')]
+        .find((one) => (one.innerText ?? '').includes(name));
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + 2 };
+    }, before[0]?.name ?? '');
+    const moved = before[22]?.name;
+    if (!from || !to) throw new Error('non trovo le due righe da trascinare');
+
+    // ...e a META' VOLO si guarda il CESTINO, che esiste solo mentre si trascina.
+    let binSeen = null;
+    await dragTo(session, from, to, 10, async () => {
+      binSeen = await evaluate(session, () => {
+        const el = document.querySelector('[data-bin]');
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { w: Math.round(r.width), h: Math.round(r.height), x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      });
     });
-    if (!goal) problems.push('nessuna etichetta di obiettivo da cliccare');
-    if (goal) {
-      await click(session, { x: goal.x, y: goal.y });
-      await wait(400);
-      const cycled = await evaluate(session, read);
-      const now = await evaluate(session, () =>
-        (document.querySelector('[data-goal]')?.innerText ?? '').trim());
-      console.log(`. il click cicla: «${goal.text}» -> «${now}» · smorzate ${after.faded} -> ${cycled.faded}`);
-      if (now === goal.text) problems.push(`il click non cambia l'obiettivo: resta «${now}»`);
-      if (cycled.faded === after.faded) {
-        problems.push('l obiettivo cambia ma la lista no: l etichetta e scollegata dalle righe');
+    const after = await evaluate(session, rowsOf, 'D');
+    console.log(`. trascinato «${moved}» in cima: ora la prima e «${after[0]?.name}»`);
+    console.log(`. il cestino a meta volo: ${binSeen ? `${binSeen.w}x${binSeen.h}px` : 'NON COMPARE'}`);
+    if (after[0]?.name !== moved) problems.push(`il trascinamento non ha spostato «${moved}»: la prima e «${after[0]?.name}»`);
+    if (!binSeen) problems.push('il cestino non compare durante il trascinamento');
+
+    // IL CESTINO: si butta il primo e gli altri devono SCALARE.
+    if (binSeen) {
+      const second = after[1]?.name;
+      const grab = await evaluate(session, (name) => {
+        const b = [...document.querySelectorAll('[data-block] button')]
+          .find((one) => (one.innerText ?? '').includes(name));
+        if (!b) return null;
+        const r = b.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      }, after[0]?.name ?? '');
+      await dragTo(session, grab, binSeen, 10);
+      const dumped = await evaluate(session, rowsOf, 'D');
+      console.log(`. buttato «${after[0]?.name}»: ora la prima e «${dumped[0]?.name}» (${dumped.length} righe)`);
+      if (dumped.some((one) => one.name === after[0]?.name)) problems.push('il buttato e ancora in lista');
+      if (dumped[0]?.name !== second) problems.push(`gli altri non scalano: dopo il buttato la prima e «${dumped[0]?.name}» invece di «${second}»`);
+
+      // IL CONTO DEL RUOLO NON SI MUOVE, e chi entra viene dalla coda (sua richiesta del 23/09/2026).
+      // Si asserisce il CONTO e si STAMPA il posto: la griglia lo colloca con la propria moneta, quindi
+      // «all'ultimo posto» e' quello che succede quasi sempre e non una regola che il codice impone -
+      // pretenderlo qui vorrebbe dire asserire una cosa che nessuno ha deciso.
+      const had = new Set(after.map((one) => one.name));
+      const fresh = dumped.filter((one) => !had.has(one.name));
+      const where = fresh.map((one) => `${one.name} (${one.block}, ${dumped.indexOf(one) + 1}º di ${dumped.length})`);
+      console.log(`. entrati dalla coda: ${fresh.length ? where.join(' · ') : 'NESSUNO'}`);
+      if (dumped.length !== after.length) {
+        problems.push(`il conto della difesa si e' mosso: ${dumped.length} righe invece di ${after.length}`);
+      }
+      if (fresh.length !== 1) {
+        problems.push(`al posto del buttato sono entrati ${fresh.length} nomi invece di uno`);
+      }
+
+      // ...E IL BLOCCO LO DICE. Una riga senza max offerta in mezzo a nove che ce l'hanno si legge
+      // come un dato perso: il tooltip del blocco in cui e' finito nomina chi e' entrato e perche' la
+      // sua colonna e' vuota. Si legge APRENDOLO, perche' il titolo e' un binding di proprieta'.
+      if (fresh.length === 1) {
+        const head = await evaluate(session, (id) => {
+          const block = [...document.querySelectorAll('[data-block]')].find(
+            (one) => (one.querySelector('span')?.innerText ?? '').trim() === id,
+          );
+          const bar = block?.firstElementChild;
+          if (!bar) return null;
+          const r = bar.getBoundingClientRect();
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        }, fresh[0].block);
+        if (!head) problems.push(`non trovo l intestazione del blocco ${fresh[0].block}`);
+        else {
+          await session.send('Input.dispatchMouseEvent', {
+            type: 'mouseMoved', x: Math.round(head.x), y: Math.round(head.y), button: 'none',
+          });
+          await wait(700);
+          const tip = await evaluate(session, readTooltip);
+          console.log(`. il blocco ${fresh[0].block} dice: «${(tip ?? '').slice(-110)}»`);
+          if (!tip || !tip.includes('ripescati dalla coda')) {
+            problems.push(`il blocco ${fresh[0].block} non dichiara il ripescato: «${tip}»`);
+          }
+          if (tip && !tip.includes(fresh[0].name)) {
+            problems.push(`il blocco non NOMINA chi e entrato (${fresh[0].name})`);
+          }
+        }
+      }
+
+      // L'ANNULLA lo rimette, e il tasto esiste solo quando c'e' qualcosa da annullare.
+      const un = await evaluate(session, boxOf, '[data-unbin]', 'buttati');
+      if (!un) problems.push("il tasto «annulla l'ultima eliminazione» non c'e'");
+      else {
+        await click(session, un);
+        await wait(400);
+        const back = await evaluate(session, rowsOf, 'D');
+        console.log(`. annullato: ${back.length} righe, la prima e «${back[0]?.name}»`);
+        if (!back.some((one) => one.name === after[0]?.name)) problems.push('annulla non ha rimesso il buttato');
+        // E IL RIPESCATO TORNA SOTTO LA LINEA: il conto e' lo stesso di prima del cestino, quindi se
+        // restasse il ruolo avrebbe un uomo di troppo - il difetto opposto, e altrettanto silenzioso.
+        if (back.length !== after.length) {
+          problems.push(`dopo l annulla il ruolo ha ${back.length} righe invece di ${after.length}`);
+        }
+        if (fresh.length && back.some((one) => one.name === fresh[0].name)) {
+          problems.push(`il ripescato «${fresh[0].name}» e' rimasto dopo l annulla`);
+        }
       }
     }
 
-    // IL RICARICAMENTO, che e' la sola prova possibile della richiesta: i tre interruttori vivono in
-    // `localStorage` e quello che si afferma e' che un refresh li ritrova. Prima si PORTA la pagina in
-    // uno stato che li usa tutti e tre - griglia personale, focus acceso, un obiettivo scavalcato a
-    // mano - poi si ricarica e si rilegge.
-    const grid = await evaluate(session, boxOf, 'header nz-radio-group label', 'personali');
-    if (!grid) problems.push('nessun tasto «slot personali» in barra');
-    if (grid) { await click(session, grid); await wait(500); }
-
-    // ...e lo SCAVALCO deve esistere davvero, o la verifica passerebbe a vuoto: `cycleGoal` toglie
-    // l'override quando il giro torna sul consiglio, quindi si clicca finche' l'etichetta perde il
-    // primario - cioe' finche' dice «Scelto da te» invece di «Consigliato ora».
-    const goalState = () => {
-      const b = document.querySelector('[data-goal]');
-      return b ? { text: b.innerText.trim(), advised: b.classList.contains('bg-primary') } : null;
-    };
-    let mine = await evaluate(session, goalState);
-    for (let turn = 0; turn < 4 && mine && mine.advised; turn += 1) {
-      const box = await evaluate(session, boxOf, '[data-goal]', mine.text);
-      if (!box) break;
-      await click(session, box);
-      await wait(350);
-      mine = await evaluate(session, goalState);
-    }
-    if (!mine || mine.advised) {
-      problems.push('non si riesce a scavalcare un obiettivo: il ricaricamento non proverebbe niente');
-    }
-    const kept = await evaluate(session, () => ({
-      says: (document.querySelector('[data-focus-needs]')?.innerText ?? '').replace(/\n/g, ' · '),
-      on: !!document.querySelector('[data-focus].ant-btn-primary'),
-      grid: [...document.querySelectorAll('header nz-radio-group label')]
-        .find((one) => one.classList.contains('ant-radio-button-wrapper-checked'))?.innerText.trim(),
-    }));
-    console.log(`. prima del refresh: ${kept.grid} · focus ${kept.on ? 'ON' : 'off'} · «${kept.says}»`);
-
-    await session.send('Page.reload', { ignoreCache: false });
+    // LA PERSISTENZA: l'ordine e' salvato in locale, quindi sopravvive a un ricaricamento.
+    await session.send('Page.navigate', { url });
     await waitFor(session, readBoard, 120);
+    const again = await evaluate(session, boxOf, 'header nz-radio-group label', 'personali');
+    await click(session, again);
     await wait(600);
-    const again = await evaluate(session, () => ({
-      says: (document.querySelector('[data-focus-needs]')?.innerText ?? '').replace(/\n/g, ' · '),
-      on: !!document.querySelector('[data-focus].ant-btn-primary'),
-      grid: [...document.querySelectorAll('header nz-radio-group label')]
-        .find((one) => one.classList.contains('ant-radio-button-wrapper-checked'))?.innerText.trim(),
-      advised: document.querySelector('[data-goal]')?.classList.contains('bg-primary'),
-    }));
-    console.log(`. dopo il refresh:   ${again.grid} · focus ${again.on ? 'ON' : 'off'} · «${again.says}»`);
-    if (!again.on) problems.push('il refresh spegne il FOCUS');
-    if (again.grid !== kept.grid) problems.push(`il refresh riporta la griglia a «${again.grid}»`);
-    if (again.says !== kept.says) problems.push(`il refresh cambia gli obiettivi: «${kept.says}» -> «${again.says}»`);
-    if (again.advised) problems.push("il refresh perde l'obiettivo scelto a mano: torna al consigliato");
+    const reloaded = await evaluate(session, rowsOf, 'D');
+    console.log(`. dopo il ricaricamento la prima e «${reloaded[0]?.name}»`);
+    if (reloaded[0]?.name !== moved) problems.push(`l ordine non e' stato salvato: la prima e «${reloaded[0]?.name}» invece di «${moved}»`);
 
-    await click(session, at);
-    await wait(400);
-    const back = await evaluate(session, read);
-    console.log(`. e si spegne: ${back.faded} smorzate su ${back.rows}`);
-    // NON si confronta piu' con `before`: in mezzo la griglia e' passata a quella personale, che
-    // porta altre righe. Quello che deve valere e' che a focus spento non resti nessuno smorzato dal
-    // FOCUS, cioe' che la barra degli obiettivi sparisca e le smorzate tornino una frazione piccola.
-    if (back.says) problems.push('spento, la barra degli obiettivi resta a schermo');
-    if (back.faded > back.rows / 5) problems.push(`spento lascia ${back.faded} righe smorzate su ${back.rows}`);
+    // ...E IL RESET rimette quello del foglio.
+    const reset = await evaluate(session, boxOf, '[data-reset-order]', '');
+    if (!reset) problems.push('il tasto per azzerare l ordine non c e');
+    else {
+      await click(session, reset);
+      await wait(400);
+      const plain = await evaluate(session, rowsOf, 'D');
+      console.log(`. azzerato: la prima e «${plain[0]?.name}» (era «${before[0]?.name}» all inizio)`);
+      if (plain[0]?.name !== before[0]?.name) problems.push(`il reset non torna all ordine del foglio: «${plain[0]?.name}» invece di «${before[0]?.name}»`);
+    }
   } finally {
     if (session) session.close();
     browser.kill();

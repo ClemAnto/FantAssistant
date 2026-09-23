@@ -7256,3 +7256,69 @@ Quattro abitudini, e tutte e quattro sono regole di casa incontrate da un lato n
 - **E UN'ICONA VA REGISTRATA A COPPIE quando e' un verso**: `right` c'era e `left` no, e le due sono i
   due stati dello stesso gesto — registrarne una sola avrebbe lasciato una casella vuota su meta' degli
   stati (`eye` il 04/09, `user-add` il 13/09).
+
+## Una regola dichiarata su un GESTO vale sul NUMERO che il gesto produce, e un cammino nell'albero si rompe quando gli nasce un fratello
+**23/09/2026 (notte), otto richieste sue sulla sola plancia. Dettaglio: `assistente-asta-v1.md`
+§49-§51.** Nessun numero del motore si muove: `engine_*` fermo, `SHEET_REVISION` fermo.
+
+**«IL COSTO MINIMO DI UN CALCIATORE DEVE ESSERE 1 (vedi Zapata)», e quella frase era gia' scritta da
+questa parte della pagina.** Il 04/09 `award` aveva imparato a rifiutare un'aggiudicazione a zero perche'
+«zero vuol dire *nessuno ha ancora offerto*, non *un credito*»; l'OFFERTA non lo aveva imparato, e
+Zapata - ripescato dalla coda, dove la scala non ha un gradino - leggeva un trattino. *Una regola
+dichiarata su un gesto vale sul numero che il gesto produce*, e quando un operatore la ripete su un
+altro schermo la cosa da cercare non e' la taratura ma dove la stessa frase non e' arrivata. `MIN_BID`
+sta **prima** del tetto della scommessa, che abbassa e non alza mai: messo dopo lo avrebbe ripassato
+sotto. E per chi la scala non la raggiunge affatto il tetto e' DICHIARATO e non calcolato
+(`tailBand`): `offerBand` lo aggancerebbe all'ultimo gradino per via del suo clamp, cioe' prezzerebbe
+l'81esimo difensore come il 75esimo.
+
+**QUANDO LA SUA FRASE CONTIENE UNA CONSEGUENZA ATTESA, si implementa il requisito e si MISURA la
+conseguenza.** «Il numero totale di quel ruolo deve rimanere invariato **quindi** deve entrare
+all'ultimo posto uno dei calciatori rimasti fuori»: il requisito e' il CONTO, «all'ultimo posto» e' cosa
+lui si aspetta che succeda. Imporlo avrebbe messo una riga sotto una con un surplus piu' basso, cioe'
+la contraddizione curata il 04/09 - su quella griglia la colonna E' l'ordine. Misurato invece: il
+ripescato finisce **76º di 80**, in fondo e non ultimo, e lo dice il verbale.
+
+**UN CAMMINO NELL'ALBERO SI ROMPE IL GIORNO IN CUI A UN ELEMENTO NASCE UN FRATELLO**, ed e' la gemella
+della lezione del 22/09 sugli elementi PROIETTATI. Il cestino del riordino e' `fixed` ma vive dentro il
+`cdkDropListGroup`, quindi e' un fratello delle quattro righe di ruolo: da quel momento
+`plancia-slot-matrix > div > div` finisce su di LUI, e `e2e-plancia-squad` accusava la card di stare
+fuori dalla linea degli attaccanti mentre misurava il cestino. Curato dove il componente lo DICHIARA
+(`data-line` accanto a `data-block`), e i sei banchi che camminavano l'albero ora chiedono la riga per
+nome. *Un fratello nuovo non rompe un attributo; rompe ogni selettore che contava i figli.*
+
+**E UN TOOLTIP CHE COPRE SE STESSO**, terza istanza dopo le buste chiuse (25/08) e le pastiglie della
+Strategia (05/09). La barra sta in cima allo schermo, quindi antd ribalta il pannello verso il basso -
+esattamente dove una `nz-select` apre le proprie voci - e `elementFromPoint` sulla voce rispondeva
+`div.ant-tooltip-inner`: una mano che passa sulla select e poi scende a scegliere clicca il tooltip.
+L'ha trovato il BANCO, e solo perche' `boxOf` porta `reachable` accanto alla presenza: «un controllo
+puo' esistere nel DOM e non esistere sullo schermo» (20/08) vale identico per una voce di menu'. Tolto,
+e le due cose che diceva sono andate dove non coprono niente - la stagione nell'ETICHETTA della voce,
+«misure e non previsioni» nel tooltip del BLOCCO, cioe' accanto ai numeri.
+
+**L'ALLINEAMENTO DI RIGHE SORELLE E' UNA LARGHEZZA DICHIARATA, e `tabular-nums` non c'entra**: quello
+rende uguali le cifre fra loro, mai le celle fra le righe. Misurato prima: **30 bordi sinistri distinti**
+sulla colonna della moneta su 249 righe. E la CAUSA non era nei numeri: erano le iconcine, l'ultimo
+elemento a larghezza variabile prima delle cifre (fino a 39px), quindi spostarle accanto al nome - che
+lui ha chiesto per conto suo - e' cio' che ha reso possibile incolonnare. Dopo: **0 blocchi disallineati
+su 25, 0 cifre tagliate**. Non un `subgrid`, perche' CDK clona la riga per l'anteprima del
+trascinamento e un subgrid senza il suo genitore si sfascia in volo; le larghezze vengono dal massimo
+reso piu' un carattere, e il banco asserisce che nessuna cella e' tagliata - *una larghezza dichiarata
+e' una promessa che una cifra in piu' puo' rompere*.
+
+Tre abitudini piu' piccole, tutte pagate.
+- **UNA PREFERENZA CHE SOPRAVVIVE A UN RICARICAMENTO DEVE AVERE UNA STRADA DI RITORNO.** Persistere lo
+  scavalco di un obiettivo era quello che lui aveva chiesto; finche' moriva col refresh era un fastidio,
+  da persistito sarebbe stata una trappola - quel reparto smetteva di seguire la rosa per sempre pur
+  leggendo «consigliato», perche' il colore confronta i due valori e non l'esistenza della scelta. Il
+  giro dell'etichetta ora TOGLIE lo scavalco quando torna sul consiglio.
+- **DUE NUMERI SI CONFRONTANO PER DISTANZA, non per stringa.** Il banco accusava 19 righe di stampare
+  cifre sbagliate, tutte per 0,1: `toFixed` arrotonda sulla rappresentazione BINARIA (5,05 e' 5,0499...)
+  mentre `Intl`, che e' quello che il pipe di Angular usa, arrotonda sul decimale. Era l'arnese, e la
+  forma che non dipende da nessuno dei due formattatori e' mezza unita' nell'ultima cifra stampata.
+- **E UN PARAMETRO OPZIONALE COSTA MENO DI UNA SECONDA VERITA'.** Alla plancia servivano Pv, Mv e Fm
+  dell'anno scorso, che `seasonLines` legge gia' - ma quella funzione chiedeva anche il livello
+  per-partita, 2,1 MB per quattro campi che quella riga non stampa. Renderlo opzionale (i suoi campi
+  restano `null`, che e' cio' che significano) e' costato una riga; un secondo lettore delle stesse tre
+  colonne sarebbe stato «la media voto dell'anno scorso» detta in due modi su due schermate.
+

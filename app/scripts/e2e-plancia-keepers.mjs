@@ -205,8 +205,7 @@ function boxOf(selector, text) {
 
 /** The board's keeper line: the first block of role P, its rows, and where each of them sits. */
 function readKeeperRows() {
-  const lines = [...document.querySelectorAll('plancia-slot-matrix > div > div')];
-  const keepers = lines[0];
+  const keepers = document.querySelector('[data-line="P"]');
   if (!keepers) return null;
   const blocks = [...keepers.querySelectorAll('[data-block]')];
   const first = blocks[0];

@@ -1,9 +1,12 @@
+import { CdkDrag, CdkDropList, CdkDropListGroup, CdkDragDrop } from '@angular/cdk/drag-drop';
 import { DecimalPipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
+import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { PlayerFlags } from '../../../ui/player-flags/player-flags';
-import { Alternative, MIN_PLAY_SHARE, ROLES, Role, SlotView } from '../../../core/plancia';
+import { Alternative, MIN_PLAY_SHARE, ROLES, Role, RowStats, SlotView } from '../../../core/plancia';
+import { SeasonLine } from '../../../core/season-line';
 import { DOUBLE_MS } from '../../../core/view-state';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
 import { RulingDot } from '../../../ui/ruling-dot/ruling-dot';
@@ -85,7 +88,8 @@ const COLUMNS = 8;
   selector: 'plancia-slot-matrix',
   templateUrl: './slot-matrix.html',
   imports: [
-    DecimalPipe, NzTooltipModule, PlayerFlags,
+    CdkDropList, CdkDrag, CdkDropListGroup,
+    DecimalPipe, NzIconModule, NzTooltipModule, PlayerFlags,
     RulingDot,
   ],
   host: { class: 'block min-h-0' },
@@ -103,6 +107,22 @@ export class SlotMatrix {
    */
   readonly view = input<SlotView>('market');
   /**
+   * QUALE SET DI NUMERI PORTANO LE RIGHE: quello del motore o le tre misure dell'anno scorso.
+   *
+   * Un INPUT e non uno stato di questo componente, come `view`: chi decide cosa si guarda e' la pagina
+   * (e da oggi lo ricorda), chi disegna e' questo - e cosi' il campetto delle rose, che riusa la stessa
+   * griglia, non eredita una select che non ha.
+   */
+  readonly stats = input<RowStats>('engine');
+  /**
+   * LA STAGIONE SCORSA, gia' letta da chi l'ha chiesta al pacchetto (`seasonLines`, una definizione).
+   *
+   * Passata e non ricavata: questo componente non legge tabelle, e una seconda lettura delle stesse tre
+   * colonne sarebbe la media voto dell'anno scorso detta in due modi su due schermate. Vuota finche' il
+   * file non e' arrivato, e allora le righe stampano un trattino invece di una cifra inventata.
+   */
+  readonly lastSeason = input<ReadonlyMap<number, SeasonLine>>(new Map());
+  /**
    * GLI ID CHE SERVONO ALLA MIA ROSA quando il FOCUS e' acceso, `null` quando e' spento.
    *
    * Un INSIEME e non un predicato, perche' questo componente e' puro a input e deve restarlo: una
@@ -110,6 +130,53 @@ export class SlotMatrix {
    * non potrebbe piu' riusarlo. Chi sa cosa serve e' lo store (`focusNeeds`), chi lo disegna e' questo.
    */
   readonly focus = input<ReadonlySet<number> | null>(null);
+  /**
+   * IL RIORDINO A MANO, e i due eventi che porta (sua richiesta del 23/09/2026): dove un nome e' stato
+   * lasciato, e quale e' stato buttato.
+   *
+   * SOLO SULLA GRIGLIA PERSONALE, perche' li' la colonna E' l'ordine: su quella del MERCATO il taglio e'
+   * il rango per prezzo - una legge di conservazione, dieci primi difensori perche' ognuno ne schiera
+   * uno - e spostarci un nome a mano vorrebbe dire dire una cosa falsa sul mercato.
+   *
+   * IL POSTO E' GLOBALE nel ruolo e non dentro il blocco: i blocchi sono la stessa graduatoria tagliata
+   * a dieci, quindi trascinare dal terzo slot al primo e' un movimento nella lista, e il componente lo
+   * traduce prima di emetterlo. Cosi' chi ascolta non ha bisogno di sapere com'e' tagliata.
+   */
+  readonly reorder = output<{ role: Role; shown: number[]; id: number; at: number }>();
+  readonly binned = output<{ role: Role; id: number }>();
+  /** Se il cestino sta ricevendo un trascinamento: la zona si disegna solo mentre serve. */
+  protected readonly dragging = signal(false);
+
+  /** Le righe di un ruolo come sono a schermo, per tradurre un rilascio in un posto nella lista. */
+  private shownOf(role: Role): number[] {
+    return this.blocks()
+      .filter((block) => block.role === role)
+      .flatMap((block) => block.rows.map((man) => man.id));
+  }
+
+  /**
+   * IL RILASCIO: si traduce in un posto nella lista del ruolo e si emette.
+   *
+   * L'indice che CDK da' e' dentro il contenitore in cui si lascia, quindi il posto globale e' quello
+   * del blocco piu' i dieci di ognuno di quelli prima. Senza questa traduzione un nome lasciato in cima
+   * al terzo slot finirebbe in cima al PRIMO, che e' un'altra cosa.
+   */
+  protected dropped(event: CdkDragDrop<BoardBlock>, block: BoardBlock): void {
+    this.dragging.set(false);
+    const man = event.item.data as BoardMan;
+    const before = this.blocks().filter(
+      (one) => one.role === block.role && one.index < block.index,
+    );
+    const at = before.reduce((sum, one) => sum + one.rows.length, 0) + event.currentIndex;
+    this.reorder.emit({ role: block.role, shown: this.shownOf(block.role), id: man.id, at });
+  }
+
+  /** Il rilascio sul CESTINO: l'uomo esce dalla lista e gli altri scalano da se'. */
+  protected dumped(event: CdkDragDrop<unknown>): void {
+    this.dragging.set(false);
+    const man = event.item.data as BoardMan;
+    this.binned.emit({ role: man.role, id: man.id });
+  }
   readonly lotBlockId = input<string | null>(null);
   /**
    * LA ROSA ACCESA, e qui serve solo a smorzare le altre righe (sua richiesta, 04/09/2026).
@@ -269,6 +336,11 @@ export class SlotMatrix {
     return this.view() === 'mine' ? block.medianCoin : block.medianFvm;
   }
 
+  /** La sua riga dell'anno scorso, o `null`: «vuoto = ignoto» anche qui. */
+  protected lastOf(man: BoardMan): SeasonLine | null {
+    return this.lastSeason().get(man.id) ?? null;
+  }
+
   protected blockTip(block: BoardBlock): string {
     const mine = this.view() === 'mine';
     if (block.left === 0) {
@@ -292,6 +364,14 @@ export class SlotMatrix {
         `rosa, giocherebbero meno del ${Math.round(MIN_PLAY_SHARE * 100)}% delle giornate che restano ` +
         `(margine di prudenza incluso) — ${block.excluded.map((man) => man.name).join(', ')}`
       : '';
+    // E CHI E' ENTRATO DALLA CODA LO DICE IL BLOCCO IN CUI E' FINITO, non la barra: la sua riga
+    // porta un trattino al posto della max offerta - sotto l'ultimo slot la scala non ha un gradino -
+    // e una cifra che manca senza una parola si legge come un dato perso invece che come un ignoto.
+    const spares = block.rows.filter((man) => man.fromTail);
+    const came = spares.length
+      ? ` · ${spares.length} ripescati dalla coda al posto di chi hai buttato: stanno sotto l'ultimo ` +
+        `slot, dove la scala non arriva: li pago il minimo dell'asta — ${spares.map((man) => man.name).join(', ')}`
+      : '';
     const median = Math.round(this.headline(block) ?? 0);
     // DUE FRASI PERCHE' SONO DUE OGGETTI: `D3` del mercato sono i terzi dieci difensori per prezzo,
     // `D3` mio sono i terzi dieci per quanto li pago. Il tooltip lo dice invece di lasciarlo dedurre
@@ -301,7 +381,15 @@ export class SlotMatrix {
         `surplus mediano ${median} fp`
       : `${block.id} del mercato: i ${block.men.length} più cari del ruolo dopo i precedenti · ` +
         `mediana pagata ${median} cr`;
-    return `${block.left} ancora nell'urna · ${what}${block.mine ? ' · uno è tuo' : ''}${gone}`;
+    // E QUALE SET DI NUMERI PORTANO LE RIGHE, che e' l'altra meta' della frase che la select non puo'
+    // piu' dire (il suo tooltip copriva le proprie voci): qui e' accanto ai numeri, che e' il posto in
+    // cui la domanda si fa. La distinzione che conta e' una sola - previsioni o misure - perche' un
+    // numero che non dice quale delle due e' e' il difetto che questa app si e' gia' scritta due volte.
+    const set =
+      this.stats() === 'last'
+        ? ' · le righe mostrano la stagione scorsa: partite a voto, media voto e fantamedia — misure, non previsioni'
+        : '';
+    return `${block.left} ancora nell'urna · ${what}${block.mine ? ' · uno è tuo' : ''}${gone}${came}${set}`;
   }
 
   /**

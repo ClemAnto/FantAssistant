@@ -72,7 +72,18 @@ const asNumber = (value: unknown): number | null =>
  */
 export function seasonLines(input: {
   seasonStats: BundleTable;
-  matches: BundleTable;
+  /**
+   * IL LIVELLO PER-PARTITA, e si puo' NON passarlo (23/09/2026).
+   *
+   * Sono 2,1 MB, e chi vuole solo cio' che il fantacalcio ha SEGNATO - presenze a voto, media voto,
+   * fantamedia - non ha ragione di pagarli: quelle tre stanno tutte in `season_stats`. Chi lo omette
+   * riceve i quattro campi che vengono di la' (minuti, partite, xG, xA) a `null`, che e' esattamente
+   * cio' che significano - «vuoto = ignoto, mai zero» - e non una riga di zeri su un uomo che ha
+   * giocato. La ALTERNATIVA sarebbe un secondo lettore delle stesse tre colonne, cioe' due definizioni
+   * di «la media voto dell'anno scorso» su due schermate: il difetto che questo progetto paga da
+   * sempre. Un parametro in meno costa meno di una seconda verita'.
+   */
+  matches?: BundleTable;
   platform: Platform;
   seasons: readonly string[];
 }): Map<number, Map<string, SeasonLine>> {
@@ -120,6 +131,8 @@ export function seasonLines(input: {
     line.conceded = conceded >= 0 ? asNumber(row[conceded]) : null;
     line.cleanSheets = cleanSheets >= 0 ? asNumber(row[cleanSheets]) : null;
   }
+
+  if (!matches) return out;
 
   const [matchId, matchSeason, competition, minutes] = columnIndex(
     matches,

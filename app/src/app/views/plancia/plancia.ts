@@ -16,16 +16,19 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
+import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { AuctionFeed } from '../../core/auction-feed';
 import { PageActions } from '../../core/page-actions';
 import { Goal, GOAL_LABEL } from '../../core/focus';
-import { Role, SlotView } from '../../core/plancia';
+import { Role, RowStats, SlotView } from '../../core/plancia';
 import { PLAYED_PROGRESS } from '../../core/plancia-demo';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { FlagMenu } from '../../ui/flag-menu/flag-menu';
+import { playerCard } from '../../core/player-card';
+import { ClubCard } from '../../ui/club-card/club-card';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { KeeperPairs } from './keeper-pairs/keeper-pairs';
@@ -63,12 +66,14 @@ import { TeamGrid } from './team-grid/team-grid';
     NzInputNumberModule,
     NzPopconfirmModule,
     NzRadioModule,
+    NzSelectModule,
     NzTooltipModule,
     AppHeader,
     FlagMenu,
     KeeperPairs,
     LiveConnect,
     LotCard,
+    ClubCard,
     PlayerCard,
     SlotMatrix,
     SquadCard,
@@ -109,11 +114,41 @@ export class Plancia {
    * VUOTA QUANDO NON MANCA NIENTE, e lo dice il template con una frase invece che con il silenzio: una
    * barra che non nomina nessun reparto mentre lo schermo e' mezzo spento si legge come un guasto.
    */
-  protected readonly focusSays = computed<{ role: Role; label: string }[]>(() => {
+  protected readonly focusSays = computed<{ role: Role; label: string; advised: boolean }[]>(() => {
     const needs = this.store.focusNeeds();
+    const auto = this.store.focusAuto();
     return (['P', 'D', 'C', 'A'] as const)
       .filter((role) => needs[role] !== null)
-      .map((role) => ({ role, label: GOAL_LABEL[needs[role] as Goal] }));
+      .map((role) => ({
+        role,
+        label: GOAL_LABEL[needs[role] as Goal],
+        // IL PRIMARIO DICE «QUESTO E' IL CONSIGLIO» (sua richiesta del 23/09/2026: «colorando con il
+        // primary l'etichetta corretta»), e la sua assenza dice «questo l'hai scelto tu». Sono due
+        // fatti diversi sulla stessa etichetta, e senza il colore un obiettivo scavalcato a mano
+        // sarebbe indistinguibile da uno consigliato - cioe' il sistema sembrerebbe suggerire quello
+        // che invece gli e' stato imposto.
+        advised: needs[role] === auto[role],
+      }));
+  });
+
+  /**
+   * I DUE SET DI NUMERI, e le loro parole sono quelle sue («default» e «scorso»).
+   *
+   * In codice si chiamano `engine` e `last`, perche' un identificatore che dice «default» non dice
+   * quale dei due e' - e il giorno che ne arriva un terzo il primo smetterebbe di esserlo.
+   *
+   * E L'ETICHETTA NOMINA LA STAGIONE invece di dire «scorsa»: «l'anno scorso» dipende da quando lo si
+   * legge, `2025-26` no, ed e' il pacchetto a dirlo. Sta qui e non in un tooltip perche' quel tooltip
+   * copriva le voci che doveva spiegare (vedi il template), e perche' un'etichetta si legge sempre
+   * mentre un pannello bisogna andarselo a cercare. Finche' il file non e' arrivato resta «scorso»
+   * secco, che e' la stessa ignoranza che le righe stampano col trattino.
+   */
+  protected readonly statSets = computed<{ value: RowStats; label: string }[]>(() => {
+    const season = this.store.lastSeasonLabel();
+    return [
+      { value: 'engine', label: 'default' },
+      { value: 'last', label: season ? `scorso (${season})` : 'scorso' },
+    ];
   });
 
   protected readonly slotViews: { value: SlotView; label: string; hint: string }[] = [
@@ -244,7 +279,7 @@ export class Plancia {
   protected nameLot(id: number): void {
     // La card si chiude solo se il lotto e' stato davvero nominato: chiuderla su un rifiuto
     // nasconderebbe insieme alla card la ragione, che lo store scrive nell'avviso della pagina.
-    if (this.store.nameLot(id)) this.store.closeCard(id);
+    if (this.store.nameLot(id)) this.store.closeCard(playerCard(id));
   }
 
   /**

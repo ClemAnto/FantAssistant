@@ -1,0 +1,64 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     LA CARD DI UNA SQUADRA: il campetto con la sua formazione tipo, trascinabile dall'intestazione.
+
+     Stessa CORNICE della card di un calciatore e per le stesse ragioni - `fixed` fuori dalla griglia
+     della pagina (dentro erediterebbe il suo `overflow` e si taglierebbe al primo trascinamento),
+     `cdkDragHandle` sul solo titolo (una card che si sposta afferrandola in mezzo a un nome è una card
+     in cui non si può leggere un nome), e la `z` a due livelli con l'ultima TOCCATA davanti a tutte.
+
+     Il DISEGNO invece non è una cornice: è `ui-club-board`, lo stesso della vista Squadre e del pannello
+     d'asta, perché «il campetto di una squadra reale deve essere sempre uguale» e l'undici lo scrive il
+     toolkit. -->
+<div
+  cdkDrag
+  [attr.data-club]="club()"
+  [attr.data-platform]="platform()"
+  class="fixed flex flex-col overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
+  [class.ring-1]="front()"
+  [class.ring-primary]="front()"
+  [style.width.px]="width"
+  [style.top.px]="top()"
+  [style.left.px]="left()"
+  [style.z-index]="front() ? 200 : 50 + at()"
+  [style.maxHeight]="'calc(100vh - ' + (top() + 24) + 'px)'"
+  (pointerdown)="raise()"
+>
+  <!-- L'INTESTAZIONE È LA MANIGLIA, e lo dice il cursore. -->
+  <div
+    cdkDragHandle
+    class="flex cursor-move items-center gap-2 rounded-t-lg border-b border-border bg-control/40 px-2 py-1.5"
+  >
+    <ui-crest class="shrink-0" [club]="club()" [crests]="crests()" size="sm" />
+    <span class="min-w-0 flex-1">
+      <span class="block min-w-0 truncate text-sm font-semibold text-fg">{{ club() }}</span>
+      <!-- DA QUALE FOGLIO viene questa board: un numero che non dice da dove viene non è un numero, e
+           una piattaforma può dichiarare più di un campionato. -->
+      <span class="block min-w-0 truncate text-[11px] text-muted">
+        Formazione tipo@if (sheet(); as league) {<span> · foglio «{{ league }}»</span>}
+      </span>
+    </span>
+    <button
+      type="button"
+      class="shrink-0 rounded px-1 text-muted hover:text-fg"
+      aria-label="chiudi"
+      (click)="close()"
+    >
+      <nz-icon nzType="close" nzTheme="outline" />
+    </button>
+  </div>
+
+  <!-- IL CAMPETTO SCORRE DENTRO LA CARD e la card non cresce: un modulo con cinque righe e i suoi
+       ballottaggi è più alto di una finestra, e una card che esce dallo schermo porta il proprio
+       pulsante di chiusura fuori dalla portata del puntatore. -->
+  <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+    <ui-club-board
+      [board]="pack().board"
+      [noBoards]="pack().noBoards"
+      [overall]="pack().overall"
+      [expectedShares]="pack().expectedShares"
+      [marketValues]="pack().marketValues"
+      [ruled]="pack().ruled"
+    />
+  </div>
+</div>

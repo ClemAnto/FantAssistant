@@ -328,6 +328,21 @@ function median(values: number[]): number {
  */
 export type SlotView = 'market' | 'mine';
 
+/**
+ * QUALE SET DI NUMERI PORTANO LE RIGHE (operatore, 23/09/2026: «metti una select in modo da poter
+ * cambiare il set di statistiche visualizzate nelle righe dei calciatori»).
+ *
+ * `engine` e' quello di sempre - quanto rende sopra il sei (o il surplus, sulla griglia personale) e
+ * fra parentesi le partite attese - cioe' due PREVISIONI. `last` sono tre MISURE della stagione
+ * scorsa: presenze a voto, media voto, fantamedia, nelle unita' con cui il gioco le pubblica.
+ *
+ * DUE SET E NON UNA COLONNA IN PIU', ed e' la ragione per cui e' una select: una previsione e una
+ * misura sulla stessa riga, senza una parola che dica quale e' quale, sono la cosa che questa app si
+ * e' gia' scritta due volte («un numero sulla card e' una MISURA o una PREVISIONE, e le due non
+ * condividono mai una cifra»). Qui la parola e' il nome del set, e vale per tutte e 250 le righe.
+ */
+export type RowStats = 'engine' | 'last';
+
 /** A block of the personal grid: the same shape the market one has, cut on another coordinate. */
 export interface OfferGroup<T extends PlanciaMan> {
   role: Role;
@@ -383,6 +398,16 @@ export function regroupByCoin<T extends PlanciaMan>(
   coinOf: (man: T) => number | null,
   teams: number,
   slots: Record<Role, number>,
+  /**
+   * IL SUO ORDINE, per ruolo: i nomi che ha sistemato a mano vanno in testa in QUELL'ordine, e il resto
+   * segue la moneta (`core/manual-order.ts`, 23/09/2026).
+   *
+   * UN PARAMETRO E NON UNA MONETA FALSIFICATA: si potrebbe mettere i nomi sistemati in cima dando loro
+   * un valore enorme, e sarebbe una riga sola - ma `medianCoin` e' la mediana di `coinOf`, quindi
+   * l'intestazione del blocco stamperebbe quei numeri finti. Una preferenza non e' una valutazione, e
+   * il posto in cui le due non si devono mescolare e' esattamente questo.
+   */
+  pinned: Readonly<Partial<Record<Role, readonly number[]>>> = {},
 ): OfferGroup<T>[] {
   const pool = new Map<Role, T[]>();
   for (const role of ROLES) pool.set(role, []);
@@ -398,9 +423,20 @@ export function regroupByCoin<T extends PlanciaMan>(
     // tagliata a `teams`, quindi dentro il blocco l'ordine e' gia' quello e la colonna che lo stampa
     // non puo' contraddirlo. I pareggi li rompe il prezzo della stanza e poi l'id: due passate sulla
     // stessa plancia devono dare una griglia, la stessa determinatezza che `buildMap` deve al mercato.
-    const ranked = [...(pool.get(role) ?? [])].sort(
+    const sorted = [...(pool.get(role) ?? [])].sort(
       (a, b) => coin(b) - coin(a) || b.fvm - a.fvm || a.id - b.id,
     );
+    // Il suo prefisso davanti, il resto dietro nell'ordine della moneta: la stessa forma della
+    // Strategia, e un nome che la lista non ha piu' viene semplicemente ignorato.
+    const first = pinned[role] ?? [];
+    const ranked = first.length
+      ? (() => {
+          const byId = new Map(sorted.map((man) => [man.id, man]));
+          const mine = first.map((id) => byId.get(id)).filter((man): man is T => !!man);
+          const taken = new Set(mine.map((man) => man.id));
+          return [...mine, ...sorted.filter((man) => !taken.has(man.id))];
+        })()
+      : sorted;
     const count = Math.max(0, slots[role] ?? 0);
 
     for (let index = 0; index < count; index += 1) {
@@ -460,6 +496,47 @@ export const LADDER: Record<Role, number[]> = {
  * soglie che dicono la stessa cosa oggi, si sceglie quella che non dipende da un'altra costante.*
  */
 export const MIN_PLAY_SHARE = 0.6;
+
+/**
+ * IL COSTO MINIMO DI UN CALCIATORE E' UN CREDITO (operatore, 23/09/2026: «vedi Zapata»).
+ *
+ * Non e' una taratura, e' il REGOLAMENTO: a un'asta si offre a partire da uno, quindi un tetto che
+ * legge zero - o che non legge niente - non e' un'offerta piu' bassa, e' un'offerta che non esiste.
+ * La stessa frase che questa pagina applica gia' dal lato opposto da quattro giorni: `award` rifiuta
+ * di aggiudicare a zero perche' «zero vuol dire *nessuno ha ancora offerto*, non *un credito*».
+ *
+ * Dove mordeva: gli ultimi gradini della scala sono minuscoli (`C8` 0,001, `A6` 0,001), e con la
+ * confidenza di una stima o lo sconto dello stesso club il centro scende sotto il mezzo credito e
+ * l'arrotondamento lo porta a zero. E soprattutto sui RIPESCATI DALLA CODA, che un gradino non ce
+ * l'hanno affatto - e per loro uno non e' un ripiego ma la cifra che l'archivio misura: cinque uomini
+ * di ogni rosa vera vengono da li' e sono pagati un credito.
+ */
+export const MIN_BID = 1;
+
+/**
+ * IL TETTO DI CHI STA SOTTO LA MAPPA: il minimo, e niente di piu'.
+ *
+ * La scala e' misurata per (ruolo, slot) e sotto l'ultimo non c'e' un gradino: `offerBand` lo
+ * aggancerebbe comunque all'ultimo (il `Math.min` del suo clamp), cioe' prezzerebbe l'81esimo
+ * difensore come il 75esimo. Quindi non si prezza - si dichiara il PAVIMENTO, che e' quello che
+ * l'archivio osserva per quella popolazione e l'unica cifra che non pretende di sapere quanto vale.
+ *
+ * `pricedAt` = 0 dice «nessuno slot»: chi legge quella nota deve poter distinguere questo caso dalla
+ * demozione di un infortunato, che invece uno slot ce l'ha ed e' un altro.
+ */
+export function tailBand(budget: number, room: number): OfferBand | null {
+  const bid = Math.min(MIN_BID, Math.max(0, Math.round(room)));
+  if (!(budget > 0) || bid <= 0) return null;
+  return {
+    low: bid,
+    high: bid,
+    share: bid / budget,
+    capped: false,
+    overCeiling: false,
+    pricedAt: 0,
+    bet: false,
+  };
+}
 
 /**
  * SOTTO QUESTA QUOTA UN ACQUISTO E' UNA SCOMMESSA, e una scommessa ha un tetto suo.
@@ -711,8 +788,11 @@ export function offerBand(input: {
     depthFactor(input.exhaustedBelow ?? 0) *
     (1 - sameClubDiscount(input.sameClub)) *
     clamp(input.confidence ?? 1, 0, 1);
-  let low = Math.round(centre * 0.9);
-  let high = Math.round(centre * 1.1);
+  // IL PAVIMENTO DI UN CREDITO, prima di ogni altra cosa: sotto c'e' solo lo zero, e zero non e'
+  // un'offerta (`MIN_BID`). Qui e non alla fine, cosi' il tetto della scommessa - che ABBASSA e non
+  // alza mai - non puo' ripassarci sotto.
+  let low = Math.max(MIN_BID, Math.round(centre * 0.9));
+  let high = Math.max(MIN_BID, Math.round(centre * 1.1));
   const room = Math.max(0, Math.round(input.room));
 
   // IL TETTO DELLA SCOMMESSA, e sta DOPO tutto il resto perche' non e' una correzione al valore: e' un
@@ -720,8 +800,8 @@ export function offerBand(input: {
   // dicono. Abbassa e non alza mai - chi vale gia' meno resta dov'e'.
   const bet = (input.available ?? 1) < BET_SHARE && high > BET_CAP_HIGH * input.budget;
   if (bet) {
-    low = Math.min(low, Math.round(BET_CAP_LOW * input.budget));
-    high = Math.round(BET_CAP_HIGH * input.budget);
+    low = Math.max(MIN_BID, Math.min(low, Math.round(BET_CAP_LOW * input.budget)));
+    high = Math.max(MIN_BID, Math.round(BET_CAP_HIGH * input.budget));
   }
 
   return {

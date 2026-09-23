@@ -28,10 +28,19 @@ import {
 import { withRowAt } from '../../core/manual-order';
 import { matchFrequencies } from '../../core/match-frequency';
 import { looseMatch } from '../../core/loose-search';
-import { CardMan, CardStack, seasonTotals } from '../../core/player-card';
+import {
+  CardKey,
+  CardMan,
+  CardStack,
+  clubCard,
+  clubOfCard,
+  playerCard,
+  playerOfCard,
+  seasonTotals,
+} from '../../core/player-card';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { AuctionPricesStore, scaleTo } from '../../core/auction-prices';
-import { PlayersStore } from '../../core/players-store';
+import { Platform, PlayersStore } from '../../core/players-store';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
   AuctionKind,
@@ -90,6 +99,7 @@ import { DOUBLE_MS, stored, storedJson, storedList } from '../../core/view-state
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
+import { ClubCard } from '../../ui/club-card/club-card';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
@@ -206,6 +216,7 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     AppHeader,
     CdkDrag,
     CdkDropList,
+    ClubCard,
     ClubCrest,
     FormsModule,
     GainChip,
@@ -922,20 +933,36 @@ export class Strategy {
     const engine = this.engine();
     const rounds = this.matchdays();
     const { platform, game } = this.settings();
-    return this.cards.place((id) => {
-      const man = byId.get(id);
-      return man ? cardManOf(man, engine?.get(id) ?? null, rounds, platform, game) : undefined;
+    return this.cards.place((key) => {
+      const id = playerOfCard(key);
+      const man = id == null ? undefined : byId.get(id);
+      return man ? cardManOf(man, engine?.get(id as number) ?? null, rounds, platform, game) : undefined;
     });
   });
 
+  /**
+   * LE CARD DI UNA SQUADRA, dalla stessa pila: il click sul nome del club dentro la card di un uomo
+   * (operatore, 23/09/2026). Una pila sola per le due specie perche' il POSTO e chi sta DAVANTI sono
+   * globali allo schermo.
+   */
+  protected readonly clubCards = computed(() =>
+    this.cards.place((key) => clubOfCard(key) ?? undefined),
+  );
+
+  protected readonly cardCount = computed(() => this.cards.count());
+
   protected readonly frontCard = computed(() => this.cards.front());
 
-  protected closeCard(id: number): void {
-    this.cards.closeCard(id);
+  protected openClubCard(platform: Platform, club: string): void {
+    this.cards.openCard(clubCard(platform, club));
   }
 
-  protected raiseCard(id: number): void {
-    this.cards.raiseCard(id);
+  protected closeCard(key: CardKey): void {
+    this.cards.closeCard(key);
+  }
+
+  protected raiseCard(key: CardKey): void {
+    this.cards.raiseCard(key);
   }
 
   protected closeAllCards(): void {
@@ -990,10 +1017,10 @@ export class Strategy {
     if (event.detail > 1) return this.cancelPick();
     this.cancelPick();
     const target = event.target as HTMLElement | null;
-    if (!target?.closest('[data-sort-key]')) return this.cards.openCard(man.fcId);
+    if (!target?.closest('[data-sort-key]')) return this.cards.openCard(playerCard(man.fcId));
     this.pending = setTimeout(() => {
       this.pending = null;
-      this.cards.openCard(man.fcId);
+      this.cards.openCard(playerCard(man.fcId));
     }, DOUBLE_MS);
   }
 

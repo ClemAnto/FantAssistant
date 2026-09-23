@@ -53,6 +53,32 @@
       }
     </nz-radio-group>
 
+    <!-- QUALI NUMERI PORTANO LE RIGHE (sua richiesta, 23/09/2026). Accanto ai due tagli perche' e' la
+         sua vicina di significato - «cosa sto guardando» - e non fra i gesti: le due barre di questa
+         pagina tengono separate le LETTURE dai COMANDI, e un set di numeri e' una lettura.
+         Una SELECT e non una terza coppia di bottoni: due radio group affiancati si leggono come un
+         gruppo solo da quattro scelte, e queste due domande sono indipendenti.
+
+         E NIENTE TOOLTIP QUI, che e' una cosa che il banco ha trovato e non una scelta di gusto: la
+         barra sta in cima allo schermo, quindi antd ribalta il pannello VERSO IL BASSO - cioe' proprio
+         dove la select apre le sue voci - e `elementFromPoint` sulla voce «scorso» rispondeva
+         `div.ant-tooltip-inner`. Una mano che passa sulla select e poi scende a scegliere clicca il
+         tooltip. Terza istanza («un tooltip lungo copre il controllo accanto», buste chiuse 25/08 e
+         pastiglie della Strategia 05/09), e la prima in cui copre se stesso.
+         Dove sono finite le due cose che diceva: la STAGIONE la nomina l'etichetta della voce, e che
+         siano misure e non previsioni lo dice il tooltip del BLOCCO, cioe' accanto ai numeri. -->
+    <nz-select
+      data-stats
+      nzSize="small"
+      class="w-[148px]"
+      [ngModel]="store.rowStats()"
+      (ngModelChange)="store.rowStats.set($event)"
+    >
+      @for (choice of statSets(); track choice.value) {
+        <nz-option [nzValue]="choice.value" [nzLabel]="choice.label" />
+      }
+    </nz-select>
+
     <!-- IL FOCUS: un interruttore, e accanto la frase che dice cosa sta mostrando.
          Sua richiesta del 23/09/2026, la prima della giornata. Smorza chi non serve alla rosa invece di
          nasconderlo, perche' all'asta esce quello che esce: una lista che TOGLIE un nome non lo rende
@@ -82,7 +108,11 @@
           <button
             type="button"
             data-goal
-            class="rounded bg-control px-1.5 py-0.5 font-medium text-fg hover:bg-fg/10"
+            class="rounded px-1.5 py-0.5 font-medium hover:bg-fg/10"
+            [class.bg-primary]="one.advised"
+            [class.text-page]="one.advised"
+            [class.bg-control]="!one.advised"
+            [class.text-fg]="!one.advised"
             nz-tooltip
             [nzTooltipTitle]="'Obiettivo del reparto: click per il successivo (TOP → TITOLARE → COPERTURA → RESTO)'"
             (click)="store.cycleGoal(one.role)"
@@ -93,6 +123,42 @@
           <span class="text-muted italic">la rosa è a posto: non manca niente</span>
         }
       </span>
+    }
+
+    <!-- I DUE TASTI DEL RIORDINO, e ognuno compare solo quando ha qualcosa da fare - la stessa forma
+         della crocetta della Strategia e di quella della lente. Un tasto sempre acceso che non fa
+         niente e' indistinguibile da un tasto rotto, e questa barra ne ha gia' sei.
+         SOLO SULLA GRIGLIA PERSONALE, dove il riordino esiste: sul mercato non c'e' niente da
+         annullare perche' non c'e' niente da ordinare a mano. -->
+    @if (store.slotView() === 'mine') {
+      @if (store.binnedCount()) {
+        <button
+          type="button"
+          data-unbin
+          nz-button
+          nzSize="small"
+          nz-tooltip
+          nzTooltipTitle="Rimette l'ultimo calciatore buttato"
+          (click)="store.unbin()"
+        >
+          <nz-icon nzType="rollback" />
+          {{ store.binnedCount() }} buttati
+        </button>
+      }
+      @if (store.hasOrder() || store.binnedCount()) {
+        <button
+          type="button"
+          data-reset-order
+          nz-button
+          nzSize="small"
+          nzDanger
+          nz-tooltip
+          nzTooltipTitle="Torna all'ordine del foglio e rimette tutti i buttati"
+          (click)="store.resetOrder()"
+        >
+          <nz-icon nzType="close" />
+        </button>
+      }
     }
 
     <!-- LA LENTE SI DICHIARA IN BARRA, e non solo sulla card che l'ha accesa: smorza duecentocinquanta
@@ -242,8 +308,12 @@
     class="min-h-0 min-w-0 flex-1"
     [blocks]="store.viewBlocks()"
     [view]="store.slotView()"
+    [stats]="store.rowStats()"
+    [lastSeason]="store.lastSeason()"
     [activeTeam]="store.lensId()"
     [focus]="store.focusIds()"
+    (reorder)="store.moveTo($event.role, $event.shown, $event.id, $event.at)"
+    (binned)="store.bin($event.role, $event.id)"
     [lotBlockId]="store.viewLotBlockId()"
     [pairs]="store.pairs()"
     (pick)="onPick($event)"
@@ -270,16 +340,17 @@
 <!-- LE CARD stanno FUORI dalla griglia della plancia, in `fixed`: dentro erediterebbero il suo
      `overflow` e si taglierebbero al primo trascinamento. Sono PIÙ DI UNA per sua richiesta (04/09:
      «così si possono confrontare»), una per uomo aperto, sfalsate e trascinabili. -->
-@for (open of store.cardMen(); track open.man.id) {
+@for (open of store.cardMen(); track open.key) {
   <!-- Il POSTO viene dallo store e non da `$index`: chiudere una card non deve spostare le altre.
        I DUE GESTI SONO DELLA PLANCIA e per questo li proietta la pagina: nominare il lotto, e per un
        portiere gli abbinamenti. La card e' comune alla Strategia, che un'asta in corso non ce l'ha. -->
   <ui-player-card
     [man]="open.man"
     [at]="open.slot"
-    [front]="store.frontCard() === open.man.id"
-    (closed)="store.closeCard($event)"
-    (raised)="store.raiseCard($event)"
+    [front]="store.frontCard() === open.key"
+    (closed)="store.closeCard(open.key)"
+    (raised)="store.raiseCard(open.key)"
+    (club)="store.openClubCard(open.man.platform, open.man.club)"
   >
     <ng-container card-actions>
       @if (open.man.market?.inUrn) {
@@ -303,7 +374,20 @@
     </ng-container>
   </ui-player-card>
 }
-@if (store.cardMen().length > 1) {
+<!-- LE CARD DI UNA SQUADRA, dalla STESSA pila (operatore, 23/09/2026): il click sul nome del club dentro
+     la card di un calciatore apre il campetto con la sua formazione tipo. Due pile darebbero lo stesso
+     posto a due card aperte insieme e due «davanti» contemporanei. -->
+@for (open of store.clubCards(); track open.key) {
+  <ui-club-card
+    [club]="open.man.club"
+    [platform]="open.man.platform"
+    [at]="open.slot"
+    [front]="store.frontCard() === open.key"
+    (closed)="store.closeCard(open.key)"
+    (raised)="store.raiseCard(open.key)"
+  />
+}
+@if (store.cardCount() > 1) {
   <!-- La via d'uscita, invece di un TETTO al numero di card: lui non ne ha chiesto un limite, e una
        soglia scelta da me su quante se ne possono aprire è una soglia che nessuno ha misurato. -->
   <button
@@ -311,6 +395,6 @@
     class="fixed bottom-3 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted shadow-lg hover:text-fg"
     (click)="store.openCard(null)"
   >
-    chiudi le {{ store.cardMen().length }} card
+    chiudi le {{ store.cardCount() }} card
   </button>
 }

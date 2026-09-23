@@ -325,7 +325,7 @@ function readTeamCard() {
     teams: strip.querySelectorAll('[role="button"]').length,
     // La card deve stare NELLA linea dei portieri: se finisse sotto la plancia sarebbe un'altra cosa.
     aboveDefence: Math.round(box.bottom) <= Math.round(
-      (document.querySelectorAll('plancia-slot-matrix > div > div')[1]?.getBoundingClientRect().top ?? 0) + 2,
+      (document.querySelector('[data-line="D"]')?.getBoundingClientRect().top ?? 0) + 2,
     ),
   };
 }

@@ -27,7 +27,15 @@ import { PlayerStatus } from './player-status';
 import { engineNumbersFrom } from './engine-sheet';
 import { seasonRoundsOf } from './season-scale';
 import { GlobalOptions } from './global-options';
-import { CardMan, CardStack } from './player-card';
+import {
+  CardKey,
+  CardMan,
+  CardStack,
+  clubCard,
+  clubOfCard,
+  playerCard,
+  playerOfCard,
+} from './player-card';
 import {
   CalendarBook,
   CalendarFile,
@@ -46,11 +54,13 @@ import {
   Alternative,
   EDGE_BASE,
   LotAdvice,
+  MIN_PLAY_SHARE,
   OfferBand,
   PlanciaMan,
   PlanciaMap,
   Role,
   ROLES,
+  RowStats,
   SameClubHeld,
   SlotBlock,
   adviseLot,
@@ -59,11 +69,16 @@ import {
   offerBand,
   regroupByCoin,
   sameClubDiscount,
+  tailBand,
   SlotView,
 } from './plancia';
 import { DEMO_PROGRESS, STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
 import { PlayerRulings, rungShares } from './player-rulings';
-import { needOf, nextGoal, serves, Goal, Owned } from './focus';
+import { Platform } from './players-store';
+import { SeasonLine, seasonLines } from './season-line';
+import { needOf, nextGoal, serves, GOALS, Goal, Owned, TOP_WORDS } from './focus';
+import { withRowAt } from './manual-order';
+import { stored, storedFlag, storedJson } from './view-state';
 
 /**
  * QUANTO DEVE GIOCARE UN UOMO PERCHE' IL FOCUS LO CONTI COME COPERTURA: 25 giornate su 38, sua cifra.
@@ -128,6 +143,15 @@ export interface BoardMan extends PlanciaMan {
   ownerId: number | null;
   ownerLabel: string | null;
   ownerColour: string | null;
+  /**
+   * RIPESCATO DALLA CODA: la mappa del mercato lo lasciava sotto l'ultimo slot, ed e' entrato sulla
+   * griglia personale al posto di un nome che ho buttato (sua richiesta del 23/09/2026).
+   *
+   * Un uomo cosi' non ha una BANDA e la sua riga stampa un trattino - `rowMaker` dice perche' - quindi
+   * il flag serve a DICHIARARLO nel tooltip del blocco: una riga senza tetto in mezzo a nove che ce
+   * l'hanno si legge come un dato mancante, e qui e' invece la cosa piu' onesta che si possa scrivere.
+   */
+  fromTail?: boolean;
 }
 
 export interface BoardBlock extends SlotBlock {
@@ -460,34 +484,49 @@ export class PlanciaStore {
 
   readonly mineId = computed(() => this.feed.followedTeamId());
 
-  readonly blocks = computed<BoardBlock[]>(() => {
+  /**
+   * COME SI COSTRUISCE UNA RIGA DEL TABELLONE, in un posto solo.
+   *
+   * Estratta da `blocks()` il 23/09/2026 perche' da oggi la griglia personale ne costruisce alcune da
+   * se' (i ripescati dalla coda, sotto): due copie di questa decorazione sarebbero due letture dello
+   * stesso foglio, cioe' un uomo con due stati o due bande a seconda di quale griglia lo disegna - il
+   * difetto che questa pagina ha gia' pagato con i due lettori di `engine_fm_pred`.
+   *
+   * IL CONTESTO SI LEGGE UNA VOLTA e non per riga: la mappa delle squadre costa, e duecentocinquanta
+   * righe la ricostruirebbero duecentocinquanta volte.
+   *
+   * `slot` e' `null` per chi un posto sulla mappa non ce l'ha, e allora NIENTE BANDA. La scala delle
+   * offerte e' misurata PER (ruolo, slot) e sotto l'ultimo non c'e' un gradino: `offerBand` lo
+   * aggancerebbe comunque all'ultimo (il `Math.min` del suo clamp), cioe' prezzerebbe l'81esimo
+   * difensore come il 75esimo - un parametro applicato fuori dalla popolazione su cui e' misurato.
+   * «Vuoto = ignoto»: la riga stampa un trattino, che e' quello che sappiamo.
+   */
+  private rowMaker(): (
+    man: PlanciaMan,
+    slot: { index: number; medianPoints: number | null } | null,
+  ) => BoardMan {
     const owners = this.owners();
     const teams = new Map(this.feed.teams().map((team) => [team.id, team]));
     const mine = this.mineId();
     const lot = this.lotId();
     const budget = this.budget();
 
-    return this.map().blocks.map((block) => {
-      const medianPoints = middleOf(block.men.map((man) => man.points));
-      let left = 0;
-      let hasMine = false;
-
-      const rows: BoardMan[] = block.men.map((man) => {
-        const owner = owners.get(man.id);
-        const state: ManState =
-          man.id === lot ? 'asta' : owner ? (owner.teamId === mine ? 'mio' : 'altro') : 'urna';
-        if (state === 'urna' || state === 'asta') left += 1;
-        if (state === 'mio') hasMine = true;
-        const team = owner ? teams.get(owner.teamId) : null;
-        const held = this.heldOf(man.club, block.role);
-        const band =
-          offerBand({
-            role: block.role,
-            slotIndex: block.index,
+    return (man, slot) => {
+      const owner = owners.get(man.id);
+      const state: ManState =
+        man.id === lot ? 'asta' : owner ? (owner.teamId === mine ? 'mio' : 'altro') : 'urna';
+      const team = owner ? teams.get(owner.teamId) : null;
+      // `man.role` e non quello del blocco: `buildMap` impila per `man.role`, quindi sono lo stesso
+      // valore - e cosi' la funzione vale anche per chi un blocco non ce l'ha.
+      const held = this.heldOf(man.club, man.role);
+      const band = slot
+        ? (offerBand({
+            role: man.role,
+            slotIndex: slot.index,
             budget,
             room: budget,
             points: man.points,
-            medianPoints,
+            medianPoints: slot.medianPoints,
             available: man.out?.share,
             hurt: !!man.out || !!man.outNow,
             confidence: man.confidence,
@@ -495,24 +534,37 @@ export class PlanciaStore {
             // del 04/09/2026). Sta in TUTT'E DUE i posti che chiamano `offerBand` - qui e sul lotto -
             // o la riga direbbe una cifra e la card un'altra.
             sameClub: held,
-          }) ?? null;
-        return {
-          ...man,
-          state,
-          band,
-          sameClubCut: sameClubDiscount(held),
-          price: owner?.price ?? band?.high ?? null,
-          ownerId: owner?.teamId ?? null,
-          ownerLabel: team?.label ?? null,
-          ownerColour: team?.colour ?? null,
-        };
-      });
+          }) ?? null)
+        : // NIENTE SLOT, QUINDI NIENTE SCALA: il tetto e' il minimo dell'asta e la card dice perche'.
+          tailBand(budget, budget);
+      return {
+        ...man,
+        state,
+        band,
+        sameClubCut: sameClubDiscount(held),
+        price: owner?.price ?? band?.high ?? null,
+        ownerId: owner?.teamId ?? null,
+        ownerLabel: team?.label ?? null,
+        ownerColour: team?.colour ?? null,
+        fromTail: !slot,
+      };
+    };
+  }
+
+  readonly blocks = computed<BoardBlock[]>(() => {
+    const make = this.rowMaker();
+
+    return this.map().blocks.map((block) => {
+      const medianPoints = middleOf(block.men.map((man) => man.points));
+      const rows: BoardMan[] = block.men.map((man) =>
+        make(man, { index: block.index, medianPoints }),
+      );
 
       return {
         ...block,
         rows: mineFirst(rows),
-        left,
-        mine: hasMine,
+        left: rows.filter((row) => row.state === 'urna' || row.state === 'asta').length,
+        mine: rows.some((row) => row.state === 'mio'),
         medianOffer: middleOf(rows.map((row) => row.band?.high ?? null)),
         // `null` e non la mediana del surplus: qui a tagliare e' il PREZZO, e un blocco che
         // dichiarasse una coordinata su cui non e' tagliato direbbe una cosa falsa di se'.
@@ -530,8 +582,33 @@ export class PlanciaStore {
    * che questa pagina si e' scritta due volte. Quello che NON cambia col taglio e' tutto cio' che e'
    * misurato - la banda, il verdetto del lotto, l'alternativa, lo slot che la card nomina - perche'
    * quelli leggono `blocks()`, che resta la griglia del mercato: vedi `regroupByOffer`.
+   *
+   * IN `localStorage` E NON NELL'INDIRIZZO (sua richiesta del 23/09/2026: «memorizza lo stato dei
+   * tasti premuti in modo che al refresh non si perdano le impostazioni»). La regola di casa manda
+   * nell'indirizzo cio' che la pagina SELEZIONA, perche' sia condivisibile e camminabile col tasto
+   * Indietro; questa pagina non e' un link che si manda a qualcuno, e' il foglio su cui si segna
+   * l'asta - e un ricaricamento a meta' asta deve ritrovarla com'era anche se l'indirizzo e' nudo.
    */
-  readonly slotView = signal<SlotView>('market');
+  readonly slotView = stored<SlotView>('plancia.view', 'market', ['market', 'mine']);
+
+  /**
+   * QUALI NUMERI STAMPANO LE RIGHE: quelli del motore o le tre misure della stagione scorsa.
+   *
+   * Sua richiesta del 23/09/2026. Persistita come gli altri due interruttori della barra e per la
+   * stessa ragione: e' un modo di leggere la pagina, non un link da mandare a qualcuno.
+   */
+  readonly rowStats = stored<RowStats>('plancia.stats', 'engine', ['engine', 'last']);
+
+  /**
+   * LA STAGIONE SCORSA DI OGNI UOMO, letta e mai derivata (`seasonLines`, una definizione sola).
+   *
+   * Vuota finche' `season_stats` non e' in casa, e allora le righe stampano un trattino: «vuoto =
+   * ignoto», che qui e' anche letteralmente vero per chi in Serie A l'anno scorso non ha giocato.
+   */
+  readonly lastSeason = signal<ReadonlyMap<number, SeasonLine>>(new Map());
+
+  /** Che stagione e', per l'etichetta: il nome non si deduce dalla data di oggi. */
+  readonly lastSeasonLabel = signal<string | null>(null);
 
   /** La plancia come la si guarda: `blocks()` sul mercato, la stessa gente ritagliata sul mio tetto. */
   readonly viewBlocks = computed<BoardBlock[]>(() => {
@@ -539,7 +616,43 @@ export class PlanciaStore {
     if (this.slotView() === 'market') return market;
     // Gli uomini che la mappa PORTA, non il listone: chi sta nella coda non ha una banda affatto, e
     // promuoverlo qui vorrebbe dire prezzarlo su un gradino della scala che non esiste per lui.
-    const rows = market.flatMap((block) => block.rows);
+    // ...MENO CHI HO BUTTATO, e gli altri scalano da se': la griglia si ritaglia su chi resta, quindi
+    // togliere un nome ricompone i blocchi senza che nessuno debba «spostare» niente (sua richiesta del
+    // 23/09/2026: «quando butto un calciatore in automatico tutti gli altri scalano»).
+    const binned = this.binnedIds();
+    const drawn = market.flatMap((block) => block.rows);
+    const rows = drawn.filter((man) => !binned.has(man.id));
+    // IL CONTO DI UN RUOLO NON CAMBIA PERCHE' HO BUTTATO UN NOME (sua richiesta del 23/09/2026: «il
+    // numero totale di calciatori di quel ruolo deve rimanere invariato, quindi deve entrare uno dei
+    // calciatori che prima era rimasto fuori»). Al posto di ognuno entra il primo della CODA, cioe' di
+    // quelli che la mappa del mercato lascia sotto l'ultimo slot.
+    //
+    // DALLA CODA E NON DAGLI ESCLUSI, che pure il codice chiama «lasciati fuori»: quelli sono i nomi
+    // che `MIN_PLAY_SHARE` toglie dalla riga tenendoli nel rango, e ripescarli qui farebbe DISFARE a
+    // un click un vincolo dichiarato. Per la stessa ragione il ripescato quella soglia la deve passare.
+    //
+    // E LA CODA E' GIA' IN ORDINE DI PREZZO (`buildMap` impila per FVM decrescente): chi entra e' il
+    // primo sotto la linea, cioe' il nome che il taglio stesso aveva appena lasciato fuori. Sceglierlo
+    // con un'altra moneta vorrebbe dire ridefinire la popolazione invece di ripararla.
+    const make = this.rowMaker();
+    const spares: BoardMan[] = [];
+    for (const role of ROLES) {
+      const need =
+        drawn.filter((man) => man.role === role).length -
+        rows.filter((man) => man.role === role).length;
+      if (need <= 0) continue;
+      spares.push(
+        ...this.map()
+          .tail.filter(
+            (man) =>
+              man.role === role &&
+              !binned.has(man.id) &&
+              (man.out?.share ?? 1) >= MIN_PLAY_SHARE,
+          )
+          .slice(0, need)
+          .map((man) => make(man, null)),
+      );
+    }
     // CHI NON SI DISEGNA VA DICHIARATO ANCHE QUI, and the right place is the role's LAST block: the
     // personal grid is cut on the same men MINUS the excluded, so the whole shortfall lands at the end
     // of the role - that is the block drawn with eight rows instead of ten. Leaving `excluded` empty
@@ -549,8 +662,16 @@ export class PlanciaStore {
       if (!block.excluded.length) continue;
       goneByRole.set(block.role, [...(goneByRole.get(block.role) ?? []), ...block.excluded]);
     }
+    // ...E IL MIO ORDINE VIENE PRIMA DEL TAGLIO, come sulla Strategia: un nome sistemato all'ottantesimo
+    // posto deve restare visibile, e applicarlo dopo lo taglierebbe fuori dalla lista in cui l'ho messo.
+    const pinned = Object.fromEntries(ROLES.map((role) => [role, this.orderFor(role)]));
     const groups = regroupByCoin(
-      rows,
+      // IL RIPESCATO ENTRA NEL TAGLIO COME TUTTI, e non appiccicato in fondo: la colonna di questa
+      // griglia E' la moneta (04/09/2026, la sua domanda su Hojlund e Martinez), quindi una riga messa
+      // ultima a dispetto del proprio surplus rimetterebbe la contraddizione che quella cura ha tolto.
+      // In pratica scende lo stesso in fondo quasi sempre - chi la moneta non ce l'ha ci va per
+      // costruzione (`regroupByCoin` lo manda a `-Infinity`) - ma e' la moneta a dirlo e non noi.
+      [...rows, ...spares],
       // LA MONETA E' IL SURPLUS (operatore, 23/09/2026), e taglia E ordina: vedi `PlanciaMan.surplus`
       // per la misura che lo sceglie contro lo swing, e `regroupByCoin` per perche' la chiave e' una.
       // Il TETTO resta dov'era - nella sua colonna, letto sullo slot di mercato - perche' la scala che
@@ -558,6 +679,7 @@ export class PlanciaStore {
       (man) => man.surplus,
       this.teamsCount(),
       this.slots(),
+      pinned,
     );
     const lastOfRole = new Map<Role, string>();
     for (const group of groups) lastOfRole.set(group.role, group.id);
@@ -615,8 +737,14 @@ export class PlanciaStore {
    * gia' data due volte: le righe restano tutte, perche' all'asta esce quello che esce e una lista che
    * NASCONDE un nome non lo rende non-comprabile - lo rende invisibile nel momento in cui viene
    * chiamato. Il focus toglie ATTENZIONE, non uomini, ed e' lo stesso meccanismo della lente su una rosa.
+   *
+   * SOPRAVVIVE A UN RICARICAMENTO, e qui l'obiezione c'e' ed e' guardata: uno stato che smorza
+   * duecento righe e torna acceso domani sembrerebbe un guasto. Non lo e' perche' si DICHIARA da se' -
+   * il tasto e' `primary` e accanto ci sono i quattro obiettivi - che e' la stessa condizione per cui
+   * la lente su una rosa puo' smorzarne 250: «smorzare senza una parola in cima si legge come un
+   * guasto», quindi la parola c'e'.
    */
-  readonly focusOn = signal(false);
+  readonly focusOn = storedFlag('plancia.focus', false);
 
   /**
    * I POSTI CHE L'UNDICI SCHIERA, per il conto dei buchi: il 4-3-3, una delle sue due forme dichiarate
@@ -653,10 +781,57 @@ export class PlanciaStore {
     const out = {} as Record<Role, Goal | null>;
     for (const role of ROLES) {
       const left = team ? (team.missing[ROLE_ZONE[role]] ?? 0) : this.slots()[role];
-      out[role] = needOf(mine, role, this.FOCUS_PLACES[role], left, rules);
+      const want = needOf(mine, role, this.FOCUS_PLACES[role], left, rules);
+      out[role] = want === null ? null : this.pressured(role, want, left);
     }
     return out;
   });
+
+  /**
+   * DUE CORREZIONI CHE VENGONO DALL'ASTA E NON DALLA ROSA (sua richiesta del 23/09/2026: «il sistema
+   * deve valutare cosa stanno cercando le altre squadre ... riconoscere se stanno cominciando a
+   * scarseggiare ... ottimizzare i crediti spendibili»).
+   *
+   * 1. LA SCARSITA' ALZA L'OBIETTIVO. Se i top di quel ruolo ancora nell'urna sono meno delle rose che
+   *    quel ruolo lo vogliono ancora, ogni mano alzata ne prende uno e per gli ultimi non c'e' per
+   *    tutti: e' il momento di prenderne uno, qualunque cosa la rosa dica. `handsFor` e' la stessa
+   *    quantita' che il banco usa - «conta come mano alzata solo il rivale che PUO' pagare» vale +2,0%
+   *    e le forme piu' elaborate valgono meno (§22) - quindi si legge quella e non se ne inventa una.
+   *
+   * 2. IL BUDGET LO ABBASSA. Se quello che resta, tolto un credito per ogni posto ancora da riempire,
+   *    non basta per il piu' economico dei top in urna, TOP non e' un consiglio: e' una lista che non
+   *    si puo' comprare. «Un posto e' scarso quanto un credito» (§14) letto dal lato del consiglio.
+   *
+   * QUELLO CHE NON FA, e ha un numero: leggere COSA cercano i rivali oltre al loro numero. Misurato con
+   * un ORACLE che vede i loro tetti prima di offrire - quindi un tetto per qualunque modello - e
+   * respinto su quattro famiglie: a secondo prezzo sapere cosa serve per vincere il lotto che hai
+   * davanti vale ZERO, perche' se il tuo tetto e' sopra vinci e paghi comunque il secondo prezzo, e se
+   * e' sotto perdi comunque (§22). L'unica cosa dei rivali che paga e' quanti sono, ed e' il punto 1.
+   */
+  private pressured(role: Role, want: Goal, left: number): Goal {
+    const hands = this.handsFor(role);
+    const topsLeft = this.blocks()
+      .filter((block) => block.role === role)
+      .flatMap((block) => block.rows)
+      .filter((man) => man.state === 'urna' && !!man.category
+        && TOP_WORDS.includes(man.category)).length;
+    // LA SCARSITA': meno top che mani, e chi non si muove resta senza.
+    if (topsLeft > 0 && topsLeft <= hands && want !== 'top') return 'top';
+    if (want !== 'top') return want;
+    // IL BUDGET: il piu' economico dei top in urna, contro quello che posso spendere lasciando un
+    // credito per ogni altro posto. Se non ci arrivo, TOP e' una lista che non posso comprare.
+    const purse = (this.me()?.budgetLeft ?? 0) - Math.max(0, left - 1);
+    const cheapest = Math.min(
+      ...this.blocks()
+        .filter((block) => block.role === role)
+        .flatMap((block) => block.rows)
+        .filter((man) => man.state === 'urna' && !!man.category
+          && TOP_WORDS.includes(man.category))
+        .map((man) => man.band?.low ?? man.fvm),
+    );
+    if (Number.isFinite(cheapest) && purse < cheapest) return 'starter';
+    return want;
+  }
 
   /**
    * L'OBIETTIVO CHE HA SCELTO LUI, per i ruoli in cui l'ha fatto: un click sull'etichetta passa al
@@ -666,8 +841,29 @@ export class PlanciaStore {
    * sceglie sta sopra per quel ruolo soltanto. Cosi' un reparto che non ha toccato continua a seguire
    * la rosa mentre compra, che e' la ragione per cui l'obiettivo automatico esiste - a quattro ore
    * d'asta nessuno ricalcola a mente quanti buchi ha in difesa.
+   *
+   * PERSISTITO come gli altri due, e per una ragione in piu' di «e' un tasto premuto»: un'asta dura
+   * ore e un ricaricamento in mezzo non e' un ripensamento. Cio' che lo rende sicuro e' che si VEDE -
+   * l'etichetta scavalcata perde il primario e il tooltip dice «Scelto da te» - e che si puo'
+   * TOGLIERE, cioe' `cycleGoal` qui sotto. La pila del cestino invece non e' persistita, e la
+   * differenza e' la stessa: un «annulla» che sopravvive disferebbe una cosa fatta ieri, mentre un
+   * obiettivo che sopravvive la si legge e la si cambia in un click.
    */
-  private readonly chosen = signal<Partial<Record<Role, Goal>>>({});
+  private readonly chosen = storedJson<Partial<Record<Role, Goal>>>(
+    'plancia.goals',
+    (raw) => {
+      // Si VALIDA invece di fidarsi, parola per parola: una scritta da una versione precedente
+      // arriverebbe in `focusNeeds` e da li' in `serves`, che su un valore che non conosce non accende
+      // niente - cioe' uno schermo spento senza una ragione a schermo.
+      if (!raw || typeof raw !== 'object') return {};
+      const out: Partial<Record<Role, Goal>> = {};
+      for (const role of ROLES) {
+        const one = (raw as Record<string, unknown>)[role];
+        if (typeof one === 'string' && GOALS.includes(one as Goal)) out[role] = one as Goal;
+      }
+      return out;
+    },
+  );
 
   /** L'obiettivo VIVO di ogni reparto: il suo se l'ha scelto, altrimenti quello che la rosa chiede. */
   readonly focusNeeds = computed<Record<Role, Goal | null>>(() => {
@@ -681,11 +877,131 @@ export class PlanciaStore {
     return out;
   });
 
-  /** Il click sull'etichetta: al successivo dei quattro, e il giro riparte da capo. */
+  /**
+   * IL MIO ORDINE SULLA GRIGLIA PERSONALE, e i nomi che ho BUTTATO (sua richiesta del 23/09/2026:
+   * «quando gli slot-personali sono attivi, permettimi di riordinare i calciatori tramite drag&drop e
+   * salva in locale l'ordine ... un tasto per resettare» e «un'area cestino ... tutti gli altri
+   * scalano ... un tasto per annullare l'ultima eliminazione»).
+   *
+   * IL MODELLO E' IL PREFISSO DELLA STRATEGIA, non un secondo ordine personale: `orderedBy` e
+   * `withRowAt` sono le stesse funzioni (`core/manual-order.ts`), e la ragione per cui un prefisso
+   * batte «salva tutta la lista» vale identica qui - un uomo nuovo che il foglio prezza bene
+   * finirebbe sotto duecento nomi, cioe' invisibile, mentre sotto il prefisso compare in cima alla
+   * meta' misurata. E' «vuoto = ignoto» applicato a un ORDINE: un nome che nessuno ha ordinato non e'
+   * un nome ordinato ultimo.
+   *
+   * PER RUOLO E NON PER BLOCCO, ed e' la differenza che rende il gesto utile: i blocchi sono la
+   * graduatoria tagliata a dieci, quindi portare un uomo in cima lo porta nel PRIMO slot - che e'
+   * quello che «il mio ordine di priorita'» vuol dire. Un ordine dentro il blocco lascerebbe ognuno
+   * dove il tetto l'ha messo.
+   *
+   * LA CHIAVE PORTA LA PIATTAFORMA e non il foglio: una preferenza e' un fatto sulla sua lega, non
+   * sulla revisione che stiamo leggendo, quindi un export nuovo la conserva.
+   */
+  private readonly order = storedJson<Record<string, number[]>>(
+    'plancia.order',
+    (raw) => (raw && typeof raw === 'object' ? (raw as Record<string, number[]>) : {}),
+  );
+
+  /**
+   * I NOMI BUTTATI, e la PILA per disfare: due strutture perche' sono due domande - «chi non voglio
+   * vedere» e «cos'e' l'ultima cosa che ho fatto». Una lista sola non saprebbe rispondere alla seconda.
+   */
+  private readonly binned = storedJson<Record<string, number[]>>(
+    'plancia.binned',
+    (raw) => (raw && typeof raw === 'object' ? (raw as Record<string, number[]>) : {}),
+  );
+
+  /** La chiave di una lista: la piattaforma e il ruolo, mai il foglio. */
+  private keyOf(role: Role): string {
+    return `default|${role}`;
+  }
+
+  /**
+   * LA PILA DI CIO' CHE HO BUTTATO, in ordine di tempo e su tutti i ruoli insieme: «annulla l'ultima
+   * eliminazione» vuol dire l'ultima in assoluto, e con quattro liste separate non si saprebbe quale.
+   * NON e' persistita: un annulla che sopravvive a un ricaricamento disferebbe una cosa fatta ieri.
+   */
+  private readonly binOrder = signal<{ role: Role; id: number }[]>([]);
+
+  /** Gli id che ho buttato, per la griglia che li toglie e per il tasto che li rimette. */
+  readonly binnedIds = computed<ReadonlySet<number>>(() => {
+    const all = this.binned();
+    return new Set(Object.values(all).flat());
+  });
+
+  /** Quanti ne ho buttati, per la barra: un conto che non si vede e' un vincolo muto. */
+  readonly binnedCount = computed(() => this.binnedIds().size);
+
+  /** Se c'e' un ordine mio da annullare, per accendere la crocetta solo quando serve. */
+  readonly hasOrder = computed(() => Object.values(this.order()).some((one) => one.length > 0));
+
+  /** L'ordine mio di un ruolo, come `orderedBy` lo vuole. */
+  orderFor(role: Role): readonly number[] {
+    return this.order()[this.keyOf(role)] ?? [];
+  }
+
+  /** Il rilascio di un trascinamento: l'uomo va al posto `at` della lista che si sta vedendo. */
+  moveTo(role: Role, shown: readonly number[], id: number, at: number): void {
+    const next = withRowAt(this.orderFor(role), shown, id, at);
+    if (!next) return;
+    this.order.update((was) => ({ ...was, [this.keyOf(role)]: next }));
+  }
+
+  /** BUTTATO: esce dalla lista e gli altri scalano da se', perche' la griglia si ritaglia su chi resta. */
+  bin(role: Role, id: number): void {
+    const key = this.keyOf(role);
+    this.binned.update((was) => ({ ...was, [key]: [...(was[key] ?? []), id] }));
+    this.binOrder.update((was) => [...was, { role, id }]);
+  }
+
+  /**
+   * ANNULLA L'ULTIMA ELIMINAZIONE, che e' l'ultima in ordine di tempo su TUTTI i ruoli e non su uno.
+   *
+   * La pila e' implicita nell'ordine in cui i nomi sono stati aggiunti - l'ultimo di ogni lista e' il
+   * suo piu' recente - e fra i quattro si sceglie l'ultimo assoluto tenendo un contatore: senza, «annulla»
+   * dopo aver buttato un difensore e poi un attaccante rimetterebbe il difensore, che non e' quello che
+   * la parola promette.
+   */
+  unbin(): void {
+    const stack = this.binOrder();
+    const last = stack[stack.length - 1];
+    if (!last) return;
+    const key = this.keyOf(last.role);
+    this.binned.update((was) => ({
+      ...was,
+      [key]: (was[key] ?? []).filter((one) => one !== last.id),
+    }));
+    this.binOrder.update((was) => was.slice(0, -1));
+  }
+
+  /** ...e il tasto che rimette tutto come il foglio lo aveva messo: ordine e cestino insieme. */
+  resetOrder(): void {
+    this.order.set({});
+    this.binned.set({});
+    this.binOrder.set([]);
+  }
+
+  /**
+   * Il click sull'etichetta: al successivo dei quattro, e il giro riparte da capo.
+   *
+   * E QUANDO IL GIRO TORNA SUL CONSIGLIO, LO SCAVALCO SI TOGLIE invece di essere riscritto uguale -
+   * altrimenti quel reparto smetterebbe di seguire la rosa per sempre, pur leggendo «consigliato»
+   * (il primario confronta i due valori, non l'esistenza della scelta). Da quando lo scavalco
+   * sopravvive a un ricaricamento questa e' l'unica strada di ritorno che esista, e una preferenza
+   * persistente che non si puo' togliere e' una trappola: l'ultimo click del giro la toglie.
+   */
   cycleGoal(role: Role): void {
     const now = this.focusNeeds()[role];
     if (now === null) return;
-    this.chosen.update((was) => ({ ...was, [role]: nextGoal(now) }));
+    const next = nextGoal(now);
+    const advised = this.focusAuto()[role];
+    this.chosen.update((was) => {
+      const out = { ...was };
+      if (next === advised) delete out[role];
+      else out[role] = next;
+      return out;
+    });
   }
 
   /**
@@ -1040,7 +1356,7 @@ export class PlanciaStore {
    */
   private readonly cards = new CardStack();
 
-  readonly cardMen = computed<{ man: CardMan; slot: number }[]>(() => {
+  readonly cardMen = computed<{ man: CardMan; slot: number; key: CardKey }[]>(() => {
     const byId = new Map<number, { man: BoardMan; block: BoardBlock }>();
     for (const block of this.blocks()) {
       for (const row of block.rows) byId.set(row.id, { man: row, block });
@@ -1049,25 +1365,45 @@ export class PlanciaStore {
     const rounds = this.seasonRounds();
     // Chi non è più in mappa esce da sé: la coda si compra a un credito e non ha una riga, quindi non
     // ha una card - e una card che sopravvive alla propria riga mostrerebbe numeri di un altro giro.
-    return this.cards.place((id) => {
-      const found = byId.get(id);
-      return found ? cardManOf(found.man, found.block, numbers.get(id) ?? null, rounds) : undefined;
+    return this.cards.place((key) => {
+      const id = playerOfCard(key);
+      const found = id == null ? undefined : byId.get(id);
+      return found
+        ? cardManOf(found.man, found.block, numbers.get(id as number) ?? null, rounds)
+        : undefined;
     });
   });
+
+  /**
+   * LE CARD DI UNA SQUADRA, dalla STESSA pila dei calciatori.
+   *
+   * Nascono dal click sul nome del club dentro la card di un uomo (operatore, 23/09/2026). Una pila sola
+   * per le due specie perche' il POSTO e chi sta DAVANTI sono globali allo schermo: due pile darebbero
+   * lo stesso posto a due card aperte insieme, e due «davanti» contemporanei - cioe' una card toccata
+   * che non passa davanti alle altre.
+   */
+  readonly clubCards = computed(() => this.cards.place((key) => clubOfCard(key) ?? undefined));
+
+  /** Quante card sono aperte in tutto: il tasto «chiudi le N card» le conta tutt'e due le specie. */
+  readonly cardCount = computed(() => this.cards.count());
 
   readonly frontCard = computed(() => this.cards.front());
 
   openCard(id: number | null): void {
-    this.cards.openCard(id);
+    this.cards.openCard(id == null ? null : playerCard(id));
+  }
+
+  openClubCard(platform: Platform, club: string): void {
+    this.cards.openCard(clubCard(platform, club));
   }
 
   /** Toccata: davanti alle altre. Un click o un trascinamento, che per questo sono la stessa cosa. */
-  raiseCard(id: number): void {
-    this.cards.raiseCard(id);
+  raiseCard(key: CardKey): void {
+    this.cards.raiseCard(key);
   }
 
-  closeCard(id: number): void {
-    this.cards.closeCard(id);
+  closeCard(key: CardKey): void {
+    this.cards.closeCard(key);
   }
 
   /** I numeri del motore di un uomo, dal lettore unico: la card non ne apre un secondo. */
@@ -1453,9 +1789,10 @@ export class PlanciaStore {
     // pagina legge il foglio da se' e non passa da `ValuationStore`, quindi senza questa riga il
     // selettore della card stamperebbe un trattino al posto delle giornate di ogni gradino.
     this.rulings.observe(chosen.platform, rungShares([...numbers.values()]));
-    // Il calendario e i portieri titolari: nessuno dei due e' necessario per disegnare la plancia, quindi
-    // un bundle che non li porta la apre lo stesso e le modali che li leggono lo dicono.
+    // Il calendario, i portieri titolari e la stagione scorsa: nessuno dei tre e' necessario per
+    // disegnare la plancia, quindi un bundle che non li porta la apre lo stesso e chi li legge lo dice.
     void this.loadCalendar();
+    void this.loadLastSeason(manifest.input_season, chosen.platform);
     void this.loadBoardKeepers(chosen);
 
     const prices = await this.prices(manifest.target_season, chosen.platform);
@@ -1473,6 +1810,29 @@ export class PlanciaStore {
   private async loadCalendar(): Promise<void> {
     if (this.calendarFile()) return;
     this.calendarFile.set(await this.bundle.calendar());
+  }
+
+  /**
+   * LE TRE MISURE DELLA STAGIONE SCORSA, per il set di numeri che la select offre.
+   *
+   * `season_stats` e basta - 133 KB, e `Bundle` la tiene in cache, quindi una pagina che l'ha gia'
+   * chiesta non la ripaga. Il livello per-partita NON si chiede: sono 2,1 MB per quattro campi che
+   * questa riga non stampa, ed e' per poterlo omettere che `seasonLines` ha quel parametro opzionale.
+   *
+   * E la PIATTAFORMA e' quella del foglio: la stessa riga di `season_stats` esiste su due calendari
+   * (31 giornate su euro, 38 su default) e leggere quella sbagliata darebbe a un uomo due stagioni.
+   */
+  private async loadLastSeason(season: string | null, platform: string): Promise<void> {
+    if (!season || this.lastSeason().size) return;
+    const seasonStats = await this.bundle.table('season_stats');
+    const lines = seasonLines({ seasonStats, platform: platform as Platform, seasons: [season] });
+    const out = new Map<number, SeasonLine>();
+    for (const [id, bySeason] of lines) {
+      const line = bySeason.get(season);
+      if (line) out.set(id, line);
+    }
+    this.lastSeason.set(out);
+    this.lastSeasonLabel.set(season);
   }
 
   /**
@@ -1628,6 +1988,11 @@ function capNoteOf(man: BoardMan, block: BoardBlock): string | null {
   const band = man.band;
   if (!band) return null;
   if (band.bet) return `Tetto dichiarato per una scommessa: ${band.high} crediti, non di piu'.`;
+  // PRIMA DELLA DEMOZIONE, o la frase dell'infortunato finirebbe addosso a chi non ha uno slot: il
+  // suo `pricedAt` e' 0 e non coinciderebbe mai con quello del blocco in cui e' finito.
+  if (man.fromTail) {
+    return `Sotto l'ultimo slot: la scala delle offerte non arriva fin li', quindi resta il minimo dell'asta.`;
+  }
   if (band.pricedAt !== block.index) {
     return `Prezzato come uno slot ${band.pricedAt}: infortunato oggi, non lo pago da primo.`;
   }

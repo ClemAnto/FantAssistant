@@ -4759,3 +4759,154 @@ i provider veri. Vitest lo dice da se' - «this might cause false positive tests
 verde che qui non si accetta: 1076 test passati e in fondo allo schermo tredici errori. Curato dando allo
 spec `appConfig.providers`, che e' anche cio' che rende il test una prova sull'app e non su un montaggio
 che l'app non fa.
+
+## 49. LA MODALITÀ FOCUS, e gli obiettivi che il tavolo corregge (23 settembre 2026)
+
+**Sua richiesta**: «introdurre una nuova modalità FOCUS dove andiamo ad evidenziare solo i calciatori
+che ci servono per raggiungere i nostri obiettivi e nascondiamo gli altri», con tre obiettivi dettati e
+la domanda giusta accanto — «secondo te gli obiettivi sono giusti? Vogliamo riconsiderarli?».
+
+**LA PRIMA RISPOSTA È STATA UN CONTO, non un'implementazione.** I tre obiettivi come li aveva scritti
+non sono simultaneamente raggiungibili: undici fra `super`, `top` e `semi` in una rosa sola, quando di
+parole alte sull'intero listone ce ne sono **51** per dieci rose. Misurato invece sul banco — chi vince
+un campionato quanti ne ha — il bersaglio vero è **SETTE**, e non sono distribuiti in modo uniforme:
+`{P 0 · D 3 · C 1 · A 3}`. Il portiere zero perché il suo k-esimo top vale **−0,11 posti** e di portieri
+se ne schiera uno; difesa e attacco se li prendono quasi tutti perché è lì che pagano.
+
+**SMORZA, NON NASCONDE**, che è la parola sua corretta dalla ragione di sempre: all'asta esce quello che
+esce, e una lista che TOGLIE un nome non lo rende non-comprabile — lo rende invisibile nel momento in cui
+viene chiamato. Le righe restano tutte al 30%, come la lente su una rosa.
+
+**QUATTRO OBIETTIVI, e il loro ordine è misurato**: `TOP · TITOLARE · COPERTURA · RESTO`. Prima il buco,
+che è il numero più grande che questo progetto abbia misurato su una rosa (**4,73 fantapunti a
+giornata**), poi le parole alte dove pagano, poi il riempimento. L'etichetta di ogni reparto è un
+BOTTONE — un click passa al successivo — e il **primario dice che quello è il consiglio**: senza quel
+colore un obiettivo scavalcato a mano sarebbe indistinguibile da uno suggerito, cioè il sistema
+sembrerebbe consigliare quello che invece gli è stato imposto.
+
+**E IL CONSIGLIO LEGGE DUE COSE CHE NON SONO LA ROSA** (sua richiesta: «il sistema deve valutare cosa
+stanno cercando le altre squadre ... riconoscere se stanno cominciando a scarseggiare»). La SCARSITÀ
+alza l'obiettivo: se i top di quel ruolo ancora nell'urna sono meno delle mani alzate, ognuno ne prende
+uno e per gli ultimi non c'è — e «mano alzata» è il rivale che PUÒ pagare, che è la sola forma sui
+rivali che il banco misura come utile (+2,0%). Il BUDGET lo abbassa: se quel che resta, tolto un credito
+per ogni posto ancora da riempire, non arriva al più economico dei top in urna, TOP non è un consiglio,
+è una lista che non si può comprare.
+
+**Quello che NON fa, e ha un numero**: leggere COSA cercano i rivali oltre al loro numero. Misurato con
+un ORACOLO che vede i loro tetti prima di offrire — quindi un tetto per qualunque modello — e respinto
+su quattro famiglie: a secondo prezzo sapere cosa serve per vincere il lotto che hai davanti vale ZERO,
+perché se il tuo tetto è sopra vinci e paghi comunque il secondo prezzo, e se è sotto perdi comunque
+(§22 del simulatore). E «comprare al momento giusto» è vero solo dalla terza fascia in giù: le prime due
+non arrivano MAI in saldo (×1,00 · 0,91 · 0,80, zero aggiudicazioni a un credito su 552).
+
+Tre cose più piccole. **Il caso limite decide la soglia**: `MIN_FOCUS_SHARE` era 0,35 e accendeva 239
+righe su 271, cioè non restringeva — l'ha trovato il banco, non una rilettura, ed è stato alzato al
+pavimento degli `operai`. **Un uomo che serve alla COPERTURA non è uno che serve all'UNDICI**: le due
+frasi sono state prese al contrario per un'ora e le ha corrette lui («COPERTURA -> un calciatore che
+giochi sempre; TITOLARE -> uno che possa completare il nostro 11»). E **due dei miei stessi test
+cadevano su codice giusto**, perché i loro fixture avevano già il bersaglio dei top raggiunto: si è
+corretta l'attesa, non la regola.
+
+
+## 50. IL RIORDINO A MANO, IL CESTINO, E IL CONTO DI UN RUOLO CHE NON SI MUOVE (23 settembre 2026)
+
+**Sue richieste, in fila**: «quando gli slot-personali sono attivi, permettimi di riordinare i
+calciatori tramite drag&drop e salva in locale l'ordine ... un tasto per resettare»; «fai comparire
+anche un'area cestino ... quando butto un calciatore in automatico tutti gli altri scalano ... un tasto
+per annullare l'ultima eliminazione»; e poi la regola che chiude il conto: «il numero totale di
+calciatori di quel ruolo deve rimanere invariato, quindi deve entrare uno dei calciatori che prima era
+rimasto fuori».
+
+**IL MODELLO È IL PREFISSO DELLA STRATEGIA** e non un secondo ordine personale: `orderedBy` e `withRowAt`
+sono le stesse funzioni, e la ragione per cui un prefisso batte «salva tutta la lista» vale identica qui
+— un uomo nuovo che il foglio prezza bene finirebbe sotto duecento nomi. **Per RUOLO e non per blocco**,
+ed è la differenza che rende il gesto utile: i blocchi sono la graduatoria tagliata a dieci, quindi
+portare un nome in cima lo porta nel PRIMO slot.
+
+**IL CESTINO STA SEMPRE NEL DOM E SI NASCONDE**, che è un difetto misurato due volte prima di arrivarci:
+CDK calcola le liste connesse QUANDO IL GESTO COMINCIA, quindi un bersaglio creato da un `@if` durante
+il trascinamento non è fra quelle — 224×56px a metà volo e il nome ancora in lista dopo il rilascio.
+*Un bersaglio che si vede e non prende è peggio di un bersaglio che non c'è.*
+
+**E IL CONTO DI UN RUOLO NON SI MUOVE**: al posto di ognuno che butto entra il primo della CODA, cioè di
+quelli che la mappa del mercato lascia sotto l'ultimo slot, nell'ordine di prezzo con cui il taglio
+stesso li aveva lasciati fuori. Misurato: la difesa personale legge **80 righe prima e 80 dopo**, e
+l'annulla rimanda il ripescato sotto la linea (altrimenti il ruolo si ritroverebbe con un uomo di
+troppo — il difetto opposto e altrettanto silenzioso).
+
+Tre cose che restano.
+- **DALLA CODA E NON DAGLI ESCLUSI**, che pure il codice chiama «lasciati fuori»: quelli sono i nomi che
+  `MIN_PLAY_SHARE` toglie dalla riga tenendoli nel rango, e ripescarli qui farebbe DISFARE a un click un
+  vincolo dichiarato. Per la stessa ragione il ripescato quella soglia la deve passare.
+- **«ALL'ULTIMO POSTO» È UNA CONSEGUENZA E NON UNA REGOLA.** Su questa griglia la colonna È l'ordine
+  (04/09, la sua domanda su Hojlund e Martinez), quindi il ripescato entra nel taglio come tutti e la
+  moneta lo colloca: misurato, Lucchesi finisce **76º di 80**, in fondo ma non ultimo. Metterlo ultimo a
+  dispetto del proprio surplus rimetterebbe la contraddizione che quella cura ha tolto.
+- **UNA DECORAZIONE DI RIGA SI SCRIVE UNA VOLTA SOLA**: `rowMaker` è stata estratta da `blocks()` perché
+  la griglia personale ora ne costruisce alcune da sé, e due copie sarebbero un uomo con due stati o due
+  bande a seconda di quale griglia lo disegna.
+
+
+## 51. IL COSTO MINIMO È UN CREDITO, e i due SET di numeri sulla riga (23 settembre 2026)
+
+Tre istruzioni sue in fila, tutte sulle righe della plancia.
+
+**«IL COSTO MINIMO DI UN CALCIATORE DEVE ESSERE 1 (vedi Zapata)».** La sonda lo ha trovato dove lui
+l'aveva visto: **Zapata D. sale dalla coda in A6** — è uno dei ripescati della sezione precedente — e la
+sua colonna leggeva un trattino. Non è una taratura, è il REGOLAMENTO: a un'asta si offre a partire da
+uno, quindi un tetto che legge zero, o che non legge niente, non è un'offerta più bassa — è un'offerta
+che non esiste. Ed è **la stessa frase che questa pagina applicava già dal lato opposto**: `award`
+rifiuta di aggiudicare a zero perché «zero vuol dire *nessuno ha ancora offerto*, non *un credito*»
+(§37).
+
+`MIN_BID` = 1 vive in due posti. Dentro `offerBand`, **prima** del tetto della scommessa — quello
+abbassa e non alza mai, e messo dopo lo avrebbe ripassato sotto; serviva perché gli ultimi gradini della
+scala sono 0,001-0,002 e con la confidenza di una stima o lo sconto stesso-club il centro scende sotto
+il mezzo credito. E per chi viene dalla CODA, un tetto **dichiarato** e non calcolato (`tailBand`): un
+gradino non ce l'ha, e `offerBand` lo aggancerebbe comunque all'ultimo per via del suo clamp, cioè
+prezzerebbe l'81º difensore come il 75º. Uno non è un ripiego — è la cifra che l'archivio misura per
+quella popolazione, cinque uomini di ogni rosa vera pagati un credito.
+Misurato: **249 offerte per griglia, minimo 1, zero a zero, zero vuote**, e il ripescato legge
+esattamente 1. Controprova: la stessa sonda, prima della cura, stampava `Zapata D. (A6, «—»)`.
+
+**«METTI UNA SELECT PER CAMBIARE IL SET DI STATISTICHE»**: `default` e **`scorso (2025-26)`** — presenze
+a voto, media voto, fantamedia. I numeri li legge `seasonLines`, la definizione che già esisteva per il
+popover delle buste: le ho reso **opzionale** il livello per-partita, così la plancia non paga 2,1 MB per
+quattro campi che non stampa (`season_stats` sono 133 KB e la cache del bundle li condivide).
+L'alternativa era un secondo lettore delle stesse tre colonne, cioè due «media voto dell'anno scorso» su
+due schermate. Verificato contro il PACCHETTO e non contro lo schermo: **183 righe confrontate, 0
+sbagliate**; le altre 66 non hanno una riga 2025-26 e stampano un punto.
+
+**E IL BANCO HA TROVATO UN DIFETTO CHE NESSUNO CERCAVA: il tooltip della select copriva le sue stesse
+voci.** La barra sta in cima allo schermo, quindi antd ribalta il pannello verso il basso — proprio dove
+la select apre le opzioni — e `elementFromPoint` sulla voce «scorso» rispondeva `div.ant-tooltip-inner`.
+Una mano che passa sulla select e poi scende a scegliere clicca il tooltip. **Terza istanza** («un
+tooltip lungo copre il controllo accanto», buste chiuse 25/08 e pastiglie della Strategia 05/09) e la
+prima in cui copre se stesso. Tolto: la stagione la NOMINA l'etichetta della voce, e «misure, non
+previsioni» sta nel tooltip del BLOCCO, cioè accanto ai numeri.
+
+**«UN SOLO DECIMALE» e «I VALORI ALLINEATI VERTICALMENTE» e «LE ICONE SUBITO DOPO I NOMI»**, che sono tre
+richieste e una riga sola.
+- Il decimale costa poco per una ragione precisa: dentro un blocco la media voto ha **4,3 valori
+  distinti con una cifra contro 6,8 con due**, e quella colonna **non ordina niente** — il blocco resta
+  tagliato sulla moneta. È la disciplina del 04/09 girata dall'altra parte: allora il decimale ci volle
+  *perché* quella colonna era l'ordine.
+- **LE ICONE SPOSTATE SONO LA CAUSA DELL'ALLINEAMENTO.** Da destra erano l'ultimo elemento a larghezza
+  variabile prima delle cifre — zero, uno o due marchi più un `+N`, misurati fino a **39px** — quindi
+  ogni riga spostava le colonne di quel tanto. Adesso la variabilità sta tutta nello spaziatore, che è
+  l'unico elemento che può assorbirla.
+- **L'ALLINEAMENTO È UNA LARGHEZZA DICHIARATA**, non `tabular-nums`: quello rende uguali le cifre fra
+  loro, mai le celle fra righe sorelle. Prima: **30 bordi sinistri distinti** sulla colonna della moneta
+  su 249 righe (16 sulle presenze, 14 sull'offerta). Dopo: **0 blocchi disallineati su 25, 0 cifre
+  tagliate**. Non un `subgrid` — queste righe sono trascinabili, CDK ne clona una per l'anteprima e un
+  subgrid senza il suo genitore si sfascia in volo. Le larghezze vengono dalla misura (max reso 19,8 ·
+  17,8 · 16,2) con un carattere di margine, e il banco asserisce che nessuna cella è tagliata: *una
+  larghezza dichiarata è una promessa che una cifra in più può rompere.*
+- **Il prezzo delle due insieme è dichiarato**: nomi tagliati **0 → 1** col set del motore e **1 → 5**
+  con la stagione scorsa, su 249 righe.
+
+**E un difetto dell'ARNESE, trovato nella stessa corsa.** Il banco accusava 19 righe di stampare numeri
+sbagliati, tutti per 0,1: `toFixed` arrotonda sulla rappresentazione BINARIA (5,05 è 5,0499…) mentre
+`Intl`, che è quello che il pipe di Angular usa, arrotonda sul decimale. Era l'arnese e non la pagina —
+*un banco si verifica prima di accusare il codice* — e la forma che non dipende da nessuno dei due
+formattatori è la DISTANZA: mezza unità nell'ultima cifra stampata.

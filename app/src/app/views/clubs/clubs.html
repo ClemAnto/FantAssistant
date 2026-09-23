@@ -396,16 +396,30 @@
      (`ui/player-card`): due card sarebbero due letture degli stessi `engine_*`.
 
      NESSUN BOTTONE proiettato: qui non c'è un'asta in corso, quindi non c'è un lotto da nominare. -->
-@for (open of openCards(); track open.man.id) {
+@for (open of openCards(); track open.key) {
   <ui-player-card
     [man]="open.man"
     [at]="open.slot"
-    [front]="frontCard() === open.man.id"
-    (closed)="closeCard($event)"
-    (raised)="raiseCard($event)"
+    [front]="frontCard() === open.key"
+    (closed)="closeCard(open.key)"
+    (raised)="raiseCard(open.key)"
+    (club)="openClubCard(open.man.platform, open.man.club)"
   />
 }
-@if (openCards().length > 1) {
+<!-- LE CARD DI UNA SQUADRA, dalla STESSA pila (operatore, 23/09/2026: il click sul nome del club dentro
+     la card di un calciatore). Due pile darebbero lo stesso posto a due card aperte insieme e due
+     «davanti» contemporanei, cioè una card toccata che non passa davanti alle altre. -->
+@for (open of clubCards(); track open.key) {
+  <ui-club-card
+    [club]="open.man.club"
+    [platform]="open.man.platform"
+    [at]="open.slot"
+    [front]="frontCard() === open.key"
+    (closed)="closeCard(open.key)"
+    (raised)="raiseCard(open.key)"
+  />
+}
+@if (cardCount() > 1) {
   <!-- La via d'uscita, invece di un TETTO al numero di card: una soglia su quante se ne possono aprire
        è una soglia che nessuno ha misurato. -->
   <button
@@ -414,6 +428,6 @@
            bg-surface px-3 py-1 text-xs text-muted shadow-lg hover:text-fg"
     (click)="closeAllCards()"
   >
-    chiudi le {{ openCards().length }} card
+    chiudi le {{ cardCount() }} card
   </button>
 }

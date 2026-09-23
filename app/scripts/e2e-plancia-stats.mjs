@@ -1,29 +1,27 @@
 /**
- * e2e-focus.mjs - drive the REAL plancia and measure the FOCUS mode, its goals, and what SURVIVES
- * a page reload.
+ * e2e-plancia-stats.mjs - drive the REAL plancia and measure the two SETS OF NUMBERS on a row,
+ * plus the floor under every offer.
  *
- * Three claims, and each one is about the SCREEN rather than about the code.
- *  - FOCUS DIMS AND DOES NOT HIDE («evidenziamo solo i calciatori che ci servono ... e nascondiamo gli
- *    altri», operatore 23/09/2026, implemented as dimming because at a drawn auction what comes up
- *    comes up: a list that REMOVES a name does not make him unbuyable, it makes him invisible the
- *    moment he is called). So the run counts the DIFFERENCE in dimmed rows, never the absolute - the
- *    page dims other things too (the squad cards), and a bench that demands a zero accuses the page of
- *    its own selector.
- *  - THE LABEL IS A BUTTON («cliccando sull'etichetta seleziona l'obiettivo successivo»), and that is
- *    verified on BOTH halves of the gesture: the word changes AND the list moves. A cycle that changed
- *    only the label would be a switch wired to nothing.
- *  - THE THREE SWITCHES SURVIVE A REFRESH («memorizza lo stato dei tasti premuti in modo che al
- *    refresh non si perdano le impostazioni», 23/09/2026) - which is a claim no unit test can make,
- *    because the thing being claimed is a reload.
- *
- * And the reload step first MAKES SURE THE STATE EXISTS: it clicks the goal until the label stops
- * being the advised one, because `cycleGoal` drops an override that lands back on the advice - so a
- * check taken on a coincidentally-advised label would pass with nothing stored, which is this
- * project's own «un'asserzione che non puo' fallire» read from the fixture's side.
+ * Three claims, and the first two are the operator's own sentences.
+ *  - A PLAYER'S MINIMUM COST IS ONE CREDIT («vedi Zapata», 23/09/2026). At an auction you bid from
+ *    one, so a ceiling that reads zero - or nothing - is not a cheaper offer, it is no offer. The
+ *    case that produced it is a man RIPESCATO DALLA CODA, who has no rung on the scale at all: his
+ *    figure has to read exactly the minimum, and the step bins forwards until one of them turns up.
+ *  - THE SELECT SWAPS THE SET («metti una select ... default | scorso -> Pv | Mv | Fm»), and the
+ *    three figures of «scorso» are MEASURES of last season. So they are compared with the BUNDLE and
+ *    never with the screen: a step that derives the expected number from the number it is checking
+ *    is the circular assertion this repository has paid for twice.
+ *  - THE FIGURES LINE UP DOWN A BLOCK («mantieni i valori allineati verticalmente tra di loro»),
+ *    which on sibling flex rows is a claim about DECLARED WIDTHS and not about `tabular-nums`: that
+ *    makes digits equal to each other, never cells equal across rows. So the step counts the distinct
+ *    LEFT EDGES of each numeric column inside one block - one, or they are not a column - and checks
+ *    that no cell is clipped, because a declared width is a promise that can be broken by one digit.
+ *  - AND THE PRICE OF THE ICONS AND OF A THIRD FIGURE IS MEASURED rather than argued: both take width
+ *    from the name, so the run counts the CLIPPED names in both sets and prints them.
  *
  * Zero dependencies, like the other harnesses: serves `dist/`, launches Edge or Chrome headless, CDP.
  *
- * Usage: node scripts/e2e-focus.mjs [--headed]
+ * Usage: node scripts/e2e-plancia-stats.mjs [--headed]
  */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -31,6 +29,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
+import { gunzipSync } from 'node:zlib';
 
 const ROOT = resolve(import.meta.dirname, '..');
 const DIST = join(ROOT, 'dist', 'fantassistant', 'browser');
@@ -603,12 +602,136 @@ function names(board) {
 function shapeOf(board) {
   return (board ?? []).map((one) => `${one.id}:${one.rows.length}`).join(' ');
 }
+async function dragTo(session, from, to, steps = 8, midFlight = null) {
+  await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none' });
+  await wait(40);
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1,
+  });
+  for (let step = 1; step <= steps; step += 1) {
+    await session.send('Input.dispatchMouseEvent', {
+      type: 'mouseMoved',
+      x: Math.round(from.x + ((to.x - from.x) * step) / steps),
+      y: Math.round(from.y + ((to.y - from.y) * step) / steps),
+      button: 'left',
+      buttons: 1,
+    });
+    await wait(25);
+    // A metà volo si guarda quello che esiste SOLO mentre si trascina: l'anteprima e il segnaposto.
+    if (midFlight && step === Math.ceil(steps / 2)) await midFlight();
+  }
+  await session.send('Input.dispatchMouseEvent', {
+    type: 'mouseReleased', x: Math.round(to.x), y: Math.round(to.y), button: 'left', clickCount: 1,
+  });
+  await wait(300);
+}
 
-/** LA MODALITA' FOCUS: quante righe restano accese, chi sono, e cosa la barra dichiara. */
+/** IL RIORDINO A MANO della griglia personale: il trascinamento, il cestino, l'annulla, il reset. */
+
+/**
+ * IL FOGLIO DEL MOTORE, per fare il ponte fra il NOME che si legge a schermo e l'`fc_id` con cui il
+ * pacchetto tiene le stagioni. Un join per nome e' il difetto piu' ripetuto di questo repository,
+ * quindi la chiave si verifica: i nomi doppi escono dal confronto e il loro numero e' stampato.
+ */
+async function sheetNames() {
+  const manifest = JSON.parse(await readFile(join(DIST, 'data', 'manifest.json'), 'utf8'));
+  const sheets = manifest.engine_sheets ?? [];
+  const chosen =
+    [...sheets].filter((s) => s.platform === 'default' && s.game === 'classic')
+      .sort((a, b) => (b.priced ?? 0) - (a.priced ?? 0))[0] ??
+    [...sheets].sort((a, b) => (b.priced ?? 0) - (a.priced ?? 0))[0];
+  const raw = await readFile(join(DIST, 'data', chosen.path));
+  const table = JSON.parse(gunzipSync(raw).toString('utf8'));
+  const at = (name) => table.columns.indexOf(name);
+  const [id, name] = ['fc_id', 'name'].map(at);
+  const byName = new Map();
+  const twice = new Set();
+  for (const row of table.rows) {
+    const key = String(row[name]).trim();
+    if (byName.has(key)) twice.add(key);
+    byName.set(key, Number(row[id]));
+  }
+  for (const key of twice) byName.delete(key);
+  return { byName, twice: twice.size, season: manifest.input_season, platform: chosen.platform };
+}
+
+/** Pv, Mv e Fm della stagione scorsa, dalla tabella del pacchetto e non dallo schermo. */
+async function lastFromBundle(season, platform) {
+  const raw = await readFile(join(DIST, 'data', 'season_stats.json.gz'));
+  const table = JSON.parse(gunzipSync(raw).toString('utf8'));
+  const at = (name) => table.columns.indexOf(name);
+  const [id, seasonAt, platformAt, pv, mv, fm] =
+    ['fc_id', 'season', 'platform', 'pv', 'mv', 'fm'].map(at);
+  const out = new Map();
+  for (const row of table.rows) {
+    if (row[seasonAt] !== season || row[platformAt] !== platform) continue;
+    out.set(Number(row[id]), { pv: row[pv], mv: row[mv], fm: row[fm] });
+  }
+  return out;
+}
+
+/** Le righe come lo schermo le ha: il nome, le celle numeriche da destra, e se il nome e' tagliato. */
+function readRows() {
+  const out = [];
+  for (const block of document.querySelectorAll('[data-block]')) {
+    const head = block.querySelector('span')?.innerText?.trim() ?? '';
+    for (const row of block.querySelectorAll('button')) {
+      const cells = [...row.querySelectorAll('span')];
+      const label = row.querySelector('.truncate');
+      out.push({
+        block: head,
+        name: (row.innerText ?? '').split('\n')[0].trim(),
+        // DA DESTRA, perche' in mezzo ci sono `ui-flags` e `ui-ruling-dot`, che rendono un numero
+        // variabile di span: contare da sinistra leggerebbe una cella diversa riga per riga.
+        figures: cells.slice(-4).map((one) => (one.innerText ?? '').trim()),
+        // Un nome TAGLIATO, misurato sul contenuto e non sulla scatola: `scrollWidth` di un elemento
+        // con `truncate` supera la sua larghezza esattamente quando i puntini compaiono.
+        clipped: label ? label.scrollWidth > label.clientWidth + 1 : false,
+        owned: (() => {
+          const paint = cells[0] ? getComputedStyle(cells[0]).backgroundColor : '';
+          return !!paint && paint !== 'transparent' && !paint.startsWith('rgba(0, 0, 0, 0');
+        })(),
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * L'ALLINEAMENTO, contato DENTRO ogni blocco e non sul tabellone intero.
+ *
+ * Sul tabellone i bordi sinistri sarebbero otto per costruzione - tante quante le colonne della
+ * griglia - quindi contarli li' darebbe otto anche su righe perfettamente allineate e la misura non
+ * direbbe niente. La domanda e' «le righe di QUESTO blocco si incolonnano», e la risposta e' uno.
+ */
+function columnsOf() {
+  const out = [];
+  for (const block of document.querySelectorAll('[data-block]')) {
+    const rows = [...block.querySelectorAll('button')];
+    if (rows.length < 2) continue;
+    const lefts = [[], [], [], []];
+    let clipped = 0;
+    for (const row of rows) {
+      const cells = [...row.querySelectorAll(':scope > span')].slice(-4);
+      cells.forEach((cell, i) => {
+        lefts[i].push(Math.round(cell.getBoundingClientRect().left));
+        if (cell.scrollWidth > cell.clientWidth + 1) clipped += 1;
+      });
+    }
+    out.push({
+      id: (block.querySelector('span')?.innerText ?? '').trim(),
+      rows: rows.length,
+      distinct: lefts.map((one) => new Set(one).size),
+      clipped,
+    });
+  }
+  return out;
+}
+
 async function main() {
   const binary = BROWSERS.find((one) => existsSync(one));
   const { server, port } = await serve(DIST);
-  const profile = await mkdtemp(join(tmpdir(), 'fant-focus-'));
+  const profile = await mkdtemp(join(tmpdir(), 'fant-stats-'));
   const debugPort = Number(await freePort());
   const url = `http://127.0.0.1:${port}/plancia`;
   const browser = spawn(binary, ['--headless=new', `--remote-debugging-port=${debugPort}`,
@@ -616,129 +739,166 @@ async function main() {
     '--disable-extensions', '--window-size=1600,1000', url], { stdio: 'ignore' });
   let session;
   const problems = [];
+  const grab = (name) => {
+    const b = [...document.querySelectorAll('[data-block] button')]
+      .find((one) => (one.innerText ?? '').includes(name));
+    if (!b) return null;
+    const r = b.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  };
   try {
+    const { byName, twice, season, platform } = await sheetNames();
+    const truth = await lastFromBundle(season, platform);
+    console.log(`. il pacchetto: ${season} su ${platform} · ${truth.size} righe · ${twice} nomi doppi fuori dal confronto`);
+
     session = await attach(debugPort);
     await session.send('Page.enable');
     await session.send('Runtime.enable');
     await session.send('Page.navigate', { url });
     await waitFor(session, readBoard, 120);
 
-    // LO SFONDO DI OGNI RIGA PRIMA, che e' il modo di misurare un'evidenziazione senza conoscere il
-    // formato di un token: si contano le DIFFERENZE, non i canali (la lezione del 03/09).
-    const read = () => {
-      const rows = [...document.querySelectorAll('[class*="grid-cols-8"] button')];
-      return {
-        rows: rows.length,
-        faded: rows.filter((r) => Number(getComputedStyle(r).opacity) < 0.9).length,
-        says: (document.querySelector('[data-focus-needs]')?.innerText ?? '').replace(/\n/g, ' · '),
-        on: !!document.querySelector('[data-focus].ant-btn-primary'),
-      };
-    };
-    // SI CONTA LA DIFFERENZA e non il valore assoluto: sulla pagina ci sono altre cose smorzate che
-    // non c'entrano (le card delle rose), e un banco che pretende lo zero accusa la pagina del proprio
-    // selettore - la lezione del 03/09 sull'evidenziazione, applicata al suo complemento.
-    const before = await evaluate(session, read);
-    console.log(`. prima: ${before.rows} righe, ${before.faded} smorzate, focus ${before.on ? 'ON' : 'off'}`);
+    // 1. NESSUNA OFFERTA A ZERO, su tutt'e due i tagli: un tetto di zero non e' un'offerta.
+    for (const grid of ['mercato', 'personali']) {
+      if (grid === 'personali') {
+        const to = await evaluate(session, boxOf, 'header nz-radio-group label', 'personali');
+        await click(session, to);
+        await wait(600);
+      }
+      const rows = await evaluate(session, readRows);
+      const offers = rows
+        .filter((one) => !one.owned)
+        .map((one) => Number((one.figures.at(-1) ?? '').replace(/[^0-9-]/g, '')));
+      const zeros = offers.filter((one) => one === 0).length;
+      const blanks = offers.filter((one) => Number.isNaN(one)).length;
+      console.log(`. [${grid}] ${offers.length} offerte · minimo ${Math.min(...offers)} · a zero ${zeros} · vuote ${blanks}`);
+      if (zeros || blanks) problems.push(`[${grid}] ${zeros} offerte a zero e ${blanks} vuote: sotto l uno non c e un offerta`);
+    }
 
-    const at = await evaluate(session, boxOf, '[data-focus]', 'FOCUS');
-    if (!at) throw new Error('il tasto FOCUS non e sullo schermo');
-    await click(session, at);
-    await wait(500);
-    const after = await evaluate(session, read);
-    console.log(`. dopo:  ${after.rows} righe, ${after.faded} smorzate, focus ${after.on ? 'ON' : 'off'}`);
-    console.log(`. la barra dice: «${after.says}»`);
-    if (!after.on) problems.push('il tasto non si accende');
-    const spenti = after.faded - before.faded;
-    console.log(`. il focus ne spegne ${spenti} di ${after.rows}`);
-    if (spenti <= 0) problems.push('acceso, non smorza niente di piu: il focus non arriva alle righe');
-    // ...e non basta che ne spenga QUALCUNA: se ne spegnesse una manciata non restringerebbe, che e'
-    // il difetto che questo banco ha trovato alla prima corsa (10 righe su 271, soglia 0,35).
-    if (spenti < after.rows / 5) problems.push(`acceso ne spegne solo ${spenti} su ${after.rows}: non restringe`);
-    if (after.faded === after.rows) problems.push('acceso, smorza TUTTO: nessuna riga serve, e una lista vuota non e un consiglio');
-    if (!after.says) problems.push('smorza senza dire cosa cerca: uno schermo mezzo spento senza una parola in cima si legge come un guasto');
-
-    // IL CLICK SULL'ETICHETTA passa all'obiettivo successivo (sua richiesta del 23/09/2026). Si verifica
-    // su DUE cose insieme, perche' sono due meta' dello stesso gesto: la parola cambia E la lista si
-    // muove - un ciclo che cambiasse solo l'etichetta sarebbe un interruttore scollegato.
-    const goal = await evaluate(session, () => {
-      const b = document.querySelector('[data-goal]');
-      if (!b) return null;
-      const r = b.getBoundingClientRect();
-      return { text: b.innerText.trim(), x: r.left + r.width / 2, y: r.top + r.height / 2 };
-    });
-    if (!goal) problems.push('nessuna etichetta di obiettivo da cliccare');
-    if (goal) {
-      await click(session, { x: goal.x, y: goal.y });
-      await wait(400);
-      const cycled = await evaluate(session, read);
-      const now = await evaluate(session, () =>
-        (document.querySelector('[data-goal]')?.innerText ?? '').trim());
-      console.log(`. il click cicla: «${goal.text}» -> «${now}» · smorzate ${after.faded} -> ${cycled.faded}`);
-      if (now === goal.text) problems.push(`il click non cambia l'obiettivo: resta «${now}»`);
-      if (cycled.faded === after.faded) {
-        problems.push('l obiettivo cambia ma la lista no: l etichetta e scollegata dalle righe');
+    // 2. IL RIPESCATO DALLA CODA paga il minimo. Si buttano attaccanti finche' non ne sale uno.
+    const before = await evaluate(session, readRows);
+    const had = new Set(before.map((one) => one.name));
+    let fresh = [];
+    for (let n = 0; n < 4 && !fresh.length; n += 1) {
+      const attackers = (await evaluate(session, readRows)).filter((one) => one.block.startsWith('A'));
+      const from = await evaluate(session, grab, attackers.at(-1).name);
+      const bin = await evaluate(session, () => {
+        const el = document.querySelector('[data-bin]');
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      });
+      await dragTo(session, from, bin, 10);
+      fresh = (await evaluate(session, readRows)).filter((one) => !had.has(one.name));
+    }
+    console.log(`. saliti dalla coda: ${fresh.map((f) => `${f.name} «${f.figures.at(-1)}»`).join(' · ') || 'NESSUNO'}`);
+    if (!fresh.length) problems.push('nessuno e salito dalla coda: il passo non ha misurato niente');
+    for (const one of fresh) {
+      if ((one.figures.at(-1) ?? '').trim() !== '1') {
+        problems.push(`«${one.name}» viene dalla coda e la sua offerta legge «${one.figures.at(-1)}» invece di 1`);
       }
     }
 
-    // IL RICARICAMENTO, che e' la sola prova possibile della richiesta: i tre interruttori vivono in
-    // `localStorage` e quello che si afferma e' che un refresh li ritrova. Prima si PORTA la pagina in
-    // uno stato che li usa tutti e tre - griglia personale, focus acceso, un obiettivo scavalcato a
-    // mano - poi si ricarica e si rilegge.
-    const grid = await evaluate(session, boxOf, 'header nz-radio-group label', 'personali');
-    if (!grid) problems.push('nessun tasto «slot personali» in barra');
-    if (grid) { await click(session, grid); await wait(500); }
-
-    // ...e lo SCAVALCO deve esistere davvero, o la verifica passerebbe a vuoto: `cycleGoal` toglie
-    // l'override quando il giro torna sul consiglio, quindi si clicca finche' l'etichetta perde il
-    // primario - cioe' finche' dice «Scelto da te» invece di «Consigliato ora».
-    const goalState = () => {
-      const b = document.querySelector('[data-goal]');
-      return b ? { text: b.innerText.trim(), advised: b.classList.contains('bg-primary') } : null;
-    };
-    let mine = await evaluate(session, goalState);
-    for (let turn = 0; turn < 4 && mine && mine.advised; turn += 1) {
-      const box = await evaluate(session, boxOf, '[data-goal]', mine.text);
-      if (!box) break;
-      await click(session, box);
-      await wait(350);
-      mine = await evaluate(session, goalState);
+    // 3. LA SELECT, e le tre cifre confrontate col PACCHETTO.
+    const clipBefore = (await evaluate(session, readRows)).filter((one) => one.clipped).length;
+    // SI VERIFICA CHE LA VOCE SIA RAGGIUNGIBILE, e non solo che esista: e' il passo che ha trovato il
+    // difetto vero di questa feature - il tooltip della select copriva le proprie voci, quindi il
+    // click atterrava sul pannello e il set non cambiava mai. «Un controllo puo' esistere nel DOM e
+    // non esistere sullo schermo» (20/08), e la sola prova e' `elementFromPoint` sulle sue coordinate.
+    const select = await evaluate(session, boxOf, '[data-stats]', '');
+    if (!select) throw new Error('la select delle statistiche non e sullo schermo');
+    await click(session, select);
+    await wait(500);
+    const option = await evaluate(session, boxOf, 'nz-option-item', 'scorso');
+    if (!option) throw new Error('la voce «scorso» non e nel menu');
+    console.log(`. la voce «${option.text}» e' raggiungibile: ${option.reachable}`);
+    if (!option.reachable) {
+      const over = await evaluate(session, (pt) => {
+        const el = document.elementFromPoint(pt.x, pt.y);
+        return el ? `${el.tagName.toLowerCase()}.${el.className}`.slice(0, 60) : 'niente';
+      }, { x: Math.round(option.x), y: Math.round(option.y) });
+      problems.push(`la voce «scorso» e' coperta da ${over}: un click di una mano non la prende`);
     }
-    if (!mine || mine.advised) {
-      problems.push('non si riesce a scavalcare un obiettivo: il ricaricamento non proverebbe niente');
+    await click(session, option);
+    await wait(700);
+    // E CHE IL CLICK ABBIA MORSO prima di giudicare i numeri: senza, si confronterebbe il set VECCHIO
+    // col pacchetto e la colpa finirebbe sui numeri.
+    const chose = await evaluate(session, () =>
+      (document.querySelector('[data-stats] .ant-select-selection-item')?.innerText ?? '').trim());
+    if (!chose.startsWith('scorso')) {
+      throw new Error(`la select dice ancora «${chose}»: il resto del passo misurerebbe l altro set`);
     }
-    const kept = await evaluate(session, () => ({
-      says: (document.querySelector('[data-focus-needs]')?.innerText ?? '').replace(/\n/g, ' · '),
-      on: !!document.querySelector('[data-focus].ant-btn-primary'),
-      grid: [...document.querySelectorAll('header nz-radio-group label')]
-        .find((one) => one.classList.contains('ant-radio-button-wrapper-checked'))?.innerText.trim(),
-    }));
-    console.log(`. prima del refresh: ${kept.grid} · focus ${kept.on ? 'ON' : 'off'} · «${kept.says}»`);
 
+    const shown = await evaluate(session, readRows);
+    let checked = 0;
+    const wrong = [];
+    for (const row of shown) {
+      const id = byName.get(row.name);
+      const line = id == null ? null : truth.get(id);
+      if (!line) continue;
+      const [pv, mv, fm] = row.figures;
+      // SI CONFRONTA IL NUMERO CON UNA TOLLERANZA DI MEZZA UNITA' NELL'ULTIMA CIFRA STAMPATA, non due
+      // stringhe. La prima versione usava `toFixed` e accusava 19 righe: `toFixed` arrotonda sulla
+      // rappresentazione BINARIA (5,05 e' 5,0499...) mentre `Intl` - che e' quello che il pipe di
+      // Angular usa - arrotonda sul decimale, quindi le due danno 5,0 e 5,1 sullo stesso numero. Era
+      // l'arnese, non la pagina: *un banco si verifica prima di accusare il codice*, e la forma che non
+      // dipende da nessuno dei due formattatori e' la distanza.
+      const near = (text, value, digits) => {
+        if (value == null) return text === '·';
+        const shownValue = Number(String(text).replace(/[^0-9.-]/g, ''));
+        return Number.isFinite(shownValue) && Math.abs(shownValue - value) <= 0.5 * 10 ** -digits + 1e-9;
+      };
+      checked += 1;
+      const wantPv = line.pv == null ? '' : `(${Math.round(line.pv)})`;
+      if (pv !== wantPv || !near(mv, line.mv, 1) || !near(fm, line.fm, 1)) {
+        wrong.push(`${row.name}: schermo ${pv} ${mv} ${fm} · pacchetto ${wantPv} ${line.mv} ${line.fm}`);
+      }
+    }
+    console.log(`. «scorso»: ${checked} righe confrontate col pacchetto · sbagliate ${wrong.length}`);
+    for (const one of wrong.slice(0, 5)) console.log(`      ${one}`);
+    if (!checked) problems.push('zero righe confrontate: il ponte fra schermo e pacchetto non aggancia niente');
+    if (wrong.length) problems.push(`${wrong.length} righe stampano numeri che il pacchetto non ha`);
+
+    // 4a. COSA COSTA IL DECIMALE IN MENO, contato sul PACCHETTO e non sullo schermo: dentro un blocco
+    //     di dieci, quanti valori distinti restano di media con una cifra e con due. Il conto si fa
+    //     qui e non a parole perche' e' l'unica cosa che una precisione puo' far perdere - e va letto
+    //     sapendo che questa colonna non ordina niente: il blocco resta tagliato sulla moneta.
+    const perBlock = new Map();
+    for (const row of shown) {
+      const line = truth.get(byName.get(row.name) ?? -1);
+      if (!line || line.mv == null) continue;
+      const bucket = perBlock.get(row.block) ?? [];
+      bucket.push(line.mv);
+      perBlock.set(row.block, bucket);
+    }
+    const distinct = (values, digits) => new Set(values.map((one) => one.toFixed(digits))).size;
+    const ones = [...perBlock.values()].map((v) => distinct(v, 1));
+    const twos = [...perBlock.values()].map((v) => distinct(v, 2));
+    const mean = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+    console.log(`. il decimale: in un blocco la media voto ha ${mean(ones).toFixed(1)} valori distinti ` +
+      `con una cifra e ${mean(twos).toFixed(1)} con due (${perBlock.size} blocchi)`);
+
+    // 4. IL PREZZO DELLE ICONE E DELLA TERZA CIFRA, misurato e non discusso.
+    const clipAfter = shown.filter((one) => one.clipped).length;
+    console.log(`. nomi tagliati: ${clipBefore} col set del motore, ${clipAfter} con la stagione scorsa (su ${shown.length})`);
+
+    // 5. LE COLONNE SI INCOLONNANO, e nessuna cifra e' tagliata dalla propria larghezza dichiarata.
+    const columns = await evaluate(session, columnsOf);
+    const loose = columns.filter((one) => one.distinct.slice(1).some((n) => n > 1));
+    const cut = columns.filter((one) => one.clipped);
+    console.log(`. colonne: ${columns.length} blocchi · disallineati ${loose.length} · con cifre tagliate ${cut.length}`);
+    for (const one of loose.slice(0, 3)) {
+      console.log(`      ${one.id}: bordi distinti ${JSON.stringify(one.distinct)} su ${one.rows} righe`);
+    }
+    if (loose.length) problems.push(`${loose.length} blocchi hanno i numeri non incolonnati`);
+    if (cut.length) problems.push(`${cut.length} blocchi tagliano una cifra: una larghezza dichiarata e troppo stretta`);
+
+    // 5. E LA SCELTA SOPRAVVIVE A UN RICARICAMENTO, come gli altri interruttori della barra.
     await session.send('Page.reload', { ignoreCache: false });
     await waitFor(session, readBoard, 120);
     await wait(600);
-    const again = await evaluate(session, () => ({
-      says: (document.querySelector('[data-focus-needs]')?.innerText ?? '').replace(/\n/g, ' · '),
-      on: !!document.querySelector('[data-focus].ant-btn-primary'),
-      grid: [...document.querySelectorAll('header nz-radio-group label')]
-        .find((one) => one.classList.contains('ant-radio-button-wrapper-checked'))?.innerText.trim(),
-      advised: document.querySelector('[data-goal]')?.classList.contains('bg-primary'),
-    }));
-    console.log(`. dopo il refresh:   ${again.grid} · focus ${again.on ? 'ON' : 'off'} · «${again.says}»`);
-    if (!again.on) problems.push('il refresh spegne il FOCUS');
-    if (again.grid !== kept.grid) problems.push(`il refresh riporta la griglia a «${again.grid}»`);
-    if (again.says !== kept.says) problems.push(`il refresh cambia gli obiettivi: «${kept.says}» -> «${again.says}»`);
-    if (again.advised) problems.push("il refresh perde l'obiettivo scelto a mano: torna al consigliato");
-
-    await click(session, at);
-    await wait(400);
-    const back = await evaluate(session, read);
-    console.log(`. e si spegne: ${back.faded} smorzate su ${back.rows}`);
-    // NON si confronta piu' con `before`: in mezzo la griglia e' passata a quella personale, che
-    // porta altre righe. Quello che deve valere e' che a focus spento non resti nessuno smorzato dal
-    // FOCUS, cioe' che la barra degli obiettivi sparisca e le smorzate tornino una frazione piccola.
-    if (back.says) problems.push('spento, la barra degli obiettivi resta a schermo');
-    if (back.faded > back.rows / 5) problems.push(`spento lascia ${back.faded} righe smorzate su ${back.rows}`);
+    const kept = await evaluate(session, () =>
+      (document.querySelector('[data-stats] .ant-select-selection-item')?.innerText ?? '').trim());
+    console.log(`. dopo il refresh la select dice «${kept}»`);
+    if (!kept.startsWith('scorso')) problems.push(`il refresh riporta la select a «${kept}»`);
   } finally {
     if (session) session.close();
     browser.kill();
