@@ -1142,6 +1142,12 @@ e' un bottone che apre una modale (`ui/live-connect`, una sola per le due pagine
 validato il codice in due modi, e il codice E' la chiave del database). Su `/auction` l'ordine e' forzato:
 prima `feed.restore()`, la finzione parte solo se non c'e' un'asta vera da riprendere. Una pagina che apre
 su un campo codice mostra il layout della cosa invece della cosa.
+**...E DAL 23/09/2026 QUEL TAVOLO APRE VUOTO** (sua istruzione: «di default non abilitare il tavolo
+finto»), quindi la riga qui sopra resta vera a meta': le SEDIE ci sono - dieci partecipanti, borse piene,
+3-8-8-6 - perche' non sono finzione ma le impostazioni della lega che lui dichiara, e senza di esse la
+pagina non ha crediti su cui poggiare un tetto ne' mani da contare. Gli ACQUISTI no: `DEMO_PROGRESS` era
+0,35 e adesso e' ZERO. Da quando la plancia e' «il foglio su cui si segna l'asta vera», un terzo dei 250
+posti gia' assegnato a rose che non esistono era una cosa da cancellare a ogni apertura.
 
 **E fanta-asta-live NON pubblica il lotto in asta**: nessun nodo del genere e' mai stato osservato per il
 meccanismo a rilanci (`options.bids` porta solo countdown, offerta minima e buzzer). Da collegati il lotto
@@ -6865,6 +6871,45 @@ Quattro cose che restano, e due sono errori miei.
   (`remaining`), cosi' non c'e' nessun parametro nuovo da ricordare in un punto di chiamata. E la cura ha
   sistemato un rapporto gia' sbagliato: `sealed-bid` dichiara `matchdays: 38` mentre `expected` viveva su
   33, quindi la quota leggeva 0,63 dove la verita' e' 0,73.
+
+## Un elemento PROIETTATO entra nei selettori di chi interroga il suo ospite
+**23/09/2026, e sono andati rossi TRE banchi insieme, tutti e tre ad accusare la pagina.** La card della
+mia rosa e' proiettata dentro `plancia-slot-matrix` (la griglia sa dov'e' lo spazio, la pagina sa cosa ci
+va) e porta dei `<button>`: da quel momento un selettore come `plancia-slot-matrix button` prende anche le
+sue righe. `e2e-plancia-slots` ha letto **26 blocchi invece di 25** e «7 nomi accavallati» che stavano in
+due colonne diverse; `e2e-plancia-lens` «9 righe in chiaro che non sono sue», che erano i nomi della card;
+`e2e-plancia-injury` ha preso una riga della card al posto di una del tabellone. Tutti e tre verdi con la
+card spenta — **A/B a una variabile**, che e' anche come si e' stabilito che il rosso di `e2e-player-card`
+NON era di quella modifica (rosso anche su un worktree costruito su HEAD).
+La cura e' la regola gia' scritta il 20/08 e il 23/09: **un banco si aggancia all'attributo che un
+componente DICHIARA, mai al cammino nell'albero** (`data-block`, letto da sette banchi). Lo stesso difetto
+l'ha commesso il banco NUOVO alla prima corsa - **0 confronti su 8**, perche' ogni uomo disegnato sulla
+card compariva due volte nella mappa del tabellone, finiva fra gli omonimi e veniva scartato - e si e'
+visto solo perche' quel passo DICE quando non ha giudicato niente.
+
+**E un DEFAULT migliore per l'operatore puo' togliere ai banchi la popolazione su cui misurano.** Lo
+stesso giorno la plancia ha smesso di aprire su un tavolo gia' giocato: sette banchi vivono su righe che
+hanno un padrone (la lente, il prezzo pagato, l'azzeramento), e su un tavolo vuoto non ce ne sono - uno di
+loro lo diceva gia' di se', «il tavolo finto non e' partito giocato, e l'azzeramento non proverebbe
+niente». La popolazione si CHIEDE nell'indirizzo (`/plancia?fixture=played`) invece di rigiocare il tavolo
+per tutti, perche' l'indirizzo porta cio' di cui la pagina parla (`core/view-state.ts`); e il default
+nuovo si prende un guardiano suo, o la regressione sarebbe muta.
+
+Tre abitudini piu' piccole, tutte pagate in quella sessione.
+- **UNA CONTROPROVA VA SCELTA IN MODO CHE PRODUCA DAVVERO L'ERRORE CHE IL PASSO CERCA.** Il primo
+  tentativo di rimettere il difetto del «suggerimento migliore» non ha morso: spegnendo la sola guardia il
+  candidato in cima alla coda restava comunque il piu' forte, quindi il consiglio era ancora giusto. Con
+  l'ordine dei candidati rovesciato il passo cade e NOMINA i colpevoli coi numeri. *Una controprova che
+  resta verde dice «il codice e' robusto a quella modifica», non «il passo se ne accorgerebbe».*
+- **UN VERDE CON DEGLI ERRORI NON GESTITI SOTTO NON E' UN VERDE.** 1076 test passati e in coda tredici
+  «the icon rollback-o does not exist or is not registered», col runner che lo dichiara da se' («this
+  might cause false positive tests»): lo spec montava il componente senza i provider veri, cioe' provava
+  un montaggio che l'app non fa.
+- **UN TETTO CHE IL DATO NON RAGGIUNGE QUASI MAI E' QUELLO CHE NESSUNO SCOPRE DI AVERE.** Tre colonne di
+  cifre su un budget da 1000 si fermano a 999; l'archivio dice che l'acquisto piu' caro sta al 42-44% e
+  che sopra la meta' ci arrivano 39 aggiudicazioni su 29.421, quindi quel tetto non si sarebbe visto mai.
+  Le colonne le decide il budget (`String(max).length`), che e' la sola forma che non mente su nessuna
+  taglia di lega.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

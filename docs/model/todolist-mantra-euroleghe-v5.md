@@ -2169,3 +2169,47 @@ sono tutte cose di interfaccia o debiti dichiarati.
    headless consecutivi («un headless si sdoppia in figli, e uccidere il padre lascia in piedi il
    browser»), ma i due problemi non sono stati letti, quindi la spiegazione non è verificata. Se
    ricapita, leggere le righe prima di attribuirla.
+
+## Aperti dopo la sessione del 23/09/2026 (sera) — la card della rosa, il tavolo vuoto, l'odometro
+
+Commit `853ed38`. Verbale: `assistente-asta-v1.md` §46-§48, continuità del 23 settembre (sera).
+
+**CHIUSO dall'alto**, ed è il punto 6 della lista precedente: «una cosa vista una volta e non
+riprodotta», cioè `e2e-nav` che aveva stampato «2 PROBLEMI» in una corsa in batch. Riprodotto oggi e
+LETTO: le due righe sono «/clubs scrive "Calciatori" invece di "Squadre"» e «/clubs accende /», cioè la
+barra letta un fotogramma prima che la rotta si posi - la stessa famiglia di «due fatti che devono essere
+d'accordo si leggono in UNA lettura». Misurato: **1 rosso su 3** con la macchina carica (una build e altri
+browser in corso), **verde 4 su 4 e 3 su 3** ad albero fermo, e verde 4 su 4 su un worktree su HEAD.
+Quindi non è un difetto della pagina ed è una CONTESA DI MACCHINA, non di headless consecutivi: la
+spiegazione che la lista ipotizzava non è quella. *Un rosso che non si riproduce da solo si rimisura prima
+di inseguirlo*, e si rimisura ad albero fermo.
+
+1. **L'odometro del prezzo ha QUATTRO colonne su una lega da 1000 e lui ne aveva chieste TRE.** Le
+   colonne le decide il tetto (`String(max).length`), perché tre si fermerebbero a 999 - un tetto scelto
+   da noi su un budget che ne dichiara un altro, e invisibile finché qualcuno non ci sbatte. Se preferisce
+   tre fisse è una riga in `ui/digit-input`, ed è una sua decisione e non una misura.
+
+2. **Il doppio click che nomina il lotto sta sulle righe della PLANCIA e non sulla card della rosa.** Lì i
+   nomi grigi sono uomini nell'urna e il gesto avrebbe senso; sui titolari no, perché non si comprano due
+   volte. Un gesto che fa due cose diverse a seconda della riga è un gesto da imparare, quindi non è stato
+   messo: se lo vuole, è una sua decisione.
+
+3. **Da barra piegata restano 35px dei 234 dell'ultima riga della card sotto la freccia.** È un angolo, ed
+   è un costo di tutta la pagina e non di quella card - la stessa freccia copre l'angolo del blocco A6.
+   Dichiarato e misurato, non curato: curarlo vorrebbe dire che la card cede spazio anche quando la barra
+   è piegata, cioè che piegarla non le serve a niente.
+
+4. **La card della rosa degrada con la pagina, e il numero c'è**: a 1600x1000 un nome su 23 si tronca, a
+   1280x800 quattordici. La leva, se un giorno servisse, è la larghezza della colonna di sinistra
+   (stringerla di venti pixel ne ridà sette a ogni casella della difesa). Non toccata: la plancia sotto
+   degrada nello stesso modo, quindi la card non sta peggio della pagina che la ospita.
+
+5. **`e2e-player-card` resta rosso su HEAD** (punto 5 della lista precedente, invariato): riprodotto di
+   nuovo oggi su un worktree costruito su `HEAD`, quindi preesistente. Il punto 4 di quella lista
+   (`e2e-strategy`) è invece verde oggi.
+
+6. ~~Il pacchetto è a `SHEET_REVISION` 73 e il toolkit scrive 74~~ — **chiuso nell'ora stessa**: i tre
+   fogli vivi sono stati rifatti ed esportati (74, alle 17:53-17:57 UTC). Resta aperto il pezzo che non è
+   di questa sessione: i **quattro pacchetti del viaggio nel tempo sono a 72**, cioè due revisioni sotto,
+   e finché non si rifanno il box del tempo mostra un motore vecchio sotto una data scelta - che è la sola
+   cosa che quel box esiste per non fare. Si rifanno con `timepack --all --refresh` più `export`.

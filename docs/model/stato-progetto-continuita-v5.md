@@ -8994,3 +8994,62 @@ L'ambiente Python era incompleto e le dipendenze mancanti (`requests`, `bs4`, `c
   query dentro `features`, cioè il percorso del gate, quindi è una sua decisione e non si fa di straforo.
 - **Il pacchetto non porta ancora niente di tutto questo**: serve `snapshot` con display (senza, il
   cancello resta spento e la colonna è quella non gatata), poi `export` e `data:pull`.
+
+## 23 settembre 2026 (sera) — LA MIA ROSA SULLA PLANCIA, il tavolo che apre vuoto, e un odometro per il prezzo
+
+Commit **`853ed38`** (43 file), che porta DUE sessioni: questa (la plancia) e quella delle CATEGORIE.
+Verbale per esteso: `assistente-asta-v1.md` §46, §47, §48. Nessun numero del motore si muove — `engine_*`
+fermo, il pacchetto fermo: qui non si prevede nessun calciatore, si dispongono posti e crediti.
+
+### Le tre richieste, in fila
+
+1. **«Nello spazio disponibile in basso a destra aggiungi una card ... a destra un campetto con i
+   migliori 11 (modulo 433) e a sinistra i restanti ordinati per ruolo e poi per moneta. Sui posti vuoti
+   un paio di suggerimenti realistici; sotto un posto occupato, un acquisto migliore fattibile.»**
+   `core/plancia-squad.ts` (15 test) + `views/plancia/squad-card/`.
+2. **«Di default non abilitare il tavolo finto.»** `DEMO_PROGRESS` 0,35 → **0**.
+3. **«Doppioclick su un calciatore → mettilo in asta (e non visualizzare il dettaglio).»**
+4. **«Metti tre cifre separate con freccette sopra e sotto ... e un tastino per resettare.»**
+   `ui/digit-input/` (8 test).
+
+### Quattro cose che restano oltre le richieste
+
+- **LO SPAZIO SI MISURA PRIMA DI DISEGNARCI DENTRO.** «In basso a destra» non è un posto finché non ha un
+  rettangolo: 386 × 191 px, le due colonne che la linea degli attaccanti lascia su una griglia di otto.
+  Ogni scelta di forma di quella card discende da lì.
+- **LA BARRA IN BASSO NASCONDEVA LA RIGA D'ATTACCO**, e l'ha trovato la prima fotografia: 39px di card e
+  **35 dei 37** della riga intera, sulla pagina dove finisce il 47% del montepremi. La card cede il
+  proprio fondo finché quella barra è aperta. Prezzo dichiarato: la plancia passa da 535 a 583px per
+  starci intera (finestra ~660 → ~710).
+- **UN DEFAULT MIGLIORE PER L'OPERATORE TOGLIE AI BANCHI LA LORO POPOLAZIONE.** Sette banchi misurano su
+  righe che hanno un padrone; su un tavolo vuoto non ce ne sono. La popolazione si CHIEDE nell'indirizzo
+  (`/plancia?fixture=played`) invece di rigiocare il tavolo per tutti, e il default nuovo ha un guardiano
+  suo.
+- **TRE BANCHI VICINI ROSSI INSIEME, tutti e tre ad accusare la pagina.** La card è proiettata dentro
+  `plancia-slot-matrix` e porta dei `<button>`: da quel momento `plancia-slot-matrix button` prende anche
+  le sue righe. Curato con `data-block` sul blocco della griglia, letto da sette banchi.
+
+### Verifica
+
+Build pulito, **1076 test app** su 63 file (23 nuovi) e **957 test toolkit**, banchi `e2e-plancia-squad`
+(10 passi, nuovo), `-slots`, `-lens`, `-award`, `-keepers`, `-injury` e `e2e-docks` verdi.
+Controprove fatte rimettendo i difetti uno per volta: cadono esattamente i passi che li descrivono.
+`e2e-player-card` resta rosso su un riepilogo di stagione, **riprodotto identico su un worktree costruito
+su HEAD**: preesistente.
+
+### APERTI che questa sessione lascia
+
+- ~~Il pacchetto è a `SHEET_REVISION` 73 e il toolkit scrive 74~~ **CHIUSO nell'ora stessa**: i tre fogli
+  vivi sono stati rifatti e il pacchetto li porta a **74** (EuroLeghe 17:53, Leghe 17:55, Leghe Mantra
+  17:57 UTC). Quello che resta a **72** sono i quattro pacchetti del VIAGGIO NEL TEMPO, che nessuno ha
+  ricostruito: è il caso che la spec v9.75 descrive già («un pacchetto sotto la revisione corrente è da
+  rifare») e l'app lo dichiara da sé. Non è di questa sessione.
+- **L'odometro ha QUATTRO colonne su una lega da 1000 e lui ne ha chieste tre**: le colonne le decide il
+  tetto (`String(max).length`), e tre si fermerebbero a 999 — un tetto scelto da noi su un budget che ne
+  dichiara un altro. Se preferisce tre fisse è una riga, ed è una sua decisione.
+- **Da barra piegata restano 35px dei 234 dell'ultima riga sotto la freccia**: è un angolo, ed è un costo
+  di tutta la pagina (la stessa freccia copre l'angolo del blocco A6). Dichiarato, non curato.
+- **Il doppio click che nomina il lotto sta sulle righe della PLANCIA e non sulla card della rosa.** Lì i
+  grigi sono uomini nell'urna e il gesto avrebbe senso, ma sui titolari no: un gesto che fa due cose
+  diverse a seconda della riga è un gesto da imparare. Se lo vuole, è una sua decisione.
+- **`e2e-player-card`** resta il solo rosso dell'app, e non è di questa sessione.
