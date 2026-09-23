@@ -11,7 +11,10 @@ import {
   ReadingKey,
   StrategyBidder,
   StrategySetup,
+  FOLDED_TRACK,
+  OPEN_TRACK,
   blockLabel,
+  blockRows,
   blocksOf,
   deepestRole,
   demandOf,
@@ -975,5 +978,58 @@ describe('la coppia gol:assist', () => {
     expect(shortSeason('2099-00')).toBe('99/00');
     expect(shortSeason('boh')).toBe('boh');
     expect(shortSeason('')).toBe('');
+  });
+});
+
+describe('piegare un blocco', () => {
+  const four = ['P', 'D', 'C', 'A'].map((role) => ({ role }));
+  const twelve = ['Por', 'Dd', 'Dc', 'Ds', 'B', 'E', 'M', 'C', 'W', 'T', 'A', 'Pc'].map((role) => ({
+    role,
+  }));
+  const none = () => false;
+
+  it('senza niente di piegato disegna esattamente la griglia di prima', () => {
+    // La controprova dell'adozione: finché nessuno piega, questa pagina deve stare dov'era.
+    expect(blockRows(four, 4, none)).toEqual([
+      { at: 0, blocks: four, template: [OPEN_TRACK, OPEN_TRACK, OPEN_TRACK, OPEN_TRACK].join(' ') },
+    ]);
+    const mantra = blockRows(twelve, 6, none);
+    expect(mantra.length).toBe(2);
+    expect(mantra.every((row) => row.template === new Array(6).fill(OPEN_TRACK).join(' '))).toBe(true);
+  });
+
+  it('un blocco piegato stringe SOLO la sua riga: è la ragione per cui le righe esistono', () => {
+    // `Dd` è il secondo blocco della PRIMA riga; `C` è il secondo della SECONDA. Con una griglia sola
+    // (`repeat(6, 1fr)`) piegare il primo avrebbe stretto anche il secondo, che nessuno ha toccato.
+    const rows = blockRows(twelve, 6, (role) => role === 'Dd');
+    expect(rows[0].template.split(' ').filter((one) => one === FOLDED_TRACK).length).toBe(1);
+    expect(rows[0].template.startsWith(`${OPEN_TRACK} ${FOLDED_TRACK} `)).toBe(true);
+    expect(rows[1].template).toBe(new Array(6).fill(OPEN_TRACK).join(' '));
+    // E i blocchi restano tutti disegnati: piegare non è nascondere.
+    expect(rows.flatMap((row) => row.blocks).map((one) => one.role)).toEqual(
+      twelve.map((one) => one.role),
+    );
+  });
+
+  it('piegarli tutti è permesso: un rifiuto muto sarebbe indistinguibile da un gesto rotto', () => {
+    const rows = blockRows(four, 4, () => true);
+    expect(rows[0].template).toBe(new Array(4).fill(FOLDED_TRACK).join(' '));
+  });
+
+  it('una riga spaiata dichiara comunque tutte le sue tracce, così il vuoto resta in coda', () => {
+    // Oggi non capita (4 su 4 a classic, 12 su 6 a mantra) ma il vocabolario dei ruoli lo dichiara il
+    // rulebook: senza le tracce in più i blocchi rimasti si allargherebbero da soli.
+    const rows = blockRows(four.slice(0, 3), 4, none);
+    expect(rows.length).toBe(1);
+    expect(rows[0].blocks.length).toBe(3);
+    // Le tracce si contano sui NOMI e non sugli spazi: `minmax(0, 1fr)` ne porta uno dentro, e la
+    // prima versione di questo passo leggeva otto tracce su quattro - un arnese che accusa il codice
+    // del proprio difetto.
+    expect(rows[0].template.split(OPEN_TRACK).length - 1).toBe(4);
+  });
+
+  it('niente blocchi, niente righe - e zero colonne non è un ciclo infinito', () => {
+    expect(blockRows([], 6, none)).toEqual([]);
+    expect(blockRows(four, 0, none).length).toBe(4);
   });
 });

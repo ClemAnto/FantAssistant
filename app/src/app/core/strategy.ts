@@ -1579,3 +1579,58 @@ function pickDeepest(
   }
   return best;
 }
+
+// -------------------------------------------------------------------- piegare un blocco
+
+/**
+ * LA LARGHEZZA DI UN BLOCCO PIEGATO, e la traccia di uno aperto.
+ *
+ * 2,5rem sono 40px, e il numero viene dal badge del ruolo e non dal gusto: `ui-role size="sm"` su
+ * un'etichetta di più lettere è `min-w-7`, cioè 28px, e la linguetta lo tiene con `px-1`. Sotto i 36px
+ * il badge comincia a decidere lui la larghezza della colonna, che è un pavimento invisibile scritto in
+ * un altro file.
+ */
+export const FOLDED_TRACK = '2.5rem';
+export const OPEN_TRACK = 'minmax(0, 1fr)';
+
+/** Una riga di blocchi, con le tracce che la SUA griglia dichiara. */
+export interface BlockRow<T> {
+  /** L'indice del primo blocco della riga: la chiave del `@for`, e non cambia quando uno si piega. */
+  at: number;
+  blocks: T[];
+  /** Il `grid-template-columns` di questa riga sola. */
+  template: string;
+}
+
+/**
+ * I BLOCCHI TAGLIATI IN RIGHE, ognuna con le proprie tracce (richiesta dell'operatore, 23/09/2026:
+ * «inserisci la possibilità di collassare orizzontalmente le card dei singoli ruoli»).
+ *
+ * PERCHÉ LE RIGHE ESISTONO, che è tutta la ragione di questa funzione: la larghezza di una colonna di
+ * CSS grid è la STESSA per ogni riga della griglia. Con la griglia unica che questa pagina aveva -
+ * `repeat(6, 1fr)` e dodici blocchi mantra - stringere il quarto non avrebbe stretto lui ma la sua
+ * COLONNA, cioè anche il decimo, che gli sta sotto e che nessuno ha piegato. Una griglia per riga è
+ * l'unica forma in cui «piego questo blocco» è una frase su QUEL blocco.
+ *
+ * LE CELLE CHE AVANZANO TENGONO LA LORO TRACCIA, e non è un dettaglio: una riga spaiata (oggi non
+ * capita - quattro blocchi in quattro colonne a classic, dodici in sei a mantra - ma il vocabolario dei
+ * ruoli lo dichiara il rulebook e non questo file) deve lasciare il vuoto in coda invece di allargare i
+ * blocchi che ci sono. È quello che la griglia unica faceva, e un cambio di larghezza che nessuno ha
+ * chiesto si leggerebbe come un difetto.
+ */
+export function blockRows<T extends { role: string }>(
+  blocks: readonly T[],
+  columns: number,
+  folded: (role: string) => boolean,
+): BlockRow<T>[] {
+  // Una riga da zero colonne è un ciclo che non finisce: il pavimento è qui e non in chi chiama.
+  const per = Math.max(1, Math.floor(columns));
+  const rows: BlockRow<T>[] = [];
+  for (let at = 0; at < blocks.length; at += per) {
+    const mine = blocks.slice(at, at + per);
+    const tracks = mine.map((one) => (folded(one.role) ? FOLDED_TRACK : OPEN_TRACK));
+    while (tracks.length < per) tracks.push(OPEN_TRACK);
+    rows.push({ at, blocks: mine, template: tracks.join(' ') });
+  }
+  return rows;
+}

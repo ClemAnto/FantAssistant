@@ -255,7 +255,11 @@ function readBlocks() {
   };
   return sections.map((section) => {
     const header = section.querySelector('header');
-    const counter = header?.lastElementChild;
+    // IL CONTATORE SI CHIEDE ALL'ATTRIBUTO CHE LA PAGINA DICHIARA e non all'ULTIMO figlio
+    // dell'intestazione: era `lastElementChild`, e il giorno in cui il blocco ha preso la freccia che
+    // lo piega (23/09/2026) quel cammino ha cominciato a rispondere «il bottone» - cioè il banco che
+    // accusa la pagina del proprio difetto, per l'ennesima volta.
+    const counter = header?.querySelector('[data-counter]');
     const list = section.querySelector('ol');
     // Le righe dei GIOCATORI, e non ogni `li`: la lista porta anche la riga di confine «arrivano da
     // dietro», che non è un nome e non va contata contro il contatore del blocco.
@@ -267,7 +271,9 @@ function readBlocks() {
     const rows = list ? [...list.querySelectorAll('li[data-id]')] : [];
     return {
       role: header?.querySelector('ui-role')?.innerText?.trim() ?? '',
-      label: header?.querySelector('span')?.innerText?.trim() ?? '',
+      // ...e l'ETICHETTA allo stesso modo: `header span` prendeva il primo span in ordine di
+      // documento, che è quello DENTRO `ui-role` - cioè il badge di nuovo, e non il nome della lista.
+      label: header?.querySelector('[data-label]')?.innerText?.trim() ?? '',
       counter: (counter?.innerText ?? '').trim(),
       box: box(section),
       list: list ? box(list) : null,
@@ -2634,7 +2640,12 @@ async function main() {
       return { x, y, under: (under?.tagName ?? '').toLowerCase(), inside: !!under && button.contains(under) };
     });
     const listBefore = await evaluate(session, () => {
-      const rows = [...document.querySelectorAll('app-strategy section:first-of-type ol li[data-id]')];
+      // IL PRIMO BLOCCO, che è quello che i tre passaggi di questo step leggono dopo - e non «ogni
+      // sezione che è la prima fra i suoi fratelli». Da quando la pagina disegna una griglia per RIGA
+      // (23/09/2026) `section:first-of-type` ne trova UNA PER RIGA: leggeva 47 righe (i 20 di `Por`
+      // più i 27 di `M`) e poi ne rileggeva 20, cioè due popolazioni confrontate come due risposte.
+      const first = document.querySelector('app-strategy section');
+      const rows = [...(first?.querySelectorAll('ol li[data-id]') ?? [])];
       return rows.map((one) => ({
         id: Number(one.dataset.id),
         name: (one.querySelector('[data-name]')?.innerText ?? '').trim(),
@@ -2664,7 +2675,7 @@ async function main() {
       const rows = [...(section?.querySelectorAll('ol li[data-id]') ?? [])];
       return {
         box: !!section?.querySelector('input'),
-        counter: (section?.querySelector('header span:last-of-type')?.innerText ?? '').trim(),
+        counter: (section?.querySelector('header [data-counter]')?.innerText ?? '').trim(),
         rows: rows.map((one) => ({
           id: Number(one.dataset.id),
           name: (one.querySelector('[data-name]')?.innerText ?? '').trim(),
@@ -2751,6 +2762,120 @@ async function main() {
         ...(toEuroMantra ? [toEuroMantra] : []),
         ...(euro.some((one) => one.rows) ? [] : ['nessun nome sul listone EuroLeghe']),
         ...(header.includes('EuroLeghe') ? [] : [`l'intestazione dice «${header}» e non il foglio EuroLeghe`]),
+      ],
+    });
+
+    // 8b. PIEGARE UN BLOCCO (operatore, 23/09/2026), e si misura QUI perché è mantra che rende
+    //     falsificabile l'affermazione che conta: dodici blocchi in due righe, quindi «la larghezza
+    //     va ai vicini» e «la riga di sotto non si muove» sono due fatti diversi e separabili. A
+    //     classic i blocchi stanno su una riga sola e la seconda metà non si potrebbe nemmeno provare.
+    //
+    //     IL BERSAGLIO SI CHIEDE ALL'ATTRIBUTO CHE LA PAGINA DICHIARA (`data-fold`, `data-folded`) e
+    //     non a un cammino nell'albero, e il click è un PUNTATORE VERO alle coordinate che il browser
+    //     dichiara: un `element.click()` passa sopra la CSS, quindi non direbbe niente su un bottone
+    //     coperto.
+    const foldWidths = async () => evaluate(session, () => {
+      const sections = [...document.querySelectorAll('app-strategy section, app-strategy [data-folded]')];
+      return sections.map((one) => {
+        const box = one.getBoundingClientRect();
+        return {
+          // IL RUOLO SI CONFRONTA SENZA MAIUSCOLE: `data-fold` porta il nome come il rulebook lo
+          // dichiara (`Por`) e il badge lo STAMPA maiuscolo (`uppercase` è CSS, e `innerText` rende
+          // quello che si vede). La prima versione univa le due liste per uguaglianza esatta, non
+          // agganciava niente e stampava «era undefinedpx» accanto a una crescita che era la
+          // larghezza del vicino invece della sua differenza - un numero sbagliato riportato come
+          // una misura.
+          role: (one.dataset.folded ?? one.querySelector('ui-role')?.innerText ?? '').trim().toLowerCase(),
+          folded: !!one.dataset.folded,
+          width: Math.round(box.width),
+          top: Math.round(box.top),
+          // Quello che una linguetta deve ancora dire di sé: chi è, e quanto è lunga la lista che
+          // nasconde. Una linguetta muta è un blocco sparito.
+          said: one.dataset.folded ? (one.innerText ?? '').replace(/\s+/g, ' ').trim() : '',
+        };
+      });
+    });
+    const foldButton = await evaluate(session, () => {
+      const button = document.querySelector('app-strategy [data-fold]');
+      if (!button) return null;
+      const box = button.getBoundingClientRect();
+      const x = box.left + box.width / 2;
+      const y = box.top + box.height / 2;
+      const under = document.elementFromPoint(x, y);
+      return {
+        x, y, role: button.dataset.fold,
+        under: (under?.tagName ?? '').toLowerCase(),
+        inside: !!under && button.contains(under),
+      };
+    });
+    const beforeFold = await foldWidths();
+    if (foldButton) await click(session, foldButton);
+    await wait(300);
+    const afterFold = await foldWidths();
+    // LE DUE RIGHE, riconosciute dalla `top` dei blocchi e non da un indice: è la griglia a decidere
+    // chi sta dove, e chiederglielo è l'unico modo di non ripetere qui la sua aritmetica.
+    const byRow = (list) => {
+      const tops = [...new Set(list.map((one) => one.top))].sort((a, b) => a - b);
+      return tops.map((top) => list.filter((one) => one.top === top));
+    };
+    const wasRows = byRow(beforeFold);
+    const nowRows = byRow(afterFold);
+    const foldedNow = afterFold.filter((one) => one.folded);
+    const mine = foldedNow[0];
+    const neighbour = (rows, role) => {
+      const row = rows.find((one) => one.some((block) => block.role === role));
+      return (row ?? []).find((block) => block.role !== role);
+    };
+    const grewBy = foldButton
+      ? (neighbour(nowRows, foldButton.role.toLowerCase())?.width ?? 0) - (neighbour(wasRows, foldButton.role.toLowerCase())?.width ?? 0)
+      : 0;
+    // LA RIGA DI SOTTO NON SI DEVE MUOVERE: è la ragione per cui la pagina disegna una griglia per
+    // riga invece di una sola (`core/strategy.blockRows`). Con la griglia unica, piegare il primo
+    // blocco avrebbe stretto anche quello che gli sta sotto, che nessuno ha toccato.
+    const otherRowBefore = (wasRows[1] ?? []).map((one) => one.width).join('/');
+    const otherRowAfter = (nowRows[1] ?? []).map((one) => one.width).join('/');
+    // LA FOTOGRAFIA SI PRENDE MENTRE È PIEGATO, non dopo: quello che nessun conteggio vede - una
+    // linguetta illeggibile, un'etichetta verticale tagliata - si vede solo qui.
+    if (flag('--shot')) {
+      const folded = await session.send('Page.captureScreenshot', { format: 'png' });
+      const where = join(ROOT, 'dist', 'e2e-strategy-folded.png');
+      await writeFile(where, Buffer.from(folded.data, 'base64'));
+      console.log(`· screenshot piegato: ${where}`);
+    }
+    // ...e si riapre, perché una preferenza che non si annulla è una preferenza che si subisce.
+    const reopen = await evaluate(session, () => {
+      const strip = document.querySelector('app-strategy [data-folded]');
+      if (!strip) return null;
+      const box = strip.getBoundingClientRect();
+      return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    });
+    if (reopen) await click(session, reopen);
+    await wait(300);
+    const reopened = await foldWidths();
+    note('piegare un blocco', {
+      said: `${beforeFold.length} blocchi · piegato «${foldButton?.role}» a `
+        + `${mine?.width ?? '?'}px (era ${beforeFold.find((one) => one.role === foldButton?.role.toLowerCase())?.width}px)`
+        + ` · il vicino cresce di ${grewBy}px · la riga di sotto ${otherRowBefore} → ${otherRowAfter}`
+        + ` · la linguetta dice «${mine?.said ?? ''}» · riaperti ${reopened.filter((one) => !one.folded).length}`
+        + `/${reopened.length}`,
+      problems: [
+        ...(foldButton ? [] : ['nessuna freccia in intestazione: un blocco non si può piegare']),
+        ...(foldButton && !foldButton.inside
+          ? [`sotto la freccia c'è ${foldButton.under}, che non è sua: è coperta`] : []),
+        ...(foldedNow.length === 1
+          ? [] : [`${foldedNow.length} blocchi piegati dopo un click solo`]),
+        ...(afterFold.length === beforeFold.length
+          ? [] : [`${beforeFold.length} blocchi prima e ${afterFold.length} dopo: piegare non è nascondere`]),
+        ...(mine && mine.width < 48
+          ? [] : [`il blocco piegato è largo ${mine?.width}px: non si è stretto`]),
+        ...(grewBy > 0
+          ? [] : [`i vicini della sua riga non hanno guadagnato niente (${grewBy}px): la larghezza è andata nel vuoto`]),
+        ...(otherRowBefore === otherRowAfter
+          ? [] : [`la riga di sotto si è mossa: ${otherRowBefore} → ${otherRowAfter}`]),
+        ...(mine && /\d+\/\d+/.test(mine.said) && mine.said.length > 4
+          ? [] : [`la linguetta dice «${mine?.said}»: non si capisce di chi è né quanto è lunga la sua lista`]),
+        ...(reopened.some((one) => one.folded)
+          ? ['la linguetta non si riapre: il gesto è a senso unico'] : []),
       ],
     });
 

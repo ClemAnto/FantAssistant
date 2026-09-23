@@ -26,6 +26,7 @@ import {
   InboxOutline,
   InfoCircleOutline,
   LinkOutline,
+  LeftOutline,
   LockOutline,
   LoginOutline,
   LogoutOutline,
@@ -94,6 +95,10 @@ export const NZ_ICONS: IconDefinition[] = [
   InboxOutline,
   InfoCircleOutline,
   LinkOutline,
+  // LA FRECCIA CHE PIEGA un blocco della Strategia (23/09/2026). `right` c'era gia' e `left` no,
+  // e le due sono i due versi dello stesso gesto: registrarne una sola avrebbe lasciato una
+  // casella vuota su meta degli stati.
+  LeftOutline,
   LockOutline,
   LoginOutline,
   LogoutOutline,

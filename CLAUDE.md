@@ -7138,3 +7138,62 @@ Quattro errori di misura, e tre erano nello STRUMENTO.
 **17 rossi che non esistevano**: i test che leggono il sorgente con `inspect.getsource` vedono la cache
 disallineata appena il file cambia sotto, e la funzione torna una riga troncata. Rilanciata a fermo: zero.
 *Un rosso raccolto durante una modifica non e' un rosso, e' rumore che costa un'ora se lo si insegue.*
+
+## UNA COLONNA DI GRID E' DI TUTTE LE RIGHE, quindi una griglia sola non puo' esprimere una scelta su un blocco
+**23/09/2026 (notte), dalla richiesta dell'operatore «nella vista "strategia" inserisci la possibilita'
+di collassare orizzontalmente le card dei singoli ruoli». Dettaglio: `pagina-strategia-v1.md` §22.**
+Nessun numero del motore si muove: `engine_*` fermo, nessuna colonna del foglio, nessun
+`SHEET_REVISION`.
+
+**IL DIFETTO NON ERA NELLA RICHIESTA, ERA NELLA STRUTTURA CHE LA DOVEVA OSPITARE.** La pagina disegnava
+**una griglia sola** — `repeat(6, 1fr)` e dodici blocchi mantra su due file — e la larghezza di una
+colonna di CSS grid **e' la stessa per ogni riga di quella griglia**: piegare il primo blocco non
+avrebbe stretto lui ma la sua COLONNA, cioe' anche quello che gli sta sotto e che nessuno ha toccato.
+Misurato rimettendo il difetto in un browser vero: con una griglia sola la seconda riga passa da
+`252×6` a `40 / 294×5`, con una griglia PER RIGA resta `252×6`. *Una dimensione condivisa fra due assi
+non puo' portare una decisione presa su un asse solo*, ed e' la stessa famiglia di «un parametro
+indicizzato sulla quantita' sbagliata e' invisibile sotto un meccanismo e letale sotto un altro»: qui
+l'indice era la COLONNA dove la scelta e' sul BLOCCO. Il taglio in righe vive in
+`core/strategy.blockRows` — aritmetica pura con l'invariante asserita — e non nel template, che e' il
+posto in cui un difetto del genere si nasconde.
+
+**E LE CELLE CHE AVANZANO TENGONO LA LORO TRACCIA**: oggi nessuna riga e' spaiata (quattro blocchi in
+quattro colonne a classic, dodici in sei a mantra) ma il vocabolario dei ruoli lo dichiara il rulebook e
+non questo codice, quindi il vuoto resta in coda invece di allargare i blocchi che ci sono — un cambio
+di larghezza che nessuno ha chiesto si leggerebbe come un difetto.
+
+**SI NASCONDE LA LISTA, MAI IL FATTO CHE LA LISTA ESISTA** (la regola del collasso delle due barre in
+basso, scritta la mattina dello stesso giorno, incontrata di lato): la linguetta da 40px porta la
+freccia, il badge del ruolo e l'etichetta col contatore in verticale, e la sua larghezza viene dal badge
+e non dal gusto — sotto i 36px sarebbe `ui-role` a decidere la traccia, cioe' un pavimento invisibile
+scritto in un altro file. Il verso della freccia dice **cosa fa il click** e non dove sta il blocco.
+
+**E UNA PREFERENZA SI SALVA QUANDO E' VISIBILE, non quando e' importante.** I piegati stanno in
+`localStorage` mentre la ricerca dentro un blocco — sulla stessa pagina, a tre righe di distanza — si
+cancella chiudendo la lente, e i due non si contraddicono: un filtro dentro un pannello chiuso e'
+invisibile, una linguetta no, perche' resta a schermo col suo badge e il suo contatore. E si salvano i
+PIEGATI e non gli aperti (la regola di `flag-prefs.ts`), o un ruolo che il rulebook dichiarasse domani
+nascerebbe piegato per una preferenza scritta mesi prima.
+
+Quattro abitudini, e tutte e quattro sono regole di casa incontrate da un lato nuovo.
+- **TRE SELETTORI POSIZIONALI ROTTI DALLO STESSO CAMBIO D'ALBERO**, in un banco che era verde:
+  `header.lastElementChild` per il contatore (dal momento in cui il blocco ha preso la freccia risponde
+  «il bottone»), `header span` per l'etichetta (prendeva il primo span in ordine di documento, che e'
+  quello DENTRO `ui-role` — sbagliava gia' prima e nessuna asserzione ci poggiava), e
+  `section:first-of-type`, che con una griglia per riga ne trova **una per riga**: il passo della
+  ricerca leggeva 47 righe (20 di `Por` + 27 di `M`) e poi ne rileggeva 20, cioe' due popolazioni
+  confrontate come due risposte. *Un banco si aggancia all'attributo che un componente DICHIARA.*
+- **UN JOIN PER UNA STRINGA CHE LA CSS TRASFORMA E' UN JOIN PER NOME**, ed e' l'ennesima istanza:
+  `data-fold` porta `Por` come il rulebook lo dichiara e il badge stampa `POR`, perche' `uppercase` e'
+  CSS e `innerText` rende quello che si VEDE. Unendo le due liste per uguaglianza esatta il passo non
+  agganciava niente e stampava una crescita di 294px che era **la larghezza del vicino** e non la sua
+  differenza — *un numero sbagliato riportato come una misura*, e verde. Corretto: +42px, il quinto dei
+  212 liberati, e l'aritmetica torna.
+- **IL PREZZO SI MISURA NEL CASO PIU' STRETTO CHE ESISTE, non in quello che si sta guardando.** La
+  freccia e' un terzo bottone in intestazione e toglie ~24px all'etichetta: fotografato con tutti e
+  dodici i blocchi aperti a 252px, **nessuna delle dodici e' tagliata**. Il prezzo c'e' ed e' zero, e
+  dirlo e' il punto — il giorno in cui si aggiunge un quarto comando li' dentro quel numero si rimisura
+  prima e non dopo.
+- **E UN'ICONA VA REGISTRATA A COPPIE quando e' un verso**: `right` c'era e `left` no, e le due sono i
+  due stati dello stesso gesto — registrarne una sola avrebbe lasciato una casella vuota su meta' degli
+  stati (`eye` il 04/09, `user-add` il 13/09).

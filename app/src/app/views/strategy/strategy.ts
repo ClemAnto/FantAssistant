@@ -64,6 +64,7 @@ import {
   StrategyBidder,
   StrategyGame,
   StrategySetup,
+  blockRows,
   blocksOf,
   gainOf,
   readingHas,
@@ -85,7 +86,7 @@ import {
 } from '../../core/strategy-filter';
 import { sheetBlendsSeen, swingOf } from '../../core/swing';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
-import { DOUBLE_MS, stored, storedJson } from '../../core/view-state';
+import { DOUBLE_MS, stored, storedJson, storedList } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
@@ -836,6 +837,73 @@ export class Strategy {
       const men = block.men.filter((row) => looseMatch(query, row.man.name, row.man.club));
       return { ...block, men, hidden: block.men.length - men.length };
     }),
+  );
+
+
+  // ---------------------------------------------------------------- piegare un blocco
+
+  /**
+   * I BLOCCHI PIEGATI (richiesta dell'operatore, 23/09/2026: «inserisci la possibilità di collassare
+   * orizzontalmente le card dei singoli ruoli»). Uno piegato diventa una linguetta larga
+   * `FOLDED_TRACK` e la sua larghezza va ai blocchi aperti DELLA SUA RIGA (vedi `blockRows`).
+   *
+   * SI SALVANO I PIEGATI E NON GLI APERTI, che è la regola già scritta per i marchi
+   * (`flag-prefs.ts`): un ruolo che il rulebook dichiarasse domani nascerebbe APERTO, mentre con la
+   * lista degli aperti nascerebbe piegato per una preferenza scritta mesi prima - cioè un blocco
+   * sparito che nessuno ha chiuso.
+   *
+   * IN `localStorage` E NON NELL'INDIRIZZO (la regola di `view-state.ts`): piegare è come si legge
+   * lo schermo, non cosa la pagina mostra. E a differenza della RICERCA qui sopra - che è una domanda
+   * che si fa e si chiude, e che salvata nasconderebbe metà lista in silenzio - una lista piegata NON
+   * è invisibile: la linguetta resta a schermo col suo badge, la sua etichetta e il suo contatore,
+   * quindi dichiara se stessa. È la stessa differenza per cui i filtri della tabella si ricordano e
+   * portano la loro etichetta sopra la tabella (20/08/2026).
+   *
+   * UNA CHIAVE SOLA PER I DUE GIOCHI, perché i due vocabolari non si toccano: classic dice `P D C A`
+   * e mantra `Por Dd Dc ...`, quindi quello che si piega a classic resta dichiarato e inerte a
+   * mantra invece di piegare il blocco di qualcun altro.
+   */
+  private readonly foldedRoles = storedList<string>(
+    'strategy.folded',
+    (one): one is string => typeof one === 'string',
+  );
+
+  protected folded(role: string): boolean {
+    return this.foldedRoles().includes(role);
+  }
+
+  protected toggleFold(role: string): void {
+    this.foldedRoles.update((on) =>
+      on.includes(role) ? on.filter((one) => one !== role) : [...on, role],
+    );
+  }
+
+  /**
+   * IL VERSO DELLA FRECCIA DICE COSA FA IL CLICK e non dove sta il blocco - la stessa convenzione
+   * delle due barre in basso (`ui/bottom-dock`, 23/09/2026): aperto si chiude verso sinistra,
+   * piegato si riapre verso destra.
+   *
+   * In TypeScript e non come letterale nel template, perché è così che un'icona finisce sotto il
+   * test che ne verifica la REGISTRAZIONE: una non registrata non è un errore a schermo, `nz-icon` la
+   * cerca per rete, la richiesta muore in 404 e resta una casella vuota (pagato su `eye` il 04/09 e su
+   * `user-add` il 13/09).
+   */
+  protected foldIcon(role: string): string {
+    return this.folded(role) ? 'right' : 'left';
+  }
+
+  protected foldHint(block: { role: string; label: string }): string {
+    return this.folded(block.role) ? `Riapri ${block.label}` : `Riduci ${block.label}`;
+  }
+
+  /**
+   * I BLOCCHI COME LA GRIGLIA LI DISEGNA: una riga per volta, ognuna con le proprie tracce.
+   *
+   * Il taglio sta in `core/strategy.ts` e non qui perché è aritmetica pura e ha un'invariante che
+   * vale la pena asserire: piegare un blocco non deve toccare la riga di sotto.
+   */
+  protected readonly rows = computed(() =>
+    blockRows(this.visible(), this.columns(), (role) => this.folded(role)),
   );
 
   // ---------------------------------------------------------------- la card di un calciatore

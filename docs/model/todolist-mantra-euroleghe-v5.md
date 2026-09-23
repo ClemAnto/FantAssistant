@@ -2213,3 +2213,36 @@ di inseguirlo*, e si rimisura ad albero fermo.
    di questa sessione: i **quattro pacchetti del viaggio nel tempo sono a 72**, cioè due revisioni sotto,
    e finché non si rifanno il box del tempo mostra un motore vecchio sotto una data scelta - che è la sola
    cosa che quel box esiste per non fare. Si rifanno con `timepack --all --refresh` più `export`.
+
+## Aperti dopo la sessione del 23/09/2026 (notte) — il piegare un blocco della Strategia
+
+Verbale: `pagina-strategia-v1.md` §22. Quello che la sessione ha CHIUSO è la richiesta per intero (ogni
+blocco si piega, si riapre e si ricorda); quello che lascia è piccolo e tutto dichiarato.
+
+1. **NESSUNA VIA D'USCITA DI GRUPPO.** Piegati dieci blocchi su dodici, riaprirli sono dieci click — uno
+   per linguetta, dove la linguetta sta. Non è stato aggiunto un «riapri tutti» perché ogni piegatura è
+   individualmente visibile e reversibile, e un comando in più in barra è un comando da imparare; il
+   precedente contrario è la card del calciatore, che quando se ne aprono più d'una offre un «chiudi le N
+   card». Se al tavolo dieci click pesano, è una riga e una sua decisione. **Resa: comodità, niente di
+   misurabile.**
+
+2. **LA RICERCA DENTRO UN BLOCCO PIEGATO RESTA ATTIVA E INVISIBILE.** Se si cerca un nome e poi si piega,
+   la lente resta accesa col suo testo: la linguetta dice `1/20` invece di `20/20`, quindi il fatto è a
+   schermo, ma non dice PERCHÉ. Le due cure possibili sono opposte — cancellare il testo piegando (come fa
+   il chiudere la lente) oppure marcare la linguetta — e nessuna delle due è stata misurata contro l'altra.
+   Popolazione: chi piega un blocco mentre ci sta cercando dentro, che è verosimilmente rara.
+   **Resa: una frase più onesta in un angolo.**
+
+3. **IL PREZZO DELLA FRECCIA È ZERO OGGI E NON PER SEMPRE.** L'etichetta di una lista ha `truncate` e nel
+   caso più stretto che esiste (dodici blocchi aperti a 252px su 1600) nessuna delle dodici viene tagliata.
+   Su una finestra più piccola, o con un rulebook che dichiarasse più ruoli, il terzo bottone è il primo a
+   costare. Il numero va rimisurato prima di aggiungere un quarto comando lì dentro, non dopo.
+
+4. **`e2e-player-card` resta rosso su HEAD** (punto 5 della lista precedente, invariato): non è di questa
+   sessione e non è stato toccato. I tre banchi della Strategia sono verdi.
+
+5. **La metà d'albero dell'altra sessione resta fuori** (`ui/digit-input`, `core/plancia*`,
+   `views/plancia/`, più `core/focus.ts` e due banchi non tracciati): al momento del commit l'albero
+   condiviso NON compilava per quella metà, e la verifica è stata fatta su un worktree costruito su `HEAD`
+   più i miei sei file. Chi chiude quella metà non eredita niente da questa.
+

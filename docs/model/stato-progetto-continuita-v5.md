@@ -9053,3 +9053,79 @@ su HEAD**: preesistente.
   grigi sono uomini nell'urna e il gesto avrebbe senso, ma sui titolari no: un gesto che fa due cose
   diverse a seconda della riga è un gesto da imparare. Se lo vuole, è una sua decisione.
 - **`e2e-player-card`** resta il solo rosso dell'app, e non è di questa sessione.
+
+## 23 settembre 2026 (notte) — UN BLOCCO DELLA STRATEGIA SI PIEGA, e una colonna di grid è di tutte le righe
+
+Richiesta dell'operatore: **«nella vista "strategia" inserisci la possibilità di collassare
+orizzontalmente le card dei singoli ruoli»**. Verbale per esteso: `pagina-strategia-v1.md` §22. Nessun
+numero del motore si muove — `engine_*` fermo, nessuna colonna del foglio, nessun `SHEET_REVISION`, il
+pacchetto fermo: qui non si prevede nessun calciatore, si dispongono blocchi in una griglia.
+
+### Il difetto che il lavoro ha trovato, e che non era nella richiesta
+
+La pagina disegnava **una griglia sola** (`repeat(6, 1fr)`, dodici blocchi mantra su due file), e la
+larghezza di una colonna di CSS grid **è la stessa per ogni riga di quella griglia**. Quindi piegare `Por`
+— prima riga, prima colonna — non avrebbe stretto lui ma la sua COLONNA, cioè anche `M`, che gli sta sotto
+e che nessuno ha toccato. Misurato rimettendo il difetto in un browser vero:
+
+| | prima riga | seconda riga |
+|---|---|---|
+| **una griglia per riga** (adottato) | 40 / 294×5 | 252×6 **ferma** |
+| **una griglia sola** (il difetto) | 40 / 294×5 | **40 / 294×5** |
+
+Il taglio in righe sta in `core/strategy.blockRows` — aritmetica pura, quattro test sull'invariante — e non
+nel template, perché è il punto in cui un difetto del genere si nasconde. Le celle che avanzano tengono la
+loro traccia, così una riga spaiata lascia il vuoto in coda invece di allargare i blocchi che ci sono
+(oggi non capita, ma il vocabolario dei ruoli lo dichiara il rulebook e non questo codice).
+
+### Quello che sopravvive al piegamento, e cosa si ricorda
+
+Una linguetta larga **40px** — il numero viene dal badge (`ui-role size="sm"` su più lettere è `min-w-7`,
+28px, più il `px-1` della linguetta): sotto i 36px sarebbe il badge a decidere la larghezza della colonna,
+cioè un pavimento invisibile scritto in un altro file. Dentro: la freccia, il badge del ruolo e l'etichetta
+col contatore in verticale. Misurato a schermo, la linguetta dice **«POR Portieri · 20/20»**.
+
+È la regola del collasso delle due barre in basso (`ui/bottom-dock`, stamattina) vista di lato: **si
+nasconde la LISTA, mai il fatto che quella lista esista** — una linguetta che non dichiara di chi è non è
+un blocco piegato, è un blocco sparito. Il verso della freccia dice cosa FA il click e non dove sta il
+blocco, stessa convenzione. `left` non era registrata fra le icone e `right` sì: registrarne una sola
+avrebbe lasciato una casella vuota su metà degli stati (`eye` il 04/09, `user-add` il 13/09).
+
+I piegati vivono in `localStorage`, **a differenza della ricerca dentro un blocco**, che si cancella
+chiudendo la lente. La differenza non è l'importanza, è la VISIBILITÀ: un filtro dentro un pannello chiuso
+è invisibile, una linguetta no. Si salvano i **piegati** e non gli aperti (regola di `flag-prefs.ts`: un
+ruolo nuovo nasce aperto), e una chiave sola per i due giochi, perché i due vocabolari non si toccano.
+Piegarli tutti è permesso: una guardia «almeno uno aperto» sarebbe un rifiuto muto.
+
+### Il prezzo, misurato e nullo
+
+La freccia è un terzo bottone in intestazione, quindi toglie ~24px all'etichetta nel caso più stretto che
+esista oggi — dodici blocchi aperti a 252px. Fotografato: **nessuna delle dodici etichette viene tagliata**.
+
+### Tre difetti dell'ARNESE, tutti della stessa famiglia
+
+Il banco è andato rosso su cose che la pagina non aveva, e ogni volta era un **selettore posizionale** che
+il cambio d'albero ha fatto rispondere ad altro — «un banco si aggancia all'attributo che un componente
+DICHIARA, mai al cammino nell'albero», tre istanze in una sessione: `header.lastElementChild` (il
+contatore → il bottone nuovo), `header span` (l'etichetta → il badge, e sbagliava già prima), e
+`section:first-of-type`, che con una griglia per riga ne trova **una per riga** — il passo della ricerca
+leggeva 47 righe (20 di `Por` + 27 di `M`) e poi ne rileggeva 20, cioè due popolazioni confrontate come due
+risposte. Più un quarto nel passo NUOVO: il ruolo va confrontato **senza maiuscole** (`data-fold` porta
+`Por`, il badge lo stampa `POR` perché `uppercase` è CSS e `innerText` rende quello che si vede) — senza,
+stampava «era undefinedpx» accanto a una crescita di 294px che era la larghezza del vicino e non la sua
+differenza: *un numero sbagliato riportato come una misura*. Corretto: **+42px**, il quinto dei 212
+liberati, e l'aritmetica torna.
+
+### Verifica, e perché in un worktree
+
+**L'albero condiviso non compilava** per la metà di un'altra sessione (`TS2339: Property 'store' does not
+exist on type 'SlotMatrix'`), quindi la verifica è stata fatta su un **worktree su HEAD più i miei sei
+file**, con `npm ci` (un `node_modules` per giunzione rompe vitest, 05/09) e `public/data` per giunzione,
+smontata con `rmdir` PRIMA di `git worktree remove` (12/09). Build pulito, **1081 test app**, banchi
+`e2e-strategy`, `e2e-strategy-sort` ed `e2e-strategy-filters` **verdi**. Controprove fatte rimettendo i
+difetti: con una griglia sola cade il solo passo che la descrive («la riga di sotto si è mossa: 252×6 →
+40/294×5»), e con `per = blocks.length` cadono i quattro test del piegare e nessuno dei 1077 rimanenti.
+
+Commit fatto coi **percorsi espliciti** (`git commit -- …`) e non dall'index, che è condiviso: l'altra
+sessione lavora in `ui/digit-input`, `core/plancia*` e `views/plancia/`, e quella metà resta fuori.
+

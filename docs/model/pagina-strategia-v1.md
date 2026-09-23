@@ -1153,6 +1153,116 @@ punti) e' asserita: se qualcuno rimette una tinta che lo schermo non porta, il b
 misura, e solo la seconda e' quello che la banda promette.* Stessa famiglia del conteggio della favicon
 (un'area non ha una forma) e di «righe identiche non sono un risultato».
 
+## 22. UN BLOCCO SI PIEGA, e una colonna di CSS grid e' la stessa per ogni riga (23 settembre 2026)
+
+**Richiesta dell'operatore:** «nella vista "strategia" inserisci la possibilita' di collassare
+orizzontalmente le card dei singoli ruoli». A mantra i blocchi sono dodici e ognuno e' largo ~252px su
+una finestra da 1600: piegare quelli che non interessano e' l'unico modo di dare respiro a quelli che
+interessano senza cambiare la lega dichiarata.
+
+### 22.1 Il difetto che le RIGHE esistono per evitare
+
+La pagina disegnava **una griglia sola** — `repeat(6, 1fr)` con dodici blocchi, quindi due file — e la
+larghezza di una colonna di CSS grid **e' la stessa per ogni riga di quella griglia**. Con quella forma,
+piegare `Por` (prima riga, prima colonna) non avrebbe stretto lui ma la sua COLONNA, cioe' anche `M`, che
+gli sta sotto e che nessuno ha toccato.
+
+Misurato rimettendo il difetto in un browser vero, con una griglia sola e la colonna stretta se qualcuno
+in quella colonna e' piegato:
+
+| | prima riga | seconda riga |
+|---|---|---|
+| **una griglia per riga** (adottato) | 40 / 294 x5 | 252 x6 **ferma** |
+| **una griglia sola** (il difetto) | 40 / 294 x5 | **40 / 294 x5** |
+
+Quindi il taglio in righe non e' una preferenza di forma: e' la sola forma in cui «piego questo blocco» e'
+una frase su QUEL blocco. Sta in `core/strategy.blockRows` — aritmetica pura, con un test che asserisce
+l'invariante — e non nel template, perche' e' esattamente il punto in cui un difetto si nasconde.
+
+**Le celle che avanzano tengono la loro traccia.** Oggi non capita (quattro blocchi in quattro colonne a
+classic, dodici in sei a mantra) ma il vocabolario dei ruoli lo dichiara il rulebook e non questo codice:
+una riga spaiata deve lasciare il vuoto in coda invece di allargare i blocchi che ci sono, che e' quello
+che la griglia unica faceva.
+
+### 22.2 Quello che sopravvive al piegamento
+
+Una linguetta larga **40px** (`FOLDED_TRACK`, e il numero viene dal badge: `ui-role size="sm"` su
+un'etichetta di piu' lettere e' `min-w-7`, cioe' 28px, piu' il `px-1` della linguetta — sotto i 36px
+sarebbe il badge a decidere la larghezza della colonna, cioe' un pavimento invisibile scritto in un altro
+file). Dentro ci stanno la freccia, il badge del ruolo e l'etichetta col contatore, scritti in verticale
+perche' li' l'asse lungo e' quello. Misurato a schermo: la linguetta dice **«POR Portieri · 20/20»**.
+
+E' la regola del collasso delle due barre in basso (`ui/bottom-dock`, 23/09/2026) vista di lato: **si
+nasconde la LISTA, mai il fatto che quella lista esista.** Una linguetta che non dichiara di chi e' non e'
+un blocco piegato, e' un blocco sparito.
+
+Il verso della freccia dice **cosa fa il click** e non dove sta il blocco — aperto si chiude verso
+sinistra, piegato si riapre verso destra — che e' la stessa convenzione delle due barre. `left` non era
+registrata fra le icone e `right` si': registrarne una sola avrebbe lasciato una casella vuota su meta'
+degli stati, che e' il difetto gia' pagato su `eye` (04/09) e su `user-add` (13/09).
+
+### 22.3 Perche' si RICORDA, mentre la ricerca no
+
+I piegati vivono in `localStorage` (`strategy.folded`), e la pagina accanto fa l'opposto: il testo cercato
+dentro un blocco si cancella chiudendo la lente, perche' «un filtro salvato che al ricaricamento nasconde
+meta' lista e' la cosa peggiore che questa pagina possa fare a un'asta».
+
+La differenza non e' l'importanza, e' la **visibilita'**: un filtro dentro un pannello chiuso e'
+invisibile, una lista piegata no — la linguetta resta a schermo col suo badge, la sua etichetta e il suo
+contatore, quindi dichiara se stessa. E' la stessa distinzione per cui i filtri della tabella si ricordano
+**e** portano la loro etichetta sopra la tabella (20/08/2026).
+
+Si salvano i **piegati** e non gli aperti, che e' la regola di `flag-prefs.ts`: un ruolo che il rulebook
+dichiarasse domani nascerebbe APERTO, mentre con la lista degli aperti nascerebbe piegato per una
+preferenza scritta mesi prima. E **una chiave sola per i due giochi**, perche' i due vocabolari non si
+toccano (`P D C A` contro `Por Dd Dc …`): quello che si piega a classic resta dichiarato e inerte a mantra.
+
+**Piegarli tutti e' permesso.** Una guardia «almeno uno aperto» sarebbe un rifiuto muto, e un rifiuto muto
+e' indistinguibile da un gesto rotto; ogni linguetta e' comunque a schermo e si riapre con un click.
+
+### 22.4 Il prezzo, misurato e nullo
+
+La freccia e' un terzo bottone nell'intestazione, quindi toglie ~24px all'etichetta della lista nel caso
+piu' stretto che esista oggi — tutti e dodici i blocchi aperti a 252px. Fotografato: **nessuna delle
+dodici etichette viene tagliata** («Difensori centrali», «Attaccanti esterni», «Punte centrali» si
+leggono per intero). Il prezzo c'e' ed e' zero.
+
+Non si muove niente del motore: nessuna colonna del foglio, nessun `engine_*`, nessun `SHEET_REVISION`.
+
+### 22.5 Tre difetti dell'ARNESE, e sono tutti della stessa famiglia
+
+Il banco (`e2e-strategy.mjs`) e' andato rosso su cose che la pagina non aveva, e ogni volta la causa era
+un **selettore posizionale** che il cambio di albero ha fatto rispondere a un altro elemento — la regola
+di casa «un banco si aggancia all'attributo che un componente DICHIARA, mai al cammino nell'albero»,
+incontrata tre volte in una sessione.
+
+1. **`header.lastElementChild`** per il contatore: dal momento in cui il blocco ha preso la freccia, quel
+   cammino risponde «il bottone». Ora e' `[data-counter]`.
+2. **`header span`** per l'etichetta: prendeva il primo span in ordine di documento, che e' quello DENTRO
+   `ui-role` — cioe' il badge di nuovo, e non il nome della lista. Era gia' sbagliato prima e nessuna
+   asserzione ci poggiava. Ora e' `[data-label]`.
+3. **`section:first-of-type`** per il primo blocco: con una griglia per riga ne trova **una per riga**. Il
+   passo della ricerca leggeva 47 righe (i 20 di `Por` piu' i 27 di `M`) e poi ne rileggeva 20 — due
+   popolazioni confrontate come due risposte, che e' il difetto che questo repository si e' gia' scritto.
+
+E un quarto, dentro il passo NUOVO: **il ruolo si confronta senza maiuscole**, perche' `data-fold` porta
+il nome come il rulebook lo dichiara (`Por`) mentre il badge lo STAMPA maiuscolo (`uppercase` e' CSS, e
+`innerText` rende quello che si vede). Unendo le due liste per uguaglianza esatta il passo non agganciava
+niente e stampava «era undefinedpx» accanto a una crescita di 294px che era **la larghezza del vicino** e
+non la sua differenza — *un numero sbagliato riportato come una misura*. Corretto: il vicino cresce di
+**42px**, che e' il quinto dei 212 liberati, e l'aritmetica torna.
+
+### 22.6 La controprova
+
+L'asserzione nuova e' stata provata **rimettendo il difetto**: con una griglia sola il passo nomina il
+colpevole coi numeri («la riga di sotto si e' mossa: 252 x6 → 40 / 294 x5») e **nessun altro passo cade**,
+perche' gli altri descrivono comportamenti che non cambiano. Sul lato dei test unitari, lo stesso:
+`blockRows` con `per = blocks.length` fa cadere i quattro test del piegare e nessuno dei 1077 rimanenti.
+
+Verificato in un **worktree su HEAD piu' i miei file** (l'albero condiviso non compilava per la meta' di
+un'altra sessione): build pulito, 1081 test, e i tre banchi della Strategia — `e2e-strategy`,
+`e2e-strategy-sort`, `e2e-strategy-filters` — verdi.
+
 ## 12. Aperti (per resa attesa)
 
 > **02/09/2026 — il banco d'asta ha misurato quale REPARTO paga, e la pagina non lo dice.** Questa pagina

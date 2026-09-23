@@ -301,370 +301,434 @@
       Sto leggendo il foglio {{ sheet()?.league }}…
     </div>
   } @else if (sheet()) {
-    <!-- I BLOCCHI: uno per ruolo, ognuno con la sua altezza e il suo scorrimento. -->
-    <div
-      class="grid min-h-0 flex-1 gap-2"
-      [style.grid-template-columns]="'repeat(' + columns() + ', minmax(0, 1fr))'"
-      [style.grid-auto-rows]="'minmax(0, 1fr)'"
-    >
-      @for (block of visible(); track block.role) {
-        <section
-          class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface"
-        >
-          <header
-            class="flex shrink-0 items-center gap-1.5 border-b border-border bg-control/40 px-2 py-1"
-          >
-            <ui-role [role]="block.role" size="sm" />
-            <span class="min-w-0 truncate text-xs font-medium text-fg">{{ block.label }}</span>
-            <!-- LA LENTE (operatore, 05/09/2026): apre una casella sotto l'intestazione che filtra
-                 QUESTA lista per nome o per squadra. Resta accesa mentre la casella e' aperta, cosi'
-                 una lista corta non si legge mai come un blocco rotto. -->
-            <button
-              nz-button
-              nzType="text"
-              nzSize="small"
-              class="ml-auto shrink-0"
-              [class.text-primary]="searchOpen(block.role)"
-              nz-tooltip
-              nzTooltipTitle="Cerca in questa lista"
-              [attr.aria-pressed]="searchOpen(block.role)"
-              [attr.data-search]="block.role"
-              (click)="toggleSearch(block.role)"
-            >
-              <nz-icon nzType="search" />
-            </button>
-            <!-- LA CROCETTA COMPARE SOLO DOVE C'E' UN ORDINE SUO: un comando che non ha niente da
-                 annullare e' un comando che fa dubitare di aver toccato qualcosa. -->
-            @if (block.pinned) {
+    <!-- I BLOCCHI: uno per ruolo, ognuno con la sua altezza e il suo scorrimento.
+
+         UNA GRIGLIA PER RIGA e non una sola per tutte (23/09/2026, con il piegare): la larghezza di
+         una colonna di CSS grid è la STESSA per ogni riga, quindi con la griglia unica che c'era qui
+         - `repeat(6, 1fr)` e dodici blocchi mantra - stringere il quarto non avrebbe stretto lui ma
+         la sua COLONNA, cioè anche il decimo, che gli sta sotto e che nessuno ha piegato. Le righe si
+         tagliano in `core/strategy.blockRows`, che è anche dove sta l'invariante: piegare un blocco
+         non tocca la riga di sotto. Le altezze restano uguali fra le righe (`flex-1` su ognuna, che è
+         quello che `grid-auto-rows: minmax(0, 1fr)` faceva). -->
+    <div class="flex min-h-0 flex-1 flex-col gap-2">
+      @for (row of rows(); track row.at) {
+        <div class="grid min-h-0 flex-1 gap-2" [style.grid-template-columns]="row.template">
+          @for (block of row.blocks; track block.role) {
+            @if (folded(block.role)) {
+              <!-- IL BLOCCO PIEGATO È UNA LINGUETTA, e il bersaglio è TUTTA la linguetta: qui dentro
+                   non c'è nessun altro gesto, quindi una freccia da dodici pixel sarebbe un bersaglio
+                   piccolo aggiunto per niente.
+
+                   QUELLO CHE SOPRAVVIVE AL PIEGAMENTO è quello che dice CHI È: il badge del ruolo -
+                   una linguetta che non dichiara di chi è, è un blocco sparito - più l'etichetta e il
+                   contatore, scritti in verticale perché è l'asse che qui è lungo. Così quello che si
+                   perde piegando è la LISTA e non il fatto che quella lista esista, che è la regola
+                   del collasso delle due barre in basso (`ui/bottom-dock`) vista di lato.
+
+                   FONDO DELL'INTESTAZIONE e non della carta: da piegata la linguetta È l'intestazione
+                   del blocco, e col fondo della lista si leggerebbe come una lista vuota. -->
               <button
-                nz-button
-                nzType="text"
-                nzSize="small"
-                class="shrink-0"
+                type="button"
+                class="flex min-h-0 flex-col items-center gap-1.5 overflow-hidden rounded-lg border
+                       border-border bg-control/40 px-1 py-1.5 text-muted hover:text-fg"
+                [attr.data-folded]="block.role"
+                [attr.aria-expanded]="false"
+                [attr.aria-label]="foldHint(block)"
                 nz-tooltip
-                nzTooltipTitle="Torna al gain"
-                [attr.data-clear]="block.role"
-                (click)="clearOrder(block.role)"
+                [nzTooltipTitle]="foldHint(block)"
+                (click)="toggleFold(block.role)"
               >
-                <nz-icon nzType="close" />
-              </button>
-            }
-            <span
-              class="shrink-0 text-[10px] tabular-nums text-muted"
-              nz-tooltip
-              [nzTooltipTitle]="
-                'In lista ' +
-                block.men.length +
-                ' su ' +
-                block.demand +
-                ' che ne comprerà la stanza' +
-                (block.hidden ? ' · ' + block.hidden + ' nascosti dalla ricerca' : '') +
-                (block.unranked ? ' · ' + block.unranked + ' senza numero' : '')
-              "
-            >
-              {{ block.men.length }}/{{ block.demand }}
-            </span>
-          </header>
-
-          <!-- LA CASELLA DI RICERCA, sotto l'intestazione e solo dove la lente e' accesa.
-               La ricerca e' quella di `core/loose-search.ts`: dentro e non in testa, senza maiuscole e
-               senza accenti, e con le lettere che al tavolo si sentono uguali (k e c, j e y e i, le
-               doppie) ridotte a una forma sola. Si scrive come suona e il nome si trova. -->
-          @if (searchOpen(block.role)) {
-            <div class="shrink-0 border-b border-border px-2 py-1">
-              <input
-                nz-input
-                nzSize="small"
-                type="search"
-                [id]="'cerca-' + block.role"
-                placeholder="nome o squadra"
-                [ngModel]="queryOf(block.role)"
-                (ngModelChange)="setQuery(block.role, $event)"
-                (keydown.escape)="toggleSearch(block.role)"
-              />
-            </div>
-          }
-
-          @if (block.men.length) {
-            <!-- L'ULTIMA LISTA SI SCOSTA DAL BOX DEL VIAGGIO NEL TEMPO, che è `fixed` in basso a destra
-                 e sta fuori dall'outlet: su una pagina che scorre gli galleggia sopra la fine del
-                 contenuto, qui invece il blocco è alto quanto la finestra e il box gli coprirebbe per
-                 sempre le ultime due righe. Un nome coperto a un'asta è il difetto peggiore che questa
-                 pagina possa avere, quindi la coda della lista si può portare sopra il box scorrendo. -->
-            <!-- LA LISTA È UNA DROP LIST DI CDK (scelta dell'operatore, 27/08/2026): l'anteprima, il
-                 segnaposto, lo scorrimento al bordo e il drag nativo spento sono suoi. `cdkDropListData`
-                 le passa i nomi COME SONO A SCHERMO, così l'indice che dichiara al rilascio è un indice
-                 su questa lista e non su un'altra. -->
-            <!-- LA LISTA È IL CONTENITORE che decide la forma della riga (`@container`), e non una
-                 soglia sulla FINESTRA: quanto è larga una lista dipende da quanti blocchi ci sono -
-                 quattro a classic, dodici a mantra - quindi la stessa finestra dà 386px o 254px. Una
-                 media query risponderebbe alla domanda sbagliata. Quello che il contenitore decide
-                 oggi è il RIENTRO della riga; la fila delle pastiglie non va più a capo sotto le 23rem
-                 (operatore, 16/09/2026) - e la misura che l'aveva imposto resta vera e dichiarata:
-                 lì il nome viene tagliato su 182 righe di 255. Quello che non può succedere è il gain
-                 spinto fuori dal blocco, e per quello c'è `flex-wrap` sulla riga. -->
-            <ol
-              class="@container scrollbar-slim scrollbar-quiet min-h-0 flex-1 overflow-y-auto"
-              cdkDropList
-              [cdkDropListData]="block.men"
-              (cdkDropListDropped)="dropped(block.role, $event)"
-            >
-              @for (row of block.men; track row.man.fcId) {
-                <!-- IL VESTITO DELL'ANTEPRIMA LO METTE CDK (`cdkDragPreviewClass`), e non una variante
-                     sulla riga: misurato il 27/08/2026, `[&.cdk-drag-preview]:bg-*` NON dipinge
-                     sull'anteprima - la regola è nel CSS, la classe è sull'elemento, il token risolve, e
-                     il fondo resta trasparente - mentre la stessa forma sul SEGNAPOSTO dipinge. Con
-                     `cdkDragPreviewClass` la classe è normale e sta solo sulla copia che vola, quindi non
-                     c'è nessuna variante da far combaciare. Opacità 0,3 e un fondo sono la richiesta
-                     dell'operatore: l'anteprima è un fantasma, e quello che deve leggersi è la lista
-                     sotto con il buco che dice dove finirà. -->
-                <!-- SI TRASCINA LA RIGA INTERA, e non una maniglia: su questa riga non c'e' nessun'altra
-                     azione al click, quindi una maniglia da 12px sarebbe un bersaglio piccolo aggiunto
-                     per niente. `cdkDragData` porta l'identita' del nome - il rilascio
-                     dichiara un indice, e chi si e' mosso lo dice questo - e `data-id` resta perche'
-                     l'arnese e2e verifica il gesto leggendo la lista disegnata. -->
-                <!-- LO SFONDO RAGGRUPPA OGNI `n` NOMI, con `n` = i partecipanti (operatore,
-                     04/09/2026), e non una riga sì e una no: le bande alternate disegnano lo SLOT,
-                     che è il rango dentro il ruolo diviso il numero di rose - la legge di
-                     conservazione su cui poggia ogni numero del banco d'asta (in una lega da dieci
-                     ci sono dieci «primi difensori» perché ognuno ne schiera uno). Sostituisce la
-                     zebra invece di aggiungersi: due alternanze sulla stessa proprietà darebbero
-                     quattro tinte e il confine della banda - la sola cosa che si deve leggere - si
-                     perderebbe fra le altre tre. -->
-                <!-- IL BORDO SINISTRO È DEL NOME, non del contenitore: a dodici blocchi una lista è
-                     larga ~254px e ogni pixel speso in margine è un pixel tolto al nome, che è la sola
-                     cosa che si cerca scorrendo. Quindi il rientro è minimo e a lista stretta sparisce
-                     del tutto (richiesta dell'operatore, 04/09/2026); a destra resta, perché lì ci
-                     finiscono il gain e le pastiglie e un numero attaccato al bordo si legge peggio. -->
-                <li
-                  class="flex cursor-grab flex-wrap items-center gap-x-1 gap-y-0.5 py-0.5 pl-1 pr-1.5
-                         text-xs @max-[23rem]:pl-0 [&.cdk-drag-placeholder]:bg-primary/25"
-                  [class]="bandTone(row.at)"
-                  [attr.data-id]="row.man.fcId"
-                  [attr.data-band]="bandOf(row.at)"
-                  [attr.data-behind]="row.fromBehind ? '1' : null"
-                  cdkDrag
-                  [cdkDragDisabled]="!canDrag(block.role)"
-                  [cdkDragData]="row.man.fcId"
-                  [cdkDragPreviewClass]="previewClass"
-                  (cdkDragStarted)="onDragStarted()"
-                  (cdkDragEnded)="onDragEnded()"
-                  (click)="onPick(row.man, $event)"
+                <nz-icon [nzType]="foldIcon(block.role)" class="shrink-0 text-[10px]" />
+                <ui-role [role]="block.role" size="sm" />
+                <!-- `vertical-rl` e non una rotazione: il testo scorre lungo l'asse lungo e i puntini
+                     di `truncate` cadono in fondo alla colonna, mentre un `rotate-90` lascerebbe una
+                     scatola orizzontale da ritagliare a mano. -->
+                <span
+                  class="min-h-0 truncate text-[11px] [writing-mode:vertical-rl]"
+                  data-folded-label
+                  >{{ block.label }} · {{ block.men.length }}/{{ block.demand }}</span
                 >
-                  <span
-                    class="w-5 shrink-0 text-right text-[10px] tabular-nums"
-                    [class]="row.at < block.pinned ? 'font-semibold text-fg' : 'text-muted'"
-                    >{{ row.at + 1 }}</span
+              </button>
+            } @else {
+            <section
+              class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface"
+            >
+              <header
+                class="flex shrink-0 items-center gap-1.5 border-b border-border bg-control/40 px-2 py-1"
+              >
+                <ui-role [role]="block.role" size="sm" />
+                <span class="min-w-0 truncate text-xs font-medium text-fg" data-label>{{ block.label }}</span>
+                <!-- LA LENTE (operatore, 05/09/2026): apre una casella sotto l'intestazione che filtra
+                     QUESTA lista per nome o per squadra. Resta accesa mentre la casella e' aperta, cosi'
+                     una lista corta non si legge mai come un blocco rotto. -->
+                <button
+                  nz-button
+                  nzType="text"
+                  nzSize="small"
+                  class="ml-auto shrink-0"
+                  [class.text-primary]="searchOpen(block.role)"
+                  nz-tooltip
+                  nzTooltipTitle="Cerca in questa lista"
+                  [attr.aria-pressed]="searchOpen(block.role)"
+                  [attr.data-search]="block.role"
+                  (click)="toggleSearch(block.role)"
+                >
+                  <nz-icon nzType="search" />
+                </button>
+                <!-- LA CROCETTA COMPARE SOLO DOVE C'E' UN ORDINE SUO: un comando che non ha niente da
+                     annullare e' un comando che fa dubitare di aver toccato qualcosa. -->
+                @if (block.pinned) {
+                  <button
+                    nz-button
+                    nzType="text"
+                    nzSize="small"
+                    class="shrink-0"
+                    nz-tooltip
+                    nzTooltipTitle="Torna al gain"
+                    [attr.data-clear]="block.role"
+                    (click)="clearOrder(block.role)"
                   >
-                  <ui-crest
-                    size="sm"
-                    [club]="row.man.club"
-                    [clubId]="row.man.clubId"
-                    [crests]="store.crests()"
+                    <nz-icon nzType="close" />
+                  </button>
+                }
+                <span
+                  class="shrink-0 text-[10px] tabular-nums text-muted"
+                  data-counter
+                  nz-tooltip
+                  [nzTooltipTitle]="
+                    'In lista ' +
+                    block.men.length +
+                    ' su ' +
+                    block.demand +
+                    ' che ne comprerà la stanza' +
+                    (block.hidden ? ' · ' + block.hidden + ' nascosti dalla ricerca' : '') +
+                    (block.unranked ? ' · ' + block.unranked + ' senza numero' : '')
+                  "
+                >
+                  {{ block.men.length }}/{{ block.demand }}
+                </span>
+                <!-- LA FRECCIA CHE PIEGA, e sta per ULTIMA: è il solo controllo del blocco che non
+                     sparisce mai - da piegato resta lui e basta - quindi la sua posizione non deve
+                     dipendere da quanti comandi ha accanto. Il verso dice cosa FA il click e non dove sta
+                     il blocco (`ui/bottom-dock`, 23/09/2026). -->
+                <button
+                  nz-button
+                  nzType="text"
+                  nzSize="small"
+                  class="shrink-0"
+                  nz-tooltip
+                  [nzTooltipTitle]="foldHint(block)"
+                  [attr.aria-expanded]="true"
+                  [attr.aria-label]="foldHint(block)"
+                  [attr.data-fold]="block.role"
+                  (click)="toggleFold(block.role)"
+                >
+                  <nz-icon [nzType]="foldIcon(block.role)" />
+                </button>
+              </header>
+
+              <!-- LA CASELLA DI RICERCA, sotto l'intestazione e solo dove la lente e' accesa.
+                   La ricerca e' quella di `core/loose-search.ts`: dentro e non in testa, senza maiuscole e
+                   senza accenti, e con le lettere che al tavolo si sentono uguali (k e c, j e y e i, le
+                   doppie) ridotte a una forma sola. Si scrive come suona e il nome si trova. -->
+              @if (searchOpen(block.role)) {
+                <div class="shrink-0 border-b border-border px-2 py-1">
+                  <input
+                    nz-input
+                    nzSize="small"
+                    type="search"
+                    [id]="'cerca-' + block.role"
+                    placeholder="nome o squadra"
+                    [ngModel]="queryOf(block.role)"
+                    (ngModelChange)="setQuery(block.role, $event)"
+                    (keydown.escape)="toggleSearch(block.role)"
                   />
-                  <!-- NIENTE BADGE DEL RUOLO (operatore, 04/09/2026): il blocco È il ruolo, quindi a
-                       classic ripeteva l'intestazione riga per riga. Su mantra diceva qualcosa in più -
-                       in quali ALTRI blocchi l'uomo compare - e quella metà non è stata buttata: sta nel
-                       tooltip della riga quando i codici sono più d'uno, che è dove la riga già parla.
+                </div>
+              }
 
-                       UN TOOLTIP SOLO PER RIGA, e sta QUI (operatore, 04/09/2026: «limita i tooltip nei
-                       calciatori al minimo essenziale»). Prima ce n'erano quattro su una riga alta 17px -
-                       il `title` nativo, la freccia, la fila delle pastiglie e il tilde - cioè quattro
-                       pannelli che si aprono mentre si cerca un nome; e tre di quei quattro dicevano la
-                       stessa frase su OGNI riga, perché erano una LEGENDA e non un fatto su quell'uomo.
-                       La legenda è salita nell'intestazione del blocco, che è un hover solo per lista;
-                       qui resta il solo per-uomo: il nome intero (la colonna lo taglia), il club, i suoi
-                       codici e i due marchi. Il bersaglio è il nome perché è l'elemento più largo, ed è
-                       anche quello che si sta leggendo quando serve saperne di più. -->
-                  <!-- IL NOME E I SUOI MARCHI SONO UN GRUPPO SOLO, e i marchi stanno DALLA PARTE DEL
-                       NOME (operatore, 16/09/2026: «le icone devono stare dal lato del nome a
-                       sinistra»). Prima erano fratelli del nome in un flex dove il nome era `flex-1`:
-                       il nome si prendeva tutto lo spazio libero e le icone finivano spinte a destra,
-                       appiccicate alla fila delle pastiglie - cioè in mezzo ai numeri, che è dove
-                       sembravano appartenere a loro invece che a lui.
-
-                       IL GRUPPO È `flex-1` AL POSTO DEL NOME, che è quello che tiene fermo tutto il
-                       resto: il bordo sinistro del nome non si muove (prima di lui ci sono solo il
-                       posto e lo stemma, tutt'e due a larghezza fissa), quindi la colonna che si
-                       scorre non fa zig-zag, e la fila delle pastiglie resta incolonnata PER
-                       COSTRUZIONE - qualunque marchio condizionale ora sta dentro il gruppo e non fra
-                       la fila e il gain, che è il difetto misurato il 09/09/2026 («il simbolo ~ rompe
-                       l'incolonnamento dei valori»).
-
-                       Dentro il gruppo il nome è l'unico che si stringe e i marchi sono `shrink-0`,
-                       quindi il prezzo lo paga lui - che è la cosa che già tronca. Il nome a larghezza
-                       naturale con uno spaziatore dopo - la forma della plancia - qui non va: in un
-                       contenitore `flex-wrap` un nome lungo manderebbe i marchi a capo invece di
-                       stringersi.
-
-                       E QUANDO LO SPAZIO FINISCE CEDE IL NOME, non la fila: è la decisione
-                       dell'operatore del 16/09/2026 («tutti i valori dovrebbero andare sulla stessa riga
-                       incolonnati invece vanno su 2 righe»), presa col prezzo davanti - su mantra con tre
-                       pastiglie sono 182 nomi tagliati su 255 e il più stretto a 0px, su classic con
-                       sette 249 su 250. Quindi `min-w-0` sul gruppo e nessun pavimento: un pavimento -
-                       provato a 112px e poi a 80 - manda a capo la fila appena il nome non ci sta più,
-                       che è esattamente quello che lui non vuole vedere.
-
-                       Il pavimento era stato provato PRIMA sul nome, e quella misura resta perché dice
-                       dove NON va: con un `min-w` addosso a lui la sua cella non si stringe più sul
-                       testo, quindi su un nome corto i marchi si staccavano di 31,8px dall'ultima
-                       lettera - cioè il difetto che questo gruppo esiste per curare, rifatto un livello
-                       più in basso. Sul gruppo invece il nome continua a misurare il proprio testo e i
-                       marchi restano a 4px sempre. -->
-                  <span class="flex min-w-0 flex-1 items-center gap-x-1">
-                    <!-- DOPPIO CLICK = ORDINA PER NOME (operatore, 16/09/2026). `data-sort-key` non e'
-                         solo per l'arnese: e' quello che `onPick` legge per sapere se questo click deve
-                         aspettare il doppio, quindi il bersaglio si DICHIARA invece di essere indovinato
-                         da un selettore che vive in un altro file. -->
-                    <span
-                      class="min-w-0 truncate text-fg"
-                      data-name
-                      [attr.data-sort-key]="nameSort"
-                      (dblclick)="onSortHere(nameSort); $event.stopPropagation()"
-                      nz-tooltip
-                      [nzTooltipMouseEnterDelay]="0.4"
-                      [nzTooltipTitle]="
-                        row.man.name +
-                        ' · ' +
-                        row.man.club +
-                        (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
-                        (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
-                        (row.estimated ? ' · numero stimato' : '') +
-                        sampleSaid(row.readings)
-                      "
-                      >{{ row.man.name }}</span
-                    ><ui-ruling-dot [playerId]="row.man.fcId" />
-                    <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
-                         motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
-                         come una misura è la cosa peggiore che una lista possa fare.
-
-                         STA ACCANTO AL NOME (operatore, 09/09/2026) e non accanto ai numeri che qualifica:
-                         quello che è stimato è l'uomo intero - il gain e le pastiglie vengono tutti dallo
-                         stesso ripiego - quindi il marchio è del NOME, come il pallino della dichiarazione
-                         che gli sta davanti.
-
-                         IL DIFETTO PER CUI STA QUI ORA È IMPOSSIBILE PER COSTRUZIONE, e la storia resta
-                         perché è quella che spiega il vincolo. Trovato il 09/09/2026 («il simbolo ~ rompe
-                         l'incolonnamento dei valori»): il tilde era fratello delle pastiglie, e in un flex
-                         il bordo destro di un elemento vale `container.right - (somma dei successivi)` -
-                         quindi qualunque cosa condizionale messa FRA la fila e il gain sposta quella
-                         colonna solo sulle righe che ce l'hanno (misurato in un browser vero: 58 righe su
-                         250 e la fila 10,84px più a sinistra, il glifo 6,84 più i 4 di `gap-x-1`). Dal
-                         16/09 vive DENTRO il gruppo del nome, quindi il costo lo paga il nome - che è a
-                         sinistra e tronca - e la fila non lo vede affatto. L'arnese asserisce il FATTO e
-                         non la cura: se domani qualcuno rimette un marchio condizionale fuori di qui, quel
-                         passo cade lo stesso.
-
-                         FUORI dallo span del nome e non dentro, che sarebbe stato il modo ovvio di
-                         «metterlo vicino»: quello span è `truncate`, quindi su un nome lungo il marchio
-                         verrebbe tagliato via - e un nome lungo è esattamente una riga che si guarda. -->
-                    @if (row.estimated) {
-                      <span class="shrink-0 text-[10px] text-muted" data-estimated>~</span>
-                    }
-                    <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
-                    <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
-                         Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
-                         del nome: a sinistra spostava ogni nome di qualche pixel e la colonna si leggeva a
-                         zig-zag, che è esattamente quello che l'occhio scorre. Il colore è quello dei dati
-                         e non un allarme: non è una brutta notizia, è un'altra domanda. -->
-                    @if (row.fromBehind) {
-                      <span class="shrink-0 text-[10px] text-muted">&darr;{{ row.deepest }}</span>
-                    }
-                  </span>
-                  <!-- LE PASTIGLIE, e da oggi sono SETTE e si scelgono (operatore, 05/09/2026): la
-                       barra le accende e le spegne, la riga disegna quelle accese nell'ordine
-                       dichiarato. Le prime tre partono accese.
-
-                       Tre riquadri della stessa forma, incolonnati lungo la lista: una fila di riquadri
-                       uguali si scorre a colpo d'occhio, mentre larghezze diverse fanno leggere la forma
-                       invece del numero (è la ragione di `ui-gain`, applicata qui) - per questo la
-                       larghezza sta nella DICHIARAZIONE della lettura e non nel numero che ci finisce.
-
-                       E NESSUN TOOLTIP QUI (operatore, 04/09/2026): la frase che spiega un numero è la
-                       STESSA su ogni riga - una legenda, non un fatto su quell'uomo - e sta sulla
-                       pastiglia della barra, dove si legge una volta per pagina invece di aprirsi cento
-                       volte in una lista alta diciassette pixel.
-
-                       NIENTE COLORE: il colore di questa riga è del GAIN, che è il numero che ordina.
-                       Dipingere anche queste sarebbe una seconda scala accanto a quella vera, e la
-                       prima domanda al tavolo diventerebbe «quale dei due verdi conta?».
-
-                       E RESTANO IN RIGA ANCHE SU UN BLOCCO STRETTO (operatore, 16/09/2026). Dal
-                       04/09 sotto le 23rem andavano a capo per conto loro - il contenitore, non la
-                       finestra - e la misura che lo imponeva è ancora vera: a mantra, in riga, 182
-                       nomi su 255 vengono tagliati. La decisione, presa con quel numero davanti, è che
-                       una colonna di valori incolonnati vale più di un nome intero, e il nome ha
-                       comunque il suo tooltip. `flex-wrap` resta come ULTIMA risorsa e non come regola:
-                       quando nemmeno un nome largo zero basta, la fila va a capo invece di spingere il
-                       gain fuori dal blocco, che è il difetto misurato il 04/09.
-
-                       Il riquadro è un INCAVO - il fondo della pagina con il suo bordo - e non una tinta:
-                       `bg-control` era stato provato e MISURATO a schermo, ma su questo tema `control`
-                       (#1c1c26) e `surface` (#14141c) distano otto punti per canale e su una riga
-                       TINTA (`bg-control/25`, la banda dello slot) la pastiglia spariva del tutto - un
-                       riquadro che non si vede è un riquadro che non c'è. -->
-                  @if (shownReadings().length) {
-                    <span
-                      class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums"
-                      data-readings
+              @if (block.men.length) {
+                <!-- L'ULTIMA LISTA SI SCOSTA DAL BOX DEL VIAGGIO NEL TEMPO, che è `fixed` in basso a destra
+                     e sta fuori dall'outlet: su una pagina che scorre gli galleggia sopra la fine del
+                     contenuto, qui invece il blocco è alto quanto la finestra e il box gli coprirebbe per
+                     sempre le ultime due righe. Un nome coperto a un'asta è il difetto peggiore che questa
+                     pagina possa avere, quindi la coda della lista si può portare sopra il box scorrendo. -->
+                <!-- LA LISTA È UNA DROP LIST DI CDK (scelta dell'operatore, 27/08/2026): l'anteprima, il
+                     segnaposto, lo scorrimento al bordo e il drag nativo spento sono suoi. `cdkDropListData`
+                     le passa i nomi COME SONO A SCHERMO, così l'indice che dichiara al rilascio è un indice
+                     su questa lista e non su un'altra. -->
+                <!-- LA LISTA È IL CONTENITORE che decide la forma della riga (`@container`), e non una
+                     soglia sulla FINESTRA: quanto è larga una lista dipende da quanti blocchi ci sono -
+                     quattro a classic, dodici a mantra - quindi la stessa finestra dà 386px o 254px. Una
+                     media query risponderebbe alla domanda sbagliata. Quello che il contenitore decide
+                     oggi è il RIENTRO della riga; la fila delle pastiglie non va più a capo sotto le 23rem
+                     (operatore, 16/09/2026) - e la misura che l'aveva imposto resta vera e dichiarata:
+                     lì il nome viene tagliato su 182 righe di 255. Quello che non può succedere è il gain
+                     spinto fuori dal blocco, e per quello c'è `flex-wrap` sulla riga. -->
+                <ol
+                  class="@container scrollbar-slim scrollbar-quiet min-h-0 flex-1 overflow-y-auto"
+                  cdkDropList
+                  [cdkDropListData]="block.men"
+                  (cdkDropListDropped)="dropped(block.role, $event)"
+                >
+                  @for (row of block.men; track row.man.fcId) {
+                    <!-- IL VESTITO DELL'ANTEPRIMA LO METTE CDK (`cdkDragPreviewClass`), e non una variante
+                         sulla riga: misurato il 27/08/2026, `[&.cdk-drag-preview]:bg-*` NON dipinge
+                         sull'anteprima - la regola è nel CSS, la classe è sull'elemento, il token risolve, e
+                         il fondo resta trasparente - mentre la stessa forma sul SEGNAPOSTO dipinge. Con
+                         `cdkDragPreviewClass` la classe è normale e sta solo sulla copia che vola, quindi non
+                         c'è nessuna variante da far combaciare. Opacità 0,3 e un fondo sono la richiesta
+                         dell'operatore: l'anteprima è un fantasma, e quello che deve leggersi è la lista
+                         sotto con il buco che dice dove finirà. -->
+                    <!-- SI TRASCINA LA RIGA INTERA, e non una maniglia: su questa riga non c'e' nessun'altra
+                         azione al click, quindi una maniglia da 12px sarebbe un bersaglio piccolo aggiunto
+                         per niente. `cdkDragData` porta l'identita' del nome - il rilascio
+                         dichiara un indice, e chi si e' mosso lo dice questo - e `data-id` resta perche'
+                         l'arnese e2e verifica il gesto leggendo la lista disegnata. -->
+                    <!-- LO SFONDO RAGGRUPPA OGNI `n` NOMI, con `n` = i partecipanti (operatore,
+                         04/09/2026), e non una riga sì e una no: le bande alternate disegnano lo SLOT,
+                         che è il rango dentro il ruolo diviso il numero di rose - la legge di
+                         conservazione su cui poggia ogni numero del banco d'asta (in una lega da dieci
+                         ci sono dieci «primi difensori» perché ognuno ne schiera uno). Sostituisce la
+                         zebra invece di aggiungersi: due alternanze sulla stessa proprietà darebbero
+                         quattro tinte e il confine della banda - la sola cosa che si deve leggere - si
+                         perderebbe fra le altre tre. -->
+                    <!-- IL BORDO SINISTRO È DEL NOME, non del contenitore: a dodici blocchi una lista è
+                         larga ~254px e ogni pixel speso in margine è un pixel tolto al nome, che è la sola
+                         cosa che si cerca scorrendo. Quindi il rientro è minimo e a lista stretta sparisce
+                         del tutto (richiesta dell'operatore, 04/09/2026); a destra resta, perché lì ci
+                         finiscono il gain e le pastiglie e un numero attaccato al bordo si legge peggio. -->
+                    <li
+                      class="flex cursor-grab flex-wrap items-center gap-x-1 gap-y-0.5 py-0.5 pl-1 pr-1.5
+                             text-xs @max-[23rem]:pl-0 [&.cdk-drag-placeholder]:bg-primary/25"
+                      [class]="bandTone(row.at)"
+                      [attr.data-id]="row.man.fcId"
+                      [attr.data-band]="bandOf(row.at)"
+                      [attr.data-behind]="row.fromBehind ? '1' : null"
+                      cdkDrag
+                      [cdkDragDisabled]="!canDrag(block.role)"
+                      [cdkDragData]="row.man.fcId"
+                      [cdkDragPreviewClass]="previewClass"
+                      (cdkDragStarted)="onDragStarted()"
+                      (cdkDragEnded)="onDragEnded()"
+                      (click)="onPick(row.man, $event)"
                     >
-                      @for (reading of shownReadings(); track reading.id) {
-                        <!-- DOPPIO CLICK = ORDINA PER QUESTO VALORE (operatore, 16/09/2026), e la
-                             chiave e' `reading.id`, che E' gia' `refText(ref)`: la stessa stringa che
-                             il selettore in barra mette in `sort`. Una seconda costruzione della
-                             chiave sarebbe come il gesto e il selettore finiscono per ordinare su due
-                             cose diverse con lo stesso nome. Sulle COPPIE `sortKeyOf` risponde niente
-                             e il bersaglio non si offre: `12:5` non ha un numero dietro. -->
+                      <span
+                        class="w-5 shrink-0 text-right text-[10px] tabular-nums"
+                        [class]="row.at < block.pinned ? 'font-semibold text-fg' : 'text-muted'"
+                        >{{ row.at + 1 }}</span
+                      >
+                      <ui-crest
+                        size="sm"
+                        [club]="row.man.club"
+                        [clubId]="row.man.clubId"
+                        [crests]="store.crests()"
+                      />
+                      <!-- NIENTE BADGE DEL RUOLO (operatore, 04/09/2026): il blocco È il ruolo, quindi a
+                           classic ripeteva l'intestazione riga per riga. Su mantra diceva qualcosa in più -
+                           in quali ALTRI blocchi l'uomo compare - e quella metà non è stata buttata: sta nel
+                           tooltip della riga quando i codici sono più d'uno, che è dove la riga già parla.
+
+                           UN TOOLTIP SOLO PER RIGA, e sta QUI (operatore, 04/09/2026: «limita i tooltip nei
+                           calciatori al minimo essenziale»). Prima ce n'erano quattro su una riga alta 17px -
+                           il `title` nativo, la freccia, la fila delle pastiglie e il tilde - cioè quattro
+                           pannelli che si aprono mentre si cerca un nome; e tre di quei quattro dicevano la
+                           stessa frase su OGNI riga, perché erano una LEGENDA e non un fatto su quell'uomo.
+                           La legenda è salita nell'intestazione del blocco, che è un hover solo per lista;
+                           qui resta il solo per-uomo: il nome intero (la colonna lo taglia), il club, i suoi
+                           codici e i due marchi. Il bersaglio è il nome perché è l'elemento più largo, ed è
+                           anche quello che si sta leggendo quando serve saperne di più. -->
+                      <!-- IL NOME E I SUOI MARCHI SONO UN GRUPPO SOLO, e i marchi stanno DALLA PARTE DEL
+                           NOME (operatore, 16/09/2026: «le icone devono stare dal lato del nome a
+                           sinistra»). Prima erano fratelli del nome in un flex dove il nome era `flex-1`:
+                           il nome si prendeva tutto lo spazio libero e le icone finivano spinte a destra,
+                           appiccicate alla fila delle pastiglie - cioè in mezzo ai numeri, che è dove
+                           sembravano appartenere a loro invece che a lui.
+
+                           IL GRUPPO È `flex-1` AL POSTO DEL NOME, che è quello che tiene fermo tutto il
+                           resto: il bordo sinistro del nome non si muove (prima di lui ci sono solo il
+                           posto e lo stemma, tutt'e due a larghezza fissa), quindi la colonna che si
+                           scorre non fa zig-zag, e la fila delle pastiglie resta incolonnata PER
+                           COSTRUZIONE - qualunque marchio condizionale ora sta dentro il gruppo e non fra
+                           la fila e il gain, che è il difetto misurato il 09/09/2026 («il simbolo ~ rompe
+                           l'incolonnamento dei valori»).
+
+                           Dentro il gruppo il nome è l'unico che si stringe e i marchi sono `shrink-0`,
+                           quindi il prezzo lo paga lui - che è la cosa che già tronca. Il nome a larghezza
+                           naturale con uno spaziatore dopo - la forma della plancia - qui non va: in un
+                           contenitore `flex-wrap` un nome lungo manderebbe i marchi a capo invece di
+                           stringersi.
+
+                           E QUANDO LO SPAZIO FINISCE CEDE IL NOME, non la fila: è la decisione
+                           dell'operatore del 16/09/2026 («tutti i valori dovrebbero andare sulla stessa riga
+                           incolonnati invece vanno su 2 righe»), presa col prezzo davanti - su mantra con tre
+                           pastiglie sono 182 nomi tagliati su 255 e il più stretto a 0px, su classic con
+                           sette 249 su 250. Quindi `min-w-0` sul gruppo e nessun pavimento: un pavimento -
+                           provato a 112px e poi a 80 - manda a capo la fila appena il nome non ci sta più,
+                           che è esattamente quello che lui non vuole vedere.
+
+                           Il pavimento era stato provato PRIMA sul nome, e quella misura resta perché dice
+                           dove NON va: con un `min-w` addosso a lui la sua cella non si stringe più sul
+                           testo, quindi su un nome corto i marchi si staccavano di 31,8px dall'ultima
+                           lettera - cioè il difetto che questo gruppo esiste per curare, rifatto un livello
+                           più in basso. Sul gruppo invece il nome continua a misurare il proprio testo e i
+                           marchi restano a 4px sempre. -->
+                      <span class="flex min-w-0 flex-1 items-center gap-x-1">
+                        <!-- DOPPIO CLICK = ORDINA PER NOME (operatore, 16/09/2026). `data-sort-key` non e'
+                             solo per l'arnese: e' quello che `onPick` legge per sapere se questo click deve
+                             aspettare il doppio, quindi il bersaglio si DICHIARA invece di essere indovinato
+                             da un selettore che vive in un altro file. -->
                         <span
-                          class="inline-flex justify-center rounded border px-1"
-                          [class]="pill(reading, row.readings)"
-                          [class.opacity-50]="isRough(reading.ref, row.readings)"
-                          [class.cursor-pointer]="!!sortKeyOf(reading)"
-                          [attr.data-reading]="reading.id"
-                          [attr.data-sort-key]="sortKeyOf(reading)"
-                          (dblclick)="
-                            sortKeyOf(reading) && onSortHere(sortKeyOf(reading)!);
-                            $event.stopPropagation()
+                          class="min-w-0 truncate text-fg"
+                          data-name
+                          [attr.data-sort-key]="nameSort"
+                          (dblclick)="onSortHere(nameSort); $event.stopPropagation()"
+                          nz-tooltip
+                          [nzTooltipMouseEnterDelay]="0.4"
+                          [nzTooltipTitle]="
+                            row.man.name +
+                            ' · ' +
+                            row.man.club +
+                            (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
+                            (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
+                            (row.estimated ? ' · numero stimato' : '') +
+                            sampleSaid(row.readings)
                           "
-                          >{{ text(reading.spec, reading.ref, row.readings) }}</span
+                          >{{ row.man.name }}</span
+                        ><ui-ruling-dot [playerId]="row.man.fcId" />
+                        <!-- IL TILDE: il numero sta in piedi sul ripiego dichiarato e non sulla previsione del
+                             motore. Stessa convenzione del pannello del toolkit, perché una stima che si legge
+                             come una misura è la cosa peggiore che una lista possa fare.
+
+                             STA ACCANTO AL NOME (operatore, 09/09/2026) e non accanto ai numeri che qualifica:
+                             quello che è stimato è l'uomo intero - il gain e le pastiglie vengono tutti dallo
+                             stesso ripiego - quindi il marchio è del NOME, come il pallino della dichiarazione
+                             che gli sta davanti.
+
+                             IL DIFETTO PER CUI STA QUI ORA È IMPOSSIBILE PER COSTRUZIONE, e la storia resta
+                             perché è quella che spiega il vincolo. Trovato il 09/09/2026 («il simbolo ~ rompe
+                             l'incolonnamento dei valori»): il tilde era fratello delle pastiglie, e in un flex
+                             il bordo destro di un elemento vale `container.right - (somma dei successivi)` -
+                             quindi qualunque cosa condizionale messa FRA la fila e il gain sposta quella
+                             colonna solo sulle righe che ce l'hanno (misurato in un browser vero: 58 righe su
+                             250 e la fila 10,84px più a sinistra, il glifo 6,84 più i 4 di `gap-x-1`). Dal
+                             16/09 vive DENTRO il gruppo del nome, quindi il costo lo paga il nome - che è a
+                             sinistra e tronca - e la fila non lo vede affatto. L'arnese asserisce il FATTO e
+                             non la cura: se domani qualcuno rimette un marchio condizionale fuori di qui, quel
+                             passo cade lo stesso.
+
+                             FUORI dallo span del nome e non dentro, che sarebbe stato il modo ovvio di
+                             «metterlo vicino»: quello span è `truncate`, quindi su un nome lungo il marchio
+                             verrebbe tagliato via - e un nome lungo è esattamente una riga che si guarda. -->
+                        @if (row.estimated) {
+                          <span class="shrink-0 text-[10px] text-muted" data-estimated>~</span>
+                        }
+                        <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
+                        <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
+                             Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
+                             del nome: a sinistra spostava ogni nome di qualche pixel e la colonna si leggeva a
+                             zig-zag, che è esattamente quello che l'occhio scorre. Il colore è quello dei dati
+                             e non un allarme: non è una brutta notizia, è un'altra domanda. -->
+                        @if (row.fromBehind) {
+                          <span class="shrink-0 text-[10px] text-muted">&darr;{{ row.deepest }}</span>
+                        }
+                      </span>
+                      <!-- LE PASTIGLIE, e da oggi sono SETTE e si scelgono (operatore, 05/09/2026): la
+                           barra le accende e le spegne, la riga disegna quelle accese nell'ordine
+                           dichiarato. Le prime tre partono accese.
+
+                           Tre riquadri della stessa forma, incolonnati lungo la lista: una fila di riquadri
+                           uguali si scorre a colpo d'occhio, mentre larghezze diverse fanno leggere la forma
+                           invece del numero (è la ragione di `ui-gain`, applicata qui) - per questo la
+                           larghezza sta nella DICHIARAZIONE della lettura e non nel numero che ci finisce.
+
+                           E NESSUN TOOLTIP QUI (operatore, 04/09/2026): la frase che spiega un numero è la
+                           STESSA su ogni riga - una legenda, non un fatto su quell'uomo - e sta sulla
+                           pastiglia della barra, dove si legge una volta per pagina invece di aprirsi cento
+                           volte in una lista alta diciassette pixel.
+
+                           NIENTE COLORE: il colore di questa riga è del GAIN, che è il numero che ordina.
+                           Dipingere anche queste sarebbe una seconda scala accanto a quella vera, e la
+                           prima domanda al tavolo diventerebbe «quale dei due verdi conta?».
+
+                           E RESTANO IN RIGA ANCHE SU UN BLOCCO STRETTO (operatore, 16/09/2026). Dal
+                           04/09 sotto le 23rem andavano a capo per conto loro - il contenitore, non la
+                           finestra - e la misura che lo imponeva è ancora vera: a mantra, in riga, 182
+                           nomi su 255 vengono tagliati. La decisione, presa con quel numero davanti, è che
+                           una colonna di valori incolonnati vale più di un nome intero, e il nome ha
+                           comunque il suo tooltip. `flex-wrap` resta come ULTIMA risorsa e non come regola:
+                           quando nemmeno un nome largo zero basta, la fila va a capo invece di spingere il
+                           gain fuori dal blocco, che è il difetto misurato il 04/09.
+
+                           Il riquadro è un INCAVO - il fondo della pagina con il suo bordo - e non una tinta:
+                           `bg-control` era stato provato e MISURATO a schermo, ma su questo tema `control`
+                           (#1c1c26) e `surface` (#14141c) distano otto punti per canale e su una riga
+                           TINTA (`bg-control/25`, la banda dello slot) la pastiglia spariva del tutto - un
+                           riquadro che non si vede è un riquadro che non c'è. -->
+                      @if (shownReadings().length) {
+                        <span
+                          class="flex shrink-0 items-center gap-0.5 text-[10px] leading-none tabular-nums"
+                          data-readings
                         >
+                          @for (reading of shownReadings(); track reading.id) {
+                            <!-- DOPPIO CLICK = ORDINA PER QUESTO VALORE (operatore, 16/09/2026), e la
+                                 chiave e' `reading.id`, che E' gia' `refText(ref)`: la stessa stringa che
+                                 il selettore in barra mette in `sort`. Una seconda costruzione della
+                                 chiave sarebbe come il gesto e il selettore finiscono per ordinare su due
+                                 cose diverse con lo stesso nome. Sulle COPPIE `sortKeyOf` risponde niente
+                                 e il bersaglio non si offre: `12:5` non ha un numero dietro. -->
+                            <span
+                              class="inline-flex justify-center rounded border px-1"
+                              [class]="pill(reading, row.readings)"
+                              [class.opacity-50]="isRough(reading.ref, row.readings)"
+                              [class.cursor-pointer]="!!sortKeyOf(reading)"
+                              [attr.data-reading]="reading.id"
+                              [attr.data-sort-key]="sortKeyOf(reading)"
+                              (dblclick)="
+                                sortKeyOf(reading) && onSortHere(sortKeyOf(reading)!);
+                                $event.stopPropagation()
+                              "
+                              >{{ text(reading.spec, reading.ref, row.readings) }}</span
+                            >
+                          }
+                        </span>
                       }
-                    </span>
+                      <!-- IL GAIN A GIORNATA (operatore, 04/09/2026), che è la sua regola del 03/09 sui
+                           punti per giornata applicata alla colonna che ordina. `perMatch` è una
+                           definizione sola, letta anche dalla scala del colore: dividere solo la riga
+                           lascerebbe le fasce tarate sui totali di stagione e ogni uomo leggerebbe
+                           `scarso`. Due cifre perché il numero ora sta fra 0 e ~1,3 e con una sola metà
+                           listone leggerebbe «0,1». -->
+                      @if (gainShown()) {
+                        <ui-gain [gain]="perMatch(row.gain)" [scale]="scale()" [digits]="2" size="sm" />
+                      }
+                    </li>
                   }
-                  <!-- IL GAIN A GIORNATA (operatore, 04/09/2026), che è la sua regola del 03/09 sui
-                       punti per giornata applicata alla colonna che ordina. `perMatch` è una
-                       definizione sola, letta anche dalla scala del colore: dividere solo la riga
-                       lascerebbe le fasce tarate sui totali di stagione e ogni uomo leggerebbe
-                       `scarso`. Due cifre perché il numero ora sta fra 0 e ~1,3 e con una sola metà
-                       listone leggerebbe «0,1». -->
-                  @if (gainShown()) {
-                    <ui-gain [gain]="perMatch(row.gain)" [scale]="scale()" [digits]="2" size="sm" />
-                  }
-                </li>
-              }
-            </ol>
-          } @else {
-            <p class="flex flex-1 items-center justify-center px-2 text-center text-[11px] text-muted">
-              @if (block.hidden) {
-                Nessuno dei {{ block.hidden }} nomi di questa lista si chiama così, o gioca in una
-                squadra che si chiama così.
-              } @else if (block.dropped) {
-                <!-- LA RAGIONE GIUSTA PER UN BLOCCO VUOTO: col filtro attivo, dare la colpa al foglio
-                     («nessuno ha un numero») è una frase falsa su una lista che i numeri ce li ha. Un
-                     blocco corto senza la sua ragione a schermo si legge come un blocco rotto, e con
-                     la ragione SBAGLIATA si legge come un difetto dei dati. -->
-                Nessuno dei {{ block.dropped }} uomini di questo ruolo passa il filtro.
-              } @else if (settings().view === 'natives' && !block.nativePool && block.pool) {
-                Nessuno dei {{ block.pool }} uomini che coprono questo posto ci sta di mestiere: hanno
-                tutti un ruolo più arretrato. Passa a «Tutti» per vederli.
-              } @else if (block.pool) {
-                Nessuno dei {{ block.pool }} uomini di questo ruolo ha un numero sul foglio.
+                </ol>
               } @else {
-                Questo listone non quota nessuno di questo ruolo.
+                <p class="flex flex-1 items-center justify-center px-2 text-center text-[11px] text-muted">
+                  @if (block.hidden) {
+                    Nessuno dei {{ block.hidden }} nomi di questa lista si chiama così, o gioca in una
+                    squadra che si chiama così.
+                  } @else if (block.dropped) {
+                    <!-- LA RAGIONE GIUSTA PER UN BLOCCO VUOTO: col filtro attivo, dare la colpa al foglio
+                         («nessuno ha un numero») è una frase falsa su una lista che i numeri ce li ha. Un
+                         blocco corto senza la sua ragione a schermo si legge come un blocco rotto, e con
+                         la ragione SBAGLIATA si legge come un difetto dei dati. -->
+                    Nessuno dei {{ block.dropped }} uomini di questo ruolo passa il filtro.
+                  } @else if (settings().view === 'natives' && !block.nativePool && block.pool) {
+                    Nessuno dei {{ block.pool }} uomini che coprono questo posto ci sta di mestiere: hanno
+                    tutti un ruolo più arretrato. Passa a «Tutti» per vederli.
+                  } @else if (block.pool) {
+                    Nessuno dei {{ block.pool }} uomini di questo ruolo ha un numero sul foglio.
+                  } @else {
+                    Questo listone non quota nessuno di questo ruolo.
+                  }
+                </p>
               }
-            </p>
+            </section>
+            }
           }
-        </section>
+        </div>
       }
     </div>
   }
