@@ -53,6 +53,48 @@
       }
     </nz-radio-group>
 
+    <!-- IL FOCUS: un interruttore, e accanto la frase che dice cosa sta mostrando.
+         Sua richiesta del 23/09/2026, la prima della giornata. Smorza chi non serve alla rosa invece di
+         nasconderlo, perche' all'asta esce quello che esce: una lista che TOGLIE un nome non lo rende
+         non-comprabile, lo rende invisibile nel momento in cui viene chiamato.
+         I BISOGNI SI LEGGONO ACCANTO AL TASTO e non nel tooltip: uno schermo mezzo spento senza una
+         parola in cima si legge come un guasto - la stessa ragione per cui la lente si dichiara qui. -->
+    <button
+      type="button"
+      data-focus
+      nz-button
+      nzSize="small"
+      [nzType]="store.focusOn() ? 'primary' : 'default'"
+      nz-tooltip
+      nzTooltipTitle="Evidenzia solo chi serve alla tua rosa: prima i reparti scoperti, poi le parole alte dove pagano (difesa e attacco), poi i posti da riempire"
+      (click)="store.focusOn.set(!store.focusOn())"
+    >
+      <nz-icon nzType="aim" />
+      FOCUS
+    </button>
+    @if (store.focusOn()) {
+      <!-- L'ETICHETTA E' UN BOTTONE (sua richiesta del 23/09/2026: «cliccando sull'etichetta seleziona
+           l'obiettivo successivo»): quello che il focus propone e' un suggerimento, e questo e' il modo
+           di scavalcarlo senza spegnerlo. Il giro e' TOP → TITOLARE → COPERTURA → RESTO e riparte, di
+           severita' decrescente, cosi' un click restringe sempre e un giro intero riporta a casa. -->
+      <span class="flex items-center gap-1 text-[11px]" data-focus-needs>
+        @for (one of focusSays(); track one.role) {
+          <button
+            type="button"
+            data-goal
+            class="rounded bg-control px-1.5 py-0.5 font-medium text-fg hover:bg-fg/10"
+            nz-tooltip
+            [nzTooltipTitle]="'Obiettivo del reparto: click per il successivo (TOP → TITOLARE → COPERTURA → RESTO)'"
+            (click)="store.cycleGoal(one.role)"
+          >
+            {{ one.role }} {{ one.label }}
+          </button>
+        } @empty {
+          <span class="text-muted italic">la rosa è a posto: non manca niente</span>
+        }
+      </span>
+    }
+
     <!-- LA LENTE SI DICHIARA IN BARRA, e non solo sulla card che l'ha accesa: smorza duecentocinquanta
          righe, quindi uno schermo mezzo spento senza una parola in cima si legge come un guasto. E la
          VIA D'USCITA sta qui accanto alla ragione - la stessa forma dell'ordine personale della pagina
@@ -201,6 +243,7 @@
     [blocks]="store.viewBlocks()"
     [view]="store.slotView()"
     [activeTeam]="store.lensId()"
+    [focus]="store.focusIds()"
     [lotBlockId]="store.viewLotBlockId()"
     [pairs]="store.pairs()"
     (pick)="onPick($event)"

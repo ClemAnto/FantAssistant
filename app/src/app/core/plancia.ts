@@ -115,6 +115,13 @@ export interface PlanciaMan {
    * una frase sul calciatore e non sulla nostra ignoranza, e chi non ce l'ha va in fondo.
    */
   surplus: number | null;
+  /**
+   * LA PAROLA DELLA SCALA (`engine/categories.py`), che il FOCUS legge per sapere chi e' «alto».
+   *
+   * Del FOGLIO e non ricalcolata: la scala vive nel toolkit, dove le sue sbarre sono misurate e il
+   * cancello dell'undici tipo la corregge. Una seconda lettura qui darebbe a un uomo due parole.
+   */
+  category: string | null;
   basis: ValuationBasis;
   /** Quanto e' solido il numero: 1 per una misura, `est_confidence` per una stima. Entra nel TETTO. */
   confidence: number;

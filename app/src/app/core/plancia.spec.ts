@@ -47,6 +47,9 @@ function man(
     // ...e lo stesso per la MONETA della griglia personale: vuota di default, cosi' un test che
     // asserisce sul taglio la dichiara e si legge su cosa sta tagliando.
     surplus: null,
+    // ...e la parola della scala, vuota di default per la stessa ragione delle due sopra: un test che
+    // asserisce sul FOCUS la dichiara, e si legge su quale categoria sta ragionando.
+    category: null,
     basis: 'measured',
     confidence: 1,
     outNow,

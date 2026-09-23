@@ -67,6 +67,31 @@ export class DigitInput {
     this.value.set(this.fit(this.clamped() + place * by));
   }
 
+  /**
+   * LA ROTELLA SULLA COLONNA, sua richiesta del 23/09/2026: «quando uso la rotella del mouse sul
+   * componente la cifra si incrementi o si decrementi».
+   *
+   * SULLA COLONNA E NON SUL COMPONENTE, ed e' quello che la rende utile: un odometro ha una cifra per
+   * posto, quindi la rotella sulle centinaia muove le centinaia. Rotolare sull'intero controllo
+   * muoverebbe sempre l'unita' e arrivare a 400 costerebbe quattrocento scatti - la stessa ragione per
+   * cui le freccette stanno sopra e sotto la PROPRIA cifra e non in fondo alla fila.
+   *
+   * `preventDefault` perche' altrimenti la pagina scorre sotto il puntatore mentre si cambia il prezzo,
+   * e un gesto con due effetti di cui uno non chiesto e' peggio di nessun gesto. Che la chiamata MORDA
+   * e' misurato e non dedotto (`e2e-digit-wheel.mjs`): su un elemento un listener `wheel` non e'
+   * passivo per default - lo sono quelli su `window` e `document` - ma questa e' esattamente il genere
+   * di affermazione che questo repository ha gia' pagato credendo al codice invece che allo schermo.
+   *
+   * E OLTRE L'ESTREMO NON FA NIENTE, come le freccette: `step` passa per `fit`, e una rotella che
+   * porta un campo fuori dai suoi limiti e' un controllo che si comporta in due modi.
+   */
+  protected wheel(place: number, event: WheelEvent): void {
+    if (!event.deltaY) return;
+    event.preventDefault();
+    const by = event.deltaY < 0 ? 1 : -1;
+    if (!this.blocked(place, by)) this.step(place, by);
+  }
+
   /** Vero quando quella freccetta porterebbe fuori dai due estremi: il bottone si spegne e lo dice. */
   protected blocked(place: number, by: 1 | -1): boolean {
     const next = this.clamped() + place * by;

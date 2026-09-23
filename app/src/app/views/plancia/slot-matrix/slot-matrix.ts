@@ -102,6 +102,14 @@ export class SlotMatrix {
    * mediana della MIA max offerta - la coordinata su cui e' tagliato.
    */
   readonly view = input<SlotView>('market');
+  /**
+   * GLI ID CHE SERVONO ALLA MIA ROSA quando il FOCUS e' acceso, `null` quando e' spento.
+   *
+   * Un INSIEME e non un predicato, perche' questo componente e' puro a input e deve restarlo: una
+   * funzione passata da fuori lo legherebbe al negozio della plancia, e allora il campetto delle rose
+   * non potrebbe piu' riusarlo. Chi sa cosa serve e' lo store (`focusNeeds`), chi lo disegna e' questo.
+   */
+  readonly focus = input<ReadonlySet<number> | null>(null);
   readonly lotBlockId = input<string | null>(null);
   /**
    * LA ROSA ACCESA, e qui serve solo a smorzare le altre righe (sua richiesta, 04/09/2026).
@@ -312,7 +320,14 @@ export class SlotMatrix {
    */
   protected dimmed(man: BoardMan): boolean {
     const at = this.activeTeam();
-    return at != null && man.ownerId !== at;
+    if (at != null) return man.ownerId !== at;
+    // ...E IL FOCUS SMORZA CHI NON SERVE (23/09/2026). Stesso inchiostro della lente e non un secondo:
+    // due modi di dire «questa riga adesso non ti riguarda» sarebbero due cose da imparare, e la
+    // pagina ne ha gia' una che l'operatore conosce. I DUE NON SI SOMMANO - la lente vince, perche'
+    // quando si guarda una rosa la domanda e' quella e non «cosa mi manca».
+    const serve = this.focus();
+    if (serve) return !serve.has(man.id);
+    return false;
   }
 
   /** ...e il suo complemento: la riga che la lente sta ACCENDENDO. Una definizione, due letture. */

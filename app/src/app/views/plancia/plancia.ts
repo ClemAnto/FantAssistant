@@ -20,7 +20,8 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { AuctionFeed } from '../../core/auction-feed';
 import { PageActions } from '../../core/page-actions';
-import { SlotView } from '../../core/plancia';
+import { Goal, GOAL_LABEL } from '../../core/focus';
+import { Role, SlotView } from '../../core/plancia';
 import { PLAYED_PROGRESS } from '../../core/plancia-demo';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { AppHeader } from '../../ui/app-header/app-header';
@@ -96,6 +97,25 @@ export class Plancia {
    * Sua richiesta del 04/09/2026. La parola «slot» è quella del gioco (sua indicazione del 03/09,
    * come `titolarissimo` e `por`), quindi i due nomi sono i suoi e non «fasce» o «blocchi».
    */
+  /**
+   * COSA IL FOCUS STA CERCANDO, in parole: una frase per reparto, e niente per quelli a posto.
+   *
+   * LE QUATTRO PAROLE SONO SUE (23/09/2026): TOP · TITOLARE · COPERTURA · RESTO. L'etichetta dice
+   * l'obiettivo ATTIVO di quel reparto - quello che la rosa chiede, o quello che ha scelto lui - e un
+   * click passa al successivo. Quello che l'automatico propone segue le misure: prima il buco (4,73
+   * fantapunti a giornata, il numero piu' grande che questo progetto abbia misurato su una rosa) e per
+   * chiuderlo serve un TITOLARE, poi le parole alte dove pagano, poi il riempimento.
+   *
+   * VUOTA QUANDO NON MANCA NIENTE, e lo dice il template con una frase invece che con il silenzio: una
+   * barra che non nomina nessun reparto mentre lo schermo e' mezzo spento si legge come un guasto.
+   */
+  protected readonly focusSays = computed<{ role: Role; label: string }[]>(() => {
+    const needs = this.store.focusNeeds();
+    return (['P', 'D', 'C', 'A'] as const)
+      .filter((role) => needs[role] !== null)
+      .map((role) => ({ role, label: GOAL_LABEL[needs[role] as Goal] }));
+  });
+
   protected readonly slotViews: { value: SlotView; label: string; hint: string }[] = [
     {
       value: 'market',

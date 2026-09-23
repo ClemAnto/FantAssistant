@@ -63,6 +63,31 @@ import {
 } from './plancia';
 import { DEMO_PROGRESS, STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
 import { PlayerRulings, rungShares } from './player-rulings';
+import { needOf, nextGoal, serves, Goal, Owned } from './focus';
+
+/**
+ * QUANTO DEVE GIOCARE UN UOMO PERCHE' IL FOCUS LO CONTI COME COPERTURA: 25 giornate su 38, sua cifra.
+ *
+ * VENTICINQUE E NON VENTISEI, e la differenza non e' un arrotondamento: il 26 e' il confine fra
+ * `scommessa` e `operaio` sulla scala delle categorie, dove cade nel vuoto fra i suoi nomi (Diao 25,8
+ * contro Davis 27,3). Qui la domanda e' un'altra - «questo uomo gioca sempre?» - e la sua cifra e' 25.
+ * Due domande vicine con due numeri vicini sono esattamente il posto in cui questo repository ha gia'
+ * sbagliato tre volte prendendone uno in prestito per l'altra.
+ *
+ * LA PRIMA VERSIONE USAVA 0,35 - `minAvailability`, la quota che la pagina delle buste chiede per dire
+ * che un uomo regge un posto - E IL BANCO L'HA BOCCIATA GUARDANDO LO SCHERMO: a rosa vuota tutti e
+ * quattro i reparti sono scoperti, e con quella soglia il focus accendeva 239 righe su 271, cioe' non
+ * restringeva niente. Un focus che mostra tutto e' un focus spento con un tasto acceso.
+ *
+ * La soglia giusta e' quella del PAVIMENTO DEGLI OPERAI (`BET_CEILING_SHARE`, 26 su 38): chi copre un
+ * posto e' chi lo regge tutte le settimane, ed e' la stessa misura dall'altro lato - un confine, un
+ * numero. 0,35 risponde a un'altra domanda («vale la pena metterlo in una busta?»), e una soglia presa
+ * in prestito da un'altra domanda e' un difetto che questo repository ha gia' pagato tre volte.
+ */
+const MIN_FOCUS_SHARE = 25 / 38;
+
+/** ...e la quota che «gioca sempre» chiede, che e' la sua: Pa >= 25, tenuta come quota del calendario. */
+const FOCUS_RULES = { matchdays: 0, coverShare: MIN_FOCUS_SHARE };
 import { sheetBlendsSeen, swingOf } from './swing';
 
 /** The four letters of the board's lines, from the two alphabets the feed splits the outfield into. */
@@ -335,6 +360,7 @@ export class PlanciaStore {
         // LA MONETA DELLA GRIGLIA PERSONALE (23/09/2026). Gia' calcolato qui sopra e riscalato sulle
         // giornate che restano: si consegna alla riga invece di rifarlo, o un uomo avrebbe due surplus.
         surplus,
+        category: engine?.category ?? null,
         swing: swingOf({
           role,
           surplus,
@@ -581,6 +607,117 @@ export class PlanciaStore {
 
   /** My own squad, which is the one whose room decides every ceiling on screen. */
   readonly me = computed(() => this.feed.teams().find((team) => team.id === this.mineId()) ?? null);
+
+  /**
+   * LA MODALITA' FOCUS: accesa, la plancia smorza chi NON serve alla mia rosa (`core/focus.ts`).
+   *
+   * Sua richiesta del 23/09/2026. Uno STATO e non un filtro, per la ragione che questa pagina si e'
+   * gia' data due volte: le righe restano tutte, perche' all'asta esce quello che esce e una lista che
+   * NASCONDE un nome non lo rende non-comprabile - lo rende invisibile nel momento in cui viene
+   * chiamato. Il focus toglie ATTENZIONE, non uomini, ed e' lo stesso meccanismo della lente su una rosa.
+   */
+  readonly focusOn = signal(false);
+
+  /**
+   * I POSTI CHE L'UNDICI SCHIERA, per il conto dei buchi: il 4-3-3, una delle sue due forme dichiarate
+   * (`referenceShape` della pagina delle buste le nomina tutte e due) ed e' anche quella su cui il banco
+   * misura (`rules.FIELDED`). Dichiarato qui perche' la plancia una forma di riferimento non la sceglie:
+   * la sceglie chi compra, e finche' non gliela si chiede questa e' la sua.
+   */
+  private readonly FOCUS_PLACES: Record<Role, number> = { P: 1, D: 4, C: 3, A: 3 };
+
+  /** La mia rosa come il focus la legge: il ruolo, quanto gioca, il club e la parola della scala. */
+  private readonly ownedForFocus = computed<Owned[]>(() =>
+    this.blocks()
+      .flatMap((block) => block.rows)
+      .filter((man) => man.state === 'mio')
+      .map((man) => ({
+        role: man.role, expected: man.pv, club: man.club, category: man.category ?? null,
+      })),
+  );
+
+  /**
+   * IL BISOGNO DI OGNI REPARTO, e quale sia decide cosa il focus accende.
+   *
+   * `null` dove non c'e' piu' niente da comprare: un reparto pieno non ha bisogni, e continuare ad
+   * accendergli delle righe direbbe il contrario di quello che la barra dichiara.
+   */
+  readonly focusAuto = computed<Record<Role, Goal | null>>(() => {
+    const mine = this.ownedForFocus();
+    const team = this.me();
+    // SENZA CALENDARIO NON C'E' UNA QUOTA, e quindi non c'e' un obiettivo: la stessa regola che
+    // `expectedPlay` applica alla dritta - una quota senza le giornate non e' un numero di partite.
+    const matchdays = this.seasonRounds();
+    if (!matchdays) return { P: null, D: null, C: null, A: null } as Record<Role, Goal | null>;
+    const rules = { ...FOCUS_RULES, matchdays };
+    const out = {} as Record<Role, Goal | null>;
+    for (const role of ROLES) {
+      const left = team ? (team.missing[ROLE_ZONE[role]] ?? 0) : this.slots()[role];
+      out[role] = needOf(mine, role, this.FOCUS_PLACES[role], left, rules);
+    }
+    return out;
+  });
+
+  /**
+   * L'OBIETTIVO CHE HA SCELTO LUI, per i ruoli in cui l'ha fatto: un click sull'etichetta passa al
+   * successivo (sua richiesta del 23/09/2026).
+   *
+   * UN OVERRIDE E NON UNA SOSTITUZIONE: quello che il focus propone resta calcolato, e quello che lui
+   * sceglie sta sopra per quel ruolo soltanto. Cosi' un reparto che non ha toccato continua a seguire
+   * la rosa mentre compra, che e' la ragione per cui l'obiettivo automatico esiste - a quattro ore
+   * d'asta nessuno ricalcola a mente quanti buchi ha in difesa.
+   */
+  private readonly chosen = signal<Partial<Record<Role, Goal>>>({});
+
+  /** L'obiettivo VIVO di ogni reparto: il suo se l'ha scelto, altrimenti quello che la rosa chiede. */
+  readonly focusNeeds = computed<Record<Role, Goal | null>>(() => {
+    const auto = this.focusAuto();
+    const mine = this.chosen();
+    const out = {} as Record<Role, Goal | null>;
+    // ...e su un reparto PIENO la scelta non si applica: `auto` dice `null` perche' non c'e' piu'
+    // niente da comprare, e accendere delle righe li' direbbe il contrario di quello che la barra
+    // dichiara. Una scelta che sopravvive al proprio reparto e' un filtro che nessuno ha chiesto.
+    for (const role of ROLES) out[role] = auto[role] === null ? null : (mine[role] ?? auto[role]);
+    return out;
+  });
+
+  /** Il click sull'etichetta: al successivo dei quattro, e il giro riparte da capo. */
+  cycleGoal(role: Role): void {
+    const now = this.focusNeeds()[role];
+    if (now === null) return;
+    this.chosen.update((was) => ({ ...was, [role]: nextGoal(now) }));
+  }
+
+  /**
+   * GLI ID CHE SERVONO, o `null` col focus spento: la forma in cui la griglia lo legge.
+   *
+   * Un INSIEME e non un predicato, perche' `slot-matrix` e' puro a input e deve restarlo - chi sa cosa
+   * serve e' questo negozio, chi lo disegna e' il componente. E si calcola una volta per disegno invece
+   * che duecentocinquanta: la stessa ragione per cui `pool` della Strategia non si rifa' a ogni click.
+   */
+  readonly focusIds = computed<ReadonlySet<number> | null>(() => {
+    if (!this.focusOn()) return null;
+    const out = new Set<number>();
+    for (const block of this.viewBlocks()) {
+      for (const man of block.rows) if (this.servesFocus(man)) out.add(man.id);
+    }
+    return out;
+  });
+
+  /** Se questa riga chiude il bisogno del suo reparto. Falso per tutti quando il focus e' spento. */
+  servesFocus(man: { role: Role; pv: number | null; category: string | null; club: string }): boolean {
+    if (!this.focusOn()) return false;
+    return serves(
+      this.focusNeeds()[man.role],
+      { role: man.role, expected: man.pv, category: man.category, club: man.club },
+      man.role,
+      { ...FOCUS_RULES, matchdays: this.seasonRounds() ?? 0 },
+      // ...e la MIA rosa, che due dei quattro obiettivi confrontano: «completa l'undici» e
+      // «complementa quelli che abbiamo» sono relazioni, non soglie.
+      this.ownedForFocus(),
+      this.FOCUS_PLACES[man.role],
+    );
+  }
 
   /**
    * I MIEI UOMINI, TUTTI: dal listone e non dalla plancia, perche' la plancia non li disegna tutti.

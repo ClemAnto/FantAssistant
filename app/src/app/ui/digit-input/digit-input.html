@@ -5,22 +5,31 @@
      ragione per cui i due numeri della lente si compongono in una stringa sola, uno spazio in mezzo a
      delle cifre le fa leggere separate.
 
+     LA TAGLIA E' SUA (23/09/2026: «ingrandisci questo componente»): la colonna passa da 15 a 22px, la
+     cifra da 11 a 16 e il tastino da 20 a 28, cioe' tutto di circa la meta'. Le PROPORZIONI restano,
+     perche' quello che si ingrandisce e' un oggetto solo: una cifra piu' grande con le stesse freccette
+     leggerebbe come due controlli accostati invece che come un odometro.
+
      LE FRECCETTE SONO BOTTONI VERI e non due triangoli disegnati: le preme un puntatore, le raggiunge il
      tabulatore, e quando non possono fare niente sono `disabled` - un bottone che si preme senza effetto
      e' indistinguibile da un bottone rotto. -->
 <span class="flex items-center gap-1">
   <span class="flex items-stretch rounded border border-border bg-surface">
     @for (place of places(); track place) {
-      <span class="flex w-[15px] flex-col items-center">
+      <span
+        class="flex w-[22px] flex-col items-center"
+        data-column
+        (wheel)="wheel(place, $event)"
+      >
         <button
           type="button"
           data-step="up"
-          class="flex h-[9px] w-full items-center justify-center leading-none text-muted hover:bg-control hover:text-fg disabled:opacity-25 disabled:hover:bg-transparent"
+          class="flex h-[13px] w-full items-center justify-center leading-none text-muted hover:bg-control hover:text-fg disabled:opacity-25 disabled:hover:bg-transparent"
           [disabled]="blocked(place, 1)"
           [attr.aria-label]="label(place, 1)"
           (click)="step(place, 1)"
         >
-          <nz-icon class="text-[8px]" nzType="caret-up" />
+          <nz-icon class="text-[10px]" nzType="caret-up" />
         </button>
         <!-- LA CIFRA E' UN CAMPO e non un'etichetta: cosi' si puo' anche BATTERE, che e' la meta' che la
              richiesta non nomina e senza la quale arrivare a 137 da zero costerebbe undici click.
@@ -32,7 +41,7 @@
           type="text"
           inputmode="numeric"
           maxlength="1"
-          class="w-full bg-transparent text-center text-[11px] leading-none font-semibold tabular-nums text-fg outline-none focus:bg-control"
+          class="w-full bg-transparent text-center text-[16px] leading-none font-semibold tabular-nums text-fg outline-none focus:bg-control"
           [value]="digit(place)"
           [attr.aria-label]="'cifra da ' + place"
           (input)="typed(place, $event)"
@@ -42,12 +51,12 @@
         <button
           type="button"
           data-step="down"
-          class="flex h-[9px] w-full items-center justify-center leading-none text-muted hover:bg-control hover:text-fg disabled:opacity-25 disabled:hover:bg-transparent"
+          class="flex h-[13px] w-full items-center justify-center leading-none text-muted hover:bg-control hover:text-fg disabled:opacity-25 disabled:hover:bg-transparent"
           [disabled]="blocked(place, -1)"
           [attr.aria-label]="label(place, -1)"
           (click)="step(place, -1)"
         >
-          <nz-icon class="text-[8px]" nzType="caret-down" />
+          <nz-icon class="text-[10px]" nzType="caret-down" />
         </button>
       </span>
     }
@@ -59,7 +68,7 @@
   <button
     type="button"
     data-reset
-    class="flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border text-[10px] text-muted hover:bg-control hover:text-fg disabled:opacity-25"
+    class="flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border text-[13px] text-muted hover:bg-control hover:text-fg disabled:opacity-25"
     [disabled]="!value()"
     nz-tooltip
     [nzTooltipTitle]="'Azzera ' + what()"
