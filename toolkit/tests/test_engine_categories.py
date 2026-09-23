@@ -13,30 +13,37 @@ from euroleghe_ingest.engine import categories as cat
 # (nome, ruolo, livello ri-miscelato, quota di calendario, ha una stagione precedente, la sua parola)
 DETTATI = [
     # SUPER TOP: fuori scala nel ruolo E gioca. Sei uomini, due per ruolo.
-    ("Malen", "A", 8.487, 0.79, True, "super"),
-    ("Martinez L.", "A", 7.873, 0.74, True, "super"),   # il piu' BASSO per presenze che entra
-    ("Paz N.", "C", 6.867, 0.85, True, "super"),
-    ("Dimarco", "D", 6.764, 0.83, True, "super"),
-    ("Bremer", "D", 6.521, 0.78, True, "super"),
-    ("Svilar", "P", 5.329, 0.90, True, "super"),        # un portiere PUO' essere supertop (sua parola)
+    ("Malen", "A", 8.487, 0.79, True, None, "super"),
+    ("Martinez L.", "A", 7.873, 0.74, True, None, "super"),   # il piu' BASSO per presenze che entra
+    ("Paz N.", "C", 6.867, 0.85, True, None, "super"),
+    ("Dimarco", "D", 6.764, 0.83, True, None, "super"),
+    ("Bremer", "D", 6.521, 0.78, True, None, "super"),
+    ("Svilar", "P", 5.329, 0.90, True, None, "super"),        # un portiere PUO' essere supertop (sua parola)
     # TOP: il meglio del ruolo, oppure fuori scala ma troppo fragile per giocare.
-    ("De Bruyne", "C", 6.800, 0.70, True, "top"),          # «fragile, non puo' darti tante presenze»
-    ("Calhanoglu", "C", 6.987, 0.60, True, "top"),         # 1o centrocampista del listone, gioca 0.60
-    ("Rabiot", "C", 6.692, 0.79, True, "top"),
-    ("Hojlund", "A", 7.105, 0.86, True, "top"),
+    ("De Bruyne", "C", 6.800, 0.70, True, None, "top"),          # «fragile, non puo' darti tante presenze»
+    ("Calhanoglu", "C", 6.987, 0.60, True, None, "top"),         # 1o centrocampista del listone, gioca 0.60
+    ("Rabiot", "C", 6.692, 0.79, True, None, "top"),
+    ("Hojlund", "A", 7.105, 0.86, True, None, "top"),
     # SEMITOP, BUONO, TAPPABUCHI.
-    ("Scamacca", "A", 6.982, 0.718, True, "semi"),  # 0,718 e non 0,72: vedi sotto
-    ("Kvernadze", "A", 6.911, 0.77, False, "solido"),
-    ("Varela G.", "A", 6.878, 0.54, False, "solido"),        # gioca poco e resta `solido`: sua decisione
-    ("Pinamonti", "A", 6.528, 0.72, True, "riserva"),   # stessa FMa di Varela sul foglio, parola diversa
-    ("Douglas Luiz", "C", 6.049, 0.74, False, "riserva"),  # gioca: chi gioca non e' mai uno `scarto`
+    ("Scamacca", "A", 6.982, 0.718, True, None, "semi"),  # 0,718 e non 0,72: vedi sotto
+    ("Kvernadze", "A", 6.911, 0.77, False, None, "solido"),
+    ("Varela G.", "A", 6.878, 0.54, False, None, "solido"),        # gioca poco e resta `solido`: sua decisione
+    # I DUE `riserva` DEL 22/09 SONO DIVENTATI `boa` IL 23/09, e la parola non li tradisce: la loro
+    # promessa di allora - «tappabuchi: gioca, ed e' per quello che lo compri» - e' parola per parola
+    # quello che `boa` dice adesso. Quel giorno lui ha chiesto `riserva` a ~15 per ruolo, e con una
+    # sbarra di livello Pinamonti (6,528, circa trentesimo fra gli attaccanti) e Douglas Luiz (6,049)
+    # non ci stanno piu': a tenerli e' il gradino sotto, che e' nato per loro. Le sue due cifre di
+    # `boa` sono chiuse proprio da questi due nomi - 0,721 di calendario e 5,940 di MV attesa.
+    ("Pinamonti", "A", 6.528, 0.721, True, 5.993, "boa"),
+    ("Douglas Luiz", "C", 6.049, 0.742, False, 5.940, "boa"),
 ]
 
 
-@pytest.mark.parametrize("name, role, level, play, history, expected", DETTATI)
-def test_i_verdetti_dettati_finiscono_dove_li_ha_messi_lui(name, role, level, play, history,
+@pytest.mark.parametrize("name, role, level, play, history, mv, expected", DETTATI)
+def test_i_verdetti_dettati_finiscono_dove_li_ha_messi_lui(name, role, level, play, history, mv,
                                                            expected):
-    got = cat.category_of(play, level, cat.bars_for("default", role), history=history, seen=True)
+    got = cat.category_of(play, level, cat.bars_for("default", role), history=history, seen=True,
+                          mv=mv, boa_mark=cat.BOA_MARK["default"])
     assert got == expected, name
 
 
@@ -47,22 +54,43 @@ def test_la_sbarra_delle_presenze_sta_fra_i_suoi_due_casi():
     che e' la cosa che non deve cambiare senza risentire lui.
     """
     assert 0.70 < cat.PLAYS_ALWAYS <= 0.74
-    fuori_scala = cat.LEVEL_BARS["default"]["C"][3] + 0.1
+    # `[-1]` e non `[3]`: la tupla ha preso una sbarra il 23/09 e ogni indice scritto a mano si e'
+    # spostato di uno - e il compilatore non dice niente. Si nomina la sbarra dal fondo.
+    fuori_scala = cat.LEVEL_BARS["default"]["C"][-1] + 0.1
     assert cat.category_of(0.70, fuori_scala, cat.bars_for("default", "C")) == "top"
     assert cat.category_of(0.74, fuori_scala, cat.bars_for("default", "C")) == "super"
 
 
-def test_chi_non_gioca_abbastanza_e_uno_scarto_ma_chi_gioca_non_lo_e_mai():
-    """«Chi gioca non e' mai uno scarto» (sua risposta su Douglas Luiz, 18o percentile e 0,74)."""
+def test_chi_gioca_PUO_essere_uno_scarto_dal_23_09_2026_e_la_sua_regola_di_ieri_e_RITIRATA():
+    """RIBALTA ESPLICITAMENTE una sua regola del 22/09/2026: «chi gioca non e' mai uno scarto» (detta
+    su Douglas Luiz, 18o percentile e 0,74 di calendario).
+
+    Il 23/09 ha chiesto che `riserva` scendesse a ~15 per ruolo - era 233 su 562, l'unica parola senza
+    una sbarra sua - e ha scelto, messo davanti al conteggio, che `scarto` dicesse «e' MISURATO, e non
+    vale un posto in rosa» invece di «non gioca abbastanza». Le due cose insieme mandano in `scarto`
+    ~210 uomini che il calendario lo giocano al 50-80%: e' la conseguenza aritmetica della sua richiesta,
+    non un effetto collaterale, ed e' registrata qui invece che sepolta.
+
+    `scarto` ha quindi DUE porte e una sola frase che le copre entrambe.
+    """
     infimo = cat.LEVEL_BARS["default"]["C"][0] - 2.0
-    assert cat.category_of(0.74, infimo, cat.bars_for("default", "C")) == "riserva"
+    assert cat.category_of(0.74, infimo, cat.bars_for("default", "C")) == "scarto"
     assert cat.category_of(0.49, infimo, cat.bars_for("default", "C")) == "scarto"
+    # ...e sopra la sua sbarra `riserva` c'e' ancora, che e' cio' che la parola dice adesso: il livello
+    # ci sarebbe, il posto nel suo club no.
+    appena_sopra = cat.LEVEL_BARS["default"]["C"][0]
+    assert cat.category_of(0.74, appena_sopra, cat.bars_for("default", "C")) == "riserva"
 
 
 def test_chi_non_ha_un_livello_e_una_incognita_e_mai_uno_scarto():
-    """«Vuoto = ignoto, mai zero» sulla parola: i due dicono il contrario l'uno dell'altro."""
-    assert cat.category_of(0.80, None, cat.bars_for("default", "A")) == "scommessa"
-    assert cat.category_of(0.80, 7.0, None) == "scommessa"
+    """«Vuoto = ignoto, mai zero» sulla parola: i due dicono il contrario l'uno dell'altro.
+
+    Dal 23/09/2026 la parola per il vuoto e' `incognita`: `scommessa` ha una CONDIZIONE («ottimi
+    presupposti») e darla a chi non ha un numero sarebbe una promessa falsa. L'invariante che questo
+    test difende non cambia - quello che cambia e' quale delle due parole tocca a chi non ha niente.
+    """
+    assert cat.category_of(0.80, None, cat.bars_for("default", "A")) == "incognita"
+    assert cat.category_of(0.80, 7.0, None) == "incognita"
     # ...e senza nemmeno la previsione di presenze non c'e' parola, che e' un terzo stato ancora.
     assert cat.category_of(None, 7.0, cat.bars_for("default", "A")) is None
 
@@ -112,9 +140,12 @@ def test_chi_sta_sulla_COSTANTE_di_ruolo_e_una_incognita_e_non_uno_scarto():
     `scarto`, 31 `riserva` e 7 `solido` - un giudizio su uomini che nessuno ha visto giocare.
     """
     bars = cat.bars_for("default", "A")
-    # l'ancora da sola non e' calcio: qualunque livello porti, la parola e' `scommessa`
-    assert cat.category_of(0.80, 7.50, bars, history=False, seen=False) == "scommessa"
-    assert cat.category_of(0.20, 6.00, bars, history=False, seen=False) == "scommessa"
+    # l'ancora da sola non e' calcio: qualunque livello porti, la parola non e' un giudizio
+    assert cat.category_of(0.80, 7.50, bars, history=False, seen=False) == "incognita"
+    assert cat.category_of(0.20, 6.00, bars, history=False, seen=False) == "incognita"
+    # ...e diventa `scommessa` SOLO se il calcio che ha su file dice qualcosa di buono (23/09/2026)
+    assert cat.category_of(0.80, 7.50, bars, history=False, seen=False,
+                           prospects=True) == "scommessa"
     # ...ma l'ancora PIU' le giornate di quest'anno si': chi stiamo guardando adesso non e' ignoto
     assert cat.category_of(0.80, 7.50, bars, history=True, seen=True) == "top"
 
@@ -143,11 +174,12 @@ def test_la_ri_miscela_non_tocca_niente_dove_non_c_e_niente_da_ri_miscelare():
     assert cat.relevel(None, 5, 9.0, "A", 40.0) is None
 
 
-def test_ogni_ruolo_ha_le_sue_quattro_sbarre_ordinate_su_ogni_piattaforma():
+def test_ogni_ruolo_ha_le_sue_CINQUE_sbarre_ordinate_su_ogni_piattaforma():
     for platform in ("default", "euro"):
         for role in ("P", "D", "C", "A"):
             bars = cat.bars_for(platform, role)
-            assert bars is not None and len(bars) == 4, (platform, role)
+            # CINQUE dal 23/09/2026: `riserva` ha preso la sua, la piu' bassa.
+            assert bars is not None and len(bars) == 5, (platform, role)
             # STRETTAMENTE crescenti: due sbarre uguali svuotano la fascia in mezzo, che e' il
             # difetto di `bandiera` (20/08). Su euro due plateau le facevano coincidere - 80 portieri
             # su 110 con la stessa fantamedia attesa - e la sbarra sopra e' stata spostata al primo
@@ -176,16 +208,261 @@ def test_le_due_piattaforme_hanno_sbarre_DIVERSE_e_euro_sta_piu_in_alto():
 
 def test_le_sbarre_crescono_col_ruolo_e_il_portiere_sta_su_un_altra_scala():
     """Un portiere non si confronta con un attaccante: la sua fantamedia vive intorno al 5."""
-    assert cat.LEVEL_BARS["default"]["P"][3] < cat.LEVEL_BARS["default"]["D"][0]
-    for i in range(4):
+    assert cat.LEVEL_BARS["default"]["P"][-1] < cat.LEVEL_BARS["default"]["D"][0]
+    for i in range(len(cat.LEVEL_BARS["default"]["D"])):
         assert cat.LEVEL_BARS["default"]["D"][i] < cat.LEVEL_BARS["default"]["C"][i] < cat.LEVEL_BARS["default"]["A"][i]
 
 
 def test_la_scala_ha_un_ordine_solo():
+    # Le posizioni si asseriscono come RELAZIONI e non come numeri: la scala ha gia' preso una parola in
+    # piu' una volta (`promessa`, 23/09/2026) e un letterale l'aveva fatta cadere su un indice invece che
+    # su cio' che difende. Quello che deve restare vero e' l'ordine, non il conteggio.
     assert cat.rank_of("super") == 0
-    assert cat.rank_of("scarto") == 6
-    assert cat.rank_of("scommessa") == 5      # sopra lo scarto: promette piu' di lui
+    # `incognita` CHIUDE la scala perche' non e' un giudizio ma l'assenza di uno - lo stesso posto in cui
+    # `scommessa` chiudeva prima che lui la spostasse sopra lo scarto, e per il suo stesso argomento.
+    assert cat.rank_of("incognita") == len(cat.LADDER) - 1
+    # `scommessa` sta SOPRA lo scarto (sua decisione): promette piu' di «e' misurato e non gioca».
+    assert cat.rank_of("scommessa") < cat.rank_of("scarto")
+    # ...e `promessa` sta fra `semi` e `solido`, che e' dove lui l'ha messa.
+    assert cat.rank_of("semi") < cat.rank_of("promessa") < cat.rank_of("solido")
+    # ...e `boa` sta «prima di SCARTO», sua parola del 23/09/2026 sera.
+    # ...e `boa` sta UN GRADINO SOTTO `riserva` (sua correzione del 23/09/2026), quindi sopra
+    # `scommessa`: un uomo che gioca tutte le settimane vale piu' di uno che nessuno ha prezzato.
+    assert cat.rank_of("boa") == cat.rank_of("riserva") + 1
+    assert cat.rank_of("boa") < cat.rank_of("scommessa")
     assert cat.rank_of("oro") is None          # la scala del 01/09 non risponde piu'
     assert cat.rank_of("supertop") is None     # ...ne' i nomi di stamattina
     assert cat.rank_of(None) is None
-    assert len(set(cat.LADDER)) == len(cat.LADDER) == 7
+    assert len(set(cat.LADDER)) == len(cat.LADDER)
+
+
+# ---------------------------------------------------------------------------------------------
+# IL CANCELLO DELL'UNDICI TIPO (operatore, 23/09/2026). I suoi quattro casi sono la specifica, come
+# lo erano i nove verdetti di ieri: se uno di questi cade, e' una cosa da ridiscutere con lui e non
+# un test da aggiornare.
+# ---------------------------------------------------------------------------------------------
+
+#: I quattro nomi che ha trovato a schermo, coi numeri del foglio del 22/09/2026 (Serie A classic):
+#: parola che leggevano, gradino, quota di calendario prevista, parola che si aspetta.
+HIS_FOUR = [
+    ("Cabal", "top", "riserva", 0.303, cat.SCARTO),
+    ("Pavard", "top", "riserva", 0.515, cat.RISERVA),
+    ("Kempf", "solido", "panchina", 0.576, cat.RISERVA),
+    ("Stones", "solido", "panchina", 0.509, cat.RISERVA),
+]
+
+#: Le dichiarazioni POSITIVE che il cancello non deve toccare, stessi numeri e stesso foglio. Calhanoglu
+#: e' quella che decide: e' `top` a `ballottaggio`, quindi «almeno titolare» non puo' essere il GRADINO
+#: `titolare` - ed e' anche la ragione per cui il cancello cita `CONTENDER_RUNGS` invece di una soglia.
+HIS_DECLARED = [
+    ("Malen", "super", "titolare", 0.794),
+    ("Martinez L.", "super", "titolare", 0.736),
+    ("Dimarco", "super", "titolare", 0.833),
+    ("Paz N.", "super", "titolare", 0.852),
+    ("Svilar", "super", "bandiera", 0.897),
+    ("Calhanoglu", "top", "ballottaggio", 0.600),
+    ("Hojlund", "top", "titolare", 0.864),
+    ("Scamacca", "semi", "titolare", 0.718),
+    ("Kvernadze", "solido", "titolare", 0.767),
+    ("Pinamonti", "riserva", "titolare", 0.721),
+    ("Douglas Luiz", "riserva", "ballottaggio", 0.742),
+]
+
+
+def test_the_gate_answers_his_four_cases():
+    for name, was, rung, share, expected in HIS_FOUR:
+        assert cat.gated(was, rung, share) == expected, name
+
+
+def test_the_gate_leaves_every_positive_declaration_standing():
+    for name, word, rung, share in HIS_DECLARED:
+        assert cat.gated(word, rung, share) == word, name
+
+
+def test_an_unknown_rung_demotes_nobody():
+    # Senza display la board non si disegna e il gradino resta vuoto: li' «l'undici non lo schiera» e
+    # «non abbiamo guardato» leggerebbero uguale, che e' la cosa che questo progetto non fa.
+    for rung in (None, ""):
+        assert cat.gated("super", rung, 0.05) == "super"
+
+
+def test_the_gate_only_ever_lowers():
+    # Non promuove nessuno, e non tocca le tre parole in fondo: `scommessa` non e' un giudizio, quindi
+    # retrocederla direbbe «misurato e non gioca» di un uomo che nessuno ha misurato.
+    assert cat.gated(cat.RISERVA, "bandiera", 0.99) == cat.RISERVA
+    for word in (cat.RISERVA, cat.SCOMMESSA, cat.SCARTO):
+        assert cat.gated(word, "riserva", 0.9) == word
+
+
+def test_the_contender_rungs_are_the_ladder_s_own_and_not_a_copy():
+    # Una definizione e tre lettori: la scala, la board e questa. Due copie finirebbero per non essere
+    # d'accordo su «lo schiera o no», che e' esattamente cio' che il cancello decide.
+    from euroleghe_ingest.engine import status
+    from euroleghe_ingest.modules import boards
+    assert boards.CONTENDER_RUNGS is status.CONTENDER_RUNGS
+    assert status.CONTENDER_RUNGS == frozenset(("bandiera", "titolarissimo", "titolare", "ballottaggio"))
+    # ...e sono ESATTAMENTE i gradini sopra `panchina`, dedotti dalla scala invece che riscritti.
+    assert all(status.LADDER.index(r) < status.LADDER.index("panchina") for r in status.CONTENDER_RUNGS)
+
+
+# ---------------------------------------------------------------------------------------------
+# `promessa`, l'OTTAVA parola (operatore, 23/09/2026): «un SOLIDO che ha gia' dimostrato nelle prime
+# giornate di avere una buona media voto e di aver fatto qualche bonus».
+# ---------------------------------------------------------------------------------------------
+
+def test_in_form_wants_BOTH_the_mark_and_the_bonus():
+    # Varela G. sul foglio del 22/09: 4 presenze su 5 giornate, voto 6,62, bonus +2,88.
+    assert cat.in_form(6.62, 9.50, 4, 5) is True
+    assert cat.in_form(5.90, 8.80, 4, 5) is False     # bonus si', media voto no
+    assert cat.in_form(6.50, 6.50, 4, 5) is False     # media voto si', nessun bonus
+    assert cat.in_form(6.50, 6.40, 4, 5) is False     # ...e un bonus NETTO negativo non e' un bonus
+
+
+def test_in_form_wants_enough_football_to_have_shown_anything():
+    # Meta' delle giornate gia' giocate, come QUOTA e non come numero di partite: «tre presenze» e'
+    # severo a settembre e banale a marzo.
+    assert cat.in_form(7.0, 9.0, 1, 5) is False
+    assert cat.in_form(7.0, 9.0, 3, 5) is True
+    assert cat.in_form(7.0, 9.0, 3, 30) is False
+
+
+def test_on_a_preseason_sheet_nobody_is_a_promessa():
+    # Non e' un buco: la parola dice «ha GIA' dimostrato», e prima che si giochi nessuno ha dimostrato.
+    assert cat.in_form(None, None, None, None) is False
+    assert cat.in_form(None, None, 0, 0) is False
+
+
+def test_the_form_only_ever_promotes_a_solido():
+    bars = cat.bars_for("default", "A")
+    # Kvernadze: `solido` senza forma, `promessa` con - ed e' senza storico, che e' il caso che decide.
+    assert cat.category_of(0.767, 6.911, bars, history=False, seen=True, form=False) == cat.SOLIDO
+    assert cat.category_of(0.767, 6.911, bars, history=False, seen=True, form=True) == cat.PROMESSA
+    # ...e non tocca nessun'altra parola: chi e' gia' sopra non sale e chi e' sotto non risale.
+    for share, level in ((0.80, 7.70), (0.60, 7.20), (0.75, 7.00), (0.60, 6.50), (0.30, 7.00)):
+        without = cat.category_of(share, level, bars, form=False)
+        with_it = cat.category_of(share, level, bars, form=True)
+        assert with_it == (cat.PROMESSA if without == cat.SOLIDO else without), (share, level)
+
+
+def test_the_gate_caps_a_promessa_too():
+    # `promessa` sta sopra `riserva`, quindi l'undici tipo la cappa come cappa le altre.
+    assert cat.gated(cat.PROMESSA, "panchina", 0.60) == cat.RISERVA
+    assert cat.gated(cat.PROMESSA, "ballottaggio", 0.60) == cat.PROMESSA
+
+
+# ---------------------------------------------------------------------------------------------
+# `scommessa` CONTRO `incognita` e la parola `boa` (operatore, 23/09/2026 sera).
+# ---------------------------------------------------------------------------------------------
+
+def test_prospects_wants_the_synthetic_vote_and_no_booking_habit():
+    """Le due cifre sono sue (23/09/2026): voto >= 5,8 e netto > -0,25.
+
+    La seconda e' su una quantita' che CONTIENE i cartellini: su `ga90`, che non scende mai sotto zero,
+    un tetto negativo sarebbe inerte per costruzione e direbbe «escludo chi si fa ammonire» senza
+    guardarne uno.
+    """
+    # Pessina sul foglio del 22/09: voto sintetico 6,18 in Serie B, 0,20 di bonus per 90, quattro
+    # gialli in 2907 minuti -> netto +0,138.
+    assert cat.has_prospects(6.18, 0.138) is True
+    # ...e a 5,8 entrano anche quelli senza un bonus, se non si fanno ammonire: e' cio' che la sua
+    # seconda cifra dichiara. Duncan legge -0,062.
+    assert cat.has_prospects(5.87, -0.062) is True
+    assert cat.has_prospects(5.70, 0.382) is False    # netto si', voto sotto la sua sbarra
+    assert cat.has_prospects(6.18, -0.40) is False    # voto si', ma un giallo quasi ogni partita
+    # E CHI NON HA NUMERI NON HA PRESUPPOSTI: e' il punto della parola, non un ripiego. 74 righe di 83
+    # sul foglio di Serie A stanno qui.
+    assert cat.has_prospects(None, None) is False
+    assert cat.has_prospects(6.5, None) is False
+
+
+def test_the_bar_would_be_INERT_on_a_quantity_that_cannot_go_negative():
+    # La controprova della scelta: con `ga90` (gol+assist per 90, mai negativo) la seconda prova
+    # passerebbe SEMPRE, cioe' la parola sarebbe decisa dal solo voto. Il test lo dice invece di
+    # lasciarlo dedurre - e se qualcuno rimettesse `ga90` al posto del netto, questa riga resta vera
+    # e le due sopra cadono.
+    assert cat.PROSPECT_BONUS < 0
+    for ga90 in (0.0, 0.099, 0.2, 0.894):
+        assert ga90 > cat.PROSPECT_BONUS
+
+
+def test_the_three_sixes_are_the_same_mark_on_three_questions():
+    # `FORM_MARK` (media voto VISTA di quest'anno), `PROSPECT_MARK` (voto SINTETICO dell'ultima stagione
+    # su file) e `BOA_MARK` (media voto ATTESA) sono tre domande diverse con lo stesso numero, che e'
+    # `PASS_MARK`, la sufficienza che il regolamento paga. Tre nomi perche' una soglia presa in prestito
+    # da un'altra domanda e' un difetto che questo repository ha gia' pagato; un test perche' chi ne
+    # muove uno deve dire perche' gli altri non si muovono.
+    assert cat.FORM_MARK == 6.0
+    # ...e `BOA_MARK` NON e' piu' fra loro dal 23/09/2026: il sei era il valore di principio e la TAGLIA
+    # che lui ha chiesto per `boa` («8/12 per ogni ruolo») lo ha spostato, per piattaforma.
+    assert set(cat.BOA_MARK) == {"default", "euro"}
+    # ...e `PROSPECT_MARK` NON e' fra loro (sua cifra del 23/09/2026): li' si chiede una sufficienza
+    # REALIZZATA, qui un voto SINTETICO convertito da un altro campionato, dove il sei e' gia' un uomo
+    # notevole - a 6,00 la parola teneva un uomo su 83.
+    assert cat.PROSPECT_MARK == 5.8
+
+
+def test_boa_is_carved_out_of_riserva_and_needs_BOTH_halves():
+    bars = cat.bars_for("default", "P")
+    # SOTTO la sbarra di `riserva` del ruolo, o la parola che tocca e' quella e non questa: `boa` e'
+    # il gradino sotto, e la cascata rispetta l'ordine che lui ha dato alle due parole.
+    # De Gea sul foglio del 22/09: gioca lo 0,88 del calendario con 6,05 di MV attesa e 4,56 di livello -
+    # il livello e' basso perche' la fantamedia di un portiere porta i gol subiti, ed e' la ragione per
+    # cui la prova e' sulla MEDIA VOTO e non sul livello.
+    mark = cat.BOA_MARK["default"]
+    assert cat.category_of(0.88, 4.563, bars, mv=6.048, boa_mark=mark) == "boa"
+    assert cat.category_of(0.60, 4.563, bars, mv=6.048, boa_mark=mark) == "scarto"   # non gioca
+    assert cat.category_of(0.88, 4.563, bars, mv=5.80, boa_mark=mark) == "scarto"    # voto non degno
+    assert cat.category_of(0.88, 4.563, bars, mv=None, boa_mark=mark) == "scarto"    # vuoto = ignoto
+    # ...e SENZA la sbarra della piattaforma `boa` non si puo' dire: si scende, non si indovina.
+    assert cat.category_of(0.88, 4.563, bars, mv=6.048) == "scarto"
+
+
+def test_the_boa_floor_is_closed_by_his_two_declared_riserva():
+    """Pinamonti (0,721 di calendario, 5,993 di MV attesa) e Douglas Luiz (0,742 e 5,940) erano due suoi
+    `riserva` del 22/09, e la loro promessa - «gioca, ed e' per quello che lo compri» - e' parola per
+    parola quello che `boa` dice dal 23/09. A 0,80 di calendario restavano fuori tutti e due.
+    """
+    assert cat.BOA_PLAYS <= 0.721
+    assert cat.BOA_MARK["default"] <= 5.940
+    bars_a, bars_c = cat.bars_for("default", "A"), cat.bars_for("default", "C")
+    mark = cat.BOA_MARK["default"]
+    assert cat.category_of(0.721, 6.528, bars_a, mv=5.993, boa_mark=mark) == "boa"
+    assert cat.category_of(0.742, 6.049, bars_c, history=False, seen=True,
+                           mv=5.940, boa_mark=mark) == "boa"
+
+
+def test_boa_never_eats_a_word_above_riserva():
+    bars = cat.bars_for("default", "A")
+    # Un uomo che gioca sempre e sta sopra le sbarre resta quello che era: `boa` e' il fondo di
+    # `riserva` e non un cappello su tutta la scala.
+    assert cat.category_of(0.90, 7.70, bars, mv=6.50) == "super"
+    assert cat.category_of(0.90, 7.00, bars, mv=6.50) == "semi"
+
+
+def test_the_gate_leaves_the_three_bottom_words_alone():
+    # Il cancello cappa solo cio' che sta sopra `riserva`: `boa` e `incognita` ci stanno sotto, e
+    # retrocedere una `incognita` direbbe «misurato e non gioca» di un uomo che nessuno ha misurato.
+    for word in (cat.BOA, cat.INCOGNITA, cat.SCARTO, cat.SCOMMESSA, cat.RISERVA):
+        assert cat.gated(word, "panchina", 0.90) == word
+
+
+def test_a_keeper_is_never_asked_for_bonuses_he_cannot_produce():
+    """`promessa` era VUOTA PER COSTRUZIONE per i portieri, e l'ha trovato il conteggio per parola.
+
+    `fm - mv` per un portiere e' il malus dei gol subiti: sul foglio del 22/09 **0 di 25** che hanno
+    giocato hanno un bonus netto positivo (il migliore, Caprile, sta a -0,40). Chiedergli «qualche
+    bonus» non e' una prova severa, e' la quantita' sbagliata - la stessa ragione per cui `abroad` lo
+    esclude dal braccio dei bonus e per cui `BOA_MARK` legge la media voto e non la fantamedia.
+    """
+    # Palmisani: 5 presenze, 6,80 di media voto, -0,80 di malus a presenza -> dentro.
+    assert cat.in_form(6.80, 6.00, 5, 5, "P") is True
+    assert cat.in_form(6.80, 6.00, 5, 5, "C") is False
+    # ...ma «POCHI malus» e non «nessun malus»: Butez, -1,25 a presenza, resta fuori. La prova si
+    # CAMBIA di segno e non si toglie - toglierla lo passava sulla sola media voto.
+    assert cat.in_form(6.00, 4.75, 4, 5, "P") is False
+    # ...e la media voto la vuole lo stesso: le due meta' restano due.
+    assert cat.in_form(5.70, 5.10, 5, 5, "P") is False
+    # ...e senza ruolo la regola generale resta quella di prima, che e' il default sicuro.
+    assert cat.in_form(6.80, 6.00, 5, 5) is False
+    # UN PUNTO E' UN GOL: la soglia e' l'unita' del gioco.
+    assert cat.KEEPER_MALUS == -1.0

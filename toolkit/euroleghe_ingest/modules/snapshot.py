@@ -847,7 +847,58 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      (le quattro sbarre del ruolo) - e tutt'e tre entrano in `export.SHEET_COLUMNS`, dove `desc_category`
 #      non era MAI stata messa: calcolata dal 01/09 e mai arrivata a schermo, la famiglia dei campetti e
 #      di `availability` su una COLONNA invece che su una cartella.
-SHEET_REVISION = 72
+#   73 (23/09/2026) - IL CANCELLO DELL'UNDICI TIPO SULLA CATEGORIA, piu' l'OTTAVA parola `promessa`.
+#      Due richieste dell'operatore su quattro nomi trovati a schermo: «come e' possibile che Cabal sia un
+#      TOP? ... Pavard ormai non e' piu' titolare, un TOP deve essere almeno titolare» e «Kempf / Stones
+#      non possono essere SOLIDI, nelle prime giornate non sono stati abbastanza presenti».
+#      IL CANCELLO NON E' UNA SOGLIA NUOVA: nessuna parola sopra `riserva` si da' a chi la board non
+#      disegna, e «lo schiera o no» lo dice gia' `status.CONTENDER_RUNGS` (li spostati da `boards.py`,
+#      una definizione e tre lettori). Le due quantita' ovvie sono state provate PRIMA e non separano i
+#      suoi casi - la quota PREVISTA mette Kempf (0,576) sopra Osmajic (0,533) e Romero D. (0,561), la
+#      quota VISTA mette Stones a 3/5 come Calhanoglu e Adams C. - mentre il gradino li separa tutti e
+#      quattro. Misurato prima di adottarlo: Serie A 20 righe di 562 scendono, euro 25 di 953, e tutte e
+#      dodici le dichiarazioni positive restano in piedi, Calhanoglu `top` a `ballottaggio` compreso.
+#      `promessa` sta fra `semi` e `solido` ed e' l'unica parola decisa sul calcio GIA' GIOCATO: media
+#      voto vista >= 6 (lo stesso numero di `PASS_MARK`, dichiarato con la sua provenienza) e bonus netto
+#      a presenza positivo, su almeno meta' delle giornate giocate. 17 righe di 562 e 24 di 953 - e
+#      `solido` perde i due nomi con cui era stato dettato, Kvernadze e Varela G., che e' la conferma
+#      dell'asse: il docstring di `relevel` li separava GIA' da Pinamonti dicendo «sta giocando bene ORA».
+#      `engine_*` non si muove di un decimale: `evaluate` non importa ne' `categories` ne' `presence`.
+#      ...E LA STESSA SERA DUE PAROLE ANCORA, che portano la scala a DIECI. `scommessa` prende una
+#      CONDIZIONE - «nessuno l'ha ancora prezzato MA ci sono ottimi presupposti per fare bene (voto
+#      sintetico buono, tanti bonus in passato)» - e chi quei presupposti non li ha diventa `incognita`,
+#      che chiude la scala perche' non e' un giudizio ma l'assenza di uno. La misura che ha deciso la
+#      forma: delle 83 righe che leggevano `scommessa` su Serie A, **74 non hanno un solo numero** (30
+#      portieri, che `abroad` esclude per misura; gli altri sotto i 900 minuti), quindi chiamarle tutte
+#      «ottimi presupposti» sarebbe una promessa falsa su tre quarti di loro. Le soglie sono ASSOLUTE e
+#      dichiarate da lui fra tre forme misurate: il marchio che esisteva gia' (`abroad.screen`, il terzo
+#      alto di TUTTI i nuovi arrivati) accende ZERO di quelle 83, cioe' renderebbe la parola vuota per
+#      costruzione. Le cifre sono sue: voto sintetico >= 5,8 e netto > -0,25 (7 scommesse su Serie A e
+#      14 su euro). La seconda ha imposto la QUANTITA': su `ga90` un tetto negativo sarebbe inerte per
+#      costruzione, quindi si legge il NETTO dei cartellini (`abroad.net90`, colonna nuova
+#      `desc_abroad_cards90`) - che vengono dall'aggregato di STAGIONE perche' nel livello per-partita
+#      quelle colonne esistono e sono VUOTE (0 non nulle su 131.709). E `boa` - «gioca quasi sempre con una media voto dignitosa» - e' ritagliata da
+#      `riserva` con due metri che esistono gia' (`status.PLAY_ALMOST_EVERY` e la sufficienza di
+#      `PASS_MARK`, sulla MEDIA VOTO attesa perche' la fantamedia di un portiere porta i gol subiti).
+#      Nata «prima di SCARTO» e salita di un gradino la stessa sera, per una correzione di VOCABOLARIO:
+#      «RISERVA non e' "riserva nella sua squadra di serie A" ma "da schierare come riserva nella propria
+#      rosa" ... BOA dovrebbe essere un gradino sotto». Sta quindi sotto `riserva` e SOPRA `scommessa`, e
+#      la scala torna coerente con la misura - i nove uomini che cattura giocano lo 0,81-0,90.
+#      E PER UN PORTIERE `promessa` CHIEDE «POCHI MALUS» e non «qualche bonus» (sua correzione): la stessa
+#      quantita' con l'altro segno atteso, `KEEPER_MALUS` = -1,0, cioe' l'unita' del gioco. Senza,
+#      `promessa` era VUOTA PER COSTRUZIONE su un ruolo intero (0 portieri su 25 con netto positivo) e
+#      l'ha trovato il conteggio per parola; togliere la prova invece di girarla passava Butez (-1,25).
+#      ...E `riserva` HA PRESO UNA SBARRA SUA («le 233 riserve sono troppe, 15 circa per ogni ruolo»):
+#      era l'unica parola senza, cioe' il fondo della cascata. QUINTA sbarra di livello per (piattaforma,
+#      ruolo) -> 48 riserve su default e 49 su euro, e i nomi dicono cosa vuol dire adesso (Stones,
+#      Pavard, Kempf, Bastoni, Pulisic: il livello c'e', il posto nel suo club no). Il PREZZO, scelto da
+#      lui davanti al conteggio: ~210 uomini scendono in `scarto`, che smette di dire «non gioca
+#      abbastanza» e dice «e' misurato, e non vale un posto» - il che RITIRA la sua regola del 22/09
+#      «chi gioca non e' mai uno scarto». E i suoi due `riserva` dichiarati (Pinamonti, Douglas Luiz)
+#      diventano `boa`, il gradino nato per loro: `BOA_PLAYS` 0,80 -> 0,72 e `BOA_MARK` per PIATTAFORMA
+#      (5,94 / 6,10), chiuse dai loro numeri. Boa 33 e 42. `scommessa` resta a 7 e 14 per un limite di
+#      DATI e non di soglia: gli uomini non prezzati che hanno i due numeri sono 9 e 16 in tutto.
+SHEET_REVISION = 73
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -5977,7 +6028,8 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     # REPORTING: nessun gate lo possiede, e il Qt.I da solo fa 1,41x/1,51x - cioe' non battiamo il
     # mercato. Quello che aggiunge e' che oggi quei 188 uomini sono ordinati da una costante.
     "desc_abroad_watch", "desc_abroad_comp", "desc_abroad_matches", "desc_abroad_minutes",
-    "desc_abroad_ga90", "desc_abroad_vote", "desc_abroad_voted", "desc_abroad_share",
+    "desc_abroad_ga90", "desc_abroad_cards90", "desc_abroad_vote", "desc_abroad_voted",
+    "desc_abroad_share",
     "desc_abroad_rank", "desc_abroad_pool",
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
@@ -6428,7 +6480,28 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             # il livello e' l'ancora del ruolo anche quando il motore lo serve come `core`, e sopra
             # `solido` non si sale. `seen`: ci sono giornate di QUESTA stagione. Senza nessuno dei
             # due non c'e' niente da leggere e la parola e' `scommessa`.
-            history=obs.fm_prev is not None, seen=bool(obs.pv_seen))
+            history=obs.fm_prev is not None, seen=bool(obs.pv_seen),
+            # ...E `promessa` (23/09/2026): un `solido` che nelle giornate gia' giocate ha una buona
+            # media voto e qualche bonus. E' l'unica prova del modulo che legge il calcio GIOCATO
+            # invece di una previsione, quindi le due medie sono quelle viste e non quelle attese.
+            form=categories_engine.in_form(obs.mv_seen, obs.fm_seen, obs.pv_seen,
+                                           data.matchdays_seen, obs.role_classic),
+            # ...`scommessa` contro `incognita` (23/09/2026): i due numeri sono quelli che `abroad` gia'
+            # calcola per la riga, e qui si legge il DATO e mai il suo verdetto - vedi `PROSPECT_MARK`
+            # per la misura che ha rifiutato il marchio.
+            prospects=categories_engine.has_prospects(
+                abroad_row.get("vote"),
+                # Il NETTO dei cartellini, e dove non si sanno i soli bonus: per ESCLUDERE un uomo
+                # serve una prova, e la mancanza di una non lo e'. La riga porta le due meta'
+                # (`desc_abroad_ga90` e `desc_abroad_cards90`) cosi' il conto si puo' rifare.
+                abroad_row.get("net90") if abroad_row.get("net90") is not None
+                else abroad_row.get("ga90")),
+            # ...e la MV ATTESA, che decide `boa`. E' `est_mv`, cioe' la stessa cifra che la riga stampa
+            # due colonne piu' in la': un secondo lettore le darebbe due valori.
+            mv=guess.mv,
+            # La sbarra di `boa` e' della PIATTAFORMA, come le cinque del livello: una sola dava 33 boe
+            # su default e 91 su euro.
+            boa_mark=categories_engine.BOA_MARK.get(platform))
         rows.append({
             "fc_id": obs.fc_id, "name": obs.name, "club": obs.club_target, "league": obs.league,
             "role_classic": obs.role_classic, "roles_mantra": ";".join(obs.roles_mantra),
@@ -6607,6 +6680,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_abroad_matches": abroad_row.get("matches"),
             "desc_abroad_minutes": abroad_row.get("minutes"),
             "desc_abroad_ga90": abroad_row.get("ga90"),
+            "desc_abroad_cards90": abroad_row.get("cards90"),
             "desc_abroad_vote": abroad_row.get("vote"),
             "desc_abroad_voted": abroad_row.get("voted"),
             "desc_abroad_share": abroad_row.get("share"),
@@ -8012,6 +8086,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # panel has been driven over the sheet that was just written. The cost is one extra write of a file
         # already on disk; the alternative was a second definition of who is in the eleven.
         statuses = board_summary.get("statuses") or {}
+        capped = 0
         for row in rows:
             one = statuses.get(row.get("fc_id"))
             if not one:
@@ -8023,7 +8098,27 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
             # `flags.new_coach` taught this repository the hard way.
             contended = one.get("contended")
             row["desc_titolarita_contended"] = "" if contended is None else ("yes" if contended else "no")
+            # ...E LA PAROLA DENTRO IL RUOLO PASSA DALLO STESSO CANCELLO, regola dell'operatore del
+            # 23/09/2026 su quattro nomi («un TOP deve essere almeno titolare» · «Kempf non puo' essere
+            # SOLIDO, nelle prime giornate non e' stato abbastanza presente»). Qui e non dove la
+            # categoria nasce, per la ragione che la riga sopra dichiara gia' per il gradino: chi
+            # l'undici schiera non si sa finche' il pannello non e' stato guidato sul foglio appena
+            # scritto. Il cancello e' inerte dove il gradino manca, quindi una macchina senza display
+            # lascia la colonna esattamente com'era.
+            before = row.get("desc_category")
+            pv_share = row.get("engine_pv_pred")
+            pv_share = pv_share if pv_share is not None else row.get("est_pv")
+            row["desc_category"] = categories_engine.gated(
+                before, row["desc_titolarita"],
+                (pv_share / data.matchdays_target)
+                if pv_share is not None and data.matchdays_target else None)
+            if row["desc_category"] != before:
+                capped += 1
         _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)
+        # Uno zero STAMPATO si distingue da una funzione rotta - la lezione dei campetti che il bundle
+        # portava e che nessuno copiava, applicata al cancello che li legge.
+        print(f"[snapshot] categorie: {capped} righe di {len(rows)} cappate perche' l'undici tipo non le"
+              f" schiera (gradino sotto {'/'.join(sorted(status_engine.CONTENDER_RUNGS))})")
         ladder = board_summary.get("ladder") or {}
         print("[snapshot] titolarità: "
               + " · ".join(f"{ladder[word]} {word}" for word in status_engine.LADDER if ladder.get(word))

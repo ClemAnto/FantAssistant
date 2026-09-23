@@ -6237,3 +6237,334 @@ e surplus sì, quindi il prodotto si riscala con loro) ed è per questo che ness
 non tornare è il confronto col foglio, che solo il banco fa. Lasciato rosso con la causa scritta, perché
 la cura è una decisione dentro quella feature: o `/why` divide per la scala, o `EngineExpectation`
 porta anche il numero grezzo.
+
+## 52 - IL CANCELLO DELL'UNDICI TIPO SULLA CATEGORIA, e l'ottava parola `promessa`
+
+**23/09/2026, da quattro nomi che l'operatore ha trovato a schermo in mezz'ora**: «come e' possibile che
+Cabal sia un TOP? Non mi pare che abbia i requisiti · Pavard ormai non e' piu' titolare ... un TOP deve
+essere almeno titolare» · «Kempf non puo' essere SOLIDO, nelle prime giornate non e' stato abbastanza
+presente» · «anche Stones non ha giocato abbastanza in queste prime giornate per essere SOLIDO».
+Codice: `engine/categories.py` (`gated`, `in_form`), `engine/status.py` (`CONTENDER_RUNGS`),
+`modules/snapshot.py`, `core/categoria.ts`. `SHEET_REVISION` 73.
+
+### 52.1 - Il ramo che li produceva era GIA' SEGNALATO come la domanda aperta su cui lui non aveva deciso
+
+Il commento dentro `category_of` lo diceva per esteso: «questo ramo NON ha un pavimento sulle presenze,
+quindi un uomo fuori scala che gioca il 5% del calendario legge `top` e mai `scarto`. E' il caso di
+Calhanoglu portato al limite e l'operatore non ci ha ancora messo mano; **la popolazione che toccherebbe
+vale la pena contarla prima che qualcuno aggiunga un pavimento**». Contata il giorno in cui lui l'ha
+chiesto: sul foglio del 22/09 sono Cabal (0,303 del calendario, **zero presenze su cinque giornate**) e
+Pavard (0,515, e passa la sbarra `top` dei difensori per **un millesimo**: 6,261 contro 6,26).
+
+*Un difetto che il codice descrive di se' e' un difetto che si trova in un minuto quando arriva la
+segnalazione - e che non si sarebbe trovato mai, se nessuno avesse segnalato.*
+
+### 52.2 - «Almeno titolare» non puo' essere il GRADINO `titolare`, e a dirlo e' una sua dichiarazione vecchia
+
+La frase e' ambigua in italiano e la disambigua quella di ieri: **Calhanoglu e' `top` DICHIARATO e la
+scala lo chiama `ballottaggio`**. Quindi «almeno titolare» in prosa vuol dire «uno che l'undici schiera»,
+che e' esattamente `CONTENDER_RUNGS` - il metro che la scala a sei parole usa gia' per se' («un uomo che
+l'undici non schiera non puo' essere `titolare`, uno che schiera non scende sotto `ballottaggio`»).
+Citato invece di inventare una soglia, come `boards._contended` e `ownsShirt`.
+
+**Le due quantita' ovvie sono state provate PRIMA e non separano i suoi casi**, ed e' questa la misura
+che ha deciso la forma:
+
+| | quota PREVISTA | quota VISTA | gradino |
+|---|---|---|---|
+| Kempf - *fuori* | 0,576 | 2/5 | `panchina` |
+| Stones - *fuori* | 0,509 | **3/5** | `panchina` |
+| Osmajic - *dentro* | 0,533 | 4/5 | `panchina`* |
+| Romero D. - *dentro* | 0,561 | 4/5 | `panchina`* |
+| Adams C. - *dentro* | 0,630 | **3/5** | `titolare` |
+| Calhanoglu - *dentro* | 0,600 | **3/5** | `ballottaggio` |
+
+La quota prevista mette Kempf SOPRA due uomini che restano; la quota vista mette Stones esattamente dove
+stanno Calhanoglu e Adams. **Il gradino li separa tutti e quattro senza eccezioni, perche' legge due assi
+e non uno.** (*Osmajic e Romero scendono anche loro a `riserva`, e non e' una rottura: la sua regola del
+22/09 su di loro era un TETTO - «non possono essere SEMITOP» - non un'affermazione.)
+
+### 52.3 - Costo misurato prima di adottarlo, e le dodici dichiarazioni positive reggono tutte
+
+Serie A **20 righe di 562** scendono (16 `solido`, 4 `top`), euro **25 di 953** (14 `solido`,
+10 `top`, 1 `semi`). Restano in piedi i cinque
+`super`, Calhanoglu e Hojlund `top`, Scamacca `semi`, Kvernadze `solido`, Pinamonti e Douglas Luiz
+`riserva`, e gli otto tetti. **Un gradino IGNOTO non retrocede nessuno**: senza display la board non si
+disegna e `desc_titolarita` e' vuota per costruzione, quindi li' «l'undici non lo schiera» e «non abbiamo
+guardato» leggerebbero uguale. Il prezzo e' detto: su una macchina senza display la colonna resta non
+gatata.
+
+### 52.4 - `promessa`, l'ottava parola, e l'unica decisa sul calcio GIA' GIOCATO
+
+Sua istruzione dello stesso giorno: «le PROMESSE sono calciatori SOLIDI che hanno gia' dimostrato nelle
+prime giornate di avere una buona media voto e di aver fatto qualche bonus», col riepilogo che la colloca
+fra `semi` e `solido`. Le altre sette parole si decidono su due PREVISIONI; questa aggiunge una domanda
+sul presente. Tre prove, nessuna delle quali e' un numero nuovo se non per il nome:
+
+* **media voto vista >= 6,0** - e' `PASS_MARK`, la sufficienza che il regolamento paga, gia' in
+  `bench/auction/rules.py` e in `core/player-ratings.ts` con quel nome e quel valore. Non si importa
+  (`engine/` non dipende da un banco) e si dichiara con la provenienza: *due strade indipendenti sullo
+  stesso valore sono evidenza, un secondo numero sarebbe un debito.*
+* **bonus NETTO a presenza > 0** - la lettura letterale di «qualche bonus», netto perche' `fantavoto -
+  voto` paga anche le ammonizioni. La banda e' piatta e non offre un salto su cui appoggiarsi (18 uomini
+  sopra zero, 17 sopra 0,25, 15 sopra 0,34), quindi il valore resta la sua frase e il costo di stringerlo
+  e' scritto accanto alla costante.
+* **almeno meta' delle giornate gia' giocate** - una QUOTA e non un numero di partite (R20), e con la sua
+  costante invece di riusare `PLAYS_OFTEN`, che risponde a un'altra domanda: *una soglia presa in prestito
+  da un'altra domanda e' un difetto che questo repository ha gia' pagato tre volte.*
+
+**Su un foglio di PRE-STAGIONE nessuno e' una `promessa`**, per costruzione e correttamente: la parola
+dice «ha GIA' dimostrato». Non e' un buco, e' cosa significa.
+
+### 52.5 - Il prezzo e' che `solido` perde i due nomi con cui era stato dettato, e quella e' la conferma
+
+Kvernadze (voto **7,00** e **+1,90** di bonus in cinque giornate) e Varela G. (**6,62** e **+2,88**)
+diventano `promessa` - ed erano i suoi due esempi di `solido`. Non e' una dichiarazione rotta, la parola
+non esisteva quando li nomino'; ed e' anzi la prova che l'asse e' quello giusto, perche' il docstring di
+`relevel` separava **gia'** Varela da Pinamonti dicendo esattamente questo: «Varela sta giocando bene ORA
+(+2,88 di bonus, 6,62 di voto base)». *Va detto invece di lasciarlo scoprire.*
+
+**E `promessa` e' raggiungibile anche da chi NON ha storico**, il che e' una decisione contro la lettera
+del tetto del 22/09 («senza storico non si sale sopra `solido`»). Il tetto esiste perche' il LIVELLO di
+quegli uomini e' l'ancora del ruolo, «un numero che non parla di loro»; `promessa` non legge il livello,
+legge le sue partite di quest'anno, quindi **la ragione del tetto non si applica** - e Kvernadze e Varela
+sono senza storico entrambi. Un tetto che escludesse proprio loro escluderebbe i nomi da cui la parola
+nasce.
+
+Effetto complessivo, A/B a una variabile sola:
+
+| | Serie A prima -> dopo | euro prima -> dopo |
+|---|---|---|
+| `top` | 23 -> 19 | 48 -> 38 |
+| `promessa` | 0 -> **17** | 0 -> **24** |
+| `solido` | 55 -> 22 | 83 -> 45 |
+| `riserva` | 224 -> 242 | 371 -> 389 |
+
+`engine_*` non si muove di un decimale, e lo si **verifica** invece di dedurlo: `evaluate` importa
+`cups, features, model` e nient'altro, e `categories` ha un solo lettore in tutto il toolkit
+(`snapshot`).
+
+### 52.6 - Tre abitudini, e due sono errori di misura di quella mattina
+
+* **UNA RICOSTRUZIONE SI VALIDA SUI NUMERI PUBBLICATI PRIMA DI USARLA.** La mia rilettura di `pv_seen`
+  dal pacchetto riproduce la colonna su **562 righe di 562**, quindi le cifre di Serie A si possono
+  riportare. Su euro **42 righe su 953 NON tornavano**, e la colpa era della simulazione e non del
+  codice: rileggevo le sbarre da `desc_category_bars`, che il foglio arrotonda a **due** decimali mentre
+  quelle vere ne hanno tre - e quelle 42 righe sono il PLATEAU che il modulo gia' documenta (42
+  attaccanti con la stessa fantamedia attesa), che cade esattamente su una sbarra. *Un numero che non
+  riproduce non si riporta: si trova perche' non riproduce, e il verso dell'errore e' spesso nello
+  strumento.*
+* **UN GUARDIANO SI CORREGGE SULL'INTENTO E NON SUL VALORE.** `rank_of("scarto") == 6` e' caduto per
+  l'ottava parola: l'invariante che difende e' l'ORDINE, non il conteggio, e ora e' scritta come
+  relazione (`== len(LADDER) - 1`, `semi < promessa < solido`) - cosi' la prossima parola non la fa
+  cadere di nuovo. Lo stesso in `categoria.spec.ts`.
+* **E LA CONTROPROVA E' RIMETTERE IL DIFETTO.** Con `gated` reso inerte cade **esattamente** il test che
+  descrive la cura (`test_the_gate_answers_his_four_cases`) e nessun altro: gli altri restano verdi a
+  ragione, perche' descrivono comportamenti che non cambiano.
+
+### 52.7 - Il vocabolario a schermo, e i gradini del verde ri-spaziati perche' SI VEDANO
+
+I nomi per esteso sono quelli del suo riepilogo: **SUPERTOP · TOP · SEMITOP · PROMESSE · SOLIDI ·
+RISERVE**, quindi due etichette si allungano rispetto a ieri (`Super` -> `Supertop`, `Semi` ->
+`Semitop`); gli slug del foglio non si toccano. Sigla `PRM`, icona il **fuoco** - dice una cosa diversa
+dalle altre (non un grado, ma che lo sta gia' facendo adesso), e `rise` accanto direbbe due volte «sale».
+
+**E i quattro gradini pieni del verde sono ri-spaziati, per misura e non per gusto.** Infilare `promessa`
+fra `semi` (/35) e `solido` (/18) lasciava due salti da **14 e 16** punti per canale sul fondo composito;
+la spaziatura pari (1,00 · 0,62 · 0,40 · 0,25 · 0,14) porta il salto minimo a **19**. E' la lezione del
+23/09 sulle bande della Strategia incontrata il giorno dopo: *«i due fondi sono diversi» e'
+un'affermazione sul CSS, «si vedono diversi» e' una misura.*
+
+### 52.8 - `scommessa` prende una CONDIZIONE, e chi non la soddisfa diventa `incognita`
+
+**Sua istruzione della stessa sera**: «dobbiamo aggiungere una condizione alla categoria SCOMMESSA:
+nessuno l'ha ancora prezzato -> MA CI SONO OTTIMI PRESUPPOSTI PER FARE BENE (voto sintetico buono, tanti
+bonus in passato)». La parola smette di descrivere un'assenza e comincia ad affermare qualcosa - e il
+resto della vecchia popolazione ha bisogno di un posto.
+
+**LA MISURA CHE HA DECISO LA FORMA**: delle 83 righe che leggevano `scommessa` su Serie A, **74 non hanno
+un solo numero** - 30 sono portieri, che `abroad` esclude per misura, e gli altri stanno sotto i 900
+minuti su file. Chiamarle tutte «ottimi presupposti» sarebbe una promessa falsa su tre quarti di loro;
+chiamarle `scarto` sarebbe «vuoto = ignoto» rotto nel modo piu' caro. Quindi **`incognita`**, che chiude
+la scala perche' non e' un giudizio ma l'assenza di uno - lo stesso posto in cui `scommessa` chiudeva
+prima che lui la spostasse sopra lo scarto, e per il suo stesso argomento: quella promette qualcosa,
+questa no. **82 righe di 562 su Serie A, 82 di 953 su euro.**
+
+**E IL MARCHIO CHE ESISTEVA GIA' E' STATO PROVATO PER PRIMO E RIFIUTATO DALLA MISURA.** `abroad.screen`
+(10/09) risponde esattamente alla sua domanda - «voto sintetico buono, molti bonus» - con due bracci
+misurati e un pool. Su quelle 83 righe accende **ZERO uomini**, perche' il suo pool e' il terzo alto di
+TUTTI i nuovi arrivati e questi uomini non ci arrivano: riusarlo avrebbe reso `scommessa` **vuota per
+costruzione**, il difetto che questo modulo ha gia' pagato con `scommessa` stessa e la scala a sei
+parole con `bandiera`. *Un canale misurato che risponde alla domanda giusta puo' essere inutilizzabile
+sulla popolazione sbagliata, e a dirlo e' il conteggio e non la lettura del codice.*
+
+Adottate quindi **soglie assolute dichiarate** (sua scelta fra tre forme misurate). La prima stesura
+metteva il voto a 6,0 e il bonus a > 0, e sul foglio la parola teneva **UN uomo**: messo davanti al
+conteggio lui ha dettato le due cifre definitive - «per le scommesse la soglia voto deve essere 5,8 e
+bonus > -0,25 (escludiamo uno che si fa sempre ammonire)». Ora sono **7 su Serie A e 14 su euro**.
+
+**E LA SECONDA CIFRA HA IMPOSTO LA QUANTITA', che vale piu' del numero.** Un tetto NEGATIVO su `ga90`
+sarebbe stato **inerte per costruzione**: gol piu' assist per 90 non scende mai sotto zero, quindi la
+prova avrebbe detto «escludo chi si fa sempre ammonire» senza guardare un cartellino - la famiglia del
+flag che stampa «nessun problema» dopo non aver guardato niente. La sua frase nomina i cartellini, quindi
+si legge il NETTO (`abroad.net90`), e questo ha aperto tre cose:
+
+* **i cartellini vengono dall'AGGREGATO DI STAGIONE**, perche' nel livello per-partita le colonne
+  `yellows`/`reds` **esistono e sono vuote** (0 righe non nulle su 131.709 nel pacchetto). *Una colonna
+  che c'e' e non e' popolata e' peggio di una che manca, perche' un lettore la crede piena.* La
+  differenza di unita' e' dichiarata dove si fa il conto: la stagione contro la finestra delle ultime
+  venti, entrambe per 90 - e un tasso di ammonizioni e' un tratto che la stagione stima meglio.
+* **dove i cartellini non si sanno, il netto e' IGNOTO e non zero**, e chi legge ripiega sui soli bonus:
+  la seconda prova serve a ESCLUDERE, e per escludere un uomo serve una prova - la mancanza di una non lo
+  e'. Stessa regola di `boards._contended` e di `ownsShirt`.
+* **la soglia oggi non esclude nessuno**, e va detto: il peggiore del foglio sta a **-0,091** (Leite,
+  quattro gialli in 1970 minuti e nessun bonus), quindi per arrivarci senza bonus servirebbe un giallo
+  ogni due partite scarse. E' una guardia che esiste per un caso che questo listone non contiene - come
+  `BOARD_OUT_SHARE`, dichiarata inerte col suo conteggio accanto - e cio' che la sua cifra cambia DAVVERO
+  e' che entrano anche gli uomini senza un bonus purche' non si facciano ammonire (Grillitsch, Duncan).
+
+**E `abroad.layer` NON AVEVA UN TEST CHE LA CHIAMASSE**: gli undici che c'erano provano `window_of` e
+`screen`, che sono pure. Una query nuova senza un chiamante nei test e' una query che si scopre rotta in
+produzione, quindi il dodicesimo la esegue su un DB vero in miniatura - e ha subito trovato due errori
+nel mio fixture (`players.canonical_name`, e `external_match_stats` che vuole `source` e `match_id`).
+
+### 52.9 - `boa`: «gioca quasi sempre con una media voto dignitosa»
+
+Decima parola, sua istruzione della stessa sera, ritagliata da `riserva` - che era la classe piu' grossa
+del foglio (233 righe) e conteneva tutto quello che sta sotto la sbarra di `solido`. Due metri, **nessuno
+dei due nuovo**: `status.PLAY_ALMOST_EVERY` (0,80, la stessa frase che la scala a sei parole usa per
+`titolare`) e la sufficienza di `PASS_MARK`.
+
+**SULLA MEDIA VOTO E NON SULLA FANTAMEDIA**, ed e' quello che la fa funzionare per un portiere: la sua
+fantamedia porta i gol subiti, quindi Falcone legge **4,82 di livello e 6,21 di media voto attesa**, e
+«dignitosa» descrive la seconda. Nove uomini su Serie A, quarantatre su euro.
+
+**NATA «PRIMA DI SCARTO» E SALITA DI UN GRADINO LA STESSA SERA, per una correzione di VOCABOLARIO e non
+di misura**: «RISERVA non e' da intendersi "riserva nella sua squadra di serie A" ma "da schierare come
+riserva nella propria rosa" ... BOA dovrebbe essere un gradino sotto: piuttosto che affondare meglio
+averlo in squadra». Con `riserva` che significa «lo tengo in panchina nella MIA rosa», `boa` le sta
+subito sotto - sopra `scommessa` e non piu' sotto - e la scala torna coerente con quello che la misura
+diceva gia': i nove uomini che cattura giocano lo 0,81-0,90 del calendario, cioe' piu' della riserva
+media. *Una parola mal collocata puo' essere il sintomo di un'altra parola letta male, e la cura sta
+nella definizione e non nell'ordine.*
+
+### 52.10 - Il CONTEGGIO PER PAROLA ha trovato un ruolo intero vuoto, e la cura giusta l'ha data lui
+
+Prima di spedire, il conto di quanti cadono in ogni parola - l'abitudine che questo file si e' scritto il
+22/09 - ha detto che **`promessa` non conteneva un solo portiere**. Non era un caso raro: **0 portieri su
+25** che hanno giocato hanno un bonus netto positivo, perche' `fm - mv` per un portiere e' quello che
+COSTA e non quello che aggiunge (il migliore, Caprile, sta a **-0,40**). Chiedergli «qualche bonus» non
+era una prova severa: era chiedergli «non ha mai preso un gol».
+
+**LA MIA PRIMA CURA TOGLIEVA LA PROVA; LA SUA LA CAMBIA DI SEGNO, ed e' quella giusta**: «per i portieri
+le PROMESSE sono semplicemente quelli che subiscono pochi gol, quindi piuttosto che parlare di "qualche
+bonus" si parlerebbe di "pochi malus"». E' la STESSA quantita' degli altri ruoli con l'altro segno
+atteso - quindi una correzione e non un'eccezione - e la differenza si vede sul foglio: togliere la prova
+passava **Butez** (-1,25 a presenza, un gol e un quarto a partita) sulla sola media voto, mentre
+`KEEPER_MALUS` = **-1,0** lo lascia fuori. *Quando una prova non funziona per una popolazione, la prima
+domanda non e' se toglierla ma se la quantita' vada letta al contrario.*
+
+La soglia e' l'UNITA' DEL GIOCO e non un percentile - un punto e' un gol, quindi «meno di un malus a
+presenza» - e la banda e' larga: a -0,5 terrebbe 2 portieri, a -1,0 ne tiene 6, a -1,5 ne tiene 9.
+`promessa` passa da 17 a **20**, e i portieri che entrano sono Palmisani, Vicario e Mandas.
+
+**E «SUBISCE POCHI GOL» NON E' ESATTAMENTE IL MALUS, il che rende la sua seconda formulazione migliore
+della prima.** Misurato, il netto discorda dal tasso di gol subiti su **4 portieri di 20**: Mandas ne
+prende 0,60 a partita e legge 0,00, perche' ha parato un rigore. La differenza e' un merito suo, e il
+MALUS e' comunque la quantita' che la rosa paga - cioe' quella su cui si decide un acquisto. Leggere i
+gol subiti direttamente vorrebbe dire una query dentro `features`, cioe' il percorso del gate; il malus
+e' gia' in `Observation` e dice la cosa piu' utile delle due.
+
+**La scala completa, sul foglio di Serie A del 22/09 ricalcolata:** super 8 · top 19 · semi 20 ·
+**promessa 20** · solido 19 · riserva 233 · **boa 9** · **scommessa 1** · scarto 151 · **incognita 82**.
+
+### 52.11 - E lo strumento di misura ha sbagliato nello stesso modo che stava misurando
+
+La sonda che conta le parole ha letto «`promessa` 17, portieri ammessi 0» **dopo** la correzione, e la
+colpa era sua: chiamava `in_form` senza passare il RUOLO, quindi misurava la versione precedente della
+funzione. E' «verifica la FUNZIONE, non la colonna che le somiglia» commesso dentro l'arnese che serviva
+a verificare quella funzione - e si e' visto solo perche' il numero non si era mosso dopo un cambio che
+doveva muoverlo. *Un risultato identico dopo una cura e' un guasto dello strumento finche' non si prova
+il contrario*, che e' la regola gia' scritta due volte in questo repository per il banco d'asta.
+
+**E la stessa giornata ha prodotto la variante opposta, tre volte**: una suite lanciata MENTRE si
+modifica un file legge fallimenti che non esistono. Qui sono stati **17 rossi** su test che leggono il
+SORGENTE con `inspect.getsource` - la cache dei sorgenti di Python si disallinea appena il file cambia
+sotto, e la funzione torna una riga troncata. Rilanciata sull'albero fermo: **956 verdi, zero rossi**.
+*Una misura si fa tenendo ferma la cosa misurata, e un rosso raccolto durante una modifica non e' un
+rosso: e' rumore che costa un'ora se lo si insegue.*
+
+### 52.12 - «Le 233 riserve sono troppe»: la QUINTA sbarra, e una sua regola di ieri RITIRATA
+
+**23/09/2026 (sera tardi)**: «le 233 riserve sono troppe, la mia idea era qualcosa tipo 10/15 riserve +
+8/12 boe + 8/12 scommesse», poi «intendevo 15 circa per ogni ruolo». Aveva ragione sulla diagnosi prima
+che sulla taglia: `riserva` era **l'unica parola senza una sbarra sua** - il fondo della cascata, dove
+finiva chiunque giocasse meta' calendario senza arrivare a `solido`. 233 righe di 562 contro le 8-22 di
+ogni altra parola, cioe' una classe che non afferma niente.
+
+**LA CURA E' UNA QUINTA SBARRA DI LIVELLO**, stessa forma delle altre quattro e per la stessa ragione (la
+sua regola del 01/09: le sbarre sono ASSOLUTE, o una parola dice una cosa diversa ogni settimana). Le tre
+alternative provate e scartate sono scritte perche' erano tutte della taglia giusta: «i tre migliori per
+ruolo» e' un CONTEGGIO e non una sbarra; «i tre per valore atteso» idem; «gioca tanto e rende poco»
+descrive `boa` e non una riserva. Effetto: **48 riserve su Serie A e 49 su euro**, ~12 per ruolo. E i
+nomi dicono che la parola adesso significa qualcosa: Stones, Pavard, Kempf, Bastoni, Scalvini, Pulisic,
+Chukwueze, Locatelli - **il livello ci sarebbe, il posto nel suo club no**, che e' esattamente la sua
+definizione («da schierare come riserva nella propria rosa»).
+
+**E IL PORTIERE E' IL CASO IN CUI UNA SBARRA DI LIVELLO NON SEPARA.** Sopra `scarto` ce ne sono 11 su
+default e 13 su euro - quindici non esistono, perche' il terzo portiere di ogni club sta sotto - e i suoi
+`boa` hanno livelli INTERLACCIATI con le riserve (De Gea gioca lo 0,88 e legge il livello piu' basso di
+tutti). Per lui l'asse che distingue e' la QUOTA, non il livello, quindi la sua sbarra e' scelta per non
+svuotare `boa` dei portieri, dichiarato e col conteggio accanto.
+
+### 52.13 - Una sua regola del 22/09 RITIRATA il 23/09, e messa a verbale invece che sepolta
+
+«Chi gioca non e' mai uno scarto» era una sua risposta esplicita su Douglas Luiz, e c'era un test che la
+difendeva per nome. Le sue due richieste del giorno dopo - `riserva` a ~15 per ruolo e, messo davanti al
+conteggio, «SCARTO deve dire *e' misurato e non vale un posto*» - la ribaltano: **~210 uomini che giocano
+il 50-80% del calendario scendono in `scarto`**, che passa da 151 a 312. Non e' un effetto collaterale, e'
+l'aritmetica della sua richiesta, e il test non e' stato cancellato ma RISCRITTO col nome della regola
+ritirata e la data. `scarto` ha ora DUE porte - chi non gioca abbastanza e chi gioca e non vale un posto -
+e una frase sola che le copre entrambe.
+
+### 52.14 - I due `riserva` che aveva dettato diventano `boa`, e la parola non li tradisce
+
+Pinamonti e Douglas Luiz erano suoi verdetti del 22/09 («tappabuchi: gioca, ed e' per quello che lo
+compri»), e con `riserva` a 15 per ruolo non ci stanno piu': **6,528 di livello, circa trentesimo fra gli
+attaccanti**, e 6,049 fra i centrocampisti. Sarebbero finiti in `scarto` - due dichiarazioni rotte.
+
+A tenerli e' il gradino che era nato per loro: la loro promessa di ieri e' **parola per parola** quello
+che `boa` dice oggi. Le due cifre di `boa` sono quindi chiuse dai loro numeri - `BOA_PLAYS` scende da 0,80
+a **0,72** (Pinamonti gioca 0,721) e `BOA_MARK` a **5,94** (Douglas Luiz legge 5,940) - che e' come sono
+state fissate tutte le sbarre di questo modulo: *dai suoi nomi*. **Boa: 33 su Serie A** (~8 per ruolo) e
+42 su euro.
+
+**E `BOA_MARK` DIVENTA PER PIATTAFORMA**, quinta istanza della regola: la MV attesa di euro sta piu' in
+alto e una sbarra sola dava 33 boe su default e **91** su euro. Il sei era il valore di principio
+(`PASS_MARK`) e la TAGLIA che lui ha chiesto lo ha spostato - va detto, perche' e' l'unica sbarra di
+questo modulo che non nasce da un principio ma da un conteggio. Su euro i ruoli non escono uniformi (i
+difensori arrivano a 6,16 di MV attesa, quindi ne passa uno): una tabella per RUOLO e' il passo dopo, se
+la vuole.
+
+### 52.15 - E la SCOMMESSA non puo' arrivare alla sua taglia: e' un limite di DATI
+
+8/12 per ruolo vorrebbe dire 32-48. Gli uomini non prezzati che hanno i due numeri sono **9 in tutto su
+Serie A** (4 difensori e 5 centrocampisti) e 16 su euro: il tetto della parola e' quello, e sta a 7 e 14
+perche' le sue soglie ne tengono quasi tutti. Non e' una soglia da allargare - e' che di uomini con
+abbastanza calcio su file per dire «ottimi presupposti» ce ne sono nove. *Una taglia si puo' chiedere a
+una soglia, non a una popolazione che non esiste.*
+
+### 52.16 - Tre difetti di misura, e due erano nel mio strumento
+
+* **UNA SBARRA CALCOLATA SU UN INSIEME CHE CONTIENE GIA' I RETROCESSI DAL CANCELLO E' SBAGLIATA.** I
+  primi sette difensori per livello di quella classe (Stones 6,273, Pavard, Kempf, Bastoni...) stanno
+  SOPRA la sbarra di `solido`: ci sono perche' il cancello dell'undici li ha fatti scendere, non perche'
+  il livello li mandi li'. Contandoli si consumavano sette dei quindici posti e la sbarra usciva troppo
+  bassa - 102 riserve invece di 48. *Quando una classe ha due porte, una soglia sulla prima si calibra
+  sui soli uomini che entrano da quella.*
+* **DUE CASCATE PER UNA DOMANDA FINISCONO PER NON ESSERE D'ACCORDO.** Il ramo «senza storico» aveva una
+  mini-cascata sua che chiudeva con `return RISERVA`, quindi la sbarra nuova non lo toccava: **23
+  difensori** entravano in `riserva` col livello sotto la banda, un terzo della classe che lui aveva
+  appena chiesto di stringere. Trovato contando per ruolo e non rileggendo il codice.
+* **E LA MIA SONDA ERA CIRCOLARE**: calcolava la sbarra nuova leggendo le categorie prodotte dalla sbarra
+  nuova. Dava sempre lo stesso numero, che sembrava stabilita' ed era una tautologia.

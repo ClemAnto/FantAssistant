@@ -30,7 +30,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from euroleghe_ingest.engine import presence
+from euroleghe_ingest.engine import presence, status
 
 NAME = "boards"
 DESCRIPTION = "what the panel would draw for every club of a sheet, as data"
@@ -93,7 +93,9 @@ MAX_DUELS = 2
 #: same trick `ownsShirt` plays on the sealed-bid page - quote the scale instead of inventing a number, so
 #: the two can never disagree about what «he plays» means. Camarda reads `riserva` (0.418 of the matches,
 #: 40 minutes) and is why Ramos G. reads `ballottaggio` next to an empty chair.
-CONTENDER_RUNGS = frozenset(("bandiera", "titolarissimo", "titolare", "ballottaggio"))
+#: Una definizione sola, e vive con la SCALA (`engine/status.py`): la leggono questo modulo e
+#: `engine/categories.py`, e due copie finirebbero per non essere d'accordo su «lo schiera o no».
+CONTENDER_RUNGS = status.CONTENDER_RUNGS
 
 
 def _fc_id(row: dict) -> int | None:

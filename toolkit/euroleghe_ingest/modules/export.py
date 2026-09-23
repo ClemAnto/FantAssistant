@@ -321,6 +321,7 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_abroad_matches",
     "desc_abroad_minutes",
     "desc_abroad_ga90",
+    "desc_abroad_cards90",
     "desc_abroad_vote",
     "desc_abroad_voted",
     "desc_abroad_share",
@@ -415,7 +416,8 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     # foglio le porta VUOTE per chiunque abbia giocato qui l'anno prima, cioe' per i due terzi del
     # listone. E' la quarta volta che questo commento si scrive.
     "desc_abroad_watch", "desc_abroad_comp", "desc_abroad_matches", "desc_abroad_minutes",
-    "desc_abroad_ga90", "desc_abroad_vote", "desc_abroad_voted", "desc_abroad_share",
+    "desc_abroad_ga90", "desc_abroad_cards90", "desc_abroad_vote", "desc_abroad_voted",
+    "desc_abroad_share",
     "desc_abroad_rank", "desc_abroad_pool",
     # ...e le cinque dell'esito, nate il 06/09/2026: ogni foglio scritto prima della revisione 46 non le
     # ha, pacchetti compresi. Quarta volta che questo commento si scrive, e la ragione e' sempre la

@@ -6750,6 +6750,9 @@ descrivono comportamenti che non cambiano.
 `letture-app-v1.md` §48, gate §7-unsexagies e §7-duosexagies.** Sette parole — **super · top · semi ·
 solido · riserva · scommessa · scarto** — che sostituiscono le sei del 01/09, e con loro cambia la
 QUANTITA' che le decide.
+**NOTA DEL 23/09/2026: la scala e' ora di DIECI parole** (`promessa`, `boa`, `incognita` in piu') e ha un
+cancello sull'undici tipo; quello che segue resta com'e' stato scritto perche' registra come le sette
+furono dettate e misurate. Vedi «La scala delle categorie e' di DIECI parole» in fondo a questo file.
 
 **LA PRIMA COSA UTILE E' STATA NON COSTRUIRE.** La scala esisteva gia': il toolkit la calcolava, l'app
 aveva vocabolario, colonna e filtro, e `desc_category` **non era in `export.SHEET_COLUMNS`** — vuota su
@@ -7003,3 +7006,90 @@ secondo caso si corregge il COMMENTO e non il codice.* Il codice difensivo resta
 pulizia non dipende dall'ordine di smontaggio del framework — e il banco dichiara di sé che **non
 distingue le due forme**, perché un banco che sembra provare più di quanto prova è peggio di uno che non
 c'è.
+
+## La scala delle categorie e' di DIECI parole, e il fondo aveva bisogno di un cancello e di una sbarra
+**23/09/2026, dieci correzioni dell'operatore su nomi concreti, tutte trovate da lui a schermo.
+Dettaglio: `letture-app-v1.md` §52, spec «Novita' v9.100», `SHEET_REVISION` 73.** Le sette parole del
+22/09 diventano **super · top · semi · promessa · solido · riserva · boa · scommessa · scarto ·
+incognita**. `engine_*` non si muove di un decimale, e lo si VERIFICA invece di dedurlo: `evaluate`
+importa `cups, features, model` e nient'altro, e `categories` ha un solo lettore nel toolkit.
+
+**UN RAMO SENZA PAVIMENTO ERA GIA' SEGNALATO NEL CODICE, e il commento chiedeva di CONTARE la
+popolazione prima che qualcuno ci mettesse una soglia.** `level >= top` non guardava le presenze, quindi
+Cabal leggeva `top` con **zero presenze su cinque giornate** e 0,303 di calendario. *Un difetto che il
+codice descrive di se' si trova in un minuto quando arriva la segnalazione, e non si trova mai se nessuno
+segnala.*
+
+**«ALMENO TITOLARE» NON PUO' ESSERE IL GRADINO `titolare`, e a dirlo e' una sua dichiarazione VECCHIA:**
+Calhanoglu e' `top` dichiarato e la scala lo chiama `ballottaggio`. La frase vuol dire «uno che l'undici
+schiera», cioe' `status.CONTENDER_RUNGS` — un metro che esisteva gia' (spostato da `boards.py` alla
+SCALA: una definizione, tre lettori). **Le due quantita' ovvie sono state provate prima e non separano i
+suoi casi**: la quota PREVISTA mette Kempf (0,576) sopra Osmajic (0,533), la quota VISTA mette Stones a
+3/5 esattamente come Calhanoglu e Adams C. Il gradino li separa tutti e quattro perche' legge due assi e
+non uno. Costo misurato prima di adottarlo: 20 righe di 562 scendono e **tutte e dodici le dichiarazioni
+positive reggono**.
+
+**UNA PAROLA SENZA UNA SBARRA E' UNA DISCARICA.** `riserva` era il fondo della cascata — 233 righe di 562
+contro le 8-22 di ogni altra parola — e la cura e' una QUINTA sbarra di livello per (piattaforma, ruolo),
+stessa forma delle altre quattro perche' la sua regola del 01/09 dice che le sbarre sono ASSOLUTE. Tre
+alternative della taglia giusta sono state scartate per FORMA e non per numero: «i tre migliori per
+ruolo» e' un conteggio e non una sbarra. **48 riserve e i nomi dicono cosa vuol dire adesso** (Stones,
+Pavard, Kempf, Bastoni, Pulisic: il livello c'e', il posto nel suo club no).
+
+**E UNA SUA REGOLA DI IERI E' STATA RITIRATA, a verbale invece che sepolta.** «Chi gioca non e' mai uno
+scarto» era una sua risposta esplicita su Douglas Luiz, con un test che la difendeva per nome; la taglia
+che ha chiesto manda ~210 uomini che giocano il 50-80% in `scarto`, che smette di dire «non gioca
+abbastanza» e dice «e' misurato, e non vale un posto». Il test non e' stato cancellato ma RISCRITTO col
+nome della regola ritirata e la data. *Una conseguenza aritmetica di una sua richiesta si mette davanti a
+lui e poi si registra; quello che non si fa e' lasciarla scoprire.*
+
+**I SUOI NOMI RESTANO LA SPECIFICA ANCHE QUANDO UNA PAROLA SI MUOVE SOTTO DI LORO.** Pinamonti e Douglas
+Luiz erano `riserva` dichiarati e con la sbarra nuova sarebbero finiti in `scarto`; li tiene `boa`, il
+gradino nato quel giorno, perche' la loro promessa di ieri — «gioca, ed e' per quello che lo compri» — e'
+parola per parola quello che `boa` dice oggi. Le due cifre di `boa` sono chiuse dai loro numeri
+(`BOA_PLAYS` 0,80 → 0,72, `BOA_MARK` per PIATTAFORMA 5,94 / 6,10), che e' come sono state fissate tutte
+le sbarre di quel modulo.
+
+**QUANDO UNA PROVA NON FUNZIONA PER UNA POPOLAZIONE, LA PRIMA DOMANDA NON E' SE TOGLIERLA MA SE LA
+QUANTITA' VADA LETTA AL CONTRARIO.** `promessa` era VUOTA PER COSTRUZIONE per i portieri (0 su 25 con
+bonus netto positivo, perche' `fm - mv` per loro e' il malus dei gol subiti) e l'ha trovato il CONTEGGIO
+PER PAROLA, non una rilettura. La mia cura toglieva la prova; la sua la gira di segno — «pochi malus»
+invece di «qualche bonus» — ed e' quella giusta: togliere la prova passava Butez (-1,25 a presenza) sulla
+sola media voto, mentre `KEEPER_MALUS` = -1,0 (l'unita' del gioco: un punto e' un gol) lo lascia fuori.
+
+**UNA SOGLIA SU UNA QUANTITA' CHE NON PUO' RAGGIUNGERLA E' UN CONTROLLO CHE NON GUARDA NIENTE.** La sua
+seconda cifra per `scommessa` («bonus > -0,25, escludiamo uno che si fa sempre ammonire») ha imposto la
+QUANTITA' prima del numero: `ga90` sono gol+assist per 90 e non scende mai sotto zero, quindi quel tetto
+avrebbe detto «escludo chi si fa ammonire» **senza guardare un cartellino**. Si legge il netto, e i
+cartellini vengono dall'aggregato di STAGIONE perche' nel livello per-partita quelle colonne **esistono e
+sono VUOTE** (0 non nulle su 131.709) — *una colonna che c'e' e non e' popolata e' peggio di una che
+manca, perche' un lettore la crede piena.* La soglia oggi non esclude nessuno (il peggiore sta a -0,091)
+ed e' dichiarata inerte col suo conteggio accanto.
+
+**E UNA TAGLIA SI PUO' CHIEDERE A UNA SOGLIA, NON A UNA POPOLAZIONE CHE NON ESISTE.** «8/12 scommesse per
+ruolo» e' irraggiungibile: gli uomini non prezzati che hanno i due numeri sono **9 in tutto su Serie A** e
+16 su euro. Non e' una soglia da allargare, ed e' la stessa forma del limite dei portieri (sopra `scarto`
+ce ne sono 11, perche' il terzo di ogni club sta sotto).
+
+Quattro errori di misura, e tre erano nello STRUMENTO.
+- **UNA SOGLIA SI CALIBRA SUI SOLI UOMINI CHE ENTRANO DALLA PORTA CHE STA TARANDO.** La prima quinta
+  sbarra usciva troppo bassa (102 riserve invece di 48) perche' l'insieme su cui la calcolavo conteneva
+  gia' i retrocessi dal CANCELLO — Stones, Pavard, Bastoni hanno il livello SOPRA la sbarra di `solido` e
+  consumavano sette dei quindici posti. *Quando una classe ha due porte, una soglia sulla prima si
+  calibra sui soli uomini che entrano da quella.*
+- **DUE CASCATE PER UNA DOMANDA FINISCONO PER NON ESSERE D'ACCORDO**: il ramo «senza storico» aveva una
+  mini-cascata sua che chiudeva con `return RISERVA`, quindi la sbarra nuova non lo toccava e 23
+  difensori entravano col livello sotto la banda — un terzo della classe appena stretta. Trovato
+  contando per ruolo, non rileggendo il codice.
+- **UNA SONDA CHE CALCOLA UNA SOGLIA LEGGENDO I RISULTATI DI QUELLA SOGLIA E' CIRCOLARE**, e dava sempre
+  lo stesso numero: sembrava stabilita' ed era una tautologia. Stessa famiglia dell'asserzione circolare
+  del 04/09, dentro l'arnese di misura invece che dentro un banco.
+- **E UNA SONDA STALE MISURA LA VERSIONE PRECEDENTE DELLA FUNZIONE**: dopo aver aggiunto il RUOLO a
+  `in_form` la sonda continuava a chiamarla senza, quindi leggeva «0 portieri ammessi» dopo una cura che
+  ne ammetteva sei. *Un risultato identico dopo una cura e' un guasto dello strumento finche' non si
+  prova il contrario.*
+
+**E LA SUITE SI LANCIA SU UN ALBERO FERMO.** Una corsa avviata mentre modificavo `snapshot.py` ha letto
+**17 rossi che non esistevano**: i test che leggono il sorgente con `inspect.getsource` vedono la cache
+disallineata appena il file cambia sotto, e la funzione torna una riga troncata. Rilanciata a fermo: zero.
+*Un rosso raccolto durante una modifica non e' un rosso, e' rumore che costa un'ora se lo si insegue.*

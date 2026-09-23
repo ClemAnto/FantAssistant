@@ -150,3 +150,53 @@ def test_the_mark_is_drawn_only_on_the_platform_it_was_measured_on():
     """
     assert abroad.SCREEN_PLATFORMS == ("default",)
     assert "euro" not in abroad.SCREEN_PLATFORMS
+
+
+def test_the_layer_reads_the_cards_from_the_SEASON_and_nets_them_off(tmp_path):
+    """`layer` end-to-end su un DB vero in miniatura: e' l'unico test che esegue la sua SQL.
+
+    NASCE CON LA COLONNA DEI CARTELLINI (23/09/2026) e la copre perche' fino a ieri quella funzione non
+    aveva un test che la CHIAMASSE - le altre provano `window_of` e `screen`, che sono pure. Una query
+    nuova senza un chiamante nei test e' una query che si scopre rotta in produzione.
+
+    I cartellini vengono da `external_stats`, che conta sulla STAGIONE, mentre i bonus vengono dalla
+    finestra delle ultime venti: unita' diverse dichiarate nel modulo, entrambe per 90.
+    """
+    from euroleghe_ingest.db.database import init_db
+    from euroleghe_ingest.modules import abroad as module
+
+    conn = init_db(tmp_path / "t.sqlite")
+    conn.execute(
+        "INSERT INTO players (fc_id, canonical_name, birth_year) VALUES (1, 'Tizio', 1999)")
+    conn.execute("INSERT INTO rosters (fc_id, season, role_classic) VALUES (1, '2026-27', 'C')")
+    conn.execute("""INSERT INTO listone_quotes (fc_id, season, platform, sold)
+                    VALUES (1, '2026-27', 'default', 0)""")
+    # venti partite di Ligue 1, 90 minuti l'una: 1800 minuti, un gol -> ga90 = 0,05
+    for md in range(1, 21):
+        conn.execute(
+            """INSERT INTO external_match_stats
+                   (fc_id, season, source, match_id, competition, match_date, minutes,
+                    goals, assists, mv_synth)
+               VALUES (1, '2025-26', 'sofascore', ?, 'ligue_1', ?, 90, ?, 0, 6.0)""",
+            (md, f"2026-{md:02d}-01" if md <= 12 else f"2025-{md - 12:02d}-01",
+             1 if md == 1 else 0))
+    # ...e QUATTRO gialli sulla stagione, in 1800 minuti: 4 x 0,5 x 90 / 1800 = 0,10 per 90
+    conn.execute("""INSERT INTO external_stats
+                        (fc_id, season, source, competition, minutes, yellows, reds)
+                    VALUES (1, '2025-26', 'x', 'ligue_1', 1800, 4, 0)""")
+    conn.commit()
+
+    men = module.layer(conn, '2026-27', '2025-26', 'default')
+    assert 1 in men, "l'uomo entra nella popolazione dei nuovi arrivati"
+    assert men[1]["ga90"] == 0.05
+    assert men[1]["cards90"] == 0.1
+    # il NETTO e' quello che `has_prospects` legge, ed e' negativo pur avendo lui segnato
+    assert men[1]["net90"] == round(0.05 - 0.1, 3)
+
+    # ...E SENZA UNA RIGA DI CARTELLINI IL NETTO E' IGNOTO E NON ZERO: la seconda prova serve a
+    # ESCLUDERE, e per escludere un uomo serve una prova.
+    conn.execute("DELETE FROM external_stats")
+    conn.commit()
+    men = module.layer(conn, '2026-27', '2025-26', 'default')
+    assert men[1]["cards90"] is None and men[1]["net90"] is None
+    conn.close()

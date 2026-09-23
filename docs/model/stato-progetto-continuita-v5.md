@@ -8918,3 +8918,79 @@ consecutivi, ma non lo do per spiegato.
   quel banco vorrebbe dire committare la loro metà.
 - **`e2e-player-card` è rosso su HEAD** dal commit precedente a questa sessione: il riepilogo con
   `season: null` che non torna col pacchetto.
+
+## 23 settembre 2026 — LA SCALA DELLE CATEGORIE: da sette parole a DIECI, e un cancello che mancava
+
+Sessione guidata da **dieci correzioni dell'operatore su nomi concreti**, tutte trovate da lui guardando
+lo schermo. Dettaglio completo: `letture-app-v1.md` §52 (dodici sottosezioni). `SHEET_REVISION` 73,
+`engine_*` fermo — verificato e non dedotto: `evaluate` importa `cups, features, model` e nient'altro, e
+`categories` ha un solo lettore in tutto il toolkit (`snapshot`).
+
+### Il cancello dell'undici tipo — «un TOP deve essere almeno titolare»
+
+Quattro nomi in mezz'ora (Cabal e Pavard `top`, Kempf e Stones `solido`) e **una causa sola**: il ramo
+`level >= top` era l'unico della cascata **senza pavimento sulle presenze**, e il codice lo dichiarava già
+come la domanda aperta su cui lui non aveva deciso, chiedendo di CONTARE la popolazione prima di mettere
+un pavimento. Contata: Cabal legge 0,303 di calendario con **zero presenze su cinque giornate**.
+
+La frase «almeno titolare» **non poteva essere il gradino** `titolare`, e a dirlo è una sua dichiarazione
+vecchia — Calhanoglu è `top` dichiarato e la scala lo chiama `ballottaggio`. Vuol dire «uno che l'undici
+schiera», cioè `CONTENDER_RUNGS`, un metro che esisteva già (spostato da `boards.py` a `engine/status.py`:
+una definizione, tre lettori). Le due quantità ovvie sono state provate PRIMA e **non separano i suoi
+casi**: la quota prevista mette Kempf (0,576) sopra Osmajic (0,533), la quota vista mette Stones a 3/5
+esattamente come Calhanoglu. Il gradino li separa tutti e quattro perché legge due assi.
+
+### Tre parole nuove, tutte sue
+
+- **`promessa`** fra `semi` e `solido`: un `solido` che nelle giornate già giocate ha una buona media voto
+  e qualche bonus. È l'unica decisa sul calcio GIÀ GIOCATO. Per un **portiere** la prova è «pochi malus» e
+  non «qualche bonus» — sua correzione, e batte la mia: io avevo TOLTO la prova, lui l'ha girata di segno.
+  Senza, `promessa` era vuota per costruzione su un ruolo intero (0 portieri su 25 con netto positivo) e
+  l'ha trovato il **conteggio per parola**, non una rilettura.
+- **`scommessa`** prende una condizione («ottimi presupposti»), e chi non la soddisfa diventa
+  **`incognita`** — 74 righe di 83 non hanno un solo numero. La seconda cifra che ha dettato (`> -0,25`)
+  ha imposto la QUANTITÀ: su `ga90` un tetto negativo sarebbe stato **inerte per costruzione**, quindi si
+  legge il netto dei cartellini, che vengono dall'aggregato di STAGIONE perché nel livello per-partita
+  quelle colonne esistono e sono VUOTE (0 non nulle su 131.709).
+- **`boa`**: «gioca quasi sempre con una media voto dignitosa». Nata «prima di SCARTO» e salita di un
+  gradino la stessa sera per una correzione di VOCABOLARIO — `riserva` non è «riserva nel suo club» ma
+  «da schierare come riserva nella propria rosa».
+
+### «Le 233 riserve sono troppe»: la quinta sbarra, e una sua regola di ieri ritirata
+
+`riserva` era **l'unica parola senza una sbarra sua**, cioè il fondo della cascata. Ora ha la quinta
+sbarra di livello per (piattaforma, ruolo): **48 su default e 49 su euro**, ~12 per ruolo. Il prezzo,
+scelto da lui davanti al conteggio: ~210 uomini scendono in `scarto`, che smette di dire «non gioca
+abbastanza» e dice «è misurato, e non vale un posto» — il che **RITIRA la sua regola del 22/09 «chi gioca
+non è mai uno scarto»**, detta su Douglas Luiz. Il test che la difendeva non è stato cancellato ma
+riscritto col nome della regola ritirata e la data.
+
+E i suoi due `riserva` dichiarati (Pinamonti, Douglas Luiz) diventano **`boa`**, il gradino nato per loro:
+la loro promessa di ieri è parola per parola quello che `boa` dice oggi, e le due cifre di `boa` sono
+chiuse dai loro numeri (`BOA_PLAYS` 0,80 → 0,72, `BOA_MARK` per PIATTAFORMA 5,94 / 6,10).
+
+### Distribuzione finale (Serie A, foglio del 22/09 ricalcolato)
+
+super 8 · top 19 · semi 20 · **promessa 20** · solido 19 · **riserva 48** · **boa 33** · **scommessa 7** ·
+scarto 312 · **incognita 76**.
+
+### Verifica
+
+**955 test toolkit** (2 skip) e **1053 app** su 61 file, build pulito. Controprova fatta rimettendo il
+difetto: con `gated` reso inerte cade esattamente il test che descrive la cura e nessun altro.
+L'ambiente Python era incompleto e le dipendenze mancanti (`requests`, `bs4`, `curl_cffi`, `dotenv`,
+`lxml`) sono state installate: **i 36 rossi iniziali erano tutti import falliti**, non codice.
+
+### APERTI che questa sessione lascia
+
+- **`scommessa` non può arrivare alla taglia che lui ha chiesto (8/12 per ruolo): è un limite di DATI.**
+  Gli uomini non prezzati che hanno i due numeri sono **9 in tutto su Serie A** e 16 su euro. Non c'è una
+  soglia da allargare.
+- **I portieri non arrivano a 15 riserve**: sopra `scarto` ce ne sono 11 su default e 13 su euro, perché
+  il terzo portiere di ogni club sta sotto. La loro sbarra è scelta per non svuotare `boa`, dichiarato.
+- **Su euro i ruoli di `boa` non escono uniformi** (i difensori arrivano a 6,16 di MV attesa, quindi ne
+  passa uno). Una tabella di `BOA_MARK` per RUOLO è il passo dopo, se la vuole.
+- **La lettura migliore di «pochi malus» sarebbe la PORTA INVIOLATA** (9 candidati contro 13): serve una
+  query dentro `features`, cioè il percorso del gate, quindi è una sua decisione e non si fa di straforo.
+- **Il pacchetto non porta ancora niente di tutto questo**: serve `snapshot` con display (senza, il
+  cancello resta spento e la colonna è quella non gatata), poi `export` e `data:pull`.

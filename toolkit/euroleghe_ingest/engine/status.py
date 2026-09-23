@@ -136,6 +136,15 @@ PLAY_OFTEN = 0.50
 FULL_MATCH = 75.0
 MOST_OF_THE_MATCH = 65.0
 
+#: I GRADINI CHE VOGLIONO DIRE «L'UNDICI LO SCHIERA», cioe' la meta' alta del cancello che questo modulo
+#: descrive nel proprio docstring: «un uomo che l'undici non schiera non puo' essere `titolare`, e uno che
+#: schiera non scende mai sotto `ballottaggio`». Vivevano in `modules/boards.py`, dove li leggeva un
+#: chiamante solo; sono un fatto sulla SCALA e non sul disegno, quindi stanno con la scala - e da qui li
+#: legge anche `categories.py`, che senza di loro avrebbe dovuto inventare una soglia di presenze per dire
+#: la stessa cosa. Una definizione e tre lettori: il giorno in cui la scala cambiasse parole, due copie
+#: darebbero due risposte a «lo schiera o no».
+CONTENDER_RUNGS = frozenset(LADDER[:LADDER.index("panchina")])
+
 
 def status_of(play_share: float | None, minutes: float | None, in_eleven: bool,
               contended: bool | None = None,

@@ -59,6 +59,12 @@ from __future__ import annotations
 # A rate over less than a season's worth of football is not a rate. 900 minutes = ten full matches, the
 # same floor the measurement above was taken with.
 MIN_MINUTES = 900
+
+#: QUANTO COSTA UN CARTELLINO, per il netto che `has_prospects` legge. Dichiarati e non letti da
+#: `scoring_config`: quel file e' per CAMPIONATO e questi uomini hanno giocato altrove, quindi non c'e'
+#: una riga loro da leggere - e il regolamento classico li paga cosi' ovunque.
+YELLOW_COST = 0.5
+RED_COST = 1.0
 # The window the operator asked for. Twenty and not ten because that is the question he put («le ultime
 # 15 o 20 partite»), and because ten matches of a 34-round league is a third of the evidence there is.
 WINDOW = 20
@@ -252,6 +258,23 @@ def layer(conn, target_season: str, input_season: str, platform: str = "default"
                 {"competition": competition, "minutes": minutes, "goals": goals,
                  "assists": assists, "vote": None, "date": date})
 
+    # I CARTELLINI VENGONO DALL'AGGREGATO DI STAGIONE E NON DALLA FINESTRA, ed e' una differenza di
+    # unita' da dichiarare invece che da nascondere: nel livello per-partita le colonne `yellows`/`reds`
+    # ESISTONO e sono VUOTE (0 righe non nulle su 131.709 nel pacchetto: nessun modulo le scrive, e una
+    # colonna che c'e' e non e' popolata e' peggio di una che manca, perche' un lettore la crede piena),
+    # quindi l'unica fonte e' `external_stats`, che conta
+    # su tutta la stagione. Le due quantita' sono comunque entrambe PER 90, che e' l'unita' che conta, e
+    # un tasso di ammonizioni e' un tratto piu' stabile di venti partite: la stagione lo stima meglio.
+    # Nella competizione della FINESTRA e non su tutte, cosi' il numeratore e il denominatore parlano
+    # dello stesso calcio.
+    cards: dict[tuple[int, str], tuple[float, float]] = {}
+    for fc_id, competition, yellows, reds, played in conn.execute(
+            """SELECT fc_id, competition, SUM(COALESCE(yellows, 0)), SUM(COALESCE(reds, 0)),
+                      SUM(COALESCE(minutes, 0)) FROM external_stats
+               WHERE season = ? GROUP BY fc_id, competition""", (input_season,)):
+        if fc_id in newcomers and played:
+            cards[(fc_id, competition)] = (yellows * YELLOW_COST + reds * RED_COST, played)
+
     calendars = features.league_rounds(conn, input_season)
     season_minutes: dict[tuple[int, str], int] = {}
     for fc_id, competition, played in conn.execute(
@@ -278,7 +301,15 @@ def layer(conn, target_season: str, input_season: str, platform: str = "default"
                 # lately» - the operator's own question - and the share answers «how much of a
                 # season is he», which needs the season.
                 share = round(min(played / (90 * rounds), 1.0), 3)
-        men[fc_id] = {**window, "role": role, "share": share}
+        # IL NETTO: i bonus della finestra meno il costo dei cartellini, tutti e due per 90. `None`
+        # quando i cartellini non si sanno - **vuoto = ignoto** - e chi lo legge decide cosa farne:
+        # `has_prospects` non esclude nessuno su un'assenza di prove, che e' la stessa regola di
+        # `_contended` («per RIFIUTARE un uomo serve una prova, non la mancanza di una»).
+        cost, played = cards.get((fc_id, window["competition"]), (None, None))
+        cards90 = round(cost * 90 / played, 3) if cost is not None and played else None
+        men[fc_id] = {**window, "role": role, "share": share, "cards90": cards90,
+                      "net90": (round(window["ga90"] - cards90, 3)
+                                if cards90 is not None else None)}
     if platform in SCREEN_PLATFORMS:
         for fc_id, hit in screen(men).items():
             men[fc_id]["screen"] = hit

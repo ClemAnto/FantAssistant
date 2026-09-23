@@ -19,19 +19,31 @@ import {
  * `engine/categories.py` con la misura che le ha scelte e i quindici verdetti dell'operatore come
  * specifica. Si prova che la lettura non tradisca la misura.
  */
-describe('le sette parole dentro il ruolo', () => {
+describe('le dieci parole dentro il ruolo', () => {
   it('ha le parole dell\'operatore, nell\'ordine della scala', () => {
     expect([...CATEGORIA_LADDER]).toEqual([
-      'super', 'top', 'semi', 'solido', 'riserva', 'scommessa', 'scarto',
+      'super', 'top', 'semi', 'promessa', 'solido', 'riserva', 'boa', 'scommessa', 'scarto',
+      'incognita',
     ]);
   });
 
   it('ordina per la SCALA e non per la sigla', () => {
+    // Le posizioni si asseriscono come RELAZIONI e non come numeri: la scala ha già preso una parola
+    // in più una volta (`promessa`, 23/09/2026) e i letterali cadevano su un indice invece che su ciò
+    // che difendono.
     expect(categoriaRank('super')).toBe(0);
-    expect(categoriaRank('scarto')).toBe(6);
+    // `incognita` CHIUDE la scala: non è un giudizio ma l'assenza di uno.
+    expect(categoriaRank('incognita')).toBe(CATEGORIA_LADDER.length - 1);
+    // ...e `boa` sta UN GRADINO SOTTO `riserva` (sua correzione del 23/09/2026: «piuttosto che
+    // affondare meglio averlo in squadra»), quindi sopra `scommessa` e non sotto.
+    expect(categoriaRank('boa')).toBe(categoriaRank('riserva')! + 1);
+    expect(categoriaRank('boa')!).toBeLessThan(categoriaRank('scommessa')!);
     // `scommessa` sta SOPRA `scarto` (sua graduatoria, 22/09 sera): «nessuno l'ha ancora misurato»
     // promette più di «è misurato e non gioca».
-    expect(categoriaRank('scommessa')).toBe(5);
+    expect(categoriaRank('scommessa')!).toBeLessThan(categoriaRank('scarto')!);
+    // ...e `promessa` sta fra `semi` e `solido`, che è dove lui l'ha messa (23/09/2026).
+    expect(categoriaRank('semi')!).toBeLessThan(categoriaRank('promessa')!);
+    expect(categoriaRank('promessa')!).toBeLessThan(categoriaRank('solido')!);
     // le sigle in ordine alfabetico direbbero un'altra cosa, ed è la ragione per cui si ordina qui
     const byShort = [...CATEGORIA_LADDER].sort((a, b) =>
       CATEGORIA_SHORT[a].localeCompare(CATEGORIA_SHORT[b]));
@@ -61,6 +73,8 @@ describe('le sette parole dentro il ruolo', () => {
     // entrambe per S, quindi tre è irraggiungibile senza una sigla che nessuno riconoscerebbe - e
     // due è comunque il doppio della distanza che quel difetto aveva. SRT contro SCM.
     expect(distance(CATEGORIA_SHORT.scarto, CATEGORIA_SHORT.scommessa)).toBeGreaterThanOrEqual(2);
+    // ...e la coppia che dice il contrario ORA e' `scarto` contro `incognita`, su tutt'e tre le lettere
+    expect(distance(CATEGORIA_SHORT.scarto, CATEGORIA_SHORT.incognita)).toBe(3);
     // ...e le due che sono VICINE sulla scala non devono confondersi a colpo d'occhio
     expect(distance(CATEGORIA_SHORT.super, CATEGORIA_SHORT.semi)).toBeGreaterThan(1);
   });
@@ -69,7 +83,7 @@ describe('le sette parole dentro il ruolo', () => {
     for (const word of CATEGORIA_LADDER) {
       expect(CATEGORIA_LABEL[word]).toBeTruthy();
     }
-    expect(CATEGORIA_LABEL.super).toBe('Super');
+    expect(CATEGORIA_LABEL.super).toBe('Supertop');   // il suo riepilogo del 23/09/2026
   });
 });
 
@@ -83,8 +97,8 @@ describe('la frase che spiega la parola', () => {
     expect(note).toContain('7.61 super');
   });
 
-  it('per una scommessa dice che manca la MISURA, e non stampa sbarre che non la riguardano', () => {
-    const note = categoriaNote('scommessa', null, '6.87/6.97/7.09/7.61') ?? '';
+  it('per una incognita dice che manca la MISURA, e non stampa sbarre che non la riguardano', () => {
+    const note = categoriaNote('incognita', null, '6.87/6.97/7.09/7.61') ?? '';
     expect(note).toContain('assenza di misura');
     expect(note).not.toContain('6.87');
   });
@@ -115,14 +129,19 @@ describe('il pallino: tinta e icona', () => {
     // «Uno schermo dove ogni numero e dipinto e uno schermo che urla»: `riserva` e la parola di
     // meta listone e porta il fondo neutro.
     expect(CATEGORIA_TONE.riserva).toContain('bg-control');
-    // `scommessa` non e un giudizio: nessun fondo, come `ignoto` nella scala del gain.
-    expect(CATEGORIA_TONE.scommessa).not.toContain('bg-');
+    // `incognita` non e un giudizio: nessun fondo, come `ignoto` nella scala del gain. Dal 23/09/2026
+    // e' LEI la parola dell'assenza di misura - `scommessa` ha una condizione e quindi afferma.
+    expect(CATEGORIA_TONE.incognita).not.toContain('bg-');
+    // ...e sotto il centro si scende in AMBRA, su tre gradini distinti.
+    const amber = ['boa', 'scommessa', 'scarto'] as const;
+    for (const word of amber) expect(CATEGORIA_TONE[word]).toContain('bg-warning/');
+    expect(new Set(amber.map((w) => CATEGORIA_TONE[w])).size).toBe(amber.length);
   });
 
   it('la scala del verde SCENDE dal migliore al peggiore', () => {
     // Il pieno solo in cima, poi traslucidi calanti: se due gradini avessero la stessa tinta, il
     // pallino direbbe che due categorie sono la stessa cosa.
-    const green = ['super', 'top', 'semi', 'solido'] as const;
+    const green = ['super', 'top', 'semi', 'promessa', 'solido'] as const;
     const tones = green.map((word) => CATEGORIA_TONE[word]);
     expect(new Set(tones).size).toBe(green.length);
     expect(tones[0]).toContain('bg-success ');   // pieno, senza opacita
