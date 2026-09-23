@@ -165,7 +165,7 @@ async function click(session, point) {
  */
 function readDocks() {
   const out = { docks: {} };
-  const rows = [...document.querySelectorAll('plancia-slot-matrix .grid > div button')];
+  const rows = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')];
   for (const side of ['left', 'right']) {
     const dock = document.querySelector(`[data-dock="${side}"]`);
     if (!dock) {
@@ -210,7 +210,11 @@ async function main() {
   const profile = await mkdtemp(join(tmpdir(), 'fant-docks-'));
   const debugPort = await freePort();
   const base = `http://127.0.0.1:${port}`;
-  const url = `${base}/plancia`;
+  // `?fixture=played` PERCHE' QUESTO BANCO MISURA SU RIGHE CHE HANNO UN PADRONE: dal 23/09/2026 la
+  // plancia apre su un tavolo VUOTO (sua istruzione), e su un tavolo vuoto la lente, il prezzo pagato e
+  // l'azzeramento non hanno niente da mostrare. La popolazione si CHIEDE nell'indirizzo invece di
+  // tornare a giocare il tavolo per tutti.
+  const url = `${base}/plancia?fixture=played`;
   const browser = spawn(
     binary,
     [
@@ -284,6 +288,10 @@ async function main() {
     await click(session, open.docks.right.toggleAt);
     const shut = await evaluate(session, readDocks);
     const fresh = /dati |allarmi spenti/.test(shut.docks.left?.text ?? '');
+    // L'ALLARME si legge da APERTA, dove la pastiglia c'e' comunque: chiedere a quella piegata se e'
+    // in allarme userebbe come prova proprio cio' che si sta verificando - l'asserzione circolare che
+    // questo repository ha gia' pagato due volte (04/09 sulla card, 16/09 sul confine di stagione).
+    const alarmed = /allarmi spenti/.test(open.docks.left?.text ?? '');
     note('piegate: spariscono i CONTROLLI e resta l\'ALLARME', {
       said:
         `sinistra ${open.docks.left.w}→${shut.docks.left?.w}px, bottoni ` +
@@ -300,9 +308,21 @@ async function main() {
         ...(shut.docks.left?.buttons === 1
           ? []
           : [`piegata, la barra di sinistra tiene ${shut.docks.left?.buttons} bottoni invece della sola freccia`]),
-        // LA REGOLA: la pastiglia della freschezza non si spegne mai. Uno schermo senza allarmi si
-        // legge come «non c'e' nessuno fuori».
-        ...(fresh ? [] : ['piegata, la barra di sinistra ha perso la pastiglia della freschezza']),
+        // LA REGOLA, CORRETTA IL 23/09/2026 SU SUA ISTRUZIONE: la pastiglia sopravvive al collasso
+        // SOLO quando e' l'ALLARME, non in ogni suo stato. «La card che contiene DATA IERI anche
+        // quando e' collassata ostacola la visione ... resti visibile solo la freccetta»: «ieri» e' il
+        // ramo AMBRA e non dice niente che non si possa leggere aprendo, mentre il rosso («allarmi
+        // spenti») resta, ed e' la meta' della regola vecchia che valeva davvero - uno schermo senza
+        // allarmi si legge come «non c'e' nessuno fuori».
+        //
+        // SE E SOLO SE: le due direzioni sono due difetti diversi e il banco le nomina a parte - una
+        // pastiglia che sopravvive senza allarme e' quello che lui ha segnalato, una che sparisce CON
+        // l'allarme e' il difetto che la regola vecchia esisteva per impedire.
+        ...(alarmed === fresh
+          ? []
+          : alarmed
+            ? ["piegata, la barra di sinistra ha perso la pastiglia MENTRE e' in allarme"]
+            : ['piegata, la barra di sinistra tiene la pastiglia senza avere un allarme da dare']),
         ...(shut.docks.left?.covers < open.docks.left.covers
           ? []
           : ['piegata, la barra di sinistra copre ancora tante righe quante ne copriva aperta']),

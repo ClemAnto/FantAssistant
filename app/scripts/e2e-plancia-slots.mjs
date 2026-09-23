@@ -259,7 +259,7 @@ function boxOf(selector, text) {
  * by a man who does not play today is the rule working and not a defect.
  */
 function readBoard() {
-  const blocks = [...document.querySelectorAll('plancia-slot-matrix .grid > div')].filter((one) =>
+  const blocks = [...document.querySelectorAll('plancia-slot-matrix [data-block]')].filter((one) =>
     one.querySelector('button'),
   );
   if (!blocks.length) return null;
@@ -281,7 +281,7 @@ function readBoard() {
           name: (row.innerText ?? '').split('\n')[0].trim(),
           offer: Number((cells.at(-1)?.innerText ?? '').replace(/[^0-9-]/g, '')),
           // IL NUMERO DI SINISTRA, che e' quello che SPIEGA l'ordine e cambia col taglio: sul mercato
-          // quanto rende sopra il sei, sui personali lo SWING. Letto dalla terza cella DA DESTRA e
+          // quanto rende sopra il sei, sui personali LA MONETA (il surplus). Letto dalla terza cella DA DESTRA e
           // non dalla terza da sinistra, perche' in mezzo c'e' `ui-flags`, che disegna un numero
           // variabile di span. Il punto e' il separatore decimale di quest'app, quindi si parsa cosi'.
           lead: Number((cells.at(-3)?.innerText ?? '').replace(/[^0-9.-]/g, '')),
@@ -311,7 +311,7 @@ function readBoard() {
 function readTeamCard() {
   const strip = document.querySelector('plancia-team-grid');
   const card = strip?.parentElement;
-  const block = document.querySelector('plancia-slot-matrix .grid > div');
+  const block = document.querySelector('plancia-slot-matrix [data-block]');
   if (!card || !block) return null;
   const paint = (el) => getComputedStyle(el).backgroundColor;
   const box = card.getBoundingClientRect();
@@ -355,7 +355,7 @@ function readSqueeze() {
   const matrix = document.querySelector('plancia-slot-matrix');
   const scroller = matrix?.firstElementChild;
   if (!scroller) return null;
-  const blocks = [...matrix.querySelectorAll('.grid > div')].filter((one) =>
+  const blocks = [...matrix.querySelectorAll('[data-block]')].filter((one) =>
     one.querySelector('button'),
   );
   if (!blocks.length) return null;
@@ -535,13 +535,20 @@ function breaks(board, role) {
 }
 
 /**
- * IL TAGLIO dei blocchi personali, che e' la MIA MAX OFFERTA - e da oggi e' un'altra domanda
- * dall'ORDINE (06/09/2026, quando lo SWING e' diventata l'ordine dentro il blocco).
+ * IL TAGLIO dei blocchi personali, che dal 23/09/2026 e' LA MONETA e non piu' la mia max offerta -
+ * e che e' tornata a essere la STESSA domanda dell'ordine, perche' la chiave e' una sola.
  *
- * Fino a quel giorno le due domande avevano una risposta sola e `breaks` bastava per tutt'e due.
- * Adesso no, e l'invariante del taglio si scrive FRA i blocchi: il peggiore del blocco k non puo'
- * offrire meno del migliore del blocco k+1, o i dieci uomini di un blocco non sono i dieci per cui
- * pagherei di piu'. Dentro il blocco l'offerta puo' fare quello che vuole, ed e' il punto.
+ * La storia va tenuta perche' e' il motivo per cui questo passo esiste in due pezzi. Fino al 06/09 il
+ * taglio e l'ordine erano il TETTO e `breaks` bastava; dal 06/09 il taglio restava il tetto e
+ * l'ordine passava allo SWING, quindi le due invarianti si scrivevano separate; dal 23/09 la moneta
+ * (il SURPLUS) fa tutt'e due, su istruzione dell'operatore - «riformare i blocchi secondo la moneta
+ * che vogliamo utilizzare ... il valore per cui vengono ordinati deve essere anche quello visibile».
+ * Quindi l'invariante e' di nuovo UNA e piu' forte delle due di prima: la colonna di sinistra deve
+ * scendere su TUTTA la plancia del ruolo, riga dopo riga e blocco dopo blocco.
+ *
+ * E la max offerta ADESSO NON DEVE SCENDERE: il tetto e' letto sullo slot di MERCATO e non si
+ * ri-deriva sulla griglia nuova (`regroupByCoin` dice perche'), quindi una sua risalita non e' un
+ * difetto - e' la prova che quella scala non e' stata riletta su un rango che non e' il suo.
  */
 function cutBreaks(board, role) {
   const blocks = board.filter((one) => one.id.startsWith(role));
@@ -549,24 +556,26 @@ function cutBreaks(board, role) {
   for (let at = 1; at < blocks.length; at += 1) {
     const up = blocks[at - 1];
     const down = blocks[at];
-    if (!up.rows.length || !down.rows.length) continue;
-    const worstAbove = Math.min(...up.rows.map((row) => row.offer));
-    const bestBelow = Math.max(...down.rows.map((row) => row.offer));
-    if (bestBelow > worstAbove) {
-      out.push(`${down.id} offre fino a ${bestBelow} mentre ${up.id} scende a ${worstAbove}`);
+    const above = up.rows.filter((row) => Number.isFinite(row.lead));
+    const below = down.rows.filter((row) => Number.isFinite(row.lead));
+    if (!above.length || !below.length) continue;
+    const worstAbove = Math.min(...above.map((row) => row.lead));
+    const bestBelow = Math.max(...below.map((row) => row.lead));
+    if (bestBelow > worstAbove + 1e-9) {
+      out.push(`${down.id} rende fino a ${bestBelow} mentre ${up.id} scende a ${worstAbove}`);
     }
   }
   return out;
 }
 
 /**
- * L'ORDINE DENTRO un blocco, che e' lo SWING: il numero di sinistra deve scendere.
+ * L'ORDINE DENTRO un blocco, che e' LA MONETA: il numero di sinistra deve scendere.
  *
  * E' la regola del 03/09 applicata al taglio nuovo - una colonna che spiega un ordinamento DEVE
  * essere quell'ordinamento - e si misura sullo SCHERMO e non sui nostri dati: se la pagina ordinasse
  * per una cosa e ne stampasse un'altra, questo passo e' il solo che se ne accorgerebbe.
  *
- * Chi non ha uno SWING stampa `·`, che parsa NaN: si salta senza esentare chi viene dopo di lui,
+ * Chi non ha la moneta stampa `·`, che parsa NaN: si salta senza esentare chi viene dopo di lui,
  * perche' un buco in mezzo alla lista sarebbe un difetto vero e non un'assenza di dato.
  */
 function orderBreaks(board, role) {
@@ -580,7 +589,7 @@ function orderBreaks(board, role) {
         );
       }
     }
-    if (!rows.length && block.rows.length) out.push(`${block.id}: nessuna riga porta uno SWING`);
+    if (!rows.length && block.rows.length) out.push(`${block.id}: nessuna riga porta la moneta`);
   }
   return out;
 }
@@ -618,7 +627,11 @@ async function main() {
   const { server, port } = await serve(DIST);
   const profile = await mkdtemp(join(tmpdir(), 'fant-slots-'));
   const debugPort = Number(value('--port', String(await freePort())));
-  const url = `http://127.0.0.1:${port}/plancia`;
+  // `?fixture=played` PERCHE' QUESTO BANCO MISURA SU RIGHE CHE HANNO UN PADRONE: dal 23/09/2026 la
+  // plancia apre su un tavolo VUOTO (sua istruzione), e su un tavolo vuoto la lente, il prezzo pagato e
+  // l'azzeramento non hanno niente da mostrare. La popolazione si CHIEDE nell'indirizzo invece di
+  // tornare a giocare il tavolo per tutti.
+  const url = `http://127.0.0.1:${port}/plancia?fixture=played`;
   const browser = spawn(
     binary,
     [
@@ -665,7 +678,7 @@ async function main() {
     const playedOwned = (played ?? []).flatMap((block) =>
       block.rows.filter((row) => row.owned).map((row) => `${block.id} ${row.name}`),
     );
-    note("sul tavolo GIOCATO taglio e ordine valgono anche sulle righe di chi ha gia' comprato", {
+    note("sul tavolo GIOCATO la moneta taglia e ordina anche le righe di chi ha gia' comprato", {
       said: `${playedOwned.length} righe sono di qualcuno · ${playedBreaks.length} punti rotti`,
       problems: [
         ...(playedOwned.length
@@ -734,7 +747,7 @@ async function main() {
     const mineOrder = mine ? ROLES.flatMap((role) => orderBreaks(mine, role)) : [];
     const mineBreaks = [...mineCut, ...mineOrder];
     const firstD = (mine ?? []).find((one) => one.id === 'D1');
-    note('slot personali: il TAGLIO e la max offerta, l ORDINE dentro e lo SWING', {
+    note('slot personali: la MONETA taglia E ordina, e il tetto resta quello del mercato', {
       said:
         `taglio: ${mineCut.length} punti rotti · ordine: ${mineOrder.length}` +
         ` · D1 offre «${firstD?.rows.map((row) => row.offer).join(' ') ?? '?'}»` +
@@ -817,9 +830,12 @@ async function main() {
     });
 
     // 4. L'INTESTAZIONE PORTA LA MEDIANA DELLA COORDINATA SU CUI HA TAGLIATO, e non l'altra: sul
-    //    mercato il prezzo della stanza, qui la mia offerta. Verificata contro le righe che disegna.
-    const expected = firstD ? Math.round(median(firstD.rows.map((row) => row.offer))) : null;
-    note("la cifra dell'intestazione e' la mediana della MIA offerta", {
+    //    mercato il prezzo della stanza, qui LA MONETA (23/09/2026, prima era la max offerta - che
+    //    ha smesso di tagliare, quindi un'intestazione che la dichiarasse direbbe di se' una cosa
+    //    falsa). Verificata contro le righe che disegna, cioe' contro la colonna del surplus.
+    const coins = firstD ? firstD.rows.map((row) => row.lead).filter(Number.isFinite) : [];
+    const expected = coins.length ? Math.round(median(coins)) : null;
+    note("la cifra dell'intestazione e' la mediana della MONETA", {
       said: `D1 dichiara ${firstD?.median ?? '?'} e le sue righe danno ${expected ?? '?'}`,
       problems:
         firstD && expected != null && Math.abs(firstD.median - expected) <= 1

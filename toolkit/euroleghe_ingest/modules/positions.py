@@ -37,6 +37,7 @@ from euroleghe_ingest.matching import (
     club_key,
     match_in_pool,
 )
+from euroleghe_ingest.sources import MANTRA_ROLES
 
 NAME = "positions"
 DESCRIPTION = "SofaScore -> external_stats (full real season) + positions"
@@ -1863,7 +1864,12 @@ REAL_ROLE_LABEL: dict[str, str] = {
 # ---------- the twelve codes -> the Mantra vocabulary ----------
 # The Mantra roles as the listone spells them, verified against `rosters.roles` (2025-26: por 164,
 # dc 272, dd 146, ds 150, b 28, e 224, m 171, c 294, t 172, w 173, a 187, pc 144).
-MANTRA_ROLES: tuple[str, ...] = ("por", "dc", "dd", "ds", "b", "e", "m", "c", "t", "w", "a", "pc")
+#
+# IMPORTATO E NON RISCRITTO (23/09/2026). Questo file ne teneva una copia sua, con `t` e `w` in ordine
+# diverso: lo stesso insieme, quindi oggi nessun lettore se ne accorge - sono tutti insiemi o dizionari -
+# ma due vocabolari sotto un nome solo sono il difetto che questo repository paga da sempre, e qui il
+# giorno in cui un ruolo si aggiunge a una lista e non all'altra si spegne un canale in silenzio.
+# (la tupla vive in `sources`, importata in cima insieme alle altre)
 # The user's own mapping. Mantra SIMPLIFIES: it does not care which flank a midfielder or a winger is
 # on ('e' and 'w' are sideless), so ML and MR collapse to one role and LW and RW to another. Going the
 # other way is therefore lossy on purpose - the granular code stays the thing that places a man, and

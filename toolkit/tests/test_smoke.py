@@ -39,39 +39,50 @@ def test_every_option_the_parser_accepts_REACHES_the_module():
     parser: guarda il SORGENTE del dispatcher, e chiede che ogni opzione dichiarata compaia nella chiamata
     del suo comando. Grossolano di proposito - un `args.days` scritto e non usato lo passerebbe - ma prende
     esattamente il difetto che e' costato due volte.
+
+    LA LISTA SI DERIVA DAL PARSER E NON SI SCRIVE A MANO (23/09/2026). Per un anno le opzioni da
+    controllare erano un dizionario scritto qui dentro, e copriva **33 opzioni su 118** - otto comandi su
+    ventuno. Fuori restavano `snapshot` (dieci opzioni: `--date`, `--league`, `--platform`, cioe' quelle che
+    decidono QUALE foglio viene scritto), `backtest`, `export`, `press` (nove su quattordici) e altri sette
+    comandi interi. Un guardiano la cui copertura e' una lista non cresce col codice che difende: ogni
+    opzione aggiunta dopo che la lista e' stata scritta nasce non guardata, in silenzio. Chiamando il parser
+    VERO la copertura e' totale per costruzione e non c'e' piu' niente da ricordarsi di aggiornare.
+
+    Misurato prima di cambiarlo: col parser al posto della lista il verdetto non si muove - **zero opzioni
+    scartate su 118**, quindi questa non e' la cura di un difetto vivo, e' la cura della sua prossima
+    occorrenza mentre costa niente.
     """
     import inspect
 
     from euroleghe_ingest import cli
 
     source = inspect.getsource(cli.main)
-    # Le opzioni che il dispatcher deve inoltrare, per comando, e il perche' di ognuna e' che qualcuno le
-    # ha aggiunte al parser: se il branch non le nomina, il flag e' rumore.
-    wanted = {
-        "positions": ("layer", "days", "refresh", "season", "league"),
-        "injuries": ("layer", "limit", "refresh", "season", "stale_days"),
-        "performance": ("limit", "refresh", "season"),
-        "market": ("limit", "refresh", "all_seasons"),
-        # `recent_form` ne dichiara sei e `--from-cache` e' quella che decide se si paga la rete o si
-        # rilegge il disco: scartarla sarebbe una corsa di ore al posto di una replica offline.
-        "recent_form": ("season", "matches", "bonuses", "bonuses_only", "limit", "from_cache"),
-        "press": ("sheet", "against", "fetch_duels", "source", "observed_on"),
-        "zeros": ("platform", "game"),
-        # `update` ne dichiara otto e ognuna cambia COSA GIRA: --plan, --offline e --daily decidono se e cosa,
-        # --phase/--from/--to/--skip quali passi, --season quante stagioni di listone, --no-refresh se
-        # i layer volatili si rileggono. Una scartata qui e' una corsa di ore diversa da quella chiesta.
-        "update": ("plan", "offline", "daily", "phase", "steps_from", "steps_to", "skip", "refresh"),
-    }
-    for command, options in wanted.items():
+    parser = build_parser()
+    subcommands = next(action.choices for action in parser._actions
+                       if isinstance(getattr(action, "choices", None), dict))
+    dropped: dict[str, list[str]] = {}
+    checked = 0
+    for command, sub in sorted(subcommands.items()):
+        options = {action.dest for action in sub._actions if action.dest not in ("help", "command")}
         head = 'args.command == "' + command + '":'
+        if not options or head not in source:
+            # Un comando senza opzioni non ha niente da scartare; uno senza un ramo suo e' un modulo della
+            # pipeline che il dispatcher esegue per nome, e li' non c'e' nessuna chiamata da ispezionare.
+            continue
         at = source.index(head)
         rest = source[at + len(head):]
         # Solo fino al branch SEGUENTE: un `else:` interno appartiene al branch (`market --from-cache`
         # ne ha uno), e tagliare lì leggeva mezza chiamata e accusava un dispatcher innocente.
         stop = rest.index('elif args.command') if 'elif args.command' in rest else len(rest)
         body = rest[:stop]
-        missing = [one for one in options if f"args.{one}" not in body]
-        assert not missing, f"{command}: il dispatcher scarta {missing}"
+        missing = sorted(one for one in options if f"args.{one}" not in body)
+        checked += len(options)
+        if missing:
+            dropped[command] = missing
+    assert not dropped, f"il dispatcher scarta: {dropped}"
+    # E il guardiano deve GUARDARE: se la derivazione si rompe, un test verde su zero opzioni direbbe
+    # «nessun problema» dopo aver guardato niente - il difetto che questo repository si e' gia' scritto.
+    assert checked >= 100, f"solo {checked} opzioni ispezionate: la derivazione dal parser non morde"
 
 
 def test_a_summary_symbol_does_not_fail_a_run_on_a_narrow_console(capsys, monkeypatch):

@@ -22,7 +22,7 @@ import {
 describe('le dieci parole dentro il ruolo', () => {
   it('ha le parole dell\'operatore, nell\'ordine della scala', () => {
     expect([...CATEGORIA_LADDER]).toEqual([
-      'super', 'top', 'semi', 'promessa', 'solido', 'riserva', 'boa', 'scommessa', 'scarto',
+      'super', 'top', 'semi', 'promessa', 'solido', 'operaio', 'boa', 'scommessa', 'scarto',
       'incognita',
     ]);
   });
@@ -34,9 +34,9 @@ describe('le dieci parole dentro il ruolo', () => {
     expect(categoriaRank('super')).toBe(0);
     // `incognita` CHIUDE la scala: non è un giudizio ma l'assenza di uno.
     expect(categoriaRank('incognita')).toBe(CATEGORIA_LADDER.length - 1);
-    // ...e `boa` sta UN GRADINO SOTTO `riserva` (sua correzione del 23/09/2026: «piuttosto che
+    // ...e `boa` sta UN GRADINO SOTTO `operaio` (sua correzione del 23/09/2026: «piuttosto che
     // affondare meglio averlo in squadra»), quindi sopra `scommessa` e non sotto.
-    expect(categoriaRank('boa')).toBe(categoriaRank('riserva')! + 1);
+    expect(categoriaRank('boa')).toBe(categoriaRank('operaio')! + 1);
     expect(categoriaRank('boa')!).toBeLessThan(categoriaRank('scommessa')!);
     // `scommessa` sta SOPRA `scarto` (sua graduatoria, 22/09 sera): «nessuno l'ha ancora misurato»
     // promette più di «è misurato e non gioca».
@@ -104,8 +104,8 @@ describe('la frase che spiega la parola', () => {
   });
 
   it('senza le sbarre dice comunque la parola e il livello', () => {
-    const note = categoriaNote('riserva', 6.53, null) ?? '';
-    expect(note).toContain('RISERVA');
+    const note = categoriaNote('operaio', 6.53, null) ?? '';
+    expect(note).toContain('OPERAIO');
     expect(note).toContain('6.53');
   });
 
@@ -126,9 +126,9 @@ describe('il pallino: tinta e icona', () => {
   });
 
   it('il CENTRO non si dipinge e l’IGNOTO non ha un colore di qualita', () => {
-    // «Uno schermo dove ogni numero e dipinto e uno schermo che urla»: `riserva` e la parola di
+    // «Uno schermo dove ogni numero e dipinto e uno schermo che urla»: `operaio` e la parola di
     // meta listone e porta il fondo neutro.
-    expect(CATEGORIA_TONE.riserva).toContain('bg-control');
+    expect(CATEGORIA_TONE.operaio).toContain('bg-control');
     // `incognita` non e un giudizio: nessun fondo, come `ignoto` nella scala del gain. Dal 23/09/2026
     // e' LEI la parola dell'assenza di misura - `scommessa` ha una condizione e quindi afferma.
     expect(CATEGORIA_TONE.incognita).not.toContain('bg-');

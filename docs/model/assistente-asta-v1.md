@@ -4413,3 +4413,349 @@ Suite app **1048 test su 60 file**; `e2e-plancia-slots`, `-lens`, `-keepers`, `-
 `e2e-nav` verdi. `e2e-player-card` resta rosso sullo stesso riepilogo di §44.6 (`season: null`, `~5.7`
 contro il 5,5 del pacchetto): **riprodotto identico sul template di HEAD**, quindi non e' di questa
 modifica.
+
+## 46. LA MIA ROSA IN BASSO A DESTRA: il campetto, i restanti, e cosa manca ancora (23 settembre 2026)
+
+Sua richiesta: «nella vista plancia, nello spazio disponibile in basso a destra aggiungi una card dove in
+maniera pulita mostri due colonne: a destra un campetto con i migliori 11 della tua squadra (secondo il
+modulo 433) e a sinistra i restanti calciatori ordinati prima per ruolo e poi per moneta. Se sul campetto
+in una certa posizione non sono stati acquistati calciatori mostra con opacita' 0.5 un paio di
+suggerimenti realistici su chi potrebbe essere acquistato in quella posizione. Se sul campetto per una
+certa posizione occupata c'e' disponibile ancora un acquisto migliore fattibile per quella posizione
+fallo comparire subito sotto con opacita' 0.5.»
+
+`app/src/app/core/plancia-squad.ts` (aritmetica pura, 15 test) + `views/plancia/squad-card/`.
+**Nessun numero del motore si muove**: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto fermo - la
+card legge i numeri che la plancia ha gia' e non ne ricalcola nessuno.
+
+### 46.1 LO SPAZIO SI MISURA PRIMA DI DISEGNARCI DENTRO
+
+«In basso a destra» non e' un posto finche' non ha un rettangolo. La griglia taglia ogni linea su OTTO
+colonne perche' la piu' lunga ne ha otto, quindi la linea degli attaccanti (sei slot su una rosa 3/8/8/6)
+ne lascia DUE: misurati su una finestra da 1600x1000, **386 x 191 px**. E' l'unico spazio libero rimasto
+da quando le rose sono andate in quello dei portieri (§44), ed e' cosi' stretto che ogni scelta di forma
+discende da li' - la lista a larghezza fissa, il campetto a nove pixel di corpo, due righe per posto.
+
+La card e' **proiettata** dalla pagina dentro la griglia, come la striscia delle rose e per la stessa
+ragione: dov'e' lo spazio lo sa la griglia (e' lei che taglia le linee su otto), cosa ci va lo sa la
+pagina. `squadSpan()` e `teamsSpan()` sono la stessa funzione su due linee, perche' due conti sulla
+stessa griglia sono il modo in cui una delle due card finisce fuori posto il giorno che le colonne
+cambiano.
+
+### 46.2 DUE MONETE E DUE DOMANDE, e non si contraddicono
+
+Chi GIOCA lo decide il **valore atteso** (`points` = fantamedia x presenze), che e' la moneta con cui il
+banco draft ha misurato questo formato e la stessa che `core/fanta-eleven.ts` dichiara: schierare non e'
+comprare, e la risorsa scarsa di un undici sono i POSTI. La panchina si ordina per **RUOLO e poi per
+MONETA**, che e' la sua istruzione alla lettera, e la moneta della plancia dal 23/09 e' il SURPLUS.
+
+Le due non possono contraddirsi, e la ragione e' strutturale invece che fortunata: **agiscono su insiemi
+disgiunti**. Dentro un ruolo, chi e' in panchina ha per costruzione meno valore atteso di chi e' in
+campo, quindi riordinare la panchina per moneta non puo' mai mettere un uomo di panchina sopra un
+titolare.
+
+### 46.3 IL MODULO SI LEGGE DAL REGOLAMENTO, e un posto MANTRA fa tornare una lista vuota
+
+L'1-4-3-3 non e' trascritto da nessuna parte: `classicPlaces` chiama `placesIn` su
+`classic_modules.json`, che e' configurazione letta e mai fittata. La legalita' classic e' per
+MACRO-RUOLO - un posto e' un P, un D, un C o un A e basta - quindi qui non serve il matroide che Mantra
+richiede, e vale anche il contrario: **un posto che accetta piu' di un ruolo fa tornare una lista VUOTA**
+invece di essere piegato a uno solo, perche' vorrebbe dire che a quella funzione e' stato passato l'altro
+regolamento. E' l'avvertimento dell'operatore del 10/08/2026 scritto come guardia invece che come
+commento. Senza il regolamento nel pacchetto la card lo DICE e non disegna niente; quello che ho comprato
+resta in lista, perche' quello non dipende da nessun regolamento.
+
+Il banco verifica i posti **contro lo stesso file servito alla pagina** e non contro un numero scritto
+nel banco: 1-4-3-3, letto da `classic_modules.json` via HTTP.
+
+### 46.4 PERCHE' NON E' `fanta-eleven.ts`, che risponde a una domanda vicina
+
+Quello SCEGLIE il modulo («quale forma legale fa giocare l'undici piu' forte») e prezza sulla scala 0-99
+del pannello d'asta; qui il modulo e' FISSATO dall'operatore e la moneta e' quella della plancia. Quello
+che le due condividono, e che percio' non si riscrive, e' il REGOLAMENTO. Dichiarare il modulo invece di
+sceglierlo ha anche un effetto che si vede: un campetto che cambia forma quando compri un difensore
+direbbe due cose insieme - chi e' entrato e che lo schema e' cambiato - e nessuna delle due si vedrebbe.
+
+### 46.5 «FATTIBILE» E' UN CONTO, e «MIGLIORE» pure
+
+Due parole della sua richiesta che senza un numero sarebbero opinioni della card su se stessa.
+
+**Fattibile** = il prezzo del suo slot sta dentro quello che posso ancora mettere su UN uomo tenendo un
+credito per ogni altro posto che mi resta da riempire. L'aritmetica e' del regolamento e non una cautela
+nostra (una rosa incompleta non e' una rosa), e il prezzo e' quello che la card del LOTTO gia' usa:
+`expectedPriceOf` - la mediana del FVM dello slot scontata dall'assottigliamento - **estratta da
+`adviseLot` proprio per questo**, perche' due composizioni della stessa formula sono come la card del
+lotto e la card della rosa finiscono per dire due prezzi dello stesso uomo. E' un prezzo dello SLOT e non
+dell'uomo, ed e' corretto cosi': dentro uno slot il prezzo sta in 1,0-1,3 volte la sua mediana (§27). Un
+suggerimento in un ruolo dove non ho piu' un posto di rosa e' rifiutato prima di ogni prezzo: sarebbe un
+acquisto che il regolamento non lascia chiudere.
+
+**Migliore** = piu' valore atteso di chi il posto ce l'ha. La forma e' una passata sola per ruolo con un
+indice: i posti arrivano in ordine di forza (il riempimento e' avido, quindi i vuoti stanno in coda) e i
+candidati pure, quindi si prova il migliore sul posto piu' forte e, se non lo batte, si scende di posto
+tenendo lo stesso candidato - un uomo che non batte il mio primo difensore puo' benissimo battere il
+quarto. Nessuno e' consigliato due volte, perche' si compra una volta sola.
+
+**Due assenze che non sono uno zero**, e tutt'e due tolgono il suggerimento invece di inventarlo: un
+candidato che il foglio non prezza non e' «migliore» di nessuno, e un uomo in campo che il foglio non
+prezza non e' peggiore di nessuno - li' la card preferisce tacere piuttosto che dire «compra al posto
+suo» su un confronto che non esiste.
+
+Un esempio dal tavolo finto, e vale piu' della regola: nel reparto d'attacco il consiglio sotto il mio
+unico attaccante e' **Kvernadze** (prezzo 51) e non Malen (188), perche' per valore atteso Kvernadze fa
+241 e Malen 230 - cioe' la card sta dicendo che il piu' caro del listone non e' l'uomo giusto per quel
+posto, che e' esattamente la cosa che una fascia di prezzo non puo' dire (§25).
+
+### 46.6 LA BARRA IN BASSO NASCONDEVA LA RIGA D'ATTACCO, e la card cede il proprio fondo
+
+Il difetto piu' grosso della sessione, e l'ha trovato la prima fotografia. Le due barre in basso sono
+`fixed` e passano SOPRA la pagina (sua richiesta del 23/09, §51 di `letture-app-v1.md`), e il prezzo
+dichiarato quel giorno erano «gli angoli in basso della linea degli attaccanti». Su un blocco di dieci
+nomi sono le ultime righe, cioe' le peggiori. Qui e' misurato che sono **39px di card e 35 dei 37 della
+riga d'ATTACCO** - la riga intera, sulla pagina dove finisce il 47% del montepremi.
+
+La cura non contraddice la sua istruzione e va detto perche': quella riguardava la PAGINA, che riservava
+56px su tutta la larghezza; qui la riserva e' di 40px su una card larga 380, la paga solo la card, e
+**sparisce appena la barra si piega** - che e' proprio la via d'uscita per cui le barre si piegano. Da
+piegata sotto la freccia restano **35px dei 234** dell'ultima riga, cioe' un angolo, ed e' un costo di
+tutta la pagina e non di questa card: la stessa freccia copre l'angolo del blocco A6 accanto.
+
+**Il prezzo sulla plancia e' misurato e dichiarato**: l'altezza di cui la plancia ha bisogno per starci
+intera passa da **535 a 583px**, cioe' da una finestra di ~660px a una di ~710. Sotto quella soglia e' la
+plancia a scorrere, che e' quello che deve fare (§45). Non si e' comprato spazio lasciando ritagliare le
+caselle: un nome tagliato in silenzio e' la famiglia dei «276px di colonne non strette, ASSENTI».
+
+### 46.7 TRE BANCHI VICINI SONO ANDATI ROSSI INSIEME, e tutt'e tre accusavano la pagina
+
+La card e' proiettata DENTRO `plancia-slot-matrix` e porta dei `<button>`: da quel momento un selettore
+come `plancia-slot-matrix button` prende anche le sue righe. `e2e-plancia-slots` ha letto **26 blocchi
+invece di 25** e «7 nomi accavallati» che stavano in due colonne diverse; `e2e-plancia-lens` ha letto «9
+righe in chiaro che non sono sue», che erano i nomi della card; `e2e-plancia-injury` ha preso una riga
+della card al posto di una del tabellone. Tutti e tre verdi con la card spenta - **A/B a una variabile**,
+che e' anche come si e' stabilito che il rosso di `e2e-why` e `e2e-player-card` NON e' di questa modifica:
+un worktree costruito su HEAD li legge rossi tutt'e due. **Non «identici», e la differenza va detta**:
+`e2e-why` su HEAD ne segnala TRE (le due righe contro il foglio piu' «la catena torna: la pagina dichiara
+2 disaccordi e il foglio ne ha 1») e nell'albero di lavoro due - cioe' su HEAD sta anche peggio. Quello
+che il confronto stabilisce e' che quel rosso preesiste, non che sia lo stesso rosso.
+
+La cura e' la regola gia' scritta il 23/09: **un banco si aggancia all'attributo che un componente
+DICHIARA, mai al cammino nell'albero.** `data-block` sul blocco della griglia, e sette banchi che adesso
+dicono `plancia-slot-matrix [data-block] button`, cioe' quello che intendevano.
+
+Lo stesso difetto l'ha commesso il banco NUOVO alla prima corsa, ed e' il motivo per cui va raccontato: i
+suoi confronti erano **0 su 8** perche' ogni uomo disegnato sulla card compariva due volte nella mappa
+del tabellone, finiva fra gli omonimi e veniva scartato. Il passo lo ha detto invece di passare («nessun
+confronto e' stato giudicabile: il banco non ha guardato niente»), che e' l'unica ragione per cui si e'
+visto.
+
+### 46.8 IL BANCO, e la controprova
+
+`app/scripts/e2e-plancia-squad.mjs`, dieci passi, e ognuno verifica un'affermazione della sua richiesta
+contro qualcosa che non sia la card: i posti contro il regolamento servito alla pagina, «migliore» contro
+i due numeri che la plancia stampa su ogni riga, «fattibile» contro il tetto che la card dichiara nel
+proprio tooltip, «ancora da comprare» contro la barra del proprietario sulla riga della plancia. Piu' lo
+stato da cui la sua asta VERA comincia: a rose azzerate, **11 posti vuoti, 22 suggerimenti, 22 distinti,
+panchina 0**.
+
+Cinque confronti su otto non sono giudicabili e si NOMINANO: sono uomini che la plancia non disegna - la
+coda (Terracciano) e chi rientra troppo tardi per avere una riga (Thuram K.). E' un limite del GIUDICE e
+non della card, che i punti ce li ha per tutti perche' legge il listone e non il tabellone.
+
+**Controprova, rimettendo i difetti uno per volta.** Tolta la riserva del fondo: cadono esattamente i due
+passi che la descrivono («la riga 1 ha 35px dei suoi 37 sotto la barra», «la card non si riprende niente:
+la riserva e' inerte») e nessun altro. Rovesciato l'ordine dei candidati e spenta la guardia del
+confronto: cade il passo del «migliore», e NOMINA i colpevoli coi numeri («Kossounou (24) e' consigliato
+al posto di Sutalo J. (90), che rende di piu'»). Vale la pena dire che **il primo tentativo di
+controprova non ha morso**: spegnere la sola guardia lasciava comunque il candidato migliore in cima alla
+coda, quindi il suggerimento restava giusto - *un difetto messo alla prova va scelto in modo che produca
+davvero l'errore che il passo cerca, o la controprova dice solo che il codice e' robusto a quella
+modifica.*
+
+### 46.9 Quanto degrada, misurato
+
+A 1600x1000 la card e' 380x191 e **un nome su 23** si tronca; a 1280x800 e' 300x177 e se ne troncano
+**14**. E' una degradazione VISIBILE - i puntini ci sono - e la plancia sotto degrada nello stesso modo,
+quindi la card non sta peggio della pagina che la ospita. La leva, se un giorno servisse, e' la larghezza
+della colonna di sinistra: stringerla di venti pixel ne ridarebbe sette a ogni casella della linea di
+difesa.
+
+### 46.10 Cosa NON si e' mosso, verificato
+
+Suite app **1068 test su 62 file** (15 nuovi, `core/plancia-squad.spec.ts`); `e2e-plancia-squad`,
+`-slots`, `-lens`, `-keepers`, `-award`, `-injury`, `e2e-docks`, `e2e-strategy`, `e2e-clubs`, `e2e-table`,
+`e2e-options` e `e2e-sealed-bid` verdi. `engine_*`, `SHEET_REVISION` e il pacchetto non sono toccati: qui
+non si prevede nessun calciatore, si dispongono posti e crediti.
+
+Una nota sull'arnese che vale la riga: **`e2e-nav` e' andato rosso una volta su tre** con due segnalazioni
+che sono la stessa («/clubs scrive "Calciatori" invece di "Squadre"», «/clubs accende /»), cioe' la barra
+letta un fotogramma prima che la rotta si posi. Rimisurato ad albero fermo e' **verde 4 su 4**, e le corse
+rosse erano quelle lanciate mentre giravano una build e altri browser: *misurare mentre l'ambiente si
+muove non e' misurare*, e un rosso che non si riproduce da solo si rimisura prima di inseguirlo.
+
+## 47. IL TAVOLO APRE VUOTO, e il doppio click mette il nome in asta (23 settembre 2026)
+
+Due sue istruzioni, subito dopo la card della rosa: «di default non abilitare il tavolo finto» e
+«doppioclick su un calciatore -> mettilo in asta (e non visualizzare il dettaglio)». Nessun numero del
+motore si muove: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto fermo.
+
+### 47.1 QUELLO CHE E' FINTO SONO GLI ACQUISTI, non le sedie
+
+La plancia apriva su un tavolo che si era gia' giocato addosso **un terzo dei 250 posti**
+(`DEMO_PROGRESS` = 0,35). Aveva senso finche' era una demo da guardare; da quando e' «il foglio su cui si
+segna l'asta vera» (§37) la prima cosa da fare a ogni apertura era premere «azzera le rose». Adesso
+`DEMO_PROGRESS` e' **zero**.
+
+Il confine e' fra due cose che sembravano una sola. Le SEDIE - dieci partecipanti, borse piene, 3-8-8-6 -
+non sono finzione: sono le impostazioni della lega che lui dichiara, e senza di esse la pagina non ha
+crediti su cui poggiare un tetto ne' mani da contare (`hands` e' il numero che decide il secondo prezzo).
+Gli ACQUISTI si': posti assegnati a rose che non esistono. **Toglierli e lasciare le sedie e' quello che
+la richiesta chiede; toglierle tutt'e due lascerebbe il layout della cosa invece della cosa**, che e' la
+ragione per cui la pagina non apre su un campo codice (§33).
+
+Il tasto «azzera le rose» resta e cambia solo la RAGIONE per cui esiste: non piu' «il tavolo si e'
+giocato addosso» ma «ricomincio da capo a meta' sessione». Il docstring lo dice, invece di continuare a
+citare un difetto che non c'e' piu'.
+
+### 47.2 UN DEFAULT MIGLIORE PER L'OPERATORE TOGLIE AI BANCHI LA LORO POPOLAZIONE
+
+E' la conseguenza che andava vista prima di spedire, e non lo era: **sette banchi misurano su righe che
+hanno un padrone**. La lente accende gli acquisti di una rosa, la colonna del mercato porta il prezzo
+PAGATO proprio li', l'azzeramento non prova niente su un tavolo gia' vuoto - e `e2e-plancia-award` lo
+diceva gia' di se' con parole sue: «il tavolo finto non e' partito giocato, e l'azzeramento non
+proverebbe niente».
+
+La popolazione si CHIEDE (`/plancia?fixture=played`, `PLAYED_PROGRESS` = 0,35) invece di tornare a
+giocare il tavolo per tutti. Sta nell'INDIRIZZO perche' e' cio' di cui la pagina parla, che e' la regola
+di `core/view-state.ts` («l'indirizzo porta cio' che la pagina E', il `localStorage` come la si legge»),
+e si legge una volta sola all'apertura: cambiare fixture a meta' asta butterebbe via quello che c'e'
+scritto sul foglio.
+
+E il default nuovo ha un GUARDIANO suo, che e' la parte che sarebbe mancata: `e2e-plancia-squad` apre
+prima l'indirizzo nudo e pretende **zero posti occupati e zero panchina**, poi naviga sul fixture giocato
+per tutto il resto. Senza quel passo la regressione sarebbe muta - un tavolo che torna a giocarsi addosso
+si legge come «ho gia' comprato nove uomini», e adesso lo direbbe anche la card della rosa, con undici
+nomi che non sono suoi.
+
+### 47.3 IL DOPPIO CLICK NOMINA IL LOTTO, e il singolo continua ad aprire la card
+
+Tre stati in tre giorni su questo gesto, e vale la pena vederli in fila perche' ognuno ha corretto il
+precedente: il click metteva in asta (fino al 03/09, «cliccare non deve mettere il calciatore in asta»),
+poi il click apre la CARD e «e' il lotto in asta» diventa un bottone dentro di lei (04/09), adesso il
+DOPPIO click nomina il lotto direttamente. Il bottone nella card resta: e' la strada che si trova senza
+saperla, e il doppio click e' la scorciatoia di chi la sa.
+
+I due gesti convivono con la forma che le card delle rose usano dal 04/09 e con la stessa costante
+(`DOUBLE_MS` = 250): **l'apertura della card ASPETTA e il secondo click la annulla.** Filtrare il solo
+`detail > 1` non basta, ed e' scritto qui perche' e' la trappola: un doppio click emette PRIMA un click
+con `detail` 1 come tutti gli altri, quindi la card si aprirebbe lo stesso - «un guard che ferma META' di
+un gesto lo rende META' rotto». Con lo `select-none` sulla riga, che un doppio click su del testo lo
+seleziona e una riga evidenziata dopo il gesto si legge come rimasta accesa.
+
+**IL RIFIUTO E' LA META' CHE NON SI VEDE, e dice perche'.** `setLot` non chiede niente a nessuno perche' i
+suoi chiamanti interni sanno cosa gli passano (l'estrazione, l'apertura, l'azzeramento); il doppio click
+invece arriva da tutte e 250 le righe, comprese quelle di chi un padrone ce l'ha gia'. Un lotto con un
+uomo gia' venduto farebbe leggere una banda, un verdetto e delle mani alzate su una decisione che nessuno
+puo' piu' prendere. Da qui `PlanciaStore.nameLot`, che e' anche il percorso del bottone dentro la card -
+una definizione e due lettori - e che NOMINA il padrone: «Meret è già di Marine: in asta ci va uno che
+nessuno ha ancora preso».
+
+### 47.4 LA MISURA, e la controprova che ha mostrato un modo di rompersi che non avevo previsto
+
+Il passo nuovo guida un puntatore vero (due pressioni con `clickCount` 1 e poi 2, che e' cio' che
+Chromium trasforma in un `dblclick`: spedire l'evento a mano non proverebbe niente sul GESTO) e misura
+tre fatti insieme, perche' due sarebbero bastati a dichiarare verde una cura che ha spento il click:
+il lotto cambia, **nessuna card si apre**, e un click solo ne apre esattamente una.
+
+Sul tavolo vero: `Svilar -> lotto «P1 Svilar Roma 72-89 cr», 0 card`; su un nome venduto, lotto fermo e
+l'avviso con dentro il padrone; un click solo, 1 card.
+
+**Rimesso il difetto** (il click emette subito, senza attesa) il passo cade con quattro segnalazioni, e
+una non l'avevo prevista: il doppio click **non e' nemmeno riuscito a nominare il lotto**, perche' la
+card si era aperta sopra la riga e il secondo click e' finito su di lei. Cioe' il modo in cui quel difetto
+si manifesta dal vivo non e' «fa due cose» ma «non fa quella giusta», e chi lo incontrasse senza il banco
+lo cercherebbe nel doppio click invece che nell'attesa mancante. *Una controprova serve anche a vedere
+come una cosa si rompe, non solo che il passo se ne accorge.*
+
+### 47.5 Cosa NON si e' mosso, verificato
+
+Suite app **1068 test su 62 file**; `e2e-plancia-squad`, `-slots`, `-lens`, `-award`, `-keepers`,
+`-injury` e `e2e-docks` verdi. `e2e-player-card` resta rosso sullo stesso riepilogo di §44.6, riprodotto
+su un worktree costruito su HEAD: preesistente.
+
+Una nota di procedura pagata qui: **prettier lanciato su un file condiviso ne ha riformattato una riga che
+non era mia** (l'array `imports` del componente, che nell'albero sta su piu' righe e lui mette su una
+sola). Rimessa com'era. E' la regola del 06/09 - «un formattatore dichiarato e non applicato e' una
+trappola» - incontrata su un file solo invece che su ventisei: il costo di non guardare il diff sarebbe
+stato attribuire a me una riga di un'altra sessione.
+
+## 48. UN ODOMETRO PER IL PREZZO: una cifra per colonna, e un tastino che azzera (23 settembre 2026)
+
+Sua richiesta: «miglioriamo il controller per inserire la cifra: metti tre cifre separate con freccette
+sopra e sotto per modificare migliaia, decine e unita' singolarmente, inoltre metti un tastino per
+resettare». `app/src/app/ui/digit-input/`, 8 test unitari, e vive sulla riga del LOTTO - l'unica cosa che
+si tocca durante un'asta. Nessun numero del motore si muove.
+
+Il difetto che curava e' di gesto e non di aritmetica: il prezzo sul tavolo sale a gradini (25 -> 30 ->
+35) e una casella di testo obbliga a selezionare, cancellare e riscrivere un numero mentre la stanza
+rilancia.
+
+### 48.1 QUANTE COLONNE LO DECIDE IL TETTO, e su una lega da 1000 sono QUATTRO
+
+`String(max).length`, e il numero della sua frase e' vero per una taglia di lega mentre questa regola lo
+e' per tutte: 500 crediti -> tre colonne, 1000 -> quattro. **Tre colonne su un budget da mille si
+fermerebbero a 999**, cioe' un tetto scelto da noi su una lega che ne dichiara un altro - e sarebbe
+invisibile finche' qualcuno non ci sbatte, perche' l'archivio dice che l'acquisto piu' caro sta al 42-44%
+del budget e sopra la meta' ci arrivano 39 aggiudicazioni su 29.421. *Un tetto che il dato non raggiunge
+quasi mai e' esattamente quello che nessuno scopre di avere.* Il tetto e' il BUDGET e non la MIA borsa:
+questa cifra e' dove sta la STANZA, e un rivale con piu' crediti puo' portarla oltre quello che io
+potrei pagare.
+
+### 48.2 LA FRECCETTA MUOVE IL SUO POSTO, e il riporto e' aritmetica
+
++10 su 95 fa 105: le centinaia cambiano perche' e' cosi' che funziona un numero. Quello che NON si fa e'
+avvolgere la cifra su se stessa (95 -> 05), che sarebbe un controllo che cambia il numero in un modo che
+nessuno si aspetta - e su un rilancio si tradurrebbe in un'offerta sbagliata di novanta crediti.
+E una freccetta che porterebbe fuori dai due estremi e' **spenta** invece di non fare niente: e' l'unico
+modo in cui il controllo puo' dichiarare il proprio limite, e un bottone che si preme senza effetto e'
+indistinguibile da un bottone rotto.
+
+Il tastino azzera a ZERO e non «al valore di prima»: un'asta ricomincia da zero a ogni lotto, e un
+annulla che riportasse alla cifra vecchia rimetterebbe in campo il prezzo del nome precedente - che e'
+esattamente il numero da cui ci si vuole liberare. Spento quando il prezzo e' gia' zero.
+
+### 48.3 IL BANCO HA TROVATO IL DIFETTO IN UNA CORSA, ed erano due facce di uno
+
+La prima versione LIMAVA al tetto invece di rifiutare, e teneva l'avanzamento automatico del fuoco.
+`e2e-plancia-award`, che scrive 45 sul lotto da sempre, e' andato rosso subito: aveva battuto «45» nella
+prima casella, il `4` era finito sulle MIGLIAIA (4000, limato a **1000**) e il `5` sulle centinaia per
+via dell'avanzamento. Il controllo rispondeva col massimo a una cifra che nessuno aveva chiesto - su un
+rilancio, un'offerta da mille crediti - e il passo dopo lo ha detto con le parole che contano: «la rosa
+ha perso 1000 crediti invece dei 1 scritti sul lotto».
+
+Le due cure sono una sola regola. **Si RIFIUTA**, che e' gia' quello che fanno le freccette (a quel punto
+spente): un controllo, due gesti, una regola. E **il fuoco non avanza**: un numero si legge allineato a
+DESTRA e delle caselle per posto non lo sono, quindi battere «45» da sinistra scriverebbe 4500. Il
+tabulatore passa alla colonna dopo quando e' quello che si vuole, e allora lo si e' chiesto.
+
+**Si puo' ancora scrivere, ed e' la meta' che la richiesta non nomina**: per arrivare a 137 da zero
+servirebbero undici click sulle freccette. Ogni cifra e' un campo da un carattere, e quello che si batte
+sostituisce QUEL posto.
+
+### 48.4 Come si e' verificato
+
+Otto test sull'aritmetica (quante colonne, il riporto, le freccette spente, la cifra rifiutata, il
+tastino) e un passo col PUNTATORE VERO dentro `e2e-plancia-award`, perche' le freccette sono gesti: a
+zero le frecce in giu' sono spente e il tastino pure, due colpi sulle decine leggono `0020`, il tastino
+riporta a `0000`, e il prezzo battuto una cifra per posto legge `0045` - col passo dell'aggiudicazione
+che poi verifica che la rosa perda esattamente 45 crediti.
+
+Una nota sul banco, che e' una regola di casa incontrata di nuovo: `readLot` leggeva `input.value` di UNA
+casella, e con quattro colonne la prima vale le migliaia. Adesso concatena le celle. *Un arnese che legge
+una parte di un controllo nuovo riporta un numero vero di un'altra cosa.*
+
+E una sull'ambiente: il primo giro della suite e' passato **con tredici errori non gestiti in coda**
+(«the icon rollback-o does not exist or is not registered»), perche' il test montava il componente senza
+i provider veri. Vitest lo dice da se' - «this might cause false positive tests» - ed e' il genere di
+verde che qui non si accetta: 1076 test passati e in fondo allo schermo tredici errori. Curato dando allo
+spec `appConfig.providers`, che e' anche cio' che rende il test una prova sull'app e non su un montaggio
+che l'app non fa.

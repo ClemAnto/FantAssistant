@@ -9,6 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
@@ -20,6 +21,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { AuctionFeed } from '../../core/auction-feed';
 import { PageActions } from '../../core/page-actions';
 import { SlotView } from '../../core/plancia';
+import { PLAYED_PROGRESS } from '../../core/plancia-demo';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { FlagMenu } from '../../ui/flag-menu/flag-menu';
@@ -28,6 +30,7 @@ import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { KeeperPairs } from './keeper-pairs/keeper-pairs';
 import { LotCard } from './lot-card/lot-card';
 import { SlotMatrix } from './slot-matrix/slot-matrix';
+import { SquadCard } from './squad-card/squad-card';
 import { TeamGrid } from './team-grid/team-grid';
 
 /**
@@ -67,6 +70,7 @@ import { TeamGrid } from './team-grid/team-grid';
     LotCard,
     PlayerCard,
     SlotMatrix,
+    SquadCard,
     TeamGrid,
   ],
 })
@@ -175,7 +179,15 @@ export class Plancia {
 
     // The board opens on a table, never on a code field: `startDemo` is a no-op when one is already up,
     // so coming back to the page does not throw away an auction in progress.
-    void this.store.startDemo();
+    //
+    // E IL TAVOLO APRE VUOTO (sua istruzione, 23/09/2026: «di default non abilitare il tavolo finto»):
+    // dieci sedie con le borse piene e nessun acquisto, cioe' un'asta al minuto zero. `?fixture=played`
+    // ne chiede uno GIOCATO, ed e' quello su cui i banchi misurano - la lente, la colonna del prezzo
+    // pagato e l'azzeramento vivono sulle righe di chi un padrone ce l'ha, e su un tavolo vuoto non ce
+    // ne sono. Letto dall'INDIRIZZO perche' e' cio' di cui la pagina parla (`core/view-state.ts`), e
+    // una volta sola: cambiare fixture a meta' asta butterebbe via quello che c'e' scritto.
+    const played = inject(ActivatedRoute).snapshot.queryParamMap.get('fixture') === 'played';
+    void this.store.startDemo(false, played ? PLAYED_PROGRESS : undefined);
   }
 
   /**
@@ -210,7 +222,23 @@ export class Plancia {
    * un'azione senza un tavolo su cui agire.
    */
   protected nameLot(id: number): void {
-    this.store.setLot(id);
-    this.store.closeCard(id);
+    // La card si chiude solo se il lotto e' stato davvero nominato: chiuderla su un rifiuto
+    // nasconderebbe insieme alla card la ragione, che lo store scrive nell'avviso della pagina.
+    if (this.store.nameLot(id)) this.store.closeCard(id);
+  }
+
+  /**
+   * IL DOPPIO CLICK SU UNA RIGA METTE QUEL NOME IN ASTA (sua istruzione, 23/09/2026), e NON apre la card.
+   *
+   * Il singolo click continua ad aprirla: i due gesti convivono perche' l'apertura ASPETTA un quarto di
+   * secondo e il doppio click la annulla - la stessa forma, e la stessa costante, dei due gesti sulla
+   * card di una rosa (04/09/2026). Filtrare il solo `detail > 1` non basta: un doppio click emette PRIMA
+   * un click con `detail` 1 come tutti gli altri, quindi la card si aprirebbe lo stesso.
+   *
+   * Lo store rifiuta - dicendolo - un nome che ha gia' un padrone: il lotto in asta e' uno che nessuno
+   * ha ancora preso, e un gesto che non fa niente in silenzio e' indistinguibile da un gesto rotto.
+   */
+  protected onName(man: BoardMan): void {
+    this.store.nameLot(man.id);
   }
 }

@@ -66,8 +66,31 @@ const DEMO_TEAMS: { label: string }[] = [
   { label: 'Fuorigioco FC' },
 ];
 
-/** How much of the auction the fixture plays before handing the board over. */
-export const DEMO_PROGRESS = 0.35;
+/**
+ * QUANTO GIOCA DA SE' IL TAVOLO INVENTATO PRIMA DI CONSEGNARE LA PLANCIA, e da oggi e' ZERO.
+ *
+ * Sua istruzione (23/09/2026): «di default non abilitare il tavolo finto». Le SEDIE restano - dieci
+ * partecipanti, borse piene, 3-8-8-6 - perche' quelle non sono finzione: sono le impostazioni della
+ * lega che lui dichiara, e senza di esse la pagina non ha crediti su cui poggiare un tetto ne' mani da
+ * contare. Quello che sparisce sono gli ACQUISTI, che erano finzione pura: un terzo dei 250 posti
+ * assegnato a rose che non esistono, e da quando la plancia e' «il foglio su cui si segna l'asta vera»
+ * (§37) la prima cosa da fare a ogni apertura era premere «azzera le rose».
+ *
+ * Il tasto resta, e cambia solo la ragione per cui esiste: non piu' «il tavolo si e' giocato addosso»
+ * ma «ricomincio da capo a meta' sessione».
+ */
+export const DEMO_PROGRESS = 0;
+
+/**
+ * ...e quanto ne gioca quando lo si CHIEDE (`/plancia?fixture=played`): un terzo dei 250 posti.
+ *
+ * Non e' una scorciatoia per i banchi: e' la popolazione su cui MISURANO. Una plancia senza un solo
+ * uomo comprato non ha righe con un padrone, e quelle sono esattamente le righe su cui vivono la lente,
+ * la colonna del prezzo pagato e l'azzeramento - `e2e-plancia-award` lo dice gia' di se' («il tavolo
+ * finto non e' partito giocato, e l'azzeramento non proverebbe niente»). Sta nell'INDIRIZZO perche' e'
+ * cio' di cui la pagina parla, che e' la regola di `core/view-state.ts`.
+ */
+export const PLAYED_PROGRESS = 0.35;
 
 /**
  * A reproducible draw.

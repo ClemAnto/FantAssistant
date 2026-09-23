@@ -49,9 +49,13 @@ describe('expectedPlay', () => {
     // tre stagioni: 2, 3 e 12 giornate. Media 5,67, peggiore 12 -> si assicurano 6,33.
     const losses = new Map([['2023-24', 2], ['2024-25', 3], ['2025-26', 12]]);
     expect(insuranceRounds(losses)).toBeCloseTo(12 - 17 / 3, 5);
+    // ...E DAL 23/09/2026 IL CONTO NON SI APPLICA (`INSURANCE_ON`, sua decisione): la formula resta e
+    // il test la descrive ancora, perche' e' quella che si riaccenderebbe. Quello che il test asserisce
+    // in piu' e' che oggi NON tocca le presenze - misurato prima di spegnerla: `worst - mean` scontava
+    // 475 righe su 562 di 5,0 giornate medie, e sui cronici il motore sbaglia di 0,68 (t -1,8).
     const result = expectedPlay(input({ losses }));
-    expect(result.insurance).toBeCloseTo(12 - 17 / 3, 5);
-    expect(result.expected).toBeCloseTo(30 - (12 - 17 / 3), 5);
+    expect(result.insurance).toBe(0);
+    expect(result.expected).toBeCloseTo(30, 5);
   });
 
   it('non toglie niente a chi la sua storia non lo distingue: il pavimento e' + ' spento', () => {
@@ -74,9 +78,15 @@ describe('expectedPlay', () => {
 
   it('non toglie mai piu' + ' del tetto dichiarato, perche' + ' uno storico brutto e' + ' uno sconto e non una sentenza', () => {
     const losses = new Map([['2023-24', 0], ['2024-25', 34]]);
+    // IL TETTO E' LA COSTANTE CHE HA RESO VISIBILE IL DIFETTO: questo caso - una stagione sana e una
+    // distrutta, cioe' l'EPISODIO ISOLATO - e' proprio quello che l'assicurazione scontava di piu',
+    // mentre un cronico (14 · 10 · 15) ne pagava due. Bobcek leggeva 3 partite attese su 38 dove il
+    // foglio ne prevede 16,2, ed e' la domanda dell'operatore da cui e' partito lo spegnimento.
+    expect(Math.min(insuranceRounds(losses), 36 * INSURANCE_CAP_SHARE))
+      .toBeCloseTo(36 * INSURANCE_CAP_SHARE, 5);
     const result = expectedPlay(input({ losses }));
-    expect(result.insurance).toBeCloseTo(36 * INSURANCE_CAP_SHARE, 5);
-    expect(result.expected).toBeGreaterThan(0);
+    expect(result.insurance).toBe(0);
+    expect(result.expected).toBeCloseTo(30, 5);
   });
 
   it('adotta il metro della PLANCIA solo dove il foglio ripiega su una costante', () => {

@@ -57,11 +57,11 @@ import {
   alternativeFor,
   buildMap,
   offerBand,
-  regroupByOffer,
+  regroupByCoin,
   sameClubDiscount,
   SlotView,
 } from './plancia';
-import { STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
+import { DEMO_PROGRESS, STANDARD_LEAGUE, buildRandomAuction, roleOf } from './plancia-demo';
 import { PlayerRulings, rungShares } from './player-rulings';
 import { sheetBlendsSeen, swingOf } from './swing';
 
@@ -120,6 +120,12 @@ export interface BoardBlock extends SlotBlock {
    * finisce per dichiarare due cifre. `null` dove nessuno dei suoi uomini ha un tetto.
    */
   medianOffer: number | null;
+  /**
+   * LA MEDIANA DELLA MONETA, che dal 23/09/2026 e' la coordinata su cui la griglia PERSONALE e'
+   * tagliata (il surplus: `PlanciaMan.surplus`). E' quella che la sua intestazione stampa, perche'
+   * l'intestazione dichiara il taglio - e sul MERCATO e' `null`, dove a tagliare e' il prezzo.
+   */
+  medianCoin: number | null;
 }
 
 /** A participant as the strip draws him: credits, four numbers, and whether he is in on THIS lot. */
@@ -326,6 +332,9 @@ export class PlanciaStore {
         // Lo SWING: il surplus piu' la costanza, in gol di classifica. La costanza arriva dallo
         // store delle misure e vale `null` finche' non e' atterrato - allora `swingOf` prende la
         // mediana del ruolo, che e' «vuoto = ignoto» e non uno zero.
+        // LA MONETA DELLA GRIGLIA PERSONALE (23/09/2026). Gia' calcolato qui sopra e riscalato sulle
+        // giornate che restano: si consegna alla riga invece di rifarlo, o un uomo avrebbe due surplus.
+        surplus,
         swing: swingOf({
           role,
           surplus,
@@ -479,6 +488,9 @@ export class PlanciaStore {
         left,
         mine: hasMine,
         medianOffer: middleOf(rows.map((row) => row.band?.high ?? null)),
+        // `null` e non la mediana del surplus: qui a tagliare e' il PREZZO, e un blocco che
+        // dichiarasse una coordinata su cui non e' tagliato direbbe una cosa falsa di se'.
+        medianCoin: null,
       };
     });
   });
@@ -511,12 +523,13 @@ export class PlanciaStore {
       if (!block.excluded.length) continue;
       goneByRole.set(block.role, [...(goneByRole.get(block.role) ?? []), ...block.excluded]);
     }
-    const groups = regroupByOffer(
+    const groups = regroupByCoin(
       rows,
-      // Il tetto MISURATO e non la cifra della colonna: `price` porta il prezzo PAGATO per chi ha gia'
-      // un padrone, e ordinare su una colonna con due significati darebbe una graduatoria che ne mescola
-      // due. Chi non ha un tetto (il foglio non lo prezza, quindi confidenza zero) finisce in fondo.
-      (man) => man.band?.high ?? -1,
+      // LA MONETA E' IL SURPLUS (operatore, 23/09/2026), e taglia E ordina: vedi `PlanciaMan.surplus`
+      // per la misura che lo sceglie contro lo swing, e `regroupByCoin` per perche' la chiave e' una.
+      // Il TETTO resta dov'era - nella sua colonna, letto sullo slot di mercato - perche' la scala che
+      // lo produce e' misurata su un rango di PREZZO e non si rilegge su una griglia nostra.
+      (man) => man.surplus,
       this.teamsCount(),
       this.slots(),
     );
@@ -535,6 +548,9 @@ export class PlanciaStore {
       // Dalla stessa `middleOf` della griglia del mercato: un uomo senza tetto non e' un tetto di zero,
       // quindi non entra nel campione - e `medianOffer` promette `null` dove nessuno ne ha uno.
       medianOffer: middleOf(group.men.map((man) => man.band?.high ?? null)),
+      // LA COORDINATA DEL TAGLIO, che e' quella che l'intestazione stampa. Stessa `middleOf` e stessa
+      // ragione: chi il foglio non prezza non e' un surplus di zero, quindi non entra nel campione.
+      medianCoin: middleOf(group.men.map((man) => man.surplus)),
       // NIENTE PREFISSO DEI MIEI QUI, e non e' una dimenticanza: su questa griglia la colonna E'
       // l'ordine (04/09/2026, sua domanda su Hojlund e Martinez), quindi appuntare dei nomi in cima
       // rimetterebbe esattamente la contraddizione che stiamo togliendo - una riga sopra un'altra con
@@ -565,6 +581,26 @@ export class PlanciaStore {
 
   /** My own squad, which is the one whose room decides every ceiling on screen. */
   readonly me = computed(() => this.feed.teams().find((team) => team.id === this.mineId()) ?? null);
+
+  /**
+   * I MIEI UOMINI, TUTTI: dal listone e non dalla plancia, perche' la plancia non li disegna tutti.
+   *
+   * `blocks()` porta i 25 slot x `teams` uomini e lascia fuori due popolazioni che in rosa ci sono
+   * eccome - la CODA (cinque uomini su venticinque, a un credito) e chi rientra troppo tardi per
+   * valere un posto (`MIN_PLAY_SHARE`) - quindi un campetto costruito su quelle righe disegnerebbe un
+   * undici di una rosa che non e' la mia. Si legge percio' da `men()`, che e' il listone intero e
+   * l'unica definizione di come questa pagina prezza un uomo, incrociato con gli acquisti del feed.
+   *
+   * Vuoto finche' non si sa chi sono io: «vuoto = ignoto», e un campetto senza padrone non si disegna.
+   */
+  readonly mySquad = computed<PlanciaMan[]>(() => {
+    const mine = this.mineId();
+    if (mine == null) return [];
+    const owned = new Set(
+      this.feed.picks().filter((pick) => pick.teamId === mine).map((pick) => pick.playerId),
+    );
+    return owned.size ? this.men().filter((man) => owned.has(man.id)) : [];
+  });
 
   /**
    * How many rosters still want a role - the number that decides the second price (§23.1) and the one
@@ -1040,8 +1076,11 @@ export class PlanciaStore {
    *
    * `force` re-rolls it; without it a board that already has a table is left alone, or navigating back
    * would throw away an auction the operator is in the middle of.
+   *
+   * `progress` E' ZERO DI DEFAULT (sua istruzione del 23/09/2026): le sedie sono sue, gli acquisti no.
+   * La ragione per esteso, e chi chiede l'altro valore, stanno su `DEMO_PROGRESS` e `PLAYED_PROGRESS`.
    */
-  async startDemo(force = false): Promise<boolean> {
+  async startDemo(force = false, progress = DEMO_PROGRESS): Promise<boolean> {
     if (!force && this.feed.hasTable() && this.men().length) return true;
     this.loading.set(true);
     this.error.set(null);
@@ -1051,7 +1090,7 @@ export class PlanciaStore {
       // league every published number of the bench is measured against (ten seats, 1000 credits,
       // 3/8/8/6). A sheet built for a twelve-team league would silently change the width of every slot,
       // which is the one coordinate the whole page stands on.
-      const auction = buildRandomAuction({ players, ...STANDARD_LEAGUE });
+      const auction = buildRandomAuction({ players, ...STANDARD_LEAGUE, progress });
       this.feed.startDemo(auction);
       this.lotSource.set('demo');
       // A NEW TABLE IS A NEW SET OF SQUADS: the lens cannot survive it, because an id that happens to
@@ -1102,6 +1141,32 @@ export class PlanciaStore {
   setLot(id: number | null): void {
     this.lotId.set(id);
     this.lotPrice.set(0);
+  }
+
+  /**
+   * NOMINA IL LOTTO, e un uomo che ha gia' un padrone non si puo' nominare.
+   *
+   * `setLot` non chiede niente a nessuno perche' i suoi chiamanti interni sanno gia' cosa gli stanno
+   * passando (l'estrazione, l'apertura del tavolo, l'azzeramento). Questo e' il percorso dell'OPERATORE
+   * - il bottone dentro la card e, dal 23/09/2026, il doppio click su una riga - e li' il nome puo'
+   * essere di chiunque: il bottone si disegna solo su chi e' nell'urna, il doppio click arriva da tutte
+   * e 250 le righe. Un lotto che porta un uomo gia' venduto farebbe leggere una banda, un verdetto e
+   * delle mani alzate su una decisione che nessuno puo' piu' prendere.
+   *
+   * Il rifiuto DICE perche' e nomina il padrone: un gesto che non fa niente in silenzio e'
+   * indistinguibile da un gesto rotto, che e' la stessa ragione per cui `award` scrive la sua.
+   */
+  nameLot(id: number): boolean {
+    const owner = this.owners().get(id);
+    if (owner) {
+      const who = this.feed.teams().find((team) => team.id === owner.teamId)?.label ?? 'un altro';
+      const name = this.men().find((man) => man.id === id)?.name ?? 'Questo nome';
+      this.error.set(`${name} è già di ${who}: in asta ci va uno che nessuno ha ancora preso.`);
+      return false;
+    }
+    this.error.set(null);
+    this.setLot(id);
+    return true;
   }
 
   /** The first man still in the urn, in map order. Deterministic: a fixture nobody can reproduce is a
@@ -1194,10 +1259,14 @@ export class PlanciaStore {
   /**
    * AZZERA LE ROSE: nessun acquisto, borse piene, tutti i nomi di nuovo nell'urna.
    *
-   * Sua richiesta del 04/09/2026, e serve perché il tavolo inventato si gioca da sé un terzo dell'asta
-   * prima di consegnare la plancia (`DEMO_PROGRESS`): quegli acquisti sono di nessuno, e un'asta vera
-   * comincia da zero. Quello che NON si tocca è il regolamento - dieci sedie, 1000 crediti, 3·8·8·6 e
-   * le dieci etichette restano, perché sono le impostazioni della lega e non lo stato dell'asta.
+   * Sua richiesta del 04/09/2026, e la RAGIONE per cui esiste e' cambiata il 23/09: nasceva perche' il
+   * tavolo inventato si giocava da se' un terzo dell'asta prima di consegnare la plancia, e adesso che
+   * apre vuoto (`DEMO_PROGRESS` = 0) il tasto serve a ricominciare da capo a meta' sessione - che e' la
+   * stessa cosa fatta quando serve invece che a ogni apertura. Resta necessario: su un tavolo giocato a
+   * mano, o chiesto giocato (`PLAYED_PROGRESS`), e' l'unico modo di tornare a zero.
+   *
+   * Quello che NON si tocca è il regolamento - dieci sedie, 1000 crediti, 3·8·8·6 e le dieci etichette
+   * restano, perché sono le impostazioni della lega e non lo stato dell'asta.
    */
   resetSquads(): boolean {
     if (!this.feed.emptySquads()) {

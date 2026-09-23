@@ -17,6 +17,7 @@ import { LEAGUE_ORDER } from '../../core/clubs-store';
 import { ClubOption, GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { ClassicRole, competitionLabel } from '../../core/players-store';
 import { PageActions } from '../../core/page-actions';
+import { PlayerStatus } from '../../core/player-status';
 import { ValuationStore } from '../../core/valuation-store';
 import { BottomDock } from '../bottom-dock/bottom-dock';
 import { ClubCrest } from '../club-crest/club-crest';
@@ -112,6 +113,23 @@ export class GlobalOptionsPanel {
   protected readonly search = signal('');
 
   /** Quello che il bottone deve dire senza aprire niente: che c'è un filtro, e quanto grande. */
+  /**
+   * L'ALLARME DELLA FRESCHEZZA, e serve a decidere se la pastiglia SOPRAVVIVE al collasso.
+   *
+   * Sua richiesta del 23/09/2026: «la card che contiene DATA IERI anche quando e' collassata ostacola
+   * la visione ... resti visibile solo la freccetta». La pastiglia stava nello slot `always` con una
+   * ragione scritta - «oltre i tre giorni dice "allarmi spenti", e uno schermo che tace quella frase
+   * si legge come "non c'e' nessuno fuori"» - e quella ragione vale per l'ALLARME, non per la
+   * pastiglia in ogni suo stato: «ieri» e' il ramo AMBRA, che e' una notizia da leggere quando si
+   * guarda e non una da tenere addosso. E' la regola che questa app si e' gia' data dall'altro capo,
+   * «quando e' tutto di oggi e' neutra: va bene non e' una notizia», portata un gradino piu' in la'.
+   *
+   * DALLO STESSO SEGNALE CHE TINGE LA PASTIGLIA (`PlayerStatus.pressStale`, che `data-freshness` legge
+   * per il suo rosso): una definizione e due lettori, o il giorno che la soglia si muove la scatola e
+   * la pastiglia direbbero due cose diverse sullo stesso fatto.
+   */
+  protected readonly alarming = inject(PlayerStatus).pressStale;
+
   protected readonly excludedClubs = this.options.excludedClubs;
   protected readonly hidden = this.options.hidden;
 

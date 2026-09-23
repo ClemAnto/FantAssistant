@@ -38,8 +38,17 @@
       </div>
 
       <div class="grid min-w-0 flex-1 grid-cols-8 gap-1.5">
+        <!-- `data-block` E' L'AGGANCIO DEL TABELLONE, ed e' nato da un difetto misurato (23/09/2026).
+             Dentro questa griglia ci sono anche due card PROIETTATE - le rose e la mia rosa - e da
+             quando la seconda porta dei `<button>` un selettore come `plancia-slot-matrix button`
+             prende anche le sue righe: tre banchi vicini sono andati rossi insieme, tutti e tre
+             accusando la pagina di un difetto che era del loro selettore (26 blocchi invece di 25, nomi
+             «accavallati» che stavano in due colonne diverse, righe «in chiaro» sotto la lente che non
+             erano della plancia). Chi vuole le righe del TABELLONE si aggancia a questo attributo, che
+             e' una dichiarazione del componente e non un cammino nell'albero. -->
         @for (block of byRole().get(role); track block.id) {
           <div
+            data-block
             class="flex min-w-0 flex-col overflow-hidden rounded border bg-surface"
             [class]="blockTone(block)"
           >
@@ -121,13 +130,21 @@
                      INTERA su una finestra da ~660px invece che da ~850. Di quella discesa, i 48px che
                      la griglia ha ripreso togliendo il `pb-14` sono un'altra sua richiesta dello stesso
                      giorno e non questa: qui il guadagno sono i 140px di plancia in meno. -->
+                <!-- DUE GESTI SULLA STESSA RIGA (sua istruzione, 23/09/2026): un click apre la card,
+                     un DOPPIO CLICK mette quel nome in asta senza aprirla. La ragione per cui
+                     convivono - l'apertura aspetta e il secondo click la annulla - sta su `press`.
+                     `select-none` perche' un doppio click su del testo lo SELEZIONA, e una riga che
+                     resta evidenziata dopo il gesto si legge come se fosse rimasta «attiva»: la stessa
+                     cura che le card delle rose hanno gia' (04/09) e che il trascinamento delle colonne
+                     della tabella aveva pagato prima di loro. -->
                 <button
                   type="button"
-                  class="flex min-h-[10.5px] flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none"
+                  class="flex min-h-[10.5px] flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none select-none"
                   [class]="rowTone(man)"
                   [class.opacity-30]="dimmed(man)"
                   [disabled]="inert(man)"
-                  (click)="press(man)"
+                  (click)="press(man, $event)"
+                  (dblclick)="double(man)"
                   (mouseenter)="hover(man)"
                   (mouseleave)="hover(null)"
                   [style.background-color]="instead(man) ? INSTEAD_TINT : null"
@@ -151,15 +168,31 @@
                   />
                   <!-- IL NUMERO CHE SPIEGA L'ORDINE, e cambia col taglio perche' l'ordine cambia.
                        Sul mercato il blocco e' ordinato per valore atteso, quindi qui c'e' quanto
-                       rende sopra il sei; sulla griglia personale l'ordine e' lo SWING (punti sopra
-                       il 6 a giornata, surplus piu' costanza - l'unita' dichiarata dall'operatore il
-                       07/09/2026), quindi qui c'e' quello: le due colonne parlano la stessa scala.
-                       Una colonna che spiega un ordinamento deve essere quell'ordinamento - la
-                       regola del 03/09, applicata al taglio nuovo. Le partite attese restano accanto
-                       in tutt'e due, perche' spiegano tutt'e due i numeri. -->
+                       rende sopra il sei; sulla griglia personale c'e' LA MONETA SU CUI IL BLOCCO E'
+                       TAGLIATO - il SURPLUS - e non una sua funzione, perche' li' la colonna E'
+                       l'ordine per costruzione (operatore, 23/09/2026: «il valore per cui vengono
+                       ordinati i calciatori deve essere anche quello visibile»).
+
+                       PRIMA ERA LO SWING E NON SI LEGGEVA: a giornata l'ampiezza di un blocco e'
+                       0,30 punti, quindi con un decimale il 68% delle righe stampava la stessa cifra
+                       di quella sopra (contro il 20% del mercato) e tre valori distinti su dieci
+                       righe - D6 ne aveva DUE.
+
+                       ...E IL DECIMALE QUI NON E' UN DETTAGLIO, perche' il difetto non era dello
+                       swing: e' che UN BLOCCO TAGLIATO SULLA PROPRIA MONETA HA LA MONETA PIATTA PER
+                       COSTRUZIONE - dieci uomini consecutivi in una graduatoria di duecento sono
+                       vicini per definizione, ed e' la stessa ragione per cui dentro una fascia di
+                       prezzo i prezzi stanno in 1,0-1,3 (§27). Misurata dopo il cambio di moneta:
+                       ampiezza mediana 2,0 fantapunti su dieci righe, e con l'intero restavano 3
+                       valori distinti e il 64% di pareggi, cioe' lo stesso schermo di prima con un
+                       altro numero sopra. Con un decimale quei 2,0 punti diventano una ventina di
+                       gradini.
+
+                       Le partite attese restano accanto in tutt'e due, perche' spiegano tutt'e due
+                       i numeri. -->
                   <span class="shrink-0 tabular-nums opacity-60">{{
                     view() === 'mine'
-                      ? (man.swing == null ? '·' : (man.swing | number: '1.1-1'))
+                      ? (man.surplus == null ? '·' : (man.surplus | number: '1.1-1'))
                       : man.edge == null
                         ? '·'
                         : (man.edge > 0 ? '+' : '') + (man.edge | number: '1.1-1')
@@ -213,6 +246,21 @@
             [style.grid-column]="'span ' + teamsSpan()"
           >
             <ng-content select="[spare]" />
+          </div>
+        }
+
+        <!-- LA MIA ROSA, nello spazio che la linea degli ATTACCANTI lascia libero (sua richiesta,
+             23/09/2026). Stessa forma della striscia delle rose e per le stesse ragioni: proiettata e
+             non disegnata qui, dentro una card sua perche' senza un contenitore si leggerebbe come un
+             settimo blocco della linea, e `min-h-0` perche' segue la linea invece di deciderla - se un
+             giorno chiedesse piu' spazio di sei blocchi di nomi, la plancia scorrerebbe per una ragione
+             che non e' la sua. -->
+        @if (role === 'A') {
+          <div
+            class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface p-1.5"
+            [style.grid-column]="'span ' + squadSpan()"
+          >
+            <ng-content select="[squad]" />
           </div>
         }
       </div>

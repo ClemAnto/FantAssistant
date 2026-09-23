@@ -1,9 +1,10 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, input, output, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, input, output, signal } from '@angular/core';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { PlayerFlags } from '../../../ui/player-flags/player-flags';
 import { Alternative, MIN_PLAY_SHARE, ROLES, Role, SlotView } from '../../../core/plancia';
+import { DOUBLE_MS } from '../../../core/view-state';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
 import { RulingDot } from '../../../ui/ruling-dot/ruling-dot';
 
@@ -71,6 +72,11 @@ const COLUMNS = 8;
  * it belongs to the page. The board wins the 240px the cards had on the right, which is the reason the
  * move pays: every one of the 25 blocks gets wider, and a block is where the 250 rows live.
  *
+ * ...AND THE FORWARDS' LINE LEAVES TWO MORE, bottom right, which is where MY OWN SQUAD now sits
+ * (operator, 23/09/2026). Same mechanism and the same division of labour: the line knows where the
+ * room is, the page knows what goes in it. Measured before anything was drawn: 386 x 191 px on a
+ * 1600 x 1000 window, which is the rectangle that card is designed for.
+ *
  * EVERY BLOCK IS THE SAME WIDTH, the keepers' three included: a slot is a rank divided by the number of
  * squads, so a block is one unit of the market whatever role it belongs to, and drawing the keepers
  * wider would say they are worth more of the screen than a defender.
@@ -108,8 +114,19 @@ export class SlotMatrix {
   /** The pair from the slot below, by man: what you would buy instead of him, at the same currency. */
   readonly pairs = input<Map<number, Alternative | null>>(new Map());
 
-  /** Naming a lot is a two-click job and this is the first click: press a name, it goes on the table. */
+  /** Un CLICK apre la card di quel calciatore: un gesto, un evento, per tutte e 250 le righe. */
   readonly pick = output<BoardMan>();
+
+  /**
+   * ...e un DOPPIO CLICK mette quel nome in asta (sua istruzione, 23/09/2026: «doppioclick su un
+   * calciatore -> mettilo in asta, e non visualizzare il dettaglio»).
+   *
+   * Due gesti sulla stessa riga e nessuno dei due si mangia l'altro: l'apertura della card ASPETTA
+   * `DOUBLE_MS` e il doppio click la annulla. E' la stessa forma dei due gesti sulla card di una rosa
+   * (04/09/2026), e la ragione per cui non basta filtrare `detail > 1` sta li': il primo click di un
+   * doppio arriva con `detail` 1 come tutti gli altri, quindi la card si aprirebbe lo stesso.
+   */
+  readonly name = output<BoardMan>();
 
   /**
    * ...except on a KEEPER, where the click asks with whom to pair him and puts nothing on the table.
@@ -121,9 +138,41 @@ export class SlotMatrix {
   // L'evento del portiere non c'e' piu': un click emette `pick` per tutti e gli abbinamenti sono un
   // bottone della card. Un output che nessuno emette e' un contratto che mente a chi lo legge.
 
-  /** Un click, un evento, per ogni ruolo: chi lo ascolta apre la card. */
-  protected press(man: BoardMan): void {
-    this.pick.emit(man);
+  /**
+   * Un click apre la card, DOPO un quarto di secondo: il tempo che il secondo click ha per annullarla.
+   *
+   * Il ritardo non gareggia con la soglia di sistema del doppio click (500 ms su Windows): il SECONDO
+   * click annulla l'attesa da se', quindi `DOUBLE_MS` deve solo essere abbastanza corto perche'
+   * l'apertura si legga come istantanea. Una definizione sola per tutta l'app, in `view-state.ts`.
+   */
+  protected press(man: BoardMan, event: MouseEvent): void {
+    if (event.detail > 1) return this.cancel();
+    this.cancel();
+    this.pending = setTimeout(() => {
+      this.pending = null;
+      this.pick.emit(man);
+    }, DOUBLE_MS);
+  }
+
+  /** Il doppio click vince: annulla la card che il suo primo click aveva messo in coda, e nomina il lotto. */
+  protected double(man: BoardMan): void {
+    this.cancel();
+    this.name.emit(man);
+  }
+
+  private pending: ReturnType<typeof setTimeout> | null = null;
+
+  private cancel(): void {
+    if (this.pending === null) return;
+    clearTimeout(this.pending);
+    this.pending = null;
+  }
+
+  constructor() {
+    // Un timer che scatta su un componente distrutto emette su un output che non ascolta piu' nessuno:
+    // innocuo, e si spegne comunque - un timer non fermato e' il genere di cosa che diventa un difetto
+    // il giorno che qualcuno gli mette dentro qualcos'altro.
+    inject(DestroyRef).onDestroy(() => this.cancel());
   }
 
   /**
@@ -152,7 +201,22 @@ export class SlotMatrix {
    * `<ng-content>` and it is always in the tree.
    */
   protected teamsSpan(): number {
-    return Math.max(0, COLUMNS - (this.byRole().get('P')?.length ?? 0)) || COLUMNS;
+    return this.spanAfter('P');
+  }
+
+  /**
+   * ...e quante ne lascia la linea degli ATTACCANTI, dove va la card della rosa (23/09/2026).
+   *
+   * Stessa funzione e non una seconda: sono la stessa domanda su due linee, e due conti su una griglia
+   * sola sono il modo in cui una delle due card finisce fuori posto il giorno che le colonne cambiano.
+   */
+  protected squadSpan(): number {
+    return this.spanAfter('A');
+  }
+
+  /** Le colonne che una linea lascia libere, con lo ZERO che diventa una riga intera - vedi sopra. */
+  private spanAfter(role: Role): number {
+    return Math.max(0, COLUMNS - (this.byRole().get(role)?.length ?? 0)) || COLUMNS;
   }
 
   protected readonly byRole = computed(() => {
@@ -191,7 +255,10 @@ export class SlotMatrix {
    * mediana sarebbe un numero vero che non descrive il blocco che sta sopra.
    */
   protected headline(block: BoardBlock): number | null {
-    return this.view() === 'mine' ? block.medianOffer : block.medianFvm;
+    // LA COORDINATA DEL TAGLIO, e dal 23/09/2026 sulla griglia personale e' la MONETA (il surplus
+    // mediano) e non piu' il tetto: l'intestazione dichiara come il blocco e' stato fatto, quindi
+    // seguirebbe una cifra sbagliata se restasse sulla max offerta, che ora non taglia piu' niente.
+    return this.view() === 'mine' ? block.medianCoin : block.medianFvm;
   }
 
   protected blockTip(block: BoardBlock): string {
@@ -222,8 +289,8 @@ export class SlotMatrix {
     // `D3` mio sono i terzi dieci per quanto li pago. Il tooltip lo dice invece di lasciarlo dedurre
     // dal bottone in barra, che a quattro ore di asta nessuno guarda piu'.
     const what = mine
-      ? `il tuo ${block.id}: i ${block.men.length} per cui offrirei di più dopo i precedenti · ` +
-        `mia max offerta mediana ${median} cr`
+      ? `il tuo ${block.id}: i ${block.men.length} che mi rendono di più dopo i precedenti · ` +
+        `surplus mediano ${median} fp`
       : `${block.id} del mercato: i ${block.men.length} più cari del ruolo dopo i precedenti · ` +
         `mediana pagata ${median} cr`;
     return `${block.left} ancora nell'urna · ${what}${block.mine ? ' · uno è tuo' : ''}${gone}`;

@@ -17,7 +17,7 @@ import {
   alternativeFor,
   buildMap,
   depthFactor,
-  regroupByOffer,
+  regroupByCoin,
   discountFor,
   offerBand,
   worthWaiting,
@@ -44,6 +44,9 @@ function man(
     // Lo SWING la riempie lo store, non la mappa: qui e' vuota di default e i test che la vogliono
     // se la mettono, cosi' ogni asserzione sull'ordine dice da se' su quale numero e' fatta.
     swing: null,
+    // ...e lo stesso per la MONETA della griglia personale: vuota di default, cosi' un test che
+    // asserisce sul taglio la dichiara e si legge su cosa sta tagliando.
+    surplus: null,
     basis: 'measured',
     confidence: 1,
     outNow,
@@ -343,7 +346,7 @@ describe('chi oggi non gioca', () => {
 
   it('e sulla griglia PERSONALE e elencato come tutti gli altri', () => {
     const men = [man(1, 'C', 100, 900, true), man(2, 'C', 90, 500), man(3, 'C', 80, 100)];
-    const blocks = regroupByOffer(men, (one) => one.points ?? -1, 3, {
+    const blocks = regroupByCoin(men, (one) => one.points ?? -1, 3, {
       P: 0,
       D: 0,
       C: 1,
@@ -707,7 +710,7 @@ describe('la griglia PERSONALE', () => {
 
   it('taglia sulla MIA offerta e non sul prezzo: il primo blocco porta i dieci che pago di piu', () => {
     const { men, offerOf } = upsideDown();
-    const mine = regroupByOffer(men, offerOf, 10, slots);
+    const mine = regroupByCoin(men, offerOf, 10, slots);
     const market = buildMap(men, 10, slots);
 
     expect(mine[0].id).toBe('D1');
@@ -726,7 +729,7 @@ describe('la griglia PERSONALE', () => {
     const offerOf = (one: PlanciaMan) => (one.points ?? 0) * 2;
     const market = buildMap(men, 10, slots);
     const drawn = market.blocks.flatMap((block) => block.men);
-    const mine = regroupByOffer(drawn, offerOf, 10, slots);
+    const mine = regroupByCoin(drawn, offerOf, 10, slots);
 
     expect(mine).toHaveLength(market.blocks.length);
     for (const block of mine) expect(block.men).toHaveLength(10);
@@ -737,8 +740,8 @@ describe('la griglia PERSONALE', () => {
 
   it('e deterministica: due letture della stessa plancia danno una griglia sola', () => {
     const { men, offerOf } = upsideDown();
-    const once = regroupByOffer(men, offerOf, 10, slots);
-    const twice = regroupByOffer([...men].reverse(), offerOf, 10, slots);
+    const once = regroupByCoin(men, offerOf, 10, slots);
+    const twice = regroupByCoin([...men].reverse(), offerOf, 10, slots);
     expect(twice.map((block) => block.men.map((one) => one.id))).toEqual(
       once.map((block) => block.men.map((one) => one.id)),
     );
@@ -746,42 +749,49 @@ describe('la griglia PERSONALE', () => {
 
   it('a offerta pari decide il prezzo della stanza, non l ordine di arrivo', () => {
     const flat: PlanciaMan[] = [man(1, 'P', 5), man(2, 'P', 40), man(3, 'P', 20)];
-    const blocks = regroupByOffer(flat, () => 30, 3, { P: 1, D: 0, C: 0, A: 0 });
+    const blocks = regroupByCoin(flat, () => 30, 3, { P: 1, D: 0, C: 0, A: 0 });
     expect(blocks[0].men.map((one) => one.id)).toEqual([2, 3, 1]);
   });
 
   /**
-   * IL TAGLIO E' IL TETTO, L'ORDINE DENTRO E' LO SWING (operatore, 06/09/2026).
-   *
-   * Sono due domande - «quanto pagherei» e «chi mi fa vincere di piu'» - e per questo sono due chiavi.
-   * Il test le separa muovendole in direzioni opposte: l'uomo per cui pagherei meno di tutti e' quello
-   * che fa segnare di piu', e deve finire primo del blocco senza cambiare blocco.
+   * UNA CHIAVE SOLA PER IL TAGLIO E PER L'ORDINE (operatore, 23/09/2026), e il test lo prova nel modo
+   * in cui la versione precedente cadrebbe: prima erano DUE - il tetto tagliava e lo swing ordinava -
+   * quindi l'uomo con la moneta piu' alta poteva stare in fondo al secondo blocco. Qui la moneta va
+   * all'OPPOSTO del tetto, e deve comandare tutt'e due.
    */
-  it('taglia i blocchi personali sul tetto e li ORDINA sullo SWING', () => {
+  it('taglia E ordina i blocchi personali sulla MONETA, che e una chiave sola', () => {
     const men: PlanciaMan[] = [];
+    // fvm 20...1 (il tetto), surplus 0...19: chi pagherei di piu' e' quello che mi rende di meno.
+    // E lo SWING va all'opposto della moneta, che e' cio' che rende il test FALSIFICABILE: con le
+    // due chiavi di ieri - taglio sulla moneta, ordine sullo swing - il primo blocco uscirebbe
+    // rovesciato. Senza questa riga il test passerebbe anche col difetto rimesso, perche' con lo
+    // swing vuoto il pareggio cadeva sulla moneta e i due ordini coincidevano.
     for (let at = 0; at < 20; at += 1) {
-      men.push({ ...man(at + 1, 'D', 20 - at), swing: at });
+      men.push({ ...man(at + 1, 'D', 20 - at), surplus: at, swing: 20 - at });
     }
-    const blocks = regroupByOffer(men, (one) => one.fvm, 10, { P: 0, D: 2, C: 0, A: 0 });
+    const blocks = regroupByCoin(men, (one) => one.surplus, 10, { P: 0, D: 2, C: 0, A: 0 });
 
-    // I due blocchi restano quelli del TETTO: i primi dieci per offerta, poi gli altri dieci.
-    expect(blocks[0].men.map((one) => one.id).sort((a, b) => a - b)).toEqual([
-      1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-    ]);
-    // ...e dentro ognuno comanda lo SWING, che qui e' l'opposto dell'offerta.
-    expect(blocks[0].men.map((one) => one.id)).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
-    expect(blocks[1].men[0].id).toBe(20);
+    // Il primo blocco e' la CIMA DELLA MONETA, non i dieci che pagherei di piu'.
+    expect(blocks[0].men.map((one) => one.id)).toEqual([20, 19, 18, 17, 16, 15, 14, 13, 12, 11]);
+    expect(blocks[1].men.map((one) => one.id)).toEqual([10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    // ...e l'intestazione dichiara la coordinata su cui ha tagliato: la mediana di 10...19.
+    expect(blocks[0].medianCoin).toBe(14.5);
   });
 
-  /** Un numero che non c'e' non si ordina: va in fondo, e il pareggio lo rompe il tetto come prima. */
-  it('chi non ha uno SWING va in fondo al suo blocco, non in mezzo', () => {
-    const men: PlanciaMan[] = [
-      { ...man(1, 'P', 30), swing: null },
-      { ...man(2, 'P', 20), swing: 1 },
-      { ...man(3, 'P', 10), swing: 5 },
-    ];
-    const blocks = regroupByOffer(men, (one) => one.fvm, 3, { P: 1, D: 0, C: 0, A: 0 });
-    expect(blocks[0].men.map((one) => one.id)).toEqual([3, 2, 1]);
+  /**
+   * Un numero che non c'e' non si ordina. Con una chiave sola questo vuol dire l'ULTIMO blocco del
+   * ruolo e non il fondo del proprio, che e' cio' che cambia rispetto al taglio sul tetto: chi il
+   * foglio non prezza non puo' rivendicare un gradino.
+   */
+  it('chi non ha la MONETA affonda in fondo alla graduatoria, non in mezzo', () => {
+    const men: PlanciaMan[] = [];
+    for (let at = 0; at < 20; at += 1) men.push({ ...man(at + 1, 'D', 20 - at), surplus: at });
+    // Il piu' ricco di moneta perde il suo numero: deve uscire dal primo blocco e finire ultimo.
+    men[19] = { ...men[19], surplus: null };
+    const blocks = regroupByCoin(men, (one) => one.surplus, 10, { P: 0, D: 2, C: 0, A: 0 });
+
+    expect(blocks[0].men.map((one) => one.id)).not.toContain(20);
+    expect(blocks[1].men.at(-1)?.id).toBe(20);
   });
 
   it('elenca anche chi oggi non gioca, e lo mette dove il suo tetto lo mette', () => {
@@ -789,7 +799,7 @@ describe('la griglia PERSONALE', () => {
     for (let at = 0; at < 20; at += 1) men.push(man(at + 1, 'D', 20 - at));
     // Il nome per cui pagherei di piu' salta la prossima giornata: resta, e resta primo.
     men[0] = { ...men[0], outNow: true };
-    const blocks = regroupByOffer(men, (one) => one.fvm, 10, { P: 0, D: 2, C: 0, A: 0 });
+    const blocks = regroupByCoin(men, (one) => one.fvm, 10, { P: 0, D: 2, C: 0, A: 0 });
 
     // Tolto per un'ora su sua richiesta e RIMESSO da lui stesso: «e' solo una gara saltata», e la
     // causa vera era il barrato, non la lista.
@@ -801,7 +811,7 @@ describe('la griglia PERSONALE', () => {
     const men: PlanciaMan[] = [];
     for (let at = 0; at < 10; at += 1) men.push(man(at + 1, 'P', 10 - at));
     men[0] = { ...men[0], points: 4, out: null };
-    const blocks = regroupByOffer(men, (one) => one.points ?? -1, 10, { P: 1, D: 0, C: 0, A: 0 });
+    const blocks = regroupByCoin(men, (one) => one.points ?? -1, 10, { P: 1, D: 0, C: 0, A: 0 });
     // Fra il 6 e il 4 di punti attesi: il gradino binario servirebbe solo dove il numero manca.
     expect(blocks[0].men.map((one) => one.id)).toEqual([2, 3, 4, 5, 6, 1, 7, 8, 9, 10]);
   });
@@ -811,15 +821,15 @@ describe('la griglia PERSONALE', () => {
     for (let at = 0; at < 10; at += 1)
       men.push(man(at + 1, 'P', 30 - at, at === 0 ? null : 30 - at));
     // Un tetto che non esiste vale meno di qualunque tetto: e la stessa regola di «vuoto = ignoto».
-    const blocks = regroupByOffer(men, (one) => one.points ?? -1, 10, { P: 1, D: 0, C: 0, A: 0 });
+    const blocks = regroupByCoin(men, (one) => one.points ?? -1, 10, { P: 1, D: 0, C: 0, A: 0 });
     expect(blocks[0].men.at(-1)?.id).toBe(1);
   });
 
   it('porta DUE mediane, e quella dell intestazione e la coordinata su cui ha tagliato', () => {
     const { men, offerOf } = upsideDown();
-    const first = regroupByOffer(men, offerOf, 10, slots)[0];
+    const first = regroupByCoin(men, offerOf, 10, slots)[0];
     // La mia offerta mediana del blocco: 71...80, quindi 75,5.
-    expect(first.medianOffer).toBe(75.5);
+    expect(first.medianCoin).toBe(75.5);
     // ...e quello che la stanza chiede per gli stessi dieci, che non e piu una proprieta del blocco.
     expect(first.medianFvm).toBe(5.5);
   });

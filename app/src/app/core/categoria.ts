@@ -25,9 +25,12 @@ export const CATEGORIA_LADDER = [
   'semi',
   'promessa',
   'solido',
-  'riserva',
-  'boa',
+  // `scommessa` E' RISALITA SOPRA `operaio` il 23/09/2026 (sera), quando la parola ha cambiato
+  // significato: non piu' «nessuno l'ha prezzato» ma «partenza non eccezionale, potenziale ottimo
+  // proseguimento». Il suo ordine, in tre parole: PROMESSA > SCOMMESSA > OPERAIO.
   'scommessa',
+  'operaio',
+  'boa',
   'scarto',
   'incognita',
 ] as const;
@@ -44,7 +47,7 @@ export const CATEGORIA_LABEL: Record<Categoria, string> = {
   semi: 'Semitop',
   promessa: 'Promessa',
   solido: 'Solido',
-  riserva: 'Riserva',
+  operaio: 'Operaio',
   boa: 'Boa',
   scommessa: 'Scommessa',
   scarto: 'Scarto',
@@ -65,7 +68,7 @@ export const CATEGORIA_SHORT: Record<Categoria, string> = {
   semi: 'SEM',
   promessa: 'PRM',
   solido: 'SOL',
-  riserva: 'RSV',
+  operaio: 'OPR',
   boa: 'BOA',
   scommessa: 'SCM',
   scarto: 'SRT',
@@ -84,12 +87,14 @@ const PROMISE: Record<Categoria, string> = {
   solido: 'ha costanza e titolarità: un ottimo comprimario',
   // «RISERVA» è da schierare come riserva nella TUA rosa, non riserva nella sua squadra di serie A:
   // sua precisazione del 23/09/2026, ed è la ragione per cui `boa` gli sta subito sotto e non in fondo.
-  riserva: 'da schierare come riserva nella tua rosa',
+  // La stessa sera la parola è diventata `operaio` (la citazione resta com'è detta): il conteggio era
+  // già stato curato dalla sbarra, e questo cura il NOME — l'icona era l'attrezzo da prima.
+  operaio: 'da schierare come riserva nella tua rosa',
   boa: 'gioca quasi sempre con una media voto dignitosa: piuttosto che affondare, meglio averlo',
   scommessa: 'nessuno l’ha ancora prezzato, ma il calcio che ha alle spalle promette bene',
   // Dal 23/09/2026 `scarto` ha DUE porte - chi non gioca abbastanza e chi gioca e non vale un posto -
   // e la frase le copre tutt'e due: la vecchia («non gioca abbastanza») avrebbe mentito sui ~210 che
-  // sono scesi qui da `riserva`, che il calendario lo giocano al 50-80%.
+  // sono scesi qui da `operaio`, che il calendario lo giocano al 50-80%.
   scarto: 'è MISURATO, e non vale un posto in rosa',
   incognita: 'non c’è niente da leggere: nessuno l’ha mai visto giocare',
 };
@@ -133,11 +138,11 @@ export function categoriaNote(
       + ' promette sta nel calcio che ha giocato altrove.';
   }
   const mine = level == null ? null : `${level.toFixed(2)} di fantamedia attesa`;
-  // CINQUE dal 23/09/2026 (`riserva` ha preso la sua), e si accettano anche i QUATTRO di un pacchetto
+  // CINQUE dal 23/09/2026 (`operaio` ha preso la sua), e si accettano anche i QUATTRO di un pacchetto
   // piu' vecchio invece di tacere: una revisione precedente porta una scala vera, solo piu' corta.
   const cut = bars?.includes('/') ? bars.split('/') : null;
   const names = cut?.length === 5
-    ? ['riserva', 'solido', 'semi', 'top', 'super']
+    ? ['operaio', 'solido', 'semi', 'top', 'super']
     : ['solido', 'semi', 'top', 'super'];
   const scale = cut && cut.length === names.length
     ? ' Le sbarre del suo ruolo: '
@@ -156,7 +161,7 @@ export function categoriaNote(
  *    pericolo, e dipingerlo di rosso userebbe l'inchiostro piu' forte dello schermo per dire «non lo
  *    comprare». Sotto il centro si scende in AMBRA.
  *  * IL CENTRO NON SI DIPINGE, perche' «uno schermo dove ogni numero e' dipinto e' uno schermo che
- *    urla». `riserva` e' la parola della meta' del listone - gioca, e basta - quindi porta il
+ *    urla». `operaio` e' la parola della meta' del listone - gioca, e basta - quindi porta il
  *    fondo neutro dei controlli e non una tinta.
  *  * L'IGNOTO NON HA UN COLORE DI QUALITA'. `scommessa` non e' un giudizio, e' l'assenza di uno:
  *    nessun fondo e l'inchiostro smorzato, come `ignoto` nella scala del gain. Dargli una tinta della
@@ -177,7 +182,7 @@ export const CATEGORIA_TONE: Record<Categoria, string> = {
   semi: 'bg-success/40 text-fg',
   promessa: 'bg-success/25 text-fg',
   solido: 'bg-success/14 text-fg',
-  riserva: 'bg-control text-fg',
+  operaio: 'bg-control text-fg',
   // SOTTO IL CENTRO SI SCENDE IN AMBRA, e i tre gradini sono misurati come quelli del verde: sul fondo
   // composito i salti sono 32 e 40 punti per canale, ben sopra i 19 che la ri-spaziatura del verde ha
   // fissato come minimo leggibile. L'ambra su `scommessa` dice dove sta sulla SCALA e non un giudizio
@@ -201,7 +206,7 @@ export function categoriaTone(category: string | null | undefined): string {
  * Sta qui accanto alla tinta e alla sigla perche' sono lo stesso vocabolario: un marchio significa la
  * stessa cosa in ogni pagina, e due disegni della stessa categoria sarebbero due legende da imparare.
  *
- * Le icone dicono il MESTIERE e non solo il grado: `riserva` porta l'attrezzo perche' e' quello
+ * Le icone dicono il MESTIERE e non solo il grado: `operaio` porta l'attrezzo perche' e' quello
  * che fa - riempie un posto - e non una mezza stella, che direbbe «un po' bravo» di un uomo che si
  * compra per un'altra ragione. `scommessa` porta il punto di domanda e non un grado, perche' non e'
  * un giudizio: e' l'assenza di uno.
@@ -217,7 +222,7 @@ export const CATEGORIA_ICON: Record<Categoria, { type: string; theme: 'outline' 
   // già facendo adesso. `rise` accanto direbbe due volte «sale».
   promessa: { type: 'fire', theme: 'outline' },
   solido: { type: 'check-circle', theme: 'outline' },
-  riserva: { type: 'tool', theme: 'outline' },
+  operaio: { type: 'tool', theme: 'outline' },
   // Il punto di domanda passa a `incognita`, che è la parola che ora dice «non sappiamo»; `scommessa`
   // prende la lampadina, perché da oggi afferma qualcosa - c'è un indizio, e vale un secondo sguardo.
   // `boa` porta la puntina: è l'uomo che sta sempre lì. `tool` accanto direbbe due volte «riempie».

@@ -84,20 +84,28 @@
         </div>
       </div>
 
-      <!-- Il prezzo sul tavolo: l'unica cosa che si tocca durante l'asta. -->
-      <span
-        class="flex shrink-0 items-center gap-1"
-        nz-tooltip
-        nzTooltipTitle="Il prezzo a cui sta il tavolo adesso."
-      >
-        <nz-input-number
-          nzSize="small"
-          [nzMin]="0"
-          [nzStep]="1"
-          [ngModel]="price()"
-          (ngModelChange)="price.set($event ?? 0)"
+      <!-- IL PREZZO SUL TAVOLO: l'unica cosa che si tocca durante l'asta, e da oggi una CIFRA PER
+           COLONNA con le freccette sopra e sotto (sua richiesta, 23/09/2026). La casella di testo
+           obbligava a selezionare, cancellare e riscrivere un numero mentre il tavolo rilancia, mentre
+           qui il prezzo sale a gradini com'e' che sale davvero - e si puo' battere lo stesso.
+
+           IL TETTO E' IL BUDGET e non la MIA borsa: questa cifra e' dove sta la STANZA, e un rivale con
+           piu' crediti di me puo' portarla oltre quello che io potrei pagare. E' anche cio' che decide
+           quante colonne si disegnano, quindi legarla alla borsa le farebbe pure cambiare di numero
+           mentre compro. -->
+      <span class="flex shrink-0 items-center gap-1">
+        <ui-digit-input
+          [value]="price()"
+          (valueChange)="price.set($event)"
+          [max]="budget()"
+          what="il prezzo"
         />
-        <span class="text-[11px] text-muted">sul tavolo</span>
+        <span
+          class="text-[11px] text-muted"
+          nz-tooltip
+          nzTooltipTitle="Il prezzo a cui sta il tavolo adesso."
+          >sul tavolo</span
+        >
       </span>
 
       <!-- I TRE NUMERI (mercato · mani · nello slot) E LA RIGA DEL PERCHE' NON CI SONO PIU' (sua

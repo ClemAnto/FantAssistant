@@ -226,17 +226,31 @@ function readTeams() {
 // e zero righe della plancia con la barra di un proprietario.
 
 /** The lot on the table, and the price field beside it. */
+/**
+ * IL LOTTO, E IL PREZZO E' UN ODOMETRO dal 23/09/2026: una cifra per colonna con le sue freccette.
+ *
+ * Il prezzo si legge percio' CONCATENANDO le caselle e non da una casella sola - la prima di quattro
+ * varrebbe le migliaia - e si SCRIVE battendo una cifra per posto, che e' il modo in cui il controllo
+ * funziona: quello che si batte sostituisce quel posto e non si accoda, quindi «45» in una casella sola
+ * non e' quarantacinque. Le coordinate tornano per ogni colonna, cosi' chi scrive puo' scegliere il posto.
+ */
 function readLot() {
   const card = document.querySelector('plancia-lot-card');
-  const input = card?.querySelector('input');
-  const rect = input?.getBoundingClientRect();
+  const cells = [...(card?.querySelectorAll('[data-digit]') ?? [])];
+  const at = (cell) => {
+    const rect = cell.getBoundingClientRect();
+    return rect.width ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+  };
   return {
     name: (card?.querySelector('.truncate')?.innerText ?? '').trim(),
-    price: input ? input.value : null,
-    priceAt:
-      rect && rect.width
-        ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-        : null,
+    price: cells.length ? cells.map((one) => one.value).join('') : null,
+    digitsAt: cells.map(at).filter(Boolean),
+    resetAt: card?.querySelector('[data-reset]') ? at(card.querySelector('[data-reset]')) : null,
+    upAt: [...(card?.querySelectorAll('[data-step="up"]') ?? [])].map(at),
+    // Le freccette in giu' a ZERO devono essere SPENTE: e' l'unico modo in cui il controllo puo'
+    // dichiarare che non si va sotto, e un bottone che si preme senza effetto e' un bottone rotto.
+    downOff: [...(card?.querySelectorAll('[data-step="down"]') ?? [])].every((one) => one.disabled),
+    resetOff: card?.querySelector('[data-reset]')?.disabled ?? null,
   };
 }
 
@@ -247,7 +261,7 @@ function readRows(name) {
     const paint = bar ? getComputedStyle(bar).backgroundColor : '';
     return !!paint && paint !== 'transparent' && !paint.startsWith('rgba(0, 0, 0, 0');
   };
-  const rows = [...document.querySelectorAll('plancia-slot-matrix button')];
+  const rows = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')];
   const named = name
     ? rows.find((row) => (row.innerText ?? '').split('\n')[0].trim() === name)
     : null;
@@ -277,7 +291,11 @@ async function main() {
   const { server, port } = await serve(DIST);
   const profile = await mkdtemp(join(tmpdir(), 'fant-award-'));
   const debugPort = Number(value('--port', String(await freePort())));
-  const url = `http://127.0.0.1:${port}/plancia`;
+  // `?fixture=played` PERCHE' QUESTO BANCO MISURA SU RIGHE CHE HANNO UN PADRONE: dal 23/09/2026 la
+  // plancia apre su un tavolo VUOTO (sua istruzione), e su un tavolo vuoto la lente, il prezzo pagato e
+  // l'azzeramento non hanno niente da mostrare. La popolazione si CHIEDE nell'indirizzo invece di
+  // tornare a giocare il tavolo per tutti.
+  const url = `http://127.0.0.1:${port}/plancia?fixture=played`;
   const browser = spawn(binary, [
     flag('--headed') ? '--headless=false' : '--headless=new',
     `--remote-debugging-port=${debugPort}`,
@@ -383,16 +401,45 @@ async function main() {
     //    harness invents a defect the app does not have. Its own step, so «the price did not get in»
     //    and «the award did not happen» cannot be attributed to one another.
     const field = await evaluate(session, readLot);
-    if (field?.priceAt) {
-      await click(session, field.priceAt);
-      await session.send('Input.insertText', { text: '45' });
-      await session.send('Input.dispatchKeyEvent', {
-        type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
-      });
-      await session.send('Input.dispatchKeyEvent', {
-        type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
-      });
-      await wait(300);
+
+    // 4-bis. LE FRECCETTE E IL TASTINO (sua richiesta, 23/09/2026: «tre cifre separate con freccette
+    //        sopra e sotto per modificare migliaia, decine e unita' singolarmente, inoltre metti un
+    //        tastino per resettare»). Tre fatti: una freccetta muove il SUO posto, a zero quelle in giu'
+    //        sono spente, e il tastino riporta a zero. Col puntatore vero, perche' sono GESTI.
+    const zeroed = { down: field?.downOff, reset: field?.resetOff };
+    const tens = field?.upAt?.[(field.upAt.length ?? 0) - 2];
+    if (tens) await click(session, tens);
+    if (tens) await click(session, tens);
+    const bumped = await evaluate(session, readLot);
+    if (bumped?.resetAt) await click(session, bumped.resetAt);
+    const cleared = await evaluate(session, readLot);
+    note('le freccette muovono un posto, e il tastino azzera', {
+      said: `a zero: giu' ${zeroed.down ? 'spente' : 'ACCESE'}, tastino ${zeroed.reset ? 'spento' : 'acceso'} · ` +
+        `due volte su per le decine: ${bumped?.price} · dopo il tastino: ${cleared?.price}`,
+      problems: [
+        ...(tens ? [] : ["nessuna freccetta sul prezzo: il controllo non c'e'"]),
+        ...(zeroed.down ? [] : ["a zero le freccette in giu' non sono spente"]),
+        ...(zeroed.reset ? [] : ["a zero il tastino non e' spento: azzererebbe uno zero"]),
+        ...(Number(bumped?.price) === 20
+          ? []
+          : [`due colpi sulle decine hanno fatto ${bumped?.price} invece di 0020`]),
+        ...(Number(cleared?.price) === 0 ? [] : [`il tastino ha lasciato ${cleared?.price}`]),
+      ],
+    });
+
+    // QUARANTACINQUE SI SCRIVE UNA CIFRA PER POSTO: il 4 sulle decine, il 5 sulle unita'. Un `insertText`
+    // di «45» in una casella sola scriverebbe il 4 e poi il 5 SULLO STESSO posto, cioe' cinque - ed e'
+    // esattamente cosi' che questo passo ha trovato il primo difetto del controllo nuovo.
+    const cells = field?.digitsAt ?? [];
+    for (const [back, digit] of [
+      [2, '4'],
+      [1, '5'],
+    ]) {
+      const cell = cells[cells.length - back];
+      if (!cell) continue;
+      await click(session, cell);
+      await session.send('Input.insertText', { text: digit });
+      await wait(120);
     }
     const priced = await evaluate(session, readLot);
     const paid = Number(String(priced?.price ?? '0').replace(/[^0-9]/g, ''));

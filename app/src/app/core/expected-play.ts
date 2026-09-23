@@ -105,6 +105,39 @@ export const INSURANCE_MIN_SEASONS = 2;
  */
 export const INSURANCE_CAP_SHARE = 0.35;
 
+/**
+ * L'ASSICURAZIONE E' SPENTA (operatore, 23/09/2026: «l'assicurazione e' esagerata, andrebbe applicata
+ * con cognizione e non a tutti senza regole ... dimmi quando secondo te e' giusto usarla altrimenti la
+ * eliminiamo» → «spegnamola»). Nata dalla sua domanda su Bobcek: 3 partite attese su 38 dove il foglio
+ * ne prevede 16,2.
+ *
+ * LA RAGIONE NON E' CHE LA PRUDENZA SIA SBAGLIATA - la sua frase, «cammino distante dal ciglio 1
+ * metro», resta legittima - E' CHE `worst - mean` NON MISURA LA FRAGILITA': misura la VARIANZA della
+ * storia clinica, che e' MASSIMA per l'episodio isolato e minima per il cronico. L'aritmetica lo dice
+ * senza bisogno di dati: (0, 0, 15) da' uno scarto di 10,0 e (14, 10, 15) ne da' 2,0, quindi un uomo
+ * che si e' rotto una volta era scontato CINQUE VOLTE piu' di uno che sta male ogni anno - e un
+ * crociato nel 2024-25 e' la cosa MENO ripetibile che ci sia.
+ *
+ * MISURATO SUL FOGLIO DEL 23/09/2026 prima di spegnerla, ed e' il numero che ha deciso: **475 righe su
+ * 562 (l'85%)** portavano uno sconto, **5,0 giornate medie su 38** (il 13% delle presenze di tutto il
+ * listone) e **33 uomini al tetto**. I dieci piu' colpiti hanno TUTTI un episodio isolato in tre
+ * stagioni - Scamacca [8,9 · 45,6 · 5,1] 27,3 → 14,0, Braganca [0 · 47,9 · 0] 20,5 → 7,2, Zapata D.
+ * [3,5 · 41,3 · 1,2] 13,8 → **0,5** - cioe' lo sconto massimo cadeva sull'evento meno ripetibile.
+ *
+ * E CONTAVA DUE VOLTE LO STESSO FATTO: `engine_pv_pred` e' costruito su quanto un uomo ha giocato
+ * DAVVERO, infortuni compresi, quindi la sua media di assenze e' gia' dentro il numero del foglio.
+ * Sottrarne altre e' la famiglia che il gate rifiuta da sempre (l'eta', le squalifiche, R14).
+ *
+ * COSA RESTA ACCESO: la FINESTRA di uno stop aperto (`out`), che non e' un rischio ma un fatto datato -
+ * «torna il 25 novembre» toglie le giornate che toglie - e quella non si tocca.
+ *
+ * SI RIACCENDE rimettendo `true`, e la forma che varrebbe la pena misurare prima di farlo e' «solo su
+ * chi ha un PATTERN»: almeno due delle tre stagioni sopra una soglia di perdite, cioe' i cronici, di
+ * cui la fragilita' e' una caratteristica e non un incidente. Su questi dati prenderebbe pochi uomini,
+ * il che e' il punto.
+ */
+export const INSURANCE_ON = false;
+
 /** Da quale mese comincia una stagione, per attribuire uno stop all'annata giusta. */
 const SEASON_START_MONTH = 7;
 
@@ -280,7 +313,11 @@ export function expectedPlay(input: PlayInput): PlayOutlook {
   const windowScale = matchdays && input.out?.remaining ? matchdays / input.out.remaining : 1;
   const out = Math.min((input.out?.lost ?? 0) * windowScale, base);
   const cap = matchdays ? matchdays * INSURANCE_CAP_SHARE : base * INSURANCE_CAP_SHARE;
-  const insurance = Math.min(insuranceRounds(input.losses), cap, Math.max(base - out, 0));
+  // SPENTA (vedi `INSURANCE_ON`): il conto resta scritto e non gira, cosi' riaccenderla e' una parola
+  // sola e la misura che l'ha spenta sta accanto alla formula che descrive.
+  const insurance = INSURANCE_ON
+    ? Math.min(insuranceRounds(input.losses), cap, Math.max(base - out, 0))
+    : 0;
   const expected = Math.max(base - out - insurance, 0);
   return {
     matchdays,

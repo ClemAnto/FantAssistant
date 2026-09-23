@@ -663,15 +663,17 @@ describe('le sette letture di una riga', () => {
     // faceva `if (spec.word) return readings.titolarita`, quindi accendendo la CATEGORIA usciva il
     // gradino di titolarita'. Il guardiano qui sopra asseriva l'elenco e non che ognuna sapesse
     // leggersi: proteggeva meta' del problema, e questa e' l'altra meta'.
-    // `riserva` e' una parola di TUTT'E DUE le scale, e le sigle DEVONO restare diverse:
-    // la titolarita' la abbrevia RIS, la categoria RSV, e sulla Strategia le due pastiglie
-    // stanno sulla stessa riga.
-    const readings = { titolarita: 'bandiera', categoria: 'riserva' } as ManReadings;
+    // `riserva` ERA una parola di TUTT'E DUE le scale, e fino al 23/09/2026 questo test doveva
+    // pretendere due sigle diverse per una parola sola (la titolarita' RIS, la categoria RSV, sulla
+    // stessa riga della Strategia). La rinomina della categoria in `operaio` ha tolto la collisione
+    // - non era la ragione per cui e' stata fatta, ma e' un effetto che vale la pena avere scritto.
+    // L'invariante che il test difende non cambia: ogni lettura legge la PROPRIA parola.
+    const readings = { titolarita: 'riserva', categoria: 'operaio' } as ManReadings;
     const said = Object.fromEntries(
       READINGS.filter((one) => one.word).map((one) => [one.key, one.word!(readings)]),
     );
-    expect(said['titolarita']).toBe('BAN');
-    expect(said['categoria']).toBe('RSV');
+    expect(said['titolarita']).toBe('RIS');
+    expect(said['categoria']).toBe('OPR');
     // ...e nessuna delle due dice la parola dell'altra
     expect(new Set(Object.values(said)).size).toBe(Object.keys(said).length);
   });

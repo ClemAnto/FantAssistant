@@ -13,7 +13,22 @@
        E UN FILTRO GLOBALE È INVISIBILE PER COSTRUZIONE: se qualcosa è escluso lo dice qui, con quanti
        uomini nasconde, perché una lista che tace quello che ha tolto si legge come la lista intera.
        Piegare la barra non è una ragione per smettere di dirlo. -->
-  <ui-data-freshness always />
+
+  <!-- ...MA LA FRESCHEZZA SOPRAVVIVE SOLO QUANDO È L'ALLARME (sua richiesta del 23/09/2026: «la card
+       che contiene DATA IERI anche quando è collassata ostacola la visione ... resti visibile solo la
+       freccetta»). La ragione scritta qui sopra parla della pastiglia ROSSA, e «ieri» è il ramo ambra:
+       una notizia da leggere quando si guarda, non da tenere addosso. Piegata e senza allarme la
+       scatola è la sola freccia, che è quello che ha chiesto; col rosso resta, e quello non si tocca.
+
+       DUE RAMI E NON UN ATTRIBUTO CONDIZIONALE: lo slot di una content projection è deciso alla
+       creazione della vista, quindi un `[attr.always]` che cambia non sposterebbe niente - lo stesso
+       inganno del tooltip che stacca il proprio nodo e resta contato nella vista (20/08/2026). Il
+       componente si ricrea quando l'allarme scatta, cioè una volta al giorno. -->
+  @if (alarming()) {
+    <ui-data-freshness always />
+  } @else {
+    <ui-data-freshness />
+  }
   @if (excludedClubs().length) {
     <span
       always

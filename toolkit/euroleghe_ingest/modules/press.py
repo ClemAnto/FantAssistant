@@ -833,7 +833,15 @@ def take_preregistration_file(ctx, sheets: list[Path | str], *, season: str | No
     folders = [Path(one) for one in sheets]
     season = season or json.loads(
         (folders[0] / "manifest.json").read_text(encoding="utf-8")).get("target_season")
-    dates = tuple(dates) if dates else next_round_dates(ctx.conn, season)
+    # L'ORA DELLA PRESA DECIDE ANCHE QUALE TURNO SI PRENDE, non solo cosa c'e' scritto in cima al file.
+    # `taken_at` e' l'onesta' della cosa: dichiara l'istante in cui la previsione e' stata scritta. Finche'
+    # sceglieva il turno l'OROLOGIO, una presa dichiarata a un'ora e un turno scelto a un'altra potevano
+    # non essere lo stesso fatto - una presa rigiocata, o scritta dopo il primo anticipo, prendeva il turno
+    # DOPO quello che dichiara, o nessuno. `next_round_dates` il parametro lo dichiarava gia' (`today`) e
+    # il chiamante non glielo passava: un parametro accettato e scartato e' la stessa famiglia del flag che
+    # il dispatcher scarta, un piano piu' giu'. Per questo il default si calcola QUI e non piu' in fondo.
+    taken_at = taken_at or dt.datetime.now().strftime("%Y-%m-%dT%H:%M")
+    dates = tuple(dates) if dates else next_round_dates(ctx.conn, season, today=taken_at[:10])
     if not dates:
         print("[press] no future fixture on file: nothing to pre-register")
         return None
@@ -875,7 +883,6 @@ def take_preregistration_file(ctx, sheets: list[Path | str], *, season: str | No
     if not rows:
         print(f"[press] no club of these sheets plays on {', '.join(dates)}")
         return None
-    taken_at = taken_at or dt.datetime.now().strftime("%Y-%m-%dT%H:%M")
     dest = Path(out) if out else (
         config.REPO_ROOT / "docs" / "model" /
         f"preregistrazione-board-breve-{taken_at[:10]}.md")

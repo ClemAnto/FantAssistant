@@ -204,6 +204,7 @@
     [lotBlockId]="store.viewLotBlockId()"
     [pairs]="store.pairs()"
     (pick)="onPick($event)"
+    (name)="onName($event)"
   >
     <plancia-team-grid
       spare
@@ -213,6 +214,11 @@
       (activate)="store.toggleTeam($event)"
       (assign)="onAssign($event)"
     />
+    <!-- E LA MIA ROSA nello spazio che la linea degli attaccanti lascia libero (sua richiesta,
+         23/09/2026). Proiettata come la striscia delle rose e per la stessa ragione: la griglia sa
+         dov'e' lo spazio, la pagina sa cosa ci va. Non prende nessun input - legge lo store come la
+         plancia stessa - perche' il campetto e la lista sono fatti sulla MIA rosa e non su un lotto. -->
+    <plancia-squad-card squad />
   </plancia-slot-matrix>
 </div>
 

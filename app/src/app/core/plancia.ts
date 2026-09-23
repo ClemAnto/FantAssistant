@@ -87,6 +87,34 @@ export interface PlanciaMan {
    * frase sul calciatore e non sulla nostra ignoranza.
    */
   swing: number | null;
+  /**
+   * IL SURPLUS, E DA OGGI E' LA MONETA DELLA GRIGLIA PERSONALE (operatore, 23/09/2026: «riformare i
+   * blocchi secondo la moneta che vogliamo utilizzare, o SWING o SURPLUS»).
+   *
+   * Quello del foglio, riscalato sulle giornate che restano come lo sono `points` e `pv`: una sola
+   * valutazione per uomo su tutta la riga.
+   *
+   * PERCHE' IL SURPLUS E NON LO SWING, misurato e non scelto (`bench.auction.advice`, dieci stagioni
+   * vere, la scelta giudicata sull'esito di quei calciatori): dentro una fascia, contro il tiro di
+   * dado che e' la media della fascia, il surplus rende +3,4 (t 0,96) e lo SWING **-0,9 (t -0,26)**,
+   * cioe' l'unica delle quattro monete che non batte il caso - appaiata alla quotazione (-1,0). La
+   * ragione e' strutturale e si legge nella formula: `swing = surplus + (rimpiazzo - 6) x pv + ...`,
+   * e siccome il rimpiazzo sta sotto il sei in ogni ruolo (4,06 · 5,53 · 5,82 · 5,60 misurati sulle
+   * finestre) quel termine e' NEGATIVO e proporzionale alle presenze - lo swing sconta esattamente
+   * la quantita' su cui battiamo la quotazione (`metrica-asta-surplus-v1.md` §18: `pv_pred | Qt.I`
+   * +0,243 contro -0,077 del surplus). Al livello ROSA le due non si distinguono (+36,0 t 1,10
+   * contro +42,1 t 1,23 su dieci stagioni): quel piano non decide, e non e' citato come se lo
+   * facesse.
+   *
+   * E NON E' IL VALORE ATTESO, che per SCELTA misura meglio di tutt'e due (+15,4, t 4,36) ma risponde
+   * a un'altra domanda: il valore e' la moneta di un DRAFT, dove si spendono PICK, mentre qui la
+   * risorsa scarsa e' il CREDITO - che e' esattamente cio' contro cui il surplus sottrae
+   * (`metrica-asta-surplus-v1.md` §15). `points` resta e ordina la griglia del MERCATO.
+   *
+   * `null` dove il foglio non lo prezza: uno zero direbbe «non rende piu' del suo ricambio», che e'
+   * una frase sul calciatore e non sulla nostra ignoranza, e chi non ce l'ha va in fondo.
+   */
+  surplus: number | null;
   basis: ValuationBasis;
   /** Quanto e' solido il numero: 1 per una misura, `est_confidence` per una stima. Entra nel TETTO. */
   confidence: number;
@@ -299,21 +327,29 @@ export interface OfferGroup<T extends PlanciaMan> {
   index: number;
   id: string;
   men: T[];
-  /** The median of MY ceilings in the block: the coordinate it is cut on, so it is what its header says. */
-  medianOffer: number;
+  /** The median of the COIN in the block: the coordinate it is cut on, so it is what its header says. */
+  medianCoin: number;
   /** ...and what the room asks for the same ten men, which is no longer a property of the block. */
   medianFvm: number;
 }
 
 /**
- * The same men, cut on MY OWN CEILING instead of the room's price.
+ * The same men, cut on the COIN - what a man is worth to me - instead of the room's price.
  *
- * THE CEILING IS NOT RE-DERIVED ON THE NEW GRID, and that is a decision rather than a shortcut. The
- * ladder is a share of the budget per (role, slot) measured with the slot defined as a rank BY PRICE
- * (§19.3), so re-reading it on a rank by our own offer would apply a measured scale outside the
- * population it was measured on - and it would be circular on top of that, the offer deciding the slot
- * that decides the offer. So this is a RE-ARRANGEMENT of the market's own ceilings: every man keeps
- * the band the measurement gave him, and the card keeps naming the slot it was read on.
+ * LA MONETA E' IL SURPLUS, ED E' UNA SOLA CHIAVE PER IL TAGLIO E PER L'ORDINE (operatore, 23/09/2026:
+ * «riformare i blocchi secondo la moneta che vogliamo utilizzare ... il valore per cui vengono
+ * ordinati i calciatori deve essere anche quello visibile»). Prima erano due - il taglio sul tetto e
+ * l'ordine sullo swing - e due chiavi su una griglia sola sono il modo in cui una colonna finisce per
+ * contraddire l'ordine che dovrebbe spiegare. Con una chiave il blocco E' la graduatoria tagliata a
+ * dieci, quindi la colonna non puo' che tornare. Perche' il SURPLUS e non lo swing: vedi
+ * `PlanciaMan.surplus`, ed e' misurato.
+ *
+ * IL TETTO NON SI RI-DERIVA SULLA GRIGLIA NUOVA, e questa e' la parte che NON cambia con la moneta.
+ * The ladder is a share of the budget per (role, slot) measured with the slot defined as a rank BY
+ * PRICE (§19.3), so re-reading it on a rank by anything of ours would apply a measured scale outside
+ * the population it was measured on - and it would be circular on top of that, our own number
+ * deciding the slot that decides the offer. So every man keeps the band the market grid gave him, the
+ * card keeps naming the slot it was read on, and the ceiling stays in its own column.
  *
  * NESSUNO E' ESCLUSO DA QUI, e la storia vale la riga di codice che non c'e'. Per un'ora questa
  * funzione ha tolto dalla griglia personale chi «oggi non gioca», su richiesta dell'operatore
@@ -335,9 +371,9 @@ export interface OfferGroup<T extends PlanciaMan> {
  * una sola chiave per tutt'e due, e il prezzo si vedeva - la discesa si rompeva sulle righe di chi e'
  * gia' di qualcuno, perche' li' la cifra e' il prezzo PAGATO mentre l'ordine leggeva la banda.
  */
-export function regroupByOffer<T extends PlanciaMan>(
+export function regroupByCoin<T extends PlanciaMan>(
   men: Iterable<T>,
-  offerOf: (man: T) => number,
+  coinOf: (man: T) => number | null,
   teams: number,
   slots: Record<Role, number>,
 ): OfferGroup<T>[] {
@@ -345,12 +381,18 @@ export function regroupByOffer<T extends PlanciaMan>(
   for (const role of ROLES) pool.set(role, []);
   for (const man of men) pool.get(man.role)?.push(man);
 
+  // Chi la moneta non ce l'ha va in FONDO e non in mezzo: un numero che non c'e' non si ordina, e
+  // metterlo a zero direbbe «non rende piu' del suo ricambio», che e' una frase sul calciatore.
+  const coin = (man: T) => coinOf(man) ?? Number.NEGATIVE_INFINITY;
+
   const out: OfferGroup<T>[] = [];
   for (const role of ROLES) {
-    // Dearest to me first, ties broken by the room's price and then by id: two runs over one board
-    // must give one grid, the same determinism `buildMap` owes the market one.
+    // UNA CHIAVE SOLA, che e' il punto di questa griglia: il blocco e' la graduatoria della moneta
+    // tagliata a `teams`, quindi dentro il blocco l'ordine e' gia' quello e la colonna che lo stampa
+    // non puo' contraddirlo. I pareggi li rompe il prezzo della stanza e poi l'id: due passate sulla
+    // stessa plancia devono dare una griglia, la stessa determinatezza che `buildMap` deve al mercato.
     const ranked = [...(pool.get(role) ?? [])].sort(
-      (a, b) => offerOf(b) - offerOf(a) || b.fvm - a.fvm || a.id - b.id,
+      (a, b) => coin(b) - coin(a) || b.fvm - a.fvm || a.id - b.id,
     );
     const count = Math.max(0, slots[role] ?? 0);
 
@@ -361,19 +403,11 @@ export function regroupByOffer<T extends PlanciaMan>(
         role,
         index: index + 1,
         id: `${role}${index + 1}`,
-        // IL TAGLIO E' IL TETTO, L'ORDINE DENTRO E' LO SWING (operatore, 06/09/2026). Sono due
-        // domande e per questo sono due chiavi: il blocco resta «quanto sono disposto a pagare»,
-        // mentre chi sta in cima al blocco e' chi fa segnare di piu'. Chi non ha uno SWING va in
-        // fondo e non in mezzo, perche' un numero che non c'e' non si ordina; il pareggio lo rompe
-        // il tetto e poi l'id, cosi' due disegni della stessa plancia non si scambiano due righe.
-        men: [...chunk].sort(
-          (a, b) =>
-            (b.swing ?? Number.NEGATIVE_INFINITY) - (a.swing ?? Number.NEGATIVE_INFINITY) ||
-            offerOf(b) - offerOf(a) ||
-            b.fvm - a.fvm ||
-            a.id - b.id,
-        ),
-        medianOffer: median(chunk.map(offerOf)),
+        // Il pezzo di graduatoria com'e', perche' il taglio E' l'ordine: ri-ordinarlo qui vorrebbe
+        // dire avere una seconda chiave, che e' esattamente cio' che questa griglia ha smesso di
+        // avere il 23/09/2026.
+        men: chunk,
+        medianCoin: median(chunk.map((man) => coinOf(man) ?? 0)),
         medianFvm: median(chunk.map((man) => man.fvm)),
       });
     }
@@ -717,6 +751,27 @@ export function discountFor(slotIndex: number, hands: number, teams: number): nu
   return [1.0, 0.36, 0.21][band];
 }
 
+/**
+ * QUELLO CHE LA STANZA PAGA PER UN UOMO DI QUESTO SLOT, ed e' un fatto sullo SLOT e non su di lui.
+ *
+ * La mediana del FVM del blocco - la coordinata su cui la stanza lo prezza - scontata da quanto il
+ * tavolo si e' assottigliato. Corretto che sia per slot e non per uomo: dentro uno slot il prezzo sta
+ * in 1,0-1,3 volte la sua mediana dal secondo in giu' (§27), che e' la stessa ragione per cui lo slot
+ * esiste, e un prezzo per uomo sarebbe una precisione che l'archivio non ha.
+ *
+ * Estratta da `adviseLot` quando il campetto della rosa ha avuto bisogno dello stesso numero: due
+ * composizioni della stessa formula sono come la card del lotto e la card della rosa finiscono per
+ * dire due prezzi dello stesso uomo.
+ */
+export function expectedPriceOf(
+  medianFvm: number,
+  slotIndex: number,
+  hands: number,
+  teams: number,
+): number {
+  return Math.max(1, Math.round(medianFvm * discountFor(slotIndex, hands, teams)));
+}
+
 /** From which slot down it pays to let a man pass (`bench.DEPTH_TIER`, §24). */
 export const DEPTH_TIER = 2;
 
@@ -789,10 +844,7 @@ export function adviseLot(input: {
   sameClub?: (SameClubHeld & { club?: string | null }) | null;
 }): LotAdvice {
   const { band, tablePrice, slotIndex, hands, teams } = input;
-  const expectedPrice = Math.max(
-    1,
-    Math.round(input.medianFvm * discountFor(slotIndex, hands, teams)),
-  );
+  const expectedPrice = expectedPriceOf(input.medianFvm, slotIndex, hands, teams);
   const waiting = worthWaiting(slotIndex, hands, teams);
   const shared = { band, hands, expectedPrice, waiting };
   // La finestra sta IN TESTA alla ragione, non in coda: è la cosa che cambia il numero, e una ragione

@@ -1,0 +1,220 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     386 x 191 PIXEL, misurati e non stimati: e' quello che la linea degli attaccanti lascia libero in
+     basso a destra (sei slot su una griglia di otto), e ogni scelta di questo file e' quel rettangolo.
+     Due colonne come le ha chieste - a sinistra i restanti, a destra il campetto - con la lista stretta
+     a una larghezza FISSA e il campetto che si prende il resto: il campetto ha quattro nomi in fila
+     sulla linea di difesa e la lista uno solo per riga, quindi lo spazio che manca costa molto piu' li'.
+
+     NIENTE TOOLTIP SUI NOMI, come sulle 250 righe della plancia (sua istruzione del 03/09: «e'
+     fastidioso»): qui le righe sono alte undici pixel esattamente come quelle, e un pannello che si
+     apre passando copre proprio i nomi accanto che si stanno confrontando. La frase della card sta
+     UNA volta sola, sull'icona in cima, ed e' la sola cosa che va spiegata a parole.
+
+     LA CARD CEDE IL PROPRIO FONDO ALLA BARRA, invece di nascondere una riga sotto di lei. Le due barre in basso sono `fixed` e passano SOPRA la pagina (sua richiesta del 23/09/2026: «non
+     occupino spazio nella pagina»), e il prezzo dichiarato quel giorno era che da aperte coprono i due
+     angoli in basso della linea degli attaccanti. Su un blocco di dieci nomi sono le ultime righe, cioe'
+     le peggiori; qui e' MISURATO che sono 39px di card e 35 dei 37 della riga d'ATTACCO - la riga intera,
+     sulla pagina dove finisce il 47% del montepremi.
+     La sua istruzione riguardava la PAGINA, che riservava 56px su tutta la larghezza a due barre: qui la
+     riserva e' di 40px su una card larga 380, la paga solo la card, e sparisce appena la barra si piega -
+     che e' proprio la via d'uscita per cui le barre si piegano. Il numero e' misurato e non calcolato, e
+     chi lo tiene onesto e' il banco: `e2e-plancia-squad` pretende ZERO righe del campetto coperte, quindi
+     se la barra cresce lo dice invece di lasciar sparire l'attacco un'altra volta.
+
+     E IL PREZZO DELLA CARD SULLA PLANCIA E' MISURATO E DICHIARATO: l'altezza di cui la plancia ha
+     bisogno per starci INTERA passa da 535 a 583px, cioe' da una finestra di ~660px a una di ~710
+     (letto dal banco degli slot, che quel numero lo stampa). Il minimo di questa card e' la riserva
+     qui sopra piu' quattro righe di campetto da due nomi, e sotto quella soglia e' la PLANCIA a
+     scorrere - che e' esattamente quello che deve fare (23/09/2026: «per altezze non sufficienti ...
+     visualizza i nomi accavallati», curato facendola scorrere invece che schiacciare). Non si e'
+     comprato spazio lasciando ritagliare le caselle: un nome tagliato in silenzio e' la famiglia dei
+     «276px di colonne non strette, ASSENTI». -->
+<div class="flex h-full min-h-0 flex-col gap-1" [class.pb-10]="dockOpen()">
+  <!-- L'INTESTAZIONE DICE DI CHI E' LA ROSA E QUANTO E' PIENA, e il modulo: senza il primo fatto due
+       card di calciatori sullo stesso schermo si leggono come la stessa cosa, e senza il secondo un
+       campetto con quattro buchi si legge come un campetto rotto invece che come un'asta a meta'. -->
+  <div class="flex shrink-0 items-baseline gap-1 text-[10px] leading-none">
+    <span class="font-semibold text-fg">la tua rosa</span>
+    <span
+      data-module
+      class="rounded bg-control px-1 py-0.5 text-[9px] font-bold tabular-nums text-muted"
+      >{{ module }}</span
+    >
+    <span data-filled class="text-[9px] tabular-nums text-muted">{{ filled() }}</span>
+    <!-- GLI AGGANCI DEL BANCO SONO ATTRIBUTI DICHIARATI (`data-*`) e non un cammino nell'albero: due
+         selettori strutturali hanno smesso di rispondere il giorno in cui una cornice e' passata a un
+         wrapper, e da li' hanno accusato la pagina del proprio difetto (23/09/2026). -->
+    <nz-icon
+      data-note
+      class="ml-auto shrink-0 text-[10px] text-muted"
+      nzType="info-circle"
+      nz-tooltip
+      [nzTooltipTitle]="note()"
+    />
+  </div>
+
+  @if (noSeat()) {
+    <!-- Nessuna rosa del tavolo e' mia: si DICE, invece di disegnare undici trattini che si leggerebbero
+         come «non hai comprato niente». I conti sarebbero gli stessi di una rosa piena, e i due casi non
+         sono lo stesso fatto. -->
+    <div class="my-auto text-center text-[9px] leading-tight text-muted">
+      Nessuna delle rose al tavolo è la tua: scegli la tua squadra per vedere il campetto.
+    </div>
+  } @else {
+    @if (noRules()) {
+      <!-- Il pacchetto non porta `classic_modules.json`: si DICE, e non si disegna un 4-3-3 trascritto a
+         mano. Quello che ho comprato resta in lista, perche' quello non dipende da nessun regolamento. -->
+      <div class="shrink-0 text-[9px] leading-tight text-muted">
+        Il pacchetto non porta il regolamento classic: il campetto non si disegna.
+      </div>
+    }
+
+    <div class="flex min-h-0 flex-1 gap-1.5">
+      <!-- ================= A SINISTRA: I RESTANTI ================= -->
+      <!-- Larghezza fissa e non una quota: la colonna porta un nome per riga e ne basta poco, mentre il
+         campetto ne mette quattro in fila - dargli una quota vorrebbe dire togliere al campetto il
+         doppio di quello che questa guadagna.
+
+         QUANTO LA CARD DEGRADA SU UNO SCHERMO STRETTO E' MISURATO e si dichiara: a 1600x1000 la card e'
+         380x191 e UN nome su 23 si tronca, a 1280x800 e' 300x177 e se ne troncano 14. E' una
+         degradazione VISIBILE - i puntini ci sono - e la plancia sotto degrada nello stesso modo, quindi
+         la card non sta peggio della pagina che la ospita. La leva, se un giorno servisse, e' questa
+         larghezza: stringerla di venti pixel ne ridarebbe sette a ogni casella della linea di difesa. -->
+
+      <div class="flex w-[118px] shrink-0 flex-col gap-0.5">
+        <div class="flex shrink-0 items-baseline gap-1 text-[9px] leading-none text-muted">
+          <span>in panchina</span>
+          <span class="ml-auto tabular-nums">{{ pitch().bench.length }}</span>
+        </div>
+        <!-- SCORRE LEI E NON LA CARD: il campetto e' alto quanto e' alto, e una barra sulla card
+           porterebbe via anche lui. Con la rosa piena sono quattordici righe e ci stanno; una lega con
+           una rosa piu' lunga le fa scorrere invece di schiacciarle. -->
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          @for (man of pitch().bench; track man.id) {
+            <button
+              type="button"
+              [attr.data-bench-row]="man.role"
+              class="flex min-h-[11px] w-full items-center gap-1 rounded-sm pr-0.5 text-left text-[10px] leading-none"
+              [class.cursor-default]="!opens(man)"
+              [class.hover:bg-control]="opens(man)"
+              (click)="open(man)"
+            >
+              <span class="h-2 w-0.5 shrink-0 rounded-full" [class]="roleTone[man.role]"></span>
+              <span data-bench-name class="min-w-0 flex-1 truncate text-fg">{{ man.name }}</span>
+              <!-- LA MONETA, che e' la chiave dell'ordine: la colonna che spiega un ordinamento deve
+                 essere quell'ordinamento (sua regola del 23/09). Un decimale perche' dentro un reparto
+                 la moneta e' quasi piatta, e con l'intero meta' delle righe stamperebbe la cifra di
+                 quella sopra. `·` dove il foglio non lo prezza: uno zero direbbe «non rende piu' del
+                 suo ricambio», che e' una frase sul calciatore e non sulla nostra ignoranza. -->
+              <span data-bench-coin class="shrink-0 tabular-nums text-muted">{{
+                man.coin == null ? '·' : (man.coin | number: '1.1-1')
+              }}</span>
+            </button>
+          } @empty {
+            <span class="text-[9px] leading-tight text-muted">
+              Nessuno: tutti quelli che hai stanno in campo.
+            </span>
+          }
+        </div>
+      </div>
+
+      <!-- ================= A DESTRA: IL CAMPETTO ================= -->
+      <!-- Lo stesso verso degli altri due campetti dell'app: il portiere in cima e gli attaccanti in
+         fondo, la squadra che attacca verso il basso (sua lettura di una formazione, 10/08/2026). Due
+         campetti che si leggono in due direzioni sarebbero due carte diverse. -->
+      <div
+        data-pitch
+        class="flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 rounded p-1"
+        style="
+          background-image: linear-gradient(
+            to bottom,
+            color-mix(in oklab, var(--color-role-defence) 26%, var(--color-surface)),
+            color-mix(in oklab, var(--color-role-defence) 10%, var(--color-surface))
+          );
+        "
+      >
+        @for (row of pitch().rows; track row.line) {
+          <!-- `justify-center` E IL TETTO DI UN TERZO sono gli stessi degli altri due campetti dell'app:
+             una cella non passa il terzo della riga e una riga corta si centra, o la riga del PORTIERE -
+             un posto solo - si stenderebbe su tutta la larghezza e il campetto si leggerebbe come quattro
+             cose diverse invece che come una. I tre campetti si leggono uguali o sono tre carte. -->
+          <div class="flex min-h-0 flex-1 items-stretch gap-1">
+            <!-- La pastiglia della linea, con gli stessi quattro colori della plancia: il campetto non
+               ha spazio per la parola, e il colore e' un vocabolario che questa pagina parla gia'.
+               STA FUORI dal gruppo centrato, o la riga del portiere - un posto solo, quindi centrato -
+               se la porterebbe al centro con se' e le quattro pastiglie non sarebbero piu' incolonnate:
+               un marcatore che si sposta non e' piu' un marcatore. -->
+            <span
+              class="w-0.5 shrink-0 rounded-full"
+              [class]="roleTone[row.places[0].role]"
+              [attr.aria-label]="label[row.line]"
+            ></span>
+            <div class="flex min-w-0 flex-1 items-stretch justify-center gap-1">
+              <!-- OGNI POSTO E' ALTO DUE RIGHE, occupato o no, e non e' un caso: un posto occupato porta il
+               nome piu' un grigio, uno vuoto ne porta due. Cosi' la riga del campetto ha un'altezza sola
+               e nessun posto si mangia quello accanto - con una terza riga («da prendere», che c'e'
+               stata per una versione) il posto vuoto sfondava i 30px che la card ha da spendere per riga
+               quando la barra in basso e' aperta.
+               CHE UN POSTO SIA VUOTO LO DICONO DUE CANALI E NESSUNA PAROLA: il bordo TRATTEGGIATO e il
+               fatto che tutte e due le righe siano grigie. E' la stessa disciplina con cui la plancia
+               distingue la max offerta dal prezzo pagato - «la riga dice quale dei due e' con
+               l'inchiostro» - e a undici posti su 380px una parola in piu' costerebbe un nome. -->
+              @for (place of row.places; track $index) {
+                <span
+                  [attr.data-place]="place.role"
+                  class="flex min-w-0 max-w-[33%] flex-1 flex-col justify-center gap-px overflow-hidden rounded-sm border border-border/60 bg-surface/80 px-0.5 py-px text-[9px] leading-none"
+                  [class.border-dashed]="!place.man"
+                >
+                  @if (place.man) {
+                    <button
+                      type="button"
+                      data-held
+                      class="block w-full truncate text-left font-medium text-fg"
+                      [class.cursor-default]="!opens(place.man)"
+                      (click)="open(place.man)"
+                    >
+                      {{ place.man.name }}
+                    </button>
+                  }
+
+                  <!-- I GRIGI, all'opacita' che ha chiesto. Un BOTTONE anche loro, perche' la domanda che
+                   viene dopo «questo chi e'» e' sempre la stessa e la plancia le risponde in un modo
+                   solo: il click apre la card.
+
+                   IL NUMERO E' IL PREZZO e non la nostra valutazione, ed e' la meta' che rende la
+                   parola «fattibile» un conto invece di un'opinione: e' quello che la stanza paga per
+                   il suo slot, dopo lo sconto dell'assottigliamento. -->
+                  @for (hint of place.hints; track hint.id) {
+                    <button
+                      type="button"
+                      data-hint
+                      class="flex w-full items-baseline gap-1 text-left opacity-50 hover:opacity-100"
+                      (click)="open(hint)"
+                    >
+                      <span data-hint-name class="min-w-0 flex-1 truncate text-fg">{{
+                        hint.name
+                      }}</span>
+                      <span data-hint-price class="shrink-0 tabular-nums text-fg">{{
+                        hint.price
+                      }}</span>
+                    </button>
+                  }
+
+                  @if (barren(place)) {
+                    <!-- Nessuno in campo e nessuno da comprare: si dichiara. La ragione sta nella frase
+                     della card - o il ruolo e' pieno, o quello che resta non si puo' pagare - e un
+                     riquadro bianco senza una parola si legge come una card a meta'. -->
+                    <span class="truncate text-muted/70">—</span>
+                  }
+                </span>
+              }
+            </div>
+          </div>
+        } @empty {
+          <span class="m-auto text-[9px] text-muted">Nessun campetto da disegnare.</span>
+        }
+      </div>
+    </div>
+  }
+</div>

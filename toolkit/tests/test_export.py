@@ -15,9 +15,9 @@ import sqlite3
 
 import pytest
 
-from euroleghe_ingest.config import Config
+from euroleghe_ingest.config import REPO_ROOT, Config
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.db.database import init_db
+from euroleghe_ingest.db.database import init_db, table_names
 from euroleghe_ingest.modules import export
 
 
@@ -441,3 +441,73 @@ def test_a_moved_data_dir_is_still_the_place_the_guard_protects(tmp_path):
     assert export.destination(cfg, str(moved / "export"), "2026-27") == (moved / "export").resolve()
     with pytest.raises(RuntimeError):
         export.destination(cfg, str(repo / "data"), "2026-27")
+
+
+def test_every_table_of_the_schema_is_DECIDED_one_way_or_the_other(tmp_path):
+    """Ogni tabella o viaggia (`CONTRACT`) o e' esclusa CON LA SUA RAGIONE (`EXCLUDED`).
+
+    `EXCLUDED` dichiara di se' di esistere «so the omission is a decision on the record and not an
+    oversight», e per un anno quella frase non e' stata verificata da niente: il 23/09/2026 **sette
+    tabelle su 37** stavano fuori da tutt'e due le liste - `fixtures`, `club_levels`, `club_levels_xref`,
+    `squad_snapshot`, `press_formations`, `tm_appearances`, `fvm_history` - cioe' esattamente lo stato che
+    quel dizionario esiste per rendere impossibile: un'omissione indistinguibile da una dimenticanza.
+
+    Il difetto che questo previene ha dodici precedenti in questo repository, l'ultimo il 13/09
+    (`transfers_history`, nel contratto e nel pacchetto, assente da `TABLES` di `pull-bundle` - sessantaquattro
+    KB e un marchio che diceva il CONTRARIO del fatto): un dato acquisito che nessuno legge non si presenta
+    come un errore, si presenta come una feature che manca. Qui la domanda e' un passo prima - una tabella
+    NUOVA non puo' piu' nascere senza che qualcuno dica dove va.
+
+    Il test NON chiede che una tabella viaggi: chiede che la decisione esista. Aggiungerne una a `EXCLUDED`
+    con la sua ragione e' una risposta perfettamente valida, ed e' lo scopo.
+    """
+    ctx = _ctx(tmp_path)
+    declared = set(table_names(ctx.conn))
+    decided = {spec.name for spec in export.CONTRACT} | set(export.EXCLUDED)
+    undecided = sorted(declared - decided)
+    assert not undecided, (
+        "tabelle che non viaggiano e non dicono perche': "
+        + ", ".join(undecided)
+        + " - si aggiungono a export.CONTRACT (viaggiano) o a export.EXCLUDED (con la ragione)")
+    # ...e nessuna riga fantasma: una tabella nominata in una delle due liste e sparita dallo schema
+    # lascerebbe una decisione su una cosa che non esiste, che si legge come copertura e non lo e'.
+    ghosts = sorted(decided - declared)
+    assert not ghosts, f"nominate in export.py ma non nello schema: {', '.join(ghosts)}"
+
+
+def test_every_sheet_column_the_APP_names_is_one_the_bundle_CARRIES():
+    """Il difetto piu' ripetuto di questo repository, guardato dal lato che lo produce.
+
+    Tredici volte un dato e' stato acquisito, calcolato e mai letto perche' mancava una riga in una
+    allowlist: i campetti (10/08), `availability` (03/09), l'asterisco del listone, la data di rientro, le
+    partite di Varela, gli xG, `transfers_history` (13/09), `desc_category` (22/09). La forma peggiore e'
+    quella in cui le DUE META' ESISTONO e non si incontrano - il toolkit scrive la colonna, l'app la
+    legge, e in mezzo `SHEET_COLUMNS` non la nomina: allora non c'e' niente di rotto da nessuna parte e
+    la funzione e' semplicemente muta. Trovata cosi' il 23/09 su `desc_preseason_starts` /
+    `desc_preseason_matches`, che il foglio calcola dal 05/09 e che `player-place` scrive nella frase del
+    marchio: `friendlyMatches` arrivava `null` e quella frase non e' mai comparsa, mentre il suo spec la
+    provava con 3 su 6, cioe' su un input che la catena non poteva consegnare.
+
+    Il test legge i nomi dal TYPESCRIPT - lo stesso mestiere che `test_engine_projection` e
+    `test_swing_ladder` gia' fanno per le costanti - perche' l'unico modo di sapere cosa l'app chiede e'
+    chiederlo a lei. Non guarda cosa il toolkit CALCOLA: una colonna che il foglio non produce e' un'altra
+    domanda, e questa e' «quello che qualcuno legge, viaggia?».
+    """
+    import re
+
+    app_src = REPO_ROOT / "app" / "src"
+    if not app_src.exists():                      # il toolkit si puo' estrarre da solo
+        pytest.skip("app/src not present")
+    wanted: dict[str, set[str]] = {}
+    for path in sorted(app_src.rglob("*.ts")):
+        if path.name.endswith(".spec.ts"):
+            continue
+        for name in re.findall(r"'((?:desc|engine|est|pi|actual)_[a-z0-9_]+)'",
+                               path.read_text(encoding="utf-8", errors="replace")):
+            wanted.setdefault(name, set()).add(path.name)
+    assert len(wanted) > 50, f"solo {len(wanted)} colonne trovate: il lettore del TypeScript non morde"
+    shipped = set(export.SHEET_COLUMNS)
+    missing = {name: sorted(files) for name, files in wanted.items() if name not in shipped}
+    assert not missing, (
+        "l'app legge colonne che il pacchetto non porta, quindi arrivano vuote e la funzione tace:\n  "
+        + "\n  ".join(f"{name} <- {', '.join(files)}" for name, files in sorted(missing.items())))

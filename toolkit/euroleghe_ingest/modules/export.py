@@ -166,6 +166,31 @@ EXCLUDED: dict[str, str] = {
     "player_xref": "provider ids: the app never re-resolves identity, it consumes fc_id",
     "club_xref": "same",
     "ingest_runs": "the toolkit's own audit trail, not data about football",
+    # Added 23/09/2026. These seven were outside BOTH lists, i.e. exactly the state this dict exists to
+    # make impossible: an omission nobody can tell from an oversight. Nothing about the bundle changes -
+    # they were not travelling yesterday either - what changes is that a table added tomorrow cannot join
+    # them in silence, because a test now requires every table of the schema to appear in one list or the
+    # other.
+    "fixtures": "it DOES travel, but DERIVED and not as a table: `fixtures.schedule` writes "
+                "`calendar.json`. The raw rows are keyed on `matching.club_identity`, a Python alias "
+                "table, so re-doing that join in a browser would repeat the join that once lost Milan, "
+                "Roma and Napoli from every club's schedule",
+    "club_levels": "club strength by year, and `club_levels_xref` is its identity bridge. Keyed the same "
+                   "way, for the same reason; what the app needs of it is already on the sheet's own "
+                   "`desc_level_elo` and in the club card",
+    "club_levels_xref": "same",
+    "squad_snapshot": "95k dated squad readings - the EVIDENCE behind «is he still there», not the "
+                      "answer. The answer is already on the row (`desc_live_club` / `desc_left_for`), "
+                      "and a man the two signals say is gone has left the sheet entirely",
+    "press_formations": "the boards' external JUDGE. Reading it in the app would make circular the very "
+                        "comparison it serves - the press is a judge and never an input",
+    "tm_appearances": "2.09M per-match rows from Transfermarkt. What the engine takes from them (minutes "
+                      "per competition, the newcomer window) reaches the app as `desc_abroad_*` columns "
+                      "already computed",
+    "fvm_history": "the FVM curve per platform, accumulating since 2026. The app shows the CURRENT FVM "
+                   "from `listone_quotes` and the market-value curve from `market_value_history`; "
+                   "drawing the listone's own curve beside it is a feature nobody has asked for, so it "
+                   "stays out until somebody does rather than travelling unread",
 }
 
 # Prices: which ones a rule may read, and which are reporting-only. This is not advice, it is the
@@ -313,6 +338,16 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_riser_starts",
     "desc_riser_window",
     "desc_riser_keeper",
+    # LE AMICHEVOLI DELLA PRE-STAGIONE (23/09/2026). Il foglio le calcola dal 05/09 e `player-place` le
+    # scrive gia' nella frase del marchio - «in pre-campionato ha cominciato N amichevoli su M in
+    # archivio, un'informazione in piu' e non una prova», che e' la forma decisa quel giorno perche' la
+    # copertura all'indietro non permette di verificarne nessuna su una stagione passata. Mancavano
+    # soltanto qui, quindi `friendlyMatches` arrivava sempre `null` e quella frase non e' mai comparsa:
+    # tredicesima istanza di «il dato c'era e mancava un lettore» e la seconda nella sua forma peggiore,
+    # quella in cui le due meta' esistono e non si incontrano (`desc_category`, 22/09). Un test di
+    # `player-place` la prova con 3 su 6, cioe' su un input che la catena non poteva consegnare.
+    "desc_preseason_starts",
+    "desc_preseason_matches",
     # Il NUOVO ARRIVATO e la sua ultima finestra altrove, piu' il marchio a due bracci. Senza queste
     # dieci righe il foglio le scrive e l'app non le vede - il difetto dei campetti, e la ragione per
     # cui questa lista e' esplicita.

@@ -200,7 +200,7 @@ async function waitFor(session, fn, tries = 60, ...args) {
  * rimedio esista sullo schermo, e una preferenza scritta a mano proverebbe solo che la chiave esiste.
  */
 function foldDocks() {
-  const rows = [...document.querySelectorAll('plancia-slot-matrix .grid > div button')];
+  const rows = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')];
   const docks = [...document.querySelectorAll('[data-dock]')];
   let covered = 0;
   let folded = 0;
@@ -219,7 +219,7 @@ function foldDocks() {
 }
 
 function readRow(name) {
-  const rows = [...document.querySelectorAll('plancia-slot-matrix button')];
+  const rows = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')];
   const found = rows.find((one) => (one.innerText ?? '').toLowerCase().includes(name.toLowerCase()));
   if (!found) return null;
   const rect = found.getBoundingClientRect();
@@ -254,7 +254,7 @@ function readRow(name) {
  * oggi, e una scelta scritta a mano qui invecchierebbe al primo cambio di stagione.
  */
 function shortBlocks(teams) {
-  return [...document.querySelectorAll('plancia-slot-matrix .grid > div')]
+  return [...document.querySelectorAll('plancia-slot-matrix [data-block]')]
     .filter((one) => one.querySelector('button'))
     .map((block) => {
       const header = block.firstElementChild;
@@ -353,7 +353,11 @@ async function main() {
   const { server, port } = await serve(DIST);
   const profile = await mkdtemp(join(tmpdir(), 'fant-injury-'));
   const debugPort = Number(value('--port', String(await freePort())));
-  const url = `http://127.0.0.1:${port}/plancia`;
+  // `?fixture=played` PERCHE' QUESTO BANCO MISURA SU RIGHE CHE HANNO UN PADRONE: dal 23/09/2026 la
+  // plancia apre su un tavolo VUOTO (sua istruzione), e su un tavolo vuoto la lente, il prezzo pagato e
+  // l'azzeramento non hanno niente da mostrare. La popolazione si CHIEDE nell'indirizzo invece di
+  // tornare a giocare il tavolo per tutti.
+  const url = `http://127.0.0.1:${port}/plancia?fixture=played`;
   const browser = spawn(
     binary,
     [
@@ -615,7 +619,7 @@ async function main() {
       const healthy = await evaluate(
         session,
         (skip) => {
-          const rows = [...document.querySelectorAll('plancia-slot-matrix button')];
+          const rows = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')];
           const found = rows.find(
             (one) =>
               !(one.innerText ?? '').toLowerCase().includes(skip.toLowerCase()) &&

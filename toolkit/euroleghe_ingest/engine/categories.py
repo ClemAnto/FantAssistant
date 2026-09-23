@@ -46,7 +46,7 @@ quello giusto, perche' il docstring di `relevel` qui sotto separava GIA' Varela 
 esattamente questo: «Varela sta giocando bene ORA». Va detto invece di lasciarlo scoprire.
 
 IL CANCELLO DELL'UNDICI TIPO (`gated`, sua regola del 23/09/2026) sta FUORI dalla cascata e si applica
-dopo, dove il gradino esiste: nessuna parola sopra `riserva` si da' a un uomo che l'undici tipo non
+dopo, dove il gradino esiste: nessuna parola sopra `operaio` si da' a un uomo che l'undici tipo non
 schiera. Vedi la funzione per i quattro nomi che l'hanno prodotta e per il costo misurato.
 
 THE LEVEL IS RE-BLENDED WITH A K PER ROLE, and this is the one piece that is measured rather than
@@ -63,7 +63,7 @@ weight depends on the role - and by a factor of two:
 
 The mechanism is in the error itself: a forward's fantamedia is volatile (0.63 of MAE against a
 defender's 0.28), so last season's signal is weaker and the new matches matter more. WITHOUT THIS the
-scale cannot tell `solido` from `riserva`: Varela and Pinamonti have the same expected fantamedia
+scale cannot tell `solido` from `operaio`: Varela and Pinamonti have the same expected fantamedia
 (6.60 and 6.61) and he puts them in different words - what separates them is that Varela is playing
 well NOW (+2.88 of bonus, 6.62 of base vote) and Pinamonti is not (0.00 and 5.75). Re-blended, they
 sit 36 percentiles apart instead of 1.
@@ -107,16 +107,27 @@ from euroleghe_ingest.engine import status
 #: cambia due parole insieme: «RISERVA non e' da intendersi "riserva nella sua squadra di serie A" ma
 #: "da schierare come riserva nella propria rosa" ... BOA dovrebbe essere un gradino sotto: piuttosto
 #: che affondare meglio averlo in squadra». Nata «prima di SCARTO», sotto `scommessa`; ora sta subito
-#: sotto `riserva` e sopra di lei - un uomo che gioca tutte le settimane vale piu' di uno che nessuno
+#: sotto `operaio` e sopra di lei - un uomo che gioca tutte le settimane vale piu' di uno che nessuno
 #: ha ancora prezzato. La misura lo diceva gia' e la dichiarazione l'ha raggiunta: i nove uomini che
-#: cattura giocano lo 0,81-0,90 del calendario, cioe' piu' della riserva media.
+#: cattura giocano lo 0,81-0,90 del calendario, cioe' piu' della operaio medio.
 LADDER: tuple[str, ...] = (
-    "super", "top", "semi", "promessa", "solido", "riserva", "boa", "scommessa", "scarto", "incognita")
+    "super", "top", "semi", "promessa", "solido", "scommessa", "operaio", "boa", "scarto", "incognita")
 
 #: Le stesse sette parole per NOME, cosi' la cascata non si scrive con gli indici: riordinarle - e lui
 #: l'ha gia' fatto una volta, spostando `scommessa` sopra `scarto` - rinumerava ogni `LADDER[n]` e il
 #: compilatore non avrebbe detto niente. Con i nomi un riordino non puo' cambiare quale parola torna.
-SUPER, TOP, SEMI, PROMESSA, SOLIDO, RISERVA, BOA, SCOMMESSA, SCARTO, INCOGNITA = LADDER
+SUPER, TOP, SEMI, PROMESSA, SOLIDO, SCOMMESSA, OPERAIO, BOA, SCARTO, INCOGNITA = LADDER
+
+#: `operaio` SI CHIAMAVA `riserva` FINO AL 23/09/2026 (sera), e il nome e' suo come tutti gli altri.
+#: La ragione e' che la parola vecchia prometteva una cosa e la classe ne conteneva un'altra: con la
+#: scala a sette parole raccoglieva 233 righe di 562, cioe' meta' listone, e un undici da campione ne
+#: schierava 3,4 - gente che gioca, non gente in panchina. La sbarra di quella stessa giornata ha
+#: curato il CONTEGGIO (~15 per ruolo) e lui ha voluto curare anche il NOME.
+#: Il disegno lo diceva gia' prima della parola: l'icona di questa classe e' l'ATTREZZO
+#: (`categoria.ts`, «le icone dicono il MESTIERE ... riempie un posto»), non una mezza stella.
+#: IL PREZZO E' DICHIARATO: la stringa viaggia sul foglio (`desc_category`) e quindi nel pacchetto, e
+#: un bundle scritto prima di oggi porta ancora `riserva`. Finche' i fogli non sono rigenerati l'app
+#: legge una parola che il suo vocabolario non ha - si vede, non si rompe - e la cura e' un `snapshot`.
 
 #: «gioca sempre», the gate of `super`. DECLARED from two of his own cases and not fitted: De Bruyne
 #: at 0.70 is OUT («e' fragile e non puo' darti tante presenze») and Martinez at 0.74 is IN, so the bar
@@ -198,7 +209,7 @@ PROSPECT_MARK = 5.8
 PROSPECT_BONUS = -0.25
 
 #: «GIOCA QUASI SEMPRE», il pavimento di `boa`. Nato come `status.PLAY_ALMOST_EVERY` (0,80) e SCESO a
-#: 0,72 il 23/09/2026, chiuso dai suoi due `riserva` dichiarati: Pinamonti gioca lo 0,721 e Douglas Luiz
+#: 0,72 il 23/09/2026, chiuso dai suoi due `operaio` dichiarati: Pinamonti gioca lo 0,721 e Douglas Luiz
 #: lo 0,742, e la loro promessa di ieri - «gioca, ed e' per quello che lo compri» - e' parola per parola
 #: quello che `boa` dice oggi. A 0,80 restavano fuori tutti e due e finivano in `scarto`: la sbarra e'
 #: fissata dai suoi nomi, che e' come sono state fissate tutte le altre di questo modulo.
@@ -244,9 +255,9 @@ KEEPER_MALUS = -1.0
 #: already played, the same shape R25 uses in the engine.
 BLEND_K: Mapping[str, float] = {"P": 16.6, "D": 32.6, "C": 43.5, "A": 18.5}
 
-#: (riserva, solido, semitop, top, supertop) of EXPECTED FANTAMEDIA, per PLATFORM and listone role.
+#: (operaio, solido, semitop, top, supertop) of EXPECTED FANTAMEDIA, per PLATFORM and listone role.
 #:
-#: LA PRIMA E' NATA IL 23/09/2026 PERCHE' `riserva` ERA LA DISCARICA: 233 righe di 562 su Serie A contro
+#: LA PRIMA E' NATA IL 23/09/2026 PERCHE' `operaio` ERA LA DISCARICA: 233 righe di 562 su Serie A contro
 #: 8-22 di ogni altra parola, cioe' l'unica classe senza una sbarra sua - tutto quello che giocava almeno
 #: meta' calendario e non arrivava a `solido`. «Le 233 riserve sono troppe, la mia idea era qualcosa tipo
 #: 15 circa per ogni ruolo». Le sbarre di D/C/A sono quindi il QUINDICESIMO livello del ruolo, che e' la
@@ -283,6 +294,66 @@ BLEND_K: Mapping[str, float] = {"P": 16.6, "D": 32.6, "C": 43.5, "A": 18.5}
 #: spostata al primo valore STRETTAMENTE maggiore, cosi' quei 42 uomini uguali restano tutti nella
 #: stessa parola invece di essere spaccati in due da un arrotondamento. Resta vero, e va saputo, che
 #: su euro la categoria di un PORTIERE distingue poco: il motore non li distingue.
+#: LA BANDA DELLE PRESENZE DI UNA `scommessa`, sue due dichiarazioni del 23/09/2026: «le presenze
+#: attese di una scommessa devono essere > 15» e «gli OPERAI devono avere almeno 25 partite previste».
+#: QUOTE E NON CIFRE (la lezione di R20): 26 su 38 e 22,6 su 33 sono lo stesso fatto.
+#: IL 26 E NON IL 25 CHE HA DETTO, e la ragione sono i suoi stessi nomi: Diao legge 25,8 ed e' una
+#: scommessa dichiarata, quindi con 25 lui, Kean (25,7) ed Esposito F.P. (25,3) sarebbero operai. Il
+#: confine cade nel VUOTO che i suoi dodici nomi lasciano fra Diao 25,8 e Davis K. 27,3 - gli esempi
+#: sono la specifica, la cifra era un'approssimazione.
+BET_FLOOR_SHARE = 15.0 / 38.0
+BET_CEILING_SHARE = 26.0 / 38.0
+
+#: LA SESTA SBARRA: «il potenziale e' la fantamedia attesa alta», precisata due volte - «va tarato per
+#: ruolo» e «non e' alto in assoluto ma piu' alto rispetto a quel gruppo di calciatori che resta
+#: escludendo i top». E' la MEDIANA del gruppo da `solido` in giu', che e' anche la popolazione da cui
+#: la parola pesca: un metro solo per la soglia e per l'insieme. Misurata sui fogli del 23/09/2026 e
+#: ASSOLUTA come le altre cinque - una sbarra che si muove col foglio fa dire a una parola una cosa
+#: diversa ogni settimana.
+#: IL PREZZO E' DICHIARATO: sei delle sue sette scommesse stanno fra il 51° e il 96° percentile del
+#: ruolo, e la settima - Lang, 6,061, il **1° percentile** degli attaccanti - non la prende nessun
+#: pavimento che non prenda mezzo listone: quello e' un caso da `player_rulings.json`.
+POTENTIAL_BARS: Mapping[str, Mapping[str, float]] = {
+    "default": {"P": 4.992, "D": 5.951, "C": 6.151, "A": 6.561},
+    "euro": {"P": 5.048, "D": 6.051, "C": 6.441, "A": 7.126},
+}
+
+#: LE PAROLE DA CUI `scommessa` PESCA, sua regola: «va bene pescare solo da SOLIDO in giu'». Nata da un
+#: caso che la misura gli ha messo davanti: senza il limite scendevano a scommessa anche Calhanoglu e
+#: McTominay, che non hanno un «potenziale ottimo proseguimento» - sono forti e giocano poco, che e'
+#: un'altra frase, e la scala li tiene gia' fuori da `super` per quella. Il prezzo che ha accettato
+#: guardandolo: Esposito F.P. (`top`, 25,3 presenze) resta dov'e'.
+BET_FROM = (SOLIDO, OPERAIO, BOA, SCARTO)
+
+
+def potential_bar(platform: str | None, slot: str | None) -> float | None:
+    """La sbarra del potenziale per la sua piattaforma e il suo ruolo di LISTONE, o None."""
+    if not slot or not platform:
+        return None
+    return POTENTIAL_BARS.get(platform, {}).get(slot.upper())
+
+
+def as_bet(word: str | None, play_share: float | None, level: float | None,
+           bar: float | None) -> str | None:
+    """«Partenza non eccezionale ma potenziale ottimo proseguimento» (operatore, 23/09/2026).
+
+    DOPO il gate e non dentro la cascata, per la stessa ragione per cui il gate sta fuori: la parola su
+    cui questa regola decide e' quella FINALE - Yildiz e' `solido` solo dopo che l'undici tipo ha detto
+    la sua, e la scommessa deve vedere quella. Dentro la cascata leggerebbe una parola che poi cambia.
+
+    E IL PAVIMENTO DEGLI OPERAI E' LA STESSA SOGLIA letta dall'altro lato, cosi' non ci sono due numeri
+    per un confine solo: chi non arriva al tetto della banda non e' un `operaio` - quella parola dice
+    «gioca sempre e rende il minimo» - quindi scende dove sarebbe senza di lei.
+    """
+    if word not in BET_FROM or play_share is None:
+        return word
+    if not (BET_FLOOR_SHARE < play_share <= BET_CEILING_SHARE):
+        return word
+    if level is not None and bar is not None and level >= bar:
+        return SCOMMESSA
+    return BOA if word == OPERAIO else word
+
+
 LEVEL_BARS: Mapping[str, Mapping[str, tuple[float, float, float, float, float]]] = {
     "default": {
         "P": (4.820, 5.07, 5.16, 5.24, 5.32),
@@ -423,7 +494,7 @@ def category_of(play_share: float | None, level: float | None,
     `grounded` IS THE OTHER HALF OF THAT, and without it the word was empty by construction. The sheet
     gives EVERY row a fantamedia - where the engine cannot price a man, `est_fm` falls back to his
     role's anchor - so a level is never missing and `scommessa` described nobody: measured on the
-    2026-27 Serie A sheet, 147 rows sat on the anchor and were handed 103 `scarto`, 31 `riserva`
+    2026-27 Serie A sheet, 147 rows sat on the anchor and were handed 103 `scarto`, 31 `operaio`
     and even 7 `solido`, which is a judgement about men nobody has watched. It is the `bandiera` defect
     of 20/08 (a rung empty by construction) met on a word instead of a ladder.
 
@@ -469,12 +540,12 @@ def category_of(play_share: float | None, level: float | None,
         if level >= good:
             return PROMESSA if form else SOLIDO
         # ...E QUESTO RAMO USA LE STESSE DUE SBARRE DI SOTTO, che e' la cura di un difetto del 23/09:
-        # aveva una mini-cascata sua che finiva con `return RISERVA`, quindi la sbarra nuova non lo
-        # toccava e **23 difensori senza storico** entravano in `riserva` col livello sotto la banda -
+        # aveva una mini-cascata sua che finiva con `return OPERAIO`, quindi la sbarra nuova non lo
+        # toccava e **23 difensori senza storico** entravano in `operaio` col livello sotto la banda -
         # un terzo della classe che lui aveva appena chiesto di stringere. Due cascate per una domanda
         # finiscono per non essere d'accordo, ed e' esattamente cosa era successo.
         if level >= low:
-            return RISERVA
+            return OPERAIO
         if _is_boa(mv, play_share, boa_mark):
             return BOA
         return SCARTO
@@ -508,20 +579,20 @@ def category_of(play_share: float | None, level: float | None,
         return SEMI
     if level >= good:
         return PROMESSA if form else SOLIDO
-    # ...E DA QUI IN GIU' `riserva` HA UNA SBARRA SUA (23/09/2026). Prima era il fondo della cascata e
+    # ...E DA QUI IN GIU' `operaio` HA UNA SBARRA SUA (23/09/2026). Prima era il fondo della cascata e
     # raccoglieva 233 righe di 562 - «le 233 riserve sono troppe» - cioe' l'unica parola che non
     # affermava niente: bastava giocare meta' calendario. Adesso dice quello che lui le fa dire, «da
     # schierare come riserva nella propria rosa»: il livello ci sarebbe, il posto nel suo club no.
     if level >= low:
-        return RISERVA
-    # ...E `boa` E' RITAGLIATA DA `riserva`, sua parola del 23/09/2026: «gioca quasi sempre con una media
+        return OPERAIO
+    # ...E `boa` E' RITAGLIATA DA `operaio`, sua parola del 23/09/2026: «gioca quasi sempre con una media
     # voto dignitosa». Sotto la sbarra di `solido` il livello non basta a distinguere nessuno, e questi
     # sono gli uomini che quel posto lo reggono comunque tutte le settimane.
     #
-    # LUI L'HA MESSA SOTTO `riserva` E IL DISEGNO SEGUE LUI, ma la misura dice il contrario e va detta: i
+    # LUI L'HA MESSA SOTTO `operaio` E IL DISEGNO SEGUE LUI, ma la misura dice il contrario e va detta: i
     # dieci uomini che cattura sul foglio di Serie A (Falcone, De Gea, Ramos G., Muric, Cristante,
     # Simeone, Obert, Laurientè, Celik, Okoye) giocano lo 0,81-0,90 del calendario, cioe' PIU' della
-    # riserva media, quindi la parola piu' bassa tocca ai titolari piu' continui di quella fascia. E' una
+    # operaio medio, quindi la parola piu' bassa tocca ai titolari piu' continui di quella fascia. E' una
     # sua dichiarazione e si applica come l'ha data - «l'ordine della scala non cede alla misura» - e
     # invertirla e' una riga sola in `LADDER` il giorno in cui lo decide.
     if _is_boa(mv, play_share, boa_mark):
@@ -561,10 +632,10 @@ def gated(category: str | None, rung: str | None,
     MISURATO SUL FOGLIO DEL 22/09/2026 prima di adottarlo, che e' la condizione che il modulo si da' da
     se' («i nove verdetti sono la specifica»): Serie A 20 righe di 562 scendono (16 `solido`, 4 `top`),
     euro 19 di 953, e **tutte e dodici le dichiarazioni positive restano in piedi** - i cinque `super`,
-    Calhanoglu e Hojlund `top`, Scamacca `semi`, Kvernadze `solido`, Pinamonti e Douglas Luiz `riserva` -
-    con gli otto tetti rispettati. Osmajic e Romero D. scendono a `riserva` e non e' una rottura: la sua
+    Calhanoglu e Hojlund `top`, Scamacca `semi`, Kvernadze `solido`, Pinamonti e Douglas Luiz `operaio` -
+    con gli otto tetti rispettati. Osmajic e Romero D. scendono a `operaio` e non e' una rottura: la sua
     regola del 22/09 su di loro era un TETTO («non possono essere SEMITOP»), non un'affermazione, e
-    `riserva` lo rispetta.
+    `operaio` lo rispetta.
 
     UN GRADINO IGNOTO NON RETROCEDE NESSUNO. Senza display la board non si disegna e `desc_titolarita`
     resta vuota per costruzione, e un club la cui board non e' stata disegnata non ha gradini: li'
@@ -573,7 +644,7 @@ def gated(category: str | None, rung: str | None,
     cioe' non gatata.
 
     IL FONDO E' LA CASCATA STESSA e non una parola scelta: chi scende prende `scarto` se sta sotto
-    `PLAYS_OFTEN` e `riserva` se ci sta sopra, che e' cio' che `category_of` gli avrebbe dato se il suo
+    `PLAYS_OFTEN` e `operaio` se ci sta sopra, che e' cio' che `category_of` gli avrebbe dato se il suo
     livello non avesse superato nessuna sbarra. `scommessa` non si tocca - non e' un giudizio, e
     retrocederla direbbe «misurato e non gioca» di un uomo che nessuno ha misurato.
     """
@@ -581,9 +652,9 @@ def gated(category: str | None, rung: str | None,
         return category
     if rung in status.CONTENDER_RUNGS:
         return category
-    if category in (RISERVA, SCOMMESSA, BOA, SCARTO, INCOGNITA):
+    if category in (OPERAIO, SCOMMESSA, BOA, SCARTO, INCOGNITA):
         return category
-    return RISERVA if play_share is not None and play_share >= PLAYS_OFTEN else SCARTO
+    return OPERAIO if play_share is not None and play_share >= PLAYS_OFTEN else SCARTO
 
 
 def rank_of(category: str | None) -> int | None:

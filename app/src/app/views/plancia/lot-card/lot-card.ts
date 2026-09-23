@@ -1,9 +1,10 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, input, model } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
+
+import { DigitInput } from '../../../ui/digit-input/digit-input';
 
 import { CEILING_ALWAYS_SAFE, CEILING_ALWAYS_WRONG, Role, Verdict } from '../../../core/plancia';
 import { Lot } from '../../../core/plancia-store';
@@ -59,7 +60,7 @@ export const ROLE_TONE: Record<Role, string> = {
 @Component({
   selector: 'plancia-lot-card',
   templateUrl: './lot-card.html',
-  imports: [DecimalPipe, FormsModule, NzIconModule, NzInputNumberModule, NzTooltipModule],
+  imports: [DecimalPipe, DigitInput, FormsModule, NzIconModule, NzTooltipModule],
   host: { class: 'block' },
 })
 export class LotCard {

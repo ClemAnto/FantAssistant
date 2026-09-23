@@ -851,7 +851,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      Due richieste dell'operatore su quattro nomi trovati a schermo: «come e' possibile che Cabal sia un
 #      TOP? ... Pavard ormai non e' piu' titolare, un TOP deve essere almeno titolare» e «Kempf / Stones
 #      non possono essere SOLIDI, nelle prime giornate non sono stati abbastanza presenti».
-#      IL CANCELLO NON E' UNA SOGLIA NUOVA: nessuna parola sopra `riserva` si da' a chi la board non
+#      IL CANCELLO NON E' UNA SOGLIA NUOVA: nessuna parola sopra `operaio` si da' a chi la board non
 #      disegna, e «lo schiera o no» lo dice gia' `status.CONTENDER_RUNGS` (li spostati da `boards.py`,
 #      una definizione e tre lettori). Le due quantita' ovvie sono state provate PRIMA e non separano i
 #      suoi casi - la quota PREVISTA mette Kempf (0,576) sopra Osmajic (0,533) e Romero D. (0,561), la
@@ -898,7 +898,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      diventano `boa`, il gradino nato per loro: `BOA_PLAYS` 0,80 -> 0,72 e `BOA_MARK` per PIATTAFORMA
 #      (5,94 / 6,10), chiuse dai loro numeri. Boa 33 e 42. `scommessa` resta a 7 e 14 per un limite di
 #      DATI e non di soglia: gli uomini non prezzati che hanno i due numeri sono 9 e 16 in tutto.
-SHEET_REVISION = 73
+SHEET_REVISION = 74
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -8087,6 +8087,7 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # already on disk; the alternative was a second definition of who is in the eleven.
         statuses = board_summary.get("statuses") or {}
         capped = 0
+        bets = 0
         for row in rows:
             one = statuses.get(row.get("fc_id"))
             if not one:
@@ -8114,9 +8115,26 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
                 if pv_share is not None and data.matchdays_target else None)
             if row["desc_category"] != before:
                 capped += 1
+            # ...E POI LA SCOMMESSA, che e' l'ultimo passo perche' legge la parola FINALE (23/09/2026:
+            # «partenza non eccezionale ma potenziale ottimo proseguimento»). Yildiz e' `solido` solo
+            # dopo il cancello, e la scommessa deve vedere quella parola: metterla prima leggerebbe una
+            # categoria che poi cambia. Porta con se' il pavimento degli operai, che e' la stessa soglia
+            # dall'altro lato - un confine, un numero.
+            was = row["desc_category"]
+            row["desc_category"] = categories_engine.as_bet(
+                was,
+                (pv_share / data.matchdays_target)
+                if pv_share is not None and data.matchdays_target else None,
+                row.get("desc_category_level"),
+                categories_engine.potential_bar(platform, row.get("role_classic")))
+            if row["desc_category"] != was:
+                bets += 1
         _write_csv(folder / "players.csv", PLAYER_COLUMNS, rows)
         # Uno zero STAMPATO si distingue da una funzione rotta - la lezione dei campetti che il bundle
         # portava e che nessuno copiava, applicata al cancello che li legge.
+        print(f"[snapshot] categorie: {bets} righe diventate `scommessa` o scese dal pavimento"
+              f" degli operai (banda {categories_engine.BET_FLOOR_SHARE:.2f}-"
+              f"{categories_engine.BET_CEILING_SHARE:.2f} del calendario)")
         print(f"[snapshot] categorie: {capped} righe di {len(rows)} cappate perche' l'undici tipo non le"
               f" schiera (gradino sotto {'/'.join(sorted(status_engine.CONTENDER_RUNGS))})")
         ladder = board_summary.get("ladder") or {}

@@ -208,7 +208,7 @@ function readKeeperRows() {
   const lines = [...document.querySelectorAll('plancia-slot-matrix > div > div')];
   const keepers = lines[0];
   if (!keepers) return null;
-  const blocks = [...keepers.querySelectorAll('.grid > div')];
+  const blocks = [...keepers.querySelectorAll('[data-block]')];
   const first = blocks[0];
   if (!first) return null;
   const rows = [...first.querySelectorAll('button')];
@@ -458,7 +458,7 @@ function readPopover() {
  * computed outline width, because a class name is not a pixel.
  */
 function readBoardRow(role, at) {
-  const column = [...document.querySelectorAll('plancia-slot-matrix .grid > div')].find((one) =>
+  const column = [...document.querySelectorAll('plancia-slot-matrix [data-block]')].find((one) =>
     (one.innerText ?? '').trim().startsWith(role));
   const rows = [...(column?.querySelectorAll('button') ?? [])];
   const row = rows[at];
@@ -471,7 +471,7 @@ function readBoardRow(role, at) {
   // «everything is marked», i.e. nothing), and parsing the red channel read 0, because Chrome
   // computes a `color-mix(in srgb …)` as `color(srgb 1 0.17 0.47 / 0.1)` and not as `rgb()` - a
   // channel test on that string compares 1 with 8. A diff needs no format at all.
-  const shades = [...document.querySelectorAll('plancia-slot-matrix button')].map(
+  const shades = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')].map(
     (one) => getComputedStyle(one).backgroundColor,
   );
   return {
@@ -481,7 +481,7 @@ function readBoardRow(role, at) {
     numbers: cells.filter((one) => /^[-+]?[\d.,]+$/.test(one)),
     hasTooltipDirective: row.hasAttribute('nz-tooltip'),
     shades,
-    names: [...document.querySelectorAll('plancia-slot-matrix button')].map(
+    names: [...document.querySelectorAll('plancia-slot-matrix [data-block] button')].map(
       (one) => (one.innerText ?? '').split('\n')[0].trim()),
   };
 }
@@ -581,7 +581,11 @@ async function main() {
   const { server, port } = await serve(DIST);
   const profile = await mkdtemp(join(tmpdir(), 'fant-keepers-'));
   const debugPort = Number(value('--port', String(await freePort())));
-  const url = `http://127.0.0.1:${port}/plancia`;
+  // `?fixture=played` PERCHE' QUESTO BANCO MISURA SU RIGHE CHE HANNO UN PADRONE: dal 23/09/2026 la
+  // plancia apre su un tavolo VUOTO (sua istruzione), e su un tavolo vuoto la lente, il prezzo pagato e
+  // l'azzeramento non hanno niente da mostrare. La popolazione si CHIEDE nell'indirizzo invece di
+  // tornare a giocare il tavolo per tutti.
+  const url = `http://127.0.0.1:${port}/plancia?fixture=played`;
   const browser = spawn(binary, [
     flag('--headed') ? '--headless=false' : '--headless=new',
     `--remote-debugging-port=${debugPort}`,

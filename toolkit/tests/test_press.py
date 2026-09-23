@@ -815,3 +815,33 @@ def test_a_verdict_on_a_match_the_sheet_had_already_seen_is_a_reading_and_says_s
     assert press.judged_after_the_fact("2026-09-13T23:00:00+00:00", reference) == ["Inter"]
     # e un foglio che non dichiara quando e' stato scritto non accusa nessuno
     assert press.judged_after_the_fact(None, reference) == []
+
+
+def test_the_take_picks_the_round_of_the_INSTANT_IT_DECLARES_and_not_of_the_clock(tmp_path):
+    """L'ora dichiarata decide anche QUALE turno si prende.
+
+    `taken_at` e' l'onesta' della presa: dice quando la previsione e' stata scritta. Finche' il turno lo
+    sceglieva l'OROLOGIO, la data in cima al file e il turno sotto potevano essere due fatti diversi - e
+    il difetto non si vedeva finche' la macchina girava dentro la settimana per cui il test era stato
+    scritto, poi i due test del formato cadevano per sempre (23/09/2026). `next_round_dates` il parametro
+    lo dichiarava gia'; il chiamante non glielo passava, che e' il flag scartato dal dispatcher un piano
+    piu' giu'.
+
+    Due prese con la stessa base e due istanti diversi devono prendere due turni diversi: e' l'unica forma
+    che cade sia se il parametro torna a essere scartato, sia se qualcuno lo lega all'orologio.
+    """
+    ctx = _ctx(tmp_path)
+    _fixtures(ctx, [("serie_a", 5, "2026-09-18", "inter", "milan"),
+                    ("serie_a", 6, "2026-09-25", "milan", "inter")])
+    folder = _sheet(tmp_path, "sheet-a", {
+        "Inter": ("3-5-2", [f"Uomo {n}" for n in range(11)]),
+        "Milan": ("4-3-3", [f"Altro {n}" for n in range(11)]),
+    })
+    before = press.take_preregistration_file(
+        ctx, [folder], out=tmp_path / "prima.md", taken_at="2026-09-16T14:00")
+    after = press.take_preregistration_file(
+        ctx, [folder], out=tmp_path / "dopo.md", taken_at="2026-09-22T14:00")
+    assert "2026-09-18" in before.read_text(encoding="utf-8")
+    assert "2026-09-25" in after.read_text(encoding="utf-8")
+    # ...e la riga che lo dichiara e il turno che prende sono lo stesso fatto.
+    assert "2026-09-25" not in before.read_text(encoding="utf-8")

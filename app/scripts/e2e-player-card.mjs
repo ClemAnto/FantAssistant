@@ -170,7 +170,7 @@ async function waitFor(session, fn, tries = 60, ...args) {
 
 /** Le righe della plancia con il loro rettangolo: da qui si sceglie chi aprire. */
 function readRows() {
-  return [...document.querySelectorAll('plancia-slot-matrix button')].map((one) => {
+  return [...document.querySelectorAll('plancia-slot-matrix [data-block] button')].map((one) => {
     const rect = one.getBoundingClientRect();
     return {
       text: (one.innerText ?? '').replace(/\s+/g, ' ').trim(),
@@ -395,7 +395,11 @@ async function main() {
   const { server, port } = await serve(DIST);
   const profile = await mkdtemp(join(tmpdir(), 'fant-card-'));
   const debugPort = Number(value('--port', String(await freePort())));
-  const url = `http://127.0.0.1:${port}/plancia`;
+  // `?fixture=played` PERCHE' QUESTO BANCO MISURA SU RIGHE CHE HANNO UN PADRONE: dal 23/09/2026 la
+  // plancia apre su un tavolo VUOTO (sua istruzione), e su un tavolo vuoto la lente, il prezzo pagato e
+  // l'azzeramento non hanno niente da mostrare. La popolazione si CHIEDE nell'indirizzo invece di
+  // tornare a giocare il tavolo per tutti.
+  const url = `http://127.0.0.1:${port}/plancia?fixture=played`;
   const browser = spawn(
     binary,
     [
