@@ -235,6 +235,11 @@ export class Plancia {
     // The board opens on a table, never on a code field: `startDemo` is a no-op when one is already up,
     // so coming back to the page does not throw away an auction in progress.
     //
+    // ...E PRIMA DELLA FINZIONE VIENE L'ASTA VERA (`store.open`): se questo browser stava seguendo una
+    // sessione, un refresh la riprende invece di aprirci sopra il tavolo inventato. Fino al 24/09/2026
+    // questa pagina chiamava `startDemo` e basta - la regola esisteva su `/auction` e non era stata
+    // ereditata - quindi ogni ricaricamento costava un collegamento a mano.
+    //
     // E IL TAVOLO APRE VUOTO (sua istruzione, 23/09/2026: «di default non abilitare il tavolo finto»):
     // dieci sedie con le borse piene e nessun acquisto, cioe' un'asta al minuto zero. `?fixture=played`
     // ne chiede uno GIOCATO, ed e' quello su cui i banchi misurano - la lente, la colonna del prezzo
@@ -242,7 +247,7 @@ export class Plancia {
     // ne sono. Letto dall'INDIRIZZO perche' e' cio' di cui la pagina parla (`core/view-state.ts`), e
     // una volta sola: cambiare fixture a meta' asta butterebbe via quello che c'e' scritto.
     const played = inject(ActivatedRoute).snapshot.queryParamMap.get('fixture') === 'played';
-    void this.store.startDemo(false, played ? PLAYED_PROGRESS : undefined);
+    void this.store.open(played ? PLAYED_PROGRESS : undefined);
   }
 
   /**

@@ -2336,3 +2336,37 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
    strada per chiuderla e' il join (stagione, giornata) con `match_ratings` - che NON si e' fatto perche'
    sarebbe una seconda definizione di «che voto ha preso». **Resa: una riga di verifica in piu'; costo:
    una definizione doppia, che e' il difetto piu' caro di questo repository.**
+
+---
+
+## Aperti nati il 24/09/2026 (notte) — l'offerta dal tavolo e la maglia contesa
+
+1. **COSA PORTA `state.currentBid` FRA DUE LOTTI.** In quaranta secondi di lettura su una sessione viva
+   un nome era sempre in asta, quindi se il tavolo azzeri quel nodo o lo lasci sull'ultimo **non è
+   osservato** — esattamente come per `selectedPlayerId`, di cui questa lista già porta la domanda
+   gemella. Oggi non serve per stare in piedi (il confronto col nome copre tutt'e due i casi) e resta
+   aperto perché **un ripiego scritto senza aver visto quel momento sarebbe un campo indovinato su un
+   payload letto a metà**. Si chiude con una lettura a **tavolo fermo**, cioè fra due estrazioni: lo
+   stesso giro che chiude l'altra. **Resa: nessuna oggi; costo di non farla: zero, finché nessuno ci
+   scrive sopra un ripiego.**
+
+2. **L'OFFERTA DEL TAVOLO NON DICE CHI LA STA FACENDO, e potrebbe.** `currentBid.teamId` è letto dal
+   probe e **non letto dall'app**: sulla sessione osservata valeva `0`, che con `lastPick.teamId` anche
+   lui a `0` non basta a dire se sia un id vero o un campo che qualcuno azzera. Saperlo cambierebbe una
+   riga della plancia — «stai rilanciando contro te stesso» è una cosa che il tavolo sa e noi no — e
+   **prima di leggerlo serve vedere un'offerta di una rosa che non sia la prima**. *Un id che vale zero
+   su tutte le righe che hai visto è un id di cui non sai niente.*
+
+3. **RIMISURARE KEAN/DOUVIKAS DOPO DUE GIORNATE.** Il predittore più forte della tabella di
+   `formazioni-tipo-v1.md` §19 — le partenze già fatte — è anche quello che si aggiorna più in fretta: se
+   Kean parte titolare due volte di fila la configurazione non è più «arrivato indietro» ma «pari», e la
+   cella da leggere è un'altra (41,1% invece di 24,2%). **La misura si rifà, non si cita.** Lo script sta
+   in scratchpad e non nel repo perché legge nomi e prezzi del listone; rifarlo costa due query.
+
+4. **LA TABELLA DEL §19 È UN METRO E NON UNA COLONNA.** Risponde a «chi vince questa maglia» con una
+   precisione che nessun `desc_*` porta oggi, e la tentazione ovvia è farne un canale. **Non lo è finché
+   non passa un gate**, e prima ancora c'è la domanda che questo progetto si fa per prima: *cosa può
+   cambiare il suo output?* Il claim già legge i minuti e le partenze, quindi il sospetto forte è che
+   ricontasse una prova già contata — la famiglia di R24 e dell'età. **Da pre-registrare, non da
+   adottare.**
+

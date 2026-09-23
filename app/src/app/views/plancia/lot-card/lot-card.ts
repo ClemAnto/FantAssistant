@@ -83,7 +83,7 @@ export class LotCard {
   protected readonly icon = computed(() => VERDICT_ICON[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly tone = computed(() => VERDICT_TONE[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly rail = computed(() => VERDICT_RAIL[this.lot()?.advice.verdict ?? 'ignoto']);
-  protected readonly roleTone = computed(() => ROLE_TONE[this.lot()?.block.role ?? 'P']);
+  protected readonly roleTone = computed(() => ROLE_TONE[this.lot()?.role ?? 'P']);
 
   /** Where the two flat lines fall on the bar, so the scale explains itself without a legend. */
   protected readonly safeAt = computed(() => `${CEILING_ALWAYS_SAFE * 100}%`);

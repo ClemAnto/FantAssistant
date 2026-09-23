@@ -6970,6 +6970,145 @@ cosa sta lavorando.* E la simulazione che ha guidato tutta la giornata leggeva `
 ripiego su `est_fm`, cioe' sbagliava il livello di ~176 righe su 562: a trovarlo non e' stata una
 rilettura ma **un guardiano che e' caduto** dicendo il contrario di quello che la simulazione stampava.
 
+## Una SECONDA STRADA verso lo stesso stato è dove una regola smette di valere, e «mai osservato» non è una misura
+**24/09/2026, dalle due segnalazioni dell'operatore sulla plancia collegata a fanta-asta-live: «se
+refresho deve rimanere la connessione» e «non si aggiorna il calciatore in asta». Dettaglio:
+`assistente-asta-v1.md` §52.** Due difetti veri, nessuno dei due nel feed: stavano tutt'e due nel punto
+in cui la plancia e il feed si incontrano. `engine_*` fermo, `SHEET_REVISION` fermo.
+
+**LA MODALE DEL COLLEGAMENTO PARLA COL FEED E NON CON LA PLANCIA** (una sola per le due pagine d'asta,
+03/09/2026, e la ragione regge), quindi `PlanciaStore.connect()` — che svuotava il lotto e spegneva la
+lente — **non era chiamata da nessuno**: codice morto dal giorno in cui la modale è nata. Al
+collegamento la plancia si teneva il nome estratto dalla finzione e stampava banda, mani alzate e
+verdetto su un uomo che a quel tavolo non è in asta. *La cura non è chiamare la funzione morta: è
+togliere la seconda strada.* Il calciatore in asta è ora **DERIVATO** (`plancia.lotStillUp`) dal nome
+nominato, dal **TAVOLO su cui lo è stato** e dagli acquisti — quindi cambiare tavolo lo cancella per
+costruzione, e un uomo che il banditore assegna esce dalla riga da sé. `award` quella seconda metà la
+faceva già dopo un'assegnazione a mano: *viveva su un percorso solo, e una regola vale su tutti.*
+
+**E LA REGOLA DELL'ALTRA PAGINA NON SI EREDITA DA SOLA** (terza istanza): `/auction` dal 03/09 chiama
+`feed.restore()` PRIMA della finzione, `/plancia` chiamava `startDemo` e basta — quindi un refresh
+apriva il tavolo inventato sopra una sessione che il browser stava seguendo. Il codice era in
+`localStorage` per tutto il tempo: non mancava il dato, mancava la chiamata. **L'ordine dentro `open()`
+è forzato per una ragione misurabile**: prima il listone, perché `startDemo` decide di non fare niente
+guardando `men()`, che è vuoto finché il foglio non è letto — con un ripescaggio riuscito e il listone
+ancora fuori la finzione partirebbe *sopra l'asta appena ripresa*, cioè lo stesso difetto un passo più
+in là. La frase «· salvato · riaggancio in corso» è stata spostata **dentro il feed** e letta dalle due
+pagine: due copie di «questo è salvato» raccontano due stati dello stesso collegamento.
+
+**«MAI OSSERVATO» È UN'ASSENZA DI SGUARDO, e il file la dichiarava come una misura — POI È STATA FATTA,
+E DICE IL CONTRARIO.** Il commento diceva che fanta-asta-live non pubblica il lotto in asta «perché
+nessun nodo del genere è mai stato osservato per il meccanismo a rilanci»: le **due** sessioni vere che
+questo progetto aveva letto (09/08/2026, nelle fixture) portano tutt'e due `marketType: 1` — erano
+**DRAFT**, dove un lotto non esiste affatto, c'è un turno. Nessuno aveva mai guardato una sessione **a
+rilanci**. È la forma del verdetto su SOS Fanta: *una fonte archiviata come rifiutata smette di essere
+misurata*, e qui è costata una funzione intera per quattro settimane. La misura è arrivata lo stesso
+giorno (`app/scripts/probe-live-session.mjs`, login anonimo e due letture REST su un codice che
+l'operatore ha dato mentre giocava): **`state.selectedPlayerId`**, verificato contro quello che lui
+vedeva a schermo e distinto da `lastPick`, che nella stessa lettura portava un uomo già venduto. Vedi la
+sezione seguente.
+
+**E «LOTTO» ERA UNA PAROLA MIA**: «"lotto" in asta che cavolo significa? Scrivi "Calciatore" in asta».
+Cambiata ovunque si legga a schermo e lasciata in codice (`lot`, `nameLot`), dov'è inglese per
+convenzione. L'incoerenza era peggiore della parola: il rifiuto di `award` diceva già «Nessun
+calciatore in asta», cioè due parole per la stessa cosa sulla stessa pagina.
+
+Tre cose sul banco (`e2e-plancia-resume.mjs`), che guida la plancia vera contro un **finto
+fanta-asta-live** iniettato prima dell'app e sopravvissuto al refresh — l'unico modo di pilotare
+«qualcuno compra l'uomo che è in asta adesso» come un EVENTO invece che come un mock. **La controprova
+si fa un difetto per volta e cadono esattamente i passi che lo descrivono**: il lotto non derivato fa
+cadere i passi 2 e 4 e lascia verdi gli altri tre, `startDemo` al posto di `open` fa cadere solo il 5.
+**Il segnale d'attesa dev'essere indipendente da quello che si asserisce**: la prima versione aspettava
+che la card del lotto ESISTESSE, e quella card è in pagina anche vuota — su un avvio freddo leggeva
+«nessuno in asta» mentre il foglio si scaricava e accusava la pagina, un giro su due. E **si verifica
+in un worktree su HEAD più i propri file** quando l'albero condiviso non compila per la metà di
+un'altra sessione, con le giunzioni smontate (`rmdir`) prima di `git worktree remove` e il bersaglio
+ricontato dopo.
+
+## UN INPUT MANCANTE NON SEMBRA MANCANTE: produce numeri sbagliati che si leggono come numeri
+**24/09/2026, dalle tre istruzioni dell'operatore sulla plancia collegata piu' una quarta poco dopo.
+Dettaglio: `assistente-asta-v1.md` §53.** «Togli il tasto CAMBIA ASTA · cliccando sulla label con l'id
+dell'asta apri la modale · dai la possibilita' di scegliere quale squadra di fanta-asta-live corrisponde
+alla tua» + «appena la connessione si attiva, deve essere visibile il calciatore in asta».
+
+**LA TERZA RICHIESTA NON ERA UNA COMODITA'.** Da `/plancia` non si poteva dire quale rosa fosse la
+propria — si sceglieva solo dal pannello draft, che ha la sua pagina apposta — quindi collegandosi di
+li' `followedTeamId` restava null e con lui **`room()` leggeva il budget di LEGA al posto dei miei
+crediti** (cioe' ogni tetto poggiava su una borsa che non e' la mia) e **`handsFor` contava dieci mani
+alzate invece di nove**, perche' quella che esclude e' la mia. Nessuna colonna vuota, nessun trattino:
+numeri pieni e sbagliati. *Un ingresso che manca si riconosce dai numeri che produce, non da un buco
+sullo schermo* — quindi la modale lo DICHIARA in una riga e la pastiglia porta un `!` finche' non c'e'.
+
+**UN BOTTONE PER OGNI COSA CHE SI FA UNA VOLTA PER ASTA E' UNA BARRA DA LEGGERE PER QUATTRO ORE**: le
+tre (cambiare asta, dire chi sono, uscire) stanno dietro la pastiglia col codice, che e' dove si guarda
+per sapere a cosa si e' collegati; il tasto resta solo dove e' l'UNICA strada, cioe' sul tavolo
+inventato, dove una pastiglia da premere non c'e'. **E l'`@if` sta DENTRO la fessura e non intorno**:
+`ng-content select="[actions]"` decide sul NODO, e un nodo dentro un blocco di controllo non e' un
+figlio diretto del contenuto proiettato.
+
+**UNA CONDIZIONE FACILE DA SBAGLIARE VIVE DOVE VIVE IL FATTO**: `AuctionFeed.leave()` — lo stream se ne
+va e la sessione si dimentica, **ma lasciare una DEMO non deve dimenticare l'asta vera** che il browser
+tiene in memoria, perche' il tavolo inventato non e' mai stato salvato e un `forget()` li' cancellerebbe
+proprio quello che un refresh deve riprendere. Quello che il feed NON fa e' rimettere un tavolo a
+schermo: quale sia il ripiego e' della PAGINA, e deciderlo li' vorrebbe dire che il feed sa chi lo usa.
+
+**E UNA COSA SI PUO' SALVARE QUANDO LA CHIAVE DICE DI COSA PARLA.** Il nome in asta sopravvive al
+refresh perche' e' salvato **col codice del tavolo accanto**: al ricaricamento quel codice non c'e'
+ancora, quindi la riga e' vuota finche' lo stream non dice a quale asta siamo, e se nel frattempo
+l'uomo e' stato venduto la regola derivata lo toglie da se'. Un id da solo sarebbe un nome che ricompare
+su qualunque tavolo. **Il PREZZO no, ed e' dichiarato**: il nome e' un fatto che l'operatore ha
+dichiarato, la cifra e' dove la stanza era due secondi fa e non si sa se quel momento e' passato.
+
+Due note d'arnese, e la seconda e' la terza istanza in due giorni. **Il null di un'assenza si misura
+dall'altro lato**: «zero tasti da collegati» non prova niente senza «un tasto sul tavolo finto», o non
+distingue la cura da una fessura di proiezione che non ha mai pescato niente. E **un banco si aggancia
+all'attributo che un componente DICHIARA**: la sonda che aspettava il collegamento cercava uno `<span>`
+mentre la pastiglia era diventata un bottone, e leggeva «il collegamento non e arrivato» accanto a una
+barra che stampava il codice.
+
+## Un'OSSERVAZIONE batte una DICHIARAZIONE, e un'asserzione sull'annuncio non è un'asserzione sul fatto
+**24/09/2026, dalla segnalazione dell'operatore mentre giocava la sua asta: «il calciatore in asta
+dovrebbe arrivare dai dati live di fantaastalive». Dettaglio: `assistente-asta-v1.md` §54.**
+
+**IL CAMPO È `state.selectedPlayerId`**, letto sulla prima sessione a RILANCI che questo progetto abbia
+mai guardato (`FA-xxx-xxx`, `appVer` 1.22.2-live, `settings.type` random): valeva 6875 = Paz N. mentre
+l'operatore guardava Paz N. sullo schermo del banditore, stabile su quattordici letture in quaranta
+secondi. **Non è `lastPick`**, che nella stessa lettura portava un uomo già venduto: sono due fatti e il
+tavolo li tiene separati — è la prima cosa che un lettore frettoloso avrebbe sbagliato.
+
+**E «l'unica chiave che nomina un giocatore» era vero di QUELLA LETTURA e non del tavolo**: sette minuti
+dopo, con qualcuno che offriva, compare `currentBid` con un `playerId` suo. *Un inventario di chiavi è
+la fotografia di un ISTANTE del meccanismo*, e un'asta ferma fra due rilanci è l'istante in cui metà dei
+suoi nodi non esistono.
+
+**QUINDI IL NOME IN ASTA CAMBIA NATURA: da dichiarazione a osservazione, e l'osservazione VINCE** — la
+stessa precedenza che l'asterisco del listone ha sul foglio. Tre rami e il terzo è quello che vale:
+il tavolo parla e nomina uno libero → è lui, **e la riga porta il marchio**; il tavolo tace → vale il
+nome messo a mano; **il tavolo nomina uno già VENDUTO → si torna al nome a mano**, perché se una sessione
+lasciasse la sua scelta ferma su un aggiudicato il doppio click resterebbe muto su quel tavolo per
+sempre. E finché il tavolo parla il doppio click si RIFIUTA dicendolo, o sarebbe un gesto che non fa
+niente in silenzio.
+
+**E IL REGOLAMENTO SEGUE IL TAVOLO, ma solo per quello che il tavolo SA**: budget, partecipanti, gioco,
+rose, listone e meccanismo si adottano; modificatore di difesa, R-Factor, porta inviolata, ruolo pieno,
+tornate e finestra restano DICHIARATI, perché sono il regolamento della sua lega e non della sessione.
+Un campo che la sessione non porta arriva `null` e lascia stare il valore dichiarato invece di
+riportarlo al default. **Chiave sul TAVOLO e non sul contenuto**, come il nome in asta: si adotta una
+volta per sessione, al momento in cui ci si siede, così il pannello resta editabile mentre l'asta va
+invece di riscrivergli sotto le dita quello che digita a ogni evento dello stream.
+
+**E L'ERRORE DI MISURA DELLA SESSIONE È IL PIÙ SUBDOLO CHE CI SIA: un'asserzione che non può fallire.**
+Il passo che verificava l'adozione leggeva la FRASE che la modale annuncia («Dal tavolo: 750 crediti»);
+rimettendo il difetto — riga annunciata e dichiarazione non scritta — il banco restava **VERDE**. Si
+misurava l'annuncio credendo di misurare l'adozione. Adesso legge anche il regolamento salvato, che è
+quello che ogni pagina consuma davvero. *Un'asserzione su ciò che una cosa DICE di aver fatto non è
+un'asserzione su ciò che ha fatto*, ed è l'asserzione circolare vista da un angolo nuovo.
+
+**Infine: lo strumento che risponde vive anche DENTRO l'app.** `AuctionFeed.unreadState` elenca, nella
+modale della sessione, le chiavi che il tavolo pubblica e noi non leggiamo, col loro valore accanto: una
+riga di terminale durante un'asta non la lancia nessuno, e quella lista si spegne da sé il giorno in cui
+ogni chiave è letta — è la sua stessa lista a farla comparire.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
@@ -7322,6 +7461,7 @@ Tre abitudini piu' piccole, tutte pagate.
   restano `null`, che e' cio' che significano) e' costato una riga; un secondo lettore delle stesse tre
   colonne sarebbe stato «la media voto dell'anno scorso» detta in due modi su due schermate.
 
+
 ## DUE SPECIE DI CARD STANNO IN UNA PILA SOLA, e la geometria puo' essere due
 **23/09/2026, dalla richiesta dell'operatore «quando si clicca sul nome della squadra all'interno della
 card dettaglio calciatore fai aprire una nuova card draggabile con il campetto con la formazione tipo
@@ -7448,6 +7588,20 @@ scritto senza averla vista sarebbe un campo indovinato su un payload letto a met
 mano all'altra sessione mentre questa riga viene scritta (e il probe l'ha scritto lei). Qui resta
 l'OSSERVAZIONE con la sua prova; chi tiene quel file decide se e come leggerla, e `lotSource` esiste gia'
 per dire quale dei due sta parlando.
+
+**...E LO STESSO NODO NE PORTA UN SECONDO: `state.currentBid`**, l'offerta corrente su quell'uomo
+(`{playerId, value, teamId, timestamp}`). Che `value` sia l'OFFERTA e non il valore del calciatore era
+ambiguo — `lastPick` porta `cost` 1 **e** `value` 15, quindi li' la stessa parola dice un'altra cosa —
+e l'ha sciolto **il tempo invece di un ragionamento**: alle 23:11 `currentBid` leggeva `{5555, value
+5}`, trentasei secondi dopo quell'uomo era in `lastPick` con `cost` **5** e il nodo era gia' passato al
+successivo. *L'offerta corrente diventa il prezzo pagato, quindi e' l'offerta* — e il modo di
+stabilirlo e' guardare lo stesso campo due volte, che e' quello che il probe stesso prescrive.
+**Si legge solo se NOMINA l'uomo in asta** (`plancia.bidUp`, la forma di `lotUp` un piano sotto): fra
+due lotti puo' restare fermo sull'ultimo, e una cifra vera detta sull'uomo sbagliato decide un
+verdetto, una banda e un acquisto. E **la riga dice quale dei due ha in mano**, perche' i due numeri si
+toccano in modo opposto — quella dell'operatore e' una casella che si batte, quella del banditore una
+cifra che si guarda. Resta ignoto, e detto, cosa porti quel campo FRA due lotti: in quaranta secondi di
+lettura un nome era sempre in asta.
 
 **E la stessa lettura conferma il regolamento DICHIARATO della sua lega**, che finora era solo una sua
 frase: `marketType` 0 (rilanci), `type: "random"` (estrazione, non a reparti), `participants` 10,

@@ -2595,3 +2595,105 @@ Quanto è frequente quella condizione, contato invece che stimato: sui venti clu
 tabella buttava via. Serve a chi scora — un DIFF su un modulo dato al 99% e uno su un modulo dato al
 40% sono due fatti diversi, e senza il numero si leggono uguali. Settima colonna, che il lettore regge
 senza leggerla: le sei che decidono il verdetto non si spostano, e un test lo asserisce.
+
+---
+
+# 19. CHI VINCE UNA MAGLIA CONTESA: 469 coppie, e l'ARRIVATO perde (24 settembre 2026)
+
+**Domanda dell'operatore a tavolo aperto: «secondo i tuoi dati (confronta situazioni simili degli
+scorsi anni) chi giocherà prevalentemente tra Kean e Douvikas?»** — due attaccanti dello stesso Como,
+tutt'e due `ST`, e il foglio li dà rivali l'uno dell'altro sull'unico posto del 4-2-3-1. Nessun numero
+del motore si muove: è una MISURA su una domanda, non un canale.
+
+## 19.1 — Il caso, come il foglio del 23/09 lo legge
+
+| | Douvikas | Kean |
+|---|---|---|
+| partenze nelle prime 5 del Como | **4** | 1 |
+| minuti ultime 3 | 137 | 133 |
+| ultime 2 (Parma, Frosinone) | 26' + 45' | **64' + 45'** |
+| gradino | `titolare` | `panchina` |
+| `engine_pv_pred` | **25,9** | 22,3 |
+| Qt.I · FVM | 20 · 138 | 25 · **138** |
+| `desc_starter_prob` | 0,60 (`warn`) | **0,70** (`success`) |
+| `engine_surplus` | **39,6** | 24,9 |
+
+Le ultime due giornate sono una **staffetta esatta** — Kean titolare col Parma e Douvikas dentro,
+Douvikas titolare a Frosinone e Kean dentro, 45'+45' — e `desc_relay` la misura a **0,606**, cioè sopra
+la soglia di 0,50 che questo progetto usa per dire «non giocano insieme» (§10.12). *Il caso è
+genuinamente 50/50 sui minuti recenti, ed è questo che lo rende una domanda invece di una lettura.*
+
+## 19.2 — Il metro: 469 coppie, fotografate alla 5ª e giudicate sul resto
+
+Serie A 2019-20 → 2025-26, `external_match_stats`. Per ogni (stagione, club) il calendario del club in
+ordine di data; coppie di uomini di **ruolo listone A** che nelle prime `K` = 5 hanno tutt'e due almeno
+60' e **non partono insieme più di una volta** — che è la definizione funzionale di «si contendono lo
+stesso posto», la stessa di `desc_relay` vista dal lato del dato. Esito: **chi parte di più nelle
+giornate che restano**. Test dei segni appaiato dentro la coppia.
+
+| cosa dice al 5º turno | vince il resto | n | p |
+|---|---|---|---|
+| più PARTENZE nelle prime 5 | **70,8%** | 279-115 | <0,0001 |
+| più MINUTI nelle ultime 2 della finestra | 70,5% | 318-133 | <0,0001 |
+| più MINUTI nelle prime 5 | 69,3% | 316-140 | <0,0001 |
+| Qt.I più alta | 68,5% | 296-136 | <0,0001 |
+| più partenze in Serie A l'anno prima | 59,7% | 206-139 | 0,0004 |
+| **è l'ARRIVATO** | **39,4%** | 76-117 | 0,004 |
+
+**L'ARRIVATO PERDE, ed è il risultato che contraddice l'intuizione.** Il colpo grosso di mercato non
+prende la maglia: chi c'era già vince 61-39. E non è una media che nasconde due popolazioni — il taglio
+per prezzo la spiega e non la ribalta: l'arrivato **più caro** dell'incumbent risale a 58,4% (45-32,
+p=0,17, cioè una piega e non una prova), quello **pari o più economico** crolla a **26,7%** (31-85).
+
+## 19.3 — La cella di Kean, e perché i minuti recenti non lo salvano
+
+| popolazione | l'inseguitore finisce davanti | quota di partenze nel resto |
+|---|---|---|
+| arrivato **indietro** sulle partenze | **24,2%** (24-75) | 0,277 vs 0,526 |
+| arrivato già **avanti** sulle partenze | 56,9% (37-28) | 0,465 vs 0,323 |
+| chiunque insegua ma sia **pari sui minuti recenti** | 41,1% (39-56) | 0,357 vs 0,424 |
+| **arrivato + indietro + pari sui minuti recenti** | **33,3%** (8-16, n=25) | **0,257 vs 0,422** |
+
+L'ultima riga è il caso esatto, e la sua `p` è 0,15: **la direzione è netta e il numero non è
+identificato**, che è la forma onesta di una risposta su venticinque casi. Il taglio più fine ancora —
+*e con Qt.I ≥ dell'incumbent* — lascia **quattro** casi: niente, e dirlo è il punto.
+
+**Verdetto: Douvikas**, ~62% delle partenze dei due, cioè ≈14 contro 8,5 sulle 33 che restano.
+
+## 19.4 — Due numeri NON usati, e sono la parte che tiene onesta la tabella
+
+- **L'FVM legge 86,2% (207-33) ed è ritirato dal conto.** Per una stagione passata quello che teniamo è
+  l'**ULTIMA LETTURA** di quel listone, presa a stagione finita: conosce l'esito. È la regola già scritta
+  («i prezzi sono tre coppie e una sola è auction-safe») incontrata dentro una misura invece che dentro
+  una regola. La Qt.I, che è l'unica pre-asta, vale 68,5% — un canale vero e diciassette punti più giù.
+- **La stampa non è misurabile all'indietro.** `desc_starter_prob` è uno dei tre fatti che sono
+  SNAPSHOT e non si possono retrodatare: sulle finestre vecchie è vuota **per costruzione**, quindi non
+  esiste modo di darle una riga in quella tabella. Il che va detto perché è l'unico segnale che qui punta
+  su Kean.
+
+## 19.5 — E sono DUE ORIZZONTI, non una contraddizione
+
+La stampa dà Kean 0,70 e Douvikas 0,60; la storia dà Douvikas. Non si sceglie fra i due: rispondono a
+due domande, ed è la stessa distinzione del §18.6. **Vicino alla giornata l'editoriale batte il motore**
+(Brier 0,133 contro 0,175 di `est_pv/38`, misurato in `rosa-3-giornate-v1.md`), quindi per SABATO la
+riga di Kean è quella da guardare; **all'asta si compra la stagione**, e lì il predittore più forte che
+esista in questa tabella — le partenze già fatte — dice Douvikas.
+
+**Cosa la falsificherebbe, ed è a portata di due giornate:** se Kean parte titolare due volte di fila la
+configurazione non è più «arrivato indietro sulle partenze» ma «pari», e la cella da leggere diventa
+un'altra. *Il predittore più forte è anche quello che si aggiorna più in fretta, ed è la ragione per cui
+questa misura si rifà invece di citarla.*
+
+## 19.6 — Tre cose sul metodo, e una è una regola di casa incontrata da un lato nuovo
+
+- **La misura si è fatta su una COPIA PRIVATA del database** (546 MB in mezzo secondo), perché una
+  SELECT lunga tiene uno SHARED lock e l'albero è condiviso. È la procedura già scritta per gli
+  esperimenti di scrittura, e vale identica in lettura.
+- **Un predittore contaminato si riconosce dal fatto che è troppo bravo.** L'86,2% dell'FVM è il numero
+  più alto della tabella e la sua provenienza lo spiega per intero: *il primo numero da sospettare in una
+  graduatoria di predittori è quello in cima.*
+- **La popolazione è definita dal COMPORTAMENTO e non dal ruolo granulare.** «Si alternano» è «non
+  partono insieme più di una volta su cinque», che è un fatto sul dato; usare `player_roles` avrebbe
+  significato leggere i codici osservati OGGI su stagioni di sei anni fa, che è la trappola che quella
+  tabella dichiara di sé.
+

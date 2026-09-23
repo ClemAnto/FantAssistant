@@ -7,11 +7,17 @@
  * of this file cannot tell the two apart, which is the point: one set of numbers, and a banner that
  * says which table they describe.
  *
- * WHAT A LIVE SESSION DOES NOT CARRY, stated instead of invented: fanta-asta-live publishes the raise
- * MECHANICS (`options.bids`: countdown, minimum bid, buzzer) and this project has never observed a node
- * naming the lot currently on the table. So the lot is drawn by the fixture in demo and NAMED BY HAND
- * when live, and `lotSource` says which - a field guessed from a payload nobody has read would be the
- * defect this repository has already paid for.
+ * CHI E' IN ASTA LO PUBBLICA IL TAVOLO, e fino al 24/09/2026 questo file diceva il contrario.
+ *
+ * Diceva che «nessun nodo che nomini il lotto e' mai stato osservato», ed era vero alla lettera e falso
+ * come misura: le due sole sessioni mai lette (09/08/2026) portano `marketType: 1` - erano DRAFT, dove
+ * un lotto non esiste, c'e' un turno. Nessuno aveva mai guardato una sessione a RILANCI. La prima
+ * guardata (`FA-xxx-xxx`, su segnalazione dell'operatore mentre la giocava) porta
+ * `state.selectedPlayerId` alla prima lettura, verificato contro quello che lui vedeva a schermo.
+ *
+ * Quindi il nome in asta e' un'OSSERVAZIONE e non una dichiarazione, e batte quella messa a mano
+ * (`plancia.lotUp`); il nome a mano resta per il tavolo inventato e per quando il tavolo tace.
+ * `app/scripts/probe-live-session.mjs` e' l'arnese che ha risposto, e resta per la prossima volta.
  */
 
 import { Injectable, computed, inject, signal } from '@angular/core';
@@ -64,8 +70,11 @@ import {
   SameClubHeld,
   SlotBlock,
   adviseLot,
+  adviseTail,
   alternativeFor,
   buildMap,
+  lotUp,
+  bidUp,
   offerBand,
   regroupByCoin,
   sameClubDiscount,
@@ -108,8 +117,6 @@ import { sheetBlendsSeen, swingOf } from './swing';
 /** The four letters of the board's lines, from the two alphabets the feed splits the outfield into. */
 const ZONE_ROLE: Record<string, Role> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
 const ROLE_ZONE: Record<Role, Zone> = { P: 'gk', D: 'def', C: 'mid', A: 'atk' };
-
-export type LotSource = 'demo' | 'manual' | 'none';
 
 /** A row of the board: the man, and what has happened to him. */
 export type ManState = 'urna' | 'mio' | 'altro' | 'asta';
@@ -201,9 +208,25 @@ export interface BoardTeam {
 
 export interface Lot {
   man: BoardMan;
-  block: BoardBlock;
+  /**
+   * LO SLOT SU CUI IL VERDETTO E' MISURATO, oppure `null` per chi la mappa non disegna.
+   *
+   * La plancia porta 25 slot da `teams` uomini e sotto l'ultimo c'e' la CODA, che a un'estrazione
+   * libera e' dove finisce la maggior parte dei nomi estratti. Prima del 24/09/2026 un uomo della coda
+   * non poteva essere un lotto affatto - `lot()` non lo trovava e la riga diceva «nessun calciatore in
+   * asta» mentre il tavolo lo aveva sul banco - il che era invisibile finche' il nome lo mettevamo noi
+   * cliccando una riga DISEGNATA, ed e' diventato il caso normale il giorno in cui a nominarlo e'
+   * stato il tavolo.
+   */
+  block: BoardBlock | null;
+  /** Il suo ruolo, che c'e' sempre: il blocco no. Chi chiede «di che reparto e' il lotto» chiede qui. */
+  role: Role;
+  /** True quando il nome lo pubblica il TAVOLO e non lo abbiamo messo noi. La riga lo dice. */
+  live: boolean;
   /** What the table is at right now. Zero before anybody has bid. */
   price: number;
+  /** True quando la cifra la pubblica il TAVOLO e non l'abbiamo battuta noi. La riga lo dice. */
+  bidLive: boolean;
   advice: LotAdvice;
   alternative: Alternative | null;
   /** How many blocks below his are already empty - the thing that lifts the ceiling by half. */
@@ -260,9 +283,61 @@ export class PlanciaStore {
   private readonly numbers = signal<Map<number, EngineNumbers>>(new Map());
   private readonly listone = signal<AuctionPlayer[]>([]);
 
-  private readonly lotId = signal<number | null>(null);
-  readonly lotPrice = signal(0);
-  readonly lotSource = signal<LotSource>('none');
+  /**
+   * IL NOME NOMINATO, CON IL TAVOLO SU CUI LO E' STATO - e il lotto vero e' DERIVATO da qui.
+   *
+   * Perche' non basta un id, e quali due fatti lo cancellano senza che nessuno prema niente, sta per
+   * intero su `lotUp`. Qui la conseguenza: `setLot` e' l'unico che scrive, e legge il codice del
+   * tavolo nell'istante in cui il nome viene messo in asta.
+   *
+   * E SOPRAVVIVE A UN REFRESH (sua richiesta, 24/09/2026: «appena la connessione con l'asta-live si
+   * attiva, deve essere visibile il calciatore in asta»). Il TAVOLO nella chiave e' cio' che lo rende
+   * sicuro da salvare: al ricaricamento il codice della sessione non c'e' ancora, quindi la riga e'
+   * vuota finche' lo stream non dice a quale asta siamo - e se nel frattempo quell'uomo e' stato
+   * venduto, `lotUp` lo toglie da se'. Un id salvato da solo sarebbe invece un nome che ricompare
+   * su qualunque tavolo si apra dopo.
+   *
+   * IL PREZZO NON SI SALVA, ed e' una decisione che il 24/09/2026 ha smesso di essere un limite: la
+   * cifra BATTUTA e' dove la stanza era arrivata due secondi fa e non c'e' modo di sapere se quel
+   * momento e' passato, quindi riappare a zero - «nessuno ha ancora offerto», la stessa cosa che
+   * dice dopo ogni estrazione. Quella del TAVOLO invece torna da se' appena lo stream riaggancia,
+   * perche' non e' una cosa salvata: e' un fatto che il banditore ripubblica (`bidUp`).
+   */
+  private readonly named = storedJson<{ table: string | null; id: number | null }>(
+    'plancia.lot',
+    (raw) => {
+      const one = raw as { table?: unknown; id?: unknown } | null;
+      const table = typeof one?.table === 'string' ? one.table : null;
+      const id = typeof one?.id === 'number' ? one.id : null;
+      return { table, id };
+    },
+  );
+  /** Chi e' in asta e CHI LO DICE: la definizione sta su `lotUp`, i lettori qui sotto sono due. */
+  private readonly upNow = computed(() =>
+    lotUp(this.feed.selectedPlayerId(), this.named(), this.feed.code(), this.owners()),
+  );
+  private readonly lotId = computed(() => this.upNow()?.id ?? null);
+
+  /**
+   * LA CIFRA BATTUTA A MANO, che e' l'unica che esiste su un tavolo inventato e il ripiego su uno
+   * vero - la casella in cima scrive qui, e nessun altro.
+   */
+  readonly typedPrice = signal(0);
+
+  /**
+   * QUANTO C'E' SUL TAVOLO, e chi lo dice: la definizione sta su `bidUp`, i lettori qui sono tre (il
+   * verdetto, la banda e l'assegnazione a mano).
+   *
+   * Il commento su `named` diceva che il prezzo non si poteva sapere - «la cifra e' dove la stanza
+   * era arrivata due secondi fa e non c'e' modo di sapere se quel momento e' passato» - ed era vero
+   * di una cifra SALVATA, che invecchia in un `localStorage` mentre l'asta va. Quella dello stream
+   * non invecchia: arriva dal banditore, porta il nome dell'uomo a cui si riferisce e si spegne da
+   * se' quando il lotto cambia.
+   */
+  private readonly bid = computed(() =>
+    bidUp(this.feed.currentBid(), this.lotId(), this.typedPrice()),
+  );
+  readonly lotPrice = computed(() => this.bid().value);
 
   /** True while the table on screen is invented. It is the FEED's state, never a second copy. */
   readonly demo = computed(() => this.feed.demo());
@@ -1075,11 +1150,35 @@ export class PlanciaStore {
     const id = this.lotId();
     if (id == null) return null;
     const block = this.blocks().find((candidate) => candidate.rows.some((row) => row.id === id));
-    const man = block?.rows.find((row) => row.id === id);
-    if (!block || !man) return null;
-
     const budget = this.budget();
     const room = this.me()?.budgetLeft ?? budget;
+
+    // CHI LA MAPPA NON DISEGNA E' COMUNQUE IN ASTA. `rowMaker` sa gia' costruire una riga senza slot
+    // (tetto = minimo d'asta, `fromTail`), quindi quello che mancava non era il come: era che nessuno
+    // gliela chiedesse. Il verdetto e' quello della coda e non `adviseLot` con uno slot inventato.
+    if (!block) {
+      const tail = this.men().find((one) => one.id === id);
+      if (!tail) return null;
+      const row = this.rowMaker()(tail, null);
+      const hands = this.handsFor(row.role, row.band?.low ?? 1);
+      return {
+        man: row,
+        block: null,
+        role: row.role,
+        live: !!this.upNow()?.live,
+        // La cifra sul tavolo passa dalla stessa definizione della riga disegnata (`bid`): la coda non
+        // e' un secondo lettore dell'offerta del banditore.
+        price: this.bid().value,
+        bidLive: this.bid().live,
+        exhaustedBelow: 0,
+        advice: adviseTail(row.band, row.basis !== 'none', this.bid().value, hands),
+        alternative: null,
+      };
+    }
+
+    const man = block.rows.find((row) => row.id === id);
+    if (!man) return null;
+
     const medianPoints = middleOf(block.men.map((entry) => entry.points));
     const roleBlocks = this.map().byRole.get(block.role) ?? [];
     const exhaustedBelow = roleBlocks
@@ -1107,7 +1206,10 @@ export class PlanciaStore {
     return {
       man,
       block,
-      price: this.lotPrice(),
+      role: block.role,
+      live: !!this.upNow()?.live,
+      price: this.bid().value,
+      bidLive: this.bid().live,
       exhaustedBelow,
       advice: adviseLot({
         role: block.role,
@@ -1489,7 +1591,7 @@ export class PlanciaStore {
     const mine = this.mineId();
     const active = this.lensId();
     const lot = this.lot();
-    const role = lot?.block.role ?? null;
+    const role = lot?.role ?? null;
     const floor = lot?.advice.band?.low ?? 1;
 
     return this.feed.teams().map((team) => {
@@ -1573,7 +1675,6 @@ export class PlanciaStore {
       // which is the one coordinate the whole page stands on.
       const auction = buildRandomAuction({ players, ...STANDARD_LEAGUE, progress });
       this.feed.startDemo(auction);
-      this.lotSource.set('demo');
       // A NEW TABLE IS A NEW SET OF SQUADS: the lens cannot survive it, because an id that happens to
       // exist on the new table names a DIFFERENT squad. `lensId` already refuses one that is gone.
       this.clearLens();
@@ -1592,36 +1693,44 @@ export class PlanciaStore {
   }
 
   /**
-   * Connects to a real session, keeping the sheet and the listone the board is already drawn on.
+   * APRE LA PLANCIA: prima l'asta vera che questo browser stava seguendo, poi il tavolo inventato.
    *
-   * The board's own listone comes from the SHEET and not from the session: the two meet on `fc_id`,
-   * which is this project's primary key, so a live table prices its men with the same numbers the
-   * demo did. What the live table brings is the squads, the credits and the picks.
+   * L'ORDINE E' FORZATO, la stessa regola che `/auction` applica dal 03/09/2026 e che questa pagina non
+   * aveva ereditato: la finzione parte SOLO se non c'e' niente da riprendere, altrimenti sovrascriverebbe
+   * un'asta che l'operatore sta giocando. Costava una riconnessione a mano a ogni refresh - e un refresh
+   * a meta' asta non e' un caso di laboratorio, e' quello che si fa quando una pagina sembra ferma.
+   *
+   * IL LISTONE PRIMA DI TUTTO, e non e' un dettaglio d'ordine: `startDemo` decide di non fare niente
+   * guardando `men()`, che e' vuoto finche' il foglio non e' letto - quindi con un ripescaggio riuscito e
+   * il listone ancora fuori, la finzione partirebbe sopra l'asta appena ripresa. E si carica comunque,
+   * collegati o no, perche' il listone della plancia viene dal FOGLIO e non dalla sessione: i due si
+   * incontrano su `fc_id`, che e' la chiave primaria di questo progetto, quindi un tavolo vero prezza i
+   * suoi uomini con gli stessi numeri della finzione. Quello che il tavolo vero porta sono le rose, i
+   * crediti e gli acquisti.
+   *
+   * E SI RIPRENDE SOLO SE NON C'E' GIA' UN TAVOLO: tornare qui da un'altra pagina non deve ne' buttare
+   * via quello che c'e' ne' riaprire un secondo stream sulla stessa sessione (`connect` con `preserve`
+   * non chiude il precedente).
    */
-  async connect(code: string): Promise<boolean> {
+  async open(progress = DEMO_PROGRESS): Promise<boolean> {
     this.loading.set(true);
     this.error.set(null);
     try {
       await this.loadListone();
-      const ok = await this.feed.connect(code);
-      if (ok) {
-        this.lotSource.set('manual');
-        // Same reason as `startDemo`: the live table brings its own squads and its own ids.
-        this.clearLens();
-        this.setLot(null);
-      } else {
-        this.error.set(this.feed.error());
-      }
-      return ok;
+      if (!this.feed.hasTable()) await this.feed.restore();
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'Non riesco ad aprire la plancia.');
+      return false;
     } finally {
       this.loading.set(false);
     }
+    return this.startDemo(false, progress);
   }
 
   /** Names the lot on the table. `null` clears it - between two extractions there is no lot. */
   setLot(id: number | null): void {
-    this.lotId.set(id);
-    this.lotPrice.set(0);
+    this.named.set({ table: this.feed.code(), id });
+    this.typedPrice.set(0);
   }
 
   /**
@@ -1638,6 +1747,19 @@ export class PlanciaStore {
    * indistinguibile da un gesto rotto, che e' la stessa ragione per cui `award` scrive la sua.
    */
   nameLot(id: number): boolean {
+    // IL TAVOLO PARLA E NOI NO. Da quando una sessione a rilanci pubblica chi e' in asta, metterci un
+    // altro nome a mano non farebbe niente - il prossimo evento dello stream lo rimpiazzerebbe - e un
+    // gesto che non fa niente in silenzio e' indistinguibile da un gesto rotto. Quindi si rifiuta
+    // DICENDO chi c'e' e chi lo dice, e resta il click, che apre la card di chiunque.
+    const live = this.feed.selectedPlayerId();
+    if (live != null && live !== id && !this.owners().has(live)) {
+      const who = this.men().find((man) => man.id === live)?.name ?? 'un altro';
+      this.error.set(
+        `In asta c'è ${who}, e lo dice il tavolo: su ${this.feed.code()} il nome lo pubblica il ` +
+          'banditore. Clicca un nome per aprirne la card.',
+      );
+      return false;
+    }
     const owner = this.owners().get(id);
     if (owner) {
       const who = this.feed.teams().find((team) => team.id === owner.teamId)?.label ?? 'un altro';
@@ -1704,14 +1826,14 @@ export class PlanciaStore {
     const price = Math.round(this.lotPrice());
     if (!(price > 0)) {
       this.error.set(
-        `Scrivi quanto è stato pagato ${lot.man.name} nella riga del lotto: a prezzo zero ` +
+        `Scrivi quanto è stato pagato ${lot.man.name} nella riga in cima: a prezzo zero ` +
           "l'assegnazione sarebbe un acquisto inventato, e i crediti di ogni rosa reggono tutti i " +
           'tetti di questa pagina.',
       );
       return false;
     }
-    if ((team.missing[ROLE_ZONE[lot.block.role]] ?? 0) <= 0) {
-      this.error.set(`${team.label} ha il reparto ${lot.block.role} completo: non può prenderlo.`);
+    if ((team.missing[ROLE_ZONE[lot.role]] ?? 0) <= 0) {
+      this.error.set(`${team.label} ha il reparto ${lot.role} completo: non può prenderlo.`);
       return false;
     }
     if (team.budgetLeft < price) {

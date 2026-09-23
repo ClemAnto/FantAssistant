@@ -13,20 +13,47 @@
   @if (lot(); as l) {
     <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
       <!-- 1. CHI -->
-      <span
-        class="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-page"
-        [class]="roleTone()"
-        nz-tooltip
-        [nzTooltipTitle]="
-          l.block.id +
-          ' — lo slot ' +
-          l.block.index +
-          ' del suo ruolo: il rango diviso il numero di squadre, quindi ogni rosa ne compra uno.'
-        "
-        >{{ l.block.id }}</span
-      >
+      <!-- LA PASTIGLIA DELLO SLOT, o il solo RUOLO per chi la mappa non disegna: un `D8` su un uomo che
+           sta sotto l'ultimo slot sarebbe una coordinata falsa, e quella coordinata e' esattamente la
+           popolazione su cui la scala delle offerte e' misurata. -->
+      @if (l.block; as block) {
+        <span
+          class="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-page"
+          [class]="roleTone()"
+          nz-tooltip
+          [nzTooltipTitle]="
+            block.id +
+            ' — lo slot ' +
+            block.index +
+            ' del suo ruolo: il rango diviso il numero di squadre, quindi ogni rosa ne compra uno.'
+          "
+          >{{ block.id }}</span
+        >
+      } @else {
+        <span
+          class="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-page opacity-70"
+          [class]="roleTone()"
+          nz-tooltip
+          nzTooltipTitle="È sotto l’ultimo slot della mappa: la plancia disegna i primi di ogni ruolo e lui è nella coda. Nessuno slot, quindi nessuna scala: il tetto è il minimo d’asta."
+          >{{ l.role }}<span class="opacity-60">·coda</span></span
+        >
+      }
       <div class="min-w-0 shrink-0" style="width: 11rem">
-        <div class="truncate text-base leading-tight font-semibold text-fg">{{ l.man.name }}</div>
+        <div class="flex items-center gap-1">
+          <!-- CHI LO DICE, con l'inchiostro e non con una parola: il tavolo lo pubblica (dal
+               24/09/2026 una sessione a rilanci porta `selectedPlayerId`) oppure lo hai messo tu con
+               un doppio click. Sono due fatti diversi sulla stessa riga e senza il marchio si
+               leggerebbero uguali - e finche' il tavolo parla il doppio click si rifiuta, dicendolo. -->
+          @if (l.live) {
+            <nz-icon
+              class="shrink-0 text-xs text-success"
+              nzType="wifi"
+              nz-tooltip
+              nzTooltipTitle="È il tavolo a dire che in asta c'è lui: arriva dalla sessione, non l'abbiamo messo noi."
+            />
+          }
+          <div class="truncate text-base leading-tight font-semibold text-fg">{{ l.man.name }}</div>
+        </div>
         <div class="truncate text-[11px] text-muted">{{ l.man.club }}</div>
       </div>
 
@@ -94,18 +121,31 @@
            quante colonne si disegnano, quindi legarla alla borsa le farebbe pure cambiare di numero
            mentre compro. -->
       <span class="flex shrink-0 items-center gap-1">
-        <ui-digit-input
-          [value]="price()"
-          (valueChange)="price.set($event)"
-          [max]="budget()"
-          what="il prezzo"
-        />
-        <span
-          class="text-[11px] text-muted"
-          nz-tooltip
-          nzTooltipTitle="Il prezzo a cui sta il tavolo adesso."
-          >sul tavolo</span
-        >
+        @if (l.bidLive) {
+          <!-- LA CIFRA LA PUBBLICA IL BANDITORE (24/09/2026): si guarda e non si batte. Una casella
+               modificabile sopra un numero che il prossimo evento riscrive sarebbe un gesto che non
+               fa niente, e un gesto che non fa niente in silenzio e' indistinguibile da uno rotto. -->
+          <span class="text-lg font-semibold tabular-nums text-fg">{{ l.price }}</span>
+          <span
+            class="text-[11px] text-success"
+            nz-tooltip
+            nzTooltipTitle="L'offerta corrente, pubblicata dal tavolo a cui sei collegato."
+            >dal tavolo</span
+          >
+        } @else {
+          <ui-digit-input
+            [value]="price()"
+            (valueChange)="price.set($event)"
+            [max]="budget()"
+            what="il prezzo"
+          />
+          <span
+            class="text-[11px] text-muted"
+            nz-tooltip
+            nzTooltipTitle="Il prezzo a cui sta il tavolo adesso."
+            >sul tavolo</span
+          >
+        }
       </span>
 
       <!-- I TRE NUMERI (mercato · mani · nello slot) E LA RIGA DEL PERCHE' NON CI SONO PIU' (sua
@@ -155,9 +195,9 @@
       }
     </div>
   } @else {
-    <!-- NESSUN LOTTO: fra un'estrazione e l'altra la riga non sparisce, cambia domanda. -->
+    <!-- NESSUNO IN ASTA: fra un'estrazione e l'altra la riga non sparisce, cambia domanda. -->
     <div class="flex flex-1 items-center gap-6 px-3 py-2">
-      <span class="text-sm text-muted">Nessun lotto in asta</span>
+      <span class="text-sm text-muted">Nessun calciatore in asta</span>
       <span class="flex items-baseline gap-1.5">
         <span class="text-lg font-semibold tabular-nums text-fg">{{ urnLeft() }}</span>
         <span class="text-[11px] text-muted">nell'urna</span>

@@ -1,47 +1,162 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <nz-modal
   [nzVisible]="open()"
-  nzTitle="Collegati a un'asta vera"
+  [nzTitle]="session() ? 'La tua asta' : 'Collegati a un\'asta vera'"
   [nzFooter]="null"
-  nzWidth="420px"
+  nzWidth="460px"
   (nzOnCancel)="open.set(false)"
 >
   <div *nzModalContent class="flex flex-col gap-4">
-    <p class="text-sm text-muted">
-      Il codice della sessione di fanta-asta-live. Il collegamento è in <b>sola lettura</b>: non
-      compari fra i partecipanti e non puoi modificare l'asta.
-    </p>
+    @if (session()) {
+      <!-- 1. A COSA SEI COLLEGATO. Il codice in chiaro e non nel titolo: è quello che si confronta con
+              lo schermo del banditore quando qualcosa non torna. -->
+      <div class="flex items-center gap-2">
+        <nz-icon [nzType]="feed.connected() ? 'wifi' : 'clock-circle'" />
+        <b class="font-mono">{{ feed.code() }}</b>
+        @if (!feed.connected()) {
+          <span class="text-xs text-muted" [title]="feed.savedNote()">{{ feed.savedLabel() }}</span>
+        }
+        <span class="ml-auto text-xs text-muted">sola lettura</span>
+      </div>
 
-    <input
-      nz-input
-      nzSize="large"
-      maxlength="10"
-      placeholder="FA-xxx-xxx"
-      class="text-center"
-      [ngModel]="code()"
-      (ngModelChange)="code.set($event)"
-      (keyup.enter)="connect()"
-    />
+      <!-- COSA IL TAVOLO HA CAMBIATO nel regolamento dichiarato (sua richiesta, 24/09/2026). Si dice
+              perché un'adozione silenziosa è peggio di nessuna adozione: cambiare il listone sotto la
+              Strategia vuol dire cambiare il foglio che la prezza, e uno schermo che si riordina senza
+              una ragione a schermo si legge come un guasto. Quando non cambia niente non c'è riga: «va
+              bene» non è una notizia. -->
+      @if (options.adopted(); as took) {
+        <div class="rounded border border-primary/40 bg-primary/10 px-2 py-1 text-xs">
+          <b>Dal tavolo</b>: {{ took.changes.join(' · ') }}.
+          <span class="text-muted">
+            Modificatori, ruolo pieno e finestra restano quelli che hai dichiarato: la sessione non li
+            conosce.
+          </span>
+        </div>
+      }
 
-    @if (feed.error()) {
-      <nz-alert nzType="error" [nzMessage]="feed.error()!" />
+      <!-- 2. QUALE SQUADRA È LA MIA. Non è una preferenza: senza, i tetti della plancia leggono il
+              budget di lega al posto dei miei crediti e le mani alzate sono dieci invece di nove. La
+              frase lo DICE, perché una domanda che sembra cosmetica si salta. -->
+      <div class="flex flex-col gap-2">
+        <div class="flex items-baseline gap-2">
+          <b class="text-sm">Qual è la tua squadra?</b>
+          @if (!feed.followed()) {
+            <span class="text-xs text-warning">da scegliere</span>
+          }
+        </div>
+        <p class="text-xs text-muted">
+          Decide i crediti su cui poggiano le max offerte e toglie la tua mano dal conto di chi può
+          ancora rilanciare. Finché non la scegli, il tabellone conta te fra i rivali.
+        </p>
+        @if (feed.teams().length) {
+          <div class="grid grid-cols-2 gap-1.5">
+            @for (team of feed.teams(); track team.id) {
+              <button
+                type="button"
+                class="flex items-center gap-2 rounded border px-2 py-1.5 text-left text-xs"
+                [class]="
+                  team.id === feed.followedTeamId()
+                    ? 'border-primary bg-primary/15 text-fg'
+                    : 'border-border bg-control text-muted hover:text-fg'
+                "
+                (click)="choose(team.id)"
+              >
+                <span
+                  class="h-3 w-1 shrink-0 rounded-full"
+                  [style.background-color]="team.colour"
+                ></span>
+                <span class="min-w-0 flex-1 truncate font-medium">{{ team.label }}</span>
+                <span class="shrink-0 tabular-nums">{{ team.budgetLeft }}</span>
+                @if (team.id === feed.followedTeamId()) {
+                  <nz-icon class="shrink-0 text-primary" nzType="check" />
+                }
+              </button>
+            }
+          </div>
+        } @else {
+          <!-- VUOTO = IGNOTO: senza squadre non c'è niente da scegliere, e dirlo è diverso dal
+               disegnare una griglia vuota che si legge come un guasto. -->
+          <p class="text-xs text-muted">
+            Il tavolo non ha ancora pubblicato le squadre: appena arrivano compaiono qui.
+          </p>
+        }
+      </div>
+
+      <!-- COSA IL TAVOLO PUBBLICA E NOI NON LEGGIAMO. Non e' una diagnostica da sviluppatore: e' la
+           misura che questo progetto non ha mai fatto, perche' le due sole sessioni lette erano DRAFT
+           e li' un lotto non esiste. Sta qui perche' qui si e' quando si e' collegati, e perche' una
+           riga di terminale non la lancia nessuno durante un'asta. Sparisce da se' il giorno in cui
+           ogni chiave e' letta: e' la sua stessa lista che la fa comparire. -->
+      @if (feed.unreadState().length) {
+        <details class="rounded border border-border bg-control px-2 py-1">
+          <summary class="cursor-pointer text-xs text-muted">
+            Il tavolo pubblica {{ feed.unreadState().length }} cose che non leggiamo
+          </summary>
+          <div class="mt-1 flex flex-col gap-1">
+            @for (one of feed.unreadState(); track one.key) {
+              <div class="font-mono text-[10px] break-all">
+                <b class="text-fg">{{ one.key }}</b>
+                <span class="text-muted">: {{ one.value }}</span>
+              </div>
+            }
+          </div>
+        </details>
+      }
     }
 
-    <button
-      nz-button
-      nzType="primary"
-      nzSize="large"
-      nzBlock
-      [nzLoading]="busy()"
-      [disabled]="!code()"
-      (click)="connect()"
-    >
-      Collegati
-    </button>
+    @if (!session()) {
+      <p class="text-sm text-muted">
+        Il codice della sessione di fanta-asta-live. Il collegamento è in <b>sola lettura</b>: non
+        compari fra i partecipanti e non puoi modificare l'asta.
+      </p>
+    }
 
-    <p class="text-xs text-muted">
-      Finché non ti colleghi il tavolo è <b>inventato</b>: le squadre, i crediti e gli acquisti già
-      fatti. I calciatori e i numeri del motore sono veri, così i consigli si vedono davvero.
-    </p>
+    <!-- 3. CAMBIARE ASTA è lo stesso campo del primo collegamento, e lo dice l'etichetta: due campi
+            codice in due posti sarebbero due modi di validare la stessa chiave. -->
+    <div class="flex flex-col gap-2">
+      @if (session()) {
+        <b class="text-sm">Cambia asta</b>
+      }
+      <input
+        nz-input
+        nzSize="large"
+        maxlength="10"
+        placeholder="FA-xxx-xxx"
+        class="text-center"
+        [ngModel]="code()"
+        (ngModelChange)="code.set($event)"
+        (keyup.enter)="connect()"
+      />
+
+      @if (feed.error()) {
+        <nz-alert nzType="error" [nzMessage]="feed.error()!" />
+      }
+
+      <button
+        nz-button
+        nzType="primary"
+        nzSize="large"
+        nzBlock
+        [nzLoading]="busy()"
+        [disabled]="!code()"
+        (click)="connect()"
+      >
+        {{ session() ? 'Passa a questa asta' : 'Collegati' }}
+      </button>
+    </div>
+
+    @if (session()) {
+      <!-- 4. USCIRE, in fondo e in muto: si fa una volta e non è la cosa che si cerca aprendo questa
+              modale. Toglie anche la sessione ricordata, o il prossimo refresh la riprenderebbe. -->
+      <button nz-button nzType="text" nzDanger nzBlock (click)="leave()">
+        <nz-icon nzType="disconnect" />
+        Scollegati e torna al tavolo di prova
+      </button>
+    } @else {
+      <p class="text-xs text-muted">
+        Finché non ti colleghi il tavolo è <b>inventato</b>: le squadre, i crediti e gli acquisti già
+        fatti. I calciatori e i numeri del motore sono veri, così i consigli si vedono davvero.
+      </p>
+    }
   </div>
 </nz-modal>

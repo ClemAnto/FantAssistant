@@ -246,18 +246,9 @@ export class Auction {
   );
 
 
-  /** The saved-table marker. It must never read as live, and it must say which of the two it is. */
-  protected readonly staleLabel = computed(() =>
-    this.feed.status() === 'error' ? '· salvato · riaggancio non riuscito' : '· salvato · riaggancio in corso',
-  );
-
-  protected readonly staleTitle = computed(() => {
-    const saved = this.feed.savedAt();
-    const when = saved ? ` (${new Date(saved).toLocaleTimeString('it-IT')})` : '';
-    return this.feed.status() === 'error'
-      ? `Ultimo stato salvato in questo browser${when}. Il riaggancio non è riuscito: ${this.feed.error() ?? ''} I numeri restano quelli di quel momento.`
-      : `Ultimo stato salvato in questo browser${when}. Il collegamento è in corso: appena arriva, la pagina si aggiorna da sé.`;
-  });
+  // IL MARCHIO DELLA TAVOLA SALVATA vive nel FEED (`savedLabel` / `savedNote`) dal 24/09/2026: la
+  // plancia ha imparato a riprendere una sessione dopo un refresh e le serviva la stessa frase, e due
+  // copie di «questo e' salvato» finirebbero per raccontare due stati dello stesso collegamento.
   protected readonly statusLabel = computed(() => STATUS_LABEL[this.feed.draftStatus()] ?? '—');
   protected readonly marketLabel = computed(() => (this.feed.isDraft() ? 'Draft' : 'Rilanci'));
 
@@ -420,11 +411,10 @@ export class Auction {
   });
 
   protected exit(): void {
-    // Leaving a DEMO must not forget the real session this browser may be holding: the demo was never
-    // saved, so there is nothing of its own to remove and `forget()` here would delete somebody else's.
-    const wasDemo = this.feed.demo();
-    this.feed.disconnect();
-    if (!wasDemo) this.feed.forget();
+    // COSA VUOL DIRE LASCIARE IL TAVOLO lo sa il feed (`leave`, una definizione per le due pagine e per
+    // la modale): la condizione che conta - una DEMO non dimentica l'asta vera che il browser tiene in
+    // memoria - e' facile da sbagliare, e qui era scritta a mano.
+    this.feed.leave();
     // Back to the default state rather than to a code field: the page always has a table.
     void this.demo.start();
   }

@@ -9322,3 +9322,70 @@ campo quando nessuno e' in asta. La stessa lettura conferma il regolamento dichi
 **Verde alla chiusura**: 1104 test su 64 file, build pulito, e otto banchi e2e a zero problemi
 (`e2e-club-card` con i suoi quattordici passi, `e2e-player-card`, `e2e-player-ruling`, `e2e-clubs`,
 `e2e-strategy`, `e2e-board-horizon`, `e2e-plancia-slots`, `e2e-nav`).
+
+---
+
+# 24 settembre 2026 (notte) — L'OFFERTA CORRENTE ARRIVA DAL TAVOLO, e chi vince una maglia contesa
+
+Sessione corta e a tre argomenti, due dei quali nati da una segnalazione mentre l'operatore era **a
+un'asta vera** (`FA-xxx-xxx`, viva mentre si lavorava).
+
+**1. CHI GIOCA FRA KEAN E DOUVIKAS: la risposta è DOUVIKAS, e il metro è nuovo**
+(`formazioni-tipo-v1.md` §19). Due `ST` dello stesso Como sull'unico posto del 4-2-3-1, con le ultime
+due giornate a staffetta esatta (45'+45', `desc_relay` 0,606). **469 coppie** di attaccanti che si
+alternano, Serie A 2019-20 → 2025-26, fotografate alla 5ª e giudicate sulle partenze del resto: più
+partenze nelle prime cinque vale **70,8%**, più minuti nelle ultime due 70,5%, la Qt.I 68,5%, la
+stagione precedente solo 59,7% — e **essere l'ARRIVATO vale 39,4%** (76-117, p=0,004), cioè chi c'era
+già vince 61-39. La cella esatta di Kean (arrivato + indietro sulle partenze) legge **24,2%**, e con i
+minuti recenti pari **33,3%** su 25 casi, p=0,15: direzione netta, numero non identificato, e si dice.
+**Due numeri non usati e sono la parte onesta**: l'FVM legge 86,2% ed è RITIRATO (per una stagione
+passata è l'ultima lettura, quindi conosce l'esito) e la stampa non è misurabile all'indietro
+(`desc_starter_prob` è uno snapshot, vuoto per costruzione sulle finestre vecchie) — il che va detto,
+perché è l'unico segnale che punta su Kean. **Sono due orizzonti**: la stampa per sabato, la storia per
+la stagione. Misurato su una **copia privata** del DB, perché l'albero è condiviso.
+
+**2. `state.currentBid`: il tavolo pubblica anche QUANTO È STATO OFFERTO** (`assistente-asta-v1.md`
+§52.4, spec del feed). Sua richiesta: «aggiorna anche l'offerta corrente per il calciatore in asta letta
+da fanta-asta-live». Il campo c'è — `{playerId, value, teamId, timestamp}` — e **che `value` sia
+l'offerta e non il valore dell'uomo l'ha sciolto il TEMPO e non un ragionamento**: `lastPick` porta
+`cost` 1 **e** `value` 15, quindi lì la stessa parola dice un'altra cosa; alle 23:11 `currentBid`
+leggeva `{5555, value 5}` e trentasei secondi dopo quell'uomo era in `lastPick` con `cost` **5**.
+L'offerta corrente diventa il prezzo pagato, quindi è l'offerta. `plancia.bidUp` la legge **solo se
+nomina l'uomo in asta** (la forma di `lotUp` un piano sotto: fra due lotti quel nodo può restare fermo
+sull'ultimo, e una cifra vera detta sull'uomo sbagliato decide un verdetto, una banda e un acquisto), e
+la riga **dice quale dei due ha in mano** — una casella che si batte, o una cifra che si guarda col suo
+«dal tavolo» accanto. **Zero è un'offerta e non un'assenza.** Controprova un difetto per volta: tolto il
+confronto col nome cade **un** test unitario e **un** passo del banco, che nomina il danno coi numeri
+(«99 crediti attribuiti a chi è in asta»); spento il canale cade **soltanto** l'altro.
+
+**3. Il TS2392 non era di questa sessione**, ed è la quarta volta che un albero condiviso non compila
+per la metà di qualcun altro: `global-options.ts` aveva due costruttori durante un refactor (153 righe
+aggiunte, **zero** del mio vocabolario). Quando l'ho guardato era già risolto — `tsc` esce 0 — e la nota
+sull'arnese vale più del caso: **`tsc -p tsconfig.json` NON compila gli spec**, quindi non è la verifica
+completa; quella è `npm test`.
+
+**E LA SEPARAZIONE DELLE DUE METÀ NON SI È POTUTA FARE**, che è la quinta istanza della regola e la
+variante peggiore: mentre lavoravo l'altra sessione ha esteso `Lot` — `block` diventa nullable, arriva
+`role` — **dentro la stessa interfaccia** in cui sta il mio `bidLive`, e ha cambiato `lot-card.ts` di
+conseguenza. Le due metà sono nello stesso hunk, quindi committare la mia lascerebbe l'albero ROSSO, che
+è esattamente ciò che «non committare la metà di un altro» esiste per evitare. *Quando separare produce
+il rosso si porta tutto e si dice di chi è cosa*, misurando prima invece di fidarsi.
+
+**E ALLA CHIUSURA L'ALBERO CONDIVISO È ROSSO, per un refactor dell'altra sessione a metà strada — e
+NON SI COMMITTA.** Alle 23:24 la mia metà era verde (build pulito, **1112 test**, `e2e-plancia-resume`
+10 passi su 10, controprove esatte); venti minuti dopo `auction-feed.ts` porta `teams?: any[] →
+unknown` e `picks?: RawPick[] → unknown` con un `listOf<T>` nuovo, e **`auction-feed.spec.ts` non è
+stato aggiornato**: quel file non compila, quindi `npm test` cade prima di eseguire un test.
+
+La trappola dell'arnese è quella già scritta e qui si è presentata per intero: **`npx tsc -p
+tsconfig.json --noEmit` esce 0** — perché non compila gli spec — mentre `npm test` cade. *Un comando
+che guarda metà dell'albero e risponde «nessun problema» è peggio di uno che non guarda niente.*
+
+**Perché non si separa la mia metà**: le due sono nello STESSO file e, in `plancia-store.ts`, dentro la
+STESSA interfaccia — il loro `Lot.block` nullable più `Lot.role` accanto al mio `bidLive`, con
+`lot-card.ts` (loro) che legge già `lot().role`. Committare solo la mia lascerebbe l'albero rosso, che è
+esattamente ciò che la regola esiste per evitare; committare tutto significherebbe pubblicare un
+refactor a metà che non è mio da finire. **Quindi niente commit**, e il lavoro resta nell'albero: appena
+il loro spec segue il loro sorgente, un `npm test` verde e un commit solo che nomina le due metà chiudono
+tutto. *La terza via — aggiustargli lo spec — è stata scartata: indovinare cosa un refactor in corso
+voglia diventare è il modo di collidere con chi lo sta scrivendo.*

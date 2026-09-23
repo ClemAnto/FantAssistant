@@ -1,4 +1,6 @@
-import { Injectable, WritableSignal, computed, signal } from '@angular/core';
+import { Injectable, WritableSignal, computed, effect, inject, signal, untracked } from '@angular/core';
+
+import { AuctionFeed, DEMO_CODE, MarketType } from './auction-feed';
 
 // SOLO TIPI dai due moduli qui sotto, ed è deliberato: `players-store` inietta questo servizio, quindi
 // un import di valore chiuderebbe un ciclo a runtime. Un `import type` non viene emesso affatto.
@@ -145,6 +147,83 @@ export class GlobalOptions {
    */
   readonly panelOpen = signal(false);
 
+  /**
+   * COSA IL TAVOLO HA CAMBIATO quando ci si e' collegati, in parole. `null` quando non ha cambiato
+   * niente - il caso normale a casa sua, dove la lega dichiarata e la sessione dicono le stesse cose.
+   */
+  readonly adopted = signal<{ code: string; changes: string[] } | null>(null);
+
+  private readonly feed = inject(AuctionFeed);
+
+  constructor() {
+    // LA MIGRAZIONE PRIMA DI TUTTO: legge le due dichiarazioni vecchie solo dove qui non c'e' ancora
+    // niente, quindi deve girare prima che il tavolo possa scriverci sopra.
+    migrateLegacy(this.league);
+
+    /**
+     * IL REGOLAMENTO SEGUE IL TAVOLO A CUI TI COLLEGHI (sua richiesta, 24/09/2026: «quando ci si
+     * collega ad una astalive si devono aggiornare anche i settaggi di asta e di lega in maniera
+     * coerente»).
+     *
+     * CHIAVE SUL TAVOLO e non sul contenuto, come il nome in asta: si adotta UNA VOLTA per sessione,
+     * al momento in cui ci si siede - che e' quando quelle impostazioni sono decise. Cosi' il pannello
+     * resta editabile mentre l'asta va, invece di riscrivergli sotto le dita quello che digita a ogni
+     * evento dello stream. Il prezzo e' dichiarato: un host che cambia il budget a meta' asta non lo
+     * segue, e non e' un caso che qualcuno abbia mai visto.
+     *
+     * SI ASPETTA CHE LO STATO SIA ARRIVATO: `connect` scrive il codice PRIMA di aprire lo stream,
+     * quindi al primo giro le impostazioni non ci sono ancora e adottare li' vorrebbe dire adottare il
+     * vuoto. L'effetto dipende anche dal budget e dalle squadre proprio per ripassare quando arrivano.
+     */
+    let adoptedFor: string | null = null;
+    effect(() => {
+      const code = this.feed.code();
+      const budget = this.feed.budget();
+      const teams = this.feed.teams().length;
+      untracked(() => {
+        if (!code || code === DEMO_CODE) {
+          // Uscire da un tavolo azzera la memoria: rientrarci dopo deve poter ri-adottare.
+          adoptedFor = null;
+          this.adopted.set(null);
+          return;
+        }
+        if (code === adoptedFor || !budget || !teams) return;
+        adoptedFor = code;
+        const { league, changes } = adoptTable(this.league(), this.tableLeague());
+        if (changes.length) this.league.set(league);
+        this.adopted.set(changes.length ? { code, changes } : null);
+      });
+    });
+  }
+
+  /** Le sei cose che una sessione sa della lega, tradotte nel vocabolario di questo servizio. */
+  private tableLeague(): TableLeague {
+    const roles = this.feed.league()['roles'] ?? {};
+    const slot = (zone: string): number | null => {
+      const value = roles[zone];
+      const declared = Array.isArray(value) ? value[0] : value;
+      return Number(declared) > 0 ? Number(declared) : null;
+    };
+    const classic = { P: slot('gk'), D: slot('def'), C: slot('mid'), A: slot('atk') };
+    const mantra = { por: slot('gk'), mov: slot('mov') };
+    const market = this.feed.market();
+    return {
+      platform: this.feed.platform(),
+      game: this.feed.isMantra() ? 'mantra' : 'classic',
+      auction: market === MarketType.Draft ? 'draft' : market === MarketType.Bids ? 'rilanci' : null,
+      budget: this.feed.budget() || null,
+      teams: this.feed.teams().length || null,
+      slots: {
+        ...(CLASSIC_ROLES.every((role) => classic[role] != null)
+          ? { classic: classic as Record<ClassicRole, number> }
+          : {}),
+        ...(mantra.por != null && mantra.mov != null
+          ? { mantra: { por: mantra.por, mov: mantra.mov } }
+          : {}),
+      },
+    };
+  }
+
   open(): void {
     this.panelOpen.set(true);
   }
@@ -240,10 +319,6 @@ export class GlobalOptions {
   clearExcluded(): void {
     this.excludedIds.set([]);
   }
-
-  constructor() {
-    migrateLegacy(this.league);
-  }
 }
 
 /**
@@ -279,6 +354,78 @@ function migrateLegacy(league: WritableSignal<LeagueSettings>): void {
   const sealed = raw('sealedBid.rules');
   if (!strategy && !sealed) return;
   league.set(readLeague({ ...(sealed ?? {}), ...(strategy ?? {}) }));
+}
+
+/**
+ * QUELLO CHE UN TAVOLO SA DELLA LEGA. Sei campi e non tredici, e la differenza e' la natura del fatto.
+ *
+ * fanta-asta-live pubblica il budget, quanti partecipanti, quale gioco, le rose, quale listone e con
+ * che meccanismo si compra: sono le impostazioni della SESSIONE, e chi si collega le eredita. Non sa
+ * niente del modificatore di difesa, dell'R-Factor, del +1 a porta inviolata, del blocco di un ruolo
+ * pieno, di quante tornate dura un mercato a buste ne' delle giornate coperte: quelle restano
+ * DICHIARATE, perche' sono il regolamento della sua lega e non della sessione.
+ */
+export interface TableLeague {
+  platform: Platform | null;
+  game: StrategyGame | null;
+  auction: AuctionKind | null;
+  budget: number | null;
+  teams: number | null;
+  slots: Partial<RosterShape> | null;
+}
+
+/**
+ * Il regolamento dichiarato con sopra quello che il tavolo DICE, e l'elenco di cosa e' cambiato.
+ *
+ * Restituisce le PAROLE e non solo i numeri perche' un'adozione silenziosa e' peggio di nessuna
+ * adozione: cambiare il listone sotto la Strategia significa cambiare il foglio che la prezza, e uno
+ * schermo che si riordina senza dire perche' si legge come un guasto. La regola di casa - «un vincolo
+ * che agisce in silenzio e' indistinguibile da un ordinamento rotto» - applicata a una dichiarazione.
+ *
+ * E si adotta solo cio' che il tavolo sa DAVVERO: un campo che la sessione non porta arriva `null` e
+ * lascia stare il valore dichiarato, invece di riportarlo al default. «Vuoto = ignoto, mai zero».
+ */
+export function adoptTable(
+  current: LeagueSettings,
+  table: TableLeague,
+): { league: LeagueSettings; changes: string[] } {
+  const league: LeagueSettings = { ...current, slots: { ...current.slots } };
+  const changes: string[] = [];
+  const say = (what: string) => changes.push(what);
+
+  if (table.platform && table.platform !== league.platform) {
+    league.platform = table.platform;
+    say(`listone ${table.platform === 'euro' ? 'EuroLeghe' : 'Serie A'}`);
+  }
+  if (table.game && table.game !== league.game) {
+    league.game = table.game;
+    say(table.game);
+  }
+  if (table.auction && table.auction !== league.auction) {
+    league.auction = table.auction;
+    say(table.auction === 'draft' ? 'draft' : 'rilanci');
+  }
+  if (table.budget && table.budget !== league.budget) {
+    league.budget = table.budget;
+    say(`${table.budget} crediti`);
+  }
+  if (table.teams && table.teams !== league.teams) {
+    league.teams = table.teams;
+    say(`${table.teams} squadre`);
+  }
+
+  const classic = table.slots?.classic;
+  if (classic && CLASSIC_ROLES.some((role) => classic[role] !== league.slots.classic[role])) {
+    league.slots = { ...league.slots, classic: { ...classic } };
+    say(`rose ${CLASSIC_ROLES.map((role) => classic[role]).join('-')}`);
+  }
+  const mantra = table.slots?.mantra;
+  if (mantra && (mantra.por !== league.slots.mantra.por || mantra.mov !== league.slots.mantra.mov)) {
+    league.slots = { ...league.slots, mantra: { ...mantra } };
+    say(`rose ${mantra.por}+${mantra.mov}`);
+  }
+
+  return { league, changes };
 }
 
 function isClubId(one: unknown): one is number {

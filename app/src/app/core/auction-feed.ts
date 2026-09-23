@@ -135,11 +135,76 @@ export interface RawState {
   settings?: Record<string, any>;
   playerListType?: string;
   options?: { bids?: Record<string, any>; draft?: Record<string, any> };
-  teams?: any[];
-  picks?: RawPick[];
+  /**
+   * LE ROSE E LE AGGIUDICAZIONI ARRIVANO COME ARRAY *O* COME OGGETTO, e il tipo lo dice invece di
+   * lasciarlo scoprire a chi ci chiama `.filter` sopra: vedi `listOf`, che e' l'unico modo di leggerle.
+   */
+  teams?: unknown;
+  picks?: unknown;
   pickOrder?: number[];
   turnTeamId?: number;
+  /**
+   * CHI E' IN ASTA ADESSO, e il tavolo lo pubblica: LETTO il 24/09/2026 su una sessione a RILANCI
+   * viva (`FA-xxx-xxx`, `appVer` 1.22.2-live), non dedotto.
+   *
+   * Fino a quel giorno questo file diceva che un nodo del genere «non e' mai stato osservato», ed era
+   * vero alla lettera e falso come misura: le due sole sessioni mai lette erano DRAFT (`marketType`
+   * 1), dove un lotto non esiste - c'e' un turno. La prima sessione a rilanci guardata lo porta alla
+   * prima lettura. Verificato contro quello che l'operatore vedeva a schermo in quel momento
+   * (`selectedPlayerId` 6875 = Paz N., Como) e stabile su quattordici letture in quaranta secondi.
+   *
+   * NON E' `lastPick`, che e' l'ultima AGGIUDICAZIONE: nella stessa lettura valevano 6875 e 7561
+   * (Lontani, gia' venduto a un credito). Sono due fatti diversi e il tavolo li tiene separati.
+   */
+  selectedPlayerId?: number | null;
+
+  /**
+   * L'OFFERTA CORRENTE SUL CALCIATORE IN ASTA, e anche questa il tavolo la pubblica: LETTA il
+   * 24/09/2026 sulla stessa sessione a rilanci (`FA-xxx-xxx`), non dedotta.
+   *
+   * CHE `value` SIA L'OFFERTA IN CREDITI E NON IL VALORE DELL'UOMO e' la sola cosa che il primo
+   * sguardo lasciava ambigua, perche' `lastPick` porta DUE numeri - `cost` 1 e `value` 15 - quindi
+   * la stessa parola li' vuol dire un'altra cosa. L'ha sciolta il tempo e non un ragionamento: alle
+   * 23:11 `currentBid` leggeva `{playerId 5555, value 5}`, trentasei secondi dopo quell'uomo era in
+   * `lastPick` con `cost` **5** e il nodo era gia' passato al successivo con `value` 13. L'offerta
+   * corrente diventa il prezzo pagato, quindi e' l'offerta.
+   *
+   * VIAGGIA COL NOME DI CHI RIGUARDA, ed e' per questo che si puo' leggere: chi la usa confronta
+   * `playerId` col calciatore in asta e scarta quella che nomina un altro - fra due lotti questo
+   * nodo puo' restare fermo sull'ultimo, esattamente come `lastPick` resta sull'ultima
+   * aggiudicazione. Mostrare l'una per l'altra sarebbe una cifra vera detta sull'uomo sbagliato.
+   *
+   * `teamId` e' chi sta offrendo e `comment` l'orologio dell'host: nessuno dei due e' letto.
+   */
+  currentBid?: {
+    playerId?: number | null;
+    value?: number | null;
+    teamId?: number | null;
+    timestamp?: number | null;
+  } | null;
 }
+
+/**
+ * LE CHIAVI DI `state` CHE QUESTO LETTORE GUARDA. Tutto il resto e' roba che il tavolo pubblica e noi
+ * non leggiamo, ed e' esattamente li' che vive il calciatore attualmente in asta.
+ *
+ * Derivata da `RawState` a mano e non dal tipo, perche' un'interfaccia TypeScript non esiste a runtime:
+ * il prezzo e' che aggiungendo un campo a `RawState` va aggiunto anche qui, e un test lo pretende - una
+ * chiave letta che continua a comparire fra le «non lette» e' una diagnostica che mente.
+ */
+export const READ_KEYS: readonly string[] = [
+  'status',
+  'marketType',
+  'settings',
+  'playerListType',
+  'options',
+  'teams',
+  'picks',
+  'pickOrder',
+  'turnTeamId',
+  'selectedPlayerId',
+  'currentBid',
+];
 
 /**
  * The LEAGUE's own facts - budget, game, roster slots. They live in `state.settings`, which is a
@@ -321,13 +386,13 @@ export function deriveTeams(
   // che cambia fra due poll è peggio di un colore brutto - «una rosa e' quella rossa» smetterebbe di
   // essere vero a metà asta. Il rango è deterministico e non dipende da quante rose ci sono.
   const seats = new Map<number, number>();
-  [...(state.teams ?? [])]
+  [...listOf<any>(state.teams)]
     .filter(Boolean)
     .map((team) => team.id as number)
     .sort((a, b) => a - b)
     .forEach((id, rank) => seats.set(id, rank));
 
-  return (state.teams ?? []).filter(Boolean).map((team) => {
+  return listOf<any>(state.teams).map((team) => {
     const connection = team.connection ?? {};
 
     const squad: SquadEntry[] = picks
@@ -358,7 +423,10 @@ export function deriveTeams(
 
     return {
       id: team.id,
-      label: connection.label || team.name || `Squadra ${team.id}`,
+      // IL NOME SI LEGGE DA TUTT'E TRE I POSTI IN CUI PUO' STARE. `label` e `nick` convivono sulla
+      // stessa connessione - sul tavolo letto il 24/09/2026 l'host aveva entrambi a «host» - e chi
+      // entra dopo puo' cambiarselo: leggerne uno solo farebbe restare a schermo il nome di prima.
+      label: connection.label || connection.nick || team.name || `Squadra ${team.id}`,
       // IL COLORE LO DECIDE UN POSTO SOLO, e la sorgente resta l'asta vera quando ne pubblica uno: è
       // ciò che si vede sullo schermo della stanza, e ridipingerlo qui vorrebbe dire che la sua app e
       // il tabellone del banditore non sono d'accordo su chi è il rosso. Quando non ne pubblica -
@@ -369,7 +437,20 @@ export function deriveTeams(
       online: !!connection.active,
       host: !!connection.host,
       spent,
-      budgetLeft: context.budget - spent,
+      /**
+       * LA BORSA: il budget di lega PIU' I CREDITI EXTRA che l'host ha dato a questa rosa, meno quello
+       * che ha speso.
+       *
+       * `deltaBudget` e' LETTO (24/09/2026, sessione `FA-xxx-xxx`: l'host ne aveva +8) e non e'
+       * `currentBudget`, che resta il campo in RITARDO gia' misurato il 09/08 - nella stessa lettura
+       * diceva 975 contro i 974 veri, cioe' era indietro di un pick da un credito. Quindi la spesa
+       * continua a venire dai PICK, che sono giusti a ogni istante, e l'unica cosa che si prende dalla
+       * rosa e' il regalo, che dai pick non si puo' dedurre.
+       *
+       * Assente vuol dire zero e non ignoto: e' un DELTA, e su sette rose di otto quel campo non c'era
+       * affatto perche' nessuno aveva ricevuto niente.
+       */
+      budgetLeft: context.budget + (Number(team.deltaBudget) || 0) - spent,
       squad,
       missing,
       missingTotal,
@@ -380,9 +461,36 @@ export function deriveTeams(
 }
 
 /** Picks that still count: a released one is undone, not history. */
+/**
+ * UNA LISTA COME FIREBASE LA MANDA, CHE NON E' SEMPRE UNA LISTA.
+ *
+ * Il Realtime Database non ha array: li emula su chiavi `"0"`, `"1"`, ... e li serializza come ARRAY
+ * solo finche' quelle chiavi sono contigue da zero. **Basta un buco e arriva un OGGETTO**, e un buco e'
+ * esattamente quello che fa un'aggiudicazione ANNULLATA: togliendo il pick 1 di tre restano `{0, 2}`.
+ * Da quel momento `(state.picks ?? []).filter(...)` non e' piu' un'operazione su un array - e' un
+ * `TypeError` dentro un `computed`, cioe' la plancia che si spegne nell'istante in cui il banditore
+ * corregge un errore. L'operatore l'ha chiesto per nome («le assegnazioni possono essere anche
+ * annullate o modificate»), e la cura e' la stessa regola che questo progetto ha gia' scritto per gli
+ * xG del provider: **il lettore impone la convenzione e non si fida della codifica.**
+ *
+ * Le chiavi si riordinano per NUMERO e non per stringa, o `"10"` starebbe fra `"1"` e `"2"`; i buchi
+ * spariscono, perche' un posto vuoto non e' una riga.
+ */
+export function listOf<T>(value: unknown): T[] {
+  if (Array.isArray(value)) return value.filter((one) => one != null) as T[];
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => /^\d+$/.test(key))
+      .sort((left, right) => Number(left[0]) - Number(right[0]))
+      .map(([, one]) => one)
+      .filter((one) => one != null) as T[];
+  }
+  return [];
+}
+
 export function livePicks(state: RawState): RawPick[] {
-  return (state.picks ?? [])
-    .filter((pick) => !!pick && !pick.released)
+  return listOf<RawPick>(state.picks)
+    .filter((pick) => !pick.released)
     .sort((a, b) => a.index - b.index);
 }
 
@@ -507,6 +615,89 @@ export class AuctionFeed {
     () => this.connected() || this.demo() || (this.stale() && !!this.state().teams),
   );
 
+
+  /**
+   * IL MARCHIO DELLA TAVOLA SALVATA, in un posto solo per le due pagine d'asta.
+   *
+   * Deve dire due cose e non una: che quello che si legge e' SALVATO, e se il riaggancio sta ancora
+   * andando o e' fallito. Un tavolo vecchio letto come vivo e' esattamente il numero che questo
+   * progetto rifiuta di stampare, e un refresh che non dice niente si legge come un collegamento
+   * perso. Vive qui e non nelle viste perche' `stale`, `savedAt`, `status` ed `error` sono del feed:
+   * due copie della stessa frase finirebbero per raccontare due stati.
+   */
+  readonly savedLabel = computed(() =>
+    this.status() === 'error' ? '· salvato · riaggancio non riuscito' : '· salvato · riaggancio in corso',
+  );
+
+  readonly savedNote = computed(() => {
+    const saved = this.savedAt();
+    const when = saved ? ` (${new Date(saved).toLocaleTimeString('it-IT')})` : '';
+    return this.status() === 'error'
+      ? `Ultimo stato salvato in questo browser${when}. Il riaggancio non è riuscito: ${this.error() ?? ''} I numeri restano quelli di quel momento.`
+      : `Ultimo stato salvato in questo browser${when}. Il collegamento è in corso: appena arriva, la pagina si aggiorna da sé.`;
+  });
+
+  /**
+   * COSA IL TAVOLO PUBBLICA E NOI NON LEGGIAMO, chiave per chiave e col suo valore accanto.
+   *
+   * Non e' un attrezzo di sviluppo: e' lo strumento che risponde alla domanda aperta di questo file -
+   * dove sta, in una sessione A RILANCI, il calciatore attualmente in asta. Le due sole sessioni che
+   * questo progetto ha mai letto erano DRAFT (`marketType: 1`), dove un lotto non esiste, quindi
+   * «non e' pubblicato» era un'assenza di sguardo e non una misura. Questa riga la trasforma in una
+   * lettura, senza terminale e senza chiedere a nessuno di incollare un payload.
+   *
+   * I VALORI SONO TRONCATI e i nomi dei calciatori non ci passano comunque - qui c'e' lo `state`, non
+   * il listone - ma un numero e' un numero: se una di queste chiavi porta un `playerId`, si vede.
+   */
+  readonly unreadState = computed<{ key: string; value: string }[]>(() => {
+    const state = this.state() as Record<string, unknown>;
+    return Object.keys(state)
+      .filter((key) => !READ_KEYS.includes(key))
+      .map((key) => {
+        let value: string;
+        try {
+          value = JSON.stringify(state[key]) ?? String(state[key]);
+        } catch {
+          value = '(non serializzabile)';
+        }
+        return { key, value: value.length > 300 ? `${value.slice(0, 300)}…` : value };
+      });
+  });
+
+  /**
+   * IL CALCIATORE CHE IL TAVOLO HA IN ASTA ADESSO, o `null` se non lo dice.
+   *
+   * Un `0` non e' un id e non e' «nessuno»: e' un campo che qualcuno ha azzerato, quindi si legge come
+   * un'assenza invece di andare a cercare un giocatore che non esiste - «vuoto = ignoto, mai zero»
+   * dal lato di chi riceve.
+   *
+   * QUELLO CHE NON SI SA, e va detto invece di lasciarlo scoprire: cosa porta questo campo FRA due
+   * lotti. Alla lettura del 24/09/2026 un nome era sempre in asta, quindi se il tavolo lo azzeri o lo
+   * lasci sull'ultimo non e' osservato. Chi lo legge non ne ha bisogno per stare in piedi: un uomo
+   * gia' venduto esce da se' dal confronto con gli acquisti (`plancia.lotUp`).
+   */
+  readonly selectedPlayerId = computed<number | null>(() => {
+    const id = this.state().selectedPlayerId;
+    return typeof id === 'number' && id > 0 ? id : null;
+  });
+
+  /**
+   * QUANTO E' STATO OFFERTO, e SU CHI - i due fatti viaggiano insieme perche' separarli e' il modo di
+   * stampare una cifra vera sull'uomo sbagliato (vedi `RawState.currentBid`).
+   *
+   * Zero e' un'offerta legittima e non un'assenza: subito dopo un'estrazione la stanza e' ferma, e
+   * dirlo e' il contrario di «non lo so». Quello che si rifiuta e' un `playerId` che non e' un id - e'
+   * il `0` di `selectedPlayerId` letto qui - e un valore che non e' un numero.
+   */
+  readonly currentBid = computed<{ playerId: number; value: number } | null>(() => {
+    const bid = this.state().currentBid;
+    const who = bid?.playerId;
+    const value = bid?.value;
+    if (typeof who !== 'number' || !(who > 0)) return null;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) return null;
+    return { playerId: who, value };
+  });
+
   readonly league = computed(() => leagueSettings(this.state()));
   readonly listType = computed<ListType | null>(() => listTypeOf(this.state()));
   readonly platform = computed<Platform | null>(() =>
@@ -516,6 +707,12 @@ export class AuctionFeed {
   /** The raise mechanics: countdown, minimum bid, buzzer. Unused until the bids mode is followed. */
   readonly bidRules = computed(() => this.state().options?.bids ?? null);
   readonly draftRules = computed(() => this.state().options?.draft ?? null);
+
+  /** Con che meccanismo si compra, o `null` se il tavolo non lo dice: «vuoto = ignoto, mai rilanci». */
+  readonly market = computed<MarketType | null>(() => {
+    const kind = this.state().marketType;
+    return kind === MarketType.Draft || kind === MarketType.Bids ? kind : null;
+  });
 
   readonly isDraft = computed(() => this.state().marketType === MarketType.Draft);
   readonly draftStatus = computed(() => this.state().status ?? DraftStatus.Loading);
@@ -768,7 +965,7 @@ export class AuctionFeed {
    */
   awardByHand(playerId: number, teamId: number, cost: number): boolean {
     if (!this.demo()) return false;
-    const picks = (this.mirror.picks ?? []).filter(Boolean);
+    const picks = listOf<RawPick>(this.mirror.picks);
     if (picks.some((pick) => !pick.released && pick.playerId === playerId)) return false;
     // The index is the ORDER of the awards, so it continues the fixture's own numbering instead of
     // restarting at the length: `livePicks` sorts on it, and a repeated index is a shuffled history.
@@ -820,6 +1017,25 @@ export class AuctionFeed {
     this.followedTeamId.set(null);
     this.status.set('idle');
     this.error.set(null);
+  }
+
+  /**
+   * LASCIARE IL TAVOLO SU RICHIESTA, in un posto solo: lo stream se ne va e la sessione si dimentica.
+   *
+   * Le due chiamate hanno una condizione che e' facile sbagliare, ed e' la ragione per cui vivono qui e
+   * non in chi preme il bottone: **lasciare una DEMO non deve dimenticare l'asta vera** che questo
+   * browser puo' avere in memoria. Il tavolo inventato non e' mai stato salvato, quindi non ha niente
+   * di suo da togliere, e un `forget()` li' cancellerebbe la sessione di qualcun altro - cioe' proprio
+   * quella che un refresh deve riprendere.
+   *
+   * Quello che NON fa e' rimettere un tavolo a schermo: quale sia il tavolo di ripiego e' una decisione
+   * della PAGINA (la plancia torna alla finzione, il pannello draft alla sua), e deciderlo qui
+   * vorrebbe dire che il feed sa quale pagina lo sta usando.
+   */
+  leave() {
+    const wasDemo = this.demo();
+    this.disconnect();
+    if (!wasDemo) this.forget();
   }
 
   /** Leaving the table on purpose is the one thing that must not survive a refresh. */

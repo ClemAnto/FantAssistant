@@ -90,8 +90,8 @@
         <p class="text-sm opacity-70">
           {{ feed.code() }} · {{ marketLabel() }} · {{ statusLabel() }}
           @if (feed.stale()) {
-            <span class="text-amber-400" nz-tooltip [nzTooltipTitle]="staleTitle()">{{
-              staleLabel()
+            <span class="text-amber-400" nz-tooltip [nzTooltipTitle]="feed.savedNote()">{{
+              feed.savedLabel()
             }}</span>
           }
         </p>
@@ -696,4 +696,4 @@
   </div>
 }
 
-<ui-live-connect [(open)]="connecting" />
+<ui-live-connect [(open)]="connecting" (left)="startDemo()" />

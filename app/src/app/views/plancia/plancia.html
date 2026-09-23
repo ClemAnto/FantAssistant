@@ -16,7 +16,12 @@
        dentro ci sta solo cio' che e' di QUESTA pagina, nell'ordine in cui si legge. -->
   <ui-app-header dense framed>
     @if (feed.demo()) {
+      <!-- `data-table` E' L'AGGANCIO del marchio del tavolo, per la stessa ragione di `data-block` e
+           `data-line`: un banco che cerca «la prima pastiglia dell'intestazione» accusa la pagina del
+           proprio difetto il giorno in cui qualcuno ne mette un'altra accanto (la lente, per dirne
+           una). Il valore dice anche QUALE dei due stati e', che e' meta' di quello che si asserisce. -->
       <span
+        data-table="demo"
         class="flex items-center gap-1 rounded-md bg-warning/20 px-2 py-0.5 font-medium text-warning"
         nz-tooltip
         nzTooltipTitle="Il tavolo è inventato: squadre, crediti e acquisti già fatti. I calciatori e i numeri del motore sono veri."
@@ -24,15 +29,44 @@
         <nz-icon nzType="disconnect" />
         tavolo finto
       </span>
-    } @else if (feed.connected()) {
-      <span
-        class="flex items-center gap-1 rounded-md bg-success/20 px-2 py-0.5 font-medium text-success"
+      <!-- LA PASTIGLIA COL CODICE E' L'ENTRATA della sessione (sua istruzione, 24/09/2026): da collegati
+           il tasto «cambia asta» non c'e' piu' in barra, e le tre cose che si fanno una volta per asta -
+           cambiarla, dire quale squadra e' la mia, uscire - stanno dietro al numero che si guarda per
+           sapere a cosa si e' collegati. Un bottone in barra per ognuna e' una barra da leggere per
+           quattro ore.
+
+           LA TAVOLA SALVATA E' LO STESSO BOTTONE, non un terzo stato: dopo un refresh la plancia
+           ridisegna quello che questo browser aveva in memoria mentre lo stream si riapre, e un tavolo
+           vecchio letto come vivo e' il numero che questo progetto rifiuta di stampare - quindi cambia
+           quello che DICE (la frase e' quella del feed, la stessa che legge `/auction`) e non cosa fa.
+           La squadra si puo' scegliere anche li', perche' le rose salvate ci sono gia'. -->
+    } @else if (feed.hasTable()) {
+      <button
+        type="button"
+        [attr.data-table]="feed.connected() ? 'live' : 'saved'"
+        class="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium"
+        [class]="
+          feed.connected() ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'
+        "
         nz-tooltip
-        [nzTooltipTitle]="'Collegato a ' + feed.code() + ', in sola lettura.'"
+        [nzTooltipTitle]="
+          (feed.connected() ? 'Collegato a ' + feed.code() + ', in sola lettura.' : feed.savedNote()) +
+          ' Premi per cambiare asta, scegliere la tua squadra o scollegarti.'
+        "
+        (click)="connecting.set(true)"
       >
         <nz-icon nzType="wifi" />
         {{ feed.code() }}
-      </span>
+        @if (!feed.connected()) {
+          {{ feed.savedLabel() }}
+        }
+        @if (!feed.followed()) {
+          <!-- LA SQUADRA MANCANTE SI DICHIARA QUI, dove si preme per darla: senza, i tetti leggono il
+               budget di lega al posto dei miei crediti e le mani alzate sono dieci invece di nove -
+               cioe' numeri sbagliati che non sembrano sbagliati. -->
+          <nz-icon class="text-warning" nzType="exclamation-circle" />
+        }
+      </button>
     }
 
     <!-- I DUE TAGLI DELLA PLANCIA (sua richiesta, 04/09/2026). Non è un ordinamento della tabella:
@@ -224,11 +258,21 @@
          numeri. La freschezza del pacchetto resta in basso a sinistra (`ui/data-freshness`), che e'
          la domanda che si fa davvero prima di sedersi; la revisione e' diagnostica e vive in /why. -->
 
+    <!-- E IL TASTO RESTA SOLO DOVE E' L'UNICA STRADA: sul tavolo inventato non c'e' una pastiglia col
+         codice da premere, quindi il bottone e' l'entrata. Da collegati sparisce (sua istruzione,
+         24/09/2026) perche' l'entrata e' la pastiglia.
+
+         L'`@if` STA DENTRO LA FESSURA e non intorno: quale contenuto vada in `ng-content
+         select="[actions]"` si decide sul nodo, e un nodo dentro un blocco di controllo non e' un
+         figlio diretto del contenuto proiettato. La `<span>` c'e' sempre e resta vuota, che non costa
+         un pixel perche' il suo genitore spazia con `gap`. -->
     <span actions class="flex items-center gap-1">
-      <button nz-button nzType="primary" nzSize="small" (click)="connecting.set(true)">
-        <nz-icon nzType="wifi" />
-        {{ feed.connected() ? 'Cambia asta' : "Collegati a un'asta vera" }}
-      </button>
+      @if (feed.demo()) {
+        <button nz-button nzType="primary" nzSize="small" (click)="connecting.set(true)">
+          <nz-icon nzType="wifi" />
+          Collegati a un'asta vera
+        </button>
+      }
     </span>
   </ui-app-header>
 
@@ -291,7 +335,7 @@
   <plancia-lot-card
     class="shrink-0"
     [lot]="store.lot()"
-    [(price)]="store.lotPrice"
+    [(price)]="store.typedPrice"
     [budget]="store.budget()"
     [room]="room()"
     [urnLeft]="urnLeft()"
@@ -335,7 +379,7 @@
   </plancia-slot-matrix>
 </div>
 
-<ui-live-connect [(open)]="connecting" />
+<ui-live-connect [(open)]="connecting" (left)="store.startDemo()" />
 <plancia-keeper-pairs />
 <!-- LE CARD stanno FUORI dalla griglia della plancia, in `fixed`: dentro erediterebbero il suo
      `overflow` e si taglierebbero al primo trascinamento. Sono PIÙ DI UNA per sua richiesta (04/09:
@@ -359,7 +403,7 @@
           class="flex-1 rounded bg-primary px-2 py-1 text-[11px] font-semibold text-on-primary"
           (click)="nameLot(open.man.id)"
         >
-          è il lotto in asta
+          è il calciatore in asta
         </button>
       }
       @if (open.man.market?.keeper) {

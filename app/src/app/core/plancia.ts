@@ -882,6 +882,125 @@ export function worthWaiting(slotIndex: number, hands: number, teams: number): b
   return hands >= Math.min(DEPTH_HANDS, teams);
 }
 
+/**
+ * CHI E' IN ASTA: il tavolo se lo dice, altrimenti il nome messo a mano - e il risultato DICHIARA quale
+ * dei due sta parlando, perche' una riga che porta due fatti diversi sotto lo stesso inchiostro e' il
+ * difetto che questo progetto paga da sempre.
+ *
+ * IL NOME MESSO A MANO E' UN FATTO SU UN TAVOLO, quindi si DERIVA invece di ricordarlo e basta.
+ *
+ * Due cose lo cancellano e nessuna delle due passa da un gesto dell'operatore - che e' la ragione per
+ * cui un id ricordato non bastava, e il difetto e' stato segnalato da lui («non si aggiorna il
+ * calciatore in asta», 24/09/2026).
+ *
+ * 1. IL TAVOLO DIVENTA UN ALTRO. Collegarsi a un'asta vera, cambiarla, o riprendere quella che questo
+ *    browser stava seguendo, sostituisce le rose, i crediti e gli acquisti. Un lotto estratto dalla
+ *    finzione che sopravvivesse al collegamento farebbe leggere una banda, delle mani alzate e un
+ *    verdetto su un nome che a quel tavolo non e' in asta. E succedeva: la modale del collegamento
+ *    parla col FEED e non con la plancia (una sola modale per le due pagine d'asta, 03/09/2026),
+ *    quindi lo store non aveva modo di sapere che il tavolo sotto di lui era cambiato.
+ * 2. QUALCUNO LO COMPRA. A un tavolo vero l'acquisto lo scrive il banditore e arriva dallo stream, non
+ *    da un gesto nostro: lasciare «in asta» un uomo gia' venduto e' una riga che dice due cose diverse
+ *    su di lui - lo stato del lotto si legge prima di quello del proprietario - ed e' esattamente la
+ *    ragione per cui `PlanciaStore.award` svuota il lotto dopo un'assegnazione a mano. Quella regola
+ *    viveva su un percorso solo; qui vale su tutti, com'e' giusto che sia per una regola.
+ *
+ * `owned` sono gli ACQUISTI, cioe' l'unico campo di una sessione dal vivo che e' giusto a ogni istante.
+ */
+export function lotUp(
+  live: number | null,
+  named: { table: string | null; id: number | null },
+  table: string | null,
+  owned: { has(id: number): boolean },
+): { id: number; live: boolean } | null {
+  // IL TAVOLO HA RAGIONE QUANDO PARLA. Dal 24/09/2026 una sessione a rilanci pubblica chi e' in asta
+  // (`selectedPlayerId`), quindi il nome non e' piu' una cosa da dichiarare: e' un'osservazione, e
+  // l'osservazione batte la dichiarazione - la stessa precedenza che l'asterisco del listone ha sul
+  // foglio, o la lettura delle rose sul club di una riga.
+  if (live != null && !owned.has(live)) return { id: live, live: true };
+  // ...E QUANDO NON PARLA, o nomina uno che e' gia' stato venduto, vale il nome messo a mano. Il
+  // secondo caso non e' un dettaglio: se il tavolo lasciasse la sua scelta ferma su un uomo aggiudicato
+  // - cosa che nessuno ha ancora osservato - questa riga sarebbe l'unica strada per nominarne un altro,
+  // e senza di lei il doppio click resterebbe muto su quel tavolo per sempre.
+  if (named.id == null || named.table !== table) return null;
+  return owned.has(named.id) ? null : { id: named.id, live: false };
+}
+
+/**
+ * QUANTO C'E' SUL TAVOLO ADESSO, e CHI LO DICE - la stessa forma di `lotUp`, un piano sotto.
+ *
+ * L'OSSERVAZIONE BATTE LA DICHIARAZIONE, come per il nome: da quando una sessione a rilanci pubblica
+ * l'offerta corrente (24/09/2026), la cifra a cui sta la stanza non e' piu' una cosa che l'operatore
+ * batte a mano mentre segue l'asta - e' un fatto che arriva dallo stream, aggiornato dal banditore.
+ *
+ * MA SOLO SE NOMINA L'UOMO CHE E' IN ASTA. Fra due lotti quel nodo puo' restare fermo sull'ultimo, e
+ * una cifra vera detta sull'uomo sbagliato e' peggio di nessuna cifra: decide un verdetto, una banda
+ * e un'assegnazione. Quando nomina un altro si torna a quella digitata, che e' anche quello che
+ * succede sul tavolo inventato, dove nessuno pubblica niente.
+ *
+ * La riga DICE quale dei due ha in mano (`live`), perche' i due numeri si toccano in modo opposto:
+ * uno lo si scrive, l'altro lo si guarda.
+ */
+export function bidUp(
+  live: { playerId: number; value: number } | null,
+  lot: number | null,
+  typed: number,
+): { value: number; live: boolean } {
+  if (lot != null && live != null && live.playerId === lot) {
+    return { value: live.value, live: true };
+  }
+  return { value: typed, live: false };
+}
+
+/**
+ * IL VERDETTO DI CHI LA MAPPA NON DISEGNA, e non si ottiene chiamando `adviseLot` con numeri inventati.
+ *
+ * La plancia disegna 25 slot da `teams` uomini - duecentocinquanta di seicento - e sotto l'ultimo c'e'
+ * la CODA. A un'estrazione libera ci finisce la maggior parte dei nomi estratti: e' li' che il
+ * difetto del 24/09/2026 viveva, con la riga che diceva «nessun calciatore in asta» mentre il tavolo
+ * aveva Jean del Lecce (rango 169 di 189 difensori) sul banco.
+ *
+ * `adviseLot` vuole uno `slotIndex` e una mediana di blocco che qui NON ESISTONO: estrapolarli
+ * prezzerebbe l'ottantunesimo difensore come il settantacinquesimo, che e' un parametro applicato
+ * fuori dalla popolazione su cui e' misurato - lo stesso rifiuto che `tailBand` scrive di se'. Quindi
+ * la coda ha il suo verdetto, corto, e l'unica quantita' che porta e' MISURATA: dalla quinta fascia in
+ * giu' fra il 29% e il 72% delle aggiudicazioni vere avviene a UN credito (§23), quindi il prezzo
+ * atteso e' il minimo d'asta e non una scala.
+ */
+export function adviseTail(
+  band: OfferBand | null,
+  priced: boolean,
+  tablePrice: number,
+  hands: number,
+): LotAdvice {
+  const shared = { band, hands, expectedPrice: MIN_BID, waiting: false };
+  if (!priced) {
+    return {
+      ...shared,
+      verdict: 'ignoto',
+      reason:
+        'Il foglio non lo prezza, ed è sotto l’ultimo slot della mappa: non ho un numero da darti.',
+    };
+  }
+  const ceiling = band?.high ?? MIN_BID;
+  if (tablePrice > ceiling) {
+    return {
+      ...shared,
+      verdict: 'lascia',
+      reason:
+        `È sotto l’ultimo slot della mappa: la scala delle offerte non arriva fin qui e il tetto è ` +
+        `il minimo d’asta. A ${tablePrice} crediti stai pagando un riempimento come uno di fascia.`,
+    };
+  }
+  return {
+    ...shared,
+    verdict: 'prendi',
+    reason:
+      'È sotto l’ultimo slot della mappa: la scala delle offerte non arriva fin qui, quindi il tetto ' +
+      'è il minimo d’asta. Se ti serve il posto, a un credito si prende.',
+  };
+}
+
 export type Verdict = 'prendi' | 'aspetta' | 'lascia' | 'ignoto' | 'fermo';
 
 export interface LotAdvice {

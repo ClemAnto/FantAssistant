@@ -151,7 +151,9 @@ export class TeamGrid {
 
   /** Il gesto non si vede, quindi va detto: due parole, e solo dove funziona davvero. */
   private readonly assignHint = computed(() =>
-    this.assignable() ? ' Doppio click: il lotto va a questa rosa, al prezzo del lotto.' : '',
+    this.assignable()
+      ? ' Doppio click: il calciatore in asta va a questa rosa, al prezzo scritto.'
+      : '',
   );
 
   /**
@@ -177,10 +179,10 @@ export class TeamGrid {
     if (team.me) return `La tua rosa — ${purse}.${hint}`;
     if (team.out) return `${team.label} non arriva alla banda — ${purse}.${hint}`;
     if (team.rival && role) {
-      return `${team.label} è un rivale su questo lotto: ha ancora un posto in ${role} e i crediti per pagarlo — ${purse}.${hint}`;
+      return `${team.label} è un rivale su questo calciatore: ha ancora un posto in ${role} e i crediti per pagarlo — ${purse}.${hint}`;
     }
     if (role)
-      return `${team.label} ha il reparto ${role} completo: non rilancia su questo lotto — ${purse}.${hint}`;
+      return `${team.label} ha il reparto ${role} completo: non rilancia su questo calciatore — ${purse}.${hint}`;
     return `${team.label} — ${purse}.${hint}`;
   }
 }

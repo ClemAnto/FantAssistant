@@ -3,11 +3,13 @@ import { TestBed } from '@angular/core/testing';
 import {
   AuctionFeed,
   AuctionPlayer,
+  RawPick,
   RawState,
   applyStreamEvent,
   deriveTeams,
   leagueSettings,
   listTypeOf,
+  listOf,
   livePicks,
   platformOf,
   porteOf,
@@ -93,7 +95,7 @@ describe('deriveTeams', () => {
   it('reads the spend from the picks, not from the stale currentBudget', () => {
     const host = teams.find((t) => t.id === 0)!;
     // The fixture carries currentBudget: 1000 for every team, exactly as the live feed did.
-    expect(STATE.teams![0].currentBudget).toBe(1000);
+    expect(listOf<any>(STATE.teams)[0].currentBudget).toBe(1000);
     expect(host.spent).toBe(365);
     expect(host.budgetLeft).toBe(635);
   });
@@ -307,14 +309,14 @@ describe('applyStreamEvent', () => {
   it('merges only the given keys on a patch, leaving the siblings alone', () => {
     const mirror: RawState = { status: 2, teams: [{ id: 0, picksCount: 0, color: '#fff' }] };
     applyStreamEvent(mirror, 'patch', '/teams/0', { picksCount: 1 });
-    expect(mirror.teams![0]).toEqual({ id: 0, picksCount: 1, color: '#fff' });
+    expect(listOf<any>(mirror.teams)[0]).toEqual({ id: 0, picksCount: 1, color: '#fff' });
   });
 
   it('appends a pick written at its array index', () => {
     const mirror: RawState = { picks: [{ index: 0, teamId: 0, playerId: 1, cost: 5 }] };
     applyStreamEvent(mirror, 'put', '/picks/1', { index: 1, teamId: 2, playerId: 9, cost: 40 });
-    expect(mirror.picks!.length).toBe(2);
-    expect(mirror.picks![1].cost).toBe(40);
+    expect(listOf<RawPick>(mirror.picks).length).toBe(2);
+    expect(listOf<RawPick>(mirror.picks)[1].cost).toBe(40);
   });
 
   it('removes a key when the event carries null', () => {
@@ -417,5 +419,51 @@ describe('AuctionFeed: awardByHand / emptySquads', () => {
     expect(feed.awardByHand(5585, 1, 10)).toBe(false);
     expect(feed.emptySquads()).toBe(false);
     expect(feed.picks().length).toBe(0);
+  });
+});
+
+describe('una lista come Firebase la manda', () => {
+  // IL CASO CHE LA FA ESISTERE: un'aggiudicazione ANNULLATA lascia un buco fra le chiavi, e da quel
+  // momento il Realtime Database serializza il nodo come OGGETTO invece che come array. Prima del
+  // 24/09/2026 `livePicks` ci chiamava `.filter` sopra: un `TypeError` dentro un `computed`, cioe' la
+  // plancia che si spegne nell'istante in cui il banditore corregge un errore.
+  const pick = (index: number, playerId: number) => ({ index, teamId: 0, playerId, cost: 1 });
+
+  it('legge un array come un array', () => {
+    expect(listOf([pick(0, 1), pick(1, 2)])).toHaveLength(2);
+  });
+
+  it('legge come una lista anche un oggetto con le chiavi numeriche bucate', () => {
+    const picks = livePicks({ picks: { 0: pick(0, 11), 2: pick(2, 33) } });
+    expect(picks.map((one) => one.playerId)).toEqual([11, 33]);
+  });
+
+  it('ordina per NUMERO e non per stringa, o il decimo starebbe fra il primo e il secondo', () => {
+    const picks = livePicks({ picks: { 1: pick(1, 1), 10: pick(10, 10), 2: pick(2, 2) } });
+    expect(picks.map((one) => one.index)).toEqual([1, 2, 10]);
+  });
+
+  it('butta i buchi, perche un posto vuoto non e una riga', () => {
+    expect(listOf({ 0: pick(0, 1), 1: null, 2: pick(2, 3) })).toHaveLength(2);
+    expect(listOf([pick(0, 1), null, pick(2, 3)])).toHaveLength(2);
+  });
+
+  it('e una chiave che non e un numero non e una riga di quella lista', () => {
+    expect(listOf({ 0: pick(0, 1), meta: { chi: 'se' } })).toHaveLength(1);
+  });
+
+  it('su niente restituisce niente, invece di far cadere chi la legge', () => {
+    expect(listOf(undefined)).toEqual([]);
+    expect(listOf(null)).toEqual([]);
+    expect(listOf(7)).toEqual([]);
+  });
+
+  it('e le ROSE hanno lo stesso problema: una rosa tolta le rende un oggetto', () => {
+    const seats = listOf<any>(STATE.teams);
+    const teams = deriveTeams({ ...STATE, teams: { 0: seats[0], 2: seats[2] } }, PLAYERS, {
+      ...CONTEXT,
+      zones: [...CONTEXT.zones],
+    });
+    expect(teams.map((one) => one.id)).toEqual([0, 2]);
   });
 });

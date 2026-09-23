@@ -21,6 +21,8 @@ import {
   discountFor,
   offerBand,
   worthWaiting,
+  lotUp,
+  bidUp,
   EDGE_BASE,
 } from './plancia';
 
@@ -873,5 +875,80 @@ describe('la griglia PERSONALE', () => {
     expect(first.medianCoin).toBe(75.5);
     // ...e quello che la stanza chiede per gli stessi dieci, che non e piu una proprieta del blocco.
     expect(first.medianFvm).toBe(5.5);
+  });
+});
+
+describe('chi e in asta: il tavolo se lo dice, altrimenti il nome messo a mano', () => {
+  const free = new Set<number>();
+  const sold = new Set<number>([7]);
+
+  it('resta in asta finche il tavolo e lo stesso e nessuno lo ha comprato', () => {
+    expect(lotUp(null, { table: 'DEMO', id: 7 }, 'DEMO', free)).toEqual({ id: 7, live: false });
+  });
+
+  it('SPARISCE quando il tavolo diventa un altro: collegarsi a un asta vera cambia le rose', () => {
+    // Il difetto che l operatore ha segnalato il 24/09/2026: la modale del collegamento parla col feed
+    // e non con la plancia, quindi il lotto estratto dalla finzione restava a schermo sull asta vera.
+    expect(lotUp(null, { table: 'DEMO', id: 7 }, 'FA-abc-def', free)).toBeNull();
+    expect(lotUp(null, { table: 'FA-abc-def', id: 7 }, 'FA-ghi-jkl', free)).toBeNull();
+  });
+
+  it('SPARISCE quando qualcuno lo compra, che a un tavolo vero non passa da un gesto nostro', () => {
+    expect(lotUp(null, { table: 'DEMO', id: 7 }, 'DEMO', sold)).toBeNull();
+  });
+
+  it('e vuoto quando non c e un nome, anche fra due estrazioni sullo stesso tavolo', () => {
+    expect(lotUp(null, { table: 'DEMO', id: null }, 'DEMO', free)).toBeNull();
+    expect(lotUp(null, { table: null, id: null }, null, free)).toBeNull();
+  });
+
+  // QUELLO CHE IL TAVOLO PUBBLICA BATTE QUELLO CHE ABBIAMO MESSO NOI, e lo dice: un osservazione batte
+  // una dichiarazione, e una riga che porta due fatti diversi sotto lo stesso inchiostro no.
+  it('il tavolo vince sul nome messo a mano, e la riga sa chi sta parlando', () => {
+    expect(lotUp(9, { table: 'FA-abc-def', id: 7 }, 'FA-abc-def', free)).toEqual({
+      id: 9,
+      live: true,
+    });
+  });
+
+  it('e vince anche su un tavolo di cui il nome a mano non e piu di quel giro', () => {
+    expect(lotUp(9, { table: 'DEMO', id: 7 }, 'FA-abc-def', free)).toEqual({ id: 9, live: true });
+  });
+
+  it('...ma se il tavolo nomina uno gia VENDUTO si torna al nome messo a mano', () => {
+    // Non e un dettaglio: se una sessione lasciasse la sua scelta ferma su un aggiudicato - cosa che
+    // nessuno ha ancora osservato - senza questo ramo il doppio click resterebbe muto per sempre.
+    expect(lotUp(7, { table: 'FA-abc-def', id: 9 }, 'FA-abc-def', sold)).toEqual({
+      id: 9,
+      live: false,
+    });
+    expect(lotUp(7, { table: 'FA-abc-def', id: null }, 'FA-abc-def', sold)).toBeNull();
+  });
+});
+
+describe('quanto c e sul tavolo: l offerta del banditore, o quella battuta a mano', () => {
+  it('la cifra del tavolo vince su quella digitata, e la riga sa chi sta parlando', () => {
+    expect(bidUp({ playerId: 9, value: 13 }, 9, 4)).toEqual({ value: 13, live: true });
+  });
+
+  // IL CASO PER CUI IL CONFRONTO COL NOME ESISTE: fra due lotti quel nodo puo restare fermo sull
+  // ultimo, e una cifra vera detta sull uomo sbagliato decide un verdetto, una banda e un acquisto.
+  it('MA SOLO SE NOMINA L UOMO IN ASTA: su un altro si torna a quella digitata', () => {
+    expect(bidUp({ playerId: 5555, value: 5 }, 7314, 4)).toEqual({ value: 4, live: false });
+  });
+
+  it('e senza nessuno in asta non c e niente da attribuire', () => {
+    expect(bidUp({ playerId: 9, value: 13 }, null, 4)).toEqual({ value: 4, live: false });
+  });
+
+  it('sul tavolo inventato nessuno pubblica niente, quindi vale sempre quella digitata', () => {
+    expect(bidUp(null, 9, 4)).toEqual({ value: 4, live: false });
+  });
+
+  // ZERO E UN OFFERTA e non un assenza: subito dopo un estrazione la stanza e ferma, e dirlo e il
+  // contrario di «non lo so». Senza questa riga un `|| typed` lo leggerebbe come vuoto e stamperebbe
+  // la cifra del lotto PRECEDENTE.
+  it('zero dal tavolo e zero, non un ripiego su quello che era stato battuto prima', () => {
+    expect(bidUp({ playerId: 9, value: 0 }, 9, 40)).toEqual({ value: 0, live: true });
   });
 });
