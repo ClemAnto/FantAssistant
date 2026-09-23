@@ -18,6 +18,7 @@ import { ClubOption, GlobalOptions, LeagueSettings } from '../../core/global-opt
 import { ClassicRole, competitionLabel } from '../../core/players-store';
 import { PageActions } from '../../core/page-actions';
 import { ValuationStore } from '../../core/valuation-store';
+import { BottomDock } from '../bottom-dock/bottom-dock';
 import { ClubCrest } from '../club-crest/club-crest';
 import { DataFreshness } from '../data-freshness/data-freshness';
 import { RoleBadge } from '../role-badge/role-badge';
@@ -46,6 +47,7 @@ interface ClubGroup {
   selector: 'ui-global-options',
   templateUrl: './global-options.html',
   imports: [
+    BottomDock,
     ClubCrest,
     DataFreshness,
     NgTemplateOutlet,

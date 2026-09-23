@@ -330,6 +330,140 @@ function readTeamCard() {
   };
 }
 
+/**
+ * LA PLANCIA A UNA FINESTRA BASSA: i nomi si accavallano, e la plancia scorre?
+ *
+ * Sua segnalazione, 23/09/2026: «per altezze non sufficienti della pagina visualizza i nomi dei
+ * calciatori accavallati», e il pavimento e' suo: «stringiamo fino a 11px l'altezza minima».
+ *
+ * QUELLO CHE DECIDE E' L'INCHIOSTRO E NON LA SCATOLA DEL FONT, e la prima versione di questa sonda
+ * misurava la seconda. Il Range su un nodo di testo restituisce ascent+descent della FACCIA (14px a
+ * 10px di corpo), che contiene spazio che quasi nessuna lettera usa: con quella misura una riga da
+ * 11px legge 224 accavallamenti su 224 e sullo schermo non se ne tocca nessuno. «Accavallati» e' una
+ * frase sui PIXEL, quindi si misura `actualBoundingBox*` sulla STRINGA di quella riga - dove i pixel
+ * cadono davvero - e la scatola resta come LETTURA accanto, non come verdetto.
+ *
+ * L'ARNESE SI VERIFICA PRIMA DI ACCUSARE LA PAGINA: il canvas puo' risolvere una faccia diversa da
+ * quella del DOM, e allora l'inchiostro sarebbe di un altro carattere. `faceGap` e' la differenza fra
+ * la scatola che il canvas dichiara e quella che il Range misura, e deve essere zero.
+ *
+ * Lo SCROLLER e' il div dentro l'host e non l'host: `scrollHeight` sull'host legge l'altezza del
+ * figlio in `h-full`, cioe' se stesso, e direbbe «non eccede» qualunque cosa succeda sotto. Anche
+ * quello era un difetto della prima versione, ed e' l'asserzione circolare un'altra volta.
+ */
+function readSqueeze() {
+  const matrix = document.querySelector('plancia-slot-matrix');
+  const scroller = matrix?.firstElementChild;
+  if (!scroller) return null;
+  const blocks = [...matrix.querySelectorAll('.grid > div')].filter((one) =>
+    one.querySelector('button'),
+  );
+  if (!blocks.length) return null;
+  const measure = document.createElement('canvas').getContext('2d');
+  const boxesOf = (button) => {
+    const span = button.querySelector('span.truncate');
+    if (!span?.firstChild) return null;
+    const range = document.createRange();
+    range.selectNodeContents(span);
+    const face = range.getBoundingClientRect();
+    if (!face.height) return null;
+    const style = getComputedStyle(span);
+    measure.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    const m = measure.measureText(span.textContent);
+    // La scatola della faccia e' centrata nella riga, quindi la BASE si ricava da lei e dalle metriche
+    // del carattere; l'inchiostro si appende alla base.
+    const baseline = face.top + m.fontBoundingBoxAscent;
+    return {
+      face,
+      faceGap: Math.abs(m.fontBoundingBoxAscent + m.fontBoundingBoxDescent - face.height),
+      tallestChild: Math.max(
+        ...[...button.children].map((one) => one.getBoundingClientRect().height),
+      ),
+      ink: {
+        top: baseline - m.actualBoundingBoxAscent,
+        bottom: baseline + m.actualBoundingBoxDescent,
+        height: m.actualBoundingBoxAscent + m.actualBoundingBoxDescent,
+      },
+    };
+  };
+  let overlaps = 0;
+  let boxOverlaps = 0;
+  let pairs = 0;
+  let worst = 0;
+  let gap = Infinity;
+  let rows = 0;
+  let ink = 0;
+  let inkName = '';
+  let child = 0;
+  let childOut = 0;
+  let faceGap = 0;
+  const heights = [];
+  for (const block of blocks) {
+    let previous = null;
+    let previousBox = null;
+    for (const button of block.querySelectorAll('button')) {
+      rows += 1;
+      const box = button.getBoundingClientRect();
+      heights.push(box.height);
+      const both = boxesOf(button);
+      if (!both) continue;
+      faceGap = Math.max(faceGap, both.faceGap);
+      child = Math.max(child, both.tallestChild);
+      if (both.tallestChild > box.height + 0.5) childOut += 1;
+      if (both.ink.height > ink) {
+        ink = both.ink.height;
+        inkName = button.querySelector('span.truncate').textContent;
+      }
+      if (previous) {
+        pairs += 1;
+        const over = previous.bottom - both.ink.top;
+        gap = Math.min(gap, -over);
+        // LA TOLLERANZA E' PIU' PICCOLA DELLA COSA CHE PROTEGGE: al pavimento che l'operatore ha
+        // scelto (10px) l'aria fra due nomi e' ZERO, quindi mezzo pixel di sconto lascerebbe passare
+        // proprio il primo gradino di accavallamento che questo passo esiste per vedere.
+        if (over > 0.2) {
+          overlaps += 1;
+          worst = Math.max(worst, over);
+        }
+        if (previousBox.bottom - both.face.top > 0.5) boxOverlaps += 1;
+      }
+      previous = both.ink;
+      previousBox = both.face;
+    }
+  }
+  // L'ULTIMA RIGA E' RAGGIUNGIBILE? Si porta lo scroller in fondo e si guarda se il fondo dell'ultimo
+  // blocco entra nella sua finestra. Una plancia che scorre e taglia comunque l'ultimo nome sarebbe
+  // il difetto di prima con una barra accanto.
+  const was = scroller.scrollTop;
+  scroller.scrollTop = scroller.scrollHeight;
+  const view = scroller.getBoundingClientRect();
+  const last = [...blocks[blocks.length - 1].querySelectorAll('button')].pop();
+  const reachable = last ? last.getBoundingClientRect().bottom <= view.bottom + 1 : false;
+  scroller.scrollTop = was;
+  const page = document.scrollingElement;
+  const round = (x) => Math.round(x * 10) / 10;
+  return {
+    rows,
+    pairs,
+    overlaps,
+    boxOverlaps,
+    worst: round(worst),
+    gap: round(gap),
+    rowMin: round(Math.min(...heights)),
+    ink: round(ink),
+    inkName,
+    child: round(child),
+    childOut,
+    faceGap: round(faceGap),
+    viewH: round(view.height),
+    contentH: scroller.scrollHeight,
+    scrollsY: scroller.scrollHeight > scroller.clientHeight + 1,
+    scrollsX: scroller.scrollWidth > scroller.clientWidth + 1,
+    reachable,
+    pageScrolls: page.scrollHeight > page.clientHeight + 1,
+  };
+}
+
 /** `rgb()`/`rgba()`/`oklab()` -> tre numeri confrontabili. Senza questo si sottraggono unità diverse. */
 function channels(paint) {
   const numbers = (paint.match(/-?[0-9.]+/g) ?? []).map(Number);
@@ -763,6 +897,74 @@ async function main() {
         ...(strip?.aboveDefence
           ? []
           : ["la card delle rose non sta nella linea dei portieri: e' scesa sotto la plancia"]),
+      ],
+    });
+
+    // 8. UNA FINESTRA BASSA: la plancia SCORRE e i nomi non si toccano (sua segnalazione, 23/09/2026).
+    //    La misura si fa a due altezze e le due dicono cose opposte: a 1000px c'e' posto per tutto e
+    //    nulla deve scorrere - una plancia che scorresse quando ci sta sarebbe il difetto opposto - a
+    //    600px non ce n'e', e quello che si pretende e' che a cedere sia lo SPAZIO e non la leggibilita'.
+    //
+    //    LE DUE ALTEZZE SONO SCELTE COL MARGINE, ed e' una correzione a questo stesso passo: con 900 e
+    //    720 il verdetto «scorre» si decideva su DUE pixel (553 di vista contro 555 di plancia), cioe'
+    //    sarebbe andato rosso alla prima riga in piu' in barra, per una ragione che non e' un difetto.
+    //    A 1000px la vista e' 828 contro 555, a 600px e' 428: nessuna delle due risposte e' in bilico.
+    const squeezed = {};
+    for (const height of [1000, 600]) {
+      await session.send('Emulation.setDeviceMetricsOverride', {
+        width: 1600, height, deviceScaleFactor: 1, mobile: false,
+      });
+      await wait(600);
+      squeezed[height] = await waitFor(session, readSqueeze, 40);
+    }
+    await session.send('Emulation.clearDeviceMetricsOverride');
+    await wait(400);
+    const tall = squeezed[1000];
+    const tight = squeezed[600];
+    note('a finestra bassa la plancia scorre invece di accavallare i nomi', {
+      said:
+        tall && tight
+          ? `1000px: riga ${tall.rowMin}px, ${tall.overlaps}/${tall.pairs} accavallati, ` +
+            `${tall.scrollsY ? 'scorre' : 'non scorre'} · ` +
+            `600px: riga ${tight.rowMin}px, inchiostro max ${tight.ink}px («${tight.inkName}»), ` +
+            `aria ${tight.gap}px, ${tight.overlaps}/${tight.pairs} accavallati ` +
+            `(scatole del font ${tight.boxOverlaps}), figlio ${tight.child}px, ` +
+            `${tight.viewH}px su ${tight.contentH}px di plancia, ` +
+            `ultima riga ${tight.reachable ? 'raggiungibile' : 'tagliata'}`
+          : 'la plancia non ha disegnato blocchi a finestra bassa',
+      problems: [
+        ...(tall && tight ? [] : ["non si e' potuta misurare la plancia a finestra bassa"]),
+        // L'ARNESE PRIMA DELLA PAGINA: se il canvas non risolve la stessa faccia del DOM, l'inchiostro
+        // che segue e' di un altro carattere e ogni numero di questo passo parla d'altro.
+        ...(tight && tight.faceGap <= 0.5
+          ? []
+          : [`il canvas misura un'altra faccia: ${tight.faceGap}px di scarto dalla scatola del DOM`]),
+        ...(tall?.overlaps
+          ? [`a 1000px ${tall.overlaps} nomi su ${tall.pairs} si accavallano: ${tall.worst}px`]
+          : []),
+        ...(tall && tall.scrollsY
+          ? ["a 1000px la plancia scorre: ci starebbe tutta e una barra qui e' spazio buttato"]
+          : []),
+        ...(tight?.overlaps
+          ? [`a 600px ${tight.overlaps} nomi su ${tight.pairs} si accavallano: ${tight.worst}px`]
+          : []),
+        // Il pavimento si asserisce come DISUGUAGLIANZA contro cio' che la pagina dipinge, non contro
+        // un numero scritto qui: gli 11px sono suoi, i nove dell'inchiostro sono del carattere, e il
+        // giorno in cui uno dei due si muove e' questa riga a dirlo.
+        ...(tight && tight.rowMin >= tight.ink
+          ? []
+          : [`a 600px la riga sta a ${tight?.rowMin}px sotto i ${tight?.ink}px di inchiostro`]),
+        ...(tight && tight.childOut
+          ? [`a 600px ${tight.childOut} righe hanno un figlio da ${tight.child}px fuori dalla riga`]
+          : []),
+        ...(tight && tight.scrollsY
+          ? []
+          : ["a 600px la plancia non scorre: le 250 righe non ci stanno e nessuno puo' arrivarci"]),
+        ...(tight && !tight.reachable ? ["a 600px l'ultima riga resta tagliata anche scorrendo"] : []),
+        ...(tight && tight.scrollsX ? ['la plancia ha guadagnato uno scorrimento LATERALE'] : []),
+        ...(tight && tight.pageScrolls
+          ? ["a 600px scorre la PAGINA: l'intestazione e la card del lotto se ne vanno"]
+          : []),
       ],
     });
 

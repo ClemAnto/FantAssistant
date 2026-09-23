@@ -1,31 +1,22 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <!-- Fisso in basso a SINISTRA: a destra c'è il viaggio nel tempo, e due scatole nello stesso angolo si
      coprirebbero appena quella cresce. Fisso e fuori dall'outlet perché quello che dichiara vale per
-     ogni vista. -->
-<div
-  class="fixed bottom-3 left-3 z-(--z-dropdown) flex items-center gap-2 rounded-lg border bg-surface px-3 py-2 text-xs shadow-lg"
-  [class.border-border]="!excludedClubs().length"
-  [class.border-warning]="excludedClubs().length"
->
-  <button nz-button nzType="text" nzSize="small" (click)="openPanel()">
-    <nz-icon nzType="setting" />
-    Opzioni
-  </button>
-  <!-- QUANTO SONO FRESCHI I DATI, su ogni pagina e senza aprire niente. Sta qui e non in una scatola
-       propria perché due riquadri fissi nello stesso angolo si coprono, e questo deve esserci sempre. -->
-  <ui-data-freshness />
-  <!-- I GESTI DELLA PAGINA, se ne ha (`core/page-actions.ts`): stanno QUI e non in una seconda scatola
-       fissa, perché due riquadri in questo angolo si coprirebbero appena uno dei due cresce - ed è
-       proprio la ragione per cui la freschezza sta dentro a questo invece che in uno suo. Il separatore
-       si disegna solo quando c'è qualcosa da separare. -->
-  @if (pageActions.template(); as actions) {
-    <span class="h-4 w-px shrink-0 bg-border"></span>
-    <ng-container *ngTemplateOutlet="actions" />
-  }
-  <!-- UN FILTRO GLOBALE È INVISIBILE PER COSTRUZIONE: se qualcosa è escluso lo dice qui, con quanti
-       uomini nasconde, perché una lista che tace quello che ha tolto si legge come la lista intera. -->
+     ogni vista. La cornice e il collasso li mette `ui-bottom-dock`, che è uno per tutte e due. -->
+<ui-bottom-dock side="left" label="le opzioni" [flagged]="!!excludedClubs().length">
+  <!-- QUELLO CHE SOPRAVVIVE AL COLLASSO, e nessuno dei due è una scelta di forma.
+
+       QUANTO SONO FRESCHI I DATI, su ogni pagina e senza aprire niente. Sta qui e non in una scatola
+       propria perché due riquadri fissi nello stesso angolo si coprono, e questo deve esserci sempre -
+       oltre i tre giorni la pastiglia dice «allarmi spenti», e uno schermo che tace quella frase si
+       legge come «non c'è nessuno fuori».
+
+       E UN FILTRO GLOBALE È INVISIBILE PER COSTRUZIONE: se qualcosa è escluso lo dice qui, con quanti
+       uomini nasconde, perché una lista che tace quello che ha tolto si legge come la lista intera.
+       Piegare la barra non è una ragione per smettere di dirlo. -->
+  <ui-data-freshness always />
   @if (excludedClubs().length) {
     <span
+      always
       class="flex items-center gap-1 rounded-md bg-control px-2 py-0.5 font-medium text-fg"
       nz-tooltip
       [nzTooltipTitle]="excludedHint()"
@@ -34,7 +25,21 @@
       {{ excludedLabel() }}
     </span>
   }
-</div>
+
+  <!-- I CONTROLLI, che sono quelli che il collasso porta via. -->
+  <button nz-button nzType="text" nzSize="small" (click)="openPanel()">
+    <nz-icon nzType="setting" />
+    Opzioni
+  </button>
+  <!-- I GESTI DELLA PAGINA, se ne ha (`core/page-actions.ts`): stanno QUI e non in una seconda scatola
+       fissa, perché due riquadri in questo angolo si coprirebbero appena uno dei due cresce - ed è
+       proprio la ragione per cui la freschezza sta dentro a questo invece che in uno suo. Il separatore
+       si disegna solo quando c'è qualcosa da separare. -->
+  @if (pageActions.template(); as actions) {
+    <span class="h-4 w-px shrink-0 bg-border"></span>
+    <ng-container *ngTemplateOutlet="actions" />
+  }
+</ui-bottom-dock>
 
 <nz-modal
   [nzVisible]="editing()"

@@ -3,8 +3,14 @@
      LA PAGINA NON SCORRE, e le liste sì: al tavolo si guardano i quattro reparti insieme, quindi
      l'altezza è quella della finestra (`h-[100dvh]`) e ogni riquadro si ritaglia la sua parte.
      `min-h-0` su tutta la catena, altrimenti una griglia in `1fr` si allarga per stare dietro al
-     contenuto e la pagina ricomincia a scorrere - la stessa regola della pagina Strategia. -->
-<div class="flex h-[100dvh] flex-col gap-2 overflow-hidden p-2 pb-14">
+     contenuto e la pagina ricomincia a scorrere - la stessa regola della pagina Strategia.
+
+     E NON SI TIENE PIÙ UN MARGINE SOTTO PER LE BARRE FISSE (sua richiesta, 23/09/2026: «non occupino
+     spazio nella pagina»): il `pb-14` che stava qui erano 56px che la plancia regalava a due riquadri
+     larghi un terzo di schermo ciascuno, cioè 56px tolti alle 250 righe su tutta la larghezza. Adesso
+     le barre passano SOPRA, e il prezzo è dichiarato: da aperte coprono l'angolo in basso a sinistra e
+     quello in basso a destra della linea degli attaccanti. È la ragione per cui si piegano. -->
+<div class="flex h-[100dvh] flex-col gap-2 overflow-hidden p-2">
   <!-- LA BARRA DEL REGOLAMENTO: sempre a schermo, mai dentro un pannello che si chiude. Titolo,
        versione e nav li mette l'intestazione comune (`ui/app-header`, che qui e' proprio questa barra);
        dentro ci sta solo cio' che e' di QUESTA pagina, nell'ordine in cui si legge. -->

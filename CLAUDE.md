@@ -3820,6 +3820,56 @@ togliendo di nuovo la registrazione: 73 icone a schermo, **0 vuote**, occhio dis
 che dipende da cosa un'altra libreria patcha per se' e' fragile), il verbale porta il numero e non la
 storia. *Una review e' un'ipotesi con un argomento, non una misura: la meta' verificabile si verifica.*
 
+## Una SCATOLA TIPOGRAFICA non e' il disegno che contiene, e una barra che si piega nasconde i CONTROLLI
+**23/09/2026, da due richieste sue sulla plancia: «per altezze non sufficienti della pagina visualizza i
+nomi dei calciatori accavallati» e «i menu' in basso ... non occupino spazio nella pagina ... e siano
+collassabili». Dettaglio: `assistente-asta-v1.md` §45, `letture-app-v1.md` §51.** Nessun numero del
+motore si muove.
+
+**IL PAVIMENTO DI UNA RIGA LO DECIDE L'INCHIOSTRO, E LA PRIMA VERSIONE HA MISURATO L'ALTRA SCATOLA.** Un
+`Range` su un nodo di testo restituisce ascent+descent della FACCIA (14px a un corpo di 10), che contiene
+spazio che quasi nessuna lettera usa; dove i pixel cadono davvero lo dice `actualBoundingBox*` sulla
+STRINGA di quella riga, e sulle 249 righe della plancia il nome piu' alto ne dipinge **NOVE**. A 10,5px
+di riga le scatole della faccia si sovrappongono su **224 coppie su 224** e l'inchiostro su **ZERO**: due
+misure, due verdetti opposti, e solo la seconda descrive quello che si vede. La prima cura, adottata su
+quella misura, aveva messo il pavimento a 14px - cinque pixel per riga di troppo, centosessanta su
+quattro linee - e a scoprirlo e' stata la sua richiesta di stringere, non una rilettura. *Quando una
+misura si fa su una scatola invece che sul disegno, il numero e' vero e risponde a un'altra domanda.*
+
+**IL PAVIMENTO E' PER RIGA E NON PER PLANCIA**, perche' un blocco porta `teams` nomi: l'altezza di cui la
+griglia ha bisogno si SOMMA da se' (535px sulla sua lega) invece di essere un numero vero per una lega da
+dieci e falso per una da otto - «una soglia assoluta non si confronta fra budget diversi» applicata a un
+layout. E **«non occupa spazio» non e' `position: fixed` scritto in una classe**: le due barre lo erano
+gia', a riservare i 56px era la PAGINA, e la prova che la riserva non c'e' piu' e' che delle righe stiano
+DENTRO il rettangolo della barra.
+
+**E QUANDO UNA BARRA SI PIEGA, SI NASCONDONO I CONTROLLI E MAI GLI ALLARMI.** Questa app ha due frasi che
+esistono apposta per non lasciarsi dimenticare - la pastiglia che dice «allarmi spenti» (uno schermo
+senza allarmi si legge come «non c'e' nessuno fuori») e la data in cui l'app crede di trovarsi - e un
+collasso che le spegnesse sarebbe il difetto che quei due riquadri sono stati scritti per impedire.
+Quello che sopravvive sta in uno slot DICHIARATO e non e' una scelta di forma; il bottone che riapre non
+sparisce mai, perche' un controllo che sparisce e' irraggiungibile.
+
+Quattro abitudini, e tre sono pagate.
+- **UN NUMERO STAMPATO ACCANTO A UN VERDETTO VERDE VA GUARDATO LO STESSO.** La barra riaperta dopo un
+  collasso leggeva 541px invece di 525 e il passo era verde, perche' asserivo i BOTTONI e i 16px erano
+  nel `said`. Dentro c'erano due nodi fantasma - `nz-tooltip` e `nz-popconfirm`, elementi ospite che antd
+  crea e stacca e che Angular reinserisce quando una vista si riattacca - larghi zero e con il loro
+  `gap`. **Stessa causa che il 20/08 si mangio' una colonna della griglia dell'intestazione della
+  tabella**, curata li' spostando il tooltip e qui alla radice.
+- **IL PREZZO DI UNA RICHIESTA SI MISURA E SI DICHIARA, non si aggira.** Tolta la riserva, da aperte le
+  barre coprono 12 + 4 righe di 249 e li' un click arriva alla barra: e' la conseguenza diretta di quello
+  che ha chiesto, e il rimedio e' la freccia. Il banco che ci e' cascato ora piega le barre come farebbe
+  l'operatore e STAMPA quante ne coprivano - *un banco che gira intorno a un ostacolo senza nominarlo fa
+  sparire il fatto* - e il guardiano che pretendeva il contrario e' stato RIBALTATO con data e ragione,
+  sulla promessa nuova: non «non copre», ma «piegandola si scopre».
+- **UN BANCO SI AGGANCIA ALL'ATTRIBUTO CHE UN COMPONENTE DICHIARA, mai al cammino nell'albero**: due
+  selettori strutturali hanno smesso di rispondere il giorno in cui una cornice e' passata a un wrapper,
+  e da li' hanno accusato la pagina del proprio difetto.
+- **Misurare mentre l'ambiente si muove non e' misurare, e stavolta a muoversi era la MACCHINA**: la
+  suite unitaria lanciata insieme a dodici browser headless leggeva 4 test falliti su 1053, da sola e'
+  verde. Un rosso che non si riproduce da solo si rimisura prima di inseguirlo.
+
 ## Un CONTENITORE decide la forma di una riga, non la FINESTRA — e un riquadro che non si vede non c'e'
 **04/09/2026 (sera), `views/strategy/` + `core/strategy.readingsOf`. Dettaglio:
 `pagina-strategia-v1.md` §13.** Richiesta dell'operatore: tre pastiglie su ogni riga della Strategia —

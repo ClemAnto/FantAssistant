@@ -307,7 +307,7 @@
       [style.grid-template-columns]="'repeat(' + columns() + ', minmax(0, 1fr))'"
       [style.grid-auto-rows]="'minmax(0, 1fr)'"
     >
-      @for (block of visible(); track block.role; let last = $last) {
+      @for (block of visible(); track block.role) {
         <section
           class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-surface"
         >
@@ -405,7 +405,6 @@
                  spinto fuori dal blocco, e per quello c'è `flex-wrap` sulla riga. -->
             <ol
               class="@container scrollbar-slim scrollbar-quiet min-h-0 flex-1 overflow-y-auto"
-              [class.pb-11]="last"
               cdkDropList
               [cdkDropListData]="block.men"
               (cdkDropListDropped)="dropped(block.role, $event)"

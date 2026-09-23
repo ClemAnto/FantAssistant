@@ -1,0 +1,42 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     LA CORNICE DELLE DUE BARRE IN BASSO, una sola per tutte e due. `fixed` e fuori dal flusso: quello
+     che dichiarano vale per ogni vista, e l'altezza della pagina si spende su quello che si sta
+     guardando. Le pagine non si tengono piu' un margine sotto per loro (sua richiesta, 23/09/2026),
+     quindi la scatola PASSA SOPRA il contenuto - ed e' per questo che si piega.
+
+     `w-fit` e non una larghezza: piegata deve restringersi fino alla freccia, o «collassata» sarebbe
+     solo «vuota». -->
+<div
+  class="fixed bottom-3 z-(--z-dropdown) flex w-fit max-w-[calc(100vw-1.5rem)] items-center gap-2
+         rounded-lg border bg-surface px-3 py-2 text-xs shadow-lg"
+  [class.left-3]="side() === 'left'"
+  [class.right-3]="side() === 'right'"
+  [class.border-border]="!flagged()"
+  [class.border-warning]="flagged()"
+  [attr.data-dock]="side()"
+  [attr.data-collapsed]="collapsed() ? '' : null"
+>
+  <!-- QUELLO CHE SOPRAVVIVE AL COLLASSO, e sta per primo a sinistra perche' da piegata e' tutto cio'
+       che resta accanto alla freccia. -->
+  <ng-content select="[always]" />
+
+  @if (!collapsed()) {
+    <ng-content />
+  }
+
+  <!-- LA FRECCIA STA IN FONDO e non in cima: e' l'unico controllo che non sparisce mai, quindi la sua
+       posizione non deve dipendere da quanto c'e' accanto - da piegata resterebbe l'unica cosa in una
+       scatola larga trenta pixel, e da aperta salterebbe da una parte all'altra. -->
+  <button
+    type="button"
+    class="ml-auto shrink-0 rounded p-0.5 leading-none text-muted hover:bg-control hover:text-fg"
+    nz-tooltip
+    [nzTooltipTitle]="hint()"
+    [attr.aria-label]="hint()"
+    [attr.aria-expanded]="!collapsed()"
+    (click)="toggle()"
+  >
+    <nz-icon [nzType]="icon()" />
+  </button>
+</div>

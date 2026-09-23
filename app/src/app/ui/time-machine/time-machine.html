@@ -1,11 +1,19 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
-<!-- Fisso in basso a destra: l'altezza della pagina si spende sulla tabella, non sulla sua cornice. -->
-<div
-  class="fixed right-3 bottom-3 z-(--z-dropdown) max-w-sm rounded-lg border bg-surface px-3 py-2
-         text-xs shadow-lg"
-  [class.border-border]="!travelling()"
-  [class.border-warning]="travelling()"
->
+<!-- Fisso in basso a destra: l'altezza della pagina si spende sulla tabella, non sulla sua cornice.
+     La cornice e il collasso li mette `ui-bottom-dock`, che è uno per tutte e due le scatole. -->
+<ui-bottom-dock side="right" label="il viaggio nel tempo" [flagged]="travelling()">
+  <!-- QUELLO CHE SOPRAVVIVE AL COLLASSO, e solo quando c'è: la DATA in cui l'app crede di trovarsi.
+       È l'allarme di questa scatola - un'app che mostra agosto credendosi a settembre e non lo dice è
+       peggio di un'app che non viaggia - quindi piegare la barra ne toglie i controlli e non il fatto.
+       Da ferma non resta niente: «oggi è oggi» non è una notizia, ed è la stessa regola per cui la
+       pastiglia della freschezza non ha colore quando è tutto fresco. -->
+  @if (travelling()) {
+    <span always class="font-medium whitespace-nowrap text-warning" nz-tooltip [nzTooltipTitle]="frozen"
+      >🕐 {{ today() }}</span
+    >
+  }
+
+  <div class="flex max-w-sm flex-col">
   <div class="flex items-center gap-2">
     <span
       class="font-medium whitespace-nowrap"
@@ -61,4 +69,5 @@
       ⓘ restano di oggi: probabili, ruolo granulare, scadenza contratto
     </p>
   }
-</div>
+  </div>
+</ui-bottom-dock>

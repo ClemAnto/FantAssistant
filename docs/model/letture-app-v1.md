@@ -6135,3 +6135,105 @@ contiene la condizione, è un test che non può fallire.
 riepilogo del banco della card (una media voto sintetica, 5,7 contro 5,5 attesi). E il banco della
 Strategia dichiarava «venti letture» mentre `READINGS` ne porta venti più il gain: era rosso su un conto
 suo dal 16/09, allineato a ventuno.
+
+## 51 — LE DUE BARRE IN BASSO: fisse davvero, e piegabili (23 settembre 2026)
+
+Sua richiesta: «facciamo in modo che i menù in basso (Opzioni / Estrai / azzera / Viaggio nel tempo /
+ecc...) siano position fixed e non occupino spazio nella pagina. facciamo anche che i menù in basso
+siano collassabili». Nessun numero si muove: `engine_*` fermo, `SHEET_REVISION` fermo, il pacchetto
+fermo.
+
+### 51.1 Erano già `fixed`: a occupare spazio era la PAGINA
+
+Tutt'e due le scatole sono `position: fixed` da quando esistono. Quello che si mangiava lo schermo era
+la riserva che le pagine si tenevano sotto per non farsi coprire: **`pb-14` sulla plancia** (56px su
+tutta la larghezza, per due riquadri larghi un terzo ciascuno) e **`pb-11` sull'ultima lista della
+Strategia**. Tolte. Misurato sulla plancia a 1600px di larghezza, la griglia guadagna **48px** (56 meno
+gli 8 del padding normale): a 900px di finestra passa da 727,7 a 775,7px, e le righe da 15,3-17,0 a
+16,5-18,4px. La plancia sta ora intera fino a ~660px di finestra invece che ~710.
+
+*«Non occupa spazio» non è `position: fixed` scritto in una classe*: è che il contenuto arrivi SOTTO la
+scatola. Per questo il banco lo misura contando quante righe stanno DENTRO il suo rettangolo — con la
+riserva non ce ne stava nessuna, e se qualcuno la rimette il conteggio torna a zero.
+
+### 51.2 Il prezzo, dichiarato: sedici righe su 249 non si possono cliccare
+
+Da aperte le due barre coprono **12 righe la sinistra e 4 la destra** sulla linea degli attaccanti, e
+lì un click arriva alla barra e non alla riga. Non è un difetto da nascondere: è la conseguenza diretta
+della richiesta, e il rimedio è la freccia. L'ha trovato `e2e-plancia-injury`, che cliccava proprio una
+di quelle righe («la riga esiste nel DOM ma qualcosa la copre sullo schermo»): adesso piega le barre
+come farebbe l'operatore e **stampa quante righe coprivano**, perché un banco che gira intorno a un
+ostacolo senza nominarlo fa sparire il fatto.
+
+Sulla Strategia il prezzo è più piccolo e si legge per intero nel passo «la coda»: con la scatola
+aperta l'ultimo nome dell'ultimo blocco è coperto, **piegata non lo è più** — resta coperto il bordo
+destro della riga, cioè il gain. Quel passo fino a ieri pretendeva il contrario (era il guardiano del
+`pb-11`) ed è stato RIBALTATO con la data e la ragione, non cancellato: quello che si pretende adesso è
+che **il rimedio esista e funzioni**.
+
+### 51.3 La regola del collasso: si nascondono i CONTROLLI, mai gli ALLARMI
+
+`ui/bottom-dock` è una cornice sola per tutte e due (erano due copie della stessa: stesso `fixed`,
+stesso fondo, stesso bordo, stessa ombra, stesso `z`), e ha due ingressi: lo slot `always`, che si
+disegna in tutt'e due gli stati, e il contenuto normale, che il collasso porta via.
+
+Non è una scelta di forma. Questa app ha due frasi che esistono APPOSTA per non lasciarsi dimenticare —
+la pastiglia che dice «allarmi spenti» (uno schermo senza allarmi si legge come «non c'è nessuno
+fuori», che è la bugia più cara che questa app possa dire) e la data in cui l'app crede di trovarsi —
+e un collasso che le spegnesse sarebbe il difetto che quei due riquadri sono stati scritti per
+impedire. Quindi: a sinistra sopravvivono la freschezza e la pastiglia delle squadre escluse, a destra
+la data **e solo mentre si viaggia** (da ferma non resta niente: «oggi è oggi» non è una notizia, che è
+la stessa ragione per cui la freschezza non ha colore quando è tutto fresco). La freccia non sparisce
+mai: un controllo che sparisce è un controllo irraggiungibile.
+
+Misurato a schermo: la barra di sinistra passa da **525×42px a 123×38px** (cinque bottoni → uno) e
+resta «dati ieri»; la destra da 386×42 a **42×35** e le righe che copriva passano da 4 a 0. Lo stato è
+per ANGOLO e vive in `localStorage` — piegare una barra è come si legge lo schermo, non cosa la pagina
+mostra — e sopravvive al ricaricamento. Aperte all'inizio: *una barra che nasce piegata su una macchina
+nuova è una funzione che nessuno trova.*
+
+### 51.4 Il difetto che il collasso ha fatto uscire: due nodi fantasma che prendono un `gap`
+
+Riaperta dopo un collasso, la barra di sinistra leggeva **541px invece di 525**, e i 16px non erano
+arrotondamento: dentro c'erano due figli in più, `<nz-tooltip>` e `<nz-popconfirm>`. Sono elementi
+OSPITE — la direttiva di antd li crea con la `ViewContainerRef` dell'elemento su cui sta e poi li
+TOGLIE dal DOM, perché quello che si vede vive in un overlay — e Angular continua a contarli fra i nodi
+della vista, quindi li reinserisce ogni volta che una vista viene staccata e riattaccata. Larghi zero,
+ma in un contenitore `flex` con `gap-2` si prendono comunque i loro otto pixel a testa.
+
+**È la stessa causa che il 20/08/2026 si mangiò una colonna della griglia dell'intestazione della
+tabella**, curata lì spostando il tooltip su uno `<span>`. Qui si cura alla radice
+(`nz-tooltip, nz-popconfirm { display: none }` in `ng-zorro.css`): un elemento che non disegna niente
+non deve occupare niente. Il vero tooltip è `.ant-tooltip` dentro l'overlay e non è toccato — verificato
+non per lettura ma facendo girare i **quattro banchi che i tooltip li aprono davvero** (plancia-slots,
+nav, keepers, strategy), tutti verdi. Dopo: 525px stabili su quattro cicli di apri-e-chiudi.
+
+Nota su come è stato trovato: il banco asseriva «riaperta ha gli stessi bottoni di prima» e quello
+tornava; i 16px erano nel `said`, cioè in una riga che nessuno stava confrontando. *Un numero stampato
+accanto a un verdetto verde va guardato lo stesso.*
+
+### 51.5 Due banchi che accusavano la pagina del proprio difetto
+
+`e2e-nav` leggeva la scatola come `ui-global-options > div` — un cammino strutturale, che il wrapper ha
+spostato di un livello — e da lì stampava «la plancia non mette i suoi gesti nella scatola in basso» su
+una plancia che ce li mette. Stessa famiglia del `header span:nth-of-type(2)` del 07/09: adesso tutt'e
+due i banchi si agganciano all'ATTRIBUTO che la scatola dichiara (`[data-dock="left"|"right"]`), che è
+un fatto del componente e non una posizione nell'albero.
+
+E una nota di misura: lanciando la suite unitaria **insieme** a dodici browser headless, 4 test su 1053
+sono falliti; da sola è verde. *Misurare mentre l'ambiente si muove non è misurare* — e la lezione vale
+al contrario di come la si incontra di solito, perché qui a muoversi era la macchina e non il codice.
+
+### 51.6 Un rosso che NON è di questa modifica, con la causa nominata
+
+`e2e-why` legge, su una riga, presenze **26,4 a schermo contro 22,9 sul foglio** e surplus 5,1 contro
+4,4. Il rapporto è esattamente **38/33**, cioè il riporto a stagione piena adottato il 22/09 (§50) — e
+quel documento dichiara da sé dove non si applica: «`/why` è la pagina che SPIEGA il foglio, quindi
+mostra le colonne come il foglio le scrive - riportarle là vorrebbe dire far leggere una catena che non
+riproduce più il numero che sta verificando». Il riporto sta in `ValuationStore` dentro
+`EngineExpectation`, e `/why` legge quella; quindi la regola c'è ed è la pagina a non rispettarla.
+L'identità che la pagina verifica **sopravvive** (fm e rimpiazzo sono intensivi e non si riportano, pv
+e surplus sì, quindi il prodotto si riscala con loro) ed è per questo che nessuno se n'era accorto: a
+non tornare è il confronto col foglio, che solo il banco fa. Lasciato rosso con la causa scritta, perché
+la cura è una decisione dentro quella feature: o `/why` divide per la scala, o `EngineExpectation`
+porta anche il numero grezzo.

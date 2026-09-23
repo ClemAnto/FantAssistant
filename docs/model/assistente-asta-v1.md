@@ -4291,3 +4291,125 @@ una (commit `9c8729c`) senza aggiornare il suo banco.
 strategie portieri (§34.6) e' misurata e documentata, quindi rimetterla a schermo costa una vista e non
 una misura, ma oggi non entra in nessuna schermata e il file lo dichiara. E l'avanzamento per ruolo non
 ha piu' un posto: torna in una riga se gli manca.
+
+## 45. UNA FINESTRA BASSA: la plancia SCORRE invece di accavallare i nomi (23 settembre 2026)
+
+Sua segnalazione: «la plancia per altezze non sufficienti della pagina visualizza i nomi dei calciatori
+accavallati, impostiamo un'altezza minima e permettiamo lo scroll verticale quando necessario», e poi il
+pavimento dettato in tre tempi - «stringiamo fino a 11px», «stringiamo a 10px», «no 10 e' troppo poco ...
+proviamo con 10.5px». Nessun numero del motore si muove: `engine_*` fermo, `SHEET_REVISION` fermo, il
+pacchetto fermo. Quello che cambia e' dove la plancia cede quando lo spazio non basta.
+
+### 45.1 La misura prima della cura
+
+La pagina e' `h-[100dvh] overflow-hidden` e la plancia si prende quello che resta; dentro, ogni linea e
+ogni riga erano `flex-1 min-h-0`, cioe' **autorizzate a scendere sotto il proprio contenuto**. Misurato
+sulla plancia vera a 1600px di larghezza (Serie A classic, 25 blocchi, 249 righe):
+
+| Finestra | Altezza riga | Accavallamenti (inchiostro) | Barra del proprietario fuori riga |
+|---|---|---|---|
+| 1000px | 17,8-19,8px | 0 / 224 | 0 |
+| 900px | 15,3-17,0px | 0 / 224 | 0 |
+| 800px | 12,8-14,3px | 0 / 224 | 0 |
+| 720px | 10,8-12,0px | 0 / 224 | 0 |
+| 650px | 9,1-10,1px | 1 / 224 | 240 |
+| 600px | 7,8-8,7px | **54 / 224** | 249 |
+| 540px | 6,3-7,0px | **219 / 224** | 249 |
+
+Due note su questa tabella. La prima e' procedurale: **tre di questi numeri li avevo scritti a
+occhio e due erano sbagliati** (650 letto 12 invece di 1, 540 letto 88 invece di 219), corretti
+rieseguendo la sonda sul template di HEAD - *una tabella si misura anche quando la riga accanto e'
+misurata e la forma sembra ovvia.* La seconda e' sul difetto: l'occhio legge «accavallati» PRIMA della
+collisione vera, perche' a 720px le scatole della faccia si sovrappongono gia' tutte e 224 e la barra del
+proprietario (10px) sfonda la riga da 650 in giu' - il che e' anche la ragione per cui un pavimento
+appiccicato al limite dell'inchiostro (i 10px, aria zero) non e' quello che si vuole a schermo.
+
+### 45.2 DUE SCATOLE, e la prima versione ha misurato quella sbagliata
+
+Il primo pavimento adottato e' stato **14px**, e veniva dal `Range` sul nodo di testo: ascent+descent
+della FACCIA a 10px di corpo. Con quella misura l'accavallamento cominciava a 800px di finestra (216
+coppie su 224) e la cura sembrava chiusa. **E' sbagliata**, e a scoprirlo e' stata la sua richiesta di
+stringere: la scatola della faccia contiene spazio che quasi nessuna lettera usa, mentre «accavallati» e'
+una frase sui PIXEL. Quello che decide e' `actualBoundingBox*` sulla STRINGA di quella riga, e su queste
+249 righe il nome piu' alto ne dipinge **NOVE** - «Caprile», che ha una discendente.
+
+Detto per intero: a 10,5px di riga le scatole della faccia si sovrappongono su **224 coppie su 224** e
+l'inchiostro su **ZERO**. Due misure, due verdetti opposti, e solo la seconda descrive quello che si
+vede. *Una scatola tipografica non e' il disegno che contiene, e la differenza vale cinque pixel per riga
+- sulle quattro linee della plancia, centosessanta.*
+
+**L'arnese si verifica prima della pagina**: il canvas puo' risolvere una faccia diversa da quella del
+DOM, e allora l'inchiostro misurato sarebbe di un altro carattere. Il controllo e' che la sua scatola
+della faccia legga gli stessi 14px del `Range` (`faceGap` = 0, asserito nel banco).
+
+### 45.3 Dove cade il pavimento, sui tre valori che ha provato
+
+| Pavimento | Aria fra due nomi | Accavallamenti | Plancia | Sta intera sopra |
+|---|---|---|---|---|
+| 14px (prima versione) | 4,8px | 0 / 224 | 675px | ~850px di finestra |
+| 11px | 1,0px | 0 / 224 | 555px | ~730px |
+| **10,5px (adottato)** | **0,5px** | **0 / 224** | **535px** | **~710px** |
+| 10px | 0,0px | 0 / 224 | 515px | ~690px |
+| sotto i 10px | negativa | 12-88 / 224 | - | - |
+
+**Il mezzo pixel non e' un dettaglio, ed e' l'argomento per cui 10 tondi e' stato scartato**: a 10px la
+dichiarazione e' **INERTE** - misurato togliendola, la riga resta a 10,0px e la plancia chiede gli stessi
+515px - perche' il pavimento glielo danno gia' due fatti strutturali, il `leading-none` su `text-[10px]`
+(linea alta dieci) e la barra del proprietario (`h-2.5`). Un pavimento che coincide col fondo che la
+struttura da' per conto suo non e' il pavimento di nessuno. A 10,5 la riga sta mezzo pixel sopra quel
+fondo, e la manopola fa qualcosa.
+
+### 45.4 Il pavimento e' PER RIGA, e per questo non e' un numero da aggiornare
+
+`min-h-[10.5px]` sulla riga e via i `min-h-0` da linea, blocco e colonna dei nomi: da li' in su il minimo
+automatico di un elemento flex torna a essere cio' che disegna, e l'altezza di cui la griglia ha bisogno
+**si somma da se'** - 535px sulla sua lega, misurati e non scritti da nessuna parte. Una plancia alta N
+pixel sarebbe stata un numero vero per una lega da dieci e falso per una da otto o da dodici, perche' un
+blocco porta `teams` nomi: e' «una soglia assoluta non si confronta fra budget diversi» applicata a un
+layout. E i quattro `flex-1` restano, quindi finche' c'e' posto la plancia si divide lo spazio esattamente
+come prima (a 1000px le righe leggono gli stessi 17,8-19,8px).
+
+### 45.5 Lo scroll sta nella PLANCIA e non nella pagina
+
+`overflow-y-auto` sulla plancia. La pagina continua a non scorrere per scelta - l'intestazione e la card
+del lotto sono quello che si guarda mentre si decide un rilancio - quindi eccedere e' un fatto della
+plancia e la barra e' sua; `e2e-nav`, che quella dottrina la misura su ogni vista, resta verde. Mai in
+orizzontale, e **l'ultima riga e' raggiungibile a ogni altezza** - una plancia che scorre e taglia
+comunque l'ultimo nome sarebbe il difetto di prima con una barra accanto. Le rose restano `min-h-0`, al
+contrario dei blocchi: seguono la linea dei portieri e non la decidono, o la plancia scorrerebbe per una
+ragione che non e' la sua.
+
+### 45.6 Il guardiano, e la controprova
+
+Passo nuovo in `e2e-plancia-slots` («a finestra bassa la plancia scorre invece di accavallare i nomi»),
+misurato a DUE altezze perche' dicono cose opposte: a 1000px ci sta tutto e **non deve scorrere** - una
+barra dove lo spazio basta e' spazio buttato - a 600px non ci sta e quello che si pretende e' che a cedere
+sia lo spazio e non la leggibilita'. Il pavimento non e' una costante del banco: l'inchiostro si legge
+dalla pagina e si asserisce la disuguaglianza `riga >= inchiostro`, non un numero.
+
+**Le due altezze sono scelte col margine, ed e' una correzione a questo stesso passo**: la prima versione
+misurava a 900 e 720, dove il verdetto «scorre» si decideva su DUE pixel (553 di vista contro 555 di
+plancia) - sarebbe andato rosso alla prima riga in piu' in barra, per una ragione che non e' un difetto.
+A 1000px la vista e' 828 contro 535, a 600px e' 428: nessuna delle due risposte e' in bilico. Per lo
+stesso motivo la tolleranza sull'accavallamento e' scesa da 0,5 a 0,2px: al pavimento scelto l'aria e'
+mezzo pixel, e uno sconto piu' grande della cosa che protegge non protegge niente.
+
+Controprova col template di HEAD (build vero): cadono **quattro asserzioni di quel passo e nessun'altra** -
+54 nomi su 224 accavallati di 2px, la riga a 7,9px sotto i 9px di inchiostro, la barra del proprietario
+fuori dalla riga su 249 righe, la plancia che non scorre. Gli altri otto passi restano verdi a ragione,
+perche' descrivono comportamenti che non cambiano.
+
+### 45.7 E poi la pagina ha smesso di tenersi un margine, e la soglia e' scesa ancora
+
+La tabella qui sopra e' misurata con il `pb-14` che la plancia si teneva sotto per le barre fisse. Lo
+stesso giorno quella riserva e' stata tolta (sua richiesta, §51 di `letture-app-v1.md`), e sono **48px**
+che tornano alla griglia: a 900px di finestra la plancia passa da 727,7 a 775,7px e le righe da
+15,3-17,0 a 16,5-18,4px. La soglia sotto cui comincia a scorrere scende da **~710px a ~660px** di
+finestra. Il pavimento della riga non si muove di un decimo: quello e' un fatto sul carattere.
+
+### 45.8 Cosa NON si e' mosso, verificato
+
+Suite app **1048 test su 60 file**; `e2e-plancia-slots`, `-lens`, `-keepers`, `-award`, `-injury` e
+`e2e-nav` verdi. `e2e-player-card` resta rosso sullo stesso riepilogo di §44.6 (`season: null`, `~5.7`
+contro il 5,5 del pacchetto): **riprodotto identico sul template di HEAD**, quindi non e' di questa
+modifica.

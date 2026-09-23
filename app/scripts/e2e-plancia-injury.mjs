@@ -193,6 +193,31 @@ async function waitFor(session, fn, tries = 60, ...args) {
  * un'icona, e contare parole leggerebbe zero e accuserebbe la regola sbagliata. Il taglio si legge
  * da `text-decoration-line` COMPUTATO, perche' e' una classe che potrebbe esserci e non dipingere.
  */
+/**
+ * Piega le due barre in basso e dice quante righe coprivano.
+ *
+ * Si preme il loro bottone invece di scrivere in `localStorage`: quello che si sta provando e' che il
+ * rimedio esista sullo schermo, e una preferenza scritta a mano proverebbe solo che la chiave esiste.
+ */
+function foldDocks() {
+  const rows = [...document.querySelectorAll('plancia-slot-matrix .grid > div button')];
+  const docks = [...document.querySelectorAll('[data-dock]')];
+  let covered = 0;
+  let folded = 0;
+  for (const dock of docks) {
+    const box = dock.getBoundingClientRect();
+    covered += rows.filter((row) => {
+      const r = row.getBoundingClientRect();
+      return r.right > box.left && r.left < box.right && r.bottom > box.top && r.top < box.bottom;
+    }).length;
+    if (!dock.hasAttribute('data-collapsed')) {
+      dock.querySelector('button[aria-expanded]')?.click();
+      folded += 1;
+    }
+  }
+  return { docks: docks.length, folded, covered, rows: rows.length };
+}
+
 function readRow(name) {
   const rows = [...document.querySelectorAll('plancia-slot-matrix button')];
   const found = rows.find((one) => (one.innerText ?? '').toLowerCase().includes(name.toLowerCase()));
@@ -361,6 +386,21 @@ async function main() {
     await session.send('Runtime.enable');
     await session.send('Page.navigate', { url });
     await wait(3000);
+
+    // 0-bis. SI PIEGANO LE DUE BARRE IN BASSO, e va detto perche' non e' un dettaglio dell'arnese.
+    //        Dal 23/09/2026 la plancia non si tiene piu' un margine sotto per loro (sua richiesta:
+    //        «non occupino spazio nella pagina»), quindi da aperte PASSANO SOPRA le ultime righe
+    //        della linea degli attaccanti - misurato, 12 righe sotto quella di sinistra e 4 sotto
+    //        quella di destra su 249 - e li' un click arriva alla barra e non alla riga. Non e' un
+    //        difetto da aggirare: e' il prezzo dichiarato di quella richiesta, e il rimedio e'
+    //        proprio la freccia. Questo banco parla di infortuni e non di barre, quindi le piega
+    //        come farebbe l'operatore e lo SCRIVE - un banco che gira intorno a un ostacolo senza
+    //        nominarlo fa sparire il fatto.
+    const folded = await evaluate(session, foldDocks);
+    note('le barre in basso, piegate per arrivare alle righe che coprono', {
+      said: `${folded.folded} barre piegate su ${folded.docks} · coprivano ${folded.covered} righe di ${folded.rows}`,
+      problems: folded.docks === 2 ? [] : [`ho trovato ${folded.docks} barre invece di due`],
+    });
 
     // 0. IL BUNDLE CHE LA PAGINA STA LEGGENDO. Le date di rientro stanno in `injuries` e le giornate
     //    in `calendar.json`: si leggono dallo STESSO server della pagina, o il banco confronterebbe

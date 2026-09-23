@@ -484,6 +484,10 @@ function boxOf(selector, text) {
  * vede: due rettangoli che si sovrappongono sono un nome che al tavolo non si legge.
  */
 function readTail() {
+  const toggleOf = (dock) => {
+    const one = dock?.querySelector('button[aria-expanded]')?.getBoundingClientRect();
+    return one?.width ? { x: one.left + one.width / 2, y: one.top + one.height / 2 } : null;
+  };
   const sections = [...document.querySelectorAll('app-strategy section')];
   const last = sections.at(-1);
   const list = last?.querySelector('ol');
@@ -491,7 +495,10 @@ function readTail() {
   list.scrollTop = list.scrollHeight;
   const rows = [...list.querySelectorAll('li')];
   const name = rows.at(-1);
-  const machine = document.querySelector('ui-time-machine > div, ui-time-machine div');
+  // Si aggancia all'ATTRIBUTO che la scatola dichiara e non al cammino: la cornice e' passata a
+  // `ui-bottom-dock` il 23/09/2026, e un selettore strutturale avrebbe smesso di rispondere in silenzio.
+  const machine = document.querySelector('[data-dock="right"]');
+  const folded = machine?.hasAttribute('data-collapsed') ?? null;
   const rect = (element) => {
     const one = element.getBoundingClientRect();
     return {
@@ -501,11 +508,18 @@ function readTail() {
   };
   if (!name) return null;
   const row = rect(name);
+  // IL NOME E LA RIGA SONO DUE BERSAGLI DIVERSI, e la promessa e' sul NOME: la riga e' larga quanto il
+  // blocco, quindi la freccia piegata in un angolo la interseca sempre per il suo bordo destro - dove
+  // c'e' il gain, che resta il prezzo dichiarato di non avere piu' la riserva.
+  const label = name.querySelector('.truncate') ?? name;
+  const text = rect(label);
   const box = machine ? rect(machine) : null;
-  const covered = box
-    ? row.bottom > box.top && row.top < box.bottom && row.right > box.left && row.left < box.right
-    : false;
-  return { role: last.querySelector('ui-role')?.innerText?.trim() ?? '', row, box, covered,
+  const hits = (what) =>
+    !!box && what.bottom > box.top && what.top < box.bottom
+      && what.right > box.left && what.left < box.right;
+  return { role: last.querySelector('ui-role')?.innerText?.trim() ?? '', row, box, folded,
+           covered: hits(row), nameCovered: hits(text),
+           toggleAt: toggleOf(machine),
            text: (name.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 40) };
 }
 
@@ -1714,16 +1728,33 @@ async function main() {
       ],
     });
 
-    // 2b. LA CODA: l'ultimo nome dell'ultimo blocco non sta sotto il box del viaggio nel tempo.
+    // 2b. LA CODA, e questo passo e' stato RIBALTATO il 23/09/2026 su sua istruzione: «i menu' in
+    //     basso ... non occupino spazio nella pagina». Fino a quel giorno l'ultima lista si teneva un
+    //     `pb-11` perche' il box del viaggio nel tempo non le coprisse la coda, e questo passo lo
+    //     pretendeva; adesso quella riserva non c'e' piu' e la scatola PUO' coprire. Quello che si
+    //     pretende e' la CURA: che piegarla scopra il nome, cioe' che il rimedio esista e funzioni su
+    //     questa pagina. La misura da aperta resta stampata, perche' e' il prezzo della richiesta.
     const tail = await evaluate(session, readTail);
+    let uncovered = null;
+    if (tail?.toggleAt) {
+      await click(session, tail.toggleAt);
+      uncovered = await evaluate(session, readTail);
+      // Si rimette com'era: i passi dopo questo guardano la pagina, non il mio esperimento.
+      if (uncovered?.toggleAt) await click(session, uncovered.toggleAt);
+    }
     note('la coda', {
       said: tail
         ? `${tail.role} in fondo: «${tail.text}» a ${JSON.stringify(tail.row)} · box `
-          + `${JSON.stringify(tail.box)}`
+          + `${JSON.stringify(tail.box)} · aperta copre la riga ${tail.covered ? 'si' : 'no'} e il nome `
+          + `${tail.nameCovered ? 'si' : 'no'} · piegata ${uncovered ? `riga ${uncovered.covered ? 'si' : 'no'} `
+          + `e nome ${uncovered.nameCovered ? 'si' : 'no'}` : 'non misurata'}`
         : 'nessuna riga da leggere',
       problems: [
         ...(tail ? [] : ["non ho trovato la coda dell'ultimo blocco: il passo non ha misurato niente"]),
-        ...(tail?.covered ? ["il box del viaggio nel tempo copre l'ultimo nome dell'ultimo blocco"] : []),
+        ...(tail?.toggleAt ? [] : ['il box del viaggio nel tempo non ha una freccia per piegarsi']),
+        ...(uncovered && uncovered.nameCovered
+          ? ["piegato, il box copre ancora l'ultimo NOME: il rimedio non rimedia"]
+          : []),
       ],
     });
 

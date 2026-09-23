@@ -225,10 +225,44 @@ The full rationale is Jingle Machine's `THEMING.md`; these are the rules that mu
   was opened in a real Chrome only after the rewrite. A forgotten `fill="none"` on a `<path>` with an arc
   fills the chord, and no amount of rasteriser testing can see it, because the rasteriser does not read
   the SVG.
+- **I NODI CHE ANTD CREA E STACCA TORNANO DENTRO QUANDO UNA VISTA SI RIATTACCA, e in un `flex` con
+  `gap` si prendono il loro spazio.** `nz-tooltip` e `nz-popconfirm` sono elementi OSPITE: la direttiva
+  li crea con la `ViewContainerRef` dell'elemento su cui sta e poi li toglie dal DOM, perche' quello che
+  si vede vive in un overlay - ma Angular continua a contarli fra i nodi della vista, quindi un `@if`
+  intorno a un `<ng-content>` o un `@for` che riordina li rimette dentro. Larghi zero, e con `gap-2`
+  costano otto pixel a testa: misurato 23/09/2026, una barra riaperta dopo un collasso leggeva 541px
+  invece di 525. E' la stessa causa che il 20/08 si mangio' una colonna della griglia dell'intestazione
+  della tabella. Cura alla radice in `ng-zorro.css` (`nz-tooltip, nz-popconfirm { display: none }`) -
+  un elemento che non disegna niente non deve occupare niente - e si VERIFICA facendo girare i banchi
+  che i tooltip li aprono davvero, non leggendo il CSS.
+- **Un banco si aggancia all'ATTRIBUTO che un componente dichiara, mai al cammino nell'albero.**
+  `ui-global-options > div` e `ui-time-machine div` hanno smesso di rispondere il giorno in cui la
+  cornice e' passata a un wrapper, e da li' due banchi hanno accusato la pagina del proprio difetto
+  («la plancia non mette i suoi gesti nella scatola in basso», su una plancia che ce li mette). Stessa
+  famiglia dell'`header span:nth-of-type(2)` del 07/09: si legge `[data-dock="left"]`, che e' un fatto
+  del componente.
+- **Misurare mentre l'ambiente si muove non e' misurare**, e vale anche quando a muoversi e' la
+  MACCHINA: la suite unitaria lanciata insieme a dodici browser headless leggeva 4 test falliti su 1053,
+  e da sola e' verde. Un rosso che non si riproduce da solo si rimisura prima di inseguirlo.
+- **UNA BARRA CHE SI PIEGA NASCONDE I CONTROLLI E MAI GLI ALLARMI** (`ui/bottom-dock`, sua richiesta del
+  23/09/2026). Questa app ha due frasi che esistono apposta per non lasciarsi dimenticare - la pastiglia
+  che dice «allarmi spenti» e la data in cui l'app crede di trovarsi - e un collasso che le spegnesse
+  sarebbe il difetto che quei due riquadri sono stati scritti per impedire. Quello che sopravvive sta in
+  uno slot dichiarato (`always`) e si disegna in tutt'e due gli stati; il bottone che riapre non
+  sparisce mai, perche' un controllo che sparisce e' un controllo irraggiungibile.
 - **Il TAGLIO di una cella si misura sul CONTENUTO, con un Range, e non sullo `scrollWidth` del `<td>`**:
   una colonna `nzLeft` porta l'ombra di antd (un `::after` di 30px fuori dalla cella) e letta così ogni
   riga sembra tagliata. Misurato e RITRATTATO il 06/09/2026 — la storia era perfetta e la causa era un
   ornamento. Un testo con `truncate` misura la sua casella: i puntini non sono un taglio.
+- **...E UNA SCATOLA TIPOGRAFICA NON E' IL DISEGNO CHE CONTIENE.** Il `Range` su un nodo di testo da'
+  ascent+descent della FACCIA (14px a `text-[10px]`), che contiene spazio che quasi nessuna lettera usa;
+  dove i pixel cadono davvero lo dice `actualBoundingBox*` di `TextMetrics` sulla STRINGA di quella riga
+  (`measureText` con il `font` computato dello span). Misurato 23/09/2026 sulla plancia: a 10,5px di riga
+  le scatole della faccia si sovrappongono su **224 coppie su 224** e l'inchiostro su **ZERO** - due
+  misure, due verdetti opposti, e per «i nomi si accavallano» solo la seconda descrive quello che si
+  vede. Costava cinque pixel per riga, cioe' centosessanta su quattro linee. **E l'arnese si verifica
+  prima della pagina**: la scatola della faccia che il canvas dichiara deve coincidere con quella del
+  Range, o il canvas sta misurando un altro carattere e ogni numero che segue parla d'altro.
 - **Due fatti che devono essere D'ACCORDO si leggono in UNA sola valutazione**: «quale vista è a schermo»
   e «che titolo scrive la barra» letti con due `evaluate` diversi fanno attribuire a una pagina il titolo
   di quella prima, perché la navigazione passa in mezzo. E si aspetta un segnale INDIPENDENTE da quello

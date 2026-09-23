@@ -43,6 +43,22 @@
     border-color: var(--color-border);
   }
 
+  /* I NODI CHE ANTD CREA E STACCA NON DEVONO PARTECIPARE A UN LAYOUT quando Angular li rimette dentro.
+     `nz-tooltip` e `nz-popconfirm` sono elementi ospite: la direttiva li crea con la `ViewContainerRef`
+     dell'elemento su cui sta e poi li TOGLIE dal DOM, perche' quello che si vede vive in un overlay.
+     Angular pero' continua a contarli fra i nodi della vista, quindi ogni volta che una vista viene
+     staccata e riattaccata - un `@if` intorno a un `<ng-content>`, un `@for` che riordina - li
+     reinserisce. Sono larghi zero e in un contenitore `flex` con `gap` si prendono comunque il loro
+     spazio: misurato 23/09/2026 sulla barra in basso, che riaperta dopo un collasso leggeva 541px
+     invece di 525 - due nodi fantasma, due gap da otto. E' la stessa causa che il 20/08/2026 si mangio'
+     una colonna della griglia dell'intestazione della tabella, curata li' spostando il tooltip; qui si
+     cura alla radice, perche' un elemento che non disegna niente non deve occupare niente.
+     Il vero tooltip e' `.ant-tooltip` dentro l'overlay e non e' toccato da questa riga. */
+  nz-tooltip,
+  nz-popconfirm {
+    display: none;
+  }
+
   /* IL TOOLTIP PORTA UNA CARTA, non una frase (operatore, 18/08/2026: «i tooltip che utilizzi sul campetto
      sono monocolore e senza formattazione e rendono molto difficile la lettura»). antd lo disegna nero,
      stretto e con l'interlinea di una riga sola: qui prende i token della pagina - lo stesso fondo e lo

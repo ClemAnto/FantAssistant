@@ -1,5 +1,38 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 23 settembre 2026 — la plancia che non si schiaccia, e le barre che si piegano
+
+Dettaglio: `assistente-asta-v1.md` §45, `letture-app-v1.md` §51.
+
+**CHIUSI**: i nomi della plancia non si accavallano piu' a nessuna altezza di finestra (pavimento di
+riga a 10,5px, misurato sull'INCHIOSTRO e non sulla scatola del font) e la plancia scorre invece di
+schiacciarsi; le due barre in basso non si fanno piu' riservare spazio dalla pagina (48px tornati alla
+griglia) e si piegano, tenendo a schermo gli allarmi; i nodi fantasma di `nz-tooltip`/`nz-popconfirm`
+non prendono piu' un `gap`.
+
+1. **[ ] `/why` MOSTRA I NUMERI RIPORTATI A STAGIONE PIENA, e la sua stessa regola dice di no.**
+   `season-scale.ts` dichiara: «`/why` e' la pagina che SPIEGA il foglio, quindi mostra le colonne come
+   il foglio le scrive». Il riporto sta in `ValuationStore` dentro `EngineExpectation`, e `/why` legge
+   quella: a schermo 26,4 presenze contro 22,9 del foglio, surplus 5,1 contro 4,4 — esattamente ×38/33.
+   `e2e-why` e' ROSSO su questo e resta rosso con la causa scritta. Due cure possibili e sono una
+   decisione dentro quella feature: `/why` divide per la scala, oppure `EngineExpectation` porta anche
+   il numero grezzo. **L'identita' che la pagina verifica sopravvive al riporto** (fm e rimpiazzo sono
+   intensivi, pv e surplus si riscalano insieme), ed e' la ragione per cui il difetto e' invisibile a
+   chiunque non confronti col foglio.
+
+2. **[ ] LE SEDICI RIGHE SOTTO LE BARRE APERTE: e' una sua decisione, e le alternative sono misurate.**
+   Da aperte le due scatole coprono 12 + 4 righe di 249 in fondo alla linea degli attaccanti, e li' un
+   click arriva alla barra. Oggi il rimedio e' la freccia. Le altre due strade, se gli desse fastidio al
+   tavolo: (a) far reagire al puntatore i soli CONTROLLI e lasciar passare i vuoti della barra — recupera
+   poco, perche' la barra e' quasi tutta bottoni, e si cliccherebbe una riga che non si vede; (b) tenere
+   un margine pari alla sola FRECCIA (~35px invece dei 56 di prima), cioe' rinunciare a un terzo del
+   guadagno per non coprire mai niente da piegata.
+
+3. **[ ] UNA CORSA DI `e2e-nav` SU UNDICI BANCHI IN FILA HA STAMPATO 2 PROBLEMI** (il titolo di
+   `/clubs` letto come quello della pagina prima) e cinque corse successive sono verdi. E' l'area che
+   quel banco documenta da se' — «due fatti che devono essere D'ACCORDO si leggono in UNA lettura» — ma
+   non e' spiegato, e un banco che oscilla e' un banco che si impara a saltare.
+
 ## Aperti alla chiusura del 22 settembre 2026 (sera) — le sette parole
 
 Dettaglio: spec «Novità v9.100», `letture-app-v1.md` §48, gate §7-unsexagies e §7-duosexagies.

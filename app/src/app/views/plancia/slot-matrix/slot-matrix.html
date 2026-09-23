@@ -8,10 +8,31 @@
      OGNI BLOCCO E' LARGO UGUALE: la linea piu' lunga ne ha otto, quindi ogni linea e' tagliata su una
      griglia di otto. LO SPAZIO CHE AVANZA RESTA VUOTO (sua istruzione, 22/09/2026): portava la CODA, la
      legenda e la borsa, e tutt'e tre sono state togliute - allargare i blocchi per riempirlo direbbe
-     che un portiere vale piu' schermo di un difensore, che e' proprio cio' che la griglia nega. -->
-<div class="flex h-full min-h-0 flex-col gap-1.5">
+     che un portiere vale piu' schermo di un difensore, che e' proprio cio' che la griglia nega.
+
+     ...FINCHE' LA FINESTRA BASTA, e quando non basta la plancia SCORRE invece di schiacciarsi (sua
+     segnalazione, 23/09/2026: «per altezze non sufficienti della pagina visualizza i nomi dei
+     calciatori accavallati»). Le righe erano `min-h-0` fino in fondo, quindi una linea in `flex-1`
+     continuava a stringersi sotto il nome che disegna: misurato a 1600px di larghezza, la riga passa
+     da 17,8px a 1000px di finestra a 12,8px a 800 e 6,3px a 540, e sotto i 10px gli occhielli di due
+     nomi finiscono l'uno sull'altro.
+
+     IL PAVIMENTO E' PER RIGA e non per plancia, perche' una plancia alta N pixel sarebbe un numero
+     vero per una lega da dieci e falso per una da otto o da dodici: un blocco porta `teams` nomi,
+     quindi l'altezza di cui la griglia ha bisogno si SOMMA da se' dalle righe (535px sulla sua lega,
+     misurati e non scritti da nessuna parte). Da li' in su i quattro `flex-1` si dividono lo spazio
+     come hanno sempre fatto, quindi sopra i ~660px di finestra non cambia un pixel (erano ~710
+     finche' la pagina si teneva un margine sotto per le barre fisse: vedi sotto).
+
+     LO SCROLL STA QUI E NON SULLA PAGINA: la pagina non scorre per scelta (l'intestazione e la card
+     del lotto sono quello che si guarda mentre si decide), quindi eccedere e' un fatto della plancia e
+     la barra e' sua. -->
+<div class="flex h-full min-h-0 flex-col gap-1.5 overflow-y-auto">
   @for (role of roles; track role) {
-    <div class="flex min-h-0 flex-1 gap-1.5">
+    <!-- Niente `min-h-0` da qui in giu': e' proprio quello che permetteva a una linea di scendere sotto
+         il proprio contenuto. Senza, il minimo automatico di un elemento flex e' cio' che disegna, e
+         `flex-1` resta a distribuire lo spazio quando ce n'e'. -->
+    <div class="flex flex-1 gap-1.5">
       <div class="flex w-3.5 shrink-0 items-center justify-center rounded" [class]="roleTone[role]">
         <span class="text-[10px] font-bold text-page">{{ role }}</span>
       </div>
@@ -19,7 +40,7 @@
       <div class="grid min-w-0 flex-1 grid-cols-8 gap-1.5">
         @for (block of byRole().get(role); track block.id) {
           <div
-            class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border bg-surface"
+            class="flex min-w-0 flex-col overflow-hidden rounded border bg-surface"
             [class]="blockTone(block)"
           >
             <!-- Intestazione: lo slot, quanti restano nell'urna, e la mediana della coordinata su cui
@@ -72,11 +93,37 @@
                  stessa proprietà si decidono sull'ordine del CSS generato e non su quale delle due è
                  legata (il difetto del 27/08), mentre un inline condizionale vince quando c'è e
                  lascia dipingere la classe quando non c'è. -->
-            <div class="flex min-h-0 flex-1 flex-col">
+            <div class="flex flex-1 flex-col">
               @for (man of block.rows; track man.id) {
+                <!-- `min-h-[10.5px]` E' IL PAVIMENTO, ed e' suo (23/09/2026, in tre tempi: «stringiamo
+                     fino a 11px», «stringiamo a 10px», «no 10 e' troppo poco ... proviamo con 10.5px»).
+                     Dieci e mezzo e non quattordici, e la differenza e' il modo di misurare: la prima
+                     versione prendeva la scatola del FONT - ascent+descent della faccia, 14px a questo
+                     corpo - che pero' contiene spazio che quasi nessuna lettera usa, e con quella misura
+                     una riga da 10,5px legge 224 accavallamenti su 224 mentre sullo schermo non se ne
+                     tocca nessuno. «Accavallati» e' una frase sui PIXEL, quindi quello che decide e'
+                     l'INCHIOSTRO vero (`actualBoundingBox*` sulla stringa di quella riga), e su queste
+                     249 righe il nome piu' alto ne dipinge NOVE («Caprile», che ha una discendente).
+                     Misurato con un canvas caricato della stessa faccia, e l'arnese si verifica prima
+                     della pagina: la sua scatola del font deve leggere gli stessi 14px del Range, o
+                     starebbe misurando un altro carattere.
+
+                     DOVE CADE, MISURATO SUI TRE VALORI CHE HA PROVATO: l'aria fra due nomi e' 1,0px a
+                     11, 0,5px a 10,5 e ZERO a 10 - cioe' a dieci gli occhielli si sfiorano e un pixel
+                     piu' giu' si sovrappongono, e sotto non si scende senza rimpicciolire il carattere.
+                     Il mezzo pixel non e' un dettaglio: a 10 tondi la dichiarazione era pure INERTE
+                     (togliendola la riga restava a 10,0px, perche' il `leading-none` su `text-[10px]` fa
+                     una linea alta dieci e la barra del proprietario e' `h-2.5`), quindi non poteva
+                     essere un pavimento di nessuno; a 10,5 tiene la riga mezzo pixel sopra quel fondo
+                     strutturale ed e' una dichiarazione che fa qualcosa.
+
+                     Guadagno: la plancia chiede 535px invece dei 675 della prima versione, cioe' sta
+                     INTERA su una finestra da ~660px invece che da ~850. Di quella discesa, i 48px che
+                     la griglia ha ripreso togliendo il `pb-14` sono un'altra sua richiesta dello stesso
+                     giorno e non questa: qui il guadagno sono i 140px di plancia in meno. -->
                 <button
                   type="button"
-                  class="flex min-h-0 flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none"
+                  class="flex min-h-[10.5px] flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none"
                   [class]="rowTone(man)"
                   [class.opacity-30]="dimmed(man)"
                   [disabled]="inert(man)"
@@ -155,7 +202,12 @@
                un bordo da un pixel. `surface` e' il gradino che i blocchi usano gia' per leggersi
                come card (dieci punti per canale sopra la pagina), e lascia libero `control`, che e'
                come una rosa RIVALE si accende dentro. Nessuna tinta: il colore qui e' gia' preso -
-               e' l'identita' di una rosa - e spenderlo due volte lo spegnerebbe. -->
+               e' l'identita' di una rosa - e spenderlo due volte lo spegnerebbe.
+
+               E QUI `min-h-0` RESTA, al contrario dei blocchi: le rose SEGUONO la linea dei portieri e
+               non la decidono. Il pavimento di una linea e' il calcio che ci si compra dentro, quindi
+               se un giorno dieci card chiedessero piu' spazio di dieci nomi la plancia scorrerebbe per
+               una ragione che non e' la sua. -->
           <div
             class="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-surface p-1.5"
             [style.grid-column]="'span ' + teamsSpan()"

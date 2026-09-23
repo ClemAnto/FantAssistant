@@ -242,7 +242,11 @@ function tooltipText() {
  * seconda. Quindi qui si asserisce che la pulizia AVVIENE, non come e' scritta.
  */
 function boxButtons() {
-  const box = document.querySelector('ui-global-options > div');
+  // Si aggancia all'ATTRIBUTO che la scatola dichiara e non al cammino: `ui-global-options > div` ha
+  // smesso di rispondere il giorno in cui la cornice e' passata a `ui-bottom-dock` (23/09/2026), e un
+  // passo che misura l'elemento sbagliato accusa il codice del proprio difetto - qui leggeva zero
+  // bottoni e diceva «la plancia non mette i suoi gesti nella scatola in basso».
+  const box = document.querySelector('[data-dock="left"]');
   if (!box) return null;
   return [...box.querySelectorAll('button')].map((one) => (one.innerText ?? '').trim()).filter(Boolean);
 }

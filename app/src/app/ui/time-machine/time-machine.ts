@@ -6,6 +6,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { TimeTravel, packLabel } from '../../core/time-travel';
+import { BottomDock } from '../bottom-dock/bottom-dock';
 
 /**
  * Il box di DEBUG che sposta il giorno in cui l'app crede di trovarsi.
@@ -28,7 +29,7 @@ import { TimeTravel, packLabel } from '../../core/time-travel';
 @Component({
   selector: 'ui-time-machine',
   templateUrl: './time-machine.html',
-  imports: [FormsModule, NzButtonModule, NzSelectModule, NzSpinModule, NzTooltipModule],
+  imports: [BottomDock, FormsModule, NzButtonModule, NzSelectModule, NzSpinModule, NzTooltipModule],
 })
 export class TimeMachine {
   private readonly travel = inject(TimeTravel);
