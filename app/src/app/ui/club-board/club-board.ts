@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, input, linkedSignal, output } from '@angular/core';
+import { Component, booleanAttribute, computed, input, linkedSignal, output } from '@angular/core';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
@@ -63,6 +63,18 @@ const NO_RULINGS: ReadonlyMap<number, Titolarita> = new Map();
 })
 export class ClubBoard {
   readonly board = input.required<Board | null>();
+  /**
+   * COMPATTO: stessa carta, spazi stretti e il contorno via (operatore, 24/09/2026, sulla card di un
+   * club: «falla piu' piccolina, ottimizza un po' gli spazi e non mostrare quello che non serve»).
+   *
+   * E' un INTERRUTTORE DICHIARATO come `detail` e per la stessa ragione: il campetto e' UNO per tutte
+   * le schermate che lo mostrano, e due componenti sarebbero due carte che finiscono per dire due cose.
+   * Quello che cambia sono i margini e due pezzi di CONTORNO - la riga «Modulo ...», che ripete la
+   * pastiglia accesa qui sopra, e l'interruttore dei ruoli, che e' un comando di preferenza e la
+   * preferenza e' una sola per tutta l'app. Quello che NON cambia e' l'undici, ne' i conteggi di cosa
+   * il campetto non sta disegnando: un filtro silenzioso e' indistinguibile da uno che inganna.
+   */
+  readonly dense = input(false, { transform: booleanAttribute });
   /** True quando NESSUN foglio della piattaforma porta le board: è una frase diversa da «non questo club». */
   readonly noBoards = input(false);
   /**

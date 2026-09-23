@@ -21,21 +21,30 @@
   [style.top.px]="top()"
   [style.left.px]="left()"
   [style.z-index]="front() ? 200 : 50 + at()"
-  [style.maxHeight]="'calc(100vh - ' + (top() + 24) + 'px)'"
   (pointerdown)="raise()"
 >
   <!-- L'INTESTAZIONE È LA MANIGLIA, e lo dice il cursore. -->
   <div
     cdkDragHandle
-    class="flex cursor-move items-center gap-2 rounded-t-lg border-b border-border bg-control/40 px-2 py-1.5"
+    class="flex cursor-move items-center gap-1.5 rounded-t-lg border-b border-border bg-control/40 px-2 py-1"
   >
-    <ui-crest class="shrink-0" [club]="club()" [crests]="crests()" size="sm" />
+    <!-- LO STEMMA SI CERCA PER IDENTITA' e non per nome: `fc_club_id` dalla rosa. Senza, resta
+         il monogramma, che e' quello che questo componente fa quando il club non si sa nominare. -->
+    <ui-crest
+      class="shrink-0"
+      [club]="club()"
+      [clubId]="pack().clubId"
+      [crests]="crests()"
+      size="xs"
+    />
     <span class="min-w-0 flex-1">
       <span class="block min-w-0 truncate text-sm font-semibold text-fg">{{ club() }}</span>
-      <!-- DA QUALE FOGLIO viene questa board: un numero che non dice da dove viene non è un numero, e
-           una piattaforma può dichiarare più di un campionato. -->
-      <span class="block min-w-0 truncate text-[11px] text-muted">
-        Formazione tipo@if (sheet(); as league) {<span> · foglio «{{ league }}»</span>}
+      <!-- QUALE LETTURA e da QUALE FOGLIO: l'orizzonte è un segnale globale che un'altra pagina può
+           aver girato, quindi la card lo DICE invece di lasciarlo sottintendere - un'intestazione fissa
+           sopra l'undici delle ultime partite sarebbe un nome che non corrisponde al suo numero. E una
+           piattaforma può dichiarare più di un campionato, quindi il foglio si nomina. -->
+      <span class="block min-w-0 truncate text-[11px] text-muted" data-horizon>
+        {{ horizonLabel() }}@if (sheet(); as league) {<span> · foglio «{{ league }}»</span>}
       </span>
     </span>
     <button
@@ -48,11 +57,23 @@
     </button>
   </div>
 
-  <!-- IL CAMPETTO SCORRE DENTRO LA CARD e la card non cresce: un modulo con cinque righe e i suoi
-       ballottaggi è più alto di una finestra, e una card che esce dallo schermo porta il proprio
-       pulsante di chiusura fuori dalla portata del puntatore. -->
-  <div class="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+  <!-- NESSUNA BARRA DENTRO LA CARD (operatore, 24/09/2026: «togli le scroll bar dall'interno della card
+       del campetto»): la card è alta quanto il suo campetto e basta.
+
+       C'era un tetto all'altezza con `overflow-y: auto`, scritto per il caso «un modulo a cinque righe è
+       più alto di una finestra» - e MISURATO non lo è: sui venti club di Serie A la card sta fra 505 e
+       703px in modalità compatta, e nessuno dei venti aveva una riga da scorrere. Quel tetto quindi non
+       proteggeva da niente e portava un difetto suo: `overflow-y: auto` fa calcolare `auto` ANCHE
+       sull'altro asse (la regola di ng-zorro del 17/08, incontrata di nuovo), quindi un pixel di troppo
+       in larghezza avrebbe fatto comparire una barra ORIZZONTALE che nessuno ha chiesto.
+
+       Il prezzo, detto: su una finestra più bassa di ~930px il fondo della card più alta esce dallo
+       schermo. Non è irrecuperabile - l'intestazione col tasto di chiusura sta in CIMA e non se ne va
+       mai, e la card si trascina - mentre un tetto senza scorrimento avrebbe TAGLIATO il campetto, che è
+       la perdita che non si vede. -->
+  <div class="px-1.5 py-1.5">
     <ui-club-board
+      dense
       [board]="pack().board"
       [noBoards]="pack().noBoards"
       [overall]="pack().overall"

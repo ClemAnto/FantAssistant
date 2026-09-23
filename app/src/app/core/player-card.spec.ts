@@ -148,17 +148,32 @@ describe('dove nasce una card di CLUB', () => {
     }
   });
 
+  it('DODICI posizioni distinte, come la griglia dei calciatori: due card non si coprono al pixel', () => {
+    // La prima versione muoveva i due assi con lo stesso resto, quindi la cascata si ripeteva dopo
+    // QUATTRO e il posto n + 4 cadeva esattamente su n - due card di club sovrapposte, con la seconda
+    // davanti. Si asserisce il CONTEGGIO delle posizioni distinte e non la formula: e' la proprieta'
+    // che serve, e una formula diversa che la rispetti va bene uguale.
+    const where = (slot: number) => `${clubCardLeft(slot)},${clubCardTop(slot)}`;
+    const places = new Set([...Array(12).keys()].map(where));
+    expect(places.size).toBe(12);
+    expect(where(4)).not.toBe(where(0));
+  });
+
   it('la prima nasce a destra della prima colonna di calciatori e ci sta nella finestra', () => {
     expect(clubCardLeft(0)).toBeGreaterThan(cardLeft(0) + CARD_WIDTH);
-    for (let slot = 0; slot < 4; slot++) {
+    for (let slot = 0; slot < 12; slot++) {
       expect(clubCardLeft(slot) + CLUB_CARD_WIDTH).toBeLessThan(1600);
     }
   });
 
-  it("e' larga abbastanza da non tagliare una riga da cinque", () => {
-    // Una riga del modulo ne mette fino a cinque: a `CARD_WIDTH` ogni casella avrebbe ~52px e i nomi
-    // sarebbero ASSENTI, non stretti. Qui ne ha ~96, come nella colonna della vista Squadre.
+  it("e' piu' larga di una card di calciatore, perche' dentro c'e' un campetto", () => {
+    // QUANTO SERVA DAVVERO NON LO PUO' DIRE UN TEST UNITARIO, e la prima versione ci provava:
+    // asseriva che una casella di una riga da cinque avesse piu' di 90px, un numero scelto da me.
+    // Quando l'operatore ha chiesto una card piu' piccola (24/09/2026) quel test e' caduto - non su
+    // un difetto, sul proprio numero. Quello che un'aritmetica puo' affermare e' che un campetto
+    // chiede piu' di una colonna di numeri; SE i nomi si taglino lo misura il banco in un browser
+    // vero (`e2e-club-card`: a 440px in modalita' compatta, 1 nome troncato su 11 e ZERO larghi
+    // zero), ed e' li' che va guardato - si giudica la funzione, non una copia di essa.
     expect(CLUB_CARD_WIDTH).toBeGreaterThan(CARD_WIDTH);
-    expect((CLUB_CARD_WIDTH - 32) / 5).toBeGreaterThan(90);
   });
 });

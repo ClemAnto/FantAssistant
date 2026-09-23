@@ -71,6 +71,24 @@ export class ClubCard {
   /** Quale FOGLIO ha disegnato questa board: un numero che non dice da dove viene non e' un numero. */
   protected readonly sheet = computed(() => this.pack().sheet?.league ?? null);
 
+  /**
+   * QUALE DEI DUE ORIZZONTI si sta guardando, DETTO e non sottinteso.
+   *
+   * `boardHorizon` e' un segnale globale: la vista Squadre lo puo' mettere su «ultimo periodo» e da quel
+   * momento ogni campetto dell'app disegna quella lettura, la plancia compresa - che quel pulsante non ce
+   * l'ha e quindi non potrebbe nemmeno accorgersene. Un'intestazione fissa «formazione tipo» sopra
+   * l'undici delle ultime partite sarebbe un nome che non corrisponde al suo numero.
+   *
+   * Le partite della finestra le DICHIARA il toolkit che le ha usate (`boards.json`), non una costante
+   * ricopiata qui: un'etichetta con dentro un numero nostro smette di dire il vero il giorno in cui uno
+   * sweep muove la finestra, e nessuno lo scoprirebbe leggendo lo schermo.
+   */
+  protected readonly horizonLabel = computed(() => {
+    const pack = this.pack();
+    if (pack.horizon !== 'short') return 'Formazione tipo';
+    return pack.window ? `Ultimo periodo · ultime ${pack.window} partite` : 'Ultimo periodo';
+  });
+
   protected close(): void {
     this.closed.emit();
   }

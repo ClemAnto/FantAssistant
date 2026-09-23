@@ -6824,3 +6824,242 @@ un foglio `euro/classic` a **8 squadre**, che non e' nessuna delle tre di `my_le
 nuova, senza toccare i fogli veri. Otto minuti. *Un comando che ha un default plausibile e sbagliato
 non da' errore: si controlla la PRIMA riga del suo output, dove `snapshot` scrive la lega su cui sta
 lavorando.*
+
+
+## 54 - LA CARD DI UNA SQUADRA, e due specie di card in UNA pila sola (23 settembre 2026)
+
+**Richiesta dell'operatore**: «quando si clicca sul nome della squadra all'interno della card dettaglio
+calciatore fai aprire una nuova card draggabile con il campetto con la formazione tipo della squadra».
+`ui/club-card/`, `core/club-boards.ts`, il banco `app/scripts/e2e-club-card.mjs`. **Nessun numero del
+motore si muove**: nessuna colonna del foglio, nessun `SHEET_REVISION`, nessun percorso gatato - la card
+e' una CORNICE attorno a `ui-club-board`, che e' il campetto di sempre («il campetto di una squadra reale
+deve essere sempre uguale», 18/08/2026), e l'undici lo scrive il toolkit.
+
+### 54.1 Il costo vero non era il campetto: era la PILA
+
+Una card di club e una card di calciatore non possono avere due pile, e la ragione non e' estetica. Una
+pila decide DUE cose - il POSTO alla nascita e chi sta DAVANTI - e sono tutt'e due globali allo schermo:
+con due pile la card del club e quella del calciatore da cui e' stata aperta prendono **tutt'e due il
+posto zero**, cioe' la seconda nasce esattamente sopra la prima e si legge come una card sparita; e ci
+sono **due «davanti» contemporanei** a `z` 200, quindi cliccare la card coperta non la porta avanti - che
+e' una regola esplicita dell'operatore del 04/09/2026.
+
+Quindi la chiave di una card porta la SPECIE (`p<fc_id>`, `c<piattaforma>|<club>`) e `CardStack` lavora su
+quelle. **La piattaforma sta dentro la chiave** perche' i due listoni sono due domande: lo stesso club ha
+due board, e una chiave che la lasciasse fuori mostrerebbe l'undici dell'altro listone sotto lo stesso
+nome. Prezzo del cambio: tre pagine e uno store da riscrivere (clubs, Strategia, plancia), che e' il
+motivo per cui la scorciatoia era tentante.
+
+**DUE GEOMETRIE E UNA SOLA PILA, e le due cose non si contraddicono.** La griglia a quattro colonne dei
+calciatori e' tagliata su `CARD_WIDTH` = 320; una card di club e' larga **520**, perche' dentro c'e' un
+campetto e una riga del modulo ne mette fino a cinque - a 320 ogni casella avrebbe ~52px e i nomi
+sarebbero ASSENTI, non stretti. Quindi le card di club cascano da un'origine LORO, scelta in modo che non
+cada mai su una casella della griglia (le x dei calciatori sono 16/348/680/1012 e le y 96/140/184): un
+test lo asserisce su dodici posti invece di sperarci.
+
+### 54.2 La card di un CLUB i numeri se li prende da se', e non e' un'eccezione
+
+La card di un CALCIATORE riceve i suoi numeri da chi la apre, e la ragione e' scritta: il surplus di un
+uomo e' un fatto del GIOCO che lo prezza, e la plancia e la Strategia leggono due fogli diversi. Una
+BOARD no: e' una previsione su un allenatore vero, che i due giochi di una piattaforma condividono -
+`ValuationStore` ne tiene UNA per piattaforma e la serve per (piattaforma, club), esattamente come serve
+il ruolo reale granulare. Quindi basta sapere di quale club si parla e su quale listone, e la stessa
+regola letta per intero da' la risposta opposta per le due card.
+
+**E LE QUATTRO MAPPE CHE VANNO ACCANTO ALLA BOARD ORA NASCONO IN UN POSTO SOLO** (`core/club-boards.ts`):
+l'Overall 0-99, la quota che il motore prevede, il valore di mercato e le dritte dichiarate. Erano
+ricostruite da ogni chiamante, e con questa card sarebbero diventate tre copie dello stesso conto, cioe'
+tre valutazioni per un uomo - il difetto che `ValuationStore` esiste per impedire, un piano piu' su.
+`ClubsStore` le legge da li' e la vista Squadre non cambia di un pixel. **Terzo lettore lasciato fuori e
+lo si dice**: `views/auction/club-pitch` costruisce ancora le sue, perche' le deriva dalla SESSIONE d'asta
+(chi e' gia' stato preso, cosa chiede il tavolo) e non dalla rosa del bundle - e' un'altra popolazione, e
+unificarla senza misurarla sarebbe applicare una funzione fuori dalla sua.
+
+### 54.3 Il nome e' un bottone solo dove un campetto c'e', e una riga di codice se lo e' guadagnata
+
+Un nome che sembra cliccabile e non fa niente e' peggio di un nome che non lo sembra, quindi il bottone
+compare solo dove `boardViewFor(piattaforma).clubs[club]` esiste davvero. Questo pero' apre un buco: **la
+plancia non chiede `ValuationStore`**, che e' il negozio che porta le board, quindi di li' il campetto non
+si sarebbe aperto MAI - una feature che si vede in una vista sola e' indistinguibile da una feature che
+non esiste. Da qui `void this.valuation.load()` nel costruttore della card, accanto a quello che gia' c'e'
+per le ultime partite: si chiede alla PRIMA card aperta e non all'apertura della pagina, e `load()` tiene
+la sua promessa. Regalo della stessa riga: sulla plancia il RUOLO REALE granulare della card, che dall'11
+settembre era li' e non arrivava mai.
+
+**La controprova e' stata fatta rimettendo il difetto**, e ha il verso giusto: tolta quella riga, cade
+**solo** il passo della plancia e i sei passi della vista Squadre restano verdi - perche' li' il negozio lo
+carica la pagina. Un banco che fosse andato tutto rosso avrebbe detto che stava misurando altro.
+
+### 54.4 Il banco, e cosa dice
+
+`node scripts/e2e-club-card.mjs`, con un puntatore vero e il confronto col FILE e mai con lo schermo:
+
+```
+· card di un calciatore aperta: true · il nome del club e' un BOTTONE: true (Genoa)
+· card di squadra aperte: 1 · club: Genoa · listone: default
+· il campetto della card disegna 11 posti · combaciano con boards.json: true (11/11)
+· nasce in (396, 160), la card dell'uomo e' in (16, 96) · stesso angolo: false · dentro la finestra: true
+· trascinata: da (396, 160) a (516, 208)
+· chiusa: restano 0 card di squadra e 1 di calciatore
+· PLANCIA: card di Svilar · il nome del club e' un bottone: true (Roma)
+· PLANCIA: card di squadra aperta su Roma · posti disegnati: 11
+```
+
+Due dettagli che valgono oltre questa card. **Lo stemma si cerca per IDENTITA'** (`fc_club_id`, letto dalla
+rosa) e non per nome: il primo giro disegnava il monogramma, che e' il ripiego giusto ma non il fatto -
+uno stemma sbagliato dice una cosa falsa, uno scudo grigio dice quello che e', e l'identita' c'era. E **il
+campetto SCORRE dentro la card, che non cresce**: un modulo a cinque righe coi suoi ballottaggi e' piu'
+alto di una finestra, e una card che esce dallo schermo porta il proprio tasto di chiusura fuori dalla
+portata del puntatore.
+
+### 54.5 Due rossi che NON sono di questa modifica, misurati e non dedotti
+
+`e2e-player-card` (1 problema) e `e2e-player-ruling` (7) sono rossi, e l'attribuzione e' stata fatta in un
+WORKTREE su HEAD senza i miei file: **gli stessi identici problemi, 1 e 7**. Il secondo e' un errore di
+unita' del BANCO contro la regola del 22/09 («ogni numero in giornate si legge su una stagione piena»): lo
+schermo riporta i gradini su 38 giornate e il banco li confronta col foglio, che ne prevede 33 - il
+rapporto e' 1,152 su tutte e sei le righe, cioe' 38/33 esatto. Restano aperti e nominati invece di essere
+inseguiti qui: *un rosso che si riproduce a HEAD non appartiene alla modifica che lo incontra.*
+
+
+### 54.6 La code review, e i quattro difetti che ha trovato (24 settembre 2026)
+
+Quattro rilievi, **tutti e quattro veri** e nessuno visibile dalla suite: il build era pulito e i 1099
+test verdi mentre c'erano. Sono di tre famiglie diverse e vale la pena tenerle distinte.
+
+**UN CONTEGGIO DEVE DESCRIVERE LA LISTA CHE SI VEDE.** Il tasto «chiudi le N card» era passato a contare
+la PILA, e la pila tiene anche le card che lo schermo ha gia' lasciato cadere: una card di calciatore ESCE
+DA SE' quando la sua riga non c'e' piu' (si cambia club sulla vista Squadre, si aggiudica un uomo sulla
+plancia), perche' una card che sopravvive alla propria riga mostrerebbe i numeri di dieci minuti prima.
+Misurato: due card aperte, si passa dal Genoa al Milan, **0 card disegnate e il tasto che annuncia
+«chiudi le 2 card»**. E' «una lista mostrata i cui numeri descrivono un'altra lista» su un numero solo.
+Curato in tre punti (clubs, Strategia, plancia): `disegnate = openCards + clubCards`.
+
+**DUE ASSI DI UNA CASCATA MOSSI DALLO STESSO RESTO DANNO QUATTRO POSIZIONI INVECE DI DODICI.**
+`clubCardLeft` e `clubCardTop` indicizzavano tutt'e due su `slot % 4`, quindi il posto `n + 4` cadeva
+**esattamente** su `n`: due card di club sovrapposte al pixel, la seconda davanti. E' il difetto che la
+scelta dell'origine esisteva per impedire, incontrato dal di dentro invece che contro la griglia dei
+calciatori. La griglia dei calciatori il conto giusto ce l'aveva gia' (colonna col resto, riga col
+quoziente) e di posizioni ne ha dodici. Il test nuovo asserisce il **numero di posizioni distinte** e non
+la formula, che e' la proprieta' che serve; quello vecchio passava anche col difetto perche' provava
+un'altra cosa (che la cascata non cada sulla griglia) - vera in tutt'e due i casi.
+
+**UN'INTESTAZIONE FISSA SOPRA UN SEGNALE GLOBALE.** `boardHorizon` vive in `ValuationStore` e la vista
+Squadre lo puo' girare su «ultimo periodo»: da quel momento OGNI campetto dell'app disegna quella lettura,
+**la plancia compresa, che quel pulsante non ce l'ha** e quindi non potrebbe nemmeno accorgersene. La card
+scriveva «Formazione tipo» comunque. Ora lo dice, e le partite della finestra le DICHIARA il toolkit che
+le ha usate: a schermo `«Ultimo periodo · ultime 3 partite · foglio «Leghe»»` - un numero ricopiato qui
+smetterebbe di dire il vero il giorno in cui uno sweep muove la finestra.
+
+**E UN'ASSERZIONE CHE INTERSECA PRIMA DI CONFRONTARE ASSERISCE L'INCLUSIONE.** Il banco filtrava i nomi
+dello schermo su quelli del file e poi confrontava: cosi' un campetto che disegnasse un DODICESIMO posto
+passava stampando «combaciano: true», mentre l'intestazione del file prometteva l'uguaglianza. Nessun
+conteggio lo avrebbe mostrato - e' la stessa forma dell'asserzione circolare, un gradino piu' in la'.
+
+**E IL PASSO NUOVO HA SBAGLIATO NEL MODO CHE QUESTO PROGETTO CONOSCE MEGLIO.** Per provare il conteggio
+serve cambiare club con due card aperte; la prima versione cliccava alle coordinate di un bottone della
+striscia e leggeva «2 card disegnate», accusando la pagina. Le card sono `fixed` in alto a sinistra e
+**coprivano quel bottone**: il click era finito sulla card. Due cure, e sono due regole gia' scritte - si
+chiede al browser chi c'e' DAVVERO sotto quel punto (`elementFromPoint`) invece di fidarsi del rettangolo,
+e si verifica che il club sia cambiato PRIMA di guardare il tasto, perche' un passo che misura due
+incognite attribuisce il difetto a quella sbagliata.
+
+**Controprova, un difetto per volta**: rimessa la cascata a quattro posizioni cade **un test solo** (il
+nuovo; quello vecchio resta verde a ragione); rimessi l'intestazione fissa e il conteggio dalla pila
+cadono **esattamente i due passi** che li descrivono e gli altri dieci restano verdi. Verde finale: 1100
+test, build pulito, dodici passi del banco.
+
+
+### 54.7 «Falla piu' piccolina», e i due banchi rossi che non erano miei (24 settembre 2026)
+
+**Richiesta dell'operatore sulla card di un club**: «falla piu' piccolina, ottimizza un po' gli spazi e
+non mostrare quello che non serve». Misurato prima e dopo, con lo stesso banco:
+
+| | prima | dopo |
+|---|---|---|
+| card | 520 x 794 px | **440 x 669 px** (−29% d'area) |
+| pezzi di contorno | 3 | **0** |
+| nomi troncati | 0 su 11 | **1 su 11** |
+| nomi larghi ZERO | 0 | **0** |
+
+**UN INTERRUTTORE DICHIARATO E NON UN SECONDO CAMPETTO.** `ui-club-board` ha ora un `dense`, come
+`ui-squad-table` ce l'ha da agosto (e con la stessa forma, `booleanAttribute`, cosi' si scrive `dense` e
+non `[dense]="true"`): il campetto resta UNO per tutte le schermate che lo mostrano - «deve essere sempre
+uguale», 18/08/2026 - e quello che cambia sono i margini e due pezzi di CONTORNO.
+
+**Cosa sparisce e perche' non serve.** La riga «Modulo 3-4-2-1 · 42% likely» ripete la pastiglia accesa
+due centimetri sopra, e le sue due postille stanno gia' nel tooltip di quella pastiglia: due canali per un
+fatto solo occupano il posto di un fatto diverso. L'interruttore Mantra/Classic e' un COMANDO di
+preferenza, e la preferenza e' una sola per tutta l'app (`board.roles`): si gira dal campetto grande e la
+card la segue, quindi un comando in meno e' spazio che va all'undici, che e' la ragione per cui la card e'
+aperta. **Cosa NON sparisce**: i conteggi di quello che il campetto non sta disegnando (ballottaggi sotto
+il pavimento, dritte non disegnabili). Si stringono a 9px, non si tolgono - un filtro silenzioso e'
+indistinguibile da uno che inganna.
+
+**UN NOME TRONCATO NON E' UN NOME ASSENTE, e il banco conta tutt'e due.** «Un valore tagliato dal bordo
+non e' stretto, e' ASSENTE» vale per un numero che sparisce; un nome con i puntini e' una degradazione
+DICHIARATA e visibile. Quindi il passo nuovo fa cadere la corsa su un nome largo ZERO e si limita a
+STAMPARE quelli troncati: una soglia su «quanti puntini sono troppi» sarebbe una soglia che nessuno ha
+misurato.
+
+**E UN TEST UNITARIO E' CADUTO SUL PROPRIO NUMERO, non su un difetto.** Asseriva che una casella di una
+riga da cinque avesse piu' di 90px - una cifra che avevo scelto io, giustificata con «come nella colonna
+della vista Squadre». Con la card a 440 in modalita' compatta ne ha 81,6, e la giustificazione non c'e'
+piu' perche' l'operatore ha chiesto l'opposto. Riscritto su quello che un'aritmetica puo' davvero
+affermare (un campetto chiede piu' di una colonna di numeri) e la domanda vera - **se** i nomi si taglino
+- lasciata al banco, che gira in un browser. *Un test unitario che finge di misurare un rendering e' un
+test che cade il giorno in cui qualcuno cambia idea sul layout.*
+
+### 54.8 I due banchi rossi: uno era un errore di unita' e l'altro una popolazione
+
+Erano rossi anche a HEAD (§54.5), quindi non appartenevano alla card; erano pero' due gate spenti, e
+adesso sono verdi.
+
+**`e2e-player-ruling`, 7 problemi → 0: un errore di UNITA' del banco.** Sei righe leggevano «lo schermo
+dice 37,1 gg e il foglio 32,2», e il rapporto era **1,152 su tutte e sei**, cioe' 38/33 esatto: la card
+prezza le parole della scala su una STAGIONE PIENA (`platform_input`, la regola del 22/09) e il banco
+moltiplicava per le giornate che RESTANO (`matchdays_target`). Curato leggendo lo stesso campo che
+`season-scale.seasonRoundsOf` legge, ripiego compreso. Il settimo problema era un'altra cosa: il banco
+sceglie un gradino per provare la riparazione della monotonia e su questo foglio la misura e' **gia'
+ordinata** (`titolarissimo` 29,0 contro 28,3), quindi non c'era niente da riparare. Ora la coppia invertita
+si CERCA - e' un fatto del foglio, che cambia ogni settimana - e se non ce n'e' nessuna il passo stampa
+«SALTATA la meta' che conta» invece di fallire: *un allarme che suona sullo stato normale e' un allarme
+che si impara a ignorare*, e l'altra meta' (che la conversione rispetti l'ordine dichiarato) resta
+asserita.
+
+**`e2e-player-card`, 1 problema → 0: due POPOLAZIONI sotto una media.** Il riepilogo di stagione leggeva
+`~5,7` a schermo e `5,5` nel banco su cinque partite, con le partite e i minuti identici. La causa e'
+scritta nel banco stesso, cento righe sopra, per il controllo PER RIGA: «il suo campionato non si giudica
+qui, li' il voto viene dai VOTI (`match_ratings`) e non dal rating del provider». Il riepilogo quella
+regola non l'aveva ereditata e mediava i SINTETICI di `external_match_stats` contro una media della card
+che contiene un voto VERO - l'aritmetica lo conferma, 22,0 su quattro sintetici piu' un 6,5 vero fa 28,5
+su cinque, cioe' 5,7. **Non si e' inventato qui il join (stagione, giornata) con la tabella dei voti**, che
+sarebbe una seconda definizione di «che voto ha preso»: la media si confronta solo dove la card la
+costruisce tutta sul sintetico, e dove non si puo' il banco lo DICE e stampa quante ne ha saltate (una).
+*Quando una regola viene scritta per un controllo, si cerca subito chi altro fa la stessa domanda.*
+
+
+### 54.9 «Togli le scroll bar dall'interno della card», e il tetto non proteggeva da niente
+
+Richiesta dell'operatore, stesso giorno. La card aveva un tetto all'altezza (`calc(100vh - ...)`) e un
+`overflow-y: auto` sul corpo, scritti per un caso dichiarato: «un modulo a cinque righe coi suoi
+ballottaggi e' piu' alto di una finestra, e una card che esce dallo schermo porta il proprio tasto di
+chiusura fuori dalla portata del puntatore».
+
+**MISURATO SUI VENTI CLUB DI SERIE A, quel caso non esiste**: in modalita' compatta la card sta fra **505
+e 703px** (Lecce la piu' bassa, Cagliari la piu' alta) e **nessuno dei venti aveva una riga da scorrere**.
+Quindi il tetto non proteggeva da niente e portava un difetto suo: `overflow-y: auto` fa calcolare `auto`
+anche sull'ALTRO asse - la stessa regola che questo progetto ha gia' pagato su `nzScroll` il 17/08 - e
+infatti il browser dichiarava `auto/auto`, cioe' un pixel di troppo in larghezza avrebbe fatto comparire
+una barra ORIZZONTALE che nessuno aveva chiesto. *Una guardia scritta contro un caso che non si e' mai
+misurato e' una guardia che porta solo i propri effetti collaterali.*
+
+**IL PREZZO SI DICE**: su una finestra piu' bassa di ~930px (la card nasce fra y 128 e 224, piu' i 703
+della piu' alta) il fondo della card piu' alta esce dallo schermo. Non e' irrecuperabile - l'intestazione
+col tasto di chiusura sta in CIMA e non se ne va mai, e la card si trascina - mentre tenere il tetto
+TOGLIENDO lo scorrimento avrebbe TAGLIATO il campetto, che e' la perdita che non si vede.
+
+**E L'ASSERZIONE NON E' SUL CORPO, E' SU TUTTI I DISCENDENTI**: il banco cerca ogni contenitore con un
+overflow CALCOLATO `auto|scroll` dentro la card (0 oggi) invece di guardare il solo div che scorreva -
+un'asserzione sul punto in cui il difetto era non si accorgerebbe dello stesso difetto due nodi piu' in
+la'. Controprova: rimesso `overflow-y-auto`, il passo nomina `div auto/auto` e cade da solo.

@@ -1,6 +1,6 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 @if (pitch(); as drawn) {
-  <div class="flex flex-wrap items-center gap-2 text-sm">
+  <div class="flex flex-wrap items-center" [class]="dense() ? 'gap-1 text-xs' : 'gap-2 text-sm'">
     <!-- I MODULI FRA CUI PASSARE, e ci sono soltanto quando ce n'è più d'uno sopra il 30% (la soglia sta
          nel toolkit, `boards.ALTERNATIVE_MIN_ODDS`): un tastino solo direbbe «potevi scegliere» a chi non
          può, e su quattro club su cinque il modello ha una risposta sola. Il disegnato è marcato. -->
@@ -47,8 +47,8 @@
        pannello, non messi A quella x: quattro carte alle loro coordinate vere si sovrappongono su un
        telefono, e questa si legge a un tavolo. -->
   <div
-    class="mt-3 flex w-full flex-col gap-1 rounded-lg p-2 outline outline-1 -outline-offset-4
-           outline-fg/25 sm:gap-2 sm:p-3"
+    class="flex w-full flex-col rounded-lg outline outline-1 -outline-offset-4 outline-fg/25"
+    [class]="dense() ? 'mt-1.5 gap-0.5 p-1' : 'mt-3 gap-1 p-2 sm:gap-2 sm:p-3'"
     style="background-image: linear-gradient(
       to bottom,
       color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
@@ -59,13 +59,18 @@
       <!-- UNA CELLA NON PASSA IL TERZO DELLA RIGA (operatore, 18/08/2026): senza il tetto una riga di uno
            - la porta - si prendeva tutta la larghezza e il portiere leggeva come una scheda, mentre gli
            altri dieci stavano in colonnine. Col tetto le righe corte si centrano invece di gonfiarsi. -->
-      <div class="flex items-stretch justify-center gap-1 sm:gap-2" [attr.aria-label]="label[row.line]">
+      <div
+        class="flex items-stretch justify-center"
+        [class]="dense() ? 'gap-0.5' : 'gap-1 sm:gap-2'"
+        [attr.aria-label]="label[row.line]"
+      >
         @for (man of row.men; track $index) {
           <!-- UN ITEM È UN POSTO, non un uomo: sopra il ruolo reale che quel posto chiede, sotto i
                calciatori che se lo giocano - il titolare per primo, poi i ballottaggi. -->
           <span
             class="flex min-w-0 max-w-[33%] flex-1 flex-col gap-0.5 rounded-md border border-border
-                   bg-surface/90 px-1 py-1"
+                   bg-surface/90"
+            [class]="dense() ? 'px-0.5 py-0.5' : 'px-1 py-1'"
             data-place
           >
             @if (place(man); as marker) {
@@ -302,32 +307,46 @@
     }
   </div>
 
-  <p class="mt-2 text-xs text-muted">
-    Modulo <strong>{{ drawn.module }}</strong>
-    @if (drawn.solvedOn) {
-      <span> (risolto su {{ drawn.solvedOn }}: una trasformazione ha spezzato una linea)</span>
-    }
-    @if (drawn.typical && drawn.typical !== drawn.module) {
-      <span> · di solito gioca {{ drawn.typical }}</span>
-    }
-    @if (drawn.why) {
-      <span> · {{ drawn.why }}</span>
-    }
-  </p>
+  <!-- LA RIGA DEL MODULO NON SI STAMPA SU UNA CARD (operatore, 24/09/2026: «non mostrare quello che non
+       serve»): il modulo e' gia' la pastiglia accesa qui sopra, e le due postille - su cosa e' stato
+       risolto e cosa gioca di solito - stanno nel tooltip di quella pastiglia. Due canali per un fatto
+       solo occupano il posto di un fatto diverso, e su una card lo spazio e' la cosa scarsa. -->
+  @if (!dense()) {
+    <p class="mt-2 text-xs text-muted">
+      Modulo <strong>{{ drawn.module }}</strong>
+      @if (drawn.solvedOn) {
+        <span> (risolto su {{ drawn.solvedOn }}: una trasformazione ha spezzato una linea)</span>
+      }
+      @if (drawn.typical && drawn.typical !== drawn.module) {
+        <span> · di solito gioca {{ drawn.typical }}</span>
+      }
+      @if (drawn.why) {
+        <span> · {{ drawn.why }}</span>
+      }
+    </p>
+  }
 
+  <!-- QUESTE RESTANO ANCHE SULLA CARD, e non e' una dimenticanza: dicono cosa il campetto NON sta
+       disegnando, e un filtro silenzioso e' indistinguibile da un filtro che inganna. Si stringono,
+       non si tolgono. -->
   @if (undrawn(); as said) {
-    <p class="px-1 pt-1 text-[10px] text-muted">{{ said }}</p>
+    <p class="px-1 pt-1 text-muted" [class]="dense() ? 'text-[9px]' : 'text-[10px]'">{{ said }}</p>
   }
   @if (hidden(); as said) {
-    <p class="mt-1 text-xs text-muted">{{ said }}</p>
+    <p class="mt-1 text-muted" [class]="dense() ? 'text-[9px]' : 'text-xs'">{{ said }}</p>
   }
 
   @for (problem of drawn.problems; track problem) {
-    <p class="mt-1 text-xs text-warning">⚠ {{ problem }}</p>
+    <p class="mt-1 text-warning" [class]="dense() ? 'text-[10px]' : 'text-xs'">⚠ {{ problem }}</p>
   }
 
   <!-- L'interruttore dei ruoli, in fondo al campetto: è come si LEGGE la carta, non cosa si guarda,
-       quindi vale in tutt'e due le schermate e sopravvive a un refresh. -->
+       quindi vale in tutt'e due le schermate e sopravvive a un refresh.
+
+       SU UNA CARD NON C'E': e' un COMANDO di preferenza, non un fatto, e la preferenza e' una sola per
+       tutta l'app (`board.roles`) - si gira dal campetto grande e la card la segue. Un comando in meno
+       su una card piccola e' spazio che va all'undici, che e' la ragione per cui la card e' aperta. -->
+  @if (!dense()) {
   <div class="mt-2 flex items-center justify-end gap-2 text-xs text-muted">
     <span>Ruoli</span>
     <span class="flex overflow-hidden rounded-md border border-border">
@@ -344,6 +363,7 @@
       }
     </span>
   </div>
+  }
 } @else if (noBoards()) {
   <nz-empty
     nzNotFoundContent="Nessun foglio di questa piattaforma porta le board: o è stato costruito prima che

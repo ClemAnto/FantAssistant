@@ -2279,3 +2279,57 @@ blocco si piega, si riapre e si ricorda); quello che lascia è piccolo e tutto d
    condiviso NON compilava per quella metà, e la verifica è stata fatta su un worktree costruito su `HEAD`
    più i miei sei file. Chi chiude quella metà non eredita niente da questa.
 
+
+## Aperti dopo la sessione del 24/09/2026 — la card di una squadra
+
+Verbale: `letture-app-v1.md` §54. La sessione ha CHIUSO la richiesta per intero (la card si apre dal nome
+del club, si trascina, si chiude; e' compatta; non ha barre dentro) piu' i quattro rilievi della review e
+i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichiarato.
+
+1. **IL TERZO LETTORE DELLE MAPPE DEL CAMPETTO E' ANCORA FUORI.** `views/auction/club-pitch` costruisce
+   da se' l'Overall e le dritte invece di leggerle da `core/club-boards.ts`, dove ora le costruiscono la
+   vista Squadre e la card. NON e' una dimenticanza: le deriva dalla SESSIONE d'asta (chi e' gia' stato
+   preso, cosa chiede il tavolo) e non dalla rosa del bundle, quindi unificarla vorrebbe dire applicare
+   una funzione fuori dalla popolazione su cui e' scritta. Va MISURATO se le due popolazioni coincidono
+   sugli uomini che il campetto disegna prima di toccarla. **Resa: una definizione in meno; rischio: due
+   campetti che smettono di dire la stessa cosa al tavolo.**
+
+2. **LA CURA DEL CONTEGGIO SULLA PLANCIA E' NELL'ALBERO E NON NEL COMMIT.** Il tasto «chiudi le N card»
+   e' stato corretto in tre punti (conta quello che si VEDE e non quello che la pila ricorda): clubs e
+   Strategia sono committati, la terza riga vive in `core/plancia-store.ts`, che al momento del commit e'
+   in mano all'altra sessione. Senza di lei la plancia tiene il comportamento di HEAD - annuncia una card
+   che lo schermo non disegna piu' - e chi committa quel file se la porta dietro. **Una riga.**
+
+3. **COSA LEGGE `state.selectedPlayerId` QUANDO NESSUNO E' IN ASTA.** Le due letture della sessione
+   FA-xxx-xxx cadono nello stesso istante (stesso `_lastUpdate`), quindi la TRANSIZIONE non e' stata
+   vista: il campo tiene il lotto mentre un nome e' in asta, e cosa porti fra un lotto e l'altro e'
+   ignoto. Un ripiego scritto senza aver visto quel momento sarebbe un campo indovinato su un payload
+   letto a meta'. Serve una seconda lettura a tavolo fermo. **Resa: chiude il canale che l'altra sessione
+   ha aperto con `probe-live-session.mjs`.**
+
+4. **IL FONDO DELLA CARD PIU' ALTA ESCE SOTTO I ~930px DI FINESTRA.** Misurato: sui venti club di Serie A
+   la card sta fra 505 e 703px e nasce fra y 128 e 224. Il tetto e' stato tolto apposta (proteggeva da un
+   caso che non esiste e produceva una barra orizzontale non richiesta), e la via d'uscita c'e' -
+   l'intestazione col tasto di chiusura sta in cima e la card si trascina. Se su uno schermo vero
+   infastidisce, la cura NON e' rimettere il tetto senza scorrimento (taglierebbe il campetto in
+   silenzio): e' farla nascere piu' in alto o ridurre i ballottaggi disegnati. **Nessuna misura dice oggi
+   che serva.**
+
+5. **UN NOME SU UNDICI SI TRONCA a 440px** (era zero a 520). E' una degradazione dichiarata - i puntini si
+   vedono - e il banco la CONTA a ogni corsa invece di farla cadere su una soglia che nessuno ha
+   misurato. Il numero da guardare prima di stringere ancora e' quello, non la larghezza.
+
+6. **LA CARD DI UN CLUB NON APRE LA CARD DI UN CALCIATORE.** Dentro di lei il campetto sta su
+   `detail="tooltip"`, cioe' la scheda all'hover, e non sul click che apre `ui/player-card`: quella card
+   la costruisce la PAGINA, perche' i suoi numeri dipendono dal foglio che quella pagina legge, e la card
+   di un club non lo sa. E' una scelta e non un limite tecnico - la pagina potrebbe passarle un
+   costruttore - ma va misurata contro il fatto che sulla vista Squadre il campetto grande quel click ce
+   l'ha, quindi lo stesso gesto fa due cose diverse a due centimetri di distanza. **Resa: coerenza di un
+   gesto; costo: un input in piu' su tre pagine.**
+
+7. **I DUE BANCHI RIACCESI SONO CHIUSI, e il punto 4 della lista precedente e' superato**:
+   `e2e-player-card` non e' piu' rosso su HEAD. Quello che resta di quella famiglia e' che la media del
+   riepilogo non si confronta dove la card la costruisce su voti VERI (una stagione su due, oggi), e la
+   strada per chiuderla e' il join (stagione, giornata) con `match_ratings` - che NON si e' fatto perche'
+   sarebbe una seconda definizione di «che voto ha preso». **Resa: una riga di verifica in piu'; costo:
+   una definizione doppia, che e' il difetto piu' caro di questo repository.**

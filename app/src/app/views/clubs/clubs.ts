@@ -754,7 +754,18 @@ export class Clubs {
     this.cards.place((key) => clubOfCard(key) ?? undefined),
   );
 
-  protected readonly cardCount = computed(() => this.cards.count());
+  /**
+   * QUANTE CARD SONO A SCHERMO, e non quante ne tiene la pila: sono due numeri diversi.
+   *
+   * Una card di calciatore ESCE DA SE' quando la sua riga non c'e' piu' - si cambia club sulla vista
+   * Squadre, si aggiudica un uomo sulla plancia - perche' una card che sopravvive alla propria riga
+   * mostrerebbe i numeri di dieci minuti prima. La pila pero' la tiene ancora, quindi contando LEI il
+   * tasto direbbe «chiudi le 2 card» sopra uno schermo senza nessuna card: un conteggio che descrive
+   * una lista diversa da quella disegnata, che e' il difetto che questo progetto paga da sempre.
+   */
+  protected readonly cardCount = computed(
+    () => this.openCards().length + this.clubCards().length,
+  );
 
   protected readonly frontCard = computed(() => this.cards.front());
 

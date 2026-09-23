@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 
-import { Board, EngineSheetEntry } from './bundle';
+import { Board, BoardHorizon, EngineSheetEntry } from './bundle';
 import { MarketValues } from './market-trend';
 import { PlayerRulings } from './player-rulings';
 import { Platform } from './players-store';
@@ -28,12 +28,32 @@ import { SquadMan, ValuationStore } from './valuation-store';
 export interface ClubBoardPack {
   /** La board dell'orizzonte scelto, o null: un club che il foglio non ha disegnato lo DICE. */
   board: Board | null;
+  /**
+   * QUALE DEI DUE ORIZZONTI e' quello disegnato, e quante partite guarda quello corto.
+   *
+   * Viaggia col pacchetto perche' `boardHorizon` e' un segnale GLOBALE (`ValuationStore`): la vista
+   * Squadre lo puo' mettere su «ultimo periodo» e da quel momento ogni campetto dell'app disegna quella
+   * lettura - la plancia compresa, che di quel pulsante non ne ha nemmeno uno. Una card che scrivesse
+   * «formazione tipo» sopra l'undici delle ultime tre partite sarebbe un'intestazione che dice una cosa
+   * falsa sull'oggetto qui sotto, che e' la famiglia di difetti che questo progetto paga da sempre.
+   */
+  horizon: BoardHorizon;
+  /** Quante partite guarda la finestra corta, DICHIARATE dal toolkit. Null sulla stagione. */
+  window: number | null;
   /** Vero quando NESSUN foglio di quella piattaforma porta le board: e' un'altra frase da «non questo club». */
   noBoards: boolean;
   overall: ReadonlyMap<number, number | null>;
   expectedShares: ReadonlyMap<number, number | null>;
   marketValues: ReadonlyMap<number, number | null>;
   ruled: ReadonlyMap<number, Titolarita>;
+  /**
+   * L'IDENTITA' DEL CLUB (`fc_club_id`), per lo STEMMA: un nome non e' una chiave.
+   *
+   * Si legge dalla rosa e non da una tabella a parte, perche' e' la stessa riga che gia' porta il club:
+   * null dove nessuno dei suoi la dichiara, e allora si disegna il monogramma - uno stemma sbagliato
+   * dice una cosa falsa, uno scudo grigio dice quello che e'.
+   */
+  clubId: number | null;
   /** Da quale foglio vengono board e numeri, perche' una card possa nominarlo. */
   sheet: EngineSheetEntry | null;
 }
@@ -99,6 +119,9 @@ export class ClubBoards {
       expectedShares,
       marketValues,
       ruled,
+      horizon: view?.horizon ?? 'season',
+      window: view?.window ?? null,
+      clubId: squad.find((man) => man.clubId != null)?.clubId ?? null,
       sheet: this.valuation.sheetFor(platform),
     };
   }

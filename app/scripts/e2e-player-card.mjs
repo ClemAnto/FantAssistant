@@ -911,6 +911,15 @@ async function main() {
     // 5j. IL RIEPILOGO DI STAGIONE: incolonnato come una riga di partita, e coi numeri che il
     //     BUNDLE dice - ricalcolati qui sulle partite di CAMPIONATO di quella stagione, che e' la
     //     popolazione dichiarata (coppe e amichevoli fuori: sono le righe attenuate).
+    // IL SUO CAMPIONATO PORTA IL VOTO VERO, E QUI NON C'E': `external_match_stats` ha il rating del
+    // provider e il suo sintetico, mentre per le partite del campionato in cui e' quotato la card
+    // mostra il voto di `match_ratings`. Il controllo PER RIGA lo sa gia' dal 05/09 e salta quelle
+    // righe; il riepilogo no, e confrontava una media di voti VERI con una di SINTETICI - su questo
+    // foglio 5,7 contro 5,5, cioe' un voto vero da 6,5 mescolato a quattro sintetici. Non si inventa
+    // qui il join (season, giornata) con la tabella dei voti, che sarebbe una seconda definizione di
+    // «che voto ha preso»: la MEDIA si confronta solo dove la card la costruisce tutta sul sintetico,
+    // e dove non si puo' si DICE invece di tacere.
+    const hisLeague = leagueOf.get(who.id) ?? null;
     const wantTotals = (season) => {
       const own = all.filter(
         (one) => one.season === season && LEAGUES.has(one.competition)
@@ -920,14 +929,19 @@ async function main() {
       const mins = own.filter((one) => one.minutes != null).map((one) => one.minutes);
       const votes = own.filter((one) => one.synth != null).map((one) => roundVote(one.synth));
       const mean = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : null);
+      const hisOwn = own.filter((one) => one.competition === hisLeague).length;
       return {
         played: own.length,
         minutes: mins.length ? Math.round(mean(mins)) : null,
-        mv: mean(votes),
+        // Vuoto = non confrontabile da qui, che non e' «non verificato»: played e minuti si
+        // confrontano lo stesso, e il conto delle medie saltate si stampa.
+        mv: hisOwn ? null : mean(votes),
+        hisOwn,
         goals: own.reduce((sum, one) => sum + (one.goals ?? 0), 0),
       };
     };
     const wrongTotals = [];
+    let skippedMv = 0;
     for (const one of shown.summaries) {
       // La stagione del riepilogo e' quella del divisore che ha appena sopra - e il PRIMO un divisore
       // non ce l'ha, perche' la stagione in corso la annuncia l'intestazione (05/09/2026). Saltarlo
@@ -942,6 +956,7 @@ async function main() {
         && (want.minutes == null || Math.abs(mins - want.minutes) <= 1)
         && (want.mv == null || Math.abs(mv - want.mv) < 0.06);
       if (!ok) wrongTotals.push({ ...one, want });
+      if (want.mv == null) skippedMv += 1;
     }
     // ...e le sue celle stanno sulle STESSE x delle righe: «incolonnate correttamente» e' una misura.
     const misaligned = shown.summaries.filter(
@@ -1018,11 +1033,17 @@ async function main() {
     });
 
     note('il riepilogo di stagione', {
-      said: shown.summaries.length
+      said: (shown.summaries.length
         ? shown.summaries
           .map((one) => `${one.season}: ${one.played} · ${one.minutes} · ${one.mv} · ${one.marks.join(' ')} · ${one.fm}`)
           .join(' | ')
-        : '(nessuna stagione da riassumere)',
+        : '(nessuna stagione da riassumere)')
+        // Quante MEDIE sono state saltate e perche': un banco che salta in silenzio si legge come un
+        // banco che ha guardato.
+        + (skippedMv
+          ? ` · media saltata su ${skippedMv} (ha partite del suo campionato: la' il voto viene dai`
+            + ' VOTI e questo strato non li porta)'
+          : ''),
       problems: [
         ...(wrongTotals.length
           ? [`${wrongTotals.length} riepiloghi non tornano col bundle: ${JSON.stringify(wrongTotals.slice(0, 1))}`]

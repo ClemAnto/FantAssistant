@@ -9260,3 +9260,65 @@ perimetro.
 - Le **dritte dell'app** vivono in `localStorage` e non entrano nei fogli: la strada per farlo è
   ridichiararle in `config/player_rulings.json`, ed è l'unico pezzo aperto di quella feature.
 
+
+## 24 settembre 2026 — LA CARD DI UNA SQUADRA, la review che l'ha corretta, e due gate riaccesi
+
+Verbale pieno: `letture-app-v1.md` §54 (con §54.6 la review, §54.7 la stretta, §54.8 i due banchi,
+§54.9 le barre). **`engine_*` fermo, nessuna colonna del foglio, nessun `SHEET_REVISION`, nessun
+percorso gatato**: tutto quello che segue e' app.
+
+**LA FEATURE.** Richiesta: «quando si clicca sul nome della squadra all'interno della card dettaglio
+calciatore fai aprire una nuova card draggabile con il campetto con la formazione tipo della squadra».
+`ui/club-card/` e' una CORNICE attorno a `ui-club-board` - il campetto e' UNO per tutte le schermate - e
+l'undici resta quello che il TOOLKIT disegna. Funziona sulle tre pagine che mostrano la card di un
+calciatore (Squadre, plancia, Strategia).
+
+**LA DECISIONE CHE E' COSTATA: UNA PILA SOLA PER LE DUE SPECIE.** La pila decide il POSTO e chi sta
+DAVANTI, e sono due cose globali allo schermo: con due pile la card del club nasce esattamente sopra
+quella del calciatore da cui e' stata aperta (tutt'e due al posto zero) e ci sono due «davanti» a `z`
+200, cioe' una card toccata che non passa avanti. La chiave porta la specie e, per un club, la
+PIATTAFORMA. Prezzo: tre pagine e uno store riscritti.
+
+**UNA DEFINIZIONE SOLA PER LE QUATTRO MAPPE** che vanno accanto alla board (`core/club-boards.ts`):
+erano due copie e stavano per diventare tre. Il terzo lettore (`views/auction/club-pitch`) resta fuori
+dicendolo, perche' le deriva dalla SESSIONE d'asta - un'altra popolazione.
+
+**LA REVIEW HA TROVATO QUATTRO DIFETTI CHE LA SUITE VERDE NON VEDEVA** (§54.6), tutti confermati
+misurandoli e tutti controprovati un difetto per volta: un conteggio che descriveva la pila invece
+dello schermo («0 card disegnate e il tasto che dice chiudi le 2 card»); una cascata con i due assi sullo
+stesso resto (4 posizioni invece di 12, e il posto n+4 esattamente su n); un'intestazione fissa sopra un
+segnale GLOBALE (`boardHorizon`, che un'altra pagina puo' girare - la plancia quel pulsante non ce l'ha);
+e un'asserzione del banco che INTERSECAVA prima di confrontare, cioe' asseriva l'inclusione.
+
+**POI LA STRETTA** (§54.7): 520x794 -> **440x669** (−29% d'area), contorno 3 pezzi -> 0, nomi troncati
+0 -> 1 su 11, nomi larghi zero 0 in tutt'e due. E' un `dense` dichiarato su `ui-club-board`, nella forma
+che `ui-squad-table` ha da agosto. Un mio test unitario e' caduto **sul proprio numero** (asseriva 90px
+per casella, una cifra scelta da me): riscritto su quello che un'aritmetica puo' dire, e la domanda vera
+lasciata al banco che gira in un browser.
+
+**E LE BARRE DENTRO LA CARD** (§54.9): il tetto all'altezza con `overflow-y: auto` era scritto per un
+caso che, misurato sui venti club, **non esiste** (505-703px, zero righe da scorrere) e portava un
+difetto suo - `overflow-y: auto` fa calcolare `auto` anche sull'altro asse, quindi il browser dichiarava
+`auto/auto` e un pixel di troppo avrebbe fatto comparire una barra ORIZZONTALE. Tolti tetto e
+scorrimento, prezzo detto.
+
+**DUE GATE RIACCESI, e nessuno dei due era di questa sessione** (§54.8): erano rossi anche a HEAD, e la
+loro attribuzione e' stata fatta in un worktree su HEAD senza i miei file. `e2e-player-ruling` (7 -> 0)
+era un **errore di unita' del banco** - la card prezza su una STAGIONE PIENA e il banco moltiplicava per
+le giornate che restano: rapporto 1,152 su tutte e sei le righe, cioe' 38/33 esatto - piu' un caso
+SCOMPARSO, che ora si cerca e, se non c'e', si dichiara SALTATO invece di fallire. `e2e-player-card`
+(1 -> 0) mediava **due popolazioni**: voti VERI contro sintetici, e la regola che lo evita era scritta
+cento righe sopra per il controllo per riga.
+
+**E UNA SESSIONE D'ASTA VERA HA CHIUSO UNA DOMANDA APERTA DA AGOSTO.** L'operatore: «per l'asta
+FA-xxx-xxx il calciatore attualmente in asta e' Zappacosta». Letta con `probe-live-session.mjs`
+(l'arnese dell'altra sessione, sola lettura): **`state.selectedPlayerId` = 554 = Zappacosta**, due
+letture a un minuto con `state._lastUpdate` fermo, e `lastPick.playerId` diverso (7561). Quindi
+fanta-asta-live IL LOTTO LO PUBBLICA, sul meccanismo a rilanci. Resta non osservato cosa legga quel
+campo quando nessuno e' in asta. La stessa lettura conferma il regolamento dichiarato della sua lega
+(`marketType` 0, `type: "random"`, 10 partecipanti, budget 1000, `beatRaise` 1, countdown 10s).
+**L'implementazione non e' di questa sessione**: `auction-feed.ts` e `live-connect` sono dell'altra.
+
+**Verde alla chiusura**: 1104 test su 64 file, build pulito, e otto banchi e2e a zero problemi
+(`e2e-club-card` con i suoi quattordici passi, `e2e-player-card`, `e2e-player-ruling`, `e2e-clubs`,
+`e2e-strategy`, `e2e-board-horizon`, `e2e-plancia-slots`, `e2e-nav`).

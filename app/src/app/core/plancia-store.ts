@@ -1384,8 +1384,16 @@ export class PlanciaStore {
    */
   readonly clubCards = computed(() => this.cards.place((key) => clubOfCard(key) ?? undefined));
 
-  /** Quante card sono aperte in tutto: il tasto «chiudi le N card» le conta tutt'e due le specie. */
-  readonly cardCount = computed(() => this.cards.count());
+  /**
+   * QUANTE CARD SONO A SCHERMO, e non quante ne tiene la pila: sono due numeri diversi.
+   *
+   * Una card di calciatore ESCE DA SE' quando la sua riga non c'e' piu' - si cambia club sulla vista
+   * Squadre, si aggiudica un uomo sulla plancia - perche' una card che sopravvive alla propria riga
+   * mostrerebbe i numeri di dieci minuti prima. La pila pero' la tiene ancora, quindi contando LEI il
+   * tasto direbbe «chiudi le 2 card» sopra uno schermo senza nessuna card: un conteggio che descrive
+   * una lista diversa da quella disegnata, che e' il difetto che questo progetto paga da sempre.
+   */
+  readonly cardCount = computed(() => this.cardMen().length + this.clubCards().length);
 
   readonly frontCard = computed(() => this.cards.front());
 

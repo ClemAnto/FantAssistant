@@ -256,13 +256,16 @@ export function cardTop(slot: number): number {
 }
 
 /**
- * LA CARD DI UN CLUB E' LARGA 520 e non 320, perche' dentro c'e' un CAMPETTO e non una colonna di
+ * LA CARD DI UN CLUB E' LARGA 440 e non 320, perche' dentro c'e' un CAMPETTO e non una colonna di
  * numeri: una riga del modulo ne mette fino a cinque, quindi a 320 ogni casella avrebbe ~52px e i nomi
- * sarebbero tagliati via - «un valore tagliato dal bordo non e' stretto, e' ASSENTE». A 520 una casella
- * ne ha ~96, che e' quello che il campetto riceve nella colonna della vista Squadre, dove e' stato
- * disegnato e misurato.
+ * sarebbero tagliati via - «un valore tagliato dal bordo non e' stretto, e' ASSENTE».
+ *
+ * ERA 520 fino al 24/09/2026, quando l'operatore ha chiesto di farla «piu' piccolina»: con il campetto
+ * in modalita' COMPATTA (`ui-club-board [dense]`, margini stretti e il contorno via) una casella di una
+ * riga da cinque ne riceve ~80, che e' il punto in cui i nomi cominciano a troncarsi invece di sparire
+ * - il conto sta nel banco (`e2e-club-card`), che stampa quanti nomi sono troncati a ogni corsa.
  */
-export const CLUB_CARD_WIDTH = 520;
+export const CLUB_CARD_WIDTH = 440;
 
 /**
  * DOVE NASCE UNA CARD DI CLUB: una CASCATA, e non la griglia a quattro colonne dei calciatori.
@@ -275,13 +278,19 @@ export const CLUB_CARD_WIDTH = 520;
  *
  * La prima nasce a destra della prima colonna di calciatori: la card dell'uomo resta scoperta, ed e'
  * quella che si stava leggendo quando si e' cliccato il club.
+ *
+ * I DUE ASSI SI MUOVONO SU PASSI DIVERSI, e la prima versione li muoveva insieme: con `slot % 4` su
+ * tutt'e due la cascata aveva QUATTRO posizioni invece di dodici, e il posto `n + 4` cadeva esattamente
+ * su `n` - due card di club sovrapposte al pixel, con la seconda davanti. E' lo stesso conto della
+ * griglia dei calciatori (la colonna col resto, la riga col quoziente), che di posizioni ne ha dodici:
+ * una cascata che si ripete dopo quattro e' una cascata che nasconde una card ogni cinque.
  */
 export function clubCardLeft(slot: number): number {
   return 364 + (slot % 4) * 32;
 }
 
 export function clubCardTop(slot: number): number {
-  return 128 + (slot % 4) * 32;
+  return 128 + (Math.floor(slot / 4) % 3) * 32;
 }
 
 /** Quante partite mostra la card chiusa: la richiesta dell'operatore del 05/09/2026, non una misura. */

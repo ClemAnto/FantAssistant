@@ -385,7 +385,12 @@ async function main() {
     minutes: minutePools.get(rung)?.length ? median(minutePools.get(rung)) : null,
   }]));
   const shares = ordered(medians);
-  const rounds = sheet.matchdays_target;
+  // OGNI NUMERO IN GIORNATE SI LEGGE SU UNA STAGIONE PIENA (regola dell'operatore del 22/09/2026,
+  // `letture-app-v1.md` §50): la card prezza le parole su `platform_input` - 38 su Serie A - mentre il
+  // foglio prevede le giornate che RESTANO (`matchdays_target`, 33). Il banco moltiplicava per il
+  // secondo e leggeva sei righe fuori di un fattore 38/33 = 1,152 esatto, accusando la pagina di un
+  // errore che era suo. Stessa definizione di `season-scale.seasonRoundsOf`, ripiego compreso.
+  const rounds = table.matchdays?.platform_input ?? sheet.matchdays_target;
   const daysOf = (rung) => (shares.has(rung) ? shares.get(rung).play * rounds : null);
   const minutesOf = (rung) => shares.get(rung)?.minutes ?? null;
   const measuredDaysOf = (rung) => (medians.has(rung) ? medians.get(rung).play * rounds : null);
@@ -447,15 +452,29 @@ async function main() {
   // quindi la conversione che l'app prezza lo rispetta. Se la prima cadesse, il banco non starebbe piu'
   // misurando il caso che conta; se cadesse la seconda, la dichiarazione punirebbe chi la fa.
   const ladderDays = LADDER.map((rung) => daysOf(rung)).filter((one) => one != null);
+  // QUALI COPPIE della scala la MISURA mette al contrario: e' la popolazione su cui la riparazione
+  // dichiarata dall'operatore agisce, e va CONTATA invece di darla per esistente su un gradino scelto
+  // a mano - il foglio cambia ogni settimana.
+  const inverted = LADDER.slice(1)
+    .map((rung, at) => [LADDER[at], rung])
+    .filter(([above, below]) => measuredDaysOf(above) != null && measuredDaysOf(below) != null
+      && measuredDaysOf(above) < measuredDaysOf(below))
+    .map(([above, below]) => `${above} < ${below}`);
   note('la misura non rispetta l’ordine della scala, e la conversione sì', {
-    said: `misurato: titolarissimo ${measuredDaysOf('titolarissimo')?.toFixed(1)} contro titolare `
+    said: (inverted.length
+      ? `la misura inverte ${inverted.length} coppie (${inverted.join(', ')})`
+      : "SALTATA la meta' che conta: su questo foglio la misura e' gia' ordinata, quindi la "
+        + 'riparazione non ripara niente e resta asserita solo la monotonia della conversione')
+      + ` · misurato: titolarissimo ${measuredDaysOf('titolarissimo')?.toFixed(1)} contro titolare `
       + `${measuredDaysOf('titolare')?.toFixed(1)} · convertito: ${LADDER
         .map((rung) => `${rung} ${daysOf(rung) == null ? '—' : daysOf(rung).toFixed(1)}gg/`
           + `${minutesOf(rung) == null ? '—' : minutesOf(rung).toFixed(0)}′`).join(' · ')}`,
+    // L'INVERSIONE E' UN FATTO DEL FOGLIO E NON UNA PROMESSA DEL CODICE: sul foglio del 24/09/2026
+    // `titolarissimo` misura 29,0 contro i 28,3 di `titolare`, cioe' la misura e' gia' ordinata e la
+    // riparazione non ha niente da riparare. Era un PROBLEMA e adesso e' un avviso stampato in
+    // `said`: un allarme che suona sullo stato normale di un foglio e' un allarme che si impara a
+    // ignorare, e l'altra meta' - che la CONVERSIONE rispetti l'ordine dichiarato - resta asserita.
     problems: [
-      ...(measuredDaysOf('titolarissimo') != null && measuredDaysOf('titolare') != null
-        && measuredDaysOf('titolarissimo') < measuredDaysOf('titolare')
-        ? [] : ['su questo foglio la misura è già ordinata: il banco non misura più il caso che conta']),
       ...(ladderDays.every((one, at) => at === 0 || ladderDays[at - 1] > one)
         ? [] : [`la conversione non rispetta la scala: ${ladderDays.map((one) => one.toFixed(1))}`]),
     ],
