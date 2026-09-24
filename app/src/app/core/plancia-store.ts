@@ -79,6 +79,7 @@ import {
   adviseTail,
   alternativeFor,
   buildMap,
+  expectedPriceOf,
   lotUp,
   bidUp,
   offerBand,
@@ -1367,6 +1368,7 @@ export class PlanciaStore {
     if (!lot || !me) return null;
     const placesLeft = me.missing.reduce((sum, one) => sum + Math.max(0, one), 0);
     return lotBrief({
+      restCost: this.restCost(lot.role),
       goal: this.focusNeeds()[lot.role],
       serves: this.servesNeed(lot.man),
       ceiling: lot.advice.band?.high ?? null,
@@ -1376,6 +1378,45 @@ export class PlanciaStore {
       waiting: lot.advice.waiting,
     });
   });
+
+  /**
+   * QUANTO COSTERANNO GLI ALTRI POSTI CHE MI RESTANO, ai prezzi che la stanza paga per i loro slot.
+   *
+   * E' la riserva del «massimo sensato» (sua richiesta, 24/09/2026), e la sua forma viene dalla legge
+   * di conservazione su cui questa pagina e' costruita: *una rosa e' un uomo per slot*. Se in un ruolo
+   * me ne mancano `m` e quel ruolo ha `n` slot, i posti che mi restano sono gli ULTIMI `m` - non i piu'
+   * economici che riesco a trovare, che sarebbe il preventivo di una rosa da venticinque uomini a un
+   * credito, e nemmeno i primi, che sarebbe il preventivo di una rosa che nessuno puo' permettersi.
+   *
+   * Il prezzo di ognuno e' `expectedPriceOf` sul suo blocco: la stessa funzione che scrive la cifra
+   * sulla card del lotto e i grigi sul campetto della rosa. Un secondo preventivo qui darebbe alla
+   * stessa rosa due costi.
+   *
+   * UN POSTO SI TOGLIE, ed e' quello che il lotto in asta riempirebbe: e' il PRIMO dei miei posti
+   * rimasti nel suo ruolo, cioe' il piu' caro - chi sto comprando occupa il posto migliore che mi
+   * resta, e riservare anche quello vorrebbe dire contare due volte l'uomo su cui sto offrendo.
+   */
+  private restCost(exclude: Role | null): number {
+    const me = this.teams().find((team) => team.me);
+    if (!me) return 0;
+    const teams = this.teamsCount();
+    let total = 0;
+    ROLES.forEach((role, at) => {
+      const missing = Math.max(0, me.missing[at] ?? 0);
+      if (!missing) return;
+      const blocks = this.blocks().filter((block) => block.role === role);
+      const hands = this.handsFor(role);
+      // GLI ULTIMI `missing` SLOT del ruolo, che sono i posti che mi restano da riempire.
+      const mine = blocks.slice(Math.max(0, blocks.length - missing));
+      const prices = mine.map((block) =>
+        expectedPriceOf(block.medianFvm, block.index, hands, teams),
+      );
+      // ...e nel ruolo del lotto il posto piu' caro dei miei lo riempirebbe lui.
+      if (role === exclude) prices.shift();
+      total += prices.reduce((sum, one) => sum + one, 0);
+    });
+    return total;
+  }
 
   readonly lot = computed<Lot | null>(() => {
     const id = this.lotId();

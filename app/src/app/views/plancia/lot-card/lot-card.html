@@ -154,7 +154,7 @@
       <div data-lot-group="band" class="flex shrink-0 flex-col gap-1">
         <div class="flex items-baseline gap-1.5">
           @if (l.advice.band; as band) {
-            <span class="text-xl leading-none font-bold tabular-nums" [class]="tone()">
+            <span data-lot-band class="text-xl leading-none font-bold tabular-nums" [class]="tone()">
               {{ band.low }}<span class="px-0.5 text-muted">-</span>{{ band.high }}
             </span>
           } @else {
@@ -193,7 +193,46 @@
               [style.left]="priceLeft()"
             ></div>
           }
+          <!-- I DUE TETTI DELLA MIA BORSA (sua richiesta, 24/09/2026), e stanno sulla barra perche' la
+               barra e' gia' la scala del budget: quello che aggiungono e' DOVE cadono rispetto alla
+               banda e al prezzo sul tavolo - cioe' se quello che la stanza sta pagando e' ancora dentro
+               quello che posso permettermi. Sottili e senza etichetta qui: le cifre stanno sotto, e due
+               marche che portassero anche i numeri renderebbero illeggibile una barra alta sei pixel. -->
+          @if (brief(); as b) {
+            <div
+              data-lot-mark="sensible"
+              class="absolute -top-0.5 h-2.5 w-px rounded-full bg-warning"
+              [style.left]="sensibleAt()"
+            ></div>
+            <div
+              data-lot-mark="absolute"
+              class="absolute -top-0.5 h-2.5 w-px rounded-full bg-danger"
+              [style.left]="absoluteAt()"
+            ></div>
+          }
         </div>
+        @if (brief(); as b) {
+          <!-- LE DUE CIFRE, ognuna con la sua frase. «Massimo» e «sensato» sono due domande diverse e
+               non due altezze della stessa: il primo e' il limite del REGOLAMENTO (oltre, la rosa non
+               si chiude), il secondo e' quello che resta se agli altri posti si lascia quello che
+               costeranno davvero. Fra i due c'e' la differenza fra una rosa completa e una rosa buona. -->
+          <div class="flex items-baseline gap-2 text-[9px] leading-none">
+            <span
+              data-lot-sensible
+              class="tabular-nums text-warning"
+              nz-tooltip
+              [nzTooltipTitle]="sensibleTip()"
+              >sensato {{ b.sensible }}</span
+            >
+            <span
+              data-lot-absolute
+              class="tabular-nums text-danger"
+              nz-tooltip
+              nzTooltipTitle="Il massimo assoluto: tiene un credito per ogni altro posto ancora da riempire. Oltre, la rosa non si chiude."
+              >max {{ b.absolute }}</span
+            >
+          </div>
+        }
       </div>
 
       <!-- IL PREZZO SUL TAVOLO: l'unica cosa che si tocca durante l'asta, e da oggi una CIFRA PER

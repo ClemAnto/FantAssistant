@@ -301,6 +301,7 @@ function readLot() {
     band: '',
     verdict: '',
     brief: null,
+    ceilings: null,
   };
   // IL NOME dal suo gruppo e non dalla prima `.truncate` della card: il ciclo qui sotto scrive
   // `out[<gruppo>]`, quindi con `name` fra i gruppi lo sovrascriveva con la cella che quel gruppo non
@@ -328,8 +329,32 @@ function readLot() {
         reason: group.getAttribute('ng-reflect-nz-tooltip-title') ?? '',
       };
     } else if (what === 'band') {
-      // LA BANDA: le due cifre come lo schermo le stampa, per confrontarci il tetto consigliato.
-      out.band = (group.innerText ?? '').replace(/\s+/g, ' ').trim();
+      // LA BANDA DALLA SUA CELLA e non dall'intero gruppo: da quando il gruppo porta anche i due
+      // tetti della borsa, «l'ultimo numero del gruppo» era il massimo assoluto - e il confronto
+      // «il consiglio sta dentro la banda» diventava un confronto con un'altra cosa, cioe' non
+      // poteva piu' fallire. Trovato alla prima corsa, guardando il numero stampato accanto al verde.
+      out.band = (group.querySelector('[data-lot-band]')?.innerText ?? '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      // I DUE TETTI DELLA BORSA (24/09/2026): le cifre sotto la barra e la posizione delle due marche
+      // SULLA barra. Le due letture servono insieme - una marca disegnata da un'altra quantita' e' il
+      // difetto che un solo numero non vedrebbe.
+      const num = (sel) => {
+        const at = group.querySelector(sel);
+        if (!at) return null;
+        const only = (at.innerText ?? '').replace(/[^0-9]/g, '');
+        return only ? Number(only) : null;
+      };
+      const markAt = (which) => {
+        const at = group.querySelector(`[data-lot-mark="${which}"]`);
+        return at ? Number.parseFloat(at.style.left) : null;
+      };
+      out.ceilings = {
+        sensible: num('[data-lot-sensible]'),
+        absolute: num('[data-lot-absolute]'),
+        sensibleAt: markAt('sensible'),
+        absoluteAt: markAt('absolute'),
+      };
     } else if (what === 'verdict') {
       out.verdict = group.getAttribute('nztype') ?? group.getAttribute('ng-reflect-nz-type') ?? '';
     } else if (what === 'shirt') {
@@ -667,7 +692,44 @@ async function main() {
       `. mi serve: «${brief?.interest ?? '?'}» · fino a ${brief?.spend ?? '?'} cr ${brief?.bound ?? ''}` +
         ` · «${brief?.timing ?? '?'}» · banda fino a ${high} · nel focus ${litSays}`,
     );
-    problems.push(...briefProblems);
+
+    // 10. I DUE TETTI DELLA BORSA SULLA BARRA (sua richiesta, 24/09/2026), e tre invarianti che si
+    //     provano senza conoscere ne' il budget ne' la mia rosa:
+    //      - il SENSATO non supera mai l'ASSOLUTO, perche' la riserva del primo e' fatta di prezzi che
+    //        valgono almeno un credito l'uno, cioe' almeno la riserva del secondo. E' aritmetica, non
+    //        un'aspettativa: se si inverte, una delle due riserve conta i posti sbagliati;
+    //      - il tetto CONSIGLIATO non supera l'assoluto, che e' il muro del regolamento;
+    //      - le due MARCHE stanno sulla barra in proporzione alle due cifre. Senza questa, una marca
+    //        disegnata dalla quantita' sbagliata resterebbe invisibile: la barra e' larga 160px e uno
+    //        scarto di venti crediti sono tre pixel.
+    const roof = lotNow?.ceilings ?? null;
+    const ceilProblems = [];
+    if (!roof || roof.absolute == null || roof.sensible == null) {
+      ceilProblems.push('la barra non porta i due tetti della borsa');
+    } else {
+      if (roof.sensible > roof.absolute) {
+        ceilProblems.push(`il tetto sensato (${roof.sensible}) supera l'assoluto (${roof.absolute})`);
+      }
+      if (Number.isFinite(spend) && spend > roof.absolute) {
+        ceilProblems.push(`consiglia ${spend} sopra il massimo assoluto (${roof.absolute})`);
+      }
+      // LA PROPORZIONE, che non ha bisogno del budget: due marche sulla stessa scala stanno fra loro
+      // come le due cifre. Mezzo punto percentuale di tolleranza, che a 160px e' meno di un pixel.
+      if (roof.absolute > 0 && roof.sensibleAt != null && roof.absoluteAt != null) {
+        const wanted = (roof.sensible / roof.absolute) * roof.absoluteAt;
+        if (Math.abs(wanted - roof.sensibleAt) > 0.5) {
+          ceilProblems.push(
+            `la marca del sensato cade al ${roof.sensibleAt.toFixed(1)}% invece che al ` +
+              `${wanted.toFixed(1)}%: e' disegnata da un'altra quantita'`,
+          );
+        }
+      }
+    }
+    console.log(
+      `. la borsa sulla barra: sensato ${roof?.sensible ?? '?'} (${roof?.sensibleAt?.toFixed(1) ?? '?'}%)` +
+        ` · assoluto ${roof?.absolute ?? '?'} (${roof?.absoluteAt?.toFixed(1) ?? '?'}%)`,
+    );
+    problems.push(...briefProblems, ...ceilProblems);
   } finally {
     if (session) session.close();
     browser.kill();

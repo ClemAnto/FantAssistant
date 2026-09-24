@@ -174,6 +174,25 @@ export class LotCard {
   });
   protected readonly priceLeft = computed(() => this.pct(this.lot()?.price));
 
+  /**
+   * I DUE TETTI SULLA BARRA (sua richiesta, 24/09/2026): dove cade il massimo assoluto e dove il
+   * massimo sensato. La barra ha gia' la scala del budget, quindi due segni bastano - le CIFRE stanno
+   * sotto, perche' un segno dice dove e un numero dice quanto, e su una barra larga 160px le due
+   * domande non stanno nella stessa marca.
+   */
+  protected readonly absoluteAt = computed(() => this.pct(this.brief()?.absolute));
+  protected readonly sensibleAt = computed(() => this.pct(this.brief()?.sensible));
+
+  /** La frase del tetto sensato porta la RISERVA, che e' l'unica cosa che ne spiega la posizione. */
+  protected readonly sensibleTip = computed(() => {
+    const brief = this.brief();
+    if (!brief) return '';
+    return (
+      `Il massimo tenendo da parte ${brief.reserve} crediti per gli altri posti che ti restano, ` +
+      'ai prezzi che la stanza paga per i loro slot.'
+    );
+  });
+
   private pct(value: number | null | undefined): string {
     if (value == null || !(this.budget() > 0)) return '0%';
     return `${Math.min(100, Math.max(0, (value / this.budget()) * 100))}%`;

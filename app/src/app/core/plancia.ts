@@ -876,7 +876,23 @@ export function expectedPriceOf(
  * chiederlo era una card sola; due copie sarebbero due risposte a «fin dove posso spingermi».
  */
 export function spendableOn(credits: number, placesLeft: number): number {
-  return placesLeft > 0 ? Math.max(0, Math.round(credits) - (placesLeft - 1)) : 0;
+  return placesLeft > 0 ? spendableKeeping(credits, placesLeft - 1) : 0;
+}
+
+/**
+ * ...E LO STESSO CONTO CON UNA RISERVA QUALUNQUE: quanto posso offrire tenendo da parte `reserve`.
+ *
+ * Sua richiesta (24/09/2026): «indicami il massimo che posso spendere assoluto (conservando 1 per i
+ * calciatori ancora da comprare) e l'offerta massima conservando i giusti crediti per completare gli
+ * acquisti in maniera soddisfacente». Sono LO STESSO TETTO con due riserve diverse - uno vale un
+ * credito a posto, l'altro quello che quei posti costeranno davvero - quindi sono una funzione sola
+ * con un parametro, e non due formule che un giorno si contraddicono su cosa sia «il massimo».
+ *
+ * La riserva si arrotonda PRIMA di sottrarre: un tetto in crediti e' un intero, e sottrarre una somma
+ * con la virgola darebbe una cifra che al tavolo non si puo' offrire.
+ */
+export function spendableKeeping(credits: number, reserve: number): number {
+  return Math.max(0, Math.round(credits) - Math.max(0, Math.round(reserve)));
 }
 
 /** From which slot down it pays to let a man pass (`bench.DEPTH_TIER`, §24). */

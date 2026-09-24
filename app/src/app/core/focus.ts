@@ -1,4 +1,4 @@
-import { spendableOn } from './plancia';
+import { spendableKeeping, spendableOn } from './plancia';
 import { ClassicRole } from './players-store';
 import { Bidder, expectedHoles, LeagueRules } from './sealed-bid';
 
@@ -267,6 +267,25 @@ export interface LotBrief {
   interest: Interest;
   /** Fino a quanto spingersi, o `null` quando il foglio non lo prezza: uno zero direbbe «non vale». */
   spend: number | null;
+  /**
+   * IL MASSIMO ASSOLUTO: quello che posso offrire tenendo UN credito per ogni altro posto da riempire.
+   *
+   * E' il limite del regolamento e non un consiglio - oltre quello la rosa non si chiude - e per questo
+   * e' l'unico dei due che non dipende da nessuna misura: un credito e' il minimo d'asta.
+   */
+  absolute: number;
+  /**
+   * ...E IL MASSIMO SENSATO: quello che resta tenendo da parte quello che gli ALTRI posti costeranno
+   * davvero, ai prezzi che la stanza paga per i loro slot (`expectedPriceOf`, la scala misurata sulle
+   * aste vere e scontata dell'assottigliamento).
+   *
+   * Sua richiesta (24/09/2026): «l'offerta massima conservando i giusti crediti per completare gli
+   * acquisti in maniera soddisfacente». Fra i due c'e' tutta la differenza fra una rosa COMPLETA e una
+   * rosa BUONA: la prima si chiude con venticinque uomini da un credito.
+   */
+  sensible: number;
+  /** Quanto costeranno gli altri posti: la riserva che il secondo tetto mette da parte. */
+  reserve: number;
   /** Chi dei due tetti lega, perche' una cifra senza il suo vincolo non e' un consiglio. */
   bound: 'mercato' | 'rosa' | null;
   /** Quello che la stanza paga di solito per il suo slot: e' il metro di «costa troppo». */
@@ -285,10 +304,24 @@ export function lotBrief(input: {
   credits: number;
   /** I posti che mi restano da riempire in TUTTA la rosa, non solo nel suo ruolo. */
   placesLeft: number;
+  /**
+   * Quanto costeranno gli ALTRI posti che mi restano, ai prezzi dei loro slot: la riserva del tetto
+   * sensato. Chi la calcola e' il negozio, che e' l'unico a sapere quali slot siano - qui si comporrebbe
+   * una seconda volta un prezzo che la plancia stampa gia' su ogni blocco.
+   */
+  restCost: number;
   waiting: boolean;
 }): LotBrief {
   const roster = spendableOn(input.credits, input.placesLeft);
-  const shared = { goal: input.goal, price: input.expectedPrice, waiting: input.waiting };
+  const sensible = spendableKeeping(input.credits, input.restCost);
+  const shared = {
+    goal: input.goal,
+    price: input.expectedPrice,
+    waiting: input.waiting,
+    absolute: roster,
+    sensible,
+    reserve: Math.max(0, Math.round(input.restCost)),
+  };
 
   if (input.ceiling == null) {
     return {
