@@ -5283,3 +5283,107 @@ col difetto rimesso dice «il regolamento dichiarato è rimasto a 1000 crediti i
 *Un'asserzione su ciò che una cosa DICE di aver fatto non è un'asserzione su ciò che ha fatto.*
 
 Verificato: build pulito, **1107 test**, tredici banchi verdi più il nuovo.
+
+## 55. LA CODA, L'ANNULLAMENTO, LE ROSE CHE CAMBIANO — e un invariante che confronta TUTTO (24 settembre 2026, notte)
+
+Quattro segnalazioni dell'operatore in fila, tutte sulla stessa pagina collegata al suo tavolo vero, e
+la prima è quella che ha aperto le altre tre: «adesso non vedo il calciatore in asta».
+
+### 55.1 Chi la mappa non disegna non poteva essere in asta AFFATTO
+
+La plancia porta **25 slot da `teams` uomini**, cioè 250 di ~600: sotto l'ultimo c'è la CODA. `lot()`
+cercava il nome SOLO fra i 250 disegnati, quindi un uomo della coda dava `null` e la riga scriveva
+«nessun calciatore in asta» mentre il tavolo lo aveva sul banco.
+
+**Era invisibile finché il nome lo mettevamo noi** cliccando una riga della plancia — che per
+costruzione è una riga disegnata — ed è diventato il caso NORMALE il giorno stesso in cui a nominarlo è
+passato il tavolo. A un'estrazione libera sul listone intero la maggior parte dei nomi estratti sta nella
+coda.
+
+Misurato sul suo tavolo invece che dedotto: `selectedPlayerId` valeva **6883 = Jean (Lecce)**, rango
+**169 di 189** difensori quotati, mentre la plancia ne disegna 80. Nico Paz, che si vedeva, era **C1**.
+
+`rowMaker` sapeva già costruire una riga senza slot (`tailBand`, tetto = minimo d'asta, `fromTail`):
+quello che mancava non era il come, era che nessuno gliela chiedesse. Il VERDETTO però non si ottiene
+chiamando `adviseLot` con uno slot inventato — estrapolare prezzerebbe l'ottantunesimo difensore come il
+settantacinquesimo, che è un parametro fuori dalla popolazione su cui è misurato, lo stesso rifiuto che
+`tailBand` scrive di sé. Quindi `adviseTail`, corto, con l'unica quantità MISURATA che la coda abbia:
+dalla quinta fascia in giù fra il **29% e il 72%** delle aggiudicazioni vere avviene a UN credito (§23),
+quindi il prezzo atteso è il minimo d'asta e non una scala. E `Lot.block` diventa nullable, con
+`Lot.role` accanto: la pastiglia dello slot lascia il posto al solo ruolo più «coda», perché un `D8` su
+un uomo che sta sotto l'ultimo slot sarebbe una coordinata falsa.
+
+### 55.2 Un'aggiudicazione ANNULLATA non è un array più corto: è un OGGETTO
+
+Sua richiesta: «le assegnazioni possono essere anche annullate o modificate». Il Realtime Database **non
+ha array**: li emula su chiavi `"0"`, `"1"`, … e li serializza come array solo finché quelle chiavi sono
+contigue da zero. **Basta un buco e arriva un oggetto** — e un buco è esattamente quello che fa un
+annullamento. Da quel momento `(state.picks ?? []).filter(...)` non è un'operazione su un array: è un
+`TypeError` dentro un `computed`, cioè **la plancia che si spegne nell'istante in cui il banditore
+corregge un errore**, che è il momento peggiore in cui possa succedere.
+
+`listOf` è l'unico lettore di quei nodi (picks e rose), riordina per NUMERO e non per stringa (o il
+decimo starebbe fra il primo e il secondo) e butta i buchi. È la regola già scritta per gli xG del
+provider — *il lettore impone la convenzione e non si fida della codifica* — e `RawState` adesso tipa
+quei due campi `unknown`, così chi ci chiama `.filter` sopra non compila.
+
+### 55.3 I crediti extra sono `deltaBudget`, e non sono `currentBudget`
+
+Sua richiesta: «ascolta anche le squadre: quando vengono aggiunte o rimosse, se cambiano nome, se
+ottengono crediti extra». Misurato sul suo tavolo, i campi di una rosa sono `color, completed,
+connection, currentBudget, deltaBudget, fulfilled, icon, id, maxOffer, missingPlayers, picksCount,
+purchasedPlayers, rosterValue` — e il suo host aveva **`deltaBudget: 8`**.
+
+La borsa è quindi `budget + deltaBudget − speso`, con lo speso che continua a venire dai **PICK**:
+`currentBudget` resta il campo in ritardo già misurato il 09/08/2026, e nella stessa lettura lo
+dimostrava ancora — diceva 975 contro i 974 veri, cioè era indietro di un pick da un credito. *Un delta
+assente vuol dire zero e non ignoto*: su sette rose di otto quel campo non esisteva affatto, perché è un
+regalo e non un totale.
+
+Il NOME si legge da `connection.label` **o** `nick` (sul tavolo letto l'host aveva entrambi), e le rose
+aggiunte o tolte passano da `listOf` come i pick. Nota che vale la pena tenere: il suo tavolo ha
+`participants: 10` e **otto** rose in stato, con gli id 0, 3, 4…9 — due tolte e l'array re-indicizzato
+contiguo. Quello che conta per la mappa è chi è SEDUTO, e la plancia legge quello.
+
+### 55.4 L'INVARIANTE: non un fatto per volta, ma tutto, dopo ogni mossa
+
+Sua richiesta: «accertati che i dati restino SEMPRE sincronizzati fra plancia e asta-live». I passi di
+un banco misurano un fatto per volta; questo confronta il TUTTO e si rifà **dopo ogni mossa del
+banditore** (sette volte in una corsa): quante rose ci sono e come si chiamano, i crediti di ognuna, i
+posti che restano per reparto — che è la catena pick → ruolo → rosa per intero — e chi è in asta.
+
+Il ruolo di ogni uomo comprato viene dal **FOGLIO** e non dallo schermo: confrontare la pagina con un
+numero ricavato dalla pagina è l'asserzione circolare che questo repository ha già pagato due volte
+nella stessa giornata.
+
+**E al primo giro ha trovato uno scarto**: «Dino legge posti 3·8·8·6 e il tavolo ne lascia 3·7·8·6».
+Difetto del BANCO e non dell'app — il finto listone della sessione aveva **un nome solo**, con la
+ragione «tanto la plancia prezza dal FOGLIO», vera a metà: la plancia prezza dal foglio, ma il FEED
+risolve il RUOLO di un uomo comprato da quella lista (`players.get(pick.playerId)`), e con un listone di
+un nome quel ruolo era sempre `null`. *Un fixture più povero della cosa vera misura una catena più corta
+di quella che esiste.* Con il listone costruito dal foglio, tutto allineato a ogni controllo.
+
+### 55.5 Il banco, e tre difetti suoi
+
+`e2e-plancia-resume.mjs` è a **tredici passi più sette controlli di sincronia**, tutti verdi. Le
+controprove mordono una alla volta: spento `selectedPlayerId` cadono i due passi del tavolo con la frase
+dell'operatore («la riga dice *nessuno*»); tolto il ramo della coda cade solo quel passo; tolto
+`deltaBudget` cade solo la riga dei crediti extra; tolto il salvataggio del nome cade solo il refresh.
+
+Tre difetti erano del banco, e sono il genere di cosa che vale più della feature.
+- **Il finto tavolo si dimenticava a ogni refresh**: `addScriptToEvaluateOnNewDocument` gira su OGNI
+  documento, quindi il passo del refresh misurava un tavolo appena nato invece del tavolo di prima. Si è
+  visto perché un passo verde è diventato rosso appena l'asta ha cominciato ad avere una storia.
+- **Un'asserzione confrontava con `LABELS`** — le dieci sigle di partenza — dopo un passo che ne toglie
+  una e ne rinomina un'altra: misurava il tavolo di mezz'ora prima. Si confronta con la fotografia presa
+  un istante prima.
+- **Il listone di un nome**, sopra.
+
+E il quarto è in un altro banco: **`e2e-why` era rosso con rapporto 26,4/22,9 = 1,152 = 38/33 esatto**,
+cioè lo schermo riporta a stagione piena e il foglio no — la stessa famiglia di errore che
+`e2e-player-ruling` aveva già pagato, e il `+/giornata` che tornava è quello che la localizza (una
+divisione per le giornate ANNULLA il riporto, quindi sbagliavano solo le due colonne che il riporto
+moltiplica). Curato. **Resta rosso un suo terzo controllo, pre-esistente a HEAD e verificato in un
+worktree pulito**: la pagina dichiara 2 righe la cui catena non riproduce il surplus e il banco ne
+ricostruisce 1 — le due parti camminano due popolazioni diverse (la pagina il LISTONE, il banco le righe
+del FOGLIO). Lasciato rosso con la causa nominata invece che aggiustato a occhio.

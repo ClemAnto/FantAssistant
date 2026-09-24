@@ -508,6 +508,19 @@ async function main() {
       fmPrev: at('why_fm_prev'), pvPrev: at('why_pv_prev'), rung: at('desc_titolarita'),
     };
     const matchdays = entry.matchdays_target ?? null;
+    /**
+     * LE GIORNATE DELLA STAGIONE PIENA, che sono la base su cui lo SCHERMO riporta ogni numero
+     * ESTENSIVO (sua regola del 22/09/2026: «tutti i valori che leggiamo sulle pagine devono essere
+     * rapportati all'intera stagione»). Il foglio invece prevede le giornate che RESTANO.
+     *
+     * Senza, questo banco confronta due basi sotto un nome solo e accusa la pagina: letto il
+     * 24/09/2026, presenze 26,4 a schermo contro 22,9 sul foglio, cioè 38/33 esatto - la stessa
+     * famiglia di errore che `e2e-player-ruling` aveva già pagato. Il `+/giornata` invece tornava, ed
+     * è quello che localizza il difetto: una divisione per le giornate ANNULLA il riporto, quindi a
+     * sbagliare erano solo le due colonne che il riporto moltiplica.
+     */
+    const seasonRounds = sheet.matchdays?.platform_input ?? matchdays ?? null;
+    const scale = seasonRounds && matchdays ? seasonRounds / matchdays : 1;
     const men = sheet.rows.map((row) => ({
       id: row[columns.id],
       name: row[columns.name],
@@ -621,8 +634,10 @@ async function main() {
       fm: target.fm,
       replacement: target.replacement,
       perPlayed: target.fm != null && target.replacement != null ? target.fm - target.replacement : null,
-      pv: target.pv,
-      surplus: target.surplus,
+      // RIPORTATI, perché è così che lo schermo li scrive: le presenze e il surplus sono ESTENSIVI
+      // nelle giornate, la fantamedia e il rimpiazzo no.
+      pv: target.pv == null ? null : target.pv * scale,
+      surplus: target.surplus == null ? null : target.surplus * scale,
       perMatch: target.surplus != null && matchdays ? target.surplus / matchdays : null,
     };
     const wrong = Object.entries(expected).filter(

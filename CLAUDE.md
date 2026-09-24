@@ -7109,6 +7109,54 @@ modale della sessione, le chiavi che il tavolo pubblica e noi non leggiamo, col 
 riga di terminale durante un'asta non la lancia nessuno, e quella lista si spegne da sé il giorno in cui
 ogni chiave è letta — è la sua stessa lista a farla comparire.
 
+## Un FIXTURE piu' povero della cosa vera misura una catena piu' corta di quella che esiste
+**24/09/2026 (notte), dalle quattro segnalazioni dell'operatore sulla plancia collegata al suo tavolo.
+Dettaglio: `assistente-asta-v1.md` §55.**
+
+**CHI LA MAPPA NON DISEGNA NON POTEVA ESSERE IN ASTA AFFATTO.** La plancia porta 25 slot da `teams`
+uomini - 250 di ~600 - e `lot()` cercava il nome solo fra i disegnati: un uomo della CODA dava `null` e
+la riga scriveva «nessun calciatore in asta» mentre il tavolo lo aveva sul banco. **Invisibile finche' il
+nome lo mettevamo noi** cliccando una riga disegnata, e diventato il caso NORMALE il giorno stesso in cui
+a nominarlo e' passato il tavolo - a un'estrazione libera la maggior parte dei nomi estratti sta nella
+coda. Misurato sul suo tavolo: `selectedPlayerId` = Jean del Lecce, rango **169 di 189** difensori,
+mentre la plancia ne disegna 80. *Una funzione che il gesto umano non poteva raggiungere diventa il
+cammino principale il giorno in cui a chiamarla e' una macchina.*
+
+**E IL VERDETTO DELLA CODA NON SI OTTIENE CHIAMANDO QUELLO DELLA MAPPA CON NUMERI INVENTATI**:
+estrapolare uno `slotIndex` prezzerebbe l'ottantunesimo difensore come il settantacinquesimo, che e' un
+parametro applicato fuori dalla popolazione su cui e' misurato. `adviseTail` porta l'unica quantita'
+MISURATA che la coda abbia - dalla quinta fascia in giu' il 29-72% delle aggiudicazioni vere e' a un
+credito - e la riga dice «coda» invece di stampare uno slot falso.
+
+**UN'AGGIUDICAZIONE ANNULLATA NON E' UN ARRAY PIU' CORTO: E' UN OGGETTO.** Il Realtime Database non ha
+array, li emula su chiavi `"0"`, `"1"`, ... e li serializza come array solo finche' sono contigue da
+zero: **basta un buco e arriva un oggetto**, e il buco e' esattamente cio' che fa un annullamento. Da
+li' `(state.picks ?? []).filter(...)` e' un `TypeError` dentro un `computed`, cioe' la plancia che si
+spegne nell'istante in cui il banditore corregge un errore. Un lettore solo (`listOf`), che riordina per
+NUMERO e non per stringa, e i due campi tipati `unknown` cosi' chi ci chiama `.filter` sopra non compila.
+E' *il lettore impone la convenzione e non si fida della codifica*, gia' scritto per gli xG del provider.
+
+**I CREDITI EXTRA SONO `deltaBudget` E NON `currentBudget`**, che resta il campo in ritardo misurato il
+09/08 - nella stessa lettura diceva 975 contro i 974 veri, indietro di un pick da un credito. Quindi la
+spesa continua a venire dai PICK, che sono giusti a ogni istante, e dalla rosa si prende solo il regalo,
+che dai pick non si puo' dedurre. Assente = zero e non ignoto: e' un delta.
+
+**E L'INVARIANTE CHE L'OPERATORE HA CHIESTO NON E' UN PASSO IN PIU', E' UN'ALTRA DOMANDA**: i passi di un
+banco misurano un fatto per volta, questo confronta il TUTTO - rose, nomi, crediti, posti per reparto,
+chi e' in asta - e si rifa' **dopo ogni mossa del banditore**. Al primo giro ha trovato uno scarto che
+era del BANCO: il finto listone della sessione aveva un nome solo, con la ragione «tanto la plancia
+prezza dal foglio» - vera a meta', perche' il FEED risolve da quella lista il RUOLO di un uomo comprato,
+e con un listone di un nome i posti che restano non si muovevano. *Un fixture piu' povero della cosa vera
+misura una catena piu' corta di quella che esiste.*
+
+Tre difetti del banco che valgono piu' della feature: **il finto tavolo si dimenticava a ogni refresh**
+(`addScriptToEvaluateOnNewDocument` gira su ogni documento, quindi il passo del refresh misurava un
+tavolo appena nato) e si e' visto solo quando l'asta ha cominciato ad avere una storia; **un'asserzione
+confrontava con le dieci sigle di partenza** dopo un passo che ne toglie una, cioe' col tavolo di
+mezz'ora prima; e in un altro banco **`e2e-why` leggeva 26,4 contro 22,9 = 38/33 esatto**, l'errore di
+unita' del riporto a stagione piena, con il «+/giornata» che tornava a localizzarlo - una divisione per
+le giornate ANNULLA il riporto, quindi sbagliavano solo le colonne che il riporto moltiplica.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
