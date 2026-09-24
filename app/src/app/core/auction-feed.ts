@@ -145,7 +145,11 @@ export interface RawState {
   turnTeamId?: number;
   /**
    * CHI E' IN ASTA ADESSO, e il tavolo lo pubblica: LETTO il 24/09/2026 su una sessione a RILANCI
-   * viva (`FA-xxx-xxx`, `appVer` 1.22.2-live), non dedotto.
+   * viva (`appVer` 1.22.2-live), non dedotto. IL CODICE DELLA SESSIONE E' REDATTO ovunque in
+   * questo repository (`FA-xxx-xxx` sta per quello vero): il repo e' PUBBLICO e la web API key di
+   * fanta-asta-live ci sta dentro per costruzione, quindi un codice vivo scritto qui aprirebbe in
+   * lettura l'asta di chi la sta giocando. Quello che serve alla provenienza e' la DATA e la
+   * versione dell'host, non la chiave.
    *
    * Fino a quel giorno questo file diceva che un nodo del genere «non e' mai stato osservato», ed era
    * vero alla lettera e falso come misura: le due sole sessioni mai lette erano DRAFT (`marketType`

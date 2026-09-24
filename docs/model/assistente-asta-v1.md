@@ -5196,7 +5196,11 @@ misurata* (SOS Fanta, 18/09/2026). La differenza è che qui il costo era una fun
 
 ### 54.2 Il campo è `state.selectedPlayerId`, LETTO e non dedotto
 
-Sessione `FA-xxx-xxx`, `appVer` 1.22.2-live, `marketType: 0` (rilanci), `settings.type: "random"` —
+Sessione dell'operatore (**codice REDATTO**: `FA-xxx-xxx` sta per quello vero, perché questo repo è
+pubblico e la web API key di fanta-asta-live ci sta dentro per costruzione — un codice vivo scritto
+qui aprirebbe in lettura l'asta di chi la sta giocando, e alla provenienza servono la data e la
+versione dell'host, non la chiave), `appVer` 1.22.2-live, `marketType: 0` (rilanci),
+`settings.type: "random"` —
 cioè esattamente il meccanismo che lui gioca. Alla prima lettura:
 
 - `selectedPlayerId: 6875` → **Paz N. (Como)**, che è quello che lui vedeva a schermo in quel momento;
