@@ -7655,3 +7655,46 @@ lettura un nome era sempre in asta.
 frase: `marketType` 0 (rilanci), `type: "random"` (estrazione, non a reparti), `participants` 10,
 `budget` 1000, `beatRaise` 1, countdown 10s, `playerValueType: "fmv"`. Quattro numeri su cui il banco
 d'asta e' tarato, letti dalla piattaforma invece che ricordati.
+
+## Un foglio di CARTA si tara misurando la pagina, e una guardia che non aggancia TACE
+**24/09/2026, dalla richiesta «creami un pdf stampabile (1 solo A4 orizzontale) con tutti i campetti
+stagione delle squadre». Gli script: `app/scripts/print-boards/`. Dettaglio: `assistente-asta-v1.md`
+§56.** Nessun numero del motore si muove: nessuna colonna del foglio, nessun `SHEET_REVISION`.
+
+**UN NUMERO CHE NON SI PUO' RICALCOLARE SI LEGGE DALLA PAGINA CHE LO PRODUCE.** La max offerta e'
+`offerBand`, che ha dieci ingressi (slot, mediana del blocco, budget, quota di calendario di un
+infortunio, confidenza, sconto stesso-club, tetto della scommessa, pavimento di un credito):
+riscriverla in uno script sarebbe **un uomo con due prezzi**. Quindi si apre `/plancia` headless e si
+legge, come `bench/draft` importa il pannello invece di copiarlo — e **a tavolo VUOTO**, perche' su uno
+giocato quella colonna porta il prezzo pagato, che e' un altro numero.
+
+**IL VINCOLO DI UN LAYOUT PUO' ESSERE L'ALTRA DIMENSIONE DA QUELLA CHE SI STA GUARDANDO, e si misura in
+condizioni di STAMPA** (media `print`, viewport A4): sullo schermo la stessa pagina da' un'altra
+risposta. Con nove campi per riga il vincolo era l'ALTEZZA (massimo 5,4pt); con tredici diventa la
+LARGHEZZA dei nomi e il massimo scende a 5,0pt, mentre l'interlinea puo' SALIRE perche' e' lo spazio
+verticale ad avanzare. Tre numeri decidono e il passo finale li stampa — `pdfPages` 1, `overflowRight` 0,
+`clippedNames` 0 — e le colonne numeriche vivono in `em` e non in `mm`, o una prova di corpo muoverebbe
+due cose insieme. Quello che nessun conteggio vede lo trova lo ZOOM: un triangolino **davanti** a un voto
+si legge come un segno meno (sta dopo, in apice), e la faccia condensata si verifica sulla LARGHEZZA di
+una stringa (306px contro 373px di Arial) e mai con `fonts.check`.
+
+**OTTAVA ISTANZA DEL JOIN PER NOME, E LA PRIMA CHE NON PRODUCE UN NUMERO SBAGLIATO MA UN SILENZIO.** La
+guardia «chi ha GIOCATO dopo l'inizio dello stop e' rientrato» univa il calendario per NOME (`Parma`)
+mentre le partite lo scrivono per CHIAVE (`parma`): rispondeva `None` su tutti e venti i club, quindi
+non toglieva la croce a nessuno — 37 croci prima e 37 dopo, cioe' **nessun sintomo**. A mostrarlo e'
+stato contare la popolazione della guardia (0 club agganciati su 20). Il ponte si prende dalla coppia
+`(key, name)` che il calendario stesso dichiara, e lo script ora **si ferma con un errore** se un club
+non aggancia: *una guardia muta e' indistinguibile da una che ha lavorato*, e con il ponte giusto la sua
+popolazione e' zero, il che si dichiara invece di lasciar credere che abbia fatto qualcosa.
+
+**E QUANDO UNA TABELLA PORTA UNA COLONNA `source`, IL NUMERO DI RIGHE NON E' IL NUMERO DI FATTI**:
+`external_match_stats` tiene lo stesso match da `sofascore` e da `sofascore_recent`, e senza dedup per
+`match_id` un uomo leggeva **51 partite di Bundesliga su 32 giocate**. Il totale impossibile e' la parte
+fortunata — il doppio conteggio **pesa doppio anche nelle medie**, dove nessun valore assurdo lo
+tradisce: due righe su 422 avevano un Pv oltre 38, le medie sbagliate erano molte di piu'.
+
+**E L'IGNORE DEL 25/08 HA ANCORA IL SUO BUCO PER I FILE NUOVI**: un PDF scritto in `data/` risulta
+UNTRACKED, perche' quelle righe elencano `raw/`, `export/`, `timepacks/`, `reports/`, `logs/` e i file
+db — non un'estensione qualsiasi. Il foglio porta nomi, voti e prezzi e il repo e' pubblico, quindi
+l'artefatto si consegna FUORI dal repository e gli intermedi hanno un `.gitignore` nella loro cartella,
+verificato con `git check-ignore` invece che dato per buono.

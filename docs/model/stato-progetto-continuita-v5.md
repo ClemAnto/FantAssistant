@@ -9389,3 +9389,50 @@ refactor a metà che non è mio da finire. **Quindi niente commit**, e il lavoro
 il loro spec segue il loro sorgente, un `npm test` verde e un commit solo che nomina le due metà chiudono
 tutto. *La terza via — aggiustargli lo spec — è stata scartata: indovinare cosa un refactor in corso
 voglia diventare è il modo di collidere con chi lo sta scrivendo.*
+
+---
+
+## 24 settembre 2026 (pomeriggio) — UN A4 DA STAMPARE coi campetti stagione
+
+Sessione parallela a quella della plancia dal vivo, su file che non si toccano: nasce
+`app/scripts/print-boards/` — quattro script più un README — che produce **un foglio A4 orizzontale con
+i campetti stagione di tutti e venti i club**, da stampare e portare al tavolo. Dettaglio e misure:
+`assistente-asta-v1.md` §56. **Niente del motore si muove**: nessuna colonna del foglio, nessun
+`SHEET_REVISION`, nessun file di `toolkit/` e nessun file di `app/src/`.
+
+Cosa porta ogni riga, in quest'ordine: ruolo classic · nome · quota da titolare · `Pv Mv Fm` della
+stagione scorsa · gli ultimi quattro fantavoti col verso (▲ entrato / ▼ uscito) · surplus · max offerta
+della plancia. 422 righe, 20 club, **una pagina** a 5,0pt su cinque colonne.
+
+**La decisione di metodo**: la max offerta si LEGGE dalla `/plancia` vera guidata headless a tavolo
+vuoto, invece di essere ricalcolata. `offerBand` ha dieci ingressi e riscriverli in uno script sarebbe
+un uomo con due prezzi — la stessa disciplina con cui `bench/draft` importa il pannello invece di
+copiarlo.
+
+**Tre difetti trovati e curati dentro la catena**, tutti di famiglie già a verbale:
+- **il calendario nomina i club per CHIAVE** (`parma`) e la board per NOME (`Parma`): la guardia «ha già
+  rigiocato» rispondeva `None` su tutti e venti i club, cioè era spenta in silenzio. Ottava istanza del
+  join per nome, e la prima in cui il difetto non produce un numero sbagliato ma **un silenzio** — le
+  croci erano 37 prima e 37 dopo. Curato col ponte che il calendario stesso dichiara, e ora lo script si
+  ferma con un errore se un club non aggancia.
+- **lo stesso match arriva da due sorgenti** (`sofascore` e `sofascore_recent`): senza dedup per
+  `match_id` Sugawara leggeva 51 partite di Bundesliga su 32 giocate, e il doppio conteggio pesava anche
+  nelle medie, dove nessun totale impossibile lo avrebbe tradito.
+- **`data/` non è ignorata per intero**: un PDF messo lì risultava untracked in un repo pubblico che
+  porta nomi, voti e prezzi. Consegnato fuori dal repo; gli artefatti della catena hanno un `.gitignore`
+  locale, verificato con `git check-ignore`.
+
+**Verificato dal lato dello schermo e non dai file intermedi**: rileggendo l'HTML stampato contro il
+bundle, 385 righe confrontate su surplus, quattro voti, offerta, `Pv Mv Fm` e giornate saltate, 343 sui
+versi — **0 disaccordi**; sulla pagina renderizzata, 291 celle sintetiche tutte in corsivo e 0 delle 878
+vere corsive per sbaglio; la catena rilanciata dalla cartella definitiva riproduce gli stessi numeri.
+
+**Aperti**, tutti dichiarati in §56.8: il foglio esiste solo per Serie A classic; gli script non sono
+dentro `npm run` e si lanciano a mano nell'ordine che il README scrive; le intestazioni di colonna per
+club sono state misurate (costano 0,2pt di corpo, cioè sforano) e la legenda in fondo le sostituisce.
+
+**Stato dell'albero alla chiusura**: l'altra sessione aveva già committato la sua metà (`dabe4f2`), il
+mio lavoro sono sei file NUOVI in una cartella nuova più tre documenti, quindi per la prima volta in una
+settimana le due metà non condividono un file e la separazione non è stata necessaria. Il commit nomina
+comunque cosa contiene, e `git show --stat` è stato letto DOPO — l'index è condiviso e una fotografia
+scade.

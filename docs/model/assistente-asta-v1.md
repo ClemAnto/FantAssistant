@@ -5391,3 +5391,125 @@ moltiplica). Curato. **Resta rosso un suo terzo controllo, pre-esistente a HEAD 
 worktree pulito**: la pagina dichiara 2 righe la cui catena non riproduce il surplus e il banco ne
 ricostruisce 1 — le due parti camminano due popolazioni diverse (la pagina il LISTONE, il banco le righe
 del FOGLIO). Lasciato rosso con la causa nominata invece che aggiustato a occhio.
+
+## 56. UN A4 DA PORTARE AL TAVOLO: i campetti stagione stampati, e quello che un foglio di carta impone (24 settembre 2026)
+
+Richiesta dell'operatore: «creami un pdf stampabile (1 solo A4 orizzontale) con tutti i campetti
+"stagione" delle squadre», poi in tre riprese la max offerta della plancia, i triangolini del verso, il
+`+n` dell'infortunio, `Pv | Mv | Fm` della stagione scorsa e i sintetici in corsivo dove la Serie A non
+c'è. Gli script stanno in `app/scripts/print-boards/` col loro README; qui c'è perché il foglio ha
+questa forma e non un'altra.
+
+**Nessun numero nasce lì.** Il campetto, il modulo, il ruolo classic e il claim vengono da
+`boards/leghe.json` (mode `typical`); il surplus dal foglio (`engine_surplus ?? est_surplus`, riportato
+su stagione piena come fa `core/season-scale.ts`); i fantavoti da `match_ratings`; il verso dal livello
+per-partita; la max offerta dalla plancia VERA. Quattro script che impaginano, e uno che legge uno
+schermo.
+
+### 56.1 Un campetto DISEGNATO non sta su un A4, e l'aritmetica lo dice prima di provarci
+
+422 righe (dopo aver dedotto per club i rivali che il toolkit elenca su più posti: 628 voci → 422) per
+tredici campi ciascuna, su 297×210mm. Venti campi da calcio con undici nomi, il claim, quattro voti, tre
+numeri di storia, il surplus e l'offerta non ci stanno a nessun corpo leggibile. **Quello che sopravvive
+del campetto è l'ORDINE**: porta → attacco, e dentro la linea da sinistra a destra secondo la `x` che la
+board assegna — cioè si legge come si guarda un campetto, per reparto.
+
+È una scelta di forma e non una misura, e va detta: chi si aspetta il disegno trova una lista.
+
+### 56.2 Un numero che non si può ricalcolare si LEGGE dalla pagina che lo produce
+
+La max offerta è `offerBand`, che ha dieci ingressi — lo slot, la mediana del blocco, il budget, la
+quota di calendario di un infortunio, la confidenza della stima, lo sconto stesso-club, il tetto della
+scommessa, il pavimento di un credito. Riscriverla in uno script sarebbe **un uomo con due prezzi**, che
+è il difetto che questa pagina ha già pagato con i due lettori di `engine_fm_pred`. Quindi
+`collect-offers.mjs` apre `/plancia` headless e legge le righe: è la stessa disciplina di `bench/draft`,
+che non tiene una copia del pannello ma ne importa le funzioni.
+
+**A TAVOLO VUOTO**, che dal 23/09/2026 è il default: lì la colonna è la max offerta per tutti, mentre su
+un tavolo giocato porta il prezzo PAGATO sulle righe di qualcuno — due significati su una cifra sola
+(§39), giusti a schermo e inservibili su un foglio.
+
+Copertura, contata: **232 dei 422** hanno la cifra della mappa; **183** sono in coda — fuori dai 250
+slot — e lì la plancia offre il minimo, scritto `1` in grigio (osservato sulla card, che legge `1-1`,
+non dedotto); **7** non sono quotati e leggono `–`.
+
+Il join è per NOME e per questo è stato misurato prima: zero omonimi nel listone Serie A e fra i 422
+della board, e i 249 nomi della plancia sono tutti `canonical_name`. La controprova che conta è dal lato
+dello schermo — **zero righe marcate a un credito che la plancia prezza diversamente**.
+
+### 56.3 Una GUARDIA che non aggancia non fallisce: tace
+
+La croce va a chi ha un'assenza aperta oltre due settimane, e la regola dell'11/09 dice che **chi ha
+GIOCATO dopo l'inizio dello stop è rientrato** (la pagina degli indisponibili non toglie chi torna).
+Quella guardia univa il calendario per NOME (`Parma`) mentre le partite lo scrivono per CHIAVE
+(`parma`): rispondeva `None` su tutti e venti i club, quindi non poteva togliere la croce a nessuno.
+
+Ottava istanza del join per nome in questo repository, e la variante nuova è che **il difetto non
+produce un numero sbagliato ma un silenzio**: le croci erano 37 prima e 37 dopo, e solo contare la
+popolazione della guardia (`0 club agganciati su 20`) lo mostra. Il ponte si prende dalla coppia
+`(key, name)` che il calendario stesso dichiara, e lo script ora **si ferma con un errore** se un club
+non aggancia: una guardia muta è indistinguibile da una che ha lavorato.
+
+Con il ponte giusto la sua popolazione è **zero** — nessuno dei 37 ha rigiocato — quindi oggi è inerte,
+e anche questo si dice invece di lasciar credere che abbia fatto qualcosa.
+
+### 56.4 Una partita che arriva da DUE sorgenti va contata una volta
+
+`external_match_stats` porta lo stesso match da `sofascore` e da `sofascore_recent`. Senza dedup per
+`match_id`, Sugawara leggeva **51 partite di Bundesliga su 32 giocate** — e il totale impossibile è la
+parte fortunata: il doppio conteggio **pesa doppio anche nelle medie**, dove nessun valore assurdo lo
+tradisce. Su 422 righe solo due mostravano un Pv oltre 38; le medie sbagliate erano di più e invisibili.
+
+*Quando una tabella porta una colonna `source`, il numero di righe non è il numero di fatti.*
+
+### 56.5 Un foglio di carta si tara MISURANDO la pagina, e il vincolo può essere l'altra dimensione
+
+Tre numeri decidono, e li stampa il passo che produce il PDF: `pdfPages` (deve essere 1),
+`overflowRight` (0) e `clippedNames` (0). Misurati in **condizioni di stampa** — media `print` e
+viewport A4 — perché sullo schermo la stessa pagina dà un'altra risposta.
+
+Con nove campi per riga il vincolo era l'ALTEZZA e il massimo era 5,4pt; con tredici campi diventa la
+**LARGHEZZA dei nomi**, e il massimo scende a 5,0pt (a 5,2 se ne tagliano 6, a 5,4 novantatré) mentre
+l'interlinea può SALIRE da 1,05 a 1,12, perché ora è lo spazio verticale ad avanzare. Le colonne
+numeriche sono in `em` e non in `mm` proprio per questo: in millimetri non scalerebbero col corpo, e
+ogni prova di font cambierebbe due cose insieme.
+
+Due cose che nessun conteggio vede e che ha trovato lo ZOOM (scala 9 su un angolo): i triangolini
+**davanti** al numero si leggono come un segno meno — stanno dopo, e in apice; e la faccia condensata va
+verificata sulla LARGHEZZA di una stringa (306px contro 373px di Arial) e non con `fonts.check`, che
+riecheggia la dichiarazione.
+
+### 56.6 Il verso di una presenza, il `+n` e la stagione scorsa
+
+- **▲ entrato / ▼ uscito**: `started` e `minutes` dal livello per-partita, perché nel bundle
+  `match_ratings.started` è NULL su tutte le righe (05/09). «Uscito» è `< 90'` e **non è una soglia
+  scelta**: la fonte tronca i recuperi e il massimo misurato per un titolare è esattamente 90. Copertura
+  piena — 1096 celle con un voto, 1096 con lo `started`; 259 entrati e 359 usciti.
+- **`+n`**: il `n` è `desc_out_rounds`, le giornate che il TOOLKIT ha già contato sul calendario del suo
+  club, non un secondo conto. 37 segni, 31 col numero; chi non ha una data di rientro porta il `+` nudo,
+  e un `+0` dice «fermo da oltre due settimane ma rientra per la prossima».
+- **`Pv | Mv | Fm` 2025-26**: 296 dalla Serie A vera (`season_stats`), **99 sintetici in corsivo**, 27
+  vuoti. Il sintetico è la stessa aritmetica di `core/match-bonuses.ts` (`voto + bonus` con lo scoring
+  del pacchetto) sul voto che il progetto ha già dichiarato (`mv_synth`, o `mv_est` dove la retta non è
+  calibrata), calcolato sulla sua LEGA e non sulle coppe, amichevoli escluse. Il corsivo è verificato sul
+  computed style e non sulla classe: **291 celle su 291 corsive, e 0 delle 878 vere corsive per sbaglio**.
+
+### 56.7 L'artefatto non entra nel repository, e `data/` non basta
+
+Il foglio porta nomi, voti, quotazioni e prezzi, e il repo è pubblico. Messo in `data/`, `git status` lo
+mostra come untracked: **l'ignore elenca `raw/`, `export/`, `timepacks/`, `reports/`, `logs/` e i file
+db, non un PDF** — la lezione del 25/08 (un'ignore vale quanto la cartella a cui è appesa) trovata
+ancora viva per i file nuovi. Il PDF si consegna fuori dal repo; gli artefatti intermedi della catena
+sono coperti da un `.gitignore` locale nella cartella degli script, verificato con `git check-ignore` e
+non dato per buono.
+
+### 56.8 Cosa NON è stato fatto
+
+- Il foglio è **Serie A classic** (`boards/leghe.json`): euro e mantra non hanno una versione, e la
+  catena li prenderebbe cambiando tre nomi di file — ma la max offerta verrebbe da una plancia che prezza
+  `default|classic`, quindi andrebbe letta dalla pagina giusta e non riusata (§33: un parametro appartiene
+  alla popolazione su cui è misurato, e «listone» è una popolazione).
+- Gli script sono **fuori da `npm run`**: si lanciano a mano dalla loro cartella, e il README dice in che
+  ordine. Non c'è un comando solo che li incateni.
+- Il foglio non ha **intestazioni di colonna per club**: misurate, costano 0,2pt di corpo su ogni riga
+  (`columnsNeeded` 4,83 → 5,04, cioè sfora), e la legenda in fondo nomina le colonne nell'ordine.

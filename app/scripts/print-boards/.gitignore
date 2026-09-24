@@ -1,0 +1,8 @@
+# GLI ARTEFATTI DI QUESTA CATENA PORTANO CONTENUTO A PAGAMENTO - nomi, voti, quotazioni, prezzi - e
+# il repository e' PUBBLICO. Gli script restano, quello che producono no. Ancorato qui e non a
+# `/data/`, che e' la lezione del 25/08/2026: un'ignore vale quanto la cartella a cui e' appesa.
+offers.json
+rows.json
+*.html
+*.pdf
+*.png
