@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- GENERATO da app/scripts/make-favicon.mjs: non modificare a mano, si riscrive.
+     La geometria sta in quello script, i colori vengono da src/styles/themes/magenta.css. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="FantAssistant">
+  <defs>
+    <clipPath id="ball">
+      <circle cx="32" cy="32" r="30.08" />
+    </clipPath>
+  </defs>
+  <circle cx="32" cy="32" r="30.08" fill="#ff2d78" />
+  <g clip-path="url(#ball)" fill="#1a0210">
+    <g fill="none" stroke="#1a0210" stroke-width="2.43" stroke-linecap="round">
+      <path d="M 37.96 8.09 A 24.64 24.64 0 0 1 52.9 18.94" />
+      <path d="M 56.58 30.28 A 24.64 24.64 0 0 1 50.88 47.84" />
+      <path d="M 41.23 54.85 A 24.64 24.64 0 0 1 22.77 54.85" />
+      <path d="M 13.12 47.84 A 24.64 24.64 0 0 1 7.42 30.28" />
+      <path d="M 11.1 18.94 A 24.64 24.64 0 0 1 26.04 8.09" />
+    </g>
+    <polygon points="32,17.28 46,27.45 40.65,43.91 23.35,43.91 18,27.45" />
+  </g>
+</svg>

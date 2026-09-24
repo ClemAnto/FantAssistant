@@ -1,0 +1,167 @@
+{
+  "_comment": [
+    "The Mantra RULEBOOK, encoded. This file is CONFIGURATION, not a measurement: which elevens the game",
+    "lets you field is written down by fantacalcio.it, so it is read, never fitted and never inferred from",
+    "observed line-ups. Do not confuse it with `features.simultaneous_caps`, which MEASURES how many men of",
+    "a role real coaches field together (p90 off real starting elevens) and is used for roster DEPTH: that",
+    "is football, this is the game's law. A per-role cap also cannot express this constraint, because the",
+    "constraint is JOINT - a module is a set of typed places, and many places accept a CHOICE of roles.",
+    "",
+    "Source: the public rulebook page (no paywall, unlike the listone and the votes), plus the official",
+    "board of the eleven schemes, 2026/2027 edition, and the substitution table. Retrieved 05/08/2026.",
+    "  https://www.fantacalcio.it/regolamenti/sistema-mantra",
+    "  https://content.fantacalcio.it/web/img/medium/e382c267-1773-4ef9-ba24-a99d0bc2fbce.jpg  (schemes)",
+    "  https://content.fantacalcio.it/web/img/medium/53b9bee6-224f-4d53-ada2-47be4c6205c9.jpg  (substitutions)",
+    "  https://content.fantacalcio.it/web/risorse/Tabella-sostituzioni-per-schema-2024-2025.pdf",
+    "",
+    "TRANSCRIPTION CHECK, and it passed on all eleven: the rulebook states that every scheme fields 5",
+    "defensive-stamp places (Dd, Ds, Dc, B, E, M) and 5 offensive-stamp ones (C, T, W, A, Pc). Counted over",
+    "the `lines` below, every module returns exactly 5 and 5, with the hybrid places always on the offensive",
+    "side. The line counts also reproduce each module's own NAME. Two independent checks, so the table was",
+    "not mis-read.",
+    "",
+    "Consequences that need no model at all, only this file (see docs/model/assistente-asta-v1.md §13):",
+    "a `Pc` fits at most TWO places in any scheme and only ONE in six of the eleven, while an `A` fits up to",
+    "three - so at equal fantamedia an `A` is worth more than a `Pc`, by the rules. `Dc` is the only",
+    "defender with a place in every scheme (2 or 3); `B` has exactly one and only where the defence is a",
+    "three, `Dd`/`Ds` exactly one and only where it is a four - so the defence is where a roster COMMITS to",
+    "a family of schemes, and owning both wastes one of them."
+  ],
+
+  "edition": "2026/2027",
+  "retrieved_on": "2026-08-05",
+
+  "roles": ["Por", "Dd", "Dc", "Ds", "B", "E", "M", "C", "W", "T", "A", "Pc"],
+  "_stamp_comment": "The rulebook's own split, quoted: 5 defensive-stamp men and 5 offensive-stamp men per eleven.",
+  "defensive_roles": ["Dd", "Ds", "Dc", "B", "E", "M"],
+  "offensive_roles": ["C", "T", "W", "A", "Pc"],
+
+  "_slot_roles_comment": [
+    "A PLACE is typed, and a hybrid place accepts a choice of roles - this is the whole of the constraint.",
+    "Note what is absent: there is no pure `A` place and no pure `Pc` place anywhere in the game. Every",
+    "striker's place is `A/PC` (or `T/A/PC`), which is why a Pc and an A are interchangeable there, while a",
+    "`W/A` place takes an A and NOT a Pc."
+  ],
+  "slot_roles": {
+    "P": ["Por"],
+    "DD": ["Dd"],
+    "DS": ["Ds"],
+    "DC": ["Dc"],
+    "DC/B": ["Dc", "B"],
+    "E": ["E"],
+    "M": ["M"],
+    "C": ["C"],
+    "W": ["W"],
+    "T": ["T"],
+    "M/C": ["M", "C"],
+    "E/W": ["E", "W"],
+    "C/T": ["C", "T"],
+    "W/T": ["W", "T"],
+    "W/A": ["W", "A"],
+    "T/A": ["T", "A"],
+    "A/PC": ["A", "Pc"],
+    "T/A/PC": ["T", "A", "Pc"]
+  },
+
+  "_modules_comment": [
+    "The eleven schemes, each as its four lines beyond the fixed goalkeeper: defence, midfield, trequarti,",
+    "attack ('Oltre alla posizione fissa del portiere, i calciatori vengono schierati in quattro linee di",
+    "gioco'). The goalkeeper is implicit and is the same single `P` place in every scheme.",
+    "A place drawn low on the board can still belong to the line above it: the `E/W` of a 3-5-1-1 is one of",
+    "the five midfielders, and the four places of a 4-1-4-1 are drawn at trequarti height. The line the",
+    "module's NAME counts is the one recorded here."
+  ],
+  "modules": {
+    "3-4-3":   {"D": ["DC", "DC", "DC/B"],       "M": ["E", "M/C", "C", "E"],        "T": [],              "A": ["W/A", "W/A", "A/PC"]},
+    "3-4-1-2": {"D": ["DC", "DC", "DC/B"],       "M": ["E", "M/C", "C", "E"],        "T": ["T"],           "A": ["A/PC", "A/PC"]},
+    "3-4-2-1": {"D": ["DC", "DC", "DC/B"],       "M": ["M", "M/C", "E", "E/W"],      "T": ["T", "T/A"],    "A": ["A/PC"]},
+    "3-5-2":   {"D": ["DC", "DC", "DC/B"],       "M": ["M", "M/C", "E", "C", "E/W"], "T": [],              "A": ["A/PC", "A/PC"]},
+    "3-5-1-1": {"D": ["DC", "DC", "DC/B"],       "M": ["M", "M", "C", "E/W", "E/W"], "T": ["T/A"],         "A": ["A/PC"]},
+    "4-3-3":   {"D": ["DD", "DC", "DC", "DS"],   "M": ["M/C", "M", "C"],             "T": [],              "A": ["W/A", "W/A", "A/PC"]},
+    "4-3-1-2": {"D": ["DD", "DC", "DC", "DS"],   "M": ["M/C", "M", "C"],             "T": ["T"],           "A": ["T/A/PC", "A/PC"]},
+    "4-4-2":   {"D": ["DD", "DC", "DC", "DS"],   "M": ["M/C", "C", "E", "E/W"],      "T": [],              "A": ["A/PC", "A/PC"]},
+    "4-1-4-1": {"D": ["DD", "DC", "DC", "DS"],   "M": ["M"],                         "T": ["C/T", "T", "E/W", "W"], "A": ["A/PC"]},
+    "4-4-1-1": {"D": ["DD", "DC", "DC", "DS"],   "M": ["M", "C", "E/W", "E/W"],      "T": ["T/A"],         "A": ["A/PC"]},
+    "4-2-3-1": {"D": ["DD", "DC", "DC", "DS"],   "M": ["M", "M/C"],                  "T": ["W/T", "T", "W/A"], "A": ["A/PC"]}
+  },
+
+  "_lineup_bans_comment": [
+    "Quoted from the rulebook: adaptations barred AT LINE-UP TIME only ('esclusivamente in fase di",
+    "inserimento formazione'), to discourage abuse. The same moves become possible during SUBSTITUTION,",
+    "with the out-of-position malus. Read `from` as the man's listed role and `to` as the place."
+  ],
+  "lineup_bans": [
+    {"from": ["B", "Dd", "Ds"], "to": "Dc", "note": "a B, Dd or Ds may not be fielded in a Dc place"},
+    {"from": ["Dd"], "to": "Ds", "note": "and the mirror: a Ds may not be fielded in a Dd place"},
+    {"from": ["Ds"], "to": "Dd", "note": "mirror of the above"},
+    {"from": ["E"], "to": "M", "note": "an E may not take a pure M place; an M/C place stays open to him"},
+    {"from": ["M"], "to": "E", "note": "an M may not take a pure E place; an E/W place stays open to him"},
+    {"from": ["W"], "to": "T", "note": "a W may not take a pure T place; a T/A place stays open to him"}
+  ],
+
+  "_substitution_comment": [
+    "The official substitution matrix. READING, and it is not symmetric: the ROW is the role of the man who",
+    "came out - which is what says WHICH place opened - and the COLUMN is the role of the substitute coming",
+    "in. Verified on two asymmetric pairs: `Pc` out / `A` in is OK unconditionally (every Pc place is A/PC,",
+    "which already accepts an A), while `A` out / `Pc` in is conditional, because an A may have been in a",
+    "W/A place and that place does not accept a Pc. Same shape for B and Dc: a DC/B place is open to a Dc",
+    "unconditionally, a pure DC place takes a B only at a malus.",
+    "",
+    "Values: OK = no penalty; -1 = allowed with the out-of-position malus of one point; NO = not allowed.",
+    "The three asterisks are the rulebook's own footnotes, and they all turn on whether THAT scheme's place",
+    "lists both roles in alternativa - i.e. on `slot_roles` above:",
+    "  *   OK where the scheme has the roles in alternativa. Otherwise NO.",
+    "  **  OK where the scheme has the roles in alternativa. Otherwise -1.",
+    "  *** OK where the scheme has the roles in alternativa. NO in the 4-1-4-1. Otherwise -1.",
+    "",
+    "The substitution engine itself is ordered, and the order is what gives a bench its value: an OPTIMAL",
+    "solution keeps the chosen scheme, an EFFICIENT one changes scheme, an ADAPTED one pays the malus. So a",
+    "roster's cover is not a free choice among the bench - it is what this hierarchy can reach.",
+    "The goalkeeper is a closed role: only a Por covers a Por, and a Por covers nothing else."
+  ],
+  "substitution": {
+    "columns": ["Pc", "A", "T", "W", "C", "M", "E", "B", "Dc", "Dd", "Ds", "Por"],
+    "matrix": {
+      "Pc":  {"Pc": "OK", "A": "OK",  "T": "-1",  "W": "-1",  "C": "-1", "M": "-1", "E": "-1", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "A":   {"Pc": "*",  "A": "OK",  "T": "**",  "W": "**",  "C": "-1", "M": "-1", "E": "-1", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "T":   {"Pc": "*",  "A": "*",   "T": "OK",  "W": "***", "C": "**", "M": "-1", "E": "-1", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "W":   {"Pc": "NO", "A": "*",   "T": "***", "W": "OK",  "C": "-1", "M": "-1", "E": "**", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "C":   {"Pc": "NO", "A": "NO",  "T": "*",   "W": "NO",  "C": "OK", "M": "**", "E": "-1", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "M":   {"Pc": "NO", "A": "NO",  "T": "NO",  "W": "NO",  "C": "*",  "M": "OK", "E": "-1", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "E":   {"Pc": "NO", "A": "NO",  "T": "NO",  "W": "*",   "C": "NO", "M": "-1", "E": "OK", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "B":   {"Pc": "NO", "A": "NO",  "T": "NO",  "W": "NO",  "C": "NO", "M": "NO", "E": "NO", "B": "OK",  "Dc": "OK", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "Dc":  {"Pc": "NO", "A": "NO",  "T": "NO",  "W": "NO",  "C": "NO", "M": "NO", "E": "NO", "B": "**",  "Dc": "OK", "Dd": "-1", "Ds": "-1", "Por": "NO"},
+      "Dd":  {"Pc": "NO", "A": "NO",  "T": "NO",  "W": "NO",  "C": "NO", "M": "NO", "E": "NO", "B": "-1",  "Dc": "-1", "Dd": "OK", "Ds": "-1", "Por": "NO"},
+      "Ds":  {"Pc": "NO", "A": "NO",  "T": "NO",  "W": "NO",  "C": "NO", "M": "NO", "E": "NO", "B": "-1",  "Dc": "-1", "Dd": "-1", "Ds": "OK", "Por": "NO"},
+      "Por": {"Pc": "NO", "A": "NO",  "T": "NO",  "W": "NO",  "C": "NO", "M": "NO", "E": "NO", "B": "NO",  "Dc": "NO", "Dd": "NO", "Ds": "NO", "Por": "OK"}
+    },
+    "footnotes": {
+      "*": {"in_alternativa": "OK", "otherwise": "NO"},
+      "**": {"in_alternativa": "OK", "otherwise": "-1"},
+      "***": {"in_alternativa": "OK", "4-1-4-1": "NO", "otherwise": "-1"}
+    },
+    "out_of_position_malus": -1,
+    "hierarchy": ["optimal (same scheme)", "efficient (scheme changed)", "adapted (malus paid)"]
+  },
+
+  "_modifiers_comment": [
+    "The rulebook REFUSES the classic modifiers, and says why: 'L'incompatibilita' tra il sistema Mantra e i",
+    "modificatori classici e' concettuale e non tecnica' - the schemes are already balanced, so a defence",
+    "modifier would price a balance the module already imposes. What exists instead is optional and named:",
+    "R-Factor (performance) and D-Factor (defensive unit, on the best 5 defensive men or 5+1 with the",
+    "keeper). So the only way the fantavoto depends on WHERE a man is fielded is the out-of-position malus",
+    "above - which matters for the assignment: the objective is the sum EVALUATED PER PLACE, not a plain sum",
+    "of fantamedie. Whether this league switches the two factors on is a league question, not a rule.",
+    "",
+    "The two factors are MUTUALLY EXCLUSIVE - a league runs one or the other, never both - and they compose",
+    "with the optional Fair Play and Captain bonuses.",
+    "R-Factor, quoted: it 'premia (o penalizza) la qualita' complessiva espressa dalla fantasquadra in campo",
+    "misurando il numero di calciatori con voto di base almeno sufficiente'. Note VOTO DI BASE: bonuses do",
+    "not feed it, so it rewards a different thing from the fantamedia. Its numeric scale is NOT on the public",
+    "rules page and must be read from the league's own settings before anything is computed with it.",
+    "D-Factor counts the five defensive men, or - where a scheme fields more than five men with roles",
+    "Dc/B/Dd/Ds/E/M - the best five by grade, provided at least three are Dc, B, Dd or Ds."
+  ],
+  "optional_factors": ["R-Factor", "D-Factor"],
+  "factors_mutually_exclusive": true
+}

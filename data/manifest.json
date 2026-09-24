@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-24T13:05:15+00:00",
+  "toolkit_version": "0.9.0",
+  "git_commit": "00f8bc7ad057a536f18ea11ab007a65387dc6f74",
+  "sheet_revision": 75,
+  "target_season": "2026-27",
+  "input_season": "2025-26",
+  "history_seasons": [
+    "2015-16",
+    "2016-17",
+    "2017-18",
+    "2018-19",
+    "2019-20",
+    "2020-21",
+    "2021-22",
+    "2022-23",
+    "2023-24",
+    "2024-25",
+    "2025-26",
+    "2026-27"
+  ],
+  "heavy_seasons": [
+    "2024-25",
+    "2025-26",
+    "2026-27"
+  ],
+  "heavy_seasons_note": "The per-match tables travel for these seasons only. It must cover the input season AND the input season of the cross-fit window, because the coefficients are fitted there: trimming it changes the auction list while leaving every gate metric identical.",
+  "platforms": [
+    "default",
+    "euro"
+  ],
+  "formats": [
+    "sqlite",
+    "json"
+  ],
+  "tables": [
+    {
+      "name": "players",
+      "scope": "full",
+      "rows": 4780,
+      "why": "identity + birth_year (the U22 trigger and, later, the age curves) + nationality and capped_on, which is what a mid-season continental cup is read off"
+    },
+    {
+      "name": "clubs",
+      "scope": "full",
+      "rows": 106,
+      "why": "club identity and league; the engine keys strength and lineups by canonical name"
+    },
+    {
+      "name": "rosters",
+      "scope": "season",
+      "rows": 14700,
+      "why": "the listone: roles (Classic + Mantra) and the pre-auction price. features.load"
+    },
+    {
+      "name": "season_stats",
+      "scope": "season",
+      "rows": 14957,
+      "why": "pv/mv/fm per platform - the anchors recompute over every season <= input, so the whole history travels (it is small)"
+    },
+    {
+      "name": "external_stats",
+      "scope": "season",
+      "rows": 18995,
+      "why": "full-real-season facts for the 4 foreign leagues: the propensity per 90"
+    },
+    {
+      "name": "external_match_stats",
+      "scope": "heavy",
+      "rows": 131926,
+      "why": "the per-match layer: propensity, the inactivity proxy, mv_synth, and the `sofascore_recent` rows the no-history pricing reads before the auction"
+    },
+    {
+      "name": "club_match_lineups",
+      "scope": "full",
+      "rows": 26247,
+      "why": "how many players of each line a club actually FIELDS: the Mantra slot caps and the attack-capacity denominator (22k rows in total, so it travels whole)"
+    },
+    {
+      "name": "match_ratings",
+      "scope": "heavy",
+      "rows": 65435,
+      "why": "the platform's own calendar: matchday counts, euro minute shares, the availability-persistence regressor"
+    },
+    {
+      "name": "matchday_map",
+      "scope": "full",
+      "rows": 919,
+      "why": "euro <-> real matchday alignment, per league"
+    },
+    {
+      "name": "arrivals",
+      "scope": "full",
+      "rows": 13728,
+      "why": "who is new, from where, at which tier PER PLATFORM (a tier is a percentile inside a listone), with the FM-equivalent"
+    },
+    {
+      "name": "listone_quotes",
+      "scope": "full",
+      "rows": 16555,
+      "why": "THE QUOTATION PER PLATFORM: Qt.I/Qt.A/FVM as each listone states them. `rosters` keeps only the last download, and the two lists disagree on 202 Qt.I and 226 FVM for the players quoted in both - this is the table anything platform-specific must read"
+    },
+    {
+      "name": "club_elo",
+      "scope": "full",
+      "rows": 1212,
+      "why": "club strength at the auction dates - R19's level channel (the ORIGIN club's Elo) and the club card. NOT the goalkeeper module, which reads measured goals conceded"
+    },
+    {
+      "name": "flags",
+      "scope": "full",
+      "rows": 12129,
+      "why": "off_role_usage, new_coach, u22_trigger, post_torneo, booking_risk, contract_until, exit_risk - every derived boolean the engine or the UI reads"
+    },
+    {
+      "name": "positions",
+      "scope": "full",
+      "rows": 13624,
+      "why": "real role from the provider slot + avg_x/avg_y (Mantra detail)"
+    },
+    {
+      "name": "player_roles",
+      "scope": "full",
+      "rows": 54879,
+      "why": "the granular real role: GK | DL DC DR | DM | ML MC MR | AM | LW RW | ST, dated. The only thing that separates a left back from a centre back - the app draws the pitch from it. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"
+    },
+    {
+      "name": "probable_starter",
+      "scope": "full",
+      "rows": 26188,
+      "why": "dated starting probabilities. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"
+    },
+    {
+      "name": "auction_prices",
+      "scope": "full",
+      "rows": 297,
+      "why": "WHAT A ROOM ACTUALLY PAID, per month, normalised to a 10 x 1000 league - the clearing price of real auctions, which is the one number here that is not somebody's opinion about a footballer. Reporting only: no engine path reads it, and the Strategy page draws it beside the FVM because the two disagree systematically"
+    },
+    {
+      "name": "availability",
+      "scope": "full",
+      "rows": 2669,
+      "why": "dated injured/suspended states, for the live auction view"
+    },
+    {
+      "name": "injuries",
+      "scope": "full",
+      "rows": 36493,
+      "why": "dated absences with the matches actually missed: the presences module's missing half, and the long-term-absent team-mate refinement of the forward pairs"
+    },
+    {
+      "name": "penalty_hierarchy",
+      "scope": "full",
+      "rows": 3454,
+      "why": "who takes the penalties, dated, revealed from our votes"
+    },
+    {
+      "name": "coaches",
+      "scope": "full",
+      "rows": 3998,
+      "why": "who is in charge and since when (the new_coach flag's provenance)"
+    },
+    {
+      "name": "transfers_history",
+      "scope": "full",
+      "rows": 6070,
+      "why": "where an arrival came from and for how much"
+    },
+    {
+      "name": "market_values",
+      "scope": "season",
+      "rows": 11655,
+      "why": "the market value per SEASON, from the source's own squad page of that season: the third channel of the investment hypothesis, and the only one that exists for a man who arrived free (a fee is NULL for a free transfer). Dated, so a window reads the input season"
+    },
+    {
+      "name": "market_value_history",
+      "scope": "dated",
+      "rows": 27508,
+      "why": "the market value CURVE - every change with its date - so the app can say whether the market is rising or cooling on a man beside what the listone asks for him. REPORTING only: the gate measured the channel it was acquired for and refused it (§7-untricies), so nothing here enters a valuation. Cut a year before the heavy window with the carry-forward point, or a man whose value last moved before the cut would read as unpriced"
+    },
+    {
+      "name": "tournaments_squads",
+      "scope": "full",
+      "rows": 1929,
+      "why": "who actually played at a tournament, minutes included"
+    },
+    {
+      "name": "manual_overrides",
+      "scope": "full",
+      "rows": 0,
+      "why": "the highest-precedence layer; empty is the normal state"
+    }
+  ],
+  "excluded": {
+    "match_rating_bonuses": "2.8M raw bonus rows; the canonical columns in match_ratings carry everything the engine reads, and the raw layer exists only so a season-specific bonus is never lost upstream",
+    "player_xref": "provider ids: the app never re-resolves identity, it consumes fc_id",
+    "club_xref": "same",
+    "ingest_runs": "the toolkit's own audit trail, not data about football",
+    "fixtures": "it DOES travel, but DERIVED and not as a table: `fixtures.schedule` writes `calendar.json`. The raw rows are keyed on `matching.club_identity`, a Python alias table, so re-doing that join in a browser would repeat the join that once lost Milan, Roma and Napoli from every club's schedule",
+    "club_levels": "club strength by year, and `club_levels_xref` is its identity bridge. Keyed the same way, for the same reason; what the app needs of it is already on the sheet's own `desc_level_elo` and in the club card",
+    "club_levels_xref": "same",
+    "squad_snapshot": "95k dated squad readings - the EVIDENCE behind «is he still there», not the answer. The answer is already on the row (`desc_live_club` / `desc_left_for`), and a man the two signals say is gone has left the sheet entirely",
+    "press_formations": "the boards' external JUDGE. Reading it in the app would make circular the very comparison it serves - the press is a judge and never an input",
+    "tm_appearances": "2.09M per-match rows from Transfermarkt. What the engine takes from them (minutes per competition, the newcomer window) reaches the app as `desc_abroad_*` columns already computed",
+    "fvm_history": "the FVM curve per platform, accumulating since 2026. The app shows the CURRENT FVM from `listone_quotes` and the market-value curve from `market_value_history`; drawing the listone's own curve beside it is a feature nobody has asked for, so it stays out until somebody does rather than travelling unread"
+  },
+  "calendar": "calendar.json",
+  "calendar_note": "fixtures.schedule: the matches still to be played, per championship, each carrying the home side's EDGE (level + venue - opponent) and, where the coefficients were fitted, the probability that each side concedes nothing. `easy_margin` is the operator's own frozen threshold and is measured to mean P(clean sheet) = 0.40.",
+  "engine_sheets": [
+    {
+      "league": "EuroLeghe",
+      "boards": "boards/euroleghe.json",
+      "platform": "euro",
+      "game": "mantra",
+      "teams": 12,
+      "squad_slots": {
+        "P": 3,
+        "D": 8,
+        "C": 8,
+        "A": 6
+      },
+      "matchdays_target": 27,
+      "matchdays_input": 31,
+      "sheet_revision": 75,
+      "generated_at": "2026-09-24T12:59:55+00:00",
+      "auction_date": "2026-09-24",
+      "rows": 952,
+      "priced": 946,
+      "estimated": 6,
+      "path": "sheets/euroleghe.json.gz",
+      "source": "auction-snapshot-2026-27-euro-mantra-euroleghe-2026-09-24"
+    },
+    {
+      "league": "Leghe",
+      "boards": "boards/leghe.json",
+      "platform": "default",
+      "game": "classic",
+      "teams": 10,
+      "squad_slots": {
+        "P": 3,
+        "D": 8,
+        "C": 8,
+        "A": 6
+      },
+      "matchdays_target": 33,
+      "matchdays_input": 38,
+      "sheet_revision": 75,
+      "generated_at": "2026-09-24T13:02:29+00:00",
+      "auction_date": "2026-09-24",
+      "rows": 563,
+      "priced": 293,
+      "estimated": 270,
+      "path": "sheets/leghe.json.gz",
+      "source": "auction-snapshot-2026-27-default-classic-leghe-2026-09-24"
+    },
+    {
+      "league": "Leghe Mantra",
+      "boards": "boards/leghe-mantra.json",
+      "platform": "default",
+      "game": "mantra",
+      "teams": 10,
+      "squad_slots": {
+        "P": 2,
+        "D": 7,
+        "C": 10,
+        "A": 4
+      },
+      "matchdays_target": 33,
+      "matchdays_input": 38,
+      "sheet_revision": 75,
+      "generated_at": "2026-09-24T13:04:57+00:00",
+      "auction_date": "2026-09-24",
+      "rows": 563,
+      "priced": 293,
+      "estimated": 270,
+      "path": "sheets/leghe-mantra.json.gz",
+      "source": "auction-snapshot-2026-27-default-mantra-leghemantra-2026-09-24"
+    }
+  ],
+  "timepacks": [
+    {
+      "date": "2024-09-05",
+      "target_season": "2024-25",
+      "input_season": "2023-24",
+      "sheet_revision": 75,
+      "window": "estiva",
+      "leagues": 3,
+      "path": "timepacks/2024-09-05/manifest.json"
+    },
+    {
+      "date": "2025-02-05",
+      "target_season": "2024-25",
+      "input_season": "2023-24",
+      "sheet_revision": 75,
+      "window": "invernale",
+      "leagues": 3,
+      "path": "timepacks/2025-02-05/manifest.json"
+    },
+    {
+      "date": "2025-09-05",
+      "target_season": "2025-26",
+      "input_season": "2024-25",
+      "sheet_revision": 75,
+      "window": "estiva",
+      "leagues": 3,
+      "path": "timepacks/2025-09-05/manifest.json"
+    },
+    {
+      "date": "2026-02-05",
+      "target_season": "2025-26",
+      "input_season": "2024-25",
+      "sheet_revision": 75,
+      "window": "invernale",
+      "leagues": 3,
+      "path": "timepacks/2026-02-05/manifest.json"
+    }
+  ],
+  "timepacks_note": "Il motore a una data passata: fogli e campetti costruiti da `snapshot --date`, cioè lo stesso codice con cui il gate replica le sue finestre. Le date sono poche e scelte (dopo ogni finestra di mercato delle ultime due stagioni); ognuna dichiara nel suo manifest che cosa nemmeno il toolkit può retrodatare - probabili, ruoli granulari, scadenze di contratto.",
+  "engine_sheets_note": "Per-player fm_pred/pv_pred (plus the est_* fallback), from the sheet of each declared league. `engine_surplus` travels as the league-level reference; a LIVE panel recomputes the replacement level over the players still free, which is the only zero an auction is about.",
+  "price_discipline": {
+    "auction_safe": [
+      "listone_quotes.price_initial",
+      "listone_quotes.price_initial_mantra"
+    ],
+    "reporting_only": [
+      "listone_quotes.price",
+      "listone_quotes.price_mantra",
+      "listone_quotes.fvm",
+      "listone_quotes.fvm_mantra"
+    ],
+    "platform_note": [
+      "rosters.* quotations are the last read, unattributed - do not decide on them"
+    ]
+  },
+  "provisional_parameters": {
+    "fc_site.DECAY": 0.75,
+    "fc_site.MISS_PENALTY": 0.7,
+    "arrivals.U22_AGE": 22,
+    "arrivals.T1_PRICE_PCT": 0.8,
+    "arrivals.T3_PRICE_PCT": 0.4,
+    "arrivals.FULL_HISTORY_MATCHES": 15,
+    "injuries.EXIT_RISK_MONTHS": 12,
+    "_note": "MODEL choices, owned by the gate. Not established values - do not quote them as facts and do not tune them outside a pre-registered sweep."
+  },
+  "adopted_rules": {
+    "by_platform": {
+      "euro": [
+        "R0",
+        "R0c",
+        "R3c",
+        "R18",
+        "R20K6",
+        "R23"
+      ],
+      "default": [
+        "R0",
+        "R3",
+        "R7",
+        "R13",
+        "R19",
+        "R20K10",
+        "R23",
+        "R25K40"
+      ]
+    },
+    "_note": "A coefficient quoted without its platform, its residual baseline and its date is not a fact: the numbers themselves live in the gate report (data/reports/engine_backtest.json), not in this bundle."
+  },
+  "known_gaps": [
+    "probable_starter: the site publishes only 'now', so the history starts the day the weekly snapshot job started running. Any rule reading starter_prob is untestable on past windows.",
+    "flags.exit_risk / contract_until: contract expiry exists only on the CURRENT squad page, so it is a snapshot of today and cannot be backfilled - unusable for a past-window gate.",
+    "player_roles: the granular real role is served only for NOW. The provider accepts a seasonId and ignores it (HTTP 200, today's codes for a season three years old), so the history starts the day the first snapshot ran. What IS historical: positions.derived_role (G/D/M/F per season, from the per-match layer) and positions.avg_x/avg_y (the season heatmap).",
+    "euro 2021-22 is empty AT THE SOURCE (every Voto is '-'), which is why euro has five windows and Serie A ten.",
+    "external_match_stats starts at 2019-20; older seasons have season aggregates only.",
+    "Goalkeepers have no foreign FM-equivalent: the per-match layer carries goals scored, not conceded, so the negative side of a keeper's fantavoto cannot be reconstructed."
+  ],
+  "verify": {
+    "ran": true,
+    "problems": []
+  }
+}
