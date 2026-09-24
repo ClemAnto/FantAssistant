@@ -1,5 +1,7 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 24 settembre 2026 — QUATTRO SUOI VERDETTI ERANO IMPOSSIBILI INSIEME, E LA CAUSA ERA UNA SOLA.** Nove correzioni sue sulle categorie, tutte su attaccanti, tutte trovate a schermo. Dettaglio: `letture-app-v1.md` §53, spec «Novita' v9.102». `SHEET_REVISION` 75, `engine_*` fermo (`evaluate` non importa `categories`), `backtest --verify` 22/22.
+**Aggiornato: 24 settembre 2026 (notte) — LA WEBAPP È ONLINE, E UN PUSH NON È UNA PUBBLICAZIONE.** Da «riesci a pubblicare online la webapp?»: `npm run deploy:pages` dalla sua macchina, **v0.1.26**, <https://clemanto.github.io/FantAssistant/>. Il sito era fermo al deploy del 20/08, quindi è andato su **un mese di motore**: il manifest servito passa da `generated_at` 2026-08-20 e `sheet_revision` **36** a 2026-09-24 13:05 UTC e **75**, `demo: false`, 30,8 MB. Nessun numero calcolato qui: il pacchetto è quello esportato stamattina.
+LE TRE LEZIONI SONO SULLA VERIFICA E NESSUNA SULLO SCRIPT. **Il push è uscito 0 e il sito serviva ancora il build vecchio** — la prima lettura del manifest live rispondeva 200 coi dati del 20/08, perché Pages si rigenera con i suoi tempi (qui 20 secondi): quello che decide è la RETE, con cache-busting, finché l'hash servito è quello che il build ha appena stampato. **Un deploy pubblica l'ALBERO DI LAVORO e non `HEAD`**: al momento del build undici file dell'app erano la metà non committata di un'ALTRA sessione, quindi sono loro a essere online, verificati dal compilatore e da nient'altro — e poiché quelle righe sono poi finite in `b38def3` e `654ae25`, **il sito non corrisponde a nessun commit**. **E la fotografia scade nei due versi**: il bump di versione che il deploy fa da sé è stato committato dall'altra sessione dentro `b38def3` mentre aspettavo Pages. Dettaglio e aperti: la sezione in coda a questo file; le regole durature in `CLAUDE.md`.
+· precedente: **Aggiornato: 24 settembre 2026 — QUATTRO SUOI VERDETTI ERANO IMPOSSIBILI INSIEME, E LA CAUSA ERA UNA SOLA.** Nove correzioni sue sulle categorie, tutte su attaccanti, tutte trovate a schermo. Dettaglio: `letture-app-v1.md` §53, spec «Novita' v9.102». `SHEET_REVISION` 75, `engine_*` fermo (`evaluate` non importa `categories`), `backtest --verify` 22/22.
 IL PRIMO LAVORO E' STATO DIMOSTRARE CHE NON ERANO SODDISFACIBILI, invece di cercare una cura. «Simeone e' un SEMITOP perche' ha una ottima FM dell'anno scorso» (storico 7,25, cinque giornate a 5,70, leggeva `operaio`) e «Maldini e' una PROMESSA perche' ha una FM dello scorso anno troppo bassa per essere un SEMITOP» (6,39 e 8,40, leggeva `semi`) sono la stessa frase con nomi opposti: dentro il livello di un attaccante le cinque giornate pesavano il **21%**, abbastanza da rovesciare l'ordine dello storico. Misurata la finestra di pesi in cui esistono due sbarre che soddisfano i suoi nomi piu' quelli gia' dichiarati: `w` ∈ [0,075 · 0,125], e **a 0,213 non ce n'e' nessuna**, ne' su `semi` ne' su `top`.
 ADOTTATO `categories.DECLARED_K` = {"A": 45}, **separata da `BLEND_K` che resta la misura** — una dichiarazione che cancella una misura la fa sparire dal verbale. Prezzo misurato dopo aver RIPRODOTTO i numeri pubblicati (P +6,8% · D +2,7% · C +1,8% · A +6,0%): la previsione della fantamedia del resto di stagione passa da **+6,0% a +4,4%** sulla sola stagione scorsa, 10 stagioni su 10 comunque migliori, curva piatta fra K 20 e 60. La ragione per cui non e' un capriccio: **la K e' misurata per PREVEDERE, la parola deve dire CHE GIOCATORE E'** — e quello che sta facendo adesso ha gia' la sua parola, `promessa`. Al peso vecchio la stagione in corso entrava DUE VOLTE.
 E VALE SOLO DOVE C'E' UNO STORICO, misurato nei DUE versi prima di scegliere: senza una stagione precedente la base e' l'ANCORA DEL RUOLO, quindi pesarla di piu' da' peso al nulla. Con la K dichiarata applicata a tutti, Kvernadze e Varela G. — i due `solido` del 22/09 — cadevano in `scommessa`; togliendo del tutto il re-blend leggevano gli stessi due numeri, perche' il livello del foglio quel re-blend ce l'ha gia' dentro.
@@ -9493,9 +9495,61 @@ plancia, estratto in `ui/trend-votes` all'arrivo del secondo lettore; i rivali v
 toolkit e non si deducono qui; la media pagata guarda solo chi ha un padrone e porta il CONTO accanto.
 Banco nuovo (`e2e-plancia-lot.mjs`), ogni gruppo contro una fonte che non è lo schermo.
 
+**E LA RIGA DEL LOTTO È UNA GRIGLIA DICHIARATA** (sua istruzione, §61): in flex ogni gruppo era largo
+quanto il suo contenuto, quindi il bordo sinistro della maglia cadeva in dieci punti su 24 lotti e
+l'alternativa in sei. Larghezze misurate e poi dichiarate, ogni cella presente anche vuota, l'alternativa
+ancorata a sinistra. Invariante nel banco — quattordici lotti, un bordo ciascuno su undici gruppi — e
+controprova fatta rimettendo il flex.
+
 **Stato dell'albero alla chiusura**: solo file miei modificati, nessuna metà di un'altra sessione da
 separare (HEAD era `00f8bc7`). Verde: **1133 test app**, **965 toolkit**, benches plancia stats · order ·
 slots · injury · squad · keepers · award · resume · lot. Resta ROSSO `e2e-plancia-lens`, e **non è mio**:
 verificato in un worktree a HEAD senza i miei file, gli stessi due rilievi: il null del passo
 dell'inchiostro fallisce e una riga accesa resta smorzata. Lasciato rosso con la causa nominata, come
 vuole la regola di casa, e messo negli aperti.
+
+## 24 settembre 2026 (notte) — LA WEBAPP È ONLINE, e un push non è una pubblicazione
+
+Dalla sua domanda: «riesci a pubblicare online la webapp?». Una cosa sola fatta — `npm run deploy:pages`
+dalla sua macchina, che è l'unico posto dove il pacchetto esiste — e tre lezioni, tutte sulla VERIFICA e
+nessuna sullo script, che ha eseguito i suoi sei passi correttamente. Dettaglio delle regole durature:
+`CLAUDE.md`, «A successful PUSH is not a published site».
+
+**È ONLINE: <https://clemanto.github.io/FantAssistant/>, v0.1.26.** Il sito era fermo al deploy del 20/08,
+quindi quello che è andato su è **un mese di lavoro del motore**: il manifest servito passa da
+`generated_at` 2026-08-20 e `sheet_revision` **36** a 2026-09-24 13:05 UTC e **75**, stagione 2026-27,
+`demo: false`. Build pulito (7,7 s, 937 kB iniziali, 120 kB trasferiti), `robots.txt` al suo posto
+(`Disallow: /`), che resta l'unico controllo d'accesso che Pages offre su un repo pubblico: **chiunque
+trovi l'URL scarica 30,8 MB di contenuto a pagamento**, ed è la decisione dell'operatore del 09/08/2026,
+non una svista.
+
+**IL PUSH È USCITO 0 E IL SITO SERVIVA ANCORA IL BUILD VECCHIO.** La prima lettura del manifest live —
+fatta subito dopo il push, perché sembrava la verifica ovvia — rispondeva **HTTP 200 con i dati del
+20/08** e il `main-*.js` precedente. Pages si rigenera con i suoi tempi (qui **20 secondi**, ma la prima
+lettura era dentro quella finestra), quindi «pushato» e «pubblicato» sono due fatti con un buco in mezzo.
+Quello che decide è la RETE e non il codice d'uscita: richiesta con cache-busting finché l'hash del bundle
+servito è quello che il build ha appena stampato (`main-G2IMOMJA.js`), e solo allora il manifest accanto.
+*Un controllo fatto prima che la cosa possa essere cambiata legge lo stato di prima e lo riporta come
+risultato* — la famiglia di «due letture della stessa metrica», incontrata su un deploy.
+
+**UN DEPLOY PUBBLICA L'ALBERO DI LAVORO, NON `HEAD`.** Al momento del build (13:50) undici file dell'app
+erano modificati e non committati, ed erano di un'ALTRA sessione (`plancia`, `slot-matrix`,
+`plancia-store`, `player-trend`, `spell-mark`, due banchi): sono loro che sono online, verificati dal
+compilatore e da nient'altro — nessuna suite, nessun banco. Quelle righe sono poi finite in `b38def3` e
+`654ae25`, quindi **il sito pubblicato non corrisponde a nessun commit**: è `00f8bc7` più una fotografia
+del loro lavoro in corso a quell'ora. Con due sessioni su un albero questo è il caso NORMALE e non un
+incidente, quindi lo stato dell'albero si DICE consegnando il link invece di lasciar credere che sia
+l'ultimo commit.
+
+**E LA FOTOGRAFIA SCADE NEI DUE VERSI.** La regola già scritta riguarda il proprio commit che si mangia la
+metà di un altro; qui è successo il contrario — il bump di versione che il deploy fa da sé
+(`app/package.json`, `app/src/app/version.ts`, 0.1.25 → 0.1.26) è stato committato **dall'altra sessione**
+dentro `b38def3`, mentre aspettavo che Pages si rigenerasse. Niente è rotto: il bump è committato e
+descrive il sito che è vivo. Ma è attribuito a un commit che non lo nomina, quindi «quale commit ha
+pubblicato la v0.1.26» è una domanda a cui la storia risponde con una feature della plancia.
+
+**APERTI**: (a) **quello che è online non ha un gate dietro** — la prossima pubblicazione conviene farla
+su un albero pulito, e costa un comando; (b) i tre file ancora modificati in albero alla chiusura
+(`lot-card.html`/`.ts`, `e2e-plancia-lot.mjs`) sono dell'altra sessione e **non sono nel sito**, quindi la
+loro feature è pubblicata a metà finché non si ripubblica; (c) resta rosso `e2e-plancia-lens`, dichiarato
+dall'altra sessione e non di questa.

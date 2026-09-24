@@ -7749,3 +7749,27 @@ diciassettesimo campo, `SHEET_REVISION` 76, **in coda e vuoto = ignoto** cosi' u
 legge i sedici di prima. Il ripiego sul CAMPIONATO cura subito chi ha cambiato paese (123 righe su 537,
 23 fantavoti restituiti) e **non** chi ha cambiato club dentro la Serie A: quello vuole il foglio nuovo,
 ed e' scritto negli aperti invece di essere lasciato scoprire.
+
+## A successful PUSH is not a published site, and a deploy publishes the WORKING TREE
+**24/09/2026, from «riesci a pubblicare online la webapp?»** — `npm run deploy:pages`, v0.1.26, the real
+bundle exported that morning. The site had been stuck on the deploy of 20/08, so what went online is a
+month of engine work: `sheet_revision` **36 → 75**. Three things worth keeping, and none of them is about
+the deploy script, which did its six steps correctly.
+- **The push exited 0 and the site was still serving the OLD build.** The first read of the live manifest
+  came back `generated_at` 2026-08-20, revision 36, with the previous `main-*.js` hash: GitHub Pages
+  rebuilds on its own schedule, so «pushed» and «published» are two facts with a gap between them. What
+  settles it is the network and not the exit code — a cache-busting request until the served bundle hash
+  is the one the build has just printed, then the manifest's own date beside it. *A check made before the
+  thing can have changed reads the previous state and reports it as a result*, which is the family of «two
+  readings of the same metric» met on a deploy.
+- **A DEPLOY PUBLISHES THE WORKING TREE, NOT `HEAD`.** Eleven app files of ANOTHER session were
+  uncommitted when the build ran, so they are what is online, verified by the compiler and by nothing else
+  (no suite, no bench). With two sessions on one tree this is the normal case and not an accident: «publish
+  the app» puts on a public URL whatever is on disk that minute, so the state of the tree is STATED when
+  handing over the link instead of being assumed to be the last commit.
+- **And the photograph expires in BOTH directions.** The rule already written here is about one's own
+  commit swallowing somebody else's half; here the deploy's own version bump (`app/package.json`,
+  `app/src/app/version.ts`) was swept into the OTHER session's commit while I was waiting for Pages to
+  rebuild. Nothing broke — the bump is committed and it describes the site that is live — but it is
+  attributed to a commit that does not mention it, so «which commit published v0.1.26» is a question the
+  history answers with a plancia feature.
