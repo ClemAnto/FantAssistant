@@ -5644,3 +5644,56 @@ l'oggetto, **si azzera e si verifica che l'ordine sia sparito** — senza quel n
 niente leggerebbe identico a uno riuscito — e solo allora si incolla, con `Input.insertText` dopo un click
 vero, così il testo passa dal pipeline di input del browser invece di essere scritto nel DOM. La prima riga
 torna quella di prima.
+
+## 60. LA RIGA DEL CALCIATORE IN ASTA DICE CHI È: quattro gruppi e i rivali della maglia (24 settembre 2026)
+
+Tre richieste dell'operatore in fila sulla stessa riga: «del calciatore in asta visualizza il trend
+(ultime 4 partite con freccette se è entrato/uscito) + (Pv | Mv | Fm della scorsa stagione) + SURPLUS»,
+poi «anche il prezzo medio degli altri acquisti per RUOLO e SLOT di appartenenza», poi «anche i suoi
+rivali di posizione nella squadra reale». Nessun numero del motore si muove: tutti e cinque i gruppi sono
+LETTURE.
+
+**LE ETICHETTE CI VOGLIONO QUI, e la regola della riga non è violata.** «Nessuna etichetta che spiega»
+vale per il verdetto e per la banda, che sono UNA domanda con UNA risposta; questi sono numeri di nature
+diverse affiancati — due misure, una previsione, un prezzo di stasera — e senza una parola che dica quale
+è quale si leggerebbero uguali. Le etichette sono corte (`ultime 4`, il nome della stagione, `surplus`,
+`pagato D2`) e la frase lunga sta nel tooltip, che è dove l'operatore ha chiesto che stia (05/09/2026).
+
+**LA STRISCIA È LO STESSO DISEGNO DELLA PLANCIA**, estratto in `ui/trend-votes` quando il secondo lettore
+è arrivato: due copie di quella trasformazione sarebbero due modi di stampare lo stesso fantavoto, e il
+giorno in cui una fascia di colore cambia due schermate darebbero allo stesso uomo due pagelle. Cambia
+solo la TAGLIA — `row` 18px/8px, `card` 28px/11px — con le due geometrie misurate e non stimate, come per
+`ui-spell`.
+
+**IL PREZZO MEDIO DELLO SLOT È LA SOLA LETTURA VIVA DEL MERCATO CHE QUESTA RIGA ABBIA.** La banda viene da
+dieci stagioni di aste vere, la mediana del blocco è la RICHIESTA del listone, questa è quello che i dieci
+a questo tavolo hanno tirato fuori stasera per uomini che il mercato prezza come lui. Due cose la tengono
+onesta: **solo chi ha un padrone** entra nel campione — `BoardMan.price` porta il prezzo PAGATO quando
+l'uomo è venduto e la MAX OFFERTA finché è nell'urna, e mescolarli sarebbe una media di due quantità
+diverse — e **il conto viaggia col numero** (`40 su 2`), perché una media su due acquisti non è una media
+su otto e senza il denominatore la cifra si legge come un fatto sullo slot. Quando nessuno ha ancora
+comprato in quello slot il gruppo NON C'È, invece di un trattino che si leggerebbe come «hanno pagato
+zero».
+
+**I RIVALI DELLA MAGLIA SI LEGGONO DALLA BOARD E NON SI DEDUCONO.** L'undici di un club vero è una
+previsione su una PERSONA, quindi lo disegna il toolkit e l'app lo legge: dedurre qui «chi gli contende il
+posto» da ruoli e quote sarebbe una seconda risposta alla stessa domanda. **La frase cambia con il lato**
+— se la board disegna LUI i rivali gli contendono la maglia, se è lui a essere un ballottaggio il primo
+della lista è chi ce l'ha addosso — perché «gliela contendono» e «la contende a un altro» non si comprano
+allo stesso prezzo. E il silenzio ha **tre forme**, tre frasi: la board non lo nomina affatto, il suo ruolo
+granulare è ignoto (i ballottaggi sono IGNOTI, non assenti), oppure nessuno gliela contende — che è
+l'unica delle tre che si può dire in chiaro. Un elenco vuoto per tutt'e tre direbbe la più forte.
+
+Verificato con un banco nuovo (`e2e-plancia-lot.mjs`), e ogni gruppo contro una fonte che non è lo
+schermo: la striscia contro `desc_trend_detail` col taglio rifatto a mano, le tre misure contro
+`season_stats`, i rivali contro `boards.json`, la media pagata ri-derivata dalle righe VENDUTE di quel
+blocco, e **il surplus contro la cifra che la griglia personale stampa per lo stesso uomo** — è la stessa
+quantità vista due volte, e due valutazioni per un uomo sono il difetto che questa pagina esiste per non
+avere. Il banco si aggancia agli attributi che la riga DICHIARA (`data-lot-group`, `data-lot-value`,
+`data-lot-rival`) e non a un cammino nell'albero.
+
+Due trappole pagate mentre lo si faceva, tutt'e due già a verbale e incontrate di nuovo: **un banco serve
+`dist/`**, quindi la prima fotografia — scattata dopo `npm test`, che builda i TEST e non la cartella —
+mostrava la riga senza nessuno dei gruppi nuovi, cioè misurava il build di prima; e **il primo confronto
+sulla media pagata era del banco**, che spogliava la cella delle lettere e incollava il conto al numero
+(`40 su 2` → 402), accusando la pagina del proprio difetto.

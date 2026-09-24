@@ -166,6 +166,159 @@
            Quello che si guadagna e' lo spazio: l'alternativa e la banda sono le due cose su cui si
            decide un rilancio, e adesso hanno la riga per loro. -->
 
+      <!-- 3. CHI E', in tre gruppi e con un'etichetta ciascuno (sua richiesta, 24/09/2026): le ultime
+           quattro partite, le tre misure della stagione scorsa, il surplus. Qui un'etichetta ci vuole -
+           la regola «nessuna etichetta che spiega» vale per il verdetto e per la banda, che sono UNA
+           domanda con UNA risposta, mentre questi sono tre numeri di tre nature diverse affiancati: due
+           misure e una previsione, e senza una parola che dica quale è quale si leggerebbero uguali.
+
+           E LE ETICHETTE SONO CORTE: «ultime 4», la stagione col suo nome, «surplus». La frase lunga
+           sta nel tooltip, che è dove l'operatore ha chiesto che stia (05/09/2026). -->
+      <div class="flex shrink-0 items-center gap-3 border-l border-border pl-3">
+        <div
+          data-lot-group="trend"
+          class="flex flex-col gap-0.5"
+          nz-tooltip
+          nzTooltipTitle="Le ultime quattro partite di campionato del suo club, dalla più recente: il fantavoto che ha preso, un triangolino verde se è subentrato e uno rosso se è stato sostituito. Un trattino è una partita senza fantavoto — non ha giocato, o il gioco non l'ha votata."
+        >
+          <span class="text-[9px] tracking-wide text-muted uppercase">ultime 4</span>
+          <ui-trend-votes [cells]="cellsOf(l.man.id)" size="card" />
+        </div>
+
+        @let last = lastOf(l.man.id);
+        <div
+          data-lot-group="last"
+          class="flex flex-col gap-0.5"
+          nz-tooltip
+          [nzTooltipTitle]="
+            'Quello che ha fatto DAVVERO nella stagione scorsa, nelle unità con cui il gioco le pubblica: presenze a voto, media voto, fantamedia. Sono misure, non previsioni.'
+          "
+        >
+          <span class="text-[9px] tracking-wide text-muted uppercase">{{
+            lastLabel() ?? 'scorso'
+          }}</span>
+          <!-- TRE CIFRE E DUE SEPARATORI, e il trattino dove la stagione non c'è: su un listone di
+               agosto è un quarto delle righe, e uno zero al suo posto sarebbe una frase sul calciatore
+               che nessuno ha misurato. -->
+          <span
+            data-lot-value
+            class="flex items-baseline gap-1 text-[11px] leading-none tabular-nums text-fg"
+          >
+            <span>{{ last?.pv == null ? '·' : (last?.pv | number: '1.0-0') }}</span>
+            <span class="text-muted">|</span>
+            <span>{{ last?.mv == null ? '·' : (last?.mv | number: '1.2-2') }}</span>
+            <span class="text-muted">|</span>
+            <span>{{ last?.fm == null ? '·' : (last?.fm | number: '1.2-2') }}</span>
+          </span>
+        </div>
+
+        <div
+          data-lot-group="surplus"
+          class="flex flex-col gap-0.5"
+          nz-tooltip
+          nzTooltipTitle="Quanto rende in una stagione più dell'uomo che giocherebbe al posto suo: è la valutazione del motore, già scontata dalla confidenza della stima. Una previsione, non una misura."
+        >
+          <span class="text-[9px] tracking-wide text-muted uppercase">surplus</span>
+          <span data-lot-value class="text-sm leading-none font-bold tabular-nums text-fg">{{
+            l.man.surplus == null ? '·' : (l.man.surplus | number: '1.1-1')
+          }}</span>
+        </div>
+
+        <!-- 4. E QUANTO LA STANZA STA PAGANDO PER QUESTO SLOT (sua richiesta, 24/09/2026): la media
+             degli ALTRI acquisti dello stesso ruolo e slot, col CONTO accanto. È la sola lettura viva
+             del mercato che questa riga abbia - la banda viene da dieci stagioni di aste vere e la
+             mediana del blocco è la RICHIESTA, questa è cosa hanno tirato fuori stasera.
+
+             IL CONTO NON È UN DETTAGLIO: una media su due acquisti non è una media su otto, e senza il
+             denominatore la cifra si legge come un fatto sullo slot invece che come i due casi che
+             sono. Quando nessuno ha ancora comprato in quello slot il gruppo NON C'È, invece di
+             mostrare un trattino che si leggerebbe come «hanno pagato zero». -->
+        @if (l.paid; as paid) {
+          <div
+            data-lot-group="paid"
+            class="flex flex-col gap-0.5"
+            nz-tooltip
+            [nzTooltipTitle]="
+              'La media di quello che il tavolo ha pagato per gli altri ' +
+              paid.count +
+              ' uomini già venduti di questo slot' +
+              (l.block ? ' (' + l.block.id + ')' : '') +
+              '. È il mercato di stasera, non la richiesta del listone.'
+            "
+          >
+            <span class="text-[9px] tracking-wide text-muted uppercase"
+              >pagato {{ l.block?.id }}</span
+            >
+            <span data-lot-value class="flex items-baseline gap-1">
+              <span class="text-sm leading-none font-bold tabular-nums text-fg">{{
+                paid.mean | number: '1.0-0'
+              }}</span>
+              <span class="text-[10px] text-muted">su {{ paid.count }}</span>
+            </span>
+          </div>
+        }
+      </div>
+
+      <!-- 5. CHI GLI CONTENDE LA MAGLIA NELLA SQUADRA VERA (sua richiesta, 24/09/2026).
+           Letta dalla board del toolkit e mai dedotta qui: l'undici di un club vero e' una previsione su
+           una PERSONA, e l'app legge la board e mai la propria.
+
+           LA FRASE CAMBIA CON IL LATO: se la board disegna LUI, quelli elencati gliela contendono; se e'
+           lui a essere un ballottaggio, il primo della lista e' chi la maglia ce l'ha addosso. Non si
+           comprano allo stesso prezzo, quindi la riga lo dice con una parola e col grassetto su chi la
+           indossa.
+
+           E IL SILENZIO HA TRE FORME: la board non lo nomina affatto (non sappiamo niente di quella
+           maglia), il suo ruolo granulare e' ignoto (i ballottaggi sono IGNOTI, non assenti), oppure
+           nessuno gliela contende - che e' l'unica delle tre che si puo' dire in chiaro. Tre stati
+           diversi, tre frasi diverse: un elenco vuoto per tutt'e tre direbbe la piu' forte delle tre. -->
+      <div
+        data-lot-group="shirt"
+        class="flex min-w-0 shrink-0 flex-col gap-0.5"
+        style="max-width: 13rem"
+        nz-tooltip
+        [nzTooltipTitle]="
+          l.shirt
+            ? (l.shirt.mine
+                ? 'La board del toolkit disegna LUI in quel posto: questi sono i ballottaggi che il pannello gli mette contro, con la loro quota da titolare.'
+                : 'La board disegna un ALTRO in quel posto: il primo della lista è chi ce l’ha addosso, e lui gliela contende.')
+            : 'Di questa maglia la board non dice niente: o il foglio non ha disegnato il suo club, o il pannello non lo mette in discussione da nessuna parte.'
+        "
+      >
+        <span data-lot-label class="text-[9px] tracking-wide text-muted uppercase">
+          @if (l.shirt; as shirt) {
+            {{ shirt.mine ? 'gli contendono' : 'la contende a' }}
+            @if (shirt.badge) {
+              <span class="opacity-70">{{ shirt.badge }}</span>
+            }
+          } @else {
+            maglia
+          }
+        </span>
+        @if (l.shirt; as shirt) {
+          @if (!shirt.known) {
+            <span class="text-[11px] text-muted">ruolo ignoto</span>
+          } @else if (!shirt.rivals.length) {
+            <span class="text-[11px] text-success">nessuno</span>
+          } @else {
+            <span class="flex min-w-0 flex-col leading-tight">
+              @for (rival of shirt.rivals; track rival.id ?? rival.name) {
+                <span data-lot-rival class="truncate text-[11px]">
+                  <span [class.font-semibold]="rival.starter" class="text-fg">{{ rival.name }}</span>
+                  @if (rival.claim != null) {
+                    <span class="pl-1 tabular-nums text-muted">{{
+                      rival.claim | number: '1.2-2'
+                    }}</span>
+                  }
+                </span>
+              }
+            </span>
+          }
+        } @else {
+          <span class="text-[11px] text-muted">non nel campetto</span>
+        }
+      </div>
+
       <!-- L'ALTERNATIVA: cio' che rende dubitabile il verdetto. -->
       @if (l.alternative; as alt) {
         <div

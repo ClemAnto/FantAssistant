@@ -5,33 +5,16 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { PlayerFlags } from '../../../ui/player-flags/player-flags';
-import { SpellMark } from '../../../ui/spell-mark/spell-mark';
+import { TrendVotes } from '../../../ui/trend-votes/trend-votes';
 import { Alternative, MIN_PLAY_SHARE, ROLES, Role, RowStats, SlotView } from '../../../core/plancia';
-import { MatchSpell } from '../../../core/match-bonuses';
-import { ROW_TREND_MATCHES, TrendCell } from '../../../core/player-trend';
+import { TrendCell } from '../../../core/player-trend';
 import { SeasonLine } from '../../../core/season-line';
-import { voteInk } from '../../../ui/matches-table/vocabulary';
 import { DOUBLE_MS } from '../../../core/view-state';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
 import { RulingDot } from '../../../ui/ruling-dot/ruling-dot';
 
-/** Una casella della striscia come il template la vuole: niente da decidere, solo da stampare. */
-interface RowTrendCell {
-  text: string;
-  ink: string;
-  spell: MatchSpell;
-  /** Se c'e' un triangolino: si chiede qui e non nel template perche' il componente si monta solo
-   *  dove serve - mille `ui-spell` vuoti sono mille istanze che nessuno disegna. */
-  mark: boolean;
-}
-
-const NO_SPELL: MatchSpell = { minutes: null, on: false, off: false };
-const EMPTY_STRIP: RowTrendCell[] = Array.from({ length: ROW_TREND_MATCHES }, () => ({
-  text: '·',
-  ink: 'text-muted',
-  spell: NO_SPELL,
-  mark: false,
-}));
+/** Nessuna casella: `ui-trend-votes` ne disegna quattro vuote, che e' cio' che un ignoto significa. */
+const EMPTY_STRIP: readonly TrendCell[] = [];
 
 const ROLE_TONE: Record<Role, string> = {
   P: 'bg-role-keeper',
@@ -112,7 +95,7 @@ const COLUMNS = 8;
   imports: [
     CdkDropList, CdkDrag, CdkDropListGroup,
     DecimalPipe, NzIconModule, NzTooltipModule, PlayerFlags,
-    RulingDot, SpellMark,
+    RulingDot, TrendVotes,
   ],
   host: { class: 'block min-h-0' },
 })
@@ -372,46 +355,18 @@ export class SlotMatrix {
   }
 
   /**
-   * LA STRISCIA COME LA RIGA LA DISEGNA: il testo, l'inchiostro e se c'e' un triangolino da mettere.
-   *
-   * Un `computed` sulla MAPPA e non un conto per riga: il template chiama `trendOf` per ognuna delle
-   * 250 righe a ogni giro di rilevamento, quindi costruire qui le mille caselle una volta per lettura
-   * del pacchetto costa una passata invece di mille. L'inchiostro e' `voteInk`, cioe' le stesse fasce
-   * della tabella e della card - «una definizione, tre lettori», e un fantavoto e' lo stesso metro del
-   * voto piu' i bonus, come quella funzione dichiara di se'.
-   *
-   * IL TRATTINO NON DICE PERCHE': la cella vale «nessun fantavoto» e non separa la panchina
-   * dall'infortunio. Non e' una dimenticanza ed e' il prezzo della larghezza - quattro caselle su una
-   * riga di 185px - quindi si dichiara: il MOTIVO di un'assenza lo portano gia' le iconcine accanto al
-   * nome e la card, che e' a un click.
-   */
-  private readonly strips = computed(() => {
-    const out = new Map<number, RowTrendCell[]>();
-    for (const [id, cells] of this.trend()) {
-      out.set(
-        id,
-        cells.map((cell) => ({
-          // Un decimale, che e' la griglia su cui il fantacalcio pubblica (i mezzi punti): stamparne due
-          // scriverebbe una precisione che la fonte non ha.
-          text: cell.points == null ? '·' : cell.points.toFixed(1),
-          ink: cell.points == null ? 'text-muted' : voteInk(cell.points),
-          spell: cell.spell,
-          mark: cell.spell.on || cell.spell.off,
-        })),
-      );
-    }
-    return out;
-  });
-
-  /**
-   * ...e per chi il foglio non porta affatto, QUATTRO CASELLE VUOTE e non nessuna.
+   * LE QUATTRO CASELLE DI UN UOMO, e per chi il foglio non porta affatto quattro caselle VUOTE.
    *
    * Una striscia piu' corta accorcerebbe la riga e sposterebbe la max offerta, che e' l'ultima colonna:
-   * le cifre di due righe sorelle si incolonnano solo se ogni riga porta lo stesso numero di celle della
-   * stessa larghezza dichiarata.
+   * le cifre di due righe sorelle si incolonnano solo se ogni riga porta lo stesso numero di celle -
+   * `ui-trend-votes` ne disegna quattro comunque, quindi qui basta non inventare un dato.
+   *
+   * IL DISEGNO NON STA PIU' QUI (24/09/2026): testo, inchiostro e triangolini sono di
+   * `ui/trend-votes`, perche' la stessa striscia e' anche sulla riga del calciatore in asta. Due copie
+   * di quella trasformazione sarebbero due modi di stampare lo stesso fantavoto.
    */
-  protected trendOf(man: BoardMan): RowTrendCell[] {
-    return this.strips().get(man.id) ?? EMPTY_STRIP;
+  protected trendOf(man: BoardMan): readonly TrendCell[] {
+    return this.trend().get(man.id) ?? EMPTY_STRIP;
   }
 
   protected blockTip(block: BoardBlock): string {

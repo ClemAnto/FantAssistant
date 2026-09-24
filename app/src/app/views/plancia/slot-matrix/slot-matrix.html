@@ -282,24 +282,25 @@
                          (misurato a 1600px di finestra, dove un blocco e' largo 187). E' la stessa
                          decisione del 23/09 sulla Strategia - «a cedere e' il nome» - presa qui su un
                          set che si accende apposta per guardare la forma. -->
-                    <span class="flex shrink-0 items-center gap-px" data-trend>
-                      @for (cell of trendOf(man); track $index) {
-                        <span
-                          class="relative w-[18px] shrink-0 text-right text-[8px] leading-none tabular-nums"
-                          [class]="cell.ink"
-                        >
-                          @if (cell.mark) {
-                            <ui-spell
-                              class="absolute inset-y-0 left-0"
-                              [spell]="cell.spell"
-                              size="xxs"
-                              [hint]="false"
-                            />
-                          }
-                          {{ cell.text }}
-                        </span>
-                      }
-                    </span>
+                    <!-- LE ULTIME QUATTRO PARTITE, col fantavoto e i triangolini di chi e' entrato o
+                         uscito (sua richiesta, 24/09/2026). Il disegno e' di `ui/trend-votes`, che la
+                         disegna anche sulla riga del calciatore in asta: due copie sarebbero due modi
+                         di stampare lo stesso fantavoto. La piu' recente a sinistra, il verso
+                         dichiarato di questa app per le «ultime partite» (06/09/2026).
+
+                         IL PREZZO QUI E' IL NOME, ed e' dichiarato: la striscia costa 75px dove i due
+                         numeri del motore ne costavano 45, quindi al nome ne restano ~56 invece di 82
+                         (misurato a 1600px di finestra, dove un blocco e' largo 187) e i nomi tagliati
+                         passano da 1 a 18 su 249. E' la decisione del 23/09 sulla Strategia - «a cedere
+                         e' il nome» - presa su un set che si accende apposta per guardare la forma.
+                         Perche' il corpo sia OTTO e non dieci sta in `ui/trend-votes` (`SIZES`), dove
+                         c'e' la misura. -->
+                    <ui-trend-votes
+                      class="shrink-0"
+                      data-trend
+                      [cells]="trendOf(man)"
+                      size="row"
+                    />
                   } @else {
                     <!-- LA STAGIONE SCORSA, tre MISURE dove prima c'erano due previsioni (sua
                          richiesta, 23/09/2026): presenze a voto · media voto · fantamedia, nelle unita'

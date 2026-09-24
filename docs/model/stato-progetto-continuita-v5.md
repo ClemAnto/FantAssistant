@@ -9486,9 +9486,16 @@ l'import **sostituisce** e non fonde, rifiuta quello che non porta il suo marchi
 Verificato col giro intero in un browser, col reset in mezzo come null — senza, un import inerte
 leggerebbe identico a uno riuscito.
 
+**E LA RIGA DEL CALCIATORE IN ASTA DICE CHI È** (sue tre richieste in fila, §60): le ultime quattro
+partite, Pv | Mv | Fm della stagione scorsa, il surplus, il prezzo medio pagato nel suo (ruolo, slot) e i
+rivali di posizione nella squadra vera. Tutti e cinque LETTURE: la striscia è lo stesso disegno della
+plancia, estratto in `ui/trend-votes` all'arrivo del secondo lettore; i rivali vengono dalla board del
+toolkit e non si deducono qui; la media pagata guarda solo chi ha un padrone e porta il CONTO accanto.
+Banco nuovo (`e2e-plancia-lot.mjs`), ogni gruppo contro una fonte che non è lo schermo.
+
 **Stato dell'albero alla chiusura**: solo file miei modificati, nessuna metà di un'altra sessione da
 separare (HEAD era `00f8bc7`). Verde: **1133 test app**, **965 toolkit**, benches plancia stats · order ·
-slots · injury · squad · keepers · award · resume. Resta ROSSO `e2e-plancia-lens`, e **non è mio**:
+slots · injury · squad · keepers · award · resume · lot. Resta ROSSO `e2e-plancia-lens`, e **non è mio**:
 verificato in un worktree a HEAD senza i miei file, gli stessi due rilievi: il null del passo
 dell'inchiostro fallisce e una riga accesa resta smorzata. Lasciato rosso con la causa nominata, come
 vuole la regola di casa, e messo negli aperti.

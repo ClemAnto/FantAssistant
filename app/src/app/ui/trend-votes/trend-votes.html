@@ -1,0 +1,27 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     QUATTRO CASELLE SEMPRE, anche dove il foglio non porta niente: le colonne di due righe sorelle si
+     incolonnano solo se ogni riga ne ha lo stesso numero della stessa larghezza dichiarata, e una
+     striscia più corta sposterebbe la colonna che le sta accanto.
+
+     `gap-px` e non il `gap` di chi ospita: un pixel basta a separare due numeri incolonnati, e quattro
+     celle sciolte dentro una riga con `gap-1` costerebbero dodici pixel al nome. -->
+<span class="flex items-center gap-px">
+  @for (cell of shown(); track $index) {
+    <span
+      data-trend-cell
+      class="relative shrink-0 text-right leading-none tabular-nums"
+      [class]="geometry().cell + ' ' + geometry().text + ' ' + cell.ink"
+    >
+      @if (cell.mark) {
+        <ui-spell
+          class="absolute inset-y-0 left-0"
+          [spell]="cell.spell"
+          [size]="geometry().spell"
+          [hint]="false"
+        />
+      }
+      {{ cell.text }}
+    </span>
+  }
+</span>

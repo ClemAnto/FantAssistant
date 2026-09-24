@@ -763,7 +763,7 @@ function readTrendRows() {
     out.push({
       block: head,
       name: (row.innerText ?? '').split(String.fromCharCode(10))[0].trim(),
-      cells: [...strip.children].map((cell) => ({
+      cells: [...strip.querySelectorAll('[data-trend-cell]')].map((cell) => ({
         text: (cell.innerText ?? '').trim(),
         // I due triangolini sono due `svg` con un `aria-label`: si leggono da li' e non dal colore,
         // che e' una proprieta' del tema.

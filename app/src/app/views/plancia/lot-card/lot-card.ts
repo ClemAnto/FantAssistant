@@ -5,9 +5,12 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { DigitInput } from '../../../ui/digit-input/digit-input';
+import { TrendVotes } from '../../../ui/trend-votes/trend-votes';
 
 import { CEILING_ALWAYS_SAFE, CEILING_ALWAYS_WRONG, Role, Verdict } from '../../../core/plancia';
 import { Lot } from '../../../core/plancia-store';
+import { TrendCell } from '../../../core/player-trend';
+import { SeasonLine } from '../../../core/season-line';
 
 /** One icon per verdict, and never a sentence: the shape has to read from across the table. */
 const VERDICT_ICON: Record<Verdict, string> = {
@@ -60,7 +63,7 @@ export const ROLE_TONE: Record<Role, string> = {
 @Component({
   selector: 'plancia-lot-card',
   templateUrl: './lot-card.html',
-  imports: [DecimalPipe, DigitInput, FormsModule, NzIconModule, NzTooltipModule],
+  imports: [DecimalPipe, DigitInput, FormsModule, NzIconModule, NzTooltipModule, TrendVotes],
   host: { class: 'block' },
 })
 export class LotCard {
@@ -79,6 +82,26 @@ export class LotCard {
   readonly urnLeft = input(0);
   readonly tail = input(0);
   readonly myMissing = input<number[]>([]);
+  /**
+   * CHI E' QUESTO CALCIATORE, in tre gruppi (sua richiesta, 24/09/2026): le ultime quattro partite, le
+   * tre misure della stagione scorsa, il surplus.
+   *
+   * Passati e non letti da qui: questo componente non legge tabelle, come `plancia-slot-matrix`. Sono
+   * le STESSE mappe che la plancia consegna alle righe, quindi la riga del lotto e la riga del
+   * tabellone non possono dire due cose diverse dello stesso uomo.
+   */
+  readonly trend = input<ReadonlyMap<number, TrendCell[]>>(new Map());
+  readonly lastSeason = input<ReadonlyMap<number, SeasonLine>>(new Map());
+  /** Che stagione è quella: l'etichetta la NOMINA invece di dire «scorsa», che dipende da quando la leggi. */
+  readonly lastLabel = input<string | null>(null);
+
+  protected cellsOf(id: number): readonly TrendCell[] {
+    return this.trend().get(id) ?? [];
+  }
+
+  protected lastOf(id: number): SeasonLine | null {
+    return this.lastSeason().get(id) ?? null;
+  }
 
   protected readonly icon = computed(() => VERDICT_ICON[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly tone = computed(() => VERDICT_TONE[this.lot()?.advice.verdict ?? 'ignoto']);

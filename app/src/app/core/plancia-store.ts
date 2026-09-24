@@ -25,7 +25,13 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
 import { demoPlayers } from './auction-demo';
 import { EngineNumbers, ValuationBasis, valuationOf } from './auction-value';
-import { Bundle, BundleTable, EngineSheetEntry } from './bundle';
+import {
+  Board,
+  BoardMan as BundleBoardMan,
+  Bundle,
+  BundleTable,
+  EngineSheetEntry,
+} from './bundle';
 import { ValuationStore } from './valuation-store';
 import { ExpectedPlay } from './expected-play';
 import { PlayerRatingsStore } from './player-ratings-store';
@@ -233,6 +239,60 @@ export interface Lot {
   alternative: Alternative | null;
   /** How many blocks below his are already empty - the thing that lifts the ceiling by half. */
   exhaustedBelow: number;
+  /** Quanto la stanza ha gia' pagato per gli ALTRI del suo slot, e su quanti. `null` finche' nessuno. */
+  paid: PaidInSlot | null;
+  /** Chi gli contende il posto nella squadra VERA, dalla board del toolkit. `null` = non lo sappiamo. */
+  shirt: LotShirt | null;
+}
+
+/**
+ * LA MAGLIA CHE SI GIOCA NEL CLUB VERO: chi la indossa, e chi gliela contende.
+ *
+ * Sua richiesta del 24/09/2026. Viene INTERA dalla board del toolkit - l'undici disegnato e i suoi
+ * ballottaggi - e non si deduce qui da ruoli e quote: quello e' l'undici di un club vero, cioe' una
+ * previsione su una persona, e l'app legge la board e mai la propria.
+ *
+ * `mine` dice da che parte sta: se la board DISEGNA lui, i rivali sono i suoi ballottaggi; se e' lui a
+ * essere elencato come ballottaggio, il primo rivale e' chi la maglia ce l'ha addosso. Sono due frasi
+ * diverse sullo stesso posto e la riga le distingue, perche' «gliela contendono» e «la contende a un
+ * altro» non si comprano allo stesso prezzo.
+ */
+export interface LotShirt {
+  /** Vero quando la board disegna LUI in quel posto. */
+  mine: boolean;
+  /** Il posto, come il campetto lo nomina (`Dc`, `Td`, `Pc`...): una maglia, non una linea. */
+  badge: string | null;
+  rivals: LotRival[];
+  /**
+   * Falso quando il suo ruolo granulare e' IGNOTO: allora i ballottaggi sono ignoti e non assenti, ed
+   * e' la stessa distinzione che il campetto fa - «vuoto = ignoto» su un elenco invece che su una cifra.
+   */
+  known: boolean;
+}
+
+export interface LotRival {
+  id: number | null;
+  name: string;
+  /** La sua quota da titolare: con che forza se la gioca. Null dove la board non la porta. */
+  claim: number | null;
+  /** Vero per l'uomo che la board DISEGNA in quel posto: e' lui che ce l'ha addosso. */
+  starter: boolean;
+}
+
+/**
+ * IL PREZZO MEDIO DEGLI ALTRI ACQUISTI DELLO STESSO (RUOLO, SLOT), e su quanti e' fatto.
+ *
+ * Sua richiesta del 24/09/2026. E' la sola lettura VIVA del mercato che questa pagina abbia: la banda
+ * viene da dieci stagioni di aste vere, la mediana del blocco e' la RICHIESTA, questo e' cio' che i
+ * dieci a questo tavolo hanno tirato fuori stasera per uomini che il mercato prezza come lui.
+ *
+ * IL CONTO VIAGGIA COL NUMERO, sempre: una media su due acquisti non e' una media su otto, e senza il
+ * denominatore la cifra si legge come un fatto sullo slot invece che come i due casi che sono. E' la
+ * stessa regola di `trend_matches` accanto a `trend_fp`.
+ */
+export interface PaidInSlot {
+  mean: number;
+  count: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -686,6 +746,20 @@ export class PlanciaStore {
 
   /** Che stagione e', per l'etichetta: il nome non si deduce dalla data di oggi. */
   readonly lastSeasonLabel = signal<string | null>(null);
+
+  /**
+   * LE BOARD DEL FOGLIO, per club: l'undici che il TOOLKIT disegna, coi suoi ballottaggi.
+   *
+   * Letta e mai calcolata. La regola di casa vale qui alla lettera - l'app legge la board e mai la
+   * propria - perche' l'undici di un club vero e' una previsione su una PERSONA: chi contende una
+   * maglia lo dice il pannello, e dedurlo qui da ruoli e quote sarebbe una seconda risposta alla
+   * stessa domanda.
+   *
+   * Vuota finche' il file non e' arrivato, e su un foglio senza board resta vuota: allora la riga del
+   * lotto DICE che di quella maglia non sa niente, invece di disegnare zero rivali - che si leggerebbe
+   * come «non gliela contende nessuno», che e' un'altra frase.
+   */
+  readonly boardsByClub = signal<ReadonlyMap<string, Board>>(new Map());
 
   /**
    * LE ULTIME QUATTRO PARTITE DI OGNI UOMO, gia' tagliate e gia' girate (`rowTrend`, una definizione).
@@ -1266,6 +1340,10 @@ export class PlanciaStore {
         exhaustedBelow: 0,
         advice: adviseTail(row.band, row.basis !== 'none', this.bid().value, hands),
         alternative: null,
+        // Sotto l'ultimo slot non c'e' uno slot, quindi non c'e' una media di slot: «vuoto = ignoto».
+        paid: null,
+        // ...ma la MAGLIA e' del suo club e non del suo slot: chi viene dalla coda ce l'ha come tutti.
+        shirt: shirtOf(this.boardsByClub().get(row.club) ?? null, row.id),
       };
     }
 
@@ -1326,6 +1404,8 @@ export class PlanciaStore {
         id,
         (candidate) => this.offerOf(candidate.id),
       ),
+      paid: paidInSlot(block, id),
+      shirt: shirtOf(this.boardsByClub().get(man.club) ?? null, id),
     };
   });
 
@@ -2105,6 +2185,10 @@ export class PlanciaStore {
     }
     this.boardKeepers.set(out);
     this.boardKeeperIds.set(ids);
+    // LA BOARD INTERA SI TIENE, e i portieri qui sopra ne sono una LETTURA: dal 24/09/2026 la riga del
+    // lotto chiede anche chi gli contende la maglia, ed e' la stessa board. Caricarla una seconda volta
+    // darebbe due risposte il giorno in cui una delle due chiamate cambia orizzonte.
+    this.boardsByClub.set(new Map(Object.entries(boards.clubs)));
   }
 
   /**
@@ -2171,6 +2255,68 @@ function trendStrips(table: BundleTable): Map<number, TrendCell[]> {
     );
   }
   return out;
+}
+
+/**
+ * Chi si gioca la maglia di quest'uomo nella squadra VERA, leggendo la board e nient'altro.
+ *
+ * Si cammina l'undici disegnato: se lui e' uno degli undici, i rivali sono i suoi ballottaggi; se e'
+ * elencato fra i ballottaggi di un posto, i rivali sono chi quel posto lo occupa piu' gli altri che se
+ * lo giocano. Chi la board non nomina da nessuna parte torna `null`, che NON e' «nessun rivale»: e' che
+ * di quella maglia il pannello non dice niente, e la riga lo scrive invece di disegnare una lista vuota.
+ */
+function shirtOf(board: Board | null, id: number): LotShirt | null {
+  if (!board?.lines) return null;
+  const rival = (man: BundleBoardMan, starter: boolean): LotRival => ({
+    id: man.fc_id == null ? null : Number(man.fc_id),
+    name: man.name ?? '-',
+    claim: man.claim ?? null,
+    starter,
+  });
+  for (const line of Object.values(board.lines)) {
+    for (const drawn of line ?? []) {
+      const duels = drawn.duels ?? [];
+      if (drawn.fc_id != null && Number(drawn.fc_id) === id) {
+        return {
+          mine: true,
+          badge: drawn.badge ?? null,
+          known: drawn.duels_known !== false,
+          rivals: duels.map((one) => rival(one, false)),
+        };
+      }
+      if (duels.some((one) => one.fc_id != null && Number(one.fc_id) === id)) {
+        return {
+          mine: false,
+          badge: drawn.badge ?? null,
+          known: true,
+          rivals: [
+            rival(drawn, true),
+            ...duels.filter((one) => Number(one.fc_id) !== id).map((one) => rival(one, false)),
+          ],
+        };
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Quanto la stanza ha pagato per gli ALTRI di questo slot: la media, e su quanti.
+ *
+ * SOLO CHI HA UN PADRONE, ed e' la distinzione che decide il numero: `BoardMan.price` porta il prezzo
+ * PAGATO quando l'uomo e' di qualcuno e la MAX OFFERTA finche' e' nell'urna (la riga lo dichiara col
+ * suo inchiostro), quindi leggerlo senza guardare lo stato mescolerebbe cio' che la stanza ha speso con
+ * cio' che noi offriremmo - due quantita' diverse in una media sola.
+ *
+ * «ALTRI» alla lettera: il lotto esce dal campione anche se e' gia' di qualcuno, perche' la domanda che
+ * questa cifra risponde e' «quanto stanno pagando per uomini come lui».
+ */
+function paidInSlot(block: BoardBlock, exceptId: number): PaidInSlot | null {
+  const paid = block.rows
+    .filter((row) => row.id !== exceptId && row.ownerId != null && row.price != null)
+    .map((row) => row.price as number);
+  if (!paid.length) return null;
+  return { mean: paid.reduce((sum, one) => sum + one, 0) / paid.length, count: paid.length };
 }
 
 /** The median of the numbers that exist. A null is not a zero, so it is not in the sample. */
