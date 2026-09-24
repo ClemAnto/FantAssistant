@@ -161,6 +161,7 @@
                   [cdkDragDisabled]="view() !== 'mine'"
                   (cdkDragStarted)="dragging.set(true)"
                   (cdkDragEnded)="dragging.set(false)"
+                  [attr.data-state]="man.state"
                   class="flex min-h-[10.5px] flex-1 items-center gap-1 pr-1 pl-0.5 text-left text-[10px] leading-none select-none"
                   [class]="rowTone(man)"
                   [class.opacity-30]="dimmed(man)"
@@ -332,12 +333,19 @@
                        nessuna parte: una cifra piu' bassa senza il perche' si legge come un
                        ordinamento rotto. Si tinge il NUMERO e non il nome perche' il fatto e' sulla
                        MIA rosa e non sull'uomo - l'infortunio tinge il nome, che e' suo - e solo dove
-                       quella cifra E' un'offerta: su chi e' di un altro la colonna porta il prezzo
-                       PAGATO, che nessuno sconto di mio ha toccato. -->
+                       quella cifra E' un'offerta: su chi ha gia' un padrone la colonna porta il
+                       prezzo PAGATO, che nessuno sconto di mio ha toccato.
+
+                       CHI E' MIO PORTA QUELLO CHE HO PAGATO, anche sulla griglia personale (sua
+                       richiesta, 24/09/2026). Chi lo dice e' l'inchiostro che questa riga ha gia' -
+                       il colore della riga e la barra del proprietario - e da qui in avanti «dove
+                       quella cifra e' un'offerta» vuol dire `offering(man)`, cioe' nessun padrone:
+                       la stessa domanda scritta una volta invece di un elenco di stati da tenere a
+                       mente. -->
                   @let figure = shown(man);
                   <span
                     class="w-[22px] shrink-0 text-right tabular-nums"
-                    [class.text-warning]="man.sameClubCut > 0 && man.state !== 'altro'"
+                    [class.text-warning]="man.sameClubCut > 0 && offering(man)"
                     >{{ figure != null ? (figure | number: '1.0-0') : '—' }}</span
                   >
                 </button>

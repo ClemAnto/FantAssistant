@@ -129,6 +129,18 @@ const ROLE_ZONE: Record<Role, Zone> = { P: 'gk', D: 'def', C: 'mid', A: 'atk' };
 /** A row of the board: the man, and what has happened to him. */
 export type ManState = 'urna' | 'mio' | 'altro' | 'asta';
 
+/**
+ * UN UOMO CHE E' MIO, col prezzo che ho pagato per averlo.
+ *
+ * `paid` e' quello di `owners()`, cioe' la stessa cifra che il tabellone stampa sulla sua riga: la
+ * card della rosa e la plancia devono dire lo stesso numero, o un acquisto ne avrebbe due. Non e'
+ * opzionale e non e' `null`: un uomo e' in questa lista PERCHE' qualcuno lo ha pagato, e a un credito
+ * si compra - lo zero non lo produce ne' l'asta vera ne' `award`, che lo rifiuta.
+ */
+export interface OwnedMan extends PlanciaMan {
+  paid: number;
+}
+
 export interface BoardMan extends PlanciaMan {
   state: ManState;
   /** What he was paid, once somebody has him; the max offer while he is still in the urn. */
@@ -1288,13 +1300,19 @@ export class PlanciaStore {
    *
    * Vuoto finche' non si sa chi sono io: «vuoto = ignoto», e un campetto senza padrone non si disegna.
    */
-  readonly mySquad = computed<PlanciaMan[]>(() => {
+  readonly mySquad = computed<OwnedMan[]>(() => {
     const mine = this.mineId();
     if (mine == null) return [];
-    const owned = new Set(
-      this.feed.picks().filter((pick) => pick.teamId === mine).map((pick) => pick.playerId),
-    );
-    return owned.size ? this.men().filter((man) => owned.has(man.id)) : [];
+    // DA `owners()` E NON DAI PICK: e' la stessa mappa che costruisce ogni riga del tabellone, quindi
+    // il prezzo che la card mostra e quello che la riga mostra sono lo STESSO numero. Una seconda
+    // lettura dei pick sarebbe un secondo modo di dire quanto ho pagato un uomo.
+    const owners = this.owners();
+    const out: OwnedMan[] = [];
+    for (const man of this.men()) {
+      const owner = owners.get(man.id);
+      if (owner?.teamId === mine) out.push({ ...man, paid: owner.price });
+    }
+    return out;
   });
 
   /**

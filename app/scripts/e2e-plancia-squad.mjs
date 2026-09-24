@@ -273,9 +273,19 @@ function readCard() {
       width: Math.round(rect.width),
       places: [...row.querySelectorAll('[data-place]')].map((place) => {
         const held = place.querySelector('[data-held]');
+        // IL NOME DAL SUO AGGANCIO e non dall'`innerText` del bottone: dal 24/09/2026 li' dentro c'e'
+        // anche quello che l'ho pagato, e leggere «Kean 42» come nome farebbe fallire ogni confronto
+        // col tabellone - il banco accuserebbe la pagina di un difetto che e' del suo selettore.
+        const heldPaid = place.querySelector('[data-held-paid]');
+        const heldName = held?.querySelector('[data-held-name]');
         return {
           role: place.getAttribute('data-place'),
-          man: held ? (held.innerText ?? '').trim() : null,
+          man: heldName ? (heldName.innerText ?? '').trim() : null,
+          paid: heldPaid ? Number((heldPaid.innerText ?? '').replace(/[^0-9-]/g, '')) : null,
+          // QUANTO LA CIFRA COSTA AL NOME: la casella e' larga un terzo della riga, quindi il numero
+          // accanto si paga in puntini. Si conta invece di stimarlo, e si stampa anche quando e' zero -
+          // il giorno che cresce si vede li' invece che a schermo.
+          cut: heldName ? heldName.scrollWidth > heldName.clientWidth + 1 : false,
           dashed: getComputedStyle(place).borderTopStyle === 'dashed',
           hints: [...place.querySelectorAll('[data-hint]')].map((hint) => ({
             name: (hint.querySelector('[data-hint-name]')?.innerText ?? '').trim(),
@@ -333,10 +343,15 @@ function readBoard() {
     if (!name) continue;
     const edge = Number((cells.at(-3)?.innerText ?? '').replace(/[^0-9.-]/g, ''));
     const pv = Number((cells.at(-2)?.innerText ?? '').replace(/[^0-9.-]/g, ''));
+    // L'ULTIMA CELLA: la mia max offerta finche' e' di nessuno, il prezzo PAGATO quando ha un padrone.
+    const price = Number((cells.at(-1)?.innerText ?? '').replace(/[^0-9-]/g, ''));
     const paint = cells[0] ? getComputedStyle(cells[0]).backgroundColor : '';
     const owned = !!paint && paint !== 'transparent' && !paint.startsWith('rgba(0, 0, 0, 0');
+    // LO STATO E' DICHIARATO DALLA RIGA (`data-state`, 24/09/2026) e non dedotto dal colore: «mio» e
+    // «di un altro» sono due barre dipinte, e il confronto qui sotto riguarda una sola delle due.
+    const state = row.getAttribute('data-state');
     if (byName.has(name)) twice.add(name);
-    byName.set(name, { edge, pv, owned });
+    byName.set(name, { edge, pv, price, owned, state });
   }
   for (const name of twice) byName.delete(name);
   return { men: Object.fromEntries(byName), ambiguous: [...twice] };
@@ -612,6 +627,42 @@ async function main() {
         ...(judged.length || !held.some((p) => p.hints.length)
           ? []
           : ["nessun confronto e' stato giudicabile: il banco non ha guardato niente"]),
+      ],
+    });
+
+    // 5-bis. QUANTO L'HO PAGATO, accanto al nome (sua richiesta, 24/09/2026) - e il numero si verifica
+    //        contro la RIGA DEL TABELLONE di quello stesso uomo, che e' l'altra cosa che il feed
+    //        prezza. Confrontarlo con se' stesso sarebbe l'asserzione circolare; confrontarlo con la
+    //        riga e' due componenti diversi che leggono lo stesso acquisto, ed e' esattamente il
+    //        difetto che si vuole impedire - una card e una plancia che dicono due prezzi.
+    const priced = [];
+    const unpriced = [];
+    const mismatched = [];
+    for (const place of held) {
+      const row = board.men[place.man];
+      // FUORI DAL TABELLONE non e' un difetto: la coda e chi rientra tardi una riga non ce l'hanno, ed
+      // e' lo stesso limite che il passo qui sopra dichiara. Quello che si pretende comunque e' che la
+      // CARD il prezzo lo mostri, perche' quello lo sa per tutti.
+      if (place.paid == null) unpriced.push(place.man);
+      if (!row || row.state !== 'mio' || !Number.isFinite(row.price)) continue;
+      priced.push(place.man);
+      if (place.paid !== row.price) {
+        mismatched.push(`${place.man}: la card dice ${place.paid}, la riga ${row.price}`);
+      }
+    }
+    note("ogni uomo del campetto porta quello che l'ho pagato", {
+      said:
+        `${held.length} posti occupati · ${priced.length} prezzi verificati contro il tabellone` +
+        ` · ${held.filter((one) => one.cut).length} nomi troncati dalla cifra accanto` +
+        (unpriced.length ? ` · SENZA cifra: ${unpriced.join(', ')}` : ''),
+      problems: [
+        ...unpriced.map((name) => `${name} e' in campo e non dice quanto e' costato`),
+        ...mismatched,
+        // Un passo che non ha confrontato niente lo DICE invece di passare: con tutti i miei fuori dal
+        // tabellone questo confronto non avrebbe guardato un solo prezzo.
+        ...(priced.length || !held.length
+          ? []
+          : ['nessun prezzo era confrontabile col tabellone: il passo non ha guardato niente']),
       ],
     });
 

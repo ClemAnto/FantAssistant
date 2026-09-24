@@ -136,7 +136,7 @@ export class SquadCard {
       );
       for (const man of block.rows) {
         if (man.state !== 'urna' && man.state !== 'asta') continue;
-        out.push({ ...asSquadMan(man), price, slot: block.id });
+        out.push({ ...asSquadMan(man, null), price, slot: block.id });
       }
     }
     return out;
@@ -145,7 +145,7 @@ export class SquadCard {
   /** Il campetto, la panchina e i grigi: una passata sola, e l'aritmetica non e' qui. */
   protected readonly pitch = computed(() =>
     squadPitchOf({
-      mine: this.store.mySquad().map(asSquadMan),
+      mine: this.store.mySquad().map((man) => asSquadMan(man, man.paid)),
       urn: this.urn(),
       places: this.places(),
       freeSlots: this.freeSlots(),
@@ -226,7 +226,18 @@ export class SquadCard {
  * `coin` E' IL SURPLUS, la moneta della griglia personale dal 23/09/2026: lo stesso campo su cui
  * `viewBlocks` taglia i blocchi, quindi la panchina e gli slot personali ordinano sulla stessa cosa.
  * `points` e' il valore atteso, che e' quello che decide chi gioca - vedi `core/plancia-squad.ts`.
+ *
+ * `paid` SI PASSA e non si indovina: per i miei e' il prezzo del feed, per chi e' ancora nell'urna e'
+ * `null` - e quel null lo dichiara il punto di chiamata invece di uscire da un campo che li' non
+ * esiste, cosi' i due casi restano due frasi diverse e non una sola scritta a meta'.
  */
-function asSquadMan(man: PlanciaMan): SquadMan {
-  return { id: man.id, name: man.name, role: man.role, points: man.points, coin: man.surplus };
+function asSquadMan(man: PlanciaMan, paid: number | null): SquadMan {
+  return {
+    id: man.id,
+    name: man.name,
+    role: man.role,
+    points: man.points,
+    coin: man.surplus,
+    paid,
+  };
 }

@@ -20,14 +20,25 @@ const MANTRA: MantraModules = {
 } as MantraModules;
 
 let nextId = 1;
+/** Un uomo che e' MIO, quindi con un prezzo pagato: e' cio' che lo distingue da uno dell'urna. */
 function man(role: Role, points: number | null, coin: number | null = points): SquadMan {
   const id = (nextId += 1);
-  return { id, name: `${role}${id}`, role, points, coin };
+  return { id, name: `${role}${id}`, role, points, coin, paid: id };
 }
 
+/** ...e uno ancora nell'urna: `paid` e' `null` perche' nessuno lo ha comprato, e non zero. */
 function urn(role: Role, points: number | null, price: number): UrnMan {
   const id = (nextId += 1);
-  return { id, name: `urn-${role}${id}`, role, points, coin: points, price, slot: `${role}1` };
+  return {
+    id,
+    name: `urn-${role}${id}`,
+    role,
+    points,
+    coin: points,
+    paid: null,
+    price,
+    slot: `${role}1`,
+  };
 }
 
 const FULL: Record<Role, number> = { P: 0, D: 0, C: 0, A: 0 };

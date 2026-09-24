@@ -167,14 +167,35 @@
                   [class.border-dashed]="!place.man"
                 >
                   @if (place.man) {
+                    <!-- IL NOME E QUANTO L'HO PAGATO (sua richiesta, 24/09/2026: «mostra il costo dei
+                         calciatori che ho comprato vicino al nome sul campetto»). La riga ha la stessa
+                         forma di quella grigia sotto - nome a sinistra, cifra a destra - e le due
+                         insieme si leggono come una tabellina: chi c'e' e quanto e' costato, chi si
+                         potrebbe prendere e quanto costerebbe. Due numeri che rispondono alla stessa
+                         domanda in due tempi, quindi la stessa colonna.
+
+                         DUE CAMPI E NON UNO NELL'`innerText`: il banco leggeva il nome da `data-held`
+                         intero, e una cifra dentro quel testo lo avrebbe fatto confrontare «Kean 42»
+                         con «Kean». Il nome ha un aggancio suo, che e' la regola di casa sugli agganci
+                         dichiarati.
+
+                         IL PREZZO E' QUELLO DEL FEED e non un nostro numero: se manca si tace invece
+                         di stampare uno zero, che direbbe «preso gratis» su un dato che non c'e'. -->
                     <button
                       type="button"
                       data-held
-                      class="block w-full truncate text-left font-medium text-fg"
+                      class="flex w-full items-baseline gap-1 text-left"
                       [class.cursor-default]="!opens(place.man)"
                       (click)="open(place.man)"
                     >
-                      {{ place.man.name }}
+                      <span data-held-name class="min-w-0 flex-1 truncate font-medium text-fg">{{
+                        place.man.name
+                      }}</span>
+                      @if (place.man.paid != null) {
+                        <span data-held-paid class="shrink-0 tabular-nums text-muted">{{
+                          place.man.paid
+                        }}</span>
+                      }
                     </button>
                   }
 

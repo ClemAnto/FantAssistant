@@ -287,6 +287,9 @@ function readBoard() {
           lead: Number((cells.at(-3)?.innerText ?? '').replace(/[^0-9.-]/g, '')),
           // Il vincolo si legge dall'inchiostro, che e' il canale con cui la pagina lo dichiara.
           struck: getComputedStyle(row).textDecorationLine.includes('line-through'),
+          // ...e lo STATO dalla riga stessa (`data-state`, 24/09/2026): «mio» e «di un altro» sono due
+          // barre dipinte, e dal 24/09 la colonna di destra li tratta in modo diverso.
+          state: row.getAttribute('data-state'),
           // DI QUALCUNO: la barra del proprietario e' dipinta. E' il canale con cui la riga lo dice,
           // e sono le righe su cui la colonna del mercato cambia significato.
           owned: !!paint && paint !== 'transparent' && !paint.startsWith('rgba(0, 0, 0, 0'),
@@ -693,6 +696,45 @@ async function main() {
     const backToMarket = await evaluate(session, boxOf, 'header nz-radio-group label', 'mercato');
     if (backToMarket) await click(session, backToMarket);
     await wait(400);
+
+    // 0-ter. CHI E' MIO PORTA QUELLO CHE HO PAGATO, anche sul taglio personale (sua richiesta,
+    //        24/09/2026: «mostra il costo dei tuoi calciatori al posto del costo massimo in ogni riga
+    //        nei gruppi»). Il numero si verifica contro la stessa riga sulla griglia del MERCATO, dove
+    //        la colonna e' il prezzo di chiunque abbia un padrone da sempre: due tagli della stessa
+    //        pagina devono dire dello stesso acquisto la stessa cifra. Confrontarlo col tetto che la
+    //        riga mostrava prima sarebbe confrontarlo con la cosa che si e' appena tolta.
+    const playedMarket = await waitFor(session, readBoard, 60);
+    const paidOnMarket = new Map();
+    for (const block of playedMarket ?? []) {
+      for (const row of block.rows) if (row.state === 'mio') paidOnMarket.set(row.name, row.offer);
+    }
+    const mineRows = (played ?? []).flatMap((block) => block.rows).filter((row) => row.state === 'mio');
+    const wrongPaid = mineRows
+      .filter((row) => paidOnMarket.has(row.name) && paidOnMarket.get(row.name) !== row.offer)
+      .map((row) => `${row.name}: personali ${row.offer}, mercato ${paidOnMarket.get(row.name)}`);
+    // I RIVALI RESTANO AL MIO TETTO, ed e' l'altra meta' della regola: il prezzo che ha pagato un
+    // altro non e' una cifra mia, ed era il 403 di Martinez L. che il 04/09 ha aperto la questione.
+    const rivals = (played ?? []).flatMap((block) => block.rows).filter((row) => row.state === 'altro');
+    const rivalsAtPaid = rivals.filter((row) => {
+      const onMarket = (playedMarket ?? [])
+        .flatMap((block) => block.rows)
+        .find((one) => one.name === row.name);
+      return onMarket && onMarket.state === 'altro' && onMarket.offer === row.offer && row.offer > 0;
+    });
+    note("sui personali chi e' mio porta il prezzo PAGATO, e i rivali il mio tetto", {
+      said:
+        `${mineRows.length} righe mie · ${wrongPaid.length} in disaccordo col mercato · ` +
+        `${rivals.length} righe di rivali, ${rivalsAtPaid.length} col prezzo che hanno pagato loro`,
+      problems: [
+        ...wrongPaid,
+        // Un passo che non ha guardato niente lo DICE: su un tavolo senza miei acquisti questo
+        // confronto passerebbe a vuoto, e un verde cosi' e' quello che non si distingue da un difetto.
+        ...(mineRows.length
+          ? []
+          : ['nessuna riga mia sul taglio personale: il passo non ha guardato niente']),
+      ],
+    });
+
 
     // 0. TUTTI NELL'URNA. La colonna del MERCATO porta due significati - max offerta finche' e' nell'urna,
     //    prezzo pagato dopo - e i passi che confrontano le due plance riga per riga hanno bisogno che sia

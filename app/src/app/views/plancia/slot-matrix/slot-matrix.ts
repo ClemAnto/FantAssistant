@@ -530,9 +530,35 @@ export class SlotMatrix {
    * legge dalla barra del proprietario o dalla griglia del mercato.
    *
    * *Una colonna puo' portare due significati solo dove non e' anche la chiave dell'ordinamento.*
+   *
+   * ...E CHI E' MIO PORTA QUELLO CHE HO PAGATO, su tutt'e due i tagli (sua richiesta, 24/09/2026:
+   * «mostra il costo dei tuoi calciatori al posto del costo massimo in ogni riga nei gruppi»). Il
+   * mercato lo faceva gia' - li' la colonna e' il prezzo di chiunque abbia un padrone - e la griglia
+   * personale no: su un uomo che e' gia' mio il mio tetto e' la risposta a una domanda che non esiste
+   * piu', mentre quello che ho speso decide tutto quello che viene dopo.
+   *
+   * E NON CONTRADDICE LA REGOLA QUI SOPRA, perche' la premessa e' cambiata sotto di lei: il 04/09 il
+   * taglio personale ERA il tetto, quindi la colonna era la chiave dell'ordine; dal 23/09 la moneta e'
+   * il SURPLUS, che ha una colonna sua due celle piu' a sinistra, e questa non ordina piu' niente.
+   * Resta vera per i RIVALI, che sulla griglia personale continuano a mostrare il mio tetto: li' il
+   * prezzo pagato da un altro non e' una cifra mia, ed era proprio il 403 di Martinez L.
    */
   protected shown(man: BoardMan): number | null {
+    if (man.state === 'mio') return man.price;
     return this.view() === 'mine' ? (man.band?.high ?? null) : man.price;
+  }
+
+  /**
+   * LA CIFRA A DESTRA E' UNA MIA OFFERTA, e non un prezzo che qualcuno ha gia' pagato.
+   *
+   * Serve a una cosa sola: decidere se tingerla quando e' scesa perche' di quel club ne ho gia'. Uno
+   * sconto e' un fatto su un'OFFERTA, quindi su una cifra gia' pagata quella tinta direbbe che un
+   * prezzo fatto e' piu' basso di quanto e' - e dal 24/09 quel caso esiste anche sulle MIE righe.
+   * (Sul mercato esisteva da prima e nessuno se n'era accorto: li' un mio uomo mostra il prezzo pagato
+   * da sempre.)
+   */
+  protected offering(man: BoardMan): boolean {
+    return man.state === 'urna' || man.state === 'asta';
   }
 
   /**

@@ -59,6 +59,19 @@ export interface SquadMan {
   points: number | null;
   /** La moneta della plancia (il surplus): ordina la panchina. Chi non ce l'ha va in fondo. */
   coin: number | null;
+  /**
+   * QUANTO L'HO PAGATO, e `null` per chi non e' mio.
+   *
+   * Sua richiesta (24/09/2026): «nella plancia mostra il costo dei calciatori che ho comprato vicino
+   * al nome sul campetto». E' il prezzo del FEED - quello che la riga del tabellone stampa sulla sua
+   * colonna di destra - e non una nostra valutazione: la card non prezza nessuno, legge.
+   *
+   * Il `null` non e' uno zero e i due casi non si toccano mai sulla stessa riga: un uomo dell'URNA non
+   * ha un prezzo pagato perche' nessuno lo ha comprato, e quello che a lui COSTERA' sta in
+   * `UrnMan.price`, che e' una previsione sullo slot e non un fatto su di lui. Due numeri, due
+   * domande, due campi.
+   */
+  paid: number | null;
 }
 
 /** ...e uno ancora nell'urna, con quello che la stanza paga per il suo slot. */
