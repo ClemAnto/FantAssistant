@@ -25,7 +25,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
 import { demoPlayers } from './auction-demo';
 import { EngineNumbers, ValuationBasis, valuationOf } from './auction-value';
-import { Bundle, EngineSheetEntry } from './bundle';
+import { Bundle, BundleTable, EngineSheetEntry } from './bundle';
 import { ValuationStore } from './valuation-store';
 import { ExpectedPlay } from './expected-play';
 import { PlayerRatingsStore } from './player-ratings-store';
@@ -85,6 +85,8 @@ import { DEMO_PROGRESS, STANDARD_LEAGUE, buildRandomAuction, roleOf } from './pl
 import { PlayerRulings, rungShares } from './player-rulings';
 import { Platform } from './players-store';
 import { SeasonLine, seasonLines } from './season-line';
+import { TrendCell, parseTrend, rowTrend } from './player-trend';
+import { PlanciaOrderFile, orderFileOf, readOrderFile } from './plancia-order-file';
 import { needOf, nextGoal, serves, GOALS, Goal, Owned, TOP_WORDS } from './focus';
 import { withRowAt } from './manual-order';
 import { stored, storedFlag, storedJson } from './view-state';
@@ -672,7 +674,7 @@ export class PlanciaStore {
    * Sua richiesta del 23/09/2026. Persistita come gli altri due interruttori della barra e per la
    * stessa ragione: e' un modo di leggere la pagina, non un link da mandare a qualcuno.
    */
-  readonly rowStats = stored<RowStats>('plancia.stats', 'engine', ['engine', 'last']);
+  readonly rowStats = stored<RowStats>('plancia.stats', 'engine', ['engine', 'last', 'trend']);
 
   /**
    * LA STAGIONE SCORSA DI OGNI UOMO, letta e mai derivata (`seasonLines`, una definizione sola).
@@ -684,6 +686,18 @@ export class PlanciaStore {
 
   /** Che stagione e', per l'etichetta: il nome non si deduce dalla data di oggi. */
   readonly lastSeasonLabel = signal<string | null>(null);
+
+  /**
+   * LE ULTIME QUATTRO PARTITE DI OGNI UOMO, gia' tagliate e gia' girate (`rowTrend`, una definizione).
+   *
+   * Letta dal foglio e mai ricalcolata: il record lo scrive il toolkit (`snapshot.trend_block`) perche'
+   * e' una MISURA - che voto ha avuto una partita, se il gioco l'ha votata, se era in panchina - e una
+   * misura vive dove le misure si fanno e si giudicano. Qui si parsa e si taglia, e basta.
+   *
+   * VUOTA SU UN PACCHETTO PIU' VECCHIO DELLA COLONNA, e allora le celle stampano un trattino: la
+   * plancia si apre lo stesso, come fa senza la stagione scorsa e senza il calendario.
+   */
+  readonly trend = signal<ReadonlyMap<number, TrendCell[]>>(new Map());
 
   /** La plancia come la si guarda: `blocks()` sul mercato, la stessa gente ritagliata sul mio tetto. */
   readonly viewBlocks = computed<BoardBlock[]>(() => {
@@ -1008,6 +1022,34 @@ export class PlanciaStore {
   /** Quanti ne ho buttati, per la barra: un conto che non si vede e' un vincolo muto. */
   readonly binnedCount = computed(() => this.binnedIds().size);
 
+  /**
+   * CHI HO BUTTATO, per nome: la lista che la modale disegna (sua richiesta, 24/09/2026).
+   *
+   * Le righe sono quelle della mappa del MERCATO, che e' l'unica a tenerli ancora: la griglia personale
+   * li toglie per costruzione, ed e' il motivo per cui questa lista non si puo' ricavare da li'.
+   *
+   * L'ORDINE E' QUELLO DEL TABELLONE (ruolo, slot, rango) e non quello in cui li ho buttati, e la
+   * ragione e' che il secondo non sopravvive a un ricaricamento: la pila di `binOrder` non e' persistita
+   * apposta - «un annulla che sopravvive a un ricaricamento disferebbe una cosa fatta ieri» - quindi una
+   * lista ordinata per tempo leggerebbe in due modi diversi prima e dopo un refresh, che e' peggio di
+   * un ordine solo meno interessante.
+   */
+  readonly binnedMen = computed<{ id: number; name: string; role: Role; club: string; slot: string }[]>(
+    () => {
+      const binned = this.binnedIds();
+      if (!binned.size) return [];
+      const out: { id: number; name: string; role: Role; club: string; slot: string }[] = [];
+      for (const block of this.blocks()) {
+        for (const row of block.rows) {
+          if (binned.has(row.id)) {
+            out.push({ id: row.id, name: row.name, role: row.role, club: row.club, slot: block.id });
+          }
+        }
+      }
+      return out;
+    },
+  );
+
   /** Se c'e' un ordine mio da annullare, per accendere la crocetta solo quando serve. */
   readonly hasOrder = computed(() => Object.values(this.order()).some((one) => one.length > 0));
 
@@ -1048,6 +1090,57 @@ export class PlanciaStore {
       [key]: (was[key] ?? []).filter((one) => one !== last.id),
     }));
     this.binOrder.update((was) => was.slice(0, -1));
+  }
+
+  /**
+   * RIMETTE UNO, quello su cui ha cliccato (sua richiesta, 24/09/2026: «se clicco sopra ripristinalo»).
+   *
+   * E' `unbin` senza la pila: la' l'uomo lo sceglie il TEMPO, qui lo sceglie lui, e sono due gesti -
+   * «disfai l'ultima cosa che ho fatto» e «quello li' lo rivoglio». Si toglie da tutte e quattro le
+   * liste invece che da quella del suo ruolo: un id sta in una sola, e filtrarle tutte non puo' lasciare
+   * una copia dietro il giorno in cui un uomo cambia ruolo fra due letture del foglio.
+   *
+   * ...E ANCHE DALLA PILA, o «annulla» dopo un ripristino proverebbe a rimettere un uomo che e' gia'
+   * in lista: non romperebbe niente e non farebbe niente, cioe' un gesto che si mangia un click in
+   * silenzio.
+   */
+  unbinOne(id: number): void {
+    this.binned.update((was) =>
+      Object.fromEntries(
+        Object.entries(was).map(([key, ids]) => [key, ids.filter((one) => one !== id)]),
+      ),
+    );
+    this.binOrder.update((was) => was.filter((one) => one.id !== id));
+  }
+
+  /**
+   * L'ORDINE E I BUTTATI COME UN OGGETTO SOLO, da portare su un altro device (sua richiesta, 24/09/2026).
+   *
+   * Legge i due segnali e basta: la FORMA - cosa ci va dentro, cosa no e perche' - sta in
+   * `plancia-order-file.ts`, che e' puro e si puo' provare senza montare niente.
+   */
+  exportOrder(today: string): PlanciaOrderFile {
+    return orderFileOf(this.order(), this.binned(), today);
+  }
+
+  /**
+   * ...e quello che arriva dall'altro device: SOSTITUISCE, non fonde.
+   *
+   * Fondere sembra piu' gentile e produrrebbe una lista che non e' ne' quella di qua ne' quella di la' -
+   * due prefissi cuciti insieme sono un ordine che nessuno ha deciso, e l'operatore quell'ordine lo
+   * riconoscerebbe solo scorrendolo tutto. Sostituire e' un gesto che si capisce, e la strada indietro
+   * c'e' gia': il tasto che rimette l'ordine del foglio.
+   *
+   * La PILA dell'annulla si azzera insieme: e' la storia dei gesti di QUESTA sessione, e un «annulla»
+   * che disfacesse un'eliminazione fatta su un altro computer non e' quello che quella parola promette.
+   */
+  importOrder(text: string): PlanciaOrderFile | string {
+    const file = readOrderFile(text);
+    if (typeof file === 'string') return file;
+    this.order.set(file.order);
+    this.binned.set(file.binned);
+    this.binOrder.set([]);
+    return file;
   }
 
   /** ...e il tasto che rimette tutto come il foglio lo aveva messo: ordine e cestino insieme. */
@@ -1459,14 +1552,33 @@ export class PlanciaStore {
   private readonly cards = new CardStack();
 
   readonly cardMen = computed<{ man: CardMan; slot: number; key: CardKey }[]>(() => {
+    // OGNI RIGA CHE LA PLANCIA DISEGNA HA UNA CARD, e non solo quelle della mappa del MERCATO.
+    //
+    // Difetto trovato dall'operatore il 24/09/2026 («come mai se clicco su Bakola non esce il dettaglio
+    // del calciatore?») e riprodotto in un browser vero: dal 23/09 la griglia PERSONALE ripesca dalla
+    // coda chi prende il posto di un nome buttato, e quei ripescati `viewBlocks` se li costruisce da se'
+    // - in `blocks()` non ci sono. Quindi una riga disegnata, col cursore giusto e il click che arriva
+    // allo store, non apriva niente: «un gesto che non fa niente in silenzio e' indistinguibile da un
+    // gesto rotto». Il commento che stava qui («la coda non ha una riga, quindi non ha una card»)
+    // descriveva il mondo di PRIMA di quella richiesta, ed e' cosi' che un difetto sopravvive a una
+    // feature: la frase che lo scusava era vera quando fu scritta.
+    //
+    // IL BLOCCO RESTA QUELLO DEL MERCATO dove ce n'e' uno, e per questo si indicizza in quest'ordine:
+    // e' lo slot su cui la banda e' stata MISURATA (§19.3), quindi e' quello che la card deve nominare
+    // anche mentre si guarda la griglia personale. Chi viene dalla coda uno slot di mercato non ce l'ha
+    // affatto - `capNoteOf` lo dice gia' («sotto l'ultimo slot, la scala non arriva fin li'») - quindi
+    // porta il blocco della griglia in cui e' finito e `cardManOf` scrive «coda» al posto del numero.
     const byId = new Map<number, { man: BoardMan; block: BoardBlock }>();
     for (const block of this.blocks()) {
       for (const row of block.rows) byId.set(row.id, { man: row, block });
     }
+    for (const block of this.viewBlocks()) {
+      for (const row of block.rows) if (!byId.has(row.id)) byId.set(row.id, { man: row, block });
+    }
     const numbers = this.numbers();
     const rounds = this.seasonRounds();
-    // Chi non è più in mappa esce da sé: la coda si compra a un credito e non ha una riga, quindi non
-    // ha una card - e una card che sopravvive alla propria riga mostrerebbe numeri di un altro giro.
+    // Chi non e' piu' disegnato da nessuna delle due griglie esce da se': una card che sopravvive alla
+    // propria riga mostrerebbe i numeri di un altro giro.
     return this.cards.place((key) => {
       const id = playerOfCard(key);
       const found = id == null ? undefined : byId.get(id);
@@ -1915,6 +2027,11 @@ export class PlanciaStore {
     this.seasonRounds.set(seasonRoundsOf(table.matchdays, chosen.matchdays_target));
     const numbers = engineNumbersFrom(table);
     this.numbers.set(numbers);
+    // LA STRISCIA DEL TREND, dallo STESSO foglio e nella stessa passata: chiederlo di nuovo sarebbe una
+    // seconda lettura della stessa tabella, e una seconda lettura e' come una riga finisce per portare
+    // due storie. Non e' `void`-ata come le tre letture qui sotto perche' non c'e' niente da attendere:
+    // la tabella e' gia' in mano.
+    this.trend.set(trendStrips(table));
     // QUANTO VALE UNA PAROLA su questo foglio, consegnato a chi tiene le dritte dell'operatore: questa
     // pagina legge il foglio da se' e non passa da `ValuationStore`, quindi senza questa riga il
     // selettore della card stamperebbe un trattino al posto delle giornate di ogni gradino.
@@ -2031,6 +2148,31 @@ function mineFirst(rows: BoardMan[]): BoardMan[] {
   );
 }
 
+/**
+ * Le ultime quattro partite di ogni uomo del foglio, dal suo `desc_trend_detail`.
+ *
+ * Un pacchetto che quella colonna non la porta da' una mappa vuota e nessuno se ne lamenta: chi la
+ * legge stampa un trattino, che e' esattamente cio' che una finestra ignota significa.
+ */
+function trendStrips(table: BundleTable): Map<number, TrendCell[]> {
+  const out = new Map<number, TrendCell[]>();
+  const id = table.columns.indexOf('fc_id');
+  const detail = table.columns.indexOf('desc_trend_detail');
+  // IL CAMPIONATO DELLA SUA RIGA, che serve a `rowTrend` per non contare le partite del club che ha
+  // lasciato: la ragione per intero, e i numeri che la reggono, stanno in `ownLeague`.
+  const league = table.columns.indexOf('league');
+  if (id < 0 || detail < 0) return out;
+  for (const row of table.rows) {
+    const matches = parseTrend(row[detail] as string | null);
+    if (!matches.length) continue;
+    out.set(
+      Number(row[id]),
+      rowTrend(matches, { league: league < 0 ? null : ((row[league] as string) ?? null) }),
+    );
+  }
+  return out;
+}
+
 /** The median of the numbers that exist. A null is not a zero, so it is not in the sample. */
 function middleOf(values: (number | null)[]): number | null {
   const known = values.filter((value): value is number => value != null).sort((a, b) => a - b);
@@ -2066,7 +2208,11 @@ function cardManOf(
     // Il listone d'asta non porta l'identita' di un club: la card la risolve dal nome, e solo per lo
     // stemma. Un fatto che decide un numero non passerebbe mai di li'.
     clubId: null,
-    where: `${man.role}${block.index}`,
+    // IL POSTO, e per chi viene dalla coda non e' un numero: uno slot di mercato non ce l'ha, e
+    // stampare quello della griglia personale contraddirebbe la nota del tetto due righe piu' giu'
+    // («sotto l'ultimo slot»). Due frasi sullo stesso uomo che non sono d'accordo sono peggio di una
+    // sola meno precisa.
+    where: man.fromTail ? `${man.role} coda` : `${man.role}${block.index}`,
     role: man.role,
     platform: 'default',
     edge: man.edge,

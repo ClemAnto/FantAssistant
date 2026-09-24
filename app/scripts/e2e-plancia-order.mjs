@@ -757,12 +757,90 @@ async function main() {
         }
       }
 
-      // L'ANNULLA lo rimette, e il tasto esiste solo quando c'e' qualcosa da annullare.
+      // ...E LA SUA RIGA SI APRE COME TUTTE LE ALTRE (sua segnalazione del 24/09/2026 su Bakola:
+      // «come mai se clicco non esce il dettaglio del calciatore?»). Il difetto era qui: la pila delle
+      // card si indicizzava sulla mappa del MERCATO, dove un ripescato non c'e' - quindi la riga si
+      // disegnava, il cursore prometteva un gesto, il click arrivava allo store e non apriva niente.
+      // Il NULL e' la riga accanto: se nemmeno quella aprisse, il passo starebbe misurando il click.
+      if (fresh.length === 1) {
+        const openOf = async (name) => {
+          const at = await evaluate(session, (who) => {
+            const b = [...document.querySelectorAll('[data-block] button')].find(
+              (one) => (one.innerText ?? '').split(String.fromCharCode(10))[0].trim() === who,
+            );
+            if (!b) return null;
+            const r = b.getBoundingClientRect();
+            return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+          }, name);
+          if (!at) return null;
+          await click(session, at);
+          await wait(700);
+          return evaluate(session, () =>
+            [...document.querySelectorAll('ui-player-card')].map((card) =>
+              (card.innerText ?? '').split(String.fromCharCode(10))[0].trim(),
+            ),
+          );
+        };
+        // LE CARD SI CHIUDONO FRA UN'APERTURA E L'ALTRA, e non alla fine: stanno in `fixed` sopra la
+        // plancia, quindi la prima copre la riga che il passo dopo deve cliccare - il secondo click
+        // finiva sulla card e il banco leggeva «nemmeno un uomo disegnato apre la sua», accusando la
+        // pagina del proprio difetto. Terza volta in questo repository che una card fixed ruba un
+        // click a un banco.
+        const shutAll = async () => {
+          const n = await evaluate(session, () => {
+            let shut = 0;
+            for (const card of document.querySelectorAll('ui-player-card')) {
+              const close = card.querySelector('[data-close], button[aria-label="chiudi"]');
+              if (close) { close.click(); shut += 1; }
+            }
+            return shut;
+          });
+          await wait(400);
+          return n;
+        };
+        const tail = await openOf(fresh[0].name);
+        console.log(`. card del ripescato «${fresh[0].name}»: ${JSON.stringify(tail)}`);
+        if (!tail || !tail.some((one) => one.includes(fresh[0].name))) {
+          problems.push(`la riga del ripescato «${fresh[0].name}» non apre nessuna card`);
+        }
+        await shutAll();
+        const drawn = dumped.find((one) => one.name !== fresh[0].name)?.name;
+        const normal = drawn ? await openOf(drawn) : null;
+        console.log(`. card di un disegnato «${drawn}»: ${JSON.stringify(normal)}`);
+        if (drawn && !(normal ?? []).some((one) => one.includes(drawn))) {
+          problems.push(`nemmeno «${drawn}» apre la sua card: il passo sta misurando il click, non la pila`);
+        }
+        const left = await shutAll();
+        console.log(`. card chiuse: ${left} · ne restano ${await evaluate(session, () => document.querySelectorAll('ui-player-card').length)}`);
+      }
+
+      // LA LISTA DEI BUTTATI LO RIMETTE, e il tasto esiste solo quando c'e' qualcuno dentro.
+      //
+      // Il gesto e' cambiato il 24/09/2026 su sua richiesta: il tasto apriva una modale con la lista e
+      // un click sul nome lo ripristina, invece di disfare l'ultima eliminazione senza dire quale. Il
+      // passo segue il gesto NUOVO - una feature che cambia porta con se' il passo che la verificava,
+      // o il rosso diventa rumore - e quello che asserisce e' lo stesso di prima piu' una cosa: che la
+      // lista NOMINI chi e' stato buttato, perche' e' il motivo per cui la modale esiste.
       const un = await evaluate(session, boxOf, '[data-unbin]', 'buttati');
-      if (!un) problems.push("il tasto «annulla l'ultima eliminazione» non c'e'");
+      if (!un) problems.push("il tasto «buttati» non c'e'");
       else {
         await click(session, un);
-        await wait(400);
+        await wait(500);
+        const listed = await evaluate(session, () =>
+          [...document.querySelectorAll('[data-binned]')].map((one) => (one.innerText ?? '').trim()));
+        console.log(`. la lista dei buttati: ${JSON.stringify(listed)}`);
+        if (!listed.length) problems.push('la modale dei buttati non elenca nessuno');
+        if (!listed.some((one) => one.includes(after[0]?.name ?? ' '))) {
+          problems.push(`la lista non nomina «${after[0]?.name}», che e' quello che ho buttato`);
+        }
+        const row = await evaluate(session, boxOf, '[data-binned]', after[0]?.name ?? '');
+        if (!row) problems.push(`non trovo la riga di «${after[0]?.name}» nella lista`);
+        else {
+          console.log(`. la riga «${row.text}» e' raggiungibile: ${row.reachable}`);
+          if (!row.reachable) problems.push('la riga della lista c e ma un click di una mano non la prende');
+          await click(session, row);
+        }
+        await wait(500);
         const back = await evaluate(session, rowsOf, 'D');
         console.log(`. annullato: ${back.length} righe, la prima e «${back[0]?.name}»`);
         if (!back.some((one) => one.name === after[0]?.name)) problems.push('annulla non ha rimesso il buttato');
@@ -796,6 +874,89 @@ async function main() {
       const plain = await evaluate(session, rowsOf, 'D');
       console.log(`. azzerato: la prima e «${plain[0]?.name}» (era «${before[0]?.name}» all inizio)`);
       if (plain[0]?.name !== before[0]?.name) problems.push(`il reset non torna all ordine del foglio: «${plain[0]?.name}» invece di «${before[0]?.name}»`);
+    }
+
+    // L'ORDINAMENTO SI PORTA SU UN ALTRO DEVICE, e il giro si fa INTERO (sua richiesta, 24/09/2026).
+    //
+    // Il null e' il reset in mezzo: senza, un import che non facesse niente leggerebbe identico a uno
+    // riuscito, perche' l'ordine sarebbe rimasto quello di prima. Quindi si sistema un nome, si copia
+    // l'oggetto, si AZZERA - e si verifica che sia davvero sparito - e solo allora si incolla.
+    const last = (await evaluate(session, rowsOf, 'D')).at(-1)?.name;
+    const grabLast = await evaluate(session, (who) => {
+      const b = [...document.querySelectorAll('[data-block] button')]
+        .find((one) => (one.innerText ?? '').split(String.fromCharCode(10))[0].trim() === who);
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }, last ?? '');
+    const head = await evaluate(session, rowsOf, 'D');
+    const toTop = await evaluate(session, (who) => {
+      const b = [...document.querySelectorAll('[data-block] button')]
+        .find((one) => (one.innerText ?? '').split(String.fromCharCode(10))[0].trim() === who);
+      const r = b.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + 2 };
+    }, head[0]?.name ?? '');
+    if (grabLast && toTop) await dragTo(session, grabLast, toTop, 12);
+    const arranged = (await evaluate(session, rowsOf, 'D'))[0]?.name;
+    console.log(`. da portare altrove: la prima e «${arranged}»`);
+
+    const open = await evaluate(session, boxOf, '[data-move-order]', '');
+    if (!open) problems.push("il tasto «ordinamento» non c'e'");
+    else {
+      console.log(`. il tasto «${open.text}» e' raggiungibile: ${open.reachable}`);
+      if (!open.reachable) problems.push('il tasto «ordinamento» c e ma un click di una mano non lo prende');
+      await click(session, open);
+      await wait(600);
+      const payload = await evaluate(session, () =>
+        document.querySelector('[data-move-text]')?.value ?? '');
+      console.log(`. l oggetto pesa ${payload.length} caratteri`);
+      if (!payload.includes('fantassistant.plancia.order')) {
+        problems.push("l oggetto esportato non porta il suo marchio");
+      }
+      if (!payload.includes('"order"')) problems.push("l oggetto esportato non porta l ordine");
+      await click(session, await evaluate(session, boxOf, '[data-move-copy]', ''));
+      await wait(300);
+
+      // IL NULL: si azzera, e si VERIFICA che l ordine sia sparito prima di reimportarlo.
+      await evaluate(session, () => document.querySelector('.ant-modal-close')?.click());
+      await wait(400);
+      await click(session, await evaluate(session, boxOf, '[data-reset-order]', ''));
+      await wait(400);
+      const wiped = (await evaluate(session, rowsOf, 'D'))[0]?.name;
+      console.log(`. azzerato prima di reimportare: la prima e «${wiped}»`);
+      if (wiped === arranged) {
+        problems.push('il reset non ha tolto l ordine: il passo non proverebbe niente sull import');
+      }
+
+      // ...E SI INCOLLA COME UNA MANO: si clicca la casella, si seleziona tutto e si INSERISCE il testo,
+      // che passa dal pipeline di input del browser invece di essere scritto nel DOM.
+      await click(session, await evaluate(session, boxOf, '[data-move-order]', ''));
+      await wait(600);
+      const box = await evaluate(session, boxOf, '[data-move-text]', '');
+      if (!box) problems.push('la casella dell oggetto non e sullo schermo');
+      else {
+        await click(session, box);
+        await evaluate(session, () => {
+          const el = document.querySelector('[data-move-text]');
+          el.focus();
+          el.setSelectionRange(0, el.value.length);
+        });
+        await session.send('Input.insertText', { text: payload });
+        await wait(200);
+        await click(session, await evaluate(session, boxOf, '[data-move-import]', ''));
+        await wait(600);
+        const said = await evaluate(session, () =>
+          (document.querySelector('[data-move-says]')?.innerText ?? '').trim());
+        console.log(`. l import dice: «${said}»`);
+        if (!said) problems.push("l import non dice cosa ha letto: un import muto e indistinguibile da uno rotto");
+        await evaluate(session, () => document.querySelector('.ant-modal-close')?.click());
+        await wait(500);
+        const backHome = (await evaluate(session, rowsOf, 'D'))[0]?.name;
+        console.log(`. dopo l import la prima e «${backHome}» (era «${arranged}»)`);
+        if (backHome !== arranged) {
+          problems.push(`l import non ha rimesso l ordine: la prima e «${backHome}» invece di «${arranged}»`);
+        }
+      }
     }
   } finally {
     if (session) session.close();

@@ -5513,3 +5513,134 @@ non dato per buono.
   ordine. Non c'è un comando solo che li incateni.
 - Il foglio non ha **intestazioni di colonna per club**: misurate, costano 0,2pt di corpo su ogni riga
   (`columnsNeeded` 4,83 → 5,04, cioè sfora), e la legenda in fondo nomina le colonne nell'ordine.
+
+## 57. IL PRESET «TREND», e una finestra che mescola due club (24 settembre 2026)
+
+Richiesta dell'operatore: «oltre a default e scorso aggiungi un nuovo preset TREND che se attivo mostra
+nelle righe dei calciatori gli ultimi 4 fantavoti con una piccola freccettina verde verso l'alto se è
+entrato e una verso il basso se è uscito». Terza voce della select della plancia, accanto a `default` e
+`scorso (2025-26)`, e **nessun numero del motore si muove**: la striscia legge `desc_trend_detail`, che il
+toolkit scrive perché è una MISURA, e non ricalcola niente.
+
+**«GLI ULTIMI 4 FANTAVOTI» HA DUE LETTURE E NON SONO EQUIVALENTI.** Prendere le ultime quattro partite in
+cui un fantavoto *c'è stato* riempie sempre la striscia di numeri, e per un uomo fermo da un mese stampa
+quelli di un mese fa come se fossero di sabato scorso: nasconde l'ASSENZA, che è la metà che decide
+un'asta (`Var(ln pv)` è il 90% della varianza dei fantapunti). Si adottano le ultime quattro **del
+calendario**, che dicono la verità su tutt'e due le cose. Il prezzo è misurato: sul foglio del 24/09/2026,
+**127 uomini su 536** hanno le quattro caselle vuote — un quarto del listone non ha giocato una sola delle
+ultime quattro del suo club, e con l'altra lettura quei 127 avrebbero mostrato quattro numeri.
+
+**LA FINESTRA MESCOLA DUE CLUB, e questo è il difetto che l'operatore ha trovato su due nomi.** Il record
+è l'UNIONE delle ultime dieci di campionato dei club per cui ha giocato quest'anno — giusto per la media,
+che è una domanda su di lui — e nelle giornate del club che ha lasciato risulta «non convocato», che è
+vero e non è una sua prova. Mastantuono (Real Madrid → Fiorentina) ha giocato **quattro** giornate di
+Serie A e la striscia ne mostrava **una**; Frattesi (Inter → Lazio) due su quattro. Due cure, perché sono
+due casi:
+- **il CAMPIONATO**, subito e senza toccare il foglio: si tengono le partite della competizione che la
+  riga dichiara. Misurato sul pacchetto del 24/09/2026: **123 righe su 537** del foglio di Serie A hanno
+  una finestra mista, e il filtro restituisce **23 fantavoti** che la striscia nascondeva (114 su 911 e 40
+  fantavoti sul foglio euro). Non cura Frattesi, che ha cambiato club *dentro* la Serie A.
+- **il CLUB**, ed è la regola vera: `desc_trend_detail` porta un diciassettesimo campo che dice, per ogni
+  partita, se è del club in cui l'uomo è adesso (`SHEET_REVISION` 76). **Il dato c'era** — `own` lo calcola
+  due righe sopra per la lettura corta, e la riga non lo scriveva: undicesima istanza in questo repository.
+  In coda e `1`/`0`, quindi un pacchetto più vecchio del campo continua a leggere i sedici di prima; vuoto
+  vuol dire «non si sa qual è il suo club», che non è «nessuna di queste è sua».
+
+**IL CORPO È OTTO, E NON È UNA SCELTA DI GUSTO: È CIÒ CHE RENDE LA STRISCIA PAGABILE.** A dieci pixel — il
+corpo della riga — il fantavoto più largo che esista qui («14.0») misura 18,3px e la cella ne vorrebbe 25,
+cioè 103 per quattro: più di quanti la riga intera ne abbia da dare, e il nome sarebbe sceso a
+ventiquattro pixel. A otto quello stesso numero ne misura 14,7 e la cella sta in diciotto. Misure prese
+nella pagina vera a 1600x1000, dove un blocco è largo **187px** e la riga 185: la striscia costa **75px**
+dove i due numeri del motore ne costavano 45, quindi al nome ne restano ~56 invece di 82. **Il prezzo è il
+nome** e si dichiara: i nomi tagliati passano da **1 su 249 a 18** — è la decisione del 23/09 sulla
+Strategia («a cedere è il nome») presa su un set che si accende apposta per guardare la forma.
+
+**IL TRIANGOLINO STA NELLO SPAZIO CHE IL NUMERO LASCIA.** In linea costerebbe altri 4px per cella, sedici
+in tutto; sovrapposto al bordo sinistro non costa niente, perché una cella da 18 tiene il numero più largo
+e ne lascia 3,3 liberi — ed è da lì che viene la taglia `xxs` (3px), non il contrario. La prima versione
+aveva la cella a 17 e il triangolo a 4, e **uno SCATTO a cinque ingrandimenti** ha mostrato il tip che
+toccava la cifra sui valori a due cifre: il conteggio diceva «zero celle tagliate» e aveva ragione, perché
+a sovrapporsi erano due figli della stessa cella. *Quello che un conteggio non può vedere lo trova la
+fotografia*, e qui il conteggio non era nemmeno sbagliato — rispondeva a un'altra domanda.
+
+Il vocabolario dei due triangolini non si tocca: è `ui-spell`, lo stesso glifo e lo stesso colore della
+card e della tabella delle ultime partite, perché la condizione dell'operatore del 05/09 è che un'icona
+voglia dire la stessa cosa in ogni pagina. Si aggiunge una TAGLIA, come le pastiglie dei ruoli. E la più
+recente sta **a sinistra**, il verso dichiarato di questa app per le «ultime partite» (06/09).
+
+Verificato nella pagina vera (`e2e-plancia-stats.mjs`): 249 strisce confrontate col FOGLIO e **0 sbagliate**
+— testo, freccia in su e freccia in giù, casella per casella — 421 triangolini a schermo, le quattro
+colonne incolonnate dentro ogni blocco, zero cifre tagliate. Il confronto rifà il taglio a mano invece di
+chiamare la funzione che disegna la riga: un banco che chiedesse alla stessa funzione confronterebbe la
+pagina con se stessa.
+
+## 58. UNA RIGA DISEGNATA CHE NON APRE NIENTE, e la lista dei buttati (24 settembre 2026)
+
+Due segnalazioni dell'operatore sulla stessa griglia, e la prima è un difetto vero.
+
+**«COME MAI SE CLICCO SU BAKOLA NON ESCE IL DETTAGLIO DEL CALCIATORE?»** La pila delle card si indicizzava
+su `blocks()`, cioè la mappa del MERCATO, mentre dal 23/09 la griglia PERSONALE **ripesca dalla coda** chi
+prende il posto di un nome buttato — e quei ripescati `viewBlocks` se li costruisce da sé. Quindi una riga
+disegnata, col cursore giusto e il click che arriva allo store, non apriva niente: *un gesto che non fa
+niente in silenzio è indistinguibile da un gesto rotto*. Riprodotto in un browser vero prima di toccare il
+codice (si butta un attaccante, sale «Stulic», si clicca: **zero card**, mentre un uomo disegnato apre la
+sua), e curato indicizzando anche la griglia che la plancia sta disegnando. **Il blocco resta quello del
+mercato** dove ce n'è uno — è lo slot su cui la banda è stata misurata, ed è quello che la card deve
+nominare — mentre il ripescato porta quello della griglia in cui è finito e la card scrive «coda» al posto
+del numero, perché uno slot di mercato non ce l'ha e `capNoteOf` lo dice già due righe più giù.
+
+Quello che il commento di quella funzione diceva («la coda non ha una riga, quindi non ha una card») era
+**vero quando fu scritto**, ed è così che un difetto sopravvive a una feature: la frase che lo scusava
+descriveva il mondo di prima.
+
+**E LA LISTA DEI BUTTATI**, sua richiesta dello stesso giorno: il tasto «N buttati» apriva l'annullamento
+dell'ultima eliminazione e adesso apre una modale che li ELENCA, con un click che ne rimette uno qualunque.
+Il gesto vecchio non si perde — rimettere l'ultimo è cliccare il suo nome — e i due sono due domande
+diverse, «disfai l'ultima cosa che ho fatto» e «quello lì lo rivoglio», di cui la seconda contiene la
+prima. L'ordine della lista è quello del TABELLONE (ruolo, slot, rango) e non quello in cui sono stati
+buttati: la pila di `binOrder` non è persistita apposta, quindi un ordine per tempo leggerebbe in due modi
+prima e dopo un ricaricamento. La modale si chiude da sé quando l'ultimo è tornato in griglia.
+
+## 59. L'ORDINAMENTO SI PORTA SU UN ALTRO DEVICE (24 settembre 2026)
+
+Richiesta dell'operatore: «consenti di esportare un oggetto con l'ordinamento impostato nella plancia per
+poterlo importare su un altro device». Nasce da un vincolo che il progetto si è scelto e che vale la pena
+ricordare: l'ordine a mano e i buttati stanno in `localStorage` e **non** nell'indirizzo, perché «questa
+pagina non è un link che si manda a qualcuno, è il foglio su cui si segna l'asta» (§50) — e la conseguenza
+è che il portatile su cui si prepara e quello con cui ci si siede non sanno niente l'uno dell'altro.
+
+**DUE COSE E NON UNA.** L'oggetto porta l'ordine a mano **e** i buttati: il primo dice chi viene prima, i
+secondi chi non c'è più, e una lista con l'uno e senza gli altri è una lista diversa da quella che si è
+preparata. Chi esporta «l'ordinamento» intende la lista che ha davanti.
+
+**QUELLO CHE NON VIAGGIA è dichiarato a schermo e non solo nel codice**: impostazioni della lega, taglio
+(mercato/personali) e set di numeri. Sono tre modi di GUARDARE e non il lavoro fatto, e sovrascrivere
+sull'altro device un regolamento dichiarato lì sarebbe un'adozione silenziosa — la cosa che la modale
+della sessione dichiara sempre a voce alta (§53).
+
+**L'IMPORT SOSTITUISCE, NON FONDE.** Fondere sembra più gentile e produce una lista che non è né quella di
+qua né quella di là: due prefissi cuciti insieme sono un ordine che nessuno ha deciso, e lo si
+riconoscerebbe solo scorrendolo tutto. Sostituire è un gesto che si capisce, e la strada indietro c'è già
+(il tasto che rimette l'ordine del foglio). La pila dell'annulla si azzera insieme: è la storia dei gesti
+di questa sessione, e un «annulla» che disfacesse un'eliminazione fatta su un altro computer non è quello
+che quella parola promette.
+
+**IL MARCHIO E LA VERSIONE SERVONO A RIFIUTARE.** `kind` = `fantassistant.plancia.order`: incollare il file
+sbagliato lo dice, invece di svuotare in silenzio una lista preparata in un'ora. Una `version` più alta
+della propria ferma l'import, perché un lettore che accetta una forma che non conosce perde metà del
+lavoro senza dirlo. Una singola chiave malformata invece **viene scartata e il resto passa**: il lavoro
+vero non si butta per una riga sporca. E l'import DICE cosa ha letto — quante liste, quanti nomi, quanti
+buttati — perché «importato» da solo non distingue un oggetto pieno da uno vuoto, e un oggetto vuoto è
+esattamente quello che si ottiene incollando la cosa sbagliata.
+
+**Una casella sola per le due direzioni**, non un file da scaricare: fra due computer l'oggetto passa da
+una chat o da una mail come qualunque altro testo, mentre un download obbligherebbe a ritrovare il file
+sull'altro device prima di poterlo incollare. Il tasto sta nella scatola fissa in basso e non in barra,
+perché è un gesto di PREPARAZIONE, e c'è sempre: sull'altro device un ordine non c'è, ed è proprio lì che
+serve.
+
+Verificato col giro INTERO in un browser vero (`e2e-plancia-order.mjs`): si sistema un nome, si copia
+l'oggetto, **si azzera e si verifica che l'ordine sia sparito** — senza quel null un import che non facesse
+niente leggerebbe identico a uno riuscito — e solo allora si incolla, con `Input.insertText` dopo un click
+vero, così il testo passa dal pipeline di input del browser invece di essere scritto nel DOM. La prima riga
+torna quella di prima.

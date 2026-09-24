@@ -166,14 +166,19 @@
          annullare perche' non c'e' niente da ordinare a mano. -->
     @if (store.slotView() === 'mine') {
       @if (store.binnedCount()) {
+        <!-- IL TASTO APRE LA LISTA e non disfa piu' l'ultima cosa (sua richiesta, 24/09/2026:
+             «quando clicco su "buttati" apri una modale con la lista dei calciatori buttati e se
+             clicco sopra ripristinalo»). Il gesto vecchio non si perde: rimettere l'ultimo e'
+             cliccare il suo nome, e questo ne rimette uno QUALUNQUE - «disfai l'ultima cosa» e
+             «quello li' lo rivoglio» sono due domande, e la seconda contiene la prima. -->
         <button
           type="button"
           data-unbin
           nz-button
           nzSize="small"
           nz-tooltip
-          nzTooltipTitle="Rimette l'ultimo calciatore buttato"
-          (click)="store.unbin()"
+          nzTooltipTitle="La lista di chi hai buttato: un click lo rimette in griglia"
+          (click)="binOpen.set(true)"
         >
           <nz-icon nzType="rollback" />
           {{ store.binnedCount() }} buttati
@@ -316,6 +321,22 @@
         azzera le rose
       </button>
     }
+    <!-- L'ORDINAMENTO DA PORTARE ALTROVE (sua richiesta, 24/09/2026). Sta qui e non in barra perché è un
+         gesto di PREPARAZIONE - si fa prima di sedersi, non mentre i rilanci salgono - ed è la stessa
+         ragione per cui la barra tiene separate le letture dai comandi. Sempre presente e non solo
+         quando c'è un ordine: sull'altro device di ordine non ce n'è, ed è proprio lì che serve. -->
+    <button
+      nz-button
+      nzType="text"
+      nzSize="small"
+      data-move-order
+      (click)="openMove()"
+      nz-tooltip
+      nzTooltipTitle="L'ordine a mano e i buttati come un oggetto da copiare: si incolla nella stessa finestra su un altro device. Le impostazioni della lega non viaggiano."
+    >
+      <nz-icon nzType="swap" />
+      ordinamento
+    </button>
     <ui-flag-menu />
   </ng-template>
 
@@ -354,6 +375,7 @@
     [view]="store.slotView()"
     [stats]="store.rowStats()"
     [lastSeason]="store.lastSeason()"
+    [trend]="store.trend()"
     [activeTeam]="store.lensId()"
     [focus]="store.focusIds()"
     (reorder)="store.moveTo($event.role, $event.shown, $event.id, $event.at)"
@@ -378,6 +400,83 @@
     <plancia-squad-card squad />
   </plancia-slot-matrix>
 </div>
+
+<!-- LA LISTA DI CHI HO BUTTATO, e un click lo rimette (sua richiesta, 24/09/2026).
+     Si chiude da se' quando l'ultimo e' tornato in griglia: una modale vuota che resta aperta chiede
+     all'operatore di chiuderla per sapere che non c'e' piu' niente da fare. -->
+<nz-modal
+  [nzVisible]="binOpen() && !!store.binnedCount()"
+  nzTitle="Calciatori buttati"
+  [nzFooter]="null"
+  nzWidth="360px"
+  (nzOnCancel)="binOpen.set(false)"
+>
+  <div *nzModalContent class="flex flex-col gap-2">
+    <p class="text-xs text-muted">
+      Un click lo rimette nella griglia personale, al posto che la sua moneta gli dà. Chi era salito
+      dalla coda per sostituirlo torna sotto la linea.
+    </p>
+    <ul class="flex max-h-[50vh] flex-col overflow-y-auto">
+      @for (man of store.binnedMen(); track man.id) {
+        <li>
+          <button
+            type="button"
+            data-binned
+            class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-control"
+            (click)="store.unbinOne(man.id)"
+          >
+            <ui-role [role]="man.role" size="sm" />
+            <span class="min-w-0 flex-1 truncate">{{ man.name }}</span>
+            <span class="shrink-0 text-xs text-muted">{{ man.club }} · {{ man.slot }}</span>
+            <nz-icon class="shrink-0 text-muted" nzType="rollback" />
+          </button>
+        </li>
+      }
+    </ul>
+  </div>
+</nz-modal>
+
+<!-- L'ORDINAMENTO FRA DUE DEVICE: una casella sola per le due direzioni, perché l'oggetto è uno.
+     Quello che NON viaggia è dichiarato a schermo e non solo nel codice: le impostazioni della lega, il
+     taglio e il set di numeri restano quelli dichiarati su questo device - sovrascriverli sarebbe
+     l'adozione silenziosa che la modale della sessione dichiara sempre a voce alta. -->
+<nz-modal
+  [nzVisible]="moveOpen()"
+  nzTitle="Porta l'ordinamento su un altro device"
+  [nzFooter]="null"
+  nzWidth="520px"
+  (nzOnCancel)="moveOpen.set(false)"
+>
+  <div *nzModalContent class="flex flex-col gap-2">
+    <p class="text-xs text-muted">
+      Qui sotto c'è l'ordine che hai sistemato a mano e chi hai buttato, ruolo per ruolo. Copialo e
+      incollalo in questa stessa finestra sull'altro device, poi premi «importa»:
+      <b>l'import sostituisce</b> quello che c'è lì, non lo fonde. Impostazioni della lega, taglio e set
+      di numeri non viaggiano.
+    </p>
+    <textarea
+      data-move-text
+      rows="8"
+      class="w-full rounded border border-border bg-page p-2 font-mono text-[11px] leading-snug"
+      spellcheck="false"
+      [ngModel]="moveText()"
+      (ngModelChange)="moveText.set($event)"
+    ></textarea>
+    <div class="flex items-center gap-2">
+      <button nz-button nzSize="small" data-move-copy (click)="copyMove()">
+        <nz-icon nzType="copy" />
+        copia
+      </button>
+      <button nz-button nzSize="small" nzType="primary" data-move-import (click)="importMove()">
+        <nz-icon nzType="import" />
+        importa
+      </button>
+      @if (moveSays()) {
+        <span class="min-w-0 flex-1 text-xs text-muted" data-move-says>{{ moveSays() }}</span>
+      }
+    </div>
+  </div>
+</nz-modal>
 
 <ui-live-connect [(open)]="connecting" (left)="store.startDemo()" />
 <plancia-keeper-pairs />

@@ -243,6 +243,63 @@
                     <span class="w-[19px] shrink-0 text-right tabular-nums opacity-40">{{
                       man.pv == null ? '' : '(' + (man.pv | number: '1.0-0') + ')'
                     }}</span>
+                  } @else if (stats() === 'trend') {
+                    <!-- LE ULTIME QUATTRO PARTITE, col fantavoto che ha preso in ognuna e i due
+                         triangolini (sua richiesta, 24/09/2026: «gli ultimi 4 fantavoti con una
+                         piccola freccettina verde verso l'alto se e' entrato e una verso il basso se
+                         e' uscito»). Il vocabolario dei triangolini e' quello di sempre - `ui-spell`,
+                         lo stesso glifo e lo stesso colore della card e della tabella - perche' la sua
+                         condizione del 05/09 e' che un'icona voglia dire la stessa cosa in ogni pagina.
+
+                         LA PIU' RECENTE A SINISTRA, il verso dichiarato di questa app per le «ultime
+                         partite» (06/09/2026). Il giro lo fa `rowTrend` una volta sola.
+
+                         LE QUATTRO CASELLE STANNO IN UN CONTENITORE e non sono quattro figli del
+                         bottone, ed e' una misura: il `gap-1` della riga vale 4px, quindi quattro celle
+                         sciolte ne costerebbero 12 in piu' - dodici pixel tolti al NOME, che e'
+                         l'unico elemento che qui puo' cedere. Dentro la striscia il passo e' di un
+                         pixel, che basta a separare due numeri incolonnati.
+
+                         IL TRIANGOLINO STA NELLO SPAZIO CHE IL NUMERO LASCIA, appoggiato al bordo
+                         sinistro: in linea costerebbe altri 4px per cella (sedici in tutto), mentre
+                         sovrapposto non costa niente - una cella larga 18 tiene il numero piu' largo
+                         che esista qui («14.0», 14,7px) e ne lascia 3,3 liberi, che e' la misura da cui
+                         viene la taglia `xxs`. NON il contrario: la prima versione aveva la cella a 17
+                         e il triangolo a 4, e uno SCATTO a cinque ingrandimenti ha mostrato il tip che
+                         toccava la cifra sui valori a due cifre - «quello che un conteggio non puo'
+                         vedere lo trova la fotografia», e qui il conteggio diceva zero celle tagliate
+                         perche' nessuna lo era: a sovrapporsi erano due figli della stessa cella.
+
+                         IL CORPO E' OTTO E NON DIECI (sua istruzione, 24/09/2026: «diminuisci le
+                         dimensioni dei fantavoti»), ed e' anche cio' che rende la striscia pagabile:
+                         a dieci il fantavoto piu' largo che esista qui («14.0») misura 18,3px e la
+                         cella ne vorrebbe 25, cioe' 103 per quattro - piu' di quanti la riga intera
+                         ne abbia da dare, e il nome sarebbe sceso a ventiquattro pixel. A otto quello
+                         stesso numero ne misura 14,7 e la cella sta in diciotto.
+
+                         IL PREZZO E' IL NOME, ed e' dichiarato: la striscia costa 75px dove i due
+                         numeri del motore ne costavano 45, quindi al nome ne restano ~56 invece di 82
+                         (misurato a 1600px di finestra, dove un blocco e' largo 187). E' la stessa
+                         decisione del 23/09 sulla Strategia - «a cedere e' il nome» - presa qui su un
+                         set che si accende apposta per guardare la forma. -->
+                    <span class="flex shrink-0 items-center gap-px" data-trend>
+                      @for (cell of trendOf(man); track $index) {
+                        <span
+                          class="relative w-[18px] shrink-0 text-right text-[8px] leading-none tabular-nums"
+                          [class]="cell.ink"
+                        >
+                          @if (cell.mark) {
+                            <ui-spell
+                              class="absolute inset-y-0 left-0"
+                              [spell]="cell.spell"
+                              size="xxs"
+                              [hint]="false"
+                            />
+                          }
+                          {{ cell.text }}
+                        </span>
+                      }
+                    </span>
                   } @else {
                     <!-- LA STAGIONE SCORSA, tre MISURE dove prima c'erano due previsioni (sua
                          richiesta, 23/09/2026): presenze a voto · media voto · fantamedia, nelle unita'

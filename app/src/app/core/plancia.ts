@@ -336,12 +336,17 @@ export type SlotView = 'market' | 'mine';
  * fra parentesi le partite attese - cioe' due PREVISIONI. `last` sono tre MISURE della stagione
  * scorsa: presenze a voto, media voto, fantamedia, nelle unita' con cui il gioco le pubblica.
  *
- * DUE SET E NON UNA COLONNA IN PIU', ed e' la ragione per cui e' una select: una previsione e una
+ * `trend` sono le ultime QUATTRO PARTITE del suo club (operatore, 24/09/2026), ognuna col fantavoto
+ * che ha preso e i due triangolini di chi e' entrato o uscito: altre quattro MISURE, e le piu' recenti
+ * di tutte. Quale sia la finestra e perche' sia il calendario e non «le ultime quattro che ha giocato»
+ * sta in `player-trend.rowTrend`, che e' anche l'unico posto in cui quel taglio e' scritto.
+ *
+ * TRE SET E NON UNA COLONNA IN PIU', ed e' la ragione per cui e' una select: una previsione e una
  * misura sulla stessa riga, senza una parola che dica quale e' quale, sono la cosa che questa app si
  * e' gia' scritta due volte («un numero sulla card e' una MISURA o una PREVISIONE, e le due non
  * condividono mai una cifra»). Qui la parola e' il nome del set, e vale per tutte e 250 le righe.
  */
-export type RowStats = 'engine' | 'last';
+export type RowStats = 'engine' | 'last' | 'trend';
 
 /** A block of the personal grid: the same shape the market one has, cut on another coordinate. */
 export interface OfferGroup<T extends PlanciaMan> {

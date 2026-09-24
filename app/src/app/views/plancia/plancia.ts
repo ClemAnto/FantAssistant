@@ -14,6 +14,7 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
+import { NzModalModule } from 'ng-zorro-antd/modal';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -27,7 +28,11 @@ import { PLAYED_PROGRESS } from '../../core/plancia-demo';
 import { BoardMan, PlanciaStore } from '../../core/plancia-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { FlagMenu } from '../../ui/flag-menu/flag-menu';
+import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { TimeTravel } from '../../core/time-travel';
+import { countsOf } from '../../core/plancia-order-file';
 import { playerCard } from '../../core/player-card';
+import { ROW_TREND_MATCHES } from '../../core/player-trend';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
@@ -64,6 +69,7 @@ import { TeamGrid } from './team-grid/team-grid';
     NzButtonModule,
     NzIconModule,
     NzInputNumberModule,
+    NzModalModule,
     NzPopconfirmModule,
     NzRadioModule,
     NzSelectModule,
@@ -74,6 +80,7 @@ import { TeamGrid } from './team-grid/team-grid';
     LiveConnect,
     LotCard,
     ClubCard,
+    RoleBadge,
     PlayerCard,
     SlotMatrix,
     SquadCard,
@@ -95,6 +102,64 @@ export class Plancia {
   protected readonly feed = inject(AuctionFeed);
 
   protected readonly connecting = signal(false);
+
+  /**
+   * SE LA LISTA DEI BUTTATI E' APERTA (sua richiesta, 24/09/2026).
+   *
+   * Un segnale della VISTA e non dello store, come `connecting`: «questa modale e' aperta» e' un fatto
+   * sullo schermo e non sull'asta, e lo store non deve sapere chi lo guarda. Non e' persistito - una
+   * modale che si riapre da sola a ogni ricaricamento e' una modale che si impara a chiudere.
+   */
+  protected readonly binOpen = signal(false);
+
+  /**
+   * L'ORDINAMENTO DA PORTARE SU UN ALTRO DEVICE (sua richiesta, 24/09/2026).
+   *
+   * Una casella di testo sola per le due direzioni: si apre con dentro quello che c'e' adesso - pronto
+   * da copiare - e la stessa casella e' dove si incolla quello che arriva. Due riquadri direbbero che
+   * sono due cose, e sono la stessa: l'oggetto.
+   *
+   * NON un file da scaricare: fra due computer passa da una chat o da una mail come qualunque altro
+   * testo, e un download obbligherebbe a trovare il file sull'altro device prima di poterlo incollare.
+   */
+  protected readonly moveOpen = signal(false);
+  protected readonly moveText = signal('');
+  /** Cosa e' successo all'ultimo gesto: un import muto e' indistinguibile da un bottone rotto. */
+  protected readonly moveSays = signal('');
+  private readonly travel = inject(TimeTravel);
+
+  protected openMove(): void {
+    this.moveText.set(JSON.stringify(this.store.exportOrder(this.travel.realToday), null, 1));
+    this.moveSays.set('');
+    this.moveOpen.set(true);
+  }
+
+  /** La copia negli appunti, con la ragione a schermo quando il browser non la concede. */
+  protected async copyMove(): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(this.moveText());
+      this.moveSays.set('Copiato: incollalo nella stessa finestra sull altro device.');
+    } catch {
+      this.moveSays.set('Il browser non mi lascia scrivere negli appunti: seleziona il testo e copialo a mano.');
+    }
+  }
+
+  /**
+   * L'IMPORT DICE COSA HA LETTO, sempre: quante liste, quanti nomi, quanti buttati.
+   *
+   * «Importato» da solo non distingue un oggetto pieno da uno vuoto, e un oggetto vuoto e' esattamente
+   * quello che si ottiene incollando la cosa sbagliata. Lo store SOSTITUISCE - la ragione sta li' - e
+   * quando rifiuta torna la frase da mostrare invece di un silenzio.
+   */
+  protected importMove(): void {
+    const done = this.store.importOrder(this.moveText());
+    if (typeof done === 'string') return this.moveSays.set(done);
+    const counts = countsOf(done);
+    this.moveSays.set(
+      `Importato${done.saved ? ` (salvato il ${done.saved})` : ''}: ${counts.names} nomi ordinati su ` +
+        `${counts.lists} liste e ${counts.binned} buttati. Ora la plancia è quella.`,
+    );
+  }
 
   /**
    * I DUE TAGLI, con la loro frase: il bottone dice cosa cambia, non solo che qualcosa cambia.
@@ -132,10 +197,11 @@ export class Plancia {
   });
 
   /**
-   * I DUE SET DI NUMERI, e le loro parole sono quelle sue («default» e «scorso»).
+   * I TRE SET DI NUMERI, e le loro parole sono quelle sue («default», «scorso», «trend»).
    *
-   * In codice si chiamano `engine` e `last`, perche' un identificatore che dice «default» non dice
-   * quale dei due e' - e il giorno che ne arriva un terzo il primo smetterebbe di esserlo.
+   * In codice si chiamano `engine`, `last` e `trend`, perche' un identificatore che dice «default» non
+   * dice quale dei tre e' - e il giorno che ne e' arrivato un terzo, che e' oggi, il primo avrebbe
+   * smesso di esserlo.
    *
    * E L'ETICHETTA NOMINA LA STAGIONE invece di dire «scorsa»: «l'anno scorso» dipende da quando lo si
    * legge, `2025-26` no, ed e' il pacchetto a dirlo. Sta qui e non in un tooltip perche' quel tooltip
@@ -148,6 +214,10 @@ export class Plancia {
     return [
       { value: 'engine', label: 'default' },
       { value: 'last', label: season ? `scorso (${season})` : 'scorso' },
+      // L'ETICHETTA NOMINA LA FINESTRA e la legge dalla costante invece di riscriverne il numero: il
+      // giorno che le caselle diventano tre o cinque, una voce che dicesse ancora «ultime 4» sarebbe
+      // una frase falsa accanto alle celle che la smentiscono.
+      { value: 'trend', label: `trend (ultime ${ROW_TREND_MATCHES})` },
     ];
   });
 

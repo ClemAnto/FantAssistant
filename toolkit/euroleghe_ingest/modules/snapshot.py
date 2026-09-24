@@ -906,7 +906,7 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      arrotondato) e `BOA_MARK` per PIATTAFORMA
 #      (5,94 / 6,10), chiuse dai loro numeri. Boa 33 e 42. `scommessa` resta a 7 e 14 per un limite di
 #      DATI e non di soglia: gli uomini non prezzati che hanno i due numeri sono 9 e 16 in tutto.
-SHEET_REVISION = 75
+SHEET_REVISION = 76
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -1909,8 +1909,16 @@ def club_form(conn, auction_date: str, observations, squads: dict[int, str],
             "series": " ".join(series),
             "detail": ";".join(detail),
             "source": "per-match layer",
+            # IL CLUB DI OGGI VIAGGIA CON LA FINESTRA, perche' `league_window` e' l'UNIONE dei club
+            # per cui ha giocato quest'anno (vedi sopra: giusto per «quanto ha reso», che e' una
+            # domanda su di lui) e chi la disegna a strisce ha bisogno di sapere quali di quelle
+            # partite sono della squadra in cui e' adesso. Il dato c'era - `own` lo calcola due
+            # righe sopra per la lettura corta - e la riga non lo scriveva, quindi una striscia di
+            # quattro caselle su un uomo appena trasferito ne mostrava una: le altre tre erano
+            # giornate del club che ha lasciato, dove risulta «non convocato» perche' quella rosa
+            # non e' piu' la sua (operatore, 24/09/2026, su Mastantuono e su Frattesi).
             **trend_block(obs.fc_id, league_window, mine, with_players,
-                          benched, lineup_only, spells, opponents),
+                          benched, lineup_only, spells, opponents, set(own)),
             # ...E LA TERZA FINESTRA DELLA STESSA CAMMINATA, la CORTA: le ultime partite di campionato,
             # contate sulle sole in cui era disponibile. La lunghezza la decide il MODELLO
             # (`presence.Params.recent_window`) e non una costante di questo modulo: due copie di quel
@@ -1934,13 +1942,21 @@ def trend_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
                 with_players: set[str], benched: dict[int, set[str]],
                 lineup_only: dict[int, set[str]],
                 spells: dict[int, list[tuple[str, str, str]]],
-                opponents: dict[tuple[str, str], tuple[str, int]]) -> dict:
+                opponents: dict[tuple[str, str], tuple[str, int]],
+                own_clubs: set[str] | None = None) -> dict:
     """The last ten CHAMPIONSHIP matches, one record each, and the judgement that orders them.
 
     `trend_fp` is the mean of the fantapunti he collected over them - the operator's own definition
     (14/08/2026): a match he did not play counts ZERO, a match nobody can score does not enter the
     denominator at all. `trend_matches` says how many did, so a mean over three matches never reads
     as a mean over ten.
+
+    OGNI RIGA DICE SE E' DEL CLUB DI OGGI (`own_clubs`, il diciassettesimo campo). La finestra e'
+    l'unione dei club per cui ha giocato quest'anno, il che e' giusto per la MEDIA - «quanto ha reso»
+    e' una domanda su di lui e le sue giornate valgono tutte - e sbagliato per chi la disegna una
+    partita per volta: nelle giornate del club che ha lasciato lui risulta «non convocato», che e'
+    vero e non e' una sua prova. Il campo e' in coda e vale `1`/`0`, quindi un lettore piu' vecchio
+    del campo continua a leggere i sedici di prima invece di rompersi.
 
     IT IS A DESCRIPTION AND NOT A PREDICTION, and that has to travel with the number. The same day it
     was measured that a player's departure from his own averages does NOT predict what he does next -
@@ -1975,6 +1991,9 @@ def trend_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
             if entry.in_euro == 0:
                 outside += 1
         opponent, home = opponents.get((club_key, str(match_id)), ("", 0))
+        # `own_clubs` vuoto vuol dire «non si sa quale sia il suo club di oggi» e non «nessuna di
+        # queste e' sua»: allora il campo resta vuoto, che e' l'ignoto, e chi legge non filtra.
+        own = "" if not own_clubs else (1 if club_key in own_clubs else 0)
         record.append("|".join("" if part is None else str(part) for part in (
             date, competition or "", opponent, "H" if home else "A", state,
             entry.minutes if entry else "", 1 if entry and entry.started else "",
@@ -1982,7 +2001,8 @@ def trend_block(fc_id: int, window: list[tuple], mine: dict[str, Appearance],
             entry.points if entry else None,
             entry.goals if entry else "", entry.assists if entry else "",
             entry.yellows if entry else None, entry.reds if entry else None,
-            entry.xga if entry else None, entry.in_euro if entry else None)))
+            entry.xga if entry else None, entry.in_euro if entry else None,
+            own)))
     return {
         "trend_window": len(window),
         "trend_played": played,

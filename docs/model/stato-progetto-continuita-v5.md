@@ -9436,3 +9436,59 @@ mio lavoro sono sei file NUOVI in una cartella nuova più tre documenti, quindi 
 settimana le due metà non condividono un file e la separazione non è stata necessaria. Il commit nomina
 comunque cosa contiene, e `git show --stat` è stato letto DOPO — l'index è condiviso e una fotografia
 scade.
+
+## 24 settembre 2026 (sera) — IL PRESET TREND, e una finestra che mescolava due club
+
+Quattro richieste dell'operatore sulla plancia, e due difetti veri che ne sono usciti. Dettaglio:
+[assistente-asta-v1.md](assistente-asta-v1.md) §57-§58, spec «Novità v9.103».
+
+**IL PRESET `trend (ultime 4)`**, terza voce della select accanto a `default` e `scorso`: le ultime quattro
+partite del suo club, il fantavoto in ognuna e i due triangolini di chi è subentrato o è stato sostituito.
+Il vocabolario è quello di sempre (`ui-spell`, con una taglia nuova `xxs` di 3px), il verso è quello
+dichiarato di questa app per le «ultime partite» — la più recente a sinistra — e **nessun numero del
+motore si muove**: la striscia legge `desc_trend_detail` e non ricalcola niente.
+
+**«Gli ultimi 4 fantavoti» ha due letture, e quella che riempie sempre la striscia nasconde l'assenza.**
+Si adottano le ultime quattro *del calendario*: 127 uomini su 536 hanno le quattro caselle vuote, e con
+l'altra lettura avrebbero mostrato quattro numeri di un mese fa. **Il corpo è 8px e non è gusto**: a dieci
+il «14.0» chiede una cella da 25 (103 per quattro, più di quanti la riga ne abbia) e il nome scenderebbe a
+24px; a otto la cella sta in diciotto. La striscia costa 75px contro i 45 dei due numeri del motore, e il
+prezzo è dichiarato: **nomi tagliati 1 → 18 su 249**. Verificato contro il FOGLIO e non contro lo schermo:
+**249 strisce, 0 sbagliate**, 421 triangolini, colonne incolonnate, zero cifre tagliate.
+
+**E il triangolino a 4px toccava le cifre: l'ha trovato uno SCATTO a cinque ingrandimenti.** Il conteggio
+diceva «zero celle tagliate» e aveva ragione — a sovrapporsi erano due figli della stessa cella. Cella a
+18 e triangolo a 3, che è ciò che *avanza* misurato e non una taglia scelta a occhio.
+
+**«COME MAI SE CLICCO SU BAKOLA NON ESCE IL DETTAGLIO?»** Difetto vero: la pila delle card si indicizzava
+sulla mappa del MERCATO mentre la griglia personale **ripesca dalla coda** chi sostituisce un nome
+buttato, e quei ripescati `viewBlocks` se li costruisce da sé. Una riga disegnata, col cursore giusto e il
+click che arriva allo store, non apriva niente. Riprodotto in un browser prima di toccare il codice, e il
+commento che lo scusava («la coda non ha una riga, quindi non ha una card») era **vero quando fu
+scritto**: è così che un difetto sopravvive a una feature.
+
+**LA FINESTRA MESCOLAVA DUE CLUB**, trovato da lui su due nomi guardando la striscia nuova. È l'unione
+delle ultime dieci dei club per cui ha giocato — giusto per la media, sbagliato per chi la disegna una
+partita per volta — e Mastantuono leggeva **una** delle sue quattro giornate di Serie A. Due cure:
+il CAMPIONATO subito (123 righe su 537 miste, 23 fantavoti restituiti; 114 su 911 e 40 su euro) e il CLUB
+come regola vera, `SHEET_REVISION` 76 — **il dato c'era**, `own` lo calcola due righe sopra per la lettura
+corta e la riga non lo scriveva. Frattesi, che ha cambiato club dentro la Serie A, si cura solo col foglio
+nuovo, e questo è scritto negli aperti invece che lasciato scoprire.
+
+**LA LISTA DEI BUTTATI**: il tasto «N buttati» apre una modale che li elenca e un click ne rimette uno
+qualunque. Il gesto vecchio è contenuto in quello nuovo — rimettere l'ultimo è cliccare il suo nome — e
+l'ordine è quello del tabellone e non per tempo, perché la pila dell'annulla non è persistita apposta.
+
+**E L'ORDINAMENTO SI PORTA SU UN ALTRO DEVICE** (sua quinta richiesta, §59): l'ordine a mano e i buttati
+come un oggetto solo, da copiare e incollare nella stessa finestra altrove. Le due liste insieme, perché
+una senza l'altra è un'altra lista; le impostazioni della lega NON viaggiano, ed è scritto a schermo;
+l'import **sostituisce** e non fonde, rifiuta quello che non porta il suo marchio e DICE cosa ha letto.
+Verificato col giro intero in un browser, col reset in mezzo come null — senza, un import inerte
+leggerebbe identico a uno riuscito.
+
+**Stato dell'albero alla chiusura**: solo file miei modificati, nessuna metà di un'altra sessione da
+separare (HEAD era `00f8bc7`). Verde: **1133 test app**, **965 toolkit**, benches plancia stats · order ·
+slots · injury · squad · keepers · award · resume. Resta ROSSO `e2e-plancia-lens`, e **non è mio**:
+verificato in un worktree a HEAD senza i miei file, gli stessi due rilievi: il null del passo
+dell'inchiostro fallisce e una riga accesa resta smorzata. Lasciato rosso con la causa nominata, come
+vuole la regola di casa, e messo negli aperti.

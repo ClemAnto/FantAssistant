@@ -272,7 +272,7 @@ function readBoard() {
         const cells = [...row.querySelectorAll('span')];
         const paint = cells[0] ? getComputedStyle(cells[0]).backgroundColor : '';
         return {
-          name: (row.innerText ?? '').split('\n')[0].trim(),
+          name: (row.innerText ?? '').split(String.fromCharCode(10))[0].trim(),
           offer: Number((cells.at(-1)?.innerText ?? '').replace(/[^0-9-]/g, '')),
           // IL NUMERO DI SINISTRA, che e' quello che SPIEGA l'ordine e cambia col taglio: sul mercato
           // quanto rende sopra il sei, sui personali LA MONETA (il surplus). Letto dalla terza cella DA DESTRA e
@@ -652,7 +652,61 @@ async function sheetNames() {
     byName.set(key, Number(row[id]));
   }
   for (const key of twice) byName.delete(key);
-  return { byName, twice: twice.size, season: manifest.input_season, platform: chosen.platform };
+  return {
+    byName,
+    twice: twice.size,
+    season: manifest.input_season,
+    platform: chosen.platform,
+    sheetPath: chosen.path,
+  };
+}
+
+/**
+ * LE ULTIME QUATTRO PARTITE di ogni uomo, dal foglio e non dallo schermo.
+ *
+ * Il taglio si rifa' qui a mano - le ultime quattro del calendario, la piu' recente per prima - e non
+ * si importa da `core/player-trend`: un banco che chiedesse alla stessa funzione che disegna la riga
+ * confronterebbe la pagina con se stessa, che e' l'asserzione circolare pagata due volte in questo
+ * repository. Se le due letture divergono, una delle due e' sbagliata e il passo lo dice.
+ */
+async function trendFromSheet(sheetPath) {
+  const raw = await readFile(join(DIST, 'data', sheetPath));
+  const table = JSON.parse(gunzipSync(raw).toString('utf8'));
+  const at = (name) => table.columns.indexOf(name);
+  const id = at('fc_id');
+  const detail = at('desc_trend_detail');
+  const leagueAt = at('league');
+  const out = new Map();
+  if (id < 0 || detail < 0) return out;
+  for (const row of table.rows) {
+    const record = row[detail];
+    if (!record) continue;
+    // CHI HA CAMBIATO SQUADRA porta nella finestra anche le giornate del club che ha lasciato, dove
+    // risulta «non convocato»: la striscia tiene le SUE. Il club lo dichiara il diciassettesimo campo
+    // dove il foglio lo porta, e dove non lo porta si ripiega sul CAMPIONATO della sua riga - le due
+    // regole sono rifatte qui a mano, e se divergono da quelle della pagina il passo lo dice.
+    const all = String(record).split(';').filter(Boolean).map((one) => one.split('|'));
+    const own = all.filter((f) => f[16] === '1');
+    const league = leagueAt < 0 ? null : row[leagueAt];
+    const mine = league ? all.filter((f) => f[1] === league) : [];
+    const window = own.length ? own : mine.length ? mine : all;
+    const cells = window
+      .slice(-4)
+      .reverse()
+      .map((f) => {
+        const minutes = f[5] === '' ? null : Number(f[5]);
+        const started = f[6] === '1';
+        const points = f[9] === '' ? null : Number(f[9]);
+        return {
+          text: points == null ? '·' : points.toFixed(1),
+          on: minutes != null && !started && minutes > 0,
+          off: minutes != null && started && minutes > 0 && minutes < 90,
+        };
+      });
+    while (cells.length < 4) cells.push({ text: '·', on: false, off: false });
+    out.set(Number(row[id]), cells);
+  }
+  return out;
 }
 
 /** Pv, Mv e Fm della stagione scorsa, dalla tabella del pacchetto e non dallo schermo. */
@@ -693,6 +747,34 @@ function readRows() {
         })(),
       });
     }
+  }
+  return out;
+}
+
+/** Le righe col set TREND: il nome, le quattro caselle col loro segno, e se una cifra e' tagliata. */
+function readTrendRows() {
+  const out = [];
+  for (const block of document.querySelectorAll('[data-block]')) {
+  const head = (block.querySelector('span')?.innerText ?? '').trim();
+  for (const row of block.querySelectorAll('button')) {
+    const strip = row.querySelector('[data-trend]');
+    if (!strip) continue;
+    const label = row.querySelector('.truncate');
+    out.push({
+      block: head,
+      name: (row.innerText ?? '').split(String.fromCharCode(10))[0].trim(),
+      cells: [...strip.children].map((cell) => ({
+        text: (cell.innerText ?? '').trim(),
+        // I due triangolini sono due `svg` con un `aria-label`: si leggono da li' e non dal colore,
+        // che e' una proprieta' del tema.
+        on: !!cell.querySelector('svg[aria-label="subentrato"]'),
+        off: !!cell.querySelector('svg[aria-label="sostituito"]'),
+        left: Math.round(cell.getBoundingClientRect().left),
+        clipped: cell.scrollWidth > cell.clientWidth + 1,
+      })),
+      clipped: label ? label.scrollWidth > label.clientWidth + 1 : false,
+    });
+  }
   }
   return out;
 }
@@ -747,8 +829,10 @@ async function main() {
     return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
   };
   try {
-    const { byName, twice, season, platform } = await sheetNames();
+    const { byName, twice, season, platform, sheetPath } = await sheetNames();
     const truth = await lastFromBundle(season, platform);
+    const trend = await trendFromSheet(sheetPath);
+    console.log(`. il foglio: ${trend.size} uomini con una finestra di campionato`);
     console.log(`. il pacchetto: ${season} su ${platform} · ${truth.size} righe · ${twice} nomi doppi fuori dal confronto`);
 
     session = await attach(debugPort);
@@ -899,6 +983,93 @@ async function main() {
       (document.querySelector('[data-stats] .ant-select-selection-item')?.innerText ?? '').trim());
     console.log(`. dopo il refresh la select dice «${kept}»`);
     if (!kept.startsWith('scorso')) problems.push(`il refresh riporta la select a «${kept}»`);
+
+    // 6. IL SET «TREND»: le ultime quattro partite, col fantavoto e i due triangolini.
+    //
+    // Sua richiesta del 24/09/2026. Si confronta col FOGLIO e mai con lo schermo - il taglio e' rifatto
+    // a mano in `trendFromSheet` proprio per non chiamare la funzione che disegna la riga - e si misura
+    // il PREZZO, che qui e' il nome: quattro caselle costano piu' dei due numeri del motore, e l'unico
+    // elemento della riga che puo' cedere e' il nome.
+    const trendSelect = await evaluate(session, boxOf, '[data-stats]', '');
+    await click(session, trendSelect);
+    await wait(500);
+    const trendOption = await evaluate(session, boxOf, 'nz-option-item', 'trend');
+    if (!trendOption) throw new Error('la voce «trend» non e nel menu');
+    console.log(`. la voce «${trendOption.text}» e' raggiungibile: ${trendOption.reachable}`);
+    if (!trendOption.reachable) problems.push("la voce «trend» c'e' ma un click di una mano non la prende");
+    await click(session, trendOption);
+    await wait(700);
+    const onTrend = await evaluate(session, () =>
+      (document.querySelector('[data-stats] .ant-select-selection-item')?.innerText ?? '').trim());
+    if (!onTrend.startsWith('trend')) {
+      throw new Error(`la select dice «${onTrend}»: il resto del passo misurerebbe un altro set`);
+    }
+
+    const strips = await evaluate(session, readTrendRows);
+    console.log(`. righe con la striscia: ${strips.length}`);
+    if (strips.length < 200) problems.push(`solo ${strips.length} righe disegnano la striscia del trend`);
+    const wrongCells = [];
+    let cellsChecked = 0;
+    let marks = 0;
+    let empty = 0;
+    for (const row of strips) {
+      if (row.cells.length !== 4) {
+        wrongCells.push(`${row.name}: ${row.cells.length} caselle invece di quattro`);
+        continue;
+      }
+      marks += row.cells.filter((one) => one.on || one.off).length;
+      if (row.cells.every((one) => one.text === '·')) empty += 1;
+      const id = byName.get(row.name);
+      const want = id == null ? null : trend.get(id);
+      if (!want) continue;
+      cellsChecked += 1;
+      for (let at = 0; at < 4; at += 1) {
+        const got = row.cells[at];
+        if (got.text !== want[at].text || got.on !== want[at].on || got.off !== want[at].off) {
+          wrongCells.push(
+            `${row.name} casella ${at + 1}: schermo «${got.text}»${got.on ? '^' : ''}${got.off ? 'v' : ''} · ` +
+              `foglio «${want[at].text}»${want[at].on ? '^' : ''}${want[at].off ? 'v' : ''}`,
+          );
+        }
+      }
+    }
+    console.log(`. ${cellsChecked} strisce confrontate col foglio · sbagliate ${wrongCells.length}`);
+    for (const one of wrongCells.slice(0, 5)) console.log(`      ${one}`);
+    if (!cellsChecked) problems.push('zero strisce confrontate: il ponte fra schermo e foglio non aggancia niente');
+    if (wrongCells.length) problems.push(`${wrongCells.length} caselle non sono quelle del foglio`);
+    // I DUE TRIANGOLINI ESISTONO: uno zero qui non si distinguerebbe da un marchio che non si disegna,
+    // ed e' il difetto che questo repository ha gia' pagato tre volte su un'icona non registrata.
+    console.log(`. triangolini disegnati: ${marks} · righe con le quattro caselle vuote: ${empty} su ${strips.length}`);
+    if (!marks) problems.push('nessun triangolino a schermo: il marchio non si disegna');
+
+    // LE QUATTRO COLONNE SI INCOLONNANO e nessuna cifra e' tagliata: la larghezza e' DICHIARATA, quindi
+    // e' una promessa che un fantavoto a due cifre col triangolino accanto puo' rompere.
+    const adrift = [];
+    const cutCells = strips.reduce((sum, row) => sum + row.cells.filter((one) => one.clipped).length, 0);
+    // DENTRO OGNI BLOCCO e non sul tabellone, per la ragione che `columnsOf` gia' dichiara: sul
+    // tabellone i bordi sinistri sono otto per costruzione - tante quante le colonne della griglia -
+    // quindi contarli li' darebbe otto anche su righe perfettamente incolonnate. La prima versione di
+    // questo passo raggruppava per COORDINATA arrotondata e leggeva un disallineamento che non c'era:
+    // un blocco e' largo 187px, quindi due blocchi vicini cadevano nello stesso secchio.
+    for (let at = 0; at < 4; at += 1) {
+      const perBlock = new Map();
+      for (const row of strips) {
+        const cell = row.cells[at];
+        if (!cell) continue;
+        perBlock.set(row.block, (perBlock.get(row.block) ?? new Set()).add(cell.left));
+      }
+      const bad = [...perBlock.entries()].filter(([, set]) => set.size > 1);
+      if (bad.length) {
+        adrift.push(`casella ${at + 1}: ${bad.length} blocchi (${bad[0][0]}: ${bad[0][1].size} bordi)`);
+      }
+    }
+    console.log(`. allineamento: ${adrift.length ? adrift.join(' · ') : 'tutte incolonnate'} · cifre tagliate ${cutCells}`);
+    if (adrift.length) problems.push(`la striscia non si incolonna: ${adrift.join(' · ')}`);
+    if (cutCells) problems.push(`${cutCells} caselle tagliano la propria cifra`);
+
+    // IL PREZZO, misurato e non discusso: quanti nomi in piu' si tagliano rispetto al set del motore.
+    const clippedTrend = strips.filter((one) => one.clipped).length;
+    console.log(`. nomi tagliati: ${clipBefore} col set del motore, ${clippedTrend} col trend (su ${strips.length})`);
   } finally {
     if (session) session.close();
     browser.kill();

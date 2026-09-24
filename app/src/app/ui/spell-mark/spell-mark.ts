@@ -27,6 +27,14 @@ import { MatchSpell } from '../../core/match-bonuses';
  * pieni. La condizione per accenderla e' un'ACQUISIZIONE (le sostituzioni stanno negli `incidents`
  * della fonte, che oggi scarichiamo solo per le amichevoli coi gol da attribuire), non una formula.
  */
+/** Tre, sei e otto pixel. Un triangolo pieno regge la riduzione dove una freccia diventerebbe un
+ *  trattino, che e' anche la ragione per cui e' disegnato a mano invece di essere un `nz-icon`. */
+const GLYPH: Record<'xxs' | 'xs' | 'sm', string> = {
+  xxs: 'h-[3px] w-[3px]',
+  xs: 'h-1.5 w-1.5',
+  sm: 'h-2 w-2',
+};
+
 @Component({
   selector: 'ui-spell',
   templateUrl: './spell-mark.html',
@@ -35,16 +43,22 @@ import { MatchSpell } from '../../core/match-bonuses';
 })
 export class SpellMark {
   readonly spell = input.required<MatchSpell>();
-  /** `xs` e' la taglia della CELLA (48px da compatti), `sm` quella della card e del tooltip. */
-  readonly size = input<'xs' | 'sm'>('xs');
+  /**
+   * `xs` e' la taglia della CELLA (48px da compatti), `sm` quella della card e del tooltip, `xxs`
+   * quella della STRISCIA DELLA PLANCIA (24/09/2026), dove una riga e' alta dieci pixel e mezzo, la
+   * cella di un fantavoto ne e' larga diciotto e il numero piu' largo che ci va ne occupa 14,7: tre
+   * pixel sono quello che AVANZA, misurato, e non una taglia scelta a occhio.
+   *
+   * Si aggiunge una TAGLIA e non un secondo disegno, che e' la regola gia' scritta per le pastiglie dei
+   * ruoli: quando una pagina nuova ha bisogno di un marchio piu' piccolo si aggiunge una misura, mentre
+   * il glifo e il colore - cioe' quello che il marchio SIGNIFICA - non si toccano.
+   */
+  readonly size = input<'xxs' | 'xs' | 'sm'>('xs');
   /** La frase sul segno. Spenta dove il marchio sta gia' dentro un altro tooltip: due tooltip
    *  sovrapposti sono il difetto delle buste chiuse. */
   readonly hint = input(true);
 
-  /**
-   * Sei pixel nella cella e otto nella card (operatore, 10/09/2026: «i triangolini falli un po' piu'
-   * piccoli»). Un triangolo pieno regge la riduzione dove una freccia diventerebbe un trattino, che e'
-   * anche la ragione per cui e' disegnato qui invece di essere un `nz-icon`.
-   */
-  protected readonly glyph = computed(() => (this.size() === 'xs' ? 'h-1.5 w-1.5' : 'h-2 w-2'));
+  /** Sei pixel nella cella e otto nella card (operatore, 10/09/2026: «i triangolini falli un po' piu'
+   *  piccoli»), tre nella striscia della plancia. Le tre misure stanno in `GLYPH`. */
+  protected readonly glyph = computed(() => GLYPH[this.size()]);
 }

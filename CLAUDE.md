@@ -7698,3 +7698,54 @@ UNTRACKED, perche' quelle righe elencano `raw/`, `export/`, `timepacks/`, `repor
 db — non un'estensione qualsiasi. Il foglio porta nomi, voti e prezzi e il repo e' pubblico, quindi
 l'artefatto si consegna FUORI dal repository e gli intermedi hanno un `.gitignore` nella loro cartella,
 verificato con `git check-ignore` invece che dato per buono.
+
+## Un COMMENTO che scusa un difetto era vero quando fu scritto, e «gli ultimi 4» ha due letture
+**24/09/2026, quattro richieste dell'operatore sulla plancia. Dettaglio: `assistente-asta-v1.md`
+§57-§58, spec «Novita' v9.103».** Nasce dal preset **TREND** (le ultime quattro partite sulla riga, col
+fantavoto e i due triangolini di chi e' subentrato o e' uscito) e quello che resta sono due difetti veri
+e tre regole di misura.
+
+**UNA RIGA DISEGNATA CHE NON APRE NIENTE.** «Come mai se clicco su Bakola non esce il dettaglio del
+calciatore?»: la pila delle card si indicizzava su `blocks()`, la mappa del MERCATO, mentre dal 23/09 la
+griglia PERSONALE **ripesca dalla coda** chi prende il posto di un nome buttato - e quei ripescati
+`viewBlocks` se li costruisce da se'. Riga disegnata, cursore giusto, click che arriva allo store, e
+nessuna card: *un gesto che non fa niente in silenzio e' indistinguibile da un gesto rotto.* Riprodotto
+in un browser PRIMA di toccare il codice. La lezione generale sta nel commento che lo scusava - «la coda
+non ha una riga, quindi non ha una card» - che era **vero il giorno in cui fu scritto**: e' cosi' che un
+difetto sopravvive a una feature, e per questo un commento che spiega un'assenza si rilegge quando la
+feature accanto cambia. Il blocco che la card nomina resta quello del MERCATO dove ce n'e' uno (e' lo
+slot su cui la banda e' misurata) e chi viene dalla coda porta «coda» al posto del numero, perche' uno
+slot di mercato non ce l'ha.
+
+**«GLI ULTIMI 4 FANTAVOTI» HA DUE LETTURE E UNA NASCONDE L'ASSENZA.** Le ultime quattro in cui un
+fantavoto *c'e' stato* riempiono sempre la striscia e per un uomo fermo da un mese stampano quelli di un
+mese fa; le ultime quattro **del calendario** dicono la verita' su tutt'e due le cose. Prezzo misurato:
+127 uomini su 536 hanno le quattro caselle vuote, e con l'altra lettura avrebbero mostrato quattro
+numeri. *Var(ln pv) e' il 90% della varianza dei fantapunti: una striscia che nasconde le assenze
+nasconde la meta' che decide un'asta.*
+
+**IL CORPO DI UNA STRISCIA E' CIO' CHE LA RENDE PAGABILE, e il prezzo e' il NOME.** Misurato nella pagina
+vera (blocco 187px, riga 185): a 10px il fantavoto piu' largo («14.0») chiede una cella da 25, cioe' 103
+per quattro - piu' di quanti la riga ne abbia - e il nome sarebbe sceso a 24px; a 8px la cella sta in 18
+e la striscia costa 75px contro i 45 dei due numeri del motore, coi nomi tagliati che passano da **1 a 18
+su 249**. E' la decisione del 23/09 sulla Strategia («a cedere e' il nome») presa su un set che si accende
+apposta. *Una larghezza si misura nella pagina, non si stima: 187px non erano i 222 che un altro documento
+citava per un'altra vista.*
+
+**E LO SCATTO HA TROVATO CIO' CHE IL CONTEGGIO NON POTEVA, col conteggio che aveva ragione.** Col
+triangolino a 4px in una cella da 17 il banco leggeva «zero celle tagliate» - vero, perche' a
+sovrapporsi erano due FIGLI della stessa cella, e `scrollWidth` non lo vede. Una fotografia a cinque
+ingrandimenti lo ha mostrato in un secondo. *Quando un conteggio dice «nessun problema», chiedersi quale
+difetto darebbe lo stesso conteggio* - qui la risposta era «due elementi che si toccano dentro una
+scatola abbastanza larga per tutt'e due».
+
+**E UNDICESIMA ISTANZA DI «IL DATO C'ERA»**, trovata dall'operatore su due nomi (Mastantuono, Frattesi).
+`desc_trend_detail` e' l'UNIONE delle ultime dieci dei club per cui ha giocato quest'anno - giusto per la
+media, che e' una domanda su di lui, e sbagliato per chi la disegna una partita per volta, perche' nelle
+giornate del club che ha lasciato risulta «non convocato» - quindi Mastantuono mostrava **una** delle sue
+quattro giornate di Serie A. Il fatto che separa le due meta' lo calcola gia' `observations_layer` due
+righe sopra la chiamata (`own`, per la lettura corta) e la riga non lo scriveva: ora e' il
+diciassettesimo campo, `SHEET_REVISION` 76, **in coda e vuoto = ignoto** cosi' un pacchetto piu' vecchio
+legge i sedici di prima. Il ripiego sul CAMPIONATO cura subito chi ha cambiato paese (123 righe su 537,
+23 fantavoti restituiti) e **non** chi ha cambiato club dentro la Serie A: quello vuole il foglio nuovo,
+ed e' scritto negli aperti invece di essere lasciato scoprire.

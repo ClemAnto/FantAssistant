@@ -495,6 +495,32 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.103 (24 settembre 2026 — OGNI RIGA DEL TREND DICE SE È DEL CLUB DI OGGI)
+
+**`SHEET_REVISION` 76, una riga di codice, e il dato c'era già** (undicesima istanza in questo
+repository). `desc_trend_detail` porta le ultime dieci partite di CAMPIONATO del suo club, e per chi si
+trasferisce a mercato aperto quella finestra è l'**unione** dei due club: `league_window`, che è giusto
+per la media — «quanto ha reso» è una domanda su di lui e le sue giornate valgono tutte — e sbagliato per
+chiunque la disegni una partita per volta, perché nelle giornate del club che ha lasciato risulta «non
+convocato». È vero, e non è una sua prova.
+
+Trovato dall'operatore su due nomi guardando la nuova striscia della plancia (24/09/2026): **Mastantuono**
+(Real Madrid → Fiorentina) ha giocato quattro giornate di Serie A e la striscia ne mostrava una, perché
+tre delle sue ultime quattro caselle erano giornate del Real; **Frattesi** (Inter → Lazio) due su quattro.
+Il secondo caso è quello che decide la forma della cura: Inter e Lazio sono **lo stesso campionato**,
+quindi `competition` non ne separa una sola.
+
+Il fatto che serve lo calcola già `observations_layer` due righe sopra la chiamata — `own`, i club per cui
+gioca ORA, costruito per la lettura corta (`own_window`, v9.88) — e `trend_block` non lo scriveva. Adesso
+il record ha un **diciassettesimo campo**, `1`/`0`, e la regola è quella di sempre per un campo nuovo: **in
+coda**, così un lettore più vecchio continua a leggere i sedici di prima; **vuoto = ignoto**, cioè «non si
+sa qual è il suo club di oggi» e non «nessuna di queste è sua» — chi filtrasse su un falso butterebbe
+l'intera finestra di chi non ha un club dichiarato.
+
+Quello che NON cambia: la media, il conteggio e ogni altro numero del blocco leggono la finestra intera
+come prima, perché rispondono alla domanda per cui l'unione è giusta. `engine_*` non si muove, e il campo
+arriva sui fogli alla prossima corsa di `snapshot`.
+
 ## Novità v9.102 (24 settembre 2026 — LA K DELL'ATTACCANTE È UNA DICHIARAZIONE, E VALE SOLO DOVE C'È UNO STORICO)
 
 **Nove correzioni dell'operatore sulle categorie, tutte su attaccanti** (dettaglio, tabelle e misure:

@@ -1540,3 +1540,40 @@ def test_una_riga_che_copre_gia_le_sue_fasce_non_scambia_nessuno(monkeypatch):
               {"name": "Tre", "desc_real_roles": "AM", "share": 0.40}]
     repaired = view._flanked(list(narrow), "T", 3, "season", [rival])
     assert "Cambiaso" in [row["name"] for row in repaired], repaired
+
+
+def test_ogni_riga_del_trend_dice_se_e_del_club_di_oggi():
+    """La finestra e' l'UNIONE dei suoi club, quindi la riga deve dire quali partite sono sue adesso.
+
+    Il difetto che lo ha prodotto (operatore, 24/09/2026, su Mastantuono e Frattesi): chi si trasferisce
+    a mercato aperto porta nel record le ultime partite di tutt'e due i club, e in quelle del vecchio
+    risulta «non convocato» - vero, e non una prova su di lui. Una striscia di quattro caselle ne
+    mostrava una sola. Il dato c'era (`own` lo calcola per la lettura corta) e la riga non lo scriveva.
+
+    `competition` NON basta, ed e' il caso di Frattesi: Inter e poi Lazio sono due club dello stesso
+    campionato, quindi le due meta' della finestra hanno la stessa competizione.
+    """
+    from euroleghe_ingest.modules import snapshot
+
+    played = snapshot.Appearance(
+        club="Lazio", competition="serie_a", date="2026-09-19", minutes=90, started=1,
+        rating=7.0, goals=0, assists=0, vote=6.0, vote_source="real", points=6.0,
+        yellows=0, reds=0, xga=0.1, in_euro=1)
+    window = [
+        # dal piu' recente, come `build` la restituisce: una del club di oggi e una del precedente
+        ("2026-09-19", "m2", "serie_a", "lazio"),
+        ("2026-09-19", "m1", "serie_a", "inter"),
+    ]
+    block = snapshot.trend_block(
+        1, window, {"m2": played}, {"m2"}, {}, {}, {},
+        {("lazio", "m2"): ("Venezia", 1), ("inter", "m1"): ("AS Roma", 0)},
+        own_clubs={"lazio"})
+    rows = [line.split("|") for line in block["trend_detail"].split(";")]
+    assert [row[16] for row in rows] == ["0", "1"], "la vecchia e' dell'altro club, la nuova e' sua"
+
+    # ...e senza il club di oggi il campo resta VUOTO, che e' l'ignoto e non «non e' sua»: un lettore
+    # che filtrasse su un falso butterebbe tutta la finestra di chi non ha un club dichiarato.
+    blind = snapshot.trend_block(
+        1, window, {"m2": played}, {"m2"}, {}, {}, {},
+        {("lazio", "m2"): ("Venezia", 1), ("inter", "m1"): ("AS Roma", 0)})
+    assert [line.split("|")[16] for line in blind["trend_detail"].split(";")] == ["", ""]

@@ -2370,3 +2370,35 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
    ricontasse una prova già contata — la famiglia di R24 e dell'età. **Da pre-registrare, non da
    adottare.**
 
+
+## Aperti nati il 24/09/2026 (sera) — il preset TREND, e la finestra che mescola due club
+
+1. **IL CAMPO NUOVO DEL TREND ARRIVA SUI FOGLI SOLO DOPO UNA CORSA.** `desc_trend_detail` porta da oggi
+   un diciassettesimo campo — «questa partita è del club in cui è ADESSO» (`SHEET_REVISION` 76) — ed è
+   quello che separa **Frattesi**, che ha cambiato club dentro la Serie A e che il ripiego sul campionato
+   non può curare. Fino a `snapshot` + `export` + `npm run data:pull` la sua striscia legge due caselle
+   su quattro, e non è un difetto da inseguire: è il pacchetto vecchio. *Il modo di verificarlo è
+   guardare la sua riga, non rileggere il codice.*
+
+2. **`e2e-plancia-lens` È ROSSO E NON È DI QUESTA SESSIONE.** Due rilievi: il NULL del passo
+   dell'inchiostro fallisce («nell'urna» e «di un altro» leggono lo stesso colore, quindi il passo non
+   prova niente) e una riga accesa resta smorzata (Meret). Verificato in un worktree **a HEAD senza i
+   miei file**: identico. Va attribuito e curato da chi ha toccato l'inchiostro delle righe, e finché il
+   null non torna a distinguere i due stati quel passo non sta misurando la lente.
+
+3. **IL PREZZO DELLA STRISCIA SI RIMISURA SE CAMBIA IL CORPO O IL BLOCCO.** I 18 nomi tagliati su 249
+   sono una fotografia a 1600x1000, dove un blocco è largo 187px; su una finestra più stretta o con una
+   lega da dodici quel numero cambia. La misura è in `e2e-plancia-stats.mjs` e si legge a ogni corsa.
+   *Il costo di un layout è una fotografia che scade, quindi si rimisura invece di citarlo.*
+
+4. **LA CASELLA VUOTA DELLA STRISCIA NON DICE PERCHÉ.** Un trattino vale «nessun fantavoto» e non separa
+   la panchina dall'infortunio: è il prezzo della larghezza, dichiarato, e il motivo lo portano le
+   iconcine accanto al nome e la card. Se un giorno la riga avesse più spazio, la tinta dell'assenza
+   esiste già nel vocabolario di `ui/player-trend` (`--color-absent-*`) e sarebbe il canale da riusare,
+   **non uno nuovo**.
+
+5. **L'OGGETTO DELL'ORDINAMENTO PORTA `default|<ruolo>` COME CHIAVE.** È la chiave che `keyOf` scrive
+   oggi, e la plancia prezza sempre il listone classic di Serie A: il giorno in cui quella pagina
+   guardasse un secondo listone, un oggetto vecchio andrebbe letto sapendo che le sue chiavi parlano di
+   un'altra piattaforma. Oggi non può succedere e un `version` esiste apposta per il giorno in cui
+   succede — **si alza la versione, non si indovina la chiave**.

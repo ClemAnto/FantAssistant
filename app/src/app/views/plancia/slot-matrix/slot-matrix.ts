@@ -5,11 +5,33 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { PlayerFlags } from '../../../ui/player-flags/player-flags';
+import { SpellMark } from '../../../ui/spell-mark/spell-mark';
 import { Alternative, MIN_PLAY_SHARE, ROLES, Role, RowStats, SlotView } from '../../../core/plancia';
+import { MatchSpell } from '../../../core/match-bonuses';
+import { ROW_TREND_MATCHES, TrendCell } from '../../../core/player-trend';
 import { SeasonLine } from '../../../core/season-line';
+import { voteInk } from '../../../ui/matches-table/vocabulary';
 import { DOUBLE_MS } from '../../../core/view-state';
 import { BoardBlock, BoardMan } from '../../../core/plancia-store';
 import { RulingDot } from '../../../ui/ruling-dot/ruling-dot';
+
+/** Una casella della striscia come il template la vuole: niente da decidere, solo da stampare. */
+interface RowTrendCell {
+  text: string;
+  ink: string;
+  spell: MatchSpell;
+  /** Se c'e' un triangolino: si chiede qui e non nel template perche' il componente si monta solo
+   *  dove serve - mille `ui-spell` vuoti sono mille istanze che nessuno disegna. */
+  mark: boolean;
+}
+
+const NO_SPELL: MatchSpell = { minutes: null, on: false, off: false };
+const EMPTY_STRIP: RowTrendCell[] = Array.from({ length: ROW_TREND_MATCHES }, () => ({
+  text: '·',
+  ink: 'text-muted',
+  spell: NO_SPELL,
+  mark: false,
+}));
 
 const ROLE_TONE: Record<Role, string> = {
   P: 'bg-role-keeper',
@@ -90,7 +112,7 @@ const COLUMNS = 8;
   imports: [
     CdkDropList, CdkDrag, CdkDropListGroup,
     DecimalPipe, NzIconModule, NzTooltipModule, PlayerFlags,
-    RulingDot,
+    RulingDot, SpellMark,
   ],
   host: { class: 'block min-h-0' },
 })
@@ -122,6 +144,14 @@ export class SlotMatrix {
    * file non e' arrivato, e allora le righe stampano un trattino invece di una cifra inventata.
    */
   readonly lastSeason = input<ReadonlyMap<number, SeasonLine>>(new Map());
+  /**
+   * LE ULTIME QUATTRO PARTITE DI OGNI UOMO, gia' tagliate e gia' girate da chi le ha lette.
+   *
+   * Un INPUT come `lastSeason` e per la stessa ragione: questo componente non legge tabelle. Quale sia
+   * la finestra - le ultime quattro del CALENDARIO e non le ultime quattro giocate - e' scritto in
+   * `rowTrend`, che e' l'unico posto in cui quel taglio esiste.
+   */
+  readonly trend = input<ReadonlyMap<number, TrendCell[]>>(new Map());
   /**
    * GLI ID CHE SERVONO ALLA MIA ROSA quando il FOCUS e' acceso, `null` quando e' spento.
    *
@@ -339,6 +369,49 @@ export class SlotMatrix {
   /** La sua riga dell'anno scorso, o `null`: «vuoto = ignoto» anche qui. */
   protected lastOf(man: BoardMan): SeasonLine | null {
     return this.lastSeason().get(man.id) ?? null;
+  }
+
+  /**
+   * LA STRISCIA COME LA RIGA LA DISEGNA: il testo, l'inchiostro e se c'e' un triangolino da mettere.
+   *
+   * Un `computed` sulla MAPPA e non un conto per riga: il template chiama `trendOf` per ognuna delle
+   * 250 righe a ogni giro di rilevamento, quindi costruire qui le mille caselle una volta per lettura
+   * del pacchetto costa una passata invece di mille. L'inchiostro e' `voteInk`, cioe' le stesse fasce
+   * della tabella e della card - «una definizione, tre lettori», e un fantavoto e' lo stesso metro del
+   * voto piu' i bonus, come quella funzione dichiara di se'.
+   *
+   * IL TRATTINO NON DICE PERCHE': la cella vale «nessun fantavoto» e non separa la panchina
+   * dall'infortunio. Non e' una dimenticanza ed e' il prezzo della larghezza - quattro caselle su una
+   * riga di 185px - quindi si dichiara: il MOTIVO di un'assenza lo portano gia' le iconcine accanto al
+   * nome e la card, che e' a un click.
+   */
+  private readonly strips = computed(() => {
+    const out = new Map<number, RowTrendCell[]>();
+    for (const [id, cells] of this.trend()) {
+      out.set(
+        id,
+        cells.map((cell) => ({
+          // Un decimale, che e' la griglia su cui il fantacalcio pubblica (i mezzi punti): stamparne due
+          // scriverebbe una precisione che la fonte non ha.
+          text: cell.points == null ? '·' : cell.points.toFixed(1),
+          ink: cell.points == null ? 'text-muted' : voteInk(cell.points),
+          spell: cell.spell,
+          mark: cell.spell.on || cell.spell.off,
+        })),
+      );
+    }
+    return out;
+  });
+
+  /**
+   * ...e per chi il foglio non porta affatto, QUATTRO CASELLE VUOTE e non nessuna.
+   *
+   * Una striscia piu' corta accorcerebbe la riga e sposterebbe la max offerta, che e' l'ultima colonna:
+   * le cifre di due righe sorelle si incolonnano solo se ogni riga porta lo stesso numero di celle della
+   * stessa larghezza dichiarata.
+   */
+  protected trendOf(man: BoardMan): RowTrendCell[] {
+    return this.strips().get(man.id) ?? EMPTY_STRIP;
   }
 
   protected blockTip(block: BoardBlock): string {
