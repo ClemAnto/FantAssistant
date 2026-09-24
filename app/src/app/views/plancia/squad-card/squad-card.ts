@@ -96,15 +96,32 @@ export class SquadCard {
   /** I posti del modulo, dal regolamento. Vuoti quando il pacchetto non lo porta: la card lo dice. */
   private readonly places = computed(() => classicPlaces(this.rules()));
 
-  /** La mia sedia al tavolo: crediti e posti liberi vengono da qui, non da due letture diverse. */
+  /**
+   * LA SEDIA CHE LA CARD STA MOSTRANDO: quella accesa dalla lente, altrimenti la mia.
+   *
+   * Sua richiesta (24/09/2026): «quando selezioni una squadra di un partecipante aggiorna il campetto
+   * in basso a destra con i suoi calciatori». La lente e' gia' il gesto con cui si chiede «cosa ha
+   * preso QUESTO qui» - un click su una card accende i suoi acquisti sulle 250 righe - quindi la card
+   * segue lo stesso interruttore invece di averne uno suo: due modi di scegliere una rosa sarebbero
+   * due rose accese insieme il giorno che uno dei due non spegne l'altro.
+   *
+   * Crediti e posti liberi vengono da QUI e non da due letture diverse, ed e' cio' che rende la card
+   * vera anche su un rivale: `BoardTeam` li porta per ogni sedia del tavolo.
+   */
+  private readonly seat = computed(() => this.store.activeTeam() ?? this.mine());
+
+  /** La MIA sedia, che resta il ripiego quando nessuna lente e' accesa. */
   private readonly mine = computed(() => this.store.teams().find((team) => team.me) ?? null);
+
+  /** Vero quando quello che si sta guardando e' il mio, che e' l'unico caso in cui la card CONSIGLIA. */
+  protected readonly ownSquad = computed(() => !!this.seat()?.me);
 
   /**
    * I POSTI DI ROSA ANCORA LIBERI, per ruolo, dalla striscia delle rose - che li porta gia' in ordine
    * P-D-C-A. Un suggerimento in un ruolo pieno e' un acquisto che il regolamento rifiuta.
    */
   private readonly freeSlots = computed<Record<Role, number>>(() => {
-    const missing = this.mine()?.missing ?? [];
+    const missing = this.seat()?.missing ?? [];
     const out = {} as Record<Role, number>;
     ROLES.forEach((role, at) => (out[role] = Math.max(0, missing[at] ?? 0)));
     return out;
@@ -142,14 +159,24 @@ export class SquadCard {
     return out;
   });
 
-  /** Il campetto, la panchina e i grigi: una passata sola, e l'aritmetica non e' qui. */
+  /**
+   * Il campetto, la panchina e i grigi: una passata sola, e l'aritmetica non e' qui.
+   *
+   * I GRIGI SOLO SULLA MIA ROSA, ed e' una scelta da dichiarare. Un suggerimento e' un CONSIGLIO e
+   * questa card lo calcola coi miei parametri: il prezzo di uno slot esce da `handsFor`, che conta le
+   * mani alzate ESCLUDENDO me, e «fattibile» esce dai crediti della sedia meno un credito per ogni
+   * posto che le resta. Sui crediti la risposta per un rivale sarebbe giusta; sulle mani no - andrebbe
+   * escluso LUI invece di me - quindi disegnarli comunque sarebbe un consiglio calcolato sulla
+   * popolazione sbagliata, che e' il difetto che questo progetto paga piu' spesso. Quello che la card
+   * mostra di un rivale sono percio' FATTI su di lui: chi ha, dove giocherebbero, quanto li ha pagati.
+   */
   protected readonly pitch = computed(() =>
     squadPitchOf({
-      mine: this.store.mySquad().map((man) => asSquadMan(man, man.paid)),
-      urn: this.urn(),
+      mine: this.store.squadOf(this.seat()?.id ?? null).map((man) => asSquadMan(man, man.paid)),
+      urn: this.ownSquad() ? this.urn() : [],
       places: this.places(),
       freeSlots: this.freeSlots(),
-      credits: this.mine()?.credits ?? 0,
+      credits: this.seat()?.credits ?? 0,
     }),
   );
 
@@ -167,8 +194,28 @@ export class SquadCard {
    *
    * La condizione chiede che un tavolo CI SIA: appena caricata la pagina le rose non sono ancora
    * arrivate, e quel mezzo secondo non e' una sedia mancante.
+   *
+   * ...E CON LA LENTE ACCESA NON CAPITA, perche' una sedia da mostrare c'e': quella che ha appena
+   * scelto. La frase riguarda il caso in cui non si sa CHI SONO IO, non il caso in cui non si sa cosa
+   * guardare - e sono due cose diverse da quando la card puo' guardare un rivale.
    */
-  protected readonly noSeat = computed(() => this.store.teams().length > 0 && !this.mine());
+  protected readonly noSeat = computed(() => this.store.teams().length > 0 && !this.seat());
+
+  /**
+   * DI CHI E' LA ROSA CHE SI STA GUARDANDO, a parole.
+   *
+   * L'intestazione lo diceva gia' («la tua rosa») quando la risposta era una sola; da quando sono
+   * dieci deve dire QUALE, o la card resta identica mentre sotto cambiano undici nomi - e una card che
+   * non dice di chi e' e' la cosa che il suo stesso commento vieta da quando esiste.
+   */
+  protected readonly whose = computed(() => {
+    const seat = this.seat();
+    if (!seat) return 'la tua rosa';
+    return seat.me ? 'la tua rosa' : seat.label;
+  });
+
+  /** Il colore della sedia mostrata, che e' il vocabolario con cui la pagina nomina una rosa. */
+  protected readonly seatColour = computed(() => this.seat()?.colour ?? null);
 
   /** Quanti degli undici posti sono occupati: una stringa sola, o il template mette uno spazio in mezzo. */
   protected readonly filled = computed(() => `${this.pitch().placed}/${this.places().length}`);
@@ -207,6 +254,15 @@ export class SquadCard {
   protected readonly note = computed(() => {
     if (this.noSeat()) {
       return 'Nessuna delle rose al tavolo è la tua, quindi la card non sa né chi schiereresti né cosa ti manca.';
+    }
+    if (!this.ownSquad()) {
+      // UN RIVALE: fatti e nessun consiglio, e il perche' si dice invece di lasciare notare l'assenza
+      // dei grigi - «un vincolo che agisce in silenzio e' indistinguibile da un ordinamento rotto».
+      return (
+        `Gli undici migliori di ${this.whose()} sul ${this.module}, scelti per valore atteso, col ` +
+        'prezzo che ha pagato ognuno. Nessun suggerimento: quelli si calcolano sulle mie mani alzate ' +
+        'e sul mio budget, quindi su di lui direbbero il numero di un’altra asta.'
+      );
     }
     const room = this.pitch().spendable;
     return (

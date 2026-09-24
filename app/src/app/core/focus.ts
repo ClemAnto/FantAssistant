@@ -1,3 +1,4 @@
+import { spendableOn } from './plancia';
 import { ClassicRole } from './players-store';
 import { Bidder, expectedHoles, LeagueRules } from './sealed-bid';
 
@@ -230,4 +231,118 @@ export function serves(
   // portieri (`keeper-pairs.ts`) e per nessun altro ruolo.
   const clubs = new Set(mine.filter((one) => one.role === role).map((one) => one.club));
   return !man.club || !clubs.has(man.club);
+}
+
+/**
+ * QUANTO E' INTERESSANTE QUESTO LOTTO PER LA MIA ROSA, in una parola sola.
+ *
+ * Sua richiesta (24/09/2026): «quando viene selezionato un nuovo calciatore per l'asta indicami se e'
+ * un calciatore interessante per la mia rosa e quanto dovrei spendere per lui per rimanere in linea
+ * con gli acquisti e completare una buona rosa», con la definizione allegata - «uno che va a
+ * migliorare o completare gli obiettivi del focus che non deve costare troppo».
+ *
+ * QUELLA FRASE E' LA FORMULA, e le sue due meta' esistono gia' misurate: «migliorare o completare gli
+ * obiettivi» e' `needOf` + `serves`, cioe' la stessa coppia su cui la modalita' focus accende le 250
+ * righe (un secondo criterio qui direbbe a una riga che serve e al lotto che non serve); «non deve
+ * costare troppo» e' un confronto fra quello che la STANZA paga per il suo slot e quello che io posso
+ * spendere. Niente di nuovo si misura qui: questa funzione COMPONE.
+ *
+ * IL TETTO HA DUE VINCOLI E SI DICHIARA QUALE LEGA. Uno e' di MERCATO (`band.high`, la scala misurata
+ * sulle aste vere per quel (ruolo, slot), gia' scontata di infortuni, confidenza e stesso-club); l'altro
+ * e' della ROSA (`spendableOn`: i miei crediti meno un credito per ogni altro posto da riempire). Il
+ * numero da mostrare e' il MINIMO, perche' sfondare l'uno paga un uomo piu' di quanto rende e sfondare
+ * l'altro lascia un posto vuoto, che costa 4,73 fantapunti a giornata. Dire QUALE dei due lega e' meta'
+ * del consiglio: «fino a 42» per il mercato e «fino a 42» per la borsa sono la stessa cifra e due
+ * situazioni diverse.
+ *
+ * IL TEMPISMO NON SI RICALCOLA: arriva da `adviseLot` (`worthWaiting`, `DEPTH_TIER`/`DEPTH_HANDS`,
+ * +1,88% strict sul banco) e viene solo RIPETUTO qui accanto. Due risposte a «offro adesso o aspetto»
+ * sullo stesso schermo sarebbero il difetto che questa app ha gia' pagato tre volte.
+ */
+export type Interest = 'serve' | 'caro' | 'no' | 'ignoto';
+
+export interface LotBrief {
+  /** L'obiettivo attivo del suo reparto, o `null` quando quel reparto e' a posto. */
+  goal: Goal | null;
+  interest: Interest;
+  /** Fino a quanto spingersi, o `null` quando il foglio non lo prezza: uno zero direbbe «non vale». */
+  spend: number | null;
+  /** Chi dei due tetti lega, perche' una cifra senza il suo vincolo non e' un consiglio. */
+  bound: 'mercato' | 'rosa' | null;
+  /** Quello che la stanza paga di solito per il suo slot: e' il metro di «costa troppo». */
+  price: number;
+  /** La regola misurata sul momento, ripetuta e non ricalcolata. */
+  waiting: boolean;
+  reason: string;
+}
+
+export function lotBrief(input: {
+  goal: Goal | null;
+  serves: boolean;
+  /** `band.high`, oppure `null` se il foglio non lo prezza. */
+  ceiling: number | null;
+  expectedPrice: number;
+  credits: number;
+  /** I posti che mi restano da riempire in TUTTA la rosa, non solo nel suo ruolo. */
+  placesLeft: number;
+  waiting: boolean;
+}): LotBrief {
+  const roster = spendableOn(input.credits, input.placesLeft);
+  const shared = { goal: input.goal, price: input.expectedPrice, waiting: input.waiting };
+
+  if (input.ceiling == null) {
+    return {
+      ...shared,
+      interest: 'ignoto',
+      spend: null,
+      bound: null,
+      reason: 'Il foglio non lo prezza: qui non c’è una cifra da consigliare.',
+    };
+  }
+
+  const spend = Math.min(input.ceiling, roster);
+  const bound = roster < input.ceiling ? ('rosa' as const) : ('mercato' as const);
+  const full = input.placesLeft <= 0;
+
+  if (!input.serves) {
+    return {
+      ...shared,
+      interest: 'no',
+      spend,
+      bound,
+      reason: full
+        ? 'Rosa piena: non c’è più un posto per lui.'
+        : input.goal === null
+          ? 'Il suo reparto è a posto: non ti serve.'
+          : `Non chiude l’obiettivo ${GOAL_LABEL[input.goal]} del suo reparto.`,
+    };
+  }
+
+  // «NON DEVE COSTARE TROPPO»: il metro e' quello che la STANZA paga per il suo slot, non il prezzo a
+  // cui e' arrivata l'asta - quello lo si vede sulla barra, e cambia mentre si guarda. Un uomo che
+  // serve e che la stanza paga sopra il mio tetto e' un uomo che serve a un'altra rosa.
+  if (input.expectedPrice > spend) {
+    return {
+      ...shared,
+      interest: 'caro',
+      spend,
+      bound,
+      reason:
+        `Serve (${GOAL_LABEL[input.goal!]}), ma la stanza lo paga ~${input.expectedPrice} e tu puoi ` +
+        `arrivare a ${spend}${bound === 'rosa' ? ' senza lasciare un posto vuoto' : ''}.`,
+    };
+  }
+
+  return {
+    ...shared,
+    interest: 'serve',
+    spend,
+    bound,
+    reason:
+      `Chiude l’obiettivo ${GOAL_LABEL[input.goal!]} del suo reparto e la stanza lo paga ` +
+      `~${input.expectedPrice}: fino a ${spend} ` +
+      (bound === 'rosa'
+        ? 'è quanto puoi spendere tenendo un credito per ogni altro posto.'
+        : 'è il tetto misurato per il suo slot.'),
+  };
 }

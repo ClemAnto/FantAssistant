@@ -864,6 +864,21 @@ export function expectedPriceOf(
   return Math.max(1, Math.round(medianFvm * discountFor(slotIndex, hands, teams)));
 }
 
+/**
+ * QUANTO POSSO METTERE SU UN UOMO tenendo un credito per ogni ALTRO posto che mi resta da riempire.
+ *
+ * E' l'aritmetica del REGOLAMENTO e non una cautela nostra: una rosa incompleta non e' una rosa,
+ * quindi l'ultimo credito di ogni posto e' impegnato prima di qualunque offerta. Zero a rosa piena,
+ * che e' la risposta giusta - li' non c'e' piu' niente da comprare.
+ *
+ * Una definizione e DUE lettori: il campetto della rosa (che ci misura i suoi suggerimenti) e la
+ * riga del lotto (che ci tappa il tetto). Erano lo stesso conto scritto in un posto solo finche' a
+ * chiederlo era una card sola; due copie sarebbero due risposte a «fin dove posso spingermi».
+ */
+export function spendableOn(credits: number, placesLeft: number): number {
+  return placesLeft > 0 ? Math.max(0, Math.round(credits) - (placesLeft - 1)) : 0;
+}
+
 /** From which slot down it pays to let a man pass (`bench.DEPTH_TIER`, §24). */
 export const DEPTH_TIER = 2;
 

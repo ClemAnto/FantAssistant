@@ -305,6 +305,11 @@ function readCard() {
       ? Math.round(box.top) >= Math.round(attack.top) - 2 &&
         Math.round(box.bottom) <= Math.round(attack.bottom) + 2
       : false,
+    // DI CHI E' LA ROSA, come l'intestazione la nomina: dal 24/09/2026 non e' sempre la mia.
+    whose: (card.querySelector('[data-whose]')?.innerText ?? '').trim(),
+    seatColour: card.querySelector('[data-seat-colour]')
+      ? getComputedStyle(card.querySelector('[data-seat-colour]')).backgroundColor
+      : '',
     module: (card.querySelector('[data-module]')?.innerText ?? '').trim(),
     filled: (card.querySelector('[data-filled]')?.innerText ?? '').trim(),
     rows,
@@ -347,14 +352,40 @@ function readBoard() {
     const price = Number((cells.at(-1)?.innerText ?? '').replace(/[^0-9-]/g, ''));
     const paint = cells[0] ? getComputedStyle(cells[0]).backgroundColor : '';
     const owned = !!paint && paint !== 'transparent' && !paint.startsWith('rgba(0, 0, 0, 0');
+    // IL COLORE DELLA BARRA E' LA STESSA STRINGA CHE LA CARD DI QUELLA ROSA METTE SULLA SIGLA, quindi
+    // il join fra una riga e un partecipante e' esatto e non a occhio.
+    const colour = owned ? paint : '';
     // LO STATO E' DICHIARATO DALLA RIGA (`data-state`, 24/09/2026) e non dedotto dal colore: «mio» e
     // «di un altro» sono due barre dipinte, e il confronto qui sotto riguarda una sola delle due.
     const state = row.getAttribute('data-state');
     if (byName.has(name)) twice.add(name);
-    byName.set(name, { edge, pv, price, owned, state });
+    byName.set(name, { edge, pv, price, owned, colour, state });
   }
   for (const name of twice) byName.delete(name);
   return { men: Object.fromEntries(byName), ambiguous: [...twice] };
+}
+
+/**
+ * LE CARD DELLE ROSE, che sono l'interruttore della lente: sigla, colore e se quella e' la mia.
+ *
+ * Stessa lettura del banco della lente, perche' e' lo stesso oggetto: il colore e' la stringa che il
+ * template mette sulla pastiglia, cioe' quella che finisce anche sulla barra del proprietario di ogni
+ * riga - il join fra una card e le sue righe e' percio' esatto.
+ */
+function readCards() {
+  const cards = [...document.querySelectorAll('plancia-team-grid > div > div')];
+  if (!cards.length) return null;
+  return cards.map((card) => {
+    const rect = card.getBoundingClientRect();
+    const badge = card.querySelector('span');
+    return {
+      label: (card.querySelectorAll('span')[1]?.innerText ?? '').trim(),
+      colour: badge ? getComputedStyle(badge).backgroundColor : '',
+      mine: /la tua rosa/i.test(card.getAttribute('aria-label') ?? ''),
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+  });
 }
 
 /** Dove sta un controllo, per il suo testo visibile - e chi c'e' davvero sotto quel punto. */
@@ -729,6 +760,77 @@ async function main() {
       button: 'none',
     });
     await wait(300);
+
+    // 7-bis. LA CARD SEGUE LA LENTE (sua richiesta, 24/09/2026: «quando selezioni una squadra di un
+    //         partecipante aggiorna il campetto in basso a destra con i suoi calciatori»). Si clicca
+    //         la card di un RIVALE con un puntatore vero - la lente e' un gesto - e poi si verifica
+    //         che i nomi disegnati siano SUOI: il join passa per il colore della barra del
+    //         proprietario, che e' la stessa stringa che la sua card mette sulla sigla.
+    const cards = await evaluate(session, readCards);
+    const rival = (cards ?? []).find((one) => !one.mine);
+    const beforeLens = await evaluate(session, readCard);
+    if (rival) await click(session, rival);
+    await wait(500);
+    const hisCard = await evaluate(session, readCard);
+    const hisMen = hisCard
+      ? [
+          ...hisCard.rows.flatMap((row) => row.places.map((place) => place.man).filter(Boolean)),
+          ...hisCard.bench.map((one) => one.name),
+        ]
+      : [];
+    const notHis = [];
+    const offBoard = [];
+    for (const name of hisMen) {
+      const row = board.men[name];
+      // LA CODA NON HA UNA RIGA: e' lo stesso limite del passo 5, e si nomina invece di farlo passare
+      // per un difetto della card - che i suoi uomini li legge dal listone e non dal tabellone.
+      if (!row) offBoard.push(name);
+      else if (row.colour !== rival?.colour) notHis.push(`${name} (barra ${row.colour || 'nessuna'})`);
+    }
+    const mineMen = beforeLens
+      ? beforeLens.rows.flatMap((row) => row.places.map((place) => place.man).filter(Boolean))
+      : [];
+    const stillMine = hisMen.filter((name) => mineMen.includes(name));
+    note('la lente su un rivale porta i SUOI calciatori nel campetto', {
+      said: rival
+        ? `${rival.label}: ${hisMen.length} uomini disegnati · ${offBoard.length} fuori dal tabellone` +
+          ` · intestazione «${hisCard?.whose ?? '?'}» · ${hisCard?.rows.flatMap((r) => r.places.flatMap((p) => p.hints)).length ?? 0} suggerimenti`
+        : 'nessuna card di un rivale a schermo',
+      problems: [
+        ...(rival ? [] : ['nessun partecipante diverso da me: il passo non proverebbe niente']),
+        ...(hisCard ? [] : ["la card sparisce quando la lente e' accesa"]),
+        ...notHis.map((one) => `${one} e' disegnato sulla card di ${rival?.label} e non e' suo`),
+        // L'INTESTAZIONE DEVE DIRE DI CHI E': senza, la card resta identica mentre sotto cambiano
+        // undici nomi, che e' la cosa che il suo stesso commento vieta da quando esiste.
+        ...(hisCard && hisCard.whose === rival?.label
+          ? []
+          : [`l'intestazione dice «${hisCard?.whose}» invece di «${rival?.label}»`]),
+        // NESSUN SUGGERIMENTO su un rivale: sono calcolati sulle MIE mani alzate e sul MIO budget.
+        ...((hisCard?.rows.flatMap((r) => r.places.flatMap((p) => p.hints)).length ?? 0) === 0
+          ? []
+          : ["la card consiglia acquisti su una rosa che non e' la mia"]),
+        // E IL NULL: se i due insiemi fossero gli stessi, il passo non avrebbe misurato niente - il
+        // tavolo finto potrebbe avere una rosa sola, o la lente potrebbe non aver morso.
+        ...(hisMen.length && !stillMine.length
+          ? []
+          : [
+              `la rosa disegnata non e' cambiata (${stillMine.length} nomi in comune con la mia): ` +
+                'la lente non ha morso, oppure le due rose sono la stessa',
+            ]),
+      ],
+    });
+
+    // ...e si torna indietro: la lente si spegne cliccando di nuovo, e la card deve tornare la mia.
+    if (rival) await click(session, rival);
+    await wait(500);
+    const backCard = await evaluate(session, readCard);
+    note('spenta la lente, la card torna la mia', {
+      said: `intestazione «${backCard?.whose ?? '?'}»`,
+      problems:
+        backCard?.whose === 'la tua rosa'
+          ? []
+          : [`dopo aver spento la lente l'intestazione dice «${backCard?.whose}»`],
+    });
 
     // 8. LA BARRA SI PIEGA E LA CARD SI RIPRENDE I SUOI 40px. La riserva esiste solo mentre serve: se
     //    restasse sarebbe spazio buttato, ed e' la ragione per cui e' legata allo stato della barra.

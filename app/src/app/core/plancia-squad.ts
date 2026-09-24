@@ -30,7 +30,7 @@
 
 import { MantraModules } from './auction-value';
 import { ModuleLine, placesIn } from './mantra-legal';
-import { ROLES, Role } from './plancia';
+import { ROLES, Role, spendableOn } from './plancia';
 
 /**
  * IL MODULO E' DICHIARATO DALL'OPERATORE e non scelto dal campetto: «secondo il modulo 433».
@@ -166,8 +166,9 @@ export function squadPitchOf<T extends SquadMan>(input: {
   hintsPerEmpty?: number;
 }): SquadPitch<T> {
   const left = ROLES.reduce((sum, role) => sum + Math.max(0, input.freeSlots[role] ?? 0), 0);
-  // Un credito per ogni ALTRO posto: con la rosa piena non si compra nessuno, e zero e' la risposta.
-  const spendable = left > 0 ? Math.max(0, Math.round(input.credits) - (left - 1)) : 0;
+  // Un credito per ogni ALTRO posto, e il conto vive in `plancia.spendableOn`: da quando lo legge
+  // anche la riga del lotto e' una definizione sola con due lettori.
+  const spendable = spendableOn(input.credits, left);
 
   // CHI GIOCA: il valore atteso, e i pareggi li rompe la moneta e poi l'id - due disegni della stessa
   // rosa devono dare lo stesso undici, che e' la determinatezza che `buildMap` deve al mercato.

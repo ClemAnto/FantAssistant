@@ -8,6 +8,7 @@ import { DigitInput } from '../../../ui/digit-input/digit-input';
 import { TrendVotes } from '../../../ui/trend-votes/trend-votes';
 
 import { CEILING_ALWAYS_SAFE, CEILING_ALWAYS_WRONG, Role, Verdict } from '../../../core/plancia';
+import { Interest, LotBrief } from '../../../core/focus';
 import { Lot } from '../../../core/plancia-store';
 import { TrendCell } from '../../../core/player-trend';
 import { SeasonLine } from '../../../core/season-line';
@@ -40,6 +41,27 @@ const VERDICT_RAIL: Record<Verdict, string> = {
   lascia: 'bg-danger',
   ignoto: 'bg-border',
   fermo: 'bg-danger',
+};
+
+/**
+ * L'ETICHETTA DELL'INTERESSE, in una parola e un colore.
+ *
+ * Il verde e' lo stesso di «prendi» e l'ambra la stessa di «aspetta»: la card ha gia' un vocabolario
+ * di colori e questa riga non ne apre un secondo. Il rosso NON si usa - «non serve» non e' un
+ * pericolo, e' un'assenza - che e' la stessa regola con cui `ui/gain-chip` tiene il rosso fuori.
+ */
+const INTEREST_LABEL: Record<Interest, string> = {
+  serve: 'TI SERVE',
+  caro: 'SERVE, MA CARO',
+  no: 'NON TI SERVE',
+  ignoto: 'NON PREZZATO',
+};
+
+const INTEREST_TONE: Record<Interest, string> = {
+  serve: 'text-success',
+  caro: 'text-warning',
+  no: 'text-muted',
+  ignoto: 'text-muted',
 };
 
 export const ROLE_TONE: Record<Role, string> = {
@@ -83,6 +105,14 @@ export class LotCard {
   readonly tail = input(0);
   readonly myMissing = input<number[]>([]);
   /**
+   * MI SERVE, FINO A QUANTO, ED E' IL MOMENTO? (sua richiesta, 24/09/2026).
+   *
+   * Passato e non calcolato qui, come tutto il resto di questa card: la risposta incrocia il FOCUS
+   * (che sa cosa mi manca), la banda della riga e i posti che mi restano, e nessuno di quei tre lo sa
+   * un componente puro. `null` quando non c'e' un lotto o quando nessuna rosa del tavolo e' la mia.
+   */
+  readonly brief = input<LotBrief | null>(null);
+  /**
    * CHI E' QUESTO CALCIATORE, in tre gruppi (sua richiesta, 24/09/2026): le ultime quattro partite, le
    * tre misure della stagione scorsa, il surplus.
    *
@@ -106,18 +136,30 @@ export class LotCard {
   /**
    * LE COLONNE DELLA RIGA, dichiarate una volta e MISURATE (vedi il commento nel template).
    *
-   * Sta qui e non in una classe Tailwind perche' undici larghezze in fila sono una FRASE - si legge in
+   * DODICI DA OGGI, e la quarta e' l'etichetta «mi serve» (24/09/2026): sta fra il verdetto e la
+   * banda perche' e' la domanda che viene prima - quanto vale lo dice la banda, se riguarda me lo dice
+   * lei - e una colonna aggiunta senza la sua larghezza fa scivolare di un posto le undici che seguono,
+   * che e' esattamente il difetto che questa griglia dichiarata esiste per impedire.
+   *
+   * Sta qui e non in una classe Tailwind perche' dodici larghezze in fila sono una FRASE - si legge in
    * un colpo quanto costa ogni gruppo - mentre spalmate su undici elementi vanno cercate una per una.
    * E sono `rem` e non pixel: la riga e' fatta di testo, quindi deve seguire il corpo come lo segue
    * tutto il resto della pagina.
    */
   protected readonly COLUMNS =
-    '3.25rem 11rem 1.75rem 10rem 11rem 7.25rem 5.5rem 3.25rem 4.5rem 10rem 1fr';
+    '3.25rem 11rem 1.75rem 6rem 10rem 11rem 7.25rem 5.5rem 3.25rem 4.5rem 10rem 1fr';
 
   protected readonly icon = computed(() => VERDICT_ICON[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly tone = computed(() => VERDICT_TONE[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly rail = computed(() => VERDICT_RAIL[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly roleTone = computed(() => ROLE_TONE[this.lot()?.role ?? 'P']);
+
+  protected readonly interestLabel = computed(() =>
+    this.brief() ? INTEREST_LABEL[this.brief()!.interest] : '',
+  );
+  protected readonly interestTone = computed(() =>
+    this.brief() ? INTEREST_TONE[this.brief()!.interest] : 'text-muted',
+  );
 
   /** Where the two flat lines fall on the bar, so the scale explains itself without a legend. */
   protected readonly safeAt = computed(() => `${CEILING_ALWAYS_SAFE * 100}%`);

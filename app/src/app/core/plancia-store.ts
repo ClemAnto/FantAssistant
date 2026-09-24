@@ -93,7 +93,7 @@ import { Platform } from './players-store';
 import { SeasonLine, seasonLines } from './season-line';
 import { TrendCell, parseTrend, rowTrend } from './player-trend';
 import { PlanciaOrderFile, orderFileOf, readOrderFile } from './plancia-order-file';
-import { needOf, nextGoal, serves, GOALS, Goal, Owned, TOP_WORDS } from './focus';
+import { needOf, nextGoal, serves, GOALS, Goal, Owned, TOP_WORDS, LotBrief, lotBrief } from './focus';
 import { withRowAt } from './manual-order';
 import { stored, storedFlag, storedJson } from './view-state';
 
@@ -1276,7 +1276,19 @@ export class PlanciaStore {
 
   /** Se questa riga chiude il bisogno del suo reparto. Falso per tutti quando il focus e' spento. */
   servesFocus(man: { role: Role; pv: number | null; category: string | null; club: string }): boolean {
-    if (!this.focusOn()) return false;
+    return this.focusOn() && this.servesNeed(man);
+  }
+
+  /**
+   * ...E LA STESSA DOMANDA SENZA L'INTERRUTTORE, perche' da oggi ha due lettori con due bisogni.
+   *
+   * La griglia chiede «devo accendere questa riga?», che e' falsa col focus spento; la riga del LOTTO
+   * chiede «questo mi serve?» (sua richiesta, 24/09/2026), che e' una domanda sul calciatore e non
+   * sulla modalita' di visualizzazione - un consiglio che tace perche' una vista e' spenta sarebbe un
+   * consiglio che dipende da dove stavo guardando. Una definizione e l'interruttore SOPRA, invece di
+   * due criteri che un giorno rispondono diverso.
+   */
+  servesNeed(man: { role: Role; pv: number | null; category: string | null; club: string }): boolean {
     return serves(
       this.focusNeeds()[man.role],
       { role: man.role, expected: man.pv, category: man.category, club: man.club },
@@ -1290,19 +1302,25 @@ export class PlanciaStore {
   }
 
   /**
-   * I MIEI UOMINI, TUTTI: dal listone e non dalla plancia, perche' la plancia non li disegna tutti.
+   * GLI UOMINI DI UNA SEDIA, TUTTI: dal listone e non dalla plancia, perche' la plancia non li disegna
+   * tutti.
    *
    * `blocks()` porta i 25 slot x `teams` uomini e lascia fuori due popolazioni che in rosa ci sono
    * eccome - la CODA (cinque uomini su venticinque, a un credito) e chi rientra troppo tardi per
    * valere un posto (`MIN_PLAY_SHARE`) - quindi un campetto costruito su quelle righe disegnerebbe un
-   * undici di una rosa che non e' la mia. Si legge percio' da `men()`, che e' il listone intero e
+   * undici di una rosa che non e' quella. Si legge percio' da `men()`, che e' il listone intero e
    * l'unica definizione di come questa pagina prezza un uomo, incrociato con gli acquisti del feed.
    *
-   * Vuoto finche' non si sa chi sono io: «vuoto = ignoto», e un campetto senza padrone non si disegna.
+   * CHI SIA LA SEDIA LO DICE IL CHIAMANTE (24/09/2026): prima questa era `mySquad` e la risposta era
+   * una sola, ma dalla richiesta dell'operatore - «quando selezioni una squadra di un partecipante
+   * aggiorna il campetto con i suoi calciatori» - le sedie sono dieci. Una funzione sola e un
+   * parametro, invece di due letture di «chi ha comprato chi»: la seconda sarebbe quella che un
+   * giorno risponde diverso dalla prima.
+   *
+   * Vuoto quando la sedia non c'e': «vuoto = ignoto», e un campetto senza padrone non si disegna.
    */
-  readonly mySquad = computed<OwnedMan[]>(() => {
-    const mine = this.mineId();
-    if (mine == null) return [];
+  squadOf(teamId: number | null): OwnedMan[] {
+    if (teamId == null) return [];
     // DA `owners()` E NON DAI PICK: e' la stessa mappa che costruisce ogni riga del tabellone, quindi
     // il prezzo che la card mostra e quello che la riga mostra sono lo STESSO numero. Una seconda
     // lettura dei pick sarebbe un secondo modo di dire quanto ho pagato un uomo.
@@ -1310,10 +1328,10 @@ export class PlanciaStore {
     const out: OwnedMan[] = [];
     for (const man of this.men()) {
       const owner = owners.get(man.id);
-      if (owner?.teamId === mine) out.push({ ...man, paid: owner.price });
+      if (owner?.teamId === teamId) out.push({ ...man, paid: owner.price });
     }
     return out;
-  });
+  }
 
   /**
    * How many rosters still want a role - the number that decides the second price (§23.1) and the one
@@ -1330,6 +1348,34 @@ export class PlanciaStore {
           team.budgetLeft >= Math.max(1, floor),
       ).length;
   }
+
+  /**
+   * LA RIGA DI GIUDIZIO SUL LOTTO: mi serve, fino a quanto, e se e' il momento.
+   *
+   * Sua richiesta (24/09/2026). Tre fatti e nessuno nuovo: l'obiettivo del suo reparto e se lui lo
+   * chiude vengono dal FOCUS (la stessa coppia che accende le 250 righe), il tetto dalla banda gia'
+   * calcolata per quella riga incrociata coi posti che mi restano, il momento da `worthWaiting`, che
+   * e' il canale misurato del banco. L'aritmetica sta in `focus.lotBrief`; qui c'e' solo da dove
+   * arrivano i pezzi.
+   *
+   * `null` senza lotto e senza sedia mia: un consiglio su «la mia rosa» quando non so quale sia
+   * sarebbe un consiglio su una rosa che non ho visto - «vuoto = ignoto», applicato a una SEDIA.
+   */
+  readonly lotBrief = computed<LotBrief | null>(() => {
+    const lot = this.lot();
+    const me = this.teams().find((team) => team.me);
+    if (!lot || !me) return null;
+    const placesLeft = me.missing.reduce((sum, one) => sum + Math.max(0, one), 0);
+    return lotBrief({
+      goal: this.focusNeeds()[lot.role],
+      serves: this.servesNeed(lot.man),
+      ceiling: lot.advice.band?.high ?? null,
+      expectedPrice: lot.advice.expectedPrice,
+      credits: me.credits,
+      placesLeft,
+      waiting: lot.advice.waiting,
+    });
+  });
 
   readonly lot = computed<Lot | null>(() => {
     const id = this.lotId();

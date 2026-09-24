@@ -245,6 +245,17 @@ function shirtFromBoards(boards, club, id) {
 // ------------------------------------------------------------------ cosa gira NELLA pagina
 
 /** Un uomo ancora nell'urna in un blocco in cui la stanza ha gia' comprato: e' il caso che ha tutto. */
+/** Dove sta un controllo, per il suo testo visibile: la stessa lettura degli altri banchi. */
+function boxOf(selector, text) {
+  const found = [...document.querySelectorAll(selector)].find((one) =>
+    (one.innerText ?? '').toLowerCase().includes(text.toLowerCase()),
+  );
+  if (!found) return null;
+  const rect = found.getBoundingClientRect();
+  if (!rect.width || !rect.height) return null;
+  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
 function pickLot() {
   const owned = (row) => {
     const bar = row.querySelector(':scope > span');
@@ -279,7 +290,18 @@ function readLot() {
   const card = document.querySelector('plancia-lot-card');
   if (!card) return null;
   const groups = [...card.querySelectorAll('[data-lot-group]')];
-  const out = { name: '', trend: [], last: '', surplus: '', paid: '', rivals: [], shirtLabel: '' };
+  const out = {
+    name: '',
+    trend: [],
+    last: '',
+    surplus: '',
+    paid: '',
+    rivals: [],
+    shirtLabel: '',
+    band: '',
+    verdict: '',
+    brief: null,
+  };
   // IL NOME dal suo gruppo e non dalla prima `.truncate` della card: il ciclo qui sotto scrive
   // `out[<gruppo>]`, quindi con `name` fra i gruppi lo sovrascriveva con la cella che quel gruppo non
   // aveva - e il banco accusava la pagina di non mettere nessuno in asta.
@@ -292,6 +314,24 @@ function readLot() {
         on: !!cell.querySelector('svg[aria-label="subentrato"]'),
         off: !!cell.querySelector('svg[aria-label="sostituito"]'),
       }));
+    } else if (what === 'brief') {
+      // L'ETICHETTA «MI SERVE» (24/09/2026): quattro campi dichiarati, perche' una sola stringa
+      // costringerebbe a parsare a parole quello che il componente gia' separa.
+      out.brief = {
+        interest: (group.querySelector('[data-lot-interest]')?.innerText ?? '').trim(),
+        // LA CHIAVE, non le parole: «NON TI SERVE» contiene «TI SERVE», e un test su sottostringa
+        // ha letto come disaccordo un accordo perfetto alla prima corsa.
+        key: group.querySelector('[data-lot-interest]')?.getAttribute('data-lot-interest') ?? '',
+        spend: (group.querySelector('[data-lot-spend]')?.innerText ?? '').trim(),
+        bound: (group.querySelector('[data-lot-bound]')?.innerText ?? '').trim(),
+        timing: (group.querySelector('[data-lot-timing]')?.innerText ?? '').trim(),
+        reason: group.getAttribute('ng-reflect-nz-tooltip-title') ?? '',
+      };
+    } else if (what === 'band') {
+      // LA BANDA: le due cifre come lo schermo le stampa, per confrontarci il tetto consigliato.
+      out.band = (group.innerText ?? '').replace(/\s+/g, ' ').trim();
+    } else if (what === 'verdict') {
+      out.verdict = group.getAttribute('nztype') ?? group.getAttribute('ng-reflect-nz-type') ?? '';
     } else if (what === 'shirt') {
       out.shirtLabel = (group.querySelector('[data-lot-label]')?.innerText ?? '').trim();
       out.rivals = [...group.querySelectorAll('[data-lot-rival]')].map((one) =>
@@ -549,6 +589,85 @@ async function main() {
     }
     if (cut.size) problems.push(`celle che tagliano il loro contenuto: ${[...cut].join(' · ')}`);
     if (heights.size > 1) problems.push(`la riga cambia altezza col contenuto: ${[...heights].join(', ')}px`);
+
+    // 9. L'ETICHETTA «MI SERVE, FINO A QUANTO, E' IL MOMENTO» (sua richiesta, 24/09/2026).
+    //
+    //    Tre affermazioni e tre prove, ognuna contro qualcosa che NON e' l'etichetta stessa:
+    //     - il tetto consigliato non supera mai la BANDA misurata, che e' due colonne piu' a destra;
+    //     - il momento non contraddice il VERDETTO, che legge lo stesso `worthWaiting` - implicazione
+    //       in un verso solo, perche' «lascia» e «fermo» arrivano prima di lui e lo zittiscono;
+    //     - «TI SERVE» concorda con la MODALITA' FOCUS, che accende le righe che servono: stesso
+    //       predicato, due lettori, e se divergono uno dei due mente.
+    const lotNow = await evaluate(session, readLot);
+    const brief = lotNow?.brief ?? null;
+    const high = Number((lotNow?.band ?? '').replace(/[^0-9]+/g, ' ').trim().split(' ').at(-1));
+    const spend = Number((brief?.spend ?? '').replace(/[^0-9]/g, ''));
+    const briefProblems = [];
+    if (!brief) briefProblems.push("la riga del lotto non porta l'etichetta «mi serve»");
+    if (brief && Number.isFinite(high) && Number.isFinite(spend) && spend > high) {
+      briefProblems.push(`consiglia ${spend} su una banda che finisce a ${high}`);
+    }
+    if (brief && lotNow?.verdict === 'clock-circle' && !/aspett/i.test(brief.timing)) {
+      briefProblems.push(`il verdetto dice «aspetta» e l'etichetta dice «${brief.timing}»`);
+    }
+    // IL FOCUS: si accende davvero, e si guarda se la riga di QUESTO uomo resta accesa.
+    const focusAt = await evaluate(session, boxOf, '[data-focus]', 'FOCUS');
+    let litSays = 'non provato';
+    if (focusAt && brief) {
+      await press(session, focusAt);
+      await new Promise((done) => setTimeout(done, 500));
+      const lit = await evaluate(session, (name) => {
+        const rows = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')];
+        const his = rows.find((row) => (row.innerText ?? '').split(String.fromCharCode(10))[0].trim() === name);
+        if (!his) return null;
+        return Number(getComputedStyle(his).opacity) >= 0.9;
+      }, lotNow.name);
+      // DUE CHIAVI DICONO «CHIUDE L'OBIETTIVO»: `serve` e `caro` - la seconda e' lo stesso uomo a un
+      // prezzo che non posso pagare, non un uomo che non mi serve. Leggendo solo la prima questo
+      // controllo lasciava passare un criterio INVERTITO, e l'ha mostrato la controprova.
+      const serves = brief.key === 'serve' || brief.key === 'caro';
+      litSays = lit == null ? "la sua riga non e' sul tabellone" : lit ? 'accesa' : 'smorzata';
+      if (lit != null && lit !== serves) {
+        briefProblems.push(
+          `l'etichetta dice «${brief.interest}» e il focus lo lascia ${lit ? 'acceso' : 'smorzato'}`,
+        );
+      }
+      // ...E IL CASO POSITIVO, che senza non viene mai provato: col focus acceso si mette in asta una
+      // riga ACCESA e si pretende che l'etichetta dica «serve». Un banco che vede solo «non serve»
+      // ha guardato meta' della funzione, e nella meta' guardata un `false` costante passerebbe.
+      const litRow = await evaluate(session, () => {
+        const rows = [...document.querySelectorAll('plancia-slot-matrix [data-block] button')];
+        const on = rows.find((row) => {
+          const bar = row.querySelector(':scope > span');
+          const paint = bar ? getComputedStyle(bar).backgroundColor : '';
+          const owned = !!paint && paint !== 'transparent' && !paint.startsWith('rgba(0, 0, 0, 0');
+          return !owned && Number(getComputedStyle(row).opacity) >= 0.9;
+        });
+        if (!on) return null;
+        const r = on.getBoundingClientRect();
+        return { x: r.left + r.width / 3, y: r.top + r.height / 2 };
+      });
+      if (litRow) {
+        await press(session, litRow, 2);
+        const served = await evaluate(session, readLot);
+        const key = served?.brief?.key ?? '';
+        litSays += ` · acceso in asta: «${served?.brief?.interest ?? '?'}»`;
+        if (key !== 'serve' && key !== 'caro') {
+          briefProblems.push(
+            `una riga che il focus tiene ACCESA legge «${served?.brief?.interest}» in asta`,
+          );
+        }
+      } else {
+        briefProblems.push('col focus acceso nessuna riga libera resta accesa: il ramo «serve» non e stato provato');
+      }
+      await press(session, focusAt);
+      await new Promise((done) => setTimeout(done, 300));
+    }
+    console.log(
+      `. mi serve: «${brief?.interest ?? '?'}» · fino a ${brief?.spend ?? '?'} cr ${brief?.bound ?? ''}` +
+        ` · «${brief?.timing ?? '?'}» · banda fino a ${high} · nel focus ${litSays}`,
+    );
+    problems.push(...briefProblems);
   } finally {
     if (session) session.close();
     browser.kill();

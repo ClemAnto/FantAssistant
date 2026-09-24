@@ -96,6 +96,60 @@
         [nzTooltipTitle]="l.advice.reason"
       />
 
+      <!-- 1-bis. MI SERVE? FINO A QUANTO? E' IL MOMENTO? (sua richiesta, 24/09/2026: «indicami se e'
+           un calciatore interessante per la mia rosa e quanto dovrei spendere per lui ... suggeriscimi
+           anche secondo l'andamento dell'asta se e' un buon momento per offrire o conviene aspettare»).
+
+           STA PRIMA DELLA BARRA DELLE OFFERTE perche' e' la domanda che viene prima: la banda dice
+           quanto vale, questa dice se riguarda ME. Tre fatti in tre pastiglie e mai una frase: la riga
+           del lotto si legge in un colpo d'occhio mentre il banditore parla, e la frase intera sta nel
+           tooltip come ogni altra ragione di questa card.
+
+           IL MOMENTO E' RIPETUTO E NON RICALCOLATO: `brief.waiting` e' lo stesso `worthWaiting` che
+           decide il verdetto due centimetri a sinistra, quindi le due pastiglie non possono
+           contraddirsi. Due risposte a «offro adesso o aspetto» sullo stesso schermo sono il difetto
+           che questa app ha gia' pagato. -->
+      @if (brief(); as b) {
+        <div
+          data-lot-group="brief"
+          class="flex shrink-0 flex-col gap-0.5"
+          nz-tooltip
+          [nzTooltipTitle]="b.reason"
+        >
+          <!-- L'ATTRIBUTO PORTA LA CHIAVE e la cella le parole: un banco che leggesse le parole
+               cadrebbe sulla sottostringa - «NON TI SERVE» contiene «TI SERVE» - ed e' successo alla
+               prima corsa. Si dichiara quello su cui si decide. -->
+          <span
+            [attr.data-lot-interest]="b.interest"
+            class="text-[11px] leading-none font-bold tracking-wide"
+            [class]="interestTone()"
+            >{{ interestLabel() }}</span
+          >
+          <span class="flex items-baseline gap-1 leading-none">
+            <!-- LA CIFRA E IL SUO VINCOLO: «fino a 42» del mercato e «fino a 42» della borsa sono la
+                 stessa cifra e due situazioni diverse, quindi la parola sta accanto al numero e non
+                 nel tooltip. Un trattino dove il foglio non lo prezza: uno zero direbbe «non vale
+                 niente», che e' una frase sul calciatore invece che sulla nostra ignoranza. -->
+            <span data-lot-spend class="text-sm font-bold tabular-nums text-fg">{{
+              b.spend == null ? '—' : b.spend
+            }}</span>
+            <span class="text-[10px] text-muted">cr</span>
+            @if (b.bound) {
+              <span data-lot-bound class="text-[9px] tracking-wide text-muted uppercase">{{
+                b.bound
+              }}</span>
+            }
+          </span>
+          <span
+            data-lot-timing
+            class="text-[10px] leading-none"
+            [class.text-warning]="b.waiting"
+            [class.text-muted]="!b.waiting"
+            >{{ b.waiting ? 'meglio aspettare' : 'momento buono' }}</span
+          >
+        </div>
+      }
+
       <!-- 2. QUANTO — la banda, mai una cifra secca, sulla scala del budget. -->
       <div data-lot-group="band" class="flex shrink-0 flex-col gap-1">
         <div class="flex items-baseline gap-1.5">

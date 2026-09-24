@@ -35,7 +35,20 @@
        card di calciatori sullo stesso schermo si leggono come la stessa cosa, e senza il secondo un
        campetto con quattro buchi si legge come un campetto rotto invece che come un'asta a meta'. -->
   <div class="flex shrink-0 items-baseline gap-1 text-[10px] leading-none">
-    <span class="font-semibold text-fg">la tua rosa</span>
+    <!-- DI CHI E' QUESTA ROSA, e da oggi non e' sempre la mia (sua richiesta, 24/09/2026): la lente
+         accesa su una card di partecipante porta qui i SUOI calciatori. La pastiglia del colore e' lo
+         stesso vocabolario con cui la pagina nomina una rosa dappertutto - la barra del proprietario
+         su ogni riga, il bordo della card nella striscia - quindi il nome e il colore dicono la stessa
+         cosa in due canali, che e' quello che serve a un'intestazione alta dieci pixel. Sulla mia non
+         si disegna: il mio colore non e' un'informazione, e' il caso normale. -->
+    @if (seatColour() && !ownSquad()) {
+      <span
+        data-seat-colour
+        class="h-2 w-0.5 shrink-0 self-center rounded-full"
+        [style.background-color]="seatColour()"
+      ></span>
+    }
+    <span data-whose class="truncate font-semibold text-fg">{{ whose() }}</span>
     <span
       data-module
       class="rounded bg-control px-1 py-0.5 text-[9px] font-bold tabular-nums text-muted"
