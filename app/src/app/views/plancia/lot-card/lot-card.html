@@ -11,13 +11,40 @@
   <div class="w-1 shrink-0" [class]="rail()"></div>
 
   @if (lot(); as l) {
-    <div class="flex min-w-0 flex-1 items-center gap-3 px-3 py-1.5">
+    <!-- UNA GRIGLIA A COLONNE DICHIARATE e non un flex (sua istruzione, 24/09/2026: «fai in modo che
+         la riga intera abbia un layout ben definito e che gli elementi non si muovano a seconda dei
+         contenuti»). In flex ogni gruppo era largo quanto il suo contenuto, quindi passare da un lotto
+         all'altro spostava tutto quello che gli stava a destra: misurato su 24 calciatori diversi, il
+         bordo sinistro della MAGLIA cadeva in dieci punti, quello del surplus e della media pagata in
+         cinque, quello dell'alternativa in sei. Un occhio che a ogni estrazione deve ritrovare dove
+         sono le cose non legge una riga, la rilegge.
+
+         LE LARGHEZZE SONO MISURATE e non scelte: sugli stessi 24 lotti il caso peggiore di ogni gruppo
+         e' badge 27,8 · nome 176 · verdetto 24 · banda 160 · prezzo 172,7 · trend 115 · scorso 73,5 ·
+         surplus 38 · pagato 48,1 · maglia 107,3. Sopra ognuna c'e' margine per il caso che quei 24 non
+         contengono - un badge `A·coda`, una fantamedia a due cifre, un nome lungo fra i rivali - perche'
+         una larghezza dichiarata e' una promessa che un carattere in piu' puo' rompere.
+
+         E OGNI CELLA C'E' SEMPRE, anche vuota: e' l'altra meta' della richiesta. Un gruppo che sparisce
+         quando non ha niente da dire fa scalare di una colonna tutti quelli dopo, che e' esattamente il
+         movimento che questa griglia toglie - quindi dove il dato manca si stampa un trattino, che e'
+         anche cio' che «vuoto = ignoto» vuole.
+
+         L'ALTERNATIVA prende l'ultima colonna in `1fr` e si appoggia a DESTRA: e' l'unica che puo'
+         cedere, e sotto i ~1250px di riga e' la prima cosa che si stringe invece di spingere fuori le
+         altre. -->
+    <div
+      data-lot-row
+      class="grid min-w-0 flex-1 items-center gap-3 px-3 py-1.5"
+      [style.grid-template-columns]="COLUMNS"
+    >
       <!-- 1. CHI -->
       <!-- LA PASTIGLIA DELLO SLOT, o il solo RUOLO per chi la mappa non disegna: un `D8` su un uomo che
            sta sotto l'ultimo slot sarebbe una coordinata falsa, e quella coordinata e' esattamente la
            popolazione su cui la scala delle offerte e' misurata. -->
       @if (l.block; as block) {
         <span
+          data-lot-group="badge"
           class="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-page"
           [class]="roleTone()"
           nz-tooltip
@@ -31,6 +58,7 @@
         >
       } @else {
         <span
+          data-lot-group="badge"
           class="shrink-0 rounded px-1.5 py-0.5 text-xs font-bold text-page opacity-70"
           [class]="roleTone()"
           nz-tooltip
@@ -38,7 +66,7 @@
           >{{ l.role }}<span class="opacity-60">·coda</span></span
         >
       }
-      <div class="min-w-0 shrink-0" style="width: 11rem">
+      <div data-lot-group="name" class="min-w-0 shrink-0" style="width: 11rem">
         <div class="flex items-center gap-1">
           <!-- CHI LO DICE, con l'inchiostro e non con una parola: il tavolo lo pubblica (dal
                24/09/2026 una sessione a rilanci porta `selectedPlayerId`) oppure lo hai messo tu con
@@ -52,12 +80,15 @@
               nzTooltipTitle="È il tavolo a dire che in asta c'è lui: arriva dalla sessione, non l'abbiamo messo noi."
             />
           }
-          <div class="truncate text-base leading-tight font-semibold text-fg">{{ l.man.name }}</div>
+          <div data-lot-value class="truncate text-base leading-tight font-semibold text-fg">
+            {{ l.man.name }}
+          </div>
         </div>
         <div class="truncate text-[11px] text-muted">{{ l.man.club }}</div>
       </div>
 
       <nz-icon
+        data-lot-group="verdict"
         class="shrink-0 text-2xl"
         [class]="tone()"
         [nzType]="icon()"
@@ -66,7 +97,7 @@
       />
 
       <!-- 2. QUANTO — la banda, mai una cifra secca, sulla scala del budget. -->
-      <div class="flex shrink-0 flex-col gap-1">
+      <div data-lot-group="band" class="flex shrink-0 flex-col gap-1">
         <div class="flex items-baseline gap-1.5">
           @if (l.advice.band; as band) {
             <span class="text-xl leading-none font-bold tabular-nums" [class]="tone()">
@@ -120,7 +151,7 @@
            piu' crediti di me puo' portarla oltre quello che io potrei pagare. E' anche cio' che decide
            quante colonne si disegnano, quindi legarla alla borsa le farebbe pure cambiare di numero
            mentre compro. -->
-      <span class="flex shrink-0 items-center gap-1">
+      <span data-lot-group="price" class="flex shrink-0 items-center gap-1">
         @if (l.bidLive) {
           <!-- LA CIFRA LA PUBBLICA IL BANDITORE (24/09/2026): si guarda e non si batte. Una casella
                modificabile sopra un numero che il prossimo evento riscrive sarebbe un gesto che non
@@ -174,8 +205,7 @@
 
            E LE ETICHETTE SONO CORTE: «ultime 4», la stagione col suo nome, «surplus». La frase lunga
            sta nel tooltip, che è dove l'operatore ha chiesto che stia (05/09/2026). -->
-      <div class="flex shrink-0 items-center gap-3 border-l border-border pl-3">
-        <div
+      <div
           data-lot-group="trend"
           class="flex flex-col gap-0.5"
           nz-tooltip
@@ -233,29 +263,30 @@
              denominatore la cifra si legge come un fatto sullo slot invece che come i due casi che
              sono. Quando nessuno ha ancora comprato in quello slot il gruppo NON C'È, invece di
              mostrare un trattino che si leggerebbe come «hanno pagato zero». -->
-        @if (l.paid; as paid) {
-          <div
-            data-lot-group="paid"
-            class="flex flex-col gap-0.5"
-            nz-tooltip
-            [nzTooltipTitle]="
-              'La media di quello che il tavolo ha pagato per gli altri ' +
-              paid.count +
+      <div
+        data-lot-group="paid"
+        class="flex flex-col gap-0.5"
+        nz-tooltip
+        [nzTooltipTitle]="
+          l.paid
+            ? 'La media di quello che il tavolo ha pagato per gli altri ' +
+              l.paid.count +
               ' uomini già venduti di questo slot' +
               (l.block ? ' (' + l.block.id + ')' : '') +
               '. È il mercato di stasera, non la richiesta del listone.'
-            "
-          >
-            <span class="text-[9px] tracking-wide text-muted uppercase"
-              >pagato {{ l.block?.id }}</span
-            >
-            <span data-lot-value class="flex items-baseline gap-1">
-              <span class="text-sm leading-none font-bold tabular-nums text-fg">{{
-                paid.mean | number: '1.0-0'
-              }}</span>
-              <span class="text-[10px] text-muted">su {{ paid.count }}</span>
-            </span>
-          </div>
+            : 'In questo slot non ha ancora comprato nessuno: non c’è una media da fare, e uno zero direbbe che l’hanno pagato niente.'
+        "
+      >
+        <span class="text-[9px] tracking-wide text-muted uppercase">pagato {{ l.block?.id }}</span>
+        @if (l.paid; as paid) {
+          <span data-lot-value class="flex items-baseline gap-1">
+            <span class="text-sm leading-none font-bold tabular-nums text-fg">{{
+              paid.mean | number: '1.0-0'
+            }}</span>
+            <span class="text-[10px] text-muted">su {{ paid.count }}</span>
+          </span>
+        } @else {
+          <span data-lot-value class="text-sm leading-none font-bold text-muted">·</span>
         }
       </div>
 
@@ -274,8 +305,7 @@
            diversi, tre frasi diverse: un elenco vuoto per tutt'e tre direbbe la piu' forte delle tre. -->
       <div
         data-lot-group="shirt"
-        class="flex min-w-0 shrink-0 flex-col gap-0.5"
-        style="max-width: 13rem"
+        class="flex min-w-0 flex-col gap-0.5"
         nz-tooltip
         [nzTooltipTitle]="
           l.shirt
@@ -319,10 +349,19 @@
         }
       </div>
 
-      <!-- L'ALTERNATIVA: cio' che rende dubitabile il verdetto. -->
+      <!-- L'ALTERNATIVA: cio' che rende dubitabile il verdetto. La sua CELLA c'e' sempre - e' l'ultima
+           colonna, in `1fr` - e quando non c'e' un'alternativa resta vuota invece di far scalare la
+           griglia.
+
+           APPOGGIATA A SINISTRA e non a destra, ed e' una misura: con `justify-self-end` la sua
+           larghezza varia col nome dei due uomini, quindi il suo bordo SINISTRO si sposta - contato su
+           24 lotti, sei posizioni diverse, che e' esattamente il movimento che questa griglia toglie.
+           Ancorata all'inizio della colonna il bordo e' uno solo e a crescere e' lo spazio vuoto alla
+           sua destra, dove non c'e' niente da rileggere. -->
       @if (l.alternative; as alt) {
         <div
-          class="ml-auto flex shrink-0 items-center gap-2 rounded border border-dashed border-border px-2 py-1"
+          data-lot-group="alt"
+          class="flex min-w-0 items-center justify-self-start gap-2 rounded border border-dashed border-border px-2 py-1"
           [class.border-solid]="l.advice.verdict === 'lascia'"
           [class.bg-control]="l.advice.verdict === 'lascia'"
           nz-tooltip
@@ -332,8 +371,8 @@
               : 'Di portieri se ne schiera uno, quindi questi due non sono una coppia: sono due alternative a lui, una O l’altra.'
           "
         >
-          <div class="text-[10px] leading-tight text-muted">
-            <div class="tracking-wide uppercase">{{ alt.note }}</div>
+          <div class="min-w-0 text-[10px] leading-tight text-muted">
+            <div class="truncate tracking-wide uppercase">{{ alt.note }}</div>
             @for (man of alt.men; track man.id; let i = $index) {
               <span class="text-fg">{{ man.name }} {{ alt.costs[i] | number: '1.0-0' }}</span>
               @if (i < alt.men.length - 1) {
@@ -345,6 +384,8 @@
             <span class="text-base font-bold tabular-nums text-fg">{{ alt.total }}</span>
           }
         </div>
+      } @else {
+        <span></span>
       }
     </div>
   } @else {

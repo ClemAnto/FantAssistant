@@ -9501,6 +9501,12 @@ l'alternativa in sei. Larghezze misurate e poi dichiarate, ogni cella presente a
 ancorata a sinistra. Invariante nel banco — quattordici lotti, un bordo ciascuno su undici gruppi — e
 controprova fatta rimettendo il flex.
 
+**E LA RIGA DEL LOTTO È UNA GRIGLIA DICHIARATA** (sua istruzione, §61): in flex ogni gruppo era largo
+quanto il suo contenuto, quindi il bordo sinistro della maglia cadeva in dieci punti su 24 lotti e
+l'alternativa in sei. Larghezze misurate e poi dichiarate, ogni cella presente anche vuota, l'alternativa
+ancorata a sinistra. Invariante nel banco — quattordici lotti, un bordo ciascuno su undici gruppi — e
+controprova fatta rimettendo il flex.
+
 **Stato dell'albero alla chiusura**: solo file miei modificati, nessuna metà di un'altra sessione da
 separare (HEAD era `00f8bc7`). Verde: **1133 test app**, **965 toolkit**, benches plancia stats · order ·
 slots · injury · squad · keepers · award · resume · lot. Resta ROSSO `e2e-plancia-lens`, e **non è mio**:

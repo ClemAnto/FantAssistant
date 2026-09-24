@@ -103,6 +103,17 @@ export class LotCard {
     return this.lastSeason().get(id) ?? null;
   }
 
+  /**
+   * LE COLONNE DELLA RIGA, dichiarate una volta e MISURATE (vedi il commento nel template).
+   *
+   * Sta qui e non in una classe Tailwind perche' undici larghezze in fila sono una FRASE - si legge in
+   * un colpo quanto costa ogni gruppo - mentre spalmate su undici elementi vanno cercate una per una.
+   * E sono `rem` e non pixel: la riga e' fatta di testo, quindi deve seguire il corpo come lo segue
+   * tutto il resto della pagina.
+   */
+  protected readonly COLUMNS =
+    '3.25rem 11rem 1.75rem 10rem 11rem 7.25rem 5.5rem 3.25rem 4.5rem 10rem 1fr';
+
   protected readonly icon = computed(() => VERDICT_ICON[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly tone = computed(() => VERDICT_TONE[this.lot()?.advice.verdict ?? 'ignoto']);
   protected readonly rail = computed(() => VERDICT_RAIL[this.lot()?.advice.verdict ?? 'ignoto']);

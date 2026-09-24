@@ -5697,3 +5697,51 @@ Due trappole pagate mentre lo si faceva, tutt'e due già a verbale e incontrate 
 mostrava la riga senza nessuno dei gruppi nuovi, cioè misurava il build di prima; e **il primo confronto
 sulla media pagata era del banco**, che spogliava la cella delle lettere e incollava il conto al numero
 (`40 su 2` → 402), accusando la pagina del proprio difetto.
+
+## 61. LA RIGA DEL LOTTO È UNA GRIGLIA DICHIARATA, e gli elementi non si muovono (24 settembre 2026)
+
+Sua istruzione, subito dopo i cinque gruppi del §60: «fai in modo che la riga intera del calciatore in
+asta abbia un layout ben definito e che gli elementi non si muovano a seconda dei contenuti».
+
+**IL DIFETTO SI CONTA, non si discute.** In flex ogni gruppo è largo quanto il suo contenuto, quindi
+passare da un lotto all'altro sposta tutto ciò che gli sta a destra. Misurato su **24 calciatori
+diversi** a 1600x1000: il bordo sinistro della MAGLIA cadeva in **dieci** punti, quello del surplus e
+della media pagata in **cinque**, quello dell'alternativa in **sei**. Un occhio che a ogni estrazione
+deve ritrovare dove sono le cose non legge una riga, la rilegge — e questo succede mentre i rilanci
+salgono.
+
+**LE LARGHEZZE SONO MISURATE E POI DICHIARATE**, che è l'ordine giusto: sugli stessi 24 lotti il caso
+peggiore di ogni gruppo è badge 27,8 · nome 176 · verdetto 24 · banda 160 · prezzo 172,7 · trend 115 ·
+scorso 73,5 · surplus 38 · pagato 48,1 · maglia 107,3. Le colonne stanno sopra ognuna con un margine
+per il caso che quei 24 non contengono — un badge `A·coda`, una fantamedia a due cifre, un nome lungo
+fra i rivali — perché *una larghezza dichiarata è una promessa che un carattere in più può rompere*, ed
+è la stessa disciplina delle colonne della plancia (23/09). Stanno in una costante sola e non spalmate
+su undici elementi: undici larghezze in fila sono una FRASE, si legge in un colpo quanto costa ogni
+gruppo.
+
+**E OGNI CELLA C'È SEMPRE, anche vuota**: è l'altra metà della richiesta e la parte che una griglia da
+sola non dà. Un gruppo che sparisce quando non ha niente da dire fa scalare di una colonna tutti quelli
+dopo — cioè esattamente il movimento che la griglia toglie — quindi dove il dato manca si stampa un
+trattino, che è anche ciò che «vuoto = ignoto» vuole. La media pagata di uno slot in cui nessuno ha
+ancora comprato è il caso vero: il gruppo resta, il numero è un punto, e il tooltip dice perché.
+
+**L'ALTERNATIVA È ANCORATA A SINISTRA e non a destra, ed è una misura e non un gusto.** Appoggiata a
+destra la sua larghezza varia col nome dei due uomini, quindi il suo bordo sinistro si sposta: contato,
+**sei posizioni** su 24 lotti — lo stesso difetto, dentro la cella. All'inizio della colonna il bordo è
+uno solo e a crescere è lo spazio vuoto alla sua destra, dove non c'è niente da rileggere. Il prezzo è
+che la riga non finisce più a filo: è il costo della promessa.
+
+Verificato come un invariante e non come una schermata (`e2e-plancia-lot.mjs`): si mettono in asta
+quattordici calciatori diversi e si contano i bordi sinistri distinti di ogni gruppo — **uno ciascuno,
+undici gruppi su undici** — più che nessuna cella tagli il proprio contenuto e che l'altezza della riga
+non cambi (63px, e la stessa a vuoto). Il NULL è il conteggio dei lotti guardati: su uno solo ogni bordo
+è unico per costruzione e il passo direbbe «nessun problema» dopo aver guardato niente. E la
+**controprova** è stata fatta rimettendo il difetto — tornando al flex il passo nomina dieci gruppi su
+undici, con l'alternativa in undici posizioni — perché un'asserzione nuova si prova rimettendo il
+difetto, non guardando il verde.
+
+Due difetti del BANCO pagati qui, tutt'e due della famiglia più ripetuta: il lettore prendeva il nome
+dalla prima `.truncate` della card mentre il ciclo subito sotto scriveva `out[<gruppo>]`, quindi da
+quando anche il nome è un gruppo dichiarato veniva sovrascritto con la cella che quel gruppo non aveva —
+e il banco accusava la pagina di non mettere nessuno in asta. *Un banco si aggancia all'attributo che un
+componente DICHIARA*, e qui il valore è stato dichiarato invece di essere cercato.

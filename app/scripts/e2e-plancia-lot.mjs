@@ -280,7 +280,10 @@ function readLot() {
   if (!card) return null;
   const groups = [...card.querySelectorAll('[data-lot-group]')];
   const out = { name: '', trend: [], last: '', surplus: '', paid: '', rivals: [], shirtLabel: '' };
-  out.name = (card.querySelector('.truncate')?.innerText ?? '').trim();
+  // IL NOME dal suo gruppo e non dalla prima `.truncate` della card: il ciclo qui sotto scrive
+  // `out[<gruppo>]`, quindi con `name` fra i gruppi lo sovrascriveva con la cella che quel gruppo non
+  // aveva - e il banco accusava la pagina di non mettere nessuno in asta.
+  out.name = '';
   for (const group of groups) {
     const what = group.getAttribute('data-lot-group');
     if (what === 'trend') {
@@ -299,6 +302,46 @@ function readLot() {
     }
   }
   return out;
+}
+
+/**
+ * LA GEOMETRIA DELLA RIGA: dove comincia ogni gruppo, quanto e' largo e se taglia il suo contenuto.
+ *
+ * `scrollWidth > clientWidth` e' la stessa prova che il banco delle colonne della plancia fa: una
+ * larghezza DICHIARATA e' una promessa che un carattere in piu' puo' rompere, e il posto in cui lo si
+ * deve scoprire e' qui invece che a schermo.
+ */
+function geometryNow() {
+  const card = document.querySelector('plancia-lot-card');
+  if (!card) return null;
+  const out = { height: Math.round(card.getBoundingClientRect().height), groups: {} };
+  for (const el of card.querySelectorAll('[data-lot-group]')) {
+    const r = el.getBoundingClientRect();
+    out.groups[el.getAttribute('data-lot-group')] = {
+      left: Math.round(r.left),
+      width: Math.round(r.width),
+      // Il taglio si chiede all'elemento E ai suoi discendenti: un gruppo e' una colonna e il testo che
+      // sborda sta quasi sempre in uno span dentro, non nella scatola che porta l'attributo.
+      clipped:
+        el.scrollWidth > el.clientWidth + 1 ||
+        [...el.querySelectorAll('*')].some((one) => one.scrollWidth > one.clientWidth + 1),
+    };
+  }
+  return out;
+}
+
+/** Un lotto qualunque, preso a passo costante su tutti i blocchi: ruoli e slot diversi. */
+function lotAt(n) {
+  const rows = [...document.querySelectorAll('[data-block] button')];
+  const step = Math.max(1, Math.floor(rows.length / 14));
+  const pick = rows[(n * step) % rows.length];
+  if (!pick) return null;
+  const r = pick.getBoundingClientRect();
+  return {
+    x: r.left + r.width / 2,
+    y: r.top + r.height / 2,
+    name: (pick.innerText ?? '').split(String.fromCharCode(10))[0].trim(),
+  };
 }
 
 /** La stessa cifra sulla griglia PERSONALE, dove la colonna E' il surplus. */
@@ -462,6 +505,50 @@ async function main() {
         problems.push(`la riga dice «${shown.shirtLabel}» e la board dice ${wantShirt.mine ? 'che e suo' : 'che e di un altro'}`);
       }
     }
+    // 6. E LA RIGA NON SI MUOVE, qualunque calciatore ci sia dentro (sua istruzione, 24/09/2026: «fai
+    //    in modo che la riga intera abbia un layout ben definito e che gli elementi non si muovano a
+    //    seconda dei contenuti»).
+    //
+    //    E' una claim sulle LARGHEZZE DICHIARATE e non sul contenuto: si contano i bordi sinistri
+    //    distinti di ogni gruppo su una dozzina di lotti - uno, o non e' una colonna - e si verifica che
+    //    nessuna cella tagli quello che porta, perche' una larghezza dichiarata e' una promessa che un
+    //    carattere in piu' puo' rompere. Il NULL e' il conteggio dei lotti guardati: su uno solo ogni
+    //    bordo e' unico per costruzione e il passo direbbe «nessun problema» dopo aver guardato niente.
+    const back = await evaluate(session, () => {
+      const el = [...document.querySelectorAll('header nz-radio-group label')]
+        .find((one) => (one.innerText ?? '').toLowerCase().includes('mercato'));
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    });
+    if (back) await press(session, back);
+    const edges = new Map();
+    const heights = new Set();
+    const cut = new Set();
+    let looked = 0;
+    for (let n = 0; n < 14; n += 1) {
+      const at = await evaluate(session, lotAt, n);
+      if (!at) continue;
+      await press(session, at, 2);
+      const now = await evaluate(session, geometryNow);
+      if (!now?.groups?.name) continue;
+      looked += 1;
+      heights.add(now.height);
+      for (const [what, box] of Object.entries(now.groups)) {
+        edges.set(what, (edges.get(what) ?? new Set()).add(box.left));
+        if (box.clipped) cut.add(`${what} (${at.name})`);
+      }
+    }
+    const moving = [...edges.entries()].filter(([, set]) => set.size > 1);
+    console.log(`. layout: ${looked} lotti · ${edges.size} gruppi · bordi sinistri distinti ` +
+      `${moving.length ? moving.map(([what, set]) => `${what}:${set.size}`).join(' ') : 'uno ciascuno'}` +
+      ` · altezze ${[...heights].join('/')}`);
+    if (looked < 8) problems.push(`solo ${looked} lotti guardati: il conteggio dei bordi non prova niente`);
+    if (moving.length) {
+      problems.push(`la riga si muove col contenuto: ${moving.map(([what, set]) => `${what} in ${set.size} posizioni`).join(' · ')}`);
+    }
+    if (cut.size) problems.push(`celle che tagliano il loro contenuto: ${[...cut].join(' · ')}`);
+    if (heights.size > 1) problems.push(`la riga cambia altezza col contenuto: ${[...heights].join(', ')}px`);
   } finally {
     if (session) session.close();
     browser.kill();
