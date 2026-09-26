@@ -79,9 +79,34 @@
               nzTooltipTitle="Apri la formazione tipo di questa squadra"
               (click)="openClub()"
             >{{ man.club }}</button>
-            <span class="shrink-0">· {{ man.where }}</span>
+            @if (place(); as where) {
+              <span class="shrink-0">· {{ where }}</span>
+            }
           } @else {
-            <span class="min-w-0 truncate">{{ man.club }} · {{ man.where }}</span>
+            <span class="min-w-0 truncate">{{ man.club }}@if (place(); as where) { · {{ where }}}</span>
+          }
+          <!-- I DUE RUOLI DEL LISTONE (operatore, 26/09/2026): «metti anche il pill con il ruolo mantra e
+               anche quello classic». Lo stesso `ui-roles` di ogni altra lista, cosi' un codice ha lo
+               stesso colore qui e in tabella; il Classic PRIMA, perche' e' un pallino solo e il Mantra un
+               insieme che si legge come una parola. Il posto qui accanto sparisce dove li ripeteva
+               (`placeBeyondRoles`). Il ruolo REALE resta dopo e resta grigio: e' un'altra domanda. -->
+          <ui-roles
+            class="shrink-0"
+            [roles]="[man.role]"
+            size="xs"
+            nz-tooltip
+            nzTooltipTitle="Ruolo Classic"
+            data-listone-role="classic"
+          />
+          @if (mantraCodes().length) {
+            <ui-roles
+              class="shrink-0"
+              [roles]="mantraCodes()"
+              size="xs"
+              nz-tooltip
+              nzTooltipTitle="Ruolo Mantra"
+              data-listone-role="mantra"
+            />
           }
           <!-- IL RUOLO REALE, i dodici codici (operatore, 11/09/2026). Lo STESSO componente del
                campetto e della tabella: un marchio significa la stessa cosa in ogni pagina, e due

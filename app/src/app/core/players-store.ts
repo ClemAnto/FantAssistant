@@ -807,6 +807,33 @@ export class PlayersStore {
   }
 
   /**
+   * I CODICI MANTRA DEL LISTONE di un uomo (operatore, 26/09/2026: «nella card del dettaglio calciatore
+   * metti anche il pill con il ruolo mantra e anche quello classic»).
+   *
+   * Dalle stesse righe della tabella di consultazione e non da una seconda lettura di `rosters`: una
+   * definizione di «che ruoli ha», un parser solo (`mantraCodes`). Si chiede prima al listone della
+   * pagina e poi all'altro, perche' i ruoli stanno in `rosters`, che e' UNA riga per uomo e stagione -
+   * non e' un fatto per piattaforma come il prezzo, e un uomo quotato su un solo listone ha comunque
+   * i suoi ruoli.
+   *
+   * Vuoto = IGNOTO: chi non e' su nessuno dei due elenchi torna `[]`, e la card non disegna niente.
+   */
+  mantraCodesOf(fcId: number, platform: Platform): string[] {
+    const index = this.mantraIndex();
+    const other: Platform = platform === 'euro' ? 'default' : 'euro';
+    return index.get(`${platform}|${fcId}`) ?? index.get(`${other}|${fcId}`) ?? [];
+  }
+
+  /** `platform|fc_id` -> i codici Mantra: un indice per non scorrere seicento righe a ogni card. */
+  private readonly mantraIndex = computed(() => {
+    const out = new Map<string, string[]>();
+    for (const [platform, rows] of this.rosters()) {
+      for (const row of rows) if (row.mantraCodes.length) out.set(`${platform}|${row.fcId}`, row.mantraCodes);
+    }
+    return out;
+  });
+
+  /**
    * L'indice dei nomi normalizzati, costruito su TUTTA la tabella dei club.
    *
    * Prima si costruiva sulle ROSE, cioe' sui soli club che hanno almeno un quotato: **47 chiavi**

@@ -445,3 +445,27 @@ export function seasonTotals(cells: readonly MatchCell[]): SeasonTotals | null {
     synthetic: [...votes, ...fantavoti].some((one) => one.voteSynthetic),
   };
 }
+
+/**
+ * IL POSTO DELL'INTESTAZIONE, oppure niente se non dice altro che i ruoli del listone.
+ *
+ * Dal 26/09/2026 la card disegna i due ruoli del listone come pill (Classic e Mantra: «metti anche il
+ * pill con il ruolo mantra e anche quello classic»), e tre delle pagine che la aprono mettevano in
+ * `where` proprio quelli: la Strategia i codici Mantra (`W/A`) o il ruolo Classic, le Squadre il Mantra
+ * come ripiego del posto. Accanto al pill quel testo diceva la stessa cosa due volte, e due canali per
+ * una frase finiscono per dirne due versioni. Un POSTO vero - lo slot della plancia (`A12`, `A coda`),
+ * la casella del campetto - non e' un ruolo e resta.
+ *
+ * Il confronto e' sull'INSIEME dei codici e non sulla stringa, perche' le pagine li uniscono in tre
+ * modi (`W/A`, `W A`, `Dc;Ds`); e il maiuscolo non conta, perche' il pill lo disegna comunque in
+ * maiuscolo.
+ */
+export function placeBeyondRoles(where: string, classic: string, mantra: readonly string[]): string | null {
+  const place = where.trim();
+  if (!place) return null;
+  const codes = (list: readonly string[]) => [...new Set(list.map((one) => one.toLowerCase()))].sort().join('|');
+  const said = codes(place.split(/[\s/;,]+/).filter(Boolean));
+  if (said === codes([classic])) return null;
+  if (mantra.length && said === codes(mantra)) return null;
+  return place;
+}

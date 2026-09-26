@@ -458,6 +458,15 @@ async function main() {
         .filter((row) => row[col(rosters, 'season')] === manifestSeason)
         .map((row) => [row[col(rosters, 'fc_id')], row[col(rosters, 'role_classic')]]),
     );
+    // ...e i codici MANTRA della stessa riga, per il passo dei due pill (26/09/2026).
+    const mantraOf = new Map(
+      rosters.rows
+        .filter((row) => row[col(rosters, 'season')] === manifestSeason)
+        .map((row) => [
+          row[col(rosters, 'fc_id')],
+          String(row[col(rosters, 'roles')] ?? '').split(';').map((one) => one.trim()).filter(Boolean),
+        ]),
+    );
     const scoring = await (await fetch(`${base}/scoring_config.json`)).json();
 
     // il campionato di ognuno, dal listone di QUESTA piattaforma (la plancia disegna `default`)
@@ -548,6 +557,42 @@ async function main() {
     });
     if (expand) await click(session, expand);
     await wait(700);
+
+    // 2b. I DUE RUOLI DEL LISTONE (operatore, 26/09/2026: «metti anche il pill con il ruolo mantra e
+    //     anche quello classic»). Confrontati con la riga di `rosters` del BUNDLE e mai con la card: e'
+    //     l'unica fonte che non sia la pagina. Il pill Mantra arriva quando il negozio delle partite e'
+    //     pronto, quindi si aspetta lui e non la card - che e' in pagina da prima.
+    const wantMantra = mantraOf.get(who.id) ?? [];
+    const pills = await waitFor(
+      session,
+      (mantraWanted) => {
+        const read = (kind) =>
+          [...document.querySelectorAll(`ui-player-card [data-listone-role="${kind}"] ui-role`)].map(
+            (one) => (one.textContent ?? '').trim(),
+          );
+        const mantra = read('mantra');
+        if (mantraWanted && !mantra.length) return null;
+        const line = document.querySelector('ui-player-card [data-listone-role="classic"]')?.parentElement;
+        return { classic: read('classic'), mantra, line: (line?.innerText ?? '').replace(/\s+/g, ' ') };
+      },
+      30,
+      wantMantra.length > 0,
+    );
+    const same = (a, b) =>
+      a.length === b.length && a.every((one, i) => one.toLowerCase() === String(b[i]).toLowerCase());
+    note('i ruoli del listone', {
+      said: pills
+        ? `Classic ${pills.classic.join(' ') || '-'} · Mantra ${pills.mantra.join(' ') || '-'} `
+          + `(bundle: ${roleOf.get(who.id) ?? '-'} · ${wantMantra.join(' ') || '-'}) · riga «${pills.line}»`
+        : 'i pill non sono arrivati',
+      problems: !pills
+        ? ['la card non disegna i pill dei ruoli del listone']
+        : [
+            ...(same(pills.classic, [roleOf.get(who.id) ?? '']) ? [] : ['il pill Classic non e\' il ruolo del bundle']),
+            ...(same(pills.mantra, wantMantra) ? [] : ['il pill Mantra non porta i codici del bundle']),
+          ],
+    });
+
     const shown = await waitFor(session, readMatches, 20);
     if (!shown?.rows?.length) {
       note('l\'elenco', { said: shown?.empty ?? 'vuoto', problems: ['la card non ha nessuna riga'] });

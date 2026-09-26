@@ -8,6 +8,7 @@ import {
   clubCardLeft,
   clubCardTop,
   clubOfCard,
+  placeBeyondRoles,
   playerCard,
   playerOfCard,
 } from './player-card';
@@ -175,5 +176,32 @@ describe('dove nasce una card di CLUB', () => {
     // vero (`e2e-club-card`: a 440px in modalita' compatta, 1 nome troncato su 11 e ZERO larghi
     // zero), ed e' li' che va guardato - si giudica la funzione, non una copia di essa.
     expect(CLUB_CARD_WIDTH).toBeGreaterThan(CARD_WIDTH);
+  });
+});
+
+describe('placeBeyondRoles', () => {
+  it('toglie il posto che ripete i codici Mantra, in qualunque grafia', () => {
+    expect(placeBeyondRoles('W/A', 'A', ['W', 'A'])).toBeNull();
+    expect(placeBeyondRoles('A W', 'A', ['W', 'A'])).toBeNull();
+    expect(placeBeyondRoles('dc;ds', 'D', ['Dc', 'Ds'])).toBeNull();
+  });
+
+  it('toglie il posto che ripete il ruolo Classic', () => {
+    expect(placeBeyondRoles('A', 'A', ['W', 'A'])).toBeNull();
+  });
+
+  it('un POSTO vero resta: lo slot della plancia e la casella del campetto non sono ruoli', () => {
+    expect(placeBeyondRoles('A12', 'A', ['Pc'])).toBe('A12');
+    expect(placeBeyondRoles('A coda', 'A', ['Pc'])).toBe('A coda');
+    expect(placeBeyondRoles('Ad', 'A', ['W', 'A'])).toBe('Ad');
+  });
+
+  it('un sottoinsieme dei codici e un posto: la casella in cui il campetto lo disegna resta', () => {
+    expect(placeBeyondRoles('W', 'A', ['W', 'A'])).toBe('W');
+  });
+
+  it('senza codici Mantra non si confronta col vuoto', () => {
+    expect(placeBeyondRoles('C', 'D', [])).toBe('C');
+    expect(placeBeyondRoles('', 'D', [])).toBeNull();
   });
 });

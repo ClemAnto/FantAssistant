@@ -22,6 +22,7 @@ import {
   cardLeft,
   cardRows,
   cardTop,
+  placeBeyondRoles,
   seasonTotals,
 } from '../../core/player-card';
 import {
@@ -122,6 +123,24 @@ export class PlayerCard {
    * Vuoto = IGNOTO: la fonte non ha raggiunto tutti, e la card lo dice invece di disegnare un ruolo.
    */
   protected readonly realRoles = computed(() => this.valuation.realRolesOf(this.man().id));
+
+  /**
+   * I DUE RUOLI DEL LISTONE, Classic e Mantra (operatore, 26/09/2026: «nella card del dettaglio
+   * calciatore metti anche il pill con il ruolo mantra e anche quello classic»).
+   *
+   * Il Classic arriva con la card (`man.role`), il Mantra se lo prende la card come il ruolo reale:
+   * e' un fatto su una PERSONA per la stagione e non sul foglio della pagina, e cosi' la plancia - che
+   * prezza il listone classic e i codici Mantra non li porta sulla riga - li mostra come la Strategia.
+   * Vuoto = IGNOTO: senza codici il pill non si disegna.
+   */
+  protected readonly mantraCodes = computed(() =>
+    this.players.ready() ? this.players.mantraCodesOf(this.man().id, this.man().platform) : [],
+  );
+
+  /** Il posto dell'intestazione, tolto dove ripete i ruoli che ora sono pill (`placeBeyondRoles`). */
+  protected readonly place = computed(() =>
+    placeBeyondRoles(this.man().where, this.man().role, this.mantraCodes()),
+  );
 
   /** L'uomo di QUESTA card, passato dalla pagina: le card aperte sono piu' di una. */
   readonly man = input.required<CardMan>();
