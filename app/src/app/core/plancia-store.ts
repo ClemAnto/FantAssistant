@@ -1,8 +1,9 @@
 /**
  * The state behind `/plancia`: the slot board of a random-extraction auction.
  *
- * Two sources, one shape. By DEFAULT the board opens on an invented table with the standard league
- * settings (`plancia-demo.ts`), and connecting to a real fanta-asta session is something the operator
+ * Two sources, one shape. By DEFAULT the board opens on an invented table built on the league the
+ * operator DECLARES in the options (`declared`, since 26/09/2026 - before it was the standard 10 · 1000
+ * · 3/8/8/6 whatever he declared), and connecting to a real fanta-asta session is something the operator
  * ASKS for with a button - his decision of 03/09/2026, and it holds for the draft panel too. The rest
  * of this file cannot tell the two apart, which is the point: one set of numbers, and a banner that
  * says which table they describe.
@@ -20,7 +21,7 @@
  * `app/scripts/probe-live-session.mjs` e' l'arnese che ha risposto, e resta per la prossima volta.
  */
 
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
 import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
 import { demoPlayers } from './auction-demo';
@@ -422,6 +423,68 @@ export class PlanciaStore {
   readonly teamsCount = computed(() => this.feed.teams().length || STANDARD_LEAGUE.teams);
   readonly budget = computed(() => this.feed.budget() || STANDARD_LEAGUE.budget);
 
+  /**
+   * LA LEGA DICHIARATA, che e' quella su cui si costruisce il tavolo quando NON e' collegata (operatore,
+   * 26/09/2026: «la plancia deve allinearsi alle opzioni di lega settate - numero di partecipanti,
+   * budget, calciatori euro - quando non e' collegata ad asta-live»).
+   *
+   * Fino a oggi il tavolo inventato si costruiva con `STANDARD_LEAGUE` qualunque cosa lui dichiarasse,
+   * mentre il commento di `DEMO_PROGRESS` diceva gia' il contrario: «le sedie restano perche' quelle non
+   * sono finzione, sono le impostazioni della lega che lui dichiara». Da quando il tavolo e' il foglio su
+   * cui si segna l'asta vera, un tavolo da dieci per una lega da otto e' un tavolo sbagliato.
+   *
+   * Le ROSE sono quelle CLASSIC: la plancia e' una griglia P/D/C/A e un roster Mantra (portieri piu'
+   * movimento, nessuna quota per reparto) non ha le quattro righe su cui la pagina sta in piedi - la sua
+   * lega Mantra usa comunque il listone e il budget dichiarati, e l'intestazione nomina il foglio.
+   * Collegati, vale il TAVOLO: `GlobalOptions` adotta le sue impostazioni appena ci si siede, quindi le
+   * due strade finiscono sugli stessi numeri.
+   */
+  private readonly declared = computed(() => {
+    const league = this.options.league();
+    return {
+      teams: league.teams,
+      budget: league.budget,
+      slots: { ...league.slots.classic } as Record<Role, number>,
+      platform: league.platform,
+    };
+  });
+
+  /** La chiave con cui il tavolo inventato e' stato costruito: quando la lega cambia, si ricostruisce. */
+  private demoBuiltFor: string | null = null;
+  /** Quanto era giocato quel tavolo (`?fixture=played` ne chiede uno GIOCATO): la ricostruzione lo rispetta. */
+  private demoProgress = DEMO_PROGRESS;
+
+  /**
+   * IL LISTONE CHE PREZZA LA PLANCIA, quello del foglio scelto. Prima era `default` scritto in cinque
+   * posti («questa pagina prezza sempre il foglio default|classic»); da quando segue la lega dichiarata
+   * il foglio puo' essere di EuroLeghe, e cinque letture cablate darebbero a un uomo di euro le partite,
+   * la costanza e la dritta del calendario di Serie A.
+   */
+  readonly platform = computed<Platform>(() => (this.sheet()?.platform as Platform) ?? 'default');
+  /** Per quale listone e' stato letto quello in memoria: cambiare listone lo rilegge. */
+  private listoneFor: Platform | null = null;
+
+  constructor() {
+    // LA LEGA CAMBIA, LA PLANCIA SI RIALLINEA. Solo sul tavolo INVENTATO: su uno vero le rose e i
+    // crediti sono del banditore. Il listone invece segue la lega anche collegati, perche' e' lui a
+    // dire con quali prezzi si legge il tavolo - e l'adozione lo porta gia' su quello della sessione.
+    effect(() => {
+      const wanted = this.declared();
+      const key = JSON.stringify(wanted);
+      // Letti FUORI da `untracked`: una lega cambiata mentre il listone si carica si riallinea appena
+      // il caricamento finisce, invece di perdersi.
+      const busy = this.loading() || !this.listone().length;
+      untracked(() => {
+        if (busy) return;
+        if (this.feed.demo() && this.demoBuiltFor !== null && key !== this.demoBuiltFor) {
+          void this.startDemo(true, this.demoProgress);
+        } else if (!this.feed.demo() && wanted.platform !== this.listoneFor) {
+          void this.reloadListone();
+        }
+      });
+    });
+  }
+
   /** The roster shape the league declares, in the board's own four letters. */
   readonly slots = computed<Record<Role, number>>(() => {
     const roles = this.feed.league()['roles'] ?? {};
@@ -449,6 +512,7 @@ export class PlanciaStore {
   private readonly men = computed<PlanciaMan[]>(() => {
     const numbers = this.numbers();
     const book = this.calendar();
+    const platform = this.platform();
     // La media di campionato del +1 a porta inviolata, cacheata per lega: e' il metro del sostituto
     // nel differenziale dello SWING dei portieri, e ricalcolarla per riga sarebbe un giro di
     // settecento partite per ognuno dei trenta portieri.
@@ -467,10 +531,10 @@ export class PlanciaStore {
       // (`expected-play.ts`) e non piu' una moltiplicazione scritta qui: due copie di questa
       // sottrazione darebbero allo stesso uomo due presenze attese sulla plancia e sulla strategia.
       const outlook = this.play.outlook(
-        // `default` e non una lettura: questa pagina prezza sempre il foglio `default|classic`, ed e'
-        // scritto a due passi da qui. La piattaforma serve alla dritta dell'operatore, la cui
+        // Il listone del FOGLIO che prezza la plancia (`platform`, dal 26/09/2026 quello della lega
+        // dichiarata). La piattaforma serve alla dritta dell'operatore, la cui
         // conversione in giornate e' misurata sulla popolazione di UN foglio.
-        { id: player.id, club: player.club, platform: 'default' },
+        { id: player.id, club: player.club, platform },
         { pv: valuation.pv, pvIsEstimate: valuation.basis === 'estimated',
           playShare: numbers.get(player.id)?.titolaritaPlay ?? null,
           titolarita: numbers.get(player.id)?.titolarita ?? null },
@@ -484,7 +548,7 @@ export class PlanciaStore {
       // IL SURPLUS DI QUESTA RIGA: quello del foglio, riscalato sulle giornate che restano come lo
       // sono `points` e `pv`. Una sola valutazione per uomo, che e' quella che lo schermo mostra.
       const engine = numbers.get(player.id);
-      const played = this.valuations.playedOf('default', player.id);
+      const played = this.valuations.playedOf(platform, player.id);
       const sheetSurplus = engine?.surplusLeague ?? engine?.estSurplus ?? null;
       const sheetPv = engine?.pv ?? engine?.estPv ?? null;
       const surplus =
@@ -546,13 +610,13 @@ export class PlanciaStore {
           fm: valuation.fm,
           confidence: valuation.confidence,
           steady: this.ratings.ready()
-            ? (this.ratings.for('default', player.id)?.steady?.share ?? null)
+            ? (this.ratings.for(platform, player.id)?.steady?.share ?? null)
             : null,
           seasonFm: played?.fm ?? null,
           seasonPlayed: played?.pv ?? null,
-          // La plancia prezza sempre il foglio default|classic, e li' dalla revisione 71 la miscela
-          // in-season e' su TUTTE le righe - anche quelle di ripiego, che prima la prendevano qui.
-          fmBlendsSeen: sheetBlendsSeen('default'),
+          // La miscela in-season del foglio che prezza la plancia: su default|classic dalla revisione 71
+          // e' su TUTTE le righe - anche quelle di ripiego, che prima la prendevano qui.
+          fmBlendsSeen: sheetBlendsSeen(platform),
           // ...e la costanza si paga solo dove la lega paga l'R-Factor (opzione dichiarata).
           rFactor: this.options.league().rFactor,
           // ...e il +1 a porta inviolata solo dove la lega lo paga (opzione dichiarata, 07/09/2026).
@@ -1762,13 +1826,14 @@ export class PlanciaStore {
     }
     const numbers = this.numbers();
     const rounds = this.seasonRounds();
+    const platform = this.platform();
     // Chi non e' piu' disegnato da nessuna delle due griglie esce da se': una card che sopravvive alla
     // propria riga mostrerebbe i numeri di un altro giro.
     return this.cards.place((key) => {
       const id = playerOfCard(key);
       const found = id == null ? undefined : byId.get(id);
       return found
-        ? cardManOf(found.man, found.block, numbers.get(id as number) ?? null, rounds)
+        ? cardManOf(found.man, found.block, numbers.get(id as number) ?? null, rounds, platform)
         : undefined;
     });
   });
@@ -1965,13 +2030,26 @@ export class PlanciaStore {
     this.loading.set(true);
     this.error.set(null);
     try {
-      const players = await this.loadListone();
-      // The STANDARD settings and not the sheet's: what the fixture is for is testing the board on the
-      // league every published number of the bench is measured against (ten seats, 1000 credits,
-      // 3/8/8/6). A sheet built for a twelve-team league would silently change the width of every slot,
-      // which is the one coordinate the whole page stands on.
-      const auction = buildRandomAuction({ players, ...STANDARD_LEAGUE, progress });
+      const league = this.declared();
+      const players = await this.loadListone(league.platform);
+      // LA LEGA DICHIARATA e non lo standard (operatore, 26/09/2026). Fino a oggi qui c'era
+      // `STANDARD_LEAGUE` con la ragione che le scale del banco sono misurate su dieci sedie, mille
+      // crediti e 3/8/8/6: vero, ed e' una ragione per NON cambiare le scale, non per disegnare un
+      // tavolo diverso dal suo. Le scale sono QUOTE del budget e la larghezza di uno slot e' `teams`,
+      // quindi seguono la lega da se'; quello che resta misurato su un'altra popolazione e' la LADDER,
+      // e l'intestazione nomina il foglio. Chi apre senza aver dichiarato niente ha `DEFAULT_LEAGUE`,
+      // che e' esattamente lo standard: nessun banco cambia popolazione.
+      const auction = buildRandomAuction({
+        players,
+        teams: league.teams,
+        budget: league.budget,
+        slots: league.slots,
+        platform: league.platform,
+        progress,
+      });
       this.feed.startDemo(auction);
+      this.demoBuiltFor = JSON.stringify(league);
+      this.demoProgress = progress;
       // A NEW TABLE IS A NEW SET OF SQUADS: the lens cannot survive it, because an id that happens to
       // exist on the new table names a DIFFERENT squad. `lensId` already refuses one that is gone.
       this.clearLens();
@@ -2013,7 +2091,9 @@ export class PlanciaStore {
     this.loading.set(true);
     this.error.set(null);
     try {
-      await this.loadListone();
+      // Il listone della LEGA DICHIARATA: se si riprende un'asta vera, l'adozione delle sue impostazioni
+      // lo riporta su quello della sessione (l'effetto del costruttore).
+      await this.loadListone(this.declared().platform);
       if (!this.feed.hasTable()) await this.feed.restore();
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'Non riesco ad aprire la plancia.');
@@ -2183,8 +2263,28 @@ export class PlanciaStore {
     return true;
   }
 
-  private async loadListone(): Promise<AuctionPlayer[]> {
-    if (this.listone().length) return this.listone();
+  /** Rilegge il listone quando la lega cambia piattaforma su un tavolo vero (l'effetto del costruttore). */
+  private async reloadListone(): Promise<void> {
+    this.loading.set(true);
+    this.error.set(null);
+    try {
+      await this.loadListone(this.declared().platform);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'Non riesco a leggere il listone.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private async loadListone(platform: Platform): Promise<AuctionPlayer[]> {
+    if (this.listone().length && this.listoneFor === platform) return this.listone();
+    // UN ALTRO LISTONE E' UN ALTRO FOGLIO: quello che era stato letto per il precedente non vale piu',
+    // e le cache qui sotto rispondono «gia' fatto» guardando solo se sono piene.
+    if (this.listoneFor !== platform) {
+      this.lastSeason.set(new Map());
+      this.boardKeepers.set(new Map());
+      this.boardKeeperIds.set(new Map());
+    }
 
     const manifest = await this.bundle.manifest();
     const sheets = manifest.engine_sheets ?? [];
@@ -2194,18 +2294,20 @@ export class PlanciaStore {
           'Lancia "snapshot --league NOME" e poi "export".',
       );
     }
-    // THE SHEET HAS TO MATCH THE LEAGUE, and not merely be the fattest one.
-    //
-    // The ladder every max offer stands on is measured on the operator's OWN auctions - ten seats, 1000
-    // credits, 3/8/8/6, the classic Serie A listone (§19.3) - so pricing a EuroLeghe board with it would
-    // be applying a parameter outside the population it was fitted on, which is the mistake this
-    // repository has paid for more than once. Serie A classic first, then whatever prices the most men,
-    // and the header always NAMES the sheet it ended up with.
-    const suits = (sheet: EngineSheetEntry) =>
-      sheet.platform === 'default' && sheet.game === 'classic';
+    // IL FOGLIO DEL LISTONE DICHIARATO (26/09/2026), e dentro quello il classic prima: la plancia e' una
+    // griglia P/D/C/A. Fino a oggi era Serie A classic sempre, con la ragione che la ladder e' misurata
+    // sulle aste della sua lega di Serie A (§19.3) - che resta vera, e per questo l'intestazione NOMINA
+    // il foglio: un listone EuroLeghe dichiarato si prezza col foglio EuroLeghe (oggi c'e' solo il
+    // mantra, 946 righe), e prezzarlo con quello di Serie A darebbe prezzi del listone sbagliato a uomini
+    // che su quel foglio non ci sono. Nessun foglio di quel listone: il piu' ricco, come prima.
+    const richest = (list: EngineSheetEntry[]) =>
+      [...list].sort((a, b) => (b.priced ?? 0) - (a.priced ?? 0))[0];
+    const ofPlatform = sheets.filter((sheet) => sheet.platform === platform);
     const chosen =
-      [...sheets].filter(suits).sort((a, b) => (b.priced ?? 0) - (a.priced ?? 0))[0] ??
-      [...sheets].sort((a, b) => (b.priced ?? 0) - (a.priced ?? 0))[0];
+      richest(ofPlatform.filter((sheet) => sheet.game === 'classic')) ??
+      richest(ofPlatform) ??
+      richest(sheets.filter((sheet) => sheet.platform === 'default' && sheet.game === 'classic')) ??
+      richest(sheets);
     const table = await this.bundle.table(chosen.path.replace(/\.json(\.gz)?$/, ''));
 
     this.sheet.set(chosen);
@@ -2236,6 +2338,7 @@ export class PlanciaStore {
       );
     }
     this.listone.set(players);
+    this.listoneFor = platform;
     return players;
   }
 
@@ -2439,16 +2542,17 @@ function middleOf(values: (number | null)[]): number | null {
  * e la card ne e' il terzo lettore dopo il blocco e il lotto. Due strade per una cifra sono come un uomo
  * finisce con due valutazioni.
  *
- * IL PIATTAFORMA E' `default` PERCHE' LA PLANCIA PREZZA SEMPRE IL LISTONE CLASSIC DI SERIE A
- * (`loadSheet`, che sceglie `default|classic` per primo e lo NOMINA in intestazione): le partite che la
- * card mostra sono quelle di quel calendario, e passare la piattaforma sbagliata mostrerebbe le giornate
- * di un altro gioco sotto lo stesso nome.
+ * LA PIATTAFORMA E' QUELLA DEL FOGLIO CHE PREZZA LA PLANCIA (`PlanciaStore.platform`, dal 26/09/2026 il
+ * listone della lega dichiarata; prima era `default` scritto qui): le partite che la card mostra sono
+ * quelle di quel calendario, e passare la piattaforma sbagliata mostrerebbe le giornate di un altro gioco
+ * sotto lo stesso nome.
  */
 function cardManOf(
   man: BoardMan,
   block: BoardBlock,
   numbers: EngineNumbers | null,
   rounds: number | null,
+  platform: Platform,
 ): CardMan {
   const inUrn = man.state === 'urna' || man.state === 'asta';
   const band = man.band;
@@ -2465,7 +2569,7 @@ function cardManOf(
     // sola meno precisa.
     where: man.fromTail ? `${man.role} coda` : `${man.role}${block.index}`,
     role: man.role,
-    platform: 'default',
+    platform,
     edge: man.edge,
     pv: man.pv,
     rounds,

@@ -64,6 +64,20 @@ const DEMO_TEAMS: { label: string }[] = [
   { label: 'Kraken' },
   { label: 'Ultimo Minuto' },
   { label: 'Fuorigioco FC' },
+  // Ventiquattro, quante il pannello delle opzioni ne accetta: il tavolo segue la lega DICHIARATA
+  // (26/09/2026), e una lega da quattordici tagliata a dodici sedie sarebbe un altro tavolo in silenzio.
+  { label: 'Catenaccio' },
+  { label: 'Contropiede' },
+  { label: 'Zona Cesarini' },
+  { label: 'Panchina Lunga' },
+  { label: 'Rabona' },
+  { label: 'Tiki Taka' },
+  { label: 'Falso Nueve' },
+  { label: 'Libero' },
+  { label: 'Sombrero' },
+  { label: 'Cucchiaio' },
+  { label: 'Trivela' },
+  { label: 'Gegenpress' },
 ];
 
 /**
@@ -136,6 +150,8 @@ export function buildRandomAuction(input: {
   teams?: number;
   budget?: number;
   slots?: Record<Role, number>;
+  /** Il listone del tavolo: lo dichiara `playerListType`, che e' da dove `AuctionFeed.platform` lo legge. */
+  platform?: 'default' | 'euro';
   progress?: number;
   seed?: number;
 }): DemoAuction {
@@ -193,7 +209,7 @@ export function buildRandomAuction(input: {
     status: DraftStatus.Started,
     // The mechanic is RAISES, which is what tells the panel it is not a draft.
     marketType: MarketType.Bids,
-    playerListType: 'default',
+    playerListType: input.platform ?? 'default',
     settings: {
       budget,
       game: GameType.Classic,
