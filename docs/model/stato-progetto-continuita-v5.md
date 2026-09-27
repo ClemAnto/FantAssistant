@@ -9553,3 +9553,57 @@ su un albero pulito, e costa un comando; (b) i tre file ancora modificati in alb
 (`lot-card.html`/`.ts`, `e2e-plancia-lot.mjs`) sono dell'altra sessione e **non sono nel sito**, quindi la
 loro feature è pubblicata a metà finché non si ripubblica; (c) resta rosso `e2e-plancia-lens`, dichiarato
 dall'altra sessione e non di questa.
+
+## 27 settembre 2026 — xG E xA: CHE COSA PREVEDONO, E DUE REGOLE AL GATE
+
+Tre domande dell'operatore in fila: che correlazione c'è fra xG/xA e le prestazioni (squadra che produce,
+giocatore «che si sbloccherà», gol ~ xG), se possono anticipare l'evoluzione di un calciatore, poi
+«proviamo ad usarli nel motore», e infine se per scegliere una rosa contano le medie dell'anno scorso o
+quelle delle prime cinque giornate. Tutto misurato su una **copia privata del DB** perché sul vivo girava
+un `update` (due processi `euroleghe_ingest update`).
+
+**LE MISURE** (`metrica-asta-surplus-v1.md` §30, arnese `scratchpad/xgq.py`, quattro stagioni con gli
+attesi, cinque campionati):
+- **gol ~ xG**: r 0,83 attaccanti · 0,82 centrocampisti · 0,64 difensori; per partita l'xG è una
+  probabilità (xG 0,35-0,5 → 0,43 gol).
+- **«si sbloccherà?»**: sì, al livello del SUO xG e non oltre — attaccanti sotto l'xG nell'andata
+  0,17 → 0,38 gol/90 nel ritorno (xG 0,41 → 0,37), sopra 0,69 → 0,45; conversione di tutti i gruppi di
+  nuovo ~1,0. Per prevedere il ritorno l'xG dell'andata batte i gol (+15,4% contro +10,3%), l'xA gli
+  assist (+13,7% contro +5,4%).
+- **la squadra**: gli attaccanti delle squadre che producono segnano di più (0,27 · 0,30 · 0,38 gol/90
+  per terzile) solo perché ricevono più occasioni; a parità di xG personale il club aggiunge +0,02.
+- **la stagione dopo**: bonus/90 previsti da xG+xA +22,3% contro +16,8% dai bonus veri; chi produce più
+  di quanto segna guadagna (attaccanti +0,27 fantapunti a partita), chi segna di più perde (−0,41).
+
+**LE DUE REGOLE** (`gate-motore-v1.md` §7-tresexagies, pre-registrazione committata PRIMA della corsa in
+`c8b5a58`, codice ed esito in `6c6ff45`):
+- **R29** — la fortuna della stagione scorsa tolta dalla fantamedia prevista: **strict su Serie A**
+  classic (+2,57%, 3/3, anche contro il set adottato, nomi 38 → 39) e mantra (+1,13%); **no su euro**
+  (ridondante con R18 e bocciata dal guardiano del valore). R2, xG come VOLUME, fallisce ovunque.
+- **R30** — R25 con la fantamedia vista depurata: il K ottimo scende (15 contro 25) ma la precisione
+  non sale; **R30K40 contro R25K40 −0,26% / −0,12%**: non adottata. Sulle prime giornate di EuroLeghe
+  nessuna delle due miscele paga in modo pulito.
+
+**Nessuna delle due è in `ADOPTED`**; `backtest --verify` 22/22 col codice nuovo, suite toolkit 980
+verdi, fogli fermi. Codice: `features._seen_expected` + quattro campi dell'osservazione,
+`model.bonus_luck` / `GOAL_BONUS` / `ASSIST_BONUS` (legati a `scoring_config.json` da un test),
+`Derived.luck_prev` / `luck_seen`, `Params.luck_lam`, `R30_MATCHES`; test `tests/test_bonus_luck.py`.
+Driver del gate ristretto: `scratchpad/gate_xg.py` (rigenerabile).
+
+**E LA RISPOSTA ALLA DOMANDA PRATICA** («per la rosa 26/27 le medie dell'anno scorso o delle prime
+cinque?»): un MIX, con pesi diversi per le due metà, e il foglio lo fa già — la fantamedia vista pesa
+~11% a cinque partite su Serie A (R25K40) e niente su euro, le presenze viste un terzo su Serie A (R20K10)
+e quasi metà su euro (R20K6). Esempio vero: Kvernadze 8,75 in quattro partite → fantamedia 6,37 → 6,59,
+presenze 18 → 25.
+
+**DUE LEZIONI DI METODO, tutt'e due già scritte e incontrate di nuovo.** (1) **Un baseline che contiene
+già una media lunga assorbe un canale di fortuna**: su euro R29 contro R0 migliora 3/3 e contro
+l'adottato legge ~0, perché R18 media cinque stagioni — la lezione di R24 («un canale si giudica contro
+il set adottato») che qui ha deciso il verdetto su una piattaforma intera. (2) **Un confronto appaiato
+fatto dove il termine di riferimento è già peggio di niente non prova niente**: R30 batte R25 dell'11%
+a K3, dove R25 è −12% contro R0 — depurare aiuta chi si fida troppo delle prime giornate e non serve a
+chi le pesa giusto.
+
+**E un difetto dell'arnese, mio**: il primo test di R30 leggeva `6,5 < 6,5` perché `predict_window`
+senza `params` non applica nessuna regola (`predict_one` ripiega su `_predict_pv`); si passa
+`evaluate.Params()`.

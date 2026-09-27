@@ -2402,3 +2402,24 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
    guardasse un secondo listone, un oggetto vecchio andrebbe letto sapendo che le sue chiavi parlano di
    un'altra piattaforma. Oggi non può succedere e un `version` esiste apposta per il giorno in cui
    succede — **si alza la versione, non si indovina la chiave**.
+
+## Aperti dopo la sessione del 27/09/2026 — xG e xA nel motore
+
+1. **LA DECISIONE SU R29 È DELL'OPERATORE, e se la prende i passi sono quattro.** R29 passa strict su
+   `default` in tutt'e due i giochi e contro il set adottato (`gate-motore-v1.md` §7-tresexagies bis),
+   con l'evidenza del gradino più basso. Se sì: `"R29"` in `ADOPTED["default"]`; rifare
+   `backtest --verify` e **aspettarsi che si muova** (R29 agisce su T1/T2, che sono le finestre
+   pubblicate) — i valori `expected` si riallineano col numero accanto, non si allentano le tolleranze;
+   `snapshot` delle leghe dichiarate + `export` + `npm run data:pull`, con `SHEET_REVISION` alzata;
+   farlo quando il DB non è in mano a un `update`. Su euro NO.
+2. **IL PRIMO GIUDIZIO PULITO È LA FINE DEL 2026-27.** Gli attesi esistono dal 2022-23 e §30 ha
+   guardato gli stessi esiti che il gate giudica: pre-registrare adesso che a stagione chiusa R29 si
+   rigiudica su T3 (2025-26 → 2026-27) col λ fittato sulle finestre di oggi.
+3. **LE FINESTRE IN-SEASON DI FEBBRAIO SU EURO NON MISURANO NIENTE** (`fm_seen` vuoto, changed_n 0 per
+   R25 e R30). Era già visibile in §7-noviesquadragies e non è stato indagato: probabilmente il taglio
+   per giornata della piattaforma euro a febbraio. Finché non si capisce, «su euro la fantamedia vista
+   non paga» vale solo per settembre.
+4. **UNA COLONNA DI REPORTING, se serve all'asta**: la fortuna per presenza (`model.bonus_luck`) è un
+   numero leggibile (Kean +0,78, Martinez L. −0,46) e potrebbe stare sul foglio come `desc_*` accanto
+   alla fantamedia anche senza adottare R29 — ma è la stessa informazione, e due letture dello stesso
+   fatto su uno schermo vanno decise, non aggiunte.

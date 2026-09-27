@@ -7157,6 +7157,19 @@ mezz'ora prima; e in un altro banco **`e2e-why` leggeva 26,4 contro 22,9 = 38/33
 unita' del riporto a stagione piena, con il «+/giornata» che tornava a localizzarlo - una divisione per
 le giornate ANNULLA il riporto, quindi sbagliavano solo le colonne che il riporto moltiplica.
 
+## xG e xA pagano come FORTUNA da togliere, non come volume, e una media lunga l'ha gia' tolta
+**27/09/2026, `gate-motore-v1.md` §7-tresexagies, `metrica-asta-surplus-v1.md` §30.** R29 - la fortuna
+della stagione scorsa, 3·(xG−gol)+(xA−assist) per presenza, come termine sul residuo di B0 - passa
+**strict su Serie A** (classic +2,57%, mantra +1,13%, anche contro il set adottato) e fallisce su euro;
+R2, gli stessi attesi letti come VOLUME, fallisce ovunque, perche' il volume la fantamedia lo contiene
+gia'. **Su euro R29 e' ridondante con R18**, che media cinque stagioni: una media lunga ha gia' diluito la
+fortuna di una sola, e contro R0 R29 migliora 3/3 mentre contro l'adottato legge ~0 - la lezione di R24
+che qui decide una piattaforma intera. In-season la stessa correzione (R30) abbassa il K ottimo (15
+contro 25) senza alzare la precisione: **depurare aiuta chi si fida troppo delle prime giornate, non chi
+le pesa giusto**. **R29 non e' in `ADOPTED`: la decisione su `default` e' aperta e dell'operatore**
+(l'ipotesi viene dagli stessi esiti, gradino di evidenza piu' basso), e i passi se la prende sono in
+`todolist-mantra-euroleghe-v5.md` («Aperti dopo la sessione del 27/09/2026»).
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,
