@@ -7183,3 +7183,69 @@ primo giudizio pulito è la fine della stagione 2026-27. Un rifiuto invece vale 
 
 R29 è inerte su T-7…Tm1 e R30 su ogni pre-stagione, quindi finché nessuna delle due è in `ADOPTED`
 `backtest --verify` resta **22/22** e nessun foglio si muove.
+
+### 7-tresexagies (bis). L'ESITO: R29 PASSA su Serie A e non su EuroLeghe; R30 non batte R25
+
+**Corsa fatta** subito dopo la pre-registrazione, sulla copia privata del DB (un `update` girava sul
+vivo), con la `compare` del gate ristretta ai candidati R2/R29 e R25/R30 — per le regole di fantamedia
+il λ si fitta sul residuo contro B0, che non dipende dal set di candidati. Driver:
+`scratchpad/gate_xg.py`. `backtest --verify` **22/22** col codice nuovo, suite toolkit 980 verdi.
+
+#### R29 (pre-stagione, T0 · T1 · T2)
+
+| | contro R0: gain sul campione mosso | verdetto | contro ADOPTED | deliverable |
+|---|---|---|---|---|
+| **default/classic** | +2,11 · +1,74 · +3,87% (media **+2,57%**) | **STRICT** | +1,96 · +1,87 · +3,97% | nomi 38 → 39, valore catturato +0,8% |
+| **default/mantra** | +0,60 · +0,35 · +2,45% (media +1,13%) | **STRICT** | +0,70 · +0,45 · +2,46% | nomi 138 = 138, valore −0,6% |
+| euro/classic | +0,79 · +2,16 · +1,62% | NO — guardiano del VALORE | −0,11 · +0,08 · +1,14% | |
+| euro/mantra | +0,27 · +1,39 · +1,08% | NO — guardiano del VALORE | −0,55 · −0,26 · +1,31% | |
+
+λ fittato: classic 0,47 · 0,38 · **0,78**, mantra 0,33 · 0,27 · 0,65; euro 0,01 · 0,41 · 0,58 e −0,07 ·
+0,34 · 0,48. **L'attesa (0,2-0,5) regge su quattro fit su sei di Serie A** e T2 esce sopra; il guadagno
+atteso (1-3%) regge. R2, il termine di VOLUME, fallisce ovunque (1 finestra su 3, media ~0) — **gli
+xG/xA pagano come correzione della FORTUNA e non come segnale di volume**, che la fantamedia contiene già.
+
+**Su EuroLeghe è RIDONDANTE con R18**, che è adottata lì e legge la media di cinque stagioni: una media
+lunga ha già tolto la fortuna di una stagione sola, e contro l'adottato R29 legge ~0 su due finestre di
+tre. Su Serie A R18 non è adottata e R29 migliora contro l'adottato su tutte e tre le finestre.
+
+Chi muove, sul listone 2026-27 (input 2025-26, λ ≈ 0,54 per illustrare): Kean 8 gol su 15,1 xG
+**+0,42** di fantamedia, Gimenez 0 su 3,4 +0,33, Morata 0 su 4,9 +0,30, Conceição +0,25; dall'altra parte
+Martinez L. 17 su 13,5 **−0,25**, Thuram 13 su 9,4 −0,26, Calhanoglu −0,26, Scamacca −0,22.
+
+**In moneta**: 0,007-0,011 di MAE sulla fantamedia dei giocatori di movimento con ≥ 450', cioè
+un'accuratezza del 2-4% su di loro. Piccolo e vero, e tutto sul lato bonus.
+
+#### R30 (in-season, I22set … I25feb)
+
+| | R25 migliore contro R0 | R30 migliore contro R0 | R30K40 appaiato su R25K40 |
+|---|---|---|---|
+| default/classic | K25 +4,44% (robust); K40 +4,08% robust 7/8 | **K15 +4,84%** (robust); K40-K80 **STRICT 8/8** | **−0,26%**, 2/8 |
+| default/mantra | K25 +4,37%; K40 +4,27% STRICT | K15 +4,88% STRICT; K25-K120 STRICT 8/8 | −0,12%, 3/8 |
+| euro/classic | K40 +0,65% robust (2/3) | K25 +0,66% robust (2/3) | +0,11%, 0/3 |
+| euro/mantra | nessun K passa | nessun K passa | +0,14%, 0/3 |
+
+**Criterio pre-registrato: R30K40 non batte R25K40 (−0,26% e −0,12%), quindi su `default` R25K40
+resta.** Su euro nessuna delle due passa in modo pulito (+0,66% su 2 finestre di 3, e le tre `feb` non
+misurano niente per nessuna delle due: `fm_seen` vuoto, il limite già visto in §7-noviesquadragies).
+
+**L'attesa sul K è confermata, quella sul guadagno no.** L'ottimo di R30 sta sotto quello di R25 (K15
+contro K25) — con la fortuna tolta, le prime partite si possono pesare circa il doppio — ma alla stessa
+accuratezza: il massimo di R30 (+4,84%) supera quello di R25 (+4,44%) di quattro decimi su campioni
+diversi, cioè niente che il criterio possa vedere. Appaiato, lo scarto su R25 è grande solo dove il K è
+piccolo (K6 +6,7%, K3 +11,3%, 8/8), cioè **dove anche R25 è peggio di niente**: depurare aiuta chi si
+fida troppo delle prime giornate, e non serve a chi le pesa giusto. Sulle finestre di SETTEMBRE a K10
+il vantaggio è regolare (+3,0/+4,0% su tutte e quattro), a K40 sparisce (+0,0/+0,4%).
+
+**Risposta alla domanda sull'EuroLeghe di adesso** (5 giornate giocate): gli xG/xA delle prime giornate
+**non migliorano la previsione del resto della stagione rispetto a quello che il motore fa già** — la
+stagione scorsa resta il predittore migliore (§28 lo diceva dal lato dei soli attesi: il sorpasso della
+stagione corrente arriva alla 9ª-10ª giornata), e su euro la miscela stessa vale mezzo punto.
+
+#### Decisione
+
+**R29 su `default`: passa entrambi i verdetti su entrambi i giochi, contro R0 E contro l'adottato, col
+deliverable intatto — è ADOTTABILE, e la decisione è dell'operatore** perché l'evidenza è quella del
+gradino più basso (l'ipotesi viene dagli stessi esiti, §7-tresexagies «Contaminazione»). Su euro NO.
+**R30: non adottata** su nessuna piattaforma. Nessuna delle due è in `ADOPTED` alla scrittura di questa
+sezione.

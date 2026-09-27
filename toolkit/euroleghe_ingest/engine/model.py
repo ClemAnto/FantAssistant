@@ -376,6 +376,25 @@ def propensity_adjustment(gamma: float, z_propensity: float) -> float:
     return gamma * z_propensity
 
 
+# R29/R30 (gate §7-tresexagies): the bonus a goal and an assist are worth, in fantapunti. They are
+# `goal_bonus` and `assist_bonus` of config/scoring_config.json, identical in all five championships;
+# repeated here because the engine reads no config file, and a test binds the two.
+GOAL_BONUS: float = 3.0
+ASSIST_BONUS: float = 1.0
+
+
+def bonus_luck(goals: float, assists: float, xg: float, xa: float, matches: float) -> float | None:
+    """R29/R30: the bonus he was PAID above what his chances were worth, per appearance, in fantapunti.
+
+    Positive = he scored less than his xG/xA said (unlucky, the bonus should come back); negative = more.
+    It is in the unit of `fm`, so R30 can add it to a measured fantamedia and R29's lambda reads as «how
+    much of last season's luck is still inside B0». None on no appearances: no rate on no sample.
+    """
+    if not matches:
+        return None
+    return (GOAL_BONUS * (xg - goals) + ASSIST_BONUS * (xa - assists)) / matches
+
+
 # R14: a gap this long inside a season is not rotation. Measured: 21-45 days is the normal band on
 # both windows, and beyond 90 next season's appearances drop from ~18 to ~13.
 NORMAL_GAP_DAYS = 45

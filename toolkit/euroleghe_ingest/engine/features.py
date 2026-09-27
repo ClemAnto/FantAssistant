@@ -305,6 +305,16 @@ class Observation:
     # campo: «non ha ancora giocato» e «e' entrato dalla panchina» sono due frasi diverse.
     starts_seen: int | None = None
     played_seen: int | None = None
+    # ...E QUANTO DI QUELLO CHE HA SEGNATO ERA FORTUNA (R30, §7-tresexagies): gol, assist e i loro attesi
+    # nelle STESSE partite che `played_seen` conta - stessa tabella, stesso taglio - cosi' lo scarto non
+    # mescola due sorgenti. Somme e non un tasso, per la ragione di `starts_seen`: il rapporto e i punti
+    # per gol li fa la regola. None fuori dall'in-season e per chi non e' mai sceso in campo; dentro la
+    # portata degli attesi un xG assente e' uno ZERO (il provider omette la chiave), e la regola sa se
+    # la stagione e' in quella portata.
+    goals_ext_seen: int | None = None
+    assists_ext_seen: int | None = None
+    xg_seen: float | None = None
+    xa_seen: float | None = None
     # LA COPPA CONTINENTALE che cade dentro la stagione bersaglio, per lui: la confederazione della sua
     # nazionale, se il provider lo file fra i nazionali, e la QUOTA della stagione del suo campionato che
     # sta dentro le finestre di quella coppa. Tre input legittimi il giorno dell'asta - un calendario
@@ -1653,6 +1663,7 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     straddling = matchdays_straddling(conn, platform, window.target_season, window.auction_date)
     seen_totals, rest_totals = _split_target_season(conn, window, platform, seen_rounds, straddling)
     seen_starts = _seen_starts(conn, window, platform, seen_rounds)
+    seen_expected = _seen_expected(conn, window, platform, seen_rounds)
     mine_rounds = rounds_in_squad(conn, window, platform, seen_rounds)
 
     observations: list[Observation] = []
@@ -1715,6 +1726,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             mv_seen=seen_totals.get(fc_id, (0, None, None))[1],
             starts_seen=seen_starts.get(fc_id, (None, None))[0],
             played_seen=seen_starts.get(fc_id, (None, None))[1],
+            **dict(zip(("goals_ext_seen", "assists_ext_seen", "xg_seen", "xa_seen"),
+                       seen_expected.get(fc_id, (None,) * 4), strict=True)),
             # Su una finestra in-season l'esito è il RESTO della stagione; su una pre-stagione resta il
             # totale, che è quello che i dieci numeri pubblicati misurano.
             **(dict(zip(("pv_act", "mv_act", "fm_act"),
@@ -1797,6 +1810,33 @@ def _seen_starts(conn: sqlite3.Connection, window: Window, platform: str,
     return {int(fc_id): (int(starts or 0), int(played))
             for fc_id, starts, played in conn.execute(
                 f"""SELECT fc_id, SUM(started), COUNT(*) FROM external_match_stats
+                    WHERE season = ? AND source = 'sofascore' AND competition IN ({marks})
+                      AND match_date <= ? AND minutes IS NOT NULL AND minutes > 0
+                    GROUP BY fc_id""",
+                (window.target_season, *competitions, cut))}
+
+
+def _seen_expected(conn: sqlite3.Connection, window: Window, platform: str,
+                   seen: set[int]) -> dict[int, tuple[int, int, float, float]]:
+    """Delle partite gia' giocate alla data d'asta: fc_id -> (gol, assist, xG, xA). Per R30.
+
+    Il taglio e il filtro sono quelli di `_seen_starts`, riga per riga, quindi il denominatore di R30 e'
+    `played_seen` e le due cifre non possono parlare di partite diverse. Gol e assist vengono da QUESTA
+    tabella e non dai voti, per la stessa ragione: lo scarto dall'atteso si misura su una sorgente sola.
+    I NULL diventano zero qui e la regola decide se la stagione e' nella portata degli attesi (prima del
+    2022-23 la fonte non li pubblica, e li' uno zero sarebbe inventato).
+    """
+    if not seen:
+        return {}
+    dates = matchday_dates(conn, platform, window.target_season)
+    cut = max((dates[md] for md in seen if md in dates), default=None)
+    if cut is None:
+        return {}
+    competitions = PLATFORM_COMPETITIONS.get(platform, PLATFORM_COMPETITIONS["default"])
+    marks = ",".join("?" * len(competitions))
+    return {int(fc_id): (int(goals or 0), int(assists or 0), float(xg or 0.0), float(xa or 0.0))
+            for fc_id, goals, assists, xg, xa in conn.execute(
+                f"""SELECT fc_id, SUM(goals), SUM(assists), SUM(xg), SUM(xa) FROM external_match_stats
                     WHERE season = ? AND source = 'sofascore' AND competition IN ({marks})
                       AND match_date <= ? AND minutes IS NOT NULL AND minutes > 0
                     GROUP BY fc_id""",

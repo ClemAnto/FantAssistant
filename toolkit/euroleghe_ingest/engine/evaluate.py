@@ -70,6 +70,15 @@ RULES: tuple[Rule, ...] = (
          kind="coverage"),
     Rule("R1b", "adaptation discount for players who changed league (control: changed club)", True),
     Rule("R2", "beta corroborated by per-90 propensity (xG/xA per 90)", True),
+    # R29/R30 - pre-registrate §7-tresexagies (27/09/2026): xG e xA come FORTUNA da togliere alla
+    # fantamedia, non come volume (che e' R2). R29 sulla stagione scorsa, R30 sulle giornate viste.
+    Rule("R29", "la fortuna della stagione scorsa - 3·(xG-gol)+(xA-assist) per presenza - si toglie "
+                "dalla fantamedia attesa, con la quota lambda fittata", True, metric="fm"),
+    *(Rule(key, f"come R25 (K = {matches:.0f} partite), con la fantamedia vista DEPURATA dalla fortuna "
+                f"delle partite gia' giocate", True, metric="fm")
+      for key, matches in (("R30K120", 120.0), ("R30K80", 80.0), ("R30K60", 60.0),
+                           ("R30K40", 40.0), ("R30K25", 25.0), ("R30K15", 15.0),
+                           ("R30K10", 10.0), ("R30K6", 6.0), ("R30K3", 3.0))),
     Rule("R3", "minutes inside expected appearances", True, metric="pv"),
     Rule("R3c", "minutes measured on the euro calendar's own rounds (matchday_map)", True,
          metric="pv"),
@@ -229,6 +238,11 @@ R25_MATCHES: dict[str, float] = {"R25K120": 120.0, "R25K80": 80.0, "R25K60": 60.
                                  "R25K10": 10.0, "R25K6": 6.0, "R25K3": 3.0}
 
 
+#: R30 - LA STESSA GRIGLIA DI R25, perche' e' R25 con `fm_seen` depurato (§7-tresexagies): il confronto
+#: e' punto contro punto, allo stesso K.
+R30_MATCHES: dict[str, float] = {f"R30K{key[4:]}": matches for key, matches in R25_MATCHES.items()}
+
+
 #: R26 - LA STESSA MISCELA CON IL DENOMINATORE DI CIASCUNO (§7-sexquinquagies). Stessa griglia di R20,
 #: perche' il K e' la stessa quantita' e il confronto e' punto contro punto: quello che cambia e' che `k`
 #: sono le giornate in cui era IN ROSA e non quelle del calendario.
@@ -279,7 +293,10 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                # R26: pre-registrata §7-sexquinquagies (13/09/2026). Inerte come le R20
                                # su una pre-stagione, e in piu' inerte su chiunque non abbia cambiato
                                # squadra dentro la stagione bersaglio.
-                               *R26_ROUNDS)
+                               *R26_ROUNDS,
+                               # R29/R30: pre-registrate §7-tresexagies (27/09/2026). R29 misura solo
+                               # dove la stagione di input ha gli attesi (T0-T2), R30 solo in-season.
+                               "R29", *R30_MATCHES)
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -597,6 +614,8 @@ class Derived:
     production_z: dict[int, float] = field(default_factory=dict)  # R13c
     club_attack_z: dict[int, float] = field(default_factory=dict)  # R5b
     level_z: dict[int, float] = field(default_factory=dict)  # R19: the ORIGIN club's Elo, movers only
+    luck_prev: dict[int, float] = field(default_factory=dict)  # R29: last season's bonus luck, per app.
+    luck_seen: dict[int, float] = field(default_factory=dict)  # R30: the same, on the rounds already played
 
 
 def _scale(values: Sequence[float], min_n: int) -> tuple[float, float] | None:
@@ -767,7 +786,32 @@ def derive(data: features.WindowData) -> Derived:
             rivals_raw[obs.fc_id] = (obs.role_classic, rivals)
         if obs.club_expected_assists_prev is not None:
             attack_raw[obs.fc_id] = (obs.role_classic, obs.club_expected_assists_prev)
+    # R29: last season's bonus LUCK. Only where the source publishes expected goals at all in the input
+    # season - inside that season an absent xG is a zero (the provider omits the key), outside it is an
+    # unknown and nobody gets a number. Derived from the data, not from a season constant.
+    luck_prev: dict[int, float] = {}
+    if any(obs.xg_prev is not None or obs.xa_prev is not None for obs in data.observations):
+        for obs in data.observations:
+            if (_is_goalkeeper(obs) or not obs.minutes_prev
+                    or obs.minutes_prev < MIN_MINUTES_FOR_PROPENSITY):
+                continue
+            luck = model.bonus_luck(obs.goals_prev or 0, obs.assists_prev or 0,
+                                    obs.xg_prev or 0.0, obs.xa_prev or 0.0, obs.matches_prev or 0)
+            if luck is not None:
+                luck_prev[obs.fc_id] = luck
+    # R30: the same luck on the rounds ALREADY PLAYED of the target season, from the same rows that count
+    # `played_seen`. Same scope rule: only a target season whose per-match layer carries expected goals.
+    luck_seen: dict[int, float] = {}
+    if any(obs.xg_seen for obs in data.observations):
+        for obs in data.observations:
+            if _is_goalkeeper(obs) or not obs.played_seen or obs.xg_seen is None:
+                continue
+            luck = model.bonus_luck(obs.goals_ext_seen or 0, obs.assists_ext_seen or 0,
+                                    obs.xg_seen, obs.xa_seen or 0.0, obs.played_seen)
+            if luck is not None:
+                luck_seen[obs.fc_id] = luck
     derived = Derived(recent_deviation=recent_deviation, minutes_share=minutes_share,
+                      luck_prev=luck_prev, luck_seen=luck_seen,
                       propensity_z=propensity_z, elo_z=_elo_z_scores(data),
                       level_z=_level_z_scores(data),
                       price_z=price_z, price_revision=price_revision,
@@ -830,6 +874,7 @@ class Params:
     discount_cross: float | None = None           # R1: adaptation, changed league
     discount_intra: float | None = None           # R1: control, changed club only
     gamma: float | None = None                    # R2: propensity corroboration
+    luck_lam: float | None = None                 # R29: share of last season's bonus luck to undo
     age_fm: float | None = None                   # R4: slope past the knee, fantamedia
     age_share: float | None = None                # R4: slope past the knee, share
     notes: dict[str, object] = field(default_factory=dict)
@@ -1317,8 +1362,9 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
     # someone fits a subset - which then silently gets no coefficient and a rule that
     # "does nothing". R16/R16b were added here after exactly that.
     if {"R2", "R4", "R4b", "R5", "R6", "R8", "R12", "R12b",
-            "R16", "R16b", "R5b"} & set(rules):
+            "R16", "R16b", "R5b", "R29"} & set(rules):
         propensity, ageing, ageing_share = [], [], []
+        luck_pairs: list[tuple[tuple[float, ...], float]] = []
         penalties: list[tuple[tuple[float, ...], float]] = []
         off_role: list[tuple[tuple[float, ...], float]] = []
         elo_pairs: list[tuple[tuple[float, ...], float]] = []
@@ -1334,6 +1380,9 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                 z = derived.propensity_z.get(obs.fc_id)
                 if z is not None:
                     propensity.append(((z,), residual))
+                luck = derived.luck_prev.get(obs.fc_id)
+                if luck is not None:
+                    luck_pairs.append(((luck,), residual))
                 age = obs.age(data.window)
                 if age is not None:
                     ageing.append(((float(max(0, age - model.AGE_KNEE)),), residual))
@@ -1371,6 +1420,10 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
             fitted = fit_linear(propensity, intercept=False)
             params.gamma = fitted[0] if fitted else None
             params.notes["R2_n"] = len(propensity)
+        if "R29" in rules:
+            fitted = fit_linear(luck_pairs, intercept=False)
+            params.luck_lam = fitted[0] if fitted else None
+            params.notes["R29_n"] = len(luck_pairs)
         if "R4" in rules or "R4b" in rules:
             fitted_fm = fit_linear(ageing, intercept=False)
             fitted_share = fit_linear(ageing_share, intercept=False)
@@ -1544,6 +1597,13 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
         if z is not None:
             fm_pred += model.propensity_adjustment(params.gamma, z)
 
+    # R29 - LA FORTUNA DELLA STAGIONE SCORSA (§7-tresexagies): B0 legge `fm_prev`, che contiene i gol e
+    # gli assist VERI; la parte pagata sopra (o sotto) quello che valevano le sue occasioni non si ripete.
+    if "R29" in rules and params.luck_lam is not None and not _is_goalkeeper(obs):
+        luck = derived.luck_prev.get(obs.fc_id)
+        if luck is not None:
+            fm_pred += params.luck_lam * luck
+
     # R16 - how many of his club's goals are plausibly his, rather than the whole attack's
     if "R16" in rules and params.budget_lam is not None and not _is_goalkeeper(obs):
         fm_pred += model.goal_budget_adjustment(derived.budget_z.get(obs.fc_id), params.budget_lam)
@@ -1596,10 +1656,18 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
     #
     # Su una finestra pre-stagione `fm_seen` e' None per tutti, quindi questo blocco non esiste - ed e'
     # la ragione per cui la regola e' inerte su ogni numero che il gate ha gia' pubblicato.
-    for key, matches in R25_MATCHES.items():
+    #
+    # R30 (§7-tresexagies) e' R25 con `fm_seen` depurato dalla fortuna delle partite gia' giocate, e la
+    # SOSTITUISCE quando sono tutt'e due nel set: cosi' `ADOPTED + R30K40` confronta la stessa miscela
+    # con e senza la fortuna, e non la applica due volte.
+    blends = R30_MATCHES if any(key in rules for key in R30_MATCHES) else R25_MATCHES
+    for key, matches in blends.items():
         if (key in rules and fm_pred is not None
                 and obs.fm_seen is not None and obs.pv_seen):
-            fm_pred = model.blend_with_seen(fm_pred, obs.fm_seen, float(obs.pv_seen), matches)
+            seen = obs.fm_seen
+            if blends is R30_MATCHES:
+                seen += derived.luck_seen.get(obs.fc_id, 0.0)
+            fm_pred = model.blend_with_seen(fm_pred, seen, float(obs.pv_seen), matches)
             break
     return fm_pred
 
