@@ -1997,3 +1997,101 @@ dove a prevedere il resto della stagione è l'xG **di volume** e non il suo scar
 
 Arnese: `scratchpad/xg_main.py` + `xg_seriea.py` + `xg_vol.py` (sola lettura sul DB, rigenerabili in
 un minuto).
+
+---
+
+## 30. xG E xA COME PREVISIONE: squadra, «si sbloccherà?», e la stagione dopo (27 settembre 2026)
+
+Quattro domande dell'operatore in una: **(1)** una squadra che produce tanti xG/xA fa segnare di più i
+suoi attaccanti? **(2)** chi ha segnato poco con xG/xA alti si sbloccherà? **(3)** i gol dipendono
+direttamente dall'xG? **(4)** xG e xA anticipano l'evoluzione di un calciatore?
+
+**Popolazione**: `external_match_stats` (source `sofascore`, nessun doppione `sofascore_recent`), cinque
+campionati, 2022-23…2025-26, minuti > 0, `xg`/`xa`/`goals`/`assists` NULL = 0 (convenzione di §29).
+Ruolo = posizione del provider **per partita** (F/M/D ≥ 60% delle presenze dello spell), cioè NON i
+ruoli mantra (Pc/T/W/A non sono storici). Rigori dentro xG e gol (§29: non spostano il quadro). Copia
+privata del DB, `update` in corso sul vivo. Arnese: `scratchpad/xgq.py`.
+
+### 30.1 (3) Gol ~ xG: sì, e la calibrazione è per partita
+
+Spell ≥ 900': `r(gol/90, xG/90)` = **0,830** attaccanti · 0,817 centrocampisti · 0,640 difensori;
+assist ~ xA **0,637 · 0,704 · 0,677**. Per partita, gli attaccanti con xG in (0,35-0,5] segnano in
+media 0,431 gol contro 0,420 attesi, in (0,75-1,0] 0,824 contro 0,860: **l'xG è la probabilità**. Ma
+dentro una stagione il 16% della varianza dei gol resta caso, e §29 dice che la parte «abilità di
+conversione» vale ~0,06 contro 0,17 di rumore.
+
+### 30.2 (2) Chi segna sotto il suo xG si sblocca — al livello del suo xG, non oltre
+
+Prima metà → seconda metà, stesso club, ≥450' per metà (n = 3.033), leave-one-season-out, null = media
+di ruolo:
+
+| bersaglio | predittore | vs null |
+|---|---|---|
+| gol/90 H2 | gol/90 H1 | +10,3% |
+| gol/90 H2 | **xG/90 H1** | **+15,4%** |
+| gol/90 H2 | entrambi | +15,7% |
+| assist/90 H2 | assist/90 H1 | +5,4% |
+| assist/90 H2 | **xA/90 H1** | **+13,7%** |
+| assist/90 H2 | entrambi | +13,7% |
+
+E per gruppi (xG H1 ≥ 3):
+
+| attaccanti | n | gol/90 H1 | xG/90 H1 | **gol/90 H2** | xG/90 H2 |
+|---|---|---|---|---|---|
+| sotto (gol ≤ 60% xG) | 42 | 0,173 | 0,410 | **0,376** | 0,368 |
+| in linea | 307 | 0,473 | 0,468 | 0,454 | 0,461 |
+| sopra (gol ≥ 140% xG) | 56 | 0,687 | 0,427 | **0,453** | 0,422 |
+
+Centrocampisti identici (sotto 0,110 → 0,252 su xG 0,299; sopra 0,487 → 0,266 su 0,295), assist idem
+(sotto 0,072 → 0,176 su xA 0,215; sopra 0,366 → 0,195 su 0,200). Nella seconda metà la conversione di
+TUTTI e tre i gruppi torna a ~1,0 (1,02 · 0,98 · 1,07): **i gol della seconda metà seguono l'xG, e
+l'xG stesso cala un po' (0,41 → 0,37)**, quindi l'aspettativa giusta è «tornerà al suo xG, un filo
+sotto». Il sottoperformante resta in campo quanto prima (61' → 62' a partita). Casi Serie A:
+De Ketelaere 2023-24 2 gol su 3,4 xG → 8 su 3,7; Cheddira 1 su 3,0 → 6 su 6,0; e il contro-esempio
+Kean 2025-26 5 su 11,2 → 3 su 3,9, perché nella seconda metà sono crollati minuti (1449 → 598) e con
+loro il VOLUME di xG.
+
+Questo NON contraddice §20.3 («gol meno xG» 0,000; «crea e non segna ancora» −0,046): lì lo scarto era
+usato come predittore AGGIUNTIVO su un altro bersaglio; qui si conferma la stessa cosa dall'altro lato —
+lo scarto non porta informazione propria, l'xG sì.
+
+### 30.3 (1) L'xG della squadra conta solo perché alza il VOLUME del giocatore
+
+xG della squadra per partita **senza di lui**, stessa finestra:
+
+| | n | r(squadra, suoi gol H2) | r(suo xG H1, suoi gol H2) | parziale squadra \| suo xG e gol |
+|---|---|---|---|---|
+| Serie A, F | 184 | +0,211 | +0,451 | +0,118 |
+| Serie A, M | 375 | +0,116 | +0,538 | +0,020 |
+| 5 leghe, F | 595 | +0,119 | +0,513 | +0,022 |
+| 5 leghe, M | 1.256 | +0,113 | +0,538 | +0,023 |
+
+Serie A stagione intera, attaccanti per terzile di xG di squadra: gol/90 **0,269 · 0,301 · 0,381** con
+xG/90 personale **0,270 · 0,309 · 0,360** e conversione 0,99 · 0,97 · 1,06. Le squadre che producono
+fanno segnare di più i loro attaccanti **perché danno loro più occasioni**, e quell'effetto è già tutto
+nell'xG personale: a parità di xG personale la squadra aggiunge ~zero (§29.4 dal lato opposto: il club
+muove il volume, non la conversione). Serve dove l'xG personale NON c'è — un nuovo arrivato, un uomo
+che cambia ruolo — e lì è un proxy del volume che avrà. Limite: fuori dalla Serie A copriamo 9-12
+uomini a partita-club, quindi l'xG di squadra là è sottostimato.
+
+### 30.4 (4) Stagione dopo: xG+xA batte i bonus veri, e il loro scarto si chiude
+
+Coppie (uomo, t → t+1), ≥ 900' in entrambe, bersaglio bonus/90 = 3·gol + assist (n = 2.024):
+bonus veri a t **+16,8%** · **xG+xA a t +22,3%** · entrambi +22,5% · le quattro separate +22,8%.
+
+| ruolo | gruppo (scarto xbonus − bonus) | bonus/90 t | **bonus/90 t+1** | xbonus/90 t |
+|---|---|---|---|---|
+| F | produce più di quanto segna (top 20%) | 0,977 | **1,243** | 1,405 |
+| F | segna più di quanto produce (bottom 20%) | 2,034 | **1,624** | 1,447 |
+| M | produce di più | 0,336 | **0,574** | 0,599 |
+| M | segna di più | 1,012 | **0,673** | 0,667 |
+| D | produce di più | 0,083 | **0,238** | 0,266 |
+| D | segna di più | 0,413 | **0,235** | 0,239 |
+
+In fantapunti a partita giocata: un attaccante «sfortunato» guadagna ~+0,27 e uno «fortunato» perde
+~−0,41 rispetto all'anno prima; centrocampisti +0,24 / −0,34; difensori +0,16 / −0,18.
+
+**Quello che NON dice**: niente sulle PRESENZE, che sono il 90% della varianza dei fantapunti
+(`Var(ln pv)`); un uomo che produce e perde il posto non incassa niente. **Non è adottato**: il motore
+prevede il tasso bonus dalla propria storia di gol/assist regredita, e leggerlo dagli xG/xA sarebbe un
+candidato da pre-registrare al gate (bersaglio: `engine_fm_pred − mv`).

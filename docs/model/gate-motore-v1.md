@@ -7101,3 +7101,85 @@ quest'anno, e i loro gradini lo dicono (`riserva`, `panchina`). La miscela li ab
 **Quello che resta aperto e NON è questo**: R27 (§7-septquinquagies) misura una compressione RESIDUA di
 altro tipo - per gruppo, fra chi l'undici tipo disegna e chi non nomina mai - e vale +1,0…+1,6% su euro.
 Resta non adottata perché il gate non la raggiunge.
+
+## 7-tresexagies. PRE-REGISTRAZIONE (27 settembre 2026) — R29 e R30: xG E xA DENTRO LA FANTAMEDIA
+
+**Scritta e committata PRIMA della corsa**, come R24…R27. Dalla richiesta dell'operatore dopo
+`metrica-asta-surplus-v1.md` §30: «proviamo ad usare xG e xA nel motore e vediamo se funzionano meglio
+... vorrei capire anche se xG e xA valutati nelle prime giornate possono essere utili a capire il resto
+della stagione, come nella situazione attuale di EuroLeghe».
+
+**Cosa §30 ha misurato e il motore non legge.** Il tasso di bonus della stagione dopo segue gli xG/xA e
+non i gol/assist veri (+22,3% contro +16,8% sul bonus/90 di t+1); chi ha segnato sotto il suo xG
+guadagna, chi sopra perde. Il motore oggi prevede la fantamedia da `fm_prev` regredita verso l'ancora
+del ruolo (B0), e `fm_prev` contiene i gol e gli assist VERI — cioè anche la loro fortuna. R2 (dichiarata
+dal primo giorno) legge xG/xA come VOLUME (z-score di metà gol+assist e metà xG+xA per 90) e non è mai
+stata adottata: è un'altra domanda, e resta nella corsa come termine di confronto.
+
+### R29 — la fortuna della stagione scorsa si toglie dalla fantamedia (pre-stagione)
+
+    gap_prev = (3·(xG − gol) + 1·(xA − assist)) / presenze        (stagione di input, campionato)
+    fm = B0 + λ · gap_prev
+
+3 e 1 sono `goal_bonus` e `assist_bonus` di `scoring_config.json` (uguali in tutti e cinque i
+campionati); `gap_prev` è quindi in FANTAPUNTI PER PRESENZA, cioè nell'unità di `fm`. λ è fittato
+senza intercetta sul residuo `fm_act − B0`, come R2, e incrociato sulla finestra adiacente. Solo
+giocatori di movimento, solo con ≥ 450' nella stagione di input (`MIN_MINUTES_FOR_PROPENSITY`), e solo
+dove la fonte pubblica gli attesi — dentro quella stagione un vuoto è uno ZERO (dal 2024-25 il provider
+omette la chiave), fuori è un ignoto e la regola tace. **Finestre che la misurano: T0, T1, T2** (input
+2022-23 → 2024-25); le altre sette sono inerti per costruzione e il gate le dichiara non misuranti.
+
+**Attesa, scritta perché possa essere smentita**: λ fra **0,2 e 0,5**. B0 regredisce `fm_prev` verso
+l'ancora con β ≈ 0,4, quindi porta con sé circa β volte la fortuna della stagione scorsa, e §30.4 dice
+che quella fortuna non si ripete: il λ giusto è ≈ β. Un λ vicino a 1 vorrebbe dire che B0 regredisce
+troppo POCO il bonus, un λ ≈ 0 che §30.4 era già dentro B0. Guadagno sul campione mosso: **1-3%**.
+
+### R30 — la fantamedia GIÀ TENUTA, senza la sua fortuna (in-season)
+
+R25 con `fm_seen` depurato dalla fortuna delle partite già giocate:
+
+    gap_seen = (3·(xG − gol) + 1·(xA − assist)) / partite          (stagione bersaglio, prima della data d'asta)
+    fm = blend_with_seen(fm_prior, fm_seen + gap_seen, k, K)
+
+Gol, assist, xG, xA e partite escono dalla STESSA riga del livello per-partita (`external_match_stats`,
+`source='sofascore'`, campionati della piattaforma, tagliati al giorno in cui l'ultima giornata vista si
+è chiusa — il taglio di `_seen_starts`), quindi lo scarto non mescola due sorgenti. `fm_seen`, `k` e la
+miscela sono quelli di R25 esattamente; **R30 SOSTITUISCE R25** quando sono entrambe nel set, così
+`ADOPTED + R30K40` su `default` confronta la stessa miscela con e senza la fortuna. Chi non ha righe nel
+livello per-partita o gioca in porta: `gap_seen` = 0, cioè R30 ≡ R25 su di lui.
+
+**Griglia**: `R30K3 · R30K6 · R30K10 · R30K15 · R30K25 · R30K40 · R30K60 · R30K80 · R30K120`, la griglia
+intera di R25, nessun altro punto. **Finestre**: `I22set … I25feb` (8) — le sole in cui la stagione
+bersaglio ha gli attesi; nelle I19-I21 R30 ≡ R25 e non si corrono.
+
+### Criterio
+
+Quello di sempre, metrica **fm**, due piattaforme × due giochi: **strict** oppure **robust**, con i
+guardiani del deliverable (nomi e valore catturato delle liste d'asta, fm/valore non peggiorati). Un
+ottimo sul bordo della griglia non si adotta. In più, e dichiarato qui perché è la lezione di R24 («un
+baseline più debole fa sembrare un canale nuovo migliore di quanto sia»):
+
+- **R29 si misura anche contro il SET ADOTTATO** (ADOPTED contro ADOPTED + R29, stessi parametri
+  incrociati): se passa contro R0 e non migliora contro l'adottato, è ridondante e non si adotta.
+- **R30K si confronta APPAIATO con R25 allo stesso K**: su `default`, dove R25K40 è in vigore, R30K40
+  la sostituisce solo se la batte (maggioranza delle finestre, media sopra lo 0,5%, nessuna oltre −2%).
+  Su `euro`, dove R25 non è adottata, R30 si adotta col verdetto standard e un ottimo interno.
+
+**Attesa per R30, falsificabile**: il guadagno su R25 viene dalle finestre di **SETTEMBRE**, cioè il
+contrario di R25 (che pagava a febbraio): con 2-6 partite la fantamedia vista è in gran parte fortuna di
+gol, e togliergliela è esattamente ciò che rende usabile un campione corto. Quindi il K ottimo di R30
+dovrebbe stare **sotto o uguale** a quello di R25. Se il guadagno venisse da febbraio, la lettura del
+meccanismo è sbagliata.
+
+### Contaminazione, detta prima e per intero
+
+**Non esiste una finestra pulita.** Gli attesi esistono dal 2022-23, e §30 — che ha generato l'ipotesi —
+ha guardato esattamente le stagioni 2022-23 → 2025-26, cioè gli ESITI di T0/T1/T2 e delle otto
+in-season. I parametri sono incrociati (fuori campione), l'idea no. Un passaggio qui vale quanto un
+passaggio su T1/T2 prima dell'estensione a dieci finestre — il gradino di evidenza più basso — e il
+primo giudizio pulito è la fine della stagione 2026-27. Un rifiuto invece vale per intero.
+
+### Sicurezza, da verificare dopo
+
+R29 è inerte su T-7…Tm1 e R30 su ogni pre-stagione, quindi finché nessuna delle due è in `ADOPTED`
+`backtest --verify` resta **22/22** e nessun foglio si muove.
