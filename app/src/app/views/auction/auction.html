@@ -143,7 +143,12 @@
                     <span class="flex min-w-0 items-center gap-1">
                       <ui-role [role]="place.badge ?? place.slot" size="xs" quiet />
                       @if (place.man) {
-                        <span class="min-w-0 truncate text-[11px] font-medium leading-tight">{{ place.man.name }}</span>
+                        <span
+                          data-card-name
+                          class="min-w-0 cursor-pointer truncate text-[11px] font-medium leading-tight hover:underline"
+                          (click)="openCard(place.man.id, $event)"
+                          >{{ place.man.name }}</span
+                        >
                         <span
                           class="ml-auto flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm bg-primary
                                  px-0.5 text-[9px] font-semibold leading-none text-on-primary tabular-nums"
@@ -156,7 +161,12 @@
                     @for (reserve of place.reserves; track reserve.id) {
                       <span data-reserve class="flex min-w-0 items-center gap-1 text-[10px] leading-tight text-muted">
                         <span class="shrink-0">↳</span>
-                        <span class="min-w-0 truncate">{{ reserve.name }}</span>
+                        <span
+                          data-card-name
+                          class="min-w-0 cursor-pointer truncate hover:underline"
+                          (click)="openCard(reserve.id, $event)"
+                          >{{ reserve.name }}</span
+                        >
                         <span class="ml-auto shrink-0 tabular-nums">{{ reserve.value99 ?? '—' }}</span>
                       </span>
                     }
@@ -170,7 +180,12 @@
             <p class="truncate text-xs text-muted">
               Senza posto in questo modulo:
               @for (man of drawn.unplaced; track man.id; let last = $last) {
-                <span data-unplaced>{{ man.name }}{{ last ? '' : ', ' }}</span>
+                <span data-unplaced
+                  ><span data-card-name class="cursor-pointer hover:underline" (click)="openCard(man.id, $event)">{{
+                    man.name
+                  }}</span
+                  >{{ last ? '' : ', ' }}</span
+                >
               }
             </p>
           }
@@ -206,7 +221,12 @@
             <span class="text-muted">Consiglio:</span>
             @if (advised(); as pick) {
               <ui-roles [roles]="pick.roles" size="xs" />
-              <span class="min-w-0 truncate font-semibold">{{ pick.name }}</span>
+              <span
+                data-card-name
+                class="min-w-0 cursor-pointer truncate font-semibold hover:underline"
+                (click)="openCard(pick.id, $event)"
+                >{{ pick.name }}</span
+              >
             } @else {
               <span class="text-muted">{{ feed.followed() ? '—' : 'scegli la tua squadra (icona ♟)' }}</span>
             }
@@ -256,13 +276,24 @@
                   <span class="ml-auto shrink-0 text-[10px] tabular-nums text-muted">{{ seat.team.squad.length }}</span>
                 </span>
                 <span class="flex min-w-0 items-center gap-1 text-[10px] leading-tight">
-                  <span class="min-w-0 max-w-[45%] truncate text-muted">{{ seat.last ?? '—' }}</span>
+                  @if (seat.last; as last) {
+                    <span
+                      data-card-name
+                      class="min-w-0 max-w-[45%] cursor-pointer truncate text-muted hover:underline"
+                      (click)="openCard(last.id, $event)"
+                      >{{ last.name }}</span
+                    >
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
                   <span class="shrink-0 text-muted">→</span>
                   @if (seat.next; as next) {
                     <span
-                      class="min-w-0 truncate"
+                      data-card-name
+                      class="min-w-0 cursor-pointer truncate hover:underline"
                       [class.font-semibold]="!next.predicted"
                       [class.text-primary]="!next.predicted"
+                      (click)="openCard(next.id, $event)"
                       >{{ next.name }}</span
                     >
                   } @else {
@@ -327,32 +358,55 @@
           </span>
         </div>
 
+        <!-- LE INTESTAZIONI SI INCOLONNANO CON LE RIGHE SOLO SE HANNO LA STESSA LARGHEZZA: la lista sotto scorre,
+             quindi la sua barra ruba qualche pixel alle righe e non alle intestazioni, e ogni colonna a destra
+             del nome scivolava di quella misura (trovato dall'operatore sulla vista «medie», 29/09/2026). Le
+             due parti riservano lo STESSO spazio per la barra (`gutter`), che la barra ci sia o no. -->
+        <!-- OGNI INTESTAZIONE ORDINA LA LISTA (sua richiesta, 29/09/2026), un secondo click la rovescia; la
+             freccia dice su quale colonna e in che verso. `data-sort` e' l'aggancio del banco. -->
         @if (mode() === 'default') {
-          <div data-free-head class="free-grid free-default px-1 text-[10px] uppercase text-muted">
-            <span>Ruolo</span><span>Nome</span><span>Squadra</span>
-            <span class="text-center" nz-tooltip nzTooltipTitle="Gradino della stampa">Stampa</span>
-            <span class="text-right">FVM</span><span>Trend</span><span class="text-right">Prio</span>
+          <div data-free-head class="gutter free-grid free-default px-1 text-[10px] uppercase text-muted">
+            <span class="sort" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
+            <span class="sort" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
+            <span class="sort text-center" data-sort="press" nz-tooltip nzTooltipTitle="Gradino della stampa" (click)="sortBy('press')"
+              >Stampa{{ arrow('press') }}</span
+            >
+            <span class="sort text-right" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
+            <span class="sort" data-sort="trend" nz-tooltip nzTooltipTitle="Ordina per la media delle ultime partite" (click)="sortBy('trend')"
+              >Trend{{ arrow('trend') }}</span
+            >
+            <span class="sort text-right" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
           </div>
         } @else {
-          <div class="free-grid free-medie px-1 text-[10px] uppercase text-muted">
-            <span>Ruolo</span><span>Nome</span>
-            <span class="col-span-4 text-center">{{ seasons().now ?? 'stagione' }}</span>
-            <span class="col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
-          </div>
-          <div data-free-head class="free-grid free-medie px-1 text-[10px] text-muted">
+          <div class="gutter free-grid free-medie px-1 text-[10px] uppercase text-muted">
             <span></span><span></span>
-            <span class="text-right">Pv</span><span class="text-right">Mv</span><span class="text-right">Fm</span
-            ><span class="text-right">G:A</span>
-            <span class="text-right">Pv</span><span class="text-right">Mv</span><span class="text-right">Fm</span
-            ><span class="text-right">G:A</span>
+            <span class="col-span-4 text-center">{{ seasons().now ?? 'stagione' }}</span>
+            <span class="split col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
+          </div>
+          <div data-free-head class="gutter free-grid free-medie px-1 text-[10px] text-muted">
+            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
+            <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
+            @for (which of seasonKeys; track which; let second = $last) {
+              @for (metric of metrics; track metric.key; let first = $first) {
+                <span
+                  class="sort text-right"
+                  [class.split]="second && first"
+                  [class.text-warning]="metric.key === 'fm'"
+                  [attr.data-sort]="metric.key + '@' + which"
+                  (click)="sortBy($any(metric.key + '@' + which))"
+                  >{{ metric.label }}{{ arrow($any(metric.key + '@' + which)) }}</span
+                >
+              }
+            }
           </div>
         }
 
-        <ul data-free-list class="min-h-0 flex-1 overflow-y-auto">
+        <ul data-free-list class="gutter min-h-0 flex-1 overflow-y-auto">
           @for (row of free.rows(); track row.id) {
             <li
               [attr.data-free]="row.id"
               [attr.data-roles]="row.roles.join(',').toLowerCase()"
+              [attr.data-club]="row.club"
               class="free-grid cursor-default select-none rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
               [class.free-default]="mode() === 'default'"
               [class.free-medie]="mode() === 'medie'"
@@ -367,27 +421,46 @@
             >
               <ui-roles class="min-w-0 overflow-hidden" [roles]="row.roles" size="xs" />
               <span class="flex min-w-0 items-center gap-1">
-                <span class="min-w-0 truncate font-medium">{{ row.name }}</span>
+                <!-- Lo stemma del club PRIMA del nome (sua richiesta, 29/09/2026); dove il pacchetto non ha
+                     lo stemma, uno scudo grigio - il nome del club e' gia' scritto nella riga. -->
+                <ui-crest
+                  class="shrink-0"
+                  [club]="row.club"
+                  [clubId]="row.clubId"
+                  [crests]="advice.crests()"
+                  fallback="shield"
+                  size="xs"
+                />
+                <span
+                  data-card-name
+                  class="min-w-0 cursor-pointer truncate font-medium hover:underline"
+                  (click)="openCard(row.id, $event, true)"
+                  >{{ row.name }}</span
+                >
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
-                @if (row.locked) {
-                  <nz-icon class="shrink-0 text-[10px] text-muted" nzType="lock" />
+                @if (row.turnsLeft != null) {
+                  <span
+                    data-lock
+                    class="flex shrink-0 items-center gap-0.5 rounded bg-fg/15 px-1 text-[9px] font-semibold leading-4
+                           tabular-nums"
+                    ><nz-icon nzType="lock" />{{ row.turnsLeft }}</span
+                  >
                 }
               </span>
               @if (mode() === 'default') {
-                <span class="min-w-0 truncate text-muted">{{ row.club }}</span>
                 <span class="text-center text-[10px] text-muted">{{ pressShort(row.press) }}</span>
                 <span class="text-right tabular-nums">{{ row.fvm }}</span>
                 <ui-trend-votes [cells]="row.trend" />
                 <span class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>
               } @else {
-                @for (which of ['now', 'last']; track which) {
+                @for (which of ['now', 'last']; track which; let second = $last) {
                   @if (lineOf(row.id, $any(which)); as line) {
-                    <span class="text-right tabular-nums">{{ line.pv ?? '—' }}</span>
+                    <span class="text-right tabular-nums" [class.split]="second">{{ line.pv ?? '—' }}</span>
                     <span class="text-right tabular-nums">{{ line.mv != null ? (line.mv | number: '1.2-2') : '—' }}</span>
-                    <span class="text-right tabular-nums">{{ line.fm != null ? (line.fm | number: '1.2-2') : '—' }}</span>
+                    <span class="text-right tabular-nums text-warning">{{ line.fm != null ? (line.fm | number: '1.2-2') : '—' }}</span>
                     <span class="text-right tabular-nums">{{ ga(line) }}</span>
                   } @else {
-                    <span class="text-right text-muted">—</span><span class="text-right text-muted">—</span>
+                    <span class="text-right text-muted" [class.split]="second">—</span><span class="text-right text-muted">—</span>
                     <span class="text-right text-muted">—</span><span class="text-right text-muted">—</span>
                   }
                 }
@@ -403,3 +476,26 @@
 </div>
 
 <ui-live-connect [(open)]="connecting" (left)="demo.start()" />
+
+<!-- LE CARD DEI CALCIATORI e delle loro squadre, da una pila sola: il posto e chi sta davanti sono globali
+     allo schermo (la regola della Strategia e della plancia). -->
+@for (open of openCards(); track open.key) {
+  <ui-player-card
+    [man]="open.man"
+    [at]="open.slot"
+    [front]="frontCard() === open.key"
+    (closed)="closeCard(open.key)"
+    (raised)="raiseCard(open.key)"
+    (club)="openClubCard(open.man.club)"
+  />
+}
+@for (open of clubCards(); track open.key) {
+  <ui-club-card
+    [club]="open.man.club"
+    [platform]="open.man.platform"
+    [at]="open.slot"
+    [front]="frontCard() === open.key"
+    (closed)="closeCard(open.key)"
+    (raised)="raiseCard(open.key)"
+  />
+}

@@ -177,7 +177,21 @@ function freeIds() {
 }
 
 function freeTexts() {
-  return [...document.querySelectorAll('[data-free]')].map((one) => (one.innerText ?? '').replace(/\s+/g, ' ').trim());
+  // The club is not a printed column any more (a crest stands for it): the row declares it instead.
+  return [...document.querySelectorAll('[data-free]')].map((one) =>
+    `${(one.innerText ?? '').replace(/\s+/g, ' ').trim()} ${one.getAttribute('data-club') ?? ''}`);
+}
+
+/** The open player cards, by the name they print in their title. */
+function cardTitles() {
+  return [...document.querySelectorAll('ui-player-card')].map((one) => (one.innerText ?? '').split('\n')[0].trim());
+}
+
+function nameTarget(selector) {
+  const one = document.querySelector(selector);
+  if (!one) return null;
+  const rect = one.getBoundingClientRect();
+  return { x: Math.round(rect.left + Math.min(12, rect.width / 2)), y: Math.round(rect.top + rect.height / 2), text: (one.innerText ?? '').trim() };
 }
 
 function freeRoles() {
@@ -190,6 +204,26 @@ function centre(selector) {
   if (!one) return null;
   const rect = one.getBoundingClientRect();
   return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+}
+
+
+/** The numbers of one column of the loaded rows, read at the cell index the header declares. */
+function columnOf(sort) {
+  const head = document.querySelector('[data-free-head]');
+  const at = [...(head?.children ?? [])].findIndex((one) => one.getAttribute('data-sort') === sort);
+  if (at < 0) return null;
+  return [...document.querySelectorAll('[data-free]')].map((row) => {
+    const text = (row.children[at]?.innerText ?? '').trim();
+    const value = Number(text.replace(',', '.'));
+    return text === '' || text === '—' || !Number.isFinite(value) ? null : value;
+  });
+}
+
+function ordered(values, descending) {
+  const known = values.filter((one) => one != null);
+  const tail = values.slice(values.findIndex((one) => one == null) < 0 ? values.length : values.findIndex((one) => one == null));
+  const sorted = known.every((one, at) => at === 0 || (descending ? known[at - 1] >= one : known[at - 1] <= one));
+  return sorted && tail.every((one) => one == null);
 }
 
 // ------------------------------------------------------------------ the run
@@ -277,6 +311,13 @@ async function main() {
     // cannot be taken with a double click.
     if (euro) {
       const cap = await evaluate(session, () => document.querySelector('[data-cap]')?.innerText ?? '');
+      // VISIBLE IN THEIR PLACE (operator, 29/09/2026): among the first rows loaded, dimmed, with the badge
+      // saying how many of our turns are left - three, on an empty squad with a three-turn block.
+      const shown = await evaluate(session, () => [...document.querySelectorAll('[data-free][data-locked]')].map((one) => ({
+        badge: (one.querySelector('[data-lock]')?.innerText ?? '').trim(),
+        icon: !!one.querySelector('[data-lock] svg'),
+        opacity: Number(getComputedStyle(one).opacity),
+      })));
       // Blocked men sort to the BOTTOM of a list that loads sixty rows at a time: find one by name.
       await mouse(await evaluate(session, centre, '[data-column="free"] input[type="search"]'));
       await session.send('Input.insertText', { text: 'kane' });
@@ -296,9 +337,13 @@ async function main() {
       }
       const still = target ? (await evaluate(session, freeIds)).includes(target.id) : false;
       const after = await evaluate(session, readPage);
-      note('top bloccati', `riga «${cap}», ${locked.length} bloccati caricati (FVM min ${Math.min(...locked)})`,
+      note('top bloccati', `riga «${cap}», ${shown.length} bloccati fra le prime righe (badge ${shown[0]?.badge ?? '-'}), cercando «kane» FVM min ${Math.min(...locked)}`,
         [
           ...(!/300/.test(cap) || !/3 turni/.test(cap) ? [`la riga non dice il tetto dichiarato (300, 3 turni): «${cap}»`] : []),
+          ...(!shown.length ? ['nessun bloccato fra le prime righe: sono finiti in fondo alla lista'] : []),
+          ...(shown.some((one) => one.badge !== '3') ? [`badge dei turni: ${[...new Set(shown.map((one) => one.badge))].join(', ')} invece di 3`] : []),
+          ...(shown.some((one) => !one.icon) ? ['badge senza lucchetto'] : []),
+          ...(shown.some((one) => Math.abs(one.opacity - 0.5) > 0.01) ? ['un bloccato non e\' al 50% di opacita\''] : []),
           ...(!target ? ['nessun top bloccato fra le righe caricate'] : []),
           ...(locked.some((fvm) => fvm < 300) ? ['un bloccato sotto la soglia'] : []),
           ...(target && (!still || after.squadSize !== 0) ? ["un top bloccato e' stato preso col doppio click"] : []),
@@ -341,6 +386,9 @@ async function main() {
       }
     }
     console.log(`    (scelte rifiutate dal regolamento e ritentate sulla riga dopo: ${refused})`);
+    await wait(500);
+    const stray = (await evaluate(session, cardTitles)).length;
+    if (stray) note('doppio click e card', `${stray} card aperte`, [`${stray} card aperte da doppi click che dovevano solo scegliere`]);
     await evaluate(session, () => document.querySelector('[data-free-list]')?.scrollTo(0, 0));
     page = await evaluate(session, readPage);
     const drawn = page.filled + page.reserves + page.unplaced;
@@ -370,17 +418,28 @@ async function main() {
     // THE OR IS COUNTED ON THE WHOLE FILTERED LIST, not on the rows loaded: the list loads 60 at a time
     // and after forty picks the first sixty can all carry the same role.
     const totalNow = () => evaluate(session, () => Number(document.querySelector('[data-total]')?.getAttribute('data-total')));
+    // A toggle is a click that has to BITE: the total is read only once it has moved, and a click that
+    // did not move it is sent again - measured on classic, the first click after clearing the search can
+    // land before the list has settled and read the whole listone as «one role».
+    const toggle = async (role) => {
+      const before = await totalNow();
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        await mouse(await evaluate(session, centre, `[data-role-filter="${role}"]`));
+        for (let tick = 0; tick < 10; tick += 1) {
+          await wait(150);
+          const now = await totalNow();
+          if (now !== before) return now;
+        }
+      }
+      return await totalNow();
+    };
     const singles = [];
     for (const role of chosen) {
-      await mouse(await evaluate(session, centre, `[data-role-filter="${role}"]`));
-      await wait(500);
-      singles.push(await totalNow());
-      await mouse(await evaluate(session, centre, `[data-role-filter="${role}"]`));
-      await wait(500);
+      singles.push(await toggle(role));
+      await toggle(role);
     }
-    for (const role of chosen) await mouse(await evaluate(session, centre, `[data-role-filter="${role}"]`));
-    await wait(700);
-    const both = await totalNow();
+    await toggle(chosen[0]);
+    const both = await toggle(chosen[1]);
     const roles = await evaluate(session, freeRoles);
     const wrong = roles.filter((one) => !one.some((r) => chosen.includes(r)));
     note('filtro ruoli', `${chosen.join(' o ')}: ${both} in tutto (da soli ${singles.join(' e ')}), ${roles.length} caricate su ${all}`,
@@ -390,14 +449,97 @@ async function main() {
         ...(singles.some((one) => !(both >= one)) || !(both > Math.min(...singles)) ? ["non e' un OR: insieme non ne tengono piu' di un ruolo solo"] : []),
       ]);
 
+    // 5b. A click on a header sorts, a second click flips it; an empty cell sinks either way.
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="fvm"]'));
+    await wait(500);
+    const fvmDown = await evaluate(session, columnOf, 'fvm');
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="fvm"]'));
+    await wait(500);
+    const fvmUp = await evaluate(session, columnOf, 'fvm');
+    note('ordina (default)', `FVM giu' ${fvmDown?.slice(0, 3).join('/')} · su ${fvmUp?.slice(0, 3).join('/')}`,
+      [
+        ...(!fvmDown?.length ? ['la colonna FVM non si legge'] : []),
+        ...(fvmDown && !ordered(fvmDown, true) ? ['il primo click non ordina per FVM decrescente'] : []),
+        ...(fvmUp && !ordered(fvmUp, false) ? ['il secondo click non rovescia'] : []),
+      ]);
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
+    await wait(400);
+
+    // 5c. A click on a name opens the player's card - in the list (after the double-click wait) and in the
+    // call order - and a double click on a row does NOT (it chooses).
+    const before5c = (await evaluate(session, cardTitles)).length;
+    const listName = await evaluate(session, nameTarget, '[data-free] [data-card-name]');
+    await mouse(listName, 1);
+    await wait(700);
+    const afterList = await evaluate(session, cardTitles);
+    const seatName = await evaluate(session, nameTarget, '[data-seat] [data-card-name]');
+    await mouse(seatName, 1);
+    await wait(500);
+    const afterSeat = await evaluate(session, cardTitles);
+    note('card', `lista «${listName?.text}» → ${afterList.length - before5c} card, ordine «${seatName?.text}» → ${afterSeat.length} in tutto`,
+      [
+        ...(!listName ? ['nessun nome cliccabile nella lista'] : []),
+        ...(afterList.length !== before5c + 1 ? ['il clic sul nome nella lista non apre la card'] : []),
+        ...(!seatName ? ['nessun nome cliccabile nell\'ordine di chiamata'] : []),
+        ...(seatName && afterSeat.length !== afterList.length + 1 ? ['il clic sul nome nell\'ordine non apre la card'] : []),
+        ...(afterList.length > before5c && !afterList.some((title) => title.includes(listName.text)) ? [`la card non porta il nome cliccato: ${afterList.join(' | ')}`] : []),
+      ]);
+    await evaluate(session, () => document.querySelectorAll('ui-player-card button[aria-label], ui-player-card [data-close]').forEach(() => {}));
+
     // 6. Medie.
     await mouse(await evaluate(session, centre, '[data-mode="medie"]'));
     page = await settle((p) => /PV/i.test(p.header), 'medie');
-    note('medie', `intestazione «${page.header.slice(0, 90)}»`, /FVM/.test(page.header) ? ['le colonne di default sono ancora a schermo'] : []);
+    // THE LABELS SIT OVER THEIR NUMBERS: the right edge of every header cell against the right edge of the
+    // cell under it, on the first row. The list scrolls and its scrollbar used to take pixels from the rows
+    // only, so every column right of the name slid (found by the operator, 29/09/2026).
+    const align = await evaluate(session, () => {
+      const head = document.querySelector('[data-free-head]');
+      const row = document.querySelector('[data-free]');
+      if (!head || !row) return null;
+      const heads = [...head.children].map((one) => one.getBoundingClientRect());
+      const cells = [...row.children].map((one) => one.getBoundingClientRect());
+      const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.right - cells[at].right)) : null));
+      const fmHead = head.children[4];
+      const fmCell = row.children[4];
+      const splits = document.querySelectorAll('[data-column="free"] .split').length;
+      const crests = row.querySelectorAll('ui-crest').length;
+      return {
+        drift: drift.slice(2),
+        fmHead: fmHead ? getComputedStyle(fmHead).color : null,
+        fmCell: fmCell ? getComputedStyle(fmCell).color : null,
+        mvCell: row.children[3] ? getComputedStyle(row.children[3]).color : null,
+        splits,
+        crests,
+      };
+    });
+    note('medie', `intestazione «${page.header.slice(0, 60)}», scarto destro etichetta/valore ${align?.drift.join('/')}px, `
+      + `tratteggi ${align?.splits}, stemmi sulla riga ${align?.crests}`,
+      [
+        ...(/FVM/.test(page.header) ? ['le colonne di default sono ancora a schermo'] : []),
+        ...(!align ? ['niente da misurare'] : []),
+        ...(align && align.drift.some((one) => one == null || one > 1) ? ['etichette non allineate ai valori'] : []),
+        ...(align && align.fmCell === align.mvCell ? ['la Fm ha lo stesso colore della Mv'] : []),
+        ...(align && align.fmHead !== align.fmCell ? ['etichetta Fm e valore Fm di due colori'] : []),
+        ...(align && align.splits < 3 ? ['manca il tratteggio fra le due stagioni'] : []),
+        ...(align && align.crests !== 1 ? ['manca lo stemma prima del nome'] : []),
+      ]);
+
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="fm@last"]'));
+    await wait(500);
+    const fmLast = await evaluate(session, columnOf, 'fm@last');
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="pv@now"]'));
+    await wait(500);
+    const pvNow = await evaluate(session, columnOf, 'pv@now');
+    note('ordina (medie)', `Fm scorsa ${fmLast?.slice(0, 3).join('/')} · Pv ora ${pvNow?.slice(0, 3).join('/')}`,
+      [
+        ...(!fmLast?.length ? ['la colonna Fm della stagione scorsa non si legge'] : []),
+        ...(fmLast && !ordered(fmLast, true) ? ['Fm della stagione scorsa non ordinata'] : []),
+        ...(pvNow && !ordered(pvNow, true) ? ['Pv di questa stagione non ordinata'] : []),
+      ]);
 
     const at = argv.indexOf('--shot');
     if (at >= 0 && argv[at + 1]) {
-      await mouse(await evaluate(session, centre, '[data-mode="default"]'));
+      if (!flag('--medie')) await mouse(await evaluate(session, centre, '[data-mode="default"]'));
       await wait(600);
       const image = await session.send('Page.captureScreenshot', { format: 'png' });
       const { writeFile } = await import('node:fs/promises');

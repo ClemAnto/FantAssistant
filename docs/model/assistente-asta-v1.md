@@ -5927,3 +5927,23 @@ tolto per un commit (`e3bacb4`); ripristinato con le parole sue a schermo (blocc
 bloccato non si prenda col doppio click - cercato per nome, perché i bloccati stanno in fondo a una lista che si
 carica sessanta righe per volta. Lo stesso banco ora ritenta la riga dopo quando il regolamento rifiuta una
 scelta (reparto o porte già pieni per la squadra di turno), invece di aspettare una scelta che non arriverà.
+
+**La lista degli svincolati, quattro richieste dello stesso giorno (29/09/2026).**
+- **Le etichette si incolonnano coi valori**: la lista scorre e la sua barra rubava pixel alle righe e non alle
+  intestazioni, quindi ogni colonna a destra del nome scivolava di quella misura. Le due parti riservano lo stesso
+  spazio (`scrollbar-gutter: stable`); il banco misura il bordo destro di ogni etichetta contro la cella sotto
+  (0 px su tutte e otto le colonne di «medie»). Nella vista medie la Fm e' in ambra e un tratteggio separa le due
+  stagioni.
+- **Lo stemma del club prima del nome**, in tutt'e due le viste, e la colonna col nome del club tolta da Default
+  (la ricerca per squadra resta).
+- **Ogni intestazione ordina**, un secondo click rovescia, un vuoto va in fondo in entrambi i versi; di partenza
+  la priorita'. Il trend si ordina sulla media dei fantavoti della striscia.
+- **I top bloccati restano al loro posto per priorita'**, al 50% di opacita' con un badge lucchetto + turni che
+  mancano allo sblocco PER NOI (`frozenTurns − rosa`): in fondo a una lista che si carica sessanta righe per volta
+  erano invisibili.
+- **Il nome di un calciatore apre la sua card** ovunque sulla pagina (lista, campetto, ordine di chiamata,
+  consiglio): `ui-player-card`, la stessa di plancia e Strategia, con la sua pila e le card dei club; senza tavolo
+  (`market: null`), e per una porta i numeri del portiere titolare. Nella lista il click aspetta il suo eventuale
+  secondo mezzo, perche' li' il doppio click SCEGLIE.
+- **Aperto**: il trend a barrette della Strategia (`ui-vote-trend`) e' lavoro non ancora committato dell'altra
+  sessione (tocca anche `player-trend.ts`); qui resta `ui-trend-votes` finche' quello non e' su master.
