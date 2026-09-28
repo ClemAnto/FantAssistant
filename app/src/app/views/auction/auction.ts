@@ -100,10 +100,16 @@ interface SeatRow {
   /** Position in the current call order, from 1. */
   at: number;
   mine: boolean;
-  last: { id: number; name: string } | null;
+  last: { id: number; name: string; roles: string[] } | null;
   next: { id: number; name: string; roles: string[]; predicted: boolean } | null;
   /** Where the squad calls in the round AFTER this one, by the platform's own rule. */
   nextAt: number | null;
+  /**
+   * Its roster's FVM minus the SELECTED squad's (the one on the pitch), shown on hover (operator,
+   * 29/09/2026). Null on the selected squad itself. In a draft the FVM spent is what the order is decided
+   * on after the pick count, so this gap is how far two squads are from swapping places.
+   */
+  delta: number | null;
 }
 
 const EMPTY_STRIP: readonly TrendCell[] = [];
@@ -159,6 +165,8 @@ const CARD_DELAY_MS = 260;
       transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 200ms, border-color 200ms;
     }
     @media (prefers-reduced-motion: reduce) { .seat { transition: none; } }
+    /* «In piccolo»: the smallest badge the app has, shrunk once more so a two-line seat keeps its height. */
+    .seat-roles { transform: scale(0.8); transform-origin: left center; margin-right: -0.35rem; }
     .sort:hover { color: var(--color-fg); }
     .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) repeat(2, 1.9rem 2.2rem 2.2rem 2.4rem); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
@@ -234,6 +242,7 @@ export class Auction {
     const picks = new Map((round?.picks ?? []).map((pick) => [pick.teamId, pick]));
     const nextOrder = round?.nextOrder ?? [];
     const mine = this.feed.followedTeamId();
+    const selected = this.pitchTeam();
     return all.map((team, index) => {
       const pick = picks.get(team.id);
       const last = lastOf(team.squad);
@@ -242,7 +251,9 @@ export class Auction {
         team,
         at: index + 1,
         mine: team.id === mine,
-        last: last?.player ? { id: last.player.id, name: this.feed.shownName(last.player) } : null,
+        last: last?.player
+          ? { id: last.player.id, name: this.feed.shownName(last.player), roles: last.player.roles }
+          : null,
         next: pick?.player
           ? {
               id: pick.player.id,
@@ -252,6 +263,7 @@ export class Auction {
             }
           : null,
         nextAt: at < 0 ? null : at + 1,
+        delta: selected && selected.id !== team.id ? team.spent - selected.spent : null,
       };
     });
   });
@@ -289,6 +301,10 @@ export class Auction {
       ?? null
     );
   });
+
+  protected signed(value: number): string {
+    return value > 0 ? `+${value}` : String(value);
+  }
 
   protected view(teamId: number): void {
     this.viewed.set(this.viewed() === teamId ? null : teamId);

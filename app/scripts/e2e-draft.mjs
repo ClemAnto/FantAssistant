@@ -434,6 +434,40 @@ async function main() {
         ...(page.scrolls ? [`dopo le scelte la pagina scorre di ${page.overflow}px`] : []),
       ]);
 
+    // 4b. Hovering another squad shows its roster's FVM minus the selected one's; the selected squad shows none.
+    const seatInfo = (id) => {
+      const one = document.querySelector(`[data-seat="${id}"]`);
+      if (!one) return null;
+      const rect = one.getBoundingClientRect();
+      const delta = one.querySelector('[data-fvm-delta]');
+      return {
+        x: Math.round(rect.left + rect.width * 0.3), y: Math.round(rect.top + rect.height / 2),
+        spent: Number(one.querySelector('[data-seat-fvm]')?.innerText ?? NaN),
+        delta: delta ? { shown: getComputedStyle(delta).display !== 'none', text: (delta.innerText ?? '').trim() } : null,
+      };
+    };
+    const seatIds = await evaluate(session, () => [...document.querySelectorAll('[data-seat]')].map((one) => one.getAttribute('data-seat')));
+    const mineSpent = await evaluate(session, () => Number(document.querySelector('[data-column="pitch"]')?.getAttribute('data-spent')));
+    const mineId = await evaluate(session, () => document.querySelector('[data-column="pitch"]')?.getAttribute('data-team'));
+    const other = seatIds.find((id) => id !== mineId);
+    const idle = await evaluate(session, seatInfo, other);
+    await mouse(idle, 0);
+    await wait(300);
+    const hovered = await evaluate(session, seatInfo, other);
+    const selfTarget = await evaluate(session, seatInfo, mineId);
+    await mouse(selfTarget, 0);
+    await wait(300);
+    const self = await evaluate(session, seatInfo, mineId);
+    const expected = hovered.spent - mineSpent;
+    const expectedText = `Δ ${expected > 0 ? '+' : ''}${expected}`;
+    note('delta FVM', `hover su un'altra squadra: «${hovered.delta?.text}» (atteso ${expectedText}); sulla selezionata ${self.delta ? 'un delta' : 'niente'}`,
+      [
+        ...(idle.delta?.shown ? ['il delta si vede anche senza hover'] : []),
+        ...(!hovered.delta?.shown ? ['il delta non compare in hover'] : []),
+        ...(hovered.delta?.shown && hovered.delta.text !== expectedText ? [`delta sbagliato: ${hovered.delta.text} invece di ${expectedText}`] : []),
+        ...(self.delta ? ['la squadra selezionata mostra un delta con se stessa'] : []),
+      ]);
+
     // 5. Search, then two roles in OR.
     await mouse(await evaluate(session, centre, '[data-column="free"] input[type="search"]'));
     await session.send('Input.insertText', { text: 'inter' });

@@ -82,7 +82,7 @@
     >
       <!-- 1. IL CAMPETTO della rosa che si compone: titolari dove il regolamento li mette, riserve sotto il
            posto del loro ruolo, distribuite in parti uguali (`draft-pitch.spreadReserves`). -->
-      <section data-column="pitch" [attr.data-squad]="pitchTeam()?.squad?.length ?? 0" class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-surface p-2">
+      <section data-column="pitch" [attr.data-squad]="pitchTeam()?.squad?.length ?? 0" [attr.data-team]="pitchTeam()?.id" [attr.data-spent]="pitchTeam()?.spent" class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-surface p-2">
         <div class="flex flex-wrap items-center gap-2 text-sm">
           @if (pitchTeam(); as team) {
             <span class="h-3 w-3 shrink-0 rounded-sm" [style.background]="team.colour"></span>
@@ -284,6 +284,7 @@
                 </span>
                 <span class="flex min-w-0 items-center gap-1 text-[10px] leading-tight">
                   @if (seat.last; as last) {
+                    <ui-roles class="seat-roles shrink-0" [roles]="last.roles" size="xs" />
                     <span
                       data-card-name
                       class="min-w-0 max-w-[45%] cursor-pointer truncate text-muted hover:underline"
@@ -295,6 +296,7 @@
                   }
                   <span class="shrink-0 text-muted">→</span>
                   @if (seat.next; as next) {
+                    <ui-roles class="seat-roles shrink-0" [roles]="next.roles" size="xs" />
                     <span
                       data-card-name
                       class="min-w-0 cursor-pointer truncate hover:underline"
@@ -316,7 +318,20 @@
                   }
                 </span>
               </span>
-              <span class="text-right text-xs font-semibold tabular-nums">{{ seat.team.spent }}</span>
+              <!-- IL DELTA DI FVM compare sull'hover di una squadra che non e' quella selezionata (sua richiesta,
+                   29/09/2026): la sua rosa meno quella sul campetto. Solo CSS (`group-hover`), quindi nessuno
+                   stato da tenere in pari col puntatore. -->
+              <span class="flex flex-col items-end leading-tight">
+                <span data-seat-fvm class="text-xs font-semibold tabular-nums">{{ seat.team.spent }}</span>
+                @if (seat.delta !== null) {
+                  <span
+                    data-fvm-delta
+                    class="hidden rounded px-1 text-[10px] font-semibold tabular-nums group-hover:block"
+                    [class]="seat.delta > 0 ? 'bg-warning/20 text-warning' : seat.delta < 0 ? 'bg-success/20 text-success' : 'bg-fg/10'"
+                    >Δ {{ signed(seat.delta) }}</span
+                  >
+                }
+              </span>
             </li>
           }
         </ol>
