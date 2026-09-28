@@ -114,7 +114,7 @@ export function draftPitchOf(
 
   const rows: DraftRow[] = [];
   for (const line of DRAW_ORDER) {
-    const inLine = drawn.filter((place) => place.line === line);
+    const inLine = flanksOutside(drawn.filter((place) => place.line === line));
     if (inLine.length) rows.push({ line, places: inLine });
   }
   return {
@@ -193,4 +193,31 @@ export function withSuggestions(pitch: DraftPitch, projected: readonly FantaMan[
     place.suggestedReserve = reserves.holder[at] >= 0 ? reserves.chosen[reserves.holder[at]] : null;
   });
   return pitch;
+}
+
+
+/**
+ * THE WIDE PLACES ON THE OUTSIDE of their line (operator, 29/09/2026: «E/W devono stare all'esterno»). The
+ * rulebook writes some lines with the wide places LAST (`3-5-1-1`: M, M, C, E/W, E/W), which drawn as they
+ * come puts both wings on one side. A sided place keeps its side - `Dd` on the left of the drawing and `Ds`
+ * on the right, which is the order the rulebook itself gives a back four (the team's right to its left) -
+ * an unsided wide place (`E`, `W`, `E/W`) goes to whichever end has fewer, and the central ones stay in the
+ * middle in the rulebook's order.
+ */
+export function flanksOutside(places: DraftPlace[]): DraftPlace[] {
+  const side = (place: DraftPlace): 'right' | 'left' | 'wide' | 'centre' => {
+    const roles = place.roles;
+    if (roles.includes('dd')) return 'right';
+    if (roles.includes('ds')) return 'left';
+    if (roles.some((role) => role === 'e' || role === 'w')) return 'wide';
+    return 'centre';
+  };
+  const right = places.filter((place) => side(place) === 'right');
+  const left = places.filter((place) => side(place) === 'left');
+  for (const place of places.filter((one) => side(one) === 'wide')) {
+    (right.length <= left.length ? right : left).push(place);
+  }
+  const centre = places.filter((place) => side(place) === 'centre');
+  // The right-hand group reads outside-in from the left edge; the left-hand group outside-in from the right.
+  return [...right, ...centre, ...left.reverse()];
 }

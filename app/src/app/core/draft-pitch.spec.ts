@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { DraftPlace, draftPitchOf, preferring, spreadReserves } from './draft-pitch';
+import { DraftPlace, draftPitchOf, flanksOutside, preferring, spreadReserves } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 
 /**
@@ -110,5 +110,24 @@ describe('spreadReserves', () => {
 describe('preferring', () => {
   it('moves the preferred modules first and keeps the rest in the rulebook order', () => {
     expect(Object.keys(preferring(SHAPES, ['wide', 'missing']).modules)).toEqual(['wide', 'first', 'second']);
+  });
+});
+
+describe('flanksOutside', () => {
+  const at = (slot: string, roles: string[]): DraftPlace => ({ ...place(slot, roles, null) });
+
+  it('puts the wide places at the two ends and the central ones in the middle (3-5-1-1: M, M, C, E/W, E/W)', () => {
+    const row = [at('M', ['m']), at('M', ['m']), at('C', ['c']), at('E/W', ['e', 'w']), at('E/W', ['e', 'w'])];
+    expect(flanksOutside(row).map((one) => one.slot)).toEqual(['E/W', 'M', 'M', 'C', 'E/W']);
+  });
+
+  it('keeps a sided place on its side: Dd on the left of the drawing, Ds on the right', () => {
+    const row = [at('DS', ['ds']), at('DC', ['dc']), at('DD', ['dd']), at('DC', ['dc'])];
+    expect(flanksOutside(row).map((one) => one.slot)).toEqual(['DD', 'DC', 'DC', 'DS']);
+  });
+
+  it('leaves a line with no wide place as the rulebook wrote it', () => {
+    const row = [at('DC', ['dc']), at('DC', ['dc']), at('DC/B', ['dc', 'b'])];
+    expect(flanksOutside(row).map((one) => one.slot)).toEqual(['DC', 'DC', 'DC/B']);
   });
 });

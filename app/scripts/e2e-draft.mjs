@@ -760,18 +760,19 @@ async function main() {
       const heads = [...head.children].map((one) => one.getBoundingClientRect());
       const cells = [...row.children].map((one) => one.getBoundingClientRect());
       const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.right - cells[at].right)) : null));
-      const widths = heads.slice(2).map((one) => Math.round(one.width));
+      // The eight season columns, after role, name, FVM and priority.
+      const widths = heads.slice(4).map((one) => Math.round(one.width));
       const clipped = [...document.querySelectorAll('[data-free]')].flatMap((one) => [...one.children].slice(2))
         .filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length;
-      const fmHead = head.children[4];
-      const fmCell = row.children[4];
+      const fmHead = head.children[6];
+      const fmCell = row.children[6];
       const splits = document.querySelectorAll('[data-column="free"] .split').length;
       const crests = row.querySelectorAll('ui-crest').length;
       return {
         drift: drift.slice(2),
         fmHead: fmHead ? getComputedStyle(fmHead).color : null,
         fmCell: fmCell ? getComputedStyle(fmCell).color : null,
-        mvCell: row.children[3] ? getComputedStyle(row.children[3]).color : null,
+        mvCell: row.children[5] ? getComputedStyle(row.children[5]).color : null,
         splits,
         crests,
         widths,
@@ -781,7 +782,7 @@ async function main() {
     note('medie', `intestazione «${page.header.slice(0, 60)}», scarto destro etichetta/valore ${align?.drift.join('/')}px, `
       + `tratteggi ${align?.splits}, stemmi sulla riga ${align?.crests}`,
       [
-        ...(/FVM/.test(page.header) ? ['le colonne di default sono ancora a schermo'] : []),
+        ...(/TITOLARIT|TREND/i.test(page.header) ? ['le colonne di default sono ancora a schermo'] : []),
         ...(!align ? ['niente da misurare'] : []),
         ...(align && align.drift.some((one) => one == null || one > 1) ? ['etichette non allineate ai valori'] : []),
         ...(align && align.fmCell === align.mvCell ? ['la Fm ha lo stesso colore della Mv'] : []),
@@ -834,6 +835,22 @@ async function main() {
         ...(JSON.stringify(beforeReload) !== JSON.stringify(afterReload) ? ['il refresh non riporta il tavolo com\'era'] : []),
         ...(reloaded.scrolls ? ['dopo il refresh la pagina scorre'] : []),
         ...(otherLeague.squadSize !== 0 ? ['le scelte di un\'altra lega sono state rigiocate'] : []),
+      ]);
+
+    // 6b. PREVISTE: FVM and priority stay right after the name, then the sheet's forecast in six columns.
+    await mouse(await evaluate(session, centre, '[data-mode="previste"]'));
+    await wait(700);
+    const previste = await evaluate(session, () => {
+      const head = [...(document.querySelector('[data-free-head]')?.children ?? [])].map((one) => one.getAttribute('data-sort'));
+      const rows = [...document.querySelectorAll('[data-free]')];
+      const filled = (at) => rows.filter((row) => !['', '—'].includes((row.children[at]?.innerText ?? '').trim())).length;
+      return { head, rows: rows.length, rung: filled(4), pv: filled(5), minutes: filled(6), mv: filled(7), steady: filled(8), fm: filled(9) };
+    });
+    note('previste', `colonne ${previste.head.join(' ')}; su ${previste.rows} righe: gradino ${previste.rung}, pv ${previste.pv}, `
+      + `minuti ${previste.minutes}, mv ${previste.mv}, costanza ${previste.steady}, fm ${previste.fm}`,
+      [
+        ...(previste.head.join(' ') !== 'role name fvm prio rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
+        ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 
     const at = argv.indexOf('--shot');

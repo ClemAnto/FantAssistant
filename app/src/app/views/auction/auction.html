@@ -378,6 +378,7 @@
           <nz-radio-group nzSize="small" nzButtonStyle="solid" [ngModel]="mode()" (ngModelChange)="setMode($event)">
             <label nz-radio-button nzValue="default" data-mode="default">Default</label>
             <label nz-radio-button nzValue="medie" data-mode="medie">Medie</label>
+            <label nz-radio-button nzValue="previste" data-mode="previste">Previste</label>
           </nz-radio-group>
         </div>
         <div class="flex flex-wrap items-center gap-0.5">
@@ -410,33 +411,37 @@
              due parti riservano lo STESSO spazio per la barra (`gutter`), che la barra ci sia o no. -->
         <!-- OGNI INTESTAZIONE ORDINA LA LISTA (sua richiesta, 29/09/2026), un secondo click la rovescia; la
              freccia dice su quale colonna e in che verso. `data-sort` e' l'aggancio del banco. -->
+        <!-- FVM E PRIORITA' SUBITO DOPO IL NOME, in tutte e tre le viste (sua richiesta, 29/09/2026): sono i due
+             numeri con cui si sceglie, quindi non cambiano posto quando cambia la vista. -->
         @if (mode() === 'default') {
-          <div data-free-head class="gutter free-grid free-default px-1 text-[10px] uppercase text-muted">
-            <span class="sort" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
-            <span class="sort" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
+          <div data-free-head class="gutter free-grid free-default px-1 text-[10px] text-muted">
+            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
+            <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
+            <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
             <span
-              class="sort text-center"
+              class="sort text-center uppercase"
               data-sort="press"
               nz-tooltip
               nzTooltipTitle="La parola della stampa; dove la stampa non lo ha, il gradino del motore"
               (click)="sortBy('press')"
               >Titolarità{{ arrow('press') }}</span
             >
-            <span class="sort text-right" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
-            <span class="sort" data-sort="trend" nz-tooltip nzTooltipTitle="Ordina per la media delle ultime partite" (click)="sortBy('trend')"
+            <span class="sort uppercase" data-sort="trend" nz-tooltip nzTooltipTitle="Ordina per la media delle ultime partite" (click)="sortBy('trend')"
               >Trend{{ arrow('trend') }}</span
             >
-            <span class="sort text-right" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
           </div>
-        } @else {
+        } @else if (mode() === 'medie') {
           <div class="gutter free-grid free-medie px-1 text-[10px] uppercase text-muted">
-            <span></span><span></span>
+            <span></span><span></span><span></span><span></span>
             <span class="col-span-4 text-center">{{ seasons().now ?? 'stagione' }}</span>
             <span class="split col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
           </div>
           <div data-free-head class="gutter free-grid free-medie px-1 text-[10px] text-muted">
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
+            <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
             @for (which of seasonKeys; track which; let second = $last) {
               @for (metric of metrics; track metric.key; let first = $first) {
                 <span
@@ -450,6 +455,34 @@
               }
             }
           </div>
+        } @else {
+          <!-- PREVISTE (sua richiesta, 29/09/2026): quello che il FOGLIO prevede per la stagione che resta -
+               il gradino del motore, le partite a voto, i minuti, la media voto, la costanza delle sue
+               stagioni (quota di partite chiuse almeno a 6) e la fantamedia. -->
+          <div data-free-head class="gutter free-grid free-previste px-1 text-[10px] text-muted">
+            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
+            <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
+            <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
+            <span class="sort text-center uppercase" data-sort="rung" nz-tooltip nzTooltipTitle="Il gradino del motore, non della stampa" (click)="sortBy('rung')"
+              >Gradino{{ arrow('rung') }}</span
+            >
+            <span class="sort text-right" data-sort="pvp" nz-tooltip nzTooltipTitle="Partite a voto previste" (click)="sortBy('pvp')"
+              >Pv{{ arrow('pvp') }}</span
+            >
+            <span class="sort text-right" data-sort="min" nz-tooltip nzTooltipTitle="Minuti previsti a partita" (click)="sortBy('min')"
+              >Min{{ arrow('min') }}</span
+            >
+            <span class="sort text-right" data-sort="mvp" nz-tooltip nzTooltipTitle="Media voto prevista" (click)="sortBy('mvp')"
+              >Mv{{ arrow('mvp') }}</span
+            >
+            <span class="sort text-right" data-sort="steady" nz-tooltip nzTooltipTitle="Costanza: quota di partite chiuse con almeno 6" (click)="sortBy('steady')"
+              >Cost{{ arrow('steady') }}</span
+            >
+            <span class="sort text-right text-warning" data-sort="fmp" nz-tooltip nzTooltipTitle="Fantamedia prevista" (click)="sortBy('fmp')"
+              >Fm{{ arrow('fmp') }}</span
+            >
+          </div>
         }
 
         <ul data-free-list class="gutter min-h-0 flex-1 overflow-y-auto">
@@ -462,6 +495,7 @@
               class="free-grid cursor-default select-none rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
               [class.free-default]="mode() === 'default'"
               [class.free-medie]="mode() === 'medie'"
+              [class.free-previste]="mode() === 'previste'"
               [class.opacity-50]="row.locked"
               [attr.data-locked]="row.locked ? '' : null"
               [attr.data-fvm]="row.fvm"
@@ -499,6 +533,8 @@
                   >
                 }
               </span>
+              <span class="text-right tabular-nums">{{ row.fvm }}</span>
+              <span class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>
               @if (mode() === 'default') {
                 <span class="flex justify-center">
                   @if (row.press) {
@@ -513,10 +549,8 @@
                     <span class="text-[10px] text-muted">—</span>
                   }
                 </span>
-                <span class="text-right tabular-nums">{{ row.fvm }}</span>
                 <ui-trend-votes [cells]="row.trend" />
-                <span class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>
-              } @else {
+              } @else if (mode() === 'medie') {
                 @for (which of ['now', 'last']; track which; let second = $last) {
                   @if (lineOf(row.id, $any(which)); as line) {
                     <!-- IN CORSIVO LA STAGIONE RICOSTRUITA (operatore, 29/09/2026): la piattaforma non
@@ -531,6 +565,27 @@
                     <span class="text-right text-muted">—</span><span class="text-right text-muted">—</span>
                   }
                 }
+              } @else {
+                <span class="flex justify-center">
+                  @if (row.expected.rung) {
+                    <span data-engine-rung class="truncate rounded px-1 text-[9px] leading-4" [class]="badgeOf(row.expected.rung)"
+                      >{{ row.expected.rung }}</span
+                    >
+                  } @else {
+                    <span class="text-[10px] text-muted">—</span>
+                  }
+                </span>
+                <span class="text-right tabular-nums" [class.italic]="row.expected.estimated">{{
+                  row.expected.pv != null ? (row.expected.pv | number: '1.1-1') : '—'
+                }}</span>
+                <span class="text-right tabular-nums">{{ row.expected.minutes != null ? (row.expected.minutes | number: '1.0-0') + "'" : '—' }}</span>
+                <span class="text-right tabular-nums" [class.italic]="row.expected.estimated">{{
+                  row.expected.mv != null ? (row.expected.mv | number: '1.2-2') : '—'
+                }}</span>
+                <span class="text-right tabular-nums">{{ row.expected.steady != null ? (row.expected.steady * 100 | number: '1.0-0') + '%' : '—' }}</span>
+                <span class="text-right tabular-nums text-warning" [class.italic]="row.expected.estimated">{{
+                  row.expected.fm != null ? (row.expected.fm | number: '1.2-2') : '—'
+                }}</span>
               }
             </li>
           } @empty {

@@ -23,6 +23,8 @@ import { lazyRows } from '../../core/lazy-rows';
 import { looseMatch } from '../../core/loose-search';
 import { trendStrips } from '../../core/plancia-store';
 import { PlayerRulings } from '../../core/player-rulings';
+import { PlayerRatingsStore } from '../../core/player-ratings-store';
+import { ValuationStore } from '../../core/valuation-store';
 import type { TrendCell } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
@@ -67,6 +69,7 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
 /** The two ladders in one order, best first: what «sort by titolarità» orders by. */
@@ -82,7 +85,7 @@ const PRESS_RANK: Record<string, number> = {
 };
 
 /** How the free list is read: the default columns, or the season averages (operator, 28/09/2026). */
-export type FreeMode = 'default' | 'medie';
+export type FreeMode = 'default' | 'medie' | 'previste';
 
 const MODE_KEY = 'fantassistant.draft.freeMode';
 
@@ -103,6 +106,21 @@ export interface FreeRow {
   priority: number | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
+  /**
+   * WHAT THE SHEET EXPECTS of him, for the «previste» view: the ENGINE's own rung (not the press), the
+   * appearances with a vote, the minutes, the base vote and the fantamedia - the measured number where the
+   * engine prices him, its declared fallback (`estimated`, drawn in italic) where it does not - and the
+   * steadiness of his seasons, the same reading the Strategy page shows.
+   */
+  expected: {
+    rung: string | null;
+    pv: number | null;
+    minutes: number | null;
+    mv: number | null;
+    steady: number | null;
+    fm: number | null;
+    estimated: boolean;
+  };
   /** How many of OUR turns are left before he unlocks for us; null when he is not blocked. */
   turnsLeft: number | null;
   goal: boolean;
@@ -179,7 +197,9 @@ const CARD_DELAY_MS = 260;
   // the rows must share ONE track list, or the columns of the header drift from the numbers under them.
   styles: `
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
-    .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 4.9rem 2.5rem 75px 2.5rem; }
+    /* Role, name, FVM, priority first in all three views; then the view's own columns. */
+    .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 75px; }
+    .free-previste { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem; }
     .sort { cursor: pointer; user-select: none; }
     /* The call order: every seat sits at its place by a transform, so a change of place SLIDES. */
     ol { --seat-h: 2.75rem; --seat-step: 3rem; }
@@ -205,7 +225,7 @@ const CARD_DELAY_MS = 260;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
-    .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) repeat(8, 2.5rem); }
+    .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem repeat(8, 2.3rem); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -221,6 +241,9 @@ export class Auction {
   protected readonly demo = inject(AuctionDemo);
   protected readonly options = inject(GlobalOptions);
   private readonly rulings = inject(PlayerRulings);
+  /** The steadiness of a man's seasons: `ValuationStore` asks `PlayerRatingsStore` for it, once. */
+  private readonly ratings = inject(PlayerRatingsStore);
+  private readonly valuation = inject(ValuationStore);
   private readonly bundle = inject(Bundle);
   /** The per-match layer, for the seasons the platform did not rate his club (`rebuiltLine`). */
   private readonly players = inject(PlayersStore);
@@ -235,12 +258,14 @@ export class Auction {
     // A refresh mid-auction re-joins whatever session this browser was on, and only when there is none the
     // page opens on the declared league's table. The order is forced: starting the table first would
     // overwrite a real auction the operator is in.
+    // The steadiness column reads the ratings, which the valuation store computes once its sheets are in.
+    void this.valuation.load();
     void this.feed.restore().then(() => {
       if (!this.feed.hasTable()) void this.demo.start();
     });
     try {
       const saved = localStorage.getItem(MODE_KEY);
-      if (saved === 'default' || saved === 'medie') this.mode.set(saved);
+      if (saved === 'default' || saved === 'medie' || saved === 'previste') this.mode.set(saved);
     } catch {
       // Nothing saved: the default columns.
     }
@@ -573,6 +598,7 @@ export class Auction {
       priority: score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
       locked: this.advice.lockedForMe(row.price),
       turnsLeft: this.turnsLeft(row.price),
+      expected: this.expectedOf(row.player.id, goal),
       goal,
     };
   }
@@ -700,6 +726,18 @@ export class Auction {
         return (row) => row.fvm;
       case 'prio':
         return (row) => row.priority;
+      case 'rung':
+        return (row) => (row.expected.rung && PRESS_RANK[row.expected.rung] != null ? PRESS_RANK[row.expected.rung] : null);
+      case 'pvp':
+        return (row) => row.expected.pv;
+      case 'min':
+        return (row) => row.expected.minutes;
+      case 'mvp':
+        return (row) => row.expected.mv;
+      case 'steady':
+        return (row) => row.expected.steady;
+      case 'fmp':
+        return (row) => row.expected.fm;
       case 'trend':
         return (row) => {
           const points = row.trend.map((cell) => cell.points).filter((one): one is number => one != null);
@@ -723,6 +761,22 @@ export class Auction {
 
   protected badgeOf(word: string | null): string {
     return (word && RUNG_BADGE[word]) || 'bg-fg/10 text-muted';
+  }
+
+  /** The «previste» numbers of a man (see `FreeRow.expected`); a goal is a club and has none of its own. */
+  private expectedOf(id: number, goal: boolean): FreeRow['expected'] {
+    const numbers = goal ? null : (this.advice.numbers().get(id) ?? null);
+    const platform = this.advice.entry()?.platform ?? 'default';
+    const measured = numbers?.fm != null;
+    return {
+      rung: numbers?.titolarita ?? null,
+      pv: numbers?.pv ?? numbers?.estPv ?? null,
+      minutes: numbers?.minutesNext ?? null,
+      mv: numbers?.mv ?? null,
+      steady: goal ? null : (this.ratings.for(platform, id)?.steady?.share ?? null),
+      fm: numbers?.fm ?? numbers?.estFm ?? null,
+      estimated: !measured && (numbers?.estFm ?? null) != null,
+    };
   }
 
   /** The press's word where the survey has him; else the sheet's rung, which the engine writes for all. */
