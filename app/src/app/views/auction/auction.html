@@ -47,6 +47,17 @@
 
     <span actions class="flex items-center gap-1">
       @if (feed.demo()) {
+        <button
+          nz-button
+          nzSize="small"
+          data-auto
+          [nzType]="auto() ? 'primary' : 'default'"
+          nz-tooltip
+          nzTooltipTitle="Debug: gli altri scelgono da soli il calciatore previsto dopo 500 ms; si ferma al tuo turno"
+          (click)="auto.set(!auto())"
+        >
+          <nz-icon nzType="bug" /> AUTO
+        </button>
         <button nz-button nzSize="small" nz-tooltip nzTooltipTitle="Annulla l'ultima scelta" (click)="undo()">
           <nz-icon nzType="rollback" />
         </button>
@@ -57,9 +68,8 @@
           <nz-icon nzType="wifi" /> Asta live
         </button>
       }
-      <button nz-button nzSize="small" (click)="options.open()">
-        <nz-icon nzType="setting" /> Lega
-      </button>
+      <!-- Niente tasto «Lega»: le impostazioni si aprono dal pannello Opzioni in basso, come su ogni pagina
+           (sua richiesta, 29/09/2026). -->
     </span>
   </ui-app-header>
 
@@ -140,57 +150,29 @@
                     nz-tooltip
                     [nzTooltipTitle]="placeHint(place)"
                   >
-                    <span class="flex min-w-0 items-center gap-1">
-                      <ui-role [role]="place.badge ?? place.slot" size="xs" quiet />
-                      @if (place.man) {
-                        <span
-                          data-card-name
-                          class="min-w-0 cursor-pointer truncate text-[11px] font-medium leading-tight hover:underline"
-                          (click)="openCard(place.man.id, $event)"
-                          >{{ place.man.name }}</span
-                        >
-                        @if (pitchRungs().get(place.man.id); as rung) {
-                          @if (rung.press) {
-                            <span
-                              data-pitch-rung
-                              class="shrink-0 rounded px-0.5 text-[8px] leading-3"
-                              [class]="badgeOf(rung.press)"
-                              [class.opacity-70]="rung.pressSource === 'motore'"
-                              >{{ rung.press }}</span
-                            >
-                          }
-                        }
-                        <span
-                          class="ml-auto flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm bg-primary
-                                 px-0.5 text-[9px] font-semibold leading-none text-on-primary tabular-nums"
-                          >{{ place.man.value99 ?? '—' }}</span
-                        >
-                      } @else {
-                        <span class="truncate text-[11px] text-muted">vuoto</span>
-                      }
-                    </span>
+                    <!-- LA POSIZIONE IN ALTO AL CENTRO, i calciatori sotto, ognuno su DUE righe (sue richieste,
+                         29/09/2026: «non si legge niente»): il nome sopra, badge di titolarita' e valore sotto. -->
+                    <span class="flex justify-center"><ui-role [role]="place.slot" size="xs" quiet /></span>
+                    @if (place.man) {
+                      <ng-container *ngTemplateOutlet="man; context: { $implicit: place.man, reserve: false, ghost: false }" />
+                    } @else if (place.suggested; as ghost) {
+                      <!-- UN TITOLARE SUGGERITO, al 30%: quello che il piano prevede di prendere per questo posto
+                           con l'asta che va avanti e le scelte degli altri. -->
+                      <div data-suggested class="opacity-30">
+                        <ng-container *ngTemplateOutlet="man; context: { $implicit: ghost, reserve: false, ghost: true }" />
+                      </div>
+                    } @else {
+                      <span class="text-center text-[11px] text-muted">vuoto</span>
+                    }
                     @for (reserve of place.reserves; track reserve.id) {
-                      <span data-reserve class="flex min-w-0 items-center gap-1 text-[10px] leading-tight text-muted">
-                        <span class="shrink-0">↳</span>
-                        <span
-                          data-card-name
-                          class="min-w-0 cursor-pointer truncate hover:underline"
-                          (click)="openCard(reserve.id, $event)"
-                          >{{ reserve.name }}</span
-                        >
-                        @if (pitchRungs().get(reserve.id); as rung) {
-                          @if (rung.press) {
-                            <span
-                              data-pitch-rung
-                              class="shrink-0 rounded px-0.5 text-[8px] leading-3"
-                              [class]="badgeOf(rung.press)"
-                              [class.opacity-70]="rung.pressSource === 'motore'"
-                              >{{ rung.press }}</span
-                            >
-                          }
-                        }
-                        <span class="ml-auto shrink-0 tabular-nums">{{ reserve.value99 ?? '—' }}</span>
-                      </span>
+                      <div data-reserve class="text-muted">
+                        <ng-container *ngTemplateOutlet="man; context: { $implicit: reserve, reserve: true, ghost: false }" />
+                      </div>
+                    }
+                    @if (place.suggestedReserve; as ghost) {
+                      <div data-suggested-reserve class="text-muted opacity-30">
+                        <ng-container *ngTemplateOutlet="man; context: { $implicit: ghost, reserve: true, ghost: true }" />
+                      </div>
                     }
                   </div>
                 }
@@ -559,6 +541,44 @@
     </div>
   }
 </div>
+
+<!-- UN CALCIATORE SUL CAMPETTO, disegnato UNA volta e istanziato per titolari, riserve e suggeriti: due
+     copie di questo markup finirebbero per dire la stessa cosa in due modi. -->
+<ng-template #man let-man let-reserve="reserve" let-ghost="ghost">
+  <span class="flex min-w-0 flex-col" [class.mt-0.5]="reserve">
+    <span class="flex min-w-0 items-center gap-0.5 leading-tight" [class.text-[11px]]="!reserve" [class.text-[10px]]="reserve">
+      @if (reserve) {
+        <span class="shrink-0">↳</span>
+      }
+      <span
+        data-card-name
+        class="min-w-0 cursor-pointer truncate hover:underline"
+        [class.font-medium]="!reserve"
+        (click)="openCard(man.id, $event)"
+        >{{ man.name }}</span
+      >
+    </span>
+    <span class="flex min-w-0 items-center gap-1" [class.pl-2.5]="reserve">
+      @if (pitchRungs().get(man.id); as rung) {
+        @if (rung.press) {
+          <span
+            [attr.data-pitch-rung]="ghost ? null : ''"
+            class="min-w-0 truncate rounded px-0.5 text-[8px] leading-3"
+            [class]="badgeOf(rung.press)"
+            [class.opacity-70]="rung.pressSource === 'motore'"
+            >{{ rung.press }}</span
+          >
+        }
+      }
+      <span
+        class="ml-auto flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm px-0.5 text-[9px]
+               font-semibold leading-none tabular-nums"
+        [class]="reserve ? 'bg-fg/10' : 'bg-primary text-on-primary'"
+        >{{ man.value99 ?? '—' }}</span
+      >
+    </span>
+  </span>
+</ng-template>
 
 <ui-live-connect [(open)]="connecting" (left)="demo.start()" />
 

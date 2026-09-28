@@ -1,4 +1,4 @@
-import { DecimalPipe } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
@@ -14,9 +14,9 @@ import { CardKey, CardMan, CardStack, clubCard, clubOfCard, playerCard, playerOf
 import { EDGE_BASE, Role } from '../../core/plancia';
 import { positionAfterSpending } from '../../core/auction-plan';
 import { AuctionDemo } from '../../core/auction-demo';
-import { AuctionFeed, AuctionTeam, SquadEntry, Zone } from '../../core/auction-feed';
+import { AuctionFeed, AuctionPlayer, AuctionTeam, SquadEntry, Zone } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
-import { DraftPlace, RECOMMENDED_MANTRA, draftPitchOf } from '../../core/draft-pitch';
+import { DraftPlace, RECOMMENDED_MANTRA, draftPitchOf, withSuggestions } from '../../core/draft-pitch';
 import type { FantaMan } from '../../core/fanta-eleven';
 import { GlobalOptions } from '../../core/global-options';
 import { lazyRows } from '../../core/lazy-rows';
@@ -134,6 +134,9 @@ interface SeatRow {
 
 const EMPTY_STRIP: readonly TrendCell[] = [];
 
+/** How long AUTO waits before a rival takes his predicted man. */
+const AUTO_DELAY_MS = 500;
+
 /** How long a click on a free man's name waits for its second half: the double click chooses him. */
 const CARD_DELAY_MS = 260;
 
@@ -158,6 +161,7 @@ const CARD_DELAY_MS = 260;
     DecimalPipe,
     FormsModule,
     LiveConnect,
+    NgTemplateOutlet,
     NzButtonModule,
     NzIconModule,
     NzInputModule,
@@ -224,6 +228,9 @@ export class Auction {
 
   protected readonly connecting = signal(false);
 
+  /** The debug switch that plays the rivals by themselves (see the effect in the constructor). */
+  protected readonly auto = signal(false);
+
   constructor() {
     // A refresh mid-auction re-joins whatever session this browser was on, and only when there is none the
     // page opens on the declared league's table. The order is forced: starting the table first would
@@ -252,6 +259,23 @@ export class Auction {
         last = key;
         if (changed && this.feed.demo()) void this.demo.start();
       });
+    });
+
+    // AUTO (debug, operator 29/09/2026): with it on, every squad but mine takes its predicted man 500ms after
+    // coming on the clock - the same prediction the middle column prints - and the table stops on my turn.
+    // Only on the invented table: a live auction's picks are the host's.
+    effect((onCleanup) => {
+      const clock = this.feed.onTheClock();
+      const predicted = this.advice.round()?.picks.find((pick) => pick.teamId === clock?.id)?.player ?? null;
+      if (!this.auto() || !this.feed.demo() || !clock || clock.id === this.feed.followedTeamId() || !predicted) return;
+      const timer = setTimeout(() => {
+        const refused = this.demo.pick(predicted.id);
+        if (refused) {
+          this.auto.set(false);
+          this.message.warning(`AUTO fermo: ${refused}`);
+        }
+      }, AUTO_DELAY_MS);
+      onCleanup(() => clearTimeout(timer));
     });
 
     // The two readings of the free list that do not come with the advice: the trend strips (from the sheet
@@ -403,38 +427,55 @@ export class Auction {
     return this.feed.isMantra() && (RECOMMENDED_MANTRA as readonly string[]).includes(name);
   }
 
-  private readonly squad = computed<FantaMan[]>(() => {
-    const mantra = this.feed.isMantra();
-    const values = this.advice.valueBy();
-    const worth99 = this.advice.value99By();
-    const men: FantaMan[] = [];
-    for (const entry of this.pitchTeam()?.squad ?? []) {
-      const player = entry.player;
-      if (!player) continue;
-      const shown = mantra ? player.roles : [CLASSIC_ROLE[this.feed.zoneOf(player)] ?? ''].filter(Boolean);
-      men.push({
-        id: player.id,
-        name: this.feed.shownName(player),
-        club: this.goal(player.id) ? 'porta' : player.club,
-        shown,
-        roles: shown.map((role) => role.toLowerCase()),
-        value: values.get(player.id) ?? null,
-        value99: worth99.get(player.id) ?? null,
-        cost: entry.cost,
-        minutesPerMatch: null,
-      });
-    }
-    return men;
+  /** A man as the pitch draws him: roles to match on, and the numbers the panel prices him with. */
+  private manOf(player: AuctionPlayer, cost: number): FantaMan {
+    const shown = this.feed.isMantra()
+      ? player.roles
+      : [CLASSIC_ROLE[this.feed.zoneOf(player)] ?? ''].filter(Boolean);
+    return {
+      id: player.id,
+      name: this.feed.shownName(player),
+      club: this.goal(player.id) ? 'porta' : player.club,
+      shown,
+      roles: shown.map((role) => role.toLowerCase()),
+      value: this.advice.valueBy().get(player.id) ?? null,
+      value99: this.advice.value99By().get(player.id) ?? null,
+      cost,
+      minutesPerMatch: null,
+    };
+  }
+
+  private readonly squad = computed<FantaMan[]>(() =>
+    (this.pitchTeam()?.squad ?? [])
+      .filter((entry) => !!entry.player)
+      .map((entry) => this.manOf(entry.player!, entry.cost)),
+  );
+
+  /**
+   * THE SUGGESTED MEN, on MY squad only: the picks the plan projects for me with the auction going on
+   * (`AuctionAdvice.projection`). Another squad's pitch shows what it has and nothing it might take.
+   */
+  private readonly suggested = computed<FantaMan[]>(() => {
+    const team = this.pitchTeam();
+    if (!team || team.id !== this.feed.followedTeamId()) return [];
+    const everyone = this.everyone();
+    return this.advice.projection()
+      .map((pick) => everyone.get(pick.id))
+      .filter((player): player is AuctionPlayer => !!player)
+      .map((player) => this.manOf(player, player.fvm));
   });
 
-  protected readonly pitch = computed(() =>
-    draftPitchOf(
-      this.squad(),
-      this.advice.rules(),
-      this.feed.isMantra() ? RECOMMENDED_MANTRA : [],
-      this.forcedModule(),
-    ),
-  );
+  protected readonly pitch = computed(() => {
+    const rules = this.advice.rules();
+    const preferred = this.feed.isMantra() ? RECOMMENDED_MANTRA : [];
+    const suggested = this.suggested();
+    // The MODULE is the one the squad-to-be fields best, real and projected men together: the shape it is
+    // being built towards. The men on it are then the real ones, and the suggestions fill the gaps.
+    const target = this.forcedModule()
+      ?? (suggested.length ? draftPitchOf([...this.squad(), ...suggested], rules, preferred)?.module ?? null : null);
+    const drawn = draftPitchOf(this.squad(), rules, preferred, target);
+    return drawn && suggested.length ? withSuggestions(drawn, suggested) : drawn;
+  });
 
   protected placeHint(place: DraftPlace): string {
     const head = place.man
@@ -709,7 +750,7 @@ export class Auction {
   protected readonly pitchRungs = computed(() => {
     const press = this.rulings.press();
     const out = new Map<number, { press: string | null; pressSource: 'stampa' | 'motore' | null }>();
-    for (const man of this.squad()) {
+    for (const man of [...this.squad(), ...this.suggested()]) {
       out.set(man.id, this.goal(man.id) ? { press: null, pressSource: null } : this.rungById(man.id, press));
     }
     return out;

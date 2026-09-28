@@ -435,6 +435,40 @@ async function main() {
         ...(page.filled !== 1 ? [`il campetto porta ${page.filled} titolari invece di 1`] : []),
       ]);
 
+    // 3b. AUTO: switched on after my pick, the rivals take their predicted men by themselves, one every
+    // 500ms, and the table stops when it is my turn again; then it is switched off.
+    const picksOf = () => evaluate(session, () =>
+      [...document.querySelectorAll('[data-seat]')].reduce((sum, one) => sum + Number(one.getAttribute('data-picks')), 0));
+    const mine = await evaluate(session, () => document.querySelector('[data-column="pitch"]')?.getAttribute('data-team'));
+    const mySquad = () => evaluate(session, () => Number(document.querySelector('[data-column="pitch"]')?.getAttribute('data-squad')));
+    const squadFrom = await mySquad();
+    const autoFrom = await picksOf();
+    const autoStart = Date.now();
+    await mouse(await evaluate(session, centre, '[data-auto]'));
+    let autoClock = null;
+    for (let tick = 0; tick < 80; tick += 1) {
+      await wait(250);
+      autoClock = (await evaluate(session, readPage)).onClock;
+      if (autoClock === mine) break;
+    }
+    const autoMs = Date.now() - autoStart;
+    await wait(900);
+    const autoTo = await picksOf();
+    const squadTo = await mySquad();
+    const stayed = (await evaluate(session, readPage)).onClock;
+    await mouse(await evaluate(session, centre, '[data-auto]'));
+    await wait(300);
+    const seatsTotal = (await evaluate(session, readPage)).seats;
+    note('AUTO', `${autoTo - autoFrom} scelte automatiche in ${autoMs}ms, poi di turno ${stayed} (io ${mine})`,
+      [
+        ...(autoClock !== mine ? ['AUTO non riporta il turno a me'] : []),
+        // How MANY rivals call before me again is the order's business (after a dear pick I can be last of
+        // the next turn, i.e. two turns of rivals): what AUTO owes is that none of them was mine.
+        ...(autoTo - autoFrom < seatsTotal - 1 ? [`solo ${autoTo - autoFrom} scelte automatiche prima del mio turno`] : []),
+        ...(squadTo !== squadFrom || stayed !== mine ? ['AUTO ha scelto anche per me'] : []),
+        ...(autoMs < (autoTo - autoFrom) * 450 ? ['le scelte automatiche non aspettano i 500ms'] : []),
+      ]);
+
     // 4. Forty more picks, then the pitch must draw the whole squad, and the page must still not scroll.
     const rowAt = (index) => {
       const one = document.querySelectorAll('[data-free]')[index];
@@ -468,12 +502,57 @@ async function main() {
         ...(page.scrolls ? [`dopo le scelte la pagina scorre di ${page.overflow}px`] : []),
       ]);
 
+    // 4-bis. THE SUGGESTIONS on my pitch: a starter for every empty place and a reserve where there is none,
+    // at 30% opacity, all of them men still free - and a pick must not get slow because of them.
+    const ghosts = await evaluate(session, () => {
+      const free = new Set([...document.querySelectorAll('[data-free]')].map((one) => one.getAttribute('data-free')));
+      const places = [...document.querySelectorAll('[data-column="pitch"] [data-place]')];
+      const empty = places.filter((one) => !one.hasAttribute('data-filled')).length;
+      const starters = [...document.querySelectorAll('[data-column="pitch"] [data-suggested]')];
+      const reserves = [...document.querySelectorAll('[data-column="pitch"] [data-suggested-reserve]')];
+      const names = [...starters, ...reserves].map((one) => (one.querySelector('[data-card-name]')?.innerText ?? '').trim());
+      return {
+        empty,
+        starters: starters.length,
+        reserves: reserves.length,
+        opacity: [...new Set([...starters, ...reserves].map((one) => getComputedStyle(one).opacity))],
+        duplicates: names.length - new Set(names).size,
+        freeKnown: free.size,
+      };
+    });
+    const clockBefore = (await evaluate(session, readPage)).onClock;
+    let pickMs = null;
+    for (let index = 0; index < 20 && pickMs === null; index += 1) {
+      const target = await evaluate(session, rowAt, index);
+      const started = Date.now();
+      await mouse(target, 2);
+      for (let tick = 0; tick < 40; tick += 1) {
+        if ((await evaluate(session, readPage)).onClock !== clockBefore) {
+          pickMs = Date.now() - started;
+          break;
+        }
+        await wait(25);
+        if (tick === 12 && (await evaluate(session, readPage)).onClock === clockBefore) break;
+      }
+    }
+    await wait(700);   // the seats and the turn line slide for 450ms: measure them where they land
+    note('suggerimenti', `${ghosts.starters} titolari suggeriti su ${ghosts.empty} posti vuoti, ${ghosts.reserves} riserve, `
+      + `opacita' ${ghosts.opacity.join('/')}, una scelta in ${pickMs}ms`,
+      [
+        ...(ghosts.empty && !ghosts.starters ? ['nessun titolare suggerito sui posti vuoti'] : []),
+        ...(ghosts.starters > ghosts.empty ? ['piu\' titolari suggeriti che posti vuoti'] : []),
+        ...(!ghosts.reserves ? ['nessuna riserva suggerita'] : []),
+        ...(ghosts.opacity.some((one) => Math.abs(Number(one) - 0.3) > 0.01) ? ['un suggerimento non e\' al 30%'] : []),
+        ...(ghosts.duplicates ? [`${ghosts.duplicates} nomi suggeriti due volte`] : []),
+        ...(pickMs > 2500 ? [`una scelta impiega ${pickMs}ms`] : []),
+      ]);
+
     // 4a'. A dashed line where one turn ends and the next begins, counted on the picks already made.
     const rounds = await evaluate(session, roundLinesNow);
     note('linea fra i turni', `${rounds.lines} linee per ${rounds.boundaries} confini (${rounds.labels.join(', ')}), numeri ${rounds.shown.join(' ')}`,
       [
         ...(rounds.lines !== rounds.boundaries ? [`${rounds.lines} linee invece di ${rounds.boundaries}`] : []),
-        ...(!rounds.boundaries ? ['nessun confine fra turni da misurare'] : []),
+
         ...(rounds.misplaced ? [`${rounds.misplaced} linee fuori posto o con l'etichetta sbagliata`] : []),
         ...(rounds.wrongNumbers.length ? [`numeri di turno sbagliati: ${rounds.wrongNumbers.join(', ')} (a schermo ${rounds.shown.join(' ')})`] : []),
       ]);

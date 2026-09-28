@@ -942,3 +942,36 @@ export function simulateRound(input: PlanInput): { picks: RoundPick[]; nextOrder
     nextOrder: [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks)).map((team) => team.id),
   };
 }
+
+
+/**
+ * OUR NEXT `picks` PICKS, IMAGINING THE AUCTION GOING ON (operator, 29/09/2026: «i suggerimenti devono
+ * essere realistici immaginando di andare avanti nell'asta e ipotizzando le scelte degli altri»).
+ *
+ * `plan()` starts from our seat, so the squads calling BEFORE us in this turn are not in it - and each of
+ * them removes a man from the pool before we choose. Here they choose first, with the rivals' own policy,
+ * and then the plan runs from our seat for as many turns as are asked: our pick with our policy, every rival
+ * with his. No new model: the two policies and the order rule of the plan, walked further.
+ */
+export function projectOurPicks(input: PlanInput, picks: number): PlanPlayer[] {
+  if (picks <= 0) return [];
+  const places = startingPlaces(input.shapes);
+  const teams = new Map(input.teams.map((team) => [team.id, team]));
+  let pool = [...input.pool];
+  const order = input.order.filter((id) => teams.has(id));
+  const myPlace = order.indexOf(input.mineId);
+  if (myPlace < 0) return [];
+  const cap = input.cap ?? null;
+  for (const [index, id] of order.slice(0, myPlace).entries()) {
+    const team = teams.get(id)!;
+    const choice = predictRivalPick(team, pool, places, input.keeperCap, order.length - index,
+                                    input.heads?.get(id) ?? DEFAULT_HEAD, cap);
+    if (!choice) continue;
+    pool = pool.filter((player) => player.id !== choice.id);
+    teams.set(id, take(team, choice));
+  }
+  const rest = plan({ ...input, teams: [...teams.values()], pool, order: order.slice(myPlace), roundsAhead: picks });
+  return [rest.mine, ...rest.rounds.map((round) => round.mine)]
+    .filter((player): player is PlanPlayer => !!player)
+    .slice(0, picks);
+}

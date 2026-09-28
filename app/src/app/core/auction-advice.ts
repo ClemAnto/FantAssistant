@@ -35,6 +35,7 @@ import {
   plan,
   planRoots,
   predictRivalPick,
+  projectOurPicks,
   simulateRound,
   startingPlaces,
 } from './auction-plan';
@@ -135,6 +136,9 @@ export interface RankedPlayer {
    */
   porta: Porta | null;
 }
+
+/** A starter and a reserve for each of the eleven places: how far the pitch's suggestion looks ahead. */
+export const SUGGESTED_SQUAD = 22;
 
 @Injectable({ providedIn: 'root' })
 export class AuctionAdvice {
@@ -1004,6 +1008,18 @@ export class AuctionAdvice {
   readonly round = computed<{ picks: RoundPick[]; nextOrder: number[] } | null>(() => {
     const input = this.planInput();
     return input ? simulateRound(input) : null;
+  });
+
+  /**
+   * OUR PROJECTED PICKS, until the squad has a starter and a reserve for each of the eleven places - twice
+   * eleven men - or its roster is full (`projectOurPicks`). What the Draft Assistant's pitch suggests.
+   */
+  readonly projection = computed<PlanPlayer[]>(() => {
+    const input = this.planInput();
+    const me = this.feed.followed();
+    if (!input || !me) return [];
+    const wanted = Math.min(me.missingTotal, Math.max(0, SUGGESTED_SQUAD - me.squad.length));
+    return projectOurPicks(input, wanted);
   });
 
   /** The three divergent starting points (§17.3), each with the reason it is offered. */

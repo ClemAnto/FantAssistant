@@ -19,7 +19,7 @@
 import { MantraModules } from './auction-value';
 import { DRAW_ORDER } from './club-eleven';
 import type { FantaMan } from './fanta-eleven';
-import { ModuleLine, Place, bestEleven, placesIn } from './mantra-legal';
+import { ModuleLine, Place, assign, bestEleven, placesIn } from './mantra-legal';
 
 /**
  * The modules the operator plays towards on MANTRA, in the order he names them («il modulo di riferimento
@@ -41,6 +41,10 @@ export interface DraftPlace {
   badge: string | null;
   /** The men standing under this place as its reserves, best first. */
   reserves: FantaMan[];
+  /** A SUGGESTED starter, where the squad has nobody for this place yet (`withSuggestions`). */
+  suggested?: FantaMan | null;
+  /** A SUGGESTED reserve, where the place has no reserve yet. */
+  suggestedReserve?: FantaMan | null;
 }
 
 export interface DraftRow {
@@ -163,4 +167,30 @@ export function spreadReserves(
 function badgeFor(man: FantaMan, roles: string[]): string | null {
   const at = man.roles.findIndex((role) => roles.includes(role));
   return at < 0 ? null : (man.shown[at] ?? man.roles[at]);
+}
+
+
+/**
+ * THE SUGGESTIONS ON THE PITCH (operator, 29/09/2026: «suggerisci un titolare ed una riserva per ogni
+ * ruolo, con opacità 0.3»), filled in only where the REAL squad leaves a gap: a real man is never pushed
+ * off his place by a projected one. First the empty places get a starter - a maximum matching, best
+ * projected man first, so the suggestions cover as many places as they can - then the places with no
+ * reserve get one from whoever is left. Mutates the places and returns the pitch.
+ */
+export function withSuggestions(pitch: DraftPitch, projected: readonly FantaMan[]): DraftPitch {
+  const places = pitch.rows.flatMap((row) => row.places);
+  const ranked = [...projected].sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
+  const empty = places.filter((place) => !place.man);
+  const starters = assign(ranked, empty.map((place) => place.roles));
+  empty.forEach((place, at) => {
+    place.suggested = starters.holder[at] >= 0 ? starters.chosen[starters.holder[at]] : null;
+  });
+  const used = new Set(starters.chosen);
+  const left = ranked.filter((man) => !used.has(man));
+  const bare = places.filter((place) => !place.reserves.length);
+  const reserves = assign(left, bare.map((place) => place.roles));
+  bare.forEach((place, at) => {
+    place.suggestedReserve = reserves.holder[at] >= 0 ? reserves.chosen[reserves.holder[at]] : null;
+  });
+  return pitch;
 }
