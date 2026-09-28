@@ -149,6 +149,17 @@
                           (click)="openCard(place.man.id, $event)"
                           >{{ place.man.name }}</span
                         >
+                        @if (pitchRungs().get(place.man.id); as rung) {
+                          @if (rung.press) {
+                            <span
+                              data-pitch-rung
+                              class="shrink-0 rounded px-0.5 text-[8px] leading-3"
+                              [class]="badgeOf(rung.press)"
+                              [class.opacity-70]="rung.pressSource === 'motore'"
+                              >{{ rung.press }}</span
+                            >
+                          }
+                        }
                         <span
                           class="ml-auto flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm bg-primary
                                  px-0.5 text-[9px] font-semibold leading-none text-on-primary tabular-nums"
@@ -167,6 +178,17 @@
                           (click)="openCard(reserve.id, $event)"
                           >{{ reserve.name }}</span
                         >
+                        @if (pitchRungs().get(reserve.id); as rung) {
+                          @if (rung.press) {
+                            <span
+                              data-pitch-rung
+                              class="shrink-0 rounded px-0.5 text-[8px] leading-3"
+                              [class]="badgeOf(rung.press)"
+                              [class.opacity-70]="rung.pressSource === 'motore'"
+                              >{{ rung.press }}</span
+                            >
+                          }
+                        }
                         <span class="ml-auto shrink-0 tabular-nums">{{ reserve.value99 ?? '—' }}</span>
                       </span>
                     }
@@ -494,10 +516,13 @@
               } @else {
                 @for (which of ['now', 'last']; track which; let second = $last) {
                   @if (lineOf(row.id, $any(which)); as line) {
-                    <span class="text-right tabular-nums" [class.split]="second">{{ line.pv ?? '—' }}</span>
-                    <span class="text-right tabular-nums">{{ line.mv != null ? (line.mv | number: '1.2-2') : '—' }}</span>
-                    <span class="text-right tabular-nums text-warning">{{ line.fm != null ? (line.fm | number: '1.2-2') : '—' }}</span>
-                    <span class="text-right tabular-nums">{{ ga(line) }}</span>
+                    <!-- IN CORSIVO LA STAGIONE RICOSTRUITA (operatore, 29/09/2026): la piattaforma non
+                         votava il suo club, e i quattro numeri vengono dal voto sintetico delle sue partite. -->
+                    <span class="text-right tabular-nums" [class.split]="second" [class.italic]="line.synthetic"
+                          [attr.data-synthetic]="line.synthetic ? '' : null">{{ line.pv ?? '—' }}</span>
+                    <span class="text-right tabular-nums" [class.italic]="line.synthetic">{{ line.mv != null ? (line.mv | number: '1.2-2') : '—' }}</span>
+                    <span class="text-right tabular-nums text-warning" [class.italic]="line.synthetic">{{ line.fm != null ? (line.fm | number: '1.2-2') : '—' }}</span>
+                    <span class="text-right tabular-nums" [class.italic]="line.synthetic">{{ ga(line) }}</span>
                   } @else {
                     <span class="text-right text-muted" [class.split]="second">—</span><span class="text-right text-muted">—</span>
                     <span class="text-right text-muted">—</span><span class="text-right text-muted">—</span>

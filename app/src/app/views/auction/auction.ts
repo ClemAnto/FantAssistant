@@ -23,8 +23,8 @@ import { looseMatch } from '../../core/loose-search';
 import { trendStrips } from '../../core/plancia-store';
 import { PlayerRulings } from '../../core/player-rulings';
 import type { TrendCell } from '../../core/player-trend';
-import type { Platform } from '../../core/players-store';
-import { SeasonLine, seasonLines } from '../../core/season-line';
+import { PlayersStore, type Platform } from '../../core/players-store';
+import { SeasonLine, seasonLineFromMatches, seasonLines } from '../../core/season-line';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -200,6 +200,8 @@ export class Auction {
   protected readonly options = inject(GlobalOptions);
   private readonly rulings = inject(PlayerRulings);
   private readonly bundle = inject(Bundle);
+  /** The per-match layer, for the seasons the platform did not rate his club (`rebuiltLine`). */
+  private readonly players = inject(PlayersStore);
   private readonly message = inject(NzMessageService);
 
   protected readonly connecting = signal(false);
@@ -427,6 +429,13 @@ export class Auction {
 
   private readonly trends = signal<ReadonlyMap<number, readonly TrendCell[]>>(new Map());
   private readonly lines = signal<ReadonlyMap<number, ReadonlyMap<string, SeasonLine>>>(new Map());
+  private readonly linesPlatform = signal<Platform | null>(null);
+  /** The rebuilt lines, one per `id|season`, cleared whenever the matches or the platform change. */
+  private readonly rebuilt = computed(() => {
+    this.players.ready();
+    this.linesPlatform();
+    return new Map<string, SeasonLine | null>();
+  });
   protected readonly seasons = signal<{ now: string | null; last: string | null }>({ now: null, last: null });
 
   /** Every free man with his priority, dearest priority first; the frozen ones after, in the same order. */
@@ -591,16 +600,54 @@ export class Auction {
     press: ReadonlyMap<number, { pressTier?: string | null }>,
     goal: boolean,
   ): { press: string | null; pressSource: 'stampa' | 'motore' | null } {
-    if (goal) return { press: null, pressSource: null };
-    const said = press.get(row.player.id)?.pressTier ?? null;
+    return goal ? { press: null, pressSource: null } : this.rungById(row.player.id, press);
+  }
+
+  /** The same titolarità word by id, for the list AND the pitch: one reading, two places that show it. */
+  private rungById(
+    id: number,
+    press: ReadonlyMap<number, { pressTier?: string | null }> = this.rulings.press(),
+  ): { press: string | null; pressSource: 'stampa' | 'motore' | null } {
+    const said = press.get(id)?.pressTier ?? null;
     if (said) return { press: said, pressSource: 'stampa' };
-    const sheet = this.advice.numbers().get(row.player.id)?.titolarita ?? null;
+    const sheet = this.advice.numbers().get(id)?.titolarita ?? null;
     return sheet ? { press: sheet, pressSource: 'motore' } : { press: null, pressSource: null };
   }
 
+  /**
+   * THE TITOLARITÀ OF EVERY MAN OF THE PITCH, next to his name (operator, 29/09/2026). A goal (porte rule)
+   * is a club and has no word of its own.
+   */
+  protected readonly pitchRungs = computed(() => {
+    const press = this.rulings.press();
+    const out = new Map<number, { press: string | null; pressSource: 'stampa' | 'motore' | null }>();
+    for (const man of this.squad()) {
+      out.set(man.id, this.goal(man.id) ? { press: null, pressSource: null } : this.rungById(man.id, press));
+    }
+    return out;
+  });
+
   protected lineOf(id: number, which: 'now' | 'last'): SeasonLine | null {
     const season = this.seasons()[which];
-    return season ? (this.lines().get(id)?.get(season) ?? null) : null;
+    if (!season) return null;
+    const scored = this.lines().get(id)?.get(season) ?? null;
+    if (scored?.pv != null) return scored;
+    return this.rebuiltLine(id, season) ?? scored;
+  }
+
+  /**
+   * THE SEASON THE PLATFORM DID NOT SCORE, rebuilt from his matches on the synthetic vote (operator,
+   * 29/09/2026: «recuperiamo i valori dello scorso anno ... va bene anche visualizzare i valori
+   * sintetici (in corsivo)»). Only where `season_stats` has no row: a scored line always wins. Null
+   * until the per-match layer is in, and for a man who played outside the five championships.
+   */
+  private rebuiltLine(id: number, season: string): SeasonLine | null {
+    const platform = this.linesPlatform();
+    if (!platform || !this.players.ready()) return null;
+    const memo = this.rebuilt();
+    const key = `${id}|${season}`;
+    if (!memo.has(key)) memo.set(key, seasonLineFromMatches(this.players.matchesOf(id, platform, season), season));
+    return memo.get(key) ?? null;
   }
 
   protected ga(line: SeasonLine | null): string {
@@ -766,6 +813,8 @@ export class Auction {
       const last = manifest.input_season ?? null;
       const wanted = [now, last].filter((one): one is string => !!one);
       this.lines.set(seasonLines({ seasonStats: stats, platform, seasons: wanted }));
+      this.linesPlatform.set(platform);
+      void this.players.load();
       this.seasons.set({ now, last });
     } catch {
       // Without them the list still ranks: the strip draws four empty cells and the averages read «—».

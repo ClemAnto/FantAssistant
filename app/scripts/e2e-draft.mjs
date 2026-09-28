@@ -434,6 +434,24 @@ async function main() {
         ...(page.scrolls ? [`dopo le scelte la pagina scorre di ${page.overflow}px`] : []),
       ]);
 
+    // 4a. The titolarità badge next to every man of the pitch that has one, whole and in its colour.
+    const pitchRungs = await evaluate(session, () => {
+      const badges = [...document.querySelectorAll('[data-column="pitch"] [data-pitch-rung]')];
+      const names = document.querySelectorAll('[data-column="pitch"] [data-place] [data-card-name]').length;
+      return {
+        names,
+        badges: badges.length,
+        words: [...new Set(badges.map((one) => one.innerText.trim()))],
+        clipped: badges.filter((one) => one.scrollWidth > one.clientWidth + 1).length,
+      };
+    });
+    note('titolarita sul campetto', `${pitchRungs.badges} badge su ${pitchRungs.names} nomi: ${pitchRungs.words.join(', ')}`,
+      [
+        ...(pitchRungs.names && !pitchRungs.badges ? ['nessun badge accanto ai calciatori del campetto'] : []),
+        ...(pitchRungs.badges > pitchRungs.names ? ['piu\' badge che nomi'] : []),
+        ...(pitchRungs.clipped ? [`${pitchRungs.clipped} badge tagliati`] : []),
+      ]);
+
     // 4b. Hovering another squad shows its roster's FVM minus the selected one's; the selected squad shows none.
     const seatInfo = (id) => {
       const one = document.querySelector(`[data-seat="${id}"]`);
@@ -644,7 +662,16 @@ async function main() {
     note('console', `${noise.length} messaggi`, noise.slice(0, 5));
   } finally {
     session?.close();
-    browser.kill();
+    // THE WHOLE TREE, not the parent: on Windows `kill` stops the first Edge process and leaves its renderers
+    // behind - measured 29/09/2026, 210 headless Edge left by this bench had eaten the machine's memory.
+    // Not even the tree is enough: part of Edge re-parents itself away from the process we launched, so the
+    // reliable key is this run's own PROFILE directory, which no other browser on the machine can carry.
+    if (process.platform === 'win32') {
+      spawnSync('taskkill', ['/PID', String(browser.pid), '/T', '/F'], { stdio: 'ignore' });
+      spawnSync('powershell', ['-NoProfile', '-Command',
+        `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like '*${profile}*' } | `
+        + 'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'], { stdio: 'ignore' });
+    } else browser.kill();
     server.close();
     await wait(300);
     await rm(profile, { recursive: true, force: true }).catch(() => {});
