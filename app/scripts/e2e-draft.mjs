@@ -534,6 +534,23 @@ async function main() {
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
 
+    // 5b'. The titolarità column: its header, and full words in coloured badges.
+    const rungs = await evaluate(session, () => ({
+      header: [...document.querySelectorAll('[data-free-head] [data-sort="press"]')].map((one) => one.innerText.trim())[0] ?? '',
+      words: [...new Set([...document.querySelectorAll('[data-free] [data-rung]')].map((one) => one.innerText.trim()))],
+      colours: new Set([...document.querySelectorAll('[data-free] [data-rung]')].map((one) => getComputedStyle(one).color)).size,
+      clipped: [...document.querySelectorAll('[data-free] [data-rung]')].filter((one) => one.scrollWidth > one.clientWidth + 1).length,
+    }));
+    const known = ['bandiera', 'titolarissimo', 'titolare', 'ballottaggio', 'comprimario', 'panchina', 'riserva', 'scarto'];
+    note('titolarita', `intestazione «${rungs.header}», parole ${rungs.words.join(', ')}, ${rungs.colours} colori`,
+      [
+        ...(!/^Titolarità/i.test(rungs.header) ? ['l\'intestazione non dice Titolarità'] : []),
+        ...(!rungs.words.length ? ['nessun badge'] : []),
+        ...(rungs.words.some((word) => !known.includes(word)) ? ['una parola non intera: ' + rungs.words.filter((word) => !known.includes(word)).join(', ')] : []),
+        ...(rungs.words.length > 1 && rungs.colours < 2 ? ['i badge hanno tutti lo stesso colore'] : []),
+        ...(rungs.clipped ? [`${rungs.clipped} badge tagliati`] : []),
+      ]);
+
     // 5c. A click on a name opens the player's card - in the list (after the double-click wait) and in the
     // call order - and a double click on a row does NOT (it chooses).
     const before5c = (await evaluate(session, cardTitles)).length;
@@ -568,6 +585,9 @@ async function main() {
       const heads = [...head.children].map((one) => one.getBoundingClientRect());
       const cells = [...row.children].map((one) => one.getBoundingClientRect());
       const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.right - cells[at].right)) : null));
+      const widths = heads.slice(2).map((one) => Math.round(one.width));
+      const clipped = [...document.querySelectorAll('[data-free]')].flatMap((one) => [...one.children].slice(2))
+        .filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length;
       const fmHead = head.children[4];
       const fmCell = row.children[4];
       const splits = document.querySelectorAll('[data-column="free"] .split').length;
@@ -579,6 +599,8 @@ async function main() {
         mvCell: row.children[3] ? getComputedStyle(row.children[3]).color : null,
         splits,
         crests,
+        widths,
+        clipped,
       };
     });
     note('medie', `intestazione «${page.header.slice(0, 60)}», scarto destro etichetta/valore ${align?.drift.join('/')}px, `
@@ -591,6 +613,8 @@ async function main() {
         ...(align && align.fmHead !== align.fmCell ? ['etichetta Fm e valore Fm di due colori'] : []),
         ...(align && align.splits < 3 ? ['manca il tratteggio fra le due stagioni'] : []),
         ...(align && align.crests !== 1 ? ['manca lo stemma prima del nome'] : []),
+        ...(align && new Set(align.widths).size !== 1 ? [`colonne di larghezze diverse: ${align.widths.join('/')}`] : []),
+        ...(align && align.clipped ? [`${align.clipped} valori tagliati`] : []),
       ]);
 
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="fm@last"]'));

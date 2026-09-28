@@ -390,8 +390,13 @@
           <div data-free-head class="gutter free-grid free-default px-1 text-[10px] uppercase text-muted">
             <span class="sort" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
             <span class="sort" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
-            <span class="sort text-center" data-sort="press" nz-tooltip nzTooltipTitle="Gradino della stampa" (click)="sortBy('press')"
-              >Stampa{{ arrow('press') }}</span
+            <span
+              class="sort text-center"
+              data-sort="press"
+              nz-tooltip
+              nzTooltipTitle="La parola della stampa; dove la stampa non lo ha, il gradino del motore"
+              (click)="sortBy('press')"
+              >Titolarità{{ arrow('press') }}</span
             >
             <span class="sort text-right" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort" data-sort="trend" nz-tooltip nzTooltipTitle="Ordina per la media delle ultime partite" (click)="sortBy('trend')"
@@ -470,7 +475,19 @@
                 }
               </span>
               @if (mode() === 'default') {
-                <span class="text-center text-[10px] text-muted">{{ pressShort(row.press) }}</span>
+                <span class="flex justify-center">
+                  @if (row.press) {
+                    <span
+                      data-rung
+                      class="truncate rounded px-1 text-[9px] leading-4"
+                      [class]="badgeOf(row.press)"
+                      [class.opacity-70]="row.pressSource === 'motore'"
+                      >{{ row.press }}</span
+                    >
+                  } @else {
+                    <span class="text-[10px] text-muted">—</span>
+                  }
+                </span>
                 <span class="text-right tabular-nums">{{ row.fvm }}</span>
                 <ui-trend-votes [cells]="row.trend" />
                 <span class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>

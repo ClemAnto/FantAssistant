@@ -41,14 +41,23 @@ import { TrendVotes } from '../../ui/trend-votes/trend-votes';
  */
 const CLASSIC_ROLE: Partial<Record<Zone, string>> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
 
-/** The press's own six words, short enough for a column; the full word is the tooltip. */
-const PRESS_SHORT: Record<string, string> = {
-  titolarissimo: 'TT',
-  titolare: 'TIT',
-  ballottaggio: 'BAL',
-  comprimario: 'COM',
-  riserva: 'RIS',
-  scarto: 'SCA',
+/**
+ * THE TITOLARITÀ COLUMN'S BADGES (operator, 29/09/2026: «scrivi i valori con etichette intere con badge
+ * colorati: verde titolare, ambra ballottaggio, ecc.»). Colour on an ordinal scale is his explicit request
+ * here, against the app's default of reading such a scale by weight: green the two top words, amber the
+ * contested shirt, orange who comes on, red who does not play. The press's six words and the sheet's six
+ * rungs share four; `bandiera` reads as `titolarissimo` and `panchina` as `comprimario`, which is what
+ * each promises.
+ */
+const RUNG_BADGE: Record<string, string> = {
+  bandiera: 'bg-success/30 text-success font-semibold',
+  titolarissimo: 'bg-success/30 text-success font-semibold',
+  titolare: 'bg-success/15 text-success',
+  ballottaggio: 'bg-warning/20 text-warning',
+  comprimario: 'bg-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]/20 text-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]',
+  panchina: 'bg-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]/20 text-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]',
+  riserva: 'bg-danger/15 text-danger',
+  scarto: 'bg-danger/30 text-danger font-semibold',
 };
 
 /** A season number the «medie» view can be sorted by. */
@@ -59,12 +68,14 @@ export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
-/** The press's own ladder, best first: what «sort by the press» orders by. */
+/** The two ladders in one order, best first: what «sort by titolarità» orders by. */
 const PRESS_RANK: Record<string, number> = {
+  bandiera: 7,
   titolarissimo: 6,
   titolare: 5,
   ballottaggio: 4,
   comprimario: 3,
+  panchina: 3,
   riserva: 2,
   scarto: 1,
 };
@@ -83,7 +94,9 @@ export interface FreeRow {
   clubId: number | null;
   roles: string[];
   fvm: number;
+  /** The titolarità word: the PRESS's where the survey has him, else the sheet's own rung. */
   press: string | null;
+  pressSource: 'stampa' | 'motore' | null;
   trend: readonly TrendCell[];
   /** The priority on 0-99 of this table's free pool; null where the sheet cannot value him. */
   priority: number | null;
@@ -155,7 +168,7 @@ const CARD_DELAY_MS = 260;
   // the rows must share ONE track list, or the columns of the header drift from the numbers under them.
   styles: `
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
-    .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 2.5rem 2.5rem 75px 2.5rem; }
+    .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 4.9rem 2.5rem 75px 2.5rem; }
     .sort { cursor: pointer; user-select: none; }
     /* The call order: every seat sits at its place by a transform, so a change of place SLIDES. */
     ol { --seat-h: 2.75rem; --seat-step: 3rem; }
@@ -168,7 +181,9 @@ const CARD_DELAY_MS = 260;
     /* «In piccolo»: the smallest badge the app has, shrunk once more so a two-line seat keeps its height. */
     .seat-roles { transform: scale(0.8); transform-origin: left center; margin-right: -0.35rem; }
     .sort:hover { color: var(--color-fg); }
-    .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) repeat(2, 1.9rem 2.2rem 2.2rem 2.4rem); }
+    /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
+       value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
+    .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) repeat(8, 2.5rem); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -447,7 +462,7 @@ export class Auction {
       clubId: this.advice.clubIds().get(row.player.club) ?? null,
       roles: row.player.roles,
       fvm: row.price,
-      press: goal ? null : (press.get(row.player.id)?.pressTier ?? null),
+      ...this.rungOf(row, press, goal),
       trend: goal ? EMPTY_STRIP : (trends.get(row.player.id) ?? EMPTY_STRIP),
       priority: score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
       locked: this.advice.lockedForMe(row.price),
@@ -566,8 +581,21 @@ export class Auction {
 
   protected readonly free = lazyRows(this.sorted, '[data-free-list]');
 
-  protected pressShort(tier: string | null): string {
-    return tier ? (PRESS_SHORT[tier] ?? tier.slice(0, 3).toUpperCase()) : '—';
+  protected badgeOf(word: string | null): string {
+    return (word && RUNG_BADGE[word]) || 'bg-fg/10 text-muted';
+  }
+
+  /** The press's word where the survey has him; else the sheet's rung, which the engine writes for all. */
+  private rungOf(
+    row: RankedPlayer,
+    press: ReadonlyMap<number, { pressTier?: string | null }>,
+    goal: boolean,
+  ): { press: string | null; pressSource: 'stampa' | 'motore' | null } {
+    if (goal) return { press: null, pressSource: null };
+    const said = press.get(row.player.id)?.pressTier ?? null;
+    if (said) return { press: said, pressSource: 'stampa' };
+    const sheet = this.advice.numbers().get(row.player.id)?.titolarita ?? null;
+    return sheet ? { press: sheet, pressSource: 'motore' } : { press: null, pressSource: null };
   }
 
   protected lineOf(id: number, which: 'now' | 'last'): SeasonLine | null {
@@ -597,7 +625,7 @@ export class Auction {
 
   protected freeHint(row: FreeRow): string {
     const bits = [`${row.name} · ${row.club}`, `FVM ${row.fvm}`];
-    if (row.press) bits.push(`stampa: ${row.press}`);
+    if (row.press) bits.push(`titolarità ${row.press} (${row.pressSource === 'stampa' ? 'dalla stampa' : 'dal motore'})`);
     if (row.turnsLeft != null) {
       bits.push(`bloccato: ancora ${row.turnsLeft} ${row.turnsLeft === 1 ? 'turno' : 'turni'} prima di poterlo chiamare`);
     }
