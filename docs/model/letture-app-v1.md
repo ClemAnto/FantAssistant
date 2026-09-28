@@ -7171,3 +7171,13 @@ quota, e l'undici -2 nel 2025. Sei cose che restano:
 
 `engine_*` non si muove (il motore non legge `presence` né `prior_window`): cambiano i fogli EuroLeghe,
 i campetti e il gradino.
+
+### 55.4 Il confronto rifatto sul foglio ricostruito
+
+Dopo la revisione 77 (fogli, export e pull rifatti la sera stessa): stessa fascia **479 su 917** (52,2%,
+erano 452), lontani due fasce **57** (erano 79), undici in comune **336/406**; gli «arrivi senza storico» fra
+le cause scendono da **50 a 29**. L'artifact del confronto è ripubblicato su questi numeri.
+
+E una domanda dello stesso giorno, perché la risposta sta in questo documento e non altrove: **in un draft la
+valuta è il VALORE** (`fm × pv`, misurato il 10/08 su `bench/draft`, surplus −4,0%), non lo SWING. Lo SWING
+(§32) sottrae uno zero come il surplus e non è mai stato messo sul banco del draft: è un aperto, non un verdetto.

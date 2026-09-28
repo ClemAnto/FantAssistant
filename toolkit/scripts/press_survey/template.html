@@ -1,0 +1,240 @@
+<title>Rose EuroLeghe 28/09</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F3F5F0; --surface:#FFFFFF; --sunk:#E9EDE6; --ink:#16201A; --muted:#5B6A60; --line:#D7DDD3;
+  --accent:#1D6B50; --accent-ink:#FFFFFF;
+  --t1:#155E43; --t1-bg:#D6EEE3; --t2:#2E7D4F; --t2-bg:#E3F2E6; --t3:#1F5F86; --t3-bg:#DDEBF4;
+  --t4:#8A5A00; --t4-bg:#F7E9C9; --t5:#5D6660; --t5-bg:#E8EBE7; --t6:#8A8F8B; --t6-bg:#F0F1EF;
+  --hurt:#B3261E; --hurt-bg:#FBE3E1; --warn:#8A5A00;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow Semi Condensed","Segoe UI",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#0F1411; --surface:#161D18; --sunk:#1C241F; --ink:#E4EAE5; --muted:#95A39A; --line:#29342D;
+  --accent:#4DBB8C; --accent-ink:#0B120E;
+  --t1:#6FD6A6; --t1-bg:#173628; --t2:#8FD49F; --t2-bg:#1B3222; --t3:#86BFE6; --t3-bg:#172C3B;
+  --t4:#E8B85C; --t4-bg:#3A2D12; --t5:#AEB8B1; --t5-bg:#232B26; --t6:#7C857F; --t6-bg:#1B211D;
+  --hurt:#FF8A80; --hurt-bg:#3D1715; --warn:#E8B85C;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0F1411; --surface:#161D18; --sunk:#1C241F; --ink:#E4EAE5; --muted:#95A39A; --line:#29342D;
+  --accent:#4DBB8C; --accent-ink:#0B120E;
+  --t1:#6FD6A6; --t1-bg:#173628; --t2:#8FD49F; --t2-bg:#1B3222; --t3:#86BFE6; --t3-bg:#172C3B;
+  --t4:#E8B85C; --t4-bg:#3A2D12; --t5:#AEB8B1; --t5-bg:#232B26; --t6:#7C857F; --t6-bg:#1B211D;
+  --hurt:#FF8A80; --hurt-bg:#3D1715; --warn:#E8B85C;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:15px/1.45 var(--body);margin:0}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:20px 60px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0;letter-spacing:.01em}
+h1{font-size:34px;font-weight:700;line-height:1.05}
+h2{font-size:24px;font-weight:700}
+h3{font-size:15px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.lede{color:var(--muted);max-width:70ch;margin:6px 0 0}
+.stamp{display:inline-flex;gap:8px;align-items:center;font-family:var(--display);font-size:14px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--accent);border:1.5px solid var(--accent);padding:2px 8px;border-radius:3px}
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);padding-block:10px;
+  border-bottom:1px solid var(--line);margin-top:16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar input[type=search],.bar select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);
+  border-radius:6px;padding:6px 10px;min-width:0}
+.bar input[type=search]{flex:1 1 200px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:600 13px var(--body);border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;
+  padding:4px 10px;cursor:pointer}
+.chip[aria-pressed=true]{color:var(--ink);border-color:currentColor}
+.chip .n{font-variant-numeric:tabular-nums;opacity:.7;margin-left:4px}
+button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.count{color:var(--muted);font-size:13px;margin-left:auto;font-variant-numeric:tabular-nums}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:16px}
+.legend div{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:13px;color:var(--muted)}
+.legend b{display:block;margin-bottom:2px}
+details.method{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+details.method summary{cursor:pointer;font-family:var(--display);font-size:18px;font-weight:600}
+.src-table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+.src-table th,.src-table td{text-align:left;border-bottom:1px solid var(--line);padding:6px 8px;vertical-align:top}
+.club{margin-top:28px}
+.club-head{display:flex;flex-wrap:wrap;gap:4px 16px;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:6px}
+.club-head .meta{color:var(--muted);font-size:14px}
+.xi{font-size:13.5px;color:var(--muted);margin:6px 0 8px}
+.xi b{color:var(--ink);font-weight:600}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
+table.p{width:100%;border-collapse:collapse;font-size:14px;min-width:860px}
+table.p th{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;
+  padding:7px 8px;border-bottom:1px solid var(--line);background:var(--sunk);white-space:nowrap}
+table.p td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+table.p tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.nm{font-weight:600}
+.nm small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
+.role{display:inline-block;min-width:22px;text-align:center;font:700 12px var(--display);border-radius:3px;padding:1px 4px;
+  background:var(--sunk);color:var(--ink)}
+.tier{display:inline-block;font:600 12.5px var(--body);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.T1{color:var(--t1);background:var(--t1-bg)} .T2{color:var(--t2);background:var(--t2-bg)} .T3{color:var(--t3);background:var(--t3-bg)}
+.T4{color:var(--t4);background:var(--t4-bg)} .T5{color:var(--t5);background:var(--t5-bg)} .T6{color:var(--t6);background:var(--t6-bg)}
+.pct{display:flex;align-items:center;gap:6px;justify-content:flex-end}
+.pct i{display:block;width:44px;height:6px;border-radius:3px;background:var(--sunk);overflow:hidden}
+.pct i s{display:block;height:100%;background:var(--accent)}
+.riv{font-size:13px;color:var(--muted)}
+.riv b{color:var(--ink);font-weight:600}
+.inj{font-size:13px;color:var(--hurt);background:var(--hurt-bg);border-radius:6px;padding:4px 7px}
+.inj b{font-weight:700}
+.inj .src{display:block;color:var(--muted);font-size:12px}
+.note{font-size:13px;color:var(--muted);max-width:44ch}
+.flag{font-size:11.5px;font-weight:600;color:var(--warn)}
+.data{font-size:12.5px;color:var(--muted);white-space:nowrap;font-variant-numeric:tabular-nums}
+details.more{margin-top:8px;font-size:13.5px}
+details.more summary{cursor:pointer;color:var(--accent);font-weight:600}
+details.more ul{margin:6px 0 0;padding-left:18px}
+details.more a{color:var(--accent);word-break:break-all}
+.empty{color:var(--muted);padding:20px 0}
+@media (prefers-reduced-motion:no-preference){.chip{transition:border-color .15s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <span class="stamp" id="stamp">Rilevazione</span>
+      <h1 style="margin-top:8px">Rose EuroLeghe · ruoli stagionali</h1>
+      <p class="lede" id="lede"></p>
+    </div>
+  </header>
+
+  <div class="legend" id="legend"></div>
+
+  <details class="method" id="method">
+    <summary>Fonti usate e quanto sono affidabili</summary>
+    <div id="methodBody"></div>
+  </details>
+
+  <div class="bar" role="search">
+    <input type="search" id="q" placeholder="Cerca calciatore o club" aria-label="Cerca calciatore o club">
+    <select id="lg" aria-label="Campionato"><option value="">Tutti i campionati</option></select>
+    <select id="cl" aria-label="Club"><option value="">Tutti i club</option></select>
+    <select id="rl" aria-label="Ruolo"><option value="">Tutti i ruoli</option><option>P</option><option>D</option><option>C</option><option>A</option></select>
+    <div class="chips" id="tierChips"></div>
+    <button class="chip" id="hurt" aria-pressed="false">Solo infortunati</button>
+    <span class="count" id="count"></span>
+  </div>
+
+  <main id="list"></main>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const TIERS = [
+  ["titolarissimo","T1","Gioca sempre, campionato e coppe"],
+  ["titolare","T2","Quasi sempre titolare in campionato"],
+  ["comprimario","T3","Titolare a volte o entra quasi sempre"],
+  ["ballottaggio","T4","Si gioca un posto con un compagno: vedi % e rivali"],
+  ["riserva","T5","Entra ogni tanto"],
+  ["scarto","T6","Non gioca quasi mai"],
+];
+const cls = Object.fromEntries(TIERS.map(t=>[t[0],t[1]]));
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const itDate = iso => iso ? iso.split("-").reverse().join("/") : "";
+const st = {q:"", lg:"", cl:"", rl:"", tiers:new Set(), hurt:false};
+try { const s = JSON.parse(localStorage.getItem("roseFilters")||"null"); if (s) { Object.assign(st, s, {tiers:new Set(s.tiers||[])}); } } catch(e) {}
+function save(){ try { localStorage.setItem("roseFilters", JSON.stringify({...st, tiers:[...st.tiers]})); } catch(e) {} }
+
+document.getElementById("stamp").textContent = "Rilevazione del " + DATA.date;
+const nPl = DATA.clubs.reduce((a,c)=>a+c.players.length,0);
+document.getElementById("lede").textContent =
+  `${DATA.clubs.length} club, ${nPl} calciatori. Ruolo nell'undici stagionale (non nella prossima partita), incrociando ` +
+  `Transfermarkt, FotMob e stampa/club per ciascuna rosa. FVM dal listone EuroLeghe letto il ${DATA.listone_read}. ` +
+  `Le partite saltate sono contate sul calendario del club da oggi alla data di rientro stimata, tutte le competizioni.`;
+
+document.getElementById("legend").innerHTML = TIERS.map(t=>`<div><b><span class="tier ${t[1]}">${t[0]}</span></b>${t[2]}</div>`).join("");
+
+const ov = DATA.overview || [];
+document.getElementById("methodBody").innerHTML = (DATA.method_text||"") + (ov.length ? `<div class="scroll" style="margin-top:8px"><table class="src-table">
+  <thead><tr><th>Fonte</th><th>Accesso</th><th>Per cosa</th><th>Giudizio</th></tr></thead><tbody>${
+  ov.map(o=>`<tr><td><b>${esc(o.site)}</b></td><td>${esc(o.access)}</td><td>${esc(o.used_for)}</td><td>${esc(o.verdict)}</td></tr>`).join("")}</tbody></table></div>` : "");
+
+const lgSel = document.getElementById("lg"), clSel = document.getElementById("cl");
+[...new Set(DATA.clubs.map(c=>c.league))].forEach(l => lgSel.add(new Option(l,l)));
+function fillClubs(){ const cur = st.cl; clSel.length = 1;
+  DATA.clubs.filter(c=>!st.lg||c.league===st.lg).forEach(c=>clSel.add(new Option(c.club,c.club)));
+  clSel.value = [...clSel.options].some(o=>o.value===cur) ? cur : ""; st.cl = clSel.value; }
+
+const counts = {}; DATA.clubs.forEach(c=>c.players.forEach(p=>counts[p.tier]=(counts[p.tier]||0)+1));
+const chips = document.getElementById("tierChips");
+chips.innerHTML = TIERS.map(t=>`<button class="chip ${t[1]}" data-t="${t[0]}" aria-pressed="false">${t[0]}<span class="n">${counts[t[0]]||0}</span></button>`).join("");
+chips.addEventListener("click", e => { const b = e.target.closest("button"); if(!b) return;
+  const t = b.dataset.t; st.tiers.has(t) ? st.tiers.delete(t) : st.tiers.add(t); render(); });
+const hurtBtn = document.getElementById("hurt");
+hurtBtn.onclick = () => { st.hurt = !st.hurt; render(); };
+document.getElementById("q").oninput = e => { st.q = e.target.value; render(); };
+lgSel.onchange = e => { st.lg = e.target.value; fillClubs(); render(); };
+clSel.onchange = e => { st.cl = e.target.value; render(); };
+document.getElementById("rl").onchange = e => { st.rl = e.target.value; render(); };
+
+const norm = s => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+
+function injCell(i){
+  if(!i) return "";
+  const miss = i.miss_all == null ? "rientro non datato" :
+    (i.miss_all === 0 ? "nessuna partita" : `<b>${i.miss_all}</b> partite (${i.miss_league} di campionato)`);
+  const back = i.return_date ? `rientro stimato ${itDate(i.return_date)}` : esc(i.return_text||"");
+  const srcs = [i.tm_return && "TM: "+i.tm_return, i.fotmob_return && "FotMob: "+i.fotmob_return, i.press && "Stampa: "+i.press].filter(Boolean);
+  return `<div class="inj">${esc(i.what)} · salta ${miss}<span class="src">${back}${i.confidence?` · affidabilità ${esc(i.confidence)}`:""}</span>${
+    srcs.length?`<span class="src">${esc(srcs.join(" · "))}</span>`:""}</div>`;
+}
+function pctCell(v){ if(v==null) return "–"; const x = Math.max(0,Math.min(100,v));
+  return `<span class="pct">${x}%<i><s style="width:${x}%"></s></i></span>`; }
+
+function render(){
+  save();
+  document.getElementById("q").value = st.q; lgSel.value = st.lg; clSel.value = st.cl;
+  document.getElementById("rl").value = st.rl;
+  hurtBtn.setAttribute("aria-pressed", st.hurt);
+  chips.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", st.tiers.has(b.dataset.t)));
+  const q = norm(st.q); let shown = 0, html = "";
+  for (const c of DATA.clubs){
+    if (st.lg && c.league !== st.lg) continue;
+    if (st.cl && c.club !== st.cl) continue;
+    const clubHit = q && norm(c.club).includes(q);
+    const rows = c.players.filter(p =>
+      (!st.tiers.size || st.tiers.has(p.tier)) && (!st.hurt || p.injury) && (!st.rl || p.role === st.rl) &&
+      (!q || clubHit || norm(p.name).includes(q) || norm(p.listone).includes(q)));
+    if (!rows.length) continue;
+    shown += rows.length;
+    const cups = c.comps.length ? " · " + c.comps.join(", ") : "";
+    html += `<section class="club" id="${esc(c.club.replace(/\W+/g,"-"))}">
+      <div class="club-head"><h2>${esc(c.club)}</h2>
+        <span class="meta">${esc(c.league)} · ${esc(c.coach||"")}${c.module?` · ${esc(c.module)}`:""} · giocate ${c.played_lg} di campionato, ${c.played_all} in tutto${esc(cups)}</span></div>
+      ${c.xi.length?`<div class="xi"><b>Undici stagionale:</b> ${esc(c.xi.join(", "))}</div>`:""}
+      <div class="scroll"><table class="p"><thead><tr>
+        <th>Calciatore</th><th>R</th><th class="num">FVM</th><th>Gradino</th><th class="num">% tit.</th>
+        <th>Ballottaggio / rivali</th><th>Infortunio</th><th>Nota</th><th class="num" title="Campionato 26-27: presenze/titolarità/minuti">Camp. P/T/min</th>
+      </tr></thead><tbody>${rows.map(p=>`<tr>
+        <td class="nm">${esc(p.listone||p.name)}${p.listone && norm(p.listone)!==norm(p.name)?`<small>${esc(p.name)}</small>`:""}${
+          p.ceduto?`<small class="flag">asterisco nel listone (ceduto)</small>`:""}${
+          !p.fc_id?`<small class="flag">non nel listone EuroLeghe</small>`:""}</td>
+        <td>${p.role?`<span class="role">${esc(p.role)}</span>`:""}</td>
+        <td class="num">${p.fvm ?? "–"}</td>
+        <td><span class="tier ${cls[p.tier]||"T6"}">${esc(p.tier)}</span></td>
+        <td class="num">${pctCell(p.start_pct)}</td>
+        <td class="riv">${p.rivals.length?p.rivals.map(r=>`<b>${esc(r.name)}</b>${r.start_pct!=null?` ${r.start_pct}%`:""}`).join(" · "):""}</td>
+        <td>${injCell(p.injury)}</td>
+        <td class="note">${esc(p.note)}</td>
+        <td class="data">${esc(p.lg||"")}</td>
+      </tr>`).join("")}</tbody></table></div>
+      <details class="more"><summary>Rosa verificata, discrepanze e fonti</summary>
+        ${c.source_notes?`<p>${esc(c.source_notes)}</p>`:""}
+        ${c.discrepancies.length?`<h3>Discrepanze sulla rosa</h3><ul>${c.discrepancies.map(d=>`<li><b>${esc(d.name)}</b>: ${esc(d.issue)}</li>`).join("")}</ul>`:""}
+        ${c.listone_missing.length?`<h3>Nel listone ma non nella rosa verificata</h3><ul>${c.listone_missing.map(m=>`<li>${esc(m.nome)} (${esc(m.r)}, FVM ${m.fvm})${m.ceduto?" · già con l'asterisco":""}</li>`).join("")}</ul>`:""}
+        ${c.sources.length?`<h3>Fonti</h3><ul>${c.sources.map(s=>`<li>${esc(s.name)} — ${esc(s.used_for||"")}${s.url?`: <a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.url)}</a>`:""}</li>`).join("")}</ul>`:""}
+      </details>
+    </section>`;
+  }
+  document.getElementById("list").innerHTML = html || `<p class="empty">Nessun calciatore con questi filtri.</p>`;
+  document.getElementById("count").textContent = `${shown} calciatori`;
+}
+fillClubs(); render();
+</script>

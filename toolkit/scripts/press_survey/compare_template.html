@@ -1,0 +1,200 @@
+<title>Titolarità, noi e la stampa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow+Semi+Condensed:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F3F5F0; --surface:#FFFFFF; --sunk:#E9EDE6; --ink:#16201A; --muted:#5B6A60; --line:#D7DDD3;
+  --accent:#1D6B50; --press:#8A4B12; --press-bg:#F6E6D4; --ours:#1F5F86; --ours-bg:#DDEBF4;
+  --ok:#2E7D4F; --ok-bg:#E3F2E6; --hurt:#B3261E; --hurt-bg:#FBE3E1;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow Semi Condensed","Segoe UI",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  color-scheme:dark;
+  --ground:#0F1411; --surface:#161D18; --sunk:#1C241F; --ink:#E4EAE5; --muted:#95A39A; --line:#29342D;
+  --accent:#4DBB8C; --press:#F0B27A; --press-bg:#3A2716; --ours:#86BFE6; --ours-bg:#172C3B;
+  --ok:#8FD49F; --ok-bg:#1B3222; --hurt:#FF8A80; --hurt-bg:#3D1715;
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0F1411; --surface:#161D18; --sunk:#1C241F; --ink:#E4EAE5; --muted:#95A39A; --line:#29342D;
+  --accent:#4DBB8C; --press:#F0B27A; --press-bg:#3A2716; --ours:#86BFE6; --ours-bg:#172C3B;
+  --ok:#8FD49F; --ok-bg:#1B3222; --hurt:#FF8A80; --hurt-bg:#3D1715;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:15px/1.45 var(--body);margin:0}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:20px 60px}
+h1,h2,h3{font-family:var(--display);text-wrap:balance;margin:0}
+h1{font-size:34px;font-weight:700;line-height:1.05}
+h2{font-size:24px;font-weight:700;margin-top:28px}
+h3{font-size:18px;font-weight:600}
+p{max-width:75ch}
+.lede{color:var(--muted);margin:6px 0 0}
+.stamp{display:inline-block;font:600 14px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--accent);
+  border:1.5px solid var(--accent);padding:2px 8px;border-radius:3px}
+.who{display:inline-block;font:600 12px var(--body);border-radius:4px;padding:1px 6px}
+.who.p{color:var(--press);background:var(--press-bg)} .who.o{color:var(--ours);background:var(--ours-bg)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:16px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.tile b{display:block;font:700 30px/1 var(--display);font-variant-numeric:tabular-nums}
+.tile span{color:var(--muted);font-size:13.5px}
+.causes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px;margin-top:10px}
+.cause{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.cause h3{display:flex;justify-content:space-between;gap:8px}
+.cause h3 em{font-style:normal;font-variant-numeric:tabular-nums;color:var(--muted)}
+.cause p{margin:6px 0 0;font-size:14px;color:var(--muted)}
+.cause .ex{margin-top:6px;font-size:13.5px}
+.scroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-top:10px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);text-align:left;padding:7px 8px;
+  border-bottom:1px solid var(--line);background:var(--sunk);white-space:nowrap}
+td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+table.cross td.num{min-width:70px}
+table.cross td.hi{background:var(--ok-bg);color:var(--ok);font-weight:600}
+table.diff{min-width:980px}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);padding-block:10px;margin-top:20px;
+  border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.bar input,.bar select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 10px;min-width:0}
+.bar input{flex:1 1 200px}
+.chip{font:600 13px var(--body);border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:4px 10px;cursor:pointer}
+.chip[aria-pressed=true]{color:var(--ink);border-color:var(--ink)}
+.count{margin-left:auto;color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.club-head{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:5px;margin-top:26px}
+.club-head .meta{color:var(--muted);font-size:14px}
+.club-head .meta b{color:var(--ink)}
+.nm{font-weight:600;white-space:nowrap}
+.role{display:inline-block;min-width:20px;text-align:center;font:700 12px var(--display);border-radius:3px;padding:1px 4px;background:var(--sunk)}
+.xi{font:700 12px var(--body);white-space:nowrap}
+.xi.y{color:var(--ok)} .xi.n{color:var(--muted);font-weight:500}
+.cz{display:inline-block;font:600 12px var(--body);border-radius:999px;padding:2px 8px;white-space:nowrap;background:var(--sunk)}
+.cz.arrivo{color:var(--ours);background:var(--ours-bg)} .cz.infortunato{color:var(--hurt);background:var(--hurt-bg)}
+.cz.posto{color:var(--press);background:var(--press-bg)} .cz.modulo{color:var(--accent)}
+.note{font-size:13px;color:var(--muted);max-width:46ch}
+.gap{font-weight:700;font-variant-numeric:tabular-nums}
+.small{font-size:13px;color:var(--muted)}
+.empty{color:var(--muted);padding:20px 0}
+</style>
+
+<div class="wrap">
+  <span class="stamp" id="stamp"></span>
+  <h1 style="margin-top:8px">Titolarità: il nostro foglio contro la stampa</h1>
+  <p class="lede" id="lede"></p>
+
+  <div class="tiles" id="tiles"></div>
+
+  <h2>Perché non siamo d'accordo</h2>
+  <p class="small">Ogni differenza ha una causa probabile, dedotta dai dati del foglio (stagione precedente, partite giocate quest'anno, infortunio, modulo). Non dice chi ha ragione: stampa e foglio sono due previsioni, e le giornate che arrivano diranno chi ci ha preso.</p>
+  <div class="causes" id="causes"></div>
+
+  <h2>Le due scale a confronto</h2>
+  <p class="small">Le due scale hanno sei parole diverse, quindi le confronto in quattro fasce. <b>Fisso</b>: per noi bandiera, titolarissimo o titolare; per la stampa titolarissimo o titolare. <b>In bilico</b>: ballottaggio, e per la stampa anche comprimario. <b>Panchina</b>: per noi panchina, per la stampa riserva. <b>Fuori</b>: per noi riserva, per la stampa scarto. Righe = noi, colonne = stampa.</p>
+  <div class="scroll" style="max-width:640px"><table class="cross" id="cross"></table></div>
+
+  <h2>Moduli diversi</h2>
+  <div class="scroll" style="max-width:760px"><table id="mods"></table></div>
+
+  <h2>Le differenze, club per club</h2>
+  <div class="bar">
+    <input type="search" id="q" placeholder="Cerca calciatore o club" aria-label="Cerca calciatore o club">
+    <select id="lg" aria-label="Campionato"><option value="">Tutti i campionati</option></select>
+    <select id="cl" aria-label="Club"><option value="">Tutti i club</option></select>
+    <div id="chips" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    <span class="count" id="count"></span>
+  </div>
+  <main id="list"></main>
+</div>
+
+<script>
+const D = /*__DATA__*/null;
+const S = D.summary;
+const CAUSES = {
+  arrivo: ["Arrivo senza storico", "Arriva da un club che la piattaforma EuroLeghe non vota, quindi il foglio non ha la sua stagione scorsa e parte dal prior di popolazione. Dopo 4-5 giornate quel prior pesa ancora circa metà, e chi le ha giocate tutte legge una quota da 0,5 a 0,6: stiamo sotto la stampa."],
+  "posto perso": ["Posto perso quest'anno", "Ha una buona stagione scorsa e poco spazio in questa. Il foglio lascia andare lentamente la stagione precedente, e se la board lo disegna senza rivali la scala gli dà «titolare»: stiamo sopra la stampa."],
+  infortunato: ["Infortunato", "La stampa lo mette nell'undici «quando è sano». La nostra board stagionale moltiplica la quota per le giornate che salterà, quindi lo toglie dall'undici. È una differenza di definizione, non di giudizio."],
+  modulo: ["Modulo diverso", "Il club ha un modulo diverso nelle due letture, quindi cambia chi entra nell'undici. Il caso vero è il Bologna: Palladino gioca col 3-4-2-1 dalla quinta giornata, noi disegniamo ancora il 4-2-3-1 di Tedesco."],
+  gerarchia: ["Gerarchia letta diversamente", "Stessi dati, lettura diversa di chi è davanti: di solito un ballottaggio che la stampa assegna a uno e noi all'altro, o una quota lontana 30 punti o più."],
+};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const norm = s => (s||"").normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();
+
+document.getElementById("stamp").textContent = "Confronto del " + D.date;
+document.getElementById("lede").innerHTML =
+  `<span class="who o">noi</span> = foglio EuroLeghe e board stagionale del pacchetto (revisione ${D.sheet_revision}, scritto il ${esc(D.sheet_generated.slice(0,10).split("-").reverse().join("/"))}). ` +
+  `<span class="who p">stampa</span> = il report sulle rose dello stesso giorno, che incrocia stampa, club, Transfermarkt e FotMob. ` +
+  `Confronto tre cose: se è nell'undici stagionale, il gradino, e la <b>quota da titolare</b> (chi parte quando sono tutti sani: da noi il <i>claim</i> della board, per la stampa la % tit.).`;
+
+const pct = (a,b) => Math.round(100*a/b);
+const tiles = [
+  [`${S.xi_common}/${S.xi_total}`, `uomini in comune nei due undici stagionali (${pct(S.xi_common,S.xi_total)}%)`],
+  [`${S.module_same}/${S.clubs}`, "club con lo stesso modulo"],
+  [`${S.same_band}/${S.compared}`, `calciatori nella stessa fascia (${pct(S.same_band,S.compared)}%); ${S.far_band} a due fasce o più di distanza`],
+  [`${S.claim_mae} pt`, `scarto medio sulla quota da titolare su ${S.claim_n} calciatori (la stampa è in media ${Math.abs(S.claim_bias)} punti ${S.claim_bias<0?"sotto":"sopra"} di noi)`],
+  [`${S.diffs}`, "differenze da guardare: undici diverso, fascia a due gradi o quota a 30 punti o più"],
+];
+document.getElementById("tiles").innerHTML = tiles.map(t=>`<div class="tile"><b>${t[0]}</b><span>${t[1]}</span></div>`).join("");
+
+const allRows = D.clubs.flatMap(c => c.rows.map(r => ({...r, _club:c})));
+const diffRows = allRows.filter(r => r.cause);
+const ex = k => diffRows.filter(r=>r.cause===k).sort((a,b)=>(b.fvm||0)-(a.fvm||0)).slice(0,6).map(r=>`${esc(r.name)} <span class="small">(${esc(r.club)})</span>`).join(", ");
+document.getElementById("causes").innerHTML = Object.entries(CAUSES).map(([k,[t,d]]) =>
+  `<div class="cause"><h3><span class="cz ${k.split(" ")[0]}">${t}</span><em>${S.causes[k]||0}</em></h3><p>${d}</p><div class="ex">${ex(k)}</div></div>`).join("") +
+  (D.missing.length ? `<div class="cause"><h3><span class="cz">Assente dal nostro foglio</span><em>${D.missing.length}</em></h3><p>Calciatori che la stampa fa giocare e che il nostro foglio non porta affatto.</p><div class="ex">${
+    D.missing.map(m=>`<b>${esc(m.name)}</b> <span class="small">(${esc(m.club)}, FVM ${m.fvm}, stampa ${esc(m.tier)} ${m.pct}%)</span>`).join(", ")}</div></div>` : "");
+
+const B = ["fisso","in bilico","panchina","fuori"];
+document.getElementById("cross").innerHTML = `<thead><tr><th>noi \\ stampa</th>${B.map(b=>`<th class="num">${b}</th>`).join("")}</tr></thead><tbody>${
+  B.map(o=>`<tr><th>${o}</th>${B.map(p=>`<td class="num ${o===p?"hi":""}">${S.cross[o+"|"+p]||0}</td>`).join("")}</tr>`).join("")}</tbody>`;
+
+const mods = D.clubs.filter(c=>c.our_module && c.press_module && c.our_module!==c.press_module);
+document.getElementById("mods").innerHTML = `<thead><tr><th>Club</th><th>Allenatore</th><th>noi</th><th>stampa</th><th class="num">undici in comune</th></tr></thead><tbody>${
+  mods.map(c=>`<tr><td class="nm">${esc(c.club)}</td><td>${esc(c.coach)}</td><td>${esc(c.our_module)}</td><td>${esc(c.press_module)}</td><td class="num">${c.xi_common}/11</td></tr>`).join("")}</tbody>`;
+
+const st = {q:"", lg:"", cl:"", causes:new Set()};
+const lgSel = document.getElementById("lg"), clSel = document.getElementById("cl");
+[...new Set(D.clubs.map(c=>c.league))].forEach(l=>lgSel.add(new Option(l,l)));
+function fillClubs(){ const cur = st.cl; clSel.length = 1;
+  D.clubs.filter(c=>!st.lg||c.league===st.lg).forEach(c=>clSel.add(new Option(c.club,c.club)));
+  clSel.value = [...clSel.options].some(o=>o.value===cur)?cur:""; st.cl = clSel.value; }
+const chips = document.getElementById("chips");
+chips.innerHTML = Object.entries(CAUSES).map(([k,[t]])=>`<button class="chip" data-k="${k}" aria-pressed="false">${t} <span class="small">${S.causes[k]||0}</span></button>`).join("");
+chips.onclick = e => { const b = e.target.closest("button"); if(!b) return; const k=b.dataset.k;
+  st.causes.has(k)?st.causes.delete(k):st.causes.add(k); b.setAttribute("aria-pressed", st.causes.has(k)); render(); };
+document.getElementById("q").oninput = e => { st.q = e.target.value; render(); };
+lgSel.onchange = e => { st.lg = e.target.value; fillClubs(); render(); };
+clSel.onchange = e => { st.cl = e.target.value; render(); };
+
+const xi = v => v ? `<span class="xi y">sì</span>` : `<span class="xi n">no</span>`;
+function render(){
+  const q = norm(st.q); let n = 0, html = "";
+  for (const c of D.clubs){
+    if (st.lg && c.league!==st.lg) continue;
+    if (st.cl && c.club!==st.cl) continue;
+    const hit = q && norm(c.club).includes(q);
+    const rows = c.rows.filter(r => r.cause && (!st.causes.size || st.causes.has(r.cause)) &&
+      (!q || hit || norm(r.name).includes(q) || norm(r.full).includes(q)))
+      .sort((a,b)=>Math.abs(b.gap??0)-Math.abs(a.gap??0));
+    if (!rows.length) continue;
+    n += rows.length;
+    html += `<div class="club-head"><h3 style="font-size:22px">${esc(c.club)}</h3><span class="meta">${esc(c.league)} · ${esc(c.coach||"")} · modulo <b>${esc(c.our_module||"?")}</b> noi / <b>${esc(c.press_module||"?")}</b> stampa · undici in comune <b>${c.xi_common}/11</b></span></div>
+    <div class="scroll"><table class="diff"><thead><tr>
+      <th>Calciatore</th><th>R</th><th class="num">FVM</th>
+      <th>Stampa: gradino</th><th class="num">Stampa: % tit.</th><th>Stampa: undici</th>
+      <th>Noi: gradino</th><th class="num">Noi: quota tit.</th><th class="num" title="Titolarità: quota delle partite in cui prende il voto, quando è disponibile">Noi: prende voto</th><th>Noi: undici</th>
+      <th class="num">Scarto</th><th>Causa</th><th>Cosa dice la stampa</th></tr></thead><tbody>${
+      rows.map(r=>`<tr>
+        <td class="nm">${esc(r.name)}</td><td>${r.role?`<span class="role">${esc(r.role)}</span>`:""}</td><td class="num">${r.fvm??"–"}</td>
+        <td>${esc(r.press_tier)}</td><td class="num">${r.press_pct??"–"}</td><td>${xi(r.press_xi)}</td>
+        <td>${esc(r.our_rung||"–")}</td><td class="num">${r.our_claim??"–"}</td><td class="num">${r.our_play!=null?r.our_play+"%":"–"}</td><td>${xi(r.our_xi)}</td>
+        <td class="num gap">${r.gap==null?"–":(r.gap>0?"+":"")+r.gap}</td>
+        <td><span class="cz ${esc(r.cause.split(" ")[0])}">${esc(CAUSES[r.cause][0])}</span></td>
+        <td class="note">${esc(r.note)}</td></tr>`).join("")}</tbody></table></div>`;
+  }
+  document.getElementById("list").innerHTML = html || `<p class="empty">Nessuna differenza con questi filtri.</p>`;
+  document.getElementById("count").textContent = `${n} differenze`;
+}
+fillClubs(); render();
+</script>

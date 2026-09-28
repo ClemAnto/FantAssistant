@@ -1,0 +1,65 @@
+{
+ "method_text": "<p>Nessuna fonte da sola basta: ogni rosa e ogni infortunio sono stati incrociati su almeno tre fonti. <b>Transfermarkt</b> dà i numeri (presenze, titolarità, subentri e minuti per competizione, in questa stagione e nella scorsa); <b>FotMob</b> dà la seconda lettura strutturata di rosa e infortuni; il <b>sito ufficiale del club</b> e la <b>stampa</b> nazionale decidono le rose di fine mercato, le gerarchie dell'allenatore e le date di rientro. Dove le fonti divergono vince la più recente e autorevole: comunicato del club, poi conferenza dell'allenatore, poi testata nazionale, poi aggregatore. Il gradino descrive il calciatore <i>quando è sano</i>; la % tit. è la quota stimata di partenze da titolare in campionato quando è disponibile. Nei ballottaggi le quote dei contendenti per lo stesso posto sommano circa a 100.</p><p><b>Limite dichiarato:</b> a metà del lavoro è finito il tetto di ricerche web della sessione (200). Da lì in poi le verifiche sono state fatte aprendo pagine già note, e su alcuni infortuni c'è una sola conferma di stampa: in quei casi l'affidabilità del rientro è segnata <i>bassa</i>. Il campione di questa stagione è corto (5-7 giornate), quindi il gradino pesa anche la stagione scorsa e le gerarchie dichiarate dalla stampa. Due club hanno cambiato allenatore da poco (Fiorentina: Vanoli dopo Grosso; Bologna: Palladino dopo Tedesco) e lì i minuti di inizio stagione contano meno.</p>",
+ "overview": [
+  {
+   "site": "Transfermarkt",
+   "access": "scaricato direttamente (lo strumento web non lo apre)",
+   "used_for": "minuti, titolarità e subentri per competizione; infortuni con data prevista e gare saltate; calendario",
+   "verdict": "Il migliore per i NUMERI. Sulle rose è in ritardo: tiene in squadra chi è partito a fine mercato o in prestito (Chelsea 12 casi, Atalanta/Como 8, Juventus David e Perin, Fiorentina Kean e Gudmundsson, Leverkusen, Lipsia, Strasburgo). Perde gli infortuni della sosta nazionali e alcuni che la stampa riporta (Maatsen, Porro, Odgaard, Holm). Le date di rientro sono spesso ottimistiche (Boga 07/10 contro inizio novembre, Leoni, Buongiorno). «No eligibility» vuol dire fuori dalla lista Champions, non squalificato."
+  },
+  {
+   "site": "FotMob",
+   "access": "API pubblica, tutte e 37 le rose",
+   "used_for": "rosa, posizioni, infortuni con rientro stimato, allenatore",
+   "verdict": "Più aggiornato di Transfermarkt sulle partenze, ma non sempre (tiene Azón al Como e Datro Fofana al Chelsea). Rientri in forma vaga («Doubtful», «Mid October») e sbilanciati in entrambi i versi: pessimista su Valverde e Cristante, ottimista su Kroupi e Araujo. Un caso di infortunio attribuito all'omonimo sbagliato (Sulemana)."
+  },
+  {
+   "site": "Siti ufficiali dei club e delle leghe",
+   "access": "WebFetch",
+   "used_for": "rosa di fine mercato, comunicati medici",
+   "verdict": "L'autorità sulla rosa e sui tempi medici quando c'è un comunicato. Non sempre danno una data."
+  },
+  {
+   "site": "Stampa nazionale (Gazzetta, Corriere dello Sport, Sky, BBC, Marca, AS, Mundo Deportivo, L'Équipe, Sport1, sportschau…)",
+   "access": "ricerca e WebFetch",
+   "used_for": "gerarchie dell'allenatore, formazione tipo, date di rientro",
+   "verdict": "La fonte che decide gerarchie e rientri: è quella che riporta le parole dell'allenatore. Le guide estive alla formazione tipo sono superate dove il mercato ha chiuso tardi (Atalanta con Kessié, Rowe, Kristensen)."
+  },
+  {
+   "site": "fantacalcio.it · sosfanta",
+   "access": "WebFetch",
+   "used_for": "infortuni e disponibilità in Serie A",
+   "verdict": "Buoni sulla Serie A e più tempestivi degli aggregatori internazionali (l'adduttore di Anguissa lo riportano solo loro)."
+  },
+  {
+   "site": "LigaInsider · futbolfantasy",
+   "access": "WebFetch",
+   "used_for": "infortuni Bundesliga e Liga",
+   "verdict": "Affidabili sugli infortuni. Le pagine di formazione di futbolfantasy arrivano con le posizioni scombinate, quindi usate solo per lo stato fisico."
+  },
+  {
+   "site": "Wikipedia · footballsquads",
+   "access": "WebFetch",
+   "used_for": "controllo della rosa",
+   "verdict": "Concordano quasi sempre con Transfermarkt e FotMob e ne condividono i ritardi; Wikipedia aggiunge ragazzi della primavera. Utili come terzo voto, non come arbitro."
+  },
+  {
+   "site": "sportsgambler · BeSoccer (aggregatori)",
+   "access": "WebFetch",
+   "used_for": "controllo infortuni",
+   "verdict": "Da usare solo con conferma: descriveva la rottura dell'Achille di Ekitike come un problema al polpaccio e riporta una squalifica di Kovacic che nessun'altra fonte conferma. BeSoccer è l'unica fonte per la squalifica di Brunner (Monaco) e per Paixão e Weah (OM): affidabilità bassa finché nessuno conferma."
+  },
+  {
+   "site": "Foot Mercato",
+   "access": "WebFetch",
+   "used_for": "trasferimenti in Ligue 1",
+   "verdict": "La tabella dei trasferimenti è affidabile, la pagina rosa no (lista ancora Sylla, Moreira, Embolo)."
+  },
+  {
+   "site": "FBref · Sofascore · ESPN · kicker · Premier Injuries",
+   "access": "bloccati (403 / anti-bot)",
+   "used_for": "—",
+   "verdict": "Non raggiungibili oggi: non entrano nel report."
+  }
+ ]
+}

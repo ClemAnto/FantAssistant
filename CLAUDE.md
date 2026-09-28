@@ -7211,6 +7211,26 @@ chi aggiunge una pagina che elenca portieri passa da `collapseKeepers`, o una po
 riga di una porta i fatti di UN uomo (marchi, minuti, titolarità) non si scrivono; la card mostra il
 titolare.
 
+## La stampa entra nell'APP e mai nel MOTORE, e un secondo lettore dello stesso fatto era mancato al prior
+**28/09/2026, dalla sua valutazione «il giudizio della stampa è superiore a quello dell'engine». Dettaglio:
+`docs/model/letture-app-v1.md` §55, gli script in `toolkit/scripts/press_survey/`.** Una rilevazione delle 37
+rose EuroLeghe su più fonti (Transfermarkt, FotMob, stampa e club, 12 agenti) e il suo gradino DICHIARATO in
+`config/press_rungs.json`, che l'app mostra e prezza al posto del nostro (interruttore acceso, sotto le sue
+dritte). **Il toolkit non lo legge mai, e un test lo vieta**: la stampa è il giudice dei campetti, e leggerla nel
+claim renderebbe circolare il confronto che dice se è meglio. Quattro cose che restano.
+- **IL DATO C'ERA, IN UN'ALTRA TABELLA.** Tutti e 50 gli acquisti senza storico avevano la stagione scorsa in
+  `tm_appearances`; il ripiego esisteva dal 25/08 in `est_pv` e non nel prior della titolarità. `SHEET_REVISION`
+  77, SOLO su euro: su Serie A misurato e non paga. *Quando due lettori della stessa quantità esistono, chiedersi
+  se lo sono dappertutto.*
+- **LE SERIE INFERIORI NON SONO UN PRIOR.** La variante «tutti i campionati» sembrava la migliore e dava un
+  prior da titolare in Bundesliga alla squadra B dello Stoccarda in 3. Liga. *Un aggregato che migliora si
+  guarda per CHI si è mosso.*
+- **UN DEFAULT NUOVO CAMBIA LA PREMESSA DEI BANCHI CHE MISURANO IL VECCHIO.** Con la stampa accesa, il banco
+  delle dritte leggeva «33 → 33» e accusava la pagina: la riga partiva già dalla parola della stampa. I banchi
+  che confrontano col foglio spengono l'interruttore (`fantassistant.rulings.pressSource` = '0').
+- **WEBFETCH NON APRE TRANSFERMARKT, CURL SÌ, e una sessione ha ~200 ricerche web**: dodici agenti le hanno
+  finite a metà. Una rilevazione si pianifica su pagine note, non su ricerche.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

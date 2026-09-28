@@ -2466,3 +2466,23 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
    numero leggibile (Kean +0,78, Martinez L. −0,46) e potrebbe stare sul foglio come `desc_*` accanto
    alla fantamedia anche senza adottare R29 — ma è la stessa informazione, e due letture dello stesso
    fatto su uno schermo vanno decise, non aggiunte.
+
+## Aperti dopo la sessione del 28/09/2026 (III) — le rose da più fonti, il gradino della stampa, il prior TM
+
+- **Push e pubblicazione**: `db0a027` e' solo locale; il sito gh-pages non ha il gradino della stampa.
+- **La rilevazione invecchia e non ha un comando**: rifarla vuol dire rifare la ricerca (`toolkit/scripts/
+  press_survey/README.md`, otto passi, il quinto sono gli agenti). Pianificare meno ricerche web: 200 per
+  sessione, e 12 agenti le hanno finite a meta'. Con la stampa accesa di default, una rilevazione vecchia
+  riprezza i numeri con un giudizio vecchio: la data sta accanto all'interruttore, ma nessuno la rinnova.
+- **Bologna**: la board disegna il 4-2-3-1 di Tedesco, Palladino gioca il 3-4-2-1 dalla quinta giornata. Una
+  riga in `config/board_rulings.json` (e' una sua dichiarazione, non una misura).
+- **Savinho** (Tottenham, FVM 51, dato titolare dalla stampa) non e' nel foglio EuroLeghe: capire quale regola
+  lo toglie (listone lo mette al Tottenham, la rosa live forse al City).
+- **Lo SWING non e' mai stato misurato nel draft**: il banco `bench/draft` legge il codice dell'app, quindi va
+  aggiunto fra le politiche e messo contro il VALORE (la valuta adottata il 10/08).
+- **Il prior TM su Serie A**: misurato e non paga (rango -0,008/+0,004, fascia +0,6/-1,3). Se lo si riapre,
+  il candidato e' un termine di LIVELLO del campionato d'origine, lo stesso che mancava il 25/08 per `est_pv`.
+- **K=3** resta scritto e non adottato: piu' vicino alla stampa (fascia 52,1%, lontani 54) e con l'undici
+  +5/+5 sull'esito, al prezzo di +1,3%/+0,7% di livello. Due finestre sono poche per riaprirlo.
+- **Le partenze del ripiego TM** sono stimate (partita da 60' e oltre): la sola meta' non misurata.
+- **La meta' dell'altra sessione** (Strategia, trend) e il suo `e2e-strategy` rosso: suoi.
