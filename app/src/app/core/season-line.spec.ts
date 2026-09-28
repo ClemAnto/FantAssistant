@@ -1,5 +1,6 @@
 import { MatchCell } from './players-store';
-import { seasonLineFromMatches } from './season-line';
+import { seasonLineFromMatches, seasonLinesFromSheet } from './season-line';
+import { BundleTable } from './bundle';
 
 const cell = (over: Partial<MatchCell> = {}): MatchCell => ({
   kind: 'league',
@@ -92,5 +93,30 @@ describe('la stagione ricostruita dalle partite', () => {
     );
     expect(line?.conceded).toBe(2);
     expect(line?.cleanSheets).toBe(1);
+  });
+});
+
+describe('la stagione da Transfermarkt, dal foglio', () => {
+  const sheet = (columns: string[], rows: unknown[][]): BundleTable => ({ table: 's', columns, rows });
+
+  it('presenze, minuti e G:A, e nessun voto: la fonte non ne porta', () => {
+    const lines = seasonLinesFromSheet(
+      sheet(
+        ['fc_id', 'desc_tm_comp', 'desc_tm_matches', 'desc_tm_minutes', 'desc_tm_goals', 'desc_tm_assists'],
+        [
+          [7520, 'BE1', 26, 2172, 9, 13],
+          [7562, 'E4G5', 27, 1769, 8, 0],
+          [1, null, null, null, null, null],
+        ],
+      ),
+      '2025-26',
+    );
+    expect(lines.get(7520)).toEqual(expect.objectContaining({ pv: 26, goals: 9, assists: 13, mv: null, fm: null, synthetic: true }));
+    expect(lines.get(7562)?.minutesPerMatch).toBeCloseTo(1769 / 27, 6);
+    expect(lines.has(1)).toBe(false);
+  });
+
+  it('un foglio scritto prima della revisione 78 non ha la colonna, e non inventa niente', () => {
+    expect(seasonLinesFromSheet(sheet(['fc_id', 'name'], [[1, 'x']]), '2025-26').size).toBe(0);
   });
 });

@@ -44,10 +44,11 @@ export interface SeasonLine {
   xg: number | null;
   xa: number | null;
   /**
-   * REBUILT FROM THE MATCHES, and on a SYNTHETIC vote (`seasonLineFromMatches`): the platform did not
-   * rate his club that season, so `season_stats` has no row, and the line comes from the per-match
-   * layer's calibrated vote instead. The screen writes it in ITALIC - a synthetic number that reads
-   * like a scored one is the defect the `~` exists to prevent. Absent means «scored by the game».
+   * NOT SCORED BY THE GAME: the platform did not rate his club that season, so `season_stats` has no
+   * row, and the line is rebuilt - from the per-match layer's calibrated vote (`seasonLineFromMatches`)
+   * or, where there is none, from Transfermarkt's appearances with no vote (`seasonLinesFromSheet`).
+   * The screen writes it in ITALIC - a rebuilt number that reads like a scored one is the defect the
+   * `~` exists to prevent. Absent means «scored by the game».
    */
   synthetic?: boolean;
 }
@@ -224,4 +225,41 @@ export function seasonLineFromMatches(cells: readonly MatchCell[], season: strin
     matches: timed.length,
     synthetic: voted.some((cell) => cell.voteSynthetic),
   };
+}
+
+/**
+ * ...AND WHERE NOT EVEN A SYNTHETIC VOTE EXISTS, his league season from TRANSFERMARKT (operator, 29/09/2026,
+ * on Tzolis and Ortega J.): the sheet's `desc_tm_*` (revision 78), the championship he played most in the
+ * input season, any senior tier. Appearances, minutes, goals and assists - and NO vote, because the
+ * source carries none, so `mv` and `fm` stay null rather than borrowing a number from somewhere else.
+ *
+ * The appearances are counted on HIS league's calendar (30 rounds in Belgium, 34 in Segunda RFEF), not
+ * on this platform's: a fact about the man, marked `synthetic` like the rebuilt line because it is not
+ * what the game scored. Keyed by `fc_id`; a sheet written before revision 78 simply has no such column.
+ */
+export function seasonLinesFromSheet(sheet: BundleTable, season: string): Map<number, SeasonLine> {
+  const out = new Map<number, SeasonLine>();
+  const id = optionalIndex(sheet, 'fc_id');
+  const played = optionalIndex(sheet, 'desc_tm_matches');
+  if (id < 0 || played < 0) return out;
+  const minutes = optionalIndex(sheet, 'desc_tm_minutes');
+  const goals = optionalIndex(sheet, 'desc_tm_goals');
+  const assists = optionalIndex(sheet, 'desc_tm_assists');
+  const at = (row: unknown[], index: number) => (index < 0 ? null : asNumber(row[index]));
+  for (const row of sheet.rows) {
+    const matches = at(row, played);
+    const fcId = asNumber(row[id]);
+    if (fcId == null || matches == null || matches <= 0) continue;
+    const spent = at(row, minutes);
+    out.set(fcId, {
+      ...EMPTY(season),
+      pv: matches,
+      goals: at(row, goals),
+      assists: at(row, assists),
+      minutesPerMatch: spent == null ? null : spent / matches,
+      matches,
+      synthetic: true,
+    });
+  }
+  return out;
 }

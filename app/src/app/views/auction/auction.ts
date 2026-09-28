@@ -25,7 +25,7 @@ import { trendStrips } from '../../core/plancia-store';
 import { PlayerRulings } from '../../core/player-rulings';
 import type { TrendCell } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
-import { SeasonLine, seasonLineFromMatches, seasonLines } from '../../core/season-line';
+import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -525,6 +525,8 @@ export class Auction {
   private readonly trends = signal<ReadonlyMap<number, readonly TrendCell[]>>(new Map());
   private readonly lines = signal<ReadonlyMap<number, ReadonlyMap<string, SeasonLine>>>(new Map());
   private readonly linesPlatform = signal<Platform | null>(null);
+  /** Last season from Transfermarkt (`desc_tm_*`), for whom not even a synthetic vote exists. */
+  private readonly tmLines = signal<ReadonlyMap<number, SeasonLine>>(new Map());
   /** The rebuilt lines, one per `id|season`, cleared whenever the matches or the platform change. */
   private readonly rebuilt = computed(() => {
     this.players.ready();
@@ -761,7 +763,11 @@ export class Auction {
     if (!season) return null;
     const scored = this.lines().get(id)?.get(season) ?? null;
     if (scored?.pv != null) return scored;
-    return this.rebuiltLine(id, season) ?? scored;
+    const rebuilt = this.rebuiltLine(id, season);
+    if (rebuilt) return rebuilt;
+    // ...and where not even a synthetic vote exists, Transfermarkt's appearances (last season only).
+    const fromTm = which === 'last' ? this.tmLines().get(id) : undefined;
+    return fromTm ?? scored;
   }
 
   /**
@@ -945,6 +951,7 @@ export class Auction {
       const wanted = [now, last].filter((one): one is string => !!one);
       this.lines.set(seasonLines({ seasonStats: stats, platform, seasons: wanted }));
       this.linesPlatform.set(platform);
+      this.tmLines.set(last ? seasonLinesFromSheet(sheet, last) : new Map());
       void this.players.load();
       this.seasons.set({ now, last });
     } catch {
