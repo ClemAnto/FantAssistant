@@ -1,5 +1,19 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 28 settembre 2026 (IV) — il regolamento EuroLeghe 26/27
+
+1. **Confermare quante squadre ha la lega EuroLeghe** (config: 12). Se diverso, cambiare `teams` in
+   `config/league_config.json` e rigenerare il foglio (`snapshot --league EuroLeghe --no-refresh`, ~3 min,
+   poi `export` e `data:pull`).
+2. **Il rimpiazzo del foglio EuroLeghe include i club italiani**, che la lega esclude: servirebbe un'esclusione
+   per campionato DICHIARATA nella config della lega e letta da `snapshot` nella popolazione del rimpiazzo.
+   Non urgente per il draft (valuta = Valore), da fare prima di usare Surplus/Strategia su questa lega.
+3. **`swing.STEADY_SHARE` è per lega e non è un'impostazione**: questa lega paga il modificatore di
+   rendimento fino a 3 punti (8/9/10/11 sufficienze = 0,5/1/2/3), quindi il suo peso sarebbe 3/11. Serve la
+   TAGLIA del modificatore fra le opzioni di lega (oggi è solo un interruttore).
+4. **Il tetto FVM ≥ 213 dei primi 5 turni** è acceso di default: il regolamento EuroLeghe non lo nomina,
+   verificare con l'operatore se vale per questo draft.
+
 ## Aperti alla chiusura del 28 settembre 2026 (II) — il tetto FVM del draft e le porte
 
 1. **Le porte della STRATEGIA sono ancora da committare**, dentro i tre file misti col trend dell'altra

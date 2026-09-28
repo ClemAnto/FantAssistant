@@ -48,11 +48,24 @@
     "overrides `squad_slots` here or from the panel; what must NOT happen is quoting a surplus from this",
     "sheet as if the split were measured."
   ],
+  "_euroleghe_note": [
+    "Declared 28/09/2026 from the league's 2026-27 regulation: 2 porte and 30 outfield players a squad,",
+    "players of Italian clubs excluded. The D/C/A split of the 30 is read from the rulebook exactly as for",
+    "Leghe Mantra above (3.545 / 4.727 / 1.727 places of ten -> 10.6 / 14.2 / 5.2), not chosen. The",
+    "Italian exclusion is NOT expressed here: the app excludes those clubs from its lists (Opzioni ->",
+    "Squadre escluse), while this sheet's replacement pool still contains them - a stated limit."
+  ],
   "my_leagues": {
     "EuroLeghe": {
       "platform": "euro",
       "game": "mantra",
-      "teams": 12
+      "teams": 12,
+      "squad_slots": {
+        "P": 2,
+        "D": 11,
+        "C": 14,
+        "A": 5
+      }
     },
     "Leghe": {
       "platform": "default",

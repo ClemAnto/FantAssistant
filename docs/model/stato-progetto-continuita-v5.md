@@ -80,6 +80,37 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 28 settembre 2026 (IV): il regolamento EuroLeghe 26/27 contro quello che l'app prevede
+
+Quarta sessione del giorno, alla vigilia del draft EuroLeghe. L'operatore ha portato il regolamento e ha
+chiesto se prevediamo tutto; nessun codice cambiato, una dichiarazione in config e un foglio rigenerato.
+
+- **Il regolamento, per quello che tocca il draft**: Mantra con sostituzioni Master, **2 porte e 30 di
+  movimento**, esclusi i calciatori di club italiani, clean sheet +1, assist +1, autogol a 62, modificatore
+  di rendimento 8/9/10/11 sufficienze = 0,5/1/2/3, soglia gol 66 con fascia 5. Il numero di squadre NON è
+  scritto: la config dice 12 ed è da confermare.
+- **Già coperto nell'app, e l'ho mancato io la prima volta**: l'esclusione dei club italiani è il pannello
+  **Opzioni → Squadre escluse** (`GlobalOptions.excludedIds`, per `fc_club_id`) — il mio grep cercava
+  «exclud.*serie» e non ha visto un'esclusione per CLUB; e la rosa Mantra 2 + 30 si dichiara già in
+  **Opzioni → Gioco: Mantra → Rose** (`slots.mantra.por/mov`, e collegandosi al tavolo si adotta dalla
+  sessione). *Prima di proporre di costruire, cercare la cosa col nome che l'utente userebbe per lei.*
+- **Quello che non tornava era il FOGLIO del toolkit**: `config/league_config.json` dava a EuroLeghe
+  3/8/8/6 (25 posti) ereditati dal livello alto. Dichiarato **P 2 · D 11 · C 14 · A 5**, con la ripartizione
+  dei 30 letta dal regolamento Mantra (3,545 / 4,727 / 1,727 posti su dieci) come per Leghe Mantra, e una
+  nota `_euroleghe_note` in testa a `my_leagues`. Foglio rigenerato (`snapshot --league EuroLeghe
+  --no-refresh`, 952 righe, 37/37 campetti, revisione 77 invariata), `export` e `data:pull` fatti; il
+  manifest registra la rosa nuova. **Limite dichiarato**: il rimpiazzo del foglio conta ancora i club
+  italiani nella popolazione (l'esclusione vive solo nell'app); nel draft la valuta è il Valore, quindi lì
+  non incide, mentre il Surplus e la Strategia sono misurati su un pool più largo del tavolo vero.
+- **Scarsità da tenere presente**: senza la Serie A il listone euro ha 27 club e 666 quotati; con 12 squadre
+  si prendono 24 porte su 27 e 360 uomini di movimento su ~590 (il 61%).
+- **Non modellato e non serve al draft**: autogol a 62 (rende i buchi più cari, stessa direzione della
+  copertura), Master, Highlander, anticipi/posticipi, mercati suppletivi, gettoni (Qt ≤ 10), scambi. Il
+  modificatore di rendimento vale fino a 3 punti contro i 2 su cui è tarato `swing.STEADY_SHARE` (2/11): il
+  suo peso qui sarebbe 3/11, ma entra solo nello SWING e non nella graduatoria del draft.
+- **Albero condiviso**: l'altra sessione ha undici file app non committati (trend di voto e delta); questa
+  chiusura committa solo la config e i due documenti, con `git commit -- <percorsi>`.
+
 ## CHIUSURA — 28 settembre 2026 (III): le rose lette da più fonti, e il gradino della stampa nell'app
 
 Terza sessione dello stesso giorno. Le due chiusure qui sotto sono delle altre due e non sono toccate.
