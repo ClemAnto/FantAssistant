@@ -315,15 +315,27 @@ async function main() {
     const pair = page.seats && (await evaluate(session, () =>
       [...document.querySelectorAll('[data-role-filter]')].map((one) => one.getAttribute('data-role-filter'))));
     const chosen = pair.includes('pc') ? ['dc', 'pc'] : ['d', 'a'];
+    // THE OR IS COUNTED ON THE WHOLE FILTERED LIST, not on the rows loaded: the list loads 60 at a time
+    // and after forty picks the first sixty can all carry the same role.
+    const totalNow = () => evaluate(session, () => Number(document.querySelector('[data-total]')?.getAttribute('data-total')));
+    const singles = [];
+    for (const role of chosen) {
+      await mouse(await evaluate(session, centre, `[data-role-filter="${role}"]`));
+      await wait(500);
+      singles.push(await totalNow());
+      await mouse(await evaluate(session, centre, `[data-role-filter="${role}"]`));
+      await wait(500);
+    }
     for (const role of chosen) await mouse(await evaluate(session, centre, `[data-role-filter="${role}"]`));
     await wait(700);
+    const both = await totalNow();
     const roles = await evaluate(session, freeRoles);
     const wrong = roles.filter((one) => !one.some((r) => chosen.includes(r)));
-    note('filtro ruoli', `${chosen.join(' o ')}: ${roles.length} righe su ${all} caricate`,
+    note('filtro ruoli', `${chosen.join(' o ')}: ${both} in tutto (da soli ${singles.join(' e ')}), ${roles.length} caricate su ${all}`,
       [
         ...(!roles.length ? ['nessuna riga'] : []),
         ...(wrong.length ? [`${wrong.length} righe senza ${chosen.join(' ne\' ')}`] : []),
-        ...(chosen.some((role) => !roles.some((one) => one.includes(role))) ? ['non e\' un OR: manca uno dei due ruoli'] : []),
+        ...(singles.some((one) => !(both >= one)) || !(both > Math.min(...singles)) ? ["non e' un OR: insieme non ne tengono piu' di un ruolo solo"] : []),
       ]);
 
     // 6. Medie.
