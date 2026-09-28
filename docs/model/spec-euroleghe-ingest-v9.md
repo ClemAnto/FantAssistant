@@ -495,6 +495,64 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.104 (28 settembre 2026 — UN TURNO SILENZIOSO NON È UN TURNO AMBIGUO, e un club fuori perimetro ha comunque giocato)
+
+Nata da due segnalazioni dell'operatore sulla vista Squadre EuroLeghe: «mancano le partite delle vecchie
+stagioni del Bournemouth», poi «verifica anche lo Strasburgo». Due difetti, uno per lato.
+
+**App (`core/players-store.ts`, `promoteUnrated`).** Il lettore del livello per-partita scartava le
+partite del campionato di un giocatore «perché le coprono i voti»: vero su `default`, falso su `euro`,
+dove il perimetro cambia ogni stagione — il Bournemouth ha voti EuroLeghe per il 2018-19, il 2019-20 e
+il 2026-27 e nessuno in mezzo, mentre il livello per-partita porta tutte le sue 38 partite. In più le
+assenze leggono una riga del provider come «era in distinta», quindi ogni suo uomo risultava in
+PANCHINA a ogni giornata. Ora una partita (match, club) che nessuna cella votata di quella
+piattaforma-stagione copre diventa una cella di campionato col sintetico `~`, sulla giornata della
+piattaforma (`matchday_map` letto all'incontrario), con tre guardie: non oltre l'ultima giornata
+votata, solo giornate che il calendario della piattaforma contiene, solo chi ha giocato (la distinta
+resta alle assenze). Coperto si decide per coppia (partita, club) e mai per nome; il risultato in
+intestazione resta vuoto perché il provider non lo dichiara su quelle righe.
+
+**Toolkit (`modules/matchdays.py`).** `align_season` rifiutava come «ambiguo» un turno il cui candidato
+giusto ricopre il 97-100% della firma solo perché il turno accanto ne ricopre l'80-88%: in un turno
+tranquillo gli uomini sono gli stessi e quasi nessuno segna, quindi il margine di 0,20 non proteggeva da
+niente. Misurato su ogni stagione e campionato: **16 turni** rifiutati così, **15 dei quali cadono
+esattamente fra i turni vicini già mappati**; l'unico che non torna poggia su 2 giocatori. Due cure:
+una tolleranza sullo scarto (Ligue 1 2025-26 euro 30 aveva 100% contro 80%, e `1,0 − 0,8` in virgola
+mobile è 0,1999…), e un passo sull'ORDINE del calendario — un turno è ammissibile se il suo migliore è
+≥ `NEIGHBOUR_CONFIDENCE` (0,95; fra 0,67 e 0,97 non c'è nessun rifiutato, quindi ogni soglia in quel
+vuoto dà la stessa mappa) e non è un pareggio, e si accetta quando i migliori ammissibili, letti
+INSIEME ai turni già mappati, crescono strettamente senza ripetersi. Insieme perché gli ambigui vengono
+a coppie: Ligue 1 2026-27 euro 3 e 4, cioè due delle cinque giornate giocate, per ogni club di Ligue 1.
+Effetto: **9 righe nuove** di `matchday_map` (919 → 928; le altre sei erano già in tabella da corse
+precedenti con lo stesso valore), **zero righe cambiate**.
+
+Catena rifatta su una copia privata prima del DB vero, con un braccio di base rifatto anch'esso (la
+tabella viva degli arrivi era stantia): `synth` passa da 72.803 a 73.413 partite di calibrazione e la
+retta da 1,0807 + 0,7098·r a 1,0848 + 0,7091·r (scarti ≤ 0,01 su 21.256 righe); `arrivals` muove il
+FM-equivalente di ~0,005 e **14 tier su 13.732**. `backtest --verify` 22/22 e uscita identica riga per
+riga (426) fra i due bracci: nessun numero pubblicato si muove. Due errori di stesura presi dai test,
+e valgono la pena: la prima forma del passo accettava un 100%-100% senza vicini (lo difende un test
+esistente), e la seconda — «un solo candidato fra i vicini» — avrebbe rifiutato proprio i due turni di
+quest'anno, perché in una coppia di ambigui il secondo di ciascuno è il migliore dell'altro.
+
+**E una terza cosa, trovata passando TUTTI i club nella pagina vera** (57, le due stagioni passate, «verifica
+anche se altre squadre non hanno lo storico»). I club senza voti della piattaforma erano sei — euro
+2025-26 Bournemouth, Como, Strasburgo, Rennes; 2024-25 Betis, Bologna, Bournemouth, Strasburgo — e ora
+hanno tutti le colonne con le proprie partite. Ma le tre neopromosse di Serie A mostravano nel 2025-26
+le partite di un ALTRO club: il Monza quelle del Pisa, il Venezia del Verona, il Frosinone della
+Cremonese. La colonna prende il nome dalla squadra con più celle, e la rosa è quella di oggi: per chi
+l'anno prima giocava in Serie B le sole celle sono dei nuovi acquisti, e due uomini su trenta dello
+stesso club bastavano. Una soglia sulla quota non separa i casi (sbagliati al 3-7% della rosa, lo
+Strasburgo 2024-25 giusto al 12%), quindi il criterio è l'IDENTITÀ presa nella stagione bersaglio, dove
+quegli uomini sono davvero del club: la sua squadra dominante nei voti e nel livello per-partita sono
+le due grafie del club (`Racing Strasburgo` / `RC Strasbourg`), e una colonna del passato prende il nome
+solo se la sua squadra è una di quelle (`PlayersStore.spellingsOf`). Controllato su ogni colonna
+nominata dei 57 club: tutte nominano il club a schermo; col numero di giornata restano le sole cinque
+colonne 2025-26 delle tre neopromosse. Prezzo detto: ad agosto, senza stagione bersaglio giocata, resta
+la sola grafia canonica, e un club fuori perimetro scritto solo dal provider resta senza nome fino alla
+prima giornata. Aperto e non deciso: mostrare la Serie B di una neopromossa (il livello per-partita la
+porta, ma `serie_b` non è calibrata, quindi ci sarebbe il rating del provider e nessun voto).
+
 ## Novità v9.103 (24 settembre 2026 — OGNI RIGA DEL TREND DICE SE È DEL CLUB DI OGGI)
 
 **`SHEET_REVISION` 76, una riga di codice, e il dato c'era già** (undicesima istanza in questo

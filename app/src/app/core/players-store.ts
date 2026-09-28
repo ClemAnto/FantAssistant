@@ -622,6 +622,8 @@ export class PlayersStore {
 
   readonly platform = signal<Platform>('default');
   readonly seasons = signal<string[]>([]);
+  /** La stagione che il pacchetto prevede: e' quella in cui la rosa a schermo gioca davvero per il suo club. */
+  private readonly targetSeason = signal<string | null>(null);
   readonly season = signal<string>('');
   readonly lastMatchday = signal<number>(COLUMNS);
   readonly windowFrom = signal<number>(1);
@@ -1157,6 +1159,19 @@ export class PlayersStore {
     }
     let team: string | null = null;
     for (const [name, seen] of weight) if (!team || seen > weight.get(team)!) team = name;
+    // ...MA IN UNA STAGIONE PASSATA LA SQUADRA PIU' PESANTE PUO' ESSERE UN'ALTRA (28/09/2026). La rosa e'
+    // quella di oggi, quindi per una neopromossa - che l'anno prima giocava un campionato che questa
+    // piattaforma non ha - le sole celle sono dei nuovi acquisti, e un gruppetto arrivato dallo stesso
+    // club vince: il Monza leggeva le partite del Pisa, il Venezia del Verona, il Frosinone della
+    // Cremonese, con due uomini su trenta. Una soglia sulla quota non separa i casi (i sbagliati stanno
+    // al 3-7% della rosa, lo Strasburgo 2024-25 giusto al 12%), quindi il criterio e' l'IDENTITA', presa
+    // dove non e' in dubbio: nella stagione bersaglio questi uomini SONO di questo club, e la squadra
+    // dominante dice come lo chiamano i voti (`team`) e il livello per-partita (`matchClub`) - le due
+    // grafie di uno stesso club, lette senza unire nomi fra due fonti. Una colonna del passato prende il
+    // nome solo se la sua squadra e' una di quelle; altrimenti resta il numero di giornata.
+    if (team && query.season !== this.targetSeason() && !this.spellingsOf(query, players).has(team)) {
+      team = null;
+    }
 
     return slots.map((slot) => {
       const own = (bySlot.get(slot.key) ?? []).filter((cell) => cell.team === team);
@@ -1201,6 +1216,33 @@ export class PlayersStore {
         title: `${chosen.competitionLabel} · ${fixture.long}${chosen.shape ? ' · modulo ' + chosen.shape : ''} · ${slot.title}`,
       };
     });
+  }
+
+  /**
+   * COME SI CHIAMA IL CLUB A SCHERMO, nelle grafie che le celle usano: il nome canonico, e le squadre
+   * dominanti delle celle di campionato della stagione bersaglio - una per i voti, una per il livello
+   * per-partita. Senza stagione bersaglio giocata (agosto) resta il solo nome canonico, che e' la grafia
+   * dei voti: il prezzo detto e' che una colonna del passato scritta solo dal provider (un club fuori
+   * perimetro, `RC Strasbourg`) resta senza nome finche' non si gioca la prima giornata.
+   */
+  private spellingsOf(query: MatchQuery, players: readonly PlayerRow[]): Set<string> {
+    const spellings = new Set<string>(query.club ? [query.club] : []);
+    const target = this.targetSeason();
+    const cells = target ? this.league().get(`${query.platform}|${target}`) : undefined;
+    const byTeam = new Map<string, number>();
+    const byClub = new Map<string, number>();
+    for (const player of players) {
+      for (const cell of cells?.get(player.fcId)?.values() ?? []) {
+        if (cell.team) byTeam.set(cell.team, (byTeam.get(cell.team) ?? 0) + 1);
+        if (cell.matchClub) byClub.set(cell.matchClub, (byClub.get(cell.matchClub) ?? 0) + 1);
+      }
+    }
+    for (const counts of [byTeam, byClub]) {
+      let top: string | null = null;
+      for (const [name, seen] of counts) if (!top || seen > counts.get(top)!) top = name;
+      if (top) spellings.add(top);
+    }
+    return spellings;
   }
 
   /** Which column a cell belongs to: the matchday, or the week. */
@@ -1389,10 +1431,6 @@ export class PlayersStore {
       const euroToReal = buildMatchdayMap(map);
       const shapes = buildShapes(lineups);
       const built = buildLeagueMatches(ratings, provider.index, leagueOf, euroToReal, shapes, scoring);
-      this.league.set(built);
-      this.absence.set(
-        buildAbsences(built, roster, provider, euroToReal, buildInjuries(injuries)),
-      );
 
       // LA STAGIONE BERSAGLIO STA GIA' DENTRO se qualcuno ha giocato una giornata, quindi il `Set` la
       // deve contenere: aggiungerla FUORI la elencava due volte, e chi cammina questa lista leggeva le
@@ -1401,10 +1439,21 @@ export class PlayersStore {
         ...new Set([...[...built.keys()].map((key) => key.split('|')[1]), manifest.target_season]),
       ].sort();
       this.seasons.set(seasons);
+      this.targetSeason.set(manifest.target_season ?? null);
       const roleOf = new Map<number, ClassicRole>();
       for (const list of roster.values()) for (const p of list) roleOf.set(p.fcId, p.role);
+      const ownLeague: OwnLeagueRow[] = [];
       this.other.set(
-        buildOtherMatches(external, expected, new Set(seasons), leagueOf, shapes, scoring, roleOf),
+        buildOtherMatches(external, expected, new Set(seasons), leagueOf, shapes, scoring, roleOf,
+          (row) => ownLeague.push(row)),
+      );
+      // LE PARTITE DI CAMPIONATO CHE LA PIATTAFORMA NON HA VOTATO entrano PRIMA delle assenze, perche'
+      // le assenze riempiono solo le giornate senza una cella: dopo, quelle partite leggerebbero
+      // «panchina» su ogni giornata (la riga del provider c'e', e per le assenze vuol dire distinta).
+      promoteUnrated(built, ownLeague, roster, euroToReal);
+      this.league.set(built);
+      this.absence.set(
+        buildAbsences(built, roster, provider, euroToReal, buildInjuries(injuries)),
       );
 
       this.selectSeason(seasons.at(-2) ?? seasons.at(-1) ?? '');
@@ -2036,6 +2085,87 @@ function buildLeagueMatches(
   return out;
 }
 
+/** A per-match row of a man's OWN championship, as `buildOtherMatches` built it, and its real round. */
+export interface OwnLeagueRow {
+  fcId: number;
+  season: string;
+  cell: MatchCell;
+  realMd: number | null;
+}
+
+/**
+ * LE PARTITE DI CAMPIONATO DI UN CLUB CHE QUESTA PIATTAFORMA NON VOTAVA, dal livello per-partita.
+ *
+ * «Il suo campionato lo coprono i voti» e' vero su `default`, dove la Serie A ha tutti e venti i club,
+ * e falso su `euro`: EuroLeghe seleziona i club di vertice e il perimetro cambia ogni stagione, quindi
+ * il Bournemouth ha voti per il 2018-19, il 2019-20 e il 2026-27 e NESSUNO per le stagioni in mezzo,
+ * mentre il livello per-partita porta tutte le sue 38 partite di Premier (27/09/2026, segnalazione
+ * dell'operatore: «mancano le partite delle vecchie stagioni del Bournemouth»). Prima quelle righe si
+ * buttavano via, e le assenze - che leggono una riga del provider come «era in distinta» - mettevano
+ * «panchina» su ogni giornata di ogni suo uomo: una bugia, non un vuoto.
+ *
+ * COPERTO SI DECIDE PER PARTITA E PER CLUB, e mai per nome: una coppia (partita, club) e' coperta se una
+ * cella VOTATA di quella stagione su quella piattaforma porta lo stesso `matchId` e lo stesso
+ * `matchClub`, e quella coppia la scrive il provider su tutt'e due i lati. Cosi' un club che entra nel
+ * perimetro a meta' stagione e' coperto dove lo e', e Arsenal - Bournemouth non copre il Bournemouth
+ * perche' e' coperto l'Arsenal. Tre guardie, tutte perche' una cella inventata e' peggio di una assente:
+ * - solo le stagioni che la piattaforma ha VOTATO e non oltre la sua ultima giornata votata, cosi' una
+ *   giornata in corso resta di chi la vota;
+ * - solo i campionati che la piattaforma gioca (`default` = Serie A) e solo le giornate che il suo
+ *   calendario contiene (su euro via `matchday_map`: una giornata di Premier che nessun turno EuroLeghe
+ *   impacchetta non ha una colonna, come per ogni altro club);
+ * - solo chi ha GIOCATO: una riga senza minuti ne' rating e' una distinta, e quella la dicono le assenze.
+ *
+ * Il voto e' il SINTETICO calibrato (`~`), e il risultato resta vuoto: il provider non lo dichiara su
+ * queste righe e ricostruirlo dai soli uomini che identifichiamo sbaglia fuori perimetro una volta su
+ * quattro, quindi la colonna dice l'avversario e non un punteggio che nessuno ha letto.
+ */
+export function promoteUnrated(
+  league: Map<string, Map<number, Map<number, MatchCell>>>,
+  rows: OwnLeagueRow[],
+  rosters: Map<Platform, PlayerRow[]>,
+  euroToReal: Map<string, number>,
+): void {
+  // Il calendario EuroLeghe letto all'incontrario: da (stagione, campionato, giornata vera) al turno.
+  const realToEuro = new Map<string, number>();
+  for (const [key, realMd] of euroToReal) {
+    const [season, euroMd, competition] = key.split('|');
+    const back = `${season}|${competition}|${realMd}`;
+    if (!realToEuro.has(back)) realToEuro.set(back, Number(euroMd));
+  }
+  for (const [key, bySeason] of league) {
+    const [platform, season] = key.split('|') as [Platform, string];
+    const listed = new Set((rosters.get(platform) ?? []).map((p) => p.fcId));
+    const covered = new Set<string>();
+    let lastMd = 0;
+    for (const byDay of bySeason.values()) {
+      for (const [md, cell] of byDay) {
+        if (md > lastMd) lastMd = md;
+        if (cell.matchId && cell.matchClub) covered.add(`${cell.matchId}|${cell.matchClub}`);
+      }
+    }
+    for (const { fcId: id, season: of, cell, realMd } of rows) {
+      if (of !== season || realMd == null || !cell.matchId || !cell.matchClub) continue;
+      if (covered.has(`${cell.matchId}|${cell.matchClub}`)) continue;
+      if (cell.minutes == null && cell.providerRating == null) continue;
+      if (platform === 'default' && cell.competition !== 'serie_a') continue;
+      const md = platform === 'euro' ? realToEuro.get(`${season}|${cell.competition}|${realMd}`) : realMd;
+      if (md == null || md > lastMd) continue;
+      if (!listed.has(id)) continue;
+      let byDay = bySeason.get(id);
+      if (!byDay) bySeason.set(id, (byDay = new Map()));
+      if (byDay.has(md)) continue;
+      byDay.set(md, {
+        ...cell,
+        kind: 'league',
+        state: cell.vote == null ? 'no_vote' : 'played',
+        competitionLabel: competitionLabel(cell.competition),
+        matchday: md,
+      });
+    }
+  }
+}
+
 /** Cups, friendlies and anything else the provider recorded that is not the player's league.
  *  None of these carries a fantacalcio vote, and none is a calibrated competition, so
  *  `mv_synth` is null on every one of them - all they have is the provider's own rating. */
@@ -2047,6 +2177,7 @@ function buildOtherMatches(
   shapes: Map<string, { counted: string; declared: string | null }>,
   scoring: ScoringConfig | null,
   roleOf: Map<number, ClassicRole>,
+  ownLeague?: (row: OwnLeagueRow) => void,
 ): Map<string, Map<number, MatchCell[]>> {
   const [fcId, season, competition, date, club, opponent, home, startedOther, minutes, rating, goals,
     assists, yellows, reds, matchIdOther] = columnIndex(
@@ -2104,6 +2235,7 @@ function buildOtherMatches(
   const opponentGoals = optionalIndex(external, 'opponent_goals');
   const xgAt = optionalIndex(external, 'xg');
   const xaAt = optionalIndex(external, 'xa');
+  const realMdAt = optionalIndex(external, 'real_md');
 
   const out = new Map<string, Map<number, MatchCell[]>>();
   for (const row of external.rows) {
@@ -2111,15 +2243,14 @@ function buildOtherMatches(
     if (!seasons.has(s)) continue;
     const slug = row[competition] as string;
     const kind = competitionKind(slug);
-    // His own championship is already covered by the ratings; another country's league is
-    // not a cup, but it is football he played and it belongs in "other competitions".
-    if (kind === 'league' && slug === leagueOf.get(row[fcId] as number)) continue;
+    // His own championship is covered by the ratings WHERE THE PLATFORM RATED HIS CLUB; another
+    // country's league is not a cup, but it is football he played and it belongs in "other
+    // competitions". The own-league rows go to `ownLeague`, which decides per platform whether the
+    // ratings really covered them (on euro a club can sit outside the perimeter for whole seasons).
+    const ownChampionship = kind === 'league' && slug === leagueOf.get(row[fcId] as number);
+    if (ownChampionship && !ownLeague) continue;
     const synth = mvSynth < 0 ? null : ((row[mvSynth] as number) ?? null);
-    let seasonMap = out.get(s);
-    if (!seasonMap) out.set(s, (seasonMap = new Map()));
     const id = row[fcId] as number;
-    let list = seasonMap.get(id);
-    if (!list) seasonMap.set(id, (list = []));
 
     /* IL PORTIERE si decide sul ruolo di LISTONE e non sulla posizione che il provider scrive per
      * quella partita: il listone ce l'ha per tutti mentre `position` manca sull'1,4% delle righe, e
@@ -2179,6 +2310,14 @@ function buildOtherMatches(
     // IL FANTAVOTO SINTETICO, dove c'e' un voto sintetico da cui partire. Per un portiere si fa solo
     // se i gol subiti si sono potuti contare: la funzione lo decide sul DATO e non sul ruolo.
     cell.fantavoto = syntheticFantavoto(cell, scoring);
+    if (ownChampionship) {
+      ownLeague?.({ fcId: id, season: s, cell, realMd: realMdAt < 0 ? null : ((row[realMdAt] as number) ?? null) });
+      continue;
+    }
+    let seasonMap = out.get(s);
+    if (!seasonMap) out.set(s, (seasonMap = new Map()));
+    let list = seasonMap.get(id);
+    if (!list) seasonMap.set(id, (list = []));
     list.push(cell);
   }
   for (const seasonMap of out.values()) {

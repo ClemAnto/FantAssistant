@@ -31,6 +31,58 @@ def test_align_season_refuses_an_ambiguous_matchday():
     assert len(skipped) == 1 and "ambiguous" in skipped[0]
 
 
+def _scored(fc_ids, scorers):
+    return {(fc_id, 1 if fc_id in scorers else 0, 0, 0, 0) for fc_id in fc_ids}
+
+
+def test_align_season_reads_a_gap_of_exactly_the_margin_as_the_margin():
+    # 1.0 against 0.8 is a gap of 0.19999... in floating point: Ligue 1 2025-26 euro 30 was refused
+    # for that alone. Five men, one scorer: the neighbour reproduces four of the five (80%).
+    default = {33: _scored(range(1, 6), {1}), 34: _scored(range(1, 6), set())}
+    mapped, skipped = matchdays.align_season({30: _scored(range(1, 6), {1})}, default)
+    assert mapped == {30: (33, 1.0)} and skipped == []
+
+
+def test_align_season_accepts_a_near_perfect_best_the_calendar_order_confirms():
+    # A quiet round between two decisive ones: the adjacent round reproduces 90% of its signature.
+    men = range(1, 21)
+    default = {2: _scored(men, set(range(1, 7))), 3: _scored(men, {13}), 4: _scored(men, {14}),
+               5: _scored(men, set(range(7, 13)))}
+    euro = {1: _scored(men, set(range(1, 7))), 2: _scored(men, {14}), 3: _scored(men, set(range(7, 13)))}
+    mapped, skipped = matchdays.align_season(euro, default)
+    assert {md: real for md, (real, _c) in mapped.items()} == {1: 2, 2: 4, 3: 5}
+    assert skipped == []
+
+
+def test_align_season_refuses_a_near_perfect_best_that_breaks_the_calendar_order():
+    # Same quiet round, but it is placed AFTER the decisive round that bundles real 5.
+    men = range(1, 21)
+    default = {2: _scored(men, set(range(1, 7))), 3: _scored(men, {13}), 4: _scored(men, {14}),
+               5: _scored(men, set(range(7, 13)))}
+    euro = {1: _scored(men, set(range(1, 7))), 2: _scored(men, set(range(7, 13))), 3: _scored(men, {14})}
+    mapped, skipped = matchdays.align_season(euro, default)
+    assert 3 not in mapped and any("euro 3: ambiguous" in note for note in skipped)
+
+
+def test_align_season_refuses_a_tie_the_calendar_order_cannot_split():
+    # 100% against 100%, and both rounds lie between the neighbours: nothing names it, so it is reported.
+    men = range(1, 21)
+    default = {1: _scored(men, {1}), 2: _scored(men, set()), 3: _scored(men, set()), 4: _scored(men, {4})}
+    euro = {1: _scored(men, {1}), 2: _scored(men, set()), 3: _scored(men, {4})}
+    mapped, skipped = matchdays.align_season(euro, default)
+    assert 2 not in mapped and any("euro 2: ambiguous" in note for note in skipped)
+
+
+def test_align_season_resolves_two_ambiguous_rounds_in_a_row():
+    # Ligue 1 2026-27 euro 3 and 4: each is the other's missing neighbour. Best 100%, runner-up 90%.
+    men = range(1, 21)
+    default = {2: _scored(men, {1, 2, 3}), 3: _scored(men, {4, 5, 6}),
+               4: _scored(men, {7}), 5: _scored(men, {8})}
+    euro = {1: _scored(men, {1, 2, 3}), 2: _scored(men, {4, 5, 6}), 3: _scored(men, {7}), 4: _scored(men, {8})}
+    mapped, skipped = matchdays.align_season(euro, default)
+    assert mapped[3][0] == 4 and mapped[4][0] == 5 and skipped == []
+
+
 def test_align_season_tolerates_partial_overlap():
     # a euro round whose rows are mostly (not exactly) the real round's still maps
     default = {5: _signature(range(1, 101))}

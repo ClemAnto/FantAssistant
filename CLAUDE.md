@@ -7170,6 +7170,33 @@ le pesa giusto**. **R29 non e' in `ADOPTED`: la decisione su `default` e' aperta
 (l'ipotesi viene dagli stessi esiti, gradino di evidenza piu' basso), e i passi se la prende sono in
 `todolist-mantra-euroleghe-v5.md` («Aperti dopo la sessione del 27/09/2026»).
 
+## «I voti lo coprono» è vero su una piattaforma e falso sull'altra, e un turno silenzioso non è ambiguo
+**28/09/2026, da «mancano le partite delle vecchie stagioni del Bournemouth». Dettaglio: spec «Novità
+v9.104».** Il lettore dell'app scartava le partite del campionato di un uomo perché «le coprono i voti»:
+vero su `default`, dove la Serie A ha venti club su venti, falso su `euro`, dove il perimetro cambia ogni
+stagione (sei club senza voti in due stagioni). E il vuoto non restava vuoto: le assenze leggono una riga
+del provider come «era in distinta», quindi ogni uomo di quei club leggeva **panchina** a ogni giornata.
+*Un'assunzione che regge su una piattaforma è un parametro di quella piattaforma*, e la copertura si
+decide per (partita, club), mai per nome.
+**Nel toolkit la stessa ricerca ha trovato che `matchdays` rifiutava come «ambigui» 16 turni col
+candidato giusto al 97-100%**, perché in un turno tranquillo gli uomini sono gli stessi e quasi nessuno
+segna: il turno accanto ricopre l'80-88% della firma e il margine di 0,20 non protegge da niente. Fra
+quei 16 c'erano due delle cinque giornate di Ligue 1 di quest'anno, e uno era caduto per
+`1,0 − 0,8 = 0,1999…`. *Un margine è una difesa contro un vincitore sbagliato: dove la firma non
+discrimina, serve un secondo testimone indipendente*, qui l'ordine del calendario, letto per tutti i
+turni ambigui insieme perché vengono a coppie. **Due stesure respinte dai test prima del dato**: la prima
+accettava un pareggio 100%-100% senza vicini, la seconda («un solo candidato fra i vicini») avrebbe
+rifiutato proprio i due turni di quest'anno, perché in una coppia di ambigui il secondo di ciascuno è il
+migliore dell'altro.
+**E passare TUTTI i club nella pagina vera ha trovato il difetto che nessuno aveva segnalato**: una
+neopromossa mostrava sotto il proprio nome le partite di un altro club (Monza → Pisa), perché la colonna
+prende il nome dalla squadra con più celle e per chi veniva dalla Serie B le sole celle sono di due
+acquisti. Una soglia sulla quota non separava i casi (3-7% contro il 12% dello Strasburgo, giusto): il
+criterio è l'IDENTITÀ presa dove non è in dubbio, la stagione bersaglio. Due abitudini di misura:
+**un confronto fra copia e DB vero attribuisce al candidato il lavoro del tempo** (gli arrivi vivi erano
+stantii: 2.414 righe diverse, che col braccio di base rifatto sono diventate 14 tier), e **una sonda che
+segnala 36 colonne «sbagliate» va letta prima di crederle** — erano tutte la sua tabella di alias.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

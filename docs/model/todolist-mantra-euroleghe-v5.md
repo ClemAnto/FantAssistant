@@ -1,5 +1,22 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 28 settembre 2026 — lo storico dei club fuori perimetro
+
+Dettaglio: spec «Novità v9.104».
+
+- **La Serie B delle neopromosse** (decisione dell'operatore): Frosinone, Monza e Venezia hanno il 2025-26
+  in Serie B, che su `default` non ha colonne; il livello per-partita la porta, ma `serie_b` non è
+  calibrata (`APPLY_OFFSETS` spento), quindi le colonne avrebbero il rating del provider e nessun voto.
+- **`competitionKind('serie_b')` restituisce `cup`**: una partita di campionato cadetto etichettata come
+  coppa nella card del calciatore. Innocuo per i numeri, sbagliato come parola; da decidere insieme al
+  punto sopra.
+- **Il risultato manca nelle intestazioni delle partite recuperate**: il provider non porta `team_goals`
+  su quelle righe e ricostruirlo dai soli uomini identificati sbaglia fuori perimetro una volta su quattro.
+- **Agosto**: senza stagione bersaglio giocata `spellingsOf` ha la sola grafia canonica, quindi una
+  colonna del passato scritta solo dal provider (`RC Strasbourg`) resta senza nome fino alla prima giornata.
+- **Pubblicare** (`npm run deploy:pages`) quando l'altra sessione ha chiuso la sua metà dell'app: un deploy
+  pubblica l'albero di lavoro, non `HEAD`.
+
 ## Aperti alla chiusura del 24 settembre 2026 — la ritaratura delle categorie
 
 Dettaglio: `letture-app-v1.md` §53, spec «Novita' v9.102».

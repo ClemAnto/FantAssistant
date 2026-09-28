@@ -29,6 +29,19 @@ _PLAYER_ROLES = ("P", "D", "C", "A")
 # Accept an alignment only when it is both strong and unambiguous.
 MIN_CONFIDENCE = 0.80   # share of euro rows the winning real matchday reproduces
 MIN_MARGIN = 0.20       # gap to the runner-up (a real calendar shift never ties)
+# A share is a ratio of two counts, so `1.0 - 0.8` is 0.19999... and a gap of EXACTLY the margin read
+# as below it: that alone threw away Ligue 1 2025-26 euro 30 (real 33 at 100%, runner-up 80%).
+_MARGIN_TOLERANCE = 1e-9
+# ...AND A NEAR-PERFECT BEST THAT THE CALENDAR ORDER CONFIRMS is accepted even with a smaller margin.
+# The margin guards against a wrong winner, and on a quiet round it guards against nothing: who played
+# barely changes week to week and most men score zero, so the adjacent round reproduces 80-88% of the
+# signature while the right one reproduces 97-100% (measured 28/09/2026 over every season and league:
+# 16 rounds rejected that way, among them Ligue 1 2026-27 euro 3 and 4 - i.e. two of the five rounds
+# played so far, for every Ligue 1 club). The second, independent witness is the ORDER: a euro round
+# bundles a real round that lies strictly between the ones its mapped neighbours bundle. 15 of the 16
+# fit; the one that does not rests on 2 players (Serie A 2019-20 euro 20) and stays refused. Nothing
+# rejected sits between 0.67 and 0.97, so any threshold in that gap gives the same map.
+NEIGHBOUR_CONFIDENCE = 0.95
 
 
 def _signatures(conn, season: str, platform: str) -> dict[int, set[tuple]]:
@@ -59,6 +72,7 @@ def align_season(euro: dict[int, set[tuple]], default: dict[int, set[tuple]]
     known = {row[0] for rows in default.values() for row in rows}
     mapped: dict[int, tuple[int, float]] = {}
     skipped: list[str] = []
+    ambiguous: dict[int, list[tuple[float, int]]] = {}
     for euro_md in sorted(euro):
         signature = {row for row in euro[euro_md] if row[0] in known}
         if not signature:
@@ -69,11 +83,36 @@ def align_season(euro: dict[int, set[tuple]], default: dict[int, set[tuple]]
             reverse=True,
         )
         best, runner_up = scores[0], (scores[1] if len(scores) > 1 else (0.0, None))
-        if best[0] < MIN_CONFIDENCE or best[0] - runner_up[0] < MIN_MARGIN:
-            skipped.append(f"euro {euro_md}: ambiguous (best real {best[1]} {best[0]:.0%}, "
-                           f"runner-up {runner_up[1]} {runner_up[0]:.0%})")
+        if best[0] < MIN_CONFIDENCE or best[0] - runner_up[0] < MIN_MARGIN - _MARGIN_TOLERANCE:
+            ambiguous[euro_md] = scores
             continue
         mapped[euro_md] = (best[1], round(best[0], 3))
+
+    # The calendar-order pass. A round is ELIGIBLE when its best is near-perfect and not tied (a
+    # 100%-100% tie is a tie whatever the calendar says - two identical real rounds stay refused);
+    # the eligible bests are then read TOGETHER with the rounds already mapped, and each is accepted
+    # when it sits strictly between the real rounds its neighbours bundle and repeats none of them.
+    # Together, because ambiguous rounds come in runs (Ligue 1 2026-27 euro 3 and 4): each one's
+    # runner-up is the other's best, and only the joint order can say which is which.
+    eligible = {
+        euro_md: scores[0][1] for euro_md, scores in ambiguous.items()
+        if scores[0][0] >= NEIGHBOUR_CONFIDENCE
+        and (len(scores) < 2 or scores[0][0] - scores[1][0] > _MARGIN_TOLERANCE)
+    }
+    order = sorted({**{md: real for md, (real, _c) in mapped.items()}, **eligible}.items())
+    for at, (euro_md, real_md) in enumerate(order):
+        if euro_md not in eligible:
+            continue
+        low = order[at - 1][1] if at > 0 else 0
+        high = order[at + 1][1] if at + 1 < len(order) else 10**6
+        repeated = sum(1 for _md, other in order if other == real_md) > 1
+        if low < real_md < high and not repeated:
+            best = ambiguous.pop(euro_md)[0]
+            mapped[euro_md] = (best[1], round(best[0], 3))
+    for euro_md, scores in sorted(ambiguous.items()):
+        best, runner_up = scores[0], (scores[1] if len(scores) > 1 else (0.0, None))
+        skipped.append(f"euro {euro_md}: ambiguous (best real {best[1]} {best[0]:.0%}, "
+                       f"runner-up {runner_up[1]} {runner_up[0]:.0%})")
     return mapped, skipped
 
 
