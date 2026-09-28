@@ -435,6 +435,56 @@ async function main() {
         ...(page.filled !== 1 ? [`il campetto porta ${page.filled} titolari invece di 1`] : []),
       ]);
 
+    // 3a. A MODULE CHOSEN STAYS CHOSEN (operator, 29/09/2026): pick one in the selector, make picks, and the
+    // pitch must still be drawn on it - and after a refresh too.
+    const moduleNow = () => evaluate(session, () => ({
+      drawn: document.querySelector('[data-module]')?.getAttribute('data-module') ?? null,
+      select: (document.querySelector('[data-module-select]')?.innerText ?? '').trim(),
+    }));
+    await mouse(await evaluate(session, centre, '[data-module-select]'));
+    await wait(500);
+    // The menu's SECOND module (after «Auto» and the first): visible without scrolling, and not the one the
+    // automatic choice opens on, on either game (mantra and classic have different modules).
+    const moduleOption = await evaluate(session, () => {
+      const one = [...document.querySelectorAll('.ant-select-item-option')][2];
+      if (!one) return null;
+      const rect = one.getBoundingClientRect();
+      return {
+        x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2),
+        name: (one.innerText ?? '').replace('★', '').trim(),
+      };
+    });
+    const wantedModule = moduleOption?.name;
+    await mouse(moduleOption);
+    await wait(500);
+    const chosenModule = await moduleNow();
+    for (let n = 0; n < 6; n += 1) {
+      const now = await evaluate(session, readPage);
+      await mouse(now.first, 2);
+      await wait(400);
+    }
+    const afterPicks = await moduleNow();
+    await session.send('Page.reload');
+    await wait(1500);
+    await settle(() => true, 'reload after module');
+    const moduleReloaded = await moduleNow();
+    note('modulo scelto', `scelto ${chosenModule.drawn} («${chosenModule.select}»), dopo 6 scelte ${afterPicks.drawn}, dopo il refresh ${moduleReloaded.drawn} («${moduleReloaded.select}»)`,
+      [
+        ...(chosenModule.drawn !== wantedModule ? [`il campetto non disegna il modulo scelto (${chosenModule.drawn})`] : []),
+        ...(afterPicks.drawn !== wantedModule ? [`dopo le scelte il modulo e' diventato ${afterPicks.drawn}`] : []),
+        ...(moduleReloaded.drawn !== wantedModule ? [`dopo il refresh il modulo e' ${moduleReloaded.drawn}`] : []),
+      ]);
+    // Back to automatic, which is what the rest of the bench measures.
+    await mouse(await evaluate(session, centre, '[data-module-select]'));
+    await wait(500);
+    await mouse(await evaluate(session, () => {
+      const one = [...document.querySelectorAll('.ant-select-item-option')].find((item) => (item.innerText ?? '').trim() === 'Auto');
+      if (!one) return null;
+      const rect = one.getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    }));
+    await wait(400);
+
     // 3b. AUTO: switched on after my pick, the rivals take their predicted men by themselves, one every
     // 500ms, and the table stops when it is my turn again; then it is switched off.
     const picksOf = () => evaluate(session, () =>

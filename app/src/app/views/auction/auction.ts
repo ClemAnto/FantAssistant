@@ -89,6 +89,17 @@ export type FreeMode = 'default' | 'medie' | 'previste';
 
 const MODE_KEY = 'fantassistant.draft.freeMode';
 
+/** Where the module he chose for his pitch is kept. */
+const MODULE_KEY = 'fantassistant.draft.module';
+
+function readModule(): string | null {
+  try {
+    return localStorage.getItem(MODULE_KEY) || null;
+  } catch {
+    return null;
+  }
+}
+
 /** One free man as the list draws him. */
 export interface FreeRow {
   id: number;
@@ -438,8 +449,23 @@ export class Auction {
 
   // ---------------------------------------------------------------------------------------- the pitch
 
-  /** A module the operator forced, or null for the best one the rulebook allows. */
-  protected readonly forcedModule = signal<string | null>(null);
+  /**
+   * A module the operator forced, or null for the best one the rulebook allows. ONCE CHOSEN IT STAYS
+   * (operator, 29/09/2026: «quando si seleziona un modulo quello deve essere e non deve modificarsi da
+   * solo»): picks never move it, and it is kept in the browser so a refresh does not drop it back to the
+   * automatic choice - which is the one that follows the squad.
+   */
+  protected readonly forcedModule = signal<string | null>(readModule());
+
+  protected chooseModule(name: string | null): void {
+    this.forcedModule.set(name);
+    try {
+      if (name) localStorage.setItem(MODULE_KEY, name);
+      else localStorage.removeItem(MODULE_KEY);
+    } catch {
+      // A browser that refuses storage still draws the module; it just forgets it on refresh.
+    }
+  }
 
   protected readonly moduleNames = computed<string[]>(() => {
     const names = Object.keys(this.advice.rules()?.modules ?? {});

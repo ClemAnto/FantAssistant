@@ -103,10 +103,11 @@
             <span class="text-xs text-muted">{{ team.squad.length }} in rosa</span>
           }
           <nz-select
+            data-module-select
             class="ml-auto w-32"
             nzSize="small"
             [ngModel]="forcedModule()"
-            (ngModelChange)="forcedModule.set($event)"
+            (ngModelChange)="chooseModule($event)"
             nzPlaceHolder="Modulo"
           >
             <nz-option [nzValue]="null" nzLabel="Auto" />
@@ -118,7 +119,7 @@
 
         @if (pitch(); as drawn) {
           <div class="flex items-center gap-2 text-xs text-muted">
-            <span class="rounded-full border border-border px-2 py-0.5 font-semibold text-fg tabular-nums">
+            <span data-module [attr.data-module]="drawn.module" class="rounded-full border border-border px-2 py-0.5 font-semibold text-fg tabular-nums">
               {{ drawn.module }}
             </span>
             @if (drawn.offPlan && !forcedModule()) {
