@@ -267,11 +267,15 @@
              Riordinare il DOM spegnerebbe la transizione: un nodo reinserito non ha uno stile «di prima». -->
         <ol class="relative min-h-0 flex-1 overflow-y-auto">
           <div class="seat-track" [style.height]="'calc(' + seats().length + ' * var(--seat-step))'"></div>
+          @for (line of roundLines(); track line.round) {
+            <div data-round-line class="round-line" [style.--seat-at]="line.at"><span>turno {{ line.round }}</span></div>
+          }
           @for (seat of seatsStable(); track seat.team.id) {
             <li
               [attr.data-seat]="seat.team.id"
               [attr.data-clock]="seat.team.onTheClock ? '' : null"
               [attr.data-at]="seat.at"
+              [attr.data-picks]="seat.team.squad.length"
               [style.--seat-at]="seat.at - 1"
               class="seat group grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 rounded-md
                      border px-1 py-0.5"
@@ -284,7 +288,7 @@
               "
               (click)="view(seat.team.id)"
             >
-              <span class="text-xs tabular-nums text-muted">{{ seat.at }}</span>
+              <span data-turn-at class="text-xs tabular-nums text-muted">{{ seat.turnAt }}°</span>
               <span class="flex min-w-0 flex-col">
                 <span class="flex min-w-0 items-center gap-1 text-xs">
                   <span class="h-2.5 w-2.5 shrink-0 rounded-sm" [style.background]="seat.team.colour"></span>
@@ -373,6 +377,22 @@
               (ngModelChange)="query.set($event)"
             />
           </nz-input-wrapper>
+          <!-- IL FILTRO DI POSIZIONE (sua richiesta, 29/09/2026): restano solo i calciatori che, presi adesso, ti
+               fanno chiamare al piu' a quella posizione nel turno dopo. -->
+          <nz-select
+            data-position-filter
+            class="w-28 shrink-0"
+            nzSize="small"
+            nzPlaceHolder="Posizione"
+            nzAllowClear
+            [nzDisabled]="!feed.followed()"
+            [ngModel]="maxPosition()"
+            (ngModelChange)="maxPosition.set($event ?? null)"
+          >
+            @for (place of positionOptions(); track place) {
+              <nz-option [nzValue]="place" [nzLabel]="'fino al ' + place + '°'" />
+            }
+          </nz-select>
           <nz-radio-group nzSize="small" nzButtonStyle="solid" [ngModel]="mode()" (ngModelChange)="setMode($event)">
             <label nz-radio-button nzValue="default" data-mode="default">Default</label>
             <label nz-radio-button nzValue="medie" data-mode="medie">Medie</label>
@@ -456,6 +476,7 @@
               [attr.data-free]="row.id"
               [attr.data-roles]="row.roles.join(',').toLowerCase()"
               [attr.data-club]="row.club"
+              [attr.data-next]="nextPlace(row)"
               class="free-grid cursor-default select-none rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
               [class.free-default]="mode() === 'default'"
               [class.free-medie]="mode() === 'medie'"

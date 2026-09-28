@@ -311,6 +311,47 @@ export function demoOrder(teams: readonly AuctionTeam[], maxAheadPicks = MAX_AHE
   return squads.sort((a, b) => ahead(a, b, maxAheadPicks)).map((team) => team.id);
 }
 
+/** Where the invented table's hand-written picks are kept between two visits. */
+const SAVED_KEY = 'fantassistant.draft.table';
+
+interface SavedPick {
+  index: number;
+  teamId: number;
+  playerId: number;
+  cost: number;
+}
+
+interface SavedTable {
+  /** The league the table was built for: picks are only replayed on the same one. */
+  signature: string;
+  mine: number | null;
+  picks: SavedPick[];
+}
+
+/** What a table IS made of: listone, game, squads and rosters. A budget or a toggle does not change it. */
+export function tableSignature(league: {
+  platform: string;
+  game: string;
+  teams: number;
+  slots: unknown;
+}): string {
+  return JSON.stringify([league.platform, league.game, league.teams, league.slots]);
+}
+
+/** The saved table if it was written for this league, else null - never a table of another league. */
+function readSaved(signature: string): SavedTable | null {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SAVED_KEY) ?? 'null') as SavedTable | null;
+    if (!raw || raw.signature !== signature || !Array.isArray(raw.picks)) return null;
+    const picks = raw.picks.filter(
+      (pick) => [pick.index, pick.teamId, pick.playerId, pick.cost].every((value) => Number.isFinite(value)),
+    );
+    return { signature, mine: Number.isFinite(raw.mine) ? raw.mine : null, picks };
+  } catch {
+    return null;
+  }
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuctionDemo {
   private readonly bundle = inject(Bundle);
@@ -388,8 +429,13 @@ export class AuctionDemo {
           : null,
       });
       // A seat he chose stays his across a change of settings, as long as the table still has it.
-      if (previous !== null && previous < Math.min(league.teams, DEMO_TEAMS.length)) session.mineId = previous;
+      const seats = Math.min(league.teams, DEMO_TEAMS.length);
+      if (previous !== null && previous < seats) session.mineId = previous;
+      // ...and a table he was writing comes back after a refresh, if it was written for THIS league.
+      const saved = readSaved(tableSignature(league));
+      if (saved && saved.mine !== null && saved.mine < seats) session.mineId = saved.mine;
       this.feed.startDemo(session);
+      if (saved?.picks.length) this.replay(saved.picks, new Set(players.map((one) => one.id)), seats);
       return true;
     } catch (error) {
       this.error.set(
@@ -426,13 +472,50 @@ export class AuctionDemo {
     }
     if (!this.feed.awardByHand(player.id, team.id, player.fvm)) return 'Scelta rifiutata dal tavolo.';
     this.reorder();
+    this.remember();
     return null;
+  }
+
+  /**
+   * THE PICKS WRITTEN BY HAND SURVIVE A REFRESH (operator, 29/09/2026: «memorizza in local storage i
+   * calciatori scelti con doppio-click, ricordati di ignorarli se ci colleghiamo ad una asta-live»).
+   *
+   * Saved ONLY from the invented table and read back ONLY by `start`, which runs when there is no live
+   * session to resume - so a live auction never sees them, and they never overwrite the host's picks. The
+   * key carries the LEAGUE the table was built for (listone, game, squads, rosters): picks written for
+   * twelve squads replayed on ten would hand men to seats that do not exist. Also who «I» am, which is part
+   * of the same table.
+   */
+  remember(): void {
+    if (!this.feed.demo()) return;
+    const value: SavedTable = {
+      signature: tableSignature(this.options.league()),
+      mine: this.feed.followedTeamId(),
+      picks: this.feed.picks().map((pick) => ({
+        index: pick.index, teamId: pick.teamId, playerId: pick.playerId, cost: pick.cost ?? pick.value ?? 0,
+      })),
+    };
+    try {
+      localStorage.setItem(SAVED_KEY, JSON.stringify(value));
+    } catch {
+      // A browser that refuses storage still plays the table; it just forgets it on refresh.
+    }
+  }
+
+  /** The saved picks, in their order, on the fresh table - dropping any the new listone cannot name. */
+  private replay(picks: readonly SavedPick[], known: Set<number>, seats: number): void {
+    for (const pick of [...picks].sort((a, b) => a.index - b.index)) {
+      if (!known.has(pick.playerId) || pick.teamId < 0 || pick.teamId >= seats) continue;
+      this.feed.awardByHand(pick.playerId, pick.teamId, pick.cost);
+    }
+    this.reorder();
   }
 
   /** Undoes the last pick of the invented table, and puts the order back where it was. */
   undo(): boolean {
     if (!this.feed.undoLastByHand()) return false;
     this.reorder();
+    this.remember();
     return true;
   }
 
@@ -440,6 +523,7 @@ export class AuctionDemo {
   reset(): boolean {
     if (!this.feed.emptySquads()) return false;
     this.reorder();
+    this.remember();
     return true;
   }
 

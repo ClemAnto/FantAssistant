@@ -12,6 +12,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { AuctionAdvice, RankedPlayer } from '../../core/auction-advice';
 import { CardKey, CardMan, CardStack, clubCard, clubOfCard, playerCard, playerOfCard } from '../../core/player-card';
 import { EDGE_BASE, Role } from '../../core/plancia';
+import { positionAfterSpending } from '../../core/auction-plan';
 import { AuctionDemo } from '../../core/auction-demo';
 import { AuctionFeed, AuctionTeam, SquadEntry, Zone } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
@@ -112,6 +113,12 @@ interface SeatRow {
   team: AuctionTeam;
   /** Position in the current call order, from 1. */
   at: number;
+  /**
+   * THE PLACE IN ITS TURN, which is what the row prints (operator, 29/09/2026): the squads that still
+   * have to play this turn end at the table's size (the last before the line is the 12th of twelve), and
+   * those below the line start again from 1°.
+   */
+  turnAt: number;
   mine: boolean;
   last: { id: number; name: string; roles: string[] } | null;
   next: { id: number; name: string; roles: string[]; predicted: boolean } | null;
@@ -177,7 +184,18 @@ const CARD_DELAY_MS = 260;
       transform: translateY(calc(var(--seat-at) * var(--seat-step)));
       transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 200ms, border-color 200ms;
     }
-    @media (prefers-reduced-motion: reduce) { .seat { transition: none; } }
+    /* The line between two turns sits in the gap between two seats, and slides with them. */
+    .round-line {
+      position: absolute; left: 0; right: 0; top: 0; height: 0; z-index: 1; pointer-events: none;
+      border-top: 1px dashed color-mix(in oklab, var(--color-primary) 70%, transparent);
+      transform: translateY(calc(var(--seat-at) * var(--seat-step) - (var(--seat-step) - var(--seat-h)) / 2));
+      transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .round-line > span {
+      position: absolute; right: 0.25rem; top: -0.45rem; padding: 0 0.25rem; font-size: 9px; line-height: 0.9rem;
+      background: var(--color-surface); color: color-mix(in oklab, var(--color-primary) 85%, var(--color-fg));
+    }
+    @media (prefers-reduced-motion: reduce) { .seat, .round-line { transition: none; } }
     /* «In piccolo»: the smallest badge the app has, shrunk once more so a two-line seat keeps its height. */
     .seat-roles { transform: scale(0.8); transform-origin: left center; margin-right: -0.35rem; }
     .sort:hover { color: var(--color-fg); }
@@ -250,7 +268,25 @@ export class Auction {
   protected readonly teamOnClock = computed(() => this.feed.onTheClock());
 
   /** The squads in the order they call, then whoever the order does not list. */
-  protected readonly seats = computed<SeatRow[]>(() => {
+  protected readonly seats = computed<SeatRow[]>(() => this.numberTurns(this.seatsInOrder()));
+
+  /** Each seat's place in its own turn: see `SeatRow.turnAt`. */
+  private numberTurns(seats: SeatRow[]): SeatRow[] {
+    const size = seats.length;
+    let start = 0;
+    const out = seats.map((seat) => ({ ...seat }));
+    while (start < size) {
+      let end = start;
+      while (end + 1 < size && seats[end + 1].team.squad.length === seats[start].team.squad.length) end += 1;
+      // The FIRST group is the tail of the turn being played, unless it is the whole table.
+      const first = start === 0 && end < size - 1 ? size - (end - start + 1) + 1 : 1;
+      for (let at = start; at <= end; at += 1) out[at].turnAt = first + (at - start);
+      start = end + 1;
+    }
+    return out;
+  }
+
+  private readonly seatsInOrder = computed<SeatRow[]>(() => {
     const teams = this.feed.teams();
     const order = this.feed.pickOrder();
     const listed = new Set(order.map((team) => team.id));
@@ -267,6 +303,7 @@ export class Auction {
       return {
         team,
         at: index + 1,
+        turnAt: index + 1,
         mine: team.id === mine,
         last: last?.player
           ? { id: last.player.id, name: this.feed.shownName(last.player), roles: last.player.roles }
@@ -291,6 +328,22 @@ export class Auction {
    * pick would move the nodes, and a moved node has no «before» style to transition from.
    */
   protected readonly seatsStable = computed(() => [...this.seats()].sort((a, b) => a.team.id - b.team.id));
+
+  /**
+   * WHERE ONE TURN ENDS AND THE NEXT BEGINS in the call order (operator, 29/09/2026: «basta che conti le
+   * scelte già fatte»): the order puts fewest picks first, so a change in the pick count between two
+   * neighbours is the boundary. `round` is the turn the squads BELOW the line are about to play.
+   */
+  protected readonly roundLines = computed(() => {
+    const seats = this.seats();
+    const out: { at: number; round: number }[] = [];
+    for (let at = 1; at < seats.length; at += 1) {
+      const above = seats[at - 1].team.squad.length;
+      const below = seats[at].team.squad.length;
+      if (below !== above) out.push({ at, round: below + 1 });
+    }
+    return out;
+  });
 
   /** «Chi prendo adesso»: our own pick of the round being played, and how many calls come before it. */
   protected readonly advised = computed(() => {
@@ -331,6 +384,7 @@ export class Auction {
   protected sitAt(teamId: number): void {
     this.feed.follow(teamId);
     this.viewed.set(null);
+    this.demo.remember();
   }
 
   // ---------------------------------------------------------------------------------------- the pitch
@@ -491,16 +545,50 @@ export class Auction {
     return Math.max(1, cap.frozenTurns - team.squad.length);
   }
 
-  /** The list after the search and the role filter; roles in OR, as he asked. */
+  /**
+   * WHERE I WOULD CALL IN THE NEXT TURN if I took a man of this FVM now (operator, 29/09/2026: «seleziona
+   * una delle 12 posizioni e scompaiano i calciatori che comprandoli ti farebbero scegliere oltre»).
+   *
+   * The platform's rule, already written in the plan (`positionAfterSpending`): in the next turn everybody
+   * has the same number of picks, so the order is the roster's FVM, cheapest first. A rival that still has
+   * to call in THIS turn ends it with what the plan expects him to take (`simulateRound`); one that has
+   * already called keeps what he has. Null when I follow no squad.
+   */
+  private readonly positionOf = computed<((price: number) => number) | null>(() => {
+    const me = this.feed.followed();
+    if (!me) return null;
+    const expected = new Map((this.advice.round()?.picks ?? []).map((pick) => [pick.teamId, pick.player?.price ?? 0]));
+    const rivals = this.feed.teams()
+      .filter((team) => team.id !== me.id)
+      .map((team) => team.spent + (team.squad.length === me.squad.length ? (expected.get(team.id) ?? 0) : 0));
+    return (price: number) => positionAfterSpending(price, me.spent, rivals);
+  });
+
+  /** The furthest place in the next turn he accepts; null = every man. */
+  protected readonly maxPosition = signal<number | null>(null);
+
+  protected readonly positionOptions = computed(() =>
+    Array.from({ length: this.feed.teams().length }, (_, at) => at + 1),
+  );
+
+  /** The list after the search, the role filter (roles in OR, as he asked) and the place filter. */
   protected readonly freeFiltered = computed<FreeRow[]>(() => {
     const query = this.query();
     const roles = this.roleFilter();
+    const limit = this.maxPosition();
+    const position = this.positionOf();
     return this.freeAll().filter(
       (row) =>
         looseMatch(query, row.name, row.club)
-        && (!roles.size || row.roles.some((role) => roles.has(role.toLowerCase()))),
+        && (!roles.size || row.roles.some((role) => roles.has(role.toLowerCase())))
+        && (limit === null || !position || position(row.fvm) <= limit),
     );
   });
+
+  /** Where taking him would put me next turn, for the row's tooltip. */
+  protected nextPlace(row: FreeRow): number | null {
+    return this.positionOf()?.(row.fvm) ?? null;
+  }
 
   /**
    * THE COLUMN THE LIST IS SORTED BY, clicked on its header (operator, 29/09/2026), in both views. `null` is
@@ -672,6 +760,8 @@ export class Auction {
 
   protected freeHint(row: FreeRow): string {
     const bits = [`${row.name} · ${row.club}`, `FVM ${row.fvm}`];
+    const place = this.nextPlace(row);
+    if (place != null) bits.push(`prendendolo chiami ${place}° nel turno dopo`);
     if (row.press) bits.push(`titolarità ${row.press} (${row.pressSource === 'stampa' ? 'dalla stampa' : 'dal motore'})`);
     if (row.turnsLeft != null) {
       bits.push(`bloccato: ancora ${row.turnsLeft} ${row.turnsLeft === 1 ? 'turno' : 'turni'} prima di poterlo chiamare`);

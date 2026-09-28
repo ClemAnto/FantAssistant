@@ -242,6 +242,40 @@ function seatsNow() {
   });
 }
 
+
+/** The turn lines of the call order against the seats they separate. */
+function roundLinesNow() {
+  const seats = [...document.querySelectorAll('[data-seat]')].map((one) => {
+    const rect = one.getBoundingClientRect();
+    return { at: Number(one.getAttribute('data-at')), top: rect.top, bottom: rect.bottom, picks: Number(one.getAttribute('data-picks')) };
+  }).sort((a, b) => a.at - b.at);
+  const lines = [...document.querySelectorAll('[data-round-line]')].map((one) => ({
+    y: one.getBoundingClientRect().top,
+    label: (one.innerText ?? '').trim(),
+  }));
+  const boundaries = seats.filter((one, at) => at > 0 && one.picks !== seats[at - 1].picks).length;
+  const misplaced = lines.filter((line) => {
+    const below = seats.find((one) => one.top >= line.y - 1);
+    const above = [...seats].reverse().find((one) => one.bottom <= line.y + 1);
+    return !below || !above || below.picks === above.picks || line.label !== `turno ${below.picks + 1}`;
+  }).length;
+  // THE NUMBER IS THE PLACE IN ITS TURN: below a line it restarts from 1°, and the seat just above a line
+  // is the last of its turn, i.e. the table's size.
+  const numbers = [...document.querySelectorAll('[data-seat]')].map((one) => ({
+    at: Number(one.getAttribute('data-at')),
+    shown: Number((one.querySelector('[data-turn-at]')?.innerText ?? '').replace('°', '')),
+    picks: Number(one.getAttribute('data-picks')),
+  })).sort((a, b) => a.at - b.at);
+  const size = numbers.length;
+  const wrongNumbers = numbers.filter((one, at) => {
+    const nextBoundary = numbers.findIndex((other, k) => k > at && other.picks !== one.picks);
+    const prevBoundary = [...numbers.keys()].filter((k) => k <= at && (k === 0 || numbers[k - 1].picks !== numbers[k].picks)).pop();
+    const expected = prevBoundary === 0 && nextBoundary >= 0 ? size - (nextBoundary - at) + 1 : at - prevBoundary + 1;
+    return one.shown !== expected;
+  }).map((one) => `${one.at}:${one.shown}`);
+  return { lines: lines.length, boundaries, misplaced, labels: lines.map((one) => one.label), wrongNumbers, shown: numbers.map((one) => one.shown) };
+}
+
 // ------------------------------------------------------------------ the run
 
 async function main() {
@@ -434,6 +468,16 @@ async function main() {
         ...(page.scrolls ? [`dopo le scelte la pagina scorre di ${page.overflow}px`] : []),
       ]);
 
+    // 4a'. A dashed line where one turn ends and the next begins, counted on the picks already made.
+    const rounds = await evaluate(session, roundLinesNow);
+    note('linea fra i turni', `${rounds.lines} linee per ${rounds.boundaries} confini (${rounds.labels.join(', ')}), numeri ${rounds.shown.join(' ')}`,
+      [
+        ...(rounds.lines !== rounds.boundaries ? [`${rounds.lines} linee invece di ${rounds.boundaries}`] : []),
+        ...(!rounds.boundaries ? ['nessun confine fra turni da misurare'] : []),
+        ...(rounds.misplaced ? [`${rounds.misplaced} linee fuori posto o con l'etichetta sbagliata`] : []),
+        ...(rounds.wrongNumbers.length ? [`numeri di turno sbagliati: ${rounds.wrongNumbers.join(', ')} (a schermo ${rounds.shown.join(' ')})`] : []),
+      ]);
+
     // 4a. The titolarità badge next to every man of the pitch that has one, whole and in its colour.
     const pitchRungs = await evaluate(session, () => {
       const badges = [...document.querySelectorAll('[data-column="pitch"] [data-pitch-rung]')];
@@ -552,6 +596,40 @@ async function main() {
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
 
+    // 5a'. The place filter: pick «fino al 3°» with a real pointer; every man left would let me call 3rd
+    // or better in the next turn, and the list shrinks.
+    const totalAll = Number(await evaluate(session, () => document.querySelector('[data-total]')?.getAttribute('data-total')));
+    // THE LIMIT IS READ FROM THE ROWS, not chosen: whether «3rd» keeps anybody depends on how much this
+    // squad has spent (measured, Serie A after 42 picks: nobody - which is right, not a defect). The
+    // smallest place a row offers keeps somebody and, where places differ, drops somebody.
+    const placesNow = await evaluate(session, () =>
+      [...document.querySelectorAll('[data-free]')].map((one) => Number(one.getAttribute('data-next'))));
+    const limit = Math.min(...placesNow);
+    const varied = new Set(placesNow).size > 1;
+    await mouse(await evaluate(session, centre, '[data-position-filter]'));
+    await wait(500);
+    const option = await evaluate(session, (wanted) => {
+      const one = [...document.querySelectorAll('.ant-select-item-option')].find((item) => (item.innerText ?? '').trim() === wanted);
+      if (!one) return null;
+      const rect = one.getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    }, `fino al ${limit}°`);
+    await mouse(option);
+    await wait(700);
+    const kept = await evaluate(session, () => ({
+      total: Number(document.querySelector('[data-total]')?.getAttribute('data-total')),
+      places: [...document.querySelectorAll('[data-free]')].map((one) => Number(one.getAttribute('data-next'))),
+    }));
+    note('filtro posizione', `fino al ${limit}°: ${kept.total} su ${totalAll}, posizioni viste ${[...new Set(kept.places)].sort((a, b) => a - b).join(',')}`,
+      [
+        ...(!option ? [`l'opzione «fino al ${limit}°» non c'e'`] : []),
+        ...(varied && !(kept.total < totalAll) ? ['il filtro non toglie nessuno'] : []),
+        ...(!kept.places.length ? ['il filtro toglie anche chi ci sta'] : []),
+        ...(kept.places.some((place) => !(place <= limit)) ? [`resta chi farebbe chiamare oltre il ${limit}°`] : []),
+      ]);
+    await mouse(await evaluate(session, centre, '[data-position-filter] .ant-select-clear'));
+    await wait(600);
+
     // 5b'. The titolarità column: its header, and full words in coloured badges.
     const rungs = await evaluate(session, () => ({
       header: [...document.querySelectorAll('[data-free-head] [data-sort="press"]')].map((one) => one.innerText.trim())[0] ?? '',
@@ -646,6 +724,37 @@ async function main() {
         ...(!fmLast?.length ? ['la colonna Fm della stagione scorsa non si legge'] : []),
         ...(fmLast && !ordered(fmLast, true) ? ['Fm della stagione scorsa non ordinata'] : []),
         ...(pvNow && !ordered(pvNow, true) ? ['Pv di questa stagione non ordinata'] : []),
+      ]);
+
+    // 7. The hand-written table survives a refresh; written for another league, it is not replayed.
+    const beforeReload = await evaluate(session, () => ({
+      squad: document.querySelector('[data-column="pitch"]')?.getAttribute('data-squad'),
+      // The picks made, not the free list's total: that one depends on the filters, which a refresh resets.
+      picks: [...document.querySelectorAll('[data-seat]')].reduce((sum, one) => sum + Number(one.getAttribute('data-picks')), 0),
+      clock: document.querySelector('[data-seat][data-clock]')?.getAttribute('data-seat'),
+    }));
+    await session.send('Page.reload');
+    await wait(1500);
+    const reloaded = await settle(() => true, 'reload');
+    const afterReload = await evaluate(session, () => ({
+      squad: document.querySelector('[data-column="pitch"]')?.getAttribute('data-squad'),
+      // The picks made, not the free list's total: that one depends on the filters, which a refresh resets.
+      picks: [...document.querySelectorAll('[data-seat]')].reduce((sum, one) => sum + Number(one.getAttribute('data-picks')), 0),
+      clock: document.querySelector('[data-seat][data-clock]')?.getAttribute('data-seat'),
+    }));
+    await evaluate(session, () => {
+      const league = JSON.parse(localStorage.getItem('fantassistant.options.league') ?? '{}');
+      localStorage.setItem('fantassistant.options.league', JSON.stringify({ ...league, teams: (league.teams ?? 10) - 1 }));
+    });
+    await session.send('Page.reload');
+    await wait(1500);
+    const otherLeague = await settle(() => true, 'other league');
+    note('scelte salvate', `prima rosa ${beforeReload.squad}, scelte ${beforeReload.picks}, di turno ${beforeReload.clock}; `
+      + `dopo il refresh ${afterReload.squad}/${afterReload.picks}/${afterReload.clock}; con un'altra lega rosa ${otherLeague.squadSize}`,
+      [
+        ...(JSON.stringify(beforeReload) !== JSON.stringify(afterReload) ? ['il refresh non riporta il tavolo com\'era'] : []),
+        ...(reloaded.scrolls ? ['dopo il refresh la pagina scorre'] : []),
+        ...(otherLeague.squadSize !== 0 ? ['le scelte di un\'altra lega sono state rigiocate'] : []),
       ]);
 
     const at = argv.indexOf('--shot');
