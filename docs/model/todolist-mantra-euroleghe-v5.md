@@ -1,5 +1,26 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 29 settembre 2026 — la stagione scorsa ricostruita
+
+1. **Il nome del campionato sulla riga ricostruita** (proposto all'operatore, in attesa di risposta): un
+   tooltip corto sulla stagione in corsivo, es. «Championship · Transfermarkt», perche' Harwood-Bellis 7:2 in
+   Serie B inglese si legge come un errore. `desc_tm_comp` porta gia' il codice del provider (`GB2`): serve
+   la traduzione codice -> nome, che oggi non esiste da nessuna parte.
+2. **Il prior della rev 77 tratta da giovanili BRA1, PL1 e AR1N**: `abroad.youth_competitions` con la soglia di
+   default (eta' mediana <= 20) su `tm_appearances` intera, dove in quei campionati seguiamo soprattutto
+   ragazzi. La soglia 18 li distingue (giovanili 17-18). Cambiarla muove le presenze attese del foglio euro
+   per chi arriva da li': decisione dell'operatore, da misurare come la rev 77 (due date retrodatate).
+3. **`test_smoke::test_league_setup_has_usable_defaults_and_derives_the_mantra_slots` e' rosso su HEAD** dal
+   commit `0b0178d` (EuroLeghe 2 porte + 30): asserisce una ripartizione Mantra `(3, 2, 3, 2)` e legge
+   `(2, 3, 5, 2)`. Da correggere sull'intento, non sul valore.
+4. **Presenze sintetiche +1,3**: `seasonLineFromMatches` conta come presenza a voto ogni partita con un voto
+   sintetico, mentre il gioco da' s.v. agli spezzoni. Una soglia di minuti la chiuderebbe; misurarla sui 678
+   uomini con entrambe le righe prima di sceglierla.
+5. **Le altre viste non leggono ancora la stagione ricostruita**: plancia (preset «stagione scorsa»),
+   Strategia (pastiglie Pv/MV/FM di una stagione) e buste chiuse leggono solo `season_stats`. Il lettore e'
+   uno (`season-line.ts`); portarlo li' e' lavoro, non misura. La Strategia e' nei file dell'altra sessione.
+6. **Pubblicare** su gh-pages quando il branch `draft-assistant` torna su `master`.
+
 ## Aperti alla chiusura del 28 settembre 2026 (IV) — il regolamento EuroLeghe 26/27
 
 1. **Confermare quante squadre ha la lega EuroLeghe** (config: 12). Se diverso, cambiare `teams` in

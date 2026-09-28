@@ -495,6 +495,24 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.105 (29 settembre 2026 — LA STAGIONE SCORSA DA TRANSFERMARKT SUL FOGLIO, `desc_tm_*`)
+
+`SHEET_REVISION` 78. Cinque colonne REPORTING - `desc_tm_comp` (codice del provider), `desc_tm_matches`,
+`desc_tm_minutes`, `desc_tm_goals`, `desc_tm_assists` - con la stagione di campionato di ogni uomo nella
+stagione di INPUT, da `tm_appearances`. Nate per lo schermo: chi la piattaforma non ha votato e non ha
+nemmeno un voto sintetico (Tzolis in Belgio, Ortega J. in Segunda RFEF) aveva una riga di trattini.
+
+- **Una funzione, due lettori**: `snapshot.prior_from_tm` (rev 77) prende `any_tier` e `youth_median`. Coi
+  default resta il prior misurato (prime divisioni, giovanili a eta' mediana <= 20); lo schermo la chiama con
+  `any_tier=True` (`TM_ANY_TIER`: paese, livello, girone) e `youth_median=TM_SHOWN_YOUTH_MEDIAN` = 18. La
+  funzione ora porta anche gol e assist, che il prior ignora.
+- **La soglia 18 e' misurata**, non scelta: vedi `letture-app-v1.md` §56.4. `abroad.youth_competitions`
+  prende la soglia come parametro, il suo default non cambia.
+- **Colonne in `export.SHEET_COLUMNS` e in `SHEET_COLUMNS_OPTIONAL`**, quindi un foglio piu' vecchio si
+  esporta lo stesso e l'app legge l'assenza come «nessuna colonna», mai come zero.
+- **`engine_*` fermo**: il motore non legge `desc_*`. Nessun `backtest --verify` dovuto.
+- Il lettore dell'app e' `core/season-line.ts` (`seasonLinesFromSheet`), sul branch `draft-assistant`.
+
 ## Novità v9.104 (28 settembre 2026 — UN TURNO SILENZIOSO NON È UN TURNO AMBIGUO, e un club fuori perimetro ha comunque giocato)
 
 Nata da due segnalazioni dell'operatore sulla vista Squadre EuroLeghe: «mancano le partite delle vecchie

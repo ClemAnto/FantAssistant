@@ -7824,6 +7824,20 @@ legge i sedici di prima. Il ripiego sul CAMPIONATO cura subito chi ha cambiato p
 23 fantavoti restituiti) e **non** chi ha cambiato club dentro la Serie A: quello vuole il foglio nuovo,
 ed e' scritto negli aperti invece di essere lasciato scoprire.
 
+## La stagione che la piattaforma non ha votato si RICOSTRUISCE in corsivo, e i gradini sono tre
+**29/09/2026, dalla vista «medie» del draft: 263 quotati euro su 920 senza la riga 2025-26, perche' EuroLeghe
+vota solo i club del suo perimetro. Dettaglio: `letture-app-v1.md` §56.** La riga vera vince sempre; se manca,
+la si ricostruisce dalle STESSE partite della card col voto sintetico (`core/season-line.ts`,
+`seasonLineFromMatches` - una definizione del fantavoto, non due); se manca anche quella, la stagione di
+campionato da Transfermarkt (`desc_tm_*`, rev 78) con presenze e G:A e **MV/FM a trattino**, perche' la fonte
+non porta voti. I due gradini ricostruiti stanno in CORSIVO (`SeasonLine.synthetic`), su sua indicazione: un
+numero che non ha segnato il gioco non deve leggersi come uno che l'ha segnato. Il sintetico e' misurato prima
+di mostrarlo (MV errore 0,14, FM 0,23, presenze +1,3 su 678 uomini con entrambe le righe). Due trappole
+pagate: i codici di Transfermarkt non sono gli slug di Sofascore (`GB2` non contiene la parola «cup» ne'
+«league»), quindi un campionato e' un codice di lega non nazionale e non giovanile per eta' mediana <= 18 - i
+20 di `abroad` scartano Segunda RFEF, Brasileirao ed Ekstraklasa, dove seguiamo pochi ragazzi; e un «7:2»
+giusto (Harwood-Bellis in Championship) si legge come un errore finche' la riga non nomina il campionato.
+
 ## A successful PUSH is not a published site, and a deploy publishes the WORKING TREE
 **24/09/2026, from «riesci a pubblicare online la webapp?»** — `npm run deploy:pages`, v0.1.26, the real
 bundle exported that morning. The site had been stuck on the deploy of 20/08, so what went online is a

@@ -7181,3 +7181,59 @@ le cause scendono da **50 a 29**. L'artifact del confronto è ripubblicato su qu
 E una domanda dello stesso giorno, perché la risposta sta in questo documento e non altrove: **in un draft la
 valuta è il VALORE** (`fm × pv`, misurato il 10/08 su `bench/draft`, surplus −4,0%), non lo SWING. Lo SWING
 (§32) sottrae uno zero come il surplus e non è mai stato messo sul banco del draft: è un aperto, non un verdetto.
+
+## 56 - LA STAGIONE SCORSA DI CHI LA PIATTAFORMA NON HA VOTATO (29 settembre 2026)
+
+Richiesta dell'operatore sulla vista «medie» del Draft Assistant: «recuperiamo i valori dello scorso anno di
+Evanilson, Lepaul, Ortega J., Tzolis e tutti quelli a cui mancano», e poco dopo «va bene anche visualizzare i
+valori sintetici (in corsivo)».
+
+### 56.1 Perche' mancavano
+
+`season_stats` e' cio' che il gioco ha SEGNATO su quella piattaforma, e EuroLeghe vota solo i club del suo
+perimetro: **263 quotati su 920** del listone 2026-27 non hanno la riga 2025-26. Contati per sorgente
+recuperabile: 104 hanno le partite di uno dei cinque campionati col voto sintetico, 31 hanno giocato in Serie A
+in un club fuori perimetro, 34 hanno solo partite di altre competizioni col voto dichiarato (spesso le sole
+ultime dieci), 81 solo Transfermarkt, 13 niente.
+
+### 56.2 Tre gradini, e il corsivo
+
+1. **La riga vera** di `season_stats`, quando c'e'. Vince sempre.
+2. **La riga ricostruita col voto sintetico** (`seasonLineFromMatches`): dalle STESSE celle della card
+   (`PlayersStore.matchesOf`), che `promoteUnrated` mette gia' sul calendario EuroLeghe. Pv = partite di
+   campionato con un voto, MV e FM sulle loro medie, gol con i rigori. Una definizione del fantavoto, non due.
+3. **La stagione da Transfermarkt** (`seasonLinesFromSheet`, colonne `desc_tm_*` del foglio, rev 78): il
+   campionato senior piu' giocato, presenze, minuti, gol, assist. MV e FM restano a trattino: la fonte non
+   porta voti, e prenderne uno da un'altra parte sarebbe inventarlo. Solo per la stagione scorsa.
+
+Il secondo e il terzo gradino si scrivono in CORSIVO (`SeasonLine.synthetic`): un numero ricostruito che si
+legge come uno segnato e' il difetto che il `~` esiste per impedire.
+
+### 56.3 Quanto vale il sintetico
+
+Sui 678 uomini euro 2025-26 con la riga vera e almeno 10 partite sintetiche: **MV -0,06 di scarto (errore
+0,14), FM +0,08 (0,23)** - il livello per-partita non porta cartellini - e **presenze +1,3**: uno spezzone ha
+il rating del provider e il gioco gli da' s.v. Buono da leggere, non da scambiare per un numero segnato.
+
+### 56.4 Cosa conta come campionato su Transfermarkt
+
+I codici del provider non sono gli slug di Sofascore, quindi la regola di `abroad._is_league` (parole come
+«cup») non si applica. Un campionato e' un codice di lega - paese, livello, girone (`GB1`, `BE1`, `E4G5`,
+`IT3A`, `TM_ANY_TIER`) - non nazionale, e non giovanile per ETA' MEDIANA. La soglia e' **18** e non i 20 di
+`abroad`, misurata su `tm_appearances` intera: le serie minori senior dove seguiamo pochi ragazzi stanno a
+19-20 (Segunda RFEF 19; Primera RFEF, Brasileirao, Ekstraklasa, 3. Liga 20), le giovanili a 17-18 (Primavera
+`IJ1` 18, Youth League 17, PL International Cup 18). Chi ha giocato in due campionati tiene quello con piu'
+presenze. Le coppe restano fuori per costruzione: Harwood-Bellis legge 7:2 che e' la sua Championship (41
+presenze), e FA Cup, League Cup e playoff (0:1) non entrano.
+
+**Le presenze sono sul calendario del SUO campionato** (30 giornate in Belgio, 34 in Segunda RFEF), non sulle
+31 della piattaforma: un fatto su di lui, non una conversione. E Evanilson legge 29 dal sintetico (calendario
+euro) mentre Transfermarkt gli da' 36 (Premier intera): il gradino piu' alto vince, quindi la riga resta sul
+calendario della piattaforma dove puo'.
+
+### 56.5 Un limite trovato per strada
+
+`prior_from_tm` (rev 77) usa la soglia 20, quindi tratta da giovanili anche **BRA1, PL1 e AR1N**. Il prior non
+e' stato toccato - cambiarlo muove le presenze attese del foglio euro per chi arriva da li' - ed e' a verbale
+fra gli aperti.
+
