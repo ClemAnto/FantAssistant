@@ -7197,6 +7197,20 @@ criterio è l'IDENTITÀ presa dove non è in dubbio, la stagione bersaglio. Due 
 stantii: 2.414 righe diverse, che col braccio di base rifatto sono diventate 14 tier), e **una sonda che
 segnala 36 colonne «sbagliate» va letta prima di crederle** — erano tutte la sua tabella di alias.
 
+## Le PORTE e il tetto del draft sono REGOLE DI LEGA, e una porta ha una valutazione sua
+**28/09/2026, `assistente-asta-v1.md` §62-§63.** Due regolamenti dichiarati dall'operatore, nelle Opzioni
+(`LeagueSettings`) e mai adottati dalla sessione, perché fanta-asta-live non li pubblica in nessun campo
+letto. **`draftCap`** («FVM ≥ 213 congelati per 5 turni»): un VINCOLO e non un peso, per noi e per ogni
+rivale simulato (`auction-plan.capBlocks`), sul numero di scelta della SQUADRA; i bloccati si mostrano
+CONGELATI e mai nascosti. **`porte`**: una porta è un CLUB, del primo che chiama un suo portiere, e vale il
+mix dei suoi portieri PESATO SULLE PRESENZE ATTESE (sua definizione) con le presenze sommate fino al
+calendario (`auction-value.portaValuation`); lo zero è la porta marginale al rango `squadre × porte`
+(`core/porte.ts`), mai il terzo portiere del foglio; il numero di porte è il campo portieri delle rose, e
+vince sui posti portiere della sessione. Una definizione e tre lettori (Segui un'asta, Strategia, Plancia):
+chi aggiunge una pagina che elenca portieri passa da `collapseKeepers`, o una porta avrà due valori. Sulla
+riga di una porta i fatti di UN uomo (marchi, minuti, titolarità) non si scrivono; la card mostra il
+titolare.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

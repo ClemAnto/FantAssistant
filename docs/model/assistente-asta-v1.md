@@ -5745,3 +5745,130 @@ dalla prima `.truncate` della card mentre il ciclo subito sotto scriveva `out[<g
 quando anche il nome è un gruppo dichiarato veniva sovrascritto con la cella che quel gruppo non aveva —
 e il banco accusava la pagina di non mettere nessuno in asta. *Un banco si aggancia all'attributo che un
 componente DICHIARA*, e qui il valore è stato dichiarato invece di essere cercato.
+
+## 62. IL TETTO DI FVM DEI PRIMI TURNI DEL DRAFT (28 settembre 2026)
+
+Regola nuova della sua lega, dichiarata dall'operatore: «non è possibile chiamare un calciatore sopra un
+certo FVM prima dell'ennesimo turno — nel nostro caso FVM ≥ 213 prima del sesto». È un REGOLAMENTO e non
+una scelta di modello, quindi nessun banco lo possiede: sta in `LeagueSettings.draftCap` (`on`, `fvm`,
+`frozenTurns`, di partenza 213 e 5, acceso — «FVM=213 e Turni Congelati=5» nelle sue parole: si salva il
+numero che lui dice, e il turno in cui un uomo si scongela, `frozenTurns + 1`, si deriva dove lo si scrive;
+il primo salvataggio dello stesso giorno teneva `fromTurn` e si legge ancora come `fromTurn − 1`) accanto al modificatore di difesa e agli altri, e il tavolo di
+fanta-asta-live **non lo pubblica in nessun campo che questo progetto abbia letto**, quindi non si adotta
+dalla sessione e non si indovina il nome di un campo. Se la piattaforma lo porta davvero, la modale della
+sessione lo mostrerà fra le chiavi non lette (`AuctionFeed.unreadState`), e allora si legge da lì.
+
+**Si applica come VINCOLO e mai come peso** (`auction-plan.PickCap`, `capBlocks`): un uomo bloccato non
+«vale meno», per quella squadra quel turno non è sul tabellone. Tre scelte, ognuna con la sua ragione.
+- **Il turno è la scelta numero N della SQUADRA** (`picksCount + 1`), non il giro del tavolo: con
+  `maxAheadPicks` sopra uno le rose non sono tutte allo stesso giro, e «prima del sesto turno» è una frase
+  sul sesto pick di ciascuna. La soglia è INCLUSA (`>=`, il suo segno).
+- **Vincola TUTTI, ed è per questo che conta due volte**: noi non possiamo prendere i cari presto, e
+  nemmeno un rivale. Quindi entra in `pickForUs`, in `predictRivalPick`, in `goneBeforeOurNextTurn` (chi
+  «sparirà» prima del nostro turno — senza il tetto il piano ci farebbe correre dietro a nomi che nessuno
+  può ancora prendere, e lo `SURVIVOR_DISCOUNT` misurato li tratterebbe come urgenti), nelle tre radici, e
+  nel **classificatore delle teste**, che rigioca i pick passati: senza il tetto un rivale «a prezzo»
+  risulterebbe sbagliare i suoi primi cinque pick (il più caro gli era vietato) e verrebbe classificato
+  con la testa sbagliata. Anche la **demo** lo rispetta: un tavolo finto che viola il regolamento sotto cui
+  si gioca aprirebbe su uno stato che il tavolo vero non può raggiungere.
+- **Solo in un draft**, e lo decide il TAVOLO che si segue e non la lega dichiarata: per questo il
+  controllo nelle Opzioni è sempre a schermo (con «solo nei draft») invece di comparire col solo «Draft»
+  dichiarato — la demo è un draft anche con la lega dichiarata a rilanci, e un vincolo attivo col
+  controllo nascosto agirebbe in silenzio.
+
+A schermo: una riga col lucchetto sotto la scelta consigliata («FVM ≥ 213 congelati per 5 turni · tu sei al
+3°: ancora 3 turni congelati», e dal sesto «per te sono sbloccati, per chi è indietro no», con un «modifica»
+che apre le Opzioni, perché continua a
+plasmare le previsioni sui rivali); sui liberi bloccati una pastiglia CONGELATA col turno da cui si
+sbloccano («🔒6°», token `--color-frozen`, azzurro ghiaccio), con la ragione in testa al tooltip; e il «e se prendessi lui?» su un bloccato si RIFIUTA dicendolo (`plan()` ignora una
+radice vietata anche da solo, perché è lì che la catena si decide).
+
+Verificato su un browser vero, tavolo demo (EuroLeghe mantra, noi al 3° turno): nei giri che per tutti sono
+il 3°–5° turno nessuna previsione supera 213, al «Giro +3» (6° turno) escono tutti insieme (376 · 490 ·
+373 · 371 …), i pick già fatti dalla demo stanno tutti sotto 213, i lucchetti sono su tutte e sole le 13
+righe ≥ 213; col tetto spento riga e lucchetti spariscono. Sette test unitari, e spegnendo `capBlocks`
+cadono esattamente quei sette. Nessun numero del motore si muove.
+
+**Congelati e non nascosti** (sua correzione dello stesso giorno: «i calciatori freezati non devono essere
+nascosti alla vista ma congelati»). La prima versione smorzava la riga al 50%, e un nome smorzato si legge
+come un nome che non conta — mentre è esattamente quello da tenere d'occhio, perché fra pochi turni si potrà
+chiamare e intanto nessun rivale può prenderlo. Ora il nome resta a piena leggibilità e il marchio dice solo
+DA QUANDO. Colore suo e non preso da una banda del voto, perché un colore non dice due cose. Misurato nel
+browser: opacità 1 su tutte le 60 righe, inchiostro `rgb(125, 211, 252)` su tutte e 13 le congelate.
+
+## 63. LA PORTA HA UN VALORE SUO, e sullo schermo è una SQUADRA (28 settembre 2026)
+
+Richiesta dell'operatore: «quando si attiva l'opzione porte vs portieri, anche il resto dell'interfaccia si
+adeguasse e non mostrassi più il nome del portiere ma della squadra e calcolassi i relativi surplus», con la
+definizione: «la porta di una squadra diventa un mix dei valori dei portieri che compongono quella rosa
+proporzionati con le partite che giocheranno».
+
+- **La valutazione** è `auction-value.portaValuation`: fantamedia = media dei portieri del club PESATA
+  sulle presenze attese; presenze = la loro SOMMA, col tetto del calendario (due portieri di un club non
+  giocano la stessa partita); confidenza pesata allo stesso modo; un portiere non prezzato resta fuori e un
+  club senza nessun portiere prezzato non ha numero. È una `Valuation` come quella di un uomo, quindi
+  surplus, valore e ogni colonna girano sull'aritmetica che esiste già.
+- **Due zeri suoi**, non quello del foglio: `engine_replacement_fm` dei portieri è il marginale di una rosa
+  che ne tiene tre per squadra, cioè un terzo portiere, e una porta non è mai un terzo portiere. Il «vivo»
+  è la porta marginale fra le libere (squadre × posti portiere, meno le porte già prese) e legge «+/10g»;
+  quello «di lega» è lo stesso rango su tutto il listone e legge il lead.
+- **A schermo**: la lista dei portieri diventa «Migliori porte libere», una riga per club con tutte le
+  colonne (prima era una card a parte con il solo prezzo); rosa, ultimi movimenti, campetto fanta e piano
+  nominano il CLUB; i marchi di un singolo portiere (infortunio, schermi) non si disegnano su una porta, e
+  il tooltip dice di quali portieri è fatta e che la si prende anche chiamando il più economico
+  (`Porta.cheapest`: in un draft un pick costa il FVM di chi chiami, e la porta la dà chiunque). Il FVM della
+  riga resta quello del portiere più caro, cioè cosa chiama chi compra per prezzo.
+- `portaStandIns` (il portiere migliore «in rappresentanza» della porta) è stato tolto: aveva un lettore
+  solo, il piano, che ora legge la riga porta da `ranked()`.
+
+**...e lo stesso giorno la regola è diventata della LEGA** (sua risposta: «sì "porte" dovrebbe essere nelle
+opzioni di lega globali»): `LeagueSettings.porte`, un interruttore nelle Opzioni accanto al modificatore di
+difesa, e l'interruttore della pagina d'asta scrive quella dichiarazione invece di tenersene una sua. Il feed
+non può leggere `GlobalOptions` (è lui a iniettarlo), quindi la regola gli arriva da un effetto, in una
+direzione sola; la vecchia scelta salvata con la sessione si legge ancora una volta come migrazione.
+
+L'aritmetica comune è `core/porte.ts` — `mixPorta` (la valutazione di `portaValuation` più la COSTANZA
+pesata sulle presenze), `porteZero` (la porta marginale al rango `squadre × posti portiere`) e
+`collapseKeepers` (sostituisce, in una lista qualsiasi, i portieri di un club con la riga della sua porta) —
+e la leggono tre pagine:
+- **Strategia**: il blocco dei portieri diventa «Porte», una riga per club con surplus e SWING rifatti contro
+  lo zero delle porte (il +1 a porta inviolata legge il calendario del CLUB, che era già la sua unità). Le
+  letture che sono fatti su un uomo — minuti, stagioni, prezzo pagato, titolarità, categoria, ultime cinque —
+  restano vuote: un minutaggio del titolare sotto il nome di un club sarebbe una frase falsa.
+- **Plancia**: le fasce P elencano porte; l'id della riga è quello del portiere già preso se qualcuno ne ha
+  preso uno (la porta è del primo, e la plancia legge i padroni per id), altrimenti del portiere che il
+  motore aspetta di più in campo. Negli accoppiamenti dei portieri il filtro «solo il primo portiere» non
+  si applica più: la riga è già il club.
+- **Segui un'asta**: come sopra.
+
+Misurato nel browser: con la regola spenta le tre pagine mostrano i 30 portieri di sempre; accesa, la
+Strategia legge «Porte 20/30» e la Plancia 20 porte su due fasce, nessun marchio di singolo portiere.
+
+**Un fatto che quel «20/30» rende visibile**: in una lega da dieci con tre posti portiere le porte di Serie A
+sono **20 per 30 posti**. La regola delle porte, così com'è dichiarata, non è soddisfacibile per tutti su quel
+listone: o la lega gioca meno porte per squadra, o qualcuno resta scoperto. È una domanda sul SUO regolamento.
+
+**Resta fuori**: la card del calciatore aperta da una porta mostra il portiere che la rappresenta, e la
+vista Squadre (i campetti dei club veri) non la tocca, perché lì un portiere è un uomo di un club vero.
+
+**Dalla simulazione del draft a 12 dello stesso giorno** (listone EuroLeghe senza Serie A, tetto ≥ 213 per
+5 turni, porte): le porte sono **27 per 36 posti** (12 × 3), quindi qualcuno resta per forza senza la
+terza; chi le prende presto chiamando il portiere da 1 ne ha tre e resta basso nell'ordine, chi compra per
+FVM le rimanda e finisce con 1-2 porte e 0,5-1,0 posti scoperti a giornata.
+
+**...e la sua risposta al «20/30», lo stesso giorno**: «nella mia lega deve essere configurato come 2 porte
+su listone euroleghe (senza serie A)». Quindi 12 × 2 = 24 posti per 27 porte, e la regola torna
+soddisfacibile. Due conseguenze nel codice:
+- **Il NUMERO di porte è della lega**: il campo dei portieri delle rose nelle Opzioni (con «Porte» acceso
+  porta la scritta «porte»). `GlobalOptions` lo scrive in `AuctionFeed.porteSlots` insieme a `keeperMode`, e
+  con le porte accese vince sui posti portiere che la sessione dichiara — quelli sono i posti del software,
+  non le porte della lega: lo zero delle porte, il tetto del piano e «porte da prendere» lo leggono.
+- **La card di una porta** mostra i dati del portiere TITOLARE del club (quello che il motore aspetta di più
+  in campo) e, in una riga sotto il club, «Porta X · titolare · altri: …» con gli altri portieri solo
+  nominati; la parte d'asta della card (max offerta, prezzo, padrone) resta quella della PORTA, perché è la
+  porta che si compra. `portaStarter` viaggia sulla riga fusa (Plancia e Strategia), così la card non deve
+  ritrovare il titolare altrove. Verificato nel browser su Roma: Svilar, «altri: Gollini, De Marzi».
+
+Rifatta la simulazione del draft con 2 porte (30 tavole): ogni rosa ha le sue due, e le conclusioni non si
+muovono — stare apposta nei primi 3 vale −0,05 / −0,16 punti a giornata rispetto al valore senza vincolo,
+comprare per valore invece che per FVM +1,8 (un tetto: le rose sono giudicate coi nostri stessi numeri).

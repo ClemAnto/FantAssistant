@@ -179,6 +179,14 @@ export interface PlanciaMan {
    * qui non filtra niente: si disegna, e chi guarda decide.
    */
   outOfSquad?: boolean;
+  /**
+   * LA PORTA, con la regola delle porte accesa (`LeagueSettings.porte`, 28/09/2026): la riga è allora un
+   * CLUB, `name` è il club e qui ci sono i portieri di cui è fatta. Assente per ogni uomo.
+   */
+  porta?: readonly string[];
+  /** ...e il portiere TITOLARE della porta (il più atteso in campo), la riga com'era prima della fusione:
+   *  la card di una porta mostra i suoi dati. */
+  portaStarter?: PlanciaMan;
 }
 
 export interface SlotBlock {

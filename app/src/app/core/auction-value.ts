@@ -124,6 +124,41 @@ export function valuationOf(numbers: EngineNumbers | undefined): Valuation {
 }
 
 /**
+ * THE VALUATION OF A PORTA: a club's goal, when the league plays the porte rule (§14.1).
+ *
+ * The operator's definition, 28/09/2026: «la porta di una squadra diventa un mix dei valori dei portieri che
+ * compongono quella rosa, proporzionati con le partite che giocheranno». So the fantamedia is the average of
+ * the club's keepers WEIGHTED BY THEIR EXPECTED APPEARANCES, and the appearances are their SUM - two keepers
+ * of one club never play the same match, so their appearances add up instead of overlapping - capped at the
+ * calendar, which no goal can exceed. The confidence is weighted the same way: a porta whose games are mostly
+ * an estimated keeper's is mostly an estimate.
+ *
+ * It is the same `Valuation` a man has, on purpose: the surplus, the value and every column the panel draws
+ * then run on the ONE arithmetic they already use, and a porta cannot end up with a second definition of
+ * «surplus» beside a player's. A keeper nobody can price is left out rather than counted as a zero; a club
+ * none of whose keepers is priced has no number («vuoto = ignoto, mai zero»).
+ */
+export function portaValuation(keepers: Valuation[], matchdays: number | null): Valuation {
+  const priced = keepers.filter(
+    (keeper) => keeper.fm != null && keeper.pv != null && keeper.pv > 0,
+  );
+  const apps = priced.reduce((sum, keeper) => sum + keeper.pv!, 0);
+  if (!priced.length || apps <= 0) {
+    return { basis: 'none', fm: null, pv: null, slot: 'por', confidence: 0, note: 'nessun portiere prezzato' };
+  }
+  const fm = priced.reduce((sum, keeper) => sum + keeper.fm! * keeper.pv!, 0) / apps;
+  const confidence = priced.reduce((sum, keeper) => sum + keeper.confidence * keeper.pv!, 0) / apps;
+  return {
+    basis: priced.every((keeper) => keeper.basis === 'measured') ? 'measured' : 'estimated',
+    fm,
+    pv: matchdays ? Math.min(matchdays, apps) : apps,
+    slot: 'por',
+    confidence,
+    note: `porta: ${priced.length} ${priced.length === 1 ? 'portiere' : 'portieri'}, pesati sulle presenze attese`,
+  };
+}
+
+/**
  * How many men of each slot the table is going to buy, DERIVED from the sheet instead of configured.
  *
  * The sheet's own `engine_replacement_fm` already encodes the league setup (`teams x squad_slots`, via

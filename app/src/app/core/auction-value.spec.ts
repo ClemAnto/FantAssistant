@@ -11,6 +11,7 @@ import {
   surplusOf,
   valuationOf,
   valueOf,
+  portaValuation,
 } from './auction-value';
 
 const numbers = (over: Partial<EngineNumbers> = {}): EngineNumbers => ({
@@ -265,5 +266,35 @@ describe('slotShares and demandFromShapes', () => {
     expect(slotShares({ slot_roles: {}, modules: {} }).size).toBe(0);
     expect(demandFromShapes(slotShares(rules), 0, 30).size).toBe(0);
     expect(demandFromShapes(slotShares(rules), 10, 0).size).toBe(0);
+  });
+});
+
+describe('portaValuation (operator, 28/09/2026: the keepers mixed by the matches each will play)', () => {
+  const keeper = (fm: number | null, pv: number | null, confidence = 1, basis: 'measured' | 'estimated' = 'measured') =>
+    ({ basis, fm, pv, slot: 'por', confidence, note: null }) as const;
+
+  it('weighs each keeper by his expected appearances, and adds the appearances up', () => {
+    // A starter at 5.2 over 30 matches and a deputy at 4.6 over 6: (5.2x30 + 4.6x6) / 36 = 5.1.
+    const porta = portaValuation([keeper(5.2, 30), keeper(4.6, 6)], 38);
+    expect(porta.fm).toBeCloseTo(5.1, 6);
+    expect(porta.pv).toBe(36);
+    expect(porta.basis).toBe('measured');
+  });
+
+  it('caps the appearances at the calendar: two keepers of one club never play the same match', () => {
+    expect(portaValuation([keeper(5, 30), keeper(5, 20)], 38).pv).toBe(38);
+  });
+
+  it('carries the confidence weighted the same way, and turns estimated if any keeper is', () => {
+    const porta = portaValuation([keeper(5, 30), keeper(5, 10, 0.5, 'estimated')], 38);
+    expect(porta.confidence).toBeCloseTo((30 + 5) / 40, 6);
+    expect(porta.basis).toBe('estimated');
+  });
+
+  it('leaves out a keeper nobody can price, and has no number when none of them has one', () => {
+    expect(portaValuation([keeper(5.2, 30), keeper(null, null)], 38).fm).toBeCloseTo(5.2, 6);
+    const none = portaValuation([keeper(null, null)], 38);
+    expect(none.basis).toBe('none');
+    expect(none.fm).toBeNull();
   });
 });

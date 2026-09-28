@@ -112,6 +112,9 @@
                     [ngModel]="form().slots.classic[role]"
                     (ngModelChange)="patchClassic(role, $event)"
                   />
+                  @if (role === 'P' && form().porte) {
+                    <span class="text-xs text-muted">porte</span>
+                  }
                 </label>
               }
             </div>
@@ -129,6 +132,9 @@
                   [ngModel]="form().slots.mantra.por"
                   (ngModelChange)="patchMantra('por', $event)"
                 />
+                @if (form().porte) {
+                  <span class="text-xs text-muted">porte</span>
+                }
               </label>
               <label class="flex items-center gap-2 text-sm">
                 <span class="text-muted">Movimento</span>
@@ -189,6 +195,61 @@
             >
               cambia la valuta delle liste
             </span>
+          </label>
+
+          <!-- IL TETTO DI FVM DEI PRIMI TURNI. Sempre a schermo e non solo col «Draft» qui sopra, perché
+               a decidere se vale è il TAVOLO che si segue (la demo è un draft anche con la lega dichiarata
+               a rilanci): un vincolo attivo il cui controllo sta nascosto è un vincolo che agisce in
+               silenzio. La portata la dice la riga stessa. -->
+          <div class="flex flex-wrap items-center gap-3">
+            <span
+              class="w-32 shrink-0 text-sm text-muted"
+              nz-tooltip
+              nzTooltipTitle="Chi ha un FVM pari o superiore alla soglia resta congelato per i primi N turni di ogni squadra: con 5 si chiama dal 6°. Vale per te e per ogni rivale."
+            >
+              Tetto FVM
+            </span>
+            <nz-switch
+              nzSize="small"
+              [ngModel]="form().draftCap.on"
+              (ngModelChange)="patchDraftCap({ on: $event })"
+            />
+            <span class="text-sm" [class.opacity-40]="!form().draftCap.on">FVM ≥</span>
+            <nz-input-number
+              class="w-20"
+              nzSize="small"
+              [nzMin]="1"
+              [nzMax]="1000"
+              [nzStep]="1"
+              [nzDisabled]="!form().draftCap.on"
+              [ngModel]="form().draftCap.fvm"
+              (ngModelChange)="patchDraftCap({ fvm: $event })"
+            />
+            <span class="text-sm" [class.opacity-40]="!form().draftCap.on">Turni congelati</span>
+            <nz-input-number
+              class="w-16"
+              nzSize="small"
+              [nzMin]="1"
+              [nzMax]="40"
+              [nzStep]="1"
+              [nzDisabled]="!form().draftCap.on"
+              [ngModel]="form().draftCap.frozenTurns"
+              (ngModelChange)="patchDraftCap({ frozenTurns: $event })"
+            />
+            <span class="text-xs text-muted">solo nei draft</span>
+          </div>
+
+          <label
+            class="flex flex-wrap items-center gap-3"
+            nz-tooltip
+            nzTooltipTitle="Porte al posto dei portieri: una porta è un club, del primo che prende un suo portiere qualsiasi, e vale la media dei suoi portieri pesata sulle partite che giocheranno."
+          >
+            <span class="w-32 shrink-0 text-sm text-muted">Porte</span>
+            <nz-switch
+              nzSize="small"
+              [ngModel]="form().porte"
+              (ngModelChange)="patch({ porte: $event })"
+            />
           </label>
 
           <label

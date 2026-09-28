@@ -25,7 +25,7 @@ import { Injectable, computed, effect, inject, signal, untracked } from '@angula
 
 import { AuctionFeed, AuctionPlayer, Zone } from './auction-feed';
 import { demoPlayers } from './auction-demo';
-import { EngineNumbers, ValuationBasis, valuationOf } from './auction-value';
+import { EngineNumbers, ValuationBasis, surplusOf, valuationOf } from './auction-value';
 import {
   Board,
   BoardMan as BundleBoardMan,
@@ -123,6 +123,7 @@ const MIN_FOCUS_SHARE = 25 / 38;
 /** ...e la quota che «gioca sempre» chiede, che e' la sua: Pa >= 25, tenuta come quota del calendario. */
 const FOCUS_RULES = { matchdays: 0, coverShare: MIN_FOCUS_SHARE };
 import { sheetBlendsSeen, swingOf } from './swing';
+import { collapseKeepers, mixPorta, porteZero } from './porte';
 
 /** The four letters of the board's lines, from the two alphabets the feed splits the outfield into. */
 const ZONE_ROLE: Record<string, Role> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
@@ -626,8 +627,103 @@ export class PlanciaStore {
         }),
       });
     }
-    return out;
+    return this.options.league().porte ? this.porteOf(out, book, csBase, platform) : out;
   });
+
+  /**
+   * LE PORTE AL POSTO DEI PORTIERI (operatore, 28/09/2026: la regola sta nelle opzioni di lega e vale per
+   * ogni pagina). I portieri di un club diventano UNA riga, nominata col club e valutata come il mix dei
+   * suoi portieri pesato sulle partite che giocheranno (`core/porte.ts`, la stessa aritmetica della
+   * Strategia e della pagina d'asta). Surplus e SWING si rifanno contro lo zero delle PORTE, non contro
+   * quello del foglio, che per i portieri è un terzo portiere.
+   *
+   * L'ID DELLA RIGA è quello del portiere già PRESO, se qualcuno ne ha preso uno: la porta è del primo che
+   * chiama un suo portiere qualsiasi, e la plancia legge chi possiede cosa per id (`owners`). Senza un
+   * padrone è il portiere che il motore aspetta di più in campo, che è chi si registra all'assegnazione.
+   */
+  private porteOf(
+    men: PlanciaMan[],
+    book: CalendarBook | null,
+    csBase: Map<LeagueCalendar, number | null>,
+    platform: Platform,
+  ): PlanciaMan[] {
+    const matchdays = this.seasonRounds();
+    const owners = this.owners();
+    const isKeeper = (man: PlanciaMan) => man.role === 'P';
+    const byClub = new Map<string, PlanciaMan[]>();
+    for (const man of men) if (isKeeper(man)) byClub.set(man.club, [...(byClub.get(man.club) ?? []), man]);
+    const mixes = new Map(
+      [...byClub].map(([club, keepers]) => [
+        club,
+        mixPorta(
+          keepers.map((keeper) => ({
+            club,
+            fm: keeper.points != null && keeper.pv ? keeper.points / keeper.pv : null,
+            pv: keeper.pv,
+            confidence: keeper.confidence,
+            estimated: keeper.basis !== 'measured',
+            steady: this.ratings.ready() ? (this.ratings.for(platform, keeper.id)?.steady?.share ?? null) : null,
+          })),
+          matchdays,
+        ),
+      ]),
+    );
+    const zero = porteZero(
+      [...mixes.values()].map((mix) => mix.valuation.fm),
+      this.teamsCount() * (this.slots().P ?? 0),
+    );
+    return collapseKeepers(men, isKeeper, (man) => man.club, (keepers) => {
+      const club = keepers[0].club;
+      const mix = mixes.get(club)!;
+      const valuation = mix.valuation;
+      const held = keepers.find((keeper) => owners.has(keeper.id));
+      // Il TITOLARE è il portiere che il motore aspetta di più in campo; l'id della riga è quello già preso,
+      // se c'è, perché la porta è del primo e i padroni si leggono per id. Sono due domande diverse.
+      const starter = [...keepers].sort((a, b) => (b.pv ?? -1) - (a.pv ?? -1))[0];
+      const standIn = held ?? starter;
+      const surplus = surplusOf(valuation, zero);
+      const calendar = book?.forClub(club) ?? null;
+      const share = calendar ? cleanSheetOutlook(calendar, club) : null;
+      const mean = calendar
+        ? (csBase.get(calendar) ?? csBase.set(calendar, cleanSheetBaseline(calendar)).get(calendar)!)
+        : null;
+      return {
+        ...standIn,
+        name: club,
+        porta: keepers.map((keeper) => keeper.name),
+        portaStarter: starter,
+        // Il FVM della porta è quello del portiere più caro: è la coordinata su cui la stanza la legge.
+        fvm: Math.max(...keepers.map((keeper) => keeper.fvm)),
+        points: valuation.fm != null && valuation.pv != null ? valuation.fm * valuation.pv : null,
+        pv: valuation.pv,
+        edge: valuation.fm != null ? valuation.fm - EDGE_BASE : null,
+        basis: valuation.basis,
+        confidence: valuation.confidence,
+        // I fatti su UN uomo non sono della porta: chi è fuori oggi lo copre chi para al posto suo.
+        out: null,
+        outNow: false,
+        longOut: false,
+        outOfSquad: false,
+        category: null,
+        surplus,
+        swing: swingOf({
+          role: 'P',
+          surplus,
+          pv: valuation.pv,
+          replacement: zero,
+          matchdays,
+          fm: valuation.fm,
+          confidence: valuation.confidence,
+          steady: mix.steady,
+          fmBlendsSeen: sheetBlendsSeen(platform),
+          rFactor: this.options.league().rFactor,
+          cleanSheetBonus: this.options.league().cleanSheet,
+          cleanSheetShare: share,
+          cleanSheetMean: mean,
+        }),
+      };
+    });
+  }
 
   readonly map = computed<PlanciaMap>(() => buildMap(this.men(), this.teamsCount(), this.slots()));
 
@@ -1710,7 +1806,8 @@ export class PlanciaStore {
         // IDENTITA'. Dove il campetto non c'e' la mappa non ha una voce e non si esclude nessuno:
         // «vuoto = ignoto», e nascondere un portiere di cui non sappiamo il posto e' inventare.
         const owner = first.get(row.club);
-        if (owner != null && owner !== row.id) {
+        // Con le porte la riga È il club, quindi non c'è un vice da escludere.
+        if (!this.options.league().porte && owner != null && owner !== row.id) {
           deputies += 1;
           continue;
         }
@@ -1832,9 +1929,9 @@ export class PlanciaStore {
     return this.cards.place((key) => {
       const id = playerOfCard(key);
       const found = id == null ? undefined : byId.get(id);
-      return found
-        ? cardManOf(found.man, found.block, numbers.get(id as number) ?? null, rounds, platform)
-        : undefined;
+      if (!found) return undefined;
+      const card = cardManOf(found.man, found.block, numbers.get(id as number) ?? null, rounds, platform);
+      return portaCard(card, found.man, found.block, numbers, rounds, platform);
     });
   });
 
@@ -2547,6 +2644,36 @@ function middleOf(values: (number | null)[]): number | null {
  * quelle di quel calendario, e passare la piattaforma sbagliata mostrerebbe le giornate di un altro gioco
  * sotto lo stesso nome.
  */
+/**
+ * LA CARD DI UNA PORTA: i dati del portiere TITOLARE (operatore, 28/09/2026), con la parte d'asta della
+ * PORTA - la max offerta, il prezzo, il padrone - perché è la porta che si compra. Gli altri portieri del
+ * club sono una nota. Una riga che non è una porta torna com'era.
+ */
+function portaCard(
+  card: CardMan,
+  man: BoardMan,
+  block: BoardBlock,
+  numbers: Map<number, EngineNumbers>,
+  rounds: number | null,
+  platform: Platform,
+): CardMan {
+  const starter = man.portaStarter;
+  if (!starter) return card;
+  const own = cardManOf(
+    { ...man, ...starter, porta: undefined, portaStarter: undefined } as BoardMan,
+    block,
+    numbers.get(starter.id) ?? null,
+    rounds,
+    platform,
+  );
+  return {
+    ...own,
+    where: card.where,
+    market: card.market,
+    porta: { club: man.club, others: (man.porta ?? []).filter((name) => name !== starter.name) },
+  };
+}
+
 function cardManOf(
   man: BoardMan,
   block: BoardBlock,

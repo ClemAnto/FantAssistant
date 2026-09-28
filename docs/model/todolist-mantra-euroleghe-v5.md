@@ -1,5 +1,31 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 28 settembre 2026 (II) — il tetto FVM del draft e le porte
+
+1. **Le porte della STRATEGIA sono ancora da committare**, dentro i tre file misti col trend dell'altra
+   sessione (`core/strategy.ts`, `views/strategy/strategy.ts`, `views/strategy/strategy.html`). Vanno col
+   loro commit, verificati insieme (albero completo 1182 test verdi il 28/09).
+2. **La sua lega va DICHIARATA nel suo browser** (Opzioni → Lega): EuroLeghe, Mantra, 12 partecipanti, Por
+   2 (porte), Porte acceso, Draft, tetto 213 / 5 turni, gruppo Serie A escluso. Il default resta il suo
+   regolamento classic a rilanci, che non gioca le porte.
+3. **fanta-asta-live non pubblica né il tetto né le porte** in nessun campo letto: se la piattaforma li ha
+   come impostazioni di sessione, con un codice d'asta in cui sono attivi si leggono dalle chiavi non lette
+   della modale (`AuctionFeed.unreadState`) invece di dichiararli.
+4. **Il portiere da 1 prende la stessa porta**: nel piano del draft la porta costa il portiere più CARO
+   (quello che chiama un rivale che compra per prezzo), e per la nostra scelta non è modellato che si può
+   chiamare il più economico — che nella simulazione è proprio ciò che tiene i dispari bassi nell'ordine.
+   `Porta.cheapest` c'è ed è nel tooltip; il piano e `positionAfterSpending` non lo leggono.
+5. **La card di una porta** mostra i numeri del titolare, quindi il suo SWING personale accanto a una riga
+   che porta lo SWING della porta: due numeri, detto in `assistente-asta-v1.md` §63; decidere se la card
+   debba mostrare anche quello della porta.
+6. **La scelta consigliata non ottimizza la posizione al 6° turno** (la radice «resti N° su 12» è l'unica
+   che la guarda). La simulazione dice che forzarla non paga, quindi è un'opzione e non un difetto.
+7. **Nessun banco e2e per `/auction`**: le sonde di tetto, porte e card sono nello scratchpad. Se la pagina
+   cresce ancora, portarne una in `app/scripts/`.
+8. **La simulazione del draft vive nello scratchpad** (`cap-sim.mjs`, `cap-many*.mjs`, `cap-rosters*.mjs`,
+   pool `euro-no-seriea*.json`). Portarla in `toolkit/bench/draft/` richiede un FVM pre-asta per le stagioni
+   passate, che non esiste (l'ultima lettura conosce l'esito).
+
 ## Aperti alla chiusura del 28 settembre 2026 — lo storico dei club fuori perimetro
 
 Dettaglio: spec «Novità v9.104».

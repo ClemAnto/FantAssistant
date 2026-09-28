@@ -120,6 +120,35 @@ export interface Plan {
   nextOrder: number[];
 }
 
+/**
+ * THE FVM CEILING OF THE FIRST TURNS: a man priced at `fvm` or more is FROZEN for a squad's first
+ * `frozenTurns` picks (operator, 28/09/2026: «non sarà possibile scegliere un calciatore con FVM >= 213
+ * prima del sesto turno», then in his own words «FVM=213 e Turni Congelati=5»). `null` is the rule
+ * switched off. The count of frozen turns is the number stored, because it is the number he states; the
+ * turn at which a man thaws is `frozenTurns + 1`, and it is derived wherever it is said.
+ *
+ * It is a REGULATION and not a model choice, so no bench owns it: it is declared, like the league's
+ * modifiers, and applied as a CONSTRAINT and never as a weight - a blocked man is not «worth less», he is
+ * not on the board for that squad yet.
+ *
+ * The TURN is the squad's OWN pick number (`picksCount + 1`), not a round of the table: with
+ * `maxAheadPicks` above one the squads are not all on the same round, and «before the sixth turn» is a
+ * sentence about each squad's sixth pick. It binds EVERYBODY, which is what makes it matter twice: we cannot
+ * take the dear men early, and neither can a rival - so the lookahead must not predict a rival taking one in
+ * his first turns, or the plan would hurry us after names nobody is allowed to take yet.
+ */
+export interface PickCap {
+  /** The price from which a man is blocked, inclusive: `>=`, the operator's own sign. */
+  fvm: number;
+  /** How many of a squad's first picks the ceiling freezes: 5 means he can be taken from the sixth. */
+  frozenTurns: number;
+}
+
+/** Whether a squad with `picksCount` picks behind it may NOT take a man at this price on its next turn. */
+export function capBlocks(picksCount: number, price: number, cap: PickCap | null | undefined): boolean {
+  return !!cap && price >= cap.fvm && picksCount < cap.frozenTurns;
+}
+
 /** How far ahead to look. Three rounds because that is what the operator reads at the table; each one
  *  costs one pass over the free pool per team, so depth is cheap and confidence is not. */
 export const ROUNDS_AHEAD = 4;
@@ -213,6 +242,7 @@ export function predictRivalPick(
   keeperCap: number,
   placesFromEnd = Infinity,
   head: RivalHead = DEFAULT_HEAD,
+  cap: PickCap | null = null,
 ): PlanPlayer | null {
   const keepers = team.slots.filter((slot) => slot === 'por').length;
   const inTail = placesFromEnd <= TAIL_POSITIONS;
@@ -222,6 +252,7 @@ export function predictRivalPick(
   let priced = false;
   for (const player of pool) {
     if (player.slot === 'por' && keepers >= keeperCap) continue;
+    if (capBlocks(team.picksCount, player.price, cap)) continue;
     const worth = worthOf(player);
     if (worth != null) priced = true;
     const need = needFor(team, player.slot, places);
@@ -238,11 +269,11 @@ export function predictRivalPick(
   // A head that can price nobody in this pool says nothing about him: fall back to the PRICE, which every
   // row has, rather than let the order of the pool decide.
   if (!priced && head !== DEFAULT_HEAD) {
-    return predictRivalPick(team, pool, places, keeperCap, placesFromEnd, DEFAULT_HEAD);
+    return predictRivalPick(team, pool, places, keeperCap, placesFromEnd, DEFAULT_HEAD, cap);
   }
   // A tail team with nothing priced would score every candidate at zero and pick the first one it saw.
   if (inTail && best && (best.net ?? 0) <= 0) {
-    return predictRivalPick(team, pool, places, keeperCap, Infinity, head);
+    return predictRivalPick(team, pool, places, keeperCap, Infinity, head, cap);
   }
   return best;
 }
@@ -279,17 +310,25 @@ export function classifyRivals(input: {
   keeperCap: number;
   mineId: number;
   warmup?: number;
+  /** The FVM ceiling of the first turns: a head is graded only on the men the rival was ALLOWED to take. */
+  cap?: PickCap | null;
 }): Map<number, RivalHead> {
   const byId = new Map(input.pool.map((player) => [player.id, player]));
   let free = [...input.pool];
   const slots = new Map<number, string[]>();
+  // How many picks each squad has made, counted over EVERY pick - including a man the pool cannot name -
+  // because the turn a ceiling reads is the squad's own pick number and not the ones we could price.
+  const made = new Map<number, number>();
   const score = new Map<number, { picks: number; hits: Record<RivalHead, number> }>();
   const heads = Object.keys(HEAD_WORTH) as RivalHead[];
 
   for (const pick of input.picks) {
     const player = byId.get(pick.playerId);
     if (player && pick.teamId !== input.mineId) {
-      const team = { slots: slots.get(pick.teamId) ?? [] } as PlanTeam;
+      const team = {
+        slots: slots.get(pick.teamId) ?? [],
+        picksCount: made.get(pick.teamId) ?? 0,
+      } as PlanTeam;
       let row = score.get(pick.teamId);
       if (!row) {
         row = { picks: 0, hits: { prezzo: 0, surplus: 0, valore: 0 } };
@@ -299,10 +338,12 @@ export function classifyRivals(input: {
       for (const head of heads) {
         // Where in the round the pick happened is not recoverable from a list of picks, so the tail rule is
         // off here: a predictor that guessed the tail wrong would be scoring the tail, not the head.
-        const says = predictRivalPick(team, free, input.places, input.keeperCap, Infinity, head);
+        const says = predictRivalPick(team, free, input.places, input.keeperCap, Infinity, head,
+                                      input.cap ?? null);
         if (says?.id === player.id) row.hits[head] += 1;
       }
     }
+    made.set(pick.teamId, (made.get(pick.teamId) ?? 0) + 1);
     if (player) {
       free = free.filter((candidate) => candidate.id !== pick.playerId);
       slots.set(pick.teamId, [...(slots.get(pick.teamId) ?? []), player.slot ?? '']);
@@ -430,6 +471,8 @@ export interface RootsContext {
   mine?: PlanTeam;
   /** Who will be gone before our next turn: a survivor is worth waiting for (`SURVIVOR_DISCOUNT`). */
   gone?: Set<number> | null;
+  /** The FVM ceiling of the first turns: a root we are not allowed to call is not an option. */
+  cap?: PickCap | null;
 }
 
 export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[] {
@@ -437,12 +480,15 @@ export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[
   const need = context?.need ?? null;
   const mine = context?.mine;
   const gone = context?.gone ?? null;
-  const best = pickForUs(pool, need, mine, gone);
+  const cap = context?.cap ?? null;
+  const best = pickForUs(pool, need, mine, gone, cap);
   if (!best) return roots;
   roots.push({ player: best, why: 'il massimo valore' });
 
   const bestLine = lineOf(best.slot);
-  const elsewhere = pickForUs(pool.filter((player) => lineOf(player.slot) !== bestLine), need, mine, gone);
+  const elsewhere = pickForUs(
+    pool.filter((player) => lineOf(player.slot) !== bestLine), need, mine, gone, cap,
+  );
   if (elsewhere) roots.push({ player: elsewhere, why: 'un altro reparto' });
 
   // «Keeps our place» is a statement about the ORDER and it has to be measured there. It used to be
@@ -454,7 +500,7 @@ export function planRoots(pool: PlanPlayer[], context?: RootsContext): PlanRoot[
       (player) => !roots.some((root) => root.player.id === player.id)
         && positionAfterSpending(player.price, context.mySpend, context.rivalValues) <= context.keepWithin,
     );
-    const holding = pickForUs(affordable, need, mine, gone);
+    const holding = pickForUs(affordable, need, mine, gone, cap);
     if (holding) {
       roots.push({
         player: holding,
@@ -578,6 +624,7 @@ export function pickForUs(
   need: CoverNeed | null = null,
   team?: PlanTeam,
   gone?: Set<number> | null,
+  cap: PickCap | null = null,
 ): PlanPlayer | null {
   let best: PlanPlayer | null = null;
   let bestScore = -Infinity;
@@ -591,6 +638,10 @@ export function pickForUs(
   };
   for (const player of pool) {
     const score = scoreOf(player);
+    // A man the ceiling keeps off our board this turn is not a candidate at ANY score, not even as the
+    // first one seen: an empty answer is honest, a forbidden one is not. Without the squad the turn is
+    // unknown, and an unknown turn blocks nobody («vuoto = ignoto, mai zero»).
+    if (team && capBlocks(team.picksCount, player.price, cap)) continue;
     if (best === null || score > bestScore || (score === bestScore && player.price > best.price)) {
       best = player;
       bestScore = score;
@@ -636,6 +687,7 @@ export function goneBeforeOurNextTurn(input: {
   keeperCap: number;
   maxAheadPicks: number;
   heads?: Map<number, RivalHead>;
+  cap?: PickCap | null;
 }): Set<number> {
   const gone = new Set<number>();
   const teams = new Map(input.teams.map((team) => [team.id, team]));
@@ -648,7 +700,7 @@ export function goneBeforeOurNextTurn(input: {
     const team = teams.get(id);
     if (!team) return;
     const choice = predictRivalPick(team, pool, input.places, input.keeperCap, placesFromEnd,
-                                    input.heads?.get(id) ?? DEFAULT_HEAD);
+                                    input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
     if (!choice) return;
     pool = pool.filter((player) => player.id !== choice.id);
     teams.set(id, take(team, choice));
@@ -721,6 +773,8 @@ export interface PlanInput {
   roundsAhead?: number;
   /** Force the FIRST pick, so a plan can be grown from a root the operator chose. */
   rootId?: number;
+  /** The FVM ceiling of the first turns (`PickCap`), for us and for every rival. */
+  cap?: PickCap | null;
 }
 
 /**
@@ -735,6 +789,7 @@ export function plan(input: PlanInput): Plan {
   let teams = new Map(input.teams.map((team) => [team.id, team]));
   let pool = [...input.pool];
   const order = input.order.filter((id) => teams.has(id));
+  const cap = input.cap ?? null;
 
   // What WE still have to cover, rebuilt after every pick of ours: it describes one squad, and a memo of a
   // squad that has changed would ration the next round against the one we started with.
@@ -742,11 +797,16 @@ export function plan(input: PlanInput): Plan {
   const meNow = () => teams.get(input.mineId);
   const goneNow = (from: number[]) => goneBeforeOurNextTurn({
     teams: [...teams.values()], order: from, pool, places, mineId: input.mineId,
-    keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads,
+    keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads, cap,
   });
-  const mine = input.rootId !== undefined
-    ? (pool.find((player) => player.id === input.rootId) ?? pickForUs(pool, needNow(), meNow(), goneNow(order)))
-    : pickForUs(pool, needNow(), meNow(), goneNow(order));
+  // A root the operator chose is honoured only if the ceiling lets us call him THIS turn: «e se prendessi
+  // lui?» about a man the regulation forbids has no answer, and a plan built on it would be a plan nobody
+  // can play. The view refuses the click too; this is the guard where the chain is decided.
+  const forced = input.rootId !== undefined
+    ? pool.find((player) => player.id === input.rootId
+        && !capBlocks(meNow()?.picksCount ?? 0, player.price, cap))
+    : undefined;
+  const mine = forced ?? pickForUs(pool, needNow(), meNow(), goneNow(order), cap);
   if (!mine) return { mine: null, rounds: [], gap: 0, nextOrder: [] };
   pool = pool.filter((player) => player.id !== mine.id);
   teams.set(input.mineId, take(teams.get(input.mineId)!, mine));
@@ -761,7 +821,7 @@ export function plan(input: PlanInput): Plan {
     const team = teams.get(id)!;
     // How many places are left after his, THIS round: the tail is where spending little pays twice.
     const choice = predictRivalPick(team, pool, places, input.keeperCap, after.length - index,
-                                    input.heads?.get(id) ?? DEFAULT_HEAD);
+                                    input.heads?.get(id) ?? DEFAULT_HEAD, cap);
     if (!choice) break;
     const denies = input.worthOf ? denialOf(choice, team, input.shapes, input.worthOf) : 0;
     pool = pool.filter((player) => player.id !== choice.id);
@@ -783,7 +843,7 @@ export function plan(input: PlanInput): Plan {
     let passed = false;
     for (const [index, id] of nextOrder.entries()) {
       if (id === input.mineId) {
-        ours = pickForUs(pool, needNow(), meNow(), goneNow(nextOrder));
+        ours = pickForUs(pool, needNow(), meNow(), goneNow(nextOrder), cap);
         if (ours) {
           pool = pool.filter((player) => player.id !== ours!.id);
           teams.set(id, take(teams.get(id)!, ours));
@@ -794,7 +854,7 @@ export function plan(input: PlanInput): Plan {
       const team = teams.get(id)!;
       const choice = predictRivalPick(team, pool, places, input.keeperCap,
                                       nextOrder.length - index,
-                                      input.heads?.get(id) ?? DEFAULT_HEAD);
+                                      input.heads?.get(id) ?? DEFAULT_HEAD, cap);
       if (!choice) break;
       const denies = input.worthOf ? denialOf(choice, team, input.shapes, input.worthOf) : 0;
       pool = pool.filter((player) => player.id !== choice.id);

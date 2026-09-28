@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
-import { AuctionFeed, AuctionPlayer, Zone, portaStandIns } from './auction-feed';
+import { AuctionFeed, AuctionPlayer, Porta, Zone } from './auction-feed';
 import { GlobalOptions } from './global-options';
 import {
   EngineNumbers,
@@ -13,6 +13,7 @@ import {
   liveReplacements,
   netOf,
   per,
+  portaValuation,
   score99,
   surplusOf,
   valuationOf,
@@ -20,10 +21,12 @@ import {
 } from './auction-value';
 import {
   Plan,
+  PickCap,
   PlanPlayer,
   PlanRoot,
   PlanTeam,
   RivalHead,
+  capBlocks,
   classifyRivals,
   coverNeedOf,
   goneBeforeOurNextTurn,
@@ -33,6 +36,7 @@ import {
   startingPlaces,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
+import { porteZero } from './porte';
 import { engineNumbersFrom } from './engine-sheet';
 import { seasonRoundsOf } from './season-scale';
 import {
@@ -121,6 +125,12 @@ export interface RankedPlayer {
   trend: PlayerTrend | null;
   /** The same window as a 0-99 inside his role. A description of what he has done, never a forecast. */
   trend99: number | null;
+  /**
+   * The GOAL this row stands for, with the porte rule on - and then the row is a CLUB and not a man: its
+   * name is the club's, its valuation the mix of the club's keepers, its zero the marginal porta. Null for
+   * every man, and for every keeper while the rule is off.
+   */
+  porta: Porta | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -399,6 +409,12 @@ export class AuctionAdvice {
       const value = valueOf(valuationOf(numbers.get(id)));
       if (value != null && value > max) max = value;
     }
+    if (this.feed.isGoalsMode()) {
+      for (const valuation of this.portaValuations().values()) {
+        const value = valueOf(valuation);
+        if (value != null && value > max) max = value;
+      }
+    }
     return max;
   });
 
@@ -488,6 +504,59 @@ export class AuctionAdvice {
     return available.filter((player) => this.options.keeps(ids.get(player.club) ?? null));
   });
 
+  /**
+   * THE VALUATION OF EVERY GOAL, keyed by club: the mix of its keepers weighted by the matches each one is
+   * expected to play (`portaValuation`, the operator's definition of 28/09/2026). Computed for the whole
+   * listone, owned goals included, because the pitch prices the goals a squad already has.
+   */
+  readonly portaValuations = computed<Map<string, Valuation>>(() => {
+    const numbers = this.numbers();
+    const matchdays = this.matchdaysTarget();
+    const out = new Map<string, Valuation>();
+    for (const porta of this.feed.porte()) {
+      const keepers = porta.keepers.map((keeper) => valuationOf(numbers.get(keeper.id)));
+      out.set(porta.club, portaValuation(keepers, matchdays));
+    }
+    return out;
+  });
+
+  /**
+   * The two zeros of a porta, measured the way a man's are but on GOALS: how many the table buys is the
+   * session's keeper slots times the teams - and each slot is a porta now, not a man.
+   *
+   *   * `live` - the marginal FREE goal the table still has room for, which is what «+/10g» reads for a man;
+   *   * `league` - the same rank over the whole listone, which is what the lead reads: «how much is it worth
+   *     in this league», and it does not move as the table empties.
+   *
+   * Neither can be the sheet's `engine_replacement_fm` for keepers: that is the marginal MAN of a roster that
+   * holds three keepers per team, i.e. a third-choice keeper, and a goal is never a third choice.
+   */
+  private readonly portaZeros = computed<{ live: number | null; league: number | null }>(() => {
+    const roles = this.feed.league()['roles'] ?? {};
+    const gk = this.feed.porteSlots() ?? (Array.isArray(roles['gk']) ? roles['gk'][0] : (roles['gk'] ?? 0));
+    const demand = this.feed.teams().length * (Number(gk) || 0);
+    const valuations = this.portaValuations();
+    const fmOf = (porta: Porta) => valuations.get(porta.club)?.fm ?? null;
+    const zeroOf = (porte: Porta[], rank: number) => porteZero(porte.map(fmOf), rank);
+    const all = this.feed.porte();
+    const owned = all.filter((porta) => porta.teamId !== null).length;
+    return {
+      live: zeroOf(this.feed.freePorte(), Math.max(0, demand - owned)),
+      league: zeroOf(all, demand),
+    };
+  });
+
+  /** The best goal I already own, by its mixed fantamedia: the personal zero of a porta. */
+  private readonly myBestPortaFm = computed<number | null>(() => {
+    const valuations = this.portaValuations();
+    let best: number | null = null;
+    for (const porta of this.feed.myPorte()) {
+      const fm = valuations.get(porta.club)?.fm ?? null;
+      if (fm != null && (best === null || fm > best)) best = fm;
+    }
+    return best;
+  });
+
   /** Everything except `net`, which needs the whole list first: lambda is a property of the pool. */
   private readonly priced = computed<Omit<RankedPlayer, 'net' | 'netPer10'>[]>(() => {
     const numbers = this.numbers();
@@ -498,7 +567,9 @@ export class AuctionAdvice {
     const spread = this.spread();
     const valueMax = this.valueMax();
 
-    return this.free().map((player) => {
+    const goals = this.feed.isGoalsMode();
+    const men = this.free().filter((player) => !(goals && this.feed.zoneOf(player) === 'gk'));
+    const rows: Omit<RankedPlayer, 'net' | 'netPer10'>[] = men.map((player) => {
       const row = numbers.get(player.id);
       const valuation = valuationOf(row);
       const slot = row?.slot ?? null;
@@ -537,8 +608,51 @@ export class AuctionAdvice {
         zeroIsLive: live != null,
         trend: this.trends().get(player.id) ?? null,
         trend99: this.trend99().get(player.id) ?? null,
+        porta: null,
       };
     });
+    if (!goals) return rows;
+
+    // ONE ROW PER FREE GOAL, named after the CLUB (operator, 28/09/2026). The id is the keeper expected to
+    // play most - it is who a pick is recorded under - and the FVM is the goal's own (`Porta.price`, the
+    // dearest keeper: what a rival buying by price calls). Excluded clubs leave here as their men do.
+    const valuations = this.portaValuations();
+    const zeros = this.portaZeros();
+    const zero = zeros.live ?? zeros.league;
+    const ids = this.clubIds();
+    const porte = this.feed.freePorte().filter((porta) => this.options.keeps(ids.get(porta.club) ?? null));
+    for (const porta of porte) {
+      const valuation = valuations.get(porta.club) ?? portaValuation([], total);
+      const pvOf = (player: AuctionPlayer) => valuationOf(numbers.get(player.id)).pv ?? -1;
+      const standIn = [...porta.keepers].sort((a, b) => pvOf(b) - pvOf(a))[0];
+      if (!standIn) continue;
+      const surplus = surplusOf(valuation, zero, horizon);
+      // You field ONE goal a matchday, so a second porta adds only where it beats the best one you hold.
+      const personal = Math.max(zero ?? 0, this.myBestPortaFm() ?? 0) || zero;
+      rows.push({
+        player: { ...standIn, name: porta.club, fvm: porta.price },
+        zone: 'gk',
+        valuation,
+        replacementFm: zero,
+        surplus,
+        surplusPerRound: surplus != null && total ? surplus / (this.rounds() || total) : null,
+        surplusPer10: per(surplus, spread),
+        ratio: surplus != null && porta.price > 0 ? surplus / porta.price : null,
+        value99: score99(valueOf(valuation), valueMax),
+        lead: surplusOf(valuation, zeros.league),
+        leadZero: zeros.league,
+        value: valueOf(valuation),
+        surplusForMe: surplusOf(valuation, personal, horizon),
+        price: porta.price,
+        fmPrev: null,
+        minutesPerMatch: null,
+        zeroIsLive: zeros.live != null,
+        trend: null,
+        trend99: null,
+        porta,
+      });
+    }
+    return rows;
   });
 
   /**
@@ -652,7 +766,7 @@ export class AuctionAdvice {
     const numbers = this.numbers();
     const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
-      out.set(player.id, valueOf(valuationOf(numbers.get(player.id))));
+      out.set(player.id, valueOf(this.valuationFor(player, numbers)));
     }
     return out;
   });
@@ -670,7 +784,7 @@ export class AuctionAdvice {
     const numbers = this.numbers();
     const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
-      const pv = valuationOf(numbers.get(player.id)).pv;
+      const pv = this.valuationFor(player, numbers).pv;
       out.set(player.id, pv == null || !total ? null : Math.min(1, pv / total));
     }
     return out;
@@ -692,6 +806,16 @@ export class AuctionAdvice {
     }
     return [...clubs].sort((left, right) => left.localeCompare(right, 'it'));
   });
+
+  /**
+   * What a man is worth AS THE TABLE COUNTS HIM: himself, or - a keeper, with the porte rule on - the goal
+   * he stands for. One place, so the pitch, the scale and the shares cannot price a keeper two ways.
+   */
+  private valuationFor(player: AuctionPlayer, numbers: Map<number, EngineNumbers>): Valuation {
+    const porta = this.feed.isGoalsMode() ? this.feed.portaOfKeeper().get(player.id) : undefined;
+    const mixed = porta ? this.portaValuations().get(porta.club) : undefined;
+    return mixed ?? valuationOf(numbers.get(player.id));
+  }
 
   /** The game's shapes as loaded, so a view can draw an eleven on them. */
   readonly rules = computed(() => this.shapes());
@@ -737,8 +861,34 @@ export class AuctionAdvice {
       places: startingPlaces(this.shapes()),
       keeperCap: this.keeperSlots(),
       mineId,
+      cap: this.pickCap(),
     });
   });
+
+  /**
+   * THE FVM CEILING OF THE FIRST TURNS, as the league declares it (`LeagueSettings.draftCap`), or `null`.
+   *
+   * Only in a DRAFT: in an auction with raises nobody «calls» a man at a price, and a ceiling there would be
+   * a rule applied outside the mechanism it was written for. The table does not publish it in any field this
+   * project has read, so it is declared and never adopted from the session.
+   */
+  readonly pickCap = computed<PickCap | null>(() => {
+    const cap = this.options.league().draftCap;
+    if (!this.feed.isDraft() || !cap?.on) return null;
+    return { fvm: cap.fvm, frozenTurns: cap.frozenTurns };
+  });
+
+  /** The turn OUR squad is about to play, i.e. its own pick number. Null when we follow nobody. */
+  readonly myTurn = computed<number | null>(() => {
+    const team = this.feed.followed();
+    return team ? team.squad.length + 1 : null;
+  });
+
+  /** Whether the ceiling keeps this price off OUR board on this turn. */
+  lockedForMe(price: number): boolean {
+    const turn = this.myTurn();
+    return turn !== null && capBlocks(turn - 1, price, this.pickCap());
+  }
 
   /** How many keepers a squad may hold, as the session states it. */
   private readonly keeperSlots = computed(() => {
@@ -759,22 +909,9 @@ export class AuctionAdvice {
 
     // THE PORTE RULE, which the tool cannot express and the plan was ignoring (§14.1, todolist item 1.6).
     // With it on, a keeper is not a man and a slot is not a man: the unit is the CLUB - taking any keeper of
-    // a club takes its goal, and nobody can take a second one. So the pool must offer ONE row per free goal,
-    // priced at what a bid would actually be made on (the dearest keeper of that club) and worth what you
-    // would field (its best keeper). Leaving three keeper rows per club in the pool made the plan believe it
-    // could buy the same goal three times, and made it spend picks on keepers that buy nothing at all.
-    //
-    // The SURPLUS is the right currency here even though the draft's currency is the value, and it is not an
-    // exception: you field exactly one keeper, so his replacement really is the marginal keeper - the whole
-    // reason the porta was measured as the place where the scarcity is real (§26.1). It picks WHICH keeper of
-    // the club stands for the goal; the value still decides whether a pick is spent on a goal at all.
-    const goalsMode = this.feed.isGoalsMode();
-    const bySurplus = new Map(this.ranked().map((row) => [row.player.id, row.surplus]));
-    const { standIn, drop } = portaStandIns(
-      goalsMode ? this.feed.freePorte() : [],
-      (id) => bySurplus.get(id) ?? null,
-    );
-
+    // a club takes its goal, and nobody can take a second one. `ranked()` already offers ONE row per free
+    // goal, named after the club and valued as the mix of its keepers (28/09/2026), so the pool reads it as
+    // it reads a man: three keeper rows per club made the plan believe it could buy the same goal three times.
     return {
       teams: teams.map((team) => ({
         id: team.id,
@@ -796,34 +933,29 @@ export class AuctionAdvice {
         firstRoundIndex: Math.max(0, order.indexOf(team.id)),
       })) as PlanTeam[],
       order,
-      pool: this.ranked()
-        // In porte mode every keeper of a club except the one standing for its goal leaves the pool: he is
-        // not a thing that can be bought, and a row nobody can take is worse than no row.
-        .filter((row) => !drop.has(row.player.id))
-        .map((row) => {
-          const porta = standIn.get(row.player.id);
-          return {
-            id: row.player.id,
-            name: porta ? `porta ${porta.club}` : row.player.name,
-            club: row.player.club,
-            slot: numbers.get(row.player.id)?.slot ?? null,
-            roles: row.player.roles,
-            // The goal costs what its dearest keeper costs: that is the bid the table would receive.
-            price: porta ? porta.price : row.price,
-            net: row.net ?? row.surplus,
-            surplus: row.surplus,
-            value: row.value,
-          };
-        }) as PlanPlayer[],
+      pool: this.ranked().map((row) => ({
+        id: row.player.id,
+        name: row.player.name,
+        club: row.player.club,
+        slot: row.porta ? 'por' : (numbers.get(row.player.id)?.slot ?? null),
+        roles: row.player.roles,
+        // A goal costs what its dearest keeper costs (`Porta.price`): the man a rival buying by price calls.
+        price: row.price,
+        net: row.net ?? row.surplus,
+        surplus: row.surplus,
+        value: row.value,
+      })) as PlanPlayer[],
       mineId,
       shapes: this.shapes(),
       // The cap is the session's own keeper slots, and in porte mode it needs no separate arithmetic: with
       // one row per goal, a squad's `por` entries ARE the goals it owns. The one case where the two differ
       // is a table that wrongly let somebody take a second keeper of a club, and the panel already reports
       // that as a mistake (`myStrayKeeperPicks`) rather than counting it.
-      keeperCap: Number(keeperSlots) || 3,
+      // Con le porte il tetto è il numero di porte che la LEGA dichiara, non i posti portiere del software.
+      keeperCap: (this.feed.isGoalsMode() ? this.feed.porteSlots() : null) ?? (Number(keeperSlots) || 3),
       maxAheadPicks: Number(this.feed.draftRules()?.['maxAheadPicks'] ?? 1) || 1,
       heads: this.rivalHeads(),
+      cap: this.pickCap(),
       game: (this.feed.isMantra() ? 'mantra' : 'classic') as 'mantra' | 'classic',
       // What a man is worth to whoever holds him. The same VALUE the panel ranks by, because the question a
       // denial answers is about the football and not about the rival's opinion of it.
@@ -851,6 +983,7 @@ export class AuctionAdvice {
         input.keeperCap,
         Infinity,
         input.heads?.get(team.id),
+        input.cap,
       );
       if (choice) pool = pool.filter((player) => player.id !== choice.id);
       rivalValues.push(team.rosterValue + (choice?.price ?? 0));
@@ -878,8 +1011,10 @@ export class AuctionAdvice {
             keeperCap: input.keeperCap,
             maxAheadPicks: input.maxAheadPicks,
             heads: input.heads,
+            cap: input.cap,
           })
         : null,
+      cap: input.cap,
     });
   });
 
@@ -902,7 +1037,10 @@ export class AuctionAdvice {
     const chosen = this.chosenRoot();
     if (chosen !== null && !roots.some((root) => root.player.id === chosen)) {
       const player = input.pool.find((candidate) => candidate.id === chosen);
-      if (player) {
+      // A man the ceiling forbids us THIS turn is not a what-if: `plan()` would refuse the root and draw
+      // its own pick under the label «se prendi lui», which is a lie about whom the chain starts from.
+      const me = input.teams.find((team) => team.id === input.mineId);
+      if (player && !capBlocks(me?.picksCount ?? 0, player.price, input.cap)) {
         options.push({
           root: { player, why: 'se prendi lui' },
           plan: plan({ ...input, rootId: chosen }),

@@ -117,6 +117,13 @@ export interface CardMan {
   /** La finestra di uno stop aperto: il conto delle giornate che perde, non un giudizio. */
   out: OutWindow | null;
   market: CardMarket | null;
+  /**
+   * LA PORTA a cui questo portiere sta per titolare, con la regola delle porte accesa (operatore,
+   * 28/09/2026: «la card quando è una porta deve mostrarti i dati del portiere titolare di quella squadra,
+   * indicando solo come demo gli altri portieri»). I numeri della card sono i SUOI; `others` sono gli altri
+   * portieri del club, nominati e basta. Assente per ogni uomo, e per ogni portiere a regola spenta.
+   */
+  porta?: { club: string; others: readonly string[] };
 }
 
 /**

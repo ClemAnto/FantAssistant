@@ -99,10 +99,10 @@
       <div class="ml-auto flex items-center gap-2">
         <nz-segmented
           nz-tooltip
-          nzTooltipTitle="Regola di lega sui portieri. «Porte»: una porta è un CLUB e appartiene al primo che prende un suo portiere qualsiasi. fanta-asta-live non conosce questa regola, quindi il conteggio è dell'assistente."
+          nzTooltipTitle="Regola di lega: una porta è un club, del primo che prende un suo portiere. Vale per tutte le pagine (anche in Opzioni)."
           [nzOptions]="keeperModeOptions"
           [ngModel]="feed.keeperMode()"
-          (ngModelChange)="feed.setKeeperMode($event)"
+          (ngModelChange)="setKeeperMode($event)"
         />
         <button nz-button (click)="feed.unfollow()">Cambia squadra</button>
         <button nz-button nzType="primary" (click)="connecting.set(true)">
@@ -247,7 +247,7 @@
                     <span class="flex items-center gap-1">
                       <ui-roles [roles]="entry.root.player.roles" />
                       <b>{{ entry.root.player.name }}</b>
-                      <ui-flags [playerId]="entry.root.player.id" />
+                      <ui-flags [playerId]="flagId(entry.root.player.id)" />
                       <span class="text-xs opacity-70">{{ entry.root.player.price }}</span>
                     </span>
                     <span class="text-xs font-normal opacity-70">
@@ -272,8 +272,10 @@
                   class="inline-flex items-center gap-2 rounded-full bg-role-attack px-4 py-1.5 text-base font-semibold text-white"
                 >
                   {{ plan.mine.name }}
-                  <ui-flags [playerId]="plan.mine.id" />
-                  <span class="text-xs font-normal opacity-80">{{ plan.mine.club }}</span>
+                  <ui-flags [playerId]="flagId(plan.mine.id)" />
+                  @if (!isGoal(plan.mine.id)) {
+                    <span class="text-xs font-normal opacity-80">{{ plan.mine.club }}</span>
+                  }
                 </span>
             <span class="text-sm opacity-70">
               {{ plan.mine.price }} FVM
@@ -283,6 +285,21 @@
               · {{ plan.gap }} scelte prima della tua prossima
             </span>
           </div>
+          @if (capLine(); as line) {
+            <!-- IL TETTO DI FVM DEI PRIMI TURNI, detto sempre dove plasma il piano: vincola noi e ogni
+                 rivale, e una regola che cambia le previsioni senza dirlo si legge come una previsione
+                 sbagliata. -->
+            <p class="-mt-4 mb-6 flex items-center gap-1 text-xs text-muted">
+              <nz-icon nzType="lock" />
+              {{ line }}
+              <!-- La soglia e i turni si cambiano dove sta il regolamento (le Opzioni), e da qui ci si
+                   arriva in un click: un vincolo che si legge qui e si modifica altrove senza una strada
+                   è un vincolo da cercare. -->
+              <button nz-button nzType="link" nzSize="small" class="h-auto px-1 text-xs" (click)="editCap()">
+                modifica
+              </button>
+            </p>
+          }
 
           @if (planView() === 'compatta') {
             <!-- Lo stesso piano letto per SQUADRA: una catena per riga, nell'ordine di scelta corrente. -->
@@ -321,13 +338,14 @@
                     }
                     <button
                       class="-mx-1 flex cursor-pointer items-center gap-1 rounded px-1 hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
+                      [class.cursor-not-allowed]="locked(pick.price)"
                       nz-tooltip
-                      nzTooltipTitle="Imposta questo giocatore come TUA scelta e ricalcola tutto da lì"
-                      (click)="advice.chooseRoot(pick.id)"
+                      [nzTooltipTitle]="rootHint(pick.price, 'Imposta questo giocatore come TUA scelta e ricalcola tutto da lì')"
+                      (click)="chooseRoot(pick.id, pick.price)"
                     >
                       <ui-roles [roles]="pick.roles" />
                       <span [class.font-semibold]="row.mine">{{ pick.name }}</span>
-                      <ui-flags [playerId]="pick.id" />
+                      <ui-flags [playerId]="flagId(pick.id)" />
                       <span class="opacity-60">{{ pick.price }}</span>
                     </button>
                   }
@@ -359,13 +377,14 @@
                         <span class="w-20 shrink-0 truncate opacity-70">{{ row.teamLabel }}</span>
                         <button
                           class="-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded px-1 text-left hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
+                          [class.cursor-not-allowed]="locked(row.player.price)"
                           nz-tooltip
-                          [nzTooltipTitle]="denialHint(row)"
-                          (click)="advice.chooseRoot(row.player.id)"
+                          [nzTooltipTitle]="rootHint(row.player.price, denialHint(row))"
+                          (click)="chooseRoot(row.player.id, row.player.price)"
                         >
                           <ui-roles [roles]="row.player.roles" />
                           <span class="truncate">{{ row.player.name }}</span>
-                          <ui-flags [playerId]="row.player.id" />
+                          <ui-flags [playerId]="flagId(row.player.id)" />
                           @if (row.denies >= denialFloor) {
                             <span class="shrink-0 text-[10px] tabular-nums opacity-60"
                               >−{{ row.denies | number: '1.0-0' }}</span
@@ -387,8 +406,10 @@
                         [class.opacity-70]="$index > 2"
                       >
                         {{ round.mine.name }}
-                        <ui-flags [playerId]="round.mine.id" />
-                        <span class="text-xs font-normal opacity-70">{{ round.mine.club }}</span>
+                        <ui-flags [playerId]="flagId(round.mine.id)" />
+                        @if (!isGoal(round.mine.id)) {
+                          <span class="text-xs font-normal opacity-70">{{ round.mine.club }}</span>
+                        }
                       </span>
                       <span class="text-sm opacity-70">{{ round.mine.price }}</span>
                     </div>
@@ -405,13 +426,14 @@
                         <span class="w-20 shrink-0 truncate opacity-70">{{ row.teamLabel }}</span>
                         <button
                           class="-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded px-1 text-left hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
+                          [class.cursor-not-allowed]="locked(row.player.price)"
                           nz-tooltip
-                          [nzTooltipTitle]="denialHint(row)"
-                          (click)="advice.chooseRoot(row.player.id)"
+                          [nzTooltipTitle]="rootHint(row.player.price, denialHint(row))"
+                          (click)="chooseRoot(row.player.id, row.player.price)"
                         >
                           <ui-roles [roles]="row.player.roles" />
                           <span class="truncate">{{ row.player.name }}</span>
-                          <ui-flags [playerId]="row.player.id" />
+                          <ui-flags [playerId]="flagId(row.player.id)" />
                           @if (row.denies >= denialFloor) {
                             <span class="shrink-0 text-[10px] tabular-nums opacity-60"
                               >−{{ row.denies | number: '1.0-0' }}</span
@@ -514,10 +536,10 @@
             @for (entry of feed.lastPicks().slice(0, 10); track entry.index) {
               <li class="flex items-center gap-2 text-sm">
                 <span class="truncate">
-                  <b>{{ entry.player?.name }}</b>
-                  <span class="opacity-60"> · {{ entry.player?.club }}</span>
+                  <b>{{ feed.shownName(entry.player) }}</b>
+                  <span class="opacity-60"> · {{ isGoal(entry.player?.id) ? 'porta' : entry.player?.club }}</span>
                 </span>
-                <ui-flags [playerId]="entry.player?.id" />
+                <ui-flags [playerId]="flagId(entry.player?.id)" />
                 <span class="ml-auto whitespace-nowrap opacity-70">
                   {{ entry.team?.label }} · {{ entry.cost }}
                 </span>
@@ -537,10 +559,10 @@
             <div class="flex items-center gap-2 text-sm">
               <ui-roles [roles]="entry.player?.roles ?? []" />
               <span class="truncate">
-                <b>{{ entry.player?.name }}</b>
-                <span class="opacity-60"> · {{ entry.player?.club }}</span>
+                <b>{{ feed.shownName(entry.player) }}</b>
+                <span class="opacity-60"> · {{ isGoal(entry.player?.id) ? 'porta' : entry.player?.club }}</span>
               </span>
-              <ui-flags [playerId]="entry.player?.id" />
+              <ui-flags [playerId]="flagId(entry.player?.id)" />
               @if (feed.isGoalsMode() && isStray(entry.index)) {
                 <nz-tag nzColor="warning" nz-tooltip nzTooltipTitle="La porta di questo club è di un altro: questo portiere non conta come porta.">
                   no porta
@@ -554,35 +576,8 @@
     </nz-card>
 
     <div class="grid gap-4 md:grid-cols-2">
-      @if (feed.isGoalsMode()) {
-        <nz-card nzTitle="Migliori porte libere">
-          @if (!topPorte().length) {
-            <nz-empty nzNotFoundContent="Nessuna porta libera" />
-          } @else {
-            <ul class="flex flex-col gap-1">
-              @for (porta of topPorte(); track porta.club) {
-                <li class="flex items-center gap-2 text-sm">
-                  <ui-role role="Por" />
-                  <span class="truncate">
-                    <b>{{ porta.club }}</b>
-                    <span class="opacity-60">
-                      · {{ porta.keepers.length }}
-                      {{ porta.keepers.length === 1 ? 'portiere' : 'portieri' }}
-                    </span>
-                  </span>
-                  <b class="ml-auto">{{ porta.price }}</b>
-                </li>
-              }
-            </ul>
-            <p class="mt-3 text-xs opacity-60">
-              La porta è del primo che prende un portiere qualsiasi del club; il numero è il FVM del
-              portiere più caro, cioè quello su cui si farebbe l'offerta.
-            </p>
-          }
-        </nz-card>
-      }
       @for (group of topAvailable(); track group.zone) {
-        <nz-card [nzTitle]="'Migliori ' + group.label + ' liberi'">
+        <nz-card [nzTitle]="group.title">
           @if (!group.players.length) {
             <nz-empty nzNotFoundContent="Nessuno libero in questo reparto" />
           } @else {
@@ -654,10 +649,21 @@
                   [nzTooltipTitle]="explain(row)"
                 >
                   <ui-roles class="w-24" [roles]="row.player.roles" />
+                  <!-- CONGELATO E NON NASCOSTO (operatore, 28/09/2026: «i calciatori freezati non devono
+                       essere nascosti alla vista ma congelati»): il nome resta a piena leggibilità, perché
+                       è un nome che fra pochi turni si potrà chiamare e va tenuto d'occhio adesso; il
+                       marchio dice solo DA QUANDO. -->
                   <span class="flex-1 truncate">
+                    @if (locked(row.price) && advice.pickCap(); as cap) {
+                      <span
+                        class="mr-1 inline-flex items-center gap-0.5 rounded-full border border-frozen/60 bg-frozen/10 px-1.5 text-[10px] font-semibold text-frozen"
+                      >
+                        <nz-icon nzType="lock" />{{ cap.frozenTurns + 1 }}°
+                      </span>
+                    }
                     <b>{{ row.player.name }}</b>
-                    <ui-flags [playerId]="row.player.id" />
-                    <span class="opacity-60"> · {{ row.player.club }}</span>
+                    <ui-flags [playerId]="flagId(row.player.id)" />
+                    <span class="opacity-60"> · {{ row.porta ? 'porta · ' + row.porta.keepers.length + ' portieri' : row.player.club }}</span>
                     @if (row.valuation.basis !== 'measured') {
                       <span class="opacity-60" [title]="row.valuation.note ?? ''">~</span>
                     }

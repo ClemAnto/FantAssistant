@@ -71,6 +71,21 @@ export interface LeagueSettings {
   /** Quante tornate dura il mercato a buste chiuse. */
   rounds: number;
   /**
+   * IL TETTO DI FVM DEI PRIMI TURNI DEL DRAFT (operatore, 28/09/2026: «non sarà possibile scegliere un
+   * calciatore con FVM >= 213 prima del sesto turno»). Un regolamento dichiarato come gli altri: il tavolo
+   * non lo pubblica in nessun campo che questo progetto abbia letto, quindi non lo si adotta dalla
+   * sessione e non lo si indovina. Vale SOLO in un draft, per noi e per ogni rivale (`auction-plan.PickCap`),
+   * e il turno è il numero di scelta della SQUADRA, non il giro del tavolo.
+   */
+  draftCap: { on: boolean; fvm: number; frozenTurns: number };
+  /**
+   * LE PORTE al posto dei portieri (operatore, 28/09/2026: «"porte" dovrebbe essere nelle opzioni di lega
+   * globali»). Una porta è un CLUB: la prende il primo che chiama un suo portiere qualsiasi, e vale il mix dei
+   * suoi portieri pesato sulle partite che giocheranno (`auction-value.portaValuation`). È un regolamento
+   * della LEGA e non di una sessione, quindi sta qui e vale per ogni pagina; il tavolo non lo pubblica.
+   */
+  porte: boolean;
+  /**
    * La prima e l'ultima giornata che la COMPETIZIONE copre davvero.
    *
    * Dichiarata e non dedotta: un mercato che si tiene dopo la prima giornata compra per 37 giornate su
@@ -98,6 +113,10 @@ export const DEFAULT_LEAGUE: LeagueSettings = {
   rFactor: true,
   cleanSheet: true,
   rounds: 9,
+  // La SUA regola, e per questo acceso: dove un draft non la prevede si spegne nelle opzioni, e il
+  // pannello dice sempre se è attiva.
+  draftCap: { on: true, fvm: 213, frozenTurns: 5 },
+  porte: false,
   from: 2,
   to: 38,
 };
@@ -175,6 +194,17 @@ export class GlobalOptions {
      * quindi al primo giro le impostazioni non ci sono ancora e adottare li' vorrebbe dire adottare il
      * vuoto. L'effetto dipende anche dal budget e dalle squadre proprio per ripassare quando arrivano.
      */
+    // LE PORTE SONO DELLA LEGA, e il feed le segue: il feed non può leggere questo servizio (lo inietta
+    // lui, sarebbe un ciclo), quindi la regola gli arriva da qui, in una direzione sola.
+    effect(() => {
+      const { porte, game, slots } = this.league();
+      untracked(() => {
+        this.feed.keeperMode.set(porte ? 'goals' : 'players');
+        // ...e QUANTE porte: il campo dei portieri della rosa dichiarata, nel vocabolario del gioco.
+        this.feed.porteSlots.set(porte ? (game === 'mantra' ? slots.mantra.por : slots.classic.P) : null);
+      });
+    });
+
     let adoptedFor: string | null = null;
     effect(() => {
       const code = this.feed.code();
@@ -469,9 +499,36 @@ function readLeague(raw: unknown): LeagueSettings {
     cleanSheet:
       typeof stored.cleanSheet === 'boolean' ? stored.cleanSheet : DEFAULT_LEAGUE.cleanSheet,
     rounds: number(stored.rounds, DEFAULT_LEAGUE.rounds),
+    porte: typeof stored.porte === 'boolean' ? stored.porte : legacyPorte(),
+    draftCap: {
+      on: typeof stored.draftCap?.on === 'boolean' ? stored.draftCap.on : DEFAULT_LEAGUE.draftCap.on,
+      fvm: number(stored.draftCap?.fvm, DEFAULT_LEAGUE.draftCap.fvm),
+      // Il primo salvataggio (28/09/2026, stesso giorno) scriveva il turno da cui SI SBLOCCA: si legge ancora,
+      // o chi l'aveva impostato a mano tornerebbe al valore di partenza senza che nessuno glielo dica.
+      frozenTurns: number(
+        stored.draftCap?.frozenTurns,
+        typeof (stored.draftCap as { fromTurn?: unknown } | undefined)?.fromTurn === 'number'
+          ? (stored.draftCap as unknown as { fromTurn: number }).fromTurn - 1
+          : DEFAULT_LEAGUE.draftCap.frozenTurns,
+      ),
+    },
     from: number(stored.from, DEFAULT_LEAGUE.from),
     to: number(stored.to, DEFAULT_LEAGUE.to),
   };
+}
+
+/**
+ * Dove la regola delle porte stava PRIMA di essere una regola di lega: dentro la sessione d'asta salvata
+ * (`fantassistant.auction`, campo `keeperMode`). Si legge solo quando la lega non la dichiara ancora, o chi
+ * l'aveva accesa se la ritroverebbe spenta senza che nessuno glielo dica.
+ */
+function legacyPorte(): boolean {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem('fantassistant.auction') ?? 'null');
+    return !!saved && typeof saved === 'object' && (saved as { keeperMode?: unknown }).keeperMode === 'goals';
+  } catch {
+    return DEFAULT_LEAGUE.porte;
+  }
 }
 
 function number(value: unknown, fallback: number): number {

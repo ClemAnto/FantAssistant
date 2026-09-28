@@ -274,6 +274,12 @@ export interface Porta {
   keepers: AuctionPlayer[];
   /** What taking it costs: the dearest keeper, the one a bid would actually be made on. */
   price: number;
+  /**
+   * ...and the CHEAPEST keeper of the club, which in a DRAFT takes the same goal for less: the price of a
+   * pick is the FVM of the man called, and any keeper grants the porta. It matters for the order (every
+   * credit sends a squad back, §11.5) and for the FVM ceiling of the first turns, so it is on the row.
+   */
+  cheapest: number;
   /** Who owns it - the FIRST manager who took any keeper of the club - and the pick that did it. */
   teamId: number | null;
   pickIndex: number | null;
@@ -304,9 +310,10 @@ export function porteOf(
     if (zoneOf(player, mantra) !== 'gk') continue;
     const porta =
       byClub.get(player.club) ??
-      ({ club: player.club, keepers: [], price: 0, teamId: null, pickIndex: null } as Porta);
+      ({ club: player.club, keepers: [], price: 0, cheapest: Infinity, teamId: null, pickIndex: null } as Porta);
     porta.keepers.push(player);
     porta.price = Math.max(porta.price, player.fvm);
+    porta.cheapest = Math.min(porta.cheapest, player.fvm);
     byClub.set(player.club, porta);
   }
 
@@ -326,40 +333,6 @@ export function porteOf(
   }
 
   return { porte: [...byClub.values()], strayPicks };
-}
-
-/**
- * Which keeper STANDS FOR each free goal, and which keepers stop being buyable things because of it.
- *
- * The porte rule makes a goal the unit (§14.1): taking any keeper of a club takes its goal, and nobody can
- * take a second one. So a pool that offers three keepers per club offers the same goal three times - and a
- * plan built on it spends picks that buy nothing. One row per goal, and the one that stands for it is the
- * club's BEST keeper, by whatever worth the caller measures (the surplus, because you field exactly one).
- *
- * Returns the stand-ins keyed by player id, and the ids to drop. A keeper with no worth at all cannot stand
- * for his goal - and if none of a club's keepers has one, that goal has no row rather than an invented one.
- */
-export function portaStandIns(
-  porte: Porta[],
-  worthOf: (playerId: number) => number | null,
-): { standIn: Map<number, Porta>; drop: Set<number> } {
-  const standIn = new Map<number, Porta>();
-  const drop = new Set<number>();
-  for (const porta of porte) {
-    let best: number | null = null;
-    let bestWorth = -Infinity;
-    for (const keeper of porta.keepers) {
-      const worth = worthOf(keeper.id);
-      if (worth == null) continue;
-      if (best === null || worth > bestWorth) {
-        best = keeper.id;
-        bestWorth = worth;
-      }
-    }
-    for (const keeper of porta.keepers) if (keeper.id !== best) drop.add(keeper.id);
-    if (best !== null) standIn.set(best, porta);
-  }
-  return { standIn, drop };
 }
 
 export interface DeriveContext {
@@ -559,7 +532,19 @@ export class AuctionFeed {
    * How the league counts keepers. It is NOT read from the session: fanta-asta-live has no notion of
    * a porta, so this is the one thing the operator has to tell the panel - hence the switch.
    */
+  /**
+   * The porte rule, as the LEAGUE declares it (`LeagueSettings.porte`): written by `GlobalOptions` and read
+   * here, because it is a regulation and not a fact about a session. It used to be stored with the session.
+   */
   readonly keeperMode = signal<KeeperMode>('players');
+
+  /**
+   * QUANTE PORTE ha una rosa, come la LEGA le dichiara (il campo dei portieri nelle rose delle Opzioni).
+   * Scritto da `GlobalOptions` come `keeperMode`. Con le porte accese è il regolamento a dire quante se ne
+   * prendono (operatore, 28/09/2026: «2 porte»), e la sessione le può dichiarare diversamente - i posti
+   * portiere del software non sono le porte della lega. Null = nessuna dichiarazione, vale il tavolo.
+   */
+  readonly porteSlots = signal<number | null>(null);
 
   /**
    * True while what you are looking at is the SAVED table and not the live one.
@@ -791,6 +776,35 @@ export class AuctionFeed {
       .sort((a, b) => b.price - a.price),
   );
 
+  /**
+   * Which goal each keeper belongs to, for EVERY club of the listone.
+   *
+   * With the porte rule on the unit on screen is the CLUB (operator, 28/09/2026: «non mostrassi più il nome
+   * del portiere ma della squadra»), so whoever draws a keeper - a squad, the last picks, the pitch - asks
+   * here which porta he stands for. One map and not a lookup per reader, or two lists would name the same
+   * pick two ways.
+   */
+  readonly portaOfKeeper = computed<Map<number, Porta>>(() => {
+    const out = new Map<number, Porta>();
+    for (const porta of this.portaState().porte) {
+      for (const keeper of porta.keepers) out.set(keeper.id, porta);
+    }
+    return out;
+  });
+
+  /** Every goal of the listone, owned or free. */
+  readonly porte = computed<Porta[]>(() => this.portaState().porte);
+
+  /**
+   * The name a man is SHOWN under: the club for a keeper while the porte rule is on, his own otherwise.
+   * The keeper who was called is not a fact about the squad any more - the goal is.
+   */
+  shownName(player: AuctionPlayer | null | undefined): string {
+    if (!player) return '';
+    const porta = this.isGoalsMode() ? this.portaOfKeeper().get(player.id) : undefined;
+    return porta ? porta.club : player.name;
+  }
+
   /** The goals I own. */
   readonly myPorte = computed<Porta[]>(() =>
     this.portaState().porte.filter((porta) => porta.teamId === this.followedTeamId()),
@@ -805,7 +819,7 @@ export class AuctionFeed {
    */
   readonly porteMissing = computed<number>(() => {
     const slots = this.league()['roles']?.['gk'];
-    const required = Array.isArray(slots) ? slots[0] : (slots ?? 0);
+    const required = this.porteSlots() ?? (Array.isArray(slots) ? slots[0] : (slots ?? 0));
     return Math.max(0, required - this.myPorte().length);
   });
 
@@ -887,7 +901,6 @@ export class AuctionFeed {
     const stored = this.stored();
     if (!stored?.code) return false;
 
-    this.keeperMode.set(stored.keeperMode ?? 'players');
     if (stored.teamId !== null && stored.teamId !== undefined) {
       this.followedTeamId.set(stored.teamId);
     }
@@ -1006,11 +1019,6 @@ export class AuctionFeed {
     this.remember();
   }
 
-  setKeeperMode(mode: KeeperMode) {
-    this.keeperMode.set(mode);
-    this.remember();
-  }
-
   /** Closes the stream and empties the mirror. It does NOT forget the session: `connect` calls it. */
   disconnect() {
     this.closeStream();
@@ -1062,7 +1070,6 @@ export class AuctionFeed {
         JSON.stringify({
           code,
           teamId: this.followedTeamId(),
-          keeperMode: this.keeperMode(),
         }),
       );
     } catch {

@@ -55,6 +55,10 @@
   --color-absent-unknown: #37474f;
   /* xG+xA, the second layer: beside the bar and never inside its height. */
   --color-xga: #7e57c2;
+  /* FROZEN: a man the draft's FVM ceiling keeps off the board until a later turn (28/09/2026). Its own
+     token and not a vote band's, because one colour must not say two things: he is not hidden and not
+     worse, he is on ice, and the ink says so while the name stays at full contrast. */
+  --color-frozen: #7dd3fc;
 
   --radius-control: 0.75rem;
   --radius-card: 1.25rem;

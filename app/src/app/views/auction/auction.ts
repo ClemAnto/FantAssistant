@@ -5,6 +5,7 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCardModule } from 'ng-zorro-antd/card';
 import { NzEmptyModule } from 'ng-zorro-antd/empty';
+import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzProgressModule } from 'ng-zorro-antd/progress';
@@ -17,6 +18,7 @@ import { AuctionDemo } from '../../core/auction-demo';
 import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
 import { per } from '../../core/auction-value';
 import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
+import { GlobalOptions } from '../../core/global-options';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { PlayerTrendStrip } from '../../ui/player-trend/player-trend';
@@ -78,6 +80,7 @@ export type SortKey = keyof typeof SORTS;
     NzButtonModule,
     NzCardModule,
     NzEmptyModule,
+    NzIconModule,
     NzInputModule,
     NzInputNumberModule,
     NzProgressModule,
@@ -97,6 +100,7 @@ export class Auction {
   protected readonly feed = inject(AuctionFeed);
   protected readonly advice = inject(AuctionAdvice);
   protected readonly demo = inject(AuctionDemo);
+  private readonly options = inject(GlobalOptions);
   protected readonly zoneLabel = ZONE_LABEL;
 
   /**
@@ -275,12 +279,12 @@ export class Auction {
    */
   protected readonly topAvailable = computed(() => {
     // With the porte rule on, the keepers are listed as goals instead: one row per club, below.
-    const zones = this.feed
-      .zones()
-      .filter((zone) => !(zone === 'gk' && this.feed.isGoalsMode()));
-    return zones.map((zone) => ({
+    // With the porte rule on the keepers' list IS the goals' list: one row per club, valued as the mix of its
+    // keepers (28/09/2026), with the same columns as every other line - it used to be a card of its own that
+    // showed a price and nothing else, which is a porta with no surplus.
+    return this.feed.zones().map((zone) => ({
       zone,
-      label: ZONE_LABEL[zone],
+      title: zone === 'gk' && this.feed.isGoalsMode() ? 'Migliori porte libere' : `Migliori ${ZONE_LABEL[zone]} liberi`,
       // The THIRTY best by value, re-ordered by whichever column was clicked. Sorting the whole
       // listone by price would answer a different question - the thirty cheapest men are nobody.
       players: this.sorted(this.advice.bySlotOrZone(zone, AVAILABLE_PER_ZONE)),
@@ -316,6 +320,54 @@ export class Auction {
       + 'alternativo è quasi equivalente.';
   }
 
+  /**
+   * THE FVM CEILING OF THE FIRST TURNS, in one sentence for the card - or null when it does not apply.
+   *
+   * It is said even when it no longer binds us, because it still binds the RIVALS behind in the order, and
+   * the plan's predictions about them are shaped by it: a rule that shapes a forecast in silence reads
+   * exactly like a forecast that is wrong.
+   */
+  protected readonly capLine = computed<string | null>(() => {
+    const cap = this.advice.pickCap();
+    const turn = this.advice.myTurn();
+    if (!cap || turn === null) return null;
+    const rule = `FVM ≥ ${cap.fvm} congelati per ${cap.frozenTurns} turni`;
+    if (turn > cap.frozenTurns) return `${rule} · tu sei al ${turn}°: per te sono sbloccati, per chi è indietro no`;
+    const left = cap.frozenTurns - turn + 1;
+    return `${rule} · tu sei al ${turn}°: ancora ${left} ${left === 1 ? 'turno' : 'turni'} congelati`;
+  });
+
+  /** Whether a man is off OUR board this turn because of the ceiling. */
+  protected locked(price: number): boolean {
+    return this.advice.lockedForMe(price);
+  }
+
+  /**
+   * «Make him my pick», refused where the ceiling forbids it - and SAID, because a click that does nothing in
+   * silence is indistinguishable from a broken one.
+   */
+  protected rootHint(price: number, base: string): string {
+    const cap = this.advice.pickCap();
+    return this.locked(price) && cap
+      ? `Congelato: FVM ${price} ≥ ${cap.fvm}, si chiama solo dal ${cap.frozenTurns + 1}° turno.`
+      : base;
+  }
+
+  /** The porte rule is the LEAGUE's: this control writes the declaration every page reads. */
+  protected setKeeperMode(mode: KeeperMode): void {
+    this.options.patch({ porte: mode === 'goals' });
+  }
+
+  /** Where the ceiling is changed: the league's options, which own every declared rule. */
+  protected editCap(): void {
+    this.options.open();
+  }
+
+  protected chooseRoot(playerId: number, price: number): void {
+    if (this.locked(price)) return;
+    this.advice.chooseRoot(playerId);
+  }
+
   /** Click once to sort by a column, again to flip it. */
   protected toggleSort(key: SortKey): void {
     if (this.sortKey() === key) {
@@ -349,6 +401,26 @@ export class Auction {
   /** One line per row, on the tooltip: the two secondary numbers plus what the surplus is measured on. */
   protected explain(row: RankedPlayer): string {
     const parts: string[] = [];
+    if (row.porta) {
+      // What a goal is made of, and the cheapest way to take it: any keeper grants it, and a draft pick costs
+      // the FVM of the man called.
+      const numbers = this.advice.numbers();
+      const keepers = row.porta.keepers
+        .map((keeper) => {
+          const pv = numbers.get(keeper.id)?.pv ?? numbers.get(keeper.id)?.estPv ?? null;
+          return `${keeper.name} ${keeper.fvm}` + (pv != null ? ` (${pv.toFixed(0)} pres.)` : '');
+        })
+        .join(', ');
+      parts.push(`porta: ${keepers}`);
+      if (row.valuation.fm != null) parts.push(`fantamedia della porta ${row.valuation.fm.toFixed(2)}, mix pesato sulle presenze`);
+      if (row.porta.cheapest < row.porta.price) {
+        parts.push(`la prendi anche chiamando il portiere da ${row.porta.cheapest}`);
+      }
+    }
+    const cap = this.advice.pickCap();
+    if (cap && this.locked(row.price)) {
+      parts.push(`congelato: FVM ≥ ${cap.fvm}, lo chiami solo dal ${cap.frozenTurns + 1}° turno`);
+    }
     const rounds = this.advice.rounds();
     if (row.lead != null) {
       parts.push(`lead ${row.lead.toFixed(1)} fantapunti sopra il rimpiazzo`
@@ -383,8 +455,17 @@ export class Auction {
     return parts.join(' · ');
   }
 
-  /** The dearest goals nobody has taken yet - the unit a bid is made on when the porte rule is on. */
-  protected readonly topPorte = computed(() => this.feed.freePorte().slice(0, AVAILABLE_PER_ZONE));
+  /**
+   * Whether this id is a keeper standing for a GOAL: with the porte rule on, the screen names the club and not
+   * the man (operator, 28/09/2026), and a keeper's own marks - an injury, a screen - are not the goal's.
+   */
+  protected isGoal(id: number | null | undefined): boolean {
+    return id != null && this.feed.isGoalsMode() && this.feed.portaOfKeeper().has(id);
+  }
+
+  protected flagId(id: number | null | undefined): number | undefined {
+    return id == null || this.isGoal(id) ? undefined : id;
+  }
 
   /** Whether an entry of my squad is a keeper that granted no porta. */
   protected isStray(index: number): boolean {

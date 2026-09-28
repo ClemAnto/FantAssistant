@@ -103,8 +103,10 @@ export class FantaPitch {
       const row = numbers.get(player.id);
       men.push({
         id: player.id,
-        name: player.name,
-        club: player.club,
+        // With the porte rule on a keeper IS his club's goal: the place names the club, and its worth is
+        // the goal's (`valueBy` prices a keeper as the mix of his club's keepers).
+        name: this.feed.shownName(player),
+        club: this.feed.isGoalsMode() && this.feed.portaOfKeeper().has(player.id) ? 'porta' : player.club,
         shown,
         roles: shown.map((role) => role.toLowerCase()),
         value: values.get(player.id) ?? null,

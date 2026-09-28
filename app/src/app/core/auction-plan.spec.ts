@@ -8,11 +8,14 @@ import {
   DEPTH_WEIGHT,
   TAIL_POSITIONS,
   TAIL_PRICE_FLOOR,
+  PickCap,
   PlanPlayer,
+  capBlocks,
   PlanTeam,
   coverNeedOf,
   needFor,
   needForUs,
+  goneBeforeOurNextTurn,
   pickForUs,
   plan,
   planRoots,
@@ -469,5 +472,89 @@ describe('the tail does not fall for the nearly free', () => {
 
   it('still lets the middle of the round chase the dearest name', () => {
     expect(predictRivalPick(team(1), pool, places, 3, 9)!.id).toBe(3);
+  });
+});
+
+describe('the FVM ceiling of the first turns (operator, 28/09/2026)', () => {
+  // «Non sarà possibile scegliere un calciatore con FVM >= 213 prima del sesto turno.»
+  const CAP: PickCap = { fvm: 213, frozenTurns: 5 };
+  const places = startingPlaces(SHAPES);
+
+  it('blocks from the threshold INCLUDED, and only before the turn named', () => {
+    expect(capBlocks(0, 213, CAP)).toBe(true); // first turn, exactly 213: blocked, the sign is >=
+    expect(capBlocks(0, 212, CAP)).toBe(false);
+    expect(capBlocks(4, 300, CAP)).toBe(true); // fifth turn: still before the sixth
+    expect(capBlocks(5, 300, CAP)).toBe(false); // sixth turn: free
+    expect(capBlocks(0, 499, null)).toBe(false); // no ceiling declared, nobody is blocked
+  });
+
+  it('keeps a blocked man out of OUR pick, and lets him in on the turn it opens', () => {
+    const pool = [player(1, 'pc', 300, 30), player(2, 'pc', 150, 20)];
+    expect(pickForUs(pool, null, team(0), null, CAP)!.id).toBe(2);
+    expect(pickForUs(pool, null, team(0, { picksCount: 5 }), null, CAP)!.id).toBe(1);
+  });
+
+  it('answers NOTHING rather than a forbidden man when every name is blocked', () => {
+    expect(pickForUs([player(1, 'pc', 300, 30)], null, team(0), null, CAP)).toBeNull();
+  });
+
+  it('binds the rivals too, so the lookahead never hands them a man they cannot call', () => {
+    const pool = [player(1, 'pc', 300), player(2, 'pc', 150)];
+    expect(predictRivalPick(team(1), pool, places, 3, Infinity, DEFAULT_HEAD, CAP)!.id).toBe(2);
+    expect(predictRivalPick(team(1, { picksCount: 5 }), pool, places, 3, Infinity, DEFAULT_HEAD, CAP)!.id)
+      .toBe(1);
+  });
+
+  it('does not count a blocked man as GONE before our next turn, because nobody could take him', () => {
+    const pool = [player(1, 'pc', 300), player(2, 'pc', 150), player(3, 'pc', 120)];
+    const gone = goneBeforeOurNextTurn({
+      teams: [team(0), team(1), team(2)],
+      order: [0, 1, 2],
+      pool,
+      places,
+      mineId: 0,
+      keeperCap: 3,
+      maxAheadPicks: 1,
+      cap: CAP,
+    });
+    expect(gone.has(1)).toBe(false);
+  });
+
+  it('refuses a what-if root the ceiling forbids, and plays its own pick instead', () => {
+    const pool = [player(1, 'pc', 300, 30), player(2, 'dc', 150, 20), player(3, 'dc', 100, 10)];
+    const result = plan({
+      teams: [team(0), team(1)],
+      order: [0, 1],
+      pool,
+      mineId: 0,
+      shapes: SHAPES,
+      keeperCap: 3,
+      maxAheadPicks: 1,
+      rootId: 1,
+      cap: CAP,
+    });
+    expect(result.mine!.id).not.toBe(1);
+  });
+
+  it('opens the dear man in the simulated rounds exactly at the turn the ceiling names', () => {
+    // Four picks behind us: THIS is our fifth turn (blocked), the next simulated one is the sixth.
+    const four = { picksCount: 4, pickValues: [10, 10, 10, 10], rosterValue: 40 };
+    const pool = [player(1, 'pc', 300, 90), player(2, 'dc', 150, 20), player(3, 'dc', 100, 10)];
+    const result = plan({
+      teams: [team(0, four), team(1, { ...four, firstRoundIndex: 1 })],
+      order: [0, 1],
+      pool,
+      mineId: 0,
+      shapes: SHAPES,
+      keeperCap: 3,
+      maxAheadPicks: 1,
+      cap: CAP,
+    });
+    expect(result.mine!.id).not.toBe(1); // fifth turn: he is not ours to call
+    // ...and the rival behind us is on his fifth turn too, so he cannot take him either.
+    expect(result.rounds[0].after.map((row) => row.player.id)).not.toContain(1);
+    // Sixth turn for both: he is still on the board, and now somebody takes him.
+    const next = result.rounds[1];
+    expect([next.mine?.id, ...[...next.before, ...next.after].map((row) => row.player.id)]).toContain(1);
   });
 });

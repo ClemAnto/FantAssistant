@@ -190,11 +190,14 @@
                        le colonne di quel tanto. Adesso la variabilita' sta tutta nello SPAZIATORE, che
                        e' l'unico elemento che puo' assorbirla. Il prezzo e' il solito e va detto: le
                        icone tolgono larghezza al NOME invece che allo spazio vuoto. -->
-                  <ui-flags
-                    class="shrink-0 text-[10px] leading-none"
-                    [playerId]="man.id"
-                    [max]="2"
-                  />
+                  <!-- Una PORTA è un club: i marchi di un suo portiere non sono della porta. -->
+                  @if (!man.porta) {
+                    <ui-flags
+                      class="shrink-0 text-[10px] leading-none"
+                      [playerId]="man.id"
+                      [max]="2"
+                    />
+                  }
                   <span class="flex-1"></span>
                   <!-- IL NUMERO CHE SPIEGA L'ORDINE, e cambia col taglio perche' l'ordine cambia.
                        Sul mercato il blocco e' ordinato per valore atteso, quindi qui c'e' quanto

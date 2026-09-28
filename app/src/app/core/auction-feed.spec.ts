@@ -13,7 +13,6 @@ import {
   livePicks,
   platformOf,
   porteOf,
-  portaStandIns,
 } from './auction-feed';
 
 /**
@@ -241,49 +240,18 @@ describe('porteOf', () => {
   });
 });
 
-describe('portaStandIns', () => {
+describe('porteOf, the cheapest keeper', () => {
   const keeper = (id: number, name: string, club: string, fvm: number): AuctionPlayer => ({
-    id,
-    name,
-    club,
-    roles: ['por'],
-    zoneClassic: 'gk',
-    zoneMantra: 'gk',
-    championship: 'Serie A',
-    fvm,
-  });
-  const porte = porteOf(
-    [
-      keeper(101, 'Svilar', 'Roma', 65),
-      keeper(102, 'Gollini', 'Roma', 3),
-      keeper(201, 'Paleari', 'Torino', 1),
-      keeper(202, 'Mascardi', 'Torino', 1),
-    ],
-    [],
-    false,
-  ).porte;
-
-  it('keeps ONE row per goal: the best keeper of the club by worth, and drops the others', () => {
-    const worth = new Map([
-      [101, 23.9],
-      [102, 1.2],
-      [201, 4.0],
-      [202, 6.5],
-    ]);
-    const { standIn, drop } = portaStandIns(porte, (id) => worth.get(id) ?? null);
-    expect([...standIn.keys()].sort()).toEqual([101, 202]);
-    expect([...drop].sort()).toEqual([102, 201]);
-    // The goal costs what its DEAREST keeper costs, not what the stand-in costs.
-    expect(standIn.get(202)!.price).toBe(1);
-    expect(standIn.get(101)!.price).toBe(65);
+    id, name, club, roles: ['por'], zoneClassic: 'gk', zoneMantra: 'gk', championship: 'Serie A', fvm,
   });
 
-  it('gives a goal no row at all when none of its keepers has a number', () => {
-    const { standIn, drop } = portaStandIns(porte, (id) => (id === 101 ? 10 : null));
-    expect([...standIn.keys()]).toEqual([101]);
-    // Torino's goal has no stand-in, so both its keepers are unbuyable rows rather than one invented one.
-    expect(drop.has(201)).toBe(true);
-    expect(drop.has(202)).toBe(true);
+  it('carries the DEAREST keeper as the price and the CHEAPEST as what a draft pick of the goal can cost', () => {
+    // Any keeper of the club takes its goal, and a draft pick costs the FVM of the man called.
+    const { porte } = porteOf(
+      [keeper(101, 'Svilar', 'Roma', 65), keeper(102, 'Gollini', 'Roma', 3)], [], false,
+    );
+    expect(porte[0].price).toBe(65);
+    expect(porte[0].cheapest).toBe(3);
   });
 });
 

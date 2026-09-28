@@ -11,8 +11,9 @@ import {
   Zone,
   zoneOf,
 } from './auction-feed';
-import { PlanTeam, ahead } from './auction-plan';
+import { PickCap, PlanTeam, ahead, capBlocks } from './auction-plan';
 import { Bundle, BundleTable, EngineSheetEntry } from './bundle';
+import { GlobalOptions } from './global-options';
 
 /**
  * «Segui un'asta» without an auction: an invented TABLE over the bundle's own listone.
@@ -211,6 +212,11 @@ export function buildDemoSession(input: {
   mantra: boolean;
   platform: 'default' | 'euro';
   rounds?: number;
+  /**
+   * The FVM ceiling of the first turns, if the league declares one: a fixture that broke the regulation it
+   * is played under would open on a table the real one could never reach.
+   */
+  cap?: PickCap | null;
 }): DemoSession {
   const teams = Math.max(2, Math.min(input.teams || DEMO_TEAMS.length, DEMO_TEAMS.length));
   const roles = demoRoles(input.slots, input.mantra);
@@ -242,7 +248,8 @@ export function buildDemoSession(input: {
   for (let index = 0; index < total; index += 1) {
     const squad = [...squads].sort((a, b) => ahead(a, b, MAX_AHEAD_PICKS))[0];
     const choice = board.find(
-      (player) => !taken.has(player.id) && wants(squad, zoneOf(player, input.mantra)),
+      (player) => !taken.has(player.id) && wants(squad, zoneOf(player, input.mantra))
+        && !capBlocks(squad.picksCount, player.fvm, input.cap),
     );
     if (!choice) break;
     taken.add(choice.id);
@@ -280,6 +287,7 @@ export function buildDemoSession(input: {
 export class AuctionDemo {
   private readonly bundle = inject(Bundle);
   private readonly feed = inject(AuctionFeed);
+  private readonly options = inject(GlobalOptions);
 
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
@@ -325,6 +333,10 @@ export class AuctionDemo {
           slots: chosen.squad_slots ?? FALLBACK_SLOTS,
           mantra,
           platform: chosen.platform,
+          // The demo IS a draft, so the ceiling applies whenever it is declared on.
+          cap: this.options.league().draftCap?.on
+            ? { fvm: this.options.league().draftCap.fvm, frozenTurns: this.options.league().draftCap.frozenTurns }
+            : null,
         }),
       );
       return true;

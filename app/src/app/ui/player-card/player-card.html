@@ -129,6 +129,15 @@
             }
           }
         </span>
+        @if (man.porta; as porta) {
+          <!-- LA PORTA: i numeri sotto sono del titolare, e gli altri portieri del club sono una nota. -->
+          <span class="min-w-0 truncate text-[11px] text-muted" data-porta>
+            Porta {{ porta.club }} · titolare
+            @if (porta.others.length) {
+              · altri: {{ porta.others.join(', ') }}
+            }
+          </span>
+        }
       </span>
       <ui-flags [playerId]="man.id" [max]="3" />
       <button
