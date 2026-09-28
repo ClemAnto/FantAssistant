@@ -918,7 +918,12 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      07/10/2024), fascia +1,0 e +0,4, al prezzo di +0,2% / +0,7% di scarto sul livello. SOLO su `euro`:
 #      su Serie A non paga (`TM_PRIOR_PLATFORMS`). K resta 5 (decisione dell'operatore: la variante K=3 era
 #      piu' vicina alla stampa e costava il doppio sul livello).
-SHEET_REVISION = 77
+#   78 (29/09/2026) - `desc_tm_*`: la stagione di campionato SCORSA da `tm_appearances` - campionato, presenze,
+#      minuti, gol, assist - per ogni divisione senior (`prior_from_tm(any_tier=True)`, giovanili fuori a
+#      eta' mediana <= 18). Chiesta dall'operatore per chi la piattaforma non ha votato: Tzolis (BE1, 26
+#      presenze), Ortega J. (E4G5, 27). Nessun voto, perche' la fonte non ne porta. Reporting puro: il
+#      prior della rev 77 non cambia (stessa funzione, parametri di default), `engine_*` fermo.
+SHEET_REVISION = 78
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -5468,9 +5473,21 @@ TM_START_MINUTES = 60
 # dove mezza stagione non vale mezza Serie A (lo stesso limite di livello del 25/08/2026). Un parametro
 # appartiene alla popolazione su cui e' misurato, e la piattaforma e' una popolazione.
 TM_PRIOR_PLATFORMS = ("euro",)
+# ...E LA STESSA STAGIONE MOSTRATA, che e' un'altra domanda (operatore, 29/09/2026: «recuperiamo i valori
+# dello scorso anno di Evanilson, Lepaul, Ortega J., Tzolis e tutti quelli a cui mancano»). Il prior
+# rifiuta le serie inferiori per misura; lo schermo no, perche' quante partite ha giocato un uomo in
+# Segunda RFEF e' un FATTO su di lui anche se non prevede niente in Liga. Quindi ogni divisione senior:
+# il paese, il livello, e il girone dove c'e' (`E4G5`, `IT3A`).
+TM_ANY_TIER = re.compile(r"^[A-Z]{1,4}\d{1,2}(?:[A-Z]{1,2}\d{0,2})?$")
+# ...e il giovanile piu' severo, misurato su `tm_appearances` intera: le serie minori senior dove seguiamo
+# pochi ragazzi hanno l'eta' mediana a 19-20 (Segunda RFEF 19, Primera RFEF, Brasileirao, Ekstraklasa e
+# 3. Liga 20), le giovanili a 17-18 (Primavera `IJ1` 18, Youth League 17, PL International Cup 18). Con
+# la soglia di `abroad` (20) le prime sparirebbero e Ortega J. non avrebbe una stagione.
+TM_SHOWN_YOUTH_MEDIAN = 18
 
 
-def prior_from_tm(conn, season: str) -> dict[int, dict]:
+def prior_from_tm(conn, season: str, *, any_tier: bool = False,
+                  youth_median: int = abroad.YOUTH_MEDIAN_AGE) -> dict[int, dict]:
     """La stagione `season` di ogni uomo nel suo campionato di PRIMA DIVISIONE, da `tm_appearances`.
 
     E' il secondo lettore dello STESSO fatto che `starting_record` legge da `external_stats` - presenze,
@@ -5483,12 +5500,16 @@ def prior_from_tm(conn, season: str) -> dict[int, dict]:
     ottavo di stagione. Si stimano come il massimo delle righe di una coppia (uomo, club) in quella
     competizione - ogni convocazione del suo club e' una riga, giocata o no - che e' la stima con cui il
     25/08/2026 si e' riprodotto `features.league_rounds` 39 volte su 40.
+
+    `any_tier` + `youth_median` sono la LETTURA PER LO SCHERMO (`desc_tm_*`): ogni divisione senior e
+    non solo la prima, con gol e assist. Il prior non li passa e resta com'era misurato.
     """
     youth = abroad.youth_competitions(conn.execute(
         """SELECT a.competition, CAST(substr(a.season, 1, 4) AS INTEGER) - p.birth_year
              FROM tm_appearances a JOIN players p USING(fc_id)
             WHERE p.birth_year IS NOT NULL AND a.state = 'played'
-              AND COALESCE(a.is_national, 0) = 0""").fetchall())
+              AND COALESCE(a.is_national, 0) = 0""").fetchall(), youth_median)
+    tier = TM_ANY_TIER if any_tier else TM_FIRST_TIER
     rounds: dict[str, int] = {}
     for competition, most in conn.execute(
             """SELECT competition, MAX(n) FROM (
@@ -5498,17 +5519,20 @@ def prior_from_tm(conn, season: str) -> dict[int, dict]:
                GROUP BY competition""", (season,)):
         rounds[competition] = most
     out: dict[int, dict] = {}
-    for fc_id, competition, played, started, minutes in conn.execute(
+    for fc_id, competition, played, started, minutes, goals, assists in conn.execute(
             f"""SELECT fc_id, competition, SUM(state = 'played'),
                        SUM(state = 'played' AND COALESCE(minutes, 0) >= {TM_START_MINUTES}),
-                       SUM(COALESCE(minutes, 0))
+                       SUM(COALESCE(minutes, 0)),
+                       SUM(CASE WHEN state = 'played' THEN COALESCE(goals, 0) ELSE 0 END),
+                       SUM(CASE WHEN state = 'played' THEN COALESCE(assists, 0) ELSE 0 END)
                   FROM tm_appearances WHERE season = ? AND COALESCE(is_national, 0) = 0
                  GROUP BY fc_id, competition""", (season,)):
-        if not played or not TM_FIRST_TIER.match(competition or "") or competition in youth:
+        if not played or not tier.match(competition or "") or competition in youth:
             continue
         best = out.get(fc_id)
         if best is None or played > best["matches"]:
             out[fc_id] = {"matches": played, "starts": started, "minutes": minutes,
+                          "goals": goals, "assists": assists,
                           "competition": competition, "rounds": rounds.get(competition)}
     return out
 
@@ -6154,6 +6178,10 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_abroad_ga90", "desc_abroad_cards90", "desc_abroad_vote", "desc_abroad_voted",
     "desc_abroad_share",
     "desc_abroad_rank", "desc_abroad_pool",
+    # ...E LA SUA STAGIONE DI CAMPIONATO SCORSA da Transfermarkt (revisione 78), per lo schermo: il
+    # campionato (codice del provider), le presenze, i minuti, i gol e gli assist. Nessun voto, perche'
+    # quella tabella non ne porta. REPORTING, nessun gate.
+    "desc_tm_comp", "desc_tm_matches", "desc_tm_minutes", "desc_tm_goals", "desc_tm_assists",
     "desc_squad_club", "desc_squad_source", "desc_real_role",
     # The granular real role: where on the pitch he belongs, in the twelve-code vocabulary.
     "desc_real_roles", "desc_real_role_primary", "desc_real_role_line", "desc_real_role_depth",
@@ -6437,6 +6465,7 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
         rotation = layers["rotation"].get(obs.fc_id, {})
         riser = layers["riser"].get(obs.fc_id, {})
         abroad_row = layers["abroad"].get(obs.fc_id, {})
+        tm_last = layers.get("tm_last", {}).get(obs.fc_id, {})
         injury = layers["injuries"].get(obs.fc_id, {})
         # LA FINESTRA APERTA, in giornate del suo club (`out_window`): (quante ne salta, quanta stagione
         # gli resta). None dove la fonte non data il rientro o del club non c'e' calendario.
@@ -6813,6 +6842,11 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_abroad_share": abroad_row.get("share"),
             "desc_abroad_rank": (abroad_row.get("screen") or {}).get("rank"),
             "desc_abroad_pool": (abroad_row.get("screen") or {}).get("pool"),
+            "desc_tm_comp": tm_last.get("competition"),
+            "desc_tm_matches": tm_last.get("matches"),
+            "desc_tm_minutes": tm_last.get("minutes"),
+            "desc_tm_goals": tm_last.get("goals"),
+            "desc_tm_assists": tm_last.get("assists"),
             "desc_squad_club": layers["squads"].get(obs.fc_id),
             "desc_squad_source": layers["squad_sources"].get(obs.fc_id),
             # The role he was REALLY used in, from the provider's own slot per match (positions.
@@ -7753,6 +7787,9 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # per cui esiste e' che oggi quei 188 uomini su 531 sono ordinati da una COSTANTE - `est_pv`
         # cade sul «nessuno lo ha mai visto giocare» e r(quota all'estero, est_pv) legge +0,05.
         "abroad": abroad.layer(conn, window.target_season, window.input_season, platform),
+        # ...e la stagione scorsa da Transfermarkt, per lo schermo e su ogni piattaforma (`desc_tm_*`).
+        "tm_last": prior_from_tm(conn, window.input_season, any_tier=True,
+                                 youth_median=TM_SHOWN_YOUTH_MEDIAN),
         "squads": squads, "squad_sources": squad_sources,
         "injuries": injury_history(conn, window.auction_date, seasons, measured,
                                    previous=window.input_season),

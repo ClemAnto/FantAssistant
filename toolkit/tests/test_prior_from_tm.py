@@ -62,3 +62,26 @@ def test_the_fallback_never_overrides_a_measured_row_nor_a_measured_zero():
     assert prop[1]["minutes"] == 2300 and 2 not in prop
     assert rounds == {1: 30.0}
     assert record == {2: {"starts": 0, "matches": 0, "share": 0.0}}, "the inputs are not mutated"
+
+
+def test_the_shown_season_takes_every_senior_tier_with_goals_and_assists():
+    # what the SCREEN shows (desc_tm_*, 29/09/2026): Ortega J. in Segunda RFEF is a fact about him even if
+    # it is no prior for La Liga. Lower tiers IN, youth still OUT, the prior itself untouched.
+    rows = _season(4, "E4G5", 40, 27) + [(100 + i, "IJ1", 30, 90, "played") for i in range(25)] \
+        + _season(5, "IJ1", 30, 30)
+    births = {4: 2005, 5: 2008, **{100 + i: 2008 for i in range(25)}}
+    conn = _db(rows, births)
+    conn.execute("UPDATE tm_appearances SET goals = 1 WHERE fc_id = 4 AND tm_game_id % 3 = 0")
+    shown = snapshot.prior_from_tm(conn, "2025-26", any_tier=True,
+                                   youth_median=snapshot.TM_SHOWN_YOUTH_MEDIAN)
+    assert shown[4]["competition"] == "E4G5" and shown[4]["matches"] == 27
+    assert shown[4]["goals"] == 9 and shown[4]["assists"] == 0
+    assert 5 not in shown, "youth football stays out of what the screen calls a season"
+    assert 4 not in snapshot.prior_from_tm(conn, "2025-26"), "the prior still reads first tiers only"
+
+
+def test_the_shown_tiers_are_league_codes_and_not_cups():
+    for code in ("GB1", "BE1", "E4G5", "IT3A", "E3G1", "AR1N", "MLS1"):
+        assert snapshot.TM_ANY_TIER.match(code), code
+    for code in ("CL", "FAC", "CGB", "EL", "UCOL", "19YL", "PLIC"):
+        assert not snapshot.TM_ANY_TIER.match(code), code

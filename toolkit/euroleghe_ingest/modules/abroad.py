@@ -113,8 +113,13 @@ YOUTH_MEDIAN_AGE = 20
 YOUTH_MIN_ROWS = 20
 
 
-def youth_competitions(rows) -> set[str]:
+def youth_competitions(rows, median: int = YOUTH_MEDIAN_AGE) -> set[str]:
     """{competition} whose median player is a boy, derived from the data and never listed by hand.
+
+    `median` is the age at or below which a competition's median player makes it youth football. The
+    default is this screen's; `snapshot.TM_SHOWN_YOUTH_MEDIAN` passes a stricter one, because on the
+    whole of `tm_appearances` the minor SENIOR leagues where we follow a handful of young men read 19-20
+    (Segunda RFEF 19, Primera RFEF, Brasileirao, Ekstraklasa, 3. Liga 20) while youth reads 17-18.
 
     `rows` is (competition, age) for every appearance we can date. A competition with fewer than
     `YOUTH_MIN_ROWS` is left OUT of the set - «vuoto = ignoto»: too thin to call it youth football, and
@@ -128,7 +133,7 @@ def youth_competitions(rows) -> set[str]:
     for competition, found in ages.items():
         if len(found) >= YOUTH_MIN_ROWS:
             found.sort()
-            if found[len(found) // 2] <= YOUTH_MEDIAN_AGE:
+            if found[len(found) // 2] <= median:
                 out.add(competition)
     return out
 

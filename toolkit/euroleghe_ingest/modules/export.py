@@ -362,6 +362,11 @@ SHEET_COLUMNS: tuple[str, ...] = (
     "desc_abroad_share",
     "desc_abroad_rank",
     "desc_abroad_pool",
+    "desc_tm_comp",
+    "desc_tm_matches",
+    "desc_tm_minutes",
+    "desc_tm_goals",
+    "desc_tm_assists",
     # Fpi: quanto vale una sua partita secondo il calcio che ha DAVVERO giocato, con la base da cui viene
     # e su quante partite. Senza queste tre la colonna Fpi dell'app resta muta - e il contratto e' una
     # LISTA ESPLICITA proprio perche' una colonna nuova non viaggi per sbaglio ne' resti a casa in
@@ -454,6 +459,7 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     "desc_abroad_ga90", "desc_abroad_cards90", "desc_abroad_vote", "desc_abroad_voted",
     "desc_abroad_share",
     "desc_abroad_rank", "desc_abroad_pool",
+    "desc_tm_comp", "desc_tm_matches", "desc_tm_minutes", "desc_tm_goals", "desc_tm_assists",
     # ...e le cinque dell'esito, nate il 06/09/2026: ogni foglio scritto prima della revisione 46 non le
     # ha, pacchetti compresi. Quarta volta che questo commento si scrive, e la ragione e' sempre la
     # stessa: pretendere una colonna nuova da un foglio vecchio spegne il viaggio nel tempo per
