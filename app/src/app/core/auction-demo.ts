@@ -327,10 +327,10 @@ export class AuctionDemo {
    * THE TABLE OF THE DECLARED LEAGUE, EMPTY (Draft Assistant, 28/09/2026: «inizialmente prevedi le
    * impostazioni generali di lega»).
    *
-   * The seats, the roster shape, the game and the listone are the operator's own settings
-   * (`GlobalOptions.league`), and NO pick is pre-loaded. There is NO budget and NO FVM ceiling (operator,
-   * 29/09/2026: «nel draft non esiste un tetto di FVM o di budget»): the FVM is the price that orders the
-   * calls, not money anybody spends, so the league's budget is not read here at all. the page is the sheet on which he follows his own
+   * The seats, the roster shape, the game, the listone and the FVM ceiling of the first turns are the
+   * operator's own settings (`GlobalOptions.league`). There is NO budget (operator, 29/09/2026: in a draft
+   * the FVM orders the calls, it is not money anybody spends), so the league's budget is not read here.
+   * And NO pick is pre-loaded: the page is the sheet on which he follows his own
    * draft, and a table that opened with two rounds played by a fixture would be squads that are nobody's -
    * the same decision the plancia took on 23/09/2026. The PLAYERS and the engine's numbers stay real, which
    * is what keeps the panel's columns on.
@@ -383,6 +383,9 @@ export class AuctionDemo {
         mantra,
         platform: chosen.platform,
         rounds: 0,
+        cap: league.draftCap?.on
+          ? { fvm: league.draftCap.fvm, frozenTurns: league.draftCap.frozenTurns }
+          : null,
       });
       // A seat he chose stays his across a change of settings, as long as the table still has it.
       if (previous !== null && previous < Math.min(league.teams, DEMO_TEAMS.length)) session.mineId = previous;
@@ -403,7 +406,7 @@ export class AuctionDemo {
    *
    * The price is his FVM - in a draft that IS the price (`AuctionPlayer.fvm`) - and the order is recomputed
    * with the platform's own rule afterwards. Refused, with the reason, where the regulation refuses it: a
-   * full role. A click that does nothing in silence reads as a broken one.
+   * full role, the ceiling of the first turns. A click that does nothing in silence reads as a broken one.
    */
   pick(playerId: number): string | null {
     if (!this.feed.demo()) return 'Su un’asta vera le scelte le fa il banditore.';
@@ -416,6 +419,10 @@ export class AuctionDemo {
     const max = Array.isArray(roles[zone]) ? roles[zone][1] : roles[zone];
     if (max != null && team.squad.filter((entry) => entry.zone === zone).length >= max) {
       return `${team.label} ha già il reparto pieno.`;
+    }
+    const cap = this.options.league().draftCap;
+    if (cap?.on && capBlocks(team.squad.length, player.fvm, cap)) {
+      return `Bloccato: FVM ${player.fvm} ≥ ${cap.fvm}, ${team.label} lo può chiamare solo dal ${cap.frozenTurns + 1}° turno.`;
     }
     if (!this.feed.awardByHand(player.id, team.id, player.fvm)) return 'Scelta rifiutata dal tavolo.';
     this.reorder();

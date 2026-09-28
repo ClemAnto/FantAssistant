@@ -62,6 +62,8 @@ export interface FreeRow {
   trend: readonly TrendCell[];
   /** The priority on 0-99 of this table's free pool; null where the sheet cannot value him. */
   priority: number | null;
+  /** Off OUR board this turn because of the FVM ceiling of the first turns. */
+  locked: boolean;
   goal: boolean;
 }
 
@@ -151,7 +153,7 @@ export class Auction {
     effect(() => {
       const league = this.options.league();
       const key = JSON.stringify([
-        league.platform, league.game, league.teams, league.slots,
+        league.platform, league.game, league.teams, league.slots, league.draftCap,
       ]);
       untracked(() => {
         const changed = last !== null && key !== last;
@@ -205,6 +207,11 @@ export class Auction {
     const mine = this.feed.followedTeamId();
     const pick = this.advice.round()?.picks.find((one) => one.teamId === mine) ?? null;
     return pick?.player ? { name: this.shown(pick.player.id, pick.player.name), roles: pick.player.roles } : null;
+  });
+
+  protected readonly capLine = computed<string | null>(() => {
+    const cap = this.advice.pickCap();
+    return cap ? `Top bloccati: FVM ≥ ${cap.fvm} per ${cap.frozenTurns} turni` : null;
   });
 
   /** Which squad the pitch draws: the one clicked in the middle column, else mine, else the first. */
@@ -328,7 +335,7 @@ export class Auction {
   private readonly lines = signal<ReadonlyMap<number, ReadonlyMap<string, SeasonLine>>>(new Map());
   protected readonly seasons = signal<{ now: string | null; last: string | null }>({ now: null, last: null });
 
-  /** Every free man with his priority, highest first. */
+  /** Every free man with his priority, dearest priority first; the frozen ones after, in the same order. */
   private readonly freeAll = computed<FreeRow[]>(() => {
     const scores = this.advice.priorities();
     const press = this.rulings.press();
@@ -337,10 +344,15 @@ export class Auction {
     let top = 0;
     for (const row of ranked) {
       const score = scores.get(row.player.id);
-      if (score != null && score > top) top = score;
+      if (score != null && score > top && !this.advice.lockedForMe(row.price)) top = score;
     }
     const rows = ranked.map((row) => this.freeRow(row, scores.get(row.player.id) ?? null, top, press, trends));
-    return rows.sort((a, b) => (b.priority ?? -1) - (a.priority ?? -1) || b.fvm - a.fvm);
+    return rows.sort(
+      (a, b) =>
+        Number(a.locked) - Number(b.locked)
+        || (b.priority ?? -1) - (a.priority ?? -1)
+        || b.fvm - a.fvm,
+    );
   });
 
   private freeRow(
@@ -360,6 +372,7 @@ export class Auction {
       press: goal ? null : (press.get(row.player.id)?.pressTier ?? null),
       trend: goal ? EMPTY_STRIP : (trends.get(row.player.id) ?? EMPTY_STRIP),
       priority: score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
+      locked: this.advice.lockedForMe(row.price),
       goal,
     };
   }
@@ -408,6 +421,7 @@ export class Auction {
   protected freeHint(row: FreeRow): string {
     const bits = [`${row.name} · ${row.club}`, `FVM ${row.fvm}`];
     if (row.press) bits.push(`stampa: ${row.press}`);
+    if (row.locked) bits.push('bloccato: top con FVM sopra la soglia dei primi turni');
     const clock = this.teamOnClock();
     if (this.feed.demo() && clock) bits.push(`doppio click: lo prende ${clock.label}`);
     return bits.join(' · ');

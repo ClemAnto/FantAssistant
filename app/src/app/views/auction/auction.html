@@ -16,7 +16,7 @@
         data-table="demo"
         class="flex items-center gap-1 rounded-md bg-warning/20 px-2 py-0.5 font-medium text-warning"
         nz-tooltip
-        nzTooltipTitle="Tavolo costruito dalle impostazioni di lega: squadre e rose sono le tue impostazioni, le scelte le segni tu col doppio click. I calciatori e i numeri del motore sono veri."
+        nzTooltipTitle="Tavolo costruito dalle impostazioni di lega: squadre, rose e tetto FVM dei primi turni sono le tue impostazioni, le scelte le segni tu col doppio click. I calciatori e i numeri del motore sono veri."
       >
         <nz-icon nzType="setting" />
         {{ options.league().teams }} squadre · {{ feed.isMantra() ? 'mantra' : 'classic' }}
@@ -211,6 +211,9 @@
               <span class="text-muted">{{ feed.followed() ? '—' : 'scegli la tua squadra (icona ♟)' }}</span>
             }
           </div>
+          @if (capLine(); as cap) {
+            <div data-cap class="text-muted">{{ cap }}</div>
+          }
         </div>
 
         <div class="grid grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 px-1 text-[10px] uppercase text-muted">
@@ -353,6 +356,9 @@
               class="free-grid cursor-default select-none rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
               [class.free-default]="mode() === 'default'"
               [class.free-medie]="mode() === 'medie'"
+              [class.opacity-50]="row.locked"
+              [attr.data-locked]="row.locked ? '' : null"
+              [attr.data-fvm]="row.fvm"
               nz-tooltip
               [nzTooltipTitle]="freeHint(row)"
               nzTooltipPlacement="left"
@@ -363,6 +369,9 @@
               <span class="flex min-w-0 items-center gap-1">
                 <span class="min-w-0 truncate font-medium">{{ row.name }}</span>
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
+                @if (row.locked) {
+                  <nz-icon class="shrink-0 text-[10px] text-muted" nzType="lock" />
+                }
               </span>
               @if (mode() === 'default') {
                 <span class="min-w-0 truncate text-muted">{{ row.club }}</span>

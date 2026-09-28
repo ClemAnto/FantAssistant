@@ -5884,12 +5884,13 @@ banco `app/scripts/e2e-draft.mjs` (anche `--euro`, la sua lega). Nessun numero d
 **Le colonne.** Sinistra il campetto, centro l'ordine di chiamata, destra gli svincolati, come dicono i punti 6
 e 7. **Il punto 5 le nomina al contrario**: la contraddizione è detta nel template e lo scambio è una riga.
 
-**Il tavolo.** `AuctionDemo.start` costruisce il tavolo dalla LEGA DICHIARATA (listone, gioco, squadre, rose) e
-con ZERO scelte - la stessa decisione della plancia del 23/09: squadre già giocate da una
+**Il tavolo.** `AuctionDemo.start` costruisce il tavolo dalla LEGA DICHIARATA (listone, gioco, squadre, rose,
+top bloccati - mai il budget, vedi la correzione in fondo) e con ZERO scelte - la stessa decisione della plancia del 23/09: squadre già giocate da una
 finzione sarebbero rose di nessuno. Il foglio è quello del listone e del gioco dichiarati, mai quello di un
 altro gioco (se manca la pagina lo dice). Cambiare le impostazioni ricostruisce il tavolo inventato. Le scelte
 si segnano col **doppio click** su uno svincolato: lo prende la squadra di turno al suo FVM, e l'ordine si
-ricalcola con la regola della piattaforma (`ahead`); rifiutato, con la ragione a schermo, il reparto pieno. Annulla l'ultima e svuota le rose stanno in barra. L'asta live resta dietro «Asta live»
+ricalcola con la regola della piattaforma (`ahead`); rifiutati, con la ragione a schermo, il reparto pieno e il
+top ancora bloccato. Annulla l'ultima e svuota le rose stanno in barra. L'asta live resta dietro «Asta live»
 (`ui-live-connect`), e la pagina disegna le stesse tre colonne sul tavolo vero.
 
 **Il campetto** (`draft-pitch.ts`): il modulo che schiera l'undici più forte sul VALORE, con i moduli consigliati
@@ -5915,9 +5916,14 @@ altri): `plan()` parte dal nostro posto e non poteva rispondere per chi chiama p
 squadra, gradino della stampa, FVM, ultimi quattro fantavoti con `ui-trend-votes`, priorità) e «medie» (partite a
 voto, Mv, Fm, G:A di questa stagione e della scorsa, da `seasonLines`).
 
-**Correzione dell'operatore, 29/09/2026: «nel draft non esiste un tetto di FVM o di budget».** Tolto il tetto
-dei primi turni da tutta l'app (`LeagueSettings.draftCap`, il suo controllo nelle Opzioni, `AuctionAdvice.pickCap`
-/ `lockedForMe`, il rifiuto del doppio click, i lucchetti in lista) - il §62 descrive una regola che questo
-draft non ha - e il tavolo non legge più il budget di lega: l'FVM è il prezzo che ordina le chiamate, non
-denaro da spendere. `auction-plan.PickCap`/`capBlocks` restano come parametro opzionale (null = spento) perché
-li legge anche il banco del draft.
+**Correzione dell'operatore, 29/09/2026, in due messaggi.** «Nel draft non esiste un tetto di FVM o di budget»
+e subito dopo «nelle opzioni di lega devo poter impostare anche l'FVM dei top bloccati e i turni di blocco».
+Letti insieme: in un draft **non c'è denaro** - l'FVM è il prezzo che ordina le chiamate, non crediti da
+spendere - quindi il tavolo del Draft Assistant **non legge più il budget di lega**; mentre la regola dei
+**top bloccati** del §62 resta, ed è una regola di LEGA impostabile dalle Opzioni («Top bloccati»: interruttore,
+FVM ≥, turni di blocco). Il primo messaggio era stato letto come «togli anche il blocco» e il blocco era stato
+tolto per un commit (`e3bacb4`); ripristinato con le parole sue a schermo (bloccato, non congelato). Il banco
+`e2e-draft --euro` dichiara una soglia NON di default (300, 3 turni) e pretende che la pagina la dica e che un top
+bloccato non si prenda col doppio click - cercato per nome, perché i bloccati stanno in fondo a una lista che si
+carica sessanta righe per volta. Lo stesso banco ora ritenta la riga dopo quando il regolamento rifiuta una
+scelta (reparto o porte già pieni per la squadra di turno), invece di aspettare una scelta che non arriverà.

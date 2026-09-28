@@ -21,10 +21,12 @@ import {
 } from './auction-value';
 import {
   Plan,
+  PickCap,
   PlanPlayer,
   PlanRoot,
   PlanTeam,
   RivalHead,
+  capBlocks,
   classifyRivals,
   RoundPick,
   coverNeedOf,
@@ -862,8 +864,34 @@ export class AuctionAdvice {
       places: startingPlaces(this.shapes()),
       keeperCap: this.keeperSlots(),
       mineId,
+      cap: this.pickCap(),
     });
   });
+
+  /**
+   * THE FVM CEILING OF THE FIRST TURNS, as the league declares it (`LeagueSettings.draftCap`), or `null`.
+   *
+   * Only in a DRAFT: in an auction with raises nobody «calls» a man at a price, and a ceiling there would be
+   * a rule applied outside the mechanism it was written for. The table does not publish it in any field this
+   * project has read, so it is declared and never adopted from the session.
+   */
+  readonly pickCap = computed<PickCap | null>(() => {
+    const cap = this.options.league().draftCap;
+    if (!this.feed.isDraft() || !cap?.on) return null;
+    return { fvm: cap.fvm, frozenTurns: cap.frozenTurns };
+  });
+
+  /** The turn OUR squad is about to play, i.e. its own pick number. Null when we follow nobody. */
+  readonly myTurn = computed<number | null>(() => {
+    const team = this.feed.followed();
+    return team ? team.squad.length + 1 : null;
+  });
+
+  /** Whether the ceiling keeps this price off OUR board on this turn. */
+  lockedForMe(price: number): boolean {
+    const turn = this.myTurn();
+    return turn !== null && capBlocks(turn - 1, price, this.pickCap());
+  }
 
   /** How many keepers a squad may hold, as the session states it. */
   private readonly keeperSlots = computed(() => {
@@ -930,6 +958,7 @@ export class AuctionAdvice {
       keeperCap: (this.feed.isGoalsMode() ? this.feed.porteSlots() : null) ?? (Number(keeperSlots) || 3),
       maxAheadPicks: Number(this.feed.draftRules()?.['maxAheadPicks'] ?? 1) || 1,
       heads: this.rivalHeads(),
+      cap: this.pickCap(),
       game: (this.feed.isMantra() ? 'mantra' : 'classic') as 'mantra' | 'classic',
       // What a man is worth to whoever holds him. The same VALUE the panel ranks by, because the question a
       // denial answers is about the football and not about the rival's opinion of it.
@@ -942,7 +971,10 @@ export class AuctionAdvice {
    * (`pickScore`, una definizione e due lettori - il consiglio e la colonna accanto al nome).
    *
    * VALORE x quanto copre di cio' che alla rosa manca x lo sconto di chi sara' ancora li' al prossimo
-   * turno: le tre leve misurate sul banco del draft (§16, §18). `null` per chi non ha un valore.
+   * turno: le tre leve misurate sul banco del draft (§16, §18). `null` per chi non ha un valore. Chi il
+   * tetto dei primi turni tiene fuori dalla nostra lavagna adesso NON e' `null` - un congelato non e' «poco
+   * prioritario», non si puo' chiamare - e il punteggio resta, perche' fra pochi turni si sblocca: chi
+   * legge la lista lo dice con `lockedForMe`, che e' la stessa guardia del consiglio.
    *
    * La «Draft Priority» della specifica del 28/09/2026 (`docs/model/priorita-draft-v1.md`) e' un'ALTRA
    * formula e non e' ancora passata dal banco: quando lo sara', si sostituisce qui e la colonna la segue.
@@ -958,7 +990,7 @@ export class AuctionAdvice {
           teams: input.teams, order: input.order, pool: input.pool,
           places: startingPlaces(input.shapes), mineId: input.mineId,
           keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
-          heads: input.heads,
+          heads: input.heads, cap: input.cap,
         })
       : null;
     for (const player of input.pool) {
@@ -994,6 +1026,7 @@ export class AuctionAdvice {
         input.keeperCap,
         Infinity,
         input.heads?.get(team.id),
+        input.cap,
       );
       if (choice) pool = pool.filter((player) => player.id !== choice.id);
       rivalValues.push(team.rosterValue + (choice?.price ?? 0));
@@ -1021,8 +1054,10 @@ export class AuctionAdvice {
             keeperCap: input.keeperCap,
             maxAheadPicks: input.maxAheadPicks,
             heads: input.heads,
+            cap: input.cap,
           })
         : null,
+      cap: input.cap,
     });
   });
 
@@ -1045,7 +1080,10 @@ export class AuctionAdvice {
     const chosen = this.chosenRoot();
     if (chosen !== null && !roots.some((root) => root.player.id === chosen)) {
       const player = input.pool.find((candidate) => candidate.id === chosen);
-      if (player) {
+      // A man the ceiling forbids us THIS turn is not a what-if: `plan()` would refuse the root and draw
+      // its own pick under the label «se prendi lui», which is a lie about whom the chain starts from.
+      const me = input.teams.find((team) => team.id === input.mineId);
+      if (player && !capBlocks(me?.picksCount ?? 0, player.price, input.cap)) {
         options.push({
           root: { player, why: 'se prendi lui' },
           plan: plan({ ...input, rootId: chosen }),

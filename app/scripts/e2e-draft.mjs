@@ -227,6 +227,8 @@ async function main() {
       await evaluate(session, () => localStorage.setItem('fantassistant.options.league', JSON.stringify({
         platform: 'euro', game: 'mantra', auction: 'draft', teams: 12, porte: true,
         slots: { mantra: { por: 2, mov: 30 } },
+        // A ceiling that is NOT the default one, so the page can only show it by reading the settings.
+        draftCap: { on: true, fvm: 300, frozenTurns: 3 },
       })));
       await session.send('Page.reload');
       await wait(1500);
@@ -271,6 +273,41 @@ async function main() {
         ...(page.squadSize !== 0 ? [`rosa di ${page.squadSize} su un tavolo vuoto`] : []),
       ]);
 
+    // 2b. The ceiling of the first turns, as the league declares it: said on screen, and a blocked top
+    // cannot be taken with a double click.
+    if (euro) {
+      const cap = await evaluate(session, () => document.querySelector('[data-cap]')?.innerText ?? '');
+      // Blocked men sort to the BOTTOM of a list that loads sixty rows at a time: find one by name.
+      await mouse(await evaluate(session, centre, '[data-column="free"] input[type="search"]'));
+      await session.send('Input.insertText', { text: 'kane' });
+      await wait(700);
+      const locked = await evaluate(session, () => [...document.querySelectorAll('[data-free][data-locked]')]
+        .map((one) => Number(one.getAttribute('data-fvm'))));
+      const target = await evaluate(session, () => {
+        const one = document.querySelector('[data-free][data-locked]');
+        if (!one) return null;
+        one.scrollIntoView({ block: 'center' });
+        const rect = one.getBoundingClientRect();
+        return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2), id: one.getAttribute('data-free') };
+      });
+      if (target) {
+        await mouse(target, 2);
+        await wait(700);
+      }
+      const still = target ? (await evaluate(session, freeIds)).includes(target.id) : false;
+      const after = await evaluate(session, readPage);
+      note('top bloccati', `riga «${cap}», ${locked.length} bloccati caricati (FVM min ${Math.min(...locked)})`,
+        [
+          ...(!/300/.test(cap) || !/3 turni/.test(cap) ? [`la riga non dice il tetto dichiarato (300, 3 turni): «${cap}»`] : []),
+          ...(!target ? ['nessun top bloccato fra le righe caricate'] : []),
+          ...(locked.some((fvm) => fvm < 300) ? ['un bloccato sotto la soglia'] : []),
+          ...(target && (!still || after.squadSize !== 0) ? ["un top bloccato e' stato preso col doppio click"] : []),
+        ]);
+      await mouse(await evaluate(session, centre, '[data-column="free"] .ant-input-clear-icon'));
+      await wait(700);
+      page = await evaluate(session, readPage);
+    }
+
     // 3. Double click: the squad on the clock takes the first free man.
     const before = page;
     await mouse(before.first, 2);
@@ -285,11 +322,26 @@ async function main() {
       ]);
 
     // 4. Forty more picks, then the pitch must draw the whole squad, and the page must still not scroll.
+    const rowAt = (index) => {
+      const one = document.querySelectorAll('[data-free]')[index];
+      if (!one) return null;
+      one.scrollIntoView({ block: 'nearest' });
+      const rect = one.getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2), id: one.getAttribute('data-free') };
+    };
+    let refused = 0;
     for (let n = 0; n < 40; n += 1) {
-      const now = await evaluate(session, readPage);
-      await mouse(now.first, 2);
-      await settle((p) => p.first?.id !== now.first.id, `pick ${n}`);
+      const clock = (await evaluate(session, readPage)).onClock;
+      for (let index = 0; index < 20; index += 1) {
+        const target = await evaluate(session, rowAt, index);
+        await mouse(target, 2);
+        await wait(250);
+        if ((await evaluate(session, readPage)).onClock !== clock) break;
+        refused += 1;
+      }
     }
+    console.log(`    (scelte rifiutate dal regolamento e ritentate sulla riga dopo: ${refused})`);
+    await evaluate(session, () => document.querySelector('[data-free-list]')?.scrollTo(0, 0));
     page = await evaluate(session, readPage);
     const drawn = page.filled + page.reserves + page.unplaced;
     note('campetto', `rosa ${page.squadSize}: titolari ${page.filled} + riserve ${page.reserves} + senza posto ${page.unplaced}; scroll ${page.overflow}px`,

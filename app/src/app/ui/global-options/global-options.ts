@@ -265,6 +265,14 @@ export class GlobalOptionsPanel {
     this.patch({ [key]: value } as Partial<LeagueSettings>);
   }
 
+  /** Il tetto di FVM dei primi turni del draft: un campo per volta, con la stessa guardia della casella svuotata. */
+  protected patchDraftCap(change: Partial<LeagueSettings['draftCap']>): void {
+    // `null` è la casella svuotata, e `typeof null` non è 'number': va escluso per nome.
+    if (Object.values(change).some((value) => value == null
+      || (typeof value === 'number' && !Number.isFinite(value)))) return;
+    this.form.update((one) => ({ ...one, draftCap: { ...one.draftCap, ...change } }));
+  }
+
   protected patchClassic(role: ClassicRole, value: number): void {
     if (!Number.isFinite(value)) return;
     this.form.update((one) => ({
