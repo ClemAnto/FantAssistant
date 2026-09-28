@@ -126,6 +126,37 @@ def test_the_declared_player_notes_travel_and_their_absence_is_silence(tmp_path)
     assert copied["2025-26"]["1"]["kind"] == "out_of_squad"
 
 
+def test_the_press_rungs_travel_and_their_absence_is_silence(tmp_path):
+    """`config/press_rungs.json` (28/09/2026) rides in the bundle so the app can show and price the
+    press's season roles instead of the sheet's; a project that never declared one has no file."""
+    ctx = _ctx(tmp_path)
+    _seed(ctx.conn)
+    rungs = tmp_path / "press_rungs.json"
+    ctx = Context(config=Config(data_dir=ctx.config.data_dir, db_path=ctx.config.db_path,
+                                press_rungs_path=rungs), conn=ctx.conn)
+    export.run(ctx, history=1)
+    config_dir = ctx.config.data_dir / "export" / "2025-26" / "config"
+    assert not (config_dir / "press_rungs.json").exists(), "no file declared, nothing to copy"
+
+    rungs.write_text(json.dumps({"2025-26": {"as_of": "2025-09-28",
+                                             "players": {"1": {"tier": "titolare", "start_pct": 80}}}}),
+                     encoding="utf-8")
+    export.run(ctx, history=1)
+    copied = json.loads((config_dir / "press_rungs.json").read_text(encoding="utf-8"))
+    assert copied["2025-26"]["players"]["1"]["tier"] == "titolare"
+
+
+def test_no_toolkit_path_READS_the_press_rungs():
+    """The press is a JUDGE of the boards (`press --against press`) and never an input of the claim:
+    reading its rungs anywhere in the toolkit would make circular the comparison that says whether it
+    is better. Only the config field (where the file lives) and `export` (which copies it) may name it."""
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parents[1] / "euroleghe_ingest"
+    readers = sorted(str(f.relative_to(root)) for f in root.rglob("*.py")
+                     if "press_rungs" in f.read_text(encoding="utf-8"))
+    assert readers == ["config.py", "modules\export.py"] or readers == ["config.py", "modules/export.py"], readers
+
+
 def test_the_nightly_switch_travels_so_the_app_can_SHOW_it(tmp_path):
     """The app draws whether the unattended update is on; it can never write it.
 

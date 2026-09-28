@@ -39,6 +39,7 @@ import datetime as dt
 import io
 import json
 import os
+import re
 import sqlite3
 import statistics
 import time
@@ -906,7 +907,18 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      arrotondato) e `BOA_MARK` per PIATTAFORMA
 #      (5,94 / 6,10), chiuse dai loro numeri. Boa 33 e 42. `scommessa` resta a 7 e 14 per un limite di
 #      DATI e non di soglia: gli uomini non prezzati che hanno i due numeri sono 9 e 16 in tutto.
-SHEET_REVISION = 76
+#   77 (28/09/2026) - LA STAGIONE SCORSA DI CHI ARRIVA DA FUORI DAL PERIMETRO, da `tm_appearances`
+#      (`prior_from_tm`). Chi l'anno scorso non ha una riga in `external_stats` prendeva il prior SINTETICO
+#      di chi non si e' mai visto (0,28-0,33 della stagione), e con cinque giornate di prior quel numero
+#      pesa ancora meta' a ottobre: Hornicek, Onyedika, Gadou, Tzolis, Joao Gomes, cinque partite su cinque
+#      da titolare, leggevano `panchina`. Tutti e 50 gli «arrivi senza storico» del confronto con la stampa
+#      avevano la loro stagione in `tm_appearances`. Misurato la funzione che si spedisce, sul foglio
+#      EuroLeghe e su due date retrodatate giudicate sull'esito: accordo di fascia con la stampa 49,3% ->
+#      51,5% (lontani due fasce 79 -> 57, undici 332 -> 336), rango sull'esito +0,008 e +0,007 (06/10/2025,
+#      07/10/2024), fascia +1,0 e +0,4, al prezzo di +0,2% / +0,7% di scarto sul livello. SOLO su `euro`:
+#      su Serie A non paga (`TM_PRIOR_PLATFORMS`). K resta 5 (decisione dell'operatore: la variante K=3 era
+#      piu' vicina alla stampa e costava il doppio sul livello).
+SHEET_REVISION = 77
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -5438,6 +5450,89 @@ def measured_sides(conn, season: str, notes: list[str]) -> dict[int, float]:
             for fc_id, avg_y, _roles in rows}
 
 
+# LE PRIME DIVISIONI nel codice del provider: il paese e poi `1` (GB1, BE1, PO1, A1...). Le serie
+# inferiori NO, ed e' misurato e non scelto: con loro dentro la squadra B dello Stoccarda in 3. Liga (Funk,
+# 34 su 34) diventava un prior da titolare in Bundesliga, e la stampa lo da' scarto. Il calcio giovanile
+# con un codice da prima divisione (la Primavera e' `IJ1`) esce per ETA' MEDIANA, `abroad.youth_competitions`,
+# che e' come questo progetto lo riconosce gia' - una lista a mano scadrebbe al primo campionato nuovo.
+TM_FIRST_TIER = re.compile(r"^[A-Z]{1,4}1$")
+# `tm_appearances` non dice chi e' partito titolare, solo chi ha giocato e quanto: una partita da 60 minuti
+# in su sta per una partenza. E' la sola meta' dichiarata e non misurata del ripiego, e pesa poco - la
+# miscela legge soprattutto le PRESENZE e i MINUTI, che qui sono quelli veri.
+TM_START_MINUTES = 60
+# DOVE IL RIPIEGO VALE: solo EuroLeghe, misurato il 28/09/2026 su due date retrodatate giudicate sull'esito.
+# Su `euro` il rango della quota migliora in tutt'e due le finestre (+0,008 al 06/10/2025, +0,007 al
+# 07/10/2024) e la fascia del gradino pure (+1,0 e +0,4 punti), al prezzo di +0,2% / +0,7% sul livello.
+# Su `default` NO: rango -0,008 e +0,004, fascia +0,6 e -1,3, undici 0 e -2 - su Serie A `external_stats`
+# copre gia' tutti e venti i club, quindi chi resta senza riga arriva quasi sempre da un campionato minore,
+# dove mezza stagione non vale mezza Serie A (lo stesso limite di livello del 25/08/2026). Un parametro
+# appartiene alla popolazione su cui e' misurato, e la piattaforma e' una popolazione.
+TM_PRIOR_PLATFORMS = ("euro",)
+
+
+def prior_from_tm(conn, season: str) -> dict[int, dict]:
+    """La stagione `season` di ogni uomo nel suo campionato di PRIMA DIVISIONE, da `tm_appearances`.
+
+    E' il secondo lettore dello STESSO fatto che `starting_record` legge da `external_stats` - presenze,
+    partenze e minuti in campionato - per chi quell'aggregato non ce l'ha perche' il suo club non e' nel
+    perimetro della piattaforma (28/09/2026, i 50 «arrivi senza storico» del confronto con la stampa). Chi
+    ha giocato in due campionati tiene quello con piu' presenze, cioe' la stagione che conta.
+
+    Porta anche le GIORNATE di quel campionato (`rounds`), perche' il denominatore segue il numeratore: le
+    30 giornate del Belgio divise per le 34 della Bundesliga dove un uomo gioca oggi gli toglierebbero un
+    ottavo di stagione. Si stimano come il massimo delle righe di una coppia (uomo, club) in quella
+    competizione - ogni convocazione del suo club e' una riga, giocata o no - che e' la stima con cui il
+    25/08/2026 si e' riprodotto `features.league_rounds` 39 volte su 40.
+    """
+    youth = abroad.youth_competitions(conn.execute(
+        """SELECT a.competition, CAST(substr(a.season, 1, 4) AS INTEGER) - p.birth_year
+             FROM tm_appearances a JOIN players p USING(fc_id)
+            WHERE p.birth_year IS NOT NULL AND a.state = 'played'
+              AND COALESCE(a.is_national, 0) = 0""").fetchall())
+    rounds: dict[str, int] = {}
+    for competition, most in conn.execute(
+            """SELECT competition, MAX(n) FROM (
+                   SELECT competition, COUNT(*) AS n FROM tm_appearances
+                    WHERE season = ? AND COALESCE(is_national, 0) = 0
+                    GROUP BY fc_id, club_id, competition)
+               GROUP BY competition""", (season,)):
+        rounds[competition] = most
+    out: dict[int, dict] = {}
+    for fc_id, competition, played, started, minutes in conn.execute(
+            f"""SELECT fc_id, competition, SUM(state = 'played'),
+                       SUM(state = 'played' AND COALESCE(minutes, 0) >= {TM_START_MINUTES}),
+                       SUM(COALESCE(minutes, 0))
+                  FROM tm_appearances WHERE season = ? AND COALESCE(is_national, 0) = 0
+                 GROUP BY fc_id, competition""", (season,)):
+        if not played or not TM_FIRST_TIER.match(competition or "") or competition in youth:
+            continue
+        best = out.get(fc_id)
+        if best is None or played > best["matches"]:
+            out[fc_id] = {"matches": played, "starts": started, "minutes": minutes,
+                          "competition": competition, "rounds": rounds.get(competition)}
+    return out
+
+
+def with_tm_prior(record: dict[int, dict], propensity: dict[int, dict], measured_rounds: dict[int, float],
+                  tm: dict[int, dict]) -> tuple[dict, dict, dict]:
+    """I tre strati della stagione precedente, completati da `prior_from_tm` SOLO dove sono vuoti.
+
+    Chi ha una riga in `external_stats` la tiene: e' la stessa quantita' letta dalla sorgente su cui la
+    miscela e' stata misurata, e un secondo lettore non scavalca il primo. Un uomo con zero presenze
+    MISURATE resta zero (e' un fatto, non un buco): il ripiego entra per chi la riga non ce l'ha affatto.
+    """
+    record, propensity, measured_rounds = dict(record), dict(propensity), dict(measured_rounds)
+    for fc_id, row in tm.items():
+        if fc_id in record:
+            continue
+        record[fc_id] = {"starts": row["starts"], "matches": row["matches"],
+                         "share": round((row["starts"] or 0) / row["matches"], 3), "source": "tm_appearances"}
+        propensity.setdefault(fc_id, {"minutes": row["minutes"]})
+        if row.get("rounds"):
+            measured_rounds.setdefault(fc_id, float(row["rounds"]))
+    return record, propensity, measured_rounds
+
+
 def prior_window(record: dict | None, propensity: dict, at_club: dict, rounds: float,
                  role: str | None, platform: str,
                  params: presence.Params = presence.DEFAULTS,
@@ -7753,6 +7848,15 @@ def run(ctx: Context, *, season: str | None = None, platform: str = "euro",
         # five measured reasons in `preseason_starts`.
         "preseason": preseason_starts(conn, window.target_season),
     }
+    # LA STAGIONE SCORSA DI CHI ARRIVA DA FUORI DAL PERIMETRO (SHEET_REVISION 77): dove `external_stats`
+    # non ha la sua riga, la prende `tm_appearances` nella sua prima divisione (`prior_from_tm`). Solo sul
+    # ramo in cui la miscela esiste - a stagione cominciata - e quindi inerte su ogni pre-stagione.
+    #
+    # E SOLO SU `euro`, perche' e' li' che e' stato misurato e li' che paga (TM_PRIOR_PLATFORMS).
+    if before and platform in TM_PRIOR_PLATFORMS:
+        layers["prev_record"], layers["prev_propensity"], layers["prev_measured_rounds"] = with_tm_prior(
+            layers["prev_record"], layers["prev_propensity"], layers["prev_measured_rounds"],
+            prior_from_tm(conn, window.input_season))
     # The eleven the clubs actually FIELDED in the first match after the auction date. Empty for a sheet
     # built today, and for a back-dated one it is what makes the probabili unnecessary: the outcome exists.
     progress.stage("fielded")

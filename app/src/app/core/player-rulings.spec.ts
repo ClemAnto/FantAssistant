@@ -1,8 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { beforeEach, describe, expect, it } from 'vitest';
 
+import { Bundle, type PressRungsFile } from './bundle';
 import {
   BOARD_EFFECT,
+  PRESS_TO_RUNG,
   PlayerRuling,
+  PlayerRulings,
+  pressRulings,
   RungValues,
   orderedShares,
   ruledShare,
@@ -237,5 +242,84 @@ describe('sanitiseRulings', () => {
     expect(kept['2026-27']['9'].decided_on).toBe('2026-08-01');
     const dated = sanitiseRulings({ '2026-27': { '9': { rung: 'panchina' } } });
     expect(String(dated['2026-27']['9'].decided_on)).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+const PRESS: PressRungsFile = {
+  _comment: 'ignored',
+  '2026-27': {
+    as_of: '2026-09-28',
+    players: {
+      '10': { tier: 'titolare', start_pct: 80 },
+      '11': { tier: 'comprimario', start_pct: 35 },
+      '12': { tier: 'scarto', start_pct: 2 },
+      '13': { tier: 'fantasia', start_pct: 50 },
+    },
+  },
+};
+
+describe('pressRulings', () => {
+  it('traduce la scala della stampa nella nostra e IGNORA una parola sconosciuta', () => {
+    const map = pressRulings(PRESS, '2026-27');
+    expect(map.get(10)?.rung).toBe('titolare');
+    expect(map.get(11)?.rung).toBe('panchina');
+    expect(map.get(12)?.rung).toBe('riserva');
+    expect(map.has(13)).toBe(false);
+    // la parola originale e la quota restano sulla riga: la distinzione della stampa non sparisce
+    expect(map.get(12)).toMatchObject({ source: 'press', pressTier: 'scarto', startPct: 2, decidedOn: '2026-09-28' });
+  });
+
+  it('una stagione che il file non porta, o nessun file, non danno nessuna parola', () => {
+    expect(pressRulings(PRESS, '2025-26').size).toBe(0);
+    expect(pressRulings(null, '2026-27').size).toBe(0);
+  });
+
+  it('ogni parola della stampa ha una traduzione, e ogni traduzione e\' un nostro gradino', () => {
+    expect(Object.keys(PRESS_TO_RUNG).sort()).toEqual(
+      ['ballottaggio', 'comprimario', 'riserva', 'scarto', 'titolare', 'titolarissimo']);
+    for (const rung of Object.values(PRESS_TO_RUNG)) expect(TITOLARITA_LADDER).toContain(rung);
+  });
+});
+
+describe('PlayerRulings con la stampa', () => {
+  async function service(): Promise<PlayerRulings> {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{
+        provide: Bundle,
+        useValue: { manifest: async () => ({ target_season: '2026-27' }), pressRungs: async () => PRESS },
+      }],
+    });
+    const one = TestBed.inject(PlayerRulings);
+    await new Promise((resolve) => setTimeout(resolve));
+    return one;
+  }
+
+  beforeEach(() => {
+    try { localStorage.clear(); } catch { /* a runner without storage still runs the rest */ }
+  });
+
+  it('acceso di default: la stampa batte il foglio, e dice di essere la stampa', async () => {
+    const rulings = await service();
+    expect(rulings.pressOn()).toBe(true);
+    expect(rulings.pressAsOf()).toBe('2026-09-28');
+    expect(rulings.of(11)).toMatchObject({ rung: 'panchina', source: 'press' });
+    expect(rulings.ownOf(11)).toBeNull();
+  });
+
+  it('la TUA dritta batte la stampa, e revocarla torna alla stampa', async () => {
+    const rulings = await service();
+    rulings.declare(11, 'titolare');
+    expect(rulings.of(11)).toMatchObject({ rung: 'titolare', source: 'operator' });
+    rulings.declare(11, null);
+    expect(rulings.of(11)).toMatchObject({ rung: 'panchina', source: 'press' });
+  });
+
+  it('spento: resta solo quello che hai dichiarato tu', async () => {
+    const rulings = await service();
+    rulings.declare(10, 'bandiera');
+    rulings.pressOn.set(false);
+    expect(rulings.of(11)).toBeNull();
+    expect(rulings.of(10)).toMatchObject({ rung: 'bandiera', source: 'operator' });
   });
 });

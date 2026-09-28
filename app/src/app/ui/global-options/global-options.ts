@@ -16,6 +16,7 @@ import { EngineSheetEntry } from '../../core/bundle';
 import { LEAGUE_ORDER } from '../../core/clubs-store';
 import { ClubOption, GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { ClassicRole, competitionLabel } from '../../core/players-store';
+import { PlayerRulings } from '../../core/player-rulings';
 import { PageActions } from '../../core/page-actions';
 import { PlayerStatus } from '../../core/player-status';
 import { ValuationStore } from '../../core/valuation-store';
@@ -78,6 +79,19 @@ export class GlobalOptionsPanel {
 
   /** Cosa la pagina corrente vuole disegnare in questa scatola: vedi `core/page-actions.ts`. */
   protected readonly pageActions = inject(PageActions);
+
+  /**
+   * IL GRADINO DELLA STAMPA al posto di quello del foglio (operatore, 28/09/2026). Il suo stato vive in
+   * `PlayerRulings` - e' li' che tutte le schermate leggono il gradino - e qui si prepara una BOZZA che
+   * «Applica» consegna, come ogni altra riga di questo pannello: un interruttore che scatta mentre il
+   * pannello chiede ancora «Applica o Annulla» direbbe una cosa e ne farebbe un'altra.
+   */
+  private readonly rulings = inject(PlayerRulings);
+  protected readonly pressDraft = signal(this.rulings.pressOn());
+  /** Il giorno della rilevazione in italiano, o '' se il pacchetto non la porta. */
+  protected readonly pressAsOf = computed(() => this.rulings.pressAsOf().split('-').reverse().join('/'));
+  /** Quanti calciatori la rilevazione copre: l'opzione dice su chi agisce, non lo lascia indovinare. */
+  protected readonly pressCount = computed(() => this.rulings.press().size);
 
   protected readonly classicRoles: ClassicRole[] = ['P', 'D', 'C', 'A'];
   protected readonly crests = this.valuation.crests;
@@ -208,6 +222,7 @@ export class GlobalOptionsPanel {
     void this.valuation.load();
     this.form.set(structuredClone(this.options.league()));
     this.draft.set(new Set(this.options.excludedIds()));
+    this.pressDraft.set(this.rulings.pressOn());
     this.search.set('');
     this.editing.set(true);
   }
@@ -215,6 +230,7 @@ export class GlobalOptionsPanel {
   protected apply(): void {
     this.options.league.set(this.form());
     this.options.excludedIds.set([...this.draft()]);
+    this.rulings.pressOn.set(this.pressDraft());
     this.editing.set(false);
     this.options.close();
   }

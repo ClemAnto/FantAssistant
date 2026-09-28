@@ -259,8 +259,19 @@ export class PlayerCard {
   /** Aperto o chiuso il selettore dei sei gradini: chiuso di default, e una riga sola a schermo. */
   protected readonly picking = signal(false);
 
-  /** La dritta su quest'uomo, o null. */
+  /** La parola che batte il foglio su quest'uomo - tua, o della stampa se la sua opzione e' accesa. */
   protected readonly ruling = computed(() => this.rulings.of(this.man().id));
+
+  /** Solo la TUA dritta: e' quella che il selettore mostra scelta e che «torna al foglio» revoca. */
+  protected readonly ownRuling = computed(() => this.rulings.ownOf(this.man().id));
+
+  /** La parola viene dalla stampa (e non da te): la riga lo scrive accanto al gradino. */
+  protected readonly fromPress = computed(() => this.ruling()?.source === 'press');
+
+  /** C'e' una parola della stampa SOTTO la tua (interruttore acceso): revocare la tua ci torna, non al foglio. */
+  protected readonly pressUnder = computed(
+    () => this.rulings.pressOn() && this.rulings.press().has(this.man().id),
+  );
 
   /**
    * LA PAROLA CHE LA RIGA MOSTRA: la tua dritta se c'e', altrimenti il gradino del foglio.
@@ -284,11 +295,15 @@ export class PlayerCard {
     // alla percentuale del foglio sarebbe una riga che spiega se stessa col numero di un'altra.
     const play = this.rulings.shareFor(man.platform, man.id, man.titolarita)?.play
       ?? man.titolaritaPlay;
+    const ruling = this.ruling();
     return titolaritaNote(
       this.rung(),
       play,
       man.minutesNext,
-      this.ruling()?.decidedOn ?? null,
+      ruling?.source === 'press' ? null : ruling?.decidedOn ?? null,
+      ruling?.source === 'press'
+        ? { tier: ruling.pressTier ?? null, asOf: ruling.decidedOn, startPct: ruling.startPct ?? null }
+        : null,
     ) ?? 'Il foglio non porta il gradino di titolarità: cliccalo per dichiararlo tu.';
   });
 
@@ -325,7 +340,7 @@ export class PlayerCard {
        */
       ...this.rulings.promiseOf(man.platform, rung, man.rounds),
       effect: BOARD_EFFECT_LABEL[BOARD_EFFECT[rung]],
-      chosen: this.ruling()?.rung === rung,
+      chosen: this.ownRuling()?.rung === rung,
     }));
   });
 
@@ -336,7 +351,7 @@ export class PlayerCard {
 
   /** Dichiara un gradino, o lo revoca ri-cliccando quello che e' gia' scelto. */
   protected declare(rung: Titolarita): void {
-    this.rulings.declare(this.man().id, this.ruling()?.rung === rung ? null : rung);
+    this.rulings.declare(this.man().id, this.ownRuling()?.rung === rung ? null : rung);
     this.picking.set(false);
   }
 

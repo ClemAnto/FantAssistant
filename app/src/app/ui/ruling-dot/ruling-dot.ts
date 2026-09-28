@@ -28,7 +28,9 @@ export class RulingDot {
   /** Chi: senza un `fc_id` non c'e' niente da leggere - «vuoto = ignoto», applicato a un marchio. */
   readonly playerId = input<number | null>(null);
 
-  protected readonly ruling = computed(() => this.rulings.of(this.playerId()));
+  // SOLO LE TUE: con la stampa accesa quasi ogni nome ha una parola che batte il foglio, e un pallino su
+  // novecento righe non marcherebbe niente - oltre a dire «tua indicazione» di una frase della stampa.
+  protected readonly ruling = computed(() => this.rulings.ownOf(this.playerId()));
 
   /** Tre parole: chi l'ha detto e cosa. Il perche' sta nel codice, non in un tooltip. */
   protected readonly hint = computed(() => {

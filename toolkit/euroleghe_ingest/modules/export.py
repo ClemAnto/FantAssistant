@@ -1061,6 +1061,16 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
         except OSError as exc:
             print(f"[export] WARNING: config player_notes.json not copied ({exc})")
 
+    # THE PRESS READING OF THE SEASON ROLES, same optionality: the app may show and price it instead of
+    # the sheet's rung when its switch is on. It rides along and nothing in the toolkit reads it - the
+    # press stays the judge of the boards, never an input (config.press_rungs_path).
+    if ctx.config.press_rungs_path.exists():
+        try:
+            _atomic_write_bytes(config_out / ctx.config.press_rungs_path.name,
+                                ctx.config.press_rungs_path.read_bytes())
+        except OSError as exc:
+            print(f"[export] WARNING: config press_rungs.json not copied ({exc})")
+
     # THE NIGHTLY SWITCH, for the same reason and with the same optionality: the app SHOWS whether the
     # unattended update is on, beside the freshness it already draws. It cannot toggle it - a browser
     # has no way to reach the Windows scheduler, measured 10/09/2026 (`app/src` has not one reference

@@ -136,6 +136,12 @@ if (existsSync(join(src, 'config/classic_modules.json'))) {
 if (existsSync(join(src, 'config/player_notes.json'))) {
   copyFileSync(join(src, 'config/player_notes.json'), join(OUT, 'player_notes.json'));
 }
+/* THE PRESS READING OF EACH MAN'S SEASON ROLE (`config/press_rungs.json`, 28/09/2026): declared and
+ * dated, and the app shows and prices it instead of the sheet's rung while its switch is on
+ * (`core/player-rulings.ts`). A bundle without it simply keeps the sheet's rung everywhere. */
+if (existsSync(join(src, 'config/press_rungs.json'))) {
+  copyFileSync(join(src, 'config/press_rungs.json'), join(OUT, 'press_rungs.json'));
+}
 /* LO STATO DEL CONTROLLO NOTTURNO (`config/nightly.json`, 10/09/2026): acceso o spento, e da quando.
  * Viaggia perche' l'app lo MOSTRA accanto alla freschezza che disegna gia' - un pacchetto vecchio e un
  * aggiornamento spento sono due cause diverse dello stesso schermo, e distinguerle e' tutto il valore.

@@ -90,6 +90,12 @@ export function titolaritaNote(
    * dichiarazione dicendo «deciso dal toolkit» sarebbe una frase falsa accanto a un numero vero.
    */
   declaredOn?: string | null,
+  /**
+   * ...o LA RILEVAZIONE DI STAMPA da cui viene (`config/press_rungs.json`): la parola della stampa nella
+   * sua scala, il giorno e la sua quota di partenze. Vince su `declaredOn` solo se questo e' assente,
+   * perche' una dritta tua batte la stampa (`PlayerRulings.all`).
+   */
+  press?: { tier: string | null; asOf: string; startPct: number | null } | null,
 ): string | null {
   if (!isTitolarita(status)) return null;
   const promise: Record<Titolarita, string> = {
@@ -103,6 +109,12 @@ export function titolaritaNote(
   const bits = [`${status.toUpperCase()}: ${promise[status]}`];
   if (play != null) bits.push(`voto nel ${Math.round(play * 100)}% delle partite per cui è disponibile`);
   if (minutes != null) bits.push(`${Math.round(minutes)}' quando gioca`);
+  if (!declaredOn && press) {
+    const word = press.tier && press.tier !== status ? ` («${press.tier}» nella sua scala)` : '';
+    const start = press.startPct != null ? `, titolare nel ${press.startPct}% delle partite quando sano` : '';
+    bits.push(`dalla stampa del ${press.asOf.split('-').reverse().join('/')}${word}${start}`);
+    return bits.join(' · ');
+  }
   bits.push(
     declaredOn
       ? `dritta tua del ${declaredOn}: hai dichiarato tu questo gradino, e i numeri della riga lo `

@@ -259,14 +259,16 @@
           <button
             type="button"
             class="rounded px-1 text-fg hover:bg-control/60"
-            [class.text-primary]="ruling()"
+            [class.text-primary]="ownRuling()"
             nz-tooltip
             [nzTooltipTitle]="rungNote()"
             (click)="pick()"
           >
             {{ rung() ?? '—' }}
-            @if (ruling()) {
+            @if (ownRuling()) {
               <span class="text-[9px] uppercase text-primary">tua</span>
+            } @else if (fromPress()) {
+              <span class="text-[9px] uppercase text-muted">stampa</span>
             }
             <nz-icon class="text-[9px] text-muted" nzType="down" nzTheme="outline" />
           </button>
@@ -336,13 +338,13 @@
               </span>
             </button>
           }
-          @if (ruling()) {
+          @if (ownRuling()) {
             <button
               type="button"
               class="rounded px-1 py-0.5 text-left text-[11px] text-muted hover:bg-control/60"
               (click)="clearRuling()"
             >
-              torna al gradino del foglio
+              {{ pressUnder() ? 'torna al gradino della stampa' : 'torna al gradino del foglio' }}
             </button>
           }
         </div>

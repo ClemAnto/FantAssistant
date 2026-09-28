@@ -60,10 +60,10 @@
 
 import { Injectable, computed, inject, signal } from '@angular/core';
 
-import { Bundle } from './bundle';
+import { Bundle, type PressRungsFile } from './bundle';
 import type { Platform } from './players-store';
 import { TITOLARITA_LADDER, Titolarita, isTitolarita } from './titolarita';
-import { storedJson } from './view-state';
+import { storedFlag, storedJson } from './view-state';
 
 /** Una dritta come viene salvata: la parola, il giorno, e il perche' se l'ha scritto. */
 export interface PlayerRuling {
@@ -71,6 +71,62 @@ export interface PlayerRuling {
   /** `YYYY-MM-DD`: una dichiarazione senza data non si puo' rileggere fra un mese. */
   decidedOn: string;
   note?: string | null;
+  /**
+   * CHI L'HA DETTO: l'operatore dalla card, oppure la rilevazione della STAMPA (`config/press_rungs.json`).
+   * Assente = operatore, cosi' tutto quello che nasceva prima del 28/09/2026 resta quello che era.
+   * Serve a due cose che non possono sbagliare: il pallino «tua indicazione» marca solo le sue, e la
+   * card dice di chi e' la parola - una rilevazione di stampa scritta «tua» sarebbe una frase falsa.
+   */
+  source?: 'operator' | 'press';
+  /** La parola della STAMPA, nella sua scala (`comprimario`, `scarto`...): la riga la conserva. */
+  pressTier?: string | null;
+  /** La quota di partenze da titolare in campionato, quando sano, che la stampa stima. */
+  startPct?: number | null;
+}
+
+/**
+ * LA SCALA DELLA STAMPA NELLA NOSTRA, parola per parola (28/09/2026).
+ *
+ * Le due scale hanno sei parole e non sono le stesse: la stampa ha `comprimario` e `scarto`, il foglio
+ * `bandiera` e `panchina`. La traduzione segue quello che ogni parola PROMETTE, perche' e' la promessa
+ * che l'app prezza (la mediana del gradino sul foglio, `rungShares`):
+ *
+ *  - `titolarissimo` (gioca sempre, campionato e coppe) -> `titolarissimo`: stessa parola, dettata dallo
+ *    stesso operatore, e sulle presenze vale quanto `bandiera` (0,958 contro 0,967 sul foglio Serie A);
+ *  - `titolare` e `ballottaggio` -> se stessi;
+ *  - `comprimario` (titolare a volte, o entra quasi sempre) -> `panchina`, che promette «spesso entra
+ *    in campo, senza certezze» (0,631);
+ *  - `riserva` (entra ogni tanto) e `scarto` (non gioca quasi mai) -> `riserva` (0,243): il foglio non ha
+ *    un gradino piu' basso, quindi i due si fondono - e la parola originale resta scritta sulla riga, cosi'
+ *    la distinzione che la stampa fa non sparisce dallo schermo.
+ */
+export const PRESS_TO_RUNG: Readonly<Record<string, Titolarita>> = {
+  titolarissimo: 'titolarissimo',
+  titolare: 'titolare',
+  ballottaggio: 'ballottaggio',
+  comprimario: 'panchina',
+  riserva: 'riserva',
+  scarto: 'riserva',
+};
+
+/** Il blocco di una stagione del file della stampa, ripulito: una parola sconosciuta si IGNORA. */
+export function pressRulings(file: PressRungsFile | null, season: string): Map<number, PlayerRuling> {
+  const out = new Map<number, PlayerRuling>();
+  const block = file && season ? file[season] : null;
+  if (!block || typeof block !== 'object') return out;
+  const asOf = typeof block.as_of === 'string' ? block.as_of : '';
+  for (const [key, entry] of Object.entries(block.players ?? {})) {
+    const rung = entry && typeof entry.tier === 'string' ? PRESS_TO_RUNG[entry.tier] : undefined;
+    if (!rung || !Number.isFinite(Number(key))) continue;
+    out.set(Math.trunc(Number(key)), {
+      rung,
+      decidedOn: asOf,
+      source: 'press',
+      pressTier: entry.tier ?? null,
+      startPct: typeof entry.start_pct === 'number' ? entry.start_pct : null,
+    });
+  }
+  return out;
 }
 
 /**
@@ -312,6 +368,26 @@ export class PlayerRulings {
    */
   private readonly season = signal<string>('');
 
+  /** Il file della stampa come e' arrivato col pacchetto: null finche' non arriva, o se non c'e'. */
+  private readonly pressFile = signal<PressRungsFile | null>(null);
+
+  /**
+   * L'INTERRUTTORE: il gradino della stampa al posto di quello del foglio (operatore, 28/09/2026:
+   * «il giudizio della stampa e' superiore a quello dell'engine: reagisce piu' velocemente ai
+   * cambiamenti e legge piu' dettagli ... aggiungiamo (ed attiviamo) un'opzione»). ACCESO di default
+   * perche' e' lui ad averlo chiesto acceso; una preferenza del browser, come le colonne spente.
+   */
+  readonly pressOn = storedFlag('rulings.pressSource', true);
+
+  /** Il giorno della rilevazione di stampa di questa stagione (`YYYY-MM-DD`), o '' se non ce n'e'. */
+  readonly pressAsOf = computed(() => {
+    const block = this.pressFile()?.[this.season()];
+    return block && typeof block === 'object' && typeof block.as_of === 'string' ? block.as_of : '';
+  });
+
+  /** Le parole della stampa di questa stagione, per `fc_id`, qualunque sia lo stato dell'interruttore. */
+  readonly press = computed(() => pressRulings(this.pressFile(), this.season()));
+
   /**
    * LE QUOTE PER GRADINO, per piattaforma: le MISURA chi ha in mano le righe di un foglio e le consegna
    * qui con `observe`, perche' una popolazione e' parte della misura e i fogli sono due.
@@ -355,10 +431,31 @@ export class PlayerRulings {
       .manifest()
       .then((one) => this.season.set(one?.target_season ?? ''))
       .catch(() => this.season.set(''));
+    void this.bundle
+      .pressRungs()
+      .then((file) => this.pressFile.set(file))
+      .catch(() => this.pressFile.set(null));
   }
 
-  /** Le dritte di questa stagione, per `fc_id`. */
+  /**
+   * TUTTO QUELLO CHE BATTE IL FOGLIO, per `fc_id`: le TUE dritte, e sotto di loro - se l'interruttore
+   * e' acceso - la parola della stampa. E' la mappa che leggono il campetto, le presenze, il surplus, lo
+   * SWING e le liste, quindi la stampa arriva ovunque arrivava gia' una dritta, con la stessa aritmetica
+   * e nessuna copia.
+   *
+   * LA PRECEDENZA E' QUESTA E NON L'INVERSA: una dritta tua e' una risposta data guardando anche la
+   * stampa, quindi vince lei. Spegnere l'interruttore toglie la stampa e lascia le tue dritte dove sono.
+   */
   readonly all = computed<ReadonlyMap<number, PlayerRuling>>(() => {
+    const own = this.own();
+    if (!this.pressOn()) return own;
+    const out = new Map(this.press());
+    for (const [id, ruling] of own) out.set(id, ruling);
+    return out;
+  });
+
+  /** Solo le TUE dritte di questa stagione, per `fc_id`: la stampa non c'e'. */
+  readonly own = computed<ReadonlyMap<number, PlayerRuling>>(() => {
     const season = this.season();
     const out = new Map<number, PlayerRuling>();
     if (!season) return out;
@@ -369,14 +466,20 @@ export class PlayerRulings {
         rung,
         decidedOn: typeof entry.decided_on === 'string' ? entry.decided_on : today(),
         note: typeof entry.note === 'string' ? entry.note : null,
+        source: 'operator',
       });
     }
     return out;
   });
 
-  /** La dritta su quest'uomo, o null. */
+  /** La parola che batte il foglio su quest'uomo - tua, o della stampa se l'interruttore e' acceso. */
   of(fcId: number | null | undefined): PlayerRuling | null {
     return fcId == null ? null : this.all().get(fcId) ?? null;
+  }
+
+  /** Solo la TUA dritta su quest'uomo: e' quella che il selettore della card mostra scelta e revoca. */
+  ownOf(fcId: number | null | undefined): PlayerRuling | null {
+    return fcId == null ? null : this.own().get(fcId) ?? null;
   }
 
   /** Il gradino dichiarato: la parola che ogni schermata mostra AL POSTO di quella del foglio. */

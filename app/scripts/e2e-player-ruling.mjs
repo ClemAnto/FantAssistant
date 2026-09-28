@@ -489,6 +489,13 @@ async function main() {
     session = await attach(debugPort);
     await session.send('Page.enable');
     await session.send('Runtime.enable');
+    // QUESTO BANCO PROVA LE TUE DRITTE CONTRO IL FOGLIO, quindi gira col gradino della stampa SPENTO
+    // (28/09/2026). Acceso, la riga parte gia' dalla parola della stampa: il caso scelto dal foglio come
+    // `panchina` legge `ballottaggio`, e dichiarare `titolare` non sposta piu' niente di visibile - la
+    // prima corsa dopo l'opzione leggeva «33 → 33» e accusava la pagina di un difetto che non aveva.
+    await session.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: "try { localStorage.setItem('fantassistant.rulings.pressSource', '0'); } catch {}",
+    });
     await session.send('Page.navigate', { url });
     await wait(4000);
 

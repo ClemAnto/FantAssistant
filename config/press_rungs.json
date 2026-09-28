@@ -1,0 +1,4599 @@
+{
+ "_comment": "The PRESS reading of each player's season-long role (EuroLeghe clubs), DECLARED and dated - the same standing as board_rulings.json and player_notes.json: nobody here measures it, it is a judgement read from the press, club statements, Transfermarkt and FotMob, cross-checked by hand. The APP may show and price it instead of desc_titolarita when its switch is on (core/player-rulings.ts). The TOOLKIT never reads it: the press is a JUDGE of the boards and never an input of the claim, or the comparison it serves would be circular. Words are the press ladder (titolarissimo, titolare, comprimario, ballottaggio, riserva, scarto), not the sheet's; start_pct = estimated share of league STARTS when fit. Refreshing it means re-running the research, not a toolkit command.",
+ "2026-27": {
+  "as_of": "2026-09-28",
+  "source": "rilevazione stampa del 28/09/2026 (37 club EuroLeghe)",
+  "players": {
+   "5792": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Atalanta"
+   },
+   "4431": {
+    "tier": "titolarissimo",
+    "start_pct": 97,
+    "club": "Atalanta"
+   },
+   "5526": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Atalanta"
+   },
+   "5995": {
+    "tier": "titolare",
+    "start_pct": 82,
+    "club": "Atalanta"
+   },
+   "5422": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Atalanta"
+   },
+   "4479": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Atalanta"
+   },
+   "2137": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Atalanta"
+   },
+   "6435": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Atalanta"
+   },
+   "1850": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Atalanta"
+   },
+   "4371": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Atalanta"
+   },
+   "5119": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Atalanta"
+   },
+   "6844": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Atalanta"
+   },
+   "554": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Atalanta"
+   },
+   "4364": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Atalanta"
+   },
+   "2077": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Atalanta"
+   },
+   "6485": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Atalanta"
+   },
+   "6046": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Atalanta"
+   },
+   "7219": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Atalanta"
+   },
+   "4887": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Atalanta"
+   },
+   "2640": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Atalanta"
+   },
+   "5578": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Atalanta"
+   },
+   "5918": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Atalanta"
+   },
+   "4": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Atalanta"
+   },
+   "7626": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Atalanta"
+   },
+   "5858": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Bologna"
+   },
+   "7212": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Bologna"
+   },
+   "2167": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Bologna"
+   },
+   "4734": {
+    "tier": "titolare",
+    "start_pct": 82,
+    "club": "Bologna"
+   },
+   "5675": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Bologna"
+   },
+   "7528": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Bologna"
+   },
+   "6675": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bologna"
+   },
+   "184": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bologna"
+   },
+   "133": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Bologna"
+   },
+   "4436": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bologna"
+   },
+   "5678": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bologna"
+   },
+   "2765": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Bologna"
+   },
+   "4359": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Bologna"
+   },
+   "4433": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Bologna"
+   },
+   "5298": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Bologna"
+   },
+   "7068": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bologna"
+   },
+   "6054": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bologna"
+   },
+   "7326": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Bologna"
+   },
+   "7172": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Bologna"
+   },
+   "6833": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bologna"
+   },
+   "7483": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Bologna"
+   },
+   "6225": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Bologna"
+   },
+   "487": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Bologna"
+   },
+   "7629": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Bologna"
+   },
+   "7627": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Bologna"
+   },
+   "5498": {
+    "tier": "scarto",
+    "start_pct": 2,
+    "club": "Bologna"
+   },
+   "7533": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Bologna"
+   },
+   "6875": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Como"
+   },
+   "6869": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Como"
+   },
+   "5641": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Como"
+   },
+   "6727": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Como"
+   },
+   "7126": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Como"
+   },
+   "5559": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Como"
+   },
+   "6893": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Como"
+   },
+   "2097": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Como"
+   },
+   "7017": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Como"
+   },
+   "6966": {
+    "tier": "ballottaggio",
+    "start_pct": 80,
+    "club": "Como"
+   },
+   "6967": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Como"
+   },
+   "6151": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Como"
+   },
+   "7129": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Como"
+   },
+   "7414": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Como"
+   },
+   "6867": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Como"
+   },
+   "7412": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Como"
+   },
+   "7127": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Como"
+   },
+   "6344": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Como"
+   },
+   "5036": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Como"
+   },
+   "6678": {
+    "tier": "riserva",
+    "start_pct": 4,
+    "club": "Como"
+   },
+   "5453": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Como"
+   },
+   "7014": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Como"
+   },
+   "6601": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Como"
+   },
+   "2809": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Como"
+   },
+   "418": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Como"
+   },
+   "7357": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Como"
+   },
+   "2521": {
+    "tier": "titolarissimo",
+    "start_pct": 98,
+    "club": "Fiorentina"
+   },
+   "5365": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Fiorentina"
+   },
+   "6908": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Fiorentina"
+   },
+   "7078": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Fiorentina"
+   },
+   "4465": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Fiorentina"
+   },
+   "6294": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Fiorentina"
+   },
+   "7464": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Fiorentina"
+   },
+   "4947": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Fiorentina"
+   },
+   "5694": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Fiorentina"
+   },
+   "7625": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Fiorentina"
+   },
+   "5885": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Fiorentina"
+   },
+   "7023": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Fiorentina"
+   },
+   "6827": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Fiorentina"
+   },
+   "6531": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Fiorentina"
+   },
+   "7410": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Fiorentina"
+   },
+   "7294": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Fiorentina"
+   },
+   "7623": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Fiorentina"
+   },
+   "5449": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Fiorentina"
+   },
+   "5603": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Fiorentina"
+   },
+   "7175": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Fiorentina"
+   },
+   "4378": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Fiorentina"
+   },
+   "6403": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Fiorentina"
+   },
+   "158": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Fiorentina"
+   },
+   "2764": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Inter"
+   },
+   "1870": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Inter"
+   },
+   "5116": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Inter"
+   },
+   "2120": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Inter"
+   },
+   "2194": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Inter"
+   },
+   "254": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Inter"
+   },
+   "4159": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Inter"
+   },
+   "5877": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Inter"
+   },
+   "4177": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Inter"
+   },
+   "4871": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Inter"
+   },
+   "7071": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Inter"
+   },
+   "2514": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Inter"
+   },
+   "6217": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Inter"
+   },
+   "152": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Inter"
+   },
+   "6274": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Inter"
+   },
+   "7070": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Inter"
+   },
+   "5172": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Inter"
+   },
+   "5982": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Inter"
+   },
+   "6669": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Inter"
+   },
+   "5301": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Inter"
+   },
+   "2529": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Inter"
+   },
+   "6503": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Inter"
+   },
+   "2814": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Inter"
+   },
+   "1926": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Inter"
+   },
+   "2788": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Juventus"
+   },
+   "4964": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Juventus"
+   },
+   "4976": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Juventus"
+   },
+   "5951": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Juventus"
+   },
+   "6434": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Juventus"
+   },
+   "6884": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Juventus"
+   },
+   "827": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Juventus"
+   },
+   "6752": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Juventus"
+   },
+   "5761": {
+    "tier": "comprimario",
+    "start_pct": 12,
+    "club": "Juventus"
+   },
+   "4179": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Juventus"
+   },
+   "5685": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Juventus"
+   },
+   "5680": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Juventus"
+   },
+   "7603": {
+    "tier": "comprimario",
+    "start_pct": 5,
+    "club": "Juventus"
+   },
+   "4973": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Juventus"
+   },
+   "7436": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Juventus"
+   },
+   "6042": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Juventus"
+   },
+   "4657": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Juventus"
+   },
+   "5520": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Juventus"
+   },
+   "5562": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Juventus"
+   },
+   "4911": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Juventus"
+   },
+   "6766": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Juventus"
+   },
+   "2832": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Juventus"
+   },
+   "5831": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Juventus"
+   },
+   "6822": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Juventus"
+   },
+   "6039": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Juventus"
+   },
+   "1930": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Juventus"
+   },
+   "294": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Juventus"
+   },
+   "2012": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Juventus"
+   },
+   "632": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Lazio"
+   },
+   "7314": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Lazio"
+   },
+   "6482": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Lazio"
+   },
+   "2848": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Lazio"
+   },
+   "5620": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Lazio"
+   },
+   "7012": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Lazio"
+   },
+   "5800": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Lazio"
+   },
+   "4817": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Lazio"
+   },
+   "6629": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Lazio"
+   },
+   "2038": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio"
+   },
+   "6320": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Lazio"
+   },
+   "6398": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Lazio"
+   },
+   "7580": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Lazio"
+   },
+   "5500": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Lazio"
+   },
+   "2188": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Lazio"
+   },
+   "4459": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio"
+   },
+   "6319": {
+    "tier": "ballottaggio",
+    "start_pct": 5,
+    "club": "Lazio"
+   },
+   "6556": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio"
+   },
+   "333": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Lazio"
+   },
+   "2263": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Lazio"
+   },
+   "7131": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio"
+   },
+   "6191": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Lazio"
+   },
+   "7337": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Lazio"
+   },
+   "2728": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lazio"
+   },
+   "7345": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lazio"
+   },
+   "7534": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lazio"
+   },
+   "6397": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Milan"
+   },
+   "4312": {
+    "tier": "titolarissimo",
+    "start_pct": 97,
+    "club": "Milan"
+   },
+   "5022": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Milan"
+   },
+   "2423": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Milan"
+   },
+   "2379": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Milan"
+   },
+   "5833": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Milan"
+   },
+   "4856": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Milan"
+   },
+   "5739": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Milan"
+   },
+   "4199": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Milan"
+   },
+   "7203": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Milan"
+   },
+   "6372": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Milan"
+   },
+   "2606": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Milan"
+   },
+   "4892": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Milan"
+   },
+   "6496": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Milan"
+   },
+   "5273": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Milan"
+   },
+   "5295": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Milan"
+   },
+   "6618": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Milan"
+   },
+   "4751": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Milan"
+   },
+   "4401": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Milan"
+   },
+   "7618": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Milan"
+   },
+   "6519": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Milan"
+   },
+   "2815": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Milan"
+   },
+   "5812": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Milan"
+   },
+   "6813": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Milan"
+   },
+   "7525": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Milan"
+   },
+   "7572": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Milan"
+   },
+   "6052": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Napoli"
+   },
+   "4777": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Napoli"
+   },
+   "4409": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Napoli"
+   },
+   "2816": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Napoli"
+   },
+   "4287": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Napoli"
+   },
+   "536": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Napoli"
+   },
+   "7223": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Napoli"
+   },
+   "5131": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Napoli"
+   },
+   "6215": {
+    "tier": "comprimario",
+    "start_pct": 8,
+    "club": "Napoli"
+   },
+   "2517": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Napoli"
+   },
+   "4220": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli"
+   },
+   "572": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Napoli"
+   },
+   "1852": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Napoli"
+   },
+   "7351": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Napoli"
+   },
+   "2724": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli"
+   },
+   "6831": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Napoli"
+   },
+   "5840": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Napoli"
+   },
+   "2170": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli"
+   },
+   "7120": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli"
+   },
+   "6638": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Napoli"
+   },
+   "6202": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Napoli"
+   },
+   "7563": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Napoli"
+   },
+   "7162": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Napoli"
+   },
+   "4664": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Napoli"
+   },
+   "6809": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Napoli"
+   },
+   "2845": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Napoli"
+   },
+   "5841": {
+    "tier": "titolarissimo",
+    "start_pct": 98,
+    "club": "Roma"
+   },
+   "2296": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Roma"
+   },
+   "779": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Roma"
+   },
+   "5585": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Roma"
+   },
+   "309": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Roma"
+   },
+   "7181": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Roma"
+   },
+   "5589": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Roma"
+   },
+   "4807": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Roma"
+   },
+   "6572": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Roma"
+   },
+   "6190": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Roma"
+   },
+   "7556": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Roma"
+   },
+   "4998": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Roma"
+   },
+   "4317": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Roma"
+   },
+   "5734": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Roma"
+   },
+   "4705": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Roma"
+   },
+   "6631": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Roma"
+   },
+   "6986": {
+    "tier": "ballottaggio",
+    "start_pct": 5,
+    "club": "Roma"
+   },
+   "7599": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Roma"
+   },
+   "530": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Roma"
+   },
+   "7529": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Roma"
+   },
+   "22": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Roma"
+   },
+   "610": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Roma"
+   },
+   "7048": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Roma"
+   },
+   "4907": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Arsenal"
+   },
+   "4319": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Arsenal"
+   },
+   "6412": {
+    "tier": "titolarissimo",
+    "start_pct": 97,
+    "club": "Arsenal"
+   },
+   "5125": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Arsenal"
+   },
+   "4912": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Arsenal"
+   },
+   "7520": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Arsenal"
+   },
+   "4945": {
+    "tier": "titolare",
+    "start_pct": 78,
+    "club": "Arsenal"
+   },
+   "4689": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Arsenal"
+   },
+   "5145": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Arsenal"
+   },
+   "5247": {
+    "tier": "comprimario",
+    "start_pct": 10,
+    "club": "Arsenal"
+   },
+   "5628": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Arsenal"
+   },
+   "5577": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Arsenal"
+   },
+   "7174": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Arsenal"
+   },
+   "2681": {
+    "tier": "comprimario",
+    "start_pct": 3,
+    "club": "Arsenal"
+   },
+   "2669": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Arsenal"
+   },
+   "7121": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Arsenal"
+   },
+   "4906": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Arsenal"
+   },
+   "6337": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Arsenal"
+   },
+   "5621": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Arsenal"
+   },
+   "5350": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Arsenal"
+   },
+   "6915": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Arsenal"
+   },
+   "6147": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Arsenal"
+   },
+   "7245": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Arsenal"
+   },
+   "5644": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Arsenal"
+   },
+   "5632": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Aston Villa"
+   },
+   "4680": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Aston Villa"
+   },
+   "6641": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Aston Villa"
+   },
+   "6038": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Aston Villa"
+   },
+   "7522": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Aston Villa"
+   },
+   "5636": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Aston Villa"
+   },
+   "7521": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Aston Villa"
+   },
+   "4243": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Aston Villa"
+   },
+   "6843": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Aston Villa"
+   },
+   "6037": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Aston Villa"
+   },
+   "2699": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Aston Villa"
+   },
+   "2455": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Aston Villa"
+   },
+   "7596": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Aston Villa"
+   },
+   "7094": {
+    "tier": "comprimario",
+    "start_pct": 5,
+    "club": "Aston Villa"
+   },
+   "5541": {
+    "tier": "comprimario",
+    "start_pct": 40,
+    "club": "Aston Villa"
+   },
+   "5625": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Aston Villa"
+   },
+   "5354": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Aston Villa"
+   },
+   "4776": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Aston Villa"
+   },
+   "5276": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Aston Villa"
+   },
+   "6370": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Aston Villa"
+   },
+   "4910": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Aston Villa"
+   },
+   "5180": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Aston Villa"
+   },
+   "2544": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Aston Villa"
+   },
+   "7306": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Aston Villa"
+   },
+   "6909": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Aston Villa"
+   },
+   "7320": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Aston Villa"
+   },
+   "7419": {
+    "tier": "scarto",
+    "start_pct": 2,
+    "club": "Aston Villa"
+   },
+   "7430": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bournemouth"
+   },
+   "7431": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Bournemouth"
+   },
+   "7423": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Bournemouth"
+   },
+   "5912": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Bournemouth"
+   },
+   "7421": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bournemouth"
+   },
+   "7539": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bournemouth"
+   },
+   "6468": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Bournemouth"
+   },
+   "7425": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bournemouth"
+   },
+   "2779": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Bournemouth"
+   },
+   "7429": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Bournemouth"
+   },
+   "5679": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Bournemouth"
+   },
+   "7432": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Bournemouth"
+   },
+   "5876": {
+    "tier": "comprimario",
+    "start_pct": 5,
+    "club": "Bournemouth"
+   },
+   "4724": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Bournemouth"
+   },
+   "6428": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bournemouth"
+   },
+   "4188": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bournemouth"
+   },
+   "7424": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Bournemouth"
+   },
+   "7422": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Bournemouth"
+   },
+   "6762": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bournemouth"
+   },
+   "6174": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Bournemouth"
+   },
+   "6695": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Bournemouth"
+   },
+   "7426": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bournemouth"
+   },
+   "7427": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bournemouth"
+   },
+   "6789": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bournemouth"
+   },
+   "7433": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bournemouth"
+   },
+   "7428": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bournemouth"
+   },
+   "5981": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Bournemouth"
+   },
+   "4190": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Brighton"
+   },
+   "7116": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Brighton"
+   },
+   "6959": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Brighton"
+   },
+   "6346": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Brighton"
+   },
+   "7098": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Brighton"
+   },
+   "6758": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Brighton"
+   },
+   "6362": {
+    "tier": "titolare",
+    "start_pct": 65,
+    "club": "Brighton"
+   },
+   "6757": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Brighton"
+   },
+   "7640": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Brighton"
+   },
+   "7445": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Brighton"
+   },
+   "6345": {
+    "tier": "comprimario",
+    "start_pct": 5,
+    "club": "Brighton"
+   },
+   "7102": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Brighton"
+   },
+   "6354": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Brighton"
+   },
+   "6835": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Brighton"
+   },
+   "6347": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Brighton"
+   },
+   "6888": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Brighton"
+   },
+   "6756": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Brighton"
+   },
+   "6500": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Brighton"
+   },
+   "7180": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Brighton"
+   },
+   "6365": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Brighton"
+   },
+   "7097": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Brighton"
+   },
+   "5648": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Brighton"
+   },
+   "7444": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Brighton"
+   },
+   "7567": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Brighton"
+   },
+   "7606": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Brighton"
+   },
+   "5484": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Brighton"
+   },
+   "6881": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Brighton"
+   },
+   "7103": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Brighton"
+   },
+   "6343": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Brighton"
+   },
+   "6581": {
+    "tier": "titolarissimo",
+    "start_pct": 93,
+    "club": "Chelsea"
+   },
+   "5726": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Chelsea"
+   },
+   "6361": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Chelsea"
+   },
+   "6355": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Chelsea"
+   },
+   "5600": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Chelsea"
+   },
+   "4738": {
+    "tier": "titolare",
+    "start_pct": 95,
+    "club": "Chelsea"
+   },
+   "5309": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Chelsea"
+   },
+   "6369": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Chelsea"
+   },
+   "6437": {
+    "tier": "titolare",
+    "start_pct": 65,
+    "club": "Chelsea"
+   },
+   "6554": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Chelsea"
+   },
+   "6974": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Chelsea"
+   },
+   "7104": {
+    "tier": "comprimario",
+    "start_pct": 3,
+    "club": "Chelsea"
+   },
+   "2333": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Chelsea"
+   },
+   "4874": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Chelsea"
+   },
+   "6832": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Chelsea"
+   },
+   "7200": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Chelsea"
+   },
+   "5390": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Chelsea"
+   },
+   "7552": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Chelsea"
+   },
+   "7109": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Chelsea"
+   },
+   "7417": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Chelsea"
+   },
+   "6031": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Chelsea"
+   },
+   "6366": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Chelsea"
+   },
+   "7446": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Chelsea"
+   },
+   "2505": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Chelsea"
+   },
+   "4828": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Liverpool"
+   },
+   "5080": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Liverpool"
+   },
+   "5370": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Liverpool"
+   },
+   "2536": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Liverpool"
+   },
+   "1964": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Liverpool"
+   },
+   "7033": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Liverpool"
+   },
+   "7113": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Liverpool"
+   },
+   "6071": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Liverpool"
+   },
+   "5904": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Liverpool"
+   },
+   "7111": {
+    "tier": "comprimario",
+    "start_pct": 5,
+    "club": "Liverpool"
+   },
+   "6122": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Liverpool"
+   },
+   "6374": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Liverpool"
+   },
+   "5925": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Liverpool"
+   },
+   "5392": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Liverpool"
+   },
+   "7058": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Liverpool"
+   },
+   "5213": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Liverpool"
+   },
+   "6542": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Liverpool"
+   },
+   "7251": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Liverpool"
+   },
+   "2002": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Liverpool"
+   },
+   "2502": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Liverpool"
+   },
+   "6887": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Liverpool"
+   },
+   "7112": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Liverpool"
+   },
+   "6436": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Liverpool"
+   },
+   "4877": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Manchester City"
+   },
+   "7315": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Manchester City"
+   },
+   "5591": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Manchester City"
+   },
+   "350": {
+    "tier": "titolarissimo",
+    "start_pct": 97,
+    "club": "Manchester City"
+   },
+   "6070": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Manchester City"
+   },
+   "5308": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Manchester City"
+   },
+   "7330": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Manchester City"
+   },
+   "6166": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Manchester City"
+   },
+   "6878": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Manchester City"
+   },
+   "2611": {
+    "tier": "comprimario",
+    "start_pct": 3,
+    "club": "Manchester City"
+   },
+   "5037": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Manchester City"
+   },
+   "4240": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Manchester City"
+   },
+   "5917": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Manchester City"
+   },
+   "6290": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Manchester City"
+   },
+   "6484": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Manchester City"
+   },
+   "6262": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Manchester City"
+   },
+   "6698": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Manchester City"
+   },
+   "271": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Manchester City"
+   },
+   "7617": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Manchester City"
+   },
+   "5321": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Manchester City"
+   },
+   "6130": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Manchester City"
+   },
+   "6983": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Manchester City"
+   },
+   "5640": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Manchester City"
+   },
+   "590": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Manchester United"
+   },
+   "7166": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Manchester United"
+   },
+   "2352": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Manchester United"
+   },
+   "7267": {
+    "tier": "titolarissimo",
+    "start_pct": 100,
+    "club": "Manchester United"
+   },
+   "4731": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Manchester United"
+   },
+   "2533": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Manchester United"
+   },
+   "4242": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Manchester United"
+   },
+   "5965": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Manchester United"
+   },
+   "4244": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Manchester United"
+   },
+   "6315": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Manchester United"
+   },
+   "4862": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Manchester United"
+   },
+   "6257": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Manchester United"
+   },
+   "5924": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Manchester United"
+   },
+   "6764": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Manchester United"
+   },
+   "4224": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Manchester United"
+   },
+   "6520": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Manchester United"
+   },
+   "6472": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Manchester United"
+   },
+   "4428": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Manchester United"
+   },
+   "6128": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Manchester United"
+   },
+   "7047": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Manchester United"
+   },
+   "4752": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Manchester United"
+   },
+   "5086": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Manchester United"
+   },
+   "5968": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Manchester United"
+   },
+   "6293": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Manchester United"
+   },
+   "5664": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Manchester United"
+   },
+   "7114": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Manchester United"
+   },
+   "4764": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Newcastle"
+   },
+   "6136": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Newcastle"
+   },
+   "6055": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Newcastle"
+   },
+   "7275": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Newcastle"
+   },
+   "5724": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Newcastle"
+   },
+   "5531": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Newcastle"
+   },
+   "7542": {
+    "tier": "titolare",
+    "start_pct": 100,
+    "club": "Newcastle"
+   },
+   "6901": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Newcastle"
+   },
+   "7448": {
+    "tier": "comprimario",
+    "start_pct": 10,
+    "club": "Newcastle"
+   },
+   "5972": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Newcastle"
+   },
+   "7460": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Newcastle"
+   },
+   "7447": {
+    "tier": "comprimario",
+    "start_pct": 0,
+    "club": "Newcastle"
+   },
+   "5977": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Newcastle"
+   },
+   "5979": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Newcastle"
+   },
+   "5634": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Newcastle"
+   },
+   "5440": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Newcastle"
+   },
+   "6399": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Newcastle"
+   },
+   "4742": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Newcastle"
+   },
+   "7021": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Newcastle"
+   },
+   "6517": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Newcastle"
+   },
+   "6799": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Newcastle"
+   },
+   "2591": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Newcastle"
+   },
+   "7230": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Newcastle"
+   },
+   "5969": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Newcastle"
+   },
+   "5613": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Tottenham"
+   },
+   "4449": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Tottenham"
+   },
+   "5696": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Tottenham"
+   },
+   "6348": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Tottenham"
+   },
+   "4854": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Tottenham"
+   },
+   "2166": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Tottenham"
+   },
+   "6964": {
+    "tier": "titolare",
+    "start_pct": 100,
+    "club": "Tottenham"
+   },
+   "5958": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Tottenham"
+   },
+   "5070": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Tottenham"
+   },
+   "6767": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Tottenham"
+   },
+   "2833": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Tottenham"
+   },
+   "4250": {
+    "tier": "comprimario",
+    "start_pct": 0,
+    "club": "Tottenham"
+   },
+   "6470": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Tottenham"
+   },
+   "6763": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Tottenham"
+   },
+   "4227": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Tottenham"
+   },
+   "6805": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Tottenham"
+   },
+   "7257": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Tottenham"
+   },
+   "4233": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Tottenham"
+   },
+   "5926": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Tottenham"
+   },
+   "5355": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Tottenham"
+   },
+   "7450": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Tottenham"
+   },
+   "6138": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Tottenham"
+   },
+   "5178": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Tottenham"
+   },
+   "6768": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Tottenham"
+   },
+   "4257": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Tottenham"
+   },
+   "4215": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Tottenham"
+   },
+   "6817": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Tottenham"
+   },
+   "6078": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Tottenham"
+   },
+   "6782": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Athletic Bilbao"
+   },
+   "6774": {
+    "tier": "titolarissimo",
+    "start_pct": 97,
+    "club": "Athletic Bilbao"
+   },
+   "6785": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Athletic Bilbao"
+   },
+   "2563": {
+    "tier": "titolare",
+    "start_pct": 78,
+    "club": "Athletic Bilbao"
+   },
+   "4277": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Athletic Bilbao"
+   },
+   "6786": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Athletic Bilbao"
+   },
+   "2567": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Athletic Bilbao"
+   },
+   "2205": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Athletic Bilbao"
+   },
+   "5666": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Athletic Bilbao"
+   },
+   "6781": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Athletic Bilbao"
+   },
+   "6775": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Athletic Bilbao"
+   },
+   "6776": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Athletic Bilbao"
+   },
+   "6860": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Athletic Bilbao"
+   },
+   "6923": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Athletic Bilbao"
+   },
+   "7167": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Athletic Bilbao"
+   },
+   "6689": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Athletic Bilbao"
+   },
+   "7590": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Athletic Bilbao"
+   },
+   "7452": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Athletic Bilbao"
+   },
+   "7637": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Athletic Bilbao"
+   },
+   "7005": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Athletic Bilbao"
+   },
+   "6784": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Athletic Bilbao"
+   },
+   "6779": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Athletic Bilbao"
+   },
+   "7287": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Athletic Bilbao"
+   },
+   "6773": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Athletic Bilbao"
+   },
+   "2569": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Atletico Madrid"
+   },
+   "2754": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Atletico Madrid"
+   },
+   "5964": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Atletico Madrid"
+   },
+   "5403": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Atletico Madrid"
+   },
+   "6302": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Atletico Madrid"
+   },
+   "6864": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Atletico Madrid"
+   },
+   "4852": {
+    "tier": "titolare",
+    "start_pct": 65,
+    "club": "Atletico Madrid"
+   },
+   "4810": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Atletico Madrid"
+   },
+   "4307": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Atletico Madrid"
+   },
+   "5870": {
+    "tier": "titolare",
+    "start_pct": 60,
+    "club": "Atletico Madrid"
+   },
+   "4730": {
+    "tier": "comprimario",
+    "start_pct": 45,
+    "club": "Atletico Madrid"
+   },
+   "5294": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Atletico Madrid"
+   },
+   "5544": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Atletico Madrid"
+   },
+   "5238": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Atletico Madrid"
+   },
+   "6132": {
+    "tier": "comprimario",
+    "start_pct": 50,
+    "club": "Atletico Madrid"
+   },
+   "6808": {
+    "tier": "comprimario",
+    "start_pct": 45,
+    "club": "Atletico Madrid"
+   },
+   "4304": {
+    "tier": "comprimario",
+    "start_pct": 45,
+    "club": "Atletico Madrid"
+   },
+   "7122": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Atletico Madrid"
+   },
+   "7359": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Atletico Madrid"
+   },
+   "7638": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Atletico Madrid"
+   },
+   "7362": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Atletico Madrid"
+   },
+   "2792": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Atletico Madrid"
+   },
+   "5655": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Barcellona"
+   },
+   "6429": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Barcellona"
+   },
+   "7076": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Barcellona"
+   },
+   "5218": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Barcellona"
+   },
+   "6587": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Barcellona"
+   },
+   "4283": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Barcellona"
+   },
+   "6830": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Barcellona"
+   },
+   "4814": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Barcellona"
+   },
+   "6499": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Barcellona"
+   },
+   "5159": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Barcellona"
+   },
+   "4902": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Barcellona"
+   },
+   "2310": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Barcellona"
+   },
+   "4832": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Barcellona"
+   },
+   "5932": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Barcellona"
+   },
+   "6828": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Barcellona"
+   },
+   "5179": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Barcellona"
+   },
+   "7373": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Barcellona"
+   },
+   "4198": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Barcellona"
+   },
+   "5723": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Barcellona"
+   },
+   "5717": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Barcellona"
+   },
+   "2520": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Barcellona"
+   },
+   "7646": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Barcellona"
+   },
+   "7077": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Barcellona"
+   },
+   "453": {
+    "tier": "scarto",
+    "start_pct": 2,
+    "club": "Barcellona"
+   },
+   "6059": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Betis"
+   },
+   "7187": {
+    "tier": "titolarissimo",
+    "start_pct": 97,
+    "club": "Betis"
+   },
+   "6396": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Betis"
+   },
+   "5736": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Betis"
+   },
+   "2693": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Betis"
+   },
+   "6382": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Betis"
+   },
+   "4741": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Betis"
+   },
+   "7201": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Betis"
+   },
+   "4823": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Betis"
+   },
+   "7570": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Betis"
+   },
+   "2604": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Betis"
+   },
+   "4286": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Betis"
+   },
+   "2469": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Betis"
+   },
+   "6385": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Betis"
+   },
+   "5239": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Betis"
+   },
+   "7029": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Betis"
+   },
+   "4822": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Betis"
+   },
+   "2417": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Betis"
+   },
+   "7459": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Betis"
+   },
+   "4320": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Betis"
+   },
+   "7190": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Betis"
+   },
+   "7350": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Betis"
+   },
+   "5228": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Betis"
+   },
+   "6797": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Betis"
+   },
+   "7585": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Betis"
+   },
+   "2383": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Real Madrid"
+   },
+   "4291": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Real Madrid"
+   },
+   "5091": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Real Madrid"
+   },
+   "2592": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Real Madrid"
+   },
+   "2480": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Real Madrid"
+   },
+   "6386": {
+    "tier": "titolare",
+    "start_pct": 65,
+    "club": "Real Madrid"
+   },
+   "4722": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Real Madrid"
+   },
+   "6433": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Real Madrid"
+   },
+   "7093": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Real Madrid"
+   },
+   "4239": {
+    "tier": "comprimario",
+    "start_pct": 40,
+    "club": "Real Madrid"
+   },
+   "656": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Real Madrid"
+   },
+   "4824": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Real Madrid"
+   },
+   "4826": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Real Madrid"
+   },
+   "5513": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Real Madrid"
+   },
+   "6003": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Real Madrid"
+   },
+   "4656": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Real Madrid"
+   },
+   "2500": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Real Madrid"
+   },
+   "6377": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Real Madrid"
+   },
+   "4688": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Real Madrid"
+   },
+   "4825": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Real Madrid"
+   },
+   "7530": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Real Madrid"
+   },
+   "6941": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Real Madrid"
+   },
+   "6792": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Real Madrid"
+   },
+   "7370": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Real Madrid"
+   },
+   "4141": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Real Madrid"
+   },
+   "4288": {
+    "tier": "riserva",
+    "start_pct": 4,
+    "club": "Real Madrid"
+   },
+   "7280": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Real Madrid"
+   },
+   "5055": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Villarreal"
+   },
+   "6761": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Villarreal"
+   },
+   "7079": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Villarreal"
+   },
+   "4314": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Villarreal"
+   },
+   "6714": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Villarreal"
+   },
+   "6532": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Villarreal"
+   },
+   "5282": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Villarreal"
+   },
+   "6390": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Villarreal"
+   },
+   "6515": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Villarreal"
+   },
+   "4255": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Villarreal"
+   },
+   "2549": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Villarreal"
+   },
+   "7186": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Villarreal"
+   },
+   "6798": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Villarreal"
+   },
+   "7607": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Villarreal"
+   },
+   "5752": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Villarreal"
+   },
+   "4717": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Villarreal"
+   },
+   "6837": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Villarreal"
+   },
+   "7343": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Villarreal"
+   },
+   "6876": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Villarreal"
+   },
+   "7259": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Villarreal"
+   },
+   "6841": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Villarreal"
+   },
+   "7598": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Villarreal"
+   },
+   "1974": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Bayer Leverkusen"
+   },
+   "5427": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bayer Leverkusen"
+   },
+   "5078": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bayer Leverkusen"
+   },
+   "7168": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Bayer Leverkusen"
+   },
+   "6723": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Bayer Leverkusen"
+   },
+   "7082": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bayer Leverkusen"
+   },
+   "7081": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Bayer Leverkusen"
+   },
+   "6265": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Bayer Leverkusen"
+   },
+   "7083": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Bayer Leverkusen"
+   },
+   "2665": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Bayer Leverkusen"
+   },
+   "5754": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bayer Leverkusen"
+   },
+   "6493": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Bayer Leverkusen"
+   },
+   "6455": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Bayer Leverkusen"
+   },
+   "7269": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Bayer Leverkusen"
+   },
+   "5579": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Bayer Leverkusen"
+   },
+   "4290": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Bayer Leverkusen"
+   },
+   "4343": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bayer Leverkusen"
+   },
+   "6469": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Bayer Leverkusen"
+   },
+   "4679": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Bayer Leverkusen"
+   },
+   "7295": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bayer Leverkusen"
+   },
+   "5907": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Bayer Leverkusen"
+   },
+   "6127": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Bayer Leverkusen"
+   },
+   "5954": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Bayer Leverkusen"
+   },
+   "7437": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bayer Leverkusen"
+   },
+   "6303": {
+    "tier": "scarto",
+    "start_pct": 3,
+    "club": "Bayer Leverkusen"
+   },
+   "5075": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Bayer Leverkusen"
+   },
+   "7358": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Bayer Leverkusen"
+   },
+   "2557": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bayern Monaco"
+   },
+   "6726": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Bayern Monaco"
+   },
+   "5794": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Bayern Monaco"
+   },
+   "2407": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Bayern Monaco"
+   },
+   "2448": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Bayern Monaco"
+   },
+   "6512": {
+    "tier": "titolare",
+    "start_pct": 78,
+    "club": "Bayern Monaco"
+   },
+   "2402": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Bayern Monaco"
+   },
+   "2679": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Bayern Monaco"
+   },
+   "7242": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Bayern Monaco"
+   },
+   "7084": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Bayern Monaco"
+   },
+   "6988": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Bayern Monaco"
+   },
+   "5339": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Bayern Monaco"
+   },
+   "7415": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bayern Monaco"
+   },
+   "2398": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Bayern Monaco"
+   },
+   "6730": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Bayern Monaco"
+   },
+   "4727": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Bayern Monaco"
+   },
+   "4703": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Bayern Monaco"
+   },
+   "5582": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bayern Monaco"
+   },
+   "5892": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Bayern Monaco"
+   },
+   "6724": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bayern Monaco"
+   },
+   "7385": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Bayern Monaco"
+   },
+   "2403": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Bayern Monaco"
+   },
+   "5920": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Borussia Dortmund"
+   },
+   "6141": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Borussia Dortmund"
+   },
+   "7004": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Borussia Dortmund"
+   },
+   "5583": {
+    "tier": "titolarissimo",
+    "start_pct": 97,
+    "club": "Borussia Dortmund"
+   },
+   "5930": {
+    "tier": "titolarissimo",
+    "start_pct": 85,
+    "club": "Borussia Dortmund"
+   },
+   "6687": {
+    "tier": "titolarissimo",
+    "start_pct": 92,
+    "club": "Borussia Dortmund"
+   },
+   "6810": {
+    "tier": "titolare",
+    "start_pct": 72,
+    "club": "Borussia Dortmund"
+   },
+   "5744": {
+    "tier": "titolare",
+    "start_pct": 78,
+    "club": "Borussia Dortmund"
+   },
+   "7438": {
+    "tier": "titolare",
+    "start_pct": 72,
+    "club": "Borussia Dortmund"
+   },
+   "5204": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Borussia Dortmund"
+   },
+   "5098": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Borussia Dortmund"
+   },
+   "2451": {
+    "tier": "comprimario",
+    "start_pct": 10,
+    "club": "Borussia Dortmund"
+   },
+   "7565": {
+    "tier": "comprimario",
+    "start_pct": 40,
+    "club": "Borussia Dortmund"
+   },
+   "7566": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Borussia Dortmund"
+   },
+   "7543": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Borussia Dortmund"
+   },
+   "7086": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Borussia Dortmund"
+   },
+   "6847": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Borussia Dortmund"
+   },
+   "5630": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Borussia Dortmund"
+   },
+   "7384": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Borussia Dortmund"
+   },
+   "7366": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Borussia Dortmund"
+   },
+   "6950": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Borussia Dortmund"
+   },
+   "5928": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Borussia Dortmund"
+   },
+   "2504": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Borussia Dortmund"
+   },
+   "7439": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Borussia Dortmund"
+   },
+   "7085": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Borussia Dortmund"
+   },
+   "7088": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Eintracht"
+   },
+   "6731": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Eintracht"
+   },
+   "7613": {
+    "tier": "titolarissimo",
+    "start_pct": 100,
+    "club": "Eintracht"
+   },
+   "5647": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Eintracht"
+   },
+   "7541": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Eintracht"
+   },
+   "7298": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Eintracht"
+   },
+   "7300": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Eintracht"
+   },
+   "7204": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Eintracht"
+   },
+   "6716": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Eintracht"
+   },
+   "7087": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Eintracht"
+   },
+   "2422": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Eintracht"
+   },
+   "7304": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Eintracht"
+   },
+   "7614": {
+    "tier": "comprimario",
+    "start_pct": 40,
+    "club": "Eintracht"
+   },
+   "6473": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Eintracht"
+   },
+   "7516": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Eintracht"
+   },
+   "6848": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Eintracht"
+   },
+   "5416": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Eintracht"
+   },
+   "6404": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Eintracht"
+   },
+   "7524": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Eintracht"
+   },
+   "6728": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Eintracht"
+   },
+   "5941": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Eintracht"
+   },
+   "7636": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Eintracht"
+   },
+   "5935": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Eintracht"
+   },
+   "7297": {
+    "tier": "scarto",
+    "start_pct": 2,
+    "club": "Eintracht"
+   },
+   "6812": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Lipsia"
+   },
+   "5997": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Lipsia"
+   },
+   "2447": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Lipsia"
+   },
+   "6734": {
+    "tier": "titolarissimo",
+    "start_pct": 100,
+    "club": "Lipsia"
+   },
+   "6313": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Lipsia"
+   },
+   "5606": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Lipsia"
+   },
+   "6271": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Lipsia"
+   },
+   "6735": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Lipsia"
+   },
+   "7009": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Lipsia"
+   },
+   "4728": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Lipsia"
+   },
+   "7214": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Lipsia"
+   },
+   "6816": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Lipsia"
+   },
+   "7123": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Lipsia"
+   },
+   "5569": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Lipsia"
+   },
+   "7517": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Lipsia"
+   },
+   "7090": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Lipsia"
+   },
+   "6094": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Lipsia"
+   },
+   "6311": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Lipsia"
+   },
+   "6599": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Lipsia"
+   },
+   "7089": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Lipsia"
+   },
+   "2397": {
+    "tier": "riserva",
+    "start_pct": 20,
+    "club": "Lipsia"
+   },
+   "7124": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Lipsia"
+   },
+   "6111": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Lipsia"
+   },
+   "6310": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lipsia"
+   },
+   "7441": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lipsia"
+   },
+   "4171": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lipsia"
+   },
+   "6742": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Stoccarda"
+   },
+   "6746": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Stoccarda"
+   },
+   "4403": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Stoccarda"
+   },
+   "7443": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Stoccarda"
+   },
+   "7007": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Stoccarda"
+   },
+   "6363": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Stoccarda"
+   },
+   "6748": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Stoccarda"
+   },
+   "6743": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Stoccarda"
+   },
+   "6740": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Stoccarda"
+   },
+   "6753": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Stoccarda"
+   },
+   "6749": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Stoccarda"
+   },
+   "7270": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Stoccarda"
+   },
+   "7549": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Stoccarda"
+   },
+   "7215": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Stoccarda"
+   },
+   "6736": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Stoccarda"
+   },
+   "7442": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Stoccarda"
+   },
+   "7263": {
+    "tier": "riserva",
+    "start_pct": 20,
+    "club": "Stoccarda"
+   },
+   "6744": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Stoccarda"
+   },
+   "7003": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Stoccarda"
+   },
+   "7527": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Stoccarda"
+   },
+   "5909": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Stoccarda"
+   },
+   "6739": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Stoccarda"
+   },
+   "7649": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Stoccarda"
+   },
+   "7518": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Stoccarda"
+   },
+   "6737": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Stoccarda"
+   },
+   "6886": {
+    "tier": "scarto",
+    "start_pct": 2,
+    "club": "Stoccarda"
+   },
+   "4708": {
+    "tier": "scarto",
+    "start_pct": 3,
+    "club": "Stoccarda"
+   },
+   "6750": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Stoccarda"
+   },
+   "7282": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Monaco"
+   },
+   "6709": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Monaco"
+   },
+   "2432": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Monaco"
+   },
+   "4154": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Monaco"
+   },
+   "7462": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Monaco"
+   },
+   "4136": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Monaco"
+   },
+   "7434": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Monaco"
+   },
+   "2555": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Monaco"
+   },
+   "5623": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Monaco"
+   },
+   "6084": {
+    "tier": "comprimario",
+    "start_pct": 40,
+    "club": "Monaco"
+   },
+   "4876": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Monaco"
+   },
+   "6591": {
+    "tier": "comprimario",
+    "start_pct": 45,
+    "club": "Monaco"
+   },
+   "4873": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Monaco"
+   },
+   "5745": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Monaco"
+   },
+   "6838": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Monaco"
+   },
+   "7265": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Monaco"
+   },
+   "6973": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monaco"
+   },
+   "6285": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Monaco"
+   },
+   "6807": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monaco"
+   },
+   "7435": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monaco"
+   },
+   "6283": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Monaco"
+   },
+   "6179": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Monaco"
+   },
+   "6045": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Monaco"
+   },
+   "4678": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Olympique Marsiglia"
+   },
+   "4662": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Olympique Marsiglia"
+   },
+   "2537": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Olympique Marsiglia"
+   },
+   "6800": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Olympique Marsiglia"
+   },
+   "7075": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Olympique Marsiglia"
+   },
+   "7197": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Olympique Marsiglia"
+   },
+   "2680": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Olympique Marsiglia"
+   },
+   "417": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Olympique Marsiglia"
+   },
+   "5984": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Olympique Marsiglia"
+   },
+   "7354": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Olympique Marsiglia"
+   },
+   "270": {
+    "tier": "comprimario",
+    "start_pct": 30,
+    "club": "Olympique Marsiglia"
+   },
+   "5538": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Olympique Marsiglia"
+   },
+   "6899": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Olympique Marsiglia"
+   },
+   "6715": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Olympique Marsiglia"
+   },
+   "6487": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Olympique Marsiglia"
+   },
+   "6550": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Olympique Marsiglia"
+   },
+   "6555": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Olympique Marsiglia"
+   },
+   "7586": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Olympique Marsiglia"
+   },
+   "7355": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Olympique Marsiglia"
+   },
+   "5201": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Paris Saint-Germain"
+   },
+   "6718": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Paris Saint-Germain"
+   },
+   "6305": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Paris Saint-Germain"
+   },
+   "5839": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Paris Saint-Germain"
+   },
+   "6051": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Paris Saint-Germain"
+   },
+   "6720": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Paris Saint-Germain"
+   },
+   "5700": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Paris Saint-Germain"
+   },
+   "4160": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Paris Saint-Germain"
+   },
+   "6053": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Paris Saint-Germain"
+   },
+   "7559": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Paris Saint-Germain"
+   },
+   "4853": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Paris Saint-Germain"
+   },
+   "2684": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Paris Saint-Germain"
+   },
+   "2775": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Paris Saint-Germain"
+   },
+   "2374": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Paris Saint-Germain"
+   },
+   "6082": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Paris Saint-Germain"
+   },
+   "7206": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Paris Saint-Germain"
+   },
+   "6606": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Paris Saint-Germain"
+   },
+   "6527": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Paris Saint-Germain"
+   },
+   "4280": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Paris Saint-Germain"
+   },
+   "657": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Paris Saint-Germain"
+   },
+   "7288": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Paris Saint-Germain"
+   },
+   "6708": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Paris Saint-Germain"
+   },
+   "7461": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Paris Saint-Germain"
+   },
+   "7289": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Paris Saint-Germain"
+   },
+   "7499": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Racing Strasburgo"
+   },
+   "6129": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Racing Strasburgo"
+   },
+   "7584": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Racing Strasburgo"
+   },
+   "5094": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Racing Strasburgo"
+   },
+   "7493": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Racing Strasburgo"
+   },
+   "7616": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Racing Strasburgo"
+   },
+   "7569": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Racing Strasburgo"
+   },
+   "7498": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Racing Strasburgo"
+   },
+   "7601": {
+    "tier": "comprimario",
+    "start_pct": 20,
+    "club": "Racing Strasburgo"
+   },
+   "7503": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Racing Strasburgo"
+   },
+   "7562": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Racing Strasburgo"
+   },
+   "7500": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Racing Strasburgo"
+   },
+   "7501": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Racing Strasburgo"
+   },
+   "7576": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Racing Strasburgo"
+   },
+   "7487": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Racing Strasburgo"
+   },
+   "7107": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Racing Strasburgo"
+   },
+   "7495": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Racing Strasburgo"
+   },
+   "7494": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Racing Strasburgo"
+   },
+   "7489": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Racing Strasburgo"
+   },
+   "7273": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Racing Strasburgo"
+   },
+   "7558": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Racing Strasburgo"
+   },
+   "7491": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Racing Strasburgo"
+   },
+   "7486": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Racing Strasburgo"
+   },
+   "7497": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Racing Strasburgo"
+   },
+   "6463": {
+    "tier": "scarto",
+    "start_pct": 2,
+    "club": "Racing Strasburgo"
+   },
+   "7514": {
+    "tier": "titolarissimo",
+    "start_pct": 88,
+    "club": "Rennes"
+   },
+   "5721": {
+    "tier": "titolarissimo",
+    "start_pct": 95,
+    "club": "Rennes"
+   },
+   "6260": {
+    "tier": "titolarissimo",
+    "start_pct": 90,
+    "club": "Rennes"
+   },
+   "6277": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Rennes"
+   },
+   "6269": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Rennes"
+   },
+   "4667": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Rennes"
+   },
+   "7509": {
+    "tier": "titolare",
+    "start_pct": 70,
+    "club": "Rennes"
+   },
+   "7006": {
+    "tier": "titolare",
+    "start_pct": 65,
+    "club": "Rennes"
+   },
+   "7510": {
+    "tier": "comprimario",
+    "start_pct": 35,
+    "club": "Rennes"
+   },
+   "7513": {
+    "tier": "comprimario",
+    "start_pct": 25,
+    "club": "Rennes"
+   },
+   "5398": {
+    "tier": "comprimario",
+    "start_pct": 15,
+    "club": "Rennes"
+   },
+   "6300": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Rennes"
+   },
+   "6566": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Rennes"
+   },
+   "7512": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Rennes"
+   },
+   "6738": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Rennes"
+   },
+   "7507": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Rennes"
+   },
+   "6921": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Rennes"
+   },
+   "7511": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Rennes"
+   },
+   "5672": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Rennes"
+   },
+   "6857": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Rennes"
+   },
+   "7506": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Rennes"
+   },
+   "7508": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Rennes"
+   },
+   "7505": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Rennes"
+   }
+  }
+ }
+}

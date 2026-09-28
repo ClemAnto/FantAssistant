@@ -337,6 +337,19 @@ export interface PlayerNotesFile {
   [season: string]: Record<string, PlayerNote> | unknown;
 }
 
+/**
+ * `config/press_rungs.json`: the press's season role of each man, DECLARED and dated.
+ * `{season: {as_of, source, players: {fc_id: {tier, start_pct, club}}}}`, plus its comment key. The words
+ * are the PRESS ladder, not the sheet's: `core/player-rulings.ts` converts them.
+ */
+export interface PressRungsFile {
+  [season: string]: {
+    as_of?: string;
+    source?: string;
+    players?: Record<string, { tier?: string; start_pct?: number | null; club?: string | null }>;
+  } | string | undefined;
+}
+
 /** The shape of `mantra_modules.json`, as the toolkit ships it. */
 export interface MantraModulesFile {
   edition?: string;
@@ -363,6 +376,7 @@ export class Bundle {
   private modulesPromise?: Promise<MantraModulesFile | null>;
   private classicModulesPromise?: Promise<MantraModulesFile | null>;
   private playerNotesPromise?: Promise<PlayerNotesFile | null>;
+  private pressRungsPromise?: Promise<PressRungsFile | null>;
   private nightlyPromise?: Promise<NightlyFile | null>;
   private readonly boardsByPath = new Map<string, Promise<BoardsFile | null>>();
   private readonly packsByPath = new Map<string, Promise<TimePackFile | null>>();
@@ -482,6 +496,18 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<PlayerNotesFile>) : null))
       .catch(() => null);
     return this.playerNotesPromise;
+  }
+
+  /**
+   * THE PRESS READING OF EACH MAN'S SEASON ROLE (`config/press_rungs.json`, 28/09/2026), which the app
+   * shows and prices instead of the sheet's rung while its switch is on. Null on a bundle without the
+   * file: then the sheet's rung stands everywhere, which is «nothing declared», never «press says none».
+   */
+  pressRungs(): Promise<PressRungsFile | null> {
+    this.pressRungsPromise ??= fetch(`${this.base}/press_rungs.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<PressRungsFile>) : null))
+      .catch(() => null);
+    return this.pressRungsPromise;
   }
 
   /**

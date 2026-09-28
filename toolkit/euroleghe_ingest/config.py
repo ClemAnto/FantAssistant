@@ -166,6 +166,15 @@ class Config:
     # `config/` and no engine path reads it. Optional, like the rulings.
     player_notes_path: Path = field(
         default_factory=lambda: REPO_ROOT / "config" / "player_notes.json")
+    # THE PRESS READING OF EACH MAN'S SEASON ROLE (28/09/2026, operator: «il giudizio della stampa e'
+    # superiore a quello dell'engine ... aggiungiamo un'opzione dove vengono usate le informazioni sul
+    # gradino della stampa»). DECLARED and dated like the two files above, and it TRAVELS ONLY: `export`
+    # copies it into the bundle's `config/` and the app decides whether to show it. NO toolkit path reads
+    # it, and that is the point rather than an omission - the press is a JUDGE of the boards
+    # (`press --against press`), and reading it inside the claim would make circular the very comparison
+    # that says whether it is better. Optional.
+    press_rungs_path: Path = field(
+        default_factory=lambda: REPO_ROOT / "config" / "press_rungs.json")
     # ...E LE SUE DRITTE SU CHI GIOCA, che sono la stessa cosa un piano piu' in la' (richiesta
     # dell'operatore, 07/09/2026: «servirebbe qualche parte dove ti posso dare delle dritte che esulano
     # dalle statistiche... io ho delle conoscenze che i dati non hanno»). Tre valori e ognuno ha un

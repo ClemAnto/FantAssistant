@@ -388,6 +388,12 @@ async function main() {
     session = await attach(debugPort);
     await session.send('Page.enable');
     await session.send('Runtime.enable');
+    // IL CONFRONTO E' COL FOGLIO, quindi il gradino della stampa (28/09/2026) resta SPENTO: acceso, le
+    // presenze piene di chi la stampa copre partono dalla sua parola e non da quelle del foglio, e il
+    // banco accuserebbe la card di un'aggiunta che e' la stampa e non l'assicurazione («22 contro 13.8»).
+    await session.send('Page.addScriptToEvaluateOnNewDocument', {
+      source: "try { localStorage.setItem('fantassistant.rulings.pressSource', '0'); } catch {}",
+    });
     await session.send('Page.navigate', { url });
     await wait(3000);
 

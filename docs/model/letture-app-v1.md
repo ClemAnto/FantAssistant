@@ -7063,3 +7063,111 @@ TOGLIENDO lo scorrimento avrebbe TAGLIATO il campetto, che e' la perdita che non
 overflow CALCOLATO `auto|scroll` dentro la card (0 oggi) invece di guardare il solo div che scorreva -
 un'asserzione sul punto in cui il difetto era non si accorgerebbe dello stesso difetto due nodi piu' in
 la'. Controprova: rimesso `overflow-y-auto`, il passo nomina `div auto/auto` e cade da solo.
+
+## 55 - IL GRADINO DELLA STAMPA, e il dato che il nostro prior non leggeva (28 settembre 2026)
+
+Richiesta dell'operatore, dopo il confronto del giorno stesso fra il nostro foglio e una rilevazione di
+stampa sulle 37 rose EuroLeghe: «attualmente il giudizio della stampa è superiore a quello dell'engine:
+reagisce più velocemente ai cambiamenti e legge più dettagli che non riusciamo. 1) aggiungiamo (ed
+attiviamo) un'opzione dove vengono usate le informazioni sul gradino della stampa e non il nostro
+(mostriamo la data di aggiornamento); 2) verifica se ci sono dei dati che abbiamo ma non utilizziamo o dei
+parametri che possiamo aggiustare affinché il gradino che abbiamo assegnato sia più in linea con la
+stampa».
+
+### 55.1 Il confronto da cui nasce
+
+Stesso giorno, foglio EuroLeghe revisione 76 contro la rilevazione di stampa (stampa, club, Transfermarkt e
+FotMob incrociati a mano, 1.075 calciatori): undici stagionali in comune **332/406 (82%)**, modulo uguale
+in **29 club su 37**, stessa fascia di gradino (fisso · in bilico · panchina · fuori) **49,3%**, 79 uomini a
+due fasce o più, quota da titolare con 19 punti di scarto medio. La causa più sistematica: fra i casi in
+cui siamo più bassi della stampa il **35%** non ha una stagione precedente sulla piattaforma, contro il
+16% dei casi in cui siamo d'accordo - acquisti estivi che hanno cominciato tutte le partite (Hornicek,
+Onyedika, Gadou, Tzolis, Jacquet) e leggevano `panchina`. L'unico modulo sbagliato davvero era il Bologna
+(Palladino col 3-4-2-1 dalla quinta giornata, noi ancora il 4-2-3-1 di Tedesco).
+
+### 55.2 L'opzione: il gradino della stampa al posto del nostro, nell'app e mai nel motore
+
+`config/press_rungs.json` (918 uomini con `fc_id`, `as_of` 2026-09-28): la parola della STAMPA nella sua
+scala, la sua quota di partenze e il club. È la quinta cosa DICHIARATA di questo progetto e ha la loro forma
+- datata, per `fc_id`, copiata da `export` e tirata da `pull-bundle` - con una differenza che è il punto:
+**nessun percorso del toolkit la legge**, e un test lo pretende (`test_no_toolkit_path_READS_the_press_rungs`).
+La stampa resta il GIUDICE dei campetti (`press --against press`); leggerla dentro il claim renderebbe
+circolare proprio il confronto che dice se è meglio.
+
+Nell'app entra da `PlayerRulings` come fonte a PRECEDENZA INTERMEDIA: le dritte dell'operatore, poi la
+stampa se l'interruttore è acceso, poi il foglio. `all()` è la mappa che campetto, presenze attese,
+surplus, SWING, liste e card leggono già, quindi la stampa arriva ovunque arrivava una dritta con la stessa
+aritmetica (la mediana del gradino sul foglio) e nessuna copia. Acceso di default, come chiesto;
+l'interruttore sta in *Opzioni → Titolarità* con la data della rilevazione e quanti uomini copre.
+
+La traduzione fra le due scale segue quello che ogni parola PROMETTE (`PRESS_TO_RUNG`): `titolarissimo`,
+`titolare` e `ballottaggio` in se stessi, `comprimario` in `panchina`, `riserva` e `scarto` in `riserva`
+- il foglio non ha un gradino più basso, e la parola originale resta nel tooltip così la distinzione non
+sparisce. Tre regole di forma: il pallino «tua indicazione» marca SOLO le dritte dell'operatore (con la
+stampa accesa quasi ogni nome ha una parola che batte il foglio, e un pallino su novecento righe non
+marcherebbe niente); la card scrive «STAMPA» o «TUA» accanto al gradino; revocare una dritta torna alla
+stampa se c'è, al foglio se no.
+
+**Due banchi si sono rotti per la ragione giusta** (`e2e-player-ruling`, `e2e-plancia-injury`): confrontano
+la card con l'aritmetica del FOGLIO, e con la stampa accesa la riga parte dalla parola della stampa - il
+caso che il primo sceglie dal foglio come `panchina` (Kristensen T., 19 partite attese) legge 33 da
+`ballottaggio`, quindi dichiarare `titolare` non spostava più niente di visibile. Girano ora con
+l'interruttore spento, e il commento dice perché. *Un default nuovo cambia la premessa di ogni banco che
+misura il vecchio.* (`e2e-strategy` resta rosso, ed è rosso identico su un worktree senza queste modifiche:
+è la metà aperta dall'altra sessione.)
+
+Limite dichiarato: la rilevazione non ha un comando che la rinnovi - rifarla vuol dire rifare la ricerca.
+
+### 55.3 La leva: la stagione scorsa da `tm_appearances` (SHEET_REVISION 77, solo EuroLeghe)
+
+Il dato che avevamo e non leggevamo: **tutti e 50** gli «arrivi senza storico» hanno la stagione scorsa in
+`tm_appearances`, e una decina viene perfino da un campionato che copriamo (João Gomes 35 su 38 al Wolves,
+Ndiaye 32 all'Everton, Kroupi, Godo, Coulibaly K.) - `external_stats` non li ha perché il loro club non era
+nel perimetro, e `snapshot.prior_window` li trattava da «mai visti» (prior sintetico 0,28-0,33 della
+stagione, che con K=5 pesa ancora metà a ottobre). Il ripiego su `tm_appearances` esisteva dal 25/08 nella
+cascata delle stime (`est_pv`) e non nel prior della titolarità: stessa quantità, due lettori, uno la
+ignorava.
+
+Misurato su una **copia privata del DB** rifacendo il foglio, con la corsa di base che riproduce il foglio
+vero al decimale, e giudicato due volte: contro la stampa di oggi e contro l'ESITO su due date retrodatate
+(06/10/2025 e 07/10/2024, 5-7 giornate giocate come oggi).
+
+| variante | stampa: stessa fascia · lontani · undici | esito 2025: ρ · fascia | esito 2024: ρ · fascia |
+|---|---|---|---|
+| attuale (K=5) | 49,3% · 79 · 332 | 0,6126 · 44,6% | 0,6253 · 47,1% |
+| K=3 | 50,2% · 66 · 332 | 0,6130 · 45,1% | 0,6308 · 48,1% |
+| TM campionati coperti | 50,4% · 73 · 333 | 0,6117 · 44,9% | 0,6312 · 47,5% |
+| TM prime divisioni (patch) | 50,8% · 58 · 336 | 0,6196 · 45,5% | 0,6317 · 47,2% |
+| TM prime div. + K=3 | 52,1% · 54 · 337 | 0,6187 · 45,3% | 0,6357 · 47,6% |
+| **spedita** (prime div., giornate del campionato d'origine) | **51,5% · 57 · 336** | **0,6206 · 45,6%** | **0,6326 · 47,5%** |
+
+Adottata la riga «spedita», K resta 5 (decisione dell'operatore davanti alla tabella: la combinazione con
+K=3 era la più vicina alla stampa e costava il doppio sul livello). Costo: +0,2% e +0,7% di scarto sulla
+quota, e l'undici -2 nel 2025. Sei cose che restano:
+
+- **Le serie inferiori NON sono un prior.** La prima variante «tutti i campionati» sembrava la migliore e
+  passava a `ballottaggio` Funk e Diehl (squadra B dello Stoccarda in 3. Liga, 34 su 34): un prior da
+  titolare in Bundesliga. Solo le prime divisioni (codice del paese e `1`), e il calcio giovanile con un
+  codice da prima divisione (la Primavera è `IJ1`) esce per ETÀ MEDIANA, `abroad.youth_competitions` - una
+  lista a mano scadrebbe al primo campionato nuovo. *Un aggregato che migliora può nascondere spostamenti
+  sbagliati: si guarda CHI si è mosso.*
+- **Il denominatore segue il numeratore**, e la cura ha fatto meglio della variante misurata: 26 presenze
+  in Belgio vanno divise per le 30 giornate del Belgio, non per le 34 della Bundesliga dove l'uomo gioca
+  oggi. Le giornate di una competizione si stimano come il massimo delle righe di una coppia (uomo, club),
+  la stima del 25/08. Per questo si rimisura LA FUNZIONE CHE SI SPEDISCE e non la patch.
+- **Lo scarto medio peggiora per costruzione e va letto come prezzo sul livello.** La quota prevista è
+  «quando è sano», l'esito conta anche gli infortuni: le previsioni stanno già +0,12 sopra il realizzato,
+  e ogni variante che alza le quote allarga quello scarto. Per un GRADINO contano rango, fascia e undici.
+- **Solo su `euro` (`TM_PRIOR_PLATFORMS`).** Su Serie A la stessa regola non paga: rango -0,008 e +0,004,
+  fascia +0,6 e -1,3, undici 0 e -2. Lì `external_stats` copre già tutti e venti i club, quindi chi resta
+  senza riga arriva quasi sempre da un campionato minore, dove mezza stagione non vale mezza Serie A - il
+  limite di livello del 25/08 incontrato da un'altra strada. *Un parametro appartiene alla popolazione su
+  cui è misurato, e la piattaforma è una popolazione.*
+- **Le partenze non sono in `tm_appearances`**: una partita da 60 minuti in su sta per una partenza. È la
+  sola metà dichiarata e non misurata del ripiego, e pesa poco perché la miscela legge presenze e minuti.
+- **Due finestre sono un segnale coerente, non un verdetto robusto.** Nessuna variante peggiora rango o
+  fascia in nessuna finestra su `euro`; il resto del disaccordo con la stampa (152 differenze di
+  gerarchia sui ballottaggi) nessuno di questi parametri lo sposta.
+
+`engine_*` non si muove (il motore non legge `presence` né `prior_window`): cambiano i fogli EuroLeghe,
+i campetti e il gradino.

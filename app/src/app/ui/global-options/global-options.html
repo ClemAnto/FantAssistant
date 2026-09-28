@@ -367,6 +367,29 @@
         </div>
       </nz-tab>
 
+      <!-- LA TITOLARITA': di chi e' il gradino che ogni schermata mostra e prezza. Una scheda sua perche'
+           non e' il regolamento della lega ne' un filtro sulle squadre: e' la FONTE di un giudizio, e la
+           data della rilevazione sta accanto all'interruttore - una parola di stampa senza il giorno in cui
+           e' stata letta invecchia senza dirlo. -->
+      <nz-tab nzTitle="Titolarità">
+        <div class="flex flex-col gap-3 pt-2">
+          <label class="flex flex-wrap items-center gap-3">
+            <span class="w-32 shrink-0 text-sm text-muted">Gradino della stampa</span>
+            <nz-switch nzSize="small" [nzDisabled]="!pressCount()" [(ngModel)]="pressDraft" />
+            @if (pressCount()) {
+              <span class="text-sm">rilevazione del {{ pressAsOf() }} · {{ pressCount() }} calciatori</span>
+            } @else {
+              <span class="text-sm text-muted">il pacchetto non porta nessuna rilevazione di stampa</span>
+            }
+          </label>
+          <p class="max-w-[60ch] text-xs text-muted">
+            Acceso: il gradino di ogni calciatore coperto è quello della stampa, e ne seguono campetto,
+            partite attese, surplus e SWING. Le tue indicazioni restano più forti di tutte e due. Chi la
+            rilevazione non copre tiene il gradino del foglio.
+          </p>
+        </div>
+      </nz-tab>
+
       <nz-tab [nzTitle]="clubsTab">
         <div class="flex flex-col gap-3 pt-2">
           <p class="text-xs text-muted">
