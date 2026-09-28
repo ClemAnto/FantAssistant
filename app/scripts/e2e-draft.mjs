@@ -226,6 +226,22 @@ function ordered(values, descending) {
   return sorted && tail.every((one) => one == null);
 }
 
+
+/** Where every seat of the call order stands, and whether one is sliding right now. */
+function seatsNow() {
+  return [...document.querySelectorAll('[data-seat]')].map((one) => {
+    const rect = one.getBoundingClientRect();
+    return {
+      id: one.getAttribute('data-seat'),
+      at: Number(one.getAttribute('data-at')),
+      top: Math.round(rect.top),
+      bottom: Math.round(rect.bottom),
+      sliding: one.getAnimations().some((animation) => animation.playState === 'running'),
+      clipped: one.scrollHeight > one.clientHeight + 1,
+    };
+  });
+}
+
 // ------------------------------------------------------------------ the run
 
 async function main() {
@@ -355,8 +371,27 @@ async function main() {
 
     // 3. Double click: the squad on the clock takes the first free man.
     const before = page;
+    const seatsBefore = await evaluate(session, seatsNow);
     await mouse(before.first, 2);
+    // Read while the move is still flying: the squad that chose drops to the bottom of the order.
+    await wait(120);
+    const flying = await evaluate(session, seatsNow);
     page = await settle((p) => p.first?.id !== before.first.id, 'the pick');
+    await wait(700);
+    const landed = await evaluate(session, seatsNow);
+    const byAt = [...landed].sort((a, b) => a.at - b.at);
+    const overlap = byAt.some((one, at) => at > 0 && one.top < byAt[at - 1].bottom);
+    const outOfOrder = byAt.some((one, at) => at > 0 && one.top <= byAt[at - 1].top);
+    const moved = landed.filter((one) => seatsBefore.find((old) => old.id === one.id)?.at !== one.at).length;
+    note('ordine animato', `${moved} squadre cambiano posto, ${flying.filter((one) => one.sliding).length} in volo a 120ms, ferme dopo: ${landed.filter((one) => one.sliding).length}`,
+      [
+        ...(!moved ? ['nessuna squadra ha cambiato posto'] : []),
+        ...(moved && !flying.some((one) => one.sliding) ? ['il cambio di posto non e\' animato'] : []),
+        ...(landed.some((one) => one.sliding) ? ['una riga e\' ancora in volo dopo 700ms'] : []),
+        ...(outOfOrder ? ['a schermo le righe non seguono l\'ordine di chiamata'] : []),
+        ...(overlap ? ['due righe si sovrappongono'] : []),
+        ...(landed.some((one) => one.clipped) ? ['una riga taglia il suo contenuto'] : []),
+      ]);
     const ids = await evaluate(session, freeIds);
     note('doppio click', `preso «${before.first.text.slice(0, 40)}», di turno prima ${before.onClock} ora ${page.onClock}, rosa ${page.squadSize}`,
       [

@@ -239,12 +239,19 @@
         <div class="grid grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 px-1 text-[10px] uppercase text-muted">
           <span>#</span><span>Squadra · ultima → prevista</span><span class="text-right">FVM</span>
         </div>
-        <ol class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-          @for (seat of seats(); track seat.team.id) {
+        <!-- LE SQUADRE SCIVOLANO AL LORO POSTO quando l'ordine cambia (sua richiesta, 29/09/2026), e solo in
+             CSS: le righe restano nel DOM in un ordine FISSO (per squadra) e ognuna si mette al suo posto di
+             chiamata con un `translateY`, quindi quando il posto cambia e' il browser a far scorrere la riga.
+             Riordinare il DOM spegnerebbe la transizione: un nodo reinserito non ha uno stile «di prima». -->
+        <ol class="relative min-h-0 flex-1 overflow-y-auto">
+          <div class="seat-track" [style.height]="'calc(' + seats().length + ' * var(--seat-step))'"></div>
+          @for (seat of seatsStable(); track seat.team.id) {
             <li
               [attr.data-seat]="seat.team.id"
               [attr.data-clock]="seat.team.onTheClock ? '' : null"
-              class="group grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 rounded-md
+              [attr.data-at]="seat.at"
+              [style.--seat-at]="seat.at - 1"
+              class="seat group grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 rounded-md
                      border px-1 py-0.5"
               [class]="
                 seat.team.onTheClock

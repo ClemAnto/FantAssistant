@@ -151,6 +151,14 @@ const CARD_DELAY_MS = 260;
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
     .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 2.5rem 2.5rem 75px 2.5rem; }
     .sort { cursor: pointer; user-select: none; }
+    /* The call order: every seat sits at its place by a transform, so a change of place SLIDES. */
+    ol { --seat-h: 2.75rem; --seat-step: 3rem; }
+    .seat {
+      position: absolute; left: 0; right: 0; top: 0; height: var(--seat-h);
+      transform: translateY(calc(var(--seat-at) * var(--seat-step)));
+      transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 200ms, border-color 200ms;
+    }
+    @media (prefers-reduced-motion: reduce) { .seat { transition: none; } }
     .sort:hover { color: var(--color-fg); }
     .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) repeat(2, 1.9rem 2.2rem 2.2rem 2.4rem); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
@@ -247,6 +255,13 @@ export class Auction {
       };
     });
   });
+
+  /**
+   * The same seats in a FIXED order (by team), which is the order the DOM keeps: the place in the call order
+   * is a transform (`--seat-at`), so a squad that moves slides instead of jumping. A DOM reordered on every
+   * pick would move the nodes, and a moved node has no «before» style to transition from.
+   */
+  protected readonly seatsStable = computed(() => [...this.seats()].sort((a, b) => a.team.id - b.team.id));
 
   /** «Chi prendo adesso»: our own pick of the round being played, and how many calls come before it. */
   protected readonly advised = computed(() => {
