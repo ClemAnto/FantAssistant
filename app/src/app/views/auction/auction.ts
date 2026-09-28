@@ -1,503 +1,468 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
-import { NzCardModule } from 'ng-zorro-antd/card';
-import { NzEmptyModule } from 'ng-zorro-antd/empty';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
-import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
-import { NzProgressModule } from 'ng-zorro-antd/progress';
-import { NzSegmentedModule } from 'ng-zorro-antd/segmented';
-import { NzTagModule } from 'ng-zorro-antd/tag';
+import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzRadioModule } from 'ng-zorro-antd/radio';
+import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { AuctionAdvice, RankedPlayer } from '../../core/auction-advice';
 import { AuctionDemo } from '../../core/auction-demo';
-import { Plan, PlanPlayer, PlannedPick } from '../../core/auction-plan';
-import { per } from '../../core/auction-value';
-import { AuctionFeed, DraftStatus, KeeperMode, Zone } from '../../core/auction-feed';
+import { AuctionFeed, AuctionTeam, SquadEntry, Zone } from '../../core/auction-feed';
+import { Bundle } from '../../core/bundle';
+import { DraftPlace, RECOMMENDED_MANTRA, draftPitchOf } from '../../core/draft-pitch';
+import type { FantaMan } from '../../core/fanta-eleven';
 import { GlobalOptions } from '../../core/global-options';
+import { lazyRows } from '../../core/lazy-rows';
+import { looseMatch } from '../../core/loose-search';
+import { trendStrips } from '../../core/plancia-store';
+import { PlayerRulings } from '../../core/player-rulings';
+import type { TrendCell } from '../../core/player-trend';
+import type { Platform } from '../../core/players-store';
+import { SeasonLine, seasonLines } from '../../core/season-line';
 import { AppHeader } from '../../ui/app-header/app-header';
-import { PlayerFlags } from '../../ui/player-flags/player-flags';
-import { PlayerTrendStrip } from '../../ui/player-trend/player-trend';
-import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { LiveConnect } from '../../ui/live-connect/live-connect';
+import { PlayerFlags } from '../../ui/player-flags/player-flags';
+import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
-import { ClubPitch } from './club-pitch/club-pitch';
-import { FantaPitch } from './fanta-pitch/fanta-pitch';
+import { TrendVotes } from '../../ui/trend-votes/trend-votes';
 
-const STATUS_LABEL: Record<DraftStatus, string> = {
-  [DraftStatus.Loading]: 'Caricamento',
-  [DraftStatus.Idle]: 'In attesa di iniziare',
-  [DraftStatus.Started]: 'In corso',
-  [DraftStatus.Completed]: 'Completata',
-  [DraftStatus.Terminated]: 'Terminata',
+/**
+ * The classic macro-role of a man, from the zone the feed files him under: on classic the rulebook rations
+ * macro-roles and nothing finer, so the zone IS the role (same rule as the old fanta pitch).
+ */
+const CLASSIC_ROLE: Partial<Record<Zone, string>> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
+
+/** The press's own six words, short enough for a column; the full word is the tooltip. */
+const PRESS_SHORT: Record<string, string> = {
+  titolarissimo: 'TT',
+  titolare: 'TIT',
+  ballottaggio: 'BAL',
+  comprimario: 'COM',
+  riserva: 'RIS',
+  scarto: 'SCA',
 };
 
-const ZONE_LABEL: Record<Zone, string> = {
-  gk: 'Portieri',
-  def: 'Difensori',
-  mid: 'Centrocampisti',
-  atk: 'Attaccanti',
-  mov: 'Movimento',
-};
+/** How the free list is read: the default columns, or the season averages (operator, 28/09/2026). */
+export type FreeMode = 'default' | 'medie';
 
-/** Which way the operator likes his suggestions drawn: it survives a refresh like the other settings. */
-const PLAN_VIEW_KEY = 'fantassistant.auction.planView';
+const MODE_KEY = 'fantassistant.draft.freeMode';
 
-/** How many players to list per zone. Thirty, on the operator's request of 10/08/2026: the list is
- *  what he reads at the table, and eight ran out as soon as the first names went. */
-const AVAILABLE_PER_ZONE = 30;
+/** One free man as the list draws him. */
+export interface FreeRow {
+  id: number;
+  name: string;
+  club: string;
+  roles: string[];
+  fvm: number;
+  press: string | null;
+  trend: readonly TrendCell[];
+  /** The priority on 0-99 of this table's free pool; null where the sheet cannot value him. */
+  priority: number | null;
+  /** Off OUR board this turn because of the FVM ceiling of the first turns. */
+  locked: boolean;
+  goal: boolean;
+}
 
-/** The columns a header can sort by, and how each one reads a row. */
-const SORTS = {
-  // IL LEAD, che è la colonna con cui la lista apre (operatore, 18/08/2026: era «Valore», su 0-99).
-  lead: (row: RankedPlayer) => row.lead,
-  surplus: (row: RankedPlayer) => row.surplusPer10,
-  price: (row: RankedPlayer) => row.price,
-  fmPrev: (row: RankedPlayer) => row.fmPrev,
-  minutes: (row: RankedPlayer) => row.minutesPerMatch,
-  net: (row: RankedPlayer) => row.netPer10,
-  // What he has DONE in his club's last ten league matches. It orders the list and it enters no
-  // valuation: measured 14/08/2026, a departure from one's own averages does not predict the next
-  // rounds (excess +0.0167 / +0.0072 / -0.0007 at 2, 3 and 5 matchdays, sign changing).
-  trend: (row: RankedPlayer) => row.trend99,
-} as const;
+/** One squad in the call order, as the middle column draws it. */
+interface SeatRow {
+  team: AuctionTeam;
+  /** Position in the current call order, from 1. */
+  at: number;
+  mine: boolean;
+  last: string | null;
+  next: { name: string; roles: string[]; predicted: boolean } | null;
+  /** Where the squad calls in the round AFTER this one, by the platform's own rule. */
+  nextAt: number | null;
+}
 
-export type SortKey = keyof typeof SORTS;
+const EMPTY_STRIP: readonly TrendCell[] = [];
 
+/**
+ * THE DRAFT ASSISTANT (ex «Segui un'asta», rifatto da capo il 28/09/2026 su richiesta dell'operatore).
+ *
+ * One screen, three columns and no page scroll: the squad being built on a pitch, the call order with what
+ * each squad is expected to take, and the free men. It opens on the table of the DECLARED league, empty
+ * (`AuctionDemo.start`), and a real fanta-asta-live session can still be followed from the same button as
+ * before - the page reads whichever table the feed holds, and draws the same three columns on both.
+ *
+ * Nothing here predicts a footballer. The pitch is the rulebook (`draft-pitch.ts`), the call order is the
+ * platform's own rule, the expected picks are the plan's two policies (`simulateRound`), and the priority is
+ * the score our own pick is chosen on (`AuctionAdvice.priorities`).
+ */
 @Component({
   selector: 'app-auction',
   imports: [
     AppHeader,
-    ClubPitch,
     DecimalPipe,
-    FantaPitch,
     FormsModule,
-    NzAlertModule,
+    LiveConnect,
     NzButtonModule,
-    NzCardModule,
-    NzEmptyModule,
     NzIconModule,
     NzInputModule,
-    NzInputNumberModule,
-    NzProgressModule,
-    NzSegmentedModule,
-    NzTagModule,
+    NzRadioModule,
+    NzSelectModule,
     NzTooltipModule,
-    LiveConnect,
     PlayerFlags,
-    PlayerTrendStrip,
     RoleBadge,
     RoleSet,
+    TrendVotes,
   ],
   templateUrl: './auction.html',
+  // The free list's two column sets. Declared once here and not as utilities on every row: the header and
+  // the rows must share ONE track list, or the columns of the header drift from the numbers under them.
+  styles: `
+    .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
+    .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 4.5rem 2rem 2.25rem 75px 2rem; }
+    .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) repeat(2, 1.6rem 2.2rem 2.2rem 2.4rem); }
+  `,
   host: { class: 'view-host' },
 })
 export class Auction {
   protected readonly feed = inject(AuctionFeed);
   protected readonly advice = inject(AuctionAdvice);
   protected readonly demo = inject(AuctionDemo);
-  private readonly options = inject(GlobalOptions);
-  protected readonly zoneLabel = ZONE_LABEL;
+  protected readonly options = inject(GlobalOptions);
+  private readonly rulings = inject(PlayerRulings);
+  private readonly bundle = inject(Bundle);
+  private readonly message = inject(NzMessageService);
 
-  /**
-   * Whether the connection modal is open. The CODE itself lives in `ui-live-connect`: the operator's
-   * decision of 03/09/2026 made the connection optional for both auction pages, so the field belongs to
-   * the one component that asks for it and not to two pages that would validate it two ways.
-   */
   protected readonly connecting = signal(false);
 
-  /**
-   * The switch carries the mode as its VALUE. With plain strings `nz-segmented` emits the label, so
-   * an index-based mapping silently resolves to the first option - it did, and only the browser saw it.
-   */
-  protected readonly keeperModeOptions: { label: string; value: KeeperMode }[] = [
-    { label: 'Portieri', value: 'players' },
-    { label: 'Porte', value: 'goals' },
-  ];
-
   constructor() {
-    // A refresh mid-auction must not cost a setup: re-join whatever session this browser was on - and
-    // only when there is nothing to re-join, open on the INVENTED table with standard settings
-    // (operator, 03/09/2026: the connection is optional and lives behind a button). The order is
-    // forced: starting the fixture first would overwrite a real auction the operator is in.
+    // A refresh mid-auction re-joins whatever session this browser was on, and only when there is none the
+    // page opens on the declared league's table. The order is forced: starting the table first would
+    // overwrite a real auction the operator is in.
     void this.feed.restore().then(() => {
-      if (!this.feed.hasTable()) void this.startDemo();
+      if (!this.feed.hasTable()) void this.demo.start();
     });
     try {
-      const saved = localStorage.getItem(PLAN_VIEW_KEY);
-      if (saved === 'estesa' || saved === 'compatta') this.planView.set(saved);
+      const saved = localStorage.getItem(MODE_KEY);
+      if (saved === 'default' || saved === 'medie') this.mode.set(saved);
     } catch {
-      // Nothing saved: the extended view is the default.
-    }
-  }
-
-  /**
-   * How the suggestions are drawn. `estesa` groups by ROUND - who picks around you, round by round -
-   * and `compatta` pivots the same simulation by TEAM, one chain per squad in the current pick order.
-   * The numbers are identical: it is the same plan read along the other axis.
-   */
-  protected readonly planViewOptions: { label: string; value: 'estesa' | 'compatta' }[] = [
-    { label: 'Estesa', value: 'estesa' },
-    { label: 'Compatta', value: 'compatta' },
-  ];
-  protected readonly planView = signal<'estesa' | 'compatta'>('estesa');
-
-  protected setPlanView(view: 'estesa' | 'compatta'): void {
-    this.planView.set(view);
-    try {
-      localStorage.setItem(PLAN_VIEW_KEY, view);
-    } catch {
-      // A browser that refuses storage still draws the card; it just forgets which way you like it.
-    }
-  }
-
-  /**
-   * The same plan pivoted by TEAM: each squad's chain of picks to come, in the order it will take them.
-   *
-   * Rows follow the CURRENT pick order, so the list reads top-to-bottom like the table does, and only
-   * FUTURE picks are in it - what a squad already holds is in its own card, and mixing the two would
-   * make «>» mean two different things.
-   */
-  protected readonly planByTeam = computed(() => {
-    const plan = this.advice.planned();
-    const mineId = this.feed.followedTeamId();
-    if (!plan?.mine || mineId === null) return [];
-
-    const chains = new Map<number, { label: string; picks: PlanPlayer[] }>();
-    const push = (teamId: number, label: string, player: PlanPlayer) => {
-      const row = chains.get(teamId) ?? { label, picks: [] };
-      row.picks.push(player);
-      chains.set(teamId, row);
-    };
-
-    push(mineId, 'Tu', plan.mine);
-    for (const round of plan.rounds) {
-      for (const entry of round.before) push(entry.teamId, entry.teamLabel, entry.player);
-      if (round.mine) push(mineId, 'Tu', round.mine);
-      for (const entry of round.after) push(entry.teamId, entry.teamLabel, entry.player);
+      // Nothing saved: the default columns.
     }
 
-    const order = this.feed.pickOrder().map((team) => team.id);
-    const rounds = this.advice.rounds();
-    return [...chains.entries()]
-      .sort(([a], [b]) => {
-        const left = order.indexOf(a);
-        const right = order.indexOf(b);
-        return (left < 0 ? 99 : left) - (right < 0 ? 99 : right);
-      })
-      .map(([teamId, row]) => {
-        // The mean of what OUR numbers say those picks are worth, in the unit the rest of the panel
-        // uses (points every ten rounds). Only the picks we can price are in it, and `priced` says how
-        // many they were: a mean over half a chain is a different quantity and must not read as the
-        // chain's. The trim rule does not apply here - four picks is under its own 5-sample floor.
-        const priced = row.picks.map((pick) => pick.net).filter((net): net is number => net !== null);
-        const mean = priced.length ? priced.reduce((sum, net) => sum + net, 0) / priced.length : null;
-        // Where he would choose in the round AFTER the simulated ones: the consequence of the chain.
-        const at = plan.nextOrder.indexOf(teamId);
-        return {
-          teamId,
-          label: row.label,
-          picks: row.picks,
-          mine: teamId === mineId,
-          avg: per(mean, rounds),
-          priced: priced.length,
-          of: row.picks.length,
-          nextAt: at < 0 ? null : at + 1,
-        };
+    // THE TABLE FOLLOWS THE SETTINGS: a changed league is a different table, so the invented one is rebuilt.
+    // Only on the invented table - a real session's seats are the host's - and only when a field the table is
+    // MADE of changes, or a toggle that prices nothing would wipe the picks he has been writing.
+    let last: string | null = null;
+    effect(() => {
+      const league = this.options.league();
+      const key = JSON.stringify([
+        league.platform, league.game, league.teams, league.budget, league.slots, league.draftCap,
+      ]);
+      untracked(() => {
+        const changed = last !== null && key !== last;
+        last = key;
+        if (changed && this.feed.demo()) void this.demo.start();
       });
-  });
+    });
 
-  /** True while the card is answering «e se prendessi lui?» instead of showing its own suggestion. */
-  protected readonly isWhatIf = computed(() => {
-    const chosen = this.advice.chosenRoot();
-    return chosen !== null && !this.advice.roots().some((root) => root.player.id === chosen);
-  });
-
-  protected isChosenRoot(playerId: number): boolean {
-    const chosen = this.advice.chosenRoot();
-    return chosen === null ? this.advice.plans()[0]?.root.player.id === playerId : chosen === playerId;
+    // The two readings of the free list that do not come with the advice: the trend strips (from the sheet
+    // itself) and the season lines (from `season_stats`, on the sheet's own platform).
+    effect(() => {
+      const entry = this.advice.entry();
+      if (!entry) return;
+      untracked(() => void this.loadReadings(entry.path, entry.platform));
+    });
   }
 
-  /**
-   * What a whole chain is worth on average, by our numbers, in points every ten rounds.
-   *
-   * It is the number that makes three options comparable: the root alone would say «the dearest man
-   * wins», which is what the option list exists to argue with. Only the picks the engine prices are in
-   * it - the rest would drag a mean nobody can read.
-   */
-  protected chainAverage(plan: Plan): number | null {
-    const picks = [plan.mine, ...plan.rounds.map((round) => round.mine)]
-      .filter((pick): pick is PlanPlayer => !!pick)
-      .map((pick) => pick.net)
-      .filter((net): net is number => net !== null);
-    if (!picks.length) return null;
-    return per(picks.reduce((sum, net) => sum + net, 0) / picks.length, this.advice.rounds());
-  }
+  // ---------------------------------------------------------------------------------------- the table
 
-  /** The keepers of mine that took a goal somebody already had, named so the warning is actionable. */
-  protected readonly strayNames = computed(() =>
-    this.feed
-      .myStrayKeeperPicks()
-      .map((entry) => {
-        const keeper = entry.porta.keepers.find((player) => player.id === entry.pick.playerId);
-        return `${keeper?.name ?? 'un portiere'} (${entry.porta.club})`;
-      })
-      .join(', '),
-  );
+  protected readonly teamOnClock = computed(() => this.feed.onTheClock());
 
-
-  // IL MARCHIO DELLA TAVOLA SALVATA vive nel FEED (`savedLabel` / `savedNote`) dal 24/09/2026: la
-  // plancia ha imparato a riprendere una sessione dopo un refresh e le serviva la stessa frase, e due
-  // copie di «questo e' salvato» finirebbero per raccontare due stati dello stesso collegamento.
-  protected readonly statusLabel = computed(() => STATUS_LABEL[this.feed.draftStatus()] ?? '—');
-  protected readonly marketLabel = computed(() => (this.feed.isDraft() ? 'Draft' : 'Rilanci'));
-
-  protected readonly budgetLeftPercent = computed(() => {
-    const team = this.feed.followed();
-    const budget = this.feed.budget();
-    return team && budget ? Math.round((team.budgetLeft / budget) * 100) : 0;
+  /** The squads in the order they call, then whoever the order does not list. */
+  protected readonly seats = computed<SeatRow[]>(() => {
+    const teams = this.feed.teams();
+    const order = this.feed.pickOrder();
+    const listed = new Set(order.map((team) => team.id));
+    const all = [...order, ...teams.filter((team) => !listed.has(team.id))];
+    const round = this.advice.round();
+    const picks = new Map((round?.picks ?? []).map((pick) => [pick.teamId, pick]));
+    const nextOrder = round?.nextOrder ?? [];
+    const mine = this.feed.followedTeamId();
+    return all.map((team, index) => {
+      const pick = picks.get(team.id);
+      const last = lastOf(team.squad);
+      const at = nextOrder.indexOf(team.id);
+      return {
+        team,
+        at: index + 1,
+        mine: team.id === mine,
+        last: last?.player ? this.feed.shownName(last.player) : null,
+        next: pick?.player
+          ? { name: this.shown(pick.player.id, pick.player.name), roles: pick.player.roles, predicted: pick.predicted }
+          : null,
+        nextAt: at < 0 ? null : at + 1,
+      };
+    });
   });
 
-  /** What can go on the next name while still leaving one credit for every slot left to fill. */
-  protected readonly maxAffordable = computed(() => {
-    const team = this.feed.followed();
-    return team ? Math.max(0, team.budgetLeft - Math.max(0, team.missingTotal - 1)) : 0;
+  /** «Chi prendo adesso»: our own pick of the round being played, and how many calls come before it. */
+  protected readonly advised = computed(() => {
+    const mine = this.feed.followedTeamId();
+    const pick = this.advice.round()?.picks.find((one) => one.teamId === mine) ?? null;
+    return pick?.player ? { name: this.shown(pick.player.id, pick.player.name), roles: pick.player.roles } : null;
   });
 
-  /**
-   * The best free men per zone, ranked by what they are WORTH and not by what they cost.
-   *
-   * The order is the VALUE - fantamedia x expected appearances - because this panel prices a DRAFT, and
-   * that is measured and not preferred (§26, five gate windows): the netto scores −52% against the paired
-   * rivals here, because lambda is a rate you pay in an auction with raises and not in a draft, where the
-   * scarce thing is the PICK. The surplus and the netto stay as columns and as sort keys: they are what a
-   * price is read against, and they are the right key the day a credit auction is played here.
-   */
-  protected readonly topAvailable = computed(() => {
-    // With the porte rule on, the keepers are listed as goals instead: one row per club, below.
-    // With the porte rule on the keepers' list IS the goals' list: one row per club, valued as the mix of its
-    // keepers (28/09/2026), with the same columns as every other line - it used to be a card of its own that
-    // showed a price and nothing else, which is a porta with no surplus.
-    return this.feed.zones().map((zone) => ({
-      zone,
-      title: zone === 'gk' && this.feed.isGoalsMode() ? 'Migliori porte libere' : `Migliori ${ZONE_LABEL[zone]} liberi`,
-      // The THIRTY best by value, re-ordered by whichever column was clicked. Sorting the whole
-      // listone by price would answer a different question - the thirty cheapest men are nobody.
-      players: this.sorted(this.advice.bySlotOrZone(zone, AVAILABLE_PER_ZONE)),
-    }));
-  });
-
-  /**
-   * Which column the lists are ordered by. The WORTH is the default, descending.
-   *
-   * It has to be the same quantity the rows were SELECTED with, or the first row the operator reads is not
-   * the one the panel recommends - a displayed list whose order describes a different list, which is a
-   * defect this project has already paid for once.
-   */
-  protected readonly sortKey = signal<SortKey>('lead');
-  protected readonly sortAsc = signal(false);
-
-  /**
-   * Below how many fantapunti a denial is not worth printing.
-   *
-   * Measured (item 1.5, §17): what switching to a denial pick costs us has a median of about 10 fantapunti in
-   * the rounds where denial can pay at all, and a point taken from ONE rival is worth about a tenth of a point
-   * of ours in a table of twelve. So a denial under ~50 cannot repay even a small sacrifice, and printing it
-   * would be decoration. The number is deliberately blunt: it decides what is SHOWN, never what is chosen.
-   */
-  protected readonly denialFloor = 50;
-
-  /** What clicking a predicted pick does, and what taking him first would remove from that rival. */
-  protected denialHint(row: PlannedPick): string {
-    const base = 'Imposta questo giocatore come TUA scelta e ricalcola tutto da lì';
-    if (!(row.denies >= this.denialFloor)) return base;
-    return `${base}. Prendendolo tu, togli ${Math.round(row.denies)} fantapunti all'undici di `
-      + `${row.teamLabel} — misurato: conviene solo nei primi giri, e solo se il tuo miglior nome `
-      + 'alternativo è quasi equivalente.';
-  }
-
-  /**
-   * THE FVM CEILING OF THE FIRST TURNS, in one sentence for the card - or null when it does not apply.
-   *
-   * It is said even when it no longer binds us, because it still binds the RIVALS behind in the order, and
-   * the plan's predictions about them are shaped by it: a rule that shapes a forecast in silence reads
-   * exactly like a forecast that is wrong.
-   */
   protected readonly capLine = computed<string | null>(() => {
     const cap = this.advice.pickCap();
-    const turn = this.advice.myTurn();
-    if (!cap || turn === null) return null;
-    const rule = `FVM ≥ ${cap.fvm} congelati per ${cap.frozenTurns} turni`;
-    if (turn > cap.frozenTurns) return `${rule} · tu sei al ${turn}°: per te sono sbloccati, per chi è indietro no`;
-    const left = cap.frozenTurns - turn + 1;
-    return `${rule} · tu sei al ${turn}°: ancora ${left} ${left === 1 ? 'turno' : 'turni'} congelati`;
+    return cap ? `FVM ≥ ${cap.fvm} congelati per ${cap.frozenTurns} turni` : null;
   });
 
-  /** Whether a man is off OUR board this turn because of the ceiling. */
-  protected locked(price: number): boolean {
-    return this.advice.lockedForMe(price);
-  }
+  /** Which squad the pitch draws: the one clicked in the middle column, else mine, else the first. */
+  private readonly viewed = signal<number | null>(null);
 
-  /**
-   * «Make him my pick», refused where the ceiling forbids it - and SAID, because a click that does nothing in
-   * silence is indistinguishable from a broken one.
-   */
-  protected rootHint(price: number, base: string): string {
-    const cap = this.advice.pickCap();
-    return this.locked(price) && cap
-      ? `Congelato: FVM ${price} ≥ ${cap.fvm}, si chiama solo dal ${cap.frozenTurns + 1}° turno.`
-      : base;
-  }
-
-  /** The porte rule is the LEAGUE's: this control writes the declaration every page reads. */
-  protected setKeeperMode(mode: KeeperMode): void {
-    this.options.patch({ porte: mode === 'goals' });
-  }
-
-  /** Where the ceiling is changed: the league's options, which own every declared rule. */
-  protected editCap(): void {
-    this.options.open();
-  }
-
-  protected chooseRoot(playerId: number, price: number): void {
-    if (this.locked(price)) return;
-    this.advice.chooseRoot(playerId);
-  }
-
-  /** Click once to sort by a column, again to flip it. */
-  protected toggleSort(key: SortKey): void {
-    if (this.sortKey() === key) {
-      this.sortAsc.set(!this.sortAsc());
-      return;
-    }
-    this.sortKey.set(key);
-    // Money and minutes read naturally ascending first (who costs least), the rest descending.
-    this.sortAsc.set(key === 'price');
-  }
-
-  protected sortArrow(key: SortKey): string {
-    if (this.sortKey() !== key) return '';
-    return this.sortAsc() ? ' ↑' : ' ↓';
-  }
-
-  private sorted(rows: RankedPlayer[]): RankedPlayer[] {
-    const read = SORTS[this.sortKey()];
-    const sign = this.sortAsc() ? 1 : -1;
-    return [...rows].sort((a, b) => {
-      const left = read(a);
-      const right = read(b);
-      // A missing number is never «the best»: it sinks whichever way the column is pointing.
-      if (left == null && right == null) return 0;
-      if (left == null) return 1;
-      if (right == null) return -1;
-      return (left - right) * sign;
-    });
-  }
-
-  /** One line per row, on the tooltip: the two secondary numbers plus what the surplus is measured on. */
-  protected explain(row: RankedPlayer): string {
-    const parts: string[] = [];
-    if (row.porta) {
-      // What a goal is made of, and the cheapest way to take it: any keeper grants it, and a draft pick costs
-      // the FVM of the man called.
-      const numbers = this.advice.numbers();
-      const keepers = row.porta.keepers
-        .map((keeper) => {
-          const pv = numbers.get(keeper.id)?.pv ?? numbers.get(keeper.id)?.estPv ?? null;
-          return `${keeper.name} ${keeper.fvm}` + (pv != null ? ` (${pv.toFixed(0)} pres.)` : '');
-        })
-        .join(', ');
-      parts.push(`porta: ${keepers}`);
-      if (row.valuation.fm != null) parts.push(`fantamedia della porta ${row.valuation.fm.toFixed(2)}, mix pesato sulle presenze`);
-      if (row.porta.cheapest < row.porta.price) {
-        parts.push(`la prendi anche chiamando il portiere da ${row.porta.cheapest}`);
-      }
-    }
-    const cap = this.advice.pickCap();
-    if (cap && this.locked(row.price)) {
-      parts.push(`congelato: FVM ≥ ${cap.fvm}, lo chiami solo dal ${cap.frozenTurns + 1}° turno`);
-    }
-    const rounds = this.advice.rounds();
-    if (row.lead != null) {
-      parts.push(`lead ${row.lead.toFixed(1)} fantapunti sopra il rimpiazzo`
-        + (row.leadZero != null ? ` (rimpiazzo ${row.leadZero.toFixed(2)} di fantamedia)` : ''));
-    }
-    if (row.surplus != null) {
-      parts.push(
-        `${row.surplus.toFixed(1)} punti in tutto` + (rounds ? ` su ${rounds} giornate` : ''),
-      );
-    }
-    if (row.valuation.fm != null && row.valuation.pv != null) {
-      parts.push(
-        `fantamedia ${row.valuation.fm.toFixed(2)} su ${row.valuation.pv.toFixed(1)} presenze attese`,
-      );
-    }
-    if (row.replacementFm != null) {
-      parts.push(`rimpiazzo fra i liberi ${row.replacementFm.toFixed(2)}`);
-    }
-    if (row.surplusForMe != null) {
-      parts.push(`alza il TUO undici di ${row.surplusForMe.toFixed(1)}`);
-    }
-    if (row.ratio != null) parts.push(`qualità/prezzo ${row.ratio.toFixed(3)} per credito`);
-    if (!row.zeroIsLive) {
-      parts.push("zero di lega: al tavolo non c'è una domanda calcolabile per questo ruolo");
-    }
-    if (row.valuation.basis === 'estimated') {
-      parts.push(`stima: ${row.valuation.note ?? 'base dichiarata'}`);
-    }
-    if (row.valuation.basis === 'none') {
-      parts.push(row.valuation.note ?? 'il motore non lo prezza');
-    }
-    return parts.join(' · ');
-  }
-
-  /**
-   * Whether this id is a keeper standing for a GOAL: with the porte rule on, the screen names the club and not
-   * the man (operator, 28/09/2026), and a keeper's own marks - an injury, a screen - are not the goal's.
-   */
-  protected isGoal(id: number | null | undefined): boolean {
-    return id != null && this.feed.isGoalsMode() && this.feed.portaOfKeeper().has(id);
-  }
-
-  protected flagId(id: number | null | undefined): number | undefined {
-    return id == null || this.isGoal(id) ? undefined : id;
-  }
-
-  /** Whether an entry of my squad is a keeper that granted no porta. */
-  protected isStray(index: number): boolean {
-    return this.feed.myStrayKeeperPicks().some((entry) => entry.pick.index === index);
-  }
-
-  /** The invented table: what the panel does, without an auction to follow. */
-  protected async startDemo(): Promise<void> {
-    await this.demo.start();
-  }
-
-  /**
-   * One line naming the listone the demo is played on: a fixture must say what it is made of.
-   *
-   * The count is the LIVE one and not the sheet's `rows`: the demo board carries only the men the target
-   * listone actually quotes, so the two numbers differ (898 of 1009 on the euro sheet) and printing the
-   * bigger one would describe a list nobody is playing with.
-   */
-  protected readonly demoSource = computed(() => {
-    const sheet = this.demo.sheet();
-    if (!sheet) return '';
-    return `${sheet.league} · ${sheet.game} · ${sheet.platform} · `
-      + `${this.feed.listoneIds().length} giocatori quotati`;
+  protected readonly pitchTeam = computed<AuctionTeam | null>(() => {
+    const teams = this.feed.teams();
+    return (
+      teams.find((team) => team.id === this.viewed())
+      ?? teams.find((team) => team.id === this.feed.followedTeamId())
+      ?? teams[0]
+      ?? null
+    );
   });
 
-  protected exit(): void {
-    // COSA VUOL DIRE LASCIARE IL TAVOLO lo sa il feed (`leave`, una definizione per le due pagine e per
-    // la modale): la condizione che conta - una DEMO non dimentica l'asta vera che il browser tiene in
-    // memoria - e' facile da sbagliare, e qui era scritta a mano.
-    this.feed.leave();
-    // Back to the default state rather than to a code field: the page always has a table.
-    void this.demo.start();
+  protected view(teamId: number): void {
+    this.viewed.set(this.viewed() === teamId ? null : teamId);
   }
 
+  /** «This squad is mine»: on the invented table it is how he sits down; on a live one the modal does it. */
+  protected sitAt(teamId: number): void {
+    this.feed.follow(teamId);
+    this.viewed.set(null);
+  }
+
+  // ---------------------------------------------------------------------------------------- the pitch
+
+  /** A module the operator forced, or null for the best one the rulebook allows. */
+  protected readonly forcedModule = signal<string | null>(null);
+
+  protected readonly moduleNames = computed<string[]>(() => {
+    const names = Object.keys(this.advice.rules()?.modules ?? {});
+    if (!this.feed.isMantra()) return names;
+    const first = RECOMMENDED_MANTRA.filter((name) => names.includes(name));
+    return [...first, ...names.filter((name) => !first.includes(name as (typeof RECOMMENDED_MANTRA)[number]))];
+  });
+
+  protected isRecommended(name: string): boolean {
+    return this.feed.isMantra() && (RECOMMENDED_MANTRA as readonly string[]).includes(name);
+  }
+
+  private readonly squad = computed<FantaMan[]>(() => {
+    const mantra = this.feed.isMantra();
+    const values = this.advice.valueBy();
+    const worth99 = this.advice.value99By();
+    const men: FantaMan[] = [];
+    for (const entry of this.pitchTeam()?.squad ?? []) {
+      const player = entry.player;
+      if (!player) continue;
+      const shown = mantra ? player.roles : [CLASSIC_ROLE[this.feed.zoneOf(player)] ?? ''].filter(Boolean);
+      men.push({
+        id: player.id,
+        name: this.feed.shownName(player),
+        club: this.goal(player.id) ? 'porta' : player.club,
+        shown,
+        roles: shown.map((role) => role.toLowerCase()),
+        value: values.get(player.id) ?? null,
+        value99: worth99.get(player.id) ?? null,
+        cost: entry.cost,
+        minutesPerMatch: null,
+      });
+    }
+    return men;
+  });
+
+  protected readonly pitch = computed(() =>
+    draftPitchOf(
+      this.squad(),
+      this.advice.rules(),
+      this.feed.isMantra() ? RECOMMENDED_MANTRA : [],
+      this.forcedModule(),
+    ),
+  );
+
+  protected placeHint(place: DraftPlace): string {
+    const head = place.man
+      ? `${place.man.name} · ${place.man.club}${place.man.value99 != null ? ` · valore ${place.man.value99}/99` : ''}`
+      : `Posto ${place.slot}: ancora scoperto`;
+    if (!place.reserves.length) return head;
+    return `${head} · riserve: ${place.reserves.map((man) => man.name).join(', ')}`;
+  }
+
+  // ---------------------------------------------------------------------------------------- the free list
+
+  protected readonly query = signal('');
+  protected readonly roleFilter = signal<ReadonlySet<string>>(new Set());
+  protected readonly mode = signal<FreeMode>('default');
+
+  protected setMode(mode: FreeMode): void {
+    this.mode.set(mode);
+    try {
+      localStorage.setItem(MODE_KEY, mode);
+    } catch {
+      // A browser that refuses storage still switches; it just forgets it on refresh.
+    }
+  }
+
+  /** The roles the filter offers: the rulebook's own vocabulary, read and never transcribed. */
+  protected readonly roleOptions = computed<string[]>(() => {
+    if (!this.feed.isMantra()) return ['P', 'D', 'C', 'A'];
+    return this.advice.rules()?.roles ?? ['Por', 'Dd', 'Dc', 'Ds', 'B', 'E', 'M', 'C', 'W', 'T', 'A', 'Pc'];
+  });
+
+  protected toggleRole(role: string): void {
+    const key = role.toLowerCase();
+    const next = new Set(this.roleFilter());
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    this.roleFilter.set(next);
+  }
+
+  protected clearRoles(): void {
+    this.roleFilter.set(new Set());
+  }
+
+  protected roleOn(role: string): boolean {
+    return this.roleFilter().has(role.toLowerCase());
+  }
+
+  private readonly trends = signal<ReadonlyMap<number, readonly TrendCell[]>>(new Map());
+  private readonly lines = signal<ReadonlyMap<number, ReadonlyMap<string, SeasonLine>>>(new Map());
+  protected readonly seasons = signal<{ now: string | null; last: string | null }>({ now: null, last: null });
+
+  /** Every free man with his priority, dearest priority first; the frozen ones after, in the same order. */
+  private readonly freeAll = computed<FreeRow[]>(() => {
+    const scores = this.advice.priorities();
+    const press = this.rulings.press();
+    const trends = this.trends();
+    const ranked = this.advice.ranked();
+    let top = 0;
+    for (const row of ranked) {
+      const score = scores.get(row.player.id);
+      if (score != null && score > top && !this.advice.lockedForMe(row.price)) top = score;
+    }
+    const rows = ranked.map((row) => this.freeRow(row, scores.get(row.player.id) ?? null, top, press, trends));
+    return rows.sort(
+      (a, b) =>
+        Number(a.locked) - Number(b.locked)
+        || (b.priority ?? -1) - (a.priority ?? -1)
+        || b.fvm - a.fvm,
+    );
+  });
+
+  private freeRow(
+    row: RankedPlayer,
+    score: number | null,
+    top: number,
+    press: ReadonlyMap<number, { pressTier?: string | null }>,
+    trends: ReadonlyMap<number, readonly TrendCell[]>,
+  ): FreeRow {
+    const goal = !!row.porta;
+    return {
+      id: row.player.id,
+      name: this.feed.shownName(row.player),
+      club: goal ? 'porta' : row.player.club,
+      roles: row.player.roles,
+      fvm: row.price,
+      press: goal ? null : (press.get(row.player.id)?.pressTier ?? null),
+      trend: goal ? EMPTY_STRIP : (trends.get(row.player.id) ?? EMPTY_STRIP),
+      priority: score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
+      locked: this.advice.lockedForMe(row.price),
+      goal,
+    };
+  }
+
+  /** The list after the search and the role filter; roles in OR, as he asked. */
+  protected readonly freeFiltered = computed<FreeRow[]>(() => {
+    const query = this.query();
+    const roles = this.roleFilter();
+    return this.freeAll().filter(
+      (row) =>
+        looseMatch(query, row.name, row.club)
+        && (!roles.size || row.roles.some((role) => roles.has(role.toLowerCase()))),
+    );
+  });
+
+  protected readonly free = lazyRows(this.freeFiltered, '[data-free-list]');
+
+  protected pressShort(tier: string | null): string {
+    return tier ? (PRESS_SHORT[tier] ?? tier.slice(0, 3).toUpperCase()) : '—';
+  }
+
+  protected lineOf(id: number, which: 'now' | 'last'): SeasonLine | null {
+    const season = this.seasons()[which];
+    return season ? (this.lines().get(id)?.get(season) ?? null) : null;
+  }
+
+  protected ga(line: SeasonLine | null): string {
+    if (!line || (line.goals == null && line.assists == null)) return '—';
+    return `${line.goals ?? 0}:${line.assists ?? 0}`;
+  }
+
+  /** Double click: the squad on the clock takes him. Only the invented table can be written by hand. */
+  protected take(row: FreeRow): void {
+    const refused = this.demo.pick(row.id);
+    if (refused) this.message.warning(refused);
+  }
+
+  protected undo(): void {
+    if (!this.demo.undo()) this.message.info('Non c’è nessuna scelta da annullare.');
+  }
+
+  protected reset(): void {
+    this.demo.reset();
+  }
+
+  protected freeHint(row: FreeRow): string {
+    const bits = [`${row.name} · ${row.club}`, `FVM ${row.fvm}`];
+    if (row.press) bits.push(`stampa: ${row.press}`);
+    if (row.locked) bits.push('congelato: FVM sopra il tetto dei primi turni');
+    const clock = this.teamOnClock();
+    if (this.feed.demo() && clock) bits.push(`doppio click: lo prende ${clock.label}`);
+    return bits.join(' · ');
+  }
+
+  // ---------------------------------------------------------------------------------------- helpers
+
+  protected goal(id: number): boolean {
+    return this.feed.isGoalsMode() && this.feed.portaOfKeeper().has(id);
+  }
+
+  protected flagId(id: number, goal: boolean): number | undefined {
+    return goal ? undefined : id;
+  }
+
+  private shown(id: number, fallback: string): string {
+    const porta = this.feed.isGoalsMode() ? this.feed.portaOfKeeper().get(id) : undefined;
+    return porta ? porta.club : fallback;
+  }
+
+  private async loadReadings(path: string, platform: Platform): Promise<void> {
+    try {
+      const [sheet, stats, manifest] = await Promise.all([
+        this.bundle.table(path.replace(/\.json(\.gz)?$/, '')),
+        this.bundle.table('season_stats'),
+        this.bundle.manifest(),
+      ]);
+      this.trends.set(trendStrips(sheet));
+      const now = manifest.target_season ?? null;
+      const last = manifest.input_season ?? null;
+      const wanted = [now, last].filter((one): one is string => !!one);
+      this.lines.set(seasonLines({ seasonStats: stats, platform, seasons: wanted }));
+      this.seasons.set({ now, last });
+    } catch {
+      // Without them the list still ranks: the strip draws four empty cells and the averages read «—».
+    }
+  }
+}
+
+function lastOf(squad: readonly SquadEntry[]): SquadEntry | null {
+  let last: SquadEntry | null = null;
+  for (const entry of squad) if (!last || entry.index > last.index) last = entry;
+  return last;
 }

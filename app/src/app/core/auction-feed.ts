@@ -1009,6 +1009,31 @@ export class AuctionFeed {
     return true;
   }
 
+  /**
+   * L'ORDINE DI CHIAMATA del tavolo inventato, riscritto da chi lo ricalcola dopo una scelta a mano.
+   *
+   * Solo sulla demo, per la ragione di `awardByHand`: l'ordine di un tavolo vero lo pubblica l'host. Il
+   * feed non sa calcolarlo (la regola e' `auction-plan.ahead`, e importarla qui chiuderebbe un ciclo), quindi
+   * lo riceve gia' fatto da `AuctionDemo`, che e' anche chi ha costruito quello iniziale.
+   */
+  setDemoOrder(order: number[]): boolean {
+    if (!this.demo()) return false;
+    this.mirror = { ...this.mirror, pickOrder: order, turnTeamId: order[0] };
+    this.state.set({ ...this.mirror });
+    return true;
+  }
+
+  /** Toglie l'ULTIMA scelta del tavolo inventato: un doppio click sbagliato non deve costare un'asta. */
+  undoLastByHand(): boolean {
+    if (!this.demo()) return false;
+    const picks = listOf<RawPick>(this.mirror.picks).filter((pick) => !pick.released);
+    if (!picks.length) return false;
+    const last = picks.reduce((top, pick) => (pick.index > top.index ? pick : top));
+    this.mirror = { ...this.mirror, picks: picks.filter((pick) => pick !== last) };
+    this.state.set({ ...this.mirror });
+    return true;
+  }
+
   follow(teamId: number) {
     this.followedTeamId.set(teamId);
     this.remember();

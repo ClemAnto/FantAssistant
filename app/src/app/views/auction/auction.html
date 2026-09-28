@@ -1,705 +1,403 @@
-@if (!feed.hasTable()) {
-  <!-- 1. IL TAVOLO SI APRE DA SOLO. Decisione dell'operatore, 03/09/2026: la connessione a fanta-asta-live
-       e' FACOLTATIVA e sta dietro a un bottone, quindi la pagina apre su un tavolo inventato con i
-       settaggi standard e questo ramo e' solo il momento in cui lo sta preparando (o l'errore, se non
-       ci riesce). Un pannello che apre su un campo codice mostra il layout della cosa invece della cosa. -->
-  <ui-app-header dense />
-  <div class="mx-auto max-w-lg py-12">
-    <nz-card nzTitle="Sto preparando il tavolo">
-      <p class="mb-4 opacity-70">
-        Un'asta <b>inventata</b> sul listone vero, per vedere che cosa fa il pannello senza collegarsi
-        a niente.
-      </p>
-      @if (demo.error()) {
-        <nz-alert class="mb-4 block" nzType="error" [nzMessage]="demo.error()!" />
-        <button nz-button nzBlock [nzLoading]="demo.loading()" (click)="startDemo()">Riprova</button>
-      }
-      <button nz-button nzType="text" nzBlock class="mt-3" (click)="connecting.set(true)">
-        Collegati a un'asta vera
-      </button>
-    </nz-card>
-  </div>
-} @else if (!feed.followed()) {
-  <!-- 2. which team is mine -->
-  <div class="flex flex-col gap-4">
-    <ui-app-header dense />
-    <!-- Questa striscia descrive il TAVOLO e non la pagina, quindi non e' un `<header>`: l'intestazione
-         della pagina e' una sola e la mette `ui-app-header`. -->
-    <div class="flex flex-wrap items-center gap-3">
-      <div>
-        <h2 class="flex items-center gap-2 text-xl font-semibold">
-          {{ feed.code() }}
-          @if (feed.demo()) {
-            <nz-tag nzColor="warning">tavolo inventato</nz-tag>
-          }
-        </h2>
-        <p class="text-sm opacity-70">
-          {{ marketLabel() }} · {{ statusLabel() }} · {{ feed.teams().length }} squadre
-        </p>
-      </div>
-      <button nz-button nzType="primary" class="ml-auto" (click)="connecting.set(true)">
-        {{ feed.connected() ? 'Cambia asta' : "Collegati a un'asta vera" }}
-      </button>
-      @if (!feed.demo()) {
-        <button nz-button nzType="text" (click)="exit()">Esci</button>
-      }
-    </div>
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
 
-    <h2 class="text-lg">Quale squadra è la tua?</h2>
+     DRAFT ASSISTANT (28/09/2026, rifatto da capo su richiesta dell'operatore). UNA SCHERMATA E NESSUNO
+     SCROLL DI PAGINA: l'altezza e' quella della finestra e ogni colonna si ritaglia la sua parte, con
+     `min-h-0` su tutta la catena - senza, una griglia in `1fr` si allarga per stare dietro al contenuto e
+     la pagina ricomincia a scorrere (la regola della plancia e della Strategia). Scorre solo la lista degli
+     svincolati, che e' l'unica lunga.
 
-    <div class="grid grid-cols-[repeat(auto-fill,minmax(15rem,1fr))] gap-3">
-      @for (team of feed.teams(); track team.id) {
-        <button nz-button nzSize="large" nzBlock class="h-auto py-3" (click)="feed.follow(team.id)">
-          <span class="flex w-full flex-col items-start gap-1">
-            <span class="flex w-full items-center gap-2">
-              <nz-tag [nzColor]="team.colour">&nbsp;</nz-tag>
-              <b class="truncate">{{ team.label }}</b>
-              @if (team.host) {
-                <nz-tag class="ml-auto">host</nz-tag>
-              }
-            </span>
-            <span class="text-sm font-normal opacity-70">
-              {{ team.squad.length }} giocatori · {{ team.budgetLeft }} crediti
-              @if (!team.online) {
-                · non collegata
-              }
-            </span>
-          </span>
-        </button>
-      }
-    </div>
-  </div>
-} @else {
-  <!-- 3. the panel -->
-  @let team = feed.followed()!;
-  @let turn = feed.onTheClock();
-  @let waiting = feed.picksUntilMyTurn();
-
-  <div class="flex flex-col gap-4">
-    <ui-app-header dense />
-    <!-- Come sopra: chi seguo, che mercato, che stato sono fatti del TAVOLO. -->
-    <div class="flex flex-wrap items-center gap-3">
-      <nz-tag [nzColor]="team.colour">&nbsp;</nz-tag>
-      <div>
-        <h2 class="flex items-center gap-2 text-xl font-semibold">
-          {{ team.label }}
-          @if (feed.demo()) {
-            <nz-tag nzColor="warning">demo</nz-tag>
-          }
-        </h2>
-        <p class="text-sm opacity-70">
-          {{ feed.code() }} · {{ marketLabel() }} · {{ statusLabel() }}
-          @if (feed.stale()) {
-            <span class="text-amber-400" nz-tooltip [nzTooltipTitle]="feed.savedNote()">{{
-              feed.savedLabel()
-            }}</span>
-          }
-        </p>
-      </div>
-      <div class="ml-auto flex items-center gap-2">
-        <nz-segmented
-          nz-tooltip
-          nzTooltipTitle="Regola di lega: una porta è un club, del primo che prende un suo portiere. Vale per tutte le pagine (anche in Opzioni)."
-          [nzOptions]="keeperModeOptions"
-          [ngModel]="feed.keeperMode()"
-          (ngModelChange)="setKeeperMode($event)"
-        />
-        <button nz-button (click)="feed.unfollow()">Cambia squadra</button>
-        <button nz-button nzType="primary" (click)="connecting.set(true)">
-          {{ feed.connected() ? 'Cambia asta' : "Collegati a un'asta vera" }}
-        </button>
-        @if (!feed.demo()) {
-          <button nz-button nzType="text" (click)="exit()">Esci</button>
-        }
-      </div>
-    </div>
-
+     LE COLONNE: sinistra il campetto, centro l'ordine di chiamata, destra gli svincolati - come li
+     descrivono i punti 6 e 7 della richiesta. Il punto 5 le nomina al contrario; se e' quello l'ordine
+     voluto, basta scambiare il primo e il terzo riquadro della griglia. -->
+<div class="flex h-[100dvh] flex-col gap-2 overflow-hidden p-2">
+  <ui-app-header dense framed>
     @if (feed.demo()) {
-      <!-- Resta a schermo per tutta la demo: che cosa e' finto e che cosa no e' esattamente la cosa
-           che un pannello di numeri non puo' permettersi di lasciare implicita. -->
-      <nz-alert
-        nzType="warning"
-        nzMessage="Questo è un tavolo inventato"
-        [nzDescription]="
-          'Squadre, ordine di scelta, scelte già fatte e crediti non descrivono nessuno: servono a far ' +
-          'vedere che cosa fa il pannello. Giocatori, prezzi e numeri del motore sono invece quelli veri ' +
-          'del bundle (' + demoSource() + '), perché con nomi inventati ogni colonna resterebbe vuota. ' +
-          'Le scelte già fatte sono un riempimento, non una previsione. Niente di tutto questo viene salvato.'
+      <span
+        data-table="demo"
+        class="flex items-center gap-1 rounded-md bg-warning/20 px-2 py-0.5 font-medium text-warning"
+        nz-tooltip
+        nzTooltipTitle="Tavolo costruito dalle impostazioni di lega: squadre, crediti e rose sono le tue impostazioni, le scelte le segni tu col doppio click. I calciatori e i numeri del motore sono veri."
+      >
+        <nz-icon nzType="setting" />
+        {{ options.league().teams }} squadre · {{ feed.isMantra() ? 'mantra' : 'classic' }}
+      </span>
+    } @else if (feed.hasTable()) {
+      <button
+        type="button"
+        [attr.data-table]="feed.connected() ? 'live' : 'saved'"
+        class="flex items-center gap-1 rounded-md px-2 py-0.5 font-medium"
+        [class]="feed.connected() ? 'bg-success/20 text-success' : 'bg-warning/20 text-warning'"
+        nz-tooltip
+        [nzTooltipTitle]="
+          (feed.connected() ? 'Collegato a ' + feed.code() + ', in sola lettura.' : feed.savedNote()) +
+          ' Premi per cambiare asta, scegliere la tua squadra o scollegarti.'
         "
-      />
+        (click)="connecting.set(true)"
+      >
+        <nz-icon nzType="wifi" />
+        {{ feed.code() }}
+        @if (!feed.connected()) {
+          {{ feed.savedLabel() }}
+        }
+        @if (!feed.followed()) {
+          <nz-icon class="text-warning" nzType="exclamation-circle" />
+        }
+      </button>
     }
 
-    @if (feed.isGoalsMode() && feed.myStrayKeeperPicks().length) {
-      <nz-alert
-        nzType="warning"
-        nzMessage="Un portiere che non è una porta"
-        [nzDescription]="
-          'In modalità porte la porta appartiene al primo che prende un portiere del club, quindi ' +
-          strayNames() +
-          ' non conta: occupa uno slot e non aggiunge una porta.'
-        "
-      />
-    }
+    <span actions class="flex items-center gap-1">
+      @if (feed.demo()) {
+        <button nz-button nzSize="small" nz-tooltip nzTooltipTitle="Annulla l'ultima scelta" (click)="undo()">
+          <nz-icon nzType="rollback" />
+        </button>
+        <button nz-button nzSize="small" nz-tooltip nzTooltipTitle="Svuota tutte le rose" (click)="reset()">
+          <nz-icon nzType="delete" />
+        </button>
+        <button nz-button nzSize="small" (click)="connecting.set(true)">
+          <nz-icon nzType="wifi" /> Asta live
+        </button>
+      }
+      <button nz-button nzSize="small" (click)="options.open()">
+        <nz-icon nzType="setting" /> Lega
+      </button>
+    </span>
+  </ui-app-header>
 
-    @if (waiting === 0) {
-      <nz-alert
-        nzType="success"
-        nzMessage="Tocca a te"
-        [nzDescription]="
-          'Puoi spendere fino a ' +
-          maxAffordable() +
-          ' crediti tenendo un credito per ciascuno dei ' +
-          team.missingTotal +
-          ' slot ancora da riempire.'
-        "
-      />
-    } @else if (waiting !== null) {
-      <nz-alert
-        nzType="info"
-        [nzMessage]="
-          'Tocca a te fra ' + waiting + (waiting === 1 ? ' scelta' : ' scelte')
-        "
-        [nzDescription]="turn ? 'Ora sta scegliendo ' + turn.label + '.' : ''"
-      />
-    }
-
-    @if (advice.problem()) {
-      <nz-alert nzType="warning" nzMessage="Numeri del motore" [nzDescription]="advice.problem()!" />
-    } @else if (advice.entry(); as sheet) {
-      <nz-alert
-        nzType="info"
-        [nzMessage]="
-          'Ordinati per SURPLUS sui liberi · lega ' +
-          sheet.league +
-          ' · ' +
-          (advice.rounds() ?? '?') +
-          ' giornate su ' +
-          (sheet.matchdays_target ?? '?')
-        "
-        [nzDescription]="
-          'Il surplus è misurato sul rimpiazzo fra i giocatori ancora liberi, non sul listone: si muove a ogni scelta. Il netto sottrae il prezzo al cambio corrente' +
-          (advice.lambda() !== null
-            ? ' (' + (advice.lambda()! | number: '1.3-3') + ' punti per credito).'
-            : ': ancora non calcolabile, non ci sono slot residui da prezzare.') +
-          ' Manca la probabilità di arrivare al tuo turno e la difficoltà del calendario: nessuna delle due è ancora calcolabile, e il pannello lo dice invece di inventarle.'
-        "
-      />
-    }
-
-    @if (advice.entry(); as sheet) {
-      <!-- The competition being priced. Pre-auction by nature (§1), but one line and always readable:
-           it is the unit every absolute number is quoted in. -->
-      <div class="flex flex-wrap items-center gap-2 text-sm">
-        <span class="opacity-70">Competizione: dalla giornata</span>
-        <nz-input-number
-          nzSize="small"
-          [nzMin]="1"
-          [nzMax]="sheet.matchdays_target ?? 38"
-          [nzStep]="1"
-          [ngModel]="advice.from()"
-          (ngModelChange)="advice.setHorizon($event, advice.to())"
-        />
-        <span class="opacity-70">alla</span>
-        <nz-input-number
-          nzSize="small"
-          [nzMin]="advice.from()"
-          [nzMax]="sheet.matchdays_target ?? 38"
-          [nzStep]="1"
-          [ngModel]="advice.lastMatchday()"
-          (ngModelChange)="advice.setHorizon(advice.from(), $event)"
-        />
-        <span class="opacity-70">
-          di {{ sheet.matchdays_target ?? '?' }} · {{ advice.rounds() }} giornate, e i punti sono
-          quelli di quelle giornate
-        </span>
-        @if ((advice.rounds() ?? 0) < (sheet.matchdays_target ?? 0)) {
-          <button nz-button nzType="text" nzSize="small" (click)="advice.setHorizon(1, null)">
-            tutto il calendario
-          </button>
+  @if (!feed.hasTable()) {
+    <div class="flex min-h-0 flex-1 items-center justify-center">
+      <div class="max-w-md rounded-lg border border-border bg-surface p-4 text-sm">
+        @if (demo.error()) {
+          <p class="mb-3 text-danger">{{ demo.error() }}</p>
+          <button nz-button nzSize="small" [nzLoading]="demo.loading()" (click)="demo.start()">Riprova</button>
+          <button nz-button nzSize="small" nzType="text" (click)="options.open()">Impostazioni lega</button>
+        } @else {
+          <p class="text-muted">Sto preparando il tavolo dalle impostazioni di lega…</p>
         }
       </div>
-    }
-
-    @if (advice.planned(); as plan) {
-      @if (plan.mine) {
-        <nz-card nzTitle="Scelta consigliata" [nzExtra]="planViewToggle">
-          <ng-template #planViewToggle>
-            <nz-segmented
-              nzSize="small"
-              [nzOptions]="planViewOptions"
-              [ngModel]="planView()"
-              (ngModelChange)="setPlanView($event)"
-            />
-          </ng-template>
-          @if (advice.plans().length > 1) {
-            <!-- TRE direzioni, non le prime tre della stessa classifica: §17.3 chiede divergenza,
-                 altrimenti sono tre attaccanti e nessuna informazione. Sceglierne una ridisegna
-                 entrambe le viste, perche' leggono lo stesso piano. -->
-            <div class="mb-4 flex flex-wrap gap-2">
-              @for (entry of advice.plans(); track entry.root.player.id) {
-                <button
-                  nz-button
-                  [nzType]="isChosenRoot(entry.root.player.id) ? 'primary' : 'default'"
-                  class="h-auto py-2 text-left"
-                  (click)="advice.chooseRoot(entry.root.player.id)"
-                >
-                  <span class="flex flex-col items-start">
-                    <span class="flex items-center gap-1">
-                      <ui-roles [roles]="entry.root.player.roles" />
-                      <b>{{ entry.root.player.name }}</b>
-                      <ui-flags [playerId]="flagId(entry.root.player.id)" />
-                      <span class="text-xs opacity-70">{{ entry.root.player.price }}</span>
-                    </span>
-                    <span class="text-xs font-normal opacity-70">
-                      {{ entry.root.why }} ·
-                      {{ chainAverage(entry.plan) !== null ? (chainAverage(entry.plan) | number: '1.1-1') : '—' }}
-                      di media
-                    </span>
-                  </span>
-                </button>
-              }
-              @if (isWhatIf()) {
-                <button nz-button nzType="text" (click)="advice.chooseRoot(null)">
-                  torna al consiglio
-                </button>
-              }
-            </div>
+    </div>
+  } @else {
+    <div
+      class="grid min-h-0 flex-1 gap-2"
+      style="grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.8fr) minmax(0, 1.25fr)"
+    >
+      <!-- 1. IL CAMPETTO della rosa che si compone: titolari dove il regolamento li mette, riserve sotto il
+           posto del loro ruolo, distribuite in parti uguali (`draft-pitch.spreadReserves`). -->
+      <section data-column="pitch" [attr.data-squad]="pitchTeam()?.squad?.length ?? 0" class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-surface p-2">
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+          @if (pitchTeam(); as team) {
+            <span class="h-3 w-3 shrink-0 rounded-sm" [style.background]="team.colour"></span>
+            <span class="min-w-0 truncate font-semibold">{{ team.label }}</span>
+            @if (team.id === feed.followedTeamId()) {
+              <span class="rounded bg-primary/20 px-1 text-xs text-primary">tu</span>
+            }
+            <span class="text-xs text-muted">{{ team.squad.length }} in rosa</span>
           }
+          <nz-select
+            class="ml-auto w-32"
+            nzSize="small"
+            [ngModel]="forcedModule()"
+            (ngModelChange)="forcedModule.set($event)"
+            nzPlaceHolder="Modulo"
+          >
+            <nz-option [nzValue]="null" nzLabel="Auto" />
+            @for (name of moduleNames(); track name) {
+              <nz-option [nzValue]="name" [nzLabel]="isRecommended(name) ? name + ' ★' : name" />
+            }
+          </nz-select>
+        </div>
 
-          <div class="mb-6 flex flex-wrap items-center gap-2">
-                <ui-roles [roles]="plan.mine.roles" size="md" />
-                <span
-                  class="inline-flex items-center gap-2 rounded-full bg-role-attack px-4 py-1.5 text-base font-semibold text-white"
-                >
-                  {{ plan.mine.name }}
-                  <ui-flags [playerId]="flagId(plan.mine.id)" />
-                  @if (!isGoal(plan.mine.id)) {
-                    <span class="text-xs font-normal opacity-80">{{ plan.mine.club }}</span>
-                  }
-                </span>
-            <span class="text-sm opacity-70">
-              {{ plan.mine.price }} FVM
-              @if (plan.mine.net !== null) {
-                · netto {{ plan.mine.net | number: '1.1-1' }}
-              }
-              · {{ plan.gap }} scelte prima della tua prossima
+        @if (pitch(); as drawn) {
+          <div class="flex items-center gap-2 text-xs text-muted">
+            <span class="rounded-full border border-border px-2 py-0.5 font-semibold text-fg tabular-nums">
+              {{ drawn.module }}
             </span>
+            @if (drawn.offPlan && !forcedModule()) {
+              <span nz-tooltip nzTooltipTitle="Con questa rosa un modulo non consigliato schiera un undici più forte.">
+                fuori dai consigliati
+              </span>
+            }
+            <span class="tabular-nums">{{ drawn.placed }}/11 titolari</span>
+            <span class="ml-auto tabular-nums">{{ drawn.total | number: '1.0-0' }} fantapunti</span>
           </div>
-          @if (capLine(); as line) {
-            <!-- IL TETTO DI FVM DEI PRIMI TURNI, detto sempre dove plasma il piano: vincola noi e ogni
-                 rivale, e una regola che cambia le previsioni senza dirlo si legge come una previsione
-                 sbagliata. -->
-            <p class="-mt-4 mb-6 flex items-center gap-1 text-xs text-muted">
-              <nz-icon nzType="lock" />
-              {{ line }}
-              <!-- La soglia e i turni si cambiano dove sta il regolamento (le Opzioni), e da qui ci si
-                   arriva in un click: un vincolo che si legge qui e si modifica altrove senza una strada
-                   è un vincolo da cercare. -->
-              <button nz-button nzType="link" nzSize="small" class="h-auto px-1 text-xs" (click)="editCap()">
-                modifica
-              </button>
-            </p>
-          }
 
-          @if (planView() === 'compatta') {
-            <!-- Lo stesso piano letto per SQUADRA: una catena per riga, nell'ordine di scelta corrente. -->
-            <ul class="flex flex-col gap-1">
-              @for (row of planByTeam(); track row.teamId) {
-                <li
-                  class="flex flex-wrap items-center gap-x-2 gap-y-1 rounded px-2 py-1 text-sm"
-                  [class.bg-control]="row.mine"
-                >
-                  <span class="w-24 shrink-0 truncate" [class.font-semibold]="row.mine">
-                    {{ row.label }}:
-                  </span>
-                  <span
-                    class="w-20 shrink-0 text-right text-xs"
-                    [class.font-semibold]="row.mine"
+          <div
+            class="flex min-h-0 flex-1 flex-col gap-1 rounded-lg p-1.5 outline outline-1 -outline-offset-4 outline-fg/25"
+            style="background-image: linear-gradient(
+              to bottom,
+              color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
+              color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
+            )"
+          >
+            @for (row of drawn.rows; track row.line) {
+              <div [attr.data-line]="row.line" class="flex min-h-0 flex-1 items-stretch justify-center gap-1">
+                @for (place of row.places; track $index) {
+                  <div
+                    data-place
+                    [attr.data-filled]="place.man ? '' : null"
+                    class="flex min-w-0 max-w-[33%] flex-1 flex-col gap-px overflow-hidden rounded-md border
+                           border-border bg-surface/90 px-1 py-0.5"
+                    [class.border-dashed]="!place.man"
                     nz-tooltip
-                    [nzTooltipTitle]="
-                      'Media di quanto valgono queste scelte secondo i NOSTRI numeri, in punti ogni 10 giornate' +
-                      (row.priced < row.of
-                        ? ' — su ' + row.priced + ' scelte di ' + row.of + ', le altre il motore non le prezza'
-                        : '')
-                    "
+                    [nzTooltipTitle]="placeHint(place)"
                   >
-                    @if (row.avg !== null) {
-                      {{ row.avg | number: '1.1-1' }}
-                      @if (row.priced < row.of) {
-                        <span class="opacity-50">*</span>
+                    <span class="flex min-w-0 items-center gap-1">
+                      <ui-role [role]="place.badge ?? place.slot" size="xs" quiet />
+                      @if (place.man) {
+                        <span class="min-w-0 truncate text-[11px] font-medium leading-tight">{{ place.man.name }}</span>
+                        <span
+                          class="ml-auto flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm bg-primary
+                                 px-0.5 text-[9px] font-semibold leading-none text-on-primary tabular-nums"
+                          >{{ place.man.value99 ?? '—' }}</span
+                        >
+                      } @else {
+                        <span class="truncate text-[11px] text-muted">vuoto</span>
                       }
-                    } @else {
-                      —
-                    }
-                  </span>
-                  @for (pick of row.picks; track $index) {
-                    @if ($index > 0) {
-                      <span class="opacity-40">›</span>
-                    }
-                    <button
-                      class="-mx-1 flex cursor-pointer items-center gap-1 rounded px-1 hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
-                      [class.cursor-not-allowed]="locked(pick.price)"
-                      nz-tooltip
-                      [nzTooltipTitle]="rootHint(pick.price, 'Imposta questo giocatore come TUA scelta e ricalcola tutto da lì')"
-                      (click)="chooseRoot(pick.id, pick.price)"
-                    >
-                      <ui-roles [roles]="pick.roles" />
-                      <span [class.font-semibold]="row.mine">{{ pick.name }}</span>
-                      <ui-flags [playerId]="flagId(pick.id)" />
-                      <span class="opacity-60">{{ pick.price }}</span>
-                    </button>
-                  }
-                  @if (row.nextAt) {
-                    <span
-                      class="ml-auto shrink-0 whitespace-nowrap text-xs text-muted"
-                      nz-tooltip
-                      nzTooltipTitle="Dove sceglierebbe nel giro dopo quelli simulati: ogni credito speso fa scalare indietro, quindi la posizione è la conseguenza della catena."
-                    >
-                      poi {{ row.nextAt }}°
                     </span>
-                  }
-                </li>
-              }
-            </ul>
-          } @else {
-          <div class="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            @for (round of plan.rounds; track $index) {
-              <div [class]="$index ? 'md:border-l md:border-border md:pl-6' : ''">
-                <p class="text-xs uppercase tracking-wide text-muted">
-                  {{ $index === 0 ? 'Questo giro' : 'Giro +' + $index }}
-                </p>
-
-                @if (round.before.length) {
-                  <p class="mt-2 text-[10px] uppercase tracking-wide text-muted">prima di te</p>
-                  <ul class="flex flex-col gap-1">
-                    @for (row of round.before; track row.teamId) {
-                      <li class="flex items-center gap-2 text-sm">
-                        <span class="w-20 shrink-0 truncate opacity-70">{{ row.teamLabel }}</span>
-                        <button
-                          class="-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded px-1 text-left hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
-                          [class.cursor-not-allowed]="locked(row.player.price)"
-                          nz-tooltip
-                          [nzTooltipTitle]="rootHint(row.player.price, denialHint(row))"
-                          (click)="chooseRoot(row.player.id, row.player.price)"
-                        >
-                          <ui-roles [roles]="row.player.roles" />
-                          <span class="truncate">{{ row.player.name }}</span>
-                          <ui-flags [playerId]="flagId(row.player.id)" />
-                          @if (row.denies >= denialFloor) {
-                            <span class="shrink-0 text-[10px] tabular-nums opacity-60"
-                              >−{{ row.denies | number: '1.0-0' }}</span
-                            >
-                          }
-                          <span class="ml-auto shrink-0 opacity-60">{{ row.player.price }}</span>
-                        </button>
-                      </li>
-                    }
-                  </ul>
-                }
-
-                @if ($index > 0) {
-                  @if (round.mine) {
-                    <div class="mt-2 flex flex-wrap items-center gap-2">
-                      <ui-roles [roles]="round.mine.roles" />
-                      <span
-                        class="inline-flex items-center gap-2 rounded-full border border-border px-3 py-1 text-sm font-semibold"
-                        [class.opacity-70]="$index > 2"
-                      >
-                        {{ round.mine.name }}
-                        <ui-flags [playerId]="flagId(round.mine.id)" />
-                        @if (!isGoal(round.mine.id)) {
-                          <span class="text-xs font-normal opacity-70">{{ round.mine.club }}</span>
-                        }
+                    @for (reserve of place.reserves; track reserve.id) {
+                      <span data-reserve class="flex min-w-0 items-center gap-1 text-[10px] leading-tight text-muted">
+                        <span class="shrink-0">↳</span>
+                        <span class="min-w-0 truncate">{{ reserve.name }}</span>
+                        <span class="ml-auto shrink-0 tabular-nums">{{ reserve.value99 ?? '—' }}</span>
                       </span>
-                      <span class="text-sm opacity-70">{{ round.mine.price }}</span>
-                    </div>
-                  } @else {
-                    <p class="mt-2 text-sm opacity-70">Nessun nome resterebbe.</p>
-                  }
-                }
-
-                @if (round.after.length) {
-                  <p class="mt-3 text-[10px] uppercase tracking-wide text-muted">dopo di te</p>
-                  <ul class="flex flex-col gap-1">
-                    @for (row of round.after; track row.teamId) {
-                      <li class="flex items-center gap-2 text-sm opacity-80">
-                        <span class="w-20 shrink-0 truncate opacity-70">{{ row.teamLabel }}</span>
-                        <button
-                          class="-mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1 rounded px-1 text-left hover:ring-1 hover:ring-primary hover:ring-offset-2 hover:ring-offset-surface"
-                          [class.cursor-not-allowed]="locked(row.player.price)"
-                          nz-tooltip
-                          [nzTooltipTitle]="rootHint(row.player.price, denialHint(row))"
-                          (click)="chooseRoot(row.player.id, row.player.price)"
-                        >
-                          <ui-roles [roles]="row.player.roles" />
-                          <span class="truncate">{{ row.player.name }}</span>
-                          <ui-flags [playerId]="flagId(row.player.id)" />
-                          @if (row.denies >= denialFloor) {
-                            <span class="shrink-0 text-[10px] tabular-nums opacity-60"
-                              >−{{ row.denies | number: '1.0-0' }}</span
-                            >
-                          }
-                          <span class="ml-auto shrink-0 opacity-60">{{ row.player.price }}</span>
-                        </button>
-                      </li>
                     }
-                  </ul>
-                } @else if ($index === 0) {
-                  <p class="mt-2 text-sm opacity-70">Sei l'ultimo del giro.</p>
+                  </div>
                 }
               </div>
             }
           </div>
+
+          @if (drawn.unplaced.length) {
+            <p class="truncate text-xs text-muted">
+              Senza posto in questo modulo:
+              @for (man of drawn.unplaced; track man.id; let last = $last) {
+                <span data-unplaced>{{ man.name }}{{ last ? '' : ', ' }}</span>
+              }
+            </p>
           }
+        } @else {
+          <p class="text-sm text-muted">Il pacchetto non porta il regolamento dei moduli per questo gioco.</p>
+        }
+      </section>
 
-          <p class="mt-4 text-xs opacity-60">
-            L'ordine è quello del banditore, ricalcolato come lo ricalcola lui; le scelte degli altri
-            sono un'IPOTESI dichiarata — prendono il giocatore più caro fra i ruoli che i moduli dicono
-            ancora da coprire, tranne le ULTIME DUE del giro, che cercano punti per credito per
-            ripartire prime nel giro dopo. Quest'ultima è un'assunzione più forte, perché attribuisce
-            loro una valutazione che non hanno da noi. Ogni giro è simulato INTERO, perché è così
-            che l'ordine del giro dopo resta giusto: fermarsi al tuo turno lasciava senza scelta chi
-            viene dopo di te, e l'ordine si calcola proprio sui pick e sul valore rosa. Ogni colonna
-            poggia sulle ipotesi della precedente, quindi l'ultima vale meno della prima: non è una
-            previsione validata, e al primo giro vero si misura quanti nomi indovina.
-          </p>
-        </nz-card>
-      }
-    }
-
-    <!-- Two pitches side by side, and they answer opposite questions: on the left what a REAL coach will
-         field (the toolkit's own board, read and never recomputed here), on the right what a squad AT THIS
-         TABLE could field (the rulebook, applied here, because there is no coach to predict). -->
-    <div class="grid gap-4 xl:grid-cols-2">
-      <nz-card nzTitle="Formazione della squadra reale">
-        <app-club-pitch />
-      </nz-card>
-
-      <nz-card nzTitle="Formazione della squadra fanta">
-        <app-fanta-pitch />
-      </nz-card>
-    </div>
-
-    <div class="grid gap-4 lg:grid-cols-3">
-      <nz-card nzTitle="La tua situazione">
-        <p class="text-3xl font-semibold">
-          {{ team.budgetLeft }}
-          <span class="text-base font-normal opacity-70">crediti su {{ feed.budget() }}</span>
-        </p>
-        <nz-progress [nzPercent]="budgetLeftPercent()" [nzShowInfo]="false" />
-
-        <dl class="mt-4 grid grid-cols-2 gap-y-2 text-sm">
-          <dt class="opacity-70">Speso</dt>
-          <dd class="text-right">{{ team.spent }}</dd>
-
-          <dt class="opacity-70">Massimo sul prossimo</dt>
-          <dd class="text-right">{{ maxAffordable() }}</dd>
-
-          <dt class="opacity-70">Rosa</dt>
-          <dd class="text-right">{{ team.squad.length }} giocatori</dd>
-
-          @for (zone of feed.zones(); track zone) {
-            @if (zone === 'gk' && feed.isGoalsMode()) {
-              <dt class="opacity-70">Porte da prendere</dt>
-              <dd class="text-right">{{ feed.porteMissing() }}</dd>
+      <!-- 2. LA STRATEGIA: chi e' di turno, cosa ci conviene, e le squadre nell'ordine di chiamata con la
+           scelta che ognuna farà (la NOSTRA politica per noi, quella dei rivali per gli altri) e dove
+           chiamerà nel giro dopo. -->
+      <section data-column="order" class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-surface p-2">
+        <div class="flex flex-col gap-1 rounded-md bg-page p-2 text-xs">
+          <div class="flex items-center gap-1">
+            <span class="text-muted">Di turno:</span>
+            @if (teamOnClock(); as clock) {
+              <span class="h-2.5 w-2.5 rounded-sm" [style.background]="clock.colour"></span>
+              <span class="font-semibold">{{ clock.label }}</span>
             } @else {
-              <dt class="opacity-70">{{ zoneLabel[zone] }} da prendere</dt>
-              <dd class="text-right">{{ team.missing[zone] }}</dd>
+              <span>—</span>
             }
+            @if (feed.picksUntilMyTurn() !== null) {
+              <span class="ml-auto text-muted">
+                @if (feed.picksUntilMyTurn() === 0) {
+                  <b class="text-primary">tocca a te</b>
+                } @else {
+                  {{ feed.picksUntilMyTurn() }} prima di te
+                }
+              </span>
+            }
+          </div>
+          <div class="flex min-w-0 items-center gap-1">
+            <span class="text-muted">Consiglio:</span>
+            @if (advised(); as pick) {
+              <ui-roles [roles]="pick.roles" size="xs" />
+              <span class="min-w-0 truncate font-semibold">{{ pick.name }}</span>
+            } @else {
+              <span class="text-muted">{{ feed.followed() ? '—' : 'scegli la tua squadra (icona ♟)' }}</span>
+            }
+          </div>
+          @if (capLine(); as cap) {
+            <div class="text-muted">{{ cap }}</div>
           }
-        </dl>
-      </nz-card>
+        </div>
 
-      <nz-card nzTitle="Ordine di scelta">
-        <ol class="flex flex-col gap-1">
-          @for (other of feed.pickOrder(); track other.id) {
-            <li class="flex items-center gap-2 text-sm" [class.font-semibold]="other.id === team.id">
-              <span class="w-5 text-right opacity-50">{{ $index + 1 }}</span>
-              <nz-tag [nzColor]="other.colour">&nbsp;</nz-tag>
-              <span class="truncate">{{ other.label }}</span>
-              <span class="ml-auto opacity-70">{{ other.spent }}</span>
+        <div class="grid grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 px-1 text-[10px] uppercase text-muted">
+          <span>#</span><span>Squadra · ultima → prevista</span><span class="text-right">FVM</span>
+        </div>
+        <ol class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
+          @for (seat of seats(); track seat.team.id) {
+            <li
+              [attr.data-seat]="seat.team.id"
+              [attr.data-clock]="seat.team.onTheClock ? '' : null"
+              class="group grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 rounded-md
+                     border px-1 py-0.5"
+              [class]="
+                seat.team.onTheClock
+                  ? 'border-primary bg-primary/10'
+                  : pitchTeam()?.id === seat.team.id
+                    ? 'border-fg/40'
+                    : 'border-transparent hover:bg-fg/5'
+              "
+              (click)="view(seat.team.id)"
+            >
+              <span class="text-xs tabular-nums text-muted">{{ seat.at }}</span>
+              <span class="flex min-w-0 flex-col">
+                <span class="flex min-w-0 items-center gap-1 text-xs">
+                  <span class="h-2.5 w-2.5 shrink-0 rounded-sm" [style.background]="seat.team.colour"></span>
+                  <span class="min-w-0 truncate font-semibold">{{ seat.team.label }}</span>
+                  @if (seat.mine) {
+                    <span class="rounded bg-primary/20 px-1 text-[10px] text-primary">tu</span>
+                  } @else if (feed.demo()) {
+                    <button
+                      type="button"
+                      class="invisible text-[11px] text-muted group-hover:visible hover:text-primary"
+                      nz-tooltip
+                      nzTooltipTitle="Questa è la mia squadra"
+                      (click)="$event.stopPropagation(); sitAt(seat.team.id)"
+                    >
+                      ♟
+                    </button>
+                  }
+                  <span class="ml-auto shrink-0 text-[10px] tabular-nums text-muted">{{ seat.team.squad.length }}</span>
+                </span>
+                <span class="flex min-w-0 items-center gap-1 text-[10px] leading-tight">
+                  <span class="min-w-0 max-w-[45%] truncate text-muted">{{ seat.last ?? '—' }}</span>
+                  <span class="shrink-0 text-muted">→</span>
+                  @if (seat.next; as next) {
+                    <span
+                      class="min-w-0 truncate"
+                      [class.font-semibold]="!next.predicted"
+                      [class.text-primary]="!next.predicted"
+                      >{{ next.name }}</span
+                    >
+                  } @else {
+                    <span class="text-muted">—</span>
+                  }
+                  @if (seat.nextAt !== null) {
+                    <span
+                      class="ml-auto shrink-0 rounded bg-fg/10 px-1 tabular-nums"
+                      nz-tooltip
+                      nzTooltipTitle="Posizione prevista nel giro successivo"
+                      >{{ seat.nextAt }}°</span
+                    >
+                  }
+                </span>
+              </span>
+              <span class="text-right text-xs font-semibold tabular-nums">{{ seat.team.spent }}</span>
             </li>
           }
         </ol>
-        @if (feed.isDraft()) {
-          <p class="mt-3 text-xs opacity-60">
-            Sceglie per primo chi ha la rosa che vale meno: ogni credito speso fa scalare indietro.
-          </p>
-        }
-      </nz-card>
+      </section>
 
-      <nz-card nzTitle="Ultimi movimenti">
-        @if (!feed.lastPicks().length) {
-          <nz-empty nzNotFoundContent="Nessuna scelta finora" />
-        } @else {
-          <ul class="flex flex-col gap-2">
-            @for (entry of feed.lastPicks().slice(0, 10); track entry.index) {
-              <li class="flex items-center gap-2 text-sm">
-                <span class="truncate">
-                  <b>{{ feed.shownName(entry.player) }}</b>
-                  <span class="opacity-60"> · {{ isGoal(entry.player?.id) ? 'porta' : entry.player?.club }}</span>
-                </span>
-                <ui-flags [playerId]="flagId(entry.player?.id)" />
-                <span class="ml-auto whitespace-nowrap opacity-70">
-                  {{ entry.team?.label }} · {{ entry.cost }}
-                </span>
-              </li>
-            }
-          </ul>
-        }
-      </nz-card>
-    </div>
-
-    <nz-card nzTitle="La tua rosa">
-      @if (!team.squad.length) {
-        <nz-empty nzNotFoundContent="Non hai ancora nessun giocatore" />
-      } @else {
-        <div class="grid grid-cols-[repeat(auto-fill,minmax(16rem,1fr))] gap-2">
-          @for (entry of team.squad; track entry.index) {
-            <div class="flex items-center gap-2 text-sm">
-              <ui-roles [roles]="entry.player?.roles ?? []" />
-              <span class="truncate">
-                <b>{{ feed.shownName(entry.player) }}</b>
-                <span class="opacity-60"> · {{ isGoal(entry.player?.id) ? 'porta' : entry.player?.club }}</span>
-              </span>
-              <ui-flags [playerId]="flagId(entry.player?.id)" />
-              @if (feed.isGoalsMode() && isStray(entry.index)) {
-                <nz-tag nzColor="warning" nz-tooltip nzTooltipTitle="La porta di questo club è di un altro: questo portiere non conta come porta.">
-                  no porta
-                </nz-tag>
-              }
-              <b class="ml-auto">{{ entry.cost }}</b>
-            </div>
-          }
+      <!-- 3. GLI SVINCOLATI: tutti, per priorità; ricerca per nome o squadra e filtro per ruolo (in OR). -->
+      <section data-column="free" class="flex min-h-0 flex-col gap-1.5 rounded-lg border border-border bg-surface p-2">
+        <div class="flex items-center gap-2">
+          <nz-input-wrapper class="min-w-0 flex-1" nzAllowClear (nzClear)="query.set('')">
+            <nz-icon nzInputPrefix nzType="search" class="text-muted" />
+            <input
+              nz-input
+              nzSize="small"
+              type="search"
+              placeholder="Cerca nome o squadra"
+              [ngModel]="query()"
+              (ngModelChange)="query.set($event)"
+            />
+          </nz-input-wrapper>
+          <nz-radio-group nzSize="small" nzButtonStyle="solid" [ngModel]="mode()" (ngModelChange)="setMode($event)">
+            <label nz-radio-button nzValue="default" data-mode="default">Default</label>
+            <label nz-radio-button nzValue="medie" data-mode="medie">Medie</label>
+          </nz-radio-group>
         </div>
-      }
-    </nz-card>
-
-    <div class="grid gap-4 md:grid-cols-2">
-      @for (group of topAvailable(); track group.zone) {
-        <nz-card [nzTitle]="group.title">
-          @if (!group.players.length) {
-            <nz-empty nzNotFoundContent="Nessuno libero in questo reparto" />
-          } @else {
-            <ul class="flex flex-col gap-1">
-              <li class="flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted">
-                <span class="w-24">Ruoli</span>
-                <span class="flex-1">Nome</span>
-                <button
-                  class="w-30 text-left hover:text-fg"
-                  nz-tooltip
-                  nzTooltipTitle="Le ultime 10 di CAMPIONATO del suo club, dalla più vecchia. L'altezza della barra è il voto (quello vero, oppure quello sintetico calibrato — barra vuota — per le giornate che il calendario EuroLeghe salta: sono 3-7 a stagione per lega). Una barra ridotta a uno zoccolo è una partita non giocata, e il colore dice perché: grigio panchina, viola infortunio, rosso squalifica, ardesia fuori dai convocati, grigio scuro nessun dato. La colonnina viola è xG+xA, il pallino un gol (piccolo: assist), la linea in basso un cartellino, la sottolineatura una giornata fuori dal calendario EuroLeghe. Il numero è la media fantapunti su quelle dieci, 0–99 dentro il suo ruolo: descrive quello che ha fatto, non prevede. Clicca per ordinare."
-                  (click)="toggleSort('trend')"
-                >
-                  Ultime 10{{ sortArrow('trend') }}
-                </button>
-                <button
-                  class="w-14 text-right hover:text-fg"
-                  nz-tooltip
-                  nzTooltipTitle="LEAD: i fantapunti in più che porta rispetto al suo rimpiazzo, sulla stagione intera — (fantamedia attesa − rimpiazzo) × presenze attese, cioè l'Overall della tabella Giocatori meno il valore del rimpiazzo. Lo zero è quello del foglio, il marginale di ROSA di una lega da dieci (engine_replacement_fm), NON quello vivo fra i liberi: quella è la colonna +/10g accanto, e sono due domande. Una riga STIMATA è moltiplicata per la sua confidenza (chi il motore non prezza vale circa metà), quindi può stare sotto un misurato che gli somiglia. Negativo = peggio del rimpiazzo. Clicca per ordinare."
-                  (click)="toggleSort('lead')"
-                >
-                  Lead{{ sortArrow('lead') }}
-                </button>
-                <button
-                  class="w-16 text-right hover:text-fg"
-                  nz-tooltip
-                  nzTooltipTitle="Punti in più ogni 10 giornate rispetto al giocatore che schiereresti al suo posto fra quelli ancora liberi. Le sue assenze attese sono già dentro. È il surplus ATTESO esatto, come sul foglio: la scheda Asta del pannello Tk lo pesa per quanto di lui potevi vedere arrivare (Pv/giornate)^0.5, che è una preferenza di chi ORDINA e non una proprietà della colonna — misurato, 22-23 nomi su 25 restano gli stessi. Clicca per ordinare."
-                  (click)="toggleSort('surplus')"
-                >
-                  +/10g{{ sortArrow('surplus') }}
-                </button>
-                <button
-                  class="w-12 text-right hover:text-fg"
-                  nz-tooltip
-                  nzTooltipTitle="Il prezzo: nel draft è l'FVM del listone. Clicca per ordinare."
-                  (click)="toggleSort('price')"
-                >
-                  FVM{{ sortArrow('price') }}
-                </button>
-                <button
-                  class="w-12 text-right hover:text-fg"
-                  nz-tooltip
-                  nzTooltipTitle="Fantamedia MISURATA la stagione scorsa, sul calendario di questa piattaforma. Clicca per ordinare."
-                  (click)="toggleSort('fmPrev')"
-                >
-                  FM -1{{ sortArrow('fmPrev') }}
-                </button>
-                <button
-                  class="w-14 text-right hover:text-fg"
-                  nz-tooltip
-                  nzTooltipTitle="Minuti per partita giocata, nel suo campionato. Clicca per ordinare."
-                  (click)="toggleSort('minutes')"
-                >
-                  Min/g{{ sortArrow('minutes') }}
-                </button>
-                <button
-                  class="w-16 text-right hover:text-fg"
-                  nz-tooltip
-                  nzTooltipTitle="Gli stessi punti dopo aver pagato il prezzo al cambio corrente fra crediti e fantapunti. Clicca per ordinare."
-                  (click)="toggleSort('net')"
-                >
-                  Netto/10g{{ sortArrow('net') }}
-                </button>
-              </li>
-              @for (row of group.players; track row.player.id) {
-                <li
-                  class="flex items-center gap-2 text-sm"
-                  nz-tooltip
-                  [nzTooltipTitle]="explain(row)"
-                >
-                  <ui-roles class="w-24" [roles]="row.player.roles" />
-                  <!-- CONGELATO E NON NASCOSTO (operatore, 28/09/2026: «i calciatori freezati non devono
-                       essere nascosti alla vista ma congelati»): il nome resta a piena leggibilità, perché
-                       è un nome che fra pochi turni si potrà chiamare e va tenuto d'occhio adesso; il
-                       marchio dice solo DA QUANDO. -->
-                  <span class="flex-1 truncate">
-                    @if (locked(row.price) && advice.pickCap(); as cap) {
-                      <span
-                        class="mr-1 inline-flex items-center gap-0.5 rounded-full border border-frozen/60 bg-frozen/10 px-1.5 text-[10px] font-semibold text-frozen"
-                      >
-                        <nz-icon nzType="lock" />{{ cap.frozenTurns + 1 }}°
-                      </span>
-                    }
-                    <b>{{ row.player.name }}</b>
-                    <ui-flags [playerId]="flagId(row.player.id)" />
-                    <span class="opacity-60"> · {{ row.porta ? 'porta · ' + row.porta.keepers.length + ' portieri' : row.player.club }}</span>
-                    @if (row.valuation.basis !== 'measured') {
-                      <span class="opacity-60" [title]="row.valuation.note ?? ''">~</span>
-                    }
-                  </span>
-                  <span class="flex w-30 shrink-0 items-center gap-1">
-                    <ui-trend [trend]="row.trend" />
-                    @if (row.trend99 !== null) {
-                      <b class="ml-auto text-[11px] opacity-70">{{ row.trend99 }}</b>
-                    }
-                  </span>
-                  <b class="w-14 text-right">
-                    <span [class.text-danger]="(row.lead ?? 0) < 0"
-                      >{{ row.lead !== null ? (row.lead | number: '1.1-1') : '—' }}</span
-                    >
-                  </b>
-                  <b class="w-16 text-right">
-                    {{ row.surplusPer10 !== null ? (row.surplusPer10 | number: '1.1-1') : '—' }}
-                  </b>
-                  <span class="w-12 text-right opacity-70">{{ row.price }}</span>
-                  <span class="w-12 text-right opacity-70">
-                    {{ row.fmPrev !== null ? (row.fmPrev | number: '1.2-2') : '—' }}
-                  </span>
-                  <span class="w-14 text-right opacity-70">
-                    {{ row.minutesPerMatch !== null ? (row.minutesPerMatch | number: '1.0-0') : '—' }}
-                  </span>
-                  <span class="w-16 text-right opacity-70">
-                    {{ row.netPer10 !== null ? (row.netPer10 | number: '1.1-1') : '—' }}
-                  </span>
-                </li>
-              }
-            </ul>
+        <div class="flex flex-wrap items-center gap-0.5">
+          @for (role of roleOptions(); track role) {
+            <button
+              type="button"
+              [attr.data-role-filter]="role.toLowerCase()"
+              class="rounded transition-opacity"
+              [class.opacity-40]="roleFilter().size > 0 && !roleOn(role)"
+              [class.ring-1]="roleOn(role)"
+              [class.ring-primary]="roleOn(role)"
+              (click)="toggleRole(role)"
+            >
+              <ui-role [role]="role" size="xs" />
+            </button>
           }
-        </nz-card>
-      }
-    </div>
-  </div>
-}
+          @if (roleFilter().size) {
+            <button type="button" class="ml-1 text-xs text-muted hover:text-fg" (click)="clearRoles()">
+              ✕
+            </button>
+          }
+          <span class="ml-auto text-[10px] tabular-nums text-muted">
+            {{ free.shown() }} di {{ free.total() }}
+          </span>
+        </div>
 
-<ui-live-connect [(open)]="connecting" (left)="startDemo()" />
+        @if (mode() === 'default') {
+          <div data-free-head class="free-grid free-default px-1 text-[10px] uppercase text-muted">
+            <span>Ruolo</span><span>Nome</span><span>Squadra</span>
+            <span class="text-center" nz-tooltip nzTooltipTitle="Gradino della stampa">Stampa</span>
+            <span class="text-right">FVM</span><span>Trend</span><span class="text-right">Prio</span>
+          </div>
+        } @else {
+          <div class="free-grid free-medie px-1 text-[10px] uppercase text-muted">
+            <span>Ruolo</span><span>Nome</span>
+            <span class="col-span-4 text-center">{{ seasons().now ?? 'stagione' }}</span>
+            <span class="col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
+          </div>
+          <div data-free-head class="free-grid free-medie px-1 text-[10px] text-muted">
+            <span></span><span></span>
+            <span class="text-right">Pv</span><span class="text-right">Mv</span><span class="text-right">Fm</span
+            ><span class="text-right">G:A</span>
+            <span class="text-right">Pv</span><span class="text-right">Mv</span><span class="text-right">Fm</span
+            ><span class="text-right">G:A</span>
+          </div>
+        }
+
+        <ul data-free-list class="min-h-0 flex-1 overflow-y-auto">
+          @for (row of free.rows(); track row.id) {
+            <li
+              [attr.data-free]="row.id"
+              [attr.data-roles]="row.roles.join(',').toLowerCase()"
+              class="free-grid cursor-default select-none rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
+              [class.free-default]="mode() === 'default'"
+              [class.free-medie]="mode() === 'medie'"
+              [class.opacity-50]="row.locked"
+              nz-tooltip
+              [nzTooltipTitle]="freeHint(row)"
+              nzTooltipPlacement="left"
+              [nzTooltipMouseEnterDelay]="0.6"
+              (dblclick)="take(row)"
+            >
+              <ui-roles class="min-w-0 overflow-hidden" [roles]="row.roles" size="xs" />
+              <span class="flex min-w-0 items-center gap-1">
+                <span class="min-w-0 truncate font-medium">{{ row.name }}</span>
+                <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
+                @if (row.locked) {
+                  <nz-icon class="shrink-0 text-[10px] text-muted" nzType="lock" />
+                }
+              </span>
+              @if (mode() === 'default') {
+                <span class="min-w-0 truncate text-muted">{{ row.club }}</span>
+                <span class="text-center text-[10px] text-muted">{{ pressShort(row.press) }}</span>
+                <span class="text-right tabular-nums">{{ row.fvm }}</span>
+                <ui-trend-votes [cells]="row.trend" />
+                <span class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>
+              } @else {
+                @for (which of ['now', 'last']; track which) {
+                  @if (lineOf(row.id, $any(which)); as line) {
+                    <span class="text-right tabular-nums">{{ line.pv ?? '—' }}</span>
+                    <span class="text-right tabular-nums">{{ line.mv != null ? (line.mv | number: '1.2-2') : '—' }}</span>
+                    <span class="text-right tabular-nums">{{ line.fm != null ? (line.fm | number: '1.2-2') : '—' }}</span>
+                    <span class="text-right tabular-nums">{{ ga(line) }}</span>
+                  } @else {
+                    <span class="text-right text-muted">—</span><span class="text-right text-muted">—</span>
+                    <span class="text-right text-muted">—</span><span class="text-right text-muted">—</span>
+                  }
+                }
+              }
+            </li>
+          } @empty {
+            <li class="p-2 text-xs text-muted">Nessuno svincolato con questi filtri.</li>
+          }
+        </ul>
+      </section>
+    </div>
+  }
+</div>
+
+<ui-live-connect [(open)]="connecting" (left)="demo.start()" />

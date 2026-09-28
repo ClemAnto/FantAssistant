@@ -5872,3 +5872,47 @@ soddisfacibile. Due conseguenze nel codice:
 Rifatta la simulazione del draft con 2 porte (30 tavole): ogni rosa ha le sue due, e le conclusioni non si
 muovono — stare apposta nei primi 3 vale −0,05 / −0,16 punti a giornata rispetto al valore senza vincolo,
 comprare per valore invece che per FVM +1,8 (un tetto: le rose sono giudicate coi nostri stessi numeri).
+
+## 64. IL DRAFT ASSISTANT: «Segui un'asta» rifatto da capo in una schermata (29 settembre 2026)
+
+**Richiesta dell'operatore, 28/09/2026, in otto punti**: rinominare la pagina, togliere tutto quello che
+c'era, aprire sulle impostazioni di lega lasciando possibile l'asta live, una schermata senza scroll in tre
+colonne. Codice: `views/auction/` (la rotta resta `/auction`, così i link e i banchi non cambiano),
+`core/draft-pitch.ts`, `auction-plan.pickScore`/`simulateRound`, `auction-demo.demoOrder`/`pick`/`undo`/`reset`;
+banco `app/scripts/e2e-draft.mjs` (anche `--euro`, la sua lega). Nessun numero del motore si muove.
+
+**Le colonne.** Sinistra il campetto, centro l'ordine di chiamata, destra gli svincolati, come dicono i punti 6
+e 7. **Il punto 5 le nomina al contrario**: la contraddizione è detta nel template e lo scambio è una riga.
+
+**Il tavolo.** `AuctionDemo.start` costruisce il tavolo dalla LEGA DICHIARATA (listone, gioco, squadre, rose,
+budget, tetto FVM) e con ZERO scelte - la stessa decisione della plancia del 23/09: squadre già giocate da una
+finzione sarebbero rose di nessuno. Il foglio è quello del listone e del gioco dichiarati, mai quello di un
+altro gioco (se manca la pagina lo dice). Cambiare le impostazioni ricostruisce il tavolo inventato. Le scelte
+si segnano col **doppio click** su uno svincolato: lo prende la squadra di turno al suo FVM, e l'ordine si
+ricalcola con la regola della piattaforma (`ahead`); rifiutati, con la ragione a schermo, il reparto pieno e il
+tetto dei primi turni. Annulla l'ultima e svuota le rose stanno in barra. L'asta live resta dietro «Asta live»
+(`ui-live-connect`), e la pagina disegna le stesse tre colonne sul tavolo vero.
+
+**Il campetto** (`draft-pitch.ts`): il modulo che schiera l'undici più forte sul VALORE, con i moduli consigliati
+mantra (4-2-3-1, 4-1-4-1, dalla specifica della priorità) PRIMA nel regolamento, così un pareggio - frequente a
+rosa incompleta - va a loro e una rosa vuota si disegna sul 4-2-3-1 coi posti vuoti. Un modulo strettamente
+migliore vince comunque e la card dice «fuori dai consigliati»; un selettore lo forza. **Le riserve si
+distribuiscono in parti uguali**: ognuna, dalla migliore, va sotto il posto dei suoi ruoli che ne ha meno, e a
+parità sotto il titolare più debole (dove è più probabile che giochi). Chi nessun posto accetta è elencato a
+parte, mai tolto: titolari + riserve + senza posto = rosa, e il banco lo conta.
+
+**La priorità.** È il punteggio con cui `pickForUs` sceglie la nostra scelta - VALORE × copertura dei due undici
+× sconto di chi ci sarà ancora - estratto in `pickScore` perché il consiglio e la colonna non possano dare due
+risposte; a schermo su 0-99 del pool libero. **Non è la «Draft Priority» di `priorita-draft-v1.md`**, che è
+un'altra formula e sta sul banco del draft dell'altra sessione: quando passerà, si sostituisce in
+`AuctionAdvice.priorities` e la colonna la segue. I congelati dal tetto FVM restano in lista, in fondo, col
+lucchetto.
+
+**Le squadre** in ordine di chiamata: colore, nome, FVM totale di rosa (in un draft è la spesa), ultima scelta,
+scelta prevista e posizione prevista nel giro dopo. Le previsioni vengono da `simulateRound`, che cammina l'ordine
+pubblicato DALLA SQUADRA DI TURNO con le due politiche del piano (la nostra per noi, `predictRivalPick` per gli
+altri): `plan()` parte dal nostro posto e non poteva rispondere per chi chiama prima di noi.
+
+**Gli svincolati**: ricerca per nome o squadra (`looseMatch`), ruoli in OR, e due viste - default (ruolo, nome,
+squadra, gradino della stampa, FVM, ultimi quattro fantavoti con `ui-trend-votes`, priorità) e «medie» (partite a
+voto, Mv, Fm, G:A di questa stagione e della scorsa, da `seasonLines`).

@@ -608,6 +608,27 @@ export function needForUs(need: CoverNeed | null, player: PlanPlayer, team?: Pla
 }
 
 /**
+ * THE SCORE our own pick is chosen on, one man at a time: what the Draft Assistant shows as «priorità».
+ *
+ * It is `pickForUs`'s own arithmetic taken out of the loop so that a LIST can print it - two copies of
+ * «how much do we want him» would eventually rank one man two ways, once in the suggestion and once in the
+ * column beside it. `-Infinity` is a man with no worth at all: unknown, never zero.
+ */
+export function pickScore(
+  player: PlanPlayer,
+  need: CoverNeed | null = null,
+  team?: PlanTeam,
+  gone?: Set<number> | null,
+): number {
+  const worth = player.value ?? player.net;
+  if (worth == null) return -Infinity;
+  const want = needForUs(need, player, team);
+  // A man who will still be there next round is worth waiting for: the discount is what was measured.
+  const survives = gone && !gone.has(player.id) ? SURVIVOR_DISCOUNT : 1;
+  return worth >= 0 ? worth * want * survives : (worth / want) / survives;
+}
+
+/**
  * Our own pick: the best gross worth we can see, rationed by what our squad still has to cover.
  *
  * Two measured decisions in one line, both from the five-window draft bench (§16):
@@ -628,16 +649,8 @@ export function pickForUs(
 ): PlanPlayer | null {
   let best: PlanPlayer | null = null;
   let bestScore = -Infinity;
-  const scoreOf = (player: PlanPlayer) => {
-    const worth = player.value ?? player.net;
-    if (worth == null) return -Infinity;
-    const want = needForUs(need, player, team);
-    // A man who will still be there next round is worth waiting for: the discount is what was measured.
-    const survives = gone && !gone.has(player.id) ? SURVIVOR_DISCOUNT : 1;
-    return worth >= 0 ? worth * want * survives : (worth / want) / survives;
-  };
   for (const player of pool) {
-    const score = scoreOf(player);
+    const score = pickScore(player, need, team, gone);
     // A man the ceiling keeps off our board this turn is not a candidate at ANY score, not even as the
     // first one seen: an empty answer is honest, a forbidden one is not. Without the squad the turn is
     // unknown, and an unknown turn blocks nobody («vuoto = ignoto, mai zero»).
@@ -874,5 +887,58 @@ export function plan(input: PlanInput): Plan {
     nextOrder: [...teams.values()]
       .sort((a, b) => ahead(a, b, input.maxAheadPicks))
       .map((team) => team.id),
+  };
+}
+
+/** One team's turn in the round that is being played now. */
+export interface RoundPick {
+  teamId: number;
+  /** Who it is expected to take, or null when the pool has nobody it can call. */
+  player: PlanPlayer | null;
+  /** False for OUR pick, which is chosen with our own policy and not guessed. */
+  predicted: boolean;
+}
+
+/**
+ * THE ROUND BEING PLAYED, from whoever is on the clock to the last seat, and the order that follows it.
+ *
+ * `plan()` answers «what do I take when my turn comes» and starts FROM our seat: the squads ahead of us in
+ * this round are not in it, because by the time the plan matters they will have chosen. The Draft Assistant
+ * asks a different question - «who takes whom, seat by seat, starting now» - so it walks the published order
+ * from index 0, with the same two policies (`pickForUs` for us, `predictRivalPick` for everybody else) and
+ * the same order rule for what comes next. It adds no model: it reads the plan's pieces in another order.
+ */
+export function simulateRound(input: PlanInput): { picks: RoundPick[]; nextOrder: number[] } {
+  const places = startingPlaces(input.shapes);
+  const teams = new Map(input.teams.map((team) => [team.id, team]));
+  let pool = [...input.pool];
+  const order = input.order.filter((id) => teams.has(id));
+  const cap = input.cap ?? null;
+  const picks: RoundPick[] = [];
+
+  for (const [index, id] of order.entries()) {
+    const team = teams.get(id)!;
+    let choice: PlanPlayer | null;
+    if (id === input.mineId) {
+      const need = coverNeedOf(team.held, input.shapes, input.game);
+      const rest = order.slice(index);
+      const gone = goneBeforeOurNextTurn({
+        teams: [...teams.values()], order: rest, pool, places, mineId: id,
+        keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads, cap,
+      });
+      choice = pickForUs(pool, need, team, gone, cap);
+    } else {
+      choice = predictRivalPick(team, pool, places, input.keeperCap, order.length - index,
+                                input.heads?.get(id) ?? DEFAULT_HEAD, cap);
+    }
+    picks.push({ teamId: id, player: choice, predicted: id !== input.mineId });
+    if (!choice) continue;
+    pool = pool.filter((player) => player.id !== choice!.id);
+    teams.set(id, take(team, choice));
+  }
+
+  return {
+    picks,
+    nextOrder: [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks)).map((team) => team.id),
   };
 }

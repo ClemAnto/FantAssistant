@@ -57,7 +57,7 @@ const PAGES = [
   ['/charts', 'Grafici', 'app-charts'],
   ['/strategy', 'Strategia', 'app-strategy'],
   ['/plancia', 'Plancia', 'app-plancia'],
-  ['/auction', "Segui un'asta", 'app-auction'],
+  ['/auction', 'Draft Assistant', 'app-auction'],
   ['/sealed-bid', 'Buste chiuse', 'app-sealed-bid'],
   ['/why', 'Perch\u00e9 quel surplus', 'app-why'],
   ['/hello', 'Ciao, FantAssistant', 'app-hello'],
@@ -66,7 +66,7 @@ const PAGES = [
  *  dal titolo - aspettare il titolo e poi asserirlo sarebbe l'asserzione circolare del 04/09/2026. */
 const TAGS = PAGES.map((one) => one[2]);
 /** Le due pagine il cui layout e' un BUDGET: l'altezza e' quella della finestra, non del contenuto. */
-const TIGHT = ['/strategy', '/plancia'];
+const TIGHT = ['/strategy', '/plancia', '/auction'];
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);

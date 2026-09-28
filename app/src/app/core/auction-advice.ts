@@ -28,11 +28,14 @@ import {
   RivalHead,
   capBlocks,
   classifyRivals,
+  RoundPick,
   coverNeedOf,
   goneBeforeOurNextTurn,
+  pickScore,
   plan,
   planRoots,
   predictRivalPick,
+  simulateRound,
   startingPlaces,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
@@ -961,6 +964,46 @@ export class AuctionAdvice {
       // denial answers is about the football and not about the rival's opinion of it.
       worthOf: (playerId: number) => valueOf(valuationOf(numbers.get(playerId))),
     };
+  });
+
+  /**
+   * LA PRIORITA' di ogni libero: il punteggio con cui `pickForUs` sceglie la NOSTRA scelta, uomo per uomo
+   * (`pickScore`, una definizione e due lettori - il consiglio e la colonna accanto al nome).
+   *
+   * VALORE x quanto copre di cio' che alla rosa manca x lo sconto di chi sara' ancora li' al prossimo
+   * turno: le tre leve misurate sul banco del draft (§16, §18). `null` per chi non ha un valore. Chi il
+   * tetto dei primi turni tiene fuori dalla nostra lavagna adesso NON e' `null` - un congelato non e' «poco
+   * prioritario», non si puo' chiamare - e il punteggio resta, perche' fra pochi turni si sblocca: chi
+   * legge la lista lo dice con `lockedForMe`, che e' la stessa guardia del consiglio.
+   *
+   * La «Draft Priority» della specifica del 28/09/2026 (`docs/model/priorita-draft-v1.md`) e' un'ALTRA
+   * formula e non e' ancora passata dal banco: quando lo sara', si sostituisce qui e la colonna la segue.
+   */
+  readonly priorities = computed<Map<number, number | null>>(() => {
+    const input = this.planInput();
+    const out = new Map<number, number | null>();
+    if (!input) return out;
+    const mine = input.teams.find((team) => team.id === input.mineId);
+    const need = coverNeedOf(mine?.held ?? [], input.shapes, input.game);
+    const gone = mine
+      ? goneBeforeOurNextTurn({
+          teams: input.teams, order: input.order, pool: input.pool,
+          places: startingPlaces(input.shapes), mineId: input.mineId,
+          keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
+          heads: input.heads, cap: input.cap,
+        })
+      : null;
+    for (const player of input.pool) {
+      const score = pickScore(player, need, mine, gone);
+      out.set(player.id, Number.isFinite(score) ? score : null);
+    }
+    return out;
+  });
+
+  /** Il giro che si sta giocando, seat per seat, e l'ordine che ne esce (`simulateRound`). */
+  readonly round = computed<{ picks: RoundPick[]; nextOrder: number[] } | null>(() => {
+    const input = this.planInput();
+    return input ? simulateRound(input) : null;
   });
 
   /** The three divergent starting points (§17.3), each with the reason it is offered. */

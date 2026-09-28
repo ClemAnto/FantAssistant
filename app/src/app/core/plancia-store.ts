@@ -2543,7 +2543,7 @@ function mineFirst(rows: BoardMan[]): BoardMan[] {
  * Un pacchetto che quella colonna non la porta da' una mappa vuota e nessuno se ne lamenta: chi la
  * legge stampa un trattino, che e' esattamente cio' che una finestra ignota significa.
  */
-function trendStrips(table: BundleTable): Map<number, TrendCell[]> {
+export function trendStrips(table: BundleTable): Map<number, TrendCell[]> {
   const out = new Map<number, TrendCell[]>();
   const id = table.columns.indexOf('fc_id');
   const detail = table.columns.indexOf('desc_trend_detail');

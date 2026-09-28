@@ -3,6 +3,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import {
   AuctionFeed,
   AuctionPlayer,
+  AuctionTeam,
   DraftStatus,
   GameType,
   MarketType,
@@ -217,11 +218,16 @@ export function buildDemoSession(input: {
    * is played under would open on a table the real one could never reach.
    */
   cap?: PickCap | null;
+  /**
+   * The budget the LEAGUE declares. When given it wins over the derived one: the table is then the
+   * operator's own league seen from its settings, and a budget he typed is not ours to re-derive.
+   */
+  budget?: number | null;
 }): DemoSession {
   const teams = Math.max(2, Math.min(input.teams || DEMO_TEAMS.length, DEMO_TEAMS.length));
   const roles = demoRoles(input.slots, input.mantra);
   const size = roles['size'][0];
-  const budget = demoBudget(input.players, teams, size);
+  const budget = input.budget && input.budget > 0 ? input.budget : demoBudget(input.players, teams, size);
 
   const squads: DemoSquad[] = Array.from({ length: teams }, (_, at) => ({
     id: at,
@@ -283,6 +289,28 @@ export function buildDemoSession(input: {
   return { players: input.players, state, mineId: order[0] };
 }
 
+/**
+ * The order the invented table is in NOW, from its squads as the feed derives them.
+ *
+ * The platform's own rule (`ahead`), read on the same four facts the fixture builds its first order from -
+ * picks made, FVM spent, the picks dearest first, the seat - so a pick made by hand moves the order exactly
+ * as the real table would move it. The seat is the team's id: it is what `buildDemoSession` numbers them by.
+ */
+export function demoOrder(teams: readonly AuctionTeam[], maxAheadPicks = MAX_AHEAD_PICKS): number[] {
+  const squads: PlanTeam[] = teams.map((team) => ({
+    id: team.id,
+    label: team.label,
+    slots: [],
+    held: [],
+    heldIds: [],
+    rosterValue: team.spent,
+    pickValues: team.squad.map((entry) => entry.cost),
+    picksCount: team.squad.length,
+    firstRoundIndex: team.id,
+  }));
+  return squads.sort((a, b) => ahead(a, b, maxAheadPicks)).map((team) => team.id);
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuctionDemo {
   private readonly bundle = inject(Bundle);
@@ -295,21 +323,34 @@ export class AuctionDemo {
   /** Which sheet the invented table is played on, so the banner can NAME the listone it shows. */
   readonly sheet = signal<EngineSheetEntry | null>(null);
 
+  /**
+   * THE TABLE OF THE DECLARED LEAGUE, EMPTY (Draft Assistant, 28/09/2026: «inizialmente prevedi le
+   * impostazioni generali di lega»).
+   *
+   * The seats, the budget, the roster shape, the game and the listone are the operator's own settings
+   * (`GlobalOptions.league`), and NO pick is pre-loaded: the page is the sheet on which he follows his own
+   * draft, and a table that opened with two rounds played by a fixture would be squads that are nobody's -
+   * the same decision the plancia took on 23/09/2026. The PLAYERS and the engine's numbers stay real, which
+   * is what keeps the panel's columns on.
+   */
   async start(): Promise<boolean> {
     this.loading.set(true);
     this.error.set(null);
     try {
       const manifest = await this.bundle.manifest();
       const sheets = manifest.engine_sheets ?? [];
-      if (!sheets.length) {
+      const league = this.options.league();
+      // The sheet of the DECLARED listone and game: a surplus is a fact about the game you buy for, so
+      // another game's sheet is never borrowed - the page says it is missing instead.
+      const chosen = sheets
+        .filter((sheet) => sheet.platform === league.platform && sheet.game === league.game)
+        .sort((a, b) => (b.priced ?? 0) - (a.priced ?? 0))[0];
+      if (!chosen) {
         throw new Error(
-          'Il bundle non porta nessun foglio del motore: senza numeri la demo mostrerebbe solo colonne vuote. ' +
-            'Lancia "snapshot --league NOME" e poi "export".',
+          `Il bundle non porta un foglio ${league.game} sul listone ${league.platform === 'euro' ? 'EuroLeghe' : 'Serie A'}: `
+            + 'cambia listone o gioco nelle impostazioni di lega, oppure lancia "snapshot --league NOME" e "export".',
         );
       }
-      // The sheet that prices the most men, so the demo shows the panel with its numbers ON. It is also
-      // the one `AuctionAdvice` will re-choose by id overlap, since the listone below is built from it.
-      const chosen = [...sheets].sort((a, b) => (b.priced ?? 0) - (a.priced ?? 0))[0];
       const mantra = chosen.game === 'mantra';
 
       const table = await this.bundle.table(chosen.path.replace(/\.json(\.gz)?$/, ''));
@@ -325,20 +366,29 @@ export class AuctionDemo {
         );
       }
 
+      // The roster shape in the P/D/C/A alphabet `demoRoles` reads; mantra keeps one outfield pool, so its
+      // whole `mov` count goes in one field and `demoRoles` sums it back.
+      const slots = mantra
+        ? { P: league.slots.mantra.por, D: league.slots.mantra.mov, C: 0, A: 0 }
+        : { ...league.slots.classic };
+      const previous = this.feed.demo() ? this.feed.followedTeamId() : null;
+
       this.sheet.set(chosen);
-      this.feed.startDemo(
-        buildDemoSession({
-          players,
-          teams: chosen.teams ?? DEMO_TEAMS.length,
-          slots: chosen.squad_slots ?? FALLBACK_SLOTS,
-          mantra,
-          platform: chosen.platform,
-          // The demo IS a draft, so the ceiling applies whenever it is declared on.
-          cap: this.options.league().draftCap?.on
-            ? { fvm: this.options.league().draftCap.fvm, frozenTurns: this.options.league().draftCap.frozenTurns }
-            : null,
-        }),
-      );
+      const session = buildDemoSession({
+        players,
+        teams: league.teams,
+        slots,
+        mantra,
+        platform: chosen.platform,
+        rounds: 0,
+        budget: league.budget,
+        cap: league.draftCap?.on
+          ? { fvm: league.draftCap.fvm, frozenTurns: league.draftCap.frozenTurns }
+          : null,
+      });
+      // A seat he chose stays his across a change of settings, as long as the table still has it.
+      if (previous !== null && previous < Math.min(league.teams, DEMO_TEAMS.length)) session.mineId = previous;
+      this.feed.startDemo(session);
       return true;
     } catch (error) {
       this.error.set(
@@ -348,6 +398,52 @@ export class AuctionDemo {
     } finally {
       this.loading.set(false);
     }
+  }
+
+  /**
+   * THE TEAM ON THE CLOCK TAKES HIM, on the invented table: the one gesture that makes it a draft.
+   *
+   * The price is his FVM - in a draft that IS the price (`AuctionPlayer.fvm`) - and the order is recomputed
+   * with the platform's own rule afterwards. Refused, with the reason, where the regulation refuses it: a
+   * full role, the ceiling of the first turns. A click that does nothing in silence reads as a broken one.
+   */
+  pick(playerId: number): string | null {
+    if (!this.feed.demo()) return 'Su un’asta vera le scelte le fa il banditore.';
+    const team = this.feed.onTheClock();
+    const player = this.feed.available().find((one) => one.id === playerId);
+    if (!team) return 'Nessuna squadra è di turno.';
+    if (!player) return 'Questo calciatore non è più libero.';
+    const zone = this.feed.zoneOf(player);
+    const roles = this.feed.league()['roles'] ?? {};
+    const max = Array.isArray(roles[zone]) ? roles[zone][1] : roles[zone];
+    if (max != null && team.squad.filter((entry) => entry.zone === zone).length >= max) {
+      return `${team.label} ha già il reparto pieno.`;
+    }
+    const cap = this.options.league().draftCap;
+    if (cap?.on && capBlocks(team.squad.length, player.fvm, cap)) {
+      return `Congelato: FVM ${player.fvm} ≥ ${cap.fvm}, ${team.label} lo può chiamare solo dal ${cap.frozenTurns + 1}° turno.`;
+    }
+    if (!this.feed.awardByHand(player.id, team.id, player.fvm)) return 'Scelta rifiutata dal tavolo.';
+    this.reorder();
+    return null;
+  }
+
+  /** Undoes the last pick of the invented table, and puts the order back where it was. */
+  undo(): boolean {
+    if (!this.feed.undoLastByHand()) return false;
+    this.reorder();
+    return true;
+  }
+
+  /** Empties every squad and puts the first-round order back. */
+  reset(): boolean {
+    if (!this.feed.emptySquads()) return false;
+    this.reorder();
+    return true;
+  }
+
+  private reorder(): void {
+    this.feed.setDemoOrder(demoOrder(this.feed.teams()));
   }
 
   /**
