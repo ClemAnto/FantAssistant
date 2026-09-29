@@ -7249,3 +7249,71 @@ deliverable intatto — è ADOTTABILE, e la decisione è dell'operatore** perch�
 gradino più basso (l'ipotesi viene dagli stessi esiti, §7-tresexagies «Contaminazione»). Su euro NO.
 **R30: non adottata** su nessuna piattaforma. Nessuna delle due è in `ADOPTED` alla scrittura di questa
 sezione.
+
+## 7-quattuorsexagies. PRE-REGISTRAZIONE (30 settembre 2026) — R31: UNA STAGIONE CORTA NON CANCELLA LA CARRIERA
+
+**Scritta e committata PRIMA della corsa.** Dal caso che l'operatore ha portato sul Draft Assistant:
+Gvardiol legge Draft Priority −11 «e un difensore TOP come lui non può averla negativa». La DP non
+c'entra: il motore gli dà `engine_fm_pred` **6,062**, che è l'ancora dei Dc al millesimo
+(`engine_anchor` 6,062, `why_fm_steps` = R0c:6.062 e poi fermo). Il suo storico EuroLeghe è 5,77 (24
+voti) · 6,74 (21) · 6,62 (30) · 6,62 (**13**) e 7,00 nelle prime 4 di quest'anno.
+
+**Il meccanismo è di COSTRUZIONE, non di taratura.** Sotto `MIN_PV_PREV` = 15 voti nella stagione di
+input il nucleo (B0) rifiuta la previsione; R18, che legge la media di cinque stagioni, scatta «solo dove
+il baseline stesso è scattato» (commento in `_rule_fm`); resta R0c = ancora di ruolo. Quindi una stagione
+corta (quasi sempre un infortunio) CANCELLA due o tre stagioni piene, e l'uomo viene prezzato come
+«nessuno lo ha mai visto giocare». Sul foglio euro del 29/09 le righe prezzate all'ancora pur avendo una
+stagione di input misurata sono **245 su 952**; fra loro Musiala, Merino, Cancelo, Militão, Davies A. —
+conteggio fatto sul foglio, senza guardare nessun esito.
+
+### R31 — la carriera dove la stagione scorsa è corta o assente
+
+    fm = ancora + λ · (fm_5y − ancora)
+
+* **Popolazione**: giocatori di movimento dove B0 non ha una previsione (stagione di input sotto 15 voti,
+  o nessuna riga) e che hanno **almeno due stagioni piene** (≥ 15 voti) fra le ultime cinque fino a quella
+  di input (`fm_5y_seasons` ≥ 2). `fm_5y` è quello di R18, senza modifiche: media delle stagioni piene,
+  la piattaforma che l'ha misurata meglio. I portieri restano fuori (la loro fantamedia è il malus dei gol
+  subiti e R18 li tratta sul voto base con un'altra forma): dichiarato, non scoperto.
+* **λ fittato sulla SUA popolazione**, senza intercetta, sul residuo `fm_act − ancora`, e incrociato sulla
+  finestra adiacente come ogni altro parametro. Non riuso i λ di R18: sono fittati su chi ha una stagione
+  piena, e una popolazione che salta mezza stagione non è quella.
+* **Ordine**: prima di R1/R13 e di R0c, cioè è la copertura più forte quando esiste una carriera.
+
+### R31b — la stessa, con la stagione corta dentro
+
+    fm = ancora + λ₁ · (fm_prev − ancora)·[fm_prev esiste] + λ₂ · (fm_5y − ancora)
+
+Stessa popolazione; il primo termine legge la stagione di input anche se è sotto i 15 voti (è la metà di
+Gvardiol che R31 butta). Una variante e non una seconda idea: dice se il campione corto aggiunge qualcosa
+alla carriera.
+
+### Attese, scritte perché possano essere smentite
+
+* λ di R31 fra **0,5 e 0,8** (la somma dei due λ di R18 su euro è ~0,86 e questa popolazione è più
+  rumorosa, quindi un po' più regredita). Un λ vicino a zero vorrebbe dire che la carriera di chi ha
+  saltato mezza stagione non predice niente, e l'ancora avrebbe ragione.
+* In R31b, λ₁ piccolo (0,1-0,3): tredici voti sono metà di una stagione.
+* Guadagno sulla fantamedia degli uomini aggiunti/mossi contro l'ancora: **3-8%**.
+
+### Criterio
+
+* **`default`** (R0c NON adottata, quindi questi uomini oggi non hanno fantamedia): R31 è una regola di
+  **copertura** e passa col criterio di copertura del gate — copertura su, errore degli aggiunti entro
+  +30% di quello del baseline, **batte l'ancora** sugli stessi uomini, deliverable non danneggiato.
+* **`euro`** (R0c adottata, quindi oggi li prezza l'ancora): la stessa domanda posta **contro il SET
+  ADOTTATO**, cioè ADOPTED contro ADOPTED + R31 sugli uomini che R31 muove — maggioranza delle finestre,
+  media sopra lo 0,5%, nessuna oltre −2%, nomi e valore catturato delle liste entro il 2%. È la lezione di
+  R24: un canale si giudica contro quello che il motore fa già.
+* R31b si adotta al posto di R31 solo se la batte con lo stesso criterio.
+
+### Contaminazione, detta prima
+
+L'ipotesi viene da UN caso del foglio di oggi (2026-27), che nessuna finestra del gate giudica; la regola
+è la forma di R18 estesa a una popolazione che R18 esclude per costruzione, non una forma nuova. Il gate
+non ha mai visto queste righe perché su euro l'ancora le copre e su `default` sono fuori dominio: i dieci
++ cinque esiti sono puliti rispetto all'ipotesi.
+
+### Sicurezza, da verificare dopo
+
+Finché R31 non è in `ADOPTED`, `backtest --verify` resta **22/22** e nessun foglio si muove.
