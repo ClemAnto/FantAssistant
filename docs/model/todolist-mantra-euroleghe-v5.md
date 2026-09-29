@@ -2615,3 +2615,19 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
 - **Il click sul nome nella lista** seleziona anche la riga (e muove la freccetta): lasciato così dalla review.
 - **Push e pubblicazione**: niente di questa sessione è pushato né sul sito.
 
+## Aperti dopo la sessione del 30/09/2026 (X) — rivedere un draft, le escluse
+
+- **Rimettere la Serie A fra le escluse** nel suo browser (Opzioni → squadre escluse, tasto del gruppo): il sync
+  vecchio le aveva già riscritte, e la cura non le ricostruisce.
+- **Un draft finito non dice più chi era escluso**: l'app ora tiene le sue dichiarate, ma una revisione di un draft
+  di qualcun altro, senza dichiarazione, mostra anche i club che quel tavolo aveva spento. Dedurli dalle scelte
+  (un campionato intero con zero scelte su 384) è un'inferenza e non è stata fatta: decisione sua.
+- **Perché il catalogo EuroLeghe dell'app porta sette club di Serie A** fuori dal listone della sessione (Cagliari,
+  Monza, Parma, Sassuolo, Torino, Udinese, Venezia): il listone EuroLeghe del bundle ha i 37 club della sessione,
+  quindi arrivano da `buildRosters` (ceduti o identità del foglio) e non dalle quotazioni. Innocui dopo la cura,
+  non ancora spiegati.
+- **La revisione sulla plancia**: il cursore è nel feed condiviso ma i tasti sono solo sul Draft Assistant, e uscire
+  dalla pagina chiude la revisione. Se servono anche su un'asta a rilanci passata, va deciso cosa mostra la plancia.
+- **Il modulo più fertile su una rosa vuota**: a inizio draft tutti i moduli leggono fertilità 0 e vince la
+  copertura, poi l'ordine del regolamento — da confermare che «Auto (fertilità)» vada bene anche lì.
+- **Push e pubblicazione**: niente di questa sessione è pushato né sul sito.

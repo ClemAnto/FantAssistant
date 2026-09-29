@@ -7259,6 +7259,22 @@ l'operatore ridichiara una formula, le letture si respingono sui numeri e non su
 un pomeriggio, ognuna fatta girare sul draft vero e mostrata col suo caso assurdo (Kane che «copre» chi non gioca,
 una riserva nostra che premia chi ha due presenze, R = Z al decimo), prima di quella che lui ha scelto.
 
+## A fact a FINISHED session no longer publishes is unknown, and «missing from the listone» is evidence about one club
+**30/09/2026, from «sono escluse le squadre di serie A ... come mai vedo Napoli, Inter?» on the draft FA-jo5-zai.
+Detail: `priorita-draft-v1.md` §19.** The excluded-clubs sync of 29/09 read the table twice wrongly, and both times
+it did not fail: it OVERWROTE what the operator had declared. During the draft `settings.inactiveTeams` carried the
+Italian clubs (384 picks, none of Serie A); once the draft was over the key was gone, so a complete listone read as
+«nobody excluded» and his Serie A was wiped. Cured that, it replaced his 25 with 7 - Serie A clubs the app's
+EuroLeghe catalogue knows and the session's listone does not - because «absent from the listone» was taken as the
+whole list. Only the host's own list may REPLACE a declaration; without it, what the table shows can only ADD
+(`mergeTableExclusions`). Two habits: **a sync that writes over a declaration must be able to say what evidence it
+had**, and Firebase dropping an empty list means an absent key never says «none»; and **reproduce on the real table
+before theorising** - two plausible causes were measured and cleared (the catalogue grouping, the listone's clubs)
+before a headless run against the session, read-only, printed the seven ids.
+And the same day's review of a past draft, for the next page that needs it: **an order the host recomputes after
+every pick is rebuilt from the HISTORY** (the order in which squads first call again from the cursor), because under
+the platform's rule a pick moves only the squad that made it (`rewindState`).
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

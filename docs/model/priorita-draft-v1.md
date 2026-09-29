@@ -493,3 +493,60 @@ su valori ignoti, il bonus delle porte, il modulo forzato nei totali, un cammino
 di un bonus ignoto) e ne ha lasciati due (commenti in italiano nei file che già li mescolano; il click sul nome che
 seleziona anche la riga).
 
+## 19. Rivedere un draft scelta per scelta, e le escluse che il tavolo non dichiara più (30/09/2026)
+
+Cinque sue richieste sulla pagina Draft Assistant. `engine_*` fermo, nessuna `SHEET_REVISION`, il DB non toccato;
+tutto nell'app.
+
+**AVANTI, INDIETRO, INIZIO, FINE** («premendo indietro il cursore si sposta di una scelta indietro ignorando tutto
+quello che succede dopo»). Il cursore vive nel FEED e non nella pagina (`AuctionFeed.cursor`, `rewindState`): ogni
+numero del pannello si legge da `state`, quindi troncare a monte è il solo modo in cui nessuno sappia cosa è
+successo dopo. `live` resta il tavolo intero, e lo stream e il salvataggio lo scrivono lì. Tre cose che il taglio
+delle scelte non basta a dire, e come sono risolte:
+- **L'ordine di chiamata di quel momento** l'host non lo pubblica (pubblica solo quello di adesso). Si ricostruisce
+  dalla STORIA: l'ordine in cui le squadre richiamano per la prima volta dal cursore in poi È l'ordine del tavolo
+  al cursore, perché sotto la regola della piattaforma (`auction-plan.ahead`) una scelta sposta solo chi la fa e
+  non riordina gli altri. Legge il futuro solo per recuperare un fatto già fissato al cursore; chi non richiama più
+  (rosa piena) va in coda nell'ordine pubblicato. Sul draft vero la regola riproduce 384 scelte su 384 (§15).
+- **Lo stato** torna «in corso» e i due nodi dei rilanci (`selectedPlayerId`, `currentBid`) si tolgono.
+- **La revisione non sopravvive a un refresh e finisce uscendo dalla pagina**: il feed è condiviso con la plancia,
+  e una plancia aperta su un tavolo troncato mostrerebbe un'asta passata senza un controllo che lo dica. Sulla demo
+  i tasti non ci sono (lì le scelte si scrivono a mano e l'annulla c'è già), e ogni scrittura a mano chiude una
+  revisione.
+
+Verificato con `app/scripts/e2e-draft-review.mjs`: un draft finito di dodici scelte a serpentina servito da un
+finto fanta-asta-live, con l'ordine pubblicato di FINE draft; a ogni cursore il contatore, la squadra di turno, le
+ultime scelte, gli uomini in rosa e i quattro tasti confrontati col FIXTURE. Controprova: rimesso l'ordine
+pubblicato al posto di quello ricostruito, il banco nomina la squadra sbagliata di turno alla scelta 7, 8, 9, 10.
+Due difetti del banco lungo la strada, tutt'e due noti: un tooltip che copriva il tasto accanto (ora sotto la
+barra), e il passo che dice COSA copre un bottone invece di «coperto».
+
+**COPERTURA E FERTILITÀ TOTALI nell'intestazione del campo**, accanto a «N in rosa»: la stessa `placeYield` delle
+posizioni, sommata, sui soli uomini in rosa (i suggeriti sono quello che una scelta aggiungerebbe). La copertura è
+una quota dell'undici con i tre colori delle posizioni; un posto con bonus ignoto esce dalla somma della fertilità
+ed è contato (`*` e tooltip).
+
+**IL MODULO DI UN RIVALE È IL PIÙ FERTILE** («quando seleziono una squadra di un partecipante che non sia te stesso,
+devi selezionare in automatico il modulo migliore (fertilità + alto)»). `fertileModule` disegna il campetto su ogni
+modulo e prende quello di fertilità più alta, a parità la copertura, poi l'ordine del regolamento coi consigliati
+prima. Il modulo forzato sulla MIA rosa resta com'è (si salva ed è una decisione sulla rosa che costruisco); sulla
+rosa di un rivale una scelta a mano vale finché si apre un'altra rosa, non si salva e non tocca la mia.
+
+**LE SQUADRE ESCLUSE, tre difetti, e due li ha trovati il draft vero.**
+- **Da `/plancia` il sync non partiva mai.** Aspetta il catalogo dei club, che riempie `ValuationStore.load()`, e la
+  plancia il foglio lo legge da sé. Ora lo carica quando è collegata a un tavolo vero.
+- **La guardia sul join taceva**: un club della sessione che il catalogo non riconosce lasciava le esclusioni come
+  stavano senza dirlo. Ora la finestra del collegamento nomina i club non riconosciuti (`unmatchedClubs`).
+- **Il sync CANCELLAVA quelle dichiarate.** FA-jo5-zai letto in sola lettura: 384 scelte e nessuna di Serie A, ma a
+  draft finito `settings.inactiveTeams` non c'è più (Firebase toglie anche una lista vuota, quindi l'assenza non
+  distingue «nessuna disattivata» da «non la pubblica più»). Il sync leggeva «nessuna esclusa» e azzerava la sua
+  Serie A; curato quello, sostituiva le sue 25 con 7 — Cagliari, Monza, Parma, Sassuolo, Torino, Udinese, Venezia,
+  che il catalogo EuroLeghe dell'app conosce e il listone della sessione no. **Solo la lista dell'host sostituisce**
+  (`mergeTableExclusions`); senza, i club assenti dal listone si AGGIUNGONO e nessuno dei suoi torna dentro.
+  Riprodotto in un browser headless sul tavolo vero: 25 → 7 prima, 25 → 25 dopo.
+
+Due regole che restano oltre la pagina. **Un fatto che una sessione FINITA non pubblica più è ignoto, non falso**:
+«vuoto = ignoto» applicato a una chiave che l'host toglie a fine partita. E **«assente dal listone» è evidenza su
+quel club e su nessun altro**: prenderla come l'elenco intero trasforma un'aggiunta in una sostituzione.
+
+Verificato: 1255 test dell'app, `e2e-draft` e `e2e-draft-review` verdi, build pulita.
