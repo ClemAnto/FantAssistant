@@ -5988,3 +5988,9 @@ sola lettura: 688 svincolati, zero dei club spenti, e i 27 club attivi tutti rit
 **Il difetto trovato per strada.** Aprendo la pagina da un browser col codice salvato e senza fotografia, `restore()`
 si agganciava ma il primo evento dello stream non era ancora arrivato: `hasTable()` leggeva falso e la pagina avviava
 il tavolo inventato SOPRA la sessione vera. Ora la finzione parte solo se il ripescaggio non è riuscito.
+
+**E il filtro sul gradino legge SOLO la stampa** (29/09/2026, mattina, sua correzione: «il filtro sul gradino
+deve essere applicato sul gradino della stampa»). La prima versione filtrava sulla parola che la riga MOSTRA, cioè
+la stampa dove c'è e il gradino del motore altrimenti, quindi «almeno titolarissimo» lasciava passare uomini che
+solo il nostro motore chiamava così. Ora `minRung` tiene chi ha `pressSource === 'stampa'` e una parola almeno di
+quel gradino; chi la rilevazione non copre sparisce finché il filtro è acceso. Verificato con `e2e-draft --euro`.

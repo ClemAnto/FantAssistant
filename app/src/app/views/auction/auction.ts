@@ -804,8 +804,10 @@ export class Auction {
 
   /**
    * THE RUNG FILTER (operator, 29/09/2026: «nascondi tutti quelli che non sono ALMENO quel gradino»), read on
-   * the titolarità the list shows - the press's word, else the engine's rung. A man with no rung at all is
-   * hidden while the filter is on: nothing says he is at least that.
+   * the PRESS's word only (his correction of the same day: «il filtro sul gradino deve essere applicato sul
+   * gradino della stampa») - never the engine's rung, which is what the «Previste» column shows and what the
+   * «Default» column falls back to. A man the press has no word for is hidden while the filter is on: nothing
+   * the press said makes him at least that.
    */
   protected readonly minRung = signal<number | null>(null);
   protected readonly rungOptions = [
@@ -839,7 +841,8 @@ export class Auction {
         && (limit === null || !position || position(row.fvm) <= limit)
         && (low === null || row.fvm >= low)
         && (high === null || row.fvm <= high)
-        && (rung === null || (row.press != null && (PRESS_RANK[row.press] ?? 0) >= rung)),
+        && (rung === null
+          || (row.pressSource === 'stampa' && row.press != null && (PRESS_RANK[row.press] ?? 0) >= rung)),
     );
   });
 

@@ -1,5 +1,18 @@
 # Stato progetto & continuità — v5
-**Aggiornato (IV): 29 settembre 2026 — LA DRAFT PRIORITY NEL DRAFT ASSISTANT.** Su richiesta dell'operatore la
+**Aggiornato (V): 29 settembre 2026 (mattina) — IL FILTRO SUL GRADINO LEGGE SOLO LA STAMPA, E IL DB PRIMA DELL'ASTA.**
+Sua correzione, con uno screenshot della vista Previste filtrata «almeno titolarissimo» che mostrava gradini
+del motore: «il filtro sul gradino deve essere applicato sul gradino della stampa». Ora il filtro degli svincolati
+(`views/auction/auction.ts`, `minRung`) tiene un uomo solo se la STAMPA gli dà una parola almeno di quel gradino;
+chi la rilevazione non copre è nascosto mentre il filtro è acceso (niente di quello che la stampa ha detto lo mette
+almeno lì). `e2e-draft --euro` verde: «almeno titolare» 68 righe, parole titolarissimo · titolare. Prima,
+per l'asta delle 9:30, il DB: la notte si era fermata al passo 19 di 31 (injuries al 32%), quindi
+`update --offline --skip packs` e bundle rifatto (manifest 06:56), pubblicato come **v0.1.32**. Gli archivi
+settimanali (resto di injuries, recent_form, market, performance) oggi NON sono stati riletti. **Il filtro
+corretto NON è ancora sul sito**: v0.1.32 ha il filtro vecchio; pubblicarlo è un deploy da un worktree pulito.
+Aperti ereditati, invariati: lookahead acceso o spento (§12 di `priorita-draft-v1.md`: +1,35% contro +1,84% senza),
+il banco che rilegga la priorità da `appcode.mjs`, `master` non pushato. `engine_*` fermo.
+
+· precedente: **Aggiornato (IV): 29 settembre 2026 — LA DRAFT PRIORITY NEL DRAFT ASSISTANT.** Su richiesta dell'operatore la
 formula di `priorita-draft-v1.md` è passata dal banco all'app (`core/draft-priority.ts`, §13): la colonna «Prio»,
 il consiglio, il giro previsto e i suggeriti del campetto la leggono (un `OurChooser` in `auction-plan`), solo in
 un draft mantra; doppioni solo dalla 7ª chiamata con interruttore. Nella stessa sessione, sue richieste sulla
