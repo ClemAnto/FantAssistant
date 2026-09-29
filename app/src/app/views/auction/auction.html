@@ -328,34 +328,12 @@
                 (click)="openCard(pick.id, $event)"
                 >{{ pick.name }}</span
               >
-              @if (pick.double) {
-                <span
-                  data-advised-double
-                  class="shrink-0 rounded bg-double/20 px-1 text-[10px] font-semibold text-double"
-                  nz-tooltip
-                  [nzTooltipTitle]="'Doppione: scambiabile per ' + pick.double + ', pari FVM'"
-                  >doppione</span
-                >
-              }
             } @else {
               <span class="text-muted">{{ feed.followed() ? '—' : 'scegli la tua squadra (icona ♟)' }}</span>
             }
           </div>
           @if (capLine(); as cap) {
             <div data-cap class="text-muted">{{ cap }}</div>
-          }
-          @if (advice.priorityOn()) {
-            <!-- LA DRAFT PRIORITY (priorita-draft-v1.md): la colonna «Prio», il consiglio e i suggeriti del
-                 campetto la leggono tutti e tre. I doppioni si accendono e si spengono qui: sul banco costano
-                 lo 0,4% per costruzione, perche' il banco non simula scambi - quindi e' una scelta sua. -->
-            <label data-doubles class="flex items-center gap-1 text-muted">
-              <input type="checkbox" [checked]="advice.doubles()" (change)="advice.setDoubles(!advice.doubles())" />
-              <!-- Dalla 7ª chiamata (sua regola, 29/09/2026): prima l'interruttore non puo' cambiare niente, e
-                   l'etichetta lo dice perche' un controllo che non muove niente si legge come un controllo rotto. -->
-              <span nz-tooltip nzTooltipTitle="Un top che resterebbe in panchina, preso per scambiarlo a pari FVM"
-                >Consiglia doppioni (dalla 7ª chiamata)</span
-              >
-            </label>
           }
         </div>
 
@@ -714,15 +692,6 @@
                   >{{ row.name }}</span
                 >
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
-                @if (row.double) {
-                  <span
-                    data-double
-                    class="shrink-0 rounded bg-double/20 px-1 text-[9px] font-semibold leading-4 text-double"
-                    nz-tooltip
-                    [nzTooltipTitle]="'Doppione: scambiabile per ' + row.double + ', pari FVM'"
-                    >⇄</span
-                  >
-                }
                 @if (row.turnsLeft != null) {
                   <span
                     data-lock
@@ -786,7 +755,7 @@
                   row.expected.fm != null ? (row.expected.fm | number: '1.1-1') : '—'
                 }}</span>
                 <span data-dp class="text-right tabular-nums" [class.italic]="row.expected.estimated">{{
-                  row.expected.dp != null ? (row.expected.dp | number: '1.1-1') : '—'
+                  row.expected.dp != null ? hundredths(row.expected.dp) : '—'
                 }}</span>
               }
             </li>

@@ -353,3 +353,40 @@ lista è ordinata sul punteggio vero quella riga è un'altra, con un tooltip che
 puntatore teletrasportato che atterra su un tooltip lo tiene aperto. Il banco ora riparte da un punto neutro e
 conta i tooltip rimasti aperti.
 
+
+## 15. Il draft vero FA-jo5-zai (29/09/2026, sera) e la formula ridichiarata
+
+**Ricostruito dalla produzione in sola lettura** (12 squadre, 32 scelte a testa, 384 scelte). La regola
+d'ordine riproduce **384 scelte su 384**. Nei primi cinque giri nove squadre chiudono fra 275 e 376 di FVM
+totale, e il 6° giro (lo sblocco dei ≥213) segue esattamente quei totali: le prime sei prendono Haaland,
+Kane, Raphinha, Mbappé, Olise e Yamal. L'operatore sceglie 2° e prende Kane (490), poi aspetta **21
+scelte**, durante le quali escono **19 attaccanti** (A/Pc/W). Le due squadre che spendono di più nei primi
+cinque giri (566 e 611) arrivano ultime allo sblocco.
+
+**Il difetto che lui ha visto al tavolo, misurato sulla pagina vera** (il draft troncato a ogni suo turno e
+servito da un finto fanta-asta-live alla `/auction` del build): alle scelte 156 e 180 la colonna era VUOTA
+perché tutti i punteggi erano negativi, alle 202 e 237 leggeva 0 su 56-57 righe di 60. La causa era la
+promessa della riserva di §13 che sfuma con le scelte rimaste: ogni scelta addebitava all'uomo scelto lo
+sfumare della promessa di tutti i posti che copriva. Con la promessa tenuta ferma i negativi scendevano da
+511/487/462/426 a 250/132/52/61 - ma la correzione non è stata fatta, perché l'operatore ha ridichiarato la
+formula.
+
+**LA FORMULA DICHIARATA** (sua, 29/09/2026): `Priority = [P (Fm - Z) + (N - P) (R - Z)] / N`, in punti a
+giornata, mostrata **per 100 e troncata** (0,15657 → 15; 1,1 → 110). P, Fm, Z, N come in §2. **R** «deve
+essere sempre inteso come un calciatore di rango inferiore che non appartiene all'11 titolare»: la media dei
+propri uomini dello stesso ruolo base che NON sono nel miglior undici legale della rosa; se non ce ne sono,
+la media degli svincolati dello stesso ruolo base di RANGO DA RISERVA (fra i comprati da una lega di questa
+taglia, dietro i titolari del ruolo: la popolazione della R di §13); il candidato non è mai la propria
+riserva. Sostituisce il G sulla rosa, lo sguardo di un turno e il doppione (tolti dall'app, restano nella
+storia di git); la colonna DP delle «Previste» è lo stesso numero. Le conseguenze sull'ORDINE non sono in
+questo numero: sono il compito degli scenari (richiesta dello stesso giorno).
+
+**Una prima lettura di R fu respinta prima del commit**: «la media degli uomini in rosa dello stesso ruolo
+base», presa alla lettera, dopo Kane era Kane stesso, e dalla 84ª scelta alla fine il primo consiglio era
+Moumbagna (FVM 2, 2 presenze previste, Priority 170): la formula premia chi gioca meno quando R è un titolare.
+Da qui la sua precisazione.
+
+**Resta aperta, ed è dell'operatore**: quando la propria panchina di un ruolo sta SOPRA Z, il secondo termine
+premia chi gioca poco - alla 237ª scelta Bensebaini (base Ds, Fm 6,43) in panchina faceva salire in testa
+Mendy F. (FVM 2, 2,8 presenze previste) a 19. È la formula che dà a un uomo il valore di una riserva che la
+rosa ha già.

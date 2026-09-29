@@ -1,50 +1,29 @@
 /**
- * THE DRAFT PRIORITY (`docs/model/priorita-draft-v1.md`), the operator's own formula for «whom do I take now,
- * at my turn», ported from the bench policy that measured it (`toolkit/bench/draft/priority.mjs`).
+ * THE DRAFT PRIORITY (`docs/model/priorita-draft-v1.md`), the operator's own formula for «whom do I take now»,
+ * as he restated it on 29/09/2026 after the live draft FA-jo5-zai:
  *
- *   Priority(x) = G(x) + the best G still free at our NEXT turn, having taken x.
+ *   Priority(x) = [ P (Fm - Z) + (N - P) (R - Z) ] / N          (points per matchday)
  *
- * G is what x adds to the SQUAD, in points per matchday, and it is computed on the squad and never on the row:
+ *   P  = x's expected appearances in the competition, N its matchdays;
+ *   Fm = x's expected fantamedia;
+ *   Z  = the trimmed mean fantamedia of x's BASE role (his most defensive Mantra role), over the men a league
+ *        of this size BUYS - so a full back who scores is worth more than a winger who scores the same;
+ *   R  = the mean fantamedia of the squad's own men of that base role - who comes on when x does not play -
+ *        or, with none, of the FREE men of that base role among those the league buys.
  *
- *   S(squad) = SUM over the declared eleven's places of   p_h (fm_h - Z_h) + (1 - p_h) (C - Z_h)
- *              + E[R-Factor]
+ * «Quanti punti in media ti darebbe il calciatore rispetto alla media, considerando che se non gioca entra una
+ * riserva». It REPLACED the squad-level G with its one-turn look-ahead and its doubles bonus: on the real draft
+ * that G charged every pick the fading of the reserve promise of the very places it filled, so from the 13th
+ * pick on nearly every free man read below zero and the column showed 0 or nothing (priorita-draft-v1.md §13).
+ * The consequences of a pick on the ORDER are not in this number: they are what the scenarios are for.
  *
- *   Z   = trimmed mean fantamedia of the holder's BASE role (his most defensive Mantra role), over the men a
- *         league of this size BUYS - so that a full back who scores is worth more than a winger who scores the
- *         same (the operator's example);
- *   C   = what the place yields on the days its holder has no vote: the squad's real reserves, chained, with
- *         the rulebook's -1 out of position and ZERO where nobody covers; before a reserve exists, the
- *         operator's DECLARED prior by the holder's tier (a top has an average reserve, a semi-top a poor
- *         one), fading with the picks left - a promise the draft can no longer keep is worth nothing;
- *   E[R-Factor] = the league's ladder over the eleven's sufficient men, voided by a hole: a threshold on the
- *         ELEVEN, so it can only be computed on the squad.
- *
- * The second term simulates the rivals between now and our next turn, and how many they are depends on x:
- * after the first round the order is roster FVM ascending, so a dear x sends us further down.
- *
- * THE VERDICT IT CARRIES (bench, five euro seasons, the operator's rules, 29/09/2026): +2.7% of points per
- * matchday against `pickForUs`, 5 of 5 windows on all seats, with the one-turn look-ahead up to the 7th turn.
- * That run preceded the code review of the same day, which fixed two defects of the look-ahead; the rerun is
- * the open item of §12. The operator asked for it in the app on 29/09/2026 («implementa il Draft Priority»).
- *
- * Nothing here predicts a footballer: `fm`, `share` and `steady` are the sheet's and the ratings', read and
- * never recomputed. What is deduced is about PLACES, PICKS and the rulebook - the boundary that keeps the
- * engine in the toolkit. The file imports no Angular, so the draft bench can bundle it (`appcode.mjs`).
+ * Nothing here predicts a footballer: `fm` and `share` are the sheet's, read and never recomputed. The file
+ * imports no Angular.
  */
 
 import { MantraModules, slotShares } from './auction-value';
-import {
-  DEFAULT_HEAD,
-  PickCap,
-  PlanPlayer,
-  PlanTeam,
-  RivalHead,
-  ahead,
-  capBlocks,
-  predictRivalPick,
-  take,
-} from './auction-plan';
-import { Eleven, Place, bestEleven, placesIn } from './mantra-legal';
+import { PickCap, PlanPlayer, PlanTeam, capBlocks } from './auction-plan';
+import { bestEleven } from './mantra-legal';
 
 /** A man as the priority reads him. `share` = expected appearances over the season's matchdays. */
 export interface PriorityMan {
@@ -141,27 +120,59 @@ export interface RoleStat {
  * `teams x keepers` best doors. Who the caller hands in is the POPULATION - the app leaves out the excluded
  * clubs and the heavily injured, which the bench's historical windows cannot date.
  */
-export function roleStats(
-  everybody: readonly PriorityMan[],
-  rules: MantraModules,
-  { teams, keepers, rounds }: { teams: number; keepers: number; rounds: number },
-): Map<string, RoleStat> {
+export interface LeagueSize {
+  teams: number;
+  keepers: number;
+  rounds: number;
+}
+
+/** The men a league of this size BUYS (see `roleStats`): the population of Z, and of R among the free. */
+export function boughtMen(everybody: readonly PriorityMan[], { teams, keepers, rounds }: LeagueSize): PriorityMan[] {
   const worth = (m: PriorityMan) => (m.share ?? 0) * (m.fm ?? 0);
   const priced = everybody.filter((m) => m.fm != null);
   const doors = priced.filter((m) => m.slot === KEEPER).sort((a, b) => worth(b) - worth(a));
   const field = priced.filter((m) => m.slot !== KEEPER).sort((a, b) => worth(b) - worth(a));
-  const bought = [...doors.slice(0, teams * keepers), ...field.slice(0, teams * Math.max(0, rounds - keepers))];
+  return [...doors.slice(0, teams * keepers), ...field.slice(0, teams * Math.max(0, rounds - keepers))];
+}
+
+/**
+ * The bought men of each base role, and among them the RESERVES: those past the ones the league STARTS there -
+ * `teams` x the role's places in the rulebook, averaged over the shapes (`slotShares`), one door per team.
+ * One split for the DP's R, the Draft Priority's free R and the role statistics.
+ */
+function splitBought(
+  everybody: readonly PriorityMan[],
+  rules: MantraModules,
+  size: LeagueSize,
+): Map<string, { men: PriorityMan[]; reserves: PriorityMan[] }> {
+  const worth = (m: PriorityMan) => (m.share ?? 0) * (m.fm ?? 0);
   const byBase = new Map<string, PriorityMan[]>();
-  for (const man of bought) {
+  for (const man of boughtMen(everybody, size)) {
     const key = baseRole(rules, man.roles, man.slot);
     if (!byBase.has(key)) byBase.set(key, []);
     byBase.get(key)!.push(man);
   }
   const places = slotShares(rules);
-  const stats = new Map<string, RoleStat>();
+  const out = new Map<string, { men: PriorityMan[]; reserves: PriorityMan[] }>();
   for (const [key, men] of byBase) {
-    const starters = Math.round(teams * (key === KEEPER ? 1 : (places.get(key) ?? 0)));
-    const reserves = [...men].sort((a, b) => worth(b) - worth(a)).slice(starters);
+    const starters = Math.round(size.teams * (key === KEEPER ? 1 : (places.get(key) ?? 0)));
+    out.set(key, { men, reserves: [...men].sort((a, b) => worth(b) - worth(a)).slice(starters) });
+  }
+  return out;
+}
+
+/** The men of RESERVE rank a league of this size buys (`splitBought`): among the free, the population of R. */
+export function leagueReserves(everybody: readonly PriorityMan[], rules: MantraModules, size: LeagueSize): PriorityMan[] {
+  return [...splitBought(everybody, rules, size).values()].flatMap((one) => one.reserves);
+}
+
+export function roleStats(
+  everybody: readonly PriorityMan[],
+  rules: MantraModules,
+  size: LeagueSize,
+): Map<string, RoleStat> {
+  const stats = new Map<string, RoleStat>();
+  for (const [key, { men, reserves }] of splitBought(everybody, rules, size)) {
     const fms = men.map((m) => m.fm!).sort((a, b) => a - b);
     const cut = Math.floor(fms.length * TRIM);
     const kept = fms.length >= 10 ? fms.slice(cut, fms.length - cut) : fms;
@@ -185,23 +196,15 @@ export function roleStats(
 const FALLBACK: Omit<RoleStat, 'z'> = { top: Infinity, semi: Infinity, median: 6, p25: 5.8, p10: 5.6, steady: 0.6,
   share: 0.75, bought: 0, reserveFm: null };
 
-/* ---- the squad's worth ---------------------------------------------------------------------------- */
+/* ---- the value of a man ---------------------------------------------------------------------------- */
 
 export interface WorthContext {
   rules: PriorityRules;
   stats: Map<string, RoleStat>;
-  /** Picks a squad makes in the whole draft: the size of the roster. */
-  rounds: number;
-  /** Does the league pay the R-Factor? A declared regulation (`LeagueSettings.rFactor`). */
-  rFactor: boolean;
 }
 
 function statOf(ctx: WorthContext, man: PriorityMan): RoleStat {
   return ctx.stats.get(baseRole(ctx.rules, man.roles, man.slot)) ?? { z: man.fm ?? 6, ...FALLBACK };
-}
-
-export function isTop(ctx: WorthContext, man: PriorityMan): boolean {
-  return (man.fm ?? -Infinity) >= statOf(ctx, man).top;
 }
 
 /** The operator's declared prior for a place with no reserve yet, by the holder's tier (90th/70th pct). */
@@ -219,150 +222,68 @@ function priorReserve(ctx: WorthContext, man: PriorityMan): number {
  * that column: the mean fantamedia of the RESERVES of his base role (`RoleStat.reserveFm`), falling back to the
  * tier prior where the league buys none. The PICK is made on the squad's G, where a real reserve replaces both.
  */
-export function manValue(man: PriorityMan, ctx: WorthContext, matchdays: number): number | null {
+export function manValue(
+  man: PriorityMan,
+  ctx: WorthContext,
+  matchdays: number,
+  /** R when the caller knows it (the Draft Priority's own, `reserveOf`); absent = the DP column's R. */
+  reserve?: number | null,
+): number | null {
   if (man.fm == null || man.share == null || !matchdays) return null;
   const s = statOf(ctx, man);
   const pv = man.share * matchdays;
-  const reserve = s.reserveFm ?? priorReserve(ctx, man);
-  return (pv * (man.fm - s.z) + (matchdays - pv) * (reserve - s.z)) / matchdays;
+  const r = reserve ?? s.reserveFm ?? priorReserve(ctx, man);
+  return (pv * (man.fm - s.z) + (matchdays - pv) * (r - s.z)) / matchdays;
 }
-
-/** The coverage probability the prior assumes for the R-Factor: a reserve is somebody who plays, mostly. */
-export const PRIOR_COVER = 0.75;
-
-/** The R-Factor ladder of the operator's EuroLeghe (28/09/2026): 8 -> 0.5, 9 -> 1, 10 -> 2, 11 -> 3. */
-export function rFactorLadder(count: number): number {
-  return count >= 11 ? 3 : count === 10 ? 2 : count === 9 ? 1 : count === 8 ? 0.5 : 0;
-}
-
-/** Exact distribution of how many of the independent men are sufficient, then the ladder's expectation. */
-export function expectedRFactor(shares: readonly number[]): number {
-  let dist = [1];
-  for (const s of shares) {
-    const next = new Array(dist.length + 1).fill(0);
-    for (let k = 0; k < dist.length; k += 1) {
-      next[k] += dist[k] * (1 - s);
-      next[k + 1] += dist[k] * s;
-    }
-    dist = next;
-  }
-  return dist.reduce((sum, pk, k) => sum + pk * rFactorLadder(k), 0);
-}
-
-/** How much of the declared reserve prior is still ahead: all of it until the eleven is built, none at the end. */
-export function priorLeft(size: number, rounds: number, eleven = 11): number {
-  return Math.max(0, Math.min(1, (rounds - size) / Math.max(1, rounds - eleven)));
-}
-
-/** The rulebook's spelling of a role, which is how the matrix is keyed. */
-const CANON: Record<string, string> = { pc: 'Pc', a: 'A', t: 'T', w: 'W', c: 'C', m: 'M', e: 'E', b: 'B',
-  dc: 'Dc', dd: 'Dd', ds: 'Ds', por: 'Por' };
 
 /**
- * The malus of putting a man with `inRoles` in a place opened by a man fielded there as `outRole`: `0` no
- * penalty, `-1` out of position, `null` not allowed. A man the PLACE already lists enters free - that is what
- * «in alternativa» means, which is why every asterisk resolves to its «otherwise» branch here.
+ * R OF THE DRAFT PRIORITY (the operator, 29/09/2026): «R deve essere sempre inteso come un calciatore di rango
+ * inferiore che non appartiene all'11 titolare». So R is the mean fantamedia of the squad's men of the
+ * candidate's base role who are NOT in its best legal eleven - who really comes on when he misses a match -
+ * and, with none, of the free men of that base role of RESERVE rank (`leagueReserves`). Read literally as «every
+ * man of the base role», R after Kane was Kane himself, and a centre-forward who never plays scored highest
+ * because Kane «covered» the matches he missed (FA-jo5-zai: Moumbagna, 2 of FVM, first advice from the 84th
+ * pick to the end). The candidate is never his own reserve. Null = nobody of that rank: the caller falls back
+ * to the league's reserve mean (`RoleStat.reserveFm`).
  */
-export function subMalus(
-  rules: PriorityRules,
-  module: string,
-  place: Place,
-  outRole: string,
-  inRoles: readonly string[],
+export function reserveOf(
+  man: PriorityMan,
+  rules: MantraModules,
+  bench: readonly PriorityMan[],
+  freeReserves: readonly PriorityMan[],
 ): number | null {
-  if (inRoles.some((role) => place.roles.includes(role))) return 0;
-  const row = rules.substitution?.matrix?.[CANON[outRole]];
-  if (!row) return null;
-  let best: number | null = null;
-  for (const role of inRoles) {
-    const cell = row[CANON[role]];
-    let malus: number | null = null;
-    if (cell === 'OK') malus = 0;
-    else if (cell === '-1' || cell === '**') malus = -1;
-    else if (cell === '***') malus = module === '4-1-4-1' ? null : -1;
-    if (malus !== null && (best === null || malus > best)) best = malus;
-  }
-  return best;
+  const base = baseRole(rules, man.roles, man.slot);
+  const mean = (men: readonly PriorityMan[]) => {
+    const fms = men.filter((m) => m.id !== man.id && m.fm != null
+      && baseRole(rules, m.roles, m.slot) === base).map((m) => m.fm!);
+    return fms.length ? fms.reduce((a, b) => a + b, 0) / fms.length : null;
+  };
+  return mean(bench) ?? mean(freeReserves);
 }
 
 const expected = (man: PriorityMan) => (man.share ?? 0) * (man.fm ?? 0);
 
-/**
- * THE ZERO OF A SQUAD NOBODY CAN FIELD is eleven empty places, not 0 (the code review of 29/09/2026). An empty
- * roster, or one of unpriced men only, has no eleven for `bestEleven` to return; scored 0, the first pick's G
- * carried ten faded «promise» terms its baseline did not, so the gain shown there was on another zero than
- * every later pick. The module is the first the rules declare, which is how `bestEleven` breaks its own ties.
- */
-function emptyEleven(rules: PriorityRules): Eleven<PriorityMan> | null {
-  const first = Object.keys(rules.modules ?? {})[0];
-  const places = first ? placesIn(rules, first) : [];
-  if (!places.length) return null;
-  return { module: first, places, holders: places.map(() => null), men: [], total: 0, scores: [] };
+/** The squad's men who are NOT in its best legal eleven: where R is read first. */
+export function benchOf(roster: readonly PriorityMan[], rules: MantraModules): PriorityMan[] {
+  const starting = new Set(bestEleven(roster, rules, expected)?.men.map((m) => m.id) ?? []);
+  return roster.filter((m) => !starting.has(m.id));
 }
 
-/** What a squad is worth per matchday, against the zeros of its own roles (the header of this file). */
-export function squadWorth(roster: readonly PriorityMan[], ctx: WorthContext): number {
-  const { rules } = ctx;
-  const phi = priorLeft(roster.length, ctx.rounds);
-  const xi = bestEleven(roster, rules, expected) ?? emptyEleven(rules);
-  if (!xi) return 0;
-  const onPitch = new Set(xi.men.map((m) => m.id));
-  const bench = roster.filter((m) => !onPitch.has(m.id));
-  const used = new Set<number>();
-  // The least reliable holders pick their reserves first: that is where a reserve earns most.
-  const order = xi.places.map((_, i) => i).sort((a, b) =>
-    (xi.holders[b] ? 1 - (xi.holders[b]!.share ?? 0) : -1) - (xi.holders[a] ? 1 - (xi.holders[a]!.share ?? 0) : -1));
-  let total = 0;
-  const covered: number[] = [];
-  const sufficient: number[] = [];
-  for (const i of order) {
-    const man = xi.holders[i];
-    if (!man) {
-      // An EMPTY place is worth an average bought man of its role - fantamedia Z, the role's mean share, the
-      // lowest tier's reserve - and that promise FADES with the picks left, down to a real hole (0 points and
-      // no R-Factor) at the last pick. Scored 0 from the start, every real starter looked like a loss next to
-      // leaving the place empty; never fading, the bench ended a draft with a centre back's place empty.
-      const roles = xi.places[i].roles;
-      const s = ctx.stats.get(baseRole(rules, roles, roles[0] ?? null)) ?? { z: 6, ...FALLBACK };
-      total += phi * (1 - s.share) * (s.p10 - s.z) + (1 - phi) * (0 - s.z);
-      covered.push(phi * (s.share + (1 - s.share) * PRIOR_COVER));
-      sufficient.push(s.steady);
-      continue;
-    }
-    const s = statOf(ctx, man);
-    const p = man.share ?? 0;
-    const fm = man.fm ?? 0;
-    const place = xi.places[i];
-    const as = man.roles.find((role) => place.roles.includes(role)) ?? man.roles[0];
-    const chain = bench
-      .filter((b) => !used.has(b.id))
-      .map((b) => ({ b, malus: subMalus(rules, xi.module, place, as, b.roles) }))
-      .filter((o): o is { b: PriorityMan; malus: number } => o.malus !== null)
-      .sort((x, y) => (y.b.fm ?? 0) + y.malus - ((x.b.fm ?? 0) + x.malus))
-      .slice(0, 2);
-    // The real reserves first, chained; whatever probability they leave uncovered goes to the declared prior,
-    // faded by how much draft is left to buy it. The prior IS «the reserve you will have», so it is not
-    // discounted again for his own absences: PRIOR_COVER enters only the R-Factor.
-    let cover = 0, coverProb = 0, coverSuff = 0, left = 1;
-    for (const { b, malus } of chain) {
-      const q = b.share ?? 0;
-      cover += ((b.fm ?? 0) + malus) * q * left;
-      coverSuff += (b.steady ?? statOf(ctx, b).steady) * q * left;
-      coverProb += q * left;
-      left *= 1 - q;
-      used.add(b.id);
-    }
-    cover += left * phi * priorReserve(ctx, man);
-    coverProb += left * phi * PRIOR_COVER;
-    coverSuff += left * phi * s.steady * PRIOR_COVER;
-    total += p * (fm - s.z) + (1 - p) * (cover - s.z);
-    const cp = p + (1 - p) * coverProb;
-    covered.push(cp);
-    sufficient.push(cp > 0 ? (p * (man.steady ?? s.steady) + (1 - p) * coverSuff) / cp : 0);
-  }
-  if (!ctx.rFactor) return total;
-  const allCovered = covered.reduce((a, b) => a * b, 1);
-  return total + allCovered * expectedRFactor(sufficient);
+/**
+ * THE DRAFT PRIORITY (the operator, 29/09/2026): `[P (Fm - Z) + (N - P) (R - Z)] / N` - the points per matchday
+ * a man gives over the average man of his base role, counting that a reserve comes on when he does not play.
+ * It is a fact about the MAN and the squad's reserves, never about the whole squad nor the picks left: it
+ * replaced the squad-level G with its look-ahead, whose faded promise charged every pick the fading of the
+ * very places it filled and read below zero for nearly everybody from the 13th pick on (FA-jo5-zai, 29/09).
+ */
+export function draftPriority(
+  man: PriorityMan,
+  ctx: WorthContext,
+  matchdays: number,
+  bench: readonly PriorityMan[],
+  freeReserves: readonly PriorityMan[],
+): number | null {
+  return manValue(man, ctx, matchdays, reserveOf(man, ctx.rules, bench, freeReserves));
 }
 
 /** The rulebook with the operator's two shapes first: a tie keeps his reference, only a better one wins. */
@@ -375,251 +296,62 @@ export function preferredRules<T extends MantraModules>(rules: T, first: readonl
 
 /* ---- the policy ----------------------------------------------------------------------------------- */
 
-/** How many candidates get the look-ahead: the rest are ranked on G alone and cannot be the pick. */
-export const LOOKAHEAD_K = 10;
-/** The look-ahead runs while a squad has made fewer picks than this (bench: the same yield, faster). */
-export const LOOKAHEAD_UNTIL = 7;
-/** The declared share of a trade's worth that is expected to close (the operator: «un 50% di sconto»). */
-export const TRADE_SHARE = 0.5;
-export const MAX_DOUBLES = 2;
-/**
- * The first of OUR calls on which a double may be advised (the operator, 29/09/2026: «consiglia doppioni solo
- * dalla 7 chiamata in poi»): before it the eleven is still being built and a bench seat is not what a pick buys.
- */
-export const DOUBLES_FROM_CALL = 7;
-
-export interface PriorityInput {
-  teams: PlanTeam[];
-  /** The order of the round being played, and the index of the team that is choosing (ours). */
-  order: number[];
-  at: number;
-  pool: PlanPlayer[];
-  mineId: number;
-  keeperCap: number;
-  maxAheadPicks: number;
+/** Who may be called and how: the ceiling of the first turns and the exact doors (`legalFor`). */
+export interface CallRules {
   cap: PickCap | null;
-  places: Map<string, number>;
-  /** Everything the priority knows about a man, by id: the pool AND every squad's men. */
-  manOf: (id: number) => PriorityMan | null;
-  worth: WorthContext;
-  /** `false` = G alone (the projection's later picks, where the look-ahead would cost seconds). */
-  deep: boolean;
-  doubles: boolean;
-  /**
-   * Each rival's head, the one the displayed round predicts him with (`simulateRound`). The look-ahead reads
-   * the same map, so one rival is never assumed to take two different men in two simulations of one state.
-   * Absent = everybody by price.
-   */
-  heads?: ReadonlyMap<number, RivalHead> | null;
-  /** A man held by some squad, as a plan player: what a double can be traded FOR. Absent = the pool only. */
-  playerOf?: (id: number) => PlanPlayer | null;
-}
-
-export interface PriorityRow {
-  /** G(x) + the look-ahead + half a trade for a double: the number the pick is made on. */
-  score: number;
-  /** G(x) alone, in points per matchday. */
-  gain: number;
-  /** The best G still free at our next turn, when the look-ahead ran for this man. */
-  next: number | null;
-  /** For a man outside the ten the look-ahead ran on: the lowest look-ahead of the ten, added to his score. */
-  nextFloor?: number;
-  /** A DOUBLE: a top man who would not get a shirt, worth a trade at no higher FVM. */
-  double: { tradeFor: PlanPlayer; bonus: number } | null;
+  keeperCap: number;
+  /** Picks a squad makes in the whole draft. */
+  rounds: number;
 }
 
 /** The league's rules on WHO a squad may call now: the ceiling of the first turns and the exact doors. */
-export function legalFor(team: PlanTeam, pool: readonly PlanPlayer[], input: Pick<PriorityInput,
-  'cap' | 'keeperCap' | 'worth'>): PlanPlayer[] {
+export function legalFor(team: PlanTeam, pool: readonly PlanPlayer[], rules: CallRules): PlanPlayer[] {
   const doors = team.slots.filter((slot) => slot === KEEPER).length;
-  const missing = input.keeperCap - doors;
-  const onlyDoors = missing > 0 && input.worth.rounds - team.picksCount <= missing;
+  const missing = rules.keeperCap - doors;
+  const onlyDoors = missing > 0 && rules.rounds - team.picksCount <= missing;
   return pool.filter((p) => {
-    if (capBlocks(team.picksCount, p.price, input.cap)) return false;
-    if (p.slot === KEEPER) return doors < input.keeperCap;
+    if (capBlocks(team.picksCount, p.price, rules.cap)) return false;
+    if (p.slot === KEEPER) return doors < rules.keeperCap;
     return !onlyDoors;
   });
 }
 
-/** The men worth pricing at all: per base role the best by (fm - Z) x share, plus the most reliable. */
-function shortlist(pool: readonly PriorityMan[], ctx: WorthContext, per = 10, reliable = 5): PriorityMan[] {
-  const byBase = new Map<string, PriorityMan[]>();
-  for (const man of pool) {
-    const key = baseRole(ctx.rules, man.roles, man.slot);
-    if (!byBase.has(key)) byBase.set(key, []);
-    byBase.get(key)!.push(man);
-  }
-  const out = new Set<PriorityMan>();
-  for (const men of byBase.values()) {
-    const z = (m: PriorityMan) => (m.share ?? 0) * ((m.fm ?? 0) - statOf(ctx, m).z);
-    [...men].sort((a, b) => z(b) - z(a)).slice(0, per).forEach((m) => out.add(m));
-    [...men].sort((a, b) => (b.share ?? 0) - (a.share ?? 0)).slice(0, reliable).forEach((m) => out.add(m));
-  }
-  return [...out];
+export interface PriorityState {
+  team: PlanTeam;
+  pool: readonly PlanPlayer[];
+  /** Everything the priority knows about a man, by id: the pool AND every squad's men. */
+  manOf: (id: number) => PriorityMan | null;
+  worth: WorthContext;
+  matchdays: number;
+  /** The men of reserve rank a league of this size buys (`leagueReserves`): among the free, R's population. */
+  reserves: ReadonlySet<number>;
 }
 
-function rosterOf(team: PlanTeam, manOf: PriorityInput['manOf']): PriorityMan[] {
-  return team.heldIds.map(manOf).filter((m): m is PriorityMan => !!m);
-}
-
-const elevenIds = (roster: readonly PriorityMan[], rules: MantraModules) =>
-  new Set(bestEleven(roster, rules, expected)?.men.map((m) => m.id) ?? []);
-
-/** A DOUBLE is a top man who does NOT get a shirt: two top centre-backs a 4-2-3-1 fields are not doubles. */
-function doublesIn(roster: readonly PriorityMan[], ctx: WorthContext): number {
-  const starting = elevenIds(roster, ctx.rules);
-  return roster.filter((m) => isTop(ctx, m) && !starting.has(m.id)).length;
-}
-
-/**
- * The priority of every man of the pool, for the team at `order[at]`.
- *
- * Every free man gets G - the list shows a number for all of them - while the look-ahead runs on the ten best
- * by G among those the rules let us call, which is where the pick is made (the bench's own cut: everybody
- * else ranks below it on G alone). A man the ceiling freezes keeps his G, because he unfreezes in a few turns.
- */
-export function draftPriorities(input: PriorityInput): Map<number, PriorityRow> {
-  const ctx = input.worth;
-  const me = input.teams.find((team) => team.id === input.mineId);
-  const out = new Map<number, PriorityRow>();
-  if (!me) return out;
-  const roster = rosterOf(me, input.manOf);
-  const here = squadWorth(roster, ctx);
-  const legal = new Set(legalFor(me, input.pool, input).map((p) => p.id));
-  const gains: { player: PlanPlayer; man: PriorityMan; g: number }[] = [];
-  for (const player of input.pool) {
-    const man = input.manOf(player.id);
-    if (!man || man.fm == null) continue;
-    if (player.slot === KEEPER && me.slots.filter((s) => s === KEEPER).length >= input.keeperCap) continue;
-    gains.push({ player, man, g: squadWorth([...roster, man], ctx) - here });
-  }
-
-  // The double: a top man who would stay out of our eleven, worth half of what trading him would bring.
-  const bonus = new Map<number, { tradeFor: PlanPlayer; bonus: number }>();
-  if (input.doubles && me.picksCount + 1 >= DOUBLES_FROM_CALL && doublesIn(roster, ctx) < MAX_DOUBLES) {
-    const ours = new Set(me.heldIds);
-    let trades: { player: PlanPlayer; gain: number; base: string }[] | null = null;
-    const tradesOnce = () => (trades ??= (() => {
-      // Everybody who is not ours, free AND held by a rival - the bench's own set (`priority.mjs`, `everybody`
-      // minus ours); the pool alone left out exactly the men a trade is made with.
-      const held = input.playerOf
-        ? input.teams.filter((team) => team.id !== me.id).flatMap((team) => team.heldIds)
-            .map(input.playerOf).filter((p): p is PlanPlayer => !!p)
-        : [];
-      const candidates = [...input.pool, ...held].filter((p) => !ours.has(p.id) && p.slot !== KEEPER)
-        .map((p) => ({ p, man: input.manOf(p.id) }))
-        .filter((o): o is { p: PlanPlayer; man: PriorityMan } => !!o.man && o.man.fm != null);
-      const best = new Set(shortlist(candidates.map((o) => o.man), ctx).map((m) => m.id));
-      return candidates
-        .filter((o) => best.has(o.man.id) && (o.man.share ?? 0) * ((o.man.fm ?? 0) - statOf(ctx, o.man).z) > 0)
-        .map((o) => ({ player: o.p, gain: squadWorth([...roster, o.man], ctx) - here,
-          base: baseRole(ctx.rules, o.man.roles, o.man.slot) }))
-        .sort((a, b) => b.gain - a.gain);
-    })());
-    for (const { player, man, g } of gains) {
-      if (!legal.has(player.id) || !isTop(ctx, man)) continue;
-      if (elevenIds([...roster, man], ctx.rules).has(man.id)) continue;
-      const base = baseRole(ctx.rules, man.roles, man.slot);
-      const trade = tradesOnce().find((t) => t.base !== base && t.player.price <= player.price);
-      if (trade && trade.gain > g) bonus.set(player.id, { tradeFor: trade.player, bonus: TRADE_SHARE * (trade.gain - g) });
-    }
-  }
-
-  for (const { player, g } of gains) {
-    out.set(player.id, { score: g + (bonus.get(player.id)?.bonus ?? 0), gain: g, next: null,
-      double: bonus.get(player.id) ?? null });
-  }
-  if (!input.deep || me.picksCount >= LOOKAHEAD_UNTIL || me.picksCount + 1 >= ctx.rounds) return out;
-
-  const heads = gains.filter(({ player }) => legal.has(player.id))
-    .sort((a, b) => out.get(b.player.id)!.score - out.get(a.player.id)!.score)
-    .slice(0, LOOKAHEAD_K);
-  let floor = Infinity;
-  for (const { player } of heads) {
-    const row = out.get(player.id)!;
-    const next = nextBest(input, player);
-    floor = Math.min(floor, next);
-    out.set(player.id, { ...row, score: row.score + next, next });
-  }
-  // EVERYBODY ELSE CARRIES THE LOWEST LOOK-AHEAD OF THE TEN (found by the operator on Hakimi, 29/09/2026: «come
-  // mai ha una PRIO bassa nonostante DP alto?»). Scored on G alone, a man just outside the ten read 17 on the
-  // 0-99 scale against 50 for a head with the same DP: the gap was the next turn, not the player. The next turn
-  // depends on him mostly through his price, and the floor of the ten is the conservative stand-in - a head
-  // scores G + its own look-ahead >= G + the floor, so nobody outside the ten can overtake the ten.
-  if (Number.isFinite(floor)) {
-    const heads_ = new Set(heads.map(({ player }) => player.id));
-    for (const [id, row] of out) {
-      if (!heads_.has(id)) out.set(id, { ...row, score: row.score + floor, nextFloor: floor });
-    }
+/** The Draft Priority of every priced man of the pool, for the squad `team`, by id. */
+export function priorities(state: PriorityState): Map<number, number> {
+  const roster = state.team.heldIds.map(state.manOf).filter((m): m is PriorityMan => !!m);
+  const bench = benchOf(roster, state.worth.rules);
+  const freeReserves = state.pool.filter((p) => state.reserves.has(p.id)).map((p) => state.manOf(p.id))
+    .filter((m): m is PriorityMan => !!m);
+  const out = new Map<number, number>();
+  for (const player of state.pool) {
+    const man = state.manOf(player.id);
+    if (!man) continue;
+    const value = draftPriority(man, state.worth, state.matchdays, bench, freeReserves);
+    if (value != null) out.set(player.id, value);
   }
   return out;
 }
 
-/** What we could take at our NEXT turn if we took `mine` now, the rivals simulated as the round shows them. */
-function nextBest(input: PriorityInput, mine: PlanPlayer): number {
-  const ctx = input.worth;
-  let pool = input.pool.filter((p) => p.id !== mine.id);
-  const teams = new Map(input.teams.map((team) => [team.id, team]));
-  teams.set(input.mineId, take(teams.get(input.mineId)!, mine));
-  // The rivals as the displayed round predicts them - their head, and the tail rule counted from the end of the
-  // order they call in - on the pool the league's rules leave each of them (the review of 29/09/2026: price
-  // and no tail here, heads and tail in `simulateRound`, made one state two different rounds).
-  const rival = (id: number, fromEnd: number) => {
-    const team = teams.get(id);
-    if (!team || team.picksCount >= ctx.rounds) return;
-    const choice = predictRivalPick(team, legalFor(team, pool, input), input.places, input.keeperCap, fromEnd,
-      input.heads?.get(id) ?? DEFAULT_HEAD, input.cap);
-    if (!choice) return;
-    pool = pool.filter((p) => p.id !== choice.id);
-    teams.set(id, take(team, choice));
-  };
-  for (const [index, id] of input.order.entries()) if (index > input.at) rival(id, input.order.length - index);
-  const next = [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks)).map((team) => team.id);
-  for (const [index, id] of next.entries()) {
-    if (id === input.mineId) break;
-    rival(id, next.length - index);
-  }
-  const me = teams.get(input.mineId)!;
-  if (me.picksCount >= ctx.rounds) return 0;
-  const roster = rosterOf(me, input.manOf);
-  const worth = squadWorth(roster, ctx);
-  const candidates = legalFor(me, pool, input).map((p) => input.manOf(p.id))
-    .filter((m): m is PriorityMan => !!m && m.fm != null);
-  let best = 0;
-  for (const man of shortlist(candidates, ctx)) best = Math.max(best, squadWorth([...roster, man], ctx) - worth);
-  return best;
-}
-
-/**
- * The pick itself: the best score among the men the rules let us call now. A shallow call (`deep: false`)
- * prices only the shortlist, the bench's own shortcut for the picks of a rollout.
- */
-export function priorityPick(
-  input: PriorityInput,
-  /** The rows of this very state when the caller already has them (a DEEP call only): one look-ahead per state. */
-  known?: Map<number, PriorityRow>,
-): { player: PlanPlayer; row: PriorityRow } | null {
-  const me = input.teams.find((team) => team.id === input.mineId);
-  if (!me || me.picksCount >= input.worth.rounds) return null;
-  const legal = legalFor(me, input.pool, input);
-  let candidates = legal;
-  // DEEP: the WHOLE pool goes in, because the look-ahead simulates the rivals on it - a frozen top or a door we
-  // can no longer hold is still somebody a rival may take (the review of 29/09/2026); only the CHOICE is
-  // restricted to what we may call. SHALLOW: no look-ahead runs, so the shortlist is the pool.
-  if (!input.deep) {
-    const men = legal.map((p) => input.manOf(p.id)).filter((m): m is PriorityMan => !!m && m.fm != null);
-    const keep = new Set(shortlist(men, input.worth, 6, 3).map((m) => m.id));
-    candidates = legal.filter((p) => keep.has(p.id));
-    if (!candidates.length) candidates = legal;
-  }
-  const rows = (input.deep && known) || draftPriorities({ ...input, pool: input.deep ? input.pool : candidates });
-  let best: { player: PlanPlayer; row: PriorityRow } | null = null;
-  for (const player of candidates) {
-    const row = rows.get(player.id);
-    if (!row) continue;
-    if (!best || row.score > best.row.score || (row.score === best.row.score && player.price > best.player.price)) {
-      best = { player, row };
-    }
+/** The pick: the highest Draft Priority among the men the rules let the squad call now. */
+export function priorityPick(state: PriorityState, rules: CallRules): PlanPlayer | null {
+  const scores = priorities(state);
+  let best: PlanPlayer | null = null;
+  for (const player of legalFor(state.team, state.pool, rules)) {
+    const score = scores.get(player.id);
+    if (score == null) continue;
+    const top = best ? scores.get(best.id)! : -Infinity;
+    if (score > top || (score === top && best && player.price > best.price)) best = player;
   }
   return best;
 }

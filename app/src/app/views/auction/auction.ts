@@ -130,15 +130,13 @@ export interface FreeRow {
   press: string | null;
   pressSource: 'stampa' | 'motore' | null;
   trend: readonly TrendCell[];
-  /** The priority on 0-99 of this table's free pool; null where the sheet cannot value him. */
-  priority: number | null;
-  /** The raw score the 0-99 is drawn from, and the one the list is ordered on (the advice picks on it). */
-  score: number | null;
   /**
-   * A DOUBLE of the Draft Priority: a top man who would sit on our bench, advised for half of what a trade at
-   * no higher FVM would bring - the name is the man he could be traded for. Null for every other row.
+   * The priority as it is SHOWN: in a mantra draft the Draft Priority in hundredths of a point per matchday
+   * (`hundredths`), elsewhere the 0-99 of this table's free pool; null where the sheet cannot value him.
    */
-  double: string | null;
+  priority: number | null;
+  /** The raw score, the one the list is ordered on (the advice picks on it). */
+  score: number | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
   /**
@@ -191,6 +189,15 @@ const EMPTY_STRIP: readonly TrendCell[] = [];
 
 /** How long AUTO waits before a rival takes his predicted man. */
 const AUTO_DELAY_MS = 500;
+
+/**
+ * THE DRAFT PRIORITY AS IT IS SHOWN (the operator, 29/09/2026: «mostralo x100, ad esempio 0.15657 -> 15 oppure
+ * 1.1 -> 110»): hundredths of a point per matchday, TRUNCATED toward zero as his example truncates, so a man
+ * below his role's average reads negative instead of being clamped to 0.
+ */
+export function hundredths(value: number | null | undefined): number | null {
+  return value == null || !Number.isFinite(value) ? null : Math.trunc(Math.round(value * 1e6) / 1e4);
+}
 
 /** How long a click on a free man's name waits for its second half: the double click chooses him. */
 const CARD_DELAY_MS = 260;
@@ -279,6 +286,7 @@ const CARD_DELAY_MS = 260;
 export class Auction {
   protected readonly feed = inject(AuctionFeed);
   protected readonly advice = inject(AuctionAdvice);
+  protected readonly hundredths = hundredths;
   protected readonly demo = inject(AuctionDemo);
   protected readonly options = inject(GlobalOptions);
   private readonly rulings = inject(PlayerRulings);
@@ -444,12 +452,10 @@ export class Auction {
     const mine = this.feed.followedTeamId();
     const pick = this.advice.round()?.picks.find((one) => one.teamId === mine) ?? null;
     if (!pick?.player) return null;
-    const double = this.advice.priorityRows().get(pick.player.id)?.double ?? null;
     return {
       id: pick.player.id,
       name: this.shown(pick.player.id, pick.player.name),
       roles: pick.player.roles,
-      double: double ? double.tradeFor.name : null,
     };
   });
 
@@ -761,9 +767,10 @@ export class Auction {
       fvm: row.price,
       ...this.rungOf(row, press, goal),
       trend: goal ? EMPTY_STRIP : (trends.get(row.player.id) ?? EMPTY_STRIP),
-      priority: score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
+      priority: this.advice.priorityOn()
+        ? hundredths(score)
+        : score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
       score,
-      double: this.advice.priorityRows().get(row.player.id)?.double?.tradeFor.name ?? null,
       locked: this.advice.lockedForMe(row.price),
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),

@@ -46,13 +46,12 @@ import {
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { porteZero } from './porte';
 import {
-  PriorityInput,
   PriorityMan,
-  PriorityRow,
   PriorityRules,
+  PriorityState,
   WorthContext,
-  draftPriorities,
-  manValue,
+  leagueReserves,
+  priorities as draftPriorityScores,
   preferredRules,
   priorityPick,
   roleStats,
@@ -73,26 +72,6 @@ import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-t
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
-/** Doppioni accesi o spenti nella Draft Priority: una preferenza sua, per browser. */
-const DOUBLES_KEY = 'fantassistant.draft.doubles';
-
-function readFlag(key: string, fallback: boolean): boolean {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw === null ? fallback : raw === '1';
-  } catch {
-    return fallback;
-  }
-}
-
-function writeFlag(key: string, on: boolean): void {
-  try {
-    localStorage.setItem(key, on ? '1' : '0');
-  } catch {
-    // A private window: the choice lives until the tab closes.
-  }
-}
-
 /**
  * The engine's numbers, joined to the table that is actually being played.
  *
@@ -954,18 +933,6 @@ export class AuctionAdvice {
     return this.feed.isDraft() && this.feed.isMantra() && !!rules?.substitution?.matrix && !!rules.roles?.length;
   });
 
-  /**
-   * DOPPIONI (priorita-draft-v1.md §4): un top che nella nostra rosa resterebbe fuori dall'undici vale anche
-   * meta' di uno scambio a pari FVM. Sul banco costa ~0,4% per costruzione (il banco non simula scambi),
-   * quindi e' una scelta sua al tavolo e si ricorda nel browser.
-   */
-  readonly doubles = signal<boolean>(readFlag(DOUBLES_KEY, true));
-
-  setDoubles(on: boolean): void {
-    this.doubles.set(on);
-    writeFlag(DOUBLES_KEY, on);
-  }
-
   /** Ogni uomo del listone letto come la priorita' lo legge, per id; una porta vale il mix dei suoi portieri. */
   private readonly priorityMen = computed<Map<number, PriorityMan>>(() => {
     const out = new Map<number, PriorityMan>();
@@ -996,7 +963,7 @@ export class AuctionAdvice {
    * la specifica li toglie, e l'app sa datarli mentre le finestre storiche del banco no). Con le porte, una
    * riga per club e non tre portieri.
    */
-  private readonly priorityWorth = computed<WorthContext | null>(() => {
+  private readonly priorityWorth = computed<(WorthContext & { reserves: ReadonlySet<number> }) | null>(() => {
     if (!this.priorityOn()) return null;
     const men = this.priorityMen();
     const ids = this.clubIds();
@@ -1017,31 +984,29 @@ export class AuctionAdvice {
       population.push(man);
     }
     const teams = this.feed.teams();
-    const rounds = Math.max(0, ...teams.map((team) => team.squad.length + team.missingTotal));
-    const keepers = this.planInput()?.keeperCap ?? 2;
+    const size = { teams: teams.length, keepers: this.planInput()?.keeperCap ?? 2, rounds: this.priorityRounds() };
     const rules = preferredRules(this.shapes() as PriorityRules, RECOMMENDED_MANTRA);
     return {
       rules,
-      stats: roleStats(population, rules, { teams: teams.length, keepers, rounds }),
-      rounds,
-      rFactor: this.options.league().rFactor,
+      stats: roleStats(population, rules, size),
+      // Among the free, R reads only the men of RESERVE rank a league of this size buys (`leagueReserves`).
+      reserves: new Set(leagueReserves(population, rules, size).map((man) => man.id)),
     };
   });
 
+  /** Picks a squad makes in the whole draft: the size of the roster. */
+  private readonly priorityRounds = computed(() =>
+    Math.max(0, ...this.feed.teams().map((team) => team.squad.length + team.missingTotal)));
+
   /**
-   * DP di ogni uomo del listone (sua richiesta, 29/09/2026, colonna delle «Previste»): il valore della §2 della
-   * specifica sulla riga sola, PER GIORNATA; Pv e N sulla stagione piena del foglio, la stessa base. Vuota dove
-   * la priorita' non si applica.
+   * DP, la colonna delle «Previste»: la DRAFT PRIORITY stessa (sua definizione del 29/09/2026, R dalla NOSTRA
+   * rosa o dagli svincolati), per i liberi. Un numero solo per lo stesso uomo sulla stessa pagina: la colonna
+   * leggeva R dalle riserve di tutta la lega, e accanto alla Prio avrebbe dato a un uomo due valori.
    */
   readonly dpBy = computed<Map<number, number>>(() => {
     const out = new Map<number, number>();
-    const worth = this.priorityWorth();
-    const matchdays = this.matchdaysTarget();
-    if (!worth || !matchdays) return out;
-    for (const [id, man] of this.priorityMen()) {
-      const value = manValue(man, worth, matchdays);
-      if (value != null) out.set(id, value);
-    }
+    if (!this.priorityOn()) return out;
+    for (const [id, value] of this.priorities()) if (value != null) out.set(id, value);
     return out;
   });
 
@@ -1111,75 +1076,27 @@ export class AuctionAdvice {
     };
   });
 
-  /** Every man some squad holds, as a plan player: what a double can be traded for (priorita-draft-v1.md §4). */
-  private readonly heldPlayers = computed<Map<number, PlanPlayer>>(() => {
-    const numbers = this.numbers();
-    const out = new Map<number, PlanPlayer>();
-    for (const team of this.feed.teams()) {
-      for (const entry of team.squad) {
-        const player = entry.player;
-        if (!player) continue;
-        out.set(player.id, {
-          id: player.id, name: player.name, club: player.club,
-          slot: numbers.get(player.id)?.slot ?? null, roles: player.roles, price: player.fvm,
-          net: null, surplus: null, value: null,
-        } as PlanPlayer);
-      }
-    }
-    return out;
-  });
-
   /**
-   * THE DRAFT PRIORITY OF ONE TABLE STATE, memoized on the state: the advice (`simulateRound`), the projection
-   * (`projectOurPicks` -> `plan`) and the column (`priorityRows`) reach our pick with the same squads ahead of
-   * us, and the deep look-ahead costs seconds, so it runs once per state. The key is the order FROM our seat
-   * (`order.slice(at)`), not the whole order and the index: the round walks the full order with `at` = our
-   * seat while the plan walks it from our seat with `at` = 0, and nothing before our seat enters the
-   * priority. It found the same state three times per stream event (the code review of 29/09/2026).
+   * THE DRAFT PRIORITY OF ONE TABLE STATE (`draft-priority.ts`): the state a pick is made in, for the squad
+   * that makes it. One reader for the column, the advice (`simulateRound`) and the projection
+   * (`projectOurPicks` -> `plan`), so our simulated picks are the ones the column ranks first - and R moves
+   * with them, because every simulated pick adds a man to the squad whose reserves R reads.
    */
   private readonly priorityEngine = computed(() => {
     const worth = this.priorityWorth();
     const base = this.planInput();
-    if (!worth || !base) return null;
+    const matchdays = this.matchdaysTarget();
+    if (!worth || !base || !matchdays) return null;
     const men = this.priorityMen();
-    const places = startingPlaces(base.shapes);
-    const doubles = this.doubles();
-    const held = this.heldPlayers();
-    const pooled = new Map(base.pool.map((player) => [player.id, player]));
-    const memo = new Map<string, Map<number, PriorityRow>>();
-    const picks = new Map<string, PlanPlayer | null>();
-    type State = Parameters<OurChooser>[0];
-    const keyOf = (state: State) => `${state.deep ? 'd' : 's'}|${state.order.slice(state.at).join('.')}|`
-      + state.teams.map((team) => `${team.id}:${team.heldIds.join('.')}`).join('/');
-    const inputOf = (state: State): PriorityInput => ({
-      ...state,
-      mineId: base.mineId,
-      keeperCap: base.keeperCap,
-      maxAheadPicks: base.maxAheadPicks,
-      cap: base.cap ?? null,
-      places,
-      manOf: (id) => men.get(id) ?? null,
-      worth,
-      doubles,
-      heads: base.heads,
-      playerOf: (id) => pooled.get(id) ?? held.get(id) ?? null,
+    const rules = { cap: base.cap ?? null, keeperCap: base.keeperCap, rounds: this.priorityRounds() };
+    const stateOf = (team: PlanTeam, pool: readonly PlanPlayer[]): PriorityState => ({
+      team, pool, manOf: (id) => men.get(id) ?? null, worth, matchdays, reserves: worth.reserves,
     });
-    const rows = (state: State) => {
-      const key = keyOf(state);
-      let hit = memo.get(key);
-      if (!hit) memo.set(key, (hit = draftPriorities(inputOf(state))));
-      return hit;
-    };
     const choose: OurChooser = (state) => {
-      const key = keyOf(state);
-      if (picks.has(key)) return picks.get(key)!;
-      const pick = priorityPick(inputOf(state), state.deep ? rows(state) : undefined)?.player ?? null;
-      picks.set(key, pick);
-      return pick;
+      const team = state.teams.find((one) => one.id === base.mineId);
+      return team && team.picksCount < rules.rounds ? priorityPick(stateOf(team, state.pool), rules) : null;
     };
-    // `inputOf` for a call on a pool the table state does not imply (the men predicted gone): the memo keys on
-    // the squads and the order, which fix the pool only for a real state.
-    return { rows, choose, inputOf, rounds: worth.rounds };
+    return { choose, stateOf, mineId: base.mineId };
   });
 
   /** Our pick with the Draft Priority, for `plan`/`simulateRound`/`projectOurPicks`. */
@@ -1193,60 +1110,6 @@ export class AuctionAdvice {
   });
 
   /**
-   * La Draft Priority di ogni libero, per la NOSTRA prossima scelta: G, lo sguardo di un turno sui dieci
-   * migliori (fino al 7º turno) e il doppione. Vuota dove la priorita' non si applica.
-   *
-   * AL MOMENTO DEL NOSTRO TURNO e non adesso (la review del 29/09/2026): le squadre che chiamano prima di noi
-   * in questo giro scelgono prima, con le loro teste, esattamente come nel giro che produce il consiglio
-   * (`simulateRound`) - o la colonna e il consiglio accanto descriverebbero due momenti diversi. Chi si prevede
-   * preso prima del nostro turno resta in lista col suo G e lo sguardo avanti piu' basso dei dieci: e' un «se
-   * restasse», e il consiglio non lo sceglie perche' non ci sara'.
-   */
-  readonly priorityRows = computed<Map<number, PriorityRow>>(() => {
-    const engine = this.priorityEngine();
-    const input = this.planInput();
-    if (!engine || !input) return new Map();
-    const places = startingPlaces(input.shapes);
-    const teams = new Map(input.teams.map((team) => [team.id, team]));
-    let order = input.order.filter((id) => teams.has(id));
-    let pool = input.pool;
-    const gone: PlanPlayer[] = [];
-    const call = (list: number[], upTo: number) => {
-      for (const [index, id] of list.slice(0, upTo).entries()) {
-        const team = teams.get(id)!;
-        if (team.picksCount >= engine.rounds) continue;
-        const choice = predictRivalPick(team, pool, places, input.keeperCap, list.length - index,
-          input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
-        if (!choice) continue;
-        pool = pool.filter((player) => player.id !== choice.id);
-        teams.set(id, take(team, choice));
-        gone.push(choice);
-      }
-    };
-    let at = order.indexOf(input.mineId);
-    if (at < 0) {
-      // WE ARE NOT IN THIS ROUND'S ORDER - we have called already, or our roster is closed (the code review of
-      // 29/09/2026: read as «we call first», the column priced a moment that does not exist). Our next pick is
-      // then in the NEXT round: the rest of this one calls first, then whoever the order rule puts ahead of us.
-      call(order, order.length);
-      order = [...teams.values()].sort((x, y) => ahead(x, y, input.maxAheadPicks)).map((team) => team.id);
-      at = order.indexOf(input.mineId);
-      const mine = teams.get(input.mineId);
-      if (at < 0 || !mine || mine.picksCount >= engine.rounds) return new Map();
-    }
-    call(order, at);
-    const rows = new Map(engine.rows({ teams: [...teams.values()], order, at, pool, deep: true }));
-    if (!gone.length) return rows;
-    const nexts = [...rows.values()].map((row) => row.next).filter((next): next is number => next != null);
-    const floor = nexts.length ? Math.min(...nexts) : 0;
-    for (const [id, row] of draftPriorities(engine.inputOf({ teams: [...teams.values()], order, at, pool: gone,
-      deep: false }))) {
-      rows.set(id, { ...row, score: row.score + floor, nextFloor: floor });
-    }
-    return rows;
-  });
-
-  /**
    * LA PRIORITA' di ogni libero: il punteggio con cui `pickForUs` sceglie la NOSTRA scelta, uomo per uomo
    * (`pickScore`, una definizione e due lettori - il consiglio e la colonna accanto al nome).
    *
@@ -1256,16 +1119,19 @@ export class AuctionAdvice {
    * prioritario», non si puo' chiamare - e il punteggio resta, perche' fra pochi turni si sblocca: chi
    * legge la lista lo dice con `lockedForMe`, che e' la stessa guardia del consiglio.
    *
-   * In a mantra draft with the substitution matrix (`priorityOn`) the column is the DRAFT PRIORITY instead
-   * (`priorityRows`, `docs/model/priorita-draft-v1.md`): the same number the advice picks on.
+   * In a mantra draft (`priorityOn`) the column is the DRAFT PRIORITY instead - the operator's formula, per
+   * matchday, on OUR squad as it stands (`draft-priority.priorities`): the same number the advice picks on.
    */
   readonly priorities = computed<Map<number, number | null>>(() => {
     const input = this.planInput();
     const out = new Map<number, number | null>();
     if (!input) return out;
     if (this.priorityOn()) {
-      const rows = this.priorityRows();
-      for (const player of input.pool) out.set(player.id, rows.get(player.id)?.score ?? null);
+      const engine = this.priorityEngine();
+      const mine = input.teams.find((team) => team.id === input.mineId);
+      if (!engine || !mine) return out;
+      const scores = draftPriorityScores(engine.stateOf(mine, input.pool));
+      for (const player of input.pool) out.set(player.id, scores.get(player.id) ?? null);
       return out;
     }
     const mine = input.teams.find((team) => team.id === input.mineId);
