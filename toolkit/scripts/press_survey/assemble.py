@@ -1,6 +1,6 @@
 """Merge the agents' per-club JSON with the briefs (FVM, TM numbers) and compute the matches each injured man misses
 from the TM calendar. Writes report_data.json and the final HTML."""
-import os, json, pathlib, datetime as dt, re, sys
+import os, json, pathlib, collections, datetime as dt, re, sys
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 
 REPO = pathlib.Path(__file__).resolve().parents[3]
@@ -82,6 +82,14 @@ for club in briefs:
             lg=f"{r.get('lg_apps', 0)}/{r.get('lg_starts', 0)}/{r.get('lg_min', 0)}" if r else None,
             lg_min_pct=r.get("lg_min_pct"), all_min_pct=r.get("all_min_pct"),
             cup_starts=r.get("cup_starts"), lg25_min_pct=r.get("lg25_min_pct")))
+    # A listone id that two press rows reach through the BRIEF (a surname both men share) stays only with the row
+    # the agent tagged itself; with no such row nobody gets it. Briefs built before that guard carry the defect.
+    own = [p.get("fc_id") for p in a.get("players", [])]
+    claims = collections.Counter(x["fc_id"] for x in players if x["fc_id"])
+    for x, tagged in zip(players, own):
+        if x["fc_id"] and claims[x["fc_id"]] > 1 and tagged != x["fc_id"]:
+            problems.append(f"{club}: listone id {x['fc_id']} also reached by {x['name']}, dropped there")
+            x.update(fc_id=None, listone=None, fvm=None, ceduto=False, listone_club=None)
     players.sort(key=lambda x: (TIERS.index(x["tier"]) if x["tier"] in TIERS else 9, -(x["fvm"] or 0)))
     clubs.append(dict(club=club, league=b["league"], coach=a.get("coach") or b["coach"], module=a.get("module"),
                       xi=a.get("typical_xi") or [], played_lg=b["league_played"], played_all=b["all_played"],

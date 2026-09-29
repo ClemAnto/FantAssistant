@@ -15,7 +15,10 @@ players = {}
 for club in report["clubs"]:
     for p in club["players"]:
         key = str(int(p["fc_id"])) if p["fc_id"] else None
-        if key and key not in players:   # two press rows on one listone id: keep the first, the ranked one
+        if key and key in players:   # two press rows on one listone id: keep the first, the ranked one, and SAY so
+            print(f"WARNING id {key}: {club['club']} {p['name']} ({p['tier']}) dropped, kept {players[key]['club']} "
+                  f"({players[key]['tier']})")
+        elif key:
             players[key] = {"tier": p["tier"], "start_pct": p["start_pct"], "club": club["club"]}
 path = REPO / "config" / "press_rungs.json"
 current = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}

@@ -2709,11 +2709,6 @@
     "start_pct": 75,
     "club": "Atletico Madrid"
    },
-   "5870": {
-    "tier": "titolare",
-    "start_pct": 60,
-    "club": "Atletico Madrid"
-   },
    "4730": {
     "tier": "comprimario",
     "start_pct": 45,
@@ -2734,23 +2729,28 @@
     "start_pct": 35,
     "club": "Atletico Madrid"
    },
-   "6132": {
-    "tier": "comprimario",
-    "start_pct": 50,
-    "club": "Atletico Madrid"
-   },
    "6808": {
     "tier": "comprimario",
     "start_pct": 45,
     "club": "Atletico Madrid"
    },
+   "5870": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Atletico Madrid"
+   },
+   "6132": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Atletico Madrid"
+   },
    "4304": {
-    "tier": "comprimario",
+    "tier": "ballottaggio",
     "start_pct": 45,
     "club": "Atletico Madrid"
    },
    "7122": {
-    "tier": "comprimario",
+    "tier": "ballottaggio",
     "start_pct": 30,
     "club": "Atletico Madrid"
    },
@@ -4069,19 +4069,9 @@
     "start_pct": 25,
     "club": "Monaco"
    },
-   "6084": {
-    "tier": "comprimario",
-    "start_pct": 40,
-    "club": "Monaco"
-   },
    "4876": {
     "tier": "comprimario",
     "start_pct": 30,
-    "club": "Monaco"
-   },
-   "6591": {
-    "tier": "comprimario",
-    "start_pct": 45,
     "club": "Monaco"
    },
    "4873": {
@@ -4094,6 +4084,11 @@
     "start_pct": 65,
     "club": "Monaco"
    },
+   "6084": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Monaco"
+   },
    "6838": {
     "tier": "ballottaggio",
     "start_pct": 35,
@@ -4102,6 +4097,11 @@
    "7265": {
     "tier": "ballottaggio",
     "start_pct": 55,
+    "club": "Monaco"
+   },
+   "6591": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
     "club": "Monaco"
    },
    "6973": {

@@ -1,5 +1,5 @@
 """Merge TM usage + FotMob squad/injuries + listone FVM into one brief per club (data only, no tier decided here)."""
-import os, json, re, unicodedata, pathlib, datetime as dt
+import os, json, re, unicodedata, pathlib, collections, datetime as dt
 
 REPO = pathlib.Path(__file__).resolve().parents[3]
 # Everything these scripts WRITE carries names, FVM and paid-source pages, and the repository is public, so
@@ -117,6 +117,13 @@ for club, c in tm.items():
             lg25_min=l25.get("minutes"), lg25_min_pct=pct(l25.get("minutes") or 0, 90 * L25) if l25 else None,
             tm_injury=inj.get(pid), fm_seen=bool(f), fm_pos=(f or {}).get("pos"),
             fm_injury=(f or {}).get("injury") if (f or {}).get("injured") else None, fm_rating=(f or {}).get("rating")))
+    # One listone name that two TM men match (Newcastle's "Miley" is Lewis AND Mason) belongs to neither: it is
+    # handed to the agent as ambiguous, like a name that matches two listone rows, and listed as unmatched.
+    claimed = collections.Counter(r["fc_id"] for r in rows if r["fc_id"])
+    for r in rows:
+        if r["fc_id"] and claimed[r["fc_id"]] > 1:
+            r.update(ambiguous=[r["fc"]], fc=None, fc_id=None, role=None, rm=None, fvm=None, ceduto=False)
+    used = {r["fc_id"] for r in rows if r["fc_id"]}
     briefs[club] = dict(league=lst[club]["league"], tm_id=c["tm_id"], fm_id=fm[club]["fm_id"], coach=fm[club]["coach"],
                         league_played=L, all_played=T, competitions=comps, L25=L25,
                         next_matches=[f"{x['date']} {x['comp']} {x['venue']} {x['opp']}" for x in nxt],

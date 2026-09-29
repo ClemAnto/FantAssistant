@@ -7182,6 +7182,36 @@ E una domanda dello stesso giorno, perché la risposta sta in questo documento e
 valuta è il VALORE** (`fm × pv`, misurato il 10/08 su `bench/draft`, surplus −4,0%), non lo SWING. Lo SWING
 (§32) sottrae uno zero come il surplus e non è mai stato messo sul banco del draft: è un aperto, non un verdetto.
 
+### 55.5 La verifica di completezza (29 settembre 2026, club esteri)
+
+Richiesta dell'operatore: «verifica che l'analisi per determinare il gradino della stampa sia completa», poi
+«tralascia le squadre di Serie A e sistema il resto». Risultati sui 27 club esteri, ora ripetibili con
+`toolkit/scripts/press_survey/audit.py --skip-league "Serie A"`:
+
+- **Copertura**: su 920 calciatori acquistabili oggi nel listone EuroLeghe, 918 hanno il gradino della stampa. Fra
+  i club esteri manca solo **Monga** (Manchester City, FVM 1), che Transfermarkt non ha in rosa. Senza una fonte
+  resta senza parola, e l'app usa il gradino del foglio.
+- **Sei gradini corretti** sulla base delle note dei rispettivi agenti, che descrivevano un ballottaggio senza
+  etichettarlo così: il centrocampo dell'Atletico (Hjulmand, Barrios, Koke, Cardoso: «si gioca i due posti
+  centrali», l'agente non aveva usato `ballottaggio` in nessun ruolo) e il secondo posto offensivo del Monaco
+  (Coulibaly, Abline). Ogni riga porta il campo `revised`. Nel config cambiano esattamente questi sei id.
+- **Miley**: un solo «Miley» del listone per due fratelli su Transfermarkt. `to_config` teneva già Lewis, cioè la
+  riga giusta; la causa è curata alla fonte (`build_briefs`: un id conteso non va a nessuno e decide l'agente) e
+  per i dati già raccolti (`assemble`), e `to_config` ora lo SEGNALA invece di scartarlo in silenzio.
+- **Un mio rilievo era sbagliato, e il controllo lo corregge**: «39 ballottaggi con le quote che non sommano 100»
+  era un difetto del mio conteggio. Gli agenti elencano il calciatore stesso fra i suoi rivali, e quattro uomini
+  possono spartirsi due posti. Contati per GRUPPO di rivali, titolari più posti contesi fanno 11 in tutti i 37
+  club. Quindi i 13-16 ballottaggi di Villarreal, Betis e Athletic riflettono rotazioni vere, non una taratura
+  diversa fra agenti. L'unico caso di taratura diversa era l'Atletico, qui sopra.
+- **Lasciati come sono, con la ragione**: cinque `titolare` al 65% invece del 70 delle istruzioni (Mitoma, Lavia,
+  Lee, Güler, Tamari): sono nell'undici e nessuna fonte nomina un rivale, quindi non c'è un ballottaggio da
+  scrivere. Sei infortuni senza data di rientro (Cissé, Gittens, Semenyo, Kovacic, Darlow, Heaton): la data non
+  viaggia nel config, e l'app legge gli infortuni dalle sue fonti. Villarreal: quattro uomini sulle due fasce
+  sommano 170 invece di 200 (segnalato, non corretto).
+- **La cartella di lavoro** era rimasta nello scratchpad temporaneo della sessione del 28/09, a una pulizia di
+  Windows dal perdere gli output grezzi da cui si rifanno report e config. È ora in `data/reports/press_survey/`
+  (ignorata da git), con le copie `*.bak-2026-09-29` di prima delle correzioni.
+
 ## 56 - LA STAGIONE SCORSA DI CHI LA PIATTAFORMA NON HA VOTATO (29 settembre 2026)
 
 Richiesta dell'operatore sulla vista «medie» del Draft Assistant: «recuperiamo i valori dello scorso anno di

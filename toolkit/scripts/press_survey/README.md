@@ -6,7 +6,9 @@ report `data/reports/rose-euroleghe-<date>.html`, the comparison with our sheet 
 which the app can show and price instead of the sheet's rung (`core/player-rulings.ts`, Opzioni → Titolarità).
 The method, the measurements and the refused variants: `docs/model/letture-app-v1.md` §55.
 
-Everything these scripts WRITE goes to `data/reports/press_survey/` (or `$PRESS_SURVEY_DIR`): it carries names,
+Everything these scripts WRITE goes to `data/reports/press_survey/` (or `$PRESS_SURVEY_DIR`) - and that is where the
+work folder must stay: the 28/09 run kept it in a session scratchpad under %TEMP%, one cleanup away from losing the
+raw agent files the report and the config are rebuilt from (copied back on 29/09). It carries names,
 FVM and paid-source pages, and the repository is public. `$PRESS_SURVEY_DATE` (default 2026-09-28) is the survey
 day; `$PRESS_SURVEY_LISTONE_READ` the day the listone was read (shown in the report).
 
@@ -22,8 +24,12 @@ day; `$PRESS_SURVEY_LISTONE_READ` the day the listone was read (shown in the rep
    A session has a cap of ~200 web searches: 12 agents exhausted it halfway on 28/09, so plan fewer searches or
    more fetches of known pages.
 6. `python assemble.py --html` - the report; injured matches are counted on the club's TM calendar.
-7. `python to_config.py` - writes `config/press_rungs.json`; then `export` and `npm run data:pull`.
-8. `python compare.py` (with `compare_template.html`) - ours against the press.
+7. `python audit.py [--skip-league "Serie A"]` - completeness and consistency, read-only: who is buyable TODAY and
+   has no rung, one listone id on two rows, the word against the agent's own share, XI men filed below
+   `ballottaggio`, titolari plus contested places making eleven. Fix what it finds in `out/<Club>.json` (add a
+   `revised` line saying why) and re-run step 6.
+8. `python to_config.py` - writes `config/press_rungs.json`; then `export` and `npm run data:pull`.
+9. `python compare.py` (with `compare_template.html`) - ours against the press.
 
 ## The experiments behind SHEET_REVISION 77
 
