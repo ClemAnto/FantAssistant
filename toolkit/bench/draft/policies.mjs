@@ -8,6 +8,7 @@ import {
 } from './appcode.mjs';
 import { ahead, appNeed, bestUnder } from './engine.mjs';
 import { augments, bestCovered } from './legal.mjs';
+import { priority } from './priority.mjs';
 
 /* ---- currencies ------------------------------------------------------------------------------------ */
 
@@ -444,7 +445,48 @@ export const PAIRS = [
   })),
 ];
 
+/**
+ * The DRAFT PRIORITY (`docs/model/priorita-draft-v1.md`) against the policy AS IT SHIPS, on the operator's
+ * EuroLeghe (run with `--declared`: eleven handed in beforehand, unlimited subs, holes void the R-Factor).
+ * The two ablations say what the look-ahead and the double rule are worth each.
+ */
+export const PRIORITY = [
+  { name: 'SPEDITA: valore x copertura x sopravv.', ...shipped(withSurvival(VALUE)) },
+  { name: 'PRIORITA (completa)', ...priority() },
+  { name: 'priorita, senza sguardo avanti', ...priority({ lookahead: false }) },
+  { name: 'priorita, senza doppioni', ...priority({ doubles: false }) },
+];
+
+
+/**
+ * How far to look ahead at the START of the draft - the operator's question of 29/09/2026, asked because two
+ * earlier readings disagreed. Run with `--declared --cap=12`, so the ceiling of the first turns exists.
+ *
+ * «Hunting» uses the engine's own boundary (`picksCount < turns`), so it and the ceiling agree on every pick;
+ * and after the start the deep rows return `null`, i.e. the SAME one-turn look-ahead as the baseline, so a
+ * row changes ONE thing - how deep the start looks (the review of 29/09/2026: `1` there made them «deeper
+ * start AND blind afterwards»).
+ */
+const hunting = (team, { setup }) => (setup.cap
+  ? !team.roster.some((m) => m.price >= setup.cap.fvm) && team.picksCount < setup.cap.turns : false);
+const deepStart = (depth) => (team, context) => (hunting(team, context) ? depth : null);
+
+/** One turn of look-ahead ALWAYS, against one turn only for the first seven picks (29/09/2026). */
+export const UNTIL = [
+  { name: 'SPEDITA: valore x copertura x sopravv.', ...shipped(withSurvival(VALUE)) },
+  { name: 'priorita, nessuno sguardo', ...priority({ turns: () => 1 }) },
+  { name: 'priorita, sguardo 1 sempre', ...priority() },
+  { name: 'priorita, sguardo 1 fino al 7o turno', ...priority({ lookaheadUntil: 7 }) },
+  { name: 'priorita, inizio prof. 3 + primi 3', ...priority({ turns: deepStart(3), stayTop: { rank: 3, penalty: 5 } }) },
+  { name: 'priorita, inizio prof. 6 + primi 3', ...priority({ turns: deepStart(6), stayTop: { rank: 3, penalty: 5 } }) },
+];
+
+export const DEPTH = UNTIL;
+
 export const SETS = {
+  until: UNTIL,
+  depth: DEPTH,
+  priority: PRIORITY,
   published: PUBLISHED, coverage: COVERAGE, currency: CURRENCY, blend: BLEND, survival: SURVIVAL,
   combined: COMBINED, pairs: PAIRS,
 };

@@ -8,23 +8,39 @@
  * Why a conclusion here needs five windows and not one: two results were reported to the operator from T2
  * alone and both died - the middle-way floor (+92 became +0.0%) and «the engine beats the market». */
 import { SETS } from './policies.mjs';
-import { loadShapes, loadWindows, reportAdvantage, reportAgainstBaseline, measure, setup } from './bench.mjs';
+import { SEEDS, loadShapes, loadWindows, reportAdvantage, reportAgainstBaseline, measure, setup } from './bench.mjs';
 
-const which = process.argv[2] ?? 'published';
-const league = process.argv[3] ?? 'EuroLeghe';
+const flags = process.argv.slice(2).filter((a) => a.startsWith('--'));
+const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const flag = (name) => flags.find((f) => f.startsWith(`--${name}=`))?.split('=')[1];
+// A flag nobody reads produces a wrong run that looks like a right one (CLAUDE.md, the dispatcher rule).
+const KNOWN = ['--declared', '--seeds=', '--seat=', '--cap='];
+const unknown = flags.filter((f) => !KNOWN.some((k) => (k.endsWith('=') ? f.startsWith(k) : f === k)));
+if (unknown.length) {
+  console.error(`unknown option(s): ${unknown.join(', ')}`);
+  process.exit(1);
+}
+const which = positional[0] ?? 'published';
+const league = positional[1] ?? 'EuroLeghe';
+// --declared: the EuroLeghe rules (declared eleven, unlimited subs, R-Factor); --seeds=N; --seat=S (0-based).
+const metric = flags.includes('--declared') ? 'declared' : 'best';
+const seeds = flag('seeds') ? SEEDS.slice(0, Number(flag('seeds'))) : SEEDS;
+const seatFilter = flag('seat') ? [Number(flag('seat'))] : null;
 const policies = SETS[which];
 if (!policies) {
   console.error(`unknown policy set "${which}" - available: ${Object.keys(SETS).join(', ')}`);
   process.exit(1);
 }
 
-const table = setup(league);
-const windows = loadWindows(process.argv[4] ?? 'windows.json');
+const table = { ...setup(league), exactKeepers: flags.includes('--declared'),
+  ...(flag('cap') ? { capRank: Number(flag('cap')), capTurns: 5 } : {}) };
+const windows = loadWindows(positional[2] ?? 'windows.json');
 const shapes = loadShapes(table.game);
 console.log(`league "${table.name}": ${table.teams} teams, ${table.rounds} rounds, ${table.keepers} keepers`
   + ` (${table.platform}/${table.game})`);
 
-const run = measure(policies, { windows, shapes, setup: table });
+console.log(`metric: ${metric}, ${seeds.length} seeds, seats ${seatFilter ?? 'all'}`);
+const run = measure(policies, { windows, shapes, setup: table, metric, seeds, seatFilter });
 reportAdvantage(run, policies, 'PER MATCHDAY (the project\'s definition)', 'adv');
 reportAdvantage(run, policies, 'SEASON TOTALS', 'tot');
 if (policies.length > 1 && which !== 'published') reportAgainstBaseline(run, policies);

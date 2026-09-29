@@ -152,6 +152,27 @@ export function rankUnder(args) {
   return rows;
 }
 
+/**
+ * The league's rules on WHO a squad may call now, and the only copy of them: the engine, the priority's own
+ * candidates and both of its look-aheads read this, because a simulation that lets a rival break a rule the
+ * real draft enforces hands us men he could never have taken (the review of 29/09/2026 found the one-turn
+ * look-ahead ignoring both rules, and the capped turns spending the look-ahead on frozen men).
+ *   * THE CEILING OF THE FIRST TURNS (the operator's league, 28/09/2026): a man priced at `cap.fvm` or more
+ *     cannot be called in a squad's first `cap.turns` picks.
+ *   * EXACT DOORS (`exactKeepers`): once the picks left are the doors still missing, only a door.
+ * The keeper CAP (no third door) stays in `bestUnder`, where it always was.
+ */
+export function legalPoolFor(team, pool, setup) {
+  let legal = pool;
+  if (setup.cap && team.picksCount < setup.cap.turns) legal = legal.filter((p) => p.price < setup.cap.fvm);
+  if (setup.exactKeepers) {
+    const keeperSlot = setup.keeperSlot ?? 'por';
+    const missing = setup.keepers - team.slots.filter((s) => s === keeperSlot).length;
+    if (missing > 0 && setup.rounds - team.picksCount <= missing) legal = legal.filter((p) => p.slot === keeperSlot);
+  }
+  return legal;
+}
+
 /** The draft of ONE listone, at ONE league setup. */
 export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
   const places = startingPlaces(shapes);
@@ -169,12 +190,19 @@ export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
     const ctx = { round, rounds: ROUNDS, keepers: KEEPERS, shapes, pool, slotsLeft, teams: TEAMS,
                   keeperSlot: KEEPER_SLOT_HERE, table: liveTeams, order: liveOrder, at: liveAt,
                   setup, places, maxAhead: MAX_AHEAD };
+    // THE ROSTER'S COMPOSITION IS A RULE FOR EVERYBODY, and it matters with doors: a door costs one credit, a
+    // price head never reaches for it, and without this the rivals ended the draft with NO door at all (0 of
+    // 10 on the first porte run) - a hole every matchday that would have flattered every policy against them.
+    // Opt-in (`setup.exactKeepers`) so the published runs, which never had it, reproduce unchanged.
+    const legalPool = legalPoolFor(team, pool, setup);
     return bestUnder({
       team,
-      pool: policy?.restrict ? policy.restrict(pool, ctx) : pool,
+      pool: policy?.restrict ? policy.restrict(legalPool, ctx) : legalPool,
       places,
       keeperCap: KEEPERS,
-      tail: placesFromEnd <= TAIL_POSITIONS,
+      // A policy that prices the ORDER itself (the priority) must not be switched to «points per credit» at
+      // the end of a round: that rule is a patch for heads that do not see the order.
+      tail: !policy?.noTail && placesFromEnd <= TAIL_POSITIONS,
       quality: policy ? (p) => policy.currency(p, { ...ctx, team }) : (p) => KIND[kind](p, noiseAt(p.id)),
       need: policy?.need ?? appNeed,
       floor: policy?.floor ?? Infinity,
@@ -186,7 +214,7 @@ export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
    * One draft. `seat` is us; `policy` is our head; every rival runs `table(i)`'s KIND with the app's own
    * need weighting and no floor - a rival is not assumed to have our discipline either.
    */
-  return function draft({ seat, seed, policy, table = MIXED, observe = null }) {
+  return function draft({ seat, seed, policy, table = MIXED, observe = null, seatPolicies = null }) {
     const random = rng(seed);
     const noise = new Map();
     const noiseAt = (id) => { if (!noise.has(id)) noise.set(id, random()); return noise.get(id); };
@@ -207,8 +235,11 @@ export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
         liveTeams = teams; liveOrder = order; liveAt = index;
         // The table's residual demand in SLOTS, which is what a draft spends instead of credits (§11.2).
         const slotsLeft = TEAMS * ROUNDS - teams.reduce((a, t) => a + t.picksCount, 0);
-        const choice = id === seat
-          ? pickFor(team, pool, null, noiseAt, fromEnd, policy, round, slotsLeft)
+        // `seatPolicies` gives a head of ours to MORE than one seat (a table where half the room drafts like
+        // us), each with its own instance so no memo is shared between two squads.
+        const own = seatPolicies?.[id] ?? (id === seat ? policy : null);
+        const choice = own
+          ? pickFor(team, pool, null, noiseAt, fromEnd, own, round, slotsLeft)
           : pickFor(team, pool, kinds[id], noiseAt, fromEnd, null, round, slotsLeft);
         // The harness sees the state a predictor would have: this team, this pool, this position in the
         // round - and then what actually happened. It is called BEFORE the pool shrinks, on purpose.

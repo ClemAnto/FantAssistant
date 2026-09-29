@@ -546,3 +546,20 @@ non era, e il changepoint cade sul giorno del trasferimento e lo chiama «ha per
 1.692 nel 2025-26 sono in quello stato, il 7,3%). Il calendario di un club è suo **solo mentre ci stava**, e
 il vincolo vale solo per chi ha davvero giocato per due club: per gli altri taglierebbe via esattamente le
 giornate in cui un posto si conquista.
+
+
+## 9. La PRIORITÀ del draft (29/09/2026) — [priorita-draft-v1.md](priorita-draft-v1.md)
+
+- [x] **9.1 — Il banco gioca la sua EuroLeghe**: porte, 2 + 30 esatti per tutti, club italiani fuori, undici
+  consegnato prima, sostituzioni nell'ordine del regolamento, buco a 0 che azzera l'R-Factor, tetto dei primi
+  turni per finestra (`--cap`). Il metro pubblicato si riproduce identico.
+- [x] **9.2 — La priorità come politica del banco** (`priority.mjs`), e le sue varianti (profondità, «primi 3»,
+  teste dei rivali riconosciute / oracolo).
+- [ ] **9.3 — Il confronto dello sguardo avanti DOPO la review** (`multi.mjs until … --declared --cap=12`, posto
+  8 × 8 seed e tutti i posti × 2 seed): lanciato alla chiusura del 29/09.
+- [ ] **9.4 — `core/draft-priority.ts` nell'app**, letta dal banco via `appcode.mjs`: sguardo di un turno fino al
+  7º, doppione distinto a schermo, modulo di riferimento accanto al consiglio, Z senza gli infortunati pesanti,
+  porta = FVM del portiere più caro.
+- [ ] **9.5 — Una valutazione della riserva che provi il cambio di modulo**: `squadWorth` legge il −1 della
+  matrice senza tentare il cambio di schema, quindi sottostima una riserva fuori ruolo (il PUNTEGGIO invece segue
+  il regolamento).

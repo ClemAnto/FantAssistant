@@ -1,5 +1,20 @@
 # Stato progetto & continuità — v5
-**Aggiornato: 29 settembre 2026 — LA STAGIONE SCORSA DI CHI LA PIATTAFORMA NON HA VOTATO, IN TRE GRADINI E IN CORSIVO.** Da «recuperiamo i valori dello scorso anno di Evanilson, Lepaul, Ortega J., Tzolis e tutti quelli a cui mancano», poi «va bene anche visualizzare i valori sintetici (in corsivo)». Dettaglio nella sezione CHIUSURA del 29/09 qui sotto e in `letture-app-v1.md` §56.
+**Aggiornato (II): 29 settembre 2026 — LA PRIORITÀ DEL DRAFT, SUL BANCO E NON ANCORA NELL'APP.** Dettata
+dall'operatore in una conversazione lunga (nove punti, poi le sue regole di lega una per una) e scritta in
+[priorita-draft-v1.md](priorita-draft-v1.md): **V = Pv × (FM − Z) + (N − Pv) × (R − Z)**, Z la fantamedia media
+del ruolo BASE (il più difensivo) fra i soli acquistabili di una lega a 12, R la riserva per fasce che sfuma con
+le scelte che restano, più l'R-Factor atteso sull'undici e lo sguardo al turno dopo con l'ordine per FVM di
+rosa. Il banco del draft ora gioca la sua EuroLeghe (`extract.py --porte --no-italian`, `lineup.mjs`: undici
+consegnato prima, sostituzioni nell'ordine del regolamento, buco = 0 che azzera l'R-Factor; porte al prezzo del
+portiere più caro; 2 + 30 esatti per tutti; tetto dei primi turni `--cap`). Esito prima della review: **+2,7%
+strict su tutti i posti** contro il pannello di oggi, sguardo di un turno fino al 7º. Prevedere le teste dei
+rivali: si riconoscono al 92-99% e **non pagano nemmeno con l'oracolo**, quindi abbandonate. La code-review ha
+trovato due difetti proprio nello sguardo avanti (candidati e simulazioni ignoravano il tetto): corretti con una
+definizione sola delle regole, e **il confronto è rilanciato — è l'aperto numero uno**. Poi `core/draft-priority.ts`
+nell'app. Committata solo la metà banco + documenti; la metà app nell'albero (`player-trend`, `strategy`,
+`valuation-store`, `ui/delta-trend`, `ui/vote-trend`) è dell'altra sessione e resta fuori.
+
+· precedente: **Aggiornato: 29 settembre 2026 — LA STAGIONE SCORSA DI CHI LA PIATTAFORMA NON HA VOTATO, IN TRE GRADINI E IN CORSIVO.** Da «recuperiamo i valori dello scorso anno di Evanilson, Lepaul, Ortega J., Tzolis e tutti quelli a cui mancano», poi «va bene anche visualizzare i valori sintetici (in corsivo)». Dettaglio nella sezione CHIUSURA del 29/09 qui sotto e in `letture-app-v1.md` §56.
 **Aggiornato (III): 28 settembre 2026 — LE ROSE EUROLEGHE LETTE DA PIU' FONTI, IL GRADINO DELLA STAMPA NELL'APP, E IL PRIOR CHE NON LEGGEVA TRANSFERMARKT.** Terza chiusura dello stesso giorno. Una rilevazione delle 37 rose EuroLeghe su Transfermarkt, FotMob e stampa (1.075 calciatori, gradino stagionale, infortuni con partite saltate); il confronto col nostro foglio; `config/press_rungs.json` e l'interruttore «Gradino della stampa» (acceso) in Opzioni; `SHEET_REVISION` 77, la stagione scorsa da `tm_appearances` per chi arriva da fuori perimetro, solo su EuroLeghe. Commit `db0a027`, non pushato. Dettaglio: `letture-app-v1.md` §55.
 **Aggiornato (II): 28 settembre 2026 — IL DRAFT COL TETTO FVM, E LE PORTE REGOLA DI LEGA.** Seconda chiusura dello stesso giorno, l'ultima prima della sezione del 24/09 qui sotto.
 **Aggiornato: 28 settembre 2026 — LO STORICO DEI CLUB CHE LA PIATTAFORMA NON VOTAVA, E UN TURNO SILENZIOSO NON È UN TURNO AMBIGUO.** Da «mancano le partite delle vecchie stagioni del Bournemouth», poi Strasburgo, poi «verifica se altre squadre non hanno lo storico». Tre difetti, due nell'app e uno nel toolkit. Dettaglio: spec «Novità v9.104».

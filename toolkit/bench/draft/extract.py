@@ -18,9 +18,21 @@ import sys
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.db.database import connect
 from euroleghe_ingest.engine import evaluate, features
+from euroleghe_ingest.matching import club_identity
 
-OUT = sys.argv[1]
-LEAGUE = sys.argv[2] if len(sys.argv) > 2 else "EuroLeghe"
+# Two OPTIONAL rules of a league, off by default so every published window reproduces unchanged:
+#   --porte          the keeper unit is a CLUB, not a man (EuroLeghe 2026-27 regulation, 28/09/2026): the
+#                    squad buys a club's door, and the door scores whichever of that club's keepers played.
+#   --no-italian     players of Serie A clubs are not in the listone (same regulation).
+FLAGS = {arg for arg in sys.argv[1:] if arg.startswith("--")}
+POSITIONAL = [arg for arg in sys.argv[1:] if not arg.startswith("--")]
+OUT = POSITIONAL[0]
+LEAGUE = POSITIONAL[1] if len(POSITIONAL) > 1 else "EuroLeghe"
+PORTE = "--porte" in FLAGS
+NO_ITALIAN = "--no-italian" in FLAGS
+unknown = FLAGS - {"--porte", "--no-italian"}
+if unknown:
+    raise SystemExit(f"unknown option(s): {', '.join(sorted(unknown))}")
 
 # Which windows a platform can actually be measured on. euro: the authenticated votes API turned out to
 # serve seasons the Drive datasets never covered, and EuroLeghe 21/22 is empty AT THE SOURCE, which costs
@@ -42,8 +54,87 @@ mantra = game == "mantra"
 price_column = "price_initial_mantra" if mantra else "price_initial"
 fvm_column = "fvm_mantra" if mantra else "fvm"
 
-print(f'league "{LEAGUE}": platform={platform} game={game}, windows {", ".join(windows)}', flush=True)
+print(f'league "{LEAGUE}": platform={platform} game={game}, windows {", ".join(windows)}'
+      f'{" | porte" if PORTE else ""}{" | no Italian clubs" if NO_ITALIAN else ""}', flush=True)
 out = {}
+
+def porte(conn, win, platform, rows, others, votes, base, rounds, rep_keeper):
+    """Replace every keeper with his club's DOOR.
+
+    A door is bought by CALLING THE CLUB'S STARTING KEEPER (the operator, 28/09/2026: «si chiama il
+    portiere titolare e non le riserve»), and the starter is THE DEAREST keeper («prendi come portiere
+    titolare il più caro come FVM»). Here «dearest» reads the bench's own price, the pre-auction Qt.I,
+    because the archived FVM of a past season is its LAST read and already knows who played; the app reads
+    the FVM. In a draft that price is also what moves you down the next round's order. Its
+    prediction is the operator's own definition, the keepers' fantamedia weighted on their expected
+    appearances, with the appearances summed up to the calendar. Its OUTCOME is read from the votes of the
+    club's keepers by TEAM, not from the listone's roster: a keeper who changed club mid-season scored for
+    the club he played for, and the door belongs to the club.
+    """
+    keeper_slot = "por" if mantra else "p"
+    keepers = [r for r in rows + others if r["slot"] == keeper_slot]
+    rows = [r for r in rows if r["slot"] != keeper_slot]
+    others = [r for r in others if r["slot"] != keeper_slot]
+    by_club = {}
+    for man in keepers:
+        if man.get("club"):
+            by_club.setdefault(club_identity(man["club"]), []).append(man)
+    # The door's votes, matchday by matchday: the mean of that club's keepers who got one (nearly always one).
+    door_votes, door_base = {}, {}
+    for team, md, fv, mv in conn.execute(
+        "select team, matchday, fantavoto, mv from match_ratings"
+        " where season=? and platform=? and role='P' and fantavoto is not null",
+        (win.target_season, platform),
+    ):
+        key = club_identity(team)
+        if key in by_club:
+            door_votes.setdefault(key, {}).setdefault(str(md), []).append(float(fv))
+            if mv is not None:
+                door_base.setdefault(key, {}).setdefault(str(md), []).append(float(mv))
+    made = 0
+    for index, (key, men) in enumerate(sorted(by_club.items())):
+        ident = -(index + 1)
+        priced = [m for m in men if m.get("fm_pred") is not None and m.get("pv_pred") is not None
+                  and m["pv_pred"] > 0]
+        apps = sum(m["pv_pred"] for m in priced)
+        fm = sum(m["fm_pred"] * m["pv_pred"] for m in priced) / apps if apps else None
+        pv = min(float(rounds), apps) if apps else None
+        steady_men = [m for m in priced if m.get("steady") is not None]
+        steady_apps = sum(m["pv_pred"] for m in steady_men)
+        mean = lambda xs: round(sum(xs) / len(xs), 2)
+        starter = max(men, key=lambda m: m["price"])
+        per_md = {md: mean(v) for md, v in door_votes.get(key, {}).items()}
+        per_md_base = {md: mean(v) for md, v in door_base.get(key, {}).items()}
+        if per_md:
+            votes[str(ident)] = per_md
+        if per_md_base:
+            base[str(ident)] = per_md_base
+        fm_act = sum(per_md.values()) / len(per_md) if per_md else None
+        pv_act = float(len(per_md)) if per_md else None
+        door = {
+            "club": men[0]["club"], "league": men[0].get("league"), "id": ident,
+            "name": f"Porta {men[0]['club']}", "slot": keeper_slot, "roles": [keeper_slot],
+            "price": starter["price"], "keepers": [m["id"] for m in men], "starter": starter["id"],
+            "steady": (round(sum(m["steady"] * m["pv_pred"] for m in steady_men) / steady_apps, 4)
+                       if steady_apps else None),
+            "fm_pred": fm, "pv_pred": pv, "fm_act": fm_act, "pv_act": pv_act,
+        }
+        if fm is None or pv is None or fm_act is None or rep_keeper is None:
+            others.append(door)
+            continue
+        door.update({
+            "fvm": None, "fm_prev": None,
+            "surplus": (fm - rep_keeper) * pv, "value": fm * pv, "actual": fm_act * pv_act,
+        })
+        rows.append(door)
+        made += 1
+    # A door with no votes is either a club outside this season's platform perimeter or a spelling the
+    # identity does not reconcile; the two look the same to a count, so the names are printed.
+    silent = sorted(men[0]["club"] for key, men in by_club.items() if key not in door_votes)
+    print(f"    porte: {len(by_club)} clubs, {made} priced doors, {len(keepers)} keepers folded"
+          + (f"; no keeper votes for: {', '.join(silent)}" if silent else ""), flush=True)
+    return rows, others
+
 
 for key in windows:
     win = features.WINDOWS[key]
@@ -80,6 +171,8 @@ for key in windows:
     rows, others = [], []
     for pred in preds:
         obs = pred.obs
+        if NO_ITALIAN and obs.league == "serie_a":
+            continue
         # The SLOT is in the vocabulary the game is played with, because that is the vocabulary the
         # replacement levels come back in: `por`..`pc` on mantra, `P`/`D`/`C`/`A` on classic. Lowercasing the
         # classic one made `replacement.get('p')` miss on every row and the extraction wrote 0 players in all
@@ -105,6 +198,7 @@ for key in windows:
             if price:
                 others.append({
                     "club": obs.club_target or obs.club_prev,
+                    "league": obs.league,
                     "steady": steady.get(obs.fc_id),
                     "id": obs.fc_id, "name": obs.name, "slot": slot.lower(),
                     "roles": roles or [slot.lower()], "price": float(price),
@@ -120,6 +214,7 @@ for key in windows:
             # The TARGET season's club - the shirt he will actually wear - falling back on the input one
             # for a man the target roster does not place yet.
             "club": obs.club_target or obs.club_prev,
+            "league": obs.league,
             "steady": steady.get(obs.fc_id),
             # `slot` lowercase for the bench (its module files spell places in either case and `placesOf`
             # lowercases them), `roles` complete - on classic that is one macro-role and that IS the legality.
@@ -155,6 +250,9 @@ for key in windows:
             votes.setdefault(str(fc), {})[str(md)] = round(float(fv), 2)
             if mv is not None:
                 base.setdefault(str(fc), {})[str(md)] = round(float(mv), 2)
+    if PORTE:
+        rows, others = porte(conn, win, platform, rows, others, votes, base, rounds, rep_keeper=(
+            (data.replacement or {}).get("por" if mantra else "P")))
     out[key] = {
         "league": LEAGUE, "platform": platform, "game": game,
         "input": win.input_season, "target": win.target_season, "cross_fit": source,

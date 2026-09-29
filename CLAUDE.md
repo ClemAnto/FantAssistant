@@ -167,7 +167,9 @@ columns: reporting, ungated, every threshold measured — and the alternatives t
 their numbers) -> **`todolist-draft-v1.md`** (the DRAFT improvement
 plan born from the 10/08/2026 five-window strategy campaign, ordered by measured yield; its standing
 results: role coverage beats the currency tenfold, the surplus is the wrong draft currency, playing
-for first pick is ruinous) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
+for first pick is ruinous) -> **`priorita-draft-v1.md`** (29/09/2026: the DRAFT PRIORITY for the operator's
+EuroLeghe - the formula he dictated, the bench that now plays his rules, and why predicting the rivals was
+measured and dropped) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
 the consolidated notes in the same folder. For BOARD work (typical elevens): `formazioni-tipo-v1.md`
 (how the board is decided — shape, claim, fit, with every constant) and `todolist-formazioni-tipo-v1.md`
 (the improvement plan born from the 08/08/2026 press comparison, ordered by measured yield; its standing
@@ -7230,6 +7232,19 @@ claim renderebbe circolare il confronto che dice se è meglio. Quattro cose che 
   che confrontano col foglio spengono l'interruttore (`fantassistant.rulings.pressSource` = '0').
 - **WEBFETCH NON APRE TRANSFERMARKT, CURL SÌ, e una sessione ha ~200 ricerche web**: dodici agenti le hanno
   finite a metà. Una rilevazione si pianifica su pagine note, non su ricerche.
+
+## The ZERO of an empty place, and a promise that no longer has picks behind it
+**28-29/09/2026, the draft priority (`docs/model/priorita-draft-v1.md` §7, §12).** Three defects of one family
+in a squad valuation, each found by the bench's FIRST run and not by a reading: an empty place scored 0 (so
+every real starter with a few absences read as a LOSS against leaving it empty, and the first squad was all
+centre-forwards), a declared reserve prior discounted twice, and both the prior and the empty place kept their
+value to the last pick (so a real reserve read worse than an imaginary one, and a capped draft ended with a
+centre back's place empty all season). **A value that stands for «something the draft will still buy» must
+fade with the picks that remain**, or at the end it prices a promise nobody can keep. Two more habits the same
+days paid for: **a rule the real draft enforces must be enforced inside every simulation of it** (one
+`legalPoolFor`, because a look-ahead that let rivals call frozen men was measuring another game), and
+**knowing an opponent's head perfectly can be worth nothing** - measured with an oracle before building a
+classifier, it was.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

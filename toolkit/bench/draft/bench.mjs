@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 
 import { MIXED, makeDraft, matchdayXI, setupFrom, stat, totalXI } from './engine.mjs';
 import { config, work } from './paths.mjs';
+import { seasonDeclared } from './lineup.mjs';
 
 export const SEEDS = [7, 42, 1234, 99, 2026, 555, 8081, 31337];
 export const FLOOR_PCT = 0.5, WORST_PCT = -2.0;
@@ -81,18 +82,34 @@ export function annotate(players, rounds) {
  * every seat with every seed. Same board, same rivals, same order - so a difference between two rows is
  * the head and nothing else.
  */
-export function measure(policies, { windows, shapes, setup: table, seeds = SEEDS, quiet = false } = {}) {
+export function measure(policies, { windows, shapes, setup: table, seeds = SEEDS, quiet = false, metric = 'best',
+                                    seatFilter = null } = {}) {
+  // `metric`: 'best' = the published one (best eleven among who got a vote, with hindsight); 'declared' = the
+  // EuroLeghe rules (eleven handed in beforehand, unlimited subs by the matrix, holes void the R-Factor).
+  const scoreOf = metric === 'declared'
+    ? (roster, w) => seasonDeclared(roster, shapes, w.votes, w.base ?? {}, w.rounds)
+    : (roster, w) => matchdayXI(roster, shapes, w.votes, w.rounds);
   const keys = Object.keys(windows);
-  const results = new Map(policies.map((p) => [p.name, { adv: [], tot: [], mine: [], cover: [], spent: [] }]));
+  const results = new Map(policies.map((p) => [p.name,
+    { adv: [], tot: [], mine: [], cover: [], spent: [], holes: [], rf: [], extra: [] }]));
   for (const key of keys) {
     const w = windows[key];
-    const draft = makeDraft(annotate(w.players, w.rounds), shapes, table);
+    // The ceiling of the first turns, read per window: `capRank` = how many men it freezes. The operator's
+    // 213 is an FVM, and a past window prices on Qt.I, so the ceiling is the price of the `capRank`-th
+    // dearest man of THAT listone - the same number of «supertop» today's 213 freezes.
+    let here = table;
+    if (table.capRank) {
+      const prices = w.players.map((p) => p.price).sort((a, b) => b - a);
+      here = { ...table, cap: { fvm: prices[table.capRank - 1], turns: table.capTurns ?? 5 } };
+    }
+    const draft = makeDraft(annotate(w.players, w.rounds), shapes, here);
     for (const policy of policies) {
       const adv = [], tot = [], mineRaw = [];
-      let filled = 0, places = 0, spent = 0, runs = 0;
-      for (const seed of seeds) for (let seat = 0; seat < table.teams; seat += 1) {
+      let filled = 0, places = 0, spent = 0, runs = 0, holes = 0, rf = 0;
+      const seats = seatFilter ?? Array.from({ length: table.teams }, (_, i) => i);
+      for (const seed of seeds) for (const seat of seats) {
         const { got } = draft({ seat, seed, policy, table: policy.table ?? MIXED });
-        const perMd = got.map((roster) => matchdayXI(roster, shapes, w.votes, w.rounds));
+        const perMd = got.map((roster) => scoreOf(roster, w));
         const totals = got.map((roster) => totalXI(roster, shapes));
         const rivalsOf = (xs) => xs.filter((_, i) => i !== seat).reduce((a, v) => a + v, 0) / (table.teams - 1);
         const rivalMd = rivalsOf(perMd.map((x) => x.points));
@@ -100,6 +117,10 @@ export function measure(policies, { windows, shapes, setup: table, seeds = SEEDS
         tot.push(100 * (totals[seat] - rivalsOf(totals)) / rivalsOf(totals));
         mineRaw.push(perMd[seat].points / w.rounds);
         filled += perMd[seat].filled; places += perMd[seat].places;
+        // The published metric measures neither: they stay UNKNOWN there, never a zero («vuoto = ignoto»).
+        if (perMd[seat].holes == null) { holes = null; rf = null; }
+        else if (holes !== null) { holes += perMd[seat].holes; rf += perMd[seat].rfPoints; }
+        if (policy.onDraft) policy.onDraft(got[seat]);
         spent += got[seat].reduce((a, p) => a + p.price, 0);
         runs += 1;
       }
@@ -109,6 +130,8 @@ export function measure(policies, { windows, shapes, setup: table, seeds = SEEDS
       cell.mine.push(stat(mineRaw).m);
       cell.cover.push(100 * filled / places);
       cell.spent.push(spent / runs);
+      cell.holes.push(holes === null ? null : holes / runs);
+      cell.rf.push(rf === null ? null : rf / runs / w.rounds);
     }
     if (!quiet) {
       console.log(`done ${key} (${w.input} -> ${w.target}, ${w.rounds} matchdays, ${w.players.length} quoted)`);
@@ -161,11 +184,14 @@ export function reportAgainstBaseline({ results, keys }, policies) {
       + `${signed(v.mean, 2).padStart(9)}${(v.wins + '/' + xs.length).padStart(7)}`
       + `${(v.strict ? 'PASS' : '-').padStart(8)}${(v.robust ? 'PASS' : '-').padStart(8)}`);
   }
-  console.log(NL + `${'policy'.padEnd(36)}${'pts/md'.padStart(9)}${'covered'.padStart(10)}${'spent'.padStart(9)}`);
+  console.log(NL + `${'policy'.padEnd(36)}${'pts/md'.padStart(9)}${'covered'.padStart(10)}${'spent'.padStart(9)}`
+    + `${'holes'.padStart(8)}${'R/md'.padStart(7)}`);
   const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
   for (const p of policies) {
     const c = results.get(p.name);
     console.log(`${p.name.padEnd(36)}${mean(c.mine).toFixed(1).padStart(9)}`
-      + `${(mean(c.cover).toFixed(1) + '%').padStart(10)}${mean(c.spent).toFixed(0).padStart(9)}`);
+      + `${(mean(c.cover).toFixed(1) + '%').padStart(10)}${mean(c.spent).toFixed(0).padStart(9)}`
+      + `${(c.holes.includes(null) ? '-' : mean(c.holes).toFixed(1)).padStart(8)}`
+      + `${(c.rf.includes(null) ? '-' : mean(c.rf).toFixed(2)).padStart(7)}`);
   }
 }

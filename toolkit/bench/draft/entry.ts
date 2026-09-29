@@ -29,6 +29,8 @@ export {
   assign,
   augments,
   bestCovered,
+  bestEleven,
+  placesIn,
   placesOf,
 } from '../../../app/src/app/core/mantra-legal';
 
