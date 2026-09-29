@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { ClubOption, DEFAULT_LEAGUE, GlobalOptions, excludedFromTable, tableSaysExclusions, unmatchedClubs } from './global-options';
+import { ClubOption, DEFAULT_LEAGUE, GlobalOptions, excludedFromTable, mergeTableExclusions, unmatchedClubs } from './global-options';
 import { PlayerRow } from './players-store';
 import { catalogueOf } from './valuation-store';
 
@@ -187,13 +187,15 @@ describe('excludedFromTable', () => {
     expect(excludedFromTable(catalogue, 'euro', ['Bayern', 'Arsenal', 'Real Madrid', 'Inter', 'AC Milan'])).toBeNull();
   });
 
-  it('lets a table replace the declared exclusions only on evidence', () => {
-    // FA-jo5-zai once the draft was over: every club in the listone and no switched-off list. It says nothing.
-    expect(tableSaysExclusions([], false)).toBe(false);
-    // The host's own list, even when it ends up switching nothing off...
-    expect(tableSaysExclusions([], true)).toBe(true);
-    // ...and a club missing from the session's listone.
-    expect(tableSaysExclusions([4, 5], false)).toBe(true);
+  it('lets only the host list replace the declared exclusions', () => {
+    const mine = new Set([10, 11, 12]);
+    // FA-jo5-zai once the draft was over: no switched-off list, a complete listone. His stay.
+    expect(mergeTableExclusions(mine, [], false).sort()).toEqual([10, 11, 12]);
+    // Clubs missing from its listone are ADDED, never swapped for his: that swap turned twenty into seven.
+    expect(mergeTableExclusions(mine, [12, 44], false).sort((a, b) => a - b)).toEqual([10, 11, 12, 44]);
+    // The host publishing its list is the host saying who is in: that one replaces.
+    expect(mergeTableExclusions(mine, [44], true)).toEqual([44]);
+    expect(mergeTableExclusions(mine, [], true)).toEqual([]);
   });
 
   it('names the session clubs the guard could not find, so a refused sync is never silent', () => {

@@ -161,13 +161,24 @@ export function excludedFromTable(
 }
 
 /**
- * WHETHER A TABLE'S READING MAY REPLACE THE DECLARED EXCLUSIONS: only on evidence. A club missing from the
- * session's listone is evidence, and so is the host's own switched-off list; a complete listone with no such
- * list says nothing - it is what a finished draft publishes after its exclusions were lifted - so it must not
- * wipe what the operator declared.
+ * THE EXCLUSIONS AFTER A TABLE'S READING. Only a table that publishes its own switched-off list
+ * (`declaresInactive`) may REPLACE what the operator declared: that list is the host saying who is in.
+ * Without it the table can only ADD the clubs its listone does not carry - they cannot be bought there
+ * either way - and never bring back a club he excluded.
+ *
+ * Both halves were paid for on FA-jo5-zai, 30/09/2026. A finished draft no longer publishes `inactiveTeams`,
+ * so a complete listone read as «nobody excluded» and wiped his Serie A. And «missing from the listone» is
+ * not a statement about the other clubs: seven Serie A clubs the app's EuroLeghe catalogue knows (Cagliari,
+ * Monza, Parma, Sassuolo, Torino, Udinese, Venezia) are not in that session's listone, and taking that as the
+ * whole list replaced his twenty with those seven.
  */
-export function tableSaysExclusions(synced: readonly number[], declaresInactive: boolean): boolean {
-  return declaresInactive || synced.length > 0;
+export function mergeTableExclusions(
+  declared: ReadonlySet<number>,
+  synced: readonly number[],
+  declaresInactive: boolean,
+): number[] {
+  if (declaresInactive) return [...synced];
+  return [...new Set([...declared, ...synced])];
 }
 
 /** The session clubs `excludedFromTable` cannot find in the catalogue: why it answered null, in names. */
@@ -301,18 +312,6 @@ export class GlobalOptions {
         }
         if (code === excludedFor || !platform || !clubs.length || !catalogue.length) return;
         const synced = excludedFromTable(catalogue, platform, clubs);
-        if (synced && !tableSaysExclusions(synced, this.feed.declaresInactive())) {
-          // IL TAVOLO NON DICE NIENTE, quindi restano le TUE (30/09/2026, FA-jo5-zai: un draft finito non
-          // pubblica piu' `inactiveTeams`, e il sync gli leggeva «nessuna esclusa» azzerando la Serie A che
-          // l'operatore aveva dichiarato). La riga lo dice, perche' un sync che non tocca niente in silenzio si
-          // legge come uno che ha controllato.
-          excludedFor = code;
-          const mine = this.excluded().size;
-          const line = `${EXCLUDED_LINE} il tavolo non le dichiara, ${mine ? `restano le tue (${mine})` : 'nessuna'}`;
-          const current = this.adopted();
-          this.adopted.set({ code, changes: [...(current?.code === code ? current.changes : []), line] });
-          return;
-        }
         if (!synced) {
           // LA GUARDIA NON TACE (30/09/2026): un join rotto lascia le esclusioni come stavano, e senza una riga
           // si leggerebbe come «il tavolo non esclude nessuno». La riga nomina i club che non si riconoscono.
@@ -328,17 +327,31 @@ export class GlobalOptions {
         }
         excludedFor = code;
         const before = this.excluded();
-        const same = synced.length === before.size && synced.every((id) => before.has(id));
-        if (same) return;
-        this.excludedIds.set(synced);
-        const line = synced.length
-          ? `${EXCLUDED_LINE} ${synced.length} (${catalogue
-              .filter((club) => synced.includes(club.id))
-              .map((club) => club.name)
-              .sort((a, b) => a.localeCompare(b, 'it'))
-              .slice(0, 6)
-              .join(', ')}${synced.length > 6 ? ', …' : ''})`
-          : `${EXCLUDED_LINE} nessuna`;
+        const declares = this.feed.declaresInactive();
+        const next = mergeTableExclusions(before, synced, declares);
+        const same = next.length === before.size && next.every((id) => before.has(id));
+        const names = (ids: readonly number[]) =>
+          catalogue
+            .filter((club) => ids.includes(club.id))
+            .map((club) => club.name)
+            .sort((a, b) => a.localeCompare(b, 'it'));
+        const listed = (ids: readonly number[]) => {
+          const all = names(ids);
+          return `${all.slice(0, 6).join(', ')}${all.length > 6 ? ', …' : ''}`;
+        };
+        let line: string;
+        if (declares) {
+          if (same) return;
+          line = next.length ? `${EXCLUDED_LINE} ${next.length} (${listed(next)})` : `${EXCLUDED_LINE} nessuna`;
+        } else {
+          // IL TAVOLO NON LE DICHIARA: restano le TUE, e la riga lo dice anche quando non cambia niente - un
+          // sync che non tocca niente in silenzio si legge come uno che ha controllato.
+          const added = next.filter((id) => !before.has(id));
+          line =
+            `${EXCLUDED_LINE} il tavolo non le dichiara, restano le tue (${before.size})` +
+            (added.length ? ` più ${added.length} assenti dal suo listone (${listed(added)})` : '');
+        }
+        if (!same) this.excludedIds.set(next);
         const current = this.adopted();
         this.adopted.set({ code, changes: [...(current?.code === code ? current.changes : []), line] });
       });
