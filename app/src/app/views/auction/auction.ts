@@ -294,8 +294,12 @@ export class Auction {
     // overwrite a real auction the operator is in.
     // The steadiness column reads the ratings, which the valuation store computes once its sheets are in.
     void this.valuation.load();
-    void this.feed.restore().then(() => {
-      if (!this.feed.hasTable()) void this.demo.start();
+    // The invented table only when there is NO session to resume: `restore` answers true as soon as it has
+    // joined, which is BEFORE the stream's first event - and in that gap `hasTable()` still reads false, so
+    // reading it alone started the demo on top of a live session that had just been joined (found on a live
+    // draft, 29/09/2026, from a browser with the code saved and no snapshot).
+    void this.feed.restore().then((resumed) => {
+      if (!resumed && !this.feed.hasTable()) void this.demo.start();
     });
     try {
       const saved = localStorage.getItem(MODE_KEY);

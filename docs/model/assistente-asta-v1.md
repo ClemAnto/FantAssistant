@@ -5972,3 +5972,19 @@ scelta (reparto o porte già pieni per la squadra di turno), invece di aspettare
 - **AUTO** (debug): gli altri scelgono il previsto dopo 500 ms e il tavolo si ferma al nostro turno.
 - **La colonna «titolarità»** usa colori su una scala ordinale per sua richiesta esplicita, contro la regola di
   default dell'app di leggerle per peso: è una sua decisione, e sta scritta accanto alla mappa `RUNG_BADGE`.
+
+
+## 65. Le squadre disattivate di un tavolo vivo, e il ripescaggio che partiva sotto la finzione (29/09/2026)
+
+**Osservato, non dedotto.** Su un draft vivo (`appVer` 1.25.0-live, codice redatto) l'host aveva spento i dieci club
+italiani della sua EuroLeghe: la sessione lo scrive in **`state.settings.inactiveTeams`**, un array dei nomi del
+listone, mentre i calciatori di quei club **restano** in `env/playerList` (283 righe su 1007). Quindi leggere il solo
+listone li rimetteva in ogni pool, e la sincronizzazione delle escluse (che guarda i club assenti dal listone) non li
+vedeva. Ora il feed li toglie alla fonte (`inactiveClubsOf`, `activePlayers`): svincolati, `listoneIds` (il foglio che
+si sceglie e la Z della priorità), `listoneClubs` (le escluse sincronizzate) e le porte. Restano sulla lista intera solo
+la risoluzione delle scelte già fatte e la fotografia salvata. Verificato collegando l'app costruita al tavolo vero, in
+sola lettura: 688 svincolati, zero dei club spenti, e i 27 club attivi tutti ritrovati per nome nel catalogo.
+
+**Il difetto trovato per strada.** Aprendo la pagina da un browser col codice salvato e senza fotografia, `restore()`
+si agganciava ma il primo evento dello stream non era ancora arrivato: `hasTable()` leggeva falso e la pagina avviava
+il tavolo inventato SOPRA la sessione vera. Ora la finzione parte solo se il ripescaggio non è riuscito.

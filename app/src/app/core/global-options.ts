@@ -257,15 +257,15 @@ export class GlobalOptions {
 
     /**
      * LE SQUADRE ESCLUSE SEGUONO IL TAVOLO (sua richiesta, 29/09/2026: «quando ti colleghi ad un'asta-live
-     * sincronizza automaticamente le squadre escluse»). La sessione non pubblica un elenco di esclusi in
-     * nessun campo letto; quello che pubblica e' il SUO listone, e un host che toglie un gruppo di club (i
-     * club italiani della sua EuroLeghe) lo toglie da li'. Quindi escluso = un club del catalogo di quella
-     * piattaforma che nel listone della sessione non ha nessun calciatore; incluso tutto il resto.
+     * sincronizza automaticamente le squadre escluse»). Un club e' fuori dal tavolo per due strade, e
+     * `feed.listoneClubs` le legge tutt'e due: l'host lo DISATTIVA (`settings.inactiveTeams`, letto su un
+     * draft vivo il 29/09/2026 - i suoi calciatori restano nel listone, e il feed li toglie da ogni pool) o
+     * lo TOGLIE dal listone. Quindi escluso = un club del catalogo di quella piattaforma che fra i club
+     * ATTIVI della sessione non ha nessun calciatore; incluso tutto il resto.
      *
      * Una volta per tavolo, come il regolamento, e aspettando che listone e catalogo siano arrivati tutti e
-     * due. E una GUARDIA contro il join rotto: se il listone non nomina nemmeno meta' dei club del catalogo,
-     * la corrispondenza per nome non sta funzionando e le esclusioni non si toccano - escludere tutto per un
-     * join a meta' sarebbe la bugia piu' cara, una lista vuota che sembra un filtro.
+     * due. E una GUARDIA contro il join rotto: se anche un solo club della sessione non si trova nel
+     * catalogo, le esclusioni non si toccano (`excludedFromTable`).
      */
     let excludedFor: string | null = null;
     effect(() => {

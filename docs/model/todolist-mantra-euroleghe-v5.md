@@ -14,11 +14,10 @@
    **(a)** il banco rilegga la priorità dall'app via `appcode.mjs` invece della sua copia `priority.mjs`
    (la regola «misura sul banco, poi l'app, poi il banco la rilegge dall'app»); **(b)** il verdetto del
    rilancio di §12 è arrivato: +1,35% strict con lo sguardo fino al 7º turno, **+1,84% strict senza sguardo** —
-   decidere con lui se spegnere lo sguardo (`LOOKAHEAD_UNTIL` = 0). **(c)** Le **squadre DISATTIVATE di
-   un'asta live** (sua richiesta, 29/09): nessuna sessione letta da questo progetto porta un campo del genere e le
-   due sessioni vere del repository sono scadute, quindi serve un codice d'asta in cui siano attive per leggerne il
-   nodo (`scripts/probe-live-session.mjs`). Già coperto: se l'host le toglie dal listone, la sincronizzazione delle
-   escluse le esclude e nessun loro calciatore entra in lista, consigli o Z.
+   decidere con lui se spegnere lo sguardo (`LOOKAHEAD_UNTIL` = 0). **(c)** ~~Le squadre DISATTIVATE di un'asta live~~ **FATTO il 29/09/2026**: lette su un draft vivo
+   (`state.settings.inactiveTeams`, per nome; i loro calciatori RESTANO nel listone della sessione, 283 righe),
+   tolte alla fonte in `auction-feed.activePlayers` - svincolati, listone, porte - e quindi anche dalle escluse
+   sincronizzate. Verificato in un browser collegato al tavolo vero: 688 svincolati, zero dei 10 club spenti.
 4. **Lo stemma degli avversari nella card** (il Köln, e in generale la Bundesliga all'11%): si cerca per nome e
    il fornitore scrive `1. FC Köln` dove il listone scrive `Colonia`. La cura è far viaggiare nel bundle i nomi
    alternativi che il toolkit conosce (`CLUB_ALIASES`), non una lista a mano nell'app.

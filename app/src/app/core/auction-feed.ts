@@ -220,6 +220,20 @@ export function leagueSettings(state: RawState): Record<string, any> {
 }
 
 /**
+ * THE CLUBS THE HOST SWITCHED OFF, from `state.settings.inactiveTeams` - observed on a live draft (FA-xxx-xxx, ppVer 1.25.0-live, 29/09/2026 - the code is redacted, as everywhere in this public repository): an
+ * array of the listone's own club names (the ten Italian clubs of his EuroLeghe), while the players of those
+ * clubs STAY in `env/playerList` (283 rows there). So a table that switches clubs off does not remove them
+ * from its list, and reading the list alone would put them back in every pool. Lowercased, because the list
+ * writes a club the way the listone does and a stray capital must not bring a club back.
+ */
+export function inactiveClubsOf(state: RawState): Set<string> {
+  const raw = leagueSettings(state)['inactiveTeams'];
+  return new Set(
+    listOf<unknown>(raw).filter((one): one is string => typeof one === 'string').map((one) => one.trim().toLowerCase()),
+  );
+}
+
+/**
  * What the host uploaded, from `state.playerListType`. `settings.listType` looks like the same fact
  * and is not: on the session observed on 09/08/2026 it read `euro` over a listone of 20 Serie A
  * clubs, left behind by the setup preset.
@@ -745,10 +759,26 @@ export class AuctionFeed {
     return index === undefined || index < 0 ? null : index;
   });
 
+  /** The clubs the host switched off (`inactiveClubsOf`). Their men are not considered anywhere. */
+  readonly inactiveClubs = computed(() => inactiveClubsOf(this.state()));
+
+  /**
+   * THE LISTONE WITHOUT THE CLUBS THE HOST SWITCHED OFF (the operator, 29/09/2026: «nascondi, non considerarli
+   * proprio»): every pool the panels read - the free men, the listone a sheet is matched and a zero is measured
+   * on, the goals - comes from here. What stays on the whole list is only what resolves a PICK already made
+   * (`teams`, `lastPicks`) and the saved snapshot, which must reproduce the session as it was served.
+   */
+  private readonly activePlayers = computed<Map<number, AuctionPlayer>>(() => {
+    const off = this.inactiveClubs();
+    const all = this.players();
+    if (!off.size) return all;
+    return new Map([...all].filter(([, player]) => !off.has((player.club ?? '').trim().toLowerCase())));
+  });
+
   /** The listone still free, dearest first. */
   readonly available = computed<AuctionPlayer[]>(() => {
     const taken = new Set(this.picks().map((pick) => pick.playerId));
-    return [...this.players().values()]
+    return [...this.activePlayers().values()]
       .filter((player) => !taken.has(player.id))
       .sort((a, b) => b.fvm - a.fvm);
   });
@@ -760,16 +790,16 @@ export class AuctionFeed {
    * list rather than the free part: coverage is a property of the list the host uploaded, and it must
    * not drift as the auction empties the pool.
    */
-  readonly listoneIds = computed<number[]>(() => [...this.players().keys()]);
+  readonly listoneIds = computed<number[]>(() => [...this.activePlayers().keys()]);
 
   /** The real clubs the session's listone names, taken and free alike: what the excluded clubs follow. */
-  readonly listoneClubs = computed<string[]>(() => [...new Set([...this.players().values()].map((p) => p.club))]);
+  readonly listoneClubs = computed<string[]>(() => [...new Set([...this.activePlayers().values()].map((p) => p.club))]);
 
   readonly isGoalsMode = computed(() => this.keeperMode() === 'goals');
 
   /** Every club's goal, with who owns it. Only meaningful while the porte rule is on. */
   private readonly portaState = computed(() =>
-    porteOf(this.players().values(), this.picks(), this.isMantra()),
+    porteOf(this.activePlayers().values(), this.picks(), this.isMantra()),
   );
 
   /** The goals still free, dearest first: one row per CLUB, not per keeper. */

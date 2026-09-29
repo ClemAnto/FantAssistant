@@ -7,6 +7,7 @@ import {
   RawState,
   applyStreamEvent,
   deriveTeams,
+  inactiveClubsOf,
   leagueSettings,
   listTypeOf,
   listOf,
@@ -433,5 +434,20 @@ describe('una lista come Firebase la manda', () => {
       zones: [...CONTEXT.zones],
     });
     expect(teams.map((one) => one.id)).toEqual([0, 2]);
+  });
+});
+
+describe('inactiveClubsOf', () => {
+  // Read on a live draft (29/09/2026): the host's switched-off clubs sit in settings, by the listone's names,
+  // while their players stay in the list.
+  it('reads settings.inactiveTeams, lowercased, as an array or as the object RTDB makes of one', () => {
+    expect([...inactiveClubsOf({ settings: { inactiveTeams: ['Inter', 'Milan '] } })]).toEqual(['inter', 'milan']);
+    expect([...inactiveClubsOf({ settings: { inactiveTeams: { 0: 'Roma', 2: 'Lazio' } } })]).toEqual(['roma', 'lazio']);
+  });
+
+  it('is empty where the table switched nothing off, or says something that is not a name', () => {
+    expect(inactiveClubsOf({ settings: {} }).size).toBe(0);
+    expect(inactiveClubsOf({}).size).toBe(0);
+    expect(inactiveClubsOf({ settings: { inactiveTeams: [3, null] } }).size).toBe(0);
   });
 });
