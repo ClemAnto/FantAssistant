@@ -158,6 +158,18 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 30 settembre 2026 (XI): RAR, la rarità di uno svincolato
+
+Sua osservazione: la Draft Priority vede l'UOMO e non quanti come lui restano liberi (sei attaccanti da FM 10
+contro un solo difensore buono: va preso il difensore). Nuova colonna **RAR** nella lista del Draft Assistant
+(core/draft-rarity.ts, priorita-draft-v1.md §20): quanti altri svincolati dello stesso ruolo base sono pari o
+migliori su tutte e sei le letture (gradino, costanza, MV, bonus, presenze, infortuni), con una tolleranza
+dichiarata per lettura. Commit `feat(app): RAR`: 1260 test, `e2e-draft` verde su classic ed euro.
+
+**Aperto, da decidere con lui (legge domani)**: (1) la DP NON è cambiata - la forma proposta è confrontare RAR
+con le scelte degli altri prima del nostro prossimo turno (lo sconto «prendi chi sparirà», +4,54% strict sul
+banco); (2) le tolleranze di «simile» decidono il numero: sui primi 60 per DP il RAR va solo da 0 a 4, quindi
+forse vanno allargate.
 ## CHIUSURA — 30 settembre 2026 (X): rivedere un draft, e le escluse che il tavolo non dichiara piu'
 
 **Cosa c'e' di nuovo** (`b7d2a0a`, `c9eea87`, `6cb5a1b`; dettaglio in `priorita-draft-v1.md` §19):
