@@ -68,6 +68,30 @@
           <nz-icon nzType="wifi" /> Asta live
         </button>
       }
+      <!-- SCARICA ROSE E SCELTE (sua richiesta, 29/09/2026), su un tavolo vero come su quello finto: due CSV
+           dagli stessi record (`core/draft-export`), cosi' i due file non possono dirsi due cose diverse. -->
+      @if (feed.demo() || feed.hasTable()) {
+        <button
+          nz-button
+          nzSize="small"
+          data-download
+          nz-dropdown
+          [nzDropdownMenu]="downloadMenu"
+          nzTrigger="click"
+          nzPlacement="bottomRight"
+          [disabled]="!hasPicks()"
+          nz-tooltip
+          nzTooltipTitle="Scarica rose e scelte in CSV"
+        >
+          <nz-icon nzType="download" />
+        </button>
+        <nz-dropdown-menu #downloadMenu="nzDropdownMenu">
+          <ul nz-menu>
+            <li nz-menu-item data-download-what="rose" (click)="download('rose')">Rose costituite</li>
+            <li nz-menu-item data-download-what="scelte" (click)="download('scelte')">Lista delle scelte</li>
+          </ul>
+        </nz-dropdown-menu>
+      }
       <!-- Niente tasto «Lega»: le impostazioni si aprono dal pannello Opzioni in basso, come su ogni pagina
            (sua richiesta, 29/09/2026). -->
     </span>
@@ -792,6 +816,11 @@
       >
     </span>
     <span class="flex min-w-0 items-center gap-1" [class.pl-2.5]="reserve">
+      <!-- I RUOLI MANTRA di chi e' disegnato (sua richiesta, 29/09/2026): il posto dice cosa CHIEDE il modulo,
+           i codici cosa l'uomo SA FARE, e sono due fatti diversi. Sul classic il ruolo e' il posto stesso. -->
+      @if (feed.isMantra() && man.shown.length) {
+        <ui-roles data-pitch-roles class="shrink-0" [roles]="man.shown" size="xs" />
+      }
       @if (pitchRungs().get(man.id); as rung) {
         @if (rung.press) {
           <span

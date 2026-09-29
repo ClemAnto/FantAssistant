@@ -5994,3 +5994,31 @@ deve essere applicato sul gradino della stampa»). La prima versione filtrava su
 la stampa dove c'è e il gradino del motore altrimenti, quindi «almeno titolarissimo» lasciava passare uomini che
 solo il nostro motore chiamava così. Ora `minRung` tiene chi ha `pressSource === 'stampa'` e una parola almeno di
 quel gradino; chi la rilevazione non copre sparisce finché il filtro è acceso. Verificato con `e2e-draft --euro`.
+
+## 66. SCARICARE IL DRAFT, e i ruoli mantra sul campetto (29/09/2026)
+
+**Due sue richieste sulla pagina Draft Assistant.** «Scaricare le rose costituite e la lista delle scelte per
+analizzarle» e «nella sezione draft → campo bisogna mostrare i ruoli mantra dei calciatori visualizzati».
+
+**Un solo insieme di record, due file.** `core/draft-export.ts`: `pickRecords` prende le scelte in ordine di
+chiamata e conta il GIRO di ogni squadra man mano, invece di ricavarlo dall'indice globale, di cui il feed non
+dichiara né la base né il serpentone. Il file delle scelte le tiene in quell'ordine, quello delle rose le
+raggruppa per squadra (nell'ordine dei sedili) e per giro. Le colonne sono le stesse di proposito, così un file si
+incolla sotto l'altro e una tabella pivot lavora su entrambi. I numeri di un uomo non li calcola il modulo: glieli
+passa la vista con le stesse funzioni che riempiono le sue liste (`expectedOf`, `rungById`, `advice.valueBy` e
+`value99By`). Un file che prezzasse un uomo in un altro modo sarebbe una seconda valutazione dello stesso uomo.
+Formato per l'Excel italiano: `;` come separatore, BOM UTF-8 (o gli accenti arrivano rotti), punto decimale (la
+regola dell'app, e quella che ogni strumento di analisi legge senza istruzioni), vuoto = ignoto. Una porta (regola
+delle porte) non ha letture proprie, come nella lista.
+
+**I ruoli sul campetto.** `ui-roles` nella seconda riga di ogni uomo, prima della titolarità, solo sul mantra: il
+posto dice cosa chiede il modulo, i codici cosa l'uomo sa fare, e sono due fatti. Sul classic il posto è già il
+ruolo. Il prezzo misurato sulla fotografia: accanto a tre codici la parola della titolarità si tronca.
+
+**Verifica.** `draft-export.spec.ts` (giri, ordine, celle vuote, virgolette, raggruppamento), `ng test` 1234, e due
+passi in `e2e-draft.mjs`. I ruoli: tutti gli uomini disegnati li hanno sul mantra (19/19), nessuno sul classic,
+nessun gruppo fuori dal suo riquadro. Il download: `Page.setDownloadBehavior` in una cartella temporanea, i due file
+riletti da disco, righe uguali alle scelte che i sedili contano (52/52 euro, 59/59 classic), BOM presente, scelte
+numerate in ordine, e le due liste con le stesse aggiudicazioni. **Il difetto del banco, non della pagina**: il menu
+di ng-zorro è ancora nel DOM per l'animazione di chiusura, e premere il bottone in quel momento lo richiude. Il
+passo aspetta che si chiuda, e un menu che non si chiude è un problema asserito.

@@ -2,9 +2,11 @@ import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
+import { NzMenuModule } from 'ng-zorro-antd/menu';
 import { NzMessageService } from 'ng-zorro-antd/message';
 import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
@@ -15,6 +17,7 @@ import { AuctionAdvice, RankedPlayer } from '../../core/auction-advice';
 import { CardKey, CardMan, CardStack, clubCard, clubOfCard, playerCard, playerOfCard } from '../../core/player-card';
 import { EDGE_BASE, Role } from '../../core/plancia';
 import { positionAfterSpending } from '../../core/auction-plan';
+import { ExportReadings, pickRecords, picksCsv, saveCsv, squadsCsv } from '../../core/draft-export';
 import { AuctionDemo } from '../../core/auction-demo';
 import { AuctionFeed, AuctionPlayer, AuctionTeam, SquadEntry, Zone } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
@@ -215,9 +218,11 @@ const CARD_DELAY_MS = 260;
     LiveConnect,
     NgTemplateOutlet,
     NzButtonModule,
+    NzDropdownModule,
     NzIconModule,
     NzInputModule,
     NzInputNumberModule,
+    NzMenuModule,
     NzPopoverModule,
     NzRadioModule,
     NzSelectModule,
@@ -1061,6 +1066,43 @@ export class Auction {
 
   protected reset(): void {
     this.demo.reset();
+  }
+
+  /** At least one pick made: before that there is nothing to download, and the button says so by being off. */
+  protected readonly hasPicks = computed(() => this.feed.picks().length > 0);
+
+  /**
+   * THE DRAFT AS TWO FILES (operator, 29/09/2026), from one set of records (`core/draft-export`): the numbers
+   * of a man are the same readings the lists on this page print, so a file cannot disagree with the screen.
+   */
+  protected download(what: 'rose' | 'scelte'): void {
+    const records = pickRecords([...this.feed.lastPicks()].reverse());
+    if (!records.length) {
+      this.message.info('Nessuna scelta da scaricare.');
+      return;
+    }
+    const press = this.rulings.press();
+    const readings = (id: number): ExportReadings => {
+      const goal = this.goal(id);
+      const expected = this.expectedOf(id, goal);
+      const rung = goal ? { press: null, pressSource: null } : this.rungById(id, press);
+      return {
+        rung: rung.press,
+        rungSource: rung.pressSource,
+        fm: expected.fm,
+        pv: expected.pv,
+        value: this.advice.valueBy().get(id) ?? null,
+        value99: this.advice.value99By().get(id) ?? null,
+      };
+    };
+    const mine = this.feed.followedTeamId();
+    const text = what === 'rose'
+      ? squadsCsv(records, this.feed.teams(), mine, readings)
+      : picksCsv(records, mine, readings);
+    const table = this.feed.demo() ? 'finto' : (this.feed.code() ?? 'asta');
+    const now = new Date();
+    const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    saveCsv(`draft-${table}-${stamp}-${what}.csv`, text);
   }
 
   protected freeHint(row: FreeRow): string {

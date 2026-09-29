@@ -19,7 +19,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
@@ -602,6 +602,68 @@ async function main() {
         ...(ranks.some((rank, i) => i > 0 && rank >= 0 && ranks[i - 1] >= 0 && rank < ranks[i - 1]) ? ['la lista non e\' in ordine di ruolo'] : []),
         ...(back !== 11 ? [`tornando al campo i posti sono ${back}`] : []),
         ...(!turnsOk ? [`ordinata per turno legge ${byTurn.join(' ')}`] : []),
+      ]);
+
+    // 4-quater. THE MANTRA ROLES ON THE PITCH (operator, 29/09/2026): every man drawn carries his codes on
+    // mantra, inside his place; on classic the place IS the role and nobody carries them.
+    const pitchRoles = await evaluate(session, () => {
+      const names = [...document.querySelectorAll('[data-column="pitch"] [data-place] [data-card-name]')];
+      const roles = [...document.querySelectorAll('[data-column="pitch"] [data-place] [data-pitch-roles]')];
+      const outside = roles.filter((one) => {
+        const box = one.getBoundingClientRect();
+        const place = one.closest('[data-place]').getBoundingClientRect();
+        return box.width === 0 || box.left < place.left - 0.5 || box.right > place.right + 0.5;
+      }).length;
+      return { men: names.length, roles: roles.length, outside, sample: (roles[0]?.innerText ?? '').replace(/\s+/g, '') };
+    });
+    note('ruoli sul campetto', `${pitchRoles.men} uomini disegnati, ${pitchRoles.roles} con i ruoli (es. «${pitchRoles.sample}»)`,
+      [
+        ...(!pitchRoles.men ? ['nessun uomo sul campetto: il passo non ha guardato niente'] : []),
+        ...(euro && pitchRoles.roles !== pitchRoles.men ? [`${pitchRoles.men - pitchRoles.roles} uomini senza ruoli mantra`] : []),
+        ...(!euro && pitchRoles.roles ? [`${pitchRoles.roles} ruoli disegnati sul classic`] : []),
+        ...(pitchRoles.outside ? [`${pitchRoles.outside} gruppi di ruoli fuori dal loro posto o larghi zero`] : []),
+      ]);
+
+    // 4-quinquies. DOWNLOAD (operator, 29/09/2026): rose and scelte as two CSVs, read back from DISK and
+    // compared with the picks the seats count - the file is the thing promised, not the click.
+    const downloads = await mkdtemp(join(tmpdir(), 'fant-e2e-draft-dl-'));
+    await session.send('Page.setDownloadBehavior', { behavior: 'allow', downloadPath: downloads });
+    const totalPicks = await picksOf();
+    const files = {};
+    let menuStuck = false;
+    for (const what of ['rose', 'scelte']) {
+      await mouse(await evaluate(session, centre, '[data-download]'));
+      await wait(400);
+      await mouse(await evaluate(session, centre, `[data-download-what="${what}"]`));
+      let text = null;
+      for (let tick = 0; tick < 40 && text === null; tick += 1) {
+        await wait(150);
+        const name = (await readdir(downloads)).find((one) => one.endsWith(`-${what}.csv`));
+        if (name) text = await readFile(join(downloads, name), 'utf8');
+      }
+      files[what] = text;
+      // The menu closes after a choice: wait for it, or the next click on the button would toggle it shut.
+      let closed = false;
+      for (let tick = 0; tick < 20 && !closed; tick += 1) {
+        closed = !(await evaluate(session, () => !!document.querySelector('[data-download-what]')));
+        if (!closed) await wait(100);
+      }
+      if (!closed) menuStuck = true;
+    }
+    await rm(downloads, { recursive: true, force: true });
+    const rowsOf = (text) => (text ?? '').replace(/^﻿/, '').trimEnd().split('\r\n').slice(1).map((line) => line.split(';'));
+    const scelte = rowsOf(files.scelte);
+    const rose = rowsOf(files.rose);
+    const key = (rows) => rows.map((row) => `${row[0]}|${row[4]}|${row[10]}`).sort().join(',');
+    note('download', `scelte ${scelte.length} righe, rose ${rose.length}, scelte sul tavolo ${totalPicks}`,
+      [
+        ...(files.scelte === null ? ['il file delle scelte non e\' arrivato'] : []),
+        ...(files.rose === null ? ['il file delle rose non e\' arrivato'] : []),
+        ...(files.scelte && !files.scelte.startsWith('﻿') ? ['il file non ha il BOM: Excel leggerebbe male gli accenti'] : []),
+        ...(scelte.length !== totalPicks ? [`le scelte nel file sono ${scelte.length} contro ${totalPicks} sul tavolo`] : []),
+        ...(scelte.some((row, i) => Number(row[0]) !== i + 1) ? ['le scelte non sono in ordine di chiamata'] : []),
+        ...(key(scelte) !== key(rose) ? ['rose e scelte non portano le stesse aggiudicazioni'] : []),
+        ...(scelte.some((row) => !row[5]) ? ['una scelta senza nome'] : []),
       ]);
 
     // 4-bis. THE SUGGESTIONS on my pitch: a starter for every empty place and a reserve where there is none,

@@ -1,5 +1,15 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 29 settembre 2026 (VII) — scaricare il draft
+
+- **Il punto decimale nei CSV** è la regola dell'app; se l'Excel dell'operatore legge «7.46» come una data, la cura
+  è la virgola SOLO nel file (`draft-export.cellOf`), non nell'app. Da chiedere a lui dopo il primo uso.
+- **La titolarità si tronca sui campetti mantra** accanto a tre codici: se dà fastidio, le strade sono stringere i
+  ruoli (`ui-roles` più piccolo) o portare la parola su una terza riga, che costa altezza a un campetto senza scroll.
+- **Non c'è un file «tutto»** (impostazioni di lega, consiglio del motore scelta per scelta): il consiglio non è
+  registrato nella storia del tavolo, quindi un confronto «cosa consigliava il motore a ogni scelta» vorrebbe
+  prima un registro.
+
 ## Aperti alla chiusura del 29 settembre 2026 (III) — il Draft Assistant
 
 1. **Pubblicare**: il Draft Assistant è su master e non su gh-pages (`npm run deploy:pages`, che pubblica

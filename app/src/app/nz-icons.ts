@@ -16,6 +16,7 @@ import {
   CoffeeOutline,
   CompassOutline,
   DeleteOutline,
+  DownloadOutline,
   DisconnectOutline,
   EyeInvisibleOutline,
   EyeOutline,
@@ -67,6 +68,8 @@ import {
  *  reads it, and so must any TestBed that renders a component containing an `<nz-icon>`
  *  (otherwise the icon is fetched dynamically, 404s, and the test hangs). */
 export const NZ_ICONS: IconDefinition[] = [
+  // Scarica rose e scelte dal Draft Assistant (29/09/2026): non e' nella lista di default di ng-zorro.
+  DownloadOutline,
   // LE DUE FRECCE DEL VERSO D'ORDINAMENTO (Strategia, 16/09/2026). Registrate perche' la lista
   // di default di ng-zorro non le contiene: un'icona non registrata disegna una casella vuota e la
   // pagina urla «<svg> tag not found» in console, che e' il difetto gia' pagato il 13/09 su `user-add`.
