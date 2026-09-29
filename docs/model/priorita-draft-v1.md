@@ -396,3 +396,17 @@ git); la colonna DP delle «Previste» è lo stesso numero. **Conseguenza da leg
 a metà draft quasi ogni libero è NEGATIVO (sotto un titolare), e i numeri restano distinti (da −1 a −4 sulla
 pagina rigiocata) invece di schiacciarsi a 0. Le conseguenze sull'ORDINE e sulla COPERTURA della rosa non sono
 in questo numero: sono il compito degli scenari (richiesta dello stesso giorno).
+
+## 16. La pagina dopo il draft vero (29/09/2026, sera)
+
+Sue richieste dopo FA-jo5-zai: la colonna centrale serviva «solo ad indicare l'ordine di scelta», la tabella
+degli svincolati è «fondamentale». Quindi: tre colonne a `1 · 0,55 · 1,6` (la lista da 783px); l'ordine è una
+riga per squadra (posto, colore, nome, scelte fatte, FVM; il delta sull'hover resta) e la scelta prevista di
+ognuno non sta più lì; sotto, **le ultime dieci scelte**, la più recente in cima. Nella lista l'intestazione
+«Prio» si chiama **DP** e la colonna DP doppia delle «Previste» esce (è lo stesso numero). **Chi sparirà prima
+del nostro turno** (`auction-plan.takenBeforeOurTurn`: le squadre che chiamano prima di noi in questo giro, o,
+quando tocca a noi, quelle fino alla nostra prossima scelta, con la previsione dei rivali del consiglio) porta
+una barra e una tinta del colore della squadra prevista, e il tooltip la nomina. Siccome i rivali chiamano per
+prezzo, ordinati per DP quegli uomini stanno in basso: un interruttore «N prima di te» accanto al conteggio
+mostra solo loro. Sul draft rigiocato, alla n. 100 ne segnava 4 (Doué, Doku, Foden, Cunha; di questi il vero
+ha preso Foden), alla n. 84 undici.

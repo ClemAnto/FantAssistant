@@ -711,11 +711,27 @@ async function main() {
         ...(pickMs > 2500 ? [`una scelta impiega ${pickMs}ms`] : []),
       ]);
 
-    // 4a''. The predicted picks of the call order at half opacity: a forecast, beside a fact.
-    const predictedOpacity = await evaluate(session, () =>
-      [...new Set([...document.querySelectorAll('[data-seat] [data-predicted]')].map((one) => getComputedStyle(one).opacity))]);
-    note('previsti al 50%', `opacita' ${predictedOpacity.join('/')}`,
-      !predictedOpacity.length || predictedOpacity.some((one) => one !== '0.5') ? ['le scelte previste non sono al 50%'] : []);
+    // 4a''. The call order is the order and nothing else (operator, 29/09/2026): below it the LAST TEN picks,
+    //       most recent first and agreeing with the table; and the men predicted gone before our turn marked
+    //       in the list, each with the colour of the squad predicted to take him.
+    const tail = await evaluate(session, () => ({
+      seatsWithPicks: document.querySelectorAll('[data-seat] [data-predicted]').length,
+      last: [...document.querySelectorAll('[data-last-pick]')].map((one) => Number(one.getAttribute('data-last-pick'))),
+      taken: [...document.querySelectorAll('[data-free][data-taken-by]')].map((one) => ({
+        id: Number(one.getAttribute('data-free')),
+        bar: getComputedStyle(one).boxShadow,
+      })),
+      switchText: document.querySelector('[data-only-taken]')?.innerText ?? null,
+    }));
+    note('ordine e ultime scelte',
+      `${tail.last.length} ultime scelte, ${tail.seatsWithPicks} previsioni sulle righe dell'ordine; `
+      + `${tail.taken.length} righe caricate segnate «prima di te», interruttore «${tail.switchText ?? '—'}»`,
+      [
+        ...(tail.seatsWithPicks ? ["le righe dell'ordine portano ancora la scelta prevista"] : []),
+        // By here AUTO has made ten picks and more, so the list is full.
+        ...(tail.last.length !== 10 ? [`${tail.last.length} ultime scelte invece di 10`] : []),
+        ...(tail.taken.some((one) => !one.bar || one.bar === 'none') ? ['una riga «prima di te» senza la barra del colore'] : []),
+      ]);
 
     // 4a'. A dashed line where one turn ends and the next begins, counted on the picks already made.
     const rounds = await evaluate(session, roundLinesNow);
@@ -851,6 +867,10 @@ async function main() {
       ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
+    // A CDP pointer TELEPORTS: the header's tooltip would stay open over the next control, where a hand would
+    // have closed it on its way out. Leave the header the way a hand does.
+    await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 400, pointerType: 'mouse' });
+    await wait(400);
 
     // 5a'. The place filter: pick «fino al 3°» with a real pointer; every man left would let me call 3rd
     // or better in the next turn, and the list shrinks.
@@ -976,22 +996,33 @@ async function main() {
       ]);
 
     // 5c. A click on a name opens the player's card - in the list (after the double-click wait) and in the
-    // call order - and a double click on a row does NOT (it chooses).
+    // last picks under the call order - and a double click on a row does NOT (it chooses).
     const before5c = (await evaluate(session, cardTitles)).length;
     const listName = await evaluate(session, nameTarget, '[data-free] [data-card-name]');
     await mouse(listName, 1);
     await wait(700);
     const afterList = await evaluate(session, cardTitles);
-    const seatName = await evaluate(session, nameTarget, '[data-seat] [data-card-name]');
+    // A name whose card is NOT open yet: clicking an open one only brings it to the front.
+    const seatName = await evaluate(session, (open) => {
+      // ...and one the pointer can REACH: the cards already open float over the page and may cover it.
+      for (const name of document.querySelectorAll('[data-last-pick] [data-card-name]')) {
+        if (open.some((title) => title.includes((name.innerText ?? '').trim()))) continue;
+        const rect = name.getBoundingClientRect();
+        const at = { x: Math.round(rect.left + Math.min(12, rect.width / 2)), y: Math.round(rect.top + rect.height / 2) };
+        if (!name.contains(document.elementFromPoint(at.x, at.y))) continue;
+        return { ...at, text: (name.innerText ?? '').trim() };
+      }
+      return null;
+    }, afterList);
     await mouse(seatName, 1);
     await wait(500);
     const afterSeat = await evaluate(session, cardTitles);
-    note('card', `lista «${listName?.text}» → ${afterList.length - before5c} card, ordine «${seatName?.text}» → ${afterSeat.length} in tutto`,
+    note('card', `lista «${listName?.text}» → ${afterList.length - before5c} card, ultime scelte «${seatName?.text}» → ${afterSeat.length} in tutto`,
       [
         ...(!listName ? ['nessun nome cliccabile nella lista'] : []),
         ...(afterList.length !== before5c + 1 ? ['il clic sul nome nella lista non apre la card'] : []),
-        ...(!seatName ? ['nessun nome cliccabile nell\'ordine di chiamata'] : []),
-        ...(seatName && afterSeat.length !== afterList.length + 1 ? ['il clic sul nome nell\'ordine non apre la card'] : []),
+        ...(!seatName ? ['nessun nome raggiungibile nelle ultime scelte'] : []),
+        ...(seatName && afterSeat.length !== afterList.length + 1 ? ['il clic sul nome nelle ultime scelte non apre la card'] : []),
         ...(afterList.length > before5c && !afterList.some((title) => title.includes(listName.text)) ? [`la card non porta il nome cliccato: ${afterList.join(' | ')}`] : []),
       ]);
     await evaluate(session, () => document.querySelectorAll('ui-player-card button[aria-label], ui-player-card [data-close]').forEach(() => {}));
@@ -1109,7 +1140,7 @@ async function main() {
     note('previste', `colonne ${previste.head.join(' ')}; su ${previste.rows} righe: gradino ${previste.rung}, pv ${previste.pv}, `
       + `minuti ${previste.minutes}, mv ${previste.mv}, costanza ${previste.steady}, fm ${previste.fm}`,
       [
-        ...(previste.head.join(' ') !== 'role name fvm prio rung pvp min mvp steady fmp dp' ? ['colonne nell\'ordine sbagliato'] : []),
+        ...(previste.head.join(' ') !== 'role name fvm prio rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
         ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 

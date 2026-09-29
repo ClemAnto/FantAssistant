@@ -42,6 +42,7 @@ import {
   simulateRound,
   startingPlaces,
   take,
+  takenBeforeOurTurn,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { porteZero } from './porte';
@@ -995,18 +996,6 @@ export class AuctionAdvice {
   private readonly priorityRounds = computed(() =>
     Math.max(0, ...this.feed.teams().map((team) => team.squad.length + team.missingTotal)));
 
-  /**
-   * DP, la colonna delle «Previste»: la DRAFT PRIORITY stessa (sua definizione del 29/09/2026, R dalla NOSTRA
-   * rosa o dagli svincolati), per i liberi. Un numero solo per lo stesso uomo sulla stessa pagina: la colonna
-   * leggeva R dalle riserve di tutta la lega, e accanto alla Prio avrebbe dato a un uomo due valori.
-   */
-  readonly dpBy = computed<Map<number, number>>(() => {
-    const out = new Map<number, number>();
-    if (!this.priorityOn()) return out;
-    for (const [id, value] of this.priorities()) if (value != null) out.set(id, value);
-    return out;
-  });
-
   /** The inputs a plan needs, gathered once: the roots and the plans share them. */
   private readonly planInput = computed(() => {
     const mineId = this.feed.followedTeamId();
@@ -1146,6 +1135,20 @@ export class AuctionAdvice {
       out.set(player.id, Number.isFinite(score) ? score : null);
     }
     return out;
+  });
+
+  /**
+   * CHI SPARIRA' PRIMA DEL NOSTRO PROSSIMO TURNO, e chi dovrebbe prenderlo (sua richiesta, 29/09/2026): id del
+   * calciatore -> squadra (`takenBeforeOurTurn`), con la stessa previsione dei rivali del consiglio e del giro.
+   */
+  readonly takenBeforeUs = computed<Map<number, number>>(() => {
+    const input = this.planInput();
+    if (!input) return new Map();
+    return takenBeforeOurTurn({
+      teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
+      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
+      heads: input.heads, cap: input.cap,
+    });
   });
 
   /** Il giro che si sta giocando, seat per seat, e l'ordine che ne esce (`simulateRound`). */

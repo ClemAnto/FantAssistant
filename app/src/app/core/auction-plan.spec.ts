@@ -16,6 +16,7 @@ import {
   needFor,
   needForUs,
   goneBeforeOurNextTurn,
+  takenBeforeOurTurn,
   pickForUs,
   plan,
   planRoots,
@@ -556,5 +557,23 @@ describe('the FVM ceiling of the first turns (operator, 28/09/2026)', () => {
     // Sixth turn for both: he is still on the board, and now somebody takes him.
     const next = result.rounds[1];
     expect([next.mine?.id, ...[...next.before, ...next.after].map((row) => row.player.id)]).toContain(1);
+  });
+});
+
+describe('takenBeforeOurTurn (operator, 29/09/2026)', () => {
+  const places = startingPlaces(SHAPES);
+  const pool = [player(1, 'pc', 300), player(2, 'dc', 200), player(3, 'dc', 100), player(4, 'pc', 50)];
+  const base = { pool, places, keeperCap: 3, maxAheadPicks: 1 };
+
+  it('while others are on the clock, names the men the squads calling before us take, and who takes them', () => {
+    const taken = takenBeforeOurTurn({ ...base, teams: [team(0), team(1), team(2)], order: [1, 2, 0], mineId: 0 });
+    expect([...taken.values()].sort()).toEqual([1, 2]);
+    expect(taken.size).toBe(2);
+    expect(taken.get(1)).toBe(1); // the first to call takes the dearest: the rivals call by price
+  });
+
+  it('when we are on the clock, is the set our advice waits out (goneBeforeOurNextTurn)', () => {
+    const input = { ...base, teams: [team(0), team(1), team(2)], order: [0, 1, 2], mineId: 0 };
+    expect(new Set(takenBeforeOurTurn(input).keys())).toEqual(goneBeforeOurNextTurn(input));
   });
 });

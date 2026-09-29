@@ -691,7 +691,7 @@ export const SURVIVOR_DISCOUNT = 0.7;
  * slot. Ours is left out on purpose - the set has to be knowable BEFORE we choose, or the pick would depend on
  * itself.
  */
-export function goneBeforeOurNextTurn(input: {
+export interface RivalWalkInput {
   teams: PlanTeam[];
   order: number[];
   pool: PlanPlayer[];
@@ -701,14 +701,35 @@ export function goneBeforeOurNextTurn(input: {
   maxAheadPicks: number;
   heads?: Map<number, RivalHead>;
   cap?: PickCap | null;
-}): Set<number> {
-  const gone = new Set<number>();
+}
+
+export function goneBeforeOurNextTurn(input: RivalWalkInput): Set<number> {
+  return new Set(rivalPicksAfterOurs(input).keys());
+}
+
+/** The rivals' predicted picks from the seat after ours to our next seat, by player id -> team id. */
+function rivalPicksAfterOurs(input: RivalWalkInput): Map<number, number> {
   const teams = new Map(input.teams.map((team) => [team.id, team]));
   const order = input.order.filter((id) => teams.has(id));
   const myPlace = order.indexOf(input.mineId);
-  if (myPlace < 0) return gone;
-  let pool = [...input.pool];
+  if (myPlace < 0) return new Map();
+  const walk = rivalWalker(input, teams);
+  const after = order.slice(myPlace + 1);
+  for (const [index, id] of after.entries()) walk.step(id, after.length - index);
+  const next = [...teams.values()]
+    .sort((a, b) => ahead(a, b, input.maxAheadPicks))
+    .map((team) => team.id);
+  for (const [index, id] of next.entries()) {
+    if (id === input.mineId) break;
+    walk.step(id, next.length - index);
+  }
+  return walk.gone;
+}
 
+/** One rival call after another on a shrinking pool: each predicted with his own head, as the round shows him. */
+function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>) {
+  let pool = [...input.pool];
+  const gone = new Map<number, number>();
   const step = (id: number, placesFromEnd: number) => {
     const team = teams.get(id);
     if (!team) return;
@@ -717,20 +738,27 @@ export function goneBeforeOurNextTurn(input: {
     if (!choice) return;
     pool = pool.filter((player) => player.id !== choice.id);
     teams.set(id, take(team, choice));
-    gone.add(choice.id);
+    gone.set(choice.id, id);
   };
+  return { step, gone };
+}
 
-  const after = order.slice(myPlace + 1);
-  for (const [index, id] of after.entries()) step(id, after.length - index);
-
-  const next = [...teams.values()]
-    .sort((a, b) => ahead(a, b, input.maxAheadPicks))
-    .map((team) => team.id);
-  for (const [index, id] of next.entries()) {
-    if (id === input.mineId) break;
-    step(id, next.length - index);
-  }
-  return gone;
+/**
+ * WHO IS EXPECTED TO BE GONE BEFORE OUR NEXT PICK, and to whom (operator, 29/09/2026: «evidenziare i calciatori
+ * che probabilmente sceglieranno gli altri prima del nostro prossimo turno»): player id -> the team predicted to
+ * take him. While another squad is on the clock, it is the squads calling before us in this round; when we are,
+ * it is the squads between this pick and our next one (`goneBeforeOurNextTurn`, the set the advice discounts).
+ * Our own pick is never in it: the list has to be readable before we choose.
+ */
+export function takenBeforeOurTurn(input: RivalWalkInput): Map<number, number> {
+  const teams = new Map(input.teams.map((team) => [team.id, team]));
+  const order = input.order.filter((id) => teams.has(id));
+  const myPlace = order.indexOf(input.mineId);
+  if (myPlace < 0) return new Map();
+  if (myPlace === 0) return rivalPicksAfterOurs(input);
+  const walk = rivalWalker(input, teams);
+  for (const [index, id] of order.slice(0, myPlace).entries()) walk.step(id, order.length - index);
+  return walk.gone;
 }
 
 /** The platform's own comparison, in the order its `compare()` applies it. */

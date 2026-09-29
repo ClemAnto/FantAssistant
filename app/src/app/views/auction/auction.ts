@@ -74,7 +74,7 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
-  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'dp'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
 /** The two ladders in one order, best first: what «sort by titolarità» orders by. */
@@ -139,6 +139,8 @@ export interface FreeRow {
   score: number | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
+  /** The squad predicted to take him BEFORE our next pick (`AuctionAdvice.takenBeforeUs`); null otherwise. */
+  takenBy: { id: number; label: string; colour: string } | null;
   /**
    * WHAT THE SHEET EXPECTS of him, for the «previste» view: the ENGINE's own rung (not the press), the
    * appearances with a vote, the minutes, the base vote and the fantamedia - the measured number where the
@@ -153,8 +155,6 @@ export interface FreeRow {
     steady: number | null;
     fm: number | null;
     estimated: boolean;
-    /** DP, the Draft Priority's own value of the man (`draft-priority.manValue`); null outside a mantra draft. */
-    dp: number | null;
   };
   /** How many of OUR turns are left before he unlocks for us; null when he is not blocked. */
   turnsLeft: number | null;
@@ -173,10 +173,6 @@ interface SeatRow {
    */
   turnAt: number;
   mine: boolean;
-  last: { id: number; name: string; roles: string[] } | null;
-  next: { id: number; name: string; roles: string[]; predicted: boolean } | null;
-  /** Where the squad calls in the round AFTER this one, by the platform's own rule. */
-  nextAt: number | null;
   /**
    * Its roster's FVM minus the SELECTED squad's (the one on the pitch), shown on hover (operator,
    * 29/09/2026). Null on the selected squad itself. In a draft the FVM spent is what the order is decided
@@ -247,10 +243,15 @@ const CARD_DELAY_MS = 260;
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
     /* Role, name, FVM, priority first in all three views; then the view's own columns. */
     .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 75px; }
-    .free-previste { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem 2.3rem; }
+    .free-previste { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem; }
+    /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
+    .taken {
+      box-shadow: inset 3px 0 0 var(--taken);
+      background: color-mix(in oklab, var(--taken) 14%, transparent);
+    }
     .sort { cursor: pointer; user-select: none; }
     /* The call order: every seat sits at its place by a transform, so a change of place SLIDES. */
-    ol { --seat-h: 2.75rem; --seat-step: 3rem; }
+    ol { --seat-h: 1.3rem; --seat-step: 1.4rem; }
     .seat {
       position: absolute; left: 0; right: 0; top: 0; height: var(--seat-h);
       transform: translateY(calc(var(--seat-at) * var(--seat-step)));
@@ -393,32 +394,14 @@ export class Auction {
     const order = this.feed.pickOrder();
     const listed = new Set(order.map((team) => team.id));
     const all = [...order, ...teams.filter((team) => !listed.has(team.id))];
-    const round = this.advice.round();
-    const picks = new Map((round?.picks ?? []).map((pick) => [pick.teamId, pick]));
-    const nextOrder = round?.nextOrder ?? [];
     const mine = this.feed.followedTeamId();
     const selected = this.pitchTeam();
     return all.map((team, index) => {
-      const pick = picks.get(team.id);
-      const last = lastOf(team.squad);
-      const at = nextOrder.indexOf(team.id);
       return {
         team,
         at: index + 1,
         turnAt: index + 1,
         mine: team.id === mine,
-        last: last?.player
-          ? { id: last.player.id, name: this.feed.shownName(last.player), roles: last.player.roles }
-          : null,
-        next: pick?.player
-          ? {
-              id: pick.player.id,
-              name: this.shown(pick.player.id, pick.player.name),
-              roles: pick.player.roles,
-              predicted: pick.predicted,
-            }
-          : null,
-        nextAt: at < 0 ? null : at + 1,
         delta: selected && selected.id !== team.id ? team.spent - selected.spent : null,
       };
     });
@@ -446,6 +429,40 @@ export class Auction {
     }
     return out;
   });
+
+  /** The squad predicted to take a man before our next pick, for his row. */
+  private takenBy(id: number): FreeRow['takenBy'] {
+    const teamId = this.advice.takenBeforeUs().get(id);
+    const team = teamId === undefined ? null : this.feed.teams().find((one) => one.id === teamId);
+    return team ? { id: team.id, label: team.label, colour: team.colour } : null;
+  }
+
+  /** The header's tooltip on the priority: what the number is, in the draft that has one. */
+  protected prioHint(): string {
+    return this.advice.priorityOn()
+      ? 'Draft Priority ×100: punti a giornata sopra un titolare medio'
+      : 'Priorità del consiglio, 0-99';
+  }
+
+  /**
+   * THE LAST TEN PICKS, most recent first (operator, 29/09/2026): the call number, the squad's colour, the man
+   * and what he cost.
+   */
+  protected readonly lastPicks = computed(() =>
+    this.feed.teams()
+      .flatMap((team) => team.squad.map((entry) => ({ entry, team })))
+      .filter(({ entry }) => !!entry.player)
+      .sort((a, b) => b.entry.index - a.entry.index)
+      .slice(0, 10)
+      .map(({ entry, team }) => ({
+        index: entry.index,
+        id: entry.player!.id,
+        name: this.feed.shownName(entry.player!),
+        roles: entry.player!.roles,
+        cost: entry.cost,
+        colour: team.colour,
+        team: team.label,
+      })));
 
   /** «Chi prendo adesso»: our own pick of the round being played, and how many calls come before it. */
   protected readonly advised = computed(() => {
@@ -772,6 +789,7 @@ export class Auction {
         : score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
       score,
       locked: this.advice.lockedForMe(row.price),
+      takenBy: this.takenBy(row.player.id),
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),
       goal,
@@ -846,6 +864,13 @@ export class Auction {
     Array.from({ length: this.feed.teams().length }, (_, at) => at + 1),
   );
 
+  /**
+   * ONLY THE MEN EXPECTED GONE BEFORE OUR TURN: the rivals call by price, so under the priority's order they
+   * sit far down the list, and a switch next to the count brings them up (29/09/2026).
+   */
+  protected readonly onlyTaken = signal(false);
+  protected readonly takenCount = computed(() => this.freeAll().filter((row) => !!row.takenBy).length);
+
   /** The list after the search, the role filter (roles in OR, as he asked) and the place filter. */
   protected readonly freeFiltered = computed<FreeRow[]>(() => {
     const query = this.query();
@@ -855,9 +880,11 @@ export class Auction {
     const low = this.fvmMin();
     const high = this.fvmMax();
     const rung = this.minRung();
+    const onlyTaken = this.onlyTaken();
     return this.freeAll().filter(
       (row) =>
-        looseMatch(query, row.name, row.club)
+        (!onlyTaken || !!row.takenBy)
+        && looseMatch(query, row.name, row.club)
         && (!roles.size || row.roles.some((role) => roles.has(role.toLowerCase())))
         && (limit === null || !position || position(row.fvm) <= limit)
         && (low === null || row.fvm >= low)
@@ -951,8 +978,6 @@ export class Auction {
         return (row) => row.expected.steady;
       case 'fmp':
         return (row) => row.expected.fm;
-      case 'dp':
-        return (row) => row.expected.dp;
       case 'trend':
         return (row) => {
           const points = row.trend.map((cell) => cell.points).filter((one): one is number => one != null);
@@ -991,7 +1016,6 @@ export class Auction {
       steady: goal ? null : (this.ratings.for(platform, id)?.steady?.share ?? null),
       fm: numbers?.fm ?? numbers?.estFm ?? null,
       estimated: !measured && (numbers?.estFm ?? null) != null,
-      dp: this.advice.dpBy().get(id) ?? null,
     };
   }
 
@@ -1116,6 +1140,7 @@ export class Auction {
     const bits = [`${row.name} · ${row.club}`, `FVM ${row.fvm}`];
     const place = this.nextPlace(row);
     if (place != null) bits.push(`prendendolo chiami ${place}° nel turno dopo`);
+    if (row.takenBy) bits.push(`probabile scelta di ${row.takenBy.label} prima del tuo turno`);
     if (row.press) bits.push(`titolarità ${row.press} (${row.pressSource === 'stampa' ? 'dalla stampa' : 'dal motore'})`);
     if (row.turnsLeft != null) {
       bits.push(`bloccato: ancora ${row.turnsLeft} ${row.turnsLeft === 1 ? 'turno' : 'turni'} prima di poterlo chiamare`);
@@ -1267,8 +1292,3 @@ export class Auction {
   }
 }
 
-function lastOf(squad: readonly SquadEntry[]): SquadEntry | null {
-  let last: SquadEntry | null = null;
-  for (const entry of squad) if (!last || entry.index > last.index) last = entry;
-  return last;
-}

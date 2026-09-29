@@ -112,7 +112,7 @@
   } @else {
     <div
       class="grid min-h-0 flex-1 gap-2"
-      style="grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.8fr) minmax(0, 1.25fr)"
+      style="grid-template-columns: minmax(0, 1fr) minmax(0, 0.55fr) minmax(0, 1.6fr)"
     >
       <!-- 1. IL CAMPETTO della rosa che si compone: titolari dove il regolamento li mette, riserve sotto il
            posto del loro ruolo, distribuite in parti uguali (`draft-pitch.spreadReserves`). -->
@@ -337,14 +337,15 @@
           }
         </div>
 
-        <div class="grid grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 px-1 text-[10px] uppercase text-muted">
-          <span>#</span><span>Squadra · ultima → prevista</span><span class="text-right">FVM</span>
-        </div>
+        <!-- L'ORDINE E NIENT'ALTRO (sua richiesta, 29/09/2026: «stringere in altezza tutto il blocco e scrivere
+             semplicemente l'ordine senza altri fronzoli»): una riga per squadra - posto, colore, nome, scelte
+             fatte, FVM della rosa. La scelta prevista di ognuno non sta piu' qui: la dice la lista degli
+             svincolati, evidenziando chi sparira' prima del nostro turno. -->
         <!-- LE SQUADRE SCIVOLANO AL LORO POSTO quando l'ordine cambia (sua richiesta, 29/09/2026), e solo in
              CSS: le righe restano nel DOM in un ordine FISSO (per squadra) e ognuna si mette al suo posto di
              chiamata con un `translateY`, quindi quando il posto cambia e' il browser a far scorrere la riga.
              Riordinare il DOM spegnerebbe la transizione: un nodo reinserito non ha uno stile «di prima». -->
-        <ol class="relative min-h-0 flex-1 overflow-y-auto">
+        <ol data-order class="relative shrink-0 overflow-hidden">
           <div class="seat-track" [style.height]="'calc(' + seats().length + ' * var(--seat-step))'"></div>
           @for (line of roundLines(); track line.round) {
             <div data-round-line class="round-line" [style.--seat-at]="line.at"><span>turno {{ line.round }}</span></div>
@@ -357,8 +358,8 @@
               [attr.data-at]="seat.at"
               [attr.data-picks]="seat.team.squad.length"
               [style.--seat-at]="seat.at - 1"
-              class="seat group grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 rounded-md
-                     border px-1 py-0.5"
+              class="seat group grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_1.25rem_2.5rem] items-center gap-x-1
+                     rounded border px-1 text-[11px]"
               [class]="
                 (seat.team.onTheClock
                   ? 'border-primary bg-primary/10'
@@ -369,75 +370,38 @@
               "
               (click)="view(seat.team.id)"
             >
-              <span data-turn-at class="text-xs tabular-nums text-muted">{{ seat.turnAt }}°</span>
-              <span class="flex min-w-0 flex-col">
-                <span class="flex min-w-0 items-center gap-1 text-xs">
-                  <span class="h-2.5 w-2.5 shrink-0 rounded-sm" [style.background]="seat.team.colour"></span>
-                  <span class="min-w-0 truncate font-semibold">{{ seat.team.label }}</span>
-                  @if (seat.mine) {
-                    <span class="rounded bg-primary/20 px-1 text-[10px] text-primary">tu</span>
-                  } @else if (feed.demo()) {
-                    <button
-                      type="button"
-                      class="invisible text-[11px] text-muted group-hover:visible hover:text-primary"
-                      nz-tooltip
-                      nzTooltipTitle="Questa è la mia squadra"
-                      (click)="$event.stopPropagation(); sitAt(seat.team.id)"
-                    >
-                      ♟
-                    </button>
-                  }
-                  <span class="ml-auto shrink-0 text-[10px] tabular-nums text-muted">{{ seat.team.squad.length }}</span>
-                </span>
-                <span class="flex min-w-0 items-center gap-1 text-[10px] leading-tight">
-                  @if (seat.last; as last) {
-                    <ui-roles class="seat-roles shrink-0" [roles]="last.roles" size="xs" />
-                    <span
-                      data-card-name
-                      class="min-w-0 max-w-[45%] cursor-pointer truncate text-muted hover:underline"
-                      (click)="openCard(last.id, $event)"
-                      >{{ last.name }}</span
-                    >
-                  } @else {
-                    <span class="text-muted">—</span>
-                  }
-                  <span class="shrink-0 text-muted">→</span>
-                  @if (seat.next; as next) {
-                    <!-- LA SCELTA PREVISTA AL 50% (sua richiesta, 29/09/2026): e' un pronostico e non un fatto,
-                         e accanto all'ultima scelta, che e' un fatto, deve vedersi diversa. -->
-                    <ui-roles class="seat-roles shrink-0 opacity-50" [roles]="next.roles" size="xs" />
-                    <span
-                      data-card-name
-                      data-predicted
-                      class="min-w-0 cursor-pointer truncate opacity-50 hover:underline"
-                      [class.font-semibold]="!next.predicted"
-                      [class.text-primary]="!next.predicted"
-                      (click)="openCard(next.id, $event)"
-                      >{{ next.name }}</span
-                    >
-                  } @else {
-                    <span class="text-muted">—</span>
-                  }
-                  @if (seat.nextAt !== null) {
-                    <span
-                      class="ml-auto shrink-0 rounded bg-fg/10 px-1 tabular-nums"
-                      nz-tooltip
-                      nzTooltipTitle="Posizione prevista nel giro successivo"
-                      >{{ seat.nextAt }}°</span
-                    >
-                  }
-                </span>
+              <span data-turn-at class="tabular-nums text-muted">{{ seat.turnAt }}°</span>
+              <span class="flex min-w-0 items-center gap-1">
+                <span class="h-2.5 w-2.5 shrink-0 rounded-sm" [style.background]="seat.team.colour"></span>
+                <span class="min-w-0 truncate font-semibold">{{ seat.team.label }}</span>
+                @if (seat.mine) {
+                  <span class="shrink-0 rounded bg-primary/20 px-1 text-[9px] leading-3 text-primary">tu</span>
+                } @else if (feed.demo()) {
+                  <button
+                    type="button"
+                    class="invisible shrink-0 text-[11px] text-muted group-hover:visible hover:text-primary"
+                    nz-tooltip
+                    nzTooltipTitle="Questa è la mia squadra"
+                    (click)="$event.stopPropagation(); sitAt(seat.team.id)"
+                  >
+                    ♟
+                  </button>
+                }
               </span>
-              <!-- IL DELTA DI FVM compare sull'hover di una squadra che non e' quella selezionata (sua richiesta,
-                   29/09/2026): la sua rosa meno quella sul campetto. Solo CSS (`group-hover`), quindi nessuno
-                   stato da tenere in pari col puntatore. -->
-              <span class="flex flex-col items-end leading-tight">
-                <span data-seat-fvm class="text-xs font-semibold tabular-nums">{{ seat.team.spent }}</span>
+              <span class="text-right text-[10px] tabular-nums text-muted" nz-tooltip nzTooltipTitle="Scelte fatte">{{
+                seat.team.squad.length
+              }}</span>
+              <!-- IL DELTA DI FVM sull'hover di una squadra che non e' quella del campetto (sua richiesta,
+                   29/09/2026): prende il posto del totale finche' il puntatore e' sulla riga, solo CSS. -->
+              <span class="text-right tabular-nums">
+                <span data-seat-fvm class="font-semibold" [class.group-hover:hidden]="seat.delta !== null">{{
+                  seat.team.spent
+                }}</span>
                 @if (seat.delta !== null) {
                   <span
                     data-fvm-delta
-                    class="hidden rounded px-1 text-[10px] font-semibold tabular-nums group-hover:block"
-                    [class]="seat.delta > 0 ? 'bg-warning/20 text-warning' : seat.delta < 0 ? 'bg-success/20 text-success' : 'bg-fg/10'"
+                    class="hidden rounded px-0.5 text-[10px] font-semibold group-hover:inline"
+                    [class]="seat.delta > 0 ? 'text-warning' : seat.delta < 0 ? 'text-success' : ''"
                     >Δ {{ signed(seat.delta) }}</span
                   >
                 }
@@ -445,6 +409,39 @@
             </li>
           }
         </ol>
+
+        <!-- GLI ULTIMI DIECI PRESI (sua richiesta, 29/09/2026), il piu' recente in cima: numero di chiamata,
+             colore della squadra, ruoli, nome (apre la card) e FVM. -->
+        <div class="flex min-h-0 flex-1 flex-col gap-1">
+          <div class="px-1 text-[10px] uppercase text-muted">Ultime scelte</div>
+          <ul data-last-picks class="min-h-0 flex-1 overflow-y-auto">
+            @for (pick of lastPicks(); track pick.index) {
+              <li
+                [attr.data-last-pick]="pick.id"
+                class="grid grid-cols-[1.75rem_0.6rem_3.25rem_minmax(0,1fr)_2.25rem] items-center gap-x-1 rounded px-1
+                       text-[11px] leading-5 hover:bg-fg/5"
+              >
+                <span class="tabular-nums text-muted">{{ pick.index + 1 }}</span>
+                <span
+                  class="h-2.5 w-2.5 rounded-sm"
+                  [style.background]="pick.colour"
+                  nz-tooltip
+                  [nzTooltipTitle]="pick.team"
+                ></span>
+                <ui-roles class="min-w-0 overflow-hidden" [roles]="pick.roles" size="xs" />
+                <span
+                  data-card-name
+                  class="min-w-0 cursor-pointer truncate hover:underline"
+                  (click)="openCard(pick.id, $event)"
+                  >{{ pick.name }}</span
+                >
+                <span class="text-right tabular-nums">{{ pick.cost }}</span>
+              </li>
+            } @empty {
+              <li class="px-1 text-[11px] text-muted">Nessuna scelta ancora.</li>
+            }
+          </ul>
+        </div>
       </section>
 
       <!-- 3. GLI SVINCOLATI: tutti, per priorità; ricerca per nome o squadra e filtro per ruolo (in OR). -->
@@ -558,7 +555,20 @@
               </button>
             </div>
           </ng-template>
-          <span class="ml-auto text-[10px] tabular-nums text-muted" [attr.data-total]="free.total()">
+          @if (takenCount() || onlyTaken()) {
+            <button
+              type="button"
+              data-only-taken
+              class="ml-auto rounded px-1.5 text-[10px] tabular-nums"
+              [class]="onlyTaken() ? 'bg-warning/25 font-semibold text-warning' : 'bg-fg/10 text-muted hover:text-fg'"
+              nz-tooltip
+              nzTooltipTitle="Calciatori che gli altri dovrebbero prendere prima del tuo prossimo turno: premi per vedere solo loro"
+              (click)="onlyTaken.set(!onlyTaken())"
+            >
+              {{ takenCount() }} prima di te
+            </button>
+          }
+          <span class="text-[10px] tabular-nums text-muted" [class.ml-auto]="!takenCount() && !onlyTaken()" [attr.data-total]="free.total()">
             {{ free.shown() }} di {{ free.total() }}
           </span>
         </div>
@@ -576,7 +586,7 @@
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
-            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
             <span
               class="sort text-center uppercase"
               data-sort="press"
@@ -599,7 +609,7 @@
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
-            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
             @for (which of seasonKeys; track which; let second = $last) {
               @for (metric of metrics; track metric.key; let first = $first) {
                 <span
@@ -621,7 +631,7 @@
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
-            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')">Prio{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
             <span class="sort text-center uppercase" data-sort="rung" nz-tooltip nzTooltipTitle="Il gradino del motore, non della stampa" (click)="sortBy('rung')"
               >Gradino{{ arrow('rung') }}</span
             >
@@ -640,16 +650,6 @@
             <span class="sort text-right text-warning" data-sort="fmp" nz-tooltip nzTooltipTitle="Fantamedia prevista" (click)="sortBy('fmp')"
               >Fm{{ arrow('fmp') }}</span
             >
-            <!-- DP (sua richiesta, 29/09/2026): [presenze x (FM - Z) + (N - presenze) x (R - Z)] / N, la formula
-                 della Draft Priority sulla riga sola, per giornata; R = fantamedia media delle riserve del ruolo. -->
-            <span
-              class="sort text-right"
-              data-sort="dp"
-              nz-tooltip
-              nzTooltipTitle="DP = [Pv × (FM − Z) + (N − Pv) × (R − Z)] / N: punti a giornata sopra la media del suo ruolo base (Z), con R la fantamedia media delle riserve del ruolo"
-              (click)="sortBy('dp')"
-              >DP{{ arrow('dp') }}</span
-            >
           </div>
         }
 
@@ -667,6 +667,9 @@
               [class.opacity-50]="row.locked"
               [attr.data-locked]="row.locked ? '' : null"
               [attr.data-fvm]="row.fvm"
+              [attr.data-taken-by]="row.takenBy?.id ?? null"
+              [class.taken]="!!row.takenBy"
+              [style.--taken]="row.takenBy?.colour ?? null"
               nz-tooltip
               [nzTooltipTitle]="freeHint(row)"
               nzTooltipPlacement="left"
@@ -753,9 +756,6 @@
                 <span class="text-right tabular-nums">{{ row.expected.steady != null ? (row.expected.steady * 100 | number: '1.0-0') + '%' : '—' }}</span>
                 <span class="text-right tabular-nums text-warning" [class.italic]="row.expected.estimated">{{
                   row.expected.fm != null ? (row.expected.fm | number: '1.1-1') : '—'
-                }}</span>
-                <span data-dp class="text-right tabular-nums" [class.italic]="row.expected.estimated">{{
-                  row.expected.dp != null ? hundredths(row.expected.dp) : '—'
                 }}</span>
               }
             </li>
