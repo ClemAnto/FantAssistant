@@ -1,5 +1,27 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 29 settembre 2026 (VIII) — il draft vero, la Draft Priority, gli scenari
+
+- **La copertura di un posto va tarata con lui** (`draft-scenarios.diagnose`): oggi vuoto · debole (titolare con DP
+  negativa, cioè sotto un titolare MEDIO: su una rosa vera sono tanti) · senza riserva. È la sua richiesta esplicita
+  («poi vediamo bene come tarare il giudizio sulla copertura»). Mancano anche i «pochi bonus in squadra» della sua
+  frase d'esempio: `PriorityMan` non porta il tasso di bonus.
+- **La Draft Priority non guarda la copertura della rosa**: è per uomo, quindi le scelte simulate possono accumulare
+  un ruolo. È la stessa domanda del punto sopra, vista dal consiglio.
+- **`simulateRound` e `plan` camminano ancora il `pickOrder` pubblicato** (il giro mostrato, la proiezione dei
+  suggerimenti del campetto): vanno rifatti con `walkToOurTurn` come il cammino dei rivali. Stesso difetto, altra
+  funzione.
+- **La previsione delle scelte dei rivali va tarata sul draft vero**: alla scelta n. 100 ne segnava 4 e il vero ne ha
+  preso 1 (Foden). Il dato c'è (384 scelte con lo stato a ogni passo): misurare quale testa prevede meglio.
+- **`restore()` perde la squadra seguita** se al refresh non c'è la fotografia salvata: `connect()` chiama
+  `disconnect()`, che azzera `followedTeamId`, e poi `remember()` salva `teamId: null`. Trovato col banco, non curato.
+- **Il banco di riproduzione del draft vive nella scratchpad**: portarlo in `app/scripts/` (senza dati: il JSON della
+  sessione resta fuori dal repo, come `docs/real-data/`).
+- **Z di ruolo «e»**: la lega compra meno «e» di base di quanti ne schiera, quindi R ripiega sul quartile basso; da
+  confermare con lui.
+- **Il doppio click sul tavolo inventato** sceglie ancora (serve a segnare le scelte), quindi il verdetto di uno
+  scenario da un nome si prova solo su un tavolo vero.
+
 ## Aperti alla chiusura del 29 settembre 2026 (VII) — scaricare il draft
 
 - **Il punto decimale nei CSV** è la regola dell'app; se l'Excel dell'operatore legge «7.46» come una data, la cura

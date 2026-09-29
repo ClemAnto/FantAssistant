@@ -7246,6 +7246,19 @@ days paid for: **a rule the real draft enforces must be enforced inside every si
 **knowing an opponent's head perfectly can be worth nothing** - measured with an oracle before building a
 classifier, it was.
 
+## Un draft vero si RIGIOCA sulla pagina, e un ordine pubblicato non si cammina
+**29/09/2026, il draft FA-jo5-zai. Dettaglio: `docs/model/priorita-draft-v1.md` §15-§17.** Tre cose che valgono oltre
+la pagina. **Il giudice di un assistente al tavolo è il tavolo vero rigiocato**: lo stato della sessione troncato alla
+scelta N, servito da un finto host alla pagina del build, riproduce quello che l'operatore aveva a schermo - ed è
+così che «a metà asta risultavano quasi tutti a 0» è diventato un numero (57 zeri su 60) e una causa, invece di una
+discussione. **Un `pickOrder` pubblicato su TUTTE le squadre non si cammina come un giro**: l'host lo ricalcola dopo
+ogni scelta e ci mette anche il giro dopo, quindi un cammino che lo percorre e poi riordina fa chiamare squadre
+nell'ordine vecchio - `goneBeforeOurNextTurn` leggeva sempre «undici scelte» e nessun test lo vedeva, perché i fixture
+pubblicavano solo il giro in corso. Si chiede a ogni passo chi la regola mette primo (`nextCaller`). **E quando
+l'operatore ridichiara una formula, le letture si respingono sui numeri e non sugli argomenti**: tre letture di R in
+un pomeriggio, ognuna fatta girare sul draft vero e mostrata col suo caso assurdo (Kane che «copre» chi non gioca,
+una riserva nostra che premia chi ha due presenze, R = Z al decimo), prima di quella che lui ha scelto.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

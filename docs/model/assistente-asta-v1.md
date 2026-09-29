@@ -6022,3 +6022,10 @@ riletti da disco, righe uguali alle scelte che i sedili contano (52/52 euro, 59/
 numerate in ordine, e le due liste con le stesse aggiudicazioni. **Il difetto del banco, non della pagina**: il menu
 di ng-zorro è ancora nel DOM per l'animazione di chiusura, e premere il bottone in quel momento lo richiude. Il
 passo aspetta che si chiuda, e un menu che non si chiude è un problema asserito.
+
+
+## 67. Il Draft Assistant dopo il draft vero (29/09/2026, sera) — rimando
+
+La Draft Priority ridichiarata (Z un titolare, R una riserva), la pagina rifatta sulle sue richieste, gli scenari
+A → dopo N scelte → A2, la freccetta dell'ordine e il cammino dei rivali scelta per scelta: tutto in
+`priorita-draft-v1.md` §15-§17, con i numeri del draft FA-jo5-zai rigiocato sulla pagina.
