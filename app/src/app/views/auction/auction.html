@@ -68,6 +68,72 @@
           <nz-icon nzType="wifi" /> Asta live
         </button>
       }
+      <!-- AVANTI E INDIETRO SU UN DRAFT (sua richiesta, 30/09/2026): «premendo indietro il cursore si sposta di una
+           scelta indietro ignorando tutto quello che succede dopo». Il taglio e' nel feed (`AuctionFeed.cursor`),
+           quindi rose, svincolati, ordine e consigli leggono tutti lo stesso tavolo troncato. Non sulla demo: li'
+           le scelte si scrivono a mano e l'annulla c'e' gia'. -->
+      @if (!feed.demo() && feed.isDraft() && feed.totalPicks()) {
+        <span data-review class="flex items-center gap-1">
+          <button
+            nz-button
+            nzSize="small"
+            data-review-start
+            [disabled]="feed.cursor() === 0"
+            nz-tooltip
+            nzTooltipPlacement="bottom"
+            nzTooltipTitle="Inizio: prima di ogni scelta"
+            (click)="feed.toStart()"
+          >
+            <nz-icon nzType="step-backward" />
+          </button>
+          <button
+            nz-button
+            nzSize="small"
+            data-review-back
+            [disabled]="feed.cursor() === 0"
+            nz-tooltip
+            nzTooltipPlacement="bottom"
+            nzTooltipTitle="Una scelta indietro"
+            (click)="feed.back()"
+          >
+            <nz-icon nzType="left" />
+          </button>
+          <span
+            data-review-at
+            class="rounded-md px-1.5 py-0.5 text-xs tabular-nums"
+            [class]="feed.reviewing() ? 'bg-warning/20 font-medium text-warning' : 'text-muted'"
+            nz-tooltip
+            nzTooltipPlacement="bottom"
+            [nzTooltipTitle]="feed.reviewing() ? 'Stai rivedendo il draft: le scelte dopo questa sono nascoste' : 'Scelte fatte'"
+          >
+            {{ feed.cursor() ?? feed.totalPicks() }}/{{ feed.totalPicks() }}
+          </span>
+          <button
+            nz-button
+            nzSize="small"
+            data-review-forward
+            [disabled]="!feed.reviewing()"
+            nz-tooltip
+            nzTooltipPlacement="bottom"
+            nzTooltipTitle="Una scelta avanti"
+            (click)="feed.forward()"
+          >
+            <nz-icon nzType="right" />
+          </button>
+          <button
+            nz-button
+            nzSize="small"
+            data-review-end
+            [disabled]="!feed.reviewing()"
+            nz-tooltip
+            nzTooltipPlacement="bottom"
+            nzTooltipTitle="Fine: tutte le scelte"
+            (click)="feed.toEnd()"
+          >
+            <nz-icon nzType="step-forward" />
+          </button>
+        </span>
+      }
       <!-- SCARICA ROSE E SCELTE (sua richiesta, 29/09/2026), su un tavolo vero come su quello finto: due CSV
            dagli stessi record (`core/draft-export`), cosi' i due file non possono dirsi due cose diverse. -->
       @if (feed.demo() || feed.hasTable()) {
@@ -128,6 +194,29 @@
             }
             <span class="text-xs text-muted">{{ team.squad.length }} in rosa</span>
           }
+          <!-- COPERTURA e FERTILITA' TOTALI del campo (sua richiesta, 30/09/2026): la somma di quelle che ogni posto
+               stampa, sui soli uomini in rosa - i suggeriti sono quello che una scelta aggiungerebbe. -->
+          @if (pitchTotals(); as totals) {
+            <span data-pitch-totals class="flex items-center gap-1.5 text-xs tabular-nums">
+              <span
+                data-pitch-cover
+                [class]="totals.coverInk"
+                nz-tooltip
+                nzTooltipTitle="Copertura totale: quota dell'undici con un voto"
+                >{{ totals.cover }}</span
+              >
+              <span
+                data-pitch-fertility
+                [class]="totals.fertilityInk"
+                nz-tooltip
+                [nzTooltipTitle]="
+                  'Fertilità totale: bonus a giornata ×100' +
+                  (totals.unknown ? ' · ' + totals.unknown + ' posti con bonus ignoto esclusi' : '')
+                "
+                >{{ totals.fertility }}{{ totals.unknown ? '*' : '' }}</span
+              >
+            </span>
+          }
           <!-- CAMPO / LISTA (sua richiesta, 29/09/2026): la lista mostra gli ACQUISTATI e basta, per ruolo; i
                suggeriti restano sul campo, dove hanno un posto da riempire. -->
           <nz-radio-group
@@ -145,11 +234,12 @@
             class="w-32"
             [class.invisible]="pitchView() === 'lista'"
             nzSize="small"
-            [ngModel]="forcedModule()"
+            [ngModel]="moduleChoice()"
             (ngModelChange)="chooseModule($event)"
             nzPlaceHolder="Modulo"
           >
-            <nz-option [nzValue]="null" nzLabel="Auto" />
+            <!-- Sulla rosa di un altro «Auto» e' il modulo con la fertilita' piu' alta (sua richiesta, 30/09/2026). -->
+            <nz-option [nzValue]="null" [nzLabel]="rivalView() ? 'Auto (fertilità)' : 'Auto'" />
             @for (name of moduleNames(); track name) {
               <nz-option [nzValue]="name" [nzLabel]="isRecommended(name) ? name + ' ★' : name" />
             }
@@ -220,7 +310,7 @@
             <span data-module [attr.data-module]="drawn.module" class="rounded-full border border-border px-2 py-0.5 font-semibold text-fg tabular-nums">
               {{ drawn.module }}
             </span>
-            @if (drawn.offPlan && !forcedModule()) {
+            @if (drawn.offPlan && !moduleChoice()) {
               <span nz-tooltip nzTooltipTitle="Con questa rosa un modulo non consigliato schiera un undici più forte.">
                 fuori dai consigliati
               </span>

@@ -160,6 +160,17 @@ export function excludedFromTable(
   return candidates.filter((club) => !named.has(clubKey(club.name))).map((club) => club.id);
 }
 
+/** The session clubs `excludedFromTable` cannot find in the catalogue: why it answered null, in names. */
+export function unmatchedClubs(
+  catalogue: readonly ClubOption[],
+  platform: Platform,
+  sessionClubs: readonly (string | null | undefined)[],
+): string[] {
+  const known = new Set(catalogue.filter((club) => club.men[platform] > 0).map((club) => clubKey(club.name)));
+  const named = [...new Set(sessionClubs.filter((club): club is string => !!club))];
+  return named.filter((club) => !known.has(clubKey(club))).sort((a, b) => a.localeCompare(b, 'it'));
+}
+
 @Injectable({ providedIn: 'root' })
 export class GlobalOptions {
   /** Il regolamento dichiarato, uno solo per tutta l'app, che sopravvive al refresh. */
@@ -280,7 +291,19 @@ export class GlobalOptions {
         }
         if (code === excludedFor || !platform || !clubs.length || !catalogue.length) return;
         const synced = excludedFromTable(catalogue, platform, clubs);
-        if (!synced) return;
+        if (!synced) {
+          // LA GUARDIA NON TACE (30/09/2026): un join rotto lascia le esclusioni come stavano, e senza una riga
+          // si leggerebbe come «il tavolo non esclude nessuno». La riga nomina i club che non si riconoscono.
+          const unknown = unmatchedClubs(catalogue, platform, clubs);
+          if (!unknown.length) return;
+          excludedFor = code;
+          const line = `${EXCLUDED_LINE} non sincronizzate, ${unknown.length} club del tavolo non riconosciuti (${unknown
+            .slice(0, 4)
+            .join(', ')}${unknown.length > 4 ? ', …' : ''})`;
+          const current = this.adopted();
+          this.adopted.set({ code, changes: [...(current?.code === code ? current.changes : []), line] });
+          return;
+        }
         excludedFor = code;
         const before = this.excluded();
         const same = synced.length === before.size && synced.every((id) => before.has(id));

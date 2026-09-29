@@ -14,6 +14,7 @@ import {
   livePicks,
   platformOf,
   porteOf,
+  rewindState,
 } from './auction-feed';
 
 /**
@@ -449,5 +450,101 @@ describe('inactiveClubsOf', () => {
     expect(inactiveClubsOf({ settings: {} }).size).toBe(0);
     expect(inactiveClubsOf({}).size).toBe(0);
     expect(inactiveClubsOf({ settings: { inactiveTeams: [3, null] } }).size).toBe(0);
+  });
+});
+
+describe('rivedere un draft scelta per scelta', () => {
+  // Three squads, two rounds, and the host's order as it reads at the END of the draft. The history is the
+  // order the squads really called in: 1, 2, 3, then 3, 1, 2.
+  const ENDED: RawState = {
+    marketType: 1,
+    status: 3,
+    teams: [{ id: 1 }, { id: 2 }, { id: 3 }],
+    pickOrder: [2, 3, 1],
+    turnTeamId: 2,
+    picks: [
+      { index: 0, teamId: 1, playerId: 101, cost: 90 },
+      { index: 1, teamId: 2, playerId: 102, cost: 80 },
+      { index: 2, teamId: 3, playerId: 103, cost: 70 },
+      { index: 3, teamId: 3, playerId: 104, cost: 60 },
+      { index: 4, teamId: 1, playerId: 105, cost: 50 },
+      { index: 5, teamId: 2, playerId: 106, cost: 40 },
+    ],
+  };
+
+  it('keeps only the picks before the cursor, and nothing after it', () => {
+    const at3 = rewindState(ENDED, 3);
+    expect(livePicks(at3).map((pick) => pick.playerId)).toEqual([101, 102, 103]);
+    expect(rewindState(ENDED, 0).picks).toEqual([]);
+  });
+
+  it('rebuilds the call order of that moment from who called next, not the order published now', () => {
+    const at3 = rewindState(ENDED, 3);
+    expect(at3.pickOrder).toEqual([3, 1, 2]);
+    expect(at3.turnTeamId).toBe(3);
+    expect(rewindState(ENDED, 0).pickOrder).toEqual([1, 2, 3]);
+    // A squad that never calls again after the cursor still has a seat: it goes last, in the host's order.
+    expect(rewindState(ENDED, 5).pickOrder).toEqual([2, 3, 1]);
+  });
+
+  it('reads a finished draft as one still being played, and leaves the whole table alone', () => {
+    expect(rewindState(ENDED, 2).status).toBe(2);
+    expect(rewindState(ENDED, 6)).toBe(ENDED);
+    expect(rewindState(ENDED, 60)).toBe(ENDED);
+  });
+
+  const feedOn = (state: RawState) => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const feed = TestBed.inject(AuctionFeed);
+    feed.startDemo({ players: [], state: structuredClone(state), mineId: 1 });
+    return feed;
+  };
+
+  it('steps back and forward, and past the last pick shows the table whole again', () => {
+    const feed = feedOn(ENDED);
+    expect(feed.reviewing()).toBe(false);
+    feed.back();
+    expect(feed.cursor()).toBe(5);
+    expect(feed.picks().length).toBe(5);
+    expect(feed.totalPicks()).toBe(6);
+    feed.back();
+    feed.back();
+    expect(feed.onTheClock()?.id).toBe(3);
+    expect(feed.teams().find((team) => team.id === 1)!.squad.length).toBe(1);
+    feed.forward();
+    feed.forward();
+    feed.forward();
+    expect(feed.reviewing()).toBe(false);
+    expect(feed.picks().length).toBe(6);
+  });
+
+  it('jumps to the first pick and back to the whole table', () => {
+    const feed = feedOn(ENDED);
+    feed.toStart();
+    expect(feed.cursor()).toBe(0);
+    expect(feed.picks().length).toBe(0);
+    expect(feed.onTheClock()?.id).toBe(1);
+    feed.toEnd();
+    expect(feed.reviewing()).toBe(false);
+    expect(feed.picks().length).toBe(6);
+  });
+
+  it('stops at the first pick and never goes below it', () => {
+    const feed = feedOn(ENDED);
+    for (let i = 0; i < 10; i += 1) feed.back();
+    expect(feed.cursor()).toBe(0);
+    expect(feed.picks().length).toBe(0);
+  });
+
+  it('ends the review when the table changes hands or is written by hand', () => {
+    const feed = feedOn(ENDED);
+    feed.back();
+    feed.disconnect();
+    expect(feed.cursor()).toBeNull();
+    const again = feedOn(ENDED);
+    again.back();
+    again.undoLastByHand();
+    expect(again.reviewing()).toBe(false);
   });
 });

@@ -50,6 +50,8 @@ import {
   SettingOutline,
   ShareAltOutline,
   StarFill,
+  StepBackwardOutline,
+  StepForwardOutline,
   StopOutline,
   SwapOutline,
   TableOutline,
@@ -125,6 +127,9 @@ export const NZ_ICONS: IconDefinition[] = [
   SettingOutline,
   ShareAltOutline,
   StarFill,
+  // INIZIO E FINE della revisione di un draft (30/09/2026): non sono nella lista di default di ng-zorro.
+  StepBackwardOutline,
+  StepForwardOutline,
   StopOutline,
   SwapOutline,
   TableOutline,

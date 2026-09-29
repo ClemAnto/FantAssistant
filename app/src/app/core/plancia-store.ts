@@ -466,6 +466,15 @@ export class PlanciaStore {
   private listoneFor: Platform | null = null;
 
   constructor() {
+    // LE SQUADRE ESCLUSE DI UN TAVOLO VERO (sua richiesta, 30/09/2026: «quando viene collegata un'asta-live devi
+    // settare anche le squadre escluse»). Il sync vive in `GlobalOptions` e aspetta il CATALOGO dei club, che lo
+    // riempie `ValuationStore.load()` - e questa pagina il foglio lo legge da se', quindi collegandosi da qui
+    // il catalogo restava vuoto e le escluse non si sincronizzavano MAI. Si carica solo su un tavolo vero: la
+    // finzione non ha niente da sincronizzare, e il caricamento e' memoizzato.
+    effect(() => {
+      const live = !!this.feed.code() && !this.feed.demo();
+      if (live) untracked(() => void this.valuations.load());
+    });
     // LA LEGA CAMBIA, LA PLANCIA SI RIALLINEA. Solo sul tavolo INVENTATO: su uno vero le rose e i
     // crediti sono del banditore. Il listone invece segue la lega anche collegati, perche' e' lui a
     // dire con quali prezzi si legge il tavolo - e l'adozione lo porta gia' su quello della sessione.

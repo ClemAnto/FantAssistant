@@ -1,5 +1,5 @@
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
-import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
@@ -322,6 +322,9 @@ export class Auction {
   protected readonly auto = signal(false);
 
   constructor() {
+    // A REVIEW ENDS WITH THE PAGE: the cursor lives in the feed, which is shared with the plancia, and a board
+    // opened elsewhere on a truncated table would show a past auction with no control saying so.
+    inject(DestroyRef).onDestroy(() => this.feed.toEnd());
     // A refresh mid-auction re-joins whatever session this browser was on, and only when there is none the
     // page opens on the declared league's table. The order is forced: starting the table first would
     // overwrite a real auction the operator is in.
@@ -582,6 +585,8 @@ export class Auction {
 
   protected view(teamId: number): void {
     this.viewed.set(this.viewed() === teamId ? null : teamId);
+    // A module chosen by hand on a rival's pitch is about THAT squad: another one opens on its own best.
+    this.rivalModule.set(null);
   }
 
   /** «This squad is mine»: on the invented table it is how he sits down; on a live one the modal does it. */
@@ -601,7 +606,50 @@ export class Auction {
    */
   protected readonly forcedModule = signal<string | null>(readModule());
 
+  /**
+   * THE PITCH OF ANOTHER PARTICIPANT opens on ITS best module, the one with the highest FERTILITY (operator,
+   * 30/09/2026: «quando seleziono una squadra di un partecipante che non sia te stesso, devi selezionare in
+   * automatico il modulo migliore (fertilità + alto)»). Mine keeps the module I forced, which is a decision about
+   * the squad I am building; a rival's pitch is a reading of a squad I am not building, so it is chosen per squad
+   * and a hand choice there lasts until another squad is opened - it is not saved, and it never moves mine.
+   */
+  protected readonly rivalView = computed(() => {
+    const team = this.pitchTeam();
+    return !!team && team.id !== this.feed.followedTeamId();
+  });
+
+  private readonly rivalModule = signal<string | null>(null);
+
+  /** What the module selector shows: my forced module on my pitch, the hand choice on a rival's. */
+  protected readonly moduleChoice = computed(() => (this.rivalView() ? this.rivalModule() : this.forcedModule()));
+
+  /**
+   * The module whose pitch has the highest fertility for the squad on screen, on real men only (the same
+   * `pitchYield` the header prints); a tie goes to the higher coverage, then to the rulebook's order with the
+   * recommended shapes first. Null on my own pitch.
+   */
+  protected readonly fertileModule = computed<string | null>(() => {
+    if (!this.rivalView()) return null;
+    const rules = this.advice.rules();
+    const preferred = this.feed.isMantra() ? RECOMMENDED_MANTRA : [];
+    const squad = this.squad();
+    let best: { name: string; fertility: number; cover: number } | null = null;
+    for (const name of this.moduleNames()) {
+      const drawn = draftPitchOf(squad, rules, preferred, name);
+      if (!drawn || drawn.module !== name) continue;
+      const { cover, fertility } = pitchYield(drawn);
+      if (!best || fertility > best.fertility + 1e-9 || (Math.abs(fertility - best.fertility) <= 1e-9 && cover > best.cover + 1e-9)) {
+        best = { name, fertility, cover };
+      }
+    }
+    return best?.name ?? null;
+  });
+
   protected chooseModule(name: string | null): void {
+    if (this.rivalView()) {
+      this.rivalModule.set(name);
+      return;
+    }
     this.forcedModule.set(name);
     try {
       if (name) localStorage.setItem(MODULE_KEY, name);
@@ -856,10 +904,45 @@ export class Auction {
     const suggested = this.suggested();
     // The MODULE is the one the squad-to-be fields best, real and projected men together: the shape it is
     // being built towards. The men on it are then the real ones, and the suggestions fill the gaps.
-    const target = this.forcedModule()
-      ?? (suggested.length ? draftPitchOf([...this.squad(), ...suggested], rules, preferred)?.module ?? null : null);
+    const target = this.rivalView()
+      ? (this.rivalModule() ?? this.fertileModule())
+      : this.forcedModule()
+        ?? (suggested.length ? draftPitchOf([...this.squad(), ...suggested], rules, preferred)?.module ?? null : null);
     const drawn = draftPitchOf(this.squad(), rules, preferred, target);
     return drawn && suggested.length ? withSuggestions(drawn, suggested) : drawn;
+  });
+
+  /**
+   * THE WHOLE PITCH'S coverage and fertility, for the header (operator, 30/09/2026: «nell'intestazione del campo metti
+   * anche la copertura totale e la fertilità totale»). The same `placeYield` the places print, summed, and on the REAL
+   * men only: the header describes the squad, the suggestions are what a pick would add. Coverage as a share of the
+   * eleven (the places covered over eleven), in the places' own three inks; fertility in hundredths per matchday.
+   * A place whose bonus is unknown is left out of the sum and COUNTED, so a total over ten places is never read as one
+   * over eleven («vuoto = ignoto, mai zero»).
+   */
+  protected readonly pitchTotals = computed(() => {
+    const drawn = this.pitch();
+    if (!drawn) return null;
+    let cover = 0;
+    let fertility = 0;
+    let unknown = 0;
+    let places = 0;
+    for (const place of drawn.rows.flatMap((row) => row.places)) {
+      const one = placeYield(place);
+      places += 1;
+      cover += one.cover;
+      if (one.fertility == null) unknown += one.cover > 0 ? 1 : 0;
+      else fertility += one.fertility;
+    }
+    const share = cover / (places || ELEVEN);
+    const f = hundredths(fertility) ?? 0;
+    return {
+      cover: `${Math.round(share * 100)}%`,
+      coverInk: share < 0.5 ? 'text-danger' : share < 0.85 ? 'text-warning' : 'text-success',
+      fertility: `${f > 0 ? '+' : ''}${f}`,
+      fertilityInk: f < 0 ? 'text-danger' : 'text-success',
+      unknown,
+    };
   });
 
   protected placeHint(place: DraftPlace): string {

@@ -486,6 +486,42 @@ export function livePicks(state: RawState): RawPick[] {
 }
 
 /**
+ * THE TABLE AS IT STOOD AFTER ITS FIRST `at` PICKS, for reviewing a draft one pick at a time.
+ *
+ * The picks after the cursor leave, and with them everything derived from them (squads, purses, the free
+ * pool). What does NOT follow from the picks alone is the CALL ORDER, which the host recomputes after every
+ * pick and publishes only as it is now - so it is rebuilt from the history instead: the order in which the
+ * squads FIRST call again from the cursor on IS the order the table showed at the cursor. Under the
+ * platform's rule (`auction-plan.ahead`) a pick moves only the squad that made it and never reorders the
+ * others, so the squads that have not called since keep their relative order, and each reaches the head in
+ * that order. Measured on the real draft FA-jo5-zai: the rule reproduces 384 picks of 384. It reads the
+ * future only to recover a fact that was already fixed at the cursor, which is why nothing computed on the
+ * result can see what was chosen after it. Squads that never call again (full rosters) come last, in the
+ * order the host publishes now.
+ *
+ * The status goes back to «started»: at the cursor the draft is still being played. The two raise-auction
+ * nodes are dropped, since they describe the room now and not then.
+ */
+export function rewindState(state: RawState, at: number): RawState {
+  const picks = livePicks(state);
+  if (at >= picks.length) return state;
+  const cut = Math.max(0, Math.floor(at));
+  const order: number[] = [];
+  for (const pick of picks.slice(cut)) if (!order.includes(pick.teamId)) order.push(pick.teamId);
+  const ids = listOf<any>(state.teams).filter(Boolean).map((team) => team.id as number);
+  for (const id of [...(state.pickOrder ?? []), ...ids]) if (!order.includes(id)) order.push(id);
+  return {
+    ...state,
+    picks: picks.slice(0, cut),
+    pickOrder: order,
+    turnTeamId: order[0],
+    status: DraftStatus.Started,
+    selectedPlayerId: null,
+    currentBid: null,
+  };
+}
+
+/**
  * Applies one Firebase stream event to the mirror and returns it.
  *
  * `put` REPLACES the node at `path`, `patch` MERGES the given keys into it. Getting the two
@@ -581,7 +617,29 @@ export class AuctionFeed {
    */
   readonly failure = signal<'missing' | 'network' | null>(null);
 
-  private readonly state = signal<RawState>({});
+  /** The table as the host publishes it (or as the demo holds it): what the stream writes and a refresh saves. */
+  private readonly live = signal<RawState>({});
+
+  /**
+   * RIVEDERE UN DRAFT SCELTA PER SCELTA (operatore, 30/09/2026: «tasti avanti e indietro per navigare
+   * un'asta draft passata: premendo indietro il cursore si sposta di una scelta indietro ignorando tutto
+   * quello che succede dopo»). Quante scelte sono a schermo, o `null` per tutto quello che il tavolo ha.
+   *
+   * Vive QUI e non nella pagina perche' ogni numero del pannello - rose, borse, svincolati, ordine di
+   * chiamata, consigli, scenari - si legge da `state`: troncare a monte e' il solo modo in cui nessuno di
+   * loro possa sapere cosa e' successo dopo. Il salvataggio e lo stream restano su `live`, quindi rivedere
+   * non tocca il tavolo vero ne' la copia che un refresh riprende.
+   */
+  readonly cursor = signal<number | null>(null);
+
+  /** Every pick the table holds, whatever the cursor says: the «of M» of the review. */
+  readonly totalPicks = computed(() => livePicks(this.live()).length);
+  readonly reviewing = computed(() => this.cursor() !== null);
+
+  private readonly state = computed<RawState>(() => {
+    const at = this.cursor();
+    return at === null ? this.live() : rewindState(this.live(), at);
+  });
   private readonly players = signal<Map<number, AuctionPlayer>>(new Map());
 
   /** The live mirror the stream writes into; `state` publishes a copy of it after every event. */
@@ -961,8 +1019,9 @@ export class AuctionFeed {
     const saved = this.snapshot();
     if (!saved || saved.code !== code || !saved.state) return false;
 
+    this.cursor.set(null);
     this.mirror = saved.state;
-    this.state.set({ ...saved.state });
+    this.live.set({ ...saved.state });
     if (saved.players?.length) {
       this.players.set(new Map(saved.players.map((player) => [player.id, player])));
     }
@@ -989,7 +1048,7 @@ export class AuctionFeed {
   startDemo(session: { players: AuctionPlayer[]; state: RawState; mineId: number }): void {
     this.disconnect();
     this.mirror = session.state;
-    this.state.set({ ...session.state });
+    this.live.set({ ...session.state });
     this.players.set(new Map(session.players.map((player) => [player.id, player])));
     this.code.set(DEMO_CODE);
     this.followedTeamId.set(session.mineId);
@@ -1015,13 +1074,14 @@ export class AuctionFeed {
    */
   awardByHand(playerId: number, teamId: number, cost: number): boolean {
     if (!this.demo()) return false;
+    this.cursor.set(null);
     const picks = listOf<RawPick>(this.mirror.picks);
     if (picks.some((pick) => !pick.released && pick.playerId === playerId)) return false;
     // The index is the ORDER of the awards, so it continues the fixture's own numbering instead of
     // restarting at the length: `livePicks` sorts on it, and a repeated index is a shuffled history.
     const index = picks.reduce((top, pick) => Math.max(top, pick.index), -1) + 1;
     this.mirror = { ...this.mirror, picks: [...picks, { index, teamId, playerId, cost }] };
-    this.state.set({ ...this.mirror });
+    this.live.set({ ...this.mirror });
     return true;
   }
 
@@ -1037,8 +1097,9 @@ export class AuctionFeed {
    */
   emptySquads(): boolean {
     if (!this.demo()) return false;
+    this.cursor.set(null);
     this.mirror = { ...this.mirror, picks: [] };
-    this.state.set({ ...this.mirror });
+    this.live.set({ ...this.mirror });
     return true;
   }
 
@@ -1052,19 +1113,43 @@ export class AuctionFeed {
   setDemoOrder(order: number[]): boolean {
     if (!this.demo()) return false;
     this.mirror = { ...this.mirror, pickOrder: order, turnTeamId: order[0] };
-    this.state.set({ ...this.mirror });
+    this.live.set({ ...this.mirror });
     return true;
   }
 
   /** Toglie l'ULTIMA scelta del tavolo inventato: un doppio click sbagliato non deve costare un'asta. */
   undoLastByHand(): boolean {
     if (!this.demo()) return false;
+    this.cursor.set(null);
     const picks = listOf<RawPick>(this.mirror.picks).filter((pick) => !pick.released);
     if (!picks.length) return false;
     const last = picks.reduce((top, pick) => (pick.index > top.index ? pick : top));
     this.mirror = { ...this.mirror, picks: picks.filter((pick) => pick !== last) };
-    this.state.set({ ...this.mirror });
+    this.live.set({ ...this.mirror });
     return true;
+  }
+
+  /** One pick back: from the end, the last pick leaves the screen. */
+  back(): void {
+    const at = this.cursor() ?? this.totalPicks();
+    if (at > 0) this.cursor.set(at - 1);
+  }
+
+  /** One pick forward; past the last one the review ends and the table is shown whole again. */
+  forward(): void {
+    const at = this.cursor();
+    if (at === null) return;
+    this.cursor.set(at + 1 >= this.totalPicks() ? null : at + 1);
+  }
+
+  /** To the first pick: the draft before anybody chose. */
+  toStart(): void {
+    if (this.totalPicks() > 0) this.cursor.set(0);
+  }
+
+  /** Back to everything the table holds. */
+  toEnd(): void {
+    this.cursor.set(null);
   }
 
   follow(teamId: number) {
@@ -1080,8 +1165,9 @@ export class AuctionFeed {
   /** Closes the stream and empties the mirror. It does NOT forget the session: `connect` calls it. */
   disconnect() {
     this.closeStream();
+    this.cursor.set(null);
     this.mirror = {};
-    this.state.set({});
+    this.live.set({});
     this.players.set(new Map());
     this.code.set(null);
     this.followedTeamId.set(null);
@@ -1271,7 +1357,7 @@ export class AuctionFeed {
     const apply = (kind: 'put' | 'patch') => (event: MessageEvent) => {
       const message = JSON.parse(event.data) as { path: string; data: unknown };
       this.mirror = applyStreamEvent(this.mirror, kind, message.path, message.data);
-      this.state.set({ ...this.mirror });
+      this.live.set({ ...this.mirror });
       if (this.status() !== 'connected') this.status.set('connected');
       this.stale.set(false);
       this.rememberState();
