@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { ClubOption, DEFAULT_LEAGUE, GlobalOptions, excludedFromTable, unmatchedClubs } from './global-options';
+import { ClubOption, DEFAULT_LEAGUE, GlobalOptions, excludedFromTable, tableSaysExclusions, unmatchedClubs } from './global-options';
 import { PlayerRow } from './players-store';
 import { catalogueOf } from './valuation-store';
 
@@ -185,6 +185,15 @@ describe('excludedFromTable', () => {
     expect(excludedFromTable(catalogue, 'euro', [])).toBeNull();
     // ...including a PARTIAL join: «AC Milan» unmatched must not exclude «Milan», whose men are on the table.
     expect(excludedFromTable(catalogue, 'euro', ['Bayern', 'Arsenal', 'Real Madrid', 'Inter', 'AC Milan'])).toBeNull();
+  });
+
+  it('lets a table replace the declared exclusions only on evidence', () => {
+    // FA-jo5-zai once the draft was over: every club in the listone and no switched-off list. It says nothing.
+    expect(tableSaysExclusions([], false)).toBe(false);
+    // The host's own list, even when it ends up switching nothing off...
+    expect(tableSaysExclusions([], true)).toBe(true);
+    // ...and a club missing from the session's listone.
+    expect(tableSaysExclusions([4, 5], false)).toBe(true);
   });
 
   it('names the session clubs the guard could not find, so a refused sync is never silent', () => {

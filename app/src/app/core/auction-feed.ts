@@ -817,6 +817,15 @@ export class AuctionFeed {
     return index === undefined || index < 0 ? null : index;
   });
 
+  /**
+   * WHETHER THE TABLE SAYS ANYTHING ABOUT SWITCHED-OFF CLUBS, which is not the same as «none are off». Read on
+   * FA-jo5-zai on 30/09/2026: during the live draft `settings.inactiveTeams` carried the Serie A clubs (283 of
+   * their men, and not one of the 384 picks is Serie A), and once the draft was over the key was GONE while
+   * the 284 men were still in the listone. Firebase also drops an empty list, so an absent key cannot tell
+   * «none are off» from «the host no longer publishes it»: absent is unknown («vuoto = ignoto, mai zero»).
+   */
+  readonly declaresInactive = computed(() => leagueSettings(this.state())['inactiveTeams'] != null);
+
   /** The clubs the host switched off (`inactiveClubsOf`). Their men are not considered anywhere. */
   readonly inactiveClubs = computed(() => inactiveClubsOf(this.state()));
 

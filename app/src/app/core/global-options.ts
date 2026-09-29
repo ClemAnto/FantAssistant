@@ -160,6 +160,16 @@ export function excludedFromTable(
   return candidates.filter((club) => !named.has(clubKey(club.name))).map((club) => club.id);
 }
 
+/**
+ * WHETHER A TABLE'S READING MAY REPLACE THE DECLARED EXCLUSIONS: only on evidence. A club missing from the
+ * session's listone is evidence, and so is the host's own switched-off list; a complete listone with no such
+ * list says nothing - it is what a finished draft publishes after its exclusions were lifted - so it must not
+ * wipe what the operator declared.
+ */
+export function tableSaysExclusions(synced: readonly number[], declaresInactive: boolean): boolean {
+  return declaresInactive || synced.length > 0;
+}
+
 /** The session clubs `excludedFromTable` cannot find in the catalogue: why it answered null, in names. */
 export function unmatchedClubs(
   catalogue: readonly ClubOption[],
@@ -291,6 +301,18 @@ export class GlobalOptions {
         }
         if (code === excludedFor || !platform || !clubs.length || !catalogue.length) return;
         const synced = excludedFromTable(catalogue, platform, clubs);
+        if (synced && !tableSaysExclusions(synced, this.feed.declaresInactive())) {
+          // IL TAVOLO NON DICE NIENTE, quindi restano le TUE (30/09/2026, FA-jo5-zai: un draft finito non
+          // pubblica piu' `inactiveTeams`, e il sync gli leggeva «nessuna esclusa» azzerando la Serie A che
+          // l'operatore aveva dichiarato). La riga lo dice, perche' un sync che non tocca niente in silenzio si
+          // legge come uno che ha controllato.
+          excludedFor = code;
+          const mine = this.excluded().size;
+          const line = `${EXCLUDED_LINE} il tavolo non le dichiara, ${mine ? `restano le tue (${mine})` : 'nessuna'}`;
+          const current = this.adopted();
+          this.adopted.set({ code, changes: [...(current?.code === code ? current.changes : []), line] });
+          return;
+        }
         if (!synced) {
           // LA GUARDIA NON TACE (30/09/2026): un join rotto lascia le esclusioni come stavano, e senza una riga
           // si leggerebbe come «il tavolo non esclude nessuno». La riga nomina i club che non si riconoscono.
