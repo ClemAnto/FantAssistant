@@ -5947,3 +5947,28 @@ scelta (reparto o porte già pieni per la squadra di turno), invece di aspettare
   secondo mezzo, perche' li' il doppio click SCEGLIE.
 - **Aperto**: il trend a barrette della Strategia (`ui-vote-trend`) e' lavoro non ancora committato dell'altra
   sessione (tocca anche `player-trend.ts`); qui resta `ui-trend-votes` finche' quello non e' su master.
+
+**Il resto della stessa sessione (29/09/2026), in ordine di arrivo, tutto su sua richiesta.**
+- **Ordine di chiamata**: le squadre scivolano al loro posto quando l'ordine cambia (solo CSS: il DOM resta in
+  ordine fisso e il posto è un `translateY`, perché un nodo riordinato non ha uno stile «di prima» da cui
+  transitare); una linea tratteggiata fra le squadre di un turno e quelle del successivo, contate le scelte già
+  fatte; il numero è il posto NEL PROPRIO TURNO (dopo la linea da 1°, l'ultimo prima della linea è il 12°);
+  delta di FVM di rosa in hover rispetto alla squadra selezionata; ruoli mantra in piccolo sulle scelte; la
+  scelta prevista al 50%.
+- **Il tavolo si ricorda**: scelte e «tu» in `localStorage`, rigiocati solo sulla STESSA lega (listone, gioco,
+  squadre, rose) e letti solo da `start`, che gira quando non c'è una sessione live da riprendere - quindi mai
+  sopra un'asta vera.
+- **Il campetto suggerisce** un titolare per ogni posto vuoto e una riserva dove manca, al 30%, dalle nostre
+  scelte PROIETTATE (`projectOurPicks`, fino a 22 uomini): un uomo vero non viene mai spostato da un suggerito, e
+  il modulo è quello che la rosa-a-venire schiera meglio, salvo che lui ne abbia scelto uno. Ogni calciatore su
+  due righe (nome; titolarità e valore), la posizione in alto al centro, le fasce all'esterno della linea.
+- **La lista**: FVM e priorità subito dopo il nome in tutte le viste; tre viste (Default: titolarità a badge
+  colorati e trend · Medie: le due stagioni, Fm in ambra, tratteggio fra le stagioni, colonne tutte larghe uguali
+  · Previste: gradino del motore, partite, minuti, Mv, costanza, Fm); ogni intestazione ordina; i bloccati restano
+  al loro posto al 50% col lucchetto e i turni che mancano; filtri «fino al N°» (il posto nel turno dopo se lo
+  prendi adesso, `positionAfterSpending`), FVM min/max in un riquadro, «almeno <gradino>».
+- **Card** su ogni nome della pagina (lista, campetto, ordine, consiglio), senza tavolo; nella lista il click
+  aspetta il doppio click, che sceglie.
+- **AUTO** (debug): gli altri scelgono il previsto dopo 500 ms e il tavolo si ferma al nostro turno.
+- **La colonna «titolarità»** usa colori su una scala ordinale per sua richiesta esplicita, contro la regola di
+  default dell'app di leggerle per peso: è una sua decisione, e sta scritta accanto alla mappa `RUNG_BADGE`.

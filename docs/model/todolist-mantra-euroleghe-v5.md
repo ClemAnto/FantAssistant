@@ -1,5 +1,23 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 29 settembre 2026 (III) — il Draft Assistant
+
+1. **Pubblicare**: il Draft Assistant è su master e non su gh-pages (`npm run deploy:pages`, che pubblica
+   l'ALBERO DI LAVORO: da fare quando l'altra sessione ha committato la sua metà app, o si pubblica il suo lavoro
+   a metà).
+2. **Le barrette del trend come in Strategia** (sua richiesta): `ui/vote-trend` è dell'altra sessione e non
+   ancora committato; quando c'è, nella lista si sostituisce `ui-trend-votes` e nel riordino per «trend» si legge
+   la stessa media.
+3. **La Draft Priority** nella colonna «priorità» e nella proiezione del campetto, quando il banco la promuove
+   (`priorita-draft-v1.md` §6): i due punti sono `AuctionAdvice.priorities` e `AuctionAdvice.projection`.
+4. **Lo stemma degli avversari nella card** (il Köln, e in generale la Bundesliga all'11%): si cerca per nome e
+   il fornitore scrive `1. FC Köln` dove il listone scrive `Colonia`. La cura è far viaggiare nel bundle i nomi
+   alternativi che il toolkit conosce (`CLUB_ALIASES`), non una lista a mano nell'app.
+5. **Da verificare su un'asta live vera**: la pagina legge il tavolo del feed e le colonne sono le stesse, ma il
+   banco ha provato solo il tavolo simulato (la sessione vera la prova `e2e-plancia-resume` sulla plancia).
+6. **Gli altri banchi e2e hanno lo stesso difetto di `browser.kill`**: 32 Edge di `fant-e2e-clubs-`, 8 di `opt` e
+   8 di `nav` erano ancora vivi; la cura è quella di `e2e-draft.mjs` (albero + profilo).
+
 ## Aperti alla chiusura del 29 settembre 2026 — la stagione scorsa ricostruita
 
 1. **Il nome del campionato sulla riga ricostruita** (proposto all'operatore, in attesa di risposta): un

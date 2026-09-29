@@ -7853,6 +7853,20 @@ pagate: i codici di Transfermarkt non sono gli slug di Sofascore (`GB2` non cont
 20 di `abroad` scartano Segunda RFEF, Brasileirao ed Ekstraklasa, dove seguiamo pochi ragazzi; e un «7:2»
 giusto (Harwood-Bellis in Championship) si legge come un errore finche' la riga non nomina il campionato.
 
+## Un'altra sessione può lavorare DENTRO il tuo worktree, e `browser.kill` non chiude Edge
+**29/09/2026, dalla sessione del Draft Assistant.** Il worktree protegge da una sessione che resta sul suo
+albero; non protegge da una che ci entra. Da circa l'una l'altra sessione ha lavorato nel branch
+`draft-assistant` (due commit suoi, e righe non committate nel MIO `auction.ts`), e un mio `git add -A app/src`
+si è portato dentro le sue righe di `season-line.ts`. Visto solo perché la suite contava più test del previsto
+e `git status` elencava file che non avevo toccato. Tre abitudini: **si committa per percorsi espliciti**
+(`git commit -- <file>`), **prima si cerca il vocabolario altrui nel diff** (`git diff --cached | grep` sulle
+parole della sua feature), e dove un file è condiviso **si mette in index il blob della propria metà**
+(`hash-object -w` + `update-index --cacheinfo`) dopo averlo compilato da solo in un worktree su HEAD.
+**E un banco e2e su Windows deve chiudere l'ALBERO del browser**: `ChildProcess.kill()` ferma il primo
+processo di Edge e lascia i renderer, parte dei quali si stacca comunque dal padre - 210 Edge headless di un
+solo banco avevano esaurito la memoria e la suite unitaria moriva di OOM. `e2e-draft.mjs` fa `taskkill /T` e poi
+chiude chi porta il suo profilo temporaneo; gli altri banchi hanno ancora il difetto.
+
 ## A successful PUSH is not a published site, and a deploy publishes the WORKING TREE
 **24/09/2026, from «riesci a pubblicare online la webapp?»** — `npm run deploy:pages`, v0.1.26, the real
 bundle exported that morning. The site had been stuck on the deploy of 20/08, so what went online is a
