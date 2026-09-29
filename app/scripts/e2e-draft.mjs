@@ -144,7 +144,9 @@ function readPage() {
   const places = [...document.querySelectorAll('[data-place]')];
   const pitch = document.querySelector('[data-column="pitch"]');
   const clock = document.querySelector('[data-seat][data-clock]');
-  const first = document.querySelector('[data-free]');
+  // The first row the squad on the clock can CALL: with the Draft Priority a frozen top (Kane) may head the
+      // list, dimmed, and a double click on him is refused by design.
+      const first = document.querySelector('[data-free]:not([data-locked])');
   const firstRect = first?.getBoundingClientRect();
   return {
     ready: !!first && places.length > 0,
@@ -519,7 +521,10 @@ async function main() {
         ...(autoClock !== mine ? ['AUTO non riporta il turno a me'] : []),
         // How MANY rivals call before me again is the order's business (after a dear pick I can be last of
         // the next turn, i.e. two turns of rivals): what AUTO owes is that none of them was mine.
-        ...(autoTo - autoFrom < seatsTotal - 1 ? [`solo ${autoTo - autoFrom} scelte automatiche prima del mio turno`] : []),
+        // AUTO may start anywhere in the order - the steps before it pick with the page, and with the Draft
+        // Priority those picks are different men at different prices - so it owes at least one pick, a stop
+        // on me and never a pick for me; the count is the order's business.
+        ...(autoTo - autoFrom < 1 || seatsTotal < 2 ? ['nessuna scelta automatica prima del mio turno'] : []),
         ...(squadTo !== squadFrom || stayed !== mine ? ['AUTO ha scelto anche per me'] : []),
         ...(autoMs < (autoTo - autoFrom) * 450 ? ['le scelte automatiche non aspettano i 500ms'] : []),
       ]);
@@ -555,6 +560,48 @@ async function main() {
         ...(drawn !== page.squadSize ? [`il campetto disegna ${drawn} uomini su ${page.squadSize}`] : []),
         ...(page.squadSize < 3 ? ['la mia rosa non e\' cresciuta'] : []),
         ...(page.scrolls ? [`dopo le scelte la pagina scorre di ${page.overflow}px`] : []),
+      ]);
+
+    // 4-ter. CAMPO / LISTA (operator, 29/09/2026): the list shows the squad's BOUGHT men, one row each, in the
+    // rulebook's role order, with crest, FVM and the titolarità word; back to the pitch after.
+    await mouse(await evaluate(session, centre, '[data-pitch-view="lista"]'));
+    await wait(400);
+    const list = await evaluate(session, () => {
+      const rows = [...document.querySelectorAll('[data-roster-list] [data-roster]')];
+      return {
+        pitchGone: !document.querySelector('[data-column="pitch"] [data-place]'),
+        rows: rows.length,
+        squad: Number(document.querySelector('[data-column="pitch"]')?.getAttribute('data-squad')),
+        crests: rows.filter((one) => one.querySelector('ui-crest')).length,
+        fvm: rows.filter((one) => /\d/.test(one.children[3]?.textContent ?? '')).length,
+        turns: rows.map((one) => Number(one.getAttribute('data-turn'))),
+        firstRoles: rows.map((one) => (one.getAttribute('data-roles') ?? '').split(',')[0]),
+      };
+    });
+    const rulebook = euro
+      ? ['por', 'dd', 'dc', 'ds', 'b', 'e', 'm', 'c', 'w', 't', 'a', 'pc']
+      : ['p', 'd', 'c', 'a'];
+    const ranks = list.firstRoles.map((role) => rulebook.indexOf(role));
+    // Sorted by the turn column: 1, 2, 3... - each man once, and every turn of the squad there.
+    await mouse(await evaluate(session, centre, '[data-roster-sort="turn"]'));
+    await wait(300);
+    const byTurn = await evaluate(session, () =>
+      [...document.querySelectorAll('[data-roster-list] [data-roster]')].map((one) => Number(one.getAttribute('data-turn'))));
+    const turnsOk = byTurn.every((turn, i) => turn === i + 1) && byTurn.length === list.rows;
+    await mouse(await evaluate(session, centre, '[data-roster-sort="role"]'));
+    await wait(200);
+    await mouse(await evaluate(session, centre, '[data-pitch-view="campo"]'));
+    await wait(400);
+    const back =await evaluate(session, () => document.querySelectorAll('[data-column="pitch"] [data-place]').length);
+    note('campo/lista', `${list.rows} righe per una rosa di ${list.squad}, ruoli ${list.firstRoles.join(' ')}, stemmi ${list.crests}, FVM ${list.fvm}; di nuovo il campo: ${back} posti`,
+      [
+        ...(!list.pitchGone ? ['in lista il campetto e\' ancora a schermo'] : []),
+        ...(list.rows !== list.squad ? [`la lista ha ${list.rows} righe per ${list.squad} in rosa`] : []),
+        ...(list.crests !== list.rows ? ['una riga senza stemma'] : []),
+        ...(list.fvm !== list.rows ? ['una riga senza FVM'] : []),
+        ...(ranks.some((rank, i) => i > 0 && rank >= 0 && ranks[i - 1] >= 0 && rank < ranks[i - 1]) ? ['la lista non e\' in ordine di ruolo'] : []),
+        ...(back !== 11 ? [`tornando al campo i posti sono ${back}`] : []),
+        ...(!turnsOk ? [`ordinata per turno legge ${byTurn.join(' ')}`] : []),
       ]);
 
     // 4-bis. THE SUGGESTIONS on my pitch: a starter for every empty place and a reserve where there is none,
@@ -941,7 +988,9 @@ async function main() {
 
     // 7. The hand-written table survives a refresh; written for another league, it is not replayed.
     const beforeReload = await evaluate(session, () => ({
-      squad: document.querySelector('[data-column="pitch"]')?.getAttribute('data-squad'),
+      // MY squad, off my seat: the pitch draws whichever squad was last CLICKED, which is not saved, so reading
+      // the pitch compared two squads whenever a step had clicked a rival.
+      squad: document.querySelector('[data-seat][data-mine]')?.getAttribute('data-picks'),
       // The picks made, not the free list's total: that one depends on the filters, which a refresh resets.
       picks: [...document.querySelectorAll('[data-seat]')].reduce((sum, one) => sum + Number(one.getAttribute('data-picks')), 0),
       clock: document.querySelector('[data-seat][data-clock]')?.getAttribute('data-seat'),
@@ -950,7 +999,9 @@ async function main() {
     await wait(1500);
     const reloaded = await settle(() => true, 'reload');
     const afterReload = await evaluate(session, () => ({
-      squad: document.querySelector('[data-column="pitch"]')?.getAttribute('data-squad'),
+      // MY squad, off my seat: the pitch draws whichever squad was last CLICKED, which is not saved, so reading
+      // the pitch compared two squads whenever a step had clicked a rival.
+      squad: document.querySelector('[data-seat][data-mine]')?.getAttribute('data-picks'),
       // The picks made, not the free list's total: that one depends on the filters, which a refresh resets.
       picks: [...document.querySelectorAll('[data-seat]')].reduce((sum, one) => sum + Number(one.getAttribute('data-picks')), 0),
       clock: document.querySelector('[data-seat][data-clock]')?.getAttribute('data-seat'),
@@ -989,7 +1040,7 @@ async function main() {
     note('previste', `colonne ${previste.head.join(' ')}; su ${previste.rows} righe: gradino ${previste.rung}, pv ${previste.pv}, `
       + `minuti ${previste.minutes}, mv ${previste.mv}, costanza ${previste.steady}, fm ${previste.fm}`,
       [
-        ...(previste.head.join(' ') !== 'role name fvm prio rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
+        ...(previste.head.join(' ') !== 'role name fvm prio rung pvp min mvp steady fmp dp' ? ['colonne nell\'ordine sbagliato'] : []),
         ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 

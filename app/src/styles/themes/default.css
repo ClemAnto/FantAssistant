@@ -59,6 +59,10 @@
      token and not a vote band's, because one colour must not say two things: he is not hidden and not
      worse, he is on ice, and the ink says so while the name stays at full contrast. */
   --color-frozen: #7dd3fc;
+  /* A DOUBLE (the Draft Priority, priorita-draft-v1.md §4): a top man who would sit on our bench, advised
+     for what a trade at no higher FVM could bring. Its own ink because the operator asked for the double
+     advice to be told apart from the classic one (28/09/2026). */
+  --color-double: #f0abfc;
 
   --radius-control: 0.75rem;
   --radius-card: 1.25rem;

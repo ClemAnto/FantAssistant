@@ -71,7 +71,7 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
-  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'dp'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
 /** The two ladders in one order, best first: what «sort by titolarità» orders by. */
@@ -90,6 +90,18 @@ const PRESS_RANK: Record<string, number> = {
 export type FreeMode = 'default' | 'medie' | 'previste';
 
 const MODE_KEY = 'fantassistant.draft.freeMode';
+const PITCH_VIEW_KEY = 'fantassistant.draft.pitchView';
+
+/** The columns the roster list sorts by. */
+type RosterSort = 'role' | 'name' | 'fvm' | 'rung' | 'turn';
+
+function readPitchView(): 'campo' | 'lista' {
+  try {
+    return localStorage.getItem(PITCH_VIEW_KEY) === 'lista' ? 'lista' : 'campo';
+  } catch {
+    return 'campo';
+  }
+}
 
 /** Where the module he chose for his pitch is kept. */
 const MODULE_KEY = 'fantassistant.draft.module';
@@ -117,6 +129,11 @@ export interface FreeRow {
   trend: readonly TrendCell[];
   /** The priority on 0-99 of this table's free pool; null where the sheet cannot value him. */
   priority: number | null;
+  /**
+   * A DOUBLE of the Draft Priority: a top man who would sit on our bench, advised for half of what a trade at
+   * no higher FVM would bring - the name is the man he could be traded for. Null for every other row.
+   */
+  double: string | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
   /**
@@ -133,6 +150,8 @@ export interface FreeRow {
     steady: number | null;
     fm: number | null;
     estimated: boolean;
+    /** DP, the Draft Priority's own value of the man (`draft-priority.manValue`); null outside a mantra draft. */
+    dp: number | null;
   };
   /** How many of OUR turns are left before he unlocks for us; null when he is not blocked. */
   turnsLeft: number | null;
@@ -214,7 +233,7 @@ const CARD_DELAY_MS = 260;
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
     /* Role, name, FVM, priority first in all three views; then the view's own columns. */
     .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 75px; }
-    .free-previste { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem; }
+    .free-previste { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem 2.3rem; }
     .sort { cursor: pointer; user-select: none; }
     /* The call order: every seat sits at its place by a transform, so a change of place SLIDES. */
     ol { --seat-h: 2.75rem; --seat-step: 3rem; }
@@ -413,14 +432,24 @@ export class Auction {
   protected readonly advised = computed(() => {
     const mine = this.feed.followedTeamId();
     const pick = this.advice.round()?.picks.find((one) => one.teamId === mine) ?? null;
-    return pick?.player
-      ? { id: pick.player.id, name: this.shown(pick.player.id, pick.player.name), roles: pick.player.roles }
-      : null;
+    if (!pick?.player) return null;
+    const double = this.advice.priorityRows().get(pick.player.id)?.double ?? null;
+    return {
+      id: pick.player.id,
+      name: this.shown(pick.player.id, pick.player.name),
+      roles: pick.player.roles,
+      double: double ? double.tradeFor.name : null,
+    };
   });
 
   protected readonly capLine = computed<string | null>(() => {
+    // IL CONTO SCENDE COI TURNI (sua richiesta, 29/09/2026: «aggiorna dinamicamente»): i turni che restano a
+    // NOI, cioe' alla squadra seguita - lo stesso numero del lucchetto sulle righe (`turnsLeft`).
     const cap = this.advice.pickCap();
-    return cap ? `Top bloccati: FVM ≥ ${cap.fvm} per ${cap.frozenTurns} turni` : null;
+    if (!cap) return null;
+    const left = cap.frozenTurns - (this.feed.followed()?.squad.length ?? 0);
+    if (left <= 0) return `Top sbloccati: FVM ≥ ${cap.fvm} chiamabili`;
+    return `Top bloccati: FVM ≥ ${cap.fvm} per ${left} ${left === 1 ? 'turno' : 'turni'}`;
   });
 
   /** Which squad the pitch draws: the one clicked in the middle column, else mine, else the first. */
@@ -499,6 +528,96 @@ export class Auction {
       minutesPerMatch: null,
     };
   }
+
+  /** Campo o lista, per la colonna della rosa: una preferenza di lettura, ricordata nel browser. */
+  protected readonly pitchView = signal<'campo' | 'lista'>(readPitchView());
+
+  protected setPitchView(view: 'campo' | 'lista'): void {
+    this.pitchView.set(view);
+    try {
+      localStorage.setItem(PITCH_VIEW_KEY, view);
+    } catch {
+      // A browser that refuses storage still switches; it just forgets it on refresh.
+    }
+  }
+
+  /**
+   * LA ROSA IN LISTA (sua richiesta, 29/09/2026): i calciatori ACQUISTATI della squadra sul campetto, per
+   * ruolo nell'ordine del regolamento (il primo codice di ciascuno), a parita' di ruolo il FVM piu' alto
+   * prima. La titolarita' e' la stessa parola della lista degli svincolati (`rungById`: stampa, altrimenti
+   * motore), cosi' un uomo non porta due parole in due colonne.
+   */
+  protected readonly rosterList = computed(() => {
+    const order = this.roleOptions().map((role) => role.toLowerCase());
+    const rank = (roles: string[]) => {
+      const at = roles.map((role) => order.indexOf(role.toLowerCase())).filter((index) => index >= 0);
+      return at.length ? Math.min(...at) : order.length;
+    };
+    const press = this.rulings.press();
+    const ids = this.advice.clubIds();
+    return (this.pitchTeam()?.squad ?? [])
+      // The squad is in the order it was called, so its position is the squad's own TURN of that pick.
+      .map((entry, at) => ({ entry, turn: at + 1 }))
+      .filter(({ entry }) => !!entry.player)
+      .map(({ entry, turn }) => {
+        const player = entry.player!;
+        const roles = this.feed.isMantra()
+          ? player.roles
+          : [CLASSIC_ROLE[this.feed.zoneOf(player)] ?? ''].filter(Boolean);
+        return {
+          id: player.id,
+          name: this.feed.shownName(player),
+          club: player.club,
+          clubId: ids.get(player.club) ?? null,
+          roles,
+          fvm: player.fvm,
+          ...this.rungById(player.id, press),
+          rank: rank(roles),
+          turn,
+        };
+      })
+      .sort((a, b) => a.rank - b.rank || b.fvm - a.fvm || a.name.localeCompare(b.name, 'it'));
+  });
+
+  /**
+   * LA LISTA SI ORDINA PER COLONNA (sua richiesta, 29/09/2026), come quella degli svincolati: un click sceglie
+   * la colonna, un secondo la rovescia. Il ruolo resta lo spareggio, cosi' a parita' l'ordine e' quello di
+   * partenza. Un gradino ignoto va in fondo nei due versi: non e' «il peggiore», non ha una parola.
+   */
+  protected readonly rosterSort = signal<{ key: RosterSort; asc: boolean }>({ key: 'role', asc: true });
+
+  protected sortRoster(key: RosterSort): void {
+    const now = this.rosterSort();
+    // Words and the turn read first-to-last; the FVM and the titolarità read best first.
+    this.rosterSort.set(now.key === key ? { key, asc: !now.asc } : { key, asc: key !== 'fvm' && key !== 'rung' });
+  }
+
+  protected rosterArrow(key: RosterSort): string {
+    const now = this.rosterSort();
+    return now.key === key ? (now.asc ? ' ↑' : ' ↓') : '';
+  }
+
+  protected readonly rosterRows = computed(() => {
+    const { key, asc } = this.rosterSort();
+    const rows = this.rosterList();
+    if (key === 'role' && asc) return rows;
+    const of = (row: (typeof rows)[number]): number | string | null => {
+      switch (key) {
+        case 'name': return row.name;
+        case 'fvm': return row.fvm;
+        case 'turn': return row.turn;
+        case 'rung': return row.press && PRESS_RANK[row.press] != null ? PRESS_RANK[row.press] : null;
+        default: return row.rank;
+      }
+    };
+    const sign = asc ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const left = of(a), right = of(b);
+      if (left === null || right === null) return left === right ? a.rank - b.rank : left === null ? 1 : -1;
+      const diff = typeof left === 'string' ? left.localeCompare(right as string, 'it') : left - (right as number);
+      return sign * diff || a.rank - b.rank;
+    });
+  });
 
   private readonly squad = computed<FantaMan[]>(() =>
     (this.pitchTeam()?.squad ?? [])
@@ -626,6 +745,7 @@ export class Auction {
       ...this.rungOf(row, press, goal),
       trend: goal ? EMPTY_STRIP : (trends.get(row.player.id) ?? EMPTY_STRIP),
       priority: score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
+      double: this.advice.priorityRows().get(row.player.id)?.double?.tradeFor.name ?? null,
       locked: this.advice.lockedForMe(row.price),
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),
@@ -803,6 +923,8 @@ export class Auction {
         return (row) => row.expected.steady;
       case 'fmp':
         return (row) => row.expected.fm;
+      case 'dp':
+        return (row) => row.expected.dp;
       case 'trend':
         return (row) => {
           const points = row.trend.map((cell) => cell.points).filter((one): one is number => one != null);
@@ -841,6 +963,7 @@ export class Auction {
       steady: goal ? null : (this.ratings.for(platform, id)?.steady?.share ?? null),
       fm: numbers?.fm ?? numbers?.estFm ?? null,
       estimated: !measured && (numbers?.estFm ?? null) != null,
+      dp: this.advice.dpBy().get(id) ?? null,
     };
   }
 

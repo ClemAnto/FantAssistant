@@ -102,9 +102,22 @@
             }
             <span class="text-xs text-muted">{{ team.squad.length }} in rosa</span>
           }
+          <!-- CAMPO / LISTA (sua richiesta, 29/09/2026): la lista mostra gli ACQUISTATI e basta, per ruolo; i
+               suggeriti restano sul campo, dove hanno un posto da riempire. -->
+          <nz-radio-group
+            class="ml-auto"
+            nzSize="small"
+            nzButtonStyle="solid"
+            [ngModel]="pitchView()"
+            (ngModelChange)="setPitchView($event)"
+          >
+            <label nz-radio-button nzValue="campo" data-pitch-view="campo">Campo</label>
+            <label nz-radio-button nzValue="lista" data-pitch-view="lista">Lista</label>
+          </nz-radio-group>
           <nz-select
             data-module-select
-            class="ml-auto w-32"
+            class="w-32"
+            [class.invisible]="pitchView() === 'lista'"
             nzSize="small"
             [ngModel]="forcedModule()"
             (ngModelChange)="chooseModule($event)"
@@ -117,7 +130,66 @@
           </nz-select>
         </div>
 
-        @if (pitch(); as drawn) {
+        @if (pitchView() === 'lista') {
+          <!-- OGNI INTESTAZIONE ORDINA, un secondo click rovescia (sua richiesta, 29/09/2026); «Turno» e' il
+               numero di chiamata della squadra con cui l'ha preso. -->
+          <div
+            data-roster-head
+            class="grid grid-cols-[2rem_4.5rem_minmax(0,1fr)_2.5rem_6rem] gap-x-2 px-1 text-[10px] uppercase text-muted"
+          >
+            <span class="sort text-right" data-roster-sort="turn" (click)="sortRoster('turn')">Turno{{ rosterArrow('turn') }}</span>
+            <span class="sort" data-roster-sort="role" (click)="sortRoster('role')">Ruolo{{ rosterArrow('role') }}</span>
+            <span class="sort" data-roster-sort="name" (click)="sortRoster('name')">Nome{{ rosterArrow('name') }}</span>
+            <span class="sort text-right" data-roster-sort="fvm" (click)="sortRoster('fvm')">FVM{{ rosterArrow('fvm') }}</span>
+            <span class="sort text-center" data-roster-sort="rung" (click)="sortRoster('rung')">Titolarità{{ rosterArrow('rung') }}</span>
+          </div>
+          <ul data-roster-list class="min-h-0 flex-1 overflow-y-auto">
+            @for (row of rosterRows(); track row.id) {
+              <li
+                [attr.data-roster]="row.id"
+                [attr.data-roles]="row.roles.join(',').toLowerCase()"
+                [attr.data-turn]="row.turn"
+                class="grid grid-cols-[2rem_4.5rem_minmax(0,1fr)_2.5rem_6rem] items-center gap-x-2 rounded px-1 text-[11px]
+                       leading-6 odd:bg-fg/5"
+              >
+                <span data-roster-turn class="text-right tabular-nums text-muted">{{ row.turn }}°</span>
+                <ui-roles class="min-w-0 overflow-hidden" [roles]="row.roles" size="xs" />
+                <span class="flex min-w-0 items-center gap-1">
+                  <ui-crest
+                    class="shrink-0"
+                    [club]="row.club"
+                    [clubId]="row.clubId"
+                    [crests]="advice.crests()"
+                    fallback="shield"
+                    size="xs"
+                  />
+                  <span
+                    data-card-name
+                    class="min-w-0 cursor-pointer truncate font-medium hover:underline"
+                    (click)="openCard(row.id, $event)"
+                    >{{ row.name }}</span
+                  >
+                </span>
+                <span class="text-right tabular-nums">{{ row.fvm }}</span>
+                <span class="flex justify-center">
+                  @if (row.press) {
+                    <span
+                      data-rung
+                      class="truncate rounded px-1 text-[9px] leading-4"
+                      [class]="badgeOf(row.press)"
+                      [class.opacity-70]="row.pressSource === 'motore'"
+                      >{{ row.press }}</span
+                    >
+                  } @else {
+                    <span class="text-[10px] text-muted">—</span>
+                  }
+                </span>
+              </li>
+            } @empty {
+              <li class="px-1 text-xs text-muted">Nessun calciatore in rosa.</li>
+            }
+          </ul>
+        } @else if (pitch(); as drawn) {
           <div class="flex items-center gap-2 text-xs text-muted">
             <span data-module [attr.data-module]="drawn.module" class="rounded-full border border-border px-2 py-0.5 font-semibold text-fg tabular-nums">
               {{ drawn.module }}
@@ -232,12 +304,34 @@
                 (click)="openCard(pick.id, $event)"
                 >{{ pick.name }}</span
               >
+              @if (pick.double) {
+                <span
+                  data-advised-double
+                  class="shrink-0 rounded bg-double/20 px-1 text-[10px] font-semibold text-double"
+                  nz-tooltip
+                  [nzTooltipTitle]="'Doppione: scambiabile per ' + pick.double + ', pari FVM'"
+                  >doppione</span
+                >
+              }
             } @else {
               <span class="text-muted">{{ feed.followed() ? '—' : 'scegli la tua squadra (icona ♟)' }}</span>
             }
           </div>
           @if (capLine(); as cap) {
             <div data-cap class="text-muted">{{ cap }}</div>
+          }
+          @if (advice.priorityOn()) {
+            <!-- LA DRAFT PRIORITY (priorita-draft-v1.md): la colonna «Prio», il consiglio e i suggeriti del
+                 campetto la leggono tutti e tre. I doppioni si accendono e si spengono qui: sul banco costano
+                 lo 0,4% per costruzione, perche' il banco non simula scambi - quindi e' una scelta sua. -->
+            <label data-doubles class="flex items-center gap-1 text-muted">
+              <input type="checkbox" [checked]="advice.doubles()" (change)="advice.setDoubles(!advice.doubles())" />
+              <!-- Dalla 7ª chiamata (sua regola, 29/09/2026): prima l'interruttore non puo' cambiare niente, e
+                   l'etichetta lo dice perche' un controllo che non muove niente si legge come un controllo rotto. -->
+              <span nz-tooltip nzTooltipTitle="Un top che resterebbe in panchina, preso per scambiarlo a pari FVM"
+                >Consiglia doppioni (dalla 7ª chiamata)</span
+              >
+            </label>
           }
         </div>
 
@@ -257,17 +351,19 @@
             <li
               [attr.data-seat]="seat.team.id"
               [attr.data-clock]="seat.team.onTheClock ? '' : null"
+              [attr.data-mine]="seat.mine ? '' : null"
               [attr.data-at]="seat.at"
               [attr.data-picks]="seat.team.squad.length"
               [style.--seat-at]="seat.at - 1"
               class="seat group grid cursor-pointer grid-cols-[1.25rem_minmax(0,1fr)_3rem] items-center gap-x-1 rounded-md
                      border px-1 py-0.5"
               [class]="
-                seat.team.onTheClock
+                (seat.team.onTheClock
                   ? 'border-primary bg-primary/10'
                   : pitchTeam()?.id === seat.team.id
                     ? 'border-fg/40'
-                    : 'border-transparent hover:bg-fg/5'
+                    : 'border-transparent hover:bg-fg/5')
+                + (seat.mine && !seat.team.onTheClock ? ' bg-fg/8' : '')
               "
               (click)="view(seat.team.id)"
             >
@@ -542,6 +638,16 @@
             <span class="sort text-right text-warning" data-sort="fmp" nz-tooltip nzTooltipTitle="Fantamedia prevista" (click)="sortBy('fmp')"
               >Fm{{ arrow('fmp') }}</span
             >
+            <!-- DP (sua richiesta, 29/09/2026): [presenze x (FM - Z) + (N - presenze) x (R - Z)] / N, la formula
+                 della Draft Priority sulla riga sola, per giornata; R = fantamedia media delle riserve del ruolo. -->
+            <span
+              class="sort text-right"
+              data-sort="dp"
+              nz-tooltip
+              nzTooltipTitle="DP = [Pv × (FM − Z) + (N − Pv) × (R − Z)] / N: punti a giornata sopra la media del suo ruolo base (Z), con R la fantamedia media delle riserve del ruolo"
+              (click)="sortBy('dp')"
+              >DP{{ arrow('dp') }}</span
+            >
           </div>
         }
 
@@ -584,6 +690,15 @@
                   >{{ row.name }}</span
                 >
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
+                @if (row.double) {
+                  <span
+                    data-double
+                    class="shrink-0 rounded bg-double/20 px-1 text-[9px] font-semibold leading-4 text-double"
+                    nz-tooltip
+                    [nzTooltipTitle]="'Doppione: scambiabile per ' + row.double + ', pari FVM'"
+                    >⇄</span
+                  >
+                }
                 @if (row.turnsLeft != null) {
                   <span
                     data-lock
@@ -617,8 +732,8 @@
                          votava il suo club, e i quattro numeri vengono dal voto sintetico delle sue partite. -->
                     <span class="text-right tabular-nums" [class.split]="second" [class.italic]="line.synthetic"
                           [attr.data-synthetic]="line.synthetic ? '' : null">{{ line.pv ?? '—' }}</span>
-                    <span class="text-right tabular-nums" [class.italic]="line.synthetic">{{ line.mv != null ? (line.mv | number: '1.2-2') : '—' }}</span>
-                    <span class="text-right tabular-nums text-warning" [class.italic]="line.synthetic">{{ line.fm != null ? (line.fm | number: '1.2-2') : '—' }}</span>
+                    <span class="text-right tabular-nums" [class.italic]="line.synthetic">{{ line.mv != null ? (line.mv | number: '1.1-1') : '—' }}</span>
+                    <span class="text-right tabular-nums text-warning" [class.italic]="line.synthetic">{{ line.fm != null ? (line.fm | number: '1.1-1') : '—' }}</span>
                     <span class="text-right tabular-nums" [class.italic]="line.synthetic">{{ ga(line) }}</span>
                   } @else {
                     <span class="text-right text-muted" [class.split]="second">—</span><span class="text-right text-muted">—</span>
@@ -640,11 +755,14 @@
                 }}</span>
                 <span class="text-right tabular-nums">{{ row.expected.minutes != null ? (row.expected.minutes | number: '1.0-0') + "'" : '—' }}</span>
                 <span class="text-right tabular-nums" [class.italic]="row.expected.estimated">{{
-                  row.expected.mv != null ? (row.expected.mv | number: '1.2-2') : '—'
+                  row.expected.mv != null ? (row.expected.mv | number: '1.1-1') : '—'
                 }}</span>
                 <span class="text-right tabular-nums">{{ row.expected.steady != null ? (row.expected.steady * 100 | number: '1.0-0') + '%' : '—' }}</span>
                 <span class="text-right tabular-nums text-warning" [class.italic]="row.expected.estimated">{{
-                  row.expected.fm != null ? (row.expected.fm | number: '1.2-2') : '—'
+                  row.expected.fm != null ? (row.expected.fm | number: '1.1-1') : '—'
+                }}</span>
+                <span data-dp class="text-right tabular-nums" [class.italic]="row.expected.estimated">{{
+                  row.expected.dp != null ? (row.expected.dp | number: '1.1-1') : '—'
                 }}</span>
               }
             </li>

@@ -762,6 +762,9 @@ export class AuctionFeed {
    */
   readonly listoneIds = computed<number[]>(() => [...this.players().keys()]);
 
+  /** The real clubs the session's listone names, taken and free alike: what the excluded clubs follow. */
+  readonly listoneClubs = computed<string[]>(() => [...new Set([...this.players().values()].map((p) => p.club))]);
+
   readonly isGoalsMode = computed(() => this.keeperMode() === 'goals');
 
   /** Every club's goal, with who owns it. Only meaningful while the porte rule is on. */

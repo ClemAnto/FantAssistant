@@ -1,7 +1,7 @@
 # Priorità del draft — specifica v1
 
 **28-29/09/2026, dettata dall'operatore in una conversazione di progetto. Implementata e misurata SUL
-BANCO (§7-§12); NON ancora nell'app.** Il valore si chiama **Draft Priority** (a schermo «priorità») e risponde a una domanda sola:
+BANCO (§7-§12); nell'app dal 29/09/2026 (§13).** Il valore si chiama **Draft Priority** (a schermo «priorità») e risponde a una domanda sola:
 *quale calciatore prendo adesso, al mio turno*. Vale per la lega **EuroLeghe** (euro · mantra · 12
 squadre · 2 **porte** + 30 di movimento, nessuna quota per ruolo, giocatori dei club italiani esclusi).
 Il gioco di riferimento è il MANTRA: ogni «ruolo» qui sotto è un ruolo mantra.
@@ -247,3 +247,65 @@ ruolo si calcolano una volta per scelta e per finestra, `show.mjs` conta un post
 
 **APERTO numero uno**: `node multi.mjs until EuroLeghe windows-porte.json --declared --cap=12` (posto 8 con 8
 seed e tutti i posti con 2 seed), lanciato alla chiusura: conferma o smentisce §8 dopo le correzioni.
+
+**ESITO (29/09/2026, tutti i posti, 2 seed, `--declared --cap=12`)**, guadagno sui punti a giornata contro
+`pickForUs` (73,9 punti a giornata):
+
+| Politica | Tm4 | Tm3 | T0 | T1 | T2 | media | verdetto |
+|---|---|---|---|---|---|---|---|
+| nessuno sguardo | +1,43 | +4,71 | +1,85 | +0,23 | +0,98 | **+1,84%** | 5/5 strict |
+| sguardo 1 sempre | +1,16 | +4,57 | +1,88 | +0,68 | +0,03 | +1,66% | 5/5 strict |
+| sguardo 1 fino al 7º turno | +0,74 | +3,78 | +2,06 | +0,00 | +0,19 | +1,35% | 5/5 strict |
+| inizio prof. 3 + primi 3 | +1,07 | +4,82 | +0,65 | −0,28 | +2,60 | +1,77% | 4/5 robust |
+| inizio prof. 6 + primi 3 | +0,78 | +5,90 | +3,45 | −0,70 | +0,31 | +1,95% | 4/5 robust |
+
+La priorità **resta sopra** la politica spedita su ogni finestra (75,2 contro 73,9 punti a giornata, R-Factor
+0,92 contro 0,80), ma il guadagno si dimezza rispetto al +2,7% di §8 e **lo sguardo avanti smette di pagare**:
+tolti i due difetti (i rivali simulati che violavano il tetto e le porte), «nessuno sguardo» vince 4 finestre
+su 5 contro «fino al 7º turno». Quel mezzo punto dello sguardo in §8 era il difetto, non il meccanismo. L'app
+(§13) usa lo sguardo fino al 7º turno come la specifica diceva: passare a nessuno sguardo è una riga
+(`LOOKAHEAD_UNTIL` = 0) e più veloce, ed è una decisione dell'operatore davanti a questi numeri.
+
+## 13. Nell'app (29/09/2026)
+
+Richiesta dell'operatore («implementa il Draft Priority nella vista Draft Assistant»), presa prima che il
+confronto rilanciato di §12 finisse: la decisione è sua, come l'introduzione prevedeva («potrei voler adottare comunque la
+formula»), e il verdetto del rilancio si scrive qui sotto quando arriva.
+
+**Dove vive.** `app/src/app/core/draft-priority.ts`, porting di `toolkit/bench/draft/priority.mjs` con la stessa
+aritmetica (Z sugli acquistabili con media troncata, riserve a catena col −1 della matrice, prior delle fasce che
+sfuma con le scelte, posto vuoto come promessa che diventa buco, R-Factor esatto sull'undici, doppione a metà
+scambio). Nessun import di Angular, così il banco potrà rileggerlo da `appcode.mjs` come fa con `pickForUs`
+(aperto: oggi il banco usa ancora la sua copia). Si accende da sé dove è stata scritta — **draft mantra con la
+matrice delle sostituzioni nel regolamento** (`AuctionAdvice.priorityOn`); altrove resta `pickForUs`.
+
+**Cosa la legge, una definizione e tre lettori.** La colonna «Prio» (`AuctionAdvice.priorities`), il consiglio
+del turno e il giro previsto (`simulateRound`), i suggeriti del campetto (`projectOurPicks`): `auction-plan`
+prende un `OurChooser` opzionale in `PlanInput`, così `plan`/`simulateRound` non sanno quale politica sceglie per
+noi. Lo sguardo di un turno gira sui 10 migliori per G fino al 7º turno (`LOOKAHEAD_UNTIL`, la variante di §8
+che rende uguale ed è più veloce); le scelte successive di una proiezione usano G da solo sulla lista corta
+(6+3 per ruolo base), la scorciatoia del rollout del banco. I rivali nelle simulazioni interne scelgono per FVM
+(§10); il giro a schermo tiene le teste stimate, come prima.
+
+**Cosa l'app aggiunge rispetto al banco, per la specifica.** Z esclude i club esclusi dalle opzioni e gli
+infortunati pesanti (stop aperto ≥ 45 giorni, `PlayerStatus.longInjury`); con le porte una riga per club, col mix
+dei portieri; la costanza viene da `PlayerRatingsStore` (voti base ≥ 6), mediana del ruolo dove manca;
+`share` = presenze attese / giornate del foglio; l'R-Factor si spegne se la lega non lo paga
+(`LeagueSettings.rFactor`).
+
+**Il doppione a schermo.** Etichetta «doppione» accanto al consiglio e «⇄» sulla riga, colore suo
+(`--color-double`), tooltip «scambiabile per X, pari FVM». **Solo dalla 7ª chiamata** (sua regola, 29/09/2026:
+`DOUBLES_FROM_CALL`), e un interruttore «Consiglia doppioni (dalla 7ª chiamata)» sotto il consiglio, ricordato
+nel browser: sul banco il doppione costa ~0,4% per costruzione, quindi è una scelta al tavolo. L'etichetta dice
+la soglia perché prima della 7ª l'interruttore non può cambiare niente, e un controllo muto si legge come rotto.
+
+**Misurato.** Sul listone EuroLeghe di oggi (617 uomini, 12 squadre, tetto 213/5) una valutazione piena dura
+~60 ms e quella corta ~6 ms; la prima scelta al posto 8 è Undav (Kane in cima alla colonna, congelato). Banco
+`e2e-draft` verde sulle due leghe; due sue asserzioni dipendevano da coincidenze delle scelte vecchie e sono
+state riscritte sull'intento (AUTO può partire ovunque nell'ordine; il refresh confronta la MIA rosa, dichiarata
+da `data-mine`, e non quella del campetto, che segue l'ultimo click e non si salva) — e il doppio click del banco
+ora va sulla prima riga CHIAMABILE, perché la priorità mette un top congelato in testa alla lista.
+
+**Limiti detti.** Fuori dai 10 della testa la colonna è G da solo, quindi fra il 10º e l'11º c'è un salto che è
+lo sguardo avanti e non il calciatore. Presenze e fantamedia sono quelle del foglio: il gradino della stampa e le
+dritte non entrano (come nel resto del pannello d'asta).

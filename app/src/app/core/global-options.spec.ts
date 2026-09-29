@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { DEFAULT_LEAGUE, GlobalOptions } from './global-options';
+import { ClubOption, DEFAULT_LEAGUE, GlobalOptions, excludedFromTable } from './global-options';
 import { PlayerRow } from './players-store';
 import { catalogueOf } from './valuation-store';
 
@@ -155,5 +155,35 @@ describe('GlobalOptions', () => {
     localStorage.setItem('fantassistant.options.league', JSON.stringify({ budget: 250 }));
     localStorage.setItem('fantassistant.strategy.setup', JSON.stringify({ budget: 999 }));
     expect(fresh().league().budget).toBe(250);
+  });
+});
+
+describe('excludedFromTable', () => {
+  const club = (id: number, name: string, euro: number, def = 0): ClubOption => ({
+    id, name, league: null, men: { euro, default: def },
+  });
+  const catalogue = [
+    club(1, 'Bayern', 30), club(2, 'Arsenal', 28), club(3, 'Real Madrid', 29),
+    club(4, 'Inter', 25, 30), club(5, 'Milan', 24, 29), club(6, 'Frosinone', 0, 25),
+  ];
+
+  it('excludes the clubs of the platform the session listone does not name, and only those', () => {
+    const synced = excludedFromTable(catalogue, 'euro', ['Bayern', 'Arsenal', 'Real Madrid', 'Bayern']);
+    expect(synced).toEqual([4, 5]);
+  });
+
+  it('never excludes a club the platform does not quote (it is not on that listone at all)', () => {
+    expect(excludedFromTable(catalogue, 'euro', ['Bayern', 'Arsenal', 'Real Madrid'])).not.toContain(6);
+  });
+
+  it('includes everybody when the session names every club', () => {
+    expect(excludedFromTable(catalogue, 'euro', ['Bayern', 'Arsenal', 'Real Madrid', 'Inter', 'Milan'])).toEqual([]);
+  });
+
+  it('touches nothing when the join by name does not work - an empty list is not a filter', () => {
+    expect(excludedFromTable(catalogue, 'euro', ['FC Bayern München', 'Arsenal FC', 'Real Madrid CF'])).toBeNull();
+    expect(excludedFromTable(catalogue, 'euro', [])).toBeNull();
+    // ...including a PARTIAL join: «AC Milan» unmatched must not exclude «Milan», whose men are on the table.
+    expect(excludedFromTable(catalogue, 'euro', ['Bayern', 'Arsenal', 'Real Madrid', 'Inter', 'AC Milan'])).toBeNull();
   });
 });

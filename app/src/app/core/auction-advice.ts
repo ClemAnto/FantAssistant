@@ -25,6 +25,7 @@ import {
   PlanPlayer,
   PlanRoot,
   PlanTeam,
+  OurChooser,
   RivalHead,
   capBlocks,
   classifyRivals,
@@ -34,13 +35,28 @@ import {
   pickScore,
   plan,
   planRoots,
+  DEFAULT_HEAD,
   predictRivalPick,
   projectOurPicks,
   simulateRound,
   startingPlaces,
+  take,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { porteZero } from './porte';
+import {
+  PriorityMan,
+  PriorityRow,
+  PriorityRules,
+  WorthContext,
+  draftPriorities,
+  manValue,
+  preferredRules,
+  priorityPick,
+  roleStats,
+} from './draft-priority';
+import { RECOMMENDED_MANTRA } from './draft-pitch';
+import { PlayerRatingsStore } from './player-ratings-store';
 import { engineNumbersFrom } from './engine-sheet';
 import { seasonRoundsOf } from './season-scale';
 import {
@@ -55,6 +71,25 @@ import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-t
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
+/** Doppioni accesi o spenti nella Draft Priority: una preferenza sua, per browser. */
+const DOUBLES_KEY = 'fantassistant.draft.doubles';
+
+function readFlag(key: string, fallback: boolean): boolean {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : raw === '1';
+  } catch {
+    return fallback;
+  }
+}
+
+function writeFlag(key: string, on: boolean): void {
+  try {
+    localStorage.setItem(key, on ? '1' : '0');
+  } catch {
+    // A private window: the choice lives until the tab closes.
+  }
+}
 
 /**
  * The engine's numbers, joined to the table that is actually being played.
@@ -147,6 +182,8 @@ export class AuctionAdvice {
   private readonly status = inject(PlayerStatus);
   /** Le squadre reali escluse dalle opzioni globali: qui tolgono uomini dal pool LIBERO, e nient'altro. */
   private readonly options = inject(GlobalOptions);
+  /** La costanza (quota di voti base da 6 in su): e' quello che l'R-Factor della Draft Priority conta. */
+  private readonly ratings = inject(PlayerRatingsStore);
 
   /** The league sheet in use, and the numbers it carries per `fc_id`. */
   readonly entry = signal<EngineSheetEntry | null>(null);
@@ -904,6 +941,108 @@ export class AuctionAdvice {
     return Number(slots) || 3;
   });
 
+  /**
+   * LA DRAFT PRIORITY (`core/draft-priority.ts`, `docs/model/priorita-draft-v1.md`) prende il posto di
+   * `pickForUs` dove e' stata misurata e scritta: un DRAFT MANTRA con la matrice delle sostituzioni nel
+   * regolamento. Altrove - un'asta a rilanci, un draft classic - resta il consiglio di prima, perche' la
+   * formula parla di ruoli mantra e di sostituzioni col loro -1, e fuori da li' non ha un numero da dare.
+   */
+  readonly priorityOn = computed(() => {
+    const rules = this.shapes() as PriorityRules | null;
+    return this.feed.isDraft() && this.feed.isMantra() && !!rules?.substitution?.matrix && !!rules.roles?.length;
+  });
+
+  /**
+   * DOPPIONI (priorita-draft-v1.md §4): un top che nella nostra rosa resterebbe fuori dall'undici vale anche
+   * meta' di uno scambio a pari FVM. Sul banco costa ~0,4% per costruzione (il banco non simula scambi),
+   * quindi e' una scelta sua al tavolo e si ricorda nel browser.
+   */
+  readonly doubles = signal<boolean>(readFlag(DOUBLES_KEY, true));
+
+  setDoubles(on: boolean): void {
+    this.doubles.set(on);
+    writeFlag(DOUBLES_KEY, on);
+  }
+
+  /** Ogni uomo del listone letto come la priorita' lo legge, per id; una porta vale il mix dei suoi portieri. */
+  private readonly priorityMen = computed<Map<number, PriorityMan>>(() => {
+    const out = new Map<number, PriorityMan>();
+    if (!this.priorityOn()) return out;
+    const numbers = this.numbers();
+    const matchdays = this.matchdaysTarget();
+    const platform = this.entry()?.platform ?? 'euro';
+    const goals = this.feed.isGoalsMode();
+    for (const { player } of this.listone()) {
+      const porta = goals ? this.feed.portaOfKeeper().get(player.id) : undefined;
+      const valuation = this.valuationFor(player, numbers);
+      out.set(player.id, {
+        id: player.id,
+        roles: player.roles.map((role) => role.toLowerCase()),
+        slot: porta ? 'por' : (numbers.get(player.id)?.slot ?? null),
+        price: porta ? porta.price : player.fvm,
+        fm: valuation.fm,
+        share: valuation.pv != null && matchdays ? Math.min(1, valuation.pv / matchdays) : null,
+        steady: porta ? null : (this.ratings.for(platform, player.id)?.steady?.share ?? null),
+      });
+    }
+    return out;
+  });
+
+  /**
+   * CHI LA LEGA COMPRA, su cui si misurano Z e le fasce: il listone di questa sessione, presi compresi, meno
+   * i club esclusi dalle opzioni e gli infortunati pesanti (stop aperto da 45+ giorni, la soglia dell'icona:
+   * la specifica li toglie, e l'app sa datarli mentre le finestre storiche del banco no). Con le porte, una
+   * riga per club e non tre portieri.
+   */
+  private readonly priorityWorth = computed<WorthContext | null>(() => {
+    if (!this.priorityOn()) return null;
+    const men = this.priorityMen();
+    const ids = this.clubIds();
+    const goals = this.feed.isGoalsMode();
+    const population: PriorityMan[] = [];
+    const seenPorte = new Set<string>();
+    for (const { player } of this.listone()) {
+      if (!this.options.keeps(ids.get(player.club) ?? null)) continue;
+      const man = men.get(player.id);
+      if (!man) continue;
+      const porta = goals ? this.feed.portaOfKeeper().get(player.id) : undefined;
+      if (porta) {
+        if (seenPorte.has(porta.club)) continue;
+        seenPorte.add(porta.club);
+      } else if (this.status.longInjury(player.id)) {
+        continue;
+      }
+      population.push(man);
+    }
+    const teams = this.feed.teams();
+    const rounds = Math.max(0, ...teams.map((team) => team.squad.length + team.missingTotal));
+    const keepers = this.planInput()?.keeperCap ?? 2;
+    const rules = preferredRules(this.shapes() as PriorityRules, RECOMMENDED_MANTRA);
+    return {
+      rules,
+      stats: roleStats(population, rules, { teams: teams.length, keepers, rounds }),
+      rounds,
+      rFactor: this.options.league().rFactor,
+    };
+  });
+
+  /**
+   * DP di ogni uomo del listone (sua richiesta, 29/09/2026, colonna delle «Previste»): il valore della §2 della
+   * specifica sulla riga sola, PER GIORNATA; Pv e N sulla stagione piena del foglio, la stessa base. Vuota dove
+   * la priorita' non si applica.
+   */
+  readonly dpBy = computed<Map<number, number>>(() => {
+    const out = new Map<number, number>();
+    const worth = this.priorityWorth();
+    const matchdays = this.matchdaysTarget();
+    if (!worth || !matchdays) return out;
+    for (const [id, man] of this.priorityMen()) {
+      const value = manValue(man, worth, matchdays);
+      if (value != null) out.set(id, value);
+    }
+    return out;
+  });
+
   /** The inputs a plan needs, gathered once: the roots and the plans share them. */
   private readonly planInput = computed(() => {
     const mineId = this.feed.followedTeamId();
@@ -971,6 +1110,100 @@ export class AuctionAdvice {
   });
 
   /**
+   * La scelta NOSTRA con la Draft Priority, per `plan`/`simulateRound`/`projectOurPicks`. Memoizzata sullo
+   * stato del tavolo: il giro e la proiezione arrivano alla nostra scelta con le stesse rose davanti, e la
+   * valutazione profonda (lo sguardo di un turno) si fa una volta sola per stato.
+   */
+  private readonly chooser = computed<OurChooser | null>(() => {
+    const worth = this.priorityWorth();
+    const base = this.planInput();
+    if (!worth || !base) return null;
+    const men = this.priorityMen();
+    const places = startingPlaces(base.shapes);
+    const doubles = this.doubles();
+    const memo = new Map<string, PlanPlayer | null>();
+    return (state) => {
+      const key = `${state.deep ? 'd' : 's'}|${state.at}|${state.order.join('.')}|`
+        + state.teams.map((team) => team.heldIds.join('.')).join('/');
+      const hit = memo.get(key);
+      if (hit !== undefined) return hit;
+      const pick = priorityPick({
+        ...state,
+        mineId: base.mineId,
+        keeperCap: base.keeperCap,
+        maxAheadPicks: base.maxAheadPicks,
+        cap: base.cap ?? null,
+        places,
+        manOf: (id) => men.get(id) ?? null,
+        worth,
+        doubles,
+      });
+      memo.set(key, pick?.player ?? null);
+      return pick?.player ?? null;
+    };
+  });
+
+  /** The plan's inputs with our own chooser, when the Draft Priority applies. */
+  private readonly choosingInput = computed(() => {
+    const input = this.planInput();
+    const choose = this.chooser();
+    return input && choose ? { ...input, choose } : input;
+  });
+
+  /**
+   * La Draft Priority di ogni libero, per la NOSTRA prossima scelta: G, lo sguardo di un turno sui dieci
+   * migliori (fino al 7º turno) e il doppione. Vuota dove la priorita' non si applica.
+   *
+   * AL MOMENTO DEL NOSTRO TURNO e non adesso (la review del 29/09/2026): le squadre che chiamano prima di noi
+   * in questo giro scelgono prima, con le loro teste, esattamente come nel giro che produce il consiglio
+   * (`simulateRound`) - o la colonna e il consiglio accanto descriverebbero due momenti diversi. Chi si prevede
+   * preso prima del nostro turno resta in lista col suo G e lo sguardo avanti piu' basso dei dieci: e' un «se
+   * restasse», e il consiglio non lo sceglie perche' non ci sara'.
+   */
+  readonly priorityRows = computed<Map<number, PriorityRow>>(() => {
+    const worth = this.priorityWorth();
+    const input = this.planInput();
+    if (!worth || !input) return new Map();
+    const men = this.priorityMen();
+    const places = startingPlaces(input.shapes);
+    const teams = new Map(input.teams.map((team) => [team.id, team]));
+    const order = input.order.filter((id) => teams.has(id));
+    const myPlace = Math.max(0, order.indexOf(input.mineId));
+    let pool = input.pool;
+    const gone: PlanPlayer[] = [];
+    for (const [index, id] of order.slice(0, myPlace).entries()) {
+      const team = teams.get(id)!;
+      const choice = predictRivalPick(team, pool, places, input.keeperCap, order.length - index,
+        input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
+      if (!choice) continue;
+      pool = pool.filter((player) => player.id !== choice.id);
+      teams.set(id, take(team, choice));
+      gone.push(choice);
+    }
+    const base = {
+      teams: [...teams.values()],
+      order,
+      at: myPlace,
+      mineId: input.mineId,
+      keeperCap: input.keeperCap,
+      maxAheadPicks: input.maxAheadPicks,
+      cap: input.cap ?? null,
+      places,
+      manOf: (id: number) => men.get(id) ?? null,
+      worth,
+      doubles: this.doubles(),
+    };
+    const rows = draftPriorities({ ...base, pool, deep: true });
+    if (!gone.length) return rows;
+    const nexts = [...rows.values()].map((row) => row.next).filter((next): next is number => next != null);
+    const floor = nexts.length ? Math.min(...nexts) : 0;
+    for (const [id, row] of draftPriorities({ ...base, pool: gone, deep: false })) {
+      rows.set(id, { ...row, score: row.score + floor, nextFloor: floor });
+    }
+    return rows;
+  });
+
+  /**
    * LA PRIORITA' di ogni libero: il punteggio con cui `pickForUs` sceglie la NOSTRA scelta, uomo per uomo
    * (`pickScore`, una definizione e due lettori - il consiglio e la colonna accanto al nome).
    *
@@ -987,6 +1220,11 @@ export class AuctionAdvice {
     const input = this.planInput();
     const out = new Map<number, number | null>();
     if (!input) return out;
+    if (this.priorityOn()) {
+      const rows = this.priorityRows();
+      for (const player of input.pool) out.set(player.id, rows.get(player.id)?.score ?? null);
+      return out;
+    }
     const mine = input.teams.find((team) => team.id === input.mineId);
     const need = coverNeedOf(mine?.held ?? [], input.shapes, input.game);
     const gone = mine
@@ -1006,7 +1244,7 @@ export class AuctionAdvice {
 
   /** Il giro che si sta giocando, seat per seat, e l'ordine che ne esce (`simulateRound`). */
   readonly round = computed<{ picks: RoundPick[]; nextOrder: number[] } | null>(() => {
-    const input = this.planInput();
+    const input = this.choosingInput();
     return input ? simulateRound(input) : null;
   });
 
@@ -1015,7 +1253,7 @@ export class AuctionAdvice {
    * eleven men - or its roster is full (`projectOurPicks`). What the Draft Assistant's pitch suggests.
    */
   readonly projection = computed<PlanPlayer[]>(() => {
-    const input = this.planInput();
+    const input = this.choosingInput();
     const me = this.feed.followed();
     if (!input || !me) return [];
     const wanted = Math.min(me.missingTotal, Math.max(0, SUGGESTED_SQUAD - me.squad.length));

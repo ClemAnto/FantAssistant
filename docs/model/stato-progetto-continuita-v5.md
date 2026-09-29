@@ -1,5 +1,15 @@
 # Stato progetto & continuità — v5
-**Aggiornato (III): 29 settembre 2026 — IL DRAFT ASSISTANT: «Segui un'asta» rifatto da capo, su master
+**Aggiornato (IV): 29 settembre 2026 — LA DRAFT PRIORITY NEL DRAFT ASSISTANT.** Su richiesta dell'operatore la
+formula di `priorita-draft-v1.md` è passata dal banco all'app (`core/draft-priority.ts`, §13): la colonna «Prio»,
+il consiglio, il giro previsto e i suggeriti del campetto la leggono (un `OurChooser` in `auction-plan`), solo in
+un draft mantra; doppioni solo dalla 7ª chiamata con interruttore. Nella stessa sessione, sue richieste sulla
+pagina: riga «tu» più chiara nell'ordine, riga dei top bloccati che conta i turni che restano, toggle
+Campo/Lista sulla colonna della rosa, e le **squadre escluse sincronizzate col listone del tavolo** quando ci si
+collega a un'asta live (`global-options.excludedFromTable`: escluso = club del catalogo di quella piattaforma
+senza nessun calciatore nel listone della sessione; nessun cambio se meno dell'80% dei club della sessione si
+trova nel catalogo). `engine_*` fermo.
+
+· precedente: **Aggiornato (III): 29 settembre 2026 — IL DRAFT ASSISTANT: «Segui un'asta» rifatto da capo, su master
 (`8dc7ff7`).** Una sessione lunga di richieste dell'operatore, una alla volta, sulla stessa pagina: tre
 colonne senza scroll (campetto · ordine di chiamata · svincolati), tavolo costruito dalle impostazioni di lega
 e vuoto, scelte col doppio click salvate nel browser (mai su un'asta live), campetto con suggerimenti

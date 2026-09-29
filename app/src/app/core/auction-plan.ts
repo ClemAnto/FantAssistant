@@ -749,7 +749,8 @@ export function ahead(a: PlanTeam, b: PlanTeam, maxAheadPicks: number): number {
   return a.firstRoundIndex - b.firstRoundIndex;
 }
 
-function take(team: PlanTeam, player: PlanPlayer): PlanTeam {
+/** A team after it has taken `player`: the one definition every simulation here and the priority walk. */
+export function take(team: PlanTeam, player: PlanPlayer): PlanTeam {
   return {
     ...team,
     slots: [...team.slots, player.slot ?? ''],
@@ -788,7 +789,22 @@ export interface PlanInput {
   rootId?: number;
   /** The FVM ceiling of the first turns (`PickCap`), for us and for every rival. */
   cap?: PickCap | null;
+  /**
+   * Who makes OUR pick, when it is not `pickForUs`: the Draft Priority (`core/draft-priority.ts`), which
+   * needs the whole table and not a row. `deep` is true for the pick being made now and false for the later
+   * picks of a projection, where the one-turn look-ahead would cost seconds for a suggestion.
+   */
+  choose?: OurChooser;
 }
+
+/** The state our own pick is made in: every team, the round's order and our place in it. */
+export type OurChooser = (state: {
+  teams: PlanTeam[];
+  order: number[];
+  at: number;
+  pool: PlanPlayer[];
+  deep: boolean;
+}) => PlanPlayer | null;
 
 /**
  * The plan: our pick, everybody else's until our next turn, and our second.
@@ -819,7 +835,9 @@ export function plan(input: PlanInput): Plan {
     ? pool.find((player) => player.id === input.rootId
         && !capBlocks(meNow()?.picksCount ?? 0, player.price, cap))
     : undefined;
-  const mine = forced ?? pickForUs(pool, needNow(), meNow(), goneNow(order), cap);
+  const mine = forced ?? (input.choose
+    ? input.choose({ teams: [...teams.values()], order, at: order.indexOf(input.mineId), pool, deep: true })
+    : pickForUs(pool, needNow(), meNow(), goneNow(order), cap));
   if (!mine) return { mine: null, rounds: [], gap: 0, nextOrder: [] };
   pool = pool.filter((player) => player.id !== mine.id);
   teams.set(input.mineId, take(teams.get(input.mineId)!, mine));
@@ -856,7 +874,9 @@ export function plan(input: PlanInput): Plan {
     let passed = false;
     for (const [index, id] of nextOrder.entries()) {
       if (id === input.mineId) {
-        ours = pickForUs(pool, needNow(), meNow(), goneNow(nextOrder), cap);
+        ours = input.choose
+          ? input.choose({ teams: [...teams.values()], order: nextOrder, at: index, pool, deep: false })
+          : pickForUs(pool, needNow(), meNow(), goneNow(nextOrder), cap);
         if (ours) {
           pool = pool.filter((player) => player.id !== ours!.id);
           teams.set(id, take(teams.get(id)!, ours));
@@ -919,7 +939,9 @@ export function simulateRound(input: PlanInput): { picks: RoundPick[]; nextOrder
   for (const [index, id] of order.entries()) {
     const team = teams.get(id)!;
     let choice: PlanPlayer | null;
-    if (id === input.mineId) {
+    if (id === input.mineId && input.choose) {
+      choice = input.choose({ teams: [...teams.values()], order, at: index, pool, deep: true });
+    } else if (id === input.mineId) {
       const need = coverNeedOf(team.held, input.shapes, input.game);
       const rest = order.slice(index);
       const gone = goneBeforeOurNextTurn({

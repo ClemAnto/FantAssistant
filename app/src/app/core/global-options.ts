@@ -133,6 +133,33 @@ export interface ClubOption {
 
 const CLASSIC_ROLES: ClassicRole[] = ['P', 'D', 'C', 'A'];
 
+/** How the excluded-clubs sync names itself among the table's changes. */
+const EXCLUDED_LINE = 'Squadre escluse dal tavolo:';
+
+const clubKey = (name: string) => name.normalize('NFC').trim().toLowerCase();
+
+/**
+ * THE CLUBS A LIVE TABLE LEAVES OUT: the clubs of this platform's catalogue that have NO man in the session's
+ * listone. `null` unless EVERY club the session names is found in the catalogue: a session club spelled
+ * another way («AC Milan» against «Milan») would otherwise leave its catalogue twin unmatched, and that twin
+ * would be EXCLUDED while its men are on the table (the review of 29/09/2026 - a partial join does not fail
+ * quietly, it hides a club). The test is on the SESSION's clubs and not on the catalogue's: a host may well
+ * leave out more than half of a listone, and that is exactly the case to follow.
+ */
+export function excludedFromTable(
+  catalogue: readonly ClubOption[],
+  platform: Platform,
+  sessionClubs: readonly (string | null | undefined)[],
+): number[] | null {
+  const named = new Set(sessionClubs.filter((club): club is string => !!club).map(clubKey));
+  const candidates = catalogue.filter((club) => club.men[platform] > 0);
+  if (!candidates.length || !named.size) return null;
+  const known = new Set(candidates.map((club) => clubKey(club.name)));
+  const found = [...named].filter((club) => known.has(club)).length;
+  if (found < named.size) return null;
+  return candidates.filter((club) => !named.has(clubKey(club.name))).map((club) => club.id);
+}
+
 @Injectable({ providedIn: 'root' })
 export class GlobalOptions {
   /** Il regolamento dichiarato, uno solo per tutta l'app, che sopravvive al refresh. */
@@ -221,7 +248,54 @@ export class GlobalOptions {
         adoptedFor = code;
         const { league, changes } = adoptTable(this.league(), this.tableLeague());
         if (changes.length) this.league.set(league);
-        this.adopted.set(changes.length ? { code, changes } : null);
+        // The excluded-clubs line may have landed first (the listone can arrive before the budget): kept.
+        const kept = this.adopted()?.code === code ? this.adopted()!.changes.filter((c) => c.startsWith(EXCLUDED_LINE)) : [];
+        const all = [...changes, ...kept];
+        this.adopted.set(all.length ? { code, changes: all } : null);
+      });
+    });
+
+    /**
+     * LE SQUADRE ESCLUSE SEGUONO IL TAVOLO (sua richiesta, 29/09/2026: «quando ti colleghi ad un'asta-live
+     * sincronizza automaticamente le squadre escluse»). La sessione non pubblica un elenco di esclusi in
+     * nessun campo letto; quello che pubblica e' il SUO listone, e un host che toglie un gruppo di club (i
+     * club italiani della sua EuroLeghe) lo toglie da li'. Quindi escluso = un club del catalogo di quella
+     * piattaforma che nel listone della sessione non ha nessun calciatore; incluso tutto il resto.
+     *
+     * Una volta per tavolo, come il regolamento, e aspettando che listone e catalogo siano arrivati tutti e
+     * due. E una GUARDIA contro il join rotto: se il listone non nomina nemmeno meta' dei club del catalogo,
+     * la corrispondenza per nome non sta funzionando e le esclusioni non si toccano - escludere tutto per un
+     * join a meta' sarebbe la bugia piu' cara, una lista vuota che sembra un filtro.
+     */
+    let excludedFor: string | null = null;
+    effect(() => {
+      const code = this.feed.code();
+      const platform = this.feed.platform();
+      const clubs = this.feed.listoneClubs();
+      const catalogue = this.catalogue();
+      untracked(() => {
+        if (!code || code === DEMO_CODE) {
+          excludedFor = null;
+          return;
+        }
+        if (code === excludedFor || !platform || !clubs.length || !catalogue.length) return;
+        const synced = excludedFromTable(catalogue, platform, clubs);
+        if (!synced) return;
+        excludedFor = code;
+        const before = this.excluded();
+        const same = synced.length === before.size && synced.every((id) => before.has(id));
+        if (same) return;
+        this.excludedIds.set(synced);
+        const line = synced.length
+          ? `${EXCLUDED_LINE} ${synced.length} (${catalogue
+              .filter((club) => synced.includes(club.id))
+              .map((club) => club.name)
+              .sort((a, b) => a.localeCompare(b, 'it'))
+              .slice(0, 6)
+              .join(', ')}${synced.length > 6 ? ', …' : ''})`
+          : `${EXCLUDED_LINE} nessuna`;
+        const current = this.adopted();
+        this.adopted.set({ code, changes: [...(current?.code === code ? current.changes : []), line] });
       });
     });
   }
