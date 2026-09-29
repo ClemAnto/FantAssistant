@@ -205,9 +205,9 @@
             <span
               class="w-32 shrink-0 text-sm text-muted"
               nz-tooltip
-              nzTooltipTitle="Chi ha un FVM pari o superiore alla soglia resta congelato per i primi N turni di ogni squadra: con 5 si chiama dal 6°. Vale per te e per ogni rivale."
+              nzTooltipTitle="I top con FVM pari o superiore alla soglia restano bloccati per i primi N turni di ogni squadra: con 5 si chiamano dal 6°. Vale per te e per ogni rivale."
             >
-              Tetto FVM
+              Top bloccati
             </span>
             <nz-switch
               nzSize="small"
@@ -225,7 +225,7 @@
               [ngModel]="form().draftCap.fvm"
               (ngModelChange)="patchDraftCap({ fvm: $event })"
             />
-            <span class="text-sm" [class.opacity-40]="!form().draftCap.on">Turni congelati</span>
+            <span class="text-sm" [class.opacity-40]="!form().draftCap.on">Turni di blocco</span>
             <nz-input-number
               class="w-16"
               nzSize="small"

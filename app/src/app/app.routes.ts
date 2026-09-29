@@ -53,8 +53,9 @@ export const routes: Routes = [
     path: 'auction',
     data: {
       nav: {
-        label: "Segui un'asta",
-        title: "Segui un'asta",
+        // L'etichetta e' il tooltip dell'icona (tetto di 14 caratteri); il titolo e' il nome intero.
+        label: 'Draft',
+        title: 'Draft Assistant',
         icon: 'wifi',
       } satisfies NavDeclaration,
     },

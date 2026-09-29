@@ -1,5 +1,5 @@
 import { BundleTable, columnIndex, optionalIndex } from './bundle';
-import { Platform, competitionKind } from './players-store';
+import { MatchCell, Platform, competitionKind } from './players-store';
 
 /**
  * ONE SEASON OF A PLAYER, as the bundle's own tables state it - read, never derived.
@@ -43,6 +43,14 @@ export interface SeasonLine {
   matches: number;
   xg: number | null;
   xa: number | null;
+  /**
+   * NOT SCORED BY THE GAME: the platform did not rate his club that season, so `season_stats` has no
+   * row, and the line is rebuilt - from the per-match layer's calibrated vote (`seasonLineFromMatches`)
+   * or, where there is none, from Transfermarkt's appearances with no vote (`seasonLinesFromSheet`).
+   * The screen writes it in ITALIC - a rebuilt number that reads like a scored one is the defect the
+   * `~` exists to prevent. Absent means «scored by the game».
+   */
+  synthetic?: boolean;
 }
 
 const EMPTY = (season: string): SeasonLine => ({
@@ -169,6 +177,89 @@ export function seasonLines(input: {
     line.minutesPerMatch = total.matches ? total.minutes / total.matches : null;
     line.xg = total.xg;
     line.xa = total.xa;
+  }
+  return out;
+}
+
+/**
+ * ONE SEASON REBUILT FROM HIS MATCHES, for the man `season_stats` has no row for (operator, 29/09/2026:
+ * «recuperiamo i valori dello scorso anno ... va bene anche visualizzare i valori sintetici»).
+ *
+ * WHO IT IS FOR: on EuroLeghe the platform rates only the clubs of its perimeter, so a man who spent
+ * last season at Bournemouth or Angers has no aggregate there - 104 quoted men of the 2026-27 euro
+ * listone, Evanilson and Lepaul among them - while every one of his league matches is in the per-match
+ * layer with the calibrated synthetic vote. `PlayersStore` already puts those matches on THIS
+ * platform's calendar (`promoteUnrated`), and the card already draws them: this reads the same cells,
+ * so the line and the card cannot tell two stories about one season.
+ *
+ * THE SAME UNITS AS THE SCORED LINE: `pv` counts matches WITH A VOTE (an s.v. cameo is not one), the
+ * two means are over their own denominators, goals include penalties. Measured against the 678 euro men
+ * of 2025-26 who have BOTH a scored row and 10+ synthetic matches: MV -0.06 of bias (0.14 mean error),
+ * FM +0.08 (0.23: the layer carries no cards), appearances +1.3 (a short cameo has a rating and no
+ * vote). Good enough to read, not to be mistaken for a scored number - hence `synthetic` and the italic.
+ *
+ * CHAMPIONSHIPS ONLY, his own or another of the five: a cup has no calibrated vote. A man who played
+ * outside the five (Belgium, the Spanish lower tiers) gets null - the bundle has no vote for him, and a
+ * line of dashes is the truth about that.
+ */
+export function seasonLineFromMatches(cells: readonly MatchCell[], season: string): SeasonLine | null {
+  const played = cells.filter(
+    (cell) => (cell.kind === 'league' || cell.kind === 'other_league') && cell.state === 'played',
+  );
+  const voted = played.filter((cell) => cell.vote != null);
+  if (!voted.length) return null;
+  const mean = (values: number[]) => (values.length ? values.reduce((sum, one) => sum + one, 0) / values.length : null);
+  const scored = voted.filter((cell) => cell.fantavoto != null);
+  const timed = played.filter((cell) => cell.minutes != null && cell.minutes > 0);
+  const keeper = voted.filter((cell) => cell.goalsConceded != null);
+  return {
+    ...EMPTY(season),
+    pv: voted.length,
+    mv: mean(voted.map((cell) => cell.vote as number)),
+    fm: mean(scored.map((cell) => cell.fantavoto as number)),
+    goals: voted.reduce((sum, cell) => sum + cell.goals + cell.penScored, 0),
+    assists: voted.reduce((sum, cell) => sum + cell.assists + cell.assistsSetPiece, 0),
+    conceded: keeper.length ? keeper.reduce((sum, cell) => sum + (cell.goalsConceded as number), 0) : null,
+    cleanSheets: keeper.length ? keeper.filter((cell) => cell.goalsConceded === 0).length : null,
+    minutesPerMatch: mean(timed.map((cell) => cell.minutes as number)),
+    matches: timed.length,
+    synthetic: voted.some((cell) => cell.voteSynthetic),
+  };
+}
+
+/**
+ * ...AND WHERE NOT EVEN A SYNTHETIC VOTE EXISTS, his league season from TRANSFERMARKT (operator, 29/09/2026,
+ * on Tzolis and Ortega J.): the sheet's `desc_tm_*` (revision 78), the championship he played most in the
+ * input season, any senior tier. Appearances, minutes, goals and assists - and NO vote, because the
+ * source carries none, so `mv` and `fm` stay null rather than borrowing a number from somewhere else.
+ *
+ * The appearances are counted on HIS league's calendar (30 rounds in Belgium, 34 in Segunda RFEF), not
+ * on this platform's: a fact about the man, marked `synthetic` like the rebuilt line because it is not
+ * what the game scored. Keyed by `fc_id`; a sheet written before revision 78 simply has no such column.
+ */
+export function seasonLinesFromSheet(sheet: BundleTable, season: string): Map<number, SeasonLine> {
+  const out = new Map<number, SeasonLine>();
+  const id = optionalIndex(sheet, 'fc_id');
+  const played = optionalIndex(sheet, 'desc_tm_matches');
+  if (id < 0 || played < 0) return out;
+  const minutes = optionalIndex(sheet, 'desc_tm_minutes');
+  const goals = optionalIndex(sheet, 'desc_tm_goals');
+  const assists = optionalIndex(sheet, 'desc_tm_assists');
+  const at = (row: unknown[], index: number) => (index < 0 ? null : asNumber(row[index]));
+  for (const row of sheet.rows) {
+    const matches = at(row, played);
+    const fcId = asNumber(row[id]);
+    if (fcId == null || matches == null || matches <= 0) continue;
+    const spent = at(row, minutes);
+    out.set(fcId, {
+      ...EMPTY(season),
+      pv: matches,
+      goals: at(row, goals),
+      assists: at(row, assists),
+      minutesPerMatch: spent == null ? null : spent / matches,
+      matches,
+      synthetic: true,
+    });
   }
   return out;
 }

@@ -5872,3 +5872,78 @@ soddisfacibile. Due conseguenze nel codice:
 Rifatta la simulazione del draft con 2 porte (30 tavole): ogni rosa ha le sue due, e le conclusioni non si
 muovono — stare apposta nei primi 3 vale −0,05 / −0,16 punti a giornata rispetto al valore senza vincolo,
 comprare per valore invece che per FVM +1,8 (un tetto: le rose sono giudicate coi nostri stessi numeri).
+
+## 64. IL DRAFT ASSISTANT: «Segui un'asta» rifatto da capo in una schermata (29 settembre 2026)
+
+**Richiesta dell'operatore, 28/09/2026, in otto punti**: rinominare la pagina, togliere tutto quello che
+c'era, aprire sulle impostazioni di lega lasciando possibile l'asta live, una schermata senza scroll in tre
+colonne. Codice: `views/auction/` (la rotta resta `/auction`, così i link e i banchi non cambiano),
+`core/draft-pitch.ts`, `auction-plan.pickScore`/`simulateRound`, `auction-demo.demoOrder`/`pick`/`undo`/`reset`;
+banco `app/scripts/e2e-draft.mjs` (anche `--euro`, la sua lega). Nessun numero del motore si muove.
+
+**Le colonne.** Sinistra il campetto, centro l'ordine di chiamata, destra gli svincolati, come dicono i punti 6
+e 7. **Il punto 5 le nomina al contrario**: la contraddizione è detta nel template e lo scambio è una riga.
+
+**Il tavolo.** `AuctionDemo.start` costruisce il tavolo dalla LEGA DICHIARATA (listone, gioco, squadre, rose,
+top bloccati - mai il budget, vedi la correzione in fondo) e con ZERO scelte - la stessa decisione della plancia del 23/09: squadre già giocate da una
+finzione sarebbero rose di nessuno. Il foglio è quello del listone e del gioco dichiarati, mai quello di un
+altro gioco (se manca la pagina lo dice). Cambiare le impostazioni ricostruisce il tavolo inventato. Le scelte
+si segnano col **doppio click** su uno svincolato: lo prende la squadra di turno al suo FVM, e l'ordine si
+ricalcola con la regola della piattaforma (`ahead`); rifiutati, con la ragione a schermo, il reparto pieno e il
+top ancora bloccato. Annulla l'ultima e svuota le rose stanno in barra. L'asta live resta dietro «Asta live»
+(`ui-live-connect`), e la pagina disegna le stesse tre colonne sul tavolo vero.
+
+**Il campetto** (`draft-pitch.ts`): il modulo che schiera l'undici più forte sul VALORE, con i moduli consigliati
+mantra (4-2-3-1, 4-1-4-1, dalla specifica della priorità) PRIMA nel regolamento, così un pareggio - frequente a
+rosa incompleta - va a loro e una rosa vuota si disegna sul 4-2-3-1 coi posti vuoti. Un modulo strettamente
+migliore vince comunque e la card dice «fuori dai consigliati»; un selettore lo forza. **Le riserve si
+distribuiscono in parti uguali**: ognuna, dalla migliore, va sotto il posto dei suoi ruoli che ne ha meno, e a
+parità sotto il titolare più debole (dove è più probabile che giochi). Chi nessun posto accetta è elencato a
+parte, mai tolto: titolari + riserve + senza posto = rosa, e il banco lo conta.
+
+**La priorità.** È il punteggio con cui `pickForUs` sceglie la nostra scelta - VALORE × copertura dei due undici
+× sconto di chi ci sarà ancora - estratto in `pickScore` perché il consiglio e la colonna non possano dare due
+risposte; a schermo su 0-99 del pool libero. **Non è la «Draft Priority» di `priorita-draft-v1.md`**, che è
+un'altra formula e sta sul banco del draft dell'altra sessione: quando passerà, si sostituisce in
+`AuctionAdvice.priorities` e la colonna la segue.
+
+**Le squadre** in ordine di chiamata: colore, nome, FVM totale di rosa (in un draft è la spesa), ultima scelta,
+scelta prevista e posizione prevista nel giro dopo. Le previsioni vengono da `simulateRound`, che cammina l'ordine
+pubblicato DALLA SQUADRA DI TURNO con le due politiche del piano (la nostra per noi, `predictRivalPick` per gli
+altri): `plan()` parte dal nostro posto e non poteva rispondere per chi chiama prima di noi.
+
+**Gli svincolati**: ricerca per nome o squadra (`looseMatch`), ruoli in OR, e due viste - default (ruolo, nome,
+squadra, gradino della stampa, FVM, ultimi quattro fantavoti con `ui-trend-votes`, priorità) e «medie» (partite a
+voto, Mv, Fm, G:A di questa stagione e della scorsa, da `seasonLines`).
+
+**Correzione dell'operatore, 29/09/2026, in due messaggi.** «Nel draft non esiste un tetto di FVM o di budget»
+e subito dopo «nelle opzioni di lega devo poter impostare anche l'FVM dei top bloccati e i turni di blocco».
+Letti insieme: in un draft **non c'è denaro** - l'FVM è il prezzo che ordina le chiamate, non crediti da
+spendere - quindi il tavolo del Draft Assistant **non legge più il budget di lega**; mentre la regola dei
+**top bloccati** del §62 resta, ed è una regola di LEGA impostabile dalle Opzioni («Top bloccati»: interruttore,
+FVM ≥, turni di blocco). Il primo messaggio era stato letto come «togli anche il blocco» e il blocco era stato
+tolto per un commit (`e3bacb4`); ripristinato con le parole sue a schermo (bloccato, non congelato). Il banco
+`e2e-draft --euro` dichiara una soglia NON di default (300, 3 turni) e pretende che la pagina la dica e che un top
+bloccato non si prenda col doppio click - cercato per nome, perché i bloccati stanno in fondo a una lista che si
+carica sessanta righe per volta. Lo stesso banco ora ritenta la riga dopo quando il regolamento rifiuta una
+scelta (reparto o porte già pieni per la squadra di turno), invece di aspettare una scelta che non arriverà.
+
+**La lista degli svincolati, quattro richieste dello stesso giorno (29/09/2026).**
+- **Le etichette si incolonnano coi valori**: la lista scorre e la sua barra rubava pixel alle righe e non alle
+  intestazioni, quindi ogni colonna a destra del nome scivolava di quella misura. Le due parti riservano lo stesso
+  spazio (`scrollbar-gutter: stable`); il banco misura il bordo destro di ogni etichetta contro la cella sotto
+  (0 px su tutte e otto le colonne di «medie»). Nella vista medie la Fm e' in ambra e un tratteggio separa le due
+  stagioni.
+- **Lo stemma del club prima del nome**, in tutt'e due le viste, e la colonna col nome del club tolta da Default
+  (la ricerca per squadra resta).
+- **Ogni intestazione ordina**, un secondo click rovescia, un vuoto va in fondo in entrambi i versi; di partenza
+  la priorita'. Il trend si ordina sulla media dei fantavoti della striscia.
+- **I top bloccati restano al loro posto per priorita'**, al 50% di opacita' con un badge lucchetto + turni che
+  mancano allo sblocco PER NOI (`frozenTurns − rosa`): in fondo a una lista che si carica sessanta righe per volta
+  erano invisibili.
+- **Il nome di un calciatore apre la sua card** ovunque sulla pagina (lista, campetto, ordine di chiamata,
+  consiglio): `ui-player-card`, la stessa di plancia e Strategia, con la sua pila e le card dei club; senza tavolo
+  (`market: null`), e per una porta i numeri del portiere titolare. Nella lista il click aspetta il suo eventuale
+  secondo mezzo, perche' li' il doppio click SCEGLIE.
+- **Aperto**: il trend a barrette della Strategia (`ui-vote-trend`) e' lavoro non ancora committato dell'altra
+  sessione (tocca anche `player-trend.ts`); qui resta `ui-trend-votes` finche' quello non e' su master.
