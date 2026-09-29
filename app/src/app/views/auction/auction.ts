@@ -129,6 +129,8 @@ export interface FreeRow {
   trend: readonly TrendCell[];
   /** The priority on 0-99 of this table's free pool; null where the sheet cannot value him. */
   priority: number | null;
+  /** The raw score the 0-99 is drawn from, and the one the list is ordered on (the advice picks on it). */
+  score: number | null;
   /**
    * A DOUBLE of the Draft Priority: a top man who would sit on our bench, advised for half of what a trade at
    * no higher FVM would bring - the name is the man he could be traded for. Null for every other row.
@@ -451,7 +453,11 @@ export class Auction {
     // NOI, cioe' alla squadra seguita - lo stesso numero del lucchetto sulle righe (`turnsLeft`).
     const cap = this.advice.pickCap();
     if (!cap) return null;
-    const left = cap.frozenTurns - (this.feed.followed()?.squad.length ?? 0);
+    // With no squad followed there is no «us» to count down for: the line states the regulation, as the
+    // row badges (`lockedForMe`) show nothing (the code review of 29/09/2026).
+    const mine = this.feed.followed();
+    if (!mine) return `Top bloccati: FVM ≥ ${cap.fvm} nei primi ${cap.frozenTurns} turni`;
+    const left = cap.frozenTurns - mine.squad.length;
     if (left <= 0) return `Top sbloccati: FVM ≥ ${cap.fvm} chiamabili`;
     return `Top bloccati: FVM ≥ ${cap.fvm} per ${left} ${left === 1 ? 'turno' : 'turni'}`;
   });
@@ -713,7 +719,7 @@ export class Auction {
   });
   protected readonly seasons = signal<{ now: string | null; last: string | null }>({ now: null, last: null });
 
-  /** Every free man with his priority, dearest priority first; the frozen ones after, in the same order. */
+  /** Every free man with his priority, highest first - the frozen ones included, where their score puts them. */
   private readonly freeAll = computed<FreeRow[]>(() => {
     const scores = this.advice.priorities();
     const press = this.rulings.press();
@@ -728,7 +734,9 @@ export class Auction {
     // THE BLOCKED TOPS STAY WHERE THEIR PRIORITY PUTS THEM (operator, 29/09/2026: «devono essere visibili
     // anche i calciatori freezati»): they used to sink to the bottom of a list that loads sixty rows at a
     // time, i.e. out of sight. The row says it is blocked and for how long - dimmed, with its badge.
-    return rows.sort((a, b) => (b.priority ?? -1) - (a.priority ?? -1) || b.fvm - a.fvm);
+    // On the RAW score and not the 0-99 (the code review of 29/09/2026): the rounding tied men a point apart and
+    // clamped every negative score to 0, and a tie broken by FVM could put the advised pick below his own list.
+    return rows.sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity) || b.fvm - a.fvm);
   });
 
   private freeRow(
@@ -749,6 +757,7 @@ export class Auction {
       ...this.rungOf(row, press, goal),
       trend: goal ? EMPTY_STRIP : (trends.get(row.player.id) ?? EMPTY_STRIP),
       priority: score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
+      score,
       double: this.advice.priorityRows().get(row.player.id)?.double?.tradeFor.name ?? null,
       locked: this.advice.lockedForMe(row.price),
       turnsLeft: this.turnsLeft(row.price),
@@ -898,7 +907,7 @@ export class Auction {
       if (left == null && right == null) return 0;
       if (left == null) return 1;
       if (right == null) return -1;
-      return sign * (left - right) || (b.priority ?? -1) - (a.priority ?? -1);
+      return sign * (left - right) || (b.score ?? -Infinity) - (a.score ?? -Infinity);
     });
   });
 
@@ -917,7 +926,7 @@ export class Auction {
       case 'fvm':
         return (row) => row.fvm;
       case 'prio':
-        return (row) => row.priority;
+        return (row) => row.score;
       case 'rung':
         return (row) => (row.expected.rung && PRESS_RANK[row.expected.rung] != null ? PRESS_RANK[row.expected.rung] : null);
       case 'pvp':

@@ -130,6 +130,23 @@ describe('squadWorth', () => {
   });
 });
 
+describe('the zero of a squad nobody can field', () => {
+  it('is eleven empty places, not 0 (the code review of 29/09/2026)', () => {
+    const everybody = population();
+    const worth = context(everybody, 32);
+    // The only shape of this rulebook: P, DC, DC, C, PC. Empty, each place is a promise at the role's own
+    // share and its p10 reserve; five places cannot reach the R-Factor ladder, which starts at eight.
+    const empty = ['por', 'dc', 'dc', 'c', 'pc'].reduce((sum, key) => {
+      const s = worth.stats.get(key)!;
+      return sum + (1 - s.share) * (s.p10 - s.z);
+    }, 0);
+    expect(squadWorth([], worth)).toBeCloseTo(empty, 6);
+    expect(empty).not.toBe(0);
+    // A roster of men who cannot be fielded is the same empty eleven.
+    expect(squadWorth([man('c', 0, 0)], worth)).toBeCloseTo(empty, 6);
+  });
+});
+
 describe('draftPriorities', () => {
   it('prefers the full back who scores over the forward who scores the same (the operator\'s example)', () => {
     const everybody = population();
@@ -191,6 +208,49 @@ describe('DP, a man\'s own value', () => {
     const pv = 0.8 * 38;
     expect(manValue(defender, worth, 38)).toBeCloseTo((pv * (6.8 - dc.z) + (38 - pv) * (dc.reserveFm! - dc.z)) / 38, 6);
     expect(manValue({ ...defender, fm: null }, worth, 38)).toBeNull();
+  });
+});
+
+describe('the double and the look-ahead read the room (the code review of 29/09/2026)', () => {
+  it('trades a double for a man a RIVAL holds, as the bench does', () => {
+    const everybody = population();
+    const worth = context(everybody);
+    const topDc = () => man('dc', 7.2, 0.95, 50);
+    const mine = [topDc(), topDc(), man('c', 6.2), man('pc', 7.4), man('por', 5.0), man('por', 4.9)];
+    const third = topDc();
+    const theirs = man('c', 7.4, 0.95, 40); // held by team 1: nowhere in the free pool
+    const known = new Map([...mine, third, theirs].map((m) => [m.id, m]));
+    const extra: Partial<PriorityInput> = {
+      teams: [team(0, mine), team(1, [theirs])],
+      manOf: (id) => known.get(id) ?? null,
+    };
+    const blind = draftPriorities(input([third], worth, mine, extra));
+    expect(blind.get(third.id)!.double).toBeNull();
+    const seen = draftPriorities(input([third], worth, mine,
+      { ...extra, playerOf: (id) => (id === theirs.id ? asPlan(theirs) : null) }));
+    expect(seen.get(third.id)!.double?.tradeFor.id).toBe(theirs.id);
+  });
+
+  it('predicts each rival with the head the round predicts him with', () => {
+    const everybody = population();
+    const worth = context(everybody);
+    const ours = man('dc', 6.9, 0.9, 1);               // cheap, so we call first in the next round
+    const fillers = [0, 1, 2, 3].map((i) => man('dc', 5.5, 0.5, 2 + i));
+    const good = man('pc', 8.5, 0.9, 5);               // the best VALUE
+    const dear = man('pc', 6.0, 0.9, 100);             // the best PRICE
+    const pool = [ours, ...fillers, good, dear];
+    const known = new Map(pool.map((m) => [m.id, m]));
+    // The two teams in the tail of the round rank by worth per credit: give it to the fillers, so the only
+    // pick that depends on a head is team 1's.
+    const plans = pool.map(asPlan).map((p) => (fillers.some((f) => f.id === p.id) ? { ...p, net: 10 } : p));
+    const extra = (heads?: Map<number, 'prezzo' | 'valore'>): Partial<PriorityInput> => ({
+      teams: [team(0), team(1), team(2), team(3)], order: [0, 1, 2, 3], at: 0, deep: true, pool: plans,
+      manOf: (id) => known.get(id) ?? null, heads,
+    });
+    const byPrice = draftPriorities(input(pool, worth, [], extra())).get(ours.id)!.next!;
+    const byValue = draftPriorities(input(pool, worth, [], extra(new Map([[1, 'valore']])))).get(ours.id)!.next!;
+    // A value-driven rival takes the forward we would have taken next: our next turn is worth less.
+    expect(byValue).toBeLessThan(byPrice);
   });
 });
 

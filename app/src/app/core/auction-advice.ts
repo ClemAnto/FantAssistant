@@ -27,6 +27,7 @@ import {
   PlanTeam,
   OurChooser,
   RivalHead,
+  ahead,
   capBlocks,
   classifyRivals,
   RoundPick,
@@ -45,6 +46,7 @@ import {
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { porteZero } from './porte';
 import {
+  PriorityInput,
   PriorityMan,
   PriorityRow,
   PriorityRules,
@@ -1109,39 +1111,79 @@ export class AuctionAdvice {
     };
   });
 
+  /** Every man some squad holds, as a plan player: what a double can be traded for (priorita-draft-v1.md §4). */
+  private readonly heldPlayers = computed<Map<number, PlanPlayer>>(() => {
+    const numbers = this.numbers();
+    const out = new Map<number, PlanPlayer>();
+    for (const team of this.feed.teams()) {
+      for (const entry of team.squad) {
+        const player = entry.player;
+        if (!player) continue;
+        out.set(player.id, {
+          id: player.id, name: player.name, club: player.club,
+          slot: numbers.get(player.id)?.slot ?? null, roles: player.roles, price: player.fvm,
+          net: null, surplus: null, value: null,
+        } as PlanPlayer);
+      }
+    }
+    return out;
+  });
+
   /**
-   * La scelta NOSTRA con la Draft Priority, per `plan`/`simulateRound`/`projectOurPicks`. Memoizzata sullo
-   * stato del tavolo: il giro e la proiezione arrivano alla nostra scelta con le stesse rose davanti, e la
-   * valutazione profonda (lo sguardo di un turno) si fa una volta sola per stato.
+   * THE DRAFT PRIORITY OF ONE TABLE STATE, memoized on the state: the advice (`simulateRound`), the projection
+   * (`projectOurPicks` -> `plan`) and the column (`priorityRows`) reach our pick with the same squads ahead of
+   * us, and the deep look-ahead costs seconds, so it runs once per state. The key is the order FROM our seat
+   * (`order.slice(at)`), not the whole order and the index: the round walks the full order with `at` = our
+   * seat while the plan walks it from our seat with `at` = 0, and nothing before our seat enters the
+   * priority. It found the same state three times per stream event (the code review of 29/09/2026).
    */
-  private readonly chooser = computed<OurChooser | null>(() => {
+  private readonly priorityEngine = computed(() => {
     const worth = this.priorityWorth();
     const base = this.planInput();
     if (!worth || !base) return null;
     const men = this.priorityMen();
     const places = startingPlaces(base.shapes);
     const doubles = this.doubles();
-    const memo = new Map<string, PlanPlayer | null>();
-    return (state) => {
-      const key = `${state.deep ? 'd' : 's'}|${state.at}|${state.order.join('.')}|`
-        + state.teams.map((team) => team.heldIds.join('.')).join('/');
-      const hit = memo.get(key);
-      if (hit !== undefined) return hit;
-      const pick = priorityPick({
-        ...state,
-        mineId: base.mineId,
-        keeperCap: base.keeperCap,
-        maxAheadPicks: base.maxAheadPicks,
-        cap: base.cap ?? null,
-        places,
-        manOf: (id) => men.get(id) ?? null,
-        worth,
-        doubles,
-      });
-      memo.set(key, pick?.player ?? null);
-      return pick?.player ?? null;
+    const held = this.heldPlayers();
+    const pooled = new Map(base.pool.map((player) => [player.id, player]));
+    const memo = new Map<string, Map<number, PriorityRow>>();
+    const picks = new Map<string, PlanPlayer | null>();
+    type State = Parameters<OurChooser>[0];
+    const keyOf = (state: State) => `${state.deep ? 'd' : 's'}|${state.order.slice(state.at).join('.')}|`
+      + state.teams.map((team) => `${team.id}:${team.heldIds.join('.')}`).join('/');
+    const inputOf = (state: State): PriorityInput => ({
+      ...state,
+      mineId: base.mineId,
+      keeperCap: base.keeperCap,
+      maxAheadPicks: base.maxAheadPicks,
+      cap: base.cap ?? null,
+      places,
+      manOf: (id) => men.get(id) ?? null,
+      worth,
+      doubles,
+      heads: base.heads,
+      playerOf: (id) => pooled.get(id) ?? held.get(id) ?? null,
+    });
+    const rows = (state: State) => {
+      const key = keyOf(state);
+      let hit = memo.get(key);
+      if (!hit) memo.set(key, (hit = draftPriorities(inputOf(state))));
+      return hit;
     };
+    const choose: OurChooser = (state) => {
+      const key = keyOf(state);
+      if (picks.has(key)) return picks.get(key)!;
+      const pick = priorityPick(inputOf(state), state.deep ? rows(state) : undefined)?.player ?? null;
+      picks.set(key, pick);
+      return pick;
+    };
+    // `inputOf` for a call on a pool the table state does not imply (the men predicted gone): the memo keys on
+    // the squads and the order, which fix the pool only for a real state.
+    return { rows, choose, inputOf, rounds: worth.rounds };
   });
+
+  /** Our pick with the Draft Priority, for `plan`/`simulateRound`/`projectOurPicks`. */
+  private readonly chooser = computed<OurChooser | null>(() => this.priorityEngine()?.choose ?? null);
 
   /** The plan's inputs with our own chooser, when the Draft Priority applies. */
   private readonly choosingInput = computed(() => {
@@ -1161,43 +1203,44 @@ export class AuctionAdvice {
    * restasse», e il consiglio non lo sceglie perche' non ci sara'.
    */
   readonly priorityRows = computed<Map<number, PriorityRow>>(() => {
-    const worth = this.priorityWorth();
+    const engine = this.priorityEngine();
     const input = this.planInput();
-    if (!worth || !input) return new Map();
-    const men = this.priorityMen();
+    if (!engine || !input) return new Map();
     const places = startingPlaces(input.shapes);
     const teams = new Map(input.teams.map((team) => [team.id, team]));
-    const order = input.order.filter((id) => teams.has(id));
-    const myPlace = Math.max(0, order.indexOf(input.mineId));
+    let order = input.order.filter((id) => teams.has(id));
     let pool = input.pool;
     const gone: PlanPlayer[] = [];
-    for (const [index, id] of order.slice(0, myPlace).entries()) {
-      const team = teams.get(id)!;
-      const choice = predictRivalPick(team, pool, places, input.keeperCap, order.length - index,
-        input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
-      if (!choice) continue;
-      pool = pool.filter((player) => player.id !== choice.id);
-      teams.set(id, take(team, choice));
-      gone.push(choice);
-    }
-    const base = {
-      teams: [...teams.values()],
-      order,
-      at: myPlace,
-      mineId: input.mineId,
-      keeperCap: input.keeperCap,
-      maxAheadPicks: input.maxAheadPicks,
-      cap: input.cap ?? null,
-      places,
-      manOf: (id: number) => men.get(id) ?? null,
-      worth,
-      doubles: this.doubles(),
+    const call = (list: number[], upTo: number) => {
+      for (const [index, id] of list.slice(0, upTo).entries()) {
+        const team = teams.get(id)!;
+        if (team.picksCount >= engine.rounds) continue;
+        const choice = predictRivalPick(team, pool, places, input.keeperCap, list.length - index,
+          input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
+        if (!choice) continue;
+        pool = pool.filter((player) => player.id !== choice.id);
+        teams.set(id, take(team, choice));
+        gone.push(choice);
+      }
     };
-    const rows = draftPriorities({ ...base, pool, deep: true });
+    let at = order.indexOf(input.mineId);
+    if (at < 0) {
+      // WE ARE NOT IN THIS ROUND'S ORDER - we have called already, or our roster is closed (the code review of
+      // 29/09/2026: read as «we call first», the column priced a moment that does not exist). Our next pick is
+      // then in the NEXT round: the rest of this one calls first, then whoever the order rule puts ahead of us.
+      call(order, order.length);
+      order = [...teams.values()].sort((x, y) => ahead(x, y, input.maxAheadPicks)).map((team) => team.id);
+      at = order.indexOf(input.mineId);
+      const mine = teams.get(input.mineId);
+      if (at < 0 || !mine || mine.picksCount >= engine.rounds) return new Map();
+    }
+    call(order, at);
+    const rows = new Map(engine.rows({ teams: [...teams.values()], order, at, pool, deep: true }));
     if (!gone.length) return rows;
     const nexts = [...rows.values()].map((row) => row.next).filter((next): next is number => next != null);
     const floor = nexts.length ? Math.min(...nexts) : 0;
-    for (const [id, row] of draftPriorities({ ...base, pool: gone, deep: false })) {
+    for (const [id, row] of draftPriorities(engine.inputOf({ teams: [...teams.values()], order, at, pool: gone,
+      deep: false }))) {
       rows.set(id, { ...row, score: row.score + floor, nextFloor: floor });
     }
     return rows;
@@ -1213,8 +1256,8 @@ export class AuctionAdvice {
    * prioritario», non si puo' chiamare - e il punteggio resta, perche' fra pochi turni si sblocca: chi
    * legge la lista lo dice con `lockedForMe`, che e' la stessa guardia del consiglio.
    *
-   * La «Draft Priority» della specifica del 28/09/2026 (`docs/model/priorita-draft-v1.md`) e' un'ALTRA
-   * formula e non e' ancora passata dal banco: quando lo sara', si sostituisce qui e la colonna la segue.
+   * In a mantra draft with the substitution matrix (`priorityOn`) the column is the DRAFT PRIORITY instead
+   * (`priorityRows`, `docs/model/priorita-draft-v1.md`): the same number the advice picks on.
    */
   readonly priorities = computed<Map<number, number | null>>(() => {
     const input = this.planInput();

@@ -284,8 +284,9 @@ del turno e il giro previsto (`simulateRound`), i suggeriti del campetto (`proje
 prende un `OurChooser` opzionale in `PlanInput`, così `plan`/`simulateRound` non sanno quale politica sceglie per
 noi. Lo sguardo di un turno gira sui 10 migliori per G fino al 7º turno (`LOOKAHEAD_UNTIL`, la variante di §8
 che rende uguale ed è più veloce); le scelte successive di una proiezione usano G da solo sulla lista corta
-(6+3 per ruolo base), la scorciatoia del rollout del banco. I rivali nelle simulazioni interne scelgono per FVM
-(§10); il giro a schermo tiene le teste stimate, come prima.
+(6+3 per ruolo base), la scorciatoia del rollout del banco. ~~I rivali nelle simulazioni interne scelgono per FVM
+(§10); il giro a schermo tiene le teste stimate, come prima.~~ Dal 29/09 (sera) lo sguardo avanti usa le STESSE
+teste e la stessa regola di coda del giro a schermo: vedi §14.
 
 **Cosa l'app aggiunge rispetto al banco, per la specifica.** Z esclude i club esclusi dalle opzioni e gli
 infortunati pesanti (stop aperto ≥ 45 giorni, `PlayerStatus.longInjury`); con le porte una riga per club, col mix
@@ -306,6 +307,49 @@ state riscritte sull'intento (AUTO può partire ovunque nell'ordine; il refresh 
 da `data-mine`, e non quella del campetto, che segue l'ultimo click e non si salva) — e il doppio click del banco
 ora va sulla prima riga CHIAMABILE, perché la priorità mette un top congelato in testa alla lista.
 
-**Limiti detti.** Fuori dai 10 della testa la colonna è G da solo, quindi fra il 10º e l'11º c'è un salto che è
-lo sguardo avanti e non il calciatore. Presenze e fantamedia sono quelle del foglio: il gradino della stampa e le
+**Limiti detti.** Fuori dai 10 della testa la colonna è G più lo sguardo avanti PIÙ BASSO dei dieci
+(`nextFloor`, il caso Hakimi dello stesso giorno), cioè una stima prudente e non il suo sguardo. Presenze e fantamedia sono quelle del foglio: il gradino della stampa e le
 dritte non entrano (come nel resto del pannello d'asta).
+
+## 14. La code review della pagina (29/09/2026, sera)
+
+Nove rilievi sulla pagina Draft Assistant e sui suoi `core/`. Sette sono corretti. I primi tre del codice hanno
+un test che cade se si rimette il difetto, e con quei difetti rimessi cadono solo quei tre test.
+
+- **Il doppione si scambia anche con un uomo di una rosa RIVALE.** L'app cercava il bersaglio dello scambio
+  fra i soli liberi, mentre il banco lo cerca fra tutti gli uomini non nostri (`everybody`, liberi più rose
+  rivali). Senza i rivali mancava proprio l'uomo con cui uno scambio si fa. Ora `PriorityInput.playerOf`
+  risolve gli uomini delle rose, come fa il banco. Resta che un bersaglio può essere un libero: capita solo
+  quando il libero non è chiamabile, perché altrimenti supera il doppione in graduatoria.
+- **Lo sguardo avanti prevede i rivali come il giro a schermo**: stessa testa stimata (`PriorityInput.heads`) e
+  stessa regola di coda contata dalla fine dell'ordine. Prima scelgevano per prezzo e senza coda, quindi un
+  rivale prendeva due uomini diversi in due simulazioni dello stesso stato. **Questo rovescia una riga
+  dichiarata del §13, e il numero non lo decide**: il §10 dice che conoscere le teste non paga, quindi fra i due
+  modelli nessuno è migliore, e vince la coerenza. Il banco (`priority.mjs`) resta per prezzo, com'è stato
+  misurato.
+- **Lo zero di una rosa che nessuno può schierare sono undici posti vuoti**, non 0. Il G della prima scelta ora
+  sta sullo stesso zero di quelle successive. La graduatoria della prima scelta non cambia, perché lo
+  spostamento era una costante; cambia il numero mostrato. **Il banco ha lo stesso difetto e non è toccato.**
+- **Squadra assente dall'ordine del giro** (ha già chiamato, o ha la rosa chiusa): `priorityRows` la leggeva come
+  «chiamiamo per primi». Ora fa chiamare il resto del giro, poi chi la regola d'ordine mette davanti a noi nel
+  giro successivo. Con la rosa chiusa la colonna è vuota.
+- **Una valutazione per stato.** La memo è chiavata sull'ordine DAL nostro posto e non sull'ordine intero più
+  l'indice, e la colonna legge la stessa memo del consiglio: prima lo stesso stato si ricalcolava tre volte a
+  ogni evento dello stream.
+- **La lista dei liberi si ordina sul punteggio vero**, anche nell'ordinamento per colonna «Prio». Il valore
+  0-99 arrotondato pareggiava uomini distanti un punto e portava a 0 ogni punteggio negativo.
+- **La riga del tetto senza squadra seguita** enuncia il regolamento («nei primi N turni») invece di un conto
+  alla rovescia che non è di nessuno.
+- **Docstring di `priorities`** aggiornato: diceva ancora che la Draft Priority non era passata dal banco.
+
+**Non fatti, e perché.** I commenti in italiano non sono stati tradotti: tutta `app/` li ha, e una traduzione di
+massa toccherebbe prosa di altre sessioni. La regola «solo porte» (`legalFor`) vale nello sguardo avanti ma non
+in `simulateRound` e `projectOurPicks`, perché `predictRivalPick` non conosce la taglia della rosa. Pesa solo
+nelle ultime scelte di una squadra a cui mancano porte, ed è aperto.
+
+**Un difetto del banco e2e trovato strada facendo.** `e2e-draft` è andato rosso sul delta FVM in hover, verde su
+HEAD. La pagina era corretta: il puntatore del passo precedente stava su una riga della lista, e ora che la
+lista è ordinata sul punteggio vero quella riga è un'altra, con un tooltip che arriva sopra l'ordine. Un
+puntatore teletrasportato che atterra su un tooltip lo tiene aperto. Il banco ora riparte da un punto neutro e
+conta i tooltip rimasti aperti.
+

@@ -699,6 +699,12 @@ async function main() {
     const mineSpent = await evaluate(session, () => Number(document.querySelector('[data-column="pitch"]')?.getAttribute('data-spent')));
     const mineId = await evaluate(session, () => document.querySelector('[data-column="pitch"]')?.getAttribute('data-team'));
     const other = seatIds.find((id) => id !== mineId);
+    // A CLEAN START: the pointer of an earlier step may sit on a free-list row whose tooltip reaches over the
+    // order column, and a teleported pointer that lands ON a tooltip keeps it open - the hover then measures
+    // the tooltip instead of the seat (found 29/09/2026, when the list's order changed which row was there).
+    await mouse({ x: 2, y: 2 }, 0);
+    await wait(400);
+    const leftover = await evaluate(session, () => document.querySelectorAll('.ant-tooltip:not(.ant-tooltip-hidden)').length);
     const idle = await evaluate(session, seatInfo, other);
     await mouse(idle, 0);
     await wait(300);
@@ -711,6 +717,7 @@ async function main() {
     const expectedText = `Δ ${expected > 0 ? '+' : ''}${expected}`;
     note('delta FVM', `hover su un'altra squadra: «${hovered.delta?.text}» (atteso ${expectedText}); sulla selezionata ${self.delta ? 'un delta' : 'niente'}`,
       [
+        ...(leftover ? [`${leftover} tooltip ancora aperti prima dell'hover`] : []),
         ...(idle.delta?.shown ? ['il delta si vede anche senza hover'] : []),
         ...(!hovered.delta?.shown ? ['il delta non compare in hover'] : []),
         ...(hovered.delta?.shown && hovered.delta.text !== expectedText ? [`delta sbagliato: ${hovered.delta.text} invece di ${expectedText}`] : []),

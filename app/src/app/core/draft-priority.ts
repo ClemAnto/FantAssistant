@@ -38,12 +38,13 @@ import {
   PickCap,
   PlanPlayer,
   PlanTeam,
+  RivalHead,
   ahead,
   capBlocks,
   predictRivalPick,
   take,
 } from './auction-plan';
-import { Place, bestEleven } from './mantra-legal';
+import { Eleven, Place, bestEleven, placesIn } from './mantra-legal';
 
 /** A man as the priority reads him. `share` = expected appearances over the season's matchdays. */
 export interface PriorityMan {
@@ -286,11 +287,24 @@ export function subMalus(
 
 const expected = (man: PriorityMan) => (man.share ?? 0) * (man.fm ?? 0);
 
+/**
+ * THE ZERO OF A SQUAD NOBODY CAN FIELD is eleven empty places, not 0 (the code review of 29/09/2026). An empty
+ * roster, or one of unpriced men only, has no eleven for `bestEleven` to return; scored 0, the first pick's G
+ * carried ten faded «promise» terms its baseline did not, so the gain shown there was on another zero than
+ * every later pick. The module is the first the rules declare, which is how `bestEleven` breaks its own ties.
+ */
+function emptyEleven(rules: PriorityRules): Eleven<PriorityMan> | null {
+  const first = Object.keys(rules.modules ?? {})[0];
+  const places = first ? placesIn(rules, first) : [];
+  if (!places.length) return null;
+  return { module: first, places, holders: places.map(() => null), men: [], total: 0, scores: [] };
+}
+
 /** What a squad is worth per matchday, against the zeros of its own roles (the header of this file). */
 export function squadWorth(roster: readonly PriorityMan[], ctx: WorthContext): number {
   const { rules } = ctx;
   const phi = priorLeft(roster.length, ctx.rounds);
-  const xi = bestEleven(roster, rules, expected);
+  const xi = bestEleven(roster, rules, expected) ?? emptyEleven(rules);
   if (!xi) return 0;
   const onPitch = new Set(xi.men.map((m) => m.id));
   const bench = roster.filter((m) => !onPitch.has(m.id));
@@ -391,6 +405,14 @@ export interface PriorityInput {
   /** `false` = G alone (the projection's later picks, where the look-ahead would cost seconds). */
   deep: boolean;
   doubles: boolean;
+  /**
+   * Each rival's head, the one the displayed round predicts him with (`simulateRound`). The look-ahead reads
+   * the same map, so one rival is never assumed to take two different men in two simulations of one state.
+   * Absent = everybody by price.
+   */
+  heads?: ReadonlyMap<number, RivalHead> | null;
+  /** A man held by some squad, as a plan player: what a double can be traded FOR. Absent = the pool only. */
+  playerOf?: (id: number) => PlanPlayer | null;
 }
 
 export interface PriorityRow {
@@ -478,7 +500,13 @@ export function draftPriorities(input: PriorityInput): Map<number, PriorityRow> 
     const ours = new Set(me.heldIds);
     let trades: { player: PlanPlayer; gain: number; base: string }[] | null = null;
     const tradesOnce = () => (trades ??= (() => {
-      const candidates = input.pool.filter((p) => !ours.has(p.id) && p.slot !== KEEPER)
+      // Everybody who is not ours, free AND held by a rival - the bench's own set (`priority.mjs`, `everybody`
+      // minus ours); the pool alone left out exactly the men a trade is made with.
+      const held = input.playerOf
+        ? input.teams.filter((team) => team.id !== me.id).flatMap((team) => team.heldIds)
+            .map(input.playerOf).filter((p): p is PlanPlayer => !!p)
+        : [];
+      const candidates = [...input.pool, ...held].filter((p) => !ours.has(p.id) && p.slot !== KEEPER)
         .map((p) => ({ p, man: input.manOf(p.id) }))
         .filter((o): o is { p: PlanPlayer; man: PriorityMan } => !!o.man && o.man.fm != null);
       const best = new Set(shortlist(candidates.map((o) => o.man), ctx).map((m) => m.id));
@@ -527,26 +555,29 @@ export function draftPriorities(input: PriorityInput): Map<number, PriorityRow> 
   return out;
 }
 
-/** What we could take at our NEXT turn if we took `mine` now, the rivals simulated by price (§10). */
+/** What we could take at our NEXT turn if we took `mine` now, the rivals simulated as the round shows them. */
 function nextBest(input: PriorityInput, mine: PlanPlayer): number {
   const ctx = input.worth;
   let pool = input.pool.filter((p) => p.id !== mine.id);
   const teams = new Map(input.teams.map((team) => [team.id, team]));
   teams.set(input.mineId, take(teams.get(input.mineId)!, mine));
-  const rival = (id: number) => {
+  // The rivals as the displayed round predicts them - their head, and the tail rule counted from the end of the
+  // order they call in - on the pool the league's rules leave each of them (the review of 29/09/2026: price
+  // and no tail here, heads and tail in `simulateRound`, made one state two different rounds).
+  const rival = (id: number, fromEnd: number) => {
     const team = teams.get(id);
     if (!team || team.picksCount >= ctx.rounds) return;
-    const choice = predictRivalPick(team, legalFor(team, pool, input), input.places, input.keeperCap, Infinity,
-      DEFAULT_HEAD, input.cap);
+    const choice = predictRivalPick(team, legalFor(team, pool, input), input.places, input.keeperCap, fromEnd,
+      input.heads?.get(id) ?? DEFAULT_HEAD, input.cap);
     if (!choice) return;
     pool = pool.filter((p) => p.id !== choice.id);
     teams.set(id, take(team, choice));
   };
-  for (const id of input.order.slice(input.at + 1)) rival(id);
+  for (const [index, id] of input.order.entries()) if (index > input.at) rival(id, input.order.length - index);
   const next = [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks)).map((team) => team.id);
-  for (const id of next) {
+  for (const [index, id] of next.entries()) {
     if (id === input.mineId) break;
-    rival(id);
+    rival(id, next.length - index);
   }
   const me = teams.get(input.mineId)!;
   if (me.picksCount >= ctx.rounds) return 0;
@@ -563,7 +594,11 @@ function nextBest(input: PriorityInput, mine: PlanPlayer): number {
  * The pick itself: the best score among the men the rules let us call now. A shallow call (`deep: false`)
  * prices only the shortlist, the bench's own shortcut for the picks of a rollout.
  */
-export function priorityPick(input: PriorityInput): { player: PlanPlayer; row: PriorityRow } | null {
+export function priorityPick(
+  input: PriorityInput,
+  /** The rows of this very state when the caller already has them (a DEEP call only): one look-ahead per state. */
+  known?: Map<number, PriorityRow>,
+): { player: PlanPlayer; row: PriorityRow } | null {
   const me = input.teams.find((team) => team.id === input.mineId);
   if (!me || me.picksCount >= input.worth.rounds) return null;
   const legal = legalFor(me, input.pool, input);
@@ -577,7 +612,7 @@ export function priorityPick(input: PriorityInput): { player: PlanPlayer; row: P
     candidates = legal.filter((p) => keep.has(p.id));
     if (!candidates.length) candidates = legal;
   }
-  const rows = draftPriorities({ ...input, pool: input.deep ? input.pool : candidates });
+  const rows = (input.deep && known) || draftPriorities({ ...input, pool: input.deep ? input.pool : candidates });
   let best: { player: PlanPlayer; row: PriorityRow } | null = null;
   for (const player of candidates) {
     const row = rows.get(player.id);
