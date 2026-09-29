@@ -2547,3 +2547,24 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
   +5/+5 sull'esito, al prezzo di +1,3%/+0,7% di livello. Due finestre sono poche per riaprirlo.
 - **Le partenze del ripiego TM** sono stimate (partita da 60' e oltre): la sola meta' non misurata.
 - **La meta' dell'altra sessione** (Strategia, trend) e il suo `e2e-strategy` rosso: suoi.
+
+## Aperti dopo la sessione del 29/09/2026 (VI) — la code review del Draft Assistant, il gradino della stampa
+
+- **Push e pubblicazione**: `master` è avanti di 39 commit su `origin`, e il sito è ancora v0.1.32 (senza il filtro
+  sul gradino del mattino e senza i fix della review). Pubblicare è un deploy dall'albero pulito.
+- **Il banco `priority.mjs` ha il difetto dello zero della rosa vuota** che l'app non ha più (`priorita-draft-v1.md`
+  §14). Sulla prima scelta la graduatoria non cambia, ma il verdetto del §8 e il rilancio del §12 sono stati
+  misurati con quel difetto: da correggere lì e rilanciare, o dichiarare che non muove niente.
+- **«Solo porte» nelle simulazioni dei rivali**: `legalFor` vale nello sguardo avanti; `simulateRound`,
+  `projectOurPicks` e `plan` usano `predictRivalPick`, che non conosce la taglia della rosa. Serve la taglia in
+  `PlanInput`.
+- **Lo sguardo avanti per teste e non per prezzo** è una scelta di coerenza, non una misura: se si vuole un numero,
+  il banco può giocare le due varianti.
+- **Gradino della stampa, Serie A**: la verifica è fatta solo sui club esteri. Restano, per la Serie A, i due
+  quotati senza gradino (Patric, Neto) e i quattro infortuni senza data di rientro (Grabara, Furlanetto,
+  Przyborek, Bordon); `audit.py` senza `--skip-league` li elenca.
+- **Gradino della stampa, esteri, lasciati come sono con la ragione**: cinque `titolare` al 65% (Mitoma, Lavia,
+  Lee, Güler, Tamari), sei infortuni senza data (non viaggiano nel config), il Villarreal a 170 su due fasce, e
+  Monga senza gradino.
+- **`toolkit/scripts/tmp-live-inactive.mjs`**: file vuoto di un'altra sessione, non committato.
+
