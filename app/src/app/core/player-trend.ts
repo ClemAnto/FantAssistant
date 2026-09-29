@@ -295,6 +295,21 @@ export function trendVoteMean(cells: readonly TrendCell[]): number | null {
   return meanOver(cells, (cell) => cell.vote ?? TREND_MISSING_VOTE);
 }
 
+/**
+ * IL FANTAVOTO CHE UNA PARTITA SENZA FANTAVOTO VALE NELLA MEDIA DEL TREND DEL DRAFT: 5 (operatore, 29/09/2026:
+ * «quando si ordina per TREND il valore del trend e' pari alla media dei valori sostituendo i valori mancanti
+ * con dei 5»). Una DICHIARAZIONE sua, come il 5 della media voto accanto, e vale solo per ordinare quella lista.
+ */
+export const TREND_MISSING_POINTS = 5;
+
+/**
+ * LA MEDIA DEI FANTAVOTI delle ultime partite, col 5 al posto di ogni fantavoto che non c'e'. Stesso
+ * denominatore della media voto: le partite che il club ha giocato, non le caselle di riempimento.
+ */
+export function trendPointsMean(cells: readonly TrendCell[]): number | null {
+  return meanOver(cells, (cell) => cell.points ?? TREND_MISSING_POINTS);
+}
+
 /** La sufficienza da cui si conta il delta del fantavoto (`ui-delta-trend`): il 6 del fantacalcio. */
 export const TREND_DELTA_BASE = 6;
 

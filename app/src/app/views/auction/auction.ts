@@ -21,7 +21,7 @@ import { ExportReadings, pickRecords, picksCsv, saveCsv, squadsCsv } from '../..
 import { AuctionDemo } from '../../core/auction-demo';
 import { AuctionFeed, AuctionPlayer, AuctionTeam, SquadEntry, Zone } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
-import { DraftPlace, RECOMMENDED_MANTRA, draftPitchOf, withSuggestions } from '../../core/draft-pitch';
+import { DraftPlace, RECOMMENDED_MANTRA, draftPitchOf, pitchYield, placeYield, withSuggestions } from '../../core/draft-pitch';
 import type { FantaMan } from '../../core/fanta-eleven';
 import { GlobalOptions } from '../../core/global-options';
 import { lazyRows } from '../../core/lazy-rows';
@@ -30,7 +30,7 @@ import { trendStrips } from '../../core/plancia-store';
 import { PlayerRulings } from '../../core/player-rulings';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { ValuationStore } from '../../core/valuation-store';
-import type { TrendCell } from '../../core/player-trend';
+import { type TrendCell, trendPointsMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { AppHeader } from '../../ui/app-header/app-header';
@@ -42,7 +42,7 @@ import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
 import { DeltaTrend } from '../../ui/delta-trend/delta-trend';
-import type { Scenario, ScenarioStep, Verdict } from '../../core/draft-scenarios';
+import type { Difficulty, Interest, Scenario, ScenarioStep, Verdict } from '../../core/draft-scenarios';
 
 /**
  * The classic macro-role of a man, from the zone the feed files him under: on classic the rulebook rations
@@ -199,6 +199,9 @@ export function hundredths(value: number | null | undefined): number | null {
 /** How long a click on a free man's name waits for its second half: the double click chooses him. */
 const CARD_DELAY_MS = 260;
 
+/** The places of an eleven: a plan's coverage total is read as a share of them. */
+const ELEVEN = 11;
+
 /**
  * THE DRAFT ASSISTANT (ex «Segui un'asta», rifatto da capo il 28/09/2026 su richiesta dell'operatore).
  *
@@ -267,7 +270,7 @@ const CARD_DELAY_MS = 260;
       transform: translateY(calc(var(--seat-at) * var(--seat-step) - (var(--seat-step) - var(--seat-h)) / 2));
       transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1);
     }
-    /* The landing arrow of the hovered man: a line on the gap the squad on the clock would slide into. */
+    /* The landing arrow of the selected man: a line on the gap the squad on the clock would slide into. */
     .landing {
       position: absolute; left: 0; right: 0; top: 0; height: 0; z-index: 2; pointer-events: none;
       border-top: 2px solid var(--landing);
@@ -387,8 +390,6 @@ export class Auction {
 
   // ---------------------------------------------------------------------------------------- the table
 
-  protected readonly teamOnClock = computed(() => this.feed.onTheClock());
-
   /** The squads in the order they call, then whoever the order does not list. */
   protected readonly seats = computed<SeatRow[]>(() => this.numberTurns(this.seatsInOrder()));
 
@@ -475,21 +476,54 @@ export class Auction {
     this.chosen.set(this.chosen()?.key === key ? null : { key, scenario });
   }
 
-  /** A step of a chain in one line: name, roles, FVM and Draft Priority. */
+
+  /** A step of a chain: the name and what the whole squad gains by him («Undav +44»). */
   protected stepText(step: ScenarioStep): string {
-    return `${this.shown(step.player.id, step.player.name)} · FVM ${step.player.price} · DP ${hundredths(step.priority)}`;
+    return `${this.shown(step.player.id, step.player.name)} ${this.gainText(step.gain)}`;
   }
 
-  /** The free man under the pointer, for the landing arrow in the call order. */
-  protected readonly hovered = signal<number | null>(null);
+  /** The ink of a plan's difficulty: safe and easy read green, medium amber, hard red. */
+  protected readonly difficultyInk: Record<Difficulty, string> = {
+    sicuro: 'text-success', facile: 'text-success', medio: 'text-warning', difficile: 'text-danger',
+  };
+
+  /** The squads that want the second man while we wait, in a few words: «Tiki Taka FC (nessun Pc)». */
+  protected interestText(plan: Scenario): string {
+    if (plan.wait === 0) return 'Nessuna scelta in mezzo';
+    if (!plan.interested.length) return 'Nessuna delle squadre in mezzo gli è interessata';
+    const why = (one: Interest) => {
+      const role = one.role.charAt(0).toUpperCase() + one.role.slice(1);
+      return one.why === 'nessuno' ? `nessun ${role}` : one.why === 'pochi' ? `pochi ${role}` : `${role} scarsi`;
+    };
+    return 'Interessate: ' + plan.interested
+      .map((one) => `${this.feed.teams().find((team) => team.id === one.teamId)?.label ?? '?'} (${why(one)})`)
+      .join(', ');
+  }
+
+  /** A gain on the squad in hundredths of a point per matchday, signed: «+67». */
+  protected gainText(value: number): string {
+    const gain = hundredths(value);
+    return gain == null ? '—' : `${gain > 0 ? '+' : ''}${gain}`;
+  }
 
   /**
-   * THE LANDING ARROW: where the squad on the clock ends up in the call order if it takes the man under the
-   * pointer (`AuctionAdvice.landingOf`). Drawn on the gap it would slide into: the squads that stay keep their
+   * The free man whose row is SELECTED, for the landing arrow in the call order: a click selects a row and a second
+   * click on it clears it (operator, 29/09/2026: «non aggiornarlo sull'hover dei calciatori in tabella ma solo
+   * quando si clicca su di essi per selezionare la riga»).
+   */
+  protected readonly selectedRow = signal<number | null>(null);
+
+  protected selectRow(id: number): void {
+    this.selectedRow.set(this.selectedRow() === id ? null : id);
+  }
+
+  /**
+   * THE LANDING ARROW: where the squad on the clock ends up in the call order if it takes the selected man
+   * (`AuctionAdvice.landingOf`). Drawn on the gap it would slide into: the squads that stay keep their
    * order, so in the list as it is now that gap is below the `at`-th of them.
    */
   protected readonly landing = computed(() => {
-    const id = this.hovered();
+    const id = this.selectedRow();
     const land = id === null ? null : this.advice.landingOf(id);
     if (!land) return null;
     const team = this.feed.teams().find((one) => one.id === land.teamId);
@@ -526,35 +560,8 @@ export class Auction {
         name: this.feed.shownName(entry.player!),
         roles: entry.player!.roles,
         cost: entry.cost,
-        colour: team.colour,
         team: team.label,
       })));
-
-  /** «Chi prendo adesso»: our own pick of the round being played, and how many calls come before it. */
-  protected readonly advised = computed(() => {
-    const mine = this.feed.followedTeamId();
-    const pick = this.advice.round()?.picks.find((one) => one.teamId === mine) ?? null;
-    if (!pick?.player) return null;
-    return {
-      id: pick.player.id,
-      name: this.shown(pick.player.id, pick.player.name),
-      roles: pick.player.roles,
-    };
-  });
-
-  protected readonly capLine = computed<string | null>(() => {
-    // IL CONTO SCENDE COI TURNI (sua richiesta, 29/09/2026: «aggiorna dinamicamente»): i turni che restano a
-    // NOI, cioe' alla squadra seguita - lo stesso numero del lucchetto sulle righe (`turnsLeft`).
-    const cap = this.advice.pickCap();
-    if (!cap) return null;
-    // With no squad followed there is no «us» to count down for: the line states the regulation, as the
-    // row badges (`lockedForMe`) show nothing (the code review of 29/09/2026).
-    const mine = this.feed.followed();
-    if (!mine) return `Top bloccati: FVM ≥ ${cap.fvm} nei primi ${cap.frozenTurns} turni`;
-    const left = cap.frozenTurns - mine.squad.length;
-    if (left <= 0) return `Top sbloccati: FVM ≥ ${cap.fvm} chiamabili`;
-    return `Top bloccati: FVM ≥ ${cap.fvm} per ${left} ${left === 1 ? 'turno' : 'turni'}`;
-  });
 
   /** Which squad the pitch draws: the one clicked in the middle column, else mine, else the first. */
   private readonly viewed = signal<number | null>(null);
@@ -630,7 +637,28 @@ export class Auction {
       value99: this.advice.value99By().get(player.id) ?? null,
       cost,
       minutesPerMatch: null,
+      share: this.advice.expectedShareBy().get(player.id) ?? null,
+      bonus: this.advice.bonusBy().get(player.id) ?? null,
     };
+  }
+
+  /** Coverage and fertility of a place, as the pitch prints them: «87%» and «+85» (hundredths per matchday). */
+  protected yieldOf(place: DraftPlace): { cover: string; coverInk: string; fertility: string; fertilityInk: string; gain: string | null } {
+    const { cover, fertility } = placeYield(place);
+    const f = hundredths(fertility);
+    // On a place the selected plan fills: how much coverage and fertility it adds there.
+    let gain: string | null = null;
+    if (this.planPlace(place)) {
+      const after = placeYield(place, true);
+      const df = hundredths((after.fertility ?? 0) - (fertility ?? 0)) ?? 0;
+      gain = `+${Math.round((after.cover - cover) * 100)}% · ${df >= 0 ? '+' : ''}${df}`;
+    }
+    // Coverage in three inks (operator, 29/09/2026): red under half the calendar, amber under 85%, green from 85%.
+    // The two cuts are DECLARED, not measured: change them here.
+    const coverInk = cover < 0.5 ? 'text-danger' : cover < 0.85 ? 'text-warning' : 'text-success';
+    // Fertility green, RED when negative (operator, 29/09/2026): a place that loses bonus points, a porta's malus.
+    const fertilityInk = f != null && f < 0 ? 'text-danger' : 'text-success';
+    return { cover: `${Math.round(cover * 100)}%`, coverInk, fertility: f == null ? '—' : `${f > 0 ? '+' : ''}${f}`, fertilityInk, gain };
   }
 
   /** Campo o lista, per la colonna della rosa: una preferenza di lettura, ricordata nel browser. */
@@ -729,6 +757,83 @@ export class Auction {
       .map((entry) => this.manOf(entry.player!, entry.cost)),
   );
 
+  /** MY squad, whichever squad the pitch shows: the plans are about mine. */
+  private readonly mySquad = computed<FantaMan[]>(() =>
+    (this.feed.followed()?.squad ?? [])
+      .filter((entry) => !!entry.player)
+      .map((entry) => this.manOf(entry.player!, entry.cost)),
+  );
+
+  /**
+   * WHAT EACH STEP OF A PLAN ADDS to my pitch's coverage and fertility (operator, 29/09/2026: «la soluzione non deve
+   * mostrare solo il +DP, mostra anche l'incremento di fertilità e di copertura»): my pitch drawn on the module the
+   * plan builds towards, then with the first man, then with both - the same pipeline the pitch draws, so the
+   * numbers are the ones a click puts on it. Coverage in percentage points of a place, fertility in hundredths.
+   */
+  protected readonly planYields = computed(() => {
+    const out = new Map<string, { first: { cover: number; fertility: number }; second: { cover: number; fertility: number } | null }>();
+    const rules = this.advice.rules();
+    const preferred = this.feed.isMantra() ? RECOMMENDED_MANTRA : [];
+    const squad = this.mySquad();
+    const everyone = this.everyone();
+    for (const chain of this.scenarioChains()) {
+      const picks = [chain.scenario.first.player, ...(chain.scenario.second ? [chain.scenario.second.player] : [])]
+        .map((pick) => everyone.get(pick.id))
+        .filter((player): player is AuctionPlayer => !!player)
+        .map((player) => this.manOf(player, player.fvm));
+      // The module the pitch draws once the plan is chosen (`pitch`): the forced one first, or the totals here would
+      // describe another shape than the per-place increments a click puts on the pitch.
+      const target = this.forcedModule() ?? draftPitchOf([...squad, ...picks], rules, preferred)?.module ?? null;
+      const yieldWith = (extra: FantaMan[]) => {
+        const drawn = draftPitchOf(squad, rules, preferred, target);
+        return drawn ? pitchYield(withSuggestions(drawn, extra), true) : { cover: 0, fertility: 0 };
+      };
+      const base = yieldWith([]);
+      const one = yieldWith(picks.slice(0, 1));
+      const both = picks.length > 1 ? yieldWith(picks) : null;
+      out.set(chain.key, {
+        first: { cover: one.cover - base.cover, fertility: one.fertility - base.fertility },
+        second: both ? { cover: both.cover - one.cover, fertility: both.fertility - one.fertility } : null,
+      });
+    }
+    return out;
+  });
+
+  /**
+   * A plan's TOTAL increments in one short string, «+10% +35»: coverage as a share of the WHOLE ELEVEN (the places
+   * it adds, over eleven), fertility in hundredths per matchday. Both men counted.
+   */
+  protected yieldText(plan: { first: { cover: number; fertility: number }; second: { cover: number; fertility: number } | null } | undefined): { cover: string; fertility: string; negative: boolean } | null {
+    if (!plan) return null;
+    const cover = plan.first.cover + (plan.second?.cover ?? 0);
+    const f = hundredths(plan.first.fertility + (plan.second?.fertility ?? 0)) ?? 0;
+    const c = Math.round((cover / ELEVEN) * 100);
+    return { cover: `${c >= 0 ? '+' : ''}${c}%`, fertility: `${f >= 0 ? '+' : ''}${f}`, negative: f < 0 };
+  }
+
+  /** The men of the plan the operator selected, by id: the places of the pitch they stand on are highlighted. */
+  protected readonly planMen = computed<ReadonlySet<number>>(() => {
+    const plan = this.chosen()?.scenario;
+    return new Set(plan ? [plan.first.player.id, ...(plan.second ? [plan.second.player.id] : [])] : []);
+  });
+
+  protected planPlace(place: DraftPlace): boolean {
+    return this.planStep(place) !== null;
+  }
+
+  /**
+   * Which of the plan's two men stands on this place: the FIRST is a pick we make, the SECOND is a hope - he has to
+   * survive the picks in between - so his place is highlighted at half strength (operator, 29/09/2026).
+   */
+  protected planStep(place: DraftPlace): 'first' | 'second' | null {
+    const plan = this.chosen()?.scenario;
+    if (!plan) return null;
+    const ids = [place.suggested?.id, place.suggestedReserve?.id];
+    if (ids.includes(plan.first.player.id)) return 'first';
+    if (plan.second && ids.includes(plan.second.player.id)) return 'second';
+    return null;
+  }
+
   /**
    * THE SUGGESTED MEN, on MY squad only: the picks the plan projects for me with the auction going on
    * (`AuctionAdvice.projection`). Another squad's pitch shows what it has and nothing it might take.
@@ -758,6 +863,12 @@ export class Auction {
   });
 
   protected placeHint(place: DraftPlace): string {
+    const yielded = this.yieldOf(place);
+    const numbers = `copertura ${yielded.cover} · fertilità ${yielded.fertility}`;
+    return `${this.placeHead(place)} · ${numbers}`;
+  }
+
+  private placeHead(place: DraftPlace): string {
     const head = place.man
       ? `${place.man.name} · ${place.man.club}${place.man.value99 != null ? ` · valore ${place.man.value99}/99` : ''}`
       : `Posto ${place.slot}: ancora scoperto`;
@@ -1054,10 +1165,8 @@ export class Auction {
       case 'fmp':
         return (row) => row.expected.fm;
       case 'trend':
-        return (row) => {
-          const points = row.trend.map((cell) => cell.points).filter((one): one is number => one != null);
-          return points.length ? points.reduce((sum, one) => sum + one, 0) / points.length : null;
-        };
+        // Col 5 al posto di ogni fantavoto che manca (sua regola, 29/09/2026): chi salta una partita scende.
+        return (row) => trendPointsMean(row.trend);
       default: {
         const [metric, which] = key.split('@') as [SeasonMetric, 'now' | 'last'];
         return (row) => {
@@ -1219,20 +1328,6 @@ export class Auction {
     const now = new Date();
     const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     saveCsv(`draft-${table}-${stamp}-${what}.csv`, text);
-  }
-
-  protected freeHint(row: FreeRow): string {
-    const bits = [`${row.name} · ${row.club}`, `FVM ${row.fvm}`];
-    const place = this.nextPlace(row);
-    if (place != null) bits.push(`prendendolo chiami ${place}° nel turno dopo`);
-    if (row.takenBy) bits.push(`probabile scelta di ${row.takenBy.label} prima del tuo turno`);
-    if (row.press) bits.push(`titolarità ${row.press} (${row.pressSource === 'stampa' ? 'dalla stampa' : 'dal motore'})`);
-    if (row.turnsLeft != null) {
-      bits.push(`bloccato: ancora ${row.turnsLeft} ${row.turnsLeft === 1 ? 'turno' : 'turni'} prima di poterlo chiamare`);
-    }
-    const clock = this.teamOnClock();
-    if (this.feed.demo() && clock) bits.push(`doppio click: lo prende ${clock.label}`);
-    return bits.join(' · ');
   }
 
   // ---------------------------------------------------------------------------------------- the cards

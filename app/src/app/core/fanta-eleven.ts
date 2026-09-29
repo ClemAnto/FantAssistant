@@ -38,6 +38,10 @@ export interface FantaMan extends Placeable {
   cost: number;
   /** Minutes per match played last season, for the tooltip. */
   minutesPerMatch: number | null;
+  /** Share of the calendar he is expected to get a vote in (the draft pitch's COVERAGE). Absent = unknown. */
+  share?: number | null;
+  /** Bonus expected per appearance, fantamedia minus base vote (the draft pitch's FERTILITY). Absent = unknown. */
+  bonus?: number | null;
 }
 
 export interface FantaPlace {

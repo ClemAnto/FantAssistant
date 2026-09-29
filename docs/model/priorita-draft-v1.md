@@ -438,3 +438,58 @@ l'ordine pubblicato e vanno rivisti con la stessa forma: aperto.
 
 **Il filtro sul gradino** legge il gradino della colonna che si ha davanti: la stampa in «Default» e «Medie» (sua
 regola del mattino), il motore in «Previste», dove prima filtrava su una parola diversa da quella stampata.
+
+## 18. I piani come pacchetti, Z sui migliori tre, copertura e fertilità (29-30/09/2026, notte)
+
+Una sessione di sue richieste sulla pagina Draft Assistant, dopo il draft vero. `engine_*` fermo, nessuna
+`SHEET_REVISION`, il DB non toccato; tutto nell'app.
+
+**Z, il titolare medio, sono i migliori tre del ruolo per partecipante** (`draft-priority.STARTERS_PER_TEAM` = 3,
+sua regola: «prendendo le migliori 3 Pc per ogni partecipante, eliminando il 10% dei valori estremi e calcolando la
+media delle fantamedie previste»). Prima Z era la media troncata dei migliori `squadre × posti del ruolo nei moduli`:
+per i Pc 0,67 posti a modulo, cioè gli OTTO migliori di una lega a 12, Z ≈ 8,4, e Haaland (FM 8,45) leggeva DP 0.
+Adesso Haaland 65, Kane 129, Mbappé 73. Due estensioni nostre e dichiarate: i tre per partecipante valgono per
+**tutti** i ruoli di movimento (la sua frase nomina i Pc) e le **porte** restano a una per squadra; la troncatura è
+10% sopra e 10% sotto, come la media troncata già in uso. R (la riserva) non cambia.
+
+**Gli scenari partono dalla mossa che fa salire di più la rosa**, non dal posto più urgente (prima aprivano sempre
+su «P vuoto»). `draft-scenarios.squadWorth` è la somma delle DP dell'undici migliore della rosa; un posto vuoto vale
+0 finché le scelte rimaste possono riempirlo, poi costa il suo Z; la panchina non conta. `movesFor` dà il guadagno
+di ogni candidato (i 40 migliori per DP più il migliore per ogni posto da sistemare); le prime 6 mosse diventano
+catene e le catene si ordinano per il guadagno della rosa sulle DUE scelte — è lì che entra il prezzo, senza pesi
+nostri: chi costa poco ci fa chiamare prima al giro dopo.
+
+**Un piano è un pacchetto**: «N) rosa +x (difficoltà) +c% +f» e sotto «A +x — N scelte → A2 +y», coi ruoli in
+piccolo. La **difficoltà** è la sua regola: 0 scelte in mezzo = **sicuro**; poi per ogni squadra che chiama in mezzo
+si chiede se è interessata al secondo calciatore — nel suo ruolo base non ne ha **nessuno**, ne ha **pochi** (meno
+dei posti titolari che i moduli danno al ruolo, `startingPlaces`), o sono **scarsi** (nessuno sopra il titolare
+medio) — e solo se le regole le permettono di chiamarlo (`legalFor`: tetto dei primi turni, porte). Nessuna
+interessata = **facile**, una = **medio**, due o più = **difficile** (il taglio a due è nostro). La valuta sulla
+rosa di ciascuna nel momento in cui chiama, dentro lo stesso cammino dei rivali che decide la catena. Due forme
+scritte prima e scartate su sua correzione: il margine di uomini più cari (per prezzo) e il rango del secondo nella
+scelta di ogni rivale.
+
+**Copertura e fertilità di ogni posizione del campetto** (`draft-pitch.placeYield`, sua regola: «copertura: una %
+che dipende dalle partite previste di chi la occupa; fertilità: uno swing che dipende dai bonus previsti»). Si
+sommano IN ORDINE, titolare e poi riserve, e ognuno aggiunge solo le giornate che chi viene prima lascia scoperte:
+un titolare al 90% e una riserva all'80% fanno 98%. La fertilità è la stessa somma pesata sui bonus attesi a
+presenza (FM − MV, `AuctionAdvice.bonusBy`), in centesimi a giornata come la DP; un bonus ignoto la rende «—».
+Contano solo i calciatori veri. Colori: copertura rossa sotto il 50%, ambra fino all'85%, verde da lì (soglie
+dichiarate); fertilità verde, rossa se negativa. I totali di un piano (`pitchYield`, stessa funzione del campetto)
+sono la copertura in quota dell'undici e la fertilità in centesimi; selezionando un piano le posizioni che riempie
+si evidenziano con i loro incrementi, quella del secondo acquisto al 50%. Nessun effetto in hover (sua richiesta).
+Un calciatore occupa un posto solo: i suggeriti non ridisegnano chi è già in campo né due volte lo stesso.
+
+**Il resto della pagina**: la DP al posto del valore nel box del campetto, la pill dei ruoli mantra più piccola
+(`xxs`), il riquadro «Di turno / Consiglio / Top bloccati» tolto, il pallino nelle ultime scelte tolto, la colonna
+centrale più larga (1,06 · 0,75 · 1,5), «da sistemare» che oltre tre posizioni dice «molte posizioni», il tooltip
+del nome nella lista tolto, il TREND ordinato sulla media dei fantavoti col 5 al posto dei mancanti
+(`player-trend.trendPointsMean`), e la freccetta del prossimo turno che segue la riga SELEZIONATA con un click invece
+del mouse.
+
+Verificato: 1246 test dell'app, `e2e-draft` verde su classic e su `--euro` (il banco ora legge il pacchetto e
+seleziona un piano), build pulita. La code review ha corretto sei rilievi (interesse di chi non può chiamarlo, «scarsi»
+su valori ignoti, il bonus delle porte, il modulo forzato nei totali, un cammino dei rivali di troppo, la fertilità
+di un bonus ignoto) e ne ha lasciati due (commenti in italiano nei file che già li mescolano; il click sul nome che
+seleziona anche la riga).
+

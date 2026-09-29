@@ -1,5 +1,12 @@
 # Stato progetto & continuità — v5
-**Aggiornato (VIII): 29 settembre 2026 (sera) — IL DRAFT VERO RICOSTRUITO, LA DRAFT PRIORITY RIDICHIARATA, GLI SCENARI.**
+**Aggiornato (IX): 30 settembre 2026 (notte) — I PIANI DEL DRAFT COME PACCHETTI, Z SUI MIGLIORI TRE, COPERTURA E FERTILITÀ.**
+Una sessione di sue richieste sulla pagina Draft Assistant, un commit. Z della Draft Priority sono i migliori tre del
+ruolo per partecipante (Haaland da 0 a 65); gli scenari partono dalla mossa che alza di più la rosa e si leggono come
+pacchetti con la difficoltà (sicuro · facile · medio · difficile, dalle squadre in mezzo interessate al secondo); ogni
+posizione del campetto porta copertura e fertilità. Dettaglio in `priorita-draft-v1.md` §18; gli aperti in
+`todolist-mantra-euroleghe-v5.md`. `engine_*` fermo, nessuna `SHEET_REVISION`, il DB non toccato, niente pubblicato.
+
+· precedente: **Aggiornato (VIII): 29 settembre 2026 (sera) — IL DRAFT VERO RICOSTRUITO, LA DRAFT PRIORITY RIDICHIARATA, GLI SCENARI.**
 Il giorno del draft vero dell'operatore (FA-jo5-zai, EuroLeghe mantra, 12 squadre × 32). Cinque commit, nessuno pushato
 né pubblicato: `d272d87`, `37648da` (la Draft Priority), `953f725` (la pagina), `790befe` (scenari, freccetta,
 simulatore dei rivali). Dettaglio nella CHIUSURA (VIII) qui sotto e in `priorita-draft-v1.md` §15-§17. `engine_*`

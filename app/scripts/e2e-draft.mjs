@@ -362,7 +362,6 @@ async function main() {
     // 2b. The ceiling of the first turns, as the league declares it: said on screen, and a blocked top
     // cannot be taken with a double click.
     if (euro) {
-      const cap = await evaluate(session, () => document.querySelector('[data-cap]')?.innerText ?? '');
       // VISIBLE IN THEIR PLACE (operator, 29/09/2026): among the first rows loaded, dimmed, with the badge
       // saying how many of our turns are left - three, on an empty squad with a three-turn block.
       const shown = await evaluate(session, () => [...document.querySelectorAll('[data-free][data-locked]')].map((one) => ({
@@ -389,9 +388,8 @@ async function main() {
       }
       const still = target ? (await evaluate(session, freeIds)).includes(target.id) : false;
       const after = await evaluate(session, readPage);
-      note('top bloccati', `riga «${cap}», ${shown.length} bloccati fra le prime righe (badge ${shown[0]?.badge ?? '-'}), cercando «kane» FVM min ${Math.min(...locked)}`,
+      note('top bloccati', `${shown.length} bloccati fra le prime righe (badge ${shown[0]?.badge ?? '-'}), cercando «kane» FVM min ${Math.min(...locked)}`,
         [
-          ...(!/300/.test(cap) || !/3 turni/.test(cap) ? [`la riga non dice il tetto dichiarato (300, 3 turni): «${cap}»`] : []),
           ...(!shown.length ? ['nessun bloccato fra le prime righe: sono finiti in fondo alla lista'] : []),
           ...(shown.some((one) => one.badge !== '3') ? [`badge dei turni: ${[...new Set(shown.map((one) => one.badge))].join(', ')} invece di 3`] : []),
           ...(shown.some((one) => !one.icon) ? ['badge senza lucchetto'] : []),
@@ -1002,6 +1000,12 @@ async function main() {
     await mouse(listName, 1);
     await wait(700);
     const afterList = await evaluate(session, cardTitles);
+    // THE CARDS OPEN OVER THE MIDDLE COLUMN, and since the «di turno» box left it (29/09/2026) the last picks sit
+    // right under the card the list just opened: close them first, so the next click measures the last picks and
+    // not a card lying on top of them.
+    await evaluate(session, () => document.querySelectorAll('ui-player-card button[aria-label="chiudi"]').forEach((one) => one.click()));
+    await wait(300);
+    const reopened = await evaluate(session, cardTitles);
     // A name whose card is NOT open yet: clicking an open one only brings it to the front.
     const seatName = await evaluate(session, (open) => {
       // ...and one the pointer can REACH: the cards already open float over the page and may cover it.
@@ -1013,7 +1017,7 @@ async function main() {
         return { ...at, text: (name.innerText ?? '').trim() };
       }
       return null;
-    }, afterList);
+    }, reopened);
     await mouse(seatName, 1);
     await wait(500);
     const afterSeat = await evaluate(session, cardTitles);
@@ -1022,10 +1026,43 @@ async function main() {
         ...(!listName ? ['nessun nome cliccabile nella lista'] : []),
         ...(afterList.length !== before5c + 1 ? ['il clic sul nome nella lista non apre la card'] : []),
         ...(!seatName ? ['nessun nome raggiungibile nelle ultime scelte'] : []),
-        ...(seatName && afterSeat.length !== afterList.length + 1 ? ['il clic sul nome nelle ultime scelte non apre la card'] : []),
+        ...(reopened.length ? [`${reopened.length} card ancora aperte dopo la chiusura`] : []),
+        ...(seatName && afterSeat.length !== reopened.length + 1 ? ['il clic sul nome nelle ultime scelte non apre la card'] : []),
         ...(afterList.length > before5c && !afterList.some((title) => title.includes(listName.text)) ? [`la card non porta il nome cliccato: ${afterList.join(' | ')}`] : []),
       ]);
     await evaluate(session, () => document.querySelectorAll('ui-player-card button[aria-label], ui-player-card [data-close]').forEach(() => {}));
+
+    // 5d. THE PLANS (operator, 29/09/2026): a package reads «N) rosa +x (difficolta')», with one of the four words.
+    // Only on mantra, where the Draft Priority is. The pointer on a package does nothing (his rule of the same night).
+    if (euro) {
+      const plan = await evaluate(session, () => {
+        const one = document.querySelector('[data-scenario]');
+        return one ? { text: (one.innerText ?? '').replace(/\s+/g, ' ').trim(), difficulty: one.getAttribute('data-difficulty') } : null;
+      });
+      // SELECTED, the plan highlights the places it fills with how much it adds there; a second click unpins it.
+      const pinned = async () => evaluate(session, () => !!document.querySelector('[data-scenario].border-primary'));
+      const wasPinned = await pinned();
+      if (plan && !wasPinned) await mouse(await evaluate(session, centre, '[data-scenario]'));
+      await wait(500);
+      const lit = await evaluate(session, () => ({
+        places: document.querySelectorAll('[data-plan-place]').length,
+        gains: [...document.querySelectorAll('[data-place-gain]')].map((one) => (one.innerText ?? '').trim()),
+      }));
+      if (plan && !wasPinned) await mouse(await evaluate(session, centre, '[data-scenario]'));
+      await wait(400);
+      const after = await evaluate(session, () => document.querySelectorAll('[data-plan-place]').length);
+      note('piani', plan ? `«${plan.text}» (${plan.difficulty}); selezionato: ${lit.places} posti evidenziati, incrementi ${lit.gains.join(' | ')}; deselezionato ${after}` : 'nessun piano',
+        [
+          ...(!plan ? ['nessun piano a schermo'] : []),
+          ...(plan && !/^1\) rosa [+-]?\d+ \((sicuro|facile|medio|difficile)\) [+-]\d+% [+-]\d+ /.test(plan.text) ? ["il piano non porta gli incrementi di copertura e fertilita'"] : []),
+          ...(plan && !lit.places ? ['selezionato, nessun posto evidenziato sul campetto'] : []),
+          ...(plan && lit.gains.length !== lit.places ? [`${lit.places} posti evidenziati e ${lit.gains.length} incrementi`] : []),
+          ...(plan && lit.gains.some((one) => !/^\+\d+% · [+-]\d+$/.test(one)) ? [`incrementi illeggibili: ${lit.gains.join(' | ')}`] : []),
+          ...(plan && !wasPinned && after ? [`${after} posti ancora evidenziati dopo averlo deselezionato`] : []),
+          ...(plan && !/^1\) rosa [+-]?\d+/.test(plan.text) ? [`il piano non si legge «1) rosa +N»: «${plan.text}»`] : []),
+          ...(plan && !['sicuro', 'facile', 'medio', 'difficile'].includes(plan.difficulty) ? [`difficolta' ${plan.difficulty}`] : []),
+        ]);
+    }
 
     // 6. Medie.
     await mouse(await evaluate(session, centre, '[data-mode="medie"]'));

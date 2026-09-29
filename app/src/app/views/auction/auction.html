@@ -110,9 +110,11 @@
       </div>
     </div>
   } @else {
+    <!-- La colonna centrale da 0,55 a 0,75 (sua richiesta, 29/09/2026: «allarghiamo un po' la colonna centrale»):
+         gli scenari e le ultime scelte si leggevano troncati. Lo spazio viene dalla lista: il campetto resta sui suoi ~490px, sotto i quali i badge di titolarita' si tagliano. -->
     <div
       class="grid min-h-0 flex-1 gap-2"
-      style="grid-template-columns: minmax(0, 1fr) minmax(0, 0.55fr) minmax(0, 1.6fr)"
+      style="grid-template-columns: minmax(0, 1.06fr) minmax(0, 0.75fr) minmax(0, 1.5fr)"
     >
       <!-- 1. IL CAMPETTO della rosa che si compone: titolari dove il regolamento li mette, riserve sotto il
            posto del loro ruolo, distribuite in parti uguali (`draft-pitch.spreadReserves`). -->
@@ -244,12 +246,30 @@
                     class="flex min-w-0 max-w-[33%] flex-1 flex-col gap-px overflow-hidden rounded-md border
                            border-border bg-surface/90 px-1 py-0.5"
                     [class.border-dashed]="!place.man"
+                    [class.ring-2]="planPlace(place)"
+                    [class.ring-primary]="planStep(place) === 'first'"
+                    [class.ring-primary/50]="planStep(place) === 'second'"
+                    [attr.data-plan-place]="planStep(place)"
                     nz-tooltip
                     [nzTooltipTitle]="placeHint(place)"
                   >
                     <!-- LA POSIZIONE IN ALTO AL CENTRO, i calciatori sotto, ognuno su DUE righe (sue richieste,
-                         29/09/2026: «non si legge niente»): il nome sopra, badge di titolarita' e valore sotto. -->
-                    <span class="flex justify-center"><ui-role [role]="place.slot" size="xs" quiet /></span>
+                         29/09/2026: «non si legge niente»): il nome sopra, badge di titolarita' e valore sotto. Nel
+                         draft mantra il valore e' la Draft Priority (sua richiesta, 29/09/2026), altrove il valore 0-99. -->
+                    <!-- COPERTURA a sinistra e FERTILITA' a destra della posizione (sua richiesta, 29/09/2026,
+                         `draft-pitch.placeYield`): quanto del calendario coprono titolare e riserve, e quanti punti
+                         bonus a giornata ne vengono (x100, come la DP). -->
+                    @let yielded = yieldOf(place);
+                    <span class="grid grid-cols-[1fr_auto_1fr] items-center gap-1 text-[9px] tabular-nums leading-none">
+                      <span data-place-cover class="text-left" [class]="yielded.coverInk">{{ yielded.cover }}</span>
+                      <ui-role [role]="place.slot" size="xs" quiet />
+                      <span data-place-fertility class="text-right" [class]="yielded.fertilityInk">{{ yielded.fertility }}</span>
+                    </span>
+                    @if (yielded.gain; as gain) {
+                      <!-- La soluzione selezionata: quanto aggiunge qui, copertura e fertilita'. -->
+                      <span data-place-gain class="text-center text-[9px] font-semibold leading-none text-primary tabular-nums"
+                        [class.opacity-50]="planStep(place) === 'second'">{{ gain }}</span>
+                    }
                     @if (place.man) {
                       <ng-container *ngTemplateOutlet="man; context: { $implicit: place.man, reserve: false, ghost: false }" />
                     } @else if (place.suggested; as ghost) {
@@ -295,48 +315,11 @@
         }
       </section>
 
-      <!-- 2. LA STRATEGIA: chi e' di turno, cosa ci conviene, e le squadre nell'ordine di chiamata con la
-           scelta che ognuna farà (la NOSTRA politica per noi, quella dei rivali per gli altri) e dove
-           chiamerà nel giro dopo. -->
+      <!-- 2. LA STRATEGIA: le squadre nell'ordine di chiamata, gli scenari e le ultime scelte. -->
       <section data-column="order" class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-surface p-2">
-        <div class="flex flex-col gap-1 rounded-md bg-page p-2 text-xs">
-          <div class="flex items-center gap-1">
-            <span class="text-muted">Di turno:</span>
-            @if (teamOnClock(); as clock) {
-              <span class="h-2.5 w-2.5 rounded-sm" [style.background]="clock.colour"></span>
-              <span class="font-semibold">{{ clock.label }}</span>
-            } @else {
-              <span>—</span>
-            }
-            @if (feed.picksUntilMyTurn() !== null) {
-              <span class="ml-auto text-muted">
-                @if (feed.picksUntilMyTurn() === 0) {
-                  <b class="text-primary">tocca a te</b>
-                } @else {
-                  {{ feed.picksUntilMyTurn() }} prima di te
-                }
-              </span>
-            }
-          </div>
-          <div class="flex min-w-0 items-center gap-1">
-            <span class="text-muted">Consiglio:</span>
-            @if (advised(); as pick) {
-              <ui-roles [roles]="pick.roles" size="xs" />
-              <span
-                data-card-name
-                class="min-w-0 cursor-pointer truncate font-semibold hover:underline"
-                (click)="openCard(pick.id, $event)"
-                >{{ pick.name }}</span
-              >
-            } @else {
-              <span class="text-muted">{{ feed.followed() ? '—' : 'scegli la tua squadra (icona ♟)' }}</span>
-            }
-          </div>
-          @if (capLine(); as cap) {
-            <div data-cap class="text-muted">{{ cap }}</div>
-          }
-        </div>
-
+        <!-- IL RIQUADRO «DI TURNO / CONSIGLIO / TOP BLOCCATI» E' TOLTO (sua richiesta, 29/09/2026: «non serve»):
+             chi e' di turno lo dice l'ordine qui sotto, la scelta da fare gli scenari, e il tetto il lucchetto col
+             conto dei turni sulle righe bloccate. -->
         <!-- L'ORDINE E NIENT'ALTRO (sua richiesta, 29/09/2026: «stringere in altezza tutto il blocco e scrivere
              semplicemente l'ordine senza altri fronzoli»): una riga per squadra - posto, colore, nome, scelte
              fatte, FVM della rosa. La scelta prevista di ognuno non sta piu' qui: la dice la lista degli
@@ -428,10 +411,15 @@
               Modulo <b class="text-fg">{{ diagnosis.module }}</b>
               @if (diagnosis.needs.length) {
                 · da sistemare:
-                @for (need of diagnosis.needs.slice(0, 4); track $index; let last = $last) {
-                  <span [class.text-danger]="need.kind === 'vuoto'" [class.text-warning]="need.kind === 'debole'"
-                    >{{ need.place.slot }} {{ need.kind }}</span
-                  >{{ last ? '' : ',' }}
+                <!-- Oltre tre posizioni si dice «molte posizioni» e basta (sua richiesta, 29/09/2026). -->
+                @if (diagnosis.needs.length > 3) {
+                  <span data-many-needs class="text-danger">molte posizioni</span>
+                } @else {
+                  @for (need of diagnosis.needs; track $index; let last = $last) {
+                    <span [class.text-danger]="need.kind === 'vuoto'" [class.text-warning]="need.kind === 'debole'"
+                      >{{ need.place.slot }} {{ need.kind }}</span
+                    >{{ last ? '' : ',' }}
+                  }
                 }
               } @else {
                 · tutto coperto
@@ -448,25 +436,45 @@
                 </div>
               }
             }
-            @for (chain of scenarioChains(); track chain.key) {
+            <!-- I PIANI COME PACCHETTI (sua richiesta, 29/09/2026): in cima il totale sulla rosa e la difficolta',
+                 sotto la catena: il primo calciatore, quante scelte si aspettano, il secondo. -->
+            @for (chain of scenarioChains(); track chain.key; let at = $index) {
               <button
                 type="button"
                 data-scenario
+                [attr.data-difficulty]="chain.scenario.difficulty"
                 class="flex flex-col rounded border px-1 py-0.5 text-left"
-                [class]="chosen()?.key === chain.key ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-fg/5'"
+                [class]="chosen()?.key === chain.key ? 'border-primary bg-primary/10' : 'border-transparent'"
                 (click)="choose(chain.key, chain.scenario)"
               >
-                <span class="flex min-w-0 items-center gap-1">
-                  <ui-roles class="shrink-0" [roles]="chain.scenario.first.player.roles" size="xs" />
-                  <span class="min-w-0 truncate font-semibold">{{ stepText(chain.scenario.first) }}</span>
+                <span class="flex min-w-0 items-center gap-1 font-semibold">
+                  <span>{{ at + 1 }})</span>
+                  <span>rosa {{ gainText(chain.scenario.total) }}</span>
+                  @if (chain.scenario.second) {
+                    <span
+                      data-difficulty
+                      [class]="difficultyInk[chain.scenario.difficulty]"
+                      nz-tooltip
+                      [nzTooltipTitle]="interestText(chain.scenario)"
+                      >({{ chain.scenario.difficulty }})</span
+                    >
+                  }
+                  <!-- I TOTALI della soluzione, copertura e fertilita' (sua richiesta, 29/09/2026), in verde. -->
+                  @if (yieldText(planYields().get(chain.key)); as totals) {
+                    <span data-plan-yields class="tabular-nums"
+                      ><span class="text-success">{{ totals.cover }}</span>{{ ' ' }}<span [class]="totals.negative ? 'text-danger' : 'text-success'">{{ totals.fertility }}</span></span
+                    >
+                  }
                 </span>
-                <span class="flex min-w-0 items-center gap-1 text-muted">
-                  <span class="shrink-0">↳ tra {{ chain.scenario.wait }} scelte ({{ chain.scenario.nextAt }}°)</span>
+                <span class="flex min-w-0 items-center gap-1 pl-3">
+                  <ui-roles class="shrink-0" [roles]="chain.scenario.first.player.roles" size="xxs" />
+                  <span class="min-w-0 truncate">{{ stepText(chain.scenario.first) }}</span>
+                  <span class="shrink-0 text-muted">— {{ chain.scenario.wait }} scelte →</span>
                   @if (chain.scenario.second; as second) {
-                    <ui-roles class="shrink-0" [roles]="second.player.roles" size="xs" />
+                    <ui-roles class="shrink-0" [roles]="second.player.roles" size="xxs" />
                     <span class="min-w-0 truncate">{{ stepText(second) }}</span>
                   } @else {
-                    <span>nessuno</span>
+                    <span class="text-muted">nessuno</span>
                   }
                 </span>
               </button>
@@ -475,18 +483,19 @@
         }
 
         <!-- GLI ULTIMI DIECI PRESI (sua richiesta, 29/09/2026), il piu' recente in cima: numero di chiamata,
-             colore e nome della squadra, ruoli, nome del calciatore (apre la card) e FVM. -->
+             nome della squadra, ruoli, nome del calciatore (apre la card) e FVM. -->
         <div class="flex min-h-0 flex-1 flex-col gap-1">
           <div class="px-1 text-[10px] uppercase text-muted">Ultime scelte</div>
           <ul data-last-picks class="min-h-0 flex-1 overflow-y-auto">
             @for (pick of lastPicks(); track pick.index) {
               <li
                 [attr.data-last-pick]="pick.id"
-                class="grid grid-cols-[1.75rem_0.6rem_3.25rem_minmax(0,1fr)_minmax(0,0.75fr)_2.25rem] items-center
+                class="grid grid-cols-[1.75rem_3.25rem_minmax(0,1fr)_minmax(0,0.75fr)_2.25rem] items-center
                        gap-x-1 rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
               >
+                <!-- Il pallino col colore della squadra e' tolto (sua richiesta, 29/09/2026): il nome della squadra
+                     sta gia' nella riga. -->
                 <span class="tabular-nums text-muted">{{ pick.index + 1 }}</span>
-                <span class="h-2.5 w-2.5 rounded-sm" [style.background]="pick.colour"></span>
                 <ui-roles class="min-w-0 overflow-hidden" [roles]="pick.roles" size="xs" />
                 <span
                   data-card-name
@@ -729,14 +738,11 @@
               [attr.data-locked]="row.locked ? '' : null"
               [attr.data-fvm]="row.fvm"
               [attr.data-taken-by]="row.takenBy?.id ?? null"
-              (mouseenter)="hovered.set(row.id)"
-              (mouseleave)="hovered.set(null)"
+              [class.bg-primary/10]="selectedRow() === row.id"
+              [attr.data-selected]="selectedRow() === row.id ? '' : null"
+              (click)="selectRow(row.id)"
               [class.taken]="!!row.takenBy"
               [style.--taken]="row.takenBy?.colour ?? null"
-              nz-tooltip
-              [nzTooltipTitle]="freeHint(row)"
-              nzTooltipPlacement="left"
-              [nzTooltipMouseEnterDelay]="0.6"
               (dblclick)="take(row)"
             >
               <ui-roles class="min-w-0 overflow-hidden" [roles]="row.roles" size="xs" />
@@ -859,7 +865,7 @@
       <!-- I RUOLI MANTRA di chi e' disegnato (sua richiesta, 29/09/2026): il posto dice cosa CHIEDE il modulo,
            i codici cosa l'uomo SA FARE, e sono due fatti diversi. Sul classic il ruolo e' il posto stesso. -->
       @if (feed.isMantra() && man.shown.length) {
-        <ui-roles data-pitch-roles class="shrink-0" [roles]="man.shown" size="xs" />
+        <ui-roles data-pitch-roles class="shrink-0" [roles]="man.shown" size="xxs" />
       }
       @if (pitchRungs().get(man.id); as rung) {
         @if (rung.press) {
@@ -876,7 +882,8 @@
         class="ml-auto flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm px-0.5 text-[9px]
                font-semibold leading-none tabular-nums"
         [class]="reserve ? 'bg-fg/10' : 'bg-primary text-on-primary'"
-        >{{ man.value99 ?? '—' }}</span
+        [attr.data-pitch-dp]="advice.priorityOn() ? '' : null"
+        >{{ advice.priorityOn() ? (hundredths(advice.priorityOfMan().get(man.id)) ?? '—') : (man.value99 ?? '—') }}</span
       >
     </span>
   </span>

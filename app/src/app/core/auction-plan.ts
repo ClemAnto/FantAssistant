@@ -766,9 +766,12 @@ function rivalPicksAfterOurs(input: RivalWalkInput): Map<number, number> {
 export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>) {
   let pool = [...input.pool];
   const gone = new Map<number, number>();
+  /** Called with the squad on the clock, as it stands, right before it calls: what the draft plans read. */
+  const hooks: { onCall: ((team: PlanTeam) => void) | null } = { onCall: null };
   const step = (id: number, placesFromEnd: number) => {
     const team = teams.get(id);
     if (!team) return;
+    hooks.onCall?.(team);
     const choice = predictRivalPick(team, pool, input.places, input.keeperCap, placesFromEnd,
                                     input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
     if (!choice) return;
@@ -776,7 +779,7 @@ export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>)
     teams.set(id, take(team, choice));
     gone.set(choice.id, id);
   };
-  return { step, gone };
+  return { step, gone, hooks };
 }
 
 /**

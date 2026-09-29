@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PlanPlayer, PlanTeam, startingPlaces } from './auction-plan';
 import { PriorityMan, PriorityRules, WorthContext, roleStats } from './draft-priority';
-import { ScenarioInput, chainFrom, diagnose, judge, scenarios } from './draft-scenarios';
+import { ScenarioInput, chainFrom, diagnose, interestIn, judge, movesFor, scenarios, squadWorth } from './draft-scenarios';
 
 /** One shape: a door, two Dc, one C, one Pc. */
 const RULES: PriorityRules = {
@@ -109,6 +109,73 @@ describe('a chain A --wait--> A2', () => {
     const chain = result.list[0];
     expect(chain.first.player.id).toBe(midfielder.id);
     expect(chain.second?.player.id).not.toBe(midfielder.id);
+  });
+});
+
+describe('the move that gives the WHOLE squad most', () => {
+  it('opens on the bonus-heavy man, not on the empty door the diagnosis lists first', () => {
+    const everybody = population();
+    const door = man('por', 5.2, 0.9, 5);
+    const bonusDc = man('dc', 7.2, 0.9, 5);
+    const pool = [door, bonusDc, man('c', 6.5, 0.9, 30), man('pc', 7.4, 0.9, 40)];
+    const result = scenarios(input(pool, everybody), 3);
+    expect(result.diagnosis!.needs[0]).toMatchObject({ kind: 'vuoto', place: { slot: 'P' } });
+    expect(result.list[0].first.player.id).toBe(bonusDc.id);
+    // Ranked by what the squad gains over the chain, best first.
+    const totals = result.list.map((chain) => chain.total);
+    expect(totals).toEqual([...totals].sort((a, b) => b - a));
+  });
+
+  it('gains nothing from a man who would sit on the bench', () => {
+    const everybody = population();
+    const mine = [man('dc', 6.4), man('dc', 6.3), man('c', 6.9), man('pc', 7.9), man('por', 5.3)];
+    const thirdDc = man('dc', 5.9);
+    const moves = movesFor({ ...input([thirdDc], everybody, mine).teams[0] }, [asPlan(thirdDc)], input([thirdDc], everybody, mine));
+    expect(moves[0].gain).toBe(0);
+  });
+
+  it('charges a hole the picks left can no longer fill', () => {
+    const everybody = population();
+    const ctx = input([], everybody);
+    const four = [man('dc', 6.4), man('dc', 6.3), man('pc', 7.9), man('por', 5.3)];
+    const promised = squadWorth(four, ctx, 1);
+    const stuck = squadWorth(four, ctx, 0);
+    // The empty C costs the Z of a C once no pick can reach it.
+    expect(promised - stuck).toBeCloseTo(ctx.worth.stats.get('c')!.z, 6);
+  });
+});
+
+describe('how hard a plan is', () => {
+  it('asks each squad calling in between whether it wants the second man, and counts them', () => {
+    const everybody = population();
+    const cheap = man('c', 6.9, 0.9, 1);
+    const pool = [cheap, man('pc', 7.9, 0.9, 300), man('dc', 6.4, 0.9, 50), man('dc', 6.3, 0.9, 40),
+      man('c', 6.8, 0.9, 30), man('pc', 7.8, 0.9, 20)];
+    const chain = chainFrom(input(pool, everybody), asPlan(cheap), null)!;
+    // Two picks in between, two empty rival squads: both have nobody of his role.
+    expect(chain.wait).toBe(2);
+    expect(chain.interested.map((one) => one.why)).toEqual(['nessuno', 'nessuno']);
+    expect(chain.difficulty).toBe('difficile');
+  });
+
+  it('reads nobody, few or weak men of the role on a rival roster', () => {
+    const everybody = population();
+    const ctx = input([], everybody);
+    const targetMan = man('dc', 6.5);
+    const target = asPlan(targetMan);
+    const rival = (held: PriorityMan[]) => ({ ...ctx.teams[1], heldIds: held.map((m) => m.id), slots: held.map((m) => m.slot ?? '') });
+    const known = new Map<number, PriorityMan>([[targetMan.id, targetMan]]);
+    const withMen = (held: PriorityMan[]) => {
+      for (const m of held) known.set(m.id, m);
+      return { ...ctx, manOf: (id: number) => known.get(id) ?? ctx.manOf(id) };
+    };
+    expect(interestIn(rival([]), target, withMen([]))?.why).toBe('nessuno');
+    const one = [man('dc', 6.6)];
+    expect(interestIn(rival(one), target, withMen(one))?.why).toBe('pochi'); // the shape starts two Dc
+    const weak = [man('dc', 5.4), man('dc', 5.5)];
+    expect(interestIn(rival(weak), target, withMen(weak))?.why).toBe('scarsi');
+    const good = [man('dc', 6.8), man('dc', 6.7)];
+    expect(interestIn(rival(good), target, withMen(good))).toBeNull();
   });
 });
 

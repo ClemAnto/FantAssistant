@@ -156,6 +156,17 @@ export function boughtMen(everybody: readonly PriorityMan[], { teams, keepers, r
  */
 export const RESERVE_QUARTER = 0.25;
 
+/**
+ * Z, THE AVERAGE STARTER, IS THE BEST THREE OF THE ROLE PER PARTICIPANT (the operator, 29/09/2026: «il titolare
+ * medio va calcolato ad esempio prendendo le migliori 3 Pc per ogni partecipante, eliminando il 10% dei valori
+ * estremi e calcolando la media delle fantamedie previste»). It replaces «the best `teams x places` of the role»,
+ * which for a Pc was 0.67 places a module, i.e. the EIGHT best of a twelve-team league: a Z of ~8.4 that read
+ * Haaland (FM 8.45) as a plain starter with a Draft Priority of 0. His sentence names the Pc; the same three per
+ * participant is applied to every outfield base role, which is an extension of ours and is stated. The doors keep
+ * one per team: he said nothing about them. A DECLARED count, not a measured one.
+ */
+export const STARTERS_PER_TEAM = 3;
+
 export function roleStats(
   everybody: readonly PriorityMan[],
   rules: MantraModules,
@@ -168,6 +179,14 @@ export function roleStats(
     byBase.get(key)!.push(man);
   }
   const places = slotShares(rules);
+  const everyFm = new Map<string, number[]>();
+  for (const man of everybody) {
+    if (man.fm == null) continue;
+    const key = baseRole(rules, man.roles, man.slot);
+    if (!everyFm.has(key)) everyFm.set(key, []);
+    everyFm.get(key)!.push(man.fm);
+  }
+  for (const fms of everyFm.values()) fms.sort((a, b) => a - b);
   const stats = new Map<string, RoleStat>();
   for (const [key, men] of byBase) {
     const fms = men.map((m) => m.fm!).sort((a, b) => a - b);
@@ -176,8 +195,11 @@ export function roleStats(
     const starters = fms.slice(reserves.length);
     const steady = men.map((m) => m.steady).filter((s): s is number => s != null).sort((a, b) => a - b);
     const low = reserves.length ? reserves : fms.slice(0, Math.max(1, Math.round(fms.length * RESERVE_QUARTER)));
+    // Z over the WHOLE population of the role, best first by predicted fantamedia (`STARTERS_PER_TEAM`); R keeps
+    // the split of the bought men above, which he did not ask to change.
+    const best = key === KEEPER ? starters : (everyFm.get(key) ?? []).slice(-size.teams * STARTERS_PER_TEAM);
     stats.set(key, {
-      z: trimmedMean(starters),
+      z: trimmedMean(best.length ? best : starters),
       top: quantile(fms, 0.9)!,
       semi: quantile(fms, 0.7)!,
       median: quantile(fms, 0.5)!,

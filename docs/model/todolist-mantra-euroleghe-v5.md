@@ -2600,3 +2600,18 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
   Monga senza gradino.
 - **`toolkit/scripts/tmp-live-inactive.mjs`**: file vuoto di un'altra sessione, non committato.
 
+## Aperti dopo la sessione del 30/09/2026 (IX) — i piani del draft, Z, copertura e fertilità
+
+- **A inizio draft ogni piano è «difficile»**: le rose rivali sono vuote, quindi tutte «non hanno nessuno» del ruolo
+  del secondo calciatore. È la sua regola alla lettera; se vuole che distingua qualcosa nei primi giri, «pochi» o
+  «nessuno» potrebbero pesare anche quanto il secondo è in alto nella scelta di quella squadra. Decisione sua.
+- **Tre per partecipante su tutti i ruoli e una porta a squadra** sono estensioni nostre della sua frase sui Pc
+  (`STARTERS_PER_TEAM`): da confermare ruolo per ruolo. E «il 10% dei valori estremi» è letto 10% per parte.
+- **Le soglie dichiarate da confermare**: copertura rossa < 50%, ambra < 85%; difficile da 2 squadre interessate.
+- **Il banco del draft (`priority.mjs`) non conosce la Z nuova**: i numeri del §8 e §12 di `priorita-draft-v1.md`
+  sono misurati con la Z sui posti dei moduli.
+- **Il banco `e2e-draft` trova un piano già selezionato** prima del passo dei piani (nessuno lo clicca prima, in
+  apparenza): non è stato cercato chi lo selezioni; il passo lo gestisce senza fallire.
+- **Il click sul nome nella lista** seleziona anche la riga (e muove la freccetta): lasciato così dalla review.
+- **Push e pubblicazione**: niente di questa sessione è pushato né sul sito.
+

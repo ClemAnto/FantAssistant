@@ -54,7 +54,7 @@ const ROLE_TITLES: Record<string, string> = {
 })
 export class RoleBadge {
   readonly role = input.required<string>();
-  readonly size = input<'xs' | 'sm' | 'md'>('sm');
+  readonly size = input<'xxs' | 'xs' | 'sm' | 'md'>('sm');
 
   /** Where this token sits inside a SET of roles (`ui-roles`). A man's codes are one vocabulary and are
    *  read as one word, so the set is drawn as a single pill: the radius belongs to the two ends and the
@@ -106,6 +106,10 @@ export class RoleBadge {
         return wide ? 'h-6 min-w-9 px-2 text-xs' : 'h-6 w-6 text-xs';
       case 'xs':
         return wide ? 'h-4 min-w-5 px-1 text-[9px]' : 'h-4 w-4 text-[9px]';
+      // The MANTRA CODES of a man on the draft pitch (operator, 29/09/2026: «riduciamo ... il pill con i ruoli
+      // mantra»): they share one line with the titolarita' badge and the Draft Priority, and at `xs` they cut it.
+      case 'xxs':
+        return wide ? 'h-3 min-w-4 px-0.5 text-[7px]' : 'h-3 w-3 text-[7px]';
       default:
         return wide ? 'h-5 min-w-7 px-1.5 text-[10px]' : 'h-5 w-5 text-[10px]';
     }

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { TrendCell, TrendState, VOTE_TREND_MATCHES, trendVoteMean } from '../../core/player-trend';
+import { TrendCell, TrendState, VOTE_TREND_MATCHES, trendPointsMean, trendVoteMean } from '../../core/player-trend';
 import { VoteTrend, trendRise, voteFill, voteTrendLines } from './vote-trend';
 
 /**
@@ -106,6 +106,18 @@ describe('trendVoteMean', () => {
   it('nessuna partita, nessuna media', () => {
     expect(trendVoteMean([cell(null), cell(null)])).toBeNull();
     expect(trendVoteMean([])).toBeNull();
+  });
+});
+
+describe('trendPointsMean', () => {
+  it('un fantavoto che non c e vale 5, una partita che non esiste non conta', () => {
+    // 10,5 + 6 + panchina(5) + senza fantavoto(5) = 26,5 su quattro partite: la quinta casella non esiste.
+    expect(trendPointsMean([{ ...cell('p', 7), points: 10.5 }, cell('p', 6), cell('b'), cell('p', null), cell(null)]))
+      .toBeCloseTo(6.625);
+  });
+
+  it('nessuna partita, nessuna media', () => {
+    expect(trendPointsMean([cell(null)])).toBeNull();
   });
 });
 

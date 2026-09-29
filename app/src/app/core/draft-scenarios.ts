@@ -21,7 +21,7 @@
 
 import { PlanPlayer, PlanTeam, RivalWalkInput, rivalWalker, take, walkToOurTurn } from './auction-plan';
 import { MantraModules } from './auction-value';
-import { CallRules, PriorityMan, WorthContext, legalFor, manValue } from './draft-priority';
+import { CallRules, PriorityMan, WorthContext, baseRole, legalFor, manValue } from './draft-priority';
 import { Place, bestEleven, placesIn } from './mantra-legal';
 
 export type NeedKind = 'vuoto' | 'debole' | 'senza riserva';
@@ -46,6 +46,8 @@ export interface ScenarioStep {
   player: PlanPlayer;
   /** His Draft Priority, points per matchday. */
   priority: number;
+  /** How much the WHOLE squad gains by taking him (`squadWorth` after minus before), points per matchday. */
+  gain: number;
   /** The place he is taken for. */
   need: PlaceNeed | null;
 }
@@ -60,9 +62,31 @@ export interface Scenario {
   second: ScenarioStep | null;
   /** The men the rivals are predicted to take before our next pick, this round's included: player id -> team id. */
   gone: Map<number, number>;
-  /** first + second, points per matchday. */
+  /** What the squad gains over the chain, first.gain + second.gain, points per matchday: the ranking. */
   total: number;
+  /** The squads calling during the wait that want the second man, and why (`interestIn`), one each. */
+  interested: Interest[];
+  difficulty: Difficulty;
 }
+
+/** Why a rival wants the second man: he has nobody of that role, fewer than a shape starts, or only weak ones. */
+export interface Interest {
+  teamId: number;
+  why: 'nessuno' | 'pochi' | 'scarsi';
+  /** The base role the question was asked on, lowercase. */
+  role: string;
+}
+
+export type Difficulty = 'sicuro' | 'facile' | 'medio' | 'difficile';
+
+/**
+ * HOW HARD A PLAN IS (the operator, 29/09/2026): «0 scelte inframezze: sicuro; poi per ogni scelta inframezza
+ * bisogna valutare se la squadra è interessata al secondo calciatore (ad esempio non ha calciatori di quel ruolo o ne
+ * ha pochi o quelli che ha sono scarsi); più squadre inframezze sono interessate più il piano si complica». So: no
+ * pick in between is SAFE, no squad interested is EASY, one is MEDIUM, two or more HARD. The cut at two is ours and
+ * declared; the three reasons are his words, read on each rival's roster at the moment he calls.
+ */
+export const HARD_FROM = 2;
 
 export interface ScenarioInput extends RivalWalkInput {
   rules: MantraModules;
@@ -110,82 +134,193 @@ export function diagnose(roster: readonly PriorityMan[], rules: MantraModules, w
 const rosterOf = (team: PlanTeam, manOf: ScenarioInput['manOf']) =>
   team.heldIds.map(manOf).filter((man): man is PriorityMan => !!man);
 
-/** The best man for a place among the ones the rules let the squad call, by Draft Priority. */
-function bestFor(place: Place | null, team: PlanTeam, pool: readonly PlanPlayer[], input: ScenarioInput,
-  exclude: ReadonlySet<number> = new Set()): ScenarioStep | null {
-  let best: ScenarioStep | null = null;
+/**
+ * WHAT A SQUAD IS WORTH, in the Draft Priority's own units (the operator, 29/09/2026: «la strategia deve partire
+ * puntando alla mossa che farebbe migliorare in maniera più alta l'intera rosa»): the sum of the Draft Priority of
+ * the men our best eleven fields. An EMPTY place counts 0 - the promise of an average starter of its role, which is
+ * what the Draft Priority's zero Z is - for as long as the picks left can still fill it; a place the picks left can
+ * no longer reach is a hole that scores nothing, so it costs its role's Z (the cheapest holes are the ones left).
+ * The bench is not counted: a man who does not enter the eleven gains the squad nothing here, which is stated.
+ */
+export function squadWorth(roster: readonly PriorityMan[], input: ScenarioInput, picksLeft: number): number {
+  const xi = bestEleven(roster, input.rules, expected);
+  const first = Object.keys(input.rules.modules ?? {})[0];
+  const places = xi?.places ?? (first ? placesIn(input.rules, first) : []);
+  const holders = xi?.holders ?? places.map(() => null);
+  let total = 0;
+  const holes: number[] = [];
+  places.forEach((place, at) => {
+    const holder = holders[at];
+    if (holder) total += manValue(holder, input.worth, input.matchdays) ?? 0;
+    else holes.push(input.worth.stats.get(baseRole(input.rules, place.roles, null))?.z ?? 0);
+  });
+  const unreachable = holes.length - Math.max(0, picksLeft);
+  if (unreachable > 0) total -= holes.sort((a, b) => a - b).slice(0, unreachable).reduce((sum, z) => sum + z, 0);
+  return total;
+}
+
+/** How many men the gain is computed for: the best by Draft Priority, plus the best for every place to fix. */
+const CANDIDATES = 40;
+
+/**
+ * THE MOVES, BY WHAT THEY GIVE THE WHOLE SQUAD: every man the rules let the squad call among the best by Draft
+ * Priority (and the best for each place the diagnosis names, so a door is weighed even when no door is in the
+ * top), with his gain on the squad. Best gain first; a tie goes to the higher Draft Priority.
+ */
+export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: ScenarioInput): ScenarioStep[] {
+  const roster = rosterOf(team, input.manOf);
+  const left = input.calls.rounds - team.picksCount;
+  const before = squadWorth(roster, input, left);
+  const priced: { player: PlanPlayer; man: PriorityMan; priority: number }[] = [];
   for (const player of legalFor(team, pool, input.calls)) {
-    if (exclude.has(player.id) || (place && !fits(player.roles, place))) continue;
     const man = input.manOf(player.id);
     const priority = man ? manValue(man, input.worth, input.matchdays) : null;
-    if (priority == null) continue;
-    if (!best || priority > best.priority) best = { player, priority, need: null };
+    if (man && priority != null) priced.push({ player, man, priority });
   }
-  return best;
+  priced.sort((a, b) => b.priority - a.priority);
+  const picked = new Set(priced.slice(0, CANDIDATES));
+  const needs = diagnose(roster, input.rules, input.worth, input.matchdays)?.needs ?? [];
+  for (const need of needs) {
+    const best = priced.find((one) => fits(one.player.roles, need.place));
+    if (best) picked.add(best);
+  }
+  return [...picked]
+    .map(({ player, man, priority }): ScenarioStep => ({
+      player, priority, need: null,
+      gain: squadWorth([...roster, man], input, left - 1) - before,
+    }))
+    .sort((a, b) => b.gain - a.gain || b.priority - a.priority);
+}
+
+/** The place of the diagnosis a man would take, entering our best eleven; null when he would not fix one. */
+function needTaken(roster: readonly PriorityMan[], man: PriorityMan | null, diagnosis: Diagnosis | null,
+  input: ScenarioInput): { place: Place | null; need: PlaceNeed | null } {
+  const withHim = man ? bestEleven([...roster, man], input.rules, expected) : null;
+  const at = withHim && man ? withHim.holders.findIndex((holder) => holder?.id === man.id) : -1;
+  const place = at >= 0 ? withHim!.places[at] : null;
+  const need = place && man
+    ? (diagnosis?.needs.find((one) => one.place.slot === place.slot && fits(man.roles, one.place)) ?? null) : null;
+  return { place, need };
 }
 
 /**
  * THE CHAIN FROM A GIVEN FIRST PICK: the rivals calling before us in this round call first (they would anyway),
  * then we take `first`, then the rivals until our next pick - the order after `first` is decided by the FVM he
- * adds, which is the whole point - and then the best man left for the place that is most urgent THEN.
+ * adds, which is the whole point - and then the move left that gives the squad most (`movesFor`).
  */
 export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNeed | null): Scenario | null {
   const teams = new Map(input.teams.map((team) => [team.id, team]));
   const firstMan = input.manOf(first.id);
   const firstPriority = firstMan ? manValue(firstMan, input.worth, input.matchdays) : null;
-  if (!teams.has(input.mineId) || firstPriority == null) return null;
+  if (!teams.has(input.mineId) || firstPriority == null || !firstMan) return null;
+  const start = teams.get(input.mineId)!;
+  const roster = rosterOf(start, input.manOf);
+  const left = input.calls.rounds - start.picksCount;
+  const firstGain = squadWorth([...roster, firstMan], input, left - 1) - squadWorth(roster, input, left);
+  // Every squad that calls during the wait, as it stands when it calls: asked afterwards whether it wants the
+  // second man, so the walk is made once and not twice.
+  const callers: PlanTeam[] = [];
+  const { walk, before, mine, after } = walkPast(input, first, (team) => callers.push(team));
+  // Our place in the round of our next pick: one after every squad that makes THAT turn before us.
+  const nextAt = 1 + after.filter((step) => step.picksBefore === mine.picksCount).length;
+  const pool = input.pool.filter((p) => p.id !== first.id && !walk.gone.has(p.id));
+  let second: ScenarioStep | null = null;
+  if (mine.picksCount < input.calls.rounds) {
+    const best = movesFor(mine, pool, input)[0];
+    if (best) {
+      const held = rosterOf(mine, input.manOf);
+      const then = diagnose(held, input.rules, input.worth, input.matchdays);
+      second = { ...best, need: needTaken(held, input.manOf(best.player.id), then, input).need };
+    }
+  }
+  const wait = walk.gone.size - before;
+  const interested = second && wait > 0 ? interestAmong(callers, second.player, input) : [];
+  const difficulty: Difficulty = !second || wait === 0 ? 'sicuro'
+    : interested.length === 0 ? 'facile' : interested.length < HARD_FROM ? 'medio' : 'difficile';
+  return {
+    first: { player: first, priority: firstPriority, gain: firstGain, need },
+    wait,
+    nextAt,
+    second,
+    gone: walk.gone,
+    total: firstGain + (second?.gain ?? 0),
+    interested,
+    difficulty,
+  };
+}
+
+/** The rivals call until our turn, we take `first`, the rivals call until our next turn. `onWait`, when given,
+ * hears every squad that calls during that second walk: the wait of the plan. */
+function walkPast(input: ScenarioInput, first: PlanPlayer, onWait: ((team: PlanTeam) => void) | null = null) {
+  const teams = new Map(input.teams.map((team) => [team.id, team]));
   const walked = { ...input, rounds: input.calls.rounds };
   const walk = rivalWalker({ ...walked, pool: input.pool.filter((p) => p.id !== first.id) }, teams);
   walkToOurTurn(walked, teams, walk);
   const before = walk.gone.size;
   const mine = take(teams.get(input.mineId)!, first);
   teams.set(input.mineId, mine);
+  walk.hooks.onCall = onWait;
   const after = walkToOurTurn(walked, teams, walk);
-  // Our place in the round of our next pick: one after every squad that makes THAT turn before us.
-  const nextAt = 1 + after.filter((step) => step.picksBefore === mine.picksCount).length;
-  const pool = input.pool.filter((p) => p.id !== first.id && !walk.gone.has(p.id));
-  const then = diagnose(rosterOf(mine, input.manOf), input.rules, input.worth, input.matchdays);
-  let second: ScenarioStep | null = null;
-  if (mine.picksCount < input.calls.rounds) {
-    for (const one of then?.needs ?? []) {
-      const found = bestFor(one.place, mine, pool, input);
-      if (found) {
-        second = { ...found, need: one };
-        break;
-      }
-    }
-    second ??= bestFor(null, mine, pool, input);
-  }
-  return {
-    first: { player: first, priority: firstPriority, need },
-    wait: walk.gone.size - before,
-    nextAt,
-    second,
-    gone: walk.gone,
-    total: firstPriority + (second?.priority ?? 0),
-  };
+  return { walk, before, mine, after };
 }
 
 /**
- * THREE SCENARIOS, one per place to fix (the most urgent first, on three different places): A is the best man by
- * Draft Priority who can stand on that place.
+ * Does this squad want the second man (see `Difficulty`)? His base role is the Draft Priority's; a man of theirs
+ * counts for it if he can play that role; «pochi» is fewer than the starting places the shapes give the role
+ * (`places`, what the rival model already reads); «scarsi» is when none of them reaches an average starter
+ * (Draft Priority below zero).
+ */
+export function interestIn(team: PlanTeam, second: PlanPlayer, input: ScenarioInput): Interest | null {
+  const man = input.manOf(second.id);
+  if (!man) return null;
+  const role = baseRole(input.rules, man.roles, man.slot);
+  const theirs = rosterOf(team, input.manOf).filter((one) => one.roles.includes(role));
+  if (!theirs.length) return { teamId: team.id, why: 'nessuno', role };
+  if (theirs.length < (input.places.get(role) ?? 1)) return { teamId: team.id, why: 'pochi', role };
+  // Only the men the sheet can price: a man with no Draft Priority is unknown, not weak («vuoto = ignoto»).
+  const known = theirs.map((one) => manValue(one, input.worth, input.matchdays)).filter((v): v is number => v != null);
+  if (!known.length) return null;
+  return Math.max(...known) < 0 ? { teamId: team.id, why: 'scarsi', role } : null;
+}
+
+/**
+ * Every squad calling during the wait that wants the second man AND may call him (the cap of the first turns and
+ * the exact doors, `legalFor`: a squad the rules keep off him cannot take him from us), once each.
+ */
+function interestAmong(callers: readonly PlanTeam[], second: PlanPlayer, input: ScenarioInput): Interest[] {
+  const found = new Map<number, Interest>();
+  for (const team of callers) {
+    if (team.id === input.mineId || found.has(team.id)) continue;
+    if (!legalFor(team, [second], input.calls).length) continue;
+    const interest = interestIn(team, second, input);
+    if (interest) found.set(team.id, interest);
+  }
+  return [...found.values()];
+}
+
+/** How many first moves become a chain: the rivals' walk is the costly part, so only the best by gain do. */
+const CHAINED = 6;
+
+/**
+ * THREE SCENARIOS, BY WHAT THEY GIVE THE WHOLE SQUAD (the operator, 29/09/2026, replacing «one per place to fix,
+ * the most urgent first», which opened every draft on the empty door): the best first moves by squad gain become
+ * chains, and the chains are ranked by what the squad gains over BOTH picks. That is where the price enters, with
+ * no weight of ours: a cheap first pick keeps us early in the order, so the wait is shorter and the second pick
+ * better - «un calciatore che porti tanti bonus a poco prezzo» wins when the second pick says so.
  */
 export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnosis | null; list: Scenario[] } {
   const me = input.teams.find((team) => team.id === input.mineId);
   if (!me || me.picksCount >= input.calls.rounds) return { diagnosis: null, list: [] };
-  const diagnosis = diagnose(rosterOf(me, input.manOf), input.rules, input.worth, input.matchdays);
+  const roster = rosterOf(me, input.manOf);
+  const diagnosis = diagnose(roster, input.rules, input.worth, input.matchdays);
   const list: Scenario[] = [];
-  const firsts = new Set<number>();
-  for (const need of diagnosis?.needs ?? []) {
-    if (list.length >= count) break;
-    const first = bestFor(need.place, me, input.pool, input, firsts);
-    if (!first) continue;
-    const chain = chainFrom(input, first.player, need);
-    if (!chain) continue;
-    firsts.add(first.player.id);
-    list.push(chain);
+  for (const move of movesFor(me, input.pool, input).slice(0, CHAINED)) {
+    const need = needTaken(roster, input.manOf(move.player.id), diagnosis, input).need;
+    const chain = chainFrom(input, move.player, need);
+    if (chain) list.push(chain);
   }
-  return { diagnosis, list };
+  list.sort((a, b) => b.total - a.total || b.first.gain - a.first.gain);
+  return { diagnosis, list: list.slice(0, count) };
 }
 
 export type Verdict = 'coerente' | 'inopportuna';
@@ -201,12 +336,7 @@ export function judge(input: ScenarioInput, first: PlanPlayer): { scenario: Scen
   if (!me) return { scenario: null, verdict: 'inopportuna', why: 'nessuna squadra seguita' };
   const roster = rosterOf(me, input.manOf);
   const diagnosis = diagnose(roster, input.rules, input.worth, input.matchdays);
-  const man = input.manOf(first.id);
-  const withHim = man ? bestEleven([...roster, man], input.rules, expected) : null;
-  const at = withHim ? withHim.holders.findIndex((holder) => holder?.id === first.id) : -1;
-  const place = at >= 0 ? withHim!.places[at] : null;
-  const need = place ? (diagnosis?.needs.find((one) => one.place.slot === place.slot && fits(first.roles, one.place)) ?? null)
-    : null;
+  const { place, need } = needTaken(roster, input.manOf(first.id), diagnosis, input);
   const scenario = chainFrom(input, first, need);
   if (!place) return { scenario, verdict: 'inopportuna', why: 'non entra nel tuo miglior undici' };
   if (!need) return { scenario, verdict: 'inopportuna', why: `entra come ${place.slot}, un posto che era già coperto` };

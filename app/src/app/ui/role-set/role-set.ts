@@ -16,7 +16,7 @@ import { RoleBadge } from '../role-badge/role-badge';
 })
 export class RoleSet {
   readonly roles = input.required<readonly string[]>();
-  readonly size = input<'xs' | 'sm' | 'md'>('sm');
+  readonly size = input<'xxs' | 'xs' | 'sm' | 'md'>('sm');
 
   protected join(index: number): 'alone' | 'first' | 'middle' | 'last' {
     const count = this.roles().length;

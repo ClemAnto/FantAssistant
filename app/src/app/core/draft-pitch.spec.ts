@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { DraftPlace, draftPitchOf, flanksOutside, preferring, spreadReserves } from './draft-pitch';
+import { DraftPlace, draftPitchOf, flanksOutside, placeYield, preferring, spreadReserves, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 
 /**
@@ -129,5 +129,36 @@ describe('flanksOutside', () => {
   it('leaves a line with no wide place as the rulebook wrote it', () => {
     const row = [at('DC', ['dc']), at('DC', ['dc']), at('DC/B', ['dc', 'b'])];
     expect(flanksOutside(row).map((one) => one.slot)).toEqual(['DC', 'DC', 'DC/B']);
+  });
+});
+
+describe('placeYield, coverage and fertility of a place', () => {
+  it('adds each man only on the matchdays the men before him leave uncovered', () => {
+    const starter = { ...man('Titolare', ['Dc'], 20), share: 0.9, bonus: 0.5 };
+    const reserve = { ...man('Riserva', ['Dc'], 10), share: 0.8, bonus: 1 };
+    const one = { ...place('DC', ['dc'], starter), reserves: [reserve] };
+    const { cover, fertility } = placeYield(one);
+    expect(cover).toBeCloseTo(0.98, 9); // 0.9 + 0.1 x 0.8, not 1.7
+    expect(fertility).toBeCloseTo(0.9 * 0.5 + 0.08 * 1, 9);
+  });
+
+  it('reads an empty place as covering nothing, and an unknown bonus as no fertility', () => {
+    expect(placeYield(place('DC', ['dc'], null))).toEqual({ cover: 0, fertility: null });
+    const unknown = { ...man('Senza voto base', ['Dc'], 20), share: 0.7, bonus: null };
+    expect(placeYield(place('DC', ['dc'], unknown))).toEqual({ cover: 0.7, fertility: null });
+  });
+});
+
+describe('one man, one place', () => {
+  it('never draws a projected man who is already on the pitch, nor twice', () => {
+    const held = man('In rosa', ['Dc'], 20);
+    const pitch = draftPitchOf([held], SHAPES)!;
+    const twice = man('Proiettato', ['Dc'], 15);
+    withSuggestions(pitch, [held, twice, twice]);
+    const drawn = pitch.rows.flatMap((row) => row.places)
+      .flatMap((one) => [one.man, one.suggested, ...one.reserves, one.suggestedReserve])
+      .filter((m): m is FantaMan => !!m)
+      .map((m) => m.id);
+    expect(new Set(drawn).size).toBe(drawn.length);
   });
 });

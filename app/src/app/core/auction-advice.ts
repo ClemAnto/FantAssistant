@@ -52,6 +52,7 @@ import {
   PriorityRules,
   PriorityState,
   WorthContext,
+  manValue,
   priorities as draftPriorityScores,
   preferredRules,
   priorityPick,
@@ -818,6 +819,25 @@ export class AuctionAdvice {
   });
 
   /**
+   * The BONUS a man is expected to bring per appearance: predicted fantamedia minus predicted base vote, the two
+   * halves the sheet already derives one from the other. What the pitch's FERTILITY of a place sums (operator,
+   * 29/09/2026). Null where either half is missing.
+   */
+  readonly bonusBy = computed<Map<number, number | null>>(() => {
+    const numbers = this.numbers();
+    const out = new Map<number, number | null>();
+    for (const { player } of this.listone()) {
+      // HIS OWN two halves, never `valuationFor`: with the doors on, that one is the PORTA's mix of fantamedia, and
+      // subtracting this keeper's base vote from it would mix two men in one number. A keeper's own pair still
+      // gives the malus of a door (a negative bonus), which is what the pitch's fertility shows.
+      const fm = valuationOf(numbers.get(player.id)).fm;
+      const mv = numbers.get(player.id)?.mv ?? null;
+      out.set(player.id, fm == null || mv == null ? null : fm - mv);
+    }
+    return out;
+  });
+
+  /**
    * The REAL clubs at this listone, in alphabetical order - the axis of the pitch selector.
    *
    * Le escluse non ci sono: `listone` porta ancora i loro uomini GIÀ PRESI (vedi `free`), quindi il
@@ -1095,6 +1115,23 @@ export class AuctionAdvice {
     const input = this.planInput();
     const choose = this.chooser();
     return input && choose ? { ...input, choose } : input;
+  });
+
+  /**
+   * LA DRAFT PRIORITY DI OGNI UOMO del listone, libero o gia' in una rosa: e' un fatto sull'UOMO e non sulla
+   * rosa (`manValue`), quindi il campetto la mostra anche per chi e' gia' stato preso (sua richiesta,
+   * 29/09/2026). Vuota fuori dal draft mantra.
+   */
+  readonly priorityOfMan = computed<Map<number, number>>(() => {
+    const out = new Map<number, number>();
+    const worth = this.priorityWorth();
+    const matchdays = this.matchdaysTarget();
+    if (!worth || !matchdays) return out;
+    for (const [id, man] of this.priorityMen()) {
+      const value = manValue(man, worth, matchdays);
+      if (value != null) out.set(id, value);
+    }
+    return out;
   });
 
   /**

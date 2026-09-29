@@ -85,8 +85,9 @@ describe('Z is a starter and R a reserve (the operator, 29/09/2026)', () => {
     const everybody = population();
     const stats = context(everybody).stats;
     const dcs = everybody.filter((m) => m.slot === 'dc').map((m) => m.fm!).sort((a, b) => b - a);
-    // Eight teams start two Dc each: the sixteen best are the starters, the four weakest the reserves.
-    expect(stats.get('dc')!.z).toBeCloseTo(trimmed(dcs.slice(0, 16)), 9);
+    // Z: the best three Dc per participant, 8 x 3 = 24 - all twenty here (the operator, 29/09/2026).
+    expect(stats.get('dc')!.z).toBeCloseTo(trimmed(dcs.slice(0, 24)), 9);
+    // R keeps the old split: eight teams start two Dc each, the four weakest are the reserves.
     expect(stats.get('dc')!.reserveFm).toBeCloseTo(trimmed(dcs.slice(16)), 9);
     for (const role of ['dc', 'c', 'pc', 'por']) {
       expect(stats.get(role)!.reserveFm!).toBeLessThan(stats.get(role)!.z);

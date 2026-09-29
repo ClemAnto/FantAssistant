@@ -163,6 +163,53 @@ export function spreadReserves(
   return { unplaced };
 }
 
+/**
+ * WHAT A PLACE GIVES, from the men who stand on it (operator, 29/09/2026: «per ogni posizione devi indicare 1)
+ * copertura: una % che dipende dalle partite previste di chi la occupa, somma titolari e riserve; 2) fertilità:
+ * uno swing che dipende dai bonus previsti di chi la occupa, somma titolari e riserve»).
+ *
+ * The sum is taken IN ORDER - the starter, then his reserves best first - and each man adds only the matchdays the
+ * men before him leave uncovered, because only one of them plays a place on a matchday: a starter at 90% and a
+ * reserve at 80% cover 98%, not 170%. Coverage is that sum; fertility is the same sum weighted by each man's
+ * expected bonus per appearance, i.e. the bonus points per matchday the place yields. Only the REAL men count:
+ * the suggestions are a projection, drawn at 30%, and a place with nobody on it covers 0%.
+ */
+export function placeYield(place: DraftPlace, withSuggested = false): { cover: number; fertility: number | null } {
+  let cover = 0;
+  let fertility: number | null = null;
+  // `withSuggested`: the same sum with the projected men counted too - a starter where the place is empty, a reserve
+  // where it has none - which is what a plan would ADD when it is taken (`pitchYield`, the solutions' increments).
+  const men = withSuggested
+    ? [place.man ?? place.suggested ?? null, ...place.reserves, place.suggestedReserve ?? null]
+    : [place.man, ...place.reserves];
+  // A man who covers matchdays with an UNKNOWN bonus makes the place's fertility unknown: summing only the others
+  // would print a number that silently leaves his matchdays at zero bonus («vuoto = ignoto, mai zero»).
+  let unknown = false;
+  for (const man of men) {
+    if (!man || man.share == null) continue;
+    const adds = (1 - cover) * man.share;
+    cover += adds;
+    if (man.bonus == null) unknown ||= adds > 0;
+    else fertility = (fertility ?? 0) + adds * man.bonus;
+  }
+  return { cover, fertility: unknown ? null : fertility };
+}
+
+/**
+ * THE WHOLE PITCH's coverage and fertility: the sums over its places (`placeYield`). Coverage is in PLACES - 0.85 is
+ * one place covered at 85% - so the difference between two pitches is how much of the eleven a plan adds.
+ */
+export function pitchYield(pitch: DraftPitch, withSuggested = false): { cover: number; fertility: number } {
+  let cover = 0;
+  let fertility = 0;
+  for (const place of pitch.rows.flatMap((row) => row.places)) {
+    const one = placeYield(place, withSuggested);
+    cover += one.cover;
+    fertility += one.fertility ?? 0;
+  }
+  return { cover, fertility };
+}
+
 /** The one role of his the place is filled with, spelled the way the listone spells it. */
 function badgeFor(man: FantaMan, roles: string[]): string | null {
   const at = man.roles.findIndex((role) => roles.includes(role));
@@ -179,7 +226,13 @@ function badgeFor(man: FantaMan, roles: string[]): string | null {
  */
 export function withSuggestions(pitch: DraftPitch, projected: readonly FantaMan[]): DraftPitch {
   const places = pitch.rows.flatMap((row) => row.places);
-  const ranked = [...projected].sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
+  // ONE MAN, ONE PLACE (operator, 29/09/2026): a projected man already on the pitch, or projected twice, is drawn once.
+  const onPitch = new Set(places.flatMap((place) => [place.man, ...place.reserves]).filter((m): m is FantaMan => !!m)
+    .map((man) => man.id));
+  const seen = new Set<number>();
+  const ranked = [...projected]
+    .filter((man) => !onPitch.has(man.id) && !seen.has(man.id) && (seen.add(man.id), true))
+    .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
   const empty = places.filter((place) => !place.man);
   const starters = assign(ranked, empty.map((place) => place.roles));
   empty.forEach((place, at) => {
