@@ -863,6 +863,20 @@ async function main() {
         ...(fvmDown && !ordered(fvmDown, true) ? ['il primo click non ordina per FVM decrescente'] : []),
         ...(fvmUp && !ordered(fvmUp, false) ? ['il secondo click non rovescia'] : []),
       ]);
+    // 5b'. RAR (operator, 30/09/2026): how many free men of his base role are as good or better. It is a COUNT,
+    // so every loaded row carries a whole number; the first click puts the RAREST first, i.e. ascending.
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="rar"]'));
+    await wait(500);
+    const rarUp = await evaluate(session, columnOf, 'rar');
+    const freeTotal = Number(await evaluate(session, () => document.querySelector('[data-total]')?.getAttribute('data-total')));
+    note('RAR', `rari prima: ${rarUp?.slice(0, 5).join('/')} · ${rarUp?.filter((one) => one === 0).length ?? 0} a zero su ${rarUp?.length} caricate`,
+      [
+        ...(!rarUp?.length ? ['la colonna RAR non si legge'] : []),
+        ...(rarUp && rarUp.some((one) => one == null) ? [`${rarUp.filter((one) => one == null).length} righe senza RAR`] : []),
+        ...(rarUp && rarUp.some((one) => one != null && (!Number.isInteger(one) || one < 0 || one >= freeTotal))
+          ? ['un RAR che non e\' un conteggio di altri svincolati'] : []),
+        ...(rarUp && !ordered(rarUp, false) ? ['il primo click su RAR non mette i piu\' rari in cima'] : []),
+      ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
     // A CDP pointer TELEPORTS: the header's tooltip would stay open over the next control, where a hand would
@@ -1077,19 +1091,19 @@ async function main() {
       const heads = [...head.children].map((one) => one.getBoundingClientRect());
       const cells = [...row.children].map((one) => one.getBoundingClientRect());
       const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.right - cells[at].right)) : null));
-      // The eight season columns, after role, name, FVM and priority.
-      const widths = heads.slice(4).map((one) => Math.round(one.width));
+      // The eight season columns, after role, name, FVM, priority and rarity.
+      const widths = heads.slice(5).map((one) => Math.round(one.width));
       const clipped = [...document.querySelectorAll('[data-free]')].flatMap((one) => [...one.children].slice(2))
         .filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length;
-      const fmHead = head.children[6];
-      const fmCell = row.children[6];
+      const fmHead = head.children[7];
+      const fmCell = row.children[7];
       const splits = document.querySelectorAll('[data-column="free"] .split').length;
       const crests = row.querySelectorAll('ui-crest').length;
       return {
         drift: drift.slice(2),
         fmHead: fmHead ? getComputedStyle(fmHead).color : null,
         fmCell: fmCell ? getComputedStyle(fmCell).color : null,
-        mvCell: row.children[5] ? getComputedStyle(row.children[5]).color : null,
+        mvCell: row.children[6] ? getComputedStyle(row.children[6]).color : null,
         splits,
         crests,
         widths,
@@ -1164,7 +1178,7 @@ async function main() {
     // The steadiness arrives with the ratings, which are computed after the sheet: wait for them to land.
     for (let tick = 0; tick < 40; tick += 1) {
       const steadyFilled = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
-        .some((row) => !['', '—'].includes((row.children[8]?.innerText ?? '').trim())));
+        .some((row) => !['', '—'].includes((row.children[9]?.innerText ?? '').trim())));
       if (steadyFilled) break;
       await wait(250);
     }
@@ -1172,12 +1186,12 @@ async function main() {
       const head = [...(document.querySelector('[data-free-head]')?.children ?? [])].map((one) => one.getAttribute('data-sort'));
       const rows = [...document.querySelectorAll('[data-free]')];
       const filled = (at) => rows.filter((row) => !['', '—'].includes((row.children[at]?.innerText ?? '').trim())).length;
-      return { head, rows: rows.length, rung: filled(4), pv: filled(5), minutes: filled(6), mv: filled(7), steady: filled(8), fm: filled(9) };
+      return { head, rows: rows.length, rung: filled(5), pv: filled(6), minutes: filled(7), mv: filled(8), steady: filled(9), fm: filled(10) };
     });
     note('previste', `colonne ${previste.head.join(' ')}; su ${previste.rows} righe: gradino ${previste.rung}, pv ${previste.pv}, `
       + `minuti ${previste.minutes}, mv ${previste.mv}, costanza ${previste.steady}, fm ${previste.fm}`,
       [
-        ...(previste.head.join(' ') !== 'role name fvm prio rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
+        ...(previste.head.join(' ') !== 'role name fvm prio rar rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
         ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 

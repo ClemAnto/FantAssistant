@@ -747,6 +747,7 @@
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Rarità: svincolati del suo ruolo base simili o migliori su tutto">RAR{{ arrow('rar') }}</span>
             <span
               class="sort text-center uppercase"
               data-sort="press"
@@ -761,7 +762,7 @@
           </div>
         } @else if (mode() === 'medie') {
           <div class="gutter free-grid free-medie px-1 text-[10px] uppercase text-muted">
-            <span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
             <span class="col-span-4 text-center">{{ seasons().now ?? 'stagione' }}</span>
             <span class="split col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
           </div>
@@ -770,6 +771,7 @@
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Rarità: svincolati del suo ruolo base simili o migliori su tutto">RAR{{ arrow('rar') }}</span>
             @for (which of seasonKeys; track which; let second = $last) {
               @for (metric of metrics; track metric.key; let first = $first) {
                 <span
@@ -792,6 +794,7 @@
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Rarità: svincolati del suo ruolo base simili o migliori su tutto">RAR{{ arrow('rar') }}</span>
             <span class="sort text-center uppercase" data-sort="rung" nz-tooltip nzTooltipTitle="Il gradino del motore, non della stampa" (click)="sortBy('rung')"
               >Gradino{{ arrow('rung') }}</span
             >
@@ -865,6 +868,7 @@
               </span>
               <span class="text-right tabular-nums">{{ row.fvm }}</span>
               <span class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>
+              <span data-rar class="text-right tabular-nums" [class.text-danger]="row.rar === 0">{{ row.rar ?? '—' }}</span>
               @if (mode() === 'default') {
                 <span class="flex justify-center">
                   @if (row.press) {

@@ -33,6 +33,10 @@ import { ValuationStore } from '../../core/valuation-store';
 import { type TrendCell, trendPointsMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
+import { RarityMan, rarity } from '../../core/draft-rarity';
+import { baseRole } from '../../core/draft-priority';
+import type { MantraModules } from '../../core/auction-value';
+import { PlayerStatus } from '../../core/player-status';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -75,7 +79,7 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
-  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
 /** The two ladders in one order, best first: what «sort by titolarità» orders by. */
@@ -138,6 +142,12 @@ export interface FreeRow {
   priority: number | null;
   /** The raw score, the one the list is ordered on (the advice picks on it). */
   score: number | null;
+  /**
+   * RAR (operator, 30/09/2026): how many OTHER free men of his base role are of equal (similar) or higher
+   * value on all six of his readings (`core/draft-rarity.ts`). 0 = the last of his kind. Null only while the
+   * list has not been counted.
+   */
+  rar: number | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
   /** The squad predicted to take him BEFORE our next pick (`AuctionAdvice.takenBeforeUs`); null otherwise. */
@@ -248,8 +258,8 @@ const ELEVEN = 11;
     /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
        THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
        empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
-    .free-default { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 4.9rem 75px minmax(0, 1fr); }
-    .free-previste { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
+    .free-default { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -291,7 +301,7 @@ const ELEVEN = 11;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
-    .free-medie { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem repeat(8, 2.3rem) minmax(0, 1fr); }
+    .free-medie { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -314,6 +324,8 @@ export class Auction {
   private readonly bundle = inject(Bundle);
   /** The per-match layer, for the seasons the platform did not rate his club (`rebuiltLine`). */
   private readonly players = inject(PlayersStore);
+  /** Who spent how much of three years injured: one of the six readings of RAR. */
+  private readonly status = inject(PlayerStatus);
   private readonly message = inject(NzMessageService);
 
   protected readonly connecting = signal(false);
@@ -1021,6 +1033,8 @@ export class Auction {
       if (score != null && score > top) top = score;
     }
     const rows = ranked.map((row) => this.freeRow(row, scores.get(row.player.id) ?? null, top, press, trends));
+    const rar = rarity(ranked.map((row, at) => this.rarityMan(row, rows[at])));
+    for (const row of rows) row.rar = rar.get(row.id) ?? null;
     // THE BLOCKED TOPS STAY WHERE THEIR PRIORITY PUTS THEM (operator, 29/09/2026: «devono essere visibili
     // anche i calciatori freezati»): they used to sink to the bottom of a list that loads sixty rows at a
     // time, i.e. out of sight. The row says it is blocked and for how long - dimmed, with its badge.
@@ -1050,11 +1064,41 @@ export class Auction {
         ? hundredths(score)
         : score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
       score,
+      rar: null,
       locked: this.advice.lockedForMe(row.price),
       takenBy: this.takenBy(row.player.id),
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),
       goal,
+    };
+  }
+
+  /**
+   * A free man as RAR reads him (`core/draft-rarity.ts`): the titolarità word the list SHOWS (the press, else
+   * the engine), the steadiness, the expected base vote and bonus, the expected share of the calendar, and the
+   * share of three years he spent injured. The group is his BASE role in mantra - the same one the Draft
+   * Priority measures him against - and his role in classic. A goal (porte rule) is a club: it is compared on
+   * the fantamedia of the door, in the base vote's place, and on its share.
+   */
+  private rarityMan(row: RankedPlayer, free: FreeRow): RarityMan {
+    const id = row.player.id;
+    const share = this.advice.expectedShareBy().get(id) ?? null;
+    if (free.goal) {
+      return { id, group: 'por', rung: null, steady: null, mv: row.valuation.fm, bonus: null, share, fragility: null };
+    }
+    const roles = row.player.roles.map((role) => role.toLowerCase());
+    const slot = this.advice.numbers().get(id)?.slot ?? null;
+    const rules = this.advice.rules() as MantraModules | null;
+    const group = this.advice.priorityOn() && rules?.slot_roles ? baseRole(rules, roles, slot) : (slot ?? roles[0] ?? '');
+    return {
+      id,
+      group,
+      rung: free.press && PRESS_RANK[free.press] != null ? PRESS_RANK[free.press] : null,
+      steady: free.expected.steady,
+      mv: free.expected.mv,
+      bonus: this.advice.bonusBy().get(id) ?? null,
+      share,
+      fragility: this.status.fragility(id).share,
     };
   }
 
@@ -1190,8 +1234,8 @@ export class Auction {
       return;
     }
     this.sortKey.set(key);
-    // Words read A to Z first; numbers read best first.
-    this.sortAsc.set(key === 'name' || key === 'role');
+    // Words read A to Z first; numbers read best first - and on RAR the best is the RAREST, the lowest count.
+    this.sortAsc.set(key === 'name' || key === 'role' || key === 'rar');
   }
 
   protected arrow(key: FreeSort): string {
@@ -1235,6 +1279,8 @@ export class Auction {
         return (row) => row.fvm;
       case 'prio':
         return (row) => row.score;
+      case 'rar':
+        return (row) => row.rar;
       case 'rung':
         return (row) => (row.expected.rung && PRESS_RANK[row.expected.rung] != null ? PRESS_RANK[row.expected.rung] : null);
       case 'pvp':

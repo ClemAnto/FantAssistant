@@ -550,3 +550,26 @@ Due regole che restano oltre la pagina. **Un fatto che una sessione FINITA non p
 quel club e su nessun altro**: prenderla come l'elenco intero trasforma un'aggiunta in una sostituzione.
 
 Verificato: 1255 test dell'app, `e2e-draft` e `e2e-draft-review` verdi, build pulita.
+
+## 20. RAR, la rarità (30/09/2026)
+
+Sua osservazione: la Draft Priority è un fatto sull'UOMO (`manValue`) e non vede quanti altri come lui restano
+liberi. Il suo esempio: sei partecipanti, sei attaccanti da FM 10, un difensore da 6,5 dove gli altri stanno a 6 o
+meno - va preso il difensore, perché un attaccante così al giro dopo c'è ancora, e non vale il contrario.
+
+**Colonna RAR** nella lista degli svincolati, in tutte e tre le viste subito dopo DP (`core/draft-rarity.ts`): il
+numero degli ALTRI svincolati dello stesso ruolo base (in classic, del ruolo) di valore pari o superiore su TUTTE
+e sei le sue letture - gradino di titolarità (quello che la lista mostra: la stampa, altrimenti il motore),
+costanza, MV attesa, bonus attesi a presenza (FM − MV), quota di presenze attese, quota dei tre anni passata
+infortunato (qui conta il più BASSO). «Simile» è una dominanza con tolleranza DICHIARATA, uno scalino
+dell'unità di ogni lettura: stesso gradino o migliore, costanza −0,05, MV −0,1, bonus −0,1, presenze −0,05
+(due giornate su 38), infortuni +0,05 (~55 giorni in tre anni). Vuoto = ignoto: una sua lettura mancante non
+vincola nessuno, un candidato a cui manca una lettura che lui ha non conta. Una porta si confronta sulla
+fantamedia della porta (al posto della MV) e sulla quota. Zero in rosso = l'ultimo del suo tipo; il primo click
+sull'intestazione ordina dal più raro.
+
+**Letto sul tavolo vuoto**: sui primi 60 per DP il RAR va da 0 a 4 (euro 14 a zero, classic 10). Con sei letture in
+AND quasi nessuno in cima è dominato, quindi **la tolleranza di «simile» è la manopola che decide** il numero, ed è
+sua. **La DP NON è cambiata**: come RAR entra nella priorità è aperto. La forma che il suo esempio suggerisce è il
+confronto con le scelte che mancano al nostro prossimo turno (se RAR ≥ scelte in mezzo, uno come lui resta), cioè
+lo sconto del «prendi chi sparirà» già misurato sul banco del draft (+4,54% strict, `todolist-draft-v1.md`).
