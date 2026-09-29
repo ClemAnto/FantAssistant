@@ -372,21 +372,27 @@ sfumare della promessa di tutti i posti che copriva. Con la promessa tenuta ferm
 formula.
 
 **LA FORMULA DICHIARATA** (sua, 29/09/2026): `Priority = [P (Fm - Z) + (N - P) (R - Z)] / N`, in punti a
-giornata, mostrata **per 100 e troncata** (0,15657 → 15; 1,1 → 110). P, Fm, Z, N come in §2. **R** «deve
-essere sempre inteso come un calciatore di rango inferiore che non appartiene all'11 titolare»: la media dei
-propri uomini dello stesso ruolo base che NON sono nel miglior undici legale della rosa; se non ce ne sono,
-la media degli svincolati dello stesso ruolo base di RANGO DA RISERVA (fra i comprati da una lega di questa
-taglia, dietro i titolari del ruolo: la popolazione della R di §13); il candidato non è mai la propria
-riserva. Sostituisce il G sulla rosa, lo sguardo di un turno e il doppione (tolti dall'app, restano nella
-storia di git); la colonna DP delle «Previste» è lo stesso numero. Le conseguenze sull'ORDINE non sono in
-questo numero: sono il compito degli scenari (richiesta dello stesso giorno).
+giornata, mostrata **per 100 e troncata** (0,15657 → 15; 1,1 → 110). P e Fm come in §2, N le giornate della
+competizione. **«Z dovrebbe rappresentare un titolare e R una riserva»**: i comprati da una lega di questa
+taglia di ogni ruolo base si dividono per FANTAMEDIA - i migliori `squadre × posti del ruolo nel regolamento`
+(media sui moduli, una porta per squadra) sono i titolari, il resto le riserve - e Z è la media troncata dei
+titolari, R la media delle riserve («l'ipotetico calciatore di ripiego che puoi avere in rosa, un fantavalore
+medio di basso rango»). Un numero per ruolo base, uguale per tutte le rose. Dove la lega compra meno uomini di
+un ruolo di quanti ne schiera, R ripiega sulla media del quartile basso del ruolo.
 
-**Una prima lettura di R fu respinta prima del commit**: «la media degli uomini in rosa dello stesso ruolo
-base», presa alla lettera, dopo Kane era Kane stesso, e dalla 84ª scelta alla fine il primo consiglio era
-Moumbagna (FVM 2, 2 presenze previste, Priority 170): la formula premia chi gioca meno quando R è un titolare.
-Da qui la sua precisazione.
+Misurato prima di adottarlo sul foglio EuroLeghe mantra (12 squadre): R − Z da −0,13 (por) a −0,81 (pc), con
+Z 0,1-0,7 sopra la media di tutti i comprati; le 12 rose vere di FA-jo5-zai divise fra miglior undici e
+panchina danno lo stesso verso (da −0,02 a −0,60). **Tre letture di R respinte sui loro numeri, nello stesso
+pomeriggio**: (1) «la media dei tuoi uomini dello stesso ruolo base», alla lettera: dopo Kane R era Kane, e
+dalla 84ª scelta alla fine il primo consiglio era Moumbagna (FVM 2, 2 presenze previste, Priority 170) - la
+formula premia chi gioca meno quando R è un titolare; (2) i tuoi uomini fuori dal miglior undici: alla 237ª
+Bensebaini in panchina (Ds, 6,43, sopra Z) portava in testa Mendy F. (FVM 2, 2,8 presenze) - il valore di una
+riserva che la rosa ha già; (3) le riserve della lega divise per presenze × fantamedia: R = Z al decimo su ogni
+ruolo, perché la fantamedia di chi gioca poco ripiega sull'ancora del ruolo. Anche il rimpiazzo del toolkit
+(`engine_replacement_fm`) è respinto: è un'altra popolazione e un altro metro, e sugli attaccanti stava SOPRA Z.
 
-**Resta aperta, ed è dell'operatore**: quando la propria panchina di un ruolo sta SOPRA Z, il secondo termine
-premia chi gioca poco - alla 237ª scelta Bensebaini (base Ds, Fm 6,43) in panchina faceva salire in testa
-Mendy F. (FVM 2, 2,8 presenze previste) a 19. È la formula che dà a un uomo il valore di una riserva che la
-rosa ha già.
+Sostituisce il G sulla rosa, lo sguardo di un turno e il doppione (tolti dall'app, restano nella storia di
+git); la colonna DP delle «Previste» è lo stesso numero. **Conseguenza da leggere bene**: con Z = un titolare,
+a metà draft quasi ogni libero è NEGATIVO (sotto un titolare), e i numeri restano distinti (da −1 a −4 sulla
+pagina rigiocata) invece di schiacciarsi a 0. Le conseguenze sull'ORDINE e sulla COPERTURA della rosa non sono
+in questo numero: sono il compito degli scenari (richiesta dello stesso giorno).

@@ -23,7 +23,6 @@
 
 import { MantraModules, slotShares } from './auction-value';
 import { PickCap, PlanPlayer, PlanTeam, capBlocks } from './auction-plan';
-import { bestEleven } from './mantra-legal';
 
 /** A man as the priority reads him. `share` = expected appearances over the season's matchdays. */
 export interface PriorityMan {
@@ -91,6 +90,13 @@ function quantile(sorted: readonly number[], q: number): number | null {
 /** The trimmed mean drops this share at EACH end (the operator: «scarta i valori estremi»). */
 export const TRIM = 0.1;
 
+/** A mean without its extremes, once there are ten values to trim (`TRIM`); `sorted` ascending. */
+function trimmedMean(sorted: readonly number[]): number {
+  const cut = Math.floor(sorted.length * TRIM);
+  const kept = sorted.length >= 10 ? sorted.slice(cut, sorted.length - cut) : sorted;
+  return kept.reduce((a, b) => a + b, 0) / kept.length;
+}
+
 export interface RoleStat {
   z: number;
   top: number;
@@ -103,10 +109,8 @@ export interface RoleStat {
   share: number;
   bought: number;
   /**
-   * THE MEAN FANTAMEDIA OF THE ROLE'S RESERVES (the operator, 29/09/2026: «nella colonna DP R è la fantamedia
-   * media delle RISERVE»): the bought men of this base role past the ones the league STARTS there - `teams` x
-   * the role's places in the rulebook, averaged over the shapes (`slotShares`), one door per team. Null where
-   * the league buys no reserve of that role. Read by DP only: the pick keeps the tier prior of §2.
+   * R, the fantamedia of the hypothetical FALLBACK man a squad has for this base role: the mean of the role's
+   * RESERVES, the bought men past its starters by fantamedia (`RESERVE_QUARTER`). The same for every squad.
    */
   reserveFm: number | null;
 }
@@ -136,16 +140,27 @@ export function boughtMen(everybody: readonly PriorityMan[], { teams, keepers, r
 }
 
 /**
- * The bought men of each base role, and among them the RESERVES: those past the ones the league STARTS there -
- * `teams` x the role's places in the rulebook, averaged over the shapes (`slotShares`), one door per team.
- * One split for the DP's R, the Draft Priority's free R and the role statistics.
+ * Z IS A STARTER AND R IS A RESERVE (the operator, 29/09/2026: «Z dovrebbe rappresentare un titolare e R una
+ * riserva»; R is «l'ipotetico calciatore di ripiego che puoi avere in rosa ... un fantavalore medio di basso
+ * rango»). The bought men of a base role are split by FANTAMEDIA: the best `teams x places` of that role in the
+ * rulebook (`slotShares`, averaged over the shapes; one door per team) are its starters, the rest its reserves.
+ * Z is the trimmed mean of the starters, R the mean of the reserves - the same men and the same fantamedia, so
+ * the two can be subtracted. Measured on the EuroLeghe mantra sheet before adopting it (12 teams): R - Z from
+ * -0.13 (por) to -0.81 (pc), with Z 0.1-0.7 above the mean of all the bought; and the 12 real squads of
+ * FA-jo5-zai, split into their best eleven and the rest, read the same direction (-0.02 to -0.60).
+ * Two splits were refused on their numbers: by appearances x fantamedia, R = Z to a tenth on every role (a thin
+ * man's fantamedia falls back on the role's anchor, so that rank does not separate fantamedia), and the
+ * toolkit's replacement level, another population and another yardstick (on the attackers it sat ABOVE Z).
+ * Where a role has no reserve at all (the league buys fewer of it than it starts) R falls back on the mean of
+ * its bottom quarter (`RESERVE_QUARTER`).
  */
-function splitBought(
+export const RESERVE_QUARTER = 0.25;
+
+export function roleStats(
   everybody: readonly PriorityMan[],
   rules: MantraModules,
   size: LeagueSize,
-): Map<string, { men: PriorityMan[]; reserves: PriorityMan[] }> {
-  const worth = (m: PriorityMan) => (m.share ?? 0) * (m.fm ?? 0);
+): Map<string, RoleStat> {
   const byBase = new Map<string, PriorityMan[]>();
   for (const man of boughtMen(everybody, size)) {
     const key = baseRole(rules, man.roles, man.slot);
@@ -153,32 +168,16 @@ function splitBought(
     byBase.get(key)!.push(man);
   }
   const places = slotShares(rules);
-  const out = new Map<string, { men: PriorityMan[]; reserves: PriorityMan[] }>();
-  for (const [key, men] of byBase) {
-    const starters = Math.round(size.teams * (key === KEEPER ? 1 : (places.get(key) ?? 0)));
-    out.set(key, { men, reserves: [...men].sort((a, b) => worth(b) - worth(a)).slice(starters) });
-  }
-  return out;
-}
-
-/** The men of RESERVE rank a league of this size buys (`splitBought`): among the free, the population of R. */
-export function leagueReserves(everybody: readonly PriorityMan[], rules: MantraModules, size: LeagueSize): PriorityMan[] {
-  return [...splitBought(everybody, rules, size).values()].flatMap((one) => one.reserves);
-}
-
-export function roleStats(
-  everybody: readonly PriorityMan[],
-  rules: MantraModules,
-  size: LeagueSize,
-): Map<string, RoleStat> {
   const stats = new Map<string, RoleStat>();
-  for (const [key, { men, reserves }] of splitBought(everybody, rules, size)) {
+  for (const [key, men] of byBase) {
     const fms = men.map((m) => m.fm!).sort((a, b) => a - b);
-    const cut = Math.floor(fms.length * TRIM);
-    const kept = fms.length >= 10 ? fms.slice(cut, fms.length - cut) : fms;
+    const starting = Math.round(size.teams * (key === KEEPER ? 1 : (places.get(key) ?? 0)));
+    const reserves = fms.slice(0, Math.max(0, fms.length - starting));
+    const starters = fms.slice(reserves.length);
     const steady = men.map((m) => m.steady).filter((s): s is number => s != null).sort((a, b) => a - b);
+    const low = reserves.length ? reserves : fms.slice(0, Math.max(1, Math.round(fms.length * RESERVE_QUARTER)));
     stats.set(key, {
-      z: kept.reduce((a, b) => a + b, 0) / kept.length,
+      z: trimmedMean(starters),
       top: quantile(fms, 0.9)!,
       semi: quantile(fms, 0.7)!,
       median: quantile(fms, 0.5)!,
@@ -187,7 +186,7 @@ export function roleStats(
       steady: quantile(steady, 0.5) ?? 0.6,
       share: men.reduce((a, m) => a + (m.share ?? 0), 0) / men.length,
       bought: men.length,
-      reserveFm: reserves.length ? reserves.reduce((a, m) => a + m.fm!, 0) / reserves.length : null,
+      reserveFm: trimmedMean(low),
     });
   }
   return stats;
@@ -207,83 +206,21 @@ function statOf(ctx: WorthContext, man: PriorityMan): RoleStat {
   return ctx.stats.get(baseRole(ctx.rules, man.roles, man.slot)) ?? { z: man.fm ?? 6, ...FALLBACK };
 }
 
-/** The operator's declared prior for a place with no reserve yet, by the holder's tier (90th/70th pct). */
-function priorReserve(ctx: WorthContext, man: PriorityMan): number {
-  const s = statOf(ctx, man);
-  const fm = man.fm ?? -Infinity;
-  if (fm >= s.top) return s.median;
-  if (fm >= s.semi) return s.p25;
-  return s.p10;
-}
-
 /**
- * A MAN'S OWN value, the formula of §2 on its own row: `[Pv (FM - Z) + (N - Pv) (R - Z)] / N`, i.e. in
- * fantapunti PER MATCHDAY (the operator, 29/09/2026: «devono essere per giornata, dividi il risultato per N»). It is what the «Previste» view shows as DP (the operator, 29/09/2026), and R is his definition for
- * that column: the mean fantamedia of the RESERVES of his base role (`RoleStat.reserveFm`), falling back to the
- * tier prior where the league buys none. The PICK is made on the squad's G, where a real reserve replaces both.
+ * THE DRAFT PRIORITY (the operator, 29/09/2026): `[P (Fm - Z) + (N - P) (R - Z)] / N` - the points per matchday
+ * a man gives over the average man of his base role, counting that when he does not play his place goes to a
+ * fallback man of low rank, worth R (`RoleStat.reserveFm`). It is a fact about the MAN, never about the squad
+ * nor the picks left: it replaced the squad-level G with its look-ahead, whose faded promise charged every pick
+ * the fading of the very places it filled and read below zero for nearly everybody from the 13th pick on
+ * (FA-jo5-zai, 29/09). R does not read our roster either: read from our bench it credited a man with the worth
+ * of a reserve the squad ALREADY had, so whoever played least ranked first (priorita-draft-v1.md §15).
  */
-export function manValue(
-  man: PriorityMan,
-  ctx: WorthContext,
-  matchdays: number,
-  /** R when the caller knows it (the Draft Priority's own, `reserveOf`); absent = the DP column's R. */
-  reserve?: number | null,
-): number | null {
+export function manValue(man: PriorityMan, ctx: WorthContext, matchdays: number): number | null {
   if (man.fm == null || man.share == null || !matchdays) return null;
   const s = statOf(ctx, man);
   const pv = man.share * matchdays;
-  const r = reserve ?? s.reserveFm ?? priorReserve(ctx, man);
+  const r = s.reserveFm ?? s.p10;
   return (pv * (man.fm - s.z) + (matchdays - pv) * (r - s.z)) / matchdays;
-}
-
-/**
- * R OF THE DRAFT PRIORITY (the operator, 29/09/2026): «R deve essere sempre inteso come un calciatore di rango
- * inferiore che non appartiene all'11 titolare». So R is the mean fantamedia of the squad's men of the
- * candidate's base role who are NOT in its best legal eleven - who really comes on when he misses a match -
- * and, with none, of the free men of that base role of RESERVE rank (`leagueReserves`). Read literally as «every
- * man of the base role», R after Kane was Kane himself, and a centre-forward who never plays scored highest
- * because Kane «covered» the matches he missed (FA-jo5-zai: Moumbagna, 2 of FVM, first advice from the 84th
- * pick to the end). The candidate is never his own reserve. Null = nobody of that rank: the caller falls back
- * to the league's reserve mean (`RoleStat.reserveFm`).
- */
-export function reserveOf(
-  man: PriorityMan,
-  rules: MantraModules,
-  bench: readonly PriorityMan[],
-  freeReserves: readonly PriorityMan[],
-): number | null {
-  const base = baseRole(rules, man.roles, man.slot);
-  const mean = (men: readonly PriorityMan[]) => {
-    const fms = men.filter((m) => m.id !== man.id && m.fm != null
-      && baseRole(rules, m.roles, m.slot) === base).map((m) => m.fm!);
-    return fms.length ? fms.reduce((a, b) => a + b, 0) / fms.length : null;
-  };
-  return mean(bench) ?? mean(freeReserves);
-}
-
-const expected = (man: PriorityMan) => (man.share ?? 0) * (man.fm ?? 0);
-
-/** The squad's men who are NOT in its best legal eleven: where R is read first. */
-export function benchOf(roster: readonly PriorityMan[], rules: MantraModules): PriorityMan[] {
-  const starting = new Set(bestEleven(roster, rules, expected)?.men.map((m) => m.id) ?? []);
-  return roster.filter((m) => !starting.has(m.id));
-}
-
-/**
- * THE DRAFT PRIORITY (the operator, 29/09/2026): `[P (Fm - Z) + (N - P) (R - Z)] / N` - the points per matchday
- * a man gives over the average man of his base role, counting that a reserve comes on when he does not play.
- * It is a fact about the MAN and the squad's reserves, never about the whole squad nor the picks left: it
- * replaced the squad-level G with its look-ahead, whose faded promise charged every pick the fading of the
- * very places it filled and read below zero for nearly everybody from the 13th pick on (FA-jo5-zai, 29/09).
- */
-export function draftPriority(
-  man: PriorityMan,
-  ctx: WorthContext,
-  matchdays: number,
-  bench: readonly PriorityMan[],
-  freeReserves: readonly PriorityMan[],
-): number | null {
-  return manValue(man, ctx, matchdays, reserveOf(man, ctx.rules, bench, freeReserves));
 }
 
 /** The rulebook with the operator's two shapes first: a tie keeps his reference, only a better one wins. */
@@ -323,21 +260,15 @@ export interface PriorityState {
   manOf: (id: number) => PriorityMan | null;
   worth: WorthContext;
   matchdays: number;
-  /** The men of reserve rank a league of this size buys (`leagueReserves`): among the free, R's population. */
-  reserves: ReadonlySet<number>;
 }
 
 /** The Draft Priority of every priced man of the pool, for the squad `team`, by id. */
 export function priorities(state: PriorityState): Map<number, number> {
-  const roster = state.team.heldIds.map(state.manOf).filter((m): m is PriorityMan => !!m);
-  const bench = benchOf(roster, state.worth.rules);
-  const freeReserves = state.pool.filter((p) => state.reserves.has(p.id)).map((p) => state.manOf(p.id))
-    .filter((m): m is PriorityMan => !!m);
   const out = new Map<number, number>();
   for (const player of state.pool) {
     const man = state.manOf(player.id);
     if (!man) continue;
-    const value = draftPriority(man, state.worth, state.matchdays, bench, freeReserves);
+    const value = manValue(man, state.worth, state.matchdays);
     if (value != null) out.set(player.id, value);
   }
   return out;

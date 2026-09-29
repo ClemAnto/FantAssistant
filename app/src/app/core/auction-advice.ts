@@ -50,7 +50,6 @@ import {
   PriorityRules,
   PriorityState,
   WorthContext,
-  leagueReserves,
   priorities as draftPriorityScores,
   preferredRules,
   priorityPick,
@@ -963,7 +962,7 @@ export class AuctionAdvice {
    * la specifica li toglie, e l'app sa datarli mentre le finestre storiche del banco no). Con le porte, una
    * riga per club e non tre portieri.
    */
-  private readonly priorityWorth = computed<(WorthContext & { reserves: ReadonlySet<number> }) | null>(() => {
+  private readonly priorityWorth = computed<WorthContext | null>(() => {
     if (!this.priorityOn()) return null;
     const men = this.priorityMen();
     const ids = this.clubIds();
@@ -989,8 +988,6 @@ export class AuctionAdvice {
     return {
       rules,
       stats: roleStats(population, rules, size),
-      // Among the free, R reads only the men of RESERVE rank a league of this size buys (`leagueReserves`).
-      reserves: new Set(leagueReserves(population, rules, size).map((man) => man.id)),
     };
   });
 
@@ -1090,7 +1087,7 @@ export class AuctionAdvice {
     const men = this.priorityMen();
     const rules = { cap: base.cap ?? null, keeperCap: base.keeperCap, rounds: this.priorityRounds() };
     const stateOf = (team: PlanTeam, pool: readonly PlanPlayer[]): PriorityState => ({
-      team, pool, manOf: (id) => men.get(id) ?? null, worth, matchdays, reserves: worth.reserves,
+      team, pool, manOf: (id) => men.get(id) ?? null, worth, matchdays,
     });
     const choose: OurChooser = (state) => {
       const team = state.teams.find((one) => one.id === base.mineId);
