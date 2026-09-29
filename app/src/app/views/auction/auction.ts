@@ -4,7 +4,9 @@ import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
+import { NzInputNumberModule } from 'ng-zorro-antd/input-number';
 import { NzMessageService } from 'ng-zorro-antd/message';
+import { NzPopoverModule } from 'ng-zorro-antd/popover';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
@@ -194,6 +196,8 @@ const CARD_DELAY_MS = 260;
     NzButtonModule,
     NzIconModule,
     NzInputModule,
+    NzInputNumberModule,
+    NzPopoverModule,
     NzRadioModule,
     NzSelectModule,
     NzTooltipModule,
@@ -659,6 +663,35 @@ export class Auction {
     return (price: number) => positionAfterSpending(price, me.spent, rivals);
   });
 
+  /**
+   * THE FVM RANGE of the free list (operator, 29/09/2026), both ends included; an empty box is no bound on
+   * that side. A porta reads the FVM of the keeper it is called with, like the column.
+   */
+  protected readonly fvmMin = signal<number | null>(null);
+  protected readonly fvmMax = signal<number | null>(null);
+
+  /** The dearest free man: the upper end the label shows while no maximum is set. */
+  protected readonly fvmTop = computed(() => this.freeAll().reduce((top, row) => Math.max(top, row.fvm), 0));
+
+  protected setFvm(which: 'min' | 'max', value: unknown): void {
+    const number = typeof value === 'number' && Number.isFinite(value) ? value : null;
+    (which === 'min' ? this.fvmMin : this.fvmMax).set(number);
+  }
+
+  /**
+   * THE RUNG FILTER (operator, 29/09/2026: «nascondi tutti quelli che non sono ALMENO quel gradino»), read on
+   * the titolarità the list shows - the press's word, else the engine's rung. A man with no rung at all is
+   * hidden while the filter is on: nothing says he is at least that.
+   */
+  protected readonly minRung = signal<number | null>(null);
+  protected readonly rungOptions = [
+    { rank: 6, label: 'almeno titolarissimo' },
+    { rank: 5, label: 'almeno titolare' },
+    { rank: 4, label: 'almeno ballottaggio' },
+    { rank: 3, label: 'almeno comprimario' },
+    { rank: 2, label: 'almeno riserva' },
+  ] as const;
+
   /** The furthest place in the next turn he accepts; null = every man. */
   protected readonly maxPosition = signal<number | null>(null);
 
@@ -672,11 +705,17 @@ export class Auction {
     const roles = this.roleFilter();
     const limit = this.maxPosition();
     const position = this.positionOf();
+    const low = this.fvmMin();
+    const high = this.fvmMax();
+    const rung = this.minRung();
     return this.freeAll().filter(
       (row) =>
         looseMatch(query, row.name, row.club)
         && (!roles.size || row.roles.some((role) => roles.has(role.toLowerCase())))
-        && (limit === null || !position || position(row.fvm) <= limit),
+        && (limit === null || !position || position(row.fvm) <= limit)
+        && (low === null || row.fvm >= low)
+        && (high === null || row.fvm <= high)
+        && (rung === null || (row.press != null && (PRESS_RANK[row.press] ?? 0) >= rung)),
     );
   });
 

@@ -407,9 +407,14 @@ async function main() {
     const before = page;
     const seatsBefore = await evaluate(session, seatsNow);
     await mouse(before.first, 2);
-    // Read while the move is still flying: the squad that chose drops to the bottom of the order.
-    await wait(120);
-    const flying = await evaluate(session, seatsNow);
+    // Read while the move is still flying: the squad that chose drops to the bottom of the order. Polled,
+    // not read at a fixed instant - the first pick of a table also builds the projection before it paints.
+    let flying = [];
+    for (let tick = 0; tick < 30; tick += 1) {
+      await wait(40);
+      flying = await evaluate(session, seatsNow);
+      if (flying.some((one) => one.sliding)) break;
+    }
     page = await settle((p) => p.first?.id !== before.first.id, 'the pick');
     await wait(700);
     const landed = await evaluate(session, seatsNow);
@@ -417,7 +422,7 @@ async function main() {
     const overlap = byAt.some((one, at) => at > 0 && one.top < byAt[at - 1].bottom);
     const outOfOrder = byAt.some((one, at) => at > 0 && one.top <= byAt[at - 1].top);
     const moved = landed.filter((one) => seatsBefore.find((old) => old.id === one.id)?.at !== one.at).length;
-    note('ordine animato', `${moved} squadre cambiano posto, ${flying.filter((one) => one.sliding).length} in volo a 120ms, ferme dopo: ${landed.filter((one) => one.sliding).length}`,
+    note('ordine animato', `${moved} squadre cambiano posto, ${flying.filter((one) => one.sliding).length} in volo, ferme dopo: ${landed.filter((one) => one.sliding).length}`,
       [
         ...(!moved ? ['nessuna squadra ha cambiato posto'] : []),
         ...(moved && !flying.some((one) => one.sliding) ? ['il cambio di posto non e\' animato'] : []),
@@ -597,6 +602,12 @@ async function main() {
         ...(pickMs > 2500 ? [`una scelta impiega ${pickMs}ms`] : []),
       ]);
 
+    // 4a''. The predicted picks of the call order at half opacity: a forecast, beside a fact.
+    const predictedOpacity = await evaluate(session, () =>
+      [...new Set([...document.querySelectorAll('[data-seat] [data-predicted]')].map((one) => getComputedStyle(one).opacity))]);
+    note('previsti al 50%', `opacita' ${predictedOpacity.join('/')}`,
+      !predictedOpacity.length || predictedOpacity.some((one) => one !== '0.5') ? ['le scelte previste non sono al 50%'] : []);
+
     // 4a'. A dashed line where one turn ends and the next begins, counted on the picks already made.
     const rounds = await evaluate(session, roundLinesNow);
     note('linea fra i turni', `${rounds.lines} linee per ${rounds.boundaries} confini (${rounds.labels.join(', ')}), numeri ${rounds.shown.join(' ')}`,
@@ -759,6 +770,78 @@ async function main() {
     await mouse(await evaluate(session, centre, '[data-position-filter] .ant-select-clear'));
     await wait(600);
 
+    // 5a''. The FVM range: typed with the keyboard into the two boxes, both ends included.
+    const typeInto = async (selector, text) => {
+      await mouse(await evaluate(session, centre, `${selector} input`), 1);
+      await session.send('Input.insertText', { text });
+      await session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', windowsVirtualKeyCode: 9 });
+      await wait(500);
+    };
+    const allBefore = Number(await evaluate(session, () => document.querySelector('[data-total]')?.getAttribute('data-total')));
+    const labelBefore = await evaluate(session, () => (document.querySelector('[data-fvm-range]')?.innerText ?? '').trim());
+    // Only the label is on the screen: the boxes are in the small panel it opens.
+    const boxesClosed = await evaluate(session, () => !document.querySelector('[data-fvm-min]'));
+    await mouse(await evaluate(session, centre, '[data-fvm-range]'));
+    await wait(500);
+    await typeInto('[data-fvm-min]', '20');
+    await typeInto('[data-fvm-max]', '60');
+    const ranged = await evaluate(session, () => ({
+      total: Number(document.querySelector('[data-total]')?.getAttribute('data-total')),
+      fvm: [...document.querySelectorAll('[data-free]')].map((one) => Number(one.getAttribute('data-fvm'))),
+    }));
+    const labelAfter = await evaluate(session, () => (document.querySelector('[data-fvm-range]')?.innerText ?? '').trim());
+    note('range FVM', `etichetta «${labelBefore}» → «${labelAfter}»; 20-60: ${ranged.total} su ${allBefore}, FVM visti ${Math.min(...ranged.fvm)}-${Math.max(...ranged.fvm)}`,
+      [
+        ...(!boxesClosed ? ['le caselle sono a schermo prima di aprire il riquadro'] : []),
+        ...(!/^FVM 0 → \d+$/.test(labelBefore) ? [`etichetta iniziale «${labelBefore}»`] : []),
+        ...(labelAfter !== 'FVM 20 → 60' ? [`l'etichetta non dice il range: «${labelAfter}»`] : []),
+        ...(!ranged.fvm.length ? ['il range toglie tutti'] : []),
+        ...(!(ranged.total < allBefore) ? ['il range non toglie nessuno'] : []),
+        ...(ranged.fvm.some((fvm) => fvm < 20 || fvm > 60) ? ['resta un FVM fuori dal range'] : []),
+      ]);
+    await mouse(await evaluate(session, centre, '[data-fvm-reset]'));
+    await wait(500);
+    const reset = await evaluate(session, () => ({
+      total: Number(document.querySelector('[data-total]')?.getAttribute('data-total')),
+      label: (document.querySelector('[data-fvm-range]')?.innerText ?? '').trim(),
+    }));
+    note('range FVM azzerato', `«${reset.label}», ${reset.total} righe`,
+      reset.total !== allBefore || reset.label !== labelBefore ? ['«Azzera» non riporta la lista intera'] : []);
+    await session.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', windowsVirtualKeyCode: 27 });
+    await mouse(await evaluate(session, centre, '[data-column="order"]'));
+    await wait(400);
+
+    // 5a'''. The rung filter: pick «titolare» and only men at least titolare stay.
+    await mouse(await evaluate(session, centre, '[data-rung-filter]'));
+    await wait(500);
+    await mouse(await evaluate(session, () => {
+      const one = [...document.querySelectorAll('.ant-select-item-option')].find((item) => (item.innerText ?? '').trim() === 'almeno titolare');
+      if (!one) return null;
+      const rect = one.getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    }));
+    await wait(600);
+    const atLeast = await evaluate(session, () => ({
+      total: Number(document.querySelector('[data-total]')?.getAttribute('data-total')),
+      words: [...new Set([...document.querySelectorAll('[data-free] [data-rung]')].map((one) => one.innerText.trim()))],
+      blanks: [...document.querySelectorAll('[data-free]')].filter((one) => !one.querySelector('[data-rung]')).length,
+    }));
+    note('filtro gradino', `almeno titolare: ${atLeast.total} righe, parole ${atLeast.words.join(', ')}`,
+      [
+        ...(!atLeast.total ? ['il filtro toglie tutti'] : []),
+        ...(atLeast.words.some((word) => !['bandiera', 'titolarissimo', 'titolare'].includes(word)) ? ['resta un gradino sotto titolare'] : []),
+        ...(atLeast.blanks ? [`${atLeast.blanks} righe senza gradino restano`] : []),
+      ]);
+    await mouse(await evaluate(session, centre, '[data-rung-filter]'));
+    await wait(500);
+    await mouse(await evaluate(session, () => {
+      const one = [...document.querySelectorAll('.ant-select-item-option')].find((item) => (item.innerText ?? '').trim() === 'tutti i gradini');
+      if (!one) return null;
+      const rect = one.getBoundingClientRect();
+      return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
+    }));
+    await wait(500);
+
     // 5b'. The titolarità column: its header, and full words in coloured badges.
     const rungs = await evaluate(session, () => ({
       header: [...document.querySelectorAll('[data-free-head] [data-sort="press"]')].map((one) => one.innerText.trim())[0] ?? '',
@@ -890,6 +973,13 @@ async function main() {
     // 6b. PREVISTE: FVM and priority stay right after the name, then the sheet's forecast in six columns.
     await mouse(await evaluate(session, centre, '[data-mode="previste"]'));
     await wait(700);
+    // The steadiness arrives with the ratings, which are computed after the sheet: wait for them to land.
+    for (let tick = 0; tick < 40; tick += 1) {
+      const steadyFilled = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
+        .some((row) => !['', '—'].includes((row.children[8]?.innerText ?? '').trim())));
+      if (steadyFilled) break;
+      await wait(250);
+    }
     const previste = await evaluate(session, () => {
       const head = [...(document.querySelector('[data-free-head]')?.children ?? [])].map((one) => one.getAttribute('data-sort'));
       const rows = [...document.querySelectorAll('[data-free]')];

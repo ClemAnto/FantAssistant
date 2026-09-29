@@ -305,10 +305,13 @@
                   }
                   <span class="shrink-0 text-muted">→</span>
                   @if (seat.next; as next) {
-                    <ui-roles class="seat-roles shrink-0" [roles]="next.roles" size="xs" />
+                    <!-- LA SCELTA PREVISTA AL 50% (sua richiesta, 29/09/2026): e' un pronostico e non un fatto,
+                         e accanto all'ultima scelta, che e' un fatto, deve vedersi diversa. -->
+                    <ui-roles class="seat-roles shrink-0 opacity-50" [roles]="next.roles" size="xs" />
                     <span
                       data-card-name
-                      class="min-w-0 cursor-pointer truncate hover:underline"
+                      data-predicted
+                      class="min-w-0 cursor-pointer truncate opacity-50 hover:underline"
                       [class.font-semibold]="!next.predicted"
                       [class.text-primary]="!next.predicted"
                       (click)="openCard(next.id, $event)"
@@ -401,6 +404,62 @@
               ✕
             </button>
           }
+          <!-- IL FILTRO PER GRADINO (sua richiesta, 29/09/2026): restano solo quelli ALMENO al gradino scelto. -->
+          <nz-select
+            data-rung-filter
+            class="ml-2 w-36"
+            nzSize="small"
+            nzPlaceHolder="Gradino"
+            [ngModel]="minRung()"
+            (ngModelChange)="minRung.set($event)"
+          >
+            <nz-option [nzValue]="null" nzLabel="tutti i gradini" />
+            @for (option of rungOptions; track option.rank) {
+              <nz-option [nzValue]="option.rank" [nzLabel]="option.label" />
+            }
+          </nz-select>
+          <!-- IL RANGE DI FVM (sue richieste, 29/09/2026): a schermo solo l'etichetta con i due estremi, e un
+               click apre il riquadro dove si cambiano o si azzerano. Estremi compresi, vuoto = nessun limite. -->
+          <button
+            type="button"
+            data-fvm-range
+            class="ml-2 rounded border px-1.5 text-[10px] tabular-nums leading-5"
+            [class]="fvmMin() !== null || fvmMax() !== null ? 'border-primary text-primary' : 'border-border text-muted'"
+            nz-popover
+            nzPopoverTrigger="click"
+            nzPopoverPlacement="bottom"
+            [nzPopoverContent]="fvmBox"
+          >
+            FVM {{ fvmMin() ?? 0 }} → {{ fvmMax() ?? fvmTop() }}
+          </button>
+          <ng-template #fvmBox>
+            <div class="flex flex-col gap-2 text-xs">
+              <span class="flex items-center gap-1">
+                <nz-input-number
+                  data-fvm-min
+                  class="w-20"
+                  nzSize="small"
+                  [nzMin]="0"
+                  nzPlaceHolder="0"
+                  [ngModel]="fvmMin()"
+                  (ngModelChange)="setFvm('min', $event)"
+                />
+                →
+                <nz-input-number
+                  data-fvm-max
+                  class="w-20"
+                  nzSize="small"
+                  [nzMin]="0"
+                  [nzPlaceHolder]="'' + fvmTop()"
+                  [ngModel]="fvmMax()"
+                  (ngModelChange)="setFvm('max', $event)"
+                />
+              </span>
+              <button nz-button nzSize="small" data-fvm-reset (click)="setFvm('min', null); setFvm('max', null)">
+                Azzera
+              </button>
+            </div>
+          </ng-template>
           <span class="ml-auto text-[10px] tabular-nums text-muted" [attr.data-total]="free.total()">
             {{ free.shown() }} di {{ free.total() }}
           </span>
