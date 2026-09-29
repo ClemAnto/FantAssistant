@@ -21,8 +21,9 @@ import {
   rungShares,
 } from './player-rulings';
 import { PlayerMark, PlayerStatus } from './player-status';
+import { TrendCell, VOTE_TREND_MATCHES, parseTrend, rowTrend } from './player-trend';
 import { WhyColumns } from './surplus-why';
-import { Platform, PlayerRow, buildRosters, sheetIdentities } from './players-store';
+import { LEAGUE_COMPETITIONS, Platform, PlayerRow, buildRosters, sheetIdentities } from './players-store';
 import { TimeTravel } from './time-travel';
 
 /**
@@ -432,6 +433,15 @@ export interface EngineExpectation {
    * che le due colonne del motore prevedono, e quel taglio lo sa fare solo chi ha il calendario.
    */
   actual: ActualOutcome | null;
+  /**
+   * LE ULTIME CINQUE PARTITE DEL SUO CLUB, gia' tagliate da `rowTrend` (`desc_trend_detail`): il voto,
+   * lo stato e i minuti di ognuna, per il trend della Strategia (operatore, 26/09/2026).
+   *
+   * Lette qui e non da un secondo lettore del foglio, per la ragione di questo file: due letture dello
+   * stesso foglio finiscono per dare a un uomo due storie. Vuote su un foglio piu' vecchio della
+   * colonna, e allora il trend dice «nessuna partita» invece di inventarne.
+   */
+  recentVotes: readonly TrendCell[];
 }
 
 /**
@@ -1645,6 +1655,9 @@ export class ValuationStore {
         // confrontabile con la previsione che gli sta accanto.
         actualRounds: at('actual_rounds'), actualPv: at('actual_pv'), actualMv: at('actual_mv'),
         actualFm: at('actual_fm'), actualValue: at('actual_value'),
+        // Le ultime partite, col campionato della riga che `rowTrend` usa quando il foglio non dichiara
+        // di quale club e' ogni partita.
+        trendDetail: at('desc_trend_detail'), league: at('league'),
       };
       // UNA COLONNA CHE NON C'E' E' `-1`, e `row[-1]` e' `undefined`: normalizzato QUI, dove il foglio
       // viene letto, o ogni lettore a valle si inventerebbe il proprio ripiego.
@@ -1788,6 +1801,19 @@ export class ValuationStore {
                   fm: number(row, columns.actualFm),
                   value: number(row, columns.actualValue),
                 },
+          recentVotes: columns.trendDetail < 0
+            ? []
+            // SOLO PARTITE DI CAMPIONATO (operatore, 26/09/2026: «no coppe, no amichevoli»). Il
+            // toolkit costruisce gia' questa finestra sul calendario di campionato - misurato sui tre
+            // fogli del 24/09: solo i cinque campionati e la Serie B, zero coppe e zero amichevoli -
+            // e il filtro qui e' la GUARDIA, cosi' un foglio futuro che allargasse il record non
+            // farebbe entrare una coppa nel trend in silenzio. Si filtra PRIMA di tagliare a cinque,
+            // o una coppa tolta dopo lascerebbe quattro partite dove ce ne sono cinque.
+            : rowTrend(parseTrend(text_(row, columns.trendDetail))
+              .filter((match) => LEAGUE_COMPETITIONS.has(match.competition)), {
+                league: text_(row, columns.league),
+                count: VOTE_TREND_MATCHES,
+              }),
         });
       }
     } catch {

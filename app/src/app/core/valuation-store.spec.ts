@@ -74,6 +74,7 @@ const sheetRow = (over: Partial<EngineExpectation> = {}): EngineExpectation => (
   surplusFieldedCup: null, cupNote: null,
   anchor: 6.1, why: null,
   actual: { rounds: 36, pv: 3, mv: 5.5, fm: 5.5, value: 16.5 },
+  recentVotes: [],
   ...over,
 });
 

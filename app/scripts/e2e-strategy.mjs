@@ -2326,14 +2326,14 @@ async function main() {
     }
 
     const keysOf = (rows) => Object.keys(rows[0]?.say ?? {});
-    note('le ventuno letture della barra', {
+    note('le ventitre letture della barra', {
       said: `${toggles.length} pastiglie (${toggles.map((one) => one.text).join(' ')}) · accese `
         + `${toggles.filter((one) => one.on).length} · la riga passa da ${JSON.stringify(keysOf(beforeToggle))} `
         + `a ${JSON.stringify(keysOf(withFvm))} e poi a ${JSON.stringify(keysOf(withoutBpm))} `
         + `· esempio FVM «${withFvm[0]?.say?.fvm}»`,
       problems: [
         ...pressed.filter(Boolean),
-        // VENTUNO: le VENTI letture di `READINGS` piu' il GAIN, che dal 16/09/2026 si accende e si
+        // VENTITRE dal 26/09/2026 (i due TREND, `Trd` e `Tfv`). VENTUNO prima: le VENTI letture di `READINGS` piu' il GAIN, che dal 16/09/2026 si accende e si
         // spegne come loro. Il numero era rimasto a venti mentre `READINGS` ne portava gia' venti da
         // sola, quindi il passo era ROSSO su un conto suo e non su un difetto della pagina - allineato
         // il 22/09/2026 contando le chiavi del vocabolario, non le pastiglie a schermo. Diciannove dal 12/09 (le quattro frequenze: oltre l'85', fantavoto 6.5+, con
@@ -2343,7 +2343,7 @@ async function main() {
         // numero e' scritto qui perche' e' il VOCABOLARIO della pagina e non una misura: se cresce,
         // cresce per una richiesta, e allora si aggiorna insieme a `READINGS` invece di leggere dallo
         // schermo quello che lo schermo dice.
-        ...(toggles.length === 21 ? [] : [`${toggles.length} pastiglie invece delle ventuno dichiarate`]),
+        ...(toggles.length === 23 ? [] : [`${toggles.length} pastiglie invece delle ventitre dichiarate`]),
         // IL GAIN SPARISCE E TORNA: una pastiglia che si accende senza cambiare la riga e' un bottone
         // che mente, e il conto PRIMA viaggia col verdetto perche' un passo che trova zero riquadri
         // leggerebbe «spento correttamente» dopo aver guardato una pagina che non ne aveva.

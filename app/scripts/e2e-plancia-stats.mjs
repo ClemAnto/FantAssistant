@@ -696,7 +696,13 @@ async function trendFromSheet(sheetPath) {
       .map((f) => {
         const minutes = f[5] === '' ? null : Number(f[5]);
         const started = f[6] === '1';
-        const points = f[9] === '' ? null : Number(f[9]);
+        // UN VOTO SINTETICO VA SUI MEZZI PUNTI e il fantavoto lo segue (regola dell'operatore del
+        // 05/09/2026, applicata alla striscia il 26/09): rifatto qui a mano come il resto.
+        const raw = f[9] === '' ? null : Number(f[9]);
+        const vote = f[7] === '' ? null : Number(f[7]);
+        const points = raw != null && vote != null && f[8] === 'synth'
+          ? raw - vote + Math.round(vote * 2) / 2
+          : raw;
         return {
           text: points == null ? '·' : points.toFixed(1),
           on: minutes != null && !started && minutes > 0,

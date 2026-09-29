@@ -1,5 +1,13 @@
 import { cardRows } from './player-card';
-import { MatchCell, RecentMatch, competitionKind, isChampionship, seasonMatches } from './players-store';
+import {
+  MatchCell,
+  RecentMatch,
+  abbreviate,
+  clubNameKey,
+  competitionKind,
+  isChampionship,
+  seasonMatches,
+} from './players-store';
 import { voteClass, voteText } from '../ui/matches-table/vocabulary';
 
 /**
@@ -248,5 +256,32 @@ describe('cardRows e il club di oggi', () => {
       'Fiorentina',
     );
     expect(rows.map((one) => one.club)).toEqual(['Everton', null]);
+  });
+});
+
+describe('abbreviate', () => {
+  it('salta i prefissi di forma e i numeri: «1. FC Union Berlin» non e «1.»', () => {
+    // Il caso dell'operatore (27/09/2026) e la sua famiglia, misurata sui nomi del pacchetto.
+    expect(abbreviate('1. FC Union Berlin')).toBe('Uni');
+    expect(abbreviate('1. FSV Mainz 05')).toBe('Mai');
+    expect(abbreviate('SV Werder Bremen')).toBe('Wer');
+    expect(abbreviate('VfB Stuttgart')).toBe('Stu');
+    expect(abbreviate('TSG Hoffenheim')).toBe('Hof');
+    expect(abbreviate('FC St. Pauli')).toBe('Pau');
+    expect(abbreviate('UD Las Palmas')).toBe('Las');
+    // Quelli che funzionavano restano com'erano.
+    expect(abbreviate('AC Milan')).toBe('Mil');
+    expect(abbreviate('Bayern Monaco')).toBe('Bay');
+    expect(abbreviate('Hannover 96')).toBe('Han');
+  });
+
+  it('un nome fatto solo di parole saltate si tiene tutto, invece di stampare ???', () => {
+    expect(abbreviate('AC')).toBe('AC');
+    expect(clubNameKey('1860')).toBe('1860');
+  });
+
+  it('la chiave dello stemma incontra il nome del listone da tutti e due i lati', () => {
+    expect(clubNameKey('Schalke 04')).toBe(clubNameKey('FC Schalke 04'));
+    expect(clubNameKey('Hannover 96')).toBe('hannover');
   });
 });

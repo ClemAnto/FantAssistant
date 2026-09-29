@@ -1,0 +1,18 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English.
+
+     CINQUE POSTI SEMPRE, anche dove la partita non esiste: la barretta vuota tiene la sua larghezza,
+     così le colonne di due righe sorelle si incolonnano. `items-center` sull'ospite: le barrette stanno
+     al centro della riga e crescono in su e in giù insieme - al voto 10 escono del 10% da ogni lato,
+     che è il 120% voluto. -->
+@for (bar of bars(); track $index) {
+  <span
+    data-vote-bar
+    class="shrink-0 rounded-full"
+    [class.opacity-50]="bar.dim"
+    [style.margin-inline]="bar.inset"
+    [class.invisible]="bar.void"
+    [style.width]="bar.width"
+    [style.height]="bar.height"
+    [style.background]="bar.fill"
+  ></span>
+}

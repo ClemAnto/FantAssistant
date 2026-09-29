@@ -529,8 +529,9 @@ function weekOf(iso: string): string {
 }
 
 /** The championships a player's own league rows live under: everything else in the per-match
- *  layer is another competition. Measured on the bundle, not guessed. */
-const LEAGUE_COMPETITIONS = new Set([
+ *  layer is another competition. Measured on the bundle, not guessed. Exported since 26/09/2026 for
+ *  the strategy's vote trend, which must read league matches only - one list, two readers. */
+export const LEAGUE_COMPETITIONS: ReadonlySet<string> = new Set([
   'serie_a',
   'premier_league',
   'la_liga',
@@ -1486,12 +1487,33 @@ export class PlayersStore {
   }
 }
 
-/** Club-form words neither side of a fixture label needs. */
-const ABBREVIATION_SKIP = new Set(['ac', 'as', 'ss', 'ssc', 'fc', 'rc', 'afc', 'us', 'ol', 'rb']);
+/**
+ * Club-form words neither side of a fixture label needs.
+ *
+ * WIDENED 27/09/2026 on the operator's «Union Berlino non viene riconosciuta»: the provider writes
+ * `1. FC Union Berlin`, so the first word that «names» the club was `1.` and the card printed `Bay 7-0
+ * 1.`. Measured on the 196 club names of the championship rows in the bundle, the same defect had
+ * fifteen of them - `SV Werder Bremen` -> `SV`, `VfB Stuttgart` -> `VfB`, `TSG Hoffenheim` -> `TSG`,
+ * `FC St. Pauli` -> `St.` - and these are the German, Spanish and French legal-form acronyms that
+ * produce them. A word that starts with a DIGIT is skipped too (`1.`, `04`, `1848`): a founding year
+ * or a club number never names anybody. With the wider list the 106 clubs still give 106 distinct
+ * keys, and the crest join resolves 70.7% of those rows instead of 68.7% - it can only gain, since
+ * both sides of it are normalised by this same function.
+ */
+const ABBREVIATION_SKIP = new Set([
+  'ac', 'as', 'ss', 'ssc', 'fc', 'rc', 'afc', 'us', 'ol', 'rb',
+  'sv', 'sc', 'vfb', 'vfl', 'tsg', 'fsv', 'bsc', 'st.', 'ud', 'cf', 'cd', 'rcd', 'sd', 'gfc',
+]);
 
-/** The words of a club's name that actually name it: `AC Milan` -> `['Milan']`. */
+/**
+ * The words of a club's name that actually name it: `AC Milan` -> `['Milan']`,
+ * `1. FC Union Berlin` -> `['Union', 'Berlin']`. A name made ONLY of such words keeps them all: an
+ * empty list would print `???` for a club whose name we have.
+ */
 export function nameWords(name: string | null): string[] {
-  return (name ?? '').split(/\s+/).filter((word) => word && !ABBREVIATION_SKIP.has(word.toLowerCase()));
+  const all = (name ?? '').split(/\s+/).filter(Boolean);
+  const kept = all.filter((word) => !ABBREVIATION_SKIP.has(word.toLowerCase()) && !/^\d/.test(word));
+  return kept.length ? kept : all;
 }
 
 /** Lo stesso nome come CHIAVE, senza le parole che non nominano nessuno: `SSC Napoli` e `Napoli`

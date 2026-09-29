@@ -10,6 +10,7 @@ import { GOOD_MATCH, LONG_SHIFT, MatchFrequencies, POOR_MATCH, THIN_SAMPLE } fro
 import { EDGE_BASE } from './plancia';
 import { MOSTLY_ANCHOR } from './player-ratings';
 import { ClassicRole } from './players-store';
+import { TrendCell, trendDeltaMean, trendVoteMean } from './player-trend';
 import { CATEGORIA_SHORT, categoriaRank, categoriaTone, isCategoria } from './categoria';
 import { TITOLARITA_SHORT, isTitolarita, titolaritaRank } from './titolarita';
 
@@ -71,6 +72,8 @@ export interface StrategySetup {
    * cambia niente. Vedi `BlockView` e `blocksOf`.
    */
   view: BlockView;
+  /** La regola delle porte (`LeagueSettings.porte`): il blocco dei portieri è allora quello delle PORTE. */
+  porte?: boolean;
 }
 
 /** I quattro ruoli del listone classic, nell'ordine in cui un listone si legge. */
@@ -131,7 +134,9 @@ export const BLOCK_LABEL: Record<string, string> = {
  */
 const MANTRA_LABEL: Record<string, string> = { C: 'Centrali', A: 'Attaccanti esterni' };
 
-export function blockLabel(role: string, game: StrategyGame): string {
+export function blockLabel(role: string, game: StrategyGame, porte = false): string {
+  // Con le porte il blocco dei portieri elenca CLUB, e l'intestazione dice di cosa è la lista.
+  if (porte && (role === 'P' || role === 'Por')) return 'Porte';
   if (game === 'mantra' && MANTRA_LABEL[role]) return MANTRA_LABEL[role];
   return BLOCK_LABEL[role] ?? role;
 }
@@ -273,6 +278,19 @@ export interface StrategyBidder {
   /** In quante delle aste di riferimento qualcuno l'ha preso, su quante: 15/15 = lo prendi ora. */
   paidSold?: number | null;
   paidSoldOf?: number | null;
+  /**
+   * LE ULTIME CINQUE PARTITE DEL SUO CLUB, dal foglio (`EngineExpectation.recentVotes`): il trend della
+   * Strategia (operatore, 26/09/2026). Opzionale come lo SWING: chi non la passa lascia la pastiglia
+   * vuota invece di disegnare cinque partite che nessuno ha letto.
+   */
+  recentVotes?: readonly TrendCell[];
+  /**
+   * LA PORTA, con la regola delle porte accesa (`LeagueSettings.porte`, 28/09/2026): la riga è allora un
+   * CLUB e non un uomo, `name` è il club e qui ci sono i portieri di cui è fatta. Assente per ogni uomo.
+   */
+  porta?: readonly string[];
+  /** ...e il portiere TITOLARE della porta, la riga com'era prima della fusione: la card mostra i suoi dati. */
+  portaStarter?: StrategyBidder;
 }
 
 /**
@@ -461,6 +479,20 @@ export interface ManReadings {
    * questa quanto vale dentro il suo ruolo - un `riserva` puo' essere un `bandiera`.
    */
   categoria: string | null;
+
+  /**
+   * IL TREND: le ultime cinque partite com'erano (voto, stato, minuti) e la loro MEDIA VOTO, che e' il
+   * numero con cui la pastiglia si ordina e si filtra (operatore, 26/09/2026: «il valore equivalente
+   * sara' la media voto delle ultime 5 partite, e i valori nulli ... saranno sostituiti da 5»).
+   *
+   * Due campi e non uno, come la coppia: il disegno legge le cinque, l'ordinamento legge la media, e
+   * la media esce da `trendVoteMean` - una definizione sola, cosi' il numero che ordina e' quello che
+   * le barrette mostrano.
+   */
+  trend: readonly TrendCell[];
+  trendMean: number | null;
+  /** ...e la media del fantavoto meno 6 sulle stesse cinque (`trendDeltaMean`): ordina `Tfv`. */
+  deltaMean: number | null;
 }
 
 /**
@@ -485,6 +517,9 @@ export type ReadingKey =
   // scritta dentro la chiave. Da quando la stagione si sceglie, due chiavi per un numero sarebbero due
   // vocabolari per la stessa cosa - e chi le aveva accese le ritrova, perche' `readRef` le migra.
   | 'ga' | 'fvm' | 'swing' | 'titolarita' | 'categoria' | 'paid'
+  // IL TREND DEL VOTO e quello del FANTAVOTO MENO 6 (operatore, 26/09/2026): cinque barrette al
+  // posto di una cifra, sulle stesse cinque partite.
+  | 'trend' | 'trendDelta'
   // LE QUATTRO FREQUENZE (operatore, 12/09/2026). Stanno in fondo all'elenco e non accanto a `passed`,
   // che e' la lettura piu' simile, per una ragione che si vede a schermo: sono le uniche che non
   // parlano della stagione in corso, e una fila di pastiglie si legge da sinistra come si legge una
@@ -592,6 +627,15 @@ export interface ReadingSpec {
    * e' peggio di una colonna mancante.
    */
   dated?: true;
+  /**
+   * LA PASTIGLIA SI DISEGNA e non si scrive: cinque barrette (`ui/vote-trend`) al posto del numero.
+   *
+   * Il numero dietro c'e' - la media voto, che ordina e filtra - ma non si stampa: a schermo stanno le
+   * cinque partite, e la media la dice il suggerimento. Dichiarato come `word` e `pair`, perche' chi
+   * disegna deve saperlo prima di passare da `DecimalPipe`. Il valore dice QUALE striscia: il voto
+   * base (`ui-vote-trend`) o il fantavoto meno 6 (`ui-delta-trend`).
+   */
+  strip?: 'vote' | 'delta';
 }
 
 export const READINGS: ReadingSpec[] = [
@@ -716,6 +760,28 @@ export const READINGS: ReadingSpec[] = [
     pair: true,
     dated: true,
     width: 'min-w-12',
+  },
+  // IL TREND DEL VOTO (operatore, 26/09/2026). Dopo le letture della stagione in corso perche' e' la
+  // piu' recente di tutte - le ultime cinque - e prima dei prezzi, che non sono calcio.
+  {
+    key: 'trend',
+    short: 'Trd',
+    label: 'Trend del voto',
+    hint: 'Voto delle ultime 5 partite. Ordina per la media: chi non ha il voto vale 5.',
+    format: '1.2-2',
+    strip: 'vote',
+    width: 'min-w-10',
+  },
+  {
+    key: 'trendDelta',
+    short: 'Tfv',
+    label: 'Trend del fantavoto',
+    hint: 'Fantavoto meno 6 delle ultime 5. Ordina per la media: ogni partita senza fantavoto '
+      + 'pesa di più (-0.5, -1, -1.5...).',
+    format: '1.2-2',
+    signed: true,
+    strip: 'delta',
+    width: 'min-w-10',
   },
   {
     key: 'fvm',
@@ -954,6 +1020,10 @@ export function readingValue(ref: ReadingRef, readings: ManReadings): number | n
       return readings.paid;
     case 'swing':
       return readings.swing;
+    case 'trend':
+      return readings.trendMean;
+    case 'trendDelta':
+      return readings.deltaMean;
     // LE QUATTRO FREQUENZE, dalla quota alla PERCENTUALE in un punto solo: la misura sta in 0-1 perche'
     // e' una quota, quello che si legge sta in 0-100 perche' e' una frequenza - e chi filtra confronta
     // quello che si legge. Due conversioni in due posti sarebbero due unita' per un numero.
@@ -1087,6 +1157,10 @@ export function readingsOf(man: StrategyBidder): ManReadings {
     // del calendario del foglio e questa funzione riceve solo l'uomo. Due punti che la calcolano
     // darebbero allo stesso nome due numeri, ed e' il difetto che questo progetto paga da sempre.
     swing: man.swing ?? null,
+    // IL TREND, letto dal foglio: la media esce dalle stesse cinque caselle che le barrette disegnano.
+    trend: man.recentVotes ?? [],
+    trendMean: trendVoteMean(man.recentVotes ?? []),
+    deltaMean: trendDeltaMean(man.recentVotes ?? []),
   };
 }
 
@@ -1544,7 +1618,7 @@ export function blocksOf(input: {
     const stillPinned = men.filter((one) => one.at < chosen.pinned).length;
     return {
       role,
-      label: blockLabel(role, setup.game),
+      label: blockLabel(role, setup.game, setup.porte),
       demand: size,
       men,
       pool: mine.length,

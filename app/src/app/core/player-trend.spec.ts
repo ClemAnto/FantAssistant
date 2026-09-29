@@ -134,6 +134,16 @@ describe('rowTrend', () => {
     const [bench] = rowTrend(windowOf(['2026-01'], [{ 4: 'b', 5: '', 6: '', 9: '' }]));
     expect(bench.spell).toEqual({ minutes: null, on: false, off: false });
   });
+
+  it('un voto SINTETICO va sulla griglia dei mezzi punti, e il fantavoto lo segue', () => {
+    // 5.97 + 1 di bonus: il voto diventa 6 e il fantavoto 7, cioe' i bonus restano uno.
+    const [synth] = rowTrend(windowOf(['2026-01'], [{ 7: '5.97', 8: 'synth', 9: '6.97' }]));
+    expect(synth.vote).toBe(6);
+    expect(synth.points).toBeCloseTo(7);
+    // Un voto vero non si tocca, nemmeno se fosse fuori griglia.
+    const [real] = rowTrend(windowOf(['2026-01'], [{ 7: '6.25', 8: 'real', 9: '6.25' }]));
+    expect(real.vote).toBe(6.25);
+  });
 });
 
 describe('la finestra di un uomo che ha cambiato squadra', () => {

@@ -283,10 +283,14 @@
   }
 
   @if (mismatch(); as gap) {
+    @if (gap !== mismatchDismissed()) {
     <nz-alert
       class="shrink-0"
       nzType="info"
       nzShowIcon
+      nzCloseable
+      (nzOnClose)="mismatchDismissed.set(gap)"
+      data-mismatch
       nzMessage="Il foglio è tarato su un'altra lega"
       [nzDescription]="
         'Il foglio dichiara ' +
@@ -294,6 +298,7 @@
         '. Il GAIN resta il suo (l\'app non ha un motore e non lo ricalcola: il surplus è contato dal rimpiazzo di quelle squadre e di quegli slot), mentre la LUNGHEZZA delle liste segue quello che hai dichiarato tu. Se vuoi che coincidano, apri le impostazioni e usa «allinea al foglio».'
       "
     />
+    }
   }
 
   @if (sheet() && (reading() || store.status() === 'loading')) {
@@ -587,7 +592,7 @@
                           [nzTooltipTitle]="
                             row.man.name +
                             ' · ' +
-                            row.man.club +
+                            (row.man.porta ? 'porta: ' + row.man.porta.join(', ') : row.man.club) +
                             (row.shown.length > 1 ? ' · ' + row.shown.join('/') : '') +
                             (row.fromBehind ? ' · ripiego: lo metteresti da ' + row.deepest : '') +
                             (row.estimated ? ' · numero stimato' : '') +
@@ -622,7 +627,11 @@
                         @if (row.estimated) {
                           <span class="shrink-0 text-[10px] text-muted" data-estimated>~</span>
                         }
-                        <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
+                        <!-- Una PORTA è un club: i marchi di un suo portiere (un infortunio, uno schermo) non sono
+                             della porta, e disegnarli accanto al nome del club direbbe una cosa falsa. -->
+                        @if (!row.man.porta) {
+                          <ui-flags class="shrink-0 text-[10px]" [playerId]="row.man.fcId" />
+                        }
                         <!-- LA FRECCIA: ha un posto più arretrato, quindi qui è un ripiego e lì è un acquisto.
                              Marcata e non spostata (la misura che lo ha deciso sta in `BlockView`), e a DESTRA
                              del nome: a sinistra spostava ogni nome di qualche pixel e la colonna si leggeva a
@@ -687,7 +696,48 @@
                                 sortKeyOf(reading) && onSortHere(sortKeyOf(reading)!);
                                 $event.stopPropagation()
                               "
-                              >{{ text(reading.spec, reading.ref, row.readings) }}</span
+                              >@if (reading.spec.strip && readingValue(reading.ref, row.readings) != null) {
+                                <!-- IL TREND SI DISEGNA (operatore, 26/09/2026): cinque barrette al
+                                     posto della cifra, alte quanto la riga delle altre pastiglie
+                                     (10px) così la riga non cresce; il voto 10 esce sopra del 20%,
+                                     che è voluto. La media che ordina sta nel suggerimento. -->
+                                <!-- IL SUGGERIMENTO E' UN TEMPLATE e non una stringa: si costruisce
+                                     solo quando si apre, perche' il risultato viene dalle partite che
+                                     la card legge e cercarlo per duecentocinquanta righe a ogni giro
+                                     di disegno sarebbe pagare per niente. Aprirlo chiede quelle
+                                     partite (`loadMatches`); finche' non arrivano, la riga dice la
+                                     partita senza il punteggio. Compare dopo UN SECONDO (operatore,
+                                     26/09/2026): scorrendo la lista non si apre su ogni riga. -->
+                                <ng-template #trendTip>
+                                  <div data-trend-tip class="flex flex-col tabular-nums">
+                                    <span>Media {{ stripMeanText(reading.spec, reading.ref, row.readings) }}</span>
+                                    @for (line of trendLines(row.man, row.readings.trend); track $index) {
+                                      <span class="whitespace-nowrap">{{ line }}</span>
+                                    }
+                                  </div>
+                                </ng-template>
+                                @if (reading.spec.strip === 'delta') {
+                                  <ui-delta-trend
+                                    [height]="10"
+                                    nz-tooltip
+                                    [nzTooltipTitle]="trendTip"
+                                    [nzTooltipMouseEnterDelay]="1"
+                                    (nzTooltipVisibleChange)="$event && loadMatches()"
+                                    [cells]="row.readings.trend"
+                                  />
+                                } @else {
+                                  <ui-vote-trend
+                                    [height]="10"
+                                    nz-tooltip
+                                    [nzTooltipTitle]="trendTip"
+                                    [nzTooltipMouseEnterDelay]="1"
+                                    (nzTooltipVisibleChange)="$event && loadMatches()"
+                                    [cells]="row.readings.trend"
+                                  />
+                                }
+                              } @else {
+                                {{ text(reading.spec, reading.ref, row.readings) }}
+                              }</span
                             >
                           }
                         </span>

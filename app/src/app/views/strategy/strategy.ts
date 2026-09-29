@@ -40,7 +40,8 @@ import {
 } from '../../core/player-card';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { AuctionPricesStore, scaleTo } from '../../core/auction-prices';
-import { Platform, PlayersStore } from '../../core/players-store';
+import { MatchCell, Platform, PlayersStore, isChampionship } from '../../core/players-store';
+import { TrendCell } from '../../core/player-trend';
 import { GainScale, scaleOf } from '../../core/sealed-bid';
 import {
   AuctionKind,
@@ -94,8 +95,10 @@ import {
   readFilterSet,
 } from '../../core/strategy-filter';
 import { sheetBlendsSeen, swingOf } from '../../core/swing';
+import { collapseKeepers, mixPorta, porteZero } from '../../core/porte';
+import { surplusOf, valueOf } from '../../core/auction-value';
 import { EngineExpectation, ValuationStore, valueFromEngine } from '../../core/valuation-store';
-import { DOUBLE_MS, stored, storedJson, storedList } from '../../core/view-state';
+import { DOUBLE_MS, stored, storedJson, storedList, storedText } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { GainChip } from '../../ui/gain-chip/gain-chip';
@@ -106,6 +109,8 @@ import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { PlayerRulings } from '../../core/player-rulings';
 import { TITOLARITA_SHORT, isTitolarita } from '../../core/titolarita';
 import { RulingDot } from '../../ui/ruling-dot/ruling-dot';
+import { VoteTrend, voteTrendLines } from '../../ui/vote-trend/vote-trend';
+import { DeltaTrend } from '../../ui/delta-trend/delta-trend';
 import { StrategyFilters } from './strategy-filters/strategy-filters';
 
 /**
@@ -235,7 +240,9 @@ const GAIN_HINT: Record<AuctionKind, string> = {
     PlayerFlags,
     RoleBadge,
     RulingDot,
+    DeltaTrend,
     StrategyFilters,
+    VoteTrend,
   ],
   templateUrl: './strategy.html',
   host: { class: 'view-host' },
@@ -455,8 +462,8 @@ export class Strategy {
   );
 
   protected readonly setup = computed<StrategySetup>(() => {
-    const { game, slots, budget, auction, teams, view } = this.settings();
-    return { game, slots, budget, auction, teams, view };
+    const { game, slots, budget, auction, teams, view, porte } = this.settings();
+    return { game, slots, budget, auction, teams, view, porte };
   });
 
   /**
@@ -724,6 +731,46 @@ export class Strategy {
     return `border-border ${tone || 'bg-page text-fg'} ${width}`;
   }
 
+  /**
+   * LE CINQUE PARTITE DEL TREND come righe del suggerimento (operatore, 26/09/2026).
+   *
+   * Il record del foglio porta l'avversario e il campo, non il RISULTATO: quello si cerca nelle partite
+   * che la card gia' legge (`PlayersStore`), per DATA e solo fra quelle di campionato - che sono le
+   * sole che la striscia contiene. Una data, non un nome, e' la chiave: il join per nome e' il difetto
+   * piu' caro di questo progetto. Finche' quelle partite non sono arrivate la riga resta senza
+   * punteggio, che e' «non lo so» e non «0-0».
+   */
+  protected trendLines(man: StrategyBidder, cells: readonly TrendCell[]): string[] {
+    const byDate = new Map<string, MatchCell>();
+    if (this.players.ready()) {
+      for (const { cell } of this.players.recent(man.fcId, this.settings().platform, { seasons: 2 })) {
+        if (!cell.date || byDate.has(cell.date)) continue;
+        if (!isChampionship(cell.kind)) continue;
+        byDate.set(cell.date, cell);
+      }
+    }
+    return voteTrendLines(cells, man.club, (one) => {
+      const found = byDate.get(one.date);
+      return found ? { team: found.team, opponent: found.opponent, home: found.home,
+        goalsFor: found.goalsFor, goalsAgainst: found.goalsAgainst } : null;
+    });
+  }
+
+  /**
+   * La media che ordina, in cima al suggerimento di una striscia: la stessa cifra che la pastiglia
+   * stamperebbe (`text`, col segno per il delta), cosi' il numero dell'ordinamento e' uno solo.
+   */
+  protected stripMeanText(spec: ReadingSpec, ref: ReadingRef, readings: ManReadings): string {
+    return this.text({ ...spec, strip: undefined }, ref, readings);
+  }
+
+  protected readonly readingValue = readingValue;
+
+  /** Il suggerimento del trend si e' aperto: servono le partite da cui viene il risultato. */
+  protected loadMatches(): void {
+    void this.players.load();
+  }
+
   protected text(spec: ReadingSpec, ref: ReadingRef, readings: ManReadings): string {
     // LE PAROLE PER PRIME, e non passano da `DecimalPipe`: un formato numerico su una stringa stampa
     // `NaN`, che e' il modo in cui una pastiglia nuova finisce a schermo sbagliata invece che vuota.
@@ -936,7 +983,15 @@ export class Strategy {
     return this.cards.place((key) => {
       const id = playerOfCard(key);
       const man = id == null ? undefined : byId.get(id);
-      return man ? cardManOf(man, engine?.get(id as number) ?? null, rounds, platform, game) : undefined;
+      if (!man) return undefined;
+      // LA CARD DI UNA PORTA mostra i dati del portiere TITOLARE (operatore, 28/09/2026), e gli altri
+      // portieri del club come nota: la riga fusa non ha i numeri di un uomo, il titolare sì.
+      const starter = man.portaStarter;
+      if (!starter) return cardManOf(man, engine?.get(id as number) ?? null, rounds, platform, game);
+      return {
+        ...cardManOf(starter, engine?.get(starter.fcId) ?? null, rounds, platform, game),
+        porta: { club: man.club, others: (man.porta ?? []).filter((name) => name !== starter.name) },
+      };
     });
   });
 
@@ -1069,6 +1124,15 @@ export class Strategy {
    * ricalcolarlo - mentre le LISTE seguono la sua dichiarazione. Detto a schermo, perché «un numero deve
    * dire contro cosa è misurato»: il bottone «allinea al foglio» è lì per chi vuole che coincidano.
    */
+  /**
+   * L'AVVISO QUI SOTTO SI PUO' CHIUDERE (operatore, 27/09/2026), e la chiusura vale per QUELLA
+   * discrepanza: si ricorda il testo che l'avviso stava dicendo, quindi se le squadre o gli slot del
+   * foglio o della lega cambiano l'avviso ricompare - e' un fatto nuovo, e chiuderne uno non e' aver
+   * letto l'altro. Salvata, perche' un avviso letto che torna a ogni apertura della pagina si impara a
+   * non leggerlo piu'.
+   */
+  protected readonly mismatchDismissed = storedText('strategy.mismatchDismissed', '');
+
   protected readonly mismatch = computed<string | null>(() => {
     const sheet = this.sheet();
     if (!sheet) return null;
@@ -1146,7 +1210,7 @@ export class Strategy {
     // piu' qui, ed e' il piu' forte dei tre segnali - i fogli del motore quelle righe non le portano
     // piu' affatto, ma questa lista si costruisce dalle QUOTAZIONI, dove il ceduto ha ancora prezzo e
     // club. Un fatto per PIATTAFORMA: sette uomini sono ceduti in Serie A e comprabili su euro.
-    return listone.filter((player) => player.quoted && !player.sold).map((player) => {
+    const rows = listone.filter((player) => player.quoted && !player.sold).map((player) => {
       const one = engine.get(player.fcId);
       const steady = rated ? this.ratings.for(platform, player.fcId)?.steady : null;
       const played = this.store.playedOf(platform, player.fcId);
@@ -1248,6 +1312,8 @@ export class Strategy {
         // ...e la categoria, che il foglio porta gia' risolta: qui non c'e' nessuna dritta da
         // far vincere, perche' le dritte dichiarano la titolarita' e non il livello.
         categoria: one?.category ?? null,
+        // LE ULTIME CINQUE, gia' tagliate da chi legge il foglio: il trend le disegna e ne ordina la media.
+        recentVotes: one?.recentVotes ?? [],
         swing: swingOf({
           role: player.role,
           surplus: one?.surplus == null ? null : one.surplus * outlook.factor,
@@ -1276,7 +1342,108 @@ export class Strategy {
         }),
       };
     });
+    return this.settings().porte ? this.porteOf(rows, engine, matchdays, book, csBase, platform) : rows;
   });
+
+  /**
+   * LE PORTE AL POSTO DEI PORTIERI (operatore, 28/09/2026: la regola sta nelle opzioni di lega, e con lei
+   * «il resto dell'interfaccia si adegua»). I portieri di un club diventano UNA riga, nominata col club e
+   * valutata come il mix dei suoi portieri pesato sulle partite che giocheranno (`core/porte.ts`).
+   *
+   * Surplus e SWING si rifanno contro lo ZERO DELLE PORTE e non contro quello del foglio, che per i portieri
+   * è un terzo portiere. Le letture che sono fatti su UN uomo - minuti, stagioni, prezzo pagato, titolarità,
+   * categoria, ultime cinque - una porta non le ha, e restano vuote invece di prendere quelle del titolare:
+   * «vuoto = ignoto», e un minutaggio del titolare scritto sotto il nome di un club sarebbe una frase falsa.
+   */
+  private porteOf(
+    rows: StrategyBidder[],
+    engine: Map<number, EngineExpectation>,
+    matchdays: number | null,
+    book: CalendarBook | null,
+    csBase: Map<LeagueCalendar, number | null>,
+    platform: Platform,
+  ): StrategyBidder[] {
+    const { teams, game, slots } = this.settings();
+    const demand = teams * (game === 'mantra' ? slots.mantra.por : slots.classic.P);
+    const isKeeper = (row: StrategyBidder) => row.role === 'P';
+    const byClub = new Map<string, StrategyBidder[]>();
+    for (const row of rows) if (isKeeper(row)) byClub.set(row.club, [...(byClub.get(row.club) ?? []), row]);
+    const mixes = new Map(
+      [...byClub].map(([club, keepers]) => [
+        club,
+        mixPorta(
+          keepers.map((keeper) => ({
+            club,
+            fm: keeper.fm,
+            pv: keeper.pv,
+            confidence: engine.get(keeper.fcId)?.confidence ?? 1,
+            estimated: keeper.surplusIsEstimate,
+            steady: keeper.steady,
+          })),
+          matchdays,
+        ),
+      ]),
+    );
+    const zero = porteZero([...mixes.values()].map((mix) => mix.valuation.fm), demand);
+    return collapseKeepers(rows, isKeeper, (row) => row.club, (keepers) => {
+      const club = keepers[0].club;
+      const mix = mixes.get(club)!;
+      const valuation = mix.valuation;
+      if (valuation.fm == null || valuation.pv == null) return null;
+      const standIn = [...keepers].sort((a, b) => (b.pv ?? -1) - (a.pv ?? -1))[0];
+      const surplus = surplusOf(valuation, zero);
+      const estimated = valuation.basis !== 'measured';
+      const calendar = book?.forClub(club) ?? null;
+      const share = calendar ? cleanSheetOutlook(calendar, club) : null;
+      const mean = calendar
+        ? (csBase.get(calendar) ?? csBase.set(calendar, cleanSheetBaseline(calendar)).get(calendar)!)
+        : null;
+      const fvms = keepers.map((keeper) => keeper.fvm).filter((fvm): fvm is number => fvm != null);
+      return {
+        ...standIn,
+        name: club,
+        porta: keepers.map((keeper) => keeper.name),
+        portaStarter: standIn,
+        surplus,
+        surplusIsEstimate: estimated,
+        value: valueOf(valuation),
+        valueIsEstimate: estimated,
+        outlook: { ...standIn.outlook, base: valuation.pv, out: 0, window: null, insurance: 0,
+                   expected: valuation.pv, factor: 1 },
+        fm: valuation.fm,
+        mv: null,
+        pv: valuation.pv,
+        minutes: null,
+        steady: mix.steady,
+        steadyWeight: mix.steady == null ? 0 : 1,
+        steadyNote: `porta: ${keepers.map((keeper) => keeper.name).join(', ')}`,
+        seasons: new Map(),
+        // Il FVM della porta è quello del portiere più caro: cosa chiama chi compra per prezzo.
+        fvm: fvms.length ? Math.max(...fvms) : null,
+        paid: null,
+        paidSold: null,
+        paidSoldOf: null,
+        titolarita: null,
+        categoria: null,
+        recentVotes: [],
+        swing: swingOf({
+          role: 'P',
+          surplus,
+          pv: valuation.pv,
+          replacement: zero,
+          matchdays,
+          steady: mix.steady,
+          fm: valuation.fm,
+          confidence: valuation.confidence,
+          fmBlendsSeen: sheetBlendsSeen(platform),
+          rFactor: this.settings().rFactor,
+          cleanSheetBonus: this.settings().cleanSheet,
+          cleanSheetShare: share,
+          cleanSheetMean: mean,
+        }),
+      };
+    });
+  }
 
   /**
    * Le fasce del gain, tagliate UNA VOLTA sul listone intero e non sul blocco.

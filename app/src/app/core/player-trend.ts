@@ -13,7 +13,7 @@
  * and the operator panel draw one picture and not two that drift.
  */
 
-import { MatchSpell, spellFrom } from './match-bonuses';
+import { MatchSpell, roundVote, spellFrom } from './match-bonuses';
 
 /** What happened to a man in one match. `p` he played · `b` named on the bench and never used ·
  *  `i` injured · `s` suspended · `o` not in the squad · `n` no player-level data · `x` in the eleven of
@@ -181,6 +181,17 @@ export interface TrendCell {
   state: TrendState | null;
   /** Il fantavoto di quella partita. `null` dove non ce n'e' uno: una non giocata non vale ZERO. */
   points: number | null;
+  /**
+   * ...e il VOTO BASE, senza bonus: la meta' che le barrette del trend della Strategia disegnano
+   * (`ui/vote-trend`, operatore 26/09/2026). `null` alle stesse condizioni del fantavoto.
+   */
+  vote: number | null;
+  /**
+   * ...e CONTRO CHI e DOVE: la riga del suggerimento del trend scrive la partita (`Ata-Cag 3-0`), e
+   * sono i due campi che il record porta gia'. `null` sulla casella che non esiste.
+   */
+  opponent: string | null;
+  home: boolean | null;
   /** E' subentrato · e' stato sostituito, dalla definizione UNICA che disegna gli stessi triangolini
    *  nella card e nella tabella delle ultime partite. */
   spell: MatchSpell;
@@ -220,16 +231,108 @@ export function rowTrend(
       state: match.state,
       // Nessun ripiego: se `points` non c'e', quella partita un fantavoto non l'ha. Vale per chi non ha
       // giocato e per chi ha giocato una partita che il gioco non ha votato.
-      points: match.points,
+      ...onTheGrid(match),
+      opponent: match.opponent || null,
+      home: match.home,
       spell: spellFrom(match.started, match.minutes),
     }));
   while (cells.length < count) {
-    cells.push({ date: '', state: null, points: null, spell: EMPTY_SPELL });
+    cells.push({ date: '', state: null, points: null, vote: null, opponent: null, home: null,
+      spell: EMPTY_SPELL });
   }
   return cells;
 }
 
 const EMPTY_SPELL: MatchSpell = { minutes: null, on: false, off: false };
+
+/**
+ * IL VOTO SINTETICO SULLA GRIGLIA DEI MEZZI PUNTI, e il fantavoto con lui (regola dell'operatore del
+ * 05/09/2026: «mostra i voti sintetici arrotondati sempre a 0,5»).
+ *
+ * Il voto calibrato di una partita che il fantacalcio non ha votato esce dalla retta di `synth` con
+ * due decimali (5.97), e il foglio gli somma i bonus: un fantavoto che la fonte non scrive mai, e che
+ * letto nella striscia del delta cade a -0.03, cioe' AMBRA dove un 6 vero e' grigio (misurato sul
+ * foglio del 24/09/2026: 3 partite su 981, tutte di subentrati di pochi minuti fuori dalla Serie A).
+ * Si arrotonda il VOTO con `roundVote` - la stessa funzione della card - e il fantavoto segue di
+ * quanto il voto si e' mosso, cosi' i bonus restano quelli che erano. Un voto vero non si tocca.
+ */
+function onTheGrid(match: TrendMatch): { points: number | null; vote: number | null } {
+  if (match.voteSource !== 'synth' || match.vote == null) {
+    return { points: match.points, vote: match.vote };
+  }
+  const vote = roundVote(match.vote);
+  return { vote, points: match.points == null ? null : match.points - match.vote + vote };
+}
+
+/**
+ * QUANTE PARTITE PORTA IL TREND DELLA STRATEGIA: cinque (operatore, 26/09/2026: «5 barrette verticali
+ * che rappresentano l'andamento delle ultime 5 partite»). Un numero suo e non una soglia misurata,
+ * come le quattro della plancia accanto: le due strisce rispondono a due domande su due righe di
+ * larghezza diversa, e il taglio resta UNO (`rowTrend`) con due conti.
+ */
+export const VOTE_TREND_MATCHES = 5;
+
+/**
+ * IL VOTO CHE UNA PARTITA SENZA VOTO VALE NELLA MEDIA DEL TREND: 5 (operatore, 26/09/2026: «i valori
+ * nulli di quando il calciatore non ha giocato o sv saranno sostituiti da 5»).
+ *
+ * E' una DICHIARAZIONE sua e non una misura, e la ragione per cui non e' uno zero e' la stessa di
+ * sempre: una partita non giocata non e' una partita da zero, e' una partita che costa - e il 5 e' il
+ * prezzo che lui le da'. Vale solo per questa media, che ordina una lista e non entra in nessuna
+ * valutazione.
+ */
+export const TREND_MISSING_VOTE = 5;
+
+/**
+ * LA MEDIA VOTO DELLE ULTIME PARTITE, col 5 al posto di ogni voto che non c'e'.
+ *
+ * Il denominatore sono le partite che il club ha GIOCATO, non le caselle: una casella senza `state` e'
+ * una partita che non esiste - la finestra di quel club e' piu' corta - e contarla come un 5 direbbe
+ * che un uomo appena arrivato ha saltato partite che nessuno ha giocato. Nessuna partita, nessuna
+ * media: `null`, che non e' 5.
+ */
+export function trendVoteMean(cells: readonly TrendCell[]): number | null {
+  return meanOver(cells, (cell) => cell.vote ?? TREND_MISSING_VOTE);
+}
+
+/** La sufficienza da cui si conta il delta del fantavoto (`ui-delta-trend`): il 6 del fantacalcio. */
+export const TREND_DELTA_BASE = 6;
+
+/**
+ * QUANTO PESA OGNI PARTITA SENZA FANTAVOTO nella media del delta: la prima -0,5, la seconda -1, la terza
+ * -1,5, e cosi' via di mezzo punto (operatore, 27/09/2026).
+ *
+ * Una penale che CRESCE, e non un numero fisso: un'assenza su cinque e' un incidente, quattro su cinque
+ * sono un uomo che non gioca, e la media deve separare le due cose piu' di quanto farebbe un -1 uguale
+ * per tutte. In quale ordine si contino non importa - la somma delle penali e' la stessa - quindi la
+ * media non dipende da QUALI partite ha saltato, solo da QUANTE.
+ */
+export const TREND_MISSING_STEP = 0.5;
+
+/**
+ * LA MEDIA DEL FANTAVOTO MENO 6 delle ultime partite (operatore, 26/09/2026), coi vuoti che pesano via
+ * via di piu' (`TREND_MISSING_STEP`, 27/09/2026). Una casella che non e' una partita non conta, come
+ * nella media voto; la penale e' invece solo di questa media - quella del voto tiene il suo 5.
+ */
+export function trendDeltaMean(cells: readonly TrendCell[]): number | null {
+  let missing = 0;
+  return meanOver(cells, (cell) => {
+    if (cell.points != null) return cell.points - TREND_DELTA_BASE;
+    missing += 1;
+    return -TREND_MISSING_STEP * missing;
+  });
+}
+
+function meanOver(cells: readonly TrendCell[], value: (cell: TrendCell) => number): number | null {
+  let sum = 0;
+  let count = 0;
+  for (const cell of cells) {
+    if (cell.state == null) continue;
+    sum += value(cell);
+    count += 1;
+  }
+  return count ? sum / count : null;
+}
 
 /**
  * LA FINESTRA DEL SUO CAMPIONATO, dove il record ne mescola due.
