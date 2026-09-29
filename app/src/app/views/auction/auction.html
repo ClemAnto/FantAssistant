@@ -345,10 +345,18 @@
              CSS: le righe restano nel DOM in un ordine FISSO (per squadra) e ognuna si mette al suo posto di
              chiamata con un `translateY`, quindi quando il posto cambia e' il browser a far scorrere la riga.
              Riordinare il DOM spegnerebbe la transizione: un nodo reinserito non ha uno stile «di prima». -->
-        <ol data-order class="relative shrink-0 overflow-hidden">
+        <!-- Niente ritaglio: la freccetta sul 12° posto sta SOTTO l'ultima riga, e un bordo la taglierebbe. -->
+        <ol data-order class="relative mb-2 shrink-0">
           <div class="seat-track" [style.height]="'calc(' + seats().length + ' * var(--seat-step))'"></div>
           @for (line of roundLines(); track line.round) {
             <div data-round-line class="round-line" [style.--seat-at]="line.at"><span>turno {{ line.round }}</span></div>
+          }
+          @if (landing(); as land) {
+            <!-- LA FRECCETTA (sua richiesta, 29/09/2026): dove finisce la squadra di turno se prende il calciatore
+                 sotto il mouse. -->
+            <div data-landing class="landing" [style.--seat-at]="land.at" [style.--landing]="land.colour">
+              <span>◀ {{ land.label }} {{ land.place }}°</span>
+            </div>
           }
           @for (seat of seatsStable(); track seat.team.id) {
             <li
@@ -410,24 +418,75 @@
           }
         </ol>
 
+        <!-- GLI SCENARI (sua richiesta, 29/09/2026, `core/draft-scenarios`): cosa manca sul modulo che schiera
+             insieme i nostri migliori, e tre catene «A, poi dopo N scelte A2». Un click ne sceglie una: il campetto la
+             disegna e la lista segna chi si perde nel frattempo. Il doppio click su un calciatore della lista
+             (sul tavolo vero) costruisce la catena da lui, con il verdetto. -->
+        @if (advice.priorityOn() && advice.scenarios().diagnosis; as diagnosis) {
+          <div data-scenarios class="flex shrink-0 flex-col gap-1 rounded-md bg-page p-1.5 text-[11px]">
+            <div class="text-muted">
+              Modulo <b class="text-fg">{{ diagnosis.module }}</b>
+              @if (diagnosis.needs.length) {
+                · da sistemare:
+                @for (need of diagnosis.needs.slice(0, 4); track $index; let last = $last) {
+                  <span [class.text-danger]="need.kind === 'vuoto'" [class.text-warning]="need.kind === 'debole'"
+                    >{{ need.place.slot }} {{ need.kind }}</span
+                  >{{ last ? '' : ',' }}
+                }
+              } @else {
+                · tutto coperto
+              }
+            </div>
+            @if (chosen(); as mine) {
+              @if (mine.verdict) {
+                <div
+                  data-verdict
+                  class="rounded px-1"
+                  [class]="mine.verdict === 'coerente' ? 'bg-success/15 text-success' : 'bg-danger/15 text-danger'"
+                >
+                  {{ mine.verdict === 'coerente' ? 'Scelta coerente' : 'Scelta inopportuna' }}: {{ mine.why }}
+                </div>
+              }
+            }
+            @for (chain of scenarioChains(); track chain.key) {
+              <button
+                type="button"
+                data-scenario
+                class="flex flex-col rounded border px-1 py-0.5 text-left"
+                [class]="chosen()?.key === chain.key ? 'border-primary bg-primary/10' : 'border-transparent hover:bg-fg/5'"
+                (click)="choose(chain.key, chain.scenario)"
+              >
+                <span class="flex min-w-0 items-center gap-1">
+                  <ui-roles class="shrink-0" [roles]="chain.scenario.first.player.roles" size="xs" />
+                  <span class="min-w-0 truncate font-semibold">{{ stepText(chain.scenario.first) }}</span>
+                </span>
+                <span class="flex min-w-0 items-center gap-1 text-muted">
+                  <span class="shrink-0">↳ tra {{ chain.scenario.wait }} scelte ({{ chain.scenario.nextAt }}°)</span>
+                  @if (chain.scenario.second; as second) {
+                    <ui-roles class="shrink-0" [roles]="second.player.roles" size="xs" />
+                    <span class="min-w-0 truncate">{{ stepText(second) }}</span>
+                  } @else {
+                    <span>nessuno</span>
+                  }
+                </span>
+              </button>
+            }
+          </div>
+        }
+
         <!-- GLI ULTIMI DIECI PRESI (sua richiesta, 29/09/2026), il piu' recente in cima: numero di chiamata,
-             colore della squadra, ruoli, nome (apre la card) e FVM. -->
+             colore e nome della squadra, ruoli, nome del calciatore (apre la card) e FVM. -->
         <div class="flex min-h-0 flex-1 flex-col gap-1">
           <div class="px-1 text-[10px] uppercase text-muted">Ultime scelte</div>
           <ul data-last-picks class="min-h-0 flex-1 overflow-y-auto">
             @for (pick of lastPicks(); track pick.index) {
               <li
                 [attr.data-last-pick]="pick.id"
-                class="grid grid-cols-[1.75rem_0.6rem_3.25rem_minmax(0,1fr)_2.25rem] items-center gap-x-1 rounded px-1
-                       text-[11px] leading-5 hover:bg-fg/5"
+                class="grid grid-cols-[1.75rem_0.6rem_3.25rem_minmax(0,1fr)_minmax(0,0.75fr)_2.25rem] items-center
+                       gap-x-1 rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
               >
                 <span class="tabular-nums text-muted">{{ pick.index + 1 }}</span>
-                <span
-                  class="h-2.5 w-2.5 rounded-sm"
-                  [style.background]="pick.colour"
-                  nz-tooltip
-                  [nzTooltipTitle]="pick.team"
-                ></span>
+                <span class="h-2.5 w-2.5 rounded-sm" [style.background]="pick.colour"></span>
                 <ui-roles class="min-w-0 overflow-hidden" [roles]="pick.roles" size="xs" />
                 <span
                   data-card-name
@@ -435,6 +494,8 @@
                   (click)="openCard(pick.id, $event)"
                   >{{ pick.name }}</span
                 >
+                <!-- LA SQUADRA CHE L'HA PRESO, per nome (sua richiesta, 29/09/2026): il colore da solo non basta. -->
+                <span data-last-team class="min-w-0 truncate text-[10px] text-muted">{{ pick.team }}</span>
                 <span class="text-right tabular-nums">{{ pick.cost }}</span>
               </li>
             } @empty {
@@ -504,7 +565,7 @@
             data-rung-filter
             class="ml-2 w-36"
             nzSize="small"
-            nzPlaceHolder="Gradino"
+            [nzPlaceHolder]="'Gradino (' + rungSource() + ')'"
             [ngModel]="minRung()"
             (ngModelChange)="minRung.set($event)"
           >
@@ -668,6 +729,8 @@
               [attr.data-locked]="row.locked ? '' : null"
               [attr.data-fvm]="row.fvm"
               [attr.data-taken-by]="row.takenBy?.id ?? null"
+              (mouseenter)="hovered.set(row.id)"
+              (mouseleave)="hovered.set(null)"
               [class.taken]="!!row.takenBy"
               [style.--taken]="row.takenBy?.colour ?? null"
               nz-tooltip
@@ -720,7 +783,15 @@
                     <span class="text-[10px] text-muted">—</span>
                   }
                 </span>
-                <ui-trend-votes [cells]="row.trend" />
+                <!-- IL TREND A BARRETTE, lo stesso della Strategia (sua richiesta, 29/09/2026): il fantavoto meno 6,
+                     cioe' quello che la rosa incassa; i fantavoti scritti stanno nel suggerimento. -->
+                <ui-delta-trend
+                  [cells]="row.trend"
+                  [height]="10"
+                  nz-tooltip
+                  [nzTooltipTitle]="trendText(row.trend)"
+                  [nzTooltipMouseEnterDelay]="0.6"
+                />
               } @else if (mode() === 'medie') {
                 @for (which of ['now', 'last']; track which; let second = $last) {
                   @if (lineOf(row.id, $any(which)); as line) {

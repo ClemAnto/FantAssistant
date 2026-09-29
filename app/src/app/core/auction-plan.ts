@@ -684,13 +684,6 @@ export function pickForUs(
  */
 export const SURVIVOR_DISCOUNT = 0.7;
 
-/**
- * Who will be taken between now and our next turn, simulated with the platform's own order rule.
- *
- * It is the same walk `plan()` does, minus ourselves: the rest of this round, then the next round up to our
- * slot. Ours is left out on purpose - the set has to be knowable BEFORE we choose, or the pick would depend on
- * itself.
- */
 export interface RivalWalkInput {
   teams: PlanTeam[];
   order: number[];
@@ -701,33 +694,76 @@ export interface RivalWalkInput {
   maxAheadPicks: number;
   heads?: Map<number, RivalHead>;
   cap?: PickCap | null;
+  /** Picks a squad makes in the whole draft: a full roster calls no more. Absent = no limit. */
+  rounds?: number;
 }
 
+/**
+ * Who will be taken between now and our next turn, simulated with the platform's own order rule.
+ *
+ * Ours is left out on purpose - the set has to be knowable BEFORE we choose, or the pick would depend on
+ * itself: our pick is counted and priced at zero, so the order after it is the one our squad's FVM gives now.
+ */
 export function goneBeforeOurNextTurn(input: RivalWalkInput): Set<number> {
   return new Set(rivalPicksAfterOurs(input).keys());
 }
 
-/** The rivals' predicted picks from the seat after ours to our next seat, by player id -> team id. */
+/**
+ * WHO CALLS NEXT, by the platform's rule, recomputed after EVERY pick (the code review of FA-jo5-zai, 29/09/2026).
+ * The host's `pickOrder` lists all the squads, the ones of the next round included, so walking it as it stands
+ * made the squads after us call in a stale order and every wait read «eleven picks». Null when every roster
+ * is full.
+ */
+export function nextCaller(teams: Map<number, PlanTeam>, maxAheadPicks: number, rounds = Infinity): PlanTeam | null {
+  let best: PlanTeam | null = null;
+  for (const team of teams.values()) {
+    if (team.picksCount >= rounds) continue;
+    if (!best || ahead(team, best, maxAheadPicks) < 0) best = team;
+  }
+  return best;
+}
+
+export interface WalkStep {
+  teamId: number;
+  /** The squad's picks BEFORE this call: which of its turns it is. */
+  picksBefore: number;
+  /** Who it is predicted to take; null when nobody it can call is left. */
+  playerId: number | null;
+}
+
+/**
+ * The rivals call, one at a time by `nextCaller`, until it is our turn again. A rival with nobody to call still
+ * spends his turn, or the walk would wait on him for ever.
+ */
+export function walkToOurTurn(input: RivalWalkInput, teams: Map<number, PlanTeam>,
+  walk: ReturnType<typeof rivalWalker>): WalkStep[] {
+  const steps: WalkStep[] = [];
+  for (let guard = 0; guard < teams.size * 3; guard += 1) {
+    const caller = nextCaller(teams, input.maxAheadPicks, input.rounds);
+    if (!caller || caller.id === input.mineId) break;
+    const inRound = [...teams.values()].filter((team) => team.picksCount === caller.picksCount).length;
+    const before = walk.gone.size;
+    walk.step(caller.id, inRound);
+    const chosen = walk.gone.size > before ? [...walk.gone.keys()][walk.gone.size - 1] : null;
+    if (chosen === null) teams.set(caller.id, { ...caller, picksCount: caller.picksCount + 1 });
+    steps.push({ teamId: caller.id, picksBefore: caller.picksCount, playerId: chosen });
+  }
+  return steps;
+}
+
+/** The rivals' predicted picks from our pick to our next one, by player id -> team id, in call order. */
 function rivalPicksAfterOurs(input: RivalWalkInput): Map<number, number> {
   const teams = new Map(input.teams.map((team) => [team.id, team]));
-  const order = input.order.filter((id) => teams.has(id));
-  const myPlace = order.indexOf(input.mineId);
-  if (myPlace < 0) return new Map();
+  const me = teams.get(input.mineId);
+  if (!me) return new Map();
+  teams.set(me.id, { ...me, picksCount: me.picksCount + 1, pickValues: [...me.pickValues, 0] });
   const walk = rivalWalker(input, teams);
-  const after = order.slice(myPlace + 1);
-  for (const [index, id] of after.entries()) walk.step(id, after.length - index);
-  const next = [...teams.values()]
-    .sort((a, b) => ahead(a, b, input.maxAheadPicks))
-    .map((team) => team.id);
-  for (const [index, id] of next.entries()) {
-    if (id === input.mineId) break;
-    walk.step(id, next.length - index);
-  }
+  walkToOurTurn(input, teams, walk);
   return walk.gone;
 }
 
 /** One rival call after another on a shrinking pool: each predicted with his own head, as the round shows him. */
-function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>) {
+export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>) {
   let pool = [...input.pool];
   const gone = new Map<number, number>();
   const step = (id: number, placesFromEnd: number) => {
@@ -746,18 +782,16 @@ function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>) {
 /**
  * WHO IS EXPECTED TO BE GONE BEFORE OUR NEXT PICK, and to whom (operator, 29/09/2026: «evidenziare i calciatori
  * che probabilmente sceglieranno gli altri prima del nostro prossimo turno»): player id -> the team predicted to
- * take him. While another squad is on the clock, it is the squads calling before us in this round; when we are,
- * it is the squads between this pick and our next one (`goneBeforeOurNextTurn`, the set the advice discounts).
- * Our own pick is never in it: the list has to be readable before we choose.
+ * take him. While another squad is on the clock, it is the squads calling before us; when we are, it is the
+ * squads between this pick and our next one (`goneBeforeOurNextTurn`, the set the advice discounts). Our own pick
+ * is never in it: the list has to be readable before we choose.
  */
 export function takenBeforeOurTurn(input: RivalWalkInput): Map<number, number> {
   const teams = new Map(input.teams.map((team) => [team.id, team]));
-  const order = input.order.filter((id) => teams.has(id));
-  const myPlace = order.indexOf(input.mineId);
-  if (myPlace < 0) return new Map();
-  if (myPlace === 0) return rivalPicksAfterOurs(input);
+  if (!teams.has(input.mineId)) return new Map();
+  if (nextCaller(teams, input.maxAheadPicks, input.rounds)?.id === input.mineId) return rivalPicksAfterOurs(input);
   const walk = rivalWalker(input, teams);
-  for (const [index, id] of order.slice(0, myPlace).entries()) walk.step(id, order.length - index);
+  walkToOurTurn(input, teams, walk);
   return walk.gone;
 }
 

@@ -43,6 +43,7 @@ import {
   startingPlaces,
   take,
   takenBeforeOurTurn,
+  nextCaller,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { porteZero } from './porte';
@@ -57,6 +58,7 @@ import {
   roleStats,
 } from './draft-priority';
 import { RECOMMENDED_MANTRA } from './draft-pitch';
+import { ScenarioInput, judge, scenarios as draftScenarios } from './draft-scenarios';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { engineNumbersFrom } from './engine-sheet';
 import { seasonRoundsOf } from './season-scale';
@@ -1150,6 +1152,58 @@ export class AuctionAdvice {
       heads: input.heads, cap: input.cap,
     });
   });
+
+  /**
+   * GLI SCENARI (sua richiesta, 29/09/2026, `core/draft-scenarios.ts`): quello che manca alla rosa sul modulo che
+   * schiera insieme i nostri migliori, e tre catene «A --scelte--> A2». Solo nel draft mantra, dove la Draft
+   * Priority c'e'.
+   */
+  private readonly scenarioInput = computed<ScenarioInput | null>(() => {
+    if (!this.priorityOn()) return null;
+    const input = this.planInput();
+    const worth = this.priorityWorth();
+    const matchdays = this.matchdaysTarget();
+    if (!input || !worth || !matchdays) return null;
+    const men = this.priorityMen();
+    return {
+      teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
+      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
+      heads: input.heads, cap: input.cap,
+      rules: worth.rules, worth, matchdays,
+      calls: { cap: input.cap ?? null, keeperCap: input.keeperCap, rounds: this.priorityRounds() },
+      manOf: (id) => men.get(id) ?? null,
+    };
+  });
+
+  readonly scenarios = computed(() => {
+    const input = this.scenarioInput();
+    return input ? draftScenarios(input) : { diagnosis: null, list: [] };
+  });
+
+  /**
+   * WHERE THE SQUAD ON THE CLOCK LANDS IF IT TAKES THIS MAN (operator, 29/09/2026: «quando passo il mouse su un
+   * calciatore ... mostra con una freccetta nella lista dell'ordine dove andrà a finire la squadra»): the order
+   * recomputed right after that pick, by the platform's rule - which is what the host does after every pick.
+   * `at` is its 0-based place in that order.
+   */
+  landingOf(playerId: number): { teamId: number; at: number } | null {
+    const input = this.planInput();
+    if (!input) return null;
+    const teams = new Map(input.teams.map((team) => [team.id, team]));
+    const clock = nextCaller(teams, input.maxAheadPicks);
+    const player = input.pool.find((one) => one.id === playerId);
+    if (!clock || !player) return null;
+    teams.set(clock.id, take(clock, player));
+    const order = [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks)).map((team) => team.id);
+    return { teamId: clock.id, at: order.indexOf(clock.id) };
+  }
+
+  /** The chain from a man the operator names (his double click), judged against what the squad needs. */
+  judgeScenario(playerId: number): ReturnType<typeof judge> | null {
+    const input = this.scenarioInput();
+    const player = input?.pool.find((one) => one.id === playerId);
+    return input && player ? judge(input, player) : null;
+  }
 
   /** Il giro che si sta giocando, seat per seat, e l'ordine che ne esce (`simulateRound`). */
   readonly round = computed<{ picks: RoundPick[]; nextOrder: number[] } | null>(() => {

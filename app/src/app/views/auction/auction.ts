@@ -41,7 +41,8 @@ import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
-import { TrendVotes } from '../../ui/trend-votes/trend-votes';
+import { DeltaTrend } from '../../ui/delta-trend/delta-trend';
+import type { Scenario, ScenarioStep, Verdict } from '../../core/draft-scenarios';
 
 /**
  * The classic macro-role of a man, from the zone the feed files him under: on classic the rulebook rations
@@ -234,16 +235,18 @@ const CARD_DELAY_MS = 260;
     PlayerFlags,
     RoleBadge,
     RoleSet,
-    TrendVotes,
+    DeltaTrend,
   ],
   templateUrl: './auction.html',
   // The free list's two column sets. Declared once here and not as utilities on every row: the header and
   // the rows must share ONE track list, or the columns of the header drift from the numbers under them.
   styles: `
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
-    /* Role, name, FVM, priority first in all three views; then the view's own columns. */
-    .free-default { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 75px; }
-    .free-previste { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem; }
+    /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
+       THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
+       empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
+    .free-default { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -264,6 +267,17 @@ const CARD_DELAY_MS = 260;
       transform: translateY(calc(var(--seat-at) * var(--seat-step) - (var(--seat-step) - var(--seat-h)) / 2));
       transition: transform 450ms cubic-bezier(0.2, 0.8, 0.2, 1);
     }
+    /* The landing arrow of the hovered man: a line on the gap the squad on the clock would slide into. */
+    .landing {
+      position: absolute; left: 0; right: 0; top: 0; height: 0; z-index: 2; pointer-events: none;
+      border-top: 2px solid var(--landing);
+      transform: translateY(calc(var(--seat-at) * var(--seat-step) - (var(--seat-step) - var(--seat-h)) / 2));
+    }
+    .landing > span {
+      position: absolute; left: 0.1rem; top: -0.5rem; padding: 0 0.25rem; font-size: 10px; line-height: 0.95rem;
+      font-weight: 600; border-radius: 0.2rem; background: var(--color-surface); color: var(--color-fg);
+      border: 1px solid var(--landing);
+    }
     .round-line > span {
       position: absolute; right: 0.25rem; top: -0.45rem; padding: 0 0.25rem; font-size: 9px; line-height: 0.9rem;
       background: var(--color-surface); color: color-mix(in oklab, var(--color-primary) 85%, var(--color-fg));
@@ -274,7 +288,7 @@ const CARD_DELAY_MS = 260;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
-    .free-medie { grid-template-columns: 5.25rem minmax(0, 1fr) 2.25rem 2rem repeat(8, 2.3rem); }
+    .free-medie { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -359,6 +373,11 @@ export class Auction {
 
     // The two readings of the free list that do not come with the advice: the trend strips (from the sheet
     // itself) and the season lines (from `season_stats`, on the sheet's own platform).
+    // A scenario describes one table state: the next pick makes it stale.
+    effect(() => {
+      this.feed.picks().length;
+      untracked(() => this.chosen.set(null));
+    });
     effect(() => {
       const entry = this.advice.entry();
       if (!entry) return;
@@ -430,9 +449,56 @@ export class Auction {
     return out;
   });
 
-  /** The squad predicted to take a man before our next pick, for his row. */
+  /** The fantavoti of the strip in words, in the strip's own order, for its tooltip: the bars print no number. */
+  protected trendText(cells: readonly TrendCell[]): string {
+    if (!cells.length) return 'Nessuna partita';
+    return 'Fantavoti: ' + cells.map((cell) => (cell.points == null ? '—' : cell.points.toFixed(1))).join(' · ');
+  }
+
+  /**
+   * THE SCENARIO ON SCREEN (operator, 29/09/2026: «cliccando su una soluzione dovrebbe aggiornare il campetto ...
+   * e nella tabella evidenziare i calciatori che potrebbero essere persi»): one of the three, or the one built
+   * from a man he double-clicked, with its verdict. A new pick on the table clears it: it described a state
+   * that is gone.
+   */
+  protected readonly chosen = signal<{ key: string; scenario: Scenario; verdict?: Verdict; why?: string } | null>(null);
+
+  /** The three chains of the table state, and first the one the operator built from a man, when there is one. */
+  protected readonly scenarioChains = computed(() => {
+    const list = this.advice.scenarios().list
+      .map((scenario, at) => ({ key: `auto:${at}:${scenario.first.player.id}`, scenario }));
+    const mine = this.chosen();
+    return mine?.verdict ? [{ key: mine.key, scenario: mine.scenario }, ...list] : list;
+  });
+
+  protected choose(key: string, scenario: Scenario): void {
+    this.chosen.set(this.chosen()?.key === key ? null : { key, scenario });
+  }
+
+  /** A step of a chain in one line: name, roles, FVM and Draft Priority. */
+  protected stepText(step: ScenarioStep): string {
+    return `${this.shown(step.player.id, step.player.name)} · FVM ${step.player.price} · DP ${hundredths(step.priority)}`;
+  }
+
+  /** The free man under the pointer, for the landing arrow in the call order. */
+  protected readonly hovered = signal<number | null>(null);
+
+  /**
+   * THE LANDING ARROW: where the squad on the clock ends up in the call order if it takes the man under the
+   * pointer (`AuctionAdvice.landingOf`). Drawn on the gap it would slide into: the squads that stay keep their
+   * order, so in the list as it is now that gap is below the `at`-th of them.
+   */
+  protected readonly landing = computed(() => {
+    const id = this.hovered();
+    const land = id === null ? null : this.advice.landingOf(id);
+    if (!land) return null;
+    const team = this.feed.teams().find((one) => one.id === land.teamId);
+    return team ? { at: land.at + 1, place: land.at + 1, label: team.label, colour: team.colour } : null;
+  });
+
+  /** The squad predicted to take a man before our next pick, for his row: the chosen scenario's, else the table's. */
   private takenBy(id: number): FreeRow['takenBy'] {
-    const teamId = this.advice.takenBeforeUs().get(id);
+    const teamId = (this.chosen()?.scenario.gone ?? this.advice.takenBeforeUs()).get(id);
     const team = teamId === undefined ? null : this.feed.teams().find((one) => one.id === teamId);
     return team ? { id: team.id, label: team.label, colour: team.colour } : null;
   }
@@ -671,7 +737,9 @@ export class Auction {
     const team = this.pitchTeam();
     if (!team || team.id !== this.feed.followedTeamId()) return [];
     const everyone = this.everyone();
-    return this.advice.projection()
+    const chain = this.chosen()?.scenario;
+    const picks = chain ? [chain.first.player, ...(chain.second ? [chain.second.player] : [])] : this.advice.projection();
+    return picks
       .map((pick) => everyone.get(pick.id))
       .filter((player): player is AuctionPlayer => !!player)
       .map((player) => this.manOf(player, player.fvm));
@@ -843,10 +911,11 @@ export class Auction {
 
   /**
    * THE RUNG FILTER (operator, 29/09/2026: «nascondi tutti quelli che non sono ALMENO quel gradino»), read on
-   * the PRESS's word only (his correction of the same day: «il filtro sul gradino deve essere applicato sul
-   * gradino della stampa») - never the engine's rung, which is what the «Previste» column shows and what the
-   * «Default» column falls back to. A man the press has no word for is hidden while the filter is on: nothing
-   * the press said makes him at least that.
+   * the rung the view SHOWS. In «Default» and «Medie» that is the PRESS's word only (his correction of the same
+   * day: «il filtro sul gradino deve essere applicato sul gradino della stampa») - never the engine's rung the
+   * «Default» column falls back to - and a man the press has no word for is hidden while the filter is on. In
+   * «Previste» the column is the ENGINE's rung, and a filter on another word than the one printed beside it
+   * read as a broken filter (his report of the same evening: Kane «titolare» under «almeno titolarissimo»).
    */
   protected readonly minRung = signal<number | null>(null);
   protected readonly rungOptions = [
@@ -856,6 +925,9 @@ export class Auction {
     { rank: 3, label: 'almeno comprimario' },
     { rank: 2, label: 'almeno riserva' },
   ] as const;
+
+  /** Whose rung the filter reads now, for its placeholder. */
+  protected readonly rungSource = computed(() => (this.mode() === 'previste' ? 'motore' : 'stampa'));
 
   /** The furthest place in the next turn he accepts; null = every man. */
   protected readonly maxPosition = signal<number | null>(null);
@@ -880,6 +952,7 @@ export class Auction {
     const low = this.fvmMin();
     const high = this.fvmMax();
     const rung = this.minRung();
+    const rungFromEngine = this.mode() === 'previste';
     const onlyTaken = this.onlyTaken();
     return this.freeAll().filter(
       (row) =>
@@ -890,7 +963,9 @@ export class Auction {
         && (low === null || row.fvm >= low)
         && (high === null || row.fvm <= high)
         && (rung === null
-          || (row.pressSource === 'stampa' && row.press != null && (PRESS_RANK[row.press] ?? 0) >= rung)),
+          || (rungFromEngine
+            ? row.expected.rung != null && (PRESS_RANK[row.expected.rung] ?? 0) >= rung
+            : row.pressSource === 'stampa' && row.press != null && (PRESS_RANK[row.press] ?? 0) >= rung)),
     );
   });
 
@@ -1087,6 +1162,16 @@ export class Auction {
   /** Double click: the squad on the clock takes him. Only the invented table can be written by hand. */
   protected take(row: FreeRow): void {
     this.cancelCard();
+    if (!this.feed.demo()) {
+      // A real table is read-only here: the double click builds the chain from him, with its verdict.
+      const judged = this.advice.judgeScenario(row.id);
+      if (!judged?.scenario) {
+        this.message.info(judged ? judged.why : 'Nessuno scenario: la Draft Priority vale solo nel draft mantra.');
+        return;
+      }
+      this.chosen.set({ key: `judge:${row.id}`, scenario: judged.scenario, verdict: judged.verdict, why: judged.why });
+      return;
+    }
     const refused = this.demo.pick(row.id);
     if (refused) this.message.warning(refused);
   }

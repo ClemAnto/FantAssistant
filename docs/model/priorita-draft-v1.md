@@ -410,3 +410,31 @@ una barra e una tinta del colore della squadra prevista, e il tooltip la nomina.
 prezzo, ordinati per DP quegli uomini stanno in basso: un interruttore «N prima di te» accanto al conteggio
 mostra solo loro. Sul draft rigiocato, alla n. 100 ne segnava 4 (Doué, Doku, Foden, Cunha; di questi il vero
 ha preso Foden), alla n. 84 undici.
+
+## 17. Gli scenari, la freccetta, e il simulatore dei rivali corretto (29/09/2026, notte)
+
+**Gli scenari** (`core/draft-scenarios.ts`, sua richiesta dopo FA-jo5-zai). La DIAGNOSI prende il miglior undici
+legale della rosa (il modulo che schiera insieme i nostri migliori) e ne elenca i posti da sistemare: **vuoto**
+(nessuno), **debole** (il titolare ha Draft Priority negativa, rende meno di un titolare medio del suo ruolo),
+**senza riserva** (nessuno in panchina può prenderlo) - una PRIMA lettura dichiarata di «coperto male», da
+tarare con lui sui casi veri. Per i tre posti più urgenti, uno SCENARIO è la catena A → dopo N scelte → A2: A è il
+migliore per DP che può stare su quel posto; poi i rivali chiamano fino alla nostra scelta successiva, e quante
+scelte siano dipende dall'FVM di A con la regola vera dell'ordine; A2 è il migliore rimasto per il posto più
+urgente DOPO A. Un click su uno scenario lo disegna sul campetto (A e A2 al posto dei suggerimenti) e fa segnare
+alla lista chi si perde nel frattempo; sul tavolo vero il doppio click su un calciatore costruisce la catena da
+lui con un verdetto - **coerente** se entra nel miglior undici su un posto da sistemare, **inopportuna**
+altrimenti (sul tavolo inventato il doppio click resta «sceglie la squadra di turno»). Sul draft rigiocato, alla
+84ª scelta: porta del Barcellona (65) → 7 scelte, 8° → João Neves; João Neves (96) → 9 scelte, 10° → Barcellona.
+
+**La freccetta**: passando il mouse su un calciatore, nella lista dell'ordine compare dove finirebbe la squadra di
+turno se lo prendesse (l'ordine rifatto subito dopo quella scelta, come fa l'host).
+
+**Il simulatore dei rivali aveva un difetto vecchio** (`auction-plan.goneBeforeOurNextTurn` e quindi lo sconto del
+«prendi chi sparirà»): l'host pubblica `pickOrder` su TUTTE le squadre, quelle del giro dopo comprese, e il
+cammino faceva chiamare tutte quelle dopo di noi nell'ordine vecchio prima di riordinare - l'attesa leggeva
+sempre «undici scelte». Ora si cammina scelta per scelta (`nextCaller`, `walkToOurTurn`): a ogni passo chiama chi la
+regola mette primo. `simulateRound` e `plan` (il giro mostrato e la proiezione dei suggerimenti) camminano ancora
+l'ordine pubblicato e vanno rivisti con la stessa forma: aperto.
+
+**Il filtro sul gradino** legge il gradino della colonna che si ha davanti: la stampa in «Default» e «Medie» (sua
+regola del mattino), il motore in «Previste», dove prima filtrava su una parola diversa da quella stampata.
