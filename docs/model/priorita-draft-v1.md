@@ -837,3 +837,26 @@ Tre cose, in ordine di peso.
 
 Il pool di FA-jo5-zai è ristretto ai club da cui è stato scelto almeno un uomo: la sessione conclusa non pubblica più
 `inactiveTeams`, e senza quel filtro il «più caro» era un uomo di un campionato escluso (rango mediano 123).
+
+## 28. La regola di coda dei rivali: tolta (30/09/2026, notte)
+
+Item 1.4. Criterio scritto prima della corsa: il candidato («previsione dei rivali senza coda») si adotta se sul banco
+non peggiora lo sconto «prendi chi sparirà» spedito - punti a giornata appaiati, nessuna finestra sotto −2% - perché sui
+rivali veri era già meglio (§27: 55 scelte vere su 834 contro 39). Set `tail` / `tail-classic` di `multi.mjs`, 8 semi,
+tutte le sedie:
+
+| Banco | Senza coda contro la spedita | Finestre | Peggiore |
+|---|---|---|---|
+| EuroLeghe mantra | **+2,56%** | 5/5, strict | +0,87% |
+| Serie A classic, quote, `default` | +0,07% | 5/10 | −1,20% |
+| Serie A classic, quote, serpentone | **+1,08%** | 9/10, robust | −0,37% |
+
+Adottata: `RivalWalkInput.tail` è spenta salvo `true` (che resta per il banco). Sulla pagina le previsioni «prima di
+te» salgono a 29,8% (FA-yei-458) e 16,7% (FA-l1n-0pn) di uscite vere, alla pari col null «i più cari».
+
+**Il guasto dello strumento, trovato perché due righe erano identiche.** La prima corsa leggeva «con coda» e «senza
+coda» uguali al decimale su 25 finestre: i giocatori del banco non portano `net`, la regola di coda li prezzava tutti a
+zero e ricadeva sulla previsione normale. Quindi **la riga «APP: sopravvivenza dal pannello», che doveva provare che il
+codice spedito riproduce la misura dell'adozione, la riproduceva perché la coda era inerte** - e lo sconto (+4,54%) era
+stato adottato su una previsione senza coda (`survival`, `tail: false`) mentre l'app ne spediva una con. Curato dando
+alla camminata `net = surplus`, come fa l'app. Con la coda davvero accesa la spedita perdeva il 2,5% sul mantra.

@@ -362,7 +362,7 @@ const blended = blendWith('value', 0.25);
  * adaptation is the team's shape - the app's `PlanTeam` carries `held`/`heldIds` (a weighted eleven needs
  * them), the bench's carries the men themselves - so the teams are mapped, never the rule.
  */
-export const appSurvival = () => {
+export const appSurvival = (tail = true) => {
   const cache = new WeakMap();
   const asPlanTeam = (t) => ({
     ...t,
@@ -375,17 +375,36 @@ export const appSurvival = () => {
       gone = goneBeforeOurNextTurn({
         teams: (ctx.table ?? []).map(asPlanTeam),
         order: ctx.order ?? [],
-        pool: ctx.pool,
+        // The app hands its walk `net: row.net ?? row.surplus`; the bench's players carry no `net`, and without it
+        // the tail rule scored everybody at zero and fell back on the plain prediction - so until 30/09/2026 this
+        // row measured the app's walk WITHOUT its tail, whatever the code said (found because «with» and «without»
+        // read identical to the decimal on 25 windows of 25).
+        pool: ctx.pool.map((p) => (p.net === undefined ? { ...p, net: p.surplus ?? null } : p)),
         places: ctx.places,
         mineId: (ctx.order ?? [])[ctx.at ?? 0],
         keeperCap: ctx.setup?.keepers ?? 3,
         maxAheadPicks: ctx.setup?.maxAhead ?? 1,
+        orderType: ctx.setup?.orderType,
+        tail,
       });
       cache.set(ctx.pool, gone);
     }
     return (p.value ?? 0) * (gone.has(p.id) ? 1 : SURVIVOR_DISCOUNT);
   };
 };
+
+/**
+ * THE TAIL RULE OF THE RIVALS' PREDICTIONS (todolist classic, item 1.4, 30/09/2026). The adopted survival
+ * discount was measured with the bench's own tail-free, price-only prediction (`survival`); the app adds the tail
+ * rule, and on three real drafts that rule named fewer real picks. Base = the app's survival as it ships; the
+ * candidate = the same without the tail; the bench's `survival(0.7)` is the number that adopted it.
+ */
+export const TAIL = [
+  { name: 'APP: sopravvivenza con coda (spedita)', need: coverPlaces(2), currency: appSurvival(true), floor: Infinity },
+  { name: 'APP: sopravvivenza senza coda', need: coverPlaces(2), currency: appSurvival(false), floor: Infinity },
+  { name: 'banco: sopravvivenza 0.7 (quella misurata)', need: coverPlaces(2), currency: survival(0.7), floor: Infinity },
+  { name: 'VALORE puro (nessuna sopravvivenza)', need: coverPlaces(2), currency: VALUE, floor: Infinity },
+];
 
 export const COMBINED = [
   { name: 'VALORE puro (la base)', need: coverPlaces(2), currency: VALUE, floor: Infinity },
@@ -516,8 +535,16 @@ export const CLASSIC = [
   { name: 'DP col razionamento (posti)', ...appDP({ ration: true }) },
 ];
 
+/** `TAIL` on the classic draft: the shipped classic cover (`adoptedCover`), everything else the same. */
+export const TAIL_CLASSIC = [
+  { name: 'APP: sopravvivenza con coda (spedita)', need: adoptedCover(), currency: appSurvival(true), floor: Infinity },
+  { name: 'APP: sopravvivenza senza coda', need: adoptedCover(), currency: appSurvival(false), floor: Infinity },
+  { name: 'banco: sopravvivenza 0.7 (quella misurata)', need: adoptedCover(), currency: survival(0.7), floor: Infinity },
+  { name: 'VALORE puro (nessuna sopravvivenza)', need: adoptedCover(), currency: VALUE, floor: Infinity },
+];
+
 export const SETS = {
-  'classic-check': CLASSIC_CHECK, classic: CLASSIC,
+  'classic-check': CLASSIC_CHECK, classic: CLASSIC, tail: TAIL, 'tail-classic': TAIL_CLASSIC,
   until: UNTIL,
   depth: DEPTH,
   priority: PRIORITY,

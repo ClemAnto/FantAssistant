@@ -22,6 +22,7 @@ import {
   planRoots,
   positionAfterSpending,
   predictRivalPick,
+  rivalWalker,
   ahead,
   nextCaller,
   roleFull,
@@ -484,6 +485,24 @@ describe('predictRivalPick in the tail of a round', () => {
   it('falls back to the baseline when the tail can price nobody', () => {
     const blind = [{ ...player(1, 'pc', 400), net: null }, { ...player(2, 'dc', 40), net: null }];
     expect(predictRivalPick(team(1), blind, places, 3, 1)!.id).toBe(1);
+  });
+});
+
+describe('the rival walk leaves the tail rule off unless asked (todolist classic, item 1.4)', () => {
+  const places = startingPlaces(SHAPES);
+  const pool = [player(1, 'pc', 400, 20), player(2, 'dc', 40, 12)];
+  const walkFrom = (tail?: boolean) => {
+    const teams = new Map([[1, team(1)]]);
+    const walk = rivalWalker({ teams: [team(1)], order: [1], pool, places, mineId: 0, keeperCap: 3,
+      maxAheadPicks: 1, ...(tail === undefined ? {} : { tail }) }, teams);
+    walk.step(1, TAIL_POSITIONS);
+    return [...walk.gone.keys()];
+  };
+
+  it('predicts the dearest by default, and the tail only when asked for (off since 30/09/2026)', () => {
+    expect(walkFrom()).toEqual([1]);
+    expect(walkFrom(false)).toEqual([1]);
+    expect(walkFrom(true)).toEqual([2]);
   });
 });
 

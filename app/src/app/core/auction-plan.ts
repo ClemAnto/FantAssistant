@@ -720,6 +720,15 @@ export interface RivalWalkInput {
   cap?: PickCap | null;
   /** Picks a squad makes in the whole draft: a full roster calls no more. Absent = no limit. */
   rounds?: number;
+  /**
+   * The TAIL rule for the rivals (`TAIL_POSITIONS`): the last two of a round predicted to buy surplus per credit.
+   * OFF unless asked for, since 30/09/2026 (todolist classic, item 1.4, priorita-draft-v1.md §28): on three real
+   * drafts replayed pick by pick it named 39 real picks of 834 against 55 without it, and on the draft bench the
+   * survival discount without it gains +2.56% on mantra (5/5), +1.08% on a snake (9/10) and +0.07% on classic
+   * (worst window -1.20%) - the discount had been adopted on a tail-free prediction all along. `true` is kept
+   * for the bench, which measures the rule it replaced.
+   */
+  tail?: boolean;
 }
 
 /**
@@ -797,7 +806,8 @@ export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>)
     const team = teams.get(id);
     if (!team) return;
     hooks.onCall?.(team);
-    const choice = predictRivalPick(team, pool, input.places, input.keeperCap, placesFromEnd,
+    const choice = predictRivalPick(team, pool, input.places, input.keeperCap,
+                                    input.tail === true ? placesFromEnd : Infinity,
                                     input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
     if (!choice) return;
     pool = pool.filter((player) => player.id !== choice.id);

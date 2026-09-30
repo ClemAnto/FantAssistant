@@ -127,12 +127,16 @@ real-rivals.mjs`, priorita-draft-v1.md §27): nessun predittore nomina la scelta
 (15% quando la fase fissa il reparto), le teste lette dalle scelte non aggiungono niente, valore e surplus predicono
 peggio del prezzo. Non c'è un predittore migliore da adottare; ne escono gli item 1.4 e 1.5.
 
-**1.4 (nuovo, decisione) La regola di coda dei rivali.** Senza, l'app indovina 55 scelte vere su 834 contro 39, su tre
+**1.4 CHIUSO il 30/09/2026 (notte): la regola di coda dei rivali è TOLTA** (rimisurata sul banco su sua richiesta:
++2,56% mantra 5/5, +1,08% serpentone 9/10, +0,07% classic con peggiore −1,20%; priorita-draft-v1.md §28). Testo
+originale: **La regola di coda dei rivali.** Senza, l'app indovina 55 scelte vere su 834 contro 39, su tre
 draft su tre; sul serpentone la sua premessa è falsa per costruzione. Toglierla sposta le previsioni con cui lo sconto
 «prendi chi sparirà» è stato misurato, quindi va rimisurato sul banco con rivali simulati che non la applicano (oggi
 `engine.mjs` la applica a tutto il tavolo) prima di cambiare `predictRivalPick`.
 
-**1.5 (nuovo, domanda) Il draft a reparti.** FA-l1n-0pn è stato giocato a reparti (P, poi D, poi C, poi A) e la
+**1.5 CHIUSO il 30/09/2026 (notte): il suo draft classic è LIBERO** (sua risposta), quindi nessuna opzione a reparti;
+resta scritto che una lega a reparti esiste (FA-l1n-0pn) e che la sessione non lo dichiara. Testo originale:
+**Il draft a reparti.** FA-l1n-0pn è stato giocato a reparti (P, poi D, poi C, poi A) e la
 sessione non lo dichiara. Se la sua lega fa così, serve un'opzione dichiarata che limiti lista, consigli e previsioni al
 reparto di turno.
 
