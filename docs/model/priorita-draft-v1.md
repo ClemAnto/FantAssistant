@@ -760,3 +760,42 @@ spedita **−19,7%, 0/10**, ogni variante fra −18,7% e −20,0%: regge su tutt
 margine del consiglio di prima sul tavolo: **+0,6% (7/10)** contro +2,7% (10/10) con l'ordine per FVM - dove spendere
 poco fa scegliere prima, il serpentone quel vantaggio non lo paga. Da misurare, se il suo draft è a serpentone: quanto
 vale lì lo sconto «prendi chi sparirà», tarato con l'altro ordine.
+
+## 26. La pagina collegata ai due draft classic veri (30/09/2026, notte)
+
+Item 1.2 della todolist classic. `app/scripts/e2e-draft-classic.mjs` rigioca un draft classic concluso sulla
+`/auction` del build, servito da un finto fanta-asta-live: il dump della sessione (`env.playerList` + `state`, letti
+in sola lettura) sta FUORI dal repository e si passa con `--session`. La pagina si cammina coi suoi tasti di revisione
+e si ferma a ogni turno della squadra seguita (25 per draft), e a ogni fermata confronta col TAVOLO VERO: chi è di
+turno e l'ordine delle squadre, le rose, il campetto (titolari + riserve + senza posto = rosa), nessun preso fra gli
+svincolati, «pieno» acceso esattamente sui nostri reparti pieni, e le previsioni «prima di te» lette subito dopo la
+nostra scelta (nessuna per noi, nessun rivale oltre una quota contando rosa + previsti, e sul serpentone esattamente
+tante chiamate per squadra quante ne ha fatte davvero). Più il filtro D una volta e la console.
+
+**Tre difetti della pagina, tutti invisibili senza un tavolo vero, tutti curati:**
+
+| Difetto | Sintomo sul tavolo | Causa | Cura |
+|---|---|---|---|
+| La squadra seguita si perdeva al ri-aggancio | nessuna previsione, nessun «pieno», nessun «tu» | `restore` la impostava e `connect` senza fotografia salvata partiva da `disconnect`, che la azzerava; poi `remember` scriveva `teamId: null` | `connect(code, preserve, follow)`; un test la pretende (senza la cura cade lui solo) |
+| Rivali previsti oltre la quota | 29 previsioni su FA-yei-458 di un 7° attaccante su 6 (una scelta che l'host rifiuta) | le quote si contano sugli slot del FOGLIO, e chi il motore non prezza aveva slot vuoto e non contava | sul classic lo slot mancante è la ZONA del listone (`AuctionAdvice.slotFor`), che è la linea su cui l'host applica la quota; sul mantra invariato |
+| Previsioni oltre la fine del draft | all'ultimo giro due squadre del serpentone previste a 2 scelte con 1 posto | `takenBeforeUs` camminava senza `rounds` | `rounds: priorityRounds()`, come gli scenari |
+
+Il primo esisteva su ogni browser con il codice salvato e nessuna fotografia (la prima apertura dopo un `forget` della
+fotografia, uno storage pieno): la pagina tornava a non seguire nessuno e lo restava, senza dirlo. Nessun banco lo
+vedeva perché `e2e-draft` gioca la demo (che imposta la squadra da sé) e `e2e-draft-review` non guardava il «tu».
+
+**Dopo le cure**: FA-yei-458 (serpentone) e FA-l1n-0pn (`default`) **nessun problema** su 25 turni ciascuno;
+`e2e-draft`, `e2e-draft-review` e 1280 test unitari verdi.
+
+**Quello che il banco MISURA e non asserisce, e non è buono:** delle previsioni «prima di te» escono davvero
+
+| Sessione | Previste uscite | Dalla squadra prevista | Null: gli stessi N più cari per FVM classic |
+|---|---|---|---|
+| FA-yei-458 | 26,6% | 4,6% | **30,7%** |
+| FA-l1n-0pn | 15,5% | 1,7% | 15,5% |
+
+cioè sul classic il modello dei rivali **non batte «prendono i più cari»**, e quasi mai indovina chi. Su FA-l1n-0pn
+sotto `default` il numero di chiamate per squadra prima del nostro turno è sbagliato in 3 finestre su 25 (lì è una
+previsione: l'ordine del giro dopo dipende dai prezzi delle scelte non ancora fatte). Due draft sono pochi per un
+verdetto, e il null non conosce le quote né chi chiama: è la direzione, non la taglia. Resta aperto (todolist
+classic, item 1.3).

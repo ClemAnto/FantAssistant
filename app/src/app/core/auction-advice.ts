@@ -910,7 +910,7 @@ export class AuctionAdvice {
         id: player.id,
         name: player.name,
         club: player.club,
-        slot: numbers.get(player.id)?.slot ?? null,
+        slot: this.slotFor(player, numbers.get(player.id)?.slot),
         roles: this.feed.gameRoles(player),
         price: player.fvm,
         net: row?.surplus ?? null,
@@ -1047,7 +1047,7 @@ export class AuctionAdvice {
         id: player.id,
         // A keeper reads `por` in both games: the base-role key the Draft Priority measures doors on.
         roles: this.feed.gameRoles(player).map((role) => (isKeeperSlot(role) ? 'por' : role.toLowerCase())),
-        slot: porta ? 'por' : (numbers.get(player.id)?.slot ?? null),
+        slot: porta ? 'por' : this.slotFor(player, numbers.get(player.id)?.slot),
         price: porta ? porta.price : player.fvm,
         fm: valuation.fm,
         share: valuation.pv != null && matchdays ? Math.min(1, valuation.pv / matchdays) : null,
@@ -1101,6 +1101,19 @@ export class AuctionAdvice {
   private readonly priorityRounds = computed(() =>
     Math.max(0, ...this.feed.teams().map((team) => team.squad.length + team.missingTotal)));
 
+  /**
+   * THE SLOT A PLAN COUNTS A MAN IN: the sheet's, and on CLASSIC his zone where the sheet has none (30/09/2026,
+   * found replaying the classic draft FA-yei-458 on the real page). The line quotas are counted on these slots
+   * (`roleFull`), and a man the engine does not price had `null` - so a rival's unpriced forward did not count,
+   * and the walk predicted him a 7th forward of 6, a pick the host refuses. On classic the zone IS the line the
+   * host enforces the quota on, so it is a fact about the man and not a guess; on mantra the slot is a sheet
+   * choice among his codes and stays empty where the sheet has none, as before.
+   */
+  private slotFor(player: AuctionPlayer, sheet: string | null | undefined): string | null {
+    if (sheet || this.feed.isMantra()) return sheet ?? null;
+    return this.feed.gameRoles(player)[0] ?? null;
+  }
+
   /** The inputs a plan needs, gathered once: the roots and the plans share them. */
   private readonly planInput = computed(() => {
     const mineId = this.feed.followedTeamId();
@@ -1125,7 +1138,7 @@ export class AuctionAdvice {
         id: team.id,
         label: team.label,
         slots: team.squad
-          .map((entry) => (entry.player ? (numbers.get(entry.player.id)?.slot ?? '') : ''))
+          .map((entry) => (entry.player ? (this.slotFor(entry.player, numbers.get(entry.player.id)?.slot) ?? '') : ''))
           .filter(Boolean),
         // The complete Mantra codes, which is what legality is decided on - the primary code alone would
         // throw away the flexibility of the 497 men of 1014 who carry two or more.
@@ -1149,7 +1162,7 @@ export class AuctionAdvice {
         id: row.player.id,
         name: row.player.name,
         club: row.player.club,
-        slot: row.porta ? 'por' : (numbers.get(row.player.id)?.slot ?? null),
+        slot: row.porta ? 'por' : this.slotFor(row.player, numbers.get(row.player.id)?.slot),
         roles: this.feed.gameRoles(row.player),
         // A goal costs what its dearest keeper costs (`Porta.price`): the man a rival buying by price calls.
         price: row.price,
@@ -1345,7 +1358,9 @@ export class AuctionAdvice {
     return takenBeforeOurTurn({
       teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
       mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
-      heads: input.heads, cap: input.cap,
+      // A full roster calls no more (30/09/2026, the classic replay): without it the last round predicted the
+      // squads at the end of a snake a second pick they do not have.
+      heads: input.heads, cap: input.cap, rounds: this.priorityRounds(),
     });
   });
 

@@ -612,3 +612,46 @@ describe('AuctionFeed: the order rule and the first round', () => {
     expect(order.slice(0, 4)).toEqual([2, 0, 3, 1]);
   });
 });
+
+describe('AuctionFeed.restore: the squad a re-join follows', () => {
+  // Found on 30/09/2026 replaying the classic draft FA-yei-458 on the real page: with the code saved and NO
+  // snapshot, `connect` starts from `disconnect`, which forgot the squad `restore` had just set - and then
+  // `remember` wrote `teamId: null`, so the panel came back following nobody (no predictions, no «pieno»).
+  it('keeps the followed squad when there is no snapshot to paint', async () => {
+    const realFetch = globalThis.fetch;
+    const realSource = (globalThis as { EventSource?: unknown }).EventSource;
+    localStorage.clear();
+    localStorage.setItem('fantassistant.auction', JSON.stringify({ code: 'FA-abc-123', teamId: 3 }));
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input instanceof Request ? input.url : input);
+      const body = url.includes('identitytoolkit')
+        ? { idToken: 'fake' }
+        : url.includes('/env/playerList')
+          ? { 1: { id: 1, name: 'Uno', team: 'Inter', roles: ['Pc'], zone: { classic: 'atk', mantra: 'mov' },
+            stats: { fmv: { classic: 10, mantra: 10 } } } }
+          : null;
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    }) as typeof fetch;
+    class FakeSource extends EventTarget {
+      static CLOSED = 2;
+      readyState = 1;
+      close(): void {
+        this.readyState = 2;
+      }
+    }
+    (globalThis as { EventSource?: unknown }).EventSource = FakeSource;
+    try {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({});
+      const feed = TestBed.inject(AuctionFeed);
+      expect(await feed.restore()).toBe(true);
+      expect(feed.followedTeamId()).toBe(3);
+      expect(JSON.parse(localStorage.getItem('fantassistant.auction') ?? '{}').teamId).toBe(3);
+      feed.disconnect();
+    } finally {
+      globalThis.fetch = realFetch;
+      (globalThis as { EventSource?: unknown }).EventSource = realSource;
+      localStorage.clear();
+    }
+  });
+});

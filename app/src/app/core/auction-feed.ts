@@ -1021,7 +1021,7 @@ export class AuctionFeed {
     return classic ? [classic] : [];
   }
 
-  async connect(input: string, preserve = false): Promise<boolean> {
+  async connect(input: string, preserve = false, follow: number | null = null): Promise<boolean> {
     const matched = input?.match(CODE_PATTERN)?.[0];
     if (!matched) {
       this.fail('Codice non valido. Il formato è FA-xxx-xxx.');
@@ -1032,6 +1032,11 @@ export class AuctionFeed {
     // `preserve` is for the re-join after a refresh: the saved table is already on screen and wiping it
     // would blank the panel for as long as the network takes.
     if (!preserve) this.disconnect();
+    // THE SQUAD A RE-JOIN FOLLOWS survives the wipe (30/09/2026, found replaying a real classic draft): with the
+    // code saved and no snapshot to paint, `disconnect` above forgot the squad `restore` had just set, and the
+    // `remember` below then wrote `teamId: null` - so the panel came back following nobody, with no predictions
+    // and no «pieno», and every later refresh stayed that way.
+    if (follow !== null) this.followedTeamId.set(follow);
     this.status.set('connecting');
 
     try {
@@ -1075,7 +1080,7 @@ export class AuctionFeed {
     // Paint what we had BEFORE going to the network: the panel is useful in the same instant, and the
     // stream replaces it a moment later. `preserve` keeps it from being wiped by the connect.
     const painted = this.paintSnapshot(stored.code);
-    const connected = await this.connect(stored.code, painted);
+    const connected = await this.connect(stored.code, painted, stored.teamId ?? null);
     if (!connected) {
       // Only a session the host REMOVED is forgotten. A network failure leaves everything in place:
       // the saved table stays on screen and the header says the re-join did not happen.

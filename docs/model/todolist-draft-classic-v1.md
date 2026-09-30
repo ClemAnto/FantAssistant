@@ -33,6 +33,9 @@ contro il consiglio di prima; misurata ora legge **−1,59%, 2 finestre su 5** (
 contro 0,6), mentre la priorità «completa» ritirata quel giorno legge +1,59% robust. Perde di poco e la formula è sua:
 decide l'operatore se tenerla, tornare a `pickForUs` o riprendere la G sulla rosa.
 
+**Fatto il 30/09/2026 (notte, dopo)**: item 1.2 chiuso col banco `e2e-draft-classic` e tre difetti della pagina
+curati (priorita-draft-v1.md §26); aperto l'item 1.3.
+
 **Fatto il 30/09/2026 (notte)**: item 1.1 chiuso su due draft classic veri (sotto), e l'ordine a SERPENTONE
 (`pingpong`) insegnato all'app e al banco; col serpentone la DP perde −19,7% (0/10), quindi resta spenta
 (priorita-draft-v1.md §25).
@@ -110,6 +113,18 @@ l'aveva scritto FA-11n-0pn, che non esiste: la grafia vera è elle-uno-enne). Su
 
 **1.2 Guardare la pagina collegata a quella sessione**: lista, filtro P/D/C/A, campetto, ordine di chiamata,
 previsioni «prima di te», nessuna scelta prevista fuori quota.
+
+**CHIUSO il 30/09/2026 (notte)**, numeri in [priorita-draft-v1.md](priorita-draft-v1.md) §26: banco
+`app/scripts/e2e-draft-classic.mjs --session <dump>` (il dump resta fuori da git), 25 turni per draft, confronto col
+tavolo vero. Ha trovato e curato **tre difetti della pagina**: la squadra seguita persa al ri-aggancio senza
+fotografia (quindi niente previsioni né «pieno»), rivali previsti oltre la quota perché chi il foglio non prezza non
+contava nel reparto, previsioni oltre la fine del draft. Dopo: nessun problema su FA-yei-458 e FA-l1n-0pn.
+
+**1.3 (nuovo) Le previsioni dei rivali sul classic non battono il prezzo.** Delle previste escono davvero il 26,6% e
+il 15,5% contro il 30,7% e il 15,5% del null «gli stessi N più cari per FVM», e la squadra giusta si indovina l'1,7-4,6%
+delle volte (§26). Due draft, direzione e non taglia. Da misurare sul banco del draft prima di toccare
+`predictRivalPick`: la previsione per prezzo puro (testa `price` per tutti) contro le teste lette dalle scelte, sulle
+dieci finestre Serie A con le quote. Pesa su «prima di te», sullo sconto di chi sparirà e sulla freccetta.
 
 ## 2. Misurare la DP sul classic — il banco del draft
 
