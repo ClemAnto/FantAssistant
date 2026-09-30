@@ -324,6 +324,33 @@ la quota di partite dice quante volte ENTRA, i minuti dicono quante di quelle vo
 è forte**: una riserva dell'anno prima prende il voto in 17,8 partite su 38 quando è disponibile, molto più del «non
 entra spesso» che la parola promette, e una bandiera in 30,7 e non in 36.
 
+### ...e i giocatori STABILI senza imprevisti (01/10/2026)
+
+**Richiesta dell'operatore**: per ogni gradino, uomini che hanno tenuto lo stesso gradino tre stagioni di fila e nella
+terza non hanno avuto imprevisti (al massimo 2 partite saltate per infortunio, squalifica, assenza o nazionale, un solo
+club, Serie A, quotati nella popolazione dell'asta), e quante partite hanno giocato davvero (`steady.py`).
+
+| gradino | casi | presenze su 38 | voti su 38 | la tabella generale (voti) |
+|---|---|---|---|---|
+| bandiera | 65 | 36,9 | **36,7** | 30,7 |
+| titolarissimo | 1 | 33,9 | 33,9 | 27,3 |
+| titolare | 6 | 37,0 | **36,1** | 29,1 |
+| ballottaggio | 15 | 35,1 | **32,9** | 26,1 |
+| panchina | 13 | 27,7 | **24,0** | 24,5 |
+| riserva | 1 | 18,5 | 17,5 | 17,8 |
+| *portieri bandiera* | 38 | 37,1 | *37,1* | 33,3 |
+
+Esempi: bandiera - Mancini, Locatelli, Frendrup, Vasquez (35-36 voti su 36-38 disponibili); titolare - Leão, Lautaro,
+Strefezza (34-37 voti, ma 25-32 da titolare: entrano anche dalla panchina); ballottaggio - Orsolini, Pasalic,
+De Ketelaere (33-36), El Shaarawy 24; panchina - Masina 25, Simeone 19 (30 presenze, 1 da titolare, 13'), Chiriches 27.
+
+**Quindi il gradino, quando è stabile e non succede niente, mantiene la promessa**: una bandiera prende il voto in quasi
+tutte le partite in cui è disponibile. La distanza dalla tabella generale (30,7) è quello che fa l'anno dopo chi il
+gradino lo ha avuto UNA stagione: cambi di gradino, di club, di allenatore. Due conseguenze per la formula: la
+**stabilità del gradino** negli anni è un'informazione che la formula oggi non legge (guarda una stagione e mezza,
+`w2`), e il limite di chi entra dalla panchina è il VOTO e non la presenza (Simeone: 30 presenze, 19 voti). Titolarissimo,
+titolare e riserva stabili per tre anni sono rari (1, 6, 1 casi): numeri da leggere, non da tarare.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
