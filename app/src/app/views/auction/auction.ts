@@ -33,10 +33,7 @@ import { ValuationStore } from '../../core/valuation-store';
 import { type TrendCell, trendPointsMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
-import { Rarity, RarityMan, rarity, rarityText } from '../../core/draft-rarity';
-import { baseRole } from '../../core/draft-priority';
-import type { MantraModules } from '../../core/auction-value';
-import { PlayerStatus } from '../../core/player-status';
+import { RUNG_RANK, Rarity, rarityText } from '../../core/draft-rarity';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -82,17 +79,8 @@ export type FreeSort =
   | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
-/** The two ladders in one order, best first: what «sort by titolarità» orders by. */
-const PRESS_RANK: Record<string, number> = {
-  bandiera: 7,
-  titolarissimo: 6,
-  titolare: 5,
-  ballottaggio: 4,
-  comprimario: 3,
-  panchina: 3,
-  riserva: 2,
-  scarto: 1,
-};
+/** The two ladders in one order, best first: what «sort by titolarità» orders by (one definition, in core). */
+const PRESS_RANK = RUNG_RANK;
 
 /** How the free list is read: the default columns, or the season averages (operator, 28/09/2026). */
 export type FreeMode = 'default' | 'medie' | 'previste';
@@ -333,8 +321,6 @@ export class Auction {
   private readonly bundle = inject(Bundle);
   /** The per-match layer, for the seasons the platform did not rate his club (`rebuiltLine`). */
   private readonly players = inject(PlayersStore);
-  /** Who spent how much of three years injured: one of the six readings of RAR. */
-  private readonly status = inject(PlayerStatus);
   private readonly message = inject(NzMessageService);
 
   protected readonly connecting = signal(false);
@@ -564,7 +550,7 @@ export class Auction {
   /** The header's tooltip on the priority: what the number is, in the draft that has one. */
   protected prioHint(): string {
     return this.advice.priorityOn()
-      ? 'Draft Priority ×100: punti a giornata sopra un titolare medio'
+      ? 'Draft Priority: la SeSw, abbassata se ne resteranno di simili al tuo turno'
       : 'Priorità del consiglio, 0-99';
   }
 
@@ -1042,7 +1028,7 @@ export class Auction {
       if (score != null && score > top) top = score;
     }
     const rows = ranked.map((row) => this.freeRow(row, scores.get(row.player.id) ?? null, top, press, trends));
-    const rar = rarity(ranked.map((row, at) => this.rarityMan(row, rows[at])));
+    const rar = this.advice.freeRarity();
     const season = this.advice.priorityOfMan();
     for (const row of rows) {
       row.rar = rar.get(row.id) ?? null;
@@ -1088,35 +1074,6 @@ export class Auction {
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),
       goal,
-    };
-  }
-
-  /**
-   * A free man as RAR reads him (`core/draft-rarity.ts`): the titolarità word the list SHOWS (the press, else
-   * the engine), the steadiness, the expected base vote and bonus, the expected share of the calendar, and the
-   * share of three years he spent injured. The group is his BASE role in mantra - the same one the Draft
-   * Priority measures him against - and his role in classic. A goal (porte rule) is a club: it is compared on
-   * the fantamedia of the door, in the base vote's place, and on its share.
-   */
-  private rarityMan(row: RankedPlayer, free: FreeRow): RarityMan {
-    const id = row.player.id;
-    const share = this.advice.expectedShareBy().get(id) ?? null;
-    if (free.goal) {
-      return { id, group: 'por', rung: null, steady: null, mv: row.valuation.fm, bonus: null, share, fragility: null };
-    }
-    const roles = row.player.roles.map((role) => role.toLowerCase());
-    const slot = this.advice.numbers().get(id)?.slot ?? null;
-    const rules = this.advice.rules() as MantraModules | null;
-    const group = this.advice.priorityOn() && rules?.slot_roles ? baseRole(rules, roles, slot) : (slot ?? roles[0] ?? '');
-    return {
-      id,
-      group,
-      rung: free.press && PRESS_RANK[free.press] != null ? PRESS_RANK[free.press] : null,
-      steady: free.expected.steady,
-      mv: free.expected.mv,
-      bonus: this.advice.bonusBy().get(id) ?? null,
-      share,
-      fragility: this.status.fragility(id).share,
     };
   }
 

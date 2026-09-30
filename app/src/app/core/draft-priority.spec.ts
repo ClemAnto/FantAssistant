@@ -1,15 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import { PlanPlayer, PlanTeam } from './auction-plan';
+import { DEPTH_WEIGHT, PlanPlayer, PlanTeam } from './auction-plan';
+import { RarityMan } from './draft-rarity';
 import {
   PriorityMan,
   PriorityRules,
   PriorityState,
+  RARITY_DISCOUNT,
   TRIM,
   WorthContext,
   baseRole,
   manValue,
+  picksBefore,
   priorities,
+  priorityParts,
   priorityPick,
   roleStats,
 } from './draft-priority';
@@ -151,5 +155,62 @@ describe('priorityPick', () => {
     expect(pick).not.toBeNull();
     expect(pick!.id).not.toBe(star.id);
     expect(priorityPick(s, { ...rules, cap: null })!.id).toBe(star.id);
+  });
+});
+
+describe('the new Draft Priority: SeSw, RAR and the rationing (30/09/2026)', () => {
+  const readingsOf = (men: PriorityMan[]) => {
+    const byId = new Map<number, RarityMan>(men.map((m) => [m.id, { id: m.id, group: m.slot ?? '', rung: null,
+      steady: m.steady, mv: m.fm, bonus: null, share: m.share, fragility: null }]));
+    return (id: number) => byId.get(id) ?? null;
+  };
+  const table = (n: number) => Array.from({ length: n }, (_, id) => team(id));
+
+  it("lowers the common man and keeps the last of his kind: the operator's example", () => {
+    const everybody = population();
+    const forwards = [0, 1, 2, 3, 4, 5].map(() => man('pc', 7.9));
+    const defender = man('dc', 6.9);
+    const pool = [...forwards, defender, man('dc', 5.5), man('c', 6.0)];
+    const base = state(pool, everybody);
+    const alone = priorities(base);
+    const parts = priorityParts({ ...base, rarityOf: readingsOf(pool), teams: table(6), rounds: 12 });
+    const forward = parts.get(forwards[0].id)!;
+    expect(forward.rar?.count).toBe(5);
+    expect(parts.get(defender.id)!.rar?.count).toBe(0);
+    // The defender keeps his SeSw; the forward loses a quarter of his distance from the floor, and no more.
+    expect(parts.get(defender.id)!.score).toBeCloseTo(alone.get(defender.id)!, 9);
+    const floor = Math.min(...alone.values());
+    const share = Math.min(1, 5 / forward.k!);
+    expect(forward.score).toBeCloseTo(floor + (1 - RARITY_DISCOUNT * share) * (forward.sesw - floor), 9);
+  });
+
+  it('never RAISES a man below zero: it shrinks the distance from the floor, not the signed SeSw', () => {
+    const everybody = population();
+    const weak = [0, 1, 2, 3].map(() => man('dc', 5.6));
+    const pool = [...weak, man('dc', 5.5)];
+    const base = state(pool, everybody);
+    const alone = priorities(base);
+    const parts = priorityParts({ ...base, rarityOf: readingsOf(pool), teams: table(4), rounds: 12 });
+    expect(alone.get(weak[0].id)!).toBeLessThan(0);
+    expect(parts.get(weak[0].id)!.score).toBeLessThanOrEqual(alone.get(weak[0].id)!);
+  });
+
+  it('rations like the app: a slot the squad already fills weighs DEPTH_WEIGHT', () => {
+    const everybody = population();
+    const held = [man('pc', 7.5)];
+    const candidate = man('pc', 7.9);
+    const pool = [candidate, man('dc', 5.5)];
+    const parts = priorityParts({ ...state(pool, everybody, held), places: new Map([['pc', 1], ['dc', 2]]) });
+    expect(parts.get(candidate.id)!.need).toBe(DEPTH_WEIGHT);
+  });
+
+  it('counts k as the rest of the round plus who the order puts ahead after paying him', () => {
+    const me = team(0);
+    const rivals = [team(1), team(2), { ...team(3), picksCount: 1, rosterValue: 50 }];
+    const pool = [man('pc', 7, 0.9, 40), man('pc', 7, 0.9, 1)].map(asPlan);
+    const k = picksBefore(me, [me, ...rivals], pool, 12);
+    // Teams 1 and 2 still call this round (and add the two dearest, 40 and 1); team 3 has called.
+    expect(k(1)).toBe(2 + 0);
+    expect(k(60)).toBe(2 + 3);
   });
 });

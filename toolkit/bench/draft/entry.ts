@@ -44,5 +44,7 @@ export {
 
 /* The Draft Priority AS THE APP SHIPS IT (`manValue` = the SeSw of 30/09/2026) and RAR, the rarity of a free
  * man: the two halves of the new DP the operator asked to be measured here before it enters the panel. */
-export { baseRole as priorityBaseRole, manValue, roleStats as priorityRoleStats } from '../../../app/src/app/core/draft-priority';
+export {
+  baseRole as priorityBaseRole, manValue, priorities as appPriorities, roleStats as priorityRoleStats,
+} from '../../../app/src/app/core/draft-priority';
 export { rarity } from '../../../app/src/app/core/draft-rarity';

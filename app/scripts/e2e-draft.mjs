@@ -903,12 +903,26 @@ async function main() {
         ...(wrongShare.length ? [`${wrongShare.length} percentuali sbagliate`] : []),
         ...(!ordered(rarDown.map((one) => one.count), true) ? ['il secondo click non rovescia'] : []),
       ]);
-    // SeSw is, for now, the very number DP shows in a mantra draft: the two agree wherever SeSw has one (outside a
-    // mantra draft SeSw is empty and DP is the 0-99 of the old advice).
-    const seswDiff = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
-      .filter((row) => row.querySelector('[data-sesw]')?.textContent.trim() !== '—')
-      .filter((row) => row.querySelector('[data-sesw]')?.textContent.trim() !== row.children[4]?.textContent.trim()).length);
-    note('SeSw', `righe dove SeSw e DP differiscono: ${seswDiff}`, seswDiff ? ['SeSw non e\' ancora la DP di oggi'] : []);
+    // DP = B + (1 - 0.25 min(1, RAR/k)) (SeSw - B) (30/09/2026): it never exceeds SeSw, and where RAR is 0 - the
+    // last of his kind - it IS SeSw. Both printed in hundredths and truncated, so one unit of slack.
+    const seswRows = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
+      .map((row) => ({
+        sesw: Number(row.querySelector('[data-sesw]')?.textContent.trim()),
+        dp: Number(row.children[4]?.textContent.trim()),
+        rar: row.querySelector('[data-rar]')?.getAttribute('data-rar-count'),
+      }))
+      .filter((one) => Number.isFinite(one.sesw) && Number.isFinite(one.dp)));
+    const above = seswRows.filter((one) => one.dp > one.sesw + 1);
+    const rareOff = seswRows.filter((one) => one.rar === '0' && Math.abs(one.dp - one.sesw) > 1);
+    const lowered = seswRows.filter((one) => one.dp < one.sesw - 1).length;
+    note('SeSw e DP', `${seswRows.length} righe con entrambe, ${lowered} abbassate dalla rarita'`,
+      [
+        // Only a mantra draft has a SeSw (--euro here): on classic the DP is the old 0-99 and the column is empty.
+        ...(euro && !seswRows.length ? ['nessuna riga con SeSw e DP'] : []),
+        ...(above.length ? [`${above.length} righe con DP sopra SeSw`] : []),
+        ...(rareOff.length ? [`${rareOff.length} righe con RAR 0 e DP diversa da SeSw`] : []),
+        ...(euro && seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
+      ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
     // A CDP pointer TELEPORTS: the header's tooltip would stay open over the next control, where a hand would

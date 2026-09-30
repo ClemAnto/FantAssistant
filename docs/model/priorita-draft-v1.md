@@ -623,3 +623,28 @@ Limiti detti: sulle finestre storiche RAR legge 3 letture su 6 (costanza, fantam
 presenze; gradino e infortuni di un agosto passato non ci sono), quindi è più largo che nell'app. In cima alla lista
 i RAR sono comunque bassi (0-5 contro k di 10-20), cioè lo sconto morde proprio dove si sceglie. La DP dell'app NON è
 cambiata: resta SeSw finché lui non decide d.
+
+## 22. La DP nuova nell'app: SeSw abbassata dalla rarità (30/09/2026)
+
+Suo via libera («ok procedi») sulla proposta di §21. **`draft-priority.priorities`** calcola ora
+`DP = B + (1 − 0,25 · min(1, RAR/k)) · (SeSw − B)` (`RARITY_DISCOUNT` = 0,25, `picksBefore` per k,
+`priorityParts` per le parti), e lo usano la colonna DP, il consiglio e le scelte simulate (`simulateRound`,
+`projectOurPicks`): una definizione sola. Le letture di RAR stanno in `AuctionAdvice.rarityReadings`, lette
+anche dalla colonna RAR. Gli **scenari** restano sulla SeSw: misurano il valore di un undici, e la rarità è
+una domanda sull'ORDINE delle scelte, non sul valore. k non legge il giro simulato (lo simula con questa stessa
+priorità): chi deve ancora chiamare nel giro prende i più cari rimasti, come sul banco.
+
+**Il banco legge ora la funzione dell'app** (`rarity.mjs`, `appDP`, set `rarity-app`, 8 seed), e il verdetto ha
+diviso le due metà proposte:
+
+| contro SeSw da sola | media | stagioni | peggiore | verdetto |
+|---|---|---|---|---|
+| **solo RAR 0,25 (spedita)** | **+1,06%** | 4/5 | −0,12% | **robust** |
+| solo razionamento | +2,00% | 3/5 | −3,39% | no |
+| RAR + razionamento | +2,33% | 2/5 | −2,95% | no |
+
+La media alta del razionamento viene da **una** stagione (Tm4 +14%, dove la SeSw pura era la peggiore del
+tavolo): nelle altre costa fino a 3 punti percentuali. Quindi **il razionamento è scritto e SPENTO** (l'app non
+passa `places`): accenderlo è un argomento in `AuctionAdvice.priorityEngine` ed è una sua decisione, coi numeri
+qui. Nota: la forma misurata in §21 (il peso sul numero con segno, come fa `bestUnder`) e questa (il peso sulla
+distanza dal minimo) non sono lo stesso razionamento: della prima c'è solo la media (71,9 → 72,9), non il verdetto per stagione, quindi non va citata come «passa».

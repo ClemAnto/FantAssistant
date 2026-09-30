@@ -16,7 +16,7 @@
  * predicted fantamedia in place of base vote + bonus (the windows carry no split of the two), and the share of the
  * calendar. The titolarità word and the injury history of a past August are not in `windows-porte.json`; a missing
  * reading of HIS constrains nobody, so the bench's RAR counts MORE men as similar than the app's does. */
-import { manValue, priorityBaseRole, priorityRoleStats, rarity } from './appcode.mjs';
+import { appPriorities, manValue, priorityBaseRole, priorityRoleStats, rarity, startingPlaces } from './appcode.mjs';
 import { appNeed, legalPoolFor } from './engine.mjs';
 
 const toPriority = (m) => ({ id: m.id, roles: m.roles, slot: m.slot, price: m.price, fm: m.fm_pred ?? null,
@@ -97,4 +97,56 @@ export const RARITY_RATIONED = [
   { name: 'SeSw razionata', ...seswRar({ ration: true }) },
   ...GRID.map((d) => ({ name: `razionata d=${d}`, ...seswRar({ discount: d, ration: true }) })),
   ...STEPS.map((d) => ({ name: `razionata gradino d=${d}`, ...seswRar({ discount: d, step: true, ration: true }) })),
+];
+
+/**
+ * THE DP AS THE APP SHIPS IT (30/09/2026): `draft-priority.priorities` itself, read through `appcode.mjs`, so the
+ * bench measures the code the panel runs - the discount AND the rationing are inside it. `rarity: false` hands it
+ * no readings (SeSw with the rationing), `ration: false` no places (SeSw with the rarity).
+ */
+export function appDP({ rarity: withRarity = true, ration = true } = {}) {
+  const cache = new WeakMap();
+  let statsFor = null;
+  let places = null;
+  const evaluate = (ctx) => {
+    const everybody = [...ctx.pool, ...(ctx.table ?? []).flatMap((t) => t.roster)];
+    const key = everybody.length + ':' + everybody.reduce((a, m) => a + m.id, 0);
+    if (!statsFor || statsFor.key !== key) {
+      statsFor = { key, stats: priorityRoleStats(everybody.map(toPriority), ctx.shapes,
+        { teams: ctx.teams, keepers: ctx.keepers, rounds: ctx.rounds }) };
+    }
+    places ??= startingPlaces(ctx.shapes);
+    const byId = new Map(everybody.map((m) => [m.id, m]));
+    const readings = new Map(ctx.pool.map((m) => [m.id, { id: m.id, group: priorityBaseRole(ctx.shapes, m.roles, m.slot),
+      rung: null, steady: m.steady ?? null, mv: m.fm_pred ?? null, bonus: null, share: m.p ?? null, fragility: null }]));
+    const scores = appPriorities({
+      team: ctx.team, pool: ctx.pool, manOf: (id) => (byId.has(id) ? toPriority(byId.get(id)) : null),
+      worth: { rules: ctx.shapes, stats: statsFor.stats }, matchdays: 38,
+      rarityOf: withRarity ? (id) => readings.get(id) ?? null : undefined,
+      teams: ctx.table ?? [], rounds: ctx.rounds, places: ration ? places : undefined,
+    });
+    return scores;
+  };
+  return {
+    need: () => 1,
+    floor: Infinity,
+    noTail: true,
+    currency: (man, ctx) => {
+      let entry = cache.get(ctx.pool);
+      if (!entry) cache.set(ctx.pool, (entry = evaluate(ctx)));
+      return entry.get(man.id) ?? -1e9;
+    },
+  };
+}
+
+/**
+ * The adoption, judged: the DP of before (SeSw alone) against the app's new DP and its two halves. Measured on
+ * 30/09/2026 (8 seeds): RAR alone +1.06% (4/5, robust) - what the app ships -, the rationing alone +2.00% (3/5, one
+ * window at -2.88%) and both +2.33% (2/5, -2.95%), neither robust.
+ */
+export const RARITY_APP = [
+  { name: 'SeSw (DP di prima)', ...seswRar() },
+  { name: 'DP app (RAR 0.25 + razionamento)', ...appDP() },
+  { name: 'DP app, solo razionamento', ...appDP({ rarity: false }) },
+  { name: 'DP app, solo RAR 0.25 (spedita)', ...appDP({ ration: false }) },
 ];

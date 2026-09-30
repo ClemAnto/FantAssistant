@@ -22,7 +22,8 @@
  */
 
 import { MantraModules, slotShares } from './auction-value';
-import { PickCap, PlanPlayer, PlanTeam, capBlocks } from './auction-plan';
+import { PickCap, PlanPlayer, PlanTeam, capBlocks, needFor } from './auction-plan';
+import { Rarity, RarityMan, rarity } from './draft-rarity';
 
 /** A man as the priority reads him. `share` = expected appearances over the season's matchdays. */
 export interface PriorityMan {
@@ -282,17 +283,103 @@ export interface PriorityState {
   manOf: (id: number) => PriorityMan | null;
   worth: WorthContext;
   matchdays: number;
+  /**
+   * THE RARITY HALF (30/09/2026, below). All three optional: a state without them is the SeSw alone, which is
+   * what a caller that has no table - a test, a harness - asks for. `rarityOf` = the six readings of a man, by
+   * id (`draft-rarity.RarityMan`); `teams` = every squad, for k; `places` = the rulebook's starting places per
+   * slot, for the rationing.
+   */
+  rarityOf?: (id: number) => RarityMan | null;
+  teams?: readonly PlanTeam[];
+  rounds?: number;
+  places?: Map<string, number>;
+}
+
+/**
+ * THE NEW DRAFT PRIORITY (the operator, 30/09/2026: «troviamo la giusta formula per unire SeSw al Rar», and «procedi»
+ * once the discount was measured):
+ *
+ *   DP(x) = B + need(x) (1 - d s(x)) (SeSw(x) - B),     s(x) = min(1, RAR(x) / k(x))
+ *
+ *   SeSw = `manValue`, the Season Swing (the DP up to this day);
+ *   RAR  = how many other free men of his base role are as good or better (`draft-rarity.rarity`);
+ *   k    = the picks the OTHERS make before our next turn if we take x now (`picksBefore`);
+ *   B    = the lowest SeSw of the pool: the discount and the rationing shrink the distance from it and never the
+ *          signed SeSw itself, because below the average starter SeSw is negative and `SeSw x (1 - d s)` would
+ *          RAISE a common man there - measured, that literal product loses (-0.49%, 1 window of 5);
+ *   need = the app's own coverage rationing (`auction-plan.needFor`): 1 while the squad cannot field the places
+ *          the shapes ask for in his slot, `DEPTH_WEIGHT` after.
+ *
+ * `RARITY_DISCOUNT` d is MEASURED on the draft bench (`toolkit/bench/draft/rarity.mjs`, priorita-draft-v1.md §21):
+ * the 70% first proposed LOSES (-0.49%, holes per season 6.8 -> 11.6: too many places put off «because one like
+ * him stays» end up empty), the optimum is interior and low, 0.2-0.3, robust and never strict. This very function,
+ * read by the bench through `appcode.mjs`, passes robust with RAR alone (+1.06%, 4 windows of 5, §22). The
+ * rationing (`places`) is written and NOT turned on by the app: in this form it fails the robust verdict.
+ */
+export const RARITY_DISCOUNT = 0.25;
+
+/** What a man's DP is made of, so a row can explain its number. */
+export interface PriorityParts {
+  sesw: number;
+  rar: Rarity | null;
+  k: number | null;
+  need: number;
+  score: number;
+}
+
+/**
+ * k: how many picks the OTHERS make before our next turn if we take a man of this price now - the rest of this
+ * round (the squads still to call at our pick count), plus those the next round's order puts before us. Next
+ * round every squad has the same number of picks, so the order is the roster's FVM, cheapest first
+ * (`positionAfterSpending`'s rule); a squad still to call here is taken to add the DEAREST free man, one each,
+ * because the rivals at this table call by price. That is the bench's own reading, and it cannot be the simulated
+ * round (`simulateRound`): the round simulates OUR pick with this very priority.
+ */
+export function picksBefore(team: PlanTeam, teams: readonly PlanTeam[], pool: readonly PlanPlayer[], rounds: number):
+  (price: number) => number {
+  const others = teams.filter((one) => one.id !== team.id);
+  const rest = others.filter((one) => one.picksCount === team.picksCount && one.picksCount < rounds);
+  const dear = pool.map((p) => p.price).sort((a, b) => b - a);
+  const next = others.map((one) => one.rosterValue + (rest.includes(one) ? (dear[rest.indexOf(one)] ?? 0) : 0));
+  return (price) => {
+    const mine = team.rosterValue + price;
+    return Math.max(1, rest.length + next.filter((value) => value < mine).length);
+  };
+}
+
+/** Every part of the Draft Priority of every priced man of the pool, for the squad `team`, by id. */
+export function priorityParts(state: PriorityState): Map<number, PriorityParts> {
+  const sesw = new Map<number, number>();
+  for (const player of state.pool) {
+    const man = state.manOf(player.id);
+    const value = man ? manValue(man, state.worth, state.matchdays) : null;
+    if (value != null) sesw.set(player.id, value);
+  }
+  const out = new Map<number, PriorityParts>();
+  if (!sesw.size) return out;
+  const floor = Math.min(...sesw.values());
+  const readings = state.rarityOf
+    ? state.pool.map((p) => state.rarityOf!(p.id)).filter((m): m is RarityMan => m != null)
+    : [];
+  const rar = readings.length ? rarity(readings) : null;
+  const before = state.teams && state.rounds ? picksBefore(state.team, state.teams, state.pool, state.rounds) : null;
+  for (const player of state.pool) {
+    const value = sesw.get(player.id);
+    if (value == null) continue;
+    const own = rar?.get(player.id) ?? null;
+    const k = before ? before(player.price) : null;
+    const share = own && k ? Math.min(1, own.count / k) : 0;
+    const need = state.places ? needFor(state.team, player.slot, state.places) : 1;
+    const score = floor + need * (1 - RARITY_DISCOUNT * share) * (value - floor);
+    out.set(player.id, { sesw: value, rar: own, k, need, score });
+  }
+  return out;
 }
 
 /** The Draft Priority of every priced man of the pool, for the squad `team`, by id. */
 export function priorities(state: PriorityState): Map<number, number> {
   const out = new Map<number, number>();
-  for (const player of state.pool) {
-    const man = state.manOf(player.id);
-    if (!man) continue;
-    const value = manValue(man, state.worth, state.matchdays);
-    if (value != null) out.set(player.id, value);
-  }
+  for (const [id, parts] of priorityParts(state)) out.set(id, parts.score);
   return out;
 }
 

@@ -23,6 +23,21 @@
  * The file imports no Angular.
  */
 
+/**
+ * The titolarità words as one ladder, best highest: the press's seven and the engine's own (`comprimario` and
+ * `panchina` share a rung). One definition for the list's sort, its filter and the rung reading of RAR.
+ */
+export const RUNG_RANK: Record<string, number> = {
+  bandiera: 7,
+  titolarissimo: 6,
+  titolare: 5,
+  ballottaggio: 4,
+  comprimario: 3,
+  panchina: 3,
+  riserva: 2,
+  scarto: 1,
+};
+
 /** A free man as the rarity reads him. Every reading is «higher is better» except `fragility`. */
 export interface RarityMan {
   id: number;

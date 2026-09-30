@@ -50,15 +50,20 @@ import { porteZero } from './porte';
 import {
   PriorityMan,
   PriorityRules,
+  PriorityParts,
   PriorityState,
   WorthContext,
+  baseRole,
   manValue,
+  priorityParts,
   priorities as draftPriorityScores,
   preferredRules,
   priorityPick,
   roleStats,
 } from './draft-priority';
 import { RECOMMENDED_MANTRA } from './draft-pitch';
+import { RUNG_RANK, Rarity, RarityMan, rarity } from './draft-rarity';
+import { PlayerRulings } from './player-rulings';
 import { ScenarioInput, judge, scenarios as draftScenarios } from './draft-scenarios';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { engineNumbersFrom } from './engine-sheet';
@@ -168,6 +173,8 @@ export class AuctionAdvice {
   private readonly options = inject(GlobalOptions);
   /** La costanza (quota di voti base da 6 in su): e' quello che l'R-Factor della Draft Priority conta. */
   private readonly ratings = inject(PlayerRatingsStore);
+  /** The press's titolarità word: the rung reading of RAR, as the list shows it. */
+  private readonly rulings = inject(PlayerRulings);
 
   /** The league sheet in use, and the numbers it carries per `fc_id`. */
   readonly entry = signal<EngineSheetEntry | null>(null);
@@ -1097,12 +1104,20 @@ export class AuctionAdvice {
     if (!worth || !base || !matchdays) return null;
     const men = this.priorityMen();
     const rules = { cap: base.cap ?? null, keeperCap: base.keeperCap, rounds: this.priorityRounds() };
-    const stateOf = (team: PlanTeam, pool: readonly PlanPlayer[]): PriorityState => ({
+    const readings = this.rarityReadings();
+    // The rarity travels in every state, simulated ones included (`choose`): a projected pick made on the SeSw
+    // alone would be a different head from the one the column ranks by. THE RATIONING (`places`) IS NOT PASSED:
+    // on the draft bench it fails the robust verdict (+2.0% mean, 3 windows of 5, one at -2.9%;
+    // priorita-draft-v1.md §22), and so does RAR together with it (+2.33%, 2 of 5), while RAR alone passes
+    // (+1.06%, 4 of 5). Turning it on is one argument here, and the operator's decision.
+    const stateOf = (team: PlanTeam, pool: readonly PlanPlayer[], teams: readonly PlanTeam[]): PriorityState => ({
       team, pool, manOf: (id) => men.get(id) ?? null, worth, matchdays,
+      rarityOf: (id) => readings.get(id) ?? null, teams, rounds: rules.rounds,
     });
     const choose: OurChooser = (state) => {
       const team = state.teams.find((one) => one.id === base.mineId);
-      return team && team.picksCount < rules.rounds ? priorityPick(stateOf(team, state.pool), rules) : null;
+      return team && team.picksCount < rules.rounds
+        ? priorityPick(stateOf(team, state.pool, state.teams), rules) : null;
     };
     return { choose, stateOf, mineId: base.mineId };
   });
@@ -1115,6 +1130,63 @@ export class AuctionAdvice {
     const input = this.planInput();
     const choose = this.chooser();
     return input && choose ? { ...input, choose } : input;
+  });
+
+  /**
+   * THE SIX READINGS RAR COMPARES A FREE MAN ON (`core/draft-rarity.ts`, the operator's list of 30/09/2026), by id:
+   * the titolarità word the list shows (the press's, else the engine's rung), the steadiness, the expected base
+   * vote and bonus, the expected share of the calendar, and the share of three years spent injured. The group is
+   * the BASE role in a mantra draft - the one the Draft Priority measures him against - and the role in classic. A
+   * goal (porte rule) is a club: it is compared on the fantamedia of the door, in the base vote's place, and on its
+   * share. One definition for the RAR column, the Draft Priority and its simulated picks.
+   */
+  private readonly rarityReadings = computed<Map<number, RarityMan>>(() => {
+    const out = new Map<number, RarityMan>();
+    const numbers = this.numbers();
+    const press = this.rulings.press();
+    const platform = this.entry()?.platform ?? 'default';
+    const shares = this.expectedShareBy();
+    const bonus = this.bonusBy();
+    const rules = this.shapes() as MantraModules | null;
+    const mantra = this.priorityOn() && !!rules?.slot_roles;
+    for (const row of this.ranked()) {
+      const id = row.player.id;
+      const share = shares.get(id) ?? null;
+      if (row.porta) {
+        out.set(id, { id, group: 'por', rung: null, steady: null, mv: row.valuation.fm, bonus: null, share,
+          fragility: null });
+        continue;
+      }
+      const roles = row.player.roles.map((role) => role.toLowerCase());
+      const slot = numbers.get(id)?.slot ?? null;
+      const word = press.get(id)?.pressTier ?? numbers.get(id)?.titolarita ?? null;
+      out.set(id, {
+        id,
+        group: mantra ? baseRole(rules!, roles, slot) : (slot ?? roles[0] ?? ''),
+        rung: word && RUNG_RANK[word] != null ? RUNG_RANK[word] : null,
+        steady: this.ratings.for(platform, id)?.steady?.share ?? null,
+        mv: numbers.get(id)?.mv ?? null,
+        bonus: bonus.get(id) ?? null,
+        share,
+        fragility: this.status.fragility(id).share,
+      });
+    }
+    return out;
+  });
+
+  /** RAR of every free man (the whole free pool), by id: what the list's column shows. */
+  readonly freeRarity = computed<Map<number, Rarity>>(() => rarity([...this.rarityReadings().values()]));
+
+  /**
+   * THE PARTS OF OUR DRAFT PRIORITY, man by man (`draft-priority.priorityParts`): SeSw, RAR, k, the rationing and
+   * the score, on OUR squad as it stands. Empty outside a mantra draft.
+   */
+  readonly priorityPartsOfFree = computed<Map<number, PriorityParts>>(() => {
+    const input = this.planInput();
+    const engine = this.priorityEngine();
+    if (!input || !engine || !this.priorityOn()) return new Map();
+    const mine = input.teams.find((team) => team.id === input.mineId);
+    return mine ? priorityParts(engine.stateOf(mine, input.pool, input.teams)) : new Map();
   });
 
   /**
@@ -1155,7 +1227,7 @@ export class AuctionAdvice {
       const engine = this.priorityEngine();
       const mine = input.teams.find((team) => team.id === input.mineId);
       if (!engine || !mine) return out;
-      const scores = draftPriorityScores(engine.stateOf(mine, input.pool));
+      const scores = draftPriorityScores(engine.stateOf(mine, input.pool, input.teams));
       for (const player of input.pool) out.set(player.id, scores.get(player.id) ?? null);
       return out;
     }
