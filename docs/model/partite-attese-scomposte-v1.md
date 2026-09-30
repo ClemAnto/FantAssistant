@@ -417,6 +417,22 @@ dei miglioramenti importanti a scapito di piccole perdite»). `build.SEPTEMBER_C
 (56,0 · 63,4 · 56,3 · 56,9 · 58,8 · 57,4 · 53,8), il motore 50,0%; sull'errore medio il prezzo detto - la formula batte
 il motore 3 stagioni su 7 invece di 6. Fine luglio resta com'era.
 
+### PRE-REGISTRAZIONE (01/10/2026) - M5: quello che la BOARD sa al 5 settembre
+
+Scritta prima di misurare. I pacchetti del viaggio nel tempo sono datati 5 settembre 2024 e 5 settembre 2025, cioè le
+finestre di settembre 2024-25 e 2025-26, e il loro `boards/leghe.json` dice per ogni quotato Serie A se l'undici tipo
+lo mette in campo (`in_eleven`) e il gradino del foglio a quella data (`status`, che usa la board e le giornate giocate).
+
+* **M5a - la board corregge la scelta**: la quota di scelta della formula (dopo la miscela) si moltiplica per il
+  rapporto vero/previsto dei disegnati e dei non disegnati, misurato sull'ALTRA delle due stagioni.
+* **M5b - il gradino previsto quest'anno dà le presenze** (l'operatore: «se TIZIO quest'anno è previsto TITOLARE, salvo
+  imprevisti, fa circa 36 presenze»): la quota di scelta è la MEDIANA vera della quota di chi il foglio metteva su quel
+  gradino, misurata sull'altra stagione; disponibilità, stop aperto e giornate da giocare restano quelli della formula.
+
+**Criterio**: la quota entro l'80-125% sale in tutte e due le stagioni rispetto alla formula adottata (M1b + M4), e
+l'errore medio non peggiora in media. **Evidenza debole e detta**: due stagioni sole, e i pacchetti sono stati costruiti
+col codice di oggi, tarato anche su quelle stagioni; un sì qui è un segno, e la prova è il 2026-27.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
