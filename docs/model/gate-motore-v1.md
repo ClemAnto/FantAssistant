@@ -7403,3 +7403,27 @@ della fantamedia), con UNA sola differenza: il K per ruolo invece di uno per tut
 `BLEND_K` è misurato su dieci stagioni di Serie A che includono gli esiti di queste finestre in-season: il
 guadagno su `default` è quindi contaminato (un K scelto guardando anche i bersagli); su **euro** non lo è,
 perché la misura non ha letto nessuna stagione EuroLeghe.
+
+### 7-quinsexagies (bis). L'ESITO: su euro l'accuratezza migliora 3 finestre su 3, e il guardiano dei NOMI si divide
+
+**Corsa fatta** subito dopo la pre-registrazione (`c4dca5f`), sulla **copia privata del DB** (l'`update`
+notturno teneva il lock di scrittura sul vivo). Driver `scratchpad/gate_r28.py`: ADOPTED contro il set
+candidato, parametri incrociati, 14 finestre in-season.
+
+| | finestre che misurano | MAE fm sugli uomini mossi | peggiore | nomi | valore catturato |
+|---|---|---|---|---|---|
+| **euro/mantra** | 3 (I23set · I24set · I25set) | +0,88 · +1,17 · +1,24% = **+1,09%** | +0,88% | 101 → 101 | +0,45% |
+| **euro/classic** | 3 | +0,64 · +2,01 · +1,50% = **+1,38%** | +0,64% | **33 → 32 (−3,0%)** | −1,12% |
+| default/classic (R28 al posto di R25K40) | 12 | +0,19% (7/12) | **−7,97%** (I25feb) | 173 → 174 | −0,15% |
+| default/mantra | 12 | +0,08% (6/12) | −7,32% | 564 → 566 | +0,09% |
+
+**L'attesa su euro (0-2%) regge**, e anche quella su `default` (entro ±1% da R25K40, e perde): il K unico era
+già il punto buono per Serie A. Le finestre `feb` di euro non misurano, come previsto.
+
+**Su euro il verdetto si divide per gioco**: su mantra supera ogni guardia (strict: tutte le finestre
+migliorano); su classic supera l'accuratezza e il valore catturato ma perde **un nome su 33**, che è il 3%
+contro la tolleranza del 2%. Il criterio non si allarga per farla passare: la decisione si prende in chiaro,
+ed è dell'operatore (la sua lega EuroLeghe è mantra).
+
+**Effetto sul caso vivo**: Gvardiol (D, K 32,6, 4 partite a 7,00) da 6,215 a ~6,30 — quattro partite valgono
+l'11% del livello di un difensore, che è quello che la misura dice.

@@ -23,7 +23,7 @@ from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 
 from euroleghe_ingest.context import Context
-from euroleghe_ingest.engine import cups, features, model
+from euroleghe_ingest.engine import categories, cups, features, model
 from euroleghe_ingest.engine.fitting import fit_linear, spearman
 
 # ---------------------------------------------------------------- rules registry
@@ -72,6 +72,10 @@ RULES: tuple[Rule, ...] = (
     Rule("R2", "beta corroborated by per-90 propensity (xG/xA per 90)", True),
     # R29/R30 - pre-registrate §7-tresexagies (27/09/2026): xG e xA come FORTUNA da togliere alla
     # fantamedia, non come volume (che e' R2). R29 sulla stagione scorsa, R30 sulle giornate viste.
+    # R28 - pre-registrata §7-quinsexagies (30/09/2026): R25 con il K del RUOLO, letto da dove e' misurato
+    # (`categories.BLEND_K`) invece di uno per tutti. Non si fitta qui.
+    Rule("R28", "la fantamedia GIA' TENUTA entra nella fantamedia attesa con il K del suo ruolo "
+                "(categories.BLEND_K: P 16.6, D 32.6, C 43.5, A 18.5 partite)", True, metric="fm"),
     # R31/R31b - pre-registrate §7-quattuorsexagies (30/09/2026): una stagione CORTA non cancella la
     # carriera. Dove B0 non prevede (meno di 15 voti a t-1, o nessuna riga) ma ci sono almeno due stagioni
     # piene nelle ultime cinque, la fantamedia e' la media di quelle (quella di R18) regredita verso
@@ -307,7 +311,9 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                # dove la stagione di input ha gli attesi (T0-T2), R30 solo in-season.
                                "R29", *R30_MATCHES,
                                # R31: pre-registrate §7-quattuorsexagies (30/09/2026).
-                               "R31", "R31b")
+                               "R31", "R31b",
+                               # R28: pre-registrata §7-quinsexagies (30/09/2026), inerte in pre-stagione.
+                               "R28")
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -1725,6 +1731,11 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
     # SOSTITUISCE quando sono tutt'e due nel set: cosi' `ADOPTED + R30K40` confronta la stessa miscela
     # con e senza la fortuna, e non la applica due volte.
     blends = R30_MATCHES if any(key in rules for key in R30_MATCHES) else R25_MATCHES
+    # R28 (§7-quinsexagies) e' la stessa miscela col K del RUOLO, e come R30 SOSTITUISCE R25 se sono insieme.
+    role_k = categories.BLEND_K.get((obs.role_classic or "").upper()) if "R28" in rules else None
+    if (role_k is not None and fm_pred is not None
+            and obs.fm_seen is not None and obs.pv_seen):
+        return model.blend_with_seen(fm_pred, obs.fm_seen, float(obs.pv_seen), role_k)
     for key, matches in blends.items():
         if (key in rules and fm_pred is not None
                 and obs.fm_seen is not None and obs.pv_seen):
