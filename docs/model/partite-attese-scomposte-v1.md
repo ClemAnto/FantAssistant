@@ -411,6 +411,12 @@ centesimo (6,806 contro 6,796): la decisione è dell'operatore. M2 peggiora; le 
 sua squadra. Il candidato più forte già misurato nel progetto è l'undici tipo (a parità di claim, chi la board disegna
 realizza 0,51 di quota da titolare contro 0,33), che però per le stagioni passate esiste solo dove c'è un foglio datato.
 
+**M1b + M4 ADOTTATE per settembre** (decisione dell'operatore, 01/10/2026, col criterio NON soddisfatto e detto: «vedo
+dei miglioramenti importanti a scapito di piccole perdite»). `build.SEPTEMBER_CLASS` = gradino dell'anno prima,
+`SEPTEMBER_OBJECTIVE` = la quota entro l'80-125%. Il banco rigenerato riproduce la misura: **57,5% entro l'80-125%**
+(56,0 · 63,4 · 56,3 · 56,9 · 58,8 · 57,4 · 53,8), il motore 50,0%; sull'errore medio il prezzo detto - la formula batte
+il motore 3 stagioni su 7 invece di 6. Fine luglio resta com'era.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.

@@ -121,6 +121,12 @@ LONG_INJURY_SHARE = 1 / 3
 # because it reads a fact the auction had: Lukaku was out from 14 August 2025); «club» 3 of 7, «free» 2 of 7. A
 # game missed injured counted as NOT PLAYED carries the injury itself, which is why leaving it out loses.
 SEPTEMBER_SEEN, SEPTEMBER_OPEN_SPELL = "calendar", True
+# M1b + M4 ADOPTED FOR SEPTEMBER by the operator's decision (01/10/2026), with the pre-registered criterion NOT met
+# and said so: the prior is pulled toward the mean of his role inside his context AND his rung of last season, and the
+# grid is fitted on the share within 80-125% instead of the mean error. Measured (`m_eval.py`): 56.0% -> 57.5% on
+# average, +4.1 · +5.1 · +3.7 points on three seasons, 0 on one, -0.5 · -1.6 · -0.5 on three (3 of 7, the criterion
+# asked 5), mean error 6.80 -> 6.96. His words: «vedo dei miglioramenti importanti a scapito di piccole perdite».
+SEPTEMBER_CLASS, SEPTEMBER_OBJECTIVE = "cls_rung", "band"
 # The gate's own thresholds for the two verdicts, so the bench speaks the gate's vocabulary.
 FLOOR, TOLERANCE = 0.005, -0.02
 K_READING = (3, 6, 10, 15, 25, 40)
@@ -667,7 +673,8 @@ def main() -> None:
     tables: dict[str, list] = {}
     for r in september:
         if r["target"] not in priors:
-            priors[r["target"]] = fit([x for x in july if x["target"] != r["target"]], keeper_line=False)
+            priors[r["target"]] = fit([x for x in july if x["target"] != r["target"]], keeper_line=False,
+                                      cls=SEPTEMBER_CLASS, objective=SEPTEMBER_OBJECTIVE)
             tables[r["target"]] = residual_table(conn, f"{r['target'][:4]}-07-01")
         r["seen_club"], r["seen_free"], r["seen_played"] = seen_at_club(r, games)
         r["out_open"] = expected_out(r, games, spells, tables[r["target"]])
