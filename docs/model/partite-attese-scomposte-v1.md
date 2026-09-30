@@ -160,6 +160,8 @@ sotto il motore in cinque finestre su sette), quindi il vantaggio del motore lì
    vuole le colonne del foglio): se il gradino diventa una lettura da usare, va rifatto sui minuti previsti.
 3. Se una parte della scomposizione deve entrare nel motore, la strada è il gate con una regola pre-registrata sulla
    popolazione dove regge (i portieri, e l'asta di settembre), non la formula intera.
-4. I portieri: la maglia lasciata libera da chi è partito (misurata sul caso Butez, 18 casi: 0,13 → 0,43) e il peso
-   delle prime giornate quando il vecchio titolare è sano - da pre-registrare.
+4. I portieri: la maglia lasciata libera da chi è partito è stata **pre-registrata e passata al gate** (R32/R32b,
+   gate §7-sexsexagies, 01/10/2026): da sola respinta, la variante «senza credito se arriva un portiere più caro»
+   va nella direzione giusta (7 finestre su 10, +3,5%) e non passa per una finestra a −21%. Resta candidata per il
+   2026-27. Aperto: il peso delle prime giornate quando il vecchio titolare è sano.
 5. Febbraio: capire da dove viene il vantaggio del motore a stagione avanzata, visto che non è il K.
