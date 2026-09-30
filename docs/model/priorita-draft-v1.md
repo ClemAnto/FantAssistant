@@ -590,3 +590,36 @@ motore, entrambe passate al gate e adottate su euro (gate §7-quattuorsexagies R
 della DP: davanti restano gli esterni da bonus (Grimaldo, Mittelstadt, Baku), e contro Gabriel Magalhaes pesano ~4
 presenze attese in meno. *Prima di ritarare una formula, guarda se i suoi ingressi sono misure o ripieghi*: qui era
 un ripiego (`why_fm_steps` = R0c e poi fermo) travestito da previsione.
+
+## 21. Lo sconto di RAR sul banco: il 70% è troppo (30/09/2026)
+
+Sua domanda: «dobbiamo capire se questo 70% è corretto». Politica nuova sul banco del draft
+(`toolkit/bench/draft/rarity.mjs`, `node multi.mjs rarity|rarity-rationed EuroLeghe windows-porte.json --declared
+--cap=12`, 8 seed × 12 posti × 5 stagioni euro), che legge dall'app `manValue` (SeSw) e `rarity` (RAR) senza
+copie. **DP = SeSw − d · min(1, RAR/k) · (SeSw − B)**: k = scelte degli altri prima del nostro prossimo turno (il
+resto del giro, più chi l'ordine per FVM mette davanti a noi dopo averlo pagato), B = la SeSw più bassa chiamabile.
+Lo sconto va su SeSw − B e non su SeSw perché SeSw ha segno: il prodotto letterale `SeSw × (1 − d s)` alza un uomo
+comune sotto zero, ed è misurato peggio (−0,49%, 1/5).
+
+Guadagno sui punti a giornata contro SeSw da sola (la DP di oggi), per stagione:
+
+| d | senza razionamento | con il razionamento dell'app (`needFor`) |
+|---|---|---|
+| 0,1 | +1,25% (2/5) | +0,66% (3/5, robust) |
+| 0,2 | **+0,96% (4/5, robust)** | +0,47% (4/5) |
+| 0,3 | +0,77% (3/5, robust) | **+0,71% (4/5, robust)** |
+| 0,5 | −0,05% | +0,54% (3/5, robust) |
+| **0,7** | **−0,49% (3/5)** | +0,42% (3/5) |
+| 1,0 | −0,79% | +0,18% |
+
+**Il 70% è sbagliato**: senza razionamento peggiora, e i buchi a stagione raddoppiano (6,8 → 11,6), perché si
+rimandano troppi ruoli «tanto ne resta uno» e alla fine il posto resta vuoto. L'ottimo è interno e basso,
+**d ≈ 0,2-0,3**, robusto su entrambe le famiglie, mai strict, +0,5-0,7 punti a giornata. Il gradino
+(`RAR ≥ k`) è inerte in d - righe identiche per ogni d - perché scatta solo su chi è già fuori dalla contesa.
+Letto a margine: il razionamento dell'app vale di suo 71,9 → 72,9 punti a giornata e dimezza i buchi, cioè più di
+RAR; la DP dell'app oggi non lo ha.
+
+Limiti detti: sulle finestre storiche RAR legge 3 letture su 6 (costanza, fantamedia al posto di MV + bonus,
+presenze; gradino e infortuni di un agosto passato non ci sono), quindi è più largo che nell'app. In cima alla lista
+i RAR sono comunque bassi (0-5 contro k di 10-20), cioè lo sconto morde proprio dove si sceglie. La DP dell'app NON è
+cambiata: resta SeSw finché lui non decide d.

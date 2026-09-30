@@ -9,6 +9,7 @@ import {
 import { ahead, appNeed, bestUnder } from './engine.mjs';
 import { augments, bestCovered } from './legal.mjs';
 import { priority } from './priority.mjs';
+import { RARITY, RARITY_RATIONED } from './rarity.mjs';
 
 /* ---- currencies ------------------------------------------------------------------------------------ */
 
@@ -487,6 +488,7 @@ export const SETS = {
   until: UNTIL,
   depth: DEPTH,
   priority: PRIORITY,
+  rarity: RARITY, 'rarity-rationed': RARITY_RATIONED,
   published: PUBLISHED, coverage: COVERAGE, currency: CURRENCY, blend: BLEND, survival: SURVIVAL,
   combined: COMBINED, pairs: PAIRS,
 };
