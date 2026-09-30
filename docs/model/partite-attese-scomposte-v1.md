@@ -271,6 +271,30 @@ Sull'errore medio la formula batte il motore 6 stagioni su 7 (+2,2%, robust); su
 Più della metà del margine sta sui titolari rimasti nel loro club, che sono anche due terzi di quello che si compra; e
 la formula sbaglia più spesso **per eccesso** (64% dell'errore sopra il vero). È da lì che si comincia.
 
+## 5-sexies. La diagnosi dei titolari, e due modifiche PRE-REGISTRATE (01/10/2026)
+
+**La diagnosi** (`diagnose.py`, settembre, la popolazione dell'asta): per i titolari rimasti nel club (1.002 uomini)
+la formula dà D 0,876 contro 0,840 vero e **S 0,816 contro 0,871 vero** - la scelta è SOTTOstimata, e l'eccesso sulle
+presenze viene tutto dalla disponibilità: chi perde meno del 10% della stagione è sottostimato di 0,67 partite, chi
+perde il 10-33% sovrastimato di 2,91, chi perde oltre un terzo di 11,21 (128 uomini, errore 11,60).
+
+**Scritte prima di misurarle**, e misurate con la regola del giudizio decisa (inizio settembre, la popolazione
+dell'asta, tutti dentro, ogni finestra coi parametri delle altre):
+
+* **M1 - le classi anche per chi non è portiere.** La media verso cui si tira S è quella del ruolo nel contesto E nella
+  classe dell'anno prima (titolare se ha preso il voto in almeno metà delle partite per cui era disponibile, altrimenti
+  rotazione): la stessa soglia e la stessa forma dei portieri (`KEEPER_CLASS_SHARE`), per la stessa ragione - una
+  media che mescola titolari e rotazioni tira in basso i primi e in alto i secondi.
+* **M2 - la formula di settembre tarata su settembre.** I parametri della griglia (kD, w2, alpha, gamma, q, kS, b, c)
+  si tarano sulle finestre di settembre - sull'esito delle giornate che restano - lasciando fuori quella giudicata,
+  invece di prenderli da luglio, dove l'esito è la stagione intera (agosto compreso, che ha meno infortuni).
+
+**Criterio**, sulla misura dell'operatore: la quota entro l'80-125% del vero sale in **almeno 5 finestre su 7** e in
+media, e l'errore medio non peggiora in media. M1 e M2 si misurano ciascuna da sola e poi insieme; si tiene la forma
+migliore che passa. **Attese**: M1 +1/+3 punti di quota (la scelta dei titolari sale verso lo 0,87); M2 meno di un
+punto (corregge un livello, e c già lo assorbe in parte).
+**Contaminazione**: sono le stesse sette finestre già lette molte volte; la prova pulita resta il 2026-27.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
