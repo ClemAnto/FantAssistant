@@ -200,6 +200,14 @@ class Observation:
     # quantity a year earlier - so the engine can read how the market REVISED him before the auction.
     price_initial: float | None = None
     price_initial_prev: float | None = None
+    # R32 (gate §7-sexsexagies) - THE SHIRT LEFT BY THE KEEPERS WHO WENT, for a keeper who stays at his club:
+    # the appearances, on this platform in the input season, of the keepers his club listed then and the target
+    # listone no longer lists there. A count and not a share, so the rule divides by the same `matchdays_prev`
+    # `share_prev` uses. None for everybody else - a club changer's old shirt is not the question.
+    gk_vacated_games: int | None = None
+    # ...and whether the target listone brings to his club a keeper quoted HIGHER than him (Qt.I, the only
+    # auction-safe price): R32b gives the vacated shirt no credit then. None where either price is unknown.
+    gk_newcomer_above: bool | None = None
     # FVM of the target season, Classic and Mantra. Served in the listone's current state, so for a
     # finished season it is the END-OF-SEASON market value: scoring and reporting only, like `price`.
     # No rule may read it - it is on the wrong side of the auction date by construction.
@@ -1666,6 +1674,8 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
     seen_expected = _seen_expected(conn, window, platform, seen_rounds)
     mine_rounds = rounds_in_squad(conn, window, platform, seen_rounds)
 
+    vacated_games, newcomer_price = _keeper_vacancy(conn, window, platform)
+
     observations: list[Observation] = []
     for (fc_id, name, role_classic, roles_raw, league, price, club_target, club_prev, birth_year,
          pv_prev, mv_prev, fm_prev, pv_act, mv_act, fm_act,
@@ -1680,6 +1690,11 @@ def load(conn: sqlite3.Connection, window: Window, platform: str,
             fc_id=fc_id, name=name, role_classic=role_classic,
             roles_mantra=tuple(split_roles(roles_raw)), league=league, price=price,
             club_prev=club_prev, club_target=club_target,
+            gk_vacated_games=(vacated_games.get(club_prev, 0)
+                              if role_classic == "P" and club_prev and club_prev == club_target else None),
+            gk_newcomer_above=(None if role_classic != "P" or not club_prev or club_prev != club_target
+                               or price_initial is None
+                               else newcomer_price.get(club_target, 0.0) > price_initial),
             pv_prev=pv_prev, mv_prev=mv_prev, fm_prev=fm_prev,
             fm_5y=(fm_history.get(fc_id) or (None, 0, None))[0],
             fm_5y_seasons=(fm_history.get(fc_id) or (None, 0, None))[1],
@@ -2047,6 +2062,41 @@ def cup_exposure(conn: sqlite3.Connection, season: str, cups: Mapping,
         if confederation and share:
             out[fc_id] = (confederation, capped is not None, share)
     return out
+
+
+def _keeper_vacancy(conn: sqlite3.Connection, window: Window,
+                    platform: str) -> tuple[dict[str, int], dict[str, float]]:
+    """R32: per club, the appearances its departed keepers made, and the dearest keeper who arrives.
+
+    «Departed» = listed at the club in the input season (`rosters`, the same join `club_prev` comes from) and not
+    at that club in the target listone (`_TARGET_FROM_LISTONE`'s club: the platform's quote first, the roster
+    after), including a man the target listone does not carry at all. «Arrives» = a keeper of the target listone
+    at the club whose input club was another, or none; his Qt.I on this platform. Clubs by canonical name, which
+    is what `club_prev` and `club_target` already are.
+    """
+    target = {fc_id: club for fc_id, club in conn.execute(
+        f"""WITH r AS ({_TARGET_FROM_LISTONE})
+            SELECT r.fc_id, c.canonical_name FROM r JOIN clubs c ON c.fc_club_id = r.fc_club_id""",
+        {"target": window.target_season, "platform": platform})}
+    previous = {}
+    vacated: dict[str, int] = {}
+    for fc_id, club, games in conn.execute(
+            """SELECT r.fc_id, c.canonical_name, COALESCE(s.pv, 0) FROM rosters r
+               JOIN clubs c ON c.fc_club_id = r.fc_club_id
+               LEFT JOIN season_stats s ON s.fc_id = r.fc_id AND s.season = r.season AND s.platform = ?
+               WHERE r.season = ? AND r.role_classic = 'P'""", (platform, window.input_season)):
+        previous[fc_id] = club
+        if club and target.get(fc_id) != club:
+            vacated[club] = vacated.get(club, 0) + int(games)
+    arriving: dict[str, float] = {}
+    for fc_id, price in conn.execute(
+            f"""WITH r AS ({_TARGET_FROM_LISTONE})
+                SELECT r.fc_id, r.price_initial FROM r WHERE r.role_classic = 'P' AND r.price_initial IS NOT NULL""",
+            {"target": window.target_season, "platform": platform}):
+        club = target.get(fc_id)
+        if club and previous.get(fc_id) != club:
+            arriving[club] = max(arriving.get(club, 0.0), float(price))
+    return vacated, arriving
 
 
 def prepare(conn: sqlite3.Connection, window: Window, platform: str, game: str, *,

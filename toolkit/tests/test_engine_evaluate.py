@@ -1164,3 +1164,26 @@ def test_the_base_vote_is_predicted_and_the_bonus_rate_is_what_falls_out():
 
     # an Estimate built without one is still valid: an older bundle simply has no MV to show
     assert est.Estimate(6.0, 20.0, "anchor", 0.5, "").mv is None
+
+
+def test_r32_reads_the_shirt_the_departed_keepers_left_and_nothing_else():
+    """R32 (gate §7-sexsexagies): R7's line with one term, which is zero wherever the fact is unknown."""
+    from dataclasses import replace
+    from types import SimpleNamespace
+
+    data = SimpleNamespace(matchdays_prev=38)
+    base = features.Observation(fc_id=1, name="Butez", role_classic="P", roles_mantra=("por",), league="serie_a",
+                                price=10, club_prev="Como", club_target="Como", pv_prev=19, mv_prev=6.2,
+                                fm_prev=5.0, pv_act=38, mv_act=6.0, fm_act=5.0)
+    heir = replace(base, gk_vacated_games=20, gk_newcomer_above=False)
+    assert evaluate._vacated_share(heir, data, discount=False) == pytest.approx(20 / 38)
+    # R32b gives no credit when the target listone brings a dearer keeper to his club
+    bought_over = replace(heir, gk_newcomer_above=True)
+    assert evaluate._vacated_share(bought_over, data, discount=True) == 0.0
+    assert evaluate._vacated_share(bought_over, data, discount=False) == pytest.approx(20 / 38)
+    # unknown is zero, never a guess - a club changer carries None by construction
+    assert evaluate._vacated_share(base, data, discount=False) == 0.0
+    # the two keys are candidates and pooled like R7, and they do NOT move the residual baseline of other rules
+    assert {"R32", "R32b"} <= set(evaluate.CANDIDATES)
+    assert evaluate.POOLED_PARAMS["R32"] == ("share_gk_vacated",)
+    assert not {"R32", "R32b"} & evaluate.SHARE_REPLACING

@@ -108,6 +108,11 @@ RULES: tuple[Rule, ...] = (
     Rule("R7", "goalkeeper appearances: dedicated persistence (NOT the pre-registered binary "
                "starter probability, which `probable_starter` cannot support retrospectively)",
          True, metric="pv"),
+    # R32 / R32b (gate §7-sexsexagies, 01/10/2026): R7's line with the shirt the departed keepers left.
+    Rule("R32", "goalkeeper appearances: R7's line plus the shirt left by the keepers who went", True,
+         metric="pv"),
+    Rule("R32b", "R32 with no credit for the shirt when a dearer keeper arrives at the club", True,
+         metric="pv"),
     Rule("R9", "anchor recency weight (goal-environment drift)"),
     Rule("R5", "club-strength anchor from club_elo (RETEST of a rejected family)", True),
     Rule("R10", "new coach: level + interaction with last season's playing share", True,
@@ -312,6 +317,8 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                "R29", *R30_MATCHES,
                                # R31: pre-registrate §7-quattuorsexagies (30/09/2026).
                                "R31", "R31b",
+                               # R32 / R32b: the shirt the departed keepers left (§7-sexsexagies).
+                               "R32", "R32b",
                                # R28: pre-registrata §7-quinsexagies (30/09/2026), inerte in pre-stagione.
                                "R28")
 
@@ -587,6 +594,15 @@ class Prediction:
 
 def _is_goalkeeper(obs: features.Observation) -> bool:
     return obs.role_classic == "P" or "por" in obs.roles_mantra
+
+
+def _vacated_share(obs: features.Observation, data: features.WindowData, *, discount: bool) -> float:
+    """R32: the share of last season's calendar the departed keepers of his club played. Zero where unknown."""
+    if not obs.gk_vacated_games or not data.matchdays_prev:
+        return 0.0
+    if discount and obs.gk_newcomer_above:
+        return 0.0
+    return min(obs.gk_vacated_games / data.matchdays_prev, 1.0)
 
 
 def _predict_fm(obs: features.Observation,
@@ -904,6 +920,8 @@ class Params:
     off_role_forward: float | None = None         # R8: used further forward than listed
     off_role_backward: float | None = None        # R8: used further back than listed
     share_gk: tuple[float, ...] | None = None     # R7: goalkeepers
+    share_gk_vacated: tuple[float, ...] | None = None    # R32: R7's line + the shirt left
+    share_gk_vacated_b: tuple[float, ...] | None = None  # R32b: the same, no credit under a dearer arrival
     share_new: tuple[float, ...] | None = None    # R1: players with no history in the game
     beta_new: float | None = None                 # R1: FM from the foreign equivalent
     discount_cross: float | None = None           # R1: adaptation, changed league
@@ -925,7 +943,8 @@ def _mv_term(obs: features.Observation) -> float:
 # stable across windows but each window's estimate is noisy - which is a property to be demonstrated,
 # window by window, not assumed. R7: keeper persistence, 0.505-0.798 on seven windows, from ~30 keepers
 # each. See `docs/model/gate-motore-v1.md` §3-quater for the numbers that put it here.
-POOLED_PARAMS: dict[str, tuple[str, ...]] = {"R7": ("share_gk",)}
+POOLED_PARAMS: dict[str, tuple[str, ...]] = {"R7": ("share_gk",), "R32": ("share_gk_vacated",),
+                                             "R32b": ("share_gk_vacated_b",)}
 
 
 def pool_params(fitted: dict[str, Params], exclude: str, base: Params) -> Params:
@@ -1140,6 +1159,17 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
                    if _is_goalkeeper(obs) and obs.pv_prev is not None and obs.pv_act is not None]
         params.share_gk = fit_linear(samples)
         params.notes["R7_n"] = len(samples)
+
+    # R32 / R32b: the same samples as R7 and one feature more, so the two differ in that term and in nothing else.
+    for key, field_name in (("R32", "share_gk_vacated"), ("R32b", "share_gk_vacated_b")):
+        if key in rules:
+            samples = [((obs.share_prev(data.matchdays_prev), 1.0 if obs.club_change else 0.0,
+                         _vacated_share(obs, data, discount=key == "R32b")),
+                        obs.pv_act / matchdays)
+                       for obs in data.observations
+                       if _is_goalkeeper(obs) and obs.pv_prev is not None and obs.pv_act is not None]
+            setattr(params, field_name, fit_linear(samples))
+            params.notes[f"{key}_n"] = len(samples)
 
     if {"R13", "R13b", "R13c"} & set(rules):
         deviations, shares = [], []
@@ -1758,7 +1788,13 @@ def _rule_pv(obs: features.Observation, data: features.WindowData, rules: tuple[
     minutes_share = derived.minutes_share.get(obs.fc_id)
     share: float | None = None
 
-    if _is_goalkeeper(obs) and "R7" in rules and params.share_gk and obs.pv_prev is not None:
+    vacated_line = (params.share_gk_vacated_b if "R32b" in rules else
+                    params.share_gk_vacated if "R32" in rules else None)
+    if _is_goalkeeper(obs) and vacated_line and obs.pv_prev is not None:
+        share = model.linear_share(vacated_line, (obs.share_prev(data.matchdays_prev),
+                                                  1.0 if obs.club_change else 0.0,
+                                                  _vacated_share(obs, data, discount="R32b" in rules)))
+    elif _is_goalkeeper(obs) and "R7" in rules and params.share_gk and obs.pv_prev is not None:
         share = model.linear_share(params.share_gk, (obs.share_prev(data.matchdays_prev),
                                                      1.0 if obs.club_change else 0.0))
     elif ("R3d" in rules and params.share_both and obs.pv_prev is not None

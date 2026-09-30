@@ -7431,3 +7431,62 @@ l'11% del livello di un difensore, che è quello che la misura dice.
 **Decisione (30/09/2026)**: l'operatore, col numero davanti, adotta R28 su EuroLeghe — `ADOPTED["euro"]`,
 `SHEET_REVISION` 80. `backtest --verify` 22/22. Sul foglio del 30/09: Gvardiol 6,215 → **6,301**, Gabriel
 Magalhaes 6,223 → 6,185 (quattro partite a 5,88); Gvardiol diventa il primo Dc e il 9º difensore per DP.
+
+## 7-sexsexagies. PRE-REGISTRAZIONE (1 ottobre 2026) — R32: LA MAGLIA LASCIATA DAI PORTIERI PARTITI
+
+**Scritta e committata PRIMA della corsa.** Dal caso che l'operatore ha portato sul banco delle partite attese
+(`partite-attese-scomposte-v1.md` §5-bis): Butez, nel 2024-25 19 partite su 40 al Como, nel 2025-26 le gioca
+**tutte e 38**; il motore gli dava 19,7 prima della stagione. La metà della maglia che non era sua l'aveva giocata un
+portiere che d'estate ha lasciato il club, e **nessuna regola lo legge**: R7 è una retta sulla quota della stagione
+scorsa e sul cambio di club, R11 conta gli ARRIVI nel ruolo e non le partenze.
+
+**Il fatto** (`Observation.gk_vacated_games`, solo per un portiere che resta nello stesso club): le presenze della
+stagione di input, su questa piattaforma, dei portieri che quel club aveva nel listone di input e che nel listone
+bersaglio non sono più lì (altro club o spariti). Diviso per le giornate della stagione di input, è la quota di
+maglia lasciata libera. Per chi cambia club vale zero: la domanda è sul SUO club.
+
+### R32 — la retta di R7 con la maglia lasciata
+
+    quota = a + b · quota_prev + c · cambio_club + d · maglia_lasciata
+
+La stessa retta, la stessa funzione (`fit_linear` + `linear_share`), lo stesso ramo e la stessa messa in comune
+fra finestre di R7 (`POOLED_PARAMS`); un termine in più. Si valuta al posto di R7, mai sopra.
+
+### R32b — la stessa, senza credito se arriva un portiere più caro
+
+    maglia_lasciata = 0 se nel listone bersaglio arriva al suo club un portiere con Qt.I più alta della sua
+
+Una variante e non un'altra idea: chi eredita una maglia la perde spesso per il portiere comprato per prenderla, e la
+Qt.I del listone bersaglio è l'unico prezzo lecito.
+
+### Attese, scritte perché possano essere smentite
+
+* `d` **positivo, fra 0,2 e 0,5**: chi eredita metà maglia ne prende una parte, non tutta.
+* Sui portieri che la regola muove (restano, maglia lasciata > 0) l'errore sulle presenze scende del **5-15%**;
+  su tutta la popolazione l'effetto è piccolo (i portieri sono ~8% delle righe) e **non deve peggiorare**.
+* R32b meglio di R32 dove arriva un portiere caro, uguale altrove.
+
+### Criterio
+
+Contro il SET ADOTTATO (la lezione di R24): `ADOPTED + R7` contro `ADOPTED + R32` (e `+ R32b`), su ciascuna delle due
+piattaforme e dei due giochi, ogni finestra coi parametri delle altre:
+* sui portieri che la regola muove: **maggioranza delle finestre, media sopra lo 0,5%, nessuna sotto −2%**;
+* su tutta la popolazione l'errore sulle presenze **non peggiora** (la regola aurea), nomi e valore catturato delle
+  liste d'asta entro il 2%;
+* su `euro`, dove R7 non è adottata, la stessa domanda con R7 aggiunta a tutti e due i bracci, così si misura il solo
+  termine nuovo.
+R32b si adotta al posto di R32 solo se la batte con lo stesso criterio.
+
+### Contaminazione, detta prima e per intero
+
+**Queste dieci finestre NON sono pulite.** L'ipotesi viene da un caso del 2025-26 (T2), e la sua direzione è già
+stata vista sulle stesse dieci finestre dal banco della formula (portieri rimasti che giocavano meno del 60%:
+0,13 → 0,43 di quota quando la maglia lasciata supera il 60%, su 18 casi). Un verdetto favorevole qui è il gradino di
+evidenza più basso, come R29; la prova pulita è la stagione 2026-27. In più, il listone bersaglio di una stagione
+passata è l'ULTIMA lettura, quindi sa anche delle partenze di gennaio: è la contaminazione in favore del modello già
+dichiarata per `club_change`, e vale anche qui.
+
+### Sicurezza, da verificare dopo
+
+R32 e R32b non entrano in `SHARE_REPLACING` (non spostano il baseline dei residui delle altre regole) e finché non
+sono in `ADOPTED` `backtest --verify` resta **22/22** e nessun foglio si muove.
