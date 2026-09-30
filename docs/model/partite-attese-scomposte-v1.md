@@ -460,6 +460,91 @@ pacchetti del viaggio nel tempo in sé, scritto negli aperti; e M5a/M5b, costrui
 la stessa riserva. La board che mette in campo sposta poco la
 misura che decide: i disegnati sono già previsti bene (27,4 → 26,1 · 27,8 → 26,3).
 
+## 5-septies. Dove sbagliamo sui titolari rimasti (01/10/2026, `starters.py`)
+
+Sola lettura, sulla formula ADOTTATA a settembre (M1b + M4; §5-quinquies misurava quella di prima). Riproduce la misura
+pubblicata: quota 57,5% contro 50,0%, errore 6,959 contro 6,949.
+
+**Prima una scoperta sulla POPOLAZIONE.** 58 uomini del banco su 1.537 (42 dei 1.002 «titolari rimasti») il 5 settembre
+**giocavano già fuori dalla Serie A**: l'ultima partita di campionato prima dell'asta è altrove e nessuna di Serie A
+segue entro 30 giorni. Sono le partenze d'estate (Lukaku 2021-22, Scamacca e Theate 2022-23, Ndoye e Thauvin 2025-26)
+e gli arrivi di gennaio (Gimenez, Taylor K., Obrador). Il banco li tiene perché il listone di una stagione passata è
+l'ultima lettura - la stessa trappola del §5-sexies (M5c), ma qui la prova è datata PRIMA dell'asta. Formula 19,8
+partite, motore 16,4, vere **2,6** (46 su 58 a zero). La quota non li vede, perché **un uomo a zero voti è escluso dal
+conteggio** (`ratio` → None: 81 righe su 1.537); l'errore medio sì. Senza di loro:
+
+| | quota (zeri esclusi) | quota (zeri contati come fuori) | errore formula / motore |
+|---|---|---|---|
+| tutti | 57,5% / 50,0% | 54,5% / 47,3% | 6,959 / 6,949 |
+| senza chi era fuori | 58,0% / 50,0% | 56,6% / 48,8% | **6,533 / 6,666** |
+
+I 30 giorni tengono chi è arrivato all'ultimo giorno di mercato e non aveva ancora giocato (Messias 2021, Okaka 2019):
+per decidere leggono il calendario DOPO l'asta, ed è l'unica fuga accettata, per mancanza di una rosa datata.
+
+**Poi i titolari rimasti, senza i fuori** (960 uomini, 940 con almeno un voto; quota 63,8%). Un oracolo che corregge un
+fattore alla volta col valore vero:
+
+| cosa sa l'oracolo | quota |
+|---|---|
+| niente (la formula) | 63,8% |
+| la disponibilità vera | 74,9% |
+| **la scelta vera** (voti per partita in cui era disponibile) | **84,1%** |
+| tutte e due | 98,0% |
+
+**La leva è la scelta, non la disponibilità** (+20 punti contro +11), ed è anche la parte che il pavimento del §5-quater
+considera conoscibile. Dove cadono i 340 fuori banda:
+
+| esito | uomini | quota | fuori banda | direzione | D prevista/vera | S prevista/vera |
+|---|---|---|---|---|---|---|
+| infortuni, tiene il posto | 40% | 66% | 37% | 110 sopra, 17 sotto | 0,87 / 0,76 | 0,89 / 0,89 |
+| sano, tiene il posto | 39% | 80% | 21% | 21 sopra, **52 sotto** | 0,88 / 0,96 | 0,89 / 0,89 |
+| infortuni, perde il posto | 13% | 18% | 29% | 97 sopra | 0,85 / 0,70 | 0,79 / 0,50 |
+| sano, perde il posto | 8% | 45% | 12% | 39 sopra | 0,88 / 0,96 | 0,80 / 0,55 |
+
+(«perde il posto» = gioca meno dell'80% delle partite in cui è disponibile.) Tre letture.
+- **Il 37% sono stagioni di infortuni** di chi il posto lo tiene: sovrastimate, e sono il pavimento.
+- **Il 41% sono i titolari che perdono il posto** (un quinto del gruppo): sovrastimati di 1,3-1,8 volte. È il margine.
+- **Il 21% sono titolari sani che il posto lo tengono, e qui la formula SOTTOSTIMA**: 52 uomini previsti a 23,8 partite
+  che ne fanno 32,6. Sono giocatori in crescita che l'anno prima entravano molto dalla panchina, quindi con gradino
+  `panchina` o `ballottaggio` (Lautaro 2019-20, Bastoni, Bremer, Vlahovic e Barrow 2020-21, Raspadori 2021-22): M1b li
+  tira verso la media del loro gradino, e il gradino `panchina` dentro questo gruppo ha la quota peggiore (47-53%).
+
+**Cosa si sapeva il 5 settembre** (regressione del residuo della scelta sulla previsione e sui fatti del giorno, 623
+titolari con tutti i dati, segni per stagione):
+- **la media voto dell'anno prima**: +0,13 di scelta per punto di MV, positiva in 6 stagioni su 6 (t 2,7). La
+  formula adottata ha `q` = 0 in tutte e sette le pieghe: la taratura sulla quota l'ha spenta sulla popolazione intera,
+  e sui titolari serve;
+- **l'età dai 32 anni**: −0,06, negativa 6 su 6 (t −2,7);
+- **le partenze da titolare nelle giornate viste**: +0,12 fra «mai» e «sempre», 5 su 6 (t 4,2). La miscela legge i
+  VOTI visti, non le partenze;
+- **la previsione stessa**: pendenza −0,45 (5 su 6), cioè la scelta dei titolari è troppo sicura di sé.
+- **Il cambio di allenatore in estate NON regge**: letto sul suo allenatore più frequente sembrava fortissimo (perde il
+  posto 34% contro 18%), ma quella lettura scatta anche per un cambio a metà della stagione misurata; letto per club
+  (l'ultimo allenatore dell'anno prima contro quello del giorno) è 27% contro 19%, e con il resto fermo scompare
+  (t −1,0). Nemmeno «la scelta sotto l'allenatore attuale» per chi è arrivato a stagione in corso aggiunge niente (79
+  casi). Quota di Qt.I nel club-ruolo, minuti e quota da titolare dell'anno prima: nessun segno stabile.
+
+**Una nota sulla taratura adottata**: con la quota come obiettivo la griglia spegne `alpha`, `gamma` e `q` in tutte le
+pieghe e porta `kD` a 320-640 (640 sul bordo in due) e `w2` a 2 (bordo) in due: la disponibilità diventa la media del
+ruolo. Non è un difetto da curare qui, ma va detto: sono parametri al bordo.
+
+**PRE-REGISTRAZIONE (01/10/2026)**, nata da questi numeri e quindi sulle stesse sette finestre (evidenza debole; la prova
+è il 2026-27). Stesso criterio del §5-sexies: la quota entro l'80-125% sale in almeno 5 finestre su 7 e in media, e
+l'errore medio non peggiora in media; ognuna da sola e poi insieme.
+* **P0 - la popolazione**: fuori dal banco chi il giorno dell'asta giocava fuori dalla Serie A (sopra). Non è una
+  modifica della formula e non si giudica col criterio: cambia la popolazione su cui il 65% è misurato, quindi è una
+  decisione dell'operatore. Come lo è **contare gli zeri come fuori banda** (oggi un uomo previsto a 20 che fa 0 non
+  conta), anche sulla popolazione pulita.
+* **M6a - la qualità nella scelta dei titolari**: `q` tarato a parte per chi ha S ≥ 0,6.
+* **M6b - le partenze viste**: per la miscela di settembre la quota vista è la media fra voti visti e partenze da
+  titolare viste (dal livello per-partita di Transfermarkt), con lo stesso K.
+* **M6c - l'età**: dai 32 anni la scelta si moltiplica per un fattore tarato sulle altre finestre (griglia 0,85-1,0).
+* **M6d - i gradini bassi fra i titolari**: per chi ha S ≥ 0,6 il gradino dell'anno prima è `titolare` quando è
+  `panchina` o `ballottaggio` (la media verso cui tirarli è quella dei titolari, non quella di chi entra dalla panchina).
+Attese: M6a e M6b +1/+2 punti di quota ciascuna sui titolari, meno di uno sulla popolazione; M6c sotto il punto; M6d
+recupera parte dei 52 sottostimati e costa sui gradini bassi che il posto lo perdono davvero - ed è la più
+debole: a parità di previsione la regressione non vede il gradino `panchina` (+0,02, t 0,7).
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
