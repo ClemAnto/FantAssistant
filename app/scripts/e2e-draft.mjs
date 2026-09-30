@@ -867,16 +867,48 @@ async function main() {
     // so every loaded row carries a whole number; the first click puts the RAREST first, i.e. ascending.
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="rar"]'));
     await wait(500);
-    const rarUp = await evaluate(session, columnOf, 'rar');
+    // The column PRINTS a share above ten, so the count is read from the attribute the row declares.
+    const rarRows = await evaluate(session, () => [...document.querySelectorAll('[data-free] [data-rar]')].map((cell) => ({
+      count: cell.getAttribute('data-rar-count') == null ? null : Number(cell.getAttribute('data-rar-count')),
+      of: cell.getAttribute('data-rar-of') == null ? null : Number(cell.getAttribute('data-rar-of')),
+      text: cell.textContent.trim(),
+    })));
+    const rarUp = rarRows.map((one) => one.count);
     const freeTotal = Number(await evaluate(session, () => document.querySelector('[data-total]')?.getAttribute('data-total')));
-    note('RAR', `rari prima: ${rarUp?.slice(0, 5).join('/')} · ${rarUp?.filter((one) => one === 0).length ?? 0} a zero su ${rarUp?.length} caricate`,
+    // The printed form: the count up to ten, above it the share of the OTHER free men of his group.
+    const badText = rarRows.filter((one) => one.count != null && one.text !== (one.count <= 10 || !one.of
+      ? String(one.count) : `${Math.round((one.count / one.of) * 100)}%`));
+    note('RAR', `rari prima: ${rarUp.slice(0, 5).join('/')} · ${rarUp.filter((one) => one === 0).length} a zero su ${rarUp.length} caricate`,
       [
-        ...(!rarUp?.length ? ['la colonna RAR non si legge'] : []),
-        ...(rarUp && rarUp.some((one) => one == null) ? [`${rarUp.filter((one) => one == null).length} righe senza RAR`] : []),
-        ...(rarUp && rarUp.some((one) => one != null && (!Number.isInteger(one) || one < 0 || one >= freeTotal))
+        ...(!rarUp.length ? ['la colonna RAR non si legge'] : []),
+        ...(rarUp.some((one) => one == null) ? [`${rarUp.filter((one) => one == null).length} righe senza RAR`] : []),
+        ...(rarRows.some((one) => one.count != null && (!Number.isInteger(one.count) || one.count < 0 || one.count > one.of || one.of >= freeTotal))
           ? ['un RAR che non e\' un conteggio di altri svincolati'] : []),
-        ...(rarUp && !ordered(rarUp, false) ? ['il primo click su RAR non mette i piu\' rari in cima'] : []),
+        ...(badText.length ? [`${badText.length} righe stampano il RAR nella forma sbagliata (es. «${badText[0].text}» per ${badText[0].count}/${badText[0].of})`] : []),
+        ...(!ordered(rarUp, false) ? ['il primo click su RAR non mette i piu\' rari in cima'] : []),
       ]);
+    // A second click flips it: the LEAST rare first, i.e. the counts above ten, which print a share.
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="rar"]'));
+    await wait(500);
+    const rarDown = await evaluate(session, () => [...document.querySelectorAll('[data-free] [data-rar]')].map((cell) => ({
+      count: Number(cell.getAttribute('data-rar-count')), of: Number(cell.getAttribute('data-rar-of')), text: cell.textContent.trim(),
+    })));
+    const shares = rarDown.filter((one) => one.text.endsWith('%'));
+    const wrongShare = rarDown.filter((one) => one.count > 10 && one.of
+      && one.text !== `${Math.round((one.count / one.of) * 100)}%`);
+    note('RAR in percentuale', `meno rari: ${rarDown.slice(0, 3).map((one) => `${one.text} (${one.count}/${one.of})`).join(', ')}; `
+      + `${shares.length} righe in percentuale`,
+      [
+        ...(!shares.length ? ['nessun RAR oltre 10 stampato in percentuale'] : []),
+        ...(wrongShare.length ? [`${wrongShare.length} percentuali sbagliate`] : []),
+        ...(!ordered(rarDown.map((one) => one.count), true) ? ['il secondo click non rovescia'] : []),
+      ]);
+    // SeSw is, for now, the very number DP shows in a mantra draft: the two agree wherever SeSw has one (outside a
+    // mantra draft SeSw is empty and DP is the 0-99 of the old advice).
+    const seswDiff = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
+      .filter((row) => row.querySelector('[data-sesw]')?.textContent.trim() !== '—')
+      .filter((row) => row.querySelector('[data-sesw]')?.textContent.trim() !== row.children[4]?.textContent.trim()).length);
+    note('SeSw', `righe dove SeSw e DP differiscono: ${seswDiff}`, seswDiff ? ['SeSw non e\' ancora la DP di oggi'] : []);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
     // A CDP pointer TELEPORTS: the header's tooltip would stay open over the next control, where a hand would
@@ -1091,19 +1123,19 @@ async function main() {
       const heads = [...head.children].map((one) => one.getBoundingClientRect());
       const cells = [...row.children].map((one) => one.getBoundingClientRect());
       const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.right - cells[at].right)) : null));
-      // The eight season columns, after role, name, FVM, priority and rarity.
-      const widths = heads.slice(5).map((one) => Math.round(one.width));
+      // The eight season columns, after role, name, FVM, SeSw, priority and rarity.
+      const widths = heads.slice(6).map((one) => Math.round(one.width));
       const clipped = [...document.querySelectorAll('[data-free]')].flatMap((one) => [...one.children].slice(2))
         .filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length;
-      const fmHead = head.children[7];
-      const fmCell = row.children[7];
+      const fmHead = head.children[8];
+      const fmCell = row.children[8];
       const splits = document.querySelectorAll('[data-column="free"] .split').length;
       const crests = row.querySelectorAll('ui-crest').length;
       return {
         drift: drift.slice(2),
         fmHead: fmHead ? getComputedStyle(fmHead).color : null,
         fmCell: fmCell ? getComputedStyle(fmCell).color : null,
-        mvCell: row.children[6] ? getComputedStyle(row.children[6]).color : null,
+        mvCell: row.children[7] ? getComputedStyle(row.children[7]).color : null,
         splits,
         crests,
         widths,
@@ -1178,7 +1210,7 @@ async function main() {
     // The steadiness arrives with the ratings, which are computed after the sheet: wait for them to land.
     for (let tick = 0; tick < 40; tick += 1) {
       const steadyFilled = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
-        .some((row) => !['', '—'].includes((row.children[9]?.innerText ?? '').trim())));
+        .some((row) => !['', '—'].includes((row.children[10]?.innerText ?? '').trim())));
       if (steadyFilled) break;
       await wait(250);
     }
@@ -1186,12 +1218,12 @@ async function main() {
       const head = [...(document.querySelector('[data-free-head]')?.children ?? [])].map((one) => one.getAttribute('data-sort'));
       const rows = [...document.querySelectorAll('[data-free]')];
       const filled = (at) => rows.filter((row) => !['', '—'].includes((row.children[at]?.innerText ?? '').trim())).length;
-      return { head, rows: rows.length, rung: filled(5), pv: filled(6), minutes: filled(7), mv: filled(8), steady: filled(9), fm: filled(10) };
+      return { head, rows: rows.length, rung: filled(6), pv: filled(7), minutes: filled(8), mv: filled(9), steady: filled(10), fm: filled(11) };
     });
     note('previste', `colonne ${previste.head.join(' ')}; su ${previste.rows} righe: gradino ${previste.rung}, pv ${previste.pv}, `
       + `minuti ${previste.minutes}, mv ${previste.mv}, costanza ${previste.steady}, fm ${previste.fm}`,
       [
-        ...(previste.head.join(' ') !== 'role name fvm prio rar rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
+        ...(previste.head.join(' ') !== 'role name fvm sesw prio rar rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
         ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 

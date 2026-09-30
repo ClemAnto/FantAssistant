@@ -563,14 +563,21 @@ e sei le sue letture - gradino di titolarità (quello che la lista mostra: la st
 costanza, MV attesa, bonus attesi a presenza (FM − MV), quota di presenze attese, quota dei tre anni passata
 infortunato (qui conta il più BASSO). «Simile» è una dominanza con tolleranza DICHIARATA, uno scalino
 dell'unità di ogni lettura: stesso gradino o migliore, costanza −0,05, MV −0,1, bonus −0,1, presenze −0,05
-(due giornate su 38), infortuni +0,05 (~55 giorni in tre anni). Vuoto = ignoto: una sua lettura mancante non
-vincola nessuno, un candidato a cui manca una lettura che lui ha non conta. Una porta si confronta sulla
-fantamedia della porta (al posto della MV) e sulla quota. Zero in rosso = l'ultimo del suo tipo; il primo click
+(due giornate su 38), infortuni +0,05 (~55 giorni in tre anni). Una sua lettura mancante non vincola nessuno; a un
+candidato a cui manca una lettura che lui ha si dà la MEDIA di quella lettura fra gli svincolati del gruppo (sua
+correzione dello stesso giorno: «utilizziamo un dato medio calcolato per il confronto» - la prima stesura lo
+escludeva). Una porta si confronta sulla fantamedia della porta (al posto della MV) e sulla quota. Zero in rosso =
+l'ultimo del suo tipo; **oltre 10 si stampa in percentuale** (sua regola): «il x% degli altri svincolati del suo
+gruppo è pari o migliore». Il conteggio resta nell'attributo della cella e l'ordinamento lo usa; il primo click
 sull'intestazione ordina dal più raro.
+
+**SeSw, Season Swing** (suo nome, stesso giorno): la DP di §15-§18 si chiama ora così, e ha una colonna sua PRIMA
+di DP. Per ora DP = SeSw (il banco lo asserisce riga per riga); la DP nuova sarà l'unione di SeSw e RAR.
 
 **Letto sul tavolo vuoto**: sui primi 60 per DP il RAR va da 0 a 4 (euro 14 a zero, classic 10). Con sei letture in
 AND quasi nessuno in cima è dominato, quindi **la tolleranza di «simile» è la manopola che decide** il numero, ed è
-sua. **La DP NON è cambiata**: come RAR entra nella priorità è aperto. La forma che il suo esempio suggerisce è il
+sua (letto prima della media per i dati mancanti: dopo, euro 16 a zero). In coda al gruppo i conteggi arrivano al
+58-80%. **La DP NON è cambiata**: come RAR entra nella priorità è aperto. La forma che il suo esempio suggerisce è il
 confronto con le scelte che mancano al nostro prossimo turno (se RAR ≥ scelte in mezzo, uno come lui resta), cioè
 lo sconto del «prendi chi sparirà» già misurato sul banco del draft (+4,54% strict, `todolist-draft-v1.md`).
 

@@ -14,9 +14,11 @@
  * tolerance and he is not «the same kind of player», which is what the sentence says. The tolerances are DECLARED,
  * not measured: nothing here predicts a footballer, and no harness owns a count shown beside a name.
  *
- * «VUOTO = IGNOTO»: a reading HE lacks constrains nobody (there is nothing to be at least as good as), while a
- * candidate who lacks a reading he HAS does not count - he cannot be shown to be as good. So a man with no numbers
- * at all reads the whole group, and the count says so by being large.
+ * A MISSING READING: HIS constrains nobody (there is nothing to be at least as good as); a CANDIDATE's is filled
+ * with the MEAN of that reading over the free men of the group who have it (the operator, 30/09/2026: «utilizziamo
+ * un dato medio calcolato per il confronto»). The first draft left such a candidate out, which made the count
+ * depend on who happens to be missing a column rather than on who is as good. Where nobody of the group has the
+ * reading, he cannot have it either, so it constrains nobody.
  *
  * The file imports no Angular.
  */
@@ -60,34 +62,72 @@ export const RARITY_TOLERANCE = {
 
 const HIGHER: readonly (keyof Omit<RarityMan, 'id' | 'group' | 'fragility'>)[] = ['rung', 'steady', 'mv', 'bonus', 'share'];
 
-/** Whether `other` is of equal (similar) or higher value than `man` on every reading `man` has. */
-export function atLeastAsGood(other: RarityMan, man: RarityMan): boolean {
-  for (const key of HIGHER) {
+type Reading = (typeof HIGHER)[number] | 'fragility';
+const READINGS: readonly Reading[] = [...HIGHER, 'fragility'];
+
+/** The mean of every reading over the men of one group who have it: what a missing candidate reading reads. */
+export type ReadingMeans = Partial<Record<Reading, number>>;
+
+export function readingMeans(men: readonly RarityMan[]): ReadingMeans {
+  const out: ReadingMeans = {};
+  for (const key of READINGS) {
+    const known = men.map((m) => m[key]).filter((v): v is number => v != null);
+    if (known.length) out[key] = known.reduce((a, b) => a + b, 0) / known.length;
+  }
+  return out;
+}
+
+/**
+ * Whether `other` is of equal (similar) or higher value than `man` on every reading `man` has; a reading `other`
+ * lacks reads the group's mean (`means`), and with no mean at all he cannot be shown to be as good.
+ */
+export function atLeastAsGood(other: RarityMan, man: RarityMan, means: ReadingMeans = {}): boolean {
+  for (const key of READINGS) {
     const mine = man[key];
     if (mine == null) continue;
-    const theirs = other[key];
-    if (theirs == null || theirs < mine - RARITY_TOLERANCE[key]) return false;
-  }
-  if (man.fragility != null) {
-    if (other.fragility == null || other.fragility > man.fragility + RARITY_TOLERANCE.fragility) return false;
+    const theirs = other[key] ?? means[key];
+    if (theirs == null) return false;
+    const ok = key === 'fragility'
+      ? theirs <= mine + RARITY_TOLERANCE.fragility
+      : theirs >= mine - RARITY_TOLERANCE[key];
+    if (!ok) return false;
   }
   return true;
 }
 
+/** RAR of one man: `count` other free men of his group are at least as good, `of` other free men are in it. */
+export interface Rarity {
+  count: number;
+  of: number;
+}
+
 /** RAR of every man of `free`, by id: how many OTHER free men of his group are at least as good as him. */
-export function rarity(free: readonly RarityMan[]): Map<number, number> {
+export function rarity(free: readonly RarityMan[]): Map<number, Rarity> {
   const byGroup = new Map<string, RarityMan[]>();
   for (const man of free) {
     if (!byGroup.has(man.group)) byGroup.set(man.group, []);
     byGroup.get(man.group)!.push(man);
   }
-  const out = new Map<number, number>();
+  const out = new Map<number, Rarity>();
   for (const men of byGroup.values()) {
+    const means = readingMeans(men);
     for (const man of men) {
       let count = 0;
-      for (const other of men) if (other.id !== man.id && atLeastAsGood(other, man)) count += 1;
-      out.set(man.id, count);
+      for (const other of men) if (other.id !== man.id && atLeastAsGood(other, man, means)) count += 1;
+      out.set(man.id, { count, of: men.length - 1 });
     }
   }
   return out;
+}
+
+/**
+ * RAR AS IT IS SHOWN (the operator, 30/09/2026: «se il numero è > 10 ... il x% di calciatori sono uguali o migliori
+ * di lui»): the count up to `RARITY_COUNT_MAX`, above it the share of the OTHER free men of his group, rounded.
+ */
+export const RARITY_COUNT_MAX = 10;
+
+export function rarityText(rar: Rarity | null): string {
+  if (!rar) return '—';
+  if (rar.count <= RARITY_COUNT_MAX || !rar.of) return String(rar.count);
+  return `${Math.round((rar.count / rar.of) * 100)}%`;
 }

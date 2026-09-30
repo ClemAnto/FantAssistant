@@ -33,7 +33,7 @@ import { ValuationStore } from '../../core/valuation-store';
 import { type TrendCell, trendPointsMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
-import { RarityMan, rarity } from '../../core/draft-rarity';
+import { Rarity, RarityMan, rarity, rarityText } from '../../core/draft-rarity';
 import { baseRole } from '../../core/draft-priority';
 import type { MantraModules } from '../../core/auction-value';
 import { PlayerStatus } from '../../core/player-status';
@@ -79,7 +79,7 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
-  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
 /** The two ladders in one order, best first: what «sort by titolarità» orders by. */
@@ -145,9 +145,18 @@ export interface FreeRow {
   /**
    * RAR (operator, 30/09/2026): how many OTHER free men of his base role are of equal (similar) or higher
    * value on all six of his readings (`core/draft-rarity.ts`). 0 = the last of his kind. Null only while the
-   * list has not been counted.
+   * list has not been counted. `rarText` is how the column prints it: the count up to ten, then a share.
    */
-  rar: number | null;
+  rar: Rarity | null;
+  rarText: string;
+  /**
+   * SeSw, the SEASON SWING (operator, 30/09/2026): the name he gave to what the Draft Priority has been so far -
+   * `draft-priority.manValue`, a fact about the man, in hundredths of a point per matchday. For now DP is the same
+   * number; the formula that joins SeSw and RAR into the new DP is still to be found. Null outside a mantra draft.
+   */
+  sesw: number | null;
+  /** The raw SeSw, for the sort. */
+  seswScore: number | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
   /** The squad predicted to take him BEFORE our next pick (`AuctionAdvice.takenBeforeUs`); null otherwise. */
@@ -258,8 +267,8 @@ const ELEVEN = 11;
     /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
        THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
        empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
-    .free-default { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 4.9rem 75px minmax(0, 1fr); }
-    .free-previste { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
+    .free-default { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -301,7 +310,7 @@ const ELEVEN = 11;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
-    .free-medie { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem repeat(8, 2.3rem) minmax(0, 1fr); }
+    .free-medie { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -1034,7 +1043,13 @@ export class Auction {
     }
     const rows = ranked.map((row) => this.freeRow(row, scores.get(row.player.id) ?? null, top, press, trends));
     const rar = rarity(ranked.map((row, at) => this.rarityMan(row, rows[at])));
-    for (const row of rows) row.rar = rar.get(row.id) ?? null;
+    const season = this.advice.priorityOfMan();
+    for (const row of rows) {
+      row.rar = rar.get(row.id) ?? null;
+      row.rarText = rarityText(row.rar);
+      row.seswScore = season.get(row.id) ?? null;
+      row.sesw = hundredths(row.seswScore);
+    }
     // THE BLOCKED TOPS STAY WHERE THEIR PRIORITY PUTS THEM (operator, 29/09/2026: «devono essere visibili
     // anche i calciatori freezati»): they used to sink to the bottom of a list that loads sixty rows at a
     // time, i.e. out of sight. The row says it is blocked and for how long - dimmed, with its badge.
@@ -1065,6 +1080,9 @@ export class Auction {
         : score == null || top <= 0 ? null : Math.max(0, Math.round((score / top) * 99)),
       score,
       rar: null,
+      rarText: '—',
+      sesw: null,
+      seswScore: null,
       locked: this.advice.lockedForMe(row.price),
       takenBy: this.takenBy(row.player.id),
       turnsLeft: this.turnsLeft(row.price),
@@ -1280,7 +1298,9 @@ export class Auction {
       case 'prio':
         return (row) => row.score;
       case 'rar':
-        return (row) => row.rar;
+        return (row) => row.rar?.count ?? null;
+      case 'sesw':
+        return (row) => row.seswScore;
       case 'rung':
         return (row) => (row.expected.rung && PRESS_RANK[row.expected.rung] != null ? PRESS_RANK[row.expected.rung] : null);
       case 'pvp':
