@@ -21,33 +21,64 @@
         <span class="text-muted">errore medio {{ sum.mae_formula.toFixed(2) }} · {{ sum.mae_engine.toFixed(2) }} partite ·
           su tutti i {{ sum.n }} uomini che il motore prevede, {{ sum.zero_actual }} senza nessuna partita</span>
         <span class="text-muted">nel campione a schermo, entro 80-125%: formula {{ band().formula }} · motore
-          {{ band().engine }} su {{ rows().length }}</span>
+          {{ band().engine }} su {{ band().judged }}</span>
+        @if (sum.unforeseen) {
+          <span class="text-warning">{{ sum.unforeseen }} fuori dal giudizio per un infortunio lungo imprevedibile</span>
+        }
       </div>
     }
-    <div class="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted">
-      <div><b class="text-fg">{{ file()!.formula }}</b> — D disponibilità (infortuni, squalifiche, altre assenze),
-        S scelto se disponibile (partite, minuti, titolare), la qualità (media voto), le coppe europee; dove un dato
-        manca, la media del ruolo nel suo contesto.
-        @if (file()!.protocol) {
-          Ogni stagione è giudicata coi parametri tarati sulle altre nove.
-          @if (file()!.maxCheapPrice != null) {
-            Fuori dal test chi ha quotazione iniziale {{ file()!.maxCheapPrice }} o meno.
-          }
-        } @else {
-          Tarata sulla stagione 2023-24 → 2024-25, giudicata su 2024-25 → 2025-26.
-        }</div>
-      @if (file()!.verdict; as verdict) {
-        <div class="mt-1" data-presence-verdict>Formula meglio del motore: <b class="text-fg">{{ verdictText(verdict['formula']) }}</b>
-          @if (file()!.inseason?.verdict; as inseason) {
-            · a stagione iniziata, con le giornate già giocate (K {{ file()!.inseason!.k }}): {{ verdictText(inseason) }}
+    <!-- THE FORMULA'S BLOCK folds and remembers it (operator, 01/10/2026). The formula's own line stays visible
+         closed: a folded block that says nothing reads as a missing one. -->
+    <div class="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted" data-presence-info>
+      <div class="flex items-start gap-2">
+        <button nz-button nzType="text" nzSize="small" class="-ml-2 shrink-0" (click)="toggleInfo()"
+                [attr.aria-expanded]="infoOpen()" data-presence-info-toggle>
+          <nz-icon [nzType]="infoOpen() ? 'up' : 'down'" />
+        </button>
+        <div class="min-w-0 pt-0.5"><b class="text-fg">{{ file()!.formula }}</b>
+          @if (infoOpen()) {
+            — D disponibilità (infortuni, squalifiche, altre assenze), S scelto se disponibile (partite, minuti,
+            titolare), la qualità (media voto), le coppe europee; dove un dato manca, la media del ruolo nel suo contesto.
+            @if (file()!.protocol) {
+              Ogni stagione è giudicata coi parametri tarati sulle altre.
+              @if (file()!.maxCheapPrice != null) {
+                Fuori dal test chi ha quotazione iniziale {{ file()!.maxCheapPrice }} o meno.
+              }
+              @if (file()!.longInjuryShare != null) {
+                In ambra, e fuori dal giudizio, chi ha perso per infortunio almeno un terzo delle partite dopo la data
+                d'asta senza essere già fuori quel giorno.
+              }
+            } @else {
+              Tarata sulla stagione 2023-24 → 2024-25, giudicata su 2024-25 → 2025-26.
+            }
+          } @else if (momentVerdict(); as v) {
+            · formula meglio del motore: {{ verdictText(v) }}
           }
         </div>
+      </div>
+      @if (infoOpen()) {
+        <div class="mt-1 pl-6" data-presence-info-body>
+          @if (momentVerdict(); as v) {
+            <div data-presence-verdict>Formula meglio del motore ({{ moment() === 'settembre' ? 'inizio settembre' : 'fine luglio' }}):
+              <b class="text-fg">{{ verdictText(v) }}</b>
+              @if (moment() === 'settembre' && file()!.moments?.['settembre']?.k; as k) {
+                · con le giornate già giocate sul calendario del suo club (K {{ k }}) e gli stop ancora aperti
+              }
+            </div>
+          }
+          <div class="mt-1">Parametri: {{ params() }}</div>
+          <div>Media di S per ruolo e contesto: {{ priors() }}</div>
+        </div>
       }
-      <div class="mt-1">Parametri: {{ params() }}</div>
-      <div>Media di S per ruolo e contesto: {{ priors() }}</div>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
+      @if (moments().length > 1) {
+        <nz-radio-group nzSize="small" [ngModel]="moment()" (ngModelChange)="setMoment($event)" data-presence-moment>
+          <label nz-radio-button nzValue="settembre" data-presence-moment-option="settembre">Inizio settembre</label>
+          <label nz-radio-button nzValue="luglio" data-presence-moment-option="luglio">Fine luglio</label>
+        </nz-radio-group>
+      }
       <nz-select nzSize="small" class="w-44" [ngModel]="window()" (ngModelChange)="window.set($event)"
                  data-presence-window-select>
         @for (one of windows(); track one.key) {
@@ -84,7 +115,8 @@
           <tr class="text-center text-[11px] uppercase tracking-wide" data-presence-groups>
             <th colspan="2"></th>
             <th colspan="13" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().prev }} · misurata</th>
-            <th colspan="14" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().next }} · prevista e vera</th>
+            <th colspan="10" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().next }} · prevista</th>
+            <th colspan="7" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().next }} · dati veri</th>
           </tr>
           <tr class="text-left" data-presence-heads>
             <th class="cursor-pointer px-2 py-1" (click)="sortBy('name')">Calciatore{{ arrow('name') }}</th>
@@ -104,6 +136,9 @@
             <th class="px-1 text-center" nz-tooltip nzTooltipTitle="Il suo club ha giocato una coppa europea">Europa</th>
             <th class="px-1" data-group-start nz-tooltip nzTooltipTitle="La squadra della stagione prevista">Squadra</th>
             <th class="px-1 text-center" nz-tooltip nzTooltipTitle="Il suo club gioca una coppa europea">Europa</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Giornate da giocare dalla data d'asta">Giorn.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Settembre: voti sulle giornate già giocate dal suo club">Viste</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Settembre: partite che uno stop aperto alla data d'asta dovrebbe ancora costargli">Stop</th>
             <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Disponibilità stimata" (click)="sortBy('d')">D{{ arrow('d') }}</th>
             <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Scelto se disponibile, stimato" (click)="sortBy('s')">S{{ arrow('s') }}</th>
             <th class="cursor-pointer px-1 text-center" nz-tooltip
@@ -111,7 +146,7 @@
                 (click)="sortBy('rung')">Grad.{{ arrow('rung') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paFormula')">Pa formula{{ arrow('paFormula') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paEngine')">Pa motore{{ arrow('paEngine') }}</th>
-            <th class="cursor-pointer px-1 text-right" (click)="sortBy('paActual')">Pa vere{{ arrow('paActual') }}</th>
+            <th class="cursor-pointer px-1 text-right" data-group-start (click)="sortBy('paActual')">Pa vere{{ arrow('paActual') }}</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato saltate per infortunio">Inf.</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato saltate per squalifica">Squal.</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato saltate per la nazionale (coppe e convocazioni)">Naz.</th>
@@ -128,7 +163,7 @@
               <td class="px-2 py-0.5 font-medium text-fg">{{ row.name }}</td>
               <td class="px-1">{{ row.role }}</td>
               <td class="px-1 whitespace-nowrap text-muted" data-group-start data-presence-club-prev>{{ row.clubPrev ?? '—' }}</td>
-              <td class="px-1 text-muted">{{ row.context }}</td>
+              <td class="px-1 whitespace-nowrap text-muted">{{ row.context }}</td>
               @if (row.prev; as prev) {
                 <td class="px-1 text-right">{{ prev.n }}</td>
                 <td class="px-1 text-right">{{ prev.inj }}</td>
@@ -147,17 +182,21 @@
               <td class="px-1 whitespace-nowrap" data-group-start [class.text-fg]="row.clubChange" [class.text-muted]="!row.clubChange"
                   data-presence-club-next>{{ row.clubNext ?? '—' }}{{ row.clubChange ? ' ⇄' : '' }}</td>
               <td class="px-1 text-center text-muted">{{ row.europeOut ? 'sì' : 'no' }}</td>
+              <td class="px-1 text-right text-muted">{{ row.rounds ?? '—' }}</td>
+              <td class="px-1 text-right" data-presence-seen>{{ row.seenRounds != null ? (row.seenVotes ?? 0) + '/' + row.seenRounds : '—' }}</td>
+              <td class="px-1 text-right" data-presence-out>{{ row.outOpen ? row.outOpen : (row.outOpen === 0 ? '0' : '—') }}</td>
               <td class="px-1 text-right">{{ pct(row.d) }}</td>
               <td class="px-1 text-right">{{ pct(row.s) }}</td>
               <td class="px-1 text-center" [class]="rungTone(row.rung)" data-presence-rung>{{ rungShort(row.rung) }}</td>
               <td class="px-1 text-right font-bold text-fg" data-presence-pa-formula>{{ row.paFormula.toFixed(1) }}</td>
               <td class="px-1 text-right">{{ row.paEngine != null ? row.paEngine.toFixed(1) : '—' }}</td>
-              <td class="px-1 text-right text-fg">{{ row.paActual }}</td>
+              <td class="px-1 text-right text-fg" data-group-start>{{ row.paActual }}</td>
               <td class="px-1 text-right" data-presence-next-inj>{{ row.next ? row.next.inj : '—' }}</td>
               <td class="px-1 text-right" data-presence-next-susp>{{ row.next ? row.next.susp : '—' }}</td>
               <td class="px-1 text-right" data-presence-next-naz>{{ row.next ? row.next.naz : '—' }}</td>
               <td class="px-1 text-center" [class]="rungTone(row.rungActual)" data-presence-rung-actual>{{ rungShort(row.rungActual) }}</td>
-              <td class="px-1 text-right font-semibold" [class]="ratioInk(row.ratioFormula)">{{ ratio(row.ratioFormula) }}</td>
+              <td class="px-1 text-right font-semibold" [class]="formulaInk(row)" nz-tooltip [nzTooltipTitle]="formulaHint(row)"
+                  [attr.data-presence-injury]="row.injury ?? null">{{ ratio(row.ratioFormula) }}</td>
               <td class="px-2 text-right" [class]="ratioInk(row.ratioEngine)">{{ ratio(row.ratioEngine) }}</td>
             </tr>
           }

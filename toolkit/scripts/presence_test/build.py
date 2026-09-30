@@ -86,6 +86,23 @@ KEEPER_CLASS, KEEPER_CLASS_SHARE = True, 0.5
 # bench - out of the fit AND out of the judgement. A man with no Qt.I at all is not cheap, he is unknown, so he
 # stays and is counted.
 MAX_CHEAP_PRICE = 5.0
+# «L'INFORTUNIO DI LUKAKU NON ERA PREVEDIBILE ... ANDREBBE INSERITA IN UN GRUPPO A PARTE» (operator, 01/10/2026). A
+# man who, from the auction date on, missed at least this share of his club's league games through injury, with no
+# spell open on the auction date, is neither a hit nor a miss of either model: he is scored APART (`injury` =
+# «unforeseen»). The share is the population's own ninetieth percentile of the injured share of a season, measured
+# on this bench (0.316): a season in the worst tenth. A long injury that WAS open at the auction is «known»: the fact
+# was there and neither model reads it, so it stays in the judgement - that one is an error, and a correctable one.
+# Lukaku's thigh went on 14 August 2025, the day before the gate's auction date: «known».
+LONG_INJURY_SHARE = 1 / 3
+# SEPTEMBER'S TWO READINGS, measured before they were kept: which rounds seen the blend counts - «calendar» (the
+# club's league calendar, the engine's own `pv_seen`), «club» (from the day he is at the club he plays for after the
+# auction, games injured counted as not played), «free» (the same, injured games left out) - and whether a spell open
+# on the auction date takes its expected games off.
+# Measured on the seven 5 September windows against the engine (01/10/2026): calendar 7 of 7, +3.46%; calendar +
+# the open spell 7 of 7, +3.75% (the spell on top of the calendar: 5 of 7, +0.3% - under the gate's floor, kept
+# because it reads a fact the auction had: Lukaku was out from 14 August 2025); «club» 3 of 7, «free» 2 of 7. A
+# game missed injured counted as NOT PLAYED carries the injury itself, which is why leaving it out loses.
+SEPTEMBER_SEEN, SEPTEMBER_OPEN_SPELL = "calendar", True
 # The gate's own thresholds for the two verdicts, so the bench speaks the gate's vocabulary.
 FLOOR, TOLERANCE = 0.005, -0.02
 K_READING = (3, 6, 10, 15, 25, 40)
@@ -139,6 +156,97 @@ def breakdown(conn: sqlite3.Connection):
     return agg, at_club, clubs, first, europe
 
 
+def league_dates(conn: sqlite3.Connection) -> dict:
+    """Per (fc_id, season): the dates of his club's league games and whether he was injured in each."""
+    out: dict = defaultdict(list)
+    for fc, season, day, state in conn.execute(
+            f"""SELECT fc_id, season, played_on, state FROM tm_appearances
+                WHERE is_national = 0 AND season IS NOT NULL
+                  AND competition_type IN ({','.join('?' * len(LEAGUE_TYPES))})""", LEAGUE_TYPES):
+        out[(fc, season)].append((day, state == "injured"))
+    return out
+
+
+def open_spells(conn: sqlite3.Connection) -> dict:
+    """Per fc_id: the dated absence spells (Transfermarkt's archive), to tell «out at the auction» from «went later»."""
+    out: dict = defaultdict(list)
+    for fc, start, end in conn.execute("SELECT fc_id, start_date, end_date FROM injuries WHERE start_date IS NOT NULL"):
+        out[fc].append((start, end))
+    return out
+
+
+def league_games(conn: sqlite3.Connection) -> dict:
+    """Per (fc_id, season): every league game of his club while he was there, (date, club, state, absence), sorted."""
+    out: dict = defaultdict(list)
+    for fc, season, day, club, state, absence in conn.execute(
+            f"""SELECT fc_id, season, played_on, club_id, state, absence_id FROM tm_appearances
+                WHERE is_national = 0 AND season IS NOT NULL
+                  AND competition_type IN ({','.join('?' * len(LEAGUE_TYPES))})""", LEAGUE_TYPES):
+        out[(fc, season)].append((day, club, state, absence))
+    for games in out.values():
+        games.sort()
+    return out
+
+
+def seen_at_club(r, games: dict) -> tuple[int, int, int]:
+    """THE ROUNDS SEEN, counted from the day he is at the club he plays for after the auction (01/10/2026).
+
+    The engine's `pv_seen` divides by the club's calendar, so Hojlund - at Napoli from 1 September 2025, first game
+    on the 13th - reads «two rounds seen, none played» on 5 September. Here the club is the one of his first league
+    game AFTER the auction, and the evidence is that club's games up to the auction: (available, played). A game
+    he missed injured, banned or away is not evidence about being CHOSEN, which is what the blend is about.
+    """
+    rows = games.get((r["fc_id"], r["target"]), ())
+    after = [club for day, club, _state, _absence in rows if day > r["auction"]]
+    if not after:
+        return 0, 0, 0
+    club = after[0]
+    before = [(state, absence) for day, c, state, absence in rows if day <= r["auction"] and c == club]
+    free = [state for state, _absence in before if state not in ("injured", "absent")]
+    return len(before), len(free), sum(state == "played" for state in free)
+
+
+def residual_table(conn: sqlite3.Connection, before: str) -> list[tuple[int, float]]:
+    """How many days a spell still has left, by the days already gone: the median over spells CLOSED before `before`.
+
+    The archive's end date of a spell is its outcome and never the forecast of the day (the row is replaced at every
+    read), so an open spell cannot be priced from its own `end_date`. What can be read ex ante is how long spells
+    like it lasted: bins of a week of elapsed days, median of what was left over spells longer than that.
+    """
+    spans = [dt.date.fromisoformat(end).toordinal() - dt.date.fromisoformat(start).toordinal()
+             for start, end in conn.execute(
+                 "SELECT start_date, end_date FROM injuries WHERE end_date IS NOT NULL AND end_date < ?", (before,))
+             if start and end]
+    table = []
+    for elapsed in range(0, 365, 7):
+        left = [span - elapsed for span in spans if span > elapsed]
+        if len(left) >= 20:
+            table.append((elapsed, float(median(left))))
+    return table
+
+
+def expected_out(r, games: dict, spells: dict, table: list) -> int:
+    """League games still to miss for a spell OPEN at the auction date, from the residual table and his fixtures."""
+    auction = dt.date.fromisoformat(r["auction"])
+    open_since = [dt.date.fromisoformat(start) for start, end in spells.get(r["fc_id"], ())
+                  if start <= r["auction"] and (end is None or end >= r["auction"])]
+    if not open_since or not table:
+        return 0
+    elapsed = (auction - min(open_since)).days
+    left = next((days for gone, days in reversed(table) if gone <= elapsed), table[0][1])
+    back = (auction + dt.timedelta(days=left)).isoformat()
+    return sum(1 for day, *_rest in games.get((r["fc_id"], r["target"]), ()) if r["auction"] < day < back)
+
+
+def injury_group(r, dates: dict, spells: dict) -> str | None:
+    """«unforeseen», «known» or None - see `LONG_INJURY_SHARE`. Only the games AFTER the auction date count."""
+    games = [hurt for day, hurt in dates.get((r["fc_id"], r["target"]), ()) if day > r["auction"]]
+    if not games or sum(games) < LONG_INJURY_SHARE * len(games):
+        return None
+    known = any(start <= r["auction"] and (end is None or end >= r["auction"]) for start, end in spells.get(r["fc_id"], ()))
+    return "known" if known else "unforeseen"
+
+
 def clubs_elsewhere(conn: sqlite3.Connection) -> tuple[dict, dict]:
     """Where a man played a season the gate's `club_prev` does not name (it is a Serie A roster fact).
 
@@ -157,9 +265,13 @@ def clubs_elsewhere(conn: sqlite3.Connection) -> tuple[dict, dict]:
     return {key: club for key, (club, _n) in played.items()}, came_from
 
 
-def engine_rows(conn: sqlite3.Connection, keys: tuple[str, ...]):
-    """The engine's prediction of each window, as the gate builds it (in-season windows pair among themselves)."""
-    prepared = {k: evaluate.prepared_window(conn, features.window(k), PLATFORM, GAME) for k in keys}
+def engine_rows(conn: sqlite3.Connection, windows: dict, *, keep_cheap: bool = False):
+    """The engine's prediction of each window, as the gate builds it (in-season windows pair among themselves).
+
+    `windows` maps a gate key to its `Window`: a July window keeps the pre-season key (so it pairs and pools with
+    its neighbours as the gate's own do) and carries its own auction date.
+    """
+    prepared = {k: evaluate.prepared_window(conn, w, PLATFORM, GAME) for k, w in windows.items()}
     prepared = {k: d for k, d in prepared.items() if evaluate._window_is_usable(d, PLATFORM)}
     fitted = {k: evaluate.fit_params(d, ("R0", *evaluate.CANDIDATES)) for k, d in prepared.items()}
     adopted = ("R0", *evaluate.ADOPTED[PLATFORM])
@@ -167,14 +279,15 @@ def engine_rows(conn: sqlite3.Connection, keys: tuple[str, ...]):
     for key, data in prepared.items():
         scoring = evaluate.pool_params(fitted, key, fitted[features.cross_fit_source(key, tuple(prepared))])
         preds = {p.obs.fc_id: p for p in evaluate.predict_window(data, adopted, None, scoring)}
-        window = features.window(key)
+        window = windows[key]
         for obs in data.observations:
             if obs.pv_act is None:
                 continue
-            if obs.price_initial is not None and obs.price_initial <= MAX_CHEAP_PRICE:
+            if not keep_cheap and obs.price_initial is not None and obs.price_initial <= MAX_CHEAP_PRICE:
                 continue
             p = preds.get(obs.fc_id)
             out.append({"window": key, "input": window.input_season, "target": window.target_season,
+                        "auction": window.auction_date,
                         "fc_id": obs.fc_id, "name": obs.name, "role": obs.role_classic,
                         "club_change": bool(obs.club_change),
                         "club_prev": obs.club_prev, "club_target": obs.club_target, "N": float(data.matchdays_target),
@@ -319,15 +432,22 @@ def band_share(values) -> float:
     return round(sum(0.8 <= v <= 1.25 for v in known) / len(known), 3) if known else 0.0
 
 
-def scored(rows: list[dict], pred) -> dict:
-    """Formula (`pred(row)`) against the engine on the rows where the engine has a number."""
-    both = [r for r in rows if r["pa_engine"] is not None]
+def scored(rows: list[dict], pred, *, everybody: bool = False) -> dict:
+    """Formula (`pred(row)`) against the engine on the rows where the engine has a number.
+
+    An «unforeseen» long injury is judged apart and left out, for both models alike (`LONG_INJURY_SHARE`);
+    `everybody` keeps him in, which is what reproducing v1's published numbers needs.
+    """
+    both = [r for r in rows if r["pa_engine"] is not None
+            and (everybody or r.get("injury") != "unforeseen")]
     formula = [pred(r) for r in both]
     f_mae = mean(abs(f - r["pa_actual"]) for f, r in zip(formula, both))
     e_mae = mean(abs(r["pa_engine"] - r["pa_actual"]) for r in both)
     f_ratio = [ratio(f, r["pa_actual"]) for f, r in zip(formula, both)]
     e_ratio = [ratio(r["pa_engine"], r["pa_actual"]) for r in both]
-    return {"n": len(both), "mae_formula": round(f_mae, 3), "mae_engine": round(e_mae, 3),
+    return {"n": len(both), "unforeseen": sum(r.get("injury") == "unforeseen" for r in rows
+                                               if r["pa_engine"] is not None) if not everybody else 0,
+            "mae_formula": round(f_mae, 3), "mae_engine": round(e_mae, 3),
             "gain": round((e_mae - f_mae) / e_mae, 4),
             "median_ratio_formula": round(median(v for v in f_ratio if v is not None), 3),
             "median_ratio_engine": round(median(v for v in e_ratio if v is not None), 3),
@@ -384,170 +504,214 @@ def annotate(rows, agg, at_club, clubs, first, europe, mv, *, own_club: bool = O
         r["s_actual"] = (nxt["sub"] + nxt["start"]) / fit_for if fit_for > 0 else None
 
 
+def july_windows() -> dict:
+    """The gate's ten pre-season windows with the auction on 31 July of the season predicted (operator, 01/10/2026)."""
+    return {key: features.Window(key, w.input_season, w.target_season, f"{w.target_season[:4]}-07-31")
+            for key, w in features.WINDOWS.items()}
+
+
+def september_windows() -> dict:
+    """The gate's own 5 September windows (`INSEASON_WINDOWS`, the «set» half): the Serie A market has closed and
+    the first rounds are played - the auction the operator plays and most leagues do."""
+    return {key: w for key, w in features.INSEASON_WINDOWS.items() if key.endswith("set")}
+
+
+def band(actual: float) -> str:
+    return "0" if actual <= 0 else "1-9" if actual < 10 else "10-19" if actual < 20 else "20-29" if actual < 30 else "30+"
+
+
+def sample_of(rows: list[dict]) -> set:
+    """THE SAMPLE the page shows (operator: «inutile che mostri tutti, un campione ampio variegato»): up to two men
+    per (window, role, context, band of real appearances), chosen by a fixed hash of the id - same on every run,
+    and nobody picked the names."""
+    cells: dict = defaultdict(list)
+    for r in rows:
+        cells[(r["window"], r["role"], r["ctx"], band(r["pa_actual"]))].append(r)
+    picked: set = set()
+    for members in cells.values():
+        for r in sorted(members, key=lambda one: (one["fc_id"] * 2654435761) % 2**32)[:SAMPLE_PER_CELL]:
+            picked.add((r["window"], r["fc_id"]))
+    return picked
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     # The project's own paths (`EUROLEGHE_DB_PATH`, `EUROLEGHE_DATA_DIR`), so a worktree reads the real DB.
     config = Config()
     parser.add_argument("--db", default=str(config.db_path))
     parser.add_argument("--out", default=None)
-    parser.add_argument("--no-inseason", dest="inseason", action="store_false")
     args = parser.parse_args()
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
     agg, at_club, clubs, first, europe = breakdown(conn)
     played_for, came_from = clubs_elsewhere(conn)
     mv = {(fc, s): v for fc, s, v in conn.execute(
         "select fc_id, season, mv from season_stats where platform='default' and mv is not null and pv >= 5")}
-    rows = engine_rows(conn, tuple(features.WINDOWS))
-    annotate(rows, agg, at_club, clubs, first, europe, mv)
-    windows = [k for k in features.WINDOWS if any(r["window"] == k for r in rows)]
-    by_window = {k: [r for r in rows if r["window"] == k] for k in windows}
+    dates, spells, games = league_dates(conn), open_spells(conn), league_games(conn)
 
-    # 1. THE REPRODUCTION of v1's published split (fit T1, judge T2): v1's contexts and priors, no keeper line.
-    annotate(rows, agg, at_club, clubs, first, europe, mv, own_club=False, keeper_class=False)
-    p_v1 = fit(by_window["T1"], keeper_line=False, by_role=False)
-    repro = {k: scored(by_window[k], lambda r: predict(r, p_v1)) for k in ("T1", "T2")}
-    annotate(rows, agg, at_club, clubs, first, europe, mv)
-    print(f"[v1] fit T1: T1 {repro['T1']['mae_formula']} / {repro['T1']['mae_engine']} · "
+    def load(windows: dict, **kwargs) -> list[dict]:
+        rows = engine_rows(conn, windows, **kwargs)
+        for r in rows:
+            r["injury"] = injury_group(r, dates, spells)
+        annotate(rows, agg, at_club, clubs, first, europe, mv)
+        return rows
+
+    # 0. THE REPRODUCTION of v1's published split (15 August, fit T1, judge T2): v1's contexts and priors, the
+    # engine fitted on every window as the gate does, and everybody in - v1 had no price filter.
+    august = [r for r in load(dict(features.WINDOWS), keep_cheap=True) if r["window"] in ("T1", "T2")]
+    annotate(august, agg, at_club, clubs, first, europe, mv, own_club=False, keeper_class=False)
+    p_v1 = fit([r for r in august if r["window"] == "T1"], keeper_line=False, by_role=False)
+    repro = {k: scored([r for r in august if r["window"] == k], lambda r: predict(r, p_v1), everybody=True)
+             for k in ("T1", "T2")}
+    print(f"[v1, 15 agosto] fit T1: T1 {repro['T1']['mae_formula']} / {repro['T1']['mae_engine']} · "
           f"T2 {repro['T2']['mae_formula']} / {repro['T2']['mae_engine']}")
 
-    # 2. LEAVE ONE WINDOW OUT. The formula is the operator's (priors per role inside the context); beside it the
-    # two readings it is compared with: v1's priors per context only, and the keeper line.
+    # 1. FINE LUGLIO: the ten pre-season windows at 31 July, each judged with parameters fitted on the other nine.
+    july = load(july_windows())
+    windows = [k for k in features.WINDOWS if any(r["window"] == k for r in july)]
     folds: dict[str, dict] = {}
     params_by_fold: dict[str, dict] = {}
     for key in windows:
-        train = [r for r in rows if r["window"] != key]
-        p_main = fit(train, keeper_line=False)
-        p_ctx = fit(train, keeper_line=False, by_role=False)
-        p_line = fit(train, keeper_line=True)
+        p_main = fit([r for r in july if r["window"] != key], keeper_line=False)
         params_by_fold[key] = p_main
-        judged = by_window[key]
+        judged = [r for r in july if r["window"] == key]
         keepers = [r for r in judged if r["ctx"].startswith("portiere")]
-        folds[key] = {"target": features.window(key).target_season,
+        folds[key] = {"moment": "luglio", "target": judged[0]["target"], "auction": judged[0]["auction"],
                       **scored(judged, lambda r, p=p_main: predict(r, p)),
-                      "context_priors": scored(judged, lambda r, p=p_ctx: predict(r, p)),
-                      "keeper_line": scored(keepers, lambda r, p=p_line: predict(r, p)),
-                      "keepers": scored(keepers, lambda r, p=p_main: predict(r, p)),
-                      "params": {k: v for k, v in p_main.items() if k in GRID}}
+                      "keepers": scored(keepers, lambda r, p=p_main: predict(r, p))}
         f = folds[key]
-        print(f"{key} -> {f['target']}: n {f['n']}, formula {f['mae_formula']} (priori per contesto "
-              f"{f['context_priors']['mae_formula']}), motore {f['mae_engine']}, guadagno {f['gain']:+.2%}; "
-              f"portieri {f['keepers']['mae_formula']} con la retta {f['keeper_line']['mae_formula']} "
-              f"motore {f['keepers']['mae_engine']}")
-    lowo = {"formula": verdict([f["gain"] for f in folds.values()]),
-            "context_priors": verdict([f["context_priors"]["gain"] for f in folds.values()]),
-            "role_vs_context": verdict([
-                (f["context_priors"]["mae_formula"] - f["mae_formula"]) / f["context_priors"]["mae_formula"]
-                for f in folds.values()]),
-            "keepers_vs_engine": verdict([f["keepers"]["gain"] for f in folds.values()]),
-            "keeper_line_vs_formula": verdict([
-                (f["keepers"]["mae_formula"] - f["keeper_line"]["mae_formula"]) / f["keepers"]["mae_formula"]
-                for f in folds.values()])}
-    # Every rung of the grid chosen fold by fold: a parameter on the edge of its grid is not adopted.
+        print(f"[luglio] {key} -> {f['target']}: n {f['n']}, formula {f['mae_formula']}, motore {f['mae_engine']}, "
+              f"guadagno {f['gain']:+.2%}; portieri {f['keepers']['gain']:+.2%}")
     edges = {k: sorted({params_by_fold[w][k] for w in windows}) for k in GRID}
-    for name, v in lowo.items():
-        print(f"LOWO {name}: {v}")
-    print(f"parametri per piega: {edges}")
+    july_verdict = {"formula": verdict([f["gain"] for f in folds.values()]),
+                    "keepers": verdict([f["keepers"]["gain"] for f in folds.values()])}
+    print(f"[luglio] {july_verdict}\nparametri per piega: {edges}")
 
-    # 3. THE BLEND with the rounds already played, on the in-season windows.
-    inseason = {}
-    in_rows: list[dict] = []
-    if args.inseason:
-        in_rows = engine_rows(conn, tuple(features.INSEASON_WINDOWS))
-        annotate(in_rows, agg, at_club, clubs, first, europe, mv)
-        k_key = next(k for k in evaluate.ADOPTED[PLATFORM] if k in evaluate.R20_ROUNDS)
-        k_adopted = evaluate.R20_ROUNDS[k_key]
-        priors: dict[str, dict] = {}
-        for r in in_rows:
-            if r["target"] not in priors:
-                priors[r["target"]] = fit([x for x in rows if x["target"] != r["target"]], keeper_line=False)
-        def blended(r, k_prior: float) -> float:
-            prior = share(r, priors[r["target"]])
-            if not r["seen"] or r["pv_seen"] is None:
-                return r["N"] * prior
-            return r["N"] * model.blend_with_seen(prior, r["pv_seen"] / r["seen"], r["seen"], k_prior)
-        for key in features.INSEASON_WINDOWS:
-            judged = [r for r in in_rows if r["window"] == key]
-            if not judged:
-                continue
-            inseason[key] = {"target": features.window(key).target_season, "seen": judged[0]["seen"],
-                             **scored(judged, lambda r: blended(r, k_adopted)),
-                             "prior_only": scored(judged, lambda r: r["N"] * share(r, priors[r["target"]])),
-                             "by_k": {k: scored(judged, lambda r, k=k: blended(r, k))["mae_formula"]
-                                      for k in K_READING}}
-            i = inseason[key]
-            print(f"{key} (viste {i['seen']}): formula {i['mae_formula']} (senza miscela "
-                  f"{i['prior_only']['mae_formula']}), motore {i['mae_engine']}, guadagno {i['gain']:+.2%}")
-        inseason_verdict = verdict([i["gain"] for i in inseason.values()])
-        print(f"in-season, K {k_adopted:g} ({k_key}): {inseason_verdict}")
-    else:
-        inseason_verdict, k_key, k_adopted = None, None, None
+    # 2. INIZIO SETTEMBRE: the market has closed and two or three rounds are played. The prior is the July formula
+    # fitted on every window whose season predicted is NOT this one (or it would have read the outcome); on top of
+    # it, the rounds seen AT HIS CLUB and a spell still open on the day, each measured as its own reading.
+    k_key = next(k for k in evaluate.ADOPTED[PLATFORM] if k in evaluate.R20_ROUNDS)
+    k_rounds = evaluate.R20_ROUNDS[k_key]
+    september = load(september_windows())
+    priors: dict[str, dict] = {}
+    tables: dict[str, list] = {}
+    for r in september:
+        if r["target"] not in priors:
+            priors[r["target"]] = fit([x for x in july if x["target"] != r["target"]], keeper_line=False)
+            tables[r["target"]] = residual_table(conn, f"{r['target'][:4]}-07-01")
+        r["seen_club"], r["seen_free"], r["seen_played"] = seen_at_club(r, games)
+        r["out_open"] = expected_out(r, games, spells, tables[r["target"]])
 
-    # THE SAMPLE the page shows (operator: «inutile che mostri tutti, un campione ampio variegato»): up to two men
-    # per (role, context, band of real appearances), chosen by a fixed hash of the id so it is the same on every run
-    # and nobody picked the names.
-    def band(actual: float) -> str:
-        return "0" if actual <= 0 else "1-9" if actual < 10 else "10-19" if actual < 20 else "20-29" if actual < 30 else "30+"
-    sampled: set = set()
-    for key in windows:
-        cells: dict = defaultdict(list)
-        for r in by_window[key]:
-            cells[(r["role"], r["ctx"], band(r["pa_actual"]))].append(r)
-        for members in cells.values():
-            for r in sorted(members, key=lambda one: (one["fc_id"] * 2654435761) % 2**32)[:SAMPLE_PER_CELL]:
-                sampled.add((key, r["fc_id"]))
+    def september_pa(r, *, seen: str = SEPTEMBER_SEEN, open_spell: bool = SEPTEMBER_OPEN_SPELL) -> float:
+        p = priors[r["target"]]
+        prior = share(r, p)
+        if seen == "free":
+            chosen = (model.blend_with_seen(prior, r["seen_played"] / r["seen_free"], r["seen_free"], k_rounds)
+                      if r["seen_free"] else prior)
+        elif seen == "club":
+            chosen = (model.blend_with_seen(prior, r["seen_played"] / r["seen_club"], r["seen_club"], k_rounds)
+                      if r["seen_club"] else prior)
+        else:
+            chosen = (model.blend_with_seen(prior, r["pv_seen"] / r["seen"], r["seen"], k_rounds)
+                      if r["seen"] and r["pv_seen"] is not None else prior)
+        rounds = max(r["N"] - (r["out_open"] if open_spell else 0), 0.0)
+        return rounds * chosen
+
+    readings = {"formula": {},
+                **{f"viste {seen}{' + stop' if spell else ''}": {"seen": seen, "open_spell": spell}
+                   for seen in ("calendar", "club", "free") for spell in (False, True)},
+                "solo il prior": None}
+    sep_folds: dict[str, dict] = {}
+    for key in september_windows():
+        judged = [r for r in september if r["window"] == key]
+        if not judged:
+            continue
+        entry = {"moment": "settembre", "target": judged[0]["target"], "auction": judged[0]["auction"],
+                 "seen": judged[0]["seen"], "open_spells": sum(r["out_open"] > 0 for r in judged)}
+        for name, opts in readings.items():
+            pred = ((lambda r: r["N"] * share(r, priors[r["target"]])) if opts is None
+                    else (lambda r, o=opts: september_pa(r, **o)))
+            entry["formula" if name == "formula" else name] = scored(judged, pred)
+        entry.update({k: entry["formula"][k] for k in entry["formula"]})
+        entry["keepers"] = scored([r for r in judged if r["ctx"].startswith("portiere")], september_pa)
+        sep_folds[key] = entry
+        print(f"[settembre] {key} (viste {entry['seen']}, stop aperti {entry['open_spells']}): formula "
+              f"{entry['mae_formula']}, motore {entry['mae_engine']}, guadagno {entry['gain']:+.2%} · "
+              + " · ".join(f"{name} {entry[name]['gain']:+.2%}" for name in readings if name != "formula"))
+    sep_verdict = {name: verdict([f["gain"] if name == "formula" else f[name]["gain"] for f in sep_folds.values()])
+                   for name in readings}
+    sep_verdict["keepers"] = verdict([f["keepers"]["gain"] for f in sep_folds.values()])
+    print(f"[settembre] K {k_rounds:g} ({k_key}): {sep_verdict}")
+
+    # 3. The rows the page draws, one per man and window of each moment.
+    sampled = sample_of(july) | sample_of(september)
     out_rows = []
-    for r in rows:
-        a1, a2 = r["a1"], r["a2"]
-        p = params_by_fold[r["window"]]
-        d, s = parts(r, p) if a1 and not (p["keeper"] and r["ctx"].startswith("portiere")) else (None, None)
-        out_rows.append({
-            "window": r["window"], "target": r["target"], "fcId": r["fc_id"], "name": r["name"],
-            "role": r["role"], "context": r["ctx"], "clubChange": r["club_change"],
-            "europeIn": bool(r["ein"]), "europeOut": bool(r["eout"]), "mv": r["mv"],
-            # «other» on the page is every absence that is neither an injury nor a ban, national duty included, so
-            # the seven columns still add up to the games; the call-ups travel apart as well.
-            "prev": None if not a1 else {**{k: int(a1[k]) for k in
-                                            ("n", "inj", "susp", "out", "bench", "sub", "start", "minutes")},
-                                         "other": int(a1["other"] + a1["naz"]), "naz": int(a1["naz"])},
-            # THE SEASON PREDICTED, as it went: the games of his club's league he missed injured, banned, or away
-            # with his national team (operator, 01/10/2026).
-            "next": None if not r["a_next"] else {k: int(r["a_next"][k]) for k in ("n", "inj", "susp", "naz")},
-            "prev2": None if not a2 else {k: int(a2[k]) for k in ("n", "inj", "susp", "other")},
-            "clubPrev": (r["club_prev"] or played_for.get((r["fc_id"], r["input"]))
-                         or came_from.get((r["fc_id"], int(r["target"][:4])))),
-            "clubNext": r["club_target"],
-            "d": None if d is None else round(d, 3), "s": None if s is None else round(s, 3),
-            # THE RUNG the formula's S gives him (minutes: the season measured - no forecast of minutes on this
-            # bench, and saying so is the point), and the rung he really reached in the season predicted.
-            "rung": rung(s, minutes_per_game(a1)),
-            "rungActual": rung(r["s_actual"], minutes_per_game(r["a_next"])),
-            "paFormula": round(predict(r, p), 1), "paEngine": r["pa_engine"], "paActual": r["pa_actual"],
-            "sample": (r["window"], r["fc_id"]) in sampled,
-        })
-    summary = {key: {"target": f["target"], "fitted_on": "le altre finestre", "out_of_sample": True,
-                     **{k: f[k] for k in ("n", "mae_formula", "mae_engine", "median_ratio_formula",
+    for moment, rows in (("luglio", july), ("settembre", september)):
+        for r in rows:
+            a1, a2 = r["a1"], r["a2"]
+            p = params_by_fold[r["window"]] if moment == "luglio" else priors[r["target"]]
+            d, s_ = parts(r, p) if a1 and not (p["keeper"] and r["ctx"].startswith("portiere")) else (None, None)
+            pa = predict(r, p) if moment == "luglio" else september_pa(r)
+            out_rows.append({
+                "moment": moment, "window": r["window"], "target": r["target"], "auction": r["auction"],
+                "fcId": r["fc_id"], "name": r["name"],
+                "role": r["role"], "context": r["ctx"], "clubChange": r["club_change"],
+                "europeIn": bool(r["ein"]), "europeOut": bool(r["eout"]), "mv": r["mv"],
+                # «other» on the page is every absence that is neither an injury nor a ban, national duty included,
+                # so the seven columns still add up to the games; the call-ups travel apart as well.
+                "prev": None if not a1 else {**{k: int(a1[k]) for k in
+                                                ("n", "inj", "susp", "out", "bench", "sub", "start", "minutes")},
+                                             "other": int(a1["other"] + a1["naz"]), "naz": int(a1["naz"])},
+                # THE SEASON PREDICTED, as it went: the games of his club's league he missed injured, banned, or
+                # away with his national team (operator, 01/10/2026).
+                "next": None if not r["a_next"] else {k: int(r["a_next"][k]) for k in ("n", "inj", "susp", "naz")},
+                "prev2": None if not a2 else {k: int(a2[k]) for k in ("n", "inj", "susp", "other")},
+                "clubPrev": (r["club_prev"] or played_for.get((r["fc_id"], r["input"]))
+                             or came_from.get((r["fc_id"], int(r["target"][:4])))),
+                "clubNext": r["club_target"],
+                "d": None if d is None else round(d, 3), "s": None if s_ is None else round(s_, 3),
+                # THE RUNG the formula's S gives him (minutes: the season measured - no forecast of minutes on
+                # this bench, and saying so is the point), and the rung he really reached in the season predicted.
+                "rung": rung(s_, minutes_per_game(a1)),
+                "rungActual": rung(r["s_actual"], minutes_per_game(r["a_next"])),
+                # SEPTEMBER: the rounds to play, the votes over the rounds already played (what the adopted blend
+                # reads: the club's calendar, `SEPTEMBER_SEEN`), and the games a spell still open should cost.
+                "rounds": r["N"],
+                "seenVotes": r["pv_seen"] if moment == "settembre" else None,
+                "seenRounds": r["seen"] if moment == "settembre" else None,
+                "outOpen": r.get("out_open"),
+                "paFormula": round(pa, 1), "paEngine": r["pa_engine"], "paActual": r["pa_actual"],
+                "sample": (r["window"], r["fc_id"]) in sampled,
+                "injury": r["injury"],
+            })
+
+    def median_of(key, field):
+        values = [abs(x[field] - x["paActual"]) for x in out_rows if x["window"] == key
+                  and x["paEngine"] is not None and x["injury"] != "unforeseen"]
+        return round(median(values), 2) if values else None
+
+    summary = {key: {"moment": f["moment"], "target": f["target"], "auction": f["auction"],
+                     "fitted_on": "le altre finestre", "out_of_sample": True,
+                     **{k: f[k] for k in ("n", "unforeseen", "mae_formula", "mae_engine", "median_ratio_formula",
                                           "median_ratio_engine", "within20_formula", "within20_engine")},
-                     "median_formula": round(median(abs(x["paFormula"] - x["paActual"])
-                                                    for x in out_rows if x["window"] == key
-                                                    and x["paEngine"] is not None), 2),
-                     "median_engine": round(median(abs(x["paEngine"] - x["paActual"])
-                                                   for x in out_rows if x["window"] == key
-                                                   and x["paEngine"] is not None), 2),
-                     "zero_actual": sum(x["paActual"] <= 0 for x in out_rows
-                                        if x["window"] == key and x["paEngine"] is not None)}
-               for key, f in folds.items()}
+                     "median_formula": median_of(key, "paFormula"), "median_engine": median_of(key, "paEngine"),
+                     "zero_actual": sum(x["paActual"] <= 0 for x in out_rows if x["window"] == key
+                                        and x["paEngine"] is not None and x["injury"] != "unforeseen")}
+               for key, f in {**folds, **sep_folds}.items()}
+    newest = params_by_fold[windows[-1]]
     result = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
         "formula": "Pa = N x D x S x europa x c",
-        "protocol": "leave one window out",
-        "params": {k: (round(v, 4) if isinstance(v, float) else v)
-                   for k, v in params_by_fold["T2"].items() if k in GRID},
+        "protocol": "two moments, leave one window out",
+        "params": {k: (round(v, 4) if isinstance(v, float) else v) for k, v in newest.items() if k in GRID},
         # The page shows the cells the rule reads: one per role inside a context (the thinner ones fall back).
-        "priors": {f"{role} {ctx}": round(v, 3) for (role, ctx), (v, n) in params_by_fold["T2"]["Sbar"].items()
+        "priors": {f"{role} {ctx}": round(v, 3) for (role, ctx), (v, n) in newest["Sbar"].items()
                    if role != "*" and n >= CELL_MIN},
-        "cellMin": CELL_MIN, "maxCheapPrice": MAX_CHEAP_PRICE,
-        "reproduction": repro, "verdict": lowo, "edges": edges,
-        "inseason": {"k_rule": k_key, "k": k_adopted, "windows": inseason, "verdict": inseason_verdict},
+        "cellMin": CELL_MIN, "maxCheapPrice": MAX_CHEAP_PRICE, "longInjuryShare": round(LONG_INJURY_SHARE, 3),
+        "reproduction": repro, "edges": edges,
+        "moments": {"luglio": {"verdict": july_verdict},
+                    "settembre": {"verdict": sep_verdict, "k_rule": k_key, "k": k_rounds}},
+        # v1 and the page's own reader call the pre-season verdict «verdict»: the July one, which is that.
+        "verdict": july_verdict,
         "summary": summary, "rows": out_rows,
     }
     exports = [d for d in (config.data_dir / "export").iterdir() if d.is_dir() and (d / "manifest.json").exists()]

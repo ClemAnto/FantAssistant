@@ -153,6 +153,47 @@ alla pari prima della stagione, meglio sulle stagioni recenti (quelle con la cop
 91-94%) e meglio a inizio stagione; a febbraio no, e nessun K della miscela lo cambia (letti 3-40: il migliore resta
 sotto il motore in cinque finestre su sette), quindi il vantaggio del motore lì non sta nel peso delle giornate viste.
 
+## 5-ter. Due momenti, e il momento che conta è settembre (01/10/2026)
+
+**L'operatore**: «molte aste, inclusa la mia, vengono fatte dopo la fine del mercato di Serie A», quindi la formula
+si giudica in due momenti e il principale è **inizio settembre**:
+- **fine luglio** (31/7): le dieci finestre pre-stagione del gate con la data d'asta spostata al 31 luglio;
+- **inizio settembre** (5/9): le sette finestre in-season del gate (`INSEASON_WINDOWS`, metà «set», 2019-20 → 2025-26),
+  mercato chiuso e 2-3 giornate giocate. Il prior è la formula di luglio tarata sulle finestre la cui stagione
+  prevista NON è quella; sopra, la miscela con le giornate viste al K del motore (R20K10) e le partite che uno stop
+  ancora aperto dovrebbe costargli.
+
+**Gli infortuni lunghi imprevedibili stanno fuori dal giudizio** (operatore, sul caso Lukaku): chi dalla data d'asta
+perde per infortunio almeno un terzo delle partite (il 90° percentile della popolazione, 0,316) senza avere uno stop
+aperto quel giorno è segnato in ambra e non conta né per la formula né per il motore. Chi era già fuori alla data
+d'asta resta nel giudizio, perché il fatto c'era: **Lukaku è di questi**, il suo stop alla coscia comincia il 14 agosto
+2025, il giorno prima della data d'asta del gate.
+
+| | Formula contro motore |
+|---|---|
+| **inizio settembre, 7 finestre** | **7 su 7, +3,75%, peggiore +0,35%** (strict) |
+| portieri, settembre | 7 su 7, +15,7% |
+| fine luglio, 10 finestre | 6 su 10, +0,1% |
+| portieri, luglio | 10 su 10, +17,8% (strict) |
+
+**Le giornate viste: il calendario del club batte «da quando è al club».** Letture misurate a settembre contro il
+motore: calendario 7 su 7 (+3,46%), calendario + stop aperto 7 su 7 (+3,75%); dal giorno in cui è al club, contando
+le partite da infortunato come non giocate, 3 su 7; lo stesso togliendole, 2 su 7; solo il prior di luglio 1 su 7
+(−5,2%). Una partita saltata per infortunio contata come non giocata PORTA l'infortunio, ed è per questo che
+toglierla perde. Il caso Hojlund (al Napoli dal 1º settembre, prima partita il 13) è vero e resta un caso: in media
+la lettura «dal suo arrivo» costa.
+
+**Lo stop aperto** aggiunge poco (5 su 7, +0,3%, sotto la soglia del gate) ed è tenuto perché legge un fatto che l'asta
+aveva. Il suo limite è detto: la data di rientro dell'archivio è l'ESITO e non la previsione del giorno, quindi la
+durata attesa è la mediana di quanto restava agli stop chiusi prima della stagione, a parità di giorni già passati.
+Per Lukaku, fuori da 22 giorni, quella mediana dà **2 partite** contro le 28 che ha perso: il dato che avrebbe detto
+«tre-quattro mesi» (la stima di Transfermarkt del giorno, o la prosa della pagina indisponibili) non esiste per le
+stagioni passate.
+
+**La pagina**: i due momenti in un interruttore (settembre per primo), il riquadro della formula pieghevole e
+ricordato, tre blocchi (stagione misurata · prevista · dati veri), e in «prevista» le giornate da giocare, i voti
+sulle giornate viste e lo stop aperto. `e2e-why-presence` verifica tutto, compresa l'ambra.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
@@ -164,4 +205,8 @@ sotto il motore in cinque finestre su sette), quindi il vantaggio del motore lì
    gate §7-sexsexagies, 01/10/2026): da sola respinta, la variante «senza credito se arriva un portiere più caro»
    va nella direzione giusta (7 finestre su 10, +3,5%) e non passa per una finestra a −21%. Resta candidata per il
    2026-27. Aperto: il peso delle prime giornate quando il vecchio titolare è sano.
-5. Febbraio: capire da dove viene il vantaggio del motore a stagione avanzata, visto che non è il K.
+5. Febbraio: capire da dove viene il vantaggio del motore a stagione avanzata, visto che non è il K (fuori dai due
+   momenti che contano, quindi in coda).
+6. Settembre: la durata attesa di uno stop già aperto. Per le stagioni future esiste (la data di rientro della
+   pagina indisponibili, `availability.return_date`, e Transfermarkt finché lo stop è aperto); per giudicarla serve
+   archiviarla col giorno in cui la si legge.

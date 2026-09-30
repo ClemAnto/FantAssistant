@@ -234,6 +234,7 @@ function readTable() {
   const rows = [...table.querySelectorAll('[data-presence-row]')].map((one) => ({
     id: Number(one.getAttribute('data-presence-row')),
     cells: [...one.children].map((cell) => (cell.innerText ?? '').trim()),
+    formulaInk: one.querySelector('[data-presence-injury], td:nth-last-child(2)')?.className ?? '',
     span: [...one.children].some((cell) => cell.colSpan > 1),
   }));
   return { heads, groups, starts, rows, summary: (document.querySelector('[data-presence-summary]')?.innerText ?? '').replace(/\s+/g, ' ') };
@@ -279,11 +280,22 @@ async function main() {
     }, 80);
     if (!first) throw new Error('la sezione «Partite attese» non disegna la tabella');
 
-    // v2 (01/10/2026): every window of the gate, each out of sample. The newest opens; the one before is picked
-    // from the select the way a hand would, which is also how the club headers are checked to follow the season.
-    // Not the oldest: nz-select renders its list VIRTUALLY, so the tenth option is not in the DOM until scrolled.
-    for (const window of ['T2', 'T1']) {
-      if (window !== 'T2') {
+    // TWO MOMENTS (01/10/2026): September opens on its newest window; July is reached through the moment switch
+    // (newest July window), then its previous window through the select, the way a hand would. Not the oldest:
+    // nz-select renders its list VIRTUALLY, so the tenth option is not in the DOM until scrolled.
+    const keysOf = (moment) => Object.keys(file.summary).filter((k) => (file.summary[k].moment ?? 'luglio') === moment);
+    const sep = keysOf('settembre');
+    const jul = keysOf('luglio');
+    const steps = [
+      { window: sep.at(-1), act: null },
+      { window: jul.at(-1), act: 'moment' },
+      { window: jul.at(-2), act: 'select' },
+    ];
+    for (const { window, act } of steps) {
+      if (act === 'moment') {
+        if (!await clickSteady(session, '[data-presence-moment-option="luglio"]', '')) throw new Error('manca il pulsante «Fine luglio»');
+        await wait(600);
+      } else if (act === 'select') {
         if (!await clickSteady(session, '[data-presence-window-select]', '')) throw new Error("il selettore della stagione non c'è");
         await wait(400);
         if (!await clickSteady(session, '.ant-select-item-option', file.summary[window].target)) {
@@ -308,8 +320,15 @@ async function main() {
       }
       const squads = seen.heads.flatMap((h, i) => (h === 'Squadra' ? [i] : []));
       if (squads.length !== 2) throw new Error(`attese due colonne «Squadra», trovate ${squads.length}`);
-      const bothOpen = seen.starts.filter((one) => one !== `${squads[0]},${squads[1]}` && !one.startsWith(`${squads[0]},`));
-      if (bothOpen.length) bad.push(`il confine dei blocchi non apre sulle due «Squadra» (${seen.starts.join(' / ')})`);
+      // THREE blocks (01/10/2026): measured, predicted, real. The first two open on their «Squadra», the third on «Pa vere».
+      const realAt = seen.heads.indexOf('Pa vere');
+      const truthGroup = `Stagione ${short(start)} · dati veri`.toLowerCase();
+      if (seen.groups.length !== 4 || !seen.groups.some((g) => g.toLowerCase() === truthGroup)) {
+        bad.push(`attesi tre blocchi e il terzo «dati veri»: ${seen.groups.join(' | ')}`);
+      }
+      const wrongStarts = seen.starts.filter((one) => one !== `${squads[0]},${squads[1]},${realAt}`
+        && !(one.startsWith(`${squads[0]},`) && one.split(',').length === 3));
+      if (wrongStarts.length) bad.push(`i confini dei blocchi non aprono su Squadra, Squadra, Pa vere (${seen.starts.join(' / ')})`);
       const clubPrevHead = 'Squadra#0';
       const clubNextHead = 'Squadra#1';
       if (seen.rows.length !== expected.length) bad.push(`${seen.rows.length} righe a schermo contro ${expected.length} nel file`);
@@ -346,10 +365,37 @@ async function main() {
           const want = truth.next ? String(truth.next[key]) : '—';
           if (late(head) !== want) bad.push(`${truth.name}: ${head} nella stagione prevista «${late(head)}» contro ${want}`);
         }
+        // September's three readings, and the AMBER of an unforeseen long injury.
+        const seenCell = text('Viste');
+        const seenWant = truth.seenRounds != null ? `${truth.seenVotes ?? 0}/${truth.seenRounds}` : '—';
+        if (seenCell !== seenWant) bad.push(`${truth.name}: Viste «${seenCell}» contro ${seenWant}`);
+        if (truth.injury === 'unforeseen' && !row.formulaInk.includes('text-warning')) {
+          bad.push(`${truth.name}: infortunio imprevedibile senza l'ambra su «Formula %»`);
+        }
+        if (truth.injury !== 'unforeseen' && row.formulaInk.includes('text-warning')) {
+          bad.push(`${truth.name}: ambra su «Formula %» senza un infortunio imprevedibile`);
+        }
         checked += 1;
       }
       note(`tabella ${window}`, `${seen.rows.length} righe, ${checked} confrontate col file; riepilogo «${seen.summary.slice(0, 140)}»`, bad);
     }
+
+    // THE FORMULA'S BLOCK folds and REMEMBERS it (01/10/2026): closed, the page reloaded, still closed.
+    const foldBad = [];
+    const bodyShown = () => evaluate(session, () => !!document.querySelector('[data-presence-info-body]'));
+    if (!await bodyShown()) foldBad.push('il riquadro della formula parte chiuso');
+    await clickSteady(session, '[data-presence-info-toggle]', '');
+    await wait(300);
+    if (await bodyShown()) foldBad.push('il pulsante non chiude il riquadro');
+    await session.send('Page.reload');
+    await waitFor(session, () => !!document.querySelector('[data-why-section="pa"]'), 80);
+    await waitFor(session, () => !!document.querySelector('[data-presence-info]'), 80);
+    if (await bodyShown()) foldBad.push('dopo il ricaricamento il riquadro si è riaperto');
+    await clickSteady(session, '[data-presence-info-toggle]', '');
+    await wait(300);
+    if (!await bodyShown()) foldBad.push('il pulsante non riapre il riquadro');
+    note('riquadro pieghevole', foldBad.length ? 'no' : 'si chiude, lo ricorda al ricaricamento, si riapre', foldBad);
+    await waitFor(session, () => document.querySelectorAll('[data-presence-row]').length > 0, 80);
 
     // THE HEADER STAYS AT THE TOP and «Pa formula» is bold (operator, 01/10/2026): the table's own scroller is
     // moved down and the header must still sit on its top edge, with an opaque ground under it.

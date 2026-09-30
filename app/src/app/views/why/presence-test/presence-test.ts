@@ -1,5 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -19,9 +21,22 @@ import { TITOLARITA_SHORT, isTitolarita, titolaritaRank } from '../../../core/ti
  * The page computes only the two errors. v2 (01/10/2026): every window of the gate is judged with parameters fitted
  * on the other nine, so each one is out of sample and the choice is only which season to look at; the newest first.
  */
+/** Whether the formula's block is open, remembered per browser (operator, 01/10/2026). */
+const INFO_KEY = 'fantassistant.why.presence.info';
+
+function readInfoOpen(): boolean {
+  try {
+    return localStorage.getItem(INFO_KEY) !== 'closed';
+  } catch {
+    return true;
+  }
+}
+
+export type PresenceMoment = 'settembre' | 'luglio';
+
 @Component({
   selector: 'app-presence-test',
-  imports: [FormsModule, NzInputModule, NzRadioModule, NzSelectModule, NzTooltipModule],
+  imports: [FormsModule, NzButtonModule, NzIconModule, NzInputModule, NzRadioModule, NzSelectModule, NzTooltipModule],
   templateUrl: './presence-test.html',
 })
 export class PresenceTest {
@@ -29,7 +44,11 @@ export class PresenceTest {
 
   protected readonly file = signal<PresenceTestFile | null>(null);
   protected readonly loaded = signal(false);
-  protected readonly window = signal('T2');
+  protected readonly window = signal('I25set');
+  /** THE MOMENT OF THE AUCTION (operator, 01/10/2026): «molte aste, inclusa la mia, vengono fatte dopo la fine del
+   *  mercato di Serie A», so September opens. A v1 file has no moment and reads as July. */
+  protected readonly moment = signal<PresenceMoment>('settembre');
+  protected readonly infoOpen = signal(readInfoOpen());
   protected readonly role = signal<string | null>(null);
   protected readonly query = signal('');
   protected readonly sort = signal<PresenceSort>('ratioFormula');
@@ -39,6 +58,9 @@ export class PresenceTest {
     void this.bundle.presenceTest().then((file) => {
       this.file.set(file);
       this.loaded.set(true);
+      // The moment the file carries (a v1 file: July only), and its newest window.
+      const moment = this.moments()[0];
+      if (moment) this.setMoment(moment);
     });
   }
 
@@ -47,8 +69,41 @@ export class PresenceTest {
   /** The windows the file judges, newest first (the order the toolkit writes them in is oldest first). */
   protected readonly windows = computed(() => {
     const file = this.file();
-    return file ? Object.entries(file.summary).map(([key, sum]) => ({ key, sum })).reverse() : [];
+    const moment = this.moment();
+    return file ? Object.entries(file.summary).map(([key, sum]) => ({ key, sum }))
+      .filter((one) => (one.sum.moment ?? 'luglio') === moment).reverse() : [];
   });
+
+  /** The two moments this file carries, September first; a v1 file carries July only. */
+  protected readonly moments = computed<PresenceMoment[]>(() => {
+    const file = this.file();
+    if (!file) return [];
+    const found = new Set(Object.values(file.summary).map((sum) => sum.moment ?? 'luglio'));
+    return (['settembre', 'luglio'] as const).filter((one) => found.has(one));
+  });
+
+  /** The verdict of the moment on screen, in the gate's own vocabulary. */
+  protected readonly momentVerdict = computed(() => {
+    const file = this.file();
+    return file?.moments?.[this.moment()]?.verdict?.['formula'] ?? file?.verdict?.['formula'] ?? null;
+  });
+
+  protected setMoment(value: PresenceMoment): void {
+    this.moment.set(value);
+    // The newest window of that moment: a September key has no July twin, so the choice cannot carry over.
+    const first = this.windows()[0];
+    if (first) this.window.set(first.key);
+  }
+
+  protected toggleInfo(): void {
+    const open = !this.infoOpen();
+    this.infoOpen.set(open);
+    try {
+      localStorage.setItem(INFO_KEY, open ? 'open' : 'closed');
+    } catch {
+      // A browser that refuses storage still folds the block; it just forgets it on refresh.
+    }
+  }
 
   /** The two club columns are named after the seasons they describe: «Squadra 24-25», «Squadra 25-26». */
   protected readonly seasons = computed(() => {
@@ -78,9 +133,12 @@ export class PresenceTest {
   protected readonly band = computed(() => {
     const rows = this.rows();
     const within = (value: number | null) => value != null && value >= 0.8 && value <= 1.25;
+    // An unforeseen long injury is judged apart, here as in the file.
+    const judged = rows.filter((row) => row.injury !== 'unforeseen');
     return {
-      formula: rows.filter((row) => within(row.ratioFormula)).length,
-      engine: rows.filter((row) => within(row.ratioEngine)).length,
+      formula: judged.filter((row) => within(row.ratioFormula)).length,
+      engine: judged.filter((row) => within(row.ratioEngine)).length,
+      judged: judged.length,
     };
   });
 
@@ -142,6 +200,19 @@ export class PresenceTest {
    * The ratio's ink: within 80%-125% green, within 67%-150% neutral, beyond it the direction - over-predicted
    * (he played less) red, under-predicted (he played more) blue. Symmetric, like the order.
    */
+  /** The formula's ratio: AMBER for an unforeseen long injury, which is neither a hit nor a miss (01/10/2026). */
+  protected formulaInk(row: { injury?: string | null; ratioFormula: number | null }): string {
+    return row.injury === 'unforeseen' ? 'text-warning' : this.ratioInk(row.ratioFormula);
+  }
+
+  protected formulaHint(row: { injury?: string | null }): string {
+    return row.injury === 'unforeseen'
+      ? 'Infortunio lungo cominciato dopo la data d\'asta: non è né un errore né un risultato giusto: sta fuori dal giudizio'
+      : row.injury === 'known'
+        ? 'Infortunio lungo già aperto alla data d\'asta: il fatto c\'era, quindi resta nel giudizio'
+        : 'Pa formula ÷ Pa vere';
+  }
+
   protected ratioInk(value: number | null): string {
     if (value == null) return 'text-muted';
     if (value >= 0.8 && value <= 1.25) return 'text-success';

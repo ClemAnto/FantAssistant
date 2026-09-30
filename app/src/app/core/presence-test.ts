@@ -58,10 +58,28 @@ export interface PresenceTestRow {
   paActual: number;
   /** One of the varied sample the page shows (up to two per role x context x band of real appearances). */
   sample: boolean;
+  /** v2: «luglio» (31 July, before the season) or «settembre» (5 September, market closed, rounds played). */
+  moment?: 'luglio' | 'settembre';
+  /** September: the rounds still to play, his votes over the rounds already played on his club's calendar (what
+   *  the blend reads), and the games a spell still open on the day should cost him. Null in July. */
+  rounds?: number;
+  seenVotes?: number | null;
+  seenRounds?: number | null;
+  outOpen?: number | null;
+  /**
+   * A long injury in the season predicted (a third of the games from the auction on, the population's p90): «unforeseen»
+   * if no spell was open on the auction date - judged APART, neither a hit nor a miss - or «known» if it was, which
+   * stays in the judgement because the fact was there.
+   */
+  injury?: 'unforeseen' | 'known' | null;
 }
 
 export interface PresenceTestSummary {
+  moment?: 'luglio' | 'settembre';
   target: string;
+  auction?: string;
+  /** Men left out of the judgement for an unforeseen long injury. */
+  unforeseen?: number;
   fitted_on: string;
   out_of_sample: boolean;
   n: number;
@@ -91,6 +109,9 @@ export interface PresenceTestFile {
   maxCheapPrice?: number;
   verdict?: Record<string, PresenceVerdict>;
   inseason?: { k_rule: string | null; k: number | null; verdict: PresenceVerdict | null };
+  /** v2: the verdict of each moment. */
+  moments?: Partial<Record<'luglio' | 'settembre', { verdict: Record<string, PresenceVerdict>; k?: number }>>;
+  longInjuryShare?: number;
   rows: PresenceTestRow[];
 }
 
