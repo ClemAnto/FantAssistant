@@ -7275,6 +7275,21 @@ And the same day's review of a past draft, for the next page that needs it: **an
 every pick is rebuilt from the HISTORY** (the order in which squads first call again from the cursor), because under
 the platform's rule a pick moves only the squad that made it (`rewindState`).
 
+## Una DP fatta di due metà, e si spedisce solo la metà che passa
+**30/09/2026, `core/draft-rarity.ts` + `draft-priority.priorityParts`, `priorita-draft-v1.md` §20-§22.** L'operatore ha
+visto che la DP (ora **SeSw**, Season Swing) è un fatto sull'uomo e non vede la SCARSITÀ: sei attaccanti da FM 10
+contro un solo difensore buono, e va preso il difensore. Da qui **RAR** (quanti svincolati del suo ruolo base sono
+pari o migliori su sei letture) e la DP nuova `B + (1 − 0,25 · min(1, RAR/k)) · (SeSw − B)`. Tre cose che restano.
+- **Una costante proposta si misura prima di scriverla, anche quando la propongo io.** Il 70% veniva dallo sconto
+  «prendi chi sparirà» di un altro contesto; sul banco perde (−0,49%, buchi raddoppiati) e l'ottimo è 0,2-0,3.
+- **Uno sconto su una quantità con segno va applicato alla DISTANZA da un minimo**, non al numero: sotto il titolare
+  medio SeSw è negativa e `SeSw × (1 − d s)` alzerebbe proprio i comuni. Misurato: il prodotto letterale perde.
+- **Quando una proposta ha due metà, il banco le giudica separate, e si spedisce quella che passa.** Il
+  razionamento dei ruoli aveva la media più alta (+2,0%) e non passa robust (una stagione sola da +14%, le altre
+  fino a −3,4%); RAR da solo passa (+1,06%, 4/5). Il razionamento è scritto e spento, e accenderlo è una sua scelta.
+  E il banco ora legge la funzione DELL'APP (`appcode.mjs`), non una copia: la seconda misura, su codice spedito,
+  ha diviso le due metà che la prima, su una copia, mostrava insieme.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

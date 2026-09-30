@@ -1,5 +1,15 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 30 settembre 2026 (XIII) — la DP nuova (SeSw × RAR)
+
+- [ ] **Razionamento dei ruoli nella DP**: scritto (`priorityParts`, argomento `places`) e spento, perché sul banco
+      non passa robust (+2,00%, 3/5, peggiore −3,4%; con RAR +2,33%, 2/5). Decisione dell'operatore
+      (`priorita-draft-v1.md` §22).
+- [ ] **RAR del banco a 6 letture**: portare nelle finestre la fragilità alla data d'asta (e, se esiste, un gradino
+      storico), poi rimisurare lo sconto 0,25.
+- [ ] **Tolleranze di «simile»** (`draft-rarity.RARITY_TOLERANCE`): dichiarate, da tarare con lui sui casi veri.
+- [ ] **k fuori turno**: `picksBefore` conta anche chi chiama prima di noi nel giro; misurarlo o dirlo a schermo.
+
 ## Aperti alla chiusura del 29 settembre 2026 (VIII) — il draft vero, la Draft Priority, gli scenari
 
 - **La copertura di un posto va tarata con lui** (`draft-scenarios.diagnose`): oggi vuoto · debole (titolare con DP

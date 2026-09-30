@@ -167,6 +167,36 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 30 settembre 2026 (XIII): la DP nuova, SeSw abbassata dalla rarità
+
+Seguito della (XI), che lasciava due aperti: entrambi chiusi o decisi. Dettaglio in `priorita-draft-v1.md` §20-§22.
+
+**Cosa c'è ora nel Draft Assistant.** Colonne **SeSw** (Season Swing: il nome che l'operatore ha dato alla DP di
+prima, `draft-priority.manValue`), **DP** e **RAR**. RAR (`core/draft-rarity.ts`) conta gli altri svincolati dello
+stesso ruolo base pari o migliori su sei letture (gradino, costanza, MV, bonus, presenze, infortuni) con una
+tolleranza dichiarata per lettura; al candidato a cui manca una lettura si dà la media del gruppo (sua correzione);
+oltre 10 si stampa in percentuale degli altri svincolati del gruppo. Le letture stanno in
+`AuctionAdvice.rarityReadings`, una definizione per colonna, DP e scelte simulate.
+**La DP** è `B + (1 − 0,25 · min(1, RAR/k)) · (SeSw − B)` (`draft-priority.priorityParts`, `RARITY_DISCOUNT`,
+`picksBefore`), con k le scelte degli altri prima del nostro turno e B la SeSw più bassa del pool.
+
+**Il 70% proposto era sbagliato, misurato sul banco del draft** (`toolkit/bench/draft/rarity.mjs`, set `rarity`,
+`rarity-rationed`, `rarity-app`; `--declared --cap=12`, 8 seed, 5 stagioni euro): a 0,7 perde (−0,49%, buchi
+6,8 → 11,6), l'ottimo è interno e basso (0,2-0,3). Letta la funzione dell'app, **solo RAR 0,25 passa robust
+(+1,06%, 4/5)**; il razionamento dei ruoli (`needFor`) da solo +2,00% (3/5, una stagione a −3,4%) e insieme a RAR
++2,33% (2/5): non passano, la media viene da una stagione sola (Tm4 +14%). Quindi il razionamento è scritto nella
+funzione e **spento** nell'app (`AuctionAdvice.priorityEngine` non passa `places`). App v0.1.33, non pubblicata.
+
+**Aperti**:
+1. **Accendere o no il razionamento**: decisione sua, coi numeri di §22. Se lo vuole, è un argomento.
+2. **Il banco legge 3 letture di RAR su 6** (niente gradino né infortuni nelle finestre storiche): `extract.py`
+   potrebbe portare la fragilità datata alla data d'asta (da `injuries`) e rendere il RAR del banco più vicino a
+   quello dell'app. Da fare solo se si vuole ritarare lo sconto.
+3. **Le tolleranze di «simile»** sono dichiarate (costanza 0,05, MV 0,1, bonus 0,1, presenze 0,05, infortuni
+   0,05, gradino uguale o meglio): la taglia del numero dipende da loro, e sono sue da regolare.
+4. **k quando non è il nostro turno** conta anche chi chiama prima di noi in questo giro: un'approssimazione detta
+   in `picksBefore`, non misurata a parte.
+
 ## CHIUSURA — 30 settembre 2026 (XII): R31 e R28, il caso Gvardiol
 
 **Il difetto.** Sul foglio EuroLeghe **245 righe su 952** erano prezzate all'ancora di ruolo pur avendo una stagione
