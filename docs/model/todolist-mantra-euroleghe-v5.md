@@ -1,5 +1,12 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 30 settembre 2026 (XIV) — il draft Serie A classic
+
+Tutti in **[todolist-draft-classic-v1.md](todolist-draft-classic-v1.md)**, ordinati per urgenza rispetto al draft.
+Il primo è una sua decisione: **DP o consiglio di prima sul classic** (la DP lì non ha verdetto); poi le Opzioni da
+controllare nel suo browser (porte, tetto, squadre, esclusioni), la lettura di una sessione classic vera, e la
+misura sul banco (quote in `legalPoolFor`, finestre col pool largo, baseline `adoptedCover` col gioco).
+
 ## Aperti alla chiusura del 30 settembre 2026 (XIII) — la DP nuova (SeSw × RAR)
 
 - [ ] **Razionamento dei ruoli nella DP**: scritto (`priorityParts`, argomento `places`) e spento, perché sul banco

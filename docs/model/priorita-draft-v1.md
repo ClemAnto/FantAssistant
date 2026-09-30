@@ -648,3 +648,41 @@ tavolo): nelle altre costa fino a 3 punti percentuali. Quindi **il razionamento 
 passa `places`): accenderlo è un argomento in `AuctionAdvice.priorityEngine` ed è una sua decisione, coi numeri
 qui. Nota: la forma misurata in §21 (il peso sul numero con segno, come fa `bestUnder`) e questa (il peso sulla
 distanza dal minimo) non sono lo stesso razionamento: della prima c'è solo la media (71,9 → 72,9), non il verdetto per stagione, quindi non va citata come «passa».
+
+## 23. Il draft CLASSIC (30/09/2026)
+
+Richiesta dell'operatore prima di un draft Serie A classic: «aggiusta il layout e le funzioni che prevedono i
+ruoli mantra ed adattiamoli ai ruoli classic». La formula (§2) non dipende dal mantra: servono un ruolo base e i
+posti di un modulo, e sul classic il ruolo base **è il ruolo** (P/D/C/A) e i posti sono quelli dei sette moduli di
+`classic_modules.json`. Da oggi Draft Priority, SeSw, RAR, piani e DP sul campetto valgono su tutt'e due i giochi
+(`AuctionAdvice.priorityOn`: un draft con un regolamento di moduli; sul mantra serve ancora la matrice).
+
+Cosa cambia sul classic, e perché.
+
+| Pezzo | Mantra | Classic |
+|---|---|---|
+| Ruoli di un uomo | i codici mantra del listone | il macro-ruolo della zona (`AuctionFeed.gameRoles`) |
+| Chi la lega compra (base di Z e R) | i migliori `squadre × movimento` di tutto il pool | `squadre × quota` di OGNI linea (8/8/6): letto sul pool intero gli attaccanti, che rendono di più, scalzerebbero i difensori che la lega deve comunque comprare |
+| Z, il titolare medio | i migliori 3 per partecipante (sua frase sulla Pc, 29/09) | i migliori `squadre × posti` del ruolo: un modulo classic dà posti interi (4 D, 4 C, 2 A), e «3 a testa» leggerebbe il quarto difensore come una riserva — **estensione nostra, dichiarata** |
+| Chi si può chiamare | tetto dei portieri | tetto dei portieri **e quote per linea** (`PlanTeam.limits`, `roleFull`) |
+
+**Tre difetti del classic trovati facendolo** (tutti invisibili sul mantra):
+- il portiere del foglio classic è `P` e non `por`, quindi `predictRivalPick` non contava i portieri di nessuno e
+  poteva prevedere il quarto;
+- nessuna previsione conosceva le quote: un nono difensore era una scelta prevista che il banditore rifiuta;
+- sul tavolo live il listone porta i codici mantra su ogni riga qualunque sia il gioco: la lista li disegnava su un
+  draft classic e il filtro P/D/C/A non trovava i difensori.
+
+Sulla lista, chi ha la linea PIENA nella mia rosa resta in lista sbiadito con la pastiglia «pieno» (la stessa
+guardia della scelta, `fullForMe`), e sul classic la colonna del ruolo è stretta a una lettera.
+
+**Non misurato, ed è detto**: il banco del draft ha giudicato la DP sul mantra EuroLeghe; sul classic è la formula
+applicata al gioco nuovo, e il consiglio di prima (`pickForUs` con la scala graduata, +0,77% robust sulle dieci
+finestre Serie A) non è più quello che la pagina usa. Il banco oggi **non può** fare il confronto: `legalPoolFor`
+non applica le quote 8/8/6 (il classic del §17 è stato giocato senza), e con le quote le finestre non bastano -
+`serie-a.json` porta 15-24 portieri prezzati per stagione contro i 30 che dieci squadre da tre ne comprano, perché
+`extract.py` tiene solo chi il motore prezza. Servono finestre col pool largo (le stime `est_*`) e le quote come
+opzione di `legalPoolFor`; fino ad allora sul mantra non cambia niente per costruzione (niente `limits`, il
+portiere era già `por`), e sul classic la scelta di usare la DP è dell'operatore.
+
+Cosa resta, in ordine: [todolist-draft-classic-v1.md](todolist-draft-classic-v1.md).

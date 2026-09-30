@@ -7290,6 +7290,22 @@ pari o migliori su sei letture) e la DP nuova `B + (1 − 0,25 · min(1, RAR/k))
   E il banco ora legge la funzione DELL'APP (`appcode.mjs`), non una copia: la seconda misura, su codice spedito,
   ha diviso le due metà che la prima, su una copia, mostrava insieme.
 
+## Il classic non è il mantra con altre sigle, e una preferenza è di UNA lega
+**30/09/2026, dal draft Serie A classic dell'operatore: `priorita-draft-v1.md` §23, `todolist-draft-classic-v1.md`.**
+Tutto il lavoro recente sul draft era nato e misurato su EuroLeghe mantra, e verificare il classic ha trovato sei
+difetti che nessun banco vedeva. Tre cose restano.
+- **Una dichiarazione salvata per una lega non deve valere per un'altra.** Le squadre escluse erano una lista sola: i
+  club italiani esclusi per EuroLeghe svuotavano un draft Serie A (riprodotto: 0 svincolati). Ora sono per listone.
+  E un banco che parte da un browser pulito non può vederlo: `e2e-draft` classic gira ora con le esclusioni EuroLeghe
+  salvate, *la condizione del suo browser e non quella comoda*.
+- **Lo stesso fatto ha due grafie nei due giochi, e un confronto con una sola le perde.** Il portiere è `por` sul
+  mantra e `P` sul foglio classic (`isKeeperSlot`); il listone live porta i codici mantra anche su un tavolo classic
+  (`AuctionFeed.gameRoles`); e porta due FVM, uno per gioco (`pricedFor`). Tre istanze di «un'identità si unisce per
+  la sua chiave», sul vocabolario dei ruoli.
+- **Un vincolo che il gioco impone va in ogni simulazione del gioco.** Le quote 3/8/8/6 non erano in nessuna
+  previsione (`PlanTeam.limits`, `roleFull`) — e non sono nemmeno nel banco del draft, quindi il classic del §17 è
+  stato giocato senza: è la ragione per cui la DP sul classic oggi non ha un verdetto, e va detto accanto a lei.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

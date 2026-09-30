@@ -167,6 +167,41 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 30 settembre 2026 (XIV): il Draft Assistant su un draft Serie A classic
+
+Richiesta dell'operatore: prima del suo draft Serie A **classic** (non mantra), «verifica che la pagina per seguire il
+draft funzioni perfettamente anche in questa configurazione», poi «adattiamo le funzioni che prevedono i ruoli mantra
+ai ruoli classic». Dettaglio in `priorita-draft-v1.md` §23; gli aperti, in ordine, in **`todolist-draft-classic-v1.md`**.
+
+**Difetti trovati e corretti** (tutti invisibili sul mantra e nei banchi, che girano su un browser pulito):
+1. **Le squadre escluse erano UNA lista per tutta l'app**: i club italiani esclusi per EuroLeghe restavano esclusi su
+   un tavolo Serie A, dove sono tutto il campionato. Riprodotto su HEAD: **0 svincolati**. Ora sono per listone
+   (`GlobalOptions.excludedOn` / `setExcludedOn`, chiave `options.excludedClubsByPlatform`; la lista vecchia migra a
+   EuroLeghe), il pannello Opzioni ha una copia per listone e il sync di un tavolo scrive sul listone del TAVOLO.
+2. **Sul tavolo live l'FVM era sempre quello mantra** (`parseListone`): sul listone Serie A classic e mantra
+   differiscono su 140 uomini su 535 (Calhanoglu 220/250). Ora il listone tiene i due valori (`fvmByGame`) e
+   `AuctionFeed.players` prezza nel gioco dichiarato dal tavolo (`pricedFor`).
+3. **Il portiere del foglio classic è `P`, non `por`**: `predictRivalPick` non contava i portieri e poteva prevedere il
+   quarto. Ora `isKeeperSlot` in ogni grafia.
+4. **Nessuna previsione né scelta rispettava le quote 3/8/8/6**: ora `PlanTeam.limits` + `roleFull`, letti da
+   `predictRivalPick`, `pickForUs` e `legalFor`.
+5. **Il listone live porta i codici mantra su ogni riga anche su un tavolo classic**: lista, filtro P/D/C/A, campetto e
+   piani leggono ora `AuctionFeed.gameRoles`.
+6. Il rosso preesistente di `e2e-draft-review` era del BANCO (leggeva a 0,4 s, il foglio classic arriva a 0,7).
+
+**Adattato al classic**: Draft Priority, SeSw, RAR, piani e DP sul campetto accesi in ogni draft (`priorityOn`); sul
+classic il ruolo base è il ruolo, la lega «compra» `squadre × quota` di ogni linea e Z è sui posti interi del modulo
+(`LeagueSize.quotas`, `startersFromPlaces` — estensione nostra, da confermare). Lista: pastiglia **«pieno»** per chi
+sta in un mio reparto già pieno (`fullForMe`), colonna del ruolo stretta a una lettera.
+
+**Il punto da decidere (aperto 0.1 della todolist)**: sul classic la pagina consiglia ora con la DP, **non misurata
+lì**, al posto del consiglio misurato (+0,77% robust, metrica-asta-surplus-v1.md §17). Il banco non può giudicare:
+non applica le quote e le finestre portano 15-24 portieri prezzati contro i 30 che servono. Tornare indietro è una riga.
+
+**Verifica**: 1274 test dell'app; `e2e-draft` (classic, ora con le esclusioni EuroLeghe salvate come nel suo
+browser), `e2e-draft --euro`, `e2e-draft-review`, `e2e-options`, `e2e-sealed-bid` verdi; controprove fatte
+rimettendo i difetti (esclusioni, FVM, quote). App non pubblicata, versione non incrementata.
+
 ## CHIUSURA — 30 settembre 2026 (XIII): la DP nuova, SeSw abbassata dalla rarità
 
 Seguito della (XI), che lasciava due aperti: entrambi chiusi o decisi. Dettaglio in `priorita-draft-v1.md` §20-§22.
