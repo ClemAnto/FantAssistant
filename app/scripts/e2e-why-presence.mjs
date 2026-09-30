@@ -339,6 +339,13 @@ async function main() {
         if (text(clubNextHead).replace(/ ⇄$/, '') !== (truth.clubNext ?? '—')) bad.push(`${truth.name}: squadra dopo «${text(clubNextHead)}» contro ${truth.clubNext}`);
         if (text('Grad.') !== (SHORT[truth.rung] ?? '—')) bad.push(`${truth.name}: gradino «${text('Grad.')}» contro ${truth.rung}`);
         if (text('Grad. vero') !== (SHORT[truth.rungActual] ?? '—')) bad.push(`${truth.name}: gradino vero «${text('Grad. vero')}» contro ${truth.rungActual}`);
+        // The season predicted, as it went: the three kinds of missed games are the file's (the SECOND «Inf.»
+        // and «Squal.» of the header row; the first two are the season measured).
+        const late = (name) => row.cells[seen.heads.lastIndexOf(name) - (row.span ? 8 : 0)];
+        for (const [head, key] of [['Inf.', 'inj'], ['Squal.', 'susp'], ['Naz.', 'naz']]) {
+          const want = truth.next ? String(truth.next[key]) : '—';
+          if (late(head) !== want) bad.push(`${truth.name}: ${head} nella stagione prevista «${late(head)}» contro ${want}`);
+        }
         checked += 1;
       }
       note(`tabella ${window}`, `${seen.rows.length} righe, ${checked} confrontate col file; riepilogo «${seen.summary.slice(0, 140)}»`, bad);

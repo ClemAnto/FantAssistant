@@ -62,6 +62,9 @@ from euroleghe_ingest.engine.fitting import fit_linear  # noqa: E402
 
 PLATFORM, GAME = "default", "classic"
 SUSPENSION = {1, 2, 3}
+# NATIONAL DUTY (01/10/2026): `absence_id` 5 and 8 fall within four days of one of his national team's games 88.8%
+# and 87.4% of the time, against 1-5% for every other code - so they are the call-ups (a continental cup, a window).
+NATIONAL = {5, 8}
 EUROPE = {"CL", "EL", "UCOL"}
 TOP5 = {"IT1", "GB1", "ES1", "L1", "FR1"}
 LEAGUE_TYPES = (1, 2)          # Transfermarkt's first and second divisions; cups and youth are other types
@@ -73,6 +76,11 @@ GRID = {
     "q": [-0.2, -0.1, 0, 0.1, 0.2, 0.3, 0.5], "kS": [0, 5, 10, 20, 40, 80, 160],
     "b": [-0.1, -0.05, 0, 0.05, 0.1, 0.15, 0.2, 0.3], "c": [0.85, 0.9, 0.95, 1.0, 1.05, 1.1],
 }
+# The two readings born on 01/10/2026 from Contini and Christensen; the bench measures them before they are kept.
+# OWN_CLUB is REFUSED and kept off: -0.05% against the base (5 windows of 10), and worse on the keepers (3 of 10).
+# KEEPER_CLASS is kept: +0.57% overall (7 of 10, worst -1.2%, robust), +3.2% on the keepers.
+OWN_CLUB, OWN_CLUB_MIN = False, 10
+KEEPER_CLASS, KEEPER_CLASS_SHARE = True, 0.5
 # The gate's own thresholds for the two verdicts, so the bench speaks the gate's vocabulary.
 FLOOR, TOLERANCE = 0.005, -0.02
 K_READING = (3, 6, 10, 15, 25, 40)
@@ -86,6 +94,9 @@ def previous(season: str) -> str:
 def breakdown(conn: sqlite3.Connection):
     """Per (fc_id, season): the league seasons summed, the clubs, the first club, and the clubs in Europe."""
     agg: dict = defaultdict(lambda: defaultdict(float))
+    # ...and the same per CLUB, because a season can be two clubs: Christensen's 2024-25 is twenty games «not in
+    # squad» at Fiorentina and sixteen starts on loan at Salernitana, in Serie B.
+    at_club: dict = defaultdict(lambda: defaultdict(float))
     clubs: dict = defaultdict(lambda: defaultdict(float))
     first: dict = {}
     europe: set = set()
@@ -104,23 +115,23 @@ def breakdown(conn: sqlite3.Connection):
                 FROM tm_appearances
                 WHERE is_national = 0 AND season IS NOT NULL
                   AND competition_type IN ({','.join('?' * len(LEAGUE_TYPES))})""", LEAGUE_TYPES):
-        a = agg[(fc, season)]
-        a["n"] += 1
-        a["it1"] += comp == "IT1"
-        a["top5"] += comp in TOP5
         clubs[(fc, season)][club] += 1
-        if state == "played":
-            a["start" if start else "sub"] += 1
-            a["minutes"] += minutes or 0
-        elif state == "in squad":
-            a["bench"] += 1
-        elif state == "injured":
-            a["inj"] += 1
-        elif state == "absent":
-            a["susp" if absence in SUSPENSION else "other"] += 1
-        else:
-            a["out"] += 1
-    return agg, clubs, first, europe
+        for a in (agg[(fc, season)], at_club[(fc, season, club)]):
+            a["n"] += 1
+            a["it1"] += comp == "IT1"
+            a["top5"] += comp in TOP5
+            if state == "played":
+                a["start" if start else "sub"] += 1
+                a["minutes"] += minutes or 0
+            elif state == "in squad":
+                a["bench"] += 1
+            elif state == "injured":
+                a["inj"] += 1
+            elif state == "absent":
+                a["susp" if absence in SUSPENSION else "naz" if absence in NATIONAL else "other"] += 1
+            else:
+                a["out"] += 1
+    return agg, at_club, clubs, first, europe
 
 
 def clubs_elsewhere(conn: sqlite3.Connection) -> tuple[dict, dict]:
@@ -168,7 +179,7 @@ def engine_rows(conn: sqlite3.Connection, keys: tuple[str, ...]):
 
 
 def available(a) -> float:
-    return a["n"] - a["inj"] - a["susp"] - a["other"]
+    return a["n"] - a["inj"] - a["susp"] - a["other"] - a["naz"]
 
 
 def keeper_input(r) -> tuple[float, float]:
@@ -178,20 +189,21 @@ def keeper_input(r) -> tuple[float, float]:
 
 def parts(r, p):
     a1, a2 = r["a1"], r["a2"]
+    chosen = r.get("a1s") or a1      # the games that say whether he is CHOSEN (see `annotate`)
     n = a1["n"] + (p["w2"] * a2["n"] if a2 else 0)
     free = available(a1) + (p["w2"] * available(a2) if a2 else 0)
     d = (free + p["kD"] * prior(p, "Dbar", r)) / (n + p["kD"])
-    av1 = max(available(a1), 0)
-    s_app = (a1["sub"] + a1["start"]) / av1 if av1 else 0
-    s_min = a1["minutes"] / (90 * av1) if av1 else 0
-    s_start = a1["start"] / av1 if av1 else 0
+    av1 = max(available(chosen), 0)
+    s_app = (chosen["sub"] + chosen["start"]) / av1 if av1 else 0
+    s_min = chosen["minutes"] / (90 * av1) if av1 else 0
+    s_start = chosen["start"] / av1 if av1 else 0
     s_raw = (1 - p["alpha"] - p["gamma"]) * s_app + p["alpha"] * s_min + p["gamma"] * s_start
     # A season spent entirely out (injured, suspended) says nothing about being chosen: the prior answers.
     s_bar = prior(p, "Sbar", r)
     s = (av1 * s_raw + p["kS"] * s_bar) / (av1 + p["kS"]) if av1 + p["kS"] else s_bar
     s *= (1 - p["b"] * r["eout"]) / (1 - p["b"] * r["ein"])
     mv = r["mv"] if r["mv"] is not None or not p["by_role"] else prior(p, "MVbar", r)
-    if mv is not None and r["ctx"] != "portiere":
+    if mv is not None and not r["ctx"].startswith("portiere"):
         s *= 1 + p["q"] * (mv - 6.0)
     return d, min(s, 1.0)
 
@@ -220,7 +232,7 @@ def share(r, p) -> float:
     """The predicted share of the calendar, before any round of the target season is known."""
     if r["a1"] is None:
         return prior(p, "none", r)
-    if r["ctx"] == "portiere" and p.get("keeper"):
+    if r["ctx"].startswith("portiere") and p.get("keeper"):
         return model.linear_share(p["keeper"], keeper_input(r))
     d, s = parts(r, p)
     return d * s * p["c"]
@@ -275,10 +287,10 @@ def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True) ->
          "keeper": None}
     if keeper_line:
         p["keeper"] = fit_linear([(keeper_input(r), r["pa_actual"] / r["N"])
-                                  for r in train if r["ctx"] == "portiere"])
+                                  for r in train if r["ctx"].startswith("portiere")])
     # The outfield descent never sees a keeper once the line exists, or the grid would tune D and S to
     # rescue rows the line already answers.
-    outfield = [r for r in train if not (p["keeper"] and r["ctx"] == "portiere")]
+    outfield = [r for r in train if not (p["keeper"] and r["ctx"].startswith("portiere"))]
     for _ in range(4):
         for key, values in GRID.items():
             p[key] = min(values, key=lambda v: mae(outfield, {**p, key: v}))
@@ -325,16 +337,31 @@ def verdict(gains: list[float]) -> dict:
             "robust": wins > len(gains) / 2 and mean_gain > FLOOR and min(gains) > TOLERANCE}
 
 
-def annotate(rows, agg, clubs, first, europe, mv) -> None:
+def annotate(rows, agg, at_club, clubs, first, europe, mv, *, own_club: bool = OWN_CLUB,
+             keeper_class: bool = KEEPER_CLASS) -> None:
     for r in rows:
         one, two = r["input"], previous(r["input"])
         a1, a2 = agg.get((r["fc_id"], one)), agg.get((r["fc_id"], two))
         r["a1"] = a1 if a1 and a1["n"] else None
         r["a2"] = a2 if a2 and a2["n"] else None
+        # THE CLUB HE WILL PLAY FOR (operator, 01/10/2026, on Christensen): whether he is CHOSEN is read on the
+        # games of the season measured at the club of the season predicted, when he spent enough of them there -
+        # sixteen starts on loan in Serie B say nothing about Fiorentina's shirt. Availability (D) stays the whole
+        # season: an injury belongs to the man, not to the club.
+        target_club = first.get((r["fc_id"], r["target"]))
+        there = at_club.get((r["fc_id"], one, target_club)) if own_club and r["a1"] else None
+        r["a1s"] = there if there and there["n"] >= OWN_CLUB_MIN and there["n"] < r["a1"]["n"] else None
+        chosen = r["a1s"] or r["a1"]
         if r["a1"] is None:
             r["ctx"] = "nessuna"
         elif r["role"] == "P":
-            r["ctx"] = "portiere"
+            # A CLUB FIELDS ONE KEEPER (operator, 01/10/2026, on Contini): the keepers' population is bimodal, so a
+            # prior that is the mean of every keeper (0.44) is a shirt nobody holds. The context of a keeper is his
+            # CLASS last season - the man who played or the man who did not - and the role's mean inside it.
+            fit_for = available(chosen)
+            share = (chosen["sub"] + chosen["start"]) / fit_for if fit_for > 0 else 0.0
+            r["ctx"] = (("portiere titolare" if share >= KEEPER_CLASS_SHARE else "portiere riserva")
+                        if keeper_class else "portiere")
         elif a1["it1"] >= a1["n"] / 2:
             r["ctx"] = "serie A, cambio club" if r["club_change"] else "serie A, stesso club"
         else:
@@ -359,18 +386,20 @@ def main() -> None:
     parser.add_argument("--no-inseason", dest="inseason", action="store_false")
     args = parser.parse_args()
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
-    agg, clubs, first, europe = breakdown(conn)
+    agg, at_club, clubs, first, europe = breakdown(conn)
     played_for, came_from = clubs_elsewhere(conn)
     mv = {(fc, s): v for fc, s, v in conn.execute(
         "select fc_id, season, mv from season_stats where platform='default' and mv is not null and pv >= 5")}
     rows = engine_rows(conn, tuple(features.WINDOWS))
-    annotate(rows, agg, clubs, first, europe, mv)
+    annotate(rows, agg, at_club, clubs, first, europe, mv)
     windows = [k for k in features.WINDOWS if any(r["window"] == k for r in rows)]
     by_window = {k: [r for r in rows if r["window"] == k] for k in windows}
 
-    # 1. THE REPRODUCTION of v1's published split (fit T1, judge T2): v1's priors (per context), no keeper line.
+    # 1. THE REPRODUCTION of v1's published split (fit T1, judge T2): v1's contexts and priors, no keeper line.
+    annotate(rows, agg, at_club, clubs, first, europe, mv, own_club=False, keeper_class=False)
     p_v1 = fit(by_window["T1"], keeper_line=False, by_role=False)
     repro = {k: scored(by_window[k], lambda r: predict(r, p_v1)) for k in ("T1", "T2")}
+    annotate(rows, agg, at_club, clubs, first, europe, mv)
     print(f"[v1] fit T1: T1 {repro['T1']['mae_formula']} / {repro['T1']['mae_engine']} · "
           f"T2 {repro['T2']['mae_formula']} / {repro['T2']['mae_engine']}")
 
@@ -385,7 +414,7 @@ def main() -> None:
         p_line = fit(train, keeper_line=True)
         params_by_fold[key] = p_main
         judged = by_window[key]
-        keepers = [r for r in judged if r["ctx"] == "portiere"]
+        keepers = [r for r in judged if r["ctx"].startswith("portiere")]
         folds[key] = {"target": features.window(key).target_season,
                       **scored(judged, lambda r, p=p_main: predict(r, p)),
                       "context_priors": scored(judged, lambda r, p=p_ctx: predict(r, p)),
@@ -417,7 +446,7 @@ def main() -> None:
     in_rows: list[dict] = []
     if args.inseason:
         in_rows = engine_rows(conn, tuple(features.INSEASON_WINDOWS))
-        annotate(in_rows, agg, clubs, first, europe, mv)
+        annotate(in_rows, agg, at_club, clubs, first, europe, mv)
         k_key = next(k for k in evaluate.ADOPTED[PLATFORM] if k in evaluate.R20_ROUNDS)
         k_adopted = evaluate.R20_ROUNDS[k_key]
         priors: dict[str, dict] = {}
@@ -463,13 +492,19 @@ def main() -> None:
     for r in rows:
         a1, a2 = r["a1"], r["a2"]
         p = params_by_fold[r["window"]]
-        d, s = parts(r, p) if a1 and not (p["keeper"] and r["ctx"] == "portiere") else (None, None)
+        d, s = parts(r, p) if a1 and not (p["keeper"] and r["ctx"].startswith("portiere")) else (None, None)
         out_rows.append({
             "window": r["window"], "target": r["target"], "fcId": r["fc_id"], "name": r["name"],
             "role": r["role"], "context": r["ctx"], "clubChange": r["club_change"],
             "europeIn": bool(r["ein"]), "europeOut": bool(r["eout"]), "mv": r["mv"],
-            "prev": None if not a1 else {k: int(a1[k]) for k in
-                                         ("n", "inj", "susp", "other", "out", "bench", "sub", "start", "minutes")},
+            # «other» on the page is every absence that is neither an injury nor a ban, national duty included, so
+            # the seven columns still add up to the games; the call-ups travel apart as well.
+            "prev": None if not a1 else {**{k: int(a1[k]) for k in
+                                            ("n", "inj", "susp", "out", "bench", "sub", "start", "minutes")},
+                                         "other": int(a1["other"] + a1["naz"]), "naz": int(a1["naz"])},
+            # THE SEASON PREDICTED, as it went: the games of his club's league he missed injured, banned, or away
+            # with his national team (operator, 01/10/2026).
+            "next": None if not r["a_next"] else {k: int(r["a_next"][k]) for k in ("n", "inj", "susp", "naz")},
             "prev2": None if not a2 else {k: int(a2[k]) for k in ("n", "inj", "susp", "other")},
             "clubPrev": (r["club_prev"] or played_for.get((r["fc_id"], r["input"]))
                          or came_from.get((r["fc_id"], int(r["target"][:4])))),

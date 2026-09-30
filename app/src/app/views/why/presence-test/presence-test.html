@@ -81,7 +81,7 @@
           <tr class="text-center text-[11px] uppercase tracking-wide" data-presence-groups>
             <th colspan="2"></th>
             <th colspan="13" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().prev }} · misurata</th>
-            <th colspan="11" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().next }} · prevista e vera</th>
+            <th colspan="14" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().next }} · prevista e vera</th>
           </tr>
           <tr class="text-left" data-presence-heads>
             <th class="cursor-pointer px-2 py-1" (click)="sortBy('name')">Calciatore{{ arrow('name') }}</th>
@@ -109,6 +109,9 @@
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paFormula')">Pa formula{{ arrow('paFormula') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paEngine')">Pa motore{{ arrow('paEngine') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paActual')">Pa vere{{ arrow('paActual') }}</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato saltate per infortunio">Inf.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato saltate per squalifica">Squal.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato saltate per la nazionale (coppe e convocazioni)">Naz.</th>
             <th class="cursor-pointer px-1 text-center" nz-tooltip
                 nzTooltipTitle="Gradino raggiunto davvero, sugli stessi due assi"
                 (click)="sortBy('rungActual')">Grad. vero{{ arrow('rungActual') }}</th>
@@ -147,6 +150,9 @@
               <td class="px-1 text-right font-bold text-fg" data-presence-pa-formula>{{ row.paFormula.toFixed(1) }}</td>
               <td class="px-1 text-right">{{ row.paEngine != null ? row.paEngine.toFixed(1) : '—' }}</td>
               <td class="px-1 text-right text-fg">{{ row.paActual }}</td>
+              <td class="px-1 text-right" data-presence-next-inj>{{ row.next ? row.next.inj : '—' }}</td>
+              <td class="px-1 text-right" data-presence-next-susp>{{ row.next ? row.next.susp : '—' }}</td>
+              <td class="px-1 text-right" data-presence-next-naz>{{ row.next ? row.next.naz : '—' }}</td>
               <td class="px-1 text-center" [class]="rungTone(row.rungActual)" data-presence-rung-actual>{{ rungShort(row.rungActual) }}</td>
               <td class="px-1 text-right font-semibold" [class]="ratioInk(row.ratioFormula)">{{ ratio(row.ratioFormula) }}</td>
               <td class="px-2 text-right" [class]="ratioInk(row.ratioEngine)">{{ ratio(row.ratioEngine) }}</td>

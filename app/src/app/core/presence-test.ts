@@ -21,6 +21,8 @@ export interface PresenceSeason {
   sub: number;
   start: number;
   minutes: number;
+  /** Of `other`, the games he missed with his national team (v2). */
+  naz?: number;
 }
 
 export interface PresenceTestRow {
@@ -40,6 +42,8 @@ export interface PresenceTestRow {
   mv: number | null;
   prev: PresenceSeason | null;
   prev2: Pick<PresenceSeason, 'n' | 'inj' | 'susp' | 'other'> | null;
+  /** The season predicted as it went: league games missed injured, banned, away with the national team. */
+  next?: { n: number; inj: number; susp: number; naz: number } | null;
   d: number | null;
   s: number | null;
   /**
