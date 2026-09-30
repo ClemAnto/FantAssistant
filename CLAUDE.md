@@ -7343,6 +7343,20 @@ against 55, and it is off (`RIVAL_TAIL_RULE`), one switch for every rival predic
 coach - `tm_appearances` keeps only the state. Another «il dato c'era». And **on real rivals no predictor names a pick**
 (2-6%, 15% inside a phase): the 82.8% the heads scored on the bench was against heads we wrote ourselves.
 
+## The expected-appearances bench has RULES OF JUDGEMENT, and they are the operator's
+**30/09-01/10/2026, `partite-attese-scomposte-v1.md` §5.** Before improving the decomposed formula he fixed how it is
+judged: the target is **65% of men within 80-125% of what they really played** (a perfect formula's floor is ~71%, the
+engine 50%); the moment is **5 September**, after the Serie A market closes, because that is when most auctions,
+his included, happen; the population is what the auction buys, **a base Qt.I per role** (P > 5, D ≥ 6, C ≥ 8, A ≥ 11,
+the last man a ten-team league buys, median of twelve seasons); **everybody is judged**, the unforeseen long injuries
+marked in amber and never left out - leaving them out was measured to be a selection on the OUTCOME that flatters the
+model predicting more; every change is pre-registered. Two lessons worth carrying past the bench: **a number that looks
+too good is checked on its NAMES before anything else** (a −12-16% error cut turned out to be men sold in January,
+because the time-travel packs read the listone's asterisk from its LAST read - the packs know the future there), and
+**the loss a formula is fitted on decides what it predicts** - the mean error rewards the average of those who kept
+their place and those who lost it, the operator's measure rewards the typical case («se è previsto titolare fa 36
+presenze»), and the two give different formulas.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

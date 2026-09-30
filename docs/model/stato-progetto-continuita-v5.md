@@ -10194,3 +10194,41 @@ chi le pesa giusto.
 **E un difetto dell'arnese, mio**: il primo test di R30 leggeva `6,5 < 6,5` perché `predict_window`
 senza `params` non applica nessuna regola (`predict_one` ripiega su `_predict_pv`); si passa
 `evaluate.Params()`.
+
+## 30 settembre - 1 ottobre 2026 — LE PARTITE ATTESE SCOMPOSTE: il banco, il pavimento, e la scala a cinque parole
+
+Una sessione lunga sul banco delle partite attese (`partite-attese-scomposte-v1.md`, §5 in poi: è lì il dettaglio di
+ogni numero). Commit da `a7ec41d` a `982fe5e`. In ordine, quello che resta vero:
+
+**Il parser e la cache.** `tm_appearances` porta `absence_id` (1-3 le squalifiche, 5 e 8 la nazionale), `injury_id`,
+`is_starting`, `coach_id`, `competition_type`; `performance --from-cache` rilegge tutta la cache offline e **`rebuild` la
+richiama** (prima nessuno: un rebuild lasciava vuota la tabella). `injury_forecasts` archivia da oggi la data di rientro
+stimata di Transfermarkt per ogni stop aperto (344 al primo replay), accanto a `availability.expected_return`.
+
+**Il banco** (`toolkit/scripts/presence_test/`: `build.py`, `floor.py`, `margin.py`, `diagnose.py`, `rungs.py`,
+`steady.py`, `minutes_votes.py`, `m_eval.py`, `m5_board.py`, `gate_r33.py`). Legge dal DB e riproduce v1 al millesimo.
+Le regole del giudizio, **decise dall'operatore**: obiettivo **65% entro l'80-125% del vero**; il momento è **inizio
+settembre** (5/9, mercato chiuso), fine luglio come lettura; la popolazione è quella dell'asta, **una quotazione base
+per ruolo** (P > 5, D ≥ 6, C ≥ 8, A ≥ 11); **tutti dentro** (gli infortuni lunghi imprevedibili in ambra, non esclusi -
+toglierli è una selezione sull'esito, gate §7-octsexagies bis); ogni modifica **pre-registrata**; EuroLeghe dopo.
+
+**Dove siamo**: il **pavimento** di una formula perfetta è **71,5%** entro banda (4,07 partite, `floor.py`: 3,4 delle
+4,2 partite imprevedibili sono infortuni e assenze); il motore è al **50,0%**; la formula, con **M1b + M4 adottate per
+settembre** per decisione dell'operatore e col criterio NON soddisfatto (3 stagioni su 7), al **57,5%**. Il margine: 58%
+sui titolari rimasti nel loro club, e la formula sbaglia per eccesso (64%).
+
+**Al gate**: R32/R32b (la maglia lasciata dai portieri partiti) respinta / non passa (§7-sexsexagies); R33 (la formula di
+settembre nel motore) non passa, perché tarata su tutti; **R33b congelata e giudicata SOLO in avanti sul 2026-27**
+(`gate_r33.py --r33b`, letture alla 10ª e alla 19ª, verdetto alla 38ª). `backtest --verify` 22/22 dall'inizio alla fine.
+
+**La scala della titolarità ha CINQUE parole** (`titolarissimo` fuso in `titolare`, `SHEET_REVISION` 81): con sei le
+presenze attese per gradino non erano in ordine. Toolkit e app, con la parola vecchia letta come `titolare` e ogni
+soglia scritta col nome (`rungIndex`, `titolaritaWeight`).
+
+**Tre lezioni della sessione**, tutte già nel documento: un fixture/popolazione scelta sull'ESITO favorisce il modello
+che prevede di più; un numero bello si controlla guardando i NOMI (M5c sembrava −12-16% di errore ed erano i ceduti di
+gennaio, perché i pacchetti del viaggio nel tempo leggono l'asterisco del listone dall'ultima lettura); una soglia su
+una scala si scrive col nome, mai con l'indice.
+
+**Cosa resta da fare**: vedi la todolist, «Aperti dopo la sessione del 01/10/2026». Il prossimo passo concordato è la
+diagnosi dei titolari rimasti tali, dove sta il 58% del margine.

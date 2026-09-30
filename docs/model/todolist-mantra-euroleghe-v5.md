@@ -2680,3 +2680,20 @@ R31 (gate §7-quattuorsexagies) e R28 (§7-quinsexagies) adottate su euro, `SHEE
 - **`test_smoke::test_league_setup_has_usable_defaults_and_derives_the_mantra_slots` è ROSSO anche su
   HEAD** (verificato in un worktree): legge i posti mantra dalla `league_config.json` vera (por 2, dc 3,
   c 5) invece che dal ripiego. Probabilmente dal cambio a 2 porte + 30 del 28/09 (`0b0178d`). Non toccato.
+
+## Aperti dopo la sessione del 01/10/2026 — le partite attese scomposte
+
+Dettaglio in `partite-attese-scomposte-v1.md` §5-§6 e nella nota di continuità dello stesso giorno.
+
+1. **La diagnosi dei titolari rimasti tali** - il 58% del margine (formula 6,42 partite contro un pavimento di 4,30) e
+   l'errore per eccesso (64%). È il passo concordato con l'operatore.
+2. **R33b in avanti**: rileggere `gate_r33.py --r33b` alla 10ª e alla 19ª giornata del 2026-27; il verdetto è alla 38ª.
+3. **I pacchetti del viaggio nel tempo sanno chi sarà ceduto a gennaio** (`listone_quotes.sold` è l'ultima lettura):
+   datare l'asterisco, o dichiarare nei pacchetti che non si può.
+4. **EuroLeghe** nel banco, dopo Serie A (decisione dell'operatore).
+5. **La durata di uno stop aperto all'asta**: `injury_forecasts` e `availability.expected_return` si accumulano da oggi;
+   giudicabile solo quando ci sarà una stagione archiviata.
+6. I terzi portieri (classe riserva ancora alta), il gradino ricavato sui minuti previsti, le amichevoli (estate 2027),
+   febbraio - in coda.
+7. Il test `test_smoke::test_league_setup_has_usable_defaults_and_derives_the_mantra_slots` legge il
+   `league_config.json` vero dell'operatore e cade: da puntare a un file di prova.
