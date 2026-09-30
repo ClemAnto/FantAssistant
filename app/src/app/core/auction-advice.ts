@@ -985,15 +985,32 @@ export class AuctionAdvice {
 
   /**
    * LA DRAFT PRIORITY (`core/draft-priority.ts`, `docs/model/priorita-draft-v1.md`) prende il posto di
-   * `pickForUs` in un DRAFT, mantra e classic. Sul mantra vuole la matrice delle sostituzioni nel regolamento;
-   * sul CLASSIC (sua richiesta, 30/09/2026: «adattiamoli ai ruoli classic») il ruolo base e' il ruolo, i posti
-   * sono quelli dei sette moduli e le quote 3/8/8/6 limitano chi si puo' chiamare. A un'asta a rilanci resta il
-   * consiglio di prima.
+   * `pickForUs` in un DRAFT MANTRA con la matrice delle sostituzioni nel regolamento. Sul CLASSIC era stata
+   * accesa il 30/09/2026 (il ruolo base e' il ruolo, i posti quelli dei sette moduli, le quote 3/8/8/6 limitano
+   * chi si puo' chiamare - tutto questo resta scritto in `priorityWorth`/`lineQuotas`) e il banco l'ha spenta
+   * la sera stessa, qui sotto. A un'asta a rilanci e sul classic resta il consiglio di prima.
    */
   readonly priorityOn = computed(() => {
+    if (!this.priorityReadable()) return false;
+    const rules = this.shapes() as PriorityRules;
+    // SPENTA SUL CLASSIC dal 30/09/2026 (sera), sul verdetto pre-registrato del banco (todolist-draft-classic-v1
+    // item 2.4, priorita-draft-v1.md §24): dieci stagioni Serie A, quote 8/8/6, pool largo, la DP spedita perde
+    // -19,9% contro il consiglio di prima (`pickForUs`: valore x quote graduate x sopravvivenza), 0 finestre su
+    // 10, e nessuna variante si salva (sconto di RAR 0-0,5, Z a 3 per partecipante, razionamento: tutte fra
+    // -18,7% e -21,0%). Il consiglio di prima batte il tavolo 10/10. Riaccenderla e' togliere questa riga.
+    if (!this.feed.isMantra()) return false;
+    return !!rules.substitution?.matrix;
+  });
+
+  /**
+   * LE LETTURE della priorita' - la SeSw di ogni uomo e il suo Z di ruolo - dove il regolamento le rende
+   * calcolabili: ogni draft con dei moduli, classic compreso. E' un'altra domanda da `priorityOn`: la SeSw e'
+   * un fatto sull'uomo (quanto rende sopra un titolare medio del suo ruolo) e resta a schermo sul classic;
+   * quello che il banco ha bocciato li' e' usarla per SCEGLIERE, e il consiglio lo decide `priorityOn`.
+   */
+  readonly priorityReadable = computed(() => {
     const rules = this.shapes() as PriorityRules | null;
-    if (!this.feed.isDraft() || !rules?.roles?.length || !Object.keys(rules.modules ?? {}).length) return false;
-    return !this.feed.isMantra() || !!rules.substitution?.matrix;
+    return this.feed.isDraft() && !!rules?.roles?.length && !!Object.keys(rules.modules ?? {}).length;
   });
 
   /**
@@ -1018,7 +1035,7 @@ export class AuctionAdvice {
   /** Ogni uomo del listone letto come la priorita' lo legge, per id; una porta vale il mix dei suoi portieri. */
   private readonly priorityMen = computed<Map<number, PriorityMan>>(() => {
     const out = new Map<number, PriorityMan>();
-    if (!this.priorityOn()) return out;
+    if (!this.priorityReadable()) return out;
     const numbers = this.numbers();
     const matchdays = this.matchdaysTarget();
     const platform = this.entry()?.platform ?? 'euro';
@@ -1047,7 +1064,7 @@ export class AuctionAdvice {
    * riga per club e non tre portieri.
    */
   private readonly priorityWorth = computed<WorthContext | null>(() => {
-    if (!this.priorityOn()) return null;
+    if (!this.priorityReadable()) return null;
     const men = this.priorityMen();
     const ids = this.clubIds();
     const goals = this.feed.isGoalsMode();
@@ -1095,6 +1112,8 @@ export class AuctionAdvice {
     const keeperCap = (this.feed.isGoalsMode() ? this.feed.porteSlots() : null) ?? (Number(keeperSlots) || 3);
     const quotas = this.lineQuotas();
     const order = this.feed.pickOrder().map((team) => team.id);
+    const snake = this.feed.orderType() === 'pingpong';
+    const firstRound = this.feed.firstRoundOrder();
 
     // THE PORTE RULE, which the tool cannot express and the plan was ignoring (§14.1, todolist item 1.6).
     // With it on, a keeper is not a man and a slot is not a man: the unit is the CLUB - taking any keeper of
@@ -1119,7 +1138,9 @@ export class AuctionAdvice {
         rosterValue: team.spent,
         pickValues: team.squad.map((entry) => entry.cost),
         picksCount: team.squad.length,
-        firstRoundIndex: Math.max(0, order.indexOf(team.id)),
+        // The DEFAULT rule reaches this only on a full tie, and the published order stands in for the host's draw;
+        // a SNAKE reads it on every pick, so there it must be the first round's real order.
+        firstRoundIndex: Math.max(0, (snake ? firstRound : order).indexOf(team.id)),
         // The classic quotas, keepers included: a pick over them is one the host refuses.
         ...(quotas ? { limits: { ...quotas, por: keeperCap } } : {}),
       })) as PlanTeam[],
@@ -1145,6 +1166,7 @@ export class AuctionAdvice {
       // Con le porte il tetto è il numero di porte che la LEGA dichiara, non i posti portiere del software.
       keeperCap,
       maxAheadPicks: Number(this.feed.draftRules()?.['maxAheadPicks'] ?? 1) || 1,
+      orderType: this.feed.orderType(),
       heads: this.rivalHeads(),
       cap: this.pickCap(),
       game: (this.feed.isMantra() ? 'mantra' : 'classic') as 'mantra' | 'classic',
@@ -1161,6 +1183,8 @@ export class AuctionAdvice {
    * with them, because every simulated pick adds a man to the squad whose reserves R reads.
    */
   private readonly priorityEngine = computed(() => {
+    // The ADVICE: our pick, the simulated picks, the parts. Off where the bench refused it (classic).
+    if (!this.priorityOn()) return null;
     const worth = this.priorityWorth();
     const base = this.planInput();
     const matchdays = this.matchdaysTarget();
@@ -1175,7 +1199,7 @@ export class AuctionAdvice {
     // (+1.06%, 4 of 5). Turning it on is one argument here, and the operator's decision.
     const stateOf = (team: PlanTeam, pool: readonly PlanPlayer[], teams: readonly PlanTeam[]): PriorityState => ({
       team, pool, manOf: (id) => men.get(id) ?? null, worth, matchdays,
-      rarityOf: (id) => readings.get(id) ?? null, teams, rounds: rules.rounds,
+      rarityOf: (id) => readings.get(id) ?? null, teams, rounds: rules.rounds, orderType: base.orderType,
     });
     const choose: OurChooser = (state) => {
       const team = state.teams.find((one) => one.id === base.mineId);
@@ -1300,7 +1324,7 @@ export class AuctionAdvice {
       ? goneBeforeOurNextTurn({
           teams: input.teams, order: input.order, pool: input.pool,
           places: startingPlaces(input.shapes), mineId: input.mineId,
-          keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
+          keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
           heads: input.heads, cap: input.cap,
         })
       : null;
@@ -1320,7 +1344,7 @@ export class AuctionAdvice {
     if (!input) return new Map();
     return takenBeforeOurTurn({
       teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
-      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
+      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
       heads: input.heads, cap: input.cap,
     });
   });
@@ -1339,7 +1363,7 @@ export class AuctionAdvice {
     const men = this.priorityMen();
     return {
       teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
-      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
+      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
       heads: input.heads, cap: input.cap,
       rules: worth.rules, worth, matchdays,
       calls: { cap: input.cap ?? null, keeperCap: input.keeperCap, rounds: this.priorityRounds() },
@@ -1362,11 +1386,11 @@ export class AuctionAdvice {
     const input = this.planInput();
     if (!input) return null;
     const teams = new Map(input.teams.map((team) => [team.id, team]));
-    const clock = nextCaller(teams, input.maxAheadPicks);
+    const clock = nextCaller(teams, input.maxAheadPicks, Infinity, input.orderType);
     const player = input.pool.find((one) => one.id === playerId);
     if (!clock || !player) return null;
     teams.set(clock.id, take(clock, player));
-    const order = [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks)).map((team) => team.id);
+    const order = [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks, input.orderType)).map((team) => team.id);
     return { teamId: clock.id, at: order.indexOf(clock.id) };
   }
 
@@ -1441,7 +1465,7 @@ export class AuctionAdvice {
             places: startingPlaces(input.shapes),
             mineId: input.mineId,
             keeperCap: input.keeperCap,
-            maxAheadPicks: input.maxAheadPicks,
+            maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
             heads: input.heads,
             cap: input.cap,
           })

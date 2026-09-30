@@ -167,6 +167,39 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 30 settembre 2026 (XV): la DP bocciata sul classic, e l'ordine a serpentone
+
+Seguito della (XIV): la todolist `todolist-draft-classic-v1.md` lavorata dall'item 1 al 3. Dettaglio in
+`priorita-draft-v1.md` **§24** (il verdetto) e **§25** (le sessioni classic e il serpentone).
+
+**Il banco del draft ora sa giudicare il classic**: quote 8/8/6 come regola (`legalPoolFor`, `--quotas`), finestre col
+pool largo (`extract.py --wide` → `leghe-classic-wide.json`, fuori da git: ogni quotato, con la stima dichiarata di
+`estimate.py` e lo ZERO di chi poi non ha giocato), ordine a serpentone (`--pingpong`), e il baseline corretto:
+`adoptedCover` chiamava `coverNeedOf` senza il gioco e `needForUs` senza la squadra, quindi misurava un draft SENZA
+razionamento (−4,93%); ora riproduce il +0,77% del §17 al decimale. I numeri pubblicati del classic si riproducono
+identici senza i flag nuovi.
+
+**Verdetto pre-registrato**: la DP spedita perde **−19,9%, 0/10** contro il consiglio di prima (ordine per FVM) e
+**−19,7%, 0/10** col serpentone; nessuna variante si salva (sconto RAR 0-0,5, Z a 3 per partecipante,
+razionamento). Meccanismo: compra fantamedia alta e poche presenze, e un posto su sei resta scoperto. **Quindi sul
+classic la DP è SPENTA** (`AuctionAdvice.priorityOn` chiede il mantra): consiglio, scelte simulate, colonna («Prio») e
+piani tornano a `pickForUs`; la SeSw resta come lettura (`priorityReadable`).
+
+**Sul mantra la stessa misura, mai fatta dal 29/09**: DP app **−1,59%, 2/5** contro il consiglio di prima (5,3 buchi a
+stagione contro 0,6); la priorità «completa» ritirata quel giorno +1,59% robust. Decide l'operatore.
+
+**Tre sessioni vere lette** (sola lettura, nessun peer): FA-nec-7oq (draft MANTRA sul listone Serie A: le quote
+def/mid/atk ci sono e non sono imposte), **FA-yei-458** e **FA-l1n-0pn** (classic, 450 scelte: quote imposte 18 rose su
+18, prezzo = FVM classic su 450/450). FA-o5w-pws e FA-11n-0pn non esistono (il secondo è FA-l1n-0pn).
+**FA-yei-458 gioca `pickOrderType: pingpong`**, un serpentone puro: l'app indovinava 82 chiamate su 250. Ora
+`auction-plan.ahead`/`nextCaller` prendono il tipo, `AuctionFeed.orderType` lo legge e `firstRoundOrder` ricava il 1º
+giro dalla cronologia; rigiocate: **250/250**, 200/200 e 384/384 sulle altre due. Lo segue anche k di RAR
+(`picksBefore`).
+
+**Verifica**: 1279 test dell'app, build pulita, `e2e-draft` (classic ed EuroLeghe) e `e2e-draft-review` verdi, il banco
+e2e ora pretende sul classic SeSw presente e nessun piano; controprove (quota in `legalFor`, ramo del serpentone)
+cadono sui soli test che le descrivono. App non pubblicata, versione non incrementata.
+
 ## CHIUSURA — 30 settembre 2026 (XIV): il Draft Assistant su un draft Serie A classic
 
 Richiesta dell'operatore: prima del suo draft Serie A **classic** (non mantra), «verifica che la pagina per seguire il

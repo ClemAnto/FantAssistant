@@ -104,7 +104,15 @@ export const RARITY_RATIONED = [
  * bench measures the code the panel runs - the discount AND the rationing are inside it. `rarity: false` hands it
  * no readings (SeSw with the rationing), `ration: false` no places (SeSw with the rarity).
  */
-export function appDP({ rarity: withRarity = true, ration = true } = {}) {
+/** The app's own classic LeagueSize (`AuctionAdvice.priorityWorth`): a league buys its quota of each line, and Z is
+ *  the starter of a module's whole places - or, with `starters: 'three'`, the mantra reading of «3 a testa». */
+const sizeFor = (ctx, starters) => {
+  const q = ctx.setup?.game === 'classic' ? ctx.setup.lineQuotas : null;
+  return { teams: ctx.teams, keepers: ctx.keepers, rounds: ctx.rounds,
+    ...(q ? { quotas: { dif: q.d, cen: q.c, att: q.a }, startersFromPlaces: starters === 'places' } : {}) };
+};
+
+export function appDP({ rarity: withRarity = true, ration = true, discount, starters = 'places' } = {}) {
   const cache = new WeakMap();
   let statsFor = null;
   let places = null;
@@ -112,8 +120,7 @@ export function appDP({ rarity: withRarity = true, ration = true } = {}) {
     const everybody = [...ctx.pool, ...(ctx.table ?? []).flatMap((t) => t.roster)];
     const key = everybody.length + ':' + everybody.reduce((a, m) => a + m.id, 0);
     if (!statsFor || statsFor.key !== key) {
-      statsFor = { key, stats: priorityRoleStats(everybody.map(toPriority), ctx.shapes,
-        { teams: ctx.teams, keepers: ctx.keepers, rounds: ctx.rounds }) };
+      statsFor = { key, stats: priorityRoleStats(everybody.map(toPriority), ctx.shapes, sizeFor(ctx, starters)) };
     }
     places ??= startingPlaces(ctx.shapes);
     const byId = new Map(everybody.map((m) => [m.id, m]));
@@ -123,7 +130,8 @@ export function appDP({ rarity: withRarity = true, ration = true } = {}) {
       team: ctx.team, pool: ctx.pool, manOf: (id) => (byId.has(id) ? toPriority(byId.get(id)) : null),
       worth: { rules: ctx.shapes, stats: statsFor.stats }, matchdays: 38,
       rarityOf: withRarity ? (id) => readings.get(id) ?? null : undefined,
-      teams: ctx.table ?? [], rounds: ctx.rounds, places: ration ? places : undefined,
+      teams: ctx.table ?? [], rounds: ctx.rounds, places: ration ? places : undefined, discount,
+      orderType: ctx.setup?.orderType,
     });
     return scores;
   };

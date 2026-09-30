@@ -41,6 +41,11 @@ export function setupFrom(leagueConfig, name) {
     teams: league.teams ?? leagueConfig.teams,
     rounds,
     keepers,
+    // The league's own quota per line, in the bench's slot spelling (lowercase). NOT applied unless a run asks
+    // (`legalPoolFor` reads `quotas`, this is `lineQuotas`), and only a classic game has lines to ration.
+    lineQuotas: game === 'classic'
+      ? Object.fromEntries(Object.entries(slots).filter(([slot]) => slot !== 'P').map(([slot, n]) => [slot.toLowerCase(), n]))
+      : null,
     maxAhead: 1,
     platform: league.platform,
     game,
@@ -90,10 +95,16 @@ export const stat = (xs) => {
   return { m, se: sd / Math.sqrt(xs.length) };
 };
 
-export const ahead = (a, b, maxAhead) => {
+/* The host's order rule, as `auction-plan.ahead` has it: `default` (fewer picks, then the cheaper roster) or
+ * `pingpong`, the snake of the classic draft FA-yei-458 (30/09/2026): the first round's order, reversed on
+ * every other round. `setup.orderType` opts in (`--pingpong`); absent, every published run reproduces. */
+export const ahead = (a, b, maxAhead, orderType = 'default') => {
   let byPicks = a.picksCount - b.picksCount;
   if (Math.abs(byPicks) < maxAhead) byPicks = 0;
   if (byPicks) return byPicks;
+  if (orderType === 'pingpong') {
+    return a.picksCount % 2 === 1 ? b.firstRoundIndex - a.firstRoundIndex : a.firstRoundIndex - b.firstRoundIndex;
+  }
   if (a.rosterValue !== b.rosterValue) return a.rosterValue - b.rosterValue;
   const l = [...a.pickValues].sort((x, y) => y - x), r = [...b.pickValues].sort((x, y) => y - x);
   for (let i = 0; i < Math.max(l.length, r.length); i += 1) {
@@ -160,10 +171,19 @@ export function rankUnder(args) {
  *   * THE CEILING OF THE FIRST TURNS (the operator's league, 28/09/2026): a man priced at `cap.fvm` or more
  *     cannot be called in a squad's first `cap.turns` picks.
  *   * EXACT DOORS (`exactKeepers`): once the picks left are the doors still missing, only a door.
+ *   * THE ROSTER QUOTAS of a classic league (`setup.quotas`, slot -> max, todolist-draft-classic-v1 item 2.1):
+ *     a squad whose line is full cannot call another man of it - the host refuses a ninth defender. Opt-in,
+ *     because the classic numbers published before 30/09/2026 (metrica-asta-surplus-v1.md §17) were played
+ *     without it and must reproduce unchanged. The keeper line is left to the cap below, which already is it.
  * The keeper CAP (no third door) stays in `bestUnder`, where it always was.
  */
 export function legalPoolFor(team, pool, setup) {
   let legal = pool;
+  if (setup.quotas) {
+    const full = new Set(Object.entries(setup.quotas)
+      .filter(([slot, max]) => team.slots.filter((s) => s === slot).length >= max).map(([slot]) => slot));
+    if (full.size) legal = legal.filter((p) => !full.has(p.slot));
+  }
   if (setup.cap && team.picksCount < setup.cap.turns) legal = legal.filter((p) => p.price < setup.cap.fvm);
   if (setup.exactKeepers) {
     const keeperSlot = setup.keeperSlot ?? 'por';
@@ -227,7 +247,7 @@ export function makeDraft(players, shapes, setup = PUBLISHED_SETUP) {
     const got = Array.from({ length: TEAMS }, () => []);
     const orders = [];
     for (let round = 0; round < ROUNDS; round += 1) {
-      const order = [...teams].sort((a, b) => ahead(a, b, MAX_AHEAD)).map((t) => t.id);
+      const order = [...teams].sort((a, b) => ahead(a, b, MAX_AHEAD, setup.orderType)).map((t) => t.id);
       orders.push(order);
       for (const [index, id] of order.entries()) {
         const team = teams.find((t) => t.id === id);

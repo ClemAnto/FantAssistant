@@ -683,6 +683,80 @@ non applica le quote 8/8/6 (il classic del §17 è stato giocato senza), e con l
 `serie-a.json` porta 15-24 portieri prezzati per stagione contro i 30 che dieci squadre da tre ne comprano, perché
 `extract.py` tiene solo chi il motore prezza. Servono finestre col pool largo (le stime `est_*`) e le quote come
 opzione di `legalPoolFor`; fino ad allora sul mantra non cambia niente per costruzione (niente `limits`, il
-portiere era già `por`), e sul classic la scelta di usare la DP è dell'operatore.
+portiere era già `por`), e sul classic la scelta di usare la DP è dell'operatore. **Misurato la sera stessa: §24,
+la DP perde −19,9% sul classic ed è spenta lì.**
 
 Cosa resta, in ordine: [todolist-draft-classic-v1.md](todolist-draft-classic-v1.md).
+
+## 24. Il verdetto del banco sul classic, e quello che ha trovato sul mantra (30/09/2026, sera)
+
+**Pre-registrato** in [todolist-draft-classic-v1.md](todolist-draft-classic-v1.md) item 2.4 prima della corsa:
+`node multi.mjs classic Leghe leghe-classic-wide.json --quotas`, dieci stagioni Serie A, 8 semi, tutte le sedie,
+contro il consiglio di prima (`pickForUs` = valore × quote graduate × sopravvivenza). Tre cose sono servite prima,
+e ognuna ha il suo controllo:
+- **le quote 8/8/6 come regola del banco** (`legalPoolFor` legge `setup.quotas`, opt-in `--quotas`): i numeri
+  pubblicati del classic (§17 di metrica-asta-surplus-v1.md) si riproducono **identici riga per riga** senza il flag;
+- **il pool largo** (`extract.py --wide`): ogni quotato entra, chi il motore non prezza con la stima del gradino
+  `shrunk`/`anchor` di `engine/estimate.py` e la sua confidenza calibrata, chi il motore prezza ma poi non ha
+  giocato con il suo ZERO (il pool stretto era un filtro di sopravvivenza: tutti i suoi uomini erano scesi in
+  campo). Portieri 30-46 per stagione contro i 30 che servono, attaccanti 70-89 contro 60; il file conta gli
+  stimati per ruolo;
+- **il baseline giusto**, e qui c'era un difetto del BANCO: `adoptedCover` chiamava `coverNeedOf` senza il gioco e
+  `needForUs` senza la squadra, e sul classic quella funzione senza squadra risponde un peso uniforme - cioè la riga
+  «il pannello» misurava un draft SENZA razionamento (−4,93%, il numero del classic scordato del §17). Corretto,
+  riproduce la scala graduata **al decimale** (+0,77%, 6/10, robust). L'app non aveva il difetto: `pickForUs` la
+  squadra la passa.
+
+**Il verdetto** (guadagno sui punti a giornata contro il consiglio di prima, 74,0 punti a giornata):
+
+| Politica | media | stagioni | copertura | spesa FVM |
+|---|---|---|---|---|
+| consiglio di prima | — | — | 98,7% | 291 |
+| **DP spedita** (RAR 0,25, Z sui posti) | **−19,9%** | 0/10 | 84,7% | 205 |
+| sconto di RAR 0 · 0,1 · 0,2 · 0,3 · 0,5 | −20,9 · −21,0 · −20,7 · −20,4 · −21,0% | 0/10 | 84% | 204 |
+| Z = 3 per partecipante | −18,7% | 0/10 | 85,5% | 212 |
+| col razionamento (posti) | −20,4% | 0/10 | 84,5% | 214 |
+
+Contro il tavolo il consiglio di prima vince **10/10 (+2,7%)** e la DP perde 0/10 (−18,6%). Lo stesso segno sul pool
+stretto senza quote (−19,3%), quindi non sono gli stimati. Il meccanismo si vede sulla rosa: la DP compra uomini da
+fantamedia alta e presenze basse (su T1, 10 stimati su 25 contro 1) e undici posti restano scoperti una giornata su
+sei, perché V = [P(Fm−Z)+(N−P)(R−Z)]/N mette sulle giornate che salta una riserva R che il classic, con 25 posti
+contati per linea, non ha: **una formula per uomo non può esprimere un vincolo sulla rosa** (la stessa lezione della
+Strategia e del valore di una soglia). **Quindi sul classic la DP è SPENTA** (`AuctionAdvice.priorityOn` chiede di
+nuovo il mantra), come la regola pre-registrata diceva: il consiglio, le scelte simulate, la colonna e i piani tornano
+a `pickForUs`; la SeSw resta a schermo come LETTURA (`priorityReadable`), perché è un fatto sull'uomo e non una scelta.
+La colonna si chiama «Prio» dove non è la DP.
+
+**E il confronto che mancava, sul mantra.** Dal 29/09 (§15) la DP dell'app è la formula ridichiarata, e da allora è
+stata misurata contro la SeSw (§22) ma **mai contro il consiglio di prima**. Fatto ora (EuroLeghe, `--declared
+--cap=12`, 4 semi, tutte le sedie): **DP app −1,59%, 2 finestre su 5, Tm4 −10,5%**, 5,3 buchi a stagione contro 0,6;
+la priorità «completa» del banco (G sulla rosa, sguardo di un turno, ritirata dall'app il 29/09) **+1,59%, 4/5,
+robust**. Sul mantra la DP perde di poco e la formula è sua: la decisione resta dell'operatore (§1, «potrei voler
+adottare comunque la formula»), ed è l'aperto numero uno della todolist.
+
+## 25. Due draft classic veri, e l'ordine a SERPENTONE (30/09/2026, sera)
+
+L'operatore ha dato due draft classic conclusi: **FA-yei-458** (10 squadre, 250 scelte) e **FA-l1n-0pn** (8 squadre,
+200 scelte; scritto FA-11n-0pn, che non esiste). Letti in sola lettura (`probe`/dump REST, nessun peer). Confermano
+quello che la pagina classic assumeva - `game` 1, quote 3/8/8/6 **imposte** (18 rose su 18 esatte), prezzo = FVM
+classic su 450 scelte su 450, codici mantra su ogni riga - e ne smentiscono una: **l'ordine di chiamata ha due
+regole**, dichiarate in `state.pickOrderType`:
+
+| Sessione | `pickOrderType` | L'app prima | L'app ora |
+|---|---|---|---|
+| FA-l1n-0pn (classic) | `default` | 200/200 | 200/200 |
+| **FA-yei-458** (classic) | **`pingpong`** | **82/250** | **250/250** |
+| FA-jo5-zai (mantra) | `default` | 384/384 | 384/384 |
+
+(chiamate indovinate rigiocando ogni scelta con la `nextCaller` dell'app). Il `pingpong` è un serpentone puro: il
+primo giro, rovesciato a ogni giro, e **il prezzo non sposta nessuno** - quindi su quel tavolo tutto ciò che la
+pagina deduce dall'FVM delle rose (chi sceglie prima del mio turno, lo sconto di chi sparirà, la freccetta, k di
+RAR) era sbagliato. Ora `auction-plan.ahead` prende il tipo (`PickOrderType`), il feed lo legge
+(`AuctionFeed.orderType`) e ricava il primo giro dalla cronologia (`firstRoundOrder`, perché il `pickOrder`
+pubblicato è il giro in corso), e l'advice lo passa a ogni simulazione; un valore sconosciuto è `default`.
+
+**Il verdetto del §24 rimisurato col serpentone** (banco con `--pingpong`, stesso set, stessi file e semi): la DP
+spedita **−19,7%, 0/10**, ogni variante fra −18,7% e −20,0%: regge su tutt'e due le regole. Quello che cambia è il
+margine del consiglio di prima sul tavolo: **+0,6% (7/10)** contro +2,7% (10/10) con l'ordine per FVM - dove spendere
+poco fa scegliere prima, il serpentone quel vantaggio non lo paga. Da misurare, se il suo draft è a serpentone: quanto
+vale lì lo sconto «prendi chi sparirà», tarato con l'altro ordine.

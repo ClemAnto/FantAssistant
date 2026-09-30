@@ -583,3 +583,32 @@ describe('rivedere un draft scelta per scelta', () => {
     expect(again.reviewing()).toBe(false);
   });
 });
+
+describe('AuctionFeed: the order rule and the first round', () => {
+  const withState = (state: RawState) => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const feed = TestBed.inject(AuctionFeed);
+    feed.startDemo({ players: [...PLAYERS.values()], state, mineId: 0 });
+    return feed;
+  };
+
+  it('reads a snake from the state, and anything else as the default rule', () => {
+    expect(withState({ ...structuredClone(STATE), pickOrderType: 'pingpong' }).orderType()).toBe('pingpong');
+    expect(withState({ ...structuredClone(STATE), pickOrderType: 'mystery' }).orderType()).toBe('default');
+    expect(withState(structuredClone(STATE)).orderType()).toBe('default');
+  });
+
+  it('takes the first round from the history, then the squads still to pick in the published order', () => {
+    const feed = withState({
+      ...structuredClone(STATE),
+      pickOrder: [3, 1, 2, 0],
+      picks: [
+        { index: 0, teamId: 2, playerId: 5585, cost: 30 },
+        { index: 1, teamId: 0, playerId: 6052, cost: 20 },
+      ],
+    });
+    const order = feed.firstRoundOrder();
+    expect(order.slice(0, 4)).toEqual([2, 0, 3, 1]);
+  });
+});

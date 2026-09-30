@@ -22,6 +22,8 @@ import {
   planRoots,
   positionAfterSpending,
   predictRivalPick,
+  ahead,
+  nextCaller,
   roleFull,
   startingPlaces,
 } from './auction-plan';
@@ -598,5 +600,37 @@ describe('takenBeforeOurTurn (operator, 29/09/2026)', () => {
   it('when we are on the clock, is the set our advice waits out (goneBeforeOurNextTurn)', () => {
     const input = { ...base, teams: [team(0), team(1), team(2)], order: [0, 1, 2], mineId: 0 };
     expect(new Set(takenBeforeOurTurn(input).keys())).toEqual(goneBeforeOurNextTurn(input));
+  });
+});
+
+/**
+ * THE SNAKE (`pickOrderType: pingpong`), observed on the classic draft FA-yei-458 (30/09/2026, 250 picks of 250):
+ * the first round's order, reversed on every other round, and the roster's price moves nobody. The `default`
+ * rule of the same function is what FA-l1n-0pn (classic, 200 of 200) and FA-jo5-zai (mantra, 384 of 384) play.
+ */
+describe('the order rule', () => {
+  const table = (picks: number, values: number[]) =>
+    new Map(values.map((value, id) => [id, team(id, { picksCount: picks, rosterValue: value, pickValues: [value] })]));
+
+  it('on a snake, the first round order forward on even rounds and backwards on odd ones, whatever was paid', () => {
+    // Squad 0 is the richest, squad 2 the poorest: the default rule would put 2 first.
+    const even = table(2, [300, 200, 100]);
+    expect(nextCaller(even, 1, Infinity, 'pingpong')!.id).toBe(0);
+    const odd = table(1, [300, 200, 100]);
+    expect(nextCaller(odd, 1, Infinity, 'pingpong')!.id).toBe(2);
+    expect(nextCaller(odd, 1)!.id).toBe(2);
+    expect(nextCaller(even, 1)!.id).toBe(2);
+  });
+
+  it('still lets fewer picks go first, and reads an absent rule as the default one', () => {
+    const teams = table(3, [100, 200, 300]);
+    teams.set(2, { ...teams.get(2)!, picksCount: 2 });
+    expect(nextCaller(teams, 1, Infinity, 'pingpong')!.id).toBe(2);
+    const a = team(0, { picksCount: 1, rosterValue: 50 });
+    const b = team(1, { picksCount: 1, rosterValue: 10 });
+    expect(ahead(a, b, 1)).toBeGreaterThan(0);
+    expect(ahead(a, b, 1, 'pingpong')).toBeGreaterThan(0);
+    expect(ahead(team(0, { picksCount: 2, rosterValue: 50 }), team(1, { picksCount: 2, rosterValue: 10 }), 1, 'pingpong'))
+      .toBeLessThan(0);
   });
 });

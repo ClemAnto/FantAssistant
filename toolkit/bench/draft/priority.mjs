@@ -423,7 +423,7 @@ export function priority(options = {}) {
       const choice = ask(team);
       if (choice) take(team, choice);
     }
-    const next = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1)).map((t) => t.id);
+    const next = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1, setup.orderType)).map((t) => t.id);
     for (const id of next) {
       if (id === meId) break;
       const team = teams.find((x) => x.id === id);
@@ -481,7 +481,7 @@ export function priority(options = {}) {
     while (taken < turns && me.picksCount < setup.rounds) {
       at += 1;
       if (at >= order.length) {
-        order = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1)).map((t) => t.id);
+        order = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1, setup.orderType)).map((t) => t.id);
         at = 0;
         // Where we stand in the round the ceiling opens for us: the «first three» the operator asks for.
         if (setup.cap && me.picksCount === setup.cap.turns && position === null) {
@@ -511,7 +511,7 @@ export function priority(options = {}) {
     // order as it would be if that round started now, on the squads as the rollout leaves them (the review of
     // 29/09/2026: without it a 3-turn rollout never fired the «first three» rule on the first three picks).
     if (position === null && setup.cap && me.picksCount <= setup.cap.turns) {
-      position = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1)).findIndex((t) => t.id === meId) + 1;
+      position = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1, setup.orderType)).findIndex((t) => t.id === meId) + 1;
     }
     const gain = squadWorth(me.roster, wctx) - now;
     return detail ? { gain, position } : gain;

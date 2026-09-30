@@ -22,7 +22,8 @@
  */
 
 import { MantraModules, slotShares } from './auction-value';
-import { Line, PickCap, PlanPlayer, PlanTeam, capBlocks, isKeeperSlot, lineOf, needFor, roleFull } from './auction-plan';
+import { Line, PickCap, PickOrderType, PlanPlayer, PlanTeam, ahead, capBlocks, isKeeperSlot, lineOf, needFor, roleFull,
+} from './auction-plan';
 import { Rarity, RarityMan, rarity } from './draft-rarity';
 
 /** A man as the priority reads him. `share` = expected appearances over the season's matchdays. */
@@ -320,6 +321,10 @@ export interface PriorityState {
   teams?: readonly PlanTeam[];
   rounds?: number;
   places?: Map<string, number>;
+  /** The rarity discount d, for a harness that measures its grid (the draft bench); the app never passes it. */
+  discount?: number;
+  /** The host's order rule, for k; absent = `default`. */
+  orderType?: PickOrderType;
 }
 
 /**
@@ -362,10 +367,18 @@ export interface PriorityParts {
  * because the rivals at this table call by price. That is the bench's own reading, and it cannot be the simulated
  * round (`simulateRound`): the round simulates OUR pick with this very priority.
  */
-export function picksBefore(team: PlanTeam, teams: readonly PlanTeam[], pool: readonly PlanPlayer[], rounds: number):
-  (price: number) => number {
+export function picksBefore(team: PlanTeam, teams: readonly PlanTeam[], pool: readonly PlanPlayer[], rounds: number,
+  orderType: PickOrderType = 'default'): (price: number) => number {
   const others = teams.filter((one) => one.id !== team.id);
   const rest = others.filter((one) => one.picksCount === team.picksCount && one.picksCount < rounds);
+  // ON A SNAKE the price moves nobody: the next round is the first round's order in the other direction, so k is
+  // the rest of this round plus whoever the reversed order puts before us - the same for every man.
+  if (orderType === 'pingpong') {
+    const nextRound = (one: PlanTeam) => ({ ...one, picksCount: team.picksCount + 1 });
+    const before = others.filter((one) => one.picksCount < rounds
+      && ahead(nextRound(one), nextRound(team), 1, 'pingpong') < 0).length;
+    return () => Math.max(1, rest.length + before);
+  }
   const dear = pool.map((p) => p.price).sort((a, b) => b - a);
   const next = others.map((one) => one.rosterValue + (rest.includes(one) ? (dear[rest.indexOf(one)] ?? 0) : 0));
   return (price) => {
@@ -389,7 +402,8 @@ export function priorityParts(state: PriorityState): Map<number, PriorityParts> 
     ? state.pool.map((p) => state.rarityOf!(p.id)).filter((m): m is RarityMan => m != null)
     : [];
   const rar = readings.length ? rarity(readings) : null;
-  const before = state.teams && state.rounds ? picksBefore(state.team, state.teams, state.pool, state.rounds) : null;
+  const before = state.teams && state.rounds
+    ? picksBefore(state.team, state.teams, state.pool, state.rounds, state.orderType) : null;
   for (const player of state.pool) {
     const value = sesw.get(player.id);
     if (value == null) continue;
@@ -397,7 +411,7 @@ export function priorityParts(state: PriorityState): Map<number, PriorityParts> 
     const k = before ? before(player.price) : null;
     const share = own && k ? Math.min(1, own.count / k) : 0;
     const need = state.places ? needFor(state.team, player.slot, state.places) : 1;
-    const score = floor + need * (1 - RARITY_DISCOUNT * share) * (value - floor);
+    const score = floor + need * (1 - (state.discount ?? RARITY_DISCOUNT) * share) * (value - floor);
     out.set(player.id, { sesw: value, rar: own, k, need, score });
   }
   return out;

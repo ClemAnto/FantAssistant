@@ -17,6 +17,7 @@ import sys
 
 from euroleghe_ingest.config import Config
 from euroleghe_ingest.db.database import connect
+from euroleghe_ingest.engine import estimate as est
 from euroleghe_ingest.engine import evaluate, features
 from euroleghe_ingest.matching import club_identity
 
@@ -30,7 +31,11 @@ OUT = POSITIONAL[0]
 LEAGUE = POSITIONAL[1] if len(POSITIONAL) > 1 else "EuroLeghe"
 PORTE = "--porte" in FLAGS
 NO_ITALIAN = "--no-italian" in FLAGS
-unknown = FLAGS - {"--porte", "--no-italian"}
+# --wide: every QUOTED man enters the draft pool, the ones the engine does not price with a DECLARED estimate
+# (todolist-draft-classic-v1 item 2.2). Without it a classic league cannot be drafted to its quotas: ten
+# squads of 3/8/8/6 buy 30 keepers and 60 forwards, and the priced pool carries 15-24 and 46-63 a season.
+WIDE = "--wide" in FLAGS
+unknown = FLAGS - {"--porte", "--no-italian", "--wide"}
 if unknown:
     raise SystemExit(f"unknown option(s): {', '.join(sorted(unknown))}")
 
@@ -55,7 +60,8 @@ price_column = "price_initial_mantra" if mantra else "price_initial"
 fvm_column = "fvm_mantra" if mantra else "fvm"
 
 print(f'league "{LEAGUE}": platform={platform} game={game}, windows {", ".join(windows)}'
-      f'{" | porte" if PORTE else ""}{" | no Italian clubs" if NO_ITALIAN else ""}', flush=True)
+      f'{" | porte" if PORTE else ""}{" | no Italian clubs" if NO_ITALIAN else ""}'
+      f'{" | wide pool" if WIDE else ""}', flush=True)
 out = {}
 
 def porte(conn, win, platform, rows, others, votes, base, rounds, rep_keeper):
@@ -136,6 +142,48 @@ def porte(conn, win, platform, rows, others, votes, base, rounds, rep_keeper):
     return rows, others
 
 
+def wide_row(obs, pred, slot, roles, price, pair, rep, data, steady):
+    """A quoted man the priced pool leaves out, with a DECLARED estimate and his REAL outcome.
+
+    Two populations land here and both belong in a draft pool. (1) The engine priced him and he then never
+    played in the target season (no outcome row): the priced pool drops him, which is a SURVIVORSHIP filter -
+    every man in it is one who took the pitch - and here he returns ZERO, which is what a pick of him returned.
+    (2) The engine does not price him (below `MIN_PV_PREV` votes, or nothing measured): his fantamedia is the
+    `shrunk` rung of `engine/estimate.py` (his thin season padded with the role anchor) or the bare role
+    ANCHOR, his presences the population's measured share (`default_presences`, per role where measured), and
+    his surplus carries the rung's CALIBRATED confidence - the same arithmetic as the sheet's `est_*`, minus the
+    club and Elo adjustments of the full cascade, which need layers this window does not rebuild. Stated, not
+    hidden: the rows say `estimated` and their basis, and the file counts them per role.
+    """
+    anchor = (data.anchors or {}).get(slot)
+    calendar = data.matchdays_target or None
+    fm, pv, basis, confidence = pred.fm_pred, pred.pv_pred, "core", 1.0
+    if fm is None or pv is None:
+        if obs.fm_prev is not None and (obs.pv_prev or 0) >= 1 and anchor is not None:
+            fm_est, confidence = est.shrink(float(obs.fm_prev), int(obs.pv_prev), anchor)
+            pv_est, basis = est.default_presences(calendar, platform, "thin"), "shrunk"
+        else:
+            fm_est, pv_est, basis = anchor, est.default_presences(calendar, platform, "unmeasured", slot), "anchor"
+            confidence = est.CONFIDENCE["anchor"]
+        fm = fm if fm is not None else fm_est
+        pv = pv if pv is not None else pv_est
+    fm = float(fm) if fm is not None else None
+    pv = float(pv) if pv is not None else 0.0
+    fm_act = float(obs.fm_act) if obs.fm_act is not None else None
+    pv_act = float(obs.pv_act) if obs.pv_act is not None else 0.0
+    return {
+        "club": obs.club_target or obs.club_prev, "league": obs.league, "steady": steady.get(obs.fc_id),
+        "id": obs.fc_id, "name": obs.name, "slot": slot.lower(), "roles": roles or [slot.lower()],
+        "price": float(price), "fvm": float(pair[1]) if pair[1] else None,
+        "fm_prev": float(obs.fm_prev) if obs.fm_prev is not None else None,
+        "surplus": est.surplus(fm, pv, rep, confidence) if fm is not None else 0.0,
+        "value": (fm * pv) if fm is not None else 0.0,
+        "fm_pred": fm, "pv_pred": pv, "fm_act": fm_act, "pv_act": pv_act,
+        "actual": (fm_act or 0.0) * pv_act,
+        "estimated": True, "est_basis": basis, "est_confidence": round(confidence, 3),
+    }
+
+
 for key in windows:
     win = features.WINDOWS[key]
     data = features.prepare(conn, win, platform, game, league=setup)
@@ -193,6 +241,10 @@ for key in windows:
         # buying a man nobody has measured, and buying one who then never takes the pitch. Leaving them
         # out would build an auction in which flops cannot exist. The outcome stays ABSENT and never
         # zero where there is none: a man who did not play has no average.
+        if WIDE and price and rep is not None and (pred.fm_pred is None or pred.pv_pred is None
+                                                   or obs.fm_act is None or obs.pv_act is None):
+            rows.append(wide_row(obs, pred, slot, roles, price, pair, rep, data, steady))
+            continue
         if (not price or rep is None or pred.fm_pred is None or pred.pv_pred is None
                 or obs.fm_act is None or obs.pv_act is None):
             if price:
@@ -253,14 +305,21 @@ for key in windows:
     if PORTE:
         rows, others = porte(conn, win, platform, rows, others, votes, base, rounds, rep_keeper=(
             (data.replacement or {}).get("por" if mantra else "P")))
+    wide = {}
+    for row in rows:
+        if row.get("estimated"):
+            wide.setdefault(row["slot"], {}).setdefault(row["est_basis"], 0)
+            wide[row["slot"]][row["est_basis"]] += 1
     out[key] = {
+        **({"estimated": wide} if WIDE else {}),
         "league": LEAGUE, "platform": platform, "game": game,
         "input": win.input_season, "target": win.target_season, "cross_fit": source,
         "rounds": rounds, "players": rows, "others": others, "votes": votes, "base": base,
     }
     print(f"{key}: {win.input_season} -> {win.target_season}, cross-fit on {source},"
           f" {len(rows)} players, {rounds} matchdays, {len(votes)} with votes,"
-          f" {len(base)} with base votes, {len(others)} unpriced/unplayed", flush=True)
+          f" {len(base)} with base votes, {len(others)} unpriced/unplayed"
+          + (f", estimated per role {wide}" if WIDE else ""), flush=True)
 
 # UTF-8 explicitly: without it Windows writes cp1252 and every accented name comes back mangled
 # to a UTF-8 reader (the scratchpad version had this defect - harmless for the numbers, and it

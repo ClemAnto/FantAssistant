@@ -928,13 +928,17 @@ async function main() {
     const above = seswRows.filter((one) => one.dp > one.sesw + 1);
     const rareOff = seswRows.filter((one) => one.rar === '0' && Math.abs(one.dp - one.sesw) > 1);
     const lowered = seswRows.filter((one) => one.dp < one.sesw - 1).length;
-    note('SeSw e DP', `${seswRows.length} righe con entrambe, ${lowered} abbassate dalla rarita'`,
+    // Every draft has a SeSw since 30/09/2026, classic too: it is a READING of the man. The DP is the ADVICE and is
+    // mantra-only since the same evening - on classic the draft bench measured it at -19.9% against the advice of
+    // before (priorita-draft-v1.md §24), so there the priority column is `pickForUs` on its 0-99 scale and the
+    // «DP <= SeSw» arithmetic does not apply.
+    note('SeSw e DP', euro ? `${seswRows.length} righe con entrambe, ${lowered} abbassate dalla rarita'`
+      : `${seswRows.length} righe con SeSw; la colonna priorita' e' il consiglio di prima`,
       [
-        // Every draft has a SeSw since 30/09/2026: classic too, on its own roles and quotas.
-        ...(!seswRows.length ? ['nessuna riga con SeSw e DP'] : []),
-        ...(above.length ? [`${above.length} righe con DP sopra SeSw`] : []),
-        ...(rareOff.length ? [`${rareOff.length} righe con RAR 0 e DP diversa da SeSw`] : []),
-        ...(seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
+        ...(!seswRows.length ? ['nessuna riga con SeSw'] : []),
+        ...(euro && above.length ? [`${above.length} righe con DP sopra SeSw`] : []),
+        ...(euro && rareOff.length ? [`${rareOff.length} righe con RAR 0 e DP diversa da SeSw`] : []),
+        ...(euro && seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
       ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
@@ -1106,7 +1110,8 @@ async function main() {
     await evaluate(session, () => document.querySelectorAll('ui-player-card button[aria-label], ui-player-card [data-close]').forEach(() => {}));
 
     // 5d. THE PLANS (operator, 29/09/2026): a package reads «N) rosa +x (difficolta')», with one of the four words.
-    // On both games since the Draft Priority is on classic too (30/09/2026). The pointer on a package does nothing
+    // Mantra only: the plans are built on the Draft Priority, which is off on classic since 30/09/2026 (evening, the
+    // bench's -19.9%). There the step asks the opposite - no plan on screen. The pointer on a package does nothing
     // (his rule of the same night).
     {
       const plan = await evaluate(session, () => {
@@ -1125,7 +1130,10 @@ async function main() {
       if (plan && !wasPinned) await mouse(await evaluate(session, centre, '[data-scenario]'));
       await wait(400);
       const after = await evaluate(session, () => document.querySelectorAll('[data-plan-place]').length);
-      note('piani', plan ? `«${plan.text}» (${plan.difficulty}); selezionato: ${lit.places} posti evidenziati, incrementi ${lit.gains.join(' | ')}; deselezionato ${after}` : 'nessun piano',
+      if (!euro) {
+        note('piani (classic)', plan ? `«${plan.text}»` : 'nessun piano, come deve',
+          plan ? ['un piano a schermo su un draft classic, dove la Draft Priority e\' spenta'] : []);
+      } else note('piani', plan ? `«${plan.text}» (${plan.difficulty}); selezionato: ${lit.places} posti evidenziati, incrementi ${lit.gains.join(' | ')}; deselezionato ${after}` : 'nessun piano',
         [
           ...(!plan ? ['nessun piano a schermo'] : []),
           ...(plan && !/^1\) rosa [+-]?\d+ \((sicuro|facile|medio|difficile)\) [+-]\d+% [+-]\d+ /.test(plan.text) ? ["il piano non porta gli incrementi di copertura e fertilita'"] : []),

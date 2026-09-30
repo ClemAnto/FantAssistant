@@ -7304,7 +7304,15 @@ difetti che nessun banco vedeva. Tre cose restano.
   la sua chiave», sul vocabolario dei ruoli.
 - **Un vincolo che il gioco impone va in ogni simulazione del gioco.** Le quote 3/8/8/6 non erano in nessuna
   previsione (`PlanTeam.limits`, `roleFull`) — e non sono nemmeno nel banco del draft, quindi il classic del §17 è
-  stato giocato senza: è la ragione per cui la DP sul classic oggi non ha un verdetto, e va detto accanto a lei.
+  stato giocato senza. **Misurato la sera stessa** (quote nel banco, pool largo, baseline corretto): la DP perde
+  **−19,9%, 0 stagioni su 10**, ed è spenta sul classic; la stessa misura sul mantra, mai fatta dal 29/09, legge
+  −1,59% (2/5) contro il consiglio di prima, e decide l'operatore (priorita-draft-v1.md §24). *Un banco che
+  giudica «il pannello» va verificato riproducendo il numero che l'adozione aveva pubblicato*: la riga del
+  pannello chiamava `needForUs` senza la squadra e misurava un draft senza razionamento.
+- **L'ordine di chiamata ha DUE regole e la sessione dice quale** (`state.pickOrderType`): `default` (FVM di rosa
+  crescente) e `pingpong`, un serpentone puro, visto sul draft classic FA-yei-458, dove l'app indovinava 82
+  chiamate su 250 e ora 250 (`auction-plan.ahead`, `AuctionFeed.orderType`/`firstRoundOrder`; §25). *Una regola
+  riprodotta 384 su 384 su un tavolo è una regola di QUEL tavolo*: la seconda sessione vera l'ha smentita.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

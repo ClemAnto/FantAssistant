@@ -9,7 +9,7 @@ import {
 import { ahead, appNeed, bestUnder } from './engine.mjs';
 import { augments, bestCovered } from './legal.mjs';
 import { priority } from './priority.mjs';
-import { RARITY, RARITY_APP, RARITY_RATIONED } from './rarity.mjs';
+import { RARITY, RARITY_APP, RARITY_RATIONED, appDP } from './rarity.mjs';
 
 /* ---- currencies ------------------------------------------------------------------------------------ */
 
@@ -123,10 +123,15 @@ export const adoptedCover = () => {
   return (team, player, places, ctx) => {
     let need = cache.get(team);
     if (!need) {
-      need = coverNeedOf(team.roster, ctx.shapes);
+      // The GAME decides the rule (quota ladder on classic, places on mantra), as it does in the panel: without
+      // it this row computed the mantra places rule on a classic draft and was not «the panel» at all
+      // (todolist-draft-classic-v1 item 2.3). Mantra runs are unchanged: their setup says 'mantra'.
+      need = coverNeedOf(team.roster, ctx.shapes, ctx.setup?.game ?? 'mantra');
       cache.set(team, need);
     }
-    return needForUs(need, player);
+    // The TEAM too: the classic ladder counts what the squad already holds, and without it `needForUs` answers
+    // DEPTH_WEIGHT for everybody - a uniform weight, i.e. no rationing at all (-4.93%, found 30/09/2026).
+    return needForUs(need, player, team);
   };
 };
 
@@ -194,7 +199,7 @@ export const survival = (discount) => {
       const choice = ask(teams.find((x) => x.id === id));
       if (choice) take(id, choice);
     }
-    const next = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1)).map((t) => t.id);
+    const next = [...teams].sort((a, b) => ahead(a, b, setup.maxAhead ?? 1, setup.orderType)).map((t) => t.id);
     for (const id of next) {
       if (id === meId) break;
       const choice = ask(teams.find((x) => x.id === id));
@@ -484,7 +489,35 @@ export const UNTIL = [
 
 export const DEPTH = UNTIL;
 
+/**
+ * THE CLASSIC DRAFT (todolist-draft-classic-v1, 30/09/2026). Two sets, and the first one is a CHECK:
+ *
+ * `classic-check` must reproduce metrica-asta-surplus-v1.md §17 at the rules it was measured on (no quotas, the
+ * narrow `serie-a.json`): the graduated ladder +0.77% over `needFor`, and the panel's own adoption landing on the
+ * SAME numbers as the ladder - if it does not, the app implements something other than what was measured.
+ *
+ * `classic` is the verdict the page needs: the Draft Priority as it ships against the advice it replaced
+ * (`pickForUs` = value x graduated ladder x survival), then the discount grid, Z on three-per-participant, and
+ * the rationing switched on. Pre-registered in the todolist item 2.4 before the run; judged with `--quotas` on
+ * the wide windows (`extract.py --wide`), because a classic draft without its 8/8/6 is another game.
+ */
+export const CLASSIC_CHECK = [
+  { name: 'app: needFor (la base)', ...app, currency: VALUE, floor: Infinity },
+  { name: 'quote x2 graduata', need: coverTwice('graded'), currency: VALUE, floor: Infinity },
+  { name: 'APP: adottata, letta dal pannello', need: adoptedCover(), currency: VALUE, floor: Infinity },
+];
+
+export const CLASSIC = [
+  { name: 'CONSIGLIO DI PRIMA: valore x quote x sopravv.', need: adoptedCover(), currency: withSurvival(VALUE),
+    floor: Infinity },
+  { name: 'DP spedita (RAR 0.25, Z sui posti)', ...appDP({ ration: false }) },
+  ...[0, 0.1, 0.2, 0.3, 0.5].map((d) => ({ name: `DP, sconto RAR ${d}`, ...appDP({ ration: false, discount: d }) })),
+  { name: 'DP, Z = 3 per partecipante', ...appDP({ ration: false, starters: 'three' }) },
+  { name: 'DP col razionamento (posti)', ...appDP({ ration: true }) },
+];
+
 export const SETS = {
+  'classic-check': CLASSIC_CHECK, classic: CLASSIC,
   until: UNTIL,
   depth: DEPTH,
   priority: PRIORITY,

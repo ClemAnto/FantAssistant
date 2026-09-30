@@ -714,6 +714,8 @@ export interface RivalWalkInput {
   mineId: number;
   keeperCap: number;
   maxAheadPicks: number;
+  /** The host's order rule (`PickOrderType`); absent = `default`. */
+  orderType?: PickOrderType;
   heads?: Map<number, RivalHead>;
   cap?: PickCap | null;
   /** Picks a squad makes in the whole draft: a full roster calls no more. Absent = no limit. */
@@ -736,11 +738,12 @@ export function goneBeforeOurNextTurn(input: RivalWalkInput): Set<number> {
  * made the squads after us call in a stale order and every wait read «eleven picks». Null when every roster
  * is full.
  */
-export function nextCaller(teams: Map<number, PlanTeam>, maxAheadPicks: number, rounds = Infinity): PlanTeam | null {
+export function nextCaller(teams: Map<number, PlanTeam>, maxAheadPicks: number, rounds = Infinity,
+  orderType: PickOrderType = 'default'): PlanTeam | null {
   let best: PlanTeam | null = null;
   for (const team of teams.values()) {
     if (team.picksCount >= rounds) continue;
-    if (!best || ahead(team, best, maxAheadPicks) < 0) best = team;
+    if (!best || ahead(team, best, maxAheadPicks, orderType) < 0) best = team;
   }
   return best;
 }
@@ -761,7 +764,7 @@ export function walkToOurTurn(input: RivalWalkInput, teams: Map<number, PlanTeam
   walk: ReturnType<typeof rivalWalker>): WalkStep[] {
   const steps: WalkStep[] = [];
   for (let guard = 0; guard < teams.size * 3; guard += 1) {
-    const caller = nextCaller(teams, input.maxAheadPicks, input.rounds);
+    const caller = nextCaller(teams, input.maxAheadPicks, input.rounds, input.orderType);
     if (!caller || caller.id === input.mineId) break;
     const inRound = [...teams.values()].filter((team) => team.picksCount === caller.picksCount).length;
     const before = walk.gone.size;
@@ -814,17 +817,32 @@ export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>)
 export function takenBeforeOurTurn(input: RivalWalkInput): Map<number, number> {
   const teams = new Map(input.teams.map((team) => [team.id, team]));
   if (!teams.has(input.mineId)) return new Map();
-  if (nextCaller(teams, input.maxAheadPicks, input.rounds)?.id === input.mineId) return rivalPicksAfterOurs(input);
+  if (nextCaller(teams, input.maxAheadPicks, input.rounds, input.orderType)?.id === input.mineId) return rivalPicksAfterOurs(input);
   const walk = rivalWalker(input, teams);
   walkToOurTurn(input, teams, walk);
   return walk.gone;
 }
 
+/**
+ * THE HOST'S ORDER RULE, `state.pickOrderType` (with `options.draft.pickOrderType` beside it). Two are observed:
+ *   `default`  from the second round, fewer picks first, then the LOWEST roster FVM (the EuroLeghe draft
+ *              FA-jo5-zai, 384 picks of 384 reproduced, priorita-draft-v1.md §15);
+ *   `pingpong` a SNAKE: the first round's order, reversed on every other round, and nothing else - the classic
+ *              draft FA-yei-458 (30/09/2026), 250 picks of 250 in that pattern, with prices moving nobody.
+ * An unknown value is read as `default`, the rule the page was built on, and the feed says which it read.
+ */
+export type PickOrderType = 'default' | 'pingpong';
+
 /** The platform's own comparison, in the order its `compare()` applies it. */
-export function ahead(a: PlanTeam, b: PlanTeam, maxAheadPicks: number): number {
+export function ahead(a: PlanTeam, b: PlanTeam, maxAheadPicks: number, orderType: PickOrderType = 'default'): number {
   let byPicks = a.picksCount - b.picksCount;
   if (Math.abs(byPicks) < maxAheadPicks) byPicks = 0;
   if (byPicks) return byPicks;
+  // On a snake the round's parity decides the direction and the roster's price decides nothing. `firstRoundIndex`
+  // must then be the FIRST ROUND's order, which the caller reads from the pick history (`AuctionFeed.firstRoundOrder`).
+  if (orderType === 'pingpong') {
+    return a.picksCount % 2 === 1 ? b.firstRoundIndex - a.firstRoundIndex : a.firstRoundIndex - b.firstRoundIndex;
+  }
   if (a.rosterValue !== b.rosterValue) return a.rosterValue - b.rosterValue;
   // Lexicographic over the picks, dearest first: whoever owns the more expensive man chooses later.
   const left = [...a.pickValues].sort((x, y) => y - x);
@@ -871,6 +889,8 @@ export interface PlanInput {
    */
   heads?: Map<number, RivalHead>;
   maxAheadPicks: number;
+  /** The host's order rule; absent = `default`. */
+  orderType?: PickOrderType;
   roundsAhead?: number;
   /** Force the FIRST pick, so a plan can be grown from a root the operator chose. */
   rootId?: number;
@@ -913,7 +933,7 @@ export function plan(input: PlanInput): Plan {
   const meNow = () => teams.get(input.mineId);
   const goneNow = (from: number[]) => goneBeforeOurNextTurn({
     teams: [...teams.values()], order: from, pool, places, mineId: input.mineId,
-    keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads, cap,
+    keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType, heads: input.heads, cap,
   });
   // A root the operator chose is honoured only if the ceiling lets us call him THIS turn: «e se prendessi
   // lui?» about a man the regulation forbids has no answer, and a plan built on it would be a plan nobody
@@ -953,7 +973,7 @@ export function plan(input: PlanInput): Plan {
   // round's order standing on real pick counts instead of on teams that skipped a turn.
   for (let round = 1; round < (input.roundsAhead ?? ROUNDS_AHEAD); round += 1) {
     const nextOrder = [...teams.values()]
-      .sort((a, b) => ahead(a, b, input.maxAheadPicks))
+      .sort((a, b) => ahead(a, b, input.maxAheadPicks, input.orderType))
       .map((team) => team.id);
     const roundBefore: PlannedPick[] = [];
     const roundAfter: PlannedPick[] = [];
@@ -992,7 +1012,7 @@ export function plan(input: PlanInput): Plan {
     rounds,
     gap: (rounds[0]?.after.length ?? 0) + (rounds[1]?.before.length ?? 0),
     nextOrder: [...teams.values()]
-      .sort((a, b) => ahead(a, b, input.maxAheadPicks))
+      .sort((a, b) => ahead(a, b, input.maxAheadPicks, input.orderType))
       .map((team) => team.id),
   };
 }
@@ -1033,7 +1053,7 @@ export function simulateRound(input: PlanInput): { picks: RoundPick[]; nextOrder
       const rest = order.slice(index);
       const gone = goneBeforeOurNextTurn({
         teams: [...teams.values()], order: rest, pool, places, mineId: id,
-        keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, heads: input.heads, cap,
+        keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType, heads: input.heads, cap,
       });
       choice = pickForUs(pool, need, team, gone, cap);
     } else {
@@ -1048,7 +1068,7 @@ export function simulateRound(input: PlanInput): { picks: RoundPick[]; nextOrder
 
   return {
     picks,
-    nextOrder: [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks)).map((team) => team.id),
+    nextOrder: [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks, input.orderType)).map((team) => team.id),
   };
 }
 

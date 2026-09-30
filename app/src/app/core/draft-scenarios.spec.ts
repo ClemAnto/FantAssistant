@@ -145,6 +145,24 @@ describe('the move that gives the WHOLE squad most', () => {
   });
 });
 
+describe('a classic quota (todolist-draft-classic-v1 item 3.2)', () => {
+  it('never proposes a man of a FULL line, as a move or anywhere in a chain', () => {
+    const everybody = population();
+    const mine = [man('pc', 7.9)];
+    // The best man on the board is a Pc, and our attack line is already at its quota of one.
+    const bestPc = man('pc', 8.6, 0.95, 5);
+    const pool = [bestPc, man('pc', 8.2, 0.95, 5), man('c', 6.4, 0.9, 5), man('dc', 6.0, 0.9, 5), man('por', 5.0, 0.9, 5)];
+    const ctx = input(pool, everybody, mine);
+    ctx.teams = ctx.teams.map((t) => (t.id === 0 ? { ...t, limits: { att: 1 } } : t));
+    const pcs = new Set(pool.filter((m) => m.slot === 'pc').map((m) => m.id));
+    expect(movesFor(ctx.teams[0], ctx.pool, ctx).some((step) => pcs.has(step.player.id))).toBe(false);
+    for (const chain of scenarios(ctx, 5).list) {
+      expect(pcs.has(chain.first.player.id)).toBe(false);
+      if (chain.second) expect(pcs.has(chain.second.player.id)).toBe(false);
+    }
+  });
+});
+
 describe('how hard a plan is', () => {
   it('asks each squad calling in between whether it wants the second man, and counts them', () => {
     const everybody = population();

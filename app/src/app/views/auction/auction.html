@@ -747,7 +747,7 @@
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="sesw" (click)="sortBy('sesw')" nz-tooltip nzTooltipTitle="Season Swing: punti a giornata sopra il titolare medio del ruolo">SeSw{{ arrow('sesw') }}</span>
-            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo simili o migliori (oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span
               class="sort text-center uppercase"
@@ -772,7 +772,7 @@
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="sesw" (click)="sortBy('sesw')" nz-tooltip nzTooltipTitle="Season Swing: punti a giornata sopra il titolare medio del ruolo">SeSw{{ arrow('sesw') }}</span>
-            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo simili o migliori (oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             @for (which of seasonKeys; track which; let second = $last) {
               @for (metric of metrics; track metric.key; let first = $first) {
@@ -796,7 +796,7 @@
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="sesw" (click)="sortBy('sesw')" nz-tooltip nzTooltipTitle="Season Swing: punti a giornata sopra il titolare medio del ruolo">SeSw{{ arrow('sesw') }}</span>
-            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">DP{{ arrow('prio') }}</span>
+            <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo simili o migliori (oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-center uppercase" data-sort="rung" nz-tooltip nzTooltipTitle="Il gradino del motore, non della stampa" (click)="sortBy('rung')"
               >Gradino{{ arrow('rung') }}</span

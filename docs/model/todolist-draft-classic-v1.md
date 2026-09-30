@@ -15,6 +15,28 @@ non la misura.
 - pastiglia «pieno» sulla lista, colonna del ruolo stretta a una lettera sul classic;
 - banco della revisione: aspettava troppo poco il foglio (rosso preesistente, era del banco).
 
+**Fatto il 30/09/2026 (sera), con i numeri in [priorita-draft-v1.md](priorita-draft-v1.md) §24:**
+- **items 2.1-2.4 chiusi: la DP perde sul classic, −19,9%, 0 stagioni su 10**, nessuna variante si salva (sconto 0-0,5,
+  Z a 3 per partecipante, razionamento: da −18,7% a −21,0%); **quindi l'item 0.1 è deciso dalla regola pre-registrata**:
+  sul classic il consiglio, le scelte simulate, la colonna («Prio») e i piani sono di nuovo `pickForUs`, la SeSw resta
+  come lettura (`AuctionAdvice.priorityReadable`). Riaccenderla è una riga in `priorityOn`;
+- nel banco: `--quotas` (`legalPoolFor`), `extract.py --wide` (`leghe-classic-wide.json`, fuori da git), `adoptedCover`
+  corretto (gioco e squadra: prima misurava un draft senza razionamento), set `classic-check` e `classic`;
+  `draft-priority` accetta un `discount` opzionale per la griglia (l'app non lo passa);
+- item 3.2, metà sulle quote: un test pretende che mosse e catene non propongano mai un uomo di una linea piena
+  (controprova: senza la guardia di `legalFor` cade lui solo). La metà sul portiere è diventata muta: i piani sul
+  classic sono spenti;
+- item 1.1 in parte: le due sessioni date dall'operatore non sono classic (sotto).
+
+**APERTO NUMERO UNO, ed è sul MANTRA**: la DP dell'app (la formula ridichiarata il 29/09) non era mai stata misurata
+contro il consiglio di prima; misurata ora legge **−1,59%, 2 finestre su 5** (EuroLeghe, 4 semi, 5,3 buchi a stagione
+contro 0,6), mentre la priorità «completa» ritirata quel giorno legge +1,59% robust. Perde di poco e la formula è sua:
+decide l'operatore se tenerla, tornare a `pickForUs` o riprendere la G sulla rosa.
+
+**Fatto il 30/09/2026 (notte)**: item 1.1 chiuso su due draft classic veri (sotto), e l'ordine a SERPENTONE
+(`pingpong`) insegnato all'app e al banco; col serpentone la DP perde −19,7% (0/10), quindi resta spenta
+(priorita-draft-v1.md §25).
+
 Gli item sono **ordinati per urgenza rispetto al draft**, poi per resa attesa.
 
 ---
@@ -55,6 +77,37 @@ osservata finora: le due sessioni lette sul 09/08 e il draft FA-jo5-zai erano al
   `pricedFor` ora usa;
 - se la sessione pubblica `inactiveTeams` e come ordina `pickOrder` (stessa regola del draft mantra?).
 
+**Letto il 30/09/2026, e NON è una sessione classic.** I due codici dati dall'operatore: FA-o5w-pws risponde
+`null` (non esiste più, o non è mai esistito con quella grafia); **FA-nec-7oq è un draft MANTRA** (`settings.game`
+= 2, `marketType` 1) sul listone Serie A (`playerListType` default, 20 club, 598 righe), dieci squadre, concluso
+(268 scelte, `status` 3, `appVer` 1.22.2-live). Quello che conferma lo stesso, perché vale anche per il classic:
+- **il prezzo di una scelta è l'FVM del GIOCO del tavolo**: `picks[].cost` = `stats.fmv.mantra` su **268 scelte su
+  268** (e = `fmv.classic` solo sulle 182 dove i due coincidono) - la regola di `pricedFor`, vista dal vero;
+- **`settings.roles` porta `def`/`mid`/`atk` anche su un tavolo mantra, e lì NON sono imposte**: `[8,8]` in
+  difesa e dieci squadre su dieci fuori da 8/8/6 per zona classic (una con 12 difensori). Quindi leggerle solo sul
+  classic, come fa `AuctionAdvice.lineQuotas`, è giusto per una ragione osservata e non per prudenza; la rosa vera
+  è `gk [2,6]`, `mov [21,25]`, `size [23,31]` (26-27 scelte a testa);
+- **`settings.inactiveTeams` assente**, `pickOrderType` «default», `options.draft` = `{firstPickIndex 1,
+  maxAheadPicks 1, rosterValueType current}`;
+- i codici mantra stanno su ogni riga del listone (`roles`) accanto alla zona per gioco (`zone.classic`), come
+  l'ipotesi di `gameRoles` voleva.
+Resta aperto il resto dell'item: `game` = 1, le quote imposte e l'ordine su un draft classic vero.
+
+**CHIUSO il 30/09/2026 (sera) su due draft classic veri dati dall'operatore**, letti in sola lettura:
+**FA-yei-458** (10 squadre, 250 scelte, concluso) e **FA-l1n-0pn** (8 squadre, 200 scelte, concluso; l'operatore
+l'aveva scritto FA-11n-0pn, che non esiste: la grafia vera è elle-uno-enne). Su tutt'e due:
+- `settings.game` = **1**, `roles` = `gk [3,3]`, `def [8,8]`, `mid [8,8]`, `atk [6,6]`, `size [25,25]`, e le quote
+  sono **imposte**: tutte le 18 rose chiudono esattamente 3/8/8/6;
+- il prezzo di una scelta è l'FVM **classic** su 250/250 e 200/200 (quello mantra coincide solo dove i due sono
+  uguali): `pricedFor` è giusta;
+- `inactiveTeams` assente, listone Serie A a 20 club, codici mantra su ogni riga (`gameRoles` serve);
+- **l'ordine NON è sempre lo stesso**: FA-l1n-0pn gioca `pickOrderType: default` (FVM di rosa crescente, la regola
+  dell'app, 200/200), **FA-yei-458 gioca `pingpong`**, un serpentone puro (il 1º giro rovesciato a ogni giro, il
+  prezzo non sposta nessuno). L'app non conosceva la seconda: rigiocata scelta per scelta con la sua `nextCaller`,
+  indovinava **82 chiamate su 250**. Ora `ahead()` legge il tipo (`AuctionFeed.orderType`, primo giro da
+  `firstRoundOrder`) e rigioca **250/250**, con 200/200 e 384/384 invariati sulle altre due; lo segue anche k di RAR.
+  La revisione (`rewindState`) ricostruisce l'ordine dalla cronologia, quindi valeva già per tutt'e due.
+
 **1.2 Guardare la pagina collegata a quella sessione**: lista, filtro P/D/C/A, campetto, ordine di chiamata,
 previsioni «prima di te», nessuna scelta prevista fuori quota.
 
@@ -85,6 +138,11 @@ misura il codice che la pagina esegue. Bracci:
 - sconto di RAR sul classic: 0 · 0,1 · 0,2 · 0,25 · 0,3 · 0,5 (misurato solo sul mantra, §21);
 - Z sui posti del modulo contro i 3 per partecipante (item 0.2);
 - la DP col razionamento acceso (`places`), spento sul mantra perché non robusto (§22).
+
+**Pre-registrato il 30/09/2026, scritto qui prima della corsa:** `node multi.mjs classic Leghe
+leghe-classic-wide.json --quotas`, 8 semi, tutte le sedie; baseline = `CONSIGLIO DI PRIMA` (`adoptedCover` +
+`withSurvival(VALUE)`), candidato principale = `DP spedita`. Il file largo si rigenera con
+`python extract.py leghe-classic-wide.json Leghe --wide`.
 
 Criterio (quello del banco): punti a giornata appaiati, dieci finestre Serie A, verdetto robust e strict affiancati,
 pavimento 0,5% sulla media, nessuna finestra sotto −2%. **Se la DP perde**, sul classic si torna al consiglio di

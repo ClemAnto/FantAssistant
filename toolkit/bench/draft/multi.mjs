@@ -14,7 +14,7 @@ const flags = process.argv.slice(2).filter((a) => a.startsWith('--'));
 const positional = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const flag = (name) => flags.find((f) => f.startsWith(`--${name}=`))?.split('=')[1];
 // A flag nobody reads produces a wrong run that looks like a right one (CLAUDE.md, the dispatcher rule).
-const KNOWN = ['--declared', '--seeds=', '--seat=', '--cap='];
+const KNOWN = ['--declared', '--seeds=', '--seat=', '--cap=', '--quotas', '--pingpong'];
 const unknown = flags.filter((f) => !KNOWN.some((k) => (k.endsWith('=') ? f.startsWith(k) : f === k)));
 if (unknown.length) {
   console.error(`unknown option(s): ${unknown.join(', ')}`);
@@ -32,12 +32,22 @@ if (!policies) {
   process.exit(1);
 }
 
-const table = { ...setup(league), exactKeepers: flags.includes('--declared'),
+// --quotas: the classic league's 8/8/6 per line, for every seat (todolist-draft-classic-v1 item 2.1).
+const base = setup(league);
+if (flags.includes('--quotas') && !base.lineQuotas) {
+  console.error(`--quotas: league "${base.name}" is ${base.game}, and only a classic league has line quotas`);
+  process.exit(1);
+}
+const table = { ...base, exactKeepers: flags.includes('--declared'),
+  ...(flags.includes('--quotas') ? { quotas: base.lineQuotas } : {}),
+  // --pingpong: the snake order (FA-yei-458) instead of the roster-FVM rule.
+  ...(flags.includes('--pingpong') ? { orderType: 'pingpong' } : {}),
   ...(flag('cap') ? { capRank: Number(flag('cap')), capTurns: 5 } : {}) };
 const windows = loadWindows(positional[2] ?? 'windows.json');
 const shapes = loadShapes(table.game);
 console.log(`league "${table.name}": ${table.teams} teams, ${table.rounds} rounds, ${table.keepers} keepers`
-  + ` (${table.platform}/${table.game})`);
+  + ` (${table.platform}/${table.game})` + (table.quotas ? `, quotas ${JSON.stringify(table.quotas)}` : '')
+  + (table.orderType ? `, order ${table.orderType}` : ''));
 
 console.log(`metric: ${metric}, ${seeds.length} seeds, seats ${seatFilter ?? 'all'}`);
 const run = measure(policies, { windows, shapes, setup: table, metric, seeds, seatFilter });

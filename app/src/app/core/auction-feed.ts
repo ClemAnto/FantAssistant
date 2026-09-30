@@ -1,5 +1,6 @@
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 
+import type { PickOrderType } from './auction-plan';
 import { teamColour } from './team-colours';
 
 /**
@@ -157,6 +158,8 @@ export interface RawState {
   teams?: unknown;
   picks?: unknown;
   pickOrder?: number[];
+  /** The order RULE (`default` | `pingpong`), read by `AuctionFeed.orderType`. */
+  pickOrderType?: string;
   turnTeamId?: number;
   /**
    * CHI E' IN ASTA ADESSO, e il tavolo lo pubblica: LETTO il 24/09/2026 su una sessione a RILANCI
@@ -816,6 +819,28 @@ export class AuctionFeed {
   );
 
   readonly picks = computed<RawPick[]>(() => livePicks(this.state()));
+
+  /**
+   * THE HOST'S ORDER RULE (`auction-plan.PickOrderType`): `state.pickOrderType`, else `options.draft`'s, else
+   * `default` - the rule the page was built on. Observed `pingpong` on the classic draft FA-yei-458 (30/09/2026):
+   * a snake, where a dear pick sends nobody down the order.
+   */
+  readonly orderType = computed<PickOrderType>(() => {
+    const raw = this.state().pickOrderType ?? this.draftRules()?.['pickOrderType'];
+    return raw === 'pingpong' ? 'pingpong' : 'default';
+  });
+
+  /**
+   * THE FIRST ROUND'S ORDER, which a snake repeats and reverses: the squads in the order of their first pick, then
+   * the ones that have not picked yet in the order the host publishes. Read from the HISTORY because the published
+   * `pickOrder` is the round being played, which after the first round is not the first one.
+   */
+  readonly firstRoundOrder = computed<number[]>(() => {
+    const order: number[] = [];
+    for (const pick of this.picks()) if (!order.includes(pick.teamId)) order.push(pick.teamId);
+    for (const id of this.state().pickOrder ?? []) if (!order.includes(id)) order.push(id);
+    return order;
+  });
 
   readonly teams = computed<AuctionTeam[]>(() =>
     deriveTeams(this.state(), this.players(), {

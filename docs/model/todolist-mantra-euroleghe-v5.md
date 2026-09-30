@@ -1,5 +1,14 @@
 # Todolist — Allineamento Mantra & EuroLeghe (v5)
 
+## Aperti alla chiusura del 30 settembre 2026 (XV) — la DP sul classic, il serpentone
+
+- [ ] **DP sul MANTRA contro il consiglio di prima: −1,59%, 2/5** (EuroLeghe, 4 semi; priorita-draft-v1.md §24). Sua
+  decisione: tenere la formula, tornare a `pickForUs`, o riprendere la G sulla rosa (+1,59% robust).
+- [ ] **Lo sconto «prendi chi sparirà» sul serpentone**: tarato con l'ordine per FVM; col serpentone il consiglio di
+  prima batte il tavolo di +0,6% (7/10) invece di +2,7%. Da misurare se il suo draft classic è a serpentone.
+- [ ] Il resto sta in [todolist-draft-classic-v1.md](todolist-draft-classic-v1.md): le Opzioni nel suo browser
+  (0.3), i passi e2e 3.3/3.4, e 0.2 (Z sul classic) che con la DP spenta non decide più niente.
+
 ## Aperti alla chiusura del 30 settembre 2026 (XIV) — il draft Serie A classic
 
 Tutti in **[todolist-draft-classic-v1.md](todolist-draft-classic-v1.md)**, ordinati per urgenza rispetto al draft.
