@@ -7587,7 +7587,7 @@ in `data/reports/gate_r33.json`.
 
 **R33 non passa il primario** (2 su 7, −3,0%), com'era nelle attese scritte. Quello che NON era nelle attese è la
 lettura sui quotati sopra 5: −0,2% contro il +3,75% del banco sulle stesse finestre. La differenza è la TARATURA: il
-banco taravail prior sui soli quotati sopra 5, la regola pre-registrata su tutti (per non usare il filtro nella regola).
+banco tarava il prior sui soli quotati sopra 5, la regola pre-registrata su tutti (per non usare il filtro nella regola).
 Tarata sui giocatori da pochi crediti, la formula peggiora proprio su quelli che contano. Quindi il vantaggio del banco
 non è una proprietà della scomposizione in generale: è della scomposizione **tarata e usata sulla popolazione che si
 compra**. La prova pulita (2026-27, 3 giornate) va nella direzione favorevole e non è un'ampiezza.
@@ -7610,3 +7610,14 @@ applica solo a un quotato sopra 5 (sotto, le presenze restano quelle del motore)
   listone bersaglio è l'ultima lettura, come sempre.
 * **Cosa la potrebbe smentire subito**: niente, prima della 10ª. Sulle 3 giornate di oggi la stessa scomposizione
   tarata su tutti legge +5,8% sui quotati sopra 5: è un segno, non un numero.
+
+### 7-octsexagies (bis). La lettura di R33b sullo storico, e perché il banco la mostrava migliore
+
+Il driver con `--r33b` riproduce il banco **al millesimo** sulla sua stessa popolazione (quotati sopra 5, infortuni
+lunghi imprevedibili fuori): 7 su 7, +3,74% - quindi il driver e il banco sono la stessa funzione. Sulla popolazione
+che R33b ha congelato (quotati sopra 5, **tutti dentro**) legge invece **3 su 7, +1,36%, peggiore −1,1%**. Tutta la
+differenza è l'esclusione degli infortuni imprevedibili, e va detto perché non è neutra: è una popolazione definita
+dall'ESITO, e toglierla favorisce il modello che prevede di più. La formula prevede più del motore (rapporto mediano
+95% contro 88%), quindi sbaglia di più proprio su chi poi si fa male a lungo, e togliere quegli uomini le toglie il
+suo errore più grosso. Quella lettura resta utile per LEGGERE i casi (Lukaku, Butez), non per giudicare una regola:
+un gate non seleziona sull'esito. R33b si giudica su tutti i quotati sopra 5, come congelata.

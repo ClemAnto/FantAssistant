@@ -210,9 +210,13 @@ sulle giornate viste e lo stop aperto. `e2e-why-presence` verifica tutto, compre
 6. Settembre: la durata attesa di uno stop già aperto. Per le stagioni future esiste (la data di rientro della
    pagina indisponibili, `availability.return_date`, e Transfermarkt finché lo stop è aperto); per giudicarla serve
    archiviarla col giorno in cui la si legge.
-7. **Settembre al gate.** È il solo punto in cui la formula batte il motore su tutte le finestre (7 su 7, +3,75%,
-   strict), ed è il momento dell'asta dell'operatore: la strada è pre-registrarla come regola del motore sulle
-   finestre in-season «set» (prior della scomposizione + miscela R20 + stop aperto), contro il set adottato.
+7. **Settembre al gate - FATTO il 01/10/2026** (gate §7-septsexagies): R33, tarata su tutti i quotati, non passa
+   (2 su 7, −3,0%; sui quotati sopra 5 −0,2%). Il vantaggio del banco c'è solo se la formula è tarata e usata sui
+   quotati che contano, e quella forma su queste finestre è già vista: **R33b** è congelata e si giudica in avanti sul
+   2026-27 (`gate_r33.py --r33b`), letture alla 10ª e alla 19ª, verdetto alla 38ª. **E la tabella del §5-ter va letta
+   sapendo questo**: il 7 su 7 del banco a settembre dipende dall'aver tolto gli infortuni lunghi imprevedibili, che è
+   una selezione sull'esito e favorisce la formula (prevede più del motore). Con tutti dentro, sui quotati sopra 5, è
+   3 su 7 e +1,4%. L'ambra resta per leggere i casi; per giudicare, tutti dentro.
 8. **EuroLeghe.** Il banco gira solo su `default`/classic: la piattaforma della sua lega mantra non è misurata.
 9. **Le contaminazioni di luglio, dette e non misurate.** A luglio la formula legge il club della stagione prevista
    dalla prima partita di quella stagione (`first`), quindi conosce anche chi è stato venduto il 31 agosto; il
