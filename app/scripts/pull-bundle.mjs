@@ -170,6 +170,16 @@ if (existsSync(join(src, 'calendar.json'))) {
   calendar = true;
 }
 
+/* THE EXPECTED-APPEARANCES TEST (30/09/2026), written by `toolkit/scripts/presence_test/build.py` into the export
+ * folder and read by the /why page. Optional like the calendar: a bundle without it is a bundle where nobody ran
+ * the test, and the page says so. A file added to the export has to be added HERE too (the boards, 10/08/2026). */
+let presenceTest = false;
+if (existsSync(join(src, 'presence_test.json'))) {
+  copyFileSync(join(src, 'presence_test.json'), join(OUT, 'presence_test.json'));
+  bytes += statSync(join(src, 'presence_test.json')).size;
+  presenceTest = true;
+}
+
 const missing = [];
 for (const table of TABLES) {
   const file = `${table}.json.gz`;
@@ -260,7 +270,7 @@ console.log(
 console.log(
   `  ${TABLES.length - missing.length}/${TABLES.length} tables, ${crests} crests, ` +
     `${sheets} engine sheets, ${boards} board files, ${packs} timepacks, ` +
-    `${calendar ? 'calendar' : 'NO calendar'}, ${(bytes / 1024 / 1024).toFixed(1)} MB`,
+    `${calendar ? 'calendar' : 'NO calendar'}, ${presenceTest ? 'presence test' : 'no presence test'}, ${(bytes / 1024 / 1024).toFixed(1)} MB`,
 );
 // Same rule as the boards: a silent zero reads exactly like a broken feature. Without it the plancia's
 // keeper pairings have nothing to count and say so, which is right - but nobody would know why.

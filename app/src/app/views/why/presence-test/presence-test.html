@@ -1,0 +1,114 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+@if (!loaded()) {
+  <p class="text-sm text-muted">Carico il test…</p>
+} @else if (!file()) {
+  <div class="rounded-lg border border-border bg-surface p-4 text-sm text-muted">
+    Il pacchetto non porta il test delle partite attese. Si genera con
+    <code>python toolkit/scripts/presence_test/build.py</code> e poi <code>npm run data:pull</code>.
+  </div>
+} @else {
+  <div class="flex flex-col gap-3" data-presence-test>
+    <!-- IL VERDETTO, prima della tabella: una tabella di 600 righe senza il suo riassunto si legge un nome alla volta. -->
+    @if (summary(); as sum) {
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs"
+           data-presence-summary>
+        <span class="font-medium text-fg">
+          {{ sum.target }} · {{ sum.out_of_sample ? 'fuori campione' : 'stagione di taratura' }}
+        </span>
+        <span>errore medio: formula <b>{{ sum.mae_formula.toFixed(2) }}</b> · motore <b>{{ sum.mae_engine.toFixed(2) }}</b> partite</span>
+        <span class="text-muted">mediana {{ sum.median_formula }} · {{ sum.median_engine }} · su {{ sum.n }} uomini che il motore prevede</span>
+        <span class="text-muted">formula più vicina {{ duel().closer }} · motore più vicino {{ duel().farther }} · pari {{ duel().even }}</span>
+      </div>
+    }
+    <div class="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted">
+      <div><b class="text-fg">{{ file()!.formula }}</b> — D disponibilità (infortuni, squalifiche, altre assenze),
+        S scelto se disponibile (partite, minuti, titolare), la qualità (media voto), le coppe europee.
+        Tarata sulla stagione 2023-24 → 2024-25, giudicata su 2024-25 → 2025-26.</div>
+      <div class="mt-1">Parametri: {{ params() }}</div>
+      <div>Media di S per contesto: {{ priors() }}</div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <nz-radio-group nzSize="small" [ngModel]="window()" (ngModelChange)="window.set($event)">
+        <label nz-radio-button nzValue="T2" data-presence-window="T2">2025-26 (fuori campione)</label>
+        <label nz-radio-button nzValue="T1" data-presence-window="T1">2024-25 (taratura)</label>
+      </nz-radio-group>
+      <nz-radio-group nzSize="small" [ngModel]="role()" (ngModelChange)="role.set($event)">
+        <label nz-radio-button [nzValue]="null">Tutti</label>
+        @for (one of ['P', 'D', 'C', 'A']; track one) {
+          <label nz-radio-button [nzValue]="one">{{ one }}</label>
+        }
+      </nz-radio-group>
+      <input nz-input nzSize="small" class="w-56" placeholder="Cerca un nome" [ngModel]="query()"
+             (ngModelChange)="query.set($event)" />
+      <span class="text-xs text-muted">{{ rows().length }} calciatori</span>
+    </div>
+
+    <!-- LA STAGIONE PRIMA, partita per partita del suo club in campionato (Transfermarkt): la somma delle sette colonne
+         da «Inf.» a «Tit.» e' la colonna «Partite». -->
+    <div class="overflow-x-auto rounded-lg border border-border">
+      <table class="w-full text-xs tabular-nums" data-presence-table>
+        <thead class="sticky top-0 bg-surface text-muted">
+          <tr class="text-left">
+            <th class="cursor-pointer px-2 py-1" (click)="sortBy('name')">Calciatore{{ arrow('name') }}</th>
+            <th class="px-1">R</th>
+            <th class="px-1">Contesto</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato del suo club mentre c'era">Partite</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Infortunato">Inf.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Squalificato">Squal.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Assente per altri motivi">Ass.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Non convocato">N.c.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="In panchina, non entrato">Panch.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Subentrato">Sub</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Titolare">Tit.</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Minuti per partita giocata">Min</th>
+            <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Disponibilità stimata" (click)="sortBy('d')">D{{ arrow('d') }}</th>
+            <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Scelto se disponibile, stimato" (click)="sortBy('s')">S{{ arrow('s') }}</th>
+            <th class="px-1 text-center" nz-tooltip nzTooltipTitle="Coppa europea: stagione prima → stagione prevista">Europa</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Media voto della stagione prima">MV</th>
+            <th class="cursor-pointer px-1 text-right" (click)="sortBy('paFormula')">Pa formula{{ arrow('paFormula') }}</th>
+            <th class="cursor-pointer px-1 text-right" (click)="sortBy('paEngine')">Pa motore{{ arrow('paEngine') }}</th>
+            <th class="cursor-pointer px-1 text-right" (click)="sortBy('paActual')">Pa vere{{ arrow('paActual') }}</th>
+            <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Formula meno vere" (click)="sortBy('errFormula')">Err. F{{ arrow('errFormula') }}</th>
+            <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Motore meno vere" (click)="sortBy('errEngine')">Err. M{{ arrow('errEngine') }}</th>
+            <th class="cursor-pointer px-2 text-right" nz-tooltip nzTooltipTitle="Quanto la formula è più vicina del motore" (click)="sortBy('gain')">Guadagno{{ arrow('gain') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.fcId) {
+            <tr class="border-t border-border/60 odd:bg-fg/5" [attr.data-presence-row]="row.fcId">
+              <td class="px-2 py-0.5 font-medium text-fg">{{ row.name }}</td>
+              <td class="px-1">{{ row.role }}</td>
+              <td class="px-1 text-muted">{{ row.context }}{{ row.clubChange ? ' ⇄' : '' }}</td>
+              @if (row.prev; as prev) {
+                <td class="px-1 text-right">{{ prev.n }}</td>
+                <td class="px-1 text-right">{{ prev.inj }}</td>
+                <td class="px-1 text-right">{{ prev.susp }}</td>
+                <td class="px-1 text-right">{{ prev.other }}</td>
+                <td class="px-1 text-right">{{ prev.out }}</td>
+                <td class="px-1 text-right">{{ prev.bench }}</td>
+                <td class="px-1 text-right">{{ prev.sub }}</td>
+                <td class="px-1 text-right">{{ prev.start }}</td>
+                <td class="px-1 text-right">{{ prev.sub + prev.start ? (prev.minutes / (prev.sub + prev.start)).toFixed(0) : '—' }}</td>
+              } @else {
+                <td class="px-1 text-center text-muted" colspan="9">nessuna stagione su file</td>
+              }
+              <td class="px-1 text-right">{{ pct(row.d) }}</td>
+              <td class="px-1 text-right">{{ pct(row.s) }}</td>
+              <td class="px-1 text-center text-muted">{{ row.europeIn ? 'sì' : 'no' }} → {{ row.europeOut ? 'sì' : 'no' }}</td>
+              <td class="px-1 text-right">{{ row.mv != null ? row.mv.toFixed(2) : '—' }}</td>
+              <td class="px-1 text-right font-semibold">{{ row.paFormula.toFixed(1) }}</td>
+              <td class="px-1 text-right">{{ row.paEngine != null ? row.paEngine.toFixed(1) : '—' }}</td>
+              <td class="px-1 text-right font-semibold text-fg">{{ row.paActual }}</td>
+              <td class="px-1 text-right" [class]="errInk(row.errFormula)">{{ signed(row.errFormula) }}</td>
+              <td class="px-1 text-right" [class]="errInk(row.errEngine)">{{ signed(row.errEngine) }}</td>
+              <td class="px-2 text-right">
+                {{ signed(gain(row)) }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+}

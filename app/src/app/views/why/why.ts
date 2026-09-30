@@ -41,6 +41,7 @@ import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
+import { PresenceTest } from './presence-test/presence-test';
 
 /**
  * QUANTI VICINI si mostrano per lato nella graduatoria di ruolo: tre.
@@ -190,6 +191,16 @@ type SortKey = (typeof SORT_KEYS)[number];
  *    lo stop aperto e per l'assicurazione (`core/expected-play.ts`), ed è quel secondo numero che ordina
  *    le liste della Strategia e della Plancia. Sono due domande, quindi due colonne e due nomi.
  */
+const SECTION_KEY = 'fantassistant.why.section';
+
+function readSection(): 'scala' | 'pa' {
+  try {
+    return localStorage.getItem(SECTION_KEY) === 'pa' ? 'pa' : 'scala';
+  } catch {
+    return 'scala';
+  }
+}
+
 @Component({
   selector: 'app-why',
   imports: [
@@ -203,6 +214,7 @@ type SortKey = (typeof SORT_KEYS)[number];
     NzRadioModule,
     NzSelectModule,
     NzTooltipModule,
+    PresenceTest,
     RoleBadge,
     RoleSet,
   ],
@@ -724,6 +736,18 @@ export class Why {
 
   /** La legenda del metodo, aperta o chiusa. Chiusa all'inizio: si legge una volta, non a ogni visita. */
   protected readonly method = signal(false);
+
+  /** Which of the page's two sections is on screen; remembered, like the other choices of this page. */
+  protected readonly section = signal<'scala' | 'pa'>(readSection());
+
+  protected setSection(value: 'scala' | 'pa'): void {
+    this.section.set(value);
+    try {
+      localStorage.setItem(SECTION_KEY, value);
+    } catch {
+      // A browser that refuses storage still switches; it just forgets it on refresh.
+    }
+  }
 
   protected toggleMethod(): void {
     this.method.update((one) => !one);

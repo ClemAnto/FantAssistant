@@ -1,3 +1,4 @@
+import type { PresenceTestFile } from './presence-test';
 import { Injectable } from '@angular/core';
 
 import type { CalendarFile } from './keeper-pairs';
@@ -382,6 +383,7 @@ export class Bundle {
   private readonly packsByPath = new Map<string, Promise<TimePackFile | null>>();
   private crestsPromise?: Promise<Record<string, string>>;
   private calendarPromise?: Promise<CalendarFile | null>;
+  private presenceTestPromise?: Promise<PresenceTestFile | null>;
 
   manifest(): Promise<BundleManifest> {
     this.manifestPromise ??= fetch(`${this.base}/manifest.json`)
@@ -554,6 +556,18 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<CalendarFile>) : null))
       .catch(() => null);
     return this.calendarPromise;
+  }
+
+  /**
+   * IL TEST DELLE PARTITE ATTESE (30/09/2026, `toolkit/scripts/presence_test/build.py`): la stagione di ogni uomo
+   * scomposta nei motivi, la formula ricostruita e la previsione del motore, contro quello che ha giocato davvero.
+   * Null finche' nessuno ha lanciato lo script: la pagina lo dice invece di disegnare una tabella vuota.
+   */
+  presenceTest(): Promise<PresenceTestFile | null> {
+    this.presenceTestPromise ??= fetch(`${this.base}/presence_test.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<PresenceTestFile>) : null))
+      .catch(() => null);
+    return this.presenceTestPromise;
   }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */
