@@ -127,6 +127,14 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     # diventavano la stessa cosa. Il payload che `performance` gia' scarica porta `positionId` su ogni
     # partita e il parser lo scartava; backfill offline dai 1.120 file in cache, zero richieste.
     ("tm_appearances", "position_id", "INTEGER"),
+    # PERCHE' NON HA PRESO IL VOTO, E SE E' PARTITO TITOLARE (30/09/2026): motivo dell'assenza (le tre
+    # squalifiche sono 1-3), infortunio, titolare, allenatore e tipo di competizione. Stesso payload,
+    # stesso parser che li scartava; si riempiono con `performance --from-cache`, zero richieste.
+    ("tm_appearances", "absence_id", "INTEGER"),
+    ("tm_appearances", "injury_id", "INTEGER"),
+    ("tm_appearances", "is_starting", "INTEGER"),
+    ("tm_appearances", "coach_id", "TEXT"),
+    ("tm_appearances", "competition_type", "INTEGER"),
     # LA QT.A DENTRO LA SERIE DATATA (03/09/2026), su decisione dell'operatore: «dobbiamo conservare
     # l'intero andamento della Qt.A giornata per giornata». Era uno STATO VOLATILE tenuto come campo
     # fisso - la quotazione attuale viene rivista tutta la stagione e `listone_quotes` ne teneva solo

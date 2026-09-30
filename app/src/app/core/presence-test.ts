@@ -8,6 +8,8 @@
  * browser would be a second definition of the number the page exists to check.
  */
 
+import { titolaritaRank } from './titolarita';
+
 export interface PresenceSeason {
   /** Club league games while he was there, and what each one was for him. */
   n: number;
@@ -22,13 +24,17 @@ export interface PresenceSeason {
 }
 
 export interface PresenceTestRow {
-  window: 'T1' | 'T2';
+  /** The gate's window key (Tm7 ... T2): every one of them judged with parameters fitted on the other nine. */
+  window: string;
   target: string;
   fcId: number;
   name: string;
   role: string | null;
   context: string;
   clubChange: boolean;
+  /** His club in the season measured and in the season predicted (the gate's own `club_prev` / `club_target`). */
+  clubPrev?: string | null;
+  clubNext?: string | null;
   europeIn: boolean;
   europeOut: boolean;
   mv: number | null;
@@ -36,6 +42,13 @@ export interface PresenceTestRow {
   prev2: Pick<PresenceSeason, 'n' | 'inj' | 'susp' | 'other'> | null;
   d: number | null;
   s: number | null;
+  /**
+   * The six-word ladder (`engine/status.py`) derived by the TOOLKIT from the formula's S and the minutes of the
+   * season measured, without the board's gate (a past window has no drawn board) - and the rung he really
+   * reached in the season predicted, on the same two axes. Absent on a v1 file.
+   */
+  rung?: string | null;
+  rungActual?: string | null;
   paFormula: number;
   paEngine: number | null;
   paActual: number;
@@ -66,8 +79,22 @@ export interface PresenceTestFile {
   formula: string;
   params: Record<string, number>;
   priors: Record<string, number>;
-  summary: Record<'T1' | 'T2', PresenceTestSummary>;
+  /** Keyed by window. v1 carried T1 and T2 only, v2 every pre-season window of the gate. */
+  summary: Record<string, PresenceTestSummary>;
+  /** v2: how the formula was judged, and its verdict over the windows in the gate's own vocabulary. */
+  protocol?: string;
+  verdict?: Record<string, PresenceVerdict>;
+  inseason?: { k_rule: string | null; k: number | null; verdict: PresenceVerdict | null };
   rows: PresenceTestRow[];
+}
+
+export interface PresenceVerdict {
+  windows: number;
+  wins: number;
+  mean_gain: number;
+  worst: number;
+  strict: boolean;
+  robust: boolean;
 }
 
 /**
@@ -79,7 +106,8 @@ export interface PresenceTestView extends PresenceTestRow {
   ratioEngine: number | null;
 }
 
-export type PresenceSort = 'name' | 'paActual' | 'paFormula' | 'paEngine' | 'ratioFormula' | 'ratioEngine' | 'd' | 's';
+export type PresenceSort =
+  | 'name' | 'paActual' | 'paFormula' | 'paEngine' | 'ratioFormula' | 'ratioEngine' | 'd' | 's' | 'rung' | 'rungActual';
 
 /** Predicted over real, or null where he played nothing. */
 export function ratioOf(predicted: number | null, actual: number): number | null {
@@ -97,7 +125,7 @@ export function distanceOf(ratio: number | null): number | null {
  */
 export function presenceRows(
   file: PresenceTestFile,
-  window: 'T1' | 'T2',
+  window: string,
   opts: {
     query?: (row: PresenceTestRow) => boolean;
     role?: string | null;
@@ -120,6 +148,9 @@ export function presenceRows(
       case 'name': return row.name;
       case 'ratioFormula': return distanceOf(row.ratioFormula);
       case 'ratioEngine': return distanceOf(row.ratioEngine);
+      // The ladder's order, not the alphabet (`titolaritaRank`); an unknown rung sorts last.
+      case 'rung': return titolaritaRank(row.rung);
+      case 'rungActual': return titolaritaRank(row.rungActual);
       default: return row[opts.sort];
     }
   };

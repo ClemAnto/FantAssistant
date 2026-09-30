@@ -388,6 +388,22 @@ CREATE TABLE IF NOT EXISTS tm_appearances (
     -- Il payload la portava dalla prima corsa (`statistics.generalStatistics.positionId`) e il parser la
     -- buttava via - stessa forma di `goalsConceded` fino al gate §7-decies e di `team.id` prima di esso.
     position_id INTEGER,
+    -- PERCHE' NON HA PRESO IL VOTO, E SE E' PARTITO TITOLARE (30/09/2026). Quattro campi che il payload
+    -- porta da sempre e il parser buttava - la quarta volta dopo `goalsConceded`, `team.id` e
+    -- `positionId`. `absence_id` e `injury_id` sono id della FONTE e non si traducono qui: 1, 2 e 3 di
+    -- `absence_id` sono le tre squalifiche (somma di gialli, doppio giallo, rosso diretto), misurate sui
+    -- cartellini della partita prima (93%, 94%, rosso o squalifica gia' in corso) in
+    -- `docs/model/partite-attese-scomposte-v1.md` §1; 0 e' «nessun motivo» e si tiene com'e'.
+    -- `is_starting` e' 0 anche per chi non e' sceso in campo (lo dice la fonte, ed e' vero: non e'
+    -- partito) e NULL solo se il payload non porta `playingTimeStatistics`. `coach_id` e' l'allenatore
+    -- del SUO club in quella partita; `competition_type` e' il tipo della fonte (1 e 2 = prima e seconda
+    -- divisione, gli altri coppe e giovanili), senza il quale da questa tabella non si puo' dire quale
+    -- riga sia di campionato.
+    absence_id  INTEGER,
+    injury_id   INTEGER,
+    is_starting INTEGER,
+    coach_id    TEXT,
+    competition_type INTEGER,
     PRIMARY KEY (fc_id, tm_game_id)
 );
 

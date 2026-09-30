@@ -26,17 +26,31 @@
     }
     <div class="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted">
       <div><b class="text-fg">{{ file()!.formula }}</b> — D disponibilità (infortuni, squalifiche, altre assenze),
-        S scelto se disponibile (partite, minuti, titolare), la qualità (media voto), le coppe europee.
-        Tarata sulla stagione 2023-24 → 2024-25, giudicata su 2024-25 → 2025-26.</div>
+        S scelto se disponibile (partite, minuti, titolare), la qualità (media voto), le coppe europee; dove un dato
+        manca, la media del ruolo nel suo contesto.
+        @if (file()!.protocol) {
+          Ogni stagione è giudicata coi parametri tarati sulle altre nove.
+        } @else {
+          Tarata sulla stagione 2023-24 → 2024-25, giudicata su 2024-25 → 2025-26.
+        }</div>
+      @if (file()!.verdict; as verdict) {
+        <div class="mt-1" data-presence-verdict>Formula meglio del motore: <b class="text-fg">{{ verdictText(verdict['formula']) }}</b>
+          @if (file()!.inseason?.verdict; as inseason) {
+            · a stagione iniziata, con le giornate già giocate (K {{ file()!.inseason!.k }}): {{ verdictText(inseason) }}
+          }
+        </div>
+      }
       <div class="mt-1">Parametri: {{ params() }}</div>
-      <div>Media di S per contesto: {{ priors() }}</div>
+      <div>Media di S per ruolo e contesto: {{ priors() }}</div>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
-      <nz-radio-group nzSize="small" [ngModel]="window()" (ngModelChange)="window.set($event)">
-        <label nz-radio-button nzValue="T2" data-presence-window="T2">2025-26 (fuori campione)</label>
-        <label nz-radio-button nzValue="T1" data-presence-window="T1">2024-25 (taratura)</label>
-      </nz-radio-group>
+      <nz-select nzSize="small" class="w-44" [ngModel]="window()" (ngModelChange)="window.set($event)"
+                 data-presence-window-select>
+        @for (one of windows(); track one.key) {
+          <nz-option [nzValue]="one.key" [nzLabel]="one.sum.target + (one.sum.out_of_sample ? '' : ' (taratura)')"></nz-option>
+        }
+      </nz-select>
       <nz-radio-group nzSize="small" [ngModel]="role()" (ngModelChange)="role.set($event)">
         <label nz-radio-button [nzValue]="null">Tutti</label>
         @for (one of ['P', 'D', 'C', 'A']; track one) {
@@ -51,11 +65,17 @@
 
     <!-- THE SEASON BEFORE, game by game of his club's league (Transfermarkt): the seven columns from «Inf.» to «Tit.»
          add up to «Partite». -->
-    <div class="overflow-x-auto rounded-lg border border-border">
+    <!-- THE HEADER STAYS AT THE TOP (operator, 01/10/2026). A container that scrolls sideways takes the sticky
+         anchor away from the page (the `nzScroll` lesson of 17/08), so the container scrolls BOTH ways inside a
+         height of its own and the header sticks to it; each cell carries the page's ground, or the rows would
+         show through the names. -->
+    <div class="max-h-[calc(100vh-12rem)] min-h-64 overflow-auto rounded-lg border border-border" data-presence-scroller>
       <table class="w-full text-xs tabular-nums" data-presence-table>
-        <thead class="sticky top-0 bg-surface text-muted">
+        <thead class="sticky top-0 z-10 text-muted [&_th]:bg-surface [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]">
           <tr class="text-left">
             <th class="cursor-pointer px-2 py-1" (click)="sortBy('name')">Calciatore{{ arrow('name') }}</th>
+            <th class="px-1" nz-tooltip nzTooltipTitle="La squadra della stagione misurata">Squadra {{ seasons().prev }}</th>
+            <th class="px-1" nz-tooltip nzTooltipTitle="La squadra della stagione prevista">Squadra {{ seasons().next }}</th>
             <th class="px-1">R</th>
             <th class="px-1">Contesto</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato del suo club mentre c'era">Partite</th>
@@ -71,9 +91,15 @@
             <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Scelto se disponibile, stimato" (click)="sortBy('s')">S{{ arrow('s') }}</th>
             <th class="px-1 text-center" nz-tooltip nzTooltipTitle="Coppa europea: stagione prima → stagione prevista">Europa</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Media voto della stagione prima">MV</th>
+            <th class="cursor-pointer px-1 text-center" nz-tooltip
+                nzTooltipTitle="Gradino di titolarità ricavato dalla formula: S e i minuti della stagione misurata, senza l'undici tipo"
+                (click)="sortBy('rung')">Grad.{{ arrow('rung') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paFormula')">Pa formula{{ arrow('paFormula') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paEngine')">Pa motore{{ arrow('paEngine') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paActual')">Pa vere{{ arrow('paActual') }}</th>
+            <th class="cursor-pointer px-1 text-center" nz-tooltip
+                nzTooltipTitle="Gradino raggiunto davvero nella stagione prevista, sugli stessi due assi"
+                (click)="sortBy('rungActual')">Grad. vero{{ arrow('rungActual') }}</th>
             <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Pa formula ÷ Pa vere" (click)="sortBy('ratioFormula')">Formula %{{ arrow('ratioFormula') }}</th>
             <th class="cursor-pointer px-2 text-right" nz-tooltip nzTooltipTitle="Pa motore ÷ Pa vere" (click)="sortBy('ratioEngine')">Motore %{{ arrow('ratioEngine') }}</th>
           </tr>
@@ -82,6 +108,9 @@
           @for (row of rows(); track row.fcId) {
             <tr class="border-t border-border/60 odd:bg-fg/5" [attr.data-presence-row]="row.fcId">
               <td class="px-2 py-0.5 font-medium text-fg">{{ row.name }}</td>
+              <td class="px-1 whitespace-nowrap text-muted" data-presence-club-prev>{{ row.clubPrev ?? '—' }}</td>
+              <td class="px-1 whitespace-nowrap" [class.text-fg]="row.clubChange" [class.text-muted]="!row.clubChange"
+                  data-presence-club-next>{{ row.clubNext ?? '—' }}</td>
               <td class="px-1">{{ row.role }}</td>
               <td class="px-1 text-muted">{{ row.context }}{{ row.clubChange ? ' ⇄' : '' }}</td>
               @if (row.prev; as prev) {
@@ -101,9 +130,11 @@
               <td class="px-1 text-right">{{ pct(row.s) }}</td>
               <td class="px-1 text-center text-muted">{{ row.europeIn ? 'sì' : 'no' }} → {{ row.europeOut ? 'sì' : 'no' }}</td>
               <td class="px-1 text-right">{{ row.mv != null ? row.mv.toFixed(2) : '—' }}</td>
-              <td class="px-1 text-right font-semibold">{{ row.paFormula.toFixed(1) }}</td>
+              <td class="px-1 text-center" [class]="rungTone(row.rung)" data-presence-rung>{{ rungShort(row.rung) }}</td>
+              <td class="px-1 text-right font-bold text-fg" data-presence-pa-formula>{{ row.paFormula.toFixed(1) }}</td>
               <td class="px-1 text-right">{{ row.paEngine != null ? row.paEngine.toFixed(1) : '—' }}</td>
-              <td class="px-1 text-right font-semibold text-fg">{{ row.paActual }}</td>
+              <td class="px-1 text-right text-fg">{{ row.paActual }}</td>
+              <td class="px-1 text-center" [class]="rungTone(row.rungActual)" data-presence-rung-actual>{{ rungShort(row.rungActual) }}</td>
               <td class="px-1 text-right font-semibold" [class]="ratioInk(row.ratioFormula)">{{ ratio(row.ratioFormula) }}</td>
               <td class="px-2 text-right" [class]="ratioInk(row.ratioEngine)">{{ ratio(row.ratioEngine) }}</td>
             </tr>

@@ -87,3 +87,57 @@ def test_storing_twice_does_not_duplicate_a_match(tmp_path):
     conn.commit()
     assert conn.execute("SELECT COUNT(*) FROM tm_appearances").fetchone()[0] == 1
     assert isinstance(conn, sqlite3.Connection)
+
+
+def test_the_absence_reason_the_start_and_the_coach_are_kept_and_not_translated():
+    """Il payload li porta da sempre e il parser li buttava: `absenceId` 1-3 sono le tre squalifiche."""
+    banned = _game(statistics={"generalStatistics": {"participationState": "absent", "absenceId": 1,
+                                                     "injuryId": 0},
+                               "playingTimeStatistics": {"isStarting": False}},
+                   gameInformation={"competitionTypeId": 1},
+                   clubsInformation={"club": {"clubId": "273", "coachId": "21624"}})
+    row = performance.parse_games({"data": {"performance": [banned]}})[0]
+    assert (row["absence_id"], row["injury_id"], row["is_starting"]) == (1, 0, 0)
+    assert row["coach_id"] == "21624" and row["competition_type"] == 1
+    starter = _game(statistics={"playingTimeStatistics": {"playedMinutes": 90, "isStarting": True}})
+    assert performance.parse_games({"data": {"performance": [starter]}})[0]["is_starting"] == 1
+
+
+def test_a_start_the_payload_does_not_carry_is_unknown_and_never_a_zero():
+    game = _game(statistics={"playingTimeStatistics": {"playedMinutes": 69}})
+    row = performance.parse_games({"data": {"performance": [game]}})[0]
+    assert row["is_starting"] is None and row["coach_id"] is None
+
+
+def test_the_cache_replay_is_offline_idempotent_and_walks_the_CACHE_not_a_listone(tmp_path):
+    """`rebuild` salta la `run` (modulo NETWORK): la replica deve ricostruire la tabella da sola."""
+    import json
+
+    from euroleghe_ingest.config import Config
+    from euroleghe_ingest.context import Context
+    from euroleghe_ingest.db.database import init_db
+    cfg = Config(data_dir=tmp_path / "data", db_path=tmp_path / "data" / "euro.db")
+    cfg.cache_dir.mkdir(parents=True, exist_ok=True)
+    conn = init_db(cfg.db_path)
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (7, 'Jacquet')")
+    conn.execute("INSERT INTO player_xref(fc_id, source, source_id) VALUES (7, 'transfermarkt', '555')")
+    conn.commit()
+    (cfg.cache_dir / "transfermarkt_perf_555.json").write_text(
+        json.dumps({"data": {"performance": [_game()]}}), encoding="utf-8")
+    (cfg.cache_dir / "transfermarkt_perf_999.json").write_text("{}", encoding="utf-8")   # nessun fc_id
+    (cfg.cache_dir / "transfermarkt_perf_556.json").write_text("{not json", encoding="utf-8")
+    ctx = Context(config=cfg, conn=conn)
+    for _ in range(2):
+        counts = performance.reingest_from_cache(ctx)
+    assert conn.execute("SELECT COUNT(*) FROM tm_appearances").fetchone()[0] == 1
+    assert counts["files"] == 1 and counts["unknown"] == 2
+
+
+def test_the_rebuild_replays_the_transfermarkt_cache():
+    import inspect
+
+    from euroleghe_ingest.modules import rebuild
+    source = inspect.getsource(rebuild.run)
+    assert 'load("performance").reingest_from_cache(ctx)' in source
+    assert source.index('load("injuries").reingest_from_cache') < source.index('load("performance")'), \
+        "i tm id li paga `injuries`: la replica viene dopo"

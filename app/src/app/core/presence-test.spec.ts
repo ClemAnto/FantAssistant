@@ -1,7 +1,7 @@
 import { PresenceTestFile, PresenceTestRow, distanceOf, presenceRows, ratioOf } from './presence-test';
 
 const row = (name: string, formula: number, engine: number | null, actual: number,
-  window: 'T1' | 'T2' = 'T2', sample = true): PresenceTestRow => ({
+  window = 'T2', sample = true): PresenceTestRow => ({
   window, target: '2025-26', fcId: name.length * 7 + formula, name, role: 'C', context: 'serie A, stesso club',
   clubChange: false, europeIn: false, europeOut: false, mv: 6, prev: null, prev2: null, d: 0.9, s: 0.8,
   paFormula: formula, paEngine: engine, paActual: actual, sample,
@@ -48,5 +48,22 @@ describe('presenceRows', () => {
     const rows = presenceRows(file([{ ...row('Uno', 1, 1, 1), role: 'P' }, row('Due', 1, 1, 1, 'T2', false)]), 'T2',
       { sort: 'name', descending: false, all: true, role: 'C', query: (one) => one.name.startsWith('D') });
     expect(rows.map((one) => one.name)).toEqual(['Due']);
+  });
+
+  it('sorts a rung by the ladder, strongest first, and an unknown rung last', () => {
+    const rows = presenceRows(file([
+      { ...row('Riserva', 5, 5, 5), rung: 'riserva' },
+      { ...row('Bandiera', 30, 30, 30), rung: 'bandiera' },
+      { ...row('Ignoto', 20, 20, 20), rung: null },
+      { ...row('Ballottaggio', 20, 20, 21), rung: 'ballottaggio' },
+    ]), 'T2', { sort: 'rung', descending: false });
+    // Ascending on the rank is the ladder's own order: 0 = bandiera. Never the alphabet (BAN, BLT, RIS).
+    expect(rows.map((one) => one.name)).toEqual(['Bandiera', 'Ballottaggio', 'Riserva', 'Ignoto']);
+  });
+
+  it('reads any window of the gate, not only T1 and T2', () => {
+    const rows = presenceRows(file([row('Vecchio', 20, 20, 20, 'Tm7'), row('Nuovo', 20, 20, 20)]), 'Tm7',
+      { sort: 'name', descending: false });
+    expect(rows.map((one) => one.name)).toEqual(['Vecchio']);
   });
 });

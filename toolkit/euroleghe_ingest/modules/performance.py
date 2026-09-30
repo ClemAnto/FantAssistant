@@ -119,6 +119,15 @@ def parse_games(payload: dict | None) -> list[dict]:
             # chi legge: qui non si sa se sia «non pervenuta» o «panchina», e trasformarlo in NULL
             # deciderebbe la questione senza averla misurata.
             "position_id": general.get("positionId"),
+            # PERCHE' NON HA PRESO IL VOTO E SE E' PARTITO TITOLARE (30/09/2026), id della fonte come
+            # `position_id`. Le tre squalifiche sono `absenceId` 1-3 (vedi lo schema); il resto si
+            # interpreta dove si legge. `is_starting` resta NULL solo se il blocco manca: dove c'e' la
+            # fonte lo scrive su ogni partita, anche su chi non e' sceso in campo, e li' 0 e' vero.
+            "absence_id": general.get("absenceId"),
+            "injury_id": general.get("injuryId"),
+            "is_starting": (None if "isStarting" not in timing else 1 if timing.get("isStarting") else 0),
+            "coach_id": str(clubs.get("coachId")) if clubs.get("coachId") else None,
+            "competition_type": info.get("competitionTypeId"),
         })
     return out
 
@@ -175,11 +184,54 @@ def _store_once(conn, fc_id: int, games: list[dict]) -> int:
     conn.executemany(
         """INSERT OR REPLACE INTO tm_appearances(
                fc_id, tm_game_id, played_on, season, competition, is_national, club_id,
-               minutes, state, goals, assists, yellows, reds, position_id)
+               minutes, state, goals, assists, yellows, reds, position_id,
+               absence_id, injury_id, is_starting, coach_id, competition_type)
            VALUES (:fc_id, :tm_game_id, :played_on, :season, :competition, :is_national, :club_id,
-                   :minutes, :state, :goals, :assists, :yellows, :reds, :position_id)""",
+                   :minutes, :state, :goals, :assists, :yellows, :reds, :position_id,
+                   :absence_id, :injury_id, :is_starting, :coach_id, :competition_type)""",
         [{**game, "fc_id": fc_id} for game in games])
     return len(games)
+
+
+def reingest_from_cache(ctx: Context) -> dict[str, int]:
+    """Rilegge OFFLINE ogni payload in cache (il percorso di `rebuild`, e di `performance --from-cache`).
+
+    Non esisteva, ed era la terza replica mancante del progetto dopo `recent_form` e le probabili: il
+    modulo e' NETWORK, quindi `rebuild` ne salta la `run`, e la sola strada offline era `run` senza
+    `--refresh` - che pero' cammina solo i quotati del listone chiesto, mentre la cache tiene chi e'
+    stato chiesto in qualunque stagione. Qui si cammina la CACHE, non il listone: ogni file il cui
+    `tm_id` ha un `fc_id` in `player_xref`. Un file illeggibile si salta e si conta, non ferma niente.
+    Un `tm_id` con piu' `fc_id` (un'identita' doppia) scrive su tutti e due: e' il fatto della fonte,
+    e decidere quale dei due sia quello giusto non e' compito di questo modulo.
+    """
+    conn = ctx.require_conn()
+    owners: dict[str, list[int]] = {}
+    for fc_id, tm_id in conn.execute(
+            "SELECT fc_id, source_id FROM player_xref WHERE source = 'transfermarkt' AND source_id IS NOT NULL"):
+        owners.setdefault(str(tm_id), []).append(int(fc_id))
+    counts = {"files": 0, "players": 0, "games": 0, "unreadable": 0, "unknown": 0}
+    files = sorted(ctx.config.cache_dir.glob("transfermarkt_perf_*.json"))
+    for path in files:
+        tm_id = path.stem.removeprefix("transfermarkt_perf_")
+        people = owners.get(tm_id)
+        if not people:
+            counts["unknown"] += 1
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            counts["unreadable"] += 1
+            continue
+        counts["files"] += 1
+        games = parse_games(payload)
+        for fc_id in people:
+            if games:
+                counts["players"] += 1
+                counts["games"] += store(conn, fc_id, games)
+        conn.commit()
+    print(f"[performance] dalla cache: {counts['files']} file · {counts['players']} giocatori · "
+          f"{counts['games']} partite · {counts['unknown']} senza fc_id · {counts['unreadable']} illeggibili")
+    return counts
 
 
 # OGNI 25 come `injuries` e `market`, e nello stesso formato di `ctx.progress`: il pannello Tk legge

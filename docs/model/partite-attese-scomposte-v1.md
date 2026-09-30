@@ -75,9 +75,57 @@ export più recente; `app/scripts/pull-bundle.mjs` lo copia; la pagina **/why �
 uomo e finestra: la stagione prima nelle sette voci, D, S, Europa, MV, Pa formula, Pa motore, Pa vere, i due errori e
 il guadagno). L'app non ricalcola niente: sottrae due numeri del file. Banco: `app/scripts/e2e-why-presence.mjs`.
 
-## 5. Aperti
+## 5. v2 (01/10/2026): i quattro aperti, misurati
 
-1. Il parser salvi `absenceId`, `isStarting` e l'allenatore (rilettura offline della cache, nessuna richiesta).
-2. Una retta per i portieri; la quota di chi a gennaio cambia campionato; la qualità misurata meglio di MV.
-3. Più finestre (2022-23 → 2023-24 per tarare, poi due giudici) prima di qualunque verdetto.
-4. La miscela con le giornate già giocate della stagione in corso (il ruolo di R20 nel motore), per l'asta di oggi.
+**Il parser.** `tm_appearances` porta ora `absence_id`, `injury_id`, `is_starting`, `coach_id` e
+`competition_type` (migrazione additiva). La cache si rilegge tutta offline con `performance --from-cache` (3.571
+file, 2.099.012 partite, 1'47"), e **`rebuild` la richiama**: prima non la richiamava nessuno, quindi una
+ricostruzione lasciava vuota l'intera tabella - la terza replica mancante dopo `recent_form` e le probabili. Il
+banco legge dal DB e non più dai file; la prova che è lo stesso fatto è che **riproduce v1 al millesimo** (fit T1:
+8,637 / 8,243 su T1 e 8,179 / 8,016 su T2).
+
+**Più stagioni.** Le dieci finestre del gate (Tm7 → T2), ognuna giudicata coi parametri tarati sulle altre nove.
+La copertura di Transfermarkt è del 79-94% degli uomini per finestra. **La formula perde contro il motore su tutte
+e dieci: −4,8% medio, peggiore −9,7%** (T2 −0,05%, cioè pari; T0 −1,0%). Nessun parametro sta sul bordo della sua
+griglia (kD 40-80, w2 0,5-0,75, kS 10-20, q 0,3-0,5, b 0,1-0,15, c 0,95-1,0): la forma è identificata, e perde.
+
+**Le medie per ruolo** (regola dell'operatore, 01/10/2026: «quando nei calcoli mancano dei dati utilizziamo sempre
+le medie per ruolo in quell'ambito»). Ogni ripiego - la disponibilità verso cui si tira un campione corto, la
+probabilità di essere scelto, la quota di chi non ha stagioni, la media voto di chi non ne ha - è la media del suo
+ruolo nel suo contesto, con la catena ruolo×contesto → contesto → tutti sotto `CELL_MIN` = 10 uomini. Contro le
+medie per solo contesto di v1: **7 finestre su 10 migliori, +0,35%** - piccolo, nella direzione giusta, adottato
+perché è una dichiarazione e non per il banco.
+
+**I portieri.** La retta loro (la forma di R7, con le stesse funzioni `fit_linear` + `linear_share`) è
+**respinta: peggio del prodotto su 10 finestre su 10 (−12,9%)**. Il prodotto con le medie di ruolo, tarato su nove
+finestre invece che su una, **batte R7 del motore sui portieri in 7 su 10** (+2,9%, peggiore −7,8%): la perdita
+di v1 sui portieri (8,72 contro 7,81) era la taratura su una stagione sola.
+
+**La miscela con le giornate giocate.** Sulle quattordici finestre in-season del gate (5 settembre e 5 febbraio,
+2019-20 → 2025-26) il prior della formula - tarato sulle finestre pre-stagione la cui stagione bersaglio NON è
+quella, o avrebbe letto l'esito - è miscelato con la funzione del motore (`model.blend_with_seen`) al K del motore
+(R20K10). La miscela conta moltissimo (a febbraio 4,3 → 3,2 partite di errore) ed è comunque **peggio del motore in
+10 finestre su 14, −1,7% medio**, meglio a settembre 2021 e 2025.
+
+**Verdetto del banco: la scomposizione non batte il motore in nessuna forma misurata**, pre-stagione o a stagione
+iniziata. Le due cose che regge meglio restano quelle di v1 (chi cambia club a stagione in corso, chi non ha
+storia) e i portieri; la pagina le mostra riga per riga.
+
+**La pagina** (stessa sera, richieste dell'operatore): la squadra della stagione misurata e di quella prevista (il
+club della rosa del gate, poi quello con più partite nel livello per-partita, poi quello da cui lo porta un
+trasferimento: 1.362 righe su 5.861 restano senza, perché nessuna fonte ci dice il club - chi non ha stagioni su
+file e i campionati minori prima del 2023); l'intestazione fissa (il contenitore scorre nei due assi dentro
+un'altezza sua, perché uno che scorre in orizzontale si porta via l'ancora dello sticky); il Pa della formula in
+grassetto; il selettore su tutte e dieci le stagioni; e **il gradino di titolarità ricavato**, calcolato nel
+toolkit con `engine/status.py` sulla S della formula e sui minuti della stagione misurata, accanto al gradino
+raggiunto davvero. Il gradino ricavato non ha il cancello dell'undici tipo (una finestra passata non ha una board
+disegnata) e lo dice; ed è più stretto del vero per costruzione (S è una previsione regredita: su T2 274 `panchina`
+contro 158 veri, 30 `bandiera` contro 95), come ogni previsione è più stretta degli esiti.
+
+## 6. Aperti
+
+1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
+2. I minuti del gradino ricavato sono quelli della stagione misurata, non una previsione (`minutes.per_appearance`
+   vuole le colonne del foglio): se il gradino diventa una lettura da usare, va rifatto sui minuti previsti.
+3. Se una parte della scomposizione deve entrare nel motore, la strada è il gate con una regola pre-registrata sulla
+   popolazione dove regge (chi cambia club a stagione in corso, i portieri), non la formula intera.

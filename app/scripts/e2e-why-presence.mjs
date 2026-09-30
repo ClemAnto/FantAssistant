@@ -41,6 +41,8 @@ const value = (name, fallback) => {
   return at >= 0 && argv[at + 1] ? argv[at + 1] : fallback;
 };
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
+// The rung's three letters as the app draws them (`core/titolarita.ts`, TITOLARITA_SHORT).
+const SHORT = { bandiera: 'BAN', titolarissimo: 'TIS', titolare: 'TIT', ballottaggio: 'BLT', panchina: 'PAN', riserva: 'RIS' };
 
 function freePort() {
   return new Promise((done) => {
@@ -272,15 +274,28 @@ async function main() {
     }, 80);
     if (!first) throw new Error('la sezione «Partite attese» non disegna la tabella');
 
+    // v2 (01/10/2026): every window of the gate, each out of sample. The newest opens; the one before is picked
+    // from the select the way a hand would, which is also how the club headers are checked to follow the season.
+    // Not the oldest: nz-select renders its list VIRTUALLY, so the tenth option is not in the DOM until scrolled.
     for (const window of ['T2', 'T1']) {
-      if (window === 'T1') {
-        await clickSteady(session, '[data-presence-window="T1"]', '');
-        await wait(500);
+      if (window !== 'T2') {
+        if (!await clickSteady(session, '[data-presence-window-select]', '')) throw new Error("il selettore della stagione non c'è");
+        await wait(400);
+        if (!await clickSteady(session, '.ant-select-item-option', file.summary[window].target)) {
+          throw new Error(`la stagione ${file.summary[window].target} non è fra le voci del selettore`);
+        }
+        await wait(600);
       }
       const seen = await evaluate(session, readTable);
       const expected = file.rows.filter((row) => row.window === window && row.sample);
       const byId = new Map(expected.map((row) => [row.fcId, row]));
       const at = (name) => seen.heads.indexOf(name);
+      // The club headers are named after the seasons: «Squadra 24-25» and «Squadra 25-26» for a 2025-26 target.
+      const start = Number(file.summary[window].target.slice(0, 4));
+      const short = (year) => `${String(year).slice(2)}-${String(year + 1).slice(2)}`;
+      const clubPrevHead = `Squadra ${short(start - 1)}`;
+      const clubNextHead = `Squadra ${short(start)}`;
+      if (at(clubPrevHead) < 0 || at(clubNextHead) < 0) throw new Error(`intestazioni delle squadre assenti: ${seen.heads.join(' | ')}`);
       const bad = [];
       if (seen.rows.length !== expected.length) bad.push(`${seen.rows.length} righe a schermo contro ${expected.length} nel file`);
       const sum = file.summary[window];
@@ -303,10 +318,38 @@ async function main() {
         const shown = row.cells[at('Formula %') - (row.span ? 8 : 0)];
         const want = truth.paActual > 0 ? `${Math.round((truth.paFormula / truth.paActual) * 100)}%` : '—';
         if (shown !== want) bad.push(`${truth.name}: Formula % «${shown}» contro ${want}`);
+        // The two clubs and the two rungs are the file's (the toolkit derives the rung with `engine/status.py`).
+        const text = (name) => row.cells[at(name) - (row.span && at(name) > at('Min') ? 8 : 0)];
+        if (text(clubPrevHead) !== (truth.clubPrev ?? '—')) bad.push(`${truth.name}: squadra prima «${text(clubPrevHead)}» contro ${truth.clubPrev}`);
+        if (text(clubNextHead) !== (truth.clubNext ?? '—')) bad.push(`${truth.name}: squadra dopo «${text(clubNextHead)}» contro ${truth.clubNext}`);
+        if (text('Grad.') !== (SHORT[truth.rung] ?? '—')) bad.push(`${truth.name}: gradino «${text('Grad.')}» contro ${truth.rung}`);
+        if (text('Grad. vero') !== (SHORT[truth.rungActual] ?? '—')) bad.push(`${truth.name}: gradino vero «${text('Grad. vero')}» contro ${truth.rungActual}`);
         checked += 1;
       }
       note(`tabella ${window}`, `${seen.rows.length} righe, ${checked} confrontate col file; riepilogo «${seen.summary.slice(0, 140)}»`, bad);
     }
+
+    // THE HEADER STAYS AT THE TOP and «Pa formula» is bold (operator, 01/10/2026): the table's own scroller is
+    // moved down and the header must still sit on its top edge, with an opaque ground under it.
+    const sticky = await evaluate(session, () => {
+      const scroller = document.querySelector('[data-presence-scroller]');
+      const head = scroller?.querySelector('thead th');
+      const bold = document.querySelector('[data-presence-pa-formula]');
+      if (!scroller || !head || !bold) return null;
+      scroller.scrollTop = 600;
+      const drift = Math.abs(head.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
+      const ground = getComputedStyle(head).backgroundColor;
+      return { scrolled: scroller.scrollTop, drift, ground, weight: Number(getComputedStyle(bold).fontWeight) };
+    });
+    const stickyBad = [];
+    if (!sticky) stickyBad.push("manca il contenitore, l'intestazione o la cella del Pa formula");
+    else {
+      if (!sticky.scrolled) stickyBad.push('la tabella non scorre dentro il suo contenitore');
+      if (sticky.drift > 1.5) stickyBad.push(`l'intestazione si stacca dal bordo di ${sticky.drift.toFixed(1)}px`);
+      if (/rgba\(0, 0, 0, 0\)|transparent/.test(sticky.ground)) stickyBad.push("l'intestazione ha un fondo trasparente");
+      if (sticky.weight < 700) stickyBad.push(`Pa formula ha peso ${sticky.weight}, non grassetto`);
+    }
+    note('intestazione fissa', sticky ? `scorsa di ${sticky.scrolled}px, scarto ${sticky.drift.toFixed(1)}px, peso Pa ${sticky.weight}` : 'niente', stickyBad);
 
     const shot = argv.indexOf('--shot');
     if (shot >= 0 && argv[shot + 1]) {

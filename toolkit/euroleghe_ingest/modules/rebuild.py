@@ -73,6 +73,10 @@ def run(ctx: Context, *, include_network: bool = False, **kwargs) -> None:
     load("transfers").reingest_from_cache(ctx)           # clubs, coaches (new_coach), transfers
     load("injuries").reingest_from_cache(ctx)            # tm ids, dated absences, contract snapshot
     load("market").reingest_from_cache(ctx)              # la curva del valore (dopo: usa i tm id)
+    # LE PARTITE DI TRANSFERMARKT (30/09/2026): modulo NETWORK come `recent_form`, e come lui senza una
+    # replica chiamata da nessuno - un `rebuild` lasciava vuota `tm_appearances` (2M di righe, da cui
+    # vengono le posizioni storiche, le squalifiche e la stagione estera). Dopo `injuries`, che paga i tm id.
+    load("performance").reingest_from_cache(ctx)         # partite, minuti, assenze e titolari, offline
     load("elo").reingest_from_cache(ctx)                 # club strength at the auction dates
     # IL CALCIO GIOCATO ALTROVE da chi qui non ha storia. Modulo NETWORK, quindi la sua `run` la
     # rebuild la salta - e per tre settimane nessuno ha chiamato la sua replica offline, che pure

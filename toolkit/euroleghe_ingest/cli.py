@@ -258,6 +258,9 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("--refresh", action="store_true",
                            help="ri-scarica chi e' gia' in cache: la serie CRESCE a ogni giornata, "
                                 "quindi un file di ieri e' corto e non sbagliato")
+            p.add_argument("--from-cache", dest="from_cache", action="store_true",
+                           help="OFFLINE: rilegge TUTTA la cache (non solo i quotati di un listone), "
+                                "zero richieste - la replica che `rebuild` chiama")
         if name == "market":
             p.add_argument("--limit", type=int, metavar="N",
                            help="only the N most valuable quoted players - which is how a pilot run "
@@ -519,8 +522,11 @@ def main(argv: list[str] | None = None) -> int:
                                      limit=args.limit, refresh=args.refresh,
                                      stale_days=args.stale_days)
             elif args.command == "performance":
-                load("performance").run(ctx, seasons=args.season, limit=args.limit,
-                                        refresh=args.refresh)
+                if args.from_cache:
+                    load("performance").reingest_from_cache(ctx)
+                else:
+                    load("performance").run(ctx, seasons=args.season, limit=args.limit,
+                                            refresh=args.refresh)
             elif args.command == "market":
                 if args.from_cache:
                     load("market").reingest_from_cache(ctx)
