@@ -210,3 +210,17 @@ sulle giornate viste e lo stop aperto. `e2e-why-presence` verifica tutto, compre
 6. Settembre: la durata attesa di uno stop già aperto. Per le stagioni future esiste (la data di rientro della
    pagina indisponibili, `availability.return_date`, e Transfermarkt finché lo stop è aperto); per giudicarla serve
    archiviarla col giorno in cui la si legge.
+7. **Settembre al gate.** È il solo punto in cui la formula batte il motore su tutte le finestre (7 su 7, +3,75%,
+   strict), ed è il momento dell'asta dell'operatore: la strada è pre-registrarla come regola del motore sulle
+   finestre in-season «set» (prior della scomposizione + miscela R20 + stop aperto), contro il set adottato.
+8. **EuroLeghe.** Il banco gira solo su `default`/classic: la piattaforma della sua lega mantra non è misurata.
+9. **Le contaminazioni di luglio, dette e non misurate.** A luglio la formula legge il club della stagione prevista
+   dalla prima partita di quella stagione (`first`), quindi conosce anche chi è stato venduto il 31 agosto; il
+   motore legge il listone bersaglio, che è l'ultima lettura. Tutte e due in favore del modello: il numero di luglio
+   è un tetto, non una stima.
+10. **I terzi portieri.** La classe «riserva» (media 0,22) resta alta per chi l'anno prima non ha giocato mai:
+    Christensen 12,9 contro 1, Contini 2,6. Una terza classe (zero presenze) è la prova da fare.
+11. **Le amichevoli** non sono giudicabili: in archivio ci sono per 39 club nel 2024-25, 46 nel 2025-26 e 179 nel
+    2026-27. La prima stagione su cui misurarle è l'estate 2027.
+12. **La squadra della stagione misurata** manca su 1.362 righe di 5.861 (chi non ha stagioni su file e i
+    campionati minori prima del 2023): solo visualizzazione, nessun numero ne dipende.
