@@ -433,6 +433,18 @@ lo mette in campo (`in_eleven`) e il gradino del foglio a quella data (`status`,
 l'errore medio non peggiora in media. **Evidenza debole e detta**: due stagioni sole, e i pacchetti sono stati costruiti
 col codice di oggi, tarato anche su quelle stagioni; un sì qui è un segno, e la prova è il 2026-27.
 
+**L'esito di M5a e M5b** (`m5_board.py`): nessuna passa. M5a abbassa l'errore medio del 12-18% (7,54 → 6,60 · 7,19 → 5,87)
+e fa SCENDERE la quota in tutte e due le stagioni (57,4 → 50,5 · 53,8 → 52,0), perché il suo fattore (la mediana
+vero/previsto) è tarato sull'errore e abbassa anche il caso tipico; M5b sale nel 2024-25 (60,0) e scende nel 2025-26 (50,7).
+**La diagnosi trova un terzo segnale**: chi la board del 5 settembre NON CONOSCE PIÙ (quotato dal listone, assente dal
+foglio di quel giorno: ceduto o fuori rosa) - 16 e 19 uomini, formula 22,2 e 24,8 presenze, vere 5,8 e 5,9.
+
+**PRE-REGISTRAZIONE (01/10/2026, stesso giorno, e nata da quei numeri - quindi evidenza ancora più debole):**
+* **M5c** - chi la board non conosce più: la sua Pa × il rapporto mediano vero/previsto del suo gruppo nell'altra
+  stagione; gli altri invariati.
+* **M5d** - M5a con i fattori scelti per massimizzare la quota entro l'80-125% sull'altra stagione (griglia 0,5-1,2).
+Stesso criterio di M5.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
