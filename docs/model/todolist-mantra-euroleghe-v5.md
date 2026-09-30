@@ -2631,3 +2631,20 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
 - **Il modulo più fertile su una rosa vuota**: a inizio draft tutti i moduli leggono fertilità 0 e vince la
   copertura, poi l'ordine del regolamento — da confermare che «Auto (fertilità)» vada bene anche lì.
 - **Push e pubblicazione**: niente di questa sessione è pushato né sul sito.
+
+## Aperti dopo la sessione del 30/09/2026 (XI) — R31, la carriera di chi ha una stagione corta
+
+R31 adottata su euro (gate §7-quattuorsexagies, `SHEET_REVISION` 79). Restano:
+
+- **`_naive_added` misura «il banale» sulla popolazione sbagliata**: l'ancora su TUTTI i non prezzati della
+  finestra, non sui soli uomini che la regola di copertura aggiunge (T1 euro classic: 0,333 contro 0,420
+  sugli stessi 47 uomini). Vale per ogni regola di copertura (R1, R1b, R13, R13b, R13c, R31). Curarlo è un
+  cambio di CRITERIO: va misurato prima quanti verdetti già pubblicati sposta (la forma del 06/08:
+  «0 verdetti di 120 cambiano»), e non si usa per rileggere R31.
+- **Serie A**: R31 fallisce il criterio di copertura (T1/T2 oltre +30% dell'errore del baseline). Lì questi
+  uomini li prezza la cascata `est_*`; se la cascata abbia lo stesso buco (una stagione corta che
+  nasconde la carriera) non è stato misurato.
+- **I pacchetti del viaggio nel tempo** restano alla revisione di prima finché `timepack` non li rifà.
+- **`test_smoke::test_league_setup_has_usable_defaults_and_derives_the_mantra_slots` è ROSSO anche su
+  HEAD** (verificato in un worktree): legge i posti mantra dalla `league_config.json` vera (por 2, dc 3,
+  c 5) invece che dal ripiego. Probabilmente dal cambio a 2 porte + 30 del 28/09 (`0b0178d`). Non toccato.

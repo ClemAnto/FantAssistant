@@ -7317,3 +7317,47 @@ non ha mai visto queste righe perché su euro l'ancora le copre e su `default` s
 ### Sicurezza, da verificare dopo
 
 Finché R31 non è in `ADOPTED`, `backtest --verify` resta **22/22** e nessun foglio si muove.
+
+### 7-quattuorsexagies (bis). L'ESITO: R31 PASSA su EuroLeghe, 5 finestre su 5, e NON su Serie A
+
+**Corsa fatta** subito dopo la pre-registrazione (`0aa458c`), sul DB vivo in sola lettura, con la `compare`
+del gate ristretta a R31/R31b più il confronto appaiato contro il set adottato che la pre-registrazione
+dichiarava decisivo su euro. Driver: `scratchpad/gate_r31.py`. `backtest --verify` **22/22** prima e dopo
+l'adozione.
+
+#### euro — contro il SET ADOTTATO (il criterio pre-registrato), sugli uomini che R31 muove
+
+| | Tm4 | Tm3 | T0 | T1 | T2 | media | nomi · valore catturato |
+|---|---|---|---|---|---|---|---|
+| **classic** (MAE ancora → R31) | 0,452 → 0,401 | 0,446 → 0,359 | 0,390 → 0,316 | 0,420 → 0,355 | 0,375 → 0,326 | **+15,7%** | identici |
+| **mantra** | 0,421 → 0,392 | 0,383 → 0,343 | 0,348 → 0,299 | 0,421 → 0,368 | 0,369 → 0,330 | **+10,9%** | identici |
+| uomini mossi | 37 | 29 | 39 | 47 | 49 | | |
+
+**5 finestre su 5 su tutt'e due i giochi**, nessuna peggiore, deliverable fermo: supera il criterio
+robusto E quello strict. λ fittato 0,48-0,87 su classic e 0,45-0,60 su mantra: **l'attesa (0,5-0,8)
+regge**; il guadagno (3-8% atteso) esce il doppio, perché l'ancora su questa popolazione sbaglia più di
+quanto pensassi (0,38-0,45, contro 0,36 del baseline su tutti). **R31b non batte R31** (+14,4% e +9,4%) e
+il suo λ₁ si fitta a ~0,01 su tre finestre di cinque: tredici voti non aggiungono niente alla carriera.
+
+#### default — il criterio di copertura, e FALLISCE
+
+`coverage_up` sì, `added_sane` **no**: su T1 e T2 l'errore degli aggiunti (0,388 · 0,450) supera di oltre
+il 30% quello del baseline (0,292 · 0,286). Su Serie A R0c non è adottata e questi uomini restano fuori
+dal dominio del motore (li prezza la cascata `est_*`). Non adottata lì.
+
+#### Un difetto del METRO trovato strada facendo, scritto e non curato
+
+Il verdetto di copertura legge `beats_naive = False` anche su euro. La ragione non è la regola:
+`_naive_added` misura l'ancora su **tutti** i non prezzati della finestra, non sui soli uomini che la
+regola aggiunge, come il suo docstring promette. Sulla stessa finestra T1 classic «il banale» legge
+0,333, mentre sugli stessi 47 uomini che R31 aggiunge l'ancora sbaglia di **0,420**. È una differenza di
+POPOLAZIONE nel metro, e vale per ogni regola di copertura (R1, R13, …). **Non è curato qui**, per la
+regola di casa: un criterio non si corregge perché una regola ci è caduta, e la verifica che la cura non
+sposti i verdetti già pubblicati è un lavoro suo. L'adozione di R31 poggia sul criterio pre-registrato
+per euro (l'appaiato contro l'adottato), che non passa da quel metro.
+
+#### Decisione
+
+**R31 in `ADOPTED["euro"]`** dal 30/09/2026, `SHEET_REVISION` 79. Sul foglio EuroLeghe muove chi R0c
+prezzava all'ancora pur avendo due stagioni piene; il caso da cui è nata, Gvardiol, passa da 6,062 (l'ancora
+dei Dc) a circa 6,4.

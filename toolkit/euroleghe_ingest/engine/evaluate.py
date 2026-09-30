@@ -72,6 +72,15 @@ RULES: tuple[Rule, ...] = (
     Rule("R2", "beta corroborated by per-90 propensity (xG/xA per 90)", True),
     # R29/R30 - pre-registrate §7-tresexagies (27/09/2026): xG e xA come FORTUNA da togliere alla
     # fantamedia, non come volume (che e' R2). R29 sulla stagione scorsa, R30 sulle giornate viste.
+    # R31/R31b - pre-registrate §7-quattuorsexagies (30/09/2026): una stagione CORTA non cancella la
+    # carriera. Dove B0 non prevede (meno di 15 voti a t-1, o nessuna riga) ma ci sono almeno due stagioni
+    # piene nelle ultime cinque, la fantamedia e' la media di quelle (quella di R18) regredita verso
+    # l'ancora, invece dell'ancora nuda di R0c. Copertura: agisce solo dove il motore non ha altro.
+    Rule("R31", "a short season does not erase a career: the five-year mean of FULL seasons, shrunk "
+                "toward the anchor, where the core has no last season to read", True, metric="fm",
+         kind="coverage"),
+    Rule("R31b", "R31 with the short season itself as a second term", True, metric="fm",
+         kind="coverage"),
     Rule("R29", "la fortuna della stagione scorsa - 3·(xG-gol)+(xA-assist) per presenza - si toglie "
                 "dalla fantamedia attesa, con la quota lambda fittata", True, metric="fm"),
     *(Rule(key, f"come R25 (K = {matches:.0f} partite), con la fantamedia vista DEPURATA dalla fortuna "
@@ -296,7 +305,9 @@ CANDIDATES: tuple[str, ...] = ("R0c", "R1", "R1b", "R2", "R3", "R3c", "R4", "R4b
                                *R26_ROUNDS,
                                # R29/R30: pre-registrate §7-tresexagies (27/09/2026). R29 misura solo
                                # dove la stagione di input ha gli attesi (T0-T2), R30 solo in-season.
-                               "R29", *R30_MATCHES)
+                               "R29", *R30_MATCHES,
+                               # R31: pre-registrate §7-quattuorsexagies (30/09/2026).
+                               "R31", "R31b")
 
 # R18b - R18 with the history weighted for RECENCY, pre-registered on 10/08/2026 with this grid and no
 # other. One candidate name per decay so the report states the whole grid instead of a chosen value, and
@@ -464,7 +475,18 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # R22 NON è adottata, e non per un pelo: su euro è robusta e PEGGIORA proprio chi cambia squadra
     # (-2,93%, 3/5, peggiore finestra -15,5%), che è la popolazione per cui era stata scritta; su Serie A
     # ha una finestra a -3,97%, fuori dalla tolleranza del 2%. Dettagli in gate §7-noviestricies.
-    "euro": ("R0c", "R3c", "R18", "R20K6", "R23"),
+    # R31 adottata il 30/09/2026 su EURO col criterio pre-registrato (§7-quattuorsexagies): contro il set
+    # adottato, sugli uomini che muove (quelli che R0c prezzava all'ancora pur avendo una carriera), 5
+    # finestre su 5 su tutt'e due i giochi - classic +15,7% di MAE sulla fantamedia (29-49 uomini a
+    # finestra), mantra +10,9% - con nomi e valore catturato delle liste IDENTICI. Il caso da cui nasce e'
+    # Gvardiol (13 voti a t-1, due stagioni piene prima: 6,062 = l'ancora dei Dc). R31b, con la stagione
+    # corta come secondo termine, non la batte (+14,4% e +9,4%, λ₁ ≈ 0). NON su `default`: li' R0c non e'
+    # adottata e il criterio era quello di copertura, che fallisce (errore degli aggiunti oltre +30% del
+    # baseline su T1/T2). Il verdetto di copertura del gate legge «non batte il banale» anche su euro, e
+    # la ragione e' una differenza di POPOLAZIONE nel suo metro, non nella regola: `_naive_added` misura
+    # l'ancora su TUTTI i non prezzati (T1 classic 0,333), mentre sugli stessi 47 uomini che R31 aggiunge
+    # l'ancora sbaglia di 0,420 e R31 di 0,355. Scritto e non curato qui (§7-quattuorsexagies bis).
+    "euro": ("R0c", "R3c", "R18", "R20K6", "R23", "R31"),
     # R19 is the FIRST rule here adopted on the ROBUST verdict alone, and it is written down as such.
     # Decision taken in the open on 06/08/2026, which is what the protocol asks for when the two verdicts
     # disagree. What it rests on: 9 of the 10 Serie A windows improve (the tenth costs 1.5%, inside the 2%
@@ -865,6 +887,8 @@ class Params:
     history_lam_b_gk: dict[str, tuple[float, ...]] = field(default_factory=dict)   # R18b, keepers
     history_lam_c: dict[str, float] = field(default_factory=dict)                  # R18c, one strength
     history_lam_c_gk: dict[str, float] = field(default_factory=dict)               # R18c, keepers
+    career_lam: float | None = None               # R31: the career, where last season is short
+    career_lam_b: tuple[float, ...] | None = None  # R31b: the short season AND the career
     history_lam_gk: tuple[float, ...] | None = None  # R18-GK: the same, on the keeper's Mv: last season AND the five-year mean, together
     off_role_forward: float | None = None         # R8: used further forward than listed
     off_role_backward: float | None = None        # R8: used further back than listed
@@ -1225,6 +1249,27 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
         params.history_lam_gk = fitted_gk if fitted_gk else None
         params.notes["R18_gk_n"] = len(gk_pairs)
 
+    if "R31" in rules or "R31b" in rules:
+        # R31's OWN population - a man the core cannot price and who has a career - and not R18's, whose
+        # lambdas are fitted on men with a full last season (§7-quattuorsexagies).
+        single, double = [], []
+        for obs in data.observations:
+            anchor = _anchor_for(obs, data)
+            if (not _career_applies(obs, anchor) or obs.fm_act is None
+                    or (obs.pv_act or 0) < MIN_PV_ACT):
+                continue
+            single.append(((obs.fm_5y - anchor,), obs.fm_act - anchor))
+            short = (obs.fm_prev - anchor) if obs.fm_prev is not None else 0.0
+            double.append(((short, obs.fm_5y - anchor), obs.fm_act - anchor))
+        if "R31" in rules:
+            fitted = fit_linear(single, intercept=False)
+            params.career_lam = fitted[0] if fitted else None
+            params.notes["R31_n"] = len(single)
+        if "R31b" in rules:
+            fitted = fit_linear(double, intercept=False)
+            params.career_lam_b = fitted if fitted else None
+            params.notes["R31b_n"] = len(double)
+
     for name, decay in R18B_DECAYS.items():
         if name not in rules:
             continue
@@ -1469,6 +1514,14 @@ def fit_params(data: features.WindowData, rules: tuple[str, ...]) -> Params:
     return params
 
 
+def _career_applies(obs: features.Observation, anchor: float | None) -> bool:
+    """R31's population: an outfield man the core cannot price (`_baseline` refuses under MIN_PV_PREV)
+    who has at least two FULL seasons among the last five (`fm_5y`, the same mean R18 reads)."""
+    return (anchor is not None and not _is_goalkeeper(obs)
+            and (obs.mv_prev is None or (obs.pv_prev or 0) < model.MIN_PV_PREV)
+            and obs.fm_5y is not None and obs.fm_5y_seasons >= 2)
+
+
 def _anchor_for(obs: features.Observation, data: features.WindowData) -> float | None:
     if data.game == "classic":
         return data.anchors.get(obs.role_classic or "")
@@ -1547,6 +1600,17 @@ def _rule_fm(obs: features.Observation, data: features.WindowData, rules: tuple[
                 and obs.fm_prev is not None and obs.fm_5y is not None):
             fm_pred = model.predict_fm_weighted_history(anchor, obs.fm_prev, obs.fm_5y,
                                                         params.history_lam_c[name], weight)
+
+    # R31 / R31b - a short or missing last season does not erase a career: where the core has nothing and
+    # there are two full seasons among the last five, the career shrunk toward the anchor. Before R1/R13
+    # and R0c, because a measured career in these championships is the strongest evidence left.
+    if fm_pred is None and _career_applies(obs, anchor):
+        if "R31b" in rules and params.career_lam_b is not None:
+            short = (obs.fm_prev - anchor) if obs.fm_prev is not None else 0.0
+            fm_pred = (anchor + params.career_lam_b[0] * short
+                       + params.career_lam_b[1] * (obs.fm_5y - anchor))
+        elif "R31" in rules and params.career_lam is not None:
+            fm_pred = anchor + params.career_lam * (obs.fm_5y - anchor)
 
     # R1a - the player the engine cannot see at all: price him off the foreign FM-equivalent.
     # NOT for goalkeepers: `arrivals.foreign_fm_equiv` adds goal/assist bonuses to the base voto and

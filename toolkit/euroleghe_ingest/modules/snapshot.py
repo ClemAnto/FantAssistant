@@ -923,7 +923,11 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      eta' mediana <= 18). Chiesta dall'operatore per chi la piattaforma non ha votato: Tzolis (BE1, 26
 #      presenze), Ortega J. (E4G5, 27). Nessun voto, perche' la fonte non ne porta. Reporting puro: il
 #      prior della rev 77 non cambia (stessa funzione, parametri di default), `engine_*` fermo.
-SHEET_REVISION = 78
+#   79 (30/09/2026) - R31 ADOTTATA SU EURO (gate §7-quattuorsexagies): una stagione CORTA non cancella la
+#      carriera. Chi a t-1 ha meno di 15 voti ma due stagioni piene nelle ultime cinque prende la media di
+#      quelle regredita verso l'ancora, invece dell'ancora nuda di R0c. Muove `engine_fm_pred` (e con lei
+#      surplus, valore, est_*) del solo foglio euro. Gvardiol 6,062 -> ~6,4. `default` fermo.
+SHEET_REVISION = 79
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the

@@ -7919,3 +7919,17 @@ the deploy script, which did its six steps correctly.
   rebuild. Nothing broke — the bump is committed and it describes the site that is live — but it is
   attributed to a commit that does not mention it, so «which commit published v0.1.26» is a question the
   history answers with a plancia feature.
+
+## Una stagione CORTA non cancella la carriera (R31, euro)
+**30/09/2026, dal caso Gvardiol sul Draft Assistant (DP −11 per «un difensore TOP»).** La DP non c'entrava:
+il motore gli dava 6,062, l'ancora dei Dc al millesimo, perché con 13 voti a t-1 il nucleo rifiuta la
+previsione, R18 scatta solo dove il nucleo ha previsto e resta R0c. Due stagioni piene a 6,6-6,7
+sparivano: **245 righe su 952** del foglio euro erano all'ancora pur avendo una stagione misurata. R31 (gate
+§7-quattuorsexagies, pre-registrata e committata prima della corsa) mette la media delle stagioni piene
+regredita verso l'ancora: contro il set adottato **5 finestre su 5** su classic (+15,7%) e mantra (+10,9%),
+deliverable identico; su `default` fallisce il criterio di copertura e non è adottata. Due cose che
+restano. **Il λ fittato sulla sua popolazione (~0,48) non è quello di R18**, e la mia stima iniziale lo
+aveva preso in prestito: Gvardiol esce 6,215 e non ~6,44, quindi la cura toglie il difetto e non basta a
+farne un top-3 — il resto è una domanda sulla DP e sulla regressione, non un difetto. E **il metro
+`_naive_added` misura «il banale» su tutti i non prezzati invece che sugli aggiunti** (0,333 contro 0,420
+sugli stessi uomini): scritto, non curato, perché un criterio non si corregge sulla regola che ci è caduta.
