@@ -7361,3 +7361,45 @@ per euro (l'appaiato contro l'adottato), che non passa da quel metro.
 **R31 in `ADOPTED["euro"]`** dal 30/09/2026, `SHEET_REVISION` 79. Sul foglio EuroLeghe muove chi R0c
 prezzava all'ancora pur avendo due stagioni piene; il caso da cui è nata, Gvardiol, passa da 6,062 (l'ancora
 dei Dc) a circa 6,4.
+
+## 7-quinsexagies. PRE-REGISTRAZIONE (30 settembre 2026) — R28: LE GIORNATE DI QUEST'ANNO CON IL PESO DEL LORO RUOLO
+
+**Scritta e committata PRIMA della corsa.** Richiesta dell'operatore dopo R31: «facciamo pesare le partite di
+quest'anno con il giusto peso come fatto anche per altre situazioni». Il «giusto peso» esiste già ed è
+misurato: `categories.BLEND_K`, la costante di miscela PER RUOLO della fantamedia, fittata leave-one-season-out
+su dieci stagioni di Serie A per il livello delle categorie — **P 16,6 · D 32,6 · C 43,5 · A 18,5** partite. Il
+suo commento dice già «portarla dentro `evaluate` è R28, da pre-registrare», e con la ragione giusta: è misurata
+sul predittore NUDO, e un baseline più debole fa sembrare un canale più forte di quanto sia (R24).
+
+### R28
+
+    fm = blend_with_seen(fm_prior, fm_seen, pv_seen, K[ruolo classic])      K = categories.BLEND_K
+
+La forma di R25 esattamente (stessa `blend_with_seen`, stesso `fm_seen` e `pv_seen`, ultima fra le regole
+della fantamedia), con UNA sola differenza: il K per ruolo invece di uno per tutti. K **non si fitta qui** —
+è letto da dove è misurato, quindi il gate giudica un numero che non ha visto.
+
+### Finestre, confronto e criterio
+
+* Le 14 in-season (`I19set … I25feb`), tutt'e due le piattaforme, tutt'e due i giochi.
+* **euro** (R25 non adottata): ADOPTED contro ADOPTED + R28.
+* **default** (R25K40 adottata): ADOPTED contro ADOPTED con **R28 al posto di R25K40** — R28 la sostituisce
+  solo se la batte.
+* Sugli uomini che muove: maggioranza delle finestre che misurano, media sopra lo 0,5%, nessuna oltre −2%,
+  nomi e valore catturato delle liste entro il 2%.
+
+### Attese, scritte perché possano essere smentite
+
+* **euro**: guadagno piccolo, 0-2%. R25K40 leggeva +0,7% / +0,4% su 3 finestre (§7-noviesquadragies bis) e i
+  K di D e C sono vicini a 40; il guadagno, se c'è, viene da P e A, dove K è la metà. Le finestre `feb` di euro
+  non misurano (`fm_seen` vuoto, limite già noto), quindi il verdetto euro poggia su 3 finestre: è poco, e va
+  detto prima.
+* **default**: vicino a R25K40, appaiato entro ±1%. Se R28 perde lì, il K unico era già il punto buono per il
+  motore e il K per ruolo risponde solo alla domanda delle categorie.
+* Effetto sul caso vivo, non un esito: Gvardiol (D, 4 partite a 7,00, prior 6,215) salirebbe a ~6,30.
+
+### Contaminazione
+
+`BLEND_K` è misurato su dieci stagioni di Serie A che includono gli esiti di queste finestre in-season: il
+guadagno su `default` è quindi contaminato (un K scelto guardando anche i bersagli); su **euro** non lo è,
+perché la misura non ha letto nessuna stagione EuroLeghe.
