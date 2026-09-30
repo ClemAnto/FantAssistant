@@ -298,6 +298,13 @@ dell'asta, tutti dentro, ogni finestra coi parametri delle altre):
   durata prende il voto, a bande dei minuti medi dell'anno prima e relativo a chi gioca la partita intera, tarato sulle
   finestre di taratura (`minutes_votes.py`: 0,75 · 0,82 · 0,86 · 0,89 voti per presenza a 30-44' · 45-59' · 60-74' ·
   75-90'). Per tutti i ruoli di movimento; il portiere prende sempre il voto.
+* **M4 - la formula si tara sulla misura che decide** (aggiunta il 01/10/2026, prima di misurare). L'operatore: «se
+  TIZIO quest'anno è previsto TITOLARE, salvo imprevisti, dovrebbe fare circa 36 presenze» - ed è vero per chi il posto
+  lo tiene (titolari stabili e senza imprevisti: 37,0 presenze e 36,1 voti su 38), mentre la media di chi era titolare
+  l'anno prima (28,6 voti) la tira giù chi il posto l'ha perso. La griglia oggi minimizza l'errore MEDIO, che premia la
+  media; la misura dell'operatore (entro l'80-125% del vero) premia il valore TIPICO. M4 tara i parametri sulla quota
+  entro l'80-125% (`band_loss`) invece che sull'errore medio. Attesa: la quota sale, l'errore medio può peggiorare - ed
+  è una scelta dichiarata che la misura che decide sia la prima.
 * **La stabilità del gradino NON è un candidato** (operatore: «la stabilità non è pronosticabile, la formula deve
   funzionare a prescindere»): la formula si tara sul gradino dell'anno prima, che è quello che si sa (M1b).
 
