@@ -71,12 +71,22 @@
          show through the names. -->
     <div class="max-h-[calc(100vh-12rem)] min-h-64 overflow-auto rounded-lg border border-border" data-presence-scroller>
       <table class="w-full text-xs tabular-nums" data-presence-table>
-        <thead class="sticky top-0 z-10 text-muted [&_th]:bg-surface [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]">
-          <tr class="text-left">
+        <!-- TWO SEASONS, TWO BLOCKS (operator, 01/10/2026: «raggruppa i dati della stagione corrente e separali da
+             quelli della stagione successiva»). The season MEASURED - where he was, what each game of his club's
+             league was for him, his vote, the cup - and the season PREDICTED: the formula's factors, the rung they
+             give, the two Pa and what really happened. A group row names each block with its season, and a rule
+             down the table marks where one begins: `data-group-start` is the cell that opens a block. -->
+        <thead class="sticky top-0 z-10 text-muted [&_th]:bg-surface [&_th]:shadow-[inset_0_-1px_0_var(--color-border)]
+                      [&_[data-group-start]]:border-l-2 [&_[data-group-start]]:border-primary/50">
+          <tr class="text-center text-[11px] uppercase tracking-wide" data-presence-groups>
+            <th colspan="2"></th>
+            <th colspan="13" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().prev }} · misurata</th>
+            <th colspan="11" data-group-start class="px-1 py-0.5 text-fg">Stagione {{ seasons().next }} · prevista e vera</th>
+          </tr>
+          <tr class="text-left" data-presence-heads>
             <th class="cursor-pointer px-2 py-1" (click)="sortBy('name')">Calciatore{{ arrow('name') }}</th>
-            <th class="px-1" nz-tooltip nzTooltipTitle="La squadra della stagione misurata">Squadra {{ seasons().prev }}</th>
-            <th class="px-1" nz-tooltip nzTooltipTitle="La squadra della stagione prevista">Squadra {{ seasons().next }}</th>
             <th class="px-1">R</th>
+            <th class="px-1" data-group-start nz-tooltip nzTooltipTitle="La squadra della stagione misurata">Squadra</th>
             <th class="px-1">Contesto</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Partite di campionato del suo club mentre c'era">Partite</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Infortunato">Inf.</th>
@@ -87,10 +97,12 @@
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Subentrato">Sub</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Titolare">Tit.</th>
             <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Minuti per partita giocata">Min</th>
+            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Media voto">MV</th>
+            <th class="px-1 text-center" nz-tooltip nzTooltipTitle="Il suo club ha giocato una coppa europea">Europa</th>
+            <th class="px-1" data-group-start nz-tooltip nzTooltipTitle="La squadra della stagione prevista">Squadra</th>
+            <th class="px-1 text-center" nz-tooltip nzTooltipTitle="Il suo club gioca una coppa europea">Europa</th>
             <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Disponibilità stimata" (click)="sortBy('d')">D{{ arrow('d') }}</th>
             <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Scelto se disponibile, stimato" (click)="sortBy('s')">S{{ arrow('s') }}</th>
-            <th class="px-1 text-center" nz-tooltip nzTooltipTitle="Coppa europea: stagione prima → stagione prevista">Europa</th>
-            <th class="px-1 text-right" nz-tooltip nzTooltipTitle="Media voto della stagione prima">MV</th>
             <th class="cursor-pointer px-1 text-center" nz-tooltip
                 nzTooltipTitle="Gradino di titolarità ricavato dalla formula: S e i minuti della stagione misurata, senza l'undici tipo"
                 (click)="sortBy('rung')">Grad.{{ arrow('rung') }}</th>
@@ -98,21 +110,19 @@
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paEngine')">Pa motore{{ arrow('paEngine') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paActual')">Pa vere{{ arrow('paActual') }}</th>
             <th class="cursor-pointer px-1 text-center" nz-tooltip
-                nzTooltipTitle="Gradino raggiunto davvero nella stagione prevista, sugli stessi due assi"
+                nzTooltipTitle="Gradino raggiunto davvero, sugli stessi due assi"
                 (click)="sortBy('rungActual')">Grad. vero{{ arrow('rungActual') }}</th>
             <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Pa formula ÷ Pa vere" (click)="sortBy('ratioFormula')">Formula %{{ arrow('ratioFormula') }}</th>
             <th class="cursor-pointer px-2 text-right" nz-tooltip nzTooltipTitle="Pa motore ÷ Pa vere" (click)="sortBy('ratioEngine')">Motore %{{ arrow('ratioEngine') }}</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody class="[&_[data-group-start]]:border-l-2 [&_[data-group-start]]:border-primary/50">
           @for (row of rows(); track row.fcId) {
             <tr class="border-t border-border/60 odd:bg-fg/5" [attr.data-presence-row]="row.fcId">
               <td class="px-2 py-0.5 font-medium text-fg">{{ row.name }}</td>
-              <td class="px-1 whitespace-nowrap text-muted" data-presence-club-prev>{{ row.clubPrev ?? '—' }}</td>
-              <td class="px-1 whitespace-nowrap" [class.text-fg]="row.clubChange" [class.text-muted]="!row.clubChange"
-                  data-presence-club-next>{{ row.clubNext ?? '—' }}</td>
               <td class="px-1">{{ row.role }}</td>
-              <td class="px-1 text-muted">{{ row.context }}{{ row.clubChange ? ' ⇄' : '' }}</td>
+              <td class="px-1 whitespace-nowrap text-muted" data-group-start data-presence-club-prev>{{ row.clubPrev ?? '—' }}</td>
+              <td class="px-1 text-muted">{{ row.context }}</td>
               @if (row.prev; as prev) {
                 <td class="px-1 text-right">{{ prev.n }}</td>
                 <td class="px-1 text-right">{{ prev.inj }}</td>
@@ -126,10 +136,13 @@
               } @else {
                 <td class="px-1 text-center text-muted" colspan="9">nessuna stagione su file</td>
               }
+              <td class="px-1 text-right">{{ row.mv != null ? row.mv.toFixed(2) : '—' }}</td>
+              <td class="px-1 text-center text-muted">{{ row.europeIn ? 'sì' : 'no' }}</td>
+              <td class="px-1 whitespace-nowrap" data-group-start [class.text-fg]="row.clubChange" [class.text-muted]="!row.clubChange"
+                  data-presence-club-next>{{ row.clubNext ?? '—' }}{{ row.clubChange ? ' ⇄' : '' }}</td>
+              <td class="px-1 text-center text-muted">{{ row.europeOut ? 'sì' : 'no' }}</td>
               <td class="px-1 text-right">{{ pct(row.d) }}</td>
               <td class="px-1 text-right">{{ pct(row.s) }}</td>
-              <td class="px-1 text-center text-muted">{{ row.europeIn ? 'sì' : 'no' }} → {{ row.europeOut ? 'sì' : 'no' }}</td>
-              <td class="px-1 text-right">{{ row.mv != null ? row.mv.toFixed(2) : '—' }}</td>
               <td class="px-1 text-center" [class]="rungTone(row.rung)" data-presence-rung>{{ rungShort(row.rung) }}</td>
               <td class="px-1 text-right font-bold text-fg" data-presence-pa-formula>{{ row.paFormula.toFixed(1) }}</td>
               <td class="px-1 text-right">{{ row.paEngine != null ? row.paEngine.toFixed(1) : '—' }}</td>

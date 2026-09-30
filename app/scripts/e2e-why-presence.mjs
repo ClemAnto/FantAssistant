@@ -225,13 +225,18 @@ function boxOf(selector, text) {
 function readTable() {
   const table = document.querySelector('[data-presence-table]');
   if (!table) return null;
-  const heads = [...table.querySelectorAll('thead th')].map((one) => (one.innerText ?? '').replace(/[↑↓]/g, '').trim());
+  // The SECOND header row names the columns; the first names the two season blocks (01/10/2026).
+  const heads = [...table.querySelectorAll('[data-presence-heads] th')].map((one) => (one.innerText ?? '').replace(/[↑↓]/g, '').trim());
+  const groups = [...table.querySelectorAll('[data-presence-groups] th')].map((one) => (one.innerText ?? '').trim());
+  // Where each block begins, in every body row: the index of the cells that carry the rule.
+  const starts = [...table.querySelectorAll('[data-presence-row]')].slice(0, 5).map((one) =>
+    [...one.children].map((cell, i) => (cell.hasAttribute('data-group-start') ? i : -1)).filter((i) => i >= 0).join(','));
   const rows = [...table.querySelectorAll('[data-presence-row]')].map((one) => ({
     id: Number(one.getAttribute('data-presence-row')),
     cells: [...one.children].map((cell) => (cell.innerText ?? '').trim()),
     span: [...one.children].some((cell) => cell.colSpan > 1),
   }));
-  return { heads, rows, summary: (document.querySelector('[data-presence-summary]')?.innerText ?? '').replace(/\s+/g, ' ') };
+  return { heads, groups, starts, rows, summary: (document.querySelector('[data-presence-summary]')?.innerText ?? '').replace(/\s+/g, ' ') };
 }
 
 // ------------------------------------------------------------------ the run
@@ -289,14 +294,24 @@ async function main() {
       const seen = await evaluate(session, readTable);
       const expected = file.rows.filter((row) => row.window === window && row.sample);
       const byId = new Map(expected.map((row) => [row.fcId, row]));
-      const at = (name) => seen.heads.indexOf(name);
-      // The club headers are named after the seasons: «Squadra 24-25» and «Squadra 25-26» for a 2025-26 target.
+      const bad = [];
+      const at = (name) => (name === 'Squadra#0' ? seen.heads.indexOf('Squadra')
+        : name === 'Squadra#1' ? seen.heads.lastIndexOf('Squadra') : seen.heads.indexOf(name));
       const start = Number(file.summary[window].target.slice(0, 4));
       const short = (year) => `${String(year).slice(2)}-${String(year + 1).slice(2)}`;
-      const clubPrevHead = `Squadra ${short(start - 1)}`;
-      const clubNextHead = `Squadra ${short(start)}`;
-      if (at(clubPrevHead) < 0 || at(clubNextHead) < 0) throw new Error(`intestazioni delle squadre assenti: ${seen.heads.join(' | ')}`);
-      const bad = [];
+      // Two blocks, each named after its season, and each opening with its «Squadra» column.
+      const prevGroup = `Stagione ${short(start - 1)}`;
+      const nextGroup = `Stagione ${short(start)}`;
+      if (!seen.groups.some((g) => g.toLowerCase().startsWith(prevGroup.toLowerCase()))
+          || !seen.groups.some((g) => g.toLowerCase().startsWith(nextGroup.toLowerCase()))) {
+        throw new Error(`i due blocchi di stagione non sono nominati: ${seen.groups.join(' | ')}`);
+      }
+      const squads = seen.heads.flatMap((h, i) => (h === 'Squadra' ? [i] : []));
+      if (squads.length !== 2) throw new Error(`attese due colonne «Squadra», trovate ${squads.length}`);
+      const bothOpen = seen.starts.filter((one) => one !== `${squads[0]},${squads[1]}` && !one.startsWith(`${squads[0]},`));
+      if (bothOpen.length) bad.push(`il confine dei blocchi non apre sulle due «Squadra» (${seen.starts.join(' / ')})`);
+      const clubPrevHead = 'Squadra#0';
+      const clubNextHead = 'Squadra#1';
       if (seen.rows.length !== expected.length) bad.push(`${seen.rows.length} righe a schermo contro ${expected.length} nel file`);
       const sum = file.summary[window];
       for (const number of [sum.mae_formula.toFixed(2), sum.mae_engine.toFixed(2)]) {
@@ -321,7 +336,7 @@ async function main() {
         // The two clubs and the two rungs are the file's (the toolkit derives the rung with `engine/status.py`).
         const text = (name) => row.cells[at(name) - (row.span && at(name) > at('Min') ? 8 : 0)];
         if (text(clubPrevHead) !== (truth.clubPrev ?? '—')) bad.push(`${truth.name}: squadra prima «${text(clubPrevHead)}» contro ${truth.clubPrev}`);
-        if (text(clubNextHead) !== (truth.clubNext ?? '—')) bad.push(`${truth.name}: squadra dopo «${text(clubNextHead)}» contro ${truth.clubNext}`);
+        if (text(clubNextHead).replace(/ ⇄$/, '') !== (truth.clubNext ?? '—')) bad.push(`${truth.name}: squadra dopo «${text(clubNextHead)}» contro ${truth.clubNext}`);
         if (text('Grad.') !== (SHORT[truth.rung] ?? '—')) bad.push(`${truth.name}: gradino «${text('Grad.')}» contro ${truth.rung}`);
         if (text('Grad. vero') !== (SHORT[truth.rungActual] ?? '—')) bad.push(`${truth.name}: gradino vero «${text('Grad. vero')}» contro ${truth.rungActual}`);
         checked += 1;
