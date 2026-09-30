@@ -387,6 +387,30 @@ porta la parola si legge `titolare`; la scala della STAMPA tiene la sua parola, 
 soglia sulla scala ora si scrive col NOME (`rungIndex`): le buste chiuse scrivevano `rank <= 2` per «titolare o meglio»,
 e con una parola in meno quel numero voleva dire «ballottaggio».
 
+### L'esito di M1-M4 (01/10/2026, `m_eval.py`)
+
+5 settembre, sette stagioni, la popolazione dell'asta, tutti dentro, ogni stagione coi parametri tarati sulle altre.
+
+| variante | quota entro 80-125% | stagioni meglio della base | errore medio |
+|---|---|---|---|
+| base | 56,0% | - | 6,796 |
+| M1 classe titolare/rotazione | 56,4% | 4 su 7 | 6,802 |
+| **M1b classe = gradino** | **56,9%** | **5 su 7** | 6,806 |
+| M2 tarata su settembre | 54,6% | 2 su 7 | 6,870 |
+| M3 minuti → voti | 56,7% | 4 su 7 | 6,800 |
+| M4 tarata sulla quota | 57,2% | 3 su 7 | 6,988 |
+| M1b + M4 | 57,5% | 3 su 7 | 6,959 |
+| M1b + M3 + M4 | 56,9% | 5 su 7 | 7,079 |
+| *motore* | *50,0%* | | *6,949* |
+
+**Nessuna passa per intero.** M1b soddisfa la quota (5 su 7, +0,9 punti) e manca la clausola sull'errore medio di un
+centesimo (6,806 contro 6,796): la decisione è dell'operatore. M2 peggiora; le combinazioni non sommano.
+
+**E la lettura che conta è la taglia**: ogni variante muove la quota di un punto al massimo, contro i 9 che mancano al
+65%. Il margine non sta in COME si tara, sta in COSA la formula sa: legge la stagione passata dell'uomo e niente della
+sua squadra. Il candidato più forte già misurato nel progetto è l'undici tipo (a parità di claim, chi la board disegna
+realizza 0,51 di quota da titolare contro 0,33), che però per le stagioni passate esiste solo dove c'è un foglio datato.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.

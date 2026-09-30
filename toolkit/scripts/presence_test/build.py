@@ -374,6 +374,8 @@ def share(r, p) -> float:
     if r["ctx"].startswith("portiere") and p.get("keeper"):
         return model.linear_share(p["keeper"], keeper_input(r))
     d, s = parts(r, p)
+    if p.get("vfac") and not r["ctx"].startswith("portiere"):
+        s *= p["vfac"].get(vote_band(r.get("min_prev")), 1.0)
     return d * s * p["c"]
 
 
@@ -389,13 +391,16 @@ def predict(r, p) -> float:
 CELL_MIN = 10
 
 
-def cells(train, keep, value, by_role: bool, per_context: bool = True) -> dict:
-    """Means per (role, context), per context and overall - the ladder `prior` walks down."""
+def cells(train, keep, value, by_role: bool, per_context: bool = True, cls: str | None = None) -> dict:
+    """Means per (role, context), per context and overall - the ladder `prior` walks down; with `cls`, also per
+    (role, context|class), the first rung of that ladder."""
     groups: dict = defaultdict(list)
     for r in train:
         if not keep(r):
             continue
         v = value(r)
+        if cls and r.get(cls):
+            groups[(r["role"], f'{r["ctx"]}|{r[cls]}')].append(v)
         groups[("*", "*")].append(v)
         if per_context:
             groups[("*", r["ctx"])].append(v)
@@ -406,6 +411,11 @@ def cells(train, keep, value, by_role: bool, per_context: bool = True) -> dict:
 
 def prior(p, name: str, r) -> float:
     table = p[name]
+    cls = p.get("cls") if name == "Sbar" else None
+    if cls and r.get(cls):
+        key = (r["role"], f'{r["ctx"]}|{r[cls]}')
+        if key in table and table[key][1] >= CELL_MIN:
+            return table[key][0]
     ctx = r["ctx"] if ("*", r["ctx"]) in table else "*"
     for key in ((r["role"], ctx), ("*", ctx), ("*", "*")):
         if key in table and table[key][1] >= CELL_MIN:
@@ -413,14 +423,44 @@ def prior(p, name: str, r) -> float:
     return table[("*", "*")][0]
 
 
-def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True) -> dict:
+VOTE_BANDS = (30.0, 45.0, 60.0, 75.0)
+
+
+def vote_band(minutes: float | None) -> int | None:
+    return None if minutes is None else sum(minutes >= edge for edge in VOTE_BANDS)
+
+
+def vote_factors(train: list[dict]) -> dict[int, float]:
+    """M3: how often an appearance of that length gets a vote, relative to the full-match band, on `train`."""
+    ratios: dict = defaultdict(list)
+    for r in train:
+        a = r.get("a_next")
+        band = vote_band(r.get("min_prev"))
+        if band is None or not a or r["ctx"].startswith("portiere"):
+            continue
+        apps = a["sub"] + a["start"]
+        if apps >= 5:
+            ratios[band].append(min(r["pa_actual"] / apps, 1.0))
+    top = mean(ratios[len(VOTE_BANDS)]) if ratios.get(len(VOTE_BANDS)) else None
+    return {band: mean(v) / top for band, v in ratios.items() if top and len(v) >= CELL_MIN}
+
+
+def band_loss(group, params) -> float:
+    """M4: the share of men OUTSIDE 80-125% of what they really played - the operator's own measure, as a loss."""
+    judged = [r for r in group if r["pa_actual"] > 0]
+    return mean(not (0.8 <= predict(r, params) / r["pa_actual"] <= 1.25) for r in judged) if judged else 0.0
+
+
+def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True, cls: str | None = None,
+        vote_minutes: bool = False, objective: str = "mae") -> dict:
     """Priors, the keeper line and the coordinate descent, all on `train` and nothing else."""
     p = {"by_role": by_role,
          "Dbar": cells(train, lambda r: r["a1"] is not None, lambda r: available(r["a1"]) / r["a1"]["n"],
                        by_role, per_context=False),
          "none": cells(train, lambda r: r["ctx"] == "nessuna", lambda r: r["pa_actual"] / r["N"], by_role),
          "Sbar": cells(train, lambda r: r["ctx"] != "nessuna", lambda r: min(1, r["pa_actual"] / r["N"]),
-                       by_role),
+                       by_role, cls=cls),
+         "cls": cls, "vfac": vote_factors(train) if vote_minutes else None,
          "MVbar": cells(train, lambda r: r["mv"] is not None, lambda r: r["mv"], True),
          "kD": 40, "w2": 0.5, "alpha": 0.5, "gamma": 0.0, "q": 0.0, "kS": 20, "b": 0.0, "c": 1.0,
          "keeper": None}
@@ -430,9 +470,10 @@ def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True) ->
     # The outfield descent never sees a keeper once the line exists, or the grid would tune D and S to
     # rescue rows the line already answers.
     outfield = [r for r in train if not (p["keeper"] and r["ctx"].startswith("portiere"))]
+    loss = band_loss if objective == "band" else mae
     for _ in range(4):
         for key, values in GRID.items():
-            p[key] = min(values, key=lambda v: mae(outfield, {**p, key: v}))
+            p[key] = min(values, key=lambda v: loss(outfield, {**p, key: v}))
     return p
 
 
@@ -513,6 +554,16 @@ def annotate(rows, agg, at_club, clubs, first, europe, mv, *, own_club: bool = O
             r["ctx"] = "serie A, cambio club" if r["club_change"] else "serie A, stesso club"
         else:
             r["ctx"] = "estero top5" if a1["top5"] >= a1["n"] / 2 else "altro campionato"
+        # M1 / M1b / M3 (§5-sexies): the class of last season - titolare or rotazione, and the rung - and his
+        # minutes per game played, for a man who is not a keeper (a keeper's class is already in his context).
+        r["cls_bin"] = r["cls_rung"] = r["min_prev"] = None
+        if r["a1"] is not None and not r["ctx"].startswith("portiere"):
+            free = available(r["a1"])
+            r["min_prev"] = minutes_per_game(r["a1"])
+            if free > 0:
+                share_prev = (r["a1"]["sub"] + r["a1"]["start"]) / free
+                r["cls_bin"] = "titolare" if share_prev >= KEEPER_CLASS_SHARE else "rotazione"
+                r["cls_rung"] = rung(share_prev, r["min_prev"])
         held = clubs.get((r["fc_id"], one))
         main_club = max(held.items(), key=lambda kv: kv[1])[0] if held else None
         r["ein"] = 1.0 if main_club and (main_club, one) in europe else 0.0
