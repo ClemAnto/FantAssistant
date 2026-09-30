@@ -220,3 +220,19 @@ def test_an_interrupted_refresh_is_resumed_by_the_AGE_of_the_reading(tmp_path):
     assert injuries._stale(stale, 1) is True
     # 7 = the cadence of a weekly archive: five days ago is not yet stale.
     assert injuries._stale(stale, 7) is False
+
+
+def test_an_open_spell_leaves_its_forecast_dated_and_a_closed_one_does_not(tmp_path):
+    """`injuries` replaces a spell at every read, so the forecast of the day lives in `injury_forecasts` (01/10/2026)."""
+    ctx = _ctx(tmp_path)
+    conn = ctx.conn
+    conn.execute("INSERT INTO players(fc_id, canonical_name) VALUES (7, 'Lukaku')")
+    spell = {"start_date": "2025-08-14", "kind": "muscular", "days_out": None, "matches_missed": None,
+             "detail": "Infortunio alla coscia"}
+    injuries.upsert_injuries(conn, 7, [{**spell, "end_date": "2025-11-30"}], "2025-09-05")
+    injuries.upsert_injuries(conn, 7, [{**spell, "end_date": "2025-12-14"}], "2025-10-20")
+    injuries.upsert_injuries(conn, 7, [{**spell, "end_date": "2025-12-14"}], "2026-01-10")   # closed: an outcome
+    rows = [tuple(r) for r in conn.execute(
+        "SELECT observed_on, expected_end FROM injury_forecasts ORDER BY observed_on").fetchall()]
+    assert rows == [("2025-09-05", "2025-11-30"), ("2025-10-20", "2025-12-14")]
+    assert tuple(conn.execute("SELECT end_date FROM injuries").fetchone()) == ("2025-12-14",)

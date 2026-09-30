@@ -329,6 +329,14 @@ def upsert_injuries(conn, fc_id: int, records: list[dict], observed_on: str | No
             (fc_id, rec["start_date"], rec["end_date"], rec["kind"], rec["days_out"],
              rec["matches_missed"], rec["detail"], observed_on),
         )
+        # A spell still open on the day of the read is a FORECAST, and `injuries` above will replace it at the
+        # next read: keep it dated (see `injury_forecasts` in the schema). An end already past on the day read is
+        # the outcome, not a forecast, and a read without a date says nothing about the day.
+        if observed_on and (rec["end_date"] is None or rec["end_date"] > observed_on):
+            conn.execute(
+                """INSERT OR REPLACE INTO injury_forecasts(fc_id, start_date, observed_on, expected_end, kind, source)
+                   VALUES (?, ?, ?, ?, ?, 'transfermarkt')""",
+                (fc_id, rec["start_date"], observed_on, rec["end_date"], rec["kind"]))
     return len(records)
 
 

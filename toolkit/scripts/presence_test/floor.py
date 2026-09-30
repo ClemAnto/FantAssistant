@@ -33,7 +33,7 @@ for r in rows:
     missed = sum(state in ("injured", "absent") for _d, _c, state, _a in after)
     free = len(after) - missed
     played = sum(state == "played" for _d, _c, state, _a in after)
-    people.append({"role": r["role"], "n": len(after), "free": free, "played": played,
+    people.append({"fc_id": r["fc_id"], "role": r["role"], "n": len(after), "free": free, "played": played,
                    "p": played / free if free else None, "window": r["window"],
                    "engine": r["pa_engine"], "votes": r["pa_actual"]})
 
@@ -115,5 +115,6 @@ for x in people:
         p2 = min(max(p + random.gauss(0, sd), 0.0), 1.0)
         sims.append(binomial_draw(h1, p1) + binomial_draw(h2, p2))
     floor_drift.append(mean(abs(s - expected) for s in sims))
+    x["floor"] = floor_drift[-1]
     within_drift.append(mean((0.8 <= expected / s <= 1.25) if s > 0 else False for s in sims))
 print(f"pavimento con la deriva della scelta: {mean(floor_drift):.2f} partite, entro 80-125%: {mean(within_drift):.1%}")

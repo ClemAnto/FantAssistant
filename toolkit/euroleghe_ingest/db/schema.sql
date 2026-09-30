@@ -716,6 +716,22 @@ CREATE TABLE IF NOT EXISTS market_value_history (
     PRIMARY KEY (fc_id, observed_on, source)
 );
 
+-- THE FORECAST OF A RETURN, as it was on the day we read it (01/10/2026). Transfermarkt publishes an EXPECTED return
+-- while a spell is open, and `injuries` keeps one row per spell that every read REPLACES: so for a past spell the table
+-- holds the outcome and never the forecast of the day, and «how long did the source think he would be out, on the day
+-- of the auction» was unanswerable (Lukaku, out from 14/08/2025: the formula could only guess 2 games of the 28 he
+-- missed). One row per (spell, day read) for a spell still open when read - `expected_end` NULL when the source gives
+-- no date. It is a DATED SERIES and only grows; it cannot be backfilled, because the cache keeps the last read only.
+CREATE TABLE IF NOT EXISTS injury_forecasts (
+    fc_id        INTEGER NOT NULL REFERENCES players(fc_id),
+    start_date   TEXT NOT NULL,
+    observed_on  TEXT NOT NULL,                  -- the day the page was read (the cache file's own date)
+    expected_end TEXT,                           -- the source's expected return on that day; NULL = no date
+    kind         TEXT,
+    source       TEXT NOT NULL,
+    PRIMARY KEY (fc_id, start_date, observed_on, source)
+);
+
 CREATE TABLE IF NOT EXISTS injuries (
     fc_id      INTEGER NOT NULL REFERENCES players(fc_id),
     start_date TEXT NOT NULL,

@@ -224,6 +224,35 @@ conoscere, il pavimento scenderebbe un poco - ma la formula tira la sua storia v
 cioè la storia del singolo dice poco); uno stop già aperto alla data d'asta è trattato come imprevisto (il pavimento
 scenderebbe un poco); le partite sono quelle giocate e non i voti.
 
+## 5-quinquies. Le regole del giudizio, e dove sta il margine (01/10/2026)
+
+**Decise dall'operatore prima di toccare la formula:**
+- **L'obiettivo è il 65% degli uomini entro l'80-125% del vero** (il limite di una formula perfetta è ~70%, il motore
+  è al 48%). È la misura che decide; l'errore medio in partite resta come lettura.
+- **Il momento è inizio settembre**, dopo la chiusura dei mercati. Fine luglio resta come lettura.
+- **EuroLeghe dopo.**
+- **Le date di rientro si archiviano da oggi**: `injury_forecasts` (Transfermarkt, una riga per stop aperto e giorno
+  di lettura: 344 stop, 152 con una data, dal primo replay) accanto a `availability.expected_return` (la prosa di
+  fantacalcio.it, già datata ogni giorno dal 26 luglio).
+
+**La popolazione, proposta e da decidere**: i quotati sopra 5 non sono quello che un'asta compra - per stagione sono
+18-20 portieri, 83-95 difensori, 104-130 centrocampisti, 79-87 attaccanti, contro i 30/80/80/60 di una lega da dieci
+con rose 3/8/8/6. La proposta è giudicare i primi `squadre × posti` per ruolo per quotazione iniziale.
+
+**Dove sta il margine** (`margin.py`, settembre, quotati sopra 5, 1.710 uomini col motore accanto): formula 6,85,
+motore 7,02, pavimento 4,26.
+
+| gruppo | n | formula | motore | pavimento | margine | quota del margine |
+|---|---|---|---|---|---|---|
+| stesso club, titolare (S ≥ 0,6) | 1.087 | 6,59 | 6,75 | 4,36 | 2,23 | **55%** |
+| cambio club dalla Serie A | 354 | 6,97 | 7,01 | 4,31 | 2,66 | 21% |
+| stesso club, riserva/rotazione | 136 | 8,25 | 8,22 | 4,18 | 4,06 | 12% |
+| portiere titolare | 101 | 6,33 | 7,35 | 3,26 | 3,08 | 7% |
+| cambio club dall'estero · portiere riserva | 32 | | | | | 5% |
+
+Più della metà del margine sta sui titolari rimasti nel loro club, che sono anche la metà di quello che si compra; e la
+formula sbaglia più spesso **per eccesso** (61% dell'errore sopra il vero). È da lì che si comincia.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
