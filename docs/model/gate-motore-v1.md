@@ -7567,3 +7567,46 @@ contaminazione di sempre, in favore del modello).
 
 Il driver è `toolkit/scripts/presence_test/gate_r33.py`, in sola lettura: niente entra in `ADOPTED`, `backtest --verify`
 resta 22/22 e nessun foglio si muove. Se passa, portarla nel motore vuol dire riprodurre questi numeri da `evaluate`.
+
+### 7-septsexagies (bis). L'ESITO: R33 NON PASSA, e il perché cambia la domanda
+
+**Corsa fatta** subito dopo la pre-registrazione (`2110d9b`), driver `toolkit/scripts/presence_test/gate_r33.py`, report
+in `data/reports/gate_r33.json`.
+
+| 5 settembre | tutti | Qt.I > 5 | senza imprevedibili | nomi | valore |
+|---|---|---|---|---|---|
+| 2019-20 | −5,91% | −2,60% | −6,85% | 19 → 17 | −3,5% |
+| 2020-21 | −4,26% | +0,07% | −3,04% | 15 → 15 | −0,6% |
+| 2021-22 | −6,59% | −1,85% | −6,36% | 11 → 12 | −0,8% |
+| 2022-23 | −2,56% | +1,85% | −1,28% | 12 → 15 | +2,6% |
+| 2023-24 | +0,25% | +0,17% | +0,52% | 14 → 15 | −2,9% |
+| 2024-25 | −2,83% | −2,02% | −2,37% | 12 → 12 | −1,6% |
+| 2025-26 | +0,80% | +3,21% | +2,52% | 14 → 17 | +3,8% |
+| **verdetto** | **2 su 7, −3,0%** | 4 su 7, −0,2% | 2 su 7, −2,4% | 97 → 103 | −0,5% |
+| *2026-27, pulita (3 giornate)* | *+3,75%* | *+5,84%* | *+5,44%* | *7 → 6* | *+4,8%* |
+
+**R33 non passa il primario** (2 su 7, −3,0%), com'era nelle attese scritte. Quello che NON era nelle attese è la
+lettura sui quotati sopra 5: −0,2% contro il +3,75% del banco sulle stesse finestre. La differenza è la TARATURA: il
+banco taravail prior sui soli quotati sopra 5, la regola pre-registrata su tutti (per non usare il filtro nella regola).
+Tarata sui giocatori da pochi crediti, la formula peggiora proprio su quelli che contano. Quindi il vantaggio del banco
+non è una proprietà della scomposizione in generale: è della scomposizione **tarata e usata sulla popolazione che si
+compra**. La prova pulita (2026-27, 3 giornate) va nella direzione favorevole e non è un'ampiezza.
+
+**La forma che il banco ha davvero misurato - la regola solo sui quotati sopra 5, tarata su di loro, e il motore
+invariato sotto - non si può giudicare su queste sette finestre**: il suo numero è già noto (è il banco). Pre-registrarla
+qui sarebbe scriverla dopo aver visto l'esito. La sua sola prova possibile è in avanti: R33b, sotto.
+
+## 7-octsexagies. PRE-REGISTRAZIONE IN AVANTI (1 ottobre 2026) — R33b: LA STESSA, SOLO DOVE SI COMPRA
+
+**Congelata oggi, giudicata SOLO sul 2026-27**, dalla data d'asta del 5 settembre 2026 in poi. R33 con due differenze,
+e nessun'altra: il prior della formula è tarato sui quotati sopra 5 delle finestre di fine luglio, e la regola si
+applica solo a un quotato sopra 5 (sotto, le presenze restano quelle del motore).
+
+* **Criterio**: sul 2026-27, sui quotati sopra 5, l'errore sulle giornate giocate dopo il 5 settembre deve essere più
+  basso di quello del motore di almeno lo **0,5%**, e le liste d'asta non devono perdere nomi né valore oltre il 2%.
+* **Quando si legge**: alla 10ª, alla 19ª e alla 38ª giornata. Il verdetto è quello della 38ª; i due prima sono
+  letture, e si scrivono qui anche se sono contrarie.
+* **Contaminazione**: nessuna sull'esito, perché la stagione non era giocata quando la regola è stata congelata. Il
+  listone bersaglio è l'ultima lettura, come sempre.
+* **Cosa la potrebbe smentire subito**: niente, prima della 10ª. Sulle 3 giornate di oggi la stessa scomposizione
+  tarata su tutti legge +5,8% sui quotati sopra 5: è un segno, non un numero.
