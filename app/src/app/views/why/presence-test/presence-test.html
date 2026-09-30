@@ -8,7 +8,7 @@
   </div>
 } @else {
   <div class="flex flex-col gap-3" data-presence-test>
-    <!-- IL VERDETTO, prima della tabella: una tabella di 600 righe senza il suo riassunto si legge un nome alla volta. -->
+    <!-- THE VERDICT before the table: a long table without its summary is read one name at a time. -->
     @if (summary(); as sum) {
       <div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs"
            data-presence-summary>
@@ -49,8 +49,8 @@
         partite giocate · Pa previste ÷ partite a voto vere, 100% = esatto, 50% = ne ha giocate il doppio, 200% = la metà</span>
     </div>
 
-    <!-- LA STAGIONE PRIMA, partita per partita del suo club in campionato (Transfermarkt): la somma delle sette colonne
-         da «Inf.» a «Tit.» e' la colonna «Partite». -->
+    <!-- THE SEASON BEFORE, game by game of his club's league (Transfermarkt): the seven columns from «Inf.» to «Tit.»
+         add up to «Partite». -->
     <div class="overflow-x-auto rounded-lg border border-border">
       <table class="w-full text-xs tabular-nums" data-presence-table>
         <thead class="sticky top-0 bg-surface text-muted">

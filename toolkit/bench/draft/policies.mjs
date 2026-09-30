@@ -362,7 +362,7 @@ const blended = blendWith('value', 0.25);
  * adaptation is the team's shape - the app's `PlanTeam` carries `held`/`heldIds` (a weighted eleven needs
  * them), the bench's carries the men themselves - so the teams are mapped, never the rule.
  */
-export const appSurvival = (tail = true) => {
+export const appSurvival = (tail = false) => {
   const cache = new WeakMap();
   const asPlanTeam = (t) => ({
     ...t,
@@ -395,13 +395,14 @@ export const appSurvival = (tail = true) => {
 
 /**
  * THE TAIL RULE OF THE RIVALS' PREDICTIONS (todolist classic, item 1.4, 30/09/2026). The adopted survival
- * discount was measured with the bench's own tail-free, price-only prediction (`survival`); the app adds the tail
- * rule, and on three real drafts that rule named fewer real picks. Base = the app's survival as it ships; the
- * candidate = the same without the tail; the bench's `survival(0.7)` is the number that adopted it.
+ * discount was measured with the bench's own tail-free, price-only prediction (`survival`); the app added the tail
+ * rule, and on three real drafts that rule named fewer real picks. Base = the app's survival WITH the tail (what
+ * shipped until the verdict); the candidate = the same without it, adopted (priorita-draft-v1.md §28, +2.56% mantra,
+ * +1.08% snake, +0.07% classic); the bench's `survival(0.7)` is the number that adopted the discount.
  */
 export const TAIL = [
-  { name: 'APP: sopravvivenza con coda (spedita)', need: coverPlaces(2), currency: appSurvival(true), floor: Infinity },
-  { name: 'APP: sopravvivenza senza coda', need: coverPlaces(2), currency: appSurvival(false), floor: Infinity },
+  { name: 'APP: sopravvivenza con coda (spedita fino al 30/09)', need: coverPlaces(2), currency: appSurvival(true), floor: Infinity },
+  { name: 'APP: sopravvivenza senza coda (spedita dal 30/09)', need: coverPlaces(2), currency: appSurvival(false), floor: Infinity },
   { name: 'banco: sopravvivenza 0.7 (quella misurata)', need: coverPlaces(2), currency: survival(0.7), floor: Infinity },
   { name: 'VALORE puro (nessuna sopravvivenza)', need: coverPlaces(2), currency: VALUE, floor: Infinity },
 ];
@@ -529,7 +530,8 @@ export const CLASSIC_CHECK = [
 export const CLASSIC = [
   { name: 'CONSIGLIO DI PRIMA: valore x quote x sopravv.', need: adoptedCover(), currency: withSurvival(VALUE),
     floor: Infinity },
-  { name: 'DP spedita (RAR 0.25, Z sui posti)', ...appDP({ ration: false }) },
+  { name: 'DP spedita (RAR 0.25, Z sui posti)', ...appDP({ ration: false, starters: 'places' }) },
+  { name: 'DP, Z dichiarata 2/4/4/3 (quella spedita dal 30/09 sera)', ...appDP({ ration: false }) },
   ...[0, 0.1, 0.2, 0.3, 0.5].map((d) => ({ name: `DP, sconto RAR ${d}`, ...appDP({ ration: false, discount: d }) })),
   { name: 'DP, Z = 3 per partecipante', ...appDP({ ration: false, starters: 'three' }) },
   { name: 'DP col razionamento (posti)', ...appDP({ ration: true }) },
@@ -537,8 +539,8 @@ export const CLASSIC = [
 
 /** `TAIL` on the classic draft: the shipped classic cover (`adoptedCover`), everything else the same. */
 export const TAIL_CLASSIC = [
-  { name: 'APP: sopravvivenza con coda (spedita)', need: adoptedCover(), currency: appSurvival(true), floor: Infinity },
-  { name: 'APP: sopravvivenza senza coda', need: adoptedCover(), currency: appSurvival(false), floor: Infinity },
+  { name: 'APP: sopravvivenza con coda (spedita fino al 30/09)', need: adoptedCover(), currency: appSurvival(true), floor: Infinity },
+  { name: 'APP: sopravvivenza senza coda (spedita dal 30/09)', need: adoptedCover(), currency: appSurvival(false), floor: Infinity },
   { name: 'banco: sopravvivenza 0.7 (quella misurata)', need: adoptedCover(), currency: survival(0.7), floor: Infinity },
   { name: 'VALORE puro (nessuna sopravvivenza)', need: adoptedCover(), currency: VALUE, floor: Infinity },
 ];

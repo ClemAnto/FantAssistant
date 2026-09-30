@@ -10,7 +10,10 @@ appearances as a product of those parts, so each part can be re-tuned on its own
     S_hat   chosen when available: (1 - alpha - gamma) x share of games played + alpha x share of minutes
             + gamma x share of starts, pulled toward its CONTEXT's prior by kS; x (1 + q (mv - 6)), the quality;
     europe  (1 - b x Eout) / (1 - b x Ein): the club of the predicted season plays a European cup (main phase),
-            and the club of the measured one did;
+            and the club of the measured one did. Eout is read from the predicted season's own games (his first
+            club there, and whether it played a main phase), which at the auction is known for the Champions
+            League and not always for the Europa and Conference play-offs, nor for a man sold on 31 August: a small
+            advantage the engine's pre-season number does not have, and it is stated rather than hidden;
     c       one scale.
 
 The source is Transfermarkt's per-game payload, already in the cache (`transfermarkt_perf_<id>.json`): it carries
@@ -40,6 +43,7 @@ from statistics import mean, median
 
 REPO = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO / "toolkit"))
+from euroleghe_ingest.config import Config  # noqa: E402
 from euroleghe_ingest.engine import evaluate, features  # noqa: E402
 
 TM_SEASON = {2022: "2022-23", 2023: "2023-24", 2024: "2024-25", 2025: "2025-26"}
@@ -163,11 +167,13 @@ def predict(r, p) -> float:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--db", default=str(REPO / "data" / "euroleghe.db"))
+    # The project's own paths (`EUROLEGHE_DB_PATH`, `EUROLEGHE_DATA_DIR`), so a worktree reads the real DB and cache.
+    config = Config()
+    parser.add_argument("--db", default=str(config.db_path))
     parser.add_argument("--out", default=None)
     args = parser.parse_args()
     conn = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
-    agg, clubs, first_club, europe = breakdown(conn, REPO / "data" / "cache")
+    agg, clubs, first_club, europe = breakdown(conn, config.cache_dir)
     mv = {(fc, s): v for fc, s, v in conn.execute(
         "select fc_id, season, mv from season_stats where platform='default' and mv is not null and pv >= 5")}
     rows = engine_rows(conn)
@@ -265,8 +271,8 @@ def main() -> None:
         "priors": {k: round(v, 3) for k, v in p["Sbar"].items()},
         "summary": summary, "rows": out_rows,
     }
-    target = Path(args.out) if args.out else max((REPO / "data" / "export").iterdir(),
-                                                 key=lambda d: d.name) / "presence_test.json"
+    exports = [d for d in (config.data_dir / "export").iterdir() if d.is_dir() and (d / "manifest.json").exists()]
+    target = Path(args.out) if args.out else max(exports, key=lambda d: d.name) / "presence_test.json"
     target.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
     for window, s in summary.items():
         print(f"{window} -> {s['target']} ({'fuori campione' if s['out_of_sample'] else 'taratura'}): "

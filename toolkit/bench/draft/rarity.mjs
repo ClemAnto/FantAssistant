@@ -16,7 +16,7 @@
  * predicted fantamedia in place of base vote + bonus (the windows carry no split of the two), and the share of the
  * calendar. The titolarità word and the injury history of a past August are not in `windows-porte.json`; a missing
  * reading of HIS constrains nobody, so the bench's RAR counts MORE men as similar than the app's does. */
-import { appPriorities, manValue, priorityBaseRole, priorityRoleStats, rarity, startingPlaces } from './appcode.mjs';
+import { CLASSIC_STARTERS_PER_TEAM, appPriorities, manValue, priorityBaseRole, priorityRoleStats, rarity, startingPlaces } from './appcode.mjs';
 import { appNeed, legalPoolFor } from './engine.mjs';
 
 const toPriority = (m) => ({ id: m.id, roles: m.roles, slot: m.slot, price: m.price, fm: m.fm_pred ?? null,
@@ -105,14 +105,17 @@ export const RARITY_RATIONED = [
  * no readings (SeSw with the rationing), `ration: false` no places (SeSw with the rarity).
  */
 /** The app's own classic LeagueSize (`AuctionAdvice.priorityWorth`): a league buys its quota of each line, and Z is
- *  the starter of a module's whole places - or, with `starters: 'three'`, the mantra reading of «3 a testa». */
+ *  what the app ships - the operator's declared count per line (`CLASSIC_STARTERS_PER_TEAM`, 2/4/4/3 per participant,
+ *  30/09/2026) - or, as measured before, the starter of a module's whole places (`starters: 'places'`), or the mantra
+ *  reading of «3 a testa» (`starters: 'three'`). */
 const sizeFor = (ctx, starters) => {
   const q = ctx.setup?.game === 'classic' ? ctx.setup.lineQuotas : null;
   return { teams: ctx.teams, keepers: ctx.keepers, rounds: ctx.rounds,
-    ...(q ? { quotas: { dif: q.d, cen: q.c, att: q.a }, startersFromPlaces: starters === 'places' } : {}) };
+    ...(q ? { quotas: { dif: q.d, cen: q.c, att: q.a }, startersFromPlaces: starters === 'places',
+      ...(starters === 'declared' ? { startersPerLine: CLASSIC_STARTERS_PER_TEAM } : {}) } : {}) };
 };
 
-export function appDP({ rarity: withRarity = true, ration = true, discount, starters = 'places' } = {}) {
+export function appDP({ rarity: withRarity = true, ration = true, discount, starters = 'declared' } = {}) {
   const cache = new WeakMap();
   let statsFor = null;
   let places = null;

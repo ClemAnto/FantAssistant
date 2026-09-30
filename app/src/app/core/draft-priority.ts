@@ -235,7 +235,9 @@ export function roleStats(
     const low = reserves.length ? reserves : fms.slice(0, Math.max(1, Math.round(fms.length * RESERVE_QUARTER)));
     // Z over the WHOLE population of the role, best first by predicted fantamedia (`STARTERS_PER_TEAM`); R keeps
     // the split of the bought men above, which he did not ask to change.
-    const declared = size.startersPerLine?.[lineOf(key) ?? 'por'];
+    // A key that is not a line (a man with no slot and no known role) has no declared count: the default path.
+    const line = key === KEEPER ? 'por' : lineOf(key);
+    const declared = line ? size.startersPerLine?.[line] : undefined;
     const best = declared != null
       ? (everyFm.get(key) ?? []).slice(-size.teams * declared)
       : key === KEEPER || size.startersFromPlaces

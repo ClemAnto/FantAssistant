@@ -56,7 +56,7 @@ export class PresenceTest {
 
   /**
    * THE SAMPLE'S OWN VERDICT beside the file's (which is over everybody): how many of the shown men each prediction
-   * put within 80%-125% of what they really played, and how many played nothing at all.
+   * put within 80%-125% of what they really played.
    */
   protected readonly band = computed(() => {
     const rows = this.rows();
@@ -64,7 +64,6 @@ export class PresenceTest {
     return {
       formula: rows.filter((row) => within(row.ratioFormula)).length,
       engine: rows.filter((row) => within(row.ratioEngine)).length,
-      zero: rows.filter((row) => row.ratioFormula == null).length,
     };
   });
 
@@ -89,11 +88,6 @@ export class PresenceTest {
 
   protected arrow(key: PresenceSort): string {
     return this.sort() === key ? (this.descending() ? ' ↓' : ' ↑') : '';
-  }
-
-  protected signed(value: number | null): string {
-    if (value == null) return '—';
-    return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
   }
 
   /** A ratio as the operator reads it: 100% exact, 50% he played twice the expected, 200% half. */

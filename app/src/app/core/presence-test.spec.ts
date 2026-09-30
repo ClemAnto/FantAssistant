@@ -37,6 +37,13 @@ describe('presenceRows', () => {
     expect(rows[3].ratioFormula).toBeNull();
   });
 
+  it('keeps two zero predictions together at the end instead of sorting on NaN', () => {
+    const rows = presenceRows(file([row('A', 0, 0, 10), row('B', 10, 10, 10), row('C', 0, 0, 20)]), 'T2',
+      { sort: 'ratioEngine', descending: false });
+    expect(rows[0].name).toBe('B');
+    expect(rows.slice(1).map((one) => one.name).sort()).toEqual(['A', 'C']);
+  });
+
   it('reads every row when asked, and filters by role and query', () => {
     const rows = presenceRows(file([{ ...row('Uno', 1, 1, 1), role: 'P' }, row('Due', 1, 1, 1, 'T2', false)]), 'T2',
       { sort: 'name', descending: false, all: true, role: 'C', query: (one) => one.name.startsWith('D') });

@@ -130,6 +130,8 @@ export function presenceRows(
     if (x == null && y == null) return 0;
     if (x == null) return 1;
     if (y == null) return -1;
+    // Two predictions of zero are both infinitely far: equal, not NaN (which leaves Array.sort inconsistent).
+    if (x === y) return 0;
     return (typeof x === 'string' ? x.localeCompare(String(y)) : x - (y as number)) * sign;
   });
 }

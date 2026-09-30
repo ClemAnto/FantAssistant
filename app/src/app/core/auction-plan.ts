@@ -196,6 +196,20 @@ export function needFor(team: PlanTeam, slot: string | null, places: Map<string,
 export const TAIL_POSITIONS = 2;
 
 /**
+ * WHETHER A RIVAL'S PREDICTED PICK FOLLOWS THE TAIL RULE: off since 30/09/2026, everywhere a rival is predicted
+ * (todolist-draft-classic-v1 item 1.4, priorita-draft-v1.md §28). On three real drafts replayed pick by pick it named
+ * 39 real picks of 834 against 55 without it, and the survival discount without it gains on the draft bench on all
+ * three setups. ONE switch for every caller - «prima di te», the pick scores, the round and the plans - or the page
+ * would print two predictions of the same pick. The walk can still ask for it (`RivalWalkInput.tail`), for the bench.
+ */
+export const RIVAL_TAIL_RULE = false;
+
+/** The `placesFromEnd` a rival prediction is given: the real one with the tail rule on, «nowhere near» with it off. */
+export function rivalTail(placesFromEnd: number): number {
+  return RIVAL_TAIL_RULE ? placesFromEnd : Infinity;
+}
+
+/**
  * The credits the tail treats as free in order to stay ahead - and the number that stops the rule from
  * degenerating.
  *
@@ -722,7 +736,7 @@ export interface RivalWalkInput {
   rounds?: number;
   /**
    * The TAIL rule for the rivals (`TAIL_POSITIONS`): the last two of a round predicted to buy surplus per credit.
-   * OFF unless asked for, since 30/09/2026 (todolist classic, item 1.4, priorita-draft-v1.md §28): on three real
+   * Absent = `RIVAL_TAIL_RULE`, i.e. OFF since 30/09/2026 (todolist classic, item 1.4, priorita-draft-v1.md §28): on three real
    * drafts replayed pick by pick it named 39 real picks of 834 against 55 without it, and on the draft bench the
    * survival discount without it gains +2.56% on mantra (5/5), +1.08% on a snake (9/10) and +0.07% on classic
    * (worst window -1.20%) - the discount had been adopted on a tail-free prediction all along. `true` is kept
@@ -807,7 +821,7 @@ export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>)
     if (!team) return;
     hooks.onCall?.(team);
     const choice = predictRivalPick(team, pool, input.places, input.keeperCap,
-                                    input.tail === true ? placesFromEnd : Infinity,
+                                    (input.tail ?? RIVAL_TAIL_RULE) ? placesFromEnd : Infinity,
                                     input.heads?.get(id) ?? DEFAULT_HEAD, input.cap ?? null);
     if (!choice) return;
     pool = pool.filter((player) => player.id !== choice.id);
@@ -968,7 +982,7 @@ export function plan(input: PlanInput): Plan {
   for (const [index, id] of after.entries()) {
     const team = teams.get(id)!;
     // How many places are left after his, THIS round: the tail is where spending little pays twice.
-    const choice = predictRivalPick(team, pool, places, input.keeperCap, after.length - index,
+    const choice = predictRivalPick(team, pool, places, input.keeperCap, rivalTail(after.length - index),
                                     input.heads?.get(id) ?? DEFAULT_HEAD, cap);
     if (!choice) break;
     const denies = input.worthOf ? denialOf(choice, team, input.shapes, input.worthOf) : 0;
@@ -1003,7 +1017,7 @@ export function plan(input: PlanInput): Plan {
       }
       const team = teams.get(id)!;
       const choice = predictRivalPick(team, pool, places, input.keeperCap,
-                                      nextOrder.length - index,
+                                      rivalTail(nextOrder.length - index),
                                       input.heads?.get(id) ?? DEFAULT_HEAD, cap);
       if (!choice) break;
       const denies = input.worthOf ? denialOf(choice, team, input.shapes, input.worthOf) : 0;
@@ -1067,7 +1081,7 @@ export function simulateRound(input: PlanInput): { picks: RoundPick[]; nextOrder
       });
       choice = pickForUs(pool, need, team, gone, cap);
     } else {
-      choice = predictRivalPick(team, pool, places, input.keeperCap, order.length - index,
+      choice = predictRivalPick(team, pool, places, input.keeperCap, rivalTail(order.length - index),
                                 input.heads?.get(id) ?? DEFAULT_HEAD, cap);
     }
     picks.push({ teamId: id, player: choice, predicted: id !== input.mineId });
@@ -1103,7 +1117,7 @@ export function projectOurPicks(input: PlanInput, picks: number): PlanPlayer[] {
   const cap = input.cap ?? null;
   for (const [index, id] of order.slice(0, myPlace).entries()) {
     const team = teams.get(id)!;
-    const choice = predictRivalPick(team, pool, places, input.keeperCap, order.length - index,
+    const choice = predictRivalPick(team, pool, places, input.keeperCap, rivalTail(order.length - index),
                                     input.heads?.get(id) ?? DEFAULT_HEAD, cap);
     if (!choice) continue;
     pool = pool.filter((player) => player.id !== choice.id);

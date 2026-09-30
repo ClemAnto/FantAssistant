@@ -165,6 +165,17 @@ export const SORT_KEYS = [
 
 type SortKey = (typeof SORT_KEYS)[number];
 
+/** Which section of /why is on screen, remembered per browser like the page's other choices. */
+const SECTION_KEY = 'fantassistant.why.section';
+
+function readSection(): 'scala' | 'pa' {
+  try {
+    return localStorage.getItem(SECTION_KEY) === 'pa' ? 'pa' : 'scala';
+  } catch {
+    return 'scala';
+  }
+}
+
 /**
  * PERCHÉ QUEL SURPLUS: la lista completa, e per ogni uomo i fattori che lo producono.
  *
@@ -191,16 +202,6 @@ type SortKey = (typeof SORT_KEYS)[number];
  *    lo stop aperto e per l'assicurazione (`core/expected-play.ts`), ed è quel secondo numero che ordina
  *    le liste della Strategia e della Plancia. Sono due domande, quindi due colonne e due nomi.
  */
-const SECTION_KEY = 'fantassistant.why.section';
-
-function readSection(): 'scala' | 'pa' {
-  try {
-    return localStorage.getItem(SECTION_KEY) === 'pa' ? 'pa' : 'scala';
-  } catch {
-    return 'scala';
-  }
-}
-
 @Component({
   selector: 'app-why',
   imports: [

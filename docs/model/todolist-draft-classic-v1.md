@@ -41,6 +41,10 @@ curati (priorita-draft-v1.md §26); aperto l'item 1.3.
 (`pingpong`) insegnato all'app e al banco; col serpentone la DP perde −19,7% (0/10), quindi resta spenta
 (priorita-draft-v1.md §25).
 
+**Stato alla chiusura del 30/09/2026 (notte, XVI)**: chiusi 0.1-0.3, 1.1-1.5, 2.1-2.4, 3.1-3.4. **Aperti**: 0.4 (commit
+fatti, deploy da decidere), 3.5 (il testo dei tooltip, da rileggere con l'operatore) e, fuori dal classic, la DP del
+mantra, che lui tiene e vuole rivedere nelle dinamiche. Il lavoro nuovo sta in `partite-attese-scomposte-v1.md`.
+
 Gli item sono **ordinati per urgenza rispetto al draft**, poi per resa attesa.
 
 ---

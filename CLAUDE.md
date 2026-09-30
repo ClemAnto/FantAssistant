@@ -170,7 +170,9 @@ results: role coverage beats the currency tenfold, the surplus is the wrong draf
 for first pick is ruinous) -> **`priorita-draft-v1.md`** (29/09/2026: the DRAFT PRIORITY for the operator's
 EuroLeghe - the formula he dictated, the bench that now plays his rules, and why predicting the rivals was
 measured and dropped) -> `spec-euroleghe-ingest-v9.md` -> `nota-modello-set-pieces-v2.md` -> `modello-previsionale-v3.8.md` ->
-the consolidated notes in the same folder. For BOARD work (typical elevens): `formazioni-tipo-v1.md`
+the consolidated notes in the same folder. For the EXPECTED APPEARANCES rebuilt from their reasons (injured, suspended, chosen, European cups), and the /why
+section that shows them: **`partite-attese-scomposte-v1.md`** (30/09/2026).
+For BOARD work (typical elevens): `formazioni-tipo-v1.md`
 (how the board is decided — shape, claim, fit, with every constant) and `todolist-formazioni-tipo-v1.md`
 (the improvement plan born from the 08/08/2026 press comparison, ordered by measured yield; its standing
 rule: the press is a JUDGE, never an input of the claim). For the SEALED-BID page (`/sealed-bid`, the
@@ -7313,6 +7315,22 @@ difetti che nessun banco vedeva. Tre cose restano.
   crescente) e `pingpong`, un serpentone puro, visto sul draft classic FA-yei-458, dove l'app indovinava 82
   chiamate su 250 e ora 250 (`auction-plan.ahead`, `AuctionFeed.orderType`/`firstRoundOrder`; §25). *Una regola
   riprodotta 384 su 384 su un tavolo è una regola di QUEL tavolo*: la seconda sessione vera l'ha smentita.
+
+## A bench that cannot see a rule reproduces its adoption by accident, and a reason for an absence is a column
+**30/09/2026, `priorita-draft-v1.md` §26-§28 and `partite-attese-scomposte-v1.md`.** Three things that outlive the day.
+**A REAL TABLE REPLAYED ON THE PAGE finds what no bench does**: the classic drafts FA-yei-458 and FA-l1n-0pn, served by a
+fake host to the real `/auction`, found the followed squad lost on a re-join without a snapshot (`connect` began with
+`disconnect`), rivals predicted past a line quota (a man the sheet does not price had no slot, so he did not count) and
+predictions past the end of a draft - all invisible to `e2e-draft`, which plays a demo that sets its own squad.
+**A RULE THE BENCH CANNOT SEE READS AS ONE THAT REPRODUCES**: the bench's players carry no `net`, so the app's tail rule
+priced everybody at zero and fell back on the plain prediction; the row that proved «the shipped code lands on the
+adopting number» proved it because the rule was inert. Found only because «with» and «without» read identical to the
+decimal on 25 windows - righe identiche non sono un risultato, once more. Replayed on 834 REAL picks the rule named 39
+against 55, and it is off (`RIVAL_TAIL_RULE`), one switch for every rival prediction so the page cannot print two.
+**THE REASON FOR AN ABSENCE WAS IN THE CACHE AND THE PARSER DROPPED IT**: Transfermarkt's per-game payload carries
+`absenceId`, and 1-3 are the three suspensions (93%, 94% and a red on the game before), next to `isStarting` and the
+coach - `tm_appearances` keeps only the state. Another «il dato c'era». And **on real rivals no predictor names a pick**
+(2-6%, 15% inside a phase): the 82.8% the heads scored on the bench was against heads we wrote ourselves.
 
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);

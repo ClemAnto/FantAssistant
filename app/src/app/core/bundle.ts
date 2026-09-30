@@ -559,9 +559,9 @@ export class Bundle {
   }
 
   /**
-   * IL TEST DELLE PARTITE ATTESE (30/09/2026, `toolkit/scripts/presence_test/build.py`): la stagione di ogni uomo
-   * scomposta nei motivi, la formula ricostruita e la previsione del motore, contro quello che ha giocato davvero.
-   * Null finche' nessuno ha lanciato lo script: la pagina lo dice invece di disegnare una tabella vuota.
+   * THE EXPECTED-APPEARANCES TEST (30/09/2026, `toolkit/scripts/presence_test/build.py`): every man's season split
+   * into its reasons, the formula rebuilt from them and the engine's prediction, against what he really played.
+   * Null until somebody runs the script: the page says so instead of drawing an empty table.
    */
   presenceTest(): Promise<PresenceTestFile | null> {
     this.presenceTestPromise ??= fetch(`${this.base}/presence_test.json`)

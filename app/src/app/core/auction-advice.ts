@@ -1340,7 +1340,7 @@ export class AuctionAdvice {
           teams: input.teams, order: input.order, pool: input.pool,
           places: startingPlaces(input.shapes), mineId: input.mineId,
           keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
-          heads: input.heads, cap: input.cap,
+          heads: input.heads, cap: input.cap, rounds: this.priorityRounds(),
         })
       : null;
     for (const player of input.pool) {
@@ -1485,6 +1485,7 @@ export class AuctionAdvice {
             maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
             heads: input.heads,
             cap: input.cap,
+            rounds: this.priorityRounds(),
           })
         : null,
       cap: input.cap,
