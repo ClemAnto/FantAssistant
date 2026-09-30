@@ -6,7 +6,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle } from '../../../core/bundle';
 import { looseMatch } from '../../../core/loose-search';
-import { PresenceSort, PresenceTestFile, PresenceTestView, presenceRows } from '../../../core/presence-test';
+import { PresenceSort, PresenceTestFile, presenceRows } from '../../../core/presence-test';
 
 /**
  * «PARTITE ATTESE» on /why (operator, 30/09/2026: «una sezione con una tabella con tutti i calciatori e i dati che
@@ -30,8 +30,8 @@ export class PresenceTest {
   protected readonly window = signal<'T1' | 'T2'>('T2');
   protected readonly role = signal<string | null>(null);
   protected readonly query = signal('');
-  protected readonly sort = signal<PresenceSort>('gain');
-  protected readonly descending = signal(true);
+  protected readonly sort = signal<PresenceSort>('ratioFormula');
+  protected readonly descending = signal(false);
 
   constructor() {
     void this.bundle.presenceTest().then((file) => {
@@ -54,12 +54,18 @@ export class PresenceTest {
     });
   });
 
-  /** How many of the listed men the formula got closer on than the engine, and the other way round. */
-  protected readonly duel = computed(() => {
-    const both = this.rows().filter((row) => row.errEngine != null);
-    const closer = both.filter((row) => Math.abs(row.errFormula) < Math.abs(row.errEngine!)).length;
-    const farther = both.filter((row) => Math.abs(row.errFormula) > Math.abs(row.errEngine!)).length;
-    return { closer, farther, even: both.length - closer - farther };
+  /**
+   * THE SAMPLE'S OWN VERDICT beside the file's (which is over everybody): how many of the shown men each prediction
+   * put within 80%-125% of what they really played, and how many played nothing at all.
+   */
+  protected readonly band = computed(() => {
+    const rows = this.rows();
+    const within = (value: number | null) => value != null && value >= 0.8 && value <= 1.25;
+    return {
+      formula: rows.filter((row) => within(row.ratioFormula)).length,
+      engine: rows.filter((row) => within(row.ratioEngine)).length,
+      zero: rows.filter((row) => row.ratioFormula == null).length,
+    };
   });
 
   protected readonly params = computed(() => {
@@ -76,7 +82,8 @@ export class PresenceTest {
     if (this.sort() === key) this.descending.set(!this.descending());
     else {
       this.sort.set(key);
-      this.descending.set(key !== 'name');
+      // A ratio sorts by distance from 100%, closest first; a count largest first; a name A to Z.
+      this.descending.set(key !== 'name' && key !== 'ratioFormula' && key !== 'ratioEngine');
     }
   }
 
@@ -89,18 +96,23 @@ export class PresenceTest {
     return value > 0 ? `+${value.toFixed(1)}` : value.toFixed(1);
   }
 
-  /** How much closer the formula got than the engine, in matches: positive is the formula's win. */
-  protected gain(row: PresenceTestView): number | null {
-    return row.errEngine == null ? null : Math.round((Math.abs(row.errEngine) - Math.abs(row.errFormula)) * 10) / 10;
+  /** A ratio as the operator reads it: 100% exact, 50% he played twice the expected, 200% half. */
+  protected ratio(value: number | null): string {
+    return value == null ? '—' : `${Math.round(value * 100)}%`;
   }
 
   protected pct(value: number | null): string {
     return value == null ? '—' : `${Math.round(value * 100)}%`;
   }
 
-  /** The error's ink: within three matches neutral, beyond it the direction (over red, under blue). */
-  protected errInk(value: number | null): string {
-    if (value == null || Math.abs(value) < 3) return 'text-muted';
-    return value > 0 ? 'text-danger' : 'text-primary';
+  /**
+   * The ratio's ink: within 80%-125% green, within 67%-150% neutral, beyond it the direction - over-predicted
+   * (he played less) red, under-predicted (he played more) blue. Symmetric, like the order.
+   */
+  protected ratioInk(value: number | null): string {
+    if (value == null) return 'text-muted';
+    if (value >= 0.8 && value <= 1.25) return 'text-success';
+    if (value >= 2 / 3 && value <= 1.5) return 'text-fg';
+    return value > 1 ? 'text-danger' : 'text-primary';
   }
 }

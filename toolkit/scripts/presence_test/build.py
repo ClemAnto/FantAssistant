@@ -49,6 +49,7 @@ SUSPENSION = {1, 2, 3}
 EUROPE = {"CL", "EL", "UCOL"}
 TOP5 = {"IT1", "GB1", "ES1", "L1", "FR1"}
 LEAGUE_TYPES = {1, 2}          # Transfermarkt's first and second divisions; cups and youth are other types
+SAMPLE_PER_CELL = 2
 CONTEXTS = ("serie A, stesso club", "serie A, cambio club", "estero top5", "altro campionato", "portiere", "nessuna")
 GRID = {
     "kD": [0, 20, 40, 80, 160, 320, 640], "w2": [0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0],
@@ -201,16 +202,47 @@ def main() -> None:
         for key, values in GRID.items():
             p[key] = min(values, key=lambda v: mae(fit, {**p, key: v}))
 
+    def ratio(pred: float | None, actual: float) -> float | None:
+        # Predicted over REAL (operator, 30/09/2026): 100% exact, 50% he played twice what was expected, 200%
+        # he played half. A man who played nothing has no ratio: any prediction over zero is infinitely off.
+        return None if pred is None or actual <= 0 else pred / actual
+
+    def band_share(values: list[float | None]) -> float:
+        known = [v for v in values if v is not None]
+        return round(sum(0.8 <= v <= 1.25 for v in known) / len(known), 3) if known else 0.0
+
     summary = {}
     for window in ("T1", "T2"):
         both = [r for r in rows if r["window"] == window and r["pa_engine"] is not None]
+        formula_ratios = [ratio(predict(r, p), r["pa_actual"]) for r in both]
+        engine_ratios = [ratio(r["pa_engine"], r["pa_actual"]) for r in both]
         summary[window] = {
             "target": TARGET[window], "fitted_on": "T1", "out_of_sample": window != "T1", "n": len(both),
             "mae_formula": round(mae(both, p), 3),
             "mae_engine": round(mean(abs(r["pa_engine"] - r["pa_actual"]) for r in both), 3),
             "median_formula": round(median(abs(predict(r, p) - r["pa_actual"]) for r in both), 2),
             "median_engine": round(median(abs(r["pa_engine"] - r["pa_actual"]) for r in both), 2),
+            "median_ratio_formula": round(median(v for v in formula_ratios if v is not None), 3),
+            "median_ratio_engine": round(median(v for v in engine_ratios if v is not None), 3),
+            "within20_formula": band_share(formula_ratios),
+            "within20_engine": band_share(engine_ratios),
+            "zero_actual": sum(r["pa_actual"] <= 0 for r in both),
         }
+
+    # THE SAMPLE the page shows (operator: «inutile che mostri tutti, un campione ampio variegato»): up to two men
+    # per (role, context, band of real appearances), chosen by a fixed hash of the id so it is the same on every run
+    # and nobody picked the names.
+    def band(actual: float) -> str:
+        return "0" if actual <= 0 else "1-9" if actual < 10 else "10-19" if actual < 20 else "20-29" if actual < 30 else "30+"
+    sampled: set = set()
+    for window in ("T1", "T2"):
+        cells: dict = defaultdict(list)
+        for r in rows:
+            if r["window"] == window:
+                cells[(r["role"], r["ctx"], band(r["pa_actual"]))].append(r)
+        for members in cells.values():
+            for r in sorted(members, key=lambda one: (one["fc_id"] * 2654435761) % 2**32)[:SAMPLE_PER_CELL]:
+                sampled.add((window, r["fc_id"]))
     out_rows = []
     for r in rows:
         a1, a2 = r["a1"], r["a2"]
@@ -224,6 +256,7 @@ def main() -> None:
             "prev2": None if not a2 else {k: int(a2[k]) for k in ("n", "inj", "susp", "other")},
             "d": None if d is None else round(d, 3), "s": None if s is None else round(s, 3),
             "paFormula": round(predict(r, p), 1), "paEngine": r["pa_engine"], "paActual": r["pa_actual"],
+            "sample": (r["window"], r["fc_id"]) in sampled,
         })
     result = {
         "generated_at": dt.datetime.now(tz=dt.UTC).isoformat(timespec="seconds"),
@@ -237,7 +270,10 @@ def main() -> None:
     target.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
     for window, s in summary.items():
         print(f"{window} -> {s['target']} ({'fuori campione' if s['out_of_sample'] else 'taratura'}): "
-              f"n {s['n']}, formula {s['mae_formula']}, motore {s['mae_engine']}")
+              f"n {s['n']}, formula {s['mae_formula']}, motore {s['mae_engine']}; entro 80-125%: "
+              f"formula {s['within20_formula']}, motore {s['within20_engine']}; mediana del rapporto "
+              f"{s['median_ratio_formula']} / {s['median_ratio_engine']}")
+    print(f"campione: {sum(1 for row in out_rows if row['sample'])} righe")
     print(f"{len(out_rows)} righe in {target}")
 
 

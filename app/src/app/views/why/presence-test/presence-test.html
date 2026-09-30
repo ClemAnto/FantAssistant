@@ -15,9 +15,13 @@
         <span class="font-medium text-fg">
           {{ sum.target }} · {{ sum.out_of_sample ? 'fuori campione' : 'stagione di taratura' }}
         </span>
-        <span>errore medio: formula <b>{{ sum.mae_formula.toFixed(2) }}</b> · motore <b>{{ sum.mae_engine.toFixed(2) }}</b> partite</span>
-        <span class="text-muted">mediana {{ sum.median_formula }} · {{ sum.median_engine }} · su {{ sum.n }} uomini che il motore prevede</span>
-        <span class="text-muted">formula più vicina {{ duel().closer }} · motore più vicino {{ duel().farther }} · pari {{ duel().even }}</span>
+        <span>entro 80-125% del vero: formula <b>{{ pct(sum.within20_formula) }}</b> · motore
+          <b>{{ pct(sum.within20_engine) }}</b></span>
+        <span>rapporto mediano: formula {{ pct(sum.median_ratio_formula) }} · motore {{ pct(sum.median_ratio_engine) }}</span>
+        <span class="text-muted">errore medio {{ sum.mae_formula.toFixed(2) }} · {{ sum.mae_engine.toFixed(2) }} partite ·
+          su tutti i {{ sum.n }} uomini che il motore prevede, {{ sum.zero_actual }} senza nessuna partita</span>
+        <span class="text-muted">nel campione a schermo, entro 80-125%: formula {{ band().formula }} · motore
+          {{ band().engine }} su {{ rows().length }}</span>
       </div>
     }
     <div class="rounded-lg border border-border bg-surface px-3 py-2 text-xs text-muted">
@@ -41,7 +45,8 @@
       </nz-radio-group>
       <input nz-input nzSize="small" class="w-56" placeholder="Cerca un nome" [ngModel]="query()"
              (ngModelChange)="query.set($event)" />
-      <span class="text-xs text-muted">{{ rows().length }} calciatori</span>
+      <span class="text-xs text-muted">campione di {{ rows().length }} calciatori: fino a due per ruolo, contesto e fascia di
+        partite giocate · Pa previste ÷ partite a voto vere, 100% = esatto, 50% = ne ha giocate il doppio, 200% = la metà</span>
     </div>
 
     <!-- LA STAGIONE PRIMA, partita per partita del suo club in campionato (Transfermarkt): la somma delle sette colonne
@@ -69,9 +74,8 @@
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paFormula')">Pa formula{{ arrow('paFormula') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paEngine')">Pa motore{{ arrow('paEngine') }}</th>
             <th class="cursor-pointer px-1 text-right" (click)="sortBy('paActual')">Pa vere{{ arrow('paActual') }}</th>
-            <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Formula meno vere" (click)="sortBy('errFormula')">Err. F{{ arrow('errFormula') }}</th>
-            <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Motore meno vere" (click)="sortBy('errEngine')">Err. M{{ arrow('errEngine') }}</th>
-            <th class="cursor-pointer px-2 text-right" nz-tooltip nzTooltipTitle="Quanto la formula è più vicina del motore" (click)="sortBy('gain')">Guadagno{{ arrow('gain') }}</th>
+            <th class="cursor-pointer px-1 text-right" nz-tooltip nzTooltipTitle="Pa formula ÷ Pa vere" (click)="sortBy('ratioFormula')">Formula %{{ arrow('ratioFormula') }}</th>
+            <th class="cursor-pointer px-2 text-right" nz-tooltip nzTooltipTitle="Pa motore ÷ Pa vere" (click)="sortBy('ratioEngine')">Motore %{{ arrow('ratioEngine') }}</th>
           </tr>
         </thead>
         <tbody>
@@ -100,11 +104,8 @@
               <td class="px-1 text-right font-semibold">{{ row.paFormula.toFixed(1) }}</td>
               <td class="px-1 text-right">{{ row.paEngine != null ? row.paEngine.toFixed(1) : '—' }}</td>
               <td class="px-1 text-right font-semibold text-fg">{{ row.paActual }}</td>
-              <td class="px-1 text-right" [class]="errInk(row.errFormula)">{{ signed(row.errFormula) }}</td>
-              <td class="px-1 text-right" [class]="errInk(row.errEngine)">{{ signed(row.errEngine) }}</td>
-              <td class="px-2 text-right">
-                {{ signed(gain(row)) }}
-              </td>
+              <td class="px-1 text-right font-semibold" [class]="ratioInk(row.ratioFormula)">{{ ratio(row.ratioFormula) }}</td>
+              <td class="px-2 text-right" [class]="ratioInk(row.ratioEngine)">{{ ratio(row.ratioEngine) }}</td>
             </tr>
           }
         </tbody>

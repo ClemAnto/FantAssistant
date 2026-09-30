@@ -39,6 +39,8 @@ export interface PresenceTestRow {
   paFormula: number;
   paEngine: number | null;
   paActual: number;
+  /** One of the varied sample the page shows (up to two per role x context x band of real appearances). */
+  sample: boolean;
 }
 
 export interface PresenceTestSummary {
@@ -50,6 +52,13 @@ export interface PresenceTestSummary {
   mae_engine: number;
   median_formula: number;
   median_engine: number;
+  /** Predicted over real, median, and the share of men within 80%-125% of what they really played. */
+  median_ratio_formula: number;
+  median_ratio_engine: number;
+  within20_formula: number;
+  within20_engine: number;
+  /** Men who played nothing: they have no ratio, any prediction over zero is infinitely off. */
+  zero_actual: number;
 }
 
 export interface PresenceTestFile {
@@ -61,40 +70,56 @@ export interface PresenceTestFile {
   rows: PresenceTestRow[];
 }
 
-/** A row with the two errors the page ranks and colours by: predicted minus real, signed. */
+/**
+ * A row with the two RATIOS the page is judged by (operator, 30/09/2026): predicted over real. 100% exact, 50% he
+ * played twice what was expected, 200% he played half. Null for a man who played nothing.
+ */
 export interface PresenceTestView extends PresenceTestRow {
-  errFormula: number;
-  errEngine: number | null;
+  ratioFormula: number | null;
+  ratioEngine: number | null;
 }
 
-export type PresenceSort =
-  | 'name' | 'paActual' | 'paFormula' | 'paEngine' | 'errFormula' | 'errEngine' | 'gain' | 'd' | 's';
+export type PresenceSort = 'name' | 'paActual' | 'paFormula' | 'paEngine' | 'ratioFormula' | 'ratioEngine' | 'd' | 's';
+
+/** Predicted over real, or null where he played nothing. */
+export function ratioOf(predicted: number | null, actual: number): number | null {
+  return predicted == null || actual <= 0 ? null : predicted / actual;
+}
+
+/** How far a ratio is from 100%, symmetric: 50% and 200% are the same distance (|ln|). */
+export function distanceOf(ratio: number | null): number | null {
+  return ratio == null || ratio <= 0 ? (ratio === 0 ? Infinity : null) : Math.abs(Math.log(ratio));
+}
 
 /**
- * The rows of one window, filtered by name and role and sorted. `gain` is how much closer the formula got than the
- * engine (|engine error| - |formula error|): positive is the formula's win. A man the engine does not price has no
- * gain and no engine error, and sorts last rather than as a zero.
+ * The rows of one window - the sample only, unless asked - filtered by name and role and sorted. On a ratio column
+ * the order is the DISTANCE from 100%, so the closest come first ascending; a man with no ratio sorts last.
  */
 export function presenceRows(
   file: PresenceTestFile,
   window: 'T1' | 'T2',
-  opts: { query?: (row: PresenceTestRow) => boolean; role?: string | null; sort: PresenceSort; descending: boolean },
+  opts: {
+    query?: (row: PresenceTestRow) => boolean;
+    role?: string | null;
+    sort: PresenceSort;
+    descending: boolean;
+    all?: boolean;
+  },
 ): PresenceTestView[] {
   const rows: PresenceTestView[] = file.rows
-    .filter((row) => row.window === window)
+    .filter((row) => row.window === window && (opts.all || row.sample))
     .filter((row) => !opts.role || row.role === opts.role)
     .filter((row) => !opts.query || opts.query(row))
     .map((row) => ({
       ...row,
-      errFormula: round1(row.paFormula - row.paActual),
-      errEngine: row.paEngine == null ? null : round1(row.paEngine - row.paActual),
+      ratioFormula: ratioOf(row.paFormula, row.paActual),
+      ratioEngine: ratioOf(row.paEngine, row.paActual),
     }));
   const key = (row: PresenceTestView): number | string | null => {
     switch (opts.sort) {
       case 'name': return row.name;
-      case 'errFormula': return Math.abs(row.errFormula);
-      case 'errEngine': return row.errEngine == null ? null : Math.abs(row.errEngine);
-      case 'gain': return row.errEngine == null ? null : Math.abs(row.errEngine) - Math.abs(row.errFormula);
+      case 'ratioFormula': return distanceOf(row.ratioFormula);
+      case 'ratioEngine': return distanceOf(row.ratioEngine);
       default: return row[opts.sort];
     }
   };
@@ -107,8 +132,4 @@ export function presenceRows(
     if (y == null) return -1;
     return (typeof x === 'string' ? x.localeCompare(String(y)) : x - (y as number)) * sign;
   });
-}
-
-function round1(value: number): number {
-  return Math.round(value * 10) / 10;
 }

@@ -1,7 +1,7 @@
 /**
  * e2e-why-presence.mjs - drive the /why page's «Partite attese» section (30/09/2026) and hold it to the file the
  * toolkit wrote (`public/data/presence_test.json`, from `toolkit/scripts/presence_test/build.py`): the switch opens
- * the section, both windows draw every row of the file, the summary carries the file's two errors, and on every row
+ * the section, both windows draw every row of the file's sample, the summary carries the file's two errors, and on every row
  * the seven reasons (injured ... started) add up to the club's games, the real Pa and the formula's Pa are the
  * file's, and «Err. F» is the formula minus what he really played.
  *
@@ -278,7 +278,7 @@ async function main() {
         await wait(500);
       }
       const seen = await evaluate(session, readTable);
-      const expected = file.rows.filter((row) => row.window === window);
+      const expected = file.rows.filter((row) => row.window === window && row.sample);
       const byId = new Map(expected.map((row) => [row.fcId, row]));
       const at = (name) => seen.heads.indexOf(name);
       const bad = [];
@@ -299,8 +299,10 @@ async function main() {
         }
         if (num('Pa vere') !== truth.paActual) bad.push(`${truth.name}: Pa vere ${num('Pa vere')} contro ${truth.paActual}`);
         if (Math.abs(num('Pa formula') - truth.paFormula) > 0.05) bad.push(`${truth.name}: Pa formula ${num('Pa formula')} contro ${truth.paFormula}`);
-        const errF = num('Err. F');
-        if (Math.abs(errF - (truth.paFormula - truth.paActual)) > 0.06) bad.push(`${truth.name}: Err. F ${errF} non e' formula meno vere`);
+        // The ratio is predicted over REAL, as the operator defined it: 100% exact, 50% he played twice, 200% half.
+        const shown = row.cells[at('Formula %') - (row.span ? 8 : 0)];
+        const want = truth.paActual > 0 ? `${Math.round((truth.paFormula / truth.paActual) * 100)}%` : '—';
+        if (shown !== want) bad.push(`${truth.name}: Formula % «${shown}» contro ${want}`);
         checked += 1;
       }
       note(`tabella ${window}`, `${seen.rows.length} righe, ${checked} confrontate col file; riepilogo «${seen.summary.slice(0, 140)}»`, bad);

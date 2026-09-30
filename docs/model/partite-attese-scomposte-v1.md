@@ -51,7 +51,13 @@ parametri della vicina), sugli stessi uomini.
 | T1 2024-25 (taratura), 389 uomini | 8,64 | 8,24 |
 | **T2 2025-26 (fuori campione), 403 uomini** | **8,18** | **8,02** |
 
-Errore medio in partite. **La formula perde del 2,1% fuori campione.** Tre cose, in ordine di peso:
+Errore medio in partite. **La formula perde del 2,1% fuori campione.**
+
+**La misura dell'operatore** (stessa sera): Pa previste ÷ partite a voto vere, 100% esatto, 50% ne ha giocate il
+doppio, 200% la metà. Su T2, fra chi ha giocato almeno una partita: **entro 80-125% del vero la formula mette il 33%
+degli uomini, il motore il 37%**; rapporto mediano 89% contro 95%, cioè la formula SOTTOSTIMA un po' più del motore.
+La pagina mostra un campione deterministico di 143 uomini (fino a due per ruolo × contesto × fascia di partite vere,
+scelti da un hash dell'id) e il riepilogo su tutti. Tre cose, in ordine di peso:
 - **chi è rimasto tutta la stagione** (339 su 403): formula 7,59, motore 7,19 (−5,5%). Il motore è migliore dove la
   stagione è stabile: la sua regressione è stimata direttamente sull'esito;
 - **chi è partito o arrivato a stagione in corso** (64): formula **11,33**, motore 12,38 (**+8,5%**), e chi non ha
