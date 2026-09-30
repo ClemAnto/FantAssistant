@@ -7490,3 +7490,30 @@ dichiarata per `club_change`, e vale anche qui.
 
 R32 e R32b non entrano in `SHARE_REPLACING` (non spostano il baseline dei residui delle altre regole) e finché non
 sono in `ADOPTED` `backtest --verify` resta **22/22** e nessun foglio si muove.
+
+### 7-sexsexagies (bis). L'ESITO: R32 RESPINTA, R32b NON PASSA per la clausola della finestra peggiore
+
+**Corsa fatta** subito dopo la pre-registrazione (`8c3ea07`), sul DB vivo in sola lettura: il set adottato con R7
+contro il set adottato con R32 (o R32b) al posto di R7, ogni finestra coi parametri incrociati e messi in comune del
+gate. Driver in scratchpad (`gate_r32.py`). Classic e mantra danno gli stessi numeri sulle presenze (la regola non
+tocca un ruolo mantra) e differiscono solo nelle liste.
+
+| | finestre migliori (portieri mossi) | media | peggiore | presenze di tutti | nomi · valore catturato |
+|---|---|---|---|---|---|
+| **R32**, default | 4 su 10 | −3,1% | −10,5% | −0,06%, 7 finestre peggio | 145 → 145 · −0,04% |
+| **R32**, euro | 3 su 5 | −1,7% | −25,3% | −0,09% | 45 → 48 · +0,6% |
+| **R32b**, default | **7 su 10** | **+3,5%** | **−21,3% (T0)** | **+0,25%**, 1 finestra peggio | 145 → 145 · −0,08% |
+| **R32b**, euro | 3 su 5 | +9,9% | −6,0% | +0,05% | 45 → 48 · +0,6% |
+
+**R32 è respinta**: da sola la maglia lasciata non dice niente, e il coefficiente lo spiega — `d` è 0,02-0,11 su
+default contro lo 0,2-0,5 atteso. Quando un portiere se ne va, il club quasi sempre ne compra un altro, e una maglia
+che cambia padrone per acquisto non è una maglia ereditata.
+
+**R32b non passa**, e per una clausola sola: la direzione è quella attesa su default (7 su 10, +3,5%, `d` 0,23-0,32 su
+tutte e dieci le finestre, cioè stabile e dentro l'intervallo pre-registrato), le presenze di tutta la popolazione
+migliorano (+0,25%) e le liste non si muovono; ma **T0 perde il 21,3%** sui suoi 11 portieri e T2 il 3,5%, contro la
+tolleranza del −2%. Su euro tre finestre su cinque. I portieri mossi sono 4-11 per finestra, quindi la clausola cade
+su pochi uomini - ed è proprio il caso per cui il pavimento esiste. **Non adottata.** Resta candidata, e la stagione
+2026-27 è la prova pulita (la contaminazione dichiarata vale qui come per R29).
+
+`backtest --verify` 22/22, `ADOPTED` invariato, nessun foglio si muove.
