@@ -445,6 +445,13 @@ foglio di quel giorno: ceduto o fuori rosa) - 16 e 19 uomini, formula 22,2 e 24,
 * **M5d** - M5a con i fattori scelti per massimizzare la quota entro l'80-125% sull'altra stagione (griglia 0,5-1,2).
 Stesso criterio di M5.
 
+**L'esito di M5c e M5d**: M5c (chi la board non conosce più) tiene la quota (57,4 → 57,9 · 53,8 → 53,8) e abbassa
+l'errore medio del 12-16% (7,54 → 6,62 · 7,19 → 6,01); alla lettera non passa (pari nel 2025-26). M5d peggiora la quota
+nel 2024-25 (54,2). **Letta per quello che è, M5c corregge la POPOLAZIONE e non la formula**: quegli uomini stanno nel
+banco perché il listone di una stagione passata è l'ultima lettura e porta i ceduti dell'ultimo giorno; a un'asta del
+5 settembre il foglio li ha già tolti. Decisione dell'operatore in sospeso. La board che mette in campo sposta poco la
+misura che decide: i disegnati sono già previsti bene (27,4 → 26,1 · 27,8 → 26,3).
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
