@@ -9,10 +9,14 @@
  * `auction-plan` imports only types and `slotShares` from `auction-value` - so the bundle is plain JS. */
 export {
   COVER_COPIES,
+  DEFAULT_HEAD,
   DEPTH_WEIGHT,
+  HEAD_WORTH,
   TAIL_POSITIONS,
   TAIL_PRICE_FLOOR,
   SURVIVOR_DISCOUNT,
+  capBlocks,
+  classifyRivals,
   coverNeedOf,
   goneBeforeOurNextTurn,
   lineOf,

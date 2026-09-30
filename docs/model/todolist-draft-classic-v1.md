@@ -28,7 +28,8 @@ non la misura.
   classic sono spenti;
 - item 1.1 in parte: le due sessioni date dall'operatore non sono classic (sotto).
 
-**APERTO NUMERO UNO, ed è sul MANTRA**: la DP dell'app (la formula ridichiarata il 29/09) non era mai stata misurata
+**DECISO dall'operatore il 30/09/2026 (notte): sul mantra la DP resta**, «dovremo rivedere delle dinamiche
+successivamente». Il testo che segue resta come verbale. **APERTO NUMERO UNO, ed è sul MANTRA**: la DP dell'app (la formula ridichiarata il 29/09) non era mai stata misurata
 contro il consiglio di prima; misurata ora legge **−1,59%, 2 finestre su 5** (EuroLeghe, 4 semi, 5,3 buchi a stagione
 contro 0,6), mentre la priorità «completa» ritirata quel giorno legge +1,59% robust. Perde di poco e la formula è sua:
 decide l'operatore se tenerla, tornare a `pickForUs` o riprendere la G sulla rosa.
@@ -52,7 +53,8 @@ misurato +0,77% robust sulle dieci finestre Serie A (metrica-asta-surplus-v1.md 
 la condizione di `AuctionAdvice.priorityOn` torna a chiedere `isMantra()`. Da decidere prima del draft, o dopo
 l'item 2 se c'è tempo.
 
-**0.2 Confermare Z sul classic.** Z = i migliori `squadre × posti del modulo` per ruolo (4 D, 4 C, 2 A a testa),
+**0.2 CHIUSO il 30/09/2026 (notte): Z dichiarata dall'operatore, P 2 · D 4 · C 4 · A 3 per partecipante**
+(`CLASSIC_STARTERS_PER_TEAM`, priorita-draft-v1.md §27). Testo originale: **Confermare Z sul classic.** Z = i migliori `squadre × posti del modulo` per ruolo (4 D, 4 C, 2 A a testa),
 non i «3 per partecipante» della sua frase sulle Pc (`LeagueSize.startersFromPlaces`). È un'estensione nostra,
 dichiarata; l'item 2.4 la misura.
 
@@ -120,7 +122,21 @@ tavolo vero. Ha trovato e curato **tre difetti della pagina**: la squadra seguit
 fotografia (quindi niente previsioni né «pieno»), rivali previsti oltre la quota perché chi il foglio non prezza non
 contava nel reparto, previsioni oltre la fine del draft. Dopo: nessun problema su FA-yei-458 e FA-l1n-0pn.
 
-**1.3 (nuovo) Le previsioni dei rivali sul classic non battono il prezzo.** Delle previste escono davvero il 26,6% e
+**1.3 MISURATO il 30/09/2026 (notte)** sui tre draft veri, rigiocati scelta per scelta (`toolkit/bench/draft/
+real-rivals.mjs`, priorita-draft-v1.md §27): nessun predittore nomina la scelta di un rivale più del 2-6% delle volte
+(15% quando la fase fissa il reparto), le teste lette dalle scelte non aggiungono niente, valore e surplus predicono
+peggio del prezzo. Non c'è un predittore migliore da adottare; ne escono gli item 1.4 e 1.5.
+
+**1.4 (nuovo, decisione) La regola di coda dei rivali.** Senza, l'app indovina 55 scelte vere su 834 contro 39, su tre
+draft su tre; sul serpentone la sua premessa è falsa per costruzione. Toglierla sposta le previsioni con cui lo sconto
+«prendi chi sparirà» è stato misurato, quindi va rimisurato sul banco con rivali simulati che non la applicano (oggi
+`engine.mjs` la applica a tutto il tavolo) prima di cambiare `predictRivalPick`.
+
+**1.5 (nuovo, domanda) Il draft a reparti.** FA-l1n-0pn è stato giocato a reparti (P, poi D, poi C, poi A) e la
+sessione non lo dichiara. Se la sua lega fa così, serve un'opzione dichiarata che limiti lista, consigli e previsioni al
+reparto di turno.
+
+Testo originale dell'item 1.3: **Le previsioni dei rivali sul classic non battono il prezzo.** Delle previste escono davvero il 26,6% e
 il 15,5% contro il 30,7% e il 15,5% del null «gli stessi N più cari per FVM», e la squadra giusta si indovina l'1,7-4,6%
 delle volte (§26). Due draft, direzione e non taglia. Da misurare sul banco del draft prima di toccare
 `predictRivalPick`: la previsione per prezzo puro (testa `price` per tutti) contro le teste lette dalle scelte, sulle
@@ -165,7 +181,8 @@ prima (item 0.1) e lo si scrive; se perde di poco, decide l'operatore.
 
 ## 3. Pagina — quello che resta sul classic
 
-**3.1 Il modulo del campetto.** A rosa vuota il campetto sceglie il modulo dove i suggeriti rendono di più (sul
+**3.1 CHIUSO il 30/09/2026 (notte): 3-4-3 e 4-3-3** (`RECOMMENDED_CLASSIC`, stella nel selettore e pareggi a loro).
+Testo originale: **Il modulo del campetto.** A rosa vuota il campetto sceglie il modulo dove i suggeriti rendono di più (sul
 banco del 30/09 un 5-4-1, perché la DP premia i difensori), mentre i piani leggono un 3-4-3. Sul mantra ci sono i
 moduli consigliati (★, `RECOMMENDED_MANTRA`); sul classic nessuno. Chiedere all'operatore se la sua lega classic ha
 moduli di riferimento: per le buste chiuse aveva dichiarato 3-4-3 e 4-3-3 (con il mod. difesa). Se sì, una lista

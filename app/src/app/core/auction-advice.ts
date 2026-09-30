@@ -60,6 +60,7 @@ import {
   manValue,
   priorityParts,
   priorities as draftPriorityScores,
+  CLASSIC_STARTERS_PER_TEAM,
   preferredRules,
   priorityPick,
   roleStats,
@@ -1087,8 +1088,9 @@ export class AuctionAdvice {
     const quotas = this.lineQuotas();
     const size = {
       teams: teams.length, keepers: this.planInput()?.keeperCap ?? 2, rounds: this.priorityRounds(),
-      // Classic: a league buys its quota of each line, and Z is the starter of a module's whole places.
-      ...(quotas ? { quotas, startersFromPlaces: true } : {}),
+      // Classic: a league buys its quota of each line, and Z is the best of each line by his declared count
+      // (`CLASSIC_STARTERS_PER_TEAM`: P 2, D 4, C 4, A 3 per participant).
+      ...(quotas ? { quotas, startersPerLine: CLASSIC_STARTERS_PER_TEAM } : {}),
     };
     const rules = preferredRules(this.shapes() as PriorityRules, RECOMMENDED_MANTRA);
     return {

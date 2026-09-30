@@ -144,6 +144,13 @@ export interface LeagueSize {
    * about the Mantra Pc, a role worth 0.67 of a place; on classic it would read the fourth defender as a reserve.
    */
   startersFromPlaces?: boolean;
+  /**
+   * Z BY A DECLARED COUNT PER LINE, per participant (the operator, 30/09/2026, for the classic draft: «P 2 x
+   * partecipante, D 4, C 4, A 3»): the best `teams x count` of the role over the whole population, as the mantra
+   * `STARTERS_PER_TEAM` does, and for the keepers too. Where a line has a count it wins over `startersFromPlaces`;
+   * R keeps the split of the bought men at the module's places, which he did not ask to change.
+   */
+  startersPerLine?: Partial<Record<Line, number>>;
 }
 
 /** The men a league of this size BUYS (see `roleStats`): the population of Z, and of R among the free. */
@@ -191,6 +198,13 @@ export const RESERVE_QUARTER = 0.25;
  */
 export const STARTERS_PER_TEAM = 3;
 
+/**
+ * Z ON CLASSIC, DECLARED (the operator, 30/09/2026): the best «P 2 x partecipante, D 4, C 4, A 3» of each line.
+ * It replaces the module's whole places (4 D, 4 C, 2 A and one door), which were an extension of ours; the keeper
+ * count is his too, and differs from the one door per team the mantra keeps. A DECLARED count, not a measured one.
+ */
+export const CLASSIC_STARTERS_PER_TEAM: Record<Line, number> = { por: 2, dif: 4, cen: 4, att: 3 };
+
 export function roleStats(
   everybody: readonly PriorityMan[],
   rules: MantraModules,
@@ -221,9 +235,12 @@ export function roleStats(
     const low = reserves.length ? reserves : fms.slice(0, Math.max(1, Math.round(fms.length * RESERVE_QUARTER)));
     // Z over the WHOLE population of the role, best first by predicted fantamedia (`STARTERS_PER_TEAM`); R keeps
     // the split of the bought men above, which he did not ask to change.
-    const best = key === KEEPER || size.startersFromPlaces
-      ? starters
-      : (everyFm.get(key) ?? []).slice(-size.teams * STARTERS_PER_TEAM);
+    const declared = size.startersPerLine?.[lineOf(key) ?? 'por'];
+    const best = declared != null
+      ? (everyFm.get(key) ?? []).slice(-size.teams * declared)
+      : key === KEEPER || size.startersFromPlaces
+        ? starters
+        : (everyFm.get(key) ?? []).slice(-size.teams * STARTERS_PER_TEAM);
     stats.set(key, {
       z: trimmedMean(best.length ? best : starters),
       top: quantile(fms, 0.9)!,

@@ -21,7 +21,7 @@ import { ExportReadings, pickRecords, picksCsv, saveCsv, squadsCsv } from '../..
 import { AuctionDemo } from '../../core/auction-demo';
 import { AuctionFeed, AuctionPlayer, AuctionTeam, CLASSIC_OF_ZONE, SquadEntry } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
-import { DraftPlace, RECOMMENDED_MANTRA, draftPitchOf, pitchYield, placeYield, withSuggestions } from '../../core/draft-pitch';
+import { DraftPlace, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from '../../core/draft-pitch';
 import type { FantaMan } from '../../core/fanta-eleven';
 import { GlobalOptions } from '../../core/global-options';
 import { lazyRows } from '../../core/lazy-rows';
@@ -638,7 +638,7 @@ export class Auction {
   protected readonly fertileModule = computed<string | null>(() => {
     if (!this.rivalView()) return null;
     const rules = this.advice.rules();
-    const preferred = this.feed.isMantra() ? RECOMMENDED_MANTRA : [];
+    const preferred = recommendedModules(this.feed.isMantra());
     const squad = this.squad();
     let best: { name: string; fertility: number; cover: number } | null = null;
     for (const name of this.moduleNames()) {
@@ -668,13 +668,12 @@ export class Auction {
 
   protected readonly moduleNames = computed<string[]>(() => {
     const names = Object.keys(this.advice.rules()?.modules ?? {});
-    if (!this.feed.isMantra()) return names;
-    const first = RECOMMENDED_MANTRA.filter((name) => names.includes(name));
-    return [...first, ...names.filter((name) => !first.includes(name as (typeof RECOMMENDED_MANTRA)[number]))];
+    const first = recommendedModules(this.feed.isMantra()).filter((name) => names.includes(name));
+    return [...first, ...names.filter((name) => !first.includes(name))];
   });
 
   protected isRecommended(name: string): boolean {
-    return this.feed.isMantra() && (RECOMMENDED_MANTRA as readonly string[]).includes(name);
+    return recommendedModules(this.feed.isMantra()).includes(name);
   }
 
   /** A man as the pitch draws him: roles to match on, and the numbers the panel prices him with. */
@@ -824,7 +823,7 @@ export class Auction {
   protected readonly planYields = computed(() => {
     const out = new Map<string, { first: { cover: number; fertility: number }; second: { cover: number; fertility: number } | null }>();
     const rules = this.advice.rules();
-    const preferred = this.feed.isMantra() ? RECOMMENDED_MANTRA : [];
+    const preferred = recommendedModules(this.feed.isMantra());
     const squad = this.mySquad();
     const everyone = this.everyone();
     for (const chain of this.scenarioChains()) {
@@ -903,7 +902,7 @@ export class Auction {
 
   protected readonly pitch = computed(() => {
     const rules = this.advice.rules();
-    const preferred = this.feed.isMantra() ? RECOMMENDED_MANTRA : [];
+    const preferred = recommendedModules(this.feed.isMantra());
     const suggested = this.suggested();
     // The MODULE is the one the squad-to-be fields best, real and projected men together: the shape it is
     // being built towards. The men on it are then the real ones, and the suggestions fill the gaps.

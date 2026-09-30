@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { DraftPlace, draftPitchOf, flanksOutside, placeYield, preferring, spreadReserves, withSuggestions } from './draft-pitch';
+import { DraftPlace, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 
 /**
@@ -35,6 +35,13 @@ const place = (slot: string, roles: string[], holder: FantaMan | null): DraftPla
   man: holder,
   badge: null,
   reserves: [],
+});
+
+describe('recommendedModules', () => {
+  it("names the operator's modules of each game, in his order (classic: 30/09/2026)", () => {
+    expect(recommendedModules(true)).toEqual(['4-2-3-1', '4-1-4-1']);
+    expect(recommendedModules(false)).toEqual(['3-4-3', '4-3-3']);
+  });
 });
 
 describe('draftPitchOf', () => {

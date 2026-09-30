@@ -30,6 +30,18 @@ import { ModuleLine, Place, assign, bestEleven, placesIn } from './mantra-legal'
  */
 export const RECOMMENDED_MANTRA = ['4-2-3-1', '4-1-4-1'] as const;
 
+/**
+ * The same preference on CLASSIC (the operator, 30/09/2026: «3-4-3 e 4-3-3»), the two shapes he had already
+ * declared for the sealed bids - the 4-3-3 being the one of whoever plays with the defence modifier. Until then an
+ * empty classic squad was drawn on whichever shape the suggestions filled best (a 5-4-1 on the bench of that day).
+ */
+export const RECOMMENDED_CLASSIC = ['3-4-3', '4-3-3'] as const;
+
+/** The recommended modules of the table's game, in the order he names them: one reader for every caller. */
+export function recommendedModules(mantra: boolean): readonly string[] {
+  return mantra ? RECOMMENDED_MANTRA : RECOMMENDED_CLASSIC;
+}
+
 export interface DraftPlace {
   line: ModuleLine;
   /** The rulebook's own name for the place (`DC/B`, `A/PC`). */

@@ -118,6 +118,29 @@ describe('on classic (30/09/2026)', () => {
     expect(stats.get('d')!.z).toBeCloseTo(top8.reduce((a, b) => a + b, 0) / 8, 6);
   });
 
+  it('takes Z on classic from the DECLARED count per line, keepers included (30/09/2026)', () => {
+    const everybody: PriorityMan[] = [];
+    let id = 7000;
+    const add = (role: string, slot: string, fm: number) =>
+      everybody.push({ id: id++, roles: [role], slot, price: 10, fm, share: 0.9, steady: 0.6 });
+    for (let i = 0; i < 40; i += 1) {
+      add('d', 'D', 5.5 + i * 0.02);
+      add('a', 'A', 6.5 + i * 0.03);
+      add('p', 'P', 4.5 + i * 0.01);
+    }
+    const stats = roleStats(everybody, CLASSIC, { teams: 2, keepers: 3, rounds: 25,
+      quotas: { dif: 8, att: 6 }, startersFromPlaces: true, startersPerLine: { por: 2, dif: 4, att: 3 } });
+    const meanOfBest = (slot: string, n: number) => {
+      const best = everybody.filter((m) => m.slot === slot).map((m) => m.fm!).sort((a, b) => b - a).slice(0, n);
+      return best.reduce((a, b) => a + b, 0) / n;
+    };
+    // 2 teams: the 8 best defenders, the 6 best forwards and the 4 best keepers - not one door per team, and not
+    // the module's 2 forward places.
+    expect(stats.get('d')!.z).toBeCloseTo(meanOfBest('D', 8), 6);
+    expect(stats.get('a')!.z).toBeCloseTo(meanOfBest('A', 6), 6);
+    expect(stats.get('por')!.z).toBeCloseTo(meanOfBest('P', 4), 6);
+  });
+
   it('keeps a full classic line off the board', () => {
     const squad: PlanTeam = { ...team(0), slots: Array(8).fill('D'), picksCount: 8,
       limits: { por: 3, dif: 8, cen: 8, att: 6 } };

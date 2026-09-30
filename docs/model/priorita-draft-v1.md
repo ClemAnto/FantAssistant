@@ -799,3 +799,41 @@ sotto `default` il numero di chiamate per squadra prima del nostro turno è sbag
 previsione: l'ordine del giro dopo dipende dai prezzi delle scelte non ancora fatte). Due draft sono pochi per un
 verdetto, e il null non conosce le quote né chi chiama: è la direzione, non la taglia. Resta aperto (todolist
 classic, item 1.3).
+
+## 27. I rivali VERI, scelta per scelta, e tre decisioni dell'operatore (30/09/2026, notte)
+
+**Le decisioni** (sue, stessa sera): sul classic i moduli di riferimento sono **3-4-3 e 4-3-3**
+(`draft-pitch.RECOMMENDED_CLASSIC`, letti da `recommendedModules(mantra)`: stella nel selettore, pareggi e rosa vuota
+disegnati su di loro); la **Z del classic** è dichiarata per reparto e per partecipante, **P 2 · D 4 · C 4 · A 3**
+(`draft-priority.CLASSIC_STARTERS_PER_TEAM`, via `LeagueSize.startersPerLine`, che vince su `startersFromPlaces`; R
+non cambia) - sostituisce i posti del modulo, che erano un'estensione nostra, e il portiere passa da una porta a due
+per squadra; sul **mantra la DP resta** nonostante il −1,59% del §24 («dovremo rivedere delle dinamiche»).
+
+**Il rigioco dei rivali veri** (`toolkit/bench/draft/real-rivals.mjs SESSIONE... [--phases]`, item 1.3). Il banco del
+draft non può giudicare come prevediamo i rivali, perché il suo tavolo è DICHIARATO da noi: qui i rivali sono le
+squadre di tre draft conclusi, e prima di ogni loro scelta ogni predittore vede il tavolo com'era. Esatto = ha nominato
+proprio l'uomo preso:
+
+| Draft | Scelte | Il più caro (legale) | App | App senza coda | App con le teste | Rango mediano del vero nel «più caro» |
+|---|---|---|---|---|---|---|
+| FA-yei-458 classic, serpentone | 250 | 6,0% | 4,4% | 5,2% | 4,8% | 17 |
+| FA-l1n-0pn classic, **a reparti** (`--phases`) | 200 | 15,0% | 9,5% | 15,0% | 9,5% | 6 |
+| FA-jo5-zai mantra, `default` | 384 | 2,1% | 2,3% | 3,1% | 2,3% | 59 |
+
+Tre cose, in ordine di peso.
+- **Nessun predittore nomina la scelta di un rivale vero**: 2-6% dove il reparto è libero, 15% quando lo fissa la fase.
+  Le teste lette dalle scelte (`classifyRivals`, l'82,8% misurato sul banco) non aggiungono niente sui rivali veri: sul
+  banco indovinavano teste che avevamo scritto noi. Il valore e il surplus predicono PEGGIO del prezzo (rango mediano
+  42 e 41 contro 17 sul serpentone): chi sceglie al tavolo guarda il listone, non il nostro foglio.
+- **La regola di coda peggiora su tutti e tre i draft**: senza, l'app indovina 55 scelte su 834 contro 39. È la regola
+  che fa comprare surplus per credito agli ultimi due di un giro, nata sul tavolo dichiarato del banco. Sul serpentone
+  la sua premessa è falsa per costruzione (il prezzo non sposta nessuno). **Non è stata tolta**: il banco la usa per i
+  rivali simulati, e lo sconto «prendi chi sparirà» (+4,54% strict) è misurato con quelle previsioni, quindi toglierla
+  va rimisurato lì con un tavolo che non la applica. Decisione aperta (todolist classic, item 1.4).
+- **FA-l1n-0pn è stato giocato A REPARTI**: scelte 1-24 portieri, 25-88 difensori, 89-152 centrocampisti, 153-200
+  attaccanti, e la sessione non lo scrive in nessun campo (`settings`, `options.draft` identici a un draft libero). La
+  pagina non lo sa: in quella fase prevede attaccanti ai rivali e consiglia fuori reparto. Se il suo draft è a reparti,
+  serve una dichiarazione (item 1.5).
+
+Il pool di FA-jo5-zai è ristretto ai club da cui è stato scelto almeno un uomo: la sessione conclusa non pubblica più
+`inactiveTeams`, e senza quel filtro il «più caro» era un uomo di un campionato escluso (rango mediano 123).
