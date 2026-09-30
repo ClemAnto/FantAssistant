@@ -7517,3 +7517,53 @@ su pochi uomini - ed è proprio il caso per cui il pavimento esiste. **Non adott
 2026-27 è la prova pulita (la contaminazione dichiarata vale qui come per R29).
 
 `backtest --verify` 22/22, `ADOPTED` invariato, nessun foglio si muove.
+
+## 7-septsexagies. PRE-REGISTRAZIONE (1 ottobre 2026) — R33: LE PRESENZE DI SETTEMBRE RICOSTRUITE DAI LORO MOTIVI
+
+**Scritta e committata PRIMA della corsa.** Dal banco delle partite attese (`partite-attese-scomposte-v1.md` §5-ter):
+a inizio settembre (mercato chiuso, 2-3 giornate giocate, il momento dell'asta dell'operatore) la scomposizione
+batte il motore **7 finestre su 7, +3,75%** sui quotati sopra 5. È la sola lettura in cui batte il motore
+ovunque, ed è quella che conta.
+
+### R33 — la regola
+
+Sulle finestre in-season di settembre, `engine_pv_pred` = le presenze del banco, cioè esattamente la funzione del
+banco congelata al commit di questa pre-registrazione (`toolkit/scripts/presence_test/build.py`):
+
+    Pa = (giornate da giocare − partite di uno stop aperto) × miscela(prior, voti visti / giornate viste, K = 10)
+    prior = D × S × europa × c  (medie di ruolo nel contesto, portieri per classe)
+
+con i parametri della formula tarati sulle finestre di fine luglio la cui stagione prevista NON è quella giudicata,
+tutti i quotati dentro (niente filtro di prezzo nella taratura né nel giudizio primario). La fantamedia resta quella
+del motore. Il ramo pre-stagione del motore non si tocca: R33 è inerte a zero giornate viste solo nel senso che su una
+pre-stagione non esiste.
+
+### Criterio (il gate sul set adottato di `default`)
+
+* **Primario, tutti i quotati**: `ADOPTED` contro `ADOPTED` con le presenze di R33, sulle 7 finestre «set»
+  (2019-20 → 2025-26), campione comune: maggioranza delle finestre, media sopra lo 0,5%, nessuna sotto −2%; nomi e
+  valore catturato delle liste d'asta entro il 2%.
+* **Secondari, dichiarati come letture**: gli stessi numeri sui quotati sopra 5 e senza gli infortuni lunghi
+  imprevedibili (le due regole del banco).
+* **La prova pulita**: il 5 settembre 2026 (2026-27), con l'esito delle **3 giornate** giocate dopo quella data. Il suo
+  verdetto è un segno, non un numero: 3 giornate sono troppo poche per un'ampiezza.
+
+### Attese, scritte perché possano essere smentite
+
+* Sui quotati sopra 5: **+2% / +5%** (il banco dice +3,75% e queste sono le stesse finestre).
+* Su tutti: **fra −2% e +2%**, perché sui quotati bassi il motore è più forte (a luglio −4,8% prima del filtro, +0,1%
+  dopo): la regola può non passare il primario pur vincendo dove l'operatore compra.
+* Nomi delle liste: fermi o su.
+
+### Contaminazione, detta per intero
+
+Le 7 finestre non sono pulite: il +3,75% che motiva la regola è misurato su di loro, e due scelte del banco (le giornate
+viste sul calendario del club, lo stop aperto) sono state fatte guardandole. Quindi un verdetto favorevole è il gradino
+di evidenza più basso, come R29, e l'adozione sarebbe una decisione dell'operatore col numero davanti, non una
+conseguenza. La prova pulita è il 2026-27, oggi di 3 giornate. Il listone bersaglio resta l'ultima lettura (la
+contaminazione di sempre, in favore del modello).
+
+### Sicurezza
+
+Il driver è `toolkit/scripts/presence_test/gate_r33.py`, in sola lettura: niente entra in `ADOPTED`, `backtest --verify`
+resta 22/22 e nessun foglio si muove. Se passa, portarla nel motore vuol dire riprodurre questi numeri da `evaluate`.
