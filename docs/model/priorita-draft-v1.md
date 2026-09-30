@@ -573,3 +573,13 @@ AND quasi nessuno in cima è dominato, quindi **la tolleranza di «simile» è l
 sua. **La DP NON è cambiata**: come RAR entra nella priorità è aperto. La forma che il suo esempio suggerisce è il
 confronto con le scelte che mancano al nostro prossimo turno (se RAR ≥ scelte in mezzo, uno come lui resta), cioè
 lo sconto del «prendi chi sparirà» già misurato sul banco del draft (+4,54% strict, `todolist-draft-v1.md`).
+
+## 21. Una DP bassa può essere un INGRESSO sbagliato (30/09/2026)
+
+Sua segnalazione: Gvardiol, «un difensore TOP», leggeva DP −11. La formula non c'entrava: la fantamedia che le
+arrivava era l'ancora dei Dc (6,062) perché il motore ignorava la carriera di chi ha una stagione corta. Due regole del
+motore, entrambe passate al gate e adottate su euro (gate §7-quattuorsexagies R31, §7-quinsexagies R28): Gvardiol
+6,062 → 6,301, DP da −11 a circa +10 (stima fuori dall'app), primo Dc e 9º difensore. Non è top 3 e la ragione è
+della DP: davanti restano gli esterni da bonus (Grimaldo, Mittelstadt, Baku), e contro Gabriel Magalhaes pesano ~4
+presenze attese in meno. *Prima di ritarare una formula, guarda se i suoi ingressi sono misure o ripieghi*: qui era
+un ripiego (`why_fm_steps` = R0c e poi fermo) travestito da previsione.

@@ -2632,9 +2632,15 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
   copertura, poi l'ordine del regolamento — da confermare che «Auto (fertilità)» vada bene anche lì.
 - **Push e pubblicazione**: niente di questa sessione è pushato né sul sito.
 
-## Aperti dopo la sessione del 30/09/2026 (XI) — R31, la carriera di chi ha una stagione corta
+## Aperti dopo la sessione del 30/09/2026 (XII) — R31 e R28 su EuroLeghe, il caso Gvardiol
 
-R31 adottata su euro (gate §7-quattuorsexagies, `SHEET_REVISION` 79). Restano:
+R31 (gate §7-quattuorsexagies) e R28 (§7-quinsexagies) adottate su euro, `SHEET_REVISION` 80. Restano:
+
+- **R28 su euro/classic perde un nome su 33** nelle liste (−3%, oltre la tolleranza): adottata per sua decisione;
+  da rileggere quando le finestre in-season euro diventano più di tre (oggi le `feb` non misurano, `fm_seen` vuoto).
+- **Gvardiol non è top 3 per DP** (primo Dc, 9º difensore): davanti restano gli esterni da bonus e lui ha ~4 presenze
+  attese meno di Gabriel. Se lo vuole più in alto, l'unica strada rimasta è DICHIARARE una fantamedia per giocatore
+  (offerta, rifiutata il 30/09).
 
 - **`_naive_added` misura «il banale» sulla popolazione sbagliata**: l'ancora su TUTTI i non prezzati della
   finestra, non sui soli uomini che la regola di copertura aggiunge (T1 euro classic: 0,333 contro 0,420
