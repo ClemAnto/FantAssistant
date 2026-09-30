@@ -289,11 +289,40 @@ dell'asta, tutti dentro, ogni finestra coi parametri delle altre):
   si tarano sulle finestre di settembre - sull'esito delle giornate che restano - lasciando fuori quella giudicata,
   invece di prenderli da luglio, dove l'esito è la stagione intera (agosto compreso, che ha meno infortuni).
 
+* **M1b - la classe è il GRADINO dell'anno prima** (aggiunta il 01/10/2026 prima di misurare, dalla taratura qui sotto):
+  la media verso cui si tira S è quella del ruolo e del gradino di titolarità della stagione misurata (sei parole,
+  `engine/status.py` senza il cancello della board), con la catena gradino → contesto → tutti sotto `CELL_MIN`.
+
 **Criterio**, sulla misura dell'operatore: la quota entro l'80-125% del vero sale in **almeno 5 finestre su 7** e in
 media, e l'errore medio non peggiora in media. M1 e M2 si misurano ciascuna da sola e poi insieme; si tiene la forma
 migliore che passa. **Attese**: M1 +1/+3 punti di quota (la scelta dei titolari sale verso lo 0,87); M2 meno di un
 punto (corregge un livello, e c già lo assorbe in parte).
 **Contaminazione**: sono le stesse sette finestre già lette molte volte; la prova pulita resta il 2026-27.
+
+### Quante partite gioca ogni gradino, senza imprevisti (01/10/2026)
+
+**Domanda dell'operatore**: «senza infortuni e imprevisti, quante presenze ci aspettiamo da un titolare, da uno in
+ballottaggio, da una riserva? Attenzione a non mischiare minutaggio e gradino». `rungs.py`: il gradino è quello NOTO
+all'asta (la stagione prima, sui suoi due assi, senza il cancello della board), l'esito è la stagione dopo il 5
+settembre contato **solo sulle partite in cui era disponibile**, quindi infortuni, squalifiche e nazionale sono fuori
+per costruzione. Popolazione dell'asta, sette stagioni.
+
+| gradino dell'anno prima (movimento) | n | presenze su 38 | **voti su 38** | voti, mediana |
+|---|---|---|---|---|
+| bandiera | 486 | 33,9 | **30,7** | 34,8 |
+| titolarissimo | 113 | 30,9 | **27,3** | 31,7 |
+| titolare | 294 | 33,0 | **29,1** | 33,6 |
+| ballottaggio | 311 | 31,8 | **26,1** | 29,1 |
+| panchina | 331 | 29,1 | **24,5** | 26,3 |
+| riserva | 106 | 21,3 | **17,8** | 19,0 |
+| *portieri bandiera* | 75 | 33,3 | *33,3* | 36,8 |
+
+Tre letture. **Sulle PRESENZE i minuti non contano**: i primi quattro gradini, che differiscono solo per il pavimento
+di minuti, stanno tutti fra 31 e 34. **Sui VOTI sì**, perché un ingresso di pochi minuti spesso resta senza voto: il
+ballottaggio ha 31,8 presenze e 26,1 voti - ed è questa la ragione per cui minutaggio e gradino vanno tenuti separati:
+la quota di partite dice quante volte ENTRA, i minuti dicono quante di quelle volte il voto arriva. E **la regressione
+è forte**: una riserva dell'anno prima prende il voto in 17,8 partite su 38 quando è disponibile, molto più del «non
+entra spesso» che la parola promette, e una bandiera in 30,7 e non in 36.
 
 ## 6. Aperti
 
