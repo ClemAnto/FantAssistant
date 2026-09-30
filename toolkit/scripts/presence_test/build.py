@@ -81,6 +81,11 @@ GRID = {
 # KEEPER_CLASS is kept: +0.57% overall (7 of 10, worst -1.2%, robust), +3.2% on the keepers.
 OWN_CLUB, OWN_CLUB_MIN = False, 10
 KEEPER_CLASS, KEEPER_CLASS_SHARE = True, 0.5
+# «PER IL MOMENTO ELIMINIAMO DAI TEST TUTTI I CALCIATORI CON QUOTAZIONE INIZIALE BASSA» (operator, 01/10/2026):
+# a man the listone quotes at 5 or less (Qt.I of the season predicted, the only auction-safe price) is out of the
+# bench - out of the fit AND out of the judgement. A man with no Qt.I at all is not cheap, he is unknown, so he
+# stays and is counted.
+MAX_CHEAP_PRICE = 5.0
 # The gate's own thresholds for the two verdicts, so the bench speaks the gate's vocabulary.
 FLOOR, TOLERANCE = 0.005, -0.02
 K_READING = (3, 6, 10, 15, 25, 40)
@@ -165,6 +170,8 @@ def engine_rows(conn: sqlite3.Connection, keys: tuple[str, ...]):
         window = features.window(key)
         for obs in data.observations:
             if obs.pv_act is None:
+                continue
+            if obs.price_initial is not None and obs.price_initial <= MAX_CHEAP_PRICE:
                 continue
             p = preds.get(obs.fc_id)
             out.append({"window": key, "input": window.input_season, "target": window.target_season,
@@ -538,7 +545,7 @@ def main() -> None:
         # The page shows the cells the rule reads: one per role inside a context (the thinner ones fall back).
         "priors": {f"{role} {ctx}": round(v, 3) for (role, ctx), (v, n) in params_by_fold["T2"]["Sbar"].items()
                    if role != "*" and n >= CELL_MIN},
-        "cellMin": CELL_MIN,
+        "cellMin": CELL_MIN, "maxCheapPrice": MAX_CHEAP_PRICE,
         "reproduction": repro, "verdict": lowo, "edges": edges,
         "inseason": {"k_rule": k_key, "k": k_adopted, "windows": inseason, "verdict": inseason_verdict},
         "summary": summary, "rows": out_rows,

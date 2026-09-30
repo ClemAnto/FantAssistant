@@ -30,6 +30,9 @@
         manca, la media del ruolo nel suo contesto.
         @if (file()!.protocol) {
           Ogni stagione è giudicata coi parametri tarati sulle altre nove.
+          @if (file()!.maxCheapPrice != null) {
+            Fuori dal test chi ha quotazione iniziale {{ file()!.maxCheapPrice }} o meno.
+          }
         } @else {
           Tarata sulla stagione 2023-24 → 2024-25, giudicata su 2024-25 → 2025-26.
         }</div>

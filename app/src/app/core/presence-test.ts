@@ -87,6 +87,8 @@ export interface PresenceTestFile {
   summary: Record<string, PresenceTestSummary>;
   /** v2: how the formula was judged, and its verdict over the windows in the gate's own vocabulary. */
   protocol?: string;
+  /** v2: men quoted at this Qt.I or less are out of the bench (operator, 01/10/2026). */
+  maxCheapPrice?: number;
   verdict?: Record<string, PresenceVerdict>;
   inseason?: { k_rule: string | null; k: number | null; verdict: PresenceVerdict | null };
   rows: PresenceTestRow[];

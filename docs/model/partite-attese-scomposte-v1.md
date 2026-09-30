@@ -122,10 +122,44 @@ raggiunto davvero. Il gradino ricavato non ha il cancello dell'undici tipo (una 
 disegnata) e lo dice; ed è più stretto del vero per costruzione (S è una previsione regredita: su T2 274 `panchina`
 contro 158 veri, 30 `bandiera` contro 95), come ogni previsione è più stretta degli esiti.
 
+## 5-bis. Stessa sera: i portieri per classe, le partite saltate, e solo chi conta al fantacalcio
+
+**Contini e Christensen** (operatore): un terzo portiere a 3,2 presenze e un secondo portiere a 15,8. La prima
+causa era la media verso cui si tira un portiere, quella di TUTTI i portieri (0,44), che mescola titolari e riserve:
+una quota «a metà» non la tiene nessuno. Ora il contesto di un portiere è la sua CLASSE dell'anno prima (titolare
+se ha preso il voto in almeno metà delle partite per cui era disponibile, riserva altrimenti; medie 0,62 e 0,22):
+**+0,57% sul totale, robust (7 finestre su 10, peggiore −1,2%)**, adottata. La seconda causa, per Christensen, è
+che le sue 16 presenze erano in prestito in Serie B: leggere la quota di scelta sulle sole partite del club dove
+giocherà è **respinto** (−0,05%, 5 su 10, peggio sui portieri) e resta una lettura spenta (`OWN_CLUB`). Il prezzo
+detto: Butez, riserva l'anno prima (19 su 40), scende da 17,0 a 14,3 contro le 38 che ha giocato.
+
+**Le partite saltate nella stagione prevista**: infortunio, squalifica e nazionale. `absence_id` 5 e 8 cadono entro
+quattro giorni da una partita della sua nazionale nell'88,8% e 87,4% dei casi, contro l'1-5% degli altri codici:
+sono le convocazioni, e ora si contano a parte (nella stagione misurata restano dentro «Ass.»).
+
+**Solo chi conta al fantacalcio** (operatore: «eliminiamo dai test i calciatori con quotazione iniziale bassa»):
+fuori dalla taratura e dal giudizio chi ha Qt.I ≤ 5 della stagione prevista (`MAX_CHEAP_PRICE`); chi non ha una
+Qt.I resta, perché non è economico, è ignoto. 3.241 righe su 5.861. Il quadro cambia:
+
+| | Formula contro motore |
+|---|---|
+| pre-stagione, 10 finestre | 3 su 10, media −1,7%; vince le ultime tre (T0 +4,4%, T1 +0,5%, T2 +1,8%) |
+| portieri | **8 su 10, +14,3%** |
+| 5 settembre, 7 finestre | **7 su 7**, da +0,5% a +13,8% |
+| 5 febbraio, 7 finestre | 2 su 7, da −6,2% a +0,8% |
+
+Quindi il motore batteva la formula soprattutto sugli uomini da pochi crediti. Su chi si compra la scomposizione è
+alla pari prima della stagione, meglio sulle stagioni recenti (quelle con la copertura di Transfermarkt più alta,
+91-94%) e meglio a inizio stagione; a febbraio no, e nessun K della miscela lo cambia (letti 3-40: il migliore resta
+sotto il motore in cinque finestre su sette), quindi il vantaggio del motore lì non sta nel peso delle giornate viste.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
 2. I minuti del gradino ricavato sono quelli della stagione misurata, non una previsione (`minutes.per_appearance`
    vuole le colonne del foglio): se il gradino diventa una lettura da usare, va rifatto sui minuti previsti.
 3. Se una parte della scomposizione deve entrare nel motore, la strada è il gate con una regola pre-registrata sulla
-   popolazione dove regge (chi cambia club a stagione in corso, i portieri), non la formula intera.
+   popolazione dove regge (i portieri, e l'asta di settembre), non la formula intera.
+4. I portieri: la maglia lasciata libera da chi è partito (misurata sul caso Butez, 18 casi: 0,13 → 0,43) e il peso
+   delle prime giornate quando il vecchio titolare è sano - da pre-registrare.
+5. Febbraio: capire da dove viene il vantaggio del motore a stagione avanzata, visto che non è il K.
