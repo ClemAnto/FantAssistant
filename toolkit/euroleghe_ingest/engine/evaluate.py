@@ -492,7 +492,12 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # la ragione e' una differenza di POPOLAZIONE nel suo metro, non nella regola: `_naive_added` misura
     # l'ancora su TUTTI i non prezzati (T1 classic 0,333), mentre sugli stessi 47 uomini che R31 aggiunge
     # l'ancora sbaglia di 0,420 e R31 di 0,355. Scritto e non curato qui (§7-quattuorsexagies bis).
-    "euro": ("R0c", "R3c", "R18", "R20K6", "R23", "R31"),
+    # R28 adottata il 30/09/2026 su EURO (§7-quinsexagies): R25 col K del RUOLO (`categories.BLEND_K`),
+    # letto e non fittato. Le 3 finestre in-season che misurano migliorano su tutt'e due i giochi (mantra
+    # +1,09% con nomi e valore intatti, classic +1,38%); su classic le liste perdono UN nome su 33 (-3%,
+    # oltre il 2%), e la decisione di adottarla lo stesso e' dell'operatore, presa col numero davanti (la
+    # sua lega EuroLeghe e' mantra). NON su `default`: non batte R25K40 (+0,2%, una finestra a -8,0%).
+    "euro": ("R0c", "R3c", "R18", "R20K6", "R23", "R31", "R28"),
     # R19 is the FIRST rule here adopted on the ROBUST verdict alone, and it is written down as such.
     # Decision taken in the open on 06/08/2026, which is what the protocol asks for when the two verdicts
     # disagree. What it rests on: 9 of the 10 Serie A windows improve (the tenth costs 1.5%, inside the 2%

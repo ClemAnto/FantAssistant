@@ -927,7 +927,10 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      carriera. Chi a t-1 ha meno di 15 voti ma due stagioni piene nelle ultime cinque prende la media di
 #      quelle regredita verso l'ancora, invece dell'ancora nuda di R0c. Muove `engine_fm_pred` (e con lei
 #      surplus, valore, est_*) del solo foglio euro. Gvardiol 6,062 -> ~6,4. `default` fermo.
-SHEET_REVISION = 79
+#   80 (30/09/2026) - R28 ADOTTATA SU EURO (gate §7-quinsexagies): le partite gia' giocate quest'anno entrano
+#      nella fantamedia attesa col K del RUOLO (P 16,6 · D 32,6 · C 43,5 · A 18,5), invece di non entrarci.
+#      Muove `engine_fm_pred` del solo foglio euro, di chi ha giocato quest'anno. `default` fermo.
+SHEET_REVISION = 80
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the

@@ -7933,3 +7933,9 @@ aveva preso in prestito: Gvardiol esce 6,215 e non ~6,44, quindi la cura toglie 
 farne un top-3 — il resto è una domanda sulla DP e sulla regressione, non un difetto. E **il metro
 `_naive_added` misura «il banale» su tutti i non prezzati invece che sugli aggiunti** (0,333 contro 0,420
 sugli stessi uomini): scritto, non curato, perché un criterio non si corregge sulla regola che ci è caduta.
+**Lo stesso giorno R28** (§7-quinsexagies): le partite di quest'anno entrano nella fantamedia col K del RUOLO
+già misurato per le categorie (`categories.BLEND_K`), su euro 3 finestre su 3 e un nome su 33 in meno su
+classic, adottata dall'operatore col costo davanti. Gvardiol 6,301. E la sua obiezione «per le prestazioni
+future basta la FM pura» è **misurata e respinta**: sulle stagioni piene la FM pura sbaglia 0,436 contro 0,367
+del motore e 0,408 della media di ruolo; la regressione non serve a coprire le assenze (quelle sono nelle
+presenze), è la fantamedia che l'anno dopo torna verso il centro.

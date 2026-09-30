@@ -7427,3 +7427,7 @@ ed è dell'operatore (la sua lega EuroLeghe è mantra).
 
 **Effetto sul caso vivo**: Gvardiol (D, K 32,6, 4 partite a 7,00) da 6,215 a ~6,30 — quattro partite valgono
 l'11% del livello di un difensore, che è quello che la misura dice.
+
+**Decisione (30/09/2026)**: l'operatore, col numero davanti, adotta R28 su EuroLeghe — `ADOPTED["euro"]`,
+`SHEET_REVISION` 80. `backtest --verify` 22/22. Sul foglio del 30/09: Gvardiol 6,215 → **6,301**, Gabriel
+Magalhaes 6,223 → 6,185 (quattro partite a 5,88); Gvardiol diventa il primo Dc e il 9º difensore per DP.
