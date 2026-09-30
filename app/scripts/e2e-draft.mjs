@@ -1263,6 +1263,135 @@ async function main() {
         ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 
+    // 8. THE CLASSIC DRAFT PLAYED TO ITS END (todolist-draft-classic-v1, items 3.3 and 3.4, 30/09/2026). AUTO plays
+    // every rival with the page's own prediction; my picks are the first callable row, forwards first so a line
+    // fills early. Asserted: «pieno» is on a free row EXACTLY when my line of his role is full (3.3), the double
+    // click on a full-line row is refused, AUTO never stops on a refused pick - a prediction past a quota is one
+    // the host refuses (3.4) - and every squad ends at 3/8/8/6. On mantra there is no line quota to test.
+    if (!euro) {
+      const QUOTA = { p: 3, d: 8, c: 8, a: 6 };
+      const lineOf = (roles) => (roles.split(',').find((one) => one in QUOTA) ?? null);
+      await mouse(await evaluate(session, centre, '[data-mode="default"]'));
+      await mouse(await evaluate(session, centre, '[data-pitch-view="lista"]'));
+      await wait(400);
+      const readTable = () => evaluate(session, () => ({
+        clock: document.querySelector('[data-seat][data-clock]')?.getAttribute('data-seat') ?? null,
+        seats: [...document.querySelectorAll('[data-seat]')].map((one) => ({
+          id: one.getAttribute('data-seat'), picks: Number(one.getAttribute('data-picks')),
+        })),
+        roster: [...document.querySelectorAll('[data-roster]')].map((one) => one.getAttribute('data-roles') ?? ''),
+        rows: [...document.querySelectorAll('[data-free]')].map((one) => ({
+          id: one.getAttribute('data-free'), roles: one.getAttribute('data-roles') ?? '',
+          full: one.hasAttribute('data-full'), locked: one.hasAttribute('data-locked'),
+        })),
+        messages: [...document.querySelectorAll('.ant-message-notice')].map((one) => (one.innerText ?? '').trim()),
+      }));
+      const countOf = (roster) => {
+        const out = { p: 0, d: 0, c: 0, a: 0 };
+        for (const roles of roster) { const line = lineOf(roles); if (line) out[line] += 1; }
+        return out;
+      };
+      // The pitch draws the squad last clicked in the order column, else mine: make sure it is mine.
+      for (let tries = 0; tries < 3; tries += 1) {
+        const shown = await evaluate(session, () => document.querySelector('[data-column="pitch"]')?.getAttribute('data-team'));
+        if (shown === mine) break;
+        await mouse(await evaluate(session, (id) => {
+          const rect = document.querySelector(`[data-seat="${id}"]`)?.getBoundingClientRect();
+          return rect ? { x: Math.round(rect.left + 40), y: Math.round(rect.top + rect.height / 2) } : null;
+        }, shown));
+        await wait(300);
+      }
+      const fullWrong = [];
+      const messages = new Set();
+      let fullSeen = 0, fullChecked = 0, refusedFull = null, myPicks = 0;
+      await mouse(await evaluate(session, centre, '[data-auto]'));
+      let table = await readTable();
+      const total = table.seats.length * 25;
+      const started = Date.now();
+      for (let guard = 0; guard < 2400; guard += 1) {
+        table = await readTable();
+        for (const text of table.messages) messages.add(text);
+        if (table.seats.reduce((sum, one) => sum + one.picks, 0) >= total) break;
+        if ([...messages].some((text) => text.startsWith('AUTO fermo'))) break;
+        if (table.clock !== mine) { await wait(200); continue; }
+        // My turn: the pitch shows my squad, so its list is my roster.
+        const count = countOf(table.roster);
+        for (const row of table.rows) {
+          const line = lineOf(row.roles);
+          if (!line) continue;
+          fullChecked += 1;
+          if (row.full) fullSeen += 1;
+          if (row.full !== (count[line] >= QUOTA[line])) {
+            fullWrong.push(`${row.id} (${line}) «pieno» ${row.full ? 'acceso' : 'spento'} con ${count[line]}/${QUOTA[line]}`);
+          }
+        }
+        // Once, the refusal: a double click on a man of a full line must not give him to me.
+        const fullRow = table.rows.find((row) => row.full && !row.locked);
+        if (fullRow && refusedFull === null) {
+          const before = table.seats.find((one) => one.id === mine).picks;
+          await mouse(await evaluate(session, (id) => {
+            const one = document.querySelector(`[data-free="${id}"] [data-card-name]`)?.closest('[data-free]');
+            if (!one) return null;
+            one.scrollIntoView({ block: 'center' });
+            const rect = one.getBoundingClientRect();
+            return { x: Math.round(rect.left + rect.width - 30), y: Math.round(rect.top + rect.height / 2) };
+          }, fullRow.id), 2);
+          await wait(500);
+          const after = (await readTable()).seats.find((one) => one.id === mine).picks;
+          refusedFull = after === before;
+        }
+        const wantForward = count.a < QUOTA.a;
+        const pick = table.rows.find((row) => !row.full && !row.locked && (!wantForward || lineOf(row.roles) === 'a'))
+          ?? table.rows.find((row) => !row.full && !row.locked);
+        if (!pick) {
+          // The list loads 60 rows at a time: every loaded one is frozen or of a full line, so load more.
+          await evaluate(session, () => { const list = document.querySelector('[data-free-list]'); if (list) list.scrollTop = list.scrollHeight; });
+          await wait(300);
+          continue;
+        }
+        const before = table.seats.find((one) => one.id === mine).picks;
+        await mouse(await evaluate(session, (id) => {
+          const one = document.querySelector(`[data-free="${id}"]`);
+          if (!one) return null;
+          one.scrollIntoView({ block: 'center' });
+          const rect = one.getBoundingClientRect();
+          return { x: Math.round(rect.left + rect.width - 30), y: Math.round(rect.top + rect.height / 2) };
+        }, pick.id), 2);
+        for (let tick = 0; tick < 20; tick += 1) {
+          await wait(150);
+          if ((await readTable()).seats.find((one) => one.id === mine).picks > before) { myPicks += 1; break; }
+        }
+      }
+      const autoOn = await evaluate(session, () => document.querySelector('[data-auto]')?.className ?? '');
+      if (/primary|active|checked/.test(autoOn)) await mouse(await evaluate(session, centre, '[data-auto]'));
+      const done = table.seats.reduce((sum, one) => sum + one.picks, 0);
+      // Every squad's composition, read by viewing it: a seat click puts its squad on the pitch.
+      const shapes = [];
+      for (const seat of table.seats) {
+        await mouse(await evaluate(session, (id) => {
+          const one = document.querySelector(`[data-seat="${id}"]`);
+          const rect = one?.getBoundingClientRect();
+          return rect ? { x: Math.round(rect.left + 40), y: Math.round(rect.top + rect.height / 2) } : null;
+        }, seat.id));
+        await wait(300);
+        const count = countOf((await readTable()).roster);
+        shapes.push(`${seat.id}:${count.p}/${count.d}/${count.c}/${count.a}`);
+      }
+      const offShape = shapes.filter((one) => !one.endsWith(':3/8/8/6'));
+      const stopped = [...messages].filter((text) => text.startsWith('AUTO fermo'));
+      note('draft classic fino in fondo', `${done}/${total} scelte in ${Math.round((Date.now() - started) / 1000)}s,`
+        + ` ${myPicks} mie; «pieno» su ${fullSeen} righe di ${fullChecked} guardate; rose ${shapes.join(' ')}`, [
+        ...(done !== total ? [`il draft si e' fermato a ${done} scelte su ${total}`] : []),
+        ...stopped.map((text) => `AUTO si e' fermato su una scelta rifiutata: «${text}»`),
+        ...fullWrong.slice(0, 5),
+        ...(fullWrong.length > 5 ? [`... e altre ${fullWrong.length - 5} righe con «pieno» sbagliato`] : []),
+        ...(!fullSeen ? ['nessuna riga «pieno»: nessun mio reparto si e\' riempito mentre guardavo'] : []),
+        ...(refusedFull === false ? ['il doppio click su un uomo di un reparto pieno me l\'ha dato'] : []),
+        ...(refusedFull === null ? ['non ho trovato una riga «pieno» su cui provare il rifiuto'] : []),
+        ...offShape.map((one) => `rosa fuori quota ${one} (atteso 3/8/8/6)`),
+      ]);
+    }
+
     const at = argv.indexOf('--shot');
     if (at >= 0 && argv[at + 1]) {
       if (!flag('--medie')) await mouse(await evaluate(session, centre, '[data-mode="default"]'));

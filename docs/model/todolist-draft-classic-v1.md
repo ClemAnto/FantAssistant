@@ -58,7 +58,9 @@ l'item 2 se c'è tempo.
 non i «3 per partecipante» della sua frase sulle Pc (`LeagueSize.startersFromPlaces`). È un'estensione nostra,
 dichiarata; l'item 2.4 la misura.
 
-**0.3 Controllare le Opzioni di lega nel SUO browser.** Il tavolo porta listone, gioco, squadre e rose; restano
+**0.3 CHIUSO il 30/09/2026 (notte), fatto dall'operatore nel suo browser: porte NO, tetto dei primi turni NO,
+10 partecipanti (quindi il foglio classic `Leghe`, calcolato a 10, è quello della sua lega), nessuna squadra
+esclusa sul listone Serie A.** Testo originale: **Controllare le Opzioni di lega nel SUO browser.** Il tavolo porta listone, gioco, squadre e rose; restano
 DICHIARATI e oggi sono quelli della EuroLeghe:
 - **porte** — spente, se la lega Serie A compra portieri e non porte;
 - **tetto dei primi turni** (FVM ≥ 213 per 5 turni) — sul listone Serie A blocca 7 uomini; tenerlo solo se è il
@@ -197,11 +199,16 @@ portiere). Verificare che la diagnosi del classic (`draft-scenarios`) non chieda
 formato dove i tre portieri sono comunque obbligatori, e che le catene rispettino le quote (usano `legalFor`, che le
 legge: da confermare con un test).
 
-**3.3 Banco e2e: la pastiglia «pieno».** Oggi nessun passo la vede, perché dopo 40 scelte la mia rosa non ha una
+**3.3 CHIUSO il 30/09/2026 (notte)**, nel passo 8 di `e2e-draft` (sotto). Testo originale: **Banco e2e: la pastiglia «pieno».** Oggi nessun passo la vede, perché dopo 40 scelte la mia rosa non ha una
 linea piena. Un passo che riempie un reparto (sei attaccanti) e pretende: i liberi di quel reparto hanno
 `data-full`, quelli degli altri no, e il doppio click su uno di loro viene rifiutato con la ragione.
 
-**3.4 Banco e2e: le previsioni rispettano le quote.** Il contatore «scelte rifiutate e ritentate» misura i doppi
+**3.4 CHIUSO il 30/09/2026 (notte): passo 8 di `e2e-draft`, «draft classic fino in fondo».** AUTO gioca ogni
+rivale con la previsione della pagina, io scelgo la prima riga chiamabile (prima gli attaccanti, così un reparto si
+riempie presto); il passo pretende che «pieno» sia acceso esattamente sui miei reparti pieni (141 righe di 1500
+guardate), che il doppio click su un uomo di un reparto pieno venga rifiutato, che AUTO non si fermi mai su una scelta
+rifiutata e che tutte le rose finiscano 3/8/8/6 (9 squadre, perché un passo precedente ne toglie una apposta). Verde.
+Testo originale: **Banco e2e: le previsioni rispettano le quote.** Il contatore «scelte rifiutate e ritentate» misura i doppi
 click del banco sulla cima della lista, non le previsioni. Un passo che fa giocare AUTO fino a fine draft sul classic
 e pretende zero stop per «reparto pieno» (AUTO sceglie l'uomo previsto per ogni rivale).
 
