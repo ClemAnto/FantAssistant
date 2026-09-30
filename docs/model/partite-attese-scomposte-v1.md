@@ -293,6 +293,14 @@ dell'asta, tutti dentro, ogni finestra coi parametri delle altre):
   la media verso cui si tira S è quella del ruolo e del gradino di titolarità della stagione misurata (sei parole,
   `engine/status.py` senza il cancello della board), con la catena gradino → contesto → tutti sotto `CELL_MIN`.
 
+* **M3 - i minuti trasformano le presenze in voti** (aggiunta il 01/10/2026, prima di misurare, su richiesta
+  dell'operatore per panchine e ballottaggi): la quota di scelta si moltiplica per quanto spesso un ingresso di quella
+  durata prende il voto, a bande dei minuti medi dell'anno prima e relativo a chi gioca la partita intera, tarato sulle
+  finestre di taratura (`minutes_votes.py`: 0,75 · 0,82 · 0,86 · 0,89 voti per presenza a 30-44' · 45-59' · 60-74' ·
+  75-90'). Per tutti i ruoli di movimento; il portiere prende sempre il voto.
+* **La stabilità del gradino NON è un candidato** (operatore: «la stabilità non è pronosticabile, la formula deve
+  funzionare a prescindere»): la formula si tara sul gradino dell'anno prima, che è quello che si sa (M1b).
+
 **Criterio**, sulla misura dell'operatore: la quota entro l'80-125% del vero sale in **almeno 5 finestre su 7** e in
 media, e l'errore medio non peggiora in media. M1 e M2 si misurano ciascuna da sola e poi insieme; si tiene la forma
 migliore che passa. **Attese**: M1 +1/+3 punti di quota (la scelta dei titolari sale verso lo 0,87); M2 meno di un
