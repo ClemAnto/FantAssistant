@@ -449,7 +449,15 @@ Stesso criterio di M5.
 l'errore medio del 12-16% (7,54 → 6,62 · 7,19 → 6,01); alla lettera non passa (pari nel 2025-26). M5d peggiora la quota
 nel 2024-25 (54,2). **Letta per quello che è, M5c corregge la POPOLAZIONE e non la formula**: quegli uomini stanno nel
 banco perché il listone di una stagione passata è l'ultima lettura e porta i ceduti dell'ultimo giorno; a un'asta del
-5 settembre il foglio li ha già tolti. Decisione dell'operatore in sospeso. La board che mette in campo sposta poco la
+5 settembre il foglio li ha già tolti. ~~Decisione dell'operatore in sospeso.~~
+**RITIRATA lo stesso giorno, guardando i nomi** (la regola «prima di credere a un numero si guardano i casi»): il gruppo
+che la board «non conosce più» è fatto di **Guendouzi e Castellanos (Lazio, ceduti a gennaio 2026), Kvaratskhelia e
+Dorgu (ceduti a gennaio 2025)**, più arrivi estivi assenti per altre ragioni (Lucca, Dzeko). Il 5 settembre c'erano tutti.
+Mancano dal pacchetto perché il pacchetto è stato costruito DOPO e toglie i ceduti leggendo `listone_quotes.sold`, che è
+l'ULTIMA lettura del listone di quella stagione: chi è venduto a gennaio risulta già ceduto a settembre. Quindi M5c
+leggeva in gran parte il FUTURO, e il suo −12-16% di errore è una contaminazione. **Respinta.** È anche un difetto dei
+pacchetti del viaggio nel tempo in sé, scritto negli aperti; e M5a/M5b, costruiti sugli stessi pacchetti, vanno letti con
+la stessa riserva. La board che mette in campo sposta poco la
 misura che decide: i disegnati sono già previsti bene (27,4 → 26,1 · 27,8 → 26,3).
 
 ## 6. Aperti
@@ -484,5 +492,9 @@ misura che decide: i disegnati sono già previsti bene (27,4 → 26,1 · 27,8 �
     Christensen 12,9 contro 1, Contini 2,6. Una terza classe (zero presenze) è la prova da fare.
 11. **Le amichevoli** non sono giudicabili: in archivio ci sono per 39 club nel 2024-25, 46 nel 2025-26 e 179 nel
     2026-27. La prima stagione su cui misurarle è l'estate 2027.
+13. **I pacchetti del viaggio nel tempo sanno chi sarà ceduto a gennaio**: il foglio datato toglie i ceduti con
+    `listone_quotes.sold`, che è l'ultima lettura del listone e non una serie datata (Kvaratskhelia fuori dal foglio del
+    5/09/2024, Guendouzi e Castellanos da quello del 5/09/2025). Per un foglio datato l'asterisco va letto alla data, o
+    va detto che non si può: oggi l'archivio non lo permette.
 12. **La squadra della stagione misurata** manca su 1.362 righe di 5.861 (chi non ha stagioni su file e i
     campionati minori prima del 2023): solo visualizzazione, nessun numero ne dipende.
