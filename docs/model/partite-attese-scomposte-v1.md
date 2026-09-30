@@ -194,6 +194,36 @@ stagioni passate.
 ricordato, tre blocchi (stagione misurata · prevista · dati veri), e in «prevista» le giornate da giocare, i voti
 sulle giornate viste e lo stop aperto. `e2e-why-presence` verifica tutto, compresa l'ambra.
 
+## 5-quater. Il pavimento: quanto sbaglierebbe una formula perfetta (01/10/2026)
+
+**Domanda dell'operatore**: «se avessimo una formula che calcola perfettamente ogni fattore, ci sarebbe sempre una
+percentuale di indeterminazione dovuta agli imprevisti: quanto vale?». Si misura con un ORACOLO
+(`toolkit/scripts/presence_test/floor.py`, sola lettura): conosce di ogni uomo la quota VERA con cui viene scelto quando
+è disponibile - la sua quota realizzata, che nessuna formula può sapere - e la disponibilità solo come la distribuzione
+del suo ruolo. Quello che gli resta da sbagliare è l'imprevedibile, simulato 400 volte per uomo. Popolazione: 5
+settembre, quotati sopra 5, sette stagioni, 2.194 uomini, partite contate sui dati per partita di Transfermarkt.
+
+| | errore medio (partite) | entro 80-125% del vero |
+|---|---|---|
+| **il pavimento**, con anche la scelta che cambia in stagione | **4,16** | **70%** |
+| lo stesso, con la scelta costante | 3,79 | 78% |
+| · di cui solo gli imprevisti di disponibilità (infortuni, squalifiche, nazionale) | 3,42 | |
+| · di cui solo il caso partita per partita | 1,18 | |
+| **il motore oggi**, stessi uomini | **7,02** | **48%** |
+
+Per ruolo il pavimento è P 2,6 · D 3,7 · C 3,8 · A 4,1. «La scelta che cambia in stagione» (un esonero, un litigio, un
+acquisto di gennaio) è misurata dal dato: le metà cronologiche della stagione di un uomo differiscono più delle sue
+partite pari e dispari (varianza 0,044 contro 0,012), cioè una deriva di **0,18 di quota** fra prima e seconda metà.
+
+**Quindi**: circa **il 60% dell'errore di oggi è imprevedibile** e il 40% (circa 3 partite a testa) è margine. Il
+risultato massimo a cui tendere è ~4 partite di errore medio e ~70% degli uomini entro l'80-125% del vero, non lo zero
+né il 100%. E il grosso dell'imprevedibile sono gli infortuni: da soli fanno 3,4 delle 4,2 partite.
+
+Tre limiti, detti: la disponibilità è nota solo per ruolo (se la propensione del singolo agli infortuni si potesse
+conoscere, il pavimento scenderebbe un poco - ma la formula tira la sua storia verso la media con peso 40-80 partite,
+cioè la storia del singolo dice poco); uno stop già aperto alla data d'asta è trattato come imprevisto (il pavimento
+scenderebbe un poco); le partite sono quelle giocate e non i voti.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
