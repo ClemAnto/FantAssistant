@@ -138,7 +138,7 @@ def test_il_padrone_che_rientra_tappa_a_ballottaggio_e_solo_chi_e_disegnato():
     assert status_of(0.50, 40, True, contended=False) == "titolare"
     assert status_of(0.50, 40, True, contended=False, owner_returning=True) == "ballottaggio"
     # ...e il tappo e' un tappo: non promuove chi sta sotto.
-    assert status_of(0.20, 40, False, owner_returning=True) == LADDER[5]
+    assert status_of(0.20, 40, False, owner_returning=True) == "riserva"
 
 
 def test_la_regola_legge_le_due_board_e_la_riga_del_padrone():

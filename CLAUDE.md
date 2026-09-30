@@ -99,6 +99,17 @@ would alter the record instead of clarifying it. Those pages now carry a dated n
 they are written in; from here on the definition above is the only one.
 
 ## Six words for one shirt, and the drawing is a GATE
+**...AND FROM 01/10/2026 FIVE: `titolarissimo` IS GONE** (operator: «titolarissimo è un gradino sopra titolare quindi
+non è possibile che preveda meno presenze ... se necessario eliminiamo la voce»). It was the residual of the two axes
+(over 80% but not 90%, with the full-match floor), and presences follow the SHARE: a man who plays over 90% and is
+substituted was `titolare` and played MORE than a titolarissimo. Measured on the 5 September bench (rung known at the
+auction, games he was fit for): six words gave votes 30.7 · 27.3 · 29.1 · 26.1 · 24.5 · 17.8 on 38, not in order;
+five give 30.7 · 28.6 · 26.1 · 24.5 · 17.8 (appearances 33.9 · 32.4 · 31.8 · 29.1 · 21.3), in order on both. An
+older sheet or declaration still carrying the word reads as `titolare` (`status.normalized`,
+`normalizeTitolarita`); the PRESS survey keeps its own seven-word scale, where `titolarissimo` is the press's word and
+maps to our `titolare`. Every threshold on the ladder is now written with the WORD (`rungIndex('panchina')`), because
+the ones written as numbers changed meaning silently. What follows is the history of the six-word ladder.
+
 **20/08/2026, the operator's own ladder** — bandiera, titolarissimo, titolare, ballottaggio, panchina,
 riserva — read as **two axes and not one**, which is how he wrote the six lines: a share of the matches and
 a MINUTES floor, with the fourth rung dropping the floor. Both numbers already existed and neither is

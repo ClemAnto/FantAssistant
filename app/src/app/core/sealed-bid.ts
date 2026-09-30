@@ -1,5 +1,5 @@
 import { ClassicRole } from './players-store';
-import { titolaritaRank } from './titolarita';
+import { rungIndex, titolaritaRank } from './titolarita';
 
 /**
  * ASTE A BUSTA CHIUSA: what the rosters of a finished round say about the round that comes.
@@ -1248,7 +1248,7 @@ export function sureTarget(role: ClassicRole): number {
  * is undecided - which is the state the pairing rule exists for. A `riserva` is not in the fight at all
  * and is therefore never the mate that covers it: he is the third keeper, which is a different job.
  */
-const KEEPER_DISPUTE = 4;
+const KEEPER_DISPUTE = rungIndex('panchina');
 
 /**
  * ...and under which rung the BOARD DRAWS him, which is what wearing the shirt means.
@@ -1258,7 +1258,7 @@ const KEEPER_DISPUTE = 4;
  * and a man it does not field can never be `titolare` - so `ballottaggio` or better IS «the board draws
  * him», and `panchina` IS «somebody else is drawn in his place».
  */
-const KEEPER_SHIRT = 3;
+const KEEPER_SHIRT = rungIndex('ballottaggio');
 
 /**
  * DOES THIS SET OWN THE CLUB'S SHIRT, or only the men who are not wearing it?
@@ -3072,7 +3072,7 @@ export const OFTEN_SHARE = 0.7;
 export function playsOften(man: Bidder, rules: LeagueRules): boolean | null {
   const rung = titolaritaRank(man.titolarita);
   // `titolare` or better - the three rungs whose promise the toolkit measured as kept 4 times out of 4.
-  if (rung != null) return rung <= 2;
+  if (rung != null) return rung <= rungIndex('titolare');
   if (man.expected == null) return null;
   return man.expected / rules.matchdays >= OFTEN_SHARE;
 }

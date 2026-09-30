@@ -351,6 +351,27 @@ gradino lo ha avuto UNA stagione: cambi di gradino, di club, di allenatore. Due 
 `w2`), e il limite di chi entra dalla panchina è il VOTO e non la presenza (Simeone: 30 presenze, 19 voti). Titolarissimo,
 titolare e riserva stabili per tre anni sono rari (1, 6, 1 casi): numeri da leggere, non da tarare.
 
+### La scala perde `titolarissimo` (01/10/2026)
+
+**L'operatore**: «titolarissimo è un gradino sopra titolare quindi non è possibile che preveda meno presenze ... anche
+ballottaggio non può essere superiore a titolare o titolarissimo. Se necessario eliminiamo la voce». Era necessario: il
+gradino era il residuo dei due assi (oltre l'80% ma non il 90%, col pavimento dei 75'), mentre `titolare` prendeva anche
+chi gioca oltre il 90% e viene sostituito - quindi sulle presenze stava sopra. Fuso in `titolare`, la scala è in ordine
+su tutte e due le misure (settembre, gradino dell'anno prima, partite in cui era disponibile):
+
+| gradino | presenze su 38 | voti su 38 |
+|---|---|---|
+| bandiera | 33,9 | 30,7 |
+| titolare | 32,4 | 28,6 |
+| ballottaggio | 31,8 | 26,1 |
+| panchina | 29,1 | 24,5 |
+| riserva | 21,3 | 17,8 |
+
+Toolkit (`engine/status.LADDER`, `SHEET_REVISION` 81) e app (`core/titolarita.ts`); una riga o una dritta vecchia che
+porta la parola si legge `titolare`; la scala della STAMPA tiene la sua parola, che si traduce in `titolare`. E ogni
+soglia sulla scala ora si scrive col NOME (`rungIndex`): le buste chiuse scrivevano `rank <= 2` per «titolare o meglio»,
+e con una parola in meno quel numero voleva dire «ballottaggio».
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.

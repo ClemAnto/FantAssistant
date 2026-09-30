@@ -1,11 +1,9 @@
-"""status - which of six words describes a man's hold on his shirt, for the season that is coming.
+"""status - which of five words describes a man's hold on his shirt, for the season that is coming.
 
 THE LADDER IS THE OPERATOR'S, dictated 20/08/2026, and the words are his own vocabulary the way the
-mantra slot codes are the rulebook's - `titolarissimo` has no English equivalent anybody uses, so it is
-stored as he says it and never translated:
+mantra slot codes are the rulebook's, stored as he says them and never translated:
 
     bandiera        he will play EVERY match (>90%), and at least 75 minutes
-    titolarissimo   he will play almost every match (>80%), and at least 75 minutes
     titolare        he will play almost every match (>80%), and at least 65 minutes
     ballottaggio    he will play almost every match (>80%)
     panchina        he will often come on, without certainties
@@ -118,9 +116,26 @@ Dependency-free, like the rest of `engine/`: the shippable TypeScript engine get
 
 from __future__ import annotations
 
-#: The six words, strongest first. Their INDEX is the ladder, so `LADDER.index(...)` compares two men.
-LADDER: tuple[str, ...] = ("bandiera", "titolarissimo", "titolare", "ballottaggio",
-                           "panchina", "riserva")
+#: The five words, strongest first. Their INDEX is the ladder, so `LADDER.index(...)` compares two men.
+#:
+#: `titolarissimo` WAS A SIXTH WORD, between `bandiera` and `titolare`, and it is GONE (operator, 01/10/2026:
+#: «titolarissimo e' un gradino sopra titolare quindi non e' possibile che preveda meno presenze ... se necessario
+#: eliminiamo la voce»). It was the residual of two axes - over 80% but not over 90%, with the full-match floor - and
+#: presences follow the SHARE and not the minutes: a man who plays over 90% of his games but is substituted landed
+#: in `titolare` and played MORE than a titolarissimo. Measured on the 5 September bench (the rung known at the auction
+#: against the season after, on the games he was fit for): with six words the votes on 38 read 30.7 · 27.3 · 29.1 ·
+#: 26.1 · 24.5 · 17.8, i.e. not monotone; merged into `titolare`, 30.7 · 28.6 · 26.1 · 24.5 · 17.8 votes and
+#: 33.9 · 32.4 · 31.8 · 29.1 · 21.3 appearances - in order on both. A word read from an older sheet or declared
+#: before that day reads as `titolare` (`normalized`).
+LADDER: tuple[str, ...] = ("bandiera", "titolare", "ballottaggio", "panchina", "riserva")
+
+#: The word that left the ladder, and where it went.
+RETIRED: dict[str, str] = {"titolarissimo": "titolare"}
+
+
+def normalized(word: str | None) -> str | None:
+    """A rung word as the ladder has it today: a retired word reads as the one it merged into."""
+    return RETIRED.get(word, word) if word is not None else None
 
 #: «ogni partita» and «quasi ogni partita», as the operator wrote them: shares of the matches he is fit
 #: for. Strictly greater, also as he wrote them.
@@ -236,25 +251,23 @@ def status_of(play_share: float | None, minutes: float | None, in_eleven: bool,
         # di un'assenza CRESCE con quella trascorsa (da 60 giorni ne restano 38 di mediana), quindi
         # «nessuna data» pende verso «non torna presto», cioe' verso il posto che resta suo. Sono 25 dei
         # 40 disegnati indisponibili del foglio Serie A del 10/09/2026.
-        return LADDER[3]
+        return "ballottaggio"
     if in_eleven:
         if minutes is not None:
             if play_share > PLAY_EVERY and minutes >= FULL_MATCH:
-                return LADDER[0]
-            if play_share > PLAY_ALMOST_EVERY and minutes >= FULL_MATCH:
-                return LADDER[1]
+                return "bandiera"
             if play_share > PLAY_ALMOST_EVERY and minutes >= MOST_OF_THE_MATCH:
-                return LADDER[2]
+                return "titolare"
         # ...AND IF NOBODY DISPUTES THE SHIRT, `ballottaggio` is a word that names a duel with an empty
         # chair. The operator's own reading, and the one he found on a screen: «Ballottaggio con chi???».
         # It waives the MINUTES floor and nothing else - it cannot lift a man above `titolare`, because the
         # two rungs above ask for more than «he plays and nobody takes his place».
         if contended is False:
-            return LADDER[2]
+            return "titolare"
         # ...and a man the board fields never falls below `ballottaggio`, whatever the two numbers say.
         # The eleven is a claim about him too, and the one the operator reads first: a row that says
         # «riserva» beside a shirt on the pitch is the panel contradicting itself in two places.
-        return LADDER[3]
+        return "ballottaggio"
     # He is not in the eleven, so `ballottaggio` is the CEILING and the rungs above it are unreachable by
     # arithmetic alone: «titolare» about a man nobody draws would be the same contradiction the other way
     # round. What is left to decide is how often he comes on.
@@ -263,10 +276,10 @@ def status_of(play_share: float | None, minutes: float | None, in_eleven: bool,
     # Promoting him would also break the other half of the gate the rule leaves standing - «chi la board
     # non schiera non puo' essere titolare».
     if play_share > PLAY_ALMOST_EVERY:
-        return LADDER[3]
+        return "ballottaggio"
     if play_share > PLAY_OFTEN:
-        return LADDER[4]
-    return LADDER[5]
+        return "panchina"
+    return "riserva"
 
 
 def rank_of(status: str | None) -> int | None:
@@ -278,6 +291,6 @@ def rank_of(status: str | None) -> int | None:
     if status is None:
         return None
     try:
-        return LADDER.index(status)
+        return LADDER.index(normalized(status))
     except ValueError:
         return None

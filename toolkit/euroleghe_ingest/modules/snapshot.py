@@ -930,7 +930,11 @@ SQUAD_APPEARANCE_MONTHS = 14
 #   80 (30/09/2026) - R28 ADOTTATA SU EURO (gate §7-quinsexagies): le partite gia' giocate quest'anno entrano
 #      nella fantamedia attesa col K del RUOLO (P 16,6 · D 32,6 · C 43,5 · A 18,5), invece di non entrarci.
 #      Muove `engine_fm_pred` del solo foglio euro, di chi ha giocato quest'anno. `default` fermo.
-SHEET_REVISION = 80
+#   81 (01/10/2026) - LA SCALA PERDE `titolarissimo` (operatore: «titolarissimo e' un gradino sopra titolare quindi
+#      non e' possibile che preveda meno presenze»). Il residuo dei due assi e' fuso in `titolare`: con sei parole
+#      le presenze attese per gradino non erano in ordine, con cinque si' (engine/status.LADDER). Muove
+#      `desc_titolarita` (chi era titolarissimo legge titolare); `engine_*` fermo.
+SHEET_REVISION = 81
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the

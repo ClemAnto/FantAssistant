@@ -50,10 +50,10 @@ const BROWSERS = [
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
 ];
-/** Le sei parole della scala, dalla piu' forte alla piu' debole (`core/titolarita.ts`). */
-const LADDER = ['bandiera', 'titolarissimo', 'titolare', 'ballottaggio', 'panchina', 'riserva'];
+/** Le cinque parole della scala, dalla piu' forte alla piu' debole (`core/titolarita.ts`, dal 01/10/2026). */
+const LADDER = ['bandiera', 'titolare', 'ballottaggio', 'panchina', 'riserva'];
 /** I tre gradini che PRETENDONO l'undici (`core/player-rulings.ts`, `BOARD_EFFECT`). */
-const STARTER_RUNGS = new Set(['bandiera', 'titolarissimo', 'titolare']);
+const STARTER_RUNGS = new Set(['bandiera', 'titolare']);
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
@@ -323,8 +323,8 @@ function ordered(measured) {
         .map((rung) => ({ rung, value: out.get(rung)?.[axis] ?? null }))
         .filter((one) => one.value != null);
       for (let index = 0; index < seats.length - 1; index += 1) {
-        // Solo un'INVERSIONE si ripara, non un pareggio: sui minuti `bandiera` e `titolarissimo`
-        // pareggiano davvero, perche' condividono il pavimento dei 75' e si separano sulla quota.
+        // Solo un'INVERSIONE si ripara, non un pareggio: due gradini possono promettere lo stesso su
+        // un asse e distinguersi sull'altro.
         if (seats[index].value >= seats[index + 1].value) continue;
         const above = index > 0 ? seats[index - 1].value : null;
         out.get(seats[index].rung)[axis] = above == null
@@ -446,10 +446,9 @@ async function main() {
     problems: shares.size < 4
       ? [`solo ${shares.size} gradini popolati: il selettore non potrà prezzare le parole`] : [],
   });
-  // DUE AFFERMAZIONI, e sono l'una la ragione dell'altra. La MISURA non rispetta l'ordine della scala
-  // (`titolarissimo` e' il gradino residuo, quindi sulle presenze sta sotto `titolare`); l'ORDINE e'
-  // una dichiarazione dell'operatore («titolarissimo deve essere meglio di titolare», 08/09/2026),
-  // quindi la conversione che l'app prezza lo rispetta. Se la prima cadesse, il banco non starebbe piu'
+  // DUE AFFERMAZIONI, e sono l'una la ragione dell'altra. La MISURA puo' non rispettare l'ordine della
+  // scala (lo faceva `titolarissimo`, uscito il 01/10/2026 proprio per questo); l'ORDINE e' una
+  // dichiarazione dell'operatore, quindi la conversione che l'app prezza lo rispetta. Se la prima cadesse, il banco non starebbe piu'
   // misurando il caso che conta; se cadesse la seconda, la dichiarazione punirebbe chi la fa.
   const ladderDays = LADDER.map((rung) => daysOf(rung)).filter((one) => one != null);
   // QUALI COPPIE della scala la MISURA mette al contrario: e' la popolazione su cui la riparazione
@@ -465,13 +464,12 @@ async function main() {
       ? `la misura inverte ${inverted.length} coppie (${inverted.join(', ')})`
       : "SALTATA la meta' che conta: su questo foglio la misura e' gia' ordinata, quindi la "
         + 'riparazione non ripara niente e resta asserita solo la monotonia della conversione')
-      + ` · misurato: titolarissimo ${measuredDaysOf('titolarissimo')?.toFixed(1)} contro titolare `
-      + `${measuredDaysOf('titolare')?.toFixed(1)} · convertito: ${LADDER
+      + ` · misurato: titolare ${measuredDaysOf('titolare')?.toFixed(1)} contro ballottaggio `
+      + `${measuredDaysOf('ballottaggio')?.toFixed(1)} · convertito: ${LADDER
         .map((rung) => `${rung} ${daysOf(rung) == null ? '—' : daysOf(rung).toFixed(1)}gg/`
           + `${minutesOf(rung) == null ? '—' : minutesOf(rung).toFixed(0)}′`).join(' · ')}`,
-    // L'INVERSIONE E' UN FATTO DEL FOGLIO E NON UNA PROMESSA DEL CODICE: sul foglio del 24/09/2026
-    // `titolarissimo` misura 29,0 contro i 28,3 di `titolare`, cioe' la misura e' gia' ordinata e la
-    // riparazione non ha niente da riparare. Era un PROBLEMA e adesso e' un avviso stampato in
+    // L'INVERSIONE E' UN FATTO DEL FOGLIO E NON UNA PROMESSA DEL CODICE: un foglio gia' ordinato non
+    // ha niente da riparare. Era un PROBLEMA e adesso e' un avviso stampato in
     // `said`: un allarme che suona sullo stato normale di un foglio e' un allarme che si impara a
     // ignorare, e l'altra meta' - che la CONVERSIONE rispetti l'ordine dichiarato - resta asserita.
     problems: [

@@ -74,7 +74,7 @@ import {
   categoriaTone,
   isCategoria,
 } from '../../core/categoria';
-import { TITOLARITA_SHORT, isTitolarita, titolaritaNote, titolaritaRank } from '../../core/titolarita';
+import { TITOLARITA_SHORT, isTitolarita, titolaritaNote, titolaritaRank, titolaritaWeight } from '../../core/titolarita';
 import { RulingDot } from '../ruling-dot/ruling-dot';
 
 const ROLE_LABEL: Record<ClassicRole, string> = {
@@ -597,7 +597,7 @@ export class SquadTable {
     'Dove gioca davvero, osservato oggi. In GRASSETTO il ruolo che occuperebbe nella formazione tipo.';
 
   protected readonly titolaritaHeader =
-    'La titolarità in una parola, decisa dal toolkit sull\'undici tipo: BAN bandiera · TIS titolarissimo '
+    'La titolarità in una parola, decisa dal toolkit sull\'undici tipo: BAN bandiera '
     + '· TIT titolare · BLT ballottaggio · PAN panchina · RIS riserva. Qui «titolarità» vuol dire '
     + 'prendere il voto, anche da subentrato.';
 
@@ -1530,11 +1530,7 @@ export class SquadTable {
    * legge dal peso: i due gradini alti in grassetto, i due bassi smorzati, i due di mezzo normali.
    */
   protected titolaritaTone(man: SquadMan): string {
-    const rank = titolaritaRank(man.titolarita);
-    if (rank == null) return 'text-muted';
-    if (rank <= 1) return 'font-semibold';
-    if (rank >= 4) return 'text-muted';
-    return '';
+    return titolaritaWeight(man.titolarita);
   }
 
   /** What P is, said once in its header: a number of matches needs the calendar it is out of. */

@@ -68,9 +68,9 @@ def main() -> None:
             print(f"  {rung:24s} {len(rows):5d}  {apps:9.3f} {apps * 38:6.1f}  {votes:6.3f} {votes * 38:6.1f}  "
                   f"{median(x['votes'] for x in rows) * 38:12.1f}")
         # The top four rungs differ only by the minutes floor: are they one number of games?
-        top = [x for rung in status.LADDER[:4] for x in by.get((rung, keeper), [])]
+        top = [x for rung in status.LADDER[:3] for x in by.get((rung, keeper), [])]
         if top:
-            print(f"  {'(i primi quattro insieme)':24s} {len(top):5d}  {mean(x['apps'] for x in top):9.3f} "
+            print(f"  {'(i primi tre insieme)':24s} {len(top):5d}  {mean(x['apps'] for x in top):9.3f} "
                   f"{mean(x['apps'] for x in top) * 38:6.1f}  {mean(x['votes'] for x in top):6.3f} "
                   f"{mean(x['votes'] for x in top) * 38:6.1f}")
     moved = [x for rows in by.values() for x in rows if x["change"]]

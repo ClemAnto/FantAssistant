@@ -166,6 +166,10 @@ EXCLUDED: dict[str, str] = {
     "player_xref": "provider ids: the app never re-resolves identity, it consumes fc_id",
     "club_xref": "same",
     "ingest_runs": "the toolkit's own audit trail, not data about football",
+    "injury_forecasts": "the dated archive of Transfermarkt's expected returns (01/10/2026): it exists so a "
+                        "bench can one day judge what was known on an auction day; the app reads today's "
+                        "open spells from `injuries` and `availability`, and a series that only grows "
+                        "would travel for nobody",
     # Added 23/09/2026. These seven were outside BOTH lists, i.e. exactly the state this dict exists to
     # make impossible: an omission nobody can tell from an oversight. Nothing about the bundle changes -
     # they were not travelling yesterday either - what changes is that a table added tomorrow cannot join

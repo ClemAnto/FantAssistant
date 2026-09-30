@@ -62,7 +62,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { Bundle, type PressRungsFile } from './bundle';
 import type { Platform } from './players-store';
-import { TITOLARITA_LADDER, Titolarita, isTitolarita } from './titolarita';
+import { TITOLARITA_LADDER, Titolarita, isTitolarita, normalizeTitolarita } from './titolarita';
 import { storedFlag, storedJson } from './view-state';
 
 /** Una dritta come viene salvata: la parola, il giorno, e il perche' se l'ha scritto. */
@@ -91,8 +91,8 @@ export interface PlayerRuling {
  * `bandiera` e `panchina`. La traduzione segue quello che ogni parola PROMETTE, perche' e' la promessa
  * che l'app prezza (la mediana del gradino sul foglio, `rungShares`):
  *
- *  - `titolarissimo` (gioca sempre, campionato e coppe) -> `titolarissimo`: stessa parola, dettata dallo
- *    stesso operatore, e sulle presenze vale quanto `bandiera` (0,958 contro 0,967 sul foglio Serie A);
+ *  - `titolarissimo` (gioca sempre, campionato e coppe) -> `titolare`: la parola era anche della nostra scala
+ *    fino al 01/10/2026, quando ne è uscita e il suo gradino è confluito in `titolare`;
  *  - `titolare` e `ballottaggio` -> se stessi;
  *  - `comprimario` (titolare a volte, o entra quasi sempre) -> `panchina`, che promette «spesso entra
  *    in campo, senza certezze» (0,631);
@@ -101,7 +101,7 @@ export interface PlayerRuling {
  *    la distinzione che la stampa fa non sparisce dallo schermo.
  */
 export const PRESS_TO_RUNG: Readonly<Record<string, Titolarita>> = {
-  titolarissimo: 'titolarissimo',
+  titolarissimo: 'titolare',
   titolare: 'titolare',
   ballottaggio: 'ballottaggio',
   comprimario: 'panchina',
@@ -143,7 +143,6 @@ export type RulingBoard = 'starter' | 'alternative' | 'reserve';
 
 export const BOARD_EFFECT: Record<Titolarita, RulingBoard> = {
   bandiera: 'starter',
-  titolarissimo: 'starter',
   titolare: 'starter',
   ballottaggio: 'alternative',
   panchina: 'reserve',
@@ -339,9 +338,12 @@ export function sanitiseRulings(raw: unknown): RulingsOnDisk {
     for (const [key, entry] of Object.entries(entries as Record<string, unknown>)) {
       if (!entry || typeof entry !== 'object') continue;
       const one = entry as { rung?: unknown; standing?: unknown; decided_on?: unknown; note?: unknown };
-      const rung = isTitolarita(one.rung)
-        ? one.rung
-        : isTitolarita(one.standing) ? one.standing : null;
+      // A declaration saved before 01/10/2026 may say `titolarissimo`: it reads as the rung it merged into.
+      const declared = normalizeTitolarita(one.rung);
+      const standing = normalizeTitolarita(one.standing);
+      const rung = isTitolarita(declared)
+        ? declared
+        : isTitolarita(standing) ? standing : null;
       if (!rung || !Number.isFinite(Number(key))) continue;
       kept[String(Math.trunc(Number(key)))] = {
         rung,
@@ -460,7 +462,7 @@ export class PlayerRulings {
     const out = new Map<number, PlayerRuling>();
     if (!season) return out;
     for (const [key, entry] of Object.entries(this.file()[season] ?? {})) {
-      const rung = entry.rung;
+      const rung = normalizeTitolarita(entry.rung);
       if (!isTitolarita(rung)) continue;
       out.set(Number(key), {
         rung,

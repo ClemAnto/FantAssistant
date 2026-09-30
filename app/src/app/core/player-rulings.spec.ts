@@ -34,18 +34,18 @@ function ruling(rung: Titolarita): PlayerRuling {
 describe('rungMedians', () => {
   it('prende la MEDIANA di ogni gradino, e la misura non raddrizza niente', () => {
     // Le mediane vere del foglio Serie A del 07/09/2026, con le loro popolazioni:
-    // bandiera 0,967 (29) · titolarissimo 0,858 (17) · titolare 0,949 (59) · ballottaggio 0,807 (155)
+    // bandiera 0,967 (29) · titolare 0,858 (17) · ballottaggio 0,949 (59) · ballottaggio 0,807 (155)
     // · panchina 0,631 (119) · riserva 0,243 (183). NON sono monotone, e la misura non le raddrizza.
     const shares = rungMedians([
-      row('titolare', 0.90), row('titolare', 0.949), row('titolare', 1.0),
-      row('titolarissimo', 0.85), row('titolarissimo', 0.858), row('titolarissimo', 0.87),
+      row('ballottaggio', 0.90), row('ballottaggio', 0.949), row('ballottaggio', 1.0),
+      row('titolare', 0.85), row('titolare', 0.858), row('titolare', 0.87),
     ]);
-    expect(shares.get('titolare')!.play).toBeCloseTo(0.949, 5);
-    expect(shares.get('titolarissimo')!.play).toBeCloseTo(0.858, 5);
-    // La cosa che sorprende ed è vera: `titolarissimo` è il gradino RESIDUO fra `bandiera` e
-    // `titolare` (>80% delle partite E almeno 75 minuti), quindi sulla QUOTA sta più in basso. Qui si
+    expect(shares.get('ballottaggio')!.play).toBeCloseTo(0.949, 5);
+    expect(shares.get('titolare')!.play).toBeCloseTo(0.858, 5);
+    // La cosa che sorprende ed è vera: `titolare` è il gradino RESIDUO fra `bandiera` e
+    // `ballottaggio` (>80% delle partite E almeno 75 minuti), quindi sulla QUOTA sta più in basso. Qui si
     // asserisce la MISURA per quello che è; l'ordine della scala lo rimette `orderedShares`.
-    expect(shares.get('titolarissimo')!.play).toBeLessThan(shares.get('titolare')!.play);
+    expect(shares.get('titolare')!.play).toBeLessThan(shares.get('ballottaggio')!.play);
   });
 
   it('I MINUTI SONO L’ALTRO ASSE, e hanno il loro denominatore', () => {
@@ -53,12 +53,12 @@ describe('rungMedians', () => {
     // 08/09/2026), quindi la misura ne porta due. Le mediane vere del foglio Serie A: 80 · 80 · 71 ·
     // 61 · 55 · 52, coi pavimenti visibili - i due gradini alti stanno tutt'e due sopra i 75'.
     const shares = rungMedians([
-      row('titolare', 0.90, 70), row('titolare', 0.95, 71), row('titolare', 1.0, 72),
+      row('ballottaggio', 0.90, 70), row('ballottaggio', 0.95, 71), row('ballottaggio', 1.0, 72),
       // Una riga con la quota e SENZA i minuti entra nella prima mediana e non nella seconda: tenere
       // fuori tutt'e due butterebbe una misura buona, contarla zero ne inventerebbe una falsa.
       row('panchina', 0.6, null),
     ]);
-    expect(shares.get('titolare')!.minutes).toBe(71);
+    expect(shares.get('ballottaggio')!.minutes).toBe(71);
     expect(shares.get('panchina')!.play).toBeCloseTo(0.6, 5);
     expect(shares.get('panchina')!.minutes).toBeNull();
   });
@@ -69,7 +69,7 @@ describe('rungMedians', () => {
     expect(shares.has('bandiera')).toBe(false);
     // Una parola che il foglio non conosce e una riga senza quota non contano: la prima non è un
     // gradino, la seconda non ha un numero da mettere in una mediana.
-    expect(shares.has('titolare')).toBe(false);
+    expect(shares.has('ballottaggio')).toBe(false);
     expect(shares.size).toBe(1);
   });
 
@@ -82,37 +82,37 @@ describe('rungMedians', () => {
 describe('orderedShares', () => {
   /** Le sei mediane vere del foglio Serie A del 07/09/2026, sui due assi. */
   const measured = scale([
-    ['bandiera', 0.967, 80], ['titolarissimo', 0.858, 80], ['titolare', 0.949, 71],
-    ['ballottaggio', 0.807, 61], ['panchina', 0.631, 55], ['riserva', 0.243, 52],
+    ['bandiera', 0.967, 80], ['titolare', 0.858, 80], ['ballottaggio', 0.949, 71],
+    ['panchina', 0.631, 55], ['riserva', 0.243, 52],
   ]);
 
-  it('L’ORDINE DELLA SCALA È UNA DICHIARAZIONE: `titolarissimo` sta sopra `titolare`', () => {
-    // Correzione dell'operatore, 08/09/2026: «titolarissimo deve essere meglio di titolare». La sua
+  it('L’ORDINE DELLA SCALA È UNA DICHIARAZIONE: `titolare` sta sopra `ballottaggio`', () => {
+    // Correzione dell'operatore, 08/09/2026: «titolare deve essere meglio di titolare». La sua
     // scala è ordinata per definizione, quindi dichiarare un gradino più alto non può abbassare le
     // presenze attese - sarebbe una dichiarazione che punisce chi la fa, e nessuno la userebbe due volte.
     const shares = orderedShares(measured);
     const ladder = [...TITOLARITA_LADDER].map((rung) => shares.get(rung)!);
     for (let at = 0; at < ladder.length - 1; at += 1) {
       // NON DECRESCENTE su ognuno dei due assi: un pareggio non contraddice un ordine, un'inversione
-      // sì - e sui minuti `bandiera` e `titolarissimo` pareggiano davvero, perché condividono il
+      // sì - e sui minuti `bandiera` e `titolare` pareggiano davvero, perché condividono il
       // pavimento dei 75' e si separano sulla quota.
       expect(ladder[at].play).toBeGreaterThanOrEqual(ladder[at + 1].play);
       expect(ladder[at].minutes!).toBeGreaterThanOrEqual(ladder[at + 1].minutes!);
     }
     // ...e sulla QUOTA la richiesta dell'operatore è soddisfatta in senso STRETTO.
-    expect(shares.get('titolarissimo')!.play).toBeGreaterThan(shares.get('titolare')!.play);
+    expect(shares.get('titolare')!.play).toBeGreaterThan(shares.get('ballottaggio')!.play);
   });
 
   it('...e si muove SOLO il gradino che contraddice l’ordine, fra i suoi vicini misurati', () => {
     const shares = orderedShares(measured);
-    // `titolarissimo` finisce fra `titolare` (0,949) e `bandiera` (0,967): l'ordine viene da lui, il
+    // `titolare` finisce fra `ballottaggio` (0,949) e `bandiera` (0,967): l'ordine viene da lui, il
     // livello dal dato, e non entra nessun numero fuori dalla banda che la misura disegna.
-    expect(shares.get('titolarissimo')!.play).toBeCloseTo((0.949 + 0.967) / 2, 5);
+    expect(shares.get('titolare')!.play).toBeCloseTo((0.949 + 0.967) / 2, 5);
     // I MINUTI NON SI TOCCANO: là non c'è nessuna inversione, e i suoi 80' sono la sua mediana.
-    expect(shares.get('titolarissimo')!.minutes).toBe(80);
+    expect(shares.get('titolare')!.minutes).toBe(80);
     // Gli altri cinque restano la loro mediana su tutt'e due gli assi: una riparazione che tocca
     // tutto sarebbe una scala inventata con l'aria di una misura.
-    for (const rung of ['bandiera', 'titolare', 'ballottaggio', 'panchina', 'riserva'] as Titolarita[]) {
+    for (const rung of ['bandiera', 'ballottaggio', 'panchina', 'riserva'] as Titolarita[]) {
       expect(shares.get(rung)!.play).toBeCloseTo(measured.get(rung)!.play, 6);
       expect(shares.get(rung)!.minutes).toBe(measured.get(rung)!.minutes);
     }
@@ -120,12 +120,12 @@ describe('orderedShares', () => {
 
   it('un’inversione sui MINUTI si ripara come una sulla quota, e solo lei', () => {
     const shares = orderedShares(scale([
-      ['bandiera', 0.967, 82], ['titolarissimo', 0.958, 60], ['titolare', 0.949, 71],
+      ['bandiera', 0.967, 82], ['titolare', 0.958, 60], ['ballottaggio', 0.949, 71],
     ]));
-    // 60 sotto i 71 di `titolare` è un'inversione: sale in mezzo ai vicini (71 e 82).
-    expect(shares.get('titolarissimo')!.minutes).toBeCloseTo((71 + 82) / 2, 5);
+    // 60 sotto i 71 di `ballottaggio` è un'inversione: sale in mezzo ai vicini (71 e 82).
+    expect(shares.get('titolare')!.minutes).toBeCloseTo((71 + 82) / 2, 5);
     // ...e la quota, che era già ordinata, non si muove di un millesimo.
-    expect(shares.get('titolarissimo')!.play).toBeCloseTo(0.958, 6);
+    expect(shares.get('titolare')!.play).toBeCloseTo(0.958, 6);
   });
 
   it('un violatore in CIMA si mette PARI a chi gli sta sotto, senza inventare un tetto', () => {
@@ -138,12 +138,12 @@ describe('orderedShares', () => {
   });
 
   it('un gradino ASSENTE non e un vicino: si interpola fra quelli che il foglio popola', () => {
-    // Senza `titolare` sul foglio, il vicino di sotto di `titolarissimo` e `ballottaggio`.
+    // Senza `ballottaggio` sul foglio, il vicino di sotto di `titolare` e `panchina`.
     const shares = orderedShares(scale([
-      ['bandiera', 0.967, 80], ['titolarissimo', 0.70, 80], ['ballottaggio', 0.807, 61],
+      ['bandiera', 0.967, 80], ['titolare', 0.70, 80], ['panchina', 0.807, 61],
     ]));
-    expect(shares.has('titolare')).toBe(false);
-    expect(shares.get('titolarissimo')!.play).toBeCloseTo((0.807 + 0.967) / 2, 5);
+    expect(shares.has('ballottaggio')).toBe(false);
+    expect(shares.get('titolare')!.play).toBeCloseTo((0.807 + 0.967) / 2, 5);
   });
 
   it('una scala gia ordinata non si tocca', () => {
@@ -156,13 +156,13 @@ describe('orderedShares', () => {
 describe('rungShares', () => {
   it('e la misura CON l’ordine dichiarato: e quella che prezza', () => {
     const rows = [
-      row('bandiera', 0.967, 80), row('titolarissimo', 0.858, 80), row('titolare', 0.949, 71),
+      row('bandiera', 0.967, 80), row('titolare', 0.858, 80), row('ballottaggio', 0.949, 71),
     ];
-    expect(rungShares(rows).get('titolarissimo')!.play)
-      .toBeGreaterThan(rungShares(rows).get('titolare')!.play);
+    expect(rungShares(rows).get('titolare')!.play)
+      .toBeGreaterThan(rungShares(rows).get('ballottaggio')!.play);
     // ...e la misura grezza resta leggibile per quello che e', accanto.
-    expect(rungMedians(rows).get('titolarissimo')!.play)
-      .toBeLessThan(rungMedians(rows).get('titolare')!.play);
+    expect(rungMedians(rows).get('titolare')!.play)
+      .toBeLessThan(rungMedians(rows).get('ballottaggio')!.play);
   });
 });
 
@@ -196,7 +196,6 @@ describe('BOARD_EFFECT', () => {
     // «chi la board non schiera non può essere titolare, chi schiera non scende sotto ballottaggio»
     // (`engine/status.py`): i primi tre gradini pretendono l'undici, gli ultimi due lo escludono.
     expect(BOARD_EFFECT.bandiera).toBe('starter');
-    expect(BOARD_EFFECT.titolarissimo).toBe('starter');
     expect(BOARD_EFFECT.titolare).toBe('starter');
     // `ballottaggio` è l'unica parola compatibile con tutt'e due, e infatti 115 dei 155 ballottaggi
     // del foglio Serie A sono nell'undici disegnato e 40 no: quindi non muove il disegno.

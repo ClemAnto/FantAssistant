@@ -515,7 +515,7 @@ def _names_match(one: str, other: str) -> bool:
 # share («gioca abbastanza da prendere il voto»), so the promise to score is the VOTO and not the team
 # sheet - the two are reported side by side because they are two quantities and the file that named
 # them says they must never be swapped.
-LADDER_RUNGS = ("bandiera", "titolarissimo", "titolare", "ballottaggio", "panchina", "riserva")
+LADDER_RUNGS = ("bandiera", "titolare", "ballottaggio", "panchina", "riserva")   # engine/status.LADDER
 
 
 def _round_matches(conn, season: str, rounds: tuple[int, ...]) -> dict[str, tuple]:

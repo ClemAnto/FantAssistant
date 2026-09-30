@@ -42,7 +42,7 @@ const value = (name, fallback) => {
 };
 const wait = (ms) => new Promise((done) => setTimeout(done, ms));
 // The rung's three letters as the app draws them (`core/titolarita.ts`, TITOLARITA_SHORT).
-const SHORT = { bandiera: 'BAN', titolarissimo: 'TIS', titolare: 'TIT', ballottaggio: 'BLT', panchina: 'PAN', riserva: 'RIS' };
+const SHORT = { bandiera: 'BAN', titolare: 'TIT', ballottaggio: 'BLT', panchina: 'PAN', riserva: 'RIS' };
 
 function freePort() {
   return new Promise((done) => {

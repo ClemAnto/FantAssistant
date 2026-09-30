@@ -12,6 +12,7 @@
 import { BundleTable } from './bundle';
 import { EngineNumbers } from './auction-value';
 import { onSeasonBase, sheetSeasonScale } from './season-scale';
+import { normalizeTitolarita } from './titolarita';
 
 /** `fc_id` -> what the engine says about him. A row without an id is not a row. */
 export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers> {
@@ -35,8 +36,8 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
     estNote: at('est_note'),
     minutes: at('desc_minutes_full_season'),
     matches: at('desc_season_matches'),
-    // IL GRADINO e i minuti che si aspetta: `desc_titolarita` è la scala a sei parole
-    // dell'operatore (bandiera · titolarissimo · titolare · ballottaggio · panchina · riserva) e
+    // IL GRADINO e i minuti che si aspetta: `desc_titolarita` è la scala a cinque parole
+    // dell'operatore (bandiera · titolare · ballottaggio · panchina · riserva) e
     // `desc_minutes_next` la previsione dei minuti per partita. Sono le due frasi che un'asta chiede
     // di un nome, e stanno qui e non in una seconda lettura perché due lettori dello stesso foglio
     // finiscono per dare a un uomo due risposte.
@@ -87,7 +88,8 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
       // Una colonna che il foglio non ha (una revisione più vecchia) legge -1 dall'`indexOf`, e
       // `row[-1]` è `undefined`: si normalizza a null qui, dove la colonna viene letta, o ogni
       // lettore a valle finirebbe per inventarsi il proprio ripiego.
-      titolarita: (row[columns.titolarita] as string | null) ?? null,
+      // Un foglio scritto prima del 01/10/2026 porta ancora `titolarissimo`: si legge come `titolare`.
+      titolarita: normalizeTitolarita((row[columns.titolarita] as string | null) ?? null),
       titolaritaPlay: (row[columns.titolaritaPlay] as number | null) ?? null,
       minutesNext: (row[columns.minutesNext] as number | null) ?? null,
       // ...e la categoria, con lo stesso `?? null` delle tre sopra e per la stessa ragione: un

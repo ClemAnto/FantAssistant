@@ -4,6 +4,7 @@ import {
   TITOLARITA_LADDER,
   TITOLARITA_SHORT,
   isTitolarita,
+  normalizeTitolarita,
   titolaritaNote,
   titolaritaRank,
 } from './titolarita';
@@ -15,14 +16,17 @@ import {
  * con la resa misurata su quattro finestre. Si prova che la LETTURA non tradisca la misura.
  */
 describe('la titolarità in una parola', () => {
-  it('ha le sei parole dell\'operatore, nell\'ordine della scala', () => {
+  it('ha le cinque parole dell\'operatore, nell\'ordine della scala', () => {
     expect([...TITOLARITA_LADDER]).toEqual([
-      'bandiera', 'titolarissimo', 'titolare', 'ballottaggio', 'panchina', 'riserva',
+      'bandiera', 'titolare', 'ballottaggio', 'panchina', 'riserva',
     ]);
-    expect(TITOLARITA_LADDER.map(titolaritaRank)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(TITOLARITA_LADDER.map(titolaritaRank)).toEqual([0, 1, 2, 3, 4]);
+    // `titolarissimo` è uscita dalla scala il 01/10/2026: una riga vecchia la porta e si legge `titolare`.
+    expect(normalizeTitolarita('titolarissimo')).toBe('titolare');
+    expect(normalizeTitolarita('panchina')).toBe('panchina');
   });
 
-  it('dà TRE caratteri a ciascuna, e sei sigle diverse', () => {
+  it('dà TRE caratteri a ciascuna, e cinque sigle diverse', () => {
     const codes = TITOLARITA_LADDER.map((word) => TITOLARITA_SHORT[word]);
     for (const code of codes) expect(code).toHaveLength(3);
     expect(new Set(codes).size).toBe(codes.length);

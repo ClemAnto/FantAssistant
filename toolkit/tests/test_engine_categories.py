@@ -313,7 +313,7 @@ def test_the_contender_rungs_are_the_ladder_s_own_and_not_a_copy():
     from euroleghe_ingest.engine import status
     from euroleghe_ingest.modules import boards
     assert boards.CONTENDER_RUNGS is status.CONTENDER_RUNGS
-    assert status.CONTENDER_RUNGS == frozenset(("bandiera", "titolarissimo", "titolare", "ballottaggio"))
+    assert status.CONTENDER_RUNGS == frozenset(("bandiera", "titolare", "ballottaggio"))
     # ...e sono ESATTAMENTE i gradini sopra `panchina`, dedotti dalla scala invece che riscritti.
     assert all(status.LADDER.index(r) < status.LADDER.index("panchina") for r in status.CONTENDER_RUNGS)
 

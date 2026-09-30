@@ -10,7 +10,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { Bundle } from '../../../core/bundle';
 import { looseMatch } from '../../../core/loose-search';
 import { PresenceSort, PresenceTestFile, presenceRows } from '../../../core/presence-test';
-import { TITOLARITA_SHORT, isTitolarita, titolaritaRank } from '../../../core/titolarita';
+import { TITOLARITA_SHORT, isTitolarita, titolaritaWeight } from '../../../core/titolarita';
 
 /**
  * «PARTITE ATTESE» on /why (operator, 30/09/2026: «una sezione con una tabella con tutti i calciatori e i dati che
@@ -186,10 +186,7 @@ export class PresenceTest {
 
   /** The same weight the squad table gives a rung: the top two bold, the bottom two muted. */
   protected rungTone(value: string | null | undefined): string {
-    const rank = titolaritaRank(value);
-    if (rank == null) return 'text-muted';
-    if (rank <= 1) return 'font-semibold';
-    return rank >= 4 ? 'text-muted' : '';
+    return titolaritaWeight(value);
   }
 
   protected pct(value: number | null): string {

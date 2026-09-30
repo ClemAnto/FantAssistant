@@ -358,7 +358,8 @@ def rung(play_share: float | None, minutes: float | None) -> str | None:
     if play_share is None:
         return None
     drawn = status.status_of(play_share, minutes, True)
-    return drawn if drawn in status.LADDER[:3] else status.status_of(play_share, minutes, False)
+    return (drawn if drawn in status.LADDER[:status.LADDER.index("ballottaggio")]
+            else status.status_of(play_share, minutes, False))
 
 
 def minutes_per_game(a) -> float | None:

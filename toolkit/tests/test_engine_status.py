@@ -10,10 +10,13 @@ from __future__ import annotations
 from euroleghe_ingest.engine import minutes, presence, status
 
 
-def test_the_six_words_are_the_operators_own_and_in_order():
-    assert status.LADDER == ("bandiera", "titolarissimo", "titolare", "ballottaggio",
-                             "panchina", "riserva")
-    assert [status.rank_of(word) for word in status.LADDER] == [0, 1, 2, 3, 4, 5]
+def test_the_five_words_are_the_operators_own_and_in_order():
+    assert status.LADDER == ("bandiera", "titolare", "ballottaggio", "panchina", "riserva")
+    assert [status.rank_of(word) for word in status.LADDER] == [0, 1, 2, 3, 4]
+    # `titolarissimo` left the ladder on 01/10/2026 and reads as the rung it merged into, never as unknown:
+    # an older sheet or an older declaration must not lose its word.
+    assert status.normalized("titolarissimo") == "titolare"
+    assert status.rank_of("titolarissimo") == status.rank_of("titolare")
     assert status.rank_of(None) is None
     assert status.rank_of("titolare ") is None      # not a rung, and never guessed into one
 
@@ -21,7 +24,7 @@ def test_the_six_words_are_the_operators_own_and_in_order():
 def test_the_ladder_reads_the_two_axes_the_operator_wrote():
     """A share of the matches AND a minutes floor - the four starting rungs are their cascade."""
     assert status.status_of(0.95, 80.0, True) == "bandiera"
-    assert status.status_of(0.85, 80.0, True) == "titolarissimo"       # under 90%, still a full match
+    assert status.status_of(0.85, 80.0, True) == "titolare"            # under 90%: the old titolarissimo
     assert status.status_of(0.95, 70.0, True) == "titolare"            # every match, comes off at 70
     assert status.status_of(0.85, 70.0, True) == "titolare"
     assert status.status_of(0.95, 50.0, True) == "ballottaggio"        # always on the pitch, never long
@@ -67,7 +70,7 @@ def test_a_man_whose_appearances_nobody_can_forecast_has_NO_rung():
 
 def test_the_bars_are_the_ones_the_operator_dictated():
     """Strictly greater, as he wrote them, and exactly at the two minute floors."""
-    assert status.status_of(status.PLAY_EVERY, 80.0, True) == "titolarissimo"
+    assert status.status_of(status.PLAY_EVERY, 80.0, True) == "titolare"
     assert status.status_of(status.PLAY_EVERY + 1e-9, 80.0, True) == "bandiera"
     assert status.status_of(0.95, status.FULL_MATCH, True) == "bandiera"
     assert status.status_of(0.95, status.FULL_MATCH - 0.1, True) == "titolare"
@@ -142,7 +145,7 @@ def test_the_rule_cannot_lift_a_man_above_titolare():
     """Un tetto, non una scala: «gioco e nessuno mi toglie il posto» non fa una bandiera."""
     # Chi le barre le passa gia' sta piu' in alto per conto suo, e la regola non lo tocca.
     assert status.status_of(0.95, 80.0, True, contended=False) == "bandiera"
-    assert status.status_of(0.85, 80.0, True, contended=False) == "titolarissimo"
+    assert status.status_of(0.85, 80.0, True, contended=False) == "titolare"
     # Chi non le passa arriva a `titolare` e si ferma li', qualunque cosa dicano i due numeri.
     for play, mins in ((0.30, 20.0), (0.95, 10.0), (0.85, 64.0)):
         assert status.status_of(play, mins, True, contended=False) == "titolare"

@@ -1,4 +1,5 @@
 import { MantraModules } from './auction-value';
+import { rungIndex } from './titolarita';
 import {
   DEFAULT_READINGS,
   GAIN_SORT,
@@ -643,8 +644,11 @@ describe('le sette letture di una riga', () => {
     const rank = (rung: string | null) =>
       readingValue(at('titolarita'), readingsOf(man({ titolarita: rung })));
     expect(rank('bandiera')).toBe(-0);
-    expect(rank('ballottaggio')).toBe(-3);
-    expect(rank('riserva')).toBe(-5);
+    // Scritti col rango della scala e non con un numero: il 01/10/2026 la scala ha perso una parola.
+    expect(rank('ballottaggio')).toBe(-rungIndex('ballottaggio'));
+    expect(rank('riserva')).toBe(-rungIndex('riserva'));
+    // `titolarissimo` non c'e' piu' e si legge `titolare`, mai ignoto.
+    expect(rank('titolarissimo')).toBe(rank('titolare'));
     expect(rank('bandiera')!).toBeGreaterThan(rank('riserva')!);
     // Una parola che la scala non conosce, e il vuoto: ignoti, quindi vanno in fondo e non in mezzo.
     expect(rank('boh')).toBeNull();

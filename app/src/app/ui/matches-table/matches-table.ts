@@ -6,7 +6,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { Bundle, ScoringConfig } from '../../core/bundle';
 import { Platform } from '../../core/players-store';
-import { TITOLARITA_LADDER, Titolarita, titolaritaNote, titolaritaRank } from '../../core/titolarita';
+import { TITOLARITA_LADDER, Titolarita, titolaritaNote, titolaritaRank, titolaritaWeight } from '../../core/titolarita';
 import { ValuationStore } from '../../core/valuation-store';
 import { BonusKind, BonusRow, bonusesOf, spellOf } from '../../core/match-bonuses';
 import { ColumnSlot, MatchCell, PlayerLine } from '../../core/players-store';
@@ -370,11 +370,7 @@ export class MatchesTable {
    * riserva. La stessa lettura che `ui/squad-table` da' alla sua sigla - una scala, un modo di leggerla.
    */
   protected rungTone(fcId: number): string {
-    const rank = titolaritaRank(this.rung(fcId));
-    if (rank == null) return 'text-muted';
-    if (rank <= 1) return 'font-semibold';
-    if (rank >= 4) return 'text-muted';
-    return '';
+    return titolaritaWeight(this.rung(fcId));
   }
 
   /**
