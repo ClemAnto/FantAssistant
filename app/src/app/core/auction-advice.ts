@@ -1,6 +1,6 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
-import { AuctionFeed, AuctionPlayer, Porta, Zone } from './auction-feed';
+import { AuctionFeed, AuctionPlayer, Platform, Porta, Zone } from './auction-feed';
 import { GlobalOptions } from './global-options';
 import {
   EngineNumbers,
@@ -44,6 +44,9 @@ import {
   take,
   takenBeforeOurTurn,
   nextCaller,
+  isKeeperSlot,
+  roleFull,
+  type Line,
 } from './auction-plan';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { porteZero } from './porte';
@@ -532,11 +535,18 @@ export class AuctionAdvice {
    * l'indice non è arrivato (lo legge la stessa passata che sceglie il foglio) nessuno viene escluso:
    * meglio una lista intera che una lista tagliata da un join a metà.
    */
+  /**
+   * Il listone le cui esclusioni valgono qui: quello del TAVOLO, e quello dichiarato finché il tavolo non lo
+   * dice. Le esclusioni sono per listone (`GlobalOptions.excludedOn`): i club italiani esclusi dalla sua
+   * EuroLeghe non devono svuotare un draft Serie A.
+   */
+  private readonly excludedPlatform = computed<Platform>(() => this.feed.platform() ?? this.options.league().platform);
+
   private readonly free = computed<AuctionPlayer[]>(() => {
     const available = this.feed.available();
-    if (!this.options.excluded().size) return available;
+    if (!this.options.excludedOn(this.excludedPlatform()).size) return available;
     const ids = this.clubIds();
-    return available.filter((player) => this.options.keeps(ids.get(player.club) ?? null));
+    return available.filter((player) => this.options.keeps(ids.get(player.club) ?? null, this.excludedPlatform()));
   });
 
   /**
@@ -655,7 +665,7 @@ export class AuctionAdvice {
     const zeros = this.portaZeros();
     const zero = zeros.live ?? zeros.league;
     const ids = this.clubIds();
-    const porte = this.feed.freePorte().filter((porta) => this.options.keeps(ids.get(porta.club) ?? null));
+    const porte = this.feed.freePorte().filter((porta) => this.options.keeps(ids.get(porta.club) ?? null, this.excludedPlatform()));
     for (const porta of porte) {
       const valuation = valuations.get(porta.club) ?? portaValuation([], total);
       const pvOf = (player: AuctionPlayer) => valuationOf(numbers.get(player.id)).pv ?? -1;
@@ -854,7 +864,7 @@ export class AuctionAdvice {
     const ids = this.clubIds();
     const clubs = new Set<string>();
     for (const row of this.listone()) {
-      if (row.player.club && this.options.keeps(ids.get(row.player.club) ?? null)) {
+      if (row.player.club && this.options.keeps(ids.get(row.player.club) ?? null, this.excludedPlatform())) {
         clubs.add(row.player.club);
       }
     }
@@ -901,7 +911,7 @@ export class AuctionAdvice {
         name: player.name,
         club: player.club,
         slot: numbers.get(player.id)?.slot ?? null,
-        roles: player.roles,
+        roles: this.feed.gameRoles(player),
         price: player.fvm,
         net: row?.surplus ?? null,
         surplus: row?.surplus ?? null,
@@ -944,6 +954,28 @@ export class AuctionAdvice {
     return turn !== null && capBlocks(turn - 1, price, this.pickCap());
   }
 
+  /** Our squad as the plans read it: its slots, and the quotas it is bound by. */
+  private readonly myPlanTeam = computed<PlanTeam | null>(() => {
+    const input = this.planInput();
+    return input?.teams.find((team) => team.id === input.mineId) ?? null;
+  });
+
+  private readonly slotById = computed(() => new Map((this.planInput()?.pool ?? []).map((one) => [one.id, one.slot])));
+
+  /**
+   * OUR LINE IS FULL for this man (30/09/2026): the keepers we may hold, and on classic the 8/8/6 quotas. The same
+   * guard the advice's own pick obeys (`legalFor`), so the list can say why a man high in the ranking is not the
+   * one suggested. A fact about OUR squad and not about him: he stays in the list, dimmed.
+   */
+  fullForMe(playerId: number): boolean {
+    const team = this.myPlanTeam();
+    const input = this.planInput();
+    if (!team || !input) return false;
+    const slot = this.slotById().get(playerId) ?? null;
+    if (isKeeperSlot(slot)) return team.slots.filter(isKeeperSlot).length >= input.keeperCap;
+    return roleFull(team, slot);
+  }
+
   /** How many keepers a squad may hold, as the session states it. */
   private readonly keeperSlots = computed(() => {
     const roles = this.feed.league()['roles'] ?? {};
@@ -953,13 +985,34 @@ export class AuctionAdvice {
 
   /**
    * LA DRAFT PRIORITY (`core/draft-priority.ts`, `docs/model/priorita-draft-v1.md`) prende il posto di
-   * `pickForUs` dove e' stata misurata e scritta: un DRAFT MANTRA con la matrice delle sostituzioni nel
-   * regolamento. Altrove - un'asta a rilanci, un draft classic - resta il consiglio di prima, perche' la
-   * formula parla di ruoli mantra e di sostituzioni col loro -1, e fuori da li' non ha un numero da dare.
+   * `pickForUs` in un DRAFT, mantra e classic. Sul mantra vuole la matrice delle sostituzioni nel regolamento;
+   * sul CLASSIC (sua richiesta, 30/09/2026: «adattiamoli ai ruoli classic») il ruolo base e' il ruolo, i posti
+   * sono quelli dei sette moduli e le quote 3/8/8/6 limitano chi si puo' chiamare. A un'asta a rilanci resta il
+   * consiglio di prima.
    */
   readonly priorityOn = computed(() => {
     const rules = this.shapes() as PriorityRules | null;
-    return this.feed.isDraft() && this.feed.isMantra() && !!rules?.substitution?.matrix && !!rules.roles?.length;
+    if (!this.feed.isDraft() || !rules?.roles?.length || !Object.keys(rules.modules ?? {}).length) return false;
+    return !this.feed.isMantra() || !!rules.substitution?.matrix;
+  });
+
+  /**
+   * LE QUOTE DELLA ROSA per linea, dove il gioco ne ha (classic: 3/8/8/6, dalla sessione o dalla lega dichiarata).
+   * Null sul mantra, che raziona solo i portieri (`keeperCap`).
+   */
+  private readonly lineQuotas = computed<Partial<Record<Line, number>> | null>(() => {
+    if (this.feed.isMantra()) return null;
+    const roles = this.feed.league()['roles'] ?? {};
+    const max = (zone: string) => {
+      const value = Array.isArray(roles[zone]) ? roles[zone][1] : roles[zone];
+      return Number.isFinite(Number(value)) && value != null ? Number(value) : null;
+    };
+    const out: Partial<Record<Line, number>> = {};
+    for (const [zone, line] of [['def', 'dif'], ['mid', 'cen'], ['atk', 'att']] as const) {
+      const quota = max(zone);
+      if (quota != null) out[line] = quota;
+    }
+    return Object.keys(out).length ? out : null;
   });
 
   /** Ogni uomo del listone letto come la priorita' lo legge, per id; una porta vale il mix dei suoi portieri. */
@@ -975,7 +1028,8 @@ export class AuctionAdvice {
       const valuation = this.valuationFor(player, numbers);
       out.set(player.id, {
         id: player.id,
-        roles: player.roles.map((role) => role.toLowerCase()),
+        // A keeper reads `por` in both games: the base-role key the Draft Priority measures doors on.
+        roles: this.feed.gameRoles(player).map((role) => (isKeeperSlot(role) ? 'por' : role.toLowerCase())),
         slot: porta ? 'por' : (numbers.get(player.id)?.slot ?? null),
         price: porta ? porta.price : player.fvm,
         fm: valuation.fm,
@@ -1000,7 +1054,7 @@ export class AuctionAdvice {
     const population: PriorityMan[] = [];
     const seenPorte = new Set<string>();
     for (const { player } of this.listone()) {
-      if (!this.options.keeps(ids.get(player.club) ?? null)) continue;
+      if (!this.options.keeps(ids.get(player.club) ?? null, this.excludedPlatform())) continue;
       const man = men.get(player.id);
       if (!man) continue;
       const porta = goals ? this.feed.portaOfKeeper().get(player.id) : undefined;
@@ -1013,7 +1067,12 @@ export class AuctionAdvice {
       population.push(man);
     }
     const teams = this.feed.teams();
-    const size = { teams: teams.length, keepers: this.planInput()?.keeperCap ?? 2, rounds: this.priorityRounds() };
+    const quotas = this.lineQuotas();
+    const size = {
+      teams: teams.length, keepers: this.planInput()?.keeperCap ?? 2, rounds: this.priorityRounds(),
+      // Classic: a league buys its quota of each line, and Z is the starter of a module's whole places.
+      ...(quotas ? { quotas, startersFromPlaces: true } : {}),
+    };
     const rules = preferredRules(this.shapes() as PriorityRules, RECOMMENDED_MANTRA);
     return {
       rules,
@@ -1033,6 +1092,8 @@ export class AuctionAdvice {
     const numbers = this.numbers();
     const roles = this.feed.league()['roles'] ?? {};
     const keeperSlots = Array.isArray(roles['gk']) ? roles['gk'][1] : (roles['gk'] ?? 3);
+    const keeperCap = (this.feed.isGoalsMode() ? this.feed.porteSlots() : null) ?? (Number(keeperSlots) || 3);
+    const quotas = this.lineQuotas();
     const order = this.feed.pickOrder().map((team) => team.id);
 
     // THE PORTE RULE, which the tool cannot express and the plan was ignoring (§14.1, todolist item 1.6).
@@ -1050,15 +1111,17 @@ export class AuctionAdvice {
         // The complete Mantra codes, which is what legality is decided on - the primary code alone would
         // throw away the flexibility of the 497 men of 1014 who carry two or more.
         held: team.squad
-          .filter((entry) => entry.player?.roles?.length)
-          .map((entry) => ({ roles: entry.player!.roles.map((role) => role.toLowerCase()) })),
+          .filter((entry) => this.feed.gameRoles(entry.player).length)
+          .map((entry) => ({ roles: this.feed.gameRoles(entry.player).map((role) => role.toLowerCase()) })),
         heldIds: team.squad
-          .filter((entry) => entry.player?.roles?.length)
+          .filter((entry) => this.feed.gameRoles(entry.player).length)
           .map((entry) => entry.player!.id),
         rosterValue: team.spent,
         pickValues: team.squad.map((entry) => entry.cost),
         picksCount: team.squad.length,
         firstRoundIndex: Math.max(0, order.indexOf(team.id)),
+        // The classic quotas, keepers included: a pick over them is one the host refuses.
+        ...(quotas ? { limits: { ...quotas, por: keeperCap } } : {}),
       })) as PlanTeam[],
       order,
       pool: this.ranked().map((row) => ({
@@ -1066,7 +1129,7 @@ export class AuctionAdvice {
         name: row.player.name,
         club: row.player.club,
         slot: row.porta ? 'por' : (numbers.get(row.player.id)?.slot ?? null),
-        roles: row.player.roles,
+        roles: this.feed.gameRoles(row.player),
         // A goal costs what its dearest keeper costs (`Porta.price`): the man a rival buying by price calls.
         price: row.price,
         net: row.net ?? row.surplus,
@@ -1080,7 +1143,7 @@ export class AuctionAdvice {
       // is a table that wrongly let somebody take a second keeper of a club, and the panel already reports
       // that as a mistake (`myStrayKeeperPicks`) rather than counting it.
       // Con le porte il tetto è il numero di porte che la LEGA dichiara, non i posti portiere del software.
-      keeperCap: (this.feed.isGoalsMode() ? this.feed.porteSlots() : null) ?? (Number(keeperSlots) || 3),
+      keeperCap,
       maxAheadPicks: Number(this.feed.draftRules()?.['maxAheadPicks'] ?? 1) || 1,
       heads: this.rivalHeads(),
       cap: this.pickCap(),
@@ -1157,7 +1220,7 @@ export class AuctionAdvice {
           fragility: null });
         continue;
       }
-      const roles = row.player.roles.map((role) => role.toLowerCase());
+      const roles = this.feed.gameRoles(row.player).map((role) => role.toLowerCase());
       const slot = numbers.get(id)?.slot ?? null;
       const word = press.get(id)?.pressTier ?? numbers.get(id)?.titolarita ?? null;
       out.set(id, {

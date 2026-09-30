@@ -6,7 +6,7 @@ import { AuctionFeed, DEMO_CODE, MarketType } from './auction-feed';
 // un import di valore chiuderebbe un ciclo a runtime. Un `import type` non viene emesso affatto.
 import type { ClassicRole, Platform } from './players-store';
 import type { AuctionKind, RosterShape, StrategyGame } from './strategy';
-import { storedJson, storedList } from './view-state';
+import { storedJson } from './view-state';
 
 /**
  * LE OPZIONI GLOBALI: il regolamento della lega, e le squadre reali che non si comprano.
@@ -207,13 +207,44 @@ export class GlobalOptions {
   readonly catalogue = signal<ClubOption[]>([]);
 
   /**
-   * Gli `fc_club_id` esclusi. Una lista di numeri sul disco, validata: quello che c'è scritto può
-   * venire da una versione precedente dell'app, e una preferenza persa va bene, una pagina che non si
-   * apre no (vedi `storedList`).
+   * GLI `fc_club_id` ESCLUSI, UNA LISTA PER LISTONE (30/09/2026). Un'esclusione è un fatto della LEGA e
+   * non dell'app: la sua EuroLeghe esclude i club italiani, e con una lista sola quella dichiarazione
+   * restava attiva su un draft Serie A classic, dove toglieva dalla lista degli svincolati tutti i club
+   * del campionato - cioè tutti. Sul disco una mappa per piattaforma, validata come prima: quello che c'è
+   * scritto può venire da una versione precedente, e la lista di prima (una sola, `options.excludedClubs`)
+   * va a EuroLeghe, perché è la lega per cui le esclusioni sono nate (28/09/2026).
    */
-  readonly excludedIds = storedList<number>('options.excludedClubs', isClubId);
+  private readonly excludedByPlatform = storedJson<Record<Platform, number[]>>(
+    'options.excludedClubsByPlatform',
+    readExcludedByPlatform,
+  );
 
-  readonly excluded = computed(() => new Set(this.excludedIds()));
+  /** Le esclusioni di ogni listone, come insiemi. */
+  private readonly excludedSets = computed<Record<Platform, Set<number>>>(() => {
+    const all = this.excludedByPlatform();
+    return { default: new Set(all.default), euro: new Set(all.euro) };
+  });
+
+  /** Le esclusioni di un listone. */
+  excludedOn(platform: Platform): Set<number> {
+    return this.excludedSets()[platform];
+  }
+
+  /** Riscrive le esclusioni di UN listone e lascia stare l'altro. */
+  setExcludedOn(platform: Platform, ids: readonly number[]): void {
+    this.excludedByPlatform.update((all) => ({ ...all, [platform]: [...new Set(ids.filter(isClubId))] }));
+  }
+
+  /**
+   * Le esclusioni del listone della lega DICHIARATA: quello che il pannello mostra e modifica, e il
+   * listone di default di chi chiede senza nominarne uno.
+   */
+  readonly excludedIds = Object.assign(
+    computed<number[]>(() => this.excludedByPlatform()[this.league().platform]),
+    { set: (ids: readonly number[]) => this.setExcludedOn(this.league().platform, ids) },
+  );
+
+  readonly excluded = computed(() => this.excludedOn(this.league().platform));
 
   /**
    * Se il pannello è aperto.
@@ -326,7 +357,8 @@ export class GlobalOptions {
           return;
         }
         excludedFor = code;
-        const before = this.excluded();
+        // IL LISTONE DEL TAVOLO e non quello dichiarato: l'adozione del regolamento può arrivare dopo.
+        const before = this.excludedOn(platform);
         const declares = this.feed.declaresInactive();
         const next = mergeTableExclusions(before, synced, declares);
         const same = next.length === before.size && next.every((id) => before.has(id));
@@ -351,7 +383,7 @@ export class GlobalOptions {
             `${EXCLUDED_LINE} il tavolo non le dichiara, restano le tue (${before.size})` +
             (added.length ? ` più ${added.length} assenti dal suo listone (${listed(added)})` : '');
         }
-        if (!same) this.excludedIds.set(next);
+        if (!same) this.setExcludedOn(platform, next);
         const current = this.adopted();
         this.adopted.set({ code, changes: [...(current?.code === code ? current.changes : []), line] });
       });
@@ -411,9 +443,10 @@ export class GlobalOptions {
    */
   readonly hidden = computed<Record<Platform, number>>(() => {
     const out: Record<Platform, number> = { default: 0, euro: 0 };
-    for (const club of this.excludedClubs()) {
-      out.default += club.men.default;
-      out.euro += club.men.euro;
+    const sets = this.excludedSets();
+    for (const club of this.catalogue()) {
+      if (sets.default.has(club.id)) out.default += club.men.default;
+      if (sets.euro.has(club.id)) out.euro += club.men.euro;
     }
     return out;
   });
@@ -426,13 +459,13 @@ export class GlobalOptions {
    * 0 righe di rosa della stagione bersaglio senza `fc_club_id`, e 0 nomi di club dei tre fogli assenti
    * dalla tabella `clubs` - quindi oggi il ramo non scatta mai, ed è una guardia e non un ripiego.
    */
-  keeps(clubId: number | null | undefined): boolean {
-    return clubId == null || !this.excluded().has(clubId);
+  keeps(clubId: number | null | undefined, platform: Platform = this.league().platform): boolean {
+    return clubId == null || !this.excludedOn(platform).has(clubId);
   }
 
   /** Lo stesso, su una lista: torna la lista STESSA quando non c'è niente da escludere. */
-  keep<T extends { clubId: number | null }>(rows: T[]): T[] {
-    const out = this.excluded();
+  keep<T extends { clubId: number | null }>(rows: T[], platform: Platform = this.league().platform): T[] {
+    const out = this.excludedOn(platform);
     if (!out.size) return rows;
     return rows.filter((row) => row.clubId == null || !out.has(row.clubId));
   }
@@ -472,10 +505,8 @@ export class GlobalOptions {
 
   /** Esclude o riammette una squadra. */
   setExcluded(clubId: number, excluded: boolean): void {
-    this.excludedIds.update((ids) => {
-      const kept = ids.filter((one) => one !== clubId);
-      return excluded ? [...kept, clubId] : kept;
-    });
+    const kept = this.excludedIds().filter((one) => one !== clubId);
+    this.excludedIds.set(excluded ? [...kept, clubId] : kept);
   }
 
   clearExcluded(): void {
@@ -592,6 +623,26 @@ export function adoptTable(
 
 function isClubId(one: unknown): one is number {
   return typeof one === 'number' && Number.isFinite(one);
+}
+
+/**
+ * Le esclusioni per listone come le ha scritte il disco. Senza la mappa si legge la lista UNICA di prima
+ * e la si assegna a EuroLeghe: è la lega per cui le esclusioni sono nate, e su Serie A una lista di club
+ * italiani svuoterebbe il listone.
+ */
+function readExcludedByPlatform(raw: unknown): Record<Platform, number[]> {
+  const listOn = (value: unknown): number[] => (Array.isArray(value) ? value.filter(isClubId) : []);
+  if (raw && typeof raw === 'object') {
+    const map = raw as Record<string, unknown>;
+    return { default: listOn(map['default']), euro: listOn(map['euro']) };
+  }
+  let legacy: unknown = null;
+  try {
+    legacy = JSON.parse(localStorage.getItem('fantassistant.options.excludedClubs') ?? 'null');
+  } catch {
+    legacy = null;
+  }
+  return { default: [], euro: listOn(legacy) };
 }
 
 /**

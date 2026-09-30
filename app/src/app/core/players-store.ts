@@ -652,7 +652,7 @@ export class PlayersStore {
    * quindi non può succedere che una lista sia una e i suoi numeri di un'altra - il difetto che questo
    * progetto ha già pagato più volte.
    */
-  readonly roster = computed(() => this.options.keep(this.rosters().get(this.platform()) ?? []));
+  readonly roster = computed(() => this.options.keep(this.rosters().get(this.platform()) ?? [], this.platform()));
 
   readonly clubs = computed(() =>
     [...new Set(this.roster().map((p) => p.club))]

@@ -95,6 +95,21 @@ export interface AuctionPlayer {
    * decision, 09/08/2026: ignore it and refer to the FVM.
    */
   fvm: number;
+  /**
+   * The listone's TWO market values, as a live session serves them (`stats.fmv.classic` / `.mantra`). They
+   * differ on 140 of the 535 Serie A men of 2026-27 (Calhanoglu 220 against 250), so which one is `fvm` is
+   * decided by the GAME the table declares, which arrives after the listone (`AuctionFeed.players`). Absent
+   * on a table built from the bundle, where `fvm` is already the game's own.
+   */
+  fvmByGame?: { classic: number; mantra: number };
+}
+
+/** A listone row priced in the table's game: the value the host orders and caps a draft on. */
+export function pricedFor(player: AuctionPlayer, mantra: boolean): AuctionPlayer {
+  const both = player.fvmByGame;
+  if (!both) return player;
+  const fvm = mantra ? both.mantra : both.classic;
+  return fvm === player.fvm ? player : { ...player, fvm };
 }
 
 export interface SquadEntry {
@@ -265,6 +280,9 @@ export function platformOf(
   if (championships.size > 1) return 'euro';
   return championships.has('Serie A') ? 'default' : null;
 }
+
+/** The classic macro-role of each classic zone: on classic the zone IS the role. */
+export const CLASSIC_OF_ZONE: Partial<Record<Zone, string>> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
 
 /** Classic reads the outfield split in three, Mantra as one pool - and the listone carries both. */
 export function zoneOf(player: AuctionPlayer | null, mantra: boolean): Zone {
@@ -640,7 +658,19 @@ export class AuctionFeed {
     const at = this.cursor();
     return at === null ? this.live() : rewindState(this.live(), at);
   });
-  private readonly players = signal<Map<number, AuctionPlayer>>(new Map());
+  /** The listone as it was served or saved, with both of its market values (`fvmByGame`). */
+  private readonly listone = signal<Map<number, AuctionPlayer>>(new Map());
+  /**
+   * The listone PRICED IN THE TABLE'S GAME. The listone is read before the state that says the game, so it
+   * keeps both values and the price is chosen here: until 30/09/2026 the mantra one was taken for every
+   * table, and a classic Serie A draft read Calhanoglu at 250 where the host prices him 220.
+   */
+  private readonly players = computed<Map<number, AuctionPlayer>>(() => {
+    const all = this.listone();
+    const mantra = this.isMantra();
+    if (![...all.values()].some((player) => player.fvmByGame)) return all;
+    return new Map([...all].map(([id, player]) => [id, pricedFor(player, mantra)]));
+  });
 
   /** The live mirror the stream writes into; `state` publishes a copy of it after every event. */
   private mirror: RawState = {};
@@ -953,6 +983,19 @@ export class AuctionFeed {
     return zoneOf(player, this.isMantra());
   }
 
+  /**
+   * A man's roles IN THE TABLE'S GAME: his Mantra codes on a mantra table, his classic macro-role on a classic one.
+   * The live listone carries the Mantra codes on every row whatever the game (30/09/2026), so reading `roles` on a
+   * classic table drew «Dc» where the game scores a D, and the P/D/C/A filter matched nobody. One reader for the
+   * list, the pitch, the plans and the Draft Priority.
+   */
+  gameRoles(player: AuctionPlayer | null): string[] {
+    if (!player) return [];
+    if (this.isMantra()) return player.roles;
+    const classic = CLASSIC_OF_ZONE[player.zoneClassic];
+    return classic ? [classic] : [];
+  }
+
   async connect(input: string, preserve = false): Promise<boolean> {
     const matched = input?.match(CODE_PATTERN)?.[0];
     if (!matched) {
@@ -975,7 +1018,7 @@ export class AuctionFeed {
         this.failure.set('missing');
         throw new Error(`Nessuna asta trovata con il codice ${code}.`);
       }
-      this.players.set(this.parseListone(listone));
+      this.listone.set(this.parseListone(listone));
 
       this.code.set(code);
       this.openStream(code);
@@ -1032,7 +1075,7 @@ export class AuctionFeed {
     this.mirror = saved.state;
     this.live.set({ ...saved.state });
     if (saved.players?.length) {
-      this.players.set(new Map(saved.players.map((player) => [player.id, player])));
+      this.listone.set(new Map(saved.players.map((player) => [player.id, player])));
     }
     this.code.set(code);
     this.savedAt.set(saved.savedAt ?? null);
@@ -1058,7 +1101,7 @@ export class AuctionFeed {
     this.disconnect();
     this.mirror = session.state;
     this.live.set({ ...session.state });
-    this.players.set(new Map(session.players.map((player) => [player.id, player])));
+    this.listone.set(new Map(session.players.map((player) => [player.id, player])));
     this.code.set(DEMO_CODE);
     this.followedTeamId.set(session.mineId);
     this.savedAt.set(null);
@@ -1177,7 +1220,7 @@ export class AuctionFeed {
     this.cursor.set(null);
     this.mirror = {};
     this.live.set({});
-    this.players.set(new Map());
+    this.listone.set(new Map());
     this.code.set(null);
     this.followedTeamId.set(null);
     this.status.set('idle');
@@ -1259,7 +1302,7 @@ export class AuctionFeed {
     }
     this.lastSaved = now;
 
-    const players = [...this.players().values()];
+    const players = [...this.listone().values()];
     const savedAt = new Date().toISOString();
     const write = (withPlayers: boolean) =>
       localStorage.setItem(
@@ -1332,6 +1375,8 @@ export class AuctionFeed {
     const players = new Map<number, AuctionPlayer>();
     const key = this.isMantraListone(raw) ? 'mantra' : 'classic';
     for (const entry of Object.values(raw)) {
+      const classic = Number(entry.stats?.fmv?.classic);
+      const mantra = Number(entry.stats?.fmv?.mantra);
       players.set(entry.id, {
         id: entry.id,
         name: entry.name ?? entry.fullName,
@@ -1341,13 +1386,15 @@ export class AuctionFeed {
         zoneMantra: entry.zone?.mantra,
         championship: entry.championship?.label ?? null,
         fvm: entry.stats?.fmv?.[key] ?? 0,
+        // Both, when the row carries both: the game is not known yet, and `players` prices by it.
+        ...(Number.isFinite(classic) && Number.isFinite(mantra) ? { fvmByGame: { classic, mantra } } : {}),
       });
     }
     return players;
   }
 
-  /** The listone is read before the state arrives, so the game type is not known yet. Mantra is
-   *  the safe read here: both keys exist on every row and only the number differs. */
+  /** The listone is read before the state arrives, so the game type is not known yet: this picks only the
+   *  PROVISIONAL `fvm`, and `players` re-prices every row that carries both values once the game is known. */
   private isMantraListone(raw: Record<string, any>): boolean {
     return Object.values(raw).some((entry) => entry.stats?.fmv?.mantra !== undefined);
   }

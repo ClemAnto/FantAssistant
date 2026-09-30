@@ -10,6 +10,7 @@ import {
   TRIM,
   WorthContext,
   baseRole,
+  legalFor,
   manValue,
   picksBefore,
   priorities,
@@ -81,6 +82,47 @@ describe('the base role', () => {
 
   it('falls back to the slot for a man the rulebook does not name', () => {
     expect(baseRole(RULES, ['zz'], 'zz')).toBe('zz');
+  });
+});
+
+describe('on classic (30/09/2026)', () => {
+  /** The classic rulebook's shape: roles P/D/C/A, whole places per line, no keeper line. */
+  const CLASSIC: PriorityRules = {
+    roles: ['P', 'D', 'C', 'A'],
+    slot_roles: { P: ['P'], D: ['D'], C: ['C'], A: ['A'] },
+    modules: { '4-4-2': { D: ['D', 'D', 'D', 'D'], M: ['C', 'C', 'C', 'C'], T: [], A: ['A', 'A'] } },
+  };
+
+  it('reads a keeper as the door in either vocabulary, and a classic role as its own base role', () => {
+    expect(baseRole(CLASSIC, ['p'], 'P')).toBe('por');
+    expect(baseRole(CLASSIC, ['d'], 'D')).toBe('d');
+    expect(baseRole(CLASSIC, ['a'], 'A')).toBe('a');
+  });
+
+  it("buys each line to its quota and takes Z from a module's whole places", () => {
+    const everybody: PriorityMan[] = [];
+    let id = 5000;
+    const add = (role: string, slot: string, fm: number) =>
+      everybody.push({ id: id++, roles: [role], slot, price: 10, fm, share: 0.9, steady: 0.6 });
+    for (let i = 0; i < 40; i += 1) {
+      add('d', 'D', 5.5 + i * 0.02);
+      add('a', 'A', 6.5 + i * 0.03);
+    }
+    const stats = roleStats(everybody, CLASSIC, { teams: 2, keepers: 3, rounds: 25,
+      quotas: { dif: 8, att: 6 }, startersFromPlaces: true });
+    // Two teams buy 16 defenders and 12 forwards, not the 50 best by what they give.
+    expect(stats.get('d')!.bought).toBe(16);
+    expect(stats.get('a')!.bought).toBe(12);
+    // Z = the 2 x 4 = 8 best bought defenders (trimmed mean below ten values = plain mean).
+    const top8 = everybody.filter((m) => m.slot === 'D').map((m) => m.fm!).sort((a, b) => b - a).slice(0, 8);
+    expect(stats.get('d')!.z).toBeCloseTo(top8.reduce((a, b) => a + b, 0) / 8, 6);
+  });
+
+  it('keeps a full classic line off the board', () => {
+    const squad: PlanTeam = { ...team(0), slots: Array(8).fill('D'), picksCount: 8,
+      limits: { por: 3, dif: 8, cen: 8, att: 6 } };
+    const pool = [{ ...asPlan(man('d', 6.5)), slot: 'D' }, { ...asPlan(man('a', 6.5)), slot: 'A' }];
+    expect(legalFor(squad, pool, { cap: null, keeperCap: 3, rounds: 25 }).map((p) => p.slot)).toEqual(['A']);
   });
 });
 

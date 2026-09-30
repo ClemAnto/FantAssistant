@@ -19,7 +19,7 @@ import { EDGE_BASE, Role } from '../../core/plancia';
 import { positionAfterSpending } from '../../core/auction-plan';
 import { ExportReadings, pickRecords, picksCsv, saveCsv, squadsCsv } from '../../core/draft-export';
 import { AuctionDemo } from '../../core/auction-demo';
-import { AuctionFeed, AuctionPlayer, AuctionTeam, SquadEntry, Zone } from '../../core/auction-feed';
+import { AuctionFeed, AuctionPlayer, AuctionTeam, CLASSIC_OF_ZONE, SquadEntry } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
 import { DraftPlace, RECOMMENDED_MANTRA, draftPitchOf, pitchYield, placeYield, withSuggestions } from '../../core/draft-pitch';
 import type { FantaMan } from '../../core/fanta-eleven';
@@ -45,11 +45,6 @@ import { RoleSet } from '../../ui/role-set/role-set';
 import { DeltaTrend } from '../../ui/delta-trend/delta-trend';
 import type { Difficulty, Interest, Scenario, ScenarioStep, Verdict } from '../../core/draft-scenarios';
 
-/**
- * The classic macro-role of a man, from the zone the feed files him under: on classic the rulebook rations
- * macro-roles and nothing finer, so the zone IS the role (same rule as the old fanta pitch).
- */
-const CLASSIC_ROLE: Partial<Record<Zone, string>> = { gk: 'P', def: 'D', mid: 'C', atk: 'A' };
 
 /**
  * THE TITOLARITÀ COLUMN'S BADGES (operator, 29/09/2026: «scrivi i valori con etichette intere con badge
@@ -147,6 +142,8 @@ export interface FreeRow {
   seswScore: number | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
+  /** Off OUR board for the rest of the draft: our line is full (the keepers, and on classic 8/8/6). */
+  full: boolean;
   /** The squad predicted to take him BEFORE our next pick (`AuctionAdvice.takenBeforeUs`); null otherwise. */
   takenBy: { id: number; label: string; colour: string } | null;
   /**
@@ -252,11 +249,14 @@ const ELEVEN = 11;
   // the rows must share ONE track list, or the columns of the header drift from the numbers under them.
   styles: `
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
+    /* THE ROLE TRACK FOLLOWS THE GAME (30/09/2026): up to three Mantra codes need 5.25rem, a classic man has ONE
+       letter, and the same width there left a hole between the badge and the name on every row. */
+    .classic-roles { --role-w: 1.4rem; }
     /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
        THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
        empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
-    .free-default { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 75px minmax(0, 1fr); }
-    .free-previste { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
+    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -298,7 +298,7 @@ const ELEVEN = 11;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
-    .free-medie { grid-template-columns: 5.25rem minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem repeat(8, 2.3rem) minmax(0, 1fr); }
+    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -568,7 +568,7 @@ export class Auction {
         index: entry.index,
         id: entry.player!.id,
         name: this.feed.shownName(entry.player!),
-        roles: entry.player!.roles,
+        roles: this.feed.gameRoles(entry.player),
         cost: entry.cost,
         team: team.label,
       })));
@@ -679,9 +679,7 @@ export class Auction {
 
   /** A man as the pitch draws him: roles to match on, and the numbers the panel prices him with. */
   private manOf(player: AuctionPlayer, cost: number): FantaMan {
-    const shown = this.feed.isMantra()
-      ? player.roles
-      : [CLASSIC_ROLE[this.feed.zoneOf(player)] ?? ''].filter(Boolean);
+    const shown = this.feed.gameRoles(player);
     return {
       id: player.id,
       name: this.feed.shownName(player),
@@ -748,9 +746,7 @@ export class Auction {
       .filter(({ entry }) => !!entry.player)
       .map(({ entry, turn }) => {
         const player = entry.player!;
-        const roles = this.feed.isMantra()
-          ? player.roles
-          : [CLASSIC_ROLE[this.feed.zoneOf(player)] ?? ''].filter(Boolean);
+        const roles = this.feed.gameRoles(player);
         return {
           id: player.id,
           name: this.feed.shownName(player),
@@ -1057,7 +1053,7 @@ export class Auction {
       name: this.feed.shownName(row.player),
       club: goal ? 'porta' : row.player.club,
       clubId: this.advice.clubIds().get(row.player.club) ?? null,
-      roles: row.player.roles,
+      roles: this.feed.gameRoles(row.player),
       fvm: row.price,
       ...this.rungOf(row, press, goal),
       trend: goal ? EMPTY_STRIP : (trends.get(row.player.id) ?? EMPTY_STRIP),
@@ -1070,6 +1066,7 @@ export class Auction {
       sesw: null,
       seswScore: null,
       locked: this.advice.lockedForMe(row.price),
+      full: this.advice.fullForMe(row.player.id),
       takenBy: this.takenBy(row.player.id),
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),
@@ -1381,7 +1378,7 @@ export class Auction {
       // A real table is read-only here: the double click builds the chain from him, with its verdict.
       const judged = this.advice.judgeScenario(row.id);
       if (!judged?.scenario) {
-        this.message.info(judged ? judged.why : 'Nessuno scenario: la Draft Priority vale solo nel draft mantra.');
+        this.message.info(judged ? judged.why : 'Nessuno scenario: la Draft Priority vale solo in un draft.');
         return;
       }
       this.chosen.set({ key: `judge:${row.id}`, scenario: judged.scenario, verdict: judged.verdict, why: judged.why });
@@ -1504,7 +1501,7 @@ export class Auction {
     const player = this.everyone().get(id);
     if (!player) return null;
     const numbers = this.advice.numbers().get(id) ?? null;
-    const role = (CLASSIC_ROLE[player.zoneClassic] ?? 'C') as Role;
+    const role = (CLASSIC_OF_ZONE[player.zoneClassic] ?? 'C') as Role;
     const measured = numbers?.fm != null;
     const fm = numbers?.fm ?? numbers?.estFm ?? null;
     const porta = this.feed.isGoalsMode() ? this.feed.portaOfKeeper().get(id) : undefined;

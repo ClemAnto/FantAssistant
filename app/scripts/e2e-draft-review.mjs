@@ -468,7 +468,13 @@ async function main() {
       return null;
     };
 
-    // 1. The whole draft, as the host left it.
+    // 1. The whole draft, as the host left it. The counter reads 12/12 as soon as the stream lands (~0.4s),
+    // while the engine's sheet and the rulebook arrive later (~0.7s): read before them, the pitch is still
+    // empty and this step blamed the page for the bench's own haste (30/09/2026, 2 runs of 2).
+    for (let i = 0; i < 60; i += 1) {
+      if ((await evaluate(session, readReview))?.totals) break;
+      await wait(150);
+    }
     const start = await settle(total);
     note('draft finito', `«${start?.label}», totali del campo ${start?.totals ? 'presenti' : 'assenti'}`, [
       ...expectAt(total, start),

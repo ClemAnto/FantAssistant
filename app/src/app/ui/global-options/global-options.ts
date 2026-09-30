@@ -15,7 +15,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 import { EngineSheetEntry } from '../../core/bundle';
 import { LEAGUE_ORDER } from '../../core/clubs-store';
 import { ClubOption, GlobalOptions, LeagueSettings } from '../../core/global-options';
-import { ClassicRole, competitionLabel } from '../../core/players-store';
+import { ClassicRole, Platform, competitionLabel } from '../../core/players-store';
 import { PlayerRulings } from '../../core/player-rulings';
 import { PageActions } from '../../core/page-actions';
 import { PlayerStatus } from '../../core/player-status';
@@ -122,7 +122,13 @@ export class GlobalOptionsPanel {
 
   /** La copia che si sta modificando: annullare deve poter annullare davvero. */
   protected readonly form = signal<LeagueSettings>(this.options.league());
-  protected readonly draft = signal<Set<number>>(new Set());
+  /**
+   * Le esclusioni che si stanno modificando, UNA COPIA PER LISTONE (30/09/2026): la finestra mostra quelle
+   * del listone scelto nel modulo, così passare da EuroLeghe a Serie A non porta i club italiani esclusi
+   * sul listone dove sono tutto il campionato.
+   */
+  private readonly drafts = signal<Record<Platform, Set<number>>>({ default: new Set(), euro: new Set() });
+  protected readonly draft = computed(() => this.drafts()[this.form().platform]);
   /** Trentasette squadre su euro non si scorrono a occhio: si cercano. */
   protected readonly search = signal('');
 
@@ -221,7 +227,10 @@ export class GlobalOptionsPanel {
   protected openPanel(): void {
     void this.valuation.load();
     this.form.set(structuredClone(this.options.league()));
-    this.draft.set(new Set(this.options.excludedIds()));
+    this.drafts.set({
+      default: new Set(this.options.excludedOn('default')),
+      euro: new Set(this.options.excludedOn('euro')),
+    });
     this.pressDraft.set(this.rulings.pressOn());
     this.search.set('');
     this.editing.set(true);
@@ -229,7 +238,9 @@ export class GlobalOptionsPanel {
 
   protected apply(): void {
     this.options.league.set(this.form());
-    this.options.excludedIds.set([...this.draft()]);
+    const drafts = this.drafts();
+    this.options.setExcludedOn('default', [...drafts.default]);
+    this.options.setExcludedOn('euro', [...drafts.euro]);
     this.rulings.pressOn.set(this.pressDraft());
     this.editing.set(false);
     this.options.close();
@@ -329,19 +340,13 @@ export class GlobalOptionsPanel {
   }
 
   protected toggle(club: ClubOption, excluded: boolean): void {
-    this.draft.update((current) => {
-      const next = new Set(current);
-      excluded ? next.add(club.id) : next.delete(club.id);
-      return next;
-    });
+    this.editDraft((next) => (excluded ? next.add(club.id) : next.delete(club.id)));
   }
 
   /** Un campionato intero: su euro «gioco solo Serie A e Premier» è cinque clic e non trentasette. */
   protected toggleGroup(group: ClubGroup, excluded: boolean): void {
-    this.draft.update((current) => {
-      const next = new Set(current);
+    this.editDraft((next) => {
       for (const club of group.clubs) excluded ? next.add(club.id) : next.delete(club.id);
-      return next;
     });
   }
 
@@ -351,6 +356,16 @@ export class GlobalOptionsPanel {
   }
 
   protected clearDraft(): void {
-    this.draft.set(new Set());
+    this.editDraft((next) => next.clear());
+  }
+
+  /** Una modifica alle esclusioni del listone scelto nel modulo, lasciando stare l'altro. */
+  private editDraft(change: (next: Set<number>) => unknown): void {
+    const platform = this.form().platform;
+    this.drafts.update((all) => {
+      const next = new Set(all[platform]);
+      change(next);
+      return { ...all, [platform]: next };
+    });
   }
 }

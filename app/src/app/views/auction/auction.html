@@ -605,7 +605,7 @@
       </section>
 
       <!-- 3. GLI SVINCOLATI: tutti, per priorità; ricerca per nome o squadra e filtro per ruolo (in OR). -->
-      <section data-column="free" class="flex min-h-0 flex-col gap-1.5 rounded-lg border border-border bg-surface p-2">
+      <section data-column="free" [class.classic-roles]="!feed.isMantra()" class="flex min-h-0 flex-col gap-1.5 rounded-lg border border-border bg-surface p-2">
         <div class="flex items-center gap-2">
           <nz-input-wrapper class="min-w-0 flex-1" nzAllowClear (nzClear)="query.set('')">
             <nz-icon nzInputPrefix nzType="search" class="text-muted" />
@@ -743,7 +743,7 @@
              numeri con cui si sceglie, quindi non cambiano posto quando cambia la vista. -->
         @if (mode() === 'default') {
           <div data-free-head class="gutter free-grid free-default px-1 text-[10px] text-muted">
-            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
+            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')" nz-tooltip nzTooltipTitle="Ruolo">{{ feed.isMantra() ? 'Ruolo' : 'R' }}{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="sesw" (click)="sortBy('sesw')" nz-tooltip nzTooltipTitle="Season Swing: punti a giornata sopra il titolare medio del ruolo">SeSw{{ arrow('sesw') }}</span>
@@ -768,7 +768,7 @@
             <span class="split col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
           </div>
           <div data-free-head class="gutter free-grid free-medie px-1 text-[10px] text-muted">
-            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
+            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')" nz-tooltip nzTooltipTitle="Ruolo">{{ feed.isMantra() ? 'Ruolo' : 'R' }}{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="sesw" (click)="sortBy('sesw')" nz-tooltip nzTooltipTitle="Season Swing: punti a giornata sopra il titolare medio del ruolo">SeSw{{ arrow('sesw') }}</span>
@@ -792,7 +792,7 @@
                il gradino del motore, le partite a voto, i minuti, la media voto, la costanza delle sue
                stagioni (quota di partite chiuse almeno a 6) e la fantamedia. -->
           <div data-free-head class="gutter free-grid free-previste px-1 text-[10px] text-muted">
-            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')">Ruolo{{ arrow('role') }}</span>
+            <span class="sort uppercase" data-sort="role" (click)="sortBy('role')" nz-tooltip nzTooltipTitle="Ruolo">{{ feed.isMantra() ? 'Ruolo' : 'R' }}{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
             <span class="sort text-right uppercase" data-sort="sesw" (click)="sortBy('sesw')" nz-tooltip nzTooltipTitle="Season Swing: punti a giornata sopra il titolare medio del ruolo">SeSw{{ arrow('sesw') }}</span>
@@ -830,8 +830,9 @@
               [class.free-default]="mode() === 'default'"
               [class.free-medie]="mode() === 'medie'"
               [class.free-previste]="mode() === 'previste'"
-              [class.opacity-50]="row.locked"
+              [class.opacity-50]="row.locked || row.full"
               [attr.data-locked]="row.locked ? '' : null"
+              [attr.data-full]="row.full ? '' : null"
               [attr.data-fvm]="row.fvm"
               [attr.data-taken-by]="row.takenBy?.id ?? null"
               [class.bg-primary/10]="selectedRow() === row.id"
@@ -866,6 +867,15 @@
                     class="flex shrink-0 items-center gap-0.5 rounded bg-fg/15 px-1 text-[9px] font-semibold leading-4
                            tabular-nums"
                     ><nz-icon nzType="lock" />{{ row.turnsLeft }}</span
+                  >
+                }
+                @if (row.full) {
+                  <span
+                    data-full-badge
+                    class="shrink-0 rounded bg-fg/15 px-1 text-[9px] font-semibold leading-4"
+                    nz-tooltip
+                    nzTooltipTitle="Il tuo reparto è pieno"
+                    >pieno</span
                   >
                 }
               </span>

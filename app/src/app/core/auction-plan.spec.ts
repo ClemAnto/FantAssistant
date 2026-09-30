@@ -22,6 +22,7 @@ import {
   planRoots,
   positionAfterSpending,
   predictRivalPick,
+  roleFull,
   startingPlaces,
 } from './auction-plan';
 
@@ -100,6 +101,28 @@ describe('predictRivalPick', () => {
     const keepers = [player(9, 'por', 500), player(3, 'dc', 10)];
     const full = team(1, { slots: ['por', 'por', 'por'] });
     expect(predictRivalPick(full, keepers, places, 3)!.id).toBe(3);
+  });
+});
+
+describe('the classic quotas (30/09/2026)', () => {
+  const places = startingPlaces(SHAPES);
+  const limits = { por: 3, dif: 8, cen: 8, att: 6 };
+
+  it('reads a classic keeper `P` as a keeper, so the fourth is never predicted', () => {
+    const keepers = [player(9, 'P', 500), player(3, 'D', 10)];
+    const full = team(1, { slots: ['P', 'P', 'P'] });
+    expect(predictRivalPick(full, keepers, places, 3)!.id).toBe(3);
+  });
+
+  it('never predicts a ninth defender, nor lets our own pick take one', () => {
+    const eight = team(1, { slots: Array(8).fill('D'), picksCount: 8, limits });
+    const pool = [player(1, 'D', 300), player(2, 'A', 20)];
+    expect(roleFull(eight, 'D')).toBe(true);
+    expect(roleFull(eight, 'A')).toBe(false);
+    expect(predictRivalPick(eight, pool, places, 3)!.id).toBe(2);
+    expect(pickForUs(pool, null, eight)!.id).toBe(2);
+    // Without quotas (mantra) the same squad may take him: nothing changes there.
+    expect(pickForUs(pool, null, team(1, { slots: Array(8).fill('D'), picksCount: 8 }))!.id).toBe(1);
   });
 });
 

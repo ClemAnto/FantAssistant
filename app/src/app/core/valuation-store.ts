@@ -770,9 +770,10 @@ export class ValuationStore {
    */
   readonly rosters = computed<Map<Platform, PlayerRow[]>>(() => {
     const raw = this.rostersByPlatform();
-    if (!this.options.excluded().size) return raw;
+    // Ogni listone con le SUE esclusioni: quelle di EuroLeghe non toccano il listone Serie A.
+    if (!this.options.excludedOn('default').size && !this.options.excludedOn('euro').size) return raw;
     const out = new Map<Platform, PlayerRow[]>();
-    for (const [platform, pool] of raw) out.set(platform, this.options.keep(pool));
+    for (const [platform, pool] of raw) out.set(platform, this.options.keep(pool, platform));
     return out;
   });
 

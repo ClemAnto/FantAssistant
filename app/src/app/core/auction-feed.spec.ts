@@ -14,6 +14,7 @@ import {
   livePicks,
   platformOf,
   porteOf,
+  pricedFor,
   rewindState,
 } from './auction-feed';
 
@@ -389,6 +390,40 @@ describe('AuctionFeed: awardByHand / emptySquads', () => {
     expect(feed.awardByHand(5585, 1, 10)).toBe(false);
     expect(feed.emptySquads()).toBe(false);
     expect(feed.picks().length).toBe(0);
+  });
+});
+
+describe("il prezzo di un draft e' l'FVM del GIOCO del tavolo", () => {
+  // Serie A 2026-27: the listone serves both values and they differ on 140 men of 535.
+  const calhanoglu: AuctionPlayer = {
+    id: 7001, name: 'Calhanoglu', club: 'Inter', roles: ['c', 't'], zoneClassic: 'mid', zoneMantra: 'mov',
+    championship: 'Serie A', fvm: 250, fvmByGame: { classic: 220, mantra: 250 },
+  };
+
+  it('reads the classic value on a classic table and the mantra one on a mantra table', () => {
+    expect(pricedFor(calhanoglu, false).fvm).toBe(220);
+    expect(pricedFor(calhanoglu, true).fvm).toBe(250);
+    // A row built from the bundle carries its game's value already, and stays as it is.
+    const bundled = { ...calhanoglu, fvmByGame: undefined, fvm: 210 };
+    expect(pricedFor(bundled, false)).toBe(bundled);
+  });
+
+  it('prices the free list by the game the state declares, which arrives after the listone', () => {
+    const table = (game: number) => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({});
+      const feed = TestBed.inject(AuctionFeed);
+      feed.startDemo({
+        players: [calhanoglu],
+        state: { ...structuredClone(STATE), picks: [], settings: { ...structuredClone(STATE).settings, game } },
+        mineId: 0,
+      });
+      return feed;
+    };
+    expect(table(1).isMantra()).toBe(false);
+    expect(table(1).available().find((one) => one.id === 7001)?.fvm).toBe(220);
+    expect(table(2).isMantra()).toBe(true);
+    expect(table(2).available().find((one) => one.id === 7001)?.fvm).toBe(250);
   });
 });
 

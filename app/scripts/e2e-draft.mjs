@@ -318,6 +318,19 @@ async function main() {
       })));
       await session.send('Page.reload');
       await wait(1500);
+    } else {
+      // HIS OWN BROWSER (30/09/2026): the EuroLeghe draft left the Italian clubs excluded, in the single list
+      // the app kept before exclusions went per listone. A Serie A table must not inherit them - with one list
+      // they emptied the whole listone - so the classic run carries them, and every count below would fall.
+      const { gunzipSync } = await import('node:zlib');
+      const clubs = JSON.parse(gunzipSync(await readFile(join(DIST, 'data', 'clubs.json.gz'))).toString('utf-8'));
+      const [id, league] = ['fc_club_id', 'league'].map((name) => clubs.columns.indexOf(name));
+      const italian = clubs.rows.filter((row) => row[league] === 'serie_a').map((row) => row[id]);
+      await wait(1500);
+      await evaluate(session, (ids) => localStorage.setItem('fantassistant.options.excludedClubs', JSON.stringify(ids)), italian);
+      await session.send('Page.reload');
+      await wait(1500);
+      console.log(`· esclusioni EuroLeghe salvate: ${italian.length} club di Serie A nella lista di prima`);
     }
     const mouse = async (where, clickCount = 1) => {
       if (!where) throw new Error('nothing to click: the target is not on the page');
@@ -917,11 +930,11 @@ async function main() {
     const lowered = seswRows.filter((one) => one.dp < one.sesw - 1).length;
     note('SeSw e DP', `${seswRows.length} righe con entrambe, ${lowered} abbassate dalla rarita'`,
       [
-        // Only a mantra draft has a SeSw (--euro here): on classic the DP is the old 0-99 and the column is empty.
-        ...(euro && !seswRows.length ? ['nessuna riga con SeSw e DP'] : []),
+        // Every draft has a SeSw since 30/09/2026: classic too, on its own roles and quotas.
+        ...(!seswRows.length ? ['nessuna riga con SeSw e DP'] : []),
         ...(above.length ? [`${above.length} righe con DP sopra SeSw`] : []),
         ...(rareOff.length ? [`${rareOff.length} righe con RAR 0 e DP diversa da SeSw`] : []),
-        ...(euro && seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
+        ...(seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
       ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
@@ -1093,8 +1106,9 @@ async function main() {
     await evaluate(session, () => document.querySelectorAll('ui-player-card button[aria-label], ui-player-card [data-close]').forEach(() => {}));
 
     // 5d. THE PLANS (operator, 29/09/2026): a package reads «N) rosa +x (difficolta')», with one of the four words.
-    // Only on mantra, where the Draft Priority is. The pointer on a package does nothing (his rule of the same night).
-    if (euro) {
+    // On both games since the Draft Priority is on classic too (30/09/2026). The pointer on a package does nothing
+    // (his rule of the same night).
+    {
       const plan = await evaluate(session, () => {
         const one = document.querySelector('[data-scenario]');
         return one ? { text: (one.innerText ?? '').replace(/\s+/g, ' ').trim(), difficulty: one.getAttribute('data-difficulty') } : null;

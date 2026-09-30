@@ -411,7 +411,8 @@
               (ngModelChange)="search.set($event)"
             />
             <span class="text-xs text-muted">
-              {{ draftCount() }} escluse su {{ catalogueSize() }} squadre quotate
+              {{ draftCount() }} escluse su {{ catalogueSize() }} squadre quotate · listone
+              {{ form().platform === 'euro' ? 'EuroLeghe' : 'Serie A' }}
             </span>
             @if (draftCount()) {
               <button nz-button nzType="text" nzSize="small" (click)="clearDraft()">

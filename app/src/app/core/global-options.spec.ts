@@ -90,7 +90,38 @@ describe('GlobalOptions', () => {
     );
     options.setExcluded(10, true);
     expect(options.excludedClubs().map((one) => one.name)).toEqual(['Napoli']);
+    // Excluded on the DECLARED listone (Serie A by default), and counted only there.
+    expect(options.hidden()).toEqual({ default: 2, euro: 0 });
+    options.setExcludedOn('euro', [10]);
     expect(options.hidden()).toEqual({ default: 2, euro: 1 });
+  });
+
+  it("keeps EuroLeghe's exclusions off the Serie A listone (30/09/2026)", () => {
+    const options = fresh();
+    // His EuroLeghe excludes the Italian clubs: on a Serie A draft that would empty the whole listone.
+    options.setExcludedOn('euro', [10, 11]);
+    expect(options.keeps(10, 'euro')).toBe(false);
+    expect(options.keeps(10, 'default')).toBe(true);
+    const rows = [man(1, 'Napoli', 10), man(2, 'Inter', 11)];
+    expect(options.keep(rows, 'default')).toBe(rows);
+    expect(options.keep(rows, 'euro')).toEqual([]);
+    // The declared league decides what the panel shows and what a bare call reads.
+    options.patch({ platform: 'default' });
+    expect(options.excludedIds()).toEqual([]);
+    expect(options.keeps(10)).toBe(true);
+    options.patch({ platform: 'euro' });
+    expect(options.excludedIds()).toEqual([10, 11]);
+    expect(options.keeps(10)).toBe(false);
+  });
+
+  it('hands the single list of before to EuroLeghe, the league exclusions were born for', () => {
+    TestBed.resetTestingModule();
+    localStorage.clear();
+    localStorage.setItem('fantassistant.options.excludedClubs', JSON.stringify([10, 11]));
+    TestBed.configureTestingModule({});
+    const options = TestBed.inject(GlobalOptions);
+    expect([...options.excludedOn('euro')]).toEqual([10, 11]);
+    expect([...options.excludedOn('default')]).toEqual([]);
   });
 
   it('refuses a number that is not a number, whatever the field emitted', () => {

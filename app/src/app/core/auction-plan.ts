@@ -43,6 +43,13 @@ export interface PlanTeam {
   picksCount: number;
   /** Position in the FIRST round, the permanent last-resort tie-break. */
   firstRoundIndex: number;
+  /**
+   * THE MOST MEN A SQUAD MAY HOLD PER LINE, where the game has a quota (30/09/2026): classic rosters 3/8/8/6 and a
+   * ninth defender is a pick the host refuses, so a prediction or a pick that ignores it is one nobody can make
+   * (on the invented classic table AUTO had 89 predicted picks refused in 12). Absent = no quota: mantra has
+   * only the keepers, which `keeperCap` already rations.
+   */
+  limits?: Partial<Record<Line, number>>;
 }
 
 /** A free player, reduced to what a plan needs. */
@@ -244,14 +251,15 @@ export function predictRivalPick(
   head: RivalHead = DEFAULT_HEAD,
   cap: PickCap | null = null,
 ): PlanPlayer | null {
-  const keepers = team.slots.filter((slot) => slot === 'por').length;
+  const keepers = team.slots.filter(isKeeperSlot).length;
   const inTail = placesFromEnd <= TAIL_POSITIONS;
   const worthOf = HEAD_WORTH[head] ?? HEAD_WORTH[DEFAULT_HEAD];
   let best: PlanPlayer | null = null;
   let bestScore = -Infinity;
   let priced = false;
   for (const player of pool) {
-    if (player.slot === 'por' && keepers >= keeperCap) continue;
+    if (isKeeperSlot(player.slot) && keepers >= keeperCap) continue;
+    if (roleFull(team, player.slot)) continue;
     if (capBlocks(team.picksCount, player.price, cap)) continue;
     const worth = worthOf(player);
     if (worth != null) priced = true;
@@ -413,14 +421,27 @@ export function denialOf(
 export type Line = 'por' | 'dif' | 'cen' | 'att';
 
 const LINE_OF: Record<string, Line> = {
-  por: 'por', P: 'por',
-  dd: 'dif', dc: 'dif', ds: 'dif', b: 'dif', D: 'dif',
+  por: 'por', P: 'por', p: 'por',
+  dd: 'dif', dc: 'dif', ds: 'dif', b: 'dif', D: 'dif', d: 'dif',
   e: 'cen', m: 'cen', c: 'cen', w: 'cen', t: 'cen', C: 'cen',
   a: 'att', pc: 'att', A: 'att',
 };
 
 export function lineOf(slot: string | null): Line | null {
   return slot ? (LINE_OF[slot] ?? LINE_OF[slot.toLowerCase()] ?? null) : null;
+}
+
+/** A keeper in either game's vocabulary: `por` on mantra (and for a porta), `P` on the classic sheet. */
+export function isKeeperSlot(slot: string | null): boolean {
+  return lineOf(slot) === 'por';
+}
+
+/** Whether the squad already holds as many men of this slot's LINE as its quota allows (`PlanTeam.limits`). */
+export function roleFull(team: PlanTeam, slot: string | null): boolean {
+  const line = lineOf(slot);
+  const max = line ? team.limits?.[line] : undefined;
+  if (max == null) return false;
+  return team.slots.filter((one) => lineOf(one) === line).length >= max;
 }
 
 /** One of the roots a plan can be grown from, with the reason it is on the list. */
@@ -655,6 +676,7 @@ export function pickForUs(
     // first one seen: an empty answer is honest, a forbidden one is not. Without the squad the turn is
     // unknown, and an unknown turn blocks nobody («vuoto = ignoto, mai zero»).
     if (team && capBlocks(team.picksCount, player.price, cap)) continue;
+    if (team && roleFull(team, player.slot)) continue;
     if (best === null || score > bestScore || (score === bestScore && player.price > best.price)) {
       best = player;
       bestScore = score;

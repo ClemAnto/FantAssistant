@@ -22,7 +22,7 @@
  */
 
 import { MantraModules, slotShares } from './auction-value';
-import { PickCap, PlanPlayer, PlanTeam, capBlocks, needFor } from './auction-plan';
+import { Line, PickCap, PlanPlayer, PlanTeam, capBlocks, isKeeperSlot, lineOf, needFor, roleFull } from './auction-plan';
 import { Rarity, RarityMan, rarity } from './draft-rarity';
 
 /** A man as the priority reads him. `share` = expected appearances over the season's matchdays. */
@@ -71,6 +71,8 @@ const depthCache = new WeakMap<MantraModules, ReturnType<typeof depthsOf>>();
 
 /** A man's BASE role: his most defensive Mantra code. */
 export function baseRole(rules: MantraModules, roles: readonly string[], slot: string | null): string {
+  // A keeper is a keeper in either vocabulary (`por`, the classic `P`): one key, so Z, R and the doors agree.
+  if (isKeeperSlot(slot) || roles.some(isKeeperSlot)) return KEEPER;
   let entry = depthCache.get(rules);
   if (!entry) depthCache.set(rules, (entry = depthsOf(rules)));
   const { depth, order } = entry;
@@ -129,14 +131,34 @@ export interface LeagueSize {
   teams: number;
   keepers: number;
   rounds: number;
+  /**
+   * THE CLASSIC ROSTER'S QUOTAS per outfield line (30/09/2026). Mantra has none, so its bought men are the best
+   * `teams x outfield` of the whole pool; classic rosters 8/8/6, so a league BUYS `teams x quota` of each line and
+   * no more - read by the whole pool the forwards (who give most) would crowd out the defenders it must buy.
+   */
+  quotas?: Partial<Record<Line, number>>;
+  /**
+   * Z as «the average starter» on classic: the best `teams x places` of the role, which a classic module states in
+   * whole places (4 D, 4 C, 2 A). The «best three per participant» of `STARTERS_PER_TEAM` is the operator's sentence
+   * about the Mantra Pc, a role worth 0.67 of a place; on classic it would read the fourth defender as a reserve.
+   */
+  startersFromPlaces?: boolean;
 }
 
 /** The men a league of this size BUYS (see `roleStats`): the population of Z, and of R among the free. */
-export function boughtMen(everybody: readonly PriorityMan[], { teams, keepers, rounds }: LeagueSize): PriorityMan[] {
+export function boughtMen(everybody: readonly PriorityMan[], { teams, keepers, rounds, quotas }: LeagueSize): PriorityMan[] {
   const worth = (m: PriorityMan) => (m.share ?? 0) * (m.fm ?? 0);
   const priced = everybody.filter((m) => m.fm != null);
-  const doors = priced.filter((m) => m.slot === KEEPER).sort((a, b) => worth(b) - worth(a));
-  const field = priced.filter((m) => m.slot !== KEEPER).sort((a, b) => worth(b) - worth(a));
+  const doors = priced.filter((m) => isKeeperSlot(m.slot)).sort((a, b) => worth(b) - worth(a));
+  const field = priced.filter((m) => !isKeeperSlot(m.slot)).sort((a, b) => worth(b) - worth(a));
+  if (quotas) {
+    const bought: PriorityMan[] = doors.slice(0, teams * keepers);
+    for (const [line, quota] of Object.entries(quotas) as [Line, number][]) {
+      if (line === 'por') continue;
+      bought.push(...field.filter((m) => lineOf(m.slot) === line).slice(0, teams * quota));
+    }
+    return bought;
+  }
   return [...doors.slice(0, teams * keepers), ...field.slice(0, teams * Math.max(0, rounds - keepers))];
 }
 
@@ -198,7 +220,9 @@ export function roleStats(
     const low = reserves.length ? reserves : fms.slice(0, Math.max(1, Math.round(fms.length * RESERVE_QUARTER)));
     // Z over the WHOLE population of the role, best first by predicted fantamedia (`STARTERS_PER_TEAM`); R keeps
     // the split of the bought men above, which he did not ask to change.
-    const best = key === KEEPER ? starters : (everyFm.get(key) ?? []).slice(-size.teams * STARTERS_PER_TEAM);
+    const best = key === KEEPER || size.startersFromPlaces
+      ? starters
+      : (everyFm.get(key) ?? []).slice(-size.teams * STARTERS_PER_TEAM);
     stats.set(key, {
       z: trimmedMean(best.length ? best : starters),
       top: quantile(fms, 0.9)!,
@@ -266,12 +290,15 @@ export interface CallRules {
 
 /** The league's rules on WHO a squad may call now: the ceiling of the first turns and the exact doors. */
 export function legalFor(team: PlanTeam, pool: readonly PlanPlayer[], rules: CallRules): PlanPlayer[] {
-  const doors = team.slots.filter((slot) => slot === KEEPER).length;
+  const doors = team.slots.filter(isKeeperSlot).length;
   const missing = rules.keeperCap - doors;
   const onlyDoors = missing > 0 && rules.rounds - team.picksCount <= missing;
   return pool.filter((p) => {
     if (capBlocks(team.picksCount, p.price, rules.cap)) return false;
-    if (p.slot === KEEPER) return doors < rules.keeperCap;
+    // A classic quota (`PlanTeam.limits`): a full line takes nobody more. Summed, the quotas ARE the roster, so
+    // this alone keeps every squad able to finish legal.
+    if (roleFull(team, p.slot)) return false;
+    if (isKeeperSlot(p.slot)) return doors < rules.keeperCap;
     return !onlyDoors;
   });
 }
