@@ -86,6 +86,24 @@ KEEPER_CLASS, KEEPER_CLASS_SHARE = True, 0.5
 # bench - out of the fit AND out of the judgement. A man with no Qt.I at all is not cheap, he is unknown, so he
 # stays and is counted.
 MAX_CHEAP_PRICE = 5.0
+# ...REPLACED, for the bench, by a BASE QUOTATION PER ROLE (operator, 01/10/2026: «troviamo una quotazione base per
+# ogni ruolo»). The men an auction buys are not «above 5»: that filter keeps 18-20 keepers a season against the 30 a
+# ten-team league buys, and 104-130 midfielders against 80. The base is the Qt.I of the LAST man a league of ten with
+# 3/8/8/6 buys - the 80th defender, the 80th midfielder, the 60th forward - as the median over the twelve seasons of
+# the Serie A listone (D 6 in 5-7, C 8 in 6-9, A 11 in 6-15), each role at or above its base. Keepers are the
+# exception and the operator's call: the 30th keeper costs 1 in every season (the third keepers all do), and he keeps
+# them at Qt.I ABOVE 5 - the first keepers, 18-22 a season - so the base there is strict. `MAX_CHEAP_PRICE` stays
+# because R33b (gate §7-octsexagies) was frozen on it.
+QTI_BASE = {"P": 5.0, "D": 6.0, "C": 8.0, "A": 11.0}
+QTI_BASE_STRICT = {"P"}
+
+
+def bought(role: str | None, price: float | None) -> bool:
+    """The men the bench judges: at or above his role's base Qt.I. No Qt.I at all is unknown, and stays."""
+    if price is None:
+        return True
+    base = QTI_BASE.get(role or "", MAX_CHEAP_PRICE)
+    return price > base if (role in QTI_BASE_STRICT or role not in QTI_BASE) else price >= base
 # «L'INFORTUNIO DI LUKAKU NON ERA PREVEDIBILE ... ANDREBBE INSERITA IN UN GRUPPO A PARTE» (operator, 01/10/2026). A
 # man who, from the auction date on, missed at least this share of his club's league games through injury, with no
 # spell open on the auction date, is neither a hit nor a miss of either model: he is scored APART (`injury` =
@@ -283,7 +301,7 @@ def engine_rows(conn: sqlite3.Connection, windows: dict, *, keep_cheap: bool = F
         for obs in data.observations:
             if obs.pv_act is None:
                 continue
-            if not keep_cheap and obs.price_initial is not None and obs.price_initial <= MAX_CHEAP_PRICE:
+            if not keep_cheap and not bought(obs.role_classic, obs.price_initial):
                 continue
             p = preds.get(obs.fc_id)
             out.append({"window": key, "input": window.input_season, "target": window.target_season,
@@ -432,11 +450,12 @@ def band_share(values) -> float:
     return round(sum(0.8 <= v <= 1.25 for v in known) / len(known), 3) if known else 0.0
 
 
-def scored(rows: list[dict], pred, *, everybody: bool = False) -> dict:
+def scored(rows: list[dict], pred, *, everybody: bool = True) -> dict:
     """Formula (`pred(row)`) against the engine on the rows where the engine has a number.
 
-    An «unforeseen» long injury is judged apart and left out, for both models alike (`LONG_INJURY_SHARE`);
-    `everybody` keeps him in, which is what reproducing v1's published numbers needs.
+    EVERYBODY IS JUDGED (01/10/2026). Leaving the «unforeseen» long injuries out was measured to be a selection on
+    the OUTCOME that favours the model predicting more - the formula - so a verdict counts them (gate
+    §7-octsexagies bis); `everybody=False` is the reading that leaves them apart, for looking at cases.
     """
     both = [r for r in rows if r["pa_engine"] is not None
             and (everybody or r.get("injury") != "unforeseen")]
@@ -446,7 +465,7 @@ def scored(rows: list[dict], pred, *, everybody: bool = False) -> dict:
     f_ratio = [ratio(f, r["pa_actual"]) for f, r in zip(formula, both)]
     e_ratio = [ratio(r["pa_engine"], r["pa_actual"]) for r in both]
     return {"n": len(both), "unforeseen": sum(r.get("injury") == "unforeseen" for r in rows
-                                               if r["pa_engine"] is not None) if not everybody else 0,
+                                               if r["pa_engine"] is not None),
             "mae_formula": round(f_mae, 3), "mae_engine": round(e_mae, 3),
             "gain": round((e_mae - f_mae) / e_mae, 4),
             "median_ratio_formula": round(median(v for v in f_ratio if v is not None), 3),
@@ -686,7 +705,7 @@ def main() -> None:
 
     def median_of(key, field):
         values = [abs(x[field] - x["paActual"]) for x in out_rows if x["window"] == key
-                  and x["paEngine"] is not None and x["injury"] != "unforeseen"]
+                  and x["paEngine"] is not None]
         return round(median(values), 2) if values else None
 
     summary = {key: {"moment": f["moment"], "target": f["target"], "auction": f["auction"],
@@ -695,7 +714,7 @@ def main() -> None:
                                           "median_ratio_engine", "within20_formula", "within20_engine")},
                      "median_formula": median_of(key, "paFormula"), "median_engine": median_of(key, "paEngine"),
                      "zero_actual": sum(x["paActual"] <= 0 for x in out_rows if x["window"] == key
-                                        and x["paEngine"] is not None and x["injury"] != "unforeseen")}
+                                        and x["paEngine"] is not None)}
                for key, f in {**folds, **sep_folds}.items()}
     newest = params_by_fold[windows[-1]]
     result = {
@@ -706,7 +725,7 @@ def main() -> None:
         # The page shows the cells the rule reads: one per role inside a context (the thinner ones fall back).
         "priors": {f"{role} {ctx}": round(v, 3) for (role, ctx), (v, n) in newest["Sbar"].items()
                    if role != "*" and n >= CELL_MIN},
-        "cellMin": CELL_MIN, "maxCheapPrice": MAX_CHEAP_PRICE, "longInjuryShare": round(LONG_INJURY_SHARE, 3),
+        "cellMin": CELL_MIN, "qtiBase": QTI_BASE, "longInjuryShare": round(LONG_INJURY_SHARE, 3),
         "reproduction": repro, "edges": edges,
         "moments": {"luglio": {"verdict": july_verdict},
                     "settembre": {"verdict": sep_verdict, "k_rule": k_key, "k": k_rounds}},

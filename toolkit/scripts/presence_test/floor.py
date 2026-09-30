@@ -4,7 +4,7 @@ The oracle knows each man's true chance of being CHOSEN when available - his rea
 for, which no real formula can know - and knows availability only as his ROLE's distribution (how much of a season
 men of his role actually lose). What is left for it to get wrong is exactly the unforeseeable: which games he will
 miss, and which of the games he is fit for he will play. Everything counted on Transfermarkt's per-game rows after
-the auction date (a game played = an appearance), on the bench's population: quoted above 5, September windows.
+the auction date (a game played = an appearance), on the bench's population (base Qt.I per role), September windows.
 """
 import random
 import sqlite3
@@ -22,7 +22,7 @@ from euroleghe_ingest.config import Config
 random.seed(7)
 conn = sqlite3.connect(f"file:{Config().db_path}?mode=ro", uri=True)
 games = B.league_games(conn)
-rows = B.engine_rows(conn, B.september_windows())          # quoted above 5, the engine's own prediction beside
+rows = B.engine_rows(conn, B.september_windows())          # the bench's population, the engine's own prediction beside
 
 people = []
 for r in rows:
@@ -66,7 +66,7 @@ for x in people:
     within.append(mean((0.8 <= expected / s <= 1.25) if s > 0 else False for s in sims_total))
 
 engine_err = [abs(x["engine"] - x["votes"]) for x in people if x["engine"] is not None]
-print(f"uomini {len(people)} (quotati sopra 5, 5 settembre, 7 stagioni)")
+print(f"uomini {len(people)} (la popolazione dell asta: basi per ruolo, 5 settembre, 7 stagioni)")
 print(f"pavimento totale (oracolo perfetto sulla scelta): {mean(floor_total):.2f} partite")
 print(f"  solo il caso partita per partita (disponibilita' nota): {mean(floor_match):.2f}")
 print(f"  solo gli imprevisti di disponibilita' (scelta nota, senza dadi): {mean(floor_avail):.2f}")

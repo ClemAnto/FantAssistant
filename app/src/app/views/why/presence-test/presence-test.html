@@ -23,7 +23,7 @@
         <span class="text-muted">nel campione a schermo, entro 80-125%: formula {{ band().formula }} · motore
           {{ band().engine }} su {{ band().judged }}</span>
         @if (sum.unforeseen) {
-          <span class="text-warning">{{ sum.unforeseen }} fuori dal giudizio per un infortunio lungo imprevedibile</span>
+          <span class="text-warning">{{ sum.unforeseen }} con un infortunio lungo imprevedibile, in ambra</span>
         }
       </div>
     }
@@ -41,12 +41,15 @@
             titolare), la qualità (media voto), le coppe europee; dove un dato manca, la media del ruolo nel suo contesto.
             @if (file()!.protocol) {
               Ogni stagione è giudicata coi parametri tarati sulle altre.
-              @if (file()!.maxCheapPrice != null) {
+              @if (file()!.qtiBase; as base) {
+                Nel test chi l'asta compra: quotazione iniziale sopra {{ base['P'] }} per i portieri, almeno
+                {{ base['D'] }} per i difensori, {{ base['C'] }} per i centrocampisti, {{ base['A'] }} per gli attaccanti.
+              } @else if (file()!.maxCheapPrice != null) {
                 Fuori dal test chi ha quotazione iniziale {{ file()!.maxCheapPrice }} o meno.
               }
               @if (file()!.longInjuryShare != null) {
-                In ambra, e fuori dal giudizio, chi ha perso per infortunio almeno un terzo delle partite dopo la data
-                d'asta senza essere già fuori quel giorno.
+                In ambra chi ha perso per infortunio almeno un terzo delle partite dopo la data d'asta senza essere già
+                fuori quel giorno: resta nel giudizio, ed è segnato perché nessuna formula poteva saperlo.
               }
             } @else {
               Tarata sulla stagione 2023-24 → 2024-25, giudicata su 2024-25 → 2025-26.

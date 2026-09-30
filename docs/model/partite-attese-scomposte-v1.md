@@ -235,23 +235,41 @@ scenderebbe un poco); le partite sono quelle giocate e non i voti.
   di lettura: 344 stop, 152 con una data, dal primo replay) accanto a `availability.expected_return` (la prosa di
   fantacalcio.it, già datata ogni giorno dal 26 luglio).
 
-**La popolazione, proposta e da decidere**: i quotati sopra 5 non sono quello che un'asta compra - per stagione sono
-18-20 portieri, 83-95 difensori, 104-130 centrocampisti, 79-87 attaccanti, contro i 30/80/80/60 di una lega da dieci
-con rose 3/8/8/6. La proposta è giudicare i primi `squadre × posti` per ruolo per quotazione iniziale.
+**La popolazione: una quotazione base per ruolo** (decisa dall'operatore). I quotati sopra 5 non sono quello che
+un'asta compra: per stagione 18-20 portieri, 83-95 difensori, 104-130 centrocampisti, 79-87 attaccanti, contro i
+30/80/80/60 di una lega da dieci con rose 3/8/8/6. La base è la Qt.I dell'ULTIMO uomo che quella lega compra, come
+mediana delle dodici stagioni del listone Serie A: **D ≥ 6** (5-7), **C ≥ 8** (6-9), **A ≥ 11** (6-15); **P > 5** per
+scelta dell'operatore (il 30° portiere costa 1 in ogni stagione, perché i terzi portieri costano tutti 1, e contano i
+titolari). Il 2026-27 ha le basi di C e A a 6: è la stagione in corso e non si giudica. `build.QTI_BASE`; R33b resta
+congelata sui quotati sopra 5.
 
-**Dove sta il margine** (`margin.py`, settembre, quotati sopra 5, 1.710 uomini col motore accanto): formula 6,85,
-motore 7,02, pavimento 4,26.
+**E si giudica con tutti dentro**: gli infortuni lunghi imprevedibili restano nel giudizio e sono segnati in ambra
+(`scored(everybody=True)`), perché toglierli è una selezione sull'esito (gate §7-octsexagies bis).
+
+**Dove siamo, su questa popolazione** (5 settembre, sette stagioni):
+
+| | entro 80-125% del vero | errore medio |
+|---|---|---|
+| obiettivo dell'operatore | **65%** | |
+| limite di una formula perfetta | 71,5% | 4,07 |
+| **la formula** | **~56%** (52-60% per stagione) | 6,68 |
+| il motore | ~50% (44-54%) | 6,92 |
+
+Sull'errore medio la formula batte il motore 6 stagioni su 7 (+2,2%, robust); sulla quota entro l'80-125% 6 su 7.
+
+**Dove sta il margine** (`margin.py`, settembre, la popolazione dell'asta, 1.479 uomini col motore accanto): formula
+6,68, motore 6,92, pavimento 4,19.
 
 | gruppo | n | formula | motore | pavimento | margine | quota del margine |
 |---|---|---|---|---|---|---|
-| stesso club, titolare (S ≥ 0,6) | 1.087 | 6,59 | 6,75 | 4,36 | 2,23 | **55%** |
-| cambio club dalla Serie A | 354 | 6,97 | 7,01 | 4,31 | 2,66 | 21% |
-| stesso club, riserva/rotazione | 136 | 8,25 | 8,22 | 4,18 | 4,06 | 12% |
-| portiere titolare | 101 | 6,33 | 7,35 | 3,26 | 3,08 | 7% |
-| cambio club dall'estero · portiere riserva | 32 | | | | | 5% |
+| stesso club, titolare (S ≥ 0,6) | 1.003 | 6,42 | 6,66 | 4,30 | 2,12 | **58%** |
+| cambio club dalla Serie A | 288 | 6,85 | 7,02 | 4,26 | 2,59 | 20% |
+| portiere titolare | 101 | 6,40 | 7,35 | 3,22 | 3,18 | 9% |
+| stesso club, riserva/rotazione | 57 | 9,03 | 8,79 | 3,89 | 5,13 | 8% |
+| portiere riserva · cambio club dall'estero | 30 | | | | | 5% |
 
-Più della metà del margine sta sui titolari rimasti nel loro club, che sono anche la metà di quello che si compra; e la
-formula sbaglia più spesso **per eccesso** (61% dell'errore sopra il vero). È da lì che si comincia.
+Più della metà del margine sta sui titolari rimasti nel loro club, che sono anche due terzi di quello che si compra; e
+la formula sbaglia più spesso **per eccesso** (64% dell'errore sopra il vero). È da lì che si comincia.
 
 ## 6. Aperti
 

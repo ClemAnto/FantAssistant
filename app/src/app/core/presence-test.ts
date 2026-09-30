@@ -107,6 +107,8 @@ export interface PresenceTestFile {
   protocol?: string;
   /** v2: men quoted at this Qt.I or less are out of the bench (operator, 01/10/2026). */
   maxCheapPrice?: number;
+  /** v2, the same day: the base Qt.I per role instead (keepers strictly above theirs). */
+  qtiBase?: Record<string, number>;
   verdict?: Record<string, PresenceVerdict>;
   inseason?: { k_rule: string | null; k: number | null; verdict: PresenceVerdict | null };
   /** v2: the verdict of each moment. */

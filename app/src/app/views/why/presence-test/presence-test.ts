@@ -133,8 +133,8 @@ export class PresenceTest {
   protected readonly band = computed(() => {
     const rows = this.rows();
     const within = (value: number | null) => value != null && value >= 0.8 && value <= 1.25;
-    // An unforeseen long injury is judged apart, here as in the file.
-    const judged = rows.filter((row) => row.injury !== 'unforeseen');
+    // Everybody is judged, here as in the file: the amber rows are marked, not left out.
+    const judged = rows;
     return {
       formula: judged.filter((row) => within(row.ratioFormula)).length,
       engine: judged.filter((row) => within(row.ratioEngine)).length,
@@ -207,7 +207,7 @@ export class PresenceTest {
 
   protected formulaHint(row: { injury?: string | null }): string {
     return row.injury === 'unforeseen'
-      ? 'Infortunio lungo cominciato dopo la data d\'asta: non è né un errore né un risultato giusto: sta fuori dal giudizio'
+      ? 'Infortunio lungo cominciato dopo la data d\'asta: nessuna formula poteva saperlo, ma resta nel giudizio'
       : row.injury === 'known'
         ? 'Infortunio lungo già aperto alla data d\'asta: il fatto c\'era, quindi resta nel giudizio'
         : 'Pa formula ÷ Pa vere';
