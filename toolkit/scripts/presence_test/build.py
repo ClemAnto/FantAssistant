@@ -127,6 +127,26 @@ SEPTEMBER_SEEN, SEPTEMBER_OPEN_SPELL = "calendar", True
 # average, +4.1 · +5.1 · +3.7 points on three seasons, 0 on one, -0.5 · -1.6 · -0.5 on three (3 of 7, the criterion
 # asked 5), mean error 6.80 -> 6.96. His words: «vedo dei miglioramenti importanti a scapito di piccole perdite».
 SEPTEMBER_CLASS, SEPTEMBER_OBJECTIVE = "cls_rung", "band"
+# M7f ADOPTED FOR SEPTEMBER by the operator's decision (01/10/2026: «ok per m7f»), with the pre-registered
+# criterion NOT met and said so (§5-nonies): a keeper of class «riserva» who took a vote in every round seen (two at
+# least) has, as his choice, the starters' mean instead of being pulled toward it. Measured (`m7.py`): share
+# 56.87% -> 57.20%, better on 3 seasons of 7 and equal on the others (the cell is empty on two), mean error
+# 6.438 -> 6.410; on the 9 keepers the engine prices, inside the band from 0 to 5 (Svilar 17.7 -> 27.3, vere 35).
+SEPTEMBER_SHIRT_CHANGED = True
+
+
+def shirt_changed(r) -> bool:
+    """M7f: a keeper of class «riserva» who took a vote in every round seen, two at least."""
+    return (r.get("ctx") == "portiere riserva" and (r.get("seen") or 0) >= 2 and r.get("pv_seen") is not None
+            and r["pv_seen"] >= r["seen"])
+
+
+def september_share(r, p) -> float:
+    """The prior share at 5 September: `share`, and M7f for the keeper whose shirt has changed hands."""
+    if SEPTEMBER_SHIRT_CHANGED and shirt_changed(r) and r["a1"] is not None:
+        d, _s = parts(r, p)
+        return d * prior(p, "Sbar", {**r, "ctx": "portiere titolare"}) * p["c"]
+    return share(r, p)
 # The gate's own thresholds for the two verdicts, so the bench speaks the gate's vocabulary.
 FLOOR, TOLERANCE = 0.005, -0.02
 K_READING = (3, 6, 10, 15, 25, 40)
@@ -775,7 +795,7 @@ def main() -> None:
 
     def september_pa(r, *, seen: str = SEPTEMBER_SEEN, open_spell: bool = SEPTEMBER_OPEN_SPELL) -> float:
         p = priors[r["target"]]
-        prior = share(r, p)
+        prior = september_share(r, p)
         if seen == "free":
             chosen = (model.blend_with_seen(prior, r["seen_played"] / r["seen_free"], r["seen_free"], k_rounds)
                       if r["seen_free"] else prior)

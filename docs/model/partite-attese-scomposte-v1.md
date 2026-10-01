@@ -709,6 +709,8 @@ che il motore prezza la banda passa da **0 a 5**: Dragowski 2019-20 da 18,0 a 27
 (29); Vicario 2021-22 (28,2 contro 36) e Svilar 2024-25 (27,3 contro 35) restano appena sotto la banda; Gollini 2024-25
 (26,3 contro 4) e Israel 2025-26 (27,1 contro 7) peggiorano. Il criterio dei «5 stagioni su 7» non è raggiungibile da una
 regola che tocca cinque stagioni, e lo si dice invece di cambiarlo: la decisione è dell'operatore.
+**M7f ADOTTATA per settembre** (decisione dell'operatore, 01/10/2026: «ok per m7f»), col criterio non soddisfatto e
+detto: `build.SEPTEMBER_SHIRT_CHANGED`.
 
 ## 5-decies. Leggero o pesante, appena l'infortunio è noto (01/10/2026)
 
