@@ -340,14 +340,18 @@ export interface PlayerNotesFile {
 
 /**
  * `config/press_rungs.json`: the press's season role of each man, DECLARED and dated.
- * `{season: {as_of, source, players: {fc_id: {tier, start_pct, club}}}}`, plus its comment key. The words
- * are the PRESS ladder, not the sheet's: `core/player-rulings.ts` converts them.
+ * `{season: {as_of, source, players: {fc_id: {tier, start_pct, club, as_of}}}}`, plus its comment key. The words
+ * are the PRESS ladder, not the sheet's: `core/player-rulings.ts` converts them. A row's own `as_of` is the day
+ * HIS club was surveyed (01/10/2026: the Serie A clubs were read again three days after the EuroLeghe ones), and
+ * the block's is the most recent of them; a row without one predates the field and takes the block's.
  */
 export interface PressRungsFile {
   [season: string]: {
     as_of?: string;
     source?: string;
-    players?: Record<string, { tier?: string; start_pct?: number | null; club?: string | null }>;
+    players?: Record<string, {
+      tier?: string; start_pct?: number | null; club?: string | null; as_of?: string | null;
+    }>;
   } | string | undefined;
 }
 

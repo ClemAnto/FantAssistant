@@ -24,19 +24,31 @@
  */
 
 /**
- * The titolarità words as one ladder, best highest: the press's seven and the engine's own (`comprimario` and
- * `panchina` share a rung). One definition for the list's sort, its filter and the rung reading of RAR.
+ * The titolarità words as one ladder, best highest. ONE LADDER since 01/10/2026 (operator: «dobbiamo uniformare
+ * i gradini nelle varie formule e nelle varie etichette altrimenti ci confondiamo»): the press survey writes the
+ * project's own words, and the two it wrote before - `titolarissimo`, `comprimario` - are kept only as aliases
+ * for a file or pack that still carries them, on the rung each converged into (`bandiera`, `panchina`).
+ * `scarto` is the press's word under `riserva`, kept apart because it is measured apart (1 vote of 38 against
+ * 10). One definition for the list's sort, its filter and the rung reading of RAR.
  */
 export const RUNG_RANK: Record<string, number> = {
-  bandiera: 7,
+  bandiera: 6,
   titolarissimo: 6,
   titolare: 5,
   ballottaggio: 4,
-  comprimario: 3,
   panchina: 3,
+  comprimario: 3,
   riserva: 2,
   scarto: 1,
 };
+
+/** The retired words of the press survey, on the word they converged into (01/10/2026). */
+export const RETIRED_RUNGS: Readonly<Record<string, string>> = { titolarissimo: 'bandiera', comprimario: 'panchina' };
+
+/** A titolarità word as the app SHOWS it: a retired one reads as the word it became, anything else as itself. */
+export function shownRung(word: string | null | undefined): string | null {
+  return word ? (RETIRED_RUNGS[word] ?? word) : null;
+}
 
 /** A free man as the rarity reads him. Every reading is «higher is better» except `fragility`. */
 export interface RarityMan {

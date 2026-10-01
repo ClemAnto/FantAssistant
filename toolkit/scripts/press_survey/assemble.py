@@ -12,10 +12,13 @@ CODE = pathlib.Path(__file__).parent
 HERE = WORK
 TODAY = os.environ.get("PRESS_SURVEY_DATE", "2026-09-28")
 LEAGUES = ("Premier League", "Serie A", "Bundesliga", "LaLiga", "Ligue 1")
-TIERS = ["titolarissimo", "titolare", "comprimario", "ballottaggio", "riserva", "scarto"]
+# the project's own ladder since 01/10/2026 (the 28/09 survey wrote the press's six words; `audit` and `to_config`
+# still read those through LEGACY)
+TIERS = ["bandiera", "titolare", "ballottaggio", "panchina", "riserva", "scarto"]
 briefs = json.loads((HERE / "briefs.json").read_text(encoding="utf-8"))
 tm = json.loads((HERE / "tm_data.json").read_text(encoding="utf-8"))
-lst = json.loads((HERE / "listone_euro.json").read_text(encoding="utf-8"))
+PLATFORM = os.environ.get("PRESS_SURVEY_PLATFORM", "euro")
+lst = json.loads((HERE / f"listone_{PLATFORM}.json").read_text(encoding="utf-8"))
 ced = json.loads((HERE / "ceduti.json").read_text(encoding="utf-8"))
 by_fc = {p["id"]: dict(p, club=c) for c, v in lst.items() for p in v["players"]}
 by_fc.update({p["id"]: dict(p, club=c) for c, v in ced.items() for p in v})
@@ -110,7 +113,8 @@ print("\n".join(problems) or "no problems")
 if "--html" in sys.argv:
     tpl = (CODE / "template.html").read_text(encoding="utf-8")
     html = tpl.replace("/*__DATA__*/null", json.dumps(data, ensure_ascii=False).replace("</", "<\\/"))
-    out = REPO / "data" / "reports" / f"rose-euroleghe-{TODAY}.html"
+    stem = f"rose-{'euroleghe' if PLATFORM == 'euro' else 'serie-a'}-{TODAY}.html"
+    out = REPO / "data" / "reports" / stem
     out.write_text(html, encoding="utf-8")
-    (HERE / f"rose-euroleghe-{TODAY}.html").write_text(html, encoding="utf-8")
+    (HERE / stem).write_text(html, encoding="utf-8")
     print("wrote", out, len(html) // 1024, "KB")

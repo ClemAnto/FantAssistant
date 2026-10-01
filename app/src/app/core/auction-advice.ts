@@ -66,7 +66,7 @@ import {
   roleStats,
 } from './draft-priority';
 import { RECOMMENDED_MANTRA } from './draft-pitch';
-import { RUNG_RANK, Rarity, RarityMan, rarity } from './draft-rarity';
+import { RUNG_RANK, Rarity, RarityMan, rarity, shownRung } from './draft-rarity';
 import { PlayerRulings } from './player-rulings';
 import { ScenarioInput, judge, scenarios as draftScenarios } from './draft-scenarios';
 import { PlayerRatingsStore } from './player-ratings-store';
@@ -1261,7 +1261,7 @@ export class AuctionAdvice {
       }
       const roles = this.feed.gameRoles(row.player).map((role) => role.toLowerCase());
       const slot = numbers.get(id)?.slot ?? null;
-      const word = press.get(id)?.pressTier ?? numbers.get(id)?.titolarita ?? null;
+      const word = shownRung(press.get(id)?.pressTier ?? numbers.get(id)?.titolarita ?? null);
       out.set(id, {
         id,
         group: mantra ? baseRole(rules!, roles, slot) : (slot ?? roles[0] ?? ''),

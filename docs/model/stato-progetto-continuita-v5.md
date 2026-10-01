@@ -10274,3 +10274,25 @@ voti veri col caso migliore della stampa e ripetuta su EuroLeghe e Serie A 2015-
 lo ha scavalcato De Gea con la stessa Qt.I.
 
 **Cosa resta da fare**: la todolist, «Aperti dopo la sessione del 01/10/2026 (II)».
+
+## 1 ottobre 2026 (III) — IL GRADINO DELLA STAMPA PER LA SERIE A, E UNA SCALA SOLA
+
+Richiesta dell'operatore: «aggiorna il gradino della stampa per le squadre di serie A da vedere nella pagina draft come
+fatto per le EuroLeghe». Dettaglio e numeri: `letture-app-v1.md` §55.6.
+
+**La rilevazione** (`toolkit/scripts/press_survey/`, ora parametrica: `PRESS_SURVEY_PLATFORM=default`, cartella
+`data/reports/press_survey_serie_a/`, gitignorata): Transfermarkt e FotMob per i 20 club del listone Serie A, poi 7
+agenti. I 10 club già letti il 28/09 aggiornati dal loro file (sosta: infortuni, rientri, qualche ballottaggio, ogni riga
+toccata con `revised`), gli altri 10 da zero. `audit.py`: nessun problema strutturale, 10 infortuni senza data, Russo A.
+(Sassuolo, FVM 1) senza fonte. Copertura **534 acquistabili su 535** in Serie A, 919 su 920 su EuroLeghe.
+`to_config.py` ora FONDE per club e scrive `as_of` per riga: 665 righe del 28/09 (27 club esteri) + 534 del 01/10.
+Resoconto: `data/reports/rose-serie-a-2026-10-01.html`. Export e `data:pull` rifatti.
+
+**Una scala sola** (sua seconda richiesta): gli agenti scrivono bandiera · titolare · ballottaggio · panchina · riserva
+(+ `scarto`); `titolarissimo` della stampa → `bandiera` (sua decisione, prima valeva le giornate di `titolare`),
+`comprimario` → `panchina` (misurato, vedi §55.6). Nell'app: `PRESS_TO_RUNG`, `draft-rarity.RUNG_RANK` e
+`shownRung` (la pagina draft non stampa più le parole vecchie: badge, filtro «almeno bandiera/panchina», RAR),
+`pressRulings` legge l'`as_of` della riga, le Opzioni mostrano le due rilevazioni. `npm test` 1294 verdi,
+`e2e-draft.mjs` NESSUN PROBLEMA, `test_export.py` 22 verdi.
+
+**Cosa resta da fare**: la todolist, «Aperti dopo la sessione del 01/10/2026 (III)».

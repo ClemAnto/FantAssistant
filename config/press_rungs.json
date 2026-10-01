@@ -1,4598 +1,7202 @@
 {
- "_comment": "The PRESS reading of each player's season-long role (EuroLeghe clubs), DECLARED and dated - the same standing as board_rulings.json and player_notes.json: nobody here measures it, it is a judgement read from the press, club statements, Transfermarkt and FotMob, cross-checked by hand. The APP may show and price it instead of desc_titolarita when its switch is on (core/player-rulings.ts). The TOOLKIT never reads it: the press is a JUDGE of the boards and never an input of the claim, or the comparison it serves would be circular. Words are the press ladder (titolarissimo, titolare, comprimario, ballottaggio, riserva, scarto), not the sheet's; start_pct = estimated share of league STARTS when fit. Refreshing it means re-running the research, not a toolkit command.",
+ "_comment": "The PRESS reading of each player's season-long role (EuroLeghe and Serie A clubs), DECLARED and dated - the same standing as board_rulings.json and player_notes.json: nobody here measures it, it is a judgement read from the press, club statements, Transfermarkt and FotMob, cross-checked by hand. The APP may show and price it instead of desc_titolarita when its switch is on (core/player-rulings.ts). The TOOLKIT never reads it: the press is a JUDGE of the boards and never an input of the claim, or the comparison it serves would be circular. Words are the project's ONE ladder since 01/10/2026 (bandiera, titolare, ballottaggio, panchina, riserva) plus scarto, the press's word under riserva; start_pct = estimated share of league STARTS when fit; as_of = the day that man's club was surveyed. Refreshing it means re-running the research (toolkit/scripts/press_survey), not a toolkit command.",
  "2026-27": {
-  "as_of": "2026-09-28",
-  "source": "rilevazione stampa del 28/09/2026 (37 club EuroLeghe)",
+  "as_of": "2026-10-01",
+  "source": "rilevazione stampa del 28/09/2026 (27 club) + rilevazione stampa del 01/10/2026 (20 club)",
   "players": {
-   "5792": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Atalanta"
-   },
-   "4431": {
-    "tier": "titolarissimo",
-    "start_pct": 97,
-    "club": "Atalanta"
-   },
-   "5526": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Atalanta"
-   },
-   "5995": {
-    "tier": "titolare",
-    "start_pct": 82,
-    "club": "Atalanta"
-   },
-   "5422": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Atalanta"
-   },
-   "4479": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Atalanta"
-   },
-   "2137": {
-    "tier": "ballottaggio",
-    "start_pct": 60,
-    "club": "Atalanta"
-   },
-   "6435": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Atalanta"
-   },
-   "1850": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Atalanta"
-   },
-   "4371": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Atalanta"
-   },
-   "5119": {
-    "tier": "ballottaggio",
-    "start_pct": 60,
-    "club": "Atalanta"
-   },
-   "6844": {
-    "tier": "ballottaggio",
-    "start_pct": 60,
-    "club": "Atalanta"
-   },
-   "554": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Atalanta"
-   },
-   "4364": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Atalanta"
-   },
-   "2077": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Atalanta"
-   },
-   "6485": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Atalanta"
-   },
-   "6046": {
-    "tier": "ballottaggio",
-    "start_pct": 20,
-    "club": "Atalanta"
-   },
-   "7219": {
-    "tier": "ballottaggio",
-    "start_pct": 65,
-    "club": "Atalanta"
-   },
-   "4887": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Atalanta"
-   },
-   "2640": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Atalanta"
-   },
-   "5578": {
-    "tier": "ballottaggio",
-    "start_pct": 30,
-    "club": "Atalanta"
-   },
-   "5918": {
-    "tier": "riserva",
-    "start_pct": 12,
-    "club": "Atalanta"
-   },
-   "4": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Atalanta"
-   },
-   "7626": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Atalanta"
-   },
-   "5858": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Bologna"
-   },
-   "7212": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Bologna"
-   },
-   "2167": {
-    "tier": "titolare",
-    "start_pct": 80,
-    "club": "Bologna"
-   },
-   "4734": {
-    "tier": "titolare",
-    "start_pct": 82,
-    "club": "Bologna"
-   },
-   "5675": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Bologna"
-   },
-   "7528": {
-    "tier": "comprimario",
-    "start_pct": 25,
-    "club": "Bologna"
-   },
-   "6675": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Bologna"
-   },
-   "184": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Bologna"
-   },
-   "133": {
-    "tier": "ballottaggio",
-    "start_pct": 70,
-    "club": "Bologna"
-   },
-   "4436": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Bologna"
-   },
-   "5678": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Bologna"
-   },
-   "2765": {
-    "tier": "ballottaggio",
-    "start_pct": 15,
-    "club": "Bologna"
-   },
-   "4359": {
-    "tier": "ballottaggio",
-    "start_pct": 60,
-    "club": "Bologna"
-   },
-   "4433": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Bologna"
-   },
-   "5298": {
-    "tier": "ballottaggio",
-    "start_pct": 60,
-    "club": "Bologna"
-   },
-   "7068": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Bologna"
-   },
-   "6054": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Bologna"
-   },
-   "7326": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Bologna"
-   },
-   "7172": {
-    "tier": "ballottaggio",
-    "start_pct": 30,
-    "club": "Bologna"
-   },
-   "6833": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Bologna"
-   },
-   "7483": {
-    "tier": "riserva",
-    "start_pct": 15,
-    "club": "Bologna"
-   },
-   "6225": {
-    "tier": "riserva",
-    "start_pct": 12,
-    "club": "Bologna"
-   },
-   "487": {
-    "tier": "riserva",
-    "start_pct": 8,
-    "club": "Bologna"
-   },
-   "7629": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Bologna"
-   },
-   "7627": {
-    "tier": "riserva",
-    "start_pct": 2,
-    "club": "Bologna"
-   },
-   "5498": {
-    "tier": "scarto",
-    "start_pct": 2,
-    "club": "Bologna"
-   },
-   "7533": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Bologna"
-   },
-   "6875": {
-    "tier": "titolarissimo",
-    "start_pct": 95,
-    "club": "Como"
-   },
-   "6869": {
-    "tier": "titolarissimo",
-    "start_pct": 95,
-    "club": "Como"
-   },
-   "5641": {
-    "tier": "titolarissimo",
-    "start_pct": 88,
-    "club": "Como"
-   },
-   "6727": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Como"
-   },
-   "7126": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Como"
-   },
-   "5559": {
-    "tier": "titolare",
-    "start_pct": 80,
-    "club": "Como"
-   },
-   "6893": {
-    "tier": "comprimario",
-    "start_pct": 25,
-    "club": "Como"
-   },
-   "2097": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Como"
-   },
-   "7017": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Como"
-   },
-   "6966": {
-    "tier": "ballottaggio",
-    "start_pct": 80,
-    "club": "Como"
-   },
-   "6967": {
-    "tier": "ballottaggio",
-    "start_pct": 65,
-    "club": "Como"
-   },
-   "6151": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Como"
-   },
-   "7129": {
-    "tier": "ballottaggio",
-    "start_pct": 25,
-    "club": "Como"
-   },
-   "7414": {
-    "tier": "ballottaggio",
-    "start_pct": 30,
-    "club": "Como"
-   },
-   "6867": {
-    "tier": "ballottaggio",
-    "start_pct": 70,
-    "club": "Como"
-   },
-   "7412": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Como"
-   },
-   "7127": {
-    "tier": "ballottaggio",
-    "start_pct": 10,
-    "club": "Como"
-   },
-   "6344": {
-    "tier": "ballottaggio",
-    "start_pct": 20,
-    "club": "Como"
-   },
-   "5036": {
-    "tier": "riserva",
-    "start_pct": 8,
-    "club": "Como"
-   },
-   "6678": {
-    "tier": "riserva",
-    "start_pct": 4,
-    "club": "Como"
-   },
-   "5453": {
-    "tier": "riserva",
-    "start_pct": 8,
-    "club": "Como"
-   },
-   "7014": {
-    "tier": "riserva",
-    "start_pct": 10,
-    "club": "Como"
-   },
-   "6601": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Como"
-   },
-   "2809": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Como"
-   },
-   "418": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Como"
-   },
-   "7357": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Como"
-   },
-   "2521": {
-    "tier": "titolarissimo",
-    "start_pct": 98,
-    "club": "Fiorentina"
-   },
-   "5365": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Fiorentina"
-   },
-   "6908": {
-    "tier": "titolare",
-    "start_pct": 80,
-    "club": "Fiorentina"
-   },
-   "7078": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Fiorentina"
-   },
-   "4465": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Fiorentina"
-   },
-   "6294": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Fiorentina"
-   },
-   "7464": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Fiorentina"
-   },
-   "4947": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Fiorentina"
-   },
-   "5694": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Fiorentina"
-   },
-   "7625": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Fiorentina"
-   },
-   "5885": {
-    "tier": "ballottaggio",
-    "start_pct": 30,
-    "club": "Fiorentina"
-   },
-   "7023": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Fiorentina"
-   },
-   "6827": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Fiorentina"
-   },
-   "6531": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Fiorentina"
-   },
-   "7410": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Fiorentina"
-   },
-   "7294": {
-    "tier": "ballottaggio",
-    "start_pct": 30,
-    "club": "Fiorentina"
-   },
-   "7623": {
-    "tier": "ballottaggio",
-    "start_pct": 15,
-    "club": "Fiorentina"
-   },
-   "5449": {
-    "tier": "ballottaggio",
-    "start_pct": 20,
-    "club": "Fiorentina"
-   },
-   "5603": {
-    "tier": "ballottaggio",
-    "start_pct": 30,
-    "club": "Fiorentina"
-   },
-   "7175": {
-    "tier": "ballottaggio",
-    "start_pct": 15,
-    "club": "Fiorentina"
-   },
-   "4378": {
-    "tier": "ballottaggio",
-    "start_pct": 70,
-    "club": "Fiorentina"
-   },
-   "6403": {
-    "tier": "riserva",
-    "start_pct": 2,
-    "club": "Fiorentina"
-   },
-   "158": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Fiorentina"
-   },
-   "2764": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Inter"
-   },
-   "1870": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Inter"
-   },
-   "5116": {
-    "tier": "titolarissimo",
-    "start_pct": 95,
-    "club": "Inter"
-   },
-   "2120": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Inter"
-   },
-   "2194": {
-    "tier": "titolare",
-    "start_pct": 75,
-    "club": "Inter"
-   },
-   "254": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Inter"
-   },
-   "4159": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Inter"
-   },
-   "5877": {
-    "tier": "comprimario",
-    "start_pct": 25,
-    "club": "Inter"
-   },
-   "4177": {
-    "tier": "comprimario",
-    "start_pct": 15,
-    "club": "Inter"
-   },
-   "4871": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Inter"
-   },
-   "7071": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Inter"
-   },
-   "2514": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Inter"
-   },
-   "6217": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Inter"
-   },
-   "152": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Inter"
-   },
-   "6274": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Inter"
-   },
-   "7070": {
-    "tier": "ballottaggio",
-    "start_pct": 20,
-    "club": "Inter"
-   },
-   "5172": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Inter"
-   },
-   "5982": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Inter"
-   },
-   "6669": {
-    "tier": "riserva",
-    "start_pct": 8,
-    "club": "Inter"
-   },
-   "5301": {
-    "tier": "riserva",
-    "start_pct": 12,
-    "club": "Inter"
-   },
-   "2529": {
-    "tier": "riserva",
-    "start_pct": 10,
-    "club": "Inter"
-   },
-   "6503": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Inter"
-   },
-   "2814": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Inter"
-   },
-   "1926": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Inter"
-   },
-   "2788": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Juventus"
-   },
-   "4964": {
-    "tier": "titolarissimo",
-    "start_pct": 95,
-    "club": "Juventus"
-   },
-   "4976": {
-    "tier": "titolarissimo",
-    "start_pct": 95,
-    "club": "Juventus"
-   },
-   "5951": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Juventus"
-   },
-   "6434": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Juventus"
-   },
-   "6884": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Juventus"
-   },
-   "827": {
-    "tier": "titolare",
-    "start_pct": 75,
-    "club": "Juventus"
-   },
-   "6752": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Juventus"
-   },
-   "5761": {
-    "tier": "comprimario",
-    "start_pct": 12,
-    "club": "Juventus"
-   },
-   "4179": {
-    "tier": "comprimario",
-    "start_pct": 25,
-    "club": "Juventus"
-   },
-   "5685": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Juventus"
-   },
-   "5680": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Juventus"
-   },
-   "7603": {
-    "tier": "comprimario",
-    "start_pct": 5,
-    "club": "Juventus"
-   },
-   "4973": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Juventus"
-   },
-   "7436": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Juventus"
-   },
-   "6042": {
-    "tier": "ballottaggio",
-    "start_pct": 65,
-    "club": "Juventus"
-   },
-   "4657": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Juventus"
-   },
-   "5520": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Juventus"
-   },
-   "5562": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Juventus"
-   },
-   "4911": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Juventus"
-   },
-   "6766": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Juventus"
-   },
-   "2832": {
-    "tier": "riserva",
-    "start_pct": 10,
-    "club": "Juventus"
-   },
-   "5831": {
-    "tier": "riserva",
-    "start_pct": 8,
-    "club": "Juventus"
-   },
-   "6822": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Juventus"
-   },
-   "6039": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Juventus"
-   },
-   "1930": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Juventus"
-   },
-   "294": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Juventus"
-   },
-   "2012": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Juventus"
-   },
-   "632": {
-    "tier": "titolarissimo",
-    "start_pct": 95,
-    "club": "Lazio"
-   },
-   "7314": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Lazio"
-   },
-   "6482": {
-    "tier": "titolarissimo",
-    "start_pct": 95,
-    "club": "Lazio"
-   },
-   "2848": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Lazio"
-   },
-   "5620": {
-    "tier": "titolare",
-    "start_pct": 75,
-    "club": "Lazio"
-   },
-   "7012": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Lazio"
-   },
-   "5800": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Lazio"
-   },
-   "4817": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Lazio"
-   },
-   "6629": {
-    "tier": "comprimario",
-    "start_pct": 15,
-    "club": "Lazio"
-   },
-   "2038": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Lazio"
-   },
-   "6320": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Lazio"
-   },
-   "6398": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Lazio"
-   },
-   "7580": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Lazio"
-   },
-   "5500": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Lazio"
-   },
-   "2188": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Lazio"
-   },
-   "4459": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Lazio"
-   },
-   "6319": {
-    "tier": "ballottaggio",
-    "start_pct": 5,
-    "club": "Lazio"
-   },
-   "6556": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Lazio"
-   },
-   "333": {
-    "tier": "ballottaggio",
-    "start_pct": 15,
-    "club": "Lazio"
-   },
-   "2263": {
-    "tier": "ballottaggio",
-    "start_pct": 10,
-    "club": "Lazio"
-   },
-   "7131": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Lazio"
-   },
-   "6191": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Lazio"
-   },
-   "7337": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Lazio"
-   },
-   "2728": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Lazio"
-   },
-   "7345": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Lazio"
-   },
-   "7534": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Lazio"
-   },
-   "6397": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Milan"
-   },
-   "4312": {
-    "tier": "titolarissimo",
-    "start_pct": 97,
-    "club": "Milan"
-   },
-   "5022": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Milan"
-   },
-   "2423": {
-    "tier": "titolare",
-    "start_pct": 75,
-    "club": "Milan"
-   },
-   "2379": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Milan"
-   },
-   "5833": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Milan"
-   },
-   "4856": {
-    "tier": "titolare",
-    "start_pct": 80,
-    "club": "Milan"
-   },
-   "5739": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Milan"
-   },
-   "4199": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Milan"
-   },
-   "7203": {
-    "tier": "comprimario",
-    "start_pct": 15,
-    "club": "Milan"
-   },
-   "6372": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Milan"
-   },
-   "2606": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Milan"
-   },
-   "4892": {
-    "tier": "ballottaggio",
-    "start_pct": 25,
-    "club": "Milan"
-   },
-   "6496": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Milan"
-   },
-   "5273": {
-    "tier": "ballottaggio",
-    "start_pct": 60,
-    "club": "Milan"
-   },
-   "5295": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Milan"
-   },
-   "6618": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Milan"
-   },
-   "4751": {
-    "tier": "riserva",
-    "start_pct": 8,
-    "club": "Milan"
-   },
-   "4401": {
-    "tier": "riserva",
-    "start_pct": 12,
-    "club": "Milan"
-   },
-   "7618": {
-    "tier": "riserva",
-    "start_pct": 10,
-    "club": "Milan"
-   },
-   "6519": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Milan"
-   },
-   "2815": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Milan"
-   },
-   "5812": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Milan"
-   },
-   "6813": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Milan"
-   },
-   "7525": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Milan"
-   },
-   "7572": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Milan"
-   },
-   "6052": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Napoli"
-   },
-   "4777": {
-    "tier": "titolarissimo",
-    "start_pct": 85,
-    "club": "Napoli"
-   },
-   "4409": {
-    "tier": "titolarissimo",
-    "start_pct": 88,
-    "club": "Napoli"
-   },
-   "2816": {
-    "tier": "titolarissimo",
-    "start_pct": 92,
-    "club": "Napoli"
-   },
-   "4287": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Napoli"
-   },
-   "536": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Napoli"
-   },
-   "7223": {
-    "tier": "comprimario",
-    "start_pct": 15,
-    "club": "Napoli"
-   },
-   "5131": {
-    "tier": "comprimario",
-    "start_pct": 30,
-    "club": "Napoli"
-   },
-   "6215": {
-    "tier": "comprimario",
-    "start_pct": 8,
-    "club": "Napoli"
-   },
-   "2517": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Napoli"
-   },
-   "4220": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Napoli"
-   },
-   "572": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Napoli"
-   },
-   "1852": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Napoli"
-   },
-   "7351": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Napoli"
-   },
-   "2724": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Napoli"
-   },
-   "6831": {
-    "tier": "ballottaggio",
-    "start_pct": 20,
-    "club": "Napoli"
-   },
-   "5840": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Napoli"
-   },
-   "2170": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Napoli"
-   },
-   "7120": {
-    "tier": "ballottaggio",
-    "start_pct": 45,
-    "club": "Napoli"
-   },
-   "6638": {
-    "tier": "ballottaggio",
-    "start_pct": 55,
-    "club": "Napoli"
-   },
-   "6202": {
-    "tier": "riserva",
-    "start_pct": 10,
-    "club": "Napoli"
-   },
-   "7563": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Napoli"
-   },
-   "7162": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Napoli"
-   },
-   "4664": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Napoli"
-   },
-   "6809": {
-    "tier": "riserva",
-    "start_pct": 3,
-    "club": "Napoli"
-   },
-   "2845": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Napoli"
-   },
-   "5841": {
-    "tier": "titolarissimo",
-    "start_pct": 98,
-    "club": "Roma"
-   },
-   "2296": {
-    "tier": "titolarissimo",
-    "start_pct": 90,
-    "club": "Roma"
-   },
-   "779": {
-    "tier": "titolarissimo",
-    "start_pct": 88,
-    "club": "Roma"
-   },
-   "5585": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Roma"
-   },
-   "309": {
-    "tier": "titolare",
-    "start_pct": 80,
-    "club": "Roma"
-   },
-   "7181": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Roma"
-   },
-   "5589": {
-    "tier": "titolare",
-    "start_pct": 80,
-    "club": "Roma"
-   },
-   "4807": {
-    "tier": "titolare",
-    "start_pct": 85,
-    "club": "Roma"
-   },
-   "6572": {
-    "tier": "comprimario",
-    "start_pct": 15,
-    "club": "Roma"
-   },
-   "6190": {
-    "tier": "comprimario",
-    "start_pct": 20,
-    "club": "Roma"
-   },
-   "7556": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Roma"
-   },
-   "4998": {
-    "tier": "ballottaggio",
-    "start_pct": 60,
-    "club": "Roma"
-   },
-   "4317": {
-    "tier": "ballottaggio",
-    "start_pct": 50,
-    "club": "Roma"
-   },
-   "5734": {
-    "tier": "ballottaggio",
-    "start_pct": 65,
-    "club": "Roma"
-   },
-   "4705": {
-    "tier": "ballottaggio",
-    "start_pct": 40,
-    "club": "Roma"
-   },
-   "6631": {
-    "tier": "ballottaggio",
-    "start_pct": 10,
-    "club": "Roma"
-   },
-   "6986": {
-    "tier": "ballottaggio",
-    "start_pct": 5,
-    "club": "Roma"
-   },
-   "7599": {
-    "tier": "ballottaggio",
-    "start_pct": 35,
-    "club": "Roma"
-   },
-   "530": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Roma"
-   },
-   "7529": {
-    "tier": "riserva",
-    "start_pct": 5,
-    "club": "Roma"
-   },
-   "22": {
-    "tier": "riserva",
-    "start_pct": 8,
-    "club": "Roma"
-   },
-   "610": {
-    "tier": "riserva",
-    "start_pct": 2,
-    "club": "Roma"
-   },
-   "7048": {
-    "tier": "scarto",
-    "start_pct": 0,
-    "club": "Roma"
-   },
    "4907": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "4319": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "6412": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 97,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5125": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "4912": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "7520": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "4945": {
     "tier": "titolare",
     "start_pct": 78,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "4689": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5145": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5247": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 10,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5628": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5577": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "7174": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "2681": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 3,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "2669": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "7121": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "4906": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "6337": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5621": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5350": {
     "tier": "ballottaggio",
     "start_pct": 15,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "6915": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "6147": {
     "tier": "riserva",
     "start_pct": 12,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "7245": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5644": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Arsenal"
+    "club": "Arsenal",
+    "as_of": "2026-09-28"
    },
    "5632": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "4680": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "6641": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "6038": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7522": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "5636": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7521": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "4243": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "6843": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "6037": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "2699": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "2455": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7596": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7094": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 5,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "5541": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 40,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "5625": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "5354": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "4776": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "5276": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "6370": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "4910": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "5180": {
     "tier": "ballottaggio",
     "start_pct": 20,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "2544": {
     "tier": "riserva",
     "start_pct": 12,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7306": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "6909": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7320": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7419": {
     "tier": "scarto",
     "start_pct": 2,
-    "club": "Aston Villa"
+    "club": "Aston Villa",
+    "as_of": "2026-09-28"
    },
    "7430": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7431": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7423": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "5912": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7421": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7539": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "6468": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7425": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "2779": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7429": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "5679": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7432": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "5876": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 5,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "4724": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "6428": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "4188": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7424": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7422": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "6762": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "6174": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "6695": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7426": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7427": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "6789": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7433": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "7428": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "5981": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Bournemouth"
+    "club": "Bournemouth",
+    "as_of": "2026-09-28"
    },
    "4190": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7116": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6959": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6346": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7098": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6758": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6362": {
     "tier": "titolare",
     "start_pct": 65,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6757": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7640": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7445": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6345": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 5,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7102": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6354": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6835": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6347": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6888": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6756": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6500": {
     "tier": "ballottaggio",
     "start_pct": 25,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7180": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6365": {
     "tier": "ballottaggio",
     "start_pct": 15,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7097": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "5648": {
     "tier": "ballottaggio",
     "start_pct": 20,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7444": {
     "tier": "ballottaggio",
     "start_pct": 10,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7567": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7606": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "5484": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6881": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "7103": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6343": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Brighton"
+    "club": "Brighton",
+    "as_of": "2026-09-28"
    },
    "6581": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 93,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "5726": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6361": {
     "tier": "titolare",
     "start_pct": 88,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6355": {
     "tier": "titolare",
     "start_pct": 88,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "5600": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "4738": {
     "tier": "titolare",
     "start_pct": 95,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "5309": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6369": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6437": {
     "tier": "titolare",
     "start_pct": 65,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6554": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6974": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "7104": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 3,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "2333": {
     "tier": "ballottaggio",
     "start_pct": 20,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "4874": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6832": {
     "tier": "ballottaggio",
     "start_pct": 15,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "7200": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "5390": {
     "tier": "ballottaggio",
     "start_pct": 25,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "7552": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "7109": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "7417": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6031": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "6366": {
     "tier": "riserva",
     "start_pct": 12,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "7446": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "2505": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Chelsea"
+    "club": "Chelsea",
+    "as_of": "2026-09-28"
    },
    "4828": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "5080": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "5370": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "2536": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "1964": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "7033": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "7113": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "6071": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "5904": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "7111": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 5,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "6122": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "6374": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "5925": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "5392": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "7058": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "5213": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "6542": {
     "tier": "ballottaggio",
     "start_pct": 25,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "7251": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "2002": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "2502": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "6887": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "7112": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "6436": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Liverpool"
+    "club": "Liverpool",
+    "as_of": "2026-09-28"
    },
    "4877": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "7315": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "5591": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "350": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 97,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6070": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "5308": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "7330": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6166": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6878": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "2611": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 3,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "5037": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "4240": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "5917": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6290": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6484": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6262": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6698": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "271": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "7617": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "5321": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6130": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "6983": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "5640": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Manchester City"
+    "club": "Manchester City",
+    "as_of": "2026-09-28"
    },
    "590": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "7166": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "2352": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "7267": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 100,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4731": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "2533": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4242": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "5965": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4244": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "6315": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4862": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "6257": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "5924": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "6764": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4224": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "6520": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "6472": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4428": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "6128": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "7047": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4752": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "5086": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "5968": {
     "tier": "riserva",
     "start_pct": 0,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "6293": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "5664": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "7114": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Manchester United"
+    "club": "Manchester United",
+    "as_of": "2026-09-28"
    },
    "4764": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "6136": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "6055": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "7275": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5724": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5531": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "7542": {
     "tier": "titolare",
     "start_pct": 100,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "6901": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "7448": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 10,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5972": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "7460": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "7447": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 0,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5977": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5979": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5634": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5440": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "6399": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "4742": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "7021": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "6517": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "6799": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "2591": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "7230": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5969": {
     "tier": "riserva",
     "start_pct": 0,
-    "club": "Newcastle"
+    "club": "Newcastle",
+    "as_of": "2026-09-28"
    },
    "5613": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "4449": {
     "tier": "titolare",
     "start_pct": 90,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "5696": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6348": {
     "tier": "titolare",
     "start_pct": 90,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "4854": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "2166": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6964": {
     "tier": "titolare",
     "start_pct": 100,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "5958": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "5070": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6767": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "2833": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "4250": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 0,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6470": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6763": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "4227": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6805": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "7257": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "4233": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "5926": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "5355": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "7450": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6138": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "5178": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6768": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "4257": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "4215": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6817": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6078": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Tottenham"
+    "club": "Tottenham",
+    "as_of": "2026-09-28"
    },
    "6782": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6774": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 97,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6785": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "2563": {
     "tier": "titolare",
     "start_pct": 78,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "4277": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6786": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "2567": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "2205": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "5666": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6781": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6775": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6776": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6860": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6923": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "7167": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6689": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "7590": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "7452": {
     "tier": "ballottaggio",
     "start_pct": 20,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "7637": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "7005": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6784": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6779": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "7287": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "6773": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Athletic Bilbao"
+    "club": "Athletic Bilbao",
+    "as_of": "2026-09-28"
    },
    "2569": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "2754": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "5964": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "5403": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "6302": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "6864": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "4852": {
     "tier": "titolare",
     "start_pct": 65,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "4810": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "4307": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "4730": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 45,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "5294": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "5544": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "5238": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "6808": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 45,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "5870": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "6132": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "4304": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "7122": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "7359": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "7638": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "7362": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "2792": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Atletico Madrid"
+    "club": "Atletico Madrid",
+    "as_of": "2026-09-28"
    },
    "5655": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "6429": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "7076": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "5218": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "6587": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "4283": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "6830": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "4814": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "6499": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "5159": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "4902": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "2310": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "4832": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "5932": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "6828": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "5179": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "7373": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "4198": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "5723": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "5717": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "2520": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "7646": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "7077": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "453": {
     "tier": "scarto",
     "start_pct": 2,
-    "club": "Barcellona"
+    "club": "Barcellona",
+    "as_of": "2026-09-28"
    },
    "6059": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7187": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 97,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "6396": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "5736": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "2693": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "6382": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "4741": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7201": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "4823": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7570": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "2604": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "4286": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "2469": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "6385": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "5239": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7029": {
     "tier": "ballottaggio",
     "start_pct": 25,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "4822": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "2417": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7459": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "4320": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7190": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7350": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "5228": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "6797": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "7585": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Betis"
+    "club": "Betis",
+    "as_of": "2026-09-28"
    },
    "2383": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4291": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "5091": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "2592": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "2480": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "6386": {
     "tier": "titolare",
     "start_pct": 65,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4722": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "6433": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "7093": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4239": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 40,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "656": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4824": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4826": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "5513": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "6003": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4656": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "2500": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "6377": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4688": {
     "tier": "ballottaggio",
     "start_pct": 25,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4825": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "7530": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "6941": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "6792": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "7370": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4141": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "4288": {
     "tier": "riserva",
     "start_pct": 4,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "7280": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Real Madrid"
+    "club": "Real Madrid",
+    "as_of": "2026-09-28"
    },
    "5055": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6761": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "7079": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "4314": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6714": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6532": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "5282": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6390": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6515": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "4255": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "2549": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "7186": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6798": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "7607": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "5752": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "4717": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6837": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "7343": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6876": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "7259": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "6841": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "7598": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Villarreal"
+    "club": "Villarreal",
+    "as_of": "2026-09-28"
    },
    "1974": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "5427": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "5078": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7168": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "6723": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7082": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7081": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "6265": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7083": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "2665": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "5754": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "6493": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "6455": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7269": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "5579": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "4290": {
     "tier": "ballottaggio",
     "start_pct": 10,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "4343": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "6469": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "4679": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7295": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "5907": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "6127": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "5954": {
     "tier": "riserva",
     "start_pct": 0,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7437": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "6303": {
     "tier": "scarto",
     "start_pct": 3,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "5075": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "7358": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Bayer Leverkusen"
+    "club": "Bayer Leverkusen",
+    "as_of": "2026-09-28"
    },
    "2557": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "6726": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "5794": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "2407": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "2448": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "6512": {
     "tier": "titolare",
     "start_pct": 78,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "2402": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "2679": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "7242": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "7084": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "6988": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "5339": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "7415": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "2398": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "6730": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "4727": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "4703": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "5582": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "5892": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "6724": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "7385": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "2403": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Bayern Monaco"
+    "club": "Bayern Monaco",
+    "as_of": "2026-09-28"
    },
    "5920": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "6141": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7004": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "5583": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 97,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "5930": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 85,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "6687": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 92,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "6810": {
     "tier": "titolare",
     "start_pct": 72,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "5744": {
     "tier": "titolare",
     "start_pct": 78,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7438": {
     "tier": "titolare",
     "start_pct": 72,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "5204": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "5098": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "2451": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 10,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7565": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 40,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7566": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7543": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7086": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "6847": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "5630": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7384": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7366": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "6950": {
     "tier": "riserva",
     "start_pct": 12,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "5928": {
     "tier": "riserva",
     "start_pct": 0,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "2504": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7439": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7085": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Borussia Dortmund"
+    "club": "Borussia Dortmund",
+    "as_of": "2026-09-28"
    },
    "7088": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "6731": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7613": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 100,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "5647": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7541": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7298": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7300": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7204": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "6716": {
     "tier": "titolare",
     "start_pct": 90,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7087": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "2422": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7304": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7614": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 40,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "6473": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7516": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "6848": {
     "tier": "ballottaggio",
     "start_pct": 20,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "5416": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "6404": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7524": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "6728": {
     "tier": "riserva",
     "start_pct": 0,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "5941": {
     "tier": "riserva",
     "start_pct": 2,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7636": {
     "tier": "riserva",
     "start_pct": 3,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "5935": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "7297": {
     "tier": "scarto",
     "start_pct": 2,
-    "club": "Eintracht"
+    "club": "Eintracht",
+    "as_of": "2026-09-28"
    },
    "6812": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "5997": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "2447": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6734": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 100,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6313": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "5606": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6271": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6735": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7009": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "4728": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7214": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6816": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7123": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "5569": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7517": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7090": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6094": {
     "tier": "ballottaggio",
     "start_pct": 20,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6311": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6599": {
     "tier": "ballottaggio",
     "start_pct": 15,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7089": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "2397": {
     "tier": "riserva",
     "start_pct": 20,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7124": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6111": {
     "tier": "riserva",
     "start_pct": 0,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6310": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "7441": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "4171": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Lipsia"
+    "club": "Lipsia",
+    "as_of": "2026-09-28"
    },
    "6742": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6746": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "4403": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7443": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7007": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6363": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6748": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6743": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6740": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6753": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6749": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7270": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7549": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7215": {
     "tier": "ballottaggio",
     "start_pct": 10,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6736": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7442": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7263": {
     "tier": "riserva",
     "start_pct": 20,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6744": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7003": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7527": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "5909": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6739": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7649": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7518": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6737": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6886": {
     "tier": "scarto",
     "start_pct": 2,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "4708": {
     "tier": "scarto",
     "start_pct": 3,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "6750": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Stoccarda"
+    "club": "Stoccarda",
+    "as_of": "2026-09-28"
    },
    "7282": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6709": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "2432": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "4154": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "7462": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "4136": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "7434": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "2555": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "5623": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "4876": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "4873": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "5745": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6084": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6838": {
     "tier": "ballottaggio",
     "start_pct": 35,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "7265": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6591": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6973": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6285": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6807": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "7435": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6283": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6179": {
     "tier": "riserva",
     "start_pct": 15,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "6045": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Monaco"
+    "club": "Monaco",
+    "as_of": "2026-09-28"
    },
    "4678": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "4662": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "2537": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "6800": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "7075": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "7197": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "2680": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "417": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "5984": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "7354": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "270": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 30,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "5538": {
     "tier": "ballottaggio",
     "start_pct": 70,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "6899": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "6715": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "6487": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "6550": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "6555": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "7586": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "7355": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Olympique Marsiglia"
+    "club": "Olympique Marsiglia",
+    "as_of": "2026-09-28"
    },
    "5201": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6718": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6305": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "5839": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6051": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6720": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "5700": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "4160": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6053": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "7559": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "4853": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "2684": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "2775": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "2374": {
     "tier": "ballottaggio",
     "start_pct": 65,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6082": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "7206": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6606": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6527": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "4280": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "657": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "7288": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "6708": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "7461": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "7289": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Paris Saint-Germain"
+    "club": "Paris Saint-Germain",
+    "as_of": "2026-09-28"
    },
    "7499": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "6129": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7584": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "5094": {
     "tier": "titolare",
     "start_pct": 75,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7493": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7616": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7569": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7498": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7601": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 20,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7503": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7562": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7500": {
     "tier": "ballottaggio",
     "start_pct": 60,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7501": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7576": {
     "tier": "ballottaggio",
     "start_pct": 20,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7487": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7107": {
     "tier": "ballottaggio",
     "start_pct": 15,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7495": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7494": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7489": {
     "tier": "ballottaggio",
     "start_pct": 30,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7273": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7558": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7491": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7486": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7497": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "6463": {
     "tier": "scarto",
     "start_pct": 2,
-    "club": "Racing Strasburgo"
+    "club": "Racing Strasburgo",
+    "as_of": "2026-09-28"
    },
    "7514": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 88,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "5721": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 95,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6260": {
-    "tier": "titolarissimo",
+    "tier": "bandiera",
     "start_pct": 90,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6277": {
     "tier": "titolare",
     "start_pct": 80,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6269": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "4667": {
     "tier": "titolare",
     "start_pct": 85,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7509": {
     "tier": "titolare",
     "start_pct": 70,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7006": {
     "tier": "titolare",
     "start_pct": 65,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7510": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 35,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7513": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 25,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "5398": {
-    "tier": "comprimario",
+    "tier": "panchina",
     "start_pct": 15,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6300": {
     "tier": "ballottaggio",
     "start_pct": 50,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6566": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7512": {
     "tier": "ballottaggio",
     "start_pct": 40,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6738": {
     "tier": "ballottaggio",
     "start_pct": 55,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7507": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6921": {
     "tier": "ballottaggio",
     "start_pct": 45,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7511": {
     "tier": "ballottaggio",
     "start_pct": 10,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "5672": {
     "tier": "riserva",
     "start_pct": 12,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "6857": {
     "tier": "riserva",
     "start_pct": 10,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7506": {
     "tier": "riserva",
     "start_pct": 8,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7508": {
     "tier": "riserva",
     "start_pct": 5,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
    },
    "7505": {
     "tier": "scarto",
     "start_pct": 0,
-    "club": "Rennes"
+    "club": "Rennes",
+    "as_of": "2026-09-28"
+   },
+   "4431": {
+    "tier": "bandiera",
+    "start_pct": 97,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5792": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5526": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5995": {
+    "tier": "titolare",
+    "start_pct": 82,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "2137": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "6435": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5119": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "6844": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "1850": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "4371": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "4364": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "2077": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "4887": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "7219": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "6485": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "554": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5578": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "2640": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "6046": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "4479": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5422": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5918": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "4": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "7626": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Atalanta",
+    "as_of": "2026-10-01"
+   },
+   "5858": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7212": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "2167": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "4734": {
+    "tier": "titolare",
+    "start_pct": 82,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "5675": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "4359": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "184": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "6675": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "133": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "4436": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "4433": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "6054": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "2765": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7326": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "5298": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "5678": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7068": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7172": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7528": {
+    "tier": "panchina",
+    "start_pct": 25,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "6833": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "6225": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7483": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "487": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7627": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7629": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "5498": {
+    "tier": "scarto",
+    "start_pct": 2,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "7533": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Bologna",
+    "as_of": "2026-10-01"
+   },
+   "4360": {
+    "tier": "bandiera",
+    "start_pct": 100,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "5701": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "4870": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "4896": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7311": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7274": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "4260": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7268": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "6010": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7374": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7547": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "4210": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "6815": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "1871": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7579": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "5336": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7621": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "801": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "6640": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7548": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7532": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7125": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "3": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7317": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "5462": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "6650": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "7165": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Cagliari",
+    "as_of": "2026-10-01"
+   },
+   "6875": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6869": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6727": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "5641": {
+    "tier": "bandiera",
+    "start_pct": 88,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "5559": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6967": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7126": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "2097": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7017": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6966": {
+    "tier": "ballottaggio",
+    "start_pct": 80,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6151": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7412": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7129": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6867": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7414": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6344": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "5453": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6893": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "5036": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7014": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6678": {
+    "tier": "riserva",
+    "start_pct": 4,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7127": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "6601": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "2809": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "418": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "7357": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Como",
+    "as_of": "2026-10-01"
+   },
+   "2521": {
+    "tier": "bandiera",
+    "start_pct": 98,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "5365": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7078": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "6908": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "4465": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "6294": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7023": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "5694": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7625": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "6531": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "6827": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7623": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7410": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7175": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7294": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "4378": {
+    "tier": "ballottaggio",
+    "start_pct": 70,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "5449": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "5885": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "5603": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "7464": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "4947": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "6403": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "158": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Fiorentina",
+    "as_of": "2026-10-01"
+   },
+   "6204": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7472": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "6415": {
+    "tier": "bandiera",
+    "start_pct": 100,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7469": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7467": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "5436": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7551": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "6917": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "6238": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "6530": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "4952": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "5757": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "6506": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "5998": {
+    "tier": "panchina",
+    "start_pct": 10,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7473": {
+    "tier": "panchina",
+    "start_pct": 10,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7550": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7612": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7540": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7605": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "4375": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "6903": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7610": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7463": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "5424": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7456": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "6241": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "5725": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7560": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7466": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "7553": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Frosinone",
+    "as_of": "2026-10-01"
+   },
+   "5514": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "5791": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "6020": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "6660": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7332": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "4923": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "5750": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "5823": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "5946": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7600": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "6164": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "6047": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "5742": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "791": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "4970": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "795": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7341": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7409": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "2857": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7537": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "6977": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "6980": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7453": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7413": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "6569": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "219": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "7622": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Genoa",
+    "as_of": "2026-10-01"
+   },
+   "2764": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "1870": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "5116": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "2120": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "2194": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "254": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "4159": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "4871": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "7071": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "6274": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "152": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "6217": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "5172": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "7070": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "5982": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "2514": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "5877": {
+    "tier": "panchina",
+    "start_pct": 25,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "6669": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "4177": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "5301": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "2529": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "6503": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "2814": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "1926": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Inter",
+    "as_of": "2026-10-01"
+   },
+   "2788": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "4964": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "4976": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "5951": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "6884": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "6434": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "827": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "4973": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "7436": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "6042": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "4657": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "4911": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "5562": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "6766": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "5520": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "6752": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "4179": {
+    "tier": "panchina",
+    "start_pct": 25,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "5680": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "5761": {
+    "tier": "panchina",
+    "start_pct": 12,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "5685": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "2832": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "5831": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "6822": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "6039": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "283": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "7603": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "294": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "1930": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "2012": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Juventus",
+    "as_of": "2026-10-01"
+   },
+   "632": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "7314": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "6482": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "2848": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "5620": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "7012": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "2038": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "6556": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "5500": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "6398": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "7580": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "2188": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "4459": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "6320": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "6319": {
+    "tier": "ballottaggio",
+    "start_pct": 5,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "7131": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "333": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "2263": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "6191": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "5800": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "4817": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "6629": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "7337": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "2728": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "7345": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "7534": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lazio",
+    "as_of": "2026-10-01"
+   },
+   "2134": {
+    "tier": "bandiera",
+    "start_pct": 100,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "5504": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6990": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6989": {
+    "tier": "titolare",
+    "start_pct": 82,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6549": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "4502": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7619": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "5029": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "5007": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7240": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6632": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7322": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7248": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7252": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7001": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "5457": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6015": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7318": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7602": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7182": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7647": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6826": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6410": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "4468": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6883": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7557": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7319": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "7571": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Lecce",
+    "as_of": "2026-10-01"
+   },
+   "6397": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "4312": {
+    "tier": "bandiera",
+    "start_pct": 97,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "5022": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "2423": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "2379": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "5833": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "5739": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "4856": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "2606": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "6618": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "4892": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "5295": {
+    "tier": "ballottaggio",
+    "start_pct": 30,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "4199": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "5273": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "6496": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "7203": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "6372": {
+    "tier": "panchina",
+    "start_pct": 30,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "7618": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "6519": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "4401": {
+    "tier": "riserva",
+    "start_pct": 12,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "4751": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "5812": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "2815": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "7525": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "6813": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "7572": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Milan",
+    "as_of": "2026-10-01"
+   },
+   "7238": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "5838": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "4925": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7301": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7523": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7485": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "6252": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "6659": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "2155": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "2741": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "5878": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "6593": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7546": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7575": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "6145": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "5882": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7476": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7574": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7620": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7146": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7260": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "5880": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "6537": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7477": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "4485": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7604": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "6592": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "5399": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "7475": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Monza",
+    "as_of": "2026-10-01"
+   },
+   "4777": {
+    "tier": "bandiera",
+    "start_pct": 85,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "4409": {
+    "tier": "bandiera",
+    "start_pct": 88,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "2816": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "4287": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "6052": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "536": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "2517": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "572": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "7351": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "4220": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "1852": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "6831": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "2170": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "6638": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "7120": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "2724": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "5840": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "7223": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "6215": {
+    "tier": "panchina",
+    "start_pct": 8,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "5131": {
+    "tier": "panchina",
+    "start_pct": 30,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "7563": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "4664": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "6202": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "6809": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "7162": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "2845": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Napoli",
+    "as_of": "2026-10-01"
+   },
+   "5862": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6664": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6898": {
+    "tier": "bandiera",
+    "start_pct": 92,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6662": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6229": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6666": {
+    "tier": "titolare",
+    "start_pct": 82,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7235": {
+    "tier": "titolare",
+    "start_pct": 88,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7255": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7554": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "4137": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7561": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6206": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "5307": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7138": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7628": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7615": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "4349": {
+    "tier": "panchina",
+    "start_pct": 30,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6207": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7342": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7202": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7536": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7213": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "6149": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7276": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7411": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "7568": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "2874": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Parma",
+    "as_of": "2026-10-01"
+   },
+   "5841": {
+    "tier": "bandiera",
+    "start_pct": 98,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "2296": {
+    "tier": "bandiera",
+    "start_pct": 90,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "779": {
+    "tier": "bandiera",
+    "start_pct": 88,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "5585": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "309": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "7181": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "5589": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "4807": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "4998": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "7556": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "5734": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "4317": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "4705": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "6986": {
+    "tier": "ballottaggio",
+    "start_pct": 5,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "7599": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "6631": {
+    "tier": "ballottaggio",
+    "start_pct": 10,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "6572": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "6190": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "530": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "22": {
+    "tier": "riserva",
+    "start_pct": 8,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "7529": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "610": {
+    "tier": "riserva",
+    "start_pct": 2,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "7048": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Roma",
+    "as_of": "2026-10-01"
+   },
+   "6060": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "4236": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "531": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "7036": {
+    "tier": "titolare",
+    "start_pct": 75,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "2528": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6672": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "7564": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "5851": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "4463": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6677": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "7347": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "5844": {
+    "tier": "ballottaggio",
+    "start_pct": 50,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "7573": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "4374": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6717": {
+    "tier": "panchina",
+    "start_pct": 40,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "5735": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "4147": {
+    "tier": "panchina",
+    "start_pct": 25,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6895": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "7329": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6024": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "7154": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6985": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6896": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6246": {
+    "tier": "riserva",
+    "start_pct": 15,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "6219": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "4867": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "2127": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "7156": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Sassuolo",
+    "as_of": "2026-10-01"
+   },
+   "5687": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6534": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6642": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "2061": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "1933": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7060": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7535": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6495": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7624": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "5888": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7220": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7526": {
+    "tier": "ballottaggio",
+    "start_pct": 65,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7069": {
+    "tier": "ballottaggio",
+    "start_pct": 60,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "5010": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6170": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "5751": {
+    "tier": "ballottaggio",
+    "start_pct": 15,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6646": {
+    "tier": "panchina",
+    "start_pct": 20,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7349": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6218": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "608": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "2169": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6005": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7183": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7457": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "252": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "7363": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Torino",
+    "as_of": "2026-10-01"
+   },
+   "6684": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "6462": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "6680": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "5637": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "2766": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "6956": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "4994": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "5555": {
+    "tier": "titolare",
+    "start_pct": 90,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "6021": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "2404": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7208": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7198": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "4263": {
+    "tier": "ballottaggio",
+    "start_pct": 20,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "5994": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "6783": {
+    "tier": "panchina",
+    "start_pct": 30,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "5527": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7272": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "5820": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "6925": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7312": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7418": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "6212": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7161": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7611": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7092": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "543": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "5850": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Udinese",
+    "as_of": "2026-10-01"
+   },
+   "7484": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6821": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6892": {
+    "tier": "bandiera",
+    "start_pct": 95,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6248": {
+    "tier": "bandiera",
+    "start_pct": 100,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6904": {
+    "tier": "titolare",
+    "start_pct": 80,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6994": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "5507": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7253": {
+    "tier": "titolare",
+    "start_pct": 85,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "5674": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "256": {
+    "tier": "ballottaggio",
+    "start_pct": 35,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "5319": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "5695": {
+    "tier": "ballottaggio",
+    "start_pct": 45,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "4845": {
+    "tier": "ballottaggio",
+    "start_pct": 55,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7538": {
+    "tier": "ballottaggio",
+    "start_pct": 25,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6890": {
+    "tier": "ballottaggio",
+    "start_pct": 40,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "5481": {
+    "tier": "panchina",
+    "start_pct": 10,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7449": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6673": {
+    "tier": "panchina",
+    "start_pct": 15,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6681": {
+    "tier": "panchina",
+    "start_pct": 10,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7232": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7478": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "4387": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "5872": {
+    "tier": "riserva",
+    "start_pct": 10,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "4957": {
+    "tier": "riserva",
+    "start_pct": 0,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7454": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7481": {
+    "tier": "riserva",
+    "start_pct": 5,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7482": {
+    "tier": "riserva",
+    "start_pct": 3,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "526": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "6671": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7531": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
+   },
+   "7408": {
+    "tier": "scarto",
+    "start_pct": 0,
+    "club": "Venezia",
+    "as_of": "2026-10-01"
    }
   }
  }

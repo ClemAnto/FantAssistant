@@ -274,6 +274,23 @@ describe('pressRulings', () => {
     expect(map.get(12)).toMatchObject({ source: 'press', pressTier: 'scarto', startPct: 2, decidedOn: '2026-09-28' });
   });
 
+  it('una riga con la SUA data tiene quella, una senza prende quella del blocco', () => {
+    const file: PressRungsFile = {
+      '2026-27': {
+        as_of: '2026-10-01',
+        players: {
+          '20': { tier: 'titolare', start_pct: 80, as_of: '2026-09-28' },
+          '21': { tier: 'titolare', start_pct: 80 },
+          '22': { tier: 'titolare', start_pct: 80, as_of: 'ieri' },
+        },
+      },
+    };
+    const map = pressRulings(file, '2026-27');
+    expect(map.get(20)?.decidedOn).toBe('2026-09-28');
+    expect(map.get(21)?.decidedOn).toBe('2026-10-01');
+    expect(map.get(22)?.decidedOn).toBe('2026-10-01');
+  });
+
   it('una stagione che il file non porta, o nessun file, non danno nessuna parola', () => {
     expect(pressRulings(PRESS, '2025-26').size).toBe(0);
     expect(pressRulings(null, '2026-27').size).toBe(0);
@@ -281,7 +298,7 @@ describe('pressRulings', () => {
 
   it('ogni parola della stampa ha una traduzione, e ogni traduzione e\' un nostro gradino', () => {
     expect(Object.keys(PRESS_TO_RUNG).sort()).toEqual(
-      ['ballottaggio', 'comprimario', 'riserva', 'scarto', 'titolare', 'titolarissimo']);
+      ['ballottaggio', 'bandiera', 'comprimario', 'panchina', 'riserva', 'scarto', 'titolare', 'titolarissimo']);
     for (const rung of Object.values(PRESS_TO_RUNG)) expect(TITOLARITA_LADDER).toContain(rung);
   });
 });

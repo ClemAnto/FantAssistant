@@ -1,12 +1,12 @@
-# Task: season-long role of every player of your clubs (EuroLeghe) - the date is the survey date
+# Task: season-long role of every player of your clubs - the date is the survey date
 
 Working folder: `data/reports/press_survey/` (or `$PRESS_SURVEY_DIR`) - gitignored, it carries names and FVM.
 - `briefs/<Club>.txt` = your starting data, already scraped TODAY from TWO structured sources:
   * **Transfermarkt** (TM): squad, league and all-competition appearances/starts/sub-ons/minutes for 2026-27, the
     same for 2025-26 at this club, injuries with TM's expected return date.
   * **FotMob**: squad list, positions, injury flag with FotMob's own expected-return wording.
-  * FVM and role come from the fantacalcio.it EuroLeghe listone (read 27/09/2026). "CEDUTO" = the listone marks him
-    sold (asterisk).
+  * FVM and role come from the fantacalcio.it listone being surveyed (EuroLeghe or Serie A; the day it was read is
+    in your task). "CEDUTO" = the listone marks him sold (asterisk).
 - Do NOT use any project database. Transfermarkt cannot be fetched with WebFetch (already scraped for you); FBref,
   Sofascore, ESPN, kicker are blocked. Use WebSearch + WebFetch on OTHER sources.
 
@@ -20,21 +20,24 @@ Working folder: `data/reports/press_survey/` (or `$PRESS_SURVEY_DIR`) - gitignor
    the sources. When sources disagree, say so and pick the most recent/authoritative (club statement > coach press
    conference > major outlet > aggregator). Also note suspensions.
 3. **Season-long classification** (the TYPICAL season XI, NOT the next match). Use: this season's minutes shares
-   (sample is small: 5-6 league games), last season at the club, the coach's system, press "formazione tipo"/
+   (sample is small: 5-7 league games), last season at the club, the coach's system, press "formazione tipo"/
    predicted season XI articles, transfer context (a big signing is expected to start). An injured player is
-   classified by what he is WHEN FIT (plus the injury block).
-   - `titolarissimo`: in the season XI and plays practically always, league AND cups (>=85% of available minutes
-     across competitions when fit). For a club with no European cup: >=90% league and plays the domestic cups too.
-   - `titolare`: in the league season XI, starts >=70% of league games when fit, but rests / rotates in cups.
-   - `comprimario`: 12th-15th man: starts sometimes (roughly 25-60%) or comes on from the bench almost every game;
-     no single direct rival.
+   classified by what he is WHEN FIT (plus the injury block). THE WORDS ARE THE PROJECT'S OWN LADDER (operator,
+   01/10/2026: one ladder everywhere, the one the expected-appearances formula is calibrated on) - write exactly
+   these six and no other word; the percentages are of the LEAGUE matches he is fit for:
+   - `bandiera`: in the season XI, plays EVERY league match when fit (>90%) and almost always the whole match
+     (>=75' a game). Whether he also plays the cups goes in the note.
+   - `titolare`: in the season XI, plays almost every league match (>80%) for most of it (>=65'), but is rested
+     or substituted now and then. Nobody takes his place.
    - `ballottaggio`: disputes ONE specific place of the season XI with one or two named teammates. MANDATORY: list
      the rivals and give each contender's estimated % of league starts for that place (the shares of one place
      sum to ~100, e.g. 60/40). Mark ALL contenders of that place as `ballottaggio` with consistent numbers.
-   - `riserva`: comes on now and then (roughly 10-35% of games, low minutes), rare starts (cups/rotation).
+   - `panchina`: 12th-15th man, NOT in the season XI and with no single direct rival: plays often (roughly half
+     to four fifths of the league matches) by starting sometimes or coming on most weeks, without certainties.
+   - `riserva`: comes on now and then (roughly 10-50% of the matches, low minutes), rare starts.
    - `scarto`: almost never plays (<10%): third keeper, out of the project, youth players only registered.
-   - Goalkeepers: the #1 who also plays cups = titolarissimo; #1 in league with a cup keeper = titolare; the cup
-     keeper = comprimario; the unused #2 = riserva; #3 = scarto.
+   - Goalkeepers: the league #1 = `bandiera` (even when a cup keeper plays the cups); a #1 who is really rotated in
+     the league = `ballottaggio` with his rival; the cup keeper and the unused #2 = `riserva`; #3 = `scarto`.
 4. For EVERY player give `start_pct` = estimated % of LEAGUE matches he will START when fit this season (integer).
 
 ## Output: write ONE JSON file per club to `out/<Club>.json` (exact club names as in the brief file name), UTF-8:
@@ -46,7 +49,7 @@ Working folder: `data/reports/press_survey/` (or `$PRESS_SURVEY_DIR`) - gitignor
   "typical_xi": ["Vicario", "Kalulu", "..."],
   "players": [
     {"tm_id": 123, "name": "Full Name", "fc_id": 456, "listone": "Kolo Muani", "role": "A",
-     "tier": "titolarissimo|titolare|comprimario|ballottaggio|riserva|scarto",
+     "tier": "bandiera|titolare|ballottaggio|panchina|riserva|scarto",
      "start_pct": 90, "rivals": [{"name": "X", "start_pct": 40}],
      "note": "breve nota IN ITALIANO (perche' questo gradino)",
      "injury": null}

@@ -16,8 +16,9 @@ import collections, json, os, pathlib, sqlite3, sys, unicodedata
 REPO = pathlib.Path(__file__).resolve().parents[3]
 WORK = pathlib.Path(os.environ.get("PRESS_SURVEY_DIR", REPO / "data" / "reports" / "press_survey"))
 SEASON = os.environ.get("PRESS_SURVEY_SEASON", "2026-27")
-LIMITS = {"titolarissimo": (85, 100), "titolare": (70, 100), "comprimario": (0, 60), "riserva": (0, 35), "scarto": (0, 10)}
-TOP = ("titolarissimo", "titolare")
+PLATFORM = os.environ.get("PRESS_SURVEY_PLATFORM", "euro")
+LIMITS = {"bandiera": (85, 100), "titolare": (70, 100), "panchina": (0, 60), "riserva": (0, 35), "scarto": (0, 10)}
+TOP = ("bandiera", "titolare")
 skip = set(sys.argv[sys.argv.index("--skip-league") + 1:][:1]) if "--skip-league" in sys.argv else set()
 
 
@@ -58,7 +59,7 @@ for club in report["clubs"]:
         hit = next((p for p in ps if same_man(name, p)), None)
         if hit is None:
             out["XI name matching no press row"].append(f"{club['club']}: {name}")
-        elif hit["tier"] in ("comprimario", "riserva", "scarto"):
+        elif hit["tier"] in ("panchina", "riserva", "scarto"):
             out["XI man filed below ballottaggio"].append(f"{club['club']}: {hit['listone'] or hit['name']} {hit['tier']}")
     # contested places: union of ballottaggio rows through their rivals
     ball = [p for p in ps if p["tier"] == "ballottaggio"]
@@ -107,7 +108,7 @@ if bundle.exists():
         for fc, name, fvm, club in db.execute(
                 "select q.fc_id, p.canonical_name, q.fvm, c.canonical_name from listone_quotes q "
                 "join players p on p.fc_id = q.fc_id left join clubs c on c.fc_club_id = q.fc_club_id "
-                "where q.season = ? and q.platform = 'euro' and not coalesce(q.sold, 0) order by q.fvm desc", (SEASON,)):
+                "where q.season = ? and q.platform = ? and not coalesce(q.sold, 0) order by q.fvm desc", (SEASON, PLATFORM)):
             if club in clubs and fc not in surveyed:
                 out["buyable today, no press rung"].append(f"{club}: {name} (FVM {fvm:g}, id {fc})")
 else:

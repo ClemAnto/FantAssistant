@@ -85,25 +85,23 @@ export interface PlayerRuling {
 }
 
 /**
- * LA SCALA DELLA STAMPA NELLA NOSTRA, parola per parola (28/09/2026).
+ * LA PAROLA DELLA STAMPA NEL NOSTRO GRADINO. Dal 01/10/2026 la scala e' UNA (operatore: «dobbiamo uniformare
+ * i gradini nelle varie formule e nelle varie etichette altrimenti ci confondiamo ... adottiamo quelle
+ * utilizzate nella formula della Pa»): la rilevazione scrive le nostre parole, e le due che scriveva prima
+ * convergono dove lui ha deciso - `titolarissimo` in `bandiera` («concordo che titolarissimo converga in
+ * bandiera»; fino a quel giorno andava in `titolare`, cioe' la parola piu' forte della stampa valeva le giornate
+ * del gradino sotto), `comprimario` in `panchina`, che promette la stessa cosa («spesso entra, senza
+ * certezze»; `ballottaggio` gli darebbe 27,4 giornate invece di 23,0 senza un posto conteso da nominare).
  *
- * Le due scale hanno sei parole e non sono le stesse: la stampa ha `comprimario` e `scarto`, il foglio
- * `bandiera` e `panchina`. La traduzione segue quello che ogni parola PROMETTE, perche' e' la promessa
- * che l'app prezza (la mediana del gradino sul foglio, `rungShares`):
- *
- *  - `titolarissimo` (gioca sempre, campionato e coppe) -> `titolare`: la parola era anche della nostra scala
- *    fino al 01/10/2026, quando ne è uscita e il suo gradino è confluito in `titolare`;
- *  - `titolare` e `ballottaggio` -> se stessi;
- *  - `comprimario` (titolare a volte, o entra quasi sempre) -> `panchina`, che promette «spesso entra
- *    in campo, senza certezze» (0,631);
- *  - `riserva` (entra ogni tanto) e `scarto` (non gioca quasi mai) -> `riserva` (0,243): il foglio non ha
- *    un gradino piu' basso, quindi i due si fondono - e la parola originale resta scritta sulla riga, cosi'
- *    la distinzione che la stampa fa non sparisce dallo schermo.
+ * `scarto` resta la parola della stampa sotto `riserva`: finche' il foglio non ha quel gradino si prezza come
+ * `riserva`, e la parola originale resta scritta sulla riga cosi' la distinzione non sparisce dallo schermo.
  */
 export const PRESS_TO_RUNG: Readonly<Record<string, Titolarita>> = {
-  titolarissimo: 'titolare',
+  bandiera: 'bandiera',
+  titolarissimo: 'bandiera',
   titolare: 'titolare',
   ballottaggio: 'ballottaggio',
+  panchina: 'panchina',
   comprimario: 'panchina',
   riserva: 'riserva',
   scarto: 'riserva',
@@ -118,9 +116,12 @@ export function pressRulings(file: PressRungsFile | null, season: string): Map<n
   for (const [key, entry] of Object.entries(block.players ?? {})) {
     const rung = entry && typeof entry.tier === 'string' ? PRESS_TO_RUNG[entry.tier] : undefined;
     if (!rung || !Number.isFinite(Number(key))) continue;
+    // il giorno in cui la stampa ha letto il SUO club: le rilevazioni sono piu' d'una (EuroLeghe 28/09,
+    // Serie A 01/10) e una data sola sul blocco direbbe di meta' dei nomi un giorno che non e' il loro
+    const own = typeof entry.as_of === 'string' && /^\d{4}-\d\d-\d\d$/.test(entry.as_of) ? entry.as_of : '';
     out.set(Math.trunc(Number(key)), {
       rung,
-      decidedOn: asOf,
+      decidedOn: own || asOf,
       source: 'press',
       pressTier: entry.tier ?? null,
       startPct: typeof entry.start_pct === 'number' ? entry.start_pct : null,
@@ -424,6 +425,16 @@ export class PlayerRulings {
 
   /** Le parole della stampa di questa stagione, per `fc_id`, qualunque sia lo stato dell'interruttore. */
   readonly press = computed(() => pressRulings(this.pressFile(), this.season()));
+
+  /**
+   * LE RILEVAZIONI, una per giorno, con quanti calciatori ciascuna copre - dalla piu' vecchia. Contate sulle
+   * righe e non lette dal campo `source`, cosi' l'opzione dice quello che l'app sta davvero applicando.
+   */
+  readonly pressSurveys = computed(() => {
+    const byDay = new Map<string, number>();
+    for (const ruling of this.press().values()) byDay.set(ruling.decidedOn, (byDay.get(ruling.decidedOn) ?? 0) + 1);
+    return [...byDay].sort(([a], [b]) => a.localeCompare(b)).map(([asOf, count]) => ({ asOf, count }));
+  });
 
   /**
    * LE QUOTE PER GRADINO, per piattaforma: le MISURA chi ha in mano le righe di un foglio e le consegna

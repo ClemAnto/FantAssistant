@@ -106,8 +106,14 @@ substituted was `titolare` and played MORE than a titolarissimo. Measured on the
 auction, games he was fit for): six words gave votes 30.7 · 27.3 · 29.1 · 26.1 · 24.5 · 17.8 on 38, not in order;
 five give 30.7 · 28.6 · 26.1 · 24.5 · 17.8 (appearances 33.9 · 32.4 · 31.8 · 29.1 · 21.3), in order on both. An
 older sheet or declaration still carrying the word reads as `titolare` (`status.normalized`,
-`normalizeTitolarita`); the PRESS survey keeps its own seven-word scale, where `titolarissimo` is the press's word and
-maps to our `titolare`. Every threshold on the ladder is now written with the WORD (`rungIndex('panchina')`), because
+`normalizeTitolarita`). **AND FROM 01/10/2026 THE PRESS SURVEY SPEAKS THE SAME LADDER** (operator: «dobbiamo uniformare
+i gradini nelle varie formule e nelle varie etichette altrimenti ci confondiamo»): the agents write bandiera ·
+titolare · ballottaggio · panchina · riserva, plus `scarto` under riserva (measured apart: 1.0 votes of 38 against
+10.0). The two words it wrote before converge - the PRESS's `titolarissimo` into `bandiera` (his decision; the
+SHEET's old `titolarissimo` still reads as `titolare`, they were two different words), `comprimario` into `panchina`
+(measured: its definition realises 23.9 votes of 38, `panchina` 23.0, `ballottaggio` 27.4). `scarto` as a sixth rung
+of the SHEET, and renaming the CATEGORIES `riserva`/`scarto` that share a name with two rungs, are open and his.
+Every threshold on the ladder is now written with the WORD (`rungIndex('panchina')`), because
 the ones written as numbers changed meaning silently. What follows is the history of the six-word ladder.
 
 **20/08/2026, the operator's own ladder** — bandiera, titolarissimo, titolare, ballottaggio, panchina,

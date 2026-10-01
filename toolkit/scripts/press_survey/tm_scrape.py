@@ -1,5 +1,5 @@
-"""Scrape Transfermarkt for the 37 EuroLeghe clubs: squad usage (all comps + league, this season and last),
-injuries, fixtures. Read-only on the project; writes only into this scratchpad folder."""
+"""Scrape Transfermarkt for the clubs of the listone being surveyed (`listone_<platform>.json`, step 1): squad usage
+(all comps + league, this season and last), injuries, fixtures. Read-only on the project; writes only into WORK."""
 import os, json, re, subprocess, sys, time, pathlib
 from bs4 import BeautifulSoup
 
@@ -18,6 +18,10 @@ CLUBS = {  # listone name -> (tm id, league code)
     "Atalanta": (800, "IT1"), "Bologna": (1025, "IT1"), "Como": (1047, "IT1"), "Fiorentina": (430, "IT1"),
     "Inter": (46, "IT1"), "Juventus": (506, "IT1"), "Lazio": (398, "IT1"), "Milan": (5, "IT1"),
     "Napoli": (6195, "IT1"), "Roma": (12, "IT1"),
+    # the other ten of Serie A 2026-27 (01/10/2026, the Serie A listone survey)
+    "Cagliari": (1390, "IT1"), "Frosinone": (8970, "IT1"), "Genoa": (252, "IT1"), "Lecce": (1005, "IT1"),
+    "Monza": (2919, "IT1"), "Parma": (130, "IT1"), "Sassuolo": (6574, "IT1"), "Torino": (416, "IT1"),
+    "Udinese": (410, "IT1"), "Venezia": (607, "IT1"),
     "Bayer Leverkusen": (15, "L1"), "Bayern Monaco": (27, "L1"), "Borussia Dortmund": (16, "L1"),
     "Eintracht": (24, "L1"), "Lipsia": (23826, "L1"), "Stoccarda": (79, "L1"),
     "Athletic Bilbao": (621, "ES1"), "Atletico Madrid": (13, "ES1"), "Barcellona": (131, "ES1"),
@@ -25,6 +29,12 @@ CLUBS = {  # listone name -> (tm id, league code)
     "Monaco": (162, "FR1"), "Olympique Marsiglia": (244, "FR1"), "Paris Saint-Germain": (583, "FR1"),
     "Racing Strasburgo": (667, "FR1"), "Rennes": (273, "FR1"),
 }
+PLATFORM = os.environ.get("PRESS_SURVEY_PLATFORM", "euro")
+SURVEYED = json.loads((WORK / f"listone_{PLATFORM}.json").read_text(encoding="utf-8"))
+missing = sorted(set(SURVEYED) - set(CLUBS))
+if missing:
+    sys.exit(f"no Transfermarkt id for {missing}: add them to CLUBS")
+CLUBS = {club: CLUBS[club] for club in SURVEYED}
 refusals = 0
 
 

@@ -12,6 +12,16 @@ raw agent files the report and the config are rebuilt from (copied back on 29/09
 FVM and paid-source pages, and the repository is public. `$PRESS_SURVEY_DATE` (default 2026-09-28) is the survey
 day; `$PRESS_SURVEY_LISTONE_READ` the day the listone was read (shown in the report).
 
+## Which listone, and one ladder
+
+`$PRESS_SURVEY_PLATFORM` = `euro` (default: the 37 EuroLeghe clubs, 28/09/2026) | `default` (the 20 clubs of the Serie A
+listone, 01/10/2026). Give each its own work folder - the Serie A one is `data/reports/press_survey_serie_a/` - so one
+survey never overwrites the other's raw files. `to_config.py` MERGES by club: the clubs of the report it reads are
+rewritten, every other club keeps its rows, and each row carries its own `as_of` (the app shows a man's rung with the
+day HIS club was read). Since 01/10/2026 the agents write the project's ONE ladder - bandiera, titolare, ballottaggio,
+panchina, riserva - plus `scarto` under riserva; the 28/09 words `titolarissimo` and `comprimario` are converted to
+`bandiera` and `panchina` when the file is rewritten (`docs/model/letture-app-v1.md` §55.6).
+
 ## Refreshing it, in order
 
 1. `python listone.py` - perimeter and FVM from the cached EuroLeghe listone (run `snapshot` first so it is fresh).

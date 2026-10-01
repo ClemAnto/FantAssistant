@@ -33,7 +33,7 @@ import { ValuationStore } from '../../core/valuation-store';
 import { type TrendCell, trendPointsMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
-import { RUNG_RANK, Rarity, rarityText } from '../../core/draft-rarity';
+import { RUNG_RANK, Rarity, rarityText, shownRung } from '../../core/draft-rarity';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -50,16 +50,13 @@ import type { Difficulty, Interest, Scenario, ScenarioStep, Verdict } from '../.
  * THE TITOLARITÀ COLUMN'S BADGES (operator, 29/09/2026: «scrivi i valori con etichette intere con badge
  * colorati: verde titolare, ambra ballottaggio, ecc.»). Colour on an ordinal scale is his explicit request
  * here, against the app's default of reading such a scale by weight: green the two top words, amber the
- * contested shirt, orange who comes on, red who does not play. The press's six words and the sheet's six
- * rungs share four; `bandiera` reads as `titolarissimo` and `panchina` as `comprimario`, which is what
- * each promises.
+ * contested shirt, orange who comes on, red who does not play. One ladder for the press and the sheet since
+ * 01/10/2026 (`draft-rarity.RUNG_RANK`): the retired press words are shown as the word they became.
  */
 const RUNG_BADGE: Record<string, string> = {
   bandiera: 'bg-success/30 text-success font-semibold',
-  titolarissimo: 'bg-success/30 text-success font-semibold',
   titolare: 'bg-success/15 text-success',
   ballottaggio: 'bg-warning/20 text-warning',
-  comprimario: 'bg-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]/20 text-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]',
   panchina: 'bg-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]/20 text-[color-mix(in_oklab,var(--color-warning),var(--color-danger))]',
   riserva: 'bg-danger/15 text-danger',
   scarto: 'bg-danger/30 text-danger font-semibold',
@@ -1128,10 +1125,10 @@ export class Auction {
    */
   protected readonly minRung = signal<number | null>(null);
   protected readonly rungOptions = [
-    { rank: 6, label: 'almeno titolarissimo' },
+    { rank: 6, label: 'almeno bandiera' },
     { rank: 5, label: 'almeno titolare' },
     { rank: 4, label: 'almeno ballottaggio' },
-    { rank: 3, label: 'almeno comprimario' },
+    { rank: 3, label: 'almeno panchina' },
     { rank: 2, label: 'almeno riserva' },
   ] as const;
 
@@ -1319,9 +1316,9 @@ export class Auction {
     id: number,
     press: ReadonlyMap<number, { pressTier?: string | null }> = this.rulings.press(),
   ): { press: string | null; pressSource: 'stampa' | 'motore' | null } {
-    const said = press.get(id)?.pressTier ?? null;
+    const said = shownRung(press.get(id)?.pressTier);
     if (said) return { press: said, pressSource: 'stampa' };
-    const sheet = this.advice.numbers().get(id)?.titolarita ?? null;
+    const sheet = shownRung(this.advice.numbers().get(id)?.titolarita);
     return sheet ? { press: sheet, pressSource: 'motore' } : { press: null, pressSource: null };
   }
 

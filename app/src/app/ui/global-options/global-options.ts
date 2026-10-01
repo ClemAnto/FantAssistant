@@ -88,8 +88,9 @@ export class GlobalOptionsPanel {
    */
   private readonly rulings = inject(PlayerRulings);
   protected readonly pressDraft = signal(this.rulings.pressOn());
-  /** Il giorno della rilevazione in italiano, o '' se il pacchetto non la porta. */
-  protected readonly pressAsOf = computed(() => this.rulings.pressAsOf().split('-').reverse().join('/'));
+  /** Le rilevazioni in italiano («28/09 · 400 calciatori»), una per giorno: ogni club ha la sua data. */
+  protected readonly pressSurveys = computed(() =>
+    this.rulings.pressSurveys().map(({ asOf, count }) => `${asOf.split('-').reverse().join('/')} · ${count}`));
   /** Quanti calciatori la rilevazione copre: l'opzione dice su chi agisce, non lo lascia indovinare. */
   protected readonly pressCount = computed(() => this.rulings.press().size);
 

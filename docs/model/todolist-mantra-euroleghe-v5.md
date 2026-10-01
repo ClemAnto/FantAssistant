@@ -2717,3 +2717,17 @@ Dettaglio in `partite-attese-scomposte-v1.md` §5-septies → §5-duodecies.
    regge anche lì sui gradini alti.
 7. Restano dalla sessione precedente: R33b in avanti (10ª, 19ª, 38ª giornata), i pacchetti del viaggio nel tempo che
    sanno chi sarà ceduto a gennaio, il test smoke su `league_config.json` (rosso, precedente a questa sessione).
+
+## Aperti dopo la sessione del 01/10/2026 (III) — il gradino della stampa per la Serie A, una scala sola
+
+Dettaglio in `letture-app-v1.md` §55.6.
+
+1. **`scarto` come sesto gradino del FOGLIO** (decisione dell'operatore aperta): misurato a parte da `riserva` (1,0 voti
+   su 38 contro 10,0). Toccherebbe `engine/status.py` (`LADDER`, una soglia sotto `PLAY_OFTEN`), il tipo `Titolarita`
+   dell'app, `RUNG_VOTE_SHARE`, una revisione del foglio. Finché no, lo `scarto` della stampa si prezza come `riserva`.
+2. **Le CATEGORIE `riserva` e `scarto`** si chiamano come due gradini e dicono quanto vale un uomo, non quanto gioca:
+   rinominarle è una scelta dell'operatore (proposta: `rincalzo`, `inutile`).
+3. **`compare.py` / `score.py` / `outcome.py`** della rilevazione parlano ancora la scala vecchia della stampa: vanno
+   portati alle parole nuove prima del prossimo confronto noi-contro-stampa.
+4. **La rilevazione Serie A non ha un comando che la rinnovi**: rifarla prima di un'asta vuol dire rifare i passi
+   2-8 del README con `PRESS_SURVEY_PLATFORM=default` (i club con `prev/` si aggiornano, non si rifanno).

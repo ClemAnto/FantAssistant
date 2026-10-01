@@ -7212,6 +7212,40 @@ Richiesta dell'operatore: «verifica che l'analisi per determinare il gradino de
   Windows dal perdere gli output grezzi da cui si rifanno report e config. È ora in `data/reports/press_survey/`
   (ignorata da git), con le copie `*.bak-2026-09-29` di prima delle correzioni.
 
+### 55.6 La Serie A, e una scala sola (1 ottobre 2026)
+
+Richiesta dell'operatore: «aggiorna il gradino della stampa per le squadre di Serie A da vedere nella pagina draft
+come fatto per le EuroLeghe», poi, a metà lavoro, «dobbiamo uniformare i gradini nelle varie formule e nelle varie
+etichette altrimenti ci confondiamo».
+
+- **Rilevazione Serie A del 01/10/2026**, tutti e 20 i club del listone: i 10 già rilevati il 28/09 come club
+  EuroLeghe aggiornati da quel file (era la sosta: cambiano infortuni, rientri e qualche ballottaggio, ogni riga
+  toccata porta `revised`), gli altri 10 da zero. Stessa pipeline, ora parametrica sul listone
+  (`PRESS_SURVEY_PLATFORM=default`, cartella `data/reports/press_survey_serie_a/`). Copertura: **534 acquistabili
+  su 535**; manca Russo A. (Sassuolo, FVM 1), che nessuna fonte ha in rosa. Il file si FONDE per club e ogni riga
+  porta la data del suo club: 665 righe del 28/09 (27 club esteri) e 534 del 01/10.
+- **Una scala sola.** Il toolkit e la formula delle Pa usavano già cinque parole (bandiera · titolare · ballottaggio
+  · panchina · riserva); la rilevazione aveva le sue sei, e la pagina draft le stampava accanto a quelle del foglio.
+  Da oggi gli agenti scrivono le nostre, e le due vecchie convergono: `titolarissimo` → `bandiera` (decisione
+  dell'operatore; prima andava in `titolare`, cioè la parola più forte della stampa valeva le giornate del gradino
+  sotto: 29,6 invece di 31,2 su 38 per 144 uomini), `comprimario` → `panchina` (stessa promessa; `ballottaggio` gli
+  darebbe 27,4 giornate invece di 23,0 senza un posto conteso da nominare).
+- **`scarto` resta la parola della stampa sotto `riserva`**, perché è misurata a parte: spezzando la `riserva` di
+  `press_calib` (Serie A 2019-26, le 10 partite successive), chi gioca meno del 10% prende **1,0** voto su 38 e il
+  resto della `riserva` **10,0**, contro il 6,3 della `riserva` unica. Nell'app oggi si prezza come `riserva` con
+  la parola visibile; farne un sesto gradino del foglio è una decisione aperta, e con lei il nome delle due
+  CATEGORIE `riserva` e `scarto`, che oggi si chiamano come due gradini e dicono un'altra cosa.
+- **`comprimario` → `panchina` verificato** (sua domanda: «verifica che sia corretto ... e non ballottaggio o altro
+  gradino a sé»). Due misure. (1) La definizione della stampa (parte titolare nel 25-60% delle partite in cui è
+  disponibile, o entra quasi sempre partendo poco) applicata alle 10 partite dopo il 5 settembre, Serie A 2019-26,
+  movimento, coi voti veri sul resto della stagione: **23,9** su 38 (435 casi), contro `panchina` 23,0, `ballottaggio`
+  27,4, `riserva` 4,2 - un gradino suo varrebbe meno di una giornata. (2) I 112 comprimario veri del 28/09: quota di
+  partenze 25%, partite giocate 74% (dentro la banda 50-80% di `panchina`), 56 minuti, Pa del motore 13,4 contro i
+  16,1 del `ballottaggio` della stampa; 2 su 112 nell'undici, nessuno con un rivale nominato. Limite: «nessun rivale
+  diretto» non si osserva, quindi la definizione è approssimata con partenze e presenze.
+- **Una cosa sbagliata nelle istruzioni agli agenti**: dicevano che il 27-29/09 si era giocata una giornata; era la
+  sosta (ultima giornata il 18/09, prossima l'11/10). Gli agenti l'hanno corretta leggendo i dati.
+
 ## 56 - LA STAGIONE SCORSA DI CHI LA PIATTAFORMA NON HA VOTATO (29 settembre 2026)
 
 Richiesta dell'operatore sulla vista «medie» del Draft Assistant: «recuperiamo i valori dello scorso anno di

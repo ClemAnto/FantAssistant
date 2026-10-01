@@ -377,7 +377,10 @@
             <span class="w-32 shrink-0 text-sm text-muted">Gradino della stampa</span>
             <nz-switch nzSize="small" [nzDisabled]="!pressCount()" [(ngModel)]="pressDraft" />
             @if (pressCount()) {
-              <span class="text-sm">rilevazione del {{ pressAsOf() }} · {{ pressCount() }} calciatori</span>
+              <span class="text-sm">
+                {{ pressSurveys().length > 1 ? 'rilevazioni del' : 'rilevazione del' }}
+                {{ pressSurveys().join(' + ') }} calciatori
+              </span>
             } @else {
               <span class="text-sm text-muted">il pacchetto non porta nessuna rilevazione di stampa</span>
             }
