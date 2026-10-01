@@ -48,6 +48,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
+import random
 import sqlite3
 import sys
 from collections import defaultdict
@@ -550,6 +551,7 @@ def band_loss(group, params) -> float:
 
 # M6a-M6d (§5-septies), measured by `m6.py` and adopted by nobody until the operator says so.
 STARTER_SHARE, OLD_AGE = 0.6, 32
+BAND_RESTARTS, BAND_SEED = 12, 7
 EXTRA_GRID = {"q_top": GRID["q"], "age_f": [0.85, 0.9, 0.95, 1.0]}
 
 
@@ -573,10 +575,28 @@ def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True, cl
     # rescue rows the line already answers.
     outfield = [r for r in train if not (p["keeper"] and r["ctx"].startswith("portiere"))]
     loss = band_loss if objective == "band" else mae
-    for _ in range(4):
-        for key, values in {**GRID, **{key: EXTRA_GRID[key] for key in extra}}.items():
-            p[key] = min(values, key=lambda v: loss(outfield, {**p, key: v}))
-    return p
+    grid = {**GRID, **{key: EXTRA_GRID[key] for key in extra}}
+
+    def descend(start: dict) -> tuple[dict, float]:
+        q = dict(start)
+        for _ in range(4):
+            for key, values in grid.items():
+                q[key] = min(values, key=lambda v: loss(outfield, {**q, key: v}))
+        return q, loss(outfield, q)
+
+    best, best_loss = descend(p)
+    # THE SHARE WITHIN 80-125% IS A STAIRCASE, and one descent from one start stops on the first step it finds
+    # (`fit_check.py`, 01/10/2026: the shipped fit sat at kD 640 / w2 2 / kS 0-5, i.e. on the grid's edges, and
+    # widening the grid moved nothing). From `BAND_RESTARTS` random starts, the one with the best TRAINING loss:
+    # held out, 57.4% -> 59.5% within the band, better on 6 seasons of 7, mean error 6.38 -> 6.27, and the
+    # parameters land inside the grid (kS 20, c 1.05, w2 0.5-0.75). The seed is fixed: a fit is reproducible.
+    if objective == "band":
+        rng = random.Random(BAND_SEED)
+        for _ in range(BAND_RESTARTS):
+            q, q_loss = descend({**p, **{key: rng.choice(values) for key, values in grid.items()}})
+            if q_loss < best_loss:
+                best, best_loss = q, q_loss
+    return best
 
 
 def mae(group, params) -> float:

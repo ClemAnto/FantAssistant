@@ -779,6 +779,38 @@ continua a non muovere niente. `e2e-player-ruling` legge la tabella dal sorgente
 **Da ora**: ogni aggiornamento della rilevazione si committa prima dell'asta, così a fine stagione il gradino della
 stampa del 5 settembre si confronta con l'esito e il «caso migliore» qui sopra si sostituisce con la stampa vera.
 
+## 5-duodecies. I dati completi, e la taratura che era bloccata (01/10/2026)
+
+**Il buco chiuso.** Con gli id dei 15 club ricavati (§5-nonies), `injuries --layer ids` ha letto le loro rose e
+`performance` le partite dei loro uomini: i quotati di Serie A con le partite di Transfermarkt passano dall'85-92% al
+**97-100%** per stagione (2019-20 97,1% · 2022-23 99,4% · 2023-24 100% · 2025-26 99,2%). Sulla base di settembre
+(P0, zeri contati, M7f) la quota passa da 57,2% a **57,5%** e l'errore da 6,41 a 6,38: i quotati che ritrovano una
+stagione sono soprattutto quelli delle piccole, poco decisivi sulla media.
+
+**La taratura era bloccata** (`fit_check.py`, l'aperto del §5-septies). La quota entro l'80-125% è una funzione a
+gradini, e la discesa per coordinate da un punto solo si fermava sul primo gradino: `kD` 640, `w2` 2, `kS` 0-5, cioè i
+bordi della griglia. Allargarla non sposta niente (stessa quota al millesimo), quindi i bordi non erano dove sta la
+risposta, erano dove la discesa si fermava. Ripartendo da 12 punti a caso e tenendo il migliore SULLA TARATURA:
+
+| | quota | stagioni meglio | errore |
+|---|---|---|---|
+| taratura spedita | 57,43% | - | 6,376 |
+| **12 ripartenze** | **59,54%** | **6 su 7** | **6,274** |
+| griglia allargata | 57,43% | 0 su 7 | 6,376 |
+
+I parametri cadono all'interno (`kS` 20, `c` 1,05, `w2` 0,5-0,75, `q` −0,1). Non è una regola nuova ma il modo di
+trovare i parametri della stessa: adottata (`build.BAND_RESTARTS` = 12, seme fisso perché una taratura sia
+riproducibile). Il banco rifatto legge **59,8%** e 6,27 contro il 49,3% e 6,55 del motore. **Ogni misura fatta dal
+§5-sexies in poi con la taratura sulla quota (M1b-M4, M5, M6, M7) è stata presa con lo strumento bloccato**, e si
+rifà.
+
+**Dove cadono i 620 fuori banda** (base prima delle ripartenze): infortunio lungo imprevisto 18%, infortuni e assenze
+fra il 15 e il 33% della stagione 25%, ceduto all'estero in stagione 11%, infortunio lungo già aperto all'asta 5%,
+titolari sani che giocano 32% (142 sotto, 56 sopra), chi gioca poco 9%. Le prime tre (54%) sono il pavimento. Fra i
+sani sottostimati (131) il caso tipico è chi l'anno prima entrava dalla panchina e ha cominciato male le giornate viste
+(voti visti 0,45 contro 0,78 degli altri sani), poi gioca: Pa 20,9 contro 30,8 vere. È quello che la stampa al tavolo
+vede e il banco no.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
