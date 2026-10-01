@@ -21,7 +21,7 @@ import { ExportReadings, pickRecords, picksCsv, saveCsv, squadsCsv } from '../..
 import { AuctionDemo } from '../../core/auction-demo';
 import { AuctionFeed, AuctionPlayer, AuctionTeam, CLASSIC_OF_ZONE, SquadEntry } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
-import { DraftPlace, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from '../../core/draft-pitch';
+import { DraftPlace, addedYield, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from '../../core/draft-pitch';
 import type { FantaMan } from '../../core/fanta-eleven';
 import { GlobalOptions } from '../../core/global-options';
 import { lazyRows } from '../../core/lazy-rows';
@@ -35,6 +35,7 @@ import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { RUNG_RANK, Rarity, rarityText, shownRung } from '../../core/draft-rarity';
 import { paOnSeason } from '../../core/presence-now';
+import { onSeasonBase } from '../../core/season-scale';
 import { asFlag, bindQuery } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
@@ -70,11 +71,11 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
-  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw' | 'pa'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw' | 'pa' | 'added'
   | `${SeasonMetric}@${'now' | 'last'}`;
 
 const FREE_SORT_KEYS: readonly string[] = [
-  'role', 'name', 'press', 'fvm', 'trend', 'prio', 'rung', 'pvp', 'min', 'mvp', 'steady', 'fmp', 'rar', 'sesw', 'pa',
+  'role', 'name', 'press', 'fvm', 'trend', 'prio', 'rung', 'pvp', 'min', 'mvp', 'steady', 'fmp', 'rar', 'sesw', 'pa', 'added',
 ];
 
 /** A sort key read back from the address: one of the columns, or a season metric of the «medie» view. */
@@ -155,6 +156,12 @@ export interface FreeRow {
    * does not carry - never a zero.
    */
   pa: number | null;
+  /**
+   * WHAT HE ADDS TO MY PITCH (operator, 01/10/2026): coverage in % of the whole squad's eleven places («+5.6%») and fertility in
+   * hundredths per matchday («+12»), the same increments a plan prints (`draft-pitch.addedYield`). Null while I
+   * follow no squad; `fertility` null when his bonus is unknown.
+   */
+  added: { cover: number; fertility: number | null; coverText: string; fertilityText: string } | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
   /** Off OUR board for the rest of the draft: our line is full (the keepers, and on classic 8/8/6). */
@@ -270,8 +277,8 @@ const ELEVEN = 11;
     /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
        THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
        empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
-    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.9rem 75px minmax(0, 1fr); }
-    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
+    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -313,7 +320,7 @@ const ELEVEN = 11;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
-    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem repeat(8, 2.3rem) minmax(0, 1fr); }
+    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -669,7 +676,7 @@ export class Auction {
     const squad = this.squad();
     let best: { name: string; fertility: number; cover: number } | null = null;
     for (const name of this.moduleNames()) {
-      const drawn = draftPitchOf(squad, rules, preferred, name);
+      const drawn = draftPitchOf(squad, rules, preferred, name, this.byCoverage());
       if (!drawn || drawn.module !== name) continue;
       const { cover, fertility } = pitchYield(drawn);
       if (!best || fertility > best.fertility + 1e-9 || (Math.abs(fertility - best.fertility) <= 1e-9 && cover > best.cover + 1e-9)) {
@@ -703,6 +710,13 @@ export class Auction {
     return recommendedModules(this.feed.isMantra()).includes(name);
   }
 
+  /**
+   * THE RESERVES ARE SPREAD WHERE THEY ADD MOST COVERAGE, on every game (operator, 01/10/2026: on classic first, then
+   * «scegli come titolari quelli che danno un maggior contributo in fertilità e poi distribuisci le riserve per
+   * copertura» for the whole pitch). A switch and not a constant, so the even spread is one line away.
+   */
+  private readonly byCoverage = computed(() => true);
+
   /** A man as the pitch draws him: roles to match on, and the numbers the panel prices him with. */
   private manOf(player: AuctionPlayer, cost: number): FantaMan {
     const shown = this.feed.gameRoles(player);
@@ -716,7 +730,11 @@ export class Auction {
       value99: this.advice.value99By().get(player.id) ?? null,
       cost,
       minutesPerMatch: null,
-      share: this.advice.expectedShareBy().get(player.id) ?? null,
+      // The appearances the operator reads in the Pa column (the new formula where it has him, the engine elsewhere),
+      // as a SHARE OF THE COMPETITION'S rounds left - 33 on Serie A, 27 on EuroLeghe today, never the number 38
+      // (operator, 01/10/2026: «in funzione delle giornate della competizione e non su 38 della serie A»). Both
+      // sources are already that share (`draftShareBy`), so the coverage reads `share x 0.8` and no calendar.
+      share: this.advice.draftShareBy().get(player.id) ?? null,
       bonus: this.advice.bonusBy().get(player.id) ?? null,
     };
   }
@@ -860,9 +878,9 @@ export class Auction {
         .map((player) => this.manOf(player, player.fvm));
       // The module the pitch draws once the plan is chosen (`pitch`): the forced one first, or the totals here would
       // describe another shape than the per-place increments a click puts on the pitch.
-      const target = this.forcedModule() ?? draftPitchOf([...squad, ...picks], rules, preferred)?.module ?? null;
+      const target = this.forcedModule() ?? draftPitchOf([...squad, ...picks], rules, preferred, null, this.byCoverage())?.module ?? null;
       const yieldWith = (extra: FantaMan[]) => {
-        const drawn = draftPitchOf(squad, rules, preferred, target);
+        const drawn = draftPitchOf(squad, rules, preferred, target, this.byCoverage());
         return drawn ? pitchYield(withSuggestions(drawn, extra), true) : { cover: 0, fertility: 0 };
       };
       const base = yieldWith([]);
@@ -871,6 +889,37 @@ export class Auction {
       out.set(chain.key, {
         first: { cover: one.cover - base.cover, fertility: one.fertility - base.fertility },
         second: both ? { cover: both.cover - one.cover, fertility: both.fertility - one.fertility } : null,
+      });
+    }
+    return out;
+  });
+
+  /**
+   * WHAT EACH FREE MAN ADDS to my pitch, by id (operator, 01/10/2026): the column beside RAR. My pitch is drawn ONCE,
+   * on the module the operator forced or the one my real men field best - not on the plan's target, which changes
+   * with the plan selected and would make the column move under a click - and every man is added to a copy of it.
+   */
+  private readonly addedBy = computed(() => {
+    const out = new Map<number, NonNullable<FreeRow['added']>>();
+    if (!this.feed.followed()) return out;
+    const rules = this.advice.rules();
+    const drawn = draftPitchOf(this.mySquad(), rules, recommendedModules(this.feed.isMantra()), this.forcedModule(), this.byCoverage());
+    if (!drawn) return out;
+    const everyone = this.everyone();
+    for (const row of this.advice.ranked()) {
+      const player = everyone.get(row.player.id);
+      if (!player) continue;
+      const { cover, fertility } = addedYield(drawn, this.manOf(player, player.fvm));
+      // In % OF THE WHOLE SQUAD (operator, 01/10/2026, after an hour on % of a place: «non mostrare l'incremento
+      // della copertura alla singola posizione ma all'intera rosa»): the places he covers over the eleven, with ONE
+      // decimal - a man adds at most one place, i.e. 9.1%, and whole percents would tie half the list.
+      const c = Math.round((cover / ELEVEN) * 1000) / 10;
+      const f = hundredths(fertility);
+      out.set(row.player.id, {
+        cover,
+        fertility,
+        coverText: `${c > 0 ? '+' : ''}${c.toFixed(1)}%`,
+        fertilityText: f == null ? '—' : `${f > 0 ? '+' : ''}${f}`,
       });
     }
     return out;
@@ -936,8 +985,8 @@ export class Auction {
     const target = this.rivalView()
       ? (this.rivalModule() ?? this.fertileModule())
       : this.forcedModule()
-        ?? (suggested.length ? draftPitchOf([...this.squad(), ...suggested], rules, preferred)?.module ?? null : null);
-    const drawn = draftPitchOf(this.squad(), rules, preferred, target);
+        ?? (suggested.length ? draftPitchOf([...this.squad(), ...suggested], rules, preferred, null, this.byCoverage())?.module ?? null : null);
+    const drawn = draftPitchOf(this.squad(), rules, preferred, target, this.byCoverage());
     return drawn && suggested.length ? withSuggestions(drawn, suggested) : drawn;
   });
 
@@ -1052,11 +1101,13 @@ export class Auction {
     const rows = ranked.map((row) => this.freeRow(row, scores.get(row.player.id) ?? null, top, press, trends));
     const rar = this.advice.freeRarity();
     const season = this.advice.priorityOfMan();
+    const added = this.addedBy();
     for (const row of rows) {
       row.rar = rar.get(row.id) ?? null;
       row.rarText = rarityText(row.rar);
       row.seswScore = season.get(row.id) ?? null;
       row.sesw = hundredths(row.seswScore);
+      row.added = added.get(row.id) ?? null;
     }
     // THE BLOCKED TOPS STAY WHERE THEIR PRIORITY PUTS THEM (operator, 29/09/2026: «devono essere visibili
     // anche i calciatori freezati»): they used to sink to the bottom of a list that loads sixty rows at a
@@ -1095,7 +1146,8 @@ export class Auction {
       rarText: '—',
       sesw: null,
       seswScore: null,
-      pa: goal ? null : paOnSeason(this.advice.paShares().get(row.player.id), this.advice.matchdaysTarget()),
+      added: null,
+      pa: goal ? null : paOnSeason(this.advice.paShares().get(row.player.id), this.advice.competitionRounds()),
       locked: this.advice.lockedForMe(row.price),
       full: this.advice.fullForMe(row.player.id),
       takenBy: this.takenBy(row.player.id),
@@ -1344,6 +1396,11 @@ export class Auction {
         return (row) => row.seswScore;
       case 'pa':
         return (row) => row.pa;
+      case 'added':
+        // FERTILITY FIRST, coverage only on a tie (operator, 01/10/2026): the tie is on the hundredths the column prints,
+        // and the coverage (at most one place) can never outweigh one of them. An unknown fertility sorts last.
+        return (row) => (row.added?.fertility == null ? null
+          : (hundredths(row.added.fertility) ?? 0) + row.added.cover * 1e-3);
       case 'rung':
         return (row) => (row.expected.rung && PRESS_RANK[row.expected.rung] != null ? PRESS_RANK[row.expected.rung] : null);
       case 'pvp':
@@ -1386,7 +1443,8 @@ export class Auction {
     const measured = numbers?.fm != null;
     return {
       rung: numbers?.titolarita ?? null,
-      pv: numbers?.pv ?? numbers?.estPv ?? null,
+      // On the COMPETITION's rounds (the options' «giornate», 01/10/2026), like the Pa beside it.
+      pv: onSeasonBase(numbers?.pv ?? numbers?.estPv ?? null, this.advice.competitionScale()),
       minutes: numbers?.minutesNext ?? null,
       mv: numbers?.mv ?? null,
       steady: goal ? null : (this.ratings.for(platform, id)?.steady?.share ?? null),
@@ -1603,8 +1661,8 @@ export class Auction {
       role,
       platform: this.advice.entry()?.platform ?? 'default',
       edge: fm == null ? null : fm - EDGE_BASE,
-      pv: numbers?.pv ?? numbers?.estPv ?? null,
-      rounds: this.advice.matchdaysTarget(),
+      pv: onSeasonBase(numbers?.pv ?? numbers?.estPv ?? null, this.advice.competitionScale()),
+      rounds: this.advice.competitionRounds(),
       swing: null,
       fm,
       estimated: !measured && fm != null,

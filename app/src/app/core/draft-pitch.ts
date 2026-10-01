@@ -77,6 +77,29 @@ export interface DraftPitch {
   total: number;
 }
 
+/**
+ * WHO STARTS (operator, 01/10/2026: «scegli come titolari quelli che danno un maggior contributo in fertilità e poi
+ * distribuisci le riserve per copertura»): the man whose FERTILITY CONTRIBUTION is highest - his expected bonus per
+ * appearance x the coverage he gives a place on his own (`coverOf`, capped at one place) - which is what the place
+ * would yield with him as its starter.
+ * The `STARTER_FLOOR` offset keeps every man with a share positive, so `bestEleven` (which maximises the SUM and drops a
+ * weight <= 0) still fills as many places as it can before it compares fertility - a defender whose bonus is a malus
+ * is a starter rather than an empty place. A man with an UNKNOWN bonus comes after every man with a known one (he is
+ * placed, never preferred: «vuoto = ignoto»), and a man with no expected appearances or no value is not a starter.
+ * THE KEEPER IS THE EXCEPTION, and the reason is arithmetic: his «bonus» is the malus of the goals conceded, so the
+ * literal rule would start whoever PLAYS LEAST. A door starts the keeper who covers it most.
+ */
+export const STARTER_FLOOR = 10;
+
+export function starterWeight(man: FantaMan): number | null {
+  // A man the sheet cannot price is never a starter (he is drawn as a reserve), as before the rule changed.
+  if (man.share == null || man.value == null) return null;
+  const cover = Math.min(1, coverOf(man));
+  if (man.roles.some((role) => role === 'por' || role === 'p')) return STARTER_FLOOR + cover;
+  if (man.bonus == null) return STARTER_FLOOR / 2;
+  return STARTER_FLOOR + cover * man.bonus;
+}
+
 /** The rulebook with the preferred modules FIRST, so a tie goes to them (`bestEleven` keeps the first). */
 export function preferring(rules: MantraModules, preferred: readonly string[]): MantraModules {
   const names = Object.keys(rules.modules ?? {});
@@ -99,13 +122,14 @@ export function draftPitchOf(
   rules: MantraModules | null,
   preferred: readonly string[] = [],
   forced: string | null = null,
+  byCoverage = false,
 ): DraftPitch | null {
   if (!rules?.modules || !Object.keys(rules.modules).length) return null;
   const ordered = preferring(rules, forced ? [forced, ...preferred] : preferred);
   const scoped = forced && ordered.modules[forced]
     ? { ...ordered, modules: { [forced]: ordered.modules[forced] } }
     : ordered;
-  const best = bestEleven(squad, scoped, (man) => man.value);
+  const best = bestEleven(squad, scoped, starterWeight);
   const module = best?.module ?? Object.keys(scoped.modules)[0];
   const places: Place[] = best?.places ?? placesIn(scoped, module);
   const holders: (FantaMan | null)[] = best?.holders ?? places.map(() => null);
@@ -122,7 +146,7 @@ export function draftPitchOf(
     };
   });
 
-  const { unplaced } = spreadReserves(drawn, squad.filter((man) => !holders.includes(man)));
+  const { unplaced } = spreadReserves(drawn, squad.filter((man) => !holders.includes(man)), byCoverage);
 
   const rows: DraftRow[] = [];
   for (const line of DRAW_ORDER) {
@@ -135,7 +159,9 @@ export function draftPitchOf(
     rows,
     placed: drawn.filter((place) => place.man).length,
     unplaced,
-    total: best?.total ?? 0,
+    // The eleven's worth stays in FANTAPUNTI (the header prints it so): the starters are CHOSEN on fertility, but
+    // what they are worth is still their value.
+    total: holders.reduce((sum, man) => sum + (man?.value ?? 0), 0),
   };
 }
 
@@ -151,6 +177,7 @@ export function draftPitchOf(
 export function spreadReserves(
   places: DraftPlace[],
   bench: readonly FantaMan[],
+  byCoverage = false,
 ): { unplaced: FantaMan[] } {
   const unplaced: FantaMan[] = [];
   const ordered = [...bench].sort(
@@ -158,8 +185,19 @@ export function spreadReserves(
   );
   for (const man of ordered) {
     let target: DraftPlace | null = null;
+    let targetGain = -1;
     for (const place of places) {
       if (!man.roles.some((role) => place.roles.includes(role))) continue;
+      // CLASSIC (operator, 01/10/2026: «distribuisci i calciatori con lo stesso ruolo nelle varie posizioni per
+      // ottimizzare la copertura»): the place where he adds the MOST coverage wins, and only a tie falls back on
+      // the even spread below.
+      const gain = byCoverage ? coverageGain(place, man) : 0;
+      if (byCoverage && gain > targetGain + 1e-9) {
+        target = place;
+        targetGain = gain;
+        continue;
+      }
+      if (byCoverage && gain < targetGain - 1e-9) continue;
       if (
         !target
         || place.reserves.length < target.reserves.length
@@ -176,32 +214,54 @@ export function spreadReserves(
 }
 
 /**
- * WHAT A PLACE GIVES, from the men who stand on it (operator, 29/09/2026: «per ogni posizione devi indicare 1)
- * copertura: una % che dipende dalle partite previste di chi la occupa, somma titolari e riserve; 2) fertilità:
- * uno swing che dipende dai bonus previsti di chi la occupa, somma titolari e riserve»).
+ * THE SHARE OF A MAN'S EXPECTED APPEARANCES THAT COUNTS AS COVER (operator, 01/10/2026: «un calciatore che gioca 38
+ * partite contribuisce alla copertura per 38/38 * 0.8 (togliamo un 20% per eventuali defezioni)»). DECLARED, not
+ * measured: the expected appearances already discount the injuries the sheet knows of, so this is a margin on top.
+ */
+export const COVER_AVAILABILITY = 0.8;
+
+/**
+ * What a man contributes to the cover of the place he stands on, before the cap at one place. `share` is his expected
+ * appearances over the COMPETITION's rounds (operator, 01/10/2026: «e non su 38 della serie A») - the caller's
+ * business, because the calendar is the sheet's: 33 rounds left on Serie A, 27 on EuroLeghe. Nothing here knows 38.
+ */
+export function coverOf(man: FantaMan | null | undefined): number {
+  return man?.share == null ? 0 : man.share * COVER_AVAILABILITY;
+}
+
+/** The men a place counts, in order: the starter, his reserves best first, then the suggestions where asked for. */
+function menOf(place: DraftPlace, withSuggested: boolean): (FantaMan | null)[] {
+  return withSuggested
+    ? [place.man ?? place.suggested ?? null, ...place.reserves, place.suggestedReserve ?? null]
+    : [place.man, ...place.reserves];
+}
+
+/** How much coverage `man` adds to `place` if he stands there too (`placeYield` with and without him). */
+export function coverageGain(place: DraftPlace, man: FantaMan, withSuggested = false): number {
+  const now = placeYield(place, withSuggested).cover;
+  return Math.min(1, now + coverOf(man)) - now;
+}
+
+/**
+ * WHAT A PLACE GIVES, from the men who stand on it (operator, 29/09/2026, coverage rewritten 01/10/2026).
  *
- * The sum is taken IN ORDER - the starter, then his reserves best first - and each man adds only the matchdays the
- * men before him leave uncovered, because only one of them plays a place on a matchday: a starter at 90% and a
- * reserve at 80% cover 98%, not 170%. Coverage is that sum; fertility is the same sum weighted by each man's
- * expected bonus per appearance, i.e. the bonus points per matchday the place yields. Only the REAL men count:
- * the suggestions are a projection, drawn at 30%, and a place with nobody on it covers 0%.
+ * COVERAGE is the SUM of what each man contributes - his expected appearances over the season x `COVER_AVAILABILITY`
+ * - CAPPED at one place: a man of 38 expected appearances gives 80%, one of 20 gives 42%, both on one place 122%
+ * -> 100%. FERTILITY is each man's expected bonus per appearance weighted by the part of that coverage he actually
+ * contributes, taken in order (the starter, then his reserves best first), so the cap cuts the last man's bonus and
+ * not the starter's. Only the REAL men count unless `withSuggested`: the suggestions are a projection, drawn at 30%.
+ * A man who contributes with an UNKNOWN bonus makes the place's fertility unknown («vuoto = ignoto, mai zero»).
  */
 export function placeYield(place: DraftPlace, withSuggested = false): { cover: number; fertility: number | null } {
   let cover = 0;
   let fertility: number | null = null;
-  // `withSuggested`: the same sum with the projected men counted too - a starter where the place is empty, a reserve
-  // where it has none - which is what a plan would ADD when it is taken (`pitchYield`, the solutions' increments).
-  const men = withSuggested
-    ? [place.man ?? place.suggested ?? null, ...place.reserves, place.suggestedReserve ?? null]
-    : [place.man, ...place.reserves];
-  // A man who covers matchdays with an UNKNOWN bonus makes the place's fertility unknown: summing only the others
-  // would print a number that silently leaves his matchdays at zero bonus («vuoto = ignoto, mai zero»).
   let unknown = false;
-  for (const man of men) {
+  for (const man of menOf(place, withSuggested)) {
     if (!man || man.share == null) continue;
-    const adds = (1 - cover) * man.share;
+    const adds = Math.min(1 - cover, coverOf(man));
+    if (adds <= 0) continue;
     cover += adds;
-    if (man.bonus == null) unknown ||= adds > 0;
+    if (man.bonus == null) unknown = true;
     else fertility = (fertility ?? 0) + adds * man.bonus;
   }
   return { cover, fertility: unknown ? null : fertility };
@@ -244,19 +304,31 @@ export function withSuggestions(pitch: DraftPitch, projected: readonly FantaMan[
   const seen = new Set<number>();
   const ranked = [...projected]
     .filter((man) => !onPitch.has(man.id) && !seen.has(man.id) && (seen.add(man.id), true))
-    .sort((a, b) => (b.value ?? -Infinity) - (a.value ?? -Infinity));
+    // The same order the real starters are chosen on (`starterWeight`): a suggestion is a projected starter too.
+    .sort((a, b) => (starterWeight(b) ?? -Infinity) - (starterWeight(a) ?? -Infinity));
   const empty = places.filter((place) => !place.man);
   const starters = assign(ranked, empty.map((place) => place.roles));
   empty.forEach((place, at) => {
     place.suggested = starters.holder[at] >= 0 ? starters.chosen[starters.holder[at]] : null;
   });
   const used = new Set(starters.chosen);
-  const left = ranked.filter((man) => !used.has(man));
-  const bare = places.filter((place) => !place.reserves.length);
-  const reserves = assign(left, bare.map((place) => place.roles));
-  bare.forEach((place, at) => {
-    place.suggestedReserve = reserves.holder[at] >= 0 ? reserves.chosen[reserves.holder[at]] : null;
-  });
+  // THE RESERVES GO WHERE THEY ADD MOST COVERAGE (01/10/2026, with the new coverage): best projected man first, to
+  // the place of his roles - with no suggested reserve yet - whose cover he raises the most. A place already full
+  // takes nobody, and a man who adds nothing anywhere is not drawn.
+  for (const man of ranked.filter((one) => !used.has(one))) {
+    let target: DraftPlace | null = null;
+    let best = 1e-9;
+    for (const place of places) {
+      if (place.suggestedReserve || !man.roles.some((role) => place.roles.includes(role))) continue;
+      const gain = coverageGain(place, man, true);
+      if (gain > best) {
+        target = place;
+        best = gain;
+      }
+    }
+    if (target) target.suggestedReserve = man;
+  }
+  for (const place of places) place.suggestedReserve ??= null;
   return pitch;
 }
 
@@ -285,4 +357,34 @@ export function flanksOutside(places: DraftPlace[]): DraftPlace[] {
   const centre = places.filter((place) => side(place) === 'centre');
   // The right-hand group reads outside-in from the left edge; the left-hand group outside-in from the right.
   return [...right, ...centre, ...left.reverse()];
+}
+
+/**
+ * WHAT ONE MAN ADDS to a squad's pitch (operator, 01/10/2026: «una nuova colonna che indichi per ogni calciatore di
+ * quanto aumenta la rosa in copertura e fertilità»): the pitch with him as a SUGGESTION minus the pitch without, the
+ * same `withSuggestions` + `placeYield` a plan's increments read (`planYields`), so the column and the solutions
+ * cannot disagree about the same pick. The rule that comes with it is the pitch's own: a real man is never pushed off
+ * his place, so a man adds where a place is EMPTY (as its starter) or has NO reserve yet (as its reserve) - a third
+ * option behind a starter and a reserve adds nothing, and that is the reading and not a defect.
+ * Coverage in places (0.8 = one place covered at 80%); fertility in bonus points per matchday, null when the man's
+ * own bonus is unknown and he covers something («vuoto = ignoto»: summing without him would read his matchdays at
+ * zero bonus). `pitch` is not touched: the places are copied before the suggestion is written on them.
+ */
+export function addedYield(pitch: DraftPitch, man: FantaMan): { cover: number; fertility: number | null } {
+  const copy: DraftPitch = {
+    ...pitch,
+    rows: pitch.rows.map((row) => ({ ...row, places: row.places.map((one) => ({ ...one })) })),
+  };
+  withSuggestions(copy, [man]);
+  const before = pitch.rows.flatMap((row) => row.places);
+  const after = copy.rows.flatMap((row) => row.places);
+  let cover = 0;
+  let fertility = 0;
+  for (let at = 0; at < after.length; at++) {
+    const was = placeYield(before[at]);
+    const now = placeYield(after[at], true);
+    cover += now.cover - was.cover;
+    fertility += (now.fertility ?? 0) - (was.fertility ?? 0);
+  }
+  return { cover, fertility: man.bonus == null && cover > 1e-9 ? null : fertility };
 }

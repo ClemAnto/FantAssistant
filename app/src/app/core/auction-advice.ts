@@ -347,6 +347,29 @@ export class AuctionAdvice {
    */
   readonly matchdaysTarget = computed(() => this.sheetSeasonRounds() ?? this.entry()?.matchdays_target ?? null);
 
+  /**
+   * LE GIORNATE DELLA COMPETIZIONE, dalle opzioni globali («giornate» da-a): l'operatore, 01/10/2026, «ho impostato
+   * "giornate" 5-22 in opzioni globali quindi mi aspetterei che Pa e similari siano rimodulati su 18 giornate».
+   * Tagliata sul calendario del foglio (una finestra oltre l'ultima giornata non e' piu' lunga) e nulla senza foglio.
+   * Supera, per i numeri in giornate del draft, la regola del 22/09/2026 «tutto su base 38»: la base e' ora la
+   * competizione dichiarata, e con la finestra 1-38 i due coincidono.
+   */
+  readonly competitionRounds = computed(() => {
+    const full = this.matchdaysTarget();
+    if (!full) return null;
+    const league = this.options.league();
+    const from = Math.min(full, Math.max(1, Math.round(league.from)));
+    const to = Math.min(full, Math.max(from, Math.round(league.to)));
+    return to - from + 1;
+  });
+
+  /** competizione / stagione piena: il fattore che porta un numero in giornate dalla stagione alla competizione. */
+  readonly competitionScale = computed(() => {
+    const full = this.matchdaysTarget();
+    const rounds = this.competitionRounds();
+    return full && rounds ? rounds / full : 1;
+  });
+
   /** Popolato quando il foglio viene letto: e' la table a portare i due calendari. */
   private readonly sheetSeasonRounds = signal<number | null>(null);
 

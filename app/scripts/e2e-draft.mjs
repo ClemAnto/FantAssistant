@@ -328,6 +328,9 @@ async function main() {
       const italian = clubs.rows.filter((row) => row[league] === 'serie_a').map((row) => row[id]);
       await wait(1500);
       await evaluate(session, (ids) => localStorage.setItem('fantassistant.options.excludedClubs', JSON.stringify(ids)), italian);
+      // HIS COMPETITION WINDOW (01/10/2026): «giornate» 5-22 in the global options, so every number in matchdays of
+      // the draft is on 18 rounds and not on the 38 of a season.
+      await evaluate(session, () => localStorage.setItem('fantassistant.options.league', JSON.stringify({ from: 5, to: 22 })));
       await session.send('Page.reload');
       await wait(1500);
       console.log(`· esclusioni EuroLeghe salvate: ${italian.length} club di Serie A nella lista di prima`);
@@ -939,8 +942,46 @@ async function main() {
         ...(rareOff.length ? [`${rareOff.length} righe con RAR 0 e DP diversa da SeSw`] : []),
         ...(seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
       ]);
+    // +ROSA (01/10/2026): what one man adds to my pitch. He stands on ONE place (or one reserve), so he adds at most
+    // one place of coverage and never takes any away; the printed % is that coverage over the eleven places.
+    const addedRows = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
+      .map((row) => ({
+        cover: row.querySelector('[data-added]')?.getAttribute('data-added-cover'),
+        text: (row.querySelector('[data-added]')?.innerText ?? '').trim(),
+      })));
+    const measured = addedRows.filter((one) => one.cover != null).map((one) => ({ ...one, cover: Number(one.cover) }));
+    const outOfRange = measured.filter((one) => one.cover < -1e-9 || one.cover > 1 + 1e-9);
+    // In % of the whole squad's eleven places, one decimal (01/10/2026).
+    const pct = (cover) => Math.round((cover / 11) * 1000) / 10;
+    const misprinted = measured.filter((one) => !one.text.startsWith(`${pct(one.cover) > 0 ? '+' : ''}${pct(one.cover).toFixed(1)}%`));
+    note('+Rosa', `${measured.length} di ${addedRows.length} righe, ${measured.filter((one) => one.cover > 0.005).length} che coprono qualcosa`,
+      [
+        ...(!measured.length ? ['nessuna riga con +Rosa'] : []),
+        ...(measured.length && !measured.some((one) => one.cover > 0.005) ? ['nessuno aggiunge copertura'] : []),
+        ...(outOfRange.length ? [`${outOfRange.length} righe con una copertura fuori da 0-1 posto`] : []),
+        ...(misprinted.length ? [`${misprinted.length} percentuali stampate diverse dalla copertura`] : []),
+      ]);
+    // ...and its header sorts on FERTILITY, coverage only on a tie (operator, 01/10/2026).
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="added"]'));
+    await wait(400);
+    const bySort = await evaluate(session, () => [...document.querySelectorAll('[data-free] [data-added]')]
+      .map((cell) => {
+        const [cover, fertility] = (cell.innerText ?? '').trim().split(/\s+/);
+        return { cover: Number(cover?.replace('%', '')), fertility: Number(fertility) };
+      })
+      .filter((one) => Number.isFinite(one.fertility)));
+    const addedOutOfOrder = bySort.filter((one, at) => at > 0 && (one.fertility > bySort[at - 1].fertility
+      || (one.fertility === bySort[at - 1].fertility && one.cover > bySort[at - 1].cover)));
+    note('+Rosa ordina', `primi: ${bySort.slice(0, 4).map((one) => `${one.cover}% ${one.fertility}`).join(' · ')}`,
+      [
+        ...(!bySort.length ? ['nessuna fertilità da ordinare'] : []),
+        ...(addedOutOfOrder.length ? [`${addedOutOfOrder.length} righe fuori ordine (fertilità, poi copertura)`] : []),
+      ]);
+    // The next step puts the list back on the priority itself.
+    await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: 5, y: 400, pointerType: 'mouse' });
+    await wait(300);
     // THE NEW FORMULA'S Pa (01/10/2026): every loaded row against `presence_now.json` itself, never against the
-    // column - the share of the rounds left times ONE full season for everybody (38 on Serie A), and a dash for
+    // column - the share of the rounds left times the COMPETITION's rounds for everybody (18 here), and a dash for
     // whoever the file does not carry (it is Serie A only).
     const nowFile = existsSync(join(DIST, 'data', 'presence_now.json'))
       ? JSON.parse(await readFile(join(DIST, 'data', 'presence_now.json'), 'utf-8')) : null;
@@ -962,7 +1003,8 @@ async function main() {
         ...(missing.length ? [`${missing.length} righe col dato nel file e un trattino a schermo`] : []),
         ...(invented.length ? [`${invented.length} righe con una Pa che il file non ha`] : []),
         ...(offScale.length ? [`${offScale.length} righe su una scala diversa`] : []),
-        ...(!euro && scale && Math.abs(scale - 38) > 0.5 ? [`scala ${scale.toFixed(2)} invece di 38`] : []),
+        // On the competition's «giornate» (01/10/2026): 5-22 is 18 rounds on the classic run.
+        ...(!euro && scale && Math.abs(scale - 18) > 0.5 ? [`scala ${scale.toFixed(2)} invece di 18 (giornate 5-22)`] : []),
       ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
@@ -1181,19 +1223,19 @@ async function main() {
       const heads = [...head.children].map((one) => one.getBoundingClientRect());
       const cells = [...row.children].map((one) => one.getBoundingClientRect());
       const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.right - cells[at].right)) : null));
-      // The eight season columns, after role, name, FVM, SeSw, Pa (01/10/2026), priority and rarity.
-      const widths = heads.slice(7).map((one) => Math.round(one.width));
+      // The eight season columns, after role, name, FVM, SeSw, Pa (01/10/2026), priority, rarity and +Rosa.
+      const widths = heads.slice(8).map((one) => Math.round(one.width));
       const clipped = [...document.querySelectorAll('[data-free]')].flatMap((one) => [...one.children].slice(2))
         .filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length;
-      const fmHead = head.children[9];
-      const fmCell = row.children[9];
+      const fmHead = head.children[10];
+      const fmCell = row.children[10];
       const splits = document.querySelectorAll('[data-column="free"] .split').length;
       const crests = row.querySelectorAll('ui-crest').length;
       return {
         drift: drift.slice(2),
         fmHead: fmHead ? getComputedStyle(fmHead).color : null,
         fmCell: fmCell ? getComputedStyle(fmCell).color : null,
-        mvCell: row.children[8] ? getComputedStyle(row.children[8]).color : null,
+        mvCell: row.children[9] ? getComputedStyle(row.children[9]).color : null,
         splits,
         crests,
         widths,
@@ -1293,7 +1335,7 @@ async function main() {
     // The steadiness arrives with the ratings, which are computed after the sheet: wait for them to land.
     for (let tick = 0; tick < 40; tick += 1) {
       const steadyFilled = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
-        .some((row) => !['', '—'].includes((row.children[10]?.innerText ?? '').trim())));
+        .some((row) => !['', '—'].includes((row.children[12]?.innerText ?? '').trim())));
       if (steadyFilled) break;
       await wait(250);
     }
@@ -1301,12 +1343,12 @@ async function main() {
       const head = [...(document.querySelector('[data-free-head]')?.children ?? [])].map((one) => one.getAttribute('data-sort'));
       const rows = [...document.querySelectorAll('[data-free]')];
       const filled = (at) => rows.filter((row) => !['', '—'].includes((row.children[at]?.innerText ?? '').trim())).length;
-      return { head, rows: rows.length, rung: filled(6), pv: filled(7), minutes: filled(8), mv: filled(9), steady: filled(10), fm: filled(11) };
+      return { head, rows: rows.length, rung: filled(8), pv: filled(9), minutes: filled(10), mv: filled(11), steady: filled(12), fm: filled(13) };
     });
     note('previste', `colonne ${previste.head.join(' ')}; su ${previste.rows} righe: gradino ${previste.rung}, pv ${previste.pv}, `
       + `minuti ${previste.minutes}, mv ${previste.mv}, costanza ${previste.steady}, fm ${previste.fm}`,
       [
-        ...(previste.head.join(' ') !== 'role name fvm sesw pa prio rar rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
+        ...(previste.head.join(' ') !== 'role name fvm sesw pa prio rar added rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
         ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 
