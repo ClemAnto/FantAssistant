@@ -7301,3 +7301,108 @@ calendario della piattaforma dove puo'.
 e' stato toccato - cambiarlo muove le presenze attese del foglio euro per chi arriva da li' - ed e' a verbale
 fra gli aperti.
 
+
+## 57 - IL GRADINO DEL MOTORE CONTRO QUELLO DELLA STAMPA, uomo per uomo (1 ottobre 2026)
+
+Richiesta dell'operatore: «vedi per tutti i calciatori dove il motore assegna un gradino di titolarità diverso
+da quello che assegna la stampa e cerca di capirne la causa». Il §55 aveva confrontato per FASCE e solo su
+EuroLeghe, sulla revisione 76; questo è per GRADINO, su tutti i 1197 uomini che la stampa classifica (Serie A dal
+foglio `default`, gli esteri dal foglio euro), sulla revisione 81 del 01/10. Solo lettura: fogli, `boards.json`,
+`config/press_rungs.json` e i `report_data.json` delle due rilevazioni, che portano l'undici della stampa e i
+rivali nominati. `scarto` vale `riserva`, perché il motore quella parola non ce l'ha.
+
+### 57.1 Il numero
+
+Stesso gradino **564 su 1197 (47%)**, un gradino di scarto 535, due o più 98. La ricostruzione dei rami di
+`status_of` dalle colonne del foglio riproduce la parola del motore su 1186 righe; le 11 restanti sono la §57.6.
+
+| stampa ↓ / motore → | bandiera | titolare | ballottaggio | panchina | riserva |
+|---|---|---|---|---|---|
+| bandiera | 72 | **95** | 10 | 1 | 1 |
+| titolare | 17 | 102 | 37 | 15 | 0 |
+| ballottaggio | 6 | **114** | 116 | **105** | 34 |
+| panchina | 0 | 9 | 45 | 43 | 23 |
+| riserva | 0 | 9 | 13 | **99** | 231 |
+
+Ogni disaccordo è attribuito a UNA causa, in quest'ordine: undici diverso, poi duello, poi minuti, poi quota.
+
+| causa | casi |
+|---|---|
+| duello: la stampa dà `ballottaggio` ai due rivali, il motore no | 172 |
+| quota fuori dall'undici (`riserva`/`panchina`) | 169 |
+| undici diverso fra board e stampa | 149 |
+| quota sotto la soglia dentro l'undici (nuovi titolari) | 76 |
+| minuti previsti sotto il pavimento | 62 |
+
+### 57.2 La regola «ballottaggio con chi?» scatta quasi sempre
+
+La regola dell'08/09 promuove a `titolare` un uomo disegnato se nessun rivale è `ballottaggio` o meglio
+(`CONTENDER_RUNGS`). Ma un uomo che la board NON disegna arriva a `ballottaggio` solo con una quota sopra 0,80,
+cioè quasi mai: la regola scatta su **322** disegnati, e per **300** di questi la board stessa elenca un rivale
+per quella maglia (i `duels`). Dei 101 «stampa ballottaggio → motore titolare» per questa via, 97 hanno un duello
+elencato, e in **71** il rivale della board è lo stesso che nomina la stampa (stato: `panchina` 60, `riserva`
+11, quota di partenze di quest'anno 0,33 in mediana). Atalanta: Kristensen T. è il rivale elencato di tutta la
+difesa e nessuno dei quattro risulta conteso.
+
+Le promozioni vere (quota o minuti sotto la soglia di `titolare`) sono **139**: la stampa ne chiama
+`ballottaggio` 68, `titolare` 33, `bandiera` 20, `panchina` 9, `riserva` 9. Il prezzo misurato il 07/09
+(«76 dei 115 ballottaggi disegnati diventano titolare») guardava la quota del promosso e non chi era il rivale.
+
+La stessa causa produce l'altra metà del duello: dei 231 duelli della stampa (coppie di `ballottaggio` che si
+nominano a vicenda) **76** diventano nel motore `titolare` + `panchina`/`riserva`.
+
+### 57.3 Il prior pesa ancora la metà, nei due versi
+
+Con K=5 e cinque giornate giocate la stagione scorsa vale il 50% della quota. Spaccando la miscela nelle sue due
+metà (`desc_season_*` meno `desc_now_*`):
+
+- **dentro l'undici**, 54 dei 64 «sotto la stampa» hanno una stagione in corso più alta del prior. Martinez Jo.,
+  Mandas e De Lange giocano 5 su 5 o 4 su 4 con un prior da vice di 0,25-0,28 e leggono 0,59-0,61: un nuovo
+  titolare con prior 0,25 supera lo 0,90 di `bandiera` dopo circa **32 giornate**;
+- **fuori dall'undici**, i 99 «stampa riserva → motore panchina» giocano lo **0,40** quest'anno contro un prior
+  di **0,72**: in 48 casi è il prior a spostare la parola, mentre la stagione in corso dà ragione alla stampa
+  (Madueke, Bogarde, Henderson). 37 sono acquisti, col prior preso dal ruolo nel club precedente.
+
+K=5 è misurato fuori campione (§26 e gate) per PREVEDERE la quota delle giornate che restano; la stampa reagisce
+più in fretta. Chi ha ragione su un uomo lo dice solo l'esito.
+
+### 57.4 L'undici: decide il prior, non la stagione in corso
+
+Undici in comune 173/220 (Serie A) e 245/296 (EuroLeghe). La lettura grezza dice che chi la stampa schiera e la
+board no parte titolare il 60% delle partite di quest'anno, contro il 43% di chi la board schiera e la stampa
+no. **Appaiato uomo contro uomo (stesso club, stesso ruolo) è una monetina: 39 a 38**; quello che separa i due
+gruppi è il PRIOR, a favore dell'uomo della board **61 volte su 90 (p = 0,001)**. Dei 79 esclusi dalla board e
+schierati dalla stampa (infortunati tolti), 41 sono acquisti estivi; 19 sono infortunati che la stampa
+classifica «da sani» e la board sconta con la quota disponibile (regola del 05/09).
+
+### 57.5 I minuti previsti sono stretti verso la media del ruolo
+
+`minutes.per_appearance` parte da `START_MINUTES` del ruolo e tiene il 20% dello scarto personale (`anchor`
+0,20, ottimo misurato per la previsione). Il pavimento assoluto dei 75' ci si appoggia sopra: i 62 casi leggono
+**68,5'** previsti contro **75,3'** misurati a presenza, e 38 passerebbero il pavimento sui minuti misurati
+(Saka 69 contro 77,7, Palmer 74 contro 82,1). Il motore ha **1** attaccante `bandiera`, la stampa **25**: è il
+limite già a verbale dal 20/08 («il pavimento in minuti assoluti non è neutrale fra i ruoli»), qui con il
+meccanismo misurato.
+
+### 57.6 Un difetto di presentazione
+
+Dieci uomini (Rice, Haaland, Valverde, Barella, Akanji, Mbeumo, Hancko, Svensson D., Tavernier M.,
+Kvernadze) mostrano **75'** accanto a `titolare`: la colonna è arrotondata all'intero e il valore vero sta fra
+74,5 e 74,9, sotto il pavimento di `bandiera`.
+
+### 57.7 Quanto vale ciascuna causa (diagnosi, non adozione)
+
+Contato contro la stampa, ricalcolando la parola con lo stesso `status_of`:
+
+| variante | stesso gradino | lontani 2+ |
+|---|---|---|
+| attuale | 564 | 98 |
+| un rivale `panchina` della board conta come contendente | 603 | 100 |
+| pavimento dei minuti sui minuti MISURATI a presenza | 592 | 103 |
+| quota con K=2 invece di 5 (stima per spostamento, errore p90 0,18) | 594 | 90 |
+| tutte e tre | 660 | 90 |
+
+Nessuna si adotta su questa tabella: la stampa è il giudice dei campetti e non dell'esito, la regola dell'08/09 e
+le soglie sono dichiarazioni dell'operatore, e K=5 è una misura fuori campione. Il disaccordo che resta (~540) è
+su CHI gioca, e lo decide l'esito. La tabella per giocatore (`titolarita_motore_vs_stampa.csv`) è stata scritta
+fuori dal repository.
