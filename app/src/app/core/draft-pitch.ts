@@ -297,7 +297,9 @@ export function combinedCover(men: readonly (FantaMan | null | undefined)[]): nu
  * projection, drawn at 30%.
  * A man who contributes with an UNKNOWN bonus makes the place's fertility unknown («vuoto = ignoto, mai zero»).
  */
-export function placeYield(place: DraftPlace, withSuggested = false): { cover: number; fertility: number | null } {
+export function placeYield(place: DraftPlace, withSuggested = false, doorHole = DOOR_HOLE_COST): { cover: number; fertility: number | null } {
+  const men = menOf(place, withSuggested).filter((man): man is FantaMan => !!man && man.share != null);
+  if (place.roles.some((role) => role === 'por' || role === 'p')) return keeperYield(men, doorHole);
   const counted: FantaMan[] = [];
   let cover = 0;
   let fertility: number | null = null;
@@ -316,14 +318,87 @@ export function placeYield(place: DraftPlace, withSuggested = false): { cover: n
 }
 
 /**
+ * THE DOOR, WEEK BY WEEK (operator, 01/10/2026: «una volta scelto il primo portiere, utilizza la griglia degli
+ * abbinamenti per dare un bonus nella fertilità ai portieri che hanno buoni abbinamenti» and «diamo un bonus alla
+ * fertilità dei portieri che hanno un calendario facile, limitatamente alle giornate della competizione»).
+ * On every matchday of the window the keepers are taken in order of THAT match's fertility (`FantaMan.weeks`): you
+ * field the one with the easier match, the next one only if the first has no vote. So a keeper whose calendar
+ * complements the one already owned adds the weeks where his match is the better one - the pairing grid's own
+ * question - and an easy calendar inside the window is worth more than one outside it. The cover is the same
+ * `combinedCover` (two keepers of one club add, of two clubs combine), averaged over the matchdays; a man with no
+ * fixture that week is out of it. A keeper with no weeks (no calendar) reads his season `bonus` every week.
+ */
+/**
+ * WHAT A MATCHDAY WITH NOBODY IN GOAL COSTS, in fertility points (operator, 01/10/2026, with the deputy): since the
+ * keepers' fertility is read against the average starter, an uncovered week would otherwise count as an AVERAGE
+ * keeper - a zero - while it costs the whole vote. 4.73 is the cost of a hole the auction bench measured (`HOLE_COST`,
+ * the slope of points over holes on 110 squads, r = -0.798), close to a keeper's own fantavoto. Only the door pays it:
+ * the outfield places keep the plain fertility, as decided.
+ */
+export const DOOR_HOLE_COST = 4.73;
+
+/**
+ * THE PRICE OF A DOOR WEEK NOBODY COVERS, AT THIS POINT OF THE DRAFT (operator, 01/10/2026: «il costo della porta
+ * vuota cresce man mano che le scelte finiscono»). While the draft still has picks to fill the door, an uncovered
+ * week is a hole only in the share of the picks left that the door will have to take: `DOOR_HOLE_COST` x keeper
+ * places still open / picks left, so 3 open places with 25 picks read 0.57, and the whole 4.73 once every pick left
+ * must be a keeper. DECLARED, and the same price before and after a move, so a pick is never paid for closing it.
+ */
+export function doorHolePrice(keeperPlacesOpen: number, picksLeft: number): number {
+  if (picksLeft <= 0) return DOOR_HOLE_COST;
+  return DOOR_HOLE_COST * Math.min(1, Math.max(0, keeperPlacesOpen) / picksLeft);
+}
+
+function keeperYield(men: readonly FantaMan[], doorHole: number): { cover: number; fertility: number | null } {
+  // An empty door: every matchday is a hole.
+  if (!men.length) return { cover: 0, fertility: -doorHole };
+  const weeks = Math.max(1, ...men.map((man) => man.weeks?.length ?? 0));
+  let cover = 0;
+  let fertility = 0;
+  let unknown = false;
+  for (let week = 0; week < weeks; week += 1) {
+    const playing = men
+      .map((man) => ({ man, value: man.weeks?.length ? (man.weeks[week] ?? null) : (man.bonus ?? null), known: !!man.weeks?.length || man.bonus != null }))
+      .filter((one) => !one.man.weeks?.length || one.man.weeks[week] != null);
+    // Across clubs the easier match goes first; inside ONE club the deputy can never be preferred to the starter
+    // (he plays only when the starter does not), so a club is ranked on its starter's match and its men by share.
+    const clubOf = (man: FantaMan) => man.coverClub ?? man.club ?? `man:${man.id}`;
+    const lead = new Map<string, { share: number; value: number }>();
+    for (const one of playing) {
+      const club = clubOf(one.man);
+      const share = one.man.share ?? 0;
+      if (!lead.has(club) || share > lead.get(club)!.share) lead.set(club, { share, value: one.value ?? -Infinity });
+    }
+    playing.sort((a, b) => lead.get(clubOf(b.man))!.value - lead.get(clubOf(a.man))!.value
+      || clubOf(a.man).localeCompare(clubOf(b.man)) || (b.man.share ?? 0) - (a.man.share ?? 0));
+    const counted: FantaMan[] = [];
+    let now = 0;
+    for (const { man, value, known } of playing) {
+      counted.push(man);
+      const next = combinedCover(counted);
+      const adds = next - now;
+      now = next;
+      if (adds <= 1e-12) continue;
+      if (!known || value == null) unknown = true;
+      else fertility += adds * value;
+    }
+    cover += now;
+    // THE PRICE OF THE WEEKS NOBODY COVERS (operator, 01/10/2026: «la scelta di un vice nei portieri dovrebbe
+    // convenire a un certo punto perché al costo quasi nullo di pochi FVM si ha una copertura praticamente totale»).
+    fertility -= (1 - now) * doorHole;
+  }
+  return { cover: cover / weeks, fertility: unknown ? null : fertility / weeks };
+}
+
+/**
  * THE WHOLE PITCH's coverage and fertility: the sums over its places (`placeYield`). Coverage is in PLACES - 0.85 is
  * one place covered at 85% - so the difference between two pitches is how much of the eleven a plan adds.
  */
-export function pitchYield(pitch: DraftPitch, withSuggested = false): { cover: number; fertility: number } {
+export function pitchYield(pitch: DraftPitch, withSuggested = false, doorHole = DOOR_HOLE_COST): { cover: number; fertility: number } {
   let cover = 0;
   let fertility = 0;
   for (const place of pitch.rows.flatMap((row) => row.places)) {
-    const one = placeYield(place, withSuggested);
+    const one = placeYield(place, withSuggested, doorHole);
     cover += one.cover;
     fertility += one.fertility ?? 0;
   }
@@ -344,7 +419,7 @@ function badgeFor(man: FantaMan, roles: string[]): string | null {
  * projected man first, so the suggestions cover as many places as they can - then the places with no
  * reserve get one from whoever is left. Mutates the places and returns the pitch.
  */
-export function withSuggestions(pitch: DraftPitch, projected: readonly FantaMan[]): DraftPitch {
+export function withSuggestions(pitch: DraftPitch, projected: readonly FantaMan[], doorHole = DOOR_HOLE_COST): DraftPitch {
   const places = pitch.rows.flatMap((row) => row.places);
   // ONE MAN, ONE PLACE (operator, 29/09/2026): a projected man already on the pitch, or projected twice, is drawn once.
   const onPitch = new Set(places.flatMap((place) => [place.man, ...place.reserves]).filter((m): m is FantaMan => !!m)
@@ -376,8 +451,8 @@ export function withSuggestions(pitch: DraftPitch, projected: readonly FantaMan[
         && (starterWeight(man) ?? -Infinity) > (starterWeight(place.man) ?? -Infinity);
       if (!starts && (place.suggestedReserve || !holder)) continue;
       const trial: DraftPlace = starts ? { ...place, suggested: man } : { ...place, suggestedReserve: man };
-      const was = placeYield(place, true);
-      const now = placeYield(trial, true);
+      const was = placeYield(place, true, doorHole);
+      const now = placeYield(trial, true, doorHole);
       const one = { place, starts, cover: now.cover - was.cover, fertility: (now.fertility ?? 0) - (was.fertility ?? 0) };
       if (one.cover <= 1e-9 && Math.abs(one.fertility) <= 1e-9) continue;
       const key = (y: typeof one) => (byCover ? [y.cover, y.fertility] : [y.fertility, y.cover]);
@@ -429,19 +504,19 @@ export function flanksOutside(places: DraftPlace[]): DraftPlace[] {
  * Coverage in places (0.8 = one place covered at 80%); fertility in bonus points per matchday, null when the man's
  * own bonus is unknown and he covers something («vuoto = ignoto»). `pitch` is not touched: the places are copied.
  */
-export function addedYield(pitch: DraftPitch, man: FantaMan): { cover: number; fertility: number | null } {
+export function addedYield(pitch: DraftPitch, man: FantaMan, doorHole = DOOR_HOLE_COST): { cover: number; fertility: number | null } {
   const copy: DraftPitch = {
     ...pitch,
     rows: pitch.rows.map((row) => ({ ...row, places: row.places.map((one) => ({ ...one })) })),
   };
-  withSuggestions(copy, [man]);
+  withSuggestions(copy, [man], doorHole);
   const before = pitch.rows.flatMap((row) => row.places);
   const after = copy.rows.flatMap((row) => row.places);
   let cover = 0;
   let fertility = 0;
   for (let at = 0; at < after.length; at++) {
-    const was = placeYield(before[at], true);
-    const now = placeYield(after[at], true);
+    const was = placeYield(before[at], true, doorHole);
+    const now = placeYield(after[at], true, doorHole);
     cover += now.cover - was.cover;
     fertility += (now.fertility ?? 0) - (was.fertility ?? 0);
   }

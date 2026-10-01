@@ -65,7 +65,7 @@ import {
   priorityPick,
   roleStats,
 } from './draft-priority';
-import { COVER_OK, DraftPitch, DraftPlace, RECOMMENDED_MANTRA, addedYield, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from './draft-pitch';
+import { COVER_OK, DraftPitch, DraftPlace, doorHolePrice, RECOMMENDED_MANTRA, addedYield, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 import { RUNG_RANK, Rarity, RarityMan, rarity, shownRung } from './draft-rarity';
 import { PlayerRulings, RUNG_VOTE_SHARE, ruledShare } from './player-rulings';
@@ -924,6 +924,7 @@ export class AuctionAdvice {
     const league = this.options.league();
     const platform = this.entry()?.platform ?? 'euro';
     const book = this.calendarBook();
+    const weeksBy = this.keeperWeeksBy();
     const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
       const base = bonus.get(player.id) ?? null;
@@ -932,10 +933,85 @@ export class AuctionAdvice {
         continue;
       }
       const role = (MACRO_ROLE[player.zoneClassic] ?? null) as Role | null;
+      // A keeper with a calendar reads the MEAN of his weeks (`keeperWeeksBy`): the competition window, its easy
+      // matches and its clean sheets - so the column and the pitch say one number about him.
+      const weeks = role === 'P' ? weeksBy.get(player.id) : undefined;
+      const known = weeks?.filter((one): one is number => one != null) ?? [];
+      if (known.length) {
+        out.set(player.id, known.reduce((sum, one) => sum + one, 0) / known.length);
+        continue;
+      }
       const calendar = role === 'P' ? (book?.forClub(player.club) ?? null) : null;
       out.set(player.id, draftFertility(base, role, this.ratings.for(platform, player.id)?.steady?.share ?? null,
         calendar ? cleanSheetOutlook(calendar, player.club) : null, league));
     }
+    return out;
+  });
+
+  /**
+   * A KEEPER'S FERTILITY MATCH BY MATCH over the competition window (operator, 01/10/2026: «diamo un bonus alla
+   * fertilità dei portieri che hanno un calendario facile, limitatamente alle giornate della competizione», and the
+   * pairing grid «una volta scelto il primo portiere»). For each matchday from `league.from` to `league.to` that his
+   * club plays: his season bonus moved by how many goals that match should cost against his club's season average,
+   * plus the steadiness and, where the league pays it, that match's clean-sheet probability (`draftFertility`).
+   * The goals come from the calendar's own P(clean sheet): with goals conceded Poisson, E[conceded] = -ln P(0), and a
+   * goal conceded is a point off a keeper's fantavoto. The draft pitch fields the keeper with the better match each
+   * week (`draft-pitch.keeperYield`), which is what turns two complementary calendars into a bonus. A match with no
+   * fitted probability counts at his season average; a club the calendar does not know has no weeks.
+   */
+  readonly keeperWeeksBy = computed<Map<number, (number | null)[]>>(() => {
+    const out = new Map<number, (number | null)[]>();
+    const book = this.calendarBook();
+    if (!book) return out;
+    const bonus = this.bonusBy();
+    const league = this.options.league();
+    const platform = this.entry()?.platform ?? 'euro';
+    const goals = (p: number | null) => (p == null ? null : -Math.log(Math.min(0.98, Math.max(0.02, p))));
+    for (const { player } of this.listone()) {
+      if (MACRO_ROLE[player.zoneClassic] !== 'P') continue;
+      const base = bonus.get(player.id) ?? null;
+      const calendar = book.forClub(player.club);
+      if (base == null || !calendar?.has(player.club)) continue;
+      const season = calendar.window(player.club, 1, calendar.rounds).map((match) => goals(match.cleanSheet))
+        .filter((one): one is number => one != null);
+      const mean = season.length ? season.reduce((sum, one) => sum + one, 0) / season.length : null;
+      const steady = this.ratings.for(platform, player.id)?.steady?.share ?? null;
+      const byRound = new Map(calendar.window(player.club, league.from, league.to).map((match) => [match.round, match]));
+      const weeks: (number | null)[] = [];
+      for (let round = Math.max(1, league.from); round <= Math.min(league.to, calendar.rounds); round += 1) {
+        const match = byRound.get(round);
+        if (!match) {
+          weeks.push(null);
+          continue;
+        }
+        const conceded = goals(match.cleanSheet);
+        const easier = mean != null && conceded != null ? mean - conceded : 0;
+        weeks.push(draftFertility(base + easier, 'P', steady, match.cleanSheet, league));
+      }
+      if (weeks.some((one) => one != null)) out.set(player.id, weeks);
+    }
+    // THE ZERO OF A KEEPER'S FERTILITY (operator, 01/10/2026: «un portiere (qualunque esso sia) non porta
+    // 'fertilità' ... ma scegliere quello forte significa subire meno malus, quindi la fertilità andrebbe rivista in
+    // questo senso»): every keeper's weeks are read AGAINST the average starting keeper of the league - the mean, over
+    // the clubs, of the window fertility of each club's first keeper (the one with the most expected appearances).
+    // A strong door is then positive, a weak one negative, and an outfield man's bonus (which is not relative to
+    // anybody) can be compared with what a keeper saves. The deputies are read against the same zero, so a strong
+    // club's second keeper stays a little positive and plays little.
+    const shares = this.draftShareBy();
+    const firstOf = new Map<string, { id: number; share: number }>();
+    for (const { player } of this.listone()) {
+      if (!out.has(player.id)) continue;
+      const share = shares.get(player.id) ?? 0;
+      const best = firstOf.get(player.club);
+      if (!best || share > best.share) firstOf.set(player.club, { id: player.id, share });
+    }
+    const meanOf = (weeks: (number | null)[]) => {
+      const known = weeks.filter((one): one is number => one != null);
+      return known.length ? known.reduce((sum, one) => sum + one, 0) / known.length : null;
+    };
+    const firsts = [...firstOf.values()].map((one) => meanOf(out.get(one.id)!)).filter((v): v is number => v != null);
+    const zero = firsts.length ? firsts.reduce((sum, one) => sum + one, 0) / firsts.length : 0;
+    for (const [id, weeks] of out) out.set(id, weeks.map((one) => (one == null ? null : one - zero)));
     return out;
   });
 
@@ -1409,6 +1485,7 @@ export class AuctionAdvice {
       minutesPerMatch: null,
       share: this.draftShareBy().get(player.id) ?? null,
       bonus: this.fertilityBy().get(player.id) ?? null,
+      weeks: this.keeperWeeksBy().get(player.id) ?? null,
     };
   }
 
@@ -1419,6 +1496,38 @@ export class AuctionAdvice {
    * In the SIMULATED turns of the plan RAR keeps these readings, i.e. my squad as it is now: re-drawing my pitch for
    * every projected pick would be a second pricing of the same men inside one advice.
    */
+  /**
+   * WHICH KEEPER OWNS HIS CLUB'S SHIRT: the one with the most expected appearances of his club (`draftShareBy`), and
+   * every man's club, for the scenarios' keeper rule (`draft-scenarios.keeperAllowed`).
+   */
+  readonly keeperShirts = computed(() => {
+    const shares = this.draftShareBy();
+    const clubs = new Map<number, string>();
+    const best = new Map<string, { id: number; share: number }>();
+    for (const { player } of this.listone()) {
+      clubs.set(player.id, player.club);
+      if (MACRO_ROLE[player.zoneClassic] !== 'P') continue;
+      const share = shares.get(player.id) ?? 0;
+      const top = best.get(player.club);
+      if (!top || share > top.share) best.set(player.club, { id: player.id, share });
+    }
+    return { firsts: new Set([...best.values()].map((one) => one.id)), clubOf: (id: number) => clubs.get(id) ?? null };
+  });
+
+  /**
+   * THE PRICE OF AN UNCOVERED DOOR WEEK FOR MY SQUAD NOW (`draft-pitch.doorHolePrice`): its keeper places still open
+   * over its picks left. One number for the pitch, +Rosa and the plans' increments on screen, so the three agree.
+   */
+  readonly doorHole = computed(() => {
+    // `planInput` and not `scenarioInput`: the scenarios read +Rosa's men (`priorityMen`), so going through them
+    // would make the price depend on itself.
+    const input = this.planInput();
+    const team = input?.teams.find((one) => one.id === input.mineId);
+    if (!input || !team) return doorHolePrice(0, 0);
+    const doors = team.slots.filter(isKeeperSlot).length;
+    return doorHolePrice(input.keeperCap - doors, this.priorityRounds() - team.picksCount);
+  });
+
   readonly rosaYields = computed<Map<number, { cover: number; fertility: number | null }>>(() => {
     const out = new Map<number, { cover: number; fertility: number | null }>();
     const me = this.feed.followed();
@@ -1426,7 +1535,8 @@ export class AuctionAdvice {
     const squad = me.squad.filter((entry) => !!entry.player).map((entry) => this.fantaManOf(entry.player!, entry.cost));
     const drawn = draftPitchOf(squad, this.rules(), recommendedModules(this.feed.isMantra()), this.pitchModule(), true);
     if (!drawn) return out;
-    for (const row of this.ranked()) out.set(row.player.id, addedYield(drawn, this.fantaManOf(row.player, row.price)));
+    const door = this.doorHole();
+    for (const row of this.ranked()) out.set(row.player.id, addedYield(drawn, this.fantaManOf(row.player, row.price), door));
     return out;
   });
 
@@ -1540,6 +1650,9 @@ export class AuctionAdvice {
       calls: { cap: input.cap ?? null, keeperCap: input.keeperCap, rounds: this.priorityRounds() },
       manOf: (id) => men.get(id) ?? null,
       pitch: this.squadPitch(worth, matchdays, (id) => men.get(id) ?? null),
+      // OUR next pick's survivors (`takenBeforeUs`): a rival's scenarios (`scenariosFor`) drop it, the walk is ours.
+      gone: this.takenBeforeUs(),
+      keepers: this.keeperShirts(),
     };
   });
 
@@ -1571,10 +1684,10 @@ export class AuctionAdvice {
       : null;
     const placeOfDrawn = (place: DraftPlace): Place => ({ line: place.line, slot: place.slot, roles: place.roles });
     return {
-      worth: (roster) => {
+      worth: (roster, doorHole) => {
         const pitch = pitchOf(roster);
         if (!pitch) return 0;
-        const { cover, fertility } = pitchYield(pitch);
+        const { cover, fertility } = pitchYield(pitch, false, doorHole);
         return fertility + cover * 1e-3;
       },
       diagnose: (roster) => {
@@ -1624,7 +1737,11 @@ export class AuctionAdvice {
    */
   scenariosFor(teamId: number): Scenario[] {
     const input = this.scenarioInput();
-    return input ? draftScenarios({ ...input, mineId: teamId }).list : [];
+    if (!input) return [];
+    // THEIR OWN survivors (01/10/2026): the walk from that squad's turn, so a rival played by the advice also waits
+    // for who will still be there - without it the invented table rushed the keepers in round one.
+    const gone = takenBeforeOurTurn({ ...input, mineId: teamId, rounds: input.calls.rounds });
+    return draftScenarios({ ...input, mineId: teamId, gone }).list;
   }
 
   /**

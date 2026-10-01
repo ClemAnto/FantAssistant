@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { DraftPlace, addedYield, combinedCover, coverOf, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
+import { DOOR_HOLE_COST, DraftPlace, addedYield, combinedCover, coverOf, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 
 /**
@@ -150,6 +150,7 @@ describe('placeYield, coverage and fertility of a place', () => {
     expect(placeYield(place('P', ['por'], reserve)).cover).toBeCloseTo(0.42, 9);
     const both = placeYield({ ...place('P', ['por'], starter), reserves: [reserve] });
     expect(both.cover).toBeCloseTo(1, 9);
+    // The deputy plays only when the starter does not, whatever his bonus: one club, one shirt.
     expect(both.fertility).toBeCloseTo(0.8 * 0.5 + 0.2 * 1, 9);
   });
 
@@ -321,5 +322,40 @@ describe('who starts: the fertility contribution (01/10/2026)', () => {
     const unknown = starterWeight({ ...man('Ignoto', ['Pc'], 50), share: 0.9, bonus: null })!;
     expect(unknown).toBeLessThan(starterWeight({ ...man('Noto', ['Pc'], 5), share: 0.2, bonus: -0.5 })!);
     expect(starterWeight({ ...man('Mai visto', ['Pc'], 50), share: null, bonus: 1 })).toBeNull();
+  });
+});
+
+describe('the door week by week (01/10/2026)', () => {
+  it('fields each week the keeper with the easier match, so complementary calendars are a bonus', () => {
+    const a = { ...man('A', ['Por'], 10), club: 'Uno', share: 0.8, bonus: -1, weeks: [-0.5, -1.5] };
+    const b = { ...man('B', ['Por'], 10), club: 'Due', share: 0.8, bonus: -1, weeks: [-1.5, -0.5] };
+    const alone = placeYield(place('P', ['por'], a));
+    expect(alone.cover).toBeCloseTo(0.8, 9);
+    expect(alone.fertility).toBeCloseTo(0.8 * -1 - 0.2 * DOOR_HOLE_COST, 9);
+    const pair = placeYield({ ...place('P', ['por'], a), reserves: [b] });
+    expect(pair.cover).toBeCloseTo(0.96, 9);
+    // Every week the easier match first, the other only when that keeper has no vote: 0.8 x -0.5 + 0.16 x -1.5.
+    expect(pair.fertility).toBeCloseTo(0.8 * -0.5 + 0.16 * -1.5 - 0.04 * DOOR_HOLE_COST, 9);
+  });
+
+  it('counts a keeper only on the weeks his club plays, and two of one club as one shirt', () => {
+    const a = { ...man('A', ['Por'], 10), club: 'Uno', share: 0.8, bonus: -1, weeks: [-1, null] };
+    const deputy = { ...man('Vice', ['Por'], 5), club: 'Uno', share: 0.2, bonus: -1, weeks: [-1, null] };
+    const one = placeYield({ ...place('P', ['por'], a), reserves: [deputy] });
+    expect(one.cover).toBeCloseTo((1 + 0) / 2, 9);
+    expect(one.fertility).toBeCloseTo((-1 - DOOR_HOLE_COST) / 2, 9);
+  });
+});
+
+describe('the price of an uncovered door (01/10/2026)', () => {
+  it('charges DOOR_HOLE_COST for every week nobody covers, so a deputy is worth his cover', () => {
+    expect(placeYield(place('P', ['por'], null))).toEqual({ cover: 0, fertility: -DOOR_HOLE_COST });
+    const first = { ...man('Titolare', ['Por'], 10), club: 'Uno', share: 0.8, bonus: 0, weeks: [0] };
+    const deputy = { ...man('Vice', ['Por'], 1), club: 'Uno', share: 0.2, bonus: 0, weeks: [0] };
+    const alone = placeYield(place('P', ['por'], first));
+    expect(alone.fertility).toBeCloseTo(-0.2 * DOOR_HOLE_COST, 9);
+    const closed = placeYield({ ...place('P', ['por'], first), reserves: [deputy] });
+    expect(closed.cover).toBeCloseTo(1, 9);
+    expect(closed.fertility).toBeCloseTo(0, 9);
   });
 });

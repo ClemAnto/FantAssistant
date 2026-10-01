@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { PlanPlayer, PlanTeam, startingPlaces } from './auction-plan';
 import { PriorityMan, PriorityRules, WorthContext, roleStats } from './draft-priority';
-import { ScenarioInput, chainFrom, diagnose, interestIn, judge, movesFor, scenarios, squadWorth } from './draft-scenarios';
+import { ScenarioInput, chainFrom, diagnose, interestIn, judge, keeperAllowed, movesFor, rankGain, scenarios, squadWorth } from './draft-scenarios';
+import { SURVIVOR_DISCOUNT } from './auction-plan';
 
 /** One shape: a door, two Dc, one C, one Pc. */
 const RULES: PriorityRules = {
@@ -234,5 +235,36 @@ describe('the plans on the draft pitch (01/10/2026)', () => {
     expect(result.diagnosis!.needs[0].kind).toBe('scoperto');
     expect(judge(pitched, asPlan(reserve))).toMatchObject({ verdict: 'coerente' });
     expect(judge(pitched, asPlan(strong)).verdict).toBe('inopportuna');
+  });
+});
+
+describe('the right moment: who survives is worth waiting for (01/10/2026)', () => {
+  it('ranks a survivor at SURVIVOR_DISCOUNT of his gain, never a man who will be gone, a loss or the last pick', () => {
+    const one = man('pc', 7);
+    const step = { player: asPlan(one), priority: 1, gain: 1, need: null };
+    const base = input([one], population());
+    expect(rankGain(step, base, 5)).toBe(1); // no walk: as before
+    const walked = { ...base, gone: new Map<number, number>() };
+    expect(rankGain(step, walked, 5)).toBeCloseTo(SURVIVOR_DISCOUNT, 9);
+    expect(rankGain(step, { ...base, gone: new Map([[one.id, 1]]) }, 5)).toBe(1);
+    expect(rankGain(step, walked, 1)).toBe(1);
+    expect(rankGain({ ...step, gain: -1 }, walked, 5)).toBe(-1);
+  });
+});
+
+describe('a keeper who is not the first of his club waits for an anchor (01/10/2026)', () => {
+  it('is no move on an empty door, and becomes one next to a first keeper, his own club, or at the forced end', () => {
+    const first = man('por', 5.2);
+    const second = man('por', 5.0, 0.4);
+    const other = man('por', 5.1);
+    const clubs = new Map([[first.id, 'Como'], [second.id, 'Como'], [other.id, 'Roma']]);
+    const base = input([second], population());
+    const ruled: ScenarioInput = { ...base, keepers: { firsts: new Set([first.id, other.id]), clubOf: (id) => clubs.get(id) ?? null } };
+    const empty = team(0);
+    expect(keeperAllowed(empty, asPlan(second), ruled, 6)).toBe(false);
+    expect(keeperAllowed(empty, asPlan(first), ruled, 6)).toBe(true);
+    expect(keeperAllowed(team(0, [other]), asPlan(second), ruled, 6)).toBe(true);
+    expect(keeperAllowed(empty, asPlan(second), ruled, 1)).toBe(true);
+    expect(keeperAllowed(empty, asPlan(second), base, 6)).toBe(true);
   });
 });

@@ -19,10 +19,28 @@
  * The file imports no Angular.
  */
 
-import { PlanPlayer, PlanTeam, RivalWalkInput, rivalWalker, take, walkToOurTurn } from './auction-plan';
+import { PlanPlayer, PlanTeam, RivalWalkInput, SURVIVOR_DISCOUNT, rivalWalker, take, walkToOurTurn } from './auction-plan';
 import { MantraModules } from './auction-value';
 import { CallRules, PriorityMan, WorthContext, baseRole, legalFor, manValue } from './draft-priority';
 import { Place, bestEleven, placesIn } from './mantra-legal';
+import { DOOR_HOLE_COST, doorHolePrice } from './draft-pitch';
+import { isKeeperSlot } from './auction-plan';
+
+/** Whether a keeper may be proposed to this squad now (`ScenarioInput.keepers`); every other man may. */
+export function keeperAllowed(team: PlanTeam, player: PlanPlayer, input: ScenarioInput, picksLeft: number): boolean {
+  const rule = input.keepers;
+  if (!rule || !isKeeperSlot(player.slot) || rule.firsts.has(player.id)) return true;
+  const doors = team.slots.filter(isKeeperSlot).length;
+  if (picksLeft <= input.calls.keeperCap - doors) return true;
+  const club = rule.clubOf(player.id);
+  return team.heldIds.some((id) => rule.firsts.has(id) || (club != null && rule.clubOf(id) === club));
+}
+
+/** The door's price at THIS squad's decision: its keeper places still open over its picks left, one price per move. */
+export function doorPriceFor(team: PlanTeam, input: ScenarioInput, picksLeft: number): number {
+  const doors = team.slots.filter(isKeeperSlot).length;
+  return doorHolePrice(input.calls.keeperCap - doors, picksLeft);
+}
 
 export type NeedKind = 'vuoto' | 'debole' | 'scoperto' | 'senza riserva';
 
@@ -101,12 +119,28 @@ export interface ScenarioInput extends RivalWalkInput {
    * eleven decides, as before (the bench and the tests that do not build a pitch).
    */
   pitch?: SquadPitch;
+  /**
+   * WHO THE RIVALS ARE PREDICTED TO TAKE BEFORE OUR NEXT PICK (player id -> squad), when the caller has the walk
+   * (operator, 01/10/2026: «come possiamo trovare il momento giusto?»). A man NOT in it will still be there, so his
+   * gain counts at `SURVIVOR_DISCOUNT` when the moves are RANKED - take who will be gone, harvest who survives, the
+   * draft bench's strongest result (+4.54%, strict on 5/5). The gain printed stays his whole gain.
+   */
+  gone?: ReadonlyMap<number, number>;
+  /**
+   * THE KEEPERS WHO OWN THEIR CLUB'S SHIRT (operator, 01/10/2026: «prendere Sanchez Ro. che non è un titolarissimo è
+   * molto rischioso perché non hai la certezza di prendere anche l'altro»), and the club of every man. A keeper who is
+   * not his club's first is worth his cover only next to his club's other keeper, which nobody guarantees, so he is
+   * NOT a move until the squad holds a club's first keeper or another keeper of his own club - or until every pick
+   * left must be a keeper. Absent = no such rule (the bench, the tests that build no pitch).
+   */
+  keepers?: { firsts: ReadonlySet<number>; clubOf: (id: number) => string | null };
 }
 
 /** What the draft pitch says about a squad, in the scenarios' terms (`ScenarioInput.pitch`). */
 export interface SquadPitch {
   /** What the squad yields, the quantity the plans are ranked on: higher is better, and differences add. */
-  worth(roster: readonly PriorityMan[]): number;
+  /** `doorHole` is the price of an uncovered door week at the decision being weighed (`draft-pitch.doorHolePrice`). */
+  worth(roster: readonly PriorityMan[], doorHole: number): number;
   /** The places to fix on the pitch's eleven, most urgent first. */
   diagnose(roster: readonly PriorityMan[]): Diagnosis | null;
   /** The place the man would stand on, as a starter or a reserve; null where he adds nothing. */
@@ -164,8 +198,9 @@ const rosterOf = (team: PlanTeam, manOf: ScenarioInput['manOf']) =>
  * no longer reach is a hole that scores nothing, so it costs its role's Z (the cheapest holes are the ones left).
  * The bench is not counted: a man who does not enter the eleven gains the squad nothing here, which is stated.
  */
-export function squadWorth(roster: readonly PriorityMan[], input: ScenarioInput, picksLeft: number): number {
-  if (input.pitch) return input.pitch.worth(roster);
+export function squadWorth(roster: readonly PriorityMan[], input: ScenarioInput, picksLeft: number,
+  doorHole = DOOR_HOLE_COST): number {
+  if (input.pitch) return input.pitch.worth(roster, doorHole);
   const xi = bestEleven(roster, input.rules, expected);
   const first = Object.keys(input.rules.modules ?? {})[0];
   const places = xi?.places ?? (first ? placesIn(input.rules, first) : []);
@@ -193,9 +228,11 @@ const CANDIDATES = 40;
 export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: ScenarioInput): ScenarioStep[] {
   const roster = rosterOf(team, input.manOf);
   const left = input.calls.rounds - team.picksCount;
-  const before = squadWorth(roster, input, left);
+  const door = doorPriceFor(team, input, left);
+  const before = squadWorth(roster, input, left, door);
   const priced: { player: PlanPlayer; man: PriorityMan; priority: number }[] = [];
   for (const player of legalFor(team, pool, input.calls)) {
+    if (!keeperAllowed(team, player, input, left)) continue;
     const man = input.manOf(player.id);
     const priority = man ? manValue(man, input.worth, input.matchdays) : null;
     if (man && priority != null) priced.push({ player, man, priority });
@@ -210,9 +247,19 @@ export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: Sce
   return [...picked]
     .map(({ player, man, priority }): ScenarioStep => ({
       player, priority, need: null,
-      gain: squadWorth([...roster, man], input, left - 1) - before,
+      gain: squadWorth([...roster, man], input, left - 1, door) - before,
     }))
-    .sort((a, b) => b.gain - a.gain || b.priority - a.priority);
+    .sort((a, b) => rankGain(b, input, left) - rankGain(a, input, left) || b.priority - a.priority);
+}
+
+/**
+ * The gain a move is RANKED on: his whole gain if the rivals are predicted to take him before our next pick (or if
+ * there is no next pick), `SURVIVOR_DISCOUNT` of it if he will still be there. A loss is never discounted - waiting
+ * does not make a bad move better.
+ */
+export function rankGain(step: ScenarioStep, input: ScenarioInput, picksLeft: number): number {
+  if (!input.gone || picksLeft <= 1 || step.gain <= 0 || input.gone.has(step.player.id)) return step.gain;
+  return step.gain * SURVIVOR_DISCOUNT;
 }
 
 /** The place of the diagnosis a man would take, entering our best eleven; null when he would not fix one. */
@@ -243,7 +290,8 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
   const start = teams.get(input.mineId)!;
   const roster = rosterOf(start, input.manOf);
   const left = input.calls.rounds - start.picksCount;
-  const firstGain = squadWorth([...roster, firstMan], input, left - 1) - squadWorth(roster, input, left);
+  const door = doorPriceFor(start, input, left);
+  const firstGain = squadWorth([...roster, firstMan], input, left - 1, door) - squadWorth(roster, input, left, door);
   // Every squad that calls during the wait, as it stands when it calls: asked afterwards whether it wants the
   // second man, so the walk is made once and not twice.
   const callers: PlanTeam[] = [];
@@ -346,7 +394,11 @@ export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnos
     const chain = chainFrom(input, move.player, need);
     if (chain) list.push(chain);
   }
-  list.sort((a, b) => b.total - a.total || b.first.gain - a.first.gain);
+  // Ranked with the first move's gain discounted when he would survive (`rankGain`); the second pick is a hope at our
+  // next turn already, so it is not discounted again.
+  const left = input.calls.rounds - me.picksCount;
+  const score = (chain: Scenario) => chain.total - chain.first.gain + rankGain(chain.first, input, left);
+  list.sort((a, b) => score(b) - score(a) || b.first.gain - a.first.gain);
   return { diagnosis, list: list.slice(0, count) };
 }
 

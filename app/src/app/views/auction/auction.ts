@@ -401,13 +401,18 @@ export class Auction {
     // WHAT IT PICKS (operator, 01/10/2026): the first man of one of the THREE SCENARIOS the advice would give that
     // squad, drawn at random - so the rivals play our own advice, with some variety. Where that squad has no
     // scenario, the predicted man the middle column prints.
+    // `?autoMe` (debug, 01/10/2026: «simula un draft completo seguendo i consigli generati»): my squad plays by
+    // itself too, always on the FIRST of its three plans - the advice taken at its word.
+    const autoMe = typeof location !== 'undefined' && new URLSearchParams(location.search).has('autoMe');
     effect((onCleanup) => {
       const clock = this.feed.onTheClock();
       const predicted = this.advice.round()?.picks.find((pick) => pick.teamId === clock?.id)?.player ?? null;
-      if (!this.auto() || !this.feed.demo() || !clock || clock.id === this.feed.followedTeamId()) return;
+      const mineOnClock = !!clock && clock.id === this.feed.followedTeamId();
+      if (!this.auto() || !this.feed.demo() || !clock || (mineOnClock && !autoMe)) return;
       const timer = setTimeout(() => {
-        const options = this.advice.scenariosFor(clock.id);
-        const chosen = options.length ? options[Math.floor(Math.random() * options.length)].first.player : predicted;
+        const options = mineOnClock ? this.advice.scenarios().list : this.advice.scenariosFor(clock.id);
+        const at = mineOnClock ? 0 : Math.floor(Math.random() * options.length);
+        const chosen = options.length ? options[at].first.player : predicted;
         if (!chosen) {
           this.auto.set(false);
           this.message.warning('AUTO fermo: nessuna scelta per questa squadra');
@@ -768,6 +773,7 @@ export class Auction {
       // sources are already that share (`draftShareBy`), so the coverage reads the share itself and no calendar.
       share: this.advice.draftShareBy().get(player.id) ?? null,
       bonus: this.advice.fertilityBy().get(player.id) ?? null,
+      weeks: this.advice.keeperWeeksBy().get(player.id) ?? null,
     };
   }
 

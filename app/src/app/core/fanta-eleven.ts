@@ -48,6 +48,14 @@ export interface FantaMan extends Placeable {
    * (`draft-pitch.combinedCover`). Absent = `club`.
    */
   coverClub?: string | null;
+  /**
+   * A KEEPER's fertility match by match over the competition window (operator, 01/10/2026: «per i portieri vanno
+   * fatti dei ragionamenti che per i giocatori di movimento non si fanno»): `bonus` moved by how easy that match is,
+   * null on a matchday his club does not play. With it the draft pitch fields, every week, the keeper with the easier
+   * match (`draft-pitch.placeYield`), which is what a pair of keepers is bought for. Absent = not a keeper, or no
+   * calendar: the season `bonus` is read instead.
+   */
+  weeks?: (number | null)[] | null;
 }
 
 export interface FantaPlace {
