@@ -629,6 +629,42 @@ stessa metà. I segnali conosciuti il 5 settembre non separano le due gobbe abba
 uomo. Aperti nuovi: la griglia tarata sulla quota tocca il bordo (`q` −0,2, `kD` 640, `w2` 2) e la sua discesa per
 coordinate su una perdita a gradini è da verificare prima di credere a un «non serve».
 
+## 5-nonies. I cinque casi che dovevamo prevedere, e il buco dei dati (01/10/2026)
+
+**L'operatore**: «i casi Svilar, Terracciano, Lucca, Bellanova, Lukaku potevano e dovevano essere previsti ... e poi
+dobbiamo evitare buchi di dati».
+
+**Il buco dei dati ha una causa sola.** Gli id Transfermarkt dei CLUB vengono dalla pagina del campionato, che elenca
+le squadre di QUESTA stagione: un club retrocesso non ha mai avuto un id, quindi le sue rose delle stagioni passate non
+sono state lette, i suoi quotati non hanno un'identità Transfermarkt e nessuna partita su file. Per stagione mancavano
+48-98 quotati su ~670 (2025-26: Pisa 23, Verona 16, Cremonese 11; 2022-23: Spezia 22, Cremonese 22, Salernitana 18,
+Sampdoria 15), e Verona, che è quasi sempre in Serie A, mancava in ogni stagione. Gyasi e Vandeputte sono di questi.
+L'id c'era già nei dati: le partite degli uomini che conosciamo portano l'id del club, quindi il club della nostra
+rosa è il club Transfermarkt per cui i suoi quotati hanno giocato (`transfers.derive_past_clubs`, voto ≥ 85% su almeno
+300 partite, mai sopra una mappatura della pagina del campionato, mai un id già di un altro club): **15 club**
+(Verona 276, Sampdoria 1038, Empoli 749, Cremonese 2239, Salernitana 380, Spezia 3522, Pisa 4172, Brescia 19...).
+Da qui le rose di quelle stagioni e le partite dei loro uomini si scaricano coi comandi che esistono già.
+
+**PRE-REGISTRAZIONE (01/10/2026), M7 - i cinque casi.** Stesso criterio del §5-sexies, sulla base del §5-octies, ognuna
+da sola e poi insieme. Sono nate da cinque nomi scelti guardando gli errori, quindi l'evidenza è la più debole possibile:
+conta la popolazione, non i cinque.
+* **M7a - Svilar (e Butez, Caprile)**: il peso delle giornate già giocate (K della miscela) ha un valore suo per i
+  portieri, tarato sulle altre stagioni (griglia 1, 2, 3, 5, 10, 20). Un portiere che il 5 settembre ha giocato tutte
+  le partite tiene il posto il 77% delle volte (misurato il 07/09).
+* **M7b - Bellanova (e Zortea)**: lo stesso per chi ha cambiato club: la quota del club vecchio dice poco, le giornate
+  al club nuovo dicono di più.
+* **M7c - Terracciano**: la scelta si legge sulle partite della stagione misurata al club dove giocherà, quando ne ha
+  almeno 10 lì e la stagione è divisa (OWN_CLUB, respinta a luglio sull'errore medio: qui si rimisura a settembre sulla
+  quota).
+* **M7d - Lucca**: se nel suo club il giorno dell'asta c'è un compagno ARRIVATO quest'estate con almeno un ruolo mantra in
+  comune e una Qt.I più alta della sua, la sua quota di scelta si moltiplica per un fattore tarato sulle altre stagioni
+  (griglia 0,6-1,0). Il club e l'arrivo si leggono dalle partite di Transfermarkt (prima partita dopo l'asta entro 30
+  giorni), non dal listone, che è l'ultima lettura.
+* **Lukaku** (e la regola dell'operatore: «quando un infortunio è fresco e non si ha la data di rientro è comunque di
+  solito definibile come leggero o pesante; inseriamo questa informazione appena l'infortunio è noto») non è un
+  candidato del banco: per il 2025-26 l'archivio non ha né la data di rientro del giorno né la prosa, e il tipo
+  («Infortunio alla coscia», mediana 24 giorni) lo chiama leggero. È un'acquisizione da fare in avanti.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
