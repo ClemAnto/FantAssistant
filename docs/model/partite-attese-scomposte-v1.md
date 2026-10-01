@@ -545,6 +545,46 @@ Attese: M6a e M6b +1/+2 punti di quota ciascuna sui titolari, meno di uno sulla 
 recupera parte dei 52 sottostimati e costa sui gradini bassi che il posto lo perdono davvero - ed è la più
 debole: a parità di previsione la regressione non vede il gradino `panchina` (+0,02, t 0,7).
 
+## 5-octies. Le due decisioni, e perché a settembre non riconosciamo un crociato (01/10/2026)
+
+**Decise dall'operatore** («sì a tutti e 2»), e applicate al banco di settembre (`build.py`):
+- **P0 - fuori chi il giorno dell'asta non era in Serie A** (`abroad_on_day`): conta il campionato della sua prima
+  partita di campionato dopo l'asta se cade entro 30 giorni (era già partito: Ronaldo 2021, Icardi 2019, Gonzalez N.
+  2025, che la regola del §5-septies lasciava dentro perché avevano giocato la prima giornata qui), altrimenti quello
+  dell'ultima prima. Chi non ha partite su file resta. Solo settembre: a fine luglio Lukaku 2021 era ancora comprabile,
+  e il rischio di una partenza è suo.
+- **Chi fa zero conta** (`in_band`): dentro la banda solo se la previsione è sotto mezza partita. Vale per la misura e
+  per la taratura (M4 tara sulla misura che decide, quindi la segue).
+
+**La domanda dell'operatore**: «se uno sta fuori tutto l'anno, a settembre dopo 2, 3 o 5 partite abbiamo una stima alta
+e non abbiamo capito che non giocherà mai - un crociato rotto o un fuori rosa dovrebbe essere riconoscibile». Fra chi
+la formula prevedeva ad almeno metà stagione e ha giocato al massimo un quarto (103 uomini su 1.537), la causa:
+
+| causa | uomini | formula | vere |
+|---|---|---|---|
+| infortunio arrivato DOPO l'asta | 29 | 26,1 | 6,0 |
+| ceduto all'estero a gennaio | 24 | 26,5 | 5,6 |
+| **già infortunato il giorno dell'asta** | **20** | 21,3 | 3,5 |
+| in panchina | 15 | 25,9 | 6,1 |
+| partito all'ultimo giorno di mercato (ora fuori con P0) | 11 | 23,9 | 0,3 |
+| fuori rosa / non convocato | 1 | | |
+
+Il fuori rosa è quasi inesistente; il crociato è il caso dei 20. **La formula lo sa che è infortunato, e non sa quanto
+dura**: le partite che uno stop aperto deve ancora costare vengono dalla mediana di quanto restava a TUTTI gli stop
+chiusi, a parità di giorni passati, cioè due settimane. Pavoletti 2019-20, crociato da 10 giorni: previste 2 partite
+saltate, saltate 35. Chiellini 2019-20, crociato da 6 giorni: 1 contro 29. Abraham 2023-24, crociato da 92 giorni: 7
+contro 26. **E il tipo di infortunio è nell'archivio** (`injuries.detail`, scritto quando lo stop si apre): la mediana
+di uno stop chiuso è 13 giorni per «Problema fisico», 24 per «Infortunio alla coscia» e **207 per «Rottura del
+legamento crociato»** (313 casi), 94 per «Operazione al ginocchio».
+
+**PRE-REGISTRAZIONE (01/10/2026), M6e - la durata dello stop per tipo**: le partite che uno stop aperto deve ancora
+costare vengono dalla tabella del suo `detail`, poi del suo `kind`, poi di tutti (`residual_by_type`), con lo stesso
+pavimento di 20 stop per gradino e sugli stop chiusi prima del 1º luglio della stagione prevista. Criterio del §5-sexies
+sulla misura nuova (P0 + zeri contati): la quota sale in almeno 5 finestre su 7 e in media, l'errore medio non
+peggiora in media. **Attesa**: piccola sul totale (gli stop aperti il 5 settembre sono pochi per stagione), +0,5/+1
+punto di quota e −1/−2% di errore; grande sui casi della tabella. **Limite detto**: il testo del `detail` è quello
+dell'ultima lettura dell'archivio, quindi una diagnosi corretta dopo l'asta è letta come se fosse nota prima.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
