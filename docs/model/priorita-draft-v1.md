@@ -895,3 +895,46 @@ fantamedie stanno su un'altra scala.
 **Aperti**: nessuna delle quattro e' misurata sul banco del draft (Pa nuova solo Serie A; Z per prezzo; DP sul classic
 gia' bocciata nella forma di prima): la prossima corsa del banco va fatta con tutte e tre insieme.
 
+## 30. +Rosa, la copertura ridichiarata, i titolari per fertilità, le giornate della competizione, RAR su +Rosa (01/10/2026)
+
+Una sessione di sue richieste sulla pagina Draft Assistant, in vista del **draft Serie A del 6 ottobre**. Niente nel
+motore: `engine_*` fermo, nessuna `SHEET_REVISION`, nessuna di queste cose misurata sul banco del draft.
+
+**La copertura di un posto, ridichiarata** («ogni calciatore in una certa posizione contribuisce in % alla copertura ...
+38/38 × 0.8 = 80% ... 20 partite 42% ... entrambi 122% → 100%»): somma di quota × 0,8 (`COVER_AVAILABILITY`,
+dichiarata) tagliata a 100%, dove la quota sono le partite attese della colonna Pa sulle giornate della competizione che
+restano. Prima era una somma «sulle giornate che il precedente lascia scoperte» senza lo 0,8. La fertilità pesa ogni
+bonus sulla parte di copertura che l'uomo porta davvero, nell'ordine (il taglio morde l'ultimo, non il titolare).
+Prezzo detto: con lo 0,8 un titolare da solo non arriva al verde (85%) del campetto.
+
+**Chi è titolare e dove vanno le riserve** («scegli come titolari quelli che danno un maggior contributo in fertilità e
+poi distribuisci le riserve per copertura»): `draft-pitch.starterWeight` = bonus a partita × copertura che darebbe da
+solo, con un pavimento (`STARTER_FLOOR`) perché `bestEleven` riempia prima tutti i posti che può; chi ha un bonus
+ignoto viene dopo chi lo ha noto, chi non ha valore non è titolare. **Il portiere fa eccezione**: il suo «bonus» è il
+malus dei gol subiti, quindi la regola alla lettera farebbe titolare chi gioca meno, e fra portieri parte chi copre di
+più. Le riserve (e i suggerimenti) vanno dove aggiungono più copertura, su ogni gioco; il totale in fantapunti
+dell'intestazione resta il valore dei titolari.
+
+**+Rosa, la colonna** (dopo RAR, nelle tre viste): quanto uno svincolato aggiunge alla MIA rosa, copertura in % dell'intera
+rosa (gli 11 posti) con un decimale e un carattere più piccolo, fertilità in centesimi a giornata. Il campetto si
+disegna una volta, sul modulo forzato o su quello che i miei uomini schierano meglio (non sul piano selezionato, che la
+farebbe muovere a ogni click), e ogni uomo si aggiunge a una copia (`addedYield`, la stessa funzione degli incrementi dei
+piani). Ordina per fertilità e solo a parità di centesimi per copertura. Malen a rosa vuota: 13,8/18 × 0,8 = 61% di
+un posto = +5,6% della rosa (la stampa per posto è durata un'ora, poi «all'intera rosa»).
+
+**Le giornate della competizione** («ho impostato "giornate" 5-22 ... Pa e similari rimodulati su 18»):
+`AuctionAdvice.competitionRounds` = `to − from + 1` dalle opzioni globali, tagliato sul calendario del foglio. La Pa, la
+Pv delle «previste» e le partite della card del draft si contano lì; **supera, per questa pagina, la regola del 22/09
+«tutto su base 38»** (Strategia e Plancia restano su 38: da decidere). Le quote non cambiano, quindi copertura, SeSw e
+DP non si muovono.
+
+**RAR su +Rosa** («il fattore RAR adesso valutalo su +ROSA»): dove seguo una squadra RAR confronta SOLO +Rosa (fertilità
+e copertura, tolleranze dichiarate 0,05 punti e 0,05 di posto, `ROSA_TOLERANCE`) dentro il ruolo base; senza squadra
+restano le sei letture. Il tooltip nomina i primi tre contati (`Rarity.similar`). Due conseguenze dette: nei turni
+SIMULATI dei piani RAR tiene +Rosa della rosa di adesso; e dove la rosa ha già coperto quasi tutto, molti uomini
+aggiungono ~0 e RAR sale per tutti (sul banco «meno rari 99%»), cioè lo sconto della DP morde di più.
+
+**Aperti**: (1) la copertura non legge la finestra della competizione per gli infortuni (chi è fuori fino alla 10ª in
+una competizione 3-5 conta come se giocasse); (2) Strategia e Plancia su 18 o su 38; (3) i totali dei piani restano in %
+dell'undici a numero intero; (4) nessuna di queste regole è misurata sul banco del draft, e RAR su +Rosa cambia la DP
+che il banco aveva giudicato (+1,06% con le sei letture).
