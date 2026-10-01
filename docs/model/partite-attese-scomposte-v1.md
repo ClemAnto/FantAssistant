@@ -585,6 +585,21 @@ peggiora in media. **Attesa**: piccola sul totale (gli stop aperti il 5 settembr
 punto di quota e −1/−2% di errore; grande sui casi della tabella. **Limite detto**: il testo del `detail` è quello
 dell'ultima lettura dell'archivio, quindi una diagnosi corretta dopo l'asta è letta come se fosse nota prima.
 
+**La base nuova** (P0 + zeri contati, taratura rifatta sulla misura nuova; `m6e.py`; nel file della pagina P0 toglie
+131 righe di settembre, comprese quelle senza la previsione del motore): quota **56,9%** contro il 49,2% del
+motore, errore 6,44 contro 6,58. È il numero da cui si parte adesso verso il 65%.
+
+**L'esito di M6e: non passa il criterio.** Errore medio 6,438 → **6,375 (−1,0%)**, meglio in 5 stagioni su 7; quota
+56,87% → 56,96%, meglio solo in **3 su 7**. Sui 137 uomini che il giorno dell'asta avevano uno stop aperto l'effetto è
+quello atteso: errore 7,65 → 6,98 (−9%), scarto +3,3 → +2,4, quota 42,3% → 43,1%. La quota si muove poco per
+costruzione: un crociato previsto a 10 invece che a 20, se poi ne fa 0 o 3, resta fuori banda in tutt'e due i casi.
+Esempi: Cambiaghi 2024-25 da 2 a 26 partite saltate previste, Chiellini 2019-20 da 1 a 24, Pavoletti da 2 a 23,
+Scamacca 2024-25 da 3 a 24, Bakker 2025-26 da 4 a 23. E i casi che sbaglia nell'altro verso: Gollini 2020-21 da 1 a 19
+partite saltate, ne ha giocate 25; Djimsiti 2022-23 e Belotti 2021-22 da 2 a 9-10, ne hanno giocate 20.
+La decisione è dell'operatore, come per M1b: il criterio non è soddisfatto (quota 3 su 7), l'errore migliora.
+Lo scarto che resta (+2,4) dice che anche chi rientra gioca meno di quanto la formula gli dà: le ricadute e il posto
+perso durante l'assenza, che il rodaggio (§36 di `assistente-asta-v1.md`, 1,3%) non spiega.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.

@@ -191,6 +191,38 @@ def league_dates(conn: sqlite3.Connection) -> dict:
     return out
 
 
+def league_comps(conn: sqlite3.Connection) -> dict:
+    """Per (fc_id, season): (date, competition) of every league game of his club while he was there, sorted."""
+    out: dict = defaultdict(list)
+    for fc, season, day, comp in conn.execute(
+            f"""SELECT fc_id, season, played_on, competition FROM tm_appearances
+                WHERE is_national = 0 AND season IS NOT NULL
+                  AND competition_type IN ({','.join('?' * len(LEAGUE_TYPES))})""", LEAGUE_TYPES):
+        out[(fc, season)].append((day, comp))
+    for games in out.values():
+        games.sort()
+    return out
+
+
+# NOT IN SERIE A ON THE DAY (operator, 01/10/2026: «sì», §5-septies of partite-attese-scomposte-v1.md). A past
+# season's listone is its LAST read, so the bench judged men an auction on 5 September could not buy: gone in the
+# summer (Lukaku 2021, Ndoye 2025), gone on the last day (Ronaldo 2021, Icardi 2019) or arriving in January
+# (Gimenez 2024). Where he was is the league of his FIRST league game after the auction if it comes within this many
+# days - he had already moved, the window abroad closes with ours - and otherwise of his last one before it. A man
+# with no game on file is unknown and stays. The calendar after the auction is read because no roster is dated:
+# that is the leak this definition accepts, and it only ever removes a man.
+ABROAD_DAYS = 30
+
+
+def abroad_on_day(r, comps: dict) -> bool:
+    games = comps.get((r["fc_id"], r["target"]), ())
+    soon = (dt.date.fromisoformat(r["auction"]) + dt.timedelta(days=ABROAD_DAYS)).isoformat()
+    after = [comp for day, comp in games if r["auction"] < day <= soon]
+    before = [comp for day, comp in games if day <= r["auction"]]
+    where = after[0] if after else before[-1] if before else None
+    return where is not None and where != "IT1"
+
+
 def open_spells(conn: sqlite3.Connection) -> dict:
     """Per fc_id: the dated absence spells (Transfermarkt's archive), to tell «out at the auction» from «went later»."""
     out: dict = defaultdict(list)
@@ -249,14 +281,48 @@ def residual_table(conn: sqlite3.Connection, before: str) -> list[tuple[int, flo
     return table
 
 
-def expected_out(r, games: dict, spells: dict, table: list) -> int:
-    """League games still to miss for a spell OPEN at the auction date, from the residual table and his fixtures."""
+def residual_by_type(conn: sqlite3.Connection, before: str) -> dict:
+    """M6e (§5-octies): `residual_table` per KIND OF INJURY - the archive's own `detail` («Rottura del legamento
+    crociato»), then its `kind` («knee»), then every spell - over the spells closed before `before`. A rung is used
+    only where at least 20 spells of that type had lasted longer than the days already gone, the same floor
+    `residual_table` puts on every bin. The type is written when the spell opens, so the auction knew it; the text
+    is the one of the archive's last read, which is the leak this accepts (a diagnosis can be renamed later)."""
+    spans: dict = defaultdict(list)
+    for start, end, kind, detail in conn.execute(
+            "SELECT start_date, end_date, kind, detail FROM injuries WHERE end_date IS NOT NULL AND end_date < ?",
+            (before,)):
+        if not (start and end):
+            continue
+        span = dt.date.fromisoformat(end).toordinal() - dt.date.fromisoformat(start).toordinal()
+        for key in (("detail", detail), ("kind", kind), ("*", "*")):
+            if key[1]:
+                spans[key].append(span)
+    return {key: [(gone, float(median([v - gone for v in vs if v > gone])))
+                  for gone in range(0, 365, 7) if sum(v > gone for v in vs) >= 20]
+            for key, vs in spans.items()}
+
+
+def spell_types(conn: sqlite3.Connection) -> dict:
+    """Per (fc_id, start_date): the (kind, detail) of that spell, for `residual_by_type`."""
+    return {(fc, start): (kind, detail) for fc, start, kind, detail in conn.execute(
+        "SELECT fc_id, start_date, kind, detail FROM injuries WHERE start_date IS NOT NULL")}
+
+
+def expected_out(r, games: dict, spells: dict, table, types: dict | None = None) -> int:
+    """League games still to miss for a spell OPEN at the auction date, from the residual table and his fixtures.
+
+    `table` is `residual_table`'s list, or `residual_by_type`'s dict with `types` beside it (M6e)."""
     auction = dt.date.fromisoformat(r["auction"])
-    open_since = [dt.date.fromisoformat(start) for start, end in spells.get(r["fc_id"], ())
-                  if start <= r["auction"] and (end is None or end >= r["auction"])]
+    open_since = sorted(start for start, end in spells.get(r["fc_id"], ())
+                        if start <= r["auction"] and (end is None or end >= r["auction"]))
     if not open_since or not table:
         return 0
-    elapsed = (auction - min(open_since)).days
+    elapsed = (auction - dt.date.fromisoformat(open_since[0])).days
+    if isinstance(table, dict):
+        kind, detail = (types or {}).get((r["fc_id"], open_since[0]), (None, None))
+        reaching = lambda t: t and t[-1][0] >= elapsed - 6   # a bin covers the week after its own day
+        table = next((table[key] for key in (("detail", detail), ("kind", kind), ("*", "*"))
+                      if key[1] and reaching(table.get(key))), table[("*", "*")])
     left = next((days for gone, days in reversed(table) if gone <= elapsed), table[0][1])
     back = (auction + dt.timedelta(days=left)).isoformat()
     return sum(1 for day, *_rest in games.get((r["fc_id"], r["target"]), ()) if r["auction"] < day < back)
@@ -452,9 +518,9 @@ def vote_factors(train: list[dict]) -> dict[int, float]:
 
 
 def band_loss(group, params) -> float:
-    """M4: the share of men OUTSIDE 80-125% of what they really played - the operator's own measure, as a loss."""
-    judged = [r for r in group if r["pa_actual"] > 0]
-    return mean(not (0.8 <= predict(r, params) / r["pa_actual"] <= 1.25) for r in judged) if judged else 0.0
+    """M4: the share of men OUTSIDE 80-125% of what they really played - the operator's own measure, as a loss.
+    A man who played nothing counts too (`in_band`), since the measure that decides counts him."""
+    return mean(not in_band(predict(r, params), r["pa_actual"]) for r in group) if group else 0.0
 
 
 def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True, cls: str | None = None,
@@ -493,9 +559,20 @@ def ratio(pred: float | None, actual: float) -> float | None:
     return None if pred is None or actual <= 0 else pred / actual
 
 
-def band_share(values) -> float:
-    known = [v for v in values if v is not None]
-    return round(sum(0.8 <= v <= 1.25 for v in known) / len(known), 3) if known else 0.0
+# A MAN WHO PLAYED NOTHING IS A MISS, NOT A GAP (operator, 01/10/2026: «sì», after the two readings were put to
+# him). Until then a real zero had no ratio and left the count, so a forecast of 22 on a torn cruciate (Marchwinski
+# 2024-25) was neither a hit nor a miss: 81 rows of 1,537 at 5 September. Now a zero is inside the band only if the
+# forecast is under half a game - a zero, at the printed precision.
+ZERO_HIT = 0.5
+
+
+def in_band(pred: float, actual: float) -> bool:
+    return 0.8 <= pred / actual <= 1.25 if actual > 0 else pred < ZERO_HIT
+
+
+def band_share(pairs) -> float:
+    pairs = [(p, a) for p, a in pairs if p is not None]
+    return round(sum(in_band(p, a) for p, a in pairs) / len(pairs), 3) if pairs else 0.0
 
 
 def scored(rows: list[dict], pred, *, everybody: bool = True) -> dict:
@@ -518,7 +595,8 @@ def scored(rows: list[dict], pred, *, everybody: bool = True) -> dict:
             "gain": round((e_mae - f_mae) / e_mae, 4),
             "median_ratio_formula": round(median(v for v in f_ratio if v is not None), 3),
             "median_ratio_engine": round(median(v for v in e_ratio if v is not None), 3),
-            "within20_formula": band_share(f_ratio), "within20_engine": band_share(e_ratio)}
+            "within20_formula": band_share((f, r["pa_actual"]) for f, r in zip(formula, both)),
+            "within20_engine": band_share((r["pa_engine"], r["pa_actual"]) for r in both)}
 
 
 def verdict(gains: list[float]) -> dict:
@@ -625,8 +703,14 @@ def main() -> None:
         "select fc_id, season, mv from season_stats where platform='default' and mv is not null and pv >= 5")}
     dates, spells, games = league_dates(conn), open_spells(conn), league_games(conn)
 
-    def load(windows: dict, **kwargs) -> list[dict]:
+    comps = league_comps(conn)
+
+    def load(windows: dict, *, at_auction: bool = False, **kwargs) -> list[dict]:
         rows = engine_rows(conn, windows, **kwargs)
+        if at_auction:
+            gone = [r for r in rows if abroad_on_day(r, comps)]
+            rows = [r for r in rows if not abroad_on_day(r, comps)]
+            print(f"fuori dalla Serie A il giorno dell'asta, tolti: {len(gone)}")
         for r in rows:
             r["injury"] = injury_group(r, dates, spells)
         annotate(rows, agg, at_club, clubs, first, europe, mv)
@@ -668,7 +752,7 @@ def main() -> None:
     # it, the rounds seen AT HIS CLUB and a spell still open on the day, each measured as its own reading.
     k_key = next(k for k in evaluate.ADOPTED[PLATFORM] if k in evaluate.R20_ROUNDS)
     k_rounds = evaluate.R20_ROUNDS[k_key]
-    september = load(september_windows())
+    september = load(september_windows(), at_auction=True)
     priors: dict[str, dict] = {}
     tables: dict[str, list] = {}
     for r in september:
