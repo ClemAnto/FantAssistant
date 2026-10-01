@@ -591,14 +591,16 @@ export class Auction {
   protected rarTip(row: FreeRow): string {
     const ids = row.rar?.similar ?? [];
     if (!row.rar) return '';
-    if (!ids.length) return 'Nessuno svincolato simile: è l’ultimo del suo tipo';
+    if (!ids.length) {
+      return row.rar.count ? `Nessuno simile: ${row.rar.count} migliori` : 'Nessuno svincolato simile: è l’ultimo del suo tipo';
+    }
     const everyone = this.everyone();
     const names = ids.map((id) => {
       const player = everyone.get(id);
       return player ? this.feed.shownName(player) : `#${id}`;
     });
     // Only the three names (operator, 01/10/2026): how many there are is the number in the cell.
-    return `Simili o migliori: ${names.join(', ')}`;
+    return `Simili: ${names.join(', ')}`;
   }
 
   protected prioHint(): string {

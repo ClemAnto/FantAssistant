@@ -151,17 +151,40 @@ export function atLeastAsGood(other: RarityMan, man: RarityMan, means: ReadingMe
 export interface Rarity {
   count: number;
   of: number;
-  /** The first `RARITY_SIMILAR` of the men counted, best first: who the tooltip names (operator, 01/10/2026). */
+  /**
+   * Up to `RARITY_SIMILAR` of the men counted who are SIMILAR and not better (operator, 01/10/2026: «solo 3 simili
+   * (non superiori)»): within the tolerance on both sides, the closest first. Who the tooltip names.
+   */
   similar?: number[];
 }
 
 /** How many of the men counted the RAR tooltip names. */
 export const RARITY_SIMILAR = 3;
 
-/** How a counted man ranks among the similar: what he adds my squad, else what he gives a season. */
-function similarRank(man: RarityMan): number {
-  if (man.rosa) return man.rosa.fertility ?? -Infinity;
-  return (man.share ?? 0) * (man.bonus ?? 0);
+/**
+ * How far `other` is from `man`, and null when he is better beyond the tolerance (not «similar»): on +Rosa where `man`
+ * has it, else on the six readings. The distance is in tolerances, so the readings add up in one unit.
+ */
+function similarity(other: RarityMan, man: RarityMan): number | null {
+  if (man.rosa && other.rosa) {
+    const parts: [number | null, number | null, number][] = [
+      [man.rosa.fertility, other.rosa.fertility, ROSA_TOLERANCE.fertility],
+      [man.rosa.cover, other.rosa.cover, ROSA_TOLERANCE.cover],
+    ];
+    return distance(parts);
+  }
+  return distance(READINGS.map((key) => [man[key], other[key], RARITY_TOLERANCE[key] || 1]));
+}
+
+function distance(parts: readonly [number | null, number | null, number][]): number | null {
+  let sum = 0;
+  for (const [mine, theirs, tolerance] of parts) {
+    if (mine == null || theirs == null) continue;
+    const steps = Math.abs(theirs - mine) / tolerance;
+    if (steps > 1 + 1e-9) return null;
+    sum += steps;
+  }
+  return sum;
 }
 
 /** RAR of every man of `free`, by id: how many OTHER free men of his group are at least as good as him. */
@@ -176,8 +199,12 @@ export function rarity(free: readonly RarityMan[]): Map<number, Rarity> {
     const means = readingMeans(men);
     for (const man of men) {
       const counted = men.filter((other) => other.id !== man.id && atLeastAsGood(other, man, means));
-      const similar = [...counted].sort((a, b) => similarRank(b) - similarRank(a)).slice(0, RARITY_SIMILAR)
-        .map((other) => other.id);
+      const similar = counted
+        .map((other) => ({ id: other.id, far: similarity(other, man) }))
+        .filter((one): one is { id: number; far: number } => one.far != null)
+        .sort((a, b) => a.far - b.far)
+        .slice(0, RARITY_SIMILAR)
+        .map((one) => one.id);
       out.set(man.id, { count: counted.length, of: men.length - 1, similar });
     }
   }

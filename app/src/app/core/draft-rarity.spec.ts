@@ -68,7 +68,8 @@ describe('RAR on +Rosa (01/10/2026)', () => {
     const lessCover = man(5, 'dc', { ...rosa(0.40, 0.3) });
     const out = rarity([me, alike, better, less, lessCover]).get(1)!;
     expect(out.count).toBe(2);
-    expect(out.similar).toEqual([3, 2]);
+    // Named are the SIMILAR ones only (01/10/2026: «non superiori»): the clearly better one is counted, not named.
+    expect(out.similar).toEqual([2]);
   });
 
   it('an unknown fertility on his side constrains only the coverage', () => {

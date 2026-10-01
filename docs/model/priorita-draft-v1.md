@@ -930,7 +930,9 @@ DP non si muovono.
 
 **RAR su +Rosa** («il fattore RAR adesso valutalo su +ROSA»): dove seguo una squadra RAR confronta SOLO +Rosa (fertilità
 e copertura, tolleranze dichiarate 0,05 punti e 0,05 di posto, `ROSA_TOLERANCE`) dentro il ruolo base; senza squadra
-restano le sei letture. Il tooltip nomina i primi tre contati (`Rarity.similar`). Due conseguenze dette: nei turni
+restano le sei letture. Il tooltip nomina fino a tre SIMILI, non i migliori («solo 3 simili (non superiori)»): fra i
+contati, quelli entro la tolleranza anche dall'altro lato, i più vicini prima (`Rarity.similar`); se sono tutti
+migliori, dice quanti. Due conseguenze dette: nei turni
 SIMULATI dei piani RAR tiene +Rosa della rosa di adesso; e dove la rosa ha già coperto quasi tutto, molti uomini
 aggiungono ~0 e RAR sale per tutti (sul banco «meno rari 99%»), cioè lo sconto della DP morde di più.
 

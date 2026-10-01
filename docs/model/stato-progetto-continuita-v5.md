@@ -188,7 +188,8 @@ Sue richieste in fila, tutte sulla pagina `/auction` in draft (`priorita-draft-v
   copertura, su ogni gioco;
 - **colonna +Rosa** (copertura in % dell'intera rosa con un decimale, fertilità; ordina per fertilità, poi copertura);
 - **giornate della competizione** dalle opzioni globali (5-22 = 18) per Pa, Pv e card del draft;
-- **RAR su +Rosa** dove seguo una squadra, coi primi tre simili nel tooltip.
+- **RAR su +Rosa** dove seguo una squadra; il tooltip nomina fino a tre simili, non i migliori (i più vicini entro
+  la tolleranza).
 
 **Verifica**: 1310 test dell'app, build pulita, `e2e-draft` «NESSUN PROBLEMA» col passo nuovo su +Rosa (intervallo,
 stampa, ordinamento) e la scala della Pa a 18 con la finestra 5-22 impostata nel browser del banco. **Non misurato sul
