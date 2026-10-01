@@ -694,6 +694,14 @@ preso il voto in tutte le giornate viste (almeno due) si legge di classe «titol
 la media dei titolari). Criterio del §5-sexies. Attesa: +0,4/+0,6 punti di quota; è una regola rara, quindi il «5
 stagioni su 7» può cadere per le stagioni dove la cella è vuota, e se cade per quello va detto.
 
+**L'esito di M7e: INERTE** (quota 56,87% identica, 0 stagioni su 7; errore 6,438 → 6,436). La ragione è nel peso:
+la quota di scelta si tira verso la media della classe con `kS` = 5-10 partite, e un portiere che l'anno prima era
+riserva ne porta 30-40, quindi cambiargli la classe sposta la previsione di poco.
+
+**PRE-REGISTRAZIONE (01/10/2026), M7f** - nata dall'esito di M7e: per lo stesso portiere (classe «riserva», voto in
+tutte le giornate viste, almeno due) la quota di scelta È la media dei portieri titolari, invece di essere tirata verso
+di essa. Criterio e attesa di M7e.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
