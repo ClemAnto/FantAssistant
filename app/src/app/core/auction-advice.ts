@@ -80,6 +80,7 @@ import {
 } from './player-place';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
+import { presenceNowShares } from './presence-now';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
@@ -262,6 +263,7 @@ export class AuctionAdvice {
 
   constructor() {
     this.restoreHorizon();
+    void this.bundle.presenceNow().then((file) => this.paShares.set(presenceNowShares(file)));
     effect(() => {
       const ids = [...this.feed.listoneIds()];
       const game = this.feed.isMantra() ? 'mantra' : 'classic';
@@ -825,6 +827,30 @@ export class AuctionAdvice {
    * the number the sheet's `Presenze` column shows. It is `engine_pv_pred` (or the declared estimate)
    * over the calendar THAT sheet's appearances are expressed on - never another sheet's.
    */
+  /**
+   * THE NEW FORMULA'S SHARE of the rounds left (`presence_now.json`, `toolkit/scripts/presence_test/now.py`), by
+   * fc_id: the «Pa» column of the draft, and the appearances the Draft Priority reads where it exists (operator,
+   * 01/10/2026: «aggiorniamo il calcolo del DP utilizzando SeSw, Rar e Pa nuovo», «dove c'e', anche su euro»).
+   * Serie A only and not gated - both said where the column is drawn. Empty until the file is read.
+   */
+  readonly paShares = signal<ReadonlyMap<number, number>>(new Map());
+
+  /**
+   * THE APPEARANCES THE DRAFT PRIORITY READS: the new formula's share where the file carries the man, the
+   * engine's (`expectedShareBy`) elsewhere - his decision, with the price stated: on EuroLeghe a Serie A man and a
+   * foreign one are then valued by two models, and in September the formula reads higher than the engine.
+   * One map for SeSw (`priorityMen`) and RAR (`rarityReadings`), so the two halves of the DP read one number.
+   */
+  readonly draftShareBy = computed<Map<number, number | null>>(() => {
+    const now = this.paShares();
+    const out = new Map(this.expectedShareBy());
+    for (const id of out.keys()) {
+      const share = now.get(id);
+      if (share != null) out.set(id, Math.min(1, Math.max(0, share)));
+    }
+    return out;
+  });
+
   readonly expectedShareBy = computed<Map<number, number | null>>(() => {
     const total = this.matchdaysTarget();
     const numbers = this.numbers();
@@ -993,14 +1019,16 @@ export class AuctionAdvice {
    */
   readonly priorityOn = computed(() => {
     if (!this.priorityReadable()) return false;
-    const rules = this.shapes() as PriorityRules;
     // SPENTA SUL CLASSIC dal 30/09/2026 (sera), sul verdetto pre-registrato del banco (todolist-draft-classic-v1
     // item 2.4, priorita-draft-v1.md §24): dieci stagioni Serie A, quote 8/8/6, pool largo, la DP spedita perde
     // -19,9% contro il consiglio di prima (`pickForUs`: valore x quote graduate x sopravvivenza), 0 finestre su
     // 10, e nessuna variante si salva (sconto di RAR 0-0,5, Z a 3 per partecipante, razionamento: tutte fra
     // -18,7% e -21,0%). Il consiglio di prima batte il tavolo 10/10. Riaccenderla e' togliere questa riga.
-    if (!this.feed.isMantra()) return false;
-    return !!rules.substitution?.matrix;
+    // ...E RIACCESA OVUNQUE il 01/10/2026 per decisione dell'operatore («DP deve essere acceso sempre: sia su
+    // Mantra che su Classic che su altro»), col prezzo del verdetto qui sopra davanti: e' una sua dichiarazione e
+    // non un'adozione del banco, quindi resta a verbale accanto al numero che la contraddice. La matrice delle
+    // sostituzioni non era letta dalla DP: era solo una guardia, e il classic non ne ha una.
+    return true;
   });
 
   /**
@@ -1051,7 +1079,9 @@ export class AuctionAdvice {
         slot: porta ? 'por' : this.slotFor(player, numbers.get(player.id)?.slot),
         price: porta ? porta.price : player.fvm,
         fm: valuation.fm,
-        share: valuation.pv != null && matchdays ? Math.min(1, valuation.pv / matchdays) : null,
+        // A door is a club and its mix stays the engine's; a man reads the new formula where it has him.
+        share: (porta ? null : this.draftShareBy().get(player.id))
+          ?? (valuation.pv != null && matchdays ? Math.min(1, valuation.pv / matchdays) : null),
         steady: porta ? null : (this.ratings.for(platform, player.id)?.steady?.share ?? null),
       });
     }
@@ -1091,6 +1121,8 @@ export class AuctionAdvice {
       // Classic: a league buys its quota of each line, and Z is the best of each line by his declared count
       // (`CLASSIC_STARTERS_PER_TEAM`: P 2, D 4, C 4, A 3 per participant).
       ...(quotas ? { quotas, startersPerLine: CLASSIC_STARTERS_PER_TEAM } : {}),
+      // Z and R by PRICE inside each base role (the operator, 01/10/2026; `draft-priority.ZERO_FVM_PERCENTILE`).
+      byPrice: true,
     };
     const rules = preferredRules(this.shapes() as PriorityRules, RECOMMENDED_MANTRA);
     return {
@@ -1247,7 +1279,7 @@ export class AuctionAdvice {
     const numbers = this.numbers();
     const press = this.rulings.press();
     const platform = this.entry()?.platform ?? 'default';
-    const shares = this.expectedShareBy();
+    const shares = this.draftShareBy();
     const bonus = this.bonusBy();
     const rules = this.shapes() as MantraModules | null;
     const mantra = this.priorityOn() && !!rules?.slot_roles;

@@ -34,6 +34,8 @@ import { type TrendCell, trendPointsMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { RUNG_RANK, Rarity, rarityText, shownRung } from '../../core/draft-rarity';
+import { paOnSeason } from '../../core/presence-now';
+import { asFlag, bindQuery } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -68,8 +70,17 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
-  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw' | 'pa'
   | `${SeasonMetric}@${'now' | 'last'}`;
+
+const FREE_SORT_KEYS: readonly string[] = [
+  'role', 'name', 'press', 'fvm', 'trend', 'prio', 'rung', 'pvp', 'min', 'mvp', 'steady', 'fmp', 'rar', 'sesw', 'pa',
+];
+
+/** A sort key read back from the address: one of the columns, or a season metric of the «medie» view. */
+function isFreeSort(key: string): key is FreeSort {
+  return FREE_SORT_KEYS.includes(key) || /^(pv|mv|fm|ga)@(now|last)$/.test(key);
+}
 
 /** The two ladders in one order, best first: what «sort by titolarità» orders by (one definition, in core). */
 const PRESS_RANK = RUNG_RANK;
@@ -137,6 +148,13 @@ export interface FreeRow {
   sesw: number | null;
   /** The raw SeSw, for the sort. */
   seswScore: number | null;
+  /**
+   * Pa, the NEW FORMULA's expected appearances (operator, 01/10/2026: «la colonna Pa dopo la colonna SeSw»): the
+   * decomposed formula of `partite-attese-scomposte-v1.md` priced today by `presence_test/now.py`, on a FULL
+   * season like every number in matchdays. Not gated and measured on Serie A only, so null for whoever the file
+   * does not carry - never a zero.
+   */
+  pa: number | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
   /** Off OUR board for the rest of the draft: our line is full (the keepers, and on classic 8/8/6). */
@@ -252,8 +270,8 @@ const ELEVEN = 11;
     /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
        THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
        empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
-    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 75px minmax(0, 1fr); }
-    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
+    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -295,7 +313,7 @@ const ELEVEN = 11;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
-    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2rem 2.25rem repeat(8, 2.3rem) minmax(0, 1fr); }
+    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -347,6 +365,11 @@ export class Auction {
     } catch {
       // Nothing saved: the default columns.
     }
+    // THE FILTERS AND THE ORDER OF THE FREE LIST TRAVEL IN THE ADDRESS (operator, 01/10/2026: «memorizza anche
+    // tutti i filtri applicati (o aggiorna l'url con querystring) per mantenere le scelte dopo un refresh»): they
+    // are what the list is ABOUT, which is the address's half of `view-state.ts`; how it is read (the view mode)
+    // stays in storage. A default writes nothing, so a page with no filter has a clean address.
+    bindQuery(this.freeQueryFields(), computed(() => true));
 
     // THE TABLE FOLLOWS THE SETTINGS: a changed league is a different table, so the invented one is rebuilt.
     // Only on the invented table - a real session's seats are the host's - and only when a field the table is
@@ -545,6 +568,13 @@ export class Auction {
   }
 
   /** The header's tooltip on the priority: what the number is, in the draft that has one. */
+  /** Short, like every tooltip here: what the column is, and why it can be a dash. */
+  protected paHint(): string {
+    return this.advice.paShares().size
+      ? 'Partite attese, nuova formula (solo Serie A, non validata dal gate)'
+      : 'Partite attese, nuova formula: manca presence_now.json';
+  }
+
   protected prioHint(): string {
     return this.advice.priorityOn()
       ? 'Draft Priority: la SeSw, abbassata se ne resteranno di simili al tuo turno'
@@ -1033,7 +1063,11 @@ export class Auction {
     // time, i.e. out of sight. The row says it is blocked and for how long - dimmed, with its badge.
     // On the RAW score and not the 0-99 (the code review of 29/09/2026): the rounding tied men a point apart and
     // clamped every negative score to 0, and a tie broken by FVM could put the advised pick below his own list.
-    return rows.sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity) || b.fvm - a.fvm);
+    // A MAN OF A FULL LINE GOES LAST (01/10/2026): with the Draft Priority on every game, a classic squad whose
+    // defence and attack are full kept the top of the list on men it can never call again - the advice of
+    // before priced them at zero and they sank by themselves. Still listed, dimmed, below everybody callable.
+    return rows.sort((a, b) => Number(a.full) - Number(b.full)
+      || (b.score ?? -Infinity) - (a.score ?? -Infinity) || b.fvm - a.fvm);
   });
 
   private freeRow(
@@ -1061,6 +1095,7 @@ export class Auction {
       rarText: '—',
       sesw: null,
       seswScore: null,
+      pa: goal ? null : paOnSeason(this.advice.paShares().get(row.player.id), this.advice.matchdaysTarget()),
       locked: this.advice.lockedForMe(row.price),
       full: this.advice.fullForMe(row.player.id),
       takenBy: this.takenBy(row.player.id),
@@ -1196,6 +1231,62 @@ export class Auction {
   protected readonly sortKey = signal<FreeSort | null>(null);
   protected readonly sortAsc = signal(false);
 
+  /** The free list's filters and order, one field each in the address (see the constructor). */
+  private freeQueryFields() {
+    const num = (value: number | null) => (value == null ? null : String(value));
+    const parse = (raw: string | null) => {
+      const value = raw == null || raw === '' ? NaN : Number(raw);
+      return Number.isFinite(value) ? value : null;
+    };
+    const setIf = <T>(target: { (): T; set(value: T): void }, value: T) => {
+      if (target() !== value) target.set(value);
+    };
+    return [
+      { param: 'q', read: () => this.query() || null, apply: (raw: string | null) => setIf(this.query, raw ?? '') },
+      {
+        param: 'ruoli',
+        read: () => (this.roleFilter().size ? [...this.roleFilter()].sort().join(',') : null),
+        apply: (raw: string | null) => {
+          const wanted = [...new Set((raw ?? '').split(',').map((one) => one.trim().toLowerCase()).filter(Boolean))].sort();
+          if (wanted.join(',') !== [...this.roleFilter()].sort().join(',')) this.roleFilter.set(new Set(wanted));
+        },
+      },
+      { param: 'fvmMin', read: () => num(this.fvmMin()), apply: (raw: string | null) => setIf(this.fvmMin, parse(raw)) },
+      { param: 'fvmMax', read: () => num(this.fvmMax()), apply: (raw: string | null) => setIf(this.fvmMax, parse(raw)) },
+      {
+        param: 'gradino',
+        read: () => num(this.minRung()),
+        apply: (raw: string | null) => {
+          const value = parse(raw);
+          setIf(this.minRung, this.rungOptions.some((one) => one.rank === value) ? value : null);
+        },
+      },
+      {
+        param: 'posizione',
+        read: () => num(this.maxPosition()),
+        apply: (raw: string | null) => {
+          const value = parse(raw);
+          setIf(this.maxPosition, value != null && Number.isInteger(value) && value > 0 ? value : null);
+        },
+      },
+      {
+        param: 'primaDiTe',
+        read: () => asFlag.read(this.onlyTaken()),
+        apply: (raw: string | null) => setIf(this.onlyTaken, asFlag.apply(raw)),
+      },
+      {
+        param: 'ordine',
+        read: () => (this.sortKey() ? `${this.sortKey()}${this.sortAsc() ? '-su' : '-giu'}` : null),
+        apply: (raw: string | null) => {
+          const match = /^(.+)-(su|giu)$/.exec(raw ?? '');
+          const key = match && isFreeSort(match[1]) ? match[1] : null;
+          setIf(this.sortKey, key);
+          setIf(this.sortAsc, key ? match![2] === 'su' : false);
+        },
+      },
+    ];
+  }
+
   protected sortBy(key: FreeSort): void {
     if (this.sortKey() === key) {
       this.sortAsc.set(!this.sortAsc());
@@ -1251,6 +1342,8 @@ export class Auction {
         return (row) => row.rar?.count ?? null;
       case 'sesw':
         return (row) => row.seswScore;
+      case 'pa':
+        return (row) => row.pa;
       case 'rung':
         return (row) => (row.expected.rung && PRESS_RANK[row.expected.rung] != null ? PRESS_RANK[row.expected.rung] : null);
       case 'pvp':

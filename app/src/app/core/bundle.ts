@@ -1,4 +1,5 @@
 import type { PresenceTestFile } from './presence-test';
+import type { PresenceNowFile } from './presence-now';
 import { Injectable } from '@angular/core';
 
 import type { CalendarFile } from './keeper-pairs';
@@ -388,6 +389,7 @@ export class Bundle {
   private crestsPromise?: Promise<Record<string, string>>;
   private calendarPromise?: Promise<CalendarFile | null>;
   private presenceTestPromise?: Promise<PresenceTestFile | null>;
+  private presenceNowPromise?: Promise<PresenceNowFile | null>;
 
   manifest(): Promise<BundleManifest> {
     this.manifestPromise ??= fetch(`${this.base}/manifest.json`)
@@ -572,6 +574,17 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<PresenceTestFile>) : null))
       .catch(() => null);
     return this.presenceTestPromise;
+  }
+
+  /**
+   * THE NEW FORMULA'S Pa FOR TODAY (01/10/2026, `toolkit/scripts/presence_test/now.py`), for the draft's «Pa»
+   * column. Null until somebody runs the script: the column is a dash and its tooltip says why.
+   */
+  presenceNow(): Promise<PresenceNowFile | null> {
+    this.presenceNowPromise ??= fetch(`${this.base}/presence_now.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<PresenceNowFile>) : null))
+      .catch(() => null);
+    return this.presenceNowPromise;
   }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */

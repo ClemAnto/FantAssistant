@@ -180,6 +180,13 @@ if (existsSync(join(src, 'presence_test.json'))) {
   presenceTest = true;
 }
 
+/* THE NEW FORMULA'S Pa FOR TODAY (01/10/2026), written by `toolkit/scripts/presence_test/now.py` into the export
+ * folder and read by the draft page's «Pa» column. Optional: without it the column is a dash, and says why. */
+if (existsSync(join(src, 'presence_now.json'))) {
+  copyFileSync(join(src, 'presence_now.json'), join(OUT, 'presence_now.json'));
+  bytes += statSync(join(src, 'presence_now.json')).size;
+}
+
 const missing = [];
 for (const table of TABLES) {
   const file = `${table}.json.gz`;

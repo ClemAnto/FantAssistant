@@ -7,9 +7,13 @@ import {
   PriorityRules,
   PriorityState,
   RARITY_DISCOUNT,
+  ZERO_REFERENCES,
   TRIM,
   WorthContext,
   baseRole,
+  priceZero,
+  RESERVE_FVM,
+  ZERO_FVM_PERCENTILE,
   legalFor,
   manValue,
   picksBefore,
@@ -277,5 +281,35 @@ describe('the new Draft Priority: SeSw, RAR and the rationing (30/09/2026)', () 
     // Teams 1 and 2 still call this round (and add the two dearest, 40 and 1); team 3 has called.
     expect(k(1)).toBe(2 + 0);
     expect(k(60)).toBe(2 + 3);
+  });
+});
+
+describe('Z and R by price inside the role (01/10/2026)', () => {
+  // A role of 101 men whose fantamedia grows with the FVM: price i, fm 5 + i/100.
+  const priced = (role: string) => Array.from({ length: 101 }, (_, i) => ({ ...man(role, 5 + i / 100), price: i }));
+
+  it('takes Z at the 75th percentile of the price and R around 10 FVM', () => {
+    const zr = priceZero(priced('c'))!;
+    // Percentiles 70-80 are the men priced 70..80: mean fm 5.75.
+    expect(zr.z).toBeCloseTo(5 + ZERO_FVM_PERCENTILE, 6);
+    // The 15 nearest FVM 10 are priced 3..17: mean fm 5.10.
+    expect(zr.r).toBeCloseTo(5 + RESERVE_FVM / 100, 6);
+    expect(zr.r).toBeLessThan(zr.z);
+    expect(priceZero([])).toBeNull();
+  });
+
+  it('replaces the counts only where the caller asks, and a man on Z who always plays reads zero', () => {
+    const everybody = [...priced('c'), ...priced('pc')];
+    const counted = roleStats(everybody, RULES, SIZE);
+    const byPrice = roleStats(everybody, RULES, { ...SIZE, byPrice: true });
+    expect(byPrice.get('c')!.z).toBeCloseTo(5.75, 6);
+    expect(byPrice.get('c')!.reserveFm).toBeCloseTo(5.1, 6);
+    expect(counted.get('c')!.z).not.toBeCloseTo(5.75, 2);
+    const ctx: WorthContext = { rules: RULES, stats: byPrice };
+    expect(manValue({ ...man('c', 5.75, 1), id: 999 }, ctx, 38)).toBeCloseTo(0, 6);
+  });
+
+  it('keeps the four reference lines declared by fc_id', () => {
+    expect(Object.keys(ZERO_REFERENCES).sort()).toEqual(['att', 'cen', 'dif', 'por']);
   });
 });

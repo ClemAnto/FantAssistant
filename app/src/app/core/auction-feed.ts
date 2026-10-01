@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
 import type { PickOrderType } from './auction-plan';
 import { teamColour } from './team-colours';
@@ -30,6 +30,13 @@ const STORAGE_KEY = 'fantassistant.auction';
 
 /** And the table itself, so a refresh SHOWS something before the network answers. */
 const SNAPSHOT_KEY = 'fantassistant.auction.snapshot';
+
+/**
+ * Where the REVIEW CURSOR is remembered (operator, 01/10/2026: «se utilizzo la navigazione delle scelte, memorizza
+ * l'indice settato e ripristinalo al refresh della pagina»), WITH THE CODE of the table it was set on: an index
+ * alone would rewind whatever session the browser re-joins next.
+ */
+const CURSOR_KEY = 'fantassistant.auction.cursor';
 
 /** At most one write per this many ms: a draft writes the whole state on every pick. */
 const SNAPSHOT_THROTTLE_MS = 1500;
@@ -685,6 +692,43 @@ export class AuctionFeed {
       this.closeStream();
       if (this.trailing) clearTimeout(this.trailing);
     });
+    // THE SAVED CURSOR COMES BACK ONCE the re-joined table is the one it was set on and holds that many picks:
+    // `connect` resets the cursor on its way in, and the stream may deliver the picks after `restore` has
+    // returned, so it waits for the table instead of being set on an empty one. A later navigation wins.
+    effect(() => {
+      const pending = this.pendingCursor();
+      if (!pending || pending.code !== this.code()) return;
+      if (this.totalPicks() <= pending.at) return;
+      untracked(() => {
+        this.pendingCursor.set(null);
+        this.cursor.set(pending.at);
+      });
+    });
+  }
+
+  /** A cursor read from storage, waiting for its table (see the constructor). */
+  private readonly pendingCursor = signal<{ code: string; at: number } | null>(null);
+
+  /** Saves the cursor a NAVIGATION set; `null` (the whole table) forgets it. */
+  private rememberCursor(): void {
+    const at = this.cursor();
+    const code = this.code();
+    this.pendingCursor.set(null);
+    try {
+      if (at === null || !code) localStorage.removeItem(CURSOR_KEY);
+      else localStorage.setItem(CURSOR_KEY, JSON.stringify({ code, at }));
+    } catch {
+      // A browser that refuses storage still navigates; it just starts from the end after a refresh.
+    }
+  }
+
+  private savedCursor(code: string): number | null {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CURSOR_KEY) ?? 'null') as { code?: string; at?: number } | null;
+      return saved?.code === code && Number.isInteger(saved.at) && saved.at! >= 0 ? saved.at! : null;
+    } catch {
+      return null;
+    }
   }
 
   readonly connected = computed(() => this.status() === 'connected');
@@ -1073,6 +1117,8 @@ export class AuctionFeed {
   async restore(): Promise<boolean> {
     const stored = this.stored();
     if (!stored?.code) return false;
+    const at = this.savedCursor(stored.code);
+    if (at !== null) this.pendingCursor.set({ code: stored.code, at });
 
     if (stored.teamId !== null && stored.teamId !== undefined) {
       this.followedTeamId.set(stored.teamId);
@@ -1215,6 +1261,7 @@ export class AuctionFeed {
   back(): void {
     const at = this.cursor() ?? this.totalPicks();
     if (at > 0) this.cursor.set(at - 1);
+    this.rememberCursor();
   }
 
   /** One pick forward; past the last one the review ends and the table is shown whole again. */
@@ -1222,16 +1269,19 @@ export class AuctionFeed {
     const at = this.cursor();
     if (at === null) return;
     this.cursor.set(at + 1 >= this.totalPicks() ? null : at + 1);
+    this.rememberCursor();
   }
 
   /** To the first pick: the draft before anybody chose. */
   toStart(): void {
     if (this.totalPicks() > 0) this.cursor.set(0);
+    this.rememberCursor();
   }
 
   /** Back to everything the table holds. */
   toEnd(): void {
     this.cursor.set(null);
+    this.rememberCursor();
   }
 
   follow(teamId: number) {

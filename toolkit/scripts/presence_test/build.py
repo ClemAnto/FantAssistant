@@ -154,6 +154,25 @@ def september_share(r, p) -> float:
         d, _s = parts(r, p)
         return d * prior(p, "Sbar", {**r, "ctx": "portiere titolare"}) * p["c"]
     return share(r, p)
+
+
+def september_pa_of(r, p, k_rounds: float, *, seen: str = SEPTEMBER_SEEN,
+                    open_spell: bool = SEPTEMBER_OPEN_SPELL) -> float:
+    """THE ADOPTED SEPTEMBER Pa of one row: the prior share (`september_share`), blended with the rounds seen by
+    the engine's own K, times the rounds left after a spell still open. One definition, read by the bench (`main`)
+    and by `now.py`, which prices today's listone with it - two copies would give one man two forecasts."""
+    prior = september_share(r, p)
+    if seen == "free":
+        chosen = (model.blend_with_seen(prior, r["seen_played"] / r["seen_free"], r["seen_free"], k_rounds)
+                  if r["seen_free"] else prior)
+    elif seen == "club":
+        chosen = (model.blend_with_seen(prior, r["seen_played"] / r["seen_club"], r["seen_club"], k_rounds)
+                  if r["seen_club"] else prior)
+    else:
+        chosen = (model.blend_with_seen(prior, r["pv_seen"] / r["seen"], r["seen"], k_rounds)
+                  if r["seen"] and r["pv_seen"] is not None else prior)
+    rounds = max(r["N"] - (r["out_open"] if open_spell else 0), 0.0)
+    return rounds * chosen
 # The gate's own thresholds for the two verdicts, so the bench speaks the gate's vocabulary.
 FLOOR, TOLERANCE = 0.005, -0.02
 K_READING = (3, 6, 10, 15, 25, 40)
@@ -827,19 +846,7 @@ def main() -> None:
         r["out_open"] = expected_out(r, games, spells, tables[r["target"]])
 
     def september_pa(r, *, seen: str = SEPTEMBER_SEEN, open_spell: bool = SEPTEMBER_OPEN_SPELL) -> float:
-        p = priors[r["target"]]
-        prior = september_share(r, p)
-        if seen == "free":
-            chosen = (model.blend_with_seen(prior, r["seen_played"] / r["seen_free"], r["seen_free"], k_rounds)
-                      if r["seen_free"] else prior)
-        elif seen == "club":
-            chosen = (model.blend_with_seen(prior, r["seen_played"] / r["seen_club"], r["seen_club"], k_rounds)
-                      if r["seen_club"] else prior)
-        else:
-            chosen = (model.blend_with_seen(prior, r["pv_seen"] / r["seen"], r["seen"], k_rounds)
-                      if r["seen"] and r["pv_seen"] is not None else prior)
-        rounds = max(r["N"] - (r["out_open"] if open_spell else 0), 0.0)
-        return rounds * chosen
+        return september_pa_of(r, priors[r["target"]], k_rounds, seen=seen, open_spell=open_spell)
 
     readings = {"formula": {},
                 **{f"viste {seen}{' + stop' if spell else ''}": {"seen": seen, "open_spell": spell}

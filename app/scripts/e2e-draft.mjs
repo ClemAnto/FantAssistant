@@ -921,24 +921,48 @@ async function main() {
     const seswRows = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
       .map((row) => ({
         sesw: Number(row.querySelector('[data-sesw]')?.textContent.trim()),
-        dp: Number(row.children[4]?.textContent.trim()),
+        // Role, name, FVM, SeSw, Pa (01/10/2026), then the priority.
+        dp: Number(row.children[5]?.textContent.trim()),
         rar: row.querySelector('[data-rar]')?.getAttribute('data-rar-count'),
       }))
       .filter((one) => Number.isFinite(one.sesw) && Number.isFinite(one.dp)));
     const above = seswRows.filter((one) => one.dp > one.sesw + 1);
     const rareOff = seswRows.filter((one) => one.rar === '0' && Math.abs(one.dp - one.sesw) > 1);
     const lowered = seswRows.filter((one) => one.dp < one.sesw - 1).length;
-    // Every draft has a SeSw since 30/09/2026, classic too: it is a READING of the man. The DP is the ADVICE and is
-    // mantra-only since the same evening - on classic the draft bench measured it at -19.9% against the advice of
-    // before (priorita-draft-v1.md §24), so there the priority column is `pickForUs` on its 0-99 scale and the
-    // «DP <= SeSw» arithmetic does not apply.
-    note('SeSw e DP', euro ? `${seswRows.length} righe con entrambe, ${lowered} abbassate dalla rarita'`
-      : `${seswRows.length} righe con SeSw; la colonna priorita' e' il consiglio di prima`,
+    // Every draft has a SeSw since 30/09/2026, classic too: it is a READING of the man. The DP was mantra-only from
+    // that evening to 01/10/2026 (the draft bench measured it at -19.9% on classic, priorita-draft-v1.md §24) and is
+    // ON EVERYWHERE since, by the operator's decision - so the «DP <= SeSw» arithmetic holds on every game.
+    note('SeSw e DP', `${seswRows.length} righe con entrambe, ${lowered} abbassate dalla rarita'`,
       [
         ...(!seswRows.length ? ['nessuna riga con SeSw'] : []),
-        ...(euro && above.length ? [`${above.length} righe con DP sopra SeSw`] : []),
-        ...(euro && rareOff.length ? [`${rareOff.length} righe con RAR 0 e DP diversa da SeSw`] : []),
-        ...(euro && seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
+        ...(above.length ? [`${above.length} righe con DP sopra SeSw`] : []),
+        ...(rareOff.length ? [`${rareOff.length} righe con RAR 0 e DP diversa da SeSw`] : []),
+        ...(seswRows.length && !lowered ? ["la rarita' non abbassa nessuno"] : []),
+      ]);
+    // THE NEW FORMULA'S Pa (01/10/2026): every loaded row against `presence_now.json` itself, never against the
+    // column - the share of the rounds left times ONE full season for everybody (38 on Serie A), and a dash for
+    // whoever the file does not carry (it is Serie A only).
+    const nowFile = existsSync(join(DIST, 'data', 'presence_now.json'))
+      ? JSON.parse(await readFile(join(DIST, 'data', 'presence_now.json'), 'utf-8')) : null;
+    const paShare = new Map((nowFile?.rows ?? []).filter((one) => one.share != null).map((one) => [one.fcId, one.share]));
+    const paRows = await evaluate(session, () => [...document.querySelectorAll('[data-free]')]
+      .map((row) => ({ id: Number(row.getAttribute('data-free')), text: row.querySelector('[data-pa]')?.textContent.trim() ?? null })));
+    const paShown = paRows.filter((one) => /\d/.test(one.text ?? ''));
+    const scales = paShown.filter((one) => paShare.get(one.id) > 0.05)
+      .map((one) => Number(one.text) / paShare.get(one.id));
+    const scale = scales.length ? scales.reduce((a, b) => a + b, 0) / scales.length : null;
+    const offScale = scales.filter((one) => scale && Math.abs(one - scale) > 0.06 / 0.05 + 0.5);
+    const missing = paRows.filter((one) => paShare.has(one.id) && !/\d/.test(one.text ?? ''));
+    const invented = paShown.filter((one) => !paShare.has(one.id));
+    note('Pa nuova formula', nowFile
+      ? `${paShown.length} di ${paRows.length} righe con la Pa, scala ${scale?.toFixed(2)} giornate`
+      : 'presence_now.json assente nel build', [
+        ...(!nowFile ? ['manca presence_now.json: npm run data:pull dopo now.py'] : []),
+        ...(nowFile && !paShown.length ? ['nessuna riga con la Pa'] : []),
+        ...(missing.length ? [`${missing.length} righe col dato nel file e un trattino a schermo`] : []),
+        ...(invented.length ? [`${invented.length} righe con una Pa che il file non ha`] : []),
+        ...(offScale.length ? [`${offScale.length} righe su una scala diversa`] : []),
+        ...(!euro && scale && Math.abs(scale - 38) > 0.5 ? [`scala ${scale.toFixed(2)} invece di 38`] : []),
       ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="prio"]'));
     await wait(400);
@@ -1130,10 +1154,8 @@ async function main() {
       if (plan && !wasPinned) await mouse(await evaluate(session, centre, '[data-scenario]'));
       await wait(400);
       const after = await evaluate(session, () => document.querySelectorAll('[data-plan-place]').length);
-      if (!euro) {
-        note('piani (classic)', plan ? `«${plan.text}»` : 'nessun piano, come deve',
-          plan ? ['un piano a schermo su un draft classic, dove la Draft Priority e\' spenta'] : []);
-      } else note('piani', plan ? `«${plan.text}» (${plan.difficulty}); selezionato: ${lit.places} posti evidenziati, incrementi ${lit.gains.join(' | ')}; deselezionato ${after}` : 'nessun piano',
+      // The plans follow the Draft Priority, which is on in every game since 01/10/2026 (operator's decision).
+      note('piani', plan ? `«${plan.text}» (${plan.difficulty}); selezionato: ${lit.places} posti evidenziati, incrementi ${lit.gains.join(' | ')}; deselezionato ${after}` : 'nessun piano',
         [
           ...(!plan ? ['nessun piano a schermo'] : []),
           ...(plan && !/^1\) rosa [+-]?\d+ \((sicuro|facile|medio|difficile)\) [+-]\d+% [+-]\d+ /.test(plan.text) ? ["il piano non porta gli incrementi di copertura e fertilita'"] : []),
@@ -1159,19 +1181,19 @@ async function main() {
       const heads = [...head.children].map((one) => one.getBoundingClientRect());
       const cells = [...row.children].map((one) => one.getBoundingClientRect());
       const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.right - cells[at].right)) : null));
-      // The eight season columns, after role, name, FVM, SeSw, priority and rarity.
-      const widths = heads.slice(6).map((one) => Math.round(one.width));
+      // The eight season columns, after role, name, FVM, SeSw, Pa (01/10/2026), priority and rarity.
+      const widths = heads.slice(7).map((one) => Math.round(one.width));
       const clipped = [...document.querySelectorAll('[data-free]')].flatMap((one) => [...one.children].slice(2))
         .filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length;
-      const fmHead = head.children[8];
-      const fmCell = row.children[8];
+      const fmHead = head.children[9];
+      const fmCell = row.children[9];
       const splits = document.querySelectorAll('[data-column="free"] .split').length;
       const crests = row.querySelectorAll('ui-crest').length;
       return {
         drift: drift.slice(2),
         fmHead: fmHead ? getComputedStyle(fmHead).color : null,
         fmCell: fmCell ? getComputedStyle(fmCell).color : null,
-        mvCell: row.children[7] ? getComputedStyle(row.children[7]).color : null,
+        mvCell: row.children[8] ? getComputedStyle(row.children[8]).color : null,
         splits,
         crests,
         widths,
@@ -1214,9 +1236,29 @@ async function main() {
       picks: [...document.querySelectorAll('[data-seat]')].reduce((sum, one) => sum + Number(one.getAttribute('data-picks')), 0),
       clock: document.querySelector('[data-seat][data-clock]')?.getAttribute('data-seat'),
     }));
+    // THE FILTERS SURVIVE A REFRESH (operator, 01/10/2026): they travel in the address, so the same query string
+    // and the same filtered total come back. Read before, compared after - never assumed.
+    const filtersBefore = await evaluate(session, () => ({
+      search: location.search,
+      total: document.querySelector('[data-total]')?.getAttribute('data-total') ?? null,
+    }));
     await session.send('Page.reload');
     await wait(1500);
     const reloaded = await settle(() => true, 'reload');
+    let filtersAfter = null;
+    for (let tick = 0; tick < 20; tick += 1) {
+      filtersAfter = await evaluate(session, () => ({
+        search: location.search,
+        total: document.querySelector('[data-total]')?.getAttribute('data-total') ?? null,
+      }));
+      if (filtersAfter.total === filtersBefore.total) break;
+      await wait(250);
+    }
+    note('filtri dopo il refresh', `indirizzo «${filtersBefore.search || '(vuoto)'}», totale ${filtersBefore.total} -> ${filtersAfter.total}`, [
+      ...(!filtersBefore.search ? ["nessun filtro nell'indirizzo prima del refresh"] : []),
+      ...(filtersAfter.search !== filtersBefore.search ? ["il refresh ha perso l'indirizzo dei filtri"] : []),
+      ...(filtersAfter.total !== filtersBefore.total ? ['la lista filtrata non torna uguale dopo il refresh'] : []),
+    ]);
     const afterReload = await evaluate(session, () => ({
       // MY squad, off my seat: the pitch draws whichever squad was last CLICKED, which is not saved, so reading
       // the pitch compared two squads whenever a step had clicked a rival.
@@ -1232,6 +1274,11 @@ async function main() {
     await session.send('Page.reload');
     await wait(1500);
     const otherLeague = await settle(() => true, 'other league');
+    // The steps after this one read the WHOLE free list: the filters left on by the steps before travel in the
+    // address now, so they go with a navigation to the bare path - a refresh would keep them.
+    await evaluate(session, () => { location.href = location.pathname; });
+    await wait(1500);
+    await settle(() => true, 'no filters');
     note('scelte salvate', `prima rosa ${beforeReload.squad}, scelte ${beforeReload.picks}, di turno ${beforeReload.clock}; `
       + `dopo il refresh ${afterReload.squad}/${afterReload.picks}/${afterReload.clock}; con un'altra lega rosa ${otherLeague.squadSize}`,
       [
@@ -1259,7 +1306,7 @@ async function main() {
     note('previste', `colonne ${previste.head.join(' ')}; su ${previste.rows} righe: gradino ${previste.rung}, pv ${previste.pv}, `
       + `minuti ${previste.minutes}, mv ${previste.mv}, costanza ${previste.steady}, fm ${previste.fm}`,
       [
-        ...(previste.head.join(' ') !== 'role name fvm sesw prio rar rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
+        ...(previste.head.join(' ') !== 'role name fvm sesw pa prio rar rung pvp min mvp steady fmp' ? ['colonne nell\'ordine sbagliato'] : []),
         ...(['rung', 'pv', 'minutes', 'mv', 'steady', 'fm'].filter((key) => !previste[key]).map((key) => `colonna ${key} vuota su tutte le righe`)),
       ]);
 
@@ -1316,6 +1363,16 @@ async function main() {
         if (table.clock !== mine) { await wait(200); continue; }
         // My turn: the pitch shows my squad, so its list is my roster.
         const count = countOf(table.roster);
+        // A FULL LINE'S MEN SIT AT THE BOTTOM since 01/10/2026 (below everybody callable): to see one, and to try
+        // the refusal on it, the tail of the list has to be loaded - it loads sixty rows a scroll.
+        if (refusedFull === null && Object.keys(QUOTA).some((line) => count[line] >= QUOTA[line])) {
+          for (let scroll = 0; scroll < 8 && !table.rows.some((row) => row.full); scroll += 1) {
+            await evaluate(session, () => { const list = document.querySelector('[data-free-list]'); if (list) list.scrollTop = list.scrollHeight; });
+            await wait(250);
+            table = await readTable();
+          }
+          if (table.clock !== mine) continue;
+        }
         for (const row of table.rows) {
           const line = lineOf(row.roles);
           if (!line) continue;

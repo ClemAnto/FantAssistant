@@ -151,6 +151,8 @@ export interface LeagueSize {
    * R keeps the split of the bought men at the module's places, which he did not ask to change.
    */
   startersPerLine?: Partial<Record<Line, number>>;
+  /** Z and R by PRICE inside each base role (`priceZero`), over everybody handed in: what the app asks for. */
+  byPrice?: boolean;
 }
 
 /** The men a league of this size BUYS (see `roleStats`): the population of Z, and of R among the free. */
@@ -205,6 +207,55 @@ export const STARTERS_PER_TEAM = 3;
  */
 export const CLASSIC_STARTERS_PER_TEAM: Record<Line, number> = { por: 2, dif: 4, cen: 4, att: 3 };
 
+/**
+ * Z AND R BY PRICE (the operator, 01/10/2026), and they win over the counts above wherever the caller asks for it.
+ * The trigger: with Z the mean of the best three forwards per participant (6.95 on Serie A), 24 of those 30
+ * «average starters» read a NEGATIVE SeSw - Esposito F.P., Davis, Scamacca, Simeone, Dybala. His zero, by name:
+ *   - A «un attaccante che gioca quasi sempre e segna ogni tanto, tipo Pinamonti (40 FVM orientativamente)»;
+ *   - C «uno che gioca sempre ma non segna quasi mai: Lobotka, Perrone, Cristante»;
+ *   - D «uno che gioca sempre e prende voti sufficienti: Marcandalli, Obert»;
+ *   - P «uno che gioca sempre e non prende troppi gol: Okoye, Falcone»;
+ * then «facciamo in modo che Z sia coerente, magari troviamo un percentile unico per ruolo», and «R deve essere più
+ * basso di Z ... intorno ai 10 FVM» on every role.
+ * MEASURED before writing it, on the Serie A classic sheet of 01/10/2026: inside each base role, the mean expected
+ * fantamedia of the men at the 75th percentile of FVM (band 70-80) reads P 4.92 · D 6.03 · C 6.30 · A 6.69 against
+ * his references' 4.91 · 5.96 · 6.30 · 6.61 - one percentile for the four, where no rule on the fantamedia did
+ * (R, the median or a percentile of the regulars each fitted one role and missed another). R at FVM 10 reads
+ * 4.89 · 5.95 · 6.14 · 6.44: below Z on every role, as he asked. The percentile is of the PRICE inside the role,
+ * so it is the same rule on a listone whose fantamedie live on another scale (EuroLeghe). Declared, not gated.
+ */
+export const ZERO_FVM_PERCENTILE = 0.75;
+/** Half the band of percentiles averaged around `ZERO_FVM_PERCENTILE`: one man is a coin. */
+export const ZERO_FVM_BAND = 0.05;
+/** R: the fantamedia of the men priced around this FVM, the operator's «intorno ai 10 FVM». */
+export const RESERVE_FVM = 10;
+/** How many men nearest `RESERVE_FVM` make R: a thin role still has a mean, a wide one is not a single price. */
+export const RESERVE_FVM_MEN = 15;
+
+/** The operator's reference men for Z, by fc_id: the calibration `ZERO_FVM_PERCENTILE` was checked against. */
+export const ZERO_REFERENCES: Record<Line, readonly number[]> = {
+  por: [6462, 2134],          // Okoye, Falcone
+  dif: [6660, 5701],          // Marcandalli, Obert
+  cen: [4287, 6151, 779],     // Lobotka, Perrone, Cristante
+  att: [2038],                // Pinamonti
+};
+
+/** Z and R of one base role by price (`ZERO_FVM_PERCENTILE`, `RESERVE_FVM`); null without priced men. */
+export function priceZero(men: readonly PriorityMan[]): { z: number; r: number } | null {
+  const priced = men.filter((m) => m.fm != null && Number.isFinite(m.price)).sort((a, b) => a.price - b.price);
+  if (!priced.length) return null;
+  const last = Math.max(1, priced.length - 1);
+  const band = priced.filter((_, at) => Math.abs(at / last - ZERO_FVM_PERCENTILE) <= ZERO_FVM_BAND + 1e-9);
+  const zMen = band.length ? band : [priced[Math.round(ZERO_FVM_PERCENTILE * last)]];
+  const near = [...priced].sort((a, b) => Math.abs(a.price - RESERVE_FVM) - Math.abs(b.price - RESERVE_FVM))
+    .slice(0, RESERVE_FVM_MEN);
+  const mean = (list: readonly PriorityMan[]) => list.reduce((a, m) => a + m.fm!, 0) / list.length;
+  // «R deve essere più basso di Z»: on the keepers the fantamedia barely moves with the price (4.94 at FVM 10 against
+  // 4.92 at the 75th percentile, 01/10/2026), so R is held at Z there - the fallback is never worth more than the zero.
+  const z = mean(zMen);
+  return { z, r: Math.min(mean(near), z) };
+}
+
 export function roleStats(
   everybody: readonly PriorityMan[],
   rules: MantraModules,
@@ -218,9 +269,12 @@ export function roleStats(
   }
   const places = slotShares(rules);
   const everyFm = new Map<string, number[]>();
+  const everyMen = new Map<string, PriorityMan[]>();
   for (const man of everybody) {
     if (man.fm == null) continue;
     const key = baseRole(rules, man.roles, man.slot);
+    if (!everyMen.has(key)) everyMen.set(key, []);
+    everyMen.get(key)!.push(man);
     if (!everyFm.has(key)) everyFm.set(key, []);
     everyFm.get(key)!.push(man.fm);
   }
@@ -243,8 +297,9 @@ export function roleStats(
       : key === KEEPER || size.startersFromPlaces
         ? starters
         : (everyFm.get(key) ?? []).slice(-size.teams * STARTERS_PER_TEAM);
+    const byPrice = size.byPrice ? priceZero(everyMen.get(key) ?? []) : null;
     stats.set(key, {
-      z: trimmedMean(best.length ? best : starters),
+      z: byPrice?.z ?? trimmedMean(best.length ? best : starters),
       top: quantile(fms, 0.9)!,
       semi: quantile(fms, 0.7)!,
       median: quantile(fms, 0.5)!,
@@ -253,7 +308,7 @@ export function roleStats(
       steady: quantile(steady, 0.5) ?? 0.6,
       share: men.reduce((a, m) => a + (m.share ?? 0), 0) / men.length,
       bought: men.length,
-      reserveFm: trimmedMean(low),
+      reserveFm: byPrice?.r ?? trimmedMean(low),
     });
   }
   return stats;

@@ -572,6 +572,27 @@ describe('rivedere un draft scelta per scelta', () => {
     expect(feed.picks().length).toBe(0);
   });
 
+  it('remembers the cursor WITH the table code, forgets it at the end, and puts it back once the table is in', () => {
+    localStorage.removeItem('fantassistant.auction.cursor');
+    const feed = feedOn(ENDED);
+    feed.code.set('FA-aaa-bbb');
+    feed.back();
+    feed.back();
+    expect(JSON.parse(localStorage.getItem('fantassistant.auction.cursor')!)).toEqual({ code: 'FA-aaa-bbb', at: 4 });
+    feed.toEnd();
+    expect(localStorage.getItem('fantassistant.auction.cursor')).toBeNull();
+    // What `restore` does on a refresh: the saved index waits for ITS table, and a different code never takes it.
+    const again = feedOn(ENDED);
+    (again as unknown as { pendingCursor: { set(v: unknown): void } }).pendingCursor.set({ code: 'FA-aaa-bbb', at: 4 });
+    again.code.set('FA-zzz-zzz');
+    TestBed.tick();
+    expect(again.cursor()).toBeNull();
+    again.code.set('FA-aaa-bbb');
+    TestBed.tick();
+    expect(again.cursor()).toBe(4);
+    expect(again.picks().length).toBe(4);
+  });
+
   it('ends the review when the table changes hands or is written by hand', () => {
     const feed = feedOn(ENDED);
     feed.back();

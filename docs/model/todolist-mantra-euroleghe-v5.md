@@ -2731,3 +2731,14 @@ Dettaglio in `letture-app-v1.md` §55.6.
    portati alle parole nuove prima del prossimo confronto noi-contro-stampa.
 4. **La rilevazione Serie A non ha un comando che la rinnovi**: rifarla prima di un'asta vuol dire rifare i passi
    2-8 del README con `PRESS_SURVEY_PLATFORM=default` (i club con `prev/` si aggiornano, non si rifanno).
+
+## Aperti dopo la sessione del 01/10/2026 (IV) — il draft: Pa nuova, DP ovunque, zero per prezzo
+
+1. **Il banco del draft con le tre scelte insieme** (Pa nuova nella SeSw, Z/R per prezzo, DP sul classic): nessuna e'
+   misurata. Serve la Pa della formula sulle finestre del banco (oggi solo Serie A, e sul banco euro non esiste).
+2. **`now.py` non gira da solo**: va lanciato dopo un export (`python toolkit/scripts/presence_test/now.py`, poi
+   `npm run data:pull`); da mettere nel lavoro notturno dopo `export`.
+3. **Z per prezzo su EuroLeghe e Mantra**: il 75° percentile e' tarato sul listone Serie A classic; sui ruoli base del
+   mantra (`w`, `t` in linea di centrocampo) non e' stato confrontato con nessun riferimento.
+4. **Il cursore delle scelte** si azzera navigando via dalla pagina (`toEnd` alla distruzione): si ripristina solo
+   al refresh, come chiesto.

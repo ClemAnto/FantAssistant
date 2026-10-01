@@ -10296,3 +10296,22 @@ Resoconto: `data/reports/rose-serie-a-2026-10-01.html`. Export e `data:pull` rif
 `e2e-draft.mjs` NESSUN PROBLEMA, `test_export.py` 22 verdi.
 
 **Cosa resta da fare**: la todolist, «Aperti dopo la sessione del 01/10/2026 (III)».
+
+## 1 ottobre 2026 (IV) — IL DRAFT: la Pa nuova, la DP ovunque, lo zero per prezzo
+
+Dettaglio: `priorita-draft-v1.md` §29. Tutto DICHIARATO dall'operatore, niente giudicato dal banco del draft.
+- **Pa nuova formula ad oggi**: `toolkit/scripts/presence_test/now.py` (la lettura di settembre del banco, una
+  funzione sola `build.september_pa_of`) scrive `presence_now.json` nell'export; `pull-bundle` lo copia. 599 quotati
+  Serie A, 55 s. In draft colonna «Pa» dopo SeSw, su stagione piena (`core/presence-now.ts`).
+- **DP**: SeSw e RAR leggono la quota della Pa nuova dove c'e', quella del motore altrove, euro compreso
+  (`AuctionAdvice.draftShareBy`). **Accesa su ogni gioco** (`priorityOn` = `priorityReadable`), contro il −19,9% del
+  §24. Con la DP sul classic i «pieno» vanno in fondo alla lista: prima il draft simulato si bloccava a 133/225.
+- **Z e R per prezzo** (`draft-priority.priceZero`): Z = Fm media al 75° percentile di FVM del ruolo (banda 70-80),
+  R = Fm media dei 15 col FVM piu' vicino a 10, R ≤ Z. Tarato sui suoi riferimenti (Pinamonti; Lobotka, Perrone,
+  Cristante; Marcandalli, Obert; Okoye, Falcone, `ZERO_REFERENCES`).
+- **Navigazione delle scelte**: il cursore si salva col codice del tavolo e torna al refresh (`AuctionFeed`).
+  **Filtri e ordine della lista svincolati nell'URL** (`bindQuery`).
+- **Il banco ha pagato la funzione nuova**: `e2e-draft` accendeva un filtro e contava sul refresh per toglierlo; ora
+  verifica che i filtri sopravvivano e poi li toglie navigando all'indirizzo nudo. *Un default migliore per
+  l'operatore puo' togliere a un banco la premessa su cui misurava.*
+Verifiche: 1301 test app, `e2e-draft` verde (225/225, rose 3/8/8/6, Pa 60/60 su scala 38, colonne allineate).

@@ -860,3 +860,38 @@ zero e ricadeva sulla previsione normale. Quindi **la riga «APP: sopravvivenza 
 codice spedito riproduce la misura dell'adozione, la riproduceva perché la coda era inerte** - e lo sconto (+4,54%) era
 stato adottato su una previsione senza coda (`survival`, `tail: false`) mentre l'app ne spediva una con. Curato dando
 alla camminata `net = surplus`, come fa l'app. Con la coda davvero accesa la spedita perdeva il 2,5% sul mantra.
+
+## 29. La DP accesa ovunque, la Pa nuova dentro, e lo zero per PREZZO (01/10/2026)
+
+Quattro richieste dell'operatore nella stessa sessione, tutte DICHIARATE e nessuna giudicata dal banco del draft.
+
+**La colonna Pa e la Pa nella DP.** `toolkit/scripts/presence_test/now.py` calcola la formula scomposta
+(`partite-attese-scomposte-v1.md`, la lettura di settembre adottata: M1b + M4 + M7c + M7f, le giornate viste col K
+del motore, lo stop aperto) per la stagione in corso, con l'asta a oggi e il prior tarato su tutte le finestre di
+luglio: 599 quotati di Serie A, `presence_now.json` nel pacchetto. La funzione e' una sola (`build.september_pa_of`,
+letta dal banco e da `now.py`). In draft e' la colonna dopo SeSw, su stagione piena. **SeSw e RAR leggono la sua
+quota dove c'e' e quella del motore altrove** (`AuctionAdvice.draftShareBy`), su euro compreso: sua scelta col prezzo
+detto - su EuroLeghe un uomo di Serie A e uno straniero sono valutati da due modelli, e a settembre la formula prevede
+piu' del motore. La formula non e' passata al gate (R33) ed e' misurata solo sulla Serie A.
+
+**La DP accesa sempre** («sia su Mantra che su Classic che su altro»), contro il verdetto del §24 (−19,9% sul classic):
+`priorityOn` = `priorityReadable`. Il primo giro del banco con la DP sul classic ha trovato un difetto suo: a difesa e
+attacco pieni la cima della lista restava fatta di uomini che la rosa non puo' piu' chiamare (col consiglio di prima
+valevano zero e scendevano da soli), e il draft simulato si fermava a 133 scelte su 225. I «pieno» ora vanno in
+fondo alla lista, visibili e smorzati.
+
+**Lo zero della SeSw.** Con Z = media dei migliori tre attaccanti per partecipante (6,95 su Serie A) **24 dei 30
+«titolari medi» avevano una SeSw negativa** (Esposito F.P., Davis, Scamacca, Simeone, Dybala): lo zero era un titolare
+sopra la mediana che non salta una partita. I suoi riferimenti: A Pinamonti, C Lobotka/Perrone/Cristante, D
+Marcandalli/Obert, P Okoye/Falcone; poi «un percentile unico per ruolo» e «R intorno ai 10 FVM». Misurato prima di
+scriverlo, dentro ogni ruolo del listone Serie A: la Fm media degli uomini al **75° percentile di FVM** (banda 70-80)
+legge P 4,92 · D 6,03 · C 6,30 · A 6,69 contro i suoi 4,91 · 5,96 · 6,30 · 6,61; nessuna regola sulla fantamedia (R, la
+mediana o un percentile dei regolari) prendeva tutti e quattro. R = la Fm media dei 15 uomini del ruolo col FVM piu'
+vicino a 10: 4,89 · 5,95 · 6,14 · 6,44, tenuto ≤ Z (sui portieri usciva 4,94). `draft-priority.priceZero`,
+`ZERO_FVM_PERCENTILE`, `RESERVE_FVM`. Effetto sugli attaccanti: Esposito +24, Scamacca +22, Davis +19, Simeone +12,
+Dybala +10, Pinamonti −11, Lucca −42 (centesimi a giornata). Un percentile di PREZZO vale identico su un listone le cui
+fantamedie stanno su un'altra scala.
+
+**Aperti**: nessuna delle quattro e' misurata sul banco del draft (Pa nuova solo Serie A; Z per prezzo; DP sul classic
+gia' bocciata nella forma di prima): la prossima corsa del banco va fatta con tutte e tre insieme.
+
