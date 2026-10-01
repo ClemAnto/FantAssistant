@@ -360,7 +360,16 @@
                       <span data-place-gain class="text-center text-[9px] font-semibold leading-none text-primary tabular-nums"
                         [class.opacity-50]="planStep(place) === 'second'">{{ gain }}</span>
                     }
-                    @if (place.man) {
+                    @if (place.man && place.suggested) {
+                      <!-- UN TITOLARE SUGGERITO MIGLIORE del mio (sua richiesta, 01/10/2026: «allinea piani e campo»):
+                           lui parte titolare al 30%, e il mio scende a prima riserva, come lo contano +Rosa e i piani. -->
+                      <div data-suggested class="opacity-30">
+                        <ng-container *ngTemplateOutlet="man; context: { $implicit: place.suggested, reserve: false, ghost: true }" />
+                      </div>
+                      <div data-displaced class="text-muted">
+                        <ng-container *ngTemplateOutlet="man; context: { $implicit: place.man, reserve: true, ghost: false }" />
+                      </div>
+                    } @else if (place.man) {
                       <ng-container *ngTemplateOutlet="man; context: { $implicit: place.man, reserve: false, ghost: false }" />
                     } @else if (place.suggested; as ghost) {
                       <!-- UN TITOLARE SUGGERITO, al 30%: quello che il piano prevede di prendere per questo posto

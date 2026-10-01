@@ -63,6 +63,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Bundle, type PressRungsFile } from './bundle';
 import type { Platform } from './players-store';
 import { TITOLARITA_LADDER, Titolarita, isTitolarita, normalizeTitolarita } from './titolarita';
+import { TimeTravel } from './time-travel';
 import { storedFlag, storedJson } from './view-state';
 
 /** Una dritta come viene salvata: la parola, il giorno, e il perche' se l'ha scritto. */
@@ -96,6 +97,27 @@ export interface PlayerRuling {
  * `scarto` resta la parola della stampa sotto `riserva`: finche' il foglio non ha quel gradino si prezza come
  * `riserva`, e la parola originale resta scritta sulla riga cosi' la distinzione non sparisce dallo schermo.
  */
+/**
+ * HOW OLD A PRESS READING MAY BE AND STILL PRICE A MAN (operator, 01/10/2026: «se il gradino stampa è aggiornato,
+ * usiamolo. Altrimenti usiamo il gradino del motore»). DECLARED: seven days is one matchday, so a reading that has
+ * not seen the last round is stale and the sheet's own rung answers instead. Counted on the day the press read HIS
+ * club (`decidedOn`), against the app's date (`TimeTravel.today`, which follows the time machine).
+ */
+export const PRESS_FRESH_DAYS = 7;
+
+/** Whole days from `from` to `to`, both `YYYY-MM-DD` (UTC dates, the project's clock); null if either is unreadable. */
+function daysFrom(from: string, to: string): number | null {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86_400_000) : null;
+}
+
+/** Whether a press reading of `decidedOn` is still fresh on `today` (an undated one is not). */
+export function pressFresh(decidedOn: string, today: string): boolean {
+  const age = daysFrom(decidedOn, today);
+  return age != null && age >= 0 && age <= PRESS_FRESH_DAYS;
+}
+
 export const PRESS_TO_RUNG: Readonly<Record<string, Titolarita>> = {
   bandiera: 'bandiera',
   titolarissimo: 'bandiera',
@@ -395,6 +417,7 @@ export function sanitiseRulings(raw: unknown): RulingsOnDisk {
 @Injectable({ providedIn: 'root' })
 export class PlayerRulings {
   private readonly bundle = inject(Bundle);
+  private readonly travel = inject(TimeTravel);
 
   /** Il file, per stagione: una rosa e' di una stagione, e una dritta dell'anno scorso non e' su questa. */
   private readonly file = storedJson<RulingsOnDisk>('rulings.players', sanitiseRulings);
@@ -497,7 +520,9 @@ export class PlayerRulings {
   readonly all = computed<ReadonlyMap<number, PlayerRuling>>(() => {
     const own = this.own();
     if (!this.pressOn()) return own;
-    const out = new Map(this.press());
+    // ONLY A FRESH reading (`PRESS_FRESH_DAYS`): a stale one leaves the sheet's rung in charge.
+    const today = this.travel.today();
+    const out = new Map([...this.press()].filter(([, ruling]) => pressFresh(ruling.decidedOn, today)));
     for (const [id, ruling] of own) out.set(id, ruling);
     return out;
   });

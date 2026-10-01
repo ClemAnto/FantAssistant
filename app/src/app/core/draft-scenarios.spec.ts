@@ -210,3 +210,29 @@ describe('judge, the chain from a man the operator names', () => {
     expect(bench.why).toContain('non entra');
   });
 });
+
+describe('the plans on the draft pitch (01/10/2026)', () => {
+  it('ranks the moves and reads the places to fix through the pitch when the caller gives one', () => {
+    const everybody = population();
+    const strong = man('pc', 7.4, 0.9, 40);
+    const reserve = man('dc', 5.6, 0.9, 5);
+    const pool = [strong, reserve];
+    const base = input(pool, everybody);
+    // A pitch that values only the reserve: the plans must follow it, not the Draft Priority's eleven.
+    const pitched: ScenarioInput = {
+      ...base,
+      pitch: {
+        worth: (roster) => (roster.some((m) => m.id === reserve.id) ? 1 : 0),
+        diagnose: () => ({ module: 'only', needs: [{ kind: 'scoperto', place: { line: 'D', slot: 'DC', roles: ['dc'] }, holder: null, gap: 0.3 }] }),
+        placeOf: (_, m) => (m.id === reserve.id ? { line: 'D', slot: 'DC', roles: ['dc'] } : null),
+      },
+    };
+    const moves = movesFor(pitched.teams[0], pitched.pool, pitched);
+    expect(moves[0].player.id).toBe(reserve.id);
+    expect(moves[0].gain).toBe(1);
+    const result = scenarios(pitched, 3);
+    expect(result.diagnosis!.needs[0].kind).toBe('scoperto');
+    expect(judge(pitched, asPlan(reserve))).toMatchObject({ verdict: 'coerente' });
+    expect(judge(pitched, asPlan(strong)).verdict).toBe('inopportuna');
+  });
+});

@@ -42,6 +42,12 @@ export interface FantaMan extends Placeable {
   share?: number | null;
   /** Bonus expected per appearance, fantamedia minus base vote (the draft pitch's FERTILITY). Absent = unknown. */
   bonus?: number | null;
+  /**
+   * The REAL club whose shirt he covers, when `club` is a label for the eye (a door reads «porta»). Two KEEPERS of one
+   * club fight for one shirt, so their coverage adds; everyone else combines as independent absences
+   * (`draft-pitch.combinedCover`). Absent = `club`.
+   */
+  coverClub?: string | null;
 }
 
 export interface FantaPlace {

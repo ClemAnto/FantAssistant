@@ -21,7 +21,7 @@ import { ExportReadings, pickRecords, picksCsv, saveCsv, squadsCsv } from '../..
 import { AuctionDemo } from '../../core/auction-demo';
 import { AuctionFeed, AuctionPlayer, AuctionTeam, CLASSIC_OF_ZONE, SquadEntry } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
-import { DraftPlace, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from '../../core/draft-pitch';
+import { COVER_OK, DraftPlace, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from '../../core/draft-pitch';
 import type { FantaMan } from '../../core/fanta-eleven';
 import { GlobalOptions } from '../../core/global-options';
 import { lazyRows } from '../../core/lazy-rows';
@@ -767,7 +767,7 @@ export class Auction {
       // (operator, 01/10/2026: «in funzione delle giornate della competizione e non su 38 della serie A»). Both
       // sources are already that share (`draftShareBy`), so the coverage reads the share itself and no calendar.
       share: this.advice.draftShareBy().get(player.id) ?? null,
-      bonus: this.advice.bonusBy().get(player.id) ?? null,
+      bonus: this.advice.fertilityBy().get(player.id) ?? null,
     };
   }
 
@@ -784,7 +784,7 @@ export class Auction {
     }
     // Coverage in three inks (operator, 29/09/2026): red under half the calendar, amber under 85%, green from 85%.
     // The two cuts are DECLARED, not measured: change them here.
-    const coverInk = cover < 0.5 ? 'text-danger' : cover < 0.85 ? 'text-warning' : 'text-success';
+    const coverInk = cover < 0.5 ? 'text-danger' : cover < COVER_OK ? 'text-warning' : 'text-success';
     // Fertility green, RED when negative (operator, 29/09/2026): a place that loses bonus points, a porta's malus.
     const fertilityInk = f != null && f < 0 ? 'text-danger' : 'text-success';
     return { cover: `${Math.round(cover * 100)}%`, coverInk, fertility: f == null ? '—' : `${f > 0 ? '+' : ''}${f}`, fertilityInk, gain };

@@ -24,7 +24,7 @@ import { MantraModules } from './auction-value';
 import { CallRules, PriorityMan, WorthContext, baseRole, legalFor, manValue } from './draft-priority';
 import { Place, bestEleven, placesIn } from './mantra-legal';
 
-export type NeedKind = 'vuoto' | 'debole' | 'senza riserva';
+export type NeedKind = 'vuoto' | 'debole' | 'scoperto' | 'senza riserva';
 
 /** A place of the module to fix, and why. */
 export interface PlaceNeed {
@@ -94,9 +94,26 @@ export interface ScenarioInput extends RivalWalkInput {
   matchdays: number;
   calls: CallRules;
   manOf: (id: number) => PriorityMan | null;
+  /**
+   * THE DRAFT PITCH, when the caller has one (operator, 01/10/2026: «procedi con le correzioni»): the plans are then
+   * ranked on what the pitch and +Rosa measure - the squad's fertility with its reserves, coverage on a tie - and
+   * the places to fix are the PITCH's, on its own eleven and its coverage. Without it the Draft Priority of the best
+   * eleven decides, as before (the bench and the tests that do not build a pitch).
+   */
+  pitch?: SquadPitch;
 }
 
-const URGENCY: Record<NeedKind, number> = { vuoto: 0, debole: 1, 'senza riserva': 2 };
+/** What the draft pitch says about a squad, in the scenarios' terms (`ScenarioInput.pitch`). */
+export interface SquadPitch {
+  /** What the squad yields, the quantity the plans are ranked on: higher is better, and differences add. */
+  worth(roster: readonly PriorityMan[]): number;
+  /** The places to fix on the pitch's eleven, most urgent first. */
+  diagnose(roster: readonly PriorityMan[]): Diagnosis | null;
+  /** The place the man would stand on, as a starter or a reserve; null where he adds nothing. */
+  placeOf(roster: readonly PriorityMan[], man: PriorityMan): Place | null;
+}
+
+const URGENCY: Record<NeedKind, number> = { vuoto: 0, debole: 1, scoperto: 2, 'senza riserva': 3 };
 
 const expected = (man: PriorityMan) => (man.share ?? 0) * (man.fm ?? 0);
 
@@ -130,6 +147,11 @@ export function diagnose(roster: readonly PriorityMan[], rules: MantraModules, w
   return { module, needs };
 }
 
+/** The places to fix: the pitch's where the caller has one, the Draft Priority's eleven otherwise. */
+export function diagnosisOf(roster: readonly PriorityMan[], input: ScenarioInput): Diagnosis | null {
+  return input.pitch ? input.pitch.diagnose(roster) : diagnose(roster, input.rules, input.worth, input.matchdays);
+}
+
 /** The squad as the priority reads it. */
 const rosterOf = (team: PlanTeam, manOf: ScenarioInput['manOf']) =>
   team.heldIds.map(manOf).filter((man): man is PriorityMan => !!man);
@@ -143,6 +165,7 @@ const rosterOf = (team: PlanTeam, manOf: ScenarioInput['manOf']) =>
  * The bench is not counted: a man who does not enter the eleven gains the squad nothing here, which is stated.
  */
 export function squadWorth(roster: readonly PriorityMan[], input: ScenarioInput, picksLeft: number): number {
+  if (input.pitch) return input.pitch.worth(roster);
   const xi = bestEleven(roster, input.rules, expected);
   const first = Object.keys(input.rules.modules ?? {})[0];
   const places = xi?.places ?? (first ? placesIn(input.rules, first) : []);
@@ -179,7 +202,7 @@ export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: Sce
   }
   priced.sort((a, b) => b.priority - a.priority);
   const picked = new Set(priced.slice(0, CANDIDATES));
-  const needs = diagnose(roster, input.rules, input.worth, input.matchdays)?.needs ?? [];
+  const needs = diagnosisOf(roster, input)?.needs ?? [];
   for (const need of needs) {
     const best = priced.find((one) => fits(one.player.roles, need.place));
     if (best) picked.add(best);
@@ -195,9 +218,13 @@ export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: Sce
 /** The place of the diagnosis a man would take, entering our best eleven; null when he would not fix one. */
 function needTaken(roster: readonly PriorityMan[], man: PriorityMan | null, diagnosis: Diagnosis | null,
   input: ScenarioInput): { place: Place | null; need: PlaceNeed | null } {
-  const withHim = man ? bestEleven([...roster, man], input.rules, expected) : null;
-  const at = withHim && man ? withHim.holders.findIndex((holder) => holder?.id === man.id) : -1;
-  const place = at >= 0 ? withHim!.places[at] : null;
+  let place: Place | null = null;
+  if (man && input.pitch) place = input.pitch.placeOf(roster, man);
+  else if (man) {
+    const withHim = bestEleven([...roster, man], input.rules, expected);
+    const at = withHim ? withHim.holders.findIndex((holder) => holder?.id === man.id) : -1;
+    place = at >= 0 ? withHim!.places[at] : null;
+  }
   const need = place && man
     ? (diagnosis?.needs.find((one) => one.place.slot === place.slot && fits(man.roles, one.place)) ?? null) : null;
   return { place, need };
@@ -229,7 +256,7 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
     const best = movesFor(mine, pool, input)[0];
     if (best) {
       const held = rosterOf(mine, input.manOf);
-      const then = diagnose(held, input.rules, input.worth, input.matchdays);
+      const then = diagnosisOf(held, input);
       second = { ...best, need: needTaken(held, input.manOf(best.player.id), then, input).need };
     }
   }
@@ -312,7 +339,7 @@ export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnos
   const me = input.teams.find((team) => team.id === input.mineId);
   if (!me || me.picksCount >= input.calls.rounds) return { diagnosis: null, list: [] };
   const roster = rosterOf(me, input.manOf);
-  const diagnosis = diagnose(roster, input.rules, input.worth, input.matchdays);
+  const diagnosis = diagnosisOf(roster, input);
   const list: Scenario[] = [];
   for (const move of movesFor(me, input.pool, input).slice(0, CHAINED)) {
     const need = needTaken(roster, input.manOf(move.player.id), diagnosis, input).need;
@@ -335,10 +362,13 @@ export function judge(input: ScenarioInput, first: PlanPlayer): { scenario: Scen
   const me = input.teams.find((team) => team.id === input.mineId);
   if (!me) return { scenario: null, verdict: 'inopportuna', why: 'nessuna squadra seguita' };
   const roster = rosterOf(me, input.manOf);
-  const diagnosis = diagnose(roster, input.rules, input.worth, input.matchdays);
+  const diagnosis = diagnosisOf(roster, input);
   const { place, need } = needTaken(roster, input.manOf(first.id), diagnosis, input);
   const scenario = chainFrom(input, first, need);
-  if (!place) return { scenario, verdict: 'inopportuna', why: 'non entra nel tuo miglior undici' };
+  if (!place) {
+    return { scenario, verdict: 'inopportuna',
+      why: input.pitch ? 'non aggiunge niente a nessun posto della tua rosa' : 'non entra nel tuo miglior undici' };
+  }
   if (!need) return { scenario, verdict: 'inopportuna', why: `entra come ${place.slot}, un posto che era già coperto` };
   return { scenario, verdict: 'coerente', why: `sistema il posto ${place.slot} (${need.kind})` };
 }

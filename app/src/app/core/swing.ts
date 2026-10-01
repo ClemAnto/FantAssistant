@@ -435,3 +435,27 @@ function inSeason(input: SwingInput): number {
   const weight = seasonPlayed / (seasonPlayed + SEEN_MATCHES);
   return weight * (seasonFm - fm) * pv * (input.confidence ?? 1);
 }
+
+/**
+ * THE DRAFT'S FERTILITY PER APPEARANCE (operator, 01/10/2026), the pure half of `AuctionAdvice.fertilityBy`: his
+ * expected bonus plus the steadiness each modifier pays (`steady x STEADY_SHARE` once for the R-Factor, and once
+ * more for a defender or keeper where the defence modifier is paid, so TWICE for them where both are) plus, for a keeper where the league pays
+ * it, the expected share of clean sheets of his club (+1 each, absolute like the bonus). Null without a bonus.
+ */
+export function draftFertility(
+  bonus: number | null,
+  role: Role | null,
+  steady: number | null,
+  cleanSheetShare: number | null,
+  league: { rFactor: boolean; defenceModifier: boolean; cleanSheet: boolean },
+): number | null {
+  if (bonus == null) return null;
+  let out = bonus;
+  const back = role === 'P' || role === 'D';
+  // One term per modifier that pays it (operator, 01/10/2026: «se sono attivi tutti e due il bonus vale doppio per
+  // difensori e portieri»): the R-Factor for everybody, the defence modifier for the back.
+  const terms = (league.rFactor ? 1 : 0) + (back && league.defenceModifier ? 1 : 0);
+  if (role && terms) out += terms * (steady ?? ROLE_STEADY[role]) * STEADY_SHARE;
+  if (role === 'P' && league.cleanSheet) out += cleanSheetShare ?? 0;
+  return out;
+}

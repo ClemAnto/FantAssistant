@@ -65,11 +65,13 @@ import {
   priorityPick,
   roleStats,
 } from './draft-priority';
-import { RECOMMENDED_MANTRA, addedYield, draftPitchOf, recommendedModules } from './draft-pitch';
+import { COVER_OK, DraftPitch, DraftPlace, RECOMMENDED_MANTRA, addedYield, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 import { RUNG_RANK, Rarity, RarityMan, rarity, shownRung } from './draft-rarity';
-import { PlayerRulings } from './player-rulings';
-import { Scenario, ScenarioInput, judge, scenarios as draftScenarios } from './draft-scenarios';
+import { PlayerRulings, RUNG_VOTE_SHARE, ruledShare } from './player-rulings';
+import { TITOLARITA_LADDER } from './titolarita';
+import { PlaceNeed, Scenario, ScenarioInput, SquadPitch, judge, scenarios as draftScenarios } from './draft-scenarios';
+import type { Place } from './mantra-legal';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { engineNumbersFrom } from './engine-sheet';
 import { seasonRoundsOf } from './season-scale';
@@ -79,10 +81,16 @@ import {
   placeMark,
   rotationMark,
 } from './player-place';
+import { CalendarFile, calendarBookFrom, cleanSheetOutlook } from './keeper-pairs';
+import { draftFertility } from './swing';
+import type { Role } from './plancia';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
 import { presenceNowShares } from './presence-now';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
+
+/** Every rung's share of the votes, for a declared rung the draft prices (`draftShareBy`). */
+const RULED_SHARES = new Map(TITOLARITA_LADDER.map((rung) => [rung, { play: RUNG_VOTE_SHARE[rung], minutes: null }]));
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
@@ -265,6 +273,8 @@ export class AuctionAdvice {
   constructor() {
     this.restoreHorizon();
     void this.bundle.presenceNow().then((file) => this.paShares.set(presenceNowShares(file)));
+    // The priced calendar, for the keepers' clean-sheet bonus in the draft's FERTILITY (`fertilityBy`).
+    void this.bundle.calendar().then((file) => this.calendarFile.set(file));
     effect(() => {
       const ids = [...this.feed.listoneIds()];
       const game = this.feed.isMantra() ? 'mantra' : 'classic';
@@ -867,9 +877,15 @@ export class AuctionAdvice {
    */
   readonly draftShareBy = computed<Map<number, number | null>>(() => {
     const now = this.paShares();
+    const numbers = this.numbers();
     const out = new Map(this.expectedShareBy());
     for (const id of out.keys()) {
-      const share = now.get(id);
+      // A DECLARED RUNG WINS (operator, 01/10/2026: «se il gradino stampa è aggiornato, usiamolo. Altrimenti usiamo
+      // il gradino del motore»): his own dritta, or the press's when it is fresh (`PlayerRulings.all`), priced as
+      // its word's share of the votes (`RUNG_VOTE_SHARE`). A word that confirms the sheet's rung changes nothing,
+      // so the row keeps the new formula. Until today the draft read neither.
+      const ruled = ruledShare(this.rulings.of(id), numbers.get(id)?.titolarita ?? null, RULED_SHARES);
+      const share = ruled?.play ?? now.get(id);
       if (share != null) out.set(id, Math.min(1, Math.max(0, share)));
     }
     return out;
@@ -882,6 +898,43 @@ export class AuctionAdvice {
     for (const { player } of this.listone()) {
       const pv = this.valuationFor(player, numbers).pv;
       out.set(player.id, pv == null || !total ? null : Math.min(1, pv / total));
+    }
+    return out;
+  });
+
+  private readonly calendarFile = signal<CalendarFile | null>(null);
+  private readonly calendarBook = computed(() => calendarBookFrom(this.calendarFile()));
+
+  /**
+   * THE DRAFT'S FERTILITY PER APPEARANCE (operator, 01/10/2026: «nella fertilità dobbiamo aggiungere il contributo della
+   * costanza (se r-factor è attivo o è un difensore/portiere e il mod-dif è attivo) ... anche il cleansheet per il
+   * portiere se è attivo»): `bonusBy` plus two league modifiers the fantavoto does not contain.
+   *   - STEADINESS: his share of sufficient base votes x `swing.STEADY_SHARE` (the part of the R-Factor or the
+   *     defence modifier one man can claim, the SWING's own term and weight), where the league pays the R-Factor, or
+   *     and once more for a defender or keeper where it pays the defence modifier: TWICE for them where both are
+   *     paid (operator, same day: «se sono attivi tutti e due il bonus vale doppio per difensori e portieri»). A man with no measured
+   *     steadiness reads his role's (`swing.ROLE_STEADY`), as the SWING does.
+   *   - CLEAN SHEET: for a keeper where the league pays it, the expected share of clean sheets of HIS club on the
+   *     calendar that is left (`keeper-pairs.cleanSheetOutlook`), +1 point each. ABSOLUTE and not the SWING's
+   *     differential, because the fertility is an absolute bonus too (his malus is not net of any replacement).
+   * Null where the bonus itself is unknown: the two terms are never a fertility on their own («vuoto = ignoto»).
+   */
+  readonly fertilityBy = computed<Map<number, number | null>>(() => {
+    const bonus = this.bonusBy();
+    const league = this.options.league();
+    const platform = this.entry()?.platform ?? 'euro';
+    const book = this.calendarBook();
+    const out = new Map<number, number | null>();
+    for (const { player } of this.listone()) {
+      const base = bonus.get(player.id) ?? null;
+      if (base == null) {
+        out.set(player.id, null);
+        continue;
+      }
+      const role = (MACRO_ROLE[player.zoneClassic] ?? null) as Role | null;
+      const calendar = role === 'P' ? (book?.forClub(player.club) ?? null) : null;
+      out.set(player.id, draftFertility(base, role, this.ratings.for(platform, player.id)?.steady?.share ?? null,
+        calendar ? cleanSheetOutlook(calendar, player.club) : null, league));
     }
     return out;
   });
@@ -1355,7 +1408,7 @@ export class AuctionAdvice {
       cost,
       minutesPerMatch: null,
       share: this.draftShareBy().get(player.id) ?? null,
-      bonus: this.bonusBy().get(player.id) ?? null,
+      bonus: this.fertilityBy().get(player.id) ?? null,
     };
   }
 
@@ -1486,8 +1539,77 @@ export class AuctionAdvice {
       rules: worth.rules, worth, matchdays,
       calls: { cap: input.cap ?? null, keeperCap: input.keeperCap, rounds: this.priorityRounds() },
       manOf: (id) => men.get(id) ?? null,
+      pitch: this.squadPitch(worth, matchdays, (id) => men.get(id) ?? null),
     };
   });
+
+  /**
+   * THE DRAFT PITCH AS THE SCENARIOS READ IT (operator, 01/10/2026: «procedi con le correzioni: c, a, b»), so a plan
+   * is ranked on what the pitch and +Rosa show and fixes the places the pitch paints:
+   *   worth     the squad's FERTILITY with its reserves (`pitchYield`), coverage on a tie - +Rosa's own order;
+   *   diagnose  on the pitch's eleven: an EMPTY place, a holder under an average starter (Draft Priority below
+   *             zero, as before), then a place covered under `COVER_OK`, the most uncovered first;
+   *   placeOf   where `withSuggestions` would put him - starting where he is the better starter, else as a reserve.
+   * The same `draftPitchOf` call as +Rosa (`rosaYields`): the module the operator forced, or the best one.
+   */
+  private squadPitch(worth: WorthContext, matchdays: number, manOf: (id: number) => PriorityMan | null): SquadPitch {
+    const players = new Map(this.listone().map(({ player }) => [player.id, player]));
+    const rules = this.rules();
+    const preferred = recommendedModules(this.feed.isMantra());
+    const module = this.pitchModule();
+    const fanta = new Map<number, FantaMan>();
+    const fantaOf = (id: number): FantaMan | null => {
+      if (!fanta.has(id)) {
+        const player = players.get(id);
+        if (!player) return null;
+        fanta.set(id, this.fantaManOf(player, player.fvm));
+      }
+      return fanta.get(id)!;
+    };
+    const pitchOf = (roster: readonly PriorityMan[]): DraftPitch | null => rules
+      ? draftPitchOf(roster.map((man) => fantaOf(man.id)).filter((m): m is FantaMan => !!m), rules, preferred, module, true)
+      : null;
+    const placeOfDrawn = (place: DraftPlace): Place => ({ line: place.line, slot: place.slot, roles: place.roles });
+    return {
+      worth: (roster) => {
+        const pitch = pitchOf(roster);
+        if (!pitch) return 0;
+        const { cover, fertility } = pitchYield(pitch);
+        return fertility + cover * 1e-3;
+      },
+      diagnose: (roster) => {
+        const pitch = pitchOf(roster);
+        if (!pitch) return null;
+        const needs: PlaceNeed[] = [];
+        for (const place of pitch.rows.flatMap((row) => row.places)) {
+          const holder = place.man ? manOf(place.man.id) : null;
+          if (!place.man) {
+            needs.push({ kind: 'vuoto', place: placeOfDrawn(place), holder: null, gap: 0 });
+            continue;
+          }
+          const value = holder ? manValue(holder, worth, matchdays) : null;
+          if (value != null && value < 0) {
+            needs.push({ kind: 'debole', place: placeOfDrawn(place), holder, gap: -value });
+            continue;
+          }
+          const { cover } = placeYield(place);
+          if (cover < COVER_OK) needs.push({ kind: 'scoperto', place: placeOfDrawn(place), holder, gap: COVER_OK - cover });
+        }
+        const urgency: Record<PlaceNeed['kind'], number> = { vuoto: 0, debole: 1, scoperto: 2, 'senza riserva': 3 };
+        needs.sort((a, b) => urgency[a.kind] - urgency[b.kind] || b.gap - a.gap);
+        return { module: pitch.module, needs };
+      },
+      placeOf: (roster, man) => {
+        const pitch = pitchOf(roster);
+        const one = fantaOf(man.id);
+        if (!pitch || !one) return null;
+        withSuggestions(pitch, [one]);
+        const place = pitch.rows.flatMap((row) => row.places)
+          .find((p) => p.suggested?.id === man.id || p.suggestedReserve?.id === man.id);
+        return place ? placeOfDrawn(place) : null;
+      },
+    };
+  }
 
   readonly scenarios = computed(() => {
     const input = this.scenarioInput();

@@ -1,12 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import { signal } from '@angular/core';
 import { Bundle, type PressRungsFile } from './bundle';
+import { TimeTravel } from './time-travel';
 import {
   BOARD_EFFECT,
   PRESS_TO_RUNG,
   PlayerRuling,
   PlayerRulings,
+  pressFresh,
   pressRulings,
   RungValues,
   orderedShares,
@@ -304,13 +307,13 @@ describe('pressRulings', () => {
 });
 
 describe('PlayerRulings con la stampa', () => {
-  async function service(): Promise<PlayerRulings> {
+  async function service(today = '2026-10-01'): Promise<PlayerRulings> {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [{
         provide: Bundle,
         useValue: { manifest: async () => ({ target_season: '2026-27' }), pressRungs: async () => PRESS },
-      }],
+      }, { provide: TimeTravel, useValue: { today: signal(today) } }],
     });
     const one = TestBed.inject(PlayerRulings);
     await new Promise((resolve) => setTimeout(resolve));
@@ -337,11 +340,28 @@ describe('PlayerRulings con la stampa', () => {
     expect(rulings.of(11)).toMatchObject({ rung: 'panchina', source: 'press' });
   });
 
+  it('una lettura della stampa vecchia di una settimana non batte il foglio (01/10/2026)', async () => {
+    const rulings = await service('2026-10-06');
+    expect(rulings.of(11)).toBeNull();
+    rulings.declare(11, 'titolare');
+    expect(rulings.of(11)).toMatchObject({ rung: 'titolare', source: 'operator' });
+  });
+
   it('spento: resta solo quello che hai dichiarato tu', async () => {
     const rulings = await service();
     rulings.declare(10, 'bandiera');
     rulings.pressOn.set(false);
     expect(rulings.of(11)).toBeNull();
     expect(rulings.of(10)).toMatchObject({ rung: 'bandiera', source: 'operator' });
+  });
+});
+
+describe('pressFresh, a press rung prices a man only while it is up to date (01/10/2026)', () => {
+  it('holds for seven days from the day the press read his club, and never for an undated or future reading', () => {
+    expect(pressFresh('2026-10-01', '2026-10-01')).toBe(true);
+    expect(pressFresh('2026-09-24', '2026-10-01')).toBe(true);
+    expect(pressFresh('2026-09-23', '2026-10-01')).toBe(false);
+    expect(pressFresh('', '2026-10-01')).toBe(false);
+    expect(pressFresh('2026-10-05', '2026-10-01')).toBe(false);
   });
 });

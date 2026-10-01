@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { GOALS_PER_POINT, LADDER_FLOOR, LADDER_KINK, LADDER_RUNG, MATCHDAY_MEAN, MATCHDAY_SD, ROLE_STEADY, SEEN_MATCHES, STEADY_MARGINAL, STEADY_SHARE, sheetBlendsSeen, swingOf } from './swing';
+import { GOALS_PER_POINT, LADDER_FLOOR, LADDER_KINK, LADDER_RUNG, MATCHDAY_MEAN, MATCHDAY_SD, ROLE_STEADY, SEEN_MATCHES, STEADY_MARGINAL, STEADY_SHARE, draftFertility, sheetBlendsSeen, swingOf } from './swing';
 
 describe('la scala dei gol', () => {
   it('e il ginocchio mezzo gradino sotto il pavimento, che e la media della scalinata', () => {
@@ -325,5 +325,25 @@ describe('la fantamedia gia tenuta in questa stagione (R25)', () => {
     const nudo = swingOf({ ...base, steady: 0.8 })!;
     expect(senza).toBeCloseTo(nudo, 9);
     expect(swingOf({ ...acceso, fmBlendsSeen: sheetBlendsSeen('euro') })!).not.toBeCloseTo(nudo, 9);
+  });
+});
+
+describe('draftFertility, the draft pitch bonus with the league modifiers (01/10/2026)', () => {
+  const all = { rFactor: true, defenceModifier: true, cleanSheet: true };
+  const none = { rFactor: false, defenceModifier: false, cleanSheet: false };
+  it('adds the steadiness once per modifier that pays it, so twice for the back when both are on', () => {
+    expect(draftFertility(1, 'A', 0.6, null, none)).toBe(1);
+    expect(draftFertility(1, 'A', 0.6, null, all)).toBeCloseTo(1 + 0.6 * STEADY_SHARE, 9);
+    const modOnly = { ...none, defenceModifier: true };
+    expect(draftFertility(1, 'A', 0.6, null, modOnly)).toBe(1);
+    expect(draftFertility(0.1, 'D', 0.7, null, modOnly)).toBeCloseTo(0.1 + 0.7 * STEADY_SHARE, 9);
+    expect(draftFertility(0.1, 'D', null, null, modOnly)).toBeCloseTo(0.1 + ROLE_STEADY.D * STEADY_SHARE, 9);
+    expect(draftFertility(0.1, 'D', 0.7, null, all)).toBeCloseTo(0.1 + 2 * 0.7 * STEADY_SHARE, 9);
+    expect(draftFertility(-1, 'P', 0.9, 0, all)).toBeCloseTo(-1 + 2 * 0.9 * STEADY_SHARE, 9);
+  });
+  it('adds the clean sheets to a keeper only where the league pays them, and never invents a fertility', () => {
+    expect(draftFertility(-1, 'P', 0.9, 0.35, { ...none, cleanSheet: true })).toBeCloseTo(-0.65, 9);
+    expect(draftFertility(-1, 'D', 0.9, 0.35, { ...none, cleanSheet: true })).toBe(-1);
+    expect(draftFertility(null, 'P', 0.9, 0.35, all)).toBeNull();
   });
 });

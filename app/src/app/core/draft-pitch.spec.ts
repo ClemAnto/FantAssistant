@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { DraftPlace, addedYield, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
+import { DraftPlace, addedYield, combinedCover, coverOf, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 
 /**
@@ -142,21 +142,59 @@ describe('flanksOutside', () => {
 });
 
 describe('placeYield, coverage and fertility of a place', () => {
-  it('sums each man x 0.8 and caps the place at 100%, the cap cutting the last man (01/10/2026)', () => {
-    // The operator's own example: 38 of 38 gives 80%, 20 of 38 gives 42%, together 122% -> 100%.
-    const starter = { ...man('Titolare', ['Dc'], 20), share: 38 / 38, bonus: 0.5 };
-    const reserve = { ...man('Riserva', ['Dc'], 10), share: 20 / 38, bonus: 1 };
-    expect(placeYield(place('DC', ['dc'], starter)).cover).toBeCloseTo(0.8, 9);
-    expect(placeYield(place('DC', ['dc'], reserve)).cover).toBeCloseTo(0.421, 3);
-    const both = placeYield({ ...place('DC', ['dc'], starter), reserves: [reserve] });
+  it('two KEEPERS of one club add up and cap the place at 100%, the cap cutting the last man (01/10/2026)', () => {
+    // 80% and 42% of one club, together 122% -> 100% - one shirt (no margin since 01/10/2026: the share is the cover).
+    const starter = { ...man('Titolare', ['Por'], 20), share: 0.8, bonus: 0.5 };
+    const reserve = { ...man('Riserva', ['Por'], 10), share: 0.42, bonus: 1 };
+    expect(placeYield(place('P', ['por'], starter)).cover).toBeCloseTo(0.8, 9);
+    expect(placeYield(place('P', ['por'], reserve)).cover).toBeCloseTo(0.42, 9);
+    const both = placeYield({ ...place('P', ['por'], starter), reserves: [reserve] });
     expect(both.cover).toBeCloseTo(1, 9);
     expect(both.fertility).toBeCloseTo(0.8 * 0.5 + 0.2 * 1, 9);
+  });
+
+  it('combines men of DIFFERENT clubs as independent absences, not as a sum (01/10/2026)', () => {
+    // The same 80% + 42% of two clubs: the place is empty only when both miss, 0.20 x 0.58, so 88.4% and not 100%.
+    const starter = { ...man('Titolare', ['Dc'], 20), club: 'Uno', share: 0.8, bonus: 0.5 };
+    const reserve = { ...man('Riserva', ['Dc'], 10), club: 'Due', share: 0.42, bonus: 1 };
+    const both = placeYield({ ...place('DC', ['dc'], starter), reserves: [reserve] });
+    const r = 0.42;
+    expect(both.cover).toBeCloseTo(1 - 0.2 * (1 - r), 9);
+    // The reserve scores his bonus only on the matchdays the starter leaves uncovered.
+    expect(both.fertility).toBeCloseTo(0.8 * 0.5 + 0.2 * r * 1, 9);
+    // Two halves of two clubs: 64%, where the sum read 80%.
+    const half = (name: string, club: string) => ({ ...man(name, ['Dc'], 10), club, share: 0.5, bonus: 0 });
+    expect(combinedCover([half('A', 'Uno'), half('B', 'Due')])).toBeCloseTo(0.75, 9);
+    // Two outfield men of ONE club can both start: still independent, not one shirt (operator, 01/10/2026).
+    expect(combinedCover([half('A', 'Uno'), half('B', 'Uno')])).toBeCloseTo(0.75, 9);
+  });
+
+  it('adds two keepers of one club, capped at one place: a club fields one keeper', () => {
+    const keeper = (name: string, club: string) => ({ ...man(name, ['Por'], 10), club, share: 0.5 });
+    expect(combinedCover([keeper('A', 'Uno'), keeper('B', 'Uno')])).toBeCloseTo(1, 9);
+    expect(combinedCover([keeper('A', 'Uno'), keeper('B', 'Due')])).toBeCloseTo(0.75, 9);
+  });
+
+  it('keeps the real club when the label is not one, so two doors stay two clubs', () => {
+    const door = (name: string, club: string) => ({ ...man(name, ['Por'], 10), club: 'porta', coverClub: club, share: 0.5 });
+    expect(combinedCover([door('A', 'Uno'), door('B', 'Due')])).toBeCloseTo(0.75, 9);
   });
 
   it('reads an empty place as covering nothing, and an unknown bonus as no fertility', () => {
     expect(placeYield(place('DC', ['dc'], null))).toEqual({ cover: 0, fertility: null });
     const unknown = { ...man('Senza voto base', ['Dc'], 20), share: 0.5, bonus: null };
-    expect(placeYield(place('DC', ['dc'], unknown))).toEqual({ cover: 0.4, fertility: null });
+    expect(placeYield(place('DC', ['dc'], unknown))).toEqual({ cover: 0.5, fertility: null });
+  });
+});
+
+describe('coverOf, the margin that grows above 80% (operator, 01/10/2026)', () => {
+  it('leaves a share up to 80% alone and discounts up to 10% at a full calendar, never reversing the order', () => {
+    const at = (share: number) => coverOf({ ...man('X', ['Dc'], 10), share });
+    expect(at(0.5)).toBe(0.5);
+    expect(at(0.8)).toBeCloseTo(0.8, 9);
+    expect(at(0.9)).toBeCloseTo(0.9 * 0.95, 9);
+    expect(at(1)).toBeCloseTo(0.9, 9);
+    for (let share = 0.8; share < 1; share += 0.01) expect(at(share + 0.01)).toBeGreaterThan(at(share));
   });
 });
 
@@ -175,30 +213,69 @@ describe('one man, one place', () => {
 });
 
 describe('addedYield, what one man adds to the pitch', () => {
+  it('as a reserve of another club adds only the matchdays the starter misses', () => {
+    const starter = { ...man('Titolare', ['Pc'], 30), club: 'Uno', share: 0.9, bonus: 1 };
+    const reserve = { ...man('Riserva', ['Pc'], 20), club: 'Due', share: 0.5, bonus: 0.5 };
+    const added = addedYield(draftPitchOf([starter], SHAPES, ['first'])!, reserve);
+    expect(added.cover).toBeCloseTo(0.5 * (1 - 0.855), 9);
+    expect(added.fertility).toBeCloseTo(0.5 * (1 - 0.855) * 0.5, 9);
+  });
+
+
   it('adds his share where a place is empty and leaves the pitch untouched', () => {
     const pitch = draftPitchOf([{ ...man('Centrale', ['Dc'], 20), share: 0.9, bonus: 0.2 }], SHAPES, ['first'])!;
     const striker = { ...man('Punta', ['Pc'], 30), share: 0.8, bonus: 1 };
     const added = addedYield(pitch, striker);
-    expect(added.cover).toBeCloseTo(0.64, 9);
-    expect(added.fertility).toBeCloseTo(0.64, 9);
+    expect(added.cover).toBeCloseTo(0.8, 9);
+    expect(added.fertility).toBeCloseTo(0.8, 9);
     expect(pitch.rows.flatMap((row) => row.places).every((one) => !one.suggested && !one.suggestedReserve)).toBe(true);
   });
 
-  it('as a reserve adds up to the cap, and nothing to a place already at 100%', () => {
+  it('as a reserve adds the matchdays the starter misses, and a third man adds what the two still leave open', () => {
     const starter = { ...man('Titolare', ['Pc'], 30), share: 0.9, bonus: 1 };
     const reserve = { ...man('Riserva', ['Pc'], 20), share: 0.5, bonus: 0.5 };
     const third = { ...man('Terzo', ['Pc'], 10), share: 0.5, bonus: 0.5 };
     const one = draftPitchOf([starter], SHAPES, ['first'])!;
-    expect(addedYield(one, reserve).cover).toBeCloseTo(1 - 0.72, 9); // 0.72 + 0.40 capped at 1
+    expect(addedYield(one, reserve).cover).toBeCloseTo(0.5 * (1 - 0.855), 9); // independent, even of one club
     const two = draftPitchOf([starter, reserve], SHAPES, ['first'], 'first')!;
-    expect(addedYield(two, third)).toEqual({ cover: 0, fertility: 0 });
+    expect(addedYield(two, third).cover).toBeCloseTo(0.5 * (1 - 0.855) * (1 - 0.5), 9);
+  });
+
+  it('takes the starter place when he is the better starter, and re-weighs the holder as a reserve', () => {
+    // Operator, 01/10/2026: the man who is pushed to the bench keeps only the matchdays the new starter leaves open.
+    const holder = { ...man('Titolare', ['Pc'], 30), club: 'Uno', share: 0.8, bonus: 0.5 };
+    const better = { ...man('Migliore', ['Pc'], 40), club: 'Due', share: 0.8, bonus: 1.5 };
+    const pitch = draftPitchOf([holder], SHAPES, ['first'])!;
+    const added = addedYield(pitch, better);
+    expect(added.cover).toBeCloseTo(0.2 * 0.8, 9);
+    // With him: 0.8 x 1.5 + 0.2 x 0.8 x 0.5; without: 0.8 x 0.5.
+    expect(added.fertility).toBeCloseTo(0.8 * 1.5 + 0.2 * 0.8 * 0.5 - 0.8 * 0.5, 9);
+    expect(pitch.rows.flatMap((row) => row.places).find((one) => one.roles.includes('pc'))!.man).toBe(holder);
+  });
+
+  it('draws the better starter on the pitch the same way, the holder below him (plans and pitch aligned)', () => {
+    const holder = { ...man('Titolare', ['Pc'], 30), club: 'Uno', share: 0.8, bonus: 0.5 };
+    const better = { ...man('Migliore', ['Pc'], 40), club: 'Due', share: 0.8, bonus: 1.5 };
+    const pitch = withSuggestions(draftPitchOf([holder], SHAPES, ['first'])!, [better]);
+    const front = pitch.rows.flatMap((row) => row.places).find((one) => one.roles.includes('pc'))!;
+    expect(front.man).toBe(holder);
+    expect(front.suggested).toBe(better);
+    expect(placeYield(front, true).fertility).toBeCloseTo(0.8 * 1.5 + 0.2 * 0.8 * 0.5, 9);
+    expect(placeYield(front).fertility).toBeCloseTo(0.8 * 0.5, 9); // the real squad alone is untouched
+  });
+
+  it('fills an empty place before adding behind a starter, even with a malus', () => {
+    const forward = { ...man('Punta', ['Pc'], 30), share: 0.5, bonus: 1 };
+    const pitch = draftPitchOf([forward], SHAPES, ['first'])!;
+    const both = { ...man('Jolly', ['Dc', 'Pc'], 20), club: 'Altro', share: 0.6, bonus: -0.1 };
+    expect(addedYield(pitch, both).cover).toBeCloseTo(0.6, 9); // an empty DC, not 0.6 x 0.5 behind the forward
   });
 
   it('reads an unknown bonus as an unknown fertility, never as zero', () => {
     const pitch = draftPitchOf([], SHAPES, ['first'])!;
     const blank = { ...man('Senza bonus', ['Pc'], 30), share: 0.7, bonus: null };
     const added = addedYield(pitch, blank);
-    expect(added.cover).toBeCloseTo(0.56, 9);
+    expect(added.cover).toBeCloseTo(0.7, 9);
     expect(added.fertility).toBeNull();
   });
 });
@@ -211,7 +288,7 @@ describe('the classic spread by coverage (01/10/2026)', () => {
     const second = { ...man('Seconda riserva', ['Dc'], 10), share: 0.5, bonus: 0 };
     const places = [place('DC', ['dc'], strong), place('DC', ['dc'], weak)];
     spreadReserves(places, [first, second], true);
-    // Behind the weak starter (20%) both reserves still add; behind the strong one (80%) only 20% is left.
+    // Behind the weak starter (25%) both reserves still add; behind the strong one (100%) nothing is left.
     expect(places[1].reserves.map((one) => one.name)).toEqual(['Prima riserva', 'Seconda riserva']);
     expect(places[0].reserves).toEqual([]);
   });
@@ -221,7 +298,7 @@ describe('the classic spread by coverage (01/10/2026)', () => {
     const reserve = { ...man('Riserva', ['Pc'], 20), share: 0.25, bonus: 1 };
     const pitch = draftPitchOf([starter, reserve], SHAPES, ['first'], 'first')!;
     const third = { ...man('Terzo', ['Pc'], 10), share: 0.5, bonus: 1 };
-    expect(addedYield(pitch, third).cover).toBeCloseTo(1 - 0.6, 9); // 0.40 + 0.20 + 0.40 capped
+    expect(addedYield(pitch, third).cover).toBeCloseTo(0.5 * (1 - 0.5) * (1 - 0.25), 9); // what the two leave open
   });
 });
 
