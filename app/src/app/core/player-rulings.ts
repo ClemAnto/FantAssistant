@@ -291,8 +291,43 @@ export function orderedShares(measured: RungShares): Map<Titolarita, RungValues>
  * e'. Vedi `orderedShares` per il perche' l'ordine e' una dichiarazione e non un dato.
  */
 export function rungShares(rows: Iterable<RungRow>): Map<Titolarita, RungValues> {
-  return orderedShares(rungMedians(rows));
+  const measured = rungMedians(rows);
+  const out = new Map<Titolarita, RungValues>();
+  for (const rung of TITOLARITA_LADDER) {
+    out.set(rung, { play: RUNG_VOTE_SHARE[rung], minutes: measured.get(rung)?.minutes ?? null });
+  }
+  return orderedShares(out);
 }
+
+/**
+ * QUANTE GIORNATE A VOTO VALE UNA PAROLA DICHIARATA (stampa o dritta), come quota delle giornate che restano.
+ *
+ * Operatore, 01/10/2026: «è fondamentale tarare bene le giornate attese dai gradini letti dalla stampa». Fino a
+ * quel giorno la parola valeva la MEDIANA DEL FOGLIO (`desc_titolarita_play`), che conta le PRESENZE e solo le
+ * partite in cui l'uomo è disponibile: un `titolare` valeva 36 giornate su 38, cioè il caso stabile e senza
+ * imprevisti, mentre un titolare vero ne prende in media 29-30. Gli infortuni che verranno, le volte che entra
+ * senza prendere il voto, un esonero o gennaio stanno dentro questo numero e non dentro quello.
+ *
+ * MISURATI (`toolkit/scripts/presence_test/press_calib.py` e `press_calib2.py`): il caso migliore della stampa -
+ * chi azzecca il 5 settembre il ruolo che l'allenatore gli dà adesso, cioè il gradino delle sue 10 partite
+ * successive - e i VOTI veri sulle giornate che restano, Serie A 2019-26. È un TETTO: una lettura vera a volte
+ * sbaglia. La «via di mezzo» è sua: sui due gradini alti il valore che mette più uomini nella banda 80-125%,
+ * sotto la mediana, così la scala resta in ordine (31,2 · 29,6 · 27,4 · 23,0 · 6,3 giornate su 38).
+ *
+ * RIPETUTA SU ALTRI DATI, e regge dove conta: sulle quattro leghe estere di EuroLeghe e sulla Serie A 2015-19 il
+ * valore migliore di `bandiera` e `titolare` sta entro una giornata (30,4-31,5 e 29,6-30,4 su 38), e cambiare la
+ * finestra di lettura da 10 a 5 o 15 partite non lo sposta. Sui gradini bassi quella ripetizione legge le
+ * presenze e non i voti, e lì le due cose divergono (chi entra per pochi minuti spesso resta senza voto), quindi
+ * per `ballottaggio`, `panchina` e `riserva` vale la misura sui voti veri. Il portiere `bandiera` legge lo stesso
+ * numero del movimento (31,5 contro 31,2), quindi la tabella è una sola.
+ */
+export const RUNG_VOTE_SHARE: Readonly<Record<Titolarita, number>> = {
+  bandiera: 0.82,
+  titolare: 0.78,
+  ballottaggio: 0.722,
+  panchina: 0.605,
+  riserva: 0.167,
+};
 
 /**
  * LA QUOTA CHE UNA DRITTA IMPONE A UN UOMO, o null se non c'e' niente da imporre.

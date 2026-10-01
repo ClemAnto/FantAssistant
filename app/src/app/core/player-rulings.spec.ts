@@ -13,6 +13,7 @@ import {
   ruledShare,
   rungMedians,
   rungShares,
+  RUNG_VOTE_SHARE,
   sanitiseRulings,
 } from './player-rulings';
 import { TITOLARITA_LADDER, Titolarita } from './titolarita';
@@ -160,6 +161,11 @@ describe('rungShares', () => {
     ];
     expect(rungShares(rows).get('titolare')!.play)
       .toBeGreaterThan(rungShares(rows).get('ballottaggio')!.play);
+    // ...e la QUOTA è quella tarata sui voti, non la mediana del foglio (01/10/2026).
+    expect(rungShares(rows).get('titolare')!.play).toBe(RUNG_VOTE_SHARE['titolare']);
+    expect(rungShares(rows).get('riserva')!.play).toBe(RUNG_VOTE_SHARE['riserva']);
+    // i MINUTI restano misurati sul foglio
+    expect(rungShares(rows).get('bandiera')!.minutes).toBe(80);
     // ...e la misura grezza resta leggibile per quello che e', accanto.
     expect(rungMedians(rows).get('titolare')!.play)
       .toBeLessThan(rungMedians(rows).get('ballottaggio')!.play);

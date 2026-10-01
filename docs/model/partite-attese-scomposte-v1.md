@@ -734,6 +734,51 @@ il margine `RETURN_SLIP`, e la nota lo dice. Prima di oggi un infortunio senza d
 e non costava presenze attese né offerta. Il banco non lo può giudicare: la prosa esiste dal 26/07/2026, quindi la prima
 stagione su cui misurarlo è il 2026-27.
 
+## 5-undecies. Quante giornate vale un gradino della stampa (01/10/2026)
+
+**L'operatore**: «prima di un'asta aggiorneremo il gradino della stampa, che ingloberà informazioni che normalmente non
+riusciamo a leggere» e «è fondamentale tarare bene le giornate attese dai gradini letti dalla stampa». Al tavolo,
+dove la stampa parla, è lei a decidere: l'app usa il suo gradino al posto del nostro, e da lì le presenze attese.
+
+**Il difetto di prima**: la parola valeva la MEDIANA DEL FOGLIO (`desc_titolarita_play`), cioè le PRESENZE sulle sole
+partite in cui l'uomo è disponibile - circa 36 giornate su 38 per un `titolare`, che è il caso stabile e senza
+imprevisti. Un titolare vero ne prende in media 29-30, perché gli infortuni che verranno, le entrate senza voto, gli
+esoneri e gennaio stanno dentro l'esito.
+
+**La misura** (`press_calib.py`): non esiste una rilevazione della stampa delle stagioni passate, quindi la si
+sostituisce col suo CASO MIGLIORE, chi il 5 settembre azzecca il ruolo che l'allenatore gli dà ADESSO (il gradino
+delle sue 10 partite di campionato successive, sui due assi della scala), e si contano i VOTI veri sulle giornate che
+restano. È un tetto: una lettura vera a volte sbaglia. Serie A 2019-26, la popolazione dell'asta, voti su 38:
+
+| gradino | prima (foglio) | mediana | migliore per la banda | **adottato** (via di mezzo) |
+|---|---|---|---|---|
+| bandiera | ~36,7 | 32,7 | 31,2 (86% in banda) | **31,2** |
+| titolare | ~36,1 | 29,6 | 29,6 (77%) | **29,6** |
+| ballottaggio | ~30,7 | 27,4 | 29,6 (68%) | **27,4** (61%) |
+| panchina | ~24,0 | 23,0 | 26,2 (55%) | **23,0** (47%) |
+| riserva | ~9,2 | 6,3 | 17,1 (23%) | **6,3** |
+
+La «via di mezzo» è dell'operatore: il valore migliore per la banda sui due gradini alti, la mediana sotto, così la
+scala resta in ordine (il migliore per la banda fa pareggiare ballottaggio e titolare, e porta riserva a 17).
+
+**Ripetuta su altri dati** (`press_calib2.py`, sua richiesta): le quattro leghe estere di EuroLeghe e la Serie A
+2015-19, che il primo giro non aveva toccato, e la finestra di lettura a 5 e a 15 partite. Lì i voti non ci sono, quindi
+il voto è una presenza di almeno 4 minuti (soglia fittata sulla Serie A, dove i due conteggi coincidono in totale:
+scarto +10 voti su 1.990 uomini). **Sui gradini alti regge entro una giornata**: `bandiera` 31,2 · 31,5 · 30,4 (Serie A
+2019-26, Serie A 2015-19, EuroLeghe), `titolare` 29,6 · 29,6 · 30,4, e la finestra da 5 o 15 partite non sposta
+EuroLeghe (30,4 e 30,4). **Sui gradini bassi la ripetizione legge le presenze e non i voti**, e lì divergono (sulla
+Serie A 2019-26 lo stesso conto fa ballottaggio 29,9 invece di 27,4 e riserva 16,1 invece di 6,3: chi entra per pochi
+minuti spesso resta senza voto), quindi vale la misura sui voti veri. Il portiere `bandiera` legge lo stesso del
+movimento (31,5 contro 31,2) e la tabella è una sola.
+
+**Nell'app**: `player-rulings.RUNG_VOTE_SHARE` (0,82 · 0,78 · 0,722 · 0,605 · 0,167 delle giornate), per la stampa e
+per le dritte dell'operatore; i minuti restano la mediana del foglio; una conferma (la stessa parola del foglio)
+continua a non muovere niente. `e2e-player-ruling` legge la tabella dal sorgente dell'app: «panchina» dichiarato
+«titolare» passa da 19 a 30 presenze invece che a 36.
+
+**Da ora**: ogni aggiornamento della rilevazione si committa prima dell'asta, così a fine stagione il gradino della
+stampa del 5 settembre si confronta con l'esito e il «caso migliore» qui sopra si sostituisce con la stampa vera.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.

@@ -384,7 +384,17 @@ async function main() {
     play: median(pool),
     minutes: minutePools.get(rung)?.length ? median(minutePools.get(rung)) : null,
   }]));
-  const shares = ordered(medians);
+  // LA QUOTA DI UNA PAROLA E' DICHIARATA dal 01/10/2026 (`RUNG_VOTE_SHARE`, tarata sui voti veri), e si
+  // legge dal SORGENTE dell'app invece di ricopiarla qui: due copie di una tabella darebbero a una parola
+  // due prezzi. I MINUTI restano la mediana del foglio, ricalcolata qui sopra.
+  const source = await readFile(resolve(import.meta.dirname, '../src/app/core/player-rulings.ts'), 'utf8');
+  const block = /export const RUNG_VOTE_SHARE[^=]*=\s*\{([^}]*)\}/.exec(source)?.[1] ?? '';
+  const declared = new Map([...block.matchAll(/(\w+):\s*([0-9.]+)/g)].map((m) => [m[1], Number(m[2])]));
+  if (declared.size !== LADDER.length) throw new Error("RUNG_VOTE_SHARE non letta dal sorgente dell'app");
+  const shares = ordered(new Map(LADDER.map((rung) => [rung, {
+    play: declared.get(rung),
+    minutes: medians.get(rung)?.minutes ?? null,
+  }])));
   // OGNI NUMERO IN GIORNATE SI LEGGE SU UNA STAGIONE PIENA (regola dell'operatore del 22/09/2026,
   // `letture-app-v1.md` §50): la card prezza le parole su `platform_input` - 38 su Serie A - mentre il
   // foglio prevede le giornate che RESTANO (`matchdays_target`, 33). Il banco moltiplicava per il
