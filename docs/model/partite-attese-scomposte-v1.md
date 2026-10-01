@@ -665,6 +665,35 @@ conta la popolazione, non i cinque.
   candidato del banco: per il 2025-26 l'archivio non ha né la data di rientro del giorno né la prosa, e il tipo
   («Infortunio alla coscia», mediana 24 giorni) lo chiama leggero. È un'acquisizione da fare in avanti.
 
+### L'esito di M7a-M7d (01/10/2026, `m7.py`)
+
+| variante | quota | stagioni meglio | errore | stagioni meglio | parametro scelto |
+|---|---|---|---|---|---|
+| base | 56,87% | - | 6,438 | - | |
+| M7a K dei portieri | 56,96% | 1 su 7 | 6,443 | 3 su 7 | K = 20 in 7 pieghe (bordo) |
+| M7b K di chi cambia club | 57,31% | 4 su 7 | 6,434 | 4 su 7 | K = 20 in 7 pieghe (bordo) |
+| M7c scelta al club nuovo | 57,27% | 4 su 7 | 6,488 | 3 su 7 | |
+| M7d concorrente arrivato | 56,59% | 0 su 7 | 6,443 | 0 su 7 | fattore 1,0 in 6 pieghe |
+
+**Nessuna passa.** Le due K scelgono il BORDO opposto a quello atteso: sul totale dei portieri e di chi cambia club le
+giornate viste vanno pesate MENO, non di più. M7d segna 308 uomini, troppi: «un compagno arrivato più caro nel ruolo» è
+un fatto comune e quasi sempre innocuo (Lucca sì, da 31,0 a 23,5).
+
+**Terracciano: la causa data all'operatore era SBAGLIATA** e va corretta qui. Non ha diviso la stagione fra due club:
+fu titolare della Fiorentina tutto il 2023-24 (33 partite) e nelle prime 3 del 2024-25, poi arrivò De Gea, e i due
+avevano la STESSA Qt.I (11), quindi M7d («più caro») non lo vede. È il caso del concorrente, non di OWN_CLUB.
+
+**La cella che regge è più stretta di M7a**: il portiere di classe «riserva» che il 5 settembre ha giocato TUTTE le
+giornate viste. 11 casi in sette stagioni, la formula ne mette **0** nella banda: prevede 0,48 delle giornate che
+restano e ne giocano 0,69 (Vicario 2021-22 11,8 contro 36, Svilar 2024-25 17,7 contro 35, Butez 2025-26 18,9 contro 36,
+Dragowski, Meret, Milinkovic-Savic V.; e 3 su 11 lo perdono: Sepe, Gollini, Israel). Il 07/09/2026 la stessa domanda, su
+cinque campionati, aveva già detto che un portiere che gioca le prime due a 85'+ tiene 0,770 delle giornate che restano.
+
+**PRE-REGISTRAZIONE (01/10/2026), M7e - la maglia cambiata**: un portiere di classe «riserva» che il giorno dell'asta ha
+preso il voto in tutte le giornate viste (almeno due) si legge di classe «titolare» (la sua quota di scelta tirata verso
+la media dei titolari). Criterio del §5-sexies. Attesa: +0,4/+0,6 punti di quota; è una regola rara, quindi il «5
+stagioni su 7» può cadere per le stagioni dove la cella è vuota, e se cade per quello va detto.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
