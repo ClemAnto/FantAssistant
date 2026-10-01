@@ -134,6 +134,12 @@ SEPTEMBER_CLASS, SEPTEMBER_OBJECTIVE = "cls_rung", "band"
 # 56.87% -> 57.20%, better on 3 seasons of 7 and equal on the others (the cell is empty on two), mean error
 # 6.438 -> 6.410; on the 9 keepers the engine prices, inside the band from 0 to 5 (Svilar 17.7 -> 27.3, vere 35).
 SEPTEMBER_SHIRT_CHANGED = True
+# M7c ADOPTED FOR SEPTEMBER (01/10/2026), and this one passes the pre-registered criterion - once the fit restarts
+# (`BAND_RESTARTS`): the choice is read on the games of the season measured AT THE CLUB HE WILL PLAY FOR, when the
+# season was split and he has at least `OWN_CLUB_MIN` there (OWN_CLUB, refused in July on the mean error). Measured
+# (`m7.py`, with M7f): 59.30% -> 60.06% within the band, better on 5 seasons of 7, mean error 6.287 -> 6.264 (5 of 7);
+# alone 59.67% (5 of 7). July keeps `OWN_CLUB` off.
+SEPTEMBER_OWN_CLUB = True
 
 
 def shirt_changed(r) -> bool:
@@ -803,11 +809,18 @@ def main() -> None:
     k_key = next(k for k in evaluate.ADOPTED[PLATFORM] if k in evaluate.R20_ROUNDS)
     k_rounds = evaluate.R20_ROUNDS[k_key]
     september = load(september_windows(), at_auction=True)
+    # M7c: the September prior is fitted and read with the choice at the club he will play for. July's own
+    # judgement above is done; its rows are re-read this way only to train September's prior.
+    # A COPY, so the July rows the page draws keep the reading they were judged with.
+    july_for_september = [dict(r) for r in july]
+    if SEPTEMBER_OWN_CLUB:
+        annotate(july_for_september, agg, at_club, clubs, first, europe, mv, own_club=True)
+        annotate(september, agg, at_club, clubs, first, europe, mv, own_club=True)
     priors: dict[str, dict] = {}
     tables: dict[str, list] = {}
     for r in september:
         if r["target"] not in priors:
-            priors[r["target"]] = fit([x for x in july if x["target"] != r["target"]], keeper_line=False,
+            priors[r["target"]] = fit([x for x in july_for_september if x["target"] != r["target"]], keeper_line=False,
                                       cls=SEPTEMBER_CLASS, objective=SEPTEMBER_OBJECTIVE)
             tables[r["target"]] = residual_table(conn, f"{r['target'][:4]}-07-01")
         r["seen_club"], r["seen_free"], r["seen_played"] = seen_at_club(r, games)

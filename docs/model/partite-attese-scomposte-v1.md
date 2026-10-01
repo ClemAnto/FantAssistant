@@ -811,6 +811,28 @@ sani sottostimati (131) il caso tipico è chi l'anno prima entrava dalla panchin
 (voti visti 0,45 contro 0,78 degli altri sani), poi gioca: Pa 20,9 contro 30,8 vere. È quello che la stampa al tavolo
 vede e il banco no.
 
+**Rimisurati con le ripartenze** (`m6.py`, `m7.py`, base senza M7f 59,30%, errore 6,287):
+
+| variante | quota | stagioni meglio | errore | stagioni meglio |
+|---|---|---|---|---|
+| M6a qualità dei titolari | 58,99% | 1 su 7 | 6,293 | 2 su 7 |
+| M6b partenze viste | 59,00% | 1 su 7 | **6,198** | 5 su 7 |
+| M6c età dai 32 | 58,71% | 2 su 7 | 6,292 | 3 su 7 |
+| M6d gradini bassi → titolare | 58,31% | 3 su 7 | 6,381 | 2 su 7 |
+| M6e durata per tipo | 59,27% | 1 su 7 | 6,225 | 5 su 7 |
+| M7a K dei portieri | 58,93% | 0 su 7 | 6,308 | 1 su 7 |
+| M7b K di chi cambia club | 59,30% | 0 su 7 | 6,287 | 0 su 7 |
+| **M7c scelta al club nuovo** | **59,67%** | **5 su 7** | 6,282 | 5 su 7 |
+| M7d concorrente arrivato | 59,30% | 0 su 7 | 6,287 | 0 su 7 |
+| **M7f maglia cambiata** | **59,76%** | **5 su 7** | 6,270 | 3 su 7 |
+| **M7c + M7f** | **60,06%** | **5 su 7** | **6,264** | **5 su 7** |
+
+**M7c e M7f PASSANO il criterio** del §5-sexies con lo strumento sbloccato: M7f era stata adottata dall'operatore
+senza, ora lo soddisfa; M7c (OWN_CLUB, respinta a luglio sull'errore medio) è adottata per settembre
+(`build.SEPTEMBER_OWN_CLUB`), luglio resta com'era. Le altre restano respinte; M6b e M6e abbassano l'errore medio
+dell'1-1,4% senza muovere la quota, che è la misura che decide. **Il banco rigenerato sul DB vero: settembre 60,3%
+contro il 49,3% del motore (errore 6,26 contro 6,55); luglio 54,4% contro 48,2%.**
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.

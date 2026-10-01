@@ -120,6 +120,7 @@ def main() -> None:
     replace_prior = chosen_by_target(False, swap="replace")
     print(f"maglia cambiata (M7e): {sum(shirt_changed(r) for r in sept if r['pa_engine'] is not None)} righe")
     own_prior = chosen_by_target(True)
+    both_prior = chosen_by_target(True, swap="replace")
 
     def pa(r, prior, k_keep=None, k_move=None, f=1.0):
         share, rounds, keeper, moved = prior[id(r)]
@@ -146,12 +147,16 @@ def main() -> None:
         "M7c scelta al club nuovo": lambda t: (lambda r: pa(r, own_prior)),
         "M7e maglia cambiata": lambda t: (lambda r: pa(r, swap_prior)),
         "M7f maglia cambiata, quota dei titolari": lambda t: (lambda r: pa(r, replace_prior)),
+        "M7c+M7f": lambda t: (lambda r: pa(r, both_prior)),
         "M7d concorrente arrivato": lambda t: (lambda r, f=choose(t, F_GRID, lambda v: lambda x: pa(x, base_prior, f=v)):
                                                pa(r, base_prior, f=f)),
     }
     results = {}
     chosen_params = defaultdict(list)
+    only = [a for a in sys.argv[1:] if not a.startswith("-")]
     for name, make in variants.items():
+        if only and name != "base" and not any(name.startswith(o) for o in only):
+            continue
         per = {}
         for t in targets:
             fn = make(t)
