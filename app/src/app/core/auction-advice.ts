@@ -65,7 +65,8 @@ import {
   priorityPick,
   roleStats,
 } from './draft-priority';
-import { RECOMMENDED_MANTRA } from './draft-pitch';
+import { RECOMMENDED_MANTRA, addedYield, draftPitchOf, recommendedModules } from './draft-pitch';
+import type { FantaMan } from './fanta-eleven';
 import { RUNG_RANK, Rarity, RarityMan, rarity, shownRung } from './draft-rarity';
 import { PlayerRulings } from './player-rulings';
 import { ScenarioInput, judge, scenarios as draftScenarios } from './draft-scenarios';
@@ -1306,6 +1307,7 @@ export class AuctionAdvice {
     const bonus = this.bonusBy();
     const rules = this.shapes() as MantraModules | null;
     const mantra = this.priorityOn() && !!rules?.slot_roles;
+    const rosa = this.rosaYields();
     for (const row of this.ranked()) {
       const id = row.player.id;
       const share = shares.get(id) ?? null;
@@ -1326,8 +1328,52 @@ export class AuctionAdvice {
         bonus: bonus.get(id) ?? null,
         share,
         fragility: this.status.fragility(id).share,
+        // +Rosa replaces the six readings wherever I follow a squad (operator, 01/10/2026).
+        rosa: rosa.get(id) ?? null,
       });
     }
+    return out;
+  });
+
+  /**
+   * THE MODULE MY PITCH IS DRAWN ON when the operator forced one (the draft page writes it): the +Rosa of every man is
+   * measured on it, so the column and RAR read the pitch he is looking at.
+   */
+  readonly pitchModule = signal<string | null>(null);
+
+  /** A man as the draft pitch reads him: roles to match on, value, the appearances of the Pa and the bonus. */
+  fantaManOf(player: AuctionPlayer, cost: number): FantaMan {
+    const shown = this.feed.gameRoles(player);
+    return {
+      id: player.id,
+      name: this.feed.shownName(player),
+      club: player.club,
+      shown,
+      roles: shown.map((role) => role.toLowerCase()),
+      value: this.valueBy().get(player.id) ?? null,
+      value99: this.value99By().get(player.id) ?? null,
+      cost,
+      minutesPerMatch: null,
+      share: this.draftShareBy().get(player.id) ?? null,
+      bonus: this.bonusBy().get(player.id) ?? null,
+    };
+  }
+
+  /**
+   * +ROSA OF EVERY FREE MAN, by id (operator, 01/10/2026): what he adds to MY pitch in coverage (places) and fertility
+   * (points per matchday), drawn ONCE on the module I forced or the one my real men field best, every man added to a
+   * copy (`draft-pitch.addedYield`). The column prints it and RAR compares on it. Empty while I follow no squad.
+   * In the SIMULATED turns of the plan RAR keeps these readings, i.e. my squad as it is now: re-drawing my pitch for
+   * every projected pick would be a second pricing of the same men inside one advice.
+   */
+  readonly rosaYields = computed<Map<number, { cover: number; fertility: number | null }>>(() => {
+    const out = new Map<number, { cover: number; fertility: number | null }>();
+    const me = this.feed.followed();
+    if (!me) return out;
+    const squad = me.squad.filter((entry) => !!entry.player).map((entry) => this.fantaManOf(entry.player!, entry.cost));
+    const drawn = draftPitchOf(squad, this.rules(), recommendedModules(this.feed.isMantra()), this.pitchModule(), true);
+    if (!drawn) return out;
+    for (const row of this.ranked()) out.set(row.player.id, addedYield(drawn, this.fantaManOf(row.player, row.price)));
     return out;
   });
 

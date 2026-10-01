@@ -14,13 +14,13 @@ describe('draft-rarity', () => {
     expect(rar.get(1)?.count).toBe(5);
     expect(rar.get(10)?.count).toBe(0);
     // ...and the worse defenders have the good one among their peers.
-    expect(rar.get(11)).toEqual({ count: 3, of: 3 });
+    expect(rar.get(11)).toMatchObject({ count: 3, of: 3 });
   });
 
   it('counts only inside the group', () => {
     const rar = rarity([man(1, 'dc'), man(2, 'pc')]);
-    expect(rar.get(1)).toEqual({ count: 0, of: 0 });
-    expect(rar.get(2)).toEqual({ count: 0, of: 0 });
+    expect(rar.get(1)).toMatchObject({ count: 0, of: 0 });
+    expect(rar.get(2)).toMatchObject({ count: 0, of: 0 });
   });
 
   it('forgives each reading its tolerance, and no more', () => {
@@ -54,5 +54,26 @@ describe('draft-rarity', () => {
     expect(rarityText({ count: 10, of: 40 })).toBe('10');
     expect(rarityText({ count: 11, of: 40 })).toBe('28%');
     expect(rarityText(null)).toBe('—');
+  });
+});
+
+describe('RAR on +Rosa (01/10/2026)', () => {
+  it('compares only what a man adds my squad, with its tolerance, and names the best three it counted', () => {
+    const rosa = (fertility: number | null, cover: number) => ({ rosa: { fertility, cover } });
+    // His six readings are poor, his +Rosa is what counts: a man worse on every reading but adding as much counts.
+    const me = man(1, 'dc', { mv: 7, share: 1, ...rosa(0.30, 0.6) });
+    const alike = man(2, 'dc', { mv: 5, share: 0.2, ...rosa(0.27, 0.58) });
+    const better = man(3, 'dc', { ...rosa(0.50, 0.7) });
+    const less = man(4, 'dc', { mv: 8, share: 1, ...rosa(0.10, 0.6) });
+    const lessCover = man(5, 'dc', { ...rosa(0.40, 0.3) });
+    const out = rarity([me, alike, better, less, lessCover]).get(1)!;
+    expect(out.count).toBe(2);
+    expect(out.similar).toEqual([3, 2]);
+  });
+
+  it('an unknown fertility on his side constrains only the coverage', () => {
+    const me = man(1, 'dc', { rosa: { fertility: null, cover: 0.5 } });
+    const other = man(2, 'dc', { rosa: { fertility: null, cover: 0.5 } });
+    expect(atLeastAsGood(other, me)).toBe(true);
   });
 });

@@ -67,6 +67,12 @@ export interface RarityMan {
   share: number | null;
   /** Share of the last three years he spent injured (`player-status.fragilityOf`): LOWER is better. */
   fragility: number | null;
+  /**
+   * WHAT HE ADDS TO MY SQUAD, the «+Rosa» column (operator, 01/10/2026: «il fattore RAR adesso valutalo su +ROSA»):
+   * fertility in points per matchday and coverage in places (`draft-pitch.addedYield`). Where it is present it is the
+   * ONLY thing RAR compares - the six readings stay for a table where I follow no squad. Fertility null = unknown.
+   */
+  rosa?: { fertility: number | null; cover: number } | null;
 }
 
 /**
@@ -87,10 +93,28 @@ export const RARITY_TOLERANCE = {
   fragility: 0.05,
 } as const;
 
-const HIGHER: readonly (keyof Omit<RarityMan, 'id' | 'group' | 'fragility'>)[] = ['rung', 'steady', 'mv', 'bonus', 'share'];
+const HIGHER: readonly (keyof Omit<RarityMan, 'id' | 'group' | 'fragility' | 'rosa'>)[] = ['rung', 'steady', 'mv', 'bonus', 'share'];
 
 type Reading = (typeof HIGHER)[number] | 'fragility';
 const READINGS: readonly Reading[] = [...HIGHER, 'fragility'];
+
+/**
+ * «Pari (simile)» ON +ROSA, DECLARED like the six above: five hundredths of a point per matchday of fertility (the
+ * unit the column prints in, and half the bonus tolerance on a full-time man's 80% cover) and five points of a place
+ * of coverage.
+ */
+export const ROSA_TOLERANCE = { fertility: 0.05, cover: 0.05 } as const;
+
+/** Whether `other` adds my squad at least as much as `man` on +Rosa: fertility, then coverage, both with tolerance. */
+function rosaAtLeast(other: RarityMan, man: RarityMan): boolean {
+  const mine = man.rosa!;
+  const theirs = other.rosa;
+  if (!theirs) return false;
+  if (mine.fertility != null && (theirs.fertility == null || theirs.fertility < mine.fertility - ROSA_TOLERANCE.fertility)) {
+    return false;
+  }
+  return theirs.cover >= mine.cover - ROSA_TOLERANCE.cover;
+}
 
 /** The mean of every reading over the men of one group who have it: what a missing candidate reading reads. */
 export type ReadingMeans = Partial<Record<Reading, number>>;
@@ -109,6 +133,7 @@ export function readingMeans(men: readonly RarityMan[]): ReadingMeans {
  * lacks reads the group's mean (`means`), and with no mean at all he cannot be shown to be as good.
  */
 export function atLeastAsGood(other: RarityMan, man: RarityMan, means: ReadingMeans = {}): boolean {
+  if (man.rosa) return rosaAtLeast(other, man);
   for (const key of READINGS) {
     const mine = man[key];
     if (mine == null) continue;
@@ -126,6 +151,17 @@ export function atLeastAsGood(other: RarityMan, man: RarityMan, means: ReadingMe
 export interface Rarity {
   count: number;
   of: number;
+  /** The first `RARITY_SIMILAR` of the men counted, best first: who the tooltip names (operator, 01/10/2026). */
+  similar?: number[];
+}
+
+/** How many of the men counted the RAR tooltip names. */
+export const RARITY_SIMILAR = 3;
+
+/** How a counted man ranks among the similar: what he adds my squad, else what he gives a season. */
+function similarRank(man: RarityMan): number {
+  if (man.rosa) return man.rosa.fertility ?? -Infinity;
+  return (man.share ?? 0) * (man.bonus ?? 0);
 }
 
 /** RAR of every man of `free`, by id: how many OTHER free men of his group are at least as good as him. */
@@ -139,9 +175,10 @@ export function rarity(free: readonly RarityMan[]): Map<number, Rarity> {
   for (const men of byGroup.values()) {
     const means = readingMeans(men);
     for (const man of men) {
-      let count = 0;
-      for (const other of men) if (other.id !== man.id && atLeastAsGood(other, man, means)) count += 1;
-      out.set(man.id, { count, of: men.length - 1 });
+      const counted = men.filter((other) => other.id !== man.id && atLeastAsGood(other, man, means));
+      const similar = [...counted].sort((a, b) => similarRank(b) - similarRank(a)).slice(0, RARITY_SIMILAR)
+        .map((other) => other.id);
+      out.set(man.id, { count: counted.length, of: men.length - 1, similar });
     }
   }
   return out;

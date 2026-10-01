@@ -21,7 +21,7 @@ import { ExportReadings, pickRecords, picksCsv, saveCsv, squadsCsv } from '../..
 import { AuctionDemo } from '../../core/auction-demo';
 import { AuctionFeed, AuctionPlayer, AuctionTeam, CLASSIC_OF_ZONE, SquadEntry } from '../../core/auction-feed';
 import { Bundle } from '../../core/bundle';
-import { DraftPlace, addedYield, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from '../../core/draft-pitch';
+import { DraftPlace, draftPitchOf, pitchYield, placeYield, recommendedModules, withSuggestions } from '../../core/draft-pitch';
 import type { FantaMan } from '../../core/fanta-eleven';
 import { GlobalOptions } from '../../core/global-options';
 import { lazyRows } from '../../core/lazy-rows';
@@ -351,6 +351,8 @@ export class Auction {
   protected readonly auto = signal(false);
 
   constructor() {
+    // The module I forced is the one +Rosa (and the RAR measured on it) is read on.
+    effect(() => this.advice.pitchModule.set(this.forcedModule()));
     // A REVIEW ENDS WITH THE PAGE: the cursor lives in the feed, which is shared with the plancia, and a board
     // opened elsewhere on a truncated table would show a past auction with no control saying so.
     inject(DestroyRef).onDestroy(() => this.feed.toEnd());
@@ -580,6 +582,22 @@ export class Auction {
     return this.advice.paShares().size
       ? 'Partite attese, nuova formula (solo Serie A, non validata dal gate)'
       : 'Partite attese, nuova formula: manca presence_now.json';
+  }
+
+  /**
+   * THE RAR TOOLTIP (operator, 01/10/2026: «nel tooltip del valore RAR indica i primi 3 calciatori simili»): the three
+   * best of the free men he was counted against, by what they add my squad.
+   */
+  protected rarTip(row: FreeRow): string {
+    const ids = row.rar?.similar ?? [];
+    if (!row.rar) return '';
+    if (!ids.length) return 'Nessuno svincolato simile: è l’ultimo del suo tipo';
+    const everyone = this.everyone();
+    const names = ids.map((id) => {
+      const player = everyone.get(id);
+      return player ? this.feed.shownName(player) : `#${id}`;
+    });
+    return `Simili o migliori: ${names.join(', ')}${row.rar.count > ids.length ? ` e altri ${row.rar.count - ids.length}` : ''}`;
   }
 
   protected prioHint(): string {
@@ -901,21 +919,14 @@ export class Auction {
    */
   private readonly addedBy = computed(() => {
     const out = new Map<number, NonNullable<FreeRow['added']>>();
-    if (!this.feed.followed()) return out;
-    const rules = this.advice.rules();
-    const drawn = draftPitchOf(this.mySquad(), rules, recommendedModules(this.feed.isMantra()), this.forcedModule(), this.byCoverage());
-    if (!drawn) return out;
-    const everyone = this.everyone();
-    for (const row of this.advice.ranked()) {
-      const player = everyone.get(row.player.id);
-      if (!player) continue;
-      const { cover, fertility } = addedYield(drawn, this.manOf(player, player.fvm));
+    // ONE computation in the advice (`rosaYields`), because RAR compares on the same numbers (01/10/2026).
+    for (const [id, { cover, fertility }] of this.advice.rosaYields()) {
       // In % OF THE WHOLE SQUAD (operator, 01/10/2026, after an hour on % of a place: «non mostrare l'incremento
       // della copertura alla singola posizione ma all'intera rosa»): the places he covers over the eleven, with ONE
       // decimal - a man adds at most one place, i.e. 9.1%, and whole percents would tie half the list.
       const c = Math.round((cover / ELEVEN) * 1000) / 10;
       const f = hundredths(fertility);
-      out.set(row.player.id, {
+      out.set(id, {
         cover,
         fertility,
         coverText: `${c > 0 ? '+' : ''}${c.toFixed(1)}%`,
