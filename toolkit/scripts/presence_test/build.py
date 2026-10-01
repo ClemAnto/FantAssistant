@@ -414,7 +414,12 @@ def parts(r, p):
     s *= (1 - p["b"] * r["eout"]) / (1 - p["b"] * r["ein"])
     mv = r["mv"] if r["mv"] is not None or not p["by_role"] else prior(p, "MVbar", r)
     if mv is not None and not r["ctx"].startswith("portiere"):
-        s *= 1 + p["q"] * (mv - 6.0)
+        # M6a (§5-septies): the starters of last season - raw share of the games he was fit for >= 0.6, raw because
+        # the formula's own S depends on the parameter being fitted - have a quality slope of their own.
+        q = p["q_top"] if "q_top" in p and (r.get("share_prev") or 0) >= STARTER_SHARE else p["q"]
+        s *= 1 + q * (mv - 6.0)
+    if "age_f" in p and (r.get("age") or 0) >= OLD_AGE and not r["ctx"].startswith("portiere"):
+        s *= p["age_f"]            # M6c
     return d, min(s, 1.0)
 
 
@@ -523,8 +528,13 @@ def band_loss(group, params) -> float:
     return mean(not in_band(predict(r, params), r["pa_actual"]) for r in group) if group else 0.0
 
 
+# M6a-M6d (§5-septies), measured by `m6.py` and adopted by nobody until the operator says so.
+STARTER_SHARE, OLD_AGE = 0.6, 32
+EXTRA_GRID = {"q_top": GRID["q"], "age_f": [0.85, 0.9, 0.95, 1.0]}
+
+
 def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True, cls: str | None = None,
-        vote_minutes: bool = False, objective: str = "mae") -> dict:
+        vote_minutes: bool = False, objective: str = "mae", extra: tuple[str, ...] = ()) -> dict:
     """Priors, the keeper line and the coordinate descent, all on `train` and nothing else."""
     p = {"by_role": by_role,
          "Dbar": cells(train, lambda r: r["a1"] is not None, lambda r: available(r["a1"]) / r["a1"]["n"],
@@ -535,7 +545,7 @@ def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True, cl
          "cls": cls, "vfac": vote_factors(train) if vote_minutes else None,
          "MVbar": cells(train, lambda r: r["mv"] is not None, lambda r: r["mv"], True),
          "kD": 40, "w2": 0.5, "alpha": 0.5, "gamma": 0.0, "q": 0.0, "kS": 20, "b": 0.0, "c": 1.0,
-         "keeper": None}
+         "keeper": None, **{key: (0.0 if key == "q_top" else 1.0) for key in extra}}
     if keeper_line:
         p["keeper"] = fit_linear([(keeper_input(r), r["pa_actual"] / r["N"])
                                   for r in train if r["ctx"].startswith("portiere")])
@@ -544,7 +554,7 @@ def fit(train: list[dict], *, keeper_line: bool = True, by_role: bool = True, cl
     outfield = [r for r in train if not (p["keeper"] and r["ctx"].startswith("portiere"))]
     loss = band_loss if objective == "band" else mae
     for _ in range(4):
-        for key, values in GRID.items():
+        for key, values in {**GRID, **{key: EXTRA_GRID[key] for key in extra}}.items():
             p[key] = min(values, key=lambda v: loss(outfield, {**p, key: v}))
     return p
 

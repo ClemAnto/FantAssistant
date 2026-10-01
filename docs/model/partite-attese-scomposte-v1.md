@@ -600,6 +600,35 @@ La decisione è dell'operatore, come per M1b: il criterio non è soddisfatto (qu
 Lo scarto che resta (+2,4) dice che anche chi rientra gioca meno di quanto la formula gli dà: le ricadute e il posto
 perso durante l'assenza, che il rodaggio (§36 di `assistente-asta-v1.md`, 1,3%) non spiega.
 
+### L'esito di M6a-M6d (01/10/2026, `m6.py`)
+
+Sulla base del §5-octies (P0 + zeri contati), stesse sette stagioni, ognuna coi parametri tarati sulle altre.
+
+| variante | quota entro 80-125% | stagioni meglio | errore medio | stagioni meglio |
+|---|---|---|---|---|
+| base | 56,87% | - | 6,438 | - |
+| M6a qualità dei titolari | 56,74% | 0 su 7 | 6,436 | 3 su 7 |
+| M6b partenze viste | 56,84% | 2 su 7 | **6,358** | 5 su 7 |
+| M6c età dai 32 | 56,71% | 0 su 7 | 6,464 | 0 su 7 |
+| M6d gradini bassi → titolare | 56,34% | 3 su 7 | 6,426 | 5 su 7 |
+| M6a+b+c+d | 56,37% | 3 su 7 | **6,342** | 6 su 7 |
+| *M6e durata per tipo (lettura)* | *56,96%* | *3 su 7* | *6,375* | *5 su 7* |
+| *motore* | *49,19%* | | *6,577* | |
+
+**Nessuna passa.** Le partenze viste (M6b) sono la migliore sull'errore (−1,2%, 5 su 7) e lasciano ferma la quota.
+**La taratura sulla quota non raccoglie i segnali della diagnosi**: per M6a sceglie `q_top` = 0 in sei pieghe su sette,
+e il `q` comune scende a −0,2, che è il BORDO della griglia; per M6c `age_f` resta a 1,0 in quattro su sette. Quello che
+la regressione del §5-septies vede sulla scelta (+0,13 per punto di MV, 6 stagioni su 6) è vero sulla media e non sposta
+nessuno dentro la banda.
+
+**Quindi la lettura è sulla MISURA e non sui segnali**: da M1 a M6 ogni modifica sposta l'errore medio dell'1-2% e la
+quota di meno di un punto, contro gli 8 che mancano al 65%. La banda premia il caso tipico e l'esito di un titolare è a
+due gobbe (tiene il posto e gioca l'89% delle partite in cui è disponibile, o lo perde e ne gioca il 50%): una
+previsione a metà strada sta fuori banda per tutt'e due, e un segnale debole sposta la previsione di poco dentro la
+stessa metà. I segnali conosciuti il 5 settembre non separano le due gobbe abbastanza da cambiare di che lato cade un
+uomo. Aperti nuovi: la griglia tarata sulla quota tocca il bordo (`q` −0,2, `kD` 640, `w2` 2) e la sua discesa per
+coordinate su una perdita a gradini è da verificare prima di credere a un «non serve».
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
