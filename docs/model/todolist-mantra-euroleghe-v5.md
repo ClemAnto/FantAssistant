@@ -2742,3 +2742,12 @@ Dettaglio in `letture-app-v1.md` §55.6.
    mantra (`w`, `t` in linea di centrocampo) non e' stato confrontato con nessun riferimento.
 4. **Il cursore delle scelte** si azzera navigando via dalla pagina (`toEnd` alla distruzione): si ripristina solo
    al refresh, come chiesto.
+
+## Aperti dopo la sessione del 01/10/2026 (VI) — Kean, il gradino di Previste e il suo DP
+
+1. **La colonna «Gradino» di Previste** e' del motore e si legge come quella della stampa (caso Kean/Laurientè/
+   Osmajic): decidere con l'operatore se aggiungere la parola della stampa nel tooltip (consigliato) o farla seguire
+   alla stampa (la riga mescolerebbe allora due fonti con Pv/Min/Mv/Fm del motore).
+2. **La stagione eccezionale ignorata su `default`** (Kean 2024-25 FM 8,03 fra stagioni a 5,75-6,73): l'unico modo
+   di riaprirla e' una misura PRE-REGISTRATA sul sottoinsieme degli uomini con una stagione piena lontana dalle altre
+   (la forma di R31, respinta su default per copertura). Non un canale da adottare a occhio.

@@ -10349,3 +10349,21 @@ partite saltate e i secondi portieri delle grandi (Provedel, Milinkovic-Savic) b
 **AUTO** sceglie a caso uno dei tre consigli calcolati per la squadra di turno (`scenariosFor`). Entrambe dichiarate,
 non misurate sul banco; 1318 test app verdi. Da verificare sul tavolo di test: gli scenari con guadagno 0 (spareggio
 in `movesFor`) e se la colonna centrale debba prevedere i rivali allo stesso modo di AUTO.
+
+## 1 ottobre 2026 (VI) — «KEAN PANCHINA PER LA STAMPA»: era il gradino del MOTORE, e il suo DP
+
+Diagnosi, nessuna riga di codice. L'operatore segnalava Kean «panchina» (atteso ballottaggio con Douvikas), Laurientè
+«titolare» (atteso bandiera), Osmajic «panchina». `config/press_rungs.json` dice esattamente quello che lui si
+aspetta (Kean/Douvikas ballottaggio 45/55, Laurientè bandiera 95, Osmajic ballottaggio 60), e la colonna
+«Titolarità» della vista Default lo mostra (verificato headless sul build: Kean ballottaggio, Laurientè bandiera).
+Le parole segnalate coincidono una per una col gradino del **motore** (`desc_titolarita`: panchina, titolare,
+panchina), che e' quello che la colonna **«Gradino» della vista Previste** mostra per costruzione (29/09: «il gradino
+del motore»). Scelta aperta all'operatore: lasciarla del motore (consigliato, eventualmente con la parola della
+stampa nel tooltip) o farla seguire alla stampa.
+**Il DP basso di Kean** (SeSw −1, DP −24) non e' un difetto: `engine_fm_pred` 6,72 = fm 2025-26 (6,73) regredita
+a meta' verso l'ancora 6,83, poi le 4 giornate al Como a 6,12 (R25). E' circa Z del ruolo A per prezzo (~6,7), e le
+~6 partite che salta (Pa 14,2) costano quanto quello che aggiunge quando gioca; RAR 20% (attaccanti simili liberi)
+toglie il resto. Il 2024-25 (32 pres., FM 8,03, 19+2) **non entra mai**: su `default` le forme multi-stagione sono
+respinte dal gate (R31 adottata solo su euro). Storico: fuori dal 2024-25 nessuna stagione piena sopra 6,56.
+*Prima di cercare il difetto nei dati, chiedere QUALE colonna sta leggendo: due colonne della stessa riga con due
+fonti si scambiano facilmente.*
