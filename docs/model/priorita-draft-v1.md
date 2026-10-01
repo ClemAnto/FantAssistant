@@ -940,3 +940,27 @@ aggiungono ~0 e RAR sale per tutti (sul banco «meno rari 99%»), cioè lo scont
 una competizione 3-5 conta come se giocasse); (2) Strategia e Plancia su 18 o su 38; (3) i totali dei piani restano in %
 dell'undici a numero intero; (4) nessuna di queste regole è misurata sul banco del draft, e RAR su +Rosa cambia la DP
 che il banco aveva giudicato (+1,06% con le sei letture).
+
+## 31. Il rimpiazzo di un portiere un gol sotto lo zero, e AUTO che gioca i nostri consigli (01/10/2026, sera)
+
+Due sue richieste sul draft di test, tutte e due DICHIARATE e nessuna misurata sul banco.
+
+**«Perché mi consigli Provedel o Milinkovic-Savic? Sono secondi portieri»**. La causa era nella formula: sul
+portiere `priceZero` tiene R = Z (la FM di un portiere quasi non varia col prezzo: 4,94 a FVM 10, 4,92 al 75°
+percentile), quindi il termine delle assenze si annullava e la DP diventava `quota × (Fm − Z)`. Sul foglio Serie A
+classic (Z 4,923): Milinkovic-Savic +0,12 (18,8 Pa, FM 5,13) e Provedel +0,10 (12,2 Pa, FM 5,20, riserva all'Inter)
+davanti a Palmisani +0,08, Falcone +0,04 e a Okoye, De Gea, Muric a zero o sotto. Negli scenari il guadagno sulla
+rosa era 0 per tutti (un altro portiere non entra nel miglior undici), quindi decideva lo spareggio sulla DP, cioè
+proprio quel termine. Cura: `draft-priority.KEEPER_RESERVE_GAP` = 1, **R del portiere = Z − 1** (un punto è un gol
+subito, l'unità del malus del portiere), su ogni gioco e quindi anche per le porte del mantra. Ordine che ne esce:
+Svilar, Carnesecchi, Maignan, Caprile, Butez, Vicario, Falcone, Palmisani; Provedel ~ −0,5. Test dedicato in
+`draft-priority.spec.ts`. Non verificato sul suo tavolo live: se gli scenari propongono ancora un portiere con
+guadagno 0, il nodo è lo spareggio dentro `movesFor` e va guardato lì.
+
+**AUTO con i nostri consigli** («le scelte degli altri vengano fatte calcolando i consigli anche per le altre squadre
+e scegliendo uno dei tre consigli a caso»): `AuctionAdvice.scenariosFor(teamId)` calcola i tre scenari spostando
+`mineId` su quella squadra (stesse regole, stessa camminata dei rivali), e AUTO prende il primo calciatore di uno dei
+tre estratto a caso; dove non ci sono scenari, il previsto della colonna centrale; se manca anche quello, AUTO si
+ferma con un avviso. Prezzo detto: la colonna centrale continua a prevedere i rivali col modello vecchio
+(prezzo/surplus/valore), quindi con AUTO quello che si vede previsto e quello che succede divergono; e una scelta
+costa sei catene. Build e 1318 test verdi; non provato in un browser.

@@ -69,7 +69,7 @@ import { RECOMMENDED_MANTRA, addedYield, draftPitchOf, recommendedModules } from
 import type { FantaMan } from './fanta-eleven';
 import { RUNG_RANK, Rarity, RarityMan, rarity, shownRung } from './draft-rarity';
 import { PlayerRulings } from './player-rulings';
-import { ScenarioInput, judge, scenarios as draftScenarios } from './draft-scenarios';
+import { Scenario, ScenarioInput, judge, scenarios as draftScenarios } from './draft-scenarios';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { engineNumbersFrom } from './engine-sheet';
 import { seasonRoundsOf } from './season-scale';
@@ -1493,6 +1493,17 @@ export class AuctionAdvice {
     const input = this.scenarioInput();
     return input ? draftScenarios(input) : { diagnosis: null, list: [] };
   });
+
+  /**
+   * THE THREE SCENARIOS AS IF ANOTHER SQUAD WERE OURS (operator, 01/10/2026, for AUTO: «le scelte degli altri
+   * vengano fatte calcolando i consigli anche per le altre squadre e scegliendo uno dei tre consigli a caso»).
+   * The same chains, the same rules and the same rival walk, with `mineId` moved onto that squad. Not cached: it
+   * is asked once per pick on the invented table.
+   */
+  scenariosFor(teamId: number): Scenario[] {
+    const input = this.scenarioInput();
+    return input ? draftScenarios({ ...input, mineId: teamId }).list : [];
+  }
 
   /**
    * WHERE THE SQUAD ON THE CLOCK LANDS IF IT TAKES THIS MAN (operator, 29/09/2026: «quando passo il mouse su un

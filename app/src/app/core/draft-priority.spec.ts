@@ -8,6 +8,7 @@ import {
   PriorityState,
   RARITY_DISCOUNT,
   ZERO_REFERENCES,
+  KEEPER_RESERVE_GAP,
   TRIM,
   WorthContext,
   baseRole,
@@ -307,6 +308,17 @@ describe('Z and R by price inside the role (01/10/2026)', () => {
     expect(counted.get('c')!.z).not.toBeCloseTo(5.75, 2);
     const ctx: WorthContext = { rules: RULES, stats: byPrice };
     expect(manValue({ ...man('c', 5.75, 1), id: 999 }, ctx, 38)).toBeCloseTo(0, 6);
+  });
+
+  it('prices a door one goal under Z, so a backup with a high fantamedia ranks under a starter (01/10/2026)', () => {
+    const byPrice = roleStats(priced('por'), RULES, { ...SIZE, byPrice: true });
+    const { z, reserveFm } = byPrice.get('por')!;
+    expect(reserveFm).toBeCloseTo(z - KEEPER_RESERVE_GAP, 9);
+    const ctx: WorthContext = { rules: RULES, stats: byPrice };
+    // Provedel-like: 12 of 33 at Z + 0.28; Falcone-like: 30 of 33 at Z + 0.04.
+    const backup = manValue({ ...man('por', z + 0.28, 12 / 33), id: 901 }, ctx, 33)!;
+    const starter = manValue({ ...man('por', z + 0.04, 30 / 33), id: 902 }, ctx, 33)!;
+    expect(starter).toBeGreaterThan(backup);
   });
 
   it('keeps the four reference lines declared by fc_id', () => {

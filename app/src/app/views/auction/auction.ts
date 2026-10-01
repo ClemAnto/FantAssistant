@@ -396,15 +396,24 @@ export class Auction {
       });
     });
 
-    // AUTO (debug, operator 29/09/2026): with it on, every squad but mine takes its predicted man 500ms after
-    // coming on the clock - the same prediction the middle column prints - and the table stops on my turn.
-    // Only on the invented table: a live auction's picks are the host's.
+    // AUTO (debug, operator 29/09/2026): with it on, every squad but mine picks by itself 500ms after coming on
+    // the clock, and the table stops on my turn. Only on the invented table: a live auction's picks are the host's.
+    // WHAT IT PICKS (operator, 01/10/2026): the first man of one of the THREE SCENARIOS the advice would give that
+    // squad, drawn at random - so the rivals play our own advice, with some variety. Where that squad has no
+    // scenario, the predicted man the middle column prints.
     effect((onCleanup) => {
       const clock = this.feed.onTheClock();
       const predicted = this.advice.round()?.picks.find((pick) => pick.teamId === clock?.id)?.player ?? null;
-      if (!this.auto() || !this.feed.demo() || !clock || clock.id === this.feed.followedTeamId() || !predicted) return;
+      if (!this.auto() || !this.feed.demo() || !clock || clock.id === this.feed.followedTeamId()) return;
       const timer = setTimeout(() => {
-        const refused = this.demo.pick(predicted.id);
+        const options = this.advice.scenariosFor(clock.id);
+        const chosen = options.length ? options[Math.floor(Math.random() * options.length)].first.player : predicted;
+        if (!chosen) {
+          this.auto.set(false);
+          this.message.warning('AUTO fermo: nessuna scelta per questa squadra');
+          return;
+        }
+        const refused = this.demo.pick(chosen.id);
         if (refused) {
           this.auto.set(false);
           this.message.warning(`AUTO fermo: ${refused}`);

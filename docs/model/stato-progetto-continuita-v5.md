@@ -10341,3 +10341,11 @@ Dettaglio: `priorita-draft-v1.md` §29. Tutto DICHIARATO dall'operatore, niente 
   verifica che i filtri sopravvivano e poi li toglie navigando all'indirizzo nudo. *Un default migliore per
   l'operatore puo' togliere a un banco la premessa su cui misurava.*
 Verifiche: 1301 test app, `e2e-draft` verde (225/225, rose 3/8/8/6, Pa 60/60 su scala 38, colonne allineate).
+
+## 1 ottobre 2026 (V) — IL PORTIERE DI RISERVA E AUTO
+
+Dettaglio: `priorita-draft-v1.md` §31. **R del portiere = Z − 1** (`KEEPER_RESERVE_GAP`): con R = Z la DP ignorava le
+partite saltate e i secondi portieri delle grandi (Provedel, Milinkovic-Savic) battevano i titolari delle piccole.
+**AUTO** sceglie a caso uno dei tre consigli calcolati per la squadra di turno (`scenariosFor`). Entrambe dichiarate,
+non misurate sul banco; 1318 test app verdi. Da verificare sul tavolo di test: gli scenari con guadagno 0 (spareggio
+in `movesFor`) e se la colonna centrale debba prevedere i rivali allo stesso modo di AUTO.

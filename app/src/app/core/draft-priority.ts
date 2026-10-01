@@ -232,6 +232,16 @@ export const RESERVE_FVM = 10;
 /** How many men nearest `RESERVE_FVM` make R: a thin role still has a mean, a wide one is not a single price. */
 export const RESERVE_FVM_MEN = 15;
 
+/**
+ * R OF A DOOR, DECLARED (the operator, 01/10/2026: «perche' mi consigli Provedel o Milinkovic Savic? Sono secondi
+ * portieri ... meglio puntare prima ai primi portieri anche di squadre piu' scarse»). With R held at Z on the keepers
+ * the absence term vanished and the DP read `share x (Fm - Z)`: a backup with a high fantamedia in his few matches
+ * (Provedel 12.2 of 33 at 5.20, +0.10) beat starters of weaker clubs (Falcone 29.6 at 4.96, +0.04; Okoye, De Gea,
+ * Muric at or below zero). One point under Z - a point is a goal conceded, the keeper's malus unit - prices the
+ * matches he misses: Falcone, Palmisani, Okoye now rank above both backups. Declared, not measured.
+ */
+export const KEEPER_RESERVE_GAP = 1;
+
 /** The operator's reference men for Z, by fc_id: the calibration `ZERO_FVM_PERCENTILE` was checked against. */
 export const ZERO_REFERENCES: Record<Line, readonly number[]> = {
   por: [6462, 2134],          // Okoye, Falcone
@@ -308,7 +318,7 @@ export function roleStats(
       steady: quantile(steady, 0.5) ?? 0.6,
       share: men.reduce((a, m) => a + (m.share ?? 0), 0) / men.length,
       bought: men.length,
-      reserveFm: byPrice?.r ?? trimmedMean(low),
+      reserveFm: byPrice ? (key === KEEPER ? byPrice.z - KEEPER_RESERVE_GAP : byPrice.r) : trimmedMean(low),
     });
   }
   return stats;
