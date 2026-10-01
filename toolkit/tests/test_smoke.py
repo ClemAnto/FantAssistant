@@ -305,7 +305,10 @@ def test_league_setup_has_usable_defaults_and_derives_the_mantra_slots(tmp_path)
         MANTRA_ROLES)                                        # every Mantra role belongs somewhere
 
     assert Config(league_config_path=tmp_path / "absent.json").roster_slots("classic")         == setup["squad_slots"]
-    mantra = Config().roster_slots("mantra")
+    # ...and the Mantra half too: `Config()` read the repository's file, so this line asserted the
+    # operator's «Leghe Mantra» (P2 D7 C10 A4 -> 2/3/5/2) from the day he declared it - the same defect the
+    # comment above cures, left on the one line it did not reach (01/10/2026).
+    mantra = Config(league_config_path=tmp_path / "absent.json").roster_slots("mantra")
     assert set(mantra) == set(MANTRA_ROLES)
     # 8 Classic slots over 4 defensive roles -> 2 each; 8 over 3 midfield roles -> 3 each (rounded up)
     assert (mantra["por"], mantra["dc"], mantra["c"], mantra["pc"]) == (3, 2, 3, 2)
