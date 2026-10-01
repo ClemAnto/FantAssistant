@@ -409,6 +409,7 @@ export class ExpectedPlay {
       until: injury?.until ?? null,
       seasonOver: injury?.seasonOver,
       source: injury?.source,
+      severity: injury?.severity,
     });
     return expectedPlay({
       matchdays,

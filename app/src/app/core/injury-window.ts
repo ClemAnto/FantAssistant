@@ -67,6 +67,20 @@ import { itDate } from './tooltip';
  */
 export const RETURN_SLIP = 0.25;
 
+/**
+ * LEGGERO O PESANTE, QUANDO LA DATA NON C'E' (operatore, 01/10/2026: «quando un infortunio e' fresco e non
+ * si ha ancora la data di rientro e' comunque di solito definibile come leggero o pesante»). Il toolkit lo
+ * legge dalla prosa della pagina indisponibili (`fc_site.parse_severity`) e qui diventa un numero di giorni
+ * dalla PRIMA lettura che lo ha dato per infortunato.
+ *
+ * MISURATI e non scelti: sugli stop letti dal 26/07/2026 e chiusi in archivio, dalla prima lettura alla fine
+ * dello stop restavano in mediana **12 giorni** quando la prosa diceva leggero (n 41, oltre un mese il 15%) e
+ * **55** quando diceva pesante (n 32, oltre un mese il 69%); la prosa muta ne lasciava 21. Il pesante e' un
+ * PAVIMENTO: gli stop ancora aperti, che sono i piu' lunghi, non sono nella mediana. Nessun `RETURN_SLIP` sopra:
+ * il margine esiste perche' una data DICHIARATA e' ottimistica, e questi giorni sono un esito misurato.
+ */
+export const SEVERITY_DAYS: Readonly<Record<string, number>> = { heavy: 55, light: 12 };
+
 /** Quante giornate perde, quante ne restano, e la quota che ne segue. */
 export interface OutWindow {
   /**
@@ -89,7 +103,9 @@ export interface OutWindow {
    * lascia l'operatore senza il modo di valutarla - e la prima cosa che ha chiesto guardandola e'
    * stata «da dove viene?». Stessa regola dei due zeri e delle due mediane: due domande, due nomi.
    */
-  source: 'press' | 'file' | null;
+  source: 'press' | 'file' | 'severity' | null;
+  /** La gravita' che la stampa ha dato (`heavy` | `light`), solo quando e' lei a decidere il rientro. */
+  severity?: string | null;
   /** I giorni aggiunti dal margine. Zero quando il margine e' spento. */
   slipDays: number;
   /** Le giornate del suo club che cadono prima del rientro, contate da oggi. */
@@ -119,7 +135,9 @@ export function outWindow(input: {
   /** La fonte dice che la sua stagione e' finita: non c'e' una data e non serve. */
   seasonOver?: boolean;
   /** Quale delle due fonti ha dato la data (`PlayerStatus.openInjury` lo decide sulla freschezza). */
-  source?: 'press' | 'file' | null;
+  source?: 'press' | 'file' | 'severity' | null;
+  /** Con `source` 'severity': la gravita' che la stampa ha dato, per la nota. */
+  severity?: string | null;
 }): OutWindow | null {
   const { calendar, club, today, until } = input;
   if (!calendar || !calendar.has(club)) return null;
@@ -149,7 +167,8 @@ export function outWindow(input: {
   // IL MARGINE SI APPLICA ALL'ASSENZA CHE RESTA, non alla durata totale dello spell: quello che si
   // sta comprando comincia oggi, e i giorni gia' passati non li sbaglia piu' nessuno.
   const left = daysBetween(today, until);
-  const slipDays = Math.round(left * Math.max(0, input.slip ?? RETURN_SLIP));
+  const slip = input.source === 'severity' ? 0 : (input.slip ?? RETURN_SLIP);
+  const slipDays = Math.round(left * Math.max(0, slip));
   const prudent = addDays(until, slipDays);
 
   const fixtures = calendar.window(club, 1, calendar.rounds);
@@ -165,6 +184,7 @@ export function outWindow(input: {
     declared: until,
     seasonOver: false,
     source: input.source ?? null,
+    severity: input.source === 'severity' ? (input.severity ?? null) : null,
     slipDays,
     lost,
     playable,
@@ -198,6 +218,14 @@ export function outWindowNote(window: OutWindow, name?: string): string {
     return (
       `${who}la stampa dice che la sua STAGIONE E' FINITA. Perde tutte le ${window.remaining} ` +
       `giornate che restano: non c'e' un prezzo a cui valga un posto in rosa.`
+    );
+  }
+  if (window.source === 'severity') {
+    const what = window.severity === 'heavy' ? 'PESANTE' : 'leggero';
+    return (
+      `${who}la stampa non dà una data ma lo dà per infortunio ${what}: un infortunio così dura in mediana ` +
+      `${SEVERITY_DAYS[window.severity ?? ''] ?? '?'} giorni, quindi rientro stimato il ` +
+      `${itDate(window.until)}. Perde ${window.lost} giornate delle ${window.remaining} che restano.`
     );
   }
   const said =

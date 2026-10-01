@@ -22,7 +22,7 @@ const TODAY = '2026-08-11';
 
 /** Una lettura degli indisponibili come la costruisce `buildUnavailable`, coi campi che non servono. */
 function reading(status: string, on: string, extra: Partial<Unavailable> = {}): Unavailable {
-  return { status, on, expectedReturn: null, note: null, basis: null, ...extra };
+  return { status, on, expectedReturn: null, note: null, basis: null, severity: null, since: on, ...extra };
 }
 
 const spell = (from: string, to: string | null, days: number | null = null): Spell => ({
@@ -207,6 +207,33 @@ describe('chi la stampa dà per indisponibile', () => {
     );
     expect(seen.get(7)).toEqual(reading('suspended', '2026-09-03'));
     expect(seen.get(9)?.status).toBe('injured');
+  });
+
+  it('DA QUANDO risale le letture dello stesso stato finché non c’è un buco di oltre una settimana', () => {
+    const seen = buildUnavailable(
+      table([
+        [7, '2026-08-01', 'injured', 'fc_site'],
+        [7, '2026-08-20', 'injured', 'fc_site'],
+        [7, '2026-08-25', 'injured', 'fc_site'],
+        [7, '2026-09-01', 'injured', 'fc_site'],
+        [9, '2026-08-28', 'suspended', 'fc_site'],
+        [9, '2026-09-01', 'injured', 'fc_site'],
+      ]),
+    );
+    // 01/08 -> 20/08 è un buco di 19 giorni: lo stop di agosto è un altro.
+    expect(seen.get(7)?.since).toBe('2026-08-20');
+    // uno stato diverso interrompe la serie.
+    expect(seen.get(9)?.since).toBe('2026-09-01');
+  });
+
+  it('porta la gravità che il toolkit ha letto, e null dove la colonna manca', () => {
+    const withSeverity = buildUnavailable({
+      table: 'availability',
+      columns: ['fc_id', 'valid_from', 'status', 'source', 'severity'],
+      rows: [[7, '2026-09-01', 'injured', 'fc_site', 'heavy']],
+    } as BundleTable);
+    expect(withSeverity.get(7)?.severity).toBe('heavy');
+    expect(buildUnavailable(table([[7, '2026-09-01', 'injured', 'fc_site']])).get(7)?.severity).toBeNull();
   });
 
   it('viaggiando nel tempo non legge una lettura del futuro', () => {

@@ -702,6 +702,36 @@ riserva ne porta 30-40, quindi cambiargli la classe sposta la previsione di poco
 tutte le giornate viste, almeno due) la quota di scelta È la media dei portieri titolari, invece di essere tirata verso
 di essa. Criterio e attesa di M7e.
 
+**L'esito di M7f: non passa alla lettera, e va letto per cella.** Quota 56,87% → **57,20%** (meglio in 3 stagioni su 7,
+pari nelle altre), errore 6,438 → 6,410 (3 su 7). Le stagioni in cui la cella non è vuota sono cinque, e sui 9 portieri
+che il motore prezza la banda passa da **0 a 5**: Dragowski 2019-20 da 18,0 a 27,0 (vere 29), Berisha da 18,7 a 27,0
+(24), Milinkovic-Savic V. 2021-22 da 12,8 a 27,7 (25), Meret 2022-23 da 17,4 a 27,3 (29), Dragowski 2022-23 da 18,6 a 27,1
+(29); Vicario 2021-22 (28,2 contro 36) e Svilar 2024-25 (27,3 contro 35) restano appena sotto la banda; Gollini 2024-25
+(26,3 contro 4) e Israel 2025-26 (27,1 contro 7) peggiorano. Il criterio dei «5 stagioni su 7» non è raggiungibile da una
+regola che tocca cinque stagioni, e lo si dice invece di cambiarlo: la decisione è dell'operatore.
+
+## 5-decies. Leggero o pesante, appena l'infortunio è noto (01/10/2026)
+
+**Regola dell'operatore**: «quando un infortunio è fresco e non si ha ancora la data di rientro è comunque di solito
+definibile come leggero o pesante: inseriamo questa informazione appena l'infortunio è noto». La prosa della pagina
+indisponibili lo dice quasi sempre a parole sue, e lo leggiamo come leggiamo già la data
+(`fc_site.parse_severity`, colonna `availability.severity`, 17 test sulle frasi vere del 01/10): PESANTE per
+legamento, tendine, menisco o osso rotto, frattura, operazione, «lungo stop», «mesi», alto o medio grado, stagione
+finita; LEGGERO per basso grado, fastidio, risentimento, affaticamento, contusione, noie fisiche; la negazione spegne
+la parola («non sarà necessario un intervento chirurgico»), la «rottura della fibra muscolare» non è pesante, e una
+prosa che non dice niente («da valutare») resta IGNOTA.
+
+**Verificato sui fatti**: sugli stop letti dal 26/07/2026 e già chiusi in archivio, dalla prima lettura alla fine dello
+stop sono restati in mediana **12 giorni** coi leggeri (n 41, oltre un mese il 15%), **55** coi pesanti (n 32, oltre un
+mese il 69%) e **21** con la prosa muta (n 83, oltre un mese il 33%). Il pesante è un PAVIMENTO, perché gli stop ancora
+aperti - i più lunghi - non sono nella mediana.
+
+**Nell'app** (`core/injury-window.ts`, `player-status.openInjury`): dove nessuna fonte dà una data ma la prosa dà la
+gravità, il rientro si stima con quei giorni (`SEVERITY_DAYS`) contati dalla PRIMA lettura della serie (`since`), senza
+il margine `RETURN_SLIP`, e la nota lo dice. Prima di oggi un infortunio senza data era solo un vincolo («fuori oggi»)
+e non costava presenze attese né offerta. Il banco non lo può giudicare: la prosa esiste dal 26/07/2026, quindi la prima
+stagione su cui misurarlo è il 2026-27.
+
 ## 6. Aperti
 
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.

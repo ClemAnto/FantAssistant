@@ -860,6 +860,9 @@ CREATE TABLE IF NOT EXISTS availability (
     -- una data e un'assenza-senza-data sono due affermazioni diverse e il lettore deve poterle
     -- distinguere senza indovinare dal NULL.
     return_basis    TEXT,
+    -- LEGGERO o PESANTE (`heavy` = un mese e oltre, `light` = meno) letto dalla stessa prosa, anche quando
+    -- la data non c'e' (operatore, 01/10/2026). NULL = la prosa non lo dice; vedi `fc_site.parse_severity`.
+    severity        TEXT,
     PRIMARY KEY (fc_id, valid_from)
 );
 

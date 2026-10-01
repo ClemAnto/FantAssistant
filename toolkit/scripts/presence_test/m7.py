@@ -88,7 +88,12 @@ def main() -> None:
     rival = competitors(conn, sept, games, clubs)
     print(f"popolazione {len(sept)}; con un concorrente arrivato piu' caro {len(rival)}", flush=True)
 
-    def chosen_by_target(own_club: bool) -> dict:
+    def shirt_changed(r) -> bool:
+        """M7e: a keeper of class «riserva» who took a vote in every round seen (two at least)."""
+        return (r["ctx"] == "portiere riserva" and (r["seen"] or 0) >= 2 and r["pv_seen"] is not None
+                and r["pv_seen"] >= r["seen"])
+
+    def chosen_by_target(own_club: bool, swap: bool = False) -> dict:
         """Per September row: (prior share, rounds left) under the July fit that leaves its season out."""
         B.annotate(july, agg, at_club, clubs, first, europe, mv, own_club=own_club)
         B.annotate(sept, agg, at_club, clubs, first, europe, mv, own_club=own_club)
@@ -98,11 +103,22 @@ def main() -> None:
                       objective=B.SEPTEMBER_OBJECTIVE)
             for r in sept:
                 if r["target"] == t:
-                    out[id(r)] = (B.share(r, p), max(r["N"] - B.expected_out(r, games, spells, tables[t]), 0.0),
+                    ctx = r["ctx"]
+                    if swap and shirt_changed(r):
+                        r["ctx"] = "portiere titolare"
+                    share = B.share(r, p)
+                    if swap == "replace" and shirt_changed({**r, "ctx": ctx}):
+                        d, _s = B.parts(r, p)          # M7f: his choice IS the starters' mean
+                        share = d * B.prior(p, "Sbar", r) * p["c"]
+                    r["ctx"] = ctx
+                    out[id(r)] = (share, max(r["N"] - B.expected_out(r, games, spells, tables[t]), 0.0),
                                   r["ctx"].startswith("portiere"), r["club_change"])
         return out
 
     base_prior = chosen_by_target(False)
+    swap_prior = chosen_by_target(False, swap=True)
+    replace_prior = chosen_by_target(False, swap="replace")
+    print(f"maglia cambiata (M7e): {sum(shirt_changed(r) for r in sept if r['pa_engine'] is not None)} righe")
     own_prior = chosen_by_target(True)
 
     def pa(r, prior, k_keep=None, k_move=None, f=1.0):
@@ -128,6 +144,8 @@ def main() -> None:
         "M7b K di chi cambia club": lambda t: (lambda r, k=choose(t, K_GRID, lambda v: lambda x: pa(x, base_prior, k_move=v)):
                                                pa(r, base_prior, k_move=k)),
         "M7c scelta al club nuovo": lambda t: (lambda r: pa(r, own_prior)),
+        "M7e maglia cambiata": lambda t: (lambda r: pa(r, swap_prior)),
+        "M7f maglia cambiata, quota dei titolari": lambda t: (lambda r: pa(r, replace_prior)),
         "M7d concorrente arrivato": lambda t: (lambda r, f=choose(t, F_GRID, lambda v: lambda x: pa(x, base_prior, f=v)):
                                                pa(r, base_prior, f=f)),
     }
@@ -151,6 +169,10 @@ def main() -> None:
         print(f"{name:28s} quota {q:.4f} ({bw}/7) errore {e:.4f} ({mw}/7) {'PASSA' if ok and name != 'base' else ''} "
               f"{chosen_params.get(name, '')}", flush=True)
     # the five names, with the four readings
+    for r in sept:
+        if shirt_changed(r) and r["pa_engine"] is not None:
+            print(f"  M7f {r['target']} {r['name']:20s} vere {r['pa_actual']:4.0f} base {pa(r, base_prior):5.1f} "
+                  f"M7f {pa(r, replace_prior):5.1f} motore {r['pa_engine']}")
     names = ("Svilar", "Butez", "Caprile", "Bellanova", "Zortea", "Terracciano", "Lucca")
     for r in sept:
         if r["name"].split()[0] in names and r["pa_engine"] is not None:

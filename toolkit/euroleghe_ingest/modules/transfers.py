@@ -253,6 +253,42 @@ def resolve_clubs(conn, league: str, clubs: list[tuple[str, str]]) -> tuple[int,
     return matched, misses
 
 
+# A CLUB THAT LEFT THE PERIMETER KEEPS ITS PAST (01/10/2026, partite-attese-scomposte-v1.md §5-nonies). The
+# competition page lists THIS season's clubs, so a relegated club never got an id: Verona, Sampdoria, Empoli,
+# Cremonese, Salernitana, Spezia, Pisa... and with no id no squad page was read, so their quoted men had no
+# Transfermarkt identity and no game on file - 48-98 quoted men a season of the past. The id is in the data
+# already: the per-game rows of the men we DO know carry the provider's club id, so the club of our roster is the
+# provider club most of its quoted men played their league games for that season. Kept only where the vote is
+# clear and the id belongs to nobody else; never over a mapping the competition page made.
+DERIVED_SHARE, DERIVED_MIN_ROWS = 0.85, 300
+
+
+def derive_past_clubs(conn) -> int:
+    """club_xref(transfermarkt) for our clubs with none, by majority over `tm_appearances`. Offline."""
+    have = {club for club, in conn.execute("SELECT fc_club_id FROM club_xref WHERE source = 'transfermarkt'")}
+    taken = {tm for tm, in conn.execute("SELECT source_id FROM club_xref WHERE source = 'transfermarkt'")}
+    votes: dict = {}
+    for club, tm, n in conn.execute(
+            """SELECT r.fc_club_id, t.club_id, COUNT(*) FROM rosters r
+               JOIN tm_appearances t ON t.fc_id = r.fc_id AND t.season = r.season
+               WHERE t.competition = 'IT1' AND t.is_national = 0 AND t.club_id IS NOT NULL
+               GROUP BY 1, 2"""):
+        votes.setdefault(club, {})[str(tm)] = n
+    written = 0
+    for club, tally in votes.items():
+        if club in have:
+            continue
+        total = sum(tally.values())
+        tm, n = max(tally.items(), key=lambda kv: kv[1])
+        if total < DERIVED_MIN_ROWS or n < DERIVED_SHARE * total or tm in taken:
+            continue
+        conn.execute("INSERT OR IGNORE INTO club_xref(fc_club_id, source, source_id) "
+                     "VALUES (?, 'transfermarkt', ?)", (club, tm))
+        taken.add(tm)
+        written += 1
+    return written
+
+
 def upsert_coaches(conn, fc_club_id: int, spells: list[dict]) -> int:
     for spell in spells:
         conn.execute(
@@ -480,6 +516,9 @@ def reingest_from_cache(ctx: Context) -> None:
         note = f" · {len(misses)} outside our perimeter" if misses else ""
         print(f"[transfers] {league}: {matched} clubs mapped{note}")
     conn.commit()
+    past = derive_past_clubs(conn)
+    conn.commit()
+    print(f"[transfers] {past} clubs of past seasons mapped from the per-game rows")
 
     by_tm = {tm_id: club_id for club_id, tm_id in _perimeter_ids(conn)}
     leagues = dict(conn.execute("SELECT fc_club_id, league FROM clubs").fetchall())

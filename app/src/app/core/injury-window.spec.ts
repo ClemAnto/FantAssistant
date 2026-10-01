@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { LeagueCalendar } from './keeper-pairs';
-import { RETURN_SLIP, outWindow, outWindowNote } from './injury-window';
+import { RETURN_SLIP, SEVERITY_DAYS, outWindow, outWindowNote } from './injury-window';
 
 /** Un campionato finto di due club, una giornata a settimana, cosi' le date sono contabili a occhio. */
 function calendar(rounds = 10): LeagueCalendar {
@@ -30,6 +30,7 @@ describe('la finestra di un infortunio', () => {
       declared: '2026-09-30',
       seasonOver: false,
       source: null,
+      severity: null,
       slipDays: 0,
       lost: 4,
       playable: 6,
@@ -136,5 +137,24 @@ describe('la stagione finita', () => {
     expect(
       outWindow({ calendar: null, club: 'Alfa', today: '2026-09-05', until: null, seasonOver: true }),
     ).toBeNull();
+  });
+});
+
+describe('leggero o pesante senza una data', () => {
+  it('una data stimata dalla gravita non prende il margine di prudenza, e la nota lo dice', () => {
+    const base = { calendar: calendar(), club: 'Alfa', today: '2026-09-05' };
+    const window = outWindow({ ...base, until: '2026-10-30', source: 'severity', severity: 'heavy' })!;
+    expect(window.slipDays).toBe(0);
+    expect(window.until).toBe('2026-10-30');
+    expect(window.severity).toBe('heavy');
+    const note = outWindowNote(window);
+    expect(note).toContain('PESANTE');
+    expect(note).toContain(`${SEVERITY_DAYS['heavy']} giorni`);
+    // la stessa data dichiarata da una fonte prende il margine
+    expect(outWindow({ ...base, until: '2026-10-30', source: 'press' })!.slipDays).toBeGreaterThan(0);
+  });
+
+  it('il pesante dura piu del leggero, e tutti e due sono misurati', () => {
+    expect(SEVERITY_DAYS['heavy']).toBeGreaterThan(SEVERITY_DAYS['light']);
   });
 });

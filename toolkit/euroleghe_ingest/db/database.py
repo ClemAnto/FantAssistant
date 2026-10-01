@@ -203,6 +203,8 @@ ADDED_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("availability", "note", "TEXT"),
     ("availability", "expected_return", "TEXT"),
     ("availability", "return_basis", "TEXT"),
+    # LEGGERO O PESANTE (01/10/2026): dalla stessa prosa, `fc_site.parse_severity`.
+    ("availability", "severity", "TEXT"),
     # IL CEDUTO del listone (03/09/2026, vedi schema.sql): il foglio `Ceduti` e' la risposta della
     # piattaforma a «gioca ancora in questo campionato», e senza questa colonna il parser la fondeva
     # con `Tutti`. NULL = «letto prima che la colonna esistesse», che non e' «comprabile»: chi legge

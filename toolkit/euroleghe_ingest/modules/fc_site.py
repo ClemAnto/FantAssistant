@@ -172,6 +172,38 @@ def parse_return(note: str | None, read_on: str) -> tuple[str | None, str | None
     return dt.date(year, month, day).isoformat(), "month_part"
 
 
+# LEGGERO O PESANTE, anche quando la data non c'e' (operatore, 01/10/2026: «quando un infortunio e' fresco e non
+# si ha ancora la data di rientro e' comunque di solito definibile come leggero o pesante: inseriamo questa
+# informazione appena l'infortunio e' noto»). La prosa della pagina lo dice quasi sempre con parole sue - «rottura
+# del legamento crociato», «lungo stop», «operato» contro «lesione di basso grado», «fastidio», «affaticamento» - e
+# quelle parole si leggono come si legge la data: strette, una regola per ogni parola, un test per ogni trappola.
+# PESANTE = un mese e oltre fuori; LEGGERO = meno. Le parole pesanti vincono sulle leggere (Felici: «rottura del
+# crociato ... lungo stop»), la negazione spegne la parola che segue («non sara' necessario un intervento
+# chirurgico», Saliba), e una prosa che non dice niente resta IGNOTA: «da valutare» e' una non-risposta, non un
+# leggero. La «rottura della fibra muscolare» NON e' pesante (Transfermarkt: mediana 23 giorni su 380 stop): la
+# rottura che pesa e' di un legamento, un tendine, un menisco o un osso.
+_HEAVY = re.compile(
+    r"crociat|rottura\s+(?:del|dei|della|delle|di)\s+(?:\w+\s+){0,2}?(?:legament|tendin|menisc|tibia|perone|"
+    r"crociat|osso)|frattur|operat[oa]\b|operar(?:e|si|lo)|operazione|intervento\s+chirurgic|lungo\s+stop|"
+    r"alto\s+grado|medio\s+grado|\bmesi\b|tutta\s+la\s+stagione|stagione\s+(?:finita|conclusa|terminata)|"
+    r"lussazion|terribile\s+infortunio|bruttissimo\s+infortunio|calvario", re.IGNORECASE)
+_LIGHT = re.compile(
+    r"basso\s+grado|fastidi|risentiment|affaticament|contusion|\bbotta\b|legger[aoe]?\s|lieve|"
+    r"qualche\s+giorn|precauzion|influenz|febbre|attacco\s+febbrile|noie\s+fisiche", re.IGNORECASE)
+_NEGATION = re.compile(r"\b(?:non|senza|nessun[oa]?)\b[^.;]{0,40}$", re.IGNORECASE)
+
+
+def parse_severity(note: str | None) -> str | None:
+    """The prose -> 'heavy' (a month or more out), 'light' (less), or None when it does not say."""
+    if not note:
+        return None
+    note = unicodedata.normalize("NFC", note)
+    for found in _HEAVY.finditer(note):
+        if not _NEGATION.search(note[max(0, found.start() - 60):found.start()]):
+            return "heavy"
+    return "light" if _LIGHT.search(note) else None
+
+
 # Revealed hierarchy: how fast an older penalty stops counting, and how much a miss costs.
 # PROVISIONAL VALUES. They set how much the hierarchy trusts recency, which is a modelling choice,
 # so the `penalty_ev` gate owns them - sweep these two, do not treat them as established.
@@ -428,11 +460,12 @@ def upsert_availability(conn, records: list[dict], season: str, date: str,
             # LA PROSA VIAGGIA CON LO STATO, e la data che ne esce accanto. `date` e' il giorno in cui la
             # PAGINA e' stata letta, che e' anche l'anno di riferimento del mese che la frase nomina.
             expected, basis = parse_return(rec.get("note"), date)
+            severity = parse_severity(rec.get("note")) if rec["status"] == "injured" else None
             conn.execute(
                 "INSERT OR REPLACE INTO availability"
-                "(fc_id, valid_from, status, source, note, expected_return, return_basis) "
-                "VALUES (?, ?, ?, 'fc_site', ?, ?, ?)",
-                (fc_id, date, rec["status"], rec.get("note"), expected, basis))
+                "(fc_id, valid_from, status, source, note, expected_return, return_basis, severity) "
+                "VALUES (?, ?, ?, 'fc_site', ?, ?, ?, ?)",
+                (fc_id, date, rec["status"], rec.get("note"), expected, basis, severity))
             dated += 1 if basis else 0
         stored += 1
     return stored, unresolved, dated

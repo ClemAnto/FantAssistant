@@ -8,6 +8,7 @@ import {
   columnIndex,
   optionalIndex,
 } from './bundle';
+import { SEVERITY_DAYS } from './injury-window';
 import { TimeTravel } from './time-travel';
 import { itDate } from './tooltip';
 
@@ -214,6 +215,11 @@ export function daysBetween(from: string, to: string): number {
   return Math.round((Date.parse(to) - Date.parse(from)) / DAY_MS);
 }
 
+/** An ISO date `days` after `iso` (UTC, like every date of this project). */
+function addIsoDays(iso: string, days: number): string {
+  return new Date(Date.parse(iso) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
 /** dd/mm/yyyy: a date in a tooltip is read by a person, not by a parser. One definition, shared. */
 const it = itDate;
 
@@ -395,8 +401,13 @@ export interface OpenInjury {
   remaining: number | null;
   /** La stagione e' finita per lui: nessuna data, e nessun prezzo. */
   seasonOver: boolean;
-  /** Chi lo ha detto: `press` (la prosa quotidiana) o `file` (l'archivio Transfermarkt). */
-  source: 'press' | 'file' | null;
+  /**
+   * Chi lo ha detto: `press` (la prosa quotidiana), `file` (l'archivio Transfermarkt) o `severity` (nessuna
+   * data, ma la prosa lo dice leggero o pesante: `SEVERITY_DAYS`).
+   */
+  source: 'press' | 'file' | 'severity' | null;
+  /** `heavy` | `light` dalla prosa, o null quando non lo dice. */
+  severity: string | null;
   /** La riga di prosa, o in mancanza la diagnosi dell'archivio: quello che una data non dice. */
   note: string | null;
 }
@@ -417,7 +428,18 @@ export interface Unavailable {
   note: string | null;
   /** `month_part` (una parte di mese) · `season_over` (stagione finita, un fatto senza una data). */
   basis: string | null;
+  /** LEGGERO o PESANTE dalla stessa prosa (`fc_site.parse_severity`), o null quando non lo dice. */
+  severity: string | null;
+  /**
+   * Da quando la stampa lo dà indisponibile senza interruzioni (letture a meno di `SINCE_GAP_DAYS` l'una
+   * dall'altra): il giorno da cui si contano i `SEVERITY_DAYS`, perché quella mediana è misurata dalla PRIMA
+   * lettura e non dall'ultima.
+   */
+  since: string;
 }
+
+/** Due letture più distanti di così sono due stati diversi: la pagina si legge per campionato, non ogni giorno. */
+export const SINCE_GAP_DAYS = 7;
 
 /**
  * Chi la stampa dà per indisponibile, dalla tabella `availability` del pacchetto.
@@ -485,21 +507,41 @@ export function buildUnavailable(table: BundleTable, cutoff?: string): Map<numbe
   const expected = optionalIndex(table, 'expected_return');
   const note = optionalIndex(table, 'note');
   const basis = optionalIndex(table, 'return_basis');
+  const severity = optionalIndex(table, 'severity');
   const out = new Map<number, Unavailable>();
+  const readings = new Map<number, { on: string; status: string }[]>();
   for (const row of table.rows) {
     const on = String(row[from] ?? '');
     if (!on || (cutoff && on > cutoff)) continue;
     const key = Number(row[id]);
     if (!key) continue;
+    const state = status < 0 ? 'injured' : String(row[status] ?? 'injured');
+    const mine = readings.get(key);
+    if (mine) mine.push({ on, status: state });
+    else readings.set(key, [{ on, status: state }]);
     const previous = out.get(key);
     if (previous && previous.on >= on) continue;
     out.set(key, {
-      status: status < 0 ? 'injured' : String(row[status] ?? 'injured'),
+      status: state,
       on,
       expectedReturn: expected < 0 ? null : ((row[expected] as string | null) ?? null),
       note: note < 0 ? null : ((row[note] as string | null) ?? null),
       basis: basis < 0 ? null : ((row[basis] as string | null) ?? null),
+      severity: severity < 0 ? null : ((row[severity] as string | null) ?? null),
+      since: on,
     });
+  }
+  // DA QUANDO: si risale dalle letture più recenti finché lo stato resta lo stesso e due letture non distano
+  // più di `SINCE_GAP_DAYS`.
+  for (const [key, entry] of out) {
+    const older = (readings.get(key) ?? []).sort((a, b) => (a.on < b.on ? 1 : a.on > b.on ? -1 : 0));
+    let since = entry.on;
+    for (const one of older) {
+      if (one.on >= since) continue;
+      if (one.status !== entry.status || daysBetween(one.on, since) > SINCE_GAP_DAYS) break;
+      since = one.on;
+    }
+    entry.since = since;
   }
   return out;
 }
@@ -933,18 +975,32 @@ export class PlayerStatus {
     const until = seasonOver
       ? null
       : ((pressIsFresher ? fromPress : fromFile) ?? fromPress ?? fromFile);
-    const source =
+    let source: OpenInjury['source'] =
       until == null
         ? null
         : until === fromPress && (pressIsFresher || !fromFile)
           ? 'press'
           : 'file';
+    // NESSUNA DATA, MA LA PROSA LO DICE LEGGERO O PESANTE (01/10/2026): il rientro si stima con la durata
+    // MISURATA di quella gravità dalla prima lettura. Chi l'ha già superata resta senza data - un pesante
+    // ancora fuori dopo 55 giorni non ha una mediana che lo dati, e inventarne una sarebbe un numero.
+    const severity = press?.status === 'injured' ? press.severity : null;
+    let estimated: string | null = null;
+    if (until == null && !seasonOver && press && severity && SEVERITY_DAYS[severity]) {
+      const guess = addIsoDays(press.since, SEVERITY_DAYS[severity]);
+      if (guess > today) {
+        estimated = guess;
+        source = 'severity';
+      }
+    }
+    const when = until ?? estimated;
     return {
-      days: open ? spellDays(open, today) : press ? daysBetween(press.on, today) : 0,
-      until,
-      remaining: until ? Math.max(0, daysBetween(today, until)) : null,
+      days: open ? spellDays(open, today) : press ? daysBetween(press.since, today) : 0,
+      until: when,
+      remaining: when ? Math.max(0, daysBetween(today, when)) : null,
       seasonOver,
       source,
+      severity,
       note: press?.note ?? open?.detail ?? null,
     };
   }
