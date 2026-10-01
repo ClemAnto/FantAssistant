@@ -671,7 +671,8 @@ leggerlo prima di riproporre una strategia) → `spec-euroleghe-ingest-v9.md` �
 `modello-previsionale-v3.8.md` → consolidati di dettaglio. Tutti in `docs/model/`.
 Per le PARTITE ATTESE ricostruite dai loro motivi (infortuni, squalifiche, scelta dell'allenatore, coppe europee):
 **`partite-attese-scomposte-v1.md`** (30/09/2026) — la scomposizione da Transfermarkt, la formula `N × D × S`, il
-confronto fuori campione col motore (−2,1%, e dove vince) e la sezione /why che la mostra. Il lavoro aperto è lì.
+confronto fuori campione col motore e la sezione /why che la mostra. Al 01/10/2026 inizio settembre è al 60,3%
+entro l'80-125% del vero (motore 49,3%, obiettivo 65%, limite di una formula perfetta ~71%). Il lavoro aperto è lì.
 Per la BOARD (formazioni tipo): **`formazioni-tipo-v1.md`** (come nasce: modulo, claim, fit — formule e
 costanti) e **`todolist-formazioni-tipo-v1.md`** (il piano per renderle più veritiere, nato dal confronto
 con la stampa dell'08/08/2026, ordinato per resa misurata).

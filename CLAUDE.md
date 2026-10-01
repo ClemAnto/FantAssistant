@@ -8021,3 +8021,37 @@ classic, adottata dall'operatore col costo davanti. Gvardiol 6,301. E la sua obi
 future basta la FM pura» è **misurata e respinta**: sulle stagioni piene la FM pura sbaglia 0,436 contro 0,367
 del motore e 0,408 della media di ruolo; la regressione non serve a coprire le assenze (quelle sono nelle
 presenze), è la fantamedia che l'anno dopo torna verso il centro.
+
+## Una misura a GRADINI non si tara con una discesa da un punto solo, e un'identità di CLUB ha anche un passato
+**01/10/2026 (II), il banco delle partite attese. Dettaglio: `partite-attese-scomposte-v1.md` §5-septies →
+§5-duodecies.** Inizio settembre dal 57,5% al **60,3%** entro l'80-125% del vero (motore 49,3%).
+
+**LA TARATURA ERA BLOCCATA, e sembrava una risposta.** M4 tara sulla quota entro la banda, che è una funzione a
+gradini; la discesa per coordinate da un punto solo si fermava sul primo gradino, con i parametri sui BORDI della
+griglia, e allargarla non spostava niente - cioè il bordo non era dove sta la risposta, era dove la discesa si fermava.
+Con 12 ripartenze a caso (seme fisso): 57,4% → 59,5%, 6 stagioni su 7, il primo cambiamento che passa il criterio pieno.
+E **ogni candidato misurato con lo strumento bloccato va rimisurato**: due bocciati (M7c, M7f) ora passano. *Prima di
+credere a un «non serve» su una perdita a gradini, si cambia il punto di partenza: se la risposta cambia, era lo
+strumento.*
+
+**UN CLUB RETROCESSO NON AVEVA PASSATO.** Gli id Transfermarkt dei club venivano solo dalla pagina del campionato di
+QUEST'ANNO, quindi Verona, Sampdoria, Empoli, Cremonese... non avevano mai avuto le rose delle stagioni passate e 48-98
+quotati a stagione non avevano una partita su file. L'id era già nei dati - le partite degli uomini che conosciamo
+portano l'id del club - e si ricava per voto (`transfers.derive_past_clubs`). Copertura dall'85-92% al 97-100%. *Una
+fonte che elenca lo stato di oggi non può dare l'identità di ieri: per il passato si cerca chi l'ha già detta.*
+
+**DUE COSE PER IL METRO, decise dall'operatore**: chi il giorno dell'asta giocava fuori dalla Serie A esce dal banco
+(il listone di una stagione passata è l'ultima lettura), e **chi fa zero conta** - prima un uomo previsto a 20 che
+gioca 0 non aveva un rapporto e usciva dalla quota, che è «vuoto = ignoto» applicato al contrario: uno zero misurato non
+è un vuoto.
+
+**AL TAVOLO DECIDE LA STAMPA, quindi la sua parola va tarata in giornate** (`player-rulings.RUNG_VOTE_SHARE`). Valeva la
+mediana del foglio, cioè le presenze sulle partite disponibili: un titolare 36 su 38, il caso stabile e senza
+imprevisti. Tarata sui VOTI col caso migliore della stampa (il ruolo azzeccato al 5 settembre) e ripetuta su EuroLeghe
+e Serie A 2015-19: 31,2 · 29,6 · 27,4 · 23,0 · 6,3. E **leggero/pesante dalla prosa degli indisponibili**
+(`fc_site.parse_severity`): 12 giorni contro 55 di mediana, così uno stop senza data ha un prezzo.
+
+**Una causa detta all'operatore era sbagliata** (Terracciano: non una stagione divisa, De Gea con la stessa Qt.I), e lo
+si è visto solo misurando la regola che la doveva curare. *Una causa scritta in una tabella di casi è un'ipotesi fino a
+quando non si guarda la riga.*
+

@@ -2697,3 +2697,23 @@ Dettaglio in `partite-attese-scomposte-v1.md` §5-§6 e nella nota di continuit�
    febbraio - in coda.
 7. Il test `test_smoke::test_league_setup_has_usable_defaults_and_derives_the_mantra_slots` legge il
    `league_config.json` vero dell'operatore e cade: da puntare a un file di prova.
+
+## Aperti dopo la sessione del 01/10/2026 (II) — le partite attese al 60%
+
+Dettaglio in `partite-attese-scomposte-v1.md` §5-septies → §5-duodecies.
+
+1. **Il gradino della stampa giudicato davvero**: committare ogni aggiornamento della rilevazione prima di un'asta, e a
+   fine stagione confrontare il gradino del 5 settembre con l'esito, per sostituire il «caso migliore» con cui è tarata
+   `RUNG_VOTE_SHARE`.
+2. **I titolari in crescita sottostimati** (131 sani previsti a 20,9 e arrivati a 30,8): nessun segnale del banco li
+   separa; la stampa sì. Da misurare quando il punto 1 avrà una stagione.
+3. **Leggero/pesante sul banco**: la prosa esiste dal 26/07/2026, quindi il 2026-27 è la prima stagione su cui giudicare
+   `SEVERITY_DAYS` (e il pesante è un pavimento: gli stop aperti mancano dalla mediana).
+4. **M6b (partenze viste) e M6e (durata per tipo)** abbassano l'errore medio dell'1-1,4% senza muovere la quota: da
+   rileggere se la misura che decide cambia, o come lettura sulla pagina.
+5. **Il banco del luglio e il gate**: le ripartenze valgono solo per la taratura sulla quota; la taratura sull'errore medio
+   (luglio) non è stata verificata allo stesso modo.
+6. **EuroLeghe nel banco** (decisione dell'operatore: dopo la Serie A) - `press_calib2.py` mostra che la scala della stampa
+   regge anche lì sui gradini alti.
+7. Restano dalla sessione precedente: R33b in avanti (10ª, 19ª, 38ª giornata), i pacchetti del viaggio nel tempo che
+   sanno chi sarà ceduto a gennaio, il test smoke su `league_config.json` (rosso, precedente a questa sessione).

@@ -835,6 +835,10 @@ contro il 49,3% del motore (errore 6,26 contro 6,55); luglio 54,4% contro 48,2%.
 
 ## 6. Aperti
 
+**Aggiornati il 01/10/2026 (II)**: i nuovi sono nella todolist, «Aperti dopo la sessione del 01/10/2026 (II)». Qui sotto
+quelli rimasti dalla v2; la squadra mancante (12) è in parte chiusa dal buco dei dati del §5-duodecies.
+
+
 1. La qualità misurata meglio di MV; la quota di chi a gennaio cambia campionato.
 2. I minuti del gradino ricavato sono quelli della stagione misurata, non una previsione (`minutes.per_appearance`
    vuole le colonne del foglio): se il gradino diventa una lettura da usare, va rifatto sui minuti previsti.

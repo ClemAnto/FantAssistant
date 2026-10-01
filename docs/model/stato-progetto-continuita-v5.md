@@ -10232,3 +10232,45 @@ una scala si scrive col nome, mai con l'indice.
 
 **Cosa resta da fare**: vedi la todolist, «Aperti dopo la sessione del 01/10/2026». Il prossimo passo concordato è la
 diagnosi dei titolari rimasti tali, dove sta il 58% del margine.
+
+## 1 ottobre 2026 (II) — LE PARTITE ATTESE AL 60%: i titolari, la taratura bloccata, il buco dei dati, la stampa
+
+Seguito della sessione precedente (`partite-attese-scomposte-v1.md` §5-septies → §5-duodecies, ogni numero è lì).
+Commit da `ee3db76` a `424e53b`. Inizio settembre: **dal 57,5% al 60,3%** entro l'80-125% del vero (motore 49,3%),
+errore 6,26 contro 6,55. In ordine, quello che resta vero:
+
+**La diagnosi dei titolari rimasti** (`starters.py`): la leva è la SCELTA, non la disponibilità (un oracolo che conosce
+la scelta vera porta il gruppo dal 64% all'84%, quello che conosce la disponibilità vera al 75%). Il 21% che perde il
+posto è sovrastimato, il 39% sano che lo tiene è in parte SOTTOstimato: sono i giocatori in crescita che l'anno prima
+entravano dalla panchina.
+
+**Due decisioni dell'operatore sul metro**: fuori dal banco di settembre chi il giorno dell'asta giocava fuori dalla
+Serie A (`build.abroad_on_day`, 58-142 righe: Lukaku 2021, Ndoye 2025, Gimenez in arrivo a gennaio), e **chi fa zero
+conta** come fuori banda (`build.in_band`), anche nella taratura.
+
+**La taratura era bloccata** (`fit_check.py`): la quota è una funzione a gradini e la discesa da un punto solo si
+fermava ai bordi della griglia. Con 12 ripartenze (`build.BAND_RESTARTS`, seme fisso) 57,4% → 59,5%, 6 stagioni su 7: il
+primo cambiamento che passa il criterio pieno. **Ogni misura dal §5-sexies in poi era fatta con lo strumento bloccato**
+ed è stata rifatta: **M7c** (scelta letta al club dove giocherà) e **M7f** (il portiere riserva che ha giocato tutte le
+giornate viste prende la quota dei titolari) ora passano, insieme 60,06%, e sono adottate per settembre. M6a-d, M6e, M7a,
+M7b, M7d restano respinte.
+
+**Il buco dei dati**: gli id Transfermarkt dei club venivano solo dalla pagina del campionato di quest'anno, quindi ogni
+retrocessa (Verona, Sampdoria, Empoli, Cremonese, Salernitana, Spezia, Pisa...) era senza rose passate e 48-98 quotati a
+stagione senza partite. `transfers.derive_past_clubs` li ricava dal voto delle partite già in archivio (15 club),
+acquisizione fatta: copertura dall'85-92% al **97-100%**.
+
+**Leggero o pesante** (regola dell'operatore): `fc_site.parse_severity` + `availability.severity` (migrazione, 17 test,
+backfill sulle 60 letture dal 26/07): restano in mediana 12 giorni coi leggeri, 55 coi pesanti. Nell'app
+(`injury-window.SEVERITY_DAYS`, `player-status.openInjury`) uno stop senza data ma con la gravità ora ha un rientro
+stimato. Arriva all'app col pacchetto di domani (quello del 01/10 è stato scritto prima del backfill).
+
+**Il gradino della stampa al tavolo**: le giornate di una parola dichiarata (stampa o dritta) erano la mediana del
+foglio (presenze sulle partite disponibili, ~36 su 38 per un titolare). Ora `player-rulings.RUNG_VOTE_SHARE`, tarata sui
+voti veri col caso migliore della stampa e ripetuta su EuroLeghe e Serie A 2015-19 (`press_calib.py`,
+`press_calib2.py`): 31,2 · 29,6 · 27,4 · 23,0 · 6,3 su 38, la «via di mezzo» dell'operatore.
+
+**Una causa data all'operatore e sbagliata**, corretta nel documento: Terracciano 2024-25 non aveva una stagione divisa,
+lo ha scavalcato De Gea con la stessa Qt.I.
+
+**Cosa resta da fare**: la todolist, «Aperti dopo la sessione del 01/10/2026 (II)».
