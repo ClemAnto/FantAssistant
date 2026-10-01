@@ -934,7 +934,11 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      non e' possibile che preveda meno presenze»). Il residuo dei due assi e' fuso in `titolare`: con sei parole
 #      le presenze attese per gradino non erano in ordine, con cinque si' (engine/status.LADDER). Muove
 #      `desc_titolarita` (chi era titolarissimo legge titolare); `engine_*` fermo.
-SHEET_REVISION = 81
+#   82 (01/10/2026) - UN RIVALE CHE LA BOARD ELENCA CONTA DA `panchina` IN SU (`boards.RIVAL_RUNGS`,
+#      letture-app-v1.md §57-§58): la promozione «nessun contendente» dell'08/09 non scatta piu' accanto a un
+#      rivale `panchina`. Giudicato sull'esito di quattro fogli retrodatati, 4 su 4. Muove `desc_titolarita`
+#      (titolare -> ballottaggio) e il gradino dei campetti; `engine_*` fermo.
+SHEET_REVISION = 82
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the

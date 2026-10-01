@@ -97,6 +97,20 @@ MAX_DUELS = 2
 #: `engine/categories.py`, e due copie finirebbero per non essere d'accordo su «lo schiera o no».
 CONTENDER_RUNGS = status.CONTENDER_RUNGS
 
+#: ...MA UN RIVALE CHE LA BOARD ELENCA PER QUELLA MAGLIA CONTA DA `panchina` IN SU (01/10/2026,
+#: `docs/model/letture-app-v1.md` §57-§58). `CONTENDER_RUNGS` qui era circolare: un uomo che la board NON
+#: disegna arriva a `ballottaggio` solo con una quota sopra 0,80, cioe' quasi mai, quindi la regola
+#: scattava su 322 disegnati di cui 300 avevano un rivale elencato sulla board stessa - e in 71 dei 101
+#: casi «stampa ballottaggio, noi titolare» quel rivale era lo stesso che nominava la stampa. Giudicato
+#: sull'ESITO, su quattro fogli retrodatati (EuroLeghe e Serie A, 06/10/2025 e 07/10/2024): i 174 uomini
+#: che questa riga toglie da `titolare` hanno poi giocato lo 0,69-0,81 delle partite e solo sei su dieci
+#: sono finiti fra gli undici piu' schierati del club - l'esito sta piu' vicino a `ballottaggio` 115 volte
+#: contro 59, quattro fogli su quattro. `riserva` resta fuori: «non entrera' spesso» non contende una
+#: maglia, ed e' il caso da cui la regola dell'08/09 e' nata (Camarda accanto a Ramos G.).
+#: Una costante SUA e non `CONTENDER_RUNGS` allargato, perche' quella risponde a un'altra domanda - «l'undici
+#: lo schiera?» - e la leggono anche `engine/categories.py` e la meta' alta del cancello della scala.
+RIVAL_RUNGS = frozenset(status.LADDER[:status.LADDER.index("riserva")])
+
 
 def _fc_id(row: dict) -> int | None:
     """The row's `fc_id` as the integer everything joins on. One reader, because three callers need it."""
@@ -188,7 +202,8 @@ def _contended(view: Any, row: dict, rivals: list | None, ids: set[int],
     `duels_known` reports - because there «no rivals in the list» means «we did not look», and this
     project's oldest rule is that the two must never read the same.
 
-    A contender is a man the LADDER already calls `ballottaggio` or better (`CONTENDER_RUNGS`), read at
+    A contender is a man the LADDER already calls `panchina` or better (`RIVAL_RUNGS`, 01/10/2026: before
+    it was `ballottaggio` or better, which a man the board does not draw almost never reaches), read at
     his BASE rung: the operator's promotion is about the place HE holds, so feeding it back in here would
     be circular - and it cannot change this answer anyway, since the promotion only ever moves a man from
     `ballottaggio` to `titolare` and both are contenders.
@@ -214,7 +229,7 @@ def _contended(view: Any, row: dict, rivals: list | None, ids: set[int],
             rung = view.titolarita_status(rival, _fc_id(rival) in ids)
         except Exception:                               # noqa: BLE001 - one rival, never the board
             return None                                 # a rival we cannot judge is not a rival we can rule out
-        if rung in CONTENDER_RUNGS:
+        if rung in RIVAL_RUNGS:
             return True
     return False
 

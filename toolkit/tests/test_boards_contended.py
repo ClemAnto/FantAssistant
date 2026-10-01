@@ -39,8 +39,8 @@ def test_a_rival_the_ladder_calls_riserva_is_not_a_contender():
     assert boards._contended(view, _man(1), [_man(2)], set()) is False
 
 
-def test_a_rival_the_ladder_calls_ballottaggio_or_better_IS_a_contender():
-    for rung in boards.CONTENDER_RUNGS:
+def test_a_rival_the_ladder_calls_panchina_or_better_IS_a_contender():
+    for rung in boards.RIVAL_RUNGS:
         view = _View({2: rung})
         assert boards._contended(view, _man(1), [_man(2)], set()) is True, rung
 
@@ -95,3 +95,22 @@ def test_an_unavailable_rival_does_not_hide_an_available_one():
     """Uno indisponibile non e' un rivale in meno per gli altri: si salta lui, non la lista."""
     view = _View({2: "titolare", 3: "ballottaggio"}, out={2})
     assert boards._contended(view, _man(1), [_man(2), _man(3)], set(), today=True) is True
+
+
+def test_a_PANCHINA_rival_the_board_lists_disputes_the_shirt():
+    """01/10/2026: la soglia era `ballottaggio`, che un uomo NON disegnato raggiunge solo sopra 0,80 delle
+    partite - quindi «nessun contendente» scattava su 300 disegnati che un rivale sulla board ce l'avevano.
+    Giudicato sull'esito di quattro fogli retrodatati: chi la promozione faceva `titolare` contro un rivale
+    `panchina` ha poi giocato lo 0,69-0,81 delle partite (115 casi piu' vicini a `ballottaggio`, 59 a
+    `titolare`). Il caso: Atalanta, Kristensen T. rivale elencato di tutta la difesa."""
+    view = _View({2: "panchina"})
+    assert boards._contended(view, _man(1), [_man(2)], set()) is True
+
+
+def test_the_rival_threshold_is_its_own_and_does_not_move_the_ladder_gate():
+    """«Chi e' un rivale» e «l'undici lo schiera» sono due domande: allargare la prima non deve muovere la
+    seconda, che leggono anche `categories.py` e la scala stessa."""
+    from euroleghe_ingest.engine import status
+    assert boards.RIVAL_RUNGS == status.CONTENDER_RUNGS | {"panchina"}
+    assert "riserva" not in boards.RIVAL_RUNGS
+    assert boards.CONTENDER_RUNGS is status.CONTENDER_RUNGS

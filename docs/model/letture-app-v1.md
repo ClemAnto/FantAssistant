@@ -7406,3 +7406,59 @@ Nessuna si adotta su questa tabella: la stampa è il giudice dei campetti e non 
 le soglie sono dichiarazioni dell'operatore, e K=5 è una misura fuori campione. Il disaccordo che resta (~540) è
 su CHI gioca, e lo decide l'esito. La tabella per giocatore (`titolarita_motore_vs_stampa.csv`) è stata scritta
 fuori dal repository.
+
+## 58 - LE VARIANTI DEL §57 GIUDICATE SULL'ESITO, e una sola entra (1 ottobre 2026)
+
+L'operatore: «quando l'altra sessione ha finito procedi a risolvere il disaccordo». La stampa è il giudice dei
+campetti e non dell'esito, quindi le varianti del §57.7 sono state rigiudicate su quello che gli uomini hanno fatto
+DOPO la data, con un criterio scritto prima di correre.
+
+**Il banco.** Quattro fogli retrodatati a circa cinque giornate, su una copia privata del DB: EuroLeghe e Serie A,
+06/10/2025 e 07/10/2024. Ogni variante ridisegna le board dello stesso foglio con `boards.write_boards` (lo stesso
+passo, con la regola cambiata in memoria) e si confronta con la base ridisegnata nello stesso modo (355 contro 353
+del foglio originale: la differenza viene dalla copia del DB). L'esito per uomo è calcolato dal livello per
+partita: quota di partite di campionato con presenza, minuti a presenza, «undici» = gli undici del club con più
+partenze. Il gradino realizzato viene da `status.status_of` con contendente ignoto. Criterio: passa se i gradini
+indovinati salgono su entrambe le date e ρ (gradino contro quota realizzata) non scende su nessuna.
+
+| variante | EuroLeghe 2025 | Serie A 2025 | EuroLeghe 2024 | Serie A 2024 |
+|---|---|---|---|---|
+| rivale `panchina` = contendente | +6 · ρ +0,009 | +7 · +0,004 | 0 · −0,002 | +4 · +0,001 |
+| pavimento sui minuti misurati | +7 · +0,010 | −1 · −0,001 | −6 · +0,005 | +6 · +0,006 |
+| tutt'e due | +11 · +0,020 | +7 · +0,004 | −6 · +0,004 | +8 · +0,000 |
+
+Gli aggregati sono piccoli (pochi casi su 550-920), e il giudice favorisce per costruzione la prima variante,
+perché il gradino realizzato non conosce promozioni. Decide quindi la lettura sugli UOMINI CHE OGNI VARIANTE SPOSTA:
+
+- **contendente**: i 174 tolti da `titolare` hanno poi giocato lo **0,69-0,81** delle partite, a 66-70', e solo sei
+  su dieci stanno fra gli undici più schierati del club. L'esito è più vicino a `ballottaggio` **115 volte contro
+  59, quattro fogli su quattro** (34/12, 25/10, 23/17, 33/20). **ADOTTATA** (`boards.RIVAL_RUNGS`, `SHEET_REVISION`
+  82).
+- **minuti misurati**: i promossi a `bandiera` hanno poi giocato lo 0,72-0,94 e non tengono la promessa (>0,9).
+  L'esito dà ragione alla regola attuale **58 volte contro 24, tre fogli su quattro**. **RESPINTA**: il pavimento
+  sulla previsione protegge, ed è la stampa a essere generosa. Il 75' arrotondato del §57.6 resta aperto come
+  questione di presentazione.
+- **K=2 invece di 5** non è stato provato: K=5 è misurato fuori campione sulla stessa domanda (le giornate che
+  restano), e questo banco non porterebbe niente di nuovo.
+
+**La forma.** Una costante propria, `RIVAL_RUNGS` = `bandiera · titolare · ballottaggio · panchina`, letta solo da
+`_contended`; `CONTENDER_RUNGS` («l'undici lo schiera») non si muove, perché la leggono anche `engine/categories.py`
+e il cancello della scala. `riserva` resta fuori: è il caso da cui la regola dell'08/09 è nata (Camarda accanto a
+Ramos G.). Due test nuovi, e rimettendo la soglia vecchia cadono esattamente quei due.
+
+**Effetto sui fogli di oggi**, misurato prima di rifarli: 105 uomini dei 1197 rilevati passano da `titolare` a
+`ballottaggio`, nessun altro movimento; accordo con la stampa **564 → 597**, lontani due gradini 98 → 101 (tre
+`bandiera` della stampa che leggono ora `ballottaggio`). `engine_*` fermo; `categories` fermo, perché i due gradini
+stanno entrambi dentro `CONTENDER_RUNGS`.
+
+**Il prezzo, detto.** La regola dell'08/09 era una dichiarazione accettata col suo prezzo davanti («76 dei 115
+ballottaggi disegnati diventano titolare»). Questo la restringe: «nessuno con cui fare il ballottaggio» vale ora per
+chi ha come unici rivali elencati delle `riserva`, non per chi ha un rivale che entra spesso. Se l'operatore la
+vuole com'era, si torna indietro con una riga.
+
+**Trappola del banco, pagata.** La prima versione dello script sceglieva la variante con `"a" in variant`, e «base»
+contiene sia la `a` sia la `b`: la «base» era la combinazione delle due varianti. Visto perché i conteggi per gradino
+si muovevano nel verso sbagliato, prima di leggere un verdetto.
+
+**Aperto, non mio**: `test_smoke::test_league_setup_has_usable_defaults_and_derives_the_mantra_slots` è rosso anche
+su `HEAD` pulito (slot mantra di default `(2, 3, 5, 2)` contro `(3, 2, 3, 2)` attesi).
