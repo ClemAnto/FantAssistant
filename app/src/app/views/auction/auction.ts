@@ -597,7 +597,8 @@ export class Auction {
       const player = everyone.get(id);
       return player ? this.feed.shownName(player) : `#${id}`;
     });
-    return `Simili o migliori: ${names.join(', ')}${row.rar.count > ids.length ? ` e altri ${row.rar.count - ids.length}` : ''}`;
+    // Only the three names (operator, 01/10/2026): how many there are is the number in the cell.
+    return `Simili o migliori: ${names.join(', ')}`;
   }
 
   protected prioHint(): string {
@@ -742,6 +743,8 @@ export class Auction {
       id: player.id,
       name: this.feed.shownName(player),
       club: this.goal(player.id) ? 'porta' : player.club,
+      // Two doors are two clubs, so their coverage is independent: the label must not merge them into one shirt.
+      coverClub: player.club,
       shown,
       roles: shown.map((role) => role.toLowerCase()),
       value: this.advice.valueBy().get(player.id) ?? null,
@@ -751,7 +754,7 @@ export class Auction {
       // The appearances the operator reads in the Pa column (the new formula where it has him, the engine elsewhere),
       // as a SHARE OF THE COMPETITION'S rounds left - 33 on Serie A, 27 on EuroLeghe today, never the number 38
       // (operator, 01/10/2026: «in funzione delle giornate della competizione e non su 38 della serie A»). Both
-      // sources are already that share (`draftShareBy`), so the coverage reads `share x 0.8` and no calendar.
+      // sources are already that share (`draftShareBy`), so the coverage reads the share itself and no calendar.
       share: this.advice.draftShareBy().get(player.id) ?? null,
       bonus: this.advice.bonusBy().get(player.id) ?? null,
     };
