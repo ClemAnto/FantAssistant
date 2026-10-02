@@ -32,8 +32,18 @@ export function keeperAllowed(team: PlanTeam, player: PlanPlayer, input: Scenari
   if (!rule || !isKeeperSlot(player.slot) || rule.firsts.has(player.id)) return true;
   const doors = team.slots.filter(isKeeperSlot).length;
   if (picksLeft <= input.calls.keeperCap - doors) return true;
+  // The deputy of a keeper I own may come any time (the survivor discount sends him late by itself); a non-first of
+  // ANOTHER club only at the last calls, where the door is closed with what is left (operator, 01/10/2026: «il terzo
+  // è quasi sempre l'ultima chiamata»).
   const club = rule.clubOf(player.id);
-  return team.heldIds.some((id) => rule.firsts.has(id) || (club != null && rule.clubOf(id) === club));
+  if (club != null && team.heldIds.some((id) => rule.clubOf(id) === club && isKeeperSlot(teamSlotOf(team, id)))) return true;
+  return picksLeft <= input.calls.keeperCap - doors + 1;
+}
+
+/** The slot a held man was called on, by id ('' when the squad does not say). */
+function teamSlotOf(team: PlanTeam, id: number): string {
+  const at = team.heldIds.indexOf(id);
+  return at >= 0 ? (team.slots[at] ?? '') : '';
 }
 
 /** The door's price at THIS squad's decision: its keeper places still open over its picks left, one price per move. */
@@ -130,8 +140,7 @@ export interface ScenarioInput extends RivalWalkInput {
    * THE KEEPERS WHO OWN THEIR CLUB'S SHIRT (operator, 01/10/2026: «prendere Sanchez Ro. che non è un titolarissimo è
    * molto rischioso perché non hai la certezza di prendere anche l'altro»), and the club of every man. A keeper who is
    * not his club's first is worth his cover only next to his club's other keeper, which nobody guarantees, so he is
-   * NOT a move until the squad holds a club's first keeper or another keeper of his own club - or until every pick
-   * left must be a keeper. Absent = no such rule (the bench, the tests that build no pitch).
+   * a move only as the DEPUTY of a keeper the squad holds, or at the last calls (picks left <= keeper places open + 1). Absent = no such rule (the bench, the tests that build no pitch).
    */
   keepers?: { firsts: ReadonlySet<number>; clubOf: (id: number) => string | null };
 }

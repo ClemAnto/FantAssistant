@@ -89,6 +89,13 @@ import { PlayerMark, PlayerStatus } from './player-status';
 import { presenceNowShares } from './presence-now';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
 
+/**
+ * THE KEEPERS' WEEK BY WEEK READING - the calendar and the pairing bonus (`keeperWeeksBy`) - is OFF (operator,
+ * 01/10/2026: «per il momento togliamo i bonus per gli accoppiamenti e il calendario»). One switch, so it comes back
+ * in one line; with it off a keeper reads one season number against the average starter (`keeperZero`).
+ */
+const KEEPER_WEEKS = false;
+
 /** Every rung's share of the votes, for a declared rung the draft prices (`draftShareBy`). */
 const RULED_SHARES = new Map(TITOLARITA_LADDER.map((rung) => [rung, { play: RUNG_VOTE_SHARE[rung], minutes: null }]));
 
@@ -945,8 +952,38 @@ export class AuctionAdvice {
       out.set(player.id, draftFertility(base, role, this.ratings.for(platform, player.id)?.steady?.share ?? null,
         calendar ? cleanSheetOutlook(calendar, player.club) : null, league));
     }
+    // THE KEEPERS' ZERO, without the weeks (`KEEPER_WEEKS` off): the same «against the average starter» the weeks
+    // apply (`keeperZero`), so a strong door is positive and a weak one negative.
+    if (!weeksBy.size) {
+      const keepers = new Map([...out].filter(([id, value]) => value != null && this.isKeeper(id)) as [number, number][]);
+      const zero = this.keeperZero(keepers);
+      for (const [id, value] of keepers) out.set(id, value - zero);
+    }
     return out;
   });
+
+  private isKeeper(id: number): boolean {
+    const player = this.listone().find((one) => one.player.id === id)?.player;
+    return !!player && MACRO_ROLE[player.zoneClassic] === 'P';
+  }
+
+  /**
+   * THE ZERO OF A KEEPER'S FERTILITY: the mean, over the clubs, of the fertility of each club's FIRST keeper (the one
+   * with the most expected appearances) - the average starting keeper (operator, 01/10/2026). `values` is the keepers'
+   * fertility by id.
+   */
+  private keeperZero(values: ReadonlyMap<number, number>): number {
+    const shares = this.draftShareBy();
+    const firstOf = new Map<string, { id: number; share: number }>();
+    for (const { player } of this.listone()) {
+      if (!values.has(player.id)) continue;
+      const share = shares.get(player.id) ?? 0;
+      const best = firstOf.get(player.club);
+      if (!best || share > best.share) firstOf.set(player.club, { id: player.id, share });
+    }
+    const firsts = [...firstOf.values()].map((one) => values.get(one.id)!);
+    return firsts.length ? firsts.reduce((sum, one) => sum + one, 0) / firsts.length : 0;
+  }
 
   /**
    * A KEEPER'S FERTILITY MATCH BY MATCH over the competition window (operator, 01/10/2026: «diamo un bonus alla
@@ -962,7 +999,7 @@ export class AuctionAdvice {
   readonly keeperWeeksBy = computed<Map<number, (number | null)[]>>(() => {
     const out = new Map<number, (number | null)[]>();
     const book = this.calendarBook();
-    if (!book) return out;
+    if (!KEEPER_WEEKS || !book) return out;
     const bonus = this.bonusBy();
     const league = this.options.league();
     const platform = this.entry()?.platform ?? 'euro';

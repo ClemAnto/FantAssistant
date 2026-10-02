@@ -253,7 +253,7 @@ describe('the right moment: who survives is worth waiting for (01/10/2026)', () 
 });
 
 describe('a keeper who is not the first of his club waits for an anchor (01/10/2026)', () => {
-  it('is no move on an empty door, and becomes one next to a first keeper, his own club, or at the forced end', () => {
+  it('is a move only as the deputy of a keeper held, or at the last calls (01/10/2026)', () => {
     const first = man('por', 5.2);
     const second = man('por', 5.0, 0.4);
     const other = man('por', 5.1);
@@ -263,7 +263,10 @@ describe('a keeper who is not the first of his club waits for an anchor (01/10/2
     const empty = team(0);
     expect(keeperAllowed(empty, asPlan(second), ruled, 6)).toBe(false);
     expect(keeperAllowed(empty, asPlan(first), ruled, 6)).toBe(true);
-    expect(keeperAllowed(team(0, [other]), asPlan(second), ruled, 6)).toBe(true);
+    // Next to a first keeper of ANOTHER club he waits for the last calls; next to his own club's he is the deputy.
+    expect(keeperAllowed(team(0, [other]), asPlan(second), ruled, 6)).toBe(false);
+    expect(keeperAllowed(team(0, [other]), asPlan(second), ruled, 1)).toBe(true);
+    expect(keeperAllowed(team(0, [first]), asPlan(second), ruled, 6)).toBe(true);
     expect(keeperAllowed(empty, asPlan(second), ruled, 1)).toBe(true);
     expect(keeperAllowed(empty, asPlan(second), base, 6)).toBe(true);
   });
