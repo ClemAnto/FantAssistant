@@ -347,6 +347,33 @@ export class Auction {
 
   protected readonly connecting = signal(false);
 
+  /**
+   * THE HUMAN HEADS of the simulated rivals (`?rivals=human`), one per squad and drawn once:
+   *   fvm      the dearest man he may call - the listone's own ranking;
+   *   tifoso   the dearest man of HIS club while one is in the top 15 he may call, else the dearest;
+   *   istinto  one of the 8 dearest at random;
+   *   consigli the advice, as the AUTO of the other rivals.
+   * Each one calls inside the league's rules (`AuctionAdvice.legalChoicesFor`). Null = no legal man (AUTO stops).
+   */
+  private readonly heads = new Map<number, { kind: 'fvm' | 'tifoso' | 'istinto' | 'consigli'; club: string | null }>();
+
+  private humanPick(teamId: number): AuctionPlayer | null | undefined {
+    const legal = this.advice.legalChoicesFor(teamId).sort((a, b) => b.price - a.price);
+    if (!this.heads.has(teamId)) {
+      const kinds = ['fvm', 'tifoso', 'istinto', 'consigli'] as const;
+      const clubs = [...new Set(legal.map((one) => one.club).filter((c): c is string => !!c))];
+      this.heads.set(teamId, { kind: kinds[Math.floor(Math.random() * kinds.length)], club: clubs[Math.floor(Math.random() * clubs.length)] ?? null });
+      console.info(`[rivals=human] squadra ${teamId}: ${this.heads.get(teamId)!.kind} ${this.heads.get(teamId)!.club ?? ''}`);
+    }
+    const head = this.heads.get(teamId)!;
+    if (head.kind === 'consigli') return undefined;
+    if (!legal.length) return null;
+    let pick = legal[0];
+    if (head.kind === 'tifoso') pick = legal.slice(0, 15).find((one) => one.club === head.club) ?? legal[0];
+    if (head.kind === 'istinto') pick = legal[Math.floor(Math.random() * Math.min(8, legal.length))];
+    return this.everyone().get(pick.id) ?? null;
+  }
+
   /** The debug switch that plays the rivals by themselves (see the effect in the constructor). */
   protected readonly auto = signal(false);
 
@@ -404,15 +431,19 @@ export class Auction {
     // `?autoMe` (debug, 01/10/2026: «simula un draft completo seguendo i consigli generati»): my squad plays by
     // itself too, always on the FIRST of its three plans - the advice taken at its word.
     const autoMe = typeof location !== 'undefined' && new URLSearchParams(location.search).has('autoMe');
+    // `?rivals=human` (debug, 02/10/2026: «gli avversari operano scelte senza seguire i suggerimenti ma con altri
+    // ragionamenti, per fvm, per simpatia»): every rival plays one of four heads (`humanPick`), not the advice.
+    const humanRivals = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rivals') === 'human';
     effect((onCleanup) => {
       const clock = this.feed.onTheClock();
       const predicted = this.advice.round()?.picks.find((pick) => pick.teamId === clock?.id)?.player ?? null;
       const mineOnClock = !!clock && clock.id === this.feed.followedTeamId();
       if (!this.auto() || !this.feed.demo() || !clock || (mineOnClock && !autoMe)) return;
       const timer = setTimeout(() => {
-        const options = mineOnClock ? this.advice.scenarios().list : this.advice.scenariosFor(clock.id);
+        const human = !mineOnClock && humanRivals ? this.humanPick(clock.id) : undefined;
+        const options = mineOnClock ? this.advice.scenarios().list : human !== undefined ? [] : this.advice.scenariosFor(clock.id);
         const at = mineOnClock ? 0 : Math.floor(Math.random() * options.length);
-        const chosen = options.length ? options[at].first.player : predicted;
+        const chosen = human ?? (options.length ? options[at].first.player : predicted);
         if (!chosen) {
           this.auto.set(false);
           this.message.warning('AUTO fermo: nessuna scelta per questa squadra');

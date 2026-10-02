@@ -8,7 +8,8 @@
  * the page - its roster (ids, roles, rung) and its pitch (module, each place's coverage, fertility and men) - and
  * written to a JSON file for the analysis. Read-only: nothing in the repository is touched.
  *
- * Usage: node scripts/sim-draft-advice.mjs [--out FILE] [--runs N] [--headed]
+ * Usage: node scripts/sim-draft-advice.mjs [--out FILE] [--runs N] [--rivals human] [--headed]
+ * `--rivals human`: the rivals play four human heads (FVM, a favourite club, instinct, the advice) instead of the advice.
  */
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -80,8 +81,13 @@ async function attach(port) {
   let sequence = 0;
   const pending = new Map();
   const noise = [];
+  const heads = [];
   socket.addEventListener('message', (event) => {
     const message = JSON.parse(event.data);
+    if (message.method === 'Runtime.consoleAPICalled') {
+      const text = message.params.args.map((one) => one.value ?? one.description).join(' ');
+      if (text.startsWith('[rivals=human]')) heads.push(text.slice('[rivals=human] '.length));
+    }
     if (message.method === 'Runtime.exceptionThrown') {
       noise.push(`ECCEZIONE: ${message.params?.exceptionDetails?.exception?.description ?? '?'}`.slice(0, 200));
     }
@@ -96,7 +102,7 @@ async function attach(port) {
     pending.set(id, { done, fail });
     socket.send(JSON.stringify({ id, method, params }));
   });
-  return { send, close: () => socket.close(), noise };
+  return { send, close: () => socket.close(), noise, heads };
 }
 
 async function evaluate(session, fn, ...args) {
@@ -153,7 +159,7 @@ async function oneDraft(binary, base, run) {
   const browser = spawn(binary, [
     argv.includes('--headed') ? '--headless=false' : '--headless=new',
     '--remote-debugging-port=0', `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
-    '--disable-extensions', '--window-size=1600,1000', `${base}/auction?autoMe`,
+    '--disable-extensions', '--window-size=1600,1000', `${base}/auction?autoMe${option('--rivals', null) ? `&rivals=${option('--rivals')}` : ''}`,
   ], { stdio: 'ignore' });
   let session;
   try {
@@ -199,7 +205,7 @@ async function oneDraft(binary, base, run) {
       const pitch = await evaluate(session, readPitch);
       squads.push({ seat: seat.id, label: seat.label, mine: seat.id === table.mine, roster, pitch });
     }
-    return { run, done, total, stops: [...stops], noise: session.noise.slice(0, 10), squads };
+    return { run, done, total, stops: [...stops], noise: session.noise.slice(0, 10), heads: session.heads, squads };
   } finally {
     session?.close();
     browser.kill();

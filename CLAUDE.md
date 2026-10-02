@@ -7363,6 +7363,18 @@ because the time-travel packs read the listone's asterisk from its LAST read - t
 their place and those who lost it, the operator's measure rewards the typical case («se è previsto titolare fa 36
 presenze»), and the two give different formulas.
 
+## A currency whose sign is fixed for a role never chooses that role
+**01-02/10/2026, the draft's keepers (`priorita-draft-v1.md` §32).** The plans were ranked on FERTILITY, and a keeper's
+«bonus» is the malus of the goals conceded: negative for every keeper, so no plan ever took one before the rules forced
+it - every squad's door at the last three picks, Svilar free until the 23rd, doors covered 37%. Calendar and pairing
+bonuses decided WHICH keeper and not WHEN. What fixed it was the ZERO: a keeper read against the average starting
+keeper («scegliere quello forte significa subire meno malus»), plus a price for an uncovered door week that FADES with
+the picks left (`doorHolePrice`) - at full price from round one, a rival with no survivor discount took a keeper with
+his first pick. Two habits: **simulate the whole deliverable before tuning a term** (`app/scripts/sim-draft-advice.mjs`,
+`?autoMe`, `?rivals=human`: the page drafting against itself), because every step above looked right in a unit test;
+and **a simulation scored on our own predictions favours whoever follows them** - against human-like rivals the advice
+led by +3-4% on the eleven's value and that is an upper bound, not a verdict.
+
 ## Conventions
 The knowledge base lives in git under [docs/model/](docs/model/) (canonical; git handles versioning);
 Drive is a mirror/archive, updated ONLY on the user's explicit request. When the user says **`chiudi`**,

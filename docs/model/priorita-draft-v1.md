@@ -964,3 +964,73 @@ tre estratto a caso; dove non ci sono scenari, il previsto della colonna central
 ferma con un avviso. Prezzo detto: la colonna centrale continua a prevedere i rivali col modello vecchio
 (prezzo/surplus/valore), quindi con AUTO quello che si vede previsto e quello che succede divergono; e una scelta
 costa sei catene. Build e 1318 test verdi; non provato in un browser.
+
+## 32. La copertura combinata, i piani sul campo e la porta valutata a parte (01-02/10/2026)
+
+Una sessione lunga sul Draft Assistant, tutta guidata da sue domande e da simulazioni di draft interi sulla pagina vera.
+Commit `a265270`, `186a72c`, `5a0caec` e quello di questa chiusura; niente pushato né pubblicato. Nessun numero del
+motore si muove (`engine_*` fermo, nessuna `SHEET_REVISION`).
+
+**La copertura di un posto non è una somma** («è corretto sommare le singole % di copertura?»). Due uomini di club
+diversi mancano in modo indipendente, quindi la copertura è `1 − ∏(1 − quota)`: 80% e 42% fanno 88,4% e non 122% → 100%
+(`draft-pitch.combinedCover`). Si sommano, col tetto al 100%, **solo due portieri dello stesso club** (una maglia; sua
+correzione: «non è vero che uomini dello stesso club si contendono una maglia sola se non sono portieri»). Il margine
+di sicurezza è passato per quattro forme in un'ora (×0,8 fisso, nessuno, ×0,9 sopra il 90%, poi questa): **sopra l'80%
+uno sconto lineare fino al 10% al 100%** (`COVER_MARGIN_FROM` / `COVER_MARGIN_MAX`), monotono. Misurato sul banco delle
+partite attese (5 settembre, 7 stagioni, 1.848 uomini): vere/previste 0,88-0,90 sopra il 70% di quota prevista,
+1,03-1,08 sotto il 50% — lo 0,8 fisso era pessimista di ~10 punti sui titolari e 20-25 sulle riserve.
+
+**+Rosa, campo e piani leggono una regola sola** (`withSuggestions` + `placeYield`). Un uomo migliore del titolare
+(`starterWeight`) parte lui e il titolare scende a prima riserva, col contributo ripesato sulle giornate che restano
+scoperte (sua regola). Il posto è quello dove aggiunge più fertilità (copertura per portieri e bonus ignoti), i vuoti
+per primi. Sul campo il suggerito migliore sta in cima al 30% e il mio sotto, come prima riserva.
+
+**La fertilità contiene i modificatori di lega** (`swing.draftFertility`): costanza × 2/11 una volta per modificatore
+(R-Factor per tutti, mod. difesa per difensori e portieri: doppia con tutti e due, sua regola) e porta inviolata per il
+portiere se la lega la paga.
+
+**I piani sono ordinati sulla fertilità della rosa con le riserve**, copertura a parità (`draft-scenarios.SquadPitch`);
+la diagnosi usa l'undici del campo e chiama «scoperto» un posto sotto `COVER_OK` = 0,85 (la soglia ambra/verde, ora una
+costante sola). Il draft legge le **dritte** e il **gradino della stampa**, quest'ultimo solo se letto da 7 giorni o meno
+(`PRESS_FRESH_DAYS`, in `PlayerRulings.all`: vale in tutta l'app); prima non leggeva né l'una né l'altro.
+
+**La porta, cinque giri di simulazione** (`scripts/sim-draft-advice.mjs`, `?autoMe`: la mia squadra gioca il primo
+piano, i rivali uno dei loro tre a caso; 2 o 10 draft per giro):
+1. *Ordinata sulla fertilità*, la porta non veniva mai presa prima del 23° turno: la fertilità di un portiere è il
+   malus dei gol subiti, sempre negativa. Porta al 37-38%.
+2. *Calendario e abbinamenti* (le giornate della finestra una per una, ogni settimana gioca chi ha la partita più
+   facile, `keeperYield`): decidono QUALE portiere, non QUANDO. Ancora tutti al 23°-25° (Svilar libero fino al 23°).
+3. *Fertilità relativa al titolare medio* (sua: «scegliere quello forte significa subire meno malus»): i portieri
+   forti escono a metà draft, porta 87-100%.
+4. *Prezzo della porta scoperta* (`DOOR_HOLE_COST` = 4,73, il costo di un buco del banco d'asta) e *sconto per chi
+   sopravvive* alla mia prossima scelta (`SURVIVOR_DISCOUNT` 0,7 sul guadagno quando si ordina, `rankGain`): il vice
+   diventa conveniente. Ma senza sconto i rivali prendevano il portiere al PRIMO giro: un posto vuoto costava 4,73
+   anche con 24 scelte davanti. Curato con `doorHolePrice` = 4,73 × posti portiere liberi / scelte rimaste (stesso
+   prezzo prima e dopo una mossa) e con lo sconto anche per i rivali simulati.
+5. *Sua taratura del comportamento* («il primo prima di completare gli undici; il secondo quando tra gli svincolati
+   restano solo riserve; il terzo quasi sempre l'ultima chiamata»): abbinamenti e calendario SPENTI (`KEEPER_WEEKS`,
+   una riga per riaccenderli), zero sul numero di stagione (`keeperZero`), e un non titolare del suo club si prende
+   solo come vice di un portiere in rosa o alle ultime chiamate (`keeperAllowed`; il caso Sanchez Ro.).
+
+Esito del giro 5 su 10 draft: primo titolare entro l'11ª scelta 7/10 (quasi sempre al 3°-5°), secondo portiere al 24°
+in 8/10 con un solo titolare di movimento preso dopo, terzo all'ultima chiamata 9/10 e quasi sempre il vice del
+proprio, porta 99-100%.
+
+**Contro rivali «umani»** (`?rivals=human`, `--rivals human`: per FVM, per squadra del cuore, a istinto fra gli 8 più
+cari, o coi consigli; 10 draft): la mia rosa è in media la migliore ma di poco — valore dell'undici 56,8 contro
+54,2-55,1 (+3-4%), mediana 3° posto su 10 (fra 1° e 5°); fertilità +25% (il criterio dei consigli stesso, quindi non una
+prova); buchi pari (0,50 contro 0,55). FVM, tifoso e istinto finiscono quasi pari fra loro. Contro chi prende per FVM il
+secondo portiere arriva al 12°-15° in 6 draft su 10: i titolari spariscono presto e il piano anticipa.
+
+**Limite detto**: valore e fertilità della simulazione sono le nostre stesse previsioni, quindi favoriscono chi segue i
+consigli. La verifica vera è un draft rigiocato su una stagione finita contro presenze e voti reali.
+
+**Aperti**:
+- il secondo portiere contro rivali che prendono per FVM: anticipare è giusto o va trattenuto (sua regola)?
+- abbinamenti e calendario dei portieri: riaccenderli quando lo zero è tarato (`KEEPER_WEEKS`);
+- il prezzo dei buchi solo per la porta: sui posti di movimento la copertura resta senza prezzo;
+- il primo portiere al 3°-5° nelle simulazioni dipende da quando i rivali simulati fanno la corsa, non è tarato su un
+  tavolo vero;
+- un draft rigiocato su una stagione finita come giudice dei consigli;
+- «AUTO fermo: nessuna scelta per questa squadra» compare dopo la 250ª scelta: innocuo, da togliere;
+- `e2e-draft` non rilanciato dopo le ultime modifiche ai portieri.

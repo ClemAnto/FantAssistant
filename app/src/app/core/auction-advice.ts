@@ -57,6 +57,7 @@ import {
   PriorityState,
   WorthContext,
   baseRole,
+  legalFor,
   manValue,
   priorityParts,
   priorities as draftPriorityScores,
@@ -1797,6 +1798,18 @@ export class AuctionAdvice {
     teams.set(clock.id, take(clock, player));
     const order = [...teams.values()].sort((a, b) => ahead(a, b, input.maxAheadPicks, input.orderType)).map((team) => team.id);
     return { teamId: clock.id, at: order.indexOf(clock.id) };
+  }
+
+  /**
+   * WHO THIS SQUAD MAY CALL NOW, by the league's rules (the ceiling of the first turns, the doors, the line quotas:
+   * `draft-priority.legalFor`), from the free pool with each man's FVM as `price`. For the simulated rivals that do
+   * not follow the advice (`?rivals=human`, 02/10/2026).
+   */
+  legalChoicesFor(teamId: number): PlanPlayer[] {
+    const input = this.planInput();
+    const team = input?.teams.find((one) => one.id === teamId);
+    if (!input || !team) return [];
+    return legalFor(team, input.pool, { cap: input.cap ?? null, keeperCap: input.keeperCap, rounds: this.priorityRounds() });
   }
 
   /** The chain from a man the operator names (his double click), judged against what the squad needs. */
