@@ -2095,3 +2095,38 @@ In fantapunti a partita giocata: un attaccante «sfortunato» guadagna ~+0,27 e 
 (`Var(ln pv)`); un uomo che produce e perde il posto non incassa niente. **Non è adottato**: il motore
 prevede il tasso bonus dalla propria storia di gol/assist regredita, e leggerlo dagli xG/xA sarebbe un
 candidato da pre-registrare al gate (bersaglio: `engine_fm_pred − mv`).
+
+## 31. QUANTO CONTA IL VOTO BASE, contro i soli bonus (2-3 ottobre 2026)
+
+Domanda dell'operatore: «nel fantacalcio i voti hanno senso, o basterebbero i bonus?». Analisi
+descrittiva, nessun numero del motore si muove.
+
+**Distribuzione dei voti base** (`match_ratings.mv`, 2025-26, solo presenze col voto). Serie A
+(`default`, 38 giornate, 11.832 voti): 3 → 1 · 4 → 54 (0,5%) · 4,5 → 205 (1,7%) · 5 → 1.166 (9,9%) ·
+5,5 → 2.681 (22,7%) · **6 → 4.134 (34,9%)** · 6,5 → 2.233 (18,9%) · 7 → 989 (8,4%) · 7,5 → 305 (2,6%) ·
+8 → 56 · 8,5 → 7 · 9 → 1. EuroLeghe (31 giornate, 16.403): quasi identica (6 al 35,9%, 5,5 al 22,7%,
+6,5 al 19,6%), coda alta un po' più lunga (dodici 9 e un 9,5).
+
+**Voto fisso a 6 con bonus ridotti** (+1 gol, rigori compresi; +0,5 assist; −1 rigore sbagliato; −1,5
+espulsione; −1 autogol; +1 rigore parato; gol subiti NON contati): Serie A 6 → **87,7%**, 7 → 6,4%,
+6,5 → 3,9%, 4,5 → 0,7%, tutto il resto sotto lo 0,5%. Una presenza su nove ha almeno un evento.
+
+**Simulazione di partite** (40.000 sfide, seme 1, Serie A 2025-26: ogni squadra 1-4-4-2 estratto a caso
+fra chi ha il voto nella stessa giornata, gol con la scala 66 + 6):
+
+| Sistema | sd del punteggio di squadra | Pareggi | Stesso esito del vero |
+|---|---|---|---|
+| fantavoto vero | 4,68 | 37,4% | — |
+| 6 fisso + bonus/malus UFFICIALI (`6 + fantavoto − mv`) | 3,18 | 43,5% | 72,8% |
+| 6 fisso + bonus ridotti (sopra) | 1,11 | 90,1% | 38,9% |
+
+Lettura: il voto base porta **circa il 54% della varianza** del punteggio di squadra (4,68² contro 3,18²).
+Con i soli bonus ufficiali il gioco regge ma è più piatto e un esito su quattro cambia; con i bonus
+ridotti si appiattisce (quasi tutte le squadre fanno 1 gol). E il voto è anche ciò che leggono i due
+modificatori (mod. difesa, R-Factor) e l'unica cosa che distingue un difensore senza eventi buono da uno
+cattivo. Aperto, se mai servisse: la taglia dei bonus che, senza voto, riporterebbe i pareggi al ~37%.
+
+Trappola di misura incontrata: lo script etichettava le due colonne «bonus» a rovescio e leggeva i bonus
+ufficiali come i più piatti (sd 1,11 con +3 a gol) — si è visto controllando la sd per uomo di
+`fantavoto − mv` (≈1,03, quindi ≈3,4 su undici). *Un numero che contraddice la taglia dei suoi ingressi
+è un'etichetta sbagliata prima di essere un risultato.*

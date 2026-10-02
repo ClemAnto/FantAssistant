@@ -10412,3 +10412,10 @@ Dettaglio: `priorita-draft-v1.md` §33-§34.
 **Aperti**: la lunghezza è misurata su valore × copertura e l'app ordina sulla fertilità del campo (banco che legga
 `draft-scenarios` dall'app); `e2e-draft` instabile già su HEAD (un problema diverso a ogni corsa); teste rivali più
 realistiche (che leggano presenze e fantamedia) per la simulazione sulla pagina.
+
+## 3 ottobre 2026 — QUANTO CONTA IL VOTO BASE (analisi, nessun codice)
+Distribuzione dei voti base 2025-26 (il 6 è il 34,9% in Serie A) e simulazione di 40.000 partite: il
+voto porta ~54% della varianza del punteggio di squadra; con i soli bonus ufficiali i pareggi salgono dal
+37% al 44%, con bonus ridotti (+1 gol, +0,5 assist) al 90%. Numeri e metodo:
+`metrica-asta-surplus-v1.md` §31. Nessun numero del motore, nessun `SHEET_REVISION`. Restano non
+committati due file app di un'altra sessione (`auction-advice.ts`, `views/auction/auction.ts`): non toccati.
