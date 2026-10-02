@@ -10397,3 +10397,18 @@ toglie il resto. Il 2024-25 (32 pres., FM 8,03, 19+2) **non entra mai**: su `def
 respinte dal gate (R31 adottata solo su euro). Storico: fuori dal 2024-25 nessuna stagione piena sopra 6,56.
 *Prima di cercare il difetto nei dati, chiedere QUALE colonna sta leggendo: due colonne della stessa riga con due
 fonti si scambiano facilmente.*
+
+## 2-3 ottobre 2026 — LA CATENA A 4 E UN DRAFT CONTRO TESTE UMANE
+
+Domanda dell'operatore per il draft Serie A del 6 ottobre (ordine per FVM di rosa): pesare di più il fatto che un FVM
+alto ti manda indietro? **No**, misurato: il costo è già nei piani, e quello che paga è guardare PIÙ AVANTI.
+`toolkit/bench/draft/chains.mjs` (dieci stagioni Serie A, quote, 10 sedie): catena 2/3/4 → 72,20/72,93/73,43 punti a
+giornata, 4 vs 2 +1,76% robust; 5 e 6 sotto il pavimento. La catena lunga spende di più e scivola più indietro: vede
+quando conviene. Nell'app `draft-scenarios.CHAIN_TURNS` = 4 (commit `cef7ce8`): a schermo due scelte più «poi +X».
+Poi 6 draft simulati contro nove teste senza consigli (`?rivals=people`): primi 6/6, primo portiere al giro ~4, il
+secondo a metà, il terzo all'ultima chiamata — giudicati sulle nostre previsioni, quindi un tetto.
+Dettaglio: `priorita-draft-v1.md` §33-§34.
+
+**Aperti**: la lunghezza è misurata su valore × copertura e l'app ordina sulla fertilità del campo (banco che legga
+`draft-scenarios` dall'app); `e2e-draft` instabile già su HEAD (un problema diverso a ogni corsa); teste rivali più
+realistiche (che leggano presenze e fantamedia) per la simulazione sulla pagina.

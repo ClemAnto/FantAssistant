@@ -1067,3 +1067,29 @@ perde ~8% contro il tavolo sul classic (§24), quindi non decide.
 è un difetto. Detto: il banco ha misurato la LUNGHEZZA su valore × copertura, l'app ordina sulla fertilità del campo;
 `e2e-draft` verde, il draft completo passa da ~125 a ~133 s. Il banco era già instabile su HEAD (1 problema su 2
 corse, ogni volta diverso), quindi un rosso isolato lì non è di questa modifica.
+
+## 34. Un draft contro dieci teste «umane», e quando si prendono i portieri (02-03/10/2026)
+
+Sua richiesta: «simulare un'asta a 10 dove gli altri partecipanti utilizzano scelte con ragionamenti vari ma senza
+usare i consigli del motore, e a che giro vengono presi i portieri». `sim-draft-advice.mjs --rivals people --runs 6`
+sulla `/auction` del build: classic Serie A, 3/8/8/6, ordine per FVM, noi sul primo piano consigliato (catena a 4,
+§33); i nove rivali estraggono una testa fra **fvm** (il più caro), **tifoso** (il più caro del suo club se fra i primi
+15), **istinto** (uno a caso fra gli 8 più cari) e **reparti** (il più caro del reparto più vuoto, portieri in fondo).
+`?rivals=people` è nuovo; `?rivals=human` tiene anche la testa «consigli».
+
+| | posto medio | resa rosa | 1º portiere | 2º | 3º |
+|---|---|---|---|---|---|
+| noi | **1,0 (6/6)** | 690 | giro 3,8 | 16,2 | 25 |
+| reparti | 5,6 | 536 | 23,0 | 24,0 | 25 |
+| fvm | 5,9 | 524 | 8,2 | 14,8 | 20,0 |
+| tifoso | 6,1 | 518 | 10,8 | 15,6 | 21,6 |
+| istinto | 6,3 | 524 | 9,2 | 16,4 | 22,6 |
+
+(«resa rosa» = la fertilità del campetto sommata sui posti; copertura ~95% per tutti.) I nostri portieri: un
+titolare forte al 2º-5º giro (Svilar, Mandas, Carnesecchi), il secondo a metà draft (Palmisani al ~15º, 5 volte su 6),
+il terzo all'ultima chiamata. Le teste a prezzo ne accumulano due o tre presto (4/5/8), «reparti» li prende agli
+ultimi tre giri.
+
+**Detto prima del numero**: le rose sono giudicate con le NOSTRE previsioni, quindi +28% sul secondo è un tetto e non
+una stima (la stessa riserva del §32); il giudice sui punti veri resta il banco sulle stagioni passate, dove il
+vantaggio è di qualche punto percentuale. E le teste simulate sono semplici: nessuna legge presenze o fantamedia.

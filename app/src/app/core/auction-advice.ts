@@ -1812,6 +1812,11 @@ export class AuctionAdvice {
     return legalFor(team, input.pool, { cap: input.cap ?? null, keeperCap: input.keeperCap, rounds: this.priorityRounds() });
   }
 
+  /** The slots a squad holds, as the plan reads them (debug: the simulated «reparti» head, `?rivals=people`). */
+  heldSlotsOf(teamId: number): string[] {
+    return [...(this.planInput()?.teams.find((one) => one.id === teamId)?.slots ?? [])];
+  }
+
   /** The chain from a man the operator names (his double click), judged against what the squad needs. */
   judgeScenario(playerId: number): ReturnType<typeof judge> | null {
     const input = this.scenarioInput();

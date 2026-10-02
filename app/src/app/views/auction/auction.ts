@@ -352,15 +352,20 @@ export class Auction {
    *   fvm      the dearest man he may call - the listone's own ranking;
    *   tifoso   the dearest man of HIS club while one is in the top 15 he may call, else the dearest;
    *   istinto  one of the 8 dearest at random;
-   *   consigli the advice, as the AUTO of the other rivals.
+   *   consigli the advice, as the AUTO of the other rivals;
+   *   reparti  the dearest man of the outfield line he has filled least (held / quota), the keepers left to the
+   *            end - a manager who builds by department (`?rivals=people` only).
+   * `?rivals=people` (02/10/2026: «gli altri partecipanti utilizzano scelte con ragionamenti vari ma senza usare i
+   * consigli del motore») draws among fvm, tifoso, istinto and reparti, never consigli.
    * Each one calls inside the league's rules (`AuctionAdvice.legalChoicesFor`). Null = no legal man (AUTO stops).
    */
-  private readonly heads = new Map<number, { kind: 'fvm' | 'tifoso' | 'istinto' | 'consigli'; club: string | null }>();
+  private readonly heads = new Map<number, { kind: 'fvm' | 'tifoso' | 'istinto' | 'consigli' | 'reparti'; club: string | null }>();
 
   private humanPick(teamId: number): AuctionPlayer | null | undefined {
     const legal = this.advice.legalChoicesFor(teamId).sort((a, b) => b.price - a.price);
     if (!this.heads.has(teamId)) {
-      const kinds = ['fvm', 'tifoso', 'istinto', 'consigli'] as const;
+      const people = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rivals') === 'people';
+      const kinds = people ? (['fvm', 'tifoso', 'istinto', 'reparti'] as const) : (['fvm', 'tifoso', 'istinto', 'consigli'] as const);
       const clubs = [...new Set(legal.map((one) => one.club).filter((c): c is string => !!c))];
       this.heads.set(teamId, { kind: kinds[Math.floor(Math.random() * kinds.length)], club: clubs[Math.floor(Math.random() * clubs.length)] ?? null });
       console.info(`[rivals=human] squadra ${teamId}: ${this.heads.get(teamId)!.kind} ${this.heads.get(teamId)!.club ?? ''}`);
@@ -371,6 +376,16 @@ export class Auction {
     let pick = legal[0];
     if (head.kind === 'tifoso') pick = legal.slice(0, 15).find((one) => one.club === head.club) ?? legal[0];
     if (head.kind === 'istinto') pick = legal[Math.floor(Math.random() * Math.min(8, legal.length))];
+    if (head.kind === 'reparti') {
+      const quota = this.options.league().slots.classic as Record<string, number>;
+      const line = (slot: string | null) => (slot ?? '').toUpperCase().slice(0, 1);
+      const held = this.advice.heldSlotsOf(teamId).map(line);
+      const fill = (l: string) => held.filter((one) => one === l).length / (quota[l] || 1);
+      const outfield = legal.filter((one) => line(one.slot) !== 'P');
+      const pool = outfield.length ? outfield : legal;
+      const lowest = Math.min(...pool.map((one) => fill(line(one.slot))));
+      pick = pool.find((one) => fill(line(one.slot)) === lowest) ?? legal[0];
+    }
     return this.everyone().get(pick.id) ?? null;
   }
 
@@ -433,7 +448,7 @@ export class Auction {
     const autoMe = typeof location !== 'undefined' && new URLSearchParams(location.search).has('autoMe');
     // `?rivals=human` (debug, 02/10/2026: «gli avversari operano scelte senza seguire i suggerimenti ma con altri
     // ragionamenti, per fvm, per simpatia»): every rival plays one of four heads (`humanPick`), not the advice.
-    const humanRivals = typeof location !== 'undefined' && new URLSearchParams(location.search).get('rivals') === 'human';
+    const humanRivals = typeof location !== 'undefined' && ['human', 'people'].includes(new URLSearchParams(location.search).get('rivals') ?? '');
     effect((onCleanup) => {
       const clock = this.feed.onTheClock();
       const predicted = this.advice.round()?.picks.find((pick) => pick.teamId === clock?.id)?.player ?? null;
