@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PlanPlayer, PlanTeam, startingPlaces } from './auction-plan';
 import { PriorityMan, PriorityRules, WorthContext, roleStats } from './draft-priority';
-import { ScenarioInput, chainFrom, diagnose, interestIn, judge, keeperAllowed, movesFor, rankGain, scenarios, squadWorth } from './draft-scenarios';
+import { CHAIN_TURNS, ScenarioInput, chainFrom, diagnose, interestIn, judge, keeperAllowed, movesFor, rankGain, scenarios, squadWorth } from './draft-scenarios';
 import { SURVIVOR_DISCOUNT } from './auction-plan';
 
 /** One shape: a door, two Dc, one C, one Pc. */
@@ -160,7 +160,30 @@ describe('a classic quota (todolist-draft-classic-v1 item 3.2)', () => {
     for (const chain of scenarios(ctx, 5).list) {
       expect(pcs.has(chain.first.player.id)).toBe(false);
       if (chain.second) expect(pcs.has(chain.second.player.id)).toBe(false);
+      for (const step of chain.later) expect(pcs.has(step.player.id)).toBe(false);
     }
+  });
+});
+
+describe('a plan judged over CHAIN_TURNS of our picks (02/10/2026)', () => {
+  it('adds our later picks to the ranking, never a man taken before them, and leaves the two on screen alone', () => {
+    const everybody = population();
+    const pool = [
+      man('c', 6.9, 0.9, 5), man('c', 6.8, 0.9, 4), man('c', 6.7, 0.9, 3), man('c', 6.6, 0.9, 2),
+      man('dc', 6.4, 0.9, 50), man('dc', 6.3, 0.9, 40), man('dc', 6.2, 0.9, 30), man('dc', 6.1, 0.9, 20),
+      man('pc', 7.9, 0.9, 60), man('pc', 7.8, 0.9, 45), man('pc', 7.4, 0.9, 25), man('pc', 7.2, 0.9, 15),
+      man('por', 5.3, 0.9, 10), man('por', 5.1, 0.9, 8), man('por', 5.0, 0.9, 6),
+    ];
+    const ctx = input(pool, everybody);
+    const chain = chainFrom(ctx, asPlan(pool[0]), null)!;
+    expect(chain.later.length).toBe(CHAIN_TURNS - 2);
+    expect(chain.horizon).toBeCloseTo(chain.total + chain.later.reduce((sum, step) => sum + step.gain, 0), 9);
+    const ours = [chain.first.player.id, chain.second!.player.id, ...chain.later.map((step) => step.player.id)];
+    expect(new Set(ours).size).toBe(ours.length);
+    // `gone` is still «before OUR NEXT pick», what the screen highlights - none of it ever ours.
+    for (const id of ours) expect(chain.gone.has(id)).toBe(false);
+    // We call first in this round, so «gone before our next pick» is exactly the wait - not the later walks.
+    expect(chain.gone.size).toBe(chain.wait);
   });
 });
 

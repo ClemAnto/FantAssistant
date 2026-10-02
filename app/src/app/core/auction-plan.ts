@@ -828,7 +828,9 @@ export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>)
     teams.set(id, take(team, choice));
     gone.set(choice.id, id);
   };
-  return { step, gone, hooks };
+  /** Takes a man out of the pool without giving him to a rival: OUR own pick, in a walk that spans our turns. */
+  const exclude = (playerId: number) => { pool = pool.filter((player) => player.id !== playerId); };
+  return { step, gone, hooks, exclude };
 }
 
 /**

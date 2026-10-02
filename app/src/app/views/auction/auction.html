@@ -564,6 +564,12 @@
                       ><span class="text-success">{{ totals.cover }}</span>{{ ' ' }}<span [class]="totals.negative ? 'text-danger' : 'text-success'">{{ totals.fertility }}</span></span
                     >
                   }
+                  <!-- LE SCELTE DOPO LA SECONDA (02/10/2026): il piano e' ordinato su CHAIN_TURNS scelte, quindi quello
+                       che vale oltre le due a schermo si dice, o l'ordine non si spiega coi numeri che si vedono. -->
+                  @if (chain.scenario.later.length) {
+                    <span data-plan-later class="shrink-0 font-normal tabular-nums text-muted" nz-tooltip
+                      [nzTooltipTitle]="laterText(chain.scenario)">poi {{ gainText(chain.scenario.horizon - chain.scenario.total) }}</span>
+                  }
                 </span>
                 <span class="flex min-w-0 items-center gap-1 pl-3">
                   <ui-roles class="shrink-0" [roles]="chain.scenario.first.player.roles" size="xxs" />

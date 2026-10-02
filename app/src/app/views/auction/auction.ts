@@ -561,6 +561,11 @@ export class Auction {
   }
 
 
+  /** The picks a plan counts after the two on screen, by name («Poi: Undav +12 · Rrahmani +9»). */
+  protected laterText(scenario: Scenario): string {
+    return 'Poi: ' + scenario.later.map((step) => this.stepText(step)).join(' · ');
+  }
+
   /** A step of a chain: the name and what the whole squad gains by him («Undav +44»). */
   protected stepText(step: ScenarioStep): string {
     return `${this.shown(step.player.id, step.player.name)} ${this.gainText(step.gain)}`;

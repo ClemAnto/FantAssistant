@@ -90,8 +90,12 @@ export interface Scenario {
   second: ScenarioStep | null;
   /** The men the rivals are predicted to take before our next pick, this round's included: player id -> team id. */
   gone: Map<number, number>;
-  /** What the squad gains over the chain, first.gain + second.gain, points per matchday: the ranking. */
+  /** What the squad gains over the two picks on screen, first.gain + second.gain, points per matchday. */
   total: number;
+  /** Our best pick at each of our turns AFTER the second, up to `CHAIN_TURNS` picks in all (rivals walked between). */
+  later: ScenarioStep[];
+  /** What the squad gains over the whole chain, `total` plus the later picks: the RANKING (`CHAIN_TURNS`). */
+  horizon: number;
   /** The squads calling during the wait that want the second man, and why (`interestIn`), one each. */
   interested: Interest[];
   difficulty: Difficulty;
@@ -304,7 +308,7 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
   // Every squad that calls during the wait, as it stands when it calls: asked afterwards whether it wants the
   // second man, so the walk is made once and not twice.
   const callers: PlanTeam[] = [];
-  const { walk, before, mine, after } = walkPast(input, first, (team) => callers.push(team));
+  const { walk, before, mine, after, teams: board } = walkPast(input, first, (team) => callers.push(team));
   // Our place in the round of our next pick: one after every squad that makes THAT turn before us.
   const nextAt = 1 + after.filter((step) => step.picksBefore === mine.picksCount).length;
   const pool = input.pool.filter((p) => p.id !== first.id && !walk.gone.has(p.id));
@@ -319,6 +323,30 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
   }
   const wait = walk.gone.size - before;
   const interested = second && wait > 0 ? interestAmong(callers, second.player, input) : [];
+  // The men gone before OUR NEXT pick are what the screen highlights: kept before the walk goes further.
+  const gone = new Map(walk.gone);
+  // THE LATER PICKS (`CHAIN_TURNS`): ours by the same moves, the rivals walked by the same order rule in between.
+  const later: ScenarioStep[] = [];
+  if (second) {
+    let me = take(mine, second.player);
+    board.set(input.mineId, me);
+    walk.exclude(second.player.id);
+    walk.hooks.onCall = null;
+    const ours = new Set([first.id, second.player.id]);
+    const walked = { ...input, rounds: input.calls.rounds };
+    while (2 + later.length < CHAIN_TURNS && me.picksCount < input.calls.rounds) {
+      walkToOurTurn(walked, board, walk);
+      me = board.get(input.mineId)!;
+      if (me.picksCount >= input.calls.rounds) break;
+      const best = movesFor(me, input.pool.filter((p) => !ours.has(p.id) && !walk.gone.has(p.id)), input)[0];
+      if (!best) break;
+      later.push({ ...best, need: null });
+      ours.add(best.player.id);
+      walk.exclude(best.player.id);
+      me = take(me, best.player);
+      board.set(input.mineId, me);
+    }
+  }
   const difficulty: Difficulty = !second || wait === 0 ? 'sicuro'
     : interested.length === 0 ? 'facile' : interested.length < HARD_FROM ? 'medio' : 'difficile';
   return {
@@ -326,8 +354,10 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
     wait,
     nextAt,
     second,
-    gone: walk.gone,
+    gone,
     total: firstGain + (second?.gain ?? 0),
+    later,
+    horizon: firstGain + (second?.gain ?? 0) + later.reduce((sum, step) => sum + step.gain, 0),
     interested,
     difficulty,
   };
@@ -345,7 +375,7 @@ function walkPast(input: ScenarioInput, first: PlanPlayer, onWait: ((team: PlanT
   teams.set(input.mineId, mine);
   walk.hooks.onCall = onWait;
   const after = walkToOurTurn(walked, teams, walk);
-  return { walk, before, mine, after };
+  return { walk, before, mine, after, teams };
 }
 
 /**
@@ -386,6 +416,19 @@ function interestAmong(callers: readonly PlanTeam[], second: PlanPlayer, input: 
 const CHAINED = 6;
 
 /**
+ * HOW MANY OF OUR PICKS A PLAN IS JUDGED OVER, the current one included (operator, 02/10/2026, for the Serie A
+ * classic draft of 6 October whose order is the roster's FVM: «secondo te dovrebbe aver maggiore peso il fatto che
+ * un calciatore con un FVM alto ti può far andare indietro nella prossima scelta?»). Measured on the draft bench
+ * (`toolkit/bench/draft/chains.mjs --head=value`, ten Serie A seasons, quotas 8/8/6, ten seats, 8 seeds, the heads
+ * rotated over three seats): chains of 2 · 3 · 4 read 72.20 · 72.93 · 73.43 points a matchday, 3 vs 2 +1.04% and
+ * 4 vs 2 +1.76% (8 seasons of 10, robust), 4 vs 3 +0.71% (7/10, robust); 5 and 6 add +0.22% and +0.43% over 4,
+ * under the 0.5% floor - so 4 is the knee. The longer chain spends MORE (258 -> 271 FVM) and stands LATER in the
+ * order (2.2 -> 3.2 in round 6): it does not avoid falling back, it sees when falling back is worth it.
+ * Stated: the bench's chain ranks on value x cover, the app's on the pitch's fertility; the LENGTH is what moves.
+ */
+export const CHAIN_TURNS = 4;
+
+/**
  * THREE SCENARIOS, BY WHAT THEY GIVE THE WHOLE SQUAD (the operator, 29/09/2026, replacing «one per place to fix,
  * the most urgent first», which opened every draft on the empty door): the best first moves by squad gain become
  * chains, and the chains are ranked by what the squad gains over BOTH picks. That is where the price enters, with
@@ -406,7 +449,7 @@ export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnos
   // Ranked with the first move's gain discounted when he would survive (`rankGain`); the second pick is a hope at our
   // next turn already, so it is not discounted again.
   const left = input.calls.rounds - me.picksCount;
-  const score = (chain: Scenario) => chain.total - chain.first.gain + rankGain(chain.first, input, left);
+  const score = (chain: Scenario) => chain.horizon - chain.first.gain + rankGain(chain.first, input, left);
   list.sort((a, b) => score(b) - score(a) || b.first.gain - a.first.gain);
   return { diagnosis, list: list.slice(0, count) };
 }

@@ -1034,3 +1034,36 @@ consigli. La verifica vera è un draft rigiocato su una stagione finita contro p
 - un draft rigiocato su una stagione finita come giudice dei consigli;
 - «AUTO fermo: nessuna scelta per questa squadra» compare dopo la 250ª scelta: innocuo, da togliere;
 - `e2e-draft` non rilanciato dopo le ultime modifiche ai portieri.
+
+## 33. Quanto lontano guarda un piano: catena a 4 sull'ordine per FVM (02/10/2026)
+
+Sua domanda, per il draft Serie A classic del 6 ottobre (ordine per FVM di rosa crescente): «dovrebbe aver maggiore
+peso il fatto che un calciatore con un FVM alto ti può far andare indietro nella prossima scelta?». Il costo della
+posizione era già nei piani (la catena A → A2 ricalcola l'attesa dall'FVM di A con la regola vera), ma a DUE scelte.
+Misurato sul banco (`toolkit/bench/draft/chains.mjs`): dieci squadre classic, quote 8/8/6, dieci stagioni Serie A
+(`leghe-classic-wide.json`), 8 semi, le tre teste ruotate sulle stesse tre sedie, sette rivali `MIXED`; la catena a N
+prende un candidato, fa chiamare i rivali (testa prezzo) con l'ordine vero, poi prende il migliore per valore ×
+copertura a ognuno dei suoi N−1 turni dopo, e vale la somma.
+
+| catena | punti/giornata | vs tavolo | FVM speso | FVM prime 5 | posto nel 6º giro |
+|---|---|---|---|---|---|
+| 2 | 72,20 | +0,5% | 258 | 96 | 2,2 |
+| 3 | 72,93 | +1,5% | 266 | 99 | 2,9 |
+| 4 | **73,43** | **+2,2%** | 271 | 101 | 3,2 |
+
+3 vs 2 +1,04% (8/10, robust) · 4 vs 2 +1,76% (8/10, robust) · 4 vs 3 +0,71% (7/10, robust). Seconda corsa 4/5/6:
+5 vs 4 +0,22% (6/10), 6 vs 4 +0,43% (8/10), sotto il pavimento dello 0,5%: **4 è il ginocchio**.
+
+**La risposta alla sua domanda è no**: la catena lunga NON si tiene davanti, spende di più e scivola più indietro.
+Vince perché vede quando scivolare conviene; la catena a 2 vede solo il turno dopo e sopravvaluta la posizione persa.
+Un peso in più sull'FVM andrebbe nella direzione sbagliata.
+
+Con la testa della squadWorth del 29/09 (`--head=priority`) l'ordine è 3 > 2 (+0,92%, 4/10) e 4 ≈ 2, ma quella testa
+perde ~8% contro il tavolo sul classic (§24), quindi non decide.
+
+**Nell'app**: `draft-scenarios.CHAIN_TURNS` = 4. Il piano resta a due scelte a schermo (A → A2, attesa, difficoltà,
+«spariti prima della prossima» invariati), le scelte dopo stanno in `Scenario.later` e l'ordine dei piani legge
+`horizon`; il piano scrive «poi +X» col dettaglio nel tooltip, perché un ordine che i numeri a schermo non spiegano
+è un difetto. Detto: il banco ha misurato la LUNGHEZZA su valore × copertura, l'app ordina sulla fertilità del campo;
+`e2e-draft` verde, il draft completo passa da ~125 a ~133 s. Il banco era già instabile su HEAD (1 problema su 2
+corse, ogni volta diverso), quindi un rosso isolato lì non è di questa modifica.
