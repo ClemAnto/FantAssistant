@@ -882,8 +882,8 @@
                   >{{ row.name }}</span
                 >
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
-                <!-- LA PROBABILITA' CHE SPARISCA PRIMA DEL TUO TURNO (sua richiesta, 03/10/2026, `rival-odds.ts`): da 0,8
-                     e' «sicuro», marcato, perche' li' su un tavolo nuovo ci prende l'87-100% delle volte. -->
+                <!-- THE ODDS HE IS GONE BEFORE YOUR TURN (operator, 03/10/2026, `rival-odds.ts`): from 0.8 he is marked
+                     SURE, because there, on a table the model never saw, 87-100% of such men really went. -->
                 @if (row.odds != null && row.odds >= shownOdds) {
                   <span
                     data-odds

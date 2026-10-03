@@ -1670,9 +1670,9 @@ export class AuctionAdvice {
   });
 
   /**
-   * LA PROBABILITA' CHE UN LIBERO SPARISCA PRIMA DEL NOSTRO PROSSIMO TURNO, come scelgono le PERSONE (sua richiesta,
-   * 03/10/2026, `rival-odds.ts`): id -> quota delle camminate campionate in cui viene preso. Solo nel draft. Accanto a
-   * `takenBeforeUs` e non al suo posto: quella e' la camminata su cui piani e sconto del sopravvissuto sono misurati.
+   * THE ODDS THAT A FREE MAN IS GONE BEFORE OUR NEXT TURN, as PEOPLE pick (operator, 03/10/2026, `rival-odds.ts`): id ->
+   * the share of the sampled walks in which he is taken. Draft only. BESIDE `takenBeforeUs` and not instead of it: that
+   * is the walk the plans and the survivor discount were measured on.
    */
   readonly goneOdds = computed<Map<number, number>>(() => {
     const input = this.planInput();
@@ -1686,9 +1686,9 @@ export class AuctionAdvice {
     }
     const picks = input.teams.reduce((sum, team) => sum + team.picksCount, 0);
     return goneOdds({
-      teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
-      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
-      cap: input.cap, rounds: this.priorityRounds(), seen, seed: picks + 1,
+      teams: input.teams, pool: input.pool, mineId: input.mineId, keeperCap: input.keeperCap,
+      maxAheadPicks: input.maxAheadPicks, orderType: input.orderType, cap: input.cap, rounds: this.priorityRounds(), seen,
+      seed: picks + 1,
     });
   });
 

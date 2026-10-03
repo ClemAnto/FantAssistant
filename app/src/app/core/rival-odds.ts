@@ -19,12 +19,15 @@
  * classic tables (90% on FA-yei-458, 41 of 41 on FL-7zz-d10, 13 of 15 on FL-ixr-b6b). At 0.7 it is 77-92%, which does
  * not keep the 80% the operator asked for on every table. The price of 0.8 is coverage: a handful of names a turn.
  *
+ * THE POOL is the free list the page offers (`AuctionAdvice.ranked`): the clubs the table excludes are out for everybody,
+ * which is how the fit restricted it (to the clubs somebody picked from). In porte mode a goal is one row and its keeper
+ * line counts once: the five drafts were not porte drafts, so there the odds of a goal are an extrapolation.
+ *
  * Reporting only, like every rival prediction: it moves no valuation and no advice; the deterministic walk
  * (`takenBeforeOurTurn`) still feeds the plans and the survivor discount, which were measured on it.
  */
 import {
   capBlocks,
-  isKeeperSlot,
   nextCaller,
   roleFull,
   take,
@@ -87,7 +90,8 @@ export const HUMAN_WEIGHTS = {
   },
 } as const;
 
-export interface OddsInput extends RivalWalkInput {
+/** What the walk reads of the table: the order rule, the squads, the free men and the legality - nothing else. */
+export interface OddsInput extends Pick<RivalWalkInput, 'teams' | 'pool' | 'mineId' | 'keeperCap' | 'maxAheadPicks' | 'orderType' | 'cap'> {
   /** What the table shows of every man, taken ones included (a squad's own picks set `sameClub`). */
   seen: Map<number, SeenMan>;
   /** Picks a whole squad makes: `t` is read against it. */
@@ -129,7 +133,9 @@ export function goneOdds(input: OddsInput): Map<number, number> {
   }
 
   const pool = input.pool.filter((player) => input.seen.has(player.id));
-  const maxPlayed = Math.max(1, ...pool.map((player) => input.seen.get(player.id)!.played));
+  // Over the WHOLE listone, taken men included, as the fit read it: over the free men only it would fall as the regulars
+  // go and lift every survivor's `played` term.
+  const maxPlayed = Math.max(1, ...[...input.seen.values()].map((man) => man.played));
   // Per line, the pool dearest first: the rank and the gap are read off it, skipping who is gone in this walk.
   const lines = new Map<SeenLine, number[]>();
   pool.forEach((player, index) => {
@@ -153,7 +159,8 @@ export function goneOdds(input: OddsInput): Map<number, number> {
   const sims = input.sims ?? ODDS_SIMS;
   const random = generator(input.seed ?? 1);
   const count = new Float64Array(pool.length);
-  const rank = new Float64Array(pool.length);
+  const logRank = new Float64Array(pool.length);
+  const top = new Uint8Array(pool.length);
   const gap = new Float64Array(pool.length);
   const late = HUMAN_WEIGHTS.late;
   for (let sim = 0; sim < sims; sim += 1) {
@@ -163,38 +170,42 @@ export function goneOdds(input: OddsInput): Map<number, number> {
     for (let guard = 0; guard < teams.size * 3; guard += 1) {
       const caller = nextCaller(teams, input.maxAheadPicks, input.rounds, input.orderType);
       if (!caller || caller.id === input.mineId) break;
-      for (const list of lines.values()) {
+      const early = caller.picksCount < EARLY_PICKS;
+      // The line's rank and gap only matter to the full model: an early caller reads the price alone.
+      if (!early) for (const list of lines.values()) {
         let at = 0;
         let previous = -1;
         for (const index of list) {
           if (!alive[index]) continue;
           at += 1;
-          rank[index] = at;
+          logRank[index] = Math.log(at);
+          top[index] = at === 1 ? 1 : 0;
           if (previous >= 0) gap[previous] = logPrice[previous] - logPrice[index];
           previous = index;
         }
         if (previous >= 0) gap[previous] = logPrice[previous];
       }
-      const early = caller.picksCount < EARLY_PICKS;
       const t = caller.picksCount / input.rounds;
       const mine = held.get(caller.id)!;
-      const keepers = caller.slots.filter(isKeeperSlot).length;
+      // Keepers are counted on the LINE the listone states, not on the sheet's slot: on mantra a man the sheet does not
+      // price has no slot, and his keepers would never count against the cap - exactly the men this model is about.
+      const keepers = caller.heldIds.filter((id) => input.seen.get(id)?.line === 'gk').length;
       let best = -1;
       let bestScore = -Infinity;
       for (let index = 0; index < pool.length; index += 1) {
         if (!alive[index]) continue;
         const player = pool[index];
-        if (isKeeperSlot(player.slot) && keepers >= input.keeperCap) continue;
+        const man = input.seen.get(player.id)!;
+        if (man.line === 'gk' && keepers >= input.keeperCap) continue;
         if (roleFull(caller, player.slot)) continue;
         if (capBlocks(caller.picksCount, player.price, input.cap ?? null)) continue;
-        const man = input.seen.get(player.id)!;
         let utility: number;
         if (early) utility = HUMAN_WEIGHTS.early.logFVM * logPrice[index];
         else {
           const keeper = man.line === 'gk' ? 1 : 0;
           const hot = man.fm ? Math.max(0, man.fm - 6) * Math.min(1, man.played / 4) : 0;
           utility = late.logFVM * logPrice[index] + late.logFVMxT * logPrice[index] * t
-            + late.logRankLine * Math.log(rank[index]) + late.topLine * (rank[index] === 1 ? 1 : 0) + late.gapNext * gap[index]
+            + late.logRankLine * logRank[index] + late.topLine * top[index] + late.gapNext * gap[index]
             + (man.fm ? late.fmMinus6 * (man.fm - 6) : late.fmMissing) + late.played * (man.played / maxPlayed)
             + late.bonusSeen * (man.fm && man.mv ? man.fm - man.mv : 0) + late.sameClub * (mine.clubs.get(man.club) ?? 0)
             + late.gkSameClub * (keeper && mine.keeperClubs.has(man.club) ? 1 : 0)

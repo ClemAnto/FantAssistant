@@ -27,7 +27,7 @@ describe('goneOdds', () => {
   // Three squads on a snake, ours (0) on the clock: our pick is priced at zero and the two rivals call twice each
   // (1, 2, 2, 1) before our next turn.
   const input = (teams: PlanTeam[], seed = 7) => ({
-    teams, order: [], pool, places: new Map(), mineId: 0, keeperCap: 3, maxAheadPicks: 1,
+    teams, pool, mineId: 0, keeperCap: 3, maxAheadPicks: 1,
     orderType: 'pingpong' as const, cap: null, rounds: 25, seen: seenOf(pool), seed,
   });
 
@@ -59,6 +59,16 @@ describe('goneOdds', () => {
     const odds = goneOdds(input([team(0, [], 0), team(1, [], 1, limits), team(2, [], 2, limits)]));
     expect(odds.get(1)).toBeUndefined();
     expect(odds.get(2)).toBeUndefined();
+  });
+
+  it('counts keepers on the listone line, so an unpriced mantra keeper (no slot) cannot pass the cap', () => {
+    const held = [{ ...man(10, 'P', 20), slot: null }];
+    const loose = { ...man(11, 'P', 900), slot: null };
+    const table = [team(0, [], 0), { ...team(1, held, 1), slots: [''] }, { ...team(2, held, 2), slots: [''] }];
+    const seen = seenOf(pool);
+    for (const id of [10, 11]) seen.set(id, { line: 'gk', club: `club${id}`, fm: null, mv: null, played: 0 });
+    const odds = goneOdds({ ...input(table), pool: [...pool, loose], keeperCap: 1, seen });
+    expect(odds.get(11)).toBeUndefined();
   });
 
   it('is empty when we follow nobody at this table', () => {

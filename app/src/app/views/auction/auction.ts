@@ -1315,13 +1315,14 @@ export class Auction {
     Array.from({ length: this.feed.teams().length }, (_, at) => at + 1),
   );
 
+  /** The two thresholds of the odds chip (`rival-odds.ts`): shown from `SHOWN_ODDS`, marked sure from `SURE_ODDS`. */
+  protected readonly shownOdds = SHOWN_ODDS;
+  protected readonly sureOdds = SURE_ODDS;
+
   /**
    * ONLY THE MEN EXPECTED GONE BEFORE OUR TURN: the rivals call by price, so under the priority's order they
    * sit far down the list, and a switch next to the count brings them up (29/09/2026).
    */
-  /** The two thresholds of the odds chip (`rival-odds.ts`): shown from `SHOWN_ODDS`, marked sure from `SURE_ODDS`. */
-  protected readonly shownOdds = SHOWN_ODDS;
-  protected readonly sureOdds = SURE_ODDS;
   protected readonly onlyTaken = signal(false);
   protected readonly takenCount = computed(() => this.freeAll().filter((row) => !!row.takenBy).length);
 

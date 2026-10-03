@@ -55,4 +55,4 @@ export {
 export { rarity } from '../../../app/src/app/core/draft-rarity';
 
 /* The odds of a rival pick as PEOPLE choose (03/10/2026): replayed on real drafts by `rival-odds.mjs`. */
-export { goneOdds, SURE_ODDS, SHOWN_ODDS } from '../../../app/src/app/core/rival-odds';
+export { EARLY_PICKS, goneOdds, SURE_ODDS, SHOWN_ODDS } from '../../../app/src/app/core/rival-odds';

@@ -4,7 +4,7 @@
  *
  *   sure       of the men given >= SURE_ODDS, how many were really gone (the 80% the operator asked for), and how many
  *   top-n      the n likeliest, n = the rivals' real picks in the window, against the n dearest free (the null)
- *   by phase   a squad's first six turns (the price alone) and the rest
+ *   by phase   a squad's first EARLY_PICKS turns (the price alone) and the rest
  *
  * The session dumps carry paid content and stay OUT of the repository. A local session (`FL-`) carries no listone:
  * pass the listone of a session of the same game and championship after it, `--listone PATH`.
@@ -15,7 +15,7 @@
  */
 import { readFileSync } from 'node:fs';
 
-import { goneOdds, SURE_ODDS } from './appcode.mjs';
+import { EARLY_PICKS, goneOdds, SHOWN_ODDS, SURE_ODDS } from './appcode.mjs';
 
 const argv = process.argv.slice(2);
 const at = argv.indexOf('--listone');
@@ -67,7 +67,7 @@ for (let k = 0; k < picks.length; k += 1) {
     net: null, surplus: null, value: null,
   }));
   const odds = goneOdds({
-    teams, order: [], pool, places: new Map(), mineId: me, keeperCap: roles.gk[1], maxAheadPicks: 1,
+    teams, pool, mineId: me, keeperCap: roles.gk[1], maxAheadPicks: 1,
     orderType: state.pickOrderType === 'pingpong' ? 'pingpong' : 'default', cap: null, rounds, seen, seed: k + 1,
   });
   // Our own pick leaves the list the moment it is made, so it is scored on nobody: the odds are read before we choose.
@@ -76,21 +76,21 @@ for (let k = 0; k < picks.length; k += 1) {
   const n = went.size;
   const likeliest = [...odds].sort((a, b) => b[1] - a[1]).slice(0, n);
   const dearest = [...pool].sort((a, b) => b.price - a.price).slice(0, n);
-  const bucket = teams.find((one) => one.id === me).picksCount < 6 ? score.early : score.late;
+  const bucket = teams.find((one) => one.id === me).picksCount < EARLY_PICKS ? score.early : score.late;
   bucket.n += n;
   bucket.hit += likeliest.filter(([id]) => went.has(id)).length;
   bucket.nul += dearest.filter((one) => went.has(one.id)).length;
   for (const [id, p] of odds) {
     const bin = Math.min(9, Math.floor(p * 10)); score.bins[bin][0] += 1; score.bins[bin][1] += went.has(id) ? 1 : 0;
     if (p >= SURE_ODDS) { score.sure += 1; score.sureHit += went.has(id) ? 1 : 0; }
-    if (p >= 0.3) { score.shown += 1; score.shownHit += went.has(id) ? 1 : 0; }
+    if (p >= SHOWN_ODDS) { score.shown += 1; score.shownHit += went.has(id) ? 1 : 0; }
   }
 }
 const pc = (a, b) => (b ? `${((100 * a) / b).toFixed(1)}%` : '—');
 const turns = picks.length / teamIds.length;
 console.log(`${root.id} (${mantra ? 'mantra' : 'classic'}, ${state.pickOrderType ?? 'default'}, ${teamIds.length} squadre)`);
-console.log(`  primi 6 turni: ${pc(score.early.hit, score.early.n)} dei nomi (piu' cari ${pc(score.early.nul, score.early.n)})`);
-console.log(`  dal 7°:        ${pc(score.late.hit, score.late.n)} dei nomi (piu' cari ${pc(score.late.nul, score.late.n)})`);
+console.log(`  primi ${EARLY_PICKS} turni: ${pc(score.early.hit, score.early.n)} dei nomi (piu' cari ${pc(score.early.nul, score.early.n)})`);
+console.log(`  dal ${EARLY_PICKS + 1}°:        ${pc(score.late.hit, score.late.n)} dei nomi (piu' cari ${pc(score.late.nul, score.late.n)})`);
 console.log(`  sicuri (>= ${SURE_ODDS}): ${pc(score.sureHit, score.sure)} usciti davvero, ${score.sure} nomi (${(score.sure / (picks.length - teamIds.length)).toFixed(2)} a turno)`);
-console.log(`  mostrati (>= 0.3):  ${pc(score.shownHit, score.shown)} usciti davvero, ${score.shown} nomi`);
+console.log(`  mostrati (>= ${SHOWN_ODDS}):  ${pc(score.shownHit, score.shown)} usciti davvero, ${score.shown} nomi`);
 console.log(`  taratura: ${score.bins.map(([n, h], i) => `${i / 10}: ${pc(h, n)}/${n}`).join(' · ')}`);
