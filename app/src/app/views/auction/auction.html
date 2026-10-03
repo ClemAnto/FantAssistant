@@ -506,7 +506,19 @@
              (sul tavolo vero) costruisce la catena da lui, con il verdetto. -->
         @if (advice.priorityOn() && advice.scenarios().diagnosis; as diagnosis) {
           <div data-scenarios class="flex shrink-0 flex-col gap-1 rounded-md bg-page p-1.5 text-[11px]">
-            <div class="text-muted">
+            <!-- IL BOX SI PIEGA (sua richiesta, 03/10/2026): resta la riga del modulo, i piani spariscono. -->
+            <div class="flex items-start gap-1 text-muted">
+              <button
+                type="button"
+                data-plans-fold
+                class="shrink-0 cursor-pointer text-muted hover:text-fg"
+                nz-tooltip
+                [nzTooltipTitle]="plansFolded() ? 'Mostra i consigli' : 'Nascondi i consigli'"
+                (click)="togglePlans()"
+              >
+                <nz-icon [nzType]="plansFolded() ? 'right' : 'down'" />
+              </button>
+              <span class="min-w-0">
               Modulo <b class="text-fg">{{ diagnosis.module }}</b>
               @if (diagnosis.needs.length) {
                 · da sistemare:
@@ -523,7 +535,9 @@
               } @else {
                 · tutto coperto
               }
+              </span>
             </div>
+            @if (!plansFolded()) {
             @if (chosen(); as mine) {
               @if (mine.verdict) {
                 <div
@@ -541,6 +555,7 @@
               <button
                 type="button"
                 data-scenario
+                [attr.data-first]="chain.scenario.first.player.id"
                 [attr.data-difficulty]="chain.scenario.difficulty"
                 class="flex flex-col rounded border px-1 py-0.5 text-left"
                 [class]="chosen()?.key === chain.key ? 'border-primary bg-primary/10' : 'border-transparent'"
@@ -549,6 +564,18 @@
                 <span class="flex min-w-0 items-center gap-1 font-semibold">
                   <span>{{ at + 1 }})</span>
                   <span>rosa {{ gainText(chain.scenario.total) }}</span>
+                  <!-- IL QUARTO PIANO, dal calciatore selezionato in tabella (sua richiesta, 03/10/2026): porta il
+                       suo verdetto, perche' a sceglierlo non e' stato il consiglio. -->
+                  @if (chain.key.startsWith('pick:') && chain.verdict) {
+                    <span
+                      data-selected-plan
+                      class="shrink-0 font-normal"
+                      [class]="chain.verdict === 'coerente' ? 'text-success' : 'text-danger'"
+                      nz-tooltip
+                      [nzTooltipTitle]="chain.why"
+                      >· {{ chain.verdict }}</span
+                    >
+                  }
                   @if (chain.scenario.second) {
                     <span
                       data-difficulty
@@ -582,7 +609,19 @@
                     <span class="text-muted">nessuno</span>
                   }
                 </span>
+                <!-- LA CATENA INTERA (sua richiesta, 03/10/2026): le scelte dopo la seconda, ognuna con quante ne
+                     fanno i rivali prima, su una riga sotto - il piano e' ordinato su tutte e CHAIN_TURNS. -->
+                @if (chain.scenario.later.length) {
+                  <span data-plan-chain class="flex min-w-0 flex-wrap items-center gap-x-1 pl-3">
+                    @for (step of chain.scenario.later; track step.player.id) {
+                      <span class="shrink-0 text-muted">— {{ step.wait ?? '?' }} scelte →</span>
+                      <ui-roles class="shrink-0" [roles]="step.player.roles" size="xxs" />
+                      <span class="min-w-0 truncate">{{ stepText(step) }}</span>
+                    }
+                  </span>
+                }
               </button>
+            }
             }
           </div>
         }

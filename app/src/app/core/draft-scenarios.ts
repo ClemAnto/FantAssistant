@@ -78,6 +78,8 @@ export interface ScenarioStep {
   gain: number;
   /** The place he is taken for. */
   need: PlaceNeed | null;
+  /** For a LATER step (`Scenario.later`): how many picks the rivals make before it, after our previous one. */
+  wait?: number;
 }
 
 export interface Scenario {
@@ -335,12 +337,14 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
     const ours = new Set([first.id, second.player.id]);
     const walked = { ...input, rounds: input.calls.rounds };
     while (2 + later.length < CHAIN_TURNS && me.picksCount < input.calls.rounds) {
+      const goneBefore = walk.gone.size;
       walkToOurTurn(walked, board, walk);
+      const waited = walk.gone.size - goneBefore;
       me = board.get(input.mineId)!;
       if (me.picksCount >= input.calls.rounds) break;
       const best = movesFor(me, input.pool.filter((p) => !ours.has(p.id) && !walk.gone.has(p.id)), input)[0];
       if (!best) break;
-      later.push({ ...best, need: null });
+      later.push({ ...best, need: null, wait: waited });
       ours.add(best.player.id);
       walk.exclude(best.player.id);
       me = take(me, best.player);

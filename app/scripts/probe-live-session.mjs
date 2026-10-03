@@ -23,7 +23,7 @@
  * has to be safe to paste into a chat. `--full` prints the raw `state` for the case where the shape is
  * not enough, and says so.
  *
- * Usage: node scripts/probe-live-session.mjs FA-xxx-xxx [--full]
+ * Usage: node scripts/probe-live-session.mjs FA-xxx-xxx|FL-xxx-xxx [--full]
  *
  * Run it WHILE a name is up for bidding: the whole question is which key changes between «nobody is
  * up» and «Lautaro is up», so the useful reading is two runs a few seconds apart.
@@ -31,7 +31,7 @@
 
 const FIREBASE_API_KEY = 'AIzaSyAji5aMonqYhjfCnHU6YW4TgwOIh8x302Y';
 const DATABASE_URL = 'https://leghe-fantagazzetta-app.firebaseio.com';
-const CODE_PATTERN = /FA-[a-z0-9]{3}-[a-z0-9]{3}/i;
+const CODE_PATTERN = /F[AL]-[a-z0-9]{3}-[a-z0-9]{3}/i; // FL- = a local auction (03/10/2026)
 
 /** The keys the app already reads. Everything else is what this probe exists to find. */
 const KNOWN = new Set([
@@ -50,11 +50,12 @@ const argv = process.argv.slice(2);
 const full = argv.includes('--full');
 const typed = argv.find((one) => CODE_PATTERN.test(one));
 if (!typed) {
-  console.error('serve un codice sessione: node scripts/probe-live-session.mjs FA-xxx-xxx [--full]');
+  console.error('serve un codice sessione: node scripts/probe-live-session.mjs FA-xxx-xxx|FL-xxx-xxx [--full]');
   process.exit(2);
 }
 // The code IS the database key and it is generated lowercase, so `FA-Y6K-VG9` would 404.
-const code = `FA-${typed.match(CODE_PATTERN)[0].slice(3).toLowerCase()}`;
+const matched = typed.match(CODE_PATTERN)[0];
+const code = `${matched.slice(0, 2).toUpperCase()}-${matched.slice(3).toLowerCase()}`;
 
 async function signIn() {
   const response = await fetch(

@@ -104,6 +104,26 @@ function readPitchView(): 'campo' | 'lista' {
   }
 }
 
+/** Whether the plans box is folded (03/10/2026). */
+const PLANS_FOLDED_KEY = 'fantassistant.draft.plansFolded';
+
+function readFlag(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeFlag(key: string, on: boolean): void {
+  try {
+    if (on) localStorage.setItem(key, '1');
+    else localStorage.removeItem(key);
+  } catch {
+    // A private window: the fold just does not survive the refresh.
+  }
+}
+
 /** Where the module he chose for his pitch is kept. */
 const MODULE_KEY = 'fantassistant.draft.module';
 
@@ -566,13 +586,49 @@ export class Auction {
    */
   protected readonly chosen = signal<{ key: string; scenario: Scenario; verdict?: Verdict; why?: string } | null>(null);
 
-  /** The three chains of the table state, and first the one the operator built from a man, when there is one. */
+  /**
+   * THE FOURTH PLAN, FROM THE SELECTED ROW (operator, 03/10/2026: «quando seleziono un calciatore della tabella,
+   * mostrami un quarto consiglio a partire dal calciatore selezionato»): the same chain the three are built with
+   * (`judge` -> `chainFrom`), with his verdict. None when he already opens one of the three - the plan is on screen -
+   * or when the rules keep him off our next call (frozen by the cap, or his line full): a chain that starts with a
+   * pick we cannot make is not a plan.
+   */
+  protected readonly selectedChain = computed(() => {
+    const id = this.selectedRow();
+    if (id === null || !this.advice.priorityOn()) return null;
+    if (this.advice.scenarios().list.some((scenario) => scenario.first.player.id === id)) return null;
+    const price = this.advice.ranked().find((row) => row.player.id === id)?.price;
+    if (price === undefined || this.advice.lockedForMe(price) || this.advice.fullForMe(id)) return null;
+    const judged = this.advice.judgeScenario(id);
+    return judged?.scenario
+      ? { key: `pick:${id}`, scenario: judged.scenario, verdict: judged.verdict, why: judged.why }
+      : null;
+  });
+
+  /**
+   * The three chains of the table state, first the one the operator built from a man by double click, and LAST the
+   * one from the selected row (`selectedChain`), numbered after the three.
+   */
   protected readonly scenarioChains = computed(() => {
-    const list = this.advice.scenarios().list
+    const list: { key: string; scenario: Scenario; verdict?: Verdict; why?: string }[] = this.advice.scenarios().list
       .map((scenario, at) => ({ key: `auto:${at}:${scenario.first.player.id}`, scenario }));
     const mine = this.chosen();
-    return mine?.verdict ? [{ key: mine.key, scenario: mine.scenario }, ...list] : list;
+    const picked = this.selectedChain();
+    const judged = mine?.verdict && mine.key.startsWith('judge:') ? [mine] : [];
+    const fourth = picked && judged[0]?.scenario.first.player.id !== picked.scenario.first.player.id ? [picked] : [];
+    return [...judged, ...list, ...fourth];
   });
+
+  /**
+   * THE PLANS BOX FOLDED (operator, 03/10/2026: «il box dei consigli rendilo collassabile»): the module line stays,
+   * the plans go. A per-viewer convenience, so `localStorage` - and a chosen plan stays chosen while folded.
+   */
+  protected readonly plansFolded = signal(readFlag(PLANS_FOLDED_KEY));
+
+  protected togglePlans(): void {
+    this.plansFolded.set(!this.plansFolded());
+    writeFlag(PLANS_FOLDED_KEY, this.plansFolded());
+  }
 
   protected choose(key: string, scenario: Scenario): void {
     this.chosen.set(this.chosen()?.key === key ? null : { key, scenario });
@@ -622,6 +678,8 @@ export class Auction {
 
   protected selectRow(id: number): void {
     this.selectedRow.set(this.selectedRow() === id ? null : id);
+    // The plan drawn from the previous selection describes a man no longer selected: it leaves with him.
+    if (this.chosen()?.key.startsWith('pick:')) this.chosen.set(null);
   }
 
   /**

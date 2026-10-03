@@ -1210,6 +1210,70 @@ async function main() {
         ]);
     }
 
+    // 5e. THE FOURTH PLAN (operator, 03/10/2026: «quando seleziono un calciatore della tabella, mostrami un quarto
+    // consiglio a partire dal calciatore selezionato»). A click on a free row that opens none of the plans and that the
+    // rules let us call adds a plan LAST, starting from him, with its verdict; a second click on the row takes it away.
+    {
+      const plansNow = () => evaluate(session, () => [...document.querySelectorAll('[data-scenario]')]
+        .map((one) => ({ first: one.getAttribute('data-first'), text: (one.innerText ?? '').replace(/\s+/g, ' ').trim() })));
+      const before = await plansNow();
+      const target = await evaluate(session, (firsts) => {
+        const rows = [...document.querySelectorAll('[data-free]')]
+          .filter((row) => !row.hasAttribute('data-locked') && !row.hasAttribute('data-full')
+            && !firsts.includes(row.getAttribute('data-free')));
+        const row = rows[4] ?? rows[0];
+        if (!row) return null;
+        row.scrollIntoView({ block: 'nearest' });
+        const box = row.getBoundingClientRect();
+        // The right edge of the row: the name in the middle opens the card, the edge only selects.
+        return { id: row.getAttribute('data-free'), x: box.right - 6, y: box.top + box.height / 2 };
+      }, before.map((one) => one.first));
+      if (target) await mouse(target);
+      await wait(800);
+      const with4 = await plansNow();
+      const added = with4.find((one) => one.first === target?.id);
+      if (target) await mouse(target);
+      await wait(600);
+      const after = await plansNow();
+      note('quarto piano', target
+        ? `${before.length} piani, selezionato ${target.id} → ${with4.length} (${added?.text ?? 'nessuno'}), deselezionato → ${after.length}`
+        : 'nessuna riga selezionabile',
+      [
+        ...(!before.length ? ['nessun piano a schermo prima della selezione'] : []),
+        ...(!target ? ['nessuna riga libera da selezionare'] : []),
+        ...(target && with4.length !== before.length + 1 ? [`selezionata una riga, ${with4.length} piani invece di ${before.length + 1}`] : []),
+        ...(target && !added ? ['nessun piano parte dal calciatore selezionato'] : []),
+        ...(added && with4[with4.length - 1].first !== target.id ? ['il piano del selezionato non e\' l\'ultimo'] : []),
+        ...(added && !new RegExp(`^${with4.length}\\) rosa [+-]?\\d+ .*· (coerente|inopportuna)`).test(added.text) ? [`il quarto piano non porta numero e verdetto: «${added.text}»`] : []),
+        ...(target && after.length !== before.length ? [`deselezionata, ${after.length} piani invece di ${before.length}`] : []),
+      ]);
+    }
+
+    // 5f. THE PLANS BOX FOLDS (operator, 03/10/2026): the arrow hides the plans and keeps the module line; a second
+    // click brings them back. And every plan shows its whole chain (CHAIN_TURNS picks), the later ones on a line below.
+    {
+      const count = () => evaluate(session, () => ({
+        plans: document.querySelectorAll('[data-scenario]').length,
+        chains: document.querySelectorAll('[data-plan-chain]').length,
+        module: !!document.querySelector('[data-scenarios]')?.textContent?.includes('Modulo'),
+      }));
+      const open = await count();
+      const arrow = await evaluate(session, centre, '[data-plans-fold]');
+      if (arrow) await mouse(arrow);
+      await wait(400);
+      const folded = await count();
+      if (arrow) await mouse(arrow);
+      await wait(400);
+      const back = await count();
+      note('piani pieghevoli', `aperti ${open.plans} (catene ${open.chains}), piegati ${folded.plans}, riaperti ${back.plans}`, [
+        ...(!arrow ? ['nessuna freccia per piegare i consigli'] : []),
+        ...(arrow && folded.plans ? [`piegato, ${folded.plans} piani ancora a schermo`] : []),
+        ...(arrow && !folded.module ? ['piegato, sparisce anche la riga del modulo'] : []),
+        ...(back.plans !== open.plans ? [`riaperto, ${back.plans} piani invece di ${open.plans}`] : []),
+        ...(open.plans && !open.chains ? ['nessun piano mostra le scelte dopo la seconda'] : []),
+      ]);
+    }
+
     // 6. Medie.
     await mouse(await evaluate(session, centre, '[data-mode="medie"]'));
     page = await settle((p) => /PV/i.test(p.header), 'medie');

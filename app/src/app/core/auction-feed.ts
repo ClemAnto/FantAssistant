@@ -22,8 +22,17 @@ const FIREBASE_API_KEY = 'AIzaSyAji5aMonqYhjfCnHU6YW4TgwOIh8x302Y';
 const DATABASE_URL = 'https://leghe-fantagazzetta-app.firebaseio.com';
 
 /** Codes are `FA-` plus two base-36 triplets, generated lowercase. Matching case-insensitively
- *  and normalising is not cosmetic: the code IS the database key, so `FA-Y6K-VG9` would 404. */
-const CODE_PATTERN = /FA-[a-z0-9]{3}-[a-z0-9]{3}/i;
+ *  and normalising is not cosmetic: the code IS the database key, so `FA-Y6K-VG9` would 404.
+ *  A LOCAL auction's code starts with `FL-` (operator, 03/10/2026: «deve essere possibile unirsi anche ad
+ *  un'asta locale che inizia per FL-»), and the prefix is part of the key, so it is kept as typed (in
+ *  upper case) and never rewritten to `FA-`. Assumed, not observed: that a local session lives in the
+ *  same database under its own code - if it does not, the join answers «nessuna asta trovata». */
+const CODE_PATTERN = /F[AL]-[a-z0-9]{3}-[a-z0-9]{3}/i;
+
+/** The database key of a typed code: the prefix in upper case, the two triplets in lower case. */
+export function sessionKey(matched: string): string {
+  return `${matched.slice(0, 2).toUpperCase()}-${matched.slice(3).toLowerCase()}`;
+}
 
 /** Where the followed session is remembered, so a refresh mid-auction does not cost a setup. */
 const STORAGE_KEY = 'fantassistant.auction';
@@ -1074,10 +1083,10 @@ export class AuctionFeed {
   async connect(input: string, preserve = false, follow: number | null = null): Promise<boolean> {
     const matched = input?.match(CODE_PATTERN)?.[0];
     if (!matched) {
-      this.fail('Codice non valido. Il formato è FA-xxx-xxx.');
+      this.fail('Codice non valido. Il formato è FA-xxx-xxx (o FL-xxx-xxx per un’asta locale).');
       return false;
     }
-    const code = `FA-${matched.slice(3).toLowerCase()}`;
+    const code = sessionKey(matched);
 
     // `preserve` is for the re-join after a refresh: the saved table is already on screen and wiping it
     // would blank the panel for as long as the network takes.

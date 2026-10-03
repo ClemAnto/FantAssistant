@@ -10,6 +10,7 @@ import {
   inactiveClubsOf,
   leagueSettings,
   listTypeOf,
+  sessionKey,
   listOf,
   livePicks,
   platformOf,
@@ -674,5 +675,12 @@ describe('AuctionFeed.restore: the squad a re-join follows', () => {
       (globalThis as { EventSource?: unknown }).EventSource = realSource;
       localStorage.clear();
     }
+  });
+});
+
+describe('sessionKey', () => {
+  it('keeps the prefix of a LOCAL auction (FL-) and lowers the triplets: the code is the database key', () => {
+    expect(sessionKey('fl-Y6K-VG9')).toBe('FL-y6k-vg9');
+    expect(sessionKey('FA-Y6K-VG9')).toBe('FA-y6k-vg9');
   });
 });
