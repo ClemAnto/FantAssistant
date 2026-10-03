@@ -1,0 +1,69 @@
+{
+  "_comment": [
+    "The CLASSIC rulebook's modules, encoded. Same standing as `mantra_modules.json`: this file is",
+    "CONFIGURATION, read and never fitted, never inferred from observed line-ups, and never DEDUCED FROM",
+    "MANTRA BY ANALOGY - the operator's own warning of 10/08/2026, and it is the point of the file. Classic",
+    "legality is per MACRO-ROLE: a place is a P, a D, a C or an A, full stop. There are no typed places, no",
+    "hybrid places and no choice of roles, so nothing here needs the transversal matroid Mantra needs - a",
+    "classic eleven is legal if the COUNTS match, which is why the two games cannot share one table.",
+    "",
+    "Source: the private-leagues regulation page (public, no paywall), retrieved 10/08/2026.",
+    "  https://www.fantacalcio.it/regolamenti/leghe-private",
+    "Quoted: «Utilizzare i moduli standard e cioe': 3-4-3, 3-5-2, 4-3-3, 4-4-2, 4-5-1, 5-3-2, 5-4-1».",
+    "",
+    "TRANSCRIPTION CHECK, and it passed on all seven: each module's lines sum to ten outfield men, and the",
+    "three line counts reproduce the module's own NAME. Two independent checks, so the table was not mis-read.",
+    "",
+    "The same page states the SYSTEM's per-role bounds a private league may configure between - «1/15P,",
+    "6/25D, 6/25C, 4/25A» - which is a squad question and belongs to `league_config.json`, not here. It is",
+    "quoted because it corroborates the shape of this file: classic rations MACRO-ROLES and nothing finer.",
+    "",
+    "Consequences that need no model, only this file: a D is fielded 3, 4 or 5 at a time and an A 1, 2 or 3,",
+    "so the scarcity classic imposes per role IS a rulebook constraint - unlike Mantra, where the roster",
+    "binds 3 keepers + 22 outfield with no per-slot quota (that difference is exactly why the currency has to",
+    "be re-measured per format: `docs/model/metrica-asta-surplus-v1.md` §15 and todolist item 3.1)."
+  ],
+
+  "edition": "2026/2027",
+  "retrieved_on": "2026-08-10",
+
+  "roles": ["P", "D", "C", "A"],
+
+  "_slot_roles_comment": [
+    "One entry per macro-role, each accepting exactly itself. It exists so the same readers that walk",
+    "`mantra_modules.json` (`legal.placesOf`, `auction-value.slotShares`) can walk this file unchanged; it is",
+    "NOT a claim that classic has typed places. It does not."
+  ],
+  "slot_roles": {
+    "P": ["P"],
+    "D": ["D"],
+    "C": ["C"],
+    "A": ["A"]
+  },
+
+  "_modules_comment": [
+    "The seven standard modules, each as its lines beyond the fixed goalkeeper. `T` is empty in every one of",
+    "them: classic has no trequarti line - the module is three numbers, not four - and the key is kept only",
+    "so the structure matches the Mantra file's."
+  ],
+  "modules": {
+    "3-4-3": {"D": ["D", "D", "D"],           "M": ["C", "C", "C", "C"],           "T": [], "A": ["A", "A", "A"]},
+    "3-5-2": {"D": ["D", "D", "D"],           "M": ["C", "C", "C", "C", "C"],      "T": [], "A": ["A", "A"]},
+    "4-3-3": {"D": ["D", "D", "D", "D"],      "M": ["C", "C", "C"],                "T": [], "A": ["A", "A", "A"]},
+    "4-4-2": {"D": ["D", "D", "D", "D"],      "M": ["C", "C", "C", "C"],           "T": [], "A": ["A", "A"]},
+    "4-5-1": {"D": ["D", "D", "D", "D"],      "M": ["C", "C", "C", "C", "C"],      "T": [], "A": ["A"]},
+    "5-3-2": {"D": ["D", "D", "D", "D", "D"], "M": ["C", "C", "C"],                "T": [], "A": ["A", "A"]},
+    "5-4-1": {"D": ["D", "D", "D", "D", "D"], "M": ["C", "C", "C", "C"],           "T": [], "A": ["A"]}
+  },
+
+  "_emergency_comment": [
+    "The same page allows emergency shapes «se si preferisce», naming 3-6-1 and 6-3-1. They are OPTIONAL and",
+    "per league, so they are recorded and switched OFF: a module a league does not play is a module that",
+    "would widen every legality test for nothing. A league that plays them moves them into `modules`.",
+    "Leaving them out is the conservative error - it can only make a squad's cover look worse than it is."
+  ],
+  "emergency_modules": {
+    "3-6-1": {"D": ["D", "D", "D"],                     "M": ["C", "C", "C", "C", "C", "C"], "T": [], "A": ["A"]},
+    "6-3-1": {"D": ["D", "D", "D", "D", "D", "D"],      "M": ["C", "C", "C"],                "T": [], "A": ["A"]}
+  }
+}
