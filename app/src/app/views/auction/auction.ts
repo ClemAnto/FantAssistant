@@ -35,6 +35,7 @@ import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { RUNG_RANK, Rarity, rarityText, shownRung } from '../../core/draft-rarity';
 import { paOnSeason } from '../../core/presence-now';
+import { SHOWN_ODDS, SURE_ODDS } from '../../core/rival-odds';
 import { onSeasonBase } from '../../core/season-scale';
 import { asFlag, bindQuery } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
@@ -168,6 +169,8 @@ export interface FreeRow {
   full: boolean;
   /** The squad predicted to take him BEFORE our next pick (`AuctionAdvice.takenBeforeUs`); null otherwise. */
   takenBy: { id: number; label: string; colour: string } | null;
+  /** The odds he is gone before our next turn, as people pick (`AuctionAdvice.goneOdds`); null where the walks never took him. */
+  odds: number | null;
   /**
    * WHAT THE SHEET EXPECTS of him, for the «previste» view: the ENGINE's own rung (not the press), the
    * appearances with a vote, the minutes, the base vote and the fantamedia - the measured number where the
@@ -1233,6 +1236,7 @@ export class Auction {
       locked: this.advice.lockedForMe(row.price),
       full: this.advice.fullForMe(row.player.id),
       takenBy: this.takenBy(row.player.id),
+      odds: this.advice.goneOdds().get(row.player.id) ?? null,
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),
       goal,
@@ -1315,6 +1319,9 @@ export class Auction {
    * ONLY THE MEN EXPECTED GONE BEFORE OUR TURN: the rivals call by price, so under the priority's order they
    * sit far down the list, and a switch next to the count brings them up (29/09/2026).
    */
+  /** The two thresholds of the odds chip (`rival-odds.ts`): shown from `SHOWN_ODDS`, marked sure from `SURE_ODDS`. */
+  protected readonly shownOdds = SHOWN_ODDS;
+  protected readonly sureOdds = SURE_ODDS;
   protected readonly onlyTaken = signal(false);
   protected readonly takenCount = computed(() => this.freeAll().filter((row) => !!row.takenBy).length);
 

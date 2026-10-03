@@ -2,6 +2,7 @@ import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { AuctionFeed, AuctionPlayer, Platform, Porta, Zone } from './auction-feed';
 import { GlobalOptions } from './global-options';
+import { goneOdds, type SeenMan } from './rival-odds';
 import {
   EngineNumbers,
   MantraModules,
@@ -1665,6 +1666,29 @@ export class AuctionAdvice {
       // A full roster calls no more (30/09/2026, the classic replay): without it the last round predicted the
       // squads at the end of a snake a second pick they do not have.
       heads: input.heads, cap: input.cap, rounds: this.priorityRounds(),
+    });
+  });
+
+  /**
+   * LA PROBABILITA' CHE UN LIBERO SPARISCA PRIMA DEL NOSTRO PROSSIMO TURNO, come scelgono le PERSONE (sua richiesta,
+   * 03/10/2026, `rival-odds.ts`): id -> quota delle camminate campionate in cui viene preso. Solo nel draft. Accanto a
+   * `takenBeforeUs` e non al suo posto: quella e' la camminata su cui piani e sconto del sopravvissuto sono misurati.
+   */
+  readonly goneOdds = computed<Map<number, number>>(() => {
+    const input = this.planInput();
+    if (!input || !this.feed.isDraft()) return new Map();
+    const seen = new Map<number, SeenMan>();
+    for (const { player } of this.listone()) {
+      const line = player.zoneClassic;
+      if (line !== 'gk' && line !== 'def' && line !== 'mid' && line !== 'atk') continue;
+      seen.set(player.id, { line, club: player.club, fm: player.seen?.fm ?? null, mv: player.seen?.mv ?? null,
+        played: player.seen?.played ?? 0 });
+    }
+    const picks = input.teams.reduce((sum, team) => sum + team.picksCount, 0);
+    return goneOdds({
+      teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
+      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
+      cap: input.cap, rounds: this.priorityRounds(), seen, seed: picks + 1,
     });
   });
 

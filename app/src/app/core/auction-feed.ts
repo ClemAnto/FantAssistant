@@ -110,6 +110,12 @@ export interface AuctionPlayer {
    * on a table built from the bundle, where `fvm` is already the game's own.
    */
   fvmByGame?: { classic: number; mantra: number };
+  /**
+   * What the table SHOWS of his season in progress (`stats.avgFantaGrade`, `.avgGrade`, `.playeds`): the numbers the
+   * people at the table read, so the odds of a rival pick (`rival-odds.ts`) read them too. Absent on a table built
+   * from the bundle; `fm`/`mv` null when the host writes 0, i.e. he has not played.
+   */
+  seen?: { fm: number | null; mv: number | null; played: number };
 }
 
 /** A listone row priced in the table's game: the value the host orders and caps a draft on. */
@@ -1466,6 +1472,11 @@ export class AuctionFeed {
         zoneMantra: entry.zone?.mantra,
         championship: entry.championship?.label ?? null,
         fvm: entry.stats?.fmv?.[key] ?? 0,
+        seen: {
+          fm: Number(entry.stats?.avgFantaGrade) || null,
+          mv: Number(entry.stats?.avgGrade) || null,
+          played: Number(entry.stats?.playeds) || 0,
+        },
         // Both, when the row carries both: the game is not known yet, and `players` prices by it.
         ...(Number.isFinite(classic) && Number.isFinite(mantra) ? { fvmByGame: { classic, mantra } } : {}),
       });

@@ -882,6 +882,19 @@
                   >{{ row.name }}</span
                 >
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
+                <!-- LA PROBABILITA' CHE SPARISCA PRIMA DEL TUO TURNO (sua richiesta, 03/10/2026, `rival-odds.ts`): da 0,8
+                     e' «sicuro», marcato, perche' li' su un tavolo nuovo ci prende l'87-100% delle volte. -->
+                @if (row.odds != null && row.odds >= shownOdds) {
+                  <span
+                    data-odds
+                    [attr.data-sure]="row.odds >= sureOdds ? '' : null"
+                    class="shrink-0 rounded px-1 text-[9px] leading-4 tabular-nums"
+                    [class]="row.odds >= sureOdds ? 'bg-danger/20 font-semibold text-danger' : 'bg-fg/10 text-muted'"
+                    nz-tooltip
+                    nzTooltipTitle="Probabilità che sia preso prima del tuo turno"
+                    >{{ row.odds * 100 | number: '1.0-0' }}%</span
+                  >
+                }
                 @if (row.turnsLeft != null) {
                   <span
                     data-lock

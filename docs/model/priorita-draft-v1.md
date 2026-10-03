@@ -1093,3 +1093,63 @@ ultimi tre giri.
 **Detto prima del numero**: le rose sono giudicate con le NOSTRE previsioni, quindi +28% sul secondo è un tetto e non
 una stima (la stessa riserva del §32); il giudice sui punti veri resta il banco sulle stagioni passate, dove il
 vantaggio è di qualche punto percentuale. E le teste simulate sono semplici: nessuna legge presenze o fantamedia.
+
+## 35. Chi sparisce prima del nostro turno, come scelgono le PERSONE (03/10/2026)
+
+Richiesta dell'operatore, in tre passi: «verifica sull'asta FA-yei-458 la previsione delle scelte dei partecipanti», poi
+«cerchiamo di avvicinarci alla logica delle persone usando l'FVM per il peso della scelta e il paradigma
+fertilità/copertura», poi «ci serve un 80% almeno nei primi giri... non contiamo chi prende cosa ma che indoviniamo i
+giocatori scelti prima del prossimo nostro turno». Scelta sua: una **probabilità per nome**, con i «sicuri» marcati.
+
+**Lo stato di partenza, rigiocato sulla pagina vera** (FA-yei-458, tutte e 10 le squadre seguite a turno, 250 scelte, tetto
+dei primi turni spento perché quel draft non l'aveva): dei nomi previsti «prima di te» esce davvero il **32,2%** contro il
+**31,6%** del null «i più cari»; presi dalla squadra indicata il 5,9%. Le scelte dei rivali e i consigli del motore non si
+somigliano: la scelta vera è il primo consiglio nel 7,2% dei casi, uno dei tre nel 14,4%, fra i primi 10 della lista nel
+26,4% (fra i primi 10 per FVM nel 36,4%); rango mediano 32 nella nostra lista e 17 per prezzo. Atteso, e il punto
+dell'operatore: le persone non hanno la logica del motore.
+
+**Il modello**: un logit condizionale della scelta UMANA sugli uomini che la sua rosa può legalmente prendere, con quello
+che il tavolo vede - FVM, posto nel reparto per FVM e distacco dal successivo, i numeri della stagione in corso del listone
+della sessione (fantamedia, voto, presenze), stesso club di uno già preso, secondo portiere dello stesso club - e il
+cammino fino al nostro turno CAMPIONATO 150 volte: la quota di cammini in cui un uomo è preso è la sua probabilità.
+Dati: sette draft veri scaricati in sola lettura (FA-yei-458, FL-7zz-d10, FL-ixr-b6b classic; FA-blt-km4, FA-7xu-106 mantra
+Serie A; FA-cdt-9q9, FA-lel-dfk mantra EuroLeghe), più FA-jo5-zai e FA-l1n-0pn (questo giocato a reparti, escluso). Le due
+sessioni locali (FL-) non hanno listone: si usa quello di FA-yei-458, gli id coincidono 500 su 500.
+
+**La lezione più utile: un tavolo nuovo non è il tavolo su cui si è tarato.** Allenato su FA-yei-458 stesso (lasciando
+fuori la squadra prevista) leggeva 56,7% nei primi sei giri contro 53,7% del null - sembrava un passo verso l'80%. Allenato
+sugli ALTRI draft e provato su uno che non ha visto, che è la situazione del 6 ottobre:
+
+| Draft provato | Giri 1-6 modello / più cari | Tutto modello / più cari | Dato ≥0,8: uscito davvero |
+|---|---|---|---|
+| FA-yei-458 | 52,2% / 53,7% | **40,3%** / 32,3% | 90,0% (60 nomi) |
+| FL-7zz-d10 | 43,9% / 44,9% | **38,3%** / 26,7% | 100% (41) |
+| FL-ixr-b6b | 39,9% / 38,1% | **27,7%** / 19,0% | 86,7% (15) |
+
+(tanti nomi quante le scelte vere nella finestra). **Nei primi giri nessuna lettura batte l'ordine per FVM**, quindi lì il
+modello è il SOLO prezzo con la sua temperatura (`EARLY_PICKS` = 6 turni della squadra che chiama); dal settimo il modello
+pieno vale 8-11 punti sul null su tutti e tre. L'80% con «tanti nomi quante le scelte» non c'è: nei giri 3-6 anche il
+DOPPIO dei più cari contiene solo il 61-70% delle scelte vere, e un quinto sta oltre il triplo - sono scelte di pancia
+sull'avvio di stagione (Moreira 9,67 di fantamedia, 60ª FVM libera; Kvernadze, Adzic, Maldini, Carlos Augusto). Dove l'80%
+c'è è sui **sicuri**: da 0,8 in su, 87-100% fuori campione (a 0,7 era 77-92%, non stabile), al prezzo di pochi nomi a turno.
+
+Cosa NON ha aiutato, misurato: la copertura dei reparti della rosa del RIVALE (quanti ne ha, quanti gliene mancano) - da
+sola peggiora, insieme agli altri non aggiunge: le persone rispettano le quote e basta; l'età, la quotazione, la forza del
+club; imparare il tavolo mentre il draft procede (rifit ogni 10 scelte pesando di più il tavolo in corso): nessun guadagno.
+Una sorpresa: lo stesso club di uno già preso è PREFERITO (+0,28), le persone non diversificano, e il secondo portiere
+dello stesso club ancora di più (+1,77).
+
+**Nell'app** (`core/rival-odds.ts`, `AuctionAdvice.goneOdds`): una pastiglia con la percentuale accanto al nome da 0,3 in
+su (`SHOWN_ODDS`, scelta di presentazione), marcata da 0,8 (`SURE_ODDS`, misurata). Solo REPORTING: non tocca la
+camminata deterministica (`takenBeforeUs`), su cui piani e sconto del sopravvissuto sono misurati, né alcun consiglio. Il
+listone del feed porta ora i numeri della stagione che il tavolo mostra (`AuctionPlayer.seen`); su un tavolo costruito dal
+pacchetto mancano, e il modello ricade su FVM e reparto.
+
+**Il codice spedito rigiocato** (`toolkit/bench/draft/rival-odds.mjs`, con le probabilità lette PRIMA della nostra scelta
+e la nostra scelta tolta dal conteggio; pesi tarati anche su questi draft, quindi è una verifica e non un fuori campione):
+FA-yei-458 sicuri 90,8% su 65 nomi (0,27 a turno), FL-7zz-d10 100% su 22, FL-ixr-b6b 1 su 1; la taratura regge (0,4 →
+52%, 0,5 → 59-65%, 0,9 → 96-100%). Sui tavoli a ordine per FVM i sicuri sono rari perché l'ordine del giro dopo è esso
+stesso una previsione. Sulla pagina vera rigiocata, FA-yei-458: nessun problema, pastiglie presenti.
+
+**Aperti**: pochi tavoli (cinque per tarare), e del 6 ottobre non sappiamo l'ordine; i numeri della stagione nel listone
+sono quelli del giorno della sessione; su mantra il modello usa la linea classic del listone.
