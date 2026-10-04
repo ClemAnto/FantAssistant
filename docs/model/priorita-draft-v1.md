@@ -1153,3 +1153,37 @@ stesso una previsione. Sulla pagina vera rigiocata, FA-yei-458: nessun problema,
 
 **Aperti**: pochi tavoli (cinque per tarare), e del 6 ottobre non sappiamo l'ordine; i numeri della stagione nel listone
 sono quelli del giorno della sessione; su mantra il modello usa la linea classic del listone.
+
+## 36. Il quarto piano dal selezionato, la catena intera, i consigli piegabili, i codici FL- (03/10/2026)
+
+Quattro richieste dell'operatore sulla pagina del draft. Il codice e' in `6886513`, committato da un'altra sessione insieme
+alla pubblicazione v0.1.35 e dichiarato tale nel messaggio. Nessun numero del motore si muove.
+
+- **Il quarto consiglio parte dal calciatore SELEZIONATO** («quando seleziono un calciatore della tabella, mostrami un quarto
+  consiglio a partire dal calciatore selezionato»). Un click su una riga aggiunge in coda ai tre un piano costruito dalla
+  stessa catena (`judge` → `chainFrom`), col suo verdetto «coerente / inopportuna» e la ragione nel tooltip; un secondo
+  click lo toglie, e se era il piano disegnato sul campetto se ne va con lui. Non compare se il calciatore apre gia' uno
+  dei tre (il piano e' a schermo) o se ora non lo si puo' chiamare (congelato dal tetto, reparto pieno): una catena che
+  comincia con una scelta impossibile non e' un piano. Il doppio click sul tavolo vero continua a mettere il suo piano in
+  cima. `auction.selectedChain`.
+- **La catena intera, 4 scelte** («nei consigli, puoi farmi vedere tutta la catena prevista di 4 scelte?»): le scelte 3 e 4
+  su una riga sotto, ognuna con quante scelte fanno i rivali prima. Quell'attesa e' nuova (`ScenarioStep.wait`, contata
+  sul cammino dei rivali come quella fra la prima e la seconda); il «poi +N» resta la loro somma.
+- **Il box dei consigli si piega**: resta la riga del modulo coi posti da sistemare, i piani spariscono; il piano scelto
+  resta disegnato. Preferenza del browser (`fantassistant.draft.plansFolded`).
+- **I codici FL-xxx-xxx delle aste locali** sono accettati, e il prefisso resta nella chiave (`auction-feed.sessionKey`).
+  Al momento della modifica era un'IPOTESI che stessero nello stesso database; la §35 l'ha poi verificata scaricando
+  FL-7zz-d10 e FL-ixr-b6b in sola lettura: ci sono, **senza listone**. Quindi `connect`, che legge prima
+  `env/playerList` e si ferma se e' vuoto, su un'asta FL- risponde «nessuna asta trovata»: aperto, sotto.
+
+**Una sua domanda che vale riportare** (perche' Svilar e non De Bruyne, DP 26 contro 37): i piani non ordinano per DP ma
+per +Rosa, e li' Svilar valeva +81 contro +60 - la porta vuota costa `doorHolePrice` a giornata e lui la chiude quasi
+tutta, De Bruyne e' `ballottaggio`. E le righe evidenziate della tabella sono i previsti presi da un rivale prima del
+nostro turno, nel colore della squadra.
+
+Verificato: banco `e2e-draft` con due passi nuovi (5e quarto piano: 3 → 4 → 3; 5f pieghevole: 3 → 0 → 3, catene 3), build e
+`ng test` verdi. Un giro del banco ha letto una volta «piu' titolari suggeriti che posti vuoti» nel passo dei
+suggerimenti, che queste modifiche non toccano, e al giro dopo no: probabilmente il caso di AUTO, **non verificato**.
+
+**Aperti**: collegarsi a un'asta FL- vera fallisce perche' non porta il listone - va letta col listone di una sessione FA-
+o del pacchetto, da decidere; il quarto piano non ha un test unitario (solo il banco).

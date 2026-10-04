@@ -1,5 +1,10 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XVIII): 2 ottobre 2026 — LA COPERTURA COMBINATA, I PIANI SUL CAMPO, E LA PORTA VALUTATA A PARTE.**
+**Aggiornato (XIX): 4 ottobre 2026 — IL QUARTO PIANO DAL SELEZIONATO, LA CATENA A 4 A SCHERMO, I CONSIGLI PIEGABILI,
+I CODICI FL-.** Codice in `6886513` (committato e pubblicato come v0.1.35 da un'altra sessione), questa chiusura solo
+documenti. Dettaglio in `priorita-draft-v1.md` §36; il rimasto aperto: un'asta FL- vera non porta il listone, quindi
+il collegamento la rifiuta. **Il prossimo draft dell'operatore è Serie A, il 6 ottobre.**
+
+· precedente: **Aggiornato (XVIII): 2 ottobre 2026 — LA COPERTURA COMBINATA, I PIANI SUL CAMPO, E LA PORTA VALUTATA A PARTE.**
 Commit `a265270`, `186a72c`, `5a0caec` e quello di questa chiusura; niente pushato né pubblicato. Dettaglio nella
 CHIUSURA (XVIII) qui sotto e in `priorita-draft-v1.md` §32. **Il prossimo draft dell'operatore è Serie A, il 6
 ottobre.**
