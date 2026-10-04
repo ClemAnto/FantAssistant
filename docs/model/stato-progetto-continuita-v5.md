@@ -10424,3 +10424,9 @@ voto porta ~54% della varianza del punteggio di squadra; con i soli bonus uffici
 37% al 44%, con bonus ridotti (+1 gol, +0,5 assist) al 90%. Numeri e metodo:
 `metrica-asta-surplus-v1.md` §31. Nessun numero del motore, nessun `SHEET_REVISION`. Restano non
 committati due file app di un'altra sessione (`auction-advice.ts`, `views/auction/auction.ts`): non toccati.
+
+## 4 ottobre 2026 — LA VISTA «CHECKS» DEL DRAFT
+Otto condizioni si'/no per svincolato (tit · mv · fm · bonus · cont · m · p · trend), pallini con icona, soglie al
+terzo migliore del ruolo sul listone intero, letture di stagione dal periodo nel club con cui l'ha chiusa (caso
+Malen). `core/draft-checks.ts`. Dettaglio e aperti (il bonus dei portieri a «> 0» quasi vuoto, proposto «>= 0"):
+`priorita-draft-v1.md` §37. Nessun numero del motore.

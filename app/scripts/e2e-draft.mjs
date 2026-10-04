@@ -419,6 +419,29 @@ async function main() {
       page = await evaluate(session, readPage);
     }
 
+    // A JANUARY SIGNING IS READ SINCE HE ARRIVED (operator, 04/10/2026, on Malen): his p and m come from Roma only.
+    await mouse(await evaluate(session, centre, '[data-mode="checks"]'));
+    await wait(600);
+    await mouse(await evaluate(session, centre, '[data-column="free"] input[type="search"]'));
+    await session.send('Input.insertText', { text: 'malen' });
+    await wait(700);
+    const malen = await evaluate(session, () => {
+      const row = document.querySelector('[data-free]');
+      if (!row || !/malen/i.test(row.innerText)) return null;
+      return Object.fromEntries([...row.querySelectorAll('[data-check]')].map((cell) => [
+        cell.getAttribute('data-check'),
+        `${cell.querySelector('[data-check-ok]') ? 'SI' : 'no'} (${cell.getAttribute('data-check-tip') ?? ''})`,
+      ]));
+    });
+    await mouse(await evaluate(session, centre, '[data-column="free"] .ant-input-clear-icon'));
+    await wait(700);
+    await mouse(await evaluate(session, centre, '[data-mode="default"]'));
+    await wait(600);
+    note('checks Malen', malen ? Object.entries(malen).map(([k, v]) => `${k} ${v}`).join(' · ') : 'non e\' fra gli svincolati', [
+      ...(malen && !/^SI/.test(malen.p) ? ['Malen senza il pallino delle presenze'] : []),
+      ...(malen && !/^SI/.test(malen.m) ? ['Malen senza il pallino del minutaggio'] : []),
+    ]);
+
     // 3. Double click: the squad on the clock takes the first free man.
     const before = page;
     const seatsBefore = await evaluate(session, seatsNow);
@@ -1333,6 +1356,53 @@ async function main() {
         ...(pvNow && !ordered(pvNow, true) ? ['Pv di questa stagione non ordinata'] : []),
       ]);
 
+    // 6b. CHECKS (operator, 04/10/2026): five yes/no columns. Each must exist, sit over its label, and SEPARATE -
+    // a column with a badge on every row or on none is a check that looks at nothing.
+    await mouse(await evaluate(session, centre, '[data-mode="checks"]'));
+    page = await settle((p) => !/PV|TITOLARIT/i.test(p.header), 'checks');
+    const checks = await evaluate(session, () => {
+      const head = document.querySelector('[data-free-head]');
+      const row = document.querySelector('[data-free]');
+      const rows = [...document.querySelectorAll('[data-free]')];
+      const keys = ['tit', 'mv', 'fm', 'bonus', 'cont', 'm', 'p', 'trend'];
+      const counts = Object.fromEntries(keys.map((key) => [key, rows.filter((one) => one.querySelector(`[data-check-ok="${key}"]`)).length]));
+      const heads = head ? [...head.children].map((one) => one.getBoundingClientRect()) : [];
+      const cells = row ? [...row.children].map((one) => one.getBoundingClientRect()) : [];
+      const drift = heads.map((one, at) => (cells[at] ? Math.round(Math.abs(one.left + one.width / 2 - (cells[at].left + cells[at].width / 2))) : null)).slice(8);
+      const columns = row ? row.querySelectorAll('[data-check]').length : 0;
+      const clipped = rows.flatMap((one) => [...one.querySelectorAll('[data-check]')])
+        .filter((cell) => cell.scrollWidth > cell.clientWidth + 1).length;
+      return { rows: rows.length, counts, drift, columns, clipped };
+    });
+    note('checks', `${checks?.rows} righe, badge ${Object.entries(checks?.counts ?? {}).map(([k, v]) => `${k} ${v}`).join(' · ')}, scarto centri ${checks?.drift.join('/')}px`, [
+      ...(!checks?.rows ? ['nessuna riga da guardare'] : []),
+      ...(checks && checks.columns !== 8 ? [`${checks.columns} colonne di check invece di 8`] : []),
+      ...(checks ? Object.entries(checks.counts).filter(([, n]) => n === 0 || n === checks.rows).map(([k, n]) => `${k}: ${n} badge su ${checks.rows}, non separa`) : []),
+      ...(checks && checks.drift.some((one) => one == null || one > 1) ? ['etichette non centrate sui badge'] : []),
+      ...(checks && checks.clipped ? [`${checks.clipped} badge tagliati`] : []),
+    ]);
+    // THE KEEPERS' BONUS reads bonus-malus > 0 (operator, 04/10/2026): it must separate them too.
+    await mouse(await evaluate(session, centre, '[data-role-filter="p"]'));
+    await wait(500);
+    const keepers = await evaluate(session, () => {
+      const rows = [...document.querySelectorAll('[data-free]')].filter((one) => one.getAttribute('data-roles')?.split(',').includes('p'));
+      return { rows: rows.length, bonus: rows.filter((one) => one.querySelector('[data-check-ok="bonus"]')).length };
+    });
+    await mouse(await evaluate(session, centre, '[data-role-filter="p"]'));
+    await wait(500);
+    note('checks portieri', `${keepers?.bonus} badge bonus su ${keepers?.rows} portieri caricati`, [
+      ...(!keepers?.rows ? ['nessun portiere da guardare'] : []),
+      ...(keepers && (keepers.bonus === 0 || keepers.bonus === keepers.rows) ? ['il bonus dei portieri non separa'] : []),
+    ]);
+    await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="ck-fm"]'));
+    await wait(500);
+    const fmOrder = await evaluate(session, () => [...document.querySelectorAll('[data-free]')].slice(0, 60)
+      .map((one) => (one.querySelector('[data-check-ok="fm"]') ? 1 : 0)));
+    note('ordina (checks)', `fm in testa: ${fmOrder?.slice(0, 12).join('')}`, [
+      ...(fmOrder && fmOrder.join('').includes('01') ? ['un badge fm sotto una riga senza'] : []),
+      ...(fmOrder && !fmOrder[0] ? ['la prima riga non ha il badge fm'] : []),
+    ]);
+
     // 7. The hand-written table survives a refresh; written for another league, it is not replayed.
     const beforeReload = await evaluate(session, () => ({
       // MY squad, off my seat: the pitch draws whichever squad was last CLICKED, which is not saved, so reading
@@ -1557,7 +1627,8 @@ async function main() {
 
     const at = argv.indexOf('--shot');
     if (at >= 0 && argv[at + 1]) {
-      if (!flag('--medie')) await mouse(await evaluate(session, centre, '[data-mode="default"]'));
+      const shotMode = flag('--medie') ? 'medie' : flag('--checks') ? 'checks' : 'default';
+      await mouse(await evaluate(session, centre, `[data-mode="${shotMode}"]`));
       await wait(600);
       const image = await session.send('Page.captureScreenshot', { format: 'png' });
       const { writeFile } = await import('node:fs/promises');

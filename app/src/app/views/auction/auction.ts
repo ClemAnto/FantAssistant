@@ -30,10 +30,14 @@ import { trendStrips } from '../../core/plancia-store';
 import { PlayerRulings } from '../../core/player-rulings';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
 import { ValuationStore } from '../../core/valuation-store';
-import { type TrendCell, trendPointsMean } from '../../core/player-trend';
+import { type TrendCell, VOTE_TREND_MATCHES, trendPointsMean, trendVoteMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { RUNG_RANK, Rarity, rarityText, shownRung } from '../../core/draft-rarity';
+import {
+  CheckCell, CheckKey, CheckMan, Checks, checksOf, keeperPlusShare, lastStint, minutesPerAppearance, stintPresence,
+} from '../../core/draft-checks';
+import { matchFrequencies } from '../../core/match-frequency';
 import { paOnSeason } from '../../core/presence-now';
 import { SHOWN_ODDS, SURE_ODDS } from '../../core/rival-odds';
 import { onSeasonBase } from '../../core/season-scale';
@@ -73,7 +77,8 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
   | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw' | 'pa' | 'added'
-  | `${SeasonMetric}@${'now' | 'last'}`;
+  | `${SeasonMetric}@${'now' | 'last'}`
+  | `ck-${CheckKey}`;
 
 const FREE_SORT_KEYS: readonly string[] = [
   'role', 'name', 'press', 'fvm', 'trend', 'prio', 'rung', 'pvp', 'min', 'mvp', 'steady', 'fmp', 'rar', 'sesw', 'pa', 'added',
@@ -81,14 +86,14 @@ const FREE_SORT_KEYS: readonly string[] = [
 
 /** A sort key read back from the address: one of the columns, or a season metric of the «medie» view. */
 function isFreeSort(key: string): key is FreeSort {
-  return FREE_SORT_KEYS.includes(key) || /^(pv|mv|fm|ga)@(now|last)$/.test(key);
+  return FREE_SORT_KEYS.includes(key) || /^(pv|mv|fm|ga)@(now|last)$/.test(key) || /^ck-(tit|mv|fm|bonus|cont|m|p|trend)$/.test(key);
 }
 
 /** The two ladders in one order, best first: what «sort by titolarità» orders by (one definition, in core). */
 const PRESS_RANK = RUNG_RANK;
 
 /** How the free list is read: the default columns, or the season averages (operator, 28/09/2026). */
-export type FreeMode = 'default' | 'medie' | 'previste';
+export type FreeMode = 'default' | 'medie' | 'previste' | 'checks';
 
 const MODE_KEY = 'fantassistant.draft.freeMode';
 const PITCH_VIEW_KEY = 'fantassistant.draft.pitchView';
@@ -343,6 +348,8 @@ const ELEVEN = 11;
     .sort:hover { color: var(--color-fg); }
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
+    /* CHECKS (operator, 04/10/2026): eight yes/no dots with an icon inside, one narrow equal column each. */
+    .free-checks { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem repeat(8, 1.1rem) minmax(0, 1fr); }
     .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
@@ -435,7 +442,7 @@ export class Auction {
     });
     try {
       const saved = localStorage.getItem(MODE_KEY);
-      if (saved === 'default' || saved === 'medie' || saved === 'previste') this.mode.set(saved);
+      if (saved === 'default' || saved === 'medie' || saved === 'previste' || saved === 'checks') this.mode.set(saved);
     } catch {
       // Nothing saved: the default columns.
     }
@@ -1218,6 +1225,8 @@ export class Auction {
   }
 
   private readonly trends = signal<ReadonlyMap<number, readonly TrendCell[]>>(new Map());
+  /** The last FIVE of his club's matches, for the «trend» check (the strip on the row shows four). */
+  private readonly voteTrends = signal<ReadonlyMap<number, readonly TrendCell[]>>(new Map());
   private readonly lines = signal<ReadonlyMap<number, ReadonlyMap<string, SeasonLine>>>(new Map());
   private readonly linesPlatform = signal<Platform | null>(null);
   /** Last season from Transfermarkt (`desc_tm_*`), for whom not even a synthetic vote exists. */
@@ -1561,6 +1570,22 @@ export class Auction {
         return (row) => row.expected.steady;
       case 'fmp':
         return (row) => row.expected.fm;
+      case 'ck-tit':
+      case 'ck-mv':
+      case 'ck-fm':
+      case 'ck-bonus':
+      case 'ck-cont':
+      case 'ck-m':
+      case 'ck-p':
+      case 'ck-trend': {
+        // True first, then false, and an unknown check sinks: an empty cell is never «the best».
+        const which = key.slice(3) as CheckKey;
+        const checks = this.checks();
+        return (row) => {
+          const ok = checks.get(row.id)?.[which].ok;
+          return ok == null ? null : Number(ok);
+        };
+      }
       case 'trend':
         // Col 5 al posto di ogni fantavoto che manca (sua regola, 29/09/2026): chi salta una partita scende.
         return (row) => trendPointsMean(row.trend);
@@ -1633,6 +1658,83 @@ export class Auction {
     }
     return out;
   });
+
+  /** The five columns of the «checks» view, in their order, with a short tooltip each. */
+  protected readonly checkColumns: readonly {
+    key: CheckKey; label: string; hint: string; icon: string; theme?: 'fill' | 'outline';
+  }[] = [
+    { key: 'tit', label: 'tit', icon: 'team', hint: 'Titolarità della stampa: titolare o meglio' },
+    { key: 'mv', label: 'mv', icon: 'star', theme: 'fill', hint: 'Media voto della stagione scorsa almeno 6' },
+    { key: 'fm', label: 'fm', icon: 'trophy', hint: 'Fantamedia della stagione scorsa nel terzo migliore del ruolo' },
+    { key: 'bonus', label: 'bonus', icon: 'fire', hint: 'Partite con almeno un bonus (portieri: bonus-malus > 0), stagione scorsa: terzo migliore del ruolo' },
+    { key: 'cont', label: 'cont', icon: 'safety', hint: 'Sufficienze (costanza): terzo migliore del ruolo' },
+    { key: 'm', label: 'm', icon: 'clock-circle', hint: 'Minuti a presenza, stagione scorsa: terzo migliore del ruolo' },
+    { key: 'p', label: 'p', icon: 'calendar', hint: 'Quota di presenze della stagione scorsa da quando è arrivato: terzo migliore del ruolo' },
+    { key: 'trend', label: 'trend', icon: 'rise', hint: 'Media voto delle ultime 5 partite (5 se non giocata o sv): terzo migliore del ruolo' },
+  ];
+
+  /**
+   * THE «CHECKS» OF EVERY MAN OF THE LISTONE (operator, 04/10/2026, `core/draft-checks.ts`), taken men included:
+   * the bars are a fact about the role and must not move as the pool empties. Lazy - read only by that view.
+   */
+  protected readonly checks = computed<ReadonlyMap<number, Checks>>(() => {
+    const platform = this.linesPlatform() ?? this.advice.entry()?.platform ?? 'default';
+    const last = this.seasons().last;
+    const press = this.rulings.press();
+    const scoring = this.players.scoring();
+    const ready = this.players.ready();
+    const voteTrends = this.voteTrends();
+    const men: CheckMan[] = [];
+    for (const { player } of this.advice.listone()) {
+      if (this.goal(player.id)) continue;
+      const zone = CLASSIC_OF_ZONE[player.zoneClassic] ?? player.zoneClassic;
+      const said = shownRung(press.get(player.id)?.pressTier);
+      // SINCE HE ARRIVED (operator, 04/10/2026): the season's numbers from his last stint, a January signing
+      // read on his new club only. Before the matches are in, the season line stands in for mv and fm.
+      const cells = ready && last ? lastStint(this.players.matchesOf(player.id, platform, last)) : null;
+      const line = cells && last ? seasonLineFromMatches(cells, last) : this.lineOf(player.id, 'last');
+      const presence = cells ? stintPresence(cells) : null;
+      const frequencies = cells ? matchFrequencies(cells, scoring) : null;
+      const minutes = cells ? minutesPerAppearance(cells) : null;
+      const keeper = zone === 'P' && cells ? keeperPlusShare(cells) : null;
+      const recent = voteTrends.get(player.id) ?? [];
+      men.push({
+        id: player.id,
+        zone,
+        pressRank: said && RUNG_RANK[said] != null ? RUNG_RANK[said] : null,
+        pv: line?.pv ?? null,
+        presence: presence?.share ?? null,
+        rounds: presence?.rounds ?? 0,
+        mv: line?.mv ?? null,
+        fm: line?.fm ?? null,
+        bonus: zone === 'P' ? (keeper?.share ?? null) : (frequencies?.bonus ?? null),
+        played: zone === 'P' ? (keeper?.rated ?? null) : (frequencies?.played ?? null),
+        steady: this.ratings.for(platform, player.id)?.steady?.share ?? null,
+        minutes: minutes?.minutes ?? null,
+        timed: minutes?.timed ?? null,
+        trend: trendVoteMean(recent),
+        trendVoted: recent.filter((cell) => cell.state != null && cell.vote != null).length,
+      });
+    }
+    return checksOf(men, RUNG_RANK['titolare']);
+  });
+
+  protected checkOf(id: number, key: CheckKey): CheckCell | null {
+    return this.checks().get(id)?.[key] ?? null;
+  }
+
+  /** The tooltip of one check cell: the number read and the bar, or why there is no badge. */
+  protected checkTip(id: number, key: CheckKey): string {
+    const cell = this.checkOf(id, key);
+    if (!cell) return '';
+    if (key === 'tit') return cell.ok == null ? 'La stampa non lo ha' : '';
+    if (cell.value == null) return 'Dato mancante';
+    const pct = key === 'bonus' || key === 'cont' || key === 'p';
+    const show = (value: number) => (pct ? `${Math.round(value * 100)}%`
+      : key === 'm' ? `${Math.round(value)}'` : value.toFixed(2));
+    if (cell.ok == null) return `${show(cell.value)} · meno di 10 partite`;
+    return cell.bar == null ? show(cell.value) : `${show(cell.value)} · soglia ${show(cell.bar)}`;
+  }
 
   protected lineOf(id: number, which: 'now' | 'last'): SeasonLine | null {
     const season = this.seasons()[which];
@@ -1856,6 +1958,7 @@ export class Auction {
         this.bundle.manifest(),
       ]);
       this.trends.set(trendStrips(sheet));
+      this.voteTrends.set(trendStrips(sheet, VOTE_TREND_MATCHES));
       const now = manifest.target_season ?? null;
       const last = manifest.input_season ?? null;
       const wanted = [now, last].filter((one): one is string => !!one);

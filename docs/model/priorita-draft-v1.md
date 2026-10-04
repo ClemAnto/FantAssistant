@@ -1187,3 +1187,47 @@ suggerimenti, che queste modifiche non toccano, e al giro dopo no: probabilmente
 
 **Aperti**: collegarsi a un'asta FL- vera fallisce perche' non porta il listone - va letta col listone di una sessione FA-
 o del pacchetto, da decidere; il quarto piano non ha un test unitario (solo il banco).
+
+## 37. La vista «Checks»: otto condizioni si'/no, lette da quando e' arrivato (04/10/2026)
+
+Richiesta dell'operatore: una quarta vista della tabella degli svincolati (oltre a Default · Medie · Previste) con un
+segno per ogni condizione vera, una colonna ciascuna. Arrivate in tre messaggi; nessun numero del motore si muove,
+nessun `SHEET_REVISION`. Codice: `core/draft-checks.ts` (puro, con i test), la vista in `views/auction/`.
+
+| colonna | icona | condizione |
+|---|---|---|
+| tit | team | gradino della STAMPA `titolare` o `bandiera` (il gradino del motore non conta) |
+| mv | star | media voto della stagione scorsa >= 6 |
+| fm | trophy | fantamedia della stagione scorsa (vera o sintetica) nel terzo migliore del ruolo |
+| bonus | fire | quota di partite con almeno un bonus; **per i portieri** quota con bonus-malus > 0 (fantavoto sopra il voto) |
+| cont | safety | Costanza (quota di voti base >= 6) nel terzo migliore del ruolo |
+| m | clock | minuti a presenza della stagione scorsa nel terzo migliore del ruolo |
+| p | calendar | QUOTA di presenze sulle giornate del suo club da quando e' arrivato, terzo migliore del ruolo |
+| trend | rise | media voto delle ultime 5 partite del club, 5 se non giocata o sv (`trendVoteMean`, la stessa della Strategia) |
+
+Scelte mie, dichiarate e non misurate: «buono» = **terzo migliore del ruolo classic** (`GOOD_QUANTILE` 2/3, piu' o meno
+gli uomini che una lega da dieci schiera); la soglia si taglia sul **listone intero**, presi compresi, cosi' non scende
+mentre il pool si svuota; **sotto 10 partite** (`THIN_SAMPLE`) niente segno sulle letture di stagione e niente peso nella
+soglia (vale anche per mv, che lui aveva chiesto alla lettera); le soglie di p e trend si tagliano su chi ha almeno una
+presenza o un voto, e una quota a zero non prende mai il segno anche se la soglia cade a zero.
+
+**«LA VALUTAZIONE VA FATTA SOLO DA QUANDO E' STATO ACQUISTATO»** (sua correzione su Malen, arrivato a gennaio dall'Aston
+Villa, senza il segno di p e m). Le letture di stagione leggono ora l'ULTIMO PERIODO (`lastStint`): le partite di
+campionato della competizione e del club con cui ha chiuso la stagione, dalla prima in cui e' a referto; chi non ha mai
+cambiato si tiene la stagione intera, giornate saltate all'inizio comprese. Per questo p e' una QUOTA e non un
+conteggio. Dopo: Malen ha tutti e otto i segni (m 82' su soglia 66', p 100% su 93%, fm 9,00 su 6,77).
+**Il club si confronta SOLO fra partite giocate**: una riga di panchina scrive il club come il provider (`AC Milan`), una
+giocata come i voti (`Milan`), e confrontarle tagliava a pezzi stagioni normali - misurato, i segni di mv, fm e bonus
+calavano di un terzo. Settima istanza del join per nome, trovata perche' i conteggi del banco si sono mossi su colonne
+che la modifica non doveva toccare.
+
+Il pallino con l'icona e' sua richiesta («occupano troppo spazio»): 1,1rem a colonna, nome e regola nel tooltip.
+
+Verificato: 1348 test unitari, build pulita, banco `e2e-draft` con quattro passi nuovi (checks: 60 righe, segni tit 46 ·
+mv 13 · fm 8 · bonus 15 · cont 24 · m 22 · p 20 · trend 42, colonne centrate; Malen; portieri; ordinamento).
+
+**Aperti**: il bonus dei portieri a «> 0» quasi non esiste - sulle 24 porte di Serie A 2025-26 con 10+ partite la quota
+media e' il **2%**, la soglia il 3%, la migliore l'11% (cioe' rigore parato o assist senza gol subiti); con «>= 0»
+(porta inviolata senza malus) va dal 12% al 48% e separa. Proposto, **decisione sua**. cont e trend non sono ristretti
+al periodo nel club; p e' generosa per chi giocava all'estero, dove il livello per-partita porta solo le partite in cui
+era convocato.
