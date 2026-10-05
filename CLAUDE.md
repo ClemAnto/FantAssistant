@@ -8073,3 +8073,16 @@ e Serie A 2015-19: 31,2 · 29,6 · 27,4 · 23,0 · 6,3. E **leggero/pesante dall
 si è visto solo misurando la regola che la doveva curare. *Una causa scritta in una tabella di casi è un'ipotesi fino a
 quando non si guarda la riga.*
 
+
+## Una rosa si giudica DUE volte, e il campo mostra quello che il badge dice
+**05/10/2026, dal draft vero FA-610-2ih (`priorita-draft-v1.md` §38).** Due regole dell'operatore che valgono oltre
+quel draft. **Una rosa si giudica col punteggio del motore E con l'FVM totale della rosa, affiancati** (l'FVM con gli
+infortuni importanti deprezzati): il motore da solo e' circolare quando giudica consigli costruiti sul motore, e
+quando i due giudici discordano si dice invece di sceglierne uno - e' successo subito, su ROLE_WAIT (motore +1,0
+punti a giornata, FVM -33, tutt'e due dentro il rumore di 6+6 draft), accesa per sua decisione col prezzo detto e
+un'icona su ogni piano che sposta. **In campo vanno i calciatori col valore mostrato piu' alto**: il disegno ordina
+titolari e riserve sul numero del badge, mentre il RENDIMENTO (+Rosa, consigli) resta una regola di calcolo
+(`bonusFirst`) - due domande, e il disegno non deve contraddire il numero accanto al nome. E un valore di portiere
+che legge il suo passato porta i gol del campionato da cui viene: per il draft la fantamedia di un portiere e' il voto
+base atteso meno i gol che il suo club subira' sul calendario della competizione (Frosinone 1,75, Juve 1,11) - una
+lettura dell'app, non del gate.

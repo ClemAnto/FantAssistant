@@ -1235,3 +1235,66 @@ malus netto (niente ammonizione, autogol, rigore sbagliato non compensati), per 
 **Aperti**: cont e trend non sono ristretti
 al periodo nel club; p e' generosa per chi giocava all'estero, dove il livello per-partita porta solo le partite in cui
 era convocato.
+
+## 38. Il draft vero FA-610-2ih e quello che ha cambiato (05/10/2026)
+
+Un draft classic Serie A seguito dal vivo dall'operatore (10 squadre, 250 scelte, ordine `default` per FVM di rosa),
+con la «stessa identica dinamica» del suo del 6 ottobre. Tutto app (`core/draft-pitch.ts`, `core/draft-scenarios.ts`,
+`core/auction-advice.ts`, `views/auction/`), nessun numero del motore. v0.1.37 -> v0.1.44.
+
+**38.1 La porta vuota conta UNA porta.** `doorHolePrice` contava i 3 posti portiere aperti: a 21 scelte dalla fine
+3/21 x 4,73 = 0,68 a giornata, e il +Rosa di un portiere era quasi tutto buco coperto (Palmisani +51 di cui +59,
+Falcone +40, contro +30/+38 dei migliori difensori). Ora `min(1, aperti)`. Banco `sim-draft-advice` 4+4 contro
+rivali umani: primo portiere alla scelta 4-7 invece che alla 2, porta coperta 96-100% in tutti.
+
+**38.2 Lezioni del tavolo** (surplus del NOSTRO motore, quindi un giudizio del modello e non l'esito):
+- l'ordine per FVM si blocca dal giro 2 e costa poco: Edge Case ultima per 24 giri ha fatto la rosa migliore
+  (undici atteso 57,7 contro 50-55), aperta da Malen (surplus 69 contro 37 del secondo);
+- muro al giro 8: il migliore libero per ruolo P 30 · D 19 · C 21->15 · A 35->26, poi tutto quasi piatto
+  (C 14-15 fino al giro 20, D in calo fino al 13);
+- dopo il 7o giro una scelta vale in media A 18 · P 13 · C 9 · D 8,5, e gli attaccanti tardivi (Adams A., Yeboah,
+  Castro S., Noslin, Santos A.) valgono 22-26 - ma un 4o-6o attaccante sta in panchina, quindi il surplus li
+  sopravvaluta e la lezione NON e' stata portata nei consigli;
+- portieri con calma: 5 presi al giro 4, Caprile (30) uscito alla 104.
+
+**38.3 ROLE_WAIT (accesa per sua decisione, giudizio diviso).** Lo sconto di chi sopravvive al nostro turno ora vale
+anche quando sopravvive un uomo DELLO STESSO RUOLO che da' quanto lui, mai oltre il 30% di prima
+(`rankGain`, `ScenarioStep.waitAlt`). 6+6 draft simulati contro rivali umani: motore +1,25 contro +0,24 punti a
+giornata sul tavolo (t ~1,7), FVM totale della rosa +3 contro +36 (sd 90-110), anche con gli infortuni importanti
+deprezzati (+1 contro +33): **i due giudici sono discordi e dentro il rumore**. Accesa con un'icona su ogni piano che
+la regola sposta (`Scenario.roleWait`: su o giu', e chi resta del suo ruolo). Rigiocando l'host, dalla 30 alla 61 i
+consigli puntano spesso sul centrocampo: il contrario della lezione «centrocampo per ultimo».
+
+**38.4 Una rosa si giudica due volte** (sua regola): punteggio del motore E FVM totale della rosa, affiancati. Il
+giudice FVM porta una rifinitura: un infortunio importante (fuori 30+ giorni, o aperto 45+ giorni senza data, o
+«heavy» nella pagina indisponibili) vale FVM/0,6 x la quota di stagione in cui sara' disponibile (rientro +25%), mai
+sopra il suo FVM. Lo strumento e' in scratch (`simscore.py`), non nel repository.
+
+**38.5 Il campo.**
+- **Bonus prima, ma il campetto mostra il valore**: `bonusFirst` (dove gli uomini di una posizione arrivano insieme a
+  `COVER_OK`, nel RENDIMENTO entra prima il bonus piu' alto: C x b2 + c1 x (b1 - b2)) resta nel calcolo di +Rosa e
+  consigli; il DISEGNO invece mette titolari e riserve in ordine del numero del badge (DP nel draft, 0-99 altrove),
+  porta compresa (`draftPitchOf(..., shown)`), sua regola: «in campo devono andare quelli con il valore mostrato piu'
+  alto». Trovato su Ramon (DP 8) dietro Jimenez A. (-2) per 2 centesimi di bonus.
+- **La porta al portiere che rende**: prima il titolare era chi copre di piu' (Palmisani 0,94 su Vicario 0,82).
+- **Il portiere legge i gol subiti del club**: `keeperFmBy` = voto base atteso - gol subiti attesi a partita del suo
+  club sulle partite reali delle giornate della competizione (-ln P di porta inviolata, `clubGoalsAgainst`). Juve
+  1,11 contro Frosinone 1,75: Vicario DP -1 -> +22, Palmisani +2 -> -26. Entra in DP, fertilita' (anche settimana per
+  settimana), +Rosa, consigli e «a partita»; NON nello 0-99 ne' nelle previsioni dei rivali (che scelgono per FVM).
+  Non passa dal gate. Il motore lo sottovalutava per un promosso (fantamedia della B) e lo sopravvaluta poco altrove
+  (Caprile 5,15 -> 4,77: la formula non vede parate e rigori parati).
+- **Meno di 4 difensori: niente modificatore** (`DraftPlace.defenceOff`, `FantaMan.defenceBonus`): host 4-3-3 67,3 ->
+  3-4-3 66,1 a partita.
+- **«a partita»** = sum(posti) 6 x copertura + fertilita' + copertura della porta x malus del portiere medio
+  (`keeperFertilityZero`): sua formula «fertilita'/100 + 66» con due correzioni (giornate scoperte a zero, e la porta
+  letta contro il portiere medio). Edge Case 70,4 · lucariello 68,0 · host 66,6. E «FVM rosa» al posto di «11/11».
+
+**38.6 La lista.** Esclusi dai consigli (icona per riga, per sessione, i rivali possono ancora prenderli: `movesFor`
+salta gli esclusi solo per noi); selezione per il confronto (cerchietto o Ctrl+click, «solo i selezionati»); X sulle
+soluzioni aggiuntive; «nascondi pieni»; «mostra gia' scelti» (`takenRanked`, stesse colonne); colonne SeSw/Pa/DP/RAR
+nascondibili; tooltip (1s) sulla Titolarita' coi rivali del posto nella board di stagione (`placeRivals`); i ceduti
+del listone (`gone: true`, 64 su 600) fuori dagli svincolati.
+
+**Aperti**: ROLE_WAIT va rimisurata su piu' draft e coi due giudici; `keeperFmBy` va misurata sugli esiti (May); lo
+0-99 dei portieri non legge ancora i gol subiti; nel campo interno ai consigli i titolari restano scelti sul
+rendimento e non sul valore mostrato (sulla porta ora coincidono).

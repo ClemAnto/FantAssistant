@@ -10440,3 +10440,11 @@ la quota: ora `min(1, aperti)`. Mandas +74 -> +37, Caprile +58 -> +19, Falcone +
 `sim-draft-advice` 4+4 draft contro rivali umani: primo portiere alla scelta 4-7 invece che alla 2 (3 su 4, Svilar),
 porta coperta 96-100% in tutti; fertilita' del campo 605 contro 668 in media, scarto tutto in un draft (486): rumore
 su 4 draft, non un verdetto. v0.1.37.
+
+## 5 ottobre 2026 (sera) — IL DRAFT VERO FA-610-2ih E LE SUE CORREZIONI
+Seguito dal vivo dall'operatore, stessa dinamica del suo draft Serie A del 6 ottobre. v0.1.37 -> v0.1.44, tutto app:
+porta vuota a UN posto, ceduti fuori dalla lista, esclusi dai consigli, selezione per il confronto, ROLE_WAIT (accesa
+per sua scelta, motore e FVM discordi), campo sul valore mostrato, portieri che leggono i gol subiti attesi del club
+sul calendario della competizione, niente modificatore con meno di 4 difensori, «a partita» = 6 x copertura +
+fertilita' + malus del portiere medio, «mostra gia' scelti», colonne nascondibili. Dettaglio, numeri e aperti:
+`priorita-draft-v1.md` §38. I commit da `44a3b3a` a `d5aabed` NON sono pushati su origin (fermo a v0.1.36).
