@@ -149,6 +149,12 @@ export interface ScenarioInput extends RivalWalkInput {
    * a move only as the DEPUTY of a keeper the squad holds, or at the last calls (picks left <= keeper places open + 1). Absent = no such rule (the bench, the tests that build no pitch).
    */
   keepers?: { firsts: ReadonlySet<number>; clubOf: (id: number) => string | null };
+  /**
+   * THE MEN THE OPERATOR TOOK OUT OF HIS ADVICE (operator, 05/10/2026: «dammi la possibilità di escludere dei calciatori
+   * dai consigli»): never one of OUR moves, while the rivals may still call them - an excluded man is a preference
+   * about our squad, not a fact about the table. Absent = nobody excluded.
+   */
+  excluded?: ReadonlySet<number>;
 }
 
 /** What the draft pitch says about a squad, in the scenarios' terms (`ScenarioInput.pitch`). */
@@ -246,7 +252,9 @@ export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: Sce
   const door = doorPriceFor(team, input, left);
   const before = squadWorth(roster, input, left, door);
   const priced: { player: PlanPlayer; man: PriorityMan; priority: number }[] = [];
+  const excluded = team.id === input.mineId ? input.excluded : undefined;
   for (const player of legalFor(team, pool, input.calls)) {
+    if (excluded?.has(player.id)) continue;
     if (!keeperAllowed(team, player, input, left)) continue;
     const man = input.manOf(player.id);
     const priority = man ? manValue(man, input.worth, input.matchdays) : null;

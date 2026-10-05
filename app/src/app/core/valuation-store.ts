@@ -1,7 +1,7 @@
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
 
 import { valueOf } from './auction-value';
-import { Board, BoardHorizon, BoardRung, BoardsFile, Bundle, EngineSheetEntry, columnIndex,
+import { Board, BoardHorizon, BoardMan, BoardRung, BoardsFile, Bundle, EngineSheetEntry, columnIndex,
   optionalIndex } from './bundle';
 import { onSeasonBase, seasonRoundsOf, sheetSeasonScale } from './season-scale';
 import { DRAW_ORDER, occupiedCode } from './club-eleven';
@@ -598,6 +598,46 @@ export function boardViewOf(file: BoardsFile | null, horizon: BoardHorizon): Boa
     };
   }
   return { clubs: file.clubs ?? {}, rungs: file.titolarita ?? {}, horizon: 'season', window: null };
+}
+
+/** Chi si contende il posto di un uomo nella board del suo club reale (`placeRivals`). */
+export interface PlaceRivals {
+  /** Il posto, come la board lo nomina (`Dc`, `Pc`, ...); null dove la board non lo dice. */
+  badge: string | null;
+  /** True quando la board lo schiera titolare; false quando e' uno dei rivali del titolare. */
+  starter: boolean;
+  /** Gli altri del posto: per un titolare i suoi ballottaggi, per un rivale il titolare e gli altri rivali. */
+  rivals: { name: string; starter: boolean; out: boolean }[];
+}
+
+/**
+ * I RIVALI PER LA SUA POSIZIONE NELLA SQUADRA REALE (operatore, 05/10/2026: tooltip della colonna Titolarita'
+ * del Draft Assistant). Letti dalla board disegnata dal toolkit e mai ricalcolati: un titolare porta i suoi
+ * `duels`, un rivale e' nei `duels` di un titolare. Null quando la board non lo nomina affatto, che non e'
+ * «nessun rivale»: e' fuori dall'undici e dai suoi ballottaggi.
+ */
+export function placeRivals(view: BoardView | null, fcId: number): PlaceRivals | null {
+  if (!view) return null;
+  for (const board of Object.values(view.clubs)) {
+    for (const line of Object.values(board.lines ?? {})) {
+      for (const starter of line) {
+        const duels = starter.duels ?? [];
+        const rival = (one: BoardMan, isStarter: boolean) =>
+          ({ name: one.name ?? '?', starter: isStarter, out: !!one.out_today });
+        if (starter.fc_id === fcId) {
+          return { badge: starter.badge, starter: true, rivals: duels.map((one) => rival(one, false)) };
+        }
+        if (duels.some((one) => one.fc_id === fcId)) {
+          return {
+            badge: starter.badge,
+            starter: false,
+            rivals: [rival(starter, true), ...duels.filter((one) => one.fc_id !== fcId).map((one) => rival(one, false))],
+          };
+        }
+      }
+    }
+  }
+  return null;
 }
 
 /**

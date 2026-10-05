@@ -29,7 +29,7 @@ import { looseMatch } from '../../core/loose-search';
 import { trendStrips } from '../../core/plancia-store';
 import { PlayerRulings } from '../../core/player-rulings';
 import { PlayerRatingsStore } from '../../core/player-ratings-store';
-import { ValuationStore } from '../../core/valuation-store';
+import { ValuationStore, boardViewOf, placeRivals } from '../../core/valuation-store';
 import { type TrendCell, VOTE_TREND_MATCHES, trendPointsMean, trendVoteMean } from '../../core/player-trend';
 import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
@@ -638,6 +638,15 @@ export class Auction {
 
   protected choose(key: string, scenario: Scenario): void {
     this.chosen.set(this.chosen()?.key === key ? null : { key, scenario });
+  }
+
+  /**
+   * THE X OF AN EXTRA PLAN (operator, 05/10/2026: «una x per deselezionare il calciatore»): the plan from the selected
+   * row goes with the selection, the one built by double click goes with the choice. The three of the advice have none.
+   */
+  protected dropChain(key: string): void {
+    if (this.chosen()?.key === key) this.chosen.set(null);
+    if (key.startsWith('pick:')) this.selectedRow.set(null);
   }
 
 
@@ -1392,6 +1401,27 @@ export class Auction {
   protected readonly onlyTaken = signal(false);
   protected readonly takenCount = computed(() => this.freeAll().filter((row) => !!row.takenBy).length);
 
+  /**
+   * THE MEN PICKED TO BE COMPARED (operator, 05/10/2026: «selezionare più calciatori dalla tabella, poi un tastino per
+   * nascondere tutti i non selezionati»). Marked from the row; with `onlyPicked` the list shows them and nobody else,
+   * whatever the other filters say, so a filter set before cannot hide one of them. For this visit only.
+   */
+  protected readonly picked = signal<ReadonlySet<number>>(new Set());
+  protected readonly onlyPicked = signal(false);
+
+  protected togglePicked(id: number): void {
+    const next = new Set(this.picked());
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    this.picked.set(next);
+    if (!next.size) this.onlyPicked.set(false);
+  }
+
+  protected clearPicked(): void {
+    this.picked.set(new Set());
+    this.onlyPicked.set(false);
+  }
+
   /** The list after the search, the role filter (roles in OR, as he asked) and the place filter. */
   protected readonly freeFiltered = computed<FreeRow[]>(() => {
     const query = this.query();
@@ -1403,6 +1433,8 @@ export class Auction {
     const rung = this.minRung();
     const rungFromEngine = this.mode() === 'previste';
     const onlyTaken = this.onlyTaken();
+    const picked = this.picked();
+    if (this.onlyPicked() && picked.size) return this.freeAll().filter((row) => picked.has(row.id));
     return this.freeAll().filter(
       (row) =>
         (!onlyTaken || !!row.takenBy)
@@ -1643,6 +1675,23 @@ export class Auction {
     if (said) return { press: said, pressSource: 'stampa' };
     const sheet = shownRung(this.advice.numbers().get(id)?.titolarita);
     return sheet ? { press: sheet, pressSource: 'motore' } : { press: null, pressSource: null };
+  }
+
+  /** THE FVM OF EVERY MAN OF THE LISTONE, priced in the table's game: printed under each name on the pitch (05/10/2026). */
+  protected readonly fvmById = computed(() => new Map(this.advice.listone().map(({ player }) => [player.id, player.fvm])));
+
+  /** The season boards of the table's listone: what the Titolarità column's rivals are read from (05/10/2026). */
+  private readonly seasonBoards = computed(() =>
+    boardViewOf(this.valuation.boardsFor(this.advice.entry()?.platform ?? 'default'), 'season'));
+
+  /** Who disputes his place in his real club's typical eleven, for the Titolarità column's tooltip. */
+  protected rivalsTip(id: number): string {
+    const found = placeRivals(this.seasonBoards(), id);
+    if (!found) return 'Fuori dalla formazione tipo';
+    const place = found.badge ? ` (${found.badge})` : '';
+    const names = found.rivals.map((one) => `${one.name}${one.starter ? ' tit.' : ''}${one.out ? ' (fuori)' : ''}`);
+    if (found.starter) return names.length ? `Titolare${place}. Rivali: ${names.join(', ')}` : `Titolare${place}, nessun rivale`;
+    return `Ballottaggio${place} con ${names.join(', ')}`;
   }
 
   /**

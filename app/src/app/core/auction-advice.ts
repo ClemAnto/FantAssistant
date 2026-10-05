@@ -103,6 +103,21 @@ const RULED_SHARES = new Map(TITOLARITA_LADDER.map((rung) => [rung, { play: RUNG
 
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
+const EXCLUDED_KEY = 'fantassistant.auction.excluded';
+
+/** The excluded men by session code, as saved; empty when nothing is saved or it cannot be read. */
+function readExcluded(): Record<string, number[]> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(EXCLUDED_KEY) ?? '{}');
+    const out: Record<string, number[]> = {};
+    for (const [code, ids] of Object.entries(saved ?? {})) {
+      if (Array.isArray(ids)) out[code] = ids.filter((id): id is number => typeof id === 'number');
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
 /**
  * The engine's numbers, joined to the table that is actually being played.
  *
@@ -786,6 +801,38 @@ export class AuctionAdvice {
    * roles his own squad has yet to cover (§17.3 requires the policy to be stated, not hidden). The
    * ORDER around it is not assumed - it is the platform's own rule, reproduced from its source.
    */
+  /**
+   * THE MEN TAKEN OUT OF THE ADVICE (operator, 05/10/2026: «dammi la possibilità di escludere dei calciatori dai
+   * consigli»), per session code: never one of our moves in the plans (`ScenarioInput.excluded`), still free for the
+   * rivals and still in the list, dimmed. A per-viewer preference, so `localStorage`, and a session of its own.
+   */
+  private readonly excludedBySession = signal<Record<string, number[]>>(readExcluded());
+  readonly excluded = computed<ReadonlySet<number>>(() => new Set(this.excludedBySession()[this.feed.code() ?? ''] ?? []));
+
+  toggleExcluded(playerId: number): void {
+    const now = new Set(this.excluded());
+    if (now.has(playerId)) now.delete(playerId);
+    else now.add(playerId);
+    this.writeExcluded([...now]);
+  }
+
+  clearExcluded(): void {
+    this.writeExcluded([]);
+  }
+
+  private writeExcluded(ids: number[]): void {
+    const code = this.feed.code() ?? '';
+    const all = { ...this.excludedBySession() };
+    if (ids.length) all[code] = ids;
+    else delete all[code];
+    this.excludedBySession.set(all);
+    try {
+      localStorage.setItem(EXCLUDED_KEY, JSON.stringify(all));
+    } catch {
+      // A browser that refuses storage keeps the exclusions for this visit.
+    }
+  }
+
   /** Which of the divergent options the operator is looking at. Both views read the same one. */
   readonly chosenRoot = signal<number | null>(null);
 
@@ -1715,6 +1762,7 @@ export class AuctionAdvice {
       // OUR next pick's survivors (`takenBeforeUs`): a rival's scenarios (`scenariosFor`) drop it, the walk is ours.
       gone: this.takenBeforeUs(),
       keepers: this.keeperShirts(),
+      excluded: this.excluded(),
     };
   });
 
@@ -1803,7 +1851,8 @@ export class AuctionAdvice {
     // THEIR OWN survivors (01/10/2026): the walk from that squad's turn, so a rival played by the advice also waits
     // for who will still be there - without it the invented table rushed the keepers in round one.
     const gone = takenBeforeOurTurn({ ...input, mineId: teamId, rounds: input.calls.rounds });
-    return draftScenarios({ ...input, mineId: teamId, gone }).list;
+    // The exclusions are OURS: a squad played by the advice on the invented table may take anybody.
+    return draftScenarios({ ...input, mineId: teamId, gone, excluded: undefined }).list;
   }
 
   /**

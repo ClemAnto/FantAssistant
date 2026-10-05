@@ -323,6 +323,14 @@ describe('who starts: the fertility contribution (01/10/2026)', () => {
     expect(unknown).toBeLessThan(starterWeight({ ...man('Noto', ['Pc'], 5), share: 0.2, bonus: -0.5 })!);
     expect(starterWeight({ ...man('Mai visto', ['Pc'], 50), share: null, bonus: 1 })).toBeNull();
   });
+
+  it('between two first keepers of two clubs, the stronger door starts (05/10/2026, Vicario over Palmisani)', () => {
+    const strong = starterWeight({ ...man('Vicario', ['Por'], 65), club: 'Juventus', share: 0.86, bonus: 0.3 })!;
+    const weak = starterWeight({ ...man('Palmisani', ['Por'], 22), club: 'Frosinone', share: 0.88, bonus: -0.4 })!;
+    expect(strong).toBeGreaterThan(weak);
+    // A strong club's deputy still does not start over a first keeper who plays.
+    expect(starterWeight({ ...man('Vice', ['Por'], 5), share: 0.1, bonus: 0.6 })!).toBeLessThan(weak);
+  });
 });
 
 describe('the door week by week (01/10/2026)', () => {

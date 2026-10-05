@@ -597,6 +597,21 @@
                     <span data-plan-later class="shrink-0 font-normal tabular-nums text-muted" nz-tooltip
                       [nzTooltipTitle]="laterText(chain.scenario)">poi {{ gainText(chain.scenario.horizon - chain.scenario.total) }}</span>
                   }
+                  <!-- LA X DELLE SOLUZIONI AGGIUNTIVE (sua richiesta, 05/10/2026): toglie il calciatore da cui e' nata.
+                       Uno span e non un bottone, perche' il piano intero e' gia' un bottone. -->
+                  @if (!chain.key.startsWith('auto:')) {
+                    <span
+                      role="button"
+                      tabindex="0"
+                      data-plan-drop
+                      class="ml-auto shrink-0 rounded px-0.5 font-normal text-muted hover:bg-fg/10 hover:text-fg"
+                      nz-tooltip
+                      nzTooltipTitle="Togli questa soluzione"
+                      (click)="$event.stopPropagation(); dropChain(chain.key)"
+                      (keydown.enter)="$event.stopPropagation(); dropChain(chain.key)"
+                      ><nz-icon nzType="close"
+                    /></span>
+                  }
                 </span>
                 <span class="flex min-w-0 items-center gap-1 pl-3">
                   <ui-roles class="shrink-0" [roles]="chain.scenario.first.player.roles" size="xxs" />
@@ -770,11 +785,51 @@
               </button>
             </div>
           </ng-template>
+          @if (picked().size) {
+            <!-- IL CONFRONTO (05/10/2026): la pastiglia accende «solo i selezionati», la crocetta li toglie tutti. -->
+            <span class="ml-auto flex items-center overflow-hidden rounded text-[10px] tabular-nums">
+              <button
+                type="button"
+                data-only-picked
+                [attr.data-on]="onlyPicked() ? '' : null"
+                class="px-1.5"
+                [class]="onlyPicked() ? 'bg-primary/30 font-semibold text-fg' : 'bg-primary/10 text-primary hover:bg-primary/20'"
+                nz-tooltip
+                [nzTooltipTitle]="onlyPicked() ? 'Mostra di nuovo tutti' : 'Mostra solo i selezionati'"
+                (click)="onlyPicked.set(!onlyPicked())"
+              >
+                {{ picked().size }} {{ picked().size === 1 ? 'selezionato' : 'selezionati' }}
+              </button>
+              <button
+                type="button"
+                data-clear-picked
+                class="bg-primary/10 px-1 text-primary hover:bg-primary/20"
+                nz-tooltip
+                nzTooltipTitle="Togli tutte le selezioni"
+                (click)="clearPicked()"
+              ><nz-icon nzType="close" /></button>
+            </span>
+          }
+          @if (advice.excluded().size) {
+            <!-- I CALCIATORI ESCLUSI DAI CONSIGLI, e la via per riammetterli tutti (05/10/2026). -->
+            <button
+              type="button"
+              data-excluded-count
+              class="flex items-center gap-1 rounded bg-danger/15 px-1.5 text-[10px] tabular-nums text-danger"
+              [class.ml-auto]="!picked().size"
+              nz-tooltip
+              nzTooltipTitle="Esclusi dai consigli: premi per riammetterli tutti"
+              (click)="advice.clearExcluded()"
+            >
+              {{ advice.excluded().size }} {{ advice.excluded().size === 1 ? 'escluso' : 'esclusi' }} <nz-icon nzType="close" />
+            </button>
+          }
           @if (takenCount() || onlyTaken()) {
             <button
               type="button"
               data-only-taken
-              class="ml-auto rounded px-1.5 text-[10px] tabular-nums"
+              class="rounded px-1.5 text-[10px] tabular-nums"
+              [class.ml-auto]="!advice.excluded().size && !picked().size"
               [class]="onlyTaken() ? 'bg-warning/25 font-semibold text-warning' : 'bg-fg/10 text-muted hover:text-fg'"
               nz-tooltip
               nzTooltipTitle="Calciatori che gli altri dovrebbero prendere prima del tuo prossimo turno: premi per vedere solo loro"
@@ -783,7 +838,7 @@
               {{ takenCount() }} prima di te
             </button>
           }
-          <span class="text-[10px] tabular-nums text-muted" [class.ml-auto]="!takenCount() && !onlyTaken()" [attr.data-total]="free.total()">
+          <span class="text-[10px] tabular-nums text-muted" [class.ml-auto]="!takenCount() && !onlyTaken() && !advice.excluded().size && !picked().size" [attr.data-total]="free.total()">
             {{ free.shown() }} di {{ free.total() }}
           </span>
         </div>
@@ -914,25 +969,38 @@
               [attr.data-roles]="row.roles.join(',').toLowerCase()"
               [attr.data-club]="row.club"
               [attr.data-next]="nextPlace(row)"
-              class="free-grid cursor-default select-none rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
+              class="free-grid group cursor-default select-none rounded px-1 text-[11px] leading-5 hover:bg-fg/5"
               [class.free-default]="mode() === 'default'"
               [class.free-medie]="mode() === 'medie'"
               [class.free-previste]="mode() === 'previste'"
               [class.free-checks]="mode() === 'checks'"
-              [class.opacity-50]="row.locked || row.full"
+              [class.opacity-50]="row.locked || row.full || advice.excluded().has(row.id)"
               [attr.data-locked]="row.locked ? '' : null"
               [attr.data-full]="row.full ? '' : null"
               [attr.data-fvm]="row.fvm"
               [attr.data-taken-by]="row.takenBy?.id ?? null"
               [class.bg-primary/10]="selectedRow() === row.id"
               [attr.data-selected]="selectedRow() === row.id ? '' : null"
-              (click)="selectRow(row.id)"
+              (click)="$any($event).ctrlKey || $any($event).metaKey ? togglePicked(row.id) : selectRow(row.id)"
               [class.taken]="!!row.takenBy"
               [style.--taken]="row.takenBy?.colour ?? null"
               (dblclick)="take(row)"
             >
               <ui-roles class="min-w-0 overflow-hidden" [roles]="row.roles" size="xs" />
               <span class="flex min-w-0 items-center gap-1">
+                <!-- SELEZIONATO PER IL CONFRONTO (sua richiesta, 05/10/2026): si segna qui (o con Ctrl+click sulla riga),
+                     e la pastiglia in alto mostra solo i segnati. Visibile passando sulla riga, acceso su chi e' segnato. -->
+                <button
+                  type="button"
+                  data-pick
+                  [attr.data-picked]="picked().has(row.id) ? '' : null"
+                  class="flex shrink-0 items-center text-[10px] leading-none"
+                  [class]="picked().has(row.id) ? 'text-primary' : 'text-muted opacity-0 group-hover:opacity-100'"
+                  nz-tooltip
+                  [nzTooltipTitle]="picked().has(row.id) ? 'Selezionato: premi per toglierlo' : 'Seleziona per il confronto'"
+                  (click)="$event.stopPropagation(); togglePicked(row.id)"
+                  (dblclick)="$event.stopPropagation()"
+                ><nz-icon nzType="check-circle" [nzTheme]="picked().has(row.id) ? 'fill' : 'outline'" /></button>
                 <!-- Lo stemma del club PRIMA del nome (sua richiesta, 29/09/2026); dove il pacchetto non ha
                      lo stemma, uno scudo grigio - il nome del club e' gia' scritto nella riga. -->
                 <ui-crest
@@ -950,6 +1018,19 @@
                   >{{ row.name }}</span
                 >
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
+                <!-- ESCLUSO DAI CONSIGLI (sua richiesta, 05/10/2026): i piani non lo propongono piu', i rivali possono
+                     ancora prenderlo. Il tasto si vede passando sulla riga, e resta acceso su chi e' escluso. -->
+                <button
+                  type="button"
+                  data-exclude
+                  [attr.data-excluded]="advice.excluded().has(row.id) ? '' : null"
+                  class="flex shrink-0 items-center text-[10px] leading-none"
+                  [class]="advice.excluded().has(row.id) ? 'text-danger' : 'text-muted opacity-0 group-hover:opacity-100'"
+                  nz-tooltip
+                  [nzTooltipTitle]="advice.excluded().has(row.id) ? 'Escluso dai consigli: premi per riammetterlo' : 'Escludi dai consigli'"
+                  (click)="$event.stopPropagation(); advice.toggleExcluded(row.id)"
+                  (dblclick)="$event.stopPropagation()"
+                ><nz-icon nzType="stop" /></button>
                 <!-- THE ODDS HE IS GONE BEFORE YOUR TURN (operator, 03/10/2026, `rival-odds.ts`): from 0.8 he is marked
                      SURE, because there, on a table the model never saw, 87-100% of such men really went. -->
                 @if (row.odds != null && row.odds >= shownOdds) {
@@ -995,7 +1076,8 @@
                 }
               </span>
               @if (mode() === 'default') {
-                <span class="flex justify-center">
+                <!-- I RIVALI DEL SUO POSTO NELLA SQUADRA REALE, dopo un secondo (sua richiesta, 05/10/2026). -->
+                <span class="flex justify-center" data-rung-rivals nz-tooltip [nzTooltipTitle]="rivalsTip(row.id)" [nzTooltipMouseEnterDelay]="1">
                   @if (row.press) {
                     <span
                       data-rung
@@ -1093,8 +1175,12 @@
 <!-- UN CALCIATORE SUL CAMPETTO, disegnato UNA volta e istanziato per titolari, riserve e suggeriti: due
      copie di questo markup finirebbero per dire la stessa cosa in due modi. -->
 <ng-template #man let-man let-reserve="reserve" let-ghost="ghost">
+  <!-- IL VALORE IN ALTO, ALLINEATO AL NOME, verde se positivo e rosso se negativo, e l'FVM sotto (sue richieste,
+       05/10/2026). Nel draft il valore e' la Draft Priority (segno: sopra o sotto il titolare medio), altrove il
+       valore 0-99, che un segno non ce l'ha e resta neutro. -->
+  @let dp = advice.priorityOn() ? hundredths(advice.priorityOfMan().get(man.id)) : null;
   <span class="flex min-w-0 flex-col" [class.mt-0.5]="reserve">
-    <span class="flex min-w-0 items-center gap-0.5 leading-tight" [class.text-[11px]]="!reserve" [class.text-[10px]]="reserve">
+    <span class="flex min-w-0 items-start gap-0.5 leading-tight" [class.text-[11px]]="!reserve" [class.text-[10px]]="reserve">
       @if (reserve) {
         <span class="shrink-0">↳</span>
       }
@@ -1104,6 +1190,17 @@
         [class.font-medium]="!reserve"
         (click)="openCard(man.id, $event)"
         >{{ man.name }}</span
+      >
+      <span
+        class="ml-auto mt-px flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm px-0.5 text-[9px]
+               font-semibold leading-none tabular-nums"
+        [class]="advice.priorityOn()
+          ? (dp == null ? 'bg-fg/10 text-muted' : dp >= 0 ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger')
+          : (reserve ? 'bg-fg/10' : 'bg-primary text-on-primary')"
+        [class.opacity-70]="reserve && advice.priorityOn()"
+        [attr.data-pitch-dp]="advice.priorityOn() ? '' : null"
+        [attr.data-sign]="dp == null ? null : dp >= 0 ? 'pos' : 'neg'"
+        >{{ advice.priorityOn() ? (dp ?? '—') : (man.value99 ?? '—') }}</span
       >
     </span>
     <span class="flex min-w-0 items-center gap-1" [class.pl-2.5]="reserve">
@@ -1123,12 +1220,8 @@
           >
         }
       }
-      <span
-        class="ml-auto flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm px-0.5 text-[9px]
-               font-semibold leading-none tabular-nums"
-        [class]="reserve ? 'bg-fg/10' : 'bg-primary text-on-primary'"
-        [attr.data-pitch-dp]="advice.priorityOn() ? '' : null"
-        >{{ advice.priorityOn() ? (hundredths(advice.priorityOfMan().get(man.id)) ?? '—') : (man.value99 ?? '—') }}</span
+      <span data-pitch-fvm class="ml-auto shrink-0 text-[9px] leading-none text-muted tabular-nums" nz-tooltip nzTooltipTitle="FVM"
+        >{{ fvmById().get(man.id) ?? '—' }}</span
       >
     </span>
   </span>

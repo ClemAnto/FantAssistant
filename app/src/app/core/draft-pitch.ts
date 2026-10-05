@@ -94,11 +94,23 @@ export interface DraftPitch {
  */
 export const STARTER_FLOOR = 10;
 
+/** A keeper who covers at least half the calendar is a regular: the door's starter is chosen among them first. */
+export const KEEPER_REGULAR = 0.5;
+
 export function starterWeight(man: FantaMan): number | null {
   // A man the sheet cannot price is never a starter (he is drawn as a reserve), as before the rule changed.
   if (man.share == null || man.value == null) return null;
   const cover = Math.min(1, coverOf(man));
-  if (man.roles.some((role) => role === 'por' || role === 'p')) return STARTER_FLOOR + cover;
+  // ...AND NOT ON COVER ALONE (operator, 05/10/2026, on FA-610-2ih: Palmisani, Vicario and Meret, «in campo viene
+  // schierato titolare Palmisani, perché? Il titolare è palese che è Vicario»): the cover alone handed the door to
+  // Palmisani (0.87) over Vicario (0.81), whose door is the stronger (+0.11 against -0.09 of relative fertility). A
+  // keeper's bonus is now read against the average starter, so the outfield rule applies - cover x bonus, Vicario
+  // +0.09 · Meret +0.08 · Palmisani -0.08 - among the REGULARS: a keeper covering under half the calendar (the pitch's
+  // own red line) comes after them, or a negative door would start whoever plays least. `keeperYield` fields the
+  // stronger door first as well, so the drawn starter and the door's yield now say the same thing.
+  if (man.roles.some((role) => role === 'por' || role === 'p')) {
+    return STARTER_FLOOR + (cover >= KEEPER_REGULAR ? 2 : 0) + cover * (man.bonus ?? 0);
+  }
   if (man.bonus == null) return STARTER_FLOOR / 2;
   return STARTER_FLOOR + cover * man.bonus;
 }

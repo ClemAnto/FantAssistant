@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { BoardsFile } from './bundle';
-import { EngineExpectation, placesFrom, ruledExpectation } from './valuation-store';
+import { EngineExpectation, boardViewOf, placeRivals, placesFrom, ruledExpectation } from './valuation-store';
 
 /**
  * Where the drawn elevens put their men, over a WHOLE boards file.
@@ -140,5 +140,29 @@ describe('ruledExpectation', () => {
     expect(out.pv).toBeCloseTo(32.4, 5);
     // Il surplus del foglio non c'e', e non lo si inventa qui: sarebbe un secondo motore.
     expect(out.surplus).toBeNull();
+  });
+});
+
+describe('placeRivals: who disputes his place in the real club (05/10/2026)', () => {
+  const man = (fc_id: number, name: string, extra: object = {}) =>
+    ({ fc_id, name, badge: 'Pc', codes: null, mantra: null, classic: null, role_line: null, role_side: null,
+      minutes: null, matches: null, minutes_club: null, starts_club: null, minutes_per_match: null,
+      starter_prob: null, claim: null, ...extra });
+  const file = {
+    sheet: 's', mode: 'typical', apply_rulings: true,
+    clubs: { Inter: { lines: { A: [man(1, 'Lautaro', { duels: [man(2, 'Esposito'), man(3, 'Taremi', { out_today: true })] })] } } },
+  } as unknown as BoardsFile;
+  const view = boardViewOf(file, 'season');
+
+  it('gives a starter his duels and a rival the starter plus the others', () => {
+    expect(placeRivals(view, 1)).toEqual({ badge: 'Pc', starter: true, rivals: [
+      { name: 'Esposito', starter: false, out: false }, { name: 'Taremi', starter: false, out: true }] });
+    expect(placeRivals(view, 2)).toEqual({ badge: 'Pc', starter: false, rivals: [
+      { name: 'Lautaro', starter: true, out: false }, { name: 'Taremi', starter: false, out: true }] });
+  });
+
+  it('is null for a man the board does not name, which is not «no rival»', () => {
+    expect(placeRivals(view, 99)).toBeNull();
+    expect(placeRivals(null, 1)).toBeNull();
   });
 });

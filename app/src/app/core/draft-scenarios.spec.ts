@@ -294,3 +294,19 @@ describe('a keeper who is not the first of his club waits for an anchor (01/10/2
     expect(keeperAllowed(empty, asPlan(second), base, 6)).toBe(true);
   });
 });
+
+describe('the men the operator excluded from the advice (05/10/2026)', () => {
+  it('never opens or continues a plan on an excluded man, and the rivals still may take him', () => {
+    const everybody = population();
+    const bonusDc = man('dc', 7.2, 0.9, 5);
+    const pool = [man('por', 5.2, 0.9, 5), bonusDc, man('c', 6.5, 0.9, 30), man('pc', 7.4, 0.9, 40)];
+    const base = input(pool, everybody);
+    expect(scenarios(base, 3).list[0].first.player.id).toBe(bonusDc.id);
+    const ctx = { ...base, excluded: new Set([bonusDc.id]) };
+    const ours = scenarios(ctx, 3).list.flatMap((chain) =>
+      [chain.first.player.id, chain.second?.player.id, ...chain.later.map((step) => step.player.id)]);
+    expect(ours).not.toContain(bonusDc.id);
+    // A rival's own moves ignore OUR exclusions.
+    expect(movesFor(ctx.teams[1], ctx.pool, ctx).some((step) => step.player.id === bonusDc.id)).toBe(true);
+  });
+});
