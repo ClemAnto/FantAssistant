@@ -1386,13 +1386,18 @@ async function main() {
     await wait(500);
     const keepers = await evaluate(session, () => {
       const rows = [...document.querySelectorAll('[data-free]')].filter((one) => one.getAttribute('data-roles')?.split(',').includes('p'));
-      return { rows: rows.length, bonus: rows.filter((one) => one.querySelector('[data-check-ok="bonus"]')).length };
+      return {
+        rows: rows.length,
+        bonus: rows.filter((one) => one.querySelector('[data-check-ok="bonus"]')).length,
+        tips: rows.map((one) => one.querySelector('[data-check="bonus"]')?.getAttribute('data-check-tip') ?? ''),
+      };
     });
     await mouse(await evaluate(session, centre, '[data-role-filter="p"]'));
     await wait(500);
-    note('checks portieri', `${keepers?.bonus} badge bonus su ${keepers?.rows} portieri caricati`, [
+    note('checks portieri', `${keepers?.bonus} badge bonus su ${keepers?.rows} portieri caricati (${keepers?.tips.join(' | ')})`, [
       ...(!keepers?.rows ? ['nessun portiere da guardare'] : []),
-      ...(keepers && (keepers.bonus === 0 || keepers.bonus === keepers.rows) ? ['il bonus dei portieri non separa'] : []),
+      // On the handful of keepers loaded a badge can rightly be on none of them: what must hold is that they are READ.
+      ...(keepers && !keepers.tips.some((tip) => /soglia/.test(tip)) ? ['nessun portiere confrontato con una soglia'] : []),
     ]);
     await mouse(await evaluate(session, centre, '[data-free-head] [data-sort="ck-fm"]'));
     await wait(500);

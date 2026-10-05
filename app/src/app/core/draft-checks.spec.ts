@@ -1,4 +1,4 @@
-import { CheckMan, checkBars, checksOf, keeperPlusShare, lastStint, quantile, stintPresence } from './draft-checks';
+import { CheckMan, checkBars, checksOf, cleanShare, lastStint, quantile, stintPresence } from './draft-checks';
 import { MatchCell } from './players-store';
 
 const man = (over: Partial<CheckMan> & { id: number }): CheckMan => ({
@@ -66,10 +66,10 @@ describe('draft checks', () => {
     expect(checks.get(1)!.bonus.ok).toBe(false);
   });
 
-  it('counts a keeper match as positive when the fantavoto beats the base vote', () => {
+  it('counts a match when the fantavoto is not below the base vote', () => {
     const cell = (vote: number, fantavoto: number) =>
       ({ kind: 'league', state: 'played', vote, fantavoto } as unknown as MatchCell);
-    const read = keeperPlusShare([cell(6, 7), cell(6, 5), cell(6.5, 6.5), cell(6, 9)]);
+    const read = cleanShare([cell(6, 7), cell(6, 5), cell(6.5, 6.5), cell(6, 4.5)]);
     expect(read.rated).toBe(4);
     expect(read.share).toBeCloseTo(0.5);
   });

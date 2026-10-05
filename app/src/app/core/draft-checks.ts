@@ -8,7 +8,7 @@ import { MatchCell, isChampionship } from './players-store';
  *           names the press);
  * - `mv`    last season's base vote is at least 6;
  * - `fm`    last season's fantamedia (scored or rebuilt on the synthetic vote) is good IN HIS ROLE;
- * - `bonus` the share of his matches with at least one bonus, last season, is good in his role;
+ * - `bonus` the share of his matches with bonus minus malus at least zero, last season, is good in his role;
  * - `cont`  the share of his matches closed with a sufficient base vote (the Costanza) is good in his role;
  * - `m`     last season's MINUTES PER APPEARANCE are good in his role (operator, 04/10/2026: «ottimo minutaggio»).
  *           Per appearance and not the total, so it does not repeat `p`: the total is appearances × minutes;
@@ -16,10 +16,13 @@ import { MatchCell, isChampionship } from './players-store';
  * - `trend` the base-vote mean of his club's last five matches, a 5 for every one he did not play or got no
  *           vote in (`player-trend.trendVoteMean`, the Strategy's own reading), is good in his role.
  *
- * THE KEEPER'S `bonus` IS ANOTHER QUESTION (operator, 04/10/2026): a keeper's bonuses are few and his malus is
- * the goals he concedes, so for him the check reads how often his bonus minus malus is POSITIVE - fantavoto
- * above the base vote (`keeperPlusShare`). The checks on a share or a count also require it above zero: a bar
- * that falls on zero would otherwise hand the badge to everybody.
+ * `bonus` READS BONUS MINUS MALUS >= 0, FOR EVERY ROLE (operator, 04/10/2026, in two steps): first for keepers
+ * only - their bonuses are few and their malus is the goals conceded, and «> 0» averaged 2% of matches over the 24
+ * Serie A keepers of 2025-26 with 10+ matches, separating nobody, where «>= 0» runs from 12% to 48% - then «vale per
+ * tutti»: a match not spoiled by a card, an own goal or a missed penalty, i.e. fantavoto at least the base vote
+ * (`cleanShare`). It replaced «at least one bonus», which `match-frequency` still reads for the Strategy. The checks
+ * on a share or a count also require it above zero: a bar that falls on zero would otherwise hand the badge to
+ * everybody.
  *
  * «GOOD IN HIS ROLE» IS THE TOP THIRD (`GOOD_QUANTILE`), a declared choice: a badge must separate, and a third
  * of a role's regulars is about as many men as a ten-team league fields in it (a keeper per squad of 22, four
@@ -78,16 +81,16 @@ export type CheckKey = 'tit' | 'mv' | 'fm' | 'bonus' | 'cont' | 'm' | 'p' | 'tre
 export const CHECK_KEYS: readonly CheckKey[] = ['tit', 'mv', 'fm', 'bonus', 'cont', 'm', 'p', 'trend'];
 
 /**
- * A KEEPER'S POSITIVE MATCHES: the share of his voted league matches where bonus minus malus is above zero, i.e.
- * the fantavoto is above the base vote. Over the matches with BOTH numbers; null when there is none.
+ * HIS MATCHES WITHOUT A MINUS: the share of his voted league matches where bonus minus malus is at least zero, i.e.
+ * the fantavoto is not below the base vote. Over the matches with BOTH numbers; null when there is none.
  */
-export function keeperPlusShare(cells: readonly MatchCell[]): { share: number | null; rated: number } {
+export function cleanShare(cells: readonly MatchCell[]): { share: number | null; rated: number } {
   const rated = cells.filter(
     (one) => isChampionship(one.kind) && one.state === 'played' && one.vote != null && one.fantavoto != null,
   );
   if (!rated.length) return { share: null, rated: 0 };
   return {
-    share: rated.filter((one) => (one.fantavoto as number) > (one.vote as number)).length / rated.length,
+    share: rated.filter((one) => (one.fantavoto as number) >= (one.vote as number)).length / rated.length,
     rated: rated.length,
   };
 }

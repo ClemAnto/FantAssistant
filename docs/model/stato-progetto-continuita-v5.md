@@ -10428,5 +10428,15 @@ committati due file app di un'altra sessione (`auction-advice.ts`, `views/auctio
 ## 4 ottobre 2026 — LA VISTA «CHECKS» DEL DRAFT
 Otto condizioni si'/no per svincolato (tit · mv · fm · bonus · cont · m · p · trend), pallini con icona, soglie al
 terzo migliore del ruolo sul listone intero, letture di stagione dal periodo nel club con cui l'ha chiusa (caso
-Malen). `core/draft-checks.ts`. Dettaglio e aperti (il bonus dei portieri a «> 0» quasi vuoto, proposto «>= 0"):
+Malen); il check bonus e' bonus-malus >= 0 per tutti i ruoli (sua decisione). `core/draft-checks.ts`.
+Dettaglio e aperti:
 `priorita-draft-v1.md` §37. Nessun numero del motore.
+
+## 5 ottobre 2026 — IL PREZZO DELLA PORTA VUOTA CONTA UNA PORTA, NON TRE
+Su FA-610-2ih (draft classic live, 5ª scelta, squadra senza portiere) il +Rosa dei portieri era quasi tutto
+copertura del buco: `doorHolePrice` contava i 3 posti portiere aperti, 3/21 x 4,73 = 0,68 a giornata, e Palmisani
+(+51, di cui +59 buco) superava ogni difensore libero (+30/+38). Un portiere chiude la porta, gli altri due li impone
+la quota: ora `min(1, aperti)`. Mandas +74 -> +37, Caprile +58 -> +19, Falcone +40 -> 0 (`draft-pitch.ts`, test).
+`sim-draft-advice` 4+4 draft contro rivali umani: primo portiere alla scelta 4-7 invece che alla 2 (3 su 4, Svilar),
+porta coperta 96-100% in tutti; fertilita' del campo 605 contro 668 in media, scarto tutto in un draft (486): rumore
+su 4 draft, non un verdetto. v0.1.37.

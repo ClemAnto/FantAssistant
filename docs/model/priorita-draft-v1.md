@@ -1199,7 +1199,7 @@ nessun `SHEET_REVISION`. Codice: `core/draft-checks.ts` (puro, con i test), la v
 | tit | team | gradino della STAMPA `titolare` o `bandiera` (il gradino del motore non conta) |
 | mv | star | media voto della stagione scorsa >= 6 |
 | fm | trophy | fantamedia della stagione scorsa (vera o sintetica) nel terzo migliore del ruolo |
-| bonus | fire | quota di partite con almeno un bonus; **per i portieri** quota con bonus-malus > 0 (fantavoto sopra il voto) |
+| bonus | fire | quota di partite con bonus-malus >= 0 (fantavoto non sotto il voto), per tutti i ruoli |
 | cont | safety | Costanza (quota di voti base >= 6) nel terzo migliore del ruolo |
 | m | clock | minuti a presenza della stagione scorsa nel terzo migliore del ruolo |
 | p | calendar | QUOTA di presenze sulle giornate del suo club da quando e' arrivato, terzo migliore del ruolo |
@@ -1226,8 +1226,12 @@ Il pallino con l'icona e' sua richiesta («occupano troppo spazio»): 1,1rem a c
 Verificato: 1348 test unitari, build pulita, banco `e2e-draft` con quattro passi nuovi (checks: 60 righe, segni tit 46 ·
 mv 13 · fm 8 · bonus 15 · cont 24 · m 22 · p 20 · trend 42, colonne centrate; Malen; portieri; ordinamento).
 
-**Aperti**: il bonus dei portieri a «> 0» quasi non esiste - sulle 24 porte di Serie A 2025-26 con 10+ partite la quota
-media e' il **2%**, la soglia il 3%, la migliore l'11% (cioe' rigore parato o assist senza gol subiti); con «>= 0»
-(porta inviolata senza malus) va dal 12% al 48% e separa. Proposto, **decisione sua**. cont e trend non sono ristretti
+**Il bonus dei portieri e' «>= 0» e non «> 0»** (sua decisione, stesso giorno, coi numeri davanti): a «> 0» sulle 24
+porte di Serie A 2025-26 con 10+ partite la quota media e' il **2%**, la soglia il 3%, la migliore l'11% (rigore parato o
+assist senza gol subiti), cioe' non separa; a «>= 0» (in pratica porta inviolata senza malus) va dal 12% al 48%. Poi, subito dopo, **«vale per tutti»**: la colonna non conta piu' le partite con almeno un bonus ma quelle senza un
+malus netto (niente ammonizione, autogol, rigore sbagliato non compensati), per ogni ruolo - per un attaccante e' quasi
+«non si fa ammonire» (Malen 94% contro una soglia del 97%).
+
+**Aperti**: cont e trend non sono ristretti
 al periodo nel club; p e' generosa per chi giocava all'estero, dove il livello per-partita porta solo le partite in cui
 era convocato.

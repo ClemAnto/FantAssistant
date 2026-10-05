@@ -35,9 +35,8 @@ import { PlayersStore, type Platform } from '../../core/players-store';
 import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } from '../../core/season-line';
 import { RUNG_RANK, Rarity, rarityText, shownRung } from '../../core/draft-rarity';
 import {
-  CheckCell, CheckKey, CheckMan, Checks, checksOf, keeperPlusShare, lastStint, minutesPerAppearance, stintPresence,
+  CheckCell, CheckKey, CheckMan, Checks, checksOf, cleanShare, lastStint, minutesPerAppearance, stintPresence,
 } from '../../core/draft-checks';
-import { matchFrequencies } from '../../core/match-frequency';
 import { paOnSeason } from '../../core/presence-now';
 import { SHOWN_ODDS, SURE_ODDS } from '../../core/rival-odds';
 import { onSeasonBase } from '../../core/season-scale';
@@ -1666,7 +1665,7 @@ export class Auction {
     { key: 'tit', label: 'tit', icon: 'team', hint: 'Titolarità della stampa: titolare o meglio' },
     { key: 'mv', label: 'mv', icon: 'star', theme: 'fill', hint: 'Media voto della stagione scorsa almeno 6' },
     { key: 'fm', label: 'fm', icon: 'trophy', hint: 'Fantamedia della stagione scorsa nel terzo migliore del ruolo' },
-    { key: 'bonus', label: 'bonus', icon: 'fire', hint: 'Partite con almeno un bonus (portieri: bonus-malus > 0), stagione scorsa: terzo migliore del ruolo' },
+    { key: 'bonus', label: 'bonus', icon: 'fire', hint: 'Partite con bonus-malus ≥ 0, stagione scorsa: terzo migliore del ruolo' },
     { key: 'cont', label: 'cont', icon: 'safety', hint: 'Sufficienze (costanza): terzo migliore del ruolo' },
     { key: 'm', label: 'm', icon: 'clock-circle', hint: 'Minuti a presenza, stagione scorsa: terzo migliore del ruolo' },
     { key: 'p', label: 'p', icon: 'calendar', hint: 'Quota di presenze della stagione scorsa da quando è arrivato: terzo migliore del ruolo' },
@@ -1681,7 +1680,6 @@ export class Auction {
     const platform = this.linesPlatform() ?? this.advice.entry()?.platform ?? 'default';
     const last = this.seasons().last;
     const press = this.rulings.press();
-    const scoring = this.players.scoring();
     const ready = this.players.ready();
     const voteTrends = this.voteTrends();
     const men: CheckMan[] = [];
@@ -1694,9 +1692,8 @@ export class Auction {
       const cells = ready && last ? lastStint(this.players.matchesOf(player.id, platform, last)) : null;
       const line = cells && last ? seasonLineFromMatches(cells, last) : this.lineOf(player.id, 'last');
       const presence = cells ? stintPresence(cells) : null;
-      const frequencies = cells ? matchFrequencies(cells, scoring) : null;
       const minutes = cells ? minutesPerAppearance(cells) : null;
-      const keeper = zone === 'P' && cells ? keeperPlusShare(cells) : null;
+      const clean = cells ? cleanShare(cells) : null;
       const recent = voteTrends.get(player.id) ?? [];
       men.push({
         id: player.id,
@@ -1707,8 +1704,8 @@ export class Auction {
         rounds: presence?.rounds ?? 0,
         mv: line?.mv ?? null,
         fm: line?.fm ?? null,
-        bonus: zone === 'P' ? (keeper?.share ?? null) : (frequencies?.bonus ?? null),
-        played: zone === 'P' ? (keeper?.rated ?? null) : (frequencies?.played ?? null),
+        bonus: clean?.share ?? null,
+        played: clean?.rated ?? null,
         steady: this.ratings.for(platform, player.id)?.steady?.share ?? null,
         minutes: minutes?.minutes ?? null,
         timed: minutes?.timed ?? null,
