@@ -532,7 +532,12 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # liste scende dello 0,2-1,4% su ogni finestra (stesso segno, dentro la tolleranza del 2%), mentre
     # i nomi SALGONO (138 -> 141). INERTE su ogni finestra pre-stagione: senza partite viste il ramo
     # non esiste, quindi nessun numero pubblicato si muove.
-    "default": ("R3", "R7", "R13", "R19", "R20K10", "R23", "R25K40"),
+    # R29 adottata il 05/10/2026 su `default` per decisione dell'operatore (§7-tresexagies bis): STRICT su
+    # classic (+2,57%, 3/3) e mantra (+1,13%, 3/3), anche contro questo set, nomi 38 -> 39 e 138 = 138. Il
+    # gradino di evidenza e' il piu' basso (l'ipotesi viene dagli stessi esiti che il gate giudica), quindi
+    # si rigiudica su T3 a stagione chiusa col lambda di oggi e, se peggiora, esce senza discutere. Nato dal
+    # caso Zaccagni (2025-26: 3 gol su 4,1 xG, 0 assist su 2,7 xA). NON su euro: ridondante con R18.
+    "default": ("R3", "R7", "R13", "R19", "R20K10", "R23", "R25K40", "R29"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
 # * accuracy rules are judged on the players they MOVE, with a 0.5% floor. That made R4 and R10 much

@@ -2567,7 +2567,7 @@ i due banchi che erano rossi su HEAD. Quello che resta e' piccolo e tutto dichia
 
 ## Aperti dopo la sessione del 27/09/2026 — xG e xA nel motore
 
-1. **LA DECISIONE SU R29 È DELL'OPERATORE, e se la prende i passi sono quattro.** R29 passa strict su
+1. ~~**LA DECISIONE SU R29 È DELL'OPERATORE, e se la prende i passi sono quattro.**~~ **FATTO il 05/10/2026**: adottata su `default`, rev 83, `--verify` 22/22 (immobile, non si muove come previsto qui), fogli Serie A, export e pull rifatti (gate §7-tresexagies bis). R29 passa strict su
    `default` in tutt'e due i giochi e contro il set adottato (`gate-motore-v1.md` §7-tresexagies bis),
    con l'evidenza del gradino più basso. Se sì: `"R29"` in `ADOPTED["default"]`; rifare
    `backtest --verify` e **aspettarsi che si muova** (R29 agisce su T1/T2, che sono le finestre

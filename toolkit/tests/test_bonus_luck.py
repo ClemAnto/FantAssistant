@@ -115,9 +115,13 @@ def test_r29_tace_dove_la_stagione_di_input_non_ha_gli_attesi(tmp_path):
         {p.obs.fc_id: p.fm_pred for p in evaluate.predict_window(data, ("R0", "R29"), params=params)})
 
 
-def test_dichiarate_e_nessuna_adottata():
+def test_r29_adottata_solo_su_default_e_r30_da_nessuna_parte():
+    # Fino al 05/10/2026 nessuna delle due era adottata; quel giorno l'operatore ha adottato R29 su
+    # `default` (gate §7-tresexagies bis). Su euro resta fuori (ridondante con R18), R30 non batte R25.
     declared = {rule.key for rule in evaluate.RULES}
     assert {"R29", *evaluate.R30_MATCHES} <= declared
     assert {"R29", *evaluate.R30_MATCHES} <= set(evaluate.CANDIDATES)
+    assert "R29" in evaluate.ADOPTED["default"]
+    assert "R29" not in evaluate.ADOPTED["euro"]
     for adopted in evaluate.ADOPTED.values():
-        assert not any(key == "R29" or key.startswith("R30") for key in adopted)
+        assert not any(key.startswith("R30") for key in adopted)

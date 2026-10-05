@@ -938,7 +938,10 @@ SQUAD_APPEARANCE_MONTHS = 14
 #      letture-app-v1.md §57-§58): la promozione «nessun contendente» dell'08/09 non scatta piu' accanto a un
 #      rivale `panchina`. Giudicato sull'esito di quattro fogli retrodatati, 4 su 4. Muove `desc_titolarita`
 #      (titolare -> ballottaggio) e il gradino dei campetti; `engine_*` fermo.
-SHEET_REVISION = 82
+#   83 (05/10/2026) - R29 ADOTTATA SU `default` (gate §7-tresexagies bis): la fortuna della stagione scorsa,
+#      3·(xG−gol)+(xA−assist) per presenza, si toglie dalla fantamedia attesa. Muove `engine_fm_pred` (e
+#      surplus, valore, est_*) dei fogli Serie A; euro fermo. Zaccagni 6,26 -> ~6,38.
+SHEET_REVISION = 83
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the

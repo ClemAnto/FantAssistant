@@ -7250,6 +7250,16 @@ gradino più basso (l'ipotesi viene dagli stessi esiti, §7-tresexagies «Contam
 **R30: non adottata** su nessuna piattaforma. Nessuna delle due è in `ADOPTED` alla scrittura di questa
 sezione.
 
+**ADOTTATA il 05/10/2026 su `default`** (`ADOPTED["default"]`, `SHEET_REVISION` 83), decisione dell'operatore
+nata dal caso Zaccagni (2025-26: 3 gol su 4,1 xG, 0 assist su 2,7 xA; DP sul draft FA-610-2ih −7).
+`backtest --verify` **22/22** e immobile: i 22 controlli leggono il nucleo e le presenze, non il residuo della
+fantamedia su cui R29 agisce, quindi l'attesa scritta nella todolist («aspettarsi che si muova») non si è
+avverata, e lo zero è stato verificato e non dedotto. Sul foglio Serie A classic `engine_fm_pred` si muove
+su 240 righe di 293: Zaccagni 6,260 → **6,418**, Kean 6,722 → 7,278, Martinez L. 7,728 → 7,401, Thuram
+7,472 → 7,125, Calhanoglu 6,995 → 6,647 - più grandi dell'illustrazione a λ 0,54 qui sopra, perché il λ
+fittato sulle tre finestre arriva a 0,78. Si rigiudica su T3 a stagione chiusa col λ di oggi
+(todolist, aperto 2): se peggiora, esce senza discutere. Su euro resta fuori.
+
 ## 7-quattuorsexagies. PRE-REGISTRAZIONE (30 settembre 2026) — R31: UNA STAGIONE CORTA NON CANCELLA LA CARRIERA
 
 **Scritta e committata PRIMA della corsa.** Dal caso che l'operatore ha portato sul Draft Assistant:
