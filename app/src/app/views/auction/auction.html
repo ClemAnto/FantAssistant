@@ -1035,7 +1035,10 @@
                   [nzTooltipTitle]="picked().has(row.id) ? 'Selezionato: premi per toglierlo' : 'Seleziona per il confronto'"
                   (click)="$event.stopPropagation(); togglePicked(row.id)"
                   (dblclick)="$event.stopPropagation()"
-                ><nz-icon nzType="check-circle" [nzTheme]="picked().has(row.id) ? 'fill' : 'outline'" /></button>
+                ><!-- SVG IN LINEA e non nz-icon (05/10/2026, «lo scroll si incaglia»): ogni nz-icon che nasce risolve il
+                     suo SVG in modo asincrono e fa un detectChanges, e due per riga per sessanta righe a ogni pezzo
+                     caricato erano mezzo secondo di blocco. Stesso disegno di check-circle di antd. -->
+                  @if (picked().has(row.id)) {<svg viewBox="64 64 896 896" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm193.5 301.7l-210.6 292a31.8 31.8 0 01-51.7 0L318.5 484.9c-3.8-5.3 0-12.7 6.5-12.7h46.9c10.2 0 19.9 4.9 25.9 13.3l71.2 98.8 157.2-218c6-8.3 15.6-13.3 25.9-13.3H699c6.5 0 10.3 7.4 6.5 12.7z" /></svg>} @else {<svg viewBox="64 64 896 896" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M699 353h-46.9c-10.2 0-19.9 4.9-25.9 13.3L469 584.3l-71.2-98.8c-6-8.3-15.6-13.3-25.9-13.3H325c-6.5 0-10.3 7.4-6.5 12.7l124.6 172.8a31.8 31.8 0 0051.7 0l210.6-292c3.9-5.3.1-12.7-6.4-12.7z" /><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z" /></svg>}</button>
                 <!-- Lo stemma del club PRIMA del nome (sua richiesta, 29/09/2026); dove il pacchetto non ha
                      lo stemma, uno scudo grigio - il nome del club e' gia' scritto nella riga. -->
                 <ui-crest
@@ -1075,7 +1078,7 @@
                   [nzTooltipTitle]="advice.excluded().has(row.id) ? 'Escluso dai consigli: premi per riammetterlo' : 'Escludi dai consigli'"
                   (click)="$event.stopPropagation(); advice.toggleExcluded(row.id)"
                   (dblclick)="$event.stopPropagation()"
-                ><nz-icon nzType="stop" /></button>
+                ><svg viewBox="64 64 896 896" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372 0-89 31.3-170.8 83.5-234.8l523.3 523.3C682.8 852.7 601 884 512 884zm288.5-137.2L277.2 223.5C341.2 171.3 423 140 512 140c205.4 0 372 166.6 372 372 0 89-31.3 170.8-83.5 234.8z" /></svg></button>
                 <!-- THE ODDS HE IS GONE BEFORE YOUR TURN (operator, 03/10/2026, `rival-odds.ts`): from 0.8 he is marked
                      SURE, because there, on a table the model never saw, 87-100% of such men really went. -->
                 @if (row.odds != null && row.odds >= shownOdds) {
@@ -1122,7 +1125,7 @@
               </span>
               @if (mode() === 'default') {
                 <!-- I RIVALI DEL SUO POSTO NELLA SQUADRA REALE, dopo un secondo (sua richiesta, 05/10/2026). -->
-                <span class="flex justify-center" data-rung-rivals nz-tooltip [nzTooltipTitle]="rivalsTip(row.id)" [nzTooltipMouseEnterDelay]="1">
+                <span class="flex justify-center" data-rung-rivals nz-tooltip [nzTooltipTitle]="rivalsTips().get(row.id) ?? 'Fuori dalla formazione tipo'" [nzTooltipMouseEnterDelay]="1">
                   @if (row.press) {
                     <span
                       data-rung
@@ -1220,7 +1223,7 @@
 <!-- UN CALCIATORE SUL CAMPETTO, disegnato UNA volta e istanziato per titolari, riserve e suggeriti: due
      copie di questo markup finirebbero per dire la stessa cosa in due modi. -->
 <ng-template #man let-man let-reserve="reserve" let-ghost="ghost">
-  <!-- IL VALORE IN ALTO, ALLINEATO AL NOME, verde se positivo e rosso se negativo, e l'FVM sotto (sue richieste,
+  <!-- IL VALORE IN ALTO, ALLINEATO AL NOME, verde se positivo e rosso se negativo (sue richieste,
        05/10/2026). Nel draft il valore e' la Draft Priority (segno: sopra o sotto il titolare medio), altrove il
        valore 0-99, che un segno non ce l'ha e resta neutro. -->
   @let dp = advice.priorityOn() ? hundredths(advice.priorityOfMan().get(man.id)) : null;
@@ -1235,6 +1238,10 @@
         [class.font-medium]="!reserve"
         (click)="openCard(man.id, $event)"
         >{{ man.name }}</span
+      >
+      <!-- L'FVM SUBITO DOPO IL NOME (sua richiesta, 05/10/2026): prima stava in fondo alla seconda riga. -->
+      <span data-pitch-fvm class="mt-px shrink-0 text-[9px] leading-none text-muted tabular-nums" nz-tooltip nzTooltipTitle="FVM"
+        >{{ fvmById().get(man.id) ?? '—' }}</span
       >
       <span
         class="ml-auto mt-px flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-sm px-0.5 text-[9px]
@@ -1265,9 +1272,6 @@
           >
         }
       }
-      <span data-pitch-fvm class="ml-auto shrink-0 text-[9px] leading-none text-muted tabular-nums" nz-tooltip nzTooltipTitle="FVM"
-        >{{ fvmById().get(man.id) ?? '—' }}</span
-      >
     </span>
   </span>
 </ng-template>

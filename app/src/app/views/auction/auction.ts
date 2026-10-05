@@ -1789,8 +1789,30 @@ export class Auction {
   private readonly seasonBoards = computed(() =>
     boardViewOf(this.valuation.boardsFor(this.advice.entry()?.platform ?? 'default'), 'season'));
 
+  /**
+   * THE TITOLARITÀ TOOLTIP OF EVERY MAN THE BOARDS NAME, computed ONCE per boards file (05/10/2026, «lo scroll si
+   * incaglia»): bound as a method, `placeRivals` walked every club of the boards for every row at every change
+   * detection - 0.2 s of the half second each loaded batch blocked the list. A man the boards do not name reads
+   * «Fuori dalla formazione tipo» at the call site, as before.
+   */
+  protected readonly rivalsTips = computed(() => {
+    const view = this.seasonBoards();
+    const out = new Map<number, string>();
+    if (!view) return out;
+    for (const board of Object.values(view.clubs)) {
+      for (const line of Object.values(board.lines ?? {})) {
+        for (const starter of line) {
+          for (const id of [starter.fc_id, ...(starter.duels ?? []).map((one) => one.fc_id)]) {
+            if (id != null && !out.has(id)) out.set(id, this.rivalsTip(id));
+          }
+        }
+      }
+    }
+    return out;
+  });
+
   /** Who disputes his place in his real club's typical eleven, for the Titolarità column's tooltip. */
-  protected rivalsTip(id: number): string {
+  private rivalsTip(id: number): string {
     const found = placeRivals(this.seasonBoards(), id);
     if (!found) return 'Fuori dalla formazione tipo';
     const place = found.badge ? ` (${found.badge})` : '';
