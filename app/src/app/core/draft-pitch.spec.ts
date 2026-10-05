@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { DOOR_HOLE_COST, DraftPlace, addedYield, combinedCover, coverOf, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
+import { DOOR_HOLE_COST, DraftPlace, doorHolePrice, addedYield, combinedCover, coverOf, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 
 /**
@@ -348,6 +348,13 @@ describe('the door week by week (01/10/2026)', () => {
 });
 
 describe('the price of an uncovered door (01/10/2026)', () => {
+  it('counts ONE open door however many keeper places the roster still has (05/10/2026, FA-610-2ih)', () => {
+    // Three open places used to read three times the urgency of a door one keeper closes.
+    expect(doorHolePrice(3, 21)).toBeCloseTo(DOOR_HOLE_COST / 21, 9);
+    expect(doorHolePrice(1, 21)).toBeCloseTo(DOOR_HOLE_COST / 21, 9);
+    expect(doorHolePrice(0, 21)).toBe(0);
+    expect(doorHolePrice(3, 1)).toBeCloseTo(DOOR_HOLE_COST, 9);
+  });
   it('charges DOOR_HOLE_COST for every week nobody covers, so a deputy is worth his cover', () => {
     expect(placeYield(place('P', ['por'], null))).toEqual({ cover: 0, fertility: -DOOR_HOLE_COST });
     const first = { ...man('Titolare', ['Por'], 10), club: 'Uno', share: 0.8, bonus: 0, weeks: [0] };

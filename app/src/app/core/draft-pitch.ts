@@ -341,12 +341,18 @@ export const DOOR_HOLE_COST = 4.73;
  * THE PRICE OF A DOOR WEEK NOBODY COVERS, AT THIS POINT OF THE DRAFT (operator, 01/10/2026: «il costo della porta
  * vuota cresce man mano che le scelte finiscono»). While the draft still has picks to fill the door, an uncovered
  * week is a hole only in the share of the picks left that the door will have to take: `DOOR_HOLE_COST` x keeper
- * places still open / picks left, so 3 open places with 25 picks read 0.57, and the whole 4.73 once every pick left
- * must be a keeper. DECLARED, and the same price before and after a move, so a pick is never paid for closing it.
+ * places still open / picks left, so an open door with 25 picks reads 0.19, and the whole 4.73 at the last pick.
+ * DECLARED, and the same price before and after a move, so a pick is never paid for closing it.
+ *
+ * ONE door, so at most ONE open place counts (operator, 05/10/2026, on FA-610-2ih: «i portieri hanno un +Rosa
+ * troppo alto»). With all three keeper places open the price read 3/21 x 4.73 = 0.68 at pick 5, and on a squad with
+ * no keeper the hole it covers was most of every keeper's +Rosa: Palmisani +51 of which +59 hole, Falcone +40 of
+ * which +59, against +30/+38 for the best free defenders. A single keeper covers the door; the other two places the
+ * roster quota fills anyway, so they are no extra urgency. With one place: 0.23, Mandas +74 -> +37, Falcone -> 0.
  */
 export function doorHolePrice(keeperPlacesOpen: number, picksLeft: number): number {
   if (picksLeft <= 0) return DOOR_HOLE_COST;
-  return DOOR_HOLE_COST * Math.min(1, Math.max(0, keeperPlacesOpen) / picksLeft);
+  return DOOR_HOLE_COST * Math.min(1, Math.min(1, Math.max(0, keeperPlacesOpen)) / picksLeft);
 }
 
 function keeperYield(men: readonly FantaMan[], doorHole: number): { cover: number; fertility: number | null } {
