@@ -92,6 +92,9 @@ import { PlayerMark, PlayerStatus } from './player-status';
 import { presenceNowShares } from './presence-now';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
 
+/** The categories that count as a department's top (operator, 06/10/2026: «top/semitop»). */
+const TOP_CATEGORIES: ReadonlySet<string> = new Set(['super', 'top', 'semi']);
+
 /**
  * THE KEEPERS' WEEK BY WEEK READING - the calendar and the pairing bonus (`keeperWeeksBy`) - is OFF (operator,
  * 01/10/2026: «per il momento togliamo i bonus per gli accoppiamenti e il calendario»). One switch, so it comes back
@@ -1924,6 +1927,7 @@ export class AuctionAdvice {
     const matchdays = this.matchdaysTarget();
     if (!input || !worth || !matchdays) return null;
     const men = this.priorityMen();
+    const numbers = this.numbers();
     return {
       teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
       mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks, orderType: input.orderType,
@@ -1937,6 +1941,8 @@ export class AuctionAdvice {
       keepers: this.keeperShirts(),
       excluded: this.excluded(),
       likelyGone: this.likelyGone(),
+      // Every department wants its top (`draft-scenarios.TOP_LEFT_MIN`): the SHEET's category, never re-derived.
+      isTop: (id) => TOP_CATEGORIES.has(numbers.get(id)?.category ?? ''),
     };
   });
 

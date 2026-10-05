@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PlanPlayer, PlanTeam, startingPlaces } from './auction-plan';
 import { PriorityMan, PriorityRules, WorthContext, roleStats } from './draft-priority';
-import { CHAIN_TURNS, ScenarioInput, chainFrom, diagnose, interestIn, judge, keeperAllowed, movesFor, pickVaried, rankGain, scenarios, squadWorth, Scenario } from './draft-scenarios';
+import { CHAIN_TURNS, ScenarioInput, ScenarioStep, TOP_LEFT_MIN, bareLines, crowdedSide, urgentTops, chainFrom, diagnose, interestIn, judge, keeperAllowed, movesFor, pickVaried, rankGain, scenarios, squadWorth, Scenario } from './draft-scenarios';
 import { SURVIVOR_DISCOUNT } from './auction-plan';
 
 /** One shape: a door, two Dc, one C, one Pc. */
@@ -125,6 +125,59 @@ describe('the move that gives the WHOLE squad most', () => {
     // Ranked by what the squad gains over the chain, best first.
     const totals = result.list.map((chain) => chain.total);
     expect(totals).toEqual([...totals].sort((a, b) => b - a));
+  });
+
+  it('ROTATES the later picks among similar men instead of repeating one in every plan (06/10/2026)', () => {
+    const everybody = population();
+    // Two near-twins per role: every plan has a similar man to fall back on.
+    const pool = [man('dc', 6.80), man('dc', 6.79), man('c', 7.00), man('c', 6.99),
+      man('pc', 8.00), man('pc', 7.99), man('por', 5.40), man('por', 5.39)];
+    const plans = scenarios(input(pool, everybody), 3).list;
+    expect(plans.length).toBe(3);
+    const laterOf = (chain: Scenario) => [chain.second?.player.id, ...chain.later.map((s) => s.player.id)];
+    const named = (chain: Scenario) => new Set([chain.first.player.id, ...laterOf(chain)]);
+    // No man stands in the later picks of every plan when a twin was there to take his place.
+    const inAll = [...named(plans[0])].filter((id) => plans.every((chain) => named(chain).has(id)));
+    expect(inAll).toEqual([]);
+  });
+
+  it('names a department the plan leaves without a top only when its tops are running out (06/10/2026)', () => {
+    const plan = (slot: string) => asPlan({ ...man(slot, 6), slot });
+    const strikers = [plan('pc'), plan('pc'), plan('pc')];
+    const back = [plan('dc'), plan('por'), plan('c')];
+    // Only the attack is under test: the other departments read as covered.
+    const tops = new Set(strikers.map((p) => p.id));
+    const ctx = { pool: [...strikers, ...back], isTop: (id: number) => tops.has(id) || !strikers.some((p) => p.id === id) };
+    // Three top strikers free: the attack is not bare, whatever the plan takes.
+    expect(bareLines(ctx, [], back, () => true)).toEqual([]);
+    // The walk takes two: one left, under TOP_LEFT_MIN, and the plan holds none.
+    const gone = new Set([strikers[0].id, strikers[1].id]);
+    expect(bareLines(ctx, [], back, (id) => !gone.has(id))).toEqual([{ line: 'att', left: 1 }]);
+    // A top striker in the plan covers it.
+    expect(bareLines(ctx, [], [...back, strikers[2]], (id) => !gone.has(id))).toEqual([]);
+    expect(TOP_LEFT_MIN).toBe(2);
+  });
+
+  it('lifts a running-out top within BARE_WEIGHT of the best move, and no further (06/10/2026)', () => {
+    const plan = (slot: string) => asPlan({ ...man(slot, 6), slot });
+    const step = (player: PlanPlayer, gain: number): ScenarioStep => ({ player, priority: 0, gain, need: null });
+    const dc = plan('dc');
+    const striker = plan('pc');
+    const ctx = { ...input([], population()), isTop: (id: number) => id === striker.id };
+    // One top striker free, none held: the attack is running out.
+    const close = [step(dc, 1.2), step(striker, 1.0)];
+    expect(urgentTops(close, ctx, [], [], [dc, striker]).map((s) => s.player.id)).toEqual([striker.id, dc.id]);
+    // Half again of his gain does not reach the best move: the order stands.
+    const far = [step(dc, 2.0), step(striker, 1.0)];
+    expect(urgentTops(far, ctx, [], [], [dc, striker]).map((s) => s.player.id)).toEqual([dc.id, striker.id]);
+    // A top striker already in the plan: nothing is urgent.
+    expect(urgentTops(close, ctx, [], [striker], [dc]).map((s) => s.player.id)).toEqual([dc.id, striker.id]);
+  });
+
+  it('only HINTS at a plan crowding one side, keeper and defence counted together (06/10/2026)', () => {
+    const plan = (slot: string) => asPlan({ ...man(slot, 6), slot });
+    expect(crowdedSide([plan('dc'), plan('por'), plan('dc'), plan('pc')])).toEqual({ side: 'back', count: 3 });
+    expect(crowdedSide([plan('dc'), plan('por'), plan('c'), plan('pc')])).toBeNull();
   });
 
   it('gains nothing from a man who would sit on the bench', () => {

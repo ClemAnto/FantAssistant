@@ -275,6 +275,10 @@ const ELEVEN = 11;
  * platform's own rule, the expected picks are the plan's two policies (`simulateRound`), and the priority is
  * the score our own pick is chosen on (`AuctionAdvice.priorities`).
  */
+/** How the plan notes name a department and a side (06/10/2026). */
+const DEPT_WORD: Record<string, string> = { por: 'Portieri', dif: 'Difesa', cen: 'Centrocampo', att: 'Attacco' };
+const SIDE_WORD: Record<string, string> = { back: 'porta e difesa', cen: 'centrocampo', att: 'attacco' };
+
 @Component({
   selector: 'app-auction',
   imports: [
@@ -672,6 +676,24 @@ export class Auction {
     if (moved.up > 0) return `Sale di ${moved.up}: chi lo precedeva ha un sostituto del suo ruolo al tuo prossimo turno`;
     const alt = moved.altId != null ? this.fvmNameOf(moved.altId) : null;
     return `Scende di ${-moved.up}: al tuo prossimo turno ${alt ? `resterà ${alt}` : 'resterà uno come lui'}, stesso ruolo`;
+  }
+
+  /** The departments a plan leaves without a top (06/10/2026), in a few words. */
+  protected bareText(plan: Scenario): string {
+    return (plan.bare ?? [])
+      .map((one) => `${DEPT_WORD[one.line]}: nessun top in rosa, ${one.left === 0 ? 'non ne resterà nessuno' : `ne resterà ${one.left}`}`)
+      .join(' · ');
+  }
+
+  /** The bare departments' initials, on the badge. */
+  protected bareShort(plan: Scenario): string {
+    return (plan.bare ?? []).map((one) => DEPT_WORD[one.line][0]).join('');
+  }
+
+  /** The side a plan crowds (06/10/2026): a hint, the plan is not changed by it. */
+  protected crowdedText(plan: Scenario): string {
+    const crowded = plan.crowded;
+    return crowded ? `${crowded.count} scelte su ${SIDE_WORD[crowded.side]}: piano sbilanciato` : '';
   }
 
   /** A favourite at risk, in a few words (its advice line, 05/10/2026). */

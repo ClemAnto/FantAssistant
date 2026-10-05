@@ -1375,3 +1375,38 @@ FL-7zz-d10, FL-ixr-b6b; FA-yei-458, FA-jo5-zai e FA-l1n-0pn sul server non ci so
   contro 3 su 5 veri, e al 48% sull'europeo (prima 16%) contro 1 su 2.
 - Contaminazione dichiarata: le due sessioni FL- non portano un listone e sono lette su quello di FA-7xu-106, cioè con i
   numeri della stagione di un altro giorno.
+
+## 41. I tre piani ruotano gli uomini, e ogni reparto vuole il suo top (06/10/2026)
+
+Due correzioni dell'operatore sui consigli, a schermo sul draft Serie A classic. Solo app (`core/draft-scenarios.ts`),
+`engine_*` e fogli fermi; il banco del draft non legge questi piani, quindi nessun suo numero si muove.
+
+**Rotazione** («non mostrarmi Conceicao in tutti i 3 consigli, lo stesso valga per Martinez Jo. o Ramon»).
+`rotateShown`: il primo piano resta com'è; il secondo e il terzo si ricostruiscono (`chainFrom(..., avoid)`) tenendo
+fuori dalle scelte DOPO la prima gli uomini già nominati sopra, se esiste un uomo dello stesso slot entro
+`ROTATE_SHARE` = 0,15 del guadagno del migliore (`rotated`); altrimenti il nome si ripete. La prima scelta di un piano
+non si tocca (è il motivo per cui il piano è stato scelto); rango, varietà e segni della regola d'attesa restano quelli
+decisi; i totali dei piani ruotati si ricalcolano e possono scendere. Soglia DICHIARATA: decide cosa ripete lo schermo,
+non cosa vale di più.
+
+**Ogni reparto vuole il suo top** (prima stesura sua: «3 difensori e un portiere ... non sarebbe una formazione
+equilibrata»; poi corretta da lui: «"non più di 2 dello stesso reparto" deve essere solo un consiglio non una
+imposizione ... la vera regola è che nella rosa per ogni reparto ci devono essere almeno 1 o 2 top/semitop. Se nelle
+prime 4 scelte non ci sono A probabilmente non rimarrà niente nemmeno dopo»). Il vincolo rigido di 2 per reparto,
+scritto e spedito per un'ora, è TOLTO. Al suo posto, sulla categoria del FOGLIO (super · top · semi,
+`ScenarioInput.isTop`, mai ricalcolata):
+- `bareLines`: un piano lascia un reparto SCOPERTO (portieri, difesa, centrocampo, attacco) se a fine catena la rosa
+  non ha un top di quel reparto e la camminata dei rivali ne lascia liberi meno di `TOP_LEFT_MIN` = 2. Nel rango costa
+  `BARE_WEIGHT` = 0,5 del guadagno che il miglior top di quel reparto darebbe ADESSO: un PESO, non un divieto, e il
+  piano lo dice con un badge rosso (⚠ e l'iniziale del reparto).
+- `urgentTops`: dentro una catena, un top di un reparto ancora scoperto i cui top liberi sono meno di `TOP_LEFT_MIN`
+  più un giro di chiamate passa davanti se il suo guadagno ×1,5 raggiunge quello della mossa migliore.
+- `crowdedSide`: più di `CHAIN_SIDE_MAX` = 2 scelte sullo stesso lato (porta e difesa insieme, centrocampo, attacco) è
+  solo un'icona grigia sul piano.
+Le tre soglie (2, 0,5, «un giro») sono dichiarate e non misurate: si ritarano guardando un draft vero.
+
+**Verifica**: test diretti su `bareLines`, `urgentTops`, `crowdedSide` e sulla rotazione (la controprova fa cadere
+esattamente il test descritto). Un test su tutta la catena non è stato possibile: il fixture a tre squadre svuota la
+lista e le catene si fermano alla prima scelta. 1375 test app verdi su HEAD più questa metà (worktree), build pulito;
+non ancora visto su un draft vero.
+

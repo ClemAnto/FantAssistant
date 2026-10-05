@@ -617,6 +617,26 @@
                       ><nz-icon nzType="branches" /></span
                     >
                   }
+                  <!-- UN REPARTO SENZA TOP (sua regola, 06/10/2026): pesa sul rango, non lo vieta. -->
+                  @if (chain.scenario.bare?.length) {
+                    <span
+                      data-bare
+                      class="flex shrink-0 items-center gap-0.5 rounded bg-danger/15 px-0.5 text-[10px] font-normal text-danger"
+                      nz-tooltip
+                      [nzTooltipTitle]="bareText(chain.scenario)"
+                      ><nz-icon nzType="warning" />{{ bareShort(chain.scenario) }}</span
+                    >
+                  }
+                  <!-- SBILANCIATO (sua regola, 06/10/2026): solo un'indicazione. -->
+                  @if (chain.scenario.crowded) {
+                    <span
+                      data-crowded
+                      class="flex shrink-0 items-center rounded bg-fg/10 px-0.5 text-[10px] font-normal text-warning"
+                      nz-tooltip
+                      [nzTooltipTitle]="crowdedText(chain.scenario)"
+                      ><nz-icon nzType="column-height" /></span
+                    >
+                  }
                   @if (chain.scenario.second) {
                     <span
                       data-difficulty

@@ -24,10 +24,12 @@ import { MantraModules } from './auction-value';
 import { CallRules, PriorityMan, WorthContext, baseRole, legalFor, manValue } from './draft-priority';
 import { Place, bestEleven, placesIn } from './mantra-legal';
 import { DOOR_HOLE_COST, doorHolePrice } from './draft-pitch';
-import { isKeeperSlot } from './auction-plan';
+import { isKeeperSlot, lineOf } from './auction-plan';
 
-/** Whether a keeper may be proposed to this squad now (`ScenarioInput.keepers`); every other man may. */
-export function keeperAllowed(team: PlanTeam, player: PlanPlayer, input: ScenarioInput, picksLeft: number): boolean {
+/** Whether a keeper may be proposed to this squad now (`ScenarioInput.keepers`); every other man may.
+ *  Typed on the two fields it reads, so the «+Giro» column can ask without a whole ScenarioInput. */
+export function keeperAllowed(team: PlanTeam, player: PlanPlayer,
+  input: Pick<ScenarioInput, 'keepers' | 'calls'>, picksLeft: number): boolean {
   const rule = input.keepers;
   if (!rule || !isKeeperSlot(player.slot) || rule.firsts.has(player.id)) return true;
   const doors = team.slots.filter(isKeeperSlot).length;
@@ -121,6 +123,10 @@ export interface Scenario {
    * repeated the role AND the difficulty of a plan already shown. Absent when it is simply next in the ranking.
    */
   variety?: number;
+  /** The departments this plan leaves without a top, with the tops left free (`bareLines`). Absent = none. */
+  bare?: { line: Dept; left: number }[];
+  /** The side the plan crowds past `CHAIN_SIDE_MAX`: a hint on screen, never a constraint. */
+  crowded?: { side: Side; count: number };
 }
 
 /** Why a rival wants the second man: he has nobody of that role, fewer than a shape starts, or only weak ones. */
@@ -183,6 +189,8 @@ export interface ScenarioInput extends RivalWalkInput {
    * and they cannot be the SECOND one - while taking one of them NOW is exactly «take who will be gone». Absent = none.
    */
   likelyGone?: { ids: ReadonlySet<number>; beforeNow: boolean };
+  /** Whether a man's category is super, top or semi (`TOP_LEFT_MIN`). Absent = the rule is off. */
+  isTop?: (id: number) => boolean;
 }
 
 /** Above these odds of being taken before our pick, a man is not advised for that pick (operator, 05/10/2026). */
@@ -357,7 +365,8 @@ function needTaken(roster: readonly PriorityMan[], man: PriorityMan | null, diag
  * then we take `first`, then the rivals until our next pick - the order after `first` is decided by the FVM he
  * adds, which is the whole point - and then the move left that gives the squad most (`movesFor`).
  */
-export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNeed | null): Scenario | null {
+export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNeed | null,
+  avoid: ReadonlySet<number> | null = null): Scenario | null {
   const teams = new Map(input.teams.map((team) => [team.id, team]));
   const firstMan = input.manOf(first.id);
   const firstPriority = firstMan ? manValue(firstMan, input.worth, input.matchdays) : null;
@@ -377,7 +386,7 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
   const pool = input.pool.filter((p) => p.id !== first.id && !walk.gone.has(p.id) && !lost?.has(p.id));
   let second: ScenarioStep | null = null;
   if (mine.picksCount < input.calls.rounds) {
-    const best = movesFor(mine, pool, input)[0];
+    const best = rotated(urgentTops(movesFor(mine, pool, input), input, roster, [first], pool), avoid);
     if (best) {
       const held = rosterOf(mine, input.manOf);
       const then = diagnosisOf(held, input);
@@ -403,7 +412,9 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
       const waited = walk.gone.size - goneBefore;
       me = board.get(input.mineId)!;
       if (me.picksCount >= input.calls.rounds) break;
-      const best = movesFor(me, input.pool.filter((p) => !ours.has(p.id) && !walk.gone.has(p.id)), input)[0];
+      const free = input.pool.filter((p) => !ours.has(p.id) && !walk.gone.has(p.id));
+      const named = [first, second.player, ...later.map((step) => step.player)];
+      const best = rotated(urgentTops(movesFor(me, free, input), input, roster, named, free), avoid);
       if (!best) break;
       later.push({ ...best, need: null, wait: waited });
       ours.add(best.player.id);
@@ -412,6 +423,8 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
       board.set(input.mineId, me);
     }
   }
+  const named = [first, ...(second ? [second.player] : []), ...later.map((step) => step.player)];
+  const bare = bareLines(input, roster, named, (id) => !walk.gone.has(id));
   const difficulty: Difficulty = !second || wait === 0 ? 'sicuro'
     : interested.length === 0 ? 'facile' : interested.length < HARD_FROM ? 'medio' : 'difficile';
   return {
@@ -425,7 +438,121 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
     horizon: firstGain + (second?.gain ?? 0) + later.reduce((sum, step) => sum + step.gain, 0),
     interested,
     difficulty,
+    ...(bare.length ? { bare } : {}),
+    ...(crowdedSide(named) ? { crowded: crowdedSide(named)! } : {}),
   };
+}
+
+/**
+ * EVERY DEPARTMENT NEEDS ITS TOP (operator, 06/10/2026: «la vera regola è che nella rosa per ogni reparto ci devono
+ * essere almeno 1 o 2 top/semitop della lista. Se nelle prime 4 scelte non ci sono A probabilmente non rimarrà niente
+ * nemmeno dopo»). A plan leaves a department BARE when, at its end, the squad holds no man of that line whose category
+ * is super, top or semi (`ScenarioInput.isTop`) and fewer than `TOP_LEFT_MIN` such men are predicted still free after
+ * the rivals' walk - after that, there is nothing left to cover it with. Read on the sheet's own categories, never
+ * re-derived here.
+ */
+export const TOP_LEFT_MIN = 2;
+
+/**
+ * WHAT A BARE DEPARTMENT COSTS IN THE RANKING: this share of the gain the best top of that line would give the squad
+ * NOW. A WEIGHT and not a constraint - a plan that leaves a department bare can still be first when it is that much
+ * better, and says so on screen. Half, because «probabilmente»: declared, not measured.
+ */
+export const BARE_WEIGHT = 0.5;
+
+/** A department of the squad, in the order the screen names them. */
+export type Dept = 'por' | 'dif' | 'cen' | 'att';
+const DEPTS: readonly Dept[] = ['por', 'dif', 'cen', 'att'];
+
+/** The departments a plan leaves without a top, and how many tops of each the walk leaves free (`TOP_LEFT_MIN`). */
+export function bareLines(input: Pick<ScenarioInput, 'isTop' | 'pool'>, roster: readonly PriorityMan[],
+  named: readonly PlanPlayer[], free: (id: number) => boolean): { line: Dept; left: number }[] {
+  const isTop = input.isTop;
+  if (!isTop) return [];
+  const ours = new Set(named.map((p) => p.id));
+  const held = [...roster.map((m) => ({ id: m.id, slot: m.slot })), ...named.map((p) => ({ id: p.id, slot: p.slot }))];
+  const out: { line: Dept; left: number }[] = [];
+  for (const line of DEPTS) {
+    if (held.some((one) => lineOf(one.slot) === line && isTop(one.id))) continue;
+    const left = input.pool.filter((p) => lineOf(p.slot) === line && isTop(p.id) && !ours.has(p.id) && free(p.id)).length;
+    if (left < TOP_LEFT_MIN) out.push({ line, left });
+  }
+  return out;
+}
+
+/**
+ * THE SAME RULE INSIDE A PLAN: a later pick sees its department running out while it is still possible to act. A top
+ * of a department the plan has not covered yet, whose tops still free number under `TOP_LEFT_MIN` plus one round of
+ * calls (the squads at the table), is ranked as if his gain were `1 + BARE_WEIGHT` of itself - a lift, never a
+ * filter, so a far better man of another department still wins.
+ */
+export function urgentTops(moves: ScenarioStep[], input: ScenarioInput, roster: readonly PriorityMan[],
+  named: readonly PlanPlayer[], free: readonly PlanPlayer[]): ScenarioStep[] {
+  const isTop = input.isTop;
+  if (!isTop) return moves;
+  // Covered by a TOP, not by anybody: the rule is about tops.
+  const covered = new Set<Dept>();
+  for (const one of [...roster, ...named]) {
+    const line = lineOf(one.slot);
+    if (line && isTop(one.id)) covered.add(line);
+  }
+  const scarce = new Set<Dept>();
+  for (const line of DEPTS) {
+    if (covered.has(line)) continue;
+    const left = free.filter((p) => lineOf(p.slot) === line && isTop(p.id)).length;
+    if (left < TOP_LEFT_MIN + input.teams.length) scarce.add(line);
+  }
+  if (!scarce.size) return moves;
+  const urgent = moves.find((step) => {
+    const line = lineOf(step.player.slot);
+    return !!line && scarce.has(line) && isTop(step.player.id) && step.gain > 0;
+  });
+  // The best urgent top goes first only when his lifted gain reaches the best move's; the rest keeps its order.
+  if (!urgent || urgent === moves[0] || urgent.gain * (1 + BARE_WEIGHT) < (moves[0]?.gain ?? 0)) return moves;
+  return [urgent, ...moves.filter((step) => step !== urgent)];
+}
+
+/**
+ * A HINT, NOT A RULE (operator, 06/10/2026: «"no più di 2 calciatori dello stesso reparto nello stesso consiglio" deve
+ * essere solo un consiglio non una imposizione»): the side of the squad - the back (keeper and defence), midfield or
+ * attack - that takes more than this many of a plan's picks. It is shown beside the plan and changes nothing.
+ */
+export const CHAIN_SIDE_MAX = 2;
+
+export type Side = 'back' | 'cen' | 'att';
+const sideOf = (slot: string | null): Side | null => {
+  const line = lineOf(slot);
+  return line === 'por' || line === 'dif' ? 'back' : line;
+};
+
+/** The side a plan crowds past `CHAIN_SIDE_MAX`, with its count; null when none does. */
+export function crowdedSide(named: readonly PlanPlayer[]): { side: Side; count: number } | null {
+  const count = new Map<Side, number>();
+  for (const one of named) {
+    const side = sideOf(one.slot);
+    if (side) count.set(side, (count.get(side) ?? 0) + 1);
+  }
+  const worst = [...count].sort((a, b) => b[1] - a[1])[0];
+  return worst && worst[1] > CHAIN_SIDE_MAX ? { side: worst[0], count: worst[1] } : null;
+}
+
+/**
+ * HOW CLOSE A SUBSTITUTE MUST BE TO ROTATE IN (operator, 06/10/2026: «nei vari consigli ruota i calciatori consigliati
+ * se ce ne sono simili: non mostrarmi Conceicao in tutti i 3 consigli»): a man of the SAME slot whose gain is within
+ * this share of the best move's. Declared and not measured - it decides what the screen repeats, not what is worth more.
+ */
+export const ROTATE_SHARE = 0.15;
+
+/**
+ * The move a later pick of a plan takes: the best one, unless he already stands in a plan shown above (`avoid`) and a
+ * man of his slot, not shown, comes within `ROTATE_SHARE` of his gain - then that man, the best-ranked such.
+ */
+function rotated(moves: readonly ScenarioStep[], avoid: ReadonlySet<number> | null): ScenarioStep | undefined {
+  const best = moves[0];
+  if (!best || !avoid?.has(best.player.id)) return best;
+  const floor = best.gain - ROTATE_SHARE * Math.abs(best.gain);
+  return moves.find((one) => one.player.slot === best.player.slot && !avoid.has(one.player.id) && one.gain >= floor)
+    ?? best;
 }
 
 /** The rivals call until our turn, we take `first`, the rivals call until our next turn. `onWait`, when given,
@@ -550,13 +677,22 @@ export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnos
   // Ranked with the first move's gain discounted when he would survive (`rankGain`); the second pick is a hope at our
   // next turn already, so it is not discounted again.
   const left = input.calls.rounds - me.picksCount;
+  const lost = input.likelyGone?.beforeNow ? input.likelyGone.ids : null;
+  const moves = movesFor(me, lost ? input.pool.filter((p) => !lost.has(p.id)) : input.pool, input);
+  // What the best top of each department would give the squad NOW: the price of leaving it bare (`BARE_WEIGHT`).
+  const topGain = new Map<Dept, number>();
+  for (const move of moves) {
+    const line = lineOf(move.player.slot);
+    if (!line || !input.isTop?.(move.player.id) || move.gain <= 0) continue;
+    topGain.set(line, Math.max(topGain.get(line) ?? 0, move.gain));
+  }
+  const bareCost = (chain: Scenario) =>
+    BARE_WEIGHT * (chain.bare ?? []).reduce((sum, one) => sum + (topGain.get(one.line) ?? 0), 0);
   const score = (chain: Scenario, roleWait = ROLE_WAIT) =>
-    chain.horizon - chain.first.gain + rankGain(chain.first, input, left, roleWait);
+    chain.horizon - chain.first.gain + rankGain(chain.first, input, left, roleWait) - bareCost(chain);
   const byScore = (roleWait = ROLE_WAIT) => (a: Scenario, b: Scenario) =>
     score(b, roleWait) - score(a, roleWait) || b.first.gain - a.first.gain;
   // The best `CHAINED` moves always become chains; more only while the ranking lacks VARIETY (`pickVaried`).
-  const lost = input.likelyGone?.beforeNow ? input.likelyGone.ids : null;
-  const moves = movesFor(me, lost ? input.pool.filter((p) => !lost.has(p.id)) : input.pool, input);
   for (const [at, move] of moves.slice(0, VARIETY_CHAINED).entries()) {
     if (at >= CHAINED && variedOnly([...list].sort(byScore()), count).length >= count) break;
     const need = needTaken(roster, input.manOf(move.player.id), diagnosis, input).need;
@@ -575,7 +711,30 @@ export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnos
     const discounted = rankGain(chain.first, input, left, true) < rankGain(chain.first, input, left, false) - 1e-9;
     return up ? { ...marked, roleWait: { up, altId: discounted ? (chain.first.waitAltId ?? null) : null } } : marked;
   });
-  return { diagnosis, list: shown };
+  return { diagnosis, list: rotateShown(shown, input) };
+}
+
+/** Every man a plan names: its first pick, its second and the later ones. */
+const menOf = (chain: Scenario) => [chain.first.player.id, ...(chain.second ? [chain.second.player.id] : []),
+  ...chain.later.map((step) => step.player.id)];
+
+/**
+ * ROTATION (`ROTATE_SHARE`): the plans below the first are walked again with the men already named above kept out of
+ * their LATER picks wherever a similar man exists. The first pick of a plan is never touched - it is what the plan is
+ * chosen for - and the rank, the variety and the waiting rule's marks stay as they were decided.
+ */
+function rotateShown(shown: readonly Scenario[], input: ScenarioInput): Scenario[] {
+  const used = new Set<number>();
+  return shown.map((chain, at) => {
+    let out = chain;
+    if (at > 0) {
+      const avoid = new Set([...used].filter((id) => id !== chain.first.player.id));
+      const again = chainFrom(input, chain.first.player, chain.first.need, avoid);
+      if (again) out = { ...chain, ...again, first: chain.first };
+    }
+    for (const id of menOf(out)) used.add(id);
+    return out;
+  });
 }
 
 export type Verdict = 'coerente' | 'inopportuna';

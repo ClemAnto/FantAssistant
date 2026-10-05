@@ -10487,3 +10487,15 @@ infortuni: l'app li legge dal DB) e rigenerare il report; (3) il gradino stampa 
 con `toolkit/scripts/press_survey` (agenti web, `as_of` per riga, poi `audit.py`, `to_config.py`, `export`,
 `data:pull`) — non avviato: i club con novità vanno decisi dal confronto infortuni/trasferimenti sul DB fresco, non
 dalle notizie. Le due righe di `tm_scrape.py`/`listone.py` scrivono sul DB: farle a giro finito.
+
+## 6 ottobre 2026 (notte) — I CONSIGLI DEL DRAFT: ROTAZIONE E TOP PER REPARTO
+Due correzioni dell'operatore sui tre piani: gli uomini dopo la prima scelta ruotano fra i piani (`ROTATE_SHARE` 0,15,
+stesso slot), e un piano che lascia un reparto senza top/semi quando ne restano meno di 2 perde metà del guadagno di
+quel top e porta un badge ⚠; dentro la catena un top che sta finendo sale. Il vincolo «max 2 per reparto» è diventato
+un'icona. Solo app, dettaglio `priorita-draft-v1.md` §41. Commit solo della mia metà (blob HEAD + miei hunk per
+`auction-advice.ts`, `auction.ts`, `auction.html`), verificata in worktree: 1375 test, build pulito.
+**Aperto**: (1) vederlo sul draft vero di oggi e ritarare `TOP_LEFT_MIN`/`BARE_WEIGHT`; (2) l'albero condiviso NON
+compila i test per la metà xG di un'altra sessione (`auction-value.spec.ts` senza `xgLuck`, `XG_LUCK_NOTABLE` non
+esportato da `engine-sheet.ts` committato): non è di questa sessione; (3) `draft-scenarios.ts` porta nel commit anche
+l'allargamento di tipo di `keeperAllowed` (`Pick<ScenarioInput, 'keepers' | 'calls'>`), trovato già nell'albero.
+
