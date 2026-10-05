@@ -406,3 +406,38 @@ describe('once a place is covered, the bonus plays first (05/10/2026, Cambiaso)'
     expect(dc.reserves.map((one) => one.name)).toEqual(['Regolare']);
   });
 });
+
+describe('the pitch fields the man with the higher shown value (05/10/2026)', () => {
+  it('starts the higher value in a place, whoever covers more or brings more bonus', () => {
+    const regular = { ...man('Ramon', ['Dc'], 20), share: 0.87, bonus: 0.318 };
+    const other = { ...man('Jimenez', ['Dc'], 20), share: 0.72, bonus: 0.339 };
+    const k = { ...man('Portiere', ['Por'], 10), share: 0.9, bonus: 0 };
+    const rules: MantraModules = { slot_roles: { P: ['Por'], DC: ['Dc'] }, modules: { solo: { D: ['DC'], M: [], T: [], A: [] } } };
+    const value = new Map([[regular.id, 12], [other.id, 9]]);
+    const pitch = draftPitchOf([k, regular, other], rules, [], null, false, (one) => value.get(one.id) ?? null)!;
+    const dc = pitch.rows.flatMap((row) => row.places).find((one) => one.slot === 'DC')!;
+    expect(dc.man?.name).toBe('Ramon');
+    // Without the shown value the yield's rule (bonus first on a covered place) draws the other.
+    const plain = draftPitchOf([k, regular, other], rules)!.rows.flatMap((row) => row.places).find((one) => one.slot === 'DC')!;
+    expect(plain.man?.name).toBe('Jimenez');
+  });
+});
+
+describe('fewer than four defenders: no defence modifier (05/10/2026)', () => {
+  it('takes the defence share off the fertility of a three-man defence, not of a four-man one', () => {
+    const d = (name: string) => ({ ...man(name, ['Dc'], 10), share: 0.9, bonus: 0.5, defenceBonus: 0.12 });
+    const k = { ...man('Portiere', ['Por'], 10), share: 0.9, bonus: 0.2, defenceBonus: 0.15 };
+    const three: MantraModules = { slot_roles: { P: ['Por'], DC: ['Dc'] }, modules: { tre: { D: ['DC', 'DC', 'DC'], M: [], T: [], A: [] } } };
+    const four: MantraModules = { slot_roles: { P: ['Por'], DC: ['Dc'] }, modules: { quattro: { D: ['DC', 'DC', 'DC', 'DC'], M: [], T: [], A: [] } } };
+    const squad = [k, d('A'), d('B'), d('C'), d('D')];
+    const placeOf = (rules: MantraModules) => draftPitchOf(squad, rules)!.rows.flatMap((row) => row.places);
+    const dc3 = placeOf(three).find((one) => one.slot === 'DC')!;
+    const dc4 = placeOf(four).find((one) => one.slot === 'DC')!;
+    expect(dc3.defenceOff).toBe(true);
+    expect(dc4.defenceOff).toBe(false);
+    expect(placeYield(dc4).fertility!).toBeCloseTo(placeYield(dc4).cover * 0.5, 6);
+    expect(placeYield(dc3).fertility!).toBeCloseTo(placeYield(dc3).cover * (0.5 - 0.12), 6);
+    const door3 = placeOf(three).find((one) => one.roles.includes('por'))!;
+    expect(placeYield(door3, false, 0).fertility).toBeCloseTo(coverOf(k) * (0.2 - 0.15), 6);
+  });
+});

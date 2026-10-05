@@ -84,7 +84,7 @@ import {
   rotationMark,
 } from './player-place';
 import { CalendarFile, calendarBookFrom, cleanSheetOutlook } from './keeper-pairs';
-import { draftFertility } from './swing';
+import { ROLE_STEADY, STEADY_SHARE, draftFertility } from './swing';
 import type { Role } from './plancia';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
@@ -665,6 +665,39 @@ export class AuctionAdvice {
 
   /** Everything except `net`, which needs the whole list first: lambda is a property of the pool. */
   private readonly priced = computed<Omit<RankedPlayer, 'net' | 'netPer10'>[]>(() => {
+    const goals = this.feed.isGoalsMode();
+    const men = this.free().filter((player) => !(goals && this.feed.zoneOf(player) === 'gk'));
+    const price = this.pricer();
+    const rows: Omit<RankedPlayer, 'net' | 'netPer10'>[] = men.map(price);
+    if (!goals) return rows;
+    return this.withPorte(rows);
+  });
+
+  /**
+   * THE MEN ALREADY IN A SQUAD, priced like the free ones (operator, 05/10/2026: «un check nella tabella per mostrare
+   * anche i calciatori già scelti»): the same row, so a taken man reads the same numbers he read while free. Never fed
+   * to a plan or a rival walk - the free pool is `ranked` - and with the porte rule a taken keeper stays a man.
+   */
+  readonly takenRanked = computed<RankedPlayer[]>(() => {
+    const lambda = this.lambda();
+    const spread = this.spread();
+    const price = this.pricer();
+    const seen = new Set<number>();
+    const out: RankedPlayer[] = [];
+    for (const team of this.feed.teams()) {
+      for (const entry of team.squad) {
+        if (!entry.player || seen.has(entry.player.id)) continue;
+        seen.add(entry.player.id);
+        const row = price(entry.player);
+        const net = netOf(row.surplus, row.price, lambda);
+        out.push({ ...row, net, netPer10: per(net, spread) });
+      }
+    }
+    return out;
+  });
+
+  /** One man's row of the ranking, everything it reads taken once (`priced`, `takenRanked`). */
+  private readonly pricer = computed(() => {
     const numbers = this.numbers();
     const replacements = this.replacements();
     const mine = this.mineBySlot();
@@ -672,10 +705,7 @@ export class AuctionAdvice {
     const total = this.matchdaysTarget();
     const spread = this.spread();
     const valueMax = this.valueMax();
-
-    const goals = this.feed.isGoalsMode();
-    const men = this.free().filter((player) => !(goals && this.feed.zoneOf(player) === 'gk'));
-    const rows: Omit<RankedPlayer, 'net' | 'netPer10'>[] = men.map((player) => {
+    return (player: AuctionPlayer): Omit<RankedPlayer, 'net' | 'netPer10'> => {
       const row = numbers.get(player.id);
       const valuation = valuationOf(row);
       const slot = row?.slot ?? null;
@@ -716,9 +746,15 @@ export class AuctionAdvice {
         trend99: this.trend99().get(player.id) ?? null,
         porta: null,
       };
-    });
-    if (!goals) return rows;
+    };
+  });
 
+  private withPorte(rows: Omit<RankedPlayer, 'net' | 'netPer10'>[]): Omit<RankedPlayer, 'net' | 'netPer10'>[] {
+    const numbers = this.numbers();
+    const total = this.matchdaysTarget();
+    const spread = this.spread();
+    const horizon = this.horizon();
+    const valueMax = this.valueMax();
     // ONE ROW PER FREE GOAL, named after the CLUB (operator, 28/09/2026). The id is the keeper expected to
     // play most - it is who a pick is recorded under - and the FVM is the goal's own (`Porta.price`, the
     // dearest keeper: what a rival buying by price calls). Excluded clubs leave here as their men do.
@@ -759,7 +795,7 @@ export class AuctionAdvice {
       });
     }
     return rows;
-  });
+  }
 
   /**
    * The 0-99 of the trend, inside the ROLE and over the listone being played.
@@ -1061,6 +1097,7 @@ export class AuctionAdvice {
     const out = new Map<number, (number | null)[]>();
     const book = this.calendarBook();
     if (!KEEPER_WEEKS || !book) return { weeks: out, zero: 0 };
+    const keeperFm = this.keeperFmBy();
     const bonus = this.bonusBy();
     const league = this.options.league();
     const platform = this.entry()?.platform ?? 'euro';
@@ -1074,6 +1111,7 @@ export class AuctionAdvice {
         .filter((one): one is number => one != null);
       const mean = season.length ? season.reduce((sum, one) => sum + one, 0) / season.length : null;
       const steady = this.ratings.for(platform, player.id)?.steady?.share ?? null;
+      const calendarKeeper = keeperFm.has(player.id);
       const byRound = new Map(calendar.window(player.club, league.from, league.to).map((match) => [match.round, match]));
       const weeks: (number | null)[] = [];
       for (let round = Math.max(1, league.from); round <= Math.min(league.to, calendar.rounds); round += 1) {
@@ -1083,8 +1121,11 @@ export class AuctionAdvice {
           continue;
         }
         const conceded = goals(match.cleanSheet);
+        // With the club's goals read from the calendar (`keeperFmBy`), a week is that match's own goals; otherwise
+        // the season bonus moved by how much easier the match is than his club's average.
         const easier = mean != null && conceded != null ? mean - conceded : 0;
-        weeks.push(draftFertility(base + easier, 'P', steady, match.cleanSheet, league));
+        const week = calendarKeeper && conceded != null ? -conceded : base + easier;
+        weeks.push(draftFertility(week, 'P', steady, match.cleanSheet, league));
       }
       if (weeks.some((one) => one != null)) out.set(player.id, weeks);
     }
@@ -1129,14 +1170,57 @@ export class AuctionAdvice {
    * halves the sheet already derives one from the other. What the pitch's FERTILITY of a place sums (operator,
    * 29/09/2026). Null where either half is missing.
    */
+  /**
+   * THE GOALS A CLUB IS EXPECTED TO CONCEDE PER MATCH over the competition's matchdays (operator, 05/10/2026: «dobbiamo
+   * valutare anche i gol SUBITI in media dalla squadra ... secondo le partite del calendario reali nelle giornate
+   * comprese nella competizione»): the mean of -ln P(clean sheet) over his club's real fixtures from `league.from` to
+   * `league.to` (goals conceded Poisson, E = -ln P(0)), by club name. Absent where the calendar does not know the club.
+   */
+  readonly clubGoalsAgainst = computed<Map<string, number>>(() => {
+    const out = new Map<string, number>();
+    const book = this.calendarBook();
+    if (!book) return out;
+    const league = this.options.league();
+    for (const club of new Set(this.listone().map(({ player }) => player.club))) {
+      const calendar = book.forClub(club);
+      if (!calendar?.has(club)) continue;
+      const goals = calendar.window(club, league.from, Math.min(league.to, calendar.rounds))
+        .map((match) => match.cleanSheet).filter((p): p is number => p != null)
+        .map((p) => -Math.log(Math.min(0.98, Math.max(0.02, p))));
+      if (goals.length) out.set(club, goals.reduce((sum, one) => sum + one, 0) / goals.length);
+    }
+    return out;
+  });
+
+  /**
+   * A KEEPER'S FANTAMEDIA FOR THE DRAFT: his expected base vote minus the goals his club is expected to concede per
+   * match on the competition's calendar (`clubGoalsAgainst`). The engine's fantamedia reads his own past, so a keeper
+   * of a promoted club carried the goals of the league he came from (Palmisani 5.03, Frosinone 1.75 goals a match:
+   * 4.39 here). Not gated - it is the app's reading for the draft, beside the engine's column. Null where either half
+   * is missing, and then the engine's fantamedia stands.
+   */
+  readonly keeperFmBy = computed<Map<number, number>>(() => {
+    const out = new Map<number, number>();
+    const numbers = this.numbers();
+    const goals = this.clubGoalsAgainst();
+    for (const { player } of this.listone()) {
+      if (MACRO_ROLE[player.zoneClassic] !== 'P') continue;
+      const mv = numbers.get(player.id)?.mv ?? null;
+      const against = goals.get(player.club);
+      if (mv != null && against != null) out.set(player.id, mv - against);
+    }
+    return out;
+  });
+
   readonly bonusBy = computed<Map<number, number | null>>(() => {
     const numbers = this.numbers();
+    const keepers = this.keeperFmBy();
     const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
       // HIS OWN two halves, never `valuationFor`: with the doors on, that one is the PORTA's mix of fantamedia, and
       // subtracting this keeper's base vote from it would mix two men in one number. A keeper's own pair still
       // gives the malus of a door (a negative bonus), which is what the pitch's fertility shows.
-      const fm = valuationOf(numbers.get(player.id)).fm;
+      const fm = keepers.get(player.id) ?? valuationOf(numbers.get(player.id)).fm;
       const mv = numbers.get(player.id)?.mv ?? null;
       out.set(player.id, fm == null || mv == null ? null : fm - mv);
     }
@@ -1340,7 +1424,8 @@ export class AuctionAdvice {
         roles: this.feed.gameRoles(player).map((role) => (isKeeperSlot(role) ? 'por' : role.toLowerCase())),
         slot: porta ? 'por' : this.slotFor(player, numbers.get(player.id)?.slot),
         price: porta ? porta.price : player.fvm,
-        fm: valuation.fm,
+        // A keeper's fantamedia reads his club's goals against on the competition's calendar (`keeperFmBy`).
+        fm: (porta ? null : this.keeperFmBy().get(player.id)) ?? valuation.fm,
         // A door is a club and its mix stays the engine's; a man reads the new formula where it has him.
         share: (porta ? null : this.draftShareBy().get(player.id))
           ?? (valuation.pv != null && matchdays ? Math.min(1, valuation.pv / matchdays) : null),
@@ -1595,7 +1680,19 @@ export class AuctionAdvice {
       share: this.draftShareBy().get(player.id) ?? null,
       bonus: this.fertilityBy().get(player.id) ?? null,
       weeks: this.keeperWeeksBy().get(player.id) ?? null,
+      defenceBonus: this.defenceBonusOf(player),
     };
+  }
+
+  /**
+   * HIS SHARE OF THE DEFENCE MODIFIER inside his fertility (`draftFertility`'s second steadiness term): a keeper or a
+   * defender, where the league pays it. The pitch takes it off a module with fewer than four defenders (05/10/2026).
+   */
+  defenceBonusOf(player: AuctionPlayer): number {
+    const role = (MACRO_ROLE[player.zoneClassic] ?? null) as Role | null;
+    if (!this.options.league().defenceModifier || (role !== 'P' && role !== 'D')) return 0;
+    const steady = this.ratings.for(this.entry()?.platform ?? 'euro', player.id)?.steady?.share ?? null;
+    return (steady ?? ROLE_STEADY[role]) * STEADY_SHARE;
   }
 
   /**

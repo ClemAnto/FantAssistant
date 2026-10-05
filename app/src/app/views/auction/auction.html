@@ -772,6 +772,10 @@
           <label nz-checkbox data-hide-full class="ml-2 text-[10px]" [ngModel]="hideFull()" (ngModelChange)="setHideFull($event)"
             >nascondi pieni</label
           >
+          <!-- MOSTRA ANCHE I GIA' SCELTI (sua richiesta, 05/10/2026): in coda, con la squadra che li ha. -->
+          <label nz-checkbox data-show-picked class="text-[10px]" [ngModel]="showPicked()" (ngModelChange)="setShowPicked($event)"
+            >mostra già scelti</label
+          >
           <!-- IL RANGE DI FVM (sue richieste, 29/09/2026): a schermo solo l'etichetta con i due estremi, e un
                click apre il riquadro dove si cambiano o si azzerano. Estremi compresi, vuoto = nessun limite. -->
           <button
@@ -1004,7 +1008,8 @@
               [class.free-previste]="mode() === 'previste'"
               [class.free-checks]="mode() === 'checks'"
               [class.free-slim]="slimCols()"
-              [class.opacity-50]="row.locked || row.full || advice.excluded().has(row.id)"
+              [class.opacity-50]="row.locked || row.full || advice.excluded().has(row.id) || !!row.owner"
+              [attr.data-owner]="row.owner?.id ?? null"
               [attr.data-locked]="row.locked ? '' : null"
               [attr.data-full]="row.full ? '' : null"
               [attr.data-fvm]="row.fvm"
@@ -1050,9 +1055,19 @@
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
                 <!-- ESCLUSO DAI CONSIGLI (sua richiesta, 05/10/2026): i piani non lo propongono piu', i rivali possono
                      ancora prenderlo. Il tasto si vede passando sulla riga, e resta acceso su chi e' escluso. -->
+                @if (row.owner; as owner) {
+                  <span
+                    data-owner-badge
+                    class="flex shrink-0 items-center gap-1 rounded bg-fg/10 px-1 text-[9px] leading-4"
+                    nz-tooltip
+                    nzTooltipTitle="Già scelto da questa squadra"
+                    ><span class="h-2 w-2 shrink-0 rounded-full" [style.background]="owner.colour"></span>{{ owner.label }}</span
+                  >
+                }
                 <button
                   type="button"
                   data-exclude
+                  [class.hidden]="!!row.owner"
                   [attr.data-excluded]="advice.excluded().has(row.id) ? '' : null"
                   class="flex shrink-0 items-center text-[10px] leading-none"
                   [class]="advice.excluded().has(row.id) ? 'text-danger' : 'text-muted opacity-0 group-hover:opacity-100'"

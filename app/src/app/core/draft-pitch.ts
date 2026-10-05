@@ -54,6 +54,12 @@ export interface DraftPlace {
   /** The men standing under this place as its reserves, best first. */
   reserves: FantaMan[];
   /**
+   * The module fields FEWER THAN FOUR DEFENDERS, so the defence modifier is not paid (operator, 05/10/2026: «se si
+   * imposta un modulo con meno di 4 difensori, dobbiamo escludere i bonus per il modificatore di difesa»): the men's
+   * `defenceBonus` comes off their fertility here (`bonusOn`).
+   */
+  defenceOff?: boolean;
+  /**
    * A SUGGESTED starter (`withSuggestions`): where the squad has nobody for this place yet, or - next to a real `man` -
    * a better starter than him, in which case the real man is drawn and counted as the first reserve.
    */
@@ -131,6 +137,13 @@ export function preferring(rules: MantraModules, preferred: readonly string[]): 
  *
  * `forced` draws a module the operator chose instead of the best one. Returns null when there is no
  * rulebook to read - the card must say so rather than draw shapes nobody loaded.
+ *
+ * `shown` is THE VALUE THE PITCH PRINTS beside each man (operator, 05/10/2026: «in campo devono andare quelli con il
+ * valore mostrato più alto», on Atta behind Coulibaly L. and Ramon behind Jimenez A.). Given, the outfield starters
+ * are the men with the highest shown value - the eleven is chosen on it and, inside a place, the man with the higher
+ * value starts - so the drawing and the badge never contradict each other, the door included (operator, same day:
+ * «è giusto Caprile prima di Sanchez», once a keeper's value reads his club's goals against). Without it, the yield's
+ * rules draw the pitch.
  */
 export function draftPitchOf(
   squad: readonly FantaMan[],
@@ -138,17 +151,27 @@ export function draftPitchOf(
   preferred: readonly string[] = [],
   forced: string | null = null,
   byCoverage = false,
+  shown: ((man: FantaMan) => number | null) | null = null,
 ): DraftPitch | null {
   if (!rules?.modules || !Object.keys(rules.modules).length) return null;
   const ordered = preferring(rules, forced ? [forced, ...preferred] : preferred);
   const scoped = forced && ordered.modules[forced]
     ? { ...ordered, modules: { [forced]: ordered.modules[forced] } }
     : ordered;
-  const best = bestEleven(squad, scoped, starterWeight);
+  const weight = shown
+    ? (man: FantaMan) => {
+      if (man.share == null) return null;
+      const value = shown(man);
+      // Above the floor, so every known man still fills a place before any value is compared.
+      return value == null ? STARTER_FLOOR / 2 : STARTER_FLOOR + value;
+    }
+    : starterWeight;
+  const best = bestEleven(squad, scoped, weight);
   const module = best?.module ?? Object.keys(scoped.modules)[0];
   const places: Place[] = best?.places ?? placesIn(scoped, module);
   const holders: (FantaMan | null)[] = best?.holders ?? places.map(() => null);
 
+  const defenceOff = places.filter((place) => place.line === 'D').length < MODIFIER_DEFENDERS;
   const drawn: DraftPlace[] = places.map((place, at) => {
     const man = holders[at];
     return {
@@ -158,6 +181,7 @@ export function draftPitchOf(
       man,
       badge: man ? badgeFor(man, place.roles) : null,
       reserves: [],
+      defenceOff,
     };
   });
 
@@ -165,11 +189,15 @@ export function draftPitchOf(
   // THE DRAWING SAYS WHAT THE YIELD COUNTS (`bonusFirst`): on a covered outfield place the man fielded first is the
   // one with the higher bonus, so he is the starter on the pitch and the regular becomes his first reserve.
   for (const place of drawn) {
-    if (!place.man || place.roles.some((role) => role === 'por' || role === 'p')) continue;
-    const order = bonusFirst([place.man, ...place.reserves].filter((man) => man.share != null));
+    if (!place.man || (!shown && place.roles.some((role) => role === 'por' || role === 'p'))) continue;
+    const order = shown
+      ? [place.man, ...place.reserves].sort((a, b) => (weight(b) ?? -Infinity) - (weight(a) ?? -Infinity))
+      : bonusFirst([place.man, ...place.reserves].filter((man) => man.share != null));
     const first = order[0];
+    // With the shown value the reserves follow it too, best first under the starter.
+    if (shown && first) place.reserves = order.slice(1);
     if (!first || first === place.man) continue;
-    place.reserves = [place.man, ...place.reserves.filter((man) => man !== first)];
+    if (!shown) place.reserves = [place.man, ...place.reserves.filter((man) => man !== first)];
     place.man = first;
     place.badge = badgeFor(first, place.roles);
   }
@@ -319,6 +347,15 @@ export function combinedCover(men: readonly (FantaMan | null | undefined)[]): nu
  * the place from being empty. A man with an unknown bonus stays after the known ones («vuoto = ignoto»). Outfield
  * only: the door is ordered week by week on its own (`keeperYield`).
  */
+/** The modifier pays only on four defenders or more (the league's regulation). */
+export const MODIFIER_DEFENDERS = 4;
+
+/** A man's bonus (or one week of it) on this place: without his defence-modifier share where the module drops it. */
+function bonusOn(man: FantaMan, value: number | null | undefined, place: DraftPlace): number | null {
+  if (value == null) return null;
+  return place.defenceOff ? value - (man.defenceBonus ?? 0) : value;
+}
+
 export function bonusFirst(men: readonly FantaMan[]): FantaMan[] {
   if (men.length < 2 || combinedCover(men) < COVER_OK) return [...men];
   return [...men].sort((a, b) => (b.bonus ?? -Infinity) - (a.bonus ?? -Infinity));
@@ -337,7 +374,7 @@ export function bonusFirst(men: readonly FantaMan[]): FantaMan[] {
  */
 export function placeYield(place: DraftPlace, withSuggested = false, doorHole = DOOR_HOLE_COST): { cover: number; fertility: number | null } {
   const men = menOf(place, withSuggested).filter((man): man is FantaMan => !!man && man.share != null);
-  if (place.roles.some((role) => role === 'por' || role === 'p')) return keeperYield(men, doorHole);
+  if (place.roles.some((role) => role === 'por' || role === 'p')) return keeperYield(men, doorHole, place);
   const counted: FantaMan[] = [];
   let cover = 0;
   let fertility: number | null = null;
@@ -348,8 +385,9 @@ export function placeYield(place: DraftPlace, withSuggested = false, doorHole = 
     const adds = now - cover;
     if (adds <= 1e-12) continue;
     cover = now;
-    if (man.bonus == null) unknown = true;
-    else fertility = (fertility ?? 0) + adds * man.bonus;
+    const bonus = bonusOn(man, man.bonus, place);
+    if (bonus == null) unknown = true;
+    else fertility = (fertility ?? 0) + adds * bonus;
   }
   return { cover, fertility: unknown ? null : fertility };
 }
@@ -392,7 +430,7 @@ export function doorHolePrice(keeperPlacesOpen: number, picksLeft: number): numb
   return DOOR_HOLE_COST * Math.min(1, Math.min(1, Math.max(0, keeperPlacesOpen)) / picksLeft);
 }
 
-function keeperYield(men: readonly FantaMan[], doorHole: number): { cover: number; fertility: number | null } {
+function keeperYield(men: readonly FantaMan[], doorHole: number, place: DraftPlace): { cover: number; fertility: number | null } {
   // An empty door: every matchday is a hole.
   if (!men.length) return { cover: 0, fertility: -doorHole };
   const weeks = Math.max(1, ...men.map((man) => man.weeks?.length ?? 0));
@@ -401,7 +439,7 @@ function keeperYield(men: readonly FantaMan[], doorHole: number): { cover: numbe
   let unknown = false;
   for (let week = 0; week < weeks; week += 1) {
     const playing = men
-      .map((man) => ({ man, value: man.weeks?.length ? (man.weeks[week] ?? null) : (man.bonus ?? null), known: !!man.weeks?.length || man.bonus != null }))
+      .map((man) => ({ man, value: bonusOn(man, man.weeks?.length ? (man.weeks[week] ?? null) : (man.bonus ?? null), place), known: !!man.weeks?.length || man.bonus != null }))
       .filter((one) => !one.man.weeks?.length || one.man.weeks[week] != null);
     // Across clubs the easier match goes first; inside ONE club the deputy can never be preferred to the starter
     // (he plays only when the starter does not), so a club is ranked on its starter's match and its men by share.

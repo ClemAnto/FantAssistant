@@ -112,6 +112,7 @@ function readPitchView(): 'campo' | 'lista' {
 /** Whether the plans box is folded (03/10/2026). */
 const PLANS_FOLDED_KEY = 'fantassistant.draft.plansFolded';
 const HIDE_FULL_KEY = 'fantassistant.draft.hideFull';
+const SHOW_PICKED_KEY = 'fantassistant.draft.showPicked';
 /** The base vote a covered place is counted at in the pitch's «a partita» (operator, 05/10/2026). */
 const PASS_VOTE = 6;
 const SLIM_COLS_KEY = 'fantassistant.draft.slimCols';
@@ -198,6 +199,8 @@ export interface FreeRow {
   full: boolean;
   /** The squad predicted to take him BEFORE our next pick (`AuctionAdvice.takenBeforeUs`); null otherwise. */
   takenBy: { id: number; label: string; colour: string } | null;
+  /** The squad that ALREADY holds him, on a row shown by «mostra già scelti» (05/10/2026); null for a free man. */
+  owner: { id: number; label: string; colour: string } | null;
   /** The odds he is gone before our next turn, as people pick (`AuctionAdvice.goneOdds`); null where the walks never took him. */
   odds: number | null;
   /**
@@ -927,6 +930,7 @@ export class Auction {
       share: this.advice.draftShareBy().get(player.id) ?? null,
       bonus: this.advice.fertilityBy().get(player.id) ?? null,
       weeks: this.advice.keeperWeeksBy().get(player.id) ?? null,
+      defenceBonus: this.advice.defenceBonusOf(player),
     };
   }
 
@@ -1199,7 +1203,10 @@ export class Auction {
       ? (this.rivalModule() ?? this.fertileModule())
       : this.forcedModule()
         ?? (suggested.length ? draftPitchOf([...this.squad(), ...suggested], rules, preferred, null, this.byCoverage())?.module ?? null : null);
-    const drawn = draftPitchOf(this.squad(), rules, preferred, target, this.byCoverage());
+    // IN CAMPO CHI HA IL VALORE MOSTRATO PIU' ALTO (operator, 05/10/2026): the badge's own number picks the starters.
+    const dp = this.advice.priorityOn() ? this.advice.priorityOfMan() : null;
+    const shown = (man: FantaMan) => (dp ? (dp.get(man.id) ?? null) : man.value99);
+    const drawn = draftPitchOf(this.squad(), rules, preferred, target, this.byCoverage(), shown);
     return drawn && suggested.length ? withSuggestions(drawn, suggested) : drawn;
   });
 
@@ -1332,8 +1339,21 @@ export class Auction {
     // A MAN OF A FULL LINE GOES LAST (01/10/2026): with the Draft Priority on every game, a classic squad whose
     // defence and attack are full kept the top of the list on men it can never call again - the advice of
     // before priced them at zero and they sank by themselves. Still listed, dimmed, below everybody callable.
-    return rows.sort((a, b) => Number(a.full) - Number(b.full)
+    rows.sort((a, b) => Number(a.full) - Number(b.full)
       || (b.score ?? -Infinity) - (a.score ?? -Infinity) || b.fvm - a.fvm);
+    if (!this.showPicked()) return rows;
+    // THE MEN ALREADY CHOSEN, after the free ones (operator, 05/10/2026: «un check per mostrare anche i calciatori già
+    // scelti»): priced like a free man (`takenRanked`), marked with the squad that holds him, never a move.
+    const owners = new Map<number, FreeRow['owner']>();
+    for (const team of this.feed.teams()) {
+      for (const entry of team.squad) {
+        if (entry.player) owners.set(entry.player.id, { id: team.id, label: team.label, colour: team.colour });
+      }
+    }
+    const held = this.advice.takenRanked().map((row) => ({
+      ...this.freeRow(row, null, top, press, trends), takenBy: null, owner: owners.get(row.player.id) ?? null,
+    }));
+    return [...rows, ...held.sort((a, b) => b.fvm - a.fvm)];
   });
 
   private freeRow(
@@ -1366,6 +1386,7 @@ export class Auction {
       locked: this.advice.lockedForMe(row.price),
       full: this.advice.fullForMe(row.player.id),
       takenBy: this.takenBy(row.player.id),
+      owner: null,
       odds: this.advice.goneOdds().get(row.player.id) ?? null,
       turnsLeft: this.turnsLeft(row.price),
       expected: this.expectedOf(row.player.id, goal),
@@ -1468,6 +1489,14 @@ export class Auction {
    * the rows marked «pieno», whose line of my squad is full. A per-viewer preference, remembered.
    */
   protected readonly hideFull = signal(readFlag(HIDE_FULL_KEY));
+
+  /** Show the men already chosen too, after the free ones (05/10/2026), remembered. */
+  protected readonly showPicked = signal(readFlag(SHOW_PICKED_KEY));
+
+  protected setShowPicked(on: boolean): void {
+    this.showPicked.set(on);
+    writeFlag(SHOW_PICKED_KEY, on);
+  }
 
   protected setHideFull(on: boolean): void {
     this.hideFull.set(on);
@@ -1893,6 +1922,7 @@ export class Auction {
   /** Double click: the squad on the clock takes him. Only the invented table can be written by hand. */
   protected take(row: FreeRow): void {
     this.cancelCard();
+    if (row.owner) return; // already in a squad: nothing to take, nothing to judge
     if (!this.feed.demo()) {
       // A real table is read-only here: the double click builds the chain from him, with its verdict.
       const judged = this.advice.judgeScenario(row.id);

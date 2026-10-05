@@ -56,6 +56,12 @@ export interface FantaMan extends Placeable {
    * calendar: the season `bonus` is read instead.
    */
   weeks?: (number | null)[] | null;
+  /**
+   * The part of `bonus` (and of every week) that is his share of the DEFENCE MODIFIER - a keeper's or a defender's
+   * steadiness x `STEADY_SHARE`, where the league pays it. A pitch fielding fewer than four defenders takes it off,
+   * because the modifier is not paid there (operator, 05/10/2026). Absent = none.
+   */
+  defenceBonus?: number | null;
 }
 
 export interface FantaPlace {
