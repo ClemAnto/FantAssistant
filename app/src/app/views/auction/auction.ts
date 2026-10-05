@@ -112,6 +112,7 @@ function readPitchView(): 'campo' | 'lista' {
 /** Whether the plans box is folded (03/10/2026). */
 const PLANS_FOLDED_KEY = 'fantassistant.draft.plansFolded';
 const HIDE_FULL_KEY = 'fantassistant.draft.hideFull';
+const SLIM_COLS_KEY = 'fantassistant.draft.slimCols';
 
 function readFlag(key: string): boolean {
   try {
@@ -301,14 +302,20 @@ const ELEVEN = 11;
   // the rows must share ONE track list, or the columns of the header drift from the numbers under them.
   styles: `
     .free-grid { display: grid; align-items: center; column-gap: 0.25rem; }
+    /* THE FOUR ADVICE COLUMNS FOLDED (operator, 05/10/2026: «SESW/Pa/DP/RAR collassabili/nascondibili»): their tracks
+       go to zero and their cells out of sight, header and rows alike. */
+    .free-slim { --cw-sesw: 0px; --cw-pa: 0px; --cw-dp: 0px; --cw-rar: 0px; }
+    .free-slim > [data-sesw], .free-slim > [data-pa], .free-slim > [data-dp], .free-slim > [data-rar],
+    .free-slim > [data-sort="sesw"], .free-slim > [data-sort="pa"], .free-slim > [data-sort="prio"],
+    .free-slim > [data-sort="rar"], .free-slim > .slim-gone { visibility: hidden; overflow: hidden; }
     /* THE ROLE TRACK FOLLOWS THE GAME (30/09/2026): up to three Mantra codes need 5.25rem, a classic man has ONE
        letter, and the same width there left a hole between the badge and the name on every row. */
     .classic-roles { --role-w: 1.4rem; }
     /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
        THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
        empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
-    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem 4.9rem 75px minmax(0, 1fr); }
-    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
+    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -351,8 +358,8 @@ const ELEVEN = 11;
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
     /* CHECKS (operator, 04/10/2026): eight yes/no dots with an icon inside, one narrow equal column each. */
-    .free-checks { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem repeat(8, 1.1rem) minmax(0, 1fr); }
-    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem 2rem 2.1rem 2rem 2.25rem 4.4rem repeat(8, 2.3rem) minmax(0, 1fr); }
+    .free-checks { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem repeat(8, 1.1rem) minmax(0, 1fr); }
+    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -652,6 +659,20 @@ export class Auction {
     if (key.startsWith('pick:')) this.selectedRow.set(null);
   }
 
+
+  /** Why `ROLE_WAIT` moved a plan, in a few words (its icon's tooltip, 05/10/2026). */
+  protected roleWaitText(plan: Scenario): string {
+    const moved = plan.roleWait;
+    if (!moved || !moved.up) return '';
+    if (moved.up > 0) return `Sale di ${moved.up}: chi lo precedeva ha un sostituto del suo ruolo al tuo prossimo turno`;
+    const alt = moved.altId != null ? this.fvmNameOf(moved.altId) : null;
+    return `Scende di ${-moved.up}: al tuo prossimo turno ${alt ? `resterà ${alt}` : 'resterà uno come lui'}, stesso ruolo`;
+  }
+
+  private fvmNameOf(id: number): string | null {
+    const player = this.advice.listone().find((one) => one.player.id === id)?.player;
+    return player ? this.shown(id, player.name) : null;
+  }
 
   /** The picks a plan counts after the two on screen, by name («Poi: Undav +12 · Rrahmani +9»). */
   protected laterText(scenario: Scenario): string {
@@ -1019,6 +1040,19 @@ export class Auction {
       .filter((entry) => !!entry.player)
       .map((entry) => this.manOf(entry.player!, entry.cost)),
   );
+
+  /**
+   * THE PITCH'S HEADER (operator, 05/10/2026: «togli 11/11 titolari e metti FVM totale della rosa e al posto di xxxx
+   * fantapunti metti i fantapunti a partita previsti»): the FVM of the squad shown, and the eleven's VALUE per matchday
+   * - the season's FM x Pv of the starters over the calendar it is counted on (`matchdaysTarget`).
+   */
+  protected readonly pitchFvm = computed(() =>
+    (this.pitchTeam()?.squad ?? []).reduce((sum, entry) => sum + (entry.player?.fvm ?? 0), 0));
+
+  protected perMatch(total: number): number | null {
+    const rounds = this.advice.matchdaysTarget();
+    return rounds ? total / rounds : null;
+  }
 
   /** MY squad, whichever squad the pitch shows: the plans are about mine. */
   private readonly mySquad = computed<FantaMan[]>(() =>
@@ -1402,6 +1436,14 @@ export class Auction {
    * sit far down the list, and a switch next to the count brings them up (29/09/2026).
    */
   protected readonly onlyTaken = signal(false);
+
+  /** The SeSw, Pa, DP and RAR columns folded (05/10/2026), remembered like the other list preferences. */
+  protected readonly slimCols = signal(readFlag(SLIM_COLS_KEY));
+
+  protected toggleSlimCols(): void {
+    this.slimCols.set(!this.slimCols());
+    writeFlag(SLIM_COLS_KEY, this.slimCols());
+  }
 
   /**
    * HIDE THE MEN I CANNOT TAKE (operator, 05/10/2026: «un check per nascondere i calciatori non prendibili (pieno)»):

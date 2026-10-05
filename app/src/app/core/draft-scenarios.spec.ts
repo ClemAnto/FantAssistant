@@ -310,3 +310,20 @@ describe('the men the operator excluded from the advice (05/10/2026)', () => {
     expect(movesFor(ctx.teams[1], ctx.pool, ctx).some((step) => step.player.id === bonusDc.id)).toBe(true);
   });
 });
+
+describe('waiting is priced by role (05/10/2026, ROLE_WAIT)', () => {
+  const everybody = population();
+  const base = input([], everybody);
+  const step = (id: number, gain: number, waitAlt?: number) =>
+    ({ player: asPlan({ ...man('c', 6), id }), priority: 0, gain, need: null, waitAlt });
+
+  it('discounts a man who will be gone when a man as good of his role will still be there', () => {
+    const ctx = { ...base, gone: new Map([[1, 1]]) };
+    expect(rankGain(step(1, 10), ctx, 10)).toBe(10); // gone, nobody of his role left
+    expect(rankGain(step(1, 10, 10), ctx, 10)).toBeCloseTo(7, 9); // gone, but an equal one survives
+    expect(rankGain(step(1, 10, 4), ctx, 10)).toBeCloseTo(8.8, 9); // a weaker one survives: a smaller discount
+    expect(rankGain(step(2, 10, 0), ctx, 10)).toBeCloseTo(7, 9); // he survives himself: the old discount
+    expect(rankGain(step(2, 10, 30), ctx, 10)).toBeCloseTo(7, 9); // never more than the old discount
+    expect(rankGain(step(1, -2, 10), ctx, 10)).toBe(-2); // a loss is never discounted
+  });
+});

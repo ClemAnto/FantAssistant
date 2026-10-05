@@ -80,6 +80,13 @@ export interface ScenarioStep {
   need: PlaceNeed | null;
   /** For a LATER step (`Scenario.later`): how many picks the rivals make before it, after our previous one. */
   wait?: number;
+  /**
+   * THE BEST GAIN STILL THERE IN HIS ROLE AT OUR NEXT PICK (`ROLE_WAIT`): the highest gain among the OTHER moves of
+   * his role that the rivals are predicted to leave. Set by `movesFor`; absent where nobody computed it.
+   */
+  waitAlt?: number;
+  /** The man behind `waitAlt`, so the screen can name who will still be there. */
+  waitAltId?: number;
 }
 
 export interface Scenario {
@@ -101,6 +108,13 @@ export interface Scenario {
   /** The squads calling during the wait that want the second man, and why (`interestIn`), one each. */
   interested: Interest[];
   difficulty: Difficulty;
+  /**
+   * WHERE `ROLE_WAIT` MOVED THIS PLAN (operator, 05/10/2026: «un'icona o una nota per evidenziare queste eccezioni
+   * quando sono attive nei consigli»): how many places it went UP (positive) or DOWN (negative) against the order the
+   * plans would have without the rule, and - when it went down - the man of the same role predicted to still be there.
+   * Absent or `up` 0 when the rule changed nothing for it.
+   */
+  roleWait?: { up: number; altId: number | null };
 }
 
 /** Why a rival wants the second man: he has nobody of that role, fewer than a shape starts, or only weak ones. */
@@ -267,12 +281,20 @@ export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: Sce
     const best = priced.find((one) => fits(one.player.roles, need.place));
     if (best) picked.add(best);
   }
-  return [...picked]
+  const steps = [...picked]
     .map(({ player, man, priority }): ScenarioStep => ({
       player, priority, need: null,
       gain: squadWorth([...roster, man], input, left - 1, door) - before,
-    }))
-    .sort((a, b) => rankGain(b, input, left) - rankGain(a, input, left) || b.priority - a.priority);
+    }));
+  if (ROLE_WAIT && input.gone) {
+    for (const step of steps) {
+      const alts = steps.filter((one) => one !== step && one.player.slot === step.player.slot && !input.gone!.has(one.player.id));
+      const best = alts.reduce<ScenarioStep | null>((top, one) => (!top || one.gain > top.gain ? one : top), null);
+      step.waitAlt = best?.gain ?? 0;
+      step.waitAltId = best?.player.id;
+    }
+  }
+  return steps.sort((a, b) => rankGain(b, input, left) - rankGain(a, input, left) || b.priority - a.priority);
 }
 
 /**
@@ -280,10 +302,23 @@ export function movesFor(team: PlanTeam, pool: readonly PlanPlayer[], input: Sce
  * there is no next pick), `SURVIVOR_DISCOUNT` of it if he will still be there. A loss is never discounted - waiting
  * does not make a bad move better.
  */
-export function rankGain(step: ScenarioStep, input: ScenarioInput, picksLeft: number): number {
-  if (!input.gone || picksLeft <= 1 || step.gain <= 0 || input.gone.has(step.player.id)) return step.gain;
-  return step.gain * SURVIVOR_DISCOUNT;
+export function rankGain(step: ScenarioStep, input: ScenarioInput, picksLeft: number, roleWait = ROLE_WAIT): number {
+  if (!input.gone || picksLeft <= 1 || step.gain <= 0) return step.gain;
+  // What waiting costs: nothing he gives if HE will still be there, and - by role (`ROLE_WAIT`) - nothing a man of his
+  // role still there would give. The discount is `SURVIVOR_DISCOUNT`'s, never more: at most 30% of his gain.
+  const own = input.gone.has(step.player.id) ? 0 : step.gain;
+  const alt = Math.min(step.gain, Math.max(own, roleWait ? (step.waitAlt ?? 0) : 0));
+  return step.gain - (1 - SURVIVOR_DISCOUNT) * alt;
 }
+
+/**
+ * WAITING IS PRICED BY ROLE, NOT ONLY BY MAN (operator, 05/10/2026, from the finished draft FA-610-2ih: after the
+ * seventh pick every line is nearly flat - the best free midfielder 15 from round 8 to 20 - so «take who will be gone»
+ * must also ask whether a man AS GOOD of the same role will still be there). A move's gain is discounted by the share
+ * of it a same-role man predicted to survive our next turn would give back, capped at the old per-man discount: a
+ * flat line (midfield) waits, a line that is thinning (defence in rounds 8-13) does not. Switch off to go back.
+ */
+export const ROLE_WAIT = true;
 
 /** The place of the diagnosis a man would take, entering our best eleven; null when he would not fix one. */
 function needTaken(roster: readonly PriorityMan[], man: PriorityMan | null, diagnosis: Diagnosis | null,
@@ -456,14 +491,23 @@ export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnos
   for (const move of movesFor(me, input.pool, input).slice(0, CHAINED)) {
     const need = needTaken(roster, input.manOf(move.player.id), diagnosis, input).need;
     const chain = chainFrom(input, move.player, need);
-    if (chain) list.push(chain);
+    if (chain) list.push({ ...chain, first: { ...chain.first, waitAlt: move.waitAlt, waitAltId: move.waitAltId } });
   }
   // Ranked with the first move's gain discounted when he would survive (`rankGain`); the second pick is a hope at our
   // next turn already, so it is not discounted again.
   const left = input.calls.rounds - me.picksCount;
-  const score = (chain: Scenario) => chain.horizon - chain.first.gain + rankGain(chain.first, input, left);
+  const score = (chain: Scenario, roleWait = ROLE_WAIT) =>
+    chain.horizon - chain.first.gain + rankGain(chain.first, input, left, roleWait);
+  // The order the plans would have WITHOUT the rule, so a plan it moved can say so (`Scenario.roleWait`).
+  const without = [...list].sort((a, b) => score(b, false) - score(a, false) || b.first.gain - a.first.gain);
   list.sort((a, b) => score(b) - score(a) || b.first.gain - a.first.gain);
-  return { diagnosis, list: list.slice(0, count) };
+  const shown = list.slice(0, count).map((chain, at) => {
+    if (!ROLE_WAIT) return chain;
+    const up = without.indexOf(chain) - at;
+    const discounted = rankGain(chain.first, input, left, true) < rankGain(chain.first, input, left, false) - 1e-9;
+    return up ? { ...chain, roleWait: { up, altId: discounted ? (chain.first.waitAltId ?? null) : null } } : chain;
+  });
+  return { diagnosis, list: shown };
 }
 
 export type Verdict = 'coerente' | 'inopportuna';

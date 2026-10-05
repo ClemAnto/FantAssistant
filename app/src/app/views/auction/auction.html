@@ -315,8 +315,10 @@
                 fuori dai consigliati
               </span>
             }
-            <span class="tabular-nums">{{ drawn.placed }}/11 titolari</span>
-            <span class="ml-auto tabular-nums">{{ drawn.total | number: '1.0-0' }} fantapunti</span>
+            <span data-pitch-fvm-total class="tabular-nums" nz-tooltip nzTooltipTitle="FVM totale della rosa">FVM {{ pitchFvm() }}</span>
+            <span data-pitch-per-match class="ml-auto tabular-nums" nz-tooltip nzTooltipTitle="Fantapunti a partita previsti dell'undici"
+              >{{ perMatch(drawn.total) != null ? (perMatch(drawn.total)! | number: '1.1-1') : '—' }} a partita</span
+            >
           </div>
 
           <div
@@ -576,6 +578,18 @@
                       >· {{ chain.verdict }}</span
                     >
                   }
+                  <!-- DOVE LA REGOLA «ASPETTA PER RUOLO» HA SPOSTATO IL PIANO (sua richiesta, 05/10/2026). -->
+                  @if (chain.scenario.roleWait?.up; as up) {
+                    <span
+                      data-role-wait
+                      [attr.data-up]="up"
+                      class="flex shrink-0 items-center gap-0.5 rounded px-0.5 text-[10px] font-normal"
+                      [class]="up > 0 ? 'bg-primary/15 text-primary' : 'bg-fg/10 text-muted'"
+                      nz-tooltip
+                      [nzTooltipTitle]="roleWaitText(chain.scenario)"
+                      ><nz-icon nzType="swap" />{{ up > 0 ? '+' + up : up }}</span
+                    >
+                  }
                   @if (chain.scenario.second) {
                     <span
                       data-difficulty
@@ -709,6 +723,17 @@
             <label nz-radio-button nzValue="previste" data-mode="previste">Previste</label>
             <label nz-radio-button nzValue="checks" data-mode="checks">Checks</label>
           </nz-radio-group>
+          <!-- LE QUATTRO COLONNE DEI CONSIGLI NASCOSTE O NO (sua richiesta, 05/10/2026). -->
+          <button
+            type="button"
+            data-slim-cols
+            [attr.data-on]="slimCols() ? '' : null"
+            class="rounded border px-1.5 text-[10px] leading-5"
+            [class]="slimCols() ? 'border-primary text-primary' : 'border-border text-muted hover:text-fg'"
+            nz-tooltip
+            [nzTooltipTitle]="slimCols() ? 'Mostra SeSw, Pa, DP, RAR' : 'Nascondi SeSw, Pa, DP, RAR'"
+            (click)="toggleSlimCols()"
+          >{{ slimCols() ? '+ colonne' : '− colonne' }}</button>
         </div>
         <div class="flex flex-wrap items-center gap-0.5">
           @for (role of roleOptions(); track role) {
@@ -856,7 +881,7 @@
         <!-- FVM E PRIORITA' SUBITO DOPO IL NOME, in tutte e tre le viste (sua richiesta, 29/09/2026): sono i due
              numeri con cui si sceglie, quindi non cambiano posto quando cambia la vista. -->
         @if (mode() === 'default') {
-          <div data-free-head class="gutter free-grid free-default px-1 text-[10px] text-muted">
+          <div data-free-head [class.free-slim]="slimCols()" class="gutter free-grid free-default px-1 text-[10px] text-muted">
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')" nz-tooltip nzTooltipTitle="Ruolo">{{ feed.isMantra() ? 'Ruolo' : 'R' }}{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
@@ -878,12 +903,12 @@
             >
           </div>
         } @else if (mode() === 'medie') {
-          <div class="gutter free-grid free-medie px-1 text-[10px] uppercase text-muted">
+          <div [class.free-slim]="slimCols()" class="gutter free-grid free-medie px-1 text-[10px] uppercase text-muted">
             <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
             <span class="col-span-4 text-center">{{ seasons().now ?? 'stagione' }}</span>
             <span class="split col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
           </div>
-          <div data-free-head class="gutter free-grid free-medie px-1 text-[10px] text-muted">
+          <div data-free-head [class.free-slim]="slimCols()" class="gutter free-grid free-medie px-1 text-[10px] text-muted">
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')" nz-tooltip nzTooltipTitle="Ruolo">{{ feed.isMantra() ? 'Ruolo' : 'R' }}{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
@@ -908,7 +933,7 @@
         } @else if (mode() === 'checks') {
           <!-- CHECKS (sua richiesta, 04/10/2026): cinque condizioni si/no, una colonna ciascuna
                (`core/draft-checks.ts`). -->
-          <div data-free-head class="gutter free-grid free-checks px-1 text-[10px] text-muted">
+          <div data-free-head [class.free-slim]="slimCols()" class="gutter free-grid free-checks px-1 text-[10px] text-muted">
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')" nz-tooltip nzTooltipTitle="Ruolo">{{ feed.isMantra() ? 'Ruolo' : 'R' }}{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
@@ -936,7 +961,7 @@
           <!-- PREVISTE (sua richiesta, 29/09/2026): quello che il FOGLIO prevede per la stagione che resta -
                il gradino del motore, le partite a voto, i minuti, la media voto, la costanza delle sue
                stagioni (quota di partite chiuse almeno a 6) e la fantamedia. -->
-          <div data-free-head class="gutter free-grid free-previste px-1 text-[10px] text-muted">
+          <div data-free-head [class.free-slim]="slimCols()" class="gutter free-grid free-previste px-1 text-[10px] text-muted">
             <span class="sort uppercase" data-sort="role" (click)="sortBy('role')" nz-tooltip nzTooltipTitle="Ruolo">{{ feed.isMantra() ? 'Ruolo' : 'R' }}{{ arrow('role') }}</span>
             <span class="sort uppercase" data-sort="name" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span class="sort text-right uppercase" data-sort="fvm" (click)="sortBy('fvm')">FVM{{ arrow('fvm') }}</span>
@@ -978,6 +1003,7 @@
               [class.free-medie]="mode() === 'medie'"
               [class.free-previste]="mode() === 'previste'"
               [class.free-checks]="mode() === 'checks'"
+              [class.free-slim]="slimCols()"
               [class.opacity-50]="row.locked || row.full || advice.excluded().has(row.id)"
               [attr.data-locked]="row.locked ? '' : null"
               [attr.data-full]="row.full ? '' : null"
@@ -1069,7 +1095,7 @@
               <span class="text-right tabular-nums">{{ row.fvm }}</span>
               <span data-sesw class="text-right tabular-nums">{{ row.sesw ?? '—' }}</span>
               <span data-pa class="text-right tabular-nums">{{ row.pa != null ? (row.pa | number: '1.1-1') : '—' }}</span>
-              <span class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>
+              <span data-dp class="text-right font-semibold tabular-nums">{{ row.priority ?? '—' }}</span>
               <span data-rar class="text-right tabular-nums" [attr.data-rar-count]="row.rar?.count ?? null" [attr.data-rar-of]="row.rar?.of ?? null" [class.text-danger]="row.rar?.count === 0" nz-tooltip [nzTooltipTitle]="rarTip(row)" [nzTooltipMouseEnterDelay]="0.4">{{ row.rarText }}</span>
               <span data-added class="text-right tabular-nums" [attr.data-added-cover]="row.added?.cover ?? null">
                 @if (row.added; as added) {
