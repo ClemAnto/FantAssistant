@@ -558,11 +558,21 @@ export function unavailableMark(entry: Unavailable, today: string): PlayerMark |
         ? 'In dubbio'
         : 'Dato indisponibile';
   const when = age === 0 ? 'oggi' : age === 1 ? 'ieri' : `il ${itDate(entry.on)}`;
+  // Quando la prosa della pagina dice DOVE si rientra, la nota lo scrive: «non dice per quanto» era vero
+  // solo senza data, e su chi ce l'ha (McTominay, «seconda metà ottobre») era una frase falsa.
+  const approx = entry.basis === 'month_part' ? ' circa' : '';
+  const ret =
+    entry.basis === 'season_over'
+      ? 'Stagione finita.'
+      : entry.expectedReturn
+        ? `Rientro atteso${approx} il ${itDate(entry.expectedReturn)}.`
+        : null;
   return {
     flag: 'unavailable_press',
-    note:
-      `${what} dalla stampa, letto ${when}. È la voce del giorno e non una diagnosi: non dice per ` +
-      `quanto, e può non essere ancora ufficiale. Da esaminare prima di offrire.`,
+    note: ret
+      ? `${what} dalla stampa, letto ${when}. ${ret} Può non essere ancora ufficiale.`
+      : `${what} dalla stampa, letto ${when}. È la voce del giorno e non una diagnosi: non dice per ` +
+        `quanto, e può non essere ancora ufficiale. Da esaminare prima di offrire.`,
   };
 }
 

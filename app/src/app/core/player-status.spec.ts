@@ -269,6 +269,19 @@ describe('chi la stampa dà per indisponibile', () => {
     expect(note).toContain('oggi');
     expect(note).toContain('non dice per quanto');
   });
+
+  it('quando la prosa dà il rientro, la nota lo scrive e non dice «non dice per quanto»', () => {
+    const dated = {
+      ...reading('injured', TODAY),
+      expectedReturn: '2026-10-23',
+      basis: 'month_part',
+    };
+    const note = unavailableMark(dated, TODAY)!.note;
+    expect(note).toContain('Rientro atteso circa il');
+    expect(note).not.toContain('non dice per quanto');
+    const over = unavailableMark({ ...dated, expectedReturn: null, basis: 'season_over' }, TODAY)!.note;
+    expect(over).toContain('Stagione finita');
+  });
 });
 
 describe('quando le due fonti dicono la stessa notizia', () => {
