@@ -86,6 +86,7 @@ import {
 import { CalendarFile, calendarBookFrom, cleanSheetOutlook } from './keeper-pairs';
 import { ROLE_STEADY, STEADY_SHARE, draftFertility } from './swing';
 import type { Role } from './plancia';
+import { StartRecord, subBonusShift } from './sub-bonus';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
 import { presenceNowShares } from './presence-now';
@@ -322,6 +323,9 @@ export class AuctionAdvice {
    * actually played. `sofascore_extra` (friendlies, cups) is excluded on purpose - the calibration walked
    * the league calendar, and a friendly goal must never enter a number a threshold was fitted on.
    */
+  /** Last season's league appearances and starts per player: the half of `subBonusShift` the fantamedia comes from. */
+  private readonly prevStarts = signal<Map<number, StartRecord>>(new Map());
+
   private readonly window = signal<Map<number, { minutes: number; xg: number; xa: number }>>(
     new Map(),
   );
@@ -1415,6 +1419,10 @@ export class AuctionAdvice {
     const matchdays = this.matchdaysTarget();
     const platform = this.entry()?.platform ?? 'euro';
     const goals = this.feed.isGoalsMode();
+    // The word in force (`all`): the press only when switched on and fresh, and an operator's own ruling over it -
+    // which carries no start share, so a man he declared keeps the engine's fantamedia.
+    const rulings = this.rulings.all();
+    const prevStarts = this.prevStarts();
     for (const { player } of this.listone()) {
       const porta = goals ? this.feed.portaOfKeeper().get(player.id) : undefined;
       const valuation = this.valuationFor(player, numbers);
@@ -1425,7 +1433,15 @@ export class AuctionAdvice {
         slot: porta ? 'por' : this.slotFor(player, numbers.get(player.id)?.slot),
         price: porta ? porta.price : player.fvm,
         // A keeper's fantamedia reads his club's goals against on the competition's calendar (`keeperFmBy`).
-        fm: (porta ? null : this.keeperFmBy().get(player.id)) ?? valuation.fm,
+        // ...and an outfield man's moves by the bonuses a substitute does not get (`sub-bonus.ts`, 05/10/2026):
+        // the role the press gives him NOW against the one his fantamedia was earned in.
+        fm: (porta ? null : this.keeperFmBy().get(player.id))
+          ?? (valuation.fm == null ? null : valuation.fm + (porta ? 0 : (subBonusShift(
+            MACRO_ROLE[player.zoneClassic] ?? null,
+            rulings.get(player.id)?.source === 'press' ? rulings.get(player.id)?.startPct : null,
+            numbers.get(player.id)?.titolaritaPlay,
+            prevStarts.get(player.id),
+          ) ?? 0))),
         // A door is a club and its mix stays the engine's; a man reads the new formula where it has him.
         share: (porta ? null : this.draftShareBy().get(player.id))
           ?? (valuation.pv != null && matchdays ? Math.min(1, valuation.pv / matchdays) : null),
@@ -2167,6 +2183,9 @@ export class AuctionAdvice {
         }
       }
 
+      // BEFORE the numbers: the Draft Priority reads it (`sub-bonus.ts`), and set afterwards the list would draw
+      // once without it and reorder a moment later, under the pointer.
+      this.prevStarts.set(await this.startRecord(manifest.input_season));
       this.entry.set(chosen);
       this.numbers.set(best);
       this.coverage.set({ matched, total: wanted.size });
@@ -2245,6 +2264,34 @@ export class AuctionAdvice {
    * Empty before the season starts, and that is the answer rather than a failure: at a pre-season auction
    * nobody has minutes, so no screen is drawn at all.
    */
+  /**
+   * LEAGUE APPEARANCES AND STARTS of one season, per player (05/10/2026, `sub-bonus.ts`): the role the engine's
+   * fantamedia was earned in. Only `sofascore` rows (the five leagues' calendars), one per match, a man with
+   * minutes; empty on an older bundle, and then no fantamedia moves.
+   */
+  private async startRecord(season: string): Promise<Map<number, StartRecord>> {
+    try {
+      const table = await this.bundle.table('external_match_stats');
+      const [id, when, source, match, started, minutes] = ['fc_id', 'season', 'source', 'match_id', 'started', 'minutes']
+        .map((name) => table.columns.indexOf(name));
+      if (id < 0 || when < 0 || match < 0 || started < 0 || minutes < 0) return new Map();
+      const seen = new Map<number, Map<unknown, boolean>>();
+      for (const row of table.rows) {
+        if (row[when] !== season || (source >= 0 && row[source] !== 'sofascore') || !(Number(row[minutes]) > 0)) continue;
+        const key = Number(row[id]);
+        if (!seen.has(key)) seen.set(key, new Map());
+        seen.get(key)!.set(row[match], !!row[started]);
+      }
+      const out = new Map<number, StartRecord>();
+      for (const [key, matches] of seen) {
+        out.set(key, { apps: matches.size, starts: [...matches.values()].filter(Boolean).length });
+      }
+      return out;
+    } catch {
+      return new Map();
+    }
+  }
+
   private async playedWindow(
     season: string,
   ): Promise<Map<number, { minutes: number; xg: number; xa: number }>> {
