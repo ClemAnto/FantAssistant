@@ -139,7 +139,9 @@ def test_la_pagina_vera_produce_le_date_che_ci_aspettiamo():
     dated = {rec["name"]: fc_site.parse_return(rec["note"], READ_ON) for rec in records}
     found = {name: value for name, value in dated.items() if value[1]}
     assert len(records) == 45
-    assert len(found) == 23
+    # 23 prima del 06/10/2026; il 24o e' Dele-Bashiru, «si confida di riaverlo a disposizione da meta'
+    # settembre»: un rientro vero, che il verbo `riaver\w*` ha aggiunto e nessun'altra frase.
+    assert len(found) == 24
     # Tre nomi che l'operatore ha nominato quel giorno, con la data che la pagina dice di loro.
     assert found["McTominay"] == ("2026-10-05", "month_part")
     assert found["Yildiz"] == ("2026-11-25", "month_part")
@@ -147,3 +149,13 @@ def test_la_pagina_vera_produce_le_date_che_ci_aspettiamo():
     # ...e ogni data e' nel futuro rispetto alla lettura, che e' quello che «rientro» vuol dire.
     for name, (date, _basis) in found.items():
         assert date is None or dt.date.fromisoformat(date) >= dt.date.fromisoformat(READ_ON), name
+
+
+def test_l_infinito_con_clitico_e_un_verbo_di_rientro():
+    # VERBATIM dalla pagina del 06/10/2026: McTominay (ablazione) e il verbo era «rivederlo», che non
+    # comincia con `rivedr` - per un mese la riga che la data la dava leggeva niente.
+    assert fc_site.parse_return(
+        "Si confida di rivederlo in campo dalla seconda metà ottobre.", "2026-10-06"
+    ) == ("2026-10-23", "month_part")
+    # La trappola resta chiusa: un'ancora di mese senza un verbo di rientro davanti non e' un rientro.
+    assert fc_site.parse_return("Operato a fine giugno per una lesione.", "2026-10-06") == (None, None)

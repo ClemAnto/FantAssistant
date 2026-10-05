@@ -124,7 +124,9 @@ MONTH_PART_DAY: dict[str, int] = {
     "inizio": 5, "principio": 5, "meta": 15, "fine": 25, "prima meta": 8, "seconda meta": 23,
 }
 
-_RETURN_VERB = r"(?:rientr\w*|recuper\w*|torn\w*|arruolabil\w*|disponibil\w*|rivedr\w*|convocabil\w*)"
+# «rivederlo» e «riaverlo» (infinito + clitico: «Si confida di rivederlo in campo dalla seconda meta' ottobre») non
+# cominciano con `rivedr`: McTominay leggeva zero data per un mese sulla riga che la dava (06/10/2026).
+_RETURN_VERB = r"(?:rientr\w*|recuper\w*|torn\w*|arruolabil\w*|disponibil\w*|rivedr\w*|rived\w*|riaver\w*|convocabil\w*)"
 _FROM = r"(?:da|dal|dalla|dall'|dallo)"
 # UN CONFINE DI PAROLA PRIMA DEL «da» non e' decorazione: senza, il «da» dentro «seconDA» fa
 # scattare la frase, e «recuperabile dalla SECONDA meta' di settembre» diventerebbe una data
