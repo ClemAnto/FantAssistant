@@ -1,8 +1,8 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, WritableSignal, computed, effect, inject, signal } from '@angular/core';
 
 import { AuctionFeed, AuctionPlayer, Platform, Porta, Zone } from './auction-feed';
 import { GlobalOptions } from './global-options';
-import { goneOdds, type SeenMan } from './rival-odds';
+import { FAVOURITE_AT_RISK, goneOdds, type SeenMan } from './rival-odds';
 import {
   EngineNumbers,
   MantraModules,
@@ -72,7 +72,7 @@ import type { FantaMan } from './fanta-eleven';
 import { RUNG_RANK, Rarity, RarityMan, rarity, shownRung } from './draft-rarity';
 import { PlayerRulings, RUNG_VOTE_SHARE, ruledShare } from './player-rulings';
 import { TITOLARITA_LADDER } from './titolarita';
-import { PlaceNeed, Scenario, ScenarioInput, SquadPitch, judge, scenarios as draftScenarios } from './draft-scenarios';
+import { ADVICE_GONE_ODDS, PlaceNeed, Scenario, ScenarioInput, SquadPitch, judge, scenarios as draftScenarios } from './draft-scenarios';
 import type { Place } from './mantra-legal';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { engineNumbersFrom } from './engine-sheet';
@@ -105,11 +105,12 @@ const RULED_SHARES = new Map(TITOLARITA_LADDER.map((rung) => [rung, { play: RUNG
 /** Where the priced window lives between sessions: it is a setting, not a derived value. */
 const HORIZON_KEY = 'fantassistant.auction.horizon';
 const EXCLUDED_KEY = 'fantassistant.auction.excluded';
+const FAVOURITES_KEY = 'fantassistant.auction.favourites';
 
-/** The excluded men by session code, as saved; empty when nothing is saved or it cannot be read. */
-function readExcluded(): Record<string, number[]> {
+/** A set of men by session code, as saved under `key`; empty when nothing is saved or it cannot be read. */
+function readExcluded(key = EXCLUDED_KEY): Record<string, number[]> {
   try {
-    const saved = JSON.parse(localStorage.getItem(EXCLUDED_KEY) ?? '{}');
+    const saved = JSON.parse(localStorage.getItem(key) ?? '{}');
     const out: Record<string, number[]> = {};
     for (const [code, ids] of Object.entries(saved ?? {})) {
       if (Array.isArray(ids)) out[code] = ids.filter((id): id is number => typeof id === 'number');
@@ -861,15 +862,51 @@ export class AuctionAdvice {
   }
 
   private writeExcluded(ids: number[]): void {
+    this.writeSessionSet(this.excludedBySession, EXCLUDED_KEY, ids);
+  }
+
+  /**
+   * THE OPERATOR'S FAVOURITES (operator, 05/10/2026: «dammi la possibilità anche di marchiare i miei calciatori
+   * preferiti»), per session code like the exclusions. A preference and not a weight: no plan ranks them higher - the
+   * page only warns when one of them is likely gone before our turn (`favouritesAtRisk`).
+   */
+  private readonly favouritesBySession = signal<Record<string, number[]>>(readExcluded(FAVOURITES_KEY));
+  readonly favourites = computed<ReadonlySet<number>>(
+    () => new Set(this.favouritesBySession()[this.feed.code() ?? ''] ?? []),
+  );
+
+  toggleFavourite(playerId: number): void {
+    const now = new Set(this.favourites());
+    if (now.has(playerId)) now.delete(playerId);
+    else now.add(playerId);
+    this.writeSessionSet(this.favouritesBySession, FAVOURITES_KEY, [...now]);
+  }
+
+  /**
+   * THE FAVOURITES LIKELY GONE BEFORE OUR NEXT TURN (operator, 05/10/2026: «quando uno di questi finisce in quelli che
+   * probabilmente verranno presi da altri, aggiungi un consiglio particolare»): free favourites whose odds of being
+   * taken (`goneOdds`) reach `FAVOURITE_AT_RISK`, most at risk first. Draft only, like the odds.
+   */
+  readonly favouritesAtRisk = computed<{ id: number; odds: number }[]>(() => {
+    const favourites = this.favourites();
+    if (!favourites.size) return [];
+    const odds = this.goneOdds();
+    return [...favourites]
+      .map((id) => ({ id, odds: odds.get(id) ?? 0 }))
+      .filter((one) => one.odds >= FAVOURITE_AT_RISK)
+      .sort((a, b) => b.odds - a.odds);
+  });
+
+  private writeSessionSet(store: WritableSignal<Record<string, number[]>>, key: string, ids: number[]): void {
     const code = this.feed.code() ?? '';
-    const all = { ...this.excludedBySession() };
+    const all = { ...store() };
     if (ids.length) all[code] = ids;
     else delete all[code];
-    this.excludedBySession.set(all);
+    store.set(all);
     try {
-      localStorage.setItem(EXCLUDED_KEY, JSON.stringify(all));
+      localStorage.setItem(key, JSON.stringify(all));
     } catch {
-      // A browser that refuses storage keeps the exclusions for this visit.
+      // A browser that refuses storage keeps the choice for this visit.
     }
   }
 
@@ -1899,7 +1936,22 @@ export class AuctionAdvice {
       gone: this.takenBeforeUs(),
       keepers: this.keeperShirts(),
       excluded: this.excluded(),
+      likelyGone: this.likelyGone(),
     };
+  });
+
+  /**
+   * The men the advice must not plan on (`ScenarioInput.likelyGone`): their odds of going before our next call
+   * reach `ADVICE_GONE_ODDS`, and whether that call is the one about to be made or the one after depends on the clock.
+   */
+  private readonly likelyGone = computed<ScenarioInput['likelyGone']>(() => {
+    const input = this.planInput();
+    if (!input) return undefined;
+    const ids = new Set([...this.goneOdds()].filter(([, odds]) => odds > ADVICE_GONE_ODDS).map(([id]) => id));
+    if (!ids.size) return undefined;
+    const teams = new Map(input.teams.map((team) => [team.id, team]));
+    const onClock = nextCaller(teams, input.maxAheadPicks, Infinity, input.orderType)?.id === input.mineId;
+    return { ids, beforeNow: !onClock };
   });
 
   /**
@@ -1988,7 +2040,7 @@ export class AuctionAdvice {
     // for who will still be there - without it the invented table rushed the keepers in round one.
     const gone = takenBeforeOurTurn({ ...input, mineId: teamId, rounds: input.calls.rounds });
     // The exclusions are OURS: a squad played by the advice on the invented table may take anybody.
-    return draftScenarios({ ...input, mineId: teamId, gone, excluded: undefined }).list;
+    return draftScenarios({ ...input, mineId: teamId, gone, excluded: undefined, likelyGone: undefined }).list;
   }
 
   /**

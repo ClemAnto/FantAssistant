@@ -60,6 +60,12 @@ export const SURE_ODDS = 0.8;
 /** Below this the row says nothing: a display choice, declared here so it is not read as measured. */
 export const SHOWN_ODDS = 0.3;
 
+/**
+ * From here a FAVOURITE gets its own advice (operator, 05/10/2026: «quelli che probabilmente verranno presi da altri»):
+ * his threshold (05/10/2026: «la soglia di allarme per un preferito è già il 5%»), not a measurement.
+ */
+export const FAVOURITE_AT_RISK = 0.05;
+
 /** Walks sampled per reading. 150 keeps the odds within ±0.04 of their limit and the page under a frame budget. */
 export const ODDS_SIMS = 150;
 
@@ -70,7 +76,26 @@ export const ODDS_SIMS = 150;
  * gap by FVM, `t` = the squad's picks / the picks of a whole squad.
  */
 export const HUMAN_WEIGHTS = {
-  early: { logFVM: 2.7078 },
+  /**
+   * REFITTED 05/10/2026 (operator: «un modello che sia in grado di adattarsi sempre anche in futuro quando cambierà il
+   * listone ... prendere come prima scelta il top del mercato è quasi sempre la scelta presa dai partecipanti»). The
+   * price alone, exp(2.71 · log FVM), gave the dearest man of a Serie A listone 26% at the first call. Every feature
+   * here is RELATIVE to the men still free, so a new listone - other FVMs, other matches played - needs no refit: a
+   * conditional logit drops the scale of the FVM, `logRank` is the rank by FVM among the men the squad may call, and
+   * the season's numbers are the table's own. `First` = the squad's own first call, where the top of the market bites.
+   * Fitted on seven drafts recovered from the host (`toolkit/bench/draft/rival-early-fit.mjs`, L2 0.02): held out one
+   * table at a time the log-likelihood per pick goes -4.149 (price alone, refitted) -> -4.125, and the chance that the
+   * two dearest are both gone after four calls reads 72% (Serie A) / 48% (euro) against 3 of 5 and 1 of 2 real tables.
+   */
+  early: {
+    logFVM: 1.2791,
+    logRank: -0.5154,
+    logFVMFirst: 0.1207,
+    logRankFirst: -0.3229,
+    fmMinus6: 0.055,
+    fmMissing: -0.4333,
+    played: 0.5655,
+  },
   late: {
     logFVM: 0.2135,
     logFVMxT: -0.513,
@@ -163,6 +188,9 @@ export function goneOdds(input: OddsInput): Map<number, number> {
   const top = new Uint8Array(pool.length);
   const gap = new Float64Array(pool.length);
   const late = HUMAN_WEIGHTS.late;
+  const earlyW = HUMAN_WEIGHTS.early;
+  const allRank = new Float64Array(pool.length);
+  const byPrice = pool.map((_, index) => index).sort((a, b) => pool[b].price - pool[a].price);
   for (let sim = 0; sim < sims; sim += 1) {
     const teams = new Map(start);
     const held = new Map([...teams.values()].map((team) => [team.id, heldOf(team)]));
@@ -190,18 +218,29 @@ export function goneOdds(input: OddsInput): Map<number, number> {
       // Keepers are counted on the LINE the listone states, not on the sheet's slot: on mantra a man the sheet does not
       // price has no slot, and his keepers would never count against the cap - exactly the men this model is about.
       const keepers = caller.heldIds.filter((id) => input.seen.get(id)?.line === 'gk').length;
+      const legal = (index: number) => {
+        const player = pool[index];
+        if (input.seen.get(player.id)!.line === 'gk' && keepers >= input.keeperCap) return false;
+        if (roleFull(caller, player.slot)) return false;
+        return !capBlocks(caller.picksCount, player.price, input.cap ?? null);
+      };
+      // The early phase reads the rank by FVM among the men THIS caller may take (`legal`), all lines together.
+      if (early) {
+        let at = 0;
+        for (const index of byPrice) if (alive[index] && legal(index)) allRank[index] = Math.log(++at);
+      }
       let best = -1;
       let bestScore = -Infinity;
       for (let index = 0; index < pool.length; index += 1) {
-        if (!alive[index]) continue;
-        const player = pool[index];
-        const man = input.seen.get(player.id)!;
-        if (man.line === 'gk' && keepers >= input.keeperCap) continue;
-        if (roleFull(caller, player.slot)) continue;
-        if (capBlocks(caller.picksCount, player.price, input.cap ?? null)) continue;
+        if (!alive[index] || !legal(index)) continue;
+        const man = input.seen.get(pool[index].id)!;
         let utility: number;
-        if (early) utility = HUMAN_WEIGHTS.early.logFVM * logPrice[index];
-        else {
+        if (early) {
+          const first = caller.picksCount === 0 ? 1 : 0;
+          utility = earlyW.logFVM * logPrice[index] + earlyW.logRank * allRank[index]
+            + first * (earlyW.logFVMFirst * logPrice[index] + earlyW.logRankFirst * allRank[index])
+            + (man.fm ? earlyW.fmMinus6 * (man.fm - 6) : earlyW.fmMissing) + earlyW.played * (man.played / maxPlayed);
+        } else {
           const keeper = man.line === 'gk' ? 1 : 0;
           const hot = man.fm ? Math.max(0, man.fm - 6) * Math.min(1, man.played / 4) : 0;
           utility = late.logFVM * logPrice[index] + late.logFVMxT * logPrice[index] * t

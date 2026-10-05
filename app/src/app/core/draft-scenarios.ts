@@ -115,6 +115,12 @@ export interface Scenario {
    * Absent or `up` 0 when the rule changed nothing for it.
    */
   roleWait?: { up: number; altId: number | null };
+  /**
+   * SHOWN FOR VARIETY (operator, 05/10/2026: «vorrei che nei 3 consigli ci fosse più varietà: o mi consigli ruoli
+   * diversi o difficoltà diversa»): how many better-ranked plans were skipped to reach it, because each of them
+   * repeated the role AND the difficulty of a plan already shown. Absent when it is simply next in the ranking.
+   */
+  variety?: number;
 }
 
 /** Why a rival wants the second man: he has nobody of that role, fewer than a shape starts, or only weak ones. */
@@ -169,7 +175,18 @@ export interface ScenarioInput extends RivalWalkInput {
    * about our squad, not a fact about the table. Absent = nobody excluded.
    */
   excluded?: ReadonlySet<number>;
+  /**
+   * THE MEN LIKELY GONE BEFORE OUR PICK (operator, 05/10/2026: «nei consigli evitiamo calciatori che verranno presi
+   * prima del nostro turno con una probabilità >50%»): `goneOdds` above `ADVICE_GONE_ODDS`. Which pick they cannot be
+   * depends on the clock, because the odds are read up to our NEXT call: when we are NOT on the clock (`beforeNow`) the
+   * walk ends at the pick we are about to plan, so they cannot OPEN a plan; when we are on it, our pick is made first
+   * and they cannot be the SECOND one - while taking one of them NOW is exactly «take who will be gone». Absent = none.
+   */
+  likelyGone?: { ids: ReadonlySet<number>; beforeNow: boolean };
 }
+
+/** Above these odds of being taken before our pick, a man is not advised for that pick (operator, 05/10/2026). */
+export const ADVICE_GONE_ODDS = 0.5;
 
 /** What the draft pitch says about a squad, in the scenarios' terms (`ScenarioInput.pitch`). */
 export interface SquadPitch {
@@ -356,7 +373,8 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
   const { walk, before, mine, after, teams: board } = walkPast(input, first, (team) => callers.push(team));
   // Our place in the round of our next pick: one after every squad that makes THAT turn before us.
   const nextAt = 1 + after.filter((step) => step.picksBefore === mine.picksCount).length;
-  const pool = input.pool.filter((p) => p.id !== first.id && !walk.gone.has(p.id));
+  const lost = input.likelyGone && !input.likelyGone.beforeNow ? input.likelyGone.ids : null;
+  const pool = input.pool.filter((p) => p.id !== first.id && !walk.gone.has(p.id) && !lost?.has(p.id));
   let second: ScenarioStep | null = null;
   if (mine.picksCount < input.calls.rounds) {
     const best = movesFor(mine, pool, input)[0];
@@ -463,6 +481,47 @@ function interestAmong(callers: readonly PlanTeam[], second: PlanPlayer, input: 
 const CHAINED = 6;
 
 /**
+ * How far down the moves the search for VARIETY may go (`pickVaried`) when the first `CHAINED` chains all repeat one
+ * role and one difficulty: past it a plan is too far below the best to be advice, and the walk costs a chain each.
+ */
+const VARIETY_CHAINED = 12;
+
+/** The role a plan's first pick is read on for variety: his slot, the same one `ROLE_WAIT` compares. */
+const roleOf = (chain: Scenario) => chain.first.player.slot;
+
+/** Does `chain` differ from every plan in `taken` in its first pick's role or in difficulty? */
+const variesFrom = (taken: readonly Scenario[], chain: Scenario) =>
+  taken.every((one) => roleOf(one) !== roleOf(chain) || one.difficulty !== chain.difficulty);
+
+/** The varied plans alone, best first: each differs from every one before it (`variesFrom`). */
+function variedOnly(ranked: readonly Scenario[], count: number): Scenario[] {
+  const taken: Scenario[] = [];
+  for (const chain of ranked) {
+    if (taken.length >= count) break;
+    if (variesFrom(taken, chain)) taken.push(chain);
+  }
+  return taken;
+}
+
+/**
+ * VARIETY (operator, 05/10/2026: «o mi consigli ruoli diversi o difficoltà diversa»): walk the ranked plans and take
+ * one only if, against EVERY plan already taken, it differs in the first pick's role or in difficulty. The best plan
+ * is always first. When the ranking holds fewer than `count` varied plans, the rest is filled in ranking order - a
+ * repeat is better than an empty slot - and is not marked, since it was not chosen for variety. `skipped` is how
+ * many better-ranked plans were passed over to reach a plan.
+ */
+export function pickVaried(ranked: readonly Scenario[], count: number): { chain: Scenario; skipped: number }[] {
+  const varied = variedOnly(ranked, count);
+  const fill = ranked.filter((chain) => !varied.includes(chain)).slice(0, count - varied.length);
+  const shown = new Set([...varied, ...fill]);
+  // On screen in ranking order: a filler that ranks above a varied plan stands above it.
+  return ranked.filter((chain) => shown.has(chain)).map((chain, at) => ({
+    chain,
+    skipped: varied.includes(chain) ? ranked.indexOf(chain) - at : 0,
+  }));
+}
+
+/**
  * HOW MANY OF OUR PICKS A PLAN IS JUDGED OVER, the current one included (operator, 02/10/2026, for the Serie A
  * classic draft of 6 October whose order is the roster's FVM: «secondo te dovrebbe aver maggiore peso il fatto che
  * un calciatore con un FVM alto ti può far andare indietro nella prossima scelta?»). Measured on the draft bench
@@ -488,24 +547,33 @@ export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnos
   const roster = rosterOf(me, input.manOf);
   const diagnosis = diagnosisOf(roster, input);
   const list: Scenario[] = [];
-  for (const move of movesFor(me, input.pool, input).slice(0, CHAINED)) {
-    const need = needTaken(roster, input.manOf(move.player.id), diagnosis, input).need;
-    const chain = chainFrom(input, move.player, need);
-    if (chain) list.push({ ...chain, first: { ...chain.first, waitAlt: move.waitAlt, waitAltId: move.waitAltId } });
-  }
   // Ranked with the first move's gain discounted when he would survive (`rankGain`); the second pick is a hope at our
   // next turn already, so it is not discounted again.
   const left = input.calls.rounds - me.picksCount;
   const score = (chain: Scenario, roleWait = ROLE_WAIT) =>
     chain.horizon - chain.first.gain + rankGain(chain.first, input, left, roleWait);
+  const byScore = (roleWait = ROLE_WAIT) => (a: Scenario, b: Scenario) =>
+    score(b, roleWait) - score(a, roleWait) || b.first.gain - a.first.gain;
+  // The best `CHAINED` moves always become chains; more only while the ranking lacks VARIETY (`pickVaried`).
+  const lost = input.likelyGone?.beforeNow ? input.likelyGone.ids : null;
+  const moves = movesFor(me, lost ? input.pool.filter((p) => !lost.has(p.id)) : input.pool, input);
+  for (const [at, move] of moves.slice(0, VARIETY_CHAINED).entries()) {
+    if (at >= CHAINED && variedOnly([...list].sort(byScore()), count).length >= count) break;
+    const need = needTaken(roster, input.manOf(move.player.id), diagnosis, input).need;
+    const chain = chainFrom(input, move.player, need);
+    if (chain) list.push({ ...chain, first: { ...chain.first, waitAlt: move.waitAlt, waitAltId: move.waitAltId } });
+  }
   // The order the plans would have WITHOUT the rule, so a plan it moved can say so (`Scenario.roleWait`).
-  const without = [...list].sort((a, b) => score(b, false) - score(a, false) || b.first.gain - a.first.gain);
-  list.sort((a, b) => score(b) - score(a) || b.first.gain - a.first.gain);
-  const shown = list.slice(0, count).map((chain, at) => {
-    if (!ROLE_WAIT) return chain;
-    const up = without.indexOf(chain) - at;
+  const without = [...list].sort(byScore(false));
+  list.sort(byScore());
+  const shown = pickVaried(list, count).map(({ chain, skipped }) => {
+    const marked = skipped ? { ...chain, variety: skipped } : chain;
+    if (!ROLE_WAIT) return marked;
+    // Measured against the RANKED place and not the place on screen, so a plan moved for variety is not read as a
+    // plan moved by the waiting rule.
+    const up = without.indexOf(chain) - list.indexOf(chain);
     const discounted = rankGain(chain.first, input, left, true) < rankGain(chain.first, input, left, false) - 1e-9;
-    return up ? { ...chain, roleWait: { up, altId: discounted ? (chain.first.waitAltId ?? null) : null } } : chain;
+    return up ? { ...marked, roleWait: { up, altId: discounted ? (chain.first.waitAltId ?? null) : null } } : marked;
   });
   return { diagnosis, list: shown };
 }

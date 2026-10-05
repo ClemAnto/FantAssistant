@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { PlanPlayer, PlanTeam, startingPlaces } from './auction-plan';
 import { PriorityMan, PriorityRules, WorthContext, roleStats } from './draft-priority';
-import { CHAIN_TURNS, ScenarioInput, chainFrom, diagnose, interestIn, judge, keeperAllowed, movesFor, rankGain, scenarios, squadWorth } from './draft-scenarios';
+import { CHAIN_TURNS, ScenarioInput, chainFrom, diagnose, interestIn, judge, keeperAllowed, movesFor, pickVaried, rankGain, scenarios, squadWorth, Scenario } from './draft-scenarios';
 import { SURVIVOR_DISCOUNT } from './auction-plan';
 
 /** One shape: a door, two Dc, one C, one Pc. */
@@ -311,6 +311,23 @@ describe('the men the operator excluded from the advice (05/10/2026)', () => {
   });
 });
 
+describe('the men likely gone before our pick are not advised for it (05/10/2026)', () => {
+  it('cannot open a plan when we are not on the clock, and cannot be the second pick when we are', () => {
+    const everybody = population();
+    const bonusDc = man('dc', 7.2, 0.9, 5);
+    const pool = [man('por', 5.2, 0.9, 5), bonusDc, man('c', 6.5, 0.9, 30), man('pc', 7.4, 0.9, 40)];
+    const base = input(pool, everybody);
+    expect(scenarios(base, 3).list[0].first.player.id).toBe(bonusDc.id);
+    const waiting = { ...base, likelyGone: { ids: new Set([bonusDc.id]), beforeNow: true } };
+    expect(scenarios(waiting, 3).list.map((chain) => chain.first.player.id)).not.toContain(bonusDc.id);
+    // On the clock the odds end at our NEXT call: taking him now is allowed, waiting for him is not.
+    const onClock = { ...base, likelyGone: { ids: new Set([bonusDc.id]), beforeNow: false } };
+    const plans = scenarios(onClock, 3).list;
+    expect(plans[0].first.player.id).toBe(bonusDc.id);
+    expect(plans.map((chain) => chain.second?.player.id)).not.toContain(bonusDc.id);
+  });
+});
+
 describe('waiting is priced by role (05/10/2026, ROLE_WAIT)', () => {
   const everybody = population();
   const base = input([], everybody);
@@ -325,5 +342,30 @@ describe('waiting is priced by role (05/10/2026, ROLE_WAIT)', () => {
     expect(rankGain(step(2, 10, 0), ctx, 10)).toBeCloseTo(7, 9); // he survives himself: the old discount
     expect(rankGain(step(2, 10, 30), ctx, 10)).toBeCloseTo(7, 9); // never more than the old discount
     expect(rankGain(step(1, -2, 10), ctx, 10)).toBe(-2); // a loss is never discounted
+  });
+});
+
+describe('the three plans vary in role or difficulty (05/10/2026)', () => {
+  const plan = (id: number, slot: string, difficulty: Scenario['difficulty']) =>
+    ({ first: { player: { id, slot } }, difficulty }) as unknown as Scenario;
+  const ids = (list: { chain: Scenario }[]) => list.map(({ chain }) => chain.first.player.id);
+
+  it('skips a plan that repeats the role AND the difficulty of one already shown, and says how many it skipped', () => {
+    const ranked = [plan(1, 'dc', 'facile'), plan(2, 'dc', 'facile'), plan(3, 'dc', 'medio'), plan(4, 'c', 'facile')];
+    const shown = pickVaried(ranked, 3);
+    expect(ids(shown)).toEqual([1, 3, 4]);
+    expect(shown.map(({ skipped }) => skipped)).toEqual([0, 1, 1]);
+  });
+
+  it('a third plan must differ from BOTH plans before it, not only from the first', () => {
+    const ranked = [plan(1, 'dc', 'facile'), plan(2, 'c', 'facile'), plan(3, 'c', 'facile'), plan(4, 'pc', 'facile')];
+    expect(ids(pickVaried(ranked, 3))).toEqual([1, 2, 4]);
+  });
+
+  it('fills with the ranking when there is not enough variety, and marks nothing it did not choose for variety', () => {
+    const ranked = [plan(1, 'dc', 'sicuro'), plan(2, 'dc', 'sicuro'), plan(3, 'dc', 'sicuro')];
+    const shown = pickVaried(ranked, 3);
+    expect(ids(shown)).toEqual([1, 2, 3]);
+    expect(shown.every(({ skipped }) => skipped === 0)).toBe(true);
   });
 });

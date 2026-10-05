@@ -674,6 +674,16 @@ export class Auction {
     return `Scende di ${-moved.up}: al tuo prossimo turno ${alt ? `resterà ${alt}` : 'resterà uno come lui'}, stesso ruolo`;
   }
 
+  /** A favourite at risk, in a few words (its advice line, 05/10/2026). */
+  protected favouriteText(id: number, odds: number): string {
+    return `${this.fvmNameOf(id) ?? 'un tuo preferito'}: ${Math.round(odds * 100)}% che sia preso prima del tuo turno`;
+  }
+
+  /** Its advice line SELECTS the man, so the fourth plan is built from him («e se prendessi lui?»). */
+  protected focusFavourite(id: number): void {
+    if (this.selectedRow() !== id) this.selectRow(id);
+  }
+
   private fvmNameOf(id: number): string | null {
     const player = this.advice.listone().find((one) => one.player.id === id)?.player;
     return player ? this.shown(id, player.name) : null;

@@ -1338,3 +1338,40 @@ cresce scorrendo non deve avere nz-icon per riga ne' metodi costosi nei binding.
 media e non e' giudicato su un esito (lettura dell'app); `e2e-draft` resta rosso su due avvisi preesistenti (filtro
 «fino al N°» con «nothing to click», e «piu' titolari suggeriti che posti vuoti»/incrementi dei piani, a seconda
 dell'estrazione della demo); i commit locali non pushati su origin (fermo a v0.1.36).
+
+## 40. I consigli vari, i preferiti, e la prima fase dei rivali rifittata (05/10/2026)
+
+**Varietà nei tre piani** (sua richiesta: «o mi consigli ruoli diversi o difficoltà diversa»). `draft-scenarios.pickVaried`:
+un piano entra fra i tre solo se, contro OGNUNO di quelli già presi, cambia il ruolo del primo acquisto o la difficoltà; il
+primo resta il migliore. Se nei primi 6 piani la varietà non c'è se ne calcolano fino a 12 (`VARIETY_CHAINED`); se non basta,
+si riempie con l'ordine normale. Il piano promosso porta un'icona (⑂) con quanti piani migliori ha saltato. Il `roleWait`
+si misura ora sul posto in classifica e non su quello a schermo, così uno spostamento per varietà non si legge come uno
+della regola d'attesa.
+
+**Esclusi barrati, preferiti con allarme.** La stella marca un preferito (per sessione, come gli esclusi); se la probabilità
+che sia preso prima del nostro turno arriva al **5%** (`FAVOURITE_AT_RISK`, soglia sua) il box dei consigli porta una riga
+gialla, fuori dalla piega, che lo nomina; un click lo seleziona e costruisce il quarto piano da lui.
+
+**Nei consigli niente uomini probabilmente già andati** (sua regola: «>50%»). `ScenarioInput.likelyGone`, da `goneOdds` >
+`ADVICE_GONE_ODDS` 0,5. Le odds finiscono alla NOSTRA prossima chiamata, quindi l'effetto dipende dall'orologio: se non
+tocca a noi non possono APRIRE un piano; se tocca a noi non possono essere la SECONDA scelta, mentre prenderli adesso è
+proprio «prendi chi sparirà». I rivali simulati (AUTO) non la leggono.
+
+**La prima fase dei rivali, rifittata.** La sua osservazione: «prendere come prima scelta il top del mercato è quasi sempre
+la scelta presa dai partecipanti». Il modello del §35 leggeva le prime sei chiamate di una squadra con il solo prezzo,
+exp(2,71 · log FVM), che alla prima chiamata dava a Malen il 26%. Sette draft recuperati dal server dell'host (lettura
+anonima, salvati in `data/raw/draft-sessions/`, fuori da git: FA-610-2ih, FA-7xu-106, FA-blt-km4, FA-cdt-9q9, FA-lel-dfk,
+FL-7zz-d10, FL-ixr-b6b; FA-yei-458, FA-jo5-zai e FA-l1n-0pn sul server non ci sono più). Banco:
+`toolkit/bench/draft/rival-early-fit.mjs`, logit condizionale, L2 0,02, un tavolo fuori per volta.
+- **Adottato**: log FVM, rango per FVM fra gli uomini che quella squadra può chiamare, le stesse due voci sulla PRIMA
+  chiamata della squadra, e i numeri della stagione (fm − 6, fm mancante, presenze). Tutte RELATIVE al listone del
+  momento (un logit condizionale ignora la scala dell'FVM; il rango dipende solo dall'ordine), quindi un listone nuovo non
+  chiede una nuova taratura — è la richiesta («deve adattarsi anche in futuro»). Log-verosimiglianza fuori campione per
+  scelta: −4,149 (solo prezzo, rifittato) → **−4,125**; nomi indovinati nei primi sei turni 17,8 → 18,3 · 32,2 → 33,5 ·
+  46,9 → 50,2% sui tre tavoli Serie A (dentro il campione); «sicuri» su FA-blt-km4 87,5 → 81,8% (resta sopra l'80%).
+- **Il dato smentisce a metà la frase**: Malen e Martinez sono andati alle prime due chiamate in 3 draft Serie A su 5;
+  in FA-blt-km4 Martinez è uscito alla 7ª, in FL-7zz-d10 alla 9ª-10ª (draft che si apre con Baturina, probabilmente con
+  una regola sua). Il modello nuovo dà «i due più cari già presi dopo 4 chiamate» al **72%** in Serie A (prima 52%)
+  contro 3 su 5 veri, e al 48% sull'europeo (prima 16%) contro 1 su 2.
+- Contaminazione dichiarata: le due sessioni FL- non portano un listone e sono lette su quello di FA-7xu-106, cioè con i
+  numeri della stagione di un altro giorno.

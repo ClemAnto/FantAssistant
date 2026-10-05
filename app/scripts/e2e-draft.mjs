@@ -1223,7 +1223,7 @@ async function main() {
       note('piani', plan ? `«${plan.text}» (${plan.difficulty}); selezionato: ${lit.places} posti evidenziati, incrementi ${lit.gains.join(' | ')}; deselezionato ${after}` : 'nessun piano',
         [
           ...(!plan ? ['nessun piano a schermo'] : []),
-          ...(plan && !/^1\) rosa [+-]?\d+ \((sicuro|facile|medio|difficile)\) [+-]\d+% [+-]\d+ /.test(plan.text) ? ["il piano non porta gli incrementi di copertura e fertilita'"] : []),
+          ...(plan && !/^1\) rosa [+-]?\d+ (?:[+-]\d+ )?\((sicuro|facile|medio|difficile)\) [+-]\d+% [+-]\d+ /.test(plan.text) ? ["il piano non porta gli incrementi di copertura e fertilita'"] : []),
           ...(plan && !lit.places ? ['selezionato, nessun posto evidenziato sul campetto'] : []),
           ...(plan && lit.gains.length !== lit.places ? [`${lit.places} posti evidenziati e ${lit.gains.length} incrementi`] : []),
           ...(plan && lit.gains.some((one) => !/^\+\d+% · [+-]\d+$/.test(one)) ? [`incrementi illeggibili: ${lit.gains.join(' | ')}`] : []),
@@ -1270,6 +1270,56 @@ async function main() {
         ...(added && !new RegExp(`^${with4.length}\\) rosa [+-]?\\d+ .*· (coerente|inopportuna)`).test(added.text) ? [`il quarto piano non porta numero e verdetto: «${added.text}»`] : []),
         ...(target && after.length !== before.length ? [`deselezionata, ${after.length} piani invece di ${before.length}`] : []),
       ]);
+    }
+
+    // 5e-bis. EXCLUDED = STRUCK THROUGH, and A FAVOURITE AT RISK gets its own advice (operator, 05/10/2026). The row most
+    // likely gone before our turn is marked favourite with a REAL pointer on its star; if its odds reach the alarm (5%), the
+    // plans box must carry a line naming it. A second row is excluded on its ban button and its name must be struck.
+    {
+      const pickRow = (attr) => evaluate(session, (attr) => {
+        const rows = [...document.querySelectorAll('[data-free]')].filter((row) => !row.hasAttribute('data-owner'));
+        const withOdds = rows.map((row) => ({ row, odds: parseFloat(row.querySelector('[data-odds]')?.innerText ?? '0') }))
+          .sort((a, b) => b.odds - a.odds);
+        const one = attr === 'data-favourite' ? withOdds[0] : withOdds[withOdds.length - 1];
+        if (!one) return null;
+        one.row.scrollIntoView({ block: 'nearest' });
+        const box = one.row.getBoundingClientRect();
+        return { id: one.row.getAttribute('data-free'), odds: one.odds, hover: { x: box.left + box.width / 2, y: box.top + box.height / 2 } };
+      }, attr);
+      const button = (id, attr) => evaluate(session, (id, attr) => {
+        const el = document.querySelector(`[data-free="${id}"] [${attr}]`);
+        if (!el) return null;
+        const box = el.getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+      }, id, attr);
+      const found = [];
+      const fav = await pickRow('data-favourite');
+      if (fav) {
+        await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: fav.hover.x, y: fav.hover.y, pointerType: 'mouse' });
+        await wait(200);
+        await mouse(await button(fav.id, 'data-favourite'));
+        await wait(800);
+      }
+      const risk = await evaluate(session, () => [...document.querySelectorAll('[data-favourite-risk]')]
+        .map((one) => ({ id: one.getAttribute('data-player'), text: (one.innerText ?? '').trim() })));
+      const on = fav ? await evaluate(session, (id) => document.querySelector(`[data-free="${id}"] [data-favourite-on]`) !== null, fav.id) : false;
+      if (fav && !on) found.push('la stella non accende il preferito');
+      if (fav && fav.odds >= 5 && !risk.some((one) => one.id === fav.id)) found.push(`preferito al ${fav.odds}% senza consiglio`);
+      if (fav && fav.odds < 5 && risk.length) found.push(`consiglio per un preferito sotto la soglia (${fav.odds}%)`);
+      const ban = await pickRow('data-exclude');
+      if (ban) {
+        await session.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: ban.hover.x, y: ban.hover.y, pointerType: 'mouse' });
+        await wait(200);
+        await mouse(await button(ban.id, 'data-exclude'));
+        await wait(600);
+      }
+      const struck = ban ? await evaluate(session, (id) => getComputedStyle(document.querySelector(`[data-free="${id}"] [data-card-name]`)).textDecorationLine, ban.id) : null;
+      if (ban && !String(struck).includes('line-through')) found.push(`escluso non barrato (${struck})`);
+      // Back to the state the steps after this one expect.
+      if (fav && on) { await mouse(await button(fav.id, 'data-favourite')); await wait(400); }
+      if (ban) { await mouse(await button(ban.id, 'data-exclude')); await wait(400); }
+      note('preferiti ed esclusi', `preferito ${fav?.id ?? '-'} al ${fav?.odds ?? '-'}% → consigli ${risk.map((one) => `«${one.text}»`).join(' ') || 'nessuno'}; escluso ${ban?.id ?? '-'} → ${struck}`,
+        [...(!fav ? ['nessuna riga per il preferito'] : []), ...(!ban ? ['nessuna riga da escludere'] : []), ...found]);
     }
 
     // 5f. THE PLANS BOX FOLDS (operator, 03/10/2026): the arrow hides the plans and keeps the module line; a second

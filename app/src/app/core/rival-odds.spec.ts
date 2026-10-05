@@ -54,6 +54,15 @@ describe('goneOdds', () => {
     expect(odds.get(2)!).toBeGreaterThan(odds.get(6) ?? 0);
   });
 
+  it('adapts to a new listone: doubling every FVM changes no odds (05/10/2026)', () => {
+    const teams = [team(0, [], 0), team(1, [], 1), team(2, [], 2)];
+    const doubled = pool.map((one) => ({ ...one, price: one.price * 2 }));
+    const base = goneOdds(input(teams, 5));
+    const scaled = goneOdds({ ...input(teams, 5), pool: doubled, seen: seenOf(doubled) });
+    // log(FVM + 1) is not exactly scale-free, so the odds move a little and never the order.
+    for (const [id, p] of base) expect(Math.abs((scaled.get(id) ?? 0) - p)).toBeLessThan(0.08);
+  });
+
   it('never gives a rival a man his full line refuses', () => {
     const limits = { por: 3, dif: 8, cen: 8, att: 0 };
     const odds = goneOdds(input([team(0, [], 0), team(1, [], 1, limits), team(2, [], 2, limits)]));
