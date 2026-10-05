@@ -10448,3 +10448,11 @@ per sua scelta, motore e FVM discordi), campo sul valore mostrato, portieri che 
 sul calendario della competizione, niente modificatore con meno di 4 difensori, «a partita» = 6 x copertura +
 fertilita' + malus del portiere medio, «mostra gia' scelti», colonne nascondibili. Dettaglio, numeri e aperti:
 `priorita-draft-v1.md` §38. I commit da `44a3b3a` a `d5aabed` NON sono pushati su origin (fermo a v0.1.36).
+
+## 5 ottobre 2026 (notte) — R29 SU SERIE A, I SUBENTRATI, LO SCROLL
+Dalle domande sull'host FA-610-2ih (Zaccagni -7, Saelemaekers sopra Atta, lo scroll che si incaglia). **R29 adottata
+su `default`** (`ADOPTED`, `SHEET_REVISION` 83; fogli Leghe e Leghe Mantra rifatti `--no-refresh`, `export`,
+`data:pull`), `--verify` 22/22, toolkit 1024 verdi. App: `core/sub-bonus.ts` (la fantamedia della DP sconta i bonus
+di chi ora entra dalla panchina), FVM accanto al nome sul campetto, lista dei liberi da 0,5-0,8 s a 60-75 ms per
+pezzo. 1365 test app verdi. v0.1.45 -> v0.1.47 pubblicate. Commit `fb99c97` (R29), `32ace38`, `a68a4a6` e i bump. Dettaglio:
+`priorita-draft-v1.md` §39, gate §7-tresexagies bis. Origin resta fermo a v0.1.36 (i commit locali non pushati).

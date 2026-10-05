@@ -1298,3 +1298,43 @@ del listone (`gone: true`, 64 su 600) fuori dagli svincolati.
 **Aperti**: ROLE_WAIT va rimisurata su piu' draft e coi due giudici; `keeperFmBy` va misurata sugli esiti (May); lo
 0-99 dei portieri non legge ancora i gol subiti; nel campo interno ai consigli i titolari restano scelti sul
 rendimento e non sul valore mostrato (sulla porta ora coincidono).
+
+## 39. Zaccagni, Saelemaekers e lo scroll: R29, i subentrati, e un blocco di mezzo secondo (05/10/2026)
+
+Dallo stesso draft FA-610-2ih (Serie A classic), sei domande dell'operatore. v0.1.44 -> v0.1.47.
+
+**39.1 Il badge del campetto e' la DP in centesimi di punto a giornata** sopra il titolare medio del ruolo (Z per
+prezzo, 75o percentile di FVM: C 6,29, A 6,73) con la riserva (R, FVM ~10: C 6,15, A 6,48) nelle giornate saltate.
+Zaccagni -7 (FMa 6,26 < 6,29), Kvernadze -11 (6,65 < 6,73), Dovbyk -1/-4 (6,88 ma ~0,55 delle giornate): tornano.
+
+**39.2 Le due domande dell'operatore, gia' misurate** (risposta senza codice): piu' stagioni invece dell'ultima e'
+respinta tre volte su `default` (R18/R18b/R18c, gate §7-septvicies: segnale vero, ripartizione non identificata);
+piu' peso alle partite di quest'anno no (R25K40 e' l'ottimo interno, R28 perde su default). La leva vera era **R29**
+(la fortuna della stagione scorsa), STRICT su Serie A dal 27/09 e ferma sulla sua decisione: **ADOTTATA su
+`default`** (`ADOPTED`, `SHEET_REVISION` 83, gate §7-tresexagies bis). `--verify` 22/22 e immobile. Zaccagni 6,26 ->
+**6,42** (3 gol su 4,1 xG, 0 assist su 2,7 xA), Kean +0,56, Martinez L. -0,33; 240 righe di 293 si muovono. Kvernadze
+e Dovbyk no: non hanno una stagione di Serie A, il foglio li prezza col ripiego `est_*`.
+
+**39.3 Chi entra dalla panchina perde bonus** (`core/sub-bonus.ts`, solo nella fantamedia della DP come
+`keeperFmBy`, non gatato). Sua obiezione: «Atta e' stato uno dei migliori centrocampisti della scorsa stagione e
+Saelemaekers non e' un titolare». Con R29 Saelemaekers (sfortunato) +10 e Atta (fortunato: 5 gol su 4,0 xG) +5, e il
+gradino di stampa vale 0,722 contro 0,78 in giornate col voto perche' anche il subentrato prende il voto. Il buco: chi
+entra prende lo stesso voto con meno bonus (A -0,439 · C -0,129 · D -0,050 a partita, rosa-3-giornate-v1.md §2) e la
+fantamedia viene da partite giocate col ruolo di ALLORA. Spostamento = -costo x (quota da subentrato ora - quota della
+stagione di input); ora = 1 - `start_pct` della stampa / `desc_titolarita_play` (tutt'e due da sano); allora dalle
+partenze in campionato di `external_match_stats` (5+ presenze). Portieri fermi; un numero mancante non sposta niente.
+Saelemaekers ~+10 -> ~+5, Atta fermo. La stampa entra solo via `rulings.all()` (accesa e fresca, e una dritta
+dell'operatore la scavalca: code review). Le partenze si caricano PRIMA dei numeri: caricate dopo, la lista si
+riordinava sotto il puntatore e il doppio click prendeva un altro uomo (e2e-draft).
+
+**39.4 Lo scroll che si incaglia**: ogni pezzo da 60 righe bloccava 465-785 ms. Profilo CPU sulla pagina vera: due
+`nz-icon` per riga che a ogni nascita fanno un `detectChanges`, e `rivalsTip` legato come metodo che camminava tutte le
+board per ogni riga a ogni change detection. SVG in linea e `rivalsTips` calcolato una volta: 60-75 ms. Una lista che
+cresce scorrendo non deve avere nz-icon per riga ne' metodi costosi nei binding.
+
+**39.5 Campetto**: l'FVM subito dopo il nome.
+
+**Aperti**: R29 si rigiudica su T3 a stagione chiusa; il costo dei subentrati e' una misura per partita applicata come
+media e non e' giudicato su un esito (lettura dell'app); `e2e-draft` resta rosso su due avvisi preesistenti (filtro
+«fino al N°» con «nothing to click», e «piu' titolari suggeriti che posti vuoti»/incrementi dei piani, a seconda
+dell'estrazione della demo); i commit locali non pushati su origin (fermo a v0.1.36).

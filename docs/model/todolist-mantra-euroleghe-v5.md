@@ -2751,3 +2751,14 @@ Dettaglio in `letture-app-v1.md` §55.6.
 2. **La stagione eccezionale ignorata su `default`** (Kean 2024-25 FM 8,03 fra stagioni a 5,75-6,73): l'unico modo
    di riaprirla e' una misura PRE-REGISTRATA sul sottoinsieme degli uomini con una stagione piena lontana dalle altre
    (la forma di R31, respinta su default per copertura). Non un canale da adottare a occhio.
+
+## Aperti dopo la sessione del 05/10/2026 (notte) — R29 adottata, i subentrati nel draft
+
+1. **R29 su `default` si rigiudica a stagione chiusa** su T3 (2025-26 -> 2026-27) col lambda di oggi: se peggiora,
+   esce senza discutere (gate §7-tresexagies bis).
+2. **Il costo dei subentrati nel draft** (`core/sub-bonus.ts`) e' una misura per partita (rosa-3-giornate §2) usata
+   come media su una quota stimata dalla stampa: non e' giudicato su un esito. Da misurare sul banco del draft o a fine
+   stagione; e la stessa forma potrebbe valere per il motore (pre-registrarla prima).
+3. **`e2e-draft` resta rosso su due avvisi preesistenti** che dipendono dall'estrazione della demo: il filtro
+   «fino al N°» (`nothing to click`) e «piu' titolari suggeriti che posti vuoti» / incrementi dei piani.
+4. **i commit locali non pushati** su origin (fermo a v0.1.36): decisione dell'operatore.

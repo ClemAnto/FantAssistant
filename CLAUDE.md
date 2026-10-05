@@ -7187,9 +7187,10 @@ gia'. **Su euro R29 e' ridondante con R18**, che media cinque stagioni: una medi
 fortuna di una sola, e contro R0 R29 migliora 3/3 mentre contro l'adottato legge ~0 - la lezione di R24
 che qui decide una piattaforma intera. In-season la stessa correzione (R30) abbassa il K ottimo (15
 contro 25) senza alzare la precisione: **depurare aiuta chi si fida troppo delle prime giornate, non chi
-le pesa giusto**. **R29 non e' in `ADOPTED`: la decisione su `default` e' aperta e dell'operatore**
-(l'ipotesi viene dagli stessi esiti, gradino di evidenza piu' basso), e i passi se la prende sono in
-`todolist-mantra-euroleghe-v5.md` («Aperti dopo la sessione del 27/09/2026»).
+le pesa giusto**. **R29 e' ADOTTATA su `default` dal 05/10/2026** per decisione dell'operatore (nata dal caso Zaccagni:
+3 gol su 4,1 xG e 0 assist su 2,7 xA), `SHEET_REVISION` 83, `--verify` 22/22 e immobile; si rigiudica su T3 a
+stagione chiusa e, se peggiora, esce. Su euro no. Accanto, nell'APP e non gatata: la fantamedia della Draft
+Priority sconta i bonus di chi ora entra dalla panchina (`core/sub-bonus.ts`, `priorita-draft-v1.md` §39).
 
 ## «I voti lo coprono» è vero su una piattaforma e falso sull'altra, e un turno silenzioso non è ambiguo
 **28/09/2026, da «mancano le partite delle vecchie stagioni del Bournemouth». Dettaglio: spec «Novità
