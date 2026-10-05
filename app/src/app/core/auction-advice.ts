@@ -976,6 +976,19 @@ export class AuctionAdvice {
    * Null where the bonus itself is unknown: the two terms are never a fertility on their own («vuoto = ignoto»).
    */
   readonly fertilityBy = computed<Map<number, number | null>>(() => {
+    const out = new Map(this.fertilityAbsolute());
+    // THE KEEPERS' ZERO, without the weeks (`KEEPER_WEEKS` off): the same «against the average starter» the weeks
+    // apply (`keeperZero`), so a strong door is positive and a weak one negative. With the weeks the zero is already
+    // inside them.
+    if (!this.keeperWeeksBy().size) {
+      const zero = this.keeperFertilityZero();
+      for (const [id, value] of out) if (value != null && this.isKeeper(id)) out.set(id, value - zero);
+    }
+    return out;
+  });
+
+  /** `fertilityBy` before the keepers without weeks are moved onto the average starter. */
+  private readonly fertilityAbsolute = computed<Map<number, number | null>>(() => {
     const bonus = this.bonusBy();
     const league = this.options.league();
     const platform = this.entry()?.platform ?? 'euro';
@@ -1000,13 +1013,6 @@ export class AuctionAdvice {
       const calendar = role === 'P' ? (book?.forClub(player.club) ?? null) : null;
       out.set(player.id, draftFertility(base, role, this.ratings.for(platform, player.id)?.steady?.share ?? null,
         calendar ? cleanSheetOutlook(calendar, player.club) : null, league));
-    }
-    // THE KEEPERS' ZERO, without the weeks (`KEEPER_WEEKS` off): the same «against the average starter» the weeks
-    // apply (`keeperZero`), so a strong door is positive and a weak one negative.
-    if (!weeksBy.size) {
-      const keepers = new Map([...out].filter(([id, value]) => value != null && this.isKeeper(id)) as [number, number][]);
-      const zero = this.keeperZero(keepers);
-      for (const [id, value] of keepers) out.set(id, value - zero);
     }
     return out;
   });
@@ -1046,9 +1052,15 @@ export class AuctionAdvice {
    * fitted probability counts at his season average; a club the calendar does not know has no weeks.
    */
   readonly keeperWeeksBy = computed<Map<number, (number | null)[]>>(() => {
+    const { weeks, zero } = this.keeperWeeksAbsolute();
+    return new Map([...weeks].map(([id, list]) => [id, list.map((one) => (one == null ? null : one - zero))]));
+  });
+
+  /** The keepers' weeks in ABSOLUTE fertility, and the zero `keeperWeeksBy` reads them against. */
+  private readonly keeperWeeksAbsolute = computed<{ weeks: Map<number, (number | null)[]>; zero: number }>(() => {
     const out = new Map<number, (number | null)[]>();
     const book = this.calendarBook();
-    if (!KEEPER_WEEKS || !book) return out;
+    if (!KEEPER_WEEKS || !book) return { weeks: out, zero: 0 };
     const bonus = this.bonusBy();
     const league = this.options.league();
     const platform = this.entry()?.platform ?? 'euro';
@@ -1097,8 +1109,19 @@ export class AuctionAdvice {
     };
     const firsts = [...firstOf.values()].map((one) => meanOf(out.get(one.id)!)).filter((v): v is number => v != null);
     const zero = firsts.length ? firsts.reduce((sum, one) => sum + one, 0) / firsts.length : 0;
-    for (const [id, weeks] of out) out.set(id, weeks.map((one) => (one == null ? null : one - zero)));
-    return out;
+    return { weeks: out, zero };
+  });
+
+  /**
+   * THE AVERAGE STARTING KEEPER'S FERTILITY, in absolute points per matchday: the zero every keeper's fertility is read
+   * against. Negative - a keeper's «bonus» is the malus of the goals conceded - and it is what the pitch's «a partita»
+   * adds back to the door (operator, 05/10/2026), or the sum of the fertilities would read a keeper as costing nothing.
+   */
+  readonly keeperFertilityZero = computed<number>(() => {
+    const abs = this.keeperWeeksAbsolute();
+    if (abs.weeks.size) return abs.zero;
+    const keepers = new Map([...this.fertilityAbsolute()].filter(([id, value]) => value != null && this.isKeeper(id)) as [number, number][]);
+    return this.keeperZero(keepers);
   });
 
   /**

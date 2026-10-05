@@ -112,6 +112,8 @@ function readPitchView(): 'campo' | 'lista' {
 /** Whether the plans box is folded (03/10/2026). */
 const PLANS_FOLDED_KEY = 'fantassistant.draft.plansFolded';
 const HIDE_FULL_KEY = 'fantassistant.draft.hideFull';
+/** The base vote a covered place is counted at in the pitch's «a partita» (operator, 05/10/2026). */
+const PASS_VOTE = 6;
 const SLIM_COLS_KEY = 'fantassistant.draft.slimCols';
 
 function readFlag(key: string): boolean {
@@ -1043,16 +1045,32 @@ export class Auction {
 
   /**
    * THE PITCH'S HEADER (operator, 05/10/2026: «togli 11/11 titolari e metti FVM totale della rosa e al posto di xxxx
-   * fantapunti metti i fantapunti a partita previsti»): the FVM of the squad shown, and the eleven's VALUE per matchday
-   * - the season's FM x Pv of the starters over the calendar it is counted on (`matchdaysTarget`).
+   * fantapunti metti i fantapunti a partita previsti»): the FVM of the squad shown, and its fantapunti per matchday.
    */
   protected readonly pitchFvm = computed(() =>
     (this.pitchTeam()?.squad ?? []).reduce((sum, entry) => sum + (entry.player?.fvm ?? 0), 0));
 
-  protected perMatch(total: number): number | null {
-    const rounds = this.advice.matchdaysTarget();
-    return rounds ? total / rounds : null;
-  }
+  /**
+   * THE FANTAPUNTI THE SQUAD SCORES PER MATCHDAY (operator, 05/10/2026: «la somma della fertilità di tutte le zone
+   * diviso 100 + 66», with two corrections he agreed to). Per place of the pitch, real men only: a base vote of 6 on the
+   * matchdays it is covered (an uncovered matchday is a zero, not a 6), plus its fertility (the bonus that place brings,
+   * already weighted by cover), and for the door the average starting keeper's malus (`keeperFertilityZero`) on the
+   * weeks it is covered - the door's fertility is read against that keeper, so without it a keeper would cost nothing.
+   * No price of an empty door here: this is what the squad scores, not what a pick is worth. A place whose bonus is
+   * unknown counts its base vote only.
+   */
+  protected readonly perMatch = computed<number | null>(() => {
+    const drawn = this.pitch();
+    if (!drawn) return null;
+    const zero = this.advice.keeperFertilityZero();
+    let total = 0;
+    for (const place of drawn.rows.flatMap((row) => row.places)) {
+      const { cover, fertility } = placeYield(place, false, 0);
+      const door = place.roles.some((role) => role === 'por' || role === 'p');
+      total += cover * PASS_VOTE + (fertility ?? 0) + (door ? cover * zero : 0);
+    }
+    return total;
+  });
 
   /** MY squad, whichever squad the pitch shows: the plans are about mine. */
   private readonly mySquad = computed<FantaMan[]>(() =>

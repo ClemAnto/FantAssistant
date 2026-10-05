@@ -316,8 +316,8 @@
               </span>
             }
             <span data-pitch-fvm-total class="tabular-nums" nz-tooltip nzTooltipTitle="FVM totale della rosa">FVM {{ pitchFvm() }}</span>
-            <span data-pitch-per-match class="ml-auto tabular-nums" nz-tooltip nzTooltipTitle="Fantapunti a partita previsti dell'undici"
-              >{{ perMatch(drawn.total) != null ? (perMatch(drawn.total)! | number: '1.1-1') : '—' }} a partita</span
+            <span data-pitch-per-match class="ml-auto tabular-nums" nz-tooltip nzTooltipTitle="Fantapunti a partita previsti: 6 per posto coperto, più la fertilità"
+              >{{ perMatch() != null ? (perMatch()! | number: '1.1-1') : '—' }} a partita</span
             >
           </div>
 
