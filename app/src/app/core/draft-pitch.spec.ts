@@ -1,5 +1,5 @@
 import { MantraModules } from './auction-value';
-import { DOOR_HOLE_COST, DraftPlace, doorHolePrice, addedYield, combinedCover, coverOf, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
+import { DOOR_HOLE_COST, DraftPlace, bonusFirst, doorHolePrice, addedYield, combinedCover, coverOf, starterWeight, draftPitchOf, flanksOutside, placeYield, preferring, recommendedModules, spreadReserves, withSuggestions } from './draft-pitch';
 import type { FantaMan } from './fanta-eleven';
 
 /**
@@ -157,12 +157,13 @@ describe('placeYield, coverage and fertility of a place', () => {
   it('combines men of DIFFERENT clubs as independent absences, not as a sum (01/10/2026)', () => {
     // The same 80% + 42% of two clubs: the place is empty only when both miss, 0.20 x 0.58, so 88.4% and not 100%.
     const starter = { ...man('Titolare', ['Dc'], 20), club: 'Uno', share: 0.8, bonus: 0.5 };
-    const reserve = { ...man('Riserva', ['Dc'], 10), club: 'Due', share: 0.42, bonus: 1 };
+    const reserve = { ...man('Riserva', ['Dc'], 10), club: 'Due', share: 0.42, bonus: 0.3 };
     const both = placeYield({ ...place('DC', ['dc'], starter), reserves: [reserve] });
     const r = 0.42;
     expect(both.cover).toBeCloseTo(1 - 0.2 * (1 - r), 9);
-    // The reserve scores his bonus only on the matchdays the starter leaves uncovered.
-    expect(both.fertility).toBeCloseTo(0.8 * 0.5 + 0.2 * r * 1, 9);
+    // The reserve scores his bonus only on the matchdays the starter leaves uncovered (his bonus is the lower one, so
+    // the regular plays first: `bonusFirst`, 05/10/2026, would field a higher-bonus reserve first on a covered place).
+    expect(both.fertility).toBeCloseTo(0.8 * 0.5 + 0.2 * r * 0.3, 9);
     // Two halves of two clubs: 64%, where the sum read 80%.
     const half = (name: string, club: string) => ({ ...man(name, ['Dc'], 10), club, share: 0.5, bonus: 0 });
     expect(combinedCover([half('A', 'Uno'), half('B', 'Due')])).toBeCloseTo(0.75, 9);
@@ -372,5 +373,36 @@ describe('the price of an uncovered door (01/10/2026)', () => {
     const closed = placeYield({ ...place('P', ['por'], first), reserves: [deputy] });
     expect(closed.cover).toBeCloseTo(1, 9);
     expect(closed.fertility).toBeCloseTo(0, 9);
+  });
+});
+
+describe('once a place is covered, the bonus plays first (05/10/2026, Cambiaso)', () => {
+  const regular = () => ({ ...man('Regolare', ['Dc'], 20), share: 0.9, bonus: 0.1 });
+  const scorer = () => ({ ...man('Cambiaso', ['Dc'], 20), share: 0.5, bonus: 0.8 });
+
+  it('fields the higher bonus first on a covered place, and that is worth more', () => {
+    const [a, b] = [regular(), scorer()];
+    expect(bonusFirst([a, b])[0]).toBe(b);
+    const covered = placeYield({ ...place('DC', ['dc'], a), reserves: [b] });
+    // 0.5 x 0.8 + (0.95 - 0.5) x 0.1: the cover is the pair's either way, the scorer's bonus counts first.
+    expect(covered.fertility!).toBeCloseTo(combinedCover([a, b]) * 0.1 + coverOf(b) * (0.8 - 0.1), 9);
+    expect(covered.fertility!).toBeGreaterThan(coverOf(a) * 0.1 + (combinedCover([a, b]) - coverOf(a)) * 0.8);
+  });
+
+  it('keeps the regular first where the men do not reach a good cover together', () => {
+    const a = { ...man('Regolare', ['Dc'], 20), share: 0.5, bonus: 0.1 };
+    const b = { ...man('Raro', ['Dc'], 20), share: 0.2, bonus: 0.8 };
+    expect(combinedCover([a, b])).toBeLessThan(0.85);
+    expect(bonusFirst([a, b])[0]).toBe(a);
+  });
+
+  it('draws him as the starter on the pitch, the regular as his reserve', () => {
+    const [a, b] = [regular(), scorer()];
+    const k = { ...man('Portiere', ['Por'], 10), share: 0.9, bonus: 0 };
+    const rules: MantraModules = { slot_roles: { P: ['Por'], DC: ['Dc'] }, modules: { solo: { D: ['DC'], M: [], T: [], A: [] } } };
+    const pitch = draftPitchOf([k, a, b], rules)!;
+    const dc = pitch.rows.flatMap((row) => row.places).find((one) => one.slot === 'DC')!;
+    expect(dc.man?.name).toBe('Cambiaso');
+    expect(dc.reserves.map((one) => one.name)).toEqual(['Regolare']);
   });
 });

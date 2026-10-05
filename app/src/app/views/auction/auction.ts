@@ -2,6 +2,7 @@ import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { Component, DestroyRef, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzDropdownModule } from 'ng-zorro-antd/dropdown';
 import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -110,6 +111,7 @@ function readPitchView(): 'campo' | 'lista' {
 
 /** Whether the plans box is folded (03/10/2026). */
 const PLANS_FOLDED_KEY = 'fantassistant.draft.plansFolded';
+const HIDE_FULL_KEY = 'fantassistant.draft.hideFull';
 
 function readFlag(key: string): boolean {
   try {
@@ -278,6 +280,7 @@ const ELEVEN = 11;
     LiveConnect,
     NgTemplateOutlet,
     NzButtonModule,
+    NzCheckboxModule,
     NzDropdownModule,
     NzIconModule,
     NzInputModule,
@@ -1399,6 +1402,17 @@ export class Auction {
    * sit far down the list, and a switch next to the count brings them up (29/09/2026).
    */
   protected readonly onlyTaken = signal(false);
+
+  /**
+   * HIDE THE MEN I CANNOT TAKE (operator, 05/10/2026: «un check per nascondere i calciatori non prendibili (pieno)»):
+   * the rows marked «pieno», whose line of my squad is full. A per-viewer preference, remembered.
+   */
+  protected readonly hideFull = signal(readFlag(HIDE_FULL_KEY));
+
+  protected setHideFull(on: boolean): void {
+    this.hideFull.set(on);
+    writeFlag(HIDE_FULL_KEY, on);
+  }
   protected readonly takenCount = computed(() => this.freeAll().filter((row) => !!row.takenBy).length);
 
   /**
@@ -1433,11 +1447,13 @@ export class Auction {
     const rung = this.minRung();
     const rungFromEngine = this.mode() === 'previste';
     const onlyTaken = this.onlyTaken();
+    const hideFull = this.hideFull();
     const picked = this.picked();
     if (this.onlyPicked() && picked.size) return this.freeAll().filter((row) => picked.has(row.id));
     return this.freeAll().filter(
       (row) =>
         (!onlyTaken || !!row.takenBy)
+        && (!hideFull || !row.full)
         && looseMatch(query, row.name, row.club)
         && (!roles.size || row.roles.some((role) => roles.has(role.toLowerCase())))
         && (limit === null || !position || position(row.fvm) <= limit)

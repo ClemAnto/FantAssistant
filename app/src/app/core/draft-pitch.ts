@@ -162,6 +162,17 @@ export function draftPitchOf(
   });
 
   const { unplaced } = spreadReserves(drawn, squad.filter((man) => !holders.includes(man)), byCoverage);
+  // THE DRAWING SAYS WHAT THE YIELD COUNTS (`bonusFirst`): on a covered outfield place the man fielded first is the
+  // one with the higher bonus, so he is the starter on the pitch and the regular becomes his first reserve.
+  for (const place of drawn) {
+    if (!place.man || place.roles.some((role) => role === 'por' || role === 'p')) continue;
+    const order = bonusFirst([place.man, ...place.reserves].filter((man) => man.share != null));
+    const first = order[0];
+    if (!first || first === place.man) continue;
+    place.reserves = [place.man, ...place.reserves.filter((man) => man !== first)];
+    place.man = first;
+    place.badge = badgeFor(first, place.roles);
+  }
 
   const rows: DraftRow[] = [];
   for (const line of DRAW_ORDER) {
@@ -176,7 +187,7 @@ export function draftPitchOf(
     unplaced,
     // The eleven's worth stays in FANTAPUNTI (the header prints it so): the starters are CHOSEN on fertility, but
     // what they are worth is still their value.
-    total: holders.reduce((sum, man) => sum + (man?.value ?? 0), 0),
+    total: drawn.reduce((sum, place) => sum + (place.man?.value ?? 0), 0),
   };
 }
 
@@ -299,6 +310,21 @@ export function combinedCover(men: readonly (FantaMan | null | undefined)[]): nu
 }
 
 /**
+ * ONCE A PLACE IS COVERED, THE BONUS PLAYS FIRST (operator, 05/10/2026: «quando si raggiunge una buona copertura,
+ * vengano preferiti i calciatori che portano bonus anche se giocano più raramente (ad esempio Cambiaso)»). With the
+ * men's absences independent, the place's cover is the same whoever is fielded first, and the fertility is
+ * C x b2 + c1 x (b1 - b2): fielding the higher bonus first is worth more whenever both play. So where the men of a
+ * place reach `COVER_OK` together they are taken highest bonus first - the one who scores goes in when he plays, the
+ * regular when he does not - and below it the order stays the starter's, because there the regular is what keeps
+ * the place from being empty. A man with an unknown bonus stays after the known ones («vuoto = ignoto»). Outfield
+ * only: the door is ordered week by week on its own (`keeperYield`).
+ */
+export function bonusFirst(men: readonly FantaMan[]): FantaMan[] {
+  if (men.length < 2 || combinedCover(men) < COVER_OK) return [...men];
+  return [...men].sort((a, b) => (b.bonus ?? -Infinity) - (a.bonus ?? -Infinity));
+}
+
+/**
  * WHAT A PLACE GIVES, from the men who stand on it (operator, 29/09/2026, coverage rewritten 01/10/2026 twice).
  *
  * COVERAGE is `combinedCover`: each man contributes his expected appearances over the season (`coverOf`, with its margin above 80%),
@@ -316,8 +342,7 @@ export function placeYield(place: DraftPlace, withSuggested = false, doorHole = 
   let cover = 0;
   let fertility: number | null = null;
   let unknown = false;
-  for (const man of menOf(place, withSuggested)) {
-    if (!man || man.share == null) continue;
+  for (const man of bonusFirst(men)) {
     counted.push(man);
     const now = combinedCover(counted);
     const adds = now - cover;

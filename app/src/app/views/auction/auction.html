@@ -743,6 +743,10 @@
               <nz-option [nzValue]="option.rank" [nzLabel]="option.label" />
             }
           </nz-select>
+          <!-- NASCONDI I NON PRENDIBILI (sua richiesta, 05/10/2026): chi ha il reparto pieno nella mia rosa. -->
+          <label nz-checkbox data-hide-full class="ml-2 text-[10px]" [ngModel]="hideFull()" (ngModelChange)="setHideFull($event)"
+            >nascondi pieni</label
+          >
           <!-- IL RANGE DI FVM (sue richieste, 29/09/2026): a schermo solo l'etichetta con i due estremi, e un
                click apre il riquadro dove si cambiano o si azzerano. Estremi compresi, vuoto = nessun limite. -->
           <button
