@@ -684,3 +684,23 @@ describe('sessionKey', () => {
     expect(sessionKey('FA-Y6K-VG9')).toBe('FA-y6k-vg9');
   });
 });
+
+describe("l'asterisco del listone (gone)", () => {
+  // FA-610-2ih, 05/10/2026: Leao, Dia, Nkunku and Lukaku sit in `env/playerList` with `gone: true` and were drawn
+  // among the free men. They leave the pool; a pick that names one still finds his row.
+  it('takes a gone man out of the free pool, and still resolves a pick that names him', () => {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({});
+    const feed = TestBed.inject(AuctionFeed);
+    const gone = { ...player(4510, 'Leao', 'Milan', 300), gone: true };
+    const lukaku = { ...player(2531, 'Lukaku', 'Napoli', 200), gone: true };
+    feed.startDemo({
+      players: [...PLAYERS.values(), gone, lukaku],
+      state: { ...structuredClone(STATE), picks: [{ index: 0, teamId: 0, playerId: 2531, cost: 1 }] },
+      mineId: 0,
+    });
+    expect(feed.available().map((one) => one.id)).not.toContain(4510);
+    expect(feed.available().map((one) => one.id)).toContain(5585);
+    expect(feed.teams().find((one) => one.id === 0)?.squad.some((entry) => entry.player?.id === 2531)).toBe(true);
+  });
+});

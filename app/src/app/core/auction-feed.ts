@@ -125,6 +125,13 @@ export interface AuctionPlayer {
    * from the bundle; `fm`/`mv` null when the host writes 0, i.e. he has not played.
    */
   seen?: { fm: number | null; mv: number | null; played: number };
+  /**
+   * The listone's ASTERISK (`gone`): sold out of the championship after the list was written - Leao, Dia, Nkunku,
+   * Lukaku on FA-610-2ih, 64 of 600. The host serves them in `env/playerList` and nobody picks them (0 of the
+   * table's first 39 picks), so they leave the free pool like an excluded club (`activePlayers`) while a pick that
+   * names one still resolves (operator, 05/10/2026: «vedo in tabella calciatori che non sono nel listone»).
+   */
+  gone?: boolean;
 }
 
 /** A listone row priced in the table's game: the value the host orders and caps a draft on. */
@@ -952,8 +959,7 @@ export class AuctionFeed {
   private readonly activePlayers = computed<Map<number, AuctionPlayer>>(() => {
     const off = this.inactiveClubs();
     const all = this.players();
-    if (!off.size) return all;
-    return new Map([...all].filter(([, player]) => !off.has((player.club ?? '').trim().toLowerCase())));
+    return new Map([...all].filter(([, player]) => !player.gone && !off.has((player.club ?? '').trim().toLowerCase())));
   });
 
   /** The listone still free, dearest first. */
@@ -1481,6 +1487,7 @@ export class AuctionFeed {
         zoneMantra: entry.zone?.mantra,
         championship: entry.championship?.label ?? null,
         fvm: entry.stats?.fmv?.[key] ?? 0,
+        ...(entry.gone === true ? { gone: true } : {}),
         seen: {
           fm: Number(entry.stats?.avgFantaGrade) || null,
           mv: Number(entry.stats?.avgGrade) || null,
