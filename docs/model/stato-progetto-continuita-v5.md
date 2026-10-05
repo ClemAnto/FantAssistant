@@ -10456,3 +10456,34 @@ su `default`** (`ADOPTED`, `SHEET_REVISION` 83; fogli Leghe e Leghe Mantra rifat
 di chi ora entra dalla panchina), FVM accanto al nome sul campetto, lista dei liberi da 0,5-0,8 s a 60-75 ms per
 pezzo. 1365 test app verdi. v0.1.45 -> v0.1.47 pubblicate. Commit `fb99c97` (R29), `32ace38`, `a68a4a6` e i bump. Dettaglio:
 `priorita-draft-v1.md` §39, gate §7-tresexagies bis. Origin resta fermo a v0.1.36 (i commit locali non pushati).
+
+## 6 ottobre 2026 — AGGIORNAMENTO INFORTUNI E GRADINO STAMPA SERIE A (sessione operativa, nessun codice)
+
+**Lanciato (00:20)**: `injuries --stale-days 7` seguito da `update --daily`, in background, log in
+`data/logs/manual-injuries-0610.log` e `manual-daily-0610.log`. L'ultima lettura piena degli infortuni era del
+03/09, quindi il primo giro rilegge quasi tutto (~3 h). Il log resta vuoto finché Python non scarica il buffer: si
+giudica dal tempo di CPU per INTERVALLI, non dal file. La notifica «completato» del comando riguardava la shell che
+lo ha lanciato, non il lavoro.
+
+**Decisioni dell'operatore**: gradino stampa Serie A da rifare solo per i club CON NOVITÀ; infortunati da
+aggiornare per FVM decrescente, con le date di rientro.
+
+**Errore mio, corretto a verbale**: ho indicato Pulisic, Rabiot, Luvumbo e Hien come novità di ottobre 2026 su
+risultati di ricerca che erano articoli di ottobre 2025. Pulisic e Rabiot NON sono indisponibili oggi; Hien sì, ma
+per un intervento (metà novembre). Una ricerca web generica sui «focus indisponibili» mescola le stagioni: la
+fonte da usare è la pagina `indisponibili-serie-a` di fantacalcio.it, scaricata con curl e letta con
+`fc_site.parse_unavailable` / `parse_return` (offline, senza DB).
+
+**Novità reali dopo la rilevazione del 01/10** (pagina del 06/10, 61 indisponibili): Saelemaekers non è più
+«11/10» ma fermo fino al 2027 inoltrato (caviglia, possibile operazione); McTominay ~23/10 (confermato);
+Zaniolo, Santos A., Raspadori ~23/10; Yildiz ~05/12; Gudmundsson metà ottobre–inizio novembre; Hien ~15/11 e
+Kossounou ~23/11 (Atalanta); Cristante, Anguissa, Adams C. senza data («da valutare»). Fuori lista (rientrati):
+Malen, Calhanoglu, Dimarco, Kolo Muani, Wesley, Conceicao, Davis K., Meret. Nessun cambio di allenatore dopo il
+01/10 (Fiorentina 06/09, Bologna 16/09, Parma 27/09 erano già nella rilevazione).
+
+**Aperto**: (1) a fine del giro, ricontrollare i top-FVM sulla tabella `availability` aggiornata; (2) decidere se
+riscrivere le note di infortunio in `data/reports/press_survey_serie_a/out/*.json` (`press_rungs.json` non porta
+infortuni: l'app li legge dal DB) e rigenerare il report; (3) il gradino stampa dei soli club con novità si rifà
+con `toolkit/scripts/press_survey` (agenti web, `as_of` per riga, poi `audit.py`, `to_config.py`, `export`,
+`data:pull`) — non avviato: i club con novità vanno decisi dal confronto infortuni/trasferimenti sul DB fresco, non
+dalle notizie. Le due righe di `tm_scrape.py`/`listone.py` scrivono sul DB: farle a giro finito.
