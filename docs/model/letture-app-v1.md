@@ -7462,3 +7462,28 @@ si muovevano nel verso sbagliato, prima di leggere un verdetto.
 
 **Aperto, non mio**: `test_smoke::test_league_setup_has_usable_defaults_and_derives_the_mantra_slots` è rosso anche
 su `HEAD` pulito (slot mantra di default `(2, 3, 5, 2)` contro `(3, 2, 3, 2)` attesi).
+
+## 59 - L'ICONA «xG» CON LA SOGLIA CONTATA, e la confidenza che mancava alla fertilità (6 ottobre 2026)
+
+Con l'uscita di R29 (gate §7-tresexagies ter) l'operatore ha chiesto «un'icona per quelli come Zaccagni che
+hanno xG o xA notevoli»: il pattern di casa — misurato e tolto dal prezzo → si mostra e non si prezza, come
+la media a cinque stagioni. La quantità la scrive il TOOLKIT: `desc_xg_luck` = `model.bonus_luck`, la stessa
+funzione che R29 prezzava (una definizione, due lettori), con la stessa popolazione del canale — niente
+portieri, pavimento dei minuti, e solo dove la stagione di input pubblica gli attesi («vuoto = ignoto»).
+Viaggia nelle DUE allowlist (snapshot `PLAYER_COLUMNS`, export `SHEET_COLUMNS` — la famiglia di difetti dei
+campetti) E fra le OPZIONALI dell'export, o ogni pacchetto del viaggio nel tempo verrebbe scartato per una
+colonna che non può avere.
+
+L'app disegna il badge verde «xG» sulla riga del draft (`engine-sheet.XG_LUCK_NOTABLE`), con la soglia
+FISSATA CONTANDO sul foglio rigenerato (revisione 84, Serie A classic): 0,10 marca 98 uomini su 564, 0,15 ne
+marca 53, **0,20 ne marca 29 — il 5%, una manciata per ruolo — e Zaccagni (0,23) è dentro con margine**. In
+testa alla colonna: Kean 0,78, Lauberbach 0,73, Conceição 0,47 — coerente e non ironico: «crea più di quel
+che raccoglie» è un'informazione vera anche sugli uomini che il prezzo non doveva più premiarla, ed è
+esattamente la differenza fra un'icona e un termine.
+
+E LA CONFIDENZA DELLA STIMA ORA MOLTIPLICA LA FERTILITÀ (`AuctionAdvice.fantaManOf`, un punto solo: +Rosa,
++Giro, RAR, scenari e suggerimenti leggono tutti da lì): la fertilità di un `shrunk` 0,67 (Martinez Jo.)
+aveva l'autorità di un misurato, che è la stessa lezione pagata dalla plancia il 04/09 — «ogni lettore la
+applica». La fertilità è relativa a uno zero di POPOLAZIONE (il riserva del ruolo, o il portiere titolare
+medio), quindi la stima incerta si STRINGE verso di esso nei due versi, come `est_surplus` fa da sempre.
+Martinez Jo. da #9 a #36 di +Giro; le righe `core` (confidenza 1) non si muovono di un decimale.

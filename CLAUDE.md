@@ -6984,10 +6984,12 @@ Un `__pycache__` resta valido quando una sostituzione **conserva la lunghezza** 
 secondo** (Python confronta mtime al secondo e dimensione): due suite rosse su un file giusto, e la cura
 e' cancellare il bytecode dopo ogni controprova che riscrive un sorgente — quando un test cade e il
 sorgente sembra giusto, **si stampa il valore come il PROCESSO lo vede** prima di rileggere il codice.
-`snapshot --no-refresh` **senza `--league` non gira sulle leghe dichiarate**: costruisce un foglio
-euro/classic a 8 squadre in una cartella nuova senza toccare i fogli veri — *un comando con un default
-plausibile e sbagliato non da' errore, quindi si legge la PRIMA riga del suo output, dove dichiara su
-cosa sta lavorando.* E la simulazione che ha guidato tutta la giornata leggeva `engine_fm_pred` senza il
+`snapshot` **senza `--league` non gira sulle leghe dichiarate** (e NON e' il `--no-refresh`, come questa
+riga diceva fino al 06/10/2026: misurato quel giorno, il comando NUDO fa lo stesso — legge
+`--platform`/`--game` coi loro default, mai `my_leagues`): costruisce un foglio euro/classic a 8 squadre
+in una cartella nuova senza toccare i fogli veri. Le leghe dichiarate si costruiscono una per una con
+`--league NOME`, come fa `update` — *un comando con un default plausibile e sbagliato non da' errore,
+quindi si legge la PRIMA riga del suo output, dove dichiara su cosa sta lavorando.* E la simulazione che ha guidato tutta la giornata leggeva `engine_fm_pred` senza il
 ripiego su `est_fm`, cioe' sbagliava il livello di ~176 righe su 562: a trovarlo non e' stata una
 rilettura ma **un guardiano che e' caduto** dicendo il contrario di quello che la simulazione stampava.
 
@@ -8087,3 +8089,45 @@ titolari e riserve sul numero del badge, mentre il RENDIMENTO (+Rosa, consigli) 
 che legge il suo passato porta i gol del campionato da cui viene: per il draft la fantamedia di un portiere e' il voto
 base atteso meno i gol che il suo club subira' sul calendario della competizione (Frosinone 1,75, Juve 1,11) - una
 lettura dell'app, non del gate.
+
+## Una regola adottata IERI può uscire OGGI sui nomi, e la quantità che prezzava diventa un'icona
+**06/10/2026, dai nomi dell'operatore sulla colonna nuova del draft. Dettaglio: gate §7-tresexagies ter,
+`priorita-draft-v1.md` §42, `letture-app-v1.md` §59. Pubblicato v0.1.49, verificato live.** La colonna
+**«+Giro»** (sua richiesta, due tempi nello stesso giorno: il valore assoluto su QUATTRO prese — il +Rosa suo
+più quello delle migliori rimaste ai prossimi tre turni, l'orizzonte già misurato di `CHAIN_TURNS`) è il
+totale delle catene degli scenari appiattito a colonna: UNA camminata dei rivali su tre giri futuri, letta da
+ogni candidato a PREFISSI — quanti chiamanti lo precedono a ogni suo turno dipende dai PREZZI della sua
+catena, con la regola d'ordine vera. Messa a schermo, gli ha fatto nominare tre assurdi (Conceição sopra Paz
+e Pulisic, i portieri sopra Paz, Zaccagni e Baturina bassi), e la diagnosi — riprodotta sulla pagina vera,
+scomposta sui `why_` del foglio — è passata dalla colonna agli INGRESSI.
+
+Due difetti erano della colonna, e sono regole di casa commesse di nuovo: **un uomo >50% probabile preso
+contava come presa futura** (la regola dei piani, `likelyGone`, non ereditata dal percorso nuovo — «poi
+prendo Paz» nove chiamate dopo, contro probabilità che il modello umano nega), e **la confidenza della stima
+non entrava nella fertilità** (la lezione della plancia del 04/09: Martinez Jo., `shrunk` 0,67, letto con
+l'autorità di un misurato — #9 di +Giro, #36 con la cura). Il resto era **R29, adottata il giorno prima**:
+spostamenti per-uomo fino a ±0,56 di fantamedia dentro un guadagno medio del 2,6% — **il gate giudica la
+POPOLAZIONE, il tavolo si gioca sui NOMI** — e i suoi cinque giudizi non erano simultaneamente soddisfacibili
+con l'interruttore: senza R29 Paz #6, Baturina #10, Conceição #43 (la sua frase, e l'ordine dell'FVM), ma
+Zaccagni — il caso da cui R29 era NATA — #115. Decisione sua, clausola esercitata, prezzo detto (Zaccagni
+chiude #100); la ri-misura su T3 resta pre-registrata e ora ha i nomi come casi di controllo. La quantità
+resta sul foglio come REPORTING — `desc_xg_luck` (`model.bonus_luck`, una definizione e due lettori,
+`SHEET_REVISION` 84, nelle due allowlist E fra le opzionali dell'export) — con l'icona «xG» a soglia CONTATA
+(0,20 = 29 uomini su 564, Zaccagni 0,23 dentro): misurato e tolto dal prezzo → si mostra e non si prezza.
+
+Tre abitudini della colonna, e una domanda chiusa con una scomposizione.
+- **Una catena non impila lo sconto sopravvissuto sopra il proprio lookahead**: sono lo stesso meccanismo
+  (`rankGain` lo approssima su un numero solo), e il banco aveva già misurato che contarlo due volte è
+  peggio di ciascuna metà.
+- **Un candidato di un gruppo già preso dalla catena si rimisura sul campetto CON la catena**: due dello
+  stesso gruppo riempiono titolare + riserva, e contare il secondo al suo marginale da solo premia i gruppi
+  ricchi — l'esatto contrario del mestiere della colonna. Si rimisurano solo i top che altrimenti
+  vincerebbero: aggiungere uomini non alza un marginale dello stesso gruppo.
+- **Fra +195 e +220 la colonna non risolve**: le differenze sono centesimi dentro le approssimazioni
+  dichiarate — separa in cima e nelle code, e dirlo e' parte della colonna. Aperto: misurarla come POLITICA
+  sul banco del draft.
+- E **«Svilar DP 47, il doppio del secondo» e' una scomposizione e non un difetto**: per un portiere il DP
+  legge `media voto − gol attesi del club sulla finestra` (la sua regola del caso Palmisani) — Roma concede
+  0,99 gol/partita sulle giornate 5-22, 6,17 − 0,99 = 5,18 contro i 5,01-5,11 degli altri titolari, pv 29,6,
+  RAR 0. Vicino allo zero del ruolo +0,17 di fantamedia-porta diventa +57% di DP: 0,2 punti a giornata, nel
+  ruolo dove quel margine si incassa tutto.

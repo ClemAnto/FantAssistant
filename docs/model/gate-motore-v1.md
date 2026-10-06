@@ -7260,6 +7260,29 @@ su 240 righe di 293: Zaccagni 6,260 → **6,418**, Kean 6,722 → 7,278, Martine
 fittato sulle tre finestre arriva a 0,78. Si rigiudica su T3 a stagione chiusa col λ di oggi
 (todolist, aperto 2): se peggiora, esce senza discutere. Su euro resta fuori.
 
+### 7-tresexagies (ter). USCITA IL 06/10/2026: la clausola esercitata il giorno dopo, sui nomi
+
+**L'operatore ha esercitato la clausola guardando la colonna nuova del draft** («+Giro»,
+`priorita-draft-v1.md` §42): gli spostamenti per-uomo di R29 arrivano a **±0,56 di fantamedia** (Kean +0,56,
+Thuram e Calhanoglu −0,35) e rovesciavano l'ordine che la sua esperienza detta — Paz −0,24 sotto Conceição
++0,33, Baturina −0,26 — sistematicamente a favore di chi ha convertito sotto gli xG e contro chi sopra. Il
+controfattuale, ricostruito dai `why_fm_steps` del foglio e verificato sulla pagina vera: **senza R29 la
+classifica +Rosa ricalca la sua frase E l'ordine dell'FVM** (Paz #6, Baturina #10, Conceição #43), ma
+**Zaccagni — il caso da cui R29 era nata — scenderebbe a #115**: i suoi cinque giudizi non erano
+simultaneamente soddisfacibili con l'interruttore, la scelta è stata la sua, col prezzo davanti (Zaccagni
+chiude #100, marcato dall'icona).
+
+Il verdetto del gate **NON è smentito**: lo strict resta a verbale e la ri-misura su T3 resta pre-registrata
+— che ora ha anche i NOMI come casi di controllo. È una decisione sul DELIVERABLE, come l'adozione era stata.
+`backtest --verify` **22/22 anche all'uscita** (su copia privata del DB, col daily di un'altra mano in corsa).
+La quantità resta sul foglio come REPORTING — `desc_xg_luck` = `model.bonus_luck`, la stessa funzione che la
+regola prezzava, una definizione e due lettori (`SHEET_REVISION` 84) — e l'app ci disegna l'icona «xG» con la
+soglia contata (`letture-app-v1.md` §59).
+
+**La lezione che resta**: un guadagno medio del 2,6% può contenere code per-uomo di mezzo punto — il gate
+giudica la POPOLAZIONE e il tavolo si gioca sui NOMI. Un'adozione «dal gradino di evidenza più basso» è
+esattamente quella che cinque nomi possono rovesciare, ed è per questo che la clausola era scritta.
+
 ## 7-quattuorsexagies. PRE-REGISTRAZIONE (30 settembre 2026) — R31: UNA STAGIONE CORTA NON CANCELLA LA CARRIERA
 
 **Scritta e committata PRIMA della corsa.** Dal caso che l'operatore ha portato sul Draft Assistant:

@@ -1410,3 +1410,53 @@ esattamente il test descritto). Un test su tutta la catena non è stato possibil
 lista e le catene si fermano alla prima scelta. 1375 test app verdi su HEAD più questa metà (worktree), build pulito;
 non ancora visto su un draft vero.
 
+
+## 42. La colonna «+Giro»: quattro prese in un numero, e i nomi che hanno fatto uscire R29 (06/10/2026)
+
+**La richiesta, in due tempi nella stessa giornata**: «una nuova colonna dopo +Rosa che abbia un valore
+finale per ordinare i vari calciatori in maniera assoluta ... deve contemplare sia +Rosa che il +Rosa della
+scelta successiva, in base all'FVM del calciatore in oggetto e all'ordine di scelta attuale e futuro», poi
+«vorrei che il punteggio riguardasse 4 prese (quella attuale + 3 future)» — lo stesso orizzonte che il banco
+aveva misurato (`CHAIN_TURNS` = 4, il ginocchio: catene da 2 · 3 · 4 prese = 72,20 · 72,93 · 73,43
+punti/giornata, §36).
+
+**La forma** (`core/draft-turn.ts`, `auction-plan.rivalPicksHorizon`, `AuctionAdvice.turnBy`): è il totale
+delle catene degli scenari (`Scenario.horizon`) appiattito a colonna. Una catena per candidato non è pagabile
+su ~550 uomini (gli scenari ne camminano 6-12), quindi la camminata dei rivali si fa UNA volta, su tre giri
+futuri, e ogni candidato ne legge i propri PREFISSI: quanti chiamanti lo precedono a ciascuno dei suoi turni
+dipende dai PREZZI della sua catena, con la regola d'ordine vera (per valore in `default` — un acquisto caro
+ti manda indietro in OGNI giro che segue — posizionale sul serpentone). Le approssimazioni sono dichiarate nel
+file e sono quelle che la macchina fa già altrove: le prese dei rivali non cambiano con le nostre (la
+camminata ci prezza a zero, come `goneBeforeOurNextTurn` dichiara di sé); le prese successive sono GREEDY (la
+politica dei piani); un candidato di un gruppo NON toccato dalla catena tiene il +Rosa di oggi, uno di un
+gruppo GIÀ preso si rimisura sul campetto CON la catena — due dello stesso gruppo riempiono titolare +
+riserva, e contare il secondo al suo marginale da solo favorirebbe i gruppi ricchi, l'esatto contrario del
+mestiere della colonna; si rimisurano solo i top che altrimenti vincerebbero, perché aggiungere uomini non
+alza un marginale dello stesso gruppo. **Nessuno sconto sopravvissuto SOPRA la catena**: la catena È il
+lookahead che `rankGain` approssima su un numero solo, e il banco ha già misurato che impilare due volte lo
+stesso meccanismo è peggio di ciascuna metà (metrica §18).
+
+**Tre regole entrate correggendo i suoi casi** («scegliere Conceicao non può essere meglio di Paz o Pulisic»,
+«Martinez e Svilar non possono essere meglio di Paz», «Zaccagni e Baturina troppo bassi»), tutte verificate
+riproducendo la pagina vera in headless prima e dopo:
+- **chi ha >50% di probabilità di sparire prima del nostro turno non è mai una presa futura** (`likelyGone`,
+  la regola che i piani avevano già): senza, ogni uomo economico incassava «poi prendo Paz» nove chiamate
+  dopo, contro probabilità che il modello umano fittato sui draft veri nega;
+- **la confidenza della stima moltiplica la fertilità** (la lezione della plancia del 04/09, commessa di
+  nuovo): Martinez Jo., `shrunk` 0,67, leggeva con l'autorità di un misurato — #9 di +Giro; con la
+  confidenza, #36;
+- **il resto era R29, e non era un difetto della colonna**: la colonna amplifica fedelmente il foglio. Il
+  controfattuale e l'uscita sono nel gate (§7-tresexagies ter). Verificato finale sulla pagina:
+  **Paz #6 · Pulisic #9 · Baturina #11 · Svilar #12 · Conceição #34 [xG] · Martinez Jo. #43**, e la testa
+  (Malen, Martinez L., Dimarco, Thuram, Calhanoglu, Paz) ricalca la sua esperienza e il mercato insieme.
+
+**Svilar DP 47, «quasi il doppio del secondo», è legittimo e la scomposizione lo dice**: per un portiere il
+DP legge `media voto − gol attesi del suo club sulla finestra` (la sua regola del caso Palmisani, §38) —
+Roma concede 0,99 gol/partita sulle giornate 5-22 (seconda dopo l'Inter, 0,93), quindi 6,17 − 0,99 = 5,18 di
+fantamedia-porta contro i 5,01-5,11 degli altri titolari, con pv 29,6 e RAR 0. Vicino allo zero del ruolo
+(+0,4-0,6 per tutti), +0,17 di fantamedia-porta diventa +57% di DP: in assoluto sono 0,2 punti a giornata,
+ed è il ruolo dove quel margine si incassa tutto — il posto dove il motore vale il doppio, misurato da tempo.
+
+**Il limite detto**: fra +195 e +220 le differenze sono centesimi dentro le approssimazioni dichiarate — la
+colonna separa in cima e nelle code, non nel mezzo. **Aperto**: misurare «+Giro» come POLITICA sul banco del
+draft (scegliere per +Giro contro scegliere per DP), che è il giudice che una colonna di consiglio merita.
