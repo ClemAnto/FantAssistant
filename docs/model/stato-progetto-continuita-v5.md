@@ -10564,3 +10564,15 @@ separare valuta / quote-ROLE_WAIT / RAR); **10.2** un parametro nuovo, la «schi
 abbordabili sul calendario del club reale, da costruire sulla probabilità «facile» di `fixtures.schedule` che oggi
 leggono solo i portieri — tre domande aperte (quale probabilità per un uomo di movimento, lettura o termine della
 DP, finestra dichiarata o stagione al differenziale).
+
+## 6 ottobre 2026 (notte tarda) — CODE REVIEW DELLA PAGINA DRAFT, v0.1.50
+
+La review ha trovato due difetti, corretti e pubblicati (`priorita-draft-v1.md` §43). «+Giro» ora valuta solo chi
+si può prendere in questo turno (`canPickFirst`), e un piano ruotato non tiene più i badge `bare`/`crowded` del
+piano vecchio. Sito alla v0.1.50, verificato live. `master` non è pushato: era già 33 commit avanti a `origin`.
+
+Aperti:
+- `e2e-draft` resta rosso su 5 problemi, tutti preesistenti: incrementi del piano, colori Fm, larghezze delle
+  medie, ordine delle previste;
+- manca un test sulla rotazione dei piani;
+- restano i due appunti del §10 della todolist del draft.

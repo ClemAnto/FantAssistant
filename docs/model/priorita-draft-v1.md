@@ -1460,3 +1460,29 @@ ed è il ruolo dove quel margine si incassa tutto — il posto dove il motore va
 **Il limite detto**: fra +195 e +220 le differenze sono centesimi dentro le approssimazioni dichiarate — la
 colonna separa in cima e nelle code, non nel mezzo. **Aperto**: misurare «+Giro» come POLITICA sul banco del
 draft (scegliere per +Giro contro scegliere per DP), che è il giudice che una colonna di consiglio merita.
+
+## 43. Code review della pagina: due difetti, uno della colonna e uno dei piani (06/10/2026)
+
+Code review sulla pagina draft (`views/auction` e i moduli `core/` che la servono). Ha guardato il diff dei cinque
+commit precedenti: ha trovato due difetti veri, corretti in v0.1.50.
+- **«+Giro» valutava anche chi adesso non si può prendere.** `turnScores` chiedeva `canPick` solo per le prese
+  future, e così un uomo sopra il tetto FVM, escluso, un portiere rifiutato da `keeperAllowed` o, mentre tocca a un
+  altro, un uomo dato per sparito prima della nostra chiamata prendeva il punteggio pieno e poteva finire primo.
+  Ora la presa di questo turno passa da `TurnInput.canPickFirst`, con la stessa legalità delle successive più
+  `likelyGone.beforeNow`. Quando tocca a noi, chi sparirà resta valutabile («prendi chi sparirà»). Chi non passa
+  non ha punteggio, e la colonna mostra il trattino. È la terza istanza della regola non ereditata dal percorso
+  nuovo (la prima era `likelyGone` sulle prese future, §42).
+- **Un piano ruotato teneva i badge del piano vecchio.** In `rotateShown` l'unione `{ ...chain, ...again }`
+  conservava `bare` e `crowded`, che `chainFrom` scrive solo quando non sono vuoti: «sbilanciato» e il reparto
+  senza top descrivevano prese che il piano non contiene più. Ora si tolgono prima dell'unione. Su questo punto
+  non c'è un test unitario, perché nessuno spec costruisce la rotazione: è un aperto.
+
+**Banco**: suite app 1388/1388. `e2e-draft` legge **5 problemi**, tutti già presenti su HEAD prima della cura,
+dove i problemi sono 6 (A/B con `git stash`):
+- piano senza incrementi di copertura e fertilità;
+- colori della Fm;
+- larghezze delle colonne delle medie;
+- ordine delle colonne delle previste.
+
+Il sesto, su HEAD, era «consiglio per un preferito sotto la soglia», che oscilla. **Aperto**: riportare il banco a
+verde, perché un banco rosso di suo smette di essere un gate.
