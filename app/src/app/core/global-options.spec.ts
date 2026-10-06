@@ -153,6 +153,22 @@ describe('GlobalOptions', () => {
     expect(league.cleanSheet).toBe(true);
   });
 
+  it('keeps one draft ceiling PER LISTONE, off for Serie A (draft FA-j3h-89r, 06/10/2026)', () => {
+    const league = fresh().league();
+    expect(league.draftCaps.default.on).toBe(false);
+    expect(league.draftCaps.euro).toEqual({ on: true, fvm: 213, frozenTurns: 5 });
+  });
+
+  it('hands the single ceiling of before to EuroLeghe, and Serie A starts off', () => {
+    localStorage.setItem(
+      'fantassistant.options.league',
+      JSON.stringify({ draftCap: { on: true, fvm: 250, fromTurn: 4 } }),
+    );
+    const caps = fresh().league().draftCaps;
+    expect(caps.euro).toEqual({ on: true, fvm: 250, frozenTurns: 3 });
+    expect(caps.default.on).toBe(false);
+  });
+
   it('keeps a declared "no R-Factor" across a refresh, like every other league fact', () => {
     localStorage.setItem(
       'fantassistant.options.league',

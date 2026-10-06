@@ -572,6 +572,9 @@ giornate in cui un posto si conquista.
   (ROLE_WAIT, quote 3/8/8/6) o la rarità (RAR) a tenerli fuori. Ipotesi da verificare, non da assumere:
   la stessa forma del difetto dei portieri del §32 di `priorita-draft-v1.md` — una valuta il cui segno o
   zero è sfavorevole per un ruolo non lo sceglie mai.
+  **Causa probabile trovata il 06/10/2026 (sera)** sul draft Serie A FA-j3h-89r: il tetto FVM EuroLeghe
+  acceso anche sulla Serie A teneva fuori i top (quasi tutti attaccanti). Curato (`priorita-draft-v1.md` §44);
+  da riguardare al prossimo draft se gli attaccanti tornano nei piani.
 - [ ] **10.2 — Nuovo parametro: la «SCHIERABILITÀ».** Definizione sua: la quota delle partite in cui
   schiereresti il calciatore, cioè quelle in cui ha una partita ABBORDABILE secondo il calendario del suo
   club reale. Da costruire sopra quello che c'è già, non da zero: la probabilità «facile» di

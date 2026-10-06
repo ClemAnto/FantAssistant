@@ -424,8 +424,8 @@ export class AuctionDemo {
         mantra,
         platform: chosen.platform,
         rounds: 0,
-        cap: league.draftCap?.on
-          ? { fvm: league.draftCap.fvm, frozenTurns: league.draftCap.frozenTurns }
+        cap: league.draftCaps[chosen.platform]?.on
+          ? { fvm: league.draftCaps[chosen.platform].fvm, frozenTurns: league.draftCaps[chosen.platform].frozenTurns }
           : null,
       });
       // A seat he chose stays his across a change of settings, as long as the table still has it.
@@ -466,7 +466,7 @@ export class AuctionDemo {
     if (max != null && team.squad.filter((entry) => entry.zone === zone).length >= max) {
       return `${team.label} ha già il reparto pieno.`;
     }
-    const cap = this.options.league().draftCap;
+    const cap = this.options.league().draftCaps[this.sheet()?.platform ?? this.options.league().platform];
     if (cap?.on && capBlocks(team.squad.length, player.fvm, cap)) {
       return `Bloccato: FVM ${player.fvm} ≥ ${cap.fvm}, ${team.label} lo può chiamare solo dal ${cap.frozenTurns + 1}° turno.`;
     }

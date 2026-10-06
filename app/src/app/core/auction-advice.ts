@@ -30,6 +30,7 @@ import {
   RivalHead,
   ahead,
   capBlocks,
+  capContradiction,
   classifyRivals,
   RoundPick,
   coverNeedOf,
@@ -1472,10 +1473,47 @@ export class AuctionAdvice {
    * project has read, so it is declared and never adopted from the session.
    */
   readonly pickCap = computed<PickCap | null>(() => {
-    const cap = this.options.league().draftCap;
+    const cap = this.declaredCap();
+    return cap && !this.capOverruled() ? cap : null;
+  });
+
+  /** The ceiling as DECLARED in the league settings, before the table is asked whether it holds. */
+  private readonly declaredCap = computed<PickCap | null>(() => {
+    // The ceiling of the TABLE's listone (one per league, 06/10/2026), the declared one until the table says it.
+    const cap = this.options.league().draftCaps[this.excludedPlatform()];
     if (!this.feed.isDraft() || !cap?.on) return null;
     return { fvm: cap.fvm, frozenTurns: cap.frozenTurns };
   });
+
+  /**
+   * THE CEILING THAT STILL BINDS SOMEBODY, for the header (operator, 06/10/2026: «evidenzia in modo chiaro quando
+   * c'è un tetto attivo»): the cap in force while at least one squad is still inside its frozen turns. Once every
+   * squad has called past them it binds nobody, and a warning that cannot change a pick is noise.
+   */
+  readonly capInForce = computed<(PickCap & { squads: number }) | null>(() => {
+    const cap = this.pickCap();
+    if (!cap) return null;
+    const squads = this.feed.teams().filter((team) => team.squad.length < cap.frozenTurns).length;
+    return squads ? { ...cap, squads } : null;
+  });
+
+  /**
+   * The pick that proves the declared ceiling is NOT in force at this table (`capContradiction`), or null. The page
+   * says it, because a declaration switched off in silence reads exactly like one that was never on.
+   */
+  readonly capOverruled = computed(() =>
+    capContradiction(
+      this.feed.teams().map((team) => ({
+        label: team.label,
+        picks: team.squad.map((entry) => ({
+          index: entry.index,
+          price: entry.player?.fvm ?? entry.cost,
+          name: entry.player?.name ?? '?',
+        })),
+      })),
+      this.declaredCap(),
+    ),
+  );
 
   /** The turn OUR squad is about to play, i.e. its own pick number. Null when we follow nobody. */
   readonly myTurn = computed<number | null>(() => {

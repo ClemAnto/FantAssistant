@@ -1486,3 +1486,43 @@ dove i problemi sono 6 (A/B con `git stash`):
 
 Il sesto, su HEAD, era «consiglio per un preferito sotto la soglia», che oscilla. **Aperto**: riportare il banco a
 verde, perché un banco rosso di suo smette di essere un gate.
+
+## 44. Il draft vero FA-j3h-89r: il tetto FVM di un'altra lega (06/10/2026)
+
+Il draft Serie A classic dell'operatore (10 squadre, ordine `default`), salvato in `data/raw/draft-sessions/`.
+Sua valutazione: «una delle rose più scarse», Paz alla 5ª gli ha fatto perdere gli attaccanti forti, e i consigli
+non valorizzano che con l'ordine per FVM si sceglie comunque al massimo dopo nove.
+
+**I due giudici** (sim scratch: undici migliore disponibile per giornata, senza modificatori; FVM della rosa):
+8º su 10 per entrambi, 67,9 punti a giornata contro 69,5 del primo (Of The Reason, aperto da Martinez L.). I tre FVM
+più bassi sono anche gli ultimi tre per il motore. Gap fra due scelte di una squadra: media 9,6-10,3 per tutti,
+massimo 19: **l'ordine per FVM costa poco**, la stessa lezione di §38.2.
+
+**La causa nei consigli era un regolamento di un'altra lega.** Rigiocata la sessione sulla pagina (build v0.1.50,
+finto host, cursore di revisione): il «tetto FVM dei primi turni» (≥213 bloccati per 5 scelte) era uno solo per
+tutta l'app e acceso di default, cioè la regola EuroLeghe applicata alla Serie A, dove non esiste (Malen alla 1,
+Paz alla 5, Thuram alla 9, tutti prime scelte). Alla scelta 5 i piani erano Bremer / Douvikas / Pulisic e Thuram,
+Hojlund e Paz non avevano un «+Giro»; senza tetto: Calhanoglu / **Thuram** / Bremer, «+Giro» Thuram +240,
+Calhanoglu +238, Paz +235, Hojlund +226. La lettura «i consigli non contano che si sceglie dopo al massimo nove» era
+questo: il calcolo dell'ordine c'era (Thuram, poi 12 scelte di attesa), lo spegneva il tetto. Probabile causa anche
+di `todolist-draft-v1.md` §10.1 (attaccanti mai nei consigli) sulla Serie A. Dalla scelta 17 in poi le sue scelte
+divergevano dai consigli (Vicario 40º per «+Giro», Mangas 36º, Politano/Mora/Cambiaso fuori dalle prime 60).
+
+**Curato (app, nessun numero del motore):**
+- `LeagueSettings.draftCaps`: un tetto per listone, come le squadre escluse. Default Serie A **spento**, EuroLeghe
+  213/5; un tetto salvato prima finisce su EuroLeghe. I consigli leggono quello del listone del TAVOLO.
+- `auction-plan.capContradiction`: se una squadra prende un uomo sopra soglia dentro i suoi turni bloccati, il
+  tetto si spegne per quel tavolo (un'osservazione batte una dichiarazione), sulle scelte che la pagina mostra
+  (il cursore di revisione non legge il futuro).
+- In testata (sua richiesta: «evidenzia in modo chiaro quando c'è un tetto attivo»): pastiglia rossa «Tetto
+  attivo: FVM ≥ N bloccati fino alla Kª scelta» finché lega almeno una squadra (`capInForce`), un click apre le
+  Opzioni; ambra «Tetto spento dal tavolo» col perché. Il pannello Opzioni dice a quale listone vale il tetto.
+
+Verifica: 1394 test app; rigiocato FA-j3h-89r col default nuovo: niente tetto e i piani «senza tetto» dalla scelta
+1; `e2e-draft --euro` legge in testata «Tetto attivo: FVM ≥ 300 bloccati fino alla 3ª scelta» e i lucchetti per
+riga come prima (i rossi delle medie restano quelli di §43, identici su HEAD); sulla demo Serie A nessun tetto in
+testata (passo nuovo). `e2e-draft-review` era rosso sul refresh perché pretendeva che il cursore si perdesse,
+mentre dal 01/10 sopravvive per sua decisione: il passo ora lo pretende. Resta l'intermittente del filtro «fino
+al N°» (posizioni 9-10 su un filtro al 9°, e «nothing to click»), che dipende dall'estrazione della demo ed è
+anche su HEAD. **Aperto**: misurare sul banco quanto avrebbe reso
+seguire i consigli corretti su questo draft.

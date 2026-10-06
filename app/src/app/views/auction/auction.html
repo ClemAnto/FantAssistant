@@ -45,6 +45,32 @@
       </button>
     }
 
+    <!-- IL TETTO FVM DEI PRIMI TURNI, A SCHERMO (sua richiesta, 06/10/2026: «evidenzia in modo chiaro quando c'è un
+         tetto attivo»). Era visibile solo come lucchetto sulle righe, e il draft Serie A del 6 ottobre e' stato
+         consigliato con un tetto che quella lega non ha. Finche' lega almeno una squadra; un click apre le Opzioni. -->
+    @if (advice.capInForce(); as cap) {
+      <button
+        type="button"
+        data-cap-active
+        class="flex items-center gap-1 rounded-md bg-danger/20 px-2 py-0.5 font-semibold text-danger"
+        nz-tooltip
+        nzTooltipTitle="Regola dichiarata nelle Opzioni per questo listone: vale per te e per ogni rivale. Premi per cambiarla."
+        (click)="options.open()"
+      >
+        <nz-icon nzType="lock" />
+        Tetto attivo: FVM ≥ {{ cap.fvm }} bloccati fino alla {{ cap.frozenTurns }}ª scelta
+      </button>
+    } @else if (advice.capOverruled(); as broken) {
+      <span
+        data-cap-off
+        class="flex items-center gap-1 rounded-md bg-warning/20 px-2 py-0.5 text-warning"
+        nz-tooltip
+        [nzTooltipTitle]="broken.team + ' ha preso ' + broken.name + ' alla sua scelta ' + broken.turn + ': il tetto dichiarato non vale a questo tavolo.'"
+      >
+        <nz-icon nzType="unlock" />
+        Tetto spento dal tavolo
+      </span>
+    }
     <span actions class="flex items-center gap-1">
       @if (feed.demo()) {
         <button
@@ -539,6 +565,13 @@
               }
               </span>
             </div>
+            <!-- IL TETTO FVM SMENTITO DAL TAVOLO (FA-j3h-89r, 06/10/2026): la regola dichiarata nelle Opzioni non vale a
+                 questo tavolo, quindi e' spenta; si dice, perche' spenta in silenzio si leggerebbe come mai accesa. -->
+            @if (advice.capOverruled(); as broken) {
+              <div data-cap-overruled class="rounded bg-warning/15 px-1 text-warning">
+                Tetto FVM dei primi turni spento: {{ broken.team }} ha preso {{ broken.name }} alla sua scelta {{ broken.turn }}.
+              </div>
+            }
             <!-- I PREFERITI A RISCHIO (sua richiesta, 05/10/2026): un tuo preferito che probabilmente sara' preso prima del
                  tuo turno. Fuori dalla piega, perche' e' un allarme e non un consiglio da sfogliare. Un click lo seleziona. -->
             @for (risk of advice.favouritesAtRisk(); track risk.id) {

@@ -493,7 +493,7 @@ export class Auction {
     effect(() => {
       const league = this.options.league();
       const key = JSON.stringify([
-        league.platform, league.game, league.teams, league.slots, league.draftCap,
+        league.platform, league.game, league.teams, league.slots, league.draftCaps,
       ]);
       untracked(() => {
         const changed = last !== null && key !== last;

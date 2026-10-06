@@ -31,6 +31,7 @@ import {
   LinkOutline,
   LeftOutline,
   LockOutline,
+  UnlockOutline,
   LoginOutline,
   LogoutOutline,
   MedicineBoxOutline,
@@ -112,6 +113,7 @@ export const NZ_ICONS: IconDefinition[] = [
   // casella vuota su meta degli stati.
   LeftOutline,
   LockOutline,
+  UnlockOutline,
   LoginOutline,
   LogoutOutline,
   MedicineBoxOutline,

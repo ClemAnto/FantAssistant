@@ -14,7 +14,7 @@ import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
 import { EngineSheetEntry } from '../../core/bundle';
 import { LEAGUE_ORDER } from '../../core/clubs-store';
-import { ClubOption, GlobalOptions, LeagueSettings } from '../../core/global-options';
+import { ClubOption, DraftCap, GlobalOptions, LeagueSettings } from '../../core/global-options';
 import { ClassicRole, Platform, competitionLabel } from '../../core/players-store';
 import { PlayerRulings } from '../../core/player-rulings';
 import { PageActions } from '../../core/page-actions';
@@ -278,12 +278,18 @@ export class GlobalOptionsPanel {
   }
 
   /** Il tetto di FVM dei primi turni del draft: un campo per volta, con la stessa guardia della casella svuotata. */
-  protected patchDraftCap(change: Partial<LeagueSettings['draftCap']>): void {
+  protected patchDraftCap(change: Partial<DraftCap>): void {
     // `null` è la casella svuotata, e `typeof null` non è 'number': va escluso per nome.
     if (Object.values(change).some((value) => value == null
       || (typeof value === 'number' && !Number.isFinite(value)))) return;
-    this.form.update((one) => ({ ...one, draftCap: { ...one.draftCap, ...change } }));
+    this.form.update((one) => ({
+      ...one,
+      draftCaps: { ...one.draftCaps, [one.platform]: { ...one.draftCaps[one.platform], ...change } },
+    }));
   }
+
+  /** Il tetto del listone scelto nel pannello: uno per listone, come le squadre escluse. */
+  protected readonly cap = computed(() => this.form().draftCaps[this.form().platform]);
 
   protected patchClassic(role: ClassicRole, value: number): void {
     if (!Number.isFinite(value)) return;

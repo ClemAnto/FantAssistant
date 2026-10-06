@@ -505,11 +505,12 @@ async function main() {
     miss = await press('[data-review-start]');
     note('inizio', miss ?? 'premuto', [...(miss ? [miss] : []), ...expectAt(0, await settle(0))]);
 
-    // 5. A review does not survive a reload: it is a way of looking, not a state of the table.
+    // 5. The cursor SURVIVES a reload (operator, 01/10/2026, `AuctionFeed.rememberCursor`): this step asserted the
+    // opposite until 06/10/2026 and was red on a decision, not on a defect. «Inizio» left it at 0, so 0 comes back.
     await session.send('Page.reload');
     await wait(500);
-    const reloaded = await settle(total);
-    note('dopo un refresh', `«${reloaded?.label}»`, expectAt(total, reloaded));
+    const reloaded = await settle(0);
+    note('dopo un refresh', `«${reloaded?.label}»`, expectAt(0, reloaded));
 
     const shot = argv.indexOf('--shot');
     if (shot >= 0 && argv[shot + 1]) {

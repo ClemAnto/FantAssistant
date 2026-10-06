@@ -11,6 +11,7 @@ import {
   PickCap,
   PlanPlayer,
   capBlocks,
+  capContradiction,
   PlanTeam,
   coverNeedOf,
   needFor,
@@ -682,5 +683,30 @@ describe('rivalPicksHorizon', () => {
     // Round 0 forward (1, 2), round 1 backwards (2, 1, us), round 2 forward (us, 1, 2).
     expect(steps.length).toBe(6);
     expect(myTurns).toEqual([4, 4]);
+  });
+});
+
+describe('capContradiction', () => {
+  const CAP = { fvm: 213, frozenTurns: 5 };
+  const squad = (label: string, prices: number[]) => ({
+    label,
+    picks: prices.map((price, i) => ({ index: i * 10 + 3, price, name: `${label}${i}` })),
+  });
+
+  it('names the pick that breaks the ceiling inside the frozen turns of a squad', () => {
+    expect(capContradiction([squad('A', [100, 90]), squad('B', [120, 235])], CAP)).toEqual({ team: 'B', name: 'B1', turn: 2 });
+  });
+
+  it('a dear man taken AFTER the frozen turns proves nothing', () => {
+    expect(capContradiction([squad('A', [100, 90, 80, 70, 60, 260])], CAP)).toBeNull();
+  });
+
+  it('reads the picks in table order, not in the order they are listed', () => {
+    const shuffled = { label: 'C', picks: [{ index: 60, price: 250, name: 'late' }, ...squad('C', [10, 10, 10, 10, 10]).picks] };
+    expect(capContradiction([shuffled], CAP)).toBeNull();
+  });
+
+  it('no declared ceiling, nothing to contradict', () => {
+    expect(capContradiction([squad('A', [300])], null)).toBeNull();
   });
 });

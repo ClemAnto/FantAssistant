@@ -156,6 +156,30 @@ export function capBlocks(picksCount: number, price: number, cap: PickCap | null
   return !!cap && price >= cap.fvm && picksCount < cap.frozenTurns;
 }
 
+/**
+ * WHERE THE TABLE CONTRADICTS THE DECLARED CEILING, or null (FA-j3h-89r, 06/10/2026).
+ *
+ * The ceiling is a DECLARATION, on by default because it is the operator's EuroLeghe regulation, and the
+ * settings are one per browser: so his Serie A draft of 06/10 ran with it while that league has no such rule -
+ * Malen went at the very first pick, Paz at the fifth, Thuram at the ninth, every one a squad's FIRST pick.
+ * The app meanwhile read the dear men as frozen for everybody, so no plan opened with them and the rivals were
+ * predicted to leave them alone. An observation beats a declaration (the lot named by the host, the asterisk of
+ * the listone): one squad that took a man at or above the price inside its frozen turns is proof the rule is
+ * not in force at THIS table. Read on the picks the page shows, so a review cursor does not learn the future.
+ */
+export function capContradiction(
+  squads: readonly { label: string; picks: readonly { index: number; price: number; name: string }[] }[],
+  cap: PickCap | null | undefined,
+): { team: string; name: string; turn: number } | null {
+  if (!cap) return null;
+  for (const squad of squads) {
+    const early = [...squad.picks].sort((a, b) => a.index - b.index).slice(0, cap.frozenTurns);
+    const at = early.findIndex((pick) => pick.price >= cap.fvm);
+    if (at >= 0) return { team: squad.label, name: early[at].name, turn: at + 1 };
+  }
+  return null;
+}
+
 /** How far ahead to look. Three rounds because that is what the operator reads at the table; each one
  *  costs one pass over the free pool per team, so depth is cheap and confidence is not. */
 export const ROUNDS_AHEAD = 4;

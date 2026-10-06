@@ -314,7 +314,7 @@ async function main() {
         platform: 'euro', game: 'mantra', auction: 'draft', teams: 12, porte: true,
         slots: { mantra: { por: 2, mov: 30 } },
         // A ceiling that is NOT the default one, so the page can only show it by reading the settings.
-        draftCap: { on: true, fvm: 300, frozenTurns: 3 },
+        draftCaps: { euro: { on: true, fvm: 300, frozenTurns: 3 } },
       })));
       await session.send('Page.reload');
       await wait(1500);
@@ -376,10 +376,18 @@ async function main() {
       ]);
 
     // 2b. The ceiling of the first turns, as the league declares it: said on screen, and a blocked top
-    // cannot be taken with a double click.
+    // cannot be taken with a double click. On Serie A it is OFF by default (06/10/2026, draft FA-j3h-89r):
+    // that league has no such rule, and the header must not claim one.
+    if (!euro) {
+      const pill = await evaluate(session, () => document.querySelector('[data-cap-active]')?.innerText?.trim() ?? null);
+      note('tetto in testata (Serie A)', pill ?? 'nessuno', pill ? [`la Serie A mostra un tetto che non ha: «${pill}»`] : []);
+    }
     if (euro) {
       // VISIBLE IN THEIR PLACE (operator, 29/09/2026): among the first rows loaded, dimmed, with the badge
       // saying how many of our turns are left - three, on an empty squad with a three-turn block.
+      // SAID IN THE HEADER (operator, 06/10/2026: «evidenzia in modo chiaro quando c'e' un tetto attivo").
+      const pill = await evaluate(session, () => document.querySelector('[data-cap-active]')?.innerText?.trim() ?? null);
+      note('tetto in testata', pill ?? 'assente', pill && pill.includes('300') && pill.includes('3') ? [] : [`la testata non dice il tetto 300/3: «${pill}»`]);
       const shown = await evaluate(session, () => [...document.querySelectorAll('[data-free][data-locked]')].map((one) => ({
         badge: (one.querySelector('[data-lock]')?.innerText ?? '').trim(),
         icon: !!one.querySelector('[data-lock] svg'),

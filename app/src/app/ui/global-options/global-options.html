@@ -205,38 +205,38 @@
             <span
               class="w-32 shrink-0 text-sm text-muted"
               nz-tooltip
-              nzTooltipTitle="I top con FVM pari o superiore alla soglia restano bloccati per i primi N turni di ogni squadra: con 5 si chiamano dal 6°. Vale per te e per ogni rivale."
+              nzTooltipTitle="I top con FVM pari o superiore alla soglia restano bloccati per i primi N turni di ogni squadra: con 5 si chiamano dal 6°. Vale per te e per ogni rivale, ed è uno per listone."
             >
               Top bloccati
             </span>
             <nz-switch
               nzSize="small"
-              [ngModel]="form().draftCap.on"
+              [ngModel]="cap().on"
               (ngModelChange)="patchDraftCap({ on: $event })"
             />
-            <span class="text-sm" [class.opacity-40]="!form().draftCap.on">FVM ≥</span>
+            <span class="text-sm" [class.opacity-40]="!cap().on">FVM ≥</span>
             <nz-input-number
               class="w-20"
               nzSize="small"
               [nzMin]="1"
               [nzMax]="1000"
               [nzStep]="1"
-              [nzDisabled]="!form().draftCap.on"
-              [ngModel]="form().draftCap.fvm"
+              [nzDisabled]="!cap().on"
+              [ngModel]="cap().fvm"
               (ngModelChange)="patchDraftCap({ fvm: $event })"
             />
-            <span class="text-sm" [class.opacity-40]="!form().draftCap.on">Turni di blocco</span>
+            <span class="text-sm" [class.opacity-40]="!cap().on">Turni di blocco</span>
             <nz-input-number
               class="w-16"
               nzSize="small"
               [nzMin]="1"
               [nzMax]="40"
               [nzStep]="1"
-              [nzDisabled]="!form().draftCap.on"
-              [ngModel]="form().draftCap.frozenTurns"
+              [nzDisabled]="!cap().on"
+              [ngModel]="cap().frozenTurns"
               (ngModelChange)="patchDraftCap({ frozenTurns: $event })"
             />
-            <span class="text-xs text-muted">solo nei draft</span>
+            <span class="text-xs text-muted">solo nei draft · vale per il listone {{ form().platform === 'euro' ? 'EuroLeghe' : 'Serie A' }}</span>
           </div>
 
           <label

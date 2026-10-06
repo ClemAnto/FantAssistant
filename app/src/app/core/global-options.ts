@@ -76,8 +76,12 @@ export interface LeagueSettings {
    * non lo pubblica in nessun campo che questo progetto abbia letto, quindi non lo si adotta dalla
    * sessione e non lo si indovina. Vale SOLO in un draft, per noi e per ogni rivale (`auction-plan.PickCap`),
    * e il turno è il numero di scelta della SQUADRA, non il giro del tavolo.
+   *
+   * UNO PER LISTONE (06/10/2026, draft FA-j3h-89r): era uno solo per tutta l'app e acceso, cioè la regola della
+   * sua EuroLeghe applicata anche al draft Serie A, dove non esiste - Malen alla prima scelta, Paz alla quinta -
+   * e i consigli non proponevano mai i top. Stessa cura delle squadre escluse: un regolamento è di UNA lega.
    */
-  draftCap: { on: boolean; fvm: number; frozenTurns: number };
+  draftCaps: Record<Platform, DraftCap>;
   /**
    * LE PORTE al posto dei portieri (operatore, 28/09/2026: «"porte" dovrebbe essere nelle opzioni di lega
    * globali»). Una porta è un CLUB: la prende il primo che chiama un suo portiere qualsiasi, e vale il mix dei
@@ -113,9 +117,11 @@ export const DEFAULT_LEAGUE: LeagueSettings = {
   rFactor: true,
   cleanSheet: true,
   rounds: 9,
-  // La SUA regola, e per questo acceso: dove un draft non la prevede si spegne nelle opzioni, e il
-  // pannello dice sempre se è attiva.
-  draftCap: { on: true, fvm: 213, frozenTurns: 5 },
+  // La SUA regola EuroLeghe, e per questo accesa SOLO li': il suo draft Serie A non la prevede (06/10/2026).
+  draftCaps: {
+    default: { on: false, fvm: 213, frozenTurns: 5 },
+    euro: { on: true, fvm: 213, frozenTurns: 5 },
+  },
   porte: false,
   from: 2,
   to: 38,
@@ -683,20 +689,37 @@ function readLeague(raw: unknown): LeagueSettings {
       typeof stored.cleanSheet === 'boolean' ? stored.cleanSheet : DEFAULT_LEAGUE.cleanSheet,
     rounds: number(stored.rounds, DEFAULT_LEAGUE.rounds),
     porte: typeof stored.porte === 'boolean' ? stored.porte : legacyPorte(),
-    draftCap: {
-      on: typeof stored.draftCap?.on === 'boolean' ? stored.draftCap.on : DEFAULT_LEAGUE.draftCap.on,
-      fvm: number(stored.draftCap?.fvm, DEFAULT_LEAGUE.draftCap.fvm),
-      // Il primo salvataggio (28/09/2026, stesso giorno) scriveva il turno da cui SI SBLOCCA: si legge ancora,
-      // o chi l'aveva impostato a mano tornerebbe al valore di partenza senza che nessuno glielo dica.
-      frozenTurns: number(
-        stored.draftCap?.frozenTurns,
-        typeof (stored.draftCap as { fromTurn?: unknown } | undefined)?.fromTurn === 'number'
-          ? (stored.draftCap as unknown as { fromTurn: number }).fromTurn - 1
-          : DEFAULT_LEAGUE.draftCap.frozenTurns,
-      ),
-    },
+    draftCaps: readDraftCaps(stored as Record<string, any>),
     from: number(stored.from, DEFAULT_LEAGUE.from),
     to: number(stored.to, DEFAULT_LEAGUE.to),
+  };
+}
+
+/** Il tetto di FVM dei primi turni del draft (`LeagueSettings.draftCaps`). */
+export interface DraftCap {
+  on: boolean;
+  fvm: number;
+  frozenTurns: number;
+}
+
+/**
+ * I tetti per listone, campo per campo. Chi ha salvato un tetto SOLO (prima del 06/10/2026) lo ritrova su
+ * EuroLeghe, la lega per cui era nato (28/09/2026); la Serie A riparte dal valore di partenza, spento.
+ */
+function readDraftCaps(stored: Record<string, any>): Record<Platform, DraftCap> {
+  const one = (raw: any, fallback: DraftCap): DraftCap => ({
+    on: typeof raw?.on === 'boolean' ? raw.on : fallback.on,
+    fvm: number(raw?.fvm, fallback.fvm),
+    // Il primo salvataggio (28/09/2026) scriveva il turno da cui SI SBLOCCA: si legge ancora.
+    frozenTurns: number(
+      raw?.frozenTurns,
+      typeof raw?.fromTurn === 'number' ? raw.fromTurn - 1 : fallback.frozenTurns,
+    ),
+  });
+  const caps = stored['draftCaps'];
+  return {
+    default: one(caps?.default, DEFAULT_LEAGUE.draftCaps.default),
+    euro: one(caps?.euro ?? stored['draftCap'], DEFAULT_LEAGUE.draftCaps.euro),
   };
 }
 
