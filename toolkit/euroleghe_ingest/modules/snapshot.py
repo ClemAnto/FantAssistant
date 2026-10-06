@@ -941,7 +941,12 @@ SQUAD_APPEARANCE_MONTHS = 14
 #   83 (05/10/2026) - R29 ADOTTATA SU `default` (gate §7-tresexagies bis): la fortuna della stagione scorsa,
 #      3·(xG−gol)+(xA−assist) per presenza, si toglie dalla fantamedia attesa. Muove `engine_fm_pred` (e
 #      surplus, valore, est_*) dei fogli Serie A; euro fermo. Zaccagni 6,26 -> ~6,38.
-SHEET_REVISION = 83
+#   84 (06/10/2026) - R29 USCITA da `default` (la clausola dell'adozione, esercitata dall'operatore sui nomi
+#      del suo listone: Paz -0,24 sotto Conceicao +0,33, Baturina -0,26) e la sua quantita' in REPORTING:
+#      `desc_xg_luck` = la fortuna della stagione di input per presenza (`model.bonus_luck`, la stessa
+#      funzione - una definizione, due lettori), su cui l'app disegna l'icona «xG/xA notevoli». Muove
+#      all'indietro `engine_fm_pred` (e surplus, est_*) dei fogli Serie A; euro fermo.
+SHEET_REVISION = 84
 
 # How complete a live payload must be before its SILENCE counts as evidence, as a share of the identified
 # squad the sheet itself shows for that club. MEASURED, not chosen (05/08/2026, over the euro and the
@@ -6268,7 +6273,8 @@ PLAYER_COLUMNS: tuple[str, ...] = (
     "desc_injury_worst_kind", "desc_injury_open", "desc_injury_source",
     "desc_out_until", "desc_out_rounds", "desc_out_share",
     "desc_availability_now",
-    "desc_goals_p90", "desc_assists_p90", "desc_xg_p90", "desc_xa_p90", "desc_minutes_full_season",
+    "desc_goals_p90", "desc_assists_p90", "desc_xg_p90", "desc_xa_p90", "desc_xg_luck",
+    "desc_minutes_full_season",
     "desc_penalty_rank", "desc_penalty_confidence", "desc_set_piece_duty",
     "desc_cards_per_match", "desc_yellows", "desc_reds",
     "desc_contract_until", "desc_exit_risk", "desc_arrival", "desc_arrival_tier",
@@ -6473,6 +6479,10 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
     # Vuota quando il motore ha risposto col solo core (nessuna finestra fittabile) - e allora le due
     # colonne `why_*_steps` restano vuote invece di dichiarare una scala che nessuno ha percorso.
     explain = data.cache.get("engine_explain") or {}
+    # GLI ATTESI ESISTONO IN QUESTA STAGIONE DI INPUT? La stessa guardia di popolazione di `evaluate.derive`
+    # per R29: dentro una stagione che li pubblica un xG assente e' uno zero, fuori e' un ignoto e
+    # `desc_xg_luck` resta vuota per tutti («vuoto = ignoto», derivato dai dati e non da una costante).
+    xg_published = any(obs.xg_prev is not None or obs.xa_prev is not None for obs in data.observations)
     rows: list[dict] = []
     for obs in data.observations:
         if perimeter is not None and (obs.club_target or "") not in perimeter:
@@ -7005,6 +7015,17 @@ def build_rows(conn, data: features.WindowData, predictions, layers: dict,
             "desc_availability_now": layers["availability"].get(obs.fc_id),
             "desc_goals_p90": prop.get("goals_p90"), "desc_assists_p90": prop.get("assists_p90"),
             "desc_xg_p90": prop.get("xg_p90"), "desc_xa_p90": prop.get("xa_p90"),
+            # LA FORTUNA DELLA STAGIONE DI INPUT, in fantapunti a presenza (`model.bonus_luck`, la stessa
+            # funzione che R29 prezzava - una definizione, due lettori): positiva = ha raccolto MENO di
+            # quanto valevano le sue occasioni (il caso Zaccagni, 3 gol su 4,1 xG). REPORTING dal
+            # 06/10/2026, il giorno in cui R29 e' uscita da ADOPTED su decisione dell'operatore: l'app ci
+            # disegna un'icona e nessuna valutazione la legge. Stessa popolazione del canale (niente
+            # portieri, pavimento dei minuti, solo dove la stagione di input pubblica gli attesi).
+            "desc_xg_luck": _round(model.bonus_luck(obs.goals_prev or 0, obs.assists_prev or 0,
+                                                    obs.xg_prev or 0.0, obs.xa_prev or 0.0,
+                                                    obs.matches_prev or 0), 2)
+            if (xg_published and not evaluate._is_goalkeeper(obs) and obs.minutes_prev
+                and obs.minutes_prev >= evaluate.MIN_MINUTES_FOR_PROPENSITY) else None,
             "desc_minutes_full_season": _round(blended.minutes, 0),
             "desc_penalty_rank": penalty[0] if penalty else None,
             "desc_penalty_confidence": penalty[1] if penalty else None,

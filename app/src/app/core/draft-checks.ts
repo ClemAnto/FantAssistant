@@ -8,7 +8,7 @@ import { MatchCell, isChampionship } from './players-store';
  *           names the press);
  * - `mv`    last season's base vote is at least 6;
  * - `fm`    last season's fantamedia (scored or rebuilt on the synthetic vote) is good IN HIS ROLE;
- * - `bonus` the share of his matches with bonus minus malus at least zero, last season, is good in his role;
+ * - `bonus` the share of his matches with bonus minus malus above zero (a keeper: at least zero), last season, is good in his role;
  * - `cont`  the share of his matches closed with a sufficient base vote (the Costanza) is good in his role;
  * - `m`     last season's MINUTES PER APPEARANCE are good in his role (operator, 04/10/2026: «ottimo minutaggio»).
  *           Per appearance and not the total, so it does not repeat `p`: the total is appearances × minutes;
@@ -84,16 +84,24 @@ export const CHECK_KEYS: readonly CheckKey[] = ['tit', 'mv', 'fm', 'bonus', 'con
  * HIS MATCHES WITHOUT A MINUS: the share of his voted league matches where bonus minus malus is at least zero, i.e.
  * the fantavoto is not below the base vote. Over the matches with BOTH numbers; null when there is none.
  */
-export function cleanShare(cells: readonly MatchCell[]): { share: number | null; rated: number } {
+export function cleanShare(cells: readonly MatchCell[], strict = false): { share: number | null; rated: number } {
   const rated = cells.filter(
     (one) => isChampionship(one.kind) && one.state === 'played' && one.vote != null && one.fantavoto != null,
   );
   if (!rated.length) return { share: null, rated: 0 };
-  return {
-    share: rated.filter((one) => (one.fantavoto as number) >= (one.vote as number)).length / rated.length,
-    rated: rated.length,
-  };
+  const counts = (one: MatchCell) => strict
+    ? (one.fantavoto as number) > (one.vote as number)
+    : (one.fantavoto as number) >= (one.vote as number);
+  return { share: rated.filter(counts).length / rated.length, rated: rated.length };
 }
+
+/**
+ * A POSITIVE DELTA FOR THE OUTFIELD, AT LEAST ZERO FOR A KEEPER (operator, 05/10/2026: «la condizione dovrebbe
+ * identificare chi porta un delta positivo»). For an outfield man a match counts when bonus minus malus is ABOVE zero,
+ * i.e. he brought something; a keeper keeps «>= 0», because his «> 0» averaged 2% of matches over the Serie A keepers
+ * of 2025-26 and separated nobody (04/10/2026).
+ */
+export const strictBonusFor = (zone: string) => zone !== 'P' && zone !== 'gk';
 
 /**
  * His mean minutes per league appearance, over the matches whose minutes are known: a match without minutes says

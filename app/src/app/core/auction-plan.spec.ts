@@ -22,6 +22,7 @@ import {
   planRoots,
   positionAfterSpending,
   predictRivalPick,
+  rivalPicksHorizon,
   rivalWalker,
   ahead,
   nextCaller,
@@ -651,5 +652,35 @@ describe('the order rule', () => {
     expect(ahead(a, b, 1, 'pingpong')).toBeGreaterThan(0);
     expect(ahead(team(0, { picksCount: 2, rosterValue: 50 }), team(1, { picksCount: 2, rosterValue: 10 }), 1, 'pingpong'))
       .toBeLessThan(0);
+  });
+});
+
+/**
+ * THE HORIZON WALK of the «+Giro» column (06/10/2026): one walk past the latest places our turns can fall,
+ * so every candidate chain reads its own prefixes of it by its prices (`draft-turn.goneUpTo`).
+ */
+describe('rivalPicksHorizon', () => {
+  const places = startingPlaces(SHAPES);
+  const pool = [player(1, 'pc', 500), player(2, 'pc', 400), player(3, 'pc', 300), player(4, 'pc', 200),
+    player(5, 'pc', 150), player(6, 'pc', 120), player(7, 'pc', 100), player(8, 'pc', 80)];
+  const base = { order: [0, 1, 2], pool, places, mineId: 0, keeperCap: 3, maxAheadPicks: 1, rounds: 25 };
+
+  it('walks the rest of this round and the asked rounds beyond, with each later caller\'s projected value', () => {
+    const { steps, myTurns } = rivalPicksHorizon({ ...base, teams: [team(0), team(1), team(2)] }, 3);
+    // Two rivals close this round (always before us), then both call in each of the three rounds watched.
+    expect(steps.map((step) => step.playerId)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(steps.map((step) => step.round)).toEqual([0, 0, 1, 1, 2, 2, 3, 3]);
+    expect(steps.map((step) => step.value)).toEqual([null, null, 400, 500, 700, 700, 820, 850]);
+    // Priced at zero we would call FIRST in every future round: right after each round's boundary.
+    expect(myTurns).toEqual([2, 4, 6]);
+  });
+
+  it('on a snake records where our turns fall, which no price can move', () => {
+    const { steps, myTurns } = rivalPicksHorizon({
+      ...base, teams: [team(0), team(1), team(2)], orderType: 'pingpong' as const,
+    }, 2);
+    // Round 0 forward (1, 2), round 1 backwards (2, 1, us), round 2 forward (us, 1, 2).
+    expect(steps.length).toBe(6);
+    expect(myTurns).toEqual([4, 4]);
   });
 });

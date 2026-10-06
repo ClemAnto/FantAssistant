@@ -56,6 +56,15 @@ export interface EngineNumbers {
   minutesFullSeason: number | null;
   seasonMatches: number | null;
   /**
+   * LA FORTUNA xG/xA della stagione di input, in fantapunti a presenza (`desc_xg_luck`): positiva = ha
+   * raccolto MENO di quanto valevano le sue occasioni (Zaccagni, 3 gol su 4,1 xG). REPORTING dal
+   * 06/10/2026, il giorno in cui R29 e' uscita da ADOPTED su decisione dell'operatore: la stessa quantita'
+   * che la regola prezzava, su cui le liste disegnano l'icona «xG/xA notevoli» (`XG_LUCK_NOTABLE`) e che
+   * nessuna valutazione legge. Null su un foglio anteriore alla revisione 84, sui portieri e dove la
+   * stagione di input non pubblica gli attesi.
+   */
+  xgLuck: number | null;
+  /**
    * IL GRADINO della scala dell'operatore, come parola: `bandiera` … `riserva`.
    *
    * Vuoto - e non «riserva» - quando il foglio non lo porta: il gradino lo scrive la stessa passata

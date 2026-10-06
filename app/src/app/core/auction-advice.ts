@@ -46,12 +46,15 @@ import {
   takenBeforeOurTurn,
   nextCaller,
   isKeeperSlot,
+  rivalPicksHorizon,
   roleFull,
   type Line,
 } from './auction-plan';
+import { TURN_PICKS, TurnMan, TurnScore, turnScores } from './draft-turn';
 import { Board, BoardsFile, Bundle, EngineSheetEntry } from './bundle';
 import { porteZero } from './porte';
 import {
+  CallRules,
   PriorityMan,
   PriorityRules,
   PriorityParts,
@@ -72,7 +75,7 @@ import type { FantaMan } from './fanta-eleven';
 import { RUNG_RANK, Rarity, RarityMan, rarity, shownRung } from './draft-rarity';
 import { PlayerRulings, RUNG_VOTE_SHARE, ruledShare } from './player-rulings';
 import { TITOLARITA_LADDER } from './titolarita';
-import { ADVICE_GONE_ODDS, PlaceNeed, Scenario, ScenarioInput, SquadPitch, judge, scenarios as draftScenarios } from './draft-scenarios';
+import { ADVICE_GONE_ODDS, PlaceNeed, Scenario, ScenarioInput, SquadPitch, judge, keeperAllowed, scenarios as draftScenarios } from './draft-scenarios';
 import type { Place } from './mantra-legal';
 import { PlayerRatingsStore } from './player-ratings-store';
 import { engineNumbersFrom } from './engine-sheet';
@@ -84,12 +87,13 @@ import {
   rotationMark,
 } from './player-place';
 import { CalendarFile, calendarBookFrom, cleanSheetOutlook } from './keeper-pairs';
-import { ROLE_STEADY, STEADY_SHARE, draftFertility } from './swing';
+import { ROLE_STEADY, STEADY_SHARE, draftFertility, swingBase } from './swing';
 import type { Role } from './plancia';
-import { StartRecord, subBonusShift } from './sub-bonus';
+import { StartRecord, SUB_APPEARANCE_WEIGHT, subBonusShift, subShareNow } from './sub-bonus';
 import { MACRO_ROLE, ScreenInput, screenMark, screensFor, windowOf } from './player-screens';
 import { PlayerMark, PlayerStatus } from './player-status';
-import { presenceNowShares } from './presence-now';
+import { presenceNowOut, presenceNowShares } from './presence-now';
+import { outWindow } from './injury-window';
 import { PlayerTrend, isKnownAbsence, parseTrend, trendScores } from './player-trend';
 
 /** The categories that count as a department's top (operator, 06/10/2026: «top/semitop»). */
@@ -301,7 +305,10 @@ export class AuctionAdvice {
 
   constructor() {
     this.restoreHorizon();
-    void this.bundle.presenceNow().then((file) => this.paShares.set(presenceNowShares(file)));
+    void this.bundle.presenceNow().then((file) => {
+      this.paShares.set(presenceNowShares(file));
+      this.paOut.set(presenceNowOut(file));
+    });
     // The priced calendar, for the keepers' clean-sheet bonus in the draft's FERTILITY (`fertilityBy`).
     void this.bundle.calendar().then((file) => this.calendarFile.set(file));
     effect(() => {
@@ -1004,6 +1011,34 @@ export class AuctionAdvice {
    * Serie A only and not gated - both said where the column is drawn. Empty until the file is read.
    */
   readonly paShares = signal<ReadonlyMap<number, number>>(new Map());
+  private readonly paOut = signal<{ rounds: number; out: ReadonlyMap<number, number> }>({ rounds: 0, out: new Map() });
+
+  /**
+   * THE SHARE OF THE COMPETITION'S ROUNDS LEFT A MAN WITH AN OPEN STOP CAN PLAY (operator, 05/10/2026: «+Rosa deve
+   * guardare il range di giornate specificato nelle opzioni (5-22) quindi deve valutare anche questo se un calciatore è
+   * infortunato adesso»), by id: his club's fixtures of rounds `from`..`to` still to play, after his prudent return
+   * (`injury-window.outWindow`, the plancia's own reading). Absent = nothing to take off.
+   */
+  readonly windowPlayable = computed<Map<number, number>>(() => {
+    const book = this.calendarBook();
+    const full = this.matchdaysTarget();
+    const out = new Map<number, number>();
+    if (!book || !full) return out;
+    const league = this.options.league();
+    const from = Math.min(full, Math.max(1, Math.round(league.from)));
+    const to = Math.min(full, Math.max(from, Math.round(league.to)));
+    const today = this.status.today();
+    for (const { player } of this.listone()) {
+      const injury = this.status.openInjury(player.id);
+      if (!injury) continue;
+      const window = outWindow({
+        calendar: book.forClub(player.club) ?? null, club: player.club, today, until: injury.until ?? null,
+        seasonOver: injury.seasonOver, source: injury.source, severity: injury.severity, from, to,
+      });
+      if (window) out.set(player.id, window.share);
+    }
+    return out;
+  });
 
   /**
    * THE APPEARANCES THE DRAFT PRIORITY READS: the new formula's share where the file carries the man, the
@@ -1013,6 +1048,7 @@ export class AuctionAdvice {
    */
   readonly draftShareBy = computed<Map<number, number | null>>(() => {
     const now = this.paShares();
+    const paOut = this.paOut();
     const numbers = this.numbers();
     const out = new Map(this.expectedShareBy());
     for (const id of out.keys()) {
@@ -1021,8 +1057,19 @@ export class AuctionAdvice {
       // its word's share of the votes (`RUNG_VOTE_SHARE`). A word that confirms the sheet's rung changes nothing,
       // so the row keeps the new formula. Until today the draft read neither.
       const ruled = ruledShare(this.rulings.of(id), numbers.get(id)?.titolarita ?? null, RULED_SHARES);
-      const share = ruled?.play ?? now.get(id);
+      // The formula's share has already taken its OWN open-stop rounds off the season: given back here, so the stop is
+      // priced once, on the competition's window, below.
+      const taken = ruled ? 0 : (paOut.out.get(id) ?? 0);
+      const raw = ruled?.play ?? now.get(id);
+      const share = raw == null ? null
+        : taken > 0 && paOut.rounds > taken ? raw * paOut.rounds / (paOut.rounds - taken) : raw;
       if (share != null) out.set(id, Math.min(1, Math.max(0, share)));
+    }
+    // AN OPEN STOP ON THE COMPETITION'S WINDOW (`windowPlayable`): the press's word, a declared rung and the engine's
+    // season share say how often he plays when fit, and none of them knows he is out until December.
+    for (const [id, playable] of this.windowPlayable()) {
+      const share = out.get(id);
+      if (share != null) out.set(id, share * playable);
     }
     return out;
   });
@@ -1074,9 +1121,35 @@ export class AuctionAdvice {
     const platform = this.entry()?.platform ?? 'euro';
     const book = this.calendarBook();
     const weeksBy = this.keeperWeeksBy();
+    const subNow = this.subNowBy();
+    const subShift = this.subShiftBy();
+    const numbers = this.numbers();
+    const men = this.priorityMen();
+    const worth = this.priorityWorth();
     const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
-      const base = bonus.get(player.id) ?? null;
+      // AN OUTFIELD MAN'S FERTILITY IS HIS FANTAMEDIA ABOVE A ZERO (operator, 05/10/2026: «la classifica degli attaccanti
+      // dovrebbe essere più o meno Malen, Martinez, Hojlund ... subito dopo ci dovrebbero essere Thuram e Dybala»), and
+      // no longer `fm − mv`: a difference of two forecasts read a LOW predicted base
+      // vote as more bonus (Kean 6.01 against Lautaro's 6.38 put him ahead at a lower fantamedia), and a base vote is
+      // points on the scoresheet like a goal. A keeper keeps his own pair: his «bonus» is the malus of a door, read
+      // against the average starter below.
+      const keeperRole = MACRO_ROLE[player.zoneClassic] === 'P';
+      const fm = keeperRole ? null : valuationOf(numbers.get(player.id)).fm;
+      // ...ABOVE THE MAN WHO WOULD PLAY INSTEAD (operator, 05/10/2026, «Maldini con un DP -4 come fa a stare così in
+      // alto?»): the 6 is replaced by R, the Draft Priority's own fallback for his base role (`RoleStat.reserveFm`, the
+      // mean of the role's bought reserves), so a man is worth what he gives over the reserve who covers his place -
+      // the same zero the DP charges his absent rounds against. Without a DP context (no draft read) the 6 stays.
+      const man = men.get(player.id);
+      const stat = man && worth ? worth.stats.get(baseRole(worth.rules, man.roles, man.slot)) : undefined;
+      const zero = stat ? (stat.reserveFm ?? stat.p10) : swingBase('A');
+      const raw = keeperRole ? (bonus.get(player.id) ?? null)
+        : fm == null ? null : fm - zero + (subShift.get(player.id) ?? 0);
+      // THE APPEARANCES FROM THE BENCH COUNT `SUB_APPEARANCE_WEIGHT` OF A START in the fertility (declared, `sub-bonus.ts`):
+      // here and not in `bonusBy`, which RAR also reads - the declaration is about +Rosa's fertility and nothing else.
+      const sub = subNow.get(player.id);
+      // Only on a positive fertility: shrinking a man below the 6 toward zero would make the bench a reward.
+      const base = raw == null || sub == null || raw <= 0 ? raw : raw * (1 - (1 - SUB_APPEARANCE_WEIGHT) * sub);
       if (base == null) {
         out.set(player.id, null);
         continue;
@@ -1259,6 +1332,7 @@ export class AuctionAdvice {
   readonly bonusBy = computed<Map<number, number | null>>(() => {
     const numbers = this.numbers();
     const keepers = this.keeperFmBy();
+    const subShift = this.subShiftBy();
     const out = new Map<number, number | null>();
     for (const { player } of this.listone()) {
       // HIS OWN two halves, never `valuationFor`: with the doors on, that one is the PORTA's mix of fantamedia, and
@@ -1266,7 +1340,51 @@ export class AuctionAdvice {
       // gives the malus of a door (a negative bonus), which is what the pitch's fertility shows.
       const fm = keepers.get(player.id) ?? valuationOf(numbers.get(player.id)).fm;
       const mv = numbers.get(player.id)?.mv ?? null;
-      out.set(player.id, fm == null || mv == null ? null : fm - mv);
+      // THE BONUSES A SUBSTITUTE DOES NOT GET (operator, 05/10/2026: «tra i due Martinez è certamente meglio ... penso
+      // che si debba abbassare un po' il valore delle partite dove si entra dalla panchina»): the same shift the Draft
+      // Priority's fantamedia already reads (`subShiftBy`), so +Rosa's fertility and the DP agree. The base vote does not
+      // move (measured: identical as a substitute), so the whole shift lands on the bonus.
+      out.set(player.id, fm == null || mv == null ? null : fm - mv + (keepers.has(player.id) ? 0 : (subShift.get(player.id) ?? 0)));
+    }
+    return out;
+  });
+
+  /**
+   * THE FANTAVOTO A MAN LOSES BY ENTERING FROM THE BENCH MORE OFTEN THAN IN THE SEASON HIS FANTAMEDIA COMES FROM
+   * (`sub-bonus.subBonusShift`), by id; absent where a number is missing or the role does not pay (keepers). One map, two
+   * readers - the Draft Priority's fantamedia and +Rosa's fertility - so the two cannot price a substitute two ways.
+   */
+  /** The share of his appearances from the bench NOW (`sub-bonus.subShareNow`), by id, outfield men with the press read. */
+  readonly subNowBy = computed<Map<number, number>>(() => {
+    const numbers = this.numbers();
+    const rulings = this.rulings.all();
+    const out = new Map<number, number>();
+    for (const { player } of this.listone()) {
+      const role = MACRO_ROLE[player.zoneClassic] ?? null;
+      if (!role || role === 'P') continue;
+      const ruling = rulings.get(player.id);
+      const share = subShareNow(ruling?.source === 'press' ? ruling.startPct : null, numbers.get(player.id)?.titolaritaPlay);
+      if (share != null) out.set(player.id, share);
+    }
+    return out;
+  });
+
+  readonly subShiftBy = computed<Map<number, number>>(() => {
+    const numbers = this.numbers();
+    // The word in force (`all`): the press only when switched on and fresh, and an operator's own ruling over it -
+    // which carries no start share, so a man he declared keeps the engine's fantamedia.
+    const rulings = this.rulings.all();
+    const prevStarts = this.prevStarts();
+    const out = new Map<number, number>();
+    for (const { player } of this.listone()) {
+      const ruling = rulings.get(player.id);
+      const shift = subBonusShift(
+        MACRO_ROLE[player.zoneClassic] ?? null,
+        ruling?.source === 'press' ? ruling.startPct : null,
+        numbers.get(player.id)?.titolaritaPlay,
+        prevStarts.get(player.id),
+      );
+      if (shift != null) out.set(player.id, shift);
     }
     return out;
   });
@@ -1459,10 +1577,7 @@ export class AuctionAdvice {
     const matchdays = this.matchdaysTarget();
     const platform = this.entry()?.platform ?? 'euro';
     const goals = this.feed.isGoalsMode();
-    // The word in force (`all`): the press only when switched on and fresh, and an operator's own ruling over it -
-    // which carries no start share, so a man he declared keeps the engine's fantamedia.
-    const rulings = this.rulings.all();
-    const prevStarts = this.prevStarts();
+    const subShift = this.subShiftBy();
     for (const { player } of this.listone()) {
       const porta = goals ? this.feed.portaOfKeeper().get(player.id) : undefined;
       const valuation = this.valuationFor(player, numbers);
@@ -1476,12 +1591,7 @@ export class AuctionAdvice {
         // ...and an outfield man's moves by the bonuses a substitute does not get (`sub-bonus.ts`, 05/10/2026):
         // the role the press gives him NOW against the one his fantamedia was earned in.
         fm: (porta ? null : this.keeperFmBy().get(player.id))
-          ?? (valuation.fm == null ? null : valuation.fm + (porta ? 0 : (subBonusShift(
-            MACRO_ROLE[player.zoneClassic] ?? null,
-            rulings.get(player.id)?.source === 'press' ? rulings.get(player.id)?.startPct : null,
-            numbers.get(player.id)?.titolaritaPlay,
-            prevStarts.get(player.id),
-          ) ?? 0))),
+          ?? (valuation.fm == null ? null : valuation.fm + (porta ? 0 : (subShift.get(player.id) ?? 0))),
         // A door is a club and its mix stays the engine's; a man reads the new formula where it has him.
         share: (porta ? null : this.draftShareBy().get(player.id))
           ?? (valuation.pv != null && matchdays ? Math.min(1, valuation.pv / matchdays) : null),
@@ -1723,6 +1833,14 @@ export class AuctionAdvice {
   /** A man as the draft pitch reads him: roles to match on, value, the appearances of the Pa and the bonus. */
   fantaManOf(player: AuctionPlayer, cost: number): FantaMan {
     const shown = this.feed.gameRoles(player);
+    // THE ESTIMATE'S CONFIDENCE MULTIPLIES THE FERTILITY (the sheet's own rule: «la penalità moltiplica il
+    // numero, perché l'indeterminatezza è un fatto sul NUMERO», and the plancia's lesson of 04/09/2026 - every
+    // reader applies it). The fertility is relative to a population zero (the role's reserve, or the average
+    // starting keeper), so an uncertain estimate shrinks toward it: found 06/10/2026 on Martinez Jo., a
+    // `shrunk` keeper at 0.67 whose +Rosa read with a measured man's authority.
+    const confidence = this.numbers().get(player.id)?.estConfidence ?? 1;
+    const fertility = this.fertilityBy().get(player.id) ?? null;
+    const weeks = this.keeperWeeksBy().get(player.id) ?? null;
     return {
       id: player.id,
       name: this.feed.shownName(player),
@@ -1734,8 +1852,8 @@ export class AuctionAdvice {
       cost,
       minutesPerMatch: null,
       share: this.draftShareBy().get(player.id) ?? null,
-      bonus: this.fertilityBy().get(player.id) ?? null,
-      weeks: this.keeperWeeksBy().get(player.id) ?? null,
+      bonus: fertility == null ? null : fertility * confidence,
+      weeks: confidence === 1 ? weeks : (weeks?.map((week) => (week == null ? null : week * confidence)) ?? null),
       defenceBonus: this.defenceBonusOf(player),
     };
   }
@@ -1790,16 +1908,118 @@ export class AuctionAdvice {
     return doorHolePrice(input.keeperCap - doors, this.priorityRounds() - team.picksCount);
   });
 
+  /** My real men as the pitch reads them: one list for the base drawing and the «+Giro» re-measures. */
+  private readonly mySquadMen = computed<FantaMan[] | null>(() => {
+    const me = this.feed.followed();
+    if (!me) return null;
+    return me.squad.filter((entry) => !!entry.player).map((entry) => this.fantaManOf(entry.player!, entry.cost));
+  });
+
+  /** MY PITCH, drawn once: +Rosa and the «+Giro» column measure every man against this same drawing. */
+  private readonly myPitch = computed<DraftPitch | null>(() => {
+    const squad = this.mySquadMen();
+    if (!squad) return null;
+    return draftPitchOf(squad, this.rules(), recommendedModules(this.feed.isMantra()), this.pitchModule(), true);
+  });
+
   readonly rosaYields = computed<Map<number, { cover: number; fertility: number | null }>>(() => {
     const out = new Map<number, { cover: number; fertility: number | null }>();
-    const me = this.feed.followed();
-    if (!me) return out;
-    const squad = me.squad.filter((entry) => !!entry.player).map((entry) => this.fantaManOf(entry.player!, entry.cost));
-    const drawn = draftPitchOf(squad, this.rules(), recommendedModules(this.feed.isMantra()), this.pitchModule(), true);
+    const drawn = this.myPitch();
     if (!drawn) return out;
     const door = this.doorHole();
     for (const row of this.ranked()) out.set(row.player.id, addedYield(drawn, this.fantaManOf(row.player, row.price), door));
     return out;
+  });
+
+  /**
+   * «+GIRO» (operator, 06/10/2026, four picks the same day): his +Rosa fertility plus the +Rosa of the best men
+   * predicted to STILL BE THERE at our next THREE turns once he is taken - the scenarios' chain total as a
+   * column (`draft-turn.ts`, where the formula, the horizon and the declared approximations are written). ONE
+   * rival walk over three future rounds (`rivalPicksHorizon`), and the chain's own prices decide how many of
+   * its calls precede each of our turns, by the platform's order rule; every later pick obeys the same legality
+   * as every simulated one (`legalFor` + `keeperAllowed`, our exclusions out) on my squad WITH the chain so
+   * far. Empty while I follow no squad, like +Rosa.
+   */
+  readonly turnBy = computed<Map<number, TurnScore>>(() => {
+    const input = this.planInput();
+    const pitch = this.myPitch();
+    const squad = this.mySquadMen();
+    const rosa = this.rosaYields();
+    if (!input || !pitch || !squad || !rosa.size) return new Map();
+    const me = input.teams.find((team) => team.id === input.mineId);
+    if (!me) return new Map();
+    const rounds = this.priorityRounds();
+    const calls: CallRules = { cap: input.cap ?? null, keeperCap: input.keeperCap, rounds };
+    const readings = this.rarityReadings();
+    const poolById = new Map(input.pool.map((player) => [player.id, player]));
+    const players = new Map(this.listone().map(({ player }) => [player.id, player]));
+    const men: TurnMan[] = [];
+    for (const row of this.ranked()) {
+      const now = rosa.get(row.player.id);
+      if (!now) continue;
+      men.push({ id: row.player.id, price: row.price, group: readings.get(row.player.id)?.group ?? '',
+        fert: now.fertility, cover: now.cover });
+    }
+    const horizon = rivalPicksHorizon({
+      teams: input.teams, order: input.order, pool: input.pool, places: startingPlaces(input.shapes),
+      mineId: input.mineId, keeperCap: input.keeperCap, maxAheadPicks: input.maxAheadPicks,
+      orderType: input.orderType, heads: input.heads, cap: input.cap, rounds,
+    }, TURN_PICKS - 1);
+    const keepers = this.keeperShirts();
+    const excluded = this.excluded();
+    const rules = this.rules();
+    const preferred = recommendedModules(this.feed.isMantra());
+    // My squad WITH the chain so far, memoised by its ids: `take` is the one definition of a pick.
+    const chained = new Map<string, PlanTeam | null>();
+    const teamWith = (taken: readonly TurnMan[]): PlanTeam | null => {
+      const key = taken.map((man) => man.id).join(',');
+      if (!chained.has(key)) {
+        const picks = taken.map((man) => poolById.get(man.id));
+        chained.set(key, picks.every((pick): pick is PlanPlayer => !!pick)
+          ? picks.reduce((team, pick) => take(team, pick), me) : null);
+      }
+      return chained.get(key)!;
+    };
+    // A MAN LIKELY GONE BEFORE OUR NEXT CALL IS NO LATER PICK - the plans' own rule (`ScenarioInput.likelyGone`,
+    // operator 05/10/2026) and the correction his first screen asked for (06/10/2026: «scegliere Conceicao non
+    // può essere meglio di Paz o Pulisic», «Martinez e Svilar non possono essere meglio di Paz»): the
+    // deterministic walk keeps a dear man alive whenever the rivals' heads point elsewhere, and every cheap
+    // first pick then banked him as its own second term - «poi prendo Paz», nine calls later, against odds the
+    // human model (fitted on real drafts) reads as gone. Taking him NOW stays allowed: that is «take who will
+    // be gone», the measured survivor logic, and it is exactly what puts the dear man's own score on top.
+    const lost = this.likelyGone()?.ids;
+    const canPick = (taken: readonly TurnMan[], candidate: TurnMan): boolean => {
+      if (lost?.has(candidate.id)) return false;
+      const team = teamWith(taken);
+      const player = poolById.get(candidate.id);
+      if (!team || !player || excluded.has(candidate.id)) return false;
+      if (!legalFor(team, [player], calls).length) return false;
+      return keeperAllowed(team, player, { keepers, calls }, rounds - team.picksCount);
+    };
+    const exactOn = (taken: readonly TurnMan[], candidates: readonly TurnMan[]): Map<number, number | null> => {
+      const out = new Map<number, number | null>();
+      const held = taken.map((man) => players.get(man.id) && this.fantaManOf(players.get(man.id)!, man.price));
+      if (!held.every((man): man is FantaMan => !!man)) return out;
+      // FORCED on the base pitch's module: the used-group interaction is the question being measured, and the
+      // shape must not move under one candidate or the column would compare two drawings.
+      const drawn = draftPitchOf([...squad, ...held], rules, preferred, pitch.module, true);
+      if (!drawn) return out;
+      const doors = me.slots.filter(isKeeperSlot).length
+        + taken.filter((man) => isKeeperSlot(poolById.get(man.id)?.slot ?? null)).length;
+      const door = doorHolePrice(input.keeperCap - doors, rounds - me.picksCount - taken.length);
+      for (const candidate of candidates) {
+        const row = players.get(candidate.id);
+        if (row) out.set(candidate.id, addedYield(drawn, this.fantaManOf(row, candidate.price), door).fertility);
+      }
+      return out;
+    };
+    return turnScores({
+      men, steps: horizon.steps, myTurns: horizon.myTurns,
+      orderType: input.orderType === 'pingpong' ? 'pingpong' : 'default',
+      myValue: me.rosterValue,
+      picksLeft: rounds - me.picksCount,
+      canPick, exactOn,
+    });
   });
 
   /** RAR of every free man (the whole free pool), by id: what the list's column shows. */

@@ -810,6 +810,60 @@ function rivalPicksAfterOurs(input: RivalWalkInput): Map<number, number> {
   return walk.gone;
 }
 
+/**
+ * One rival call of the horizon walk: who he is predicted to take (null = a turn spent with nobody to call),
+ * the ROUND it belongs to (0 = the round being played, whose calls always precede our next turn) and, from
+ * round 1 on, the caller's projected roster value at that call - what decides whether he precedes us there
+ * under the `default` order.
+ */
+export interface HorizonStep {
+  playerId: number | null;
+  round: number;
+  value: number | null;
+}
+
+/**
+ * THE RIVALS' PREDICTED PICKS from our pick through their next `roundsAhead` rounds, in call order (the «+Giro»
+ * column, 06/10/2026). How many of them fall before each of OUR next turns depends on what we spend along the
+ * way - a dear pick sends us later under the `default` order, in EVERY round that follows - so the walk is made
+ * ONCE, past the latest places our turns can fall, and every candidate chain reads its own prefixes of it
+ * (`draft-turn.goneUpTo`). Our turns are priced at zero and stepped over, exactly as `goneBeforeOurNextTurn`
+ * declares of itself: the steps are knowable before we choose, and the rivals' order among themselves does not
+ * read our value. `myTurns[k]` is where our zero-priced turn of round k+1 falls - the positional boundary on a
+ * snake, whose order no price can move. Two stated simplifications: the round boundary is read on `picksCount`,
+ * so a host with `maxAheadPicks` > 1 blurs it (none observed does); and the walk does not know whom OUR chain
+ * takes, so a rival predicted onto one of our men really takes his next-best - second order, like our zero price.
+ */
+export function rivalPicksHorizon(input: RivalWalkInput, roundsAhead = 1): { steps: HorizonStep[]; myTurns: number[] } {
+  const teams = new Map(input.teams.map((team) => [team.id, team]));
+  const me = teams.get(input.mineId);
+  if (!me) return { steps: [], myTurns: [] };
+  const myRound = me.picksCount;
+  teams.set(me.id, { ...me, picksCount: myRound + 1, pickValues: [...me.pickValues, 0] });
+  const walk = rivalWalker(input, teams);
+  const steps: HorizonStep[] = [];
+  const myTurns: number[] = [];
+  for (let guard = 0; guard < teams.size * (roundsAhead + 3); guard += 1) {
+    const caller = nextCaller(teams, input.maxAheadPicks, input.rounds, input.orderType);
+    // Past everybody's pick of the last round watched: nothing beyond can precede any of our turns.
+    if (!caller || caller.picksCount > myRound + roundsAhead) break;
+    if (caller.id === input.mineId) {
+      myTurns.push(steps.length);
+      teams.set(caller.id, { ...caller, picksCount: caller.picksCount + 1, pickValues: [...caller.pickValues, 0] });
+      continue;
+    }
+    const inRound = [...teams.values()].filter((team) => team.picksCount === caller.picksCount).length;
+    const before = walk.gone.size;
+    walk.step(caller.id, inRound);
+    const chosen = walk.gone.size > before ? [...walk.gone.keys()][walk.gone.size - 1] : null;
+    if (chosen === null) teams.set(caller.id, { ...caller, picksCount: caller.picksCount + 1 });
+    const round = Math.max(0, caller.picksCount - myRound);
+    steps.push({ playerId: chosen, round, value: round > 0 ? caller.rosterValue : null });
+  }
+  while (myTurns.length < roundsAhead) myTurns.push(steps.length);
+  return { steps, myTurns };
+}
+
 /** One rival call after another on a shrinking pool: each predicted with his own head, as the round shows him. */
 export function rivalWalker(input: RivalWalkInput, teams: Map<number, PlanTeam>) {
   let pool = [...input.pool];

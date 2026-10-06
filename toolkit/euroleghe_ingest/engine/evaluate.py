@@ -537,7 +537,14 @@ ADOPTED: dict[str, tuple[str, ...]] = {
     # gradino di evidenza e' il piu' basso (l'ipotesi viene dagli stessi esiti che il gate giudica), quindi
     # si rigiudica su T3 a stagione chiusa col lambda di oggi e, se peggiora, esce senza discutere. Nato dal
     # caso Zaccagni (2025-26: 3 gol su 4,1 xG, 0 assist su 2,7 xA). NON su euro: ridondante con R18.
-    "default": ("R3", "R7", "R13", "R19", "R20K10", "R23", "R25K40", "R29"),
+    # ...E USCITA IL 06/10/2026, clausola esercitata in anticipo dall'operatore sui nomi del suo stesso
+    # listone («meglio senza R29»): gli spostamenti per-uomo arrivano a +/-0,56 di fantamedia (Kean +0,56,
+    # Thuram/Calhanoglu -0,35) e rovesciavano l'ordine che la sua esperienza detta - Paz -0,24 sotto
+    # Conceicao +0,33, Baturina -0,26 - sistematicamente a favore di chi ha convertito sotto gli xG e
+    # contro chi sopra. Il verdetto del gate NON e' smentito (resta a verbale, e la ri-misura su T3 resta
+    # pre-registrata): e' una decisione sul DELIVERABLE, come l'adozione era stata. La quantita' resta sul
+    # foglio come REPORTING (`desc_xg_luck`, snapshot), dove informa senza prezzare - un'icona, non un termine.
+    "default": ("R3", "R7", "R13", "R19", "R20K10", "R23", "R25K40"),
 }
 # What the corrected criteria changed, and why the list is shorter than it was:
 # * accuracy rules are judged on the players they MOVE, with a 0.5% floor. That made R4 and R10 much

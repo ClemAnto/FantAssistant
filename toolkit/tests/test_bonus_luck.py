@@ -115,13 +115,34 @@ def test_r29_tace_dove_la_stagione_di_input_non_ha_gli_attesi(tmp_path):
         {p.obs.fc_id: p.fm_pred for p in evaluate.predict_window(data, ("R0", "R29"), params=params)})
 
 
-def test_r29_adottata_solo_su_default_e_r30_da_nessuna_parte():
-    # Fino al 05/10/2026 nessuna delle due era adottata; quel giorno l'operatore ha adottato R29 su
-    # `default` (gate §7-tresexagies bis). Su euro resta fuori (ridondante con R18), R30 non batte R25.
+def test_r29_dichiarata_e_candidata_ma_adottata_da_nessuna_parte():
+    # REGOLA RITIRATA (06/10/2026): R29 era stata adottata su `default` il 05/10 (gate §7-tresexagies bis)
+    # e l'operatore ha esercitato la clausola dell'adozione il giorno dopo, sui nomi del suo stesso listone
+    # (Paz -0,24 sotto Conceicao +0,33, Baturina -0,26: gli spostamenti per-uomo rovesciavano l'ordine che
+    # la sua esperienza detta). Il verdetto del gate resta a verbale e la ri-misura su T3 resta
+    # pre-registrata; la quantita' viaggia come REPORTING (`desc_xg_luck`, test sotto). Su euro era gia'
+    # fuori (ridondante con R18), R30 non batte R25.
     declared = {rule.key for rule in evaluate.RULES}
     assert {"R29", *evaluate.R30_MATCHES} <= declared
     assert {"R29", *evaluate.R30_MATCHES} <= set(evaluate.CANDIDATES)
-    assert "R29" in evaluate.ADOPTED["default"]
+    assert "R29" not in evaluate.ADOPTED["default"]
     assert "R29" not in evaluate.ADOPTED["euro"]
     for adopted in evaluate.ADOPTED.values():
         assert not any(key.startswith("R30") for key in adopted)
+
+
+def test_la_fortuna_viaggia_come_reporting_e_con_la_popolazione_del_canale():
+    # `desc_xg_luck` e' la stessa quantita' che R29 prezzava (`model.bonus_luck`), scritta dal foglio e
+    # letta da nessuna valutazione: la colonna sta nelle due allowlist (snapshot e export, la famiglia di
+    # difetti dei campetti) e fra le OPZIONALI dell'export, o ogni pacchetto del viaggio nel tempo
+    # verrebbe scartato per una colonna che non puo' avere.
+    from euroleghe_ingest.modules import export, snapshot
+
+    assert "desc_xg_luck" in snapshot.PLAYER_COLUMNS
+    assert "desc_xg_luck" in export.SHEET_COLUMNS
+    assert "desc_xg_luck" in export.SHEET_COLUMNS_OPTIONAL
+    # Il valore e' la funzione del canale, non una seconda aritmetica: Zaccagni 2025-26 (3 gol su 4,1 xG,
+    # 0 assist su 2,7 xA in 31 presenze) legge positivo - ha raccolto meno di quanto valevano le occasioni.
+    luck = model.bonus_luck(3, 0, 4.1, 2.7, 31)
+    assert luck == pytest.approx((3.0 * 1.1 + 2.7) / 31)
+    assert luck > 0

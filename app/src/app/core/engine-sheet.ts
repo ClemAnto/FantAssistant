@@ -14,6 +14,16 @@ import { EngineNumbers } from './auction-value';
 import { onSeasonBase, sheetSeasonScale } from './season-scale';
 import { normalizeTitolarita } from './titolarita';
 
+/**
+ * «xG/xA NOTEVOLI» (operator, 06/10/2026, con l'uscita di R29: «aggiungiamo però un'icona per quelli come
+ * Zaccagni che hanno xG o xA notevoli»): da questa fortuna non pagata per presenza (`EngineNumbers.xgLuck`)
+ * la riga porta il marchio. Soglia di DISPLAY, dichiarata e fissata CONTANDO sul foglio rigenerato senza
+ * R29 (revisione 84, Serie A classic): 0,10 marca 98 uomini su 564, 0,15 ne marca 53, 0,20 ne marca 29 —
+ * il 5%, una manciata per ruolo — e il caso che ha dato il nome alla richiesta (Zaccagni, 0,23) è dentro
+ * con margine. Nessuna valutazione la legge.
+ */
+export const XG_LUCK_NOTABLE = 0.2;
+
 /** `fc_id` -> what the engine says about him. A row without an id is not a row. */
 export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers> {
   const at = (name: string) => table.columns.indexOf(name);
@@ -36,6 +46,7 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
     estNote: at('est_note'),
     minutes: at('desc_minutes_full_season'),
     matches: at('desc_season_matches'),
+    xgLuck: at('desc_xg_luck'),
     // IL GRADINO e i minuti che si aspetta: `desc_titolarita` è la scala a cinque parole
     // dell'operatore (bandiera · titolare · ballottaggio · panchina · riserva) e
     // `desc_minutes_next` la previsione dei minuti per partita. Sono le due frasi che un'asta chiede
@@ -85,6 +96,8 @@ export function engineNumbersFrom(table: BundleTable): Map<number, EngineNumbers
       estNote: (row[columns.estNote] as string | null) ?? null,
       minutesFullSeason: row[columns.minutes] as number | null,
       seasonMatches: row[columns.matches] as number | null,
+      // Un foglio anteriore alla revisione 84 non ha la colonna: `row[-1]` e' `undefined` -> null.
+      xgLuck: (row[columns.xgLuck] as number | null) ?? null,
       // Una colonna che il foglio non ha (una revisione più vecchia) legge -1 dall'`indexOf`, e
       // `row[-1]` è `undefined`: si normalizza a null qui, dove la colonna viene letta, o ogni
       // lettore a valle finirebbe per inventarsi il proprio ripiego.

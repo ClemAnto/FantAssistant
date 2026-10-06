@@ -52,5 +52,30 @@ export function subBonusShift(
   const clamp = (x: number) => Math.min(1, Math.max(0, x));
   const subNow = clamp(1 - startPct / 100 / play);
   const subPrev = clamp(1 - prev.starts / prev.apps);
-  return -cost * (subNow - subPrev);
+  const shift = -cost * (subNow - subPrev);
+  return PROMOTION_SHIFT ? shift : Math.min(0, shift);
+}
+
+/**
+ * CHI DIVENTA TITOLARE NON SALE (operatore, 05/10/2026: «Maldini e Adams sono troppo alti ... la classifica degli
+ * attaccanti dovrebbe essere più o meno Malen, Martinez, Hojlund»). Il costo misurato e' simmetrico, ma il verso che
+ * alza usa una PREVISIONE della stampa su un ruolo nuovo, e il calcio che quel ruolo ha gia' prodotto quest'anno e'
+ * dentro la fantamedia (le giornate viste, R25): Maldini da subentrato a titolare leggeva +0,19 a partita e Adams A.
+ * +0,22, e salivano sopra Hojlund. Spento: lo spostamento toglie, non aggiunge. Riaccenderlo e' una riga.
+ */
+export const PROMOTION_SHIFT = false;
+
+/**
+ * QUANTO VALE IN FERTILITA' UNA PRESENZA DA SUBENTRATO rispetto a una da titolare (operatore, 05/10/2026: «penso che si
+ * debba abbassare un po' il valore delle partite dove si entra dalla panchina», poi «ok» su 0,5). DICHIARATO e non
+ * misurato: il bonus perso a partita da subentrato e' gia' tolto da `subBonusShift`, quindi questo peso in parte conta
+ * due volte la stessa cosa - il prezzo detto quando l'ha scelto - e pesa di piu' su chi parte spesso dalla panchina.
+ * Solo nella fertilita' di +Rosa: la copertura non cambia (un subentrato prende il voto e copre il posto).
+ */
+export const SUB_APPEARANCE_WEIGHT = 0.5;
+
+/** La quota di presenze da subentrato ADESSO, `1 − partenze / presenze` da sano; null dove un numero manca. */
+export function subShareNow(startPct: number | null | undefined, play: number | null | undefined): number | null {
+  if (startPct == null || play == null || !(play > 0)) return null;
+  return Math.min(1, Math.max(0, 1 - startPct / 100 / play));
 }

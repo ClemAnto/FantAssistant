@@ -1,4 +1,4 @@
-import { CheckMan, checkBars, checksOf, cleanShare, lastStint, quantile, stintPresence } from './draft-checks';
+import { CheckMan, checkBars, checksOf, cleanShare, lastStint, strictBonusFor, quantile, stintPresence } from './draft-checks';
 import { MatchCell } from './players-store';
 
 const man = (over: Partial<CheckMan> & { id: number }): CheckMan => ({
@@ -72,6 +72,10 @@ describe('draft checks', () => {
     const read = cleanShare([cell(6, 7), cell(6, 5), cell(6.5, 6.5), cell(6, 4.5)]);
     expect(read.rated).toBe(4);
     expect(read.share).toBeCloseTo(0.5);
+    // Outfield (05/10/2026): only a positive delta counts - the 6.5 / 6.5 match no longer does.
+    expect(cleanShare([cell(6, 7), cell(6, 5), cell(6.5, 6.5), cell(6, 4.5)], true).share).toBeCloseTo(0.25);
+    expect(strictBonusFor('A')).toBe(true);
+    expect(strictBonusFor('P')).toBe(false);
   });
 
   it('reads a January signing on his new club only (Malen)', () => {

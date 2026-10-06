@@ -1,4 +1,4 @@
-import { SUB_BONUS_COST, subBonusShift } from './sub-bonus';
+import { PROMOTION_SHIFT, SUB_BONUS_COST, subBonusShift, subShareNow } from './sub-bonus';
 
 describe('subBonusShift', () => {
   it('lowers a starter who is now in a ballottaggio (Saelemaekers: 33 of 35 started, now 35% when fit)', () => {
@@ -11,8 +11,9 @@ describe('subBonusShift', () => {
     expect(Math.abs(subBonusShift('C', 80, 0.894, { apps: 32, starts: 29 })!)).toBeLessThan(0.005);
   });
 
-  it('raises a man who came off the bench and now starts', () => {
-    expect(subBonusShift('A', 90, 0.95, { apps: 20, starts: 5 })!).toBeGreaterThan(0.3);
+  it('does not raise a man who came off the bench and now starts, while the promotion is switched off', () => {
+    expect(PROMOTION_SHIFT).toBe(false);
+    expect(subBonusShift('A', 90, 0.95, { apps: 20, starts: 5 })).toBe(0);
   });
 
   it('costs more up front than at the back, and nothing in goal', () => {
@@ -27,5 +28,14 @@ describe('subBonusShift', () => {
     expect(subBonusShift('C', 50, null, { apps: 30, starts: 30 })).toBeNull();
     expect(subBonusShift('C', 50, 0.9, null)).toBeNull();
     expect(subBonusShift('C', 50, 0.9, { apps: 3, starts: 3 })).toBeNull();
+  });
+});
+
+describe('subShareNow (05/10/2026)', () => {
+  it('is the share of appearances from the bench, starts over appearances while fit', () => {
+    expect(subShareNow(45, 0.759)).toBeCloseTo(1 - 0.45 / 0.759, 9);
+    expect(subShareNow(90, 0.893)).toBe(0); // starts more than he appears: clamped, never negative
+    expect(subShareNow(null, 0.9)).toBeNull();
+    expect(subShareNow(50, 0)).toBeNull();
   });
 });

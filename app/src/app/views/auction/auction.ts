@@ -37,9 +37,11 @@ import { SeasonLine, seasonLineFromMatches, seasonLines, seasonLinesFromSheet } 
 import { RUNG_RANK, Rarity, rarityText, shownRung } from '../../core/draft-rarity';
 import {
   CheckCell, CheckKey, CheckMan, Checks, checksOf, cleanShare, lastStint, minutesPerAppearance, stintPresence,
+  strictBonusFor,
 } from '../../core/draft-checks';
 import { paOnSeason } from '../../core/presence-now';
 import { SHOWN_ODDS, SURE_ODDS } from '../../core/rival-odds';
+import { XG_LUCK_NOTABLE } from '../../core/engine-sheet';
 import { onSeasonBase } from '../../core/season-scale';
 import { asFlag, bindQuery } from '../../core/view-state';
 import { AppHeader } from '../../ui/app-header/app-header';
@@ -76,12 +78,12 @@ type SeasonMetric = 'pv' | 'mv' | 'fm' | 'ga';
 /** Every column a header can sort the free list by. */
 export type FreeSort =
   | 'role' | 'name' | 'press' | 'fvm' | 'trend' | 'prio'
-  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw' | 'pa' | 'added'
+  | 'rung' | 'pvp' | 'min' | 'mvp' | 'steady' | 'fmp' | 'rar' | 'sesw' | 'pa' | 'added' | 'turn'
   | `${SeasonMetric}@${'now' | 'last'}`
   | `ck-${CheckKey}`;
 
 const FREE_SORT_KEYS: readonly string[] = [
-  'role', 'name', 'press', 'fvm', 'trend', 'prio', 'rung', 'pvp', 'min', 'mvp', 'steady', 'fmp', 'rar', 'sesw', 'pa', 'added',
+  'role', 'name', 'press', 'fvm', 'trend', 'prio', 'rung', 'pvp', 'min', 'mvp', 'steady', 'fmp', 'rar', 'sesw', 'pa', 'added', 'turn',
 ];
 
 /** A sort key read back from the address: one of the columns, or a season metric of the «medie» view. */
@@ -193,6 +195,14 @@ export interface FreeRow {
    * follow no squad; `fertility` null when his bonus is unknown.
    */
   added: { cover: number; fertility: number | null; coverText: string; fertilityText: string } | null;
+  /**
+   * «+GIRO» (operator, 06/10/2026, four picks the same day): his +Rosa plus the +Rosa of the best men predicted
+   * to STILL BE THERE at our next three turns once he is taken - the absolute order of «chi conviene scegliere
+   * adesso», in hundredths per matchday over four picks (`AuctionAdvice.turnBy`). `next` names those men and
+   * `wait` counts the rival calls his own FVM puts before our second pick; `last` = our last pick, nothing
+   * follows. Null while I follow no squad or his own fertility is unknown.
+   */
+  turn: { score: number; text: string; next: { name: string; fert: number }[]; wait: number; last: boolean } | null;
   /** Off OUR board this turn because of the FVM ceiling of the first turns. */
   locked: boolean;
   /** Off OUR board for the rest of the draft: our line is full (the keepers, and on classic 8/8/6). */
@@ -220,6 +230,12 @@ export interface FreeRow {
   };
   /** How many of OUR turns are left before he unlocks for us; null when he is not blocked. */
   turnsLeft: number | null;
+  /**
+   * LA FORTUNA xG/xA della stagione scorsa, per presenza (`EngineNumbers.xgLuck`): da `XG_LUCK_NOTABLE` la
+   * riga porta il marchio «xG» (operator, 06/10/2026, con l'uscita di R29: «un'icona per quelli come
+   * Zaccagni che hanno xG o xA notevoli»). Reporting: nessun numero della riga la legge.
+   */
+  xgLuck: number | null;
   goal: boolean;
 }
 
@@ -323,8 +339,8 @@ const SIDE_WORD: Record<string, string> = { back: 'porta e difesa', cen: 'centro
     /* Role, name, FVM, priority first in all three views; then the view's own columns. FVM AND DP RIGHT AFTER
        THE NAME (operator, 29/09/2026): the name has a fixed room and the space the list has to spare goes to an
        empty last track, so a wide list does not push the two numbers a pick is made on to the far edge. */
-    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 4.9rem 75px minmax(0, 1fr); }
-    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
+    .free-default { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 2.6rem 4.9rem 75px minmax(0, 1fr); }
+    .free-previste { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 2.6rem 4.9rem 2.1rem 2.1rem 2.3rem 2.3rem 2.3rem minmax(0, 1fr); }
     /* GONE BEFORE OUR TURN: a bar in the colour of the squad expected to take him, and a tint of it. */
     .taken {
       box-shadow: inset 3px 0 0 var(--taken);
@@ -367,8 +383,8 @@ const SIDE_WORD: Record<string, string> = { back: 'porta e difesa', cen: 'centro
     /* Eight EQUAL columns (operator, 29/09/2026: «le colonne non sono distanziate equamente»): the widest
        value any of them prints (12.75, 17:10) fits in 2.5rem, so one width serves them all. */
     /* CHECKS (operator, 04/10/2026): eight yes/no dots with an icon inside, one narrow equal column each. */
-    .free-checks { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem repeat(8, 1.1rem) minmax(0, 1fr); }
-    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem repeat(8, 2.3rem) minmax(0, 1fr); }
+    .free-checks { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 2.6rem repeat(8, 1.1rem) minmax(0, 1fr); }
+    .free-medie { grid-template-columns: var(--role-w, 5.25rem) minmax(0, 13rem) 2.25rem var(--cw-sesw, 2rem) var(--cw-pa, 2.1rem) var(--cw-dp, 2rem) var(--cw-rar, 2.25rem) 4.4rem 2.6rem repeat(8, 2.3rem) minmax(0, 1fr); }
     /* The same room for the list's scrollbar on the headers as on the rows, or every column right of the
        name slides by the scrollbar's width. 'overflow' has to be set for the gutter to be reserved. */
     .gutter { scrollbar-gutter: stable; overflow-y: hidden; }
@@ -805,6 +821,16 @@ export class Auction {
     return `Simili: ${names.join(', ')}`;
   }
 
+  /** The «+Giro» tooltip: the predicted later picks, after how many rival calls his FVM puts before our next one. */
+  protected turnTip(row: FreeRow): string {
+    const turn = row.turn;
+    if (!turn) return '';
+    if (turn.last) return 'Ultima tua scelta: conta solo il suo +Rosa';
+    if (!turn.next.length) return 'Nessuna scelta utile dopo di lui';
+    const names = turn.next.map((pick) => `${pick.name} (${pick.fert > 0 ? '+' : ''}${pick.fert})`).join(', ');
+    return `Poi ${names} — ${turn.wait} chiamate prima della prossima`;
+  }
+
   protected prioHint(): string {
     return this.advice.priorityOn()
       ? 'Draft Priority: la SeSw, abbassata se ne resteranno di simili al tuo turno'
@@ -901,7 +927,7 @@ export class Auction {
     for (const name of this.moduleNames()) {
       const drawn = draftPitchOf(squad, rules, preferred, name, this.byCoverage());
       if (!drawn || drawn.module !== name) continue;
-      const { cover, fertility } = pitchYield(drawn);
+      const { cover, fertility } = pitchYield(drawn, false, this.advice.doorHole());
       if (!best || fertility > best.fertility + 1e-9 || (Math.abs(fertility - best.fertility) <= 1e-9 && cover > best.cover + 1e-9)) {
         best = { name, fertility, cover };
       }
@@ -968,12 +994,14 @@ export class Auction {
 
   /** Coverage and fertility of a place, as the pitch prints them: «87%» and «+85» (hundredths per matchday). */
   protected yieldOf(place: DraftPlace): { cover: string; coverInk: string; fertility: string; fertilityInk: string; gain: string | null } {
-    const { cover, fertility } = placeYield(place);
+    // The door's hole at TODAY's price (`AuctionAdvice.doorHole`, it fades with the picks left), never the full 4.73 of
+    // the last pick: without it an empty door read −473 at the first call (operator, 05/10/2026).
+    const { cover, fertility } = placeYield(place, false, this.advice.doorHole());
     const f = hundredths(fertility);
     // On a place the selected plan fills: how much coverage and fertility it adds there.
     let gain: string | null = null;
     if (this.planPlace(place)) {
-      const after = placeYield(place, true);
+      const after = placeYield(place, true, this.advice.doorHole());
       const df = hundredths((after.fertility ?? 0) - (fertility ?? 0)) ?? 0;
       gain = `+${Math.round((after.cover - cover) * 100)}% · ${df >= 0 ? '+' : ''}${df}`;
     }
@@ -1137,7 +1165,7 @@ export class Auction {
       const target = this.forcedModule() ?? draftPitchOf([...squad, ...picks], rules, preferred, null, this.byCoverage())?.module ?? null;
       const yieldWith = (extra: FantaMan[]) => {
         const drawn = draftPitchOf(squad, rules, preferred, target, this.byCoverage());
-        return drawn ? pitchYield(withSuggestions(drawn, extra), true) : { cover: 0, fertility: 0 };
+        return drawn ? pitchYield(withSuggestions(drawn, extra), true, this.advice.doorHole()) : { cover: 0, fertility: 0 };
       };
       const base = yieldWith([]);
       const one = yieldWith(picks.slice(0, 1));
@@ -1258,7 +1286,7 @@ export class Auction {
     let unknown = 0;
     let places = 0;
     for (const place of drawn.rows.flatMap((row) => row.places)) {
-      const one = placeYield(place);
+      const one = placeYield(place, false, this.advice.doorHole());
       places += 1;
       cover += one.cover;
       if (one.fertility == null) unknown += one.cover > 0 ? 1 : 0;
@@ -1356,12 +1384,24 @@ export class Auction {
     const rar = this.advice.freeRarity();
     const season = this.advice.priorityOfMan();
     const added = this.addedBy();
+    const turns = this.advice.turnBy();
+    // The next-best man is named on the row, so the tooltip needs his shown name, not an id.
+    const names = new Map(rows.map((row) => [row.id, row.name]));
     for (const row of rows) {
       row.rar = rar.get(row.id) ?? null;
       row.rarText = rarityText(row.rar);
       row.seswScore = season.get(row.id) ?? null;
       row.sesw = hundredths(row.seswScore);
       row.added = added.get(row.id) ?? null;
+      const turn = turns.get(row.id);
+      const score = turn ? hundredths(turn.score) : null;
+      row.turn = turn && score != null ? {
+        score: turn.score,
+        text: `${score > 0 ? '+' : ''}${score}`,
+        next: turn.picks.map((pick) => ({ name: names.get(pick.id) ?? `#${pick.id}`, fert: hundredths(pick.fert) ?? 0 })),
+        wait: turn.wait,
+        last: turn.last,
+      } : null;
     }
     // THE BLOCKED TOPS STAY WHERE THEIR PRIORITY PUTS THEM (operator, 29/09/2026: «devono essere visibili
     // anche i calciatori freezati»): they used to sink to the bottom of a list that loads sixty rows at a
@@ -1414,6 +1454,7 @@ export class Auction {
       sesw: null,
       seswScore: null,
       added: null,
+      turn: null,
       pa: goal ? null : paOnSeason(this.advice.paShares().get(row.player.id), this.advice.competitionRounds()),
       locked: this.advice.lockedForMe(row.price),
       full: this.advice.fullForMe(row.player.id),
@@ -1421,6 +1462,7 @@ export class Auction {
       owner: null,
       odds: this.advice.goneOdds().get(row.player.id) ?? null,
       turnsLeft: this.turnsLeft(row.price),
+      xgLuck: goal ? null : (this.advice.numbers().get(row.player.id)?.xgLuck ?? null),
       expected: this.expectedOf(row.player.id, goal),
       goal,
     };
@@ -1501,6 +1543,9 @@ export class Auction {
   /** The two thresholds of the odds chip (`rival-odds.ts`): shown from `SHOWN_ODDS`, marked sure from `SURE_ODDS`. */
   protected readonly shownOdds = SHOWN_ODDS;
   protected readonly sureOdds = SURE_ODDS;
+
+  /** From this unpaid xG/xA luck per appearance the row carries the «xG» mark (`engine-sheet.ts`). */
+  protected readonly xgLuckNotable = XG_LUCK_NOTABLE;
 
   /**
    * ONLY THE MEN EXPECTED GONE BEFORE OUR TURN: the rivals call by price, so under the priority's order they
@@ -1726,6 +1771,8 @@ export class Auction {
         // and the coverage (at most one place) can never outweigh one of them. An unknown fertility sorts last.
         return (row) => (row.added?.fertility == null ? null
           : (hundredths(row.added.fertility) ?? 0) + row.added.cover * 1e-3);
+      case 'turn':
+        return (row) => row.turn?.score ?? null;
       case 'rung':
         return (row) => (row.expected.rung && PRESS_RANK[row.expected.rung] != null ? PRESS_RANK[row.expected.rung] : null);
       case 'pvp':
@@ -1873,7 +1920,7 @@ export class Auction {
     { key: 'tit', label: 'tit', icon: 'team', hint: 'Titolarità della stampa: titolare o meglio' },
     { key: 'mv', label: 'mv', icon: 'star', theme: 'fill', hint: 'Media voto della stagione scorsa almeno 6' },
     { key: 'fm', label: 'fm', icon: 'trophy', hint: 'Fantamedia della stagione scorsa nel terzo migliore del ruolo' },
-    { key: 'bonus', label: 'bonus', icon: 'fire', hint: 'Partite con bonus-malus ≥ 0, stagione scorsa: terzo migliore del ruolo' },
+    { key: 'bonus', label: 'bonus', icon: 'fire', hint: 'Partite con bonus-malus > 0 (portieri ≥ 0), stagione scorsa: terzo migliore del ruolo' },
     { key: 'cont', label: 'cont', icon: 'safety', hint: 'Sufficienze (costanza): terzo migliore del ruolo' },
     { key: 'm', label: 'm', icon: 'clock-circle', hint: 'Minuti a presenza, stagione scorsa: terzo migliore del ruolo' },
     { key: 'p', label: 'p', icon: 'calendar', hint: 'Quota di presenze della stagione scorsa da quando è arrivato: terzo migliore del ruolo' },
@@ -1901,7 +1948,7 @@ export class Auction {
       const line = cells && last ? seasonLineFromMatches(cells, last) : this.lineOf(player.id, 'last');
       const presence = cells ? stintPresence(cells) : null;
       const minutes = cells ? minutesPerAppearance(cells) : null;
-      const clean = cells ? cleanShare(cells) : null;
+      const clean = cells ? cleanShare(cells, strictBonusFor(zone)) : null;
       const recent = voteTrends.get(player.id) ?? [];
       men.push({
         id: player.id,

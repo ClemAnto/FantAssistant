@@ -132,6 +132,13 @@ export function outWindow(input: {
   until: string | null;
   /** Il margine di prudenza. Si passa per poterlo SPEGNERE in un test, non per sceglierlo per riga. */
   slip?: number;
+  /**
+   * THE COMPETITION'S ROUNDS (operator, 05/10/2026: «+Rosa deve guardare il range di giornate specificato nelle
+   * opzioni (5-22) quindi deve valutare anche questo se un calciatore è infortunato adesso»): only the fixtures of
+   * rounds `from`..`to` count. Absent = the whole season, as before.
+   */
+  from?: number;
+  to?: number;
   /** La fonte dice che la sua stagione e' finita: non c'e' una data e non serve. */
   seasonOver?: boolean;
   /** Quale delle due fonti ha dato la data (`PlayerStatus.openInjury` lo decide sulla freschezza). */
@@ -147,7 +154,7 @@ export function outWindow(input: {
   // controllo sulla data perche' quel fatto una data non ce l'ha.
   if (input.seasonOver) {
     const left = calendar
-      .window(club, 1, calendar.rounds)
+      .window(club, input.from ?? 1, input.to ?? calendar.rounds)
       .filter((match) => match.date >= today).length;
     if (!left) return null;
     return {
@@ -171,7 +178,7 @@ export function outWindow(input: {
   const slipDays = Math.round(left * Math.max(0, slip));
   const prudent = addDays(until, slipDays);
 
-  const fixtures = calendar.window(club, 1, calendar.rounds);
+  const fixtures = calendar.window(club, input.from ?? 1, input.to ?? calendar.rounds);
   const remaining = fixtures.filter((match) => match.date >= today);
   if (!remaining.length) return null;
 

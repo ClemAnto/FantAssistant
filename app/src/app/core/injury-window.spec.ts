@@ -39,6 +39,14 @@ describe('la finestra di un infortunio', () => {
     });
   });
 
+  it('sulla finestra della competizione conta solo le sue giornate (05/10/2026)', () => {
+    // Rientro il 30/09 -> perde le giornate 1-4; con la competizione 3-6 restano 3-6, ne perde 3 e 4.
+    const window = outWindow({ ...counting, today: '2026-09-05', until: '2026-09-30', from: 3, to: 6 });
+    expect(window).toMatchObject({ lost: 2, playable: 2, remaining: 4, share: 0.5 });
+    // A stop over before the competition starts costs it nothing.
+    expect(outWindow({ ...counting, today: '2026-09-05', until: '2026-09-15', from: 4, to: 6 })).toBeNull();
+  });
+
   it('conta il denominatore da OGGI: le giornate gia giocate le hanno perse tutti', () => {
     // Stesso rientro, ma si guarda il 21/09: TRE giornate sono passate (06, 13, 20) e non sono sue
     // da perdere. Restano sette, e di quelle ne salta una sola.

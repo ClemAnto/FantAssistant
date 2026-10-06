@@ -941,6 +941,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
             <span
               class="sort text-center uppercase"
               data-sort="press"
@@ -955,7 +956,7 @@
           </div>
         } @else if (mode() === 'medie') {
           <div [class.free-slim]="slimCols()" class="gutter free-grid free-medie px-1 text-[10px] uppercase text-muted">
-            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
             <span class="col-span-4 text-center">{{ seasons().now ?? 'stagione' }}</span>
             <span class="split col-span-4 text-center">{{ seasons().last ?? 'scorsa' }}</span>
           </div>
@@ -968,6 +969,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
             @for (which of seasonKeys; track which; let second = $last) {
               @for (metric of metrics; track metric.key; let first = $first) {
                 <span
@@ -993,6 +995,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
             @for (column of checkColumns; track column.key) {
               <!-- UN'ICONA PER COLONNA (sua richiesta, 04/10/2026: «occupano troppo spazio»): la stessa del pallino
                    sotto, accesa quando la lista e' ordinata su quella colonna; il nome e la regola nel suggerimento. -->
@@ -1021,6 +1024,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
             <span class="sort text-center uppercase" data-sort="rung" nz-tooltip nzTooltipTitle="Il gradino del motore, non della stampa" (click)="sortBy('rung')"
               >Gradino{{ arrow('rung') }}</span
             >
@@ -1105,6 +1109,18 @@
                   >{{ row.name }}</span
                 >
                 <ui-flags class="shrink-0 text-[10px]" [playerId]="flagId(row.id, row.goal)" />
+                <!-- «xG/xA NOTEVOLI» (sua richiesta, 06/10/2026, con l'uscita di R29): l'anno scorso ha raccolto
+                     MENO di quanto valevano le sue occasioni - i casi come Zaccagni. Reporting: la quantita' che
+                     R29 prezzava, che nessun numero della riga legge piu'. -->
+                @if (row.xgLuck != null && row.xgLuck >= xgLuckNotable) {
+                  <span
+                    data-xg-luck
+                    class="shrink-0 rounded bg-success/20 px-1 text-[9px] font-semibold leading-4 text-success"
+                    nz-tooltip
+                    [nzTooltipTitle]="'Occasioni sopra i gol raccolti: +' + (row.xgLuck | number: '1.2-2') + ' a presenza nella scorsa stagione'"
+                    >xG</span
+                  >
+                }
                 <!-- ESCLUSO DAI CONSIGLI (sua richiesta, 05/10/2026): i piani non lo propongono piu', i rivali possono
                      ancora prenderlo. Il tasto si vede passando sulla riga, e resta acceso su chi e' escluso. -->
                 @if (row.owner; as owner) {
@@ -1181,6 +1197,15 @@
                 @if (row.added; as added) {
                   <span class="text-[9px]" [class.text-success]="added.cover > 0.005" [class.text-muted]="added.cover <= 0.005">{{ added.coverText }}</span>{{ ' ' }}<span
                     [class.text-success]="(added.fertility ?? 0) > 0" [class.text-danger]="(added.fertility ?? 0) < 0">{{ added.fertilityText }}</span>
+                } @else {
+                  <span class="text-muted">—</span>
+                }
+              </span>
+              <!-- «+GIRO» (sua richiesta, 06/10/2026): il valore assoluto su QUATTRO scelte - il suo +Rosa più
+                   quello delle migliori rimaste ai nostri prossimi tre turni; il tooltip le nomina. -->
+              <span data-turn class="text-right font-semibold tabular-nums" [attr.data-turn-score]="row.turn ? row.turn.text : null" nz-tooltip [nzTooltipTitle]="turnTip(row)" [nzTooltipMouseEnterDelay]="0.4">
+                @if (row.turn; as turn) {
+                  <span [class.text-success]="turn.score > 0" [class.text-danger]="turn.score < 0">{{ turn.text }}</span>
                 } @else {
                   <span class="text-muted">—</span>
                 }

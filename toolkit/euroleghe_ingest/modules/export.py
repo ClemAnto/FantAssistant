@@ -304,6 +304,10 @@ SHEET_COLUMNS: tuple[str, ...] = (
     # without the other is not a rate. Both counted on his own championship, never on our calendar.
     "desc_minutes_full_season",
     "desc_season_matches",
+    # LA FORTUNA xG/xA della stagione di input, per presenza: REPORTING dal 06/10/2026, il giorno in cui
+    # R29 e' uscita da ADOPTED (decisione dell'operatore). L'app ci disegna l'icona «xG/xA notevoli»
+    # (i casi come Zaccagni) e nessuna valutazione la legge.
+    "desc_xg_luck",
     # The calendar still to be played, as the sheet computed it: «k/n (p%)» and the mean Elo advantage.
     # DISPLAY-ONLY on the row too - the app shows them and no valuation reads them.
     "desc_easy_matches",
@@ -447,6 +451,8 @@ SHEET_COLUMNS_OPTIONAL: frozenset[str] = frozenset({
     "desc_titolarita", "desc_titolarita_play", "desc_minutes_next", "desc_titolarita_contended",
     # ...e le tre della categoria, per la stessa ragione: i pacchetti scritti prima non le hanno.
     "desc_category", "desc_category_level", "desc_category_bars",
+    # ...e la fortuna xG/xA (06/10/2026): i pacchetti e i fogli prima della revisione 84 non la hanno.
+    "desc_xg_luck",
     # ...e le tre della miscela, nate il 04/09/2026: i pacchetti del viaggio nel tempo sono stati scritti
     # prima e non le hanno, e un foglio di PRE-STAGIONE non le ha per costruzione (una finestra sola).
     "desc_now_matches", "desc_now_rounds", "desc_blend_now",

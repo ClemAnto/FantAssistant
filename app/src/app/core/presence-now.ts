@@ -45,6 +45,16 @@ export function presenceNowShares(file: PresenceNowFile | null): Map<number, num
   return out;
 }
 
+/**
+ * fc_id -> the rounds left the formula already took off for an OPEN stop (`outOpen`), where it took any: a reader that
+ * prices the stop itself on a narrower window must give these back first, or it charges the same weeks twice.
+ */
+export function presenceNowOut(file: PresenceNowFile | null): { rounds: number; out: Map<number, number> } {
+  const out = new Map<number, number>();
+  for (const row of file?.rows ?? []) if (row.outOpen > 0) out.set(row.fcId, row.outOpen);
+  return { rounds: file?.rounds ?? 0, out };
+}
+
 /** The share on a full season of `seasonRounds` matchdays (the platform's, not the number 38); null = unknown. */
 export function paOnSeason(share: number | null | undefined, seasonRounds: number | null | undefined): number | null {
   if (share == null || !seasonRounds || seasonRounds <= 0) return null;
