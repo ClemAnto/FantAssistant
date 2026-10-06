@@ -78,6 +78,8 @@ export interface TurnInput {
   picksLeft: number;
   /** Whether `candidate` may be the next pick of a chain that already took `taken`: quota, cap, the doors. */
   canPick: (taken: readonly TurnMan[], candidate: TurnMan) => boolean;
+  /** Whether `candidate` may be the pick being made NOW: a man who may not gets no score at all. Absent = all may. */
+  canPickFirst?: (candidate: TurnMan) => boolean;
   /** The fertility of `candidates` on the pitch WITH the chain `taken`: the costly exact path. */
   exactOn: (taken: readonly TurnMan[], candidates: readonly TurnMan[]) => ReadonlyMap<number, number | null>;
 }
@@ -132,6 +134,7 @@ export function turnScores(input: TurnInput): Map<number, TurnScore> {
   const orderType = input.orderType ?? 'default';
   const turns = Math.max(1, Math.min(TURN_PICKS, input.picksLeft));
   for (const { man: first } of ranked) {
+    if (input.canPickFirst && !input.canPickFirst(first)) continue;
     const chain: TurnMan[] = [first];
     const picks: TurnScore['picks'] = [];
     let score = first.fert!;

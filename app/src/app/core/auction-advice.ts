@@ -1987,15 +1987,22 @@ export class AuctionAdvice {
     // first pick then banked him as its own second term - «poi prendo Paz», nine calls later, against odds the
     // human model (fitted on real drafts) reads as gone. Taking him NOW stays allowed: that is «take who will
     // be gone», the measured survivor logic, and it is exactly what puts the dear man's own score on top.
-    const lost = this.likelyGone()?.ids;
-    const canPick = (taken: readonly TurnMan[], candidate: TurnMan): boolean => {
-      if (lost?.has(candidate.id)) return false;
+    const gone = this.likelyGone();
+    const lost = gone?.ids;
+    const legal = (taken: readonly TurnMan[], candidate: TurnMan): boolean => {
       const team = teamWith(taken);
       const player = poolById.get(candidate.id);
       if (!team || !player || excluded.has(candidate.id)) return false;
       if (!legalFor(team, [player], calls).length) return false;
       return keeperAllowed(team, player, { keepers, calls }, rounds - team.picksCount);
     };
+    const canPick = (taken: readonly TurnMan[], candidate: TurnMan): boolean =>
+      !lost?.has(candidate.id) && legal(taken, candidate);
+    // THE PICK BEING SCORED IS A PICK TOO (review 06/10/2026): the cap, the exclusions and the doors bind it as they
+    // bind the later ones, and a man likely gone before the call about to be made (`beforeNow`, another squad on the
+    // clock) cannot be ours either - the plans' own rule. On the clock he stays scorable: «take who will be gone».
+    const canPickFirst = (candidate: TurnMan): boolean =>
+      !(gone?.beforeNow && lost?.has(candidate.id)) && legal([], candidate);
     const exactOn = (taken: readonly TurnMan[], candidates: readonly TurnMan[]): Map<number, number | null> => {
       const out = new Map<number, number | null>();
       const held = taken.map((man) => players.get(man.id) && this.fantaManOf(players.get(man.id)!, man.price));
@@ -2018,7 +2025,7 @@ export class AuctionAdvice {
       orderType: input.orderType === 'pingpong' ? 'pingpong' : 'default',
       myValue: me.rosterValue,
       picksLeft: rounds - me.picksCount,
-      canPick, exactOn,
+      canPick, canPickFirst, exactOn,
     });
   });
 

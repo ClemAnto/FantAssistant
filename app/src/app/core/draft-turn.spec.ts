@@ -78,6 +78,14 @@ describe('turnScores', () => {
     expect(out.get(11)!.score).toBeGreaterThan(out.get(2)!.score);
   });
 
+  it('scores no man who may not be the pick being made now, and still offers him as a later pick', () => {
+    const capped = man(1, { group: 'pc', fert: 0.4 });
+    const other = man(2, { group: 'dc', fert: 0.3 });
+    const out = turnScores(input({ men: [capped, other], picksLeft: 2, canPickFirst: (one) => one.id !== 1 }));
+    expect(out.has(1)).toBe(false);
+    expect(out.get(2)!.picks.map((pick) => pick.id)).toEqual([1]);
+  });
+
   it('a dear pick pays its wait across the chain: losing one target slides every later pick down to the tail', () => {
     const dear = man(1, { group: 'dc', fert: 0.3, price: 500 });
     const cheap = man(2, { group: 'dc', fert: 0.3, price: 10 });

@@ -730,7 +730,12 @@ function rotateShown(shown: readonly Scenario[], input: ScenarioInput): Scenario
     if (at > 0) {
       const avoid = new Set([...used].filter((id) => id !== chain.first.player.id));
       const again = chainFrom(input, chain.first.player, chain.first.need, avoid);
-      if (again) out = { ...chain, ...again, first: chain.first };
+      // `chainFrom` writes `bare` and `crowded` only when non-empty, so the old plan's marks must go first: a
+      // rotated plan that no longer leaves a department bare must not keep saying it does.
+      if (again) {
+        const { bare: _bare, crowded: _crowded, ...kept } = chain;
+        out = { ...kept, ...again, first: chain.first };
+      }
     }
     for (const id of menOf(out)) used.add(id);
     return out;
