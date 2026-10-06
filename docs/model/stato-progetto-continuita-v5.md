@@ -10576,3 +10576,14 @@ Aperti:
   medie, ordine delle previste;
 - manca un test sulla rotazione dei piani;
 - restano i due appunti del §10 della todolist del draft.
+
+### 6 ottobre 2026 (notte, fine) — L'ICONA «xG» DELLA TABELLA DEL DRAFT
+
+Domanda dell'operatore: cosa indica e se è positiva. È `xgLuck` (`desc_xg_luck`, `model.bonus_luck`), REPORTING: la
+fortuna xG/xA NON pagata della stagione di input per presenza (3·(xG−gol)+(xA−assist), la quantità che R29 prezza
+su Serie A); si disegna sopra `XG_LUCK_NOTABLE` = 0,20 (≈5% del listone: 29 uomini su 564 a revisione 84), soglia
+di display contata sul foglio e non misurata contro un esito. **Positiva** nel senso che chi ha raccolto meno delle
+sue occasioni tende a rientrare; è il caso Zaccagni (0,23). **Correzione a verbale**: a voce avevo detto «solo sugli
+attaccanti» — falso, il marchio vale per ogni riga che non sia una porta (`goal ? null : …`); e le altre due icone
+basate su xG+xA (`promise`/`flop_risk`, `player-screens.ts`) sono un'altra cosa, per ruolo e prezzo. Nessun codice
+cambiato in questo blocco.
