@@ -10555,3 +10555,12 @@ rilegge l'output riga per riga, non si riassume dai nomi che ci si aspetta.*
 `reingest_from_cache(pages=...)` le rifarebbe offline); Gudmundsson resta senza data perché la pagina scrive «fine
 metà»; il gradino stampa dei club con novità NON è avviato (scegliere i club dal confronto infortuni/trasferimenti
 sul DB fresco, poi `press_survey`).
+
+## 6 ottobre 2026 (sera) — DUE APPUNTI DELL'OPERATORE SUL DRAFT (nessun codice)
+
+Registrati in `todolist-draft-v1.md` §10, da riprendere: **10.1** nei consigli del draft non compaiono mai
+attaccanti (non ancora riprodotto; primo passo contare i ruoli dei piani consigliati su un draft rigiocato e
+separare valuta / quote-ROLE_WAIT / RAR); **10.2** un parametro nuovo, la «schierabilità» = quota delle partite
+abbordabili sul calendario del club reale, da costruire sulla probabilità «facile» di `fixtures.schedule` che oggi
+leggono solo i portieri — tre domande aperte (quale probabilità per un uomo di movimento, lettura o termine della
+DP, finestra dichiarata o stagione al differenziale).

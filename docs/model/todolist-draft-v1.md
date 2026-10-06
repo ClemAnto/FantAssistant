@@ -563,3 +563,23 @@ giornate in cui un posto si conquista.
 - [ ] **9.5 — Una valutazione della riserva che provi il cambio di modulo**: `squadWorth` legge il −1 della
   matrice senza tentare il cambio di schema, quindi sottostima una riserva fuori ruolo (il PUNTEGGIO invece segue
   il regolamento).
+
+## 10. Appunti dell'operatore (06/10/2026) — da sistemare in seguito
+
+- [ ] **10.1 — Nei consigli non compaiono mai attaccanti.** Segnalazione a schermo, non ancora riprodotta.
+  Prima cosa: contare i ruoli dei piani consigliati su un draft vero rigiocato (`sim-draft-advice`, e la
+  sessione Serie A del 6/10) e vedere se è la valuta (fertilità / zero del ruolo), il razionamento
+  (ROLE_WAIT, quote 3/8/8/6) o la rarità (RAR) a tenerli fuori. Ipotesi da verificare, non da assumere:
+  la stessa forma del difetto dei portieri del §32 di `priorita-draft-v1.md` — una valuta il cui segno o
+  zero è sfavorevole per un ruolo non lo sceglie mai.
+- [ ] **10.2 — Nuovo parametro: la «SCHIERABILITÀ».** Definizione sua: la quota delle partite in cui
+  schiereresti il calciatore, cioè quelle in cui ha una partita ABBORDABILE secondo il calendario del suo
+  club reale. Da costruire sopra quello che c'è già, non da zero: la probabilità «facile» di
+  `fixtures.schedule` / `calendar.json` (soglia sulla probabilità, Elo + forma a 10, campo a 30-35 punti —
+  CLAUDE.md, sezione sulla soglia scelta a occhio) è oggi usata solo per i portieri (`keeper-pairs`,
+  `planKeepers`, mod. porta inviolata). Domande aperte prima di scriverlo: (a) «abbordabile» per un
+  attaccante è la stessa probabilità del portiere (porta inviolata) o un'altra (gol attesi del club)?
+  (b) è una LETTURA da mostrare o un termine della DP/SeSw — nel secondo caso va misurata sul banco del
+  draft e, se tocca `engine_*`, pre-registrata al gate; (c) la finestra di calendario è quella dichiarata
+  nelle Opzioni o la stagione intera (su una stagione piena un calendario medio non compra niente — il
+  conto va al DIFFERENZIALE contro la media del campionato, come il bonus porta inviolata).
