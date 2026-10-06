@@ -10499,3 +10499,25 @@ compila i test per la metà xG di un'altra sessione (`auction-value.spec.ts` sen
 esportato da `engine-sheet.ts` committato): non è di questa sessione; (3) `draft-scenarios.ts` porta nel commit anche
 l'allargamento di tipo di `keeperAllowed` (`Pick<ScenarioInput, 'keepers' | 'calls'>`), trovato già nell'albero.
 
+
+### 6 ottobre 2026 (notte) — SEGUITO: LA DATA DI RIENTRO DI MCTOMINAY
+
+**Giro concluso**: `injuries --stale-days 7` (25 min, ha riletto solo le pagine più vecchie di 7 giorni) e
+`update --daily` 7/7 passi, compresi `export` e `data:pull` (bundle del 06/10 01:26). Il controllo «log fermo da 5
+minuti» che avevo messo come segnale di fine era sbagliato (il log è in buffer): si aspetta il PROCESSO (pid), mai
+il file.
+
+**Difetto trovato dal tooltip della tabella draft** (screenshot dell'operatore): «non dice per quanto» su McTominay
+che la pagina dà «dalla seconda metà ottobre». Due cause, entrambe curate: (1) `fc_site._RETURN_VERB` non
+conosceva `rivederlo`/`riaverlo` (non cominciano con `rivedr`), quindi dal 09/09 `expected_return` era NULL per chi
+la pagina scrive così; ora 23/10, e sulla pagina del 03/09 se ne aggiunge uno vero (Dele-Bashiru), test 23 → 24;
+(2) `unavailableMark` (app) dichiarava sempre «non dice per quanto» anche con una data: ora scrive «Rientro atteso
+circa il gg/mm» o «Stagione finita». Commit `4774d4d` (toolkit) e `a5625b5` (app).
+**Errore mio**: la tabella di rientri data all'operatore diceva McTominay ~23/10 mentre il parser, allora, restituiva
+NESSUNA data — la riga «None None» era nel mio stesso output e non l'ho letta. *Prima di riportare una colonna, si
+rilegge l'output riga per riga, non si riassume dai nomi che ci si aspetta.*
+
+**Aperto**: le letture di `availability` dal 09/09 al 05/10 restano senza data (basta la più recente per l'app;
+`reingest_from_cache(pages=...)` le rifarebbe offline); Gudmundsson resta senza data perché la pagina scrive «fine
+metà»; il gradino stampa dei club con novità NON è avviato (scegliere i club dal confronto infortuni/trasferimenti
+sul DB fresco, poi `press_survey`).
