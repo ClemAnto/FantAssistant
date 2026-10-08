@@ -29,6 +29,8 @@
 import {
   capBlocks,
   nextCaller,
+  ourTurnPin,
+  pinnedCaller,
   roleFull,
   take,
   type PlanPlayer,
@@ -153,9 +155,11 @@ export function goneOdds(input: OddsInput): Map<number, number> {
   const me = start.get(input.mineId);
   const out = new Map<number, number>();
   if (!me) return out;
-  if (nextCaller(start, input.maxAheadPicks, input.rounds, input.orderType)?.id === input.mineId) {
-    start.set(me.id, { ...me, picksCount: me.picksCount + 1, pickValues: [...me.pickValues, 0] });
-  }
+  const onClock = nextCaller(start, input.maxAheadPicks, input.rounds, input.orderType)?.id === input.mineId;
+  if (onClock) start.set(me.id, { ...me, picksCount: me.picksCount + 1, pickValues: [...me.pickValues, 0] });
+  // Once the order has settled our next turn comes after one call of every rival (`ORDER_SETTLES_AFTER`): the walks
+  // stop where the advice's own walk stops.
+  const pinAt = ourTurnPin(start, input.mineId, input.orderType, onClock, input.rounds);
 
   const pool = input.pool.filter((player) => input.seen.has(player.id));
   // Over the WHOLE listone, taken men included, as the fit read it: over the free men only it would fall as the regulars
@@ -195,9 +199,11 @@ export function goneOdds(input: OddsInput): Map<number, number> {
     const teams = new Map(start);
     const held = new Map([...teams.values()].map((team) => [team.id, heldOf(team)]));
     const alive = new Uint8Array(pool.length).fill(1);
+    const pin = pinAt ? { called: new Set(pinAt.called) } : null;
     for (let guard = 0; guard < teams.size * 3; guard += 1) {
-      const caller = nextCaller(teams, input.maxAheadPicks, input.rounds, input.orderType);
+      const caller = pinnedCaller(teams, input.mineId, input.maxAheadPicks, input.rounds, input.orderType, pin);
       if (!caller || caller.id === input.mineId) break;
+      pin?.called.add(caller.id);
       const early = caller.picksCount < EARLY_PICKS;
       // The line's rank and gap only matter to the full model: an early caller reads the price alone.
       if (!early) for (const list of lines.values()) {

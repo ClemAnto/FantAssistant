@@ -1526,3 +1526,94 @@ mentre dal 01/10 sopravvive per sua decisione: il passo ora lo pretende. Resta l
 al N°» (posizioni 9-10 su un filtro al 9°, e «nothing to click»), che dipende dall'estrazione della demo ed è
 anche su HEAD. **Aperto**: misurare sul banco quanto avrebbe reso
 seguire i consigli corretti su questo draft.
+
+## 45. L'ordine si consolida dopo due giri (08/10/2026)
+
+**Sua regola**: «nella pagina DRAFT devi considerare che dopo 2 giri l'ordine si consolida e non ha senso
+scegliere calciatori con FVM basso per migliorare il turno di scelta: bisogna prendere il meglio che c'è sapendo
+che la prossima scelta si farà dopo 9 turni (nel caso di 10 partecipanti)». È la stessa osservazione del §44
+(«con l'ordine per FVM si sceglie comunque al massimo dopo nove»), qui resa regola.
+
+**Controllata sui quattro draft veri `default` disponibili** (dump in sola lettura, `fetch-sessions.mjs`, §46).
+Per ogni scelta: di quanti posti si sposta la squadra nel giro dopo prendendo il più caro chiamabile invece del
+decimo più caro (valori dei rivali a fine giro, pool = chi è stato chiamato davvero da lì in poi):
+
+| giro | FA-610-2ih (A classic, 10) | FA-j3h-89r (A classic, 10) | FA-nmf-iwo (A classic, 10) | FA-lel-dfk (EuroLeghe mantra, 14) |
+|---|---|---|---|---|
+| 1 | 4,1 | 5,5 | 2,2 | 4,9 |
+| 2 | 2,8 | 2,2 | 2,4 | 1,9 |
+| 3 | 1,8 | 1,5 | 1,2 | 2,2 |
+| 4 | 1,0 | 0,9 | 0,9 | 1,7 |
+| 5 | 0,6 | 0,7 | 0,6 | 2,1 |
+| 6 in poi | 0,0-0,6 | 0,1-0,9 | 0,0-0,8 | 1,0-3,9 |
+
+E lo spostamento VERO medio per squadra da un giro al successivo, dal terzo in poi: 0-1,2 posti sulla Serie A
+(0-0,6 su FA-nmf-iwo, fermo del tutto dal 20° giro), 0,1-1,7 su EuroLeghe. Quindi sulla Serie A a 10 la regola descrive il tavolo; su EuroLeghe a 14 semplifica di
+più (lì il prezzo sposta ancora ~2 posti su 14 per tutto il draft), detto e non nascosto.
+
+**Nell'app** (`auction-plan.ORDER_SETTLES_AFTER` = 2, `settledAfter`, `ourTurnPin`, `pinnedCaller`): con l'ordine
+`default`, dalla NOSTRA terza scelta in poi il turno dopo arriva quando ogni rivale con scelte rimaste ha chiamato
+una volta, qualunque FVM si prenda; le prime due scelte restano sulla regola della piattaforma (lì il prezzo
+sposta davvero). Mai sul serpentone. Vale ovunque si cammini fino al nostro turno: i consigli (`chainFrom`, le
+attese «— 9 scelte →»), la colonna «+Giro» (`draft-turn.goneUpTo` con `TurnSettle`: un turno consolidato aggiunge
+`rivali` chiamate al punto in cui cadeva quello prima), chi sparisce prima del nostro turno (`takenBeforeOurTurn`,
+`goneBeforeOurNextTurn`, quindi anche lo sconto del sopravvissuto), le probabilità umane (`rival-odds`) e il k di
+RAR nella DP (`picksBefore`). Fuori dal nostro turno serve sapere chi ha già chiamato dopo di noi:
+`PlanTeam.lastPickAt` (indice dell'ultima scelta, dalla storia del tavolo). L'ordine FRA i rivali resta quello
+della piattaforma. Non toccati, perché rispondono a una domanda letterale sulla regola: la freccetta «dove
+finisce la squadra» e il filtro «fino al N°».
+
+**Cosa cambia sui tre draft veri di Serie A**, rigiocati sulla pagina (build con la regola contro build con
+`ORDER_SETTLES_AFTER` = 99, che al nostro turno è HEAD; finto host, cursore di revisione sui nostri turni):
+- **FA-j3h-89r** (la sua squadra, scelte 2ª-5ª): le attese dei piani dalla 3ª scelta leggevano 7-11 e ora 9; la
+  top 10 di «+Giro» e le prime scelte dei tre piani sono **identiche** alla 3ª, 4ª e 5ª scelta. Su quel tavolo il
+  prezzo dal terzo giro già non spostava il turno: è la sua osservazione, in numeri. Alla 2ª scelta cambiano solo
+  le attese dei passi dopo, e Osmajic (FVM 40) scende dal 4° all'8° posto di «+Giro».
+- **FA-610-2ih** (squadra host): alla 3ª scelta escono dalla top 10 di «+Giro» tre economici (Da Cunha 60,
+  Ekkelenkamp 64, Mancini 54), Pavlovic (50) e Zielinski (41) perdono 4 punti e McTominay (112) sale dall'8° al
+  4°; alla 2ª scelta il primo piano diventa Bremer invece di Pulisic (+112 contro +110: entro il rumore); alla 4ª
+  identico; alla 5ª cambiano i piani 2 e 3.
+- **FA-nmf-iwo** (squadra host, scelte 2ª-5ª): è il caso più netto. Alla 5ª scelta (la 48ª del draft) la regola
+  vecchia metteva in cima a «+Giro» tre economici a pari merito (Pavlovic 50, Romero D. 44, Osmajic 40, +170) e
+  apriva il primo piano con Martinez Jo.; ora in cima c'è **Barella** (81, +177) e il primo piano parte da lui. Lì
+  fu preso Rowe (35), Barella alla 78ª. Alla 3ª scelta il primo piano passa da Pavlovic a Martinez Jo., alla 4ª
+  cambiano i piani 2 e 3, alla 2ª solo le attese.
+
+L'effetto è piccolo, nella direzione chiesta: toglie il premio residuo a chi costa poco, che stava soprattutto nei
+passi lontani delle catene e alla seconda scelta, e in un caso su tre draft cambia il consiglio in testa. **Non misurato sul banco del draft**: `windows.json` si rigenera
+dal DB e su questa macchina il DB non c'è. **Aperto**: il banco, e il verdetto su EuroLeghe (dove l'ordine resta
+più mobile).
+
+Verifica: 1400 test app (6 nuovi: la controprova con `ORDER_SETTLES_AFTER` = 99 fa cadere 5 di quei 6 e nessun
+altro; il sesto, «niente perno finché la nostra chiamata del giro è ancora da fare», è vero in tutti e due i casi);
+`ng build` pulito; `e2e-draft` 5 problemi, tutti già noti (§43: colori della Fm ×2, larghezze e ordine delle
+colonne delle medie; §36: «più titolari suggeriti che posti vuoti»). Il banco moriva su «nothing to click» al filtro
+posizione quando l'estrazione della demo chiede «fino al 9°/10°» (l'intermittente del §44): l'opzione stava sotto
+la piega del menu. Ora la si porta in vista prima del click, e un filtro che non si accende si dice invece di
+far morire il banco. `e2e-draft-classic` sul draft vero FA-j3h-89r (25 turni della sua squadra): nessun problema;
+222 previsioni «prima di te» su 25 turni, uscite davvero il 34,2% contro il 24,8% del null «i più cari», e il
+numero di chiamate prima del nostro turno sbagliato in 3 finestre su 25.
+
+## 46. I draft veri come casi di studio (08/10/2026)
+
+Sua richiesta: «aggiungi anche FA-nmf-iwo tra i draft da avere come caso di studio». L'elenco ora sta in un file,
+`toolkit/bench/draft/case-drafts.txt`, che `fetch-sessions.mjs` legge così com'è: su qualunque macchina
+`node fetch-sessions.mjs case-drafts.txt ../../../data/raw/draft-sessions` rimette i dump nella cartella di sempre
+(fuori da git: portano il listone). Solo sessioni FINITE: il codice di un'asta viva non va scritto in un repository
+pubblico.
+
+| codice | data | gioco | squadre | ordine | squadra «host» (id) | dove è usato |
+|---|---|---|---|---|---|---|
+| FA-nmf-iwo | 08/10/2026 | Serie A classic | 10 | default | 1 | §45 |
+| FA-j3h-89r | 06/10/2026 | Serie A classic (listone custom) | 10 | default | 0 | §44, §45 |
+| FA-610-2ih | 05/10/2026 | Serie A classic | 10 | default | 5 | §38-§39, §45 |
+| FA-lel-dfk | 24/09/2026 | EuroLeghe mantra | 14 | default | 6 | §35, §45 |
+
+**L'host cancella le sessioni dopo pochi giorni**, quindi un draft da tenere si scarica il giorno in cui lo si
+nomina. L'8 ottobre non rispondevano più FA-cdt-9q9, FA-blt-km4, FA-7xu-106, FL-7zz-d10 e FL-ixr-b6b (usati nel
+§35 e nel §40): i loro dump esistono solo nella `data/raw/draft-sessions/` della macchina che li ha scaricati il
+5 ottobre, e vanno copiati a mano se servono altrove. Prima ancora erano spariti FA-yei-458, FA-jo5-zai e FA-l1n-0pn.
+
+**FA-nmf-iwo in breve** (squadra host): Hojlund, Baturina, De Bruyne, Davis K., Rowe, Martinez Jo., Raimondo,
+Barella alle prime otto chiamate (posti 4, 16, 27, 37, 48, 56, 66, 78 del draft). L'ordine si è fermato presto:
+dal 3° giro le squadre si sono mosse in media di 0-0,6 posti a giro, e dal 20° di nessuno.

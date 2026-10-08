@@ -974,7 +974,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
-            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (l'FVM sposta il tuo turno solo nei primi 2 giri)">+Giro{{ arrow('turn') }}</span>
             <span
               class="sort text-center uppercase"
               data-sort="press"
@@ -1002,7 +1002,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
-            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (l'FVM sposta il tuo turno solo nei primi 2 giri)">+Giro{{ arrow('turn') }}</span>
             @for (which of seasonKeys; track which; let second = $last) {
               @for (metric of metrics; track metric.key; let first = $first) {
                 <span
@@ -1028,7 +1028,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
-            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (l'FVM sposta il tuo turno solo nei primi 2 giri)">+Giro{{ arrow('turn') }}</span>
             @for (column of checkColumns; track column.key) {
               <!-- UN'ICONA PER COLONNA (sua richiesta, 04/10/2026: «occupano troppo spazio»): la stessa del pallino
                    sotto, accesa quando la lista e' ordinata su quella colonna; il nome e la regola nel suggerimento. -->
@@ -1057,7 +1057,7 @@
             <span class="sort text-right uppercase" data-sort="prio" (click)="sortBy('prio')" nz-tooltip [nzTooltipTitle]="prioHint()">{{ advice.priorityOn() ? 'DP' : 'Prio' }}{{ arrow('prio') }}</span>
             <span class="sort text-right uppercase" data-sort="rar" (click)="sortBy('rar')" nz-tooltip nzTooltipTitle="Svincolati del suo ruolo che aggiungono alla tua rosa quanto lui o di più (+Rosa; oltre 10, in %)">RAR{{ arrow('rar') }}</span>
             <span class="sort text-right" data-sort="added" (click)="sortBy('added')" nz-tooltip nzTooltipTitle="Quanto aggiunge alla tua rosa: copertura (% dell'intera rosa) e fertilità (centesimi a giornata)">+Rosa{{ arrow('added') }}</span>
-            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (il suo FVM e l'ordine di chiamata decidono chi resta)">+Giro{{ arrow('turn') }}</span>
+            <span class="sort text-right" data-sort="turn" (click)="sortBy('turn')" nz-tooltip nzTooltipTitle="Il suo +Rosa più quello delle migliori scelte che ti resteranno nei prossimi 3 turni (l'FVM sposta il tuo turno solo nei primi 2 giri)">+Giro{{ arrow('turn') }}</span>
             <span class="sort text-center uppercase" data-sort="rung" nz-tooltip nzTooltipTitle="Il gradino del motore, non della stampa" (click)="sortBy('rung')"
               >Gradino{{ arrow('rung') }}</span
             >

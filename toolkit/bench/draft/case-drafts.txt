@@ -1,0 +1,16 @@
+# The REAL drafts kept as case studies (operator, 08/10/2026: «aggiungi anche FA-nmf-iwo tra i draft da avere come
+# caso di studio»). Finished sessions only: a live one's code is never written here, the repository is public.
+# Fetch them read-only into the gitignored folder with:
+#   node fetch-sessions.mjs case-drafts.txt ../../../data/raw/draft-sessions
+# The host deletes sessions after some days: a draft worth keeping is fetched the day it is named.
+# What each one is and what it taught: docs/model/priorita-draft-v1.md §46.
+
+FA-nmf-iwo   # 08/10/2026 Serie A classic, 10 squadre, ordine default
+FA-j3h-89r   # 06/10/2026 Serie A classic, 10 squadre, ordine default (§44)
+FA-610-2ih   # 05/10/2026 Serie A classic, 10 squadre, ordine default (§38-§39)
+FA-lel-dfk   # 24/09/2026 EuroLeghe mantra, 14 squadre, ordine default (§35, §45)
+
+# Gone from the server on 08/10/2026, dumped on 05/10 on the machine that ran §40 (its data/raw/draft-sessions):
+#   FA-cdt-9q9 (EuroLeghe mantra), FA-blt-km4 and FA-7xu-106 (Serie A mantra), FL-7zz-d10 and FL-ixr-b6b (local, classic,
+#   no listone). Gone before 05/10: FA-yei-458 (classic, snake), FA-jo5-zai (EuroLeghe mantra), FA-l1n-0pn (classic, by
+#   department).

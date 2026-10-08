@@ -283,6 +283,20 @@ describe('the new Draft Priority: SeSw, RAR and the rationing (30/09/2026)', () 
     expect(k(1)).toBe(2 + 0);
     expect(k(60)).toBe(2 + 3);
   });
+
+  it('from our third pick the order has settled: k is one call of every rival, whatever he costs (08/10/2026)', () => {
+    const two = { picksCount: 2, rosterValue: 100 };
+    const me = { ...team(0), ...two };
+    const rivals = [{ ...team(1), ...two }, { ...team(2), ...two }, { ...team(3), picksCount: 3, rosterValue: 150 }];
+    const pool = [man('pc', 7, 0.9, 40), man('pc', 7, 0.9, 1)].map(asPlan);
+    const k = picksBefore(me, [me, ...rivals], pool, 12);
+    expect(k(1)).toBe(3);
+    expect(k(400)).toBe(3);
+    // One pick fewer and the price still moves us: the second round's pick decides where the third one falls.
+    const early = picksBefore({ ...me, picksCount: 1 }, [{ ...me, picksCount: 1 },
+      ...rivals.map((one) => ({ ...one, picksCount: one.picksCount - 1 }))], pool, 12);
+    expect(early(1)).not.toBe(early(400));
+  });
 });
 
 describe('Z and R by price inside the role (01/10/2026)', () => {

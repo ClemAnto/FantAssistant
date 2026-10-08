@@ -23,6 +23,7 @@
 
 import { MantraModules, slotShares } from './auction-value';
 import { Line, PickCap, PickOrderType, PlanPlayer, PlanTeam, ahead, capBlocks, isKeeperSlot, lineOf, needFor, roleFull,
+  settledAfter,
 } from './auction-plan';
 import { Rarity, RarityMan, rarity } from './draft-rarity';
 
@@ -454,6 +455,12 @@ export interface PriorityParts {
 export function picksBefore(team: PlanTeam, teams: readonly PlanTeam[], pool: readonly PlanPlayer[], rounds: number,
   orderType: PickOrderType = 'default'): (price: number) => number {
   const others = teams.filter((one) => one.id !== team.id);
+  // ONCE THE ORDER HAS SETTLED (`ORDER_SETTLES_AFTER`, operator 08/10/2026) the price moves nobody either: every other
+  // squad with picks left calls once before our next turn.
+  if (settledAfter(team.picksCount, orderType)) {
+    const calls = others.filter((one) => one.picksCount < rounds).length;
+    return () => Math.max(1, calls);
+  }
   const rest = others.filter((one) => one.picksCount === team.picksCount && one.picksCount < rounds);
   // ON A SNAKE the price moves nobody: the next round is the first round's order in the other direction, so k is
   // the rest of this round plus whoever the reversed order puts before us - the same for every man.

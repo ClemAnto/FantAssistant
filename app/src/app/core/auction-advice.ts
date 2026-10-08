@@ -1739,6 +1739,8 @@ export class AuctionAdvice {
         // The DEFAULT rule reaches this only on a full tie, and the published order stands in for the host's draw;
         // a SNAKE reads it on every pick, so there it must be the first round's real order.
         firstRoundIndex: Math.max(0, (snake ? firstRound : order).indexOf(team.id)),
+        // Who has called since our last pick, once the order has settled (`ORDER_SETTLES_AFTER`).
+        ...(team.squad.length ? { lastPickAt: Math.max(...team.squad.map((entry) => entry.index)) } : {}),
         // The classic quotas, keepers included: a pick over them is one the host refuses.
         ...(quotas ? { limits: { ...quotas, por: keeperCap } } : {}),
       })) as PlanTeam[],
@@ -2062,6 +2064,7 @@ export class AuctionAdvice {
       men, steps: horizon.steps, myTurns: horizon.myTurns,
       orderType: input.orderType === 'pingpong' ? 'pingpong' : 'default',
       myValue: me.rosterValue,
+      settle: { picksBefore: me.picksCount, nowAt: horizon.nowAt, rivals: horizon.rivals },
       picksLeft: rounds - me.picksCount,
       canPick, canPickFirst, exactOn,
     });

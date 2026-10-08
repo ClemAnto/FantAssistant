@@ -3,14 +3,16 @@
  * carry the listone - paid content - so they go to a gitignored folder and never into the repository.
  *
  *   node fetch-sessions.mjs CODES.txt ../../../data/raw/draft-sessions
+ *   node fetch-sessions.mjs case-drafts.txt ../../../data/raw/draft-sessions   (the case-study drafts, 08/10/2026)
  *
- * CODES.txt: session codes separated by spaces or new lines. A code the server no longer has answers null and is skipped.
+ * CODES.txt: session codes separated by spaces or new lines; `#` starts a comment. A code the server no longer has
+ * answers null and is skipped.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 const KEY = 'AIzaSyAji5aMonqYhjfCnHU6YW4TgwOIh8x302Y';
 const DB = 'https://leghe-fantagazzetta-app.firebaseio.com';
 const [codesFile, outDir] = process.argv.slice(2);
-const codes = readFileSync(codesFile, 'utf8').split(/\s+/).filter(Boolean)
+const codes = readFileSync(codesFile, 'utf8').replace(/#.*$/gm, '').split(/\s+/).filter(Boolean)
   .filter((c) => !/xxx|abc|aaa|zzz|ghi/.test(c))
   .map((c) => `${c.slice(0, 2).toUpperCase()}-${c.slice(3).toLowerCase()}`);
 const token = (await (await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${KEY}`, {

@@ -1059,6 +1059,9 @@ async function main() {
     const option = await evaluate(session, (wanted) => {
       const one = [...document.querySelectorAll('.ant-select-item-option')].find((item) => (item.innerText ?? '').trim() === wanted);
       if (!one) return null;
+      // The list scrolls inside its dropdown: «fino al 9°/10°» sit below its fold, where a click lands on nothing
+      // (the intermittent of priorita-draft-v1.md §44, 08/10/2026). Bring it into the dropdown's view first.
+      one.scrollIntoView({ block: 'nearest' });
       const rect = one.getBoundingClientRect();
       return { x: Math.round(rect.left + rect.width / 2), y: Math.round(rect.top + rect.height / 2) };
     }, `fino al ${limit}°`);
@@ -1075,8 +1078,14 @@ async function main() {
         ...(!kept.places.length ? ['il filtro toglie anche chi ci sta'] : []),
         ...(kept.places.some((place) => !(place <= limit)) ? [`resta chi farebbe chiamare oltre il ${limit}°`] : []),
       ]);
-    await mouse(await evaluate(session, centre, '[data-position-filter] .ant-select-clear'));
-    await wait(600);
+    // A filter that never switched on has no cross to clear: say so instead of dying on the click.
+    const clearPlace = await evaluate(session, centre, '[data-position-filter] .ant-select-clear');
+    if (clearPlace) {
+      await mouse(clearPlace);
+      await wait(600);
+    } else {
+      note('filtro posizione', 'niente da azzerare', ['la crocetta del filtro non c\'e\': il filtro non si e\' acceso']);
+    }
 
     // 5a''. The FVM range: typed with the keyboard into the two boxes, both ends included.
     const typeInto = async (selector, text) => {

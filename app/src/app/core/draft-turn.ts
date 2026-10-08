@@ -12,7 +12,9 @@
  * how long each prefix is depends on the PRICES of the chain so far, by the platform's order rule
  * (`positionAfterSpending`'s own comparison): a dear pick sends us later in a `default` order in EVERY round
  * that follows, which is exactly the dependence the operator asked the column to carry. On a snake the order
- * ignores the price and the prefixes are positional, one for all.
+ * ignores the price and the prefixes are positional, one for all. And from our third pick the `default` order has
+ * SETTLED (`auction-plan.ORDER_SETTLES_AFTER`, operator 08/10/2026): our next turn comes after one call of every
+ * rival whatever we pay, so a cheap man no longer buys an earlier one.
  *
  * THE DECLARED APPROXIMATIONS, each one the machinery already makes elsewhere:
  *   - the rivals' picks do not change with OUR picks: the walk prices ours at zero, as `goneBeforeOurNextTurn`
@@ -36,7 +38,7 @@
  * twice is worse than either half (`docs/model/metrica-asta-surplus-v1.md` §18).
  */
 
-import type { HorizonStep } from './auction-plan';
+import { settledAfter, type HorizonStep } from './auction-plan';
 
 /** Our picks the score spans: the current one plus three future turns (operator, 06/10/2026; the bench's knee). */
 export const TURN_PICKS = 4;
@@ -74,6 +76,8 @@ export interface TurnInput {
   orderType?: 'default' | 'pingpong';
   /** Our roster value now: plus the chain's prices, it is what each later round's order reads. */
   myValue: number;
+  /** Where the order has settled and the price stops moving our turn; absent = the platform's rule throughout. */
+  settle?: TurnSettle;
   /** Our picks still to make, the current one included: the chain is at most this long. */
   picksLeft: number;
   /** Whether `candidate` may be the next pick of a chain that already took `taken`: quota, cap, the doors. */
@@ -91,10 +95,25 @@ export const SAME_GROUP_EXACT = 2;
 const scalar = (man: TurnMan): number | null => (man.fert == null ? null : man.fert + man.cover * 1e-3);
 
 /**
+ * WHERE THE ORDER HAS SETTLED (`auction-plan.ORDER_SETTLES_AFTER`): our picks so far, how many rival calls come
+ * before our current one and how many each settled turn waits. Absent = the platform's rule for every turn.
+ */
+export interface TurnSettle {
+  /** Our picks before the current one. */
+  picksBefore: number;
+  /** Rival calls before our current call (`HorizonWalk.nowAt`). */
+  nowAt: number;
+  /** Rivals with picks left: one call each before a settled turn (`HorizonWalk.rivals`). */
+  rivals: number;
+}
+
+/**
  * The rival calls that fall BEFORE our pick number `prices.length + 1`, given the chain spent `prices` so far,
  * and whom they take. On a snake the prefix is positional (`myTurns`: no price moves it); under the `default`
  * order every call of an EARLIER round precedes it, and a call of its own round only while the caller's
- * projected value stays under ours - strictly, the same comparison as `positionAfterSpending`, ties to us.
+ * projected value stays under ours - strictly, the same comparison as `positionAfterSpending`, ties to us. Once
+ * the order has settled (`settle`, from our third pick on) the price moves nothing: the turn after a settled pick
+ * comes after one call of every rival, counted from where the turn before it fell.
  */
 export function goneUpTo(
   steps: readonly HorizonStep[],
@@ -102,6 +121,7 @@ export function goneUpTo(
   orderType: 'default' | 'pingpong',
   myValue: number,
   prices: readonly number[],
+  settle: TurnSettle | null = null,
 ): { wait: number; gone: Set<number> } {
   const round = prices.length;
   const gone = new Set<number>();
@@ -109,6 +129,21 @@ export function goneUpTo(
   if (orderType === 'pingpong') {
     const upTo = myTurns[round - 1] ?? steps.length;
     for (const step of steps.slice(0, upTo)) {
+      wait += 1;
+      if (step.playerId != null) gone.add(step.playerId);
+    }
+    return { wait, gone };
+  }
+  if (settle && settledAfter(settle.picksBefore + round - 1)) {
+    // The calls before each turn are a prefix of the walk (a round's rivals call by value, cheapest first), so the
+    // settled turns add `rivals` calls to the prefix of the last turn the price still placed - or to our current call.
+    let upTo = settle.nowAt;
+    for (let turn = 1; turn <= round; turn += 1) {
+      upTo = settledAfter(settle.picksBefore + turn - 1)
+        ? upTo + settle.rivals
+        : goneUpTo(steps, myTurns, orderType, myValue, prices.slice(0, turn)).wait;
+    }
+    for (const step of steps.slice(0, Math.min(upTo, steps.length))) {
       wait += 1;
       if (step.playerId != null) gone.add(step.playerId);
     }
@@ -141,7 +176,7 @@ export function turnScores(input: TurnInput): Map<number, TurnScore> {
     let wait = 0;
     for (let turn = 1; turn < turns; turn += 1) {
       const { wait: calls, gone } = goneUpTo(input.steps, input.myTurns, orderType, input.myValue,
-        chain.map((man) => man.price));
+        chain.map((man) => man.price), input.settle ?? null);
       if (turn === 1) wait = calls;
       // Best first: the first legal survivor of a group the chain has NOT touched is the bar, and only the
       // used-group men ranked ABOVE it can beat it after the exact re-measure (the list is sorted).

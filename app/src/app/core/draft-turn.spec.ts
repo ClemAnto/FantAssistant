@@ -52,6 +52,19 @@ describe('goneUpTo', () => {
     expect(goneUpTo(STEPS, MY_TURNS, 'default', 0, [100, 330]).gone).toEqual(new Set([11, 12, 13, 14]));
   });
 
+  it('once the order has settled the price moves nothing: one call of every rival per turn (08/10/2026)', () => {
+    const settle = { picksBefore: 2, nowAt: 0, rivals: 2 };
+    expect(goneUpTo(STEPS, MY_TURNS, 'default', 0, [100], settle)).toEqual({ wait: 2, gone: new Set([11, 12]) });
+    expect(goneUpTo(STEPS, MY_TURNS, 'default', 0, [460], settle)).toEqual({ wait: 2, gone: new Set([11, 12]) });
+    expect(goneUpTo(STEPS, MY_TURNS, 'default', 0, [100, 330], settle)).toEqual({ wait: 4, gone: new Set([11, 12, 13]) });
+    // Off the clock the calls before our current one come first.
+    expect(goneUpTo(STEPS, MY_TURNS, 'default', 0, [100], { ...settle, nowAt: 1 }).gone).toEqual(new Set([11, 12, 13]));
+    // One pick earlier the second round's price still places us, and the settled turns count from there.
+    const early = { ...settle, picksBefore: 1 };
+    expect(goneUpTo(STEPS, MY_TURNS, 'default', 0, [460, 1], early).gone).toEqual(new Set([11, 12, 13, 14, 15]));
+    expect(goneUpTo(STEPS, MY_TURNS, 'default', 0, [100, 1], early).gone).toEqual(new Set([11, 12, 13]));
+  });
+
   it('on a snake reads the positional prefix of each turn: the prices move nothing', () => {
     expect(goneUpTo(STEPS, MY_TURNS, 'pingpong', 0, [1])).toEqual(goneUpTo(STEPS, MY_TURNS, 'pingpong', 0, [999]));
     expect(goneUpTo(STEPS, MY_TURNS, 'pingpong', 0, [1])).toEqual({ wait: 2, gone: new Set([11, 12]) });
@@ -101,6 +114,20 @@ describe('turnScores', () => {
     expect(out.get(1)!.picks.map((pick) => pick.id)).toEqual([14, 16, 99]);
     expect(out.get(1)!.score).toBeCloseTo(0.3 + 0.2 + 0.15 + 0.05, 9);
     expect(out.get(1)!.wait).toBeGreaterThan(out.get(2)!.wait);
+  });
+
+  it('once the order has settled a dear pick waits as long as a cheap one, and the best man wins (08/10/2026)', () => {
+    const dear = man(1, { group: 'dc', fert: 0.3, price: 500 });
+    const cheap = man(2, { group: 'dc', fert: 0.29, price: 10 });
+    const next1 = man(13, { group: 'pc', fert: 0.25 });
+    const next2 = man(14, { group: 'w', fert: 0.2 });
+    const next3 = man(16, { group: 'm', fert: 0.15 });
+    const out = turnScores(input({
+      men: [dear, cheap, next1, next2, next3], settle: { picksBefore: 2, nowAt: 0, rivals: 2 },
+    }));
+    expect(out.get(1)!.picks.map((pick) => pick.id)).toEqual([13, 14, 16]);
+    expect(out.get(1)!.wait).toBe(out.get(2)!.wait);
+    expect(out.get(1)!.score).toBeGreaterThan(out.get(2)!.score);
   });
 
   it('re-measures ONLY the used-group tops that would otherwise win, on the pitch with the chain', () => {

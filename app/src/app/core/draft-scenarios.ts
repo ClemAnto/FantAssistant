@@ -363,7 +363,9 @@ function needTaken(roster: readonly PriorityMan[], man: PriorityMan | null, diag
 /**
  * THE CHAIN FROM A GIVEN FIRST PICK: the rivals calling before us in this round call first (they would anyway),
  * then we take `first`, then the rivals until our next pick - the order after `first` is decided by the FVM he
- * adds, which is the whole point - and then the move left that gives the squad most (`movesFor`).
+ * adds, which is the whole point, until the order settles (`ORDER_SETTLES_AFTER`: from our third pick the next turn
+ * comes after one call of every rival, whatever he cost) - and then the move left that gives the squad most
+ * (`movesFor`).
  */
 export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNeed | null,
   avoid: ReadonlySet<number> | null = null): Scenario | null {
@@ -408,7 +410,7 @@ export function chainFrom(input: ScenarioInput, first: PlanPlayer, need: PlaceNe
     const walked = { ...input, rounds: input.calls.rounds };
     while (2 + later.length < CHAIN_TURNS && me.picksCount < input.calls.rounds) {
       const goneBefore = walk.gone.size;
-      walkToOurTurn(walked, board, walk);
+      walkToOurTurn(walked, board, walk, true);
       const waited = walk.gone.size - goneBefore;
       me = board.get(input.mineId)!;
       if (me.picksCount >= input.calls.rounds) break;
@@ -566,7 +568,7 @@ function walkPast(input: ScenarioInput, first: PlanPlayer, onWait: ((team: PlanT
   const mine = take(teams.get(input.mineId)!, first);
   teams.set(input.mineId, mine);
   walk.hooks.onCall = onWait;
-  const after = walkToOurTurn(walked, teams, walk);
+  const after = walkToOurTurn(walked, teams, walk, true);
   return { walk, before, mine, after, teams };
 }
 
@@ -666,7 +668,8 @@ export const CHAIN_TURNS = 4;
  * the most urgent first», which opened every draft on the empty door): the best first moves by squad gain become
  * chains, and the chains are ranked by what the squad gains over BOTH picks. That is where the price enters, with
  * no weight of ours: a cheap first pick keeps us early in the order, so the wait is shorter and the second pick
- * better - «un calciatore che porti tanti bonus a poco prezzo» wins when the second pick says so.
+ * better - «un calciatore che porti tanti bonus a poco prezzo» wins when the second pick says so. Only in the first
+ * two rounds: after them the order has settled (`ORDER_SETTLES_AFTER`) and every first pick waits the same.
  */
 export function scenarios(input: ScenarioInput, count = 3): { diagnosis: Diagnosis | null; list: Scenario[] } {
   const me = input.teams.find((team) => team.id === input.mineId);

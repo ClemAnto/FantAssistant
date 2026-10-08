@@ -29,6 +29,9 @@ import {
   nextCaller,
   roleFull,
   startingPlaces,
+  ORDER_SETTLES_AFTER,
+  ourTurnPin,
+  settledAfter,
 } from './auction-plan';
 
 /** Two shapes, cut to the bone: enough to give `dc` two places and `ds` one. */
@@ -621,6 +624,55 @@ describe('takenBeforeOurTurn (operator, 29/09/2026)', () => {
   it('when we are on the clock, is the set our advice waits out (goneBeforeOurNextTurn)', () => {
     const input = { ...base, teams: [team(0), team(1), team(2)], order: [0, 1, 2], mineId: 0 };
     expect(new Set(takenBeforeOurTurn(input).keys())).toEqual(goneBeforeOurNextTurn(input));
+  });
+});
+
+/**
+ * THE ORDER SETTLES AFTER TWO ROUNDS (operator, 08/10/2026: «dopo 2 giri ... la prossima scelta si farà dopo 9 turni»):
+ * under the `default` order, from our third pick our next turn comes after one call of every rival, whatever we pay.
+ */
+describe('ORDER_SETTLES_AFTER', () => {
+  const places = startingPlaces(SHAPES);
+  const pool = [player(1, 'pc', 300), player(2, 'dc', 200), player(3, 'dc', 100), player(4, 'pc', 50),
+    player(5, 'pc', 40), player(6, 'dc', 30)];
+  const base = { pool, places, keeperCap: 3, maxAheadPicks: 1, rounds: 25 };
+  // We are the LAST of this round, on the clock; the rivals paid big this round and passed our zero-priced value, so
+  // the platform's rule would hand us the first call of the next round too: back to back.
+  const table = (picks: number) => [
+    team(0, { picksCount: picks, rosterValue: 130 }),
+    team(1, { picksCount: picks + 1, rosterValue: 400 }),
+    team(2, { picksCount: picks + 1, rosterValue: 410 }),
+    team(3, { picksCount: picks + 1, rosterValue: 420 }),
+  ];
+
+  it('is the platform\'s rule for our first two picks, and one call of every rival from the third', () => {
+    expect(settledAfter(1)).toBe(false);
+    expect(settledAfter(ORDER_SETTLES_AFTER)).toBe(true);
+    expect(settledAfter(ORDER_SETTLES_AFTER, 'pingpong')).toBe(false);
+    const early = goneBeforeOurNextTurn({ ...base, teams: table(1), order: [0, 1, 2, 3], mineId: 0 });
+    expect(early.size).toBe(0); // the rule still moves us: our second pick would follow at once
+    const settled = goneBeforeOurNextTurn({ ...base, teams: table(2), order: [0, 1, 2, 3], mineId: 0 });
+    expect(settled.size).toBe(3);
+  });
+
+  it('off the clock, counts the rivals that have already called since our pick (`lastPickAt`)', () => {
+    const teams = [
+      team(0, { picksCount: 3, rosterValue: 200, lastPickAt: 20 }),
+      team(1, { picksCount: 3, rosterValue: 100, lastPickAt: 21 }), // called after us
+      team(2, { picksCount: 2, rosterValue: 50, lastPickAt: 17 }), // on the clock
+      team(3, { picksCount: 3, rosterValue: 80, lastPickAt: 18 }), // called before us
+    ];
+    const pin = ourTurnPin(new Map(teams.map((one) => [one.id, one])), 0, 'default', false);
+    expect([...pin!.called]).toEqual([1]);
+    // 2 closes the round, 3 calls again; 1 already has: our turn. The rule alone would let 1 pass too (100 < 200).
+    const taken = takenBeforeOurTurn({ ...base, teams, order: [2, 0, 1, 3], mineId: 0 });
+    expect(taken.size).toBe(2);
+    expect(new Set(taken.values())).toEqual(new Set([2, 3]));
+  });
+
+  it('no pin while our call of the round being played is still to come: that order is already fixed', () => {
+    const teams = new Map([0, 1, 2].map((id) => [id, team(id, { picksCount: 3, lastPickAt: 10 + id })]));
+    expect(ourTurnPin(teams, 0, 'default', false)).toBeNull();
   });
 });
 

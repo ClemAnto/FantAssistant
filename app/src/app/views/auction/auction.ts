@@ -199,7 +199,8 @@ export interface FreeRow {
    * «+GIRO» (operator, 06/10/2026, four picks the same day): his +Rosa plus the +Rosa of the best men predicted
    * to STILL BE THERE at our next three turns once he is taken - the absolute order of «chi conviene scegliere
    * adesso», in hundredths per matchday over four picks (`AuctionAdvice.turnBy`). `next` names those men and
-   * `wait` counts the rival calls his own FVM puts before our second pick; `last` = our last pick, nothing
+   * `wait` counts the rival calls before our second pick (his FVM moves it only in the first two rounds,
+   * `auction-plan.ORDER_SETTLES_AFTER`); `last` = our last pick, nothing
    * follows. Null while I follow no squad or his own fertility is unknown.
    */
   turn: { score: number; text: string; next: { name: string; fert: number }[]; wait: number; last: boolean } | null;

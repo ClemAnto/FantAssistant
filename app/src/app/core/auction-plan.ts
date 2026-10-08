@@ -44,6 +44,12 @@ export interface PlanTeam {
   /** Position in the FIRST round, the permanent last-resort tie-break. */
   firstRoundIndex: number;
   /**
+   * The table's index of the squad's LATEST pick (`RawPick.index`); absent = no pick, or a squad the simulation made
+   * up. It says who has called since our last pick, which is where our next turn falls once the order has settled
+   * (`ORDER_SETTLES_AFTER`) and another squad is on the clock.
+   */
+  lastPickAt?: number;
+  /**
    * THE MOST MEN A SQUAD MAY HOLD PER LINE, where the game has a quota (30/09/2026): classic rosters 3/8/8/6 and a
    * ninth defender is a pick the host refuses, so a prediction or a pick that ignores it is one nobody can make
    * (on the invented classic table AUTO had 89 predicted picks refused in 12). Absent = no quota: mantra has
@@ -786,13 +792,71 @@ export function goneBeforeOurNextTurn(input: RivalWalkInput): Set<number> {
  * is full.
  */
 export function nextCaller(teams: Map<number, PlanTeam>, maxAheadPicks: number, rounds = Infinity,
-  orderType: PickOrderType = 'default'): PlanTeam | null {
+  orderType: PickOrderType = 'default', skip: number | null = null): PlanTeam | null {
   let best: PlanTeam | null = null;
   for (const team of teams.values()) {
-    if (team.picksCount >= rounds) continue;
+    if (team.picksCount >= rounds || team.id === skip) continue;
     if (!best || ahead(team, best, maxAheadPicks, orderType) < 0) best = team;
   }
   return best;
+}
+
+/**
+ * THE ORDER SETTLES AFTER TWO ROUNDS (operator, 08/10/2026: «dopo 2 giri l'ordine si consolida e non ha senso scegliere
+ * calciatori con FVM basso per migliorare il turno di scelta: bisogna prendere il meglio che c'è sapendo che la prossima
+ * scelta si farà dopo 9 turni (nel caso di 10 partecipanti)»). Under the `default` order, from our THIRD pick on, our
+ * next turn falls after one call of every other squad, whatever the pick costs: the price no longer buys a place, so no
+ * chain, column or priority may prefer a cheaper man to call earlier. Our first two picks keep the platform's rule,
+ * where the price really moves us. Never on a snake, which the price has never moved.
+ *
+ * A DECLARATION, checked against the three real `default` drafts at hand (read-only dumps, priorita-draft-v1.md §45):
+ * taking the dearest pickable man instead of the tenth dearest moves a squad in the next round by 4.1-5.5 places of 10
+ * in round 1, 2.2-2.8 in round 2, 1.5-1.8 in round 3, ~1 in round 4 and 0-0.9 from the sixth (Serie A classic,
+ * FA-610-2ih and FA-j3h-89r); from the third round the real order moved a squad by 0-1.2 places a round, on average.
+ * On the 14-squad EuroLeghe mantra draft FA-lel-dfk the same choice is worth 1-4 places of 14 all draft long: there
+ * the rule simplifies more.
+ */
+export const ORDER_SETTLES_AFTER = 2;
+
+/** Whether the turn after a pick made with `picksBefore` picks already in the squad is SETTLED (`ORDER_SETTLES_AFTER`). */
+export function settledAfter(picksBefore: number, orderType: PickOrderType = 'default'): boolean {
+  return orderType === 'default' && picksBefore >= ORDER_SETTLES_AFTER;
+}
+
+/** Our next turn once the order has settled: it comes when every rival with picks left has called once since ours. */
+export interface TurnPin {
+  /** The rivals that have called since our latest pick. */
+  called: Set<number>;
+}
+
+/**
+ * Our next turn's pin, or null where the platform's rule decides it. `justPicked`: the walk starts right after our
+ * own (simulated) pick. Otherwise another squad is on the clock, and the pin exists only between our pick of the round
+ * being played and the next one - while our call of this round is still to come, the round's order is already fixed by
+ * the squads' values and the rule reads it exactly - and only where the table says who has called since (`lastPickAt`).
+ */
+export function ourTurnPin(teams: Map<number, PlanTeam>, mineId: number, orderType: PickOrderType | undefined,
+  justPicked: boolean, rounds = Infinity): TurnPin | null {
+  const me = teams.get(mineId);
+  if (!me || !settledAfter(me.picksCount - 1, orderType)) return null;
+  if (justPicked) return { called: new Set() };
+  const rivals = [...teams.values()].filter((team) => team.id !== mineId && team.picksCount < rounds);
+  if (me.lastPickAt == null || !rivals.some((team) => team.picksCount < me.picksCount)) return null;
+  return { called: new Set(rivals.filter((team) => (team.lastPickAt ?? -1) > me.lastPickAt!).map((team) => team.id)) };
+}
+
+/**
+ * Who calls next with our turn pinned: the rival the platform's rule puts first, until each rival has called once
+ * since our pick (or one with more picks than ours would be next, which the rule already puts after us) - then us.
+ * Without a pin, the platform's rule. Record each rival call in `pin.called`.
+ */
+export function pinnedCaller(teams: Map<number, PlanTeam>, mineId: number, maxAheadPicks: number, rounds: number,
+  orderType: PickOrderType | undefined, pin: TurnPin | null): PlanTeam | null {
+  if (!pin) return nextCaller(teams, maxAheadPicks, rounds, orderType);
+  const me = teams.get(mineId);
+  const rival = nextCaller(teams, maxAheadPicks, rounds, orderType, mineId);
+  if (!me || me.picksCount >= rounds) return rival;
+  return rival && !pin.called.has(rival.id) && rival.picksCount <= me.picksCount ? rival : me;
 }
 
 export interface WalkStep {
@@ -805,19 +869,23 @@ export interface WalkStep {
 
 /**
  * The rivals call, one at a time by `nextCaller`, until it is our turn again. A rival with nobody to call still
- * spends his turn, or the walk would wait on him for ever.
+ * spends his turn, or the walk would wait on him for ever. `justPicked`: the walk starts right after our own pick,
+ * which is what decides whether our next turn is pinned (`ourTurnPin`, `ORDER_SETTLES_AFTER`).
  */
 export function walkToOurTurn(input: RivalWalkInput, teams: Map<number, PlanTeam>,
-  walk: ReturnType<typeof rivalWalker>): WalkStep[] {
+  walk: ReturnType<typeof rivalWalker>, justPicked = false): WalkStep[] {
   const steps: WalkStep[] = [];
+  const rounds = input.rounds ?? Infinity;
+  const pin = ourTurnPin(teams, input.mineId, input.orderType, justPicked, rounds);
   for (let guard = 0; guard < teams.size * 3; guard += 1) {
-    const caller = nextCaller(teams, input.maxAheadPicks, input.rounds, input.orderType);
+    const caller = pinnedCaller(teams, input.mineId, input.maxAheadPicks, rounds, input.orderType, pin);
     if (!caller || caller.id === input.mineId) break;
     const inRound = [...teams.values()].filter((team) => team.picksCount === caller.picksCount).length;
     const before = walk.gone.size;
     walk.step(caller.id, inRound);
     const chosen = walk.gone.size > before ? [...walk.gone.keys()][walk.gone.size - 1] : null;
     if (chosen === null) teams.set(caller.id, { ...caller, picksCount: caller.picksCount + 1 });
+    pin?.called.add(caller.id);
     steps.push({ teamId: caller.id, picksBefore: caller.picksCount, playerId: chosen });
   }
   return steps;
@@ -830,7 +898,7 @@ function rivalPicksAfterOurs(input: RivalWalkInput): Map<number, number> {
   if (!me) return new Map();
   teams.set(me.id, { ...me, picksCount: me.picksCount + 1, pickValues: [...me.pickValues, 0] });
   const walk = rivalWalker(input, teams);
-  walkToOurTurn(input, teams, walk);
+  walkToOurTurn(input, teams, walk, true);
   return walk.gone;
 }
 
@@ -849,7 +917,8 @@ export interface HorizonStep {
 /**
  * THE RIVALS' PREDICTED PICKS from our pick through their next `roundsAhead` rounds, in call order (the «+Giro»
  * column, 06/10/2026). How many of them fall before each of OUR next turns depends on what we spend along the
- * way - a dear pick sends us later under the `default` order, in EVERY round that follows - so the walk is made
+ * way - a dear pick sends us later under the `default` order, in EVERY round that follows, until the order settles
+ * (`ORDER_SETTLES_AFTER`: then every turn waits one call of each rival, `HorizonWalk.nowAt` + `rivals`) - so the walk is made
  * ONCE, past the latest places our turns can fall, and every candidate chain reads its own prefixes of it
  * (`draft-turn.goneUpTo`). Our turns are priced at zero and stepped over, exactly as `goneBeforeOurNextTurn`
  * declares of itself: the steps are knowable before we choose, and the rivals' order among themselves does not
@@ -858,22 +927,30 @@ export interface HorizonStep {
  * so a host with `maxAheadPicks` > 1 blurs it (none observed does); and the walk does not know whom OUR chain
  * takes, so a rival predicted onto one of our men really takes his next-best - second order, like our zero price.
  */
-export function rivalPicksHorizon(input: RivalWalkInput, roundsAhead = 1): { steps: HorizonStep[]; myTurns: number[] } {
+export function rivalPicksHorizon(input: RivalWalkInput, roundsAhead = 1): HorizonWalk {
   const teams = new Map(input.teams.map((team) => [team.id, team]));
   const me = teams.get(input.mineId);
-  if (!me) return { steps: [], myTurns: [] };
+  if (!me) return { steps: [], myTurns: [], nowAt: 0, rivals: 0 };
   const myRound = me.picksCount;
-  teams.set(me.id, { ...me, picksCount: myRound + 1, pickValues: [...me.pickValues, 0] });
+  const rounds = input.rounds ?? Infinity;
+  const rivals = [...teams.values()].filter((team) => team.id !== me.id && team.picksCount < rounds).length;
   const walk = rivalWalker(input, teams);
   const steps: HorizonStep[] = [];
   const myTurns: number[] = [];
-  for (let guard = 0; guard < teams.size * (roundsAhead + 3); guard += 1) {
-    const caller = nextCaller(teams, input.maxAheadPicks, input.rounds, input.orderType);
+  // Our CURRENT call is walked too, so the steps say how many rival calls come before it (`nowAt`): the base a
+  // settled turn counts from. The rivals' calls do not depend on where ours fall - their order among themselves
+  // never reads our value, and our turns take nobody.
+  let nowAt: number | null = null;
+  let pin = ourTurnPin(teams, me.id, input.orderType, false, rounds);
+  for (let guard = 0; guard < teams.size * (roundsAhead + 4); guard += 1) {
+    const caller = pinnedCaller(teams, me.id, input.maxAheadPicks, rounds, input.orderType, pin);
     // Past everybody's pick of the last round watched: nothing beyond can precede any of our turns.
     if (!caller || caller.picksCount > myRound + roundsAhead) break;
     if (caller.id === input.mineId) {
-      myTurns.push(steps.length);
+      if (nowAt === null) nowAt = steps.length;
+      else myTurns.push(steps.length);
       teams.set(caller.id, { ...caller, picksCount: caller.picksCount + 1, pickValues: [...caller.pickValues, 0] });
+      pin = ourTurnPin(teams, me.id, input.orderType, true, rounds);
       continue;
     }
     const inRound = [...teams.values()].filter((team) => team.picksCount === caller.picksCount).length;
@@ -881,11 +958,23 @@ export function rivalPicksHorizon(input: RivalWalkInput, roundsAhead = 1): { ste
     walk.step(caller.id, inRound);
     const chosen = walk.gone.size > before ? [...walk.gone.keys()][walk.gone.size - 1] : null;
     if (chosen === null) teams.set(caller.id, { ...caller, picksCount: caller.picksCount + 1 });
+    pin?.called.add(caller.id);
     const round = Math.max(0, caller.picksCount - myRound);
     steps.push({ playerId: chosen, round, value: round > 0 ? caller.rosterValue : null });
   }
   while (myTurns.length < roundsAhead) myTurns.push(steps.length);
-  return { steps, myTurns };
+  return { steps, myTurns, nowAt: nowAt ?? steps.length, rivals };
+}
+
+/** The «+Giro» walk (`rivalPicksHorizon`). */
+export interface HorizonWalk {
+  steps: HorizonStep[];
+  /** Where our zero-priced turn of each FUTURE round falls among the steps: the boundaries on a snake. */
+  myTurns: number[];
+  /** How many of the steps come before our CURRENT call: 0 when we are on the clock. */
+  nowAt: number;
+  /** The rivals with picks left: how many calls a settled turn waits (`ORDER_SETTLES_AFTER`). */
+  rivals: number;
 }
 
 /** One rival call after another on a shrinking pool: each predicted with his own head, as the round shows him. */
