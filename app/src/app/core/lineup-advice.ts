@@ -128,9 +128,30 @@ function rowsOf(places: ReturnType<typeof placesIn>, holders: (LineupMan | null)
     places.forEach((place, at) => {
       if (place.line === line) inLine.push({ line, slot: place.slot, man: holders[at] ?? null });
     });
-    if (inLine.length) rows.push({ line, places: inLine });
+    if (inLine.length) rows.push({ line, places: toTheFlanks(inLine) });
   }
   return rows;
+}
+
+/** A slot every option of which is a wide role (`E`, `W`, `E/W`): it has no side of its own, but a flank. */
+function isWideSlot(slot: string): boolean {
+  return slot.split('/').every((code) => code === 'E' || code === 'W');
+}
+
+/**
+ * THE WIDE PLACES GO TO THE TOUCHLINES (operator, 09/10/2026: «E/W e W devono essere ai lati del campo e non
+ * centrali»). The rulebook writes some lines in no side order (`4-1-4-1` has `C/T, T, E/W, W`), so the
+ * drawing moves the wide slots to the two ends, alternating, and keeps the central ones in the rulebook's
+ * order between them. Sided slots (`DD`, `DS`) are not touched: their order already is the side.
+ */
+export function toTheFlanks(row: LineupPlace[]): LineupPlace[] {
+  const wide = row.filter((place) => isWideSlot(place.slot));
+  if (!wide.length || wide.length === row.length) return row;
+  const left: LineupPlace[] = [];
+  const right: LineupPlace[] = [];
+  wide.forEach((place, at) => (at % 2 === 0 ? left.push(place) : right.unshift(place)));
+  if (wide.length === 1) return [...row.filter((place) => !isWideSlot(place.slot)), ...left];
+  return [...left, ...row.filter((place) => !isWideSlot(place.slot)), ...right];
 }
 
 /** The role a man counts as on a classic bench (`P`/`D`/`C`/`A`), or `Por` vs outfield on mantra. */

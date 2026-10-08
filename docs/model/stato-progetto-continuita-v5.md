@@ -198,6 +198,16 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 9 ottobre 2026 (XXIII): la tabella della Formazione ritoccata e la formula dell'FVA
+
+Sola app, `engine_*` fermo. Sulla pagina LINEUP (`views/lineup/`): riquadro della giornata collassabile,
+colonna Partita col club del calciatore in grassetto al posto di «casa/fuori», colonna Tit tolta, colonne
+Trend (`ui-vote-trend`) e G:A (`seasonTotals`, stagione in corso), selettore di QUALSIASI modulo con la FMA
+totale di ognuno e il migliore evidenziato, e i posti `E`/`W` disegnati sulle fasce (`toTheFlanks`, con
+test). Build pulito, **1438 test app verdi**; non guardata in un browser (serve il collegamento a Leghe).
+L'**FVA** è PROPOSTA e non implementata: formula e decisioni dell'operatore in
+`formazione-leghe-v1.md` §4-quater, il seguito in §5 punto 0-ter.
+
 ## CHIUSURA — 9 ottobre 2026 (XXII): LINEUP, il primo consiglio e le quote dei bookmaker
 
 Tre richieste dell'operatore sulla pagina della formazione, tutte fatte e verificate dal vivo sul suo account:

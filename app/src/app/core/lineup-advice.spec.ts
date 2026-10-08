@@ -10,6 +10,7 @@ import {
   benchOf,
   drawSent,
   rulebookName,
+  toTheFlanks,
   voteChance,
 } from './lineup-advice';
 
@@ -122,5 +123,19 @@ describe('drawSent', () => {
     expect(plan.module).toBe('4-4-2');
     expect(plan.placed).toBe(11);
     expect(plan.bench.map((m) => m.id)).toEqual([subA.id, subD.id]);
+  });
+});
+
+describe('toTheFlanks', () => {
+  const row = (...slots: string[]) => slots.map((slot) => ({ line: 'T' as const, slot, man: null }));
+  const slots = (places: { slot: string }[]) => places.map((p) => p.slot);
+
+  it('sends the wide places of a 4-1-4-1 to the two touchlines', () => {
+    expect(slots(toTheFlanks(row('C/T', 'T', 'E/W', 'W')))).toEqual(['E/W', 'C/T', 'T', 'W']);
+  });
+
+  it('leaves sided and all-central lines as the rulebook writes them', () => {
+    expect(slots(toTheFlanks(row('DD', 'DC', 'DC', 'DS')))).toEqual(['DD', 'DC', 'DC', 'DS']);
+    expect(slots(toTheFlanks(row('E', 'M', 'C', 'E')))).toEqual(['E', 'M', 'C', 'E']);
   });
 });

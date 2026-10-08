@@ -204,6 +204,52 @@ tutte le 27 partite Leghe sulla partita giusta e tutte le quote dentro tre giorn
 Quindi **se il server di Google passa non si sa finché non si prova**: `oddsProbe()` è la prima cosa da
 lanciare. E a 1,5 secondi fra le pagine l'ultima lega di una passata viene rifiutata: la pausa è 3 s.
 
+## §4-quater. La tabella e il campo, ritoccati, e la formula dell'FVA (09/10/2026)
+
+Sette richieste dell'operatore sulla pagina, tutte di app e nessuna di motore (`engine_*` fermo,
+nessun `SHEET_REVISION`).
+
+- **Il riquadro della giornata si piega** come quello delle regole: parte aperto, e da chiuso tiene a
+  schermo la giornata e la chiusura, l'unica cosa che non deve sparire.
+- **Colonna Partita**: niente più «casa»/«fuori», la squadra del calciatore è in GRASSETTO - la partita
+  è scritta con la squadra di casa per prima, quindi il grassetto dice anche il campo. Se Leghe non dice
+  il campo, nessuna delle due è in grassetto.
+- **Colonna Tit tolta** (con il suo ordinamento): la `percent` resta l'ingresso di «Voto».
+- **Due colonne nuove, ordinabili**: **Trend** (le ultime 5 del suo club, `ui-vote-trend`, lo stesso
+  disegno della Strategia, da `recentVotes` del foglio) e **G:A** (gol e assist di campionato della
+  stagione in corso, contati da `seasonTotals` come la card).
+- **Qualsiasi modulo** del regolamento è selezionabile per la consigliata (anche quelli che la lega non
+  ammette, marcati «non ammesso»), più «automatico». Ogni voce porta la **FMA totale** dei titolari che
+  schiererebbe (gli indisponibili esclusi), le voci sono ordinate per quella, e il **migliore** (più posti
+  coperti, poi FMA totale più alta) è evidenziato nell'elenco e accanto al selettore.
+  **Tensione detta**: l'automatico sceglie ancora sui PUNTI (P(voto) × FM) fra i soli ammessi, quindi può
+  non coincidere col «migliore» per FMA.
+- **I posti larghi stanno sulle fasce** (`toTheFlanks`, «E/W e W devono essere ai lati»): il regolamento
+  scrive alcune righe senza ordine di lato (`4-1-4-1` porta `C/T, T, E/W, W`), quindi il DISEGNO manda gli
+  slot fatti solo di `E`/`W` agli estremi, alternati, e tiene i centrali nell'ordine del regolamento. Le
+  righe col lato nel nome (`DD … DS`) non si toccano. Il limite: `E`/`W` non dicono quale lato, quindi il
+  primo va a sinistra dello schermo.
+
+**L'FVA (Fanta Voto Atteso) è PROPOSTO e NON implementato**, a sostituire PT. La forma concordata per i
+giocatori di movimento, con le sue tre decisioni («la probabilità di prendere voto ci interessa poco»,
+«il minutaggio un contributo minimo, decisivo solo fra due situazioni simili», «le quote fotografano meglio
+la capacità di segnare in quella partita che non la fantamedia»):
+
+- **FVA = MV\* + G\* + A\***, cioè il fantavoto atteso SE GIOCA (niente P(voto) dentro);
+- `MV* = 6 + (MV − 6) × k + a × Δ`, con Δ lo scostamento della partita dalla media (la probabilità di porta
+  inviolata del calendario, che contiene Elo, forma su 10 partite e campo);
+- `G* = bonus gol × λ × k`, `λ = −ln(1 − p)` con `p` dalla quota marcatore senza margine; senza quota, i
+  suoi gol per presenza. La quota SOSTITUISCE la parte gol della fantamedia;
+- `A* = [(FM − MV) − parte gol storica] × (1 + b × Δ) × k` (assist, cartellini, il resto);
+- `k = 1 − 0,15 × (1 − minuti previsti / 90)`: al massimo −7% a 45', una SCELTA e non una misura;
+- `a`, `b` da MISURARE sui voti veri, a zero finché non lo sono; il TREND fuori dalla formula (la mano calda
+  misurata vale zero, e la stagione in corso è già nella fantamedia: R25/R28);
+- la quota marcatore si annulla se non gioca, quindi è già «se gioca» come l'FVA.
+
+**Portieri** (la sua domanda «il FVA per i portieri è giusto?», ed è stato detto che sul campo c'era ancora
+PT): `FVA = MV − λ` con `λ = −ln(p)` dalla quota porta inviolata, più `p × bonus` se la lega lo dà; senza
+quota, la fantamedia del foglio. Proposta, non decisa.
+
 ## §5. Aperti, in ordine
 
 0. **Quote (§4-ter): FATTO lato operatore** il 08-09/10/2026 - `odds.gs` incollato, `oddsProbe()` passa
@@ -217,6 +263,11 @@ lanciare. E a 1,5 secondi fra le pagine l'ultima lega di una passata viene rifiu
    `node scripts/gas/verify-odds.mjs <cartella con league.html e match*.html>`; verifica dal vivo:
    `node app/scripts/e2e-lineup-live.mjs <porta> [pacchetto-quote.json]` sotto `ng serve`.
 0-bis. **Push** dei commit `bde447f` e `b8ec932` (fatto solo il commit, su richiesta).
+0-ter. **FVA (§4-quater)**: aspetta il via dell'operatore. Proposta di consegna: colonna al posto di PT,
+   la consigliata che resta su PT finché l'FVA non è confrontata con PT sulle giornate già giocate; poi
+   misurare `a` e `b`; poi decidere se la consigliata passa all'FVA (P(voto) servirebbe ancora, ma solo per
+   scegliere chi schierare). Da decidere anche se l'automatico debba scegliere il modulo per FMA totale.
+   Le modifiche del 09/10 non sono state guardate in un browser (serve il collegamento a Leghe).
 1. **Pubblicare l'intermediario**: account Cloudflare dell'operatore (gratuito; che non chieda la carta lo
    dicono fonti non ufficiali), `npx wrangler deploy` da `app/proxy/` (comando nel file), poi incollare
    l'indirizzo nella pagina («Account»). Poi ripubblicare il sito (`npm run deploy:pages`) e verificarlo

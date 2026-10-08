@@ -15,7 +15,11 @@ import { LEGHE } from '../../core/leghe-api';
 import { NextMatchRow } from '../../core/leghe-matchday';
 import { moduleLabel, rulesSummary } from '../../core/leghe-rules';
 import { LegheSession, keyOf } from '../../core/leghe-session';
-import { LineupMan, LineupPlan, adviseLineup, drawSent, voteChance } from '../../core/lineup-advice';
+import { LineupMan, LineupPlan, adviseLineup, drawSent, rulebookName, voteChance } from '../../core/lineup-advice';
+import { bestEleven } from '../../core/mantra-legal';
+import { seasonTotals } from '../../core/player-card';
+import { TrendCell, trendVoteMean } from '../../core/player-trend';
+import { PlayersStore } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -23,6 +27,7 @@ import { LegheConnect } from '../../ui/leghe-connect/leghe-connect';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
+import { VoteTrend } from '../../ui/vote-trend/vote-trend';
 
 /** Role order on screen, the order a lineup is written in. */
 const ROLE_ORDER = ['P', 'Por', 'D', 'Dc', 'B', 'Dd', 'Ds', 'E', 'C', 'M', 'T', 'W', 'A', 'Pc'];
@@ -60,10 +65,14 @@ export interface RosterLine extends NextMatchRow {
   clubId: number | null;
   /** The bookmakers' price: to score for an outfield man, a clean sheet for a keeper. Null = not found. */
   odds: ManOdds | null;
+  /** His club's last five matches from the sheet (`desc_trend_detail`), drawn as `ui-vote-trend`. */
+  trend: readonly TrendCell[];
+  /** Goals and assists of this season's championship, as the player card counts them (`seasonTotals`). */
+  ga: { goals: number; assists: number } | null;
 }
 
 /** The roster table's sortable columns. */
-export type LineupSort = 'role' | 'name' | 'percent' | 'chance' | 'fm' | 'points' | 'odds' | 'advised';
+export type LineupSort = 'role' | 'name' | 'trend' | 'ga' | 'chance' | 'fm' | 'points' | 'odds' | 'advised';
 
 /** Two drawings of the same pitch: ours, or what Leghe already holds. */
 export type PitchSource = 'advised' | 'sent';
@@ -98,13 +107,14 @@ export type PitchSource = 'advised' | 'sent';
     PlayerFlags,
     RoleBadge,
     RoleSet,
+    VoteTrend,
   ],
   templateUrl: './lineup.html',
   styles: `
     /* ONE track list for the header and every row, so a column never drifts out of line. */
     .lineup-grid {
       display: grid;
-      grid-template-columns: 4.5rem minmax(0, 1fr) 6.5rem 2.5rem 2.5rem 2.75rem 2.25rem 3rem 4.75rem 4.75rem;
+      grid-template-columns: 4.5rem minmax(0, 1fr) 6.5rem 2rem 2.5rem 2.5rem 2.75rem 2.25rem 3rem 4.75rem 4.75rem;
       column-gap: 0.5rem;
     }
     .sort { cursor: pointer; user-select: none; }
@@ -115,18 +125,75 @@ export class Lineup {
   protected readonly store = inject(ValuationStore);
   private readonly bundle = inject(Bundle);
   protected readonly odds = inject(BookmakerOddsStore);
+  private readonly players = inject(PlayersStore);
   protected readonly connecting = signal(false);
 
   /** The league rules start FOLDED (operator, 08/10/2026: «mettili in un box collassabile»). */
   protected readonly rulesOpen = signal(false);
 
+  /** The matchday box folds too (operator, 09/10/2026: «rendilo collassabile»); the header keeps the
+   *  matchday and its deadline, which are the one thing that must stay on screen. */
+  protected readonly matchdayOpen = signal(true);
+
   protected readonly pitchSource = signal<PitchSource>('advised');
+
+  /**
+   * The module the ADVISED lineup is drawn in: null = the best of those the league allows; otherwise ANY module
+   * of the rulebook (operator, 09/10/2026: «dammi la possibilità di selezionare un qualsiasi modulo mantra»),
+   * the league's own list included or not - the options say which ones the league does not allow.
+   */
+  protected readonly chosenModule = signal<string | null>(null);
+
+  /** The chosen module if this league's rulebook has it (a league of the other game has other modules). */
+  protected readonly module = computed(() => {
+    const chosen = this.chosenModule();
+    return chosen && this.moduleOptions().some((o) => o.name === chosen) ? chosen : null;
+  });
+
+  /**
+   * The FMA total each module of the rulebook fields with this roster (operator, 09/10/2026: «evidenzia quale
+   * modulo risulta il migliore, quello dove i calciatori schierati producono una FMA totale maggiore»): the
+   * best legal eleven per module on the expected fantavoto, men Leghe marks unavailable left out.
+   */
+  private readonly moduleTotals = computed(() => {
+    const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
+    const scores = bestEleven(this.men(), book, (m) => (m.chance > 0 ? m.fm : null))?.scores ?? [];
+    return new Map(scores.map((one) => [one.module, one]));
+  });
+
+  /** The module with the highest FMA total, more men placed first: the one the selector highlights. */
+  protected readonly bestModule = computed(() => {
+    let best: { module: string; total: number; placed: number } | null = null;
+    for (const one of this.moduleTotals().values()) {
+      if (!best || one.placed > best.placed || (one.placed === best.placed && one.total > best.total)) best = one;
+    }
+    return best?.module ?? null;
+  });
+
+  /** Every module of the rulebook, best FMA total first, marked when the league does not allow it. */
+  protected readonly moduleOptions = computed(() => {
+    const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
+    const allowed = new Set((this.md()?.rules.modules ?? []).map(rulebookName));
+    const totals = this.moduleTotals();
+    const best = this.bestModule();
+    return Object.keys(book?.modules ?? {})
+      .map((name) => {
+        const score = totals.get(name);
+        const total = score ? score.total.toFixed(1) + (score.placed < 11 ? ` (${score.placed}/11)` : '') : '–';
+        const tags = [name === best ? '★ migliore' : '', allowed.size && !allowed.has(name) ? 'non ammesso' : '']
+          .filter(Boolean)
+          .join(' · ');
+        return { name, best: name === best, sort: score ? score.placed * 1000 + score.total : -1, label: `${name} · FMA ${total}${tags ? ' · ' + tags : ''}` };
+      })
+      .sort((x, y) => y.sort - x.sort);
+  });
   protected readonly sortKey = signal<LineupSort>('advised');
   protected readonly sortDesc = signal(false);
 
   constructor() {
     void this.store.load();
     this.odds.load();
+    void this.players.load();
   }
 
   /** The matchday read, or null while there is none (a resource in error throws on `value()`). */
@@ -295,7 +362,9 @@ export class Lineup {
     const md = this.md();
     const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
     if (!md || !book) return null;
-    return adviseLineup(this.men(), book, md.rules.modules, md.rules.bench, md.rules.game);
+    const chosen = this.module();
+    const modules = chosen ? [chosen] : md.rules.modules;
+    return adviseLineup(this.men(), book, modules, md.rules.bench, md.rules.game);
   });
 
   protected readonly sent = computed<LineupPlan | null>(() => {
@@ -329,6 +398,7 @@ export class Lineup {
     const advised = this.advised();
     const sent = this.sent();
     const rows = this.bundleRows();
+    const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
     const oddsByMan = joinOdds(this.odds.matches(), this.oddsMen());
     const lines: RosterLine[] = md.roster.map((r) => {
       const man = priced.get(r.fcId)!;
@@ -345,6 +415,8 @@ export class Lineup {
         clubName: own?.club ?? null,
         clubId: own?.clubId ?? null,
         odds: oddsByMan.get(r.fcId) ?? null,
+        trend: sheet?.get(r.fcId)?.recentVotes ?? [],
+        ga: gaOf(seasonTotals(this.players.matchesOf(r.fcId, this.platform(), this.store.targetSeason()))),
       };
     });
     const roleRank = (r: RosterLine) => {
@@ -359,8 +431,10 @@ export class Lineup {
           return roleRank(a) - roleRank(b);
         case 'name':
           return a.name.localeCompare(b.name);
-        case 'percent':
-          return num(b.percent) - num(a.percent);
+        case 'trend':
+          return num(trendVoteMean(b.trend)) - num(trendVoteMean(a.trend));
+        case 'ga':
+          return num(b.ga?.goals ?? null) - num(a.ga?.goals ?? null) || num(b.ga?.assists ?? null) - num(a.ga?.assists ?? null);
         case 'chance':
           return b.chance - a.chance;
         case 'fm':
@@ -417,4 +491,9 @@ export class Lineup {
     const league = this.session.leagues().find((l) => keyOf(l) === key);
     if (league) this.session.choose(league);
   }
+}
+
+/** The pair the table prints `3:1`; null when he has no championship match this season. */
+function gaOf(totals: { goals: number; assists: number } | null): { goals: number; assists: number } | null {
+  return totals ? { goals: totals.goals, assists: totals.assists } : null;
 }

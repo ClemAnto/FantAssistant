@@ -63,8 +63,15 @@
 
     @if (md(); as day) {
       <!-- THE MATCHDAY: when it closes, and what is at stake in each competition. -->
-      <section class="flex flex-col gap-2 rounded border border-border bg-surface p-3" data-lineup-matchday>
-        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <section class="rounded border border-border bg-surface" data-lineup-matchday [attr.data-open]="matchdayOpen() ? '' : null">
+        <button
+          type="button"
+          class="flex w-full flex-wrap items-baseline gap-x-4 gap-y-1 px-3 py-2 text-left"
+          [attr.aria-expanded]="matchdayOpen()"
+          (click)="matchdayOpen.set(!matchdayOpen())"
+          data-lineup-matchday-toggle
+        >
+          <nz-icon [nzType]="matchdayOpen() ? 'down' : 'right'" class="self-center text-xs text-muted" />
           <b>Giornata {{ day.status.matchday ?? '?' }}</b>
           @if (closes(); as c) {
             @if (c.past) {
@@ -73,27 +80,32 @@
               <span class="text-sm">Chiusura {{ c.when }} · {{ c.left }}</span>
             }
           }
-        </div>
-        <ul class="flex flex-col gap-1 text-sm">
-          @for (comp of competitionLines(); track comp.id) {
-            <li class="flex flex-wrap items-baseline gap-x-3" [class.text-muted]="!comp.active">
-              <b>{{ comp.name }}</b>
-              <span class="text-xs text-muted">{{ comp.type }}</span>
-              @if (!comp.active) {
-                <span class="text-xs">nessuna giornata in corso</span>
-              } @else {
-                @if (comp.opponent) {
-                  <span>contro <b>{{ comp.opponent }}</b> ({{ comp.venue }})</span>
-                }
-                @if (comp.sent) {
-                  <span class="text-xs text-muted">formazione inviata {{ comp.sent }}</span>
-                } @else {
-                  <span class="text-xs text-warning">formazione non ancora inviata</span>
-                }
-              }
-            </li>
+          @if (!matchdayOpen()) {
+            <span class="text-xs text-muted">{{ competitionLines().length }} competizioni</span>
           }
-        </ul>
+        </button>
+        @if (matchdayOpen()) {
+          <ul class="flex flex-col gap-1 px-3 pb-3 text-sm">
+            @for (comp of competitionLines(); track comp.id) {
+              <li class="flex flex-wrap items-baseline gap-x-3" [class.text-muted]="!comp.active">
+                <b>{{ comp.name }}</b>
+                <span class="text-xs text-muted">{{ comp.type }}</span>
+                @if (!comp.active) {
+                  <span class="text-xs">nessuna giornata in corso</span>
+                } @else {
+                  @if (comp.opponent) {
+                    <span>contro <b>{{ comp.opponent }}</b> ({{ comp.venue }})</span>
+                  }
+                  @if (comp.sent) {
+                    <span class="text-xs text-muted">formazione inviata {{ comp.sent }}</span>
+                  } @else {
+                    <span class="text-xs text-warning">formazione non ancora inviata</span>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        }
       </section>
 
       <!-- THE RULES, as Leghe serves them, FOLDED by default (operator, 08/10/2026: «mettili in un box
@@ -140,9 +152,8 @@
             <span class="sort" (click)="sortBy('role')">R{{ arrow('role') }}</span>
             <span class="sort" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
             <span>Partita</span>
-            <span class="sort text-right" (click)="sortBy('percent')" nz-tooltip nzTooltipTitle="Probabilità da titolare pubblicata da Leghe (fantacalcio.it)"
-              >Tit{{ arrow('percent') }}</span
-            >
+            <span class="sort" (click)="sortBy('trend')" nz-tooltip nzTooltipTitle="Voti delle ultime 5">Trend{{ arrow('trend') }}</span>
+            <span class="sort text-right" (click)="sortBy('ga')" nz-tooltip nzTooltipTitle="Gol:assist in campionato, stagione in corso">G:A{{ arrow('ga') }}</span>
             <span class="sort text-right" (click)="sortBy('chance')" nz-tooltip nzTooltipTitle="Probabilità di prendere il voto"
               >Voto{{ arrow('chance') }}</span
             >
@@ -177,8 +188,15 @@
                     <span nz-tooltip [nzTooltipTitle]="man.note" class="shrink-0 text-[10px] text-warning"><nz-icon nzType="info-circle" /></span>
                   }
                 </span>
-                <span class="truncate text-[10px] text-muted">{{ man.match }}{{ man.home === null ? '' : man.home ? ' · casa' : ' · fuori' }}</span>
-                <span class="text-right tabular-nums">{{ man.percent === null ? '–' : man.percent + '%' }}</span>
+                <!-- His own club in BOLD (operator, 09/10/2026), which also says home or away: the match
+                     is written home first, as Leghe serves it. -->
+                @let sides = man.match.split('-');
+                <span class="truncate text-[10px] text-muted"
+                  ><span [class.font-bold]="man.home === true" [class.text-fg]="man.home === true">{{ sides[0] }}</span
+                  >@if (sides.length > 1) {-<span [class.font-bold]="man.home === false" [class.text-fg]="man.home === false">{{ sides[1] }}</span>}</span
+                >
+                <ui-vote-trend [cells]="man.trend" [height]="10" />
+                <span class="text-right tabular-nums">{{ man.ga ? man.ga.goals + ':' + man.ga.assists : '–' }}</span>
                 <span class="text-right tabular-nums">{{ pct(man.chance) }}</span>
                 <span
                   class="text-right tabular-nums"
@@ -221,8 +239,31 @@
               <label nz-radio-button nzValue="advised" data-pitch-source="advised">Consigliata</label>
               <label nz-radio-button nzValue="sent" data-pitch-source="sent" [nzDisabled]="!sent()">Inviata</label>
             </nz-radio-group>
+            @if (pitchSource() === 'advised' && moduleOptions().length) {
+              <nz-select
+                nzSize="small"
+                class="w-64"
+                data-module-select
+                [ngModel]="module()"
+                (ngModelChange)="chosenModule.set($event)"
+              >
+                <nz-option [nzValue]="null" nzLabel="Modulo: automatico" />
+                @for (option of moduleOptions(); track option.name) {
+                  <nz-option nzCustomContent [nzValue]="option.name" [nzLabel]="option.label">
+                    <span [class.font-bold]="option.best" [class.text-primary]="option.best">{{ option.label }}</span>
+                  </nz-option>
+                }
+              </nz-select>
+              @if (bestModule(); as best) {
+                <span class="text-xs text-muted" nz-tooltip nzTooltipTitle="Modulo con la FMA totale più alta"
+                  >migliore: <b class="text-primary">{{ best }}</b></span
+                >
+              }
+            }
             @if (pitch(); as plan) {
-              <span data-module class="rounded-full border border-border px-2 py-0.5 text-xs font-semibold tabular-nums">{{ plan.module }}</span>
+              @if (pitchSource() === 'sent' || module() === null) {
+                <span data-module class="rounded-full border border-border px-2 py-0.5 text-xs font-semibold tabular-nums">{{ plan.module }}</span>
+              }
               <span class="ml-auto text-xs tabular-nums text-muted" nz-tooltip nzTooltipTitle="Somma dei punti attesi dei titolari"
                 >{{ plan.total | number: '1.1-1' }} punti attesi</span
               >
