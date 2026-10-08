@@ -1,5 +1,11 @@
 # 00 — BRIDGE · Punto d'ingresso del progetto (leggere per primo)
-**Aggiornato (VII): 1 ottobre 2026 (III) — IL GRADINO DELLA STAMPA ANCHE PER LA SERIE A, E UNA SCALA SOLA.** I 20 club
+**Aggiornato (VIII): 9 ottobre 2026 — LINEUP, IL PRIMO CONSIGLIO E LE QUOTE DEI BOOKMAKER.** La pagina della formazione
+si chiama LINEUP (tabella della rosa, campo, panchina, consiglio di primo taglio), mostra la quota gol e la porta
+inviolata prese da oddschecker.com/it dal foglio probabili (`scripts/gas/odds.gs`), e riconosce la partita che Leghe
+nomina dalle ROSE e non dalle sigle. In `stato-progetto-continuita-v5.md` (XXII) e `formazione-leghe-v1.md` §4-bis,
+§4-ter e §5. Commit non pushati.
+
+· precedente: **Aggiornato (VII): 1 ottobre 2026 (III) — IL GRADINO DELLA STAMPA ANCHE PER LA SERIE A, E UNA SCALA SOLA.** I 20 club
 del listone Serie A rilevati il 01/10 (534 acquistabili su 535), fusi per club con la rilevazione EuroLeghe del 28/09 in
 `config/press_rungs.json`; la stampa ora scrive le nostre parole (bandiera · titolare · ballottaggio · panchina ·
 riserva, + `scarto`), `titolarissimo` → `bandiera`, `comprimario` → `panchina` (misurato). In

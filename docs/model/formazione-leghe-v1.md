@@ -10,9 +10,13 @@ regole per inserire formazione/panchina e competizione». Pagina `/lineup` dell'
 2. le leghe sono **EuroLeghe Mantra e Leghe Classic**;
 3. **per il momento basta il consiglio**: niente scrittura della formazione su Leghe.
 
-Stato: **fase 1 fatta** (collegamento, lettura di rosa, regole, competizioni, avversario e formazione
-inviata), commit `0a88a1a` su `master`, pushato. Il motore del consiglio è la fase 2. **Il sito pubblicato
-NON ha ancora la pagina funzionante**: manca l'intermediario (§2) e la pagina non è stata ripubblicata.
+Stato (chiusura del 09/10/2026): **fase 1 fatta** (collegamento, lettura di rosa, regole, competizioni,
+avversario e formazione inviata, `0a88a1a`); **la pagina si chiama LINEUP** e ha tabella della rosa, campo,
+panchina e un PRIMO TAGLIO del consiglio (§4-bis, `bde447f`); **le quote dei bookmaker** sono catturate dal
+foglio probabili e mostrate a fianco di ogni uomo (§4-ter, `bde447f` + `b8ec932`, foglio ridistribuito
+dall'operatore e verificato). Commit su `master`, NON ancora pushati. Il motore vero del consiglio resta la
+fase 2. **Il sito pubblicato NON ha ancora la pagina funzionante**: manca l'intermediario (§2) e la pagina
+non è stata ripubblicata - la si usa sotto `ng serve`.
 
 Questa pagina realizza la «fase settimanale» che `formazione-settimanale-v1.md` (07/08/2026) aveva solo
 progettato: i vincoli scritti là — datare con l'ORA, una fonte per affermazione, `vuoto = ignoto`, niente di
@@ -202,17 +206,33 @@ lanciare. E a 1,5 secondi fra le pagine l'ultima lega di una passata viene rifiu
 
 ## §5. Aperti, in ordine
 
-0. **Quote (§4-ter), lato operatore**: incollare `scripts/gas/odds.gs` come nuovo file nel progetto
-   Apps Script del foglio probabili e aggiornare `probabili-sheet.gs` (una riga in `doGet`); lanciare
-   `oddsProbe()` - se Google viene rifiutato da Cloudflare, la cattura va spostata sul portatile; poi
-   `oddsInstall()` e una NUOVA VERSIONE della distribuzione. Verifica offline dei parser:
-   `node scripts/gas/verify-odds.mjs <cartella con league.html e match*.html>`.
+0. **Quote (§4-ter): FATTO lato operatore** il 08-09/10/2026 - `odds.gs` incollato, `oddsProbe()` passa
+   da Google (20 partite, 48 righe su Genoa-Fiorentina), `oddsInstall()` arma 8:00 e 19:00, prima cattura
+   52 partite, distribuzione aggiornata due volte (l'ultima serve TUTTE le partite in arrivo). Restano:
+   (a) **guardare nel `Log` del foglio che le catture automatiche girino** (alle 8 e alle 19 righe
+   `odds | <lega> | N matches read of M`); (b) se un giorno oddschecker rifiuta Google (filtra per impronta
+   TLS, vedi sotto), la cattura va spostata sul portatile col `curl` di Git; (c) non è ancora contato
+   quanti uomini passano dalla via debole di `matchFor` (rosa + lato + partita unica) invece che dalla
+   conferma dell'avversario - aggiungerlo all'e2e se serve. Verifica offline dei parser:
+   `node scripts/gas/verify-odds.mjs <cartella con league.html e match*.html>`; verifica dal vivo:
+   `node app/scripts/e2e-lineup-live.mjs <porta> [pacchetto-quote.json]` sotto `ng serve`.
+0-bis. **Push** dei commit `bde447f` e `b8ec932` (fatto solo il commit, su richiesta).
 1. **Pubblicare l'intermediario**: account Cloudflare dell'operatore (gratuito; che non chieda la carta lo
    dicono fonti non ufficiali), `npx wrangler deploy` da `app/proxy/` (comando nel file), poi incollare
    l'indirizzo nella pagina («Account»). Poi ripubblicare il sito (`npm run deploy:pages`) e verificarlo
    col browser.
-2. **Fase 2, il motore del consiglio** (§4), Leghe Classic per prima, con la tensione del §4 decisa prima.
-3. **Il banco**: rigiocare le giornate già giocate contro le formazioni vere dell'operatore.
+2. **Fase 2, il motore del consiglio** (§4), Leghe Classic per prima. La tensione del §4 è DECISA
+   (08/10/2026): **percent + foglio probabili + stampa**. Il primo taglio (§4-bis) usa solo la `percent`;
+   da collegare il consenso del foglio (Serie A) e la ricerca giocatore per giocatore. Le quote (§4-ter)
+   sono reporting: entrarci nel consiglio è una decisione da misurare, non da dare per scontata.
+3. **Il banco**: rigiocare le giornate già giocate contro le formazioni vere dell'operatore. Era la
+   priorità scelta l'08/10 ed è stata scavalcata dalle richieste sulla pagina: è il prossimo passo. Il dato
+   c'è: `GET /gaming/v1/teamLineup/{comp}/{giornata}/{giornataCampionato}/{casa}/{trasferta}` dà per ogni
+   partita giocata la formazione schierata, voti, fantavoti, entrati/usciti e modificatori (mappatura in
+   `FCLeaguesFrontend/WEB/src/app/services/lineups.ts`, `toLineupInfoModel`). Il limite da dire subito: la
+   `percent` di Leghe è una fotografia di «adesso», quindi per le giornate passate non c'è - il banco può
+   giudicare l'undici e la panchina su probabilità ricostruite, oppure aspettare le giornate che verranno
+   salvando la `percent` a ogni lettura.
 4. **Segnalazioni al team Leghe** (§3, ultimo punto): sono quattro.
 5. **L'operatore deve cambiare la password di fantacalcio.it**: è passata dalla chat l'08/10/2026.
 6. Da verificare sul campo: `hoaw` è letto come 0 = casa (torna sui casi guardati, non controllato su

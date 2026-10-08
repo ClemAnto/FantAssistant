@@ -198,6 +198,46 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 9 ottobre 2026 (XXII): LINEUP, il primo consiglio e le quote dei bookmaker
+
+Tre richieste dell'operatore sulla pagina della formazione, tutte fatte e verificate dal vivo sul suo account:
+- **la pagina si chiama LINEUP**: tabella della rosa come quella del draft (ordinabile, stemmi, marchi), campo
+  coi titolari e griglia della panchina nel suo ordine, interruttore Consigliata/Inviata, regole della lega in
+  un box piegato. Il consiglio è un PRIMO TAGLIO dichiarato a schermo (`core/lineup-advice.ts`): punti attesi
+  = P(voto) dalla `percent` di Leghe sulla curva di `rosa-3-giornate-v1.md` §2 × fantamedia del foglio,
+  migliore undici legale sui moduli della lega, panchina con le regole lette;
+- **le quote**: «quota gol» per i movimento e «porta inviolata» per i portieri, media di più bookmaker. Le API
+  gratuite non bastano (The Odds API: solo bookmaker USA), i bookmaker italiani bloccano i client non-browser;
+  **oddschecker.com/it** confronta ~13 bookmaker italiani per il marcatore e 3-4 per la porta inviolata in UNA
+  pagina per partita. La cattura vive nel foglio probabili (`scripts/gas/odds.gs`, secondo file dello stesso
+  progetto Apps Script, catture alle 8 e alle 19, storico nel tab `Quote`, `doGet?what=odds`); l'app la legge
+  dal vivo (`core/bookmaker-odds*.ts`). Sono REPORTING: il consiglio non le legge;
+- **la partita delle quote la nomina Leghe e la si riconosce dagli uomini** (sue due regole: «devi prendere
+  per ogni calciatore la sua prossima partita» e «tre lettere sono poche, rendiamo il controllo solido»): una
+  partita è quella di un club solo se fra i marcatori quotati ci sono almeno 5 uomini della sua rosa nel
+  listone (la partita vera ne quota 16-23, un club estraneo mai più di 2), con l'avversario confermato allo
+  stesso modo; due candidati o nessuno = niente quota.
+
+Verificato: `ng test` 1436/1436, build, `verify-odds`, e2e dal vivo (`app/scripts/e2e-lineup-live.mjs`, che
+ora controlla anche le quote: una sola giornata, una partita per fixture Leghe, prezzi ririletti da
+oddschecker). Con un pacchetto che mescola due giornate: EuroLeghe **36/36**, Serie A **27/28** (Yildiz non è
+quotato), tutte sulla partita giusta, 27 prezzi ririletti e 0 fuori del 15%. Commit `bde447f` e `b8ec932` su
+`master`, **non pushati**.
+
+Errori della sessione che valgono oltre la pagina:
+- **una lettura presa a metà di un lavoro che scrive a pezzi resta in cache come se fosse intera**: la pagina
+  ha letto le quote alle 21:59 di una cattura finita alle 22:00 e mostrava 9 uomini su 36; la cura è la
+  scadenza corta (1 ora) e il tasto «rileggi»;
+- **Cloudflare filtra per impronta TLS**: con gli stessi header passa il `curl` di Git (OpenSSL) e non
+  quello di Windows né il `fetch` di Node; i server di Google passano (`oddsProbe`);
+- **un controllo che sembra più semplice («la prossima partita del club») può essere sbagliato per la
+  domanda vera**: una giornata EuroLeghe raccoglie turni diversi nei cinque campionati, e la verità sulla
+  partita la dà Leghe, non il calendario.
+
+Aperti (dettaglio in `formazione-leghe-v1.md` §5): il banco sulle giornate giocate (prossimo passo, endpoint
+già trovato), il push, controllare nel `Log` del foglio che le catture automatiche girino, l'intermediario
+per il sito, le segnalazioni al team Leghe, la password di fantacalcio.it.
+
 ## CHIUSURA — 8 ottobre 2026 (XXI): la pagina Formazione legge Leghe ed EuroLeghe
 
 Richiesta: «una nuova pagina che ti aiuti ad inserire la formazione per la prossima giornata ... caricare la

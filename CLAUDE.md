@@ -211,7 +211,11 @@ For the LINEUP page (`/lineup`, the next matchday's formation read from the oper
 EuroLeghe account): **`formazione-leghe-v1.md`** (08/10/2026) — the endpoints and what their short keys
 mean, the measured CORS block and the pass-through, the embedded login (Leghe) against the direct one
 (EuroLeghe, where the embed is not deployed), and the plan for the advice. The app's third live source
-after the press sheet and fanta-asta-live; the league tokens never leave `sessionStorage`.
+after the press sheet and fanta-asta-live; the league tokens never leave `sessionStorage`. Since 09/10/2026
+the page also shows the BOOKMAKERS' prices (goal for outfield men, clean sheet for keepers), captured by the
+press sheet's second Apps Script file `scripts/gas/odds.gs` from oddschecker.com/it and served on
+`?what=odds` - REPORTING, nothing advises on them - and the match a price belongs to is the one LEGHE names
+for that man, recognised by the SQUADS among the priced scorers and never by 3-letter codes (§4-ter).
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is
