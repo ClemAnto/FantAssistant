@@ -122,6 +122,12 @@ export interface OddsMan {
   match: string;
   home: boolean | null;
   keeper: boolean;
+  /** The listone names of his club's whole squad: how his club is recognised in a bookmakers' match. */
+  squad: readonly string[];
+  /** The same for the opponent Leghe names; null when the bundle does not know that club. */
+  opponentSquad: readonly string[] | null;
+  /** The opponent's name as Leghe lists it, when it lists it. */
+  opponentName: string | null;
 }
 
 /**
@@ -139,53 +145,73 @@ export function codeNames(code: string, short: string, name: string): boolean {
   return words.length >= c.length && words.map((w) => w[0]).join('').includes(c);
 }
 
+/** How many men of a squad a bookmakers' match prices among its scorers - one join each, by name. */
+export function squadOverlap(m: OddsMatch, squad: readonly string[]): number {
+  let n = 0;
+  for (const name of squad) if (scorerOf(m.goal, name)) n += 1;
+  return n;
+}
+
 /**
- * The bookmakers' match behind ONE Leghe fixture - and the fixture is LEGHE'S, not ours to infer.
+ * Men of a squad that must be found among a match's scorers before it counts as THEIR match. Five, from the
+ * payload of 08/10/2026 (52 matches, two rounds in four leagues, every club of both listoni against every
+ * match): a club's own match prices **16 to 23** of its listone men, while a club NOT in the match never got
+ * past **2** - a shared surname, a namesake. Five sits well inside that gap on both sides.
+ */
+export const SQUAD_EVIDENCE = 5;
+
+/**
+ * The bookmakers' match behind ONE Leghe fixture - and the fixture is LEGHE'S, recognised by its MEN and
+ * never by a 3-letter label.
  *
- * The operator's rule (08/10/2026): «per euroleghe non è sempre semplice capire quale giornata dei singoli
- * campionati bisogna prendere in considerazione: devi prendere ... per ogni calciatore quale è la sua
- * "prossima partita" e da lì confrontare le partite corrette». A EuroLeghe matchday bundles a DIFFERENT real
- * round in each championship, so «the club's next match» is not a safe proxy: the match to price is the one
- * Leghe names for that man - his club, the opponent (`teamH-teamA`) and the side (`hoaw`).
- *
- * So a candidate is scored on THAT fixture: his club on the side Leghe says (by code or by name) and the
- * opponent Leghe names on the other side (by code) - both sides 4, his side alone 1. A man of the group
- * named among a match's scorers adds 2: the clue that survives Leghe spelling foreign clubs in Italian
- * («Lipsia», «Stoccarda»). Below 3 a candidate is not taken at all; among the rest the best total wins and
- * a tie goes to the EARLIER match, the one still to be played first. No candidate = no price, never a guess.
+ * The operator's rules (08/10/2026): «devi prendere ... per ogni calciatore quale è la sua "prossima
+ * partita" e da lì confrontare le partite corrette», then «tre lettere sono poche visto l'enorme numero di
+ * squadre, cerchiamo di rendere il controllo solido». So a match is THE fixture only on evidence about
+ * people: at least `SQUAD_EVIDENCE` men of his club's squad among its scorers, AND the opponent confirmed -
+ * by its squad the same way when the bundle knows that club, by Leghe's own name for it, or (only where
+ * neither exists, an opponent outside the EuroLeghe perimeter) by its code against the bookmakers' short
+ * name or name. A candidate that fails the opponent check is refused, not ranked lower: a price for the
+ * wrong game reads exactly like a price for the right one. Two candidates left = no answer. The one weaker
+ * path, for an opponent nothing can confirm, is spelled out at the bottom and needs three facts at once.
  */
 export function matchFor(matches: readonly OddsMatch[], group: readonly OddsMan[]): OddsMatch | null {
   if (!group.length) return null;
   const [codeH, codeA] = group[0].match.split('-').map((c) => c ?? '');
-  let best: OddsMatch | null = null;
-  let bestScore = 0;
+  const short = (m: OddsMatch, side: 'home' | 'away') => (side === 'home' ? m.homeShort : m.awayShort);
+  const strong: OddsMatch[] = [];
+  const weak: OddsMatch[] = [];
+  let withSquad = 0;
   for (const m of matches) {
-    let fixture = 0;
+    let isStrong = false;
+    let isWeak = false;
+    let squadHere = false;
     for (const man of group) {
+      if (!man.squad.length || squadOverlap(m, man.squad) < SQUAD_EVIDENCE) continue;
+      squadHere = true;
+      const hisCode = man.home === false ? codeA : codeH;
+      const oppCode = man.home === false ? codeH : codeA;
+      // Which side is his, Leghe says (`hoaw`); without it either side may be checked.
       const sides: ('home' | 'away')[] = man.home === true ? ['home'] : man.home === false ? ['away'] : ['home', 'away'];
       for (const side of sides) {
         const other = side === 'home' ? 'away' : 'home';
-        const hisCode = side === 'home' ? codeH : codeA;
-        const oppCode = side === 'home' ? codeA : codeH;
-        const short = (s: 'home' | 'away') => (s === 'home' ? m.homeShort : m.awayShort);
-        const his = codeNames(hisCode, short(side), m[side]) || sameClub(m[side], man.club);
-        const opp = codeNames(oppCode, short(other), m[other]);
-        fixture = Math.max(fixture, his && opp ? 4 : his ? 1 : 0);
+        const opp = man.opponentSquad?.length
+          ? squadOverlap(m, man.opponentSquad) >= SQUAD_EVIDENCE
+          : (!!man.opponentName && sameClub(m[other], man.opponentName)) || codeNames(oppCode, short(m, other), m[other]);
+        if (opp) isStrong = true;
+        // His own club on the side Leghe gives it: the weaker confirmation, used only below.
+        else if (codeNames(hisCode, short(m, side), m[side]) || sameClub(m[side], man.club)) isWeak = true;
       }
     }
-    let score = fixture;
-    for (const man of group) if (!man.keeper && scorerOf(m.goal, man.name)) score += 2;
-    // ENOUGH EVIDENCE is both sides of the fixture, or one side plus a man of his among the scorers. One
-    // side alone is not: «MIL» is a word of «Inter Milan», and a code that fits half a fixture fits a
-    // different match as easily as the right one.
-    if (score < 3) continue;
-    const earlier = best && Date.parse(m.kickoff) < Date.parse(best.kickoff);
-    if (score > bestScore || (score === bestScore && earlier)) {
-      best = m;
-      bestScore = score;
-    }
+    if (squadHere) withSquad += 1;
+    if (isStrong) strong.push(m);
+    else if (isWeak) weak.push(m);
   }
-  return best;
+  if (strong.length) return strong.length === 1 ? strong[0] : null;
+  // NOTHING CONFIRMS THE OPPONENT - an opponent outside the EuroLeghe perimeter whose code is another site's
+  // convention (Leghe `SCP` for Paderborn). Then three facts must agree: his squad is in the match, his club
+  // stands on the side Leghe says, and the payload holds no OTHER match of his club in the window. Short of
+  // all three there is no price.
+  return weak.length === 1 && withSquad === 1 ? weak[0] : null;
 }
 
 /**

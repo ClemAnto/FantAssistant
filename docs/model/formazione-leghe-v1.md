@@ -170,21 +170,30 @@ corrispondenze stampate tornano tutte (`SCP-STU` → Paderborn v Stuttgart, `ALV
 selezioni, **0 fuori del 15%**, quasi tutte identiche al centesimo. Un prezzo che sembra strano va
 guardato prima di chiamarlo un difetto: Bensebaini a 3,98 è davvero il prezzo dei bookmaker.
 
-**E il difetto che il controllo (1) ha trovato, e la regola dell'operatore che lo cura.** La finestra di
-otto giorni prende anche l'apertura del turno SUCCESSIVO in quattro leghe (Frankfurt, Toulouse, Frosinone,
-Le Mans... due volte). La prima cura - «solo la prossima partita di ogni club» - è stata ritirata la sera
-stessa su sua indicazione: «per euroleghe non è sempre semplice capire quale giornata dei singoli
-campionati bisogna prendere in considerazione: devi prendere dal sito euroleghe per ogni calciatore quale
-è la sua "prossima partita" e da lì confrontare le partite corrette». Una giornata EuroLeghe raccoglie un
-turno DIVERSO in ogni campionato, quindi «la prossima del club» non è un sostituto sicuro. Ora la partita
-la nomina LEGHE (`teamH-teamA` e `hoaw` di ogni uomo) e `matchFor` cerca fra le quote quella partita:
-il suo club dal lato giusto e l'avversario dall'altro (entrambi 4, un lato solo 1), più 2 per ogni suo
-uomo fra i marcatori; sotto 3 nessuna quota, a pari punteggio la partita prima. Il foglio serve TUTTE le
-partite in arrivo e la scelta resta all'app. Provato con un pacchetto che contiene due turni: le 27
-partite Leghe finiscono tutte sulla partita giusta. I nomi dei club avversari Leghe non li dà in chiaro
-(`championship/teams` elenca solo i 37 club del perimetro, in italiano), quindi l'avversario si riconosce
-dal codice: uguale al codice dei bookmaker, inizio di una parola del nome (`TOU` → Toulouse) o iniziali
-(`PSG`).
+**E il difetto che il controllo (1) ha trovato, e le due regole dell'operatore che lo curano.** La
+finestra di otto giorni prende anche l'apertura del turno SUCCESSIVO in quattro leghe (Frankfurt, Toulouse,
+Frosinone, Le Mans... due volte). La prima cura - «solo la prossima partita di ogni club» - è stata
+ritirata la sera stessa: «per euroleghe non è sempre semplice capire quale giornata dei singoli campionati
+bisogna prendere in considerazione: devi prendere dal sito euroleghe per ogni calciatore quale è la sua
+"prossima partita" e da lì confrontare le partite corrette». E la seconda forma, che riconosceva la
+partita dai codici a tre lettere, è stata ritirata subito dopo: «tre lettere sono poche visto l'enorme
+numero di squadre, cerchiamo di rendere il controllo solido».
+
+**Ora la partita la nomina Leghe e la si riconosce dagli UOMINI.** Per ogni giocatore Leghe dà il suo club
+(`tid`), l'avversario (`tidOp`), le sigle e il lato (`hoaw`). Una partita dei bookmaker è quella di un
+club solo se fra i suoi marcatori quotati ci sono almeno **5** uomini della rosa di quel club nel listone
+(`SQUAD_EVIDENCE`). Misurato sul pacchetto dell'08/10 (52 partite, due turni in quattro leghe, ogni club
+dei due listoni contro ogni partita): la partita vera di un club ne quota **da 16 a 23**, un club che non
+c'entra **mai più di 2** (un omonimo). L'avversario si conferma allo stesso modo con la SUA rosa, quando
+il pacchetto conosce il club (trovato per identità: un uomo della rosa Leghe con quel `tid`; o dal nome
+che `championship/teams` di Leghe gli dà, rifiutato se due club combaciano). Solo dove l'avversario è
+fuori dal perimetro EuroLeghe e il pacchetto non ha la sua rosa (Toulouse, Paderborn) si accetta il suo
+nome o la sua sigla - e se nemmeno quelli tornano, servono tre fatti insieme: la rosa del suo club nella
+partita, il suo club dal lato che dice Leghe, e nessun'altra partita del suo club nella finestra. Due
+candidati, o nessuno: niente quota. Il foglio serve TUTTE le partite in arrivo e la scelta è dell'app.
+
+Provato con un pacchetto che contiene due turni: **36 su 36** su EuroLeghe e **27 su 28** sulla Serie A,
+tutte le 27 partite Leghe sulla partita giusta e tutte le quote dentro tre giorni.
 
 **Due fatti da sapere, pagati.** Cloudflare di oddschecker riconosce il client dalla sua impronta TLS:
 `curl` di Git (OpenSSL) passa, `curl` di Windows e `fetch` di Node ricevono 403 con gli stessi header.

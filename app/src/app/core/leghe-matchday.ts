@@ -58,6 +58,12 @@ export interface NextMatchRow {
   fantavote: number | null;
   /** Sold out of the championship (Leghe's `trnsf`). */
   transferred: boolean;
+  /**
+   * Leghe's ids of his real club (`tid`) and of the opponent of his next match (`tidOp`) - an IDENTITY of the
+   * fixture, where `match` is only two 3-letter labels. Null when Leghe does not say.
+   */
+  clubId: number | null;
+  opponentId: number | null;
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
@@ -90,9 +96,37 @@ export function parseRoster(lineupBody: unknown): NextMatchRow[] {
       vote: vote ? vote : null,
       fantavote: fantavote ? fantavote : null,
       transferred: !!o['trnsf'],
+      clubId: finite(o['tid']),
+      opponentId: finite(o['tidOp']),
     });
   }
   return rows;
+}
+
+/** A real club as Leghe lists it (`/onboarding/v1/championship/teams`): its id, name and 3-letter code. */
+export interface RealTeam {
+  id: number;
+  name: string;
+  code: string;
+  championship: string;
+}
+
+/**
+ * `{teams: [{id_s, s, sigla, camp}]}`. On EuroLeghe it lists only the clubs of the platform's perimeter
+ * (37 on 08/10/2026), so an opponent from outside it has an id and no name - which the odds join says,
+ * instead of guessing one.
+ */
+export function parseRealTeams(body: unknown): Map<number, RealTeam> {
+  const out = new Map<number, RealTeam>();
+  const rows = (body as { teams?: unknown[] } | null)?.teams;
+  if (!Array.isArray(rows)) return out;
+  for (const raw of rows) {
+    const o = raw as Record<string, unknown>;
+    const id = finite(o['id_s']);
+    if (id === null) continue;
+    out.set(id, { id, name: str(o['s']), code: str(o['sigla']), championship: str(o['camp']) });
+  }
+  return out;
 }
 
 /** The lineup already sent for one competition's matchday. */

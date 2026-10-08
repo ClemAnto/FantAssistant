@@ -20,9 +20,11 @@ import {
   LegheCompetition,
   LegheTeam,
   NextMatchRow,
+  RealTeam,
   SavedLineup,
   fixtureOf,
   parseCompetitions,
+  parseRealTeams,
   parseRoster,
   parseSaved,
   parseStatus,
@@ -79,6 +81,8 @@ export interface LeagueMatchday {
   teams: LegheTeam[];
   competitions: CompetitionDay[];
   roster: NextMatchRow[];
+  /** Leghe's real clubs by id: what names the opponent of a man's next match. Empty when not read. */
+  realTeams: Map<number, RealTeam>;
   /** When lineups close: the first match minus the league's own margin. Null = Leghe did not say. */
   closesAt: Date | null;
   readAt: Date;
@@ -200,6 +204,10 @@ export class LegheSession {
           readTiming(base, league),
         ]);
       const rules = parseRules(lineupSettings, calcSettings, rostersSettings);
+      // The real clubs only NAME opponents for the odds join: a failure here costs that check, not the page.
+      const realTeams = await leagueGet(base, league, '/onboarding/v1/championship/teams')
+        .then(parseRealTeams)
+        .catch(() => new Map<number, RealTeam>());
       const team = parseTeam(myTeamBody);
       const division = team?.division ?? 'A';
       const teams = (await readTeams(base, league, division))
@@ -240,6 +248,7 @@ export class LegheSession {
         teams,
         competitions: days,
         roster,
+        realTeams,
         closesAt: untilFirst === null ? null : new Date(Date.now() + untilFirst - margin),
         readAt: new Date(),
       };

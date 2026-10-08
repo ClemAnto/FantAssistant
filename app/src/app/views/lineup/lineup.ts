@@ -8,7 +8,7 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
-import { ManOdds, joinOdds } from '../../core/bookmaker-odds';
+import { ManOdds, OddsMan, joinOdds, sameClub } from '../../core/bookmaker-odds';
 import { BookmakerOddsStore } from '../../core/bookmaker-odds-store';
 import { Bundle } from '../../core/bundle';
 import { LEGHE } from '../../core/leghe-api';
@@ -209,8 +209,61 @@ export class Lineup {
 
   /** The bundle's row of each man, for his club and crest: joined by `fc_id`, never by name. */
   private readonly bundleRows = computed(() => {
-    const rows = this.store.rosters().get(this.platform()) ?? [];
+    const rows = this.store.allRosters().get(this.platform()) ?? [];
     return new Map(rows.map((r) => [r.fcId, r]));
+  });
+
+  /** Every club's squad on this listone, by the bundle's club id: the names a bookmakers' match is checked against. */
+  private readonly squads = computed(() => {
+    const out = new Map<number, { club: string; names: string[] }>();
+    for (const row of this.store.allRosters().get(this.platform()) ?? []) {
+      if (row.clubId === null || row.sold) continue;
+      const one = out.get(row.clubId) ?? { club: row.club, names: [] };
+      one.names.push(row.name);
+      out.set(row.clubId, one);
+    }
+    return out;
+  });
+
+  /**
+   * The roster as the odds join needs it: each man with HIS club's squad and the OPPONENT's.
+   *
+   * The opponent's club is found by identity first - a man of the roster whose Leghe club id is that
+   * opponent id carries the bundle's club - and only then by Leghe's name for it against the bundle's club
+   * names, refused when two bundle clubs fit. Not found = `opponentSquad` null, and the join then says so by
+   * leaning on the weaker checks it declares.
+   */
+  private readonly oddsMen = computed<OddsMan[]>(() => {
+    const md = this.md();
+    if (!md) return [];
+    const rows = this.bundleRows();
+    const squads = this.squads();
+    const bundleClubOfLeghe = new Map<number, number>();
+    for (const r of md.roster) {
+      const own = rows.get(r.fcId)?.clubId;
+      if (r.clubId !== null && own !== null && own !== undefined) bundleClubOfLeghe.set(r.clubId, own);
+    }
+    const byName = (name: string): number | null => {
+      const fits = [...squads].filter(([, squad]) => sameClub(squad.club, name));
+      return fits.length === 1 ? fits[0][0] : null;
+    };
+    return md.roster.map((r) => {
+      const own = rows.get(r.fcId)?.clubId ?? null;
+      const oppName = r.opponentId !== null ? (md.realTeams.get(r.opponentId)?.name ?? null) : null;
+      const oppClub =
+        r.opponentId === null ? null : (bundleClubOfLeghe.get(r.opponentId) ?? (oppName ? byName(oppName) : null));
+      return {
+        id: r.fcId,
+        name: r.name,
+        club: r.club,
+        match: r.match,
+        home: r.home,
+        keeper: r.roles.some((c) => c === 'P' || c === 'Por'),
+        squad: own !== null ? (squads.get(own)?.names ?? []) : [],
+        opponentSquad: oppClub !== null ? (squads.get(oppClub)?.names ?? null) : null,
+        opponentName: oppName,
+      };
+    });
   });
 
   /**
@@ -276,17 +329,7 @@ export class Lineup {
     const advised = this.advised();
     const sent = this.sent();
     const rows = this.bundleRows();
-    const oddsByMan = joinOdds(
-      this.odds.matches(),
-      md.roster.map((r) => ({
-        id: r.fcId,
-        name: r.name,
-        club: r.club,
-        match: r.match,
-        home: r.home,
-        keeper: r.roles.some((c) => c === 'P' || c === 'Por'),
-      })),
-    );
+    const oddsByMan = joinOdds(this.odds.matches(), this.oddsMen());
     const lines: RosterLine[] = md.roster.map((r) => {
       const man = priced.get(r.fcId)!;
       const own = rows.get(r.fcId);

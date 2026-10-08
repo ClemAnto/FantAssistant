@@ -30,6 +30,7 @@ const PATHS = [
   /^\/onboarding\/v1\/league\/(status|competitions|teams\/my|teams)$/,
   /^\/onboarding\/v1\/league\/settings\/(lineup|calculate|rosters)$/,
   /^\/onboarding\/v1\/league\/competition\/calendar\/\d+$/,
+  /^\/onboarding\/v1\/championship\/teams$/,
   /^\/gaming\/v1\/teamLineup\/visualizza\/[A-Z]{1,2}\/\d+$/,
   /^\/gaming\/v1\/league\/timing$/,
 ];

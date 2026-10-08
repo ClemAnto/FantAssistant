@@ -794,6 +794,13 @@ export class ValuationStore {
   private readonly rostersByPlatform = signal<Map<Platform, PlayerRow[]>>(new Map());
 
   /**
+   * Every club's squad on a platform, WITHOUT the operator's excluded clubs. The exclusions are about what
+   * a draft may buy; an IDENTITY question («is this bookmakers' match the one with these men in it?») must
+   * see every club, or an excluded opponent would read as an unknown one.
+   */
+  readonly allRosters = this.rostersByPlatform.asReadonly();
+
+  /**
    * Chi ogni listone quota per la stagione bersaglio, SENZA le squadre reali escluse dalle opzioni
    * globali. È il perimetro unico, quello che ogni vista disegna.
    *
