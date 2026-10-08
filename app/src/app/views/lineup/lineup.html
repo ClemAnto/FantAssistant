@@ -1,0 +1,162 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<div class="mx-auto flex min-h-full max-w-[1200px] flex-col gap-3 p-4">
+  <ui-app-header>
+    <div class="flex flex-wrap items-baseline gap-3">
+      @if (session.leagues().length) {
+        <nz-select
+          class="w-72"
+          nzSize="small"
+          data-lineup-league
+          [ngModel]="leagueKey()"
+          (ngModelChange)="chooseLeague($event)"
+        >
+          @for (option of leagueOptions(); track option.key) {
+            <nz-option [nzValue]="option.key" [nzLabel]="option.label" />
+          }
+        </nz-select>
+      }
+      @if (md(); as day) {
+        <span class="text-xs text-muted">
+          {{ day.team?.name }} · letta alle {{ readTime() }}
+        </span>
+      }
+    </div>
+    <div actions class="flex items-baseline gap-1">
+      @if (session.league()) {
+        <button
+          nz-button
+          nzSize="small"
+          nz-tooltip
+          nzTooltipTitle="Rileggi da Leghe"
+          [nzLoading]="session.matchday.isLoading()"
+          (click)="session.matchday.reload()"
+        >
+          <nz-icon nzType="reload" />
+        </button>
+      }
+      <button nz-button nzSize="small" (click)="connecting.set(true)" data-lineup-connect>
+        <nz-icon nzType="login" />{{ session.leagues().length ? 'Account' : 'Collegati a Leghe' }}
+      </button>
+    </div>
+  </ui-app-header>
+
+  @if (!session.leagues().length) {
+    <!-- NOT CONNECTED: say what the page needs and offer the one way in. -->
+    <div class="flex flex-col items-start gap-2 rounded border border-border bg-surface p-4">
+      <b>Collega il tuo account</b>
+      <p class="text-sm text-muted">
+        La pagina legge da Leghe la tua rosa, le regole della lega e l'avversario della prossima giornata.
+      </p>
+      <button nz-button nzType="primary" (click)="connecting.set(true)">
+        <nz-icon nzType="login" />Collegati a Leghe
+      </button>
+    </div>
+  } @else {
+    @if (session.error(); as error) {
+      <nz-alert
+        nzType="error"
+        nzShowIcon
+        [nzMessage]="error.message"
+        [nzDescription]="error.kind === 'expired' || error.kind === 'no-proxy' ? 'Riapri «Account» per collegarti.' : ''"
+      />
+    }
+
+    @if (md(); as day) {
+      <!-- THE MATCHDAY: when it closes, and what is at stake in each competition. -->
+      <section class="flex flex-col gap-2 rounded border border-border bg-surface p-3" data-lineup-matchday>
+        <div class="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <b>Giornata {{ day.status.matchday ?? '?' }}</b>
+          @if (closes(); as c) {
+            @if (c.past) {
+              <span class="text-sm text-danger">Formazioni chiuse</span>
+            } @else {
+              <span class="text-sm">Chiusura {{ c.when }} · {{ c.left }}</span>
+            }
+          }
+        </div>
+        <ul class="flex flex-col gap-1 text-sm">
+          @for (comp of competitionLines(); track comp.id) {
+            <li class="flex flex-wrap items-baseline gap-x-3" [class.text-muted]="!comp.active">
+              <b>{{ comp.name }}</b>
+              <span class="text-xs text-muted">{{ comp.type }}</span>
+              @if (!comp.active) {
+                <span class="text-xs">nessuna giornata in corso</span>
+              } @else {
+                @if (comp.opponent) {
+                  <span>contro <b>{{ comp.opponent }}</b> ({{ comp.venue }})</span>
+                }
+                @if (comp.sent) {
+                  <span class="text-xs text-muted">formazione inviata {{ comp.sent }}</span>
+                } @else {
+                  <span class="text-xs text-warning">formazione non ancora inviata</span>
+                }
+              }
+            </li>
+          }
+        </ul>
+      </section>
+
+      <!-- THE RULES, as Leghe serves them: the advice will be computed under these and nothing else. -->
+      <section class="rounded border border-border bg-surface p-3" data-lineup-rules>
+        <b class="text-sm">Regole della lega</b>
+        <dl class="mt-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs">
+          @for (rule of rules(); track rule.label) {
+            <dt class="text-muted">{{ rule.label }}</dt>
+            <dd>{{ rule.value }}</dd>
+          }
+        </dl>
+      </section>
+
+      <!-- THE ROSTER with each man's next real match. -->
+      <nz-table
+        #table
+        nzSize="small"
+        [nzData]="roster()"
+        [nzShowPagination]="false"
+        [nzFrontPagination]="false"
+        data-lineup-roster
+      >
+        <thead>
+          <tr>
+            <th nzWidth="96px">Ruolo</th>
+            <th>Calciatore</th>
+            <th>Partita</th>
+            <th nzWidth="72px" class="text-right">Titolare</th>
+            <th>Stato</th>
+            <th>Formazione inviata</th>
+            <th nzWidth="64px" class="text-right">MV</th>
+            <th nzWidth="64px" class="text-right">FM</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (man of table.data; track man.fcId) {
+            <tr [attr.data-fc-id]="man.fcId">
+              <td><ui-roles [roles]="man.roles" size="xs" /></td>
+              <td>
+                {{ man.name }}
+                @if (man.note) {
+                  <span nz-tooltip [nzTooltipTitle]="man.note" class="ml-1 text-xs text-warning">
+                    <nz-icon nzType="info-circle" />
+                  </span>
+                }
+              </td>
+              <td class="text-xs">
+                {{ man.match }}
+                <span class="text-muted">· {{ man.home === null ? '' : man.home ? 'casa' : 'fuori' }}</span>
+              </td>
+              <td class="text-right tabular-nums">{{ man.percent === null ? '–' : man.percent + '%' }}</td>
+              <td class="text-xs" [class.text-danger]="!!man.outLabel">{{ man.outLabel ?? '' }}</td>
+              <td class="text-xs">{{ man.placed ?? '' }}</td>
+              <td class="text-right tabular-nums">{{ man.vote ?? '–' }}</td>
+              <td class="text-right tabular-nums">{{ man.fantavote ?? '–' }}</td>
+            </tr>
+          }
+        </tbody>
+      </nz-table>
+    } @else if (session.matchday.isLoading()) {
+      <p class="text-sm text-muted">Leggo la lega da Leghe…</p>
+    }
+  }
+</div>
+
+<ui-leghe-connect [(open)]="connecting" />

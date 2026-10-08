@@ -1,0 +1,95 @@
+<!doctype html>
+<!--
+  Probe: what does the Leghe /embed login hand to its host page?
+  Author: Claude (FantAssistant session), created 08/10/2026.
+
+  It frames https://leghe.fantacalcio.it/embed (or euroleghe), waits for the `fc-login-success`
+  postMessage and prints the SHAPE of the payload: key paths, types, string lengths and whether a
+  string looks like a JWT. It never prints a token or a string value, and it sends nothing anywhere.
+  The question it answers: does the partner login return the per-league JWTs (`leghe[].jwt`)?
+-->
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonda login embed Leghe</title>
+<style>
+  :root { color-scheme: light dark; --bg: #14141c; --fg: #e8e8f0; --muted: #9a9ab0; --line: #2a2a38; --ok: #3fbf7f; --bad: #e0566b; }
+  @media (prefers-color-scheme: light) { :root { --bg: #fafafa; --fg: #1a1a22; --muted: #5a5a6a; --line: #ddd; } }
+  body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.4 system-ui, sans-serif; }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  button { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; }
+  .grid { display: grid; gap: 16px; grid-template-columns: minmax(280px, 420px) 1fr; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  iframe { width: 100%; height: 560px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  pre { margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: auto; max-height: 560px; font: 12px/1.45 ui-monospace, monospace; }
+  .muted { color: var(--muted); }
+  .ok { color: var(--ok); } .bad { color: var(--bad); }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <button data-host="https://leghe.fantacalcio.it">Leghe (classic)</button>
+    <button data-host="https://euroleghe.fantacalcio.it">EuroLeghe</button>
+    <span class="muted" id="status">Scegli la piattaforma e fai il login nel riquadro.</span>
+  </div>
+  <div class="grid">
+    <iframe id="frame" title="Login Leghe" src="about:blank"></iframe>
+    <pre id="out" class="muted">Qui compare la FORMA del messaggio (mai i valori dei token).</pre>
+  </div>
+<script>
+  const ALLOWED = ['https://leghe.fantacalcio.it', 'https://euroleghe.fantacalcio.it'];
+  const out = document.getElementById('out');
+  const status = document.getElementById('status');
+  const frame = document.getElementById('frame');
+
+  document.querySelectorAll('button[data-host]').forEach((b) => b.addEventListener('click', () => {
+    frame.src = b.dataset.host + '/embed';
+    status.textContent = 'Caricato ' + b.dataset.host + '/embed - fai il login.';
+    out.textContent = 'In attesa del messaggio...';
+    out.className = 'muted';
+  }));
+
+  const looksJwt = (s) => /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(s);
+
+  // Shape only: numbers and booleans are shown (ids, flags), strings never.
+  function shape(value, path, lines, depth) {
+    if (depth > 6) { lines.push(path + ': ...'); return; }
+    if (value === null) { lines.push(path + ': null'); return; }
+    if (Array.isArray(value)) {
+      lines.push(path + ': array[' + value.length + ']');
+      if (value.length) shape(value[0], path + '[0]', lines, depth + 1);
+      return;
+    }
+    switch (typeof value) {
+      case 'object':
+        lines.push(path + ': object {' + Object.keys(value).length + ' keys}');
+        for (const [k, v] of Object.entries(value)) shape(v, path + '.' + k, lines, depth + 1);
+        return;
+      case 'string':
+        lines.push(path + ': string(' + value.length + ')' + (looksJwt(value) ? '  <- JWT' : ''));
+        return;
+      default:
+        lines.push(path + ': ' + typeof value + ' = ' + String(value));
+    }
+  }
+
+  window.addEventListener('message', (event) => {
+    if (!ALLOWED.includes(event.origin)) return;
+    const data = event.data || {};
+    const lines = ['origin: ' + event.origin, 'type: ' + String(data.type), ''];
+    shape(data.payload, 'payload', lines, 0);
+    const jwts = lines.filter((l) => l.endsWith('<- JWT')).length;
+    const leagueJwts = lines.filter((l) => /\.leghe\.[^.]+\.jwt: /.test(l) && l.endsWith('<- JWT')).length;
+    lines.unshift(
+      data.type === 'fc-login-success'
+        ? 'RISULTATO: ' + jwts + ' JWT nel messaggio, di cui ' + leagueJwts + ' per lega (leghe.*.jwt)'
+        : 'RISULTATO: messaggio ' + String(data.type),
+      '');
+    out.textContent = lines.join('\n');
+    out.className = data.type === 'fc-login-success' ? (leagueJwts ? 'ok' : 'bad') : 'bad';
+    status.textContent = 'Messaggio ricevuto da ' + event.origin + '.';
+  });
+</script>
+</body>
+</html>

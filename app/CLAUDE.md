@@ -36,6 +36,12 @@ layout on 09/08/2026, so `app/package.json`, `app/angular.json` and `app/src/` s
 **The app reads the BUNDLE, never the database and never the web.** `python -m euroleghe_ingest export`
 writes it; `manifest.json` is normative (refuse a `schema_version` you do not know); a view that needs a
 table the bundle does not carry gets it added to `export.CONTRACT` in the toolkit, not read around.
+Three declared exceptions, each because the fact is LIVE and personal and a nightly bundle cannot carry
+it: the press sheet (`next-round-store.ts`), fanta-asta-live (`auction-feed.ts`) and, since 08/10/2026,
+**Leghe** (`core/leghe-*.ts`, the Formazione page). Leghe answers CORS only to `*.fantacalcio.it`, so the
+calls go through a pass-through (`proxy.conf.mjs` under `ng serve`, `proxy/leghe-worker.mjs` on the
+published site); the league tokens live in `sessionStorage` only, and nothing about the operator's
+leagues ever enters the public bundle. Details: `docs/model/formazione-leghe-v1.md`.
 
 ## The operator's working preferences
 

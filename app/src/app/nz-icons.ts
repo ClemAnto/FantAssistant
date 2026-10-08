@@ -47,6 +47,7 @@ import {
   RocketOutline,
   SafetyCertificateOutline,
   SafetyOutline,
+  ScheduleOutline,
   ReloadOutline,
   SearchOutline,
   SettingOutline,
@@ -129,6 +130,8 @@ export const NZ_ICONS: IconDefinition[] = [
   RocketOutline,
   SafetyCertificateOutline,
   SafetyOutline,
+  // LA PAGINA FORMAZIONE (08/10/2026): l'icona del nav, non e' nella lista di default di ng-zorro.
+  ScheduleOutline,
   ReloadOutline,
   SearchOutline,
   SettingOutline,

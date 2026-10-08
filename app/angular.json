@@ -59,7 +59,8 @@
               "buildTarget": "fantassistant:build:production"
             },
             "development": {
-              "buildTarget": "fantassistant:build:development"
+              "buildTarget": "fantassistant:build:development",
+              "proxyConfig": "proxy.conf.mjs"
             }
           },
           "defaultConfiguration": "development"

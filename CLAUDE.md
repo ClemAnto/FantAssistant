@@ -207,6 +207,11 @@ For a roster built for a HANDFUL OF MATCHDAYS instead of a season — a SECOND c
 credits on the Qt.A, its own modifiers, five substitutions and a SWITCH that fires on starting:
 **`rosa-3-giornate-v1.md`** (03/09/2026). It also carries the four platform-club defects it found and
 the calibration of the editorial page onto P(vote) and P(starts). See the two sections near the end.
+For the LINEUP page (`/lineup`, the next matchday's formation read from the operator's own Leghe /
+EuroLeghe account): **`formazione-leghe-v1.md`** (08/10/2026) — the endpoints and what their short keys
+mean, the measured CORS block and the pass-through, the embedded login (Leghe) against the direct one
+(EuroLeghe, where the embed is not deployed), and the plan for the advice. The app's third live source
+after the press sheet and fanta-asta-live; the league tokens never leave `sessionStorage`.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is

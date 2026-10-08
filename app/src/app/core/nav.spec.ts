@@ -28,6 +28,7 @@ describe('core/nav', () => {
       '/plancia',
       '/auction',
       '/sealed-bid',
+      '/lineup',
       '/why',
       '/hello',
     ]);

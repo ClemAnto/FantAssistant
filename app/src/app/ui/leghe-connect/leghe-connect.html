@@ -1,0 +1,112 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<nz-modal
+  [nzVisible]="open()"
+  nzTitle="Collegati a Leghe"
+  [nzFooter]="null"
+  nzWidth="480px"
+  (nzOnCancel)="open.set(false)"
+>
+  <div *nzModalContent class="flex flex-col gap-5">
+    <!-- THE PASS-THROUGH. Without it nothing below can reach Leghe from this site, so it comes first and
+         says why: a page that offers a login it cannot complete reads as a broken login. -->
+    @if (needsProxy()) {
+      <div class="flex flex-col gap-2 rounded border border-warning/50 bg-warning/10 p-2 text-xs">
+        <b>Manca l'intermediario</b>
+        <span class="text-muted">
+          Leghe risponde solo ai siti fantacalcio.it: da qui serve un piccolo inoltro. Incolla il suo
+          indirizzo.
+        </span>
+        <div class="flex gap-2">
+          <input
+            nz-input
+            nzSize="small"
+            placeholder="https://…workers.dev"
+            [ngModel]="proxyDraft()"
+            (ngModelChange)="proxyDraft.set($event)"
+          />
+          <button nz-button nzSize="small" nzType="primary" (click)="saveProxy()">Salva</button>
+        </div>
+      </div>
+    }
+
+    <!-- LEGHE: the official embedded login. -->
+    <section class="flex flex-col gap-2" data-leghe-platform="classic">
+      <div class="flex items-baseline gap-2">
+        <b>{{ sites.classic.label }}</b>
+        @if (session.connected('classic')) {
+          <span class="text-xs text-muted">
+            collegato · {{ session.accounts().classic?.leagues?.length ?? 0 }} leghe
+          </span>
+          <button nz-button nzSize="small" nzType="link" class="ml-auto" (click)="session.logout('classic')">
+            Esci
+          </button>
+        }
+      </div>
+      @if (!session.connected('classic')) {
+        <p class="text-xs text-muted">
+          Il login avviene sulla pagina di fantacalcio.it: la password non passa da questa app.
+        </p>
+        @if (embedding()) {
+          <iframe
+            class="h-[400px] w-full rounded border border-border bg-surface"
+            title="Login Leghe"
+            [src]="embedUrl"
+          ></iframe>
+        } @else {
+          <button nz-button nzType="primary" (click)="startEmbed()">
+            <nz-icon nzType="login" />Accedi con Leghe
+          </button>
+        }
+      }
+      @if (problem()?.platform === 'classic') {
+        <nz-alert nzType="error" nzShowIcon [nzMessage]="problem()!.text" />
+      }
+    </section>
+
+    <!-- EUROLEGHE: direct login, by the operator's decision (the embedded one is not deployed there). -->
+    <section class="flex flex-col gap-2" data-leghe-platform="euro">
+      <div class="flex items-baseline gap-2">
+        <b>{{ sites.euro.label }}</b>
+        @if (session.connected('euro')) {
+          <span class="text-xs text-muted">
+            collegato · {{ session.accounts().euro?.leagues?.length ?? 0 }} leghe
+          </span>
+          <button nz-button nzSize="small" nzType="link" class="ml-auto" (click)="session.logout('euro')">
+            Esci
+          </button>
+        }
+      </div>
+      @if (!session.connected('euro')) {
+        <p class="text-xs text-muted">
+          EuroLeghe non ha il login integrato: utente e password passano dall'intermediario e non vengono
+          salvati.
+        </p>
+        <form class="flex flex-col gap-2" (ngSubmit)="loginEuro()">
+          <input
+            nz-input
+            name="username"
+            autocomplete="username"
+            placeholder="Utente"
+            [ngModel]="username()"
+            (ngModelChange)="username.set($event)"
+          />
+          <input
+            nz-input
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="Password"
+            [ngModel]="password()"
+            (ngModelChange)="password.set($event)"
+          />
+          <button nz-button nzType="primary" type="submit" [nzLoading]="busy()" [disabled]="needsProxy()">
+            <nz-icon nzType="login" />Accedi a EuroLeghe
+          </button>
+        </form>
+      }
+      @if (problem()?.platform === 'euro') {
+        <nz-alert nzType="error" nzShowIcon [nzMessage]="problem()!.text" />
+      }
+    </section>
+  </div>
+</nz-modal>

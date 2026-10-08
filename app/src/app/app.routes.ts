@@ -69,6 +69,14 @@ export const routes: Routes = [
     loadComponent: () => import('./views/sealed-bid/sealed-bid').then((m) => m.SealedBid),
   },
   {
+    // LA FORMAZIONE DELLA PROSSIMA GIORNATA (08/10/2026): dopo l'asta, perche' e' quello che si fa dopo.
+    path: 'lineup',
+    data: {
+      nav: { label: 'Formazione', title: 'Formazione', icon: 'schedule' } satisfies NavDeclaration,
+    },
+    loadComponent: () => import('./views/lineup/lineup').then((m) => m.Lineup),
+  },
+  {
     path: 'why',
     data: {
       // L'etichetta e' corta perche' e' il tooltip di un'icona; il titolo e' la domanda intera.
