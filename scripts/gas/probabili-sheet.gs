@@ -1764,6 +1764,8 @@ function clearRoundAsked() {
  * it carries player names and predicted elevens derived from paid pages, and it is worth knowing.
  */
 function doGet(e) {
+  // The bookmakers' prices live in `odds.gs`, a second file of this project sharing this deployment.
+  if (e && e.parameter && e.parameter.what === 'odds') return oddsGet_();
   var round = e && e.parameter && e.parameter.round ? Number(e.parameter.round) : null;
   var cached = CacheService.getScriptCache().get('next:' + round);
   if (cached) return json_(cached);

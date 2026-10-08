@@ -72,7 +72,7 @@ export const routes: Routes = [
     // LA FORMAZIONE DELLA PROSSIMA GIORNATA (08/10/2026): dopo l'asta, perche' e' quello che si fa dopo.
     path: 'lineup',
     data: {
-      nav: { label: 'Formazione', title: 'Formazione', icon: 'schedule' } satisfies NavDeclaration,
+      nav: { label: 'Lineup', title: 'Lineup', icon: 'schedule' } satisfies NavDeclaration,
     },
     loadComponent: () => import('./views/lineup/lineup').then((m) => m.Lineup),
   },

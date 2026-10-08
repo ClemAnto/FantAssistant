@@ -1,5 +1,5 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
-<div class="mx-auto flex min-h-full max-w-[1200px] flex-col gap-3 p-4">
+<div class="mx-auto flex min-h-full max-w-[1500px] flex-col gap-3 p-4">
   <ui-app-header>
     <div class="flex flex-wrap items-baseline gap-3">
       @if (session.leagues().length) {
@@ -96,63 +96,204 @@
         </ul>
       </section>
 
-      <!-- THE RULES, as Leghe serves them: the advice will be computed under these and nothing else. -->
-      <section class="rounded border border-border bg-surface p-3" data-lineup-rules>
-        <b class="text-sm">Regole della lega</b>
-        <dl class="mt-2 grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs">
-          @for (rule of rules(); track rule.label) {
-            <dt class="text-muted">{{ rule.label }}</dt>
-            <dd>{{ rule.value }}</dd>
-          }
-        </dl>
+      <!-- THE RULES, as Leghe serves them, FOLDED by default (operator, 08/10/2026: «mettili in un box
+           collassabile»): they are read once, the lineup every time. The header says what is inside. -->
+      <section class="rounded border border-border bg-surface" data-lineup-rules [attr.data-open]="rulesOpen() ? '' : null">
+        <button
+          type="button"
+          class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm"
+          [attr.aria-expanded]="rulesOpen()"
+          (click)="rulesOpen.set(!rulesOpen())"
+          data-lineup-rules-toggle
+        >
+          <nz-icon [nzType]="rulesOpen() ? 'down' : 'right'" class="text-xs text-muted" />
+          <b>Regole della lega</b>
+          <span class="truncate text-xs text-muted">{{ rules().length }} voci</span>
+        </button>
+        @if (rulesOpen()) {
+          <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 px-3 pb-3 text-xs">
+            @for (rule of rules(); track rule.label) {
+              <dt class="text-muted">{{ rule.label }}</dt>
+              <dd>{{ rule.value }}</dd>
+            }
+          </dl>
+        }
       </section>
 
-      <!-- THE ROSTER with each man's next real match. -->
-      <nz-table
-        #table
-        nzSize="small"
-        [nzData]="roster()"
-        [nzShowPagination]="false"
-        [nzFrontPagination]="false"
-        data-lineup-roster
-      >
-        <thead>
-          <tr>
-            <th nzWidth="96px">Ruolo</th>
-            <th>Calciatore</th>
-            <th>Partita</th>
-            <th nzWidth="72px" class="text-right">Titolare</th>
-            <th>Stato</th>
-            <th>Formazione inviata</th>
-            <th nzWidth="64px" class="text-right">MV</th>
-            <th nzWidth="64px" class="text-right">FM</th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (man of table.data; track man.fcId) {
-            <tr [attr.data-fc-id]="man.fcId">
-              <td><ui-roles [roles]="man.roles" size="xs" /></td>
-              <td>
-                {{ man.name }}
-                @if (man.note) {
-                  <span nz-tooltip [nzTooltipTitle]="man.note" class="ml-1 text-xs text-warning">
-                    <nz-icon nzType="info-circle" />
-                  </span>
+      <div class="grid min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+        <!-- 1. LA ROSA, come la tabella del draft: ogni intestazione ordina, un secondo click rovescia. -->
+        <section class="flex min-h-0 flex-col gap-1 rounded-lg border border-border bg-surface p-2" data-lineup-roster>
+          <!-- LE QUOTE dei bookmaker (sua richiesta, 08/10/2026): da dove vengono, quando sono state lette, quanti
+               uomini hanno raggiunto - un vuoto nella colonna deve leggersi «non trovato», non «nessuna quota». -->
+          <div class="flex flex-wrap items-center gap-2 px-1 text-[10px] text-muted" data-lineup-odds-state>
+            <span>Quote: media dei bookmaker italiani confrontati da oddschecker</span>
+            @switch (odds.state()) {
+              @case ('loading') { <span>· leggo…</span> }
+              @case ('unreachable') { <span class="text-warning">· non lette: {{ odds.why() }}</span> }
+              @case ('read') {
+                <span>· lette {{ odds.readAt() | date: 'dd/MM HH:mm' }} · {{ oddsCover().found }} di {{ oddsCover().of }} trovati</span>
+              }
+            }
+            <button type="button" class="text-primary hover:underline" (click)="odds.refresh()">rileggi</button>
+          </div>
+          <div class="lineup-grid px-1 text-[10px] uppercase text-muted">
+            <span class="sort" (click)="sortBy('role')">R{{ arrow('role') }}</span>
+            <span class="sort" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
+            <span>Partita</span>
+            <span class="sort text-right" (click)="sortBy('percent')" nz-tooltip nzTooltipTitle="Probabilità da titolare pubblicata da Leghe (fantacalcio.it)"
+              >Tit{{ arrow('percent') }}</span
+            >
+            <span class="sort text-right" (click)="sortBy('chance')" nz-tooltip nzTooltipTitle="Probabilità di prendere il voto"
+              >Voto{{ arrow('chance') }}</span
+            >
+            <span class="sort text-right" (click)="sortBy('fm')" nz-tooltip nzTooltipTitle="Fantamedia prevista">Fm{{ arrow('fm') }}</span>
+            <span class="sort text-right text-warning" (click)="sortBy('points')" nz-tooltip nzTooltipTitle="Punti attesi in questa giornata: probabilità del voto × fantamedia"
+              >Pt{{ arrow('points') }}</span
+            >
+            <span class="sort text-right" (click)="sortBy('odds')" nz-tooltip nzTooltipTitle="Quota media dei bookmaker: segna (movimento) o porta inviolata (portieri)"
+              >Quota{{ arrow('odds') }}</span
+            >
+            <span class="sort" (click)="sortBy('advised')" nz-tooltip nzTooltipTitle="Dove lo mette la formazione consigliata"
+              >Consiglio{{ arrow('advised') }}</span
+            >
+            <span nz-tooltip nzTooltipTitle="Dove lo mette la formazione già inviata a Leghe">Inviata</span>
+          </div>
+          <ul class="min-h-0 flex-1 overflow-y-auto">
+            @for (man of roster(); track man.fcId) {
+              <li
+                [attr.data-fc-id]="man.fcId"
+                class="lineup-grid items-center rounded px-1 text-[11px] leading-6 odd:bg-fg/5"
+                [class.opacity-50]="!!man.outLabel"
+              >
+                <ui-roles class="min-w-0 overflow-hidden" [roles]="man.roles" size="xs" />
+                <span class="flex min-w-0 items-center gap-1">
+                  <ui-crest class="shrink-0" [club]="man.clubName ?? man.club" [clubId]="man.clubId" [crests]="store.crests()" fallback="shield" size="xs" />
+                  <span class="min-w-0 truncate font-medium">{{ man.name }}</span>
+                  <ui-flags class="shrink-0 text-[10px]" [playerId]="man.fcId" />
+                  @if (man.outLabel) {
+                    <span class="shrink-0 rounded bg-danger/20 px-1 text-[9px] leading-4 text-danger">{{ man.outLabel }}</span>
+                  }
+                  @if (man.note) {
+                    <span nz-tooltip [nzTooltipTitle]="man.note" class="shrink-0 text-[10px] text-warning"><nz-icon nzType="info-circle" /></span>
+                  }
+                </span>
+                <span class="truncate text-[10px] text-muted">{{ man.match }}{{ man.home === null ? '' : man.home ? ' · casa' : ' · fuori' }}</span>
+                <span class="text-right tabular-nums">{{ man.percent === null ? '–' : man.percent + '%' }}</span>
+                <span class="text-right tabular-nums">{{ pct(man.chance) }}</span>
+                <span
+                  class="text-right tabular-nums"
+                  [class.italic]="man.fmFromLeghe"
+                  nz-tooltip
+                  [nzTooltipTitle]="man.fmFromLeghe ? 'Fantamedia di stagione da Leghe: il foglio non lo prezza' : ''"
+                  >{{ man.fm === null ? '–' : (man.fm | number: '1.2-2') }}</span
+                >
+                <span class="text-right font-semibold tabular-nums text-warning">{{ pts(man.points) }}</span>
+                @if (man.odds; as o) {
+                  <span
+                    class="text-right tabular-nums"
+                    [class.text-success]="o.kind === 'clean-sheet'"
+                    [attr.data-odds-match]="o.match"
+                    [attr.data-odds-kickoff]="o.kickoff"
+                    [attr.data-odds-kind]="o.kind"
+                    [attr.data-odds-name]="o.name ?? null"
+                    [attr.data-odds-side]="o.side ?? null"
+                    [attr.data-odds-price]="o.price"
+                    nz-tooltip
+                    [nzTooltipTitle]="oddsHint(o)"
+                    >{{ o.price | number: '1.2-2' }}</span
+                  >
+                } @else {
+                  <span class="text-right text-muted">–</span>
                 }
-              </td>
-              <td class="text-xs">
-                {{ man.match }}
-                <span class="text-muted">· {{ man.home === null ? '' : man.home ? 'casa' : 'fuori' }}</span>
-              </td>
-              <td class="text-right tabular-nums">{{ man.percent === null ? '–' : man.percent + '%' }}</td>
-              <td class="text-xs" [class.text-danger]="!!man.outLabel">{{ man.outLabel ?? '' }}</td>
-              <td class="text-xs">{{ man.placed ?? '' }}</td>
-              <td class="text-right tabular-nums">{{ man.vote ?? '–' }}</td>
-              <td class="text-right tabular-nums">{{ man.fantavote ?? '–' }}</td>
-            </tr>
+                <span class="text-[10px]" [class.text-primary]="man.advised === 'Titolare'" [class.text-muted]="man.advised !== 'Titolare'">{{ man.advised ?? '' }}</span>
+                <span class="text-[10px] text-muted">{{ man.placed ?? '' }}</span>
+              </li>
+            } @empty {
+              <li class="px-1 text-xs text-muted">Leghe non ha restituito la rosa.</li>
+            }
+          </ul>
+        </section>
+
+        <!-- 2. IL CAMPO coi titolari e, SOTTO, la panchina nel suo ordine (sua richiesta, 08/10/2026). -->
+        <section class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-surface p-2" data-lineup-pitch>
+          <div class="flex flex-wrap items-center gap-2 text-sm">
+            <nz-radio-group nzSize="small" nzButtonStyle="solid" [ngModel]="pitchSource()" (ngModelChange)="pitchSource.set($event)">
+              <label nz-radio-button nzValue="advised" data-pitch-source="advised">Consigliata</label>
+              <label nz-radio-button nzValue="sent" data-pitch-source="sent" [nzDisabled]="!sent()">Inviata</label>
+            </nz-radio-group>
+            @if (pitch(); as plan) {
+              <span data-module class="rounded-full border border-border px-2 py-0.5 text-xs font-semibold tabular-nums">{{ plan.module }}</span>
+              <span class="ml-auto text-xs tabular-nums text-muted" nz-tooltip nzTooltipTitle="Somma dei punti attesi dei titolari"
+                >{{ plan.total | number: '1.1-1' }} punti attesi</span
+              >
+            }
+          </div>
+
+          @if (pitch(); as plan) {
+            <div
+              class="flex flex-col gap-1 rounded-lg p-1.5 outline outline-1 -outline-offset-4 outline-fg/25"
+              style="background-image: linear-gradient(
+                to bottom,
+                color-mix(in oklab, var(--color-role-defence) 30%, var(--color-surface)),
+                color-mix(in oklab, var(--color-role-defence) 12%, var(--color-surface))
+              )"
+            >
+              @for (row of plan.rows; track row.line) {
+                <div [attr.data-line]="row.line" class="flex items-stretch justify-center gap-1">
+                  @for (place of row.places; track $index) {
+                    <div
+                      data-place
+                      [attr.data-filled]="place.man ? '' : null"
+                      class="flex min-w-0 max-w-[33%] flex-1 flex-col items-center gap-0.5 rounded-md border border-border bg-surface/90 px-1 py-1"
+                      [class.border-dashed]="!place.man"
+                    >
+                      <ui-role [role]="place.slot" size="xs" quiet />
+                      @if (place.man; as man) {
+                        <span class="w-full truncate text-center text-[11px] font-medium">{{ man.name }}</span>
+                        <span class="text-[10px] tabular-nums text-muted">{{ pct(man.chance) }} · <b class="text-warning">{{ pts(man.points) }}</b></span>
+                      } @else {
+                        <span class="text-[11px] text-muted">vuoto</span>
+                      }
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+
+            <div class="flex flex-col gap-1" data-lineup-bench>
+              <span class="text-xs font-semibold">Panchina <span class="font-normal text-muted">· nell'ordine in cui entrano</span></span>
+              <div class="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1">
+                @for (man of plan.bench; track man.id; let i = $index) {
+                  <div class="flex min-w-0 items-center gap-1 rounded border border-border bg-fg/5 px-1 py-0.5 text-[11px]" [attr.data-bench]="man.id">
+                    <span class="w-4 shrink-0 text-right tabular-nums text-muted">{{ i + 1 }}</span>
+                    <ui-roles class="shrink-0" [roles]="man.shown" size="xxs" />
+                    <span class="min-w-0 flex-1 truncate">{{ man.name }}</span>
+                    <span class="shrink-0 tabular-nums text-warning">{{ pts(man.points) }}</span>
+                  </div>
+                } @empty {
+                  <span class="text-xs text-muted">Nessuno in panchina.</span>
+                }
+              </div>
+              @if (plan.outside.length) {
+                <p class="text-xs text-muted">
+                  Fuori: @for (man of plan.outside; track man.id; let last = $last) {{{ man.name }}{{ last ? '' : ', ' }}}
+                </p>
+              }
+            </div>
+
+            @if (pitchSource() === 'advised') {
+              <p class="text-[10px] text-muted">
+                Prima versione: titolari scelti sui punti attesi (probabilità del voto × fantamedia) fra i moduli della lega.
+                Non conta ancora sostituzioni automatiche, modificatori e avversario.
+              </p>
+            }
+          } @else if (pitchSource() === 'sent') {
+            <p class="text-sm text-muted">Nessuna formazione inviata per questa giornata.</p>
+          } @else {
+            <p class="text-sm text-muted">Preparo la formazione: aspetto il regolamento dei moduli e il foglio.</p>
           }
-        </tbody>
-      </nz-table>
+        </section>
+      </div>
     } @else if (session.matchday.isLoading()) {
       <p class="text-sm text-muted">Leggo la lega da Leghe…</p>
     }

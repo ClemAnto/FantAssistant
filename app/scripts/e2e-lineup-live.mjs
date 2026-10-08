@@ -65,12 +65,109 @@ const until = async (expression, ms = 20000) => { for (let t = 0; t < ms; t += 2
 const shot = async (name) => { const r = await send('Page.captureScreenshot', { format: 'png' }, pageSession); await writeFile(join(SHOTS, name), Buffer.from(r.result.data, 'base64')); };
 const type = async (s, selector, text) => { await evalIn(s, `document.querySelector(${JSON.stringify(selector)}).focus()`); await send('Input.insertText', { text }, s); };
 
+// ---- THE ODDS CHECKS (operator, 08/10/2026: «controlla che le quote siano effettivamente quelle della
+// prossima partita del turno di gioco»). Three questions, each answered against something the page did not
+// compute itself: the kick-offs of all priced men fall in ONE matchday; every man of one Leghe fixture reads
+// the SAME bookmakers' match; and the price on screen is the one oddschecker shows NOW (re-read here with
+// odds.gs's own parsers, a few matches per league, within a tolerance because prices move).
+const failures = [];
+const fail = (msg) => failures.push(msg);
+const PRICED = `[...document.querySelectorAll('[data-lineup-roster] li[data-fc-id]')].map((r) => {
+  const cell = r.querySelector('[data-odds-match]');
+  return {
+    name: (r.children[1]?.innerText ?? '').split('\\n')[0].trim(),
+    leghe: (r.children[2]?.innerText ?? '').split(' · ')[0].trim(),
+    match: cell?.getAttribute('data-odds-match') ?? null,
+    kickoff: cell?.getAttribute('data-odds-kickoff') ?? null,
+    kind: cell?.getAttribute('data-odds-kind') ?? null,
+    oddsName: cell?.getAttribute('data-odds-name') ?? null,
+    side: cell?.getAttribute('data-odds-side') ?? null,
+    price: cell ? Number(cell.getAttribute('data-odds-price')) : null,
+  };
+})`;
+const sampled = new Map();   // odds match -> rows to re-price
+function oddsChecks(league, rows) {
+  const priced = rows.filter((r) => r.match);
+  if (!priced.length) { fail(`league ${league}: no man priced at all`); return; }
+  const times = priced.map((r) => Date.parse(r.kickoff));
+  const span = (Math.max(...times) - Math.min(...times)) / 86400000;
+  console.log(`  league ${league}: ${priced.length} priced, kick-offs ${new Date(Math.min(...times)).toISOString()} .. ${new Date(Math.max(...times)).toISOString()} (${span.toFixed(1)} days)`);
+  if (span > 4.5) fail(`league ${league}: priced kick-offs span ${span.toFixed(1)} days - more than one matchday`);
+  if (Math.min(...times) < Date.now() - 3 * 3600000) fail(`league ${league}: a price for a match already played`);
+  const byFixture = new Map();
+  for (const r of priced) {
+    const seen = byFixture.get(r.leghe);
+    if (seen && seen !== r.match) fail(`league ${league}: Leghe fixture ${r.leghe} read as two matches, ${seen} and ${r.match}`);
+    byFixture.set(r.leghe, r.match);
+  }
+  for (const [fixture, match] of byFixture) console.log(`    ${fixture.padEnd(9)} -> ${match}`);
+  for (const r of priced) {
+    if (!sampled.has(r.match)) sampled.set(r.match, []);
+    if (!sampled.get(r.match).some((x) => x.name === r.name)) sampled.get(r.match).push(r);
+  }
+}
+async function verifyPrices() {
+  const { execFileSync } = await import('node:child_process');
+  const vm = await import('node:vm');
+  const box = { Logger: { log: () => {} }, console };
+  vm.createContext(box);
+  vm.runInContext(readFileSync(join(import.meta.dirname, '..', '..', 'scripts', 'gas', 'odds.gs'), 'utf8'), box);
+  // Git's curl and not Windows' or Node's: oddschecker's edge filters on the TLS fingerprint (measured).
+  const CURL = 'C:/Program Files/Git/mingw64/bin/curl.exe';
+  const get = async (path) => {
+    const out = execFileSync(CURL, ['-s', '-L', '--max-time', '40', '-A', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Safari/537.36', '-H', 'Accept: text/html,application/xhtml+xml', '-H', 'Accept-Language: it-IT,it;q=0.9', 'https://www.oddschecker.com' + path], { maxBuffer: 64 << 20 }).toString('utf8');
+    await wait(3000);
+    return out;
+  };
+  // A league page the site refused (it rate-limits) is a match we could not re-check, not a wrong price:
+  // said apart, so a throttled run does not read as a failed one.
+  const paths = new Map();
+  const unread = [];
+  for (const [league, path] of Object.entries(box.ODDS_LEAGUES)) {
+    const listed = box.oddsMatches_(await get(path));
+    if (!listed.length) unread.push(league);
+    for (const m of listed) paths.set(m.name, m.path);
+  }
+  if (unread.length) console.log(`    league pages refused now, their matches not re-priced: ${unread.join(', ')}`);
+  let checked = 0, off = 0;
+  for (const [match, rows] of [...sampled].slice(0, 12)) {
+    const path = paths.get(match);
+    if (!path) {
+      if (unread.length) { console.log(`    ${match}: its league page was refused, not re-priced`); continue; }
+      fail(`${match}: not on oddschecker's league pages any more`);
+      continue;
+    }
+    const grids = box.oddsGrids_(await get(path));
+    if (!grids) { console.log(`    ${match}: page without odds now, not re-priced`); continue; }
+    const fresh = box.oddsRows_('x', { name: match, start: '' }, grids, 'now');
+    for (const r of rows) {
+      const row = r.kind === 'goal'
+        ? fresh.find((f) => f[8] === 'goal' && f[10] === r.oddsName)
+        : fresh.find((f) => f[8] === 'clean_sheet' && f[9] === r.side);
+      if (!row) { fail(`${r.name} (${match}): no ${r.kind} selection on the page now`); continue; }
+      const drift = Math.abs(row[11] - r.price) / r.price;
+      checked += 1;
+      if (drift > 0.15) { off += 1; fail(`${r.name} (${match}): screen ${r.price}, oddschecker now ${row[11]}`); }
+      console.log(`    ${r.name.padEnd(18)} ${String(r.kind).padEnd(11)} ${match.padEnd(34)} screen ${String(r.price).padStart(6)}  now ${String(row[11]).padStart(6)}  (${row[13]} books)`);
+    }
+  }
+  console.log(`  re-priced ${checked} selections, ${off} off by more than 15%`);
+}
+
 try {
   const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
   pageSession = (await send('Target.attachToTarget', { targetId, flatten: true })).result.sessionId;
   await send('Runtime.enable', {}, pageSession);
   await send('Page.enable', {}, pageSession);
   await send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, pageSession);
+  // OPTIONAL: a bookmaker-odds payload to seed the page's cache (argv[3]), so the odds join can be measured
+  // on the real rosters before the Sheet serves it. Built with odds.gs's own parsers.
+  const seed = process.argv[3];
+  if (seed) {
+    const body = readFileSync(seed, 'utf8');
+    const cache = JSON.stringify({ at: new Date().toISOString(), body });
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.setItem('fantassistant.bookmaker-odds-cache', ${JSON.stringify(cache)}); } catch {}` }, pageSession);
+  }
   await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1100, deviceScaleFactor: 1, mobile: false }, pageSession);
   await send('Page.navigate', { url: URL0 }, pageSession);
   console.log('page mounted:', await until(`!!document.querySelector('app-lineup [data-lineup-connect]')`));
@@ -109,18 +206,56 @@ try {
   await ev(`document.querySelector('.ant-modal-close')?.click()`);
   console.log('matchday shown:', await until(`!!document.querySelector('[data-lineup-matchday]')`, 40000));
   await wait(1500);
-  const read = await ev(`(() => ({
-    league: document.querySelector('[data-lineup-league] .ant-select-selection-item')?.innerText ?? null,
-    competitions: [...document.querySelectorAll('[data-lineup-matchday] li')].map(li => li.innerText.replace(/\\s+/g, ' ')),
-    closes: document.querySelector('[data-lineup-matchday] > div')?.innerText.replace(/\\s+/g, ' '),
-    rules: document.querySelectorAll('[data-lineup-rules] dt').length,
-    rosterRows: document.querySelectorAll('[data-lineup-roster] tbody tr[data-fc-id]').length,
-    placed: [...document.querySelectorAll('[data-lineup-roster] tbody tr[data-fc-id]')].filter(tr => /Titolare|Panchina/.test(tr.innerText)).length,
-    error: document.querySelector('app-lineup nz-alert')?.innerText ?? null,
-  }))()`);
-  console.log(JSON.stringify(read, null, 1));
-  await shot('3-page.png');
+  // THE RULES ARE FOLDED by default (operator, 08/10/2026): zero rows before the click, all of them after.
+  const rulesFolded = await ev(`document.querySelectorAll('[data-lineup-rules] dt').length`);
+  await ev(`document.querySelector('[data-lineup-rules-toggle]').click()`);
+  await wait(300);
+  console.log('rules folded:', rulesFolded === 0, '· rules after the click:', await ev(`document.querySelectorAll('[data-lineup-rules] dt').length`));
+
+  // EVERY LEAGUE in the selector, one after the other: the same three readings on each.
+  const leagues = await ev(`(async () => {
+    (document.querySelector('[data-lineup-league] nz-select-top-control') ?? document.querySelector('[data-lineup-league]')).click();
+    await new Promise((r) => setTimeout(r, 400));
+    const names = [...document.querySelectorAll('nz-option-item')].map((o) => o.innerText.trim());
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    return names;
+  })()`);
+  console.log('leagues:', leagues.length);
+  if (!leagues.length) leagues.push(null); // the selector did not open: read the league on screen at least
+  for (let i = 0; i < leagues.length; i++) {
+    if (leagues[i] !== null) await ev(`(async () => {
+      (document.querySelector('[data-lineup-league] nz-select-top-control') ?? document.querySelector('[data-lineup-league]')).click();
+      await new Promise((r) => setTimeout(r, 400));
+      document.querySelectorAll('nz-option-item')[${i}].click();
+    })()`);
+    await until(`!!document.querySelector('[data-lineup-roster] li[data-fc-id]') && !!document.querySelector('[data-lineup-pitch] [data-module]')`, 40000);
+    // The prices come from the Sheet live, and Apps Script takes 5-30 s to answer: wait for its verdict.
+    await until(`/lette |non lette/.test(document.querySelector('[data-lineup-odds-state]')?.innerText ?? '')`, 90000);
+    await wait(1500);
+    const read = await ev(`(() => {
+      const rows = [...document.querySelectorAll('[data-lineup-roster] li[data-fc-id]')];
+      const places = [...document.querySelectorAll('[data-lineup-pitch] [data-place]')];
+      return {
+        competitions: [...document.querySelectorAll('[data-lineup-matchday] li')].map(li => li.innerText.replace(/\\s+/g, ' ')),
+        rosterRows: rows.length,
+        advisedStarters: rows.filter((r) => /Titolare/.test(r.children[8]?.innerText ?? '')).length,
+        module: document.querySelector('[data-lineup-pitch] [data-module]')?.innerText ?? null,
+        places: places.length,
+        filled: places.filter((p) => p.hasAttribute('data-filled')).length,
+        bench: document.querySelectorAll('[data-lineup-bench] [data-bench]').length,
+        oddsState: document.querySelector('[data-lineup-odds-state]')?.innerText.replace(/\\s+/g, ' ') ?? null,
+        noOdds: rows.filter((r) => /^\\s*–\\s*$/.test(r.children[7]?.innerText ?? '')).map((r) => (r.children[1]?.innerText ?? '').split('\\n')[0] + ' [' + (r.children[0]?.innerText ?? '').replace(/\\s+/g, '') + '] ' + (r.children[2]?.innerText ?? '')),
+        sentEnabled: !document.querySelector('[data-pitch-source="sent"]')?.classList.contains('ant-radio-button-wrapper-disabled'),
+        error: document.querySelector('app-lineup nz-alert')?.innerText ?? null,
+      };
+    })()`);
+    console.log(`league ${i + 1}:`, JSON.stringify(read));
+    await shot(`3-page-${i + 1}.png`);
+    if (read.rosterRows) oddsChecks(i + 1, await ev(PRICED));
+  }
+  await verifyPrices();
 } finally {
+  console.log(failures.length ? `${failures.length} ODDS CHECK(S) FAILED:\n  ` + failures.join('\n  ') : 'odds checks passed');
   console.log(problems.length ? problems.join('\n') : 'no page exceptions');
   console.log(`screenshots in ${SHOTS}`);
   browser.kill();

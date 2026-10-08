@@ -94,8 +94,110 @@ letto: dopo. Giudice prima di fidarsi: rigiocare le giornate già giocate contro
 l'operatore ha davvero schierato (Leghe le serve).
 
 
+## §4-bis. La pagina LINEUP e il primo taglio del consiglio (08/10/2026, sera)
+
+Richieste dell'operatore, in sequenza: la pagina si chiama **LINEUP**; «una tabella con i calciatori della
+tua rosa (simile a quella nella pagina draft) e un campo che mostra i calciatori schierati e sotto una
+griglia con quelli in panchina»; «le Regole della lega mettili in un box collassabile». Fatto:
+
+- **Tabella della rosa** come quella del draft (intestazioni che ordinano, stemma, marchi): titolare % di
+  Leghe, probabilità del voto, fantamedia prevista (dal foglio; dove il foglio non lo prezza, la media di
+  stagione di Leghe in corsivo), **punti attesi**, dove lo mette la formazione consigliata e dove quella
+  inviata.
+- **Campo + griglia della panchina**, con un interruttore **Consigliata / Inviata**: la stessa rosa, due
+  formazioni sullo stesso disegno.
+- **Regole della lega** piegate di default.
+
+**Il consiglio è un PRIMO TAGLIO e lo dice a schermo** (`core/lineup-advice.ts`): punti attesi =
+P(voto) × fantamedia prevista, con P(voto) letta dalla `percent` di Leghe sulla curva di
+`rosa-3-giornate-v1.md` §2 (piatta oltre gli estremi misurati, 0 se Leghe lo segna fuori, 0,063 se la
+pagina non lo elenca); undici = il migliore sui moduli che la LEGA ammette, con la legalità del
+regolamento (`mantra-legal.bestEleven`, classic o Mantra); panchina = classic per ruolo P/D/C/A e
+migliore prima, Mantra una coda unica, coi minimi per ruolo e la taglia letti da Leghe. **Non conta**
+sostituzioni automatiche, modificatori, avversario, consenso del foglio probabili né la stampa: è il
+pavimento che il banco (§5 punto 3) giudicherà, non il motore del §4.
+
+**Decisione dell'operatore sulla fonte (08/10/2026): percent + foglio probabili + stampa** (il terzo
+strato del §4 è scelto). Il primo taglio usa solo la `percent`; gli altri due sono da collegare.
+
+Verificato dal vivo sull'account (`scripts/e2e-lineup-live.mjs`, ora legge campo, panchina e regole
+piegate per ogni lega): classic 4-3-3 con 11 posti pieni e 12 in panchina, Mantra 3-4-2-1 con 11 e 12
+(almeno un portiere in panchina rispettato); nessuna eccezione in pagina. `ng test` 1427/1427.
+
+## §4-ter. Le quote dei bookmaker (08/10/2026, notte)
+
+Richiesta: «per ogni calciatore di movimento la quota gol (media da più siti di scommesse); per i portieri
+la quota porta inviolata», poi «se troviamo api gratis ok, altrimenti i bookmaker italiani: 3 adatti
+bastano». **Misurato prima di scrivere** e la risposta è una terza strada:
+
+| Fonte | Esito |
+|---|---|
+| API gratuite | The Odds API ha `player_goal_scorer_anytime` sui cinque campionati ma solo con bookmaker USA, e niente porta inviolata; le altre sono a pagamento |
+| Sisal, Snai, Lottomatica, Goldbet, Eurobet | dietro Akamai/Cloudflare: 403 o connessione chiusa a tutto ciò che non è un browser vero |
+| **oddschecker.com/it** | **una pagina per partita, scritta lato server, con i bookmaker ITALIANI che confronta**: 26 elencati, 12-13 per ogni «marcatore in qualsiasi momento», 3-4 per la porta inviolata. Copre i cinque campionati (la Liga sta su `spagna/liga`) |
+
+**La porta inviolata** non ha le quote nella pagina sotto il suo nome, ma lo stesso evento è prezzato
+sotto altri tre: «Total Away Goals» Under 0,5 e «Total Away Goals Exact» 0 (= la squadra di CASA non
+subisce), e i due specchi. Si sommano i bookmaker di tutti e tre.
+
+**Dove gira: nel foglio delle probabili**, come secondo file dello stesso progetto Apps Script
+(`scripts/gas/odds.gs`): due catture al giorno (8 e 19), la riga di ogni cattura in un tab `Quote`
+(**si accumula**: è la serie che un giorno permetterà di giudicare le quote), e `doGet?what=odds` serve
+l'ultima cattura delle partite non ancora iniziate. La stessa distribuzione del foglio, quindi l'app non
+ha un indirizzo nuovo da conoscere. Una passata da ~50 pagine non sta nei sei minuti di Apps Script: si
+ferma a 4,5 minuti e riparte da sola un minuto dopo sulle leghe rimaste, sotto lo stesso `taken_utc`.
+
+**Nell'app** (`core/bookmaker-odds.ts`, `core/bookmaker-odds-store.ts`): colonna **Quota** nella tabella
+di LINEUP (gol per i movimento, porta inviolata in verde per i portieri; il tooltip dice su quanti
+bookmaker e la forbice). È un PREZZO e qui è reporting: il consiglio non lo legge.
+
+**L'unione per nome è la parte delicata, e si decide a VOTI.** Non c'è un id comune: oddschecker scrive
+«Mateo Pellegrino», Leghe «Pellegrino M.». Misurato sulle rose vere: i codici a tre lettere coincidono
+in Serie A e non all'estero (Leghe `LIV-MCI`, oddschecker `LFC`/`MCI`; `FCB` contro `BAR`), e Leghe
+scrive i club stranieri in italiano («Barcellona», «Stoccarda»). Quindi la partita di un gruppo di
+uomini la decidono tre indizi sommati - codici (3), nome del club (2), ogni suo uomo che compare fra i
+marcatori (1) - e il nome si accetta solo se il candidato è UNO. Risultato sulle rose dell'operatore con
+un pacchetto costruito in locale dagli stessi parser: **Serie A 27 di 28** (manca Yildiz, che i
+bookmaker non quotano), **EuroLeghe 29 di 36**, e i 7 mancanti sono tutti di Ligue 1, dove la passata
+locale era stata rallentata dal sito (2 partite su 10).
+
+**Verificato in un browser vero contro l'indirizzo del foglio (08/10/2026, `scripts/e2e-lineup-live.mjs`, che ora
+lo controlla ogni volta).** Tre domande, ognuna contro qualcosa che la pagina non calcola da sé: (1) tutte le
+quote a schermo cadono in UNA giornata - EuroLeghe dal 9/10 18:30 al 12/10 19:00 UTC, 3,0 giorni, Serie A
+2,2; (2) tutti gli uomini di una stessa partita Leghe leggono la STESSA partita dei bookmaker, e le 18 + 9
+corrispondenze stampate tornano tutte (`SCP-STU` → Paderborn v Stuttgart, `ALV-ATM` → Alaves v Atletico);
+(3) il prezzo a schermo è quello che oddschecker mostra ADESSO, riletto dai parser di `odds.gs`: 20
+selezioni, **0 fuori del 15%**, quasi tutte identiche al centesimo. Un prezzo che sembra strano va
+guardato prima di chiamarlo un difetto: Bensebaini a 3,98 è davvero il prezzo dei bookmaker.
+
+**E il difetto che il controllo (1) ha trovato, e la regola dell'operatore che lo cura.** La finestra di
+otto giorni prende anche l'apertura del turno SUCCESSIVO in quattro leghe (Frankfurt, Toulouse, Frosinone,
+Le Mans... due volte). La prima cura - «solo la prossima partita di ogni club» - è stata ritirata la sera
+stessa su sua indicazione: «per euroleghe non è sempre semplice capire quale giornata dei singoli
+campionati bisogna prendere in considerazione: devi prendere dal sito euroleghe per ogni calciatore quale
+è la sua "prossima partita" e da lì confrontare le partite corrette». Una giornata EuroLeghe raccoglie un
+turno DIVERSO in ogni campionato, quindi «la prossima del club» non è un sostituto sicuro. Ora la partita
+la nomina LEGHE (`teamH-teamA` e `hoaw` di ogni uomo) e `matchFor` cerca fra le quote quella partita:
+il suo club dal lato giusto e l'avversario dall'altro (entrambi 4, un lato solo 1), più 2 per ogni suo
+uomo fra i marcatori; sotto 3 nessuna quota, a pari punteggio la partita prima. Il foglio serve TUTTE le
+partite in arrivo e la scelta resta all'app. Provato con un pacchetto che contiene due turni: le 27
+partite Leghe finiscono tutte sulla partita giusta. I nomi dei club avversari Leghe non li dà in chiaro
+(`championship/teams` elenca solo i 37 club del perimetro, in italiano), quindi l'avversario si riconosce
+dal codice: uguale al codice dei bookmaker, inizio di una parola del nome (`TOU` → Toulouse) o iniziali
+(`PSG`).
+
+**Due fatti da sapere, pagati.** Cloudflare di oddschecker riconosce il client dalla sua impronta TLS:
+`curl` di Git (OpenSSL) passa, `curl` di Windows e `fetch` di Node ricevono 403 con gli stessi header.
+Quindi **se il server di Google passa non si sa finché non si prova**: `oddsProbe()` è la prima cosa da
+lanciare. E a 1,5 secondi fra le pagine l'ultima lega di una passata viene rifiutata: la pausa è 3 s.
+
 ## §5. Aperti, in ordine
 
+0. **Quote (§4-ter), lato operatore**: incollare `scripts/gas/odds.gs` come nuovo file nel progetto
+   Apps Script del foglio probabili e aggiornare `probabili-sheet.gs` (una riga in `doGet`); lanciare
+   `oddsProbe()` - se Google viene rifiutato da Cloudflare, la cattura va spostata sul portatile; poi
+   `oddsInstall()` e una NUOVA VERSIONE della distribuzione. Verifica offline dei parser:
+   `node scripts/gas/verify-odds.mjs <cartella con league.html e match*.html>`.
 1. **Pubblicare l'intermediario**: account Cloudflare dell'operatore (gratuito; che non chieda la carta lo
    dicono fonti non ufficiali), `npx wrangler deploy` da `app/proxy/` (comando nel file), poi incollare
    l'indirizzo nella pagina («Account»). Poi ripubblicare il sito (`npm run deploy:pages`) e verificarlo
