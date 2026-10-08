@@ -1,5 +1,9 @@
 # Formazione settimanale — chi gioca davvero, e da dove lo sappiamo (v1, progetto)
 
+> **08/10/2026:** la pagina c'è (`/lineup`) e legge rosa, regole e avversario dall'account Leghe/EuroLeghe
+> dell'operatore: `formazione-leghe-v1.md`. La ricerca per giocatore descritta qui sotto NON è ancora fatta, e
+> quanto pesi rispetto alla `percent` della piattaforma è una decisione aperta (§4 di quel documento).
+
 **Stato: PROGETTO, nessuna riga di codice.** Nasce da un'indicazione dell'operatore del 7 agosto 2026:
 «quando dovremo valutare la formazione fanta da schierare e quindi sarà fondamentale sapere se un calciatore
 gioca o meno, piuttosto di consultare la pagina web sulle probabili formazioni, conviene fare una ricerca

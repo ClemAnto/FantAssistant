@@ -698,7 +698,10 @@ Per la STRATEGIA (cosa si prepara PRIMA di sedersi al tavolo): **`pagina-strateg
 misurato), quanti nomi serve avere per ruolo (`slot × partecipanti` su classic, le quote delle forme su
 mantra) e **due forme respinte con i loro numeri** della regola «posto più arretrato», da non riprovare.
 L'altra fase, quella settimanale, è **`formazione-settimanale-v1.md`** (progetto): chi gioca domenica, perché
-la pagina delle probabili non basta e quali vincoli valgono già oggi.
+la pagina delle probabili non basta e quali vincoli valgono già oggi. **Dal 08/10/2026 ha una pagina vera,
+`/lineup`: `formazione-leghe-v1.md`** — il collegamento all'account Leghe/EuroLeghe dell'operatore (login
+embed / diretto, l'intermediario per il CORS), cosa Leghe serve e cosa vogliono dire le sue chiavi corte, e il
+piano del consiglio. Leggerlo prima di toccare quella pagina.
 Per l'ASTA A RILANCI dal lato della STRATEGIA — non «chi comprare» ma «come si offre» —
 **`simulatore-asta-rilanci-v1.md`** (01/09/2026): il QUINTO banco (`bench/auction`), i cinque profili
 dichiarati dell'operatore, il prezzo del top che EMERGE dal secondo prezzo (48-75% del budget), il costo

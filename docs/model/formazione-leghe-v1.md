@@ -11,7 +11,12 @@ regole per inserire formazione/panchina e competizione». Pagina `/lineup` dell'
 3. **per il momento basta il consiglio**: niente scrittura della formazione su Leghe.
 
 Stato: **fase 1 fatta** (collegamento, lettura di rosa, regole, competizioni, avversario e formazione
-inviata). Il motore del consiglio è la fase 2.
+inviata), commit `0a88a1a` su `master`, pushato. Il motore del consiglio è la fase 2. **Il sito pubblicato
+NON ha ancora la pagina funzionante**: manca l'intermediario (§2) e la pagina non è stata ripubblicata.
+
+Questa pagina realizza la «fase settimanale» che `formazione-settimanale-v1.md` (07/08/2026) aveva solo
+progettato: i vincoli scritti là — datare con l'ORA, una fonte per affermazione, `vuoto = ignoto`, niente di
+questo diventa una regola del motore — valgono qui e la fase 2 li deve rispettare.
 
 
 ## §1. Il dato non serve dedurlo: Leghe lo serve
@@ -70,6 +75,15 @@ fattore rendimento fino a +3 (Mantra); switch Plus e niente capitano in tutte e 
 
 ## §4. Fase 2 — il consiglio (da fare)
 
+**Una tensione da sciogliere con l'operatore PRIMA di scrivere il motore.** Il 07/08/2026 aveva giudicato la
+pagina delle probabili inaffidabile e indicato la ricerca giocatore per giocatore sui quotidiani
+(`formazione-settimanale-v1.md`); dal 21/09 il foglio delle probabili misura le fonti e fantacalcio.it,
+sosfanta e Sky stanno insieme, una decina di punti sopra il null (`attendibilita-probabili-v1.md` §5). La
+`percent` che Leghe serve è quella di fantacalcio.it. Quindi: la base è la `percent` (fresca, su tutti e
+cinque i campionati), il consenso delle quattro fonti la affianca dove c'è (solo Serie A, solo all'apertura
+del turno), e la ricerca per giocatore — gli agenti di `toolkit/scripts/press_survey/` esistono già per la
+titolarità — è il terzo strato da decidere, perché costa per uomo e per giornata.
+
 Per ogni uomo: probabilità di prendere il voto (dalla `percent` della piattaforma e dalle quattro fonti del
 foglio probabili, con la curva di `rosa-3-giornate-v1.md` §2 **da rimisurare** sulle giornate giocate) e
 fantavoto atteso in quella partita (motore + calendario; per i portieri la porta inviolata). Poi modulo,
@@ -80,7 +94,22 @@ letto: dopo. Giudice prima di fidarsi: rigiocare le giornate già giocate contro
 l'operatore ha davvero schierato (Leghe le serve).
 
 
-## §5. Lezioni pagate nella sessione
+## §5. Aperti, in ordine
+
+1. **Pubblicare l'intermediario**: account Cloudflare dell'operatore (gratuito; che non chieda la carta lo
+   dicono fonti non ufficiali), `npx wrangler deploy` da `app/proxy/` (comando nel file), poi incollare
+   l'indirizzo nella pagina («Account»). Poi ripubblicare il sito (`npm run deploy:pages`) e verificarlo
+   col browser.
+2. **Fase 2, il motore del consiglio** (§4), Leghe Classic per prima, con la tensione del §4 decisa prima.
+3. **Il banco**: rigiocare le giornate già giocate contro le formazioni vere dell'operatore.
+4. **Segnalazioni al team Leghe** (§3, ultimo punto): sono quattro.
+5. **L'operatore deve cambiare la password di fantacalcio.it**: è passata dalla chat l'08/10/2026.
+6. Da verificare sul campo: `hoaw` è letto come 0 = casa (torna sui casi guardati, non controllato su
+   tutti); `index` (la posizione nelle probabili) NON è letto, perché alcuni valori non tornano (0 su un
+   titolare al 90%, 11 su un terzo portiere al 5%) e un campo che non si capisce non si usa.
+
+
+## §6. Lezioni pagate nella sessione
 
 - **Una scelta dell'operatore va misurata prima di costruirla**: il login embed sembrava risolvere tutto,
   e risolve la password e non il CORS. Detto prima di scrivere codice.
