@@ -230,7 +230,7 @@ nessun `SHEET_REVISION`).
   righe col lato nel nome (`DD … DS`) non si toccano. Il limite: `E`/`W` non dicono quale lato, quindi il
   primo va a sinistra dello schermo.
 
-**L'FVA (Fanta Voto Atteso)** — *proposto il 09/10 e IMPLEMENTATO la notte stessa in `core/fva.ts`, al posto di PT; `a` e `b` misurati il 10/10, §4-quinquies* — a sostituire PT. La forma concordata per i
+**L'FVA (Fanta Voto Atteso)** — *proposto il 09/10 e IMPLEMENTATO la notte stessa in `core/fva.ts`, al posto di PT; `a` e `b` misurati il giorno dopo, §4-quinquies* — a sostituire PT. La forma concordata per i
 giocatori di movimento, con le sue tre decisioni («la probabilità di prendere voto ci interessa poco»,
 «il minutaggio un contributo minimo, decisivo solo fra due situazioni simili», «le quote fotografano meglio
 la capacità di segnare in quella partita che non la fantamedia»):
@@ -250,7 +250,7 @@ la capacità di segnare in quella partita che non la fantamedia»):
 PT): `FVA = MV − λ` con `λ = −ln(p)` dalla quota porta inviolata, più `p × bonus` se la lega lo dà; senza
 quota, la fantamedia del foglio. Proposta, non decisa.
 
-## §4-quinquies. L'FVA legge la partita, e il trend resta fuori per misura (10/10/2026)
+## §4-quinquies. L'FVA legge la partita, e il trend resta fuori per misura (09/10/2026, giorno)
 
 Domanda dell'operatore: «verifica se trend e avversario hanno il giusto peso nella formula per FMA», poi
 «applica tutti e 4 e verifica sulle stagioni scorse». Il trend era fuori, l'avversario entrava solo dalle quote.
@@ -302,7 +302,7 @@ visto dal vivo. Nessun gate: è una lettura dell'app.
    `node app/scripts/e2e-lineup-live.mjs <porta> [pacchetto-quote.json]` sotto `ng serve`.
 0-bis. **Push** dei commit `bde447f` e `b8ec932` (fatto solo il commit, su richiesta).
 0-ter. **FVA: FATTO** (`core/fva.ts`, colonna al posto di PT, la consigliata sceglie su P(voto) × FVA) e con
-   la partita dentro (§4-quinquies, 10/10). Restano: (a) **guardarla in un browser collegato a Leghe**, e
+   la partita dentro (§4-quinquies). Restano: (a) **guardarla in un browser collegato a Leghe**, e
    in particolare CONTARE quanti uomini ricevono il termine partita - l'appaiamento del nome dell'avversario
    fra Leghe e calendario (`sameClub`) non è mai stato visto dal vivo, e se fallisce la correzione tace in
    silenzio; (b) confrontare l'FVA con PT sulle giornate già giocate; (c) decidere se l'automatico sceglie il

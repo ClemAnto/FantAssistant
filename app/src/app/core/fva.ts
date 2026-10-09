@@ -18,7 +18,7 @@
  *            The clean-sheet price carries a margin too, which makes p too high and the goals conceded too
  *            few: not rescaled, because a roster has two or three keepers and a ratio over them is noise.
  *
- * THE MATCH (10/10/2026, measured: `docs/model/formazione-leghe-v1.md` §4-quinquies). `delta` is this match's
+ * THE MATCH (09/10/2026, measured: `docs/model/formazione-leghe-v1.md` §4-quinquies). `delta` is this match's
  * edge (Elo + venue - opponent, the bundle's calendar) MINUS his club's ordinary edge, because the fantamedia
  * already contains how strong his club is against the league: only the deviation of THIS match is news.
  *   - base vote:     + MATCH_MV_PER_100 x delta/100 (`a`), on every outfield man;

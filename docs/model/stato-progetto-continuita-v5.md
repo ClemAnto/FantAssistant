@@ -1,5 +1,5 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXIV): 9-10 ottobre 2026 — L'FVA IMPLEMENTATO E CON LA PARTITA DENTRO, IL TREND FUORI PER MISURA.**
+**Aggiornato (XXIV): 9 ottobre 2026 (giorno) — L'FVA IMPLEMENTATO E CON LA PARTITA DENTRO, IL TREND FUORI PER MISURA.**
 Un commit (questo), pushato. Dettaglio: `formazione-leghe-v1.md` §4-quinquies e la CHIUSURA (XXIV) qui sotto.
 
 · precedente: **Aggiornato (XXI): 8 ottobre 2026 — LA PAGINA FORMAZIONE (`/lineup`) COLLEGATA A LEGHE ED EUROLEGHE, FASE 1:
@@ -201,7 +201,7 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
-## CHIUSURA — 10 ottobre 2026 (XXIV): l'FVA legge la partita, il trend resta fuori
+## CHIUSURA — 9 ottobre 2026 (XXIV): l'FVA legge la partita, il trend resta fuori
 
 Tre domande dell'operatore, tre misure (scratchpad, sola lettura su una copia del DB) e una modifica all'app.
 - **Il trend non predice la prossima partita oltre il livello**: fuori campione le ultime 5 pesano 0,03 (Serie A)
@@ -215,7 +215,7 @@ Tre domande dell'operatore, tre misure (scratchpad, sola lettura su una copia de
   portiere senza quota dalla porta inviolata del calendario. Sulle stagioni passate: movimento +0,48% / +0,64%
   di MAE (6/6, 5/5), portieri +1,3% / +3,8%, coppie ordinate giuste +1 / +4 punti. Numeri e limiti in
   `formazione-leghe-v1.md` §4-quinquies.
-Il commit porta anche, non committati fino a ora, l'implementazione dell'FVA della notte del 9/10 e la
+Il commit porta anche, non committati fino a ora, l'implementazione dell'FVA della notte prima e la
 classifica ESPN nel tooltip della partita (`league_standings`, `fixtures.parse_standings`, `core/standings.ts`).
 **1454 test app e 1030 toolkit verdi, build pulito**; niente guardato in un browser collegato a Leghe, e
 niente ripubblicato. Il DB vivo non ha la tabella `league_standings` finché non gira `fixtures`.
