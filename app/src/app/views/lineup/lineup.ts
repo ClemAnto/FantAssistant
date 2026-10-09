@@ -1,9 +1,12 @@
+import { CdkDrag, CdkDragDrop, CdkDropList, CdkDropListGroup } from '@angular/cdk/drag-drop';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, resource, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
+import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
@@ -12,8 +15,10 @@ import { ManOdds, OddsMan, joinOdds, oddsSortValue, sameClub } from '../../core/
 import { BookmakerOddsStore } from '../../core/bookmaker-odds-store';
 import { Bundle } from '../../core/bundle';
 import { LEGHE } from '../../core/leghe-api';
+import { LegheLineupBody, SaveMan, legheModuleCode, saveBody, saveRefusal, switchModules } from '../../core/leghe-lineup';
 import { NextMatchRow, fcTeamNames } from '../../core/leghe-matchday';
 import { moduleLabel, rulesSummary } from '../../core/leghe-rules';
+import { DropTarget, LineupDraft, NO_SWITCH, draftOf, drawDraft, move, relayout } from '../../core/lineup-edit';
 import { LegheSession, keyOf } from '../../core/leghe-session';
 import { FvaInput, fvaOf, fvaWords, oddsScale, restPerMatch } from '../../core/fva';
 import { calendarBookFrom } from '../../core/keeper-pairs';
@@ -22,13 +27,16 @@ import {
   LineupMan,
   LineupPlan,
   adviseLineup,
+  bestOnModules,
   drawSent,
-  fieldWeight,
+  readByDefence,
   rulebookName,
   voteChance,
   withLeagueModules,
 } from '../../core/lineup-advice';
-import { bestEleven, placesIn } from '../../core/mantra-legal';
+import { placesIn } from '../../core/mantra-legal';
+import { PlayerRatingsStore } from '../../core/player-ratings-store';
+import { ROLE_STEADY, steadyShareFor } from '../../core/swing';
 import { ExpectedPlay } from '../../core/expected-play';
 import {
   CardKey,
@@ -109,8 +117,15 @@ export interface RosterLine extends NextMatchRow {
 /** The roster table's sortable columns. */
 export type LineupSort = 'role' | 'name' | 'trend' | 'ga' | 'chance' | 'fm' | 'fva' | 'odds' | 'advised';
 
-/** Two drawings of the same pitch: ours, or what Leghe already holds. */
-export type PitchSource = 'advised' | 'sent';
+/** Three drawings of the same pitch: ours, his own edit of it, or what Leghe already holds. */
+export type PitchSource = 'advised' | 'edited' | 'sent';
+
+/** Where the last save stands: nothing yet, on its way, written (and then read back), or refused with a reason. */
+type SaveState =
+  | { kind: 'idle' }
+  | { kind: 'saving' }
+  | { kind: 'done'; body: LegheLineupBody }
+  | { kind: 'failed'; text: string };
 
 /**
  * LINEUP - LA FORMAZIONE DELLA PROSSIMA GIORNATA (the operator, 08/10/2026: «una nuova pagina che ti aiuti ad
@@ -122,12 +137,17 @@ export type PitchSource = 'advised' | 'sent';
  * ADVISED lineup of `lineup-advice.ts` - a first cut on expected points, stated as such on screen, which the
  * bench of `formazione-leghe-v1.md` §5 will judge before anything heavier is built on it.
  *
- * Nothing here writes to Leghe: the operator's decision of 08/10/2026 is «per il momento basta il consiglio».
+ * Since 09/10/2026 the page also WRITES: the lineup on the pitch can be changed by drag & drop (`lineup-edit.ts`)
+ * and saved on Leghe (`leghe-lineup.ts`), the operator's three requests of that evening. Until then his decision of
+ * 08/10/2026 was «per il momento basta il consiglio».
  */
 @Component({
   selector: 'app-lineup',
   imports: [
     AppHeader,
+    CdkDrag,
+    CdkDropList,
+    CdkDropListGroup,
     ClubCard,
     ClubCrest,
     DatePipe,
@@ -136,7 +156,9 @@ export type PitchSource = 'advised' | 'sent';
     LegheConnect,
     NzAlertModule,
     NzButtonModule,
+    NzCheckboxModule,
     NzIconModule,
+    NzPopconfirmModule,
     NzRadioModule,
     NzSelectModule,
     NzTooltipModule,
@@ -165,6 +187,7 @@ export class Lineup {
   protected readonly odds = inject(BookmakerOddsStore);
   private readonly players = inject(PlayersStore);
   private readonly play = inject(ExpectedPlay);
+  private readonly ratings = inject(PlayerRatingsStore);
   private readonly clock = inject(TimeTravel);
   protected readonly connecting = signal(false);
 
@@ -204,8 +227,15 @@ export class Lineup {
    * cannot disagree about which module is best.
    */
   private readonly moduleTotals = computed(() => {
-    const scores = bestEleven(this.men(), this.book(), fieldWeight)?.scores ?? [];
+    const book = this.book();
+    const scores = book?.modules ? (bestOnModules(this.men(), book, this.game())?.scores ?? []) : [];
     return new Map(scores.map((one) => [one.module, one]));
+  });
+
+  /** The league pays a steadiness term (R-Factor or defence modifier): the totals are then not FVA alone. */
+  protected readonly modifiersOn = computed(() => {
+    const rules = this.md()?.rules;
+    return !!rules && (!!rules.performance || !!rules.defence);
   });
 
   /** The module with the highest FVA total, more men placed first: the one the selector highlights. */
@@ -243,7 +273,9 @@ export class Lineup {
         ]
           .filter(Boolean)
           .join(' · ');
-        return { name, best: name === best, sort: score ? score.placed * 1000 + score.total : -1, label: `${name} · FVA ${total}${tags ? ' · ' + tags : ''}` };
+        // With a modifier the total is the FVA PLUS the steadiness it pays (`weightOn`), so it is not called FVA.
+        const what = this.modifiersOn() ? 'valore' : 'FVA';
+        return { name, best: name === best, sort: score ? score.placed * 1000 + score.total : -1, label: `${name} · ${what} ${total}${tags ? ' · ' + tags : ''}` };
       })
       .sort((x, y) => y.sort - x.sort);
   });
@@ -565,6 +597,49 @@ export class Lineup {
   });
 
   /**
+   * WHAT EACH MAN'S STEADINESS IS WORTH TO THE LEAGUE'S MODIFIERS, per match (operator, 09/10/2026: «se il
+   * modificatore di rendimento è attivo aggiungi una valutazione migliore per quelli che hanno una continuità
+   * migliore (frequenza alta di voti con 6>=0); se il modificatore di difesa è attivo ... ai difensori ... e ricorda
+   * che le difese con < 4 difensori non ottengono questo bonus»).
+   *
+   * The steadiness is the app's one COSTANZA (`player-ratings.steadyOf`: the share of base votes of at least 6, read
+   * from `PlayerRatingsStore`), the role's median where he has none (`swing.ROLE_STEADY`, «vuoto = ignoto, mai
+   * zero»). The weight is the operator's own `STEADY_SHARE` with the league's size read from Leghe
+   * (`steadyShareFor`: the modifier's top value over eleven). The R-Factor term goes to everybody; the defence term
+   * to the men the modifier reads (`readByDefence`), and the eleven counts it only on a module with four defenders
+   * on classic (`earnsDefence`). Absent where the league pays neither.
+   */
+  private readonly steadiness = computed(() => {
+    const out = new Map<number, { rFactor: number | null; defence: number | null; words: string }>();
+    const md = this.md();
+    if (!md) return out;
+    const rules = md.rules;
+    const rPoints = rules.performance ? Math.max(...rules.performance) : 0;
+    const dPoints = rules.defence ? Math.max(...rules.defence.values) : 0;
+    if (rPoints <= 0 && dPoints <= 0) return out;
+    this.ratings.ready(); // the ratings land after the bundle: read so this recomputes when they do
+    const platform = this.platform();
+    const rows = this.bundleRows();
+    for (const r of md.roster) {
+      const measured = this.ratings.for(platform, r.fcId)?.steady?.share ?? null;
+      const role = rows.get(r.fcId)?.role as Role | undefined;
+      const steady = measured ?? (role && role in ROLE_STEADY ? ROLE_STEADY[role] : null);
+      if (steady === null) continue;
+      const rFactor = rPoints > 0 ? steady * steadyShareFor(rPoints) : null;
+      const reads =
+        dPoints > 0 && readByDefence(r.roles.map((c) => c.toLowerCase()), rules.game, !!rules.defence?.withKeeper);
+      const defence = reads ? steady * steadyShareFor(dPoints) : null;
+      const parts = [
+        rFactor ? `+${rFactor.toFixed(2)} rendimento` : '',
+        defence ? `+${defence.toFixed(2)} difesa${rules.game === 'classic' ? ' (con 4 difensori)' : ''}` : '',
+      ].filter(Boolean);
+      const of = `costanza ${Math.round(steady * 100)}%${measured === null ? ' del ruolo' : ''}`;
+      out.set(r.fcId, { rFactor, defence, words: parts.length ? `${of}: ${parts.join(', ')}` : '' });
+    }
+    return out;
+  });
+
+  /**
    * Every man of the roster priced for this matchday: the ONE list the table, the pitch and the bench read, so
    * the number beside a name in the table is the number the pitch was chosen on. The number SHOWN is the FVA
    * (`core/fva.ts`), and since 09/10/2026 it is also the number the eleven is chosen on (`points`).
@@ -574,6 +649,7 @@ export class Lineup {
     if (!md) return [];
     const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
     const odds = this.oddsByMan();
+    const steadiness = this.steadiness();
     const inputs = md.roster.map((r) => {
       const expected = sheet?.get(r.fcId);
       const fromSheet = expected?.fm ?? null;
@@ -606,6 +682,7 @@ export class Lineup {
     return inputs.map(({ r, fm, fromSheet, keeper, input }) => {
       const chance = voteChance(r.percent, r.out);
       const fva = fvaOf(input, scale);
+      const steady = steadiness.get(r.fcId) ?? null;
       return {
         id: r.fcId,
         name: r.name,
@@ -614,7 +691,9 @@ export class Lineup {
         chance,
         fm,
         fva: fva.value,
-        fvaWhy: fvaWords(fva, keeper),
+        fvaWhy: fvaWords(fva, keeper) + (steady?.words ? ` · ${steady.words}` : ''),
+        steadyBonus: steady?.rFactor ?? null,
+        defenceBonus: steady?.defence ?? null,
         fmFromLeghe: fromSheet === null && fm !== null,
         // THE ELEVEN IS CHOSEN ON THE FVA ALONE (operator, 09/10/2026: «il modulo migliore è semplicemente la
         // somma dei singoli FVA, non pensare alla probabilità di prendere il voto»). Only a man Leghe marks OUT
@@ -663,7 +742,325 @@ export class Lineup {
   });
 
   /** The pitch on screen: what was asked for, and nothing in its place when it does not exist. */
-  protected readonly pitch = computed(() => (this.pitchSource() === 'sent' ? this.sent() : this.advised()));
+  protected readonly pitch = computed(() => {
+    switch (this.pitchSource()) {
+      case 'sent':
+        return this.sent();
+      case 'edited':
+        return this.edited() ?? this.advised();
+      default:
+        return this.advised();
+    }
+  });
+
+  // ---------------------------------------------------------------- his own lineup: drag & drop
+
+  /**
+   * WHOSE LINEUP THE EDIT IS: the fantasquadra and the matchday. A draft belongs to one of them, and a draft made
+   * for another league or another matchday is simply not drawn - the roster under it is a different one.
+   */
+  private readonly owner = computed(() => {
+    const league = this.session.league();
+    const day = this.current()?.saved?.matchday ?? this.md()?.status.matchday ?? null;
+    return league ? `${keyOf(league)}:${day ?? '?'}` : null;
+  });
+
+  private readonly draftState = signal<LineupDraft | null>(null);
+
+  /** His edit of the lineup, when he has made one for THIS fantasquadra and matchday. */
+  protected readonly draft = computed(() => {
+    const draft = this.draftState();
+    return draft && draft.owner === this.owner() ? draft : null;
+  });
+
+  private readonly subs = computed(() => {
+    const rules = this.md()?.rules;
+    return rules ? { kind: rules.substitutions.kind, modules: rules.modules } : undefined;
+  });
+
+  /** The edit drawn with the numbers of the moment (`lineup-edit.drawDraft`). */
+  protected readonly edited = computed(() => {
+    const draft = this.draft();
+    return draft ? drawDraft(this.men(), this.book(), draft, this.game(), this.subs()) : null;
+  });
+
+  private readonly menById = computed(() => new Map(this.men().map((man) => [man.id, man])));
+
+  /** The switch the SENT lineup carries, in the page's words (module by its rulebook name). */
+  private readonly sentSwitch = computed(() => {
+    const sw = this.current()?.saved?.switch;
+    return sw ? { out: sw.out, in: sw.in, module: sw.module ? moduleLabel(sw.module) : null } : NO_SWITCH;
+  });
+
+  /**
+   * WHAT A GESTURE STARTS FROM: his edit when he is looking at it, otherwise the lineup on screen - so the first
+   * drag on the advised (or the sent) lineup copies it into his own and changes that.
+   */
+  private readonly workingDraft = computed<LineupDraft | null>(() => {
+    const owner = this.owner();
+    const book = this.book();
+    if (!owner || !book) return null;
+    const source = this.pitchSource();
+    const draft = this.draft();
+    if (source === 'edited' && draft) return draft;
+    const plan = this.pitch();
+    if (!plan) return null;
+    return draftOf(plan, owner, placesIn(book, plan.module).length, source === 'sent' ? this.sentSwitch() : NO_SWITCH);
+  });
+
+  /** The man being dragged, for the places that light up. */
+  protected readonly dragging = signal<number | null>(null);
+
+  /** The places the man being dragged may land on: the same `move` the drop runs, so the light cannot lie. */
+  protected readonly openPlaces = computed(() => {
+    const id = this.dragging();
+    const base = this.workingDraft();
+    const book = this.book();
+    if (id === null || !base || !book) return null;
+    const open = new Set<number>();
+    base.places.forEach((_, at) => {
+      if ('draft' in move(base, id, { kind: 'place', at }, this.menById(), book)) open.add(at);
+    });
+    return open;
+  });
+
+  /** What the last refused gesture was refused for (one sentence), cleared by the next one that works. */
+  protected readonly editNote = signal<string | null>(null);
+
+  protected readonly outTarget: DropTarget = { kind: 'out' };
+  protected readonly benchTarget: DropTarget = { kind: 'bench', index: 0 };
+  protected readonly switchOutTarget: DropTarget = { kind: 'switch-out' };
+  protected readonly switchInTarget: DropTarget = { kind: 'switch-in' };
+  /** One target per place of a module (eleven at most), built once: the template indexes it by `place.at`. */
+  protected readonly placeTargets: DropTarget[] = Array.from({ length: 11 }, (_, at) => ({ kind: 'place', at }));
+  protected readonly switchSides = ['out', 'in'] as const;
+
+  /**
+   * CDK asks before a drop list takes a man: a place he cannot play, a switch side he is not on, are refused while
+   * he is still in the air - so the drop never lands somewhere `move` would refuse. An arrow function, because CDK
+   * calls it without `this`.
+   */
+  protected readonly canEnter = (drag: CdkDrag<number>, drop: CdkDropList<DropTarget>): boolean => {
+    const target = drop.data;
+    if (target.kind === 'place') return this.openPlaces()?.has(target.at) ?? false;
+    if (target.kind === 'switch-out' || target.kind === 'switch-in') {
+      const base = this.workingDraft();
+      const book = this.book();
+      return !!base && !!book && 'draft' in move(base, drag.data, target, this.menById(), book);
+    }
+    return true;
+  };
+
+  /**
+   * ONE DROP = ONE `move`: on a place, on the bench at the index CDK declares, back on the roster table, on a side
+   * of the switch. The DOM is CDK's to move and the lineup stays ours: the page redraws from the new draft.
+   */
+  protected dropped(event: CdkDragDrop<DropTarget>): void {
+    const id = event.item.data as number;
+    const book = this.book();
+    const base = this.workingDraft();
+    let target = event.container.data;
+    if (!book || !base || !target) return;
+    if (target.kind === 'bench') target = { kind: 'bench', index: event.currentIndex };
+    else if (event.previousContainer === event.container) return; // put back where it was
+    const result = move(base, id, target, this.menById(), book);
+    if ('refused' in result) {
+      this.editNote.set(result.refused);
+      return;
+    }
+    this.editNote.set(null);
+    this.saveState.set({ kind: 'idle' });
+    this.draftState.set(result.draft);
+    this.pitchSource.set('edited');
+  }
+
+  /**
+   * CLICK OR DRAG on the same name: CDK starts a drag only past its threshold (5px), but does not swallow the
+   * `click` the browser sends after a release - so the card would open on every drop. The guard goes down on a
+   * timeout and not inside the click (the Strategia page's lesson: a guard that waits for a click that never comes
+   * eats the next one).
+   */
+  private draggingNow = false;
+
+  protected dragStarted(id: number): void {
+    this.draggingNow = true;
+    this.dragging.set(id);
+  }
+
+  protected dragEnded(): void {
+    this.dragging.set(null);
+    setTimeout(() => (this.draggingNow = false));
+  }
+
+  /** «Torna alla consigliata»: his edit forgotten. */
+  protected resetDraft(): void {
+    this.draftState.set(null);
+    this.editNote.set(null);
+    this.pitchSource.set('advised');
+  }
+
+  /** The module of HIS lineup: the same men laid out on another one (`relayout`). */
+  protected chooseEditedModule(module: string): void {
+    const draft = this.draft();
+    const book = this.book();
+    if (!draft || !book || module === this.autoModule) return;
+    this.draftState.set(relayout(draft, module, this.menById(), book));
+  }
+
+  /** The one handler of the module menu: the advised lineup's module, or his own lineup laid out again. */
+  protected onModule(value: string): void {
+    if (this.pitchSource() === 'edited' && this.draft()) this.chooseEditedModule(value);
+    else this.chooseModule(value);
+  }
+
+  protected readonly previewClass = ['rounded-md', 'opacity-60'];
+
+  // ---------------------------------------------------------------- the switch
+
+  /**
+   * THE SWITCH of the lineup on screen, when the league has one (operator, 09/10/2026: «se nelle regole della lega
+   * è disponibile lo SWITCH (DEFAULT o PLUS) permettimi anche di impostarli»): who goes out, who comes in, and -
+   * once both are set - whether Leghe would take it, with the modules it can land on (`leghe-lineup.switchModules`,
+   * the same rule the save checks). On the sent lineup it is read only.
+   */
+  protected readonly switchView = computed(() => {
+    const mode = this.md()?.rules.switchMode;
+    const plan = this.pitch();
+    if ((mode !== 'basic' && mode !== 'plus') || !plan) return null;
+    const source = this.pitchSource();
+    const sw = source === 'sent' ? this.sentSwitch() : source === 'edited' ? (this.draft()?.switch ?? NO_SWITCH) : NO_SWITCH;
+    const byId = this.menById();
+    const out = sw.out === null ? null : (byId.get(sw.out) ?? null);
+    const into = sw.in === null ? null : (byId.get(sw.in) ?? null);
+    let modules: string[] = [];
+    let problem: string | null = null;
+    if (out && into) {
+      const rules = this.md()!.rules;
+      const code = legheModuleCode(plan.module, rules.modules);
+      const starters = plan.rows.flatMap((row) => row.places.flatMap((place) => (place.man ? [asSaveMan(place.man)] : [])));
+      modules = code
+        ? switchModules(starters, asSaveMan(out), asSaveMan(into), code, rules.modules, this.game(), mode).map(moduleLabel)
+        : [];
+      if (!modules.length) {
+        problem =
+          mode === 'basic'
+            ? `${into.name} non può prendere il posto di ${out.name}`
+            : `con ${into.name} al posto di ${out.name} nessun modulo della lega è schierabile`;
+      }
+    }
+    const chosen = sw.module && modules.includes(sw.module) ? sw.module : (modules[0] ?? null);
+    return { mode, readonly: source === 'sent', out, into, modules, chosen, problem };
+  });
+
+  protected clearSwitch(side: 'out' | 'in'): void {
+    const draft = this.draft();
+    if (!draft) return;
+    this.draftState.set({ ...draft, switch: side === 'out' ? NO_SWITCH : { ...draft.switch, in: null } });
+  }
+
+  protected chooseSwitchModule(module: string): void {
+    const draft = this.draft();
+    if (draft) this.draftState.set({ ...draft, switch: { ...draft.switch, module } });
+  }
+
+  // ---------------------------------------------------------------- saving on Leghe
+
+  /** «Anche nelle altre competizioni»: his choice, else what the lineup already sent says, else no (Leghe's own default). */
+  protected readonly allCompetitionsChoice = signal<boolean | null>(null);
+
+  protected readonly activeCompetitions = computed(() => (this.md()?.competitions ?? []).filter((c) => c.active));
+
+  protected readonly allCompetitions = computed(() => {
+    const saved = this.current()?.saved;
+    return this.allCompetitionsChoice() ?? (saved?.savedAt ? (saved.allCompetitions ?? false) : false);
+  });
+
+  /**
+   * THE LINEUP ON SCREEN AS LEGHE WOULD TAKE IT, or the one reason it would not: the body is built before the
+   * click, so the button says why it cannot save instead of finding out from a refusal.
+   */
+  protected readonly savePlan = computed(() => {
+    const md = this.md();
+    const plan = this.pitch();
+    const day = this.current();
+    if (!md || !plan || this.pitchSource() === 'sent') return null;
+    if (this.session.offline()) return { refusal: 'Collegati a Leghe per salvare.' };
+    if (!day || !md.team) return { refusal: 'Nessuna competizione con una giornata da schierare.' };
+    if (this.closes()?.past) return { refusal: 'Le formazioni sono chiuse.' };
+    const starters = plan.rows.flatMap((row) => row.places.flatMap((place) => (place.man ? [asSaveMan(place.man)] : [])));
+    const sw = this.pitchSource() === 'edited' ? (this.draft()?.switch ?? NO_SWITCH) : NO_SWITCH;
+    return saveBody({
+      game: md.rules.game,
+      rules: md.rules,
+      module: plan.module,
+      starters,
+      bench: plan.bench.map(asSaveMan),
+      switchPair: sw.out !== null && sw.in !== null ? { out: sw.out, in: sw.in, module: sw.module } : null,
+      competitionId: day.competition.id,
+      matchday: day.saved?.matchday ?? null,
+      championshipMatchday: day.saved?.championshipMatchday ?? null,
+      teamId: md.team.id,
+      allCompetitions: this.allCompetitions(),
+      // Kept as it was sent: a hidden lineup stays hidden. Never sent = visible, Leghe's own default.
+      visible: day.saved?.savedAt ? (day.saved.visible ?? true) : true,
+    });
+  });
+
+  /** The button's state and the sentence beside it, each its own number (one pass over `savePlan`). */
+  protected readonly canSave = computed(() => {
+    const plan = this.savePlan();
+    return !!plan && 'body' in plan && this.saveState().kind !== 'saving';
+  });
+
+  protected readonly saveBlock = computed(() => {
+    const plan = this.savePlan();
+    return plan && 'refusal' in plan ? plan.refusal : null;
+  });
+
+  protected readonly saveState = signal<SaveState>({ kind: 'idle' });
+
+  protected readonly saveError = computed(() => {
+    const state = this.saveState();
+    return state.kind === 'failed' ? state.text : null;
+  });
+
+  /**
+   * THE SAVE READ BACK: after the write the page re-reads the lineup Leghe holds (`LegheSession.saveLineup`), and
+   * says whether it is the one just sent - module, eleven in order and bench - rather than trusting the 200.
+   */
+  protected readonly saveCheck = computed<{ ok: boolean; text: string } | null>(() => {
+    const state = this.saveState();
+    if (state.kind !== 'done') return null;
+    if (this.session.matchday.isLoading()) return { ok: true, text: 'Salvata: rileggo da Leghe…' };
+    const saved = this.current()?.saved;
+    const same = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+    if (!saved?.savedAt) return { ok: false, text: 'Salvata, ma Leghe non la mostra ancora: rileggi.' };
+    const ok = saved.module === state.body.mdl && same(saved.starts, state.body.starts) && same(saved.bench, state.body.bench);
+    return ok
+      ? { ok, text: `Salvata su Leghe alle ${saved.savedAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}: Leghe la conferma.` }
+      : { ok, text: 'Salvata, ma Leghe mostra una formazione diversa da quella inviata.' };
+  });
+
+  protected async save(): Promise<void> {
+    const md = this.md();
+    const plan = this.savePlan();
+    if (!md || !plan || !('body' in plan) || this.saveState().kind === 'saving') return;
+    this.saveState.set({ kind: 'saving' });
+    try {
+      await this.session.saveLineup(md, plan.body);
+      this.saveState.set({ kind: 'done', body: plan.body });
+      // What Leghe now holds is «Inviata»: shown, so the save is seen as Leghe recorded it.
+      this.pitchSource.set('sent');
+    } catch (err) {
+      this.saveState.set({ kind: 'failed', text: saveRefusal(err) });
+    }
+  }
+
+  /**
+   * THE LINEUP THE TABLE'S «CONSIGLIO» COLUMN READS: his own once he has edited one («Mia»), the advised otherwise -
+   * so the column says where the lineup he is about to save puts each man.
+   */
+  protected readonly planned = computed(() => (this.draft() ? this.edited() : this.advised()));
 
   private placeOf(plan: LineupPlan | null, id: number): string | null {
     if (!plan) return null;
@@ -683,7 +1080,7 @@ export class Lineup {
     const md = this.md();
     if (!md) return [];
     const priced = new Map(this.men().map((m) => [m.id, m]));
-    const advised = this.advised();
+    const advised = this.planned();
     const sent = this.sent();
     const rows = this.bundleRows();
     const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
@@ -827,6 +1224,7 @@ export class Lineup {
   protected readonly frontCard = computed(() => this.cards.front());
 
   protected openPlayer(id: number): void {
+    if (this.draggingNow) return; // the click a drop leaves behind (`dragStarted`)
     this.cards.openCard(playerCard(id));
   }
 
@@ -886,8 +1284,15 @@ export class Lineup {
 
   protected chooseLeague(key: string): void {
     const league = this.session.leagues().find((l) => keyOf(l) === key);
-    if (league) this.session.choose(league);
+    if (!league) return;
+    this.saveState.set({ kind: 'idle' });
+    this.session.choose(league);
   }
+}
+
+/** A man as the save needs him: who he is and Leghe's roles. */
+function asSaveMan(man: LineupMan): SaveMan {
+  return { id: man.id, name: man.name, roles: man.roles };
 }
 
 /** The pair the table prints `3:1`; null when he has no championship match this season. */

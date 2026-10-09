@@ -14,7 +14,9 @@ import {
   readLineup,
   readTeams,
   readTiming,
+  saveLineup,
 } from './leghe-api';
+import { LegheLineupBody } from './leghe-lineup';
 import { Cached, LegheCache, Volatility, browserStore } from './leghe-cache';
 import {
   Fixture,
@@ -325,6 +327,25 @@ export class LegheSession {
   /** «Rileggi»: the roster, the percentages and the status asked again; rules and teams stay cached. */
   refresh(): void {
     this.refreshes.update((n) => n + 1);
+  }
+
+  /**
+   * «Salva su Leghe» (operator, 09/10/2026): ONE request that writes, then the moving part read again - the lineup
+   * Leghe now holds is what «Inviata» draws, so the page shows the save as LEGHE recorded it and not as it was sent.
+   * Throws the `LegheError` that names the cause; an expired token goes the way `readMatchday` drops it.
+   */
+  async saveLineup(day: Pick<LeagueMatchday, 'league' | 'team'>, body: LegheLineupBody): Promise<void> {
+    const league = day.league;
+    if (!league.jwt) throw new LegheError('no-login', 'Per salvare su Leghe collegati con questo account.');
+    try {
+      await saveLineup(this.base(), league, day.team?.division ?? 'A', body);
+    } catch (err) {
+      if (err instanceof LegheError && err.kind === 'expired') {
+        this.dropToken({ platform: league.platform, userId: league.userId ?? 0 });
+      }
+      throw err;
+    }
+    this.refresh();
   }
 
   /** «Svuota»: every reading forgotten, so the next pass asks Leghe for everything (rules included). */

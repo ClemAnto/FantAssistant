@@ -14,6 +14,7 @@ import {
   ClockCircleOutline,
   CloseCircleOutline,
   CloseOutline,
+  CloudUploadOutline,
   CoffeeOutline,
   CompassOutline,
   DeleteOutline,
@@ -95,6 +96,8 @@ export const NZ_ICONS: IconDefinition[] = [
   ClockCircleOutline,
   CloseCircleOutline,
   CloseOutline,
+  // «SALVA SU LEGHE» nella pagina Lineup (09/10/2026): non e' nella lista di default di ng-zorro.
+  CloudUploadOutline,
   CoffeeOutline,
   CompassOutline,
   DeleteOutline,

@@ -8,9 +8,10 @@
  * itself checks nothing about the origin, so the same request made from here goes through.
  *
  * WHAT IT REFUSES TO BE: an open relay. It answers only the two origins of this app, forwards only to the
- * two Leghe API hosts, only the paths the Formazione page reads (plus the login), only GET and POST, and
- * only the headers those calls need. It logs nothing and stores nothing: the league token and - for the
- * EuroLeghe direct login - the password cross it in one request and are not kept.
+ * two Leghe API hosts, only the paths the Formazione page reads (plus the login and, since 09/10/2026, the
+ * save of the lineup - the one write), only GET and POST, and only the headers those calls need. It logs
+ * nothing and stores nothing: the league token and - for the EuroLeghe direct login - the password cross it
+ * in one request and are not kept.
  *
  * Deploy (from `app/proxy/`): `npx wrangler deploy leghe-worker.mjs --name leghe-proxy
  * --compatibility-date 2026-10-01`, then paste the `https://leghe-proxy.<account>.workers.dev` address
@@ -33,6 +34,8 @@ const PATHS = [
   /^\/onboarding\/v1\/championship\/teams$/,
   /^\/gaming\/v1\/teamLineup\/visualizza\/[A-Z]{1,2}\/\d+$/,
   /^\/gaming\/v1\/league\/timing$/,
+  // The save of the lineup (`leghe-api.saveLineup`): POST to the team's division, the team read from the token.
+  /^\/gaming\/v1\/teamLineup\/[A-Z]{1,2}$/,
 ];
 
 const FORWARDED = ['accept', 'app_key', 'authorization', 'content-type'];

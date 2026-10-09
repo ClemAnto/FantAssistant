@@ -24,6 +24,13 @@
  *     `fc_teams` the tooltip reads «Le Mans», and WITHOUT it (the counter-check, same page reloaded) it falls
  *     back to the three letters. `fc_teams` is served here from a small table, because the bundle in
  *     `public/data` may predate it.
+ *   - DRAG & DROP AND «SALVA SU LEGHE» (operator, 09/10/2026: «permettimi di salvare sul leghe la formazione», then
+ *     drag & drop between table, pitch and bench, and the SWITCH): with a REAL pointer, a bench man dragged from the
+ *     table onto a place, two starters swapped, the bench reordered, a starter sent to the bench and his place
+ *     filled again, a forward refused on a defender's place, the switch set by dragging; then the save, with the
+ *     fake Leghe RECORDING the body it receives - eleven in Leghe's order, keeper first, the league's module code,
+ *     the bench as drawn, the switch - and serving it back, so «Inviata» and «Leghe la conferma» are read off what
+ *     Leghe holds.
  *
  * Usage (after `npx ng build`): node scripts/e2e-lineup-offline.mjs
  */
@@ -67,7 +74,7 @@ const MANTRA = [
   INTER(4871, 'Thuram', [16], 90), INTER(2764, 'Martinez L.', [16], 90), INTER(152, 'Zielinski', [12, 13], 45),
 ];
 const LEAGUES = {
-  classic: { id: 2001, name: 'Lega di prova', sroles: 1, mods: ['343', '352', '433', '442', '424'], roster: CLASSIC,
+  classic: { id: 2001, name: 'Lega di prova', sroles: 1, mods: ['343', '352', '433', '442', '424'], roster: CLASSIC, lswi: 3,
     // The operator's classic league: Dynamic substitutions and the defence modifier with the keeper. 4-2-4 is one of
     // the modules Leghe lets a classic league allow beyond the seven of the rulebook file.
     calc: { subst: { sstype: 1, ssnum: 5 }, smodd: { smodld: 6, smodlu: 7.25, smoddg: true, smodva: [0, 0.5, 1, 1.5, 2, 2.5, 3] } },
@@ -83,7 +90,7 @@ function leghe(platform, path) {
   if (!league) return null;
   const answers = {
     '/onboarding/v1/league/status': { mday: 5 },
-    '/onboarding/v1/league/settings/lineup': { mods: league.mods, tbench: 7 },
+    '/onboarding/v1/league/settings/lineup': { mods: league.mods, tbench: 7, lswi: league.lswi ?? 1, lcap: 3 },
     '/onboarding/v1/league/settings/calculate': league.calc ?? {},
     '/onboarding/v1/league/settings/rosters': { sroles: league.sroles },
     '/onboarding/v1/league/competitions': [{ id: 11, name: 'Campionato', type: 2, tmids: [5] }],
@@ -91,11 +98,19 @@ function leghe(platform, path) {
     '/gaming/v1/league/timing': 86_400_000,
     '/onboarding/v1/championship/teams': { teams: league.teams },
     '/onboarding/v1/league/teams?page=1&pageSize=50&division=A': { data: [{ id: 5, n: 'Mia' }], pages: 1 },
+    // The lineup SAVED by the page (below) is what this answers from then on, as Leghe would.
     '/gaming/v1/teamLineup/visualizza/A/11': {
-      lineUpInfo: league.roster, teamLineupDto: { mdl: '', starts: [], bench: [], mday: 5, cmday: 5, ldate: 0 } },
+      lineUpInfo: league.roster,
+      teamLineupDto: saved[platform]
+        ? { ...saved[platform], mday: 5, cmday: 5, ldate: '20261009120000000' }
+        : { mdl: '', starts: [], bench: [], mday: 5, cmday: 5, ldate: 0 } },
   };
   return path in answers ? answers[path] : null;
 }
+
+/** The lineups the page SAVED, by platform: the body as it arrived, which `visualizza` then serves back. */
+const saved = {};
+const posts = [];
 
 // ---- `fc_teams` as the toolkit writes it: Paris Saint-Germain 81, Le Mans 166, Bologna 2 (09/10/2026 page).
 let serveFcTeams = true;
@@ -122,6 +137,19 @@ function serve() {
     const server = createServer((req, res) => {
       const url = decodeURIComponent(req.url);
       const api = url.match(/^\/leghe-api\/(classic|euro)(\/.*)$/);
+      if (api && req.method === 'POST' && /^\/gaming\/v1\/teamLineup\/[A-Z]{1,2}$/.test(api[2])) {
+        legheAsked += 1;
+        let text = '';
+        req.on('data', (chunk) => (text += chunk));
+        req.on('end', () => {
+          const body = JSON.parse(text);
+          posts.push({ platform: api[1], path: api[2], body });
+          saved[api[1]] = body;
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(body));
+        });
+        return;
+      }
       if (api) {
         legheAsked += 1;
         const body = leghe(api[1], api[2]);
@@ -321,6 +349,11 @@ try {
   check(!!option('4-2-4') && !/non ammesso/.test(option('4-2-4')), `il menu offre «${option('4-2-4')}»`, 'il 4-2-4 della lega manca dal menu o è «non ammesso»');
   check(/senza mod\. difesa/.test(option('3-4-3')) && /senza mod\. difesa/.test(option('3-5-2')) && !/senza mod\. difesa/.test(option('4-3-3')),
     'il 3-4-3 e il 3-5-2 dicono «senza mod. difesa», il 4-3-3 no', `moduli: ${optionTexts.join(' | ')}`);
+  // THE DEFENCE MODIFIER PAYS STEADINESS (operator, 09/10/2026): the totals are then FVA plus that term, so the menu
+  // stops calling them FVA, and the pitch says the part apart.
+  check(/· valore /.test(option('4-4-2')), `con il mod. difesa il menu dice «${option('4-4-2')}»`);
+  const modifiers = await ev(s, () => document.querySelector('[data-lineup-modifiers]')?.textContent.trim() ?? '');
+  check(/^\+ costanza \d+\.\d{2}$/.test(modifiers), `sul campo: «${modifiers}»`);
   await s.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await s.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await until(s, () => !document.querySelector('nz-option-item'), 3000);
@@ -353,6 +386,228 @@ try {
   await s.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await s.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
   await until(s, () => !document.querySelector('[data-leghe-account]'), 5000);
+
+  // ================================================================ 2-quater. DRAG & DROP, THE SWITCH, THE SAVE
+  // The operator, 09/10/2026: «permettimi di salvare sul leghe la formazione», then «cambiare i calciatori nel
+  // campetto utilizzando il drag&drop ... dalla tabella al campo (o alla panchina e viceversa) ... dalla panchina al
+  // campo (e viceversa) ... riordinare la panchina ... "scambiare" due calciatori in campo», then the SWITCH. Every
+  // gesture with a REAL pointer (CDK listens to the mouse, and `element.click()` would pass over it), and every
+  // claim read against the fake roster or against what the fake Leghe RECEIVED - never against the screen itself.
+  {
+    const ROLE_OF = new Map(CLASSIC.map((m) => [m.pid, 'PDCA'[m.role[0] - 1]]));
+    const pitchNow = () => ev(s, () => [...document.querySelectorAll('[data-lineup-pitch] [data-place]')].map((p) => ({
+      at: Number(p.getAttribute('data-at')), slot: p.getAttribute('data-slot'),
+      id: Number(p.querySelector('[data-place-man]')?.getAttribute('data-place-man') ?? 0) || null,
+    })).sort((a, b) => a.at - b.at));
+    const benchNow = () => ev(s, () => [...document.querySelectorAll('[data-lineup-bench-drop] [data-bench]')].map((b) => Number(b.getAttribute('data-bench'))));
+    const box = (selector) => centre(s, selector);
+    /**
+     * A HAND FOLLOWS ITS TARGET: crossing the bench on the way, CDK's placeholder enters it and the bench grows by a
+     * row, pushing everything below it (the switch) down. So the target is a SELECTOR, read again at the end of the
+     * path, and the pointer goes where it now is before letting go - as an eye on the screen would make it.
+     */
+    async function dragTo(from, to, steps = 10) {
+      const target = typeof to === 'string' ? to : null;
+      let at = target ? await box(target) : to;
+      await s.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: from.x, y: from.y, button: 'none' });
+      await wait(40);
+      await s.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: from.x, y: from.y, button: 'left', clickCount: 1 });
+      for (let step = 1; step <= steps; step += 1) {
+        await s.send('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1,
+          x: Math.round(from.x + ((at.x - from.x) * step) / steps), y: Math.round(from.y + ((at.y - from.y) * step) / steps) });
+        await wait(25);
+      }
+      if (target) {
+        const now = await ev(s, (sel) => {
+          const b = document.querySelector(sel)?.getBoundingClientRect();
+          return b ? { x: b.x + b.width / 2, y: b.y + b.height / 2 } : null;
+        }, target);
+        if (now && (now.x !== at.x || now.y !== at.y)) {
+          for (let step = 1; step <= 4; step += 1) {
+            await s.send('Input.dispatchMouseEvent', { type: 'mouseMoved', button: 'left', buttons: 1,
+              x: Math.round(at.x + ((now.x - at.x) * step) / 4), y: Math.round(at.y + ((now.y - at.y) * step) / 4) });
+            await wait(25);
+          }
+          at = now;
+        }
+      }
+      await s.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: Math.round(at.x), y: Math.round(at.y), button: 'left', clickCount: 1 });
+      await wait(400);
+    }
+    /** A table row is dragged by its LEFT edge (the role badge), never by the name, which is a button. */
+    const rowGrip = (id) => ev(s, (pid) => {
+      const li = document.querySelector(`[data-lineup-roster] li[data-fc-id="${pid}"]`);
+      if (!li) return null;
+      li.scrollIntoView({ block: 'nearest' });
+      const b = li.getBoundingClientRect();
+      return { x: b.x + 14, y: b.y + b.height / 2 };
+    }, id);
+
+    await until(s, () => document.querySelectorAll('[data-lineup-pitch] [data-place-man]').length === 11, 10000);
+    let pitch = await pitchNow();
+    let bench = await benchNow();
+    check(pitch.length === 11 && pitch.every((p) => p.id) && bench.length >= 3,
+      `prima di toccare: 11 posti pieni, ${bench.length} in panchina`, 'la consigliata non è pronta per il drag & drop');
+
+    // 1. TABLE -> PITCH: a bench man dragged from the TABLE onto a place of his role takes it, and the man who held
+    //    it goes to the bench slot the dragged one left. (On this fixture the advised 4-2-4 fields every forward, so
+    //    the man is whichever bench outfielder has a place of his role on the pitch.)
+    const benchMan = bench.find((id) => ROLE_OF.get(id) !== 'P' && pitch.some((p) => p.slot === ROLE_OF.get(id)));
+    const hisPlace = benchMan ? pitch.find((p) => p.slot === ROLE_OF.get(benchMan)) : null;
+    check(!!benchMan && !!hisPlace, `da trascinare: ${benchMan} (${ROLE_OF.get(benchMan)}) sul posto ${hisPlace?.at}`, 'nessun panchinaro con un posto del suo ruolo in campo');
+    if (benchMan && hisPlace) {
+      const slotOnBench = bench.indexOf(benchMan);
+      await dragTo(await rowGrip(benchMan), `[data-lineup-pitch] [data-place][data-at="${hisPlace.at}"]`);
+      const [p1, b1] = [await pitchNow(), await benchNow()];
+      check(p1.find((p) => p.at === hisPlace.at)?.id === benchMan && b1[slotOnBench] === hisPlace.id,
+        `tabella -> campo: ${benchMan} ora nel posto ${hisPlace.at}, ${hisPlace.id} in panchina al posto ${slotOnBench + 1}`,
+        `tabella -> campo non riuscito: posto ${hisPlace.at} = ${p1.find((p) => p.at === hisPlace.at)?.id}, panchina ${b1.join(',')}`);
+      const mine = await ev(s, () => document.querySelector('[data-pitch-source="edited"]')?.classList.contains('ant-radio-button-wrapper-checked') ?? false);
+      check(mine, 'la prima modifica accende «Mia»', 'dopo la prima modifica «Mia» non è la vista a schermo');
+    }
+
+    // 2. PITCH <-> PITCH: two midfielders swap places.
+    pitch = await pitchNow();
+    const mids = pitch.filter((p) => p.slot === 'C');
+    if (mids.length >= 2) {
+      const [a, b] = mids;
+      await dragTo(await box(`[data-place-man="${a.id}"]`), `[data-lineup-pitch] [data-place][data-at="${b.at}"]`);
+      const p2 = await pitchNow();
+      check(p2.find((p) => p.at === a.at)?.id === b.id && p2.find((p) => p.at === b.at)?.id === a.id,
+        `campo <-> campo: ${a.id} e ${b.id} si sono scambiati`, `scambio non riuscito: ${JSON.stringify(p2.filter((p) => p.slot === 'C'))}`);
+    } else problems.push('meno di due centrocampisti in campo da scambiare');
+
+    // 3. A PLACE HE CANNOT PLAY: a forward dropped on a defender's place is refused in the air, nothing moves.
+    pitch = await pitchNow();
+    const defPlace = pitch.find((p) => p.slot === 'D');
+    const aForward = pitch.find((p) => p.slot === 'A');
+    if (defPlace && aForward) {
+      await dragTo(await box(`[data-place-man="${aForward.id}"]`), `[data-lineup-pitch] [data-place][data-at="${defPlace.at}"]`);
+      const p3 = await pitchNow();
+      check(JSON.stringify(p3) === JSON.stringify(pitch), 'un attaccante sul posto di un difensore: rifiutato, il campo non cambia',
+        'un attaccante è finito sul posto di un difensore');
+    }
+
+    // 4. BENCH REORDER: the first of the bench dropped on the third.
+    bench = await benchNow();
+    if (bench.length >= 3) {
+      await dragTo(await box(`[data-bench="${bench[0]}"]`), `[data-bench="${bench[2]}"]`);
+      const b4 = await benchNow();
+      check(b4.length === bench.length && b4[0] === bench[1] && b4.includes(bench[0]) && b4.indexOf(bench[0]) >= 1,
+        `panchina riordinata: ${bench.join(',')} -> ${b4.join(',')}`, `riordino della panchina non riuscito: ${bench.join(',')} -> ${b4.join(',')}`);
+    }
+
+    // 5. PITCH -> BENCH and back: a defender sent to the bench leaves his place empty (and the save says it is short),
+    //    then another defender from the bench fills it.
+    pitch = await pitchNow();
+    const def = pitch.find((p) => p.slot === 'D');
+    if (def) {
+      await dragTo(await box(`[data-place-man="${def.id}"]`), '[data-lineup-bench-drop]');
+      const [p5, b5] = [await pitchNow(), await benchNow()];
+      check(!p5.find((p) => p.at === def.at)?.id && b5.includes(def.id), `campo -> panchina: ${def.id} in panchina, il suo posto è vuoto`,
+        `campo -> panchina non riuscito: posto ${def.at} = ${p5.find((p) => p.at === def.at)?.id}`);
+      const block = await until(s, () => document.querySelector('[data-lineup-save-block]')?.textContent.trim() || null, 3000);
+      check(/Manca un titolare/.test(block ?? ''), `il salvataggio dice «${block}»`);
+      const otherDef = b5.find((id) => ROLE_OF.get(id) === 'D' && id !== def.id) ?? def.id;
+      await dragTo(await box(`[data-bench="${otherDef}"]`), `[data-lineup-pitch] [data-place][data-at="${def.at}"]`);
+      const p5b = await pitchNow();
+      check(p5b.find((p) => p.at === def.at)?.id === otherDef, `panchina -> campo: ${otherDef} riempie il posto vuoto`,
+        `panchina -> campo non riuscito: posto ${def.at} = ${p5b.find((p) => p.at === def.at)?.id}`);
+    }
+
+    // 6. THE SWITCH (Plus in this league): a starter out and a bench man of ANOTHER role in, chosen so that the
+    //    eleven after the switch is a module the league allows. The page names that module, and the save carries it.
+    pitch = await pitchNow();
+    bench = await benchNow();
+    const counts = (roles) => ['D', 'C', 'A'].map((r) => roles.filter((x) => x === r).length).join('');
+    const onPitch = pitch.map((p) => ROLE_OF.get(p.id));
+    let switchOut = null;
+    let switchIn = null;
+    for (const p of pitch) {
+      const x = ROLE_OF.get(p.id);
+      const y = bench.map((id) => ROLE_OF.get(id)).find((r) => r !== 'P' && r !== x && x !== 'P'
+        && LEAGUES.classic.mods.includes(counts([...onPitch.filter((_, i) => i !== pitch.indexOf(p)), r])));
+      if (y) { switchOut = p.id; switchIn = bench.find((id) => ROLE_OF.get(id) === y); break; }
+    }
+    check(!!switchOut && !!switchIn, `switch da provare: esce ${switchOut} (${ROLE_OF.get(switchOut)}), entra ${switchIn} (${ROLE_OF.get(switchIn)})`,
+      'nessuna coppia per lo switch su questo campo');
+    const hasSwitch = await ev(s, () => !!document.querySelector('[data-lineup-switch]'));
+    check(hasSwitch, 'la lega ha lo switch Plus: il riquadro è sotto la panchina', 'nessun riquadro dello switch');
+    if (hasSwitch && switchOut && switchIn) {
+      // Refused in the air: a bench man cannot be the one going OUT.
+      await dragTo(await box(`[data-bench="${switchIn}"]`), '[data-switch="out"]');
+      const wrongSide = await ev(s, () => document.querySelector('[data-switch="out"]')?.textContent ?? '');
+      check(/trascina un titolare/.test(wrongSide), 'un panchinaro su «Esce»: rifiutato', `«Esce» dopo un panchinaro: ${wrongSide}`);
+      await dragTo(await box(`[data-place-man="${switchOut}"]`), '[data-switch="out"]');
+      await dragTo(await box(`[data-bench="${switchIn}"]`), '[data-switch="in"]');
+      const state = await until(s, () => {
+        const el = document.querySelector('[data-switch-state]');
+        return el ? { kind: el.getAttribute('data-switch-state'), text: el.textContent.replace(/\s+/g, ' ').trim() } : null;
+      }, 3000);
+      check(state?.kind === 'ok', `switch ${ROLE_OF.get(switchOut)} -> ${ROLE_OF.get(switchIn)}: «${state?.text}»`, `switch: ${JSON.stringify(state)}`);
+    }
+
+    // A picture of the edited lineup with its switch, when asked for (`SHOT=<file.png>`): the layout is read by an eye.
+    if (process.env.SHOT) {
+      const shot = await s.send('Page.captureScreenshot', { format: 'png' });
+      (await import('node:fs')).writeFileSync(process.env.SHOT, Buffer.from(shot.data, 'base64'));
+    }
+
+    // 7. «SALVA SU LEGHE»: the popconfirm, then the body as the fake Leghe RECEIVED it.
+    pitch = await pitchNow();
+    bench = await benchNow();
+    const postsBefore = posts.length;
+    const askedBeforeSave = legheAsked;
+    const saveButton = await box('[data-lineup-save-button]');
+    const enabled = await ev(s, () => !document.querySelector('[data-lineup-save-button]')?.disabled);
+    check(enabled, 'il bottone «Salva su Leghe» è attivo', `bottone disattivo: ${await ev(s, () => document.querySelector('[data-lineup-save-block]')?.textContent)}`);
+    await click(s, saveButton.x, saveButton.y);
+    const ok = await until(s, () => {
+      const b = [...document.querySelectorAll('.ant-popover .ant-btn-primary')].find((e) => e.offsetParent);
+      if (!b) return null;
+      const r = b.getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    }, 3000);
+    if (ok) { await wait(300); await click(s, ok.x, ok.y); } else problems.push('la conferma del salvataggio non si apre');
+    await until(s, () => /conferma|diversa|non la mostra/.test(document.querySelector('[data-lineup-save-state="done"]')?.textContent ?? ''), 15000);
+    const post = posts[postsBefore];
+    check(posts.length === postsBefore + 1, `Leghe ha ricevuto ${posts.length - postsBefore} salvataggio`);
+    if (post) {
+      const body = post.body;
+      const starters = pitch.map((p) => p.id).filter(Boolean);
+      check(post.path === '/gaming/v1/teamLineup/A', `salvato su ${post.path}`);
+      check(body.starts.length === 11 && ROLE_OF.get(body.starts[0]) === 'P'
+        && JSON.stringify([...body.starts].sort()) === JSON.stringify([...starters].sort()),
+        `starts: 11, il portiere primo, gli stessi del campo (${body.starts.map((id) => ROLE_OF.get(id)).join('')})`,
+        `starts sbagliati: ${body.starts.join(',')} contro il campo ${starters.join(',')}`);
+      const order = body.starts.map((id) => 'PDCA'.indexOf(ROLE_OF.get(id)));
+      check(order.every((g, i) => i === 0 || g >= order[i - 1]), 'starts nell\'ordine di Leghe: P, D, C, A');
+      check(LEAGUES.classic.mods.includes(body.mdl), `mdl «${body.mdl}», un modulo della lega`);
+      check(JSON.stringify(body.bench) === JSON.stringify(bench), `panchina come disegnata: ${body.bench.join(',')}`,
+        `panchina inviata ${body.bench.join(',')} contro disegnata ${bench.join(',')}`);
+      check(body.idcomp === 11 && body.mday === 5 && body.act === 0 && body.capt.length === 0,
+        `idcomp ${body.idcomp}, mday ${body.mday}, act ${body.act}, nessun capitano`);
+      if (switchOut && switchIn) {
+        check(body.swtcA === switchOut && body.swtcB === switchIn && body.starts[body.pos] === switchOut
+          && LEAGUES.classic.mods.includes(body.swtcMdl),
+          `switch inviato: esce ${body.swtcA}, entra ${body.swtcB}, posizione ${body.pos}, modulo dopo ${body.swtcMdl}`,
+          `switch inviato sbagliato: ${JSON.stringify({ a: body.swtcA, b: body.swtcB, pos: body.pos, mdl: body.swtcMdl })}`);
+      }
+    }
+    const done = await ev(s, () => document.querySelector('[data-lineup-save-state="done"]')?.textContent.trim() ?? '');
+    check(/Leghe la conferma/.test(done), `dopo il salvataggio: «${done}»`);
+    const sentOn = await ev(s, () => document.querySelector('[data-pitch-source="sent"]')?.classList.contains('ant-radio-button-wrapper-checked') ?? false);
+    check(sentOn, 'a schermo «Inviata», cioè quello che Leghe ha registrato');
+    const sentPitch = (await pitchNow()).map((p) => p.id).filter(Boolean).sort();
+    check(post && JSON.stringify(sentPitch) === JSON.stringify([...post.body.starts].sort()), 'il campo «Inviata» sono gli undici salvati');
+    // ONE write plus the moving part read again (status, kick-off, the competition's roster): no full pass.
+    check(legheAsked - askedBeforeSave === 4, `richieste per salvare e rileggere: ${legheAsked - askedBeforeSave} (1 scrittura + 3 letture)`);
+
+    // Back to the advised lineup: the sections after this one expect it.
+    const advisedRadio = await box('[data-pitch-source="advised"]');
+    await click(s, advisedRadio.x, advisedRadio.y);
+    await wait(300);
+  }
 
   // ================================================================ 3. EUROLEGHE MANTRA: filter choices + tooltip
   const league = await centre(s, '[data-lineup-league]');

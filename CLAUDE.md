@@ -216,6 +216,10 @@ the page also shows the BOOKMAKERS' prices (goal for outfield men, clean sheet f
 press sheet's second Apps Script file `scripts/gas/odds.gs` from oddschecker.com/it and served on
 `?what=odds` - REPORTING, nothing advises on them - and the match a price belongs to is the one LEGHE names
 for that man, recognised by the SQUADS among the priced scorers and never by 3-letter codes (§4-ter).
+**And since 09/10/2026 (night) the page WRITES one thing to Leghe: the lineup** (`core/leghe-lineup.ts`, edited by
+drag & drop in `core/lineup-edit.ts`, §4-decies): `starts` is ordered by LEGHE's places (on Mantra not the rulebook
+file's order), every rule Leghe checks is checked before the request, and the save is believed only once the
+lineup read back from Leghe matches what was sent.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is

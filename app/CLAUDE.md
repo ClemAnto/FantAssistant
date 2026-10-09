@@ -62,7 +62,9 @@ league carries the `userId` it was reached with, and a fantasquadra's key is `pl
 never key a league by platform and id alone. **Classic is not Mantra with other letters**: the bench order, the
 covers and the legal modules follow Leghe's own classic engine (`lineup-advice.ts`, `formazione-leghe-v1.md`
 §4-octies) - Dynamic/Hybrid walk the bench in order whatever the role. Everything of the page that
-does not need the real account is checked offline, against a fake Leghe, by `scripts/e2e-lineup-offline.mjs`.
+does not need the real account is checked offline, against a fake Leghe, by `scripts/e2e-lineup-offline.mjs` - the
+save included: that fake RECORDS the body it receives, so **a bench or probe never saves on the real account**; the
+first real save is the operator's (`formazione-leghe-v1.md` §4-decies).
 
 ## The operator's working preferences
 

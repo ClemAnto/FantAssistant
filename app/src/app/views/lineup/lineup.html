@@ -138,7 +138,10 @@
         }
       </section>
 
-      <div class="grid min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+      <!-- ONE GROUP OF DROP LISTS for the table, the eleven places, the bench and the switch (operator, 09/10/2026:
+           «dalla tabella al campo (o alla panchina e viceversa) ... dalla panchina al campo (e viceversa)»): CDK
+           connects every list of the group, so a man goes from any of them to any other. -->
+      <div class="grid min-h-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]" cdkDropListGroup>
         <!-- 1. LA ROSA, come la tabella del draft: ogni intestazione ordina, un secondo click rovescia. -->
         <section class="flex min-h-0 flex-col gap-1 rounded-lg border border-border bg-surface p-2" data-lineup-roster>
           <!-- LE QUOTE dei bookmaker (sua richiesta, 08/10/2026): da dove vengono, quando sono state lette, quanti
@@ -178,17 +181,31 @@
             <span class="sort text-right" (click)="sortBy('odds')" nz-tooltip nzTooltipTitle="Quota media dei bookmaker: segna (movimento) o porta inviolata (portieri)"
               >Quota{{ arrow('odds') }}</span
             >
-            <span class="sort" (click)="sortBy('advised')" nz-tooltip nzTooltipTitle="Dove lo mette la formazione consigliata"
-              >Consiglio{{ arrow('advised') }}</span
+            <span class="sort" (click)="sortBy('advised')" nz-tooltip [nzTooltipTitle]="draft() ? 'Dove lo mette la tua formazione' : 'Dove lo mette la formazione consigliata'"
+              >{{ draft() ? 'Mia' : 'Consiglio' }}{{ arrow('advised') }}</span
             >
             <span nz-tooltip nzTooltipTitle="Dove lo mette la formazione già inviata a Leghe">Inviata</span>
           </div>
-          <ul class="min-h-0 flex-1 overflow-y-auto">
+          <!-- THE TABLE IS A DROP LIST TOO: a man dragged from it goes on the pitch or the bench, and a man dropped back
+               on it leaves the lineup. Sorting is off - the table keeps its own order, the drop only says «out». -->
+          <ul
+            class="min-h-0 flex-1 overflow-y-auto"
+            cdkDropList
+            cdkDropListSortingDisabled
+            [cdkDropListData]="outTarget"
+            (cdkDropListDropped)="dropped($event)"
+            data-lineup-table-drop
+          >
             @for (man of shown(); track man.fcId) {
               <li
                 [attr.data-fc-id]="man.fcId"
-                class="lineup-grid items-center rounded px-1 text-[11px] leading-6 odd:bg-fg/5"
+                class="lineup-grid cursor-grab items-center rounded px-1 text-[11px] leading-6 odd:bg-fg/5"
                 [class.opacity-50]="!!man.outLabel"
+                cdkDrag
+                [cdkDragData]="man.fcId"
+                [cdkDragPreviewClass]="previewClass"
+                (cdkDragStarted)="dragStarted(man.fcId)"
+                (cdkDragEnded)="dragEnded()"
               >
                 <ui-roles class="min-w-0 overflow-hidden" [roles]="man.roles" size="xs" />
                 <span class="flex min-w-0 items-center gap-1">
@@ -248,24 +265,35 @@
           </ul>
         </section>
 
-        <!-- 2. IL CAMPO coi titolari e, SOTTO, la panchina nel suo ordine (sua richiesta, 08/10/2026). -->
+        <!-- 2. IL CAMPO coi titolari e, SOTTO, la panchina nel suo ordine (sua richiesta, 08/10/2026). Dal 09/10/2026 si
+             MODIFICA col drag & drop e si SALVA su Leghe (sue richieste della sera). -->
         <section class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-surface p-2" data-lineup-pitch>
           <div class="flex flex-wrap items-center gap-2 text-sm">
             <nz-radio-group nzSize="small" nzButtonStyle="solid" [ngModel]="pitchSource()" (ngModelChange)="pitchSource.set($event)">
               <label nz-radio-button nzValue="advised" data-pitch-source="advised">Consigliata</label>
+              <label nz-radio-button nzValue="edited" data-pitch-source="edited" [nzDisabled]="!draft()">Mia</label>
               <label nz-radio-button nzValue="sent" data-pitch-source="sent" [nzDisabled]="!sent()">Inviata</label>
             </nz-radio-group>
-            @if (pitchSource() === 'advised' && moduleOptions().length) {
+            @if (draft()) {
+              <button nz-button nzSize="small" nzType="text" nz-tooltip nzTooltipTitle="Torna alla consigliata" (click)="resetDraft()" data-lineup-reset>
+                <nz-icon nzType="rollback" />
+              </button>
+            }
+            @if (pitchSource() !== 'sent' && moduleOptions().length) {
+              @let editing = pitchSource() === 'edited' && !!draft();
               <nz-select
                 nzSize="small"
                 class="w-64"
                 data-module-select
-                [ngModel]="module() ?? autoModule"
-                (ngModelChange)="chooseModule($event)"
+                [ngModel]="editing ? draft()!.module : (module() ?? autoModule)"
+                (ngModelChange)="onModule($event)"
               >
                 <!-- A STRING and never `null`: nz-select reads a null value as «nothing chosen» and draws the box
-                     EMPTY, which is what the operator saw at every opening (09/10/2026). -->
-                <nz-option [nzValue]="autoModule" nzLabel="Modulo: automatico" />
+                     EMPTY, which is what the operator saw at every opening (09/10/2026). On HIS lineup there is no
+                     «automatic»: the module is the one he plays, and changing it lays the same men out again. -->
+                @if (!editing) {
+                  <nz-option [nzValue]="autoModule" nzLabel="Modulo: automatico" />
+                }
                 @for (option of moduleOptions(); track option.name) {
                   <nz-option nzCustomContent [nzValue]="option.name" [nzLabel]="option.label">
                     <span [class.font-bold]="option.best" [class.text-primary]="option.best">{{ option.label }}</span>
@@ -279,14 +307,61 @@
               }
             }
             @if (pitch(); as plan) {
-              @if (pitchSource() === 'sent' || module() === null) {
+              @if (pitchSource() === 'sent' || (pitchSource() === 'advised' && module() === null)) {
                 <span data-module class="rounded-full border border-border px-2 py-0.5 text-xs font-semibold tabular-nums">{{ plan.module }}</span>
               }
               <span class="ml-auto text-xs tabular-nums text-muted" nz-tooltip nzTooltipTitle="Somma dell'FVA dei titolari"
                 >FVA totale {{ fvaTotal(plan) | number: '1.1-1' }}</span
               >
+              @if (plan.modifiers) {
+                <!-- THE STEADINESS THE MODIFIERS PAY (operator, 09/10/2026), apart from the FVA: it is what made the
+                     eleven, not what the eleven will score. -->
+                <span class="text-xs tabular-nums text-muted" nz-tooltip nzTooltipTitle="Costanza pagata da rendimento e mod. difesa" data-lineup-modifiers
+                  >+ costanza {{ plan.modifiers | number: '1.2-2' }}</span
+                >
+              }
             }
           </div>
+
+          <!-- SALVA SU LEGHE (operatore, 09/10/2026): la formazione a schermo, consigliata o sua. Il corpo della
+               richiesta è costruito PRIMA del click (`leghe-lineup.saveBody`), quindi un motivo per cui Leghe la
+               rifiuterebbe si legge qui invece di arrivare come errore. -->
+          @if (savePlan()) {
+            <div class="flex flex-wrap items-center gap-2 text-xs" data-lineup-save>
+              <button
+                nz-button
+                nzType="primary"
+                nzSize="small"
+                nz-popconfirm
+                [nzPopconfirmTitle]="'Inviare a Leghe questa formazione' + (pitch() ? ' (' + pitch()!.module + ')' : '') + '?'"
+                nzOkText="Salva"
+                nzCancelText="Annulla"
+                [disabled]="!canSave()"
+                [nzLoading]="saveState().kind === 'saving'"
+                (nzOnConfirm)="save()"
+                data-lineup-save-button
+              >
+                <nz-icon nzType="cloud-upload" />Salva su Leghe
+              </button>
+              @if (activeCompetitions().length > 1) {
+                <label nz-checkbox [ngModel]="allCompetitions()" (ngModelChange)="allCompetitionsChoice.set($event)" data-lineup-all-competitions>
+                  in tutte le {{ activeCompetitions().length }} competizioni
+                </label>
+              }
+              @if (saveBlock(); as why) {
+                <span class="text-warning" data-lineup-save-block>{{ why }}</span>
+              }
+              @if (saveError(); as error) {
+                <span class="text-danger" data-lineup-save-state="failed">{{ error }}</span>
+              }
+            </div>
+          }
+          @if (saveCheck(); as check) {
+            <p class="text-xs" [class.text-success]="check.ok" [class.text-warning]="!check.ok" data-lineup-save-state="done">{{ check.text }}</p>
+          }
+          @if (editNote(); as note) {
+            <p class="text-xs text-warning" data-lineup-edit-note>{{ note }}</p>
+          }
 
           @if (pitch(); as plan) {
             <div
@@ -300,17 +375,38 @@
               @for (row of plan.rows; track row.line) {
                 <div [attr.data-line]="row.line" class="flex items-stretch justify-center gap-1">
                   @for (place of row.places; track $index) {
+                    <!-- EVERY PLACE IS A DROP LIST of one: a man dropped here takes the place, and the man who held it
+                         goes where the dropped one came from (`lineup-edit.move`). While a man is in the air the places
+                         he can play light up; CDK's own placeholder is hidden here, the place already says it all. -->
                     <div
                       data-place
                       [attr.data-slot]="place.slot"
+                      [attr.data-at]="place.at"
                       [attr.data-filled]="place.man ? '' : null"
-                      class="flex min-w-0 max-w-[33%] flex-1 flex-col items-center gap-0.5 rounded-md border border-border bg-surface/90 px-1 py-1"
+                      class="flex min-h-12 min-w-0 max-w-[33%] flex-1 flex-col items-center gap-0.5 rounded-md border border-border bg-surface/90 px-1 py-1 [&_.cdk-drag-placeholder]:hidden"
                       [class.border-dashed]="!place.man"
+                      [class.border-primary]="openPlaces()?.has(place.at)"
+                      [class.opacity-40]="openPlaces() && !openPlaces()!.has(place.at)"
+                      cdkDropList
+                      cdkDropListSortingDisabled
+                      [cdkDropListData]="placeTargets[place.at]"
+                      [cdkDropListEnterPredicate]="canEnter"
+                      (cdkDropListDropped)="dropped($event)"
                     >
                       <ui-role [role]="place.slot" size="xs" quiet />
                       @if (place.man; as man) {
-                        <button type="button" class="w-full truncate text-center text-[11px] font-medium hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
-                        <span class="text-[10px] tabular-nums text-muted">{{ pct(man.chance) }} · <b class="text-warning">{{ pts(man.fva ?? null) }}</b></span>
+                        <div
+                          class="flex w-full cursor-grab flex-col items-center"
+                          cdkDrag
+                          [cdkDragData]="man.id"
+                          [cdkDragPreviewClass]="previewClass"
+                          (cdkDragStarted)="dragStarted(man.id)"
+                          (cdkDragEnded)="dragEnded()"
+                          [attr.data-place-man]="man.id"
+                        >
+                          <button type="button" class="w-full truncate text-center text-[11px] font-medium hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+                          <span class="text-[10px] tabular-nums text-muted">{{ pct(man.chance) }} · <b class="text-warning">{{ pts(man.fva ?? null) }}</b></span>
+                        </div>
                       } @else {
                         <span class="text-[11px] text-muted">vuoto</span>
                       }
@@ -337,16 +433,33 @@
                   >
                 }
               </span>
-              <div class="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1">
+              <!-- THE BENCH IS A SORTABLE DROP LIST, wrapping (`mixed`): dragging inside it reorders it, a man dropped
+                   from the pitch or the table is inserted where CDK's placeholder stands. -->
+              <div
+                class="grid min-h-8 grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1 rounded"
+                cdkDropList
+                cdkDropListOrientation="mixed"
+                [cdkDropListData]="benchTarget"
+                (cdkDropListDropped)="dropped($event)"
+                data-lineup-bench-drop
+              >
                 @for (man of plan.bench; track man.id; let i = $index) {
-                  <div class="flex min-w-0 items-center gap-1 rounded border border-border bg-fg/5 px-1 py-0.5 text-[11px]" [attr.data-bench]="man.id">
+                  <div
+                    class="flex min-w-0 cursor-grab items-center gap-1 rounded border border-border bg-fg/5 px-1 py-0.5 text-[11px] [&.cdk-drag-placeholder]:bg-primary/25"
+                    [attr.data-bench]="man.id"
+                    cdkDrag
+                    [cdkDragData]="man.id"
+                    [cdkDragPreviewClass]="previewClass"
+                    (cdkDragStarted)="dragStarted(man.id)"
+                    (cdkDragEnded)="dragEnded()"
+                  >
                     <span class="w-4 shrink-0 text-right tabular-nums text-muted">{{ i + 1 }}</span>
                     <ui-roles class="shrink-0" [roles]="man.shown" size="xxs" />
                     <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
                     <span class="shrink-0 tabular-nums text-warning">{{ pts(man.fva ?? null) }}</span>
                   </div>
                 } @empty {
-                  <span class="text-xs text-muted">Nessuno in panchina.</span>
+                  <span class="text-xs text-muted">Nessuno in panchina: trascina qui un calciatore.</span>
                 }
               </div>
               @if (plan.outside.length) {
@@ -356,11 +469,73 @@
               }
             </div>
 
+            <!-- LO SWITCH, quando la lega lo prevede (operatore, 09/10/2026: «se nelle regole della lega è disponibile
+                 lo SWITCH (DEFAULT o PLUS) permettimi anche di impostarli (nello spazio sotto la panchina) con
+                 possibilità di Drag&Drop»): chi esce se non parte titolare, chi entra al suo posto, e - con il Plus -
+                 il modulo dopo lo switch. La regola è quella che il salvataggio controlla (`switchModules`). -->
+            @if (switchView(); as sw) {
+              <div class="flex flex-col gap-1" data-lineup-switch>
+                <span class="text-xs font-semibold"
+                  >Switch <span class="font-normal text-muted">· {{ sw.mode === 'plus' ? 'Plus' : 'Basic' }}</span></span
+                >
+                <div class="flex flex-wrap items-stretch gap-1">
+                  @for (side of switchSides; track side) {
+                    @let man = side === 'out' ? sw.out : sw.into;
+                    <div
+                      class="flex min-h-7 min-w-[10rem] flex-1 items-center gap-1 rounded border border-dashed border-border bg-fg/5 px-1 py-0.5 text-[11px] [&_.cdk-drag-placeholder]:hidden"
+                      [attr.data-switch]="side"
+                      cdkDropList
+                      cdkDropListSortingDisabled
+                      [cdkDropListDisabled]="sw.readonly"
+                      [cdkDropListData]="side === 'out' ? switchOutTarget : switchInTarget"
+                      [cdkDropListEnterPredicate]="canEnter"
+                      (cdkDropListDropped)="dropped($event)"
+                    >
+                      <span class="shrink-0 text-muted">{{ side === 'out' ? 'Esce' : 'Entra' }}</span>
+                      @if (man) {
+                        <ui-roles class="shrink-0" [roles]="man.shown" size="xxs" />
+                        <button type="button" class="min-w-0 flex-1 truncate text-left font-medium hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+                        @if (!sw.readonly) {
+                          <button type="button" class="shrink-0 text-muted hover:text-fg" (click)="clearSwitch(side)" [attr.data-switch-clear]="side">
+                            <nz-icon nzType="close" />
+                          </button>
+                        }
+                      } @else {
+                        <span class="truncate text-muted">{{ sw.readonly ? '–' : side === 'out' ? 'trascina un titolare' : 'trascina un panchinaro' }}</span>
+                      }
+                    </div>
+                  }
+                </div>
+                @if (sw.out && sw.into) {
+                  @if (sw.problem) {
+                    <span class="text-xs text-warning" data-switch-state="refused">{{ sw.problem }}</span>
+                  } @else if (sw.mode === 'plus' && !sw.readonly) {
+                    <span class="flex flex-wrap items-center gap-1 text-xs" data-switch-state="ok">
+                      Modulo dopo lo switch
+                      <nz-select nzSize="small" class="w-28" data-switch-module [ngModel]="sw.chosen" (ngModelChange)="chooseSwitchModule($event)">
+                        @for (one of sw.modules; track one) {
+                          <nz-option [nzValue]="one" [nzLabel]="one" />
+                        }
+                      </nz-select>
+                    </span>
+                  } @else {
+                    <span class="text-xs text-muted" data-switch-state="ok">Modulo dopo lo switch: {{ sw.chosen }}</span>
+                  }
+                }
+              </div>
+            }
+
             @if (pitchSource() === 'advised') {
               <p class="text-[10px] text-muted">
                 Titolari scelti sulla somma degli FVA fra i moduli della lega, esclusi i calciatori sotto il 15%.
                 In panchina prima un sostituto che gioca per ogni titolare, poi l'FVA.
                 <span data-lineup-bench-note>{{ benchNote() }}</span> Non conta i modificatori.
+              </p>
+            }
+            @if (pitchSource() !== 'sent') {
+              <p class="text-[10px] text-muted">
+                Trascina i calciatori fra tabella, campo e panchina; in campo un calciatore va solo in un posto del suo
+                ruolo. La prima modifica crea la tua formazione («Mia»).
               </p>
             }
           } @else if (pitchSource() === 'sent') {

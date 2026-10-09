@@ -128,6 +128,38 @@ describe('LegheSession and its local cache', () => {
     expect(day(session).requests).toBe(LIVE.length);
   }, 30_000);
 
+  it('«salva su Leghe» is ONE write to the team\'s division, then only the moving part read again', async () => {
+    const session = connected();
+    await settled(session);
+    const posted: { path: string; body: unknown }[] = [];
+    const leghe = globalThis.fetch;
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      const path = String(url).replace(/^\/leghe-api\/classic/, '');
+      if (init?.method === 'POST' && path.startsWith('/gaming/v1/teamLineup/')) {
+        asked.push(`POST ${path}`);
+        posted.push({ path, body: JSON.parse(String(init.body)) });
+        return new Response('{"mdl":"343"}', { status: 200 });
+      }
+      return leghe(url, init);
+    });
+    asked = [];
+    const body = { starts: [100], bench: [], mdl: '343' } as never;
+    await session.saveLineup(day(session), body);
+    await settled(session);
+    expect(posted).toEqual([{ path: '/gaming/v1/teamLineup/A', body: { starts: [100], bench: [], mdl: '343' } }]);
+    expect(asked[0]).toBe('POST /gaming/v1/teamLineup/A');
+    expect([...asked.slice(1)].sort()).toEqual([...LIVE].sort());
+  }, 30_000);
+
+  it('a save without a token in this tab asks nothing and says so', async () => {
+    const session = connected();
+    await settled(session);
+    asked = [];
+    const stored = { ...day(session), league: { ...day(session).league, jwt: '' } };
+    await expect(session.saveLineup(stored, {} as never)).rejects.toMatchObject({ kind: 'no-login' });
+    expect(asked).toEqual([]);
+  }, 30_000);
+
   it('«svuota» forgets every reading and re-reads them all', async () => {
     const session = connected();
     await settled(session);

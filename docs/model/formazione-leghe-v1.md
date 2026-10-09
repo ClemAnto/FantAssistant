@@ -8,7 +8,8 @@ regole per inserire formazione/panchina e competizione». Pagina `/lineup` dell'
 **Decisioni dell'operatore (08/10/2026):**
 1. login col **login embed** di Leghe; dove non c'è (EuroLeghe) **login diretto in ogni caso**;
 2. le leghe sono **EuroLeghe Mantra e Leghe Classic**;
-3. **per il momento basta il consiglio**: niente scrittura della formazione su Leghe.
+3. ~~**per il momento basta il consiglio**: niente scrittura della formazione su Leghe.~~ **Superata il 09/10/2026
+   (sera)** dalla sua richiesta «nella pagina Lineup permettimi di salvare sul leghe la formazione»: §4-decies.
 
 Stato (chiusura del 09/10/2026): **fase 1 fatta** (collegamento, lettura di rosa, regole, competizioni,
 avversario e formazione inviata, `0a88a1a`); **la pagina si chiama LINEUP** e ha tabella della rosa, campo,
@@ -511,9 +512,100 @@ cache sotto l'utente giusto, il nome della squadra, nessun gemello al secondo lo
 vecchio letto) - controprova: con l'aggiornamento per piattaforma cade il primo; nel banco offline tre login (due Leghe
 nella stessa lega + EuroLeghe), il selettore con tre voci distinte e la modale con i tre account.
 
+## §4-decies. Si modifica col drag & drop, si SALVA su Leghe, e i modificatori pagano la costanza (09/10/2026, notte)
+
+Quattro richieste dell'operatore in fila: «permettimi di salvare sul leghe la formazione»; «cambiare i calciatori nel
+campetto utilizzando il drag&drop ... dalla tabella al campo (o alla panchina e viceversa) che dalla panchina al campo
+(e viceversa) ... riordinare la panchina ... "scambiare" due calciatori in campo»; «se nelle regole della lega è
+disponibile lo SWITCH (DEFAULT o PLUS) permettimi anche di impostarli (nello spazio sotto la panchina) con possibilità
+di Drag&Drop»; «se il modificatore di rendimento è attivo aggiungi una valutazione migliore per quelli che hanno una
+continuità migliore ... se il modificatore di difesa è attivo ... ai difensori ... e ricorda che le difese con < 4
+difensori non ottengono questo bonus». `engine_*` fermo, nessun `SHEET_REVISION`: è tutto app.
+
+**Il salvataggio, letto nel codice di Leghe e non indovinato** (`core/leghe-lineup.ts`, backend `origin/master`
+dell'08/10: `TeamLineupService.Save`, `ValidateTeamLineup`, `ControlloSwitch`; front-end `Lineups.saveLineup`,
+`lineup-switch.ts`):
+- `POST /gaming/v1/teamLineup/{divisione}`, la squadra la prende Leghe dal token di lega; corpo `{starts, bench, capt,
+  mdl, idcomp, mday, cmday, tid, allComp, visb, act, swtcA, swtcB, swtc, swtcMdl, pos}`, `act` 0 = dal web.
+- **`starts` è ordinato per POSTO**: indice 0 il portiere, poi i posti del modulo nell'ordine di LEGHE. Su Mantra il
+  backend controlla l'uomo in `starts[i]` contro il posto `i` (`RitornaMalus`), e quell'ordine non è quello di
+  `mantra_modules.json`: la tabella è trascritta in `LEGHE_MANTRA_SLOTS` dal `MantraStaticData` del backend. ✅
+  Verificato il 09/10/2026 con uno script: **gli undici moduli hanno gli STESSI posti** del regolamento, in un altro
+  ordine, quindi la tabella decide l'ordine e nient'altro. Classic: portiere, poi D, C, A (il backend conta i ruoli).
+- `mdl` è il codice della LEGA (`343`) e deve essere fra quelli ammessi. Panchina: Mantra esattamente `tbench` con
+  almeno un portiere; classic fissa esattamente `tbench` (quote esatte dove positive, `bseq` in ordine), variabile al
+  massimo `tbench` con le quote come minimi. **Per questo la panchina consigliata su Mantra tiene ora sempre almeno un
+  portiere** (`benchOf`), anche dove la lega non lo scrive: Leghe rifiuterebbe il salvataggio (LUP011).
+- Ogni regola che si può controllare qui si controlla PRIMA della richiesta (`saveBody`, una frase per causa a fianco
+  del bottone): una richiesta che Leghe rifiuterebbe di sicuro è una richiesta da non mandare. I rifiuti di Leghe
+  arrivano in inglese col loro codice (`LUP0xx`) e la pagina li dice in italiano (`saveRefusal`).
+- **Il capitano non si sceglie ancora**: una lega che lo usa riceve «salvala da Leghe» invece di un capitano messo a
+  caso (le leghe dell'operatore non lo hanno).
+- Dopo il 200 la pagina **rilegge** la parte `live` (4 richieste in tutto: 1 scrittura + stato, timing, rosa) e mostra
+  «Inviata», con «Leghe la conferma» solo se modulo, undici in ordine e panchina sono quelli mandati: si crede a quello
+  che Leghe ha registrato, non al codice di risposta. «In tutte le competizioni» compare se ce n'è più di una attiva
+  (default: quello della formazione già inviata, altrimenti no, come Leghe); la visibilità resta quella già inviata.
+- L'intermediario pubblicato ammette ora anche questo percorso (`proxy/leghe-worker.mjs`); sotto `ng serve` passa già.
+
+**Il drag & drop** (`core/lineup-edit.ts`): la formazione modificata è una BOZZA fatta di soli id - chi tiene ogni posto
+del modulo, la panchina in ordine, lo switch - disegnata ogni volta coi numeri del momento, e ogni gesto è UNA funzione
+pura (`move`) che restituisce la bozza nuova o la frase che dice perché no. Il primo gesto sulla consigliata (o
+sull'inviata) la copia nella sua («Mia», terza voce del selettore); la freccia torna alla consigliata. Le regole:
+- **in campo un uomo va solo in un posto di un suo ruolo** (la legalità del regolamento, la stessa dell'advice): Leghe
+  ammetterebbe anche il fuori ruolo Mantra col malus, questa pagina no, e lo dice rifiutando;
+- sul posto di un altro: chi c'era va dove stava quello trascinato (scambio in campo, se anche lui ci sta; il suo posto
+  in panchina; fuori formazione se veniva dalla tabella); in panchina si inserisce dove CDK mette il segnaposto, e un
+  titolare lascia il posto vuoto; sulla tabella esce dalla formazione;
+- mentre un uomo è in aria i posti dove può andare si accendono e gli altri si spengono: la luce e il rilascio leggono
+  la stessa `move`, e CDK rifiuta l'ingresso prima del rilascio (`cdkDropListEnterPredicate`);
+- cambiare modulo sulla sua formazione dispone gli stessi uomini sul nuovo, e chi non ci sta va in TESTA alla panchina.
+La colonna «Consiglio» della tabella diventa «Mia» quando la bozza c'è. **La bozza non sopravvive a un ricaricamento**.
+
+**Lo switch** (sotto la panchina, solo se la lega lo ha): «Esce» accetta un titolare, «Entra» un panchinaro, entrambi
+col drag & drop. **Basic**: chi entra prende il POSTO di chi esce (la regola del front-end di Leghe, QIT-1721: un B
+sostituisce un Dc che sta sul posto Dc/B), quindi l'ordine di `starts` mette chi esce su un posto che anche l'altro può
+tenere (`orderWithSwitch`). **Plus**: qualunque modulo della lega su cui gli undici DOPO lo switch riempiono ogni posto
+(`FindLineup` del backend su Mantra, i conteggi su classic), portiere solo per portiere; la pagina offre i moduli
+possibili e manda quello scelto (`swtcMdl`) con la posizione di chi esce (`pos`).
+
+**I modificatori pagano la costanza** (`steadiness` nella pagina, `lineup-advice.weightOn`/`bestOnModules`): la COSTANZA
+è quella dell'app (`steadyOf`, quota di voti base ≥ 6, la mediana del ruolo dove manca), il peso è lo `STEADY_SHARE`
+dell'operatore con la TAGLIA letta da Leghe (`swing.steadyShareFor`: il valore massimo del modificatore su undici; a 2
+punti è proprio 2/11). Fattore rendimento: a tutti. Modificatore di difesa: agli uomini che il motore di Leghe legge
+(`ModificatoriHelper`: classic i difensori, Mantra `Dd Ds Dc B E M`; il portiere solo se la lega lo mette nella media)
+e, su classic, **solo nei moduli con almeno 4 difensori** - quindi l'undici si sceglie modulo per modulo col peso di quel
+modulo, e un 3-4-3 è pesato senza. Il menu dei moduli chiama «valore» il totale quando c'è un modificatore, il campo dice
+«+ costanza X» a parte dall'FVA, e il tooltip dell'FVA scrive quanto vale per lui. È un peso DICHIARATO, non misurato;
+la panchina resta ordinata sull'FVA.
+
+**Verificato** (09/10/2026, tutto SENZA toccare il Leghe vero): `leghe-lineup.spec.ts` (ordine dei posti, codice del
+modulo, rifiuti, panchina, switch Basic/Plus, frasi dei rifiuti), `lineup-edit.spec.ts` (ogni gesto e ogni rifiuto),
+`lineup-advice.spec.ts` (i modificatori: 4 difensori, chi legge il mod. difesa, il back four che vince col bonus),
+`leghe-session.spec.ts` (UNA scrittura sulla divisione, poi solo la parte live; senza token nessuna richiesta);
+controprove: tolto il controllo dei 4 difensori o l'ordine dei posti cadono esattamente i tre test che li descrivono.
+`ng test` **1527/1527**, `ng build` pulito. `e2e-lineup-offline.mjs` con un PUNTATORE VERO contro un Leghe finto che
+REGISTRA il corpo ricevuto e lo riserve: tabella → campo, scambio in campo, attaccante rifiutato sul posto di un
+difensore, panchina riordinata, campo → panchina e ritorno, switch A → C (Plus, 4-3-3), salvataggio (11 titolari col
+portiere primo e in ordine P-D-C-A, `mdl` della lega, panchina come disegnata, switch con `pos`), «Leghe la conferma»,
+4 richieste - **59 controlli, nessun problema**. Una lezione del banco: attraversando la panchina il segnaposto di CDK
+la allunga di una riga e sposta in basso lo switch, quindi il puntatore deve inseguire il bersaglio (`dragTo` rilegge
+la posizione prima di rilasciare), come farebbe un occhio.
+
+**Non verificato**: il salvataggio contro il Leghe VERO. È una scrittura sull'account dell'operatore e la fa lui la
+prima volta; il confronto «Leghe la conferma» è fatto apposta per dirgli subito se è andata.
+
 ## §5. Aperti, in ordine
 
-**Dal 9 ottobre 2026 (sera tardi), in cima:**
+**Dal 9 ottobre 2026 (notte), in cima:**
+- **Il primo salvataggio vero**, sotto `ng serve` (il sito pubblicato non ha ancora l'intermediario): guardare che la
+  riga dica «Leghe la conferma» e aprire Leghe. Se Leghe rifiuta, la frase porta il codice `LUP0xx`.
+- **Il capitano** (leghe con `lcap` 1 o 2): oggi la pagina rifiuta di salvare invece di sceglierlo.
+- **La bozza si perde a un ricaricamento**: si può tenere in `localStorage` per fantasquadra e giornata, se serve.
+- **Il fuori ruolo Mantra col malus** non è ammesso dal drag & drop (Leghe lo ammette).
+- **La panchina ignora i modificatori** nell'ordine: è una coda per FVA; il peso della costanza entra solo nella scelta
+  dell'undici e del modulo.
+
+**Dal 9 ottobre 2026 (sera tardi):**
 - **Il modificatore di difesa classic** (§4-octies): oggi solo marcato nel menu. Contarlo nel modulo automatico
   vuol dire un valore atteso dai voti base attesi di portiere e difensori, a fasce - una regola nuova, da misurare sul
   banco delle giornate giocate (item 3) prima di farle scegliere il modulo.

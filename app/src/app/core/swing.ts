@@ -238,6 +238,17 @@ export const GOALS_PER_POINT = normalCdf((MATCHDAY_MEAN - LADDER_KINK) / MATCHDA
 export const STEADY_SHARE = 2 / 11;
 
 /**
+ * THE SAME WEIGHT WHERE THE MODIFIER'S SIZE IS READ (the LINEUP page, 09/10/2026): `STEADY_SHARE` is «his two points
+ * spread over the eleven men who make them», so a league whose modifier pays up to `points` gives `points / 11` -
+ * the indexation the paragraph above says was missing, now that Leghe serves the league's own scale (`smodp`,
+ * `smodd`). At 2 points it IS `STEADY_SHARE`, which a test asserts. Still the operator's declared weight, not a
+ * measurement; what changed is only that its size is read instead of assumed.
+ */
+export function steadyShareFor(points: number): number {
+  return (STEADY_SHARE * points) / 2;
+}
+
+/**
  * IL TETTO ARITMETICO DEL PESO QUI SOPRA, e non e' una preferenza di nessuno.
  *
  * Il marginale ESATTO dell'R-Factor sull'undici tipo: con 3,32 insufficienti attesi su 11 (Poisson-

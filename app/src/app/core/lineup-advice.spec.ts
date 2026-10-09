@@ -13,12 +13,16 @@ import {
   canCover,
   classicCounts,
   drawSent,
+  earnsDefence,
   fieldWeight,
+  readByDefence,
   rulebookName,
   toTheFlanks,
   voteChance,
   withLeagueModules,
 } from './lineup-advice';
+import { placesIn } from './mantra-legal';
+import { STEADY_SHARE, steadyShareFor } from './swing';
 
 const CLASSIC: MantraModules = {
   slot_roles: { P: ['P'], D: ['D'], C: ['C'], A: ['A'] },
@@ -287,7 +291,7 @@ describe('drawSent', () => {
 });
 
 describe('toTheFlanks', () => {
-  const row = (...slots: string[]) => slots.map((slot) => ({ line: 'T' as const, slot, man: null }));
+  const row = (...slots: string[]) => slots.map((slot, at) => ({ line: 'T' as const, slot, man: null, at }));
   const slots = (places: { slot: string }[]) => places.map((p) => p.slot);
 
   it('sends the wide places of a 4-1-4-1 to the two touchlines', () => {
@@ -306,5 +310,44 @@ describe('toTheFlanks', () => {
     expect(slots(toTheFlanks(row('W/A', 'W/A', 'A/PC')))).toEqual(['W/A', 'A/PC', 'W/A']);
     expect(slots(toTheFlanks(row('W/T', 'T', 'W/A')))).toEqual(['W/T', 'T', 'W/A']);
     expect(slots(toTheFlanks(row('M', 'M/C', 'E', 'E/W')))).toEqual(['E', 'M', 'M/C', 'E/W']);
+  });
+});
+
+describe('the modifiers pay steadiness (operator, 09/10/2026)', () => {
+  it('the weight is the operator’s STEADY_SHARE with the league’s own size: 2/11 at two points', () => {
+    expect(steadyShareFor(2)).toBeCloseTo(STEADY_SHARE);
+    expect(steadyShareFor(3)).toBeCloseTo(3 / 11);
+  });
+
+  it('classic earns the defence modifier only with four defenders; Mantra with every scheme', () => {
+    expect(earnsDefence(placesIn(CLASSIC, '4-4-2'), 'classic')).toBe(true);
+    expect(earnsDefence(placesIn(CLASSIC, '3-4-3'), 'classic')).toBe(false);
+    expect(earnsDefence(placesIn(CLASSIC, '3-4-3'), 'mantra')).toBe(true);
+  });
+
+  it('reads the men Leghe’s engine reads: defenders, Mantra’s defensive roles, the keeper only when counted', () => {
+    expect(readByDefence(['d'], 'classic', false)).toBe(true);
+    expect(readByDefence(['c'], 'classic', false)).toBe(false);
+    expect(readByDefence(['p'], 'classic', false)).toBe(false);
+    expect(readByDefence(['p'], 'classic', true)).toBe(true);
+    expect(readByDefence(['m', 'c'], 'mantra', false)).toBe(true);
+    expect(readByDefence(['e', 'w'], 'mantra', false)).toBe(true);
+    expect(readByDefence(['t'], 'mantra', false)).toBe(false);
+  });
+
+  it('a defence bonus big enough makes the back four win over a 3-4-3, and the 3-4-3 is weighed without it', () => {
+    const keeper = man('P', 6);
+    const defs = [6, 6, 6, 5.5].map((points) => ({ ...man('D', points), defenceBonus: 0.5 }));
+    const mids = [6.2, 6.2, 6.2, 6.2].map((points) => man('C', points));
+    const atts = [6.6, 6.6, 6.6].map((points) => man('A', points));
+    const squad = [keeper, ...defs, ...mids, ...atts];
+    // Without the bonus the third forward (6.6) beats the fourth defender (5.5): 3-4-3.
+    expect(adviseLineup(squad.map((m) => ({ ...m, defenceBonus: null })), CLASSIC, ['343', '442'], FREE_BENCH, 'classic')!.module).toBe('3-4-3');
+    // With it, four defenders earn 4 x 0.5 and the 4-4-2 wins - and its total says so.
+    const plan = adviseLineup(squad, CLASSIC, ['343', '442'], FREE_BENCH, 'classic')!;
+    expect(plan.module).toBe('4-4-2');
+    expect(plan.modifiers).toBeCloseTo(2);
+    const three = plan.scores.find((one) => one.module === '3-4-3')!;
+    expect(three.total).toBeCloseTo(6 + 6 * 3 + 6.2 * 4 + 6.6 * 3); // no defence bonus on a back three
   });
 });

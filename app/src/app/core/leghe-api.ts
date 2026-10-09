@@ -335,6 +335,22 @@ export async function readLineup(
   }
 }
 
+/**
+ * SAVE THE LINEUP of the logged team (operator, 09/10/2026: «permettimi di salvare sul leghe la formazione»):
+ * `POST /gaming/v1/teamLineup/{division}`, the team taken by Leghe from the league token. The body is built and
+ * checked by `leghe-lineup.saveBody`; this is the wire only. The ONE call of this file that writes.
+ */
+export function saveLineup(base: ProxyBase, league: LegheLeague, division: string, body: unknown): Promise<unknown> {
+  return legheCall({
+    base,
+    platform: league.platform,
+    method: 'POST',
+    path: `/gaming/v1/teamLineup/${encodeURIComponent(division)}`,
+    jwt: league.jwt,
+    body,
+  });
+}
+
 /** Every team of one division, across its pages (a division can hold more than one page). */
 export async function readTeams(base: ProxyBase, league: LegheLeague, division: string): Promise<unknown[]> {
   const out: unknown[] = [];

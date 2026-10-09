@@ -49,6 +49,18 @@ describe('parseSaved and parseLdate', () => {
     expect(saved?.savedAt?.getHours()).toBe(16);
   });
 
+  it('reads the switch in both shapes Leghe serves, the visibility and «all competitions»', () => {
+    const dto = (extra: object) => parseSaved({ teamLineupDto: { mdl: '343', starts: [], bench: [], ...extra } });
+    expect(dto({ swtcA: 10, swtcB: 20, swtc: 0, swtcMdl: '3421', visb: false, allComp: true })).toMatchObject({
+      switch: { out: 10, in: 20, module: '3421' },
+      visible: false,
+      allCompetitions: true,
+    });
+    expect(dto({ swtc: '10;20;1;352;4' })?.switch).toEqual({ out: 10, in: 20, module: '352' });
+    expect(dto({ swtc: '0;0;0;0;0' })?.switch).toBeNull();
+    expect(dto({})).toMatchObject({ switch: null, visible: null, allCompetitions: null });
+  });
+
   it('a lineup never submitted has no date', () => {
     expect(parseLdate('0')).toBeNull();
     expect(parseLdate('00000000000000000')).toBeNull();

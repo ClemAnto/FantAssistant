@@ -26,7 +26,7 @@
 
 import { MantraModules } from './auction-value';
 import { DRAW_ORDER, PitchLine } from './club-eleven';
-import { Place, Placeable, assign, bestEleven, placesIn } from './mantra-legal';
+import { Eleven, Place, Placeable, assign, bestEleven, placesIn } from './mantra-legal';
 import { BenchRule, LegheGame, SubstitutionKind } from './leghe-rules';
 
 /**
@@ -59,6 +59,66 @@ export const MIN_CHANCE_ON_PITCH = 0.15;
  *  and for the module menu's totals, so the two cannot disagree about who can stand on the pitch. */
 export function fieldWeight(man: LineupMan): number | null {
   return man.chance >= MIN_CHANCE_ON_PITCH ? man.points : null;
+}
+
+/**
+ * DOES THIS MODULE EARN THE DEFENCE MODIFIER? Classic: only with at least FOUR defenders (operator, 09/10/2026: «le
+ * difese con < 4 difensori non ottengono questo bonus»; Leghe's `ModificatoriHelper.ModificatoreDifesa` returns 0
+ * under four, with or without the keeper). Mantra's D-Factor wants three defenders and two more defensive men, which
+ * every Mantra scheme fields, so there every module earns it.
+ */
+export function earnsDefence(places: readonly Place[], game: LegheGame | null): boolean {
+  return game !== 'classic' || places.filter((place) => place.line === 'D').length >= 4;
+}
+
+/**
+ * WHO THE DEFENCE MODIFIER READS, as Leghe's engine reads them (`ModificatoriHelper`, 09/10/2026): on classic the
+ * defenders, on Mantra the defensive men of the D-Factor (`Dd`, `Ds`, `Dc`, `B`, `E`, `M`), and the keeper in both
+ * where the league puts him in the average (`smoddg`). Lowercase codes, as `LineupMan.roles` holds them.
+ */
+export function readByDefence(roles: readonly string[], game: LegheGame | null, withKeeper: boolean): boolean {
+  const keeper = roles.includes('p') || roles.includes('por');
+  if (keeper) return withKeeper;
+  if (game === 'mantra') return roles.some((role) => ['dd', 'ds', 'dc', 'b', 'e', 'm'].includes(role));
+  return roles[0] === 'd';
+}
+
+/**
+ * THE WEIGHT ON ONE MODULE: the man's points plus what his steadiness is worth to the league's modifiers
+ * (`LineupMan.steadyBonus`, `defenceBonus`), the defence part only where the module earns it. Under the floor of
+ * `fieldWeight`, nothing: a modifier does not make a man who will not play worth fielding.
+ */
+export function weightOn(defence: boolean): (man: LineupMan) => number | null {
+  return (man) => {
+    const base = fieldWeight(man);
+    return base === null ? null : base + (man.steadyBonus ?? 0) + (defence ? (man.defenceBonus ?? 0) : 0);
+  };
+}
+
+/**
+ * THE BEST ELEVEN WHEN THE WEIGHT DEPENDS ON THE MODULE: one `bestEleven` per module with that module's weight
+ * (`weightOn(earnsDefence(...))`), the winner the highest total as there. A 3-4-3 is weighed without the defence
+ * part, a 4-4-2 with it - which is how a classic league with the modifier ends up preferring a back four.
+ */
+export function bestOnModules(
+  men: readonly LineupMan[],
+  rules: MantraModules,
+  game: LegheGame | null,
+): Eleven<LineupMan> | null {
+  let best: Eleven<LineupMan> | null = null;
+  const scores: { module: string; total: number; placed: number }[] = [];
+  for (const [name, shape] of Object.entries(rules.modules)) {
+    const one = { ...rules, modules: { [name]: shape } };
+    const eleven = bestEleven(men, one, weightOn(earnsDefence(placesIn(rules, name), game)));
+    if (!eleven) {
+      scores.push({ module: name, total: 0, placed: 0 });
+      continue;
+    }
+    scores.push({ module: name, total: eleven.total, placed: eleven.men.length });
+    if (eleven.total > (best?.total ?? 0)) best = eleven;
+  }
+  if (best) best.scores = [...scores].sort((left, right) => right.total - left.total);
+  return best;
 }
 
 /** Leghe's own flag that he cannot play this matchday. */
@@ -99,6 +159,15 @@ export interface LineupMan extends Placeable {
   points: number | null;
   /** The FVA shown beside the name: the expected fantavoto IF he plays. Absent = the caller did not price it. */
   fva?: number | null;
+  /**
+   * WHAT HIS STEADINESS IS WORTH TO THE LEAGUE'S MODIFIERS, per match (operator, 09/10/2026: «se il modificatore di
+   * rendimento è attivo aggiungi una valutazione migliore per quelli che hanno una continuità migliore ... se il
+   * modificatore di difesa è attivo ... ai difensori»): his share of sufficient base votes x the league's own weight
+   * (`swing.steadyShareFor`). `steadyBonus` is the R-Factor's, for everybody; `defenceBonus` the defence modifier's,
+   * for the men it reads, and paid only on a module that earns it (`earnsDefence`). Absent = the league has none.
+   */
+  steadyBonus?: number | null;
+  defenceBonus?: number | null;
 }
 
 export interface LineupPlace {
@@ -106,6 +175,11 @@ export interface LineupPlace {
   /** The rulebook's name for the place (`D`, `DC/B`). */
   slot: string;
   man: LineupMan | null;
+  /**
+   * The place's index in the module's own order (`placesIn`): the drawing moves the wide places to the flanks
+   * (`toTheFlanks`), so the position in a row is not the place - and a drop on the pitch has to name the place.
+   */
+  at: number;
 }
 
 export interface LineupRow {
@@ -116,8 +190,10 @@ export interface LineupRow {
 export interface LineupPlan {
   module: string;
   rows: LineupRow[];
-  /** Expected points of the eleven: the sum of the men placed. */
+  /** Expected points of the eleven: the sum of the men placed, the modifiers' part (`modifiers`) included. */
   total: number;
+  /** The part of `total` that is the steadiness the modifiers pay (`LineupMan.steadyBonus`, `defenceBonus`). */
+  modifiers?: number;
   placed: number;
   /** In bench order: first in, first out. */
   bench: LineupMan[];
@@ -207,12 +283,12 @@ function changesModule(kind: SubstitutionKind | null): boolean {
 const byPoints = (a: LineupMan, b: LineupMan) =>
   (b.points ?? -Infinity) - (a.points ?? -Infinity) || a.name.localeCompare(b.name);
 
-function rowsOf(places: ReturnType<typeof placesIn>, holders: (LineupMan | null)[]): LineupRow[] {
+export function rowsOf(places: ReturnType<typeof placesIn>, holders: (LineupMan | null)[]): LineupRow[] {
   const rows: LineupRow[] = [];
   for (const line of DRAW_ORDER) {
     const inLine: LineupPlace[] = [];
     places.forEach((place, at) => {
-      if (place.line === line) inLine.push({ line, slot: place.slot, man: holders[at] ?? null });
+      if (place.line === line) inLine.push({ line, slot: place.slot, man: holders[at] ?? null, at });
     });
     if (inLine.length) rows.push({ line, places: toTheFlanks(inLine) });
   }
@@ -445,6 +521,9 @@ export function benchOf(
   const size = rule.size ?? pool.length;
   const groups = classic ? 4 : 2;
   const wanted = rule.perRole.slice(0, groups);
+  // MANTRA ALWAYS WANTS A KEEPER ON THE BENCH, whatever the league's counts say: Leghe refuses the save otherwise
+  // (`TeamLineupService.ValidateTeamLineup`, mantra branch: LUP011, backend read 09/10/2026).
+  if (!classic) wanted[0] = Math.max(wanted[0] ?? 0, 1);
   wanted.forEach((count, group) => {
     for (const man of ordered.filter((m) => benchGroup(m, game) === group).slice(0, count)) {
       if (picked.length < size) take(man);
@@ -478,7 +557,7 @@ export function adviseLineup(
   if (!rulebook?.modules) return null;
   const book = withLeagueModules(rulebook, [...allowed, ...subs.modules], game);
   const rules = allowedRules(book, allowed);
-  const best = bestEleven(men, rules, fieldWeight);
+  const best = bestOnModules(men, rules, game);
   if (!best) return null;
   const onPitch = new Set(best.men.map((m) => m.id));
   const rest = men.filter((m) => !onPitch.has(m.id));
@@ -491,12 +570,18 @@ export function adviseLineup(
     module: best.module,
     rows: rowsOf(best.places, best.holders),
     total: best.total,
+    modifiers: modifiersOf(best.men, earnsDefence(best.places, game)),
     placed: best.men.length,
     bench,
     outside,
     scores: best.scores,
     cover: coverOf(starters, coveredBy, bench),
   };
+}
+
+/** What the modifiers add to an eleven: every starter's steadiness term, the defence part where the module earns it. */
+export function modifiersOf(starters: readonly LineupMan[], defence: boolean): number {
+  return starters.reduce((sum, man) => sum + (man.steadyBonus ?? 0) + (defence ? (man.defenceBonus ?? 0) : 0), 0);
 }
 
 /** Which starters have their own cover ON THE BENCH: a cover the bench's size left out covers nothing. */

@@ -158,6 +158,25 @@ export interface SavedLineup {
   /** Competition matchday and championship matchday. */
   matchday: number | null;
   championshipMatchday: number | null;
+  /** Shown to the others before kick-off (`visb`); null = Leghe did not say. */
+  visible: boolean | null;
+  /** Saved for every competition of the matchday at once (`allComp`); null = Leghe did not say. */
+  allCompetitions: boolean | null;
+  /** The switch sent with it: who leaves the pitch, who comes in, the module after it (Leghe's code). */
+  switch: { out: number; in: number; module: string } | null;
+}
+
+/**
+ * The switch as Leghe serves it: separate fields (`swtcA`, `swtcB`, `swtcMdl`) or one string
+ * `A;B;status;module;position` - the Leghe front-end reads both (`parseSwitch`). Zero = no switch.
+ */
+function parseSwitch(dto: Record<string, unknown>): SavedLineup['switch'] {
+  let [out, into, module] = [Number(dto['swtcA']), Number(dto['swtcB']), str(dto['swtcMdl'])];
+  if (typeof dto['swtc'] === 'string') {
+    const parts = (dto['swtc'] as string).split(';');
+    [out, into, module] = [Number(parts[0]), Number(parts[1]), parts[3] && parts[3] !== '0' ? parts[3] : ''];
+  }
+  return out > 0 && into > 0 ? { out, in: into, module } : null;
 }
 
 /**
@@ -182,6 +201,9 @@ export function parseSaved(lineupBody: unknown): SavedLineup | null {
     savedAt: parseLdate(dto['ldate']),
     matchday: finite(dto['mday']),
     championshipMatchday: finite(dto['cmday']),
+    visible: typeof dto['visb'] === 'boolean' ? (dto['visb'] as boolean) : null,
+    allCompetitions: typeof dto['allComp'] === 'boolean' ? (dto['allComp'] as boolean) : null,
+    switch: parseSwitch(dto),
   };
 }
 
