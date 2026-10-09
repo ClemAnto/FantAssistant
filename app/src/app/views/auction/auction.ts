@@ -51,6 +51,7 @@ import { LiveConnect } from '../../ui/live-connect/live-connect';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { RoleFilter } from '../../ui/role-filter/role-filter';
 import { RoleSet } from '../../ui/role-set/role-set';
 import { DeltaTrend } from '../../ui/delta-trend/delta-trend';
 import type { Difficulty, Interest, Scenario, ScenarioStep, Verdict } from '../../core/draft-scenarios';
@@ -320,6 +321,7 @@ const SIDE_WORD: Record<string, string> = { back: 'porta e difesa', cen: 'centro
     PlayerCard,
     PlayerFlags,
     RoleBadge,
+    RoleFilter,
     RoleSet,
     DeltaTrend,
   ],
@@ -1338,22 +1340,6 @@ export class Auction {
     if (!this.feed.isMantra()) return ['P', 'D', 'C', 'A'];
     return this.advice.rules()?.roles ?? ['Por', 'Dd', 'Dc', 'Ds', 'B', 'E', 'M', 'C', 'W', 'T', 'A', 'Pc'];
   });
-
-  protected toggleRole(role: string): void {
-    const key = role.toLowerCase();
-    const next = new Set(this.roleFilter());
-    if (next.has(key)) next.delete(key);
-    else next.add(key);
-    this.roleFilter.set(next);
-  }
-
-  protected clearRoles(): void {
-    this.roleFilter.set(new Set());
-  }
-
-  protected roleOn(role: string): boolean {
-    return this.roleFilter().has(role.toLowerCase());
-  }
 
   private readonly trends = signal<ReadonlyMap<number, readonly TrendCell[]>>(new Map());
   /** The last FIVE of his club's matches, for the «trend» check (the strip on the row shows four). */

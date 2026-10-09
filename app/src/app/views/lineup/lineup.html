@@ -17,8 +17,12 @@
       }
       @if (md(); as day) {
         <!-- WHEN Leghe was read, and whether this look cost any request (the cache, `core/leghe-cache.ts`). -->
-        <span class="text-xs text-muted" data-lineup-read [attr.data-leghe-requests]="day.requests">
-          {{ day.team?.name }} · letta {{ readTime() }}{{ day.requests ? '' : ' · dalla cache' }}
+        <span class="text-xs text-muted" data-lineup-read [attr.data-leghe-requests]="day.requests" [attr.data-offline]="session.offline() ? '' : null">
+          @if (session.offline()) {
+            {{ day.team?.name }} · dati aggiornati {{ storedOn() }}
+          } @else {
+            {{ day.team?.name }} · letta {{ readTime() }}{{ day.requests ? '' : ' · dalla cache' }}
+          }
         </span>
       }
     </div>
@@ -28,9 +32,9 @@
           nz-button
           nzSize="small"
           nz-tooltip
-          nzTooltipTitle="Rileggi rosa e probabili da Leghe"
+          [nzTooltipTitle]="session.offline() ? 'Collegati per aggiornare' : 'Rileggi rosa e probabili da Leghe'"
           [nzLoading]="session.matchday.isLoading()"
-          (click)="session.refresh()"
+          (click)="reread()"
           data-lineup-refresh
         >
           <nz-icon nzType="reload" />
@@ -59,7 +63,7 @@
         nzType="error"
         nzShowIcon
         [nzMessage]="error.message"
-        [nzDescription]="error.kind === 'expired' || error.kind === 'no-proxy' ? 'Riapri «Account» per collegarti.' : ''"
+        [nzDescription]="error.kind === 'expired' || error.kind === 'no-proxy' || error.kind === 'no-login' ? 'Riapri «Account» per collegarti.' : ''"
       />
     }
 
@@ -150,6 +154,14 @@
             }
             <button type="button" class="text-primary hover:underline" (click)="odds.refresh()">rileggi</button>
           </div>
+          <!-- IL FILTRO PER RUOLO (sua richiesta, 09/10/2026): lo STESSO del Draft Assistant (`ui/role-filter`),
+               nel vocabolario del gioco della lega. Filtra la sola tabella: consiglio e campo leggono tutta la rosa. -->
+          <div class="flex flex-wrap items-center gap-0.5 px-1" data-lineup-role-filter>
+            <ui-role-filter [roles]="roleOptions()" [(selected)]="roleFilter" />
+            @if (shown().length !== roster().length) {
+              <span class="ml-2 text-[10px] text-muted" data-lineup-role-count>{{ shown().length }} di {{ roster().length }}</span>
+            }
+          </div>
           <div class="lineup-grid px-1 text-[10px] uppercase text-muted">
             <span class="sort" (click)="sortBy('role')">R{{ arrow('role') }}</span>
             <span class="sort" (click)="sortBy('name')">Nome{{ arrow('name') }}</span>
@@ -172,7 +184,7 @@
             <span nz-tooltip nzTooltipTitle="Dove lo mette la formazione già inviata a Leghe">Inviata</span>
           </div>
           <ul class="min-h-0 flex-1 overflow-y-auto">
-            @for (man of roster(); track man.fcId) {
+            @for (man of shown(); track man.fcId) {
               <li
                 [attr.data-fc-id]="man.fcId"
                 class="lineup-grid items-center rounded px-1 text-[11px] leading-6 odd:bg-fg/5"
@@ -229,7 +241,9 @@
                 <span class="text-[10px] text-muted">{{ man.placed ?? '' }}</span>
               </li>
             } @empty {
-              <li class="px-1 text-xs text-muted">Leghe non ha restituito la rosa.</li>
+              <li class="px-1 text-xs text-muted">
+                {{ roster().length ? 'Nessun calciatore con questi ruoli.' : 'Leghe non ha restituito la rosa.' }}
+              </li>
             }
           </ul>
         </section>
@@ -246,10 +260,12 @@
                 nzSize="small"
                 class="w-64"
                 data-module-select
-                [ngModel]="module()"
-                (ngModelChange)="chosenModule.set($event)"
+                [ngModel]="module() ?? autoModule"
+                (ngModelChange)="chooseModule($event)"
               >
-                <nz-option [nzValue]="null" nzLabel="Modulo: automatico" />
+                <!-- A STRING and never `null`: nz-select reads a null value as «nothing chosen» and draws the box
+                     EMPTY, which is what the operator saw at every opening (09/10/2026). -->
+                <nz-option [nzValue]="autoModule" nzLabel="Modulo: automatico" />
                 @for (option of moduleOptions(); track option.name) {
                   <nz-option nzCustomContent [nzValue]="option.name" [nzLabel]="option.label">
                     <span [class.font-bold]="option.best" [class.text-primary]="option.best">{{ option.label }}</span>
@@ -257,7 +273,7 @@
                 }
               </nz-select>
               @if (bestModule(); as best) {
-                <span class="text-xs text-muted" nz-tooltip nzTooltipTitle="Modulo con la FMA totale più alta"
+                <span class="text-xs text-muted" nz-tooltip nzTooltipTitle="Modulo con l'FVA totale più alto"
                   >migliore: <b class="text-primary">{{ best }}</b></span
                 >
               }
@@ -286,6 +302,7 @@
                   @for (place of row.places; track $index) {
                     <div
                       data-place
+                      [attr.data-slot]="place.slot"
                       [attr.data-filled]="place.man ? '' : null"
                       class="flex min-w-0 max-w-[33%] flex-1 flex-col items-center gap-0.5 rounded-md border border-border bg-surface/90 px-1 py-1"
                       [class.border-dashed]="!place.man"
@@ -304,7 +321,22 @@
             </div>
 
             <div class="flex flex-col gap-1" data-lineup-bench>
-              <span class="text-xs font-semibold">Panchina <span class="font-normal text-muted">· nell'ordine in cui entrano</span></span>
+              <span class="text-xs font-semibold"
+                >Panchina <span class="font-normal text-muted">· nell'ordine in cui entrano</span>
+                @if (plan.cover; as cover) {
+                  <!-- THE BENCH'S PROMISE (operator, 09/10/2026: «essere CERTI che non ci siano buchi»): how many
+                       starters have their own substitute who plays, and who has none. -->
+                  <span
+                    class="font-normal"
+                    [class.text-success]="cover.covered === cover.starters"
+                    [class.text-warning]="cover.covered < cover.starters"
+                    data-lineup-cover
+                    nz-tooltip
+                    [nzTooltipTitle]="cover.open.length ? 'Senza sostituto: ' + cover.open.join(', ') : 'Ogni titolare ha un sostituto che gioca'"
+                    >· copre {{ cover.covered }} di {{ cover.starters }}</span
+                  >
+                }
+              </span>
               <div class="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-1">
                 @for (man of plan.bench; track man.id; let i = $index) {
                   <div class="flex min-w-0 items-center gap-1 rounded border border-border bg-fg/5 px-1 py-0.5 text-[11px]" [attr.data-bench]="man.id">
@@ -326,8 +358,8 @@
 
             @if (pitchSource() === 'advised') {
               <p class="text-[10px] text-muted">
-                Titolari scelti su probabilità del voto × FVA fra i moduli della lega.
-                Non conta ancora sostituzioni automatiche, modificatori e difficoltà della partita sul voto.
+                Titolari scelti sulla somma degli FVA fra i moduli della lega, esclusi i calciatori sotto il 15%.
+                In panchina prima un sostituto che gioca per ogni titolare, poi l'FVA. Non conta i modificatori.
               </p>
             }
           } @else if (pitchSource() === 'sent') {

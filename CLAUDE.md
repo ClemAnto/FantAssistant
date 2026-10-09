@@ -1538,6 +1538,11 @@ Two commands own these, and both print a plan before doing anything:
   no bundle, and a second publisher would republish the site without data and wipe it); and the decision
   is revocable — `make-demo-bundle.mjs` still generates a data-free demo, so going back is one script.
 `fetch --plan` answers "what is missing here?" table by table, with the command that fills each gap.
+**The database lives on ONE machine** (09/10/2026): another PC can have the app and no `data/`, no toolkit
+environment. The bundle travels as a file - `npm run data:pack` after `export` where the DB is, `npm run
+data:import -- <file>` on the other (`app/scripts/bundle-transfer.mjs`) - and a toolkit change made there
+reaches the bundle only after `git pull` + the module's run + `export` on the DB machine. Check which machine
+you are on before promising an export: `data/` empty is the answer.
 Every run leaves a line in `ingest_runs` (module, when, status, options), written by whoever owns the
 invocation - CLI, rebuild or GUI - never by the module itself.
 

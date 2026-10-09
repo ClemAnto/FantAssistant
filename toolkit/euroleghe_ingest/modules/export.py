@@ -130,6 +130,9 @@ CONTRACT: tuple[TableSpec, ...] = (
               "from it. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"),
     TableSpec("probable_starter", "full",
               "dated starting probabilities. THE HISTORY IS THIN BY CONSTRUCTION - see known_gaps"),
+    TableSpec("fc_teams", "full",
+              "fantacalcio.it's clubs by THEIR id, which is Leghe's `tid`/`tidOp`: the Formazione page "
+              "names an opponent outside the EuroLeghe perimeter by identity instead of by three letters"),
     TableSpec("auction_prices", "full",
               "WHAT A ROOM ACTUALLY PAID, per month, normalised to a 10 x 1000 league - the clearing "
               "price of real auctions, which is the one number here that is not somebody's opinion "

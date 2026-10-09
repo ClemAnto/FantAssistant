@@ -92,6 +92,12 @@ const TABLES = [
    * luglio, perche' questa tabella e' un DIFF FRA ROSE e non un registro datato - quindi dice in
    * quale sessione di mercato un uomo e' arrivato, mai in quale giorno. */
   'transfers_history',
+  /* I CLUB DI FANTACALCIO.IT PER IL LORO ID, che e' lo stesso `tid`/`tidOp` di Leghe (09/10/2026, «PSG-MAN ...
+   * MAN che squadra e'?»). Su EuroLeghe `championship/teams` elenca solo i 37 club del perimetro, quindi
+   * l'avversario fuori perimetro arrivava alla pagina Formazione come tre lettere; le pagine probabili
+   * nominano tutt'e due i lati di ogni partita del turno. Pochi KB, e la regola dei campetti vale ancora:
+   * una tabella aggiunta all'EXPORT va aggiunta anche QUI. */
+  'fc_teams',
 ];
 
 if (!existsSync(EXPORT_ROOT)) {

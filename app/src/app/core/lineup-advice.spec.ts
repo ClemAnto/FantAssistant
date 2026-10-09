@@ -4,11 +4,13 @@ import { MantraModules } from './auction-value';
 import { BenchRule } from './leghe-rules';
 import {
   LineupMan,
+  MIN_CHANCE_ON_PITCH,
   VOTE_IF_UNLISTED,
   adviseLineup,
   allowedRules,
   benchOf,
   drawSent,
+  fieldWeight,
   rulebookName,
   toTheFlanks,
   voteChance,
@@ -80,12 +82,83 @@ describe('adviseLineup', () => {
     expect(plan.bench.map((m) => m.shown[0])).toEqual(['P', 'D', 'D', 'C', 'A']);
   });
 
+  it('never fields a man under 15% of a vote, however good his FVA, and keeps him on the bench', () => {
+    // Operator, 09/10/2026: «togliamo dal campo i giocatori < 15% come Lienard» (a third keeper at 1%, FVA 5.2).
+    const lienard = man('P', 5.2, 0.01);
+    const regular = man('P', 4.8, 0.9);
+    const plan = adviseLineup([lienard, regular, man('D', 5)], CLASSIC, [], FREE_BENCH, 'classic')!;
+    const onPitch = plan.rows.flatMap((r) => r.places).filter((p) => p.man).map((p) => p.man!.id);
+    expect(onPitch).toContain(regular.id);
+    expect(onPitch).not.toContain(lienard.id);
+    expect(plan.bench.map((m) => m.id)).toContain(lienard.id);
+    // The floor itself, both sides of it.
+    expect(fieldWeight(man('A', 7, MIN_CHANCE_ON_PITCH))).toBe(7);
+    expect(fieldWeight(man('A', 7, MIN_CHANCE_ON_PITCH - 0.001))).toBeNull();
+  });
+
   it('never fields a man nobody can price, and does not drop him either', () => {
     const squad = [man('P', 4), man('D', null), man('D', 5)];
     const plan = adviseLineup(squad, CLASSIC, [], FREE_BENCH, 'classic')!;
     const onPitch = plan.rows.flatMap((r) => r.places).filter((p) => p.man).map((p) => p.man!.id);
     expect(onPitch).not.toContain(squad[1].id);
     expect(plan.bench.map((m) => m.id)).toContain(squad[1].id);
+  });
+});
+
+describe('the bench covers every starter (no holes)', () => {
+  // Operator, 09/10/2026: «la panchina deve essere impostata in maniera da essere CERTI che non ci siano buchi nel
+  // caso ci sia qualche infortunio all'ultimo».
+  const squad = () => [
+    man('P', 6),
+    ...[6, 6, 6].map((p) => man('D', p)),
+    ...[6, 6, 6, 6].map((p) => man('C', p)),
+    ...[7, 7, 7].map((p) => man('A', p)),
+  ];
+
+  it('classic: a keeper who plays and one cover per department come before the best FVA', () => {
+    const eleven = squad().map((m) => (m.shown[0] === 'A' ? { ...m, points: 10 } : m));
+    const thirdKeeper = man('P', 5.5, 0.01); // the Lienard case: no cover, he will not play
+    const secondKeeper = man('P', 4, 0.9);
+    const subD = man('D', 3, 0.8);
+    const subC = man('C', 3, 0.8);
+    const flashy = [man('A', 9, 0.9), man('A', 8.5, 0.9), man('A', 8, 0.9)]; // the best FVA of the rest, all forwards
+    const bench: BenchRule = { size: 4, fixed: false, perRole: [], sequence: null };
+    const plan = adviseLineup([...eleven, thirdKeeper, secondKeeper, subD, subC, ...flashy], CLASSIC, ['343'], bench, 'classic')!;
+    // by FVA alone the bench would be three forwards and the third keeper: one injured defender = a hole
+    expect(plan.bench.map((m) => m.shown[0]).sort()).toEqual(['A', 'C', 'D', 'P']);
+    expect(plan.bench.map((m) => m.id)).toContain(secondKeeper.id);
+    expect(plan.bench.map((m) => m.id)).not.toContain(thirdKeeper.id);
+    expect(plan.cover?.covered).toBe(4);
+    expect(plan.cover?.starters).toBe(11);
+  });
+
+  it('a big enough bench covers all eleven, each with his own man', () => {
+    const eleven = squad();
+    const subs = [man('P', 4, 0.9), ...Array.from({ length: 3 }, () => man('D', 3, 0.7)),
+      ...Array.from({ length: 4 }, () => man('C', 3, 0.7)), ...Array.from({ length: 3 }, () => man('A', 3, 0.7))];
+    const plan = adviseLineup([...eleven, ...subs], CLASSIC, ['343'], FREE_BENCH, 'classic')!;
+    expect(plan.cover?.covered).toBe(11);
+    expect(plan.cover?.open).toEqual([]);
+  });
+
+  it('mantra: the official matrix decides who can replace whom, malus included', () => {
+    const rules: MantraModules = {
+      slot_roles: { P: ['Por'], DC: ['Dc'], 'A/PC': ['A', 'Pc'] },
+      modules: { mini: { D: ['DC'], A: ['A/PC'] } },
+      substitution: { matrix: { Dc: { B: '**', Pc: 'NO', Dc: 'OK' }, Pc: { B: '-1', Pc: 'OK' }, Por: { Por: 'OK' } } },
+    };
+    const keeper = { ...man('Por', 6), roles: ['por'] };
+    const dc = { ...man('Dc', 6), roles: ['dc'] };
+    const pc = { ...man('Pc', 9), roles: ['pc'] };
+    const braccetto = { ...man('B', 3, 0.8), roles: ['b'] }; // covers the Dc (**) and the Pc (-1)
+    const striker = { ...man('Pc', 8, 0.9), roles: ['pc'] }; // covers the Pc only: a Pc may not replace a Dc
+    const backup = { ...man('Por', 4, 0.9), roles: ['por'] };
+    const plan = adviseLineup([keeper, dc, pc, braccetto, striker, backup], rules, [], { size: 3, fixed: false, perRole: [], sequence: null }, 'mantra')!;
+    expect(plan.cover).toEqual({ starters: 3, covered: 3, open: [] });
+    expect(new Set(plan.bench.map((m) => m.id))).toEqual(new Set([backup.id, braccetto.id, striker.id]));
+    const one = adviseLineup([keeper, dc, pc, braccetto, striker, backup], rules, [], { size: 2, fixed: false, perRole: [], sequence: null }, 'mantra')!;
+    // two places: the keeper's and the defender's covers, because the striker can only stand in for the Pc
+    expect(new Set(one.bench.map((m) => m.id))).toEqual(new Set([backup.id, braccetto.id]));
   });
 });
 
@@ -137,5 +210,14 @@ describe('toTheFlanks', () => {
   it('leaves sided and all-central lines as the rulebook writes them', () => {
     expect(slots(toTheFlanks(row('DD', 'DC', 'DC', 'DS')))).toEqual(['DD', 'DC', 'DC', 'DS']);
     expect(slots(toTheFlanks(row('E', 'M', 'C', 'E')))).toEqual(['E', 'M', 'C', 'E']);
+    expect(slots(toTheFlanks(row('T/A/PC', 'A/PC')))).toEqual(['T/A/PC', 'A/PC']);
+  });
+
+  it('puts a W on the touchlines even when it shares the slot, and the Pc in the middle', () => {
+    // The 3-4-3 and the 4-3-3 write their front three `W/A, W/A, A/PC` (operator, 09/10/2026: «le W devono
+    // stare ai lati, la Pc al centro»).
+    expect(slots(toTheFlanks(row('W/A', 'W/A', 'A/PC')))).toEqual(['W/A', 'A/PC', 'W/A']);
+    expect(slots(toTheFlanks(row('W/T', 'T', 'W/A')))).toEqual(['W/T', 'T', 'W/A']);
+    expect(slots(toTheFlanks(row('M', 'M/C', 'E', 'E/W')))).toEqual(['E', 'M', 'M/C', 'E/W']);
   });
 });

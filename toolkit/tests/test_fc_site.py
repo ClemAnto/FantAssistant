@@ -168,3 +168,62 @@ def test_the_probabili_survive_the_site_dropping_the_season_from_the_href():
     # is filtered out by every reader, which is the safe direction.
     bare = _PROBABILI_NEW_HREF.replace("/serie-a/calendario/1/2026-27/inter-monza/17959", "/x")
     assert fc_site.parse_probable_starters(bare)[0]["season"] is None
+
+
+# The match header as the EuroLeghe page writes it (09/10/2026, round 5): the club's id in `for`, its name
+# in the schema.org meta, a truncated label as visible text. The team-card's own `.team-name` is NOT a
+# header and must not be read as one.
+_MATCH_HEADERS = """
+<html><body>
+<div class="match">
+  <label itemprop="homeTeam" itemscope itemtype="http://schema.org/SportsTeam" for="team-81" class="team-home ">
+    <span class="team-name "><meta itemprop="name" content="Paris Saint-Germain" /> Par</span>
+    <img class="team-badge" src="https://content.fantacalcio.it/web/img/team/ico/PSG_d.png" />
+  </label>
+  <label itemprop="awayTeam" itemscope itemtype="http://schema.org/SportsTeam" for="team-166" class="team-away ">
+    <span class="team-name "><meta itemprop="name" content="Le Mans" /> Le </span>
+    <img class="team-badge" src="https://content.fantacalcio.it/web/img/team/ico/MAN_d.png" />
+  </label>
+</div>
+<div class="match">
+  <label itemprop="homeTeam" for="team-104" class="team-home "><span class="team-name">
+    <meta itemprop="name" content="Alav&#xE9;s" /></span></label>
+  <label itemprop="awayTeam" for="team-81" class="team-away "><span class="team-name">
+    <meta itemprop="name" content="Paris Saint-Germain" /></span></label>
+</div>
+<div class="team-card"><div class="team-name">Paris Saint-Germain</div></div>
+<label for="team-999">a filter checkbox, not a match header</label>
+</body></html>
+"""
+
+
+def test_the_match_headers_name_the_clubs_by_their_own_id():
+    """On EuroLeghe, Leghe's `championship/teams` lists only the 37 perimeter clubs, so the Formazione page
+    knew the opponent of a PSG man as `tidOp` 166 and «MAN». The probabili page of the round names both
+    sides of every match it shows, by the same id: that is the whole channel."""
+    clubs = fc_site.parse_match_teams(_MATCH_HEADERS)
+    assert clubs == [
+        {"team_id": 81, "name": "Paris Saint-Germain"},
+        {"team_id": 104, "name": "Alavés"},
+        {"team_id": 166, "name": "Le Mans"},
+    ]
+    # A page that names one club two ways is contradicting itself, and that is not a name to store.
+    torn = _MATCH_HEADERS.replace('for="team-104"', 'for="team-166"')   # 166 is now also «Alavés»
+    assert {club["team_id"] for club in fc_site.parse_match_teams(torn)} == {81}
+
+
+def test_the_newest_reading_of_a_club_name_wins_and_an_older_one_never_comes_back(tmp_path):
+    ctx = _ctx(tmp_path)
+    fc_site.upsert_fc_teams(ctx.conn, [{"team_id": 166, "name": "Le Mans FC"}], "2026-10-01")
+    fc_site.upsert_fc_teams(ctx.conn, [{"team_id": 166, "name": "Le Mans"}], "2026-10-09")
+    fc_site.upsert_fc_teams(ctx.conn, [{"team_id": 166, "name": "Le Mans FC"}], "2026-10-02")
+    assert tuple(ctx.conn.execute("SELECT name, observed_on FROM fc_teams").fetchone()) == (
+        "Le Mans", "2026-10-09")
+
+
+def test_a_probabili_snapshot_stores_the_clubs_of_its_headers(tmp_path):
+    """Through the path `run` and `rebuild` both take, so a replayed cache fills the table offline."""
+    ctx = _ctx(tmp_path)
+    fc_site.ingest_snapshot(ctx, "probabili_euro", _MATCH_HEADERS, "2026-10-09", "2026-27")
+    assert dict(ctx.conn.execute("SELECT team_id, name FROM fc_teams")) == {
+        81: "Paris Saint-Germain", 104: "Alavés", 166: "Le Mans"}

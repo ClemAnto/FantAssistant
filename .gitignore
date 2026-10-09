@@ -49,6 +49,12 @@
 # (misurato: `git ls-files '*.sqlite' '*.db'` = 0), quindi la regola non nasconde niente di legittimo.
 *.sqlite
 *.db
+# IL PACCHETTO CHE VIAGGIA FRA DUE MACCHINE (`npm run data:pack` / `data:import`, 09/10/2026) e l'export che
+# un import sostituisce: lo stesso contenuto a pagamento di `/data/export/`. L'archivio NON e' ancorato,
+# perche' si porta a mano e puo' finire ovunque nel repository (la lezione del bundle.sqlite qui sopra).
+# Misurato prima: `git ls-files '*.tgz'` = 0.
+fantassistant-bundle-*.tgz
+/data/export-previous/
 
 # --- Python ---
 __pycache__/

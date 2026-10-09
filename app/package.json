@@ -6,6 +6,8 @@
     "audit:slices": "node scripts/audit-slices.mjs",
     "build": "ng build",
     "data:pull": "node scripts/pull-bundle.mjs",
+    "data:pack": "node scripts/bundle-transfer.mjs pack",
+    "data:import": "node scripts/bundle-transfer.mjs import",
     "deploy:pages": "node scripts/deploy-pages.mjs",
     "ng": "ng",
     "prebuild": "node scripts/version.mjs",

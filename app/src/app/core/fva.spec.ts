@@ -10,6 +10,8 @@ import {
   lambdaOf,
   minutesFactor,
   oddsScale,
+  REST_PRIOR_MATCHES,
+  restPerMatch,
 } from './fva';
 
 const outfield = { keeper: false, mv: 6.5, fm: 7.5, minutes: 90, goalsPerMatch: 0.25, oddsProb: null };
@@ -86,6 +88,64 @@ describe('the match', () => {
     expect(fromCalendar.source).toBe('calendar');
     expect(fvaOf({ ...keeper, oddsProb: Math.exp(-1), cleanSheet: Math.exp(-1.5) }).value).toBeCloseTo(5, 6);
     expect(fvaOf({ ...keeper, cleanSheet: null }).value).toBe(5);
+  });
+});
+
+describe('«altri» with a price: measured, not derived from the regressed fantamedia', () => {
+  // The case that found it (09/10/2026), with the euro sheet's and the votes' own numbers: Kane's FM is pulled
+  // from 10.6 to 9.2 toward the role's anchor, Gabriel Jesus's from 6.38 UP to 7.24. Derived as FM - MV - goals,
+  // that regression read as «altri» -1.00 and +0.42; measured on their matches it is +0.05 and 0.00.
+  const kane = { keeper: false, mv: 6.791, fm: 9.199, minutes: 62, goalsPerMatch: 38 / 33, oddsProb: 0.7154 };
+  const jesus = { keeper: false, mv: 6.477, fm: 7.242, minutes: 36, goalsPerMatch: 0.1, oddsProb: 0.5704 };
+
+  it('reads the measured rest of the bonus where the price takes the goals', () => {
+    expect(fvaOf({ ...kane, restPerMatch: 0.05 }).others).toBeCloseTo(0.05 * minutesFactor(62), 6);
+    expect(fvaOf({ ...jesus, restPerMatch: 0 }).others).toBeCloseTo(0, 6);
+    // the old derivation, for the record: what the regression was doing to the two
+    expect(fvaOf(kane).others).toBeLessThan(-0.9);
+    expect(fvaOf(jesus).others).toBeGreaterThan(0.35);
+  });
+
+  it('keeps Kane ahead of Gabriel Jesus whatever the scale of the prices', () => {
+    for (const scale of [1, 0.85, 0.7, 0.5]) {
+      const k = fvaOf({ ...kane, restPerMatch: 0.05 }, scale).value!;
+      const j = fvaOf({ ...jesus, restPerMatch: 0 }, scale).value!;
+      expect(k).toBeGreaterThan(j);
+    }
+  });
+
+  it('without a price nothing changes: history goals and the remainder give the sheet FM back', () => {
+    expect(fvaOf({ ...outfield, restPerMatch: 0.9 }).value).toBeCloseTo(7.5, 6);
+    expect(fvaOf({ ...outfield, restPerMatch: 0.9 }).others).toBeCloseTo(0.25, 6);
+  });
+
+  it('measures the rest on voted matches: fantavoto - voto - 3 x goals, a scored penalty being a goal', () => {
+    const cells = [
+      { vote: 7, fantavoto: 11, goals: 1, penScored: 0 }, // +3 goal, +1 assist -> rest +1
+      { vote: 6.5, fantavoto: 9, goals: 0, penScored: 1 }, // penalty goal, -0.5 booking -> rest -0.5
+      { vote: null, fantavoto: null, goals: 0, penScored: 0 }, // no vote: not in the mean
+    ];
+    // +0.25 a match on TWO voted matches, shrunk by its sample: 0.5 / (2 + 10)
+    expect(restPerMatch(cells)).toBeCloseTo(0.5 / (2 + REST_PRIOR_MATCHES), 6);
+    expect(restPerMatch([{ vote: null, fantavoto: null, goals: 0, penScored: 0 }])).toBeNull();
+  });
+
+  it('credits a short record less: Doue (24 voted matches) ahead of Godts (3), «di poco»', () => {
+    // The operator, 09/10/2026: «dobbiamo premiare leggermente di più chi ha dei dati più effettivi». Both at
+    // PSG against Le Mans, priced 1.87 and 1.84; Godts' one assist in three matches read +0.31 a match raw.
+    const voted = (n: number, extra: number) =>
+      Array.from({ length: n }, (_, i) => ({ vote: 6, fantavoto: 6 + (i === 0 ? extra : 0), goals: 0, penScored: 0 }));
+    const godtsRest = restPerMatch(voted(3, 1))!;
+    const doueRest = restPerMatch(voted(24, 2))!;
+    expect(godtsRest).toBeCloseTo(1 / 13, 6);
+    expect(doueRest).toBeCloseTo(2 / 34, 6);
+    const godts = { keeper: false, mv: 6.144, fm: 6.992, minutes: 51, goalsPerMatch: 0, restPerMatch: godtsRest, oddsProb: 0.546 };
+    const doue = { keeper: false, mv: 6.287, fm: 6.863, minutes: 58, goalsPerMatch: 7 / 24, restPerMatch: doueRest, oddsProb: 0.536 };
+    for (const scale of [1, 0.7]) {
+      const gap = fvaOf(doue, scale).value! - fvaOf(godts, scale).value!;
+      expect(gap).toBeGreaterThan(0);
+      expect(gap).toBeLessThan(0.2);
+    }
   });
 });
 

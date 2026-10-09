@@ -816,24 +816,8 @@
           >{{ slimCols() ? '+ colonne' : '− colonne' }}</button>
         </div>
         <div class="flex flex-wrap items-center gap-0.5">
-          @for (role of roleOptions(); track role) {
-            <button
-              type="button"
-              [attr.data-role-filter]="role.toLowerCase()"
-              class="rounded transition-opacity"
-              [class.opacity-40]="roleFilter().size > 0 && !roleOn(role)"
-              [class.ring-1]="roleOn(role)"
-              [class.ring-primary]="roleOn(role)"
-              (click)="toggleRole(role)"
-            >
-              <ui-role [role]="role" size="xs" />
-            </button>
-          }
-          @if (roleFilter().size) {
-            <button type="button" class="ml-1 text-xs text-muted hover:text-fg" (click)="clearRoles()">
-              ✕
-            </button>
-          }
+          <!-- The same filter the Formazione page shows (`ui/role-filter`): one component, so the two cannot drift. -->
+          <ui-role-filter [roles]="roleOptions()" [(selected)]="roleFilter" />
           <!-- IL FILTRO PER GRADINO (sua richiesta, 29/09/2026): restano solo quelli ALMENO al gradino scelto. -->
           <nz-select
             data-rung-filter

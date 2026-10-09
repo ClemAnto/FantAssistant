@@ -12,7 +12,9 @@
  * Outfield:  FVA = MV' +   GOAL_BONUS x lambda x k  +  others x k, MV' = 6 + (MV - 6) x k above the 6, MV below it
  *   lambda  = expected goals in this match: -ln(1 - p) from the bookmakers' price, rescaled (below);
  *             without a price, his own goals per appearance;
- *   others  = (FM - MV) - GOAL_BONUS x his goals per appearance: assists, cards, the rest of the bonus.
+ *   others  = assists, cards, the rest of the bonus: with a price, MEASURED per voted match on the same matches
+ *             as the goal rate (`restPerMatch`, 09/10/2026); without one, (FM - MV) - GOAL_BONUS x goals per
+ *             appearance, which gives the sheet's FM back.
  * Keeper:    FVA = MV - lambda_conceded, lambda_conceded = -ln(p clean sheet), p from the price, else from the
  *            calendar (Serie A); without either, his FM.
  *            The clean-sheet price carries a margin too, which makes p too high and the goals conceded too
@@ -67,6 +69,11 @@ export interface FvaInput {
   minutes: number | null;
   /** His own goals per championship appearance, this season and the last; null = no appearance on file. */
   goalsPerMatch: number | null;
+  /**
+   * The rest of his bonus per VOTED match, MEASURED on the same matches as `goalsPerMatch` (`restPerMatch`):
+   * assists, cards, missed penalties, own goals. Null/absent = no voted match on file.
+   */
+  restPerMatch?: number | null;
   /** Implied probability of the bookmakers' price (scorer for outfield, clean sheet for a keeper). */
   oddsProb: number | null;
   /** This match's edge minus his club's ordinary edge, in Elo; null/absent = the match is not known. */
@@ -115,6 +122,33 @@ export function oddsScale(pairs: readonly { goalsPerMatch: number; oddsProb: num
 }
 
 /**
+ * How many voted matches the rest of the bonus is worth before it counts at full weight: the measured rate is
+ * shrunk toward zero by `n / (n + REST_PRIOR_MATCHES)`. A CHOICE, the operator's of 09/10/2026: «dobbiamo
+ * premiare leggermente di più chi ha dei dati più effettivi» - Godts' one assist in three matches read +0.31 a
+ * match and put him ahead of Doue, whose +0.08 stands on 24. Toward zero and not toward a role mean, because a
+ * man who still has to show it is exactly the one this should not credit.
+ */
+export const REST_PRIOR_MATCHES = 10;
+
+/**
+ * THE REST OF THE BONUS PER VOTED MATCH: fantavoto - voto - GOAL_BONUS x goals (a scored penalty is a goal), on
+ * the championship matches the caller hands in - the SAME ones the goal rate is counted on. Assists, cards,
+ * missed penalties, own goals: what the fantavoto adds beyond the vote and the goals, shrunk by its sample
+ * (`REST_PRIOR_MATCHES`). Null = no voted match.
+ */
+export function restPerMatch(
+  cells: readonly { vote: number | null; fantavoto: number | null; goals: number; penScored: number }[],
+): number | null {
+  const voted = cells.filter((one) => one.vote != null && one.fantavoto != null);
+  if (!voted.length) return null;
+  const sum = voted.reduce(
+    (total, one) => total + (one.fantavoto as number) - (one.vote as number) - GOAL_BONUS * (one.goals + one.penScored),
+    0,
+  );
+  return sum / (voted.length + REST_PRIOR_MATCHES);
+}
+
+/**
  * The minutes ONLY DISCOUNT: what sits above the 6 shrinks toward it, what sits below stays where it is. Applied
  * both ways, a man under 6 would read BETTER for playing less, which inverts the tie the operator asked the
  * minutes to break (found in the review of 09/10/2026).
@@ -153,8 +187,15 @@ export function fvaOf(input: FvaInput, scale = 1): Fva {
   }
   const base = towardSix(input.mv, k);
   const historyGoals = GOAL_BONUS * input.goalsPerMatch;
-  const others = (input.fm - input.mv - historyGoals) * k;
   const fromOdds = input.oddsProb !== null && input.oddsProb > 0;
+  // «ALTRI» IS MEASURED WHERE THE PRICE TAKES THE GOALS (operator, 09/10/2026, after «perché Gabriel Jesus ha un
+  // FVA > di Kane?»). Derived as FM - MV - goals, it carried the sheet's regression of the fantamedia toward the
+  // role's anchor, which is mostly a correction of the GOALS: Kane's FM 10.6 -> 9.2 read as «altri» -1.00, Jesus's
+  // 6.38 -> 7.24 as +0.42, while measured on their matches the rest of the bonus is +0.05 and 0.00. With a price
+  // the goals are this match's, so the regression of the old ones must not stay behind. Without a price the
+  // derivation stands: history goals + the remainder give back exactly the sheet's FM, which is the estimate then.
+  const measuredRest = fromOdds && input.restPerMatch != null && Number.isFinite(input.restPerMatch);
+  const others = (measuredRest ? input.restPerMatch! : input.fm - input.mv - historyGoals) * k;
   const goals = (fromOdds ? GOAL_BONUS * lambdaOf(input.oddsProb!) * scale : historyGoals) * k;
   // The price already knows the opponent and the venue; the history does not.
   const goalMatch = fromOdds ? 0 : historyGoals * MATCH_GOALS_PER_100 * delta * k;

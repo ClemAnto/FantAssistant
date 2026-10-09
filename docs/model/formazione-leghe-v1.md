@@ -240,7 +240,9 @@ la capacità di segnare in quella partita che non la fantamedia»):
   inviolata del calendario, che contiene Elo, forma su 10 partite e campo);
 - `G* = bonus gol × λ × k`, `λ = −ln(1 − p)` con `p` dalla quota marcatore senza margine; senza quota, i
   suoi gol per presenza. La quota SOSTITUISCE la parte gol della fantamedia;
-- `A* = [(FM − MV) − parte gol storica] × (1 + b × Δ) × k` (assist, cartellini, il resto);
+- `A* = [(FM − MV) − parte gol storica] × (1 + b × Δ) × k` (assist, cartellini, il resto); **corretto il
+  09/10/2026 (§4-septies): con la quota, «altri» si MISURA sulle stesse partite dei gol** (fantavoto − voto −
+  3 × gol per partita votata) invece di ricavarlo dalla FM del foglio, che è regredita;
 - `k = 1 − 0,15 × (1 − minuti previsti / 90)`: al massimo −7% a 45', una SCELTA e non una misura;
 - `a`, `b` da MISURARE sui voti veri, a zero finché non lo sono; il TREND fuori dalla formula (la mano calda
   misurata vale zero, e la stagione in corso è già nella fantamedia: R25/R28);
@@ -342,7 +344,113 @@ login e una passata a freddo per lega).
   regole già mostrate, non credenziali.
 
 
+## §4-septies. Il nome dell'avversario, l'ordine delle quote dei portieri, il filtro per ruolo (09/10/2026)
+
+Tre richieste dell'operatore sulla tabella, nessuna di motore (`engine_*` fermo, nessun `SHEET_REVISION`).
+
+- **«PSG-MAN ... MAN che squadra è?»**: Le Mans. Su EuroLeghe `championship/teams` elenca solo i 37 club del
+  perimetro, quindi un avversario fuori perimetro arrivava come `tidOp` e tre lettere, e il tooltip stampava
+  la sigla. Su suo suggerimento la fonte è la pagina probabili: il toolkit ne legge le intestazioni delle
+  partite in `fc_teams` (spec «Novità v9.106») per ID di fantacalcio.it, che è lo stesso spazio di Leghe
+  (✅ Atalanta 1 e Chelsea 26 sulla pagina e nella fixture del front-end di Leghe). Il tooltip prende il nome
+  da Leghe se lo elenca, da `fc_teams` se no, la sigla solo se nessuno dei due lo sa. **Solo il tooltip**:
+  l'aggancio al calendario e alle quote resta sui nomi di Leghe, su cui è stato misurato. **Arriva a schermo
+  dopo** una corsa di `fc_site` e un `export` sulla macchina col DB.
+- **Quote dei portieri ×(−1) nell'ordinamento** («in modo che gli ordinamenti siano sempre separati, ma non
+  visualizzare il −»): `bookmaker-odds.oddsSortValue`. La porta inviolata e il gol sono due grandezze, quindi
+  i portieri fanno un blocco a sé in tutt'e due i versi; la cella stampa la quota senza segno. Conseguenza
+  della regola alla lettera, detta: in crescente i portieri vengono PRIMA e dal più alto al più basso
+  (−4 < −2), in decrescente vengono per ultimi dal più basso al più alto.
+- **Filtro per ruolo multiplo** sopra la tabella, «esattamente lo stesso» del Draft Assistant (sua correzione
+  della stessa ora, dopo una prima versione a tendina): i chip colorati, un componente solo per le due pagine
+  (`ui/role-filter`, che il Draft Assistant ora legge al posto della sua copia). P D C A su classic, su Mantra
+  il vocabolario del regolamento nel suo ordine (`mantra_modules.json` → `roles`). Un uomo passa con QUALUNQUE
+  dei suoi ruoli; filtra la sola tabella - consiglio, campo e conteggio delle quote leggono tutta la rosa - e
+  «N di M» compare solo quando nasconde qualcuno.
+- **La consigliata sceglie sulla SOMMA DEGLI FVA** («il modulo migliore è semplicemente la somma dei singoli
+  FVA, non pensare alla probabilità di prendere il voto»): `points` = FVA, non più P(voto) × FVA, e nullo solo
+  per chi Leghe dà fuori (indisponibile, squalificato, non convocato: un fatto, non una probabilità). Il menù dei
+  moduli e il «★ migliore» leggono lo stesso numero (prima leggevano la FMA), quindi menù e campo non possono più
+  dare due moduli migliori diversi. **Il prezzo, detto**: un uomo che Leghe dà al 5% con un buon FVA ora può
+  scavalcare un titolare - ~~la colonna Voto continua a mostrare quella probabilità~~ chiuso un'ora dopo dal
+  pavimento del 15% (sotto), sul caso Lienard. Nata dalla formazione che
+  l'operatore si aspettava (4-2-3-1: Hradecky; Baku, Anton, Gvardiol, Grimaldo; Rice, Prömel o Merino; Barnes,
+  F. Lopez, D. Douè; Kane) - **non verificata contro la sua rosa**, che vive nel suo browser.
+
+- **«Perché Gabriel Jesus ha un FVA > di Kane?»** Rifatto con la funzione dell'app e le quote di quel giorno
+  (Kane 1,40 ad Augsburg, Jesus 1,76 contro il Getafe): «altri» valeva **−1,00** per Kane e **+0,42** per Jesus.
+  Non erano assist né cartellini: era la regressione della FM del foglio verso l'ancora del ruolo (Kane 10,6 →
+  9,2, Jesus 6,38 → 7,24), che finiva tutta nel resto perché `altri = FM − MV − 3 × gol` sottrae gol VERI da
+  una FM REGREDITA. Misurati sulle loro partite gli altri bonus valgono +0,05 e 0,00. Con la quota la parte gol
+  è quella della partita, quindi la regressione dei gol vecchi non deve restare dietro: ora «altri» si misura
+  (`fva.restPerMatch`, sulle stesse partite di campionato di questa stagione e della scorsa su cui si contano i
+  gol). Senza quota non cambia niente (gol storici + resto ridanno la FM del foglio). Effetto sui due: con il
+  fattore di scala delle quote a 0,7, Kane 8,25 → **9,29** e Jesus 8,52 → **8,10**; prima Jesus passava davanti
+  da una scala di 0,85 in giù. **Non verificabile all'indietro** (niente quote storiche): è una correzione di
+  coerenza, decisa dall'operatore col conto davanti.
+- **«Godts e Doue sono quasi pari ... di poco ma dovremmo privilegiare Doue»** (chi ha dati più effettivi:
+  storico al PSG e più minuti). Il vantaggio di Godts veniva proprio dalla correzione qui sopra: «altri»
+  misurato su **3** partite votate (un assist = +0,31 a partita) contro le **24** di Doue (+0,08). Un tasso
+  misurato su poche partite ora pesa per il suo campione: `restPerMatch` = somma / (partite votate +
+  `REST_PRIOR_MATCHES` = 10), cioè tende a zero finché il calciatore non l'ha dimostrato. Scelta dichiarata,
+  non misurata. Effetto (quote 1,84 e 1,87 contro il Le Mans): Godts 8,66 → 8,42, Doue 8,53 → 8,51 con scala
+  1; a 0,7 Godts 7,76 e Doue 7,85 - Doue davanti di circa un decimo. Kane perde un centesimo (33 partite).
+- **Fuori dal campo chi è sotto il 15%** («togliamo dal campo i giocatori < 15% come Lienard», un terzo portiere
+  all'1% con FVA 5,2 che la regola «solo FVA» schierava): `lineup-advice.MIN_CHANCE_ON_PITCH` = 0,15 sulla
+  probabilità che la pagina MOSTRA, letta da `fieldWeight` per il campo E per i totali del menù dei moduli (una
+  regola, due lettori). Resta in panchina in ordine di FVA. Soglia dichiarata, non misurata.
+- **Le W ai lati, la Pc al centro**: un posto che OFFRE un ruolo largo (`W/A`, `W/T`, `E/W`) va sulle fasce,
+  anche se ammette altro; prima doveva essere tutto largo, e il 3-4-3 disegnava `W/A, W/A, A/PC` con la punta su
+  una fascia. Nessuno slot del regolamento offre insieme un ruolo largo e `PC`, quindi la punta non esce mai.
+- **Il selettore del modulo era vuoto all'apertura**: «automatico» aveva valore `null`, che nz-select disegna
+  come nessuna scelta. Ora è una stringa (`autoModule`).
+- **La panchina copre ogni titolare** («essere CERTI che non ci siano buchi nel caso ci sia qualche infortunio
+  all'ultimo»): `lineup-advice.coverOrder` dà a ogni titolare un sostituto SUO (due infortuni nello stesso
+  reparto = due sostituti), contando solo chi gioca a sua volta (≥ 15%: Lienard all'1% non copre niente). Giri
+  per reparto dal portiere in giù - il primo infortunio di ogni reparto prima del secondo di qualunque - e dentro
+  il reparto prima il titolare con meno coperture possibili, a cui va il più probabile (poi l'FVA). Classic:
+  stesso ruolo. Mantra: un ruolo che il posto accetta, o quello che la matrice ufficiale delle sostituzioni
+  ammette dal ruolo che il titolare occupava, malus −1 compreso (un malus non è un buco; le note `*`/`**`/`***`
+  lette come le scrive il file). I posti in panchina vanno PRIMA a queste coperture e poi all'FVA, nel rispetto
+  dei minimi/esatti per ruolo della lega; l'ordine di entrata resta quello di prima. La pagina dice «copre N di 11»
+  (verde se tutti, con i nomi scoperti nel tooltip). **Limiti detti**: il cambio modulo delle sostituzioni
+  Dynamic/Hybrid/Basic non è modellato (si conta la sola copertura sicura); la probabilità di un sostituto è
+  quella di oggi, non quella condizionata all'assenza del titolare - per un portiere di un altro club è giusta,
+  per il vice dello stesso club la sottostima.
+- **Senza login, i dati salvati** («una volta che fai login ... memorizza i dati scaricati e riutilizzali in
+  seguito senza fare il login, mostra solo la data dell'ultimo aggiornamento»). Di un account si ricorda tutto
+  TRANNE il token (`leghe-known` in `localStorage`: utente e leghe); una scheda senza login mostra le letture
+  della cache qualunque età abbiano, con «dati aggiornati <giorno, ora>» al posto di «letta alle», e non fa
+  NESSUNA richiesta; «rileggi» lì apre il login. Una lega mai letta in questo browser lo dice (`no-login`) invece
+  di inventare. I token restano in `sessionStorage` (la scelta dell'08/10 non cambia, e un test lo asserisce);
+  un token scaduto toglie solo il token, «Esci» toglie anche la memoria dell'account. Le letture si tengono
+  **30 giorni** invece di 7 (`LEGHE_KEEP`): la freschezza online la decidono ancora le durate della tabella.
+
+**Il banco senza Leghe**: `app/scripts/e2e-lineup-offline.mjs` serve `dist/` con un Leghe FINTO (due leghe,
+classic e Mantra, calciatori veri coi loro id), le quote nella cache della pagina e `fc_teams` da una
+tabellina, e blocca ogni richiesta a Google: zero richieste a Leghe, quindi si può lanciare quanto serve. ✅
+09/10/2026: 22 controlli verdi (filtro con un puntatore vero, 7 di 12 su D+A; blocchi delle quote nei due
+versi; selettore del modulo che dice «Modulo: automatico»; «copre N di M» in panchina; il 3-4-3 disegnato
+`W/A · A/PC · W/A`; tooltip «Paris Saint-Germain - Le Mans» con la tabella e «- MAN» senza, ricaricando la
+stessa pagina; senza login le stesse 11 righe, «dati aggiornati …» e 0 richieste). Controprove: con
+l'ordinamento vecchio cadono esattamente i due controlli dei blocchi; senza il ramo «salvati» cade il test di
+sessione; senza `restPerMatch`, senza il pavimento, senza le coperture e con la vecchia regola delle fasce cadono
+esattamente i test che descrivono ciascuna cura.
+
 ## §5. Aperti, in ordine
+
+**Dal 9 ottobre 2026 (sera), in cima:**
+- **Sulla macchina col DB**: `git pull`, `python -m euroleghe_ingest fc_site` (riempie `fc_teams`), `export`,
+  poi `npm run data:pack` e qui `npm run data:import -- <file>` (o `deploy:pages` là). Finché non succede il
+  tooltip dice ancora «MAN».
+- **La consigliata contro la sua attesa** (4-2-3-1: Hradecky; Baku, Anton, Gvardiol, Grimaldo; Rice, Prömel o
+  Merino; Barnes, F. Lopez, D. Douè; Kane): mai confrontata con la sua rosa vera, che vive nel suo browser. Le
+  quattro cure della sera (somma degli FVA, «altri» misurati e pesati sul campione, 15%, coperture) vanno
+  guardate lì.
+- **I cambi modulo delle sostituzioni** (Dynamic/Hybrid/Basic) non sono nelle coperture, e la probabilità di un
+  vice dello STESSO club non è condizionata all'assenza del titolare.
+- `REST_PRIOR_MATCHES` = 10 e `MIN_CHANCE_ON_PITCH` = 0,15 sono dichiarati; da guardare quando ci sarà il banco
+  delle giornate giocate (item 3).
 
 0. **Quote (§4-ter): FATTO lato operatore** il 08-09/10/2026 - `odds.gs` incollato, `oddsProbe()` passa
    da Google (20 partite, 48 righe su Genoa-Fiorentina), `oddsInstall()` arma 8:00 e 19:00, prima cattura

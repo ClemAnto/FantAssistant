@@ -837,6 +837,20 @@ CREATE TABLE IF NOT EXISTS probable_starter (
     PRIMARY KEY (fc_id, valid_from)
 );
 
+-- FANTACALCIO.IT'S OWN CLUBS, BY THEIR OWN ID - which is Leghe's `tid` / `tidOp` (09/10/2026). NOT
+-- `clubs.fc_club_id`, which is our surrogate. Read off the match headers of the probabili pages
+-- (`<label for="team-166">` + the club's name), Serie A and EuroLeghe alike.
+-- Why it exists: on EuroLeghe, Leghe's `championship/teams` lists only the platform's 37 perimeter clubs,
+-- so the opponent of a man's next match outside it reaches the Formazione page as an id and a 3-letter
+-- code - «PSG-MAN», and MAN is Le Mans. The probabili page of the round names both sides of every match
+-- it shows. Same id space checked on the published page against Leghe's own front-end fixture: Atalanta
+-- 1, Chelsea 26 on both. The LAST reading wins: a club does not change name, a spelling can.
+CREATE TABLE IF NOT EXISTS fc_teams (
+    team_id     INTEGER PRIMARY KEY,
+    name        TEXT NOT NULL,
+    observed_on TEXT NOT NULL                    -- the day of the page that named it
+);
+
 -- Who is REALLY in a club's squad on a given date, independent of the listone.
 -- Why it exists: an auction is prepared before the listone comes out, and the listone is the only
 -- thing `rosters` knows. This is the real squad instead - from the current Transfermarkt squad pages,

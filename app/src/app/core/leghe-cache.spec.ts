@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { KeyValueStore, LEGHE_TTL, LegheCache } from './leghe-cache';
+import { KeyValueStore, LEGHE_KEEP, LEGHE_TTL, LegheCache } from './leghe-cache';
 
 /** A `Storage` made of a map, with the same key walk the browser offers. */
 function mapStore(): KeyValueStore & { map: Map<string, string> } {
@@ -110,10 +110,19 @@ describe('LegheCache', () => {
     expect(asked).toBe(1);
   });
 
-  it('drops on opening what no volatility can still use, and what it cannot read', async () => {
+  it('serves a stored reading of ANY age without asking (the page without a login), and null when there is none', async () => {
+    const r = rig();
+    await r.cache.read('roster', 'live', r.fetch('rosa'));
+    r.tick(LEGHE_TTL.season);
+    expect(r.reopen().stored('roster')).toEqual({ body: 'rosa', at: 1_000_000, fromCache: true });
+    expect(r.cache.stored('never')).toBeNull();
+    expect(r.asked()).toBe(1);
+  });
+
+  it('drops on opening what is older than it is kept for, and what it cannot read', async () => {
     const r = rig();
     await r.cache.read('old', 'season', r.fetch(1));
-    r.tick(LEGHE_TTL.season);
+    r.tick(LEGHE_KEEP);
     await r.cache.read('new', 'live', r.fetch(1));
     r.store.setItem('fantassistant.leghe-cache.broken', '{not json');
     r.store.setItem('fantassistant.other', 'kept');

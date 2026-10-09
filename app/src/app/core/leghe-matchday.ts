@@ -129,6 +129,25 @@ export function parseRealTeams(body: unknown): Map<number, RealTeam> {
   return out;
 }
 
+/**
+ * The bundle's `fc_teams` (09/10/2026): fantacalcio.it's clubs by THEIR id - the same id space as Leghe's
+ * `tid`/`tidOp` (Atalanta 1, Chelsea 26 on both) - read by the toolkit off the probabili pages, which name
+ * both sides of every match of the round. It names what `parseRealTeams` cannot: an opponent outside the
+ * EuroLeghe perimeter («PSG-MAN» is Paris Saint-Germain - Le Mans). Empty on a bundle without the table.
+ */
+export function fcTeamNames(table: { columns: string[]; rows: unknown[][] } | null): Map<number, string> {
+  const out = new Map<number, string>();
+  const id = table?.columns.indexOf('team_id') ?? -1;
+  const name = table?.columns.indexOf('name') ?? -1;
+  if (!table || id < 0 || name < 0) return out;
+  for (const row of table.rows) {
+    const key = finite(row[id]);
+    const text = str(row[name]).trim();
+    if (key !== null && text) out.set(key, text);
+  }
+  return out;
+}
+
 /** The lineup already sent for one competition's matchday. */
 export interface SavedLineup {
   module: string;

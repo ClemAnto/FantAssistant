@@ -201,6 +201,35 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 9 ottobre 2026 (XXVI): la Formazione sceglie sugli FVA, la panchina copre, i dati restano senza login
+
+Dodici richieste dell'operatore sulla pagina Formazione, in una sessione su un PC SENZA il database (qui c'è
+solo l'app: niente `data/export/`, niente ambiente del toolkit). Dettaglio: `formazione-leghe-v1.md` §4-septies.
+- **«MAN che squadra è?»** Le Mans. `fc_teams` (spec v9.106): il toolkit legge dalle pagine probabili i club per
+  ID di fantacalcio.it, che è lo spazio di Leghe (Atalanta 1, Chelsea 26 su entrambi); il tooltip nomina per
+  identità chi `championship/teams` non elenca. Toolkit **1031 test** in un venv temporaneo; **non ancora nel
+  pacchetto** (vedi sotto).
+- **Quote dei portieri ×(−1) nell'ordinamento**, filtro per ruolo = **gli stessi chip del Draft Assistant**
+  (`ui/role-filter`, condiviso: il Draft Assistant ora legge quello).
+- **La consigliata sceglie sulla somma degli FVA** (non più P(voto) × FVA), **chi è sotto il 15% non va in
+  campo** (Lienard), il menù dei moduli legge lo stesso numero, e il selettore non è più vuoto all'apertura.
+- **FVA, «altri»**: con la quota si MISURA sulle stesse partite dei gol (Kane −1,00 → +0,05: era la regressione
+  della FM contata due volte), e pesa per il suo campione, `n/(n+10)` (Godts, un assist in 3 partite, scende sotto
+  Doue, 24). Non verificabile all'indietro: niente quote storiche.
+- **Le W ai lati, la Pc al centro** (`W/A, A/PC, W/A`).
+- **La panchina copre ogni titolare**: un sostituto suo che gioca (≥ 15%), reparto per reparto, poi l'FVA; la
+  pagina dice «copre N di 11».
+- **Senza login, i dati salvati**: un account si ricorda SENZA token (`leghe-known`), una scheda nuova mostra le
+  ultime letture con «dati aggiornati …» e 0 richieste; letture tenute 30 giorni. I token restano in
+  `sessionStorage`. Chiude a metà l'aperto della XXV («token in `localStorage` per non rifare il login»): il login
+  serve solo per aggiornare.
+- **Il pacchetto fra due macchine**: `npm run data:pack` (dove c'è il DB) → `npm run data:import -- <file>`
+  (qui); provato con un export ricostruito: 154 file su 154 identici. `.gitignore` copre l'archivio ovunque.
+- **Banco nuovo** `app/scripts/e2e-lineup-offline.mjs`: Leghe FINTO, 0 richieste reali, 22 controlli.
+**Verifica**: `ng build` verde, **1486 test app**, controprove su ogni cura. `e2e-draft` ha 6 problemi
+IDENTICI su HEAD (worktree A/B), quindi preesistenti. **Da fare sulla macchina col DB**: `git pull`, `fc_site`,
+`export`, `data:pack`; e guardare la consigliata contro il 4-2-3-1 che l'operatore si aspetta.
+
 ## CHIUSURA — 9 ottobre 2026 (XXV): poche richieste a Leghe, la cache locale
 
 Regola dell'operatore: «dobbiamo evitare di fare troppe chiamate a euroleghe.fantacalcio.it o

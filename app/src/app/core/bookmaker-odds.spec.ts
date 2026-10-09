@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { OddsMan, OddsMatch, codeNames, joinOdds, matchFor, parseOdds, sameClub, scorerOf } from './bookmaker-odds';
+import {
+  OddsMan,
+  OddsMatch,
+  codeNames,
+  joinOdds,
+  matchFor,
+  oddsSortValue,
+  parseOdds,
+  sameClub,
+  scorerOf,
+} from './bookmaker-odds';
 
 const P = (name: string, price: number) => ({ name, price, prob: 1 / price, books: 12, min: price - 0.2, max: price + 0.2 });
 
@@ -139,5 +149,20 @@ describe('joinOdds', () => {
   it('parses the Sheet payload and refuses another shape', () => {
     expect(parseOdds({ matches: [GEN_FIO] })?.[0].goal).toHaveLength(12);
     expect(parseOdds({ round: 6, clubs: {} })).toBeNull();
+  });
+});
+
+describe('oddsSortValue', () => {
+  it('sorts the keepers in a block of their own, in both directions, and the unpriced last', () => {
+    const goal = (price: number) => ({ kind: 'goal' as const, price });
+    const sheet = (price: number) => ({ kind: 'clean-sheet' as const, price });
+    const men = [goal(3.5), sheet(2.1), null, goal(1.9), sheet(3.6)];
+    const up = [...men].sort((a, b) => oddsSortValue(a) - oddsSortValue(b));
+    expect(up.map((o) => o?.kind ?? 'none')).toEqual(['clean-sheet', 'clean-sheet', 'goal', 'goal', 'none']);
+    const down = [...men].sort((a, b) => oddsSortValue(b) - oddsSortValue(a));
+    expect(down.map((o) => o?.kind ?? 'none')).toEqual(['none', 'goal', 'goal', 'clean-sheet', 'clean-sheet']);
+    // the value is for SORTING only: the price itself stays positive
+    expect(sheet(2.1).price).toBe(2.1);
+    expect(oddsSortValue(sheet(2.1))).toBe(-2.1);
   });
 });

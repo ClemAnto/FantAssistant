@@ -495,6 +495,32 @@ visibile — il listone dice **per cosa lo compri**, il provider **dove gioca**.
 Calhanoglu `DM;MC` → `m;c` = listone `m;c`; Dimarco `ML` → `e` = `e`; Carlos Augusto `ML;DC;DR` →
 `e;dc;dd;b` contro `b;ds;e`.
 
+## Novità v9.106 (9 ottobre 2026 — I CLUB DI FANTACALCIO.IT PER IL LORO ID, `fc_teams`)
+
+Dalla domanda dell'operatore sulla pagina Formazione: «PSG-MAN ... MAN che squadra è?». È **Le Mans**
+(EuroLeghe, 5ª giornata). Su EuroLeghe `championship/teams` di Leghe elenca solo i 37 club del perimetro,
+quindi l'avversario fuori perimetro arrivava come `tidOp` e tre lettere. Su suo suggerimento la fonte è la
+pagina probabili: l'intestazione di ogni partita porta i due club per ID (`<label for="team-166">`) e per
+nome (`<meta itemprop="name">`).
+
+- **Lo spazio degli id è quello di Leghe** ✅ verificato il 09/10/2026: la pagina euro di quel giorno dà
+  Atalanta = 1 e Chelsea = 26, gli stessi `id_s` della fixture di `real-teams.service.spec.ts` nel
+  front-end di Leghe. Quindi il join app ↔ tabella è per IDENTITÀ (`tidOp`), mai per sigla o per nome.
+- **`fc_teams(team_id, name, observed_on)`**, scritta da `fc_site` su ogni pagina probabili (Serie A ed
+  euro), la lettura più recente vince e una più vecchia non torna. Nessuna rete in più: le pagine sono già
+  scaricate ogni giorno, e `reingest_from_cache` riempie la tabella da tutto lo storico in cache. Sulla
+  pagina euro del 09/10: **62 club** nominati, Le Mans = 166.
+- **Un club scritto in due modi sulla stessa pagina non si salva**, e una pagina con intestazioni da cui
+  non esce nessun club stampa `PARSER BROKEN`, come i due rami vicini.
+- Nel CONTRACT (`full`) e in `TABLES` di `pull-bundle`. L'app la legge SOLO nel tooltip della partita
+  (`lineup.matchTip`): l'aggancio al calendario e alle quote restano sui nomi di Leghe, su cui sono stati
+  misurati. `engine_*` fermo.
+- **Da fare sulla macchina col DB**: una corsa di `fc_site` (la pagina del giorno basta per il turno in
+  arrivo; `rebuild` rigioca anche lo storico), poi `export`. Da lì il pacchetto arriva all'app con
+  `data:pull` sulla stessa macchina, oppure su un'altra con `npm run data:pack` → `npm run data:import`
+  (`app/scripts/bundle-transfer.mjs`, stesso giorno). Finché il pacchetto non porta la tabella, il tooltip
+  resta alle tre lettere.
+
 ## Novità v9.105 (29 settembre 2026 — LA STAGIONE SCORSA DA TRANSFERMARKT SUL FOGLIO, `desc_tm_*`)
 
 `SHEET_REVISION` 78. Cinque colonne REPORTING - `desc_tm_comp` (codice del provider), `desc_tm_matches`,

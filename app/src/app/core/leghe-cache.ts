@@ -35,8 +35,13 @@ export const LEGHE_TTL: Record<Volatility, number> = {
   season: 7 * 24 * 60 * 60_000,
 };
 
-/** The longest a reading is ever kept: older ones are dropped when the cache opens. */
-const OLDEST = LEGHE_TTL.season;
+/**
+ * The longest a reading is ever kept: older ones are dropped when the cache opens. Thirty days and not the
+ * seven of `season` since 09/10/2026: the page now SHOWS the last readings without a login (operator: «memorizza
+ * i dati scaricati e riutilizzali in seguito senza fare il login»), and a roster read ten days ago, drawn with
+ * its date, is still worth more than a page asking to connect. Freshness online is still decided by the TTLs.
+ */
+export const LEGHE_KEEP = 30 * 24 * 60 * 60_000;
 
 const PREFIX = 'fantassistant.leghe-cache.';
 
@@ -105,6 +110,15 @@ export class LegheCache {
     return run;
   }
 
+  /**
+   * The reading under `key` WHATEVER ITS AGE, or null: what the page shows without a login, beside the date it
+   * was taken. Never the network - with no token there is nothing to ask Leghe with.
+   */
+  stored<T>(key: string): Cached<T> | null {
+    const hit = this.peek(key);
+    return hit ? { body: hit.body as T, at: hit.at, fromCache: true } : null;
+  }
+
   /** How many readings are kept. */
   size(): number {
     return this.keys().length;
@@ -161,7 +175,7 @@ export class LegheCache {
   private prune(): void {
     for (const storeKey of this.keys()) {
       const entry = this.peek(storeKey.slice(PREFIX.length));
-      if (!entry || this.now() - entry.at >= OLDEST) this.remove(storeKey);
+      if (!entry || this.now() - entry.at >= LEGHE_KEEP) this.remove(storeKey);
     }
   }
 }

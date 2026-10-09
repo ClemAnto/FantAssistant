@@ -54,6 +54,35 @@ const DEV_PROXY = '/leghe-api';
  */
 const SESSION_KEY = 'leghe.accounts';
 
+/**
+ * WHAT SURVIVES THE TAB WITHOUT A TOKEN (operator, 09/10/2026: «una volta che fai login su Leghe/Euroleghe,
+ * memorizza i dati scaricati e riutilizzali in seguito senza fare il login, mostra solo la data dell'ultimo
+ * aggiornamento»): who logged in and which leagues he has - everything of an account but the `jwt`. With it a
+ * new tab draws the last readings of the cache (`leghe-cache.ts`) and their date; only asking Leghe again needs
+ * a login. In `localStorage`, like the readings themselves: a league's name and id are what the page already
+ * shows, and the tokens still never leave `sessionStorage` (a test asserts it).
+ */
+const KNOWN_KEY = 'fantassistant.leghe-known';
+
+type KnownAccount = Omit<LegheAccount, 'leagues'> & { leagues: Omit<LegheLeague, 'jwt'>[] };
+
+function readKnown(): Partial<Record<LeghePlatform, KnownAccount>> {
+  try {
+    const raw = localStorage.getItem(KNOWN_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Partial<Record<LeghePlatform, KnownAccount>>) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function withoutToken(account: LegheAccount): KnownAccount {
+  return {
+    ...account,
+    leagues: account.leagues.map(({ platform, id, name, alias, game }) => ({ platform, id, name, alias, game })),
+  };
+}
+
 function readAccounts(): Partial<Record<LeghePlatform, LegheAccount>> {
   try {
     const raw = sessionStorage.getItem(SESSION_KEY);
@@ -117,10 +146,30 @@ export class LegheSession {
 
   readonly accounts = signal<Partial<Record<LeghePlatform, LegheAccount>>>(readAccounts());
 
-  /** Every league of every connected platform, Leghe first. */
+  /**
+   * The accounts of past logins without their tokens (`KNOWN_KEY`): what a new tab shows before any login. A tab
+   * that opens with tokens already in `sessionStorage` (a reload, or a login made before this memory existed)
+   * counts as a login: its accounts are remembered from the start, not only at the next `adopt`.
+   */
+  private readonly known = signal<Partial<Record<LeghePlatform, KnownAccount>>>({
+    ...readKnown(),
+    ...Object.fromEntries(
+      Object.entries(untracked(this.accounts)).map(([platform, account]) => [platform, withoutToken(account)]),
+    ),
+  });
+
+  /**
+   * Every league of every platform, Leghe first: with its token where this tab logged in, and with an EMPTY
+   * token where only a past login knows it - which `readMatchday` reads as «show what is stored, ask nothing».
+   */
   readonly leagues = computed<LegheLeague[]>(() =>
-    LEGHE_PLATFORMS.flatMap((p) => this.accounts()[p]?.leagues ?? []),
+    LEGHE_PLATFORMS.flatMap(
+      (p) => this.accounts()[p]?.leagues ?? (this.known()[p]?.leagues ?? []).map((league) => ({ ...league, jwt: '' })),
+    ),
   );
+
+  /** The league on screen is drawn from STORED readings: no login in this tab, so nothing can be re-read. */
+  readonly offline = computed(() => this.league()?.jwt === '');
 
   /** The league the page looks at, remembered WITHOUT its token: `classic:4392237`. */
   readonly chosenKey = storedText('leghe-league', '');
@@ -176,6 +225,14 @@ export class LegheSession {
         // A browser that refuses session storage just asks for the login again on the next tab.
       }
     });
+    effect(() => {
+      const value = this.known();
+      try {
+        localStorage.setItem(KNOWN_KEY, JSON.stringify(value));
+      } catch {
+        // Refused storage: the next tab simply has nothing to show before a login.
+      }
+    });
   }
 
   connected(platform: LeghePlatform): boolean {
@@ -195,7 +252,18 @@ export class LegheSession {
     this.adopt(await directLogin(this.base(), platform, username, password));
   }
 
+  /** «Esci», his own gesture: the token AND the memory of the account go, so nothing is shown in its name. */
   logout(platform: LeghePlatform): void {
+    this.dropToken(platform);
+    this.known.update((all) => {
+      const next = { ...all };
+      delete next[platform];
+      return next;
+    });
+  }
+
+  /** The token only (an expired session): the stored readings stay on screen with their date. */
+  private dropToken(platform: LeghePlatform): void {
     this.accounts.update((all) => {
       const next = { ...all };
       delete next[platform];
@@ -225,6 +293,7 @@ export class LegheSession {
     const shown = this.league();
     if (shown && !this.chosenKey()) this.chosenKey.set(keyOf(shown));
     this.accounts.update((all) => ({ ...all, [account.platform]: account }));
+    this.known.update((all) => ({ ...all, [account.platform]: withoutToken(account) }));
   }
 
   /**
@@ -235,12 +304,20 @@ export class LegheSession {
   private async readMatchday(league: LegheLeague, force: boolean): Promise<LeagueMatchday> {
     const base = this.base();
     // The key carries the USER, never the token: two accounts in one league see two different «my team».
-    const user = untracked(this.accounts)[league.platform]?.userId ?? 0;
+    const user =
+      untracked(this.accounts)[league.platform]?.userId ?? untracked(this.known)[league.platform]?.userId ?? 0;
+    // NO TOKEN IN THIS TAB: every fact is the stored reading, whatever its age, and nothing is asked - the page
+    // says when they were taken. A fact never stored means this league was never read here, and that is said too.
+    const offline = !league.jwt;
     const before = legheRequestsSent();
     let oldestLive = Number.POSITIVE_INFINITY;
     const cached = async <T>(path: string, volatility: Volatility, fetch: () => Promise<T>): Promise<Cached<T>> => {
       const key = `${league.platform}:${user}:${league.id}:${path}`;
-      const one = await this.cache.read(key, volatility, fetch, force && volatility === 'live');
+      const stored = offline ? this.cache.stored<T>(key) : null;
+      if (offline && !stored) {
+        throw new LegheError('no-login', 'Nessun dato salvato per questa lega: collegati a Leghe per scaricarlo.');
+      }
+      const one = stored ?? (await this.cache.read(key, volatility, fetch, force && volatility === 'live'));
       if (volatility === 'live') oldestLive = Math.min(oldestLive, one.at);
       return one;
     };
@@ -317,8 +394,9 @@ export class LegheSession {
         requests: legheRequestsSent() - before,
       };
     } catch (err) {
-      // An expired token is not a broken page: drop it, so the page asks for the login again.
-      if (err instanceof LegheError && err.kind === 'expired') this.logout(league.platform);
+      // An expired token is not a broken page: drop it - and only it - so the page goes back to the stored
+      // readings with their date and «rileggi» asks for the login again.
+      if (err instanceof LegheError && err.kind === 'expired') this.dropToken(league.platform);
       throw err;
     } finally {
       this.cacheSize.set(this.cache.size());

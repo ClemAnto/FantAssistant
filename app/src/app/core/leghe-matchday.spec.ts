@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fixtureOf, parseCompetitions, parseLdate, parseRoster, parseSaved, parseTeam } from './leghe-matchday';
+import { fcTeamNames, fixtureOf, parseCompetitions, parseLdate, parseRoster, parseSaved, parseTeam } from './leghe-matchday';
 
 /**
  * THE NEXT MATCHDAY AS LEGHE SERVES IT. Synthetic rows with the real shapes (08/10/2026): the players are
@@ -82,5 +82,21 @@ describe('competitions, calendar and teams', () => {
     expect(parseTeam({ id: 11, n: 'Squadra di prova', nu: 'utente', d: 'A', cal: '7638;7559;' })).toEqual({
       id: 11, name: 'Squadra di prova', manager: 'utente', division: 'A', roster: [7638, 7559],
     });
+  });
+});
+
+describe('fcTeamNames', () => {
+  it('names a club by the id Leghe uses for it, also outside the EuroLeghe perimeter', () => {
+    // «PSG-MAN»: Leghe's `tidOp` 166 is not in `championship/teams`, and the probabili page calls it Le Mans.
+    const table = { columns: ['team_id', 'name', 'observed_on'], rows: [[81, 'Paris Saint-Germain', '2026-10-09'], [166, 'Le Mans', '2026-10-09'], [7, '', '2026-10-09']] };
+    const names = fcTeamNames(table);
+    expect(names.get(166)).toBe('Le Mans');
+    expect(names.get(81)).toBe('Paris Saint-Germain');
+    expect(names.has(7)).toBe(false);
+  });
+
+  it('a bundle without the table names nobody, and says nothing wrong', () => {
+    expect(fcTeamNames(null).size).toBe(0);
+    expect(fcTeamNames({ columns: ['id', 'label'], rows: [[166, 'Le Mans']] }).size).toBe(0);
   });
 });

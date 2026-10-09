@@ -138,6 +138,50 @@ describe('LegheSession and its local cache', () => {
     expect(asked.length).toBe(Object.keys(LEGHE).length);
   }, 30_000);
 
+  it('a NEW TAB without a login draws the stored readings with their date, and asks Leghe nothing', async () => {
+    // Operator, 09/10/2026: «memorizza i dati scaricati e riutilizzali in seguito senza fare il login».
+    const session = TestBed.inject(LegheSession);
+    session.acceptEmbed('classic', {
+      id: 101,
+      leagues: [
+        { id: 2001, name: 'Lega', alias: 'lega', jwt: TOKEN },
+        { id: 2002, name: 'Mai letta', alias: 'altra', jwt: TOKEN },
+      ],
+    });
+    await settled(session);
+    const taken = day(session).readAt.getTime();
+
+    // The tab is closed: the tokens die with it, the readings and the memory of the account do not.
+    TestBed.resetTestingModule();
+    sessionStorage.clear();
+    asked = [];
+    const later = TestBed.inject(LegheSession);
+    expect(later.connected('classic')).toBe(false);
+    expect(later.leagues().map((l) => l.name)).toEqual(['Lega', 'Mai letta']);
+    expect(later.offline()).toBe(true);
+    await settled(later);
+    expect(asked).toEqual([]);
+    expect(day(later).requests).toBe(0);
+    expect(day(later).roster.map((r) => r.fcId)).toEqual([100]);
+    expect(day(later).readAt.getTime()).toBe(taken);
+
+    // «Rileggi» without a token is not a request either (the page turns it into the login).
+    later.refresh();
+    await settled(later);
+    expect(asked).toEqual([]);
+
+    // A league the account has and this browser never read: said, not invented, and still nothing asked.
+    later.choose(later.leagues()[1]);
+    await settled(later);
+    expect(later.error()?.kind).toBe('no-login');
+    expect(asked).toEqual([]);
+
+    // «Esci» is his own gesture: the account goes from this browser too.
+    later.logout('classic');
+    TestBed.tick();
+    expect(later.leagues()).toEqual([]);
+  }, 30_000);
+
   it('never keeps a token in the cache: the key is platform, user, league and path', async () => {
     const session = connected();
     await settled(session);

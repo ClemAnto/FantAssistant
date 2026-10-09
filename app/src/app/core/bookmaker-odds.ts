@@ -278,3 +278,14 @@ export function joinOdds(matches: readonly OddsMatch[], men: readonly OddsMan[])
   }
   return out;
 }
+
+/**
+ * The value the «Quota» column SORTS on: the price, negated for a clean-sheet price (the operator,
+ * 09/10/2026: «le quote dei portieri mettile con un valore *-1 in modo che gli ordinamenti siano sempre
+ * separati»). A goal price and a clean-sheet price are two quantities, so the keepers make a block of
+ * their own at either end of the sort; the cell still prints the price unsigned. No price sorts last.
+ */
+export function oddsSortValue(odds: Pick<ManOdds, 'kind' | 'price'> | null | undefined): number {
+  if (!odds) return 1e9;
+  return odds.kind === 'clean-sheet' ? -odds.price : odds.price;
+}

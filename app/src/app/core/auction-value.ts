@@ -201,6 +201,12 @@ export interface MantraModules {
   slot_roles: Record<string, string[]>;
   /** Module name -> its lines of slot types (`3-4-3` -> D/M/T/A). The keeper is outside the lines. */
   modules: Record<string, Record<string, string[]>>;
+  /**
+   * Mantra's official substitution matrix: ROW = the role of the man who came out, COLUMN = the role coming in,
+   * value `OK` / `-1` (out-of-position malus) / `NO` / a footnote (`*`, `**`, `***`, see the file). Optional:
+   * the classic rulebook has none, and an older bundle may not carry it.
+   */
+  substitution?: { matrix?: Record<string, Record<string, string>> };
 }
 
 /**

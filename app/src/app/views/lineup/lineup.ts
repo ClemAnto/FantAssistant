@@ -8,17 +8,25 @@ import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
 import { NzTooltipModule } from 'ng-zorro-antd/tooltip';
 
-import { ManOdds, OddsMan, joinOdds, sameClub } from '../../core/bookmaker-odds';
+import { ManOdds, OddsMan, joinOdds, oddsSortValue, sameClub } from '../../core/bookmaker-odds';
 import { BookmakerOddsStore } from '../../core/bookmaker-odds-store';
 import { Bundle } from '../../core/bundle';
 import { LEGHE } from '../../core/leghe-api';
-import { NextMatchRow } from '../../core/leghe-matchday';
+import { NextMatchRow, fcTeamNames } from '../../core/leghe-matchday';
 import { moduleLabel, rulesSummary } from '../../core/leghe-rules';
 import { LegheSession, keyOf } from '../../core/leghe-session';
-import { FvaInput, fvaOf, fvaWords, oddsScale } from '../../core/fva';
+import { FvaInput, fvaOf, fvaWords, oddsScale, restPerMatch } from '../../core/fva';
 import { calendarBookFrom } from '../../core/keeper-pairs';
 import { TimeTravel } from '../../core/time-travel';
-import { LineupMan, LineupPlan, adviseLineup, drawSent, rulebookName, voteChance } from '../../core/lineup-advice';
+import {
+  LineupMan,
+  LineupPlan,
+  adviseLineup,
+  drawSent,
+  fieldWeight,
+  rulebookName,
+  voteChance,
+} from '../../core/lineup-advice';
 import { bestEleven } from '../../core/mantra-legal';
 import { ExpectedPlay } from '../../core/expected-play';
 import {
@@ -34,7 +42,7 @@ import {
 import { EDGE_BASE, Role } from '../../core/plancia';
 import { TrendCell, trendVoteMean } from '../../core/player-trend';
 import { Standings, placeOf, standingsOf } from '../../core/standings';
-import { PlayersStore } from '../../core/players-store';
+import { PlayersStore, isChampionship } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
@@ -43,11 +51,15 @@ import { LegheConnect } from '../../ui/leghe-connect/leghe-connect';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
+import { RoleFilter } from '../../ui/role-filter/role-filter';
 import { RoleSet } from '../../ui/role-set/role-set';
 import { VoteTrend } from '../../ui/vote-trend/vote-trend';
 
 /** Role order on screen, the order a lineup is written in. */
 const ROLE_ORDER = ['P', 'Por', 'D', 'Dc', 'B', 'Dd', 'Ds', 'E', 'C', 'M', 'T', 'W', 'A', 'Pc'];
+/** The role filter's chips, as the Draft Assistant offers them (`auction.ts`, `roleOptions`). */
+const CLASSIC_ROLES = ['P', 'D', 'C', 'A'];
+const MANTRA_ROLES = ['Por', 'Dd', 'Dc', 'Ds', 'B', 'E', 'M', 'C', 'W', 'T', 'A', 'Pc'];
 
 const WHEN = new Intl.DateTimeFormat('it-IT', {
   weekday: 'short',
@@ -130,6 +142,7 @@ export type PitchSource = 'advised' | 'sent';
     PlayerCard,
     PlayerFlags,
     RoleBadge,
+    RoleFilter,
     RoleSet,
     VoteTrend,
   ],
@@ -170,6 +183,13 @@ export class Lineup {
    */
   protected readonly chosenModule = signal<string | null>(null);
 
+  /** The select's value for «automatic»: a string, because nz-select draws a null value as an empty box. */
+  protected readonly autoModule = 'auto';
+
+  protected chooseModule(value: string): void {
+    this.chosenModule.set(value === this.autoModule ? null : value);
+  }
+
   /** The chosen module if this league's rulebook has it (a league of the other game has other modules). */
   protected readonly module = computed(() => {
     const chosen = this.chosenModule();
@@ -177,17 +197,18 @@ export class Lineup {
   });
 
   /**
-   * The FMA total each module of the rulebook fields with this roster (operator, 09/10/2026: «evidenzia quale
-   * modulo risulta il migliore, quello dove i calciatori schierati producono una FMA totale maggiore»): the
-   * best legal eleven per module on the expected fantavoto, men Leghe marks unavailable left out.
+   * The FVA total each module of the rulebook fields with this roster (operator, 09/10/2026: «il modulo migliore
+   * è semplicemente la somma dei singoli FVA»; it was the FMA until then): the best legal eleven per module on
+   * the SAME weight the advised lineup is chosen on, men Leghe marks out left out - so the menu and the pitch
+   * cannot disagree about which module is best.
    */
   private readonly moduleTotals = computed(() => {
     const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
-    const scores = bestEleven(this.men(), book, (m) => (m.chance > 0 ? m.fm : null))?.scores ?? [];
+    const scores = bestEleven(this.men(), book, fieldWeight)?.scores ?? [];
     return new Map(scores.map((one) => [one.module, one]));
   });
 
-  /** The module with the highest FMA total, more men placed first: the one the selector highlights. */
+  /** The module with the highest FVA total, more men placed first: the one the selector highlights. */
   protected readonly bestModule = computed(() => {
     let best: { module: string; total: number; placed: number } | null = null;
     for (const one of this.moduleTotals().values()) {
@@ -196,7 +217,7 @@ export class Lineup {
     return best?.module ?? null;
   });
 
-  /** Every module of the rulebook, best FMA total first, marked when the league does not allow it. */
+  /** Every module of the rulebook, best FVA total first, marked when the league does not allow it. */
   protected readonly moduleOptions = computed(() => {
     const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
     const allowed = new Set((this.md()?.rules.modules ?? []).map(rulebookName));
@@ -209,12 +230,15 @@ export class Lineup {
         const tags = [name === best ? '★ migliore' : '', allowed.size && !allowed.has(name) ? 'non ammesso' : '']
           .filter(Boolean)
           .join(' · ');
-        return { name, best: name === best, sort: score ? score.placed * 1000 + score.total : -1, label: `${name} · FMA ${total}${tags ? ' · ' + tags : ''}` };
+        return { name, best: name === best, sort: score ? score.placed * 1000 + score.total : -1, label: `${name} · FVA ${total}${tags ? ' · ' + tags : ''}` };
       })
       .sort((x, y) => y.sort - x.sort);
   });
   protected readonly sortKey = signal<LineupSort>('advised');
   protected readonly sortDesc = signal(false);
+
+  /** The roles the table is filtered on (operator, 09/10/2026), lowercase: any of them; none = everybody. */
+  protected readonly roleFilter = signal<ReadonlySet<string>>(new Set());
 
   constructor() {
     void this.store.load();
@@ -232,6 +256,17 @@ export class Lineup {
 
   private readonly game = computed(() => this.md()?.rules.game ?? null);
 
+  /**
+   * The role filter's chips (`ui/role-filter`, the Draft Assistant's own), in the league's game: the four
+   * macro-roles on classic, on Mantra the rulebook's own vocabulary - read, never transcribed - exactly as
+   * the draft page reads it.
+   */
+  protected readonly roleOptions = computed<readonly string[]>(() => {
+    if (this.game() !== 'mantra') return CLASSIC_ROLES;
+    const rules = this.rulebook.hasValue() ? this.rulebook.value() : null;
+    return rules?.roles ?? MANTRA_ROLES;
+  });
+
   /** The sheet of this (listone, game); the same listone's other game where the bundle carries only that. */
   protected readonly sheet = computed(() => {
     const sheets = this.store.sheets().filter((s) => s.platform === this.platform());
@@ -246,6 +281,15 @@ export class Lineup {
   /** The five league tables (`calendar.json`, ESPN via the toolkit), for the match tooltip. */
   private readonly table = resource({
     loader: async () => standingsOf(await this.bundle.calendar()),
+  });
+
+  /**
+   * fantacalcio.it's clubs by id (`fc_teams`, from the probabili pages): the name of an opponent that Leghe's
+   * `championship/teams` does not list, i.e. every club outside the EuroLeghe perimeter. Only the TOOLTIP
+   * reads it - the calendar and odds joins keep Leghe's own names, which they were measured on.
+   */
+  private readonly fcTeams = resource({
+    loader: async () => fcTeamNames(await this.bundle.table('fc_teams').catch(() => null)),
   });
 
   /** The bundle's calendar by championship: the edge and the clean-sheet probability of each man's match. */
@@ -284,11 +328,17 @@ export class Lineup {
     return out;
   });
 
-  /** «Atalanta (3°) - Bologna (12°)»: the full names Leghe gives the two clubs, home first, with their place. */
+  /**
+   * «Atalanta (3°) - Bologna (12°)»: the full names of the two clubs, home first, with their place. The name
+   * is Leghe's where Leghe lists the club, fantacalcio.it's (`fc_teams`, same id) where it does not, and the
+   * three letters only when neither knows it.
+   */
   private matchTip(r: NextMatchRow): string {
     const md = this.md();
     const table: Standings | null = this.table.hasValue() ? this.table.value() : null;
-    const name = (id: number | null) => (id === null ? null : (md?.realTeams.get(id)?.name ?? null));
+    const fc = this.fcTeams.hasValue() ? this.fcTeams.value() : null;
+    const name = (id: number | null) =>
+      id === null ? null : (md?.realTeams.get(id)?.name ?? fc?.get(id) ?? null);
     const own = { name: name(r.clubId) ?? r.club, fcClubId: this.bundleRows().get(r.fcId)?.clubId ?? null };
     const codes = r.match.split('-');
     const other = { name: name(r.opponentId) ?? (r.home === false ? codes[0] : (codes[1] ?? '')), fcClubId: null };
@@ -326,6 +376,21 @@ export class Lineup {
     const hour = at.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
     return at.toDateString() === new Date().toDateString() ? `alle ${hour}` : WHEN.format(at);
   });
+
+  /**
+   * Without a login in this tab the page draws the STORED readings (operator, 09/10/2026: «mostra solo la data
+   * dell'ultimo aggiornamento»): always the day, because the whole point is that it may not be today.
+   */
+  protected readonly storedOn = computed(() => {
+    const at = this.md()?.readAt;
+    return at ? WHEN.format(at) : '';
+  });
+
+  /** «Rileggi» needs a token: without one the button opens the login instead of failing. */
+  protected reread(): void {
+    if (this.session.offline()) this.connecting.set(true);
+    else this.session.refresh();
+  }
 
   /** One line per competition, already worded: the template prints and decides nothing. */
   protected readonly competitionLines = computed(() =>
@@ -432,15 +497,25 @@ export class Lineup {
    * different populations.
    */
   private readonly football = computed(() => {
-    const out = new Map<number, { goalsPerMatch: number | null; ga: { goals: number; assists: number } | null }>();
+    const out = new Map<
+      number,
+      { goalsPerMatch: number | null; restPerMatch: number | null; ga: { goals: number; assists: number } | null }
+    >();
     const platform = this.platform();
     const [input, target] = [this.store.inputSeason(), this.store.targetSeason()];
     for (const r of this.md()?.roster ?? []) {
-      const now = target ? seasonTotals(this.players.matchesOf(r.fcId, platform, target)) : null;
-      const before = input ? seasonTotals(this.players.matchesOf(r.fcId, platform, input)) : null;
+      const cellsNow = target ? this.players.matchesOf(r.fcId, platform, target) : [];
+      const cellsBefore = input ? this.players.matchesOf(r.fcId, platform, input) : [];
+      const now = target ? seasonTotals(cellsNow) : null;
+      const before = input ? seasonTotals(cellsBefore) : null;
       const played = (now?.played ?? 0) + (before?.played ?? 0);
+      // The rest of the bonus on the SAME matches the goal rate is counted on (`seasonTotals`' own filter).
+      const championship = [...cellsNow, ...cellsBefore].filter(
+        (one) => isChampionship(one.kind) && (one.state === 'played' || one.state === 'no_vote'),
+      );
       out.set(r.fcId, {
         goalsPerMatch: played ? ((now?.goals ?? 0) + (before?.goals ?? 0)) / played : null,
+        restPerMatch: restPerMatch(championship),
         ga: gaOf(now),
       });
     }
@@ -450,7 +525,7 @@ export class Lineup {
   /**
    * Every man of the roster priced for this matchday: the ONE list the table, the pitch and the bench read, so
    * the number beside a name in the table is the number the pitch was chosen on. The number SHOWN is the FVA
-   * (`core/fva.ts`); the eleven is chosen on `chance x FVA` (`lineup-advice.ts`).
+   * (`core/fva.ts`), and since 09/10/2026 it is also the number the eleven is chosen on (`points`).
    */
   private readonly men = computed<(LineupMan & { fmFromLeghe: boolean; fvaWhy: string })[]>(() => {
     const md = this.md();
@@ -474,6 +549,7 @@ export class Lineup {
           fm,
           minutes: expected?.minutesNext ?? null,
           goalsPerMatch: keeper ? null : (this.football().get(r.fcId)?.goalsPerMatch ?? null),
+          restPerMatch: keeper ? null : (this.football().get(r.fcId)?.restPerMatch ?? null),
           oddsProb: price && price.kind === (keeper ? 'clean-sheet' : 'goal') ? price.prob : null,
           delta: this.matchTerms().get(r.fcId)?.delta ?? null,
           cleanSheet: this.matchTerms().get(r.fcId)?.cleanSheet ?? null,
@@ -498,7 +574,10 @@ export class Lineup {
         fva: fva.value,
         fvaWhy: fvaWords(fva, keeper),
         fmFromLeghe: fromSheet === null && fm !== null,
-        points: fva.value === null ? null : chance * fva.value,
+        // THE ELEVEN IS CHOSEN ON THE FVA ALONE (operator, 09/10/2026: «il modulo migliore è semplicemente la
+        // somma dei singoli FVA, non pensare alla probabilità di prendere il voto»). Only a man Leghe marks OUT
+        // (chance 0: unavailable, suspended, not called) is never fielded - that is a fact, not a probability.
+        points: fva.value === null || chance === 0 ? null : fva.value,
       };
     });
   });
@@ -590,8 +669,10 @@ export class Lineup {
         case 'fva':
           return num(b.fva) - num(a.fva);
         case 'odds':
-          // Lower price = likelier: ascending is the natural order, unknown last.
-          return (a.odds?.price ?? 1e9) - (b.odds?.price ?? 1e9);
+          // Lower price = likelier: ascending is the natural order, unknown last. A clean-sheet price is
+          // another quantity, so it sorts NEGATED (the operator, 09/10/2026) and the keepers never mix with
+          // the goal prices; the cell still prints the price as it is.
+          return oddsSortValue(a.odds) - oddsSortValue(b.odds);
         case 'advised':
           return this.placeRank(a.advised) - this.placeRank(b.advised) || roleRank(a) - roleRank(b);
       }
@@ -710,6 +791,18 @@ export class Lineup {
   protected pts(value: number | null): string {
     return value === null ? '–' : value.toFixed(1);
   }
+
+  /**
+   * The rows the TABLE draws: the roster, kept to the chosen roles (a man passes with ANY of his, as on the
+   * Draft Assistant). Only the table: the advice, the pitch and the odds count keep reading the whole roster.
+   * A choice the league's game does not offer (a Mantra code after switching to a classic league) is ignored.
+   */
+  protected readonly shown = computed<RosterLine[]>(() => {
+    const options = new Set(this.roleOptions().map((role) => role.toLowerCase()));
+    const wanted = new Set([...this.roleFilter()].filter((role) => options.has(role)));
+    const all = this.roster();
+    return wanted.size ? all.filter((man) => man.roles.some((role) => wanted.has(role.toLowerCase()))) : all;
+  });
 
   /** How many roster men the prices reached, said beside the column so a blank reads as «not found». */
   protected readonly oddsCover = computed(() => {

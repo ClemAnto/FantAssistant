@@ -140,6 +140,8 @@ export function accountFromLogin(platform: LeghePlatform, body: unknown): LegheA
 
 /** One cause, one message: the modal and the page print `text`, and `kind` decides what they offer. */
 export type LegheErrorKind =
+  /** No token in this tab and nothing stored for this league: there is neither a way to ask nor a reading to show. */
+  | 'no-login'
   | 'no-proxy'
   | 'unreachable'
   | 'credentials'

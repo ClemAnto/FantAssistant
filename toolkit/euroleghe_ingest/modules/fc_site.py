@@ -30,7 +30,7 @@ import re
 import unicodedata
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, SoupStrainer
 
 from euroleghe_ingest.context import Context
 from euroleghe_ingest.matching import CLUB_ALIASES, build_pool_entry, club_key, match_in_pool
@@ -290,6 +290,33 @@ def parse_probable_starters(html: str) -> list[dict]:
     return out
 
 
+# The match header of a probabili page names both clubs by fantacalcio.it's OWN id, which is Leghe's
+# `tid`/`tidOp`: `<label itemprop="homeTeam" for="team-81" ...><span class="team-name"><meta itemprop=
+# "name" content="Paris Saint-Germain"/>`. Read 09/10/2026 on the EuroLeghe page of round 5.
+_TEAM_LABEL = re.compile(r"^team-(\d+)$")
+
+
+def parse_match_teams(html: str) -> list[dict]:
+    """The clubs a probabili page names in its match headers -> one record per club id.
+
+    The euro page shows every match of the round with a perimeter club in it, so it names the opponents
+    Leghe's `championship/teams` does not list (Le Mans, Paderborn, Getafe...). A club named twice with two
+    spellings on one page is left out: the page contradicting itself is not a name to store.
+    """
+    soup = BeautifulSoup(html, "lxml", parse_only=SoupStrainer("label"))
+    names: dict[int, set[str]] = {}
+    for label in soup.find_all("label"):
+        if label.get("itemprop") not in ("homeTeam", "awayTeam"):
+            continue
+        match = _TEAM_LABEL.match(label.get("for") or "")
+        meta = label.find("meta", attrs={"itemprop": "name"})
+        name = (meta.get("content") or "").strip() if meta else ""
+        if match and name:
+            names.setdefault(int(match.group(1)), set()).add(name)
+    return [{"team_id": team_id, "name": next(iter(spellings))}
+            for team_id, spellings in sorted(names.items()) if len(spellings) == 1]
+
+
 def _list_of(header):
     """The <ul> a section header owns: the first one BEFORE the next header, or None.
 
@@ -387,6 +414,19 @@ def upsert_probable_starters(conn, records: list[dict], date: str) -> int:
         )
         stored += 1
     return stored
+
+
+def upsert_fc_teams(conn, records: list[dict], date: str) -> int:
+    """The newest reading of a club's name wins; an OLDER one never overwrites it (a rebuild replays the
+    snapshots in date order, but a single page re-read out of order must not bring back a stale spelling)."""
+    for rec in records:
+        conn.execute(
+            "INSERT INTO fc_teams(team_id, name, observed_on) VALUES (?, ?, ?) "
+            "ON CONFLICT(team_id) DO UPDATE SET name = excluded.name, observed_on = excluded.observed_on "
+            "WHERE excluded.observed_on >= fc_teams.observed_on",
+            (rec["team_id"], rec["name"], date),
+        )
+    return len(records)
 
 
 def _season_pools(conn, season: str, platform: str = "default"):
@@ -623,6 +663,16 @@ def ingest_snapshot(ctx: Context, page: str, html: str, date: str, season: str) 
             print(f"[fc_site] {page} {date}: the page does not say which SEASON it is about (no "
                   f"/calendario/ link and no season in the hrefs), so the rows are stored with an "
                   f"unknown season and no sheet will read them - empty is unknown, never current.")
+        # The clubs of the match headers, by fantacalcio.it's id: the name of an opponent Leghe lists only
+        # by its code (`fc_teams` in schema.sql).
+        clubs = parse_match_teams(html)
+        upsert_fc_teams(conn, clubs, date)
+        headers = html.count('itemprop="homeTeam"')
+        print(f"[fc_site] {page} {date}: {len(clubs)} clubs named in {headers} match headers")
+        if headers and not clubs:
+            print(f"[fc_site] {page} {date}: PARSER BROKEN - the page has {headers} match headers and "
+                  f"no club was read. The label markup moved: fix it, or the Formazione page goes back to "
+                  f"naming opponents by their three letters.")
     elif page.startswith("indisponibili"):
         records = parse_unavailable(html)
         stored, unresolved, dated = upsert_availability(

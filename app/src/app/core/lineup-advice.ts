@@ -6,10 +6,12 @@
  * on the pitch) asked with a WEIGHT per man, and the weight is the one quantity this file owns: the points he
  * is expected to bring THIS matchday,
  *
- *     points = P(he gets a vote) x his FVA (`fva.ts`; the sheet's FMa until 09/10/2026).
+ *     points = his FVA (`fva.ts`), null for a man Leghe marks out (unavailable, suspended, not called).
  *
- * The page SHOWS the FVA and chooses on `points`: the FVA is «what he scores if he plays», and choosing on it
- * alone would field a man Leghe gives at 5% - so P(vote) stays, but only in WHO is fielded.
+ * Until 09/10/2026 it was P(vote) x FVA (and the sheet's FMa before that). The operator, that day: «il modulo
+ * migliore è semplicemente la somma dei singoli FVA (non pensare alla probabilità di prendere il voto)». The
+ * price of the rule, stated: a man Leghe gives at 5% with a good FVA can now be fielded over a regular starter -
+ * the VOTO column still shows that chance, and choosing is the operator's.
  *
  * P(vote) is read from the platform's probable-starter percentage with the curve measured in
  * `rosa-3-giornate-v1.md` §2 (932 out-of-sample observations, matchdays 1-2 of 2026-27). That curve is on
@@ -24,7 +26,7 @@
 
 import { MantraModules } from './auction-value';
 import { DRAW_ORDER, PitchLine } from './club-eleven';
-import { Placeable, assign, bestEleven, placesIn } from './mantra-legal';
+import { Place, Placeable, assign, bestEleven, placesIn } from './mantra-legal';
 import { BenchRule, LegheGame } from './leghe-rules';
 
 /**
@@ -44,6 +46,20 @@ export const VOTE_CURVE: readonly (readonly [number, number])[] = [
 
 /** A man the probable-lineups page does not list at all: measured on the same population, not a zero. */
 export const VOTE_IF_UNLISTED = 0.063;
+
+/**
+ * BELOW THIS CHANCE OF A VOTE A MAN IS NOT FIELDED (operator, 09/10/2026: «togliamo dal campo i giocatori < 15%
+ * come Lienard»). The eleven is chosen on the FVA alone, which is «what he scores IF he plays» - so a third keeper
+ * at 1% with a decent FVA was taking the place. The bench still has him, in FVA order: a place on the bench is
+ * cheap. A declared threshold on the chance the page SHOWS (`voteChance`), not a measured one.
+ */
+export const MIN_CHANCE_ON_PITCH = 0.15;
+
+/** What a man weighs when the ELEVEN is chosen: his points, or nothing under the floor. One rule for the pitch
+ *  and for the module menu's totals, so the two cannot disagree about who can stand on the pitch. */
+export function fieldWeight(man: LineupMan): number | null {
+  return man.chance >= MIN_CHANCE_ON_PITCH ? man.points : null;
+}
 
 /** Leghe's own flag that he cannot play this matchday. */
 export type OutFlag = 'unavailable' | 'suspended' | 'not-called' | null;
@@ -77,8 +93,8 @@ export interface LineupMan extends Placeable {
   /** Expected fantavoto; null = nobody can price him, and then he is never fielded (unknown, not zero). */
   fm: number | null;
   /**
-   * The weight the eleven is chosen on: `chance x FVA` (`fva.ts`) since 09/10/2026, `chance x fm` before.
-   * Null = nobody can price him, and then he is never fielded.
+   * The weight the eleven is chosen on: the FVA (`fva.ts`) since 09/10/2026, evening; `chance x FVA` and
+   * `chance x fm` before. Null = nobody can price him, or Leghe marks him out: then he is never fielded.
    */
   points: number | null;
   /** The FVA shown beside the name: the expected fantavoto IF he plays. Absent = the caller did not price it. */
@@ -109,6 +125,15 @@ export interface LineupPlan {
   outside: LineupMan[];
   /** Every allowed module's worth, best first: why the winner won, and by how much. */
   scores: { module: string; total: number; placed: number }[];
+  /** How many starters have their own cover on the bench (`coverOrder`); absent on a lineup drawn as sent. */
+  cover?: LineupCover;
+}
+
+/** The bench's promise: every starter with a distinct substitute who plays, or the names of those without one. */
+export interface LineupCover {
+  starters: number;
+  covered: number;
+  open: string[];
 }
 
 /** Leghe writes `343`, the rulebooks `3-4-3`. */
@@ -141,16 +166,22 @@ function rowsOf(places: ReturnType<typeof placesIn>, holders: (LineupMan | null)
   return rows;
 }
 
-/** A slot every option of which is a wide role (`E`, `W`, `E/W`): it has no side of its own, but a flank. */
+/**
+ * A slot that offers a WIDE role (`E`, `W`): `E/W`, `W/A`, `W/T`. It has no side of its own, but a flank. Until
+ * 09/10/2026 every option had to be wide, so `W/A` stayed where the rulebook writes it and the 3-4-3 drew its
+ * front three as `W/A, W/A, A/PC`, the centre-forward on a touchline (operator: «le W devono stare ai lati, la Pc
+ * al centro»). No rulebook slot offers both a wide role and a `PC`, so the centre-forward is never sent out.
+ */
 function isWideSlot(slot: string): boolean {
-  return slot.split('/').every((code) => code === 'E' || code === 'W');
+  return slot.split('/').some((code) => code === 'E' || code === 'W');
 }
 
 /**
  * THE WIDE PLACES GO TO THE TOUCHLINES (operator, 09/10/2026: «E/W e W devono essere ai lati del campo e non
- * centrali»). The rulebook writes some lines in no side order (`4-1-4-1` has `C/T, T, E/W, W`), so the
- * drawing moves the wide slots to the two ends, alternating, and keeps the central ones in the rulebook's
- * order between them. Sided slots (`DD`, `DS`) are not touched: their order already is the side.
+ * centrali», then «le W devono stare ai lati, la Pc al centro»). The rulebook writes some lines in no side
+ * order (`4-1-4-1` has `C/T, T, E/W, W`, the 3-4-3 `W/A, W/A, A/PC`), so the drawing moves the wide slots to
+ * the two ends, alternating, and keeps the central ones - the `PC` among them - in the rulebook's order between
+ * them. Sided slots (`DD`, `DS`) are not touched: their order already is the side.
  */
 export function toTheFlanks(row: LineupPlace[]): LineupPlace[] {
   const wide = row.filter((place) => isWideSlot(place.slot));
@@ -169,19 +200,110 @@ function benchGroup(man: LineupMan, game: LegheGame | null): number {
   return at < 0 ? 4 : at;
 }
 
+/** A starter and the place he holds: what a bench has to be able to replace. */
+export interface Starter {
+  place: Place;
+  man: LineupMan;
+}
+
+/**
+ * CAN `sub` TAKE THE PLACE `starter` LEAVES? Classic: the same role, which is what every substitution kind can
+ * always do. Mantra: a role the place itself accepts (no malus), or what the official matrix allows from the role
+ * the starter held there - with the out-of-position malus too, because a malus of one point is not a hole. The
+ * footnotes read as the file states them: `*` only «in alternativa» (i.e. the place already accepts the role,
+ * handled above), `**` always (OK or -1), `***` everywhere but in the 4-1-4-1.
+ */
+export function canCover(
+  sub: LineupMan,
+  starter: Starter,
+  game: LegheGame | null,
+  rules: MantraModules,
+  module: string,
+): boolean {
+  if (game !== 'mantra') return !!sub.roles[0] && sub.roles[0] === starter.man.roles[0];
+  if (sub.roles.some((role) => starter.place.roles.includes(role))) return true;
+  const matrix = rules.substitution?.matrix;
+  if (!matrix) return false;
+  const lower = (row: Record<string, string>) => new Map(Object.entries(row).map(([k, v]) => [k.toLowerCase(), v]));
+  const out = starter.man.roles.find((role) => starter.place.roles.includes(role)) ?? starter.man.roles[0];
+  const rowKey = Object.keys(matrix).find((key) => key.toLowerCase() === out);
+  if (!rowKey) return false;
+  const row = lower(matrix[rowKey]);
+  return sub.roles.some((role) => {
+    const verdict = row.get(role);
+    return verdict === 'OK' || verdict === '-1' || verdict === '**' || (verdict === '***' && module !== '4-1-4-1');
+  });
+}
+
+/**
+ * THE MEN WHO MAKE A HOLE IMPOSSIBLE, in the order to put them on the bench (operator, 09/10/2026: «la panchina
+ * deve essere impostata in maniera da essere CERTI che non ci siano buchi nel caso ci sia qualche infortunio
+ * all'ultimo»).
+ *
+ * Every starter gets his OWN cover - a distinct man, so two injuries in one department are two substitutions and
+ * not one - and only a man who will play himself counts (chance >= `MIN_CHANCE_ON_PITCH`: a third keeper at 1% is
+ * no cover). Rounds over the lines, keeper first: one cover per line per round, so the first injury of every
+ * department is covered before the second of any; inside a line the starter with the fewest possible covers goes
+ * first, and he gets the man most likely to play (then the best FVA). A starter nobody in the roster can replace
+ * stays uncovered, and the caller counts him.
+ */
+export function coverOrder(
+  starters: readonly Starter[],
+  rest: readonly LineupMan[],
+  game: LegheGame | null,
+  rules: MantraModules,
+  module: string,
+): { covers: LineupMan[]; coveredBy: Map<number, LineupMan> } {
+  const candidates = rest.filter((man) => man.chance >= MIN_CHANCE_ON_PITCH);
+  const used = new Set<number>();
+  const coveredBy = new Map<number, LineupMan>();
+  const covers: LineupMan[] = [];
+  const better = (a: LineupMan, b: LineupMan) => b.chance - a.chance || byPoints(a, b);
+  for (let progress = true; progress; ) {
+    progress = false;
+    for (const line of DRAW_ORDER) {
+      const open = starters
+        .filter((one) => one.place.line === line && !coveredBy.has(one.man.id))
+        .map((one) => ({
+          one,
+          options: candidates.filter((sub) => !used.has(sub.id) && canCover(sub, one, game, rules, module)),
+        }))
+        .filter((entry) => entry.options.length)
+        .sort((a, b) => a.options.length - b.options.length);
+      if (!open.length) continue;
+      const { one, options } = open[0];
+      const pick = [...options].sort(better)[0];
+      used.add(pick.id);
+      coveredBy.set(one.man.id, pick);
+      covers.push(pick);
+      progress = true;
+    }
+  }
+  return { covers, coveredBy };
+}
+
 /**
  * THE BENCH: who sits there and in which order.
  *
  * Classic substitutions take the first man of the SAME role in bench order, so the classic bench is written by
  * role (P, D, C, A) and best first inside each; Mantra reads it as one queue, best first. The league's per-role
- * counts are honoured (exact on a fixed bench, minimums on a variable one), and the size caps it. Unpriced men
- * go last: a bench place is cheap, and «unknown» is not «useless».
+ * counts are honoured (exact on a fixed bench, minimums on a variable one), and the size caps it. WHO gets a place
+ * is decided by `covers` first (`coverOrder`: no hole if a starter drops out), then by the FVA. Unpriced men go
+ * last: a bench place is cheap, and «unknown» is not «useless».
  */
-export function benchOf(rest: readonly LineupMan[], rule: BenchRule, game: LegheGame | null): {
+export function benchOf(
+  rest: readonly LineupMan[],
+  rule: BenchRule,
+  game: LegheGame | null,
+  covers: readonly LineupMan[] = [],
+): {
   bench: LineupMan[];
   outside: LineupMan[];
 } {
   const pool = [...rest].sort(byPoints);
+  // The order places are handed out in: the covers first, in their own order, then everybody else by FVA.
+  const coverIds = new Set(covers.map((man) => man.id));
+  const ordered = [...covers.filter((man) => pool.includes(man)), ...pool.filter((man) => !coverIds.has(man.id))];
   const size = rule.size ?? pool.length;
   const groups = game === 'mantra' ? 2 : 4;
   const wanted = rule.perRole.slice(0, groups);
@@ -189,15 +311,16 @@ export function benchOf(rest: readonly LineupMan[], rule: BenchRule, game: Leghe
   const take = (man: LineupMan) => {
     picked.push(man);
     pool.splice(pool.indexOf(man), 1);
+    ordered.splice(ordered.indexOf(man), 1);
   };
   wanted.forEach((count, group) => {
-    for (const man of pool.filter((m) => benchGroup(m, game) === group).slice(0, count)) {
+    for (const man of ordered.filter((m) => benchGroup(m, game) === group).slice(0, count)) {
       if (picked.length < size) take(man);
     }
   });
   const exact = rule.fixed && game !== 'mantra' && wanted.some((n) => n > 0);
   if (!exact) {
-    while (picked.length < size && pool.length) take(pool[0]);
+    while (picked.length < size && ordered.length) take(ordered[0]);
   }
   const bench =
     game === 'mantra'
@@ -216,14 +339,15 @@ export function adviseLineup(
 ): LineupPlan | null {
   if (!rulebook?.modules) return null;
   const rules = allowedRules(rulebook, allowed);
-  const best = bestEleven(men, rules, (man) => man.points);
+  const best = bestEleven(men, rules, fieldWeight);
   if (!best) return null;
   const onPitch = new Set(best.men.map((m) => m.id));
-  const { bench, outside } = benchOf(
-    men.filter((m) => !onPitch.has(m.id)),
-    rule,
-    game,
-  );
+  const rest = men.filter((m) => !onPitch.has(m.id));
+  const starters: Starter[] = best.places
+    .map((place, at) => ({ place, man: best.holders[at] }))
+    .filter((one): one is Starter => !!one.man);
+  const { covers, coveredBy } = coverOrder(starters, rest, game, rulebook, best.module);
+  const { bench, outside } = benchOf(rest, rule, game, covers);
   return {
     module: best.module,
     rows: rowsOf(best.places, best.holders),
@@ -232,7 +356,15 @@ export function adviseLineup(
     bench,
     outside,
     scores: best.scores,
+    cover: coverOf(starters, coveredBy, bench),
   };
+}
+
+/** Which starters have their own cover ON THE BENCH: a cover the bench's size left out covers nothing. */
+function coverOf(starters: readonly Starter[], coveredBy: Map<number, LineupMan>, bench: readonly LineupMan[]): LineupCover {
+  const onBench = new Set(bench.map((man) => man.id));
+  const open = starters.filter((one) => !onBench.has(coveredBy.get(one.man.id)?.id ?? -1)).map((one) => one.man.name);
+  return { starters: starters.length, covered: starters.length - open.length, open };
 }
 
 /**

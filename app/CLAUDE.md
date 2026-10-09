@@ -28,6 +28,12 @@ layout on 09/08/2026, so `app/package.json`, `app/angular.json` and `app/src/` s
 - `scripts/pull-bundle.mjs` + `npm run data:pull` - copies the newest `data/export/<season>/` into
   `public/data/`, which is **gitignored** on `master`: it carries the same paid fantacalcio.it content
   the cache does.
+- `scripts/bundle-transfer.mjs` - the bundle between TWO machines (operator, 09/10/2026): the database lives on
+  one, the app is also worked on from others that have no `data/export/`. On the database machine, after
+  `export`: `npm run data:pack` writes `data/fantassistant-bundle-<season>.tgz` (the export folder minus
+  `bundle.sqlite`); on the other, `npm run data:import -- <file>` puts it in `data/export/<season>/` (the one it
+  replaces goes to `data/export-previous/`) and runs `data:pull`. Then `deploy:pages` works there too. Paid
+  content: both paths are gitignored, the archive by name wherever it lands, and it never goes anywhere public.
 - `scripts/deploy-pages.mjs` + `npm run deploy:pages` - publishes the site to the `gh-pages` branch FROM
   THIS MACHINE, real bundle included (the operator's decision of 09/08/2026, recorded in the root
   `CLAUDE.md`). Never add a CI publisher beside it: a runner has no bundle, so it would republish the
@@ -48,7 +54,10 @@ the percentages, a day for teams and competitions, a week for the rules), the re
 at a time and 400 ms apart (`leghe-api.ts`), and «rileggi» re-reads only the moving part. A new reader of
 Leghe goes through `LegheSession`'s cache with the volatility of its fact, never straight to `leagueGet`;
 a bench or probe against the real account is run on purpose, once, and keeps its browser profile so the
-cache answers the next run (`scripts/e2e-lineup-live.mjs`).
+cache answers the next run (`scripts/e2e-lineup-live.mjs`). **Without a login the page shows the stored
+readings** with their date and asks nothing (operator, 09/10/2026): an account is remembered WITHOUT its token
+(`leghe-known` in `localStorage`), the tokens still live only in `sessionStorage`. Everything of the page that
+does not need the real account is checked offline, against a fake Leghe, by `scripts/e2e-lineup-offline.mjs`.
 
 ## The operator's working preferences
 

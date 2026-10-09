@@ -1,0 +1,18 @@
+@for (role of roles(); track role) {
+  <button
+    type="button"
+    [attr.data-role-filter]="role.toLowerCase()"
+    class="rounded transition-opacity"
+    [class.opacity-40]="selected().size > 0 && !on(role)"
+    [class.ring-1]="on(role)"
+    [class.ring-primary]="on(role)"
+    (click)="toggle(role)"
+  >
+    <ui-role [role]="role" size="xs" />
+  </button>
+}
+@if (selected().size) {
+  <button type="button" class="ml-1 text-xs text-muted hover:text-fg" data-role-filter-clear (click)="clear()">
+    ✕
+  </button>
+}
