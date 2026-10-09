@@ -56,7 +56,12 @@ Leghe goes through `LegheSession`'s cache with the volatility of its fact, never
 a bench or probe against the real account is run on purpose, once, and keeps its browser profile so the
 cache answers the next run (`scripts/e2e-lineup-live.mjs`). **Without a login the page shows the stored
 readings** with their date and asks nothing (operator, 09/10/2026): an account is remembered WITHOUT its token
-(`leghe-known` in `localStorage`), the tokens still live only in `sessionStorage`. Everything of the page that
+(`leghe-known` in `localStorage`), the tokens still live only in `sessionStorage`. **An account is ONE LOGIN**
+(`platform:user`) and there can be several per platform (operator, 09/10/2026): the session keeps a LIST, every
+league carries the `userId` it was reached with, and a fantasquadra's key is `platform:user:league` (`keyOf`) -
+never key a league by platform and id alone. **Classic is not Mantra with other letters**: the bench order, the
+covers and the legal modules follow Leghe's own classic engine (`lineup-advice.ts`, `formazione-leghe-v1.md`
+§4-octies) - Dynamic/Hybrid walk the bench in order whatever the role. Everything of the page that
 does not need the real account is checked offline, against a fake Leghe, by `scripts/e2e-lineup-offline.mjs`.
 
 ## The operator's working preferences

@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LegheSession } from './leghe-session';
+import { LegheSession, keyOf } from './leghe-session';
 
 /**
  * THE LOCAL CACHE AS THE PAGE USES IT (operator, 09/10/2026: «limitiamo al minimo le richieste e utilizziamo
@@ -177,10 +177,59 @@ describe('LegheSession and its local cache', () => {
     expect(asked).toEqual([]);
 
     // «Esci» is his own gesture: the account goes from this browser too.
-    later.logout('classic');
+    later.logout({ platform: 'classic', userId: 101 });
     TestBed.tick();
     expect(later.leagues()).toEqual([]);
   }, 30_000);
+
+  it('MORE THAN ONE ACCOUNT per platform: each its own fantasquadre, its own cache, its own «Esci»', async () => {
+    // Operator, 09/10/2026: «dammi la possibilità di aggiungere più fantasquadre ognuna con il suo account o dello
+    // stesso account». Until that day a second Leghe login REPLACED the first.
+    const session = connected();
+    session.acceptEmbed('classic', {
+      id: 202,
+      leagues: [
+        { id: 2001, name: 'Lega', alias: 'lega', jwt: TOKEN }, // the same league, his other team
+        { id: 2003, name: 'Terza', alias: 'terza', jwt: TOKEN },
+      ],
+    });
+    TestBed.tick();
+    expect(session.accountList().map((a) => a.key)).toEqual(['classic:101', 'classic:202']);
+    expect(session.leagues().map(keyOf)).toEqual(['classic:101:2001', 'classic:202:2001', 'classic:202:2003']);
+
+    // The same league through the second account is another «my team»: its readings are filed under user 202.
+    session.choose(session.leagues()[1]);
+    await settled(session);
+    expect(session.error()).toBeNull();
+    const keys = Object.keys(localStorage).filter((k) => k.startsWith('fantassistant.leghe-cache.'));
+    expect(keys.some((k) => k.startsWith('fantassistant.leghe-cache.classic:202:2001:/'))).toBe(true);
+    expect(session.teamName(session.leagues()[1])).toBe('Mia');
+
+    // Logging in again with an account already listed refreshes it: no twin.
+    session.acceptEmbed('classic', { id: 202, leagues: [{ id: 2003, name: 'Terza', alias: 'terza', jwt: TOKEN }] });
+    TestBed.tick();
+    expect(session.accountList().map((a) => a.key)).toEqual(['classic:101', 'classic:202']);
+    expect(session.leagues().map(keyOf)).toEqual(['classic:101:2001', 'classic:202:2003']);
+
+    // «Esci» takes ONE account and leaves the other.
+    session.logout({ platform: 'classic', userId: 202 });
+    TestBed.tick();
+    expect(session.leagues().map(keyOf)).toEqual(['classic:101:2001']);
+  }, 30_000);
+
+  it('reads the logins stored in the old one-per-platform shape, and the league chosen with the old key', () => {
+    // What a browser holds from before the list: `{classic: account}` in both stores, `classic:2001` chosen.
+    const old = { platform: 'classic', userId: 101, via: 'embed', leagues: [{ platform: 'classic', id: 2001, name: 'Lega', alias: '', jwt: TOKEN, game: null }] };
+    sessionStorage.setItem('leghe.accounts', JSON.stringify({ classic: old }));
+    localStorage.setItem('fantassistant.leghe-known', JSON.stringify({ euro: { ...old, platform: 'euro', userId: 7, leagues: [{ ...old.leagues[0], platform: 'euro', id: 3001, jwt: undefined }] } }));
+    localStorage.setItem('fantassistant.leghe-league', 'euro:3001');
+    const session = TestBed.inject(LegheSession);
+    expect(session.leagues().map((l) => [keyOf(l), l.jwt ? 'token' : 'stored'])).toEqual([
+      ['classic:101:2001', 'token'],
+      ['euro:7:3001', 'stored'],
+    ]);
+    expect(session.league() && keyOf(session.league()!)).toBe('euro:7:3001');
+  });
 
   it('never keeps a token in the cache: the key is platform, user, league and path', async () => {
     const session = connected();

@@ -1,7 +1,7 @@
 <!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
 <nz-modal
   [nzVisible]="open()"
-  nzTitle="Collegati a Leghe"
+  nzTitle="Account e fantasquadre"
   [nzFooter]="null"
   nzWidth="480px"
   (nzOnCancel)="open.set(false)"
@@ -29,34 +29,48 @@
       </div>
     }
 
-    <!-- LEGHE: the official embedded login. -->
+    <!-- THE ACCOUNTS (operator, 09/10/2026: «aggiungere più fantasquadre ognuna con il suo account o dello stesso
+         account»): every login this browser knows, each with its fantasquadre and its own «Esci». -->
+    <section class="flex flex-col gap-1" data-leghe-accounts>
+      <b>Account</b>
+      @for (account of accounts(); track account.key) {
+        <div class="flex flex-col gap-0.5 rounded border border-border px-2 py-1 text-xs" [attr.data-leghe-account]="account.key">
+          <div class="flex items-baseline gap-2">
+            <b>{{ sites[account.platform].label }}</b>
+            <span class="text-muted">utente {{ account.userId }}</span>
+            @if (account.logged) {
+              <span class="text-success">collegato</span>
+            } @else {
+              <span class="text-muted">dati salvati, non collegato</span>
+            }
+            <button nz-button nzSize="small" nzType="link" class="ml-auto" (click)="session.logout(account)">Esci</button>
+          </div>
+          <span class="text-muted">{{ account.teams.length ? account.teams.join(' · ') : 'nessuna lega' }}</span>
+        </div>
+      } @empty {
+        <span class="text-xs text-muted">Nessun account: collegane uno qui sotto.</span>
+      }
+      @if (accounts().length) {
+        <span class="text-[10px] text-muted">Per aggiornare un account non collegato rifai il suo login qui sotto.</span>
+      }
+    </section>
+
+    <!-- LEGHE: the official embedded login. It always ADDS (or refreshes) an account. -->
     <section class="flex flex-col gap-2" data-leghe-platform="classic">
-      <div class="flex items-baseline gap-2">
-        <b>{{ sites.classic.label }}</b>
-        @if (session.connected('classic')) {
-          <span class="text-xs text-muted">
-            collegato · {{ session.accounts().classic?.leagues?.length ?? 0 }} leghe
-          </span>
-          <button nz-button nzSize="small" nzType="link" class="ml-auto" (click)="session.logout('classic')">
-            Esci
-          </button>
-        }
-      </div>
-      @if (!session.connected('classic')) {
-        <p class="text-xs text-muted">
-          Il login avviene sulla pagina di fantacalcio.it: la password non passa da questa app.
-        </p>
-        @if (embedding()) {
-          <iframe
-            class="h-[400px] w-full rounded border border-border bg-surface"
-            title="Login Leghe"
-            [src]="embedUrl"
-          ></iframe>
-        } @else {
-          <button nz-button nzType="primary" (click)="startEmbed()">
-            <nz-icon nzType="login" />Accedi con Leghe
-          </button>
-        }
+      <b>{{ countOf('classic') ? 'Aggiungi un account ' + sites.classic.label : sites.classic.label }}</b>
+      <p class="text-xs text-muted">
+        Il login avviene sulla pagina di fantacalcio.it: la password non passa da questa app.
+      </p>
+      @if (embedding()) {
+        <iframe
+          class="h-[400px] w-full rounded border border-border bg-surface"
+          title="Login Leghe"
+          [src]="embedUrl"
+        ></iframe>
+      } @else {
+        <button nz-button nzType="primary" (click)="startEmbed()" data-leghe-add="classic">
+          <nz-icon nzType="login" />Accedi con Leghe
+        </button>
       }
       @if (problem()?.platform === 'classic') {
         <nz-alert nzType="error" nzShowIcon [nzMessage]="problem()!.text" />
@@ -65,45 +79,33 @@
 
     <!-- EUROLEGHE: direct login, by the operator's decision (the embedded one is not deployed there). -->
     <section class="flex flex-col gap-2" data-leghe-platform="euro">
-      <div class="flex items-baseline gap-2">
-        <b>{{ sites.euro.label }}</b>
-        @if (session.connected('euro')) {
-          <span class="text-xs text-muted">
-            collegato · {{ session.accounts().euro?.leagues?.length ?? 0 }} leghe
-          </span>
-          <button nz-button nzSize="small" nzType="link" class="ml-auto" (click)="session.logout('euro')">
-            Esci
-          </button>
-        }
-      </div>
-      @if (!session.connected('euro')) {
-        <p class="text-xs text-muted">
-          EuroLeghe non ha il login integrato: utente e password passano dall'intermediario e non vengono
-          salvati.
-        </p>
-        <form class="flex flex-col gap-2" (ngSubmit)="loginEuro()">
-          <input
-            nz-input
-            name="username"
-            autocomplete="username"
-            placeholder="Utente"
-            [ngModel]="username()"
-            (ngModelChange)="username.set($event)"
-          />
-          <input
-            nz-input
-            name="password"
-            type="password"
-            autocomplete="current-password"
-            placeholder="Password"
-            [ngModel]="password()"
-            (ngModelChange)="password.set($event)"
-          />
-          <button nz-button nzType="primary" type="submit" [nzLoading]="busy()" [disabled]="needsProxy()">
-            <nz-icon nzType="login" />Accedi a EuroLeghe
-          </button>
-        </form>
-      }
+      <b>{{ countOf('euro') ? 'Aggiungi un account ' + sites.euro.label : sites.euro.label }}</b>
+      <p class="text-xs text-muted">
+        EuroLeghe non ha il login integrato: utente e password passano dall'intermediario e non vengono
+        salvati.
+      </p>
+      <form class="flex flex-col gap-2" (ngSubmit)="loginEuro()">
+        <input
+          nz-input
+          name="username"
+          autocomplete="username"
+          placeholder="Utente"
+          [ngModel]="username()"
+          (ngModelChange)="username.set($event)"
+        />
+        <input
+          nz-input
+          name="password"
+          type="password"
+          autocomplete="current-password"
+          placeholder="Password"
+          [ngModel]="password()"
+          (ngModelChange)="password.set($event)"
+        />
+        <button nz-button nzType="primary" type="submit" [nzLoading]="busy()" [disabled]="needsProxy()" data-leghe-add="euro">
+          <nz-icon nzType="login" />Accedi a EuroLeghe
+        </button>
+      </form>
       @if (problem()?.platform === 'euro') {
         <nz-alert nzType="error" nzShowIcon [nzMessage]="problem()!.text" />
       }

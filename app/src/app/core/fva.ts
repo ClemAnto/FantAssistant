@@ -45,7 +45,12 @@ export const MATCH_GOALS_PER_100 = 0.127;
 /** `delta` is clamped here: the fit is linear and its 1st-99th percentiles are -276 / +207. */
 export const MATCH_DELTA_MAX = 300;
 
-/** The game's goal bonus (`config/scoring_config.json` default): Leghe's rules do not serve it. */
+/**
+ * The game's goal bonus (`config/scoring_config.json` default, and Leghe's default for both games). A league can
+ * change it PER ROLE and Leghe does serve that (`settings/calculate` → `bnMls.bmgs`, P/D/C/A on classic, read
+ * 09/10/2026 in its backend: `CalcoloHelper.CalcolaTotaleBonus`), as it serves the keeper's clean-sheet bonus
+ * (`bmcsh`, +1 by default and not in this number either). Neither is read yet: `formazione-leghe-v1.md` §5.
+ */
 export const GOAL_BONUS = 3;
 
 /** Minutes weight: k = 1 - MINUTES_WEIGHT x (1 - minutes / 90). A CHOICE, the operator's «contributo minimo». */

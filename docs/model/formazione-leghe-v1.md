@@ -117,7 +117,8 @@ P(voto) × fantamedia prevista, con P(voto) letta dalla `percent` di Leghe sulla
 `rosa-3-giornate-v1.md` §2 (piatta oltre gli estremi misurati, 0 se Leghe lo segna fuori, 0,063 se la
 pagina non lo elenca); undici = il migliore sui moduli che la LEGA ammette, con la legalità del
 regolamento (`mantra-legal.bestEleven`, classic o Mantra); panchina = classic per ruolo P/D/C/A e
-migliore prima, Mantra una coda unica, coi minimi per ruolo e la taglia letti da Leghe. **Non conta**
+migliore prima (**sbagliato per Dynamic e Hybrid, corretto il 09/10: §4-octies**), Mantra una coda unica, coi
+minimi per ruolo e la taglia letti da Leghe. **Non conta**
 sostituzioni automatiche, modificatori, avversario, consenso del foglio probabili né la stampa: è il
 pavimento che il banco (§5 punto 3) giudicherà, non il motore del §4.
 
@@ -437,7 +438,92 @@ l'ordinamento vecchio cadono esattamente i due controlli dei blocchi; senza il r
 sessione; senza `restPerMatch`, senza il pavimento, senza le coperture e con la vecchia regola delle fasce cadono
 esattamente i test che descrivono ciascuna cura.
 
+## §4-octies. Le leghe CLASSIC: il regolamento di Leghe letto nel suo motore (09/10/2026, sera)
+
+Richiesta dell'operatore: «la schermata LINEUP è stata pensata fino ad ora per una lega MANTRA, accertati che tutti
+i ragionamenti ed i calcoli funzionino coerentemente anche per leghe CLASSIC». Non si è dedotto: si è letto il
+motore di calcolo di Leghe (`Leghe Fantacalcio`, `origin/master` dell'08/10: `LegheCalcoloClassicHelper`,
+`ModificatoriHelper`, `CalcoloHelper`, l'enum delle sostituzioni) e l'editor del front-end (`lineup-editor/
+validation.ts`, `bench-fill.ts`). `engine_*` fermo, nessun `SHEET_REVISION`. Quattro difetti, tutti curati:
+
+- **La panchina classic era scritta PER RUOLO, e sotto Dynamic è sbagliata.** `sstype` 1 è `ChangeModule`
+  (Dynamic), 2 `RoleForRole` (Hybrid), 3 `OnlyChangeRole` (Traditional). Il motore: Traditional = solo il primo
+  dello STESSO ruolo; Dynamic = cammina la panchina IN ORDINE, di qualunque ruolo, ed entra il primo con un voto che
+  sta in un modulo ammesso (`CambioModulo`: D, C, A ciascuno ≤ quelli del modulo); Hybrid = prima un giro per ruolo,
+  poi lo stesso cammino. Quindi con la panchina P-D-C-A, in una lega Dynamic (quella dell'operatore) il miglior
+  difensore entrava per un attaccante mancante prima dell'attaccante dietro di lui. Ora (`lineup-advice.benchOf`):
+  **Dynamic, Hybrid e tipo non letto = una coda unica per FVA**, Traditional = per ruolo (lo stesso ordine di
+  entrata, più leggibile), Mantra invariato. Perché la coda per FVA e non per «punti attesi»: con X prima di Y il
+  guadagno atteso batte Y-prima di P(X)·P(Y)·(FVA X − FVA Y), qualunque siano le due probabilità - aritmetica, non
+  una scelta. La nota sotto il campo dice quale regola si sta seguendo.
+- **Le coperture classic contavano solo lo stesso ruolo.** Con Dynamic/Hybrid un uomo di un altro ruolo copre se il
+  modulo che ne esce è fra quelli della LEGA (non quello scelto a mano): in un 4-4-2 un centrocampista copre un
+  difensore se la lega ammette il 3-5-2 (`lineup-advice.classicCover`). E i cambi modulo **si sommano**: due
+  difensori coperti da due centrocampisti fanno un 2-6-2, quindi ogni copertura incrociata si misura sui conteggi
+  già promessi dalle precedenti (la promessa regge anche se cadono tutti insieme). Lo stesso ruolo resta preferito.
+  Il portiere solo col portiere; tipo o moduli non letti = solo stesso ruolo.
+- **Un modulo classic che il file del regolamento non scrive spariva.** Leghe permette a una lega classic diciotto
+  moduli oltre i sette (`EXTRA_FORMATIONS` del front-end: 4-2-4, 3-6-1, 6-3-1…); `allowedRules` li buttava, e una
+  lega con soli moduli sconosciuti tornava al regolamento intero, cioè si vedeva consigliare moduli che non ha. Un
+  modulo classic è i suoi tre numeri (`classic_modules.json`: «legale se i CONTEGGI tornano»), quindi ora si
+  costruisce dalle cifre (`withLeagueModules`, anche per la formazione inviata); Mantra no, i suoi posti sono tipati.
+- **La panchina fissa con un ruolo a zero si fermava alle quote.** In Leghe, con `fbench` vero, un numero positivo è
+  ESATTO e uno zero vuol dire «ruolo variabile» (default del backend e `canDropOnBench`): `[1,2,0,0]` su sette posti
+  dava tre uomini. E `bseq` (un ruolo per posto) non era letto: ora riempie ogni posto col primo del suo ruolo, in
+  quell'ordine.
+
+**Il modificatore di difesa classic, detto e non ancora contato.** Leghe lo paga solo se hanno giocato almeno
+**4 difensori** (e il portiere, se la lega lo conta): la media è portiere + 3 migliori difensori, voti base, a fasce di
+0,25 da `smodld`. Quindi un 3-x-x lo perde sempre, e nella lega dell'operatore vale fino a +3. Il consiglio non
+somma modificatori in nessuno dei due giochi (lo dice la nota); su Mantra conta meno perché ogni schema ha 5 posti
+difensivi, su classic invece **sposta la scelta del modulo**. Per ora il menu dei moduli marca «senza mod. difesa» i
+moduli con meno di 4 difensori e le Regole lo scrivono; contarlo (valore atteso dai voti base attesi) è una regola
+nuova da misurare sulle giornate giocate: §5.
+
+Verifica: 6 test nuovi in `lineup-advice.spec.ts` (+ uno aggiornato in `leghe-rules.spec.ts`), ognuno con la sua
+controprova (rimessa la panchina per ruolo, tolti i conteggi cumulativi, tolti i moduli costruiti, rimessa la
+quota esatta su tutti: cade esattamente il test che descrive la cura); `e2e-lineup-offline.mjs` con una lega classic
+Dynamic + mod. difesa + 4-2-4: panchina `C 6.8 · C 6.4 · D 6.3 · P 5.1` (per ruolo sarebbe un altro ordine, il banco
+lo controlla), 4-2-4 offerto e ammesso, 3-4-3 e 3-5-2 «senza mod. difesa». `ng test` 1494/1494.
+
+## §4-nonies. Più account, più fantasquadre (09/10/2026, sera)
+
+Richiesta: «piuttosto che loggarti su un'unico account, dammi la possibilità di aggiungere più fantasquadre ognuna
+con il suo account o dello stesso account». Prima la sessione teneva UN account per piattaforma (`{classic, euro}`),
+e un secondo login Leghe sostituiva il primo.
+
+- **Un account è un login**, chiave `piattaforma:utente` (`accountKey`); la sessione ne tiene una LISTA, in
+  `sessionStorage` coi token e in `leghe-known` senza (la scelta dell'08/10 sui token non cambia). Un login già
+  presente si aggiorna al suo posto, uno nuovo si aggiunge; «Esci» toglie solo quello.
+- **Una fantasquadra è una lega di un account**: ogni lega porta il suo `userId`, la chiave diventa
+  `piattaforma:utente:lega` (`keyOf`), quindi la stessa lega raggiunta da due account sono due voci con due «mia
+  squadra» - la cache era già per utente. Il selettore dice «Leghe · Lega · Squadra», col nome della squadra preso
+  dalla lettura salvata di `teams/my` (nessuna richiesta) e «utente N» solo dove due voci leggerebbero uguali.
+- **La modale «Account e fantasquadre»** elenca ogni login (collegato o solo con i dati salvati) con le sue leghe e il
+  suo «Esci»; i due login sotto AGGIUNGONO sempre un account. Il login embed mostra ogni volta il form vuoto (letto nel
+  front-end di Leghe: `login.component`, ramo `embeddedLogin`), quindi un secondo account Leghe si aggiunge dallo
+  stesso bottone. Riconoscere un account: «utente N» e i nomi delle sue squadre - lo username non si salva.
+- **Niente da rifare per chi era già collegato**: la lista vecchia `{classic, euro}` si legge come i suoi valori, e una
+  lega scelta con la chiave vecchia (`classic:2001`) si ritrova.
+
+Verifica: 2 test nuovi in `leghe-session.spec.ts` (due account Leghe nella stessa lega e in una terza: tre voci, la
+cache sotto l'utente giusto, il nome della squadra, nessun gemello al secondo login, «Esci» di uno solo; il formato
+vecchio letto) - controprova: con l'aggiornamento per piattaforma cade il primo; nel banco offline tre login (due Leghe
+nella stessa lega + EuroLeghe), il selettore con tre voci distinte e la modale con i tre account.
+
 ## §5. Aperti, in ordine
+
+**Dal 9 ottobre 2026 (sera tardi), in cima:**
+- **Il modificatore di difesa classic** (§4-octies): oggi solo marcato nel menu. Contarlo nel modulo automatico
+  vuol dire un valore atteso dai voti base attesi di portiere e difensori, a fasce - una regola nuova, da misurare sul
+  banco delle giornate giocate (item 3) prima di farle scegliere il modulo.
+- **I bonus della LEGA non sono letti, in nessuno dei due giochi**: Leghe serve `bnMls.bmgs` (gol PER RUOLO, P/D/C/A
+  su classic), `bmcsh` (porta inviolata, +1 di default) e `motm` (+1 di default su Leghe, 0 su EuroLeghe); l'FVA usa
+  +3 fisso, al portiere non somma `p × bmcsh`, a nessuno il man of the match. Il commento di `fva.GOAL_BONUS` che
+  diceva «Leghe non lo serve» era falso ed è corretto.
+- **Il massimo di sostituzioni** (`ssnum`, 5 nella lega Dynamic) non entra in «copre N di 11»: la promessa vale per
+  ogni assenza, non per sei insieme.
+- **Più account dal vivo**: provato contro un Leghe finto; due login embed di fila nel browser vero no.
 
 **Dal 9 ottobre 2026 (sera), in cima:**
 - **Sulla macchina col DB**: `git pull`, `python -m euroleghe_ingest fc_site` (riempie `fc_teams`), `export`,
@@ -447,8 +533,9 @@ esattamente i test che descrivono ciascuna cura.
   Merino; Barnes, F. Lopez, D. Douè; Kane): mai confrontata con la sua rosa vera, che vive nel suo browser. Le
   quattro cure della sera (somma degli FVA, «altri» misurati e pesati sul campione, 15%, coperture) vanno
   guardate lì.
-- **I cambi modulo delle sostituzioni** (Dynamic/Hybrid/Basic) non sono nelle coperture, e la probabilità di un
-  vice dello STESSO club non è condizionata all'assenza del titolare.
+- ~~**I cambi modulo delle sostituzioni** (Dynamic/Hybrid/Basic) non sono nelle coperture~~ - classic Dynamic/Hybrid
+  FATTO (§4-octies); il Basic di Mantra resta fuori. La probabilità di un vice dello STESSO club non è condizionata
+  all'assenza del titolare.
 - `REST_PRIOR_MATCHES` = 10 e `MIN_CHANCE_ON_PITCH` = 0,15 sono dichiarati; da guardare quando ci sarà il banco
   delle giornate giocate (item 3).
 
@@ -462,7 +549,8 @@ esattamente i test che descrivono ciascuna cura.
    conferma dell'avversario - aggiungerlo all'e2e se serve. Verifica offline dei parser:
    `node scripts/gas/verify-odds.mjs <cartella con league.html e match*.html>`; verifica dal vivo:
    `node app/scripts/e2e-lineup-live.mjs <porta> [pacchetto-quote.json]` sotto `ng serve`.
-0-bis. **Push** dei commit `bde447f` e `b8ec932` (fatto solo il commit, su richiesta).
+0-bis. ~~**Push** dei commit `bde447f` e `b8ec932`~~ - FATTO: sono su `origin/master` (verificato 09/10/2026), e con
+   il push del 09/10 sera ci sono anche `f3e710c`, `98b4202` e il commit delle classic e dei più account.
 0-ter. **FVA: FATTO** (`core/fva.ts`, colonna al posto di PT, la consigliata sceglie su P(voto) × FVA) e con
    la partita dentro (§4-quinquies). Restano: (a) **guardarla in un browser collegato a Leghe**, e
    in particolare CONTARE quanti uomini ricevono il termine partita - l'appaiamento del nome dell'avversario

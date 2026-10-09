@@ -27,7 +27,7 @@
 import { MantraModules } from './auction-value';
 import { DRAW_ORDER, PitchLine } from './club-eleven';
 import { Place, Placeable, assign, bestEleven, placesIn } from './mantra-legal';
-import { BenchRule, LegheGame } from './leghe-rules';
+import { BenchRule, LegheGame, SubstitutionKind } from './leghe-rules';
 
 /**
  * P(vote) against the editorial starter probability, `rosa-3-giornate-v1.md` §2: bucket centres and the share
@@ -151,6 +151,59 @@ export function allowedRules(rules: MantraModules, allowed: readonly string[]): 
   return Object.keys(kept).length ? { ...rules, modules: kept } : rules;
 }
 
+/**
+ * A classic module's three counts (D, C, A) from its name, `442` or `4-4-2`; null for anything else (a Mantra
+ * name, a module that does not field ten outfield men).
+ */
+export function classicCounts(code: string): [number, number, number] | null {
+  const digits = code.replace(/-/g, '').match(/^(\d)(\d)(\d)$/);
+  if (!digits) return null;
+  const counts: [number, number, number] = [Number(digits[1]), Number(digits[2]), Number(digits[3])];
+  return counts[0] + counts[1] + counts[2] === 10 ? counts : null;
+}
+
+/**
+ * A CLASSIC MODULE IS ITS THREE NUMBERS (`classic_modules.json`: «a classic eleven is legal if the COUNTS match»).
+ * The rulebook file writes the seven standard modules, while Leghe lets a classic league allow eighteen more (the
+ * Leghe front-end's `EXTRA_FORMATIONS`: 4-2-4, 3-6-1, 6-3-1 ...). Until 09/10/2026 such a module was DROPPED by
+ * `allowedRules`, and a league whose every module was unknown fell back to the whole rulebook - i.e. was advised
+ * modules it does not allow. A classic module the file does not write is now built from its digits; that is the
+ * classic law itself, not an analogy. Mantra is returned untouched: a Mantra place is typed and cannot be read off
+ * a name.
+ */
+export function withLeagueModules(
+  rules: MantraModules,
+  allowed: readonly string[],
+  game: LegheGame | null,
+): MantraModules {
+  if (game !== 'classic') return rules;
+  const added: Record<string, Record<string, string[]>> = {};
+  for (const code of allowed) {
+    const counts = classicCounts(code);
+    const name = rulebookName(code);
+    if (!counts || rules.modules[name] || added[name]) continue;
+    const [d, c, a] = counts;
+    added[name] = { D: Array(d).fill('D'), M: Array(c).fill('C'), T: [], A: Array(a).fill('A') };
+  }
+  return Object.keys(added).length ? { ...rules, modules: { ...rules.modules, ...added } } : rules;
+}
+
+/**
+ * The league's substitution rule as the bench has to serve it (`LineupRules.substitutions.kind` and the modules
+ * the league allows, as Leghe writes them): a classic module change may only land on an allowed module.
+ */
+export interface Substitutions {
+  kind: SubstitutionKind | null;
+  modules: readonly string[];
+}
+
+const NO_SUBSTITUTIONS: Substitutions = { kind: null, modules: [] };
+
+/** Does a classic substitution kind CHANGE MODULE? Dynamic (sstype 1) and Hybrid (2) do, Traditional (3) never. */
+function changesModule(kind: SubstitutionKind | null): boolean {
+  return kind === 'dynamic' || kind === 'hybrid';
+}
+
 const byPoints = (a: LineupMan, b: LineupMan) =>
   (b.points ?? -Infinity) - (a.points ?? -Infinity) || a.name.localeCompare(b.name);
 
@@ -206,12 +259,41 @@ export interface Starter {
   man: LineupMan;
 }
 
+/** A classic outfield role's position in a module's counts (D, C, A). */
+const CLASSIC_COUNT: Record<string, number> = { d: 0, c: 1, a: 2 };
+
 /**
- * CAN `sub` TAKE THE PLACE `starter` LEAVES? Classic: the same role, which is what every substitution kind can
- * always do. Mantra: a role the place itself accepts (no malus), or what the official matrix allows from the role
- * the starter held there - with the out-of-position malus too, because a malus of one point is not a hole. The
- * footnotes read as the file states them: `*` only «in alternativa» (i.e. the place already accepts the role,
- * handled above), `**` always (OK or -1), `***` everywhere but in the 4-1-4-1.
+ * CLASSIC: who can take the place a starter leaves, as Leghe's OWN engine decides it (`LegheCalcoloClassicHelper.
+ * ApplySubstitutionsClassic`, backend read 09/10/2026). The same role always. Dynamic and Hybrid also CHANGE
+ * MODULE: an outfield man of another role enters when the men who played, plus him, still fit a module the league
+ * allows (`CambioModulo`: D, C and A each at most the module's) - so in a 4-4-2 a midfielder covers a defender if
+ * the league allows the 3-5-2. Traditional never changes module, a keeper is only ever replaced by a keeper, and a
+ * kind or a module list we could not read counts the same role only: a cover we cannot be sure of is no cover.
+ */
+function classicCover(sub: LineupMan, starter: Starter, module: string, subs: Substitutions): boolean {
+  const out = starter.man.roles[0];
+  const into = sub.roles[0];
+  if (!out || !into) return false;
+  if (into === out) return true;
+  if (!changesModule(subs.kind) || !(out in CLASSIC_COUNT) || !(into in CLASSIC_COUNT)) return false;
+  const counts = classicCounts(module);
+  if (!counts) return false;
+  const after = [...counts];
+  after[CLASSIC_COUNT[out]] -= 1;
+  after[CLASSIC_COUNT[into]] += 1;
+  return subs.modules.some((code) => {
+    const allowed = classicCounts(code);
+    return !!allowed && after.every((n, at) => n <= allowed[at]);
+  });
+}
+
+/**
+ * CAN `sub` TAKE THE PLACE `starter` LEAVES? Classic: `classicCover` (the same role, or another one through a
+ * module change where the league's substitutions make one). Mantra: a role the place itself accepts (no malus), or
+ * what the official matrix allows from the role the starter held there - with the out-of-position malus too,
+ * because a malus of one point is not a hole. The footnotes read as the file states them: `*` only «in
+ * alternativa» (i.e. the place already accepts the role, handled above), `**` always (OK or -1), `***` everywhere
+ * but in the 4-1-4-1.
  */
 export function canCover(
   sub: LineupMan,
@@ -219,8 +301,9 @@ export function canCover(
   game: LegheGame | null,
   rules: MantraModules,
   module: string,
+  subs: Substitutions = NO_SUBSTITUTIONS,
 ): boolean {
-  if (game !== 'mantra') return !!sub.roles[0] && sub.roles[0] === starter.man.roles[0];
+  if (game !== 'mantra') return classicCover(sub, starter, module, subs);
   if (sub.roles.some((role) => starter.place.roles.includes(role))) return true;
   const matrix = rules.substitution?.matrix;
   if (!matrix) return false;
@@ -246,6 +329,12 @@ export function canCover(
  * department is covered before the second of any; inside a line the starter with the fewest possible covers goes
  * first, and he gets the man most likely to play (then the best FVA). A starter nobody in the roster can replace
  * stays uncovered, and the caller counts him.
+ *
+ * On classic a module change can make a man of ANOTHER role a cover (`classicCover`); a man of the starter's own
+ * role is still preferred, because he is the cover every kind of substitution honours and the cross-role one would
+ * otherwise take the place of a man another department needs. And the module changes ADD UP: two defenders covered
+ * by two midfielders turn a 4-4-2 into a 2-6-2, which no league allows - so a cross-role cover is checked against
+ * the counts the covers already promised, and the promise holds even if every covered starter drops out at once.
  */
 export function coverOrder(
   starters: readonly Starter[],
@@ -253,29 +342,43 @@ export function coverOrder(
   game: LegheGame | null,
   rules: MantraModules,
   module: string,
+  subs: Substitutions = NO_SUBSTITUTIONS,
 ): { covers: LineupMan[]; coveredBy: Map<number, LineupMan> } {
   const candidates = rest.filter((man) => man.chance >= MIN_CHANCE_ON_PITCH);
   const used = new Set<number>();
   const coveredBy = new Map<number, LineupMan>();
   const covers: LineupMan[] = [];
   const better = (a: LineupMan, b: LineupMan) => b.chance - a.chance || byPoints(a, b);
+  const sameRoleFirst = (one: Starter) => (a: LineupMan, b: LineupMan) =>
+    game === 'mantra'
+      ? 0
+      : Number(b.roles[0] === one.man.roles[0]) - Number(a.roles[0] === one.man.roles[0]);
+  // Classic: the module the covers promised so far, written as its counts (`4-4-2` -> `442`, then `352`...).
+  const counts = game === 'mantra' ? null : classicCounts(module);
+  const moduleNow = () => (counts ? counts.join('') : module);
   for (let progress = true; progress; ) {
     progress = false;
     for (const line of DRAW_ORDER) {
+      const now = moduleNow();
       const open = starters
         .filter((one) => one.place.line === line && !coveredBy.has(one.man.id))
         .map((one) => ({
           one,
-          options: candidates.filter((sub) => !used.has(sub.id) && canCover(sub, one, game, rules, module)),
+          options: candidates.filter((sub) => !used.has(sub.id) && canCover(sub, one, game, rules, now, subs)),
         }))
         .filter((entry) => entry.options.length)
         .sort((a, b) => a.options.length - b.options.length);
       if (!open.length) continue;
       const { one, options } = open[0];
-      const pick = [...options].sort(better)[0];
+      const pick = [...options].sort((a, b) => sameRoleFirst(one)(a, b) || better(a, b))[0];
       used.add(pick.id);
       coveredBy.set(one.man.id, pick);
       covers.push(pick);
+      const [out, into] = [one.man.roles[0], pick.roles[0]];
+      if (counts && out !== into && out in CLASSIC_COUNT && into in CLASSIC_COUNT) {
+        counts[CLASSIC_COUNT[out]] -= 1;
+        counts[CLASSIC_COUNT[into]] += 1;
+      }
       progress = true;
     }
   }
@@ -285,17 +388,37 @@ export function coverOrder(
 /**
  * THE BENCH: who sits there and in which order.
  *
- * Classic substitutions take the first man of the SAME role in bench order, so the classic bench is written by
- * role (P, D, C, A) and best first inside each; Mantra reads it as one queue, best first. The league's per-role
- * counts are honoured (exact on a fixed bench, minimums on a variable one), and the size caps it. WHO gets a place
- * is decided by `covers` first (`coverOrder`: no hole if a starter drops out), then by the FVA. Unpriced men go
- * last: a bench place is cheap, and «unknown» is not «useless».
+ * WHO gets a place is decided by `covers` first (`coverOrder`: no hole if a starter drops out), then by the FVA,
+ * within the league's per-role counts and its size. Unpriced men go last: a bench place is cheap, and «unknown»
+ * is not «useless».
+ *
+ * THE ORDER is the one the league's engine substitutes in, and on classic that depends on the KIND (read in
+ * Leghe's backend, `LegheCalcoloClassicHelper.ApplySubstitutionsClassic`, 09/10/2026):
+ *   - Dynamic walks the bench IN ORDER, whatever the role, and the first man with a vote who fits an allowed
+ *     module comes in; Hybrid does the same after a same-role pass. So the bench is ONE QUEUE, best FVA first -
+ *     which is also the best order for one hole: with X ahead of Y the expected gain beats Y-first by
+ *     P(X) x P(Y) x (FVA X - FVA Y), whatever the two chances. Until 09/10/2026 the classic bench was written by
+ *     role (P, D, C, A), and under Dynamic that sent the best defender on for a missing striker before the
+ *     forward behind him.
+ *   - Traditional only ever takes the first man of the SAME role, so the order across roles does not matter and
+ *     the bench is written by role, best first inside each - the same substitutions, easier to read.
+ *   - A kind we could not read gets the queue: it is the right order for two kinds and an equivalent one for the
+ *     third.
+ * Mantra is one queue, best first, as before.
+ *
+ * Per-role counts (`brdrs`), on classic: on a FIXED bench a positive count is EXACT and a zero means «any number»
+ * (Leghe's own default settings: «se fixbench è true 0 vuol dire ruolo variabile») - until 09/10/2026 a zero there
+ * stopped the bench at the quotas, so `[1,2,0,0]` on seven places gave a bench of three. On a variable bench they
+ * are floors. Mantra reads them as floors whatever the flags say (the Leghe editor ignores them there). A fixed
+ * ROLE PER SLOT (`bseq`, classic only) fills each slot with the first man of its role, and the bench keeps the
+ * slot order, since that is the order Leghe substitutes in.
  */
 export function benchOf(
   rest: readonly LineupMan[],
   rule: BenchRule,
   game: LegheGame | null,
   covers: readonly LineupMan[] = [],
+  kind: SubstitutionKind | null = null,
 ): {
   bench: LineupMan[];
   outside: LineupMan[];
@@ -304,41 +427,57 @@ export function benchOf(
   // The order places are handed out in: the covers first, in their own order, then everybody else by FVA.
   const coverIds = new Set(covers.map((man) => man.id));
   const ordered = [...covers.filter((man) => pool.includes(man)), ...pool.filter((man) => !coverIds.has(man.id))];
-  const size = rule.size ?? pool.length;
-  const groups = game === 'mantra' ? 2 : 4;
-  const wanted = rule.perRole.slice(0, groups);
   const picked: LineupMan[] = [];
   const take = (man: LineupMan) => {
     picked.push(man);
     pool.splice(pool.indexOf(man), 1);
     ordered.splice(ordered.indexOf(man), 1);
   };
+  const classic = game !== 'mantra';
+  if (classic && rule.sequence?.length) {
+    // Leghe's classic role ids are 1-4 (P, D, C, A): a slot asking for role `r` takes group `r - 1`.
+    for (const role of rule.sequence) {
+      const man = ordered.find((m) => benchGroup(m, game) === role - 1);
+      if (man) take(man);
+    }
+    return { bench: picked, outside: pool };
+  }
+  const size = rule.size ?? pool.length;
+  const groups = classic ? 4 : 2;
+  const wanted = rule.perRole.slice(0, groups);
   wanted.forEach((count, group) => {
     for (const man of ordered.filter((m) => benchGroup(m, game) === group).slice(0, count)) {
       if (picked.length < size) take(man);
     }
   });
-  const exact = rule.fixed && game !== 'mantra' && wanted.some((n) => n > 0);
-  if (!exact) {
-    while (picked.length < size && ordered.length) take(ordered[0]);
+  const exactly = (group: number) => classic && rule.fixed && (wanted[group] ?? 0) > 0;
+  for (const man of [...ordered]) {
+    if (picked.length >= size) break;
+    if (!exactly(benchGroup(man, game))) take(man);
   }
-  const bench =
-    game === 'mantra'
-      ? picked.sort(byPoints)
-      : picked.sort((a, b) => benchGroup(a, game) - benchGroup(b, game) || byPoints(a, b));
+  const byRole = classic && kind === 'traditional';
+  const bench = byRole
+    ? picked.sort((a, b) => benchGroup(a, game) - benchGroup(b, game) || byPoints(a, b))
+    : picked.sort(byPoints);
   return { bench, outside: pool };
 }
 
-/** The best eleven by expected points on the league's modules, and the bench behind it. */
+/**
+ * The best eleven by expected points on the `allowed` modules, and the bench behind it. `subs` is the league's
+ * substitution rule, which decides who can cover whom and the bench's order; its `modules` are the LEAGUE's,
+ * which a module change may land on even when the eleven is drawn on one module the operator picked.
+ */
 export function adviseLineup(
   men: readonly LineupMan[],
   rulebook: MantraModules | null,
   allowed: readonly string[],
   rule: BenchRule,
   game: LegheGame | null,
+  subs: Substitutions = NO_SUBSTITUTIONS,
 ): LineupPlan | null {
   if (!rulebook?.modules) return null;
-  const rules = allowedRules(rulebook, allowed);
+  const book = withLeagueModules(rulebook, [...allowed, ...subs.modules], game);
+  const rules = allowedRules(book, allowed);
   const best = bestEleven(men, rules, fieldWeight);
   if (!best) return null;
   const onPitch = new Set(best.men.map((m) => m.id));
@@ -346,8 +485,8 @@ export function adviseLineup(
   const starters: Starter[] = best.places
     .map((place, at) => ({ place, man: best.holders[at] }))
     .filter((one): one is Starter => !!one.man);
-  const { covers, coveredBy } = coverOrder(starters, rest, game, rulebook, best.module);
-  const { bench, outside } = benchOf(rest, rule, game, covers);
+  const { covers, coveredBy } = coverOrder(starters, rest, game, book, best.module, subs);
+  const { bench, outside } = benchOf(rest, rule, game, covers, subs.kind);
   return {
     module: best.module,
     rows: rowsOf(best.places, best.holders),

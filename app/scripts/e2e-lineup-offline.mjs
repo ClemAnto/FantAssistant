@@ -14,6 +14,11 @@
  *   - THE KEEPERS' ODDS SORT (operator, 09/10/2026: «le quote dei portieri ... *-1»): on «Quota» the
  *     clean-sheet prices make one block and the goal prices another, in both directions, and no cell prints
  *     a minus. Prices seeded in the page's own odds cache, so no request leaves for the Sheet either.
+ *   - THE CLASSIC RULES (09/10/2026, «accertati che ... funzionino anche per leghe CLASSIC»): under Dynamic the
+ *     bench is one queue by FVA and not P-D-C-A, a league module the rulebook file does not write (4-2-4) is
+ *     offered, and the three-man defences say they give up the defence modifier.
+ *   - MORE ACCOUNTS (09/10/2026, «aggiungere più fantasquadre ognuna con il suo account»): three logins, two of
+ *     them Leghe with a team in the SAME league, in one selector and in the Account modal.
  *   - THE MATCH TOOLTIP (operator, 09/10/2026: «PSG-MAN ... MAN che squadra è?»): a PSG man's opponent is
  *     outside the EuroLeghe perimeter, so Leghe's `championship/teams` does not name it; with the bundle's
  *     `fc_teams` the tooltip reads «Le Mans», and WITHOUT it (the counter-check, same page reloaded) it falls
@@ -52,6 +57,8 @@ const CLASSIC = [
   INTER(6217, 'Bisseck', [2], 40), INTER(1870, 'Barella', [3], 90), INTER(2194, 'Calhanoglu', [3], 85),
   INTER(152, 'Zielinski', [3], 45), INTER(4871, 'Thuram', [4], 90), INTER(2764, 'Martinez L.', [4], 90),
   INTER(6669, 'Bonny', [4], 30),
+  // Three more men than an eleven needs, of three roles, so the bench has an ORDER to get right (below).
+  INTER(5877, 'Carlos Augusto', [2], 60), INTER(2529, 'Mkhitaryan', [3], 55), INTER(7071, 'Esposito F.P.', [4], 50),
 ];
 const MANTRA = [
   PSG(6708, 'Chevalier', [6], 90), PSG(4160, 'Hakimi', [7, 10], 90), PSG(2374, 'Marquinhos', [9], 90),
@@ -60,7 +67,10 @@ const MANTRA = [
   INTER(4871, 'Thuram', [16], 90), INTER(2764, 'Martinez L.', [16], 90), INTER(152, 'Zielinski', [12, 13], 45),
 ];
 const LEAGUES = {
-  classic: { id: 2001, name: 'Lega di prova', sroles: 1, mods: ['343', '352', '433', '442'], roster: CLASSIC,
+  classic: { id: 2001, name: 'Lega di prova', sroles: 1, mods: ['343', '352', '433', '442', '424'], roster: CLASSIC,
+    // The operator's classic league: Dynamic substitutions and the defence modifier with the keeper. 4-2-4 is one of
+    // the modules Leghe lets a classic league allow beyond the seven of the rulebook file.
+    calc: { subst: { sstype: 1, ssnum: 5 }, smodd: { smodld: 6, smodlu: 7.25, smoddg: true, smodva: [0, 0.5, 1, 1.5, 2, 2.5, 3] } },
     // Leghe's Serie A list names everybody; here only Inter, so the classic odds join confirms the opponent by code.
     teams: [{ id_s: 9, s: 'Inter', sigla: 'INT', camp: 'ITA' }] },
   euro: { id: 3001, name: 'Lega euro di prova', sroles: 2, mods: ['4231', '343', '3412'], roster: MANTRA,
@@ -74,7 +84,7 @@ function leghe(platform, path) {
   const answers = {
     '/onboarding/v1/league/status': { mday: 5 },
     '/onboarding/v1/league/settings/lineup': { mods: league.mods, tbench: 7 },
-    '/onboarding/v1/league/settings/calculate': {},
+    '/onboarding/v1/league/settings/calculate': league.calc ?? {},
     '/onboarding/v1/league/settings/rosters': { sroles: league.sroles },
     '/onboarding/v1/league/competitions': [{ id: 11, name: 'Campionato', type: 2, tmids: [5] }],
     '/onboarding/v1/league/teams/my': { id: 5, n: 'Mia', d: 'A' },
@@ -213,12 +223,15 @@ try {
   await s.send('Network.enable');
   // Nothing leaves for Google: the Sheet's prices come from the seeded cache, the probable line-ups are not read.
   await s.send('Network.setBlockedURLs', { urls: ['*script.google.com*', '*googleusercontent.com*'] });
-  const accounts = {
-    classic: { platform: 'classic', userId: 1, via: 'embed',
-      leagues: [{ platform: 'classic', id: LEAGUES.classic.id, name: LEAGUES.classic.name, alias: '', jwt: TOKEN, game: null }] },
-    euro: { platform: 'euro', userId: 1, via: 'direct',
+  // THREE LOGINS (operator, 09/10/2026: «aggiungere più fantasquadre ognuna con il suo account o dello stesso
+  // account»): two Leghe accounts with a team each in the SAME league, and one EuroLeghe account.
+  const classicLeague = { platform: 'classic', id: LEAGUES.classic.id, name: LEAGUES.classic.name, alias: '', jwt: TOKEN, game: null };
+  const accounts = [
+    { platform: 'classic', userId: 1, via: 'embed', leagues: [classicLeague] },
+    { platform: 'classic', userId: 2, via: 'embed', leagues: [classicLeague] },
+    { platform: 'euro', userId: 1, via: 'direct',
       leagues: [{ platform: 'euro', id: LEAGUES.euro.id, name: LEAGUES.euro.name, alias: '', jwt: TOKEN, game: 'mantra' }] },
-  };
+  ];
   const oddsCache = JSON.stringify({ at: new Date().toISOString(), body: JSON.stringify(ODDS) });
   await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try {
     if (!localStorage.getItem('e2e.no-token')) sessionStorage.setItem('leghe.accounts', ${JSON.stringify(JSON.stringify(accounts))});
@@ -276,6 +289,70 @@ try {
   seen = await rows();
   check(JSON.stringify(blocks(seen)) === JSON.stringify(['goal', 'clean-sheet']),
     `Quota decrescente: blocchi ${blocks(seen).join(' | ')}`, `Quota decrescente: i blocchi sono ${blocks(seen).join(' | ')}`);
+
+  // ================================================================ 2-bis. CLASSIC: the league's own rules
+  // THE BENCH UNDER DYNAMIC IS ONE QUEUE (09/10/2026, «accertati che tutti i ragionamenti funzionino anche per leghe
+  // CLASSIC»): Leghe's classic engine walks the bench in order whatever the role, so written by role P-D-C-A the keeper
+  // would stand first and a defender would come on for a missing striker. The FVA and the roles are read off the
+  // screen; the claim is about their ORDER, and the fixture is built so the two orders differ (a 5% keeper on the bench).
+  const RANK = { P: 0, D: 1, C: 2, A: 3 };
+  const bench = await until(s, () => {
+    const items = [...document.querySelectorAll('[data-lineup-bench] [data-bench]')].map((el) => ({
+      role: el.querySelector('ui-roles')?.textContent.trim().toUpperCase().slice(0, 1) ?? '?',
+      fva: Number(el.lastElementChild?.textContent.trim()),
+    }));
+    return items.length >= 3 ? items : null;
+  }, 10000);
+  const words = (bench ?? []).map((b) => `${b.role} ${b.fva}`).join(' · ');
+  const descending = !!bench && bench.every((b, i) => i === 0 || b.fva <= bench[i - 1].fva);
+  const grouped = [...(bench ?? [])].sort((a, b) => RANK[a.role] - RANK[b.role] || b.fva - a.fva);
+  check(descending, `classic Dynamic: panchina per FVA (${words})`, `classic Dynamic: panchina non in coda per FVA (${words})`);
+  check(!!bench && JSON.stringify(grouped) !== JSON.stringify(bench),
+    'la stessa panchina scritta per ruolo sarebbe un altro ordine', 'il banco non distingue la coda dall\'ordine per ruolo');
+  const benchNote = await ev(s, () => document.querySelector('[data-lineup-bench-note]')?.textContent.trim() ?? '');
+  check(/Dynamic/.test(benchNote), `la nota sotto il campo: «${benchNote}»`);
+  // THE MODULES: 4-2-4 (allowed by the league, not written by the rulebook file) is offered and allowed, and the
+  // three-man defences say they give up the defence modifier.
+  const classicSelect = await centre(s, '[data-module-select]');
+  await click(s, classicSelect.x, classicSelect.y);
+  await until(s, () => document.querySelectorAll('nz-option-item').length > 1, 5000);
+  const optionTexts = await ev(s, () => [...document.querySelectorAll('nz-option-item')].map((o) => o.textContent.trim()));
+  const option = (name) => optionTexts.find((t) => t.startsWith(`${name} `)) ?? '';
+  check(!!option('4-2-4') && !/non ammesso/.test(option('4-2-4')), `il menu offre «${option('4-2-4')}»`, 'il 4-2-4 della lega manca dal menu o è «non ammesso»');
+  check(/senza mod\. difesa/.test(option('3-4-3')) && /senza mod\. difesa/.test(option('3-5-2')) && !/senza mod\. difesa/.test(option('4-3-3')),
+    'il 3-4-3 e il 3-5-2 dicono «senza mod. difesa», il 4-3-3 no', `moduli: ${optionTexts.join(' | ')}`);
+  await s.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await s.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await until(s, () => !document.querySelector('nz-option-item'), 3000);
+  const rulesToggle = await centre(s, '[data-lineup-rules-toggle]');
+  await click(s, rulesToggle.x, rulesToggle.y);
+  const defence = await until(s, () => [...document.querySelectorAll('[data-lineup-rules] dd')].map((d) => d.textContent.trim()).find((t) => /\+3/.test(t)) ?? null, 3000);
+  check(/almeno 4 difensori/.test(defence ?? ''), `le regole: mod. difesa «${defence}»`);
+  await click(s, rulesToggle.x, rulesToggle.y);
+
+  // ================================================================ 2-ter. MORE THAN ONE ACCOUNT
+  // Every fantasquadra of every login in ONE selector: the first Leghe account's team has been read (its name
+  // «Mia» is stored), the second account's team in the same league not yet - two entries, told apart.
+  const leagueBox = await centre(s, '[data-lineup-league]');
+  await click(s, leagueBox.x, leagueBox.y);
+  await until(s, () => document.querySelectorAll('nz-option-item').length > 1, 5000);
+  const leagueTexts = await ev(s, () => [...document.querySelectorAll('nz-option-item')].map((o) => o.textContent.trim()));
+  check(leagueTexts.length === 3 && new Set(leagueTexts).size === 3 && leagueTexts.includes('Leghe · Lega di prova · Mia'),
+    `il selettore offre ${leagueTexts.length} fantasquadre: ${leagueTexts.join(' | ')}`, `selettore: ${leagueTexts.join(' | ')}`);
+  await s.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await s.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await until(s, () => !document.querySelector('nz-option-item'), 3000);
+  const accountButton = await centre(s, '[data-lineup-connect]');
+  await click(s, accountButton.x, accountButton.y);
+  const accountKeys = await until(s, () => {
+    const keys = [...document.querySelectorAll('[data-leghe-account]')].map((a) => a.getAttribute('data-leghe-account'));
+    return keys.length ? keys : null;
+  }, 5000);
+  check(JSON.stringify(accountKeys) === JSON.stringify(['classic:1', 'classic:2', 'euro:1']),
+    `la modale elenca gli account ${accountKeys?.join(', ')}`, `account nella modale: ${accountKeys?.join(', ')}`);
+  await s.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await s.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+  await until(s, () => !document.querySelector('[data-leghe-account]'), 5000);
 
   // ================================================================ 3. EUROLEGHE MANTRA: filter choices + tooltip
   const league = await centre(s, '[data-lineup-league]');

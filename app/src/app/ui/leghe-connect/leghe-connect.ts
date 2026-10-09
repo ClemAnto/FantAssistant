@@ -13,6 +13,11 @@ import { LegheSession } from '../../core/leghe-session';
 /**
  * THE CONNECTION TO LEGHE, one modal for both platforms (08/10/2026).
  *
+ * AS MANY ACCOUNTS AS HE WANTS (operator, 09/10/2026: «dammi la possibilità di aggiungere più fantasquadre ognuna
+ * con il suo account o dello stesso account»): the modal lists every login this browser knows - each with its
+ * leagues, i.e. its fantasquadre, and its own «Esci» - and the two logins below always ADD one. Logging in again
+ * with an account already listed refreshes that entry instead of adding a twin (`LegheSession.adopt`).
+ *
  * The two platforms log in differently and the modal SAYS so before anybody types, because what crosses
  * which wire is the whole difference: on Leghe the password goes into fantacalcio's own page (the
  * official embedded login, an iframe) and this app only receives the tokens; on EuroLeghe that login is
@@ -45,6 +50,26 @@ export class LegheConnect {
   /** Under `ng serve` the dev server forwards; anywhere else somebody has to paste the Worker's address. */
   protected readonly needsProxy = computed(() => !this.session.base());
   protected readonly proxyDraft = signal('');
+
+  /**
+   * One row per known login, its fantasquadre worded «Lega (Squadra)» where a reading of that league names his
+   * team. The team names come from the local cache, which is not a signal: reading the matchday makes the rows
+   * look again after each pass, which is when a name can appear.
+   */
+  protected readonly accounts = computed(() => {
+    this.session.matchday.value();
+    return this.session.accountList().map((account) => ({
+      ...account,
+      teams: account.leagues.map((league) => {
+        const team = this.session.teamName({ ...league, userId: account.userId });
+        return team ? `${league.name} (${team})` : league.name;
+      }),
+    }));
+  });
+
+  protected countOf(platform: LeghePlatform): number {
+    return this.session.accountList().filter((account) => account.platform === platform).length;
+  }
 
   constructor() {
     // A constant address of the platform's own login page, which is exactly what an iframe is for.
@@ -82,6 +107,8 @@ export class LegheConnect {
     this.problem.set(null);
     try {
       await this.session.loginDirect('euro', username, password);
+      // The form now ADDS the next account: an empty field, not the last one's name.
+      this.username.set('');
     } catch (err) {
       this.problem.set({
         platform: 'euro',

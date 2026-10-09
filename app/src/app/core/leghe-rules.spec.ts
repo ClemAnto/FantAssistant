@@ -76,8 +76,16 @@ describe('rulesSummary and moduleLabel', () => {
       rulesSummary(parseRules(CLASSIC_LINEUP, CLASSIC_CALC, { sroles: 1 })).map((l) => [l.label, l.value]),
     );
     expect(lines['Sostituzioni']).toBe('Dynamic (prima il cambio modulo) · al massimo 5');
-    expect(lines['Mod. difesa']).toBe('da 6 a 7.25, fino a +3 (col portiere)');
+    expect(lines['Mod. difesa']).toBe('da 6 a 7.25, fino a +3 (col portiere), solo con almeno 4 difensori');
     expect(lines['Moduli']).toContain('3-4-3');
+  });
+
+  it('words a classic fixed bench: a zero quota is «any number», a sequence is printed as roles', () => {
+    const bench = (lineup: object) =>
+      Object.fromEntries(rulesSummary(parseRules(lineup, {}, { sroles: 1 })).map((l) => [l.label, l.value]))['Panchina'];
+    expect(bench({ fbench: true, tbench: 7, brdrs: [1, 2, 0, 0] })).toBe('7 posti fissi (per ruolo P/D/C/A: 1/2/–/–)');
+    expect(bench({ fbench: false, tbench: 7, brdrs: [1, 2, 0, 0] })).toBe('7 posti al massimo (per ruolo P/D/C/A: 1/2/0/0 minimi)');
+    expect(bench({ fbench: true, tbench: 7, bseq: [1, 2, 2, 3, 3, 4, 4] })).toBe('7 posti fissi, in sequenza P D D C C A A');
   });
 
   it('spells a module one digit per line', () => {

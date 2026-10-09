@@ -26,8 +26,9 @@ import {
   fieldWeight,
   rulebookName,
   voteChance,
+  withLeagueModules,
 } from '../../core/lineup-advice';
-import { bestEleven } from '../../core/mantra-legal';
+import { bestEleven, placesIn } from '../../core/mantra-legal';
 import { ExpectedPlay } from '../../core/expected-play';
 import {
   CardKey,
@@ -203,8 +204,7 @@ export class Lineup {
    * cannot disagree about which module is best.
    */
   private readonly moduleTotals = computed(() => {
-    const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
-    const scores = bestEleven(this.men(), book, fieldWeight)?.scores ?? [];
+    const scores = bestEleven(this.men(), this.book(), fieldWeight)?.scores ?? [];
     return new Map(scores.map((one) => [one.module, one]));
   });
 
@@ -217,17 +217,30 @@ export class Lineup {
     return best?.module ?? null;
   });
 
-  /** Every module of the rulebook, best FVA total first, marked when the league does not allow it. */
+  /**
+   * Every module of the rulebook, best FVA total first, marked when the league does not allow it - and, on a
+   * CLASSIC league with the defence modifier, when it fields fewer than four defenders: Leghe pays that modifier
+   * only when at least four defenders played (and the keeper, where the league counts him:
+   * `ModificatoriHelper.ModificatoreDifesa`, read 09/10/2026), so a 3-4-3 gives it up whatever its FVA. A rule of
+   * the league, stated; the totals still do not count the modifier itself.
+   */
   protected readonly moduleOptions = computed(() => {
-    const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
-    const allowed = new Set((this.md()?.rules.modules ?? []).map(rulebookName));
+    const book = this.book();
+    const rules = this.md()?.rules;
+    const allowed = new Set((rules?.modules ?? []).map(rulebookName));
+    const defence = rules?.game === 'classic' && !!rules.defence;
     const totals = this.moduleTotals();
     const best = this.bestModule();
     return Object.keys(book?.modules ?? {})
       .map((name) => {
         const score = totals.get(name);
         const total = score ? score.total.toFixed(1) + (score.placed < 11 ? ` (${score.placed}/11)` : '') : '–';
-        const tags = [name === best ? '★ migliore' : '', allowed.size && !allowed.has(name) ? 'non ammesso' : '']
+        const fewDefenders = defence && !!book && placesIn(book, name).filter((p) => p.line === 'D').length < 4;
+        const tags = [
+          name === best ? '★ migliore' : '',
+          allowed.size && !allowed.has(name) ? 'non ammesso' : '',
+          fewDefenders ? 'senza mod. difesa' : '',
+        ]
           .filter(Boolean)
           .join(' · ');
         return { name, best: name === best, sort: score ? score.placed * 1000 + score.total : -1, label: `${name} · FVA ${total}${tags ? ' · ' + tags : ''}` };
@@ -356,15 +369,44 @@ export class Lineup {
     loader: ({ params }) => (params === 'mantra' ? this.bundle.modules() : this.bundle.classicModules()),
   });
 
+  /**
+   * The rulebook the page reads everywhere (menu, pitch, lineup sent): the file, plus on CLASSIC every module the
+   * league allows - and the one it was sent in - that the file does not write, built from its three numbers
+   * (`lineup-advice.withLeagueModules`). One computed, so the menu, the advice and the sent lineup cannot read
+   * two different lists of modules.
+   */
+  private readonly book = computed(() => {
+    const raw = this.rulebook.hasValue() ? this.rulebook.value() : null;
+    const md = this.md();
+    if (!raw?.modules || !md) return raw;
+    const sent = this.current()?.saved?.module;
+    return withLeagueModules(raw, sent ? [...md.rules.modules, sent] : md.rules.modules, md.rules.game);
+  });
+
   /** The league chosen in the selector, as its key (the select works on strings). */
   protected readonly leagueKey = computed(() => {
     const league = this.session.league();
     return league ? keyOf(league) : null;
   });
 
-  protected readonly leagueOptions = computed(() =>
-    this.session.leagues().map((l) => ({ key: keyOf(l), label: `${LEGHE[l.platform].label} · ${l.name}` })),
-  );
+  /**
+   * ONE ENTRY PER FANTASQUADRA, of every account (operator, 09/10/2026: «aggiungere più fantasquadre ognuna con il
+   * suo account o dello stesso account»): «Leghe · Lega · Squadra», the team's name from the stored reading of
+   * that league (`LegheSession.teamName`, no request), and the user where two entries would still read the same -
+   * one league reached by two accounts before either was read.
+   */
+  protected readonly leagueOptions = computed(() => {
+    this.session.matchday.value(); // a pass is when a team's name can first be stored
+    const options = this.session.leagues().map((l) => {
+      const team = this.session.teamName(l);
+      return { key: keyOf(l), user: l.userId ?? 0, label: `${LEGHE[l.platform].label} · ${l.name}${team ? ` · ${team}` : ''}` };
+    });
+    return options.map((one) =>
+      options.some((other) => other !== one && other.label === one.label)
+        ? { key: one.key, label: `${one.label} · utente ${one.user}` }
+        : { key: one.key, label: one.label },
+    );
+  });
 
   /**
    * When Leghe was read: «alle 14:32» today, the day too otherwise - a cached reading of yesterday drawn as
@@ -584,18 +626,40 @@ export class Lineup {
 
   protected readonly advised = computed<LineupPlan | null>(() => {
     const md = this.md();
-    const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
+    const book = this.book();
     if (!md || !book) return null;
     const chosen = this.module();
     const modules = chosen ? [chosen] : md.rules.modules;
-    return adviseLineup(this.men(), book, modules, md.rules.bench, md.rules.game);
+    // The SUBSTITUTIONS are the league's whatever module is drawn: a module change lands on the league's list.
+    return adviseLineup(this.men(), book, modules, md.rules.bench, md.rules.game, {
+      kind: md.rules.substitutions.kind,
+      modules: md.rules.modules,
+    });
   });
 
   protected readonly sent = computed<LineupPlan | null>(() => {
     const saved = this.current()?.saved;
-    const book = this.rulebook.hasValue() ? this.rulebook.value() : null;
+    const book = this.book();
     if (!saved?.savedAt || !book) return null;
     return drawSent(this.men(), book, saved);
+  });
+
+  /**
+   * HOW THE BENCH ENTERS, in one line under the pitch: the advised bench's order is the league's substitution
+   * rule (`lineup-advice.benchOf`), and a classic queue that mixes roles would otherwise read as a mistake.
+   */
+  protected readonly benchNote = computed(() => {
+    const rules = this.md()?.rules;
+    if (rules?.game !== 'classic') return '';
+    switch (rules.substitutions.kind) {
+      case 'traditional':
+        return 'Sostituzioni Traditional: entra il primo dello stesso ruolo, quindi la panchina è ordinata per ruolo.';
+      case 'dynamic':
+      case 'hybrid':
+        return `Sostituzioni ${rules.substitutions.kind === 'dynamic' ? 'Dynamic' : 'Hybrid'}: entra il primo della panchina che gioca, anche cambiando modulo, quindi la panchina è una coda unica per FVA.`;
+      default:
+        return 'Sostituzioni non lette: la panchina è una coda unica per FVA.';
+    }
   });
 
   /** The pitch on screen: what was asked for, and nothing in its place when it does not exist. */

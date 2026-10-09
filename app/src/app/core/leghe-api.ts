@@ -73,6 +73,11 @@ export interface LegheLeague {
   jwt: string;
   /** Read from the login where it says so (direct login); null where it does not (embed). */
   game: 'classic' | 'mantra' | null;
+  /**
+   * The account (user) the league was reached with, stamped by the session (`LegheSession.leagues`) and not by
+   * the wire: one league reached by two accounts is two fantasquadre. Absent on a league straight off a login.
+   */
+  userId?: number;
 }
 
 export interface LegheAccount {

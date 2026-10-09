@@ -359,7 +359,8 @@
             @if (pitchSource() === 'advised') {
               <p class="text-[10px] text-muted">
                 Titolari scelti sulla somma degli FVA fra i moduli della lega, esclusi i calciatori sotto il 15%.
-                In panchina prima un sostituto che gioca per ogni titolare, poi l'FVA. Non conta i modificatori.
+                In panchina prima un sostituto che gioca per ogni titolare, poi l'FVA.
+                <span data-lineup-bench-note>{{ benchNote() }}</span> Non conta i modificatori.
               </p>
             }
           } @else if (pitchSource() === 'sent') {

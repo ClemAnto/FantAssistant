@@ -171,14 +171,18 @@ export function rulesSummary(rules: LineupRules): { label: string; value: string
   // Mantra reads the bench as «at least this many keepers» whatever the flags say (the Leghe front-end
   // ignores the per-role counts there); classic reads them as exact on a fixed bench, minimums otherwise.
   const keepers = bench.perRole[0] ?? 0;
+  // Classic, fixed bench: a zero is «any number» (Leghe: «se fixbench è true 0 vuol dire ruolo variabile»), so it
+  // is printed as a dash; a fixed role per place (`bseq`, ids 1-4) is printed as that sequence.
   const perRole =
     rules.game === 'mantra'
       ? keepers > 0
         ? `, almeno ${keepers} ${keepers === 1 ? 'portiere' : 'portieri'}`
         : ''
-      : bench.perRole.some((n) => n > 0)
-        ? ` (per ruolo P/D/C/A: ${bench.perRole.join('/')}${bench.fixed ? '' : ' minimi'})`
-        : '';
+      : bench.sequence?.length
+        ? `, in sequenza ${bench.sequence.map((id) => 'PDCA'[id - 1] ?? '?').join(' ')}`
+        : bench.perRole.some((n) => n > 0)
+          ? ` (per ruolo P/D/C/A: ${bench.perRole.map((n) => (bench.fixed && n === 0 ? '–' : n)).join('/')}${bench.fixed ? '' : ' minimi'})`
+          : '';
   out.push({
     label: 'Panchina',
     value:
@@ -209,9 +213,13 @@ export function rulesSummary(rules: LineupRules): { label: string; value: string
   });
   if (rules.defence) {
     const d = rules.defence;
+    // Classic pays it only when at least four defenders played (Leghe's `ModificatoriHelper.ModificatoreDifesa`):
+    // said here because it is what makes a three-man defence give it up.
     out.push({
       label: rules.game === 'mantra' ? 'D-Factor' : 'Mod. difesa',
-      value: `da ${d.from} a ${d.to}, fino a +${Math.max(...d.values)}${d.withKeeper ? ' (col portiere)' : ''}`,
+      value:
+        `da ${d.from} a ${d.to}, fino a +${Math.max(...d.values)}${d.withKeeper ? ' (col portiere)' : ''}` +
+        (rules.game === 'classic' ? ', solo con almeno 4 difensori' : ''),
     });
   }
   if (rules.performance) {

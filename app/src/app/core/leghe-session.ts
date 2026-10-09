@@ -64,15 +64,31 @@ const SESSION_KEY = 'leghe.accounts';
  */
 const KNOWN_KEY = 'fantassistant.leghe-known';
 
-type KnownAccount = Omit<LegheAccount, 'leagues'> & { leagues: Omit<LegheLeague, 'jwt'>[] };
+export type KnownAccount = Omit<LegheAccount, 'leagues'> & { leagues: Omit<LegheLeague, 'jwt'>[] };
 
-function readKnown(): Partial<Record<LeghePlatform, KnownAccount>> {
+/**
+ * MORE THAN ONE ACCOUNT PER PLATFORM (operator, 09/10/2026: «piuttosto che loggarti su un'unico account, dammi la
+ * possibilità di aggiungere più fantasquadre ognuna con il suo account o dello stesso account»). An account is ONE
+ * LOGIN, named by its platform and its user (`accountKey`); the store keeps a LIST of them. Until that day it kept
+ * one per platform (`{classic, euro}`), so a second Leghe login replaced the first - and a list stored in that old
+ * shape is read as the list of its values, so nobody has to log in again because the format changed.
+ */
+export function accountKey(account: Pick<LegheAccount, 'platform' | 'userId'>): string {
+  return `${account.platform}:${account.userId}`;
+}
+
+/** A stored list, or the old one-per-platform record read as its values; anything else is nothing. */
+function asList<T extends { platform: unknown; userId: unknown }>(parsed: unknown): T[] {
+  const list = Array.isArray(parsed) ? parsed : parsed && typeof parsed === 'object' ? Object.values(parsed) : [];
+  return list.filter((one): one is T => !!one && typeof one === 'object' && 'platform' in one && 'userId' in one);
+}
+
+function readList<T extends { platform: unknown; userId: unknown }>(store: Storage, key: string): T[] {
   try {
-    const raw = localStorage.getItem(KNOWN_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Partial<Record<LeghePlatform, KnownAccount>>) : {};
-    return parsed && typeof parsed === 'object' ? parsed : {};
+    const raw = store.getItem(key);
+    return raw ? asList<T>(JSON.parse(raw)) : [];
   } catch {
-    return {};
+    return [];
   }
 }
 
@@ -83,14 +99,12 @@ function withoutToken(account: LegheAccount): KnownAccount {
   };
 }
 
-function readAccounts(): Partial<Record<LeghePlatform, LegheAccount>> {
-  try {
-    const raw = sessionStorage.getItem(SESSION_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Partial<Record<LeghePlatform, LegheAccount>>) : {};
-    return parsed && typeof parsed === 'object' ? parsed : {};
-  } catch {
-    return {};
-  }
+/** The list with `account` in it: in the place of the same login if there was one, at the end otherwise. */
+function upsert<T extends Pick<LegheAccount, 'platform' | 'userId'>>(list: readonly T[], account: T): T[] {
+  const key = accountKey(account);
+  return list.some((one) => accountKey(one) === key)
+    ? list.map((one) => (accountKey(one) === key ? account : one))
+    : [...list, account];
 }
 
 /** One competition of the league on this matchday. */
@@ -144,39 +158,65 @@ export class LegheSession {
     return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? DEV_PROXY : null;
   });
 
-  readonly accounts = signal<Partial<Record<LeghePlatform, LegheAccount>>>(readAccounts());
+  /** The logins of THIS TAB, with their tokens: as many as he made, on either platform. */
+  readonly accounts = signal<LegheAccount[]>(readList<LegheAccount>(sessionStorage, SESSION_KEY));
 
   /**
    * The accounts of past logins without their tokens (`KNOWN_KEY`): what a new tab shows before any login. A tab
    * that opens with tokens already in `sessionStorage` (a reload, or a login made before this memory existed)
    * counts as a login: its accounts are remembered from the start, not only at the next `adopt`.
    */
-  private readonly known = signal<Partial<Record<LeghePlatform, KnownAccount>>>({
-    ...readKnown(),
-    ...Object.fromEntries(
-      Object.entries(untracked(this.accounts)).map(([platform, account]) => [platform, withoutToken(account)]),
+  private readonly known = signal<KnownAccount[]>(
+    untracked(this.accounts).reduce<KnownAccount[]>(
+      (list, account) => upsert(list, withoutToken(account)),
+      readList<KnownAccount>(localStorage, KNOWN_KEY),
     ),
+  );
+
+  /**
+   * Every account this browser knows, Leghe first and then in the order they were added, each saying whether
+   * THIS TAB holds its token (`logged`) - what the Account modal lists, one row per login.
+   */
+  readonly accountList = computed(() => {
+    const logged = new Set(this.accounts().map(accountKey));
+    return LEGHE_PLATFORMS.flatMap((platform) =>
+      this.known()
+        .filter((account) => account.platform === platform)
+        .map((account) => ({ ...account, key: accountKey(account), logged: logged.has(accountKey(account)) })),
+    );
   });
 
   /**
-   * Every league of every platform, Leghe first: with its token where this tab logged in, and with an EMPTY
-   * token where only a past login knows it - which `readMatchday` reads as «show what is stored, ask nothing».
+   * Every league of every account - one FANTASQUADRA each, since an account fields one team per league - Leghe
+   * first: with its token where this tab logged in, and with an EMPTY token where only a past login knows it,
+   * which `readMatchday` reads as «show what is stored, ask nothing». Each carries the user it belongs to, so the
+   * same league reached by two accounts is two entries (two different «my team»).
    */
-  readonly leagues = computed<LegheLeague[]>(() =>
-    LEGHE_PLATFORMS.flatMap(
-      (p) => this.accounts()[p]?.leagues ?? (this.known()[p]?.leagues ?? []).map((league) => ({ ...league, jwt: '' })),
-    ),
-  );
+  readonly leagues = computed<LegheLeague[]>(() => {
+    const tokens = new Map(this.accounts().map((account) => [accountKey(account), account]));
+    return this.accountList().flatMap((account) => {
+      const logged = tokens.get(account.key);
+      return logged
+        ? logged.leagues.map((league) => ({ ...league, userId: account.userId }))
+        : account.leagues.map((league) => ({ ...league, jwt: '', userId: account.userId }));
+    });
+  });
 
   /** The league on screen is drawn from STORED readings: no login in this tab, so nothing can be re-read. */
   readonly offline = computed(() => this.league()?.jwt === '');
 
-  /** The league the page looks at, remembered WITHOUT its token: `classic:4392237`. */
+  /**
+   * The league the page looks at, remembered WITHOUT its token: `classic:101:4392237` (platform, user, league). A
+   * key written before there could be two accounts (`classic:4392237`) still finds its league.
+   */
   readonly chosenKey = storedText('leghe-league', '');
 
   readonly league = computed<LegheLeague | null>(() => {
     const all = this.leagues();
-    return all.find((l) => keyOf(l) === this.chosenKey()) ?? all[0] ?? null;
+    const chosen = this.chosenKey();
+    return (
+      all.find((l) => keyOf(l) === chosen) ?? all.find((l) => `${l.platform}:${l.id}` === chosen) ?? all[0] ?? null
+    );
   });
 
   /** Every reading of Leghe passes through here first (`leghe-cache.ts`, the operator's rule of 09/10/2026). */
@@ -235,8 +275,9 @@ export class LegheSession {
     });
   }
 
+  /** At least one login of this tab on the platform. */
   connected(platform: LeghePlatform): boolean {
-    return !!this.accounts()[platform];
+    return this.accounts().some((account) => account.platform === platform);
   }
 
   /** The embedded login's success message. False = it was not the shape Leghe documents. */
@@ -252,23 +293,29 @@ export class LegheSession {
     this.adopt(await directLogin(this.base(), platform, username, password));
   }
 
-  /** «Esci», his own gesture: the token AND the memory of the account go, so nothing is shown in its name. */
-  logout(platform: LeghePlatform): void {
-    this.dropToken(platform);
-    this.known.update((all) => {
-      const next = { ...all };
-      delete next[platform];
-      return next;
-    });
+  /**
+   * «Esci», his own gesture, for ONE login: its token AND the memory of the account go, so nothing is shown in its
+   * name. The other accounts stay as they are.
+   */
+  logout(account: Pick<LegheAccount, 'platform' | 'userId'>): void {
+    const key = accountKey(account);
+    this.dropToken(account);
+    this.known.update((all) => all.filter((one) => accountKey(one) !== key));
   }
 
   /** The token only (an expired session): the stored readings stay on screen with their date. */
-  private dropToken(platform: LeghePlatform): void {
-    this.accounts.update((all) => {
-      const next = { ...all };
-      delete next[platform];
-      return next;
-    });
+  private dropToken(account: Pick<LegheAccount, 'platform' | 'userId'>): void {
+    const key = accountKey(account);
+    this.accounts.update((all) => all.filter((one) => accountKey(one) !== key));
+  }
+
+  /**
+   * The name of HIS TEAM in a league, from the stored reading of `teams/my` - asking nothing. What tells two
+   * fantasquadre of one league (two accounts) apart in the selector; null until that league was read once.
+   */
+  teamName(league: Pick<LegheLeague, 'platform' | 'id' | 'userId'>): string | null {
+    const stored = this.cache.stored<unknown>(`${league.platform}:${league.userId ?? 0}:${league.id}:/onboarding/v1/league/teams/my`);
+    return (stored && parseTeam(stored.body)?.name) || null;
   }
 
   choose(league: LegheLeague): void {
@@ -287,13 +334,14 @@ export class LegheSession {
     if (untracked(this.league)) this.refresh();
   }
 
+  /** A login: a NEW account joins the list, the same login made again replaces its own entry and nothing else. */
   private adopt(account: LegheAccount): void {
     // PIN THE LEAGUE ON SCREEN before the list grows: with nothing remembered the selector shows the
     // FIRST league, and a second login (Leghe after EuroLeghe) would swap the page under his eyes.
     const shown = this.league();
     if (shown && !this.chosenKey()) this.chosenKey.set(keyOf(shown));
-    this.accounts.update((all) => ({ ...all, [account.platform]: account }));
-    this.known.update((all) => ({ ...all, [account.platform]: withoutToken(account) }));
+    this.accounts.update((all) => upsert(all, account));
+    this.known.update((all) => upsert(all, withoutToken(account)));
   }
 
   /**
@@ -304,8 +352,7 @@ export class LegheSession {
   private async readMatchday(league: LegheLeague, force: boolean): Promise<LeagueMatchday> {
     const base = this.base();
     // The key carries the USER, never the token: two accounts in one league see two different «my team».
-    const user =
-      untracked(this.accounts)[league.platform]?.userId ?? untracked(this.known)[league.platform]?.userId ?? 0;
+    const user = league.userId ?? 0;
     // NO TOKEN IN THIS TAB: every fact is the stored reading, whatever its age, and nothing is asked - the page
     // says when they were taken. A fact never stored means this league was never read here, and that is said too.
     const offline = !league.jwt;
@@ -396,7 +443,9 @@ export class LegheSession {
     } catch (err) {
       // An expired token is not a broken page: drop it - and only it - so the page goes back to the stored
       // readings with their date and «rileggi» asks for the login again.
-      if (err instanceof LegheError && err.kind === 'expired') this.dropToken(league.platform);
+      if (err instanceof LegheError && err.kind === 'expired') {
+        this.dropToken({ platform: league.platform, userId: user });
+      }
       throw err;
     } finally {
       this.cacheSize.set(this.cache.size());
@@ -404,6 +453,7 @@ export class LegheSession {
   }
 }
 
-export function keyOf(league: Pick<LegheLeague, 'platform' | 'id'>): string {
-  return `${league.platform}:${league.id}`;
+/** A fantasquadra: the league AND the account that plays it (`classic:101:2001`). */
+export function keyOf(league: Pick<LegheLeague, 'platform' | 'id' | 'userId'>): string {
+  return `${league.platform}:${league.userId ?? 0}:${league.id}`;
 }
