@@ -34,6 +34,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import sqlite3
+import unicodedata
 
 from euroleghe_ingest import matching
 from euroleghe_ingest.context import Context
@@ -46,6 +48,15 @@ RAW_INPUTS: list[str] = []
 NETWORK = True
 
 EVENTS_ENDPOINT = positions.BASE_URL + "/team/{tid}/events/next/{page}"
+
+# THE LEAGUE TABLES (operator, 09/10/2026). Sofascore answers 403 on its tournament endpoints (measured that
+# day on `/unique-tournament/.../seasons/`), so the table comes from ESPN's public JSON: free, no key, one
+# request per championship, verified on the five before writing a line.
+STANDINGS_ENDPOINT = "https://site.api.espn.com/apis/v2/sports/soccer/{slug}/standings"
+ESPN_SLUGS = {"serie_a": "ita.1", "premier_league": "eng.1", "la_liga": "esp.1",
+              "bundesliga": "ger.1", "ligue_1": "fra.1"}
+# The one ESPN spelling no word of which our key carries (`FC Cologne` against `koln`): declared, not guessed.
+ESPN_SPELLINGS = {"cologne": "koln"}
 
 # «Facile» as the operator froze it (assistente-asta-v1.md §23.4): I am much stronger, with the home
 # bonus. Both constants are DECLARED here and neither is fitted - the second is measured and the first
@@ -524,6 +535,127 @@ def store(conn, rows: list[dict]) -> int:
     return len(rows)
 
 
+def _words(text: str) -> list[str]:
+    plain = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
+    words = [w for w in "".join(c if c.isalnum() else " " for c in plain).split() if len(w) >= 4]
+    return [ESPN_SPELLINGS.get(w, w) for w in words]
+
+
+def parse_standings(payload: dict, keys: set[str]) -> list[dict]:
+    """ESPN's table -> rows on OUR club keys (`keys` = the league's keys in `fixtures`). Pure.
+
+    The join is the one this project keeps paying for, so it is done once, here, in two steps. First the
+    project's own resolver (`club_identity`), which places most clubs. Then, for what is left on the two
+    sides, a word of four letters or more that one name starts and the other carries (`Mönchengladbach` and
+    `m gladbach`, `Lyon` and `lyonnais`, `Hamburg SV` and `hamburger`), and only where it names ONE key: a
+    name that fits two keys or none is left out, and that club has no position - «vuoto = ignoto».
+    """
+    children = (payload or {}).get("children") or [{}]
+    entries = ((children[0].get("standings") or {}).get("entries")) or []
+    rows: list[dict] = []
+    left: list[tuple[dict, set[str]]] = []
+    for entry in entries:
+        team = entry.get("team") or {}
+        name = team.get("displayName") or ""
+        stats = {one.get("name"): one.get("value") for one in entry.get("stats") or []}
+        if not name or stats.get("rank") is None:
+            continue
+        row = {"source_name": name, "position": int(stats["rank"]),
+               "points": None if stats.get("points") is None else int(stats["points"]),
+               "played": None if stats.get("gamesPlayed") is None else int(stats["gamesPlayed"])}
+        key = matching.club_identity(name)
+        if key in keys and key not in {one["club_key"] for one in rows}:
+            rows.append({**row, "club_key": key})
+        else:
+            left.append((row, {w for field in ("displayName", "shortDisplayName", "location")
+                               for w in _words(team.get(field) or "")}))
+    # A KEY GOES TO THE NAME THAT SHARES THE MOST WORDS WITH IT, and only if no other leftover name shares as
+    # many - so «Paris FC» (one word of «paris saint germain») cannot take Paris Saint-Germain's key by being
+    # listed first, and a name that fits two keys equally takes neither.
+    free = keys - {row["club_key"] for row in rows}
+
+    def score(words: set[str], key: str) -> int:
+        return sum(1 for k in _words(key) if any(k.startswith(w) or w.startswith(k) for w in words))
+
+    # Round after round, because a key taken settles a tie: once «Alavés» has `deportivo alaves`, the bare
+    # «Deportivo» has one key left. A claim counts against another only if it is that name's own best.
+    pending = list(left)
+    while pending:
+        claims: dict[str, list[tuple[dict, int]]] = {}
+        for row, words in pending:
+            scores = {key: score(words, key) for key in free}
+            best = max(scores.values(), default=0)
+            mine = [key for key, value in scores.items() if value == best and best > 0]
+            if len(mine) == 1:
+                claims.setdefault(mine[0], []).append((row, best))
+        taken: list[str] = []
+        placed: set[int] = set()
+        for key, rivals in claims.items():
+            top = max(value for _, value in rivals)
+            winners = [row for row, value in rivals if value == top]
+            if len(winners) == 1:
+                rows.append({**winners[0], "club_key": key})
+                taken.append(key)
+                placed.add(id(winners[0]))
+        if not taken:
+            break
+        free -= set(taken)
+        pending = [(row, words) for row, words in pending if id(row) not in placed]
+    return rows
+
+
+def fetch_standings(ctx: Context, season: str, leagues=None, session=None, *, offline: bool = False) -> int:
+    """One request per championship, every run: a table changes every round. The file in the cache is the
+    raw read, written beside the others; a source that does not answer leaves the old table in place."""
+    conn = ctx.require_conn()
+    observed_on = dt.datetime.now(tz=dt.UTC).date().isoformat()
+    session = None if offline else (session or positions._client())
+    written = 0
+    for league, slug in ESPN_SLUGS.items():
+        if leagues and league not in leagues:
+            continue
+        cache = ctx.config.cache_dir / f"espn_standings_{league}.json"
+        payload = None if offline else positions._get_json(session, STANDINGS_ENDPOINT.format(slug=slug))
+        if payload:
+            positions._atomic_write_text(cache, json.dumps(payload, ensure_ascii=False))
+        elif cache.exists():
+            # The last read on disk: what `rebuild` replays, and what stands when the source is silent.
+            payload = json.loads(cache.read_text(encoding="utf-8"))
+        if not payload:
+            print(f"[fixtures] standings {league}: no answer and nothing cached - the old table stays")
+            continue
+        keys = {key for pair in conn.execute(
+            "SELECT home_key, away_key FROM fixtures WHERE season = ? AND league = ?", (season, league))
+            for key in pair}
+        rows = parse_standings(payload, keys)
+        if not rows:
+            # A join that placed nobody is a defect of the KEYS (no calendar for that season), never a fact
+            # about the table: the stored one is not replaced by an empty one.
+            print(f"[fixtures] standings {league}: 0 clubs placed on {len(keys)} keys - the old table stays")
+            continue
+        total = len(((payload.get("children") or [{}])[0].get("standings") or {}).get("entries") or [])
+        conn.execute("DELETE FROM league_standings WHERE season = ? AND league = ?", (season, league))
+        conn.executemany(
+            "INSERT INTO league_standings(season, league, club_key, source_name, position, points, played, "
+            "source, observed_on) VALUES (?, ?, ?, ?, ?, ?, ?, 'espn', ?)",
+            [(season, league, r["club_key"], r["source_name"], r["position"], r["points"], r["played"],
+              observed_on) for r in rows])
+        conn.commit()
+        written += len(rows)
+        print(f"[fixtures] standings {league}: {len(rows)} of {total} clubs placed")
+    return written
+
+
+def standings_of(conn, season: str, league: str) -> list[list]:
+    """[club_key, position, points, played] in table order; empty on a DB that predates the table."""
+    try:
+        return [list(row) for row in conn.execute(
+            "SELECT club_key, position, points, played FROM league_standings "
+            "WHERE season = ? AND league = ? ORDER BY position, club_key", (season, league))]
+    except sqlite3.Error:
+        return []
+
+
 def schedule(conn, season: str, leagues: tuple[str, ...] | list[str]) -> dict:
     """THE CALENDAR STILL TO BE PLAYED, per championship, priced by the edge - for the app to read.
 
@@ -630,6 +762,12 @@ def schedule(conn, season: str, leagues: tuple[str, ...] | list[str]) -> dict:
                 key=lambda club: club["key"]),
             "columns": ["round", "date", "home", "away", "edge_home", "cs_home", "cs_away"],
             "matches": matches,
+            # THE LEAGUE TABLE on the same keys (`league_standings`, ESPN): [key, position, points, played].
+            "standings": standings_of(conn, season, league),
+            # ...and the day it was READ: a table the source stopped refreshing must be able to say so.
+            "standings_observed_on": (conn.execute(
+                "SELECT MAX(observed_on) FROM league_standings WHERE season = ? AND league = ?",
+                (season, league)).fetchone() or [None])[0] if standings_of(conn, season, league) else None,
         }
     return {
         "season": season,
@@ -733,8 +871,13 @@ def run(ctx: Context, *, leagues: list[str] | None = None, refresh: bool = False
         print(f"[fixtures] {name}: {len(rows)} partite"
               f"{'' if payload is None else ''}")
 
+    # The season of the table: what this run read, or - when the provider answered nothing, which is the
+    # state Sofascore has been in since 16/08 - the newest season the calendar already holds.
+    season = max(seasons) if seasons else (
+        conn.execute("SELECT MAX(season) FROM fixtures").fetchone() or [None])[0]
+    placed = fetch_standings(ctx, season, leagues, session) if season else 0
     total = conn.execute("SELECT COUNT(*) FROM fixtures").fetchone()[0]
     print(f"[fixtures] {written} righe scritte da {len(clubs)} club ({fetched} scaricati), "
           f"{total} in tabella · per stagione: "
           + ", ".join(f"{season} {count}" for season, count in sorted(seasons.items())))
-    return {"clubs": len(clubs), "written": written, "fetched": fetched, "rows": total}
+    return {"clubs": len(clubs), "written": written, "fetched": fetched, "rows": total, "standings": placed}

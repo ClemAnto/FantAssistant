@@ -99,6 +99,20 @@ describe('LeagueCalendar', () => {
     ]);
     expect(calendar.window('Inter', 2, 3).map((one) => one.round)).toEqual([2, 3]);
   });
+
+  it("misura la partita ordinaria di un club contro TUTTI gli altri, anche quelli senza nome canonico", () => {
+    const base = file([match(1, 'inter', 'lecce', 300)]);
+    base.leagues['serie_a'].clubs = [
+      { key: 'inter', name: 'Inter', fc_club_id: 1, elo: 1900 },
+      { key: 'lecce', name: 'Lecce', fc_club_id: 2, elo: 1600 },
+      { key: 'pisa', name: null, fc_club_id: null, elo: 1500 },
+      { key: 'ignoto', name: null, fc_club_id: null, elo: null },
+    ];
+    const calendar = leagueCalendarFrom(base, 'serie_a')!;
+    expect(calendar.ordinaryEdge('Inter')).toBeCloseTo(1900 - 1550, 6);
+    expect(calendar.ordinaryEdge('Lecce')).toBeCloseTo(1600 - 1700, 6);
+    expect(calendar.ordinaryEdge('Como')).toBeNull();
+  });
 });
 
 describe('pairCover', () => {

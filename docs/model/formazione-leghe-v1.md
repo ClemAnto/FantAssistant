@@ -230,7 +230,7 @@ nessun `SHEET_REVISION`).
   righe col lato nel nome (`DD … DS`) non si toccano. Il limite: `E`/`W` non dicono quale lato, quindi il
   primo va a sinistra dello schermo.
 
-**L'FVA (Fanta Voto Atteso) è PROPOSTO e NON implementato**, a sostituire PT. La forma concordata per i
+**L'FVA (Fanta Voto Atteso)** — *proposto il 09/10 e IMPLEMENTATO la notte stessa in `core/fva.ts`, al posto di PT; `a` e `b` misurati il 10/10, §4-quinquies* — a sostituire PT. La forma concordata per i
 giocatori di movimento, con le sue tre decisioni («la probabilità di prendere voto ci interessa poco»,
 «il minutaggio un contributo minimo, decisivo solo fra due situazioni simili», «le quote fotografano meglio
 la capacità di segnare in quella partita che non la fantamedia»):
@@ -250,6 +250,44 @@ la capacità di segnare in quella partita che non la fantamedia»):
 PT): `FVA = MV − λ` con `λ = −ln(p)` dalla quota porta inviolata, più `p × bonus` se la lega lo dà; senza
 quota, la fantamedia del foglio. Proposta, non decisa.
 
+## §4-quinquies. L'FVA legge la partita, e il trend resta fuori per misura (10/10/2026)
+
+Domanda dell'operatore: «verifica se trend e avversario hanno il giusto peso nella formula per FMA», poi
+«applica tutti e 4 e verifica sulle stagioni scorse». Il trend era fuori, l'avversario entrava solo dalle quote.
+
+**Trend: zero, misurato.** Fuori campione (leave-one-season-out, Serie A dal 2015-16 ed EuroLeghe), con la
+fantamedia della stagione in corso dentro, le ultime 5 pesano **0,03** (Serie A) e **0,07** (EuroLeghe); la
+mano calda contro il null rimescolato vale +0,014 (dentro il rumore) e +0,06. La forma informa sul LIVELLO
+di quest'anno, che la fantamedia del foglio legge già (R25/R28).
+
+**Avversario: quattro termini** (`core/fva.ts`), tutti su `delta` = edge della partita (Elo + campo −
+avversario, dal `calendar.json`) MENO l'edge ordinario del suo club (il suo Elo contro la media degli altri
+club del campionato, `LeagueCalendar.ordinaryEdge`): la fantamedia contiene già la forza del club, quindi
+conta solo lo scostamento di QUESTA partita.
+- voto base `a` = **+0,059** ogni 100 di delta; altri bonus `b` = **+0,018**; gol `×(1 + 0,127 × delta/100)`
+  **solo senza quota** (la quota conosce già avversario e campo); fittati su 63.222 voti di movimento, uguali
+  per ruolo (a 0,054-0,063) e quindi un valore solo;
+- portiere senza quota: la probabilità di porta inviolata del calendario prende il posto della quota,
+  `FVA = MV + ln(p)` (solo Serie A, dove è fittata), invece della FM piatta.
+- la partita del calendario vale solo se È quella di Leghe (stesso campo, stesso avversario dove Leghe lo
+  nomina); altrimenti nessun termine.
+
+**Verifica sulle stagioni passate** (senza quote storiche, quindi sul ramo «storico»; base = stagione
+precedente con ≥15 voti, leave-one-season-out, Elo del 15 agosto):
+
+| | MAE prima → dopo | stagioni migliori | ordine giusto nelle coppie stesso ruolo e giornata |
+|---|---|---|---|
+| movimento Serie A (35.635) | 1,0420 → 1,0370 (+0,48%) | 6/6 | 55,5% → 56,5% |
+| movimento EuroLeghe (27.587) | 1,2364 → 1,2285 (+0,64%) | 5/5 | 54,5% → 55,7% |
+| portieri Serie A, calendario (2.906) | 1,1896 → 1,1737 (+1,34%) | 5/6 | 54,0% → 58,3% |
+| portieri Serie A su EuroLeghe (708) | 1,1284 → 1,0857 (+3,78%) | 5/5 | 46,5% → 54,2% |
+
+Ognuno dei tre termini di movimento migliora anche da solo (voto base +0,31/+0,34%, gol +0,35/+0,40%, altri
++0,14/+0,13%). Limiti: la probabilità di porta inviolata del banco è il modello con il solo Elo e i suoi
+coefficienti sono fittati sulle stesse stagioni (contaminazione dichiarata, a favore); il ramo con le quote
+non è verificabile all'indietro; l'appaiamento del nome dell'avversario fra Leghe e calendario non è stato
+visto dal vivo. Nessun gate: è una lettura dell'app.
+
 ## §5. Aperti, in ordine
 
 0. **Quote (§4-ter): FATTO lato operatore** il 08-09/10/2026 - `odds.gs` incollato, `oddsProbe()` passa
@@ -263,11 +301,14 @@ quota, la fantamedia del foglio. Proposta, non decisa.
    `node scripts/gas/verify-odds.mjs <cartella con league.html e match*.html>`; verifica dal vivo:
    `node app/scripts/e2e-lineup-live.mjs <porta> [pacchetto-quote.json]` sotto `ng serve`.
 0-bis. **Push** dei commit `bde447f` e `b8ec932` (fatto solo il commit, su richiesta).
-0-ter. **FVA (§4-quater)**: aspetta il via dell'operatore. Proposta di consegna: colonna al posto di PT,
-   la consigliata che resta su PT finché l'FVA non è confrontata con PT sulle giornate già giocate; poi
-   misurare `a` e `b`; poi decidere se la consigliata passa all'FVA (P(voto) servirebbe ancora, ma solo per
-   scegliere chi schierare). Da decidere anche se l'automatico debba scegliere il modulo per FMA totale.
-   Le modifiche del 09/10 non sono state guardate in un browser (serve il collegamento a Leghe).
+0-ter. **FVA: FATTO** (`core/fva.ts`, colonna al posto di PT, la consigliata sceglie su P(voto) × FVA) e con
+   la partita dentro (§4-quinquies, 10/10). Restano: (a) **guardarla in un browser collegato a Leghe**, e
+   in particolare CONTARE quanti uomini ricevono il termine partita - l'appaiamento del nome dell'avversario
+   fra Leghe e calendario (`sameClub`) non è mai stato visto dal vivo, e se fallisce la correzione tace in
+   silenzio; (b) confrontare l'FVA con PT sulle giornate già giocate; (c) decidere se l'automatico sceglie il
+   modulo per FMA totale. Nel tooltip della partita c'è anche la POSIZIONE IN CLASSIFICA dei due club
+   (`core/standings.ts`, tabella ESPN `league_standings` scritta da `fixtures` dentro `calendar.json`),
+   mai vista dal vivo nemmeno lei.
 1. **Pubblicare l'intermediario**: account Cloudflare dell'operatore (gratuito; che non chieda la carta lo
    dicono fonti non ufficiali), `npx wrangler deploy` da `app/proxy/` (comando nel file), poi incollare
    l'indirizzo nella pagina («Account»). Poi ripubblicare il sito (`npm run deploy:pages`) e verificarlo

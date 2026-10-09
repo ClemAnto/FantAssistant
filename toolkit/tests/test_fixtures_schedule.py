@@ -258,3 +258,35 @@ def test_easy_matches_and_the_calendar_agree_on_which_match_is_easy(tmp_path):
     gap = fixtures.schedule(conn, "2026-27", CHAMPIONSHIPS)["leagues"]["serie_a"]["matches"][0][4]
     assert counted["easy"] == (1 if gap > fixtures.EASY_MARGIN else 0)
     assert counted["margin"] == pytest.approx(gap, abs=0.05)
+
+
+def _espn(*teams):
+    return {"children": [{"standings": {"entries": [
+        {"team": {"displayName": name, "shortDisplayName": short, "location": name},
+         "stats": [{"name": "rank", "value": rank}, {"name": "points", "value": 10 - rank},
+                   {"name": "gamesPlayed", "value": 4}]}
+        for rank, (name, short) in enumerate(teams, start=1)]}}]}
+
+
+def test_the_table_lands_on_our_keys_and_refuses_a_name_that_fits_two():
+    keys = {"borussia dortmund", "borussia m gladbach", "koln", "hamburger", "olympique lyonnais"}
+    rows = fixtures.parse_standings(_espn(
+        ("Borussia Dortmund", "Dortmund"), ("Borussia Mönchengladbach", "Gladbach"),
+        ("FC Cologne", "Cologne"), ("Hamburg SV", "Hamburg"), ("Lyon", "Lyon"), ("Borussia", "Borussia"),
+    ), keys)
+    placed = {row["source_name"]: row["club_key"] for row in rows}
+    assert placed["Borussia Mönchengladbach"] == "borussia m gladbach"
+    assert placed["FC Cologne"] == "koln"
+    assert placed["Hamburg SV"] == "hamburger"
+    assert placed["Lyon"] == "olympique lyonnais"
+    # «Borussia» fits two keys, and the two are already taken anyway: no position rather than a guess.
+    assert "Borussia" not in placed
+    assert {row["position"] for row in rows} == {1, 2, 3, 4, 5}
+
+
+def test_a_name_listed_first_does_not_take_a_key_another_fits_better():
+    rows = fixtures.parse_standings(_espn(
+        ("Paris FC", "Paris FC"), ("Paris Saint-Germain", "PSG"),
+    ), {"paris saint germain", "paris"})
+    placed = {row["source_name"]: row["club_key"] for row in rows}
+    assert placed["Paris Saint-Germain"] == "paris saint germain"

@@ -6,7 +6,10 @@
  * on the pitch) asked with a WEIGHT per man, and the weight is the one quantity this file owns: the points he
  * is expected to bring THIS matchday,
  *
- *     points = P(he gets a vote) x his expected fantavoto (the sheet's FMa).
+ *     points = P(he gets a vote) x his FVA (`fva.ts`; the sheet's FMa until 09/10/2026).
+ *
+ * The page SHOWS the FVA and chooses on `points`: the FVA is «what he scores if he plays», and choosing on it
+ * alone would field a man Leghe gives at 5% - so P(vote) stays, but only in WHO is fielded.
  *
  * P(vote) is read from the platform's probable-starter percentage with the curve measured in
  * `rosa-3-giornate-v1.md` §2 (932 out-of-sample observations, matchdays 1-2 of 2026-27). That curve is on
@@ -73,8 +76,13 @@ export interface LineupMan extends Placeable {
   chance: number;
   /** Expected fantavoto; null = nobody can price him, and then he is never fielded (unknown, not zero). */
   fm: number | null;
-  /** `chance x fm`, null with `fm`. */
+  /**
+   * The weight the eleven is chosen on: `chance x FVA` (`fva.ts`) since 09/10/2026, `chance x fm` before.
+   * Null = nobody can price him, and then he is never fielded.
+   */
   points: number | null;
+  /** The FVA shown beside the name: the expected fantavoto IF he plays. Absent = the caller did not price it. */
+  fva?: number | null;
 }
 
 export interface LineupPlace {

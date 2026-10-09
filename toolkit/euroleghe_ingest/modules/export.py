@@ -179,6 +179,9 @@ EXCLUDED: dict[str, str] = {
                 "`calendar.json`. The raw rows are keyed on `matching.club_identity`, a Python alias "
                 "table, so re-doing that join in a browser would repeat the join that once lost Milan, "
                 "Roma and Napoli from every club's schedule",
+    "league_standings": "it DOES travel, DERIVED like `fixtures`: `fixtures.schedule` writes each league's "
+                        "table into `calendar.json` on the calendar's own club keys, so the app joins one "
+                        "file on keys resolved once in Python",
     "club_levels": "club strength by year, and `club_levels_xref` is its identity bridge. Keyed the same "
                    "way, for the same reason; what the app needs of it is already on the sheet's own "
                    "`desc_level_elo` and in the club card",

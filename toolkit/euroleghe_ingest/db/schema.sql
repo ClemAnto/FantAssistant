@@ -484,6 +484,24 @@ CREATE INDEX IF NOT EXISTS idx_fixtures_season_league ON fixtures(season, league
 CREATE INDEX IF NOT EXISTS idx_fixtures_home ON fixtures(home_key, season);
 CREATE INDEX IF NOT EXISTS idx_fixtures_away ON fixtures(away_key, season);
 
+-- THE LEAGUE TABLE of each championship, as ESPN publishes it (operator, 09/10/2026: the position of both
+-- clubs in the match tooltip of the Formazione page, on EuroLeghe too). A dated read, one row per club:
+-- the table changes every round and a reading whose date is not stored cannot be told from a stale one.
+-- `club_key` is the SAME key `fixtures` uses (`fixtures.parse_standings` resolves it), so the app joins the
+-- calendar's clubs and the table on one string resolved once. Reporting only: no rule reads it.
+CREATE TABLE IF NOT EXISTS league_standings (
+    season       TEXT NOT NULL,
+    league       TEXT NOT NULL,
+    club_key     TEXT NOT NULL,
+    source_name  TEXT NOT NULL,              -- the provider's own spelling, kept for audit
+    position     INTEGER NOT NULL,
+    points       INTEGER,
+    played       INTEGER,
+    source       TEXT NOT NULL,              -- espn
+    observed_on  TEXT NOT NULL,
+    PRIMARY KEY (season, league, club_key)
+);
+
 CREATE TABLE IF NOT EXISTS positions (
     fc_id     INTEGER NOT NULL REFERENCES players(fc_id),
     season    TEXT NOT NULL,

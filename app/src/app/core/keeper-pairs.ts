@@ -67,6 +67,8 @@ export interface CalendarFile {
       clubs: { key: string; name: string | null; fc_club_id: number | null; elo: number | null }[];
       columns: string[];
       matches: CalendarRow[];
+      /** The league table on the same keys: [key, position, points, played]. Older bundles have none. */
+      standings?: [string, number, number | null, number | null][];
     }
   >;
 }
@@ -99,6 +101,12 @@ export class LeagueCalendar {
   /** Canonical name -> the key the calendar is written in. The join, resolved in the toolkit. */
   private readonly keyByName = new Map<string, string>();
   private readonly nameByKey = new Map<string, string>();
+  /**
+   * Each club's level (the calendar's own Elo), by the CALENDAR'S key: every club of the championship, also
+   * the ones outside our perimeter that carry no canonical name - on EuroLeghe those are half the league,
+   * and an average over the perimeter alone would be an average over the strong clubs.
+   */
+  private readonly eloByKey = new Map<string, number>();
 
   constructor(
     readonly league: string,
@@ -131,6 +139,7 @@ export class LeagueCalendar {
         this.keyByName.set(club.name, club.key);
         this.nameByKey.set(club.key, club.name);
       }
+      if (club.elo != null) this.eloByKey.set(club.key, club.elo);
     }
     for (const [round, date, home, away, edge, csHome, csAway] of matches) {
       this.put(home, {
@@ -162,6 +171,21 @@ export class LeagueCalendar {
 
   private label(key: string): string {
     return this.nameByKey.get(key) ?? key;
+  }
+
+  /**
+   * THE EDGE OF THIS CLUB'S ORDINARY MATCH: its level against the average level of the other clubs, the venue
+   * cancelling over a season. A man's fantamedia already contains his club's strength against the whole
+   * league, so what a single match adds is its edge MINUS this (`fva.ts`, «a calendar term is a deviation,
+   * never a level»). Read from the clubs' Elo and not from the matches the file carries, because those are
+   * only the ones still to play - an uneven remainder would move the zero. Null without the club's level.
+   */
+  ordinaryEdge(clubName: string): number | null {
+    const key = this.keyByName.get(clubName);
+    const own = key == null ? undefined : this.eloByKey.get(key);
+    if (own == null) return null;
+    const others = [...this.eloByKey].filter(([other]) => other !== key).map(([, elo]) => elo);
+    return others.length ? own - others.reduce((sum, one) => sum + one, 0) / others.length : null;
   }
 
   /** Whether this calendar can say anything at all about a club - by the name a sheet row carries. */

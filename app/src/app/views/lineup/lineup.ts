@@ -15,15 +15,32 @@ import { LEGHE } from '../../core/leghe-api';
 import { NextMatchRow } from '../../core/leghe-matchday';
 import { moduleLabel, rulesSummary } from '../../core/leghe-rules';
 import { LegheSession, keyOf } from '../../core/leghe-session';
+import { FvaInput, fvaOf, fvaWords, oddsScale } from '../../core/fva';
+import { calendarBookFrom } from '../../core/keeper-pairs';
+import { TimeTravel } from '../../core/time-travel';
 import { LineupMan, LineupPlan, adviseLineup, drawSent, rulebookName, voteChance } from '../../core/lineup-advice';
 import { bestEleven } from '../../core/mantra-legal';
-import { seasonTotals } from '../../core/player-card';
+import { ExpectedPlay } from '../../core/expected-play';
+import {
+  CardKey,
+  CardMan,
+  CardStack,
+  clubCard,
+  clubOfCard,
+  playerCard,
+  playerOfCard,
+  seasonTotals,
+} from '../../core/player-card';
+import { EDGE_BASE, Role } from '../../core/plancia';
 import { TrendCell, trendVoteMean } from '../../core/player-trend';
+import { Standings, placeOf, standingsOf } from '../../core/standings';
 import { PlayersStore } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
 import { AppHeader } from '../../ui/app-header/app-header';
+import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
 import { LegheConnect } from '../../ui/leghe-connect/leghe-connect';
+import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
 import { RoleSet } from '../../ui/role-set/role-set';
@@ -65,6 +82,11 @@ export interface RosterLine extends NextMatchRow {
   clubId: number | null;
   /** The bookmakers' price: to score for an outfield man, a clean sheet for a keeper. Null = not found. */
   odds: ManOdds | null;
+  /** The match in full: `Atalanta (3°) - Bologna (12°)`, the places from the league tables (`core/standings.ts`). */
+  matchTip: string;
+  /** The FVA (`core/fva.ts`) and its sum in words, for the tooltip. */
+  fva: number | null;
+  fvaWhy: string;
   /** His club's last five matches from the sheet (`desc_trend_detail`), drawn as `ui-vote-trend`. */
   trend: readonly TrendCell[];
   /** Goals and assists of this season's championship, as the player card counts them (`seasonTotals`). */
@@ -72,7 +94,7 @@ export interface RosterLine extends NextMatchRow {
 }
 
 /** The roster table's sortable columns. */
-export type LineupSort = 'role' | 'name' | 'trend' | 'ga' | 'chance' | 'fm' | 'points' | 'odds' | 'advised';
+export type LineupSort = 'role' | 'name' | 'trend' | 'ga' | 'chance' | 'fm' | 'fva' | 'odds' | 'advised';
 
 /** Two drawings of the same pitch: ours, or what Leghe already holds. */
 export type PitchSource = 'advised' | 'sent';
@@ -93,6 +115,7 @@ export type PitchSource = 'advised' | 'sent';
   selector: 'app-lineup',
   imports: [
     AppHeader,
+    ClubCard,
     ClubCrest,
     DatePipe,
     DecimalPipe,
@@ -104,6 +127,7 @@ export type PitchSource = 'advised' | 'sent';
     NzRadioModule,
     NzSelectModule,
     NzTooltipModule,
+    PlayerCard,
     PlayerFlags,
     RoleBadge,
     RoleSet,
@@ -126,6 +150,8 @@ export class Lineup {
   private readonly bundle = inject(Bundle);
   protected readonly odds = inject(BookmakerOddsStore);
   private readonly players = inject(PlayersStore);
+  private readonly play = inject(ExpectedPlay);
+  private readonly clock = inject(TimeTravel);
   protected readonly connecting = signal(false);
 
   /** The league rules start FOLDED (operator, 08/10/2026: «mettili in un box collassabile»). */
@@ -216,6 +242,63 @@ export class Lineup {
     params: () => this.sheet() ?? undefined,
     loader: ({ params }) => this.store.expectationsFor(params),
   });
+
+  /** The five league tables (`calendar.json`, ESPN via the toolkit), for the match tooltip. */
+  private readonly table = resource({
+    loader: async () => standingsOf(await this.bundle.calendar()),
+  });
+
+  /** The bundle's calendar by championship: the edge and the clean-sheet probability of each man's match. */
+  private readonly calendarBook = resource({
+    loader: async () => calendarBookFrom(await this.bundle.calendar()),
+  });
+
+  /**
+   * EACH MAN'S MATCH AS THE CALENDAR READS IT: how much easier than his club's ordinary match it is (`delta`,
+   * what the FVA adds to the base vote and the bonuses) and, for a keeper, P(clean sheet). The calendar's next
+   * match of his club is taken only if it IS Leghe's match - same venue, and the same opponent where Leghe names
+   * one - because the calendar carries dates and Leghe the matchday, and a match read on the wrong round would
+   * price the wrong opponent. Not confirmed = no match term at all («vuoto = ignoto, mai zero»).
+   */
+  private readonly matchTerms = computed(() => {
+    const out = new Map<number, { delta: number | null; cleanSheet: number | null }>();
+    const md = this.md();
+    const book = this.calendarBook.hasValue() ? this.calendarBook.value() : null;
+    if (!md || !book) return out;
+    const rows = this.bundleRows();
+    const today = this.clock.realToday;
+    for (const r of md.roster) {
+      const club = rows.get(r.fcId)?.club;
+      const calendar = club ? book.forClub(club) : null;
+      const match = club && calendar ? calendar.next(club, today) : null;
+      if (!club || !calendar || !match) continue;
+      if (r.home !== null && match.home !== r.home) continue;
+      const opponent = r.opponentId !== null ? (md.realTeams.get(r.opponentId)?.name ?? null) : null;
+      if (opponent && !sameClub(match.opponent, opponent)) continue;
+      const ordinary = calendar.ordinaryEdge(club);
+      out.set(r.fcId, {
+        delta: match.edge != null && ordinary != null ? match.edge - ordinary : null,
+        cleanSheet: match.cleanSheet,
+      });
+    }
+    return out;
+  });
+
+  /** «Atalanta (3°) - Bologna (12°)»: the full names Leghe gives the two clubs, home first, with their place. */
+  private matchTip(r: NextMatchRow): string {
+    const md = this.md();
+    const table: Standings | null = this.table.hasValue() ? this.table.value() : null;
+    const name = (id: number | null) => (id === null ? null : (md?.realTeams.get(id)?.name ?? null));
+    const own = { name: name(r.clubId) ?? r.club, fcClubId: this.bundleRows().get(r.fcId)?.clubId ?? null };
+    const codes = r.match.split('-');
+    const other = { name: name(r.opponentId) ?? (r.home === false ? codes[0] : (codes[1] ?? '')), fcClubId: null };
+    const label = (club: { name: string; fcClubId: number | null }) => {
+      const place = table && club.name ? placeOf(table, { ...club, championship: r.championship }) : null;
+      return place ? `${club.name} (${place.position}°)` : club.name;
+    };
+    const sides = r.home === false ? [other, own] : [own, other];
+    return sides.filter((club) => club.name).map(label).join(' - ');
+  }
 
   /** The rulebook of the league's game: a classic module is not a Mantra one (`classic_modules.json`). */
   private readonly rulebook = resource({
@@ -333,18 +416,72 @@ export class Lineup {
     });
   });
 
+  /** Every man's bookmakers' price, joined once: the table, the FVA and the pitch read the same join. */
+  private readonly oddsByMan = computed(() => joinOdds(this.odds.matches(), this.oddsMen()));
+
+  /**
+   * EACH MAN'S CHAMPIONSHIP FOOTBALL, walked ONCE per roster: goals per appearance over this season and the
+   * last (what the FVA splits the fantamedia with, and the level the prices are rescaled to, `fva.oddsScale`)
+   * and this season's goals and assists (the G:A column). One walk, so the two readers cannot count two
+   * different populations.
+   */
+  private readonly football = computed(() => {
+    const out = new Map<number, { goalsPerMatch: number | null; ga: { goals: number; assists: number } | null }>();
+    const platform = this.platform();
+    const [input, target] = [this.store.inputSeason(), this.store.targetSeason()];
+    for (const r of this.md()?.roster ?? []) {
+      const now = target ? seasonTotals(this.players.matchesOf(r.fcId, platform, target)) : null;
+      const before = input ? seasonTotals(this.players.matchesOf(r.fcId, platform, input)) : null;
+      const played = (now?.played ?? 0) + (before?.played ?? 0);
+      out.set(r.fcId, {
+        goalsPerMatch: played ? ((now?.goals ?? 0) + (before?.goals ?? 0)) / played : null,
+        ga: gaOf(now),
+      });
+    }
+    return out;
+  });
+
   /**
    * Every man of the roster priced for this matchday: the ONE list the table, the pitch and the bench read, so
-   * the number beside a name in the table is the number the pitch was chosen on.
+   * the number beside a name in the table is the number the pitch was chosen on. The number SHOWN is the FVA
+   * (`core/fva.ts`); the eleven is chosen on `chance x FVA` (`lineup-advice.ts`).
    */
-  private readonly men = computed<(LineupMan & { fmFromLeghe: boolean })[]>(() => {
+  private readonly men = computed<(LineupMan & { fmFromLeghe: boolean; fvaWhy: string })[]>(() => {
     const md = this.md();
     if (!md) return [];
     const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
-    return md.roster.map((r) => {
-      const fromSheet = sheet?.get(r.fcId)?.fm ?? null;
+    const odds = this.oddsByMan();
+    const inputs = md.roster.map((r) => {
+      const expected = sheet?.get(r.fcId);
+      const fromSheet = expected?.fm ?? null;
       const fm = fromSheet ?? r.fantavote;
+      const keeper = r.roles.some((c) => c === 'P' || c === 'Por');
+      const price = odds.get(r.fcId);
+      return {
+        r,
+        fm,
+        fromSheet,
+        keeper,
+        input: {
+          keeper,
+          mv: expected?.mv ?? r.vote,
+          fm,
+          minutes: expected?.minutesNext ?? null,
+          goalsPerMatch: keeper ? null : (this.football().get(r.fcId)?.goalsPerMatch ?? null),
+          oddsProb: price && price.kind === (keeper ? 'clean-sheet' : 'goal') ? price.prob : null,
+          delta: this.matchTerms().get(r.fcId)?.delta ?? null,
+          cleanSheet: this.matchTerms().get(r.fcId)?.cleanSheet ?? null,
+        } satisfies FvaInput,
+      };
+    });
+    const scale = oddsScale(
+      inputs
+        .filter((one) => !one.keeper && one.input.goalsPerMatch !== null && one.input.oddsProb !== null)
+        .map((one) => ({ goalsPerMatch: one.input.goalsPerMatch!, oddsProb: one.input.oddsProb! })),
+    );
+    return inputs.map(({ r, fm, fromSheet, keeper, input }) => {
       const chance = voteChance(r.percent, r.out);
+      const fva = fvaOf(input, scale);
       return {
         id: r.fcId,
         name: r.name,
@@ -352,8 +489,10 @@ export class Lineup {
         shown: r.roles,
         chance,
         fm,
+        fva: fva.value,
+        fvaWhy: fvaWords(fva, keeper),
         fmFromLeghe: fromSheet === null && fm !== null,
-        points: fm === null ? null : chance * fm,
+        points: fva.value === null ? null : chance * fva.value,
       };
     });
   });
@@ -399,7 +538,7 @@ export class Lineup {
     const sent = this.sent();
     const rows = this.bundleRows();
     const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
-    const oddsByMan = joinOdds(this.odds.matches(), this.oddsMen());
+    const oddsByMan = this.oddsByMan();
     const lines: RosterLine[] = md.roster.map((r) => {
       const man = priced.get(r.fcId)!;
       const own = rows.get(r.fcId);
@@ -412,11 +551,14 @@ export class Lineup {
         fm: man.fm,
         fmFromLeghe: man.fmFromLeghe,
         points: man.points,
+        fva: man.fva ?? null,
+        fvaWhy: man.fvaWhy,
+        matchTip: this.matchTip(r),
         clubName: own?.club ?? null,
         clubId: own?.clubId ?? null,
         odds: oddsByMan.get(r.fcId) ?? null,
         trend: sheet?.get(r.fcId)?.recentVotes ?? [],
-        ga: gaOf(seasonTotals(this.players.matchesOf(r.fcId, this.platform(), this.store.targetSeason()))),
+        ga: this.football().get(r.fcId)?.ga ?? null,
       };
     });
     const roleRank = (r: RosterLine) => {
@@ -439,8 +581,8 @@ export class Lineup {
           return b.chance - a.chance;
         case 'fm':
           return num(b.fm) - num(a.fm);
-        case 'points':
-          return num(b.points) - num(a.points);
+        case 'fva':
+          return num(b.fva) - num(a.fva);
         case 'odds':
           // Lower price = likelier: ascending is the natural order, unknown last.
           return (a.odds?.price ?? 1e9) - (b.odds?.price ?? 1e9);
@@ -466,7 +608,99 @@ export class Lineup {
     return this.sortKey() === key ? (this.sortDesc() ? ' ▲' : ' ▼') : '';
   }
 
-  /** Expected points, one decimal; a dash where nobody can price him. */
+  // ---------------------------------------------------------------- the player card
+
+  /**
+   * THE CARD OF A MAN, opened by a click on his name in the table, on the pitch or on the bench (operator,
+   * 09/10/2026: «quando clicco sul nome di un calciatore si deve aprire la sua scheda di dettaglio» - on
+   * every page). The same `ui/player-card` as the other pages, with the page's own `CardStack`.
+   */
+  private readonly cards = new CardStack();
+
+  protected readonly openCards = computed(() => {
+    const rows = this.bundleRows();
+    const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
+    const rounds = this.store.seasonRoundsFor(this.sheet());
+    const platform = this.platform();
+    const game = this.game() === 'mantra' ? 'mantra' : 'classic';
+    return this.cards.place((key) => {
+      const id = playerOfCard(key);
+      const row = id === null ? undefined : rows.get(id);
+      if (!row) return undefined;
+      const numbers = sheet?.get(row.fcId) ?? null;
+      const outlook = this.play.outlook(
+        { id: row.fcId, club: row.club, platform },
+        {
+          pv: numbers?.pv ?? null,
+          pvIsEstimate: numbers?.pvIsEstimate ?? false,
+          playShare: numbers?.titolaritaPlay ?? null,
+          titolarita: numbers?.titolarita ?? null,
+        },
+        rounds,
+      );
+      const man: CardMan = {
+        id: row.fcId,
+        name: row.name,
+        club: row.club,
+        clubId: row.clubId,
+        where: game === 'mantra' && row.mantraCodes.length ? row.mantraCodes.join('/') : row.role,
+        role: row.role as Role,
+        platform,
+        edge: numbers?.fm == null ? null : numbers.fm - EDGE_BASE,
+        pv: outlook.expected,
+        rounds,
+        swing: null,
+        fm: numbers?.fm ?? null,
+        estimated: numbers?.fmIsEstimate ?? false,
+        estNote: numbers?.note ?? null,
+        titolarita: numbers?.titolarita ?? null,
+        titolaritaPlay: numbers?.titolaritaPlay ?? null,
+        minutesNext: numbers?.minutesNext ?? null,
+        seasonMatches: numbers?.seasonMatches ?? null,
+        minutesFullSeason: numbers?.minutesFullSeason ?? null,
+        category: numbers?.category ?? null,
+        categoryLevel: numbers?.categoryLevel ?? null,
+        categoryBars: numbers?.categoryBars ?? null,
+        unpricedReason: null,
+        fvm: this.store.fvmOf(platform, row.fcId, game),
+        out: outlook.window,
+        // No table: this page fields a squad, it does not buy one.
+        market: null,
+      };
+      return man;
+    });
+  });
+
+  protected readonly clubCards = computed(() => this.cards.place((key) => clubOfCard(key) ?? undefined));
+  protected readonly cardCount = computed(() => this.openCards().length + this.clubCards().length);
+  protected readonly frontCard = computed(() => this.cards.front());
+
+  protected openPlayer(id: number): void {
+    this.cards.openCard(playerCard(id));
+  }
+
+  protected openClubCard(platform: 'default' | 'euro', club: string): void {
+    this.cards.openCard(clubCard(platform, club));
+  }
+
+  protected closeCard(key: CardKey): void {
+    this.cards.closeCard(key);
+  }
+
+  protected raiseCard(key: CardKey): void {
+    this.cards.raiseCard(key);
+  }
+
+  protected closeAllCards(): void {
+    this.cards.openCard(null);
+  }
+
+  /** The FVA total of the men on the pitch (empty places count nothing). */
+  protected fvaTotal(plan: LineupPlan): number {
+    return plan.rows.reduce((sum, row) => sum + row.places.reduce((part, p) => part + (p.man?.fva ?? 0), 0), 0);
+  }
+
+  /** An FVA, one decimal; a dash where nobody can price him. */
   protected pts(value: number | null): string {
     return value === null ? '–' : value.toFixed(1);
   }

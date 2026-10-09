@@ -158,8 +158,8 @@
               >Voto{{ arrow('chance') }}</span
             >
             <span class="sort text-right" (click)="sortBy('fm')" nz-tooltip nzTooltipTitle="Fantamedia prevista">Fm{{ arrow('fm') }}</span>
-            <span class="sort text-right text-warning" (click)="sortBy('points')" nz-tooltip nzTooltipTitle="Punti attesi in questa giornata: probabilità del voto × fantamedia"
-              >Pt{{ arrow('points') }}</span
+            <span class="sort text-right text-warning" (click)="sortBy('fva')" nz-tooltip nzTooltipTitle="Fanta Voto Atteso, se gioca"
+              >FVA{{ arrow('fva') }}</span
             >
             <span class="sort text-right" (click)="sortBy('odds')" nz-tooltip nzTooltipTitle="Quota media dei bookmaker: segna (movimento) o porta inviolata (portieri)"
               >Quota{{ arrow('odds') }}</span
@@ -179,7 +179,7 @@
                 <ui-roles class="min-w-0 overflow-hidden" [roles]="man.roles" size="xs" />
                 <span class="flex min-w-0 items-center gap-1">
                   <ui-crest class="shrink-0" [club]="man.clubName ?? man.club" [clubId]="man.clubId" [crests]="store.crests()" fallback="shield" size="xs" />
-                  <span class="min-w-0 truncate font-medium">{{ man.name }}</span>
+                  <button type="button" class="min-w-0 truncate text-left font-medium hover:underline" (click)="openPlayer(man.fcId)">{{ man.name }}</button>
                   <ui-flags class="shrink-0 text-[10px]" [playerId]="man.fcId" />
                   @if (man.outLabel) {
                     <span class="shrink-0 rounded bg-danger/20 px-1 text-[9px] leading-4 text-danger">{{ man.outLabel }}</span>
@@ -191,7 +191,7 @@
                 <!-- His own club in BOLD (operator, 09/10/2026), which also says home or away: the match
                      is written home first, as Leghe serves it. -->
                 @let sides = man.match.split('-');
-                <span class="truncate text-[10px] text-muted"
+                <span class="truncate text-[10px] text-muted" nz-tooltip [nzTooltipTitle]="man.matchTip"
                   ><span [class.font-bold]="man.home === true" [class.text-fg]="man.home === true">{{ sides[0] }}</span
                   >@if (sides.length > 1) {-<span [class.font-bold]="man.home === false" [class.text-fg]="man.home === false">{{ sides[1] }}</span>}</span
                 >
@@ -205,7 +205,7 @@
                   [nzTooltipTitle]="man.fmFromLeghe ? 'Fantamedia di stagione da Leghe: il foglio non lo prezza' : ''"
                   >{{ man.fm === null ? '–' : (man.fm | number: '1.2-2') }}</span
                 >
-                <span class="text-right font-semibold tabular-nums text-warning">{{ pts(man.points) }}</span>
+                <span class="text-right font-semibold tabular-nums text-warning" nz-tooltip [nzTooltipTitle]="man.fvaWhy">{{ pts(man.fva) }}</span>
                 @if (man.odds; as o) {
                   <span
                     class="text-right tabular-nums"
@@ -264,8 +264,8 @@
               @if (pitchSource() === 'sent' || module() === null) {
                 <span data-module class="rounded-full border border-border px-2 py-0.5 text-xs font-semibold tabular-nums">{{ plan.module }}</span>
               }
-              <span class="ml-auto text-xs tabular-nums text-muted" nz-tooltip nzTooltipTitle="Somma dei punti attesi dei titolari"
-                >{{ plan.total | number: '1.1-1' }} punti attesi</span
+              <span class="ml-auto text-xs tabular-nums text-muted" nz-tooltip nzTooltipTitle="Somma dell'FVA dei titolari"
+                >FVA totale {{ fvaTotal(plan) | number: '1.1-1' }}</span
               >
             }
           </div>
@@ -290,8 +290,8 @@
                     >
                       <ui-role [role]="place.slot" size="xs" quiet />
                       @if (place.man; as man) {
-                        <span class="w-full truncate text-center text-[11px] font-medium">{{ man.name }}</span>
-                        <span class="text-[10px] tabular-nums text-muted">{{ pct(man.chance) }} · <b class="text-warning">{{ pts(man.points) }}</b></span>
+                        <button type="button" class="w-full truncate text-center text-[11px] font-medium hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+                        <span class="text-[10px] tabular-nums text-muted">{{ pct(man.chance) }} · <b class="text-warning">{{ pts(man.fva ?? null) }}</b></span>
                       } @else {
                         <span class="text-[11px] text-muted">vuoto</span>
                       }
@@ -308,8 +308,8 @@
                   <div class="flex min-w-0 items-center gap-1 rounded border border-border bg-fg/5 px-1 py-0.5 text-[11px]" [attr.data-bench]="man.id">
                     <span class="w-4 shrink-0 text-right tabular-nums text-muted">{{ i + 1 }}</span>
                     <ui-roles class="shrink-0" [roles]="man.shown" size="xxs" />
-                    <span class="min-w-0 flex-1 truncate">{{ man.name }}</span>
-                    <span class="shrink-0 tabular-nums text-warning">{{ pts(man.points) }}</span>
+                    <button type="button" class="min-w-0 flex-1 truncate text-left hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>
+                    <span class="shrink-0 tabular-nums text-warning">{{ pts(man.fva ?? null) }}</span>
                   </div>
                 } @empty {
                   <span class="text-xs text-muted">Nessuno in panchina.</span>
@@ -317,15 +317,15 @@
               </div>
               @if (plan.outside.length) {
                 <p class="text-xs text-muted">
-                  Fuori: @for (man of plan.outside; track man.id; let last = $last) {{{ man.name }}{{ last ? '' : ', ' }}}
+                  Fuori: @for (man of plan.outside; track man.id; let last = $last) {<button type="button" class="hover:underline" (click)="openPlayer(man.id)">{{ man.name }}</button>{{ last ? '' : ', ' }}}
                 </p>
               }
             </div>
 
             @if (pitchSource() === 'advised') {
               <p class="text-[10px] text-muted">
-                Prima versione: titolari scelti sui punti attesi (probabilità del voto × fantamedia) fra i moduli della lega.
-                Non conta ancora sostituzioni automatiche, modificatori e avversario.
+                Titolari scelti su probabilità del voto × FVA fra i moduli della lega.
+                Non conta ancora sostituzioni automatiche, modificatori e difficoltà della partita sul voto.
               </p>
             }
           } @else if (pitchSource() === 'sent') {
@@ -342,3 +342,35 @@
 </div>
 
 <ui-leghe-connect [(open)]="connecting" />
+
+<!-- LE CARD: il click su un nome apre la sua scheda (operatore, 09/10/2026, «ricorda sempre»). La stessa card
+     delle altre pagine, fuori dal contenitore perché è `fixed`; nessun tavolo, quindi nessun bottone d'asta. -->
+@for (open of openCards(); track open.key) {
+  <ui-player-card
+    [man]="open.man"
+    [at]="open.slot"
+    [front]="frontCard() === open.key"
+    (closed)="closeCard(open.key)"
+    (raised)="raiseCard(open.key)"
+    (club)="openClubCard(open.man.platform, open.man.club)"
+  />
+}
+@for (open of clubCards(); track open.key) {
+  <ui-club-card
+    [club]="open.man.club"
+    [platform]="open.man.platform"
+    [at]="open.slot"
+    [front]="frontCard() === open.key"
+    (closed)="closeCard(open.key)"
+    (raised)="raiseCard(open.key)"
+  />
+}
+@if (cardCount() > 1) {
+  <button
+    type="button"
+    class="fixed bottom-3 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-border bg-surface px-3 py-1 text-xs text-muted shadow-lg hover:text-fg"
+    (click)="closeAllCards()"
+  >
+    chiudi le {{ cardCount() }} card
+  </button>
+}
