@@ -195,6 +195,37 @@ export interface LegheCall {
   body?: unknown;
 }
 
+/**
+ * ONE REQUEST AT A TIME, AND A PAUSE BETWEEN TWO (operator, 09/10/2026: «limitiamo al minimo le richieste ...
+ * altrimenti la sicurezza ci blocca»). A cold pass of the LINEUP page asks Leghe about a dozen things; fired
+ * together they are a burst, which is what a firewall reads as a script. In line and `SPACING_MS` apart they
+ * cost a few seconds once. The cache (`leghe-cache.ts`) is what makes a cold pass rare; this makes the rare
+ * one gentle. A declared spacing, not a measured threshold: nobody here knows Leghe's.
+ */
+export const SPACING_MS = 400;
+
+let lane: Promise<unknown> = Promise.resolve();
+let lastStart = 0;
+let sent = 0;
+
+/** Requests that actually left for Leghe since the page was opened: what «dalla cache» is counted with. */
+export function legheRequestsSent(): number {
+  return sent;
+}
+
+function inLane<T>(job: () => Promise<T>): Promise<T> {
+  const run = lane.then(async () => {
+    const wait = lastStart + SPACING_MS - Date.now();
+    if (wait > 0) await new Promise((go) => setTimeout(go, wait));
+    lastStart = Date.now();
+    sent += 1;
+    return job();
+  });
+  // A failed request must not stop the ones queued behind it.
+  lane = run.catch(() => undefined);
+  return run;
+}
+
 /** The one door to the network. Every endpoint below goes through it, so every failure reads the same way. */
 export async function legheCall(call: LegheCall): Promise<unknown> {
   if (!call.base) {
@@ -210,19 +241,23 @@ export async function legheCall(call: LegheCall): Promise<unknown> {
   if (call.jwt) headers['Authorization'] = `Bearer ${call.jwt}`;
   if (call.body !== undefined) headers['content-type'] = 'application/json';
   let response: Response;
+  let text: string;
   try {
-    response = await fetch(`${call.base}/${call.platform}${call.path}`, {
-      method: call.method,
-      headers,
-      body: call.body === undefined ? undefined : JSON.stringify(call.body),
-    });
+    // The body is read INSIDE the lane: a request is not over until its answer has arrived.
+    ({ response, text } = await inLane(async () => {
+      const answer = await fetch(`${call.base}/${call.platform}${call.path}`, {
+        method: call.method,
+        headers,
+        body: call.body === undefined ? undefined : JSON.stringify(call.body),
+      });
+      return { response: answer, text: await answer.text() };
+    }));
   } catch (err) {
     throw new LegheError(
       'unreachable',
       `Leghe non risponde (${err instanceof Error ? err.message.slice(0, 80) : String(err)}).`,
     );
   }
-  const text = await response.text();
   let body: unknown = null;
   try {
     body = text ? JSON.parse(text) : null;

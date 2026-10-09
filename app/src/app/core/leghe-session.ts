@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, resource, signal } from '@angular/core';
+import { Injectable, computed, effect, resource, signal, untracked } from '@angular/core';
 
 import {
   LEGHE_PLATFORMS,
@@ -10,10 +10,12 @@ import {
   accountFromEmbed,
   directLogin,
   leagueGet,
+  legheRequestsSent,
   readLineup,
   readTeams,
   readTiming,
 } from './leghe-api';
+import { Cached, LegheCache, Volatility, browserStore } from './leghe-cache';
 import {
   Fixture,
   LeagueStatus,
@@ -85,7 +87,13 @@ export interface LeagueMatchday {
   realTeams: Map<number, RealTeam>;
   /** When lineups close: the first match minus the league's own margin. Null = Leghe did not say. */
   closesAt: Date | null;
+  /** When Leghe was READ for the moving part (roster, percentages, status): the oldest of those readings,
+   *  which is not «now» when they come from the local cache (`leghe-cache.ts`). */
   readAt: Date;
+  /** When this pass was served, what «closes in N minutes» is counted from. */
+  servedAt: Date;
+  /** Requests that left for Leghe in this pass: 0 = all of it from the local cache. */
+  requests: number;
 }
 
 /**
@@ -122,14 +130,32 @@ export class LegheSession {
     return all.find((l) => keyOf(l) === this.chosenKey()) ?? all[0] ?? null;
   });
 
+  /** Every reading of Leghe passes through here first (`leghe-cache.ts`, the operator's rule of 09/10/2026). */
+  private readonly cache = new LegheCache(browserStore());
+
+  /** How many readings the local cache holds, for the Account modal. */
+  readonly cacheSize = signal(this.cache.size());
+
+  /** Presses of «rileggi»: a new value forces the moving part of the next pass past the cache. */
+  private readonly refreshes = signal(0);
+  private served = 0;
+
   /**
    * THE CHOSEN LEAGUE'S MATCHDAY, as a `resource`: it re-reads by itself when the league changes, a newer
    * read supersedes an older one, and «loading / read / failed» are its own signals - no effect that
-   * writes state, no ticket to compare. `undefined` params = nobody connected = idle.
+   * writes state, no ticket to compare. `undefined` params = nobody connected = idle. Re-reading is not
+   * asking Leghe: what the cache holds and is young enough is served from there.
    */
   readonly matchday = resource({
-    params: () => this.league() ?? undefined,
-    loader: ({ params }) => this.readMatchday(params),
+    params: () => {
+      const league = this.league();
+      return league ? { league, refresh: this.refreshes() } : undefined;
+    },
+    loader: ({ params }) => {
+      const force = params.refresh !== this.served;
+      this.served = params.refresh;
+      return this.readMatchday(params.league, force);
+    },
   });
 
   /** The read's failure as ONE cause with its message (`LegheError`), whatever threw. */
@@ -181,6 +207,18 @@ export class LegheSession {
     this.chosenKey.set(keyOf(league));
   }
 
+  /** «Rileggi»: the roster, the percentages and the status asked again; rules and teams stay cached. */
+  refresh(): void {
+    this.refreshes.update((n) => n + 1);
+  }
+
+  /** «Svuota»: every reading forgotten, so the next pass asks Leghe for everything (rules included). */
+  forgetCache(): void {
+    this.cache.clear();
+    this.cacheSize.set(this.cache.size());
+    if (untracked(this.league)) this.refresh();
+  }
+
   private adopt(account: LegheAccount): void {
     // PIN THE LEAGUE ON SCREEN before the list grows: with nothing remembered the selector shows the
     // FIRST league, and a second login (Leghe after EuroLeghe) would swap the page under his eyes.
@@ -189,30 +227,47 @@ export class LegheSession {
     this.accounts.update((all) => ({ ...all, [account.platform]: account }));
   }
 
-  /** One pass over everything the page shows about a league's next matchday. */
-  private async readMatchday(league: LegheLeague): Promise<LeagueMatchday> {
+  /**
+   * One pass over everything the page shows about a league's next matchday, each reading through the local
+   * cache with the volatility of its fact (`leghe-cache.ts`). `force` («rileggi») skips the cache for the
+   * `live` readings only: the rules of a league do not move because a percentage did.
+   */
+  private async readMatchday(league: LegheLeague, force: boolean): Promise<LeagueMatchday> {
     const base = this.base();
+    // The key carries the USER, never the token: two accounts in one league see two different «my team».
+    const user = untracked(this.accounts)[league.platform]?.userId ?? 0;
+    const before = legheRequestsSent();
+    let oldestLive = Number.POSITIVE_INFINITY;
+    const cached = async <T>(path: string, volatility: Volatility, fetch: () => Promise<T>): Promise<Cached<T>> => {
+      const key = `${league.platform}:${user}:${league.id}:${path}`;
+      const one = await this.cache.read(key, volatility, fetch, force && volatility === 'live');
+      if (volatility === 'live') oldestLive = Math.min(oldestLive, one.at);
+      return one;
+    };
+    const get = (path: string, volatility: Volatility) =>
+      cached(path, volatility, () => leagueGet(base, league, path)).then((one) => one.body);
     try {
       const [status, lineupSettings, calcSettings, rostersSettings, competitionsBody, myTeamBody, untilFirst] =
         await Promise.all([
-          leagueGet(base, league, '/onboarding/v1/league/status'),
-          leagueGet(base, league, '/onboarding/v1/league/settings/lineup'),
-          leagueGet(base, league, '/onboarding/v1/league/settings/calculate'),
-          leagueGet(base, league, '/onboarding/v1/league/settings/rosters'),
-          leagueGet(base, league, '/onboarding/v1/league/competitions'),
-          leagueGet(base, league, '/onboarding/v1/league/teams/my'),
-          readTiming(base, league),
+          get('/onboarding/v1/league/status', 'live'),
+          get('/onboarding/v1/league/settings/lineup', 'season'),
+          get('/onboarding/v1/league/settings/calculate', 'season'),
+          get('/onboarding/v1/league/settings/rosters', 'season'),
+          get('/onboarding/v1/league/competitions', 'day'),
+          get('/onboarding/v1/league/teams/my', 'day'),
+          cached('/gaming/v1/league/timing', 'live', () => readTiming(base, league)),
         ]);
       const rules = parseRules(lineupSettings, calcSettings, rostersSettings);
       // The real clubs only NAME opponents for the odds join: a failure here costs that check, not the page.
-      const realTeams = await leagueGet(base, league, '/onboarding/v1/championship/teams')
+      const realTeams = await get('/onboarding/v1/championship/teams', 'season')
         .then(parseRealTeams)
         .catch(() => new Map<number, RealTeam>());
       const team = parseTeam(myTeamBody);
       const division = team?.division ?? 'A';
-      const teams = (await readTeams(base, league, division))
-        .map(parseTeam)
-        .filter((t): t is LegheTeam => !!t);
+      const teamsBody = await cached(`/onboarding/v1/league/teams?division=${division}`, 'day', () =>
+        readTeams(base, league, division),
+      );
+      const teams = teamsBody.body.map(parseTeam).filter((t): t is LegheTeam => !!t);
       // Only the competitions this team is in: a league with divisions lists everybody's.
       const competitions = parseCompetitions(competitionsBody).filter(
         (c) => !team || !c.teamIds.length || c.teamIds.includes(team.id),
@@ -220,13 +275,18 @@ export class LegheSession {
       const days: CompetitionDay[] = [];
       let roster: NextMatchRow[] = [];
       for (const competition of competitions) {
-        const lineup = await readLineup(base, league, division, competition.id);
+        // `null` («no matchday in play», CE26) is a reading too, and is cached like one.
+        const lineup = (
+          await cached(`/gaming/v1/teamLineup/visualizza/${division}/${competition.id}`, 'live', () =>
+            readLineup(base, league, division, competition.id),
+          )
+        ).body;
         const saved = lineup ? parseSaved(lineup) : null;
         if (lineup && !roster.length) roster = parseRoster(lineup);
         const fixture: Fixture | null =
           lineup && competition.headToHead && team && saved?.matchday
             ? fixtureOf(
-                await leagueGet(base, league, `/onboarding/v1/league/competition/calendar/${competition.id}`),
+                await get(`/onboarding/v1/league/competition/calendar/${competition.id}`, 'season'),
                 saved.matchday,
                 team.id,
               )
@@ -240,6 +300,7 @@ export class LegheSession {
         });
       }
       const margin = (rules.closesMinutesBefore ?? 0) * 60_000;
+      const now = Date.now();
       return {
         league,
         status: parseStatus(status),
@@ -249,13 +310,18 @@ export class LegheSession {
         competitions: days,
         roster,
         realTeams,
-        closesAt: untilFirst === null ? null : new Date(Date.now() + untilFirst - margin),
-        readAt: new Date(),
+        // The milliseconds Leghe gave are counted from when it GAVE them, which a cached reading keeps.
+        closesAt: untilFirst.body === null ? null : new Date(untilFirst.at + untilFirst.body - margin),
+        readAt: new Date(Number.isFinite(oldestLive) ? oldestLive : now),
+        servedAt: new Date(now),
+        requests: legheRequestsSent() - before,
       };
     } catch (err) {
       // An expired token is not a broken page: drop it, so the page asks for the login again.
       if (err instanceof LegheError && err.kind === 'expired') this.logout(league.platform);
       throw err;
+    } finally {
+      this.cacheSize.set(this.cache.size());
     }
   }
 }

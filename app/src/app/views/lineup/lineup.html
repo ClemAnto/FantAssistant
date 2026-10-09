@@ -16,8 +16,9 @@
         </nz-select>
       }
       @if (md(); as day) {
-        <span class="text-xs text-muted">
-          {{ day.team?.name }} · letta alle {{ readTime() }}
+        <!-- WHEN Leghe was read, and whether this look cost any request (the cache, `core/leghe-cache.ts`). -->
+        <span class="text-xs text-muted" data-lineup-read [attr.data-leghe-requests]="day.requests">
+          {{ day.team?.name }} · letta {{ readTime() }}{{ day.requests ? '' : ' · dalla cache' }}
         </span>
       }
     </div>
@@ -27,9 +28,10 @@
           nz-button
           nzSize="small"
           nz-tooltip
-          nzTooltipTitle="Rileggi da Leghe"
+          nzTooltipTitle="Rileggi rosa e probabili da Leghe"
           [nzLoading]="session.matchday.isLoading()"
-          (click)="session.matchday.reload()"
+          (click)="session.refresh()"
+          data-lineup-refresh
         >
           <nz-icon nzType="reload" />
         </button>

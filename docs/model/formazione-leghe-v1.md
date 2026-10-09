@@ -288,6 +288,60 @@ coefficienti sono fittati sulle stesse stagioni (contaminazione dichiarata, a fa
 non è verificabile all'indietro; l'appaiamento del nome dell'avversario fra Leghe e calendario non è stato
 visto dal vivo. Nessun gate: è una lettura dell'app.
 
+## §4-sexies. Poche richieste a Leghe: la cache locale e la coda (09/10/2026)
+
+Regola dell'operatore: «dobbiamo evitare di fare troppe chiamate a euroleghe.fantacalcio.it o
+leghe.fantacalcio.it altrimenti la sicurezza ci blocca, limitiamo al minimo le richieste e utilizziamo la
+cache locale». Vale per l'app E per chi la verifica (banchi, sonde da Node).
+
+**Prima**: ogni sguardo alla pagina costava ~12 richieste (7 in parallelo, poi squadre reali, squadre della
+lega, e per ogni competizione la rosa e il calendario) - e così ogni cambio di lega, ogni «rileggi» e ogni
+ricarica di `ng serve` dopo un file salvato, che in una sessione di lavoro sono la maggior parte. Ogni corsa
+di `e2e-lineup-live.mjs` partiva da un profilo vuoto: due login e ~36 richieste.
+
+**Ora** (`app/src/app/core/leghe-cache.ts`, letta da `LegheSession.readMatchday`):
+- **ogni lettura passa prima dalla cache** (`localStorage`, chiave piattaforma:utente:lega:percorso, MAI il
+  token), e Leghe si interroga solo quando la lettura in mano è più vecchia di quanto il suo fatto regga:
+
+  | Classe | Durata | Cosa |
+  |---|---|---|
+  | `live` | 1 ora | rosa con `percent`, indisponibili e formazione inviata (`visualizza`), `status`, `timing` |
+  | `day` | 24 ore | competizioni, la mia squadra, le squadre della lega |
+  | `season` | 7 giorni | regole (`settings/lineup`, `calculate`, `rosters`), squadre reali, calendari |
+
+  Durate DICHIARATE, non misurate: nessuno sa ogni quanto la redazione muove una `percent`. Una risposta
+  `CE26` (nessuna giornata in corso) è una lettura e si tiene; un errore no.
+- **«Rileggi» rilegge solo la parte `live`** (3-5 richieste invece di ~12); **«Svuota»** nella modale
+  Account dimentica tutto e rilegge anche le regole. La pagina dice quando ha letto («letta alle 14:32»,
+  con il giorno se non è oggi) e «dalla cache» quando lo sguardo non è costato nessuna richiesta
+  (`data-leghe-requests` per i banchi). La chiusura si conta dal momento in cui Leghe ha dato i
+  millisecondi, che la cache conserva.
+- **Una richiesta alla volta, 400 ms fra due** (`leghe-api.ts`, `SPACING_MS`): una passata a freddo non è
+  più una raffica di sette richieste insieme. Anche questa è una scelta dichiarata, non una soglia misurata.
+- **Il banco dal vivo tiene il profilo** fra una corsa e l'altra (`<temp>/e2e-lineup-live-profile`), quindi
+  la seconda corsa legge dalla cache; `--fresh` riparte da vuoto. In fondo riapre la prima lega e pretende
+  **zero** richieste. I due login restano a ogni corsa: i token vivono in `sessionStorage`.
+
+✅ Verificato il 09/10/2026 SENZA toccare Leghe: `leghe-session.spec.ts` guida il vero `LegheSession` contro
+un Leghe finto che conta cosa gli si chiede - passata a freddo 12 richieste (una per fatto, nessuna
+doppia), pagina ricaricata **0**, «rileggi» esattamente le 4 `live`, «svuota» di nuovo 12, nessun token in
+`localStorage`; controprova: forzando anche le non `live` cade solo il test di «rileggi». `leghe-api.spec.ts`
+prova la coda con orologio finto (mai due richieste aperte, 400 ms fra due partenze; controprova: senza coda
+cade). Nel browser vero, sulla build: la riga della cache nella modale, una lettura di 8 giorni scartata
+all'apertura, «Svuota» con un puntatore vero, **0 richieste a Leghe**. `ng test` 1471/1471, `ng build` verde.
+**Non** verificato dal vivo con l'account (`e2e-lineup-live.mjs` non è stato lanciato apposta: costa due
+login e una passata a freddo per lega).
+
+**Lasciati aperti, e sono decisioni dell'operatore:**
+- **i login.** A ogni scheda nuova (e a ogni corsa del banco) si rifà il login, e su EuroLeghe è un POST
+  con utente e password. Tenere i token in `localStorage` lo eviterebbe, ma è la scelta contraria a quella
+  fatta l'08/10 di proposito (`clemanto.github.io` è UNA origine per tutti i siti Pages dell'account).
+- **un freno ai login falliti** (dopo due `ATH018` di fila fermare il bottone per qualche minuto), che è la
+  regola «due tentativi e poi stop» del §6 scritta nel codice invece che nella disciplina.
+- **la cache sta in `localStorage`**, quindi un altro dei suoi siti Pages potrebbe leggerla: sono rose e
+  regole già mostrate, non credenziali.
+
+
 ## §5. Aperti, in ordine
 
 0. **Quote (§4-ter): FATTO lato operatore** il 08-09/10/2026 - `odds.gs` incollato, `oddsProbe()` passa

@@ -1,6 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { LegheError, accountFromEmbed, accountFromLogin, readAnswer } from './leghe-api';
+import {
+  LegheError,
+  SPACING_MS,
+  accountFromEmbed,
+  accountFromLogin,
+  legheCall,
+  legheRequestsSent,
+  readAnswer,
+} from './leghe-api';
 
 /**
  * THE WIRE TO LEGHE. The payloads here are SYNTHETIC with the real SHAPES - read off the operator's own
@@ -75,5 +83,58 @@ describe('readAnswer', () => {
     expect(kind(401, null)).toEqual(['expired', null]);
     expect(kind(400, { code: 'CE26', message: 'Calendar matchday not found.' })).toEqual(['refused', 'CE26']);
     expect(kind(200, { success: false, code: 'X1' })).toEqual(['refused', 'X1']);
+  });
+});
+
+describe('legheCall', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('asks Leghe ONE thing at a time, SPACING_MS apart, and counts what really left', async () => {
+    vi.useFakeTimers();
+    const starts: number[] = [];
+    let open = 0;
+    let most = 0;
+    vi.stubGlobal('fetch', async () => {
+      starts.push(Date.now());
+      open += 1;
+      most = Math.max(most, open);
+      await new Promise((go) => setTimeout(go, 50));
+      open -= 1;
+      return new Response('{"ok":1}', { status: 200 });
+    });
+    const before = legheRequestsSent();
+    const calls = [1, 2, 3].map(() => legheCall({ base: '/x', platform: 'classic', method: 'GET', path: '/p' }));
+    await vi.advanceTimersByTimeAsync(20 * SPACING_MS);
+    expect(await Promise.all(calls)).toEqual([{ ok: 1 }, { ok: 1 }, { ok: 1 }]);
+    expect(most).toBe(1);
+    expect(starts[1] - starts[0]).toBeGreaterThanOrEqual(SPACING_MS);
+    expect(starts[2] - starts[1]).toBeGreaterThanOrEqual(SPACING_MS);
+    expect(legheRequestsSent() - before).toBe(3);
+  });
+
+  it('a failed request does not stop the ones queued behind it', async () => {
+    vi.useFakeTimers();
+    let n = 0;
+    vi.stubGlobal('fetch', async () => {
+      n += 1;
+      if (n === 1) throw new TypeError('Failed to fetch');
+      return new Response('{"ok":2}', { status: 200 });
+    });
+    const first = legheCall({ base: '/x', platform: 'euro', method: 'GET', path: '/p' }).catch((err) => err);
+    const second = legheCall({ base: '/x', platform: 'euro', method: 'GET', path: '/p' });
+    await vi.advanceTimersByTimeAsync(20 * SPACING_MS);
+    expect(((await first) as LegheError).kind).toBe('unreachable');
+    expect(await second).toEqual({ ok: 2 });
+  });
+
+  it('without a pass-through nothing leaves, and nothing is counted', async () => {
+    const before = legheRequestsSent();
+    await expect(legheCall({ base: null, platform: 'classic', method: 'GET', path: '/p' })).rejects.toMatchObject({
+      kind: 'no-proxy',
+    });
+    expect(legheRequestsSent()).toBe(before);
   });
 });

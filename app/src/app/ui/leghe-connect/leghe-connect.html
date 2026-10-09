@@ -108,5 +108,23 @@
         <nz-alert nzType="error" nzShowIcon [nzMessage]="problem()!.text" />
       }
     </section>
+
+    <!-- THE LOCAL CACHE (`core/leghe-cache.ts`): what Leghe said is kept, so the page asks as little as it
+         can. Emptying it is the one way to re-read the rules before they expire. -->
+    <section class="flex items-baseline gap-2 border-t border-border pt-3 text-xs text-muted" data-leghe-cache>
+      <span>
+        Cache locale: {{ session.cacheSize() }} {{ session.cacheSize() === 1 ? 'lettura salvata' : 'letture salvate' }}
+      </span>
+      <button
+        nz-button
+        nzSize="small"
+        nzType="link"
+        class="ml-auto"
+        [disabled]="!session.cacheSize()"
+        (click)="session.forgetCache()"
+      >
+        Svuota
+      </button>
+    </section>
   </div>
 </nz-modal>

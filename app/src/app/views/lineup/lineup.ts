@@ -316,9 +316,15 @@ export class Lineup {
     this.session.leagues().map((l) => ({ key: keyOf(l), label: `${LEGHE[l.platform].label} · ${l.name}` })),
   );
 
+  /**
+   * When Leghe was read: «alle 14:32» today, the day too otherwise - a cached reading of yesterday drawn as
+   * a bare hour would read as today's.
+   */
   protected readonly readTime = computed(() => {
     const at = this.md()?.readAt;
-    return at ? at.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '';
+    if (!at) return '';
+    const hour = at.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    return at.toDateString() === new Date().toDateString() ? `alle ${hour}` : WHEN.format(at);
   });
 
   /** One line per competition, already worded: the template prints and decides nothing. */
@@ -345,7 +351,7 @@ export class Lineup {
   protected readonly closes = computed(() => {
     const at = this.md()?.closesAt;
     if (!at) return null;
-    const minutes = Math.round((at.getTime() - this.md()!.readAt.getTime()) / 60_000);
+    const minutes = Math.round((at.getTime() - this.md()!.servedAt.getTime()) / 60_000);
     const left =
       minutes <= 0
         ? 'chiusa'

@@ -42,6 +42,13 @@ it: the press sheet (`next-round-store.ts`), fanta-asta-live (`auction-feed.ts`)
 calls go through a pass-through (`proxy.conf.mjs` under `ng serve`, `proxy/leghe-worker.mjs` on the
 published site); the league tokens live in `sessionStorage` only, and nothing about the operator's
 leagues ever enters the public bundle. Details: `docs/model/formazione-leghe-v1.md`.
+**And Leghe is asked as LITTLE as possible** (the operator, 09/10/2026: «altrimenti la sicurezza ci
+blocca»): every read goes through the local cache first (`core/leghe-cache.ts`, an hour for the roster and
+the percentages, a day for teams and competitions, a week for the rules), the requests that do leave go one
+at a time and 400 ms apart (`leghe-api.ts`), and «rileggi» re-reads only the moving part. A new reader of
+Leghe goes through `LegheSession`'s cache with the volatility of its fact, never straight to `leagueGet`;
+a bench or probe against the real account is run on purpose, once, and keeps its browser profile so the
+cache answers the next run (`scripts/e2e-lineup-live.mjs`).
 
 ## The operator's working preferences
 

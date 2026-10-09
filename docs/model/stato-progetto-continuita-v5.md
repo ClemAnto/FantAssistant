@@ -201,6 +201,25 @@ APERTO: il **caso Juventus** (`Ad:Celik`), da provare con la misura come SPAREGG
 Documento autosufficiente: una sessione nuova, anche senza memoria, riparte da qui + i file della cartella "Modello Previsionale Fantacalcio".
 *Glossario: T1/T2 = finestre di test (23/24->24/25, 24/25->25/26) · MAE = errore medio assoluto · cross-fitted = parametri stimati su una finestra, testati sull'altra · M2e = modello portieri decomposto (abilità + tasso gol subiti del club; la metà Elo del nome non è nel motore) · Pv_att = presenze attese · fc_id = id fantacalcio.it · EV = valore atteso · scoring_config = punteggi configurabili per lega · xG/xA = expected goals/assists · 2.5 pieno = backtest motore completo con flag.*
 
+## CHIUSURA — 9 ottobre 2026 (XXV): poche richieste a Leghe, la cache locale
+
+Regola dell'operatore: «dobbiamo evitare di fare troppe chiamate a euroleghe.fantacalcio.it o
+leghe.fantacalcio.it altrimenti la sicurezza ci blocca, limitiamo al minimo le richieste e utilizziamo la
+cache locale». Solo app, nessun numero del motore.
+- **Cache locale** (`core/leghe-cache.ts`, `localStorage`, chiave piattaforma:utente:lega:percorso, mai il
+  token): `live` 1 h (rosa con `percent`, `status`, `timing`), `day` 24 h (competizioni, squadre), `season`
+  7 giorni (regole, squadre reali, calendari). Durate DICHIARATE. Prima ogni sguardo costava ~12 richieste,
+  anche a ogni ricarica di `ng serve`; ora una pagina ricaricata ne costa 0.
+- **«Rileggi»** rilegge solo la parte `live` (3-5 richieste); **«Svuota»** nella modale Account rilegge tutto.
+- **Una richiesta alla volta, 400 ms fra due** (`leghe-api.ts`, `SPACING_MS`), anche questa dichiarata.
+- **`e2e-lineup-live.mjs`** tiene il profilo fra le corse (`--fresh` per ripartire da vuoto) e pretende 0
+  richieste riaprendo la prima lega; i due login a corsa restano (token in `sessionStorage`).
+Verificato senza toccare Leghe: `leghe-session.spec.ts` (Leghe finto: 12 a freddo, 0 ricaricata, 4 su
+«rileggi», controprova che morde), coda con orologio finto, modale nel browser sulla build con 0 richieste a
+Leghe. **1471 test app, build verde.** NON verificato dal vivo con l'account (apposta). Aperte, e sono sue:
+token in `localStorage` per non rifare il login a ogni scheda, un freno ai login falliti, la cache leggibile
+dagli altri siti Pages. Dettaglio: `formazione-leghe-v1.md` §4-sexies.
+
 ## CHIUSURA — 9 ottobre 2026 (XXIV): l'FVA legge la partita, il trend resta fuori
 
 Tre domande dell'operatore, tre misure (scratchpad, sola lettura su una copia del DB) e una modifica all'app.

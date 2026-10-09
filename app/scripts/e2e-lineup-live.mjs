@@ -8,14 +8,26 @@
  *
  * Screenshots go to the OS temp folder: they carry the operator's roster and league names, and the
  * repository is public.
+ *
+ * FEW REQUESTS TO LEGHE (operator, 09/10/2026: «altrimenti la sicurezza ci blocca»). The browser profile is
+ * KEPT between runs (`<temp>/e2e-lineup-live-profile`), so the page's local cache (`core/leghe-cache.ts`)
+ * answers what it already read and a second run asks Leghe almost nothing - the two LOGINS stay, because the
+ * tokens live in `sessionStorage` and die with the browser. `--fresh` empties the profile first, which costs
+ * a whole cold pass per league: use it only when the cold path itself is what is being checked. Each league
+ * prints how many requests its look cost, and the first league is opened AGAIN at the end: that look must
+ * cost ZERO, or the cache is not doing its job.
+ *
+ *   node scripts/e2e-lineup-live.mjs 4321 [pacchetto-quote.json] [--fresh]
  */
-import { spawn } from 'node:child_process';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { spawn, spawnSync } from 'node:child_process';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const PORT = process.argv[2] ?? '4321';
+const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
+const FRESH = process.argv.includes('--fresh');
+const PORT = ARGS[0] ?? '4321';
 const URL0 = `http://localhost:${PORT}/lineup`;
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const SHOTS = join(tmpdir(), 'e2e-lineup-live');
@@ -31,7 +43,9 @@ const USER = ENV.FANTACALCIO_USERNAME;
 const PASS = ENV.FANTACALCIO_PASSWORD;
 if (!USER || !PASS) throw new Error('FANTACALCIO_USERNAME / FANTACALCIO_PASSWORD missing in .env');
 
-const prof = await mkdtemp(join(tmpdir(), 'e2e-lineup-'));
+const prof = join(tmpdir(), 'e2e-lineup-live-profile');
+if (FRESH) await rm(prof, { recursive: true, force: true });
+await mkdir(prof, { recursive: true });
 const browser = spawn(EDGE, ['--headless=new', '--disable-gpu', `--user-data-dir=${prof}`, '--remote-debugging-port=0', '--window-size=1400,1100', 'about:blank'], { stdio: 'ignore' });
 let wsUrl = null;
 for (let i = 0; i < 100 && !wsUrl; i++) {
@@ -162,7 +176,7 @@ try {
   await send('Target.setAutoAttach', { autoAttach: true, waitForDebuggerOnStart: false, flatten: true }, pageSession);
   // OPTIONAL: a bookmaker-odds payload to seed the page's cache (argv[3]), so the odds join can be measured
   // on the real rosters before the Sheet serves it. Built with odds.gs's own parsers.
-  const seed = process.argv[3];
+  const seed = ARGS[1];
   if (seed) {
     const body = readFileSync(seed, 'utf8');
     const cache = JSON.stringify({ at: new Date().toISOString(), body });
@@ -246,6 +260,7 @@ try {
         oddsState: document.querySelector('[data-lineup-odds-state]')?.innerText.replace(/\\s+/g, ' ') ?? null,
         noOdds: rows.filter((r) => /^\\s*–\\s*$/.test(r.children[7]?.innerText ?? '')).map((r) => (r.children[1]?.innerText ?? '').split('\\n')[0] + ' [' + (r.children[0]?.innerText ?? '').replace(/\\s+/g, '') + '] ' + (r.children[2]?.innerText ?? '')),
         sentEnabled: !document.querySelector('[data-pitch-source="sent"]')?.classList.contains('ant-radio-button-wrapper-disabled'),
+        requests: Number(document.querySelector('[data-lineup-read]')?.getAttribute('data-leghe-requests') ?? NaN),
         error: document.querySelector('app-lineup nz-alert')?.innerText ?? null,
       };
     })()`);
@@ -253,11 +268,31 @@ try {
     await shot(`3-page-${i + 1}.png`);
     if (read.rosterRows) oddsChecks(i + 1, await ev(PRICED));
   }
+  // THE CACHE: the first league again. Its readings are minutes old, so this look must not ask Leghe at all.
+  if (leagues.length > 1 && leagues[0] !== null) {
+    await ev(`(async () => {
+      (document.querySelector('[data-lineup-league] nz-select-top-control') ?? document.querySelector('[data-lineup-league]')).click();
+      await new Promise((r) => setTimeout(r, 400));
+      document.querySelectorAll('nz-option-item')[0].click();
+    })()`);
+    await until(`!!document.querySelector('[data-lineup-roster] li[data-fc-id]')`, 40000);
+    await wait(1000);
+    const again = Number(await ev(`document.querySelector('[data-lineup-read]')?.getAttribute('data-leghe-requests') ?? NaN`));
+    console.log(`league 1 again: ${again} requests to Leghe`);
+    if (again !== 0) fail(`league 1 opened again cost ${again} requests: the local cache did not answer`);
+  }
   await verifyPrices();
 } finally {
   console.log(failures.length ? `${failures.length} ODDS CHECK(S) FAILED:\n  ` + failures.join('\n  ') : 'odds checks passed');
   console.log(problems.length ? problems.join('\n') : 'no page exceptions');
   console.log(`screenshots in ${SHOTS}`);
-  browser.kill();
   ws.close();
+  // THE WHOLE TREE, and every Edge carrying this profile: one left behind would hold the profile the next run
+  // reuses (the lesson of `e2e-draft.mjs`, 29/09/2026).
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(browser.pid), '/T', '/F'], { stdio: 'ignore' });
+    spawnSync('powershell', ['-NoProfile', '-Command',
+      `Get-CimInstance Win32_Process -Filter "Name='msedge.exe'" | Where-Object { $_.CommandLine -like '*e2e-lineup-live-profile*' } | `
+      + 'ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }'], { stdio: 'ignore' });
+  } else browser.kill();
 }
