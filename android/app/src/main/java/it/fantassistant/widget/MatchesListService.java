@@ -77,13 +77,16 @@ public class MatchesListService extends RemoteViewsService {
         @Override
         public RemoteViews getViewAt(int position) {
             Object item = items.get(position);
-            if (item instanceof String) {
-                RemoteViews h = new RemoteViews(context.getPackageName(), R.layout.group);
-                h.setTextViewText(R.id.group, (String) item);
-                return h;
+            // One layout, one view type (see `item.xml`): a label shows its half and hides the match's.
+            RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.item);
+            boolean label = item instanceof String;
+            v.setViewVisibility(R.id.group_box, label ? View.VISIBLE : View.GONE);
+            v.setViewVisibility(R.id.row, label ? View.GONE : View.VISIBLE);
+            if (label) {
+                v.setTextViewText(R.id.group, (String) item);
+                return v;
             }
             Matches.Row r = (Matches.Row) item;
-            RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.row);
             v.setInt(R.id.row, "setBackgroundResource", r.live() ? R.drawable.row_live_bg : R.drawable.row_bg);
             // The two sides with their crests; a list from a `widget.gs` without `home`/`away` keeps the joined title.
             boolean split = !r.home.isEmpty() && !r.away.isEmpty();
@@ -174,7 +177,7 @@ public class MatchesListService extends RemoteViewsService {
 
         @Override
         public int getViewTypeCount() {
-            return 2;
+            return 1;
         }
 
         @Override

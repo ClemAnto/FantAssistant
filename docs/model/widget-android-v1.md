@@ -157,6 +157,11 @@ il repository non pubblica niente su Apps Script da solo.
 - `local.properties` su Windows vuole i backslash raddoppiati (`C\:\\Users\\...`), altrimenti
   «La sintassi del nome del file ... non è corretta».
 - Uno screenshot headless stretto (Edge a 412 px) non è affidabile per verificare il layout mobile.
+- **Un solo tipo di riga nella lista** (`layout/item.xml`, etichetta e partita nello stesso layout, l'altra metà
+  GONE): sul telefono dell'operatore, dopo l'APK che dichiarava due tipi di riga, il widget mostrava una partita
+  sola e un lampo delle altre che sparivano. Una lista di RemoteViews si ricorda quanti tipi aveva quando il
+  widget è stato messo; con un tipo solo non può mai essere in disaccordo con un widget più vecchio. Causa
+  plausibile, non riprodotta sull'emulatore (lì andava con entrambe le versioni).
 - In un commento XML la sequenza `--` è vietata (build fallita su `group.xml`).
 - L'emulatore non riaggiunge il widget al riavvio (`-no-snapshot-save`): «Aggiungi il widget alla home» dall'app.
   Per provare con un JSON locale serve temporaneamente `usesCleartextTraffic` (non va lasciato nel manifest).
