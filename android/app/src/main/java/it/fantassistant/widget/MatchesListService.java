@@ -62,6 +62,8 @@ public class MatchesListService extends RemoteViewsService {
             }
             items = out;
             crests.clear();
+            Store.setListPrepared(context, out.size());
+            Store.setListError(context, "");
             men = Store.showMen(context);
         }
 
@@ -74,8 +76,26 @@ public class MatchesListService extends RemoteViewsService {
             return items.size();
         }
 
+        /**
+         * A row that throws must not take the list with it: it is drawn as a line saying so, and the error is kept
+         * for the app's screen (`Store.listReport`), which is the only place a failure inside a launcher is visible.
+         */
         @Override
         public RemoteViews getViewAt(int position) {
+            Store.setListServed(context, position);
+            try {
+                return view(position);
+            } catch (Throwable t) {
+                Store.setListError(context, "riga " + (position + 1) + ": " + t);
+                RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.item);
+                v.setViewVisibility(R.id.row, View.GONE);
+                v.setViewVisibility(R.id.group_box, View.VISIBLE);
+                v.setTextViewText(R.id.group, "errore: " + t.getClass().getSimpleName());
+                return v;
+            }
+        }
+
+        private RemoteViews view(int position) {
             Object item = items.get(position);
             // One layout, one view type (see `item.xml`): a label shows its half and hides the match's.
             RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.item);

@@ -63,6 +63,34 @@ final class Store {
         prefs(context).edit().putString("error", error == null ? "" : error).apply();
     }
 
+    /**
+     * What the widget's list ACTUALLY did, for the app's screen (10/10/2026: on the operator's phone the list showed
+     * one match and a flash of the others, and the emulator could not reproduce it): how many items the last data
+     * change prepared, the highest position the launcher asked for, and the last error a row threw.
+     */
+    static void setListPrepared(Context context, int items) {
+        prefs(context).edit().putInt("listItems", items).putInt("listServed", -1)
+                .putLong("listAt", System.currentTimeMillis()).apply();
+    }
+
+    static void setListServed(Context context, int position) {
+        if (position > prefs(context).getInt("listServed", -1)) prefs(context).edit().putInt("listServed", position).apply();
+    }
+
+    static void setListError(Context context, String error) {
+        prefs(context).edit().putString("listError", error).apply();
+    }
+
+    static String listReport(Context context) {
+        SharedPreferences p = prefs(context);
+        long at = p.getLong("listAt", 0L);
+        if (at == 0L) return "";
+        String s = "Widget: " + p.getInt("listItems", 0) + " righe preparate, richieste fino alla "
+                + (p.getInt("listServed", -1) + 1) + " (" + android.text.format.DateFormat.format("HH:mm", at) + ")";
+        String e = p.getString("listError", "");
+        return e.isEmpty() ? s : s + "\nErrore di una riga: " + e;
+    }
+
     static boolean showMen(Context context) {
         return prefs(context).getBoolean("men", true);
     }

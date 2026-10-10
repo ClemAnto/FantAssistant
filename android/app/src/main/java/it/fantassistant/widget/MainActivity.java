@@ -79,6 +79,8 @@ public class MainActivity extends Activity {
             s.append("Nessuna lista ancora letta.");
         }
         if (!error.isEmpty()) s.append("\n\n").append(error);
+        String list = Store.listReport(this);
+        if (!list.isEmpty()) s.append("\n\n").append(list);
         status.setText(s.toString());
     }
 }
