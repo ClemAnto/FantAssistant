@@ -49,6 +49,9 @@ Questa pagina è il punto d'ingresso per riprendere il lavoro sul widget in un'a
 
 ## 2. L'app Android (`android/`)
 
+- Versione: `versionName` in `app/build.gradle` (0.2.0 dall'11/10/2026), scritta nell'intestazione del widget
+  accanto a «agg.» e nella schermata dell'app; l'APK in `android/builds/` porta la versione nel nome. Va alzata
+  (con `versionCode`) a ogni APK dato all'operatore, o uno screenshot non dice quale versione l'ha disegnato.
 - Build: `cd android; $env:JAVA_HOME="C:\Program Files\Android\Android Studio\jbr"; .\gradlew.bat assembleDebug`
   → `app/build/outputs/apk/debug/app-debug.apk`. AGP 9.4.1, Gradle 9.8.0 (wrapper), compileSdk/targetSdk 35,
   minSdk 26. `local.properties` punta all'SDK locale ed è gitignorato.

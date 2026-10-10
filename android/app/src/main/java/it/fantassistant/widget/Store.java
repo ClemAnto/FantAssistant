@@ -91,6 +91,16 @@ final class Store {
         return e.isEmpty() ? s : s + "\nErrore di una riga: " + e;
     }
 
+    /** The APK's versionName (`app/build.gradle`), or «?» when the package manager does not say. */
+    static String version(Context context) {
+        try {
+            String v = context.getPackageManager().getPackageInfo(context.getPackageName(), 0).versionName;
+            return v == null ? "?" : v;
+        } catch (Exception e) {
+            return "?";
+        }
+    }
+
     static boolean showMen(Context context) {
         return prefs(context).getBoolean("men", true);
     }

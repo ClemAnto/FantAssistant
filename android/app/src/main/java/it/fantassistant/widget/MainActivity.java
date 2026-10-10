@@ -81,6 +81,7 @@ public class MainActivity extends Activity {
         if (!error.isEmpty()) s.append("\n\n").append(error);
         String list = Store.listReport(this);
         if (!list.isEmpty()) s.append("\n\n").append(list);
+        s.append("\n\nVersione app: ").append(Store.version(this));
         status.setText(s.toString());
     }
 }

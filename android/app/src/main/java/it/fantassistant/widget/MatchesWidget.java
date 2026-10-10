@@ -67,7 +67,10 @@ public class MatchesWidget extends AppWidgetProvider {
         if (m == null) v.setTextViewText(R.id.empty, error.isEmpty() ? "Caricamento…" : error);
         else if (m.rows.isEmpty()) v.setTextViewText(R.id.empty, m.text.isEmpty() ? "Nessuna partita" : m.text);
         // «agg. 16:05»: when the SHEET built the list, which is the age that matters; a «!» when the last read failed.
-        v.setTextViewText(R.id.updated, m == null ? "" : "agg. " + m.updated + (error.isEmpty() ? "" : " !"));
+        // The app's version beside it (operator, 11/10/2026), so a screenshot says which APK drew it.
+        String version = Store.version(context);
+        v.setTextViewText(R.id.updated, (m == null ? "" : "agg. " + m.updated + (error.isEmpty() ? "" : " !") + " · ")
+                + "v" + version);
         v.setTextViewText(R.id.toggle_men, Store.showMen(context) ? "Nomi ✓" : "Nomi");
 
         v.setOnClickPendingIntent(R.id.toggle_men, broadcast(context, ACTION_TOGGLE, 2));
