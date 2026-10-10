@@ -762,6 +762,10 @@ def write_sofascore_clubs(conn: sqlite3.Connection, folder: Path) -> str | None:
     the bridge has to travel. Derived and narrow on purpose, like `calendar.json`: `club_xref` stays out of
     the bundle (EXCLUDED - the app never re-resolves an identity), and what travels is the one column a
     caller needs to ASK the provider, resolved once here. A club with no provider id is absent, never zero.
+
+    `players` (10/10/2026, same file so no allowlist has to learn a new name): our `fc_id` -> the provider's
+    player id, from `player_xref`. The widget marks under each match who did not play, who came on or went
+    off and who scored, and it finds a man in the match's line-up and incidents by THAT id - never by name.
     """
     try:
         rows = conn.execute(
@@ -777,10 +781,25 @@ def write_sofascore_clubs(conn: sqlite3.Connection, folder: Path) -> str | None:
     if not clubs:
         print("[export] note: no sofascore club ids - the widget's match list will say so")
         return None
-    payload = {"what": "fc_club_id -> SofaScore team id (club_xref, source sofascore)", "clubs": clubs}
+    # A man with TWO live provider ids (the key is (source, source_id), so it can happen) is left out rather
+    # than given whichever row came last: with the wrong id the widget would find him in no line-up and draw a
+    # «did not play» that is false, while an absent id leaves his line undecided - «vuoto = ignoto».
+    found: dict[str, set[int]] = {}
+    try:
+        for fc_id, source_id in conn.execute(
+                "SELECT fc_id, source_id FROM player_xref WHERE source = 'sofascore' AND valid_to IS NULL"):
+            if str(source_id).isdigit():
+                found.setdefault(str(fc_id), set()).add(int(source_id))
+    except sqlite3.Error as exc:
+        print(f"[export] note: sofascore_clubs.json without players ({exc})")
+    players = {k: next(iter(v)) for k, v in sorted(found.items(), key=lambda kv: int(kv[0])) if len(v) == 1}
+    if len(players) < len(found):
+        print(f"[export] note: {len(found) - len(players)} players with two sofascore ids left out of the widget's map")
+    payload = {"what": "fc_club_id -> SofaScore team id (club_xref); fc_id -> SofaScore player id (player_xref)",
+               "clubs": clubs, "players": players}
     _atomic_write_bytes(folder / "sofascore_clubs.json",
                         json.dumps(payload, separators=(",", ":")).encode("utf-8"))
-    print(f"[export] sofascore_clubs.json: {len(clubs)} clubs")
+    print(f"[export] sofascore_clubs.json: {len(clubs)} clubs, {len(players)} players")
     return "sofascore_clubs.json"
 
 

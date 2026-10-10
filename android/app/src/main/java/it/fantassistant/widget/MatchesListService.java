@@ -2,11 +2,17 @@ package it.fantassistant.widget;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.net.Uri;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.RelativeSizeSpan;
 import android.view.View;
 import android.widget.RemoteViews;
 import android.widget.RemoteViewsService;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -19,8 +25,15 @@ public class MatchesListService extends RemoteViewsService {
 
     private static final class Factory implements RemoteViewsFactory {
         private final Context context;
-        private List<Matches.Row> rows = Collections.emptyList();
+        /**
+         * The list as drawn: a group label (a String) before the first match of each group, then its matches
+         * (operator, 10/10/2026: «raggruppiamo le partite per giorni, solo un'etichetta come divisore»; the
+         * groups are `Matches.label`'s). The rows arrive sorted by kick-off from the Sheet.
+         */
+        private List<Object> items = Collections.emptyList();
         private boolean men = true;
+        /** The crests of this reading, decoded once per data change instead of twice per row per redraw. */
+        private final java.util.Map<Long, Bitmap> crests = new java.util.HashMap<>();
 
         Factory(Context context) {
             this.context = context;
@@ -33,7 +46,22 @@ public class MatchesListService extends RemoteViewsService {
         @Override
         public void onDataSetChanged() {
             Matches m = Matches.parse(Store.json(context));
-            rows = m == null ? Collections.emptyList() : m.rows;
+            List<Object> out = new ArrayList<>();
+            String group = null;
+            if (m != null) {
+                List<Matches.Row> sorted = new ArrayList<>(m.rows);
+                // Stable: inside a group the Sheet's kick-off order stays.
+                sorted.sort((a, b) -> Long.compare(a.rank, b.rank));
+                for (Matches.Row r : sorted) {
+                    if (!r.group.equals(group)) {
+                        group = r.group;
+                        if (!group.isEmpty()) out.add(group);
+                    }
+                    out.add(r);
+                }
+            }
+            items = out;
+            crests.clear();
             men = Store.showMen(context);
         }
 
@@ -43,25 +71,100 @@ public class MatchesListService extends RemoteViewsService {
 
         @Override
         public int getCount() {
-            return rows.size();
+            return items.size();
         }
 
         @Override
         public RemoteViews getViewAt(int position) {
-            Matches.Row r = rows.get(position);
+            Object item = items.get(position);
+            if (item instanceof String) {
+                RemoteViews h = new RemoteViews(context.getPackageName(), R.layout.group);
+                h.setTextViewText(R.id.group, (String) item);
+                return h;
+            }
+            Matches.Row r = (Matches.Row) item;
             RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.row);
             v.setInt(R.id.row, "setBackgroundResource", r.live() ? R.drawable.row_live_bg : R.drawable.row_bg);
-            v.setTextViewText(R.id.match, r.title);
+            // The two sides with their crests; a list from a `widget.gs` without `home`/`away` keeps the joined title.
+            boolean split = !r.home.isEmpty() && !r.away.isEmpty();
+            v.setTextViewText(R.id.home, split ? r.home : r.title.replace(" - ", " vs "));
+            v.setViewVisibility(R.id.dash, split ? View.VISIBLE : View.GONE);
+            v.setViewVisibility(R.id.away, split ? View.VISIBLE : View.GONE);
+            v.setTextViewText(R.id.away, r.away);
+            crest(v, R.id.home_crest, split ? r.homeId : 0);
+            crest(v, R.id.away_crest, split ? r.awayId : 0);
+            // A side with none of my men reads fainter (operator, 10/10/2026), so the eye goes to the clubs that matter.
+            fade(v, R.id.home, R.id.home_crest, split && r.homePlayers.isEmpty() && !r.awayPlayers.isEmpty());
+            fade(v, R.id.away, R.id.away_crest, split && r.awayPlayers.isEmpty() && !r.homePlayers.isEmpty());
             v.setTextViewText(R.id.score, r.score);
             v.setViewVisibility(R.id.score, r.score.isEmpty() ? View.GONE : View.VISIBLE);
-            v.setTextViewText(R.id.when, r.when);
+            // What the group's label does not already say (see `Matches.label`).
+            v.setTextViewText(R.id.when, r.side);
+            v.setViewVisibility(R.id.when, r.side.isEmpty() ? View.GONE : View.VISIBLE);
             v.setTextColor(R.id.when, context.getColor(r.live() ? R.color.live : R.color.muted));
-            v.setTextViewText(R.id.league, r.league);
             boolean showMen = men && !r.players.isEmpty();
-            v.setTextViewText(R.id.men, r.players);
+            v.setTextViewText(R.id.men, r.men.isEmpty() ? r.players
+                    : menLine(r.men, !r.homePlayers.isEmpty() && !r.awayPlayers.isEmpty()));
             v.setViewVisibility(R.id.men, showMen ? View.VISIBLE : View.GONE);
             if (!r.url.isEmpty()) v.setOnClickFillInIntent(R.id.row, new Intent().setData(Uri.parse(r.url)));
             return v;
+        }
+
+        private void fade(RemoteViews v, int text, int crest, boolean faint) {
+            int fg = context.getColor(R.color.fg);
+            v.setTextColor(text, faint ? (fg & 0x00FFFFFF) | 0x73000000 : fg);
+            v.setInt(crest, "setImageAlpha", faint ? 115 : 255);
+        }
+
+        /**
+         * My men in this match (operator, 10/10/2026): a man who did not play at 50% opacity, a green up-arrow and
+         * the minute for one who came on, a red down-arrow and the minute for one who went off, a ball for every
+         * goal (penalties included) and a boot for every assist. A man the Sheet knows nothing about (match not
+         * started, or no SofaScore id) is written plainly: not knowing is not «did not play».
+         * When both sides have men of mine, the away side's are a darker white (operator, 10/10/2026).
+         */
+        private CharSequence menLine(List<Matches.Man> list, boolean bothSides) {
+            SpannableStringBuilder out = new SpannableStringBuilder();
+            for (Matches.Man m : list) {
+                if (out.length() > 0) out.append(",  ");
+                int fg = context.getColor(bothSides && m.away ? R.color.fg_away : R.color.fg);
+                int start = out.length();
+                out.append(m.name);
+                if (bothSides && m.away && !Boolean.FALSE.equals(m.played)) {
+                    out.setSpan(new ForegroundColorSpan(fg), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                }
+                if (Boolean.FALSE.equals(m.played)) {
+                    out.setSpan(new ForegroundColorSpan((fg & 0x00FFFFFF) | 0x80000000), start, out.length(),
+                            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                    continue;
+                }
+                for (int i = 0; i < m.goals; i++) out.append(" ⚽");
+                for (int i = 0; i < m.assists; i++) out.append(" 👟");
+                if (!m.on.isEmpty()) mark(out, " ▲" + m.on, context.getColor(R.color.sub_in));
+                if (!m.off.isEmpty()) mark(out, " ▼" + m.off, context.getColor(R.color.sub_out));
+            }
+            return out;
+        }
+
+        private static void mark(SpannableStringBuilder out, String text, int color) {
+            int start = out.length();
+            out.append(text);
+            out.setSpan(new ForegroundColorSpan(color), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            out.setSpan(new RelativeSizeSpan(0.85f), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+
+        private void crest(RemoteViews v, int view, long id) {
+            Bitmap b = null;
+            if (id > 0) {
+                if (!crests.containsKey(id)) crests.put(id, Crests.get(context, id));
+                b = crests.get(id);
+            }
+            if (b == null) {
+                v.setViewVisibility(view, View.GONE);
+            } else {
+                v.setImageViewBitmap(view, b);
+                v.setViewVisibility(view, View.VISIBLE);
+            }
         }
 
         @Override
@@ -71,7 +174,7 @@ public class MatchesListService extends RemoteViewsService {
 
         @Override
         public int getViewTypeCount() {
-            return 1;
+            return 2;
         }
 
         @Override

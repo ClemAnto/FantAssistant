@@ -390,7 +390,7 @@ export class Bundle {
   private calendarPromise?: Promise<CalendarFile | null>;
   private presenceTestPromise?: Promise<PresenceTestFile | null>;
   private presenceNowPromise?: Promise<PresenceNowFile | null>;
-  private sofascoreClubsPromise?: Promise<Record<string, number> | null>;
+  private sofascoreFilePromise?: Promise<{ clubs?: Record<string, number>; players?: Record<string, number> } | null>;
 
   manifest(): Promise<BundleManifest> {
     this.manifestPromise ??= fetch(`${this.base}/manifest.json`)
@@ -593,11 +593,22 @@ export class Bundle {
    * the Android widget asks the provider for a club's matches by ITS id. Null when the bundle predates it.
    */
   sofascoreClubs(): Promise<Record<string, number> | null> {
-    this.sofascoreClubsPromise ??= fetch(`${this.base}/sofascore_clubs.json`)
-      .then((res) => (res.ok ? (res.json() as Promise<{ clubs?: Record<string, number> }>) : null))
-      .then((file) => file?.clubs ?? null)
+    return this.sofascoreFile().then((file) => file?.clubs ?? null);
+  }
+
+  /**
+   * fc_id -> SofaScore player id, from the same file (10/10/2026): the widget finds a man in a match's line-up
+   * and incidents by the provider's id, never by name. Null when the bundle predates it.
+   */
+  sofascorePlayers(): Promise<Record<string, number> | null> {
+    return this.sofascoreFile().then((file) => file?.players ?? null);
+  }
+
+  private sofascoreFile(): Promise<{ clubs?: Record<string, number>; players?: Record<string, number> } | null> {
+    this.sofascoreFilePromise ??= fetch(`${this.base}/sofascore_clubs.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ clubs?: Record<string, number>; players?: Record<string, number> }>) : null))
       .catch(() => null);
-    return this.sofascoreClubsPromise;
+    return this.sofascoreFilePromise;
   }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */

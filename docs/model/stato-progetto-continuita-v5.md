@@ -1,5 +1,17 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXV): 10 ottobre 2026 — IL WIDGET ANDROID DELLE PARTITE REALI DEI MIEI CLUB, NATIVO, FUNZIONANTE SUL SUO TELEFONO.**
+**Aggiornato (XXVI): 10 ottobre 2026 (sera) — IL WIDGET DICE COSA HANNO FATTO I MIEI CALCIATORI.**
+Stemmi accanto ai nomi, font più piccoli, FT/HT, «Team A vs Team B», niente campionato, righe raggruppate per giorno
+(`ieri, venerdì 9/10` · `oggi, sabato 10/10` · `più tardi` con «ore 18:30» · `domani, domenica 11/10`), squadra senza
+miei calciatori in trasparenza, e per le partite in corso o finite: chi non ha giocato al 50%, ▲/▼ col minuto per
+chi entra ed esce, un pallone per gol e una scarpetta per assist, la squadra in trasferta in un bianco più scuro
+quando ne ho di entrambe. Catena: l'export aggiunge `players` (`fc_id → id SofaScore`) a `sofascore_clubs.json`, la
+webapp li manda col widget (pubblicata v0.1.54 alle 18:26), `widget.gs` legge `lineups` + `incidents` per partita.
+Verificato coi dati veri sull'emulatore (Kane due assist). Poi una code review (9 rilievi, tutti corretti: lista a
+pezzi nelle proprietà, stemmi dopo il disegno, tetto 60 righe, doppi id fuori). **Da fare dall'operatore:**
+incollare e ridistribuire `widget.gs`, installare `android/builds/fantassistant-widget-2026-10-10.apk` e rimettere
+il widget sulla home. Dettaglio: **`widget-android-v1.md`** §2 e §5 punto 4-bis.
+
+· precedente: **Aggiornato (XXV): 10 ottobre 2026 — IL WIDGET ANDROID DELLE PARTITE REALI DEI MIEI CLUB, NATIVO, FUNZIONANTE SUL SUO TELEFONO.**
 Tre metà: la pagina Formazione manda la rosa («Invia al widget», `core/widget-feed.ts`) a `scripts/gas/widget.gs`
 (terzo file del progetto Apps Script delle probabili, `?what=widget`), che ogni 5' legge SofaScore — risponde ai
 server Google, a questo PC no — filtra il solo campionato e prepara la lista; l'app nativa `android/` (Java, AGP 9.4.1)

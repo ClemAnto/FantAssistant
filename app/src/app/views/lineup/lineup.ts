@@ -198,12 +198,14 @@ export class Lineup {
   protected readonly widget = inject(WidgetFeed);
   protected readonly widgetOpen = signal(false);
   private readonly sofascoreClubs = resource({ loader: () => this.bundle.sofascoreClubs() });
+  private readonly sofascorePlayers = resource({ loader: () => this.bundle.sofascorePlayers() });
 
   /** The men of the team on screen, each with his club's SofaScore id where the bundle has one. */
   protected readonly widgetSquad = computed(() =>
     widgetMen(
-      this.roster().map((r) => ({ name: r.name, role: r.roles.join(';'), club: r.club, clubId: r.clubId })),
+      this.roster().map((r) => ({ name: r.name, role: r.roles.join(';'), club: r.club, clubId: r.clubId, fcId: r.fcId })),
       this.sofascoreClubs.hasValue() ? this.sofascoreClubs.value() : null,
+      this.sofascorePlayers.hasValue() ? this.sofascorePlayers.value() : null,
     ),
   );
 

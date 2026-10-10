@@ -28,6 +28,11 @@ export interface WidgetMan {
   club: string;
   /** SofaScore team id of his club; null = the bundle has none for it. */
   team: number | null;
+  /**
+   * His own SofaScore id, so the widget can say whether he played, came on, went off, scored or assisted in a
+   * match; null = the bundle has none, and the widget then draws him without saying (never guessed by name).
+   */
+  id: number | null;
 }
 
 /** One man of the roster as the Lineup page has him, and the bundle's club id where the bundle knows him. */
@@ -36,18 +41,21 @@ export interface WidgetSource {
   role: string;
   club: string;
   clubId: number | null;
+  fcId: number | null;
 }
 
 /** Joins each man to his club's SofaScore id, by OUR club id and never by a name. */
 export function widgetMen(
   roster: readonly WidgetSource[],
   sofascore: Readonly<Record<string, number>> | null,
+  sofascorePlayers: Readonly<Record<string, number>> | null = null,
 ): { men: WidgetMan[]; missing: string[] } {
   const men = roster.map((r) => ({
     name: r.name,
     role: r.role,
     club: r.club,
     team: r.clubId !== null && sofascore ? (sofascore[String(r.clubId)] ?? null) : null,
+    id: r.fcId !== null && sofascorePlayers ? (sofascorePlayers[String(r.fcId)] ?? null) : null,
   }));
   return { men, missing: men.filter((m) => m.team === null).map((m) => m.name) };
 }

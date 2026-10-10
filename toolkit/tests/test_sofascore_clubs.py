@@ -30,3 +30,35 @@ def test_no_ids_means_no_file(tmp_path):
                  "valid_from TEXT, valid_to TEXT)")
     assert write_sofascore_clubs(conn, tmp_path) is None
     assert not (tmp_path / "sofascore_clubs.json").exists()
+
+
+def test_players_travel_beside_the_clubs(tmp_path):
+    conn = _conn()
+    conn.execute("CREATE TABLE player_xref (fc_id INTEGER, source TEXT, source_id TEXT, "
+                 "valid_from TEXT, valid_to TEXT)")
+    conn.executemany("INSERT INTO player_xref VALUES (?, ?, ?, NULL, ?)", [
+        (100, "sofascore", "803033", None),
+        (100, "transfermarkt", "1", None),
+        (101, "sofascore", "917048", "2025-06-30"),
+        (102, "sofascore", "prov_x", None),
+    ])
+    write_sofascore_clubs(conn, tmp_path)
+    payload = json.loads((tmp_path / "sofascore_clubs.json").read_text(encoding="utf-8"))
+    assert payload["players"] == {"100": 803033}
+
+
+def test_no_player_table_still_writes_the_clubs(tmp_path):
+    write_sofascore_clubs(_conn(), tmp_path)
+    payload = json.loads((tmp_path / "sofascore_clubs.json").read_text(encoding="utf-8"))
+    assert payload["clubs"] == {"8": 2697} and payload["players"] == {}
+
+
+def test_a_man_with_two_live_ids_is_left_out_not_guessed(tmp_path):
+    conn = _conn()
+    conn.execute("CREATE TABLE player_xref (fc_id INTEGER, source TEXT, source_id TEXT, "
+                 "valid_from TEXT, valid_to TEXT)")
+    conn.executemany("INSERT INTO player_xref VALUES (?, 'sofascore', ?, NULL, NULL)",
+                     [(100, "803033"), (200, "1"), (200, "2")])
+    write_sofascore_clubs(conn, tmp_path)
+    payload = json.loads((tmp_path / "sofascore_clubs.json").read_text(encoding="utf-8"))
+    assert payload["players"] == {"100": 803033}

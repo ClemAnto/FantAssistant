@@ -32,9 +32,11 @@ final class Refresher {
     static void refresh(Context context, Runnable done) {
         Context app = context.getApplicationContext();
         new Thread(() -> {
+            Matches read = null;
             try {
                 String body = fetch(Store.listUrl(app));
-                if (Matches.parse(body) != null) {
+                read = Matches.parse(body);
+                if (read != null) {
                     Store.setJson(app, body);
                     Store.setError(app, "");
                 } else {
@@ -47,6 +49,9 @@ final class Refresher {
                 schedule(app);
                 if (done != null) done.run();
             }
+            // The crests AFTER the list is drawn and the broadcast released: a slow or closed image host must not
+            // hold back the scores. A second redraw only if a crest actually arrived.
+            if (read != null && Crests.ensure(app, read)) MatchesWidget.renderAll(app);
         }).start();
     }
 

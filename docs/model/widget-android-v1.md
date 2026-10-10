@@ -39,7 +39,7 @@ Questa pagina è il punto d'ingresso per riprendere il lavoro sul widget in un'a
    - **solo campionato** (`WIDGET_LEAGUES` = uniqueTournament 23 Serie A, 17 Premier, 8 Liga, 35 Bundesliga,
      34 Ligue 1), finestra ultime 48 h + prossimi 7 giorni, **tetto 30 righe**;
    - serve `?what=widget`: JSON già formattato (`title`, `score`, `when` = «Oggi 20:45» / «67'» / «45+2'» /
-     «Intervallo» / «Finale» / «Annullata», `league`, `players`, `homePlayers`, `awayPlayers`, `url`, `state`
+     «HT» / «FT» / «Annullata», `league`, `home`/`away` con `homeId`/`awayId` (id SofaScore, per gli stemmi), `players`, `homePlayers`, `awayPlayers`, `url`, `state`
      pre|live|done), più `text`/`textShort` e `rich`/`richShort` (tag Kustom, per KWGT);
    - serve `?what=widgetPage`: la stessa lista come pagina HTML (link `target="_top"` a SofaScore, casella
      «calciatori»). Era il ripiego per KWGT; resta disponibile.
@@ -56,7 +56,15 @@ Questa pagina è il punto d'ingresso per riprendere il lavoro sul widget in un'a
   - `MatchesWidget` (AppWidgetProvider): header «Partite», «agg. hh:mm» (ora in cui il FOGLIO ha costruito la
     lista, con «!» se l'ultima lettura è fallita), bottone **Nomi ✓/Nomi** (toggle), **↻** (rileggi ora),
     `ListView` scorrevole;
-  - `MatchesListService`: le righe (bordo rosa e minuto rosa se live, nomi nascosti dal toggle);
+  - `MatchesListService`: le righe (bordo rosa e minuto rosa se live, nomi nascosti dal toggle) **raggruppate per
+    giorno** con un'etichetta fra due righe sottili come divisore (`layout/group.xml`), secondo lo schema
+    dell'operatore del 10/10/2026: `giovedì 8/10` · `ieri, venerdì 9/10` · `oggi, sabato 10/10` (giocate e in
+    corso, col risultato e FT/minuto) · `più tardi` (le partite di oggi non ancora iniziate, «ore 18:00» sulla riga)
+    · `domani, domenica 11/10` e i giorni seguenti («ore 12:00» sulla riga). Le etichette le calcola il telefono
+    (`Matches.label`, sull'orologio del telefono) da `start` e `state`; «Team A vs Team B», risultato «2-1»;
+  - `Crests`: stemmi dei club scaricati dal telefono da `img.sofascore.com/api/v1/team/{id}/image` (risponde 200
+    anche dove l'API dà 403), ridotti a 48 px, in `files/crests/{id}.png`, riletti dopo 30 giorni; scaricati dopo
+    ogni lettura riuscita (`Refresher`). Uno stemma mancante = riga senza immagine, mai un errore;
   - `Refresher`: GET con 3 tentativi (il secondo salto di Apps Script fallisce da sé ogni tanto), catena di
     allarmi inesatti non-wakeup: **5' se c'è una partita live**, fino al prossimo calcio d'inizio se è entro 30',
     altrimenti 30'; `updatePeriodMillis` 30' come rete di sicurezza;
@@ -103,14 +111,43 @@ il repository non pubblica niente su Apps Script da solo.
    GitHub Pages col bottone Widget e `sofascore_clubs.json` nel bundle.
 3. **Export completo**: `sofascore_clubs.json` è stato scritto a mano nell'export del 10/10 con la funzione nuova;
    il prossimo `export` lo produce da sé — verificare che compaia nel manifest (`sofascore_clubs`).
-4. **Densità delle righe**: oggi ~6 righe visibili su un 4×3; valutare campionato sulla stessa riga del titolo,
+4. ~~**Stemmi, font più piccoli, FT/HT, raggruppamento per giorno**~~ — fatto il 10/10/2026 (sera), verificato
+   sull'emulatore con un JSON di prova servito in locale (stemmi presenti, gruppi e «ore» giusti). **Richiede di
+   incollare `widget.gs` e ridistribuire** (Nuova versione, stessa distribuzione): senza, la lista non porta
+   `homeId`/`awayId` e gli stemmi non compaiono (il resto funziona già: FT/HT e i gruppi hanno un ripiego sul
+   telefono). Reinstallare l'APK sopra quello vecchio.
+4-bis. **Cosa hanno fatto i miei calciatori** (10/10/2026, sera): squadra senza miei calciatori in trasparenza;
+   per le partite in corso o finite, chi non ha giocato al 50%, ▲ verde col minuto per chi è entrato, ▼ rosso col
+   minuto per chi è uscito, un pallone per ogni gol (rigori compresi, autogol no) e una scarpetta per ogni assist.
+   Catena: il toolkit aggiunge `players` (`fc_id → id SofaScore`, da `player_xref`) a `sofascore_clubs.json`
+   (4026 calciatori; stesso file, così nessuna allowlist deve imparare un nome nuovo); la webapp manda `id` per
+   ogni uomo (`WidgetMan.id`, join per `fcId`, mai per nome); `widget.gs` legge `/event/{id}/lineups` (titolari) e
+   `/event/{id}/incidents` (cambi, gol, assist) a ogni giro finché la partita è in corso e UNA volta a partita
+   finita (`widget:detail:<id>`, `final`), e scrive `men: [{name, played, on, off, goals, assists}]` per riga;
+   il telefono li disegna con span colorati (le immagini in un testo di RemoteViews non passano, quindi pallone e
+   scarpetta sono emoji). `played` null = non si sa (partita non iniziata o uomo senza id) → nome normale.
+   **Serve, nell'ordine**: pubblicare la webapp, rimandare la squadra dalla pagina Formazione (per gli id), incollare
+   e ridistribuire `widget.gs`, installare l'APK. Anteprima verificata sull'emulatore con dati inventati.
+   Verificato poi sui dati VERI (10/10/2026 18:32: Gusto ▲88', Grimaldo un gol, Nyland e Baum non schierati).
+   Quando entrambe le squadre hanno miei calciatori, quelli della squadra in trasferta sono di un bianco più scuro
+   (`fg_away`; `side` nel JSON, con ripiego sul conto di `homePlayers`). I gruppi sono ordinati per giorno con
+   «più tardi» subito dopo «oggi» (`Row.rank`), così una partita delle 18:30 non ancora iniziata non spezza in due
+   il gruppo di oggi. APK copiato in `android/builds/` (gitignorato da `*.apk`).
+   **Code review del 10/10/2026 (sera), corretti:** il tetto di righe da 30 a 60 (con due account la lista finiva
+   al sabato dopo); la lista salvata in proprietà a pezzi da 8 KB (`widgetStore_`/`widgetStored_`, il limite di una
+   proprietà è 9 KB) con la cache come scorciatoia e non come unica copia; gli stemmi scaricati DOPO aver disegnato
+   la lista e rilasciato il broadcast, ogni club una volta per giro, e un secondo disegno solo se ne è arrivato uno;
+   gli stemmi decodificati una volta per lettura e non due per riga a ogni ridisegno; i nomi delle squadre con
+   `maxWidth` 110dp perché un nome lungo non spinga fuori la squadra ospite; una riga senza calcio d'inizio in
+   fondo e non sopra il giorno più vecchio; nell'export, un calciatore con DUE id SofaScore vivi è lasciato fuori
+   (8 su 4026) invece di prenderne uno a caso, che lo farebbe leggere «non ha giocato» in ogni partita.
+5. **Densità delle righe**: oggi ~6 righe visibili su un 4×3; valutare campionato sulla stessa riga del titolo,
    righe più basse, o un layout compatto opzionale.
-5. **Anteprima nel selettore widget** (`previewLayout`/`previewImage`): oggi mostra l'icona.
-6. **Più fantasquadre**: il foglio unisce già le squadre inviate (chiave = lega); il widget non dice di quale
+6. **Anteprima nel selettore widget** (`previewLayout`/`previewImage`): oggi mostra l'icona.
+7. **Più fantasquadre**: il foglio unisce già le squadre inviate (chiave = lega); il widget non dice di quale
    fantasquadra è ogni calciatore. Eventuale etichetta o filtro.
-7. **Firma release**: oggi APK debug. Per aggiornamenti senza disinstallare serve sempre la stessa chiave: la
+8. **Firma release**: oggi APK debug. Per aggiornamenti senza disinstallare serve sempre la stessa chiave: la
    debug key di questo PC va bene finché si compila qui; altrimenti creare un keystore (fuori dal repo).
-8. **Badge/stemmi** dei club nelle righe (SofaScore serve `/team/{id}/image`) — solo se la densità lo permette.
 9. **Gol dei miei calciatori** nella riga (incidents dell'evento) — costo: una richiesta in più per partita live.
 
 ## 6. Trappole incontrate (da non ripetere)
@@ -120,4 +157,7 @@ il repository non pubblica niente su Apps Script da solo.
 - `local.properties` su Windows vuole i backslash raddoppiati (`C\:\\Users\\...`), altrimenti
   «La sintassi del nome del file ... non è corretta».
 - Uno screenshot headless stretto (Edge a 412 px) non è affidabile per verificare il layout mobile.
+- In un commento XML la sequenza `--` è vietata (build fallita su `group.xml`).
+- L'emulatore non riaggiunge il widget al riavvio (`-no-snapshot-save`): «Aggiungi il widget alla home» dall'app.
+  Per provare con un JSON locale serve temporaneamente `usesCleartextTraffic` (non va lasciato nel manifest).
 - `cat > file` senza heredoc in un comando Bash resta in attesa di stdin e blocca la corsa.

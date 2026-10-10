@@ -32,7 +32,13 @@ var WIDGET_SCHEDULE_TTL_H = 6;
 /** The window the widget shows: finished matches of the last N hours, upcoming ones of the next N days. */
 var WIDGET_PAST_H = 48;
 var WIDGET_AHEAD_D = 7;
-var WIDGET_MAX_ROWS = 30;
+/**
+ * Up to this many matches, the earliest first. 30 was enough for one fantasquadra; with two accounts the list
+ * filled up by the following Saturday and every later match fell off the end (measured 10/10/2026: 30 rows, the
+ * last on 17/10 at 14:00). 30 rows with the men's lines weighed 25 KB on 10/10/2026, so 60 stay well under
+ * CacheService's 100 KB per value; the record itself is chunked (`widgetStore_`) and has no such ceiling.
+ */
+var WIDGET_MAX_ROWS = 60;
 /**
  * The championships only (operator, 10/10/2026: «si filtra solo il campionato»): SofaScore's `uniqueTournament`
  * ids of the five EuroLeghe leagues - Serie A 23, Premier League 17, LaLiga 8, Bundesliga 35, Ligue 1 34. A cup,
@@ -49,7 +55,7 @@ var WIDGET_DAYS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 // ==============================================================================================
 
 /**
- * The app posts `{secret, key, label, players: [{name, role, club, team}]}` as text/plain (a «simple» request,
+ * The app posts `{secret, key, label, players: [{name, role, club, team, id}]}` as text/plain (a «simple» request,
  * so the browser sends it without a CORS preflight). `key` is one fantasquadra: sending it again REPLACES that
  * team, and `players: []` removes it. The answer says what was kept.
  */
@@ -67,7 +73,14 @@ function doPost(e) {
 
   var squads = widgetSquads_();
   var players = (body.players || []).filter(function (p) { return p && p.name && Number(p.team) > 0; })
-    .map(function (p) { return { name: String(p.name), role: String(p.role || ''), club: String(p.club || ''), team: Number(p.team) }; });
+    .map(function (p) {
+      return {
+        name: String(p.name), role: String(p.role || ''), club: String(p.club || ''), team: Number(p.team),
+        // The man's own SofaScore id (toolkit's `player_xref`), which is how his line in a match's line-up and
+        // incidents is found; 0 = unknown, and then his match line stays undecided rather than guessed by name.
+        id: Number(p.id) > 0 ? Number(p.id) : 0
+      };
+    });
   if (players.length) squads[body.key] = { label: String(body.label || body.key), sentAt: new Date().toISOString(), players: players };
   else delete squads[body.key];
   PropertiesService.getScriptProperties().setProperty('widget:squads', JSON.stringify(squads));
@@ -163,14 +176,114 @@ function refreshWidget() {
       if (schedules[id]) props.setProperty('widget:team:' + id, JSON.stringify(schedules[id]));
     });
 
-    var out = widgetBuild_(squads, byId, now);
+    var details = widgetDetails_(props, squads, byId, now);
+    var out = widgetBuild_(squads, byId, now, details);
     var body = JSON.stringify(out);
-    props.setProperty('widget:out', body);
-    try { CacheService.getScriptCache().put('widget', body, 300); } catch (err) { /* over size */ }
+    // The property is the record (in chunks, because one value has a size limit of its own) and the cache only
+    // spares a read; a cache that refuses a big list is logged and the property still serves it. A record that
+    // cannot be written is an ERROR, not a log line: a run that silently keeps serving an old list is the defect.
+    widgetStore_(props, body);
+    try { CacheService.getScriptCache().put('widget', body, 900); } catch (err) { Logger.log('widget: cache ' + err); }
     return out;
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * WHAT MY MEN DID in a match being played or played (operator, 10/10/2026): who did not play, who came on and
+ * when, who went off and when, goals (penalties included, own goals not) and assists. Two requests per match -
+ * `/event/{id}/lineups` for who STARTED and `/event/{id}/incidents` for the substitutions, goals and assists -
+ * re-read every run while the match is live and ONCE after it is finished: a finished match's incidents are a
+ * finished fact (`final`), so it is never paid for again. Kept per match as the few ids and minutes the list
+ * needs, and dropped when the match leaves the window.
+ */
+function widgetDetails_(props, squads, byId, now) {
+  var details = {};
+  var wanted = [];
+  var anyId = Object.keys(squads).some(function (k) {
+    return squads[k].players.some(function (p) { return p.id > 0; });
+  });
+  Object.keys(byId).forEach(function (k) {
+    var ev = byId[k];
+    var played = ev.type === 'inprogress' || ev.type === 'finished';
+    if (!played || !widgetInWindow_(ev, now, 0)) return;
+    var raw = props.getProperty('widget:detail:' + ev.id);
+    var one = null;
+    try { one = raw ? JSON.parse(raw) : null; } catch (err) { one = null; }
+    details[ev.id] = one;
+    // Re-read until a reading taken after the final whistle is on file.
+    if (anyId && (!one || !one.final)) wanted.push(ev);
+  });
+  if (wanted.length) {
+    var urls = [];
+    wanted.forEach(function (ev) {
+      urls.push(WIDGET_API + '/event/' + ev.id + '/lineups');
+      urls.push(WIDGET_API + '/event/' + ev.id + '/incidents');
+    });
+    var answers = widgetFetchAll_(urls);
+    wanted.forEach(function (ev, i) {
+      var lineups = answers[2 * i], incidents = answers[2 * i + 1];
+      // Both halves or nothing: a starter list without its substitutions would call a substitute «did not play».
+      if (!lineups || !incidents || !lineups.home) return;
+      var one = widgetDetail_(lineups, incidents, ev.type === 'finished');
+      details[ev.id] = one;
+      props.setProperty('widget:detail:' + ev.id, JSON.stringify(one));
+    });
+  }
+  // A match that left the window takes its detail with it.
+  props.getKeys().forEach(function (key) {
+    if (key.indexOf('widget:detail:') === 0 && !(key.slice(14) in details)) props.deleteProperty(key);
+  });
+  return details;
+}
+
+/** The compact detail of one match: starters, substitutions with their minute, goals and assists by player id. */
+function widgetDetail_(lineups, incidents, final) {
+  var starters = [];
+  var called = [];
+  ['home', 'away'].forEach(function (side) {
+    ((lineups[side] || {}).players || []).forEach(function (row) {
+      var id = row.player && row.player.id;
+      if (!id) return;
+      called.push(id);
+      if (!row.substitute) starters.push(id);
+    });
+  });
+  var subs = [];
+  var goals = {};
+  var assists = {};
+  (incidents.incidents || []).forEach(function (inc) {
+    var minute = inc.time === undefined || inc.time === null ? '' :
+      inc.time + (inc.addedTime ? '+' + inc.addedTime : '') + "'";
+    if (inc.incidentType === 'substitution') {
+      subs.push([inc.playerIn ? inc.playerIn.id : 0, inc.playerOut ? inc.playerOut.id : 0, minute]);
+    } else if (inc.incidentType === 'goal' && inc.incidentClass !== 'ownGoal') {
+      var scorer = inc.player && inc.player.id;
+      if (scorer) goals[scorer] = (goals[scorer] || 0) + 1;
+      var helper = inc.assist1 && inc.assist1.id;
+      if (helper) assists[helper] = (assists[helper] || 0) + 1;
+    }
+  });
+  return { final: !!final, starters: starters, called: called, subs: subs, goals: goals, assists: assists };
+}
+
+/**
+ * One of my men in one match: `played` true/false (null = no detail, or no id to find him by), the minute he came
+ * on and went off, his goals and assists.
+ */
+function widgetManLine_(p, detail) {
+  var line = { name: p.name, played: null, on: '', off: '', goals: 0, assists: 0 };
+  if (!detail || !(p.id > 0)) return line;
+  var started = detail.starters.indexOf(p.id) >= 0;
+  detail.subs.forEach(function (s) {
+    if (s[0] === p.id) line.on = s[2];
+    if (s[1] === p.id) line.off = s[2];
+  });
+  line.played = started || !!line.on;
+  line.goals = detail.goals[p.id] || 0;
+  line.assists = detail.assists[p.id] || 0;
+  return line;
 }
 
 /** Parallel GETs; a failed one is null, never an empty answer (an empty answer would read as «no matches»). */
@@ -234,13 +347,14 @@ function widgetInWindow_(ev, now, slackH) {
 // 3. The list, already formatted
 // ==============================================================================================
 
-function widgetBuild_(squads, byId, now) {
+function widgetBuild_(squads, byId, now, details) {
+  details = details || {};
   // My men by club, and which fantasquadra each belongs to when there are several.
   var mine = {};
   var keys = Object.keys(squads);
   keys.forEach(function (k) {
     squads[k].players.forEach(function (p) {
-      (mine[p.team] = mine[p.team] || []).push(p.name);
+      (mine[p.team] = mine[p.team] || []).push(p);
     });
   });
 
@@ -259,20 +373,33 @@ function widgetBuild_(squads, byId, now) {
     var score = ev.hs === null || ev.as === null || !played ? '' : ev.hs + ' - ' + ev.as;
     var when = state === 'pre' ? widgetWhen_(ev.start * 1000, now)
       : state === 'live' ? widgetMinute_(ev, now)
-      : ev.type === 'finished' ? 'Finale' : widgetStatusIt_(ev.type);
-    var men = [].concat(mine[ev.homeId] || [], mine[ev.awayId] || []);
+      : ev.type === 'finished' ? 'FT' : widgetStatusIt_(ev.type);
+    var names = function (list) { return (list || []).map(function (p) { return p.name; }); };
+    var men = [].concat(names(mine[ev.homeId]), names(mine[ev.awayId]));
+    var detail = played ? details[ev.id] : null;
+    var lines = [].concat(
+      (mine[ev.homeId] || []).map(function (p) { var l = widgetManLine_(p, detail); l.side = 'home'; return l; }),
+      (mine[ev.awayId] || []).map(function (p) { var l = widgetManLine_(p, detail); l.side = 'away'; return l; }));
     var title = ev.home + ' - ' + ev.away;
     return {
       state: state,
       title: title,
+      // The two sides apart, with their SofaScore ids: the native widget draws each club's crest beside its
+      // name (`img.sofascore.com/api/v1/team/{id}/image`, cached on the phone).
+      home: ev.home,
+      away: ev.away,
+      homeId: ev.homeId,
+      awayId: ev.awayId,
       score: score,
       when: when,
       league: ev.league,
       // The men of each side apart, for the widget's «show my men» toggle (a KWGT global switch that sets
       // the visibility of the line under the match): `players` both together, `homePlayers`/`awayPlayers` split.
       players: men.join(', '),
-      homePlayers: (mine[ev.homeId] || []).join(', '),
-      awayPlayers: (mine[ev.awayId] || []).join(', '),
+      homePlayers: names(mine[ev.homeId]).join(', '),
+      awayPlayers: names(mine[ev.awayId]).join(', '),
+      // The same men with what they did in this match (`widgetManLine_`), for the native widget.
+      men: lines,
       line: title + '   ' + (score ? score + '  ' : '') + when,
       url: 'https://www.sofascore.com/football/match/' + ev.slug + '/' + ev.customId + '#id:' + ev.id,
       start: new Date(ev.start * 1000).toISOString()
@@ -330,7 +457,7 @@ function widgetWhen_(ms, now) {
  * the other pauses are their own word. Up to 5 minutes old, which is the refresh the operator accepted.
  */
 function widgetMinute_(ev, now) {
-  if (ev.code === 31) return 'Intervallo';
+  if (ev.code === 31) return 'HT';
   if (ev.code === 50) return 'Rigori';
   if (!ev.cps) return ev.desc || 'In corso';
   var minute = Math.floor((now / 1000 - ev.cps + ev.initial) / 60) + 1;
@@ -354,8 +481,27 @@ function widgetGet_(e) {
   return json_(widgetStored_());
 }
 
+/** One script property holds 9 KB at most, so the list is kept in chunks: `widget:out:n` = how many, then each. */
+var WIDGET_CHUNK = 8000;
+
+function widgetStore_(props, body) {
+  var chunks = {};
+  var n = Math.ceil(body.length / WIDGET_CHUNK) || 1;
+  for (var i = 0; i < n; i++) chunks['widget:out:' + i] = body.slice(i * WIDGET_CHUNK, (i + 1) * WIDGET_CHUNK);
+  chunks['widget:out:n'] = String(n);
+  props.setProperties(chunks);
+  // Chunks left over from a longer list, and the single value used before chunks existed.
+  props.getKeys().forEach(function (key) {
+    var m = /^widget:out:(\d+)$/.exec(key);
+    if ((m && Number(m[1]) >= n) || key === 'widget:out') props.deleteProperty(key);
+  });
+}
+
 function widgetStored_() {
-  var body = PropertiesService.getScriptProperties().getProperty('widget:out');
+  var props = PropertiesService.getScriptProperties();
+  var n = Number(props.getProperty('widget:out:n'));
+  var body = '';
+  for (var i = 0; i < n; i++) body += props.getProperty('widget:out:' + i) || '';
   return body || JSON.stringify({ updated: null, count: 0, text: 'Widget non ancora aggiornato', rows: [] });
 }
 
