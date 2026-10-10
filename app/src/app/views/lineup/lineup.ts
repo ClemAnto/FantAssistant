@@ -6,6 +6,7 @@ import { NzAlertModule } from 'ng-zorro-antd/alert';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzCheckboxModule } from 'ng-zorro-antd/checkbox';
 import { NzIconModule } from 'ng-zorro-antd/icon';
+import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzPopconfirmModule } from 'ng-zorro-antd/popconfirm';
 import { NzRadioModule } from 'ng-zorro-antd/radio';
 import { NzSelectModule } from 'ng-zorro-antd/select';
@@ -53,6 +54,7 @@ import { TrendCell, trendVoteMean } from '../../core/player-trend';
 import { Standings, placeOf, standingsOf } from '../../core/standings';
 import { PlayersStore, isChampionship } from '../../core/players-store';
 import { ValuationStore } from '../../core/valuation-store';
+import { WidgetFeed, widgetMen } from '../../core/widget-feed';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
@@ -156,6 +158,7 @@ type SaveState =
     LegheConnect,
     NzAlertModule,
     NzButtonModule,
+    NzInputModule,
     NzCheckboxModule,
     NzIconModule,
     NzPopconfirmModule,
@@ -190,6 +193,32 @@ export class Lineup {
   private readonly ratings = inject(PlayerRatingsStore);
   private readonly clock = inject(TimeTravel);
   protected readonly connecting = signal(false);
+
+  /** «Invia al widget» (10/10/2026): the Android widget's squad, sent to the Sheet (`core/widget-feed.ts`). */
+  protected readonly widget = inject(WidgetFeed);
+  protected readonly widgetOpen = signal(false);
+  private readonly sofascoreClubs = resource({ loader: () => this.bundle.sofascoreClubs() });
+
+  /** The men of the team on screen, each with his club's SofaScore id where the bundle has one. */
+  protected readonly widgetSquad = computed(() =>
+    widgetMen(
+      this.roster().map((r) => ({ name: r.name, role: r.roles.join(';'), club: r.club, clubId: r.clubId })),
+      this.sofascoreClubs.hasValue() ? this.sofascoreClubs.value() : null,
+    ),
+  );
+
+  /** Sends the team on screen to the widget, or (`remove`) takes it out. */
+  protected sendToWidget(remove = false): void {
+    const key = this.leagueKey();
+    if (!key) return;
+    const label = this.leagueOptions().find((o) => o.key === key)?.label ?? key;
+    const squad = this.widgetSquad();
+    void this.widget.send(key, label, remove ? [] : squad.men, remove ? [] : squad.missing);
+  }
+
+  protected copyWidgetUrl(): void {
+    void navigator.clipboard?.writeText(this.widget.readUrl());
+  }
 
   /** The league rules start FOLDED (operator, 08/10/2026: «mettili in un box collassabile»). */
   protected readonly rulesOpen = signal(false);

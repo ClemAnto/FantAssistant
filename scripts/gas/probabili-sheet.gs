@@ -1766,6 +1766,8 @@ function clearRoundAsked() {
 function doGet(e) {
   // The bookmakers' prices live in `odds.gs`, a second file of this project sharing this deployment.
   if (e && e.parameter && e.parameter.what === 'odds') return oddsGet_();
+  // The Android widget's match list lives in `widget.gs`, a third file of this project (10/10/2026).
+  if (e && e.parameter && (e.parameter.what === 'widget' || e.parameter.what === 'widgetPage')) return widgetGet_(e);
   var round = e && e.parameter && e.parameter.round ? Number(e.parameter.round) : null;
   var cached = CacheService.getScriptCache().get('next:' + round);
   if (cached) return json_(cached);

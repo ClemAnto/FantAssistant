@@ -1,5 +1,14 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXIV): 9 ottobre 2026 (giorno) — L'FVA IMPLEMENTATO E CON LA PARTITA DENTRO, IL TREND FUORI PER MISURA.**
+**Aggiornato (XXV): 10 ottobre 2026 — IL WIDGET ANDROID DELLE PARTITE REALI DEI MIEI CLUB, NATIVO, FUNZIONANTE SUL SUO TELEFONO.**
+Tre metà: la pagina Formazione manda la rosa («Invia al widget», `core/widget-feed.ts`) a `scripts/gas/widget.gs`
+(terzo file del progetto Apps Script delle probabili, `?what=widget`), che ogni 5' legge SofaScore — risponde ai
+server Google, a questo PC no — filtra il solo campionato e prepara la lista; l'app nativa `android/` (Java, AGP 9.4.1)
+la mostra con toggle dei nomi e tocco che apre SofaScore. Il ponte `fc_club_id → id SofaScore` lo scrive l'export
+(`sofascore_clubs.json`). Provato sull'emulatore (un crash Android 14 trovato e curato: `OpenActivity`) e confermato
+dall'operatore sul suo device. KWGT (anche con pagina HTML) e Ionic valutati e scartati. Committato, pushato e
+pubblicato. Dettaglio, setup e roadmap: **`widget-android-v1.md`**.
+
+· precedente: **Aggiornato (XXIV): 9 ottobre 2026 (giorno) — L'FVA IMPLEMENTATO E CON LA PARTITA DENTRO, IL TREND FUORI PER MISURA.**
 Un commit (questo), pushato. Dettaglio: `formazione-leghe-v1.md` §4-quinquies e la CHIUSURA (XXIV) qui sotto.
 
 · precedente: **Aggiornato (XXI): 8 ottobre 2026 — LA PAGINA FORMAZIONE (`/lineup`) COLLEGATA A LEGHE ED EUROLEGHE, FASE 1:

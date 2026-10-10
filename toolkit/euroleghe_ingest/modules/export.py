@@ -167,7 +167,8 @@ EXCLUDED: dict[str, str] = {
                             "everything the engine reads, and the raw layer exists only so a "
                             "season-specific bonus is never lost upstream",
     "player_xref": "provider ids: the app never re-resolves identity, it consumes fc_id",
-    "club_xref": "same",
+    "club_xref": "same - except the SofaScore team id, which travels DERIVED as `sofascore_clubs.json` "
+                 "(10/10/2026) because the Android widget must ASK the provider for a club's matches",
     "ingest_runs": "the toolkit's own audit trail, not data about football",
     "injury_forecasts": "the dated archive of Transfermarkt's expected returns (01/10/2026): it exists so a "
                         "bench can one day judge what was known on an auction day; the app reads today's "
@@ -752,6 +753,37 @@ KNOWN_GAPS: tuple[str, ...] = (
 
 
 # ---------- helpers ----------
+def write_sofascore_clubs(conn: sqlite3.Connection, folder: Path) -> str | None:
+    """`sofascore_clubs.json`: our club id -> the provider's team id, and nothing else.
+
+    From the operator's request (10/10/2026): an Android widget that lists the real matches of the clubs his
+    fantasquadra's men play for, each opening the match page on SofaScore. The Lineup page knows the men and
+    their club by OUR id (`fc_club_id`); the Sheet that builds the list asks the provider by ITS team id, so
+    the bridge has to travel. Derived and narrow on purpose, like `calendar.json`: `club_xref` stays out of
+    the bundle (EXCLUDED - the app never re-resolves an identity), and what travels is the one column a
+    caller needs to ASK the provider, resolved once here. A club with no provider id is absent, never zero.
+    """
+    try:
+        rows = conn.execute(
+            "SELECT fc_club_id, source_id FROM club_xref WHERE source = 'sofascore' "
+            "AND valid_to IS NULL ORDER BY fc_club_id").fetchall()
+    except sqlite3.Error as exc:
+        print(f"[export] note: no sofascore_clubs.json ({exc})")
+        return None
+    clubs: dict[str, int] = {}
+    for fc_club_id, source_id in rows:
+        if str(source_id).isdigit():
+            clubs[str(fc_club_id)] = int(source_id)
+    if not clubs:
+        print("[export] note: no sofascore club ids - the widget's match list will say so")
+        return None
+    payload = {"what": "fc_club_id -> SofaScore team id (club_xref, source sofascore)", "clubs": clubs}
+    _atomic_write_bytes(folder / "sofascore_clubs.json",
+                        json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+    print(f"[export] sofascore_clubs.json: {len(clubs)} clubs")
+    return "sofascore_clubs.json"
+
+
 def _atomic_write_bytes(path: Path, payload: bytes) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_bytes(payload)
@@ -1170,6 +1202,8 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
     else:
         print("[export] note: no crests in the cache (run `positions --layer crests`)")
 
+    sofascore_path = write_sofascore_clubs(conn, folder)
+
     problems: list[str] = []
     notes: list[str] = []
     if verify and "sqlite" in formats:
@@ -1222,6 +1256,8 @@ def run(ctx: Context, *, season: str | None = None, out: str | None = None,
             "probability that each side concedes nothing. `easy_margin` is the operator's own frozen "
             "threshold and is measured to mean P(clean sheet) = 0.40."
         ),
+        # The provider id of each club, for the Android widget's match list (10/10/2026). Null = none.
+        "sofascore_clubs": sofascore_path,
         "engine_sheets": engine_sheets,
         # LE DATE del viaggio nel tempo, ognuna col suo motore. Vuoto = l'app può retrodatare solo quello
         # che è datato nel bundle (letture, trend, marchi) e lo dichiara, invece di far credere il resto.

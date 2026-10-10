@@ -390,6 +390,7 @@ export class Bundle {
   private calendarPromise?: Promise<CalendarFile | null>;
   private presenceTestPromise?: Promise<PresenceTestFile | null>;
   private presenceNowPromise?: Promise<PresenceNowFile | null>;
+  private sofascoreClubsPromise?: Promise<Record<string, number> | null>;
 
   manifest(): Promise<BundleManifest> {
     this.manifestPromise ??= fetch(`${this.base}/manifest.json`)
@@ -585,6 +586,18 @@ export class Bundle {
       .then((res) => (res.ok ? (res.json() as Promise<PresenceNowFile>) : null))
       .catch(() => null);
     return this.presenceNowPromise;
+  }
+
+  /**
+   * fc_club_id -> SofaScore team id (`sofascore_clubs.json`, 10/10/2026), for the Lineup page's «Invia al widget»:
+   * the Android widget asks the provider for a club's matches by ITS id. Null when the bundle predates it.
+   */
+  sofascoreClubs(): Promise<Record<string, number> | null> {
+    this.sofascoreClubsPromise ??= fetch(`${this.base}/sofascore_clubs.json`)
+      .then((res) => (res.ok ? (res.json() as Promise<{ clubs?: Record<string, number> }>) : null))
+      .then((file) => file?.clubs ?? null)
+      .catch(() => null);
+    return this.sofascoreClubsPromise;
   }
 
   /** fc_club_id -> file name, written by the export next to the badges themselves. */

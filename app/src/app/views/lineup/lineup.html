@@ -40,11 +40,69 @@
           <nz-icon nzType="reload" />
         </button>
       }
+      @if (md()) {
+        <button
+          nz-button
+          nzSize="small"
+          nz-tooltip
+          nzTooltipTitle="Widget Android: le partite dei club dei tuoi calciatori"
+          [nzType]="widgetOpen() ? 'primary' : 'default'"
+          (click)="widgetOpen.set(!widgetOpen())"
+          data-lineup-widget
+        >
+          <nz-icon nzType="mobile" />Widget
+        </button>
+      }
       <button nz-button nzSize="small" (click)="connecting.set(true)" data-lineup-connect>
         <nz-icon nzType="login" />{{ session.leagues().length ? 'Account' : 'Collegati a Leghe' }}
       </button>
     </div>
   </ui-app-header>
+
+  @if (widgetOpen() && md()) {
+    <!-- THE ANDROID WIDGET (10/10/2026, core/widget-feed.ts): this team's men and their clubs go to the Sheet, which
+         asks SofaScore every 5 minutes and serves the list that KWGT reads. -->
+    <div class="flex flex-col gap-2 rounded border border-border bg-surface p-3 text-sm" data-widget-panel>
+      <div class="flex flex-wrap items-center gap-2">
+        <span class="text-muted">Chiave segreta</span>
+        <input
+          nz-input
+          nzSize="small"
+          type="password"
+          class="!w-48"
+          placeholder="WIDGET_SECRET"
+          [ngModel]="widget.secret()"
+          (ngModelChange)="widget.secret.set($event)"
+          data-widget-secret
+        />
+        <button
+          nz-button
+          nzSize="small"
+          nzType="primary"
+          [nzLoading]="widget.state().kind === 'sending'"
+          (click)="sendToWidget()"
+          data-widget-send
+        >
+          Invia questa squadra
+        </button>
+        <button nz-button nzSize="small" (click)="sendToWidget(true)" data-widget-remove>Togli dal widget</button>
+        <span class="text-xs text-muted">{{ widgetSquad().men.length - widgetSquad().missing.length }} di {{ widgetSquad().men.length }} con il club su SofaScore</span>
+      </div>
+      @switch (widget.state().kind) {
+        @case ('sent') {
+          <span class="text-xs text-success" data-widget-result>{{ $any(widget.state()).text }}</span>
+        }
+        @case ('failed') {
+          <span class="text-xs text-danger" data-widget-result>{{ $any(widget.state()).text }}</span>
+        }
+      }
+      <div class="flex flex-wrap items-center gap-2 text-xs text-muted">
+        <span>Indirizzo per KWGT:</span>
+        <code class="max-w-full truncate rounded bg-page px-1" data-widget-url>{{ widget.readUrl() }}</code>
+        <button type="button" class="text-primary hover:underline" (click)="copyWidgetUrl()">copia</button>
+      </div>
+    </div>
+  }
 
   @if (!session.leagues().length) {
     <!-- NOT CONNECTED: say what the page needs and offer the one way in. -->

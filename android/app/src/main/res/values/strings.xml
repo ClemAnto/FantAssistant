@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">FantAssistant Partite</string>
+    <string name="widget_description">Le partite reali dei club dei tuoi calciatori</string>
+    <string name="refresh_glyph">↻</string>
+    <string name="loading">Caricamento…</string>
+</resources>

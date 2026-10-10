@@ -193,6 +193,14 @@ if (existsSync(join(src, 'presence_now.json'))) {
   bytes += statSync(join(src, 'presence_now.json')).size;
 }
 
+/* THE SOFASCORE TEAM ID OF EACH CLUB (10/10/2026), derived by `export` from `club_xref`: the Lineup page sends
+ * the men of a fantasquadra to the Sheet with it, so the Android widget can ask the provider for their matches.
+ * Optional: without it the «Invia al widget» panel counts nobody as covered. A file added to the export goes HERE too. */
+if (existsSync(join(src, 'sofascore_clubs.json'))) {
+  copyFileSync(join(src, 'sofascore_clubs.json'), join(OUT, 'sofascore_clubs.json'));
+  bytes += statSync(join(src, 'sofascore_clubs.json')).size;
+}
+
 const missing = [];
 for (const table of TABLES) {
   const file = `${table}.json.gz`;
