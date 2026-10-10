@@ -23,6 +23,8 @@ final class Matches {
         String off = "";
         int goals;
         int assists;
+        int penMissed;
+        int penSaved;
         /** «home» or «away»; for a list written before the field existed, derived from `homePlayers`. */
         boolean away;
     }
@@ -153,6 +155,8 @@ final class Matches {
                         man.off = m.optString("off");
                         man.goals = m.optInt("goals");
                         man.assists = m.optInt("assists");
+                        man.penMissed = m.optInt("penMissed");
+                        man.penSaved = m.optInt("penSaved");
                         man.away = m.has("side") ? "away".equals(m.optString("side")) : j >= homeCount;
                         row.men.add(man);
                     }

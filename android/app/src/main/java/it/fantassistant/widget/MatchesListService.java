@@ -142,7 +142,8 @@ public class MatchesListService extends RemoteViewsService {
         /**
          * My men in this match (operator, 10/10/2026): a man who did not play at 50% opacity, a green up-arrow and
          * the minute for one who came on, a red down-arrow and the minute for one who went off, a ball for every
-         * goal (penalties included) and a boot for every assist. A man the Sheet knows nothing about (match not
+         * goal (penalties included), a boot for every assist, a cross for a penalty missed and a glove for one
+         * saved. A man the Sheet knows nothing about (match not
          * started, or no SofaScore id) is written plainly: not knowing is not «did not play».
          * When both sides have men of mine, the away side's are a darker white (operator, 10/10/2026).
          */
@@ -163,6 +164,9 @@ public class MatchesListService extends RemoteViewsService {
                 }
                 for (int i = 0; i < m.goals; i++) out.append(" ⚽");
                 for (int i = 0; i < m.assists; i++) out.append(" 👟");
+                // A penalty missed (a cross) and a penalty saved (a keeper's glove), one mark each.
+                for (int i = 0; i < m.penMissed; i++) out.append(" ❌");
+                for (int i = 0; i < m.penSaved; i++) out.append(" 🧤");
                 if (!m.on.isEmpty()) mark(out, " ▲" + m.on, context.getColor(R.color.sub_in));
                 if (!m.off.isEmpty()) mark(out, " ▼" + m.off, context.getColor(R.color.sub_out));
             }

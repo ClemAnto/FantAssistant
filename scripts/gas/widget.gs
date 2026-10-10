@@ -213,7 +213,8 @@ function widgetDetails_(props, squads, byId, now) {
     try { one = raw ? JSON.parse(raw) : null; } catch (err) { one = null; }
     details[ev.id] = one;
     // Re-read until a reading taken after the final whistle is on file.
-    if (anyId && (!one || !one.final)) wanted.push(ev);
+    // (A detail stored before the penalty fields existed is read once more, so finished matches get them too.)
+    if (anyId && (!one || !one.final || !one.missed)) wanted.push(ev);
   });
   if (wanted.length) {
     var urls = [];
@@ -242,12 +243,20 @@ function widgetDetails_(props, squads, byId, now) {
 function widgetDetail_(lineups, incidents, final) {
   var starters = [];
   var called = [];
+  // Penalties missed and saved come from the line-up's own per-player statistics (`penaltyMiss`, `penaltySave`,
+  // verified on a cached Serie A round): the incident list names a penalty that went in, and the shape of one
+  // that did not is not something this file has seen.
+  var missed = {};
+  var saved = {};
   ['home', 'away'].forEach(function (side) {
     ((lineups[side] || {}).players || []).forEach(function (row) {
       var id = row.player && row.player.id;
       if (!id) return;
       called.push(id);
       if (!row.substitute) starters.push(id);
+      var st = row.statistics || {};
+      if (st.penaltyMiss) missed[id] = st.penaltyMiss;
+      if (st.penaltySave) saved[id] = st.penaltySave;
     });
   });
   var subs = [];
@@ -265,7 +274,8 @@ function widgetDetail_(lineups, incidents, final) {
       if (helper) assists[helper] = (assists[helper] || 0) + 1;
     }
   });
-  return { final: !!final, starters: starters, called: called, subs: subs, goals: goals, assists: assists };
+  return { final: !!final, starters: starters, called: called, subs: subs, goals: goals, assists: assists,
+    missed: missed, saved: saved };
 }
 
 /**
@@ -273,7 +283,7 @@ function widgetDetail_(lineups, incidents, final) {
  * on and went off, his goals and assists.
  */
 function widgetManLine_(p, detail) {
-  var line = { name: p.name, played: null, on: '', off: '', goals: 0, assists: 0 };
+  var line = { name: p.name, played: null, on: '', off: '', goals: 0, assists: 0, penMissed: 0, penSaved: 0 };
   if (!detail || !(p.id > 0)) return line;
   var started = detail.starters.indexOf(p.id) >= 0;
   detail.subs.forEach(function (s) {
@@ -283,6 +293,9 @@ function widgetManLine_(p, detail) {
   line.played = started || !!line.on;
   line.goals = detail.goals[p.id] || 0;
   line.assists = detail.assists[p.id] || 0;
+  // A detail stored before these two fields existed has neither: zero, as it was drawn before.
+  line.penMissed = (detail.missed || {})[p.id] || 0;
+  line.penSaved = (detail.saved || {})[p.id] || 0;
   return line;
 }
 

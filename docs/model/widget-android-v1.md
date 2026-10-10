@@ -118,7 +118,8 @@ il repository non pubblica niente su Apps Script da solo.
    telefono). Reinstallare l'APK sopra quello vecchio.
 4-bis. **Cosa hanno fatto i miei calciatori** (10/10/2026, sera): squadra senza miei calciatori in trasparenza;
    per le partite in corso o finite, chi non ha giocato al 50%, ▲ verde col minuto per chi è entrato, ▼ rosso col
-   minuto per chi è uscito, un pallone per ogni gol (rigori compresi, autogol no) e una scarpetta per ogni assist.
+   minuto per chi è uscito, un pallone per ogni gol (rigori compresi, autogol no) e una scarpetta per ogni assist; dall'11/10 anche ❌ per un rigore sbagliato e 🧤 per un rigore parato, letti dalle statistiche per
+   calciatore delle formazioni (`penaltyMiss`, `penaltySave`, verificate su un turno di Serie A in cache).
    Catena: il toolkit aggiunge `players` (`fc_id → id SofaScore`, da `player_xref`) a `sofascore_clubs.json`
    (4026 calciatori; stesso file, così nessuna allowlist deve imparare un nome nuovo); la webapp manda `id` per
    ogni uomo (`WidgetMan.id`, join per `fcId`, mai per nome); `widget.gs` legge `/event/{id}/lineups` (titolari) e
