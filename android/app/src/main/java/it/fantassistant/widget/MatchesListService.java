@@ -121,12 +121,28 @@ public class MatchesListService extends RemoteViewsService {
             v.setTextViewText(R.id.when, r.side);
             v.setViewVisibility(R.id.when, r.side.isEmpty() ? View.GONE : View.VISIBLE);
             v.setTextColor(R.id.when, context.getColor(r.live() ? R.color.live : R.color.muted));
-            boolean showMen = men && !r.players.isEmpty();
+            // Once a match is over, the men who did not play are left out (operator, 11/10/2026); while it is being
+            // played they stay, faint, because a substitute can still come on.
+            List<Matches.Man> shown = new ArrayList<>();
+            for (Matches.Man m : r.men) {
+                if (!("done".equals(r.state) && Boolean.FALSE.equals(m.played))) shown.add(m);
+            }
+            boolean showMen = men && !r.players.isEmpty() && (r.men.isEmpty() || !shown.isEmpty());
             v.setTextViewText(R.id.men, r.men.isEmpty() ? r.players
-                    : menLine(r.men, !r.homePlayers.isEmpty() && !r.awayPlayers.isEmpty()));
+                    : menLine(shown, bothSides(shown)));
             v.setViewVisibility(R.id.men, showMen ? View.VISIBLE : View.GONE);
             if (!r.url.isEmpty()) v.setOnClickFillInIntent(R.id.row, new Intent().setData(Uri.parse(r.url)));
             return v;
+        }
+
+        /** Men of mine on both sides among those drawn: only then is the away side's darker white needed. */
+        private static boolean bothSides(List<Matches.Man> list) {
+            boolean home = false, away = false;
+            for (Matches.Man m : list) {
+                if (m.away) away = true;
+                else home = true;
+            }
+            return home && away;
         }
 
         private void fade(RemoteViews v, int text, int crest, boolean faint) {

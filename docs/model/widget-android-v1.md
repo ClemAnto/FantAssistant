@@ -161,6 +161,16 @@ il repository non pubblica niente su Apps Script da solo.
 - `local.properties` su Windows vuole i backslash raddoppiati (`C\:\\Users\\...`), altrimenti
   «La sintassi del nome del file ... non è corretta».
 - Uno screenshot headless stretto (Edge a 412 px) non è affidabile per verificare il layout mobile.
+- **Solo la giornata corrente** (11/10/2026, `widgetCurrentRounds_` in `widget.gs`, richiede la ridistribuzione):
+  «la giornata corrente dura fino a tutto il giorno in cui c'è almeno una partita da giocare o giocata». Per
+  campionato, il turno corrente è il più basso il cui ultimo giorno (ora italiana) è oggi o dopo; poi UNA giornata
+  fra i cinque: i turni già cominciati fissano l'orizzonte (il loro ultimo giorno) e un turno entra solo se comincia
+  entro quello, così la domenica non compare la Premier della settimana dopo mentre la Serie A gioca ancora il
+  lunedì; senza turni cominciati (infrasettimanale) l'orizzonte lo fa il turno che comincia prima, con quelli entro
+  tre giorni. Rinviate e annullate non allungano un turno. Il calendario in cache senza `round` viene riletto.
+- **v0.2.2 (11/10/2026)**: il tasto ↻ scrive subito «aggiornamento…» in rosa finché la lettura non finisce; a
+  partita finita i calciatori che non hanno giocato non si mostrano (in corso restano sbiaditi, possono ancora
+  entrare); frecce e minuti di entrata/uscita in grigio chiaro.
 - **Gli stemmi per URI e mai come bitmap** (`CrestProvider`, 11/10/2026, v0.2.1). TROVATA sul telefono vero
   (moto g85 5G, Android 16, launcher Motorola) collegato in debug wireless: la lista si fermava alla 13ª riga di 48
   (`listServed` 12 nella diagnosi) e `dumpsys appwidget` dava `views_bitmap_memory=764928` per il nostro widget;

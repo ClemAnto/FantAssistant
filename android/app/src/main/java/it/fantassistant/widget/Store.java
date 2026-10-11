@@ -101,6 +101,15 @@ final class Store {
         }
     }
 
+    /** A refresh asked for by a tap and not finished yet: the widget's header says so. */
+    static boolean refreshing(Context context) {
+        return prefs(context).getBoolean("refreshing", false);
+    }
+
+    static void setRefreshing(Context context, boolean on) {
+        prefs(context).edit().putBoolean("refreshing", on).commit();
+    }
+
     static boolean showMen(Context context) {
         return prefs(context).getBoolean("men", true);
     }

@@ -38,6 +38,12 @@ public class MatchesWidget extends AppWidgetProvider {
             Store.toggleMen(context);
             renderAll(context);
         } else if (ACTION_REFRESH.equals(action) || ACTION_TICK.equals(action)) {
+            // A tap on the refresh glyph shows at once that it was taken (operator, 11/10/2026: «non si capisce
+            // quando è stato premuto»): the header says «aggiornamento…» until the reading is done.
+            if (ACTION_REFRESH.equals(action)) {
+                Store.setRefreshing(context, true);
+                renderAll(context);
+            }
             PendingResult result = goAsync();
             Refresher.refresh(context, result::finish);
         } else {
@@ -69,8 +75,11 @@ public class MatchesWidget extends AppWidgetProvider {
         // «agg. 16:05»: when the SHEET built the list, which is the age that matters; a «!» when the last read failed.
         // The app's version beside it (operator, 11/10/2026), so a screenshot says which APK drew it.
         String version = Store.version(context);
-        v.setTextViewText(R.id.updated, (m == null ? "" : "agg. " + m.updated + (error.isEmpty() ? "" : " !") + " · ")
-                + "v" + version);
+        boolean busy = Store.refreshing(context);
+        v.setTextViewText(R.id.updated, busy ? "aggiornamento…"
+                : (m == null ? "" : "agg. " + m.updated + (error.isEmpty() ? "" : " !") + " · ") + "v" + version);
+        v.setTextColor(R.id.updated, context.getColor(busy ? R.color.live : R.color.muted));
+        v.setTextColor(R.id.refresh, context.getColor(busy ? R.color.live : R.color.fg));
         v.setTextViewText(R.id.toggle_men, Store.showMen(context) ? "Nomi ✓" : "Nomi");
 
         v.setOnClickPendingIntent(R.id.toggle_men, broadcast(context, ACTION_TOGGLE, 2));

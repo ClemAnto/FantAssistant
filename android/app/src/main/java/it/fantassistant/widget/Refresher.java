@@ -45,6 +45,7 @@ final class Refresher {
             } catch (Exception e) {
                 Store.setError(app, "Lettura non riuscita: " + e.getMessage());
             } finally {
+                Store.setRefreshing(app, false);
                 MatchesWidget.renderAll(app);
                 schedule(app);
                 if (done != null) done.run();

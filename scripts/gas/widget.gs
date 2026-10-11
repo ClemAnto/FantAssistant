@@ -123,8 +123,8 @@ function refreshWidget() {
       var raw = props.getProperty('widget:team:' + id);
       var one = null;
       try { one = raw ? JSON.parse(raw) : null; } catch (err) { one = null; }
-      // A schedule cached before `ut` was stored cannot be filtered by championship: read it again.
-      var old = one && one.events.some(function (ev) { return ev.ut === undefined; });
+      // A schedule cached before `ut` (championship) or `round` was stored cannot be filtered: read it again.
+      var old = one && one.events.some(function (ev) { return ev.ut === undefined || ev.round === undefined; });
       if (!one || old || now - one.at > WIDGET_SCHEDULE_TTL_H * 3600000) stale.push(id);
       schedules[id] = one;
     });
@@ -329,6 +329,7 @@ function widgetCompact_(ev) {
     customId: ev.customId || '',
     start: ev.startTimestamp,
     ut: ev.tournament && ev.tournament.uniqueTournament ? ev.tournament.uniqueTournament.id : null,
+    round: ev.roundInfo && ev.roundInfo.round !== undefined ? ev.roundInfo.round : null,
     league: ev.tournament && ev.tournament.uniqueTournament ? ev.tournament.uniqueTournament.name :
       (ev.tournament ? ev.tournament.name : ''),
     home: ev.homeTeam.shortName || ev.homeTeam.name,
@@ -371,11 +372,13 @@ function widgetBuild_(squads, byId, now, details) {
     });
   });
 
-  var events = Object.keys(byId).map(function (k) { return byId[k]; })
+  var candidates = Object.keys(byId).map(function (k) { return byId[k]; })
     .filter(function (ev) {
       return WIDGET_LEAGUES.indexOf(ev.ut) >= 0 && widgetInWindow_(ev, now, 0) && (mine[ev.homeId] || mine[ev.awayId]);
-    })
-    .filter(function (ev) { return !(ev.type === 'finished' && ev.start * 1000 < now - WIDGET_PAST_H * 3600000); })
+    });
+  var current = widgetCurrentRounds_(candidates, now);
+  var events = candidates
+    .filter(function (ev) { return ev.round === null || ev.round === current[ev.ut]; })
     .sort(function (a, b) { return a.start - b.start; })
     .slice(0, WIDGET_MAX_ROWS);
 
@@ -438,6 +441,51 @@ function widgetBuild_(squads, byId, now, details) {
     richShort: rows.length ? rows.map(function (r) { return widgetRich_(r, false); }).join('\n') : widgetEmpty_(keys),
     rows: rows
   };
+}
+
+/**
+ * THE CURRENT MATCHDAY (operator, 11/10/2026): «solo gli incontri della giornata corrente e non della prossima; la
+ * giornata corrente dura fino a tutto il giorno in cui c'è almeno una partita da giocare o giocata».
+ *
+ * Per championship first, because the five play different round numbers on the same weekend: a round stays that
+ * championship's current one through the LAST DAY (Italian time) on which one of its matches falls. Then ONE
+ * matchday across them: a championship that finished on Saturday must not show next week's round on Sunday while
+ * Serie A is still playing. So the rounds already started set the horizon (their last day), and a round enters only
+ * if it starts by then; with none started (midweek), the round starting first, and those starting within three days
+ * of it, set it. A postponed or cancelled match does not stretch its round: it has no day to fall on.
+ * Returns {ut: round} for the rounds to show.
+ */
+function widgetCurrentRounds_(events, now) {
+  var dayOf = function (ms) { return Utilities.formatDate(new Date(ms), 'Europe/Rome', 'yyyy-MM-dd'); };
+  var today = dayOf(now);
+  var span = {};
+  events.forEach(function (ev) {
+    if (ev.round === null || ['postponed', 'canceled'].indexOf(ev.type) >= 0) return;
+    var key = ev.ut + ':' + ev.round;
+    var day = dayOf(ev.start * 1000);
+    var one = span[key] || (span[key] = { ut: ev.ut, round: ev.round, first: day, last: day });
+    if (day < one.first) one.first = day;
+    if (day > one.last) one.last = day;
+  });
+  // Each championship's current round: the lowest whose last day is today or later.
+  var cur = {};
+  Object.keys(span).forEach(function (key) {
+    var one = span[key];
+    if (one.last < today) return;
+    if (!cur[one.ut] || one.round < cur[one.ut].round) cur[one.ut] = one;
+  });
+  var rounds = Object.keys(cur).map(function (ut) { return cur[ut]; });
+  if (!rounds.length) return {};
+  var anchor = rounds.filter(function (r) { return r.first <= today; });
+  if (!anchor.length) {
+    var first = rounds.map(function (r) { return r.first; }).sort()[0];
+    var limit = dayOf(Date.parse(first + 'T12:00:00Z') + 3 * 86400000);
+    anchor = rounds.filter(function (r) { return r.first <= limit; });
+  }
+  var horizon = anchor.map(function (r) { return r.last; }).sort().pop();
+  var out = {};
+  rounds.forEach(function (r) { if (r.first <= horizon) out[r.ut] = r.round; });
+  return out;
 }
 
 /** One match in Kustom's BBCode-like tags. Square brackets inside a name would read as a tag, so they are dropped. */
