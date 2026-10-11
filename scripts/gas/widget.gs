@@ -378,7 +378,7 @@ function widgetBuild_(squads, byId, now, details) {
     });
   var current = widgetCurrentRounds_(candidates, now);
   var events = candidates
-    .filter(function (ev) { return ev.round === null || ev.round === current[ev.ut]; })
+    .filter(function (ev) { return ev.round === null || !!(current[ev.ut] && current[ev.ut][ev.round]); })
     .sort(function (a, b) { return a.start - b.start; })
     .slice(0, WIDGET_MAX_ROWS);
 
@@ -447,16 +447,19 @@ function widgetBuild_(squads, byId, now, details) {
  * THE CURRENT MATCHDAY (operator, 11/10/2026): «solo gli incontri della giornata corrente e non della prossima; la
  * giornata corrente dura fino a tutto il giorno in cui c'è almeno una partita da giocare o giocata».
  *
- * Per championship first, because the five play different round numbers on the same weekend: a round stays that
- * championship's current one through the LAST DAY (Italian time) on which one of its matches falls. Then ONE
- * matchday across them: a championship that finished on Saturday must not show next week's round on Sunday while
- * Serie A is still playing. So the rounds already started set the horizon (their last day), and a round enters only
- * if it starts by then; with none started (midweek), the round starting first, and those starting within three days
- * of it, set it. A postponed or cancelled match does not stretch its round: it has no day to fall on.
- * Returns {ut: round} for the rounds to show.
+ * A matchday is ONE weekend across the five championships, each playing its own round number. It is anchored on the
+ * rounds being played today (first day <= today <= last day, Italian time) or, midweek, on the rounds about to start
+ * (the earliest); every round still to finish that starts within three days of those joins them, and the matchday
+ * runs from their first day to their last. A round of
+ * any championship belongs to it if it overlaps that span, with two days of slack before it - so a Bundesliga round
+ * played Friday and Saturday stays in Sunday's and Monday's list (the operator, the same day: «quando attivo
+ * "finite" escono solo le partite di sabato ma devono uscire anche quelle di venerdì»), and next week's rounds stay
+ * out until the last match of this one is over. A postponed or cancelled match does not stretch its round.
+ * Returns {ut: {round: true}} for the rounds to show.
  */
 function widgetCurrentRounds_(events, now) {
   var dayOf = function (ms) { return Utilities.formatDate(new Date(ms), 'Europe/Rome', 'yyyy-MM-dd'); };
+  var shift = function (day, days) { return dayOf(Date.parse(day + 'T12:00:00Z') + days * 86400000); };
   var today = dayOf(now);
   var span = {};
   events.forEach(function (ev) {
@@ -467,24 +470,20 @@ function widgetCurrentRounds_(events, now) {
     if (day < one.first) one.first = day;
     if (day > one.last) one.last = day;
   });
-  // Each championship's current round: the lowest whose last day is today or later.
-  var cur = {};
-  Object.keys(span).forEach(function (key) {
-    var one = span[key];
-    if (one.last < today) return;
-    if (!cur[one.ut] || one.round < cur[one.ut].round) cur[one.ut] = one;
-  });
-  var rounds = Object.keys(cur).map(function (ut) { return cur[ut]; });
-  if (!rounds.length) return {};
-  var anchor = rounds.filter(function (r) { return r.first <= today; });
-  if (!anchor.length) {
-    var first = rounds.map(function (r) { return r.first; }).sort()[0];
-    var limit = dayOf(Date.parse(first + 'T12:00:00Z') + 3 * 86400000);
-    anchor = rounds.filter(function (r) { return r.first <= limit; });
-  }
-  var horizon = anchor.map(function (r) { return r.last; }).sort().pop();
+  var rounds = Object.keys(span).map(function (key) { return span[key]; });
+  var anchor = rounds.filter(function (r) { return r.first <= today && r.last >= today; });
+  if (!anchor.length) anchor = rounds.filter(function (r) { return r.first > today; });
+  if (!anchor.length) return {};
+  // The weekend: from the first of those to three days later, so a Friday that has only the Bundesliga under way
+  // already counts the Sunday rounds of the others.
+  var limit = shift(anchor.map(function (r) { return r.first; }).sort()[0], 3);
+  anchor = rounds.filter(function (r) { return r.last >= today && r.first <= limit; });
+  var start = shift(anchor.map(function (r) { return r.first; }).sort()[0], -2);
+  var end = anchor.map(function (r) { return r.last; }).sort().pop();
   var out = {};
-  rounds.forEach(function (r) { if (r.first <= horizon) out[r.ut] = r.round; });
+  rounds.forEach(function (r) {
+    if (r.last >= start && r.first <= end) (out[r.ut] = out[r.ut] || {})[r.round] = true;
+  });
   return out;
 }
 

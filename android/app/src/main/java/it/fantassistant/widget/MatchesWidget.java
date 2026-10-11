@@ -77,7 +77,7 @@ public class MatchesWidget extends AppWidgetProvider {
         if (m == null) v.setTextViewText(R.id.empty, error.isEmpty() ? "Caricamento…" : error);
         else if (MatchesListService.items(m, Store.showDone(context)).isEmpty())
             v.setTextViewText(R.id.empty, m.rows.isEmpty() ? (m.text.isEmpty() ? "Nessuna partita" : m.text)
-                    : "Nessuna partita da giocare: tocca «Finite» per vedere i risultati");
+                    : "Nessuna partita da giocare: tocca «Passate» per vedere i risultati");
         else if (m.rows.isEmpty()) v.setTextViewText(R.id.empty, m.text.isEmpty() ? "Nessuna partita" : m.text);
         // «agg. 16:05»: when the SHEET built the list, which is the age that matters; a «!» when the last read failed.
         // The app's version beside it (operator, 11/10/2026), so a screenshot says which APK drew it.
@@ -90,9 +90,9 @@ public class MatchesWidget extends AppWidgetProvider {
         v.setTextViewText(R.id.toggle_men, Store.showMen(context) ? "Nomi ✓" : "Nomi");
 
         v.setOnClickPendingIntent(R.id.toggle_men, broadcast(context, ACTION_TOGGLE, 2));
-        // «Finite»: the matches already over, hidden by default (operator, 11/10/2026: instead of scrolling the
+        // «Passate»: the matches already over, hidden by default (operator, 11/10/2026: instead of scrolling the
         // list to today, «mettiamo un check "mostra partite terminate"»).
-        v.setTextViewText(R.id.toggle_done, Store.showDone(context) ? "Finite ✓" : "Finite");
+        v.setTextViewText(R.id.toggle_done, Store.showDone(context) ? "Passate ✓" : "Passate");
         v.setOnClickPendingIntent(R.id.toggle_done, broadcast(context, ACTION_TOGGLE_DONE, 6));
         v.setOnClickPendingIntent(R.id.refresh, broadcast(context, ACTION_REFRESH, 3));
         v.setOnClickPendingIntent(R.id.title, PendingIntent.getActivity(context, 4,

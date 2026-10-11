@@ -43,7 +43,7 @@
             android:paddingTop="4dp"
             android:paddingEnd="6dp"
             android:paddingBottom="4dp"
-            android:text="Finite"
+            android:text="Passate"
             android:textColor="@color/fg"
             android:textSize="11sp" />
 

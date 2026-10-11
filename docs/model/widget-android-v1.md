@@ -167,12 +167,17 @@ il repository non pubblica niente su Apps Script da solo.
   fra i cinque: i turni già cominciati fissano l'orizzonte (il loro ultimo giorno) e un turno entra solo se comincia
   entro quello, così la domenica non compare la Premier della settimana dopo mentre la Serie A gioca ancora il
   lunedì; senza turni cominciati (infrasettimanale) l'orizzonte lo fa il turno che comincia prima, con quelli entro
-  tre giorni. Rinviate e annullate non allungano un turno. Il calendario in cache senza `round` viene riletto.
+  tre giorni. Rinviate e annullate non allungano un turno.
+  **Corretta lo stesso giorno**: la prima forma prendeva per ogni campionato il turno non ancora finito, quindi la
+  domenica la Bundesliga (giocata venerdì e sabato) spariva dalla lista anche con «Passate» acceso. Ora la giornata
+  è UNA settimana di calcio: si ancora sui turni in corso oggi (o, a metà settimana, sui prossimi), vi aggiunge i
+  turni non finiti che cominciano entro tre giorni, e vi fa rientrare qualunque turno che si sovrapponga a quel
+  periodo, con due giorni di margine prima. Il calendario in cache senza `round` viene riletto.
 - **v0.2.2 (11/10/2026)**: il tasto ↻ scrive subito «aggiornamento…» in rosa finché la lettura non finisce; a
   partita finita i calciatori che non hanno giocato non si mostrano (in corso restano sbiaditi, possono ancora
   entrare); frecce e minuti di entrata/uscita in grigio chiaro.
 - **v0.2.3-0.2.5 (11/10/2026)**: il divisore «oggi, più tardi» in verde (le partite di oggi ancora da giocare);
-  le partite finite (e annullate/rinviate) nascoste di default, con l'interruttore **Finite** nell'intestazione
+  le partite finite (e annullate/rinviate) nascoste di default, con l'interruttore **Passate** nell'intestazione
   accanto a **Nomi**. Prima era stato provato lo scorrimento automatico su «oggi» (0.2.4) e l'operatore l'ha
   scartato: un widget a lista si scorre solo con `smoothScrollToPosition`, che porta l'elemento in vista col
   minimo movimento, quindi «oggi» in cima era solo una stima.

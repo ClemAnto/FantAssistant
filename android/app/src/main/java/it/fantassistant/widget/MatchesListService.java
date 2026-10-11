@@ -31,7 +31,7 @@ public class MatchesListService extends RemoteViewsService {
         if (m == null) return out;
         String group = null;
         List<Matches.Row> sorted = new ArrayList<>();
-        // A finished (or called-off) match is listed only when «Finite» is on.
+        // A finished (or called-off) match is listed only when «Passate» is on.
         for (Matches.Row r : m.rows) if (withDone || !"done".equals(r.state)) sorted.add(r);
         // Stable: inside a group the Sheet's kick-off order stays.
         sorted.sort((a, b) -> Long.compare(a.rank, b.rank));
