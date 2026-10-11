@@ -100,6 +100,11 @@ public class MatchesListService extends RemoteViewsService {
             v.setViewVisibility(R.id.row, label ? View.GONE : View.VISIBLE);
             if (label) {
                 v.setTextViewText(R.id.group, (String) item);
+                // «Oggi, più tardi» is the one divider drawn green: the matches still to come today.
+                int tone = context.getColor(Matches.LATER.equals(item) ? R.color.later : R.color.muted);
+                v.setTextColor(R.id.group, tone);
+                v.setInt(R.id.line_l, "setBackgroundColor", tone);
+                v.setInt(R.id.line_r, "setBackgroundColor", tone);
                 return v;
             }
             Matches.Row r = (Matches.Row) item;

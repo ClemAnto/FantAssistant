@@ -90,7 +90,7 @@ final class Matches {
      *   --- giovedì 8/10 ---           a played day: the matches with their score and «FT»
      *   --- ieri, venerdì 9/10 ---
      *   --- oggi, sabato 10/10 ---     today's played and live matches (live: the minute)
-     *   --- più tardi ---              today's matches yet to start, each with «ore 18:00»
+     *   --- oggi, più tardi ---            today's matches yet to start, each with «ore 18:00»
      *   --- domani, domenica 11/10 --- a later day, each match with «ore 12:00»
      */
     private static void label(Row r) {
@@ -107,10 +107,13 @@ final class Matches {
         String hour = String.format(java.util.Locale.ITALY, "ore %02d:%02d", t.getHour(), t.getMinute());
         boolean pre = "pre".equals(r.state);
         boolean later = pre && day.equals(today);
-        r.group = later ? "più tardi" : dayLabel(day, today);
+        r.group = later ? LATER : dayLabel(day, today);
         r.rank = day.toEpochDay() * 2 + (later ? 1 : 0);
         r.side = pre ? hour : r.when;
     }
+
+    /** Today's matches yet to start (operator, 11/10/2026: «aggiungi all'etichetta "Oggi"», drawn green). */
+    static final String LATER = "oggi, più tardi";
 
     private static String dayLabel(java.time.LocalDate day, java.time.LocalDate today) {
         String prefix = day.equals(today) ? "oggi, "
