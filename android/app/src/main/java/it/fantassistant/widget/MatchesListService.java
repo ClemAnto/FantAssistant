@@ -24,13 +24,15 @@ public class MatchesListService extends RemoteViewsService {
 
     /**
      * The list as drawn: a group label (a String) before the first match of each group, then its matches. ONE
-     * definition, read by the rows and by the widget's scroll to «oggi», or the two would count different lists.
+     * definition, read by the rows and by the widget's empty text, or the two would count different lists.
      */
-    static List<Object> items(Matches m) {
+    static List<Object> items(Matches m, boolean withDone) {
         List<Object> out = new ArrayList<>();
         if (m == null) return out;
         String group = null;
-        List<Matches.Row> sorted = new ArrayList<>(m.rows);
+        List<Matches.Row> sorted = new ArrayList<>();
+        // A finished (or called-off) match is listed only when «Finite» is on.
+        for (Matches.Row r : m.rows) if (withDone || !"done".equals(r.state)) sorted.add(r);
         // Stable: inside a group the Sheet's kick-off order stays.
         sorted.sort((a, b) -> Long.compare(a.rank, b.rank));
         for (Matches.Row r : sorted) {
@@ -41,15 +43,6 @@ public class MatchesListService extends RemoteViewsService {
             out.add(r);
         }
         return out;
-    }
-
-    /** The position of the first label that speaks of today («oggi, …»), or -1 when today has no group. */
-    static int todayIndex(List<Object> items) {
-        for (int i = 0; i < items.size(); i++) {
-            Object it = items.get(i);
-            if (it instanceof String && ((String) it).startsWith("oggi")) return i;
-        }
-        return -1;
     }
 
     private static final class Factory implements RemoteViewsFactory {
@@ -72,7 +65,7 @@ public class MatchesListService extends RemoteViewsService {
 
         @Override
         public void onDataSetChanged() {
-            List<Object> out = items(Matches.parse(Store.json(context)));
+            List<Object> out = items(Matches.parse(Store.json(context)), Store.showDone(context));
             items = out;
             Store.setListPrepared(context, out.size());
             Store.setListError(context, "");

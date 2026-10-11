@@ -31,9 +31,21 @@
             android:id="@+id/updated"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:paddingEnd="10dp"
+            android:paddingEnd="4dp"
             android:textColor="@color/muted"
             android:textSize="10sp" />
+
+        <TextView
+            android:id="@+id/toggle_done"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="6dp"
+            android:paddingTop="4dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="4dp"
+            android:text="Finite"
+            android:textColor="@color/fg"
+            android:textSize="11sp" />
 
         <TextView
             android:id="@+id/toggle_men"

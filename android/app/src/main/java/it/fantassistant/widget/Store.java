@@ -110,6 +110,15 @@ final class Store {
         prefs(context).edit().putBoolean("refreshing", on).commit();
     }
 
+    /** Whether the finished matches are listed; off unless the operator turns it on. */
+    static boolean showDone(Context context) {
+        return prefs(context).getBoolean("done", false);
+    }
+
+    static void toggleDone(Context context) {
+        prefs(context).edit().putBoolean("done", !showDone(context)).apply();
+    }
+
     static boolean showMen(Context context) {
         return prefs(context).getBoolean("men", true);
     }

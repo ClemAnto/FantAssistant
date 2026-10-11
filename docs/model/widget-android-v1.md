@@ -171,11 +171,11 @@ il repository non pubblica niente su Apps Script da solo.
 - **v0.2.2 (11/10/2026)**: il tasto ↻ scrive subito «aggiornamento…» in rosa finché la lettura non finisce; a
   partita finita i calciatori che non hanno giocato non si mostrano (in corso restano sbiaditi, possono ancora
   entrare); frecce e minuti di entrata/uscita in grigio chiaro.
-- **v0.2.3-0.2.4 (11/10/2026)**: il divisore «oggi, più tardi» in verde (le partite di oggi ancora da giocare); la
-  lista si apre su «oggi». Un widget a lista si scorre solo con `smoothScrollToPosition`, che porta l'elemento in
-  vista col minimo movimento (dall'alto: in FONDO), quindi il bersaglio è l'ultima riga che sta sotto l'etichetta di
-  oggi, stimata dall'altezza del widget e dalle misure delle righe (`MatchesWidget.scrollTarget`): una stima, non un
-  allineamento al pixel.
+- **v0.2.3-0.2.5 (11/10/2026)**: il divisore «oggi, più tardi» in verde (le partite di oggi ancora da giocare);
+  le partite finite (e annullate/rinviate) nascoste di default, con l'interruttore **Finite** nell'intestazione
+  accanto a **Nomi**. Prima era stato provato lo scorrimento automatico su «oggi» (0.2.4) e l'operatore l'ha
+  scartato: un widget a lista si scorre solo con `smoothScrollToPosition`, che porta l'elemento in vista col
+  minimo movimento, quindi «oggi» in cima era solo una stima.
 - **Gli stemmi per URI e mai come bitmap** (`CrestProvider`, 11/10/2026, v0.2.1). TROVATA sul telefono vero
   (moto g85 5G, Android 16, launcher Motorola) collegato in debug wireless: la lista si fermava alla 13ª riga di 48
   (`listServed` 12 nella diagnosi) e `dumpsys appwidget` dava `views_bitmap_memory=764928` per il nostro widget;
