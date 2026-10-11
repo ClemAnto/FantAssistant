@@ -101,13 +101,21 @@ final class Store {
         }
     }
 
-    /** A refresh asked for by a tap and not finished yet: the widget's header says so. */
+    /**
+     * A refresh asked for by a tap and not finished yet: the widget's header says so. Kept as the TIME it began and
+     * believed for `REFRESH_MAX_MS` only, because a flag cannot outlive the process that would clear it: the system
+     * may kill a broadcast that runs too long, and then «aggiornamento…» stayed on the header for good (seen on
+     * the operator's phone, 11/10/2026).
+     */
+    static final long REFRESH_MAX_MS = 60_000L;
+
     static boolean refreshing(Context context) {
-        return prefs(context).getBoolean("refreshing", false);
+        long at = prefs(context).getLong("refreshingAt", 0L);
+        return at > 0 && System.currentTimeMillis() - at < REFRESH_MAX_MS;
     }
 
     static void setRefreshing(Context context, boolean on) {
-        prefs(context).edit().putBoolean("refreshing", on).commit();
+        prefs(context).edit().putLong("refreshingAt", on ? System.currentTimeMillis() : 0L).commit();
     }
 
     /** Whether the finished matches are listed; off unless the operator turns it on. */

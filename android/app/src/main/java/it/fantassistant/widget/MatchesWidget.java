@@ -47,6 +47,8 @@ public class MatchesWidget extends AppWidgetProvider {
             if (ACTION_REFRESH.equals(action)) {
                 Store.setRefreshing(context, true);
                 renderAll(context);
+                // A redraw that comes even if this reading never finishes, so «aggiornamento…» cannot stay.
+                Refresher.fallback(context, Store.REFRESH_MAX_MS + 2_000L);
             }
             PendingResult result = goAsync();
             Refresher.refresh(context, result::finish);

@@ -182,6 +182,9 @@ il repository non pubblica niente su Apps Script da solo.
   `ic_men.xml`), piene se accese e sbiadite se spente. Prima era stato provato lo scorrimento automatico su «oggi» (0.2.4) e l'operatore l'ha
   scartato: un widget a lista si scorre solo con `smoothScrollToPosition`, che porta l'elemento in vista col
   minimo movimento, quindi «oggi» in cima era solo una stima.
+- **«aggiornamento…» non resta più appeso** (v0.2.8): il segno è l'ORA in cui il tocco è partito e vale 60 secondi,
+  un allarme ridisegna comunque dopo 62, e la lettura intera sta dentro 40 secondi (timeout 10+15 s, tre tentativi
+  finché c'è tempo). Prima un broadcast ucciso dal sistema a metà lettura lasciava il segno per sempre.
 - **Gli stemmi per URI e mai come bitmap** (`CrestProvider`, 11/10/2026, v0.2.1). TROVATA sul telefono vero
   (moto g85 5G, Android 16, launcher Motorola) collegato in debug wireless: la lista si fermava alla 13ª riga di 48
   (`listServed` 12 nella diagnosi) e `dumpsys appwidget` dava `views_bitmap_memory=764928` per il nostro widget;

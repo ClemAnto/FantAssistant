@@ -63,13 +63,16 @@ final class Refresher {
      */
     static String fetch(String url) throws Exception {
         Exception last = null;
-        for (int attempt = 1; attempt <= TRIES; attempt++) {
+        // The whole reading must end well inside the time a broadcast is given (`goAsync`): three tries with
+        // generous timeouts could run past two minutes and get the process killed half-way.
+        long deadline = System.currentTimeMillis() + 40_000L;
+        for (int attempt = 1; attempt <= TRIES && System.currentTimeMillis() < deadline; attempt++) {
             HttpURLConnection c = null;
             try {
                 c = (HttpURLConnection) new URL(url).openConnection();
                 c.setInstanceFollowRedirects(true);
-                c.setConnectTimeout(20_000);
-                c.setReadTimeout(30_000);
+                c.setConnectTimeout(10_000);
+                c.setReadTimeout(15_000);
                 int code = c.getResponseCode();
                 if (code != 200) throw new Exception("il foglio ha risposto " + code);
                 try (InputStream in = c.getInputStream()) {
@@ -86,7 +89,7 @@ final class Refresher {
                 if (c != null) c.disconnect();
             }
         }
-        throw last;
+        throw last != null ? last : new Exception("tempo scaduto");
     }
 
     /** The next reading, from what the list itself says is on. */
@@ -106,6 +109,12 @@ final class Refresher {
         delay = Math.max(delay, FIVE_MIN);
         AlarmManager alarms = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         alarms.setAndAllowWhileIdle(AlarmManager.RTC, now + delay, tick(context));
+    }
+
+    /** One tick `delay` from now, replacing the scheduled one; the reading that finishes reschedules as usual. */
+    static void fallback(Context context, long delay) {
+        AlarmManager alarms = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+        alarms.setAndAllowWhileIdle(AlarmManager.RTC, System.currentTimeMillis() + delay, tick(context));
     }
 
     static void cancel(Context context) {
