@@ -161,6 +161,13 @@ il repository non pubblica niente su Apps Script da solo.
 - `local.properties` su Windows vuole i backslash raddoppiati (`C\:\\Users\\...`), altrimenti
   «La sintassi del nome del file ... non è corretta».
 - Uno screenshot headless stretto (Edge a 412 px) non è affidabile per verificare il layout mobile.
+- **Gli stemmi per URI e mai come bitmap** (`CrestProvider`, 11/10/2026, v0.2.1). TROVATA sul telefono vero
+  (moto g85 5G, Android 16, launcher Motorola) collegato in debug wireless: la lista si fermava alla 13ª riga di 48
+  (`listServed` 12 nella diagnosi) e `dumpsys appwidget` dava `views_bitmap_memory=764928` per il nostro widget;
+  sull'emulatore andava tutto. Con le immagini passate come `content://it.fantassistant.widget.crests/{id}` la
+  memoria è 0 e il launcher chiede tutte le 48 righe. *Un widget a lista non porta pixel nelle righe.*
+  Per collegare il telefono: Opzioni sviluppatore → Debug wireless → «Associa con codice», poi `adb pair IP:porta
+  codice` e il dispositivo compare da solo (mDNS).
 - **Un solo tipo di riga nella lista** (`layout/item.xml`, etichetta e partita nello stesso layout, l'altra metà
   GONE): sul telefono dell'operatore, dopo l'APK che dichiarava due tipi di riga, il widget mostrava una partita
   sola e un lampo delle altre che sparivano. Una lista di RemoteViews si ricorda quanti tipi aveva quando il

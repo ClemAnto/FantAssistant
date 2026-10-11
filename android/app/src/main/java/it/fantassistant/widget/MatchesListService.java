@@ -2,7 +2,6 @@ package it.fantassistant.widget;
 
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.net.Uri;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -32,8 +31,6 @@ public class MatchesListService extends RemoteViewsService {
          */
         private List<Object> items = Collections.emptyList();
         private boolean men = true;
-        /** The crests of this reading, decoded once per data change instead of twice per row per redraw. */
-        private final java.util.Map<Long, Bitmap> crests = new java.util.HashMap<>();
 
         Factory(Context context) {
             this.context = context;
@@ -61,7 +58,6 @@ public class MatchesListService extends RemoteViewsService {
                 }
             }
             items = out;
-            crests.clear();
             Store.setListPrepared(context, out.size());
             Store.setListError(context, "");
             men = Store.showMen(context);
@@ -180,16 +176,12 @@ public class MatchesListService extends RemoteViewsService {
             out.setSpan(new RelativeSizeSpan(0.85f), start, out.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
 
+        /** By URI (`CrestProvider`), never as a bitmap: pixels in every row is what cut the list short on a phone. */
         private void crest(RemoteViews v, int view, long id) {
-            Bitmap b = null;
-            if (id > 0) {
-                if (!crests.containsKey(id)) crests.put(id, Crests.get(context, id));
-                b = crests.get(id);
-            }
-            if (b == null) {
+            if (!Crests.has(context, id)) {
                 v.setViewVisibility(view, View.GONE);
             } else {
-                v.setImageViewBitmap(view, b);
+                v.setImageViewUri(view, CrestProvider.uri(id));
                 v.setViewVisibility(view, View.VISIBLE);
             }
         }

@@ -81,10 +81,8 @@ final class Crests {
         }
     }
 
-    /** The cached crest, or null when it has never been downloaded. */
-    static Bitmap get(Context context, long id) {
-        if (id <= 0) return null;
-        File f = file(context, id);
-        return f.exists() ? BitmapFactory.decodeFile(f.getPath()) : null;
+    /** Whether the crest is on the phone (the list then points the launcher at it through `CrestProvider`). */
+    static boolean has(Context context, long id) {
+        return id > 0 && file(context, id).exists();
     }
 }

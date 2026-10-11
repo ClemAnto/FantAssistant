@@ -44,5 +44,12 @@
             android:name=".MatchesListService"
             android:exported="false"
             android:permission="android.permission.BIND_REMOTEVIEWS" />
+
+        <!-- The crests for the list's rows, by URI instead of as bitmaps (see CrestProvider). Exported because the
+             launcher reads them; read-only, and only club badges. -->
+        <provider
+            android:name=".CrestProvider"
+            android:authorities="it.fantassistant.widget.crests"
+            android:exported="true" />
     </application>
 </manifest>
