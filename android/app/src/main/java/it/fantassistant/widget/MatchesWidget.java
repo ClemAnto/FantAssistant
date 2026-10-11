@@ -66,6 +66,12 @@ public class MatchesWidget extends AppWidgetProvider {
         manager.notifyAppWidgetViewDataChanged(ids, R.id.list);
     }
 
+    /** A match not over yet: with «Passate» off, the list is empty without one. */
+    private static boolean hasToCome(Matches m) {
+        for (Matches.Row r : m.rows) if (!"done".equals(r.state)) return true;
+        return false;
+    }
+
     private static RemoteViews views(Context context, int id, Matches m) {
         RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.widget);
 
@@ -77,10 +83,9 @@ public class MatchesWidget extends AppWidgetProvider {
 
         String error = Store.error(context);
         if (m == null) v.setTextViewText(R.id.empty, error.isEmpty() ? "Caricamento…" : error);
-        else if (MatchesListService.items(m, Store.showDone(context)).isEmpty())
-            v.setTextViewText(R.id.empty, m.rows.isEmpty() ? (m.text.isEmpty() ? "Nessuna partita" : m.text)
-                    : "Nessuna partita da giocare: tocca l'orologio per vedere i risultati");
         else if (m.rows.isEmpty()) v.setTextViewText(R.id.empty, m.text.isEmpty() ? "Nessuna partita" : m.text);
+        else if (!Store.showDone(context) && !hasToCome(m))
+            v.setTextViewText(R.id.empty, "Nessuna partita da giocare: tocca l'orologio per vedere i risultati");
         // «agg. 16:05»: when the SHEET built the list, which is the age that matters; a «!» when the last read failed.
         // The app's version beside it (operator, 11/10/2026), so a screenshot says which APK drew it.
         String version = Store.version(context);

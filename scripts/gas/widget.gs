@@ -29,8 +29,12 @@
 var WIDGET_API = 'https://api.sofascore.com/api/v1';
 /** How long a club's schedule is trusted: kick-off times move rarely, and a live match is re-read anyway. */
 var WIDGET_SCHEDULE_TTL_H = 6;
-/** The window the widget shows: finished matches of the last N hours, upcoming ones of the next N days. */
-var WIDGET_PAST_H = 48;
+/**
+ * The window read: finished matches of the last N hours, upcoming ones of the next N days. What is SHOWN is the
+ * current matchday (`widgetCurrentRounds_`); 96 hours keep a Friday match in reach until Monday night, when its
+ * matchday can still be the current one (48 hours dropped it on Sunday evening).
+ */
+var WIDGET_PAST_H = 96;
 var WIDGET_AHEAD_D = 7;
 /**
  * Up to this many matches, the earliest first. 30 was enough for one fantasquadra; with two accounts the list
@@ -49,6 +53,8 @@ var WIDGET_LEAGUES = [23, 17, 8, 35, 34];
 var WIDGET_LIVE_BEFORE_MIN = 5;
 var WIDGET_LIVE_FOR_H = 4;
 var WIDGET_DAYS = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+/** How long a round's real span (all its matches, not only my clubs') is trusted. */
+var WIDGET_ROUND_TTL_H = 6;
 
 // ==============================================================================================
 // 1. The squad, from the app
@@ -124,7 +130,9 @@ function refreshWidget() {
       var one = null;
       try { one = raw ? JSON.parse(raw) : null; } catch (err) { one = null; }
       // A schedule cached before `ut` (championship) or `round` was stored cannot be filtered: read it again.
-      var old = one && one.events.some(function (ev) { return ev.ut === undefined || ev.round === undefined; });
+      var old = one && one.events.some(function (ev) {
+        return ev.ut === undefined || ev.round === undefined || ev.season === undefined;
+      });
       if (!one || old || now - one.at > WIDGET_SCHEDULE_TTL_H * 3600000) stale.push(id);
       schedules[id] = one;
     });
@@ -177,7 +185,8 @@ function refreshWidget() {
     });
 
     var details = widgetDetails_(props, squads, byId, now);
-    var out = widgetBuild_(squads, byId, now, details);
+    var rounds = widgetRoundSpans_(props, byId, now);
+    var out = widgetBuild_(squads, byId, now, details, rounds);
     var body = JSON.stringify(out);
     // The property is the record (in chunks, because one value has a size limit of its own) and the cache only
     // spares a read; a cache that refuses a big list is logged and the property still serves it. A record that
@@ -330,6 +339,7 @@ function widgetCompact_(ev) {
     start: ev.startTimestamp,
     ut: ev.tournament && ev.tournament.uniqueTournament ? ev.tournament.uniqueTournament.id : null,
     round: ev.roundInfo && ev.roundInfo.round !== undefined ? ev.roundInfo.round : null,
+    season: ev.season && ev.season.id ? ev.season.id : null,
     league: ev.tournament && ev.tournament.uniqueTournament ? ev.tournament.uniqueTournament.name :
       (ev.tournament ? ev.tournament.name : ''),
     home: ev.homeTeam.shortName || ev.homeTeam.name,
@@ -361,7 +371,7 @@ function widgetInWindow_(ev, now, slackH) {
 // 3. The list, already formatted
 // ==============================================================================================
 
-function widgetBuild_(squads, byId, now, details) {
+function widgetBuild_(squads, byId, now, details, roundSpans) {
   details = details || {};
   // My men by club, and which fantasquadra each belongs to when there are several.
   var mine = {};
@@ -376,9 +386,9 @@ function widgetBuild_(squads, byId, now, details) {
     .filter(function (ev) {
       return WIDGET_LEAGUES.indexOf(ev.ut) >= 0 && widgetInWindow_(ev, now, 0) && (mine[ev.homeId] || mine[ev.awayId]);
     });
-  var current = widgetCurrentRounds_(candidates, now);
+  var current = widgetCurrentRounds_(candidates, now, roundSpans || {});
   var events = candidates
-    .filter(function (ev) { return ev.round === null || !!(current[ev.ut] && current[ev.ut][ev.round]); })
+    .filter(function (ev) { return ev.round == null || !!(current[ev.ut] && current[ev.ut][ev.round]); })
     .sort(function (a, b) { return a.start - b.start; })
     .slice(0, WIDGET_MAX_ROWS);
 
@@ -454,21 +464,30 @@ function widgetBuild_(squads, byId, now, details) {
  * any championship belongs to it if it overlaps that span, with two days of slack before it - so a Bundesliga round
  * played Friday and Saturday stays in Sunday's and Monday's list (the operator, the same day: «quando attivo
  * "finite" escono solo le partite di sabato ma devono uscire anche quelle di venerdì»), and next week's rounds stay
- * out until the last match of this one is over. A postponed or cancelled match does not stretch its round.
+ * out until the last match of this one is over. A postponed or cancelled match does not stretch its round, and a
+ * rescheduled one far from the rest is left out of its round's span (`widgetCoreSpan_`).
  * Returns {ut: {round: true}} for the rounds to show.
  */
-function widgetCurrentRounds_(events, now) {
+function widgetCurrentRounds_(events, now, roundSpans) {
   var dayOf = function (ms) { return Utilities.formatDate(new Date(ms), 'Europe/Rome', 'yyyy-MM-dd'); };
   var shift = function (day, days) { return dayOf(Date.parse(day + 'T12:00:00Z') + days * 86400000); };
   var today = dayOf(now);
-  var span = {};
+  // A round's span: the REAL one (all its matches, `widgetRoundSpans_`) when it was read, otherwise the days of my
+  // clubs' matches, which would end the round early on a Sunday none of them plays. `== null` also covers an event
+  // cached before `round` existed (undefined): it belongs to no round.
+  var days = {};
   events.forEach(function (ev) {
-    if (ev.round === null || ['postponed', 'canceled'].indexOf(ev.type) >= 0) return;
+    if (ev.round == null || ['postponed', 'canceled'].indexOf(ev.type) >= 0) return;
     var key = ev.ut + ':' + ev.round;
-    var day = dayOf(ev.start * 1000);
-    var one = span[key] || (span[key] = { ut: ev.ut, round: ev.round, first: day, last: day });
-    if (day < one.first) one.first = day;
-    if (day > one.last) one.last = day;
+    (days[key] = days[key] || { ut: ev.ut, round: ev.round, season: ev.season, days: [] })
+      .days.push(dayOf(ev.start * 1000));
+  });
+  var span = {};
+  Object.keys(days).forEach(function (key) {
+    var d = days[key];
+    var real = roundSpans[d.ut + ':' + d.season + ':' + d.round];
+    var core = real || widgetCoreSpan_(d.days);
+    span[key] = { ut: d.ut, round: d.round, first: core.first, last: core.last };
   });
   var rounds = Object.keys(span).map(function (key) { return span[key]; });
   var anchor = rounds.filter(function (r) { return r.first <= today && r.last >= today; });
@@ -485,6 +504,64 @@ function widgetCurrentRounds_(events, now) {
     if (r.last >= start && r.first <= end) (out[r.ut] = out[r.ut] || {})[r.round] = true;
   });
   return out;
+}
+
+/**
+ * The days a round is really played on, without its strays: a match postponed and rescheduled weeks later keeps its
+ * round number and is no longer «postponed», and counted whole it would stretch the round over the next matchdays.
+ * So only the days within four of the round's median day count.
+ */
+function widgetCoreSpan_(days) {
+  var sorted = days.slice().sort();
+  var mid = Date.parse(sorted[Math.floor(sorted.length / 2)] + 'T12:00:00Z');
+  var core = sorted.filter(function (d) { return Math.abs(Date.parse(d + 'T12:00:00Z') - mid) <= 4 * 86400000; });
+  return { first: core[0], last: core[core.length - 1] };
+}
+
+/**
+ * THE REAL SPAN of each round my clubs play in the window: all its matches, read from the championship's own round
+ * list (`/unique-tournament/{ut}/season/{season}/events/round/{n}`), because a round ends on the last day ANY of its
+ * matches is played, not the last day one of mine is. One request per round, kept `WIDGET_ROUND_TTL_H` hours in
+ * `widget:round:<ut>:<season>:<round>`; a round that cannot be read falls back to my clubs' days.
+ */
+function widgetRoundSpans_(props, byId, now) {
+  var dayOf = function (ms) { return Utilities.formatDate(new Date(ms), 'Europe/Rome', 'yyyy-MM-dd'); };
+  var wanted = {};
+  Object.keys(byId).forEach(function (k) {
+    var ev = byId[k];
+    if (ev.round == null || !ev.season || WIDGET_LEAGUES.indexOf(ev.ut) < 0 || !widgetInWindow_(ev, now, 0)) return;
+    wanted[ev.ut + ':' + ev.season + ':' + ev.round] = true;
+  });
+  var spans = {};
+  var stale = [];
+  Object.keys(wanted).forEach(function (key) {
+    var raw = props.getProperty('widget:round:' + key);
+    var one = null;
+    try { one = raw ? JSON.parse(raw) : null; } catch (err) { one = null; }
+    if (one) spans[key] = one;
+    if (!one || now - one.at > WIDGET_ROUND_TTL_H * 3600000) stale.push(key);
+  });
+  if (stale.length) {
+    var answers = widgetFetchAll_(stale.map(function (key) {
+      var p = key.split(':');
+      return WIDGET_API + '/unique-tournament/' + p[0] + '/season/' + p[1] + '/events/round/' + p[2];
+    }));
+    stale.forEach(function (key, i) {
+      var days = ((answers[i] || {}).events || [])
+        .filter(function (ev) {
+          return ev.startTimestamp && ['postponed', 'canceled'].indexOf((ev.status || {}).type) < 0;
+        })
+        .map(function (ev) { return dayOf(ev.startTimestamp * 1000); });
+      if (!days.length) return; // unanswered or empty: keep what was there, or fall back to my clubs' days
+      var core = widgetCoreSpan_(days);
+      spans[key] = { at: now, first: core.first, last: core.last };
+      props.setProperty('widget:round:' + key, JSON.stringify(spans[key]));
+    });
+  }
+  props.getKeys().forEach(function (key) {
+    if (key.indexOf('widget:round:') === 0 && !wanted[key.slice(13)]) props.deleteProperty(key);
+  });
+  return spans;
 }
 
 /** One match in Kustom's BBCode-like tags. Square brackets inside a name would read as a tag, so they are dropped. */

@@ -74,7 +74,7 @@ final class Store {
     }
 
     static void setListServed(Context context, int position) {
-        if (position > prefs(context).getInt("listServed", -1)) prefs(context).edit().putInt("listServed", position).apply();
+        prefs(context).edit().putInt("listServed", position).apply();
     }
 
     static void setListError(Context context, String error) {

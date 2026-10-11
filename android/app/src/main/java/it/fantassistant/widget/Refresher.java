@@ -25,12 +25,28 @@ final class Refresher {
     private static final long THIRTY_MIN = 30 * 60_000L;
     private static final int TRIES = 3;
 
+    private static final java.util.concurrent.atomic.AtomicBoolean RUNNING =
+            new java.util.concurrent.atomic.AtomicBoolean(false);
+    /** Connect and read timeouts, and the longest one attempt can take: two hops (Apps Script answers 302 first). */
+    private static final int CONNECT_MS = 6_000;
+    private static final int READ_MS = 8_000;
+    private static final long ATTEMPT_MAX_MS = 2L * (CONNECT_MS + READ_MS);
+    /** The whole reading, well inside the minute a broadcast is given and `Store.REFRESH_MAX_MS`. */
+    private static final long BUDGET_MS = 45_000L;
+
     private Refresher() {
     }
 
     /** Fetches on a background thread, then redraws every widget; `done` runs at the end (a receiver's goAsync). */
     static void refresh(Context context, Runnable done) {
         Context app = context.getApplicationContext();
+        // ONE reading at a time: a tap while a tick is reading (or the fallback tick firing during a slow read) is
+        // served by the reading already under way, which clears «aggiornamento…» and redraws when it ends - two
+        // threads would both read the network, and the first to finish would clear the header under the other.
+        if (!RUNNING.compareAndSet(false, true)) {
+            if (done != null) done.run();
+            return;
+        }
         new Thread(() -> {
             Matches read = null;
             try {
@@ -45,6 +61,7 @@ final class Refresher {
             } catch (Exception e) {
                 Store.setError(app, "Lettura non riuscita: " + e.getMessage());
             } finally {
+                RUNNING.set(false);
                 Store.setRefreshing(app, false);
                 MatchesWidget.renderAll(app);
                 schedule(app);
@@ -63,16 +80,16 @@ final class Refresher {
      */
     static String fetch(String url) throws Exception {
         Exception last = null;
-        // The whole reading must end well inside the time a broadcast is given (`goAsync`): three tries with
-        // generous timeouts could run past two minutes and get the process killed half-way.
-        long deadline = System.currentTimeMillis() + 40_000L;
-        for (int attempt = 1; attempt <= TRIES && System.currentTimeMillis() < deadline; attempt++) {
+        // The whole reading must end inside the time a broadcast is given (`goAsync`): an attempt starts only if
+        // its worst case (two hops at full timeouts) still fits the budget, so the last one cannot run past it.
+        long deadline = System.currentTimeMillis() + BUDGET_MS;
+        for (int attempt = 1; attempt <= TRIES && System.currentTimeMillis() + ATTEMPT_MAX_MS <= deadline; attempt++) {
             HttpURLConnection c = null;
             try {
                 c = (HttpURLConnection) new URL(url).openConnection();
                 c.setInstanceFollowRedirects(true);
-                c.setConnectTimeout(10_000);
-                c.setReadTimeout(15_000);
+                c.setConnectTimeout(CONNECT_MS);
+                c.setReadTimeout(READ_MS);
                 int code = c.getResponseCode();
                 if (code != 200) throw new Exception("il foglio ha risposto " + code);
                 try (InputStream in = c.getInputStream()) {
@@ -111,7 +128,12 @@ final class Refresher {
         alarms.setAndAllowWhileIdle(AlarmManager.RTC, now + delay, tick(context));
     }
 
-    /** One tick `delay` from now, replacing the scheduled one; the reading that finishes reschedules as usual. */
+    /**
+     * One tick `delay` from now, replacing the scheduled one; the reading that finishes reschedules as usual. INEXACT,
+     * like every alarm here (an exact one needs a permission the operator would have to grant): it is the safety net
+     * for a reading killed half-way, and `Store.refreshing` already stops believing the flag after a minute, so the
+     * next redraw of any kind clears «aggiornamento…».
+     */
     static void fallback(Context context, long delay) {
         AlarmManager alarms = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
         alarms.setAndAllowWhileIdle(AlarmManager.RTC, System.currentTimeMillis() + delay, tick(context));

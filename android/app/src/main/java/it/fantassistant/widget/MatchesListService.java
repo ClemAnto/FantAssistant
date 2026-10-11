@@ -54,6 +54,10 @@ public class MatchesListService extends RemoteViewsService {
          */
         private List<Object> items = Collections.emptyList();
         private boolean men = true;
+        /** The highest row the launcher asked for since the last data change (for `Store.listReport`). */
+        private int served = -1;
+        /** Which crests are on the phone, looked up once per data change instead of twice per row per bind. */
+        private final java.util.Map<Long, Boolean> crests = new java.util.HashMap<>();
 
         Factory(Context context) {
             this.context = context;
@@ -67,6 +71,8 @@ public class MatchesListService extends RemoteViewsService {
         public void onDataSetChanged() {
             List<Object> out = items(Matches.parse(Store.json(context)), Store.showDone(context));
             items = out;
+            served = -1;
+            crests.clear();
             Store.setListPrepared(context, out.size());
             Store.setListError(context, "");
             men = Store.showMen(context);
@@ -87,7 +93,10 @@ public class MatchesListService extends RemoteViewsService {
          */
         @Override
         public RemoteViews getViewAt(int position) {
-            Store.setListServed(context, position);
+            if (position > served) {
+                served = position;
+                Store.setListServed(context, position);
+            }
             try {
                 return view(position);
             } catch (Throwable t) {
@@ -208,7 +217,9 @@ public class MatchesListService extends RemoteViewsService {
 
         /** By URI (`CrestProvider`), never as a bitmap: pixels in every row is what cut the list short on a phone. */
         private void crest(RemoteViews v, int view, long id) {
-            if (!Crests.has(context, id)) {
+            Boolean has = crests.get(id);
+            if (has == null) crests.put(id, has = Crests.has(context, id));
+            if (!has) {
                 v.setViewVisibility(view, View.GONE);
             } else {
                 v.setImageViewUri(view, CrestProvider.uri(id));

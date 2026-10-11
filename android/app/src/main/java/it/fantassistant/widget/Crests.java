@@ -29,10 +29,7 @@ final class Crests {
     }
 
     private static File file(Context context, long id) {
-        File dir = new File(context.getFilesDir(), "crests");
-        //noinspection ResultOfMethodCallIgnored
-        dir.mkdirs();
-        return new File(dir, id + ".png");
+        return new File(new File(context.getFilesDir(), "crests"), id + ".png");
     }
 
     /**
@@ -55,6 +52,8 @@ final class Crests {
         if (id <= 0) return false;
         File f = file(context, id);
         if (f.exists() && System.currentTimeMillis() - f.lastModified() < MAX_AGE) return false;
+        //noinspection ResultOfMethodCallIgnored
+        f.getParentFile().mkdirs();
         HttpURLConnection c = null;
         try {
             c = (HttpURLConnection) new URL("https://img.sofascore.com/api/v1/team/" + id + "/image").openConnection();

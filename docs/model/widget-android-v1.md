@@ -185,6 +185,15 @@ il repository non pubblica niente su Apps Script da solo.
 - **«aggiornamento…» non resta più appeso** (v0.2.8): il segno è l'ORA in cui il tocco è partito e vale 60 secondi,
   un allarme ridisegna comunque dopo 62, e la lettura intera sta dentro 40 secondi (timeout 10+15 s, tre tentativi
   finché c'è tempo). Prima un broadcast ucciso dal sistema a metà lettura lasciava il segno per sempre.
+- **Code review dell'11/10/2026 (v0.2.9), corretti:** la durata VERA di un turno si legge dal calendario del
+  campionato (`widgetRoundSpans_`, `/unique-tournament/{ut}/season/{s}/events/round/{n}`, una richiesta per turno
+  ogni 6 ore) e non dalle sole partite dei miei club, che una domenica senza miei club chiudeva il turno in
+  anticipo; una partita rinviata e rigiocata settimane dopo non allunga più il suo turno (`widgetCoreSpan_`: solo i
+  giorni entro 4 dalla mediana); finestra di lettura 96 h, o la partita del venerdì usciva domenica sera; un evento
+  in cache senza `round` non forma più un turno «undefined»; telefono: una lettura sola alla volta, ogni tentativo
+  parte solo se il suo caso peggiore sta nei 45 secondi, diagnostica e presenza degli stemmi lette una volta per
+  aggiornamento e non per riga, un ramo morto tolto. L'allarme di riserva resta inesatto (uno esatto vuole un
+  permesso) e lo dice il codice.
 - **Gli stemmi per URI e mai come bitmap** (`CrestProvider`, 11/10/2026, v0.2.1). TROVATA sul telefono vero
   (moto g85 5G, Android 16, launcher Motorola) collegato in debug wireless: la lista si fermava alla 13ª riga di 48
   (`listServed` 12 nella diagnosi) e `dumpsys appwidget` dava `views_bitmap_memory=764928` per il nostro widget;
