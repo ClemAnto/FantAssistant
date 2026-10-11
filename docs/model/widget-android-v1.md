@@ -147,6 +147,10 @@ il repository non pubblica niente su Apps Script da solo.
    (8 su 4026) invece di prenderne uno a caso, che lo farebbe leggere «non ha giocato» in ogni partita.
 5. **Densità delle righe**: oggi ~6 righe visibili su un 4×3; valutare campionato sulla stessa riga del titolo,
    righe più basse, o un layout compatto opzionale.
+5-bis. **Solo i calciatori schierati** (chiesto e rimandato dall'operatore l'11/10/2026): la pagina Formazione legge
+   già da Leghe la formazione salvata (`current().saved.starts` / `.bench`, fc_id); basta mandare per ogni uomo
+   titolare/panchina/fuori e decidere come disegnarli (solo titolari · titolari pieni e panchina sbiadita · un
+   segno). Limite: il widget sa ciò che la webapp gli ha mandato all'ultimo «Invia».
 6. **Anteprima nel selettore widget** (`previewLayout`/`previewImage`): oggi mostra l'icona.
 7. **Più fantasquadre**: il foglio unisce già le squadre inviate (chiave = lega); il widget non dice di quale
    fantasquadra è ogni calciatore. Eventuale etichetta o filtro.

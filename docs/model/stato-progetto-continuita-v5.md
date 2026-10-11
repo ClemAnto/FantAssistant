@@ -1,5 +1,19 @@
 # Stato progetto & continuità — v5
-**Aggiornato (XXVI): 10 ottobre 2026 (sera) — IL WIDGET DICE COSA HANNO FATTO I MIEI CALCIATORI.**
+**Aggiornato (XXVII): 11 ottobre 2026 — IL WIDGET PROVATO SUL TELEFONO VERO, E LA GIORNATA CORRENTE.**
+Collegato in debug wireless il telefono dell'operatore (moto g85 5G, Android 16, launcher Motorola) si è trovata la
+causa delle partite che non comparivano: gli stemmi passati come bitmap nelle righe (`views_bitmap_memory` 764.928
+byte) facevano fermare la lista alla 13ª riga di 48; ora passano per URI (`CrestProvider`) e arrivano tutte. Poi, su
+sue richieste: solo la **giornata corrente** (una settimana di calcio sui cinque campionati, con la durata VERA dei
+turni letta dal calendario del campionato, `widgetCurrentRounds_`/`widgetRoundSpans_`), le partite passate nascoste
+dietro un'icona (orologio) e i nomi dietro un'altra (gruppo), «oggi, più tardi» in verde, rigori sbagliati ❌ e
+parati 🧤, la versione nell'intestazione, a partita finita via chi non ha giocato, frecce grigie, ↻ che dice
+«aggiornamento…» e non resta più appeso. Due code review, tutti i rilievi corretti. **APK 0.2.9** in
+`android/builds/` (gitignorato). **Da fare dall'operatore:** ridistribuire l'ultimo `widget.gs` (la lettura della
+durata dei turni non è verificata sui dati veri: da questo PC SofaScore non risponde) e installare l'APK 0.2.9.
+Aperto: mostrare solo i calciatori SCHIERATI su Leghe (si può: la pagina Formazione legge la formazione salvata;
+rimandato dall'operatore). Dettaglio: **`widget-android-v1.md`**.
+
+· precedente: **Aggiornato (XXVI): 10 ottobre 2026 (sera) — IL WIDGET DICE COSA HANNO FATTO I MIEI CALCIATORI.**
 Stemmi accanto ai nomi, font più piccoli, FT/HT, «Team A vs Team B», niente campionato, righe raggruppate per giorno
 (`ieri, venerdì 9/10` · `oggi, sabato 10/10` · `più tardi` con «ore 18:30» · `domani, domenica 11/10`), squadra senza
 miei calciatori in trasparenza, e per le partite in corso o finite: chi non ha giocato al 50%, ▲/▼ col minuto per
