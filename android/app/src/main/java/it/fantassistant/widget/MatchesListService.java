@@ -22,6 +22,36 @@ public class MatchesListService extends RemoteViewsService {
         return new Factory(getApplicationContext());
     }
 
+    /**
+     * The list as drawn: a group label (a String) before the first match of each group, then its matches. ONE
+     * definition, read by the rows and by the widget's scroll to «oggi», or the two would count different lists.
+     */
+    static List<Object> items(Matches m) {
+        List<Object> out = new ArrayList<>();
+        if (m == null) return out;
+        String group = null;
+        List<Matches.Row> sorted = new ArrayList<>(m.rows);
+        // Stable: inside a group the Sheet's kick-off order stays.
+        sorted.sort((a, b) -> Long.compare(a.rank, b.rank));
+        for (Matches.Row r : sorted) {
+            if (!r.group.equals(group)) {
+                group = r.group;
+                if (!group.isEmpty()) out.add(group);
+            }
+            out.add(r);
+        }
+        return out;
+    }
+
+    /** The position of the first label that speaks of today («oggi, …»), or -1 when today has no group. */
+    static int todayIndex(List<Object> items) {
+        for (int i = 0; i < items.size(); i++) {
+            Object it = items.get(i);
+            if (it instanceof String && ((String) it).startsWith("oggi")) return i;
+        }
+        return -1;
+    }
+
     private static final class Factory implements RemoteViewsFactory {
         private final Context context;
         /**
@@ -42,21 +72,7 @@ public class MatchesListService extends RemoteViewsService {
 
         @Override
         public void onDataSetChanged() {
-            Matches m = Matches.parse(Store.json(context));
-            List<Object> out = new ArrayList<>();
-            String group = null;
-            if (m != null) {
-                List<Matches.Row> sorted = new ArrayList<>(m.rows);
-                // Stable: inside a group the Sheet's kick-off order stays.
-                sorted.sort((a, b) -> Long.compare(a.rank, b.rank));
-                for (Matches.Row r : sorted) {
-                    if (!r.group.equals(group)) {
-                        group = r.group;
-                        if (!group.isEmpty()) out.add(group);
-                    }
-                    out.add(r);
-                }
-            }
+            List<Object> out = items(Matches.parse(Store.json(context)));
             items = out;
             Store.setListPrepared(context, out.size());
             Store.setListError(context, "");

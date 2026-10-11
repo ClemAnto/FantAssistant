@@ -7,7 +7,10 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
 import android.widget.RemoteViews;
+
+import java.util.List;
 
 /**
  * THE WIDGET: the real matches of the clubs of the fantasquadra's men, each row opening the match on SofaScore,
@@ -60,6 +63,32 @@ public class MatchesWidget extends AppWidgetProvider {
         manager.notifyAppWidgetViewDataChanged(ids, R.id.list);
     }
 
+    /**
+     * WHERE TO SCROLL so that «oggi» lands at the TOP. A widget list can only be scrolled with
+     * `smoothScrollToPosition`, which moves just enough to make an item visible: from the top, the item ends at the
+     * BOTTOM. So the target is the last item that still fits below today's label, estimated from the widget's height
+     * and the rows' sizes (a label ~21dp, a match ~27dp, ~43dp with the men's line, 4dp between rows) - measured
+     * on the emulator's screenshots, and only an estimate: a long men's line on two rows puts «oggi»
+     * a little lower, never out of sight.
+     */
+    private static int scrollTarget(Context context, int id, List<Object> items, int today) {
+        Bundle options = AppWidgetManager.getInstance(context).getAppWidgetOptions(id);
+        int height = options == null ? 0 : options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0);
+        if (height <= 0) return today;
+        int room = height - 52; // the header and the padding
+        boolean men = Store.showMen(context);
+        int used = 0;
+        int target = today;
+        for (int i = today; i < items.size(); i++) {
+            Object it = items.get(i);
+            int h = it instanceof String ? 21 : (men && !((Matches.Row) it).players.isEmpty() ? 43 : 27);
+            used += h + 4;
+            if (used > room) break;
+            target = i;
+        }
+        return target;
+    }
+
     private static RemoteViews views(Context context, int id, Matches m) {
         RemoteViews v = new RemoteViews(context.getPackageName(), R.layout.widget);
 
@@ -68,6 +97,11 @@ public class MatchesWidget extends AppWidgetProvider {
         service.setData(Uri.parse(service.toUri(Intent.URI_INTENT_SCHEME)));
         v.setRemoteAdapter(R.id.list, service);
         v.setEmptyView(R.id.list, R.id.empty);
+        // The list opens on today (operator, 11/10/2026: «di default fai scrollare la lista sempre ad "oggi"»):
+        // yesterday's results stay above, one swipe away.
+        List<Object> items = MatchesListService.items(m);
+        int today = MatchesListService.todayIndex(items);
+        if (today > 0) v.setScrollPosition(R.id.list, scrollTarget(context, id, items, today));
 
         String error = Store.error(context);
         if (m == null) v.setTextViewText(R.id.empty, error.isEmpty() ? "Caricamento…" : error);
