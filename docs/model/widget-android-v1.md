@@ -177,8 +177,9 @@ il repository non pubblica niente su Apps Script da solo.
   partita finita i calciatori che non hanno giocato non si mostrano (in corso restano sbiaditi, possono ancora
   entrare); frecce e minuti di entrata/uscita in grigio chiaro.
 - **v0.2.3-0.2.5 (11/10/2026)**: il divisore «oggi, più tardi» in verde (le partite di oggi ancora da giocare);
-  le partite finite (e annullate/rinviate) nascoste di default, con l'interruttore **Passate** nell'intestazione
-  accanto a **Nomi**. Prima era stato provato lo scorrimento automatico su «oggi» (0.2.4) e l'operatore l'ha
+  le partite finite (e annullate/rinviate) nascoste di default, con un interruttore nell'intestazione; dalla
+  0.2.7 «Passate» e «Nomi» sono due ICONE (orologio all'indietro e gruppo di persone, `drawable/ic_past.xml`,
+  `ic_men.xml`), piene se accese e sbiadite se spente. Prima era stato provato lo scorrimento automatico su «oggi» (0.2.4) e l'operatore l'ha
   scartato: un widget a lista si scorre solo con `smoothScrollToPosition`, che porta l'elemento in vista col
   minimo movimento, quindi «oggi» in cima era solo una stima.
 - **Gli stemmi per URI e mai come bitmap** (`CrestProvider`, 11/10/2026, v0.2.1). TROVATA sul telefono vero

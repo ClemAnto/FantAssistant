@@ -8,7 +8,7 @@ quando ne ho di entrambe. Catena: l'export aggiunge `players` (`fc_id → id Sof
 webapp li manda col widget (pubblicata v0.1.54 alle 18:26), `widget.gs` legge `lineups` + `incidents` per partita.
 Verificato coi dati veri sull'emulatore (Kane due assist). Poi una code review (9 rilievi, tutti corretti: lista a
 pezzi nelle proprietà, stemmi dopo il disegno, tetto 60 righe, doppi id fuori). **Da fare dall'operatore:**
-incollare e ridistribuire `widget.gs`, installare `android/builds/fantassistant-widget-0.2.6.apk` e rimettere
+incollare e ridistribuire `widget.gs`, installare `android/builds/fantassistant-widget-0.2.7.apk` e rimettere
 il widget sulla home. Dettaglio: **`widget-android-v1.md`** §2 e §5 punto 4-bis.
 
 · precedente: **Aggiornato (XXV): 10 ottobre 2026 — IL WIDGET ANDROID DELLE PARTITE REALI DEI MIEI CLUB, NATIVO, FUNZIONANTE SUL SUO TELEFONO.**
