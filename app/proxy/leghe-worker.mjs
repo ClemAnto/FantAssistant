@@ -25,7 +25,11 @@ const HOSTS = {
   euro: 'https://apieuroleague.fantacalcio.it',
 };
 
-/** What the page reads: keep in step with `src/app/core/leghe-api.ts` and `leghe-session.ts`. */
+/**
+ * What the page reads: keep in step with `src/app/core/leghe-api.ts` and `leghe-session.ts` - and with the Android
+ * app's twin of this list (`android/app/src/main/java/it/fantassistant/widget/LegheBridge.java`, `PATHS`), which
+ * forwards the same calls from inside the app (14/10/2026).
+ */
 const PATHS = [
   /^\/onboarding\/v1\/login$/,
   /^\/onboarding\/v1\/league\/(status|competitions|teams\/my|teams)$/,

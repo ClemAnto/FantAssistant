@@ -4,7 +4,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 /**
- * What the widget keeps on the phone: the Sheet's address, the last list it read, and the «names» switch.
+ * What the app keeps on the phone: the Sheet's address, the last list it read, the «names» switch - and, since
+ * 14/10/2026, the address of the webapp `MainActivity` opens.
  *
  * The list is kept as the TEXT that arrived, so the widget draws at once from the last good reading and a refresh
  * that fails (Apps Script's second hop fails by itself now and then) leaves the previous list on screen instead of
@@ -40,6 +41,33 @@ final class Store {
     static String listUrl(Context context) {
         String base = url(context);
         return base + (base.contains("?") ? "&" : "?") + "what=widget";
+    }
+
+    /**
+     * The webapp the app opens (`MainActivity`): the site `npm run deploy:pages` publishes. Editable from the widget's
+     * screen, so a moved site - or a local build to try - needs no new APK. It must end with `/`: it is also the
+     * PREFIX every page the WebView may show starts with.
+     */
+    static final String DEFAULT_WEBAPP_URL = "https://clemanto.github.io/FantAssistant/";
+
+    static String webappUrl(Context context) {
+        return prefs(context).getString("webappUrl", DEFAULT_WEBAPP_URL);
+    }
+
+    static void setWebappUrl(Context context, String url) {
+        String clean = url.trim();
+        if (clean.isEmpty()) clean = DEFAULT_WEBAPP_URL;
+        if (!clean.endsWith("/")) clean += "/";
+        prefs(context).edit().putString("webappUrl", clean).remove("webappLast").apply();
+    }
+
+    /** The last page the app showed, to reopen it after the system closed the app; null = none yet. */
+    static String webappLast(Context context) {
+        return prefs(context).getString("webappLast", null);
+    }
+
+    static void setWebappLast(Context context, String url) {
+        prefs(context).edit().putString("webappLast", url).apply();
     }
 
     static String json(Context context) {

@@ -1,5 +1,8 @@
 # Widget Android «FantAssistant Partite» — stato e roadmap (v1, 10/10/2026)
 
+> **Dal 14/10/2026 (v0.3.0) l'app non è più solo il widget**: si apre sulla webapp, in una WebView col ponte a Leghe
+> che sostituisce l'intermediario. Vedi §7.
+
 Richiesta dell'operatore (10/10/2026): «un widget android che mostri sempre la lista delle partite reali che
 interessano i miei calciatori ... data/orario di inizio quando non sono iniziate oppure il risultato live e minuto
 (durante la partita) o definitivo (quando sono terminate). Cliccando sulla partita vorrei si aprisse la pagina del
@@ -74,8 +77,11 @@ Questa pagina è il punto d'ingresso per riprendere il lavoro sul widget in un'a
   - `OpenActivity`: trampolino del tocco su una riga. **Necessario**: da Android 14 un PendingIntent MUTABLE con
     intent implicito è vietato (crash misurato sull'emulatore), quindi il template è esplicito verso questa
     activity che apre il link;
-  - `MainActivity`: istruzioni, indirizzo del foglio modificabile, «Salva e aggiorna», «Aggiungi il widget alla
-    home» (`requestPinAppWidget`), stato dell'ultima lettura;
+  - `WidgetActivity` (fino al 13/10/2026 si chiamava `MainActivity`): istruzioni, indirizzo del foglio
+    modificabile, «Salva e aggiorna», «Aggiungi il widget alla home» (`requestPinAppWidget`), stato dell'ultima
+    lettura e, dal 14/10/2026, l'indirizzo della webapp. Si apre toccando il titolo del widget o dal menu della
+    pressione lunga sull'icona («Widget», `res/xml/shortcuts.xml`);
+  - `MainActivity` dal 14/10/2026 è la WEBAPP in una WebView col ponte a Leghe: vedi §7;
   - `Store` (SharedPreferences): url, ultima lista come testo, errore, toggle; `Matches`: parse del JSON.
 - **Verificato sull'emulatore** (AVD `fa-widget-test`, Android 14, creato a mano in `~/.android/avd`): lista coi
   dati veri, live in rosa, toggle che nasconde i nomi, tocco su una riga → `OpenActivity` → Chrome sull'URL
@@ -214,3 +220,69 @@ il repository non pubblica niente su Apps Script da solo.
 - L'emulatore non riaggiunge il widget al riavvio (`-no-snapshot-save`): «Aggiungi il widget alla home» dall'app.
   Per provare con un JSON locale serve temporaneamente `usesCleartextTraffic` (non va lasciato nel manifest).
 - `cat > file` senza heredoc in un comando Bash resta in attesa di stdin e blocca la corsa.
+
+## 7. L'app apre la WEBAPP: WebView col ponte a Leghe (v0.3.0, 14/10/2026)
+
+Richiesta dell'operatore (13/10/2026): «un'app di facile consultazione per inserire la formazione e proporre scambi
+guardando le statistiche». Messe a confronto le due strade - pagine native in Java oppure la webapp in una WebView -
+ha scelto (14/10/2026) **«webview con bridge su app nativa»**. Prima era stata cominciata una pagina NATIVA dei
+calciatori sul solo foglio del motore: sospesa senza commit, è in `git stash` («WIP 13/10/2026: pagina nativa
+Calciatori…»), e con la WebView non serve più.
+
+**Perché la WebView** (ragioni date all'operatore): la pagina Formazione esiste già (login Leghe, rosa, FVA,
+consiglio, controllo delle regole, salvataggio verificato, quote) e riscriverla in Java vorrebbe dire due definizioni
+dello stesso consiglio; i numeri sono quelli della webapp per costruzione (stampa, dritte, base 38); gli scambi si
+scrivono una volta per PC e telefono; `deploy:pages` aggiorna anche il telefono senza un APK nuovo.
+
+**Com'è fatta.**
+- `MainActivity` (resta l'attività del lanciatore, così un'icona già sulla home continua a funzionare) apre
+  `Store.webappUrl` (predefinito `https://clemanto.github.io/FantAssistant/`, modificabile dalla schermata del
+  widget) sulla pagina `lineup`, oppure sull'ultima pagina vista se è ancora dentro la webapp. JavaScript e DOM
+  storage accesi, accesso ai file spento, user agent con ` FantAssistantApp/<versione>`.
+- **Il ponte** (`LegheBridge`, `addJavascriptInterface` col nome `FantAssistantApp`): la pagina chiama
+  `request(id, json)` con `{platform, method, path, headers, body}` e l'app risponde valutando
+  `window.__fantassistantBridge(id, status, text)` nel frame principale; status 0 = nessuna risposta. Lato webapp:
+  `leghe-api.ts` (`APP_BRIDGE`, `appBridge`, `viaApp`) e `LegheSession.base`, che dentro l'app vale `APP_BRIDGE` e
+  vince su un intermediario incollato. Il contratto è quello del Worker: due host scelti dalla PIATTAFORMA, la lista
+  `PATHS` (copia di quella di `app/proxy/leghe-worker.mjs`: vanno tenute allineate, e gli SCAMBI la dovranno
+  allargare), solo GET/POST, solo `accept`, `app_key`, `authorization`, `content-type`. Una richiesta fuori regola
+  torna 403 `APP403` col motivo. Niente si registra nei log.
+- **Chi può chiamarlo**: `addJavascriptInterface` lo espone a ogni frame, quindi il FRAME PRINCIPALE è chiuso sulla
+  webapp (`shouldOverrideUrlLoading`: un link fuori dalla webapp si apre nel browser del telefono); gli unici frame
+  sono la webapp e il login integrato di Leghe. La risposta arriva solo al frame principale.
+- **La rotazione non ricrea la WebView** (`configChanges` nel manifest): i token di lega stanno nel `sessionStorage`
+  della pagina, che una WebView ricreata perderebbe. Il tasto Indietro percorre la cronologia della webapp.
+- Senza rete apre l'ultima copia delle pagine (`LOAD_CACHE_ELSE_NETWORK`, permesso `ACCESS_NETWORK_STATE`); una
+  pagina che non si apre lo dice a parole con «tocca per riprovare»; un **WebView troppo vecchio** per il bundle
+  (sull'emulatore Android 11 il WebView 83 non lo analizza nemmeno: `SyntaxError`) lo dice col numero di versione e
+  rimanda al Play Store, invece di una pagina bianca.
+- Edge-to-edge (Android 15+ con targetSdk 35): la pagina è distanziata da barre di sistema, ritaglio e tastiera.
+
+**Verificato (14/10/2026).**
+- Webapp: 1536 test verdi (5 nuovi sul ponte in `leghe-api.spec.ts`; togliendo il ramo del ponte ne cadono 4);
+  `e2e-lineup-offline.mjs --via-app` fa passare tutta la pagina Formazione da un finto ponte con lo stesso
+  contratto - letture, drag & drop, salvataggio col corpo controllato - con 24 richieste dal ponte e 0
+  dall'intermediario, e cade se la pagina ignora il ponte; senza `--via-app` resta verde.
+- App, su un emulatore Android 11 (AVD `fa-test`, WebView 83) con una pagina di prova ES5 servita in locale (APK di
+  prova con `usesCleartextTraffic`, mai nel manifest): ponte presente, user agent giusto, una GET vera a Leghe senza
+  token torna 401 `ATH008` alla pagina (cioè niente CORS di mezzo), percorso/piattaforma/metodo fuori regola
+  rifiutati con `APP403`; due rotazioni senza ricaricare la pagina (`sessionStorage` intatto); un link esterno apre
+  Chrome e Indietro torna alla pagina com'era; la scorciatoia «Widget» della pressione lunga apre `WidgetActivity`
+  anche se l'attività non è esportata.
+- **NON verificato**: la webapp VERA dentro la WebView (il WebView 83 dell'emulatore non la esegue: sul telefono
+  dell'operatore, Android 16, il WebView è aggiornato), il login integrato di Leghe dentro la WebView (cookie di terze
+  parti accettati per quel frame, `setAcceptThirdPartyCookies`), il login EuroLeghe e il salvataggio veri.
+
+**Limiti e cose da sapere.**
+- **Serve pubblicare la webapp** (`npm run deploy:pages`): finché il sito non ha il codice del ponte, la Formazione
+  dentro l'app dice «Manca l'intermediario». Il deploy va fatto dalla macchina col pacchetto più fresco: su
+  WS-Clemente `app/public/data` è del 09/10 mentre il sito pubblica quello del 10/10, quindi pubblicare da lì
+  riporterebbe indietro i dati.
+- **I token muoiono col processo dell'app**: sono nel `sessionStorage` (scelta dell'08/10/2026), quindi quando Android
+  chiude l'app in background serve rifare il login; le letture salvate restano visibili senza login.
+- La firma: un APK compilato su una macchina diversa da quella dell'APK installato ha un'altra chiave debug e si
+  installa solo disinstallando prima (§5 punto 8). Su WS-Clemente la chiave è nuova.
+- `<input type="file">` dentro la WebView non apre nulla (nessun `onShowFileChooser`): le pagine che caricano un
+  file (es. le rose esportate) vanno usate dal PC finché non serve.
+- La pagina Formazione è disegnata per lo schermo del PC: la versione da telefono è il passo successivo, poi gli
+  scambi.

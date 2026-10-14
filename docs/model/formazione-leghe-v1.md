@@ -57,6 +57,18 @@ fattore rendimento fino a +3 (Mantra); switch Plus e niente capitano in tutte e 
   `app/proxy/leghe-worker.mjs` per il sito pubblicato (Cloudflare Worker, **non ancora pubblicato**:
   serve l'account dell'operatore). Il Worker è provato a livello di codice in Node (rifiuta origini
   estranee e percorsi fuori lista, inoltra login e letture): il runtime di Cloudflare no.
+- **Il terzo intermediario è l'APP ANDROID** (14/10/2026, decisione dell'operatore: «webview con bridge su app
+  nativa»). L'app apre la webapp in una WebView che espone `window.FantAssistantApp`; quando la pagina lo vede,
+  `LegheSession.base` vale `APP_BRIDGE` e `legheCall` passa la richiesta all'app invece che a `fetch`
+  (`{platform, method, path, headers, body}`, mai un URL), e l'app la fa da Java, dove il CORS non c'è
+  (`android/.../LegheBridge.java`). Stesse regole del Worker - due host, la lista dei percorsi (le due liste
+  vanno tenute allineate), GET e POST, quattro intestazioni - e nessun account di terzi. Vale SOLO dentro l'app:
+  la stessa pagina aperta da Chrome ha ancora bisogno del Worker. ✅ Verificato il 14/10/2026: il banco
+  `e2e-lineup-offline.mjs --via-app` fa passare TUTTA la pagina (letture, salvataggio col corpo controllato)
+  da un finto ponte con lo stesso contratto, 24 richieste dal ponte e 0 dall'intermediario, e cade se la pagina
+  ignora il ponte; il ponte Java è provato in una WebView vera (emulatore Android 11) contro Leghe di
+  produzione con una GET senza token (risposta 401 `ATH008` arrivata alla pagina) e con tre richieste fuori
+  regola (rifiutate `APP403`). Dettagli e limiti: `widget-android-v1.md` §7.
 - `app_key` **non è un segreto**: sta nel bundle pubblico di Leghe e la loro documentazione lo chiama
   «noise filter, non una protezione di sicurezza». I segreti sono i token di lega: solo in
   `sessionStorage`, perché `clemanto.github.io` è UNA origine per tutti i siti Pages dell'account.

@@ -4,4 +4,6 @@
     <string name="widget_description">Le partite reali dei club dei tuoi calciatori</string>
     <string name="refresh_glyph">↻</string>
     <string name="loading">Caricamento…</string>
+    <string name="widget_screen">Widget</string>
+    <string name="widget_screen_long">Impostazioni del widget</string>
 </resources>

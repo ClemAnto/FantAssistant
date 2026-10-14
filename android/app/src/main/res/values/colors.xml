@@ -9,4 +9,9 @@
     <color name="later">#FF4ADE80</color>
     <color name="sub_in">#FFBDBDC8</color>
     <color name="sub_out">#FFBDBDC8</color>
+
+    <!-- THE WEBAPP'S SHELL: its default theme's page and ink (app/src/styles/themes/default.css), so the frame around
+         the WebView - the status bar's band, the «non si apre» message - is the colour of the page inside it. -->
+    <color name="app_page">#FF0D1411</color>
+    <color name="app_fg">#FFE8F0EC</color>
 </resources>

@@ -223,6 +223,11 @@ lineup read back from Leghe matches what was sent.
 For the ANDROID WIDGET (the real matches of the fantasquadra's clubs on the home screen, 10/10/2026):
 **`widget-android-v1.md`** — the three halves (the Lineup page's «Invia al widget», `scripts/gas/widget.gs` asking
 SofaScore every 5 minutes, the native app in `android/`), how to build the APK, and the roadmap.
+**Since 14/10/2026 (v0.3.0) the app opens on the WEBAPP** in a WebView, and is the THIRD pass-through to Leghe
+(after `ng serve` and the unpublished Worker): the page sees `window.FantAssistantApp`, `LegheSession.base` becomes
+`APP_BRIDGE`, and `LegheBridge.java` makes the call from Java under the Worker's own rules - its `PATHS` list is a
+copy of the Worker's and the two must stay in step. Native pages were considered and refused (the operator's
+choice): they would be a second definition of everything the webapp computes. Details and limits: §7 of that doc.
 Drive dataset IDs (xlsx/csv, not in git) are in [docs/DRIVE-MANIFEST.md](docs/DRIVE-MANIFEST.md).
 The BOARD list `todolist-formazioni-tipo-v1.md` is **closed** (08/08/2026): five adoptions, six measured
 refusals, and the standing rule that the press is a JUDGE and never an input. What remains is

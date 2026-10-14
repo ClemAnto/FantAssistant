@@ -7,7 +7,7 @@ import { NzIconModule } from 'ng-zorro-antd/icon';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzModalModule } from 'ng-zorro-antd/modal';
 
-import { LEGHE, LegheError, LeghePlatform } from '../../core/leghe-api';
+import { APP_BRIDGE, LEGHE, LegheError, LeghePlatform } from '../../core/leghe-api';
 import { LegheSession } from '../../core/leghe-session';
 
 /**
@@ -49,6 +49,8 @@ export class LegheConnect {
 
   /** Under `ng serve` the dev server forwards; anywhere else somebody has to paste the Worker's address. */
   protected readonly needsProxy = computed(() => !this.session.base());
+  /** Inside the Android app the app itself forwards: the EuroLeghe paragraph names who carries the password. */
+  protected readonly inApp = computed(() => this.session.base() === APP_BRIDGE);
   protected readonly proxyDraft = signal('');
 
   /**

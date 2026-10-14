@@ -13,6 +13,11 @@
  * pass-through of ours (`/leghe-api` under `ng serve`, a Worker on the published site) and the
  * pass-through talks to Leghe. It forwards; it decides nothing.
  *
+ * THE THIRD PASS-THROUGH IS THE ANDROID APP (operator, 14/10/2026: «webview con bridge su app nativa»).
+ * Inside the app the page runs in a WebView that exposes `window.FantAssistantApp`, and the app makes the
+ * call from Java, where there is no CORS either (`android/.../LegheBridge.java`). Same rules as the Worker:
+ * two hosts, the paths the pages read, GET and POST, four headers. `APP_BRIDGE` is the «base» that says so.
+ *
  * THE TWO LOGINS ARE DIFFERENT ON PURPOSE.
  *  - Leghe (classic): the official EMBEDDED login, an iframe of `leghe.fantacalcio.it/embed`. The password
  *    is typed into fantacalcio's own page and never reaches this app; what arrives by `postMessage` is
@@ -193,6 +198,62 @@ export function readAnswer(status: number, body: unknown): unknown {
 /** Where the pass-through answers, or null when nobody has configured one for this site. */
 export type ProxyBase = string | null;
 
+/** The «base» of a page running inside the Android app: the app itself forwards (`appBridge`). Not a URL. */
+export const APP_BRIDGE = 'fantassistant-app:';
+
+/** What the Android app exposes to its WebView (`LegheBridge.java`, `addJavascriptInterface`). */
+interface AppBridge {
+  /** Sends one request; the answer comes back through `window.__fantassistantBridge(id, status, text)`. */
+  request(id: string, request: string): void;
+}
+
+/** The answer the app hands back: the HTTP status and the body, or status 0 and the reason it failed. */
+interface AppAnswer {
+  status: number;
+  text: string;
+}
+
+/**
+ * The app's bridge when this page runs inside it, or null in a browser. Read on every call and never cached:
+ * it is the only thing that tells a WebView from a tab, and the page is the same file in both.
+ */
+export function appBridge(): AppBridge | null {
+  const bridge = (globalThis as { FantAssistantApp?: { request?: unknown } }).FantAssistantApp;
+  return bridge && typeof bridge.request === 'function' ? (bridge as AppBridge) : null;
+}
+
+/**
+ * How long a call through the app may take before the page stops waiting. Above the app's own timeouts
+ * (10 s to connect, 20 s to read), so the app's message is the one that normally arrives: this is the net for an
+ * answer that never comes back (the app killed mid-call).
+ */
+export const APP_TIMEOUT_MS = 40_000;
+
+const waiting = new Map<string, (answer: AppAnswer) => void>();
+let nextRequest = 0;
+
+/** One request through the app, answered by the callback the app evaluates in the page. */
+function viaApp(bridge: AppBridge, request: object): Promise<AppAnswer> {
+  const host = globalThis as { __fantassistantBridge?: (id: string, status: number, text: string) => void };
+  host.__fantassistantBridge ??= (id, status, text) => {
+    const done = waiting.get(id);
+    waiting.delete(id);
+    done?.({ status, text });
+  };
+  return new Promise((resolve) => {
+    const id = `r${++nextRequest}`;
+    const timer = setTimeout(() => {
+      waiting.delete(id);
+      resolve({ status: 0, text: "l'app non ha risposto in tempo" });
+    }, APP_TIMEOUT_MS);
+    waiting.set(id, (answer) => {
+      clearTimeout(timer);
+      resolve(answer);
+    });
+    bridge.request(id, JSON.stringify(request));
+  });
+}
+
 export interface LegheCall {
   base: ProxyBase;
   platform: LeghePlatform;
@@ -247,17 +308,22 @@ export async function legheCall(call: LegheCall): Promise<unknown> {
   };
   if (call.jwt) headers['Authorization'] = `Bearer ${call.jwt}`;
   if (call.body !== undefined) headers['content-type'] = 'application/json';
-  let response: Response;
+  const body = call.body === undefined ? undefined : JSON.stringify(call.body);
+  let status: number;
   let text: string;
   try {
     // The body is read INSIDE the lane: a request is not over until its answer has arrived.
-    ({ response, text } = await inLane(async () => {
-      const answer = await fetch(`${call.base}/${call.platform}${call.path}`, {
-        method: call.method,
-        headers,
-        body: call.body === undefined ? undefined : JSON.stringify(call.body),
-      });
-      return { response: answer, text: await answer.text() };
+    ({ status, text } = await inLane(async () => {
+      if (call.base === APP_BRIDGE) {
+        const bridge = appBridge();
+        if (!bridge) throw new Error("l'app non espone il collegamento");
+        // The app picks the HOST from the platform: the page names a platform and a path, never a URL.
+        const answer = await viaApp(bridge, { platform: call.platform, method: call.method, path: call.path, headers, body });
+        if (answer.status === 0) throw new Error(answer.text);
+        return answer;
+      }
+      const answer = await fetch(`${call.base}/${call.platform}${call.path}`, { method: call.method, headers, body });
+      return { status: answer.status, text: await answer.text() };
     }));
   } catch (err) {
     throw new LegheError(
@@ -265,16 +331,13 @@ export async function legheCall(call: LegheCall): Promise<unknown> {
       `Leghe non risponde (${err instanceof Error ? err.message.slice(0, 80) : String(err)}).`,
     );
   }
-  let body: unknown = null;
+  let parsed: unknown = null;
   try {
-    body = text ? JSON.parse(text) : null;
+    parsed = text ? JSON.parse(text) : null;
   } catch {
-    throw new LegheError(
-      'unexpected',
-      `Risposta di Leghe non leggibile (HTTP ${response.status}): ${text.slice(0, 80)}`,
-    );
+    throw new LegheError('unexpected', `Risposta di Leghe non leggibile (HTTP ${status}): ${text.slice(0, 80)}`);
   }
-  return readAnswer(response.status, body);
+  return readAnswer(status, parsed);
 }
 
 /** Direct login, the EuroLeghe path. The password goes in the body of ONE request and is kept nowhere. */

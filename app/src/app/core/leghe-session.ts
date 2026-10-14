@@ -1,6 +1,7 @@
 import { Injectable, computed, effect, resource, signal, untracked } from '@angular/core';
 
 import {
+  APP_BRIDGE,
   LEGHE_PLATFORMS,
   LegheAccount,
   LegheError,
@@ -8,6 +9,7 @@ import {
   LeghePlatform,
   ProxyBase,
   accountFromEmbed,
+  appBridge,
   directLogin,
   leagueGet,
   legheRequestsSent,
@@ -150,11 +152,13 @@ export class LegheSession {
   readonly proxyUrl = storedText('leghe-proxy-url', LEGHE_PROXY_DEFAULT);
 
   /**
-   * The pass-through to dial: the pasted address when there is one, the dev server's under `ng serve`,
-   * and nothing at all on a published site that has none - which `legheCall` turns into its own message
-   * instead of a «network error» that would read like Leghe being down.
+   * The pass-through to dial: the Android app when the page runs inside it (`APP_BRIDGE`, which needs no
+   * third party and wins over anything pasted), the pasted address when there is one, the dev server's under
+   * `ng serve`, and nothing at all on a published site that has none - which `legheCall` turns into its own
+   * message instead of a «network error» that would read like Leghe being down.
    */
   readonly base = computed<ProxyBase>(() => {
+    if (appBridge()) return APP_BRIDGE;
     const pasted = this.proxyUrl().trim().replace(/\/+$/, '');
     if (pasted) return pasted;
     return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? DEV_PROXY : null;

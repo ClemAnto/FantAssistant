@@ -104,7 +104,7 @@ public class MatchesWidget extends AppWidgetProvider {
         v.setOnClickPendingIntent(R.id.toggle_done, broadcast(context, ACTION_TOGGLE_DONE, 6));
         v.setOnClickPendingIntent(R.id.refresh, broadcast(context, ACTION_REFRESH, 3));
         v.setOnClickPendingIntent(R.id.title, PendingIntent.getActivity(context, 4,
-                new Intent(context, MainActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+                new Intent(context, WidgetActivity.class), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
 
         // A row's tap opens its SofaScore page: each row fills in the URL, so the template is mutable - and therefore
         // EXPLICIT (OpenActivity), because Android 14+ refuses a mutable PendingIntent around an implicit intent.

@@ -1,87 +1,203 @@
+// Created 14/10/2026 by Antonio Clemente (written with Claude).
 package it.fantassistant.widget;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
-import android.appwidget.AppWidgetManager;
-import android.content.ComponentName;
+import android.content.ActivityNotFoundException;
+import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.graphics.Color;
+import android.graphics.Insets;
+import android.net.ConnectivityManager;
+import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
-import android.text.format.DateFormat;
+import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
-import android.widget.LinearLayout;
+import android.view.WindowInsets;
+import android.webkit.ConsoleMessage;
+import android.webkit.CookieManager;
+import android.webkit.WebResourceError;
+import android.webkit.WebChromeClient;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.widget.FrameLayout;
 import android.widget.TextView;
 
 /**
- * The app's one screen: what to do, where the widget reads from (editable, because a NEW Apps Script deployment
- * changes the address), and a button that reads the list now and says how it went. Opening it once also takes
- * the app out of Android's «stopped» state, before which its alarms would not fire.
+ * THE APP OPENS ON THE WEBAPP (operator, 14/10/2026: «un'app di facile consultazione per inserire la formazione e
+ * proporre scambi guardando le statistiche» - and, asked native or WebView, «webview con bridge su app nativa»).
+ *
+ * The pages are the webapp's own, so every number on the phone is the number on the PC: the lineup's advice, the
+ * press survey, the rulings, the full-season scale all live in TypeScript once. What the app adds is what a browser
+ * cannot do: talk to Leghe without a pass-through (`LegheBridge`), because Leghe answers CORS to its own sites only.
+ *
+ * THE WEBVIEW SHOWS THE WEBAPP AND NOTHING ELSE: a main-frame navigation outside `Store.webappUrl` (a SofaScore link,
+ * an odds page) opens in the phone's browser, so the bridge is only ever reachable from the webapp and the frame it
+ * embeds (Leghe's own login). It survives a rotation (`configChanges` in the manifest): the league tokens live in the
+ * page's `sessionStorage`, and a recreated WebView would lose them.
  */
 public class MainActivity extends Activity {
-    private TextView status;
+    private WebView web;
+    private LegheBridge bridge;
+    private TextView failure;
 
+    @SuppressLint("SetJavaScriptEnabled")
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        int pad = (int) (16 * getResources().getDisplayMetrics().density);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(getColor(R.color.app_page));
+        edgeToEdge(root);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(pad, pad * 2, pad, pad);
+        web = new WebView(this);
+        WebSettings s = web.getSettings();
+        s.setJavaScriptEnabled(true);
+        // localStorage (preferences, Leghe's cached readings) and sessionStorage (the league tokens).
+        s.setDomStorageEnabled(true);
+        s.setAllowFileAccess(false);
+        s.setAllowContentAccess(false);
+        s.setSupportMultipleWindows(false);
+        // Without the network, the last copy of the pages instead of an error: the cached readings are still useful.
+        s.setCacheMode(online() ? WebSettings.LOAD_DEFAULT : WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        // The page can tell the app from a tab by the bridge; the agent says it too, with the version, for the logs.
+        s.setUserAgentString(s.getUserAgentString() + " FantAssistantApp/" + Store.version(this));
+        // Leghe's embedded login is a frame of leghe.fantacalcio.it inside our page: let it keep its own cookies.
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
 
-        TextView intro = new TextView(this);
-        intro.setText("1. Dalla webapp, pagina Formazione → Widget → «Invia questa squadra».\n"
-                + "2. Tieni premuto sulla home → Widget → FantAssistant Partite.\n\n"
-                + "Indirizzo del foglio (Apps Script):");
-        root.addView(intro);
-
-        EditText url = new EditText(this);
-        url.setText(Store.url(this));
-        url.setSingleLine(false);
-        url.setTextSize(12);
-        root.addView(url, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        Button save = new Button(this);
-        save.setText("Salva e aggiorna");
-        save.setOnClickListener(b -> {
-            Store.setUrl(this, url.getText().toString());
-            status.setText("Lettura in corso…");
-            Refresher.refresh(this, () -> runOnUiThread(this::showStatus));
+        bridge = new LegheBridge(web);
+        web.addJavascriptInterface(bridge, "FantAssistantApp");
+        web.setWebViewClient(new Client());
+        web.setWebChromeClient(new WebChromeClient() {
+            /**
+             * A WEBVIEW TOO OLD FOR THE WEBAPP says so instead of showing a blank page. Measured on an Android 11
+             * emulator (WebView 83, 14/10/2026): the bundle does not even parse («Uncaught SyntaxError: Unexpected
+             * token '{'»), and nothing on screen tells why. The WebView updates from the Play Store.
+             */
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage message) {
+                String source = message.sourceId() == null ? "" : message.sourceId();
+                if (message.messageLevel() == ConsoleMessage.MessageLevel.ERROR
+                        && message.message() != null && message.message().contains("SyntaxError")
+                        && source.startsWith(Store.webappUrl(MainActivity.this))) {
+                    PackageInfo engine = WebView.getCurrentWebViewPackage();
+                    failure.setText("La versione di Android System WebView di questo telefono ("
+                            + (engine == null ? "?" : engine.versionName) + ") è troppo vecchia per la webapp.\n\n"
+                            + "Aggiornala dal Play Store, poi tocca qui per riprovare.");
+                    failure.setVisibility(View.VISIBLE);
+                }
+                return false;
+            }
         });
-        root.addView(save);
+        root.addView(web, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // Puts the widget on the home screen with the launcher's own confirmation, so nobody has to look for it
-        // in the widget list. Not every launcher supports it; the long-press route of the text above always works.
-        AppWidgetManager manager = AppWidgetManager.getInstance(this);
-        if (manager.isRequestPinAppWidgetSupported()) {
-            Button pin = new Button(this);
-            pin.setText("Aggiungi il widget alla home");
-            pin.setOnClickListener(b -> manager.requestPinAppWidget(new ComponentName(this, MatchesWidget.class), null, null));
-            root.addView(pin);
-        }
-
-        status = new TextView(this);
-        status.setPadding(0, pad, 0, 0);
-        root.addView(status);
+        failure = new TextView(this);
+        failure.setTextColor(getColor(R.color.app_fg));
+        failure.setBackgroundColor(getColor(R.color.app_page));
+        failure.setGravity(Gravity.CENTER);
+        int pad = Math.round(24 * getResources().getDisplayMetrics().density);
+        failure.setPadding(pad, pad, pad, pad);
+        failure.setVisibility(View.GONE);
+        failure.setOnClickListener(v -> {
+            failure.setVisibility(View.GONE);
+            web.reload();
+        });
+        root.addView(failure, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
 
         setContentView(root);
-        showStatus();
+        web.loadUrl(start());
     }
 
-    private void showStatus() {
-        Matches m = Matches.parse(Store.json(this));
-        String error = Store.error(this);
-        long at = Store.readAt(this);
-        StringBuilder s = new StringBuilder();
-        if (m != null) {
-            s.append(m.rows.size()).append(" partite · lista del foglio delle ").append(m.updated);
-            if (at > 0) s.append("\nletta alle ").append(DateFormat.format("HH:mm", at));
-        } else {
-            s.append("Nessuna lista ancora letta.");
+    /** The page to open: the last one shown when it is still inside the webapp, the lineup otherwise. */
+    private String start() {
+        String base = Store.webappUrl(this);
+        String last = Store.webappLast(this);
+        return last != null && last.startsWith(base) ? last : base + "lineup";
+    }
+
+    /** Whether a main-frame address belongs to the webapp the app was set to show. */
+    private boolean allowed(Uri url) {
+        return url.toString().startsWith(Store.webappUrl(this));
+    }
+
+    private boolean online() {
+        ConnectivityManager cm = getSystemService(ConnectivityManager.class);
+        return cm != null && cm.getActiveNetwork() != null;
+    }
+
+    private final class Client extends WebViewClient {
+        @Override
+        public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+            failure.setVisibility(View.GONE);
         }
-        if (!error.isEmpty()) s.append("\n\n").append(error);
-        String list = Store.listReport(this);
-        if (!list.isEmpty()) s.append("\n\n").append(list);
-        s.append("\n\nVersione app: ").append(Store.version(this));
-        status.setText(s.toString());
+
+        @Override
+        public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+            // Frames (Leghe's login) load where they load; only the MAIN frame is held to the webapp.
+            if (!request.isForMainFrame() || allowed(request.getUrl())) return false;
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
+            } catch (ActivityNotFoundException ignored) {
+                // No app opens that link: staying on the page is the only sensible answer.
+            }
+            return true;
+        }
+
+        @Override
+        public void doUpdateVisitedHistory(WebView view, String url, boolean isReload) {
+            // The webapp is a single page that changes its address by itself: this is where each page is seen.
+            if (url != null && url.startsWith(Store.webappUrl(MainActivity.this))) Store.setWebappLast(MainActivity.this, url);
+        }
+
+        @Override
+        public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+            if (!request.isForMainFrame()) return;
+            // An unreachable page is said in words and offers the way back, instead of the WebView's blank error.
+            failure.setText("La webapp non si apre (" + error.getDescription() + ").\n\nTocca per riprovare.");
+            failure.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /**
+     * From Android 15 an app that targets it is drawn under the status and navigation bars, so the page is padded by
+     * the bars (and by the keyboard, so a text field is never under it). Below Android 11 the system still lays the
+     * window out between the bars and nothing is needed.
+     */
+    private void edgeToEdge(View root) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return;
+        getWindow().setDecorFitsSystemWindows(false);
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            Insets bars = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout()
+                    | WindowInsets.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return WindowInsets.CONSUMED;
+        });
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Back walks the webapp's own history first, as in a browser; out of it, the app closes.
+        if (web != null && web.canGoBack()) {
+            web.goBack();
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    @Override
+    protected void onDestroy() {
+        if (bridge != null) bridge.close();
+        if (web != null) {
+            web.removeJavascriptInterface("FantAssistantApp");
+            web.destroy();
+        }
+        super.onDestroy();
     }
 }

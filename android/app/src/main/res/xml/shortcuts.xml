@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app icon's long-press menu: the widget's screen, now that the app opens on the webapp (14/10/2026). -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_launcher"
+        android:shortcutId="widget"
+        android:shortcutLongLabel="@string/widget_screen_long"
+        android:shortcutShortLabel="@string/widget_screen">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetClass="it.fantassistant.widget.WidgetActivity"
+            android:targetPackage="it.fantassistant.widget" />
+    </shortcut>
+</shortcuts>

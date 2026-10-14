@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  APP_BRIDGE,
+  APP_TIMEOUT_MS,
   LegheError,
   SPACING_MS,
   accountFromEmbed,
@@ -136,5 +138,88 @@ describe('legheCall', () => {
       kind: 'no-proxy',
     });
     expect(legheRequestsSent()).toBe(before);
+  });
+});
+
+describe('legheCall through the Android app (`APP_BRIDGE`)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  /** A fake `window.FantAssistantApp`: records what the page sent and answers the way the app does. */
+  function fakeApp(answer: (request: Record<string, unknown>) => [number, string] | null) {
+    const sent: Record<string, unknown>[] = [];
+    vi.stubGlobal('FantAssistantApp', {
+      request(id: string, json: string) {
+        const request = JSON.parse(json) as Record<string, unknown>;
+        sent.push(request);
+        const reply = answer(request);
+        // The app answers LATER, from its own thread, by evaluating the callback in the page.
+        const page = globalThis as { __fantassistantBridge?: (id: string, status: number, text: string) => void };
+        if (reply) setTimeout(() => page.__fantassistantBridge?.(id, reply[0], reply[1]), 10);
+      },
+    });
+    return sent;
+  }
+
+  it('sends a platform and a path - never a URL - with the four headers, and reads the answer', async () => {
+    vi.useFakeTimers();
+    const fetched = vi.fn();
+    vi.stubGlobal('fetch', fetched);
+    const sent = fakeApp(() => [200, '{"ok":3}']);
+    const call = legheCall({
+      base: APP_BRIDGE,
+      platform: 'euro',
+      method: 'POST',
+      path: '/onboarding/v1/login',
+      jwt: TOKEN,
+      body: { username: 'u' },
+    });
+    await vi.advanceTimersByTimeAsync(20 * SPACING_MS);
+    expect(await call).toEqual({ ok: 3 });
+    expect(fetched).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ platform: 'euro', method: 'POST', path: '/onboarding/v1/login', body: '{"username":"u"}' });
+    expect(Object.keys(sent[0]['headers'] as object).sort()).toEqual(['Authorization', 'accept', 'app_key', 'content-type']);
+    expect(JSON.stringify(sent[0])).not.toContain('https://');
+  });
+
+  it('an answer of Leghe that is a refusal reads as the same error a browser would get', async () => {
+    vi.useFakeTimers();
+    fakeApp(() => [200, '{"success":false,"code":"ATH018"}']);
+    const call = legheCall({ base: APP_BRIDGE, platform: 'euro', method: 'POST', path: '/p' }).catch((err) => err);
+    await vi.advanceTimersByTimeAsync(20 * SPACING_MS);
+    expect(((await call) as LegheError).kind).toBe('credentials');
+  });
+
+  it('status 0 is the app saying the network failed: «unreachable», with its reason', async () => {
+    vi.useFakeTimers();
+    fakeApp(() => [0, 'timeout']);
+    const call = legheCall({ base: APP_BRIDGE, platform: 'classic', method: 'GET', path: '/p' }).catch((err) => err);
+    await vi.advanceTimersByTimeAsync(20 * SPACING_MS);
+    const err = (await call) as LegheError;
+    expect(err.kind).toBe('unreachable');
+    expect(err.message).toContain('timeout');
+  });
+
+  it('an app that never answers does not hang the page: it gives up after APP_TIMEOUT_MS', async () => {
+    vi.useFakeTimers();
+    fakeApp(() => null);
+    const call = legheCall({ base: APP_BRIDGE, platform: 'classic', method: 'GET', path: '/p' }).catch((err) => err);
+    await vi.advanceTimersByTimeAsync(APP_TIMEOUT_MS + 20 * SPACING_MS);
+    expect(((await call) as LegheError).kind).toBe('unreachable');
+  });
+
+  it("the app's base without the app is a failure that says so, not a fetch to a non-URL", async () => {
+    vi.useFakeTimers();
+    const fetched = vi.fn();
+    vi.stubGlobal('fetch', fetched);
+    const call = legheCall({ base: APP_BRIDGE, platform: 'classic', method: 'GET', path: '/p' }).catch((err) => err);
+    await vi.advanceTimersByTimeAsync(20 * SPACING_MS);
+    const err = (await call) as LegheError;
+    expect(err.kind).toBe('unreachable');
+    expect(err.message).toContain("l'app");
+    expect(fetched).not.toHaveBeenCalled();
   });
 });

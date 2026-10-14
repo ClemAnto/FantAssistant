@@ -32,7 +32,8 @@
  *     the bench as drawn, the switch - and serving it back, so «Inviata» and «Leghe la conferma» are read off what
  *     Leghe holds.
  *
- * Usage (after `npx ng build`): node scripts/e2e-lineup-offline.mjs
+ * Usage (after `npx ng build`): node scripts/e2e-lineup-offline.mjs [--via-app]
+ * `--via-app` runs every step through a fake of the Android app's bridge instead of the dev pass-through.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -132,29 +133,62 @@ const ODDS = { matches: [{
     away: { price: 4.5, prob: 1 / 4.5, books: 8, min: 4.5, max: 4.5 } },
 }] };
 
+/**
+ * THE ANDROID APP'S BRIDGE, faked (`--via-app`, 14/10/2026): the page runs as it does in the app's WebView, with a
+ * `window.FantAssistantApp` that takes `{platform, method, path, headers, body}` - never a URL - and answers through
+ * `window.__fantassistantBridge(id, status, text)`, the contract of `android/.../LegheBridge.java`. Here the «app»
+ * hands the request to this server, which answers it with the same fake Leghe. Every step below then runs through
+ * the bridge, and the end checks that NOTHING went to the dev pass-through.
+ */
+const VIA_APP = process.argv.includes('--via-app');
+const FAKE_APP = `window.FantAssistantApp = { request(id, json) {
+  const done = (status, text) => window.__fantassistantBridge && window.__fantassistantBridge(id, status, text);
+  fetch('/app-bridge', { method: 'POST', body: json }).then((r) => r.json()).then((a) => done(a.status, a.text))
+    .catch((e) => done(0, String(e)));
+} };`;
+/** Requests that went through the fake app, and requests that reached the dev pass-through `/leghe-api`. */
+let viaApp = 0;
+let viaProxy = 0;
+
+/** One request to the fake Leghe, whichever door it came through: `[status, body]`. */
+function answer(platform, method, path, text) {
+  legheAsked += 1;
+  if (method === 'POST' && /^\/gaming\/v1\/teamLineup\/[A-Z]{1,2}$/.test(path)) {
+    const body = JSON.parse(text);
+    posts.push({ platform, path, body });
+    saved[platform] = body;
+    return [200, body];
+  }
+  const body = leghe(platform, path);
+  return [body === null ? 404 : 200, body ?? { code: 'NOPE' }];
+}
+
 function serve() {
   return new Promise((done) => {
     const server = createServer((req, res) => {
       const url = decodeURIComponent(req.url);
       const api = url.match(/^\/leghe-api\/(classic|euro)(\/.*)$/);
-      if (api && req.method === 'POST' && /^\/gaming\/v1\/teamLineup\/[A-Z]{1,2}$/.test(api[2])) {
-        legheAsked += 1;
+      if (api || (url === '/app-bridge' && req.method === 'POST')) {
         let text = '';
         req.on('data', (chunk) => (text += chunk));
         req.on('end', () => {
-          const body = JSON.parse(text);
-          posts.push({ platform: api[1], path: api[2], body });
-          saved[api[1]] = body;
+          if (api) {
+            viaProxy += 1;
+            const [status, body] = answer(api[1], req.method, api[2], text);
+            res.writeHead(status, { 'content-type': 'application/json' });
+            return res.end(JSON.stringify(body));
+          }
+          viaApp += 1;
+          const request = JSON.parse(text);
+          // The app forwards the four headers and nothing else: the fake Leghe wants its app_key, like the real one.
+          const key = request.headers?.app_key;
+          const [status, body] = key
+            ? answer(request.platform, request.method, request.path, request.body ?? '')
+            : [403, { success: false, code: 'NOKEY' }];
           res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(JSON.stringify(body));
+          res.end(JSON.stringify({ status, text: JSON.stringify(body) }));
         });
         return;
-      }
-      if (api) {
-        legheAsked += 1;
-        const body = leghe(api[1], api[2]);
-        res.writeHead(body === null ? 404 : 200, { 'content-type': 'application/json' });
-        return res.end(JSON.stringify(body ?? { code: 'NOPE' }));
       }
       const path = url.split('?')[0];
       if (path === '/data/fc_teams.json.gz') {
@@ -261,6 +295,7 @@ try {
       leagues: [{ platform: 'euro', id: LEAGUES.euro.id, name: LEAGUES.euro.name, alias: '', jwt: TOKEN, game: 'mantra' }] },
   ];
   const oddsCache = JSON.stringify({ at: new Date().toISOString(), body: JSON.stringify(ODDS) });
+  if (VIA_APP) await s.send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_APP });
   await s.send('Page.addScriptToEvaluateOnNewDocument', { source: `try {
     if (!localStorage.getItem('e2e.no-token')) sessionStorage.setItem('leghe.accounts', ${JSON.stringify(JSON.stringify(accounts))});
     if (!localStorage.getItem('fantassistant.leghe-league')) localStorage.setItem('fantassistant.leghe-league', 'classic:${LEAGUES.classic.id}');
@@ -690,6 +725,16 @@ try {
   check(legheAsked === askedBefore, `senza login: ${legheAsked - askedBefore} richieste a Leghe`);
   const leagues = await ev(s, () => !!document.querySelector('[data-lineup-league]'));
   check(leagues, 'senza login il selettore delle leghe resta', 'senza login il selettore delle leghe sparisce');
+
+  // ================================================================ 5. THROUGH THE APP (`--via-app`)
+  // Every request of the steps above went through the fake app's bridge, and NOT ONE through the dev
+  // pass-through: in the app the page must not depend on a proxy it does not have.
+  if (VIA_APP) {
+    check(viaApp > 0 && viaProxy === 0, `via app: ${viaApp} richieste dal ponte, ${viaProxy} dall'intermediario`,
+      `via app: ${viaProxy} richieste sono passate dall'intermediario invece che dal ponte`);
+  } else {
+    check(viaApp === 0, `senza app: ${viaApp} richieste dal ponte`);
+  }
 
   if (s.noise.length) problems.push(`eccezioni in pagina: ${s.noise.slice(0, 3).join(' | ')}`);
 } finally {

@@ -81,8 +81,8 @@
     <section class="flex flex-col gap-2" data-leghe-platform="euro">
       <b>{{ countOf('euro') ? 'Aggiungi un account ' + sites.euro.label : sites.euro.label }}</b>
       <p class="text-xs text-muted">
-        EuroLeghe non ha il login integrato: utente e password passano dall'intermediario e non vengono
-        salvati.
+        EuroLeghe non ha il login integrato: utente e password passano
+        {{ inApp() ? "dall'app sul telefono" : "dall'intermediario" }} e non vengono salvati.
       </p>
       <form class="flex flex-col gap-2" (ngSubmit)="loginEuro()">
         <input
