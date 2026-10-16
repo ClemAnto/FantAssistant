@@ -40,11 +40,13 @@ import { LineupRules, parseRules } from './leghe-rules';
 import { storedText } from './view-state';
 
 /**
- * THE PASS-THROUGH OF THE PUBLISHED SITE, empty until the operator deploys one (`proxy/leghe-worker.mjs`).
- * A default and not a constant, like the press sheet's address: the live value is `leghe-proxy-url` in
- * `localStorage`, pasted from the page, so a redeploy of the Worker needs no rebuild of the app.
+ * THE PASS-THROUGH OF THE PUBLISHED SITE (`proxy/leghe-worker.mjs`), deployed on the operator's Cloudflare
+ * account on 16/10/2026 and checked from outside the browser: it refuses a foreign origin (403) and a path off
+ * its list (404), answers the preflight for this site, and forwards a login with the same answer Leghe gives
+ * directly. A default and not a constant, like the press sheet's address: the live value is `leghe-proxy-url`
+ * in `localStorage`, pasted from the page, so a redeploy of the Worker needs no rebuild of the app.
  */
-export const LEGHE_PROXY_DEFAULT = '';
+export const LEGHE_PROXY_DEFAULT = 'https://leghe-proxy.clemente-antonio-81.workers.dev';
 
 /** What `ng serve` answers on (`proxy.conf.mjs`). */
 const DEV_PROXY = '/leghe-api';
@@ -149,19 +151,21 @@ export interface LeagueMatchday {
  */
 @Injectable({ providedIn: 'root' })
 export class LegheSession {
-  readonly proxyUrl = storedText('leghe-proxy-url', LEGHE_PROXY_DEFAULT);
+  readonly proxyUrl = storedText('leghe-proxy-url', '');
 
   /**
    * The pass-through to dial: the Android app when the page runs inside it (`APP_BRIDGE`, which needs no
    * third party and wins over anything pasted), the pasted address when there is one, the dev server's under
-   * `ng serve`, and nothing at all on a published site that has none - which `legheCall` turns into its own
-   * message instead of a «network error» that would read like Leghe being down.
+   * `ng serve`, and the deployed Worker on the published site. The default stays OUT of the stored field on
+   * purpose: written there it would beat the dev server under `ng serve` too, and a pasted address would no
+   * longer be told apart from the one nobody chose.
    */
   readonly base = computed<ProxyBase>(() => {
     if (appBridge()) return APP_BRIDGE;
     const pasted = this.proxyUrl().trim().replace(/\/+$/, '');
     if (pasted) return pasted;
-    return /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) ? DEV_PROXY : null;
+    if (/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname)) return DEV_PROXY;
+    return LEGHE_PROXY_DEFAULT || null;
   });
 
   /** The logins of THIS TAB, with their tokens: as many as he made, on either platform. */
