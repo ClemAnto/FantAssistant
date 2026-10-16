@@ -18,6 +18,14 @@
  * cost ZERO, or the cache is not doing its job.
  *
  *   node scripts/e2e-lineup-live.mjs 4321 [pacchetto-quote.json] [--fresh]
+ *
+ * ONLINE (16/10/2026): `--online` drives the PUBLISHED site instead of `ng serve`, through the Cloudflare
+ * pass-through (`proxy/leghe-worker.mjs`). The address is seeded into the page's own field, the one the
+ * operator pastes, so the run also works on a site built before the address became the default; and every
+ * request the page makes is counted by host, because «it worked» must mean «it went through the Worker» and
+ * not «it went to Leghe some other way».
+ *
+ *   node scripts/e2e-lineup-live.mjs --online [--proxy=https://...workers.dev]
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -27,8 +35,11 @@ import { join } from 'node:path';
 
 const ARGS = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const FRESH = process.argv.includes('--fresh');
+const ONLINE = process.argv.includes('--online');
+const PROXY = (process.argv.find((a) => a.startsWith('--proxy='))?.slice(8)) ?? 'https://leghe-proxy.clemente-antonio-81.workers.dev';
 const PORT = ARGS[0] ?? '4321';
-const URL0 = `http://localhost:${PORT}/lineup`;
+const URL0 = ONLINE ? 'https://clemanto.github.io/FantAssistant/lineup' : `http://localhost:${PORT}/lineup`;
+const hosts = new Map();   // host -> requests the page made to it (online only)
 const EDGE = 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const SHOTS = join(tmpdir(), 'e2e-lineup-live');
 await mkdir(SHOTS, { recursive: true });
@@ -65,6 +76,9 @@ ws.addEventListener('message', (e) => {
   if (msg.id && pending.has(msg.id)) { pending.get(msg.id)(msg); pending.delete(msg.id); return; }
   if (msg.method === 'Runtime.exceptionThrown' && msg.sessionId === pageSession) problems.push('exception: ' + (msg.params.exceptionDetails.exception?.description ?? msg.params.exceptionDetails.text).slice(0, 200));
   if (msg.method === 'Runtime.consoleAPICalled' && msg.params.type === 'error' && msg.sessionId === pageSession) problems.push('console.error: ' + msg.params.args.map((a) => a.value ?? a.description).join(' ').slice(0, 200));
+  if (msg.method === 'Network.requestWillBeSent' && msg.sessionId === pageSession) {
+    try { const h = new URL(msg.params.request.url).host; hosts.set(h, (hosts.get(h) ?? 0) + 1); } catch {}
+  }
   if (msg.method === 'Target.attachedToTarget') {
     const s = msg.params.sessionId;
     send('Runtime.enable', {}, s);
@@ -182,6 +196,11 @@ try {
     const cache = JSON.stringify({ at: new Date().toISOString(), body });
     await send('Page.addScriptToEvaluateOnNewDocument', { source: `try { localStorage.setItem('fantassistant.bookmaker-odds-cache', ${JSON.stringify(cache)}); } catch {}` }, pageSession);
   }
+  if (ONLINE) {
+    await send('Network.enable', {}, pageSession);
+    await send('Page.addScriptToEvaluateOnNewDocument', { source: `try { if (location.hostname === 'clemanto.github.io') localStorage.setItem('fantassistant.leghe-proxy-url', ${JSON.stringify(PROXY)}); } catch {}` }, pageSession);
+    console.log('online:', URL0, 'via', PROXY);
+  }
   await send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 1100, deviceScaleFactor: 1, mobile: false }, pageSession);
   await send('Page.navigate', { url: URL0 }, pageSession);
   console.log('page mounted:', await until(`!!document.querySelector('app-lineup [data-lineup-connect]')`));
@@ -234,6 +253,8 @@ try {
     document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     return names;
   })()`);
+  // No login, no selector: `ev` answers undefined, and the run must still reach its own report.
+  if (!Array.isArray(leagues)) { console.log('leagues: none (no account connected)'); throw new Error('no account connected'); }
   console.log('leagues:', leagues.length);
   if (!leagues.length) leagues.push(null); // the selector did not open: read the league on screen at least
   for (let i = 0; i < leagues.length; i++) {
@@ -285,6 +306,11 @@ try {
 } finally {
   console.log(failures.length ? `${failures.length} ODDS CHECK(S) FAILED:\n  ` + failures.join('\n  ') : 'odds checks passed');
   console.log(problems.length ? problems.join('\n') : 'no page exceptions');
+  if (ONLINE) {
+    const leghe = [...hosts].filter(([h]) => /fantacalcio\.it$/.test(h) && !/^leghe\./.test(h));
+    console.log('requests by host:', JSON.stringify(Object.fromEntries(hosts)));
+    console.log(`through the Worker: ${hosts.get(new URL(PROXY).host) ?? 0} · straight to a Leghe API host: ${leghe.map(([h, n]) => h + ' ' + n).join(', ') || 'none'}`);
+  }
   console.log(`screenshots in ${SHOTS}`);
   ws.close();
   // THE WHOLE TREE, and every Edge carrying this profile: one left behind would hold the profile the next run
