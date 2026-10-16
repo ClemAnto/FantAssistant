@@ -20,7 +20,9 @@ import { LegheLineupBody, SaveMan, legheModuleCode, saveBody, saveRefusal, switc
 import { NextMatchRow, fcTeamNames } from '../../core/leghe-matchday';
 import { moduleLabel, rulesSummary } from '../../core/leghe-rules';
 import { DropTarget, LineupDraft, NO_SWITCH, draftOf, drawDraft, move, relayout } from '../../core/lineup-edit';
-import { LegheSession, keyOf } from '../../core/leghe-session';
+import { LegheSession } from '../../core/leghe-session';
+import { RosterFileStore, matchdayFromFile } from '../../core/roster-file';
+import { PlayerStatus } from '../../core/player-status';
 import { FvaInput, fvaOf, fvaWords, oddsScale, restPerMatch } from '../../core/fva';
 import { calendarBookFrom } from '../../core/keeper-pairs';
 import { TimeTravel } from '../../core/time-travel';
@@ -58,7 +60,7 @@ import { WidgetFeed, widgetMen } from '../../core/widget-feed';
 import { AppHeader } from '../../ui/app-header/app-header';
 import { ClubCard } from '../../ui/club-card/club-card';
 import { ClubCrest } from '../../ui/club-crest/club-crest';
-import { LegheConnect } from '../../ui/leghe-connect/leghe-connect';
+import { RosterUpload } from '../../ui/roster-upload/roster-upload';
 import { PlayerCard } from '../../ui/player-card/player-card';
 import { PlayerFlags } from '../../ui/player-flags/player-flags';
 import { RoleBadge } from '../../ui/role-badge/role-badge';
@@ -155,7 +157,7 @@ type SaveState =
     DatePipe,
     DecimalPipe,
     FormsModule,
-    LegheConnect,
+    RosterUpload,
     NzAlertModule,
     NzButtonModule,
     NzInputModule,
@@ -192,6 +194,9 @@ export class Lineup {
   private readonly play = inject(ExpectedPlay);
   private readonly ratings = inject(PlayerRatingsStore);
   private readonly clock = inject(TimeTravel);
+  /** The roster comes from the league's export file, not from a login (`core/roster-file.ts`, 16/10/2026). */
+  protected readonly rosterFile = inject(RosterFileStore);
+  private readonly status = inject(PlayerStatus);
   protected readonly connecting = signal(false);
 
   /** «Invia al widget» (10/10/2026): the Android widget's squad, sent to the Sheet (`core/widget-feed.ts`). */
@@ -323,12 +328,43 @@ export class Lineup {
   }
 
   /** The matchday read, or null while there is none (a resource in error throws on `value()`). */
-  protected readonly md = computed(() =>
-    this.session.matchday.hasValue() ? this.session.matchday.value() : null,
-  );
+  /**
+   * THE MATCHDAY, built from the loaded roster file and the bundle's listone (`roster-file.matchdayFromFile`): the
+   * page reads the same model it read from Leghe, without what only Leghe served (opponent, deadline, percentages,
+   * the league's own rules).
+   */
+  private readonly fromFile = computed(() => {
+    const file = this.rosterFile.file();
+    const md = file ? matchdayFromFile(file, this.bundleRows(), new Date(file.loadedAt)) : null;
+    if (!md) return null;
+    // What Leghe used to attach to each man, taken from the bundle instead: his club's NEXT MATCH from the calendar
+    // (by date, `keeper-pairs.next`) and whether he is OUT today (`PlayerStatus.unavailableNow`: the press read
+    // daily, then the open official injury). Not found = left empty, never guessed.
+    const book = this.calendarBook.hasValue() ? this.calendarBook.value() : null;
+    const today = this.clock.realToday;
+    const code = (name: string) => name.replace(/[^A-Za-z]/g, '').slice(0, 3).toUpperCase();
+    const roster = md.roster.map((r) => {
+      const calendar = r.club && book ? book.forClub(r.club) : null;
+      const next = calendar ? calendar.next(r.club, today) : null;
+      const out = this.status.unavailableNow(r.fcId);
+      return {
+        ...r,
+        match: next ? (next.home ? `${code(r.club)}-${code(next.opponent)}` : `${code(next.opponent)}-${code(r.club)}`) : '',
+        home: next ? next.home : null,
+        out: out ? ('unavailable' as const) : null,
+        note: out?.note ?? null,
+      };
+    });
+    return { ...md, roster };
+  });
+
+  protected readonly md = computed(() => this.fromFile());
+
+  /** The ids of his squad the listone does not know: left out of the page, and said. */
+  protected readonly unknownMen = computed(() => this.fromFile()?.unknown.length ?? 0);
 
   /** The bundle's listone for this league: Leghe is Serie A (`default`), EuroLeghe is `euro`. */
-  private readonly platform = computed(() => (this.session.league()?.platform === 'euro' ? 'euro' : 'default'));
+  private readonly platform = computed(() => (this.rosterFile.file()?.platform === 'euro' ? 'euro' : 'default'));
 
   private readonly game = computed(() => this.md()?.rules.game ?? null);
 
@@ -446,29 +482,20 @@ export class Lineup {
     return withLeagueModules(raw, sent ? [...md.rules.modules, sent] : md.rules.modules, md.rules.game);
   });
 
-  /** The league chosen in the selector, as its key (the select works on strings). */
+  /**
+   * THE FANTASQUADRA ON SCREEN, as a key: listone and squad name, so a newer export of the same league keeps the
+   * same key (the widget's entry, the draft's owner) while another squad or another listone is another one.
+   */
   protected readonly leagueKey = computed(() => {
-    const league = this.session.league();
-    return league ? keyOf(league) : null;
+    const file = this.rosterFile.file();
+    return file?.team ? `file:${file.platform}:${file.team}` : null;
   });
 
-  /**
-   * ONE ENTRY PER FANTASQUADRA, of every account (operator, 09/10/2026: «aggiungere più fantasquadre ognuna con il
-   * suo account o dello stesso account»): «Leghe · Lega · Squadra», the team's name from the stored reading of
-   * that league (`LegheSession.teamName`, no request), and the user where two entries would still read the same -
-   * one league reached by two accounts before either was read.
-   */
+  /** The widget's label for this squad: «EuroLeghe · Squadra». */
   protected readonly leagueOptions = computed(() => {
-    this.session.matchday.value(); // a pass is when a team's name can first be stored
-    const options = this.session.leagues().map((l) => {
-      const team = this.session.teamName(l);
-      return { key: keyOf(l), user: l.userId ?? 0, label: `${LEGHE[l.platform].label} · ${l.name}${team ? ` · ${team}` : ''}` };
-    });
-    return options.map((one) =>
-      options.some((other) => other !== one && other.label === one.label)
-        ? { key: one.key, label: `${one.label} · utente ${one.user}` }
-        : { key: one.key, label: one.label },
-    );
+    const file = this.rosterFile.file();
+    const key = this.leagueKey();
+    return file && key ? [{ key, label: `${LEGHE[file.platform].label} · ${file.team}` }] : [];
   });
 
   /**
@@ -491,10 +518,9 @@ export class Lineup {
     return at ? WHEN.format(at) : '';
   });
 
-  /** «Rileggi» needs a token: without one the button opens the login instead of failing. */
+  /** «Carica rosa»: a newer export is the only way the roster changes. */
   protected reread(): void {
-    if (this.session.offline()) this.connecting.set(true);
-    else this.session.refresh();
+    this.connecting.set(true);
   }
 
   /** One line per competition, already worded: the template prints and decides nothing. */
@@ -681,6 +707,7 @@ export class Lineup {
     const sheet = this.expectations.hasValue() ? this.expectations.value() : null;
     const odds = this.oddsByMan();
     const steadiness = this.steadiness();
+    const rounds = this.store.seasonRoundsFor(this.sheet());
     const inputs = md.roster.map((r) => {
       const expected = sheet?.get(r.fcId);
       const fromSheet = expected?.fm ?? null;
@@ -711,7 +738,10 @@ export class Lineup {
         .map((one) => ({ goalsPerMatch: one.input.goalsPerMatch!, oddsProb: one.input.oddsProb! })),
     );
     return inputs.map(({ r, fm, fromSheet, keeper, input }) => {
-      const chance = voteChance(r.percent, r.out);
+      // Without Leghe's probable-starter percentage (a roster file has none) the chance of a vote is the sheet's own
+      // share of the season he is expected to get one in (`pv` over the sheet's season), still 0 for a man OUT today.
+      const share = r.percent === null && sheet?.get(r.fcId)?.pv != null && rounds ? sheet.get(r.fcId)!.pv! / rounds : null;
+      const chance = share !== null ? (r.out ? 0 : Math.max(0, Math.min(1, share))) : voteChance(r.percent, r.out);
       const fva = fvaOf(input, scale);
       const steady = steadiness.get(r.fcId) ?? null;
       return {
@@ -791,9 +821,9 @@ export class Lineup {
    * for another league or another matchday is simply not drawn - the roster under it is a different one.
    */
   private readonly owner = computed(() => {
-    const league = this.session.league();
+    const key = this.leagueKey();
     const day = this.current()?.saved?.matchday ?? this.md()?.status.matchday ?? null;
-    return league ? `${keyOf(league)}:${day ?? '?'}` : null;
+    return key ? `${key}:${day ?? '?'}` : null;
   });
 
   private readonly draftState = signal<LineupDraft | null>(null);
@@ -1015,7 +1045,8 @@ export class Lineup {
     const plan = this.pitch();
     const day = this.current();
     if (!md || !plan || this.pitchSource() === 'sent') return null;
-    if (this.session.offline()) return { refusal: 'Collegati a Leghe per salvare.' };
+    // A roster file has no competition to save into: the lineup is drawn here and typed into Leghe by hand.
+    if (!md.competitions.length) return null;
     if (!day || !md.team) return { refusal: 'Nessuna competizione con una giornata da schierare.' };
     if (this.closes()?.past) return { refusal: 'Le formazioni sono chiuse.' };
     const starters = plan.rows.flatMap((row) => row.places.flatMap((place) => (place.man ? [asSaveMan(place.man)] : [])));
@@ -1313,12 +1344,6 @@ export class Lineup {
     return `${Math.round(value * 100)}%`;
   }
 
-  protected chooseLeague(key: string): void {
-    const league = this.session.leagues().find((l) => keyOf(l) === key);
-    if (!league) return;
-    this.saveState.set({ kind: 'idle' });
-    this.session.choose(league);
-  }
 }
 
 /** A man as the save needs him: who he is and Leghe's roles. */

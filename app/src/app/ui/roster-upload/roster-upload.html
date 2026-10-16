@@ -1,0 +1,59 @@
+<!-- UI text is ITALIAN in app/ (see app/CLAUDE.md); code and comments stay English. -->
+<nz-modal [nzVisible]="open()" nzTitle="Carica rosa" [nzFooter]="null" nzWidth="480px" (nzOnCancel)="open.set(false)">
+  <div *nzModalContent class="flex flex-col gap-4 text-sm" data-roster-upload>
+    <p class="text-muted">
+      Carica l'export delle rose della tua lega (Leghe o EuroLeghe, file CSV) e scegli la tua squadra.
+    </p>
+    <label class="flex items-center gap-2">
+      <span class="inline-flex cursor-pointer items-center gap-1 rounded bg-primary px-3 py-1 text-white">
+        <span nz-icon nzType="cloud-upload"></span>Scegli il file
+      </span>
+      <input type="file" accept=".csv,text/csv" class="hidden" (change)="pick($event)" data-roster-file />
+      @if (file(); as f) {
+        <span class="truncate text-xs text-muted" data-roster-file-name>{{ f.fileName }}</span>
+      }
+    </label>
+    @if (problem(); as text) {
+      <p class="text-danger" data-roster-problem>{{ text }}</p>
+    }
+
+    @if (file(); as f) {
+      <div class="flex flex-col gap-1">
+        <span class="text-xs text-muted">Listone</span>
+        <nz-radio-group nzSize="small" [ngModel]="f.platform" (ngModelChange)="setPlatform($event)" data-roster-platform>
+          <label nz-radio-button nzValue="classic">Serie A</label>
+          <label nz-radio-button nzValue="euro">EuroLeghe</label>
+        </nz-radio-group>
+      </div>
+      <div class="flex flex-col gap-1">
+        <span class="text-xs text-muted">Gioco</span>
+        <nz-radio-group nzSize="small" [ngModel]="f.game" (ngModelChange)="setGame($event)" data-roster-game>
+          <label nz-radio-button nzValue="classic">Classic</label>
+          <label nz-radio-button nzValue="mantra">Mantra</label>
+        </nz-radio-group>
+      </div>
+      <div class="flex flex-col gap-1">
+        <span class="text-xs text-muted">La tua squadra</span>
+        <nz-select
+          nzSize="small"
+          nzPlaceHolder="Scegli la squadra"
+          [ngModel]="f.team"
+          (ngModelChange)="setTeam($event)"
+          data-roster-team
+        >
+          @for (t of teams(); track t.name) {
+            <nz-option
+              [nzValue]="t.name"
+              [nzLabel]="t.name + ' · ' + t.men + ' calciatori' + (t.known < t.men ? ' (' + (t.men - t.known) + ' non nel listone)' : '')"
+            />
+          }
+        </nz-select>
+      </div>
+      <div class="flex justify-end">
+        <button nz-button nzType="primary" nzSize="small" [disabled]="!f.team" (click)="open.set(false)" data-roster-done>
+          Fatto
+        </button>
+      </div>
+    }
+  </div>
+</nz-modal>

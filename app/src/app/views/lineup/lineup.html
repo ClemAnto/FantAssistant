@@ -2,44 +2,14 @@
 <div class="mx-auto flex min-h-full max-w-[1500px] flex-col gap-3 p-4">
   <ui-app-header>
     <div class="flex flex-wrap items-baseline gap-3">
-      @if (session.leagues().length) {
-        <nz-select
-          class="w-72"
-          nzSize="small"
-          data-lineup-league
-          [ngModel]="leagueKey()"
-          (ngModelChange)="chooseLeague($event)"
-        >
-          @for (option of leagueOptions(); track option.key) {
-            <nz-option [nzValue]="option.key" [nzLabel]="option.label" />
-          }
-        </nz-select>
-      }
       @if (md(); as day) {
-        <!-- WHEN Leghe was read, and whether this look cost any request (the cache, `core/leghe-cache.ts`). -->
-        <span class="text-xs text-muted" data-lineup-read [attr.data-leghe-requests]="day.requests" [attr.data-offline]="session.offline() ? '' : null">
-          @if (session.offline()) {
-            {{ day.team?.name }} · dati aggiornati {{ storedOn() }}
-          } @else {
-            {{ day.team?.name }} · letta {{ readTime() }}{{ day.requests ? '' : ' · dalla cache' }}
-          }
+        <!-- WHICH SQUAD and WHEN its export was loaded: the file is a reading, and it ages. -->
+        <span class="text-xs text-muted" data-lineup-read>
+          {{ day.team?.name }} · rosa caricata {{ storedOn() }} · {{ rosterFile.file()?.fileName }}
         </span>
       }
     </div>
     <div actions class="flex items-baseline gap-1">
-      @if (session.league()) {
-        <button
-          nz-button
-          nzSize="small"
-          nz-tooltip
-          [nzTooltipTitle]="session.offline() ? 'Collegati per aggiornare' : 'Rileggi rosa e probabili da Leghe'"
-          [nzLoading]="session.matchday.isLoading()"
-          (click)="reread()"
-          data-lineup-refresh
-        >
-          <nz-icon nzType="reload" />
-        </button>
-      }
       @if (md()) {
         <button
           nz-button
@@ -54,7 +24,7 @@
         </button>
       }
       <button nz-button nzSize="small" (click)="connecting.set(true)" data-lineup-connect>
-        <nz-icon nzType="login" />{{ session.leagues().length ? 'Account' : 'Collegati a Leghe' }}
+        <nz-icon nzType="cloud-upload" />Carica rosa
       </button>
     </div>
   </ui-app-header>
@@ -104,28 +74,26 @@
     </div>
   }
 
-  @if (!session.leagues().length) {
-    <!-- NOT CONNECTED: say what the page needs and offer the one way in. -->
+  @if (!rosterFile.ready()) {
+    <!-- NO ROSTER YET: say what the page needs and offer the one way in. -->
     <div class="flex flex-col items-start gap-2 rounded border border-border bg-surface p-4">
-      <b>Collega il tuo account</b>
+      <b>Carica la tua rosa</b>
       <p class="text-sm text-muted">
-        La pagina legge da Leghe la tua rosa, le regole della lega e l'avversario della prossima giornata.
+        Carica l'export delle rose della tua lega (il file CSV di Leghe o EuroLeghe) e scegli la tua squadra.
       </p>
-      <button nz-button nzType="primary" (click)="connecting.set(true)">
-        <nz-icon nzType="login" />Collegati a Leghe
+      <button nz-button nzType="primary" (click)="connecting.set(true)" data-lineup-connect-empty>
+        <nz-icon nzType="cloud-upload" />Carica rosa
       </button>
     </div>
   } @else {
-    @if (session.error(); as error) {
-      <nz-alert
-        nzType="error"
-        nzShowIcon
-        [nzMessage]="error.message"
-        [nzDescription]="error.kind === 'expired' || error.kind === 'no-proxy' || error.kind === 'no-login' ? 'Riapri «Account» per collegarti.' : ''"
-      />
+    @if (unknownMen()) {
+      <p class="text-xs text-warning" data-lineup-unknown>
+        {{ unknownMen() }} calciatori della rosa non sono nel listone {{ rosterFile.file()?.platform === 'euro' ? 'EuroLeghe' : 'Serie A' }}: non li mostro.
+      </p>
     }
 
     @if (md(); as day) {
+      @if (day.competitions.length) {
       <!-- THE MATCHDAY: when it closes, and what is at stake in each competition. -->
       <section class="rounded border border-border bg-surface" data-lineup-matchday [attr.data-open]="matchdayOpen() ? '' : null">
         <button
@@ -195,6 +163,7 @@
           </dl>
         }
       </section>
+      }
 
       <!-- ONE GROUP OF DROP LISTS for the table, the eleven places, the bench and the switch (operator, 09/10/2026:
            «dalla tabella al campo (o alla panchina e viceversa) ... dalla panchina al campo (e viceversa)»): CDK
@@ -603,13 +572,11 @@
           }
         </section>
       </div>
-    } @else if (session.matchday.isLoading()) {
-      <p class="text-sm text-muted">Leggo la lega da Leghe…</p>
     }
   }
 </div>
 
-<ui-leghe-connect [(open)]="connecting" />
+<ui-roster-upload [(open)]="connecting" />
 
 <!-- LE CARD: il click su un nome apre la sua scheda (operatore, 09/10/2026, «ricorda sempre»). La stessa card
      delle altre pagine, fuori dal contenitore perché è `fixed`; nessun tavolo, quindi nessun bottone d'asta. -->
