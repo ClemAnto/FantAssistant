@@ -1,15 +1,17 @@
-import { Injectable, computed } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 
 import { LegheLeague, LeghePlatform } from './leghe-api';
 import { LegheTeam, NextMatchRow } from './leghe-matchday';
 import { LegheGame, parseRules } from './leghe-rules';
 import { LeagueMatchday } from './leghe-session';
+import { NextRoundStore } from './next-round-store';
 import { PlayerRow } from './players-store';
 import { parseAwards } from './sealed-bid';
-import { storedJson } from './view-state';
+import { storedJson, storedText } from './view-state';
+import { WidgetFeed } from './widget-feed';
 
 /**
- * THE ROSTER FROM A FILE (16/10/2026), and no login at all (operator: «cambiamo completamente paradigma: non ci
+ * THE ROSTERS FROM FILES (16/10/2026), and no login at all (operator: «cambiamo completamente paradigma: non ci
  * serve fare il login sulla piattaforma ... utilizziamo semplicemente il file csv esportabile»).
  *
  * The file is the league's own roster export - Leghe and EuroLeghe write the same one: `team,fc_id,credits`,
@@ -17,11 +19,17 @@ import { storedJson } from './view-state';
  * sealed-bid page already uses on the same export, so the two pages cannot read two different rosters out of
  * one file. The `fc_id` is fantacalcio.it's id, which is the bundle's key: a man joins the listone by identity.
  *
+ * AS MANY ROSTERS AS HE LOADS, each one fantasquadra (operator, same day: «si possano caricare più rose e che
+ * restino tutte in memoria (come squadre diverse) e poi successivamente si possa semplicemente selezionare la
+ * squadra»): one entry per (listone, league, his squad), and a newer export of the same league replaces its
+ * entry instead of adding a twin. And ON EVERY DEVICE («caricando una rosa su un dispositivo poi la rosa resta
+ * visibile per ogni dispositivo»): the list is merged with the press sheet's copy (`scripts/gas/rosters.gs`,
+ * same deployment as the widget, same secret), per entry and by date, a removal travelling as a tombstone.
+ *
  * WHAT THE FILE DOES NOT CARRY, said rather than filled in: the league's lineup RULES (allowed modules, bench,
  * modifiers - the rulebook's whole module list applies), the competitions and this matchday's OPPONENT, the
  * platform's probable-starter percentage, and the deadline. And so no lineup is SAVED anywhere: the page draws
- * it, he types it into Leghe. What he declares here instead - the listone (which platform), the game and which
- * of the squads is his - is stored with the file.
+ * it, he types it into Leghe.
  */
 
 /** One squad of the file, in the file's order. */
@@ -30,6 +38,7 @@ export interface FileTeam {
   ids: number[];
 }
 
+/** A file loaded and the three things he declared about it. */
 export interface RosterFile {
   fileName: string;
   /** When it was loaded: the date the page shows, because the file is a reading and it ages. */
@@ -41,6 +50,14 @@ export interface RosterFile {
   game: LegheGame;
 }
 
+/** One stored fantasquadra. `removed` = a tombstone, kept so a removal reaches the other devices too. */
+export interface SavedRoster extends RosterFile {
+  key: string;
+  /** When this entry last changed on any device: the merge keeps the later one. */
+  updatedAt: string;
+  removed?: boolean;
+}
+
 /** The squads of an export, in the order the file lists them. Empty = not a roster export. */
 export function parseRosterFile(csv: string): FileTeam[] {
   const byTeam = new Map<string, number[]>();
@@ -50,6 +67,32 @@ export function parseRosterFile(csv: string): FileTeam[] {
     byTeam.set(award.team, ids);
   }
   return [...byTeam].map(([name, ids]) => ({ name, ids }));
+}
+
+/**
+ * The league's name as the export file carries it: Leghe names it `<league>_rosters_<timestamp>.csv`, so
+ * `neuroseghe_rosters_1792146043476.csv` is «neuroseghe». Anything else: the name without extension and digits.
+ */
+export function leagueOfFile(fileName: string): string {
+  const base = fileName.replace(/^.*[\\/]/, '').replace(/\.[^.]*$/, '').replace(/^['"]+|['"]+$/g, '');
+  const m = base.match(/^(.*?)_rosters(?:_\d+)?$/i);
+  const name = (m ? m[1] : base.replace(/[_\s-]*\d+$/, '')).replace(/^['"]+/, '').trim();
+  return name || base;
+}
+
+/** The entry's identity: listone, league, his squad - a newer export of the same league lands on the same key. */
+export function rosterKey(file: Pick<RosterFile, 'platform' | 'fileName' | 'team'>): string {
+  return `${file.platform}:${leagueOfFile(file.fileName).toLowerCase()}:${file.team ?? ''}`;
+}
+
+/** Per key, the later `updatedAt` wins - a tombstone included. The order: newest first. */
+export function mergeRosters(a: readonly SavedRoster[], b: readonly SavedRoster[]): SavedRoster[] {
+  const byKey = new Map<string, SavedRoster>();
+  for (const one of [...a, ...b]) {
+    const seen = byKey.get(one.key);
+    if (!seen || one.updatedAt > seen.updatedAt) byKey.set(one.key, one);
+  }
+  return [...byKey.values()].sort((x, y) => (x.updatedAt < y.updatedAt ? 1 : -1));
 }
 
 /**
@@ -103,7 +146,7 @@ export function matchdayFromFile(
     roster.push({
       fcId,
       name: row.name,
-      roles: file.game === 'mantra' ? (row.mantraCodes.length ? row.mantraCodes : []) : [row.role],
+      roles: file.game === 'mantra' ? row.mantraCodes : [row.role],
       club: row.club,
       championship: (row.league && CHAMPIONSHIP[row.league]) ?? '',
       match: '',
@@ -121,7 +164,7 @@ export function matchdayFromFile(
   const league: LegheLeague = {
     platform: file.platform,
     id: 0,
-    name: file.fileName,
+    name: leagueOfFile(file.fileName),
     alias: '',
     jwt: '',
     game: file.game,
@@ -145,52 +188,164 @@ export function matchdayFromFile(
   };
 }
 
-const sanitise = (raw: unknown): RosterFile | null => {
-  const o = raw as Partial<RosterFile> | null;
-  if (!o || typeof o !== 'object' || !Array.isArray(o.teams) || typeof o.fileName !== 'string') return null;
-  const teams = o.teams.filter(
-    (t): t is FileTeam => !!t && typeof t.name === 'string' && Array.isArray(t.ids) && t.ids.every(Number.isFinite),
-  );
-  if (!teams.length) return null;
+const isTeam = (t: unknown): t is FileTeam =>
+  !!t &&
+  typeof (t as FileTeam).name === 'string' &&
+  Array.isArray((t as FileTeam).ids) &&
+  (t as FileTeam).ids.every((id) => typeof id === 'number' && Number.isFinite(id));
+
+/** One stored entry as it came off the disk or the sheet; null = not one we can read. */
+export function readSaved(raw: unknown): SavedRoster | null {
+  const o = raw as Partial<SavedRoster> | null;
+  if (!o || typeof o !== 'object' || typeof o.key !== 'string' || typeof o.updatedAt !== 'string') return null;
+  if (o.removed) return { key: o.key, updatedAt: o.updatedAt, removed: true, fileName: '', loadedAt: o.updatedAt, teams: [], team: null, platform: 'classic', game: 'classic' };
+  if (typeof o.fileName !== 'string' || !Array.isArray(o.teams)) return null;
+  const teams = o.teams.filter(isTeam);
+  if (!teams.length || typeof o.team !== 'string' || !teams.some((t) => t.name === o.team)) return null;
   return {
+    key: o.key,
+    updatedAt: o.updatedAt,
     fileName: o.fileName,
-    loadedAt: typeof o.loadedAt === 'string' ? o.loadedAt : new Date().toISOString(),
+    loadedAt: typeof o.loadedAt === 'string' ? o.loadedAt : o.updatedAt,
     teams,
-    team: typeof o.team === 'string' && teams.some((t) => t.name === o.team) ? o.team : null,
+    team: o.team,
     platform: o.platform === 'euro' ? 'euro' : 'classic',
     game: o.game === 'mantra' ? 'mantra' : 'classic',
   };
-};
+}
 
-/** The loaded file and his declarations, remembered by this browser (`localStorage`): rosters, not credentials. */
+const readList = (raw: unknown): SavedRoster[] =>
+  Array.isArray(raw) ? raw.map(readSaved).filter((one): one is SavedRoster => !!one) : [];
+
+export type RosterSync =
+  | { kind: 'off'; why: string }
+  | { kind: 'syncing' }
+  | { kind: 'done'; at: Date }
+  | { kind: 'failed'; why: string };
+
+/** The rosters he loaded, remembered by this browser and merged with the sheet's copy. */
 @Injectable({ providedIn: 'root' })
 export class RosterFileStore {
-  readonly file = storedJson<RosterFile | null>('lineup.roster-file', sanitise);
+  private readonly sheet = inject(NextRoundStore);
+  private readonly widget = inject(WidgetFeed);
 
-  readonly ready = computed(() => !!this.file()?.team);
+  /** Every entry, tombstones included (they are what tells another device a roster was removed). */
+  private readonly saved = storedJson<SavedRoster[]>('lineup.rosters', readList);
+  /** The fantasquadra on screen, by key. */
+  private readonly chosenKey = storedText('lineup.roster', '');
 
-  /** A new export: his previous choice of squad survives when the new file still has a squad of that name. */
-  load(fileName: string, csv: string, platform: LeghePlatform, game: LegheGame): number {
-    const teams = parseRosterFile(csv);
-    if (!teams.length) return 0;
-    const before = this.file()?.team ?? null;
-    this.file.set({
-      fileName,
-      loadedAt: new Date().toISOString(),
-      teams,
-      team: before && teams.some((t) => t.name === before) ? before : null,
-      platform,
-      game,
-    });
-    return teams.length;
+  readonly sync = signal<RosterSync>({ kind: 'off', why: '' });
+
+  /** The live entries, newest first. */
+  readonly rosters = computed(() => this.saved().filter((one) => !one.removed));
+
+  /** The one on screen: the chosen entry, else the newest. */
+  readonly file = computed<SavedRoster | null>(() => {
+    const all = this.rosters();
+    return all.find((one) => one.key === this.chosenKey()) ?? all[0] ?? null;
+  });
+
+  readonly ready = computed(() => !!this.file());
+
+  constructor() {
+    void this.pull();
   }
 
-  update(change: Partial<Pick<RosterFile, 'team' | 'platform' | 'game'>>): void {
-    const file = this.file();
-    if (file) this.file.set({ ...file, ...change });
+  choose(key: string): void {
+    this.chosenKey.set(key);
   }
 
-  forget(): void {
-    this.file.set(null);
+  /** A loaded file with his three declarations becomes an entry (a newer export of the same one replaces it). */
+  add(file: RosterFile): string {
+    const now = new Date().toISOString();
+    const entry: SavedRoster = { ...file, key: rosterKey(file), updatedAt: now };
+    this.saved.set(mergeRosters(this.saved(), [entry]));
+    this.chosenKey.set(entry.key);
+    void this.push();
+    return entry.key;
+  }
+
+  remove(key: string): void {
+    const now = new Date().toISOString();
+    const gone: SavedRoster = { key, updatedAt: now, removed: true, fileName: '', loadedAt: now, teams: [], team: null, platform: 'classic', game: 'classic' };
+    this.saved.set(mergeRosters(this.saved(), [gone]));
+    void this.push();
+  }
+
+  /** «Sincronizza»: the sheet's list merged into this one, and this one sent back. */
+  async refresh(): Promise<void> {
+    if (await this.pull()) await this.push();
+  }
+
+  private where(): { base: string; secret: string } | null {
+    const base = this.sheet.url().trim();
+    const secret = this.widget.secret().trim();
+    if (!base) {
+      this.sync.set({ kind: 'off', why: 'nessun indirizzo del foglio' });
+      return null;
+    }
+    if (!secret) {
+      this.sync.set({ kind: 'off', why: 'scrivi la chiave segreta per averle su ogni dispositivo' });
+      return null;
+    }
+    return { base, secret };
+  }
+
+  /** Reads the sheet's list and merges it in. True = it answered. */
+  private async pull(): Promise<boolean> {
+    const at = this.where();
+    if (!at) return false;
+    this.sync.set({ kind: 'syncing' });
+    const answer = await this.call(() =>
+      fetch(`${at.base}${at.base.includes('?') ? '&' : '?'}what=rosters&secret=${encodeURIComponent(at.secret)}`, { redirect: 'follow' }),
+    );
+    if (!answer) return false;
+    this.saved.set(mergeRosters(this.saved(), readList(answer.rosters)));
+    this.sync.set({ kind: 'done', at: new Date() });
+    return true;
+  }
+
+  /** Sends this list; the sheet answers the merge, which is adopted. */
+  private async push(): Promise<void> {
+    const at = this.where();
+    if (!at) return;
+    this.sync.set({ kind: 'syncing' });
+    const body = JSON.stringify({ kind: 'rosters', secret: at.secret, rosters: this.saved() });
+    const answer = await this.call(() =>
+      fetch(at.base, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body }),
+    );
+    if (!answer) return;
+    this.saved.set(mergeRosters(this.saved(), readList(answer.rosters)));
+    this.sync.set({ kind: 'done', at: new Date() });
+  }
+
+  /**
+   * One request with three tries, for the reason `NextRoundStore` and `WidgetFeed` have them: Apps Script's second
+   * hop fails by itself now and then. A refusal the sheet SAYS (a wrong secret) is not retried.
+   */
+  private async call(request: () => Promise<Response>): Promise<{ rosters: unknown } | null> {
+    let last = '';
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const res = await request();
+        let raw: { ok?: boolean; why?: string; rosters?: unknown } | null = null;
+        try {
+          raw = JSON.parse(await res.text());
+        } catch {
+          raw = null;
+        }
+        if (raw?.ok) return { rosters: raw.rosters };
+        if (raw && raw.ok === false) {
+          this.sync.set({ kind: 'failed', why: raw.why ?? 'il foglio ha rifiutato' });
+          return null;
+        }
+        last = res.ok ? 'il foglio non conosce ancora le rose (va aggiunto rosters.gs e ridistribuito)' : `il foglio ha risposto ${res.status}`;
+      } catch (error) {
+        last = error instanceof Error ? error.message : String(error);
+      }
+      if (attempt < 3) await new Promise((go) => setTimeout(go, 600));
+    }
+    this.sync.set({ kind: 'failed', why: last });
+    return null;
   }
 }

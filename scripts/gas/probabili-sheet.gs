@@ -1768,6 +1768,8 @@ function doGet(e) {
   if (e && e.parameter && e.parameter.what === 'odds') return oddsGet_();
   // The Android widget's match list lives in `widget.gs`, a third file of this project (10/10/2026).
   if (e && e.parameter && (e.parameter.what === 'widget' || e.parameter.what === 'widgetPage')) return widgetGet_(e);
+  // The roster files shared between devices live in `rosters.gs` (16/10/2026).
+  if (e && e.parameter && e.parameter.what === 'rosters') return rosterGet_(e);
   var round = e && e.parameter && e.parameter.round ? Number(e.parameter.round) : null;
   var cached = CacheService.getScriptCache().get('next:' + round);
   if (cached) return json_(cached);

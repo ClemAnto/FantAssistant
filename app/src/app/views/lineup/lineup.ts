@@ -21,7 +21,7 @@ import { NextMatchRow, fcTeamNames } from '../../core/leghe-matchday';
 import { moduleLabel, rulesSummary } from '../../core/leghe-rules';
 import { DropTarget, LineupDraft, NO_SWITCH, draftOf, drawDraft, move, relayout } from '../../core/lineup-edit';
 import { LegheSession } from '../../core/leghe-session';
-import { RosterFileStore, matchdayFromFile } from '../../core/roster-file';
+import { RosterFileStore, leagueOfFile, matchdayFromFile } from '../../core/roster-file';
 import { PlayerStatus } from '../../core/player-status';
 import { FvaInput, fvaOf, fvaWords, oddsScale, restPerMatch } from '../../core/fva';
 import { calendarBookFrom } from '../../core/keeper-pairs';
@@ -483,20 +483,22 @@ export class Lineup {
   });
 
   /**
-   * THE FANTASQUADRA ON SCREEN, as a key: listone and squad name, so a newer export of the same league keeps the
-   * same key (the widget's entry, the draft's owner) while another squad or another listone is another one.
+   * THE FANTASQUADRA ON SCREEN, as the roster entry's key (listone, league, squad): a newer export of the same league
+   * keeps it (the widget's entry, the draft's owner), another squad or league is another one.
    */
-  protected readonly leagueKey = computed(() => {
-    const file = this.rosterFile.file();
-    return file?.team ? `file:${file.platform}:${file.team}` : null;
-  });
+  protected readonly leagueKey = computed(() => this.rosterFile.file()?.key ?? null);
 
-  /** The widget's label for this squad: «EuroLeghe · Squadra». */
-  protected readonly leagueOptions = computed(() => {
-    const file = this.rosterFile.file();
-    const key = this.leagueKey();
-    return file && key ? [{ key, label: `${LEGHE[file.platform].label} · ${file.team}` }] : [];
-  });
+  /** One option per stored roster: «EuroLeghe · lega · squadra», what the selector and the widget's label read. */
+  protected readonly leagueOptions = computed(() =>
+    this.rosterFile.rosters().map((one) => ({
+      key: one.key,
+      label: `${LEGHE[one.platform].label} · ${leagueOfFile(one.fileName)} · ${one.team}`,
+    })),
+  );
+
+  protected chooseRoster(key: string): void {
+    this.rosterFile.choose(key);
+  }
 
   /**
    * When Leghe was read: «alle 14:32» today, the day too otherwise - a cached reading of yesterday drawn as

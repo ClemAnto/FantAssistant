@@ -2,11 +2,17 @@
 <div class="mx-auto flex min-h-full max-w-[1500px] flex-col gap-3 p-4">
   <ui-app-header>
     <div class="flex flex-wrap items-baseline gap-3">
+      @if (leagueOptions().length) {
+        <!-- THE FANTASQUADRA: one per roster loaded, on any device (`core/roster-file.ts`). -->
+        <nz-select class="w-80" nzSize="small" data-lineup-league [ngModel]="leagueKey()" (ngModelChange)="chooseRoster($event)">
+          @for (option of leagueOptions(); track option.key) {
+            <nz-option [nzValue]="option.key" [nzLabel]="option.label" />
+          }
+        </nz-select>
+      }
       @if (md(); as day) {
-        <!-- WHICH SQUAD and WHEN its export was loaded: the file is a reading, and it ages. -->
-        <span class="text-xs text-muted" data-lineup-read>
-          {{ day.team?.name }} · rosa caricata {{ storedOn() }} · {{ rosterFile.file()?.fileName }}
-        </span>
+        <!-- WHEN its export was loaded: the file is a reading, and it ages. -->
+        <span class="text-xs text-muted" data-lineup-read>rosa caricata {{ storedOn() }}</span>
       }
     </div>
     <div actions class="flex items-baseline gap-1">

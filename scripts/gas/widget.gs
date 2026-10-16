@@ -72,6 +72,8 @@ function doPost(e) {
   } catch (err) {
     return json_(JSON.stringify({ ok: false, why: 'il corpo non e\' JSON' }));
   }
+  // The roster files shared between devices live in `rosters.gs` (16/10/2026): same doPost, told apart by `kind`.
+  if (body.kind === 'rosters') return rosterPost_(body);
   var secret = PropertiesService.getScriptProperties().getProperty('WIDGET_SECRET');
   if (!secret) return json_(JSON.stringify({ ok: false, why: 'WIDGET_SECRET non e\' impostato nello script' }));
   if (body.secret !== secret) return json_(JSON.stringify({ ok: false, why: 'chiave segreta sbagliata' }));
