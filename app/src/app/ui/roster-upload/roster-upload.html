@@ -71,6 +71,17 @@
             }
           </nz-select>
         </div>
+        @if (d.team && targets().length) {
+          <div class="flex flex-col gap-1">
+            <span class="text-xs text-muted">Aggiorna</span>
+            <nz-select nzSize="small" [ngModel]="target() ?? newSquad" (ngModelChange)="setTarget($event)" data-roster-target>
+              <nz-option [nzValue]="newSquad" nzLabel="Nuova squadra" />
+              @for (one of targets(); track one.key) {
+                <nz-option [nzValue]="one.key" [nzLabel]="one.label" />
+              }
+            </nz-select>
+          </div>
+        }
         <div class="flex justify-end">
           <button nz-button nzType="primary" nzSize="small" [disabled]="!d.team" (click)="add()" data-roster-done>Salva</button>
         </div>

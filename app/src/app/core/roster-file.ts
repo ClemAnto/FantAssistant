@@ -80,9 +80,37 @@ export function leagueOfFile(fileName: string): string {
   return name || base;
 }
 
-/** The entry's identity: listone, league, his squad - a newer export of the same league lands on the same key. */
-export function rosterKey(file: Pick<RosterFile, 'platform' | 'fileName' | 'team'>): string {
-  return `${file.platform}:${leagueOfFile(file.fileName).toLowerCase()}:${file.team ?? ''}`;
+/**
+ * A NEW FANTASQUADRA'S IDENTITY: a random id, minted once and kept for good (operator, 19/10/2026: «la chiave delle
+ * squadre dovrebbe essere un id e non il nome»). The export carries no id of the squad or the league - only names and
+ * the players' `fc_id` - so a name-derived key changed whenever the same squad arrived by another road (it did, from
+ * the Leghe login to the file, and the widget showed every man twice). Entries stored before this keep the key they
+ * had: it is an id now, whatever it was made of.
+ */
+export function newRosterId(): string {
+  const c = globalThis.crypto as Crypto | undefined;
+  return `r-${c?.randomUUID ? c.randomUUID() : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+}
+
+/**
+ * WHICH STORED SQUAD a newer export most likely updates: same listone, same league (the file's own prefix) and a squad
+ * of the same name. The ONLY place a name decides anything, and only as the default of a choice he can change - a
+ * renamed squad is picked by hand.
+ */
+export function matchingRoster(
+  rosters: readonly SavedRoster[],
+  file: Pick<RosterFile, 'platform' | 'fileName' | 'team'>,
+): SavedRoster | null {
+  const league = leagueOfFile(file.fileName).toLowerCase();
+  return (
+    rosters.find(
+      (one) =>
+        !one.removed &&
+        one.platform === file.platform &&
+        one.team === file.team &&
+        leagueOfFile(one.fileName).toLowerCase() === league,
+    ) ?? null
+  );
 }
 
 /** Per key, the later `updatedAt` wins - a tombstone included. The order: newest first. */
@@ -255,10 +283,14 @@ export class RosterFileStore {
     this.chosenKey.set(key);
   }
 
-  /** A loaded file with his three declarations becomes an entry (a newer export of the same one replaces it). */
-  add(file: RosterFile): string {
+  /**
+   * A loaded file with his three declarations becomes an entry: it UPDATES the squad he chose (`replace`, its id kept,
+   * so the widget and every device go on seeing the same squad) or is a new squad with a new id.
+   */
+  add(file: RosterFile, replace: string | null): string {
     const now = new Date().toISOString();
-    const entry: SavedRoster = { ...file, key: rosterKey(file), updatedAt: now };
+    const key = replace && this.rosters().some((one) => one.key === replace) ? replace : newRosterId();
+    const entry: SavedRoster = { ...file, key, updatedAt: now };
     this.saved.set(mergeRosters(this.saved(), [entry]));
     this.chosenKey.set(entry.key);
     void this.push();

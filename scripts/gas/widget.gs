@@ -89,15 +89,6 @@ function doPost(e) {
         id: Number(p.id) > 0 ? Number(p.id) : 0
       };
     });
-  // ONE FANTASQUADRA, ONE ENTRY, whatever key it was sent under (19/10/2026). The Lineup page keyed a squad on its
-  // Leghe login until 16/10 and on its roster file since, so the same squad sent again arrived under a NEW key and
-  // the widget showed every man twice. The label names the fantasquadra («EuroLeghe · lega · squadra»), and the two
-  // eras spell the league with different capitals, so it is compared without case: an entry with the same label
-  // under another key is the same squad sent before, and goes.
-  var sameLabel = String(body.label || body.key).trim().toLowerCase();
-  Object.keys(squads).forEach(function (key) {
-    if (key !== body.key && String(squads[key].label || key).trim().toLowerCase() === sameLabel) delete squads[key];
-  });
   if (players.length) squads[body.key] = { label: String(body.label || body.key), sentAt: new Date().toISOString(), players: players };
   else delete squads[body.key];
   PropertiesService.getScriptProperties().setProperty('widget:squads', JSON.stringify(squads));
